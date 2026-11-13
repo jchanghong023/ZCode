@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { createConnection } from "node:net";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { isRealComputerUseProducerInstalled } from "../packages/desktop/scripts/computer-use-producer.mjs";
@@ -16,6 +19,78 @@ if (requestedEnv !== "test" && requestedEnv !== "production") {
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const VITE_DEV_PORT = 5174;
+
+function fail(message) {
+  console.error(`[dev-desktop] ${message}`);
+  process.exit(1);
+}
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPortInUse(port, host) {
+  return new Promise((resolveProbe) => {
+    const socket = createConnection({ port, host });
+    socket.setTimeout(500);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolveProbe(true);
+    });
+    socket.once("error", () => resolveProbe(false));
+    socket.once("timeout", () => {
+      socket.destroy();
+      resolveProbe(false);
+    });
+  });
+}
+
+/**
+ * 并发 `pnpm dev:desktop` 会让后启动的实例在 pre-dev 阶段 `rm -rf packages/desktop/out`，
+ * 把前一个实例刚写好的 tsup ready marker 与产物一起删掉；`dev.mjs` 随后一直等到
+ * `mainBundle=missing`，表现为“启动失败”，实际是两份 watch 互相清目录。
+ * 这里在任何破坏性步骤之前先确认没有别的 dev:desktop（锁文件 pid + Vite 端口双重判断）。
+ */
+async function assertNoOtherDevInstance() {
+  const lockPath = join(
+    tmpdir(),
+    `zcode-dev-desktop-${createHash("sha1").update(repoRoot).digest("hex").slice(0, 8)}.pid`,
+  );
+  if (existsSync(lockPath)) {
+    const pid = Number(readFileSync(lockPath, "utf8").trim());
+    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && isProcessAlive(pid)) {
+      fail(`已有 dev:desktop 实例在运行（pid ${pid}）。先退出该实例再重新启动。`);
+    }
+    // 上次异常退出的残留锁：清理后继续。
+    unlinkSync(lockPath);
+  }
+  for (const host of ["127.0.0.1", "::1"]) {
+    if (await isPortInUse(VITE_DEV_PORT, host)) {
+      fail(
+        `Vite dev server 端口 ${VITE_DEV_PORT}（${host}）已被占用，可能已有 dev:desktop 在运行。`,
+      );
+    }
+  }
+  writeFileSync(lockPath, String(process.pid), "utf8");
+  process.once("exit", () => {
+    try {
+      if (Number(readFileSync(lockPath, "utf8").trim()) === process.pid) {
+        unlinkSync(lockPath);
+      }
+    } catch {
+      // 锁文件已被其他实例替换或删除：不需要处理。
+    }
+  });
+}
+
+await assertNoOtherDevInstance();
+
 // Computer Use Helper 只由真实 producer 提供；开源占位包下不构建 Helper、不注入 Helper 环境。
 // 见 docs/desktop/computer-use-producer-detection.md。
 const hasComputerUseProducer = isRealComputerUseProducerInstalled({
