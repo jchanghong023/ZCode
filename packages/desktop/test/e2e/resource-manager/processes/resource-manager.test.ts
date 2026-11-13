@@ -116,13 +116,12 @@ describe("资源管理器", () => {
 
     const preferences = await browser.execute(() => ({
       theme: localStorage.getItem("zcode-theme"),
-      locale: localStorage.getItem("zcode-locale-preference"),
     }));
     try {
       for (const theme of ["zai-light", "zai-dark"]) {
-        for (const [width, locale, title] of [
-          [640, "zh-CN", "任务进程"],
-          [1200, "en-US", "Task processes"],
+        for (const [width, title] of [
+          [640, "任务进程"],
+          [1200, "任务进程"],
         ] as const) {
           await browser.electron.execute((electron, nextWidth) => {
             const window = electron.BrowserWindow.getAllWindows().find((candidate) =>
@@ -130,14 +129,9 @@ describe("资源管理器", () => {
             );
             window?.setSize(nextWidth, 700);
           }, width);
-          await browser.execute(
-            (nextTheme, nextLocale) => {
-              localStorage.setItem("zcode-theme", nextTheme);
-              localStorage.setItem("zcode-locale-preference", nextLocale);
-            },
-            theme,
-            locale,
-          );
+          await browser.execute((nextTheme) => {
+            localStorage.setItem("zcode-theme", nextTheme);
+          }, theme);
           await browser.refresh();
           await waitForResourceManagerReady();
           const taskGroup = $('[data-testid="resource-manager-group-task"]');
@@ -156,17 +150,14 @@ describe("资源管理器", () => {
           await browser.saveScreenshot(
             join(
               process.env.ZCODE_E2E_ARTIFACT_DIR!,
-              `resource-manager-${theme}-${locale}-${width}.png`,
+              `resource-manager-${theme}-${width}.png`,
             ),
           );
         }
       }
     } finally {
       await browser.execute((previous) => {
-        for (const [key, value] of Object.entries({
-          "zcode-theme": previous.theme,
-          "zcode-locale-preference": previous.locale,
-        })) {
+        for (const [key, value] of Object.entries({ "zcode-theme": previous.theme })) {
           if (value === null) localStorage.removeItem(key);
           else localStorage.setItem(key, value);
         }

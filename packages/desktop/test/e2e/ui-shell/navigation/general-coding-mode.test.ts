@@ -1,5 +1,3 @@
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import {
   TID_LOGIN_TRIGGER,
   TID_SETTINGS_BACK_BUTTON,
@@ -7,7 +5,6 @@ import {
   TID_SETTINGS_SECTION_NAV,
   TID_SIDE_PANE_TOGGLE,
   TID_TASK_SETTINGS_BUTTON,
-  TID_TERMINAL_TOGGLE,
   testId,
 } from "@zcode/shared/test-ids";
 import { clearAppData, clickTestIdByDom } from "#e2e/helpers/desktop-app";
@@ -47,7 +44,6 @@ describe("办公与编程模式 M1", () => {
     await browser.refresh();
     await $(`[data-testid="${TID_LOGIN_TRIGGER}"]`).waitForDisplayed({ timeout: 30000 });
     await waitForMode("coding");
-    expect(await $(`[data-testid="${TID_TERMINAL_TOGGLE}"]`).isExisting()).toBe(true);
     const switches = [
       { event_region: "app.setting", previous_ui_mode: "code", ui_mode: "work" },
       { event_region: "app.profile", previous_ui_mode: "work", ui_mode: "code" },
@@ -99,65 +95,20 @@ describe("办公与编程模式 M1", () => {
     ]);
   });
 
-  it("MODE-02/03 隐藏新建入口，保留已打开审查、终端和 PTY", async () => {
+  it("MODE-02/03 隐藏新建入口，保留已打开审查", async () => {
     await switchMode("office");
     await clickTestIdByDom(TID_SIDE_PANE_TOGGLE);
     await $('[data-side-pane-open-tab-item="browser"]').waitForDisplayed();
     expect(await $('[data-side-pane-open-tab-item="review"]').isExisting()).toBe(false);
-    expect(await $('[data-side-pane-open-tab-item="terminal"]').isExisting()).toBe(false);
-    expect(await $(`[data-testid="${TID_TERMINAL_TOGGLE}"]`).isExisting()).toBe(false);
 
     await switchMode("coding");
     await $('[data-side-pane-open-tab-item="review"]').click();
     await $('[data-side-pane-tab-id="git"]').waitForDisplayed();
-    await $("[data-side-pane-add-tab-trigger]").click();
-    await $('[data-state="active"] [data-side-pane-open-tab-item="terminal"]').click();
-    await $('[data-side-pane-tab-id^="terminal:"]').waitForDisplayed();
-    await clickTestIdByDom(TID_TERMINAL_TOGGLE);
-    await browser.waitUntil(async () => (await terminalHeight()) > 50);
-    const before = await readTabs();
-    const terminalId = before.find((tab) => tab.id.startsWith("terminal:"))!.id;
 
     await switchMode("office");
-    expect(await readTabs()).toEqual(before);
-    expect(await terminalHeight()).toBeGreaterThan(50);
-    expect(await $(`[data-testid="${TID_TERMINAL_TOGGLE}"]`).isExisting()).toBe(false);
-    expect(await $('button[aria-label="新建终端"]').isExisting()).toBe(false);
+    expect(await $('[data-side-pane-tab-id="git"]').isExisting()).toBe(true);
     await $("[data-side-pane-add-tab-trigger]").click();
-    expect(
-      await $('[data-state="active"] [data-side-pane-open-tab-item="terminal"]').isExisting(),
-    ).toBe(false);
     expect(await visibleTexts('[role="menuitem"]')).not.toContain("审查");
-    await $(`[data-side-pane-tab-id="${terminalId}"]`).click();
-
-    const terminalInput = $("[data-workspace-side-frame] .xterm-helper-textarea");
-    await terminalInput.waitForExist();
-    // 冷启动时 textarea 先于 terminal.create 完成出现；等 shell 提示符后再输入，避免命令被丢弃。
-    await browser.waitUntil(async () =>
-      browser.execute(() =>
-        [...document.querySelectorAll("[data-workspace-side-frame] .xterm-rows > div")].some(
-          (row) => /[%$#>]\s*$/.test(row.textContent ?? ""),
-        ),
-      ),
-    );
-    // xterm 的输入 textarea 位于负 z-index，不能作为真实点击目标；点击可见终端后校验焦点。
-    await $("[data-workspace-side-frame] .xterm-screen").click();
-    await browser.waitUntil(async () => terminalInput.isFocused());
-    await browser.keys("printf 'MODE_%s\\n' PTY_ALIVE");
-    await browser.keys("Enter");
-    try {
-      await browser.waitUntil(async () =>
-        browser.execute(() =>
-          [...document.querySelectorAll("[data-workspace-side-frame] .xterm-rows > div")].some(
-            (row) => row.textContent?.trim() === "MODE_PTY_ALIVE",
-          ),
-        ),
-      );
-    } finally {
-      const artifactDir = join(process.cwd(), ".e2e-artifacts", "general-coding-mode");
-      await mkdir(artifactDir, { recursive: true });
-      await browser.saveScreenshot(join(artifactDir, "general-mode-pty.png"));
-    }
 
     await browser.execute(() =>
       document.querySelector<HTMLElement>('[data-side-pane-tab-id="git"]')!.click(),
@@ -167,16 +118,6 @@ describe("办公与编程模式 M1", () => {
     );
     await switchMode("coding");
     await switchMode("office");
-    expect((await readTabs()).find((tab) => tab.id === "git")?.active).toBe(true);
-    expect((await readTabs()).map((tab) => tab.id)).toContain(terminalId);
-
-    await browser.execute((id) => {
-      const tab = [...document.querySelectorAll<HTMLElement>("[data-side-pane-tab-id]")].find(
-        (item) => item.dataset.sidePaneTabId === id,
-      );
-      tab?.querySelector<HTMLButtonElement>("button")?.click();
-    }, terminalId);
-    await browser.waitUntil(async () => !(await readTabs()).some((tab) => tab.id === terminalId));
     expect((await readTabs()).find((tab) => tab.id === "git")?.active).toBe(true);
   });
 
@@ -269,14 +210,6 @@ async function readTabs() {
       id: tab.dataset.sidePaneTabId!,
       active: tab.dataset.state === "active",
     })),
-  );
-}
-
-async function terminalHeight() {
-  return browser.execute(
-    () =>
-      document.querySelector("[data-workspace-terminal-frame]")?.getBoundingClientRect().height ??
-      0,
   );
 }
 

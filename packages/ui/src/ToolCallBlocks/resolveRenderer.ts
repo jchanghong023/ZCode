@@ -31,7 +31,6 @@ import {
   isResumeWorkflowRunToolCall,
   isSaveWorkflowToolCall,
 } from "@/lib/workflowToolNames.js";
-import { CuaToolCallBlock, isCuaToolCall } from "@/ToolCallBlocks/renderers/cua.js";
 import { GoalToolCallBlock } from "@/ToolCallBlocks/renderers/goal.js";
 import { NodeReplToolCallBlock } from "@/ToolCallBlocks/renderers/node-repl.js";
 import { McpToolCallBlock, readMcpToolPresentation } from "@/ToolCallBlocks/renderers/mcp.js";
@@ -53,10 +52,6 @@ import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
 
 export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
-  if (isCuaToolCall(context.toolCallNode.toolCall)) {
-    return CuaToolCallBlock;
-  }
-
   const identity = resolveToolCallIdentity(context.toolCallNode.toolCall);
 
   // 工具目录查询只复用搜索卡片；不改 search family，避免被聚合为 Explore 内容搜索。

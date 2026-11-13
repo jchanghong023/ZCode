@@ -25,10 +25,8 @@ export interface TestActions extends TaskListE2EActions {
   getTheme: () => string;
   /** 设置主题 */
   setTheme: (theme: "light" | "dark" | "zai-light" | "zai-dark" | "system") => void;
-  /** 获取当前语言，仅供跨语言展示 E2E */
+  /** 获取当前语言（固定中文），仅供跨语言展示 E2E */
   getLocale: () => Locale;
-  /** 设置当前语言，仅供跨语言展示 E2E */
-  setLocale: (locale: Locale) => void;
   /** 注入聊天展示用的 mock 消息 */
   setChatMessages: (messages: ChatMessage[]) => void;
   /** 获取当前 mock 消息数量 */

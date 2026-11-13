@@ -1,86 +1,42 @@
 # 界面语言（UI Locales）
 
-## 支持的语言
+## 当前规则：UI 单语中文
 
-| Locale  | 本名（菜单显示） | 文案表                                  |
-| ------- | ---------------- | --------------------------------------- |
-| `zh-CN` | 中文简体         | `packages/ui/src/i18n/locales/zh-CN.ts` |
-| `en-US` | English          | `packages/ui/src/i18n/locales/en-US.ts` |
-| `ja-JP` | 日本語           | `packages/ui/src/i18n/locales/ja-JP.ts` |
-| `ru-RU` | Русский          | `packages/ui/src/i18n/locales/ru-RU.ts` |
-| `ko-KR` | 한국어           | `packages/ui/src/i18n/locales/ko-KR.ts` |
+应用界面只有中文一种语言，固定 `zh-CN`：
 
-唯一事实源：`packages/shared/src/protocol.ts` 的 `SUPPORTED_LOCALES`（`Locale` 类型由它推导）。
-本名表 `LOCALE_NATIVE_NAMES` 与辅助函数在 `packages/shared/src/locale.ts`。
-设置页语言下拉、侧栏个人菜单「界面语言」和 `LocaleSwitcher` 都按 `SUPPORTED_LOCALES` 渲染，
-选项显示本名，不随界面语言翻译。手机 Web 远控复用同一个设置页组件。
+- 唯一文案表：`packages/ui/src/i18n/locales/zh-CN.ts`，由 `packages/ui/src/i18n/localeMessages.ts` 的 `UI_MESSAGES` 导出。
+- `ZCodeIntlProvider` 不再接收语言相关 props（`initialLocale` / `preferSettingServiceLocale` / `resolveSystemLocale`），也不再读 `setting.json`、`localStorage`、`navigator.language`。
+- 已删除：语言切换入口（设置页语言下拉、侧栏个人菜单「界面语言」、`LocaleSwitcher`）、跟随系统语言、跨窗口语言广播、`store.locale` 与 `setLocale`。
+- 已删除文案表：`en-US.ts`、`ja-JP.ts`、`ru-RU.ts`、`ko-KR.ts`（合计约 2.5 MB 源文件，原先随首屏下载）。
 
-## 跟随系统
+## 保留但不再用于 UI 的部分
 
-`resolveLocaleFromLanguageTag(tag)`：`zh*`→`zh-CN`，`ja*`→`ja-JP`，`ru*`→`ru-RU`，`ko*`→`ko-KR`，
-其它与空值→`en-US`。Main（`resolveSystemApplicationLocale`）、Renderer（`navigator.language`）、
-ErrorBoundary 都用它，不再各写 `startsWith("zh")`。
+`packages/shared` 的 `Locale` / `SUPPORTED_LOCALES` / `resolveLocaleFromLanguageTag` / `toZhOrEnLocale`
+仍然存在，因为这些是**数据契约**而不是 UI 资源：
 
-## 回退策略
+| 消费方 | 用途 |
+| ------ | ---- |
+| 插件 manifest / 插件安装（`zcode-protocol-v4/pluginInstall.ts`） | 按 locale 取插件显示名回退链 |
+| 服务端分享页、机器人消息、营销投放（`packages/services`） | 服务端内容仍是多语言字段 |
+| Desktop Main 原生菜单、插件沙箱（`packages/desktop/src/main`） | 主进程侧语言解析，不在本次前端删除范围 |
+| CLI（`apps/zcode-cli`） | 独立 i18n 体系 |
+| `setting.json` 读写（`packages/shared/src/locale.ts`） | 旧值兼容，避免旧版本读到未知值重置全部设置 |
 
-1. 文案：`ja-JP`/`ru-RU`/`ko-KR` 合并为 `{ ...enUS, ...<locale> }`（`i18n/localeMessages.ts`），
-   缺 key 显示英文，不露出 key。`zh-CN`、`en-US` 是完整表。
-2. 只有中英两套内容的地方用 `toZhOrEnLocale(locale)`：中文走中文，其它走英文。适用于：
-   官网/奖励/Coding Plan webview、社群链接、分享站路径、Provider 模板名、内置 Skill 描述、
-   营销投放内容渲染、发版说明、机器人消息、手机推送、Main 原生菜单/关于/Finder/右键菜单/日志导出提示、官方版本的请求安全校验界面语言。
-3. 不翻译的内容：日志、协议值、命令、错误码、服务端回传的中英内容。不为新语言新增 key。
+## 请求语言（X-Client-Language）
 
-## X-Client-Language
+`X-Client-Language` 链路不变，仍然由 renderer 把当前界面语言同步给 Main/Host。由于界面语言固定，
+桌面端挂载后推送的值恒为 `zh-CN`，`setting.json` 里残留的其它语言值不再影响该请求头。
+详细链路见 [ZCode Endpoint Client Language Header](../zcode-endpoint-client-language-header.md)。
 
-规则：发往 ZCode/BigModel 服务端的请求，`X-Client-Language` 等于当前界面语言的 BCP-47 值
-（如 `ja-JP`），切换后下一个请求立即生效；不能先降级成中英。详细链路见
-[ZCode Endpoint Client Language Header](../zcode-endpoint-client-language-header.md)。
+## 兼容性
 
-## setting.json 存储格式与降级兼容
+- `setting.json` 中 `locale` / `uiLocale` 等字段可能仍是旧语言值：前端不再读取，下一次写入由
+  `settingService` 按既有规则落盘，不会因为未知值导致整份设置被重置（相关 schema 未改动）。
+- 升级前选择过非中文语言的用户，升级后界面显示中文，不需要迁移操作。
+- `localStorage` 的 `zcode-locale` / `zcode-locale-preference` 不再被读取，残留值无副作用。
 
-问题：v3.17.x 及更早版本的设置 schema 是 `locale: z.enum(["zh-CN","en-US"])`、
-`localePreference: z.enum(["system","zh-CN","en-US"])`，没有 `.catch`。读到 `ja-JP` 等新值时
-`appSettingsSchema.safeParse` 失败，`settingService` 把**整份设置**当默认值返回；之后旧版本任意一次
-`update()`（改设置、窗口尺寸、最近项目等）都以默认值为底合并写盘，磁盘上的全部设置被覆盖丢失。
-降级、或测试版/正式版共用 `~/.zcode/v2/setting.json` 时都会触发。
+## 变更约定
 
-存储格式（统一由 `packages/shared/src/locale.ts` 的函数读写，不要在别处手写）：
-
-| 字段                 | 内容                                                              | 谁读         |
-| -------------------- | ----------------------------------------------------------------- | ------------ |
-| `locale`             | `toZhOrEnLocale(真实语言)`，只有 `zh-CN`/`en-US`                  | 旧版本       |
-| `localePreference`   | `system`/`zh-CN`/`en-US` 照写；`ja-JP`/`ru-RU`/`ko-KR` 写 `en-US` | 旧版本       |
-| `uiLocale`           | 真实界面语言（如 `ja-JP`）                                        | 新版本优先读 |
-| `uiLocalePreference` | 真实界面语言偏好（`system` 或具体语言）                           | 新版本优先读 |
-
-- 写：`settingService` 写盘时用 `toPersistedSettingsLocaleFields(settings)` 覆盖这四个字段。
-  偏好降级成 `en-US` 而不是 `system`：`en-US` 与 `locale` 的降级值一致，也是新语言的文案回退语言；
-  降成 `system` 时中文系统上旧版本会显示中文，离用户“选了非中文语言”的意图更远。
-- 读：`appSettingsSchema` 的 preprocess（`applyPersistedUiLocaleFields`）用
-  `resolvePersistedUiLocale` / `resolvePersistedUiLocalePreference` 把新字段合并回内存的
-  `locale` / `localePreference`；新字段只有在“降级后等于旧字段”时才采信，否则以旧字段为准
-  （旧字段被手改或被只认旧字段的写入者改过）。内存 `AppSettings` 不含新字段，`locale` 始终是真实语言，
-  所以 X-Client-Language、`ZCODE_CLIENT_LANGUAGE`、遥测、Host 兜底等消费方不感知这层转换。
-- 直读原始 JSON 的地方也必须新字段优先：Main 冷启动同步读取（`desktopApplicationLocaleBootstrap.ts`）
-  用 `resolvePersistedUiLocale`；其它读设置的地方都经 `settingService` / `appSettingsSchema`。
-- 旧版本 schema 的顶层 `z.object` 默认 strip（无 `.strict()` / `.passthrough()`），读到新字段不报错，
-  但它写盘时会丢掉新字段：降级后再升级，界面语言回到旧字段的降级值（如 `en-US`），其它设置不丢。
-- 开发期内部版本曾把 `ja-JP` 等直接写进旧字段：新版本照常识别；`shouldPersistSettingsMigrations`
-  检测到旧字段含旧版本不认识的值（`hasLegacyIncompatiblePersistedLocale`）时立即按新格式迁移落盘。
-- 渲染进程 localStorage `zcode-locale-preference` 可能存 `ja-JP`；旧版本读取时会校验并忽略未知值，不影响设置。
-- E2E：`settings/general/settings-client-language-header.test.ts` 的 CLH-03/04/05 断言落盘格式与冷启动请求语言。
-
-## 加新语言的步骤
-
-1. `SUPPORTED_LOCALES` 追加 locale；`LOCALE_NATIVE_NAMES`、`LocaleSwitcher` 的短标签补一项。
-2. `resolveLocaleFromLanguageTag` 加主语言前缀映射。
-3. 新建 `packages/ui/src/i18n/locales/<locale>.ts`（只翻译 `en-US.ts` 已有 key，保持 `{name}` 占位符一致），
-   在 `i18n/localeMessages.ts` 以 `{ ...enUS, ...新表 }` 登记。
-4. 跑 `pnpm typecheck`：所有 `Record<Locale, …>` 穷举会报错，逐个决定补内容或改用 `toZhOrEnLocale`。
-5. 检查「本周」起点（`project-sidebar/timelineDates.ts`）等地区习惯。
-6. 跑 E2E `settings/general/settings-client-language-header.test.ts`。
-
-## 已知限制
-
-- Agent（`apps/zcode-cli`）发出的模型请求仍用 Agent 进程的 `Intl` 语言，需要 App→Agent 传递界面语言（待定方案）。
-- 降级到旧版本后界面语言显示为中/英降级值；旧版本写盘会丢弃 `uiLocale`，再升级时需要重新选择日/俄/韩语（见上文降级兼容）。
+- 新增或修改文案只改 `zh-CN.ts`，不再新增语言文件；文案 key 缺失时回退显示 key 本身。
+- 不要再引入按语言取表的映射、语言选择控件或系统语言探测：这些能力已随单语化删除。
+- `setting.json` 的 locale 字段属于兼容层，除非同时处理旧版本降级，否则不要修改其读写规则。

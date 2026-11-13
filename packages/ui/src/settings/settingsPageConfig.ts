@@ -1,6 +1,5 @@
 import {
   Archive,
-  Share2,
   Folders,
   Monitor,
   Moon,
@@ -26,7 +25,11 @@ import {
   RefreshCw,
   User,
 } from "lucide-react";
-import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
+import {
+  isSettingsSectionEnabled,
+  USAGE_STATS_ENTRY_VISIBLE,
+  type SettingsSectionId,
+} from "@/lib/settingsNavigation.js";
 import type { Theme } from "@/useTheme.js";
 
 export const THEME_MODES: Array<{
@@ -157,14 +160,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     contentTitleId: "settings.remoteDevicesTitle",
     groupId: "basics",
   },
-  // 电脑控制紧跟「浏览器」：两者都是给 Agent 用的本机操控入口，
-  // 放在基础设置里让用户在同一处理解「控制浏览器 / 控制整台电脑」的关系。
-  {
-    id: "computerUse",
-    icon: Monitor,
-    titleId: "settings.computerUse.title",
-    groupId: "basics",
-  },
   // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。
   {
     id: "shortcuts",
@@ -206,13 +201,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "archives.nav",
     groupId: "dataAndStats",
   },
-  // 分享管理排在归档管理之后，仅桌面端（docs/conversation-share-v1.md「设置页分享管理」）。
-  {
-    id: "shares",
-    icon: Share2,
-    titleId: "conversationShare.manage.nav",
-    groupId: "dataAndStats",
-  },
+
   // 暂时隐藏设置页里的 Migration 入口，只保留页面实现，后续可以直接恢复这一项。
   // {
   //   id: "migration",
@@ -221,28 +210,15 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
   // },
 ];
 
-// 兼容既有只读消费者：默认配置代表不带桌面平台能力的 Web 视图；
-// macOS/Windows/Linux 必须继续通过 createSettingsPageConfig 动态加入 Computer Use。
 export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
-  (section) => section.id !== "computerUse" && isSettingsSectionEnabled(section.id),
+  (section) =>
+    isSettingsSectionEnabled(section.id) && (section.id !== "usage" || USAGE_STATS_ENTRY_VISIBLE),
 );
 
-export interface SettingsPageConfigOptions {
-  isDesktop?: boolean;
-  isMacDesktop?: boolean;
-  isWindowsDesktop?: boolean;
-}
-
-export function createSettingsPageConfig({
-  isDesktop = false,
-  isMacDesktop = false,
-  isWindowsDesktop = false,
-}: SettingsPageConfigOptions = {}) {
-  const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
-  const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
-    if (section.id === "computerUse" && !showComputerUse) return false;
-    return isSettingsSectionEnabled(section.id);
-  });
+export function createSettingsPageConfig() {
+  const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) =>
+    isSettingsSectionEnabled(section.id),
+  );
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({
     ...group,
     sections: settingsSections.filter((section) => section.groupId === group.id),
@@ -271,11 +247,7 @@ export const SETTINGS_SECTION_GROUPS = BASE_SETTINGS_SECTION_GROUPS.map((group) 
 export type { SettingsSectionId };
 
 /** 依赖本机 Source Server 管理与设备连接的设置页，Web 与手机远控不显示。 */
-const DESKTOP_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
-  "remoteDevices",
-  "dataSync",
-  "shares",
-]);
+const DESKTOP_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>(["remoteDevices", "dataSync"]);
 
 export function isSettingsSectionAvailable(
   section: SettingsSectionId,

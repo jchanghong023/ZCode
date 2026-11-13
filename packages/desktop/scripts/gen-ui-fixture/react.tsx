@@ -139,7 +139,7 @@ void (async () => {
   let compact = false;
   const renderReply = (phase: "streaming" | "complete" | "hidden") =>
     reactRoot.render(
-      <ZCodeIntlProvider initialLocale="en-US">
+      <ZCodeIntlProvider>
         <TabStoreProvider>
           <ServiceProvider services={remote}>
             <PlatformProvider platform={(mobile ? mobilePlatform : platform) as never}>

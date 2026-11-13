@@ -24,7 +24,7 @@ describe("Login page layout", () => {
   });
 
   for (const theme of ["zai-light", "zai-dark"] as const) {
-    for (const locale of ["en-US", "zh-CN"] as const) {
+    for (const locale of ["zh-CN"] as const) {
       it(`${theme} ${locale}: card and footer remain reachable at desktop, narrow and short sizes`, async () => {
         await browser.waitUntil(
           async () => {
@@ -57,32 +57,25 @@ describe("Login page layout", () => {
         }
         await waitForTestIdByDom(TID_OAUTH_LOGIN_BUTTON);
         await browser.execute(
-          (nextTheme, nextLocale) => {
+          (nextTheme) => {
             const element = document.querySelector('[data-testid="oauth-login-button"]')!;
             const key = Object.keys(element).find((name) => name.startsWith("__reactFiber"))!;
             let fiber = (element as unknown as Record<string, any>)[key];
             let changedTheme = false;
-            let changedLocale = false;
             while (fiber) {
               const value = fiber.memoizedProps?.value;
               if (!changedTheme && value?.getState?.().setTheme) {
                 value.getState().setTheme(nextTheme);
                 changedTheme = true;
               }
-              if (!changedLocale && value?.setLocalePreference) {
-                value.setLocalePreference(nextLocale);
-                changedLocale = true;
-              }
               fiber = fiber.return;
             }
-            if (!changedTheme || !changedLocale)
-              throw new Error("presentation context unavailable");
+            if (!changedTheme) throw new Error("presentation context unavailable");
           },
           theme,
-          locale,
         );
         await browser.waitUntil(() =>
-          browser.execute((value) => document.documentElement.lang === value, locale),
+          browser.execute(() => document.documentElement.lang === "zh-CN"),
         );
         const artifacts = join(process.env.ZCODE_E2E_ARTIFACT_DIR!, "login-layout");
         await mkdir(artifacts, { recursive: true });

@@ -11,7 +11,7 @@ const HISTORY_ID = "sess_e2e_missing_primary_history";
 const HISTORY_BODY = "E2E_MISSING_PRIMARY_HISTORY_BODY";
 const REASON = "该项目主文件夹已被删除或移动";
 type TestWindow = Window & {
-  __testActions?: { setLocale(locale: "zh-CN" | "en-US"): void; setTheme(theme: string): void };
+  __testActions?: { setTheme(theme: string): void };
   __zcodeTabStoreE2E?: { getState(): { activeWorkspacePath: string | null } };
   __zcodeSessionStoreE2E?: {
     getState(): {
@@ -34,7 +34,6 @@ describe("项目主目录失效", () => {
     }
     this.timeout(150_000);
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45_000);
-    await browser.execute(() => (window as TestWindow).__testActions!.setLocale("zh-CN"));
     const root = join(DEFAULT_WORKSPACE, ".zcode-e2e", "missing-primary");
     const primary = join(root, "primary");
     const extra = join(root, "extra");
@@ -196,11 +195,7 @@ describe("项目主目录失效", () => {
       );
       // 旧 E2E 只验证项目行禁用；顶部按钮和原生菜单仍会请求创建，必须独立断言可见失败反馈。
       const beforeNewTask = await readTaskState(primary);
-      for (const locale of ["zh-CN", "en-US"] as const) {
-        await browser.execute(
-          (value) => (window as TestWindow).__testActions!.setLocale(value),
-          locale,
-        );
+      for (const locale of ["zh-CN"] as const) {
         const reason =
           locale === "zh-CN" ? REASON : "This project's main folder has been deleted or moved";
         for (const theme of ["zai-dark", "zai-light"]) {
@@ -231,7 +226,6 @@ describe("项目主目录失效", () => {
         }
       }
       await waitForNewTaskToastToClose();
-      await browser.execute(() => (window as TestWindow).__testActions!.setLocale("zh-CN"));
       await project.$('[data-testid="virtual-project-row"]').click({ button: "right" });
       const contextCreate = $('[data-testid="virtual-project-context-create-task"]');
       await contextCreate.waitForDisplayed();

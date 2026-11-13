@@ -3,7 +3,6 @@ export type MentionCategory =
   | "skills"
   | "commands"
   | "subagents"
-  | "whiteboards"
   | "sessions"
   | "plugins"
   /** 插件 composer.mention 条目给的候选项（docs/plugins/extension-host.md §16.6）：序列化为 insertText 原文。 */
@@ -12,12 +11,11 @@ export type MentionCategory =
   | "elements";
 
 export interface MentionItemData {
-  kind?: "file" | "directory" | "whiteboard";
+  kind?: "file" | "directory";
   path?: string;
   relativePath?: string;
   /** 只用于候选展示；执行路径与 canonical 链接不依赖 root 名。 */
   rootName?: string;
-  boardId?: string;
   scope?: "built-in" | "workspace" | "user" | "plugin";
   source?: "built-in" | "user" | "plugin";
   model?: string;

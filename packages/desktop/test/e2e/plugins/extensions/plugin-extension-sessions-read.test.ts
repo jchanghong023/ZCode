@@ -347,7 +347,7 @@ describe("PLM-EXT-P3B 扩展的会话读连接与商店安装后的激活确认"
       },
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (a) 列表：订阅后的第一个事件是 snapshot，种子会话都在里面。
     evidence.listSnapshot = await log.waitFor(
@@ -449,14 +449,14 @@ describe("PLM-EXT-P3B 扩展的会话读连接与商店安装后的激活确认"
     const readLines = (await log.lines()).filter((line) => line.includes("E2E_READS_"));
     expect(JSON.stringify(readLines)).not.toContain("Reply with exactly");
     await capture("reads-view-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await waitForViewPage(
       VIEW_ID,
       (view) => view.text.includes(REPLY),
       "the rows view should stay after switching presentation",
     );
     await capture("reads-view-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (d) 杀掉扩展进程：新一代重新激活、重新订阅，第一个事件是 reset，镜像里有完整的行。
     const before = await readFixtureState();
@@ -615,7 +615,7 @@ describe("PLM-EXT-P3B 扩展的会话读连接与商店安装后的激活确认"
       (line) => line.includes(`extension activation held plugin=${STORE_B}`),
       "the Window Host should hold the second extension",
     );
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await waitForVisibleActivationRow(STORE_B, "the launcher should show the row for B");
     evidence.rowB = await readActivationRow(STORE_B);
     expect(String(evidence.rowB)).toContain("Needs confirmation");

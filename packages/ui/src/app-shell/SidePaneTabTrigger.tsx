@@ -14,18 +14,15 @@ import {
   FileIcon,
   FileCode2Icon,
   FileDiffIcon,
-  MapIcon,
   MessageSquareTextIcon,
   ListTreeIcon,
   PlugIcon,
   NotepadTextIcon,
   PackageIcon,
-  PaletteIcon,
   ScrollTextIcon,
   ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
-  WaypointsIcon,
   Workflow as WorkflowIcon,
   XIcon,
 } from "lucide-react";
@@ -336,18 +333,6 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <FileDiffIcon className="size-3.5" />;
   }
 
-  if (tab.type === "treemapping") {
-    return <MapIcon className="size-3.5" />;
-  }
-
-  if (tab.type === "whiteboard") {
-    return <PaletteIcon className="size-3.5" />;
-  }
-
-  if (tab.type === "model-trajectory") {
-    return <WaypointsIcon className="size-3.5" />;
-  }
-
   if (tab.type === "new-tab") return <FileIcon className="size-3.5" />;
   if (tab.type === "plugin-market") return <PuzzleIcon className="size-3.5" />;
 
@@ -355,7 +340,7 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <BugIcon className="size-3.5" />;
   }
 
-  if (tab.type === "terminal" || tab.type === "bash-output") {
+  if (tab.type === "bash-output") {
     return <SquareTerminalIcon className="size-3.5" />;
   }
 
@@ -553,18 +538,6 @@ export function getSidePaneTabTitle(
     return formatMessage({ id: "sidePane.review" });
   }
 
-  if (tab.type === "treemapping") {
-    return formatMessage({ id: "treemapping.title" });
-  }
-
-  if (tab.type === "whiteboard") {
-    return tab.title || formatMessage({ id: "whiteboard.title" });
-  }
-
-  if (tab.type === "model-trajectory") {
-    return tab.title?.trim() || formatMessage({ id: "modelTrajectory.title" });
-  }
-
   if (tab.type === "new-tab") return formatMessage({ id: "sidePane.newTab" });
   if (tab.type === "plugin-market") return formatMessage({ id: "workspace.openPluginsSettings" });
 
@@ -572,7 +545,7 @@ export function getSidePaneTabTitle(
     return formatMessage({ id: "developerTools.title" });
   }
 
-  if (tab.type === "terminal" || tab.type === "bash-output") {
+  if (tab.type === "bash-output") {
     return tab.title || formatMessage({ id: "terminal.title" });
   }
 

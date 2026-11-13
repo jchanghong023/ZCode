@@ -8,8 +8,6 @@ export type OpenTabLauncherItemId =
   | "selection-side-conversation"
   | "files"
   | "review"
-  | "terminal"
-  | "browser"
   | "developer-tools";
 
 export function resolveOpenTabLauncherItemIds({
@@ -17,21 +15,13 @@ export function resolveOpenTabLauncherItemIds({
   hasReviewTab,
   canOpenSelectionSideConversation = false,
   canOpenSites = false,
-  supportsEmbeddedBrowser = true,
 }: {
   developerToolsEnabled: boolean;
   hasReviewTab: boolean;
   canOpenSelectionSideConversation?: boolean;
   canOpenSites?: boolean;
-  supportsEmbeddedBrowser?: boolean;
 }): OpenTabLauncherItemId[] {
   const itemIds: OpenTabLauncherItemId[] = ["files"];
-
-  if (supportsEmbeddedBrowser) {
-    itemIds.push("browser");
-  }
-
-  itemIds.push("terminal");
 
   if (!hasReviewTab) {
     itemIds.push("review");

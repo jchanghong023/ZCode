@@ -1112,22 +1112,6 @@ modules:
     layers:
       adapters: .
     owner: desktop
-  # marketing-touch-controller：由 architecture:adopt 登记
-  - id: marketing-touch-controller
-    roots:
-      - packages/ui/src/marketing-touch-contract
-      - packages/ui/src/components/marketing-touch/marketingTouchController.ts
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/components/marketing-touch/marketingTouchController.ts
-      - packages/ui/src/marketing-touch-contract/contract.ts
-    layers:
-      app: .
-    owner: desktop
   # data-sync-service：数据同步分类服务形状与本机设备同步状态（docs/remote/data-sync.md）
   - id: data-sync-service
     roots:
@@ -1844,6 +1828,10 @@ global:
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
 
 exceptions:
+  - id: sidebar-bottom-activity-remove-marketing-edit
+    rule: unmanaged-new-file
+    paths: [packages/ui/src/sidebar-activity/SidebarBottomActivity.tsx]
+    reason: 已准入的上游文件只移除营销 Banner 与全局通知的共享槽位仲裁，保留 GlobalNoticeSurface 渲染；owner、模块边界与全局通知行为不变，接管 sidebar-activity 目录不在本次范围内。
   - id: region-copy-suggested-prompts-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/featureSuggestedPrompts.ts]
@@ -2299,8 +2287,6 @@ exceptions:
       - packages/shared/src/marketingTouch.ts
       - packages/ui/src/app-shell/WorkflowRunHoleParts.tsx
       - packages/ui/src/app-shell/WorkflowRunProvenance.tsx
-      - packages/ui/src/components/marketing-touch/MarketingDialogs.tsx
-      - packages/ui/src/components/marketing-touch/MarketingTouchProvider.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx
     reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言，投放内容仍按中英渲染），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 marketing-touch/workflow-timeline 目录不在本次范围内。

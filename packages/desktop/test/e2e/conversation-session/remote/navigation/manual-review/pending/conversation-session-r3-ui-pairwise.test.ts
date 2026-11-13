@@ -45,38 +45,28 @@ async function setWindowSize(width: number, height: number): Promise<number> {
   return Date.now() - startedAt;
 }
 
-async function setLocaleAndTheme(
-  locale: "zh-CN" | "en-US",
-  theme: "light" | "dark",
-): Promise<{ locale: string; theme: string }> {
+async function applyTheme(theme: "light" | "dark"): Promise<{ theme: string }> {
   const read = () =>
     browser.execute(() => {
       const actions = (
-        window as Window & { __testActions?: { getLocale?: () => string; getTheme?: () => string } }
+        window as Window & { __testActions?: { getTheme?: () => string } }
       ).__testActions;
-      return { locale: actions?.getLocale?.() ?? "", theme: actions?.getTheme?.() ?? "" };
+      return { theme: actions?.getTheme?.() ?? "" };
     });
-  await browser.execute(
-    (nextLocale, nextTheme) => {
-      const actions = (
-        window as Window & {
-          __testActions?: { setLocale?: (l: string) => void; setTheme?: (t: string) => void };
-        }
-      ).__testActions;
-      actions?.setLocale?.(nextLocale);
-      actions?.setTheme?.(nextTheme);
-    },
-    locale,
-    theme,
-  );
-  // locale/theme 切换为异步状态更新：最多等 10s 收敛。
+  await browser.execute((nextTheme) => {
+    const actions = (
+      window as typeof window & { __testActions?: { setTheme?: (t: string) => void } }
+    ).__testActions;
+    actions?.setTheme?.(nextTheme);
+  }, theme);
+  // 主题切换为异步状态更新：最多等 10s 收敛。
   let state = await read();
   await browser.waitUntil(
     async () => {
       state = await read();
-      return state.locale === locale && state.theme.includes(theme);
+      return state.theme.includes(theme);
     },
-    { timeout: 10_000, interval: 300, timeoutMsg: "locale-theme" },
+    { timeout: 10_000, interval: 300, timeoutMsg: "theme" },
   );
   return state;
 }
@@ -125,27 +115,21 @@ describe(`${CASE_MARKER}: 项目导航中英文/深浅主题与窄窗口`, () =>
     await browser.electron.restoreAllMocks();
     await clearAppData();
   });
-  it("R3A-UI-03 英文深色窄窗口与中文浅色桌面下，设备标注、项目菜单、离线入口与重连保持可见可用", async function () {
+  it("R3A-UI-03 深色窄窗口与浅色桌面下，设备标注、项目菜单、离线入口与重连保持可见可用", async function () {
     this.timeout(15 * 60_000);
     const config = readSSHRuntimeConfig(CASE_MARKER);
     await prepareV4ConversationE2E({ skipProvider: true });
     await mkdir(artifactDir, { recursive: true });
     const scenarios = [
-      {
-        locale: "en-US" as const,
-        theme: "dark" as const,
-        width: NARROW.width,
-        height: NARROW.height,
-      },
-      { locale: "zh-CN" as const, theme: "light" as const, width: 1280, height: 900 },
+      { theme: "dark" as const, width: NARROW.width, height: NARROW.height },
+      { theme: "light" as const, width: 1280, height: 900 },
     ];
     let identity: string | undefined;
     for (const scenario of scenarios) {
       const current: Record<string, unknown> = { ...scenario };
       facts.push(current);
       current.resizeMs = await setWindowSize(scenario.width, scenario.height);
-      const appearance = await setLocaleAndTheme(scenario.locale, scenario.theme);
-      expect(appearance.locale).toBe(scenario.locale);
+      const appearance = await applyTheme(scenario.theme);
       expect(appearance.theme).toContain(scenario.theme);
       if (!identity) {
         const tab = await connectSSHWorkspace({
@@ -186,9 +170,7 @@ describe(`${CASE_MARKER}: 项目导航中英文/深浅主题与窄窗口`, () =>
       const menuSelector = `[id=${JSON.stringify(menuId)}]`;
       const menu = $(menuSelector);
       await menu.waitForDisplayed({ timeout: 15_000 });
-      expect(await menu.getText()).toMatch(
-        scenario.locale === "en-US" ? /Edit|Delete|Remove/iu : /编辑|删除|移除/u,
-      );
+      expect(await menu.getText()).toMatch(/编辑|删除|移除/u);
       current.deviceName = deviceName;
       current.menuText = await menu.getText();
       await menu.$('[data-testid="virtual-project-edit"]').click();
@@ -223,7 +205,7 @@ describe(`${CASE_MARKER}: 项目导航中英文/深浅主题与窄窗口`, () =>
       expect(health.clipped).toEqual([]);
       expect(health.focusVisible).toBe(true);
       await browser.saveScreenshot(
-        resolve(artifactDir, `${scenario.locale}-${scenario.theme}.png`),
+        resolve(artifactDir, `${scenario.theme}.png`),
       );
       await browser.keys("Escape");
       await disconnectRemoteSource(sourceId, CASE_MARKER, { workspaceIdentities: [identity] });

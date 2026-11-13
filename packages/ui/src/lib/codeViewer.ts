@@ -83,12 +83,7 @@ export interface MediaCodeViewerSource extends CodeViewerWorkspaceScope {
   url?: string;
 }
 
-export interface PdfCodeViewerSource extends CodeViewerWorkspaceScope {
-  type: "pdf";
-  title: string;
-  path: string;
-}
-
+/** PPTX 引用反向打开用：元素引用仍需要导航意图，但不再有内联 PPTX 查看器。 */
 export interface PptxCodeViewerSource extends CodeViewerWorkspaceScope {
   type: "pptx";
   title: string;
@@ -110,7 +105,6 @@ export type CodeViewerSource =
   | MultiFileDiffCodeViewerSource
   | ImageCodeViewerSource
   | MediaCodeViewerSource
-  | PdfCodeViewerSource
   | PptxCodeViewerSource;
 
 const EXTENSION_TO_LANGUAGE: Record<string, BundledLanguage> = {
@@ -310,22 +304,15 @@ export function inferMediaPreview(
   return format ? { kind: format.kind, mediaType: format.mediaType } : null;
 }
 
-export function isImagePreviewPath(path?: string): boolean {
-  return inferImageMediaType(path) !== null;
-}
-
-export function isPdfPreviewPath(path?: string): boolean {
-  if (!path) {
-    return false;
-  }
-  return getPathLeaf(path).toLowerCase().endsWith(".pdf");
-}
-
 export function isPptxPreviewPath(path?: string): boolean {
   if (!path) {
     return false;
   }
   return getPathLeaf(path).toLowerCase().endsWith(".pptx");
+}
+
+export function isImagePreviewPath(path?: string): boolean {
+  return inferImageMediaType(path) !== null;
 }
 
 function isUsableDiffFileTarget(target: string | null | undefined): target is string {

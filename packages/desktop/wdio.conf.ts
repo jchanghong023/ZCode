@@ -1,5 +1,4 @@
 import { seedSidebarRichContentFixture } from "./test/e2e/helpers/sidebar-rich-content-fixture.js";
-import { createConversationShareMockRoute } from "./test/e2e/helpers/conversation-share-mock-route.js";
 import { prepareTtftOtlpFixture } from "./test/e2e/helpers/ttft-otlp-fixture.js";
 import {
   loadToolSearchResponses,
@@ -128,7 +127,6 @@ import { getE2EProviderEndpointEnv } from "#e2e/helpers/e2e-provider-endpoint";
 import { prepareOAuthCompletionRaceFixture } from "./test/e2e/helpers/oauth-completion-race-fixture.js";
 import { prepareWebRemoteControlAuthGateFixture } from "./test/e2e/helpers/web-remote-control-auth-gate-fixture.js";
 import { prepareAccessToken401Fixture } from "./test/e2e/helpers/access-token-401-fixture.js";
-import { prepareVoiceInputFixture } from "./test/e2e/helpers/asr-mock-server.js";
 import { prepareOfficialMcpAuthRoutingFixture } from "#e2e/helpers/mcp-official-auth-routing-fixture";
 import { prepareMcpFailureGuidanceFixture } from "#e2e/helpers/mcp-failure-guidance-fixture";
 import { createE2EReplayFixtureVariables } from "./test/e2e/helpers/e2e-runtime-paths.js";
@@ -674,7 +672,6 @@ let stopOAuthCompletionRaceFixture: (() => Promise<void>) | null = null;
 let stopTtftOtlpFixture: (() => Promise<void>) | null = null;
 let stopWebRemoteControlAuthGateFixture: (() => Promise<void>) | null = null;
 let stopAccessToken401Fixture: (() => Promise<void>) | null = null;
-let stopVoiceInputFixture: (() => Promise<void>) | null = null;
 let stopOfficialMcpAuthRoutingFixture: (() => Promise<void>) | null = null;
 let stopMcpFailureGuidanceFixture: (() => Promise<void>) | null = null;
 let pluginCdnZipFixtureServer: PluginCdnZipFixtureServer | null = null;
@@ -1349,9 +1346,7 @@ async function startCodingPlanTeamMockIfNeeded(specs: string[] = []) {
     path: string;
     query: Record<string, string>;
   }> = [];
-  const shareMockRoute = createConversationShareMockRoute();
   codingPlanTeamMockServer = createServer(async (request, response) => {
-    if (await shareMockRoute(request, response)) return;
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     if (offPeakTeamGateway && url.pathname.startsWith("/api/v1/off-peak/")) {
       const chunks: Buffer[] = [];
@@ -4747,10 +4742,6 @@ export const config: WebdriverIO.Config = {
         appArgs: [
           ...(E2E_PACKAGED_APP_BINARY_PATH ? [] : [`--app=${E2E_APP_ENTRY_POINT}`]),
           "--no-sandbox",
-          // 语音输入 E2E（docs/chat/composer-voice-input.md）：用 Chromium 假麦克风设备，
-          // 不访问真实设备，也不弹出系统授权；其他用例不调用 getUserMedia，不受影响。
-          "--use-fake-device-for-media-stream",
-          "--use-fake-ui-for-media-stream",
           // 修复原因：环境变量不会出现在进程命令行；同时传 runId 与 HOME identity，
           // 让跨平台清理优先命中当前 run，并为 Windows shard 保留路径级兜底。
           buildE2ERunIdArg(E2E_RUN_ID),
@@ -5116,7 +5107,6 @@ export const config: WebdriverIO.Config = {
           credentialsFile: E2E_APP_CREDENTIALS_FILE,
           settingsFile: E2E_APP_SETTINGS_FILE,
         });
-        stopVoiceInputFixture = await prepareVoiceInputFixture(specs);
         stopWebRemoteControlAuthGateFixture = await prepareWebRemoteControlAuthGateFixture({
           specs,
           credentialsFile: E2E_APP_CREDENTIALS_FILE,
@@ -5249,8 +5239,6 @@ export const config: WebdriverIO.Config = {
           stopWebRemoteControlAuthGateFixture = null;
           await stopAccessToken401Fixture?.();
           stopAccessToken401Fixture = null;
-          await stopVoiceInputFixture?.();
-          stopVoiceInputFixture = null;
           await stopOfficialMcpAuthRoutingFixture?.();
           stopOfficialMcpAuthRoutingFixture = null;
           await stopMcpFailureGuidanceFixture?.();
@@ -5337,8 +5325,6 @@ export const config: WebdriverIO.Config = {
           stopWebRemoteControlAuthGateFixture = null;
           await stopAccessToken401Fixture?.();
           stopAccessToken401Fixture = null;
-          await stopVoiceInputFixture?.();
-          stopVoiceInputFixture = null;
           await stopOfficialMcpAuthRoutingFixture?.();
           stopOfficialMcpAuthRoutingFixture = null;
           await stopMcpFailureGuidanceFixture?.();

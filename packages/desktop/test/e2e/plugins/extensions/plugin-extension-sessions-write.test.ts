@@ -322,7 +322,7 @@ describe("PLM-EXT-P3C 扩展经 ctx.sessions.* 写会话", () => {
     await prepareV4ConversationE2E();
     // H10 的目标模型：与默认模型同一个 provider，回放夹具按请求体里的模型名区分。
     await ensureUpstreamModelForE2E(UPSTREAM_SECONDARY_MODEL);
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     evidence.activated = await log.waitFor(
       (line) => line.includes(`E2E_WRITES_ACTIVATED plugin=${PLUGIN_ID}`),
       "the write fixture should activate",
@@ -492,13 +492,13 @@ describe("PLM-EXT-P3C 扩展经 ctx.sessions.* 写会话", () => {
 
     // (i) 桌面截图：四条用户行都带标识（中文浅色、英文深色）。
     await capture("labels-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await browser.waitUntil(
       async () => (await readLabels()).every((label) => label === LABELS["en-US"]),
       { timeout: 15000, timeoutMsg: "the labels should switch to English" },
     );
     await capture("labels-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (j) 插件详情页「最近操作」：最近 10 行里有整理、打开与中断；全部成功。
     await openPluginManagementSettings();
@@ -523,13 +523,13 @@ describe("PLM-EXT-P3C 扩展经 ctx.sessions.* 写会话", () => {
     expect(permissionsUi!.actions.every((action) => action.outcome === "ok")).toBe(true);
     expect(permissionsUi!.text).toContain("重命名会话");
     await capture("recent-actions-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await browser.waitUntil(
       async () => ((await readPermissions())?.text ?? "").includes("Renamed a session"),
       { timeout: 15000, timeoutMsg: "recent actions should switch to English" },
     );
     await capture("recent-actions-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await leaveSettings();
 
     // (k) 审计：每个写动作一行，带 requestId、目标与提示词长度；不含提示词正文。

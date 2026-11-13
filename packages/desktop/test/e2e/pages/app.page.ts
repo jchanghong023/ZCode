@@ -1,11 +1,8 @@
 import type { ChainablePromiseArray, ChainablePromiseElement } from "webdriverio";
 import {
   TID_APP_HEADER,
-  TID_LOCALE_TOGGLE,
   TID_THEME_TOGGLE,
   TID_LOGOUT_BUTTON,
-  TID_TERMINAL_TOGGLE,
-  TID_TERMINAL_CLOSE_BUTTON,
   TID_BROWSER_TOGGLE,
   TID_BROWSER_CLOSE_BUTTON,
   TID_BROWSER_ADDRESS_INPUT,
@@ -18,7 +15,6 @@ import {
   TID_PREVIEW_NEXT_BUTTON,
   TID_PREVIEW_PANE,
   TID_PREVIEW_PREV_BUTTON,
-  TID_TERMINAL,
   TID_SSH_CONNECT_TRIGGER,
   TID_SSH_DIALOG,
   TID_SSH_HOST_INPUT,
@@ -53,9 +49,6 @@ class AppPage {
   get themeToggle(): ChainablePromiseElement {
     return $(sel(TID_THEME_TOGGLE));
   }
-  get localeToggle(): ChainablePromiseElement {
-    return $(sel(TID_LOCALE_TOGGLE));
-  }
   get logoutButton(): ChainablePromiseElement {
     return $(sel(TID_LOGOUT_BUTTON));
   }
@@ -74,17 +67,8 @@ class AppPage {
   get workspacePath(): ChainablePromiseElement {
     return $(sel(TID_WORKSPACE_PATH));
   }
-  get terminalToggle(): ChainablePromiseElement {
-    return $(sel(TID_TERMINAL_TOGGLE));
-  }
   get browserToggle(): ChainablePromiseElement {
     return $(sel(TID_BROWSER_TOGGLE));
-  }
-  get terminal(): ChainablePromiseElement {
-    return $(sel(TID_TERMINAL));
-  }
-  get terminalCloseButton(): ChainablePromiseElement {
-    return $(sel(TID_TERMINAL_CLOSE_BUTTON));
   }
 
   // ── Chat View ──

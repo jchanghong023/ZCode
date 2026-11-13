@@ -3,12 +3,6 @@ import { DataSyncSection } from "@/data-sync/index.js";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
 /* oxlint-disable eslint(max-lines) */
 import { ArrowLeft, type LucideIcon } from "lucide-react";
-import { useStore } from "zustand";
-import {
-  marketingNavigation,
-  finishMarketingNavigation,
-  marketingSettingsSections,
-} from "@/lib/marketingNavigation.js";
 import {
   useCallback,
   useEffect,
@@ -27,7 +21,7 @@ import type {
   UserInfo,
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
-import { BUILTIN_MODEL_PROVIDER_IDS, isLocale } from "@zcode/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
 import {
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
@@ -74,10 +68,6 @@ import {
   useOptionalProjectDirectory,
 } from "@/project-sidebar/index.js";
 import { resolveRecentRemoteProjectPreference } from "@/project-sidebar/remote-project-connection.js";
-import {
-  SettingsShareManagement,
-  type SettingsShareTaskTarget,
-} from "@/conversation-share-interaction/SettingsShareManagement.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
@@ -96,14 +86,12 @@ import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSectio
 import { MemorySettingsPage } from "@/settings/MemorySettingsSection.js";
 import { PersonalizationSection } from "@/settings/PersonalizationSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
-import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import {
   SettingsSearch,
   SettingsSearchTargetContext,
   type SettingsSearchId,
 } from "@/settings-search/index.js";
-import { resolveComputerUseAvailability } from "@/settings/computerUseAvailability.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import {
@@ -313,11 +301,8 @@ export function SettingsPage({
   windowsWindowControlsRightPaddingPx: _windowsWindowControlsRightPaddingPx,
   captionWorkspacePath,
   onBack,
-  onOpenTask,
   onCreateTask,
-  onOpenWorkspace,
   onOpenRemoteWorkspace,
-  allowOpenWorkspace = true,
   onLogin,
   onLogout,
   user,
@@ -330,7 +315,6 @@ export function SettingsPage({
   captionWorkspacePath?: string | null;
   onBack?: () => void;
   /** 设置页内跳转到指定会话（分享管理「跳转对话」）；Root 注入。 */
-  onOpenTask?: (target: SettingsShareTaskTarget) => void;
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenWorkspace?: () => void;
   onOpenRemoteWorkspace?: (preference?: RemoteConnectionOpenPreference) => void;
@@ -340,16 +324,8 @@ export function SettingsPage({
   onLogout?: () => void;
   user?: UserInfo | null;
 }) {
-  const { intl, localePreference, setLocalePreference } = useZCodeIntl();
-  const { settingsSectionGroups, settingsSections } = useMemo(
-    () =>
-      createSettingsPageConfig({
-        isDesktop: Boolean(isDesktop),
-        isMacDesktop: Boolean(isMacDesktop),
-        isWindowsDesktop: Boolean(isWindowsDesktop),
-      }),
-    [isDesktop, isMacDesktop, isWindowsDesktop],
-  );
+  const { intl } = useZCodeIntl();
+  const { settingsSectionGroups, settingsSections } = useMemo(() => createSettingsPageConfig(), []);
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);
   const platform = usePlatform();
@@ -418,17 +394,6 @@ export function SettingsPage({
           linuxCloseToTrayCapability.gnomeLikeWithoutTray,
       }
     : undefined;
-  const marketingRequest = useStore(marketingNavigation, (state) => state.request);
-  useEffect(() => {
-    if (marketingRequest?.target.page !== "settings") return;
-    const target = marketingRequest.target;
-    const section = target.section ? marketingSettingsSections[target.section] : activeSection;
-    if (!settingsSections.some((item) => item.id === section)) {
-      finishMarketingNavigation(marketingRequest.id, new Error("marketing_navigation_unavailable"));
-    } else if (activeSection === section && !target.provider_id) {
-      finishMarketingNavigation(marketingRequest.id);
-    }
-  }, [activeSection, marketingRequest, settingsSections]);
   const [pluginNavigationOrigin, setPluginNavigationOrigin] = useState(() =>
     consumePendingSettingsPluginOrigin(),
   );
@@ -1384,28 +1349,6 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  const handleFooterLocaleChange = useCallback(
-    (value: string) => {
-      if (value === "system") {
-        runUserAction({
-          input: { featureId: "settings.locale", action: "change_locale", trigger: "select" },
-          operation: () => setLocalePreference("system"),
-          completed: { resultSource: "local_commit", valueAfter: "system" },
-          failureStage: "local_commit",
-        });
-        return;
-      }
-      if (isLocale(value)) {
-        runUserAction({
-          input: { featureId: "settings.locale", action: "change_locale", trigger: "select" },
-          operation: () => setLocalePreference(value),
-          completed: { resultSource: "local_commit", valueAfter: value },
-          failureStage: "local_commit",
-        });
-      }
-    },
-    [setLocalePreference],
-  );
   const handleFooterThemeChange = useCallback(
     (value: string) => {
       if (
@@ -1454,7 +1397,6 @@ export function SettingsPage({
     [setCodePreviewSettings],
   );
   const activeSectionMeta = settingsSections.find((section) => section.id === activeSection);
-  // 灰度裁决异步到达：sections 列表可能在挂载后变化（如 computerUse 区被灰度移除）。
   // 若用户正停留在被移除的 section，回落到第一个可见区，避免整页 return null。
   useEffect(() => {
     setActiveSection((current) => resolveSettingsSectionForPlatform(current, settingsSections));
@@ -1572,14 +1514,6 @@ export function SettingsPage({
                     tray: Boolean(isWindowsDesktop || isLinuxDesktop),
                     notWindows: !isWindowsDesktop,
                     macDesktop: Boolean(isDesktop && isMacDesktop),
-                    computerUse: resolveComputerUseAvailability({
-                      isDesktop: Boolean(isDesktop),
-                      isMacDesktop: Boolean(isMacDesktop),
-                      isWindowsDesktop: Boolean(isWindowsDesktop),
-                      remoteSessionId: activeWorkspaceTab?.remoteSessionId,
-                      remoteTarget: activeWorkspaceTab?.remoteTarget,
-                      workspaceIdentity: activeWorkspaceIdentity,
-                    }).supported,
                   }}
                   onSelect={({ section, setting }) => navigateToSettingsSection(section, setting)}
                 />
@@ -1659,8 +1593,6 @@ export function SettingsPage({
               <div className="max-lg:hidden">
                 <WorkspaceSidebarFooter
                   theme={theme}
-                  localeMenuValue={localePreference}
-                  onLocaleChange={handleFooterLocaleChange}
                   onThemeChange={handleFooterThemeChange}
                   onSettingsButtonClick={onBack}
                   onUsageClick={handleOpenUsageSettings}
@@ -1791,7 +1723,6 @@ export function SettingsPage({
                         <div className="space-y-8">
                           {activeSection === "general" ? (
                             <GeneralSectionContent
-                              localePreference={localePreference}
                               interfaceMode={interfaceMode}
                               setInterfaceMode={setInterfaceMode}
                               isDesktop={isDesktop}
@@ -1820,7 +1751,6 @@ export function SettingsPage({
                               httpProxyCaCertPath={httpProxyCaCertPath}
                               defaultHomeDir={defaultHomeDir}
                               showIntegratedTerminalShell={hostPlatform === "win32"}
-                              setLocalePreference={handleFooterLocaleChange}
                               setNotificationEnabled={(enabled) =>
                                 runUserAction({
                                   input: {
@@ -2165,12 +2095,6 @@ export function SettingsPage({
                               />
                               <ArchiveManagement />
                             </div>
-                          ) : activeSection === "shares" ? (
-                            <SettingsShareManagement
-                              signedIn={Boolean(user)}
-                              onLogin={onLogin}
-                              onOpenTask={onOpenTask}
-                            />
                           ) : activeSection === "usage" ? (
                             <UsageStatsSection
                               activeTab={usageActiveTab}
@@ -2225,17 +2149,6 @@ export function SettingsPage({
                               onEmbeddedBrowserAllowInsecureCertificatesChange={
                                 handleEmbeddedBrowserAllowInsecureCertificatesChange
                               }
-                            />
-                          ) : activeSection === "computerUse" ? (
-                            <ComputerUseSection
-                              isDesktop={Boolean(isDesktop)}
-                              isMacDesktop={Boolean(isMacDesktop)}
-                              isWindowsDesktop={Boolean(isWindowsDesktop)}
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              remoteSessionId={activeWorkspaceTab?.remoteSessionId}
-                              remoteTarget={activeWorkspaceTab?.remoteTarget}
-                              localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                             />
                           ) : null}
                         </div>

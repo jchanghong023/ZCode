@@ -52,14 +52,9 @@ UI locale ──立即──> Main.currentApplicationLocale（实时 owner）
 
 ## 测试覆盖
 
-E2E：`packages/desktop/test/e2e/settings/general/settings-client-language-header.test.ts`。用 `x-request-id`
-区分 Host（`NodeApiClient`）和 Main（Electron `net`）的 `client/configs` 请求。
-
-| Case   | 场景                                                                 | 断言                                                           |
-| ------ | -------------------------------------------------------------------- | -------------------------------------------------------------- |
-| CLH-01 | 持久化 `en-US`（不同于启动默认 `zh-CN`）后重启 App                   | 启动预热与 Host 请求都带 `en-US`                               |
-| CLH-02 | 第二个窗口的 Host 写 `setting.json` 失败；在该窗口设置页切到 `zh-CN` | 两个窗口的 Host 与 Main 的新请求都带 `zh-CN`；磁盘仍是 `en-US` |
-| CLH-03 | 设置页依次切到 `ja-JP`、`ru-RU`、`ko-KR`                             | Host 与 Main 的新请求带对应值；社群链接打开英文渠道            |
+界面语言已单语化（见 [界面语言](i18n/ui-locales.md)），前端固定推送 `zh-CN`，
+因此原先覆盖“切换 ja/ru/ko”的 E2E（CLH-01/02/03）随语言切换能力一并删除。
+`X-Client-Language` 仍由同一条链路下发，取值为固定中文；`packages/services` 侧的注入逻辑未改动。
 
 E2E 无法稳定守住的约束：
 

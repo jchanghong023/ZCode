@@ -59,19 +59,7 @@ function readTaskProject(id: string) {
     db.close();
   }
 }
-async function setLocaleAndTheme(locale: string, theme: string) {
-  await browser.execute(
-    ({ locale, theme }) => {
-      const actions = (
-        window as typeof window & {
-          __testActions: { setTheme(value: string): void; setLocale(value: string): void };
-        }
-      ).__testActions;
-      actions.setTheme(theme);
-      actions.setLocale(locale);
-    },
-    { locale, theme },
-  );
+async function applyTheme(theme: string) {
   await browser.waitUntil(() =>
     browser.execute(
       (theme) => document.documentElement.classList.contains(`theme-${theme}`),
@@ -178,7 +166,7 @@ describe("项目管理", () => {
       },
     });
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45000);
-    await setLocaleAndTheme("zh-CN", "zai-light");
+    await applyTheme("zai-light");
     // 在进入设置前从首页配对；设置页和首页各有 footer，不能用全局定位器猜测当前入口。
     pairingUrl = await obtainUnreadPairingUrl(
       new URL(process.env.ZCODE_WEB_REMOTE_CONTROL_URL!).origin,
@@ -372,7 +360,7 @@ describe("项目管理", () => {
           ["en-US", "zai-light"],
           ["en-US", "zai-dark"],
         ] as const) {
-          await setLocaleAndTheme(locale, theme);
+          await applyTheme(theme);
           await expect($('[data-testid="project-management-sort"]')).toHaveText(
             locale === "zh-CN" ? "最近活动" : "Last active",
           );
@@ -451,7 +439,7 @@ describe("项目管理", () => {
         )!;
         await target.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride");
       });
-      await setLocaleAndTheme("zh-CN", "zai-light");
+      await applyTheme("zai-light");
     }
   });
 

@@ -2,10 +2,7 @@
 @import "tw-animate-css";
 @import "tailwind-scrollbar-hide/v4";
 @import "shadcn/tailwind.css";
-@import "@xterm/xterm/css/xterm.css";
 @import "katex/dist/katex.min.css";
-@import "./highspeed/highspeed-activation.css";
-@import "./highspeed/highspeed-share.css";
 @import "./nativeMediaControls.css";
 @source "../../../node_modules/streamdown/dist/*.js"; /* 感觉这行也是不好使呢*/
 
@@ -203,17 +200,8 @@ body {
   --color-background-win-alt: var(--color-neutral-200);
   --color-brand: var(--color-sky-400);
   --color-resize-handle: var(--color-sky-500);
-  /* Composer 语音输入录音胶囊：按设计稿取 sky 色系十六进制值（浅色底色 Sky 100、波形 Sky 600）。
-     不引用 var(--color-sky-*)：Tailwind 4 的 sky 色板是 oklch，渲染值与设计稿有偏差（如 sky-600 为 #0084d1）。 */
-  --color-voice-input-surface: #e0f2fe;
-  --color-voice-input-wave: #0284c7;
   --color-icon-blue: var(--color-terminal-bright-blue);
   --color-icon-purple: var(--color-terminal-bright-magenta);
-  --color-trajectory-user: #2563eb;
-  --color-trajectory-assistant: #0f766e;
-  --color-trajectory-reasoning: #7c3aed;
-  --color-trajectory-tool-call: #d97706;
-  --color-trajectory-tool-result: #0284c7;
   /* 工作流因果图仪表化渲染（docs/dynamic-workflow/presentation.md）：
    * rule 比 --color-border 更弱——刻度与空闲轨道每图重复约 40 次，10% 会积成灰雾。 */
   --color-workflow-rule: color-mix(in oklab, var(--color-neutral-950) 5.5%, transparent);
@@ -382,14 +370,6 @@ body {
   --color-background-win-alt: var(--color-neutral-800);
   --color-brand: var(--color-sky-500);
   --color-resize-handle: var(--color-sky-400);
-  /* 深色主题：设计稿底色 Sky 950、波形 Sky 300 */
-  --color-voice-input-surface: #082f49;
-  --color-voice-input-wave: #7dd3fc;
-  --color-trajectory-user: #60a5fa;
-  --color-trajectory-assistant: #2dd4bf;
-  --color-trajectory-reasoning: #a78bfa;
-  --color-trajectory-tool-call: #f59e0b;
-  --color-trajectory-tool-result: #38bdf8;
   --color-workflow-rule: color-mix(in oklab, var(--color-white) 6.5%, transparent);
   --color-workflow-trace: color-mix(in oklab, var(--color-white) 35%, transparent);
   --color-workflow-trace-strong: color-mix(in oklab, var(--color-white) 60%, transparent);
@@ -559,11 +539,6 @@ body {
   --color-background-win-alt: #ececee;
   --color-background-alt: color-mix(in oklab, var(--color-background) 70%, transparent);
   --color-brand: #000000;
-  --color-trajectory-user: #2563eb;
-  --color-trajectory-assistant: #0f766e;
-  --color-trajectory-reasoning: #7c3aed;
-  --color-trajectory-tool-call: #d97706;
-  --color-trajectory-tool-result: #0284c7;
   --color-workflow-rule: rgba(13, 13, 13, 0.055);
   --color-workflow-trace: rgba(13, 13, 13, 0.3);
   --color-workflow-trace-strong: rgba(13, 13, 13, 0.55);
@@ -724,11 +699,6 @@ body {
   --color-background-win-alt: #2b2b2b;
   --color-background-alt: color-mix(in oklab, var(--color-background-win-alt) 60%, transparent);
   --color-brand: #ffffff;
-  --color-trajectory-user: #60a5fa;
-  --color-trajectory-assistant: #2dd4bf;
-  --color-trajectory-reasoning: #a78bfa;
-  --color-trajectory-tool-call: #f59e0b;
-  --color-trajectory-tool-result: #38bdf8;
   --color-workflow-rule: rgba(255, 255, 255, 0.065);
   --color-workflow-trace: rgba(255, 255, 255, 0.35);
   --color-workflow-trace-strong: rgba(255, 255, 255, 0.6);
@@ -981,12 +951,6 @@ body {
 
   .animated-gradient-text-subtle {
     --animated-gradient-text-strong: var(--color-foreground-subtle);
-  }
-
-  .highspeed-animated-gradient-text .animated-gradient-text {
-    /* Bug 根因：accelerated turn 只改了工时文案，内部思考和工具仍继承普通扫光色。 */
-    --animated-gradient-text-strong: var(--color-icon-purple);
-    --animated-gradient-text-soft: color-mix(in srgb, var(--color-icon-purple) 22%, transparent);
   }
 
   @keyframes gradient-flow {

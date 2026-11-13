@@ -88,25 +88,8 @@ async function waitForDetailsReady() {
 }
 
 async function captureMatrix(state: string, identity: string) {
-  for (const locale of ["zh-CN", "en-US"] as const) {
+  for (const locale of ["zh-CN"] as const) {
     for (const theme of ["zai-light", "zai-dark"]) {
-      await browser.execute(
-        (lang, appearance) => {
-          const actions = (
-            window as Window & {
-              __testActions?: {
-                setLocale(value: "zh-CN" | "en-US"): void;
-                setTheme(value: string): void;
-              };
-            }
-          ).__testActions;
-          if (!actions) throw new Error("Missing appearance actions");
-          actions.setLocale(lang);
-          actions.setTheme(appearance);
-        },
-        locale,
-        theme,
-      );
       for (const width of [1400, 900]) {
         await browser.electron.execute((electron, nextWidth) => {
           electron.BrowserWindow.getAllWindows()
@@ -249,11 +232,6 @@ async function captureMatrix(state: string, identity: string) {
       }
     }
   }
-  await browser.execute(() => {
-    (
-      window as Window & { __testActions?: { setLocale(value: "zh-CN"): void } }
-    ).__testActions?.setLocale("zh-CN");
-  });
 }
 
 describe(`${CASE_MARKER}: 侧栏详情和设备菜单`, () => {
@@ -273,11 +251,6 @@ describe(`${CASE_MARKER}: 侧栏详情和设备菜单`, () => {
     await prepareSSHConnectionPage(CASE_MARKER);
     await prepareV4ConversationE2E({ skipProvider: true });
     // 初始字段与设备操作断言使用中文；不依赖 runner 的默认语言。
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(value: "zh-CN"): void } }
-      ).__testActions!.setLocale("zh-CN");
-    });
     await openSSHRemoteDialog(CASE_MARKER);
     await fillSSHPasswordSettings(config);
     await clickLastEnabledSSHDialogButton(CASE_MARKER);

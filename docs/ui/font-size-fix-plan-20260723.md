@@ -32,7 +32,7 @@
 - L55: `text-sm text-destructive` → `text-ui-base text-destructive`
 - L59: `text-sm text-muted-foreground` → `text-ui-base text-muted-foreground`
 
-### 4. `pdf-viewer.tsx`
+### 4. `pdf-viewer.tsx`（该文件已随 PDF 预览移除）
 
 - L342: `text-sm text-destructive` → `text-ui-base text-destructive`
 - L357: `text-sm text-foreground-subtle` → `text-ui-base text-foreground-subtle`

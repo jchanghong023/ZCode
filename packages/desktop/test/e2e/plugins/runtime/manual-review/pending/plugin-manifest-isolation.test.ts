@@ -61,7 +61,6 @@ describe("PLM-MANIFEST-ISOLATION 插件清单兼容候选 E2E", () => {
     ).toBe(true);
     for (const theme of ["zai-dark", "zai-light"] as const) {
       await setPluginPresentation({
-        locale: theme === "zai-dark" ? "zh-CN" : "en-US",
         theme,
         width: 1200,
         height: 900,

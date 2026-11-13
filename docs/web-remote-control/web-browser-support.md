@@ -28,20 +28,12 @@ Vite 只转换语法，不补运行时 API。代码或依赖使用的 API 若高
 - 新增上表以外、且高于语法基线的 API 时，同步更新本表和 `main.tsx` 开头的导入。pdf.js 用到的 API 不列入本表，见下一节。
 - `AbortSignal.any`（Chrome 116）不补 polyfill，`packages/web` 不直接调用。合并调用方取消与请求期限时，用 `AbortController` 加 `setTimeout`，期限覆盖到正文读取完成；远控请求复用 `withWebRemoteControlHttpSignal`，Web 登录在 `webRegionalOAuth.ts` 内用同样写法。`AbortSignal.timeout`（Chrome 103）在基线内，可直接使用。
 
-## PDF 预览（pdf.js）
+## PDF / Office 预览（已移除）
 
-pdf.js 在两个独立的全局作用域里运行：页面主线程，以及 `packages/ui/src/components/ui/pdf-viewer.tsx` 通过 `workerSrc` 单独加载的 Worker。`main.tsx` 的 polyfill 只修改主线程全局，不进入 Worker。
-
-`pdfjs-dist` 的默认构建在两侧都直接调用 `URL.parse`（Chrome 126）和 `Promise.withResolvers`（Chrome 119）。主线程的 `getUrlProp()` 在创建 Worker 之前就调用 `URL.parse`，所以字符串 URL（blob/http/https）在 Chrome/Edge 111–125 上直接抛 `TypeError`，会话区域崩溃。即使主线程补了 `Promise.withResolvers`，Uint8Array 与 range 数据源也只是在 Worker 启动失败后退化成主线程 fake worker 才能显示；只在主线程再补 `URL.parse` 会启用真实 Worker，range 数据源又会因 Worker 缺 `Promise.withResolvers` 失败。
-
-因此 Web 构建改用 pdf.js 官方的 legacy 构建：
-
-- `packages/web/vite.config.ts` 用两条精确匹配的 alias，把 `pdfjs-dist` 主入口和 `pdfjs-dist/build/pdf.worker.min.mjs` 换成 `pdfjs-dist/legacy/build/` 下的同版本文件。legacy 构建的主线程文件和 Worker 文件各自带 core-js polyfill，两个全局作用域都能覆盖。
-- alias 必须用正则精确匹配。字符串键 `"pdfjs-dist"` 按前缀匹配，会把 Worker 路径也改写成错误路径。
-- 主线程和 Worker 必须来自同一个 `pdfjs-dist` 版本，否则 Worker 的版本校验会拒绝文档。
-- 只在 `packages/web` 切换。桌面端 Electron 使用默认构建，`packages/ui` 源码不变。dev server 与生产构建使用同一份 alias；dev 下同时用 `optimizeDeps.exclude` 排除 `pdfjs-dist`，否则依赖扫描会把带 `?url` 的 Worker 导入当成依赖预构建并失败。
-- pdf.js 的 API 由 legacy 构建自带，`main.tsx` 不再为 pdf.js 引入 polyfill。
-- 升级 `pdfjs-dist` 时，用下面的回归场景在低版本浏览器上复测。
+前端不再内联渲染 PDF 与 Office 文档：`pdfjs-dist`、`react-pdf`、`@aiden0z/pptx-renderer`、
+`@extend-ai/react-docx`、`@extend-ai/react-xlsx`、`docx-preview` 已从 `packages/ui` 移除，
+Web 与桌面渲染器都不再加载这两个全局作用域相关的 pdf.js polyfill 逻辑。
+模型侧读取 PDF 的能力不受影响，见 `apps/zcode-cli/docs/design/v2/tool/01-read.md`。
 
 ## 回归场景
 

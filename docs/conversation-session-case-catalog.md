@@ -1,5 +1,8 @@
 # Conversation Session Case Catalog
 
+> 2026-11-13：Conversation Share 前端已删除；文中 SHARE 用例与分享相关路径仅保留为历史记录。
+
+
 ## 会话控制工具（SCT，2026-10-23）
 
 用户批准实施 [CLI / App 两套会话控制工具](architecture/zcode-app-control-design.md)。
@@ -105,7 +108,7 @@ CLI/session 诊断不含 Renderer 输入、React commit 或 paint，不能作为
 `input(insertText)` 输入真实探针命令，验证完整参数、执行结果及桌面终端不受影响。
 TMI01～TMI10 在真实 TerminalSession 组件覆盖手机重复字母、空格、emoji、组合输入、删除和
 底部 / 侧栏保活，并做 Windows/Linux 浏览器平台对照。合成键盘事件不冒充实体手机或原生输入法验证。
-规格见 [终端输入契约](ui/terminal-sessions.md#手机软键盘输入2026-10-23)。
+终端 UI（含手机软键盘输入契约）已从前端移除。
 
 回车补充（2026-10-23，accepted / pending）：TMI11/TMI12 覆盖底部和侧栏终端的
 `keydown(229) → insertLineBreak` 单次提交、keypress 去重与普通 Enter 对照。
@@ -2135,7 +2138,7 @@ child tool。raw child event、event store 和 model-io 仍属于 child session�
 
 输入框草稿是 task/local draft 级 UI 状态，不属于已发送历史，也不应被运行态 stream、task 列表刷新或切换 task 时的恢复流程覆盖。草稿内容按作用域隔离：未发送的新 task 使用 `draft/null` 作用域，已有 task 使用 `taskId` 作用域；切换 task 时必须先保存当前作用域，再恢复目标作用域。
 
-本组不对附件业务读取成功率做全排列，只验证 composer 能恢复用户尚未发送的意图。附件等价类先收敛为普通文本、普通文件附件、图片附件；code comment、web element context、workspace file mention、whiteboard 等上下文 chip 后续单独补 UI 组合，避免把所有 composer 子能力塞进同一条 E2E。
+本组不对附件业务读取成功率做全排列，只验证 composer 能恢复用户尚未发送的意图。附件等价类先收敛为普通文本、普通文件附件、图片附件；code comment、web element context、workspace file mention 等上下文 chip 后续单独补 UI 组合，避免把所有 composer 子能力塞进同一条 E2E。
 
 | ID  | 前置状态                                           | 用户/系统事件                       | 规则命中                   | 期望结果                                                                                        | Review   |
 | --- | -------------------------------------------------- | ----------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------- | -------- |
@@ -2159,15 +2162,15 @@ renderer-local 的输入便利状态，不属于 conversation projection、已�
 
 ## S. Composer 前缀提示路由
 
-输入框以 `@`、`/` 与 `$` 作为三个主发现入口：`@` 的主分组固定为 Plugin → 文件/文件夹 → 对话，原 Whiteboards 分组继续保留并排在其后；`/` 固定为 slash command → skill → subagent；`$` 直接打开 skill 候选。旧触发器不关闭：`#` 继续打开对话候选，`¥` / `￥` 继续作为 `$` 的键盘兼容别名。入口只负责发现，选中后仍写入原 canonical mention；`+` action menu 不再单列 `#`。完整边界见 [ui/mention-panel-layout.md](./ui/mention-panel-layout.md)。该组 case 只验证输入框提示、候选 authority、键盘选择与 canonical 草稿，不触发模型请求，也不推断发送后 session 语义。
+输入框以 `@`、`/` 与 `$` 作为三个主发现入口：`@` 的主分组固定为 Plugin → 文件/文件夹 → 对话；`/` 固定为 slash command → skill → subagent；`$` 直接打开 skill 候选。旧触发器不关闭：`#` 继续打开对话候选，`¥` / `￥` 继续作为 `$` 的键盘兼容别名。入口只负责发现，选中后仍写入原 canonical mention；`+` action menu 不再单列 `#`。完整边界见 [ui/mention-panel-layout.md](./ui/mention-panel-layout.md)。该组 case 只验证输入框提示、候选 authority、键盘选择与 canonical 草稿，不触发模型请求，也不推断发送后 session 语义。
 
 | ID  | 前置状态                                                                                                                              | 用户/系统事件                                                   | 规则命中                                            | 期望结果                                                                                                                                                                                                                                                                                                                                | Review   |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| S01 | `draft` composer，workspace 有文件/文件夹/画板、历史对话、enabled plugin、slash command、subagent、skill                              | 分别输入 `@`、`/` 并用键盘选择各主分组候选                      | composerPrimaryTriggerRouting                       | `@` 按 plugins → files → sessions → whiteboards 展示，空 query 辅助提示只列插件、文件和对话，不再出现画板；`/` 按 commands → skills → subagents 展示。Enter/Tab 选中后分别插入既有 plugin/file/session/whiteboard、command/skill/subagent canonical mention；尤其 `@` 对话仍写 `#sess_...`，`/` Skill/Subagent 不退化成 slash command。 | accepted |
+| S01 | `draft` composer，workspace 有文件/文件夹、历史对话、enabled plugin、slash command、subagent、skill                              | 分别输入 `@`、`/` 并用键盘选择各主分组候选                      | composerPrimaryTriggerRouting                       | `@` 按 plugins → files → sessions 展示，空 query 辅助提示只列插件、文件和对话；`/` 按 commands → skills → subagents 展示。Enter/Tab 选中后分别插入既有 plugin/file/session、command/skill/subagent canonical mention；尤其 `@` 对话仍写 `#sess_...`，`/` Skill/Subagent 不退化成 slash command。 | accepted |
 | S02 | desktop local 的 completed task；E2E user scope 有可发现的自定义 slash command，renderer 已保留模型目录                               | 用户点击新建任务回到 `draft`，随后输入 `/`                      | draftSlashCatalogRehydratesIndependently            | task → draft 清空上一会话的 slash 目录后，草稿必须独立重新水合 slash commands；面板仍显示 user-scope 自定义命令，不得因已有模型目录而跳过读取                                                                                                                                                                                           | accepted |
 | S03 | desktop local 的 completed task；同一 workspace identity 的 draft 已水合 user-scope 自定义 slash command                              | 用户从草稿经任务列表重新打开该已知 task，随后输入 `/`           | workspaceSlashCatalogSurvivesKnownSessionNavigation | slash command 目录属于 workspace identity，不得在 task selection 时被主动清空；若进入 session 时目录确实为空，必须独立从 workspace state 补水合。面板继续显示 user-scope 自定义命令，不依赖 conversation projection 顺带回填                                                                                                            | accepted |
 | S04 | desktop local 的 draft；CLI workspace slash catalog 已返回 builtin 与 custom command                                                  | 用户输入 `/`                                                    | cliOwnsSlashCommandCatalog                          | UI 逐项展示 CLI catalog 中的 `/goal`、`/compact`、`/init` 与自定义命令，不自行追加、白名单过滤或按 provider 补命令；CLI 未声明的 `/resume-goal` 不得出现                                                                                                                                                                                | accepted |
-| S05 | `draft` composer 与旧历史分别包含 session、skill、whiteboard mention；当前 workspace 仍有 sessions/skills 候选                        | 输入 `#`、`$`、`¥`、`￥`，再切换历史/草稿并观察 `+` action menu | legacyMentionTriggersRemainAvailable                | 四个触发符仍打开原候选面板并可选择；旧 mention 继续解析和回显。`+` action menu 突出 `@`、`/` 与 `$`、不再单列 `#`，但不得关闭手动输入触发器、删除 provider 或改写旧 canonical 内容。                                                                                                                                                    | accepted |
+| S05 | `draft` composer 与旧历史分别包含 session、skill mention；当前 workspace 仍有 sessions/skills 候选                        | 输入 `#`、`$`、`¥`、`￥`，再切换历史/草稿并观察 `+` action menu | legacyMentionTriggersRemainAvailable                | 四个触发符仍打开原候选面板并可选择；旧 mention 继续解析和回显。`+` action menu 突出 `@`、`/` 与 `$`、不再单列 `#`，但不得关闭手动输入触发器、删除 provider 或改写旧 canonical 内容。                                                                                                                                                    | accepted |
 | S06 | `draft` composer 所在 authority 有 workspace A/B；另准备不同 remote authority 或未连接 remote workspace C                             | 在 A 输入 `#` 并搜索 B/C 的会话；再输入 `@`                     | hashSessionMentionAggregatesSameAuthorityWorkspaces | `#` 下 A/B 的 sessions-index 会话均进入候选，A 优先且行内显示来源 workspace；C 不进入候选、不得回退到 A/base service。`@` 的对话分组仍只订阅 A。选择 B 后仍插入原 `#sess_...` canonical，不新增跨 Host context transfer。                                                                                                               | accepted |
 | S07 | `draft` composer 所在 authority 有 workspace A/B，每个 workspace 均有超过 20 条会话；B 有一条目标会话不在最近 20 条内                 | 在 A 输入空 query `#`，随后输入目标关键词搜索                   | hashSessionMentionPerWorkspaceResultBudget          | 空 query 时 A/B 按 `workspaceIdentity?.trim() \|\| workspacePath` 各展示最近 20 条，不能全局截断；搜索时先匹配全部历史，再对每个 workspace 的匹配结果保留最多 20 条，因此 B 的较老目标仍可出现。`@` 不应用该跨 workspace 上限。                                                                                                         | accepted |
 | S08 | Session S1 已完成首次 context 初始化；随后用户手动新增 `SKILL.md`；同 workspace 可新建带 prewarm P1 的草稿；另覆盖 S1 runtime restart | 依次在 S1、新草稿和 restart 后的 S1 输入 `/` 与 `$`             | composerSkillCatalogFollowsRuntimeAuthority         | 同一 resident runtime 的 S1 继续展示冻结目录，不出现新 Skill；新草稿在 P1 ready 前从 workspace 当前目录读取，ready 后只读 P1 冻结目录，并在 `/`、`$`/Yen aliases 共用；taskId 仍为 null。S1 cold resume/runtime restart 后按新 runtime 目录更新。scope 切换首帧清空，迟到结果不得跨 workspace/session/prewarm/remote attachment 回填。  | accepted |
@@ -2233,7 +2236,7 @@ Electron Desktop 上的可见性矩阵，不触发 provider 请求，也不与�
 
 | ID    | 前置状态                                                                                                                                                             | 用户/系统事件                                        | 规则命中                               | 期望结果                                                                                                                                                                                                                                                                        | Review   |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| SFF01 | desktop local draft；DEFAULT_WORKSPACE 已存在 `.github/workflows/<marker>.yml`、`build/<marker>.txt`、`node_modules/<pkg>/<marker>.js`、`.env.<marker>` 四类代表文件 | 依次输入 `@<marker>` 各子串并观察 `@` files 候选面板 | workspaceFileSearchDefaultFilterMatrix | 隐藏目录后代可搜：`.github/workflows/<marker>.yml` 出现在候选；过宽目录放开：`build/<marker>.txt` 出现在候选；敏感文件排除：`.env.<marker>` 不出现；明确缓存/依赖排除：`node_modules/<pkg>/<marker>.js` 不出现。候选面板 section 仍只含 files，不混入 plugin/session/whiteboard | accepted |
+| SFF01 | desktop local draft；DEFAULT_WORKSPACE 已存在 `.github/workflows/<marker>.yml`、`build/<marker>.txt`、`node_modules/<pkg>/<marker>.js`、`.env.<marker>` 四类代表文件 | 依次输入 `@<marker>` 各子串并观察 `@` files 候选面板 | workspaceFileSearchDefaultFilterMatrix | 隐藏目录后代可搜：`.github/workflows/<marker>.yml` 出现在候选；过宽目录放开：`build/<marker>.txt` 出现在候选；敏感文件排除：`.env.<marker>` 不出现；明确缓存/依赖排除：`node_modules/<pkg>/<marker>.js` 不出现。候选面板 section 仍只含 files，不混入 plugin/session | accepted |
 
 SFF01 按 2026-08-07 用户确认只取 desktop local draft 作为正式 Electron E2E 代表。四种文件类型在一条 spec
 里按唯一 marker 串联验证，避免跨 spec 抖动；`.git` 目录本身不遍历、`*.map` / `*.min.js` 不再排除、普通隐藏
@@ -3631,7 +3634,7 @@ queue 测试，结构化 context 依赖标准 Composer 保留路径。窄屏桌�
 
 本组只把 Preview Pane 的 slide-owned 元素作为 renderer-local 结构化上下文加入当前主 Composer；
 不把 PPTX 二进制当附件，不改变 desktop `desktop-continuous` 或 mobile
-`web-remote-replayable` 的 task 运行态。完整契约见 [pptx-preview.md](./ui/pptx-preview.md)。
+`web-remote-replayable` 的 task 运行态。PPTX 内联预览已移除，元素引用仅作为结构化上下文进入 Composer。
 
 ```text
 PPTX preview selection -> focused Composer draft -> structured prompt tail
@@ -3992,7 +3995,7 @@ WFS03（accepted）：Snippet 运行→完成/失败；运行摘要计时且代�
 | PLUS04 | 宽屏/窄屏                                | 打开 +                          | footer 横排/换行，面板无横向溢出，连续打开仍与输入框等宽                        | accepted |
 | PLUS05 | 空草稿 / 非空草稿（catalog 含 workflow） | 查看工作流入口并选择            | 工作流位于目标之后；空草稿可见、非空草稿隐藏；选择后插入 `/workflow` 于消息开头 | pending  |
 
-不扩展画板、跨项目会话、停用插件启用、实际 provider 发送、runtime queue/replay：本次入口没有这些副作用。
+不扩展跨项目会话、停用插件启用、实际 provider 发送、runtime queue/replay：本次入口没有这些副作用。
 
 ## DWG：动态工作流灰度入口
 

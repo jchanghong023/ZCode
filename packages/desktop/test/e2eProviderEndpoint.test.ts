@@ -13,14 +13,13 @@ vi.mock("#e2e/helpers/request-security-edition/index", () => ({
 
 const liveTeam = "conversation-session-r3-live-bigmodel-team.test.ts";
 const ordinary = "conversation-session-v4-sendnow.test.ts";
-const liveShare = "conversation-session-share-ssh-artifact.test.ts";
 
 afterEach(() => {
   requestSecurityEnv.current = {};
 });
 
 describe("E2E provider endpoint ownership", () => {
-  it.each([liveTeam, liveShare])("生产账号统一使用可沿 SSH 传递的生产环境：%s", (spec) => {
+  it.each([liveTeam])("生产账号统一使用可沿 SSH 传递的生产环境：%s", (spec) => {
     const env = {
       ZCODE_ENV: "test",
       ...getE2EProviderEndpointEnv([spec], "deepseek", "replay"),

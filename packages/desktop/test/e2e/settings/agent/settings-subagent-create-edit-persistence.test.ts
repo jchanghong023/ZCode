@@ -104,7 +104,6 @@ describe("Settings subagent 创建/编辑文件持久化 E2E", () => {
 
     // 模型选择控件和 Subagent 的 model overlay 都依赖已初始化的 Provider/Registry。
     await prepareV4ConversationE2E();
-    await setRendererLocale("en-US");
     await openSubagentSettings();
   });
 
@@ -661,18 +660,4 @@ function readBuiltInReasoningLevel(state: Record<string, unknown>, agentName: st
   if (!options || typeof options !== "object" || Array.isArray(options)) return null;
   const reasoningLevel = (options as Record<string, unknown>).reasoningLevel;
   return typeof reasoningLevel === "string" ? reasoningLevel : null;
-}
-
-async function setRendererLocale(locale: "en-US") {
-  const changed = await browser.execute((nextLocale) => {
-    const actions = (window as typeof window & { __testActions?: Record<string, unknown> })
-      .__testActions;
-    const setLocale = actions?.setLocale;
-    if (typeof setLocale !== "function") return false;
-    (setLocale as (value: string) => void)(nextLocale);
-    return true;
-  }, locale);
-  if (!changed) {
-    throw new Error(`缺少 renderer locale test action: ${locale}`);
-  }
 }

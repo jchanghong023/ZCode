@@ -13,30 +13,6 @@ import {
 import { openSubagentHostWindow } from "#e2e/helpers/subagent-host-window";
 import { setRendererViewport, clearRendererViewport } from "#e2e/helpers/renderer-viewport";
 
-async function selectRecoveryLocale(locale: string) {
-  await browser.execute((value) => {
-    type Fiber = {
-      return?: Fiber;
-      memoizedProps?: { value?: { setLocalePreference?: (locale: string) => void } };
-    };
-    for (const element of document.querySelectorAll("div,button")) {
-      const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"));
-      for (
-        let fiber = key ? (Reflect.get(element, key) as Fiber) : undefined;
-        fiber;
-        fiber = fiber.return
-      ) {
-        const context = fiber.memoizedProps?.value;
-        if (context?.setLocalePreference) {
-          context.setLocalePreference(value);
-          return;
-        }
-      }
-    }
-    throw new Error("Missing actual locale context");
-  }, locale);
-}
-
 /**
  * 单入口登录按区域选择渠道：中文默认国内 zai_cn，其轮询只受夹具 cn-ready 控制。
  * 恢复用例依赖 hold-poll / enable-poll 挂起与放行旧流程，因此登录前显式选全球区 zai。
@@ -293,14 +269,8 @@ describe("凭据容器确认恢复", () => {
     try {
       await writeFile(credentialsFile, '{"unfinished":');
       for (const theme of ["zai-light", "zai-dark"]) {
-        for (const locale of ["en-US", "zh-CN"]) {
+        for (const locale of ["zh-CN"]) {
           for (const width of [1280, 390]) {
-            // 手改文件不会清除浏览器已保存的语言偏好；使用设置页相同的真实切换入口。
-            await selectRecoveryLocale(locale);
-            await browser.waitUntil(
-              async () =>
-                JSON.parse(await readFile(settingsFile, "utf8")).localePreference === locale,
-            );
             await browser.execute((value) => localStorage.setItem("zcode-theme", value), theme);
             await setRendererViewport(width, 844);
             await browser.refresh();
@@ -316,7 +286,7 @@ describe("凭据容器确认恢复", () => {
             await browser.$('[role="alertdialog"]').waitForDisplayed();
             await waitForTestIdByDom("credential-store-recovery-confirm");
             const text = await browser.$('[role="alertdialog"]').getText();
-            expect(text).toContain(locale === "zh-CN" ? "重新配置" : "reconfigure");
+            expect(text).toContain("重新配置");
             expect(
               await browser.execute(
                 () => document.documentElement.scrollWidth <= window.innerWidth,

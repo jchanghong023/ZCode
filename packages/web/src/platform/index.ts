@@ -143,7 +143,6 @@ export function createWebPlatform(options?: {
     registerOAuthState: (_payload) => {},
     onOAuthCallback: () => () => {},
     onPaymentCallback: () => () => {},
-    onShareImport: () => () => {},
     notifyRendererReady: () => {},
     reportTelemetryEvent: async (event) => {
       // 手机只开放 session_create 和插件发现事件；管理结果仍由 Desktop Host 唯一上报。

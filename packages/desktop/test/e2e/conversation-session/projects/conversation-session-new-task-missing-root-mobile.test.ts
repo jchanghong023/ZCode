@@ -13,7 +13,7 @@ import { openMobilePairingPage, seedMobileFixtureLogin } from "#e2e/helpers/mobi
 import { selectNativeProjectDirectories } from "#e2e/helpers/project-sidebar";
 
 type TestWindow = Window & {
-  __testActions?: { setLocale(locale: "zh-CN" | "en-US"): void; setTheme(theme: string): void };
+  __testActions?: { setTheme(theme: string): void };
   __restoreRoot03Clipboard?: () => void;
   __zcodeTabStoreE2E?: { getState(): { activeWorkspacePath: string | null; tabs: unknown[] } };
   __zcodeSessionStoreE2E?: {
@@ -191,11 +191,7 @@ describe("手机新建任务的目录失效反馈", () => {
       await page.getByRole("button", { name: /返回任务首页|Back to task home/ }).tap();
       await rename(cwd, moved);
       rootMoved = true;
-      for (const locale of ["zh-CN", "en-US"] as const) {
-        await page.evaluate(
-          (locale) => (window as TestWindow).__testActions!.setLocale(locale),
-          locale,
-        );
+      for (const locale of ["zh-CN"] as const) {
         const reason =
           locale === "zh-CN"
             ? "该项目主文件夹已被删除或移动"

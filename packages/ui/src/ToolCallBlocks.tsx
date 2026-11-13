@@ -38,7 +38,6 @@ function ToolCallBlockComponent({
   theme,
   codePreviewSettings,
   showIcon = true,
-  cuaAppIconClassName,
   onOpenCodeViewer,
   onOpenFileLink,
   onOpenBrowserUrl,
@@ -68,7 +67,6 @@ function ToolCallBlockComponent({
   /** 代码预览设置（store 耦合剥离）：由宿主传入并保持引用稳定。 */
   codePreviewSettings?: ToolCallBlockRenderContext["codePreviewSettings"];
   showIcon?: boolean;
-  cuaAppIconClassName?: ToolCallBlockRenderContext["cuaAppIconClassName"];
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBrowserUrl?: (url: string) => void;
@@ -216,7 +214,6 @@ function ToolCallBlockComponent({
       errorText,
       childToolList,
       showIcon,
-      cuaAppIconClassName,
       showTodoToolCalls,
       disableSummaryContentAnimation,
       animateDiffCountOnMount,
@@ -246,7 +243,6 @@ function ToolCallBlockComponent({
       authoritativeAgentType,
       childToolList,
       codePreviewSettings,
-      cuaAppIconClassName,
       displayModel,
       disableSummaryContentAnimation,
       animateDiffCountOnMount,

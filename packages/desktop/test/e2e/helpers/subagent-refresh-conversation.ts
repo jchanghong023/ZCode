@@ -35,15 +35,6 @@ export async function assertSubagentTurnFailed(marker: string, error: string) {
 
 /** Settings 选择器使用英文文案；只调用仓库已有的测试 UI 入口。 */
 export async function useEnglishSubagentSettings() {
-  await browser.execute(() => {
-    const actions = (
-      window as typeof window & {
-        __testActions?: { setLocale?: (locale: string) => void };
-      }
-    ).__testActions;
-    if (!actions?.setLocale) throw new Error("Missing locale action");
-    actions.setLocale("en-US");
-  });
 }
 export async function waitForSubagentIdle(timeout: number) {
   await waitForV4ConversationState(

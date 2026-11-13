@@ -18,7 +18,7 @@ const COPY = {
     "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart ZCode to continue.",
 };
 type TestWindow = Window & {
-  __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
+  __testActions?: { setTheme(theme: string): void };
 };
 
 describe("VP-ROOT-02：目录失效时的会话输入区提示", () => {
@@ -29,7 +29,6 @@ describe("VP-ROOT-02：目录失效时的会话输入区提示", () => {
     const primary = join(root, "primary");
     const moved = join(root, "moved");
     await prepareV4ConversationE2E({ skipProvider: true });
-    await browser.execute(() => (window as TestWindow).__testActions!.setLocale("zh-CN"));
     await mkdir(primary, { recursive: true });
     await $('[data-testid="project-section"]').moveTo();
     await $('[data-testid="virtual-project-add"]').click();
@@ -83,14 +82,7 @@ describe("VP-ROOT-02：目录失效时的会话输入区提示", () => {
         }
         await emulateViewport(width);
         for (const theme of ["zai-light", "zai-dark"]) {
-          for (const locale of ["zh-CN", "en-US"] as const) {
-            await browser.execute(
-              ({ theme, locale }) => {
-                (window as TestWindow).__testActions!.setTheme(theme);
-                (window as TestWindow).__testActions!.setLocale(locale);
-              },
-              { theme, locale },
-            );
+          for (const locale of ["zh-CN"] as const) {
             await expect($(NOTICE)).toHaveText(COPY[locale]);
             await assertReadOnlyHistory();
             const bounds = await browser.execute((selector) => {
@@ -130,13 +122,8 @@ describe("VP-ROOT-02：目录失效时的会话输入区提示", () => {
     } finally {
       await emulateViewport();
       if (sidebarCollapsed) {
-        await browser.execute(() => (window as TestWindow).__testActions!.setLocale("en-US"));
         await $('button[aria-label="Toggle sidebar"]').click();
       }
-      await browser.execute(() => {
-        (window as TestWindow).__testActions!.setTheme("system");
-        (window as TestWindow).__testActions!.setLocale("zh-CN");
-      });
     }
     await rename(moved, primary);
     await browser.execute(() => window.dispatchEvent(new Event("focus")));

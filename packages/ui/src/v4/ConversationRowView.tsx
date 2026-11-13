@@ -7,6 +7,7 @@ import { ConnectedBotGroupDeliveryAction } from "@/v4/BotGroupDeliveryAction.js"
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import {
   type ComponentProps,
+  type ReactNode,
   memo,
   useCallback,
   useEffect,
@@ -20,6 +21,10 @@ import {
   Clock,
   CopyIcon,
   FileIcon,
+  ArchiveIcon,
+  ArrowRightLeftIcon,
+  GitBranchIcon,
+  GoalIcon,
   InfoIcon,
   PencilIcon,
   ThumbsDownIcon,
@@ -28,6 +33,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { parseAutomationRunId } from "@zcode/shared";
+import type { ModelSelectionView } from "@zcode/services";
+import { resolveProviderLabel } from "@/lib/registryProviderView.js";
+import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import {
   TID_V4_EDIT,
   TID_V4_EDIT_ATTACHMENT_REMOVE,
@@ -69,7 +77,6 @@ import {
   ChatMediaAttachmentPreviewDialog,
   type ChatMediaAttachmentPreviewTarget,
 } from "@/ChatMediaAttachmentPreviewDialog.js";
-import type { PdfViewerRangeSource } from "@/components/ui/pdf-viewer.js";
 import { MessageAction, MessageActions } from "@/components/ai-elements/message.js";
 import {
   Reasoning,
@@ -129,9 +136,7 @@ import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementRef
 import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
-import { ConversationTimelineMarkerDivider } from "@/v4/ConversationShareReadonlyTimeline.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
-import { parseConversationShareContext } from "@/lib/conversationShareContext.js";
 import {
   ForkDestinationMenu,
   WorktreeCreatedMarker,
@@ -251,7 +256,7 @@ const SessionSourceHint = memo(function SessionSourceHint({ source }: { source: 
  * rowId 与 turnId 都保留，所以它就停在原来那条消息的位置上，前后文不会错位。
  *
  * 用中性信息语义而不是 warning 色：会话本身没出错，只是这个 build 认不出其中一行——与
- * ConversationShareReadonlyTimeline 的「部分内容需要更新 ZCode 查看」是同一视觉语言。
+ * 与只读投影的「部分内容需要更新 ZCode 查看」保持同一视觉语言。
  */
 const UnreadableRowView = memo(function UnreadableRowView({
   row,
@@ -705,38 +710,6 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
       setPdfPreviewError(false);
       try {
         const target = entityId ? { target: { rowId, entityId }, attachmentIndex } : {};
-        if (readAttachmentRange) {
-          const firstRange = await readAttachmentRange({
-            sessionId,
-            ref,
-            ...target,
-            offset: 0,
-            limit: 256 * 1024,
-            signal: abortController.signal,
-          });
-          const source: PdfViewerRangeSource = {
-            totalBytes: firstRange.totalBytes,
-            initialData: firstRange.bytes,
-            requestRange: async (offset, limit) => {
-              const range = await readAttachmentRange({
-                sessionId,
-                ref,
-                ...target,
-                offset,
-                limit,
-                signal: abortController.signal,
-              });
-              return range.bytes;
-            },
-          };
-          if (pdfPreviewRequestRef.current !== requestId) return;
-          setPdfPreview({
-            filename: attachment.fileName,
-            mediaType: firstRange.mediaType,
-            pdfSource: source,
-          });
-          return;
-        }
         if (!readAttachment) return;
         const result = await readAttachment({
           sessionId,
@@ -1047,10 +1020,6 @@ const SingleUserInputRowView = memo(function SingleUserInputRowView({
   // 只用于把历史消息里的 share URL 尾块从可见正文里剥掉。
   // 该块已不再产出（见 ConversationComposer 的 promptText 注释）；这里保留解析，是为了让
   // 接线修复到本次删除之间发出的消息不至于把裸 markup 当正文显示出来。
-  const parsedShareContext = useMemo(
-    () => parseConversationShareContext(parsedPrompt.visibleContent),
-    [parsedPrompt.visibleContent],
-  );
   const editSessionKey = context.sessionId
     ? composerEditSessionKey(
         context.workspaceIdentity?.trim() || context.workspacePath,
@@ -1075,7 +1044,7 @@ const SingleUserInputRowView = memo(function SingleUserInputRowView({
   const handleFocusComposerEdit = useCallback(() => {
     if (editSessionKey) useComposerEditStore.getState().requestFocus(editSessionKey);
   }, [editSessionKey]);
-  const visibleText = parsedShareContext.visibleContent;
+  const visibleText = parsedPrompt.visibleContent;
   const codeCommentContexts = parsedPrompt.codeComments;
   // 设计稿元素在正文里已经画成 token，卡片只给普通网页「选择元素」的引用
   const webElementContexts = useMemo(
@@ -1732,6 +1701,269 @@ const TurnHeaderRowView = memo(function TurnHeaderRowView({ row }: { row: TurnHe
 });
 
 /** timelineMarker 分隔线与分享只读页共用；这里只注入 App 宿主能力。 */
+const MARKER_ARCHIVE_ICON = (
+  <ArchiveIcon
+    aria-hidden="true"
+    className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+  />
+);
+const MARKER_FORK_ICON = (
+  <GitBranchIcon
+    aria-hidden="true"
+    className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+  />
+);
+const MARKER_GOAL_ICON = (
+  <GoalIcon
+    aria-hidden="true"
+    className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+  />
+);
+const MARKER_MODEL_ICON = (
+  <ArrowRightLeftIcon
+    aria-hidden="true"
+    className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+  />
+);
+
+/**
+ * 系统标记分隔线壳：两侧细横线 + 居中「图标 + 文案」pill，视觉对齐旧版
+ * ChatMessage synthetic-timeline dividers（fork / compaction / goal 同款）。
+ * running（压缩/校验进行中）隐藏图标、文案走 animated-gradient-text 流光（同旧版）。
+ */
+function MarkerDividerRow({
+  rowId,
+  markerType,
+  markerStatus,
+  markerOrigin,
+  markerSourceCommandId,
+  icon,
+  label,
+  running = false,
+  onClick,
+}: {
+  rowId: number;
+  markerType: TimelineMarkerRow["marker"]["type"];
+  markerStatus: string;
+  markerOrigin?: string;
+  markerSourceCommandId?: string;
+  icon: ReactNode;
+  label: ReactNode;
+  running?: boolean;
+  /** 传入即整行可点（fork→跳父会话）；不传为静态分隔线。 */
+  onClick?: () => void;
+}) {
+  const clickable = Boolean(onClick);
+  const rowClassName =
+    "flex w-full items-center gap-3 px-4 py-2 text-ui-base text-[var(--color-foreground-subtle)]";
+  const inner = (
+    <>
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+      <span className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 text-center leading-5">
+        {running ? null : icon}
+        <span
+          className={`min-w-0 break-words${running ? " animated-gradient-text font-medium" : ""}${clickable ? " underline-offset-4 group-hover/marker:underline" : ""}`}
+        >
+          {label}
+        </span>
+      </span>
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+    </>
+  );
+  if (onClick) {
+    // 整行 <button>（对齐旧版 fork divider）：hover 变亮 + 文案下划线示意可点。
+    return (
+      <button
+        type="button"
+        data-row-id={rowId}
+        data-row-kind="timelineMarker"
+        data-marker-type={markerType}
+        data-status={markerStatus}
+        data-origin={markerOrigin}
+        data-source-command-id={markerSourceCommandId}
+        data-testid={testId(TID_V4_ROW, String(rowId))}
+        onClick={onClick}
+        className={`group/marker ${rowClassName} text-left transition-colors hover:text-[var(--color-foreground)]`}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div
+      data-row-id={rowId}
+      data-row-kind="timelineMarker"
+      data-marker-type={markerType}
+      data-status={markerStatus}
+      data-origin={markerOrigin}
+      data-source-command-id={markerSourceCommandId}
+      data-testid={testId(TID_V4_ROW, String(rowId))}
+      className={rowClassName}
+    >
+      {inner}
+    </div>
+  );
+}
+
+/**
+ * timelineMarker 行渲染：compact / forkNotice / goalVerify / modelChange 画成分隔线。
+ * modelChange 可见化 = 裁决（切换后实际发送出去的轮才落分隔，含
+ * model-only 续跑轮）；goalSet/forkCreated 已在投影层停产（隐形行清零），
+ * retryNotice·checkpointRestored 无 UI，default 分支兜底不渲染。
+ *
+ * 从 ConversationRowView 移入本安全边界文件：分享只读页原先自绘一套无图标、无 from→to 的
+ * 简化分隔线，与 App 对话页长期不一致；两端改为共用本组件，Office 模式、模型目录、fork 跳转
+ * 等宿主能力由调用方注入，本组件不读 store。
+ */
+export const ConversationTimelineMarkerDivider = memo(function ConversationTimelineMarkerDivider({
+  row,
+  isOfficeMode = false,
+  modelSelectionView = null,
+  onNavigateToRow,
+}: {
+  row: TimelineMarkerRow;
+  isOfficeMode?: boolean;
+  /** 模型目录；只读页没有目录，provider 名称回退到 ID。 */
+  modelSelectionView?: ModelSelectionView | null;
+  /** fork 跳父会话；只读页不传。 */
+  onNavigateToRow?: (sessionId: string, rowId: number) => void;
+}) {
+  const { intl } = useZCodeIntl();
+  const marker = row.marker;
+  const view = useMemo((): {
+    icon: ReactNode;
+    label: ReactNode;
+    running: boolean;
+  } | null => {
+    switch (marker.type) {
+      case "compact": {
+        const running = marker.status === "running";
+        const automaticOptimization = isOfficeMode && marker.origin === "auto";
+        const scope = automaticOptimization ? "chat.contextOptimization" : "chat.contextCompaction";
+        const statusMessage =
+          marker.status === "running"
+            ? "started"
+            : marker.status === "noop"
+              ? "skipped"
+              : marker.status === "cancelled"
+                ? "interrupted"
+                : marker.status === "failed"
+                  ? "failed"
+                  : marker.origin === "auto" && !automaticOptimization
+                    ? "completedAuto"
+                    : "completed";
+        return {
+          icon: MARKER_ARCHIVE_ICON,
+          label: intl.formatMessage({ id: `${scope}.${statusMessage}` }),
+          running,
+        };
+      }
+      case "forkNotice":
+        return {
+          icon: MARKER_FORK_ICON,
+          label: intl.formatMessage({ id: "chat.message.fork.derivedFrom" }),
+          running: false,
+        };
+      case "modelChange": {
+        // marker 已携带完整 provider/model 元组，旧渲染却只读取 model，
+        // 且没有订阅 provider snapshot，导致同名模型无差异、目录水合后名称不刷新。
+        // 这里保留 provider ID fallback，并让现有 marker 随目录更新。
+        const fromProvider = resolveProviderLabel(marker.fromProvider, modelSelectionView);
+        const toProvider = resolveProviderLabel(marker.toProvider, modelSelectionView);
+        const to = formatModelChangeLabel(marker.toProvider, toProvider, marker.toModel, intl);
+        if (marker.fromProvider === undefined || marker.fromModel === undefined) {
+          return {
+            // source-less 表示首次使用的模型事实，不是模型切换，因此不显示切换箭头。
+            icon: null,
+            label: intl.formatMessage({ id: "chat.modelChange.using" }, { model: to }),
+            running: false,
+          };
+        }
+        return {
+          icon: MARKER_MODEL_ICON,
+          label: intl.formatMessage(
+            { id: "chat.modelChange.switched" },
+            {
+              from: formatModelChangeLabel(
+                marker.fromProvider,
+                fromProvider,
+                marker.fromModel,
+                intl,
+              ),
+              to,
+            },
+          ),
+          running: false,
+        };
+      }
+      case "goalVerify": {
+        const running = marker.outcome === "running";
+        // pass→完成；notSatisfied/failed→未完成（沿用旧版 failed_closed 归「未完成」的处理）。
+        const statusId =
+          marker.outcome === "running"
+            ? "chat.goalVerification.checking"
+            : marker.outcome === "pass"
+              ? "chat.goalVerification.complete"
+              : "chat.goalVerification.incomplete";
+        return {
+          icon: MARKER_GOAL_ICON,
+          running,
+          // innerText 形如「第 1 次迭代 · 目标校验中」，对齐 goal-timeline 待命 e2e 断言。
+          label: (
+            <>
+              <span>
+                {intl.formatMessage(
+                  { id: "chat.summaryPanel.goalIterationValue" },
+                  { count: String(marker.iteration) },
+                )}
+              </span>
+              <span aria-hidden="true"> · </span>
+              {intl.formatMessage({ id: statusId })}
+            </>
+          ),
+        };
+      }
+      default:
+        return null;
+    }
+  }, [intl, isOfficeMode, marker, modelSelectionView]);
+
+  // fork 跳父会话（Tier 1）：仅 forkNotice 且宿主提供 onNavigateToRow 时可点，
+  // 切到 marker.parentSessionId（rowId 预留 Tier 2 精确滚动，当前恒 0 占位）。
+  const handleClick = useMemo(() => {
+    if (marker.type !== "forkNotice" || !onNavigateToRow) {
+      return undefined;
+    }
+    return () => onNavigateToRow(marker.parentSessionId, marker.parentRowId);
+  }, [marker, onNavigateToRow]);
+
+  if (!view) {
+    return null;
+  }
+  return (
+    <MarkerDividerRow
+      rowId={row.rowId}
+      markerType={marker.type}
+      markerStatus={
+        marker.type === "compact"
+          ? marker.status
+          : marker.type === "goalVerify"
+            ? marker.outcome
+            : marker.type === "forkNotice"
+              ? "created"
+              : "applied"
+      }
+      markerOrigin={marker.type === "compact" ? marker.origin : undefined}
+      markerSourceCommandId={row.sourceCommandId}
+      icon={view.icon}
+      label={view.label}
+      running={view.running}
+      onClick={handleClick}
+    />
+  );
+});
+
+
 const TimelineMarkerRowView = memo(function TimelineMarkerRowView({
   row,
   context,

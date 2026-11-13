@@ -20,7 +20,7 @@ function toolbarOverflow(root: HTMLElement): number {
 }
 
 /**
- * 仅拥有 DOM 布局投影；权限、Plan 和 CUA 业务状态仍由原有 hooks 管理。
+ * 仅拥有 DOM 布局投影；权限和 Plan 业务状态仍由原有 hooks 管理。
  * iconOnly：单行输入框没有固定的工具栏宽度可测，直接按同一顺序收到最后一级（只留图标）。
  */
 export function fitComposerToolbar(root: HTMLElement, { iconOnly = false } = {}) {

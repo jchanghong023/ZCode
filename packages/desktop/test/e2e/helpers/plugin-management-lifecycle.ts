@@ -781,7 +781,6 @@ export async function getPluginControlText(
 }
 
 export async function setPluginPresentation(input: {
-  locale: "zh-CN" | "en-US";
   theme: "zai-light" | "zai-dark";
   width: number;
   height: number;
@@ -793,13 +792,11 @@ export async function setPluginPresentation(input: {
         __testActions?: Record<string, unknown>;
       }
     ).__testActions;
-    const setLocale = actions?.setLocale;
     const setTheme = actions?.setTheme;
-    if (typeof setLocale !== "function" || typeof setTheme !== "function") {
-      done("missing locale/theme test action");
+    if (typeof setTheme !== "function") {
+      done("missing theme test action");
       return;
     }
-    (setLocale as (value: string) => void)(next.locale);
     (setTheme as (value: string) => void)(next.theme);
     requestAnimationFrame(() => done());
   }, input);

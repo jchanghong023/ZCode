@@ -178,11 +178,6 @@ describe(`${CASE_MARKER}: 设置设备列表与未完成连接`, () => {
         originalDirectory.entries.map((entry) => [entry.id, entry.projectId]).sort(),
       );
     };
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN");
-    });
     await settings();
     await $("[data-source-server-card]").waitForDisplayed();
     expect(await $$("[data-source-server-card]").length).toBe(1);

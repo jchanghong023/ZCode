@@ -115,21 +115,8 @@ async function captureLayouts(): Promise<void> {
   if (!root) throw new Error(`${CASE_MARKER}: 缺少工件目录`);
   const dir = resolve(root, "memory-devices");
   await mkdir(dir, { recursive: true });
-  for (const locale of ["zh-CN", "en-US"]) {
+  for (const locale of ["zh-CN"]) {
     for (const theme of ["light", "dark"]) {
-      await browser.execute(
-        (language, color) => {
-          const actions = (
-            window as Window & {
-              __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-            }
-          ).__testActions;
-          actions?.setLocale(language);
-          actions?.setTheme(color);
-        },
-        locale,
-        theme,
-      );
       for (const width of [1280, 700]) {
         await setCurrentElectronRendererContentSize(width, 800);
         await openDeviceMenu();
@@ -142,15 +129,6 @@ async function captureLayouts(): Promise<void> {
       }
     }
   }
-  await browser.execute(() => {
-    const actions = (
-      window as Window & {
-        __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-      }
-    ).__testActions;
-    actions?.setLocale("zh-CN");
-    actions?.setTheme("light");
-  });
   await setCurrentElectronRendererContentSize(1280, 800);
 }
 

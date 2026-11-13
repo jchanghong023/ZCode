@@ -112,10 +112,10 @@ describe("LocalToolSearch 与 ToolSearch 共用不可展开卡片", () => {
       else expect(result!.content).toContain("<functions>");
     }
 
-    for (const locale of ["zh-CN", "en-US"] as const) {
+    {
       for (const theme of ["zai-light", "zai-dark"] as const) {
-        await setPresentation(locale, theme);
-        const label = locale === "zh-CN" ? "搜索工具：" : "Search tools: ";
+        await setPresentation(theme);
+        const label = "搜索工具：";
         await expectCard(
           "card_multi",
           new RegExp(`${label}Read, TodoRead, TaskOutput`),
@@ -203,18 +203,15 @@ async function expectCard(callId: string, label: RegExp, status: string) {
   );
 }
 
-async function setPresentation(locale: "zh-CN" | "en-US", theme: "zai-light" | "zai-dark") {
+async function setPresentation(theme: "zai-light" | "zai-dark") {
   const changed = await browser.execute(
-    (nextLocale, nextTheme) => {
+    (nextTheme) => {
       const actions = (window as typeof window & { __testActions?: Record<string, unknown> })
         .__testActions;
-      if (typeof actions?.setLocale !== "function" || typeof actions.setTheme !== "function")
-        return false;
-      (actions.setLocale as (value: string) => void)(nextLocale);
+      if (typeof actions?.setTheme !== "function") return false;
       (actions.setTheme as (value: string) => void)(nextTheme);
       return true;
     },
-    locale,
     theme,
   );
   expect(changed).toBe(true);

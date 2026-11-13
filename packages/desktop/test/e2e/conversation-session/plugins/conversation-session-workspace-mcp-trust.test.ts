@@ -198,7 +198,7 @@ describe("WMT-01 workspace MCP manual trust", () => {
     await writeFile(configPath, JSON.stringify(config));
     const artifactDir = process.env.ZCODE_E2E_ARTIFACT_DIR;
     if (!artifactDir) throw new Error("isolated artifact directory required");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1280, height: 660 });
+    await setPluginPresentation({ theme: "zai-light", width: 1280, height: 660 });
     const recording = await startElectronWindowRecording({
       outputPath: join(artifactDir, "WMT-01-desktop-full-flow.mp4"),
       frameIntervalMs: 200,
@@ -261,13 +261,12 @@ describe("WMT-01 workspace MCP manual trust", () => {
         ["zh-CN", "zai-dark"],
         ["en-US", "zai-light"],
       ] as const) {
-        await setPluginPresentation({ locale, theme, width: 1280, height: 660 });
+        await setPluginPresentation({ theme, width: 1280, height: 660 });
         await waitTrusted(false);
         await browser.saveScreenshot(join(artifactDir, `WMT-01-${locale}-${theme}.png`));
         await pause(REVIEW_PAUSE_MS);
       }
       await setPluginPresentation({
-        locale: "zh-CN",
         theme: "zai-light",
         width: 1280,
         height: 660,
@@ -287,7 +286,7 @@ describe("WMT-01 workspace MCP manual trust", () => {
       await reviewTrustCode();
       await waitTrusted(false);
       for (const theme of ["zai-dark", "zai-light"] as const) {
-        await setPluginPresentation({ locale: "zh-CN", theme, width: 1280, height: 660 });
+        await setPluginPresentation({ theme, width: 1280, height: 660 });
         await reviewTrustCode();
         await browser.saveScreenshot(join(artifactDir, `WMT-01-json-${theme}.png`));
         await pause(REVIEW_PAUSE_MS);
@@ -452,19 +451,6 @@ describe("WMT-01 workspace MCP manual trust", () => {
         ["zh-CN", "zai-dark"],
         ["en-US", "zai-light"],
       ] as const) {
-        await page.evaluate(
-          ({ locale, theme }) => {
-            const actions = (
-              window as typeof window & {
-                __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-              }
-            ).__testActions;
-            if (!actions) throw new Error("missing presentation test actions");
-            actions.setLocale(locale);
-            actions.setTheme(theme);
-          },
-          { locale, theme },
-        );
         const row = page.getByTestId(rowId);
         await row.waitFor();
         const box = await row.boundingBox();
@@ -562,7 +548,6 @@ describe("WMT-01 workspace MCP manual trust", () => {
     });
     try {
       await setPluginPresentation({
-        locale: "zh-CN",
         theme: "zai-light",
         width: 1280,
         height: 660,

@@ -1,5 +1,8 @@
 # Highspeed 加速卡功能规格
 
+> 2026-11-13：Renderer Highspeed 接入已删除；Host 服务、CLI 协议与模型路由契约仍保留，本文前端行为章节仅作历史参考。
+
+
 > 状态：MVP 开发中（2026-08-20）  
 > 范围：发送抽卡、1 秒 fallback、冷却、固定模型、消息标识、分享与可扩展全局通知承载位。Highspeed 输入框包含激活动效；分享卡仍保持静态展示。
 
@@ -627,11 +630,11 @@ Selection，请求打到 Highspeed 推理接口而非 Team Coding Plan Endpoint�
 
 Figma 节点：`6430-11379`（2026-08-31 换稿；旧稿 `6012:18468` 已废弃）。全局通知 surface 中的 Highspeed 分享卡按以下静态视觉实现：
 
-- 卡片宽度撑满侧栏活动槽位，高度固定为 `96px`，与营销 Banner 对齐；外框不设最大宽度和额外 padding。侧栏缩放时只调整背景裁切，文字和按钮尺寸保持不变，窄屏不得溢出侧栏。
-- 卡片使用 `12px` 圆角。浅色主题采用接近营销 Banner 的 `#FAFAFA` 底色及主题浅灰描边，SVG 只保留低透明度 Z 水印，不含银灰渐变和噪点；深色主题保留原合成 SVG 背景。
+- 卡片宽度撑满侧栏活动槽位，高度固定为 `96px`，沿用侧栏活动槽位既有规格；外框不设最大宽度和额外 padding。侧栏缩放时只调整背景裁切，文字和按钮尺寸保持不变，窄屏不得溢出侧栏。
+- 卡片使用 `12px` 圆角。浅色主题采用 `#FAFAFA` 底色及主题浅灰描边，SVG 只保留低透明度 Z 水印，不含银灰渐变和噪点；深色主题保留原合成 SVG 背景。
 - 左上使用宽 `52px`、60% 不透明度的 `ZCodeWordmarkLogo` SVG 字标；模型行距顶部 `34px`，中部独立一行以 `text-ui-lg`（默认 16px）、600 字重突出完整模型名 `GLM-5.3-Highspeed`，名前放置 16px 的 Zap 闪电图标、间距 4px，图标使用同系主题紫色；文字使用 Highspeed 紫色系横向渐变：浅色主题 `#4830C8` → `#6041FF` → `#8955DB`，深色主题 `#9B85FF` → `#B09AFF` → `#CEACFF`，渐变按文字宽度铺开；不支持文字背景裁切时回退到主题文字色。下方以 `text-ui-base`（默认 14px）展示次级文案「分享你的加速时刻」（英文 `Share your speedup`）。右下保留 `View` 按钮，使用 `text-ui-base`（默认 14px）、24px 高度；次级文案为按钮预留空间，窄屏溢出省略。
 - 右下 `View` 按钮带眼睛图标，点击打开分享弹窗（`HighspeedShareDialog`）展示加速统计。左下角分享卡只在卡级聚合数据完整且总体加速倍率严格大于 `1.2x` 时才发布；无数据或未达标（≤`1.2x`）不发布左下角卡（发布门禁与本按钮门禁同口径，见 `highspeedTurnStore.listHighspeedCardAutoShareCandidates`）。因此已发布的卡必然满足资格，`View` 按钮总会渲染。为保证这一点，通知 payload 必须携带与发布门禁**同精度**的指标事实：`durationMs`、`savedDurationMs`（毫秒、不取整）以及 `tokenUsage`；组件内仍以同一 `isHighspeedShareEligible` 对这些毫秒字段复检作为纵深防御，任何不可信或未达标数据都不得进入分享弹窗。**卡片渲染侧不得依据展示精度字段（秒级取整值）重新判定资格**：曾经 payload 只带 `ceil(duration)` / `round(saved)` 的秒级字段，渲染侧由秒重建倍率会在 `(1.2, ~1.25]` 边界带系统性低估（如 6100ms/1225ms 实际 7325/6100≈1.2008x → 重建 8/7≈1.14x），使已发布的卡隐藏 `View`。秒级展示值只能由毫秒字段在渲染时派生；仅 ≤24h 内遗留的秒级 payload 允许按 `×1000` 兜底读取。此处与组尾 footer（§10）有意不同：footer 未达标时仍展示、仅隐藏按钮，左下角分享卡未达标则整卡不发布。分享地址、share id 及对应 shareUrl 复制链路已从 Highspeed 分享中移除（见 `docs/highspeed-share-client-generated.md`）。
-- 右上关闭按钮距顶部、右侧各 `10px`，桌面和触屏均常显；与营销 Banner 共用 `ghost` / `icon-xs` 圆形按钮及图标尺寸，默认无底色，hover 提高对比度，保留键盘焦点环。继续触发全局通知 24 小时静默规则。
+- 右上关闭按钮距顶部、右侧各 `10px`，桌面和触屏均常显；使用 `ghost` / `icon-xs` 圆形按钮及图标尺寸，默认无底色，hover 提高对比度，保留键盘焦点环。继续触发全局通知 24 小时静默规则。
 - 本期只实现静态布局、hover/focus 等基础可用状态，不实现动效。
 - 卡片在 Light/Dark/Zai 主题下分别使用浅色水印 SVG 与深色设计底图；外围布局仍使用现有 sidebar surface。
 
@@ -704,22 +707,19 @@ Figma 节点：`6079:8738`。
 - 卡级 healthy 失败或返回零值时，最后一轮完成后最多补查一次；仍失败可复用该卡此前成功采样的卡级 TPS。没有任何有效正数或历史消息缺少完成态字段时不展示节省时间，禁止回退固定 TPS。
 - 状态行使用 `icon/purple` 文本与 32% 弱分隔线；左侧工作时长保持 `text-ui-base`，右侧节省时间与 tag 使用 `text-ui-sm`。窄屏允许状态行换行，不能裁掉核心信息。
 
-### 9.5 与领 token 营销 Banner 的共享槽位优先级
+### 9.5 左下角活动槽位
 
-左下角侧栏底部只保留**一个活动展示槽位**，由 Highspeed 分享卡（全局通知 `highspeed-share`）与「领 token」营销 Banner（`resource_position === "banner"`，动作 `claim_zcode_plan`）共用。两者同时命中时**折叠为同一位置、领 token 优先覆盖在上**；只有领 token Banner 消失或被关闭后，同一位置才展示 Highspeed 分享卡。
+左侧栏底部只保留**一个活动展示槽位**。Marketing Touch 删除后，槽位只承载 Highspeed 分享卡（全局通知 `highspeed-share`）与其他全局通知，不再有领 token Banner 让位规则。
 
-- 优先级固定为 **领 token Banner > Highspeed 分享卡**。二者可见性仍分别由各自的 store 独占 own：营销 Banner 归 `marketingTouchController`，Highspeed 分享卡归 `browserGlobalNoticeStore`。槽位只做只读投影择一渲染，不复制第二份状态、不新增计时器。
-- Banner「可见」判定复用营销侧唯一谓词 `isMarketingBannerRenderable`（`banner && resource_position === "banner" && (image || bannerHero)`），领取 `pending` 期间 Banner 仍在，Highspeed 继续让位。
-- Banner 消失路径（`closeBanner()` 置空 / 服务端撤回 / pending 结束后无投放）使 `bannerVisible` 变 false，Highspeed 分享卡在**同一槽位**恢复显示，前提是它仍在 §6 的 24h 可见性窗口内且未处于 dismiss 冷却。
-- 让位期间**不暂停** Highspeed 的 24h 计时：其有效期远长于 Banner 存活时间，Banner 关闭后 `getVisible()` 仍按 §6 过滤过期/冷却，不引入竞态；到期判定与刷新沿用 §6 与 `GlobalNoticeSurface` 现有逻辑。
+- Highspeed 分享卡归 `browserGlobalNoticeStore` 独占；`SidebarBottomActivity` 只渲染 `GlobalNoticeSurface`，不复制状态、不新增计时器。
+- 24h 可见性窗口、dismiss 冷却、到期过滤与刷新沿用 §6 与 `GlobalNoticeSurface` 现有逻辑。
+- 原「领 token Banner > Highspeed 分享卡」优先级及其 `marketingTouchController` / `isMarketingBannerRenderable` 依赖已随 Marketing Touch 删除，不再适用。
 
 ```text
-marketingTouchController.banner 可见? ─┐
-                                       ├─▶ SidebarBottomActivity（只读仲裁）
-browserGlobalNoticeStore.highspeed 可见?┘        │
-                                                 ├─ Banner 可见 → 渲染领 token Banner（覆盖在上）
-                                                 └─ 否则       → 渲染 Highspeed 分享卡
-                                                            （统一槽位 = footer banner 槽）
+browserGlobalNoticeStore.highspeed 可见?
+  └─▶ SidebarBottomActivity → GlobalNoticeSurface
+        └─ 可见 → 渲染 Highspeed 分享卡
+        └─ 否则 → 不产生多余 DOM
 ```
 
 ## 10. 本期不做

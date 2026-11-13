@@ -15,11 +15,6 @@ describe("DGJ01 草稿标题适配不推动输入框回弹", () => {
     // 上午/中午的短问候语可能无法触发缩字；只调整 renderer 时区，保持真实时钟继续运行。
     const offset = 14 - new Date().getUTCHours();
     await setRendererTimezone(`Etc/GMT${offset >= 0 ? "-" : "+"}${Math.abs(offset)}`);
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions!.setLocale("en-US");
-    });
     await frames();
     await mkdir(artifacts, { recursive: true });
   });
@@ -33,20 +28,7 @@ describe("DGJ01 草稿标题适配不推动输入框回弹", () => {
   it("左右侧栏开关和拖动期间，中英文双主题均无临时换行", async function () {
     this.timeout(120000);
     for (const theme of ["zai-light", "zai-dark"]) {
-      for (const locale of ["zh-CN", "en-US"]) {
-        await browser.execute(
-          (theme, locale) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setTheme(value: string): void; setLocale(value: string): void };
-              }
-            ).__testActions!;
-            actions.setTheme(theme);
-            actions.setLocale(locale);
-          },
-          theme,
-          locale,
-        );
+      for (const locale of ["zh-CN"]) {
         await browser.waitUntil(() =>
           browser.execute(() => {
             const title = document.querySelector<HTMLElement>("[data-v4-draft-greeting]");

@@ -181,11 +181,6 @@ describe(marker, () => {
     const config = readSSHRuntimeConfig(marker);
     await prepareV4ConversationE2E({ skipProvider: true });
     await installHandoffRpcProbe();
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN");
-    });
     await openForm();
     expect(await $('[data-testid="virtual-project-type-next"]').isExisting()).toBe(false);
     expect(await $('[data-testid="virtual-project-device"]').getText()).toContain("此电脑");
@@ -309,21 +304,8 @@ describe(marker, () => {
     );
 
     const artifacts = process.env.ZCODE_E2E_ARTIFACT_DIR!;
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (language, color) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(language);
-            actions?.setTheme(color);
-          },
-          locale,
-          theme,
-        );
         for (const width of [1440, 480]) {
           await browser.electron.execute((electron, size) => {
             electron.BrowserWindow.getAllWindows()
@@ -435,11 +417,6 @@ describe(marker, () => {
   });
   it("RDUX15-01/02 从真实本地和远端任务默认设备，断线与快照刷新不覆盖选择", async function () {
     this.timeout(5 * 60_000);
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN");
-    });
     const localProjects = await callHandoffHost<VirtualProject[]>(
       ServiceChannels.Project,
       "readProjects",

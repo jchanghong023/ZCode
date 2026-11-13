@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import {
   TID_SETTINGS_BACK_BUTTON,
-  TID_SETTINGS_LOCALE_SELECT_TRIGGER,
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
   TID_SETTINGS_PAGE,
   TID_SETTINGS_SECTION_NAV,
@@ -29,15 +28,6 @@ const labels = [
 describe("Agent 行为与工具设置", () => {
   before(async () => {
     await prepareV4ConversationE2E({ skipProvider: true });
-    await browser.execute(() => {
-      const actions = (
-        window as typeof window & {
-          __testActions?: { setLocale(value: string): void };
-        }
-      ).__testActions;
-      if (!actions) throw new Error("Missing UI test actions");
-      actions.setLocale("zh-CN");
-    });
     await browser.waitUntil(() => browser.execute(() => document.documentElement.lang === "zh-CN"));
     await clickTestIdByDom(TID_TASK_SETTINGS_BUTTON);
     await page().waitForDisplayed();
@@ -50,7 +40,6 @@ describe("Agent 行为与工具设置", () => {
 
   it("SAB01：常规移除重复标签和 Agent 配置，新分类归属 Agent 能力", async () => {
     await clickTestIdByDom(testId(TID_SETTINGS_SECTION_NAV, "general"));
-    await $(`[data-testid="${TID_SETTINGS_LOCALE_SELECT_TRIGGER}"]`).waitForDisplayed();
     const heading = await page().$("h2");
     expect(await heading.$("../..").getText()).toBe("常规");
     for (const label of labels) expect(await page().getText()).not.toContain(label);
@@ -62,9 +51,6 @@ describe("Agent 行为与工具设置", () => {
     await $(`[data-testid="${TID_SETTINGS_TOOL_SEARCH_SELECT}"]`).waitForExist();
     await browser.waitUntil(async () => (await page().getText()).includes("动态工作流"));
     for (const label of labels) expect(await page().getText()).toContain(label);
-    expect(await $(`[data-testid="${TID_SETTINGS_LOCALE_SELECT_TRIGGER}"]`).isExisting()).toBe(
-      false,
-    );
   });
 
   it("SAB02：新分类保存设置，重开和刷新恢复分类及值", async () => {
@@ -117,24 +103,7 @@ describe("Agent 行为与工具设置", () => {
           classes,
         );
         for (const theme of ["zai-light", "zai-dark"]) {
-          for (const locale of ["zh-CN", "en-US"]) {
-            await browser.execute(
-              (theme, locale) => {
-                const actions = (
-                  window as typeof window & {
-                    __testActions?: {
-                      setTheme(value: string): void;
-                      setLocale(value: string): void;
-                    };
-                  }
-                ).__testActions;
-                if (!actions) throw new Error("Missing UI test actions");
-                actions.setTheme(theme);
-                actions.setLocale(locale);
-              },
-              theme,
-              locale,
-            );
+          for (const locale of ["zh-CN"]) {
             await browser.waitUntil(() =>
               browser.execute(
                 (theme, locale) =>

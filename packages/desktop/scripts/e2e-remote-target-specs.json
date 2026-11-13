@@ -74,7 +74,6 @@
   "conversation-session/remote/execution/conversation-session-r3-task-control.test.ts",
   "conversation-session/remote/execution/conversation-session-r3-task-faults.test.ts",
   "conversation-session/remote/execution/conversation-session-r3-terminal.test.ts",
-  "conversation-session/remote/execution/conversation-session-share-ssh-artifact.test.ts",
   "conversation-session/remote/execution/conversation-session-ssh-remote-attachment-races.test.ts",
   "conversation-session/remote/execution/conversation-session-ssh-remote-task-lifecycle.test.ts",
   "conversation-session/remote/installation/conversation-session-r3-daemon-detached.test.ts",

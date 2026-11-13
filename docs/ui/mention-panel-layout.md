@@ -17,22 +17,19 @@ Composer 以 `@`、`/` 和 `$` 作为三个主发现入口：
 
 旧能力继续保留：
 
-- `@` 中已有的 Whiteboards 分组继续展示，排在上述三个主分组之后，不删除 provider、chip 或历史渲染能力。
 - `#` 仍可直接打开原有对话候选面板。
 - `$`、`¥`、`￥` 仍可直接打开原有 Skills 候选面板，其中 `¥`、`￥` 继续归一为 `$`。
-- 旧草稿、历史消息和外部入口产生的 file、whiteboard、session、skill、subagent mention 继续按原格式解析和展示。
+- 旧草稿、历史消息和外部入口产生的 file、session、skill、subagent mention 继续按原格式解析和展示。
 - 其它未放入主分组的能力仍可通过普通自然语言 prompt 使用；本次不删除 runtime capability。
 
 输入框的 `+` action menu 显式突出 `@`、`/` 和 `$`，不再单独展示 `#` 对话快捷项，因为对话已进入 `@` 主入口；但用户手动输入 `#` 时，原候选面板仍正常打开。
-`@` 面板的空 query 搜索提示只列出插件、文件和对话，不再提及画板。
 
 ```text
 Composer
 ├─ @  引用上下文
 │  ├─ 1. Plugins
 │  ├─ 2. 文件 / 文件夹
-│  ├─ 3. 对话
-│  └─ 4. Whiteboards（旧能力保留）
+│  └─ 3. 对话
 ├─ /  选择能力
 │  ├─ 1. 命令
 │  ├─ 2. Skills
@@ -51,7 +48,6 @@ Composer
 | Plugin        | `@`                         | `[@Plugin](plugin://stable-id)`              |
 | 文件 / 文件夹 | `@`                         | 既有 file/directory Markdown link            |
 | 对话          | `@` 或兼容 `#`              | 既有 `[#Title](#sess_id)` / `#sess_id`       |
-| Whiteboard    | `@`                         | 既有 whiteboard mention                      |
 | 命令          | `/`                         | `/command`                                   |
 | Skill         | `/` 或兼容 `$` / `¥` / `￥` | 既有 `$skill` 或带路径的 Skill Markdown link |
 | Subagent      | `/`                         | 既有 `@agent-name`                           |
@@ -62,7 +58,7 @@ Composer
 
 | 用户场景                               | UI 入口                          | 候选来源                                                                      | 本地状态                                | 提交结果                                     | 模式边界                                                    | 必须隔离                                                             |
 | -------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
-| 引用 Plugin / 文件 / 对话 / Whiteboard | `MentionPlugin` 的 `@` 面板      | plugin reference catalog、file provider、sessions-index、whiteboard provider  | Lexical active trigger + selected index | 插入对应原 canonical Markdown                | Desktop/Web/Mobile 共享；remote 使用目标 workspace services | 不改变 Plugin catalog 冻结、文件路径语义或 session catalog authority |
+| 引用 Plugin / 文件 / 对话 | `MentionPlugin` 的 `@` 面板      | plugin reference catalog、file provider、sessions-index  | Lexical active trigger + selected index | 插入对应原 canonical Markdown                | Desktop/Web/Mobile 共享；remote 使用目标 workspace services | 不改变 Plugin catalog 冻结、文件路径语义或 session catalog authority |
 | 选择命令 / Skill / Subagent            | `SlashCommandPlugin` 的 `/` 面板 | CLI command catalog、Skills、Subagents                                        | Lexical active trigger + selected index | 分别插入 `/command`、Skill mention、`@agent` | workspace identity 隔离保持不变                             | 不把 Skill/Subagent 误当成 command 执行                              |
 | 使用兼容入口                           | `#`、`$`、`¥`、`￥`              | sessions/skills provider；仅 `#` 聚合同 authority 的 workspace sessions-index | 原 trigger state                        | 原 canonical Markdown                        | `#` 不跨 Agent Host；其它触发器与现状相同                   | 不因 `#` 扩容改变 `@` 对话范围或破坏旧草稿                           |
 | 从输入框 `+` 菜单发现入口              | `ChatPromptActionMenu`           | 静态入口                                                                      | 无持久状态                              | 插入 `@`、`/` 或 `$` 触发字符                | 各端只做布局适配                                            | 不再重复暴露 `#`，但不得影响手动输入 `#`                             |
@@ -105,13 +101,13 @@ Composer
   authority 的 workspace 为边界。local-local 与同一 remote authority 可聚合；local-remote、不同
   remote authority 不共享 SQLite session store，本轮剪枝，避免选择后 Agent 用 `ReadSession` 读不到会话。
 - Skill 在 `/` 与 `$`/`¥`/`￥` 下共用同一 provider-filtered catalog，不做两套 enable/filter 语义。
-- Whiteboard、主题、语言、task phase、模型/provider 不与分组顺序做笛卡尔积；用共享组件不变量和代表性 Desktop case 覆盖。
+- 主题、语言、task phase、模型/provider 不与分组顺序做笛卡尔积；用共享组件不变量和代表性 Desktop case 覆盖。
 - Remote workspace 验证同一 `remoteSessionId`/service authority 下多 workspace 聚合，以及不同 remote
   authority 与未连接 remote 不进入候选；任何 remote scope 都不得回退到本地 base service。
 
 ## 验收
 
-- 输入 `@` 时，主分组固定按 Plugins → 文件 → 对话展示，Whiteboards 作为保留分组排在其后。
+- 输入 `@` 时，主分组固定按 Plugins → 文件 → 对话展示。
 - 输入 `/` 时，分组固定按命令 → Skills → Subagent 展示。
 - 输入 `#`、`$`、`¥`、`￥` 时，原候选面板仍能打开并选择。
 - 输入 `#` 时，可以选择同一会话存储 authority 下其他已打开或恢复 workspace 的对话；当前
@@ -121,13 +117,13 @@ Composer
 - `+` action menu 直接展示添加、插件、文件、会话；底部按 `@`、`/`、`$` 顺序说明快捷符号，不显示独立 `#` 快捷项。
 - `@` 选中的对话仍写入 `#sess_...` canonical session mention；`/` 选中的 Skill/Subagent 仍写入既有 Skill / `@agent` mention。
 - 空 query 辅助说明在列表下方；输入 query 后隐藏。
-- `@` 的空 query 辅助说明只提示可搜索插件、文件和对话，中英文均不出现画板 / whiteboards。
+- `@` 的空 query 辅助说明只提示可搜索插件、文件和对话。
 - 上下键、Enter、Tab、Esc、滚动 mask、Plugin 禁选态保持可用。
-- 旧草稿和历史中的 Whiteboard、Session、Skill、Subagent mention 继续正确回显。
+- 旧草稿和历史中的 Session、Skill、Subagent mention 继续正确回显。
 
 ## 实现与验证
 
-- `MentionPlugin` 通过纯路由表固定 `@` 的 plugins → files → sessions → whiteboards 顺序，同时保留 `#` sessions provider 与 `$`（含 Yen 归一）Skills provider。
+- `MentionPlugin` 通过纯路由表固定 `@` 的 plugins → files → sessions 顺序，同时保留 `#` sessions provider 与 `$`（含 Yen 归一）Skills provider。
 - `ChatPromptActionMenu` 展示添加、插件、文件和会话候选；`@`、`/`、`$` 仅作为底部提示。
 - 候选序列化函数未改：`@` 选择对话仍写入 `#session` canonical，兼容 Skills 入口仍写入原 Skill Markdown。
 - sessions provider 只在 `#` 触发器下从当前窗口 workspace tabs 构造同 authority scope 集合；`@` 继续
@@ -136,7 +132,7 @@ Composer
   [跨 Workspace 对话 Mention](../superpowers/specs/2026-08-04-cross-workspace-session-mention-design.md)。
 - focused tests 覆盖主入口顺序、兼容入口路由、`+` 菜单动作集合、Yen 归一与既有 canonical 构造。
 - 正式 Desktop E2E `conversation-session-v4-mention.test.ts` 覆盖 `@` / `#` 共用 sessions-index、`$` / `¥` / `￥` 技能选择、`+` 菜单展示 `@` / `/` / `$` 底部提示，关闭后手动输入 `$` 打开技能候选，并在 S08 中验证旧 Session 冻结 Skill 目录、新建任务重新发现真实 `SKILL.md`。
-- 完整 plugin/file/session/whiteboard 与 command/skill/subagent 键盘交互组合仍保留在 manual-review pending 语料中；覆盖矩阵不会用上述代表性门禁冒充全组合已转正。
+- 完整 plugin/file/session 与 command/skill/subagent 键盘交互组合仍保留在 manual-review pending 语料中；覆盖矩阵不会用上述代表性门禁冒充全组合已转正。
 
 `+` 当前分类与底部提示见 [chat-composer-action-menu.md](chat-composer-action-menu.md)：直接选择附件、目标、插件、文件和会话；`@`、`/`、`$` 在底部作为说明，不再是独立菜单项。
 

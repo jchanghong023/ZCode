@@ -410,7 +410,7 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
     });
     await prepareV4ConversationE2E();
     await setCurrentElectronRendererContentSize(1400, 900);
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await log.waitFor(
       (line) => line.includes(`[${PLUGIN_ID}] activated in`),
       "the fixture extension should activate",
@@ -603,9 +603,9 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
     const opens = (await log.lines()).filter((line) => line.includes("E2E_JARVISHOST_VIEW_OPEN"));
     evidence.viewOpens = opens;
     expect(opens).toHaveLength(1);
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await capturePluginManualReview(CASE_ID, "app-view-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (d) H11：导航条目的未读标记。激活时扩展设为 3。
     const initialBadge = await waitForNavBadge(
@@ -635,7 +635,7 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
     expect(dotBadge.label).toContain("有新内容");
     await capturePluginManualReview(CASE_ID, "nav-badge-dot-zh-CN-zai-light");
     await callViewTool(sandbox, "setBadge", { badge: 5 });
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     const englishBadge = await waitForNavBadge(
       NAV_ITEM,
       (reading) => reading.badge === "5" && reading.label.includes("5 unread"),
@@ -643,7 +643,7 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
     );
     evidence.englishBadge = englishBadge;
     await capturePluginManualReview(CASE_ID, "nav-badge-count-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await callViewTool(sandbox, "setBadge", { badge: null });
     const cleared = await waitForNavBadge(
       NAV_ITEM,
@@ -736,9 +736,9 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
       timeoutMsg: "the notifications switch should default to on",
     });
     await capturePluginManualReview(CASE_ID, "notifications-switch-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await capturePluginManualReview(CASE_ID, "notifications-switch-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await browser.execute(
       (switchTestId, id) =>
         document
@@ -853,7 +853,7 @@ describe("PLM-EXT-JARVISHOST Jarvis 要的宿主能力", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     const afterRestartLine = await log.waitFor(
       (line) => line.includes("E2E_JARVISHOST_DATA "),
       "the fixture should read its data after the App restarts",

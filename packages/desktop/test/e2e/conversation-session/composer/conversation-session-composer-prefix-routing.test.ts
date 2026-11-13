@@ -50,7 +50,7 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
     // beforeSession 会重置隔离 HOME，Electron 退出后的兜底清理由 wdio 生命周期处理。
   });
 
-  it("@ 聚合 plugin/file/session/whiteboard，/ 提示 command/skill/subagent，$ 兼容面板保留，且键盘选择写入正确 mention", async function () {
+  it("@ 聚合 plugin/file/session，/ 提示 command/skill/subagent，$ 兼容面板保留，且键盘选择写入正确 mention", async function () {
     this.timeout(TEST_TIMEOUT_MS);
 
     const runId = Date.now();
@@ -60,7 +60,6 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
       fileName: `e2e-route-file-${runId}.ts`,
       skillName: `e2e-skill-${runId}`,
       subagentName: `e2e-agent-${runId}`,
-      whiteboardName: `e2e-route-board-${runId}`,
     };
 
     // 目录现在由 CLI runtime 持有。旧测试写 renderer store 会被真实加载覆盖；
@@ -72,7 +71,6 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
       },
     });
     await startDraftFromProject(DEFAULT_WORKSPACE);
-    await createWhiteboard(seed.whiteboardName);
 
     await setComposerText(`@${seed.fileName}`);
     const atFilePanel = await waitForPanelSections("@", ["files"], "@ 文件候选面板没有打开");
@@ -93,16 +91,7 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
       "@ 文件夹候选 Tab 后没有写入目录 mention markdown",
     );
 
-    await setComposerText(`@${seed.whiteboardName}`);
-    const atWhiteboardPanel = await waitForPanelSections(
-      "@",
-      ["whiteboards"],
-      "@ 画板候选面板没有打开",
-    );
-    expect(optionTexts(atWhiteboardPanel).join("\n")).toContain(seed.whiteboardName);
-    assertPanelExcludesSections(atWhiteboardPanel, ["commands", "subagents", "skills"]);
-
-    // S01 语义：`@` 固定按 plugins → files → sessions → whiteboards 路由；
+    // S01 语义：`@` 固定按 plugins → files → sessions 路由；
     // 当前 query 只命中 Plugin，选中后仍写入既有 canonical plugin:// markdown。
     // 默认启用的官方纯内容插件 skill-creator 作为确定性候选；选中写入 canonical plugin:// markdown。
     await setComposerText("@skill-creator");
@@ -124,7 +113,7 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
       ["commands", "skills", "subagents"],
       "/ 候选面板没有打开",
     );
-    assertPanelExcludesSections(slashPanel, ["files", "whiteboards"]);
+    assertPanelExcludesSections(slashPanel, ["files"]);
 
     await setComposerText(`/${seed.commandName}`);
     const slashCommandPanel = await waitForPanelSections(
@@ -164,7 +153,7 @@ describe("会话区 Composer 前缀提示路由 E2E", () => {
     await setComposerText(`$${seed.skillName}`);
     const skillPanel = await waitForPanelSections("$", ["skills"], "$ skill 候选面板没有打开");
     expect(optionTexts(skillPanel).join("\n")).toContain(seed.skillName);
-    assertPanelExcludesSections(skillPanel, ["files", "whiteboards", "commands", "subagents"]);
+    assertPanelExcludesSections(skillPanel, ["files", "commands", "subagents"]);
     await browser.keys("Enter");
     await waitForComposerMarkdownContaining(
       `$${seed.skillName}`,
@@ -205,31 +194,6 @@ async function seedPromptCatalogFiles(seed: {
     await writeFile(file, body, "utf8");
     createdWorkspacePaths.push(file);
   }
-}
-
-async function createWhiteboard(name: string) {
-  await browser.execute(
-    (workspacePath, boardName) => {
-      const store = (
-        window as unknown as {
-          __whiteboardStoreE2E: {
-            getState(): {
-              createBoard(params: { defaultNamePrefix: string; workspacePath: string }): {
-                id: string;
-              };
-              renameBoard(params: { boardId: string; name: string; workspacePath: string }): void;
-            };
-          };
-        }
-      ).__whiteboardStoreE2E;
-      const board = store
-        .getState()
-        .createBoard({ workspacePath, defaultNamePrefix: "E2E route board" });
-      store.getState().renameBoard({ workspacePath, boardId: board.id, name: boardName });
-    },
-    DEFAULT_WORKSPACE,
-    name,
-  );
 }
 
 async function setComposerText(text: string) {

@@ -181,18 +181,6 @@ describe("任务分组独立视图", () => {
       ["zai-light", "zh-CN"],
       ["zai-dark", "en-US"],
     ]) {
-      await browser.execute(
-        ([theme, locale]) => {
-          const actions = (
-            window as Window & {
-              __testActions?: { setTheme(value: string): void; setLocale(value: string): void };
-            }
-          ).__testActions!;
-          actions.setTheme(theme!);
-          actions.setLocale(locale!);
-        },
-        [theme, locale],
-      );
       await browser.waitUntil(() =>
         browser.execute(
           (value) => document.documentElement.classList.contains(`theme-${value}`),

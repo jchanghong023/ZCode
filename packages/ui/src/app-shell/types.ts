@@ -15,7 +15,7 @@ import type {
   UpdateStatePayload,
   UserInfo,
 } from "@zcode/shared";
-import type { IFeedbackService, IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@zcode/services";
 import type { SavedWorkflowsOpenTarget } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
 import type { SavedWorkflowHubTarget } from "@/v4/savedWorkflowHubContext.js";
 import type { WebRemoteControlWorkspaceSwitcherApi } from "@/root/types.js";
@@ -159,7 +159,6 @@ export interface RemoteConnectionOpenPreference {
 
 export interface AppProps {
   services: IServiceAccessor;
-  baseFeedbackService: IFeedbackService;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
   onSelectRemoteProject: (
     sessionId: string,
@@ -215,7 +214,7 @@ export interface GitChangeSummary {
 
 export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
 
-export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackService"> {
+export interface WorkspaceShellLayoutProps extends AppProps {
   workspaceReadOnlyReason?: string;
   workspaceMainView: WorkspaceMainView;
   pluginStoreOpenVersion: number;
@@ -253,7 +252,6 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   canGoForward: boolean;
   canTaskNavBack: boolean;
   canTaskNavForward: boolean;
-  isTerminalOpen: boolean;
   isSidebarVisible: boolean;
   isBrowserOpen: boolean;
   supportsEmbeddedBrowser: boolean;
@@ -341,16 +339,11 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleBrowserUrlChange: (tabId: string, url: string) => void;
   handleBrowserPageMetadataChange: (tabId: string, metadata: BrowserSidePaneMetadata) => void;
   handleToggleSidebar: () => void;
-  handleToggleTerminal: () => void;
-  handleToggleBrowser: () => void;
-  handleOpenBrowserTab: () => void;
   handleOpenBrowserPermissionSettings: (origin: string) => void;
-  handleOpenWhiteboard: () => void;
   handleOpenDeveloperTools: () => void;
   handleOpenFileManager: (target?: FileManagerTarget) => void;
   handleNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
   handleOpenPluginMarket: () => void;
-  handleOpenTerminalTab: () => void;
   handleToggleGit: () => void;
   handleOpenGitReview: (sourceId?: GitChangeSourceId) => void;
   handleToggleSidePane: () => void;
@@ -384,7 +377,6 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleCloseAllSidePaneTabs: () => void;
   handleReopenClosedSidePaneTab: (tabId: string) => void;
   handleBrowserNavigationRequestHandled: (requestId: string) => void;
-  setIsTerminalOpen: (open: boolean) => void;
   setGitSelectedSourceId: (value: GitChangeSourceId) => void;
   taskFindDialogProps: TaskFindDialogProps;
 }

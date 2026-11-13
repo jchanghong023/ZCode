@@ -37,7 +37,7 @@ describe("PLM-LC-018/019/020 本地化与插件创建入口", () => {
     requirePluginManualReview();
     const fixture = await createPluginLifecycleFixture();
     await openPluginSettings();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1440, height: 800 });
+    await setPluginPresentation({ theme: "zai-light", width: 1440, height: 800 });
     await setRendererViewport(1440, 1000);
     await addLifecycleMarketplaceThroughUi(fixture);
     const countMarketCards = () =>
@@ -104,7 +104,7 @@ describe("PLM-LC-018/019/020 本地化与插件创建入口", () => {
     ).toBe(invalidSource);
     await browser.keys("Escape");
     await clearRendererViewport();
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 480, height: 800 });
+    await setPluginPresentation({ theme: "zai-dark", width: 480, height: 800 });
     await setRendererViewport(390, 844);
     // 添加来源失败后仍停留在默认公开分段；本地 fixture 属于个人来源，搜索只覆盖当前分段。
     await clickPluginControl("plugin-store-segment-personal");
@@ -144,7 +144,7 @@ describe("PLM-LC-018/019/020 本地化与插件创建入口", () => {
     requirePluginManualReview();
     const fixture = await createPluginLifecycleFixture();
     await openPluginSettings();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1200, height: 800 });
+    await setPluginPresentation({ theme: "zai-light", width: 1200, height: 800 });
     await openAddMenu("plugin-store-create");
     await clickPluginControl("plugin-store-add-source-menu-item");
     await waitForPluginControl("plugin-store-add-source-dialog");

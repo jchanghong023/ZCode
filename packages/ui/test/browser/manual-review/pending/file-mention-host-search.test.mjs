@@ -38,7 +38,6 @@ before(async () => {
             ["sessionsMentionProvider", "useSessionsMentionProvider"],
             ["skillsMentionProvider", "useSkillsMentionProvider"],
             ["pluginsMentionProvider", "usePluginsMentionProvider"],
-            ["whiteboardMentionProvider", "useWhiteboardMentionProvider"],
           ]) {
             if (id.endsWith(`/providers/${file}.ts`))
               return `export function ${name}(){return {items:[],loading:false,error:null,title:"",emptyText:""};}`;

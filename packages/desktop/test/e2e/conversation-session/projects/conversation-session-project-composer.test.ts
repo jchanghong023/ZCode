@@ -5,11 +5,6 @@ describe("输入框项目选择器", () => {
   it("VP30：未打开项目与侧栏一致、搜索项目、零 root 选择与改名同步", async function () {
     this.timeout(120_000);
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45_000);
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: "zh-CN"): void } }
-      ).__testActions!.setLocale("zh-CN");
-    });
     const names = Array.from({ length: 7 }, (_, i) => `E2E_PROJECT_PICKER_${i}`);
     for (const name of names) {
       await $('[data-testid="virtual-project-add"]').click();

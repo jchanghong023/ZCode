@@ -7,7 +7,7 @@
 
 Todo103 复验修正：`setApplicationLocale` 是 Main 原生菜单状态，不等同于 Renderer
 语言设置。当前正式用例先在隔离配置写入英文并重载，再运行英文 UI 断言；结束恢复
-原设置。否则中文系统下会把已有 Help/反馈入口误判为缺失。无需修改产品语言机制。
+原设置。否则中文系统下会把已有 Help 入口误判为缺失。无需修改产品语言机制。
 
 | 项目        | 决定                                                                |
 | ----------- | ------------------------------------------------------------------- |
@@ -21,14 +21,12 @@ Todo103 复验修正：`setApplicationLocale` 是 Main 原生菜单状态，不�
 | 场景 / 入口                          | 共享实现 / owner                                       | 默认与校验                          | 提交落点                   | 模式差异 / 隔离                      |
 | ------------------------------------ | ------------------------------------------------------ | ----------------------------------- | -------------------------- | ------------------------------------ |
 | 问号菜单社群                         | WorkspaceHelpMenuButton → platform → desktopHelpConfig | 当前语言远端→内置                   | shell.openExternal         | Desktop / Web 平台分别打开；不改会话 |
-| 原生菜单 / 命令面板反馈              | desktopCommandHandlers → helpAppConfig                 | false→内置弹窗；true→远端或内置地址 | OpenFeedbackDialog / shell | Web 平台始终打开地址                 |
 | Windows caption / 命令候选社群可见性 | canOpenCommunity                                       | 同语言无远端及默认值则 false        | 只读                       | 不把显示状态当成已打开链接           |
-| 问号菜单问题上报                     | helpMenuActions / feedbackStore                        | 不读取反馈开关                      | 内置 Dialog                | 与平台反馈模式保持独立               |
 | 浏览器配置读取                       | resolveWebHelpConfig / readHelpConfig                  | envelope、同语言默认值              | fetch + 内存 Map           | Web 省略 platform；无远控 Host 新增  |
 
 ## Shared And Divergent Behavior / State Owners
 
-HTTP 和内存缓存规则共用 helpAppConfig；反馈 UI 入口并不共用开关。
+HTTP 和内存缓存规则共用 helpAppConfig。
 远端 API 是配置权威，内置 JSON 是默认值，Map 只保存 1 小时成功响应；不存在持久化写入。
 
 ```text
@@ -68,13 +66,12 @@ TTL 精确到期、请求未完成时切换 endpoint 保留在可控时钟单测
 | ----- | ------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------- | -------------------- |
 | HC-01 | 本地 HTTP fixture 完整中英文配置                             | 真实问号菜单点击社群；调用中英文可用性并再次点击 | 正确语言外链、实际请求路径/参数/次数，重复读取命中内存           | UI + network         |
 | HC-02 | 远端只含中文、fixture 提供英文内置默认值                     | 英文平台社群动作                                 | 使用英文默认值；绝不进入中文远端                                 | runtime + filesystem |
-| HC-03 | 远端 false、本地 true；另一个 endpoint 远端 true             | 平台反馈动作                                     | false 出现真实内置 Dialog，外链未调用；true 打开远端地址         | UI + runtime         |
 | HC-04 | 503 / 业务错误 / 无效 JSON                                   | 平台可用性与社群；恢复同 endpoint 的成功响应     | 默认可用、失败不缓存、恢复后新地址；无值时平台不可用             | HTTP + runtime       |
 | HC-05 | Chromium 窄屏加载实际 Web resolver bundle，HTTP fixture 可变 | zh/en、并发、重载浏览器页面                      | 同语言结果、无 platform、请求合并；重载重新请求而不走 HTTP cache | browser + HTTP       |
 
 ## E2E Handoff Notes
 
-- 用户在本机 8/8 通过后明确授权转正；正式路径为 `packages/desktop/test/e2e/feedback/help/help-client-config.test.ts`，默认 desktop E2E 收集。
+- 用户在本机 7/7 通过后明确授权转正；正式路径为 `packages/desktop/test/e2e/feedback/help/help-client-config.test.ts`，默认 desktop E2E 收集。
 - fixture 使用 case-local JSON；模型请求策略 none，全部帮助请求为 synthetic，注明 syntheticReason。
 - 本地 HTTP server 只监听 loopback；每 case 独立 origin，恢复 settings 和临时默认配置文件。
 - 现有 e2e:fixture:check / e2e:promote 只实现 conversation/plugins 域，不能直接处理 settings。
@@ -91,7 +88,7 @@ TTL 精确到期、请求未完成时切换 endpoint 保留在可控时钟单测
 - macOS 首轮 8/8 passed：`desktop-e2e-20260904061809303-p54917-66703063e8ddebb5`，包含真实 HTTP 和 390×844 Chromium 浏览器窗口。
 - 正式接口按 darwin-arm64、win32-x64、linux-x64、Web 省略 platform 分别请求，全部 HTTP 200 / code 0，均含三个帮助字段。此证据不是 Windows/Linux UI 实机验证。
 - 原 settings/manual-review 路径没有被默认 WDIO exclude 覆盖，现已移到现有 auth/config `manual-review/pending`，避免候选用例意外进入默认 suite。
-- `e2e:fixture:check` 对新路径明确返回 unsupported domain；不改工具规则、不伪造 provider fixture。自校验确认 manifest 的 8 个 synthetic 场景均有原因，所有文件存在、canonical spec 为 `./test/e2e/feedback/help/help-client-config.test.ts`，provider policy 为 none。
+- `e2e:fixture:check` 对新路径明确返回 unsupported domain；不改工具规则、不伪造 provider fixture。自校验确认 manifest 的 7 个 synthetic 场景均有原因，所有文件存在、canonical spec 为 `./test/e2e/feedback/help/help-client-config.test.ts`，provider policy 为 none。
 
 - 迁移到受支持的候选目录后，限定 common provider fixture 重跑 8/8 passed：
   `desktop-e2e-20260904062010268-p58126-9129778db7899df8`。provider capture 的 records 为 0。

@@ -60,9 +60,8 @@ describe("帮助配置 client/configs", () => {
     await seedSettings({ locale: "en-US", localePreference: "en-US" });
     await browser.refresh();
     await waitForDefaultWorkspaceReady(30000);
-    // 实测：refresh 不会重读 setting.json 的 locale，renderer 仍按系统语言渲染。
-    // 这里补一次真实 setLocale，否则 Help 按钮的 aria-label 是「帮助」，英文选择器必然失败。
-    await pinE2ELocale("en-US");
+    // 界面语言已单语化为中文；这里只等 renderer 测试动作就绪。
+    await pinE2ELocale("zh-CN");
   });
   beforeEach(async () => {
     await english();
@@ -103,9 +102,9 @@ describe("帮助配置 client/configs", () => {
 
   it("HC-01: 真实帮助菜单、语言与成功缓存", async () => {
     expect(await available("en-US")).toBe(true);
-    await $('button[aria-label="Help"]').click();
-    await $('//*[@role="menuitem" and contains(.,"User community")]').click();
-    await expectExternal(fixture.remote.community_urls!["en-US"]!);
+    await $('button[aria-label="帮助"]').click();
+    await $('//*[@role="menuitem" and contains(.,"用户社群")]').click();
+    await expectExternal(fixture.remote.community_urls!["zh-CN"]!);
     expect(await available("zh-CN")).toBe(true);
     await browser.execute(async () => {
       await (window as unknown as { zcode: DesktopBridge }).zcode.setApplicationLocale("zh-CN");
@@ -125,8 +124,8 @@ describe("帮助配置 client/configs", () => {
     const expected = await browser.execute(async () => {
       return (window as unknown as { zcode: DesktopBridge }).zcode.getDeviceId();
     });
-    await $('button[aria-label="Help"]').click();
-    await $('[role="menuitem"]*=Copy device MID').click();
+    await $('button[aria-label="帮助"]').click();
+    await $('[role="menuitem"]*=复制设备 MID').click();
     await browser.waitUntil(
       async () =>
         (await browser.electron.execute((electron) => electron.clipboard.readText())) === expected,
@@ -138,35 +137,7 @@ describe("帮助配置 client/configs", () => {
     server.setConfig({ community_urls: { "zh-CN": fixture.remote.community_urls!["zh-CN"] } });
     expect(await available("en-US")).toBe(true);
     await command("openCommunity");
-    await expectExternal(fixture.local.community_urls!["en-US"]!);
-  });
-
-  it("HC-03: false 覆盖本地 true 并显示弹窗；新 endpoint 的 true 打开表单", async () => {
-    await command("openFeedback");
-    await $('[role="dialog"]').waitForDisplayed({ timeout: 10000 });
-    await expect($('[role="dialog"]')).toHaveText(expect.stringContaining("Submit feedback"));
-    if (process.platform === "linux") {
-      const overlayTop = await browser.execute(() => {
-        const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
-        if (!overlay) throw new Error("反馈弹窗遮罩不存在");
-        return overlay.getBoundingClientRect().top;
-      });
-      expect(overlayTop).toBe(0);
-    }
-    await expect(external).not.toHaveBeenCalled();
-    await browser.keys("Escape");
-    const other = await startHelpConfigFixture({
-      ...fixture.remote,
-      feedback_use_external_form: true,
-    });
-    try {
-      await seedSettings({ zcodeEndpointOrigin: other.origin });
-      await command("openFeedback");
-      await expectExternal(fixture.remote.feedback_url!);
-      expect(other.requests).toHaveLength(1);
-    } finally {
-      await other.close();
-    }
+    await expectExternal(fixture.local.community_urls!["zh-CN"]!);
   });
 
   for (const failure of ["http", "business", "json"] as const) {
@@ -174,11 +145,11 @@ describe("帮助配置 client/configs", () => {
       server.setFailure(failure);
       expect(await available("en-US")).toBe(true);
       await command("openCommunity");
-      await expectExternal(fixture.local.community_urls!["en-US"]!);
+      await expectExternal(fixture.local.community_urls!["zh-CN"]!);
       expect(server.requests.length).toBeGreaterThanOrEqual(2);
       server.setConfig(fixture.remote);
       await command("openCommunity");
-      await expectExternal(fixture.remote.community_urls!["en-US"]!);
+      await expectExternal(fixture.remote.community_urls!["zh-CN"]!);
     });
   }
 

@@ -9,24 +9,7 @@ describe("桌面侧栏主导航", () => {
 
   it("SNAV01：桌面保留自动化和插件市场入口及导航", async () => {
     for (const theme of ["zai-light", "zai-dark"]) {
-      for (const locale of ["zh-CN", "en-US"]) {
-        await browser.execute(
-          (theme, locale) => {
-            const actions = (
-              window as typeof window & {
-                __testActions?: {
-                  setTheme(value: string): void;
-                  setLocale(value: string): void;
-                };
-              }
-            ).__testActions;
-            if (!actions) throw new Error("缺少界面测试入口");
-            actions.setTheme(theme);
-            actions.setLocale(locale);
-          },
-          theme,
-          locale,
-        );
+      for (const locale of ["zh-CN"]) {
         const navigation = $('[data-testid="sidebar-primary-navigation"]');
         await navigation.waitForDisplayed();
         const automation = navigation.$(`[data-testid="${TID_AUTOMATIONS_OPEN}"]`);

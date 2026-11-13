@@ -1,5 +1,8 @@
 # Highspeed 迁移到 Provider 重构后的模型契约
 
+> 2026-11-13：Renderer Highspeed 接入已删除；Host 服务、CLI 协议与模型路由契约仍保留，本文前端行为章节仅作历史参考。
+
+
 > 状态：实施中（2026-09-14）
 > 范围：把 Highspeed 加速卡的单轮推理路由从已退役的 `turnRuntimeModel` 迁移到
 > `modelSelection` + `modelExecution{selectionScope:"execution"}`，并为加速请求新增

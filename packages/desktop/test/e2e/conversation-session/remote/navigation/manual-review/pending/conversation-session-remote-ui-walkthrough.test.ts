@@ -364,11 +364,6 @@ describe(`${MARKER}: 远程连接 UI 走查`, () => {
     await prepareSSHConnectionPage(MARKER);
     await prepareV4ConversationE2E({ skipProvider: true });
     // 不做 refresh：刷新后 waitForWorkspaceApp 在本机曾停留 2 分钟未就绪，而走查不依赖侧栏宽度持久化。
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(value: "zh-CN"): void } }
-      ).__testActions?.setLocale("zh-CN");
-    });
     await openWorkspaceDraftFromSidebar(DEFAULT_WORKSPACE);
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 60_000);
     await browser.electron.execute((electron) => {

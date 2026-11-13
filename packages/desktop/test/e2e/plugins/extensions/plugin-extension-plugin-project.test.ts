@@ -217,7 +217,7 @@ describe("PLM-EXT-P3C2 扩展不指定项目建会话时放进插件项目", () 
       },
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     const activated = await log.waitFor(
       (line) => line.includes(`E2E_PROJECTS_ACTIVATED plugin=${PLUGIN_ID}`),
       "the project fixture should activate",
@@ -280,9 +280,9 @@ describe("PLM-EXT-P3C2 扩展不指定项目建会话时放进插件项目", () 
     await waitForV4AssistantMessageContaining("E2E_P3C2_AGENTS_SEEN", 90000);
     await waitForSidebarProject(projectId, "the plugin project should stay in the sidebar");
     screenshots.push(await capturePluginManualReview(CASE_ID, "plugin-project-zh-CN-zai-light"));
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     screenshots.push(await capturePluginManualReview(CASE_ID, "plugin-project-en-US-zai-dark"));
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (c) 之后再建一个：复用同一个项目。
     const later = await runStep("later-create", [

@@ -161,14 +161,12 @@ describe(`问号菜单应用入口（${expectedFlavor}）`, () => {
     // 动态漏洞入口由配置决定；固定本地配置，避免远端配置或加载占位影响菜单顺序断言。
     helpConfig = await startHelpConfigFixture({});
     await seedSettings({
-      locale: "en-US",
-      localePreference: "en-US",
       zcodeEndpointOrigin: helpConfig.origin,
     });
     await browser.refresh();
     await enterWorkspace();
-    // 写 setting.json 不会改已加载的 renderer 语言；菜单文案断言必须走真实 setLocale。
-    await pinE2ELocale("en-US");
+    // 界面语言固定中文，等 renderer 测试动作就绪即可断言中文菜单。
+    await pinE2ELocale("zh-CN");
   });
   afterEach(async () => {
     if (await $('[role="menu"]').isDisplayed()) await closeMenu();
@@ -182,45 +180,21 @@ describe(`问号菜单应用入口（${expectedFlavor}）`, () => {
     }
   });
 
-  it("HM-01 英文草稿菜单顺序、导出日志和关于窗口", async function () {
-    this.timeout(60_000);
-    await setTheme("zai-light");
-    await openMenu();
-    const labels = await menuLabels();
-    expect(labels).toEqual([
-      "Product docs",
-      "User community",
-      "Report an issue",
-      "Request a feature",
-      "Export logs",
-      "Copy device MID",
-      "Resource manager",
-      ...(production ? ["Check for updates"] : []),
-      "About ZCode",
-    ]);
-    expect(await $$('[role="menu"] [role="separator"]')).toHaveLength(1);
-    await browser.saveScreenshot(join(tmpdir(), "zcode-help-export-en-light.png"));
-    await assertLogExport("Export logs", "Exporting logs...");
-    await openMenu();
-    await $('[role="menuitem"]*=About ZCode').click();
-    await assertAboutWindow();
-  });
-
   it("HM-02 更新状态事件、禁用状态与关闭重开", async function () {
     this.timeout(60_000);
     await openMenu();
     if (!production) {
       await publishState({ kind: "update-downloaded", enabled: true, version: "99.0.0" });
-      expect((await menuLabels()).some((label) => label.includes("Restart to update"))).toBe(false);
-      expect(await menuLabels()).not.toContain("Check for updates");
+      expect((await menuLabels()).some((label) => label.includes("重启以更新"))).toBe(false);
+      expect(await menuLabels()).not.toContain("检查更新");
       await closeMenu();
       return;
     }
     for (const [state, label] of [
-      [{ kind: "checking", enabled: false }, "Checking for updates..."],
-      [{ kind: "update-available", enabled: true, version: "99.0.0" }, "Update available 99.0.0"],
-      [{ kind: "download-progress", enabled: true, progress: "42%" }, "Downloading update... 42%"],
-      [{ kind: "update-downloaded", enabled: true, version: "99.0.0" }, "Restart to update"],
+      [{ kind: "checking", enabled: false }, "正在检查更新..."],
+      [{ kind: "update-available", enabled: true, version: "99.0.0" }, "发现新版本 99.0.0"],
+      [{ kind: "download-progress", enabled: true, progress: "42%" }, "正在下载更新... 42%"],
+      [{ kind: "update-downloaded", enabled: true, version: "99.0.0" }, "重启以更新"],
     ] as const) {
       await publishState(state);
       const item = $(`[role="menuitem"]*=${label}`);
@@ -245,7 +219,7 @@ describe(`问号菜单应用入口（${expectedFlavor}）`, () => {
     this.timeout(60_000);
     await openMenu();
     if (!production) {
-      expect(await menuLabels()).not.toContain("Check for updates");
+      expect(await menuLabels()).not.toContain("检查更新");
       await closeMenu();
       return;
     }
@@ -293,7 +267,7 @@ describe(`问号菜单应用入口（${expectedFlavor}）`, () => {
     await seedSettings({ locale: "zh-CN", localePreference: "zh-CN" });
     await browser.refresh();
     await enterWorkspace();
-    // 中文菜单文案同样要走真实 setLocale，settings 写入不会改已加载的 renderer。
+    // 界面语言固定中文，等 renderer 测试动作就绪。
     await pinE2ELocale("zh-CN");
     await setTheme("zai-dark");
     await clickTestIdByWebDriver(TID_TASK_SETTINGS_BUTTON);

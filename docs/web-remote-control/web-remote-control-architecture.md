@@ -502,7 +502,7 @@ IPC handler 的 manager 依赖类型只暴露 `authorizeStart`、`startAuthorize
 启动、窗口关闭、用户停止和票据超时都必须使未消费票据失效。应用启动时恢复
 “上次已启用”仍是内部生命周期操作，不得绕过 workspace/session 绑定。
 
-Office 文档 XSS 的根因边界由 `docs/ui/office-file-preview.md` 定义：不可信链接必须经过协议白名单、
+Office 文档内联预览已从前端移除（见 `docs/ui/preview-pane.md`）。历史边界曾由 office-file-preview 文档定义：不可信链接必须经过协议白名单、
 DOM 净化、点击拦截和受控外链打开。移除原生远控确认不改变这些根因修复；代价是如果未来出现新的
 renderer XSS 或上述边界被绕过，攻击代码可以再次直接调用远控启动 IPC，内部票据不会提供用户在场
 证明。安全评估不得把该票据当作 Office XSS 的补偿控制。

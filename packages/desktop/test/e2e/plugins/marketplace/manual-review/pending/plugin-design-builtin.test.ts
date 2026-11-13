@@ -52,7 +52,7 @@ describe("PLM-DESIGN-001 Design 默认关闭与选择元素安装引导", () => 
     this.timeout(240_000);
     requirePluginManualReview();
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1280, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1280, height: 900 });
     const design = (await getPluginList()).plugins.find((plugin) => plugin.id === DESIGN_ID);
     expect(design?.enabled).toBe(false);
     await openFirstBrowserTab();
@@ -75,7 +75,7 @@ describe("PLM-DESIGN-001 Design 默认关闭与选择元素安装引导", () => 
     await $(DIALOG).waitForDisplayed();
     await guestEval(origin, 'history.pushState({}, "", "/next")');
     await $(DIALOG).waitForDisplayed({ reverse: true });
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1280, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1280, height: 900 });
     await clickTestIdByDom(TID_BROWSER_ELEMENT_PICKER_BUTTON);
     await $(DIALOG).waitForDisplayed();
     await capturePluginManualReview("PLM-DESIGN-001", "design-required-dialog-en-dark");

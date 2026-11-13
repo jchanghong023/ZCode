@@ -94,14 +94,7 @@ describe(`${CASE_MARKER}: 远程连接展示`, () => {
       process.env.ZCODE_E2E_ARTIFACT_DIR ?? ".e2e-artifacts/remote-presentation-states",
     );
     await mkdir(artifactDir, { recursive: true });
-    for (const locale of ["zh-CN", "en-US"] as const) {
-      await browser.execute((value) => {
-        const actions = (
-          window as Window & { __testActions?: { setLocale(value: "zh-CN" | "en-US"): void } }
-        ).__testActions;
-        if (!actions) throw new Error("Missing locale actions");
-        actions.setLocale(value);
-      }, locale);
+    for (const locale of ["zh-CN"] as const) {
       await browser.waitUntil(
         async () =>
           await browser.execute(
@@ -109,7 +102,7 @@ describe(`${CASE_MARKER}: 远程连接展示`, () => {
               [
                 ...document.querySelectorAll<HTMLElement>('[data-testid="virtual-project-toggle"]'),
               ].some((item) => item.textContent?.includes(label)),
-            locale === "en-US" ? "Offline" : "离线",
+            "离线",
           ),
         { timeout: 5000 },
       );

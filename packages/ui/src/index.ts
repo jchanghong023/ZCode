@@ -17,18 +17,6 @@ export { UpdateStatusWindowRoot } from "./UpdateStatusWindowRoot.js";
 export type { WebRemoteControlTerminalTransportState } from "./root/types.js";
 export { setWebRemoteControlTerminalTransportState } from "./webRemoteControlTerminalTransportState.js";
 export { ConfirmDialogHost } from "./ConfirmDialog.js";
-export { Terminal } from "./Terminal.js";
-export { GitGraphPane } from "./git-graph/GitGraphPane.js";
-export { layoutGitGraph } from "./git-graph/layout.js";
-export type {
-  GitGraphCommit,
-  GitGraphLayout,
-  GitGraphLayoutEdge,
-  GitGraphLayoutOptions,
-  GitGraphLayoutRow,
-  GitGraphRef,
-  GitGraphRefKind,
-} from "./git-graph/layout.js";
 export { SSHDialog, RemoteConnectionDialog } from "./SSHDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
@@ -67,7 +55,6 @@ export {
   useReaddir,
   useSystemInfo,
   useIntranetProbe,
-  useTerminal,
   useSettings,
   useRecentProjects,
   useConfirmDialog,
@@ -77,7 +64,7 @@ export {
   useGitActions,
 } from "./hooks/index.js";
 
-export { ZCodeIntlProvider, useZCodeIntl, LocaleSwitcher } from "./i18n/index.js";
+export { ZCodeIntlProvider, useZCodeIntl } from "./i18n/index.js";
 export { ResourceManagerApp } from "./resource-manager/ResourceManagerApp.js";
 export type {
   ResourceManagerAppProps,

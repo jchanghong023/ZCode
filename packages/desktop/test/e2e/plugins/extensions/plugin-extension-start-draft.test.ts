@@ -81,7 +81,7 @@ describe("PLM-EXT-H2 workbench.startDraft 开预填草稿", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     await waitForSlot(SLOT_ITEM, (slot) => slot.text.includes("E2E draft"), "draft slot");
     await setV4ComposerText("");
@@ -137,7 +137,7 @@ describe("PLM-EXT-H2 workbench.startDraft 开预填草稿", () => {
     expect(await getV4Messages("user")).toEqual([]);
     expect(await countTaskItems()).toBe(tasksBefore);
     evidence.tasksAfter = await countTaskItems();
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await capturePluginManualReview(CASE_ID, "draft-prefilled-en-US-zai-dark");
   });
 });

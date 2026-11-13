@@ -18,20 +18,6 @@ async function openSearch() {
   await input().waitForDisplayed();
 }
 async function setPresentation(theme: string, locale: string) {
-  await browser.execute(
-    (theme, locale) => {
-      const actions = (
-        window as typeof window & {
-          __testActions?: { setTheme(value: string): void; setLocale(value: string): void };
-        }
-      ).__testActions;
-      if (!actions) throw new Error("Missing UI test actions");
-      actions.setTheme(theme);
-      actions.setLocale(locale);
-    },
-    theme,
-    locale,
-  );
   await browser.waitUntil(() =>
     browser.execute(
       (theme, locale) =>
@@ -200,7 +186,7 @@ describe("设置项模糊搜索", () => {
           platformClasses,
         );
         for (const theme of ["zai-light", "zai-dark"]) {
-          for (const locale of ["zh-CN", "en-US"]) {
+          for (const locale of ["zh-CN"]) {
             await setPresentation(theme, locale);
             await openSearch();
             await input().setValue(locale === "zh-CN" ? "界面字号" : "UI font");

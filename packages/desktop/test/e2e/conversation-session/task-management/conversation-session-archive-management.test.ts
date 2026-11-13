@@ -148,11 +148,6 @@ describe("归档管理", () => {
       },
     });
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45000);
-    await browser.execute(() => {
-      (
-        window as typeof window & { __testActions: { setLocale(value: string): void } }
-      ).__testActions.setLocale("zh-CN");
-    });
     // 通过已存在的设置导航入口打开，再点新分区。
     await $('[data-testid="task-settings-button"]').click();
     await $('[data-testid="settings-section-nav-archives"]').click();
@@ -798,18 +793,6 @@ async function captureArchiveLayouts() {
         ["en-US", "zai-light"],
         ["en-US", "zai-dark"],
       ] as const) {
-        await browser.execute(
-          ({ locale, theme }) => {
-            const actions = (
-              window as typeof window & {
-                __testActions: { setTheme(value: string): void; setLocale(value: string): void };
-              }
-            ).__testActions;
-            actions.setTheme(theme);
-            actions.setLocale(locale);
-          },
-          { locale, theme },
-        );
         await browser.waitUntil(() =>
           browser.execute(
             (theme) => document.documentElement.classList.contains(`theme-${theme}`),
@@ -895,14 +878,5 @@ async function captureArchiveLayouts() {
       )!;
       await target.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride");
     });
-    await browser.execute((value) => {
-      const actions = (
-        window as typeof window & {
-          __testActions: { setTheme(value: string): void; setLocale(value: string): void };
-        }
-      ).__testActions;
-      actions.setTheme(value);
-      actions.setLocale("zh-CN");
-    }, original);
   }
 }

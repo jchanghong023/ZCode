@@ -1,27 +1,27 @@
 # 公共内容弹窗与 Hero 资源
 
-更新日期：2026-09-10。范围：客户端公共组件与 Hero 资源；正式投放接入与 Banner 语义见 [marketing-touch-client.md](marketing-touch-client.md)，不包含运营后台。
+更新日期：2026-11-13。范围：客户端公共展示壳与 Hero 资源。Marketing Touch 已删除；本文只描述保留的公共组件与测试资源，不再有 App 内营销投放接入。
 
 ## 当前实现
 
-Banner presentation 支持宿主视觉消息 `{channel:"zcode-cloud-hero-v1",type:"hover",instanceId,hovered:boolean}`，仅 ready 后发送，减少动态效果时为 false。不是业务 action；iframe 继续不可聚焦、不接收原生指针、忽略包内 action。弹窗 Hero 不接收该桥接，仍使用原生交互。详见 Marketing Touch 的 Banner hover 桥接规范。
+Banner presentation 支持宿主视觉消息 `{channel:"zcode-cloud-hero-v1",type:"hover",instanceId,hovered:boolean}`，仅 ready 后发送，减少动态效果时为 false。不是业务 action；iframe 继续不可聚焦、不接收原生指针、忽略包内 action。弹窗 Hero 不接收该桥接，仍使用原生交互。该桥接规范随 Marketing Touch 删除，消息格式保留给通用 Hero。
 
 关闭按钮采用与 Hero/App 主题无关的媒体覆盖层配色：黑色 50% 不透明度背景、白色 X，无边框；hover 背景加深到黑色 65%。保持圆形、原尺寸和焦点/关闭/上报路径，不新增服务端字段，不修改 Banner 或全局 Dialog。
 
-- `CloudContentDialog` 是公共展示壳，消费 title、description、hero、buttons、actions。由 Marketing Touch 的独立 Popup 与成功结果弹窗共用。
+- `CloudContentDialog` 是公共展示壳，消费 title、description、hero、buttons、actions。当前 App 内无调用方，保留供后续云内容接入与 fixture 测试。
 - App 不再提供临时 Mock 入口或下发 RPC；测试服务器独立提供合法 payload 与 ZIP fixture。
 - Desktop local host 下载、校验、安全解压与缓存，通过随机 lease 的 loopback URL 提供资源，iframe 保持 `sandbox="allow-scripts"`。
 - image/video/lottie/interactive_bundle 均已实现。Lottie 使用固定 5.13.0 light canvas，按需加载。
-- App 左下角已改接 Marketing Touch，成功弹窗取投放的 `success_popup`，Hero ZIP 来自服务端授予的 URL/hash。旧 Weekend Banner/结果弹窗 adapter 已删除，Hero 构造 fixture 仅留在 test/helpers，不进入 App。
+- App 左下角营销入口已随 Marketing Touch 删除；旧 Weekend Banner/结果弹窗 adapter 仍保持删除，Hero 构造 fixture 仅留在 test/helpers，不进入 App。
 - `mocks/weekendPlanResultDialog.zh-CN.json` 是**内容模板**，不含 bundle 元数据；mock server 注入真实 ZIP 字段后才成为合法 HTTP response。
 
 ## 使用与验证
 
-App 使用 Marketing Touch GET 下发，不再有「内容 Mock」按钮，也不读取 `CLOUD_CONTENT_MOCK_ORIGIN`。CloudContentService 只负责已授权资源的 readPublishedMedia / prepare / release，不再暴露 status / load / clear 调试 RPC。
+App 不再请求 Marketing Touch 下发，也不再有「内容 Mock」按钮或读取 `CLOUD_CONTENT_MOCK_ORIGIN`。CloudContentService 只负责已授权资源的 readPublishedMedia / prepare / release，不再暴露 status / load / clear 调试 RPC。
 
 Hero ZIP 及 HTML 源资源现由独立制作工作区维护，App 仓库的旧资源目录已归档移除；位置与验证命令见 [资源制作迁移](weekend-banner-resource-bundle.md#2026-09-12-制作工作区迁移)。自动化测试服务器 `packages/desktop/scripts/cloud-content-mock.mjs` 及其 fixture 保留，仅由测试调用或单独运行，不接入 App 启动链路。
 
-接口 fixture 测试：`node --test packages/desktop/scripts/cloud-content-mock.test.mjs`。App 验证使用 `marketing-touch-delivery.test.ts`，同时断言旧入口不存在和授权 ZIP/上报流程正常。旧预览面板专属 UI 单测及 E2E 已退役，历史代码可从 Git 恢复。
+接口 fixture 测试：`node --test packages/desktop/scripts/cloud-content-mock.test.mjs`。App 侧营销 E2E 已随 Marketing Touch 删除；旧预览面板专属 UI 单测及 E2E 已退役，历史代码可从 Git 恢复。
 
 ## v1 字段契约
 
@@ -45,7 +45,7 @@ Hero ZIP 及 HTML 源资源现由独立制作工作区维护，App 仓库的旧�
 | lottie             | src、darkSrc?、autoplay?、loop?、speed?（0.1–4）、fallback?                                  |
 | interactive_bundle | runtime:zcode-hero-sandbox-v1、bundle、viewport:{aspectRatio:"4:3"}、data、events、fallback? |
 
-bundle 必须包含 `format:"zip"`、`url`、`entry`、`sha256`（64 位小写十六进制）；`sizeBytes` 可选，提供时必须为正整数且匹配实际大小。服务端 Marketing Touch 无大小字段，下载及展开的实际字节上限仍强制执行。HTTP mock 使用实算元数据，不能以占位哈希通过校验。
+bundle 必须包含 `format:"zip"`、`url`、`entry`、`sha256`（64 位小写十六进制）；`sizeBytes` 可选，提供时必须为正整数且匹配实际大小。历史营销投放无大小字段，下载及展开的实际字节上限仍强制执行。HTTP mock 使用实算元数据，不能以占位哈希通过校验。
 
 `resolvedUrl` **不是云端字段**，shared schema 会剥离它；仅宿主 prepare 成功或 App 自带可信资源 adapter 设置。没有 resolvedUrl 的互动 Hero 只显示 fallback/占位，绝不直接加载 bundle.url。
 
@@ -71,7 +71,7 @@ close 关闭当前实例；dismiss_content 交给注入 handler 成功后关闭�
 ## 架构与时序
 
 ```text
-App -> Marketing Touch GET -> DTO/schema -> 授权 URL/hash
+App -> 云内容 DTO/schema（原 Marketing Touch GET 已删除）-> 授权 URL/hash
   -> prepare(bundle) -> 下载 -> SHA-256 -> 安全解压 -> host cache
   -> lease scoped URL -> 公共 Dialog -> sandbox iframe -> init -> ready
                               | 标题 / HTML / 按钮          | 展示交互
@@ -133,13 +133,13 @@ visibility=false/reducedMotion -> 停止RAF；destroy -> 停止全部动画
 
 历史产物：归档中的 `marketing-touch-weekend-v2/weekend-plan-hero-v2.zip`，6707字节，SHA-256 `db3acb08ba1aae3f74e8735774217a5c8c295ecb34b9268b53f9a48b25ca2712`。同目录可读 index.html、元数据及下发示例、旧 `marketing-touch-weekend` 包均保留在资源制作工作区归档；ZIP 内源码与当时源码一致，不再表示最新源码。示例 CDN URL、plan_id、asset_id 仍需上传后填写，不表示已部署。
 
-投放 JSON 获取/校验失败沿用 Marketing Touch 的失败策略；资源准备失败仍展示已校验标题/描述/按钮。运行中错误降级 Hero，不阻塞关闭。
+投放 JSON 获取/校验失败沿用历史 Marketing Touch 的失败策略（当前无 App 调用方）；资源准备失败仍展示已校验标题/描述/按钮。运行中错误降级 Hero，不阻塞关闭。
 
 ## 多端与上线边界
 
 公共 UI 与 App 自带 HTML 可由 Desktop/Web/手机复用；手机窄屏使用相同组件。App 的临时开发预览入口已移除。Web/mobile **不得使用 Desktop loopback URL**；未解析的远端 bundle 使用 fallback/占位，不执行 ZIP。
 
-Web/手机真实 ZIP 资源托管未接入，Desktop 投放客户端已接 Marketing Touch，但真实后端仍待联调，不能把 Desktop E2E 通过描述成全端云端上线。未改变 desktop continuous / web remote replayable、owner/lease、workspaceIdentity 或 Agent 协议；这里的资源 lease 不是 task owner lease。
+Web/手机真实 ZIP 资源托管未接入，Desktop 投放客户端已随 Marketing Touch 删除，真实后端仍待联调，不能把 Desktop E2E 通过描述成全端云端上线。未改变 desktop continuous / web remote replayable、owner/lease、workspaceIdentity 或 Agent 协议；这里的资源 lease 不是 task owner lease。
 
 生产阶段另验收：可信 HTTPS/CDN 发布认证、签名、账号隔离、投放频控、灰度/回滚与 Web 资源托管。SHA-256 仅证明字节一致，不证明发布者可信。
 

@@ -185,7 +185,7 @@ describe("PLM-EXT-STORE 商店按插件 API 版本挡住不兼容的扩展插件
     expect(findAvailable(initial, PLAIN)?.componentTypes ?? []).not.toContain("extension");
 
     // (a) 列表：不兼容的插件按钮是不能点的「需要更新 ZCode」；兼容的与普通的照常「安装」。
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await openPluginSettings();
     await clickPluginControl("plugin-store-segment-personal");
     await waitForPluginCard(FUTURE);
@@ -237,7 +237,7 @@ describe("PLM-EXT-STORE 商店按插件 API 版本挡住不兼容的扩展插件
     await backToStoreList();
 
     await captureStoreViews("zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await captureStoreViews("en-US-zai-dark");
     await openPluginCard(FUTURE);
     expect(await readInstallButton(FUTURE)).toMatchObject({
@@ -246,7 +246,7 @@ describe("PLM-EXT-STORE 商店按插件 API 版本挡住不兼容的扩展插件
     });
     expect((await readExtensionNotice(FUTURE))?.text).toContain("Includes resident code");
     await backToStoreList();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (e) 兼容插件与普通插件照常从商店安装；装上后详情页换成「权限」区块，不再显示安装前的说明。
     await openPluginCard(OK);
@@ -323,7 +323,7 @@ describe("PLM-EXT-STORE 商店按插件 API 版本挡住不兼容的扩展插件
       enabled: true,
       updateStatus: "update-available",
     });
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     screenshots.push(await capturePluginManualReview(CASE_ID, "after-update-all-en-US-zai-dark"));
   });
 });

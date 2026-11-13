@@ -87,7 +87,6 @@ export function ChatPromptEditor({
   onModifiedSubmit,
   onCancel,
   onFocus,
-  onWhiteboardMentionSelected,
   onPaste,
   onDragOver,
   onDragLeave,
@@ -120,7 +119,7 @@ export function ChatPromptEditor({
   isDraggingOver?: boolean;
   dragAttachmentHint?: string;
   topContent?: ReactNode;
-  /** 与输入正文同一行的前置内容；Highspeed 使用紧凑 Fast 标签。 */
+  /** 与输入正文同一行的前置内容；模型入口使用紧凑 Fast 标签。 */
   inputLeadingContent?: ReactNode;
   leadingActions?: ReactNode;
   attachmentAction?: {
@@ -158,7 +157,6 @@ export function ChatPromptEditor({
   onModifiedSubmit?: (value: string) => boolean | void;
   onCancel?: () => void;
   onFocus?: () => void;
-  onWhiteboardMentionSelected?: (boardId: string) => void | Promise<void>;
   onPaste?: (event: ChatComposerPasteEvent) => void;
   onDragOver?: DragEventHandler<HTMLDivElement>;
   onDragLeave?: DragEventHandler<HTMLDivElement>;
@@ -381,7 +379,6 @@ export function ChatPromptEditor({
         promptHistory={promptHistory}
         avoidIosInputFocusZoom={avoidIosInputFocusZoom}
         compactPlaceholder={compactPlaceholder}
-        onWhiteboardMentionSelected={onWhiteboardMentionSelected}
         onPaste={onPaste}
         excludedSlashCommandNames={excludedSlashCommandNames}
         appSlashCommands={appSlashCommands}

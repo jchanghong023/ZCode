@@ -57,18 +57,23 @@ const services = (params.has("noBridge")
         },
       },
     }) as unknown as IServiceAccessor;
-const existingTab: WorkspaceSidePaneState = {
-  activeTabId: "whiteboard:fixture",
-  tabs: [
-    {
-      id: "whiteboard:fixture",
-      type: "whiteboard",
-      boardId: "fixture",
-      title: "Existing",
-      ownerTaskId: params.has("draft") ? null : "session-fixture",
-    },
-  ],
-};
+const existingTab: WorkspaceSidePaneState = stampSidePaneTabsOwnership(
+  {
+    activeTabId: "new-tab:fixture",
+    tabs: [
+      {
+        id: "new-tab:fixture",
+        type: "new-tab",
+        openedAt: Date.now(),
+        ownerTaskId: params.has("draft") ? null : "session-fixture",
+      },
+    ],
+  },
+  {
+    workspaceKey: workspaceIdentity,
+    ownerTaskId: params.has("draft") ? null : "session-fixture",
+  },
+) as WorkspaceSidePaneState;
 
 function Fixture() {
   const [sidePaneState, setSidePaneState] = useState<WorkspaceSidePaneState | null>(
@@ -156,7 +161,6 @@ function Fixture() {
       onCloseAllTabs={noop}
       onReopenClosedTab={noop}
       onOpenBrowserTab={noop}
-      onOpenWhiteboard={noop}
       onOpenDeveloperTools={noop}
       onOpenPluginMarket={noop}
       onOpenTerminalTab={noop}

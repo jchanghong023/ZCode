@@ -1,19 +1,10 @@
-import type { Locale } from "@zcode/shared";
 import zhCN from "./locales/zh-CN.js";
-import enUS from "./locales/en-US.js";
-import jaJP from "./locales/ja-JP.js";
-import ruRU from "./locales/ru-RU.js";
-import koKR from "./locales/ko-KR.js";
 
 /**
- * 语言 → 翻译消息映射。IntlProvider 与 ErrorBoundary 共用这一份。
- * 日/俄/韩文案表可能缺 key（例如官方版本安全校验文案只有中英），缺失时先回退 en-US，
- * 避免界面直接露出 key；中文表是完整的，不需要合并。
+ * 应用 UI 单语中文：`zh-CN.ts` 是唯一文案表。
+ *
+ * 协议层 `Locale` / `SUPPORTED_LOCALES`（`@zcode/shared`）仍然保留：插件 manifest、
+ * 服务端分享页、机器人模板等数据仍以多语言字段承载，不在 UI 侧做翻译。
+ * 界面语言固定为中文，因此这里不再提供按语言取表的映射。
  */
-export const LOCALE_MESSAGES: Record<Locale, Record<string, string>> = {
-  "zh-CN": zhCN,
-  "en-US": enUS,
-  "ja-JP": { ...enUS, ...jaJP },
-  "ru-RU": { ...enUS, ...ruRU },
-  "ko-KR": { ...enUS, ...koKR },
-};
+export const UI_MESSAGES: Record<string, string> = zhCN;

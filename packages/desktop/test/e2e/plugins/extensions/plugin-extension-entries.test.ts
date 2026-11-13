@@ -330,7 +330,7 @@ describe("PLM-EXT-P2B 插件入口：主导航与文件查看器", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await log.waitFor(
       (line) => line.includes(`[${EXT_PLUGIN}] activated in`),
       "the entries extension should activate",
@@ -367,7 +367,7 @@ describe("PLM-EXT-P2B 插件入口：主导航与文件查看器", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       const items = await waitForNavItems(
         (current) =>
           locale === "en-US"
@@ -379,7 +379,7 @@ describe("PLM-EXT-P2B 插件入口：主导航与文件查看器", () => {
       expect(items.map((item) => item.id)).toEqual(await expectedNavOrder(items, locale));
       screenshots.push(await capture(`nav-${locale}-${theme}`));
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (b) 导航 → 扩展视图标签；不切换主视图、没有选中态。
     await clickNavItem(NAV_VIEW_ITEM);
@@ -486,10 +486,10 @@ describe("PLM-EXT-P2B 插件入口：主导航与文件查看器", () => {
       ["zh-CN", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       screenshots.push(await capture(`nav-stopped-${locale}-${theme}`));
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await openLauncher();
     await clickNavItem(NAV_SURFACE_ITEM);
     await browser.waitUntil(

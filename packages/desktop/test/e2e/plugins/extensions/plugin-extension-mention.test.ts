@@ -307,7 +307,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await log.waitFor(
       (line) => line.includes(`[${EXT_PLUGIN}] activated in`),
       "the mention extension should activate",
@@ -374,7 +374,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
         .catch(() => false),
     ).toBe(false);
     await capture("mcp-mention-denied-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await reopenMentionQuery(MCP_DENIED_QUERY);
     await waitForMentionGroup(
       MCP_SECTION,
@@ -382,7 +382,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       "the denied state should follow en-US",
     );
     await capture("mcp-mention-denied-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (b2) 始终允许：候选项出现；之后的查询不再询问。
     await writeMentionQuery(MCP_ALLOWED_QUERY);
@@ -414,7 +414,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       ["zh-CN", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       await reopenMentionQuery(MCP_AGAIN_QUERY);
       await waitForMentionGroup(
         MCP_SECTION,
@@ -423,7 +423,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       );
       await capture(`mcp-mention-items-${locale}-${theme}`);
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     const calls = await readMcpCalls();
     evidence.mcpCalls = calls;
     // 被拒绝的调用没有到达 server；批准后的两次都到了。
@@ -500,7 +500,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       await reopenMentionQuery(FAST_QUERY);
       await waitForMentionGroup(
         EXT_SECTION,
@@ -511,7 +511,7 @@ describe("PLM-EXT-P2C 输入框 @ 面板的插件分组", () => {
       );
       await capture(`mention-items-${locale}-${theme}`);
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await reopenMentionQuery(FAST_QUERY);
     await waitForMentionGroup(
       EXT_SECTION,

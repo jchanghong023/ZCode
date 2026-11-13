@@ -134,19 +134,6 @@ async function createOriginalTask(target: Awaited<ReturnType<typeof readChatIden
 }
 
 async function applyAppearance(locale: string, theme: string, width: number) {
-  await browser.execute(
-    (language, color) => {
-      const actions = (
-        window as Window & {
-          __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-        }
-      ).__testActions;
-      actions?.setLocale(language);
-      actions?.setTheme(color);
-    },
-    locale,
-    theme,
-  );
   await browser.electron.execute((electron, size) => {
     electron.BrowserWindow.getAllWindows()
       .find((window) => window.isVisible())
@@ -217,11 +204,6 @@ describe(marker, () => {
     const config = readSSHRuntimeConfig(marker);
     await prepareV4ConversationE2E({ skipProvider: true });
     await installHandoffRpcProbe();
-    await browser.execute(() => {
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN");
-    });
     await $('[data-testid="project-section"]').moveTo();
     await $('[data-testid="virtual-project-add"]').click();
     await $('[data-testid="virtual-project-name"]').setValue(projectName);
@@ -267,7 +249,7 @@ describe(marker, () => {
     });
     const before = await directory();
     const chatIdentity = await readChatIdentity();
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"])
         for (const width of [1440, 480]) {
           await applyAppearance(locale, theme, width);
@@ -322,7 +304,7 @@ describe(marker, () => {
     const folder = $('[data-testid="chat-remote-folder"]');
     await folder.waitForDisplayed();
     expect(await folder.getText()).toContain(source.displayName);
-    for (const locale of ["zh-CN", "en-US"]) {
+    for (const locale of ["zh-CN"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 480]) {
           await applyAppearance(locale, theme, width);

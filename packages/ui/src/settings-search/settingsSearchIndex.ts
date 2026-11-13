@@ -7,7 +7,6 @@ export interface SettingsSearchAvailability {
   tray: boolean;
   notWindows: boolean;
   workflow: boolean;
-  computerUse: boolean;
 }
 
 // 翻译 key 同时作为稳定定位 id；索引只描述入口，不持有任何配置值。
@@ -22,12 +21,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "settings.taskAutoArchiveDays",
     section: "archives",
     description: "settings.taskAutoArchiveDaysDescription",
-    visibility: "all",
-  },
-  {
-    id: "settings.locale",
-    section: "general",
-    description: "settings.localeDescription",
     visibility: "all",
   },
   {
@@ -251,18 +244,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     section: "browser",
     description: "settings.browser.clearAll.description",
     visibility: "all",
-  },
-  {
-    id: "settings.computerUse.toggleLabel",
-    section: "computerUse",
-    description: "settings.computerUse.toggleDescription",
-    visibility: "computerUse",
-  },
-  {
-    id: "settings.computerUse.composerEntry.label",
-    section: "computerUse",
-    description: "settings.computerUse.composerEntry.description",
-    visibility: "computerUse",
   },
   {
     id: "settings.memory.workspaceMemory",

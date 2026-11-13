@@ -135,7 +135,7 @@ export function RowsFixture({ config, ready }: { config: any; ready: () => void 
     ready();
   }, [config, opens, tab, ready]);
   return (
-    <ZCodeIntlProvider initialLocale="en-US">
+    <ZCodeIntlProvider>
       <TabStoreProvider>
         <PluginUiWorkspaceProvider onOpenSidePane={open}>
           <PluginUiSessionProvider

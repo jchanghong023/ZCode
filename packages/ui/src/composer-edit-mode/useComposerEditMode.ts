@@ -17,7 +17,6 @@ import { toast } from "@/components/ui/toast.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { TID_V4_COMPOSER_EDIT_SWITCH_DIALOG } from "@zcode/shared/test-ids";
 import { logger } from "@/logger.js";
-import { parseConversationShareContext } from "@/lib/conversationShareContext.js";
 import { v4QueuedCommandText } from "@/v4/slashCommands.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { parseComposerPromptContexts } from "@/v4/composer/composerPromptContexts.js";
@@ -123,7 +122,7 @@ function createEnterEditScope({
       workspacePath,
       workspaceIdentity,
     });
-    const visibleText = parseConversationShareContext(parsed.visibleContent).visibleContent;
+    const visibleText = parsed.visibleContent;
     persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, {
       text: visibleText,
       ...content.config,

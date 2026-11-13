@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { release } from "node:os";
 import {
-  TID_TERMINAL_TOGGLE,
   TID_SIDE_PANE_TOGGLE,
   TID_WORKSPACE_HEADER,
   TID_WORKSPACE_TITLE,
@@ -95,7 +94,6 @@ describe("Side Pane Tab responsive interactions", () => {
     if (process.platform === "win32" || process.platform === "linux") {
       expect(await header.$('[data-testid="desktop-window-controls"]').isExisting()).toBe(true);
     }
-    expect(await header.$(`[data-testid="${TID_TERMINAL_TOGGLE}"]`).getSize("height")).toBe(28);
     if (process.platform === "win32" || process.platform === "linux") {
       expect(await header.$("button > svg.lucide-chevron-down").isExisting()).toBe(false);
     }
@@ -363,55 +361,6 @@ describe("Side Pane Tab responsive interactions", () => {
       { timeout: 5000, timeoutMsg: "独立面板间距无法拖动调整宽度" },
     );
     expect((await readIndependentPanelMetrics())?.gap).toBeCloseTo(3, 0);
-    const terminalToggle = await $(`[data-testid="${TID_TERMINAL_TOGGLE}"]`);
-    await terminalToggle.click();
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const terminal = document.querySelector<HTMLElement>("#terminal");
-          const frame = document.querySelector('[data-workspace-conversation-frame="true"]');
-          return Boolean(
-            terminal &&
-            frame &&
-            !frame.contains(terminal) &&
-            terminal.closest("#conversation-column") === frame.closest("#conversation-column") &&
-            terminal.getBoundingClientRect().height > 20 &&
-            Math.abs(
-              terminal.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - 4,
-            ) < 1,
-          );
-        }),
-      { timeout: 10000, timeoutMsg: "终端没有以 4px 间距在会话下方独立展开" },
-    );
-    await movePointerAwayFromResizeHandles();
-    expect(
-      await readResizeHandleStyle('[data-workspace-terminal-resize-handle="true"]'),
-    ).toMatchObject({
-      hasExtendedIndicatorLine: true,
-      indicatorOpacity: "0",
-      handleHeight: 4,
-    });
-    const conversationHeightBeforeDrag = await browser.execute(
-      () =>
-        document
-          .querySelector<HTMLElement>('[data-workspace-conversation-frame="true"]')!
-          .getBoundingClientRect().height,
-    );
-    await hoverResizeHandle('[data-workspace-terminal-resize-handle="true"]');
-    await assertResizeHandleVisible('[data-workspace-terminal-resize-handle="true"]');
-    await dragResizeHandle('[data-workspace-terminal-resize-handle="true"]', 0, -24);
-    await browser.waitUntil(
-      async () =>
-        Math.abs(
-          (await browser.execute(
-            () =>
-              document
-                .querySelector<HTMLElement>('[data-workspace-conversation-frame="true"]')!
-                .getBoundingClientRect().height,
-          )) - conversationHeightBeforeDrag,
-        ) > 10,
-      { timeout: 5000, timeoutMsg: "Terminal resize handle 没有改变会话高度" },
-    );
     for (const theme of ["zai-light", "zai-dark"]) {
       await browser.execute((value) => {
         const actions = (
@@ -431,18 +380,15 @@ describe("Side Pane Tab responsive interactions", () => {
       for (const selector of [
         '[data-testid="resizable-handle"]',
         '[data-workspace-side-pane-resize-handle="true"]',
-        '[data-workspace-terminal-resize-handle="true"]',
       ]) {
         expect((await readResizeHandleStyle(selector)).hasExtendedIndicatorLine).toBe(true);
       }
       const colors = await browser.execute(() => {
         const left = document.querySelector('[data-workspace-conversation-frame="true"]')!;
         const right = document.querySelector('[data-workspace-side-frame="true"]')!;
-        const terminal = document.querySelector('[data-workspace-terminal-frame="true"]')!;
         return [
           getComputedStyle(left).backgroundColor,
           getComputedStyle(right).backgroundColor,
-          getComputedStyle(terminal).backgroundColor,
         ];
       });
       expect(colors[0]).toBe(colors[1]);
@@ -472,8 +418,6 @@ describe("Side Pane Tab responsive interactions", () => {
         ),
       );
     }
-    await terminalToggle.click();
-
     await sidePaneClose.click();
     await browser.waitUntil(
       async () => (await readHeaderBorderBottomColor()) === "rgba(0, 0, 0, 0)",
@@ -504,109 +448,6 @@ describe("Side Pane Tab responsive interactions", () => {
     });
     if (expectedPanelRadiusPx === 6) expect(closedFrame.usesRadiusToken).toBe(true);
     expect(closedFrame.leftRadius).toBe(`${expectedPanelRadiusPx}px`);
-  });
-
-  it("TERM-TAB-05 closes the sole terminal session and creates a fresh one on reopen", async () => {
-    const terminalToggle = await $(`[data-testid="${TID_TERMINAL_TOGGLE}"]`);
-    const processMarker = `E2E_TERMINAL_CLOSE_${Date.now().toString(36)}`;
-    let terminalProcessPid = 0;
-
-    try {
-      await terminalToggle.click();
-      await browser.waitUntil(
-        async () =>
-          browser.execute(() =>
-            Boolean(
-              document.querySelector<HTMLElement>("#terminal .xterm")?.getBoundingClientRect()
-                .height,
-            ),
-          ),
-        { timeout: 15_000, timeoutMsg: "唯一终端没有打开" },
-      );
-
-      const originalTerminalMarker = `terminal-${Date.now().toString(36)}`;
-      const command = `node -e "setInterval(() => {}, 1000)" ${processMarker}`;
-      await typeInBottomTerminal(command);
-      await browser.waitUntil(
-        async () => {
-          const terminalProcess = (await listSystemProcesses()).find(
-            (item) => item.command.includes(processMarker) && item.command.includes("node"),
-          );
-          terminalProcessPid = terminalProcess?.pid ?? 0;
-          return terminalProcessPid > 0;
-        },
-        { timeout: 15_000, interval: 200, timeoutMsg: "唯一终端没有启动进程探针" },
-      );
-      expect(
-        await browser.execute((marker) => {
-          const terminal = document.querySelector<HTMLElement>("#terminal .xterm");
-          terminal?.setAttribute("data-terminal-e2e-marker", marker);
-          return Boolean(terminal);
-        }, originalTerminalMarker),
-      ).toBe(true);
-      expect(
-        await browser.execute(() => {
-          const activeTab = document.querySelector<HTMLElement>(
-            '#terminal [role="tab"][data-active]',
-          );
-          const close = activeTab?.querySelector<HTMLButtonElement>("button");
-          close?.click();
-          return Boolean(close);
-        }),
-      ).toBe(true);
-
-      await browser.waitUntil(
-        async () =>
-          browser.execute((marker) => {
-            const oldTerminal = document.querySelector(`[data-terminal-e2e-marker="${marker}"]`);
-            const terminal = document.querySelector<HTMLElement>("#terminal");
-            const panel = terminal?.closest<HTMLElement>("[data-panel]");
-            return !oldTerminal && Boolean(panel && panel.getBoundingClientRect().height <= 1);
-          }, originalTerminalMarker),
-        { timeout: 15_000, timeoutMsg: "关闭唯一终端 tab 后旧 session 未卸载或面板未收起" },
-      );
-      await browser.waitUntil(
-        async () => {
-          const oldProcess = (await listSystemProcesses()).find(
-            (item) => item.pid === terminalProcessPid && item.command.includes(processMarker),
-          );
-          return !oldProcess;
-        },
-        {
-          timeout: 15_000,
-          interval: 200,
-          timeoutMsg: "关闭唯一终端 tab 后运行中的命令仍存活",
-        },
-      );
-
-      await terminalToggle.click();
-      await browser.waitUntil(
-        async () =>
-          browser.execute((marker) => {
-            const terminal = document.querySelector<HTMLElement>("#terminal .xterm");
-            return Boolean(
-              terminal &&
-              terminal.getAttribute("data-terminal-e2e-marker") !== marker &&
-              terminal.getBoundingClientRect().height > 20,
-            );
-          }, originalTerminalMarker),
-        { timeout: 15_000, timeoutMsg: "重新打开终端后没有创建新 session" },
-      );
-      await terminalToggle.click();
-    } finally {
-      if (terminalProcessPid > 0) {
-        const probeStillExists = (await listSystemProcesses()).some(
-          (item) => item.pid === terminalProcessPid && item.command.includes(processMarker),
-        );
-        if (probeStillExists) {
-          try {
-            process.kill(terminalProcessPid, "SIGKILL");
-          } catch {
-            // 进程可能在扫描后、清理前已经退出。
-          }
-        }
-      }
-    }
   });
 
   it("SPT-E2E-001 keeps one tab at 156px and the add button beside it", async () => {

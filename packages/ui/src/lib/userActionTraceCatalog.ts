@@ -54,7 +54,6 @@ export const CORE_USER_ACTION_FEATURES = {
 
 export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.navigation": ["open_section", "back_to_workspace", "open_onboarding"],
-  "settings.locale": ["change_locale"],
   "settings.appearance": [
     "change_theme",
     "change_ui_font_size",

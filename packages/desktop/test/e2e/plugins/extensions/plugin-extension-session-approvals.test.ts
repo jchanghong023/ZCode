@@ -378,7 +378,7 @@ describe("PLM-EXT-P3E 插件回答审批、提问与切换权限模式", () => {
       },
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     const activated = await log.waitFor(
       (line) => line.includes(`E2E_APPROVALS_ACTIVATED plugin=${PLUGIN_ID}`),
       "the approvals fixture should activate",
@@ -707,9 +707,9 @@ describe("PLM-EXT-P3E 插件回答审批、提问与切换权限模式", () => {
     );
     await waitForV4AssistantMessageContaining("E2E_P3E_FULL_DONE", 90000);
     expect(await exists(outputPath("full.txt"))).toBe(true);
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     screenshots.push(await capturePluginManualReview(CASE_ID, "after-full-access-en-US-zai-dark"));
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (i) 插件会话都在插件项目里；插件只看到 permission 与 userInput 两种交互。
     const tree = await callHandoffHost<ProjectTree>(ServiceChannels.Project, "readTree", [{}]);

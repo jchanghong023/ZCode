@@ -27,10 +27,7 @@ import {
   parseLaunchMarks,
   LAUNCH_MARKS_QUERY_KEY,
   type LaunchMarks,
-  DEFAULT_LOCALE,
-  isLocale,
 } from "@zcode/shared";
-import type { Locale } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import { createDesktopPlatform } from "./desktopPlatform.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
@@ -139,8 +136,6 @@ const initialWorkspaceAbsPath = readStringFlag("initialWorkspacePath");
 const initialWorkspacePurpose = readStringFlag("initialWorkspacePurpose");
 const unavailableWorkspacePath = readStringFlag("unavailableWorkspacePath");
 const windowKind = readStringFlag("windowKind");
-const initialLocaleFlag = readStringFlag("locale");
-const initialLocale: Locale = isLocale(initialLocaleFlag) ? initialLocaleFlag : DEFAULT_LOCALE;
 let baseServicesForRemoteSessions: IServiceAccessor | null = null;
 const pendingRemoteWorkspaceServicePorts: RemoteWorkspaceServicePortRegistration[] = [];
 // 登记对象 → attachment：释放通知只作用于当时那次登记；用 WeakMap 随 session 注销自动回收。
@@ -171,10 +166,7 @@ const sendStartupControl = (control: DatabaseStartupControl) =>
 function renderDatabaseStartup(): void {
   appRoot?.render(
     <AppErrorBoundary isDesktop isMacDesktop={isMacDesktop} isWindowsDesktop={isWindowsDesktop}>
-      <ZCodeIntlProvider
-        initialLocale={initialLocaleFlag ? initialLocale : undefined}
-        resolveSystemLocale={desktopPlatform.getSystemLocale}
-      >
+      <ZCodeIntlProvider>
         <StartupReadyNotifier />
         <GlobalDatabaseStartupLoading
           state={databaseStartupAdmission.state}
@@ -355,11 +347,7 @@ function initializeBusinessRoot(port: MessagePort): void {
 
   appRoot?.render(
     <AppErrorBoundary isDesktop isMacDesktop={isMacDesktop} isWindowsDesktop={isWindowsDesktop}>
-      <ZCodeIntlProvider
-        settingService={settingService}
-        broadcastService={services.broadcastService}
-        resolveSystemLocale={desktopPlatform.getSystemLocale}
-      >
+      <ZCodeIntlProvider>
         <StartupReadyNotifier />
         <Root
           services={services}
@@ -393,7 +381,6 @@ if (windowKind === "update-status") {
       <StartupReadyNotifier />
       <UpdateStatusWindowRoot
         platform={desktopPlatform}
-        initialLocale={initialLocale}
         onRequestClose={() => window.close()}
       />
     </AppErrorBoundary>,

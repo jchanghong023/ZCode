@@ -91,7 +91,6 @@ describe("desktop e2e startup credentials", () => {
   });
   it.each([
     "conversation-session-r3-live-bigmodel-team.test.ts",
-    "conversation-session-share-ssh-artifact.test.ts",
   ])("真实账号导入 spec %s 不混入默认假 OAuth 身份", (spec) => {
     expect(
       createE2EStartupCredentialSeed({
@@ -231,15 +230,4 @@ describe("desktop e2e startup credentials", () => {
     });
   });
 
-  it("分享浮窗交互具备本地 mock 账号态", () => {
-    expect(
-      createE2EStartupCredentialSeed({
-        specs: [
-          "./test/e2e/conversation-session/sharing/conversation-session-share-popover.test.ts",
-        ],
-        legacyAuthToken: "legacy",
-        restoredOAuthCredentials: { zcodejwttoken: "local-only" },
-      }).zcodejwttoken,
-    ).toBe("local-only");
-  });
 });

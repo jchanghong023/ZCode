@@ -136,10 +136,6 @@ export interface ZCodeState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
 
-  /** 当前语言 */
-  locale: string;
-  setLocale: (locale: string) => void;
-
   /** 代码预览设置 */
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (patch: Partial<CodePreviewSettings>) => void;
@@ -253,7 +249,6 @@ export interface ZCodeState {
 
 const BROADCAST_FIELDS = new Set([
   "theme",
-  "locale",
   "uiFontSizePx",
   "fontSmoothingEnabled",
   "interfaceMode",
@@ -263,7 +258,6 @@ const BROADCAST_FIELDS = new Set([
 
 type BroadcastField =
   | "theme"
-  | "locale"
   | "uiFontSizePx"
   | "fontSmoothingEnabled"
   | "interfaceMode"
@@ -319,12 +313,6 @@ export function createZCodeStore(
       applyTheme(normalizedTheme);
 
       set({ theme: normalizedTheme });
-    },
-
-    locale: readSafeLocalStorage("zcode-locale") || "zh-CN",
-    setLocale: (locale: string) => {
-      writeSafeLocalStorage("zcode-locale", locale);
-      set({ locale });
     },
 
     codePreviewSettings: loadCodePreviewSettings(),
@@ -560,8 +548,6 @@ export function createZCodeStore(
       const state = useStore.getState();
       if (field === "theme" && typeof msg.payload === "string") {
         state.setTheme(msg.payload as Theme);
-      } else if (field === "locale" && typeof msg.payload === "string") {
-        state.setLocale(msg.payload);
       } else if (
         field === "interfaceMode" &&
         (msg.payload === "office" || msg.payload === "coding")

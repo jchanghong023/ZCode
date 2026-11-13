@@ -68,10 +68,6 @@ export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
     ...keyringVariants
       .filter((name) => name !== keyringPlatformPackage(targetPlatformKey))
       .map((name) => `!node_modules/${name}/**`),
-    // PDF 预览已经由 Vite 打进 renderer，pdfjs-dist 的 Canvas optional dependency
-    // 只服务 Node 渲染；pnpm 跨平台安装的 8 套 Canvas native 不应带进桌面安装包。
-    "!node_modules/@napi-rs/canvas/**",
-    "!node_modules/@napi-rs/canvas-*/**",
     // Linux prebuild 会在 beforePack 复制进 node-pty；源平台包本身不属于桌面运行时。
     "!node_modules/@lydell/node-pty-*/**",
     // 桌面运行时统一使用目标 prebuild，禁止把安装机现场编译物或 ABI bin 缓存带进跨平台包。
@@ -117,15 +113,6 @@ export function findDesktopNativePackageViolations(entries, targetPlatformKey) {
 
   for (const entry of entries) {
     const { packState, path } = entry;
-
-    if (
-      path === "/node_modules/@napi-rs/canvas" ||
-      path.startsWith("/node_modules/@napi-rs/canvas/") ||
-      path.startsWith("/node_modules/@napi-rs/canvas-")
-    ) {
-      violations.push(`不应打包 renderer 无需的 Canvas native: ${path}`);
-      continue;
-    }
 
     const keyringMatch = /^\/node_modules\/(@napi-rs\/keyring-[a-z0-9-]+)(?:\/|$)/.exec(path);
     if (keyringMatch && keyringMatch[1] !== keyringPlatformPackage(targetPlatformKey)) {

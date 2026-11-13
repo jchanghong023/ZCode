@@ -116,24 +116,8 @@ async function measureAddingForm() {
 async function captureAddingForms(kind: string) {
   const artifacts = resolve(process.env.ZCODE_E2E_ARTIFACT_DIR!);
   await mkdir(artifacts, { recursive: true });
-  for (const locale of ["zh-CN", "en-US"]) {
+  for (const locale of ["zh-CN"]) {
     for (const theme of ["light", "dark"]) {
-      await browser.execute(
-        (language, color) => {
-          const actions = (
-            window as Window & {
-              __testActions?: {
-                setLocale(locale: string): void;
-                setTheme(theme: string): void;
-              };
-            }
-          ).__testActions;
-          actions?.setLocale(language);
-          actions?.setTheme(color);
-        },
-        locale,
-        theme,
-      );
       for (const width of [1440, 480]) {
         await browser.electron.execute((electron, size) => {
           electron.BrowserWindow.getAllWindows()
@@ -176,11 +160,6 @@ async function captureAddingForms(kind: string) {
       .find((window) => window.isVisible())
       ?.setSize(1440, 900);
   });
-  await browser.execute(() =>
-    (
-      window as Window & { __testActions?: { setLocale(locale: string): void } }
-    ).__testActions?.setLocale("zh-CN"),
-  );
 }
 const settingsContent = "[data-settings-content-frame]";
 
@@ -279,11 +258,6 @@ let settingsE2EPrepared = false;
 async function prepareSettingsE2E() {
   if (settingsE2EPrepared) return;
   await prepareV4ConversationE2E({ skipProvider: true });
-  await browser.execute(() => {
-    (
-      window as Window & { __testActions?: { setLocale(locale: string): void } }
-    ).__testActions?.setLocale("zh-CN");
-  });
   await installHandoffRpcProbe();
   settingsE2EPrepared = true;
 }
@@ -512,21 +486,8 @@ describe(`${marker}: 设置内连接独立完成`, () => {
     );
     const artifacts = resolve(process.env.ZCODE_E2E_ARTIFACT_DIR!);
     await mkdir(artifacts, { recursive: true });
-    for (const locale of ["zh-CN", "en-US"]) {
+    for (const locale of ["zh-CN"]) {
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (language, color) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(language);
-            actions?.setTheme(color);
-          },
-          locale,
-          theme,
-        );
         for (const width of [1440, 480]) {
           await browser.electron.execute((electron, size) => {
             electron.BrowserWindow.getAllWindows()
@@ -564,11 +525,6 @@ describe(`${marker}: 设置内连接独立完成`, () => {
       electron.BrowserWindow.getAllWindows()
         .find((window) => window.isVisible())
         ?.setSize(1440, 900),
-    );
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
     );
     // 前一场景失败时也先通过真实关闭操作释放表单，避免级联前置失败掩盖本场景结果。
     if (await $(`[data-testid="${TID_SSH_DIALOG}"]`).isExisting()) {

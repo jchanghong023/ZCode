@@ -130,11 +130,6 @@ describe("当前任务元数据与自动归档", () => {
     // 直写 SQLite 不发布 task delta；重启持有 source snapshot 的 Host，才能读取新夹具。
     await restartIntoWorkspacePreservingProfile(DEFAULT_WORKSPACE);
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45_000);
-    await browser.execute(() =>
-      (
-        window as typeof window & { __testActions: { setLocale(value: string): void } }
-      ).__testActions.setLocale("zh-CN"),
-    );
     await revealProject(cold);
   });
   it("AMT01：冷历史恢复正文和真实标题，不向 CLI 发标题 readSession", async () => {

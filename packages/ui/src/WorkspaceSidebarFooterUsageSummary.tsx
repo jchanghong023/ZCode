@@ -41,7 +41,10 @@ import {
 } from "@/lib/codingPlanUsageSources.js";
 import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { parseCustomProviderIdFromSupplierKey } from "@/lib/modelConfigSync.js";
-import { setPendingSettingsUsageIntent } from "@/lib/settingsNavigation.js";
+import {
+  setPendingSettingsUsageIntent,
+  USAGE_STATS_ENTRY_VISIBLE,
+} from "@/lib/settingsNavigation.js";
 import {
   resolveSidebarFooterPlanBadgeLabel,
   resolveSidebarFooterProfilePlanBadge,
@@ -440,17 +443,21 @@ export function WorkspaceSidebarFooterUsageSummaryContent({
 
   return (
     <>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        data-testid={TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON}
-        onSelect={() => {
-          setPendingSettingsUsageIntent();
-          onUsageClick?.();
-        }}
-      >
-        <BarChart3Icon className="size-4" />
-        {intl.formatMessage({ id: "sidebar.usage.plan.openStats" })}
-      </DropdownMenuItem>
+      {USAGE_STATS_ENTRY_VISIBLE ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            data-testid={TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON}
+            onSelect={() => {
+              setPendingSettingsUsageIntent();
+              onUsageClick?.();
+            }}
+          >
+            <BarChart3Icon className="size-4" />
+            {intl.formatMessage({ id: "sidebar.usage.plan.openStats" })}
+          </DropdownMenuItem>
+        </>
+      ) : null}
       {/* 产品要求：升级入口始终显示；未解析出当前套餐时由当前 provider family 决定品牌。 */}
       <DropdownMenuItem
         data-testid={TID_SIDEBAR_CODING_PLAN_UPGRADE_BUTTON}

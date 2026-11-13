@@ -6,14 +6,12 @@
 
 ## 支持的预览类型
 
-- `file`：按路径读取真实文件内容；不超过 `256KB` 的文本文件一次完整读取，超过上限时显示本地化的大文件提示；二进制文件按文件类型分派专门的预览适配（当前为图片、媒体、PDF、PPTX），未适配的类型仍显示不可预览提示
+- `file`：按路径读取真实文件内容；不超过 `256KB` 的文本文件一次完整读取，超过上限时显示本地化的大文件提示；二进制文件按文件类型分派专门的预览适配（当前为图片、媒体），未适配的类型仍显示不可预览提示
 - `text`：直接渲染内存中的文本内容，按 `language` 使用代码高亮
 - `patch`：渲染 unified diff / patch，保留增删行语义
 - `image`：读取媒体预览并显示图片；当前识别 `apng`、`avif`、`bmp`、`gif`、`ico`、`jpeg`、`jpg`、`png`、`svg`、`webp`
 - `media`：使用原生 `video` / `audio` 控件预览 MP4、MOV、WebM、M4V、MP3、WAV、M4A、OGG、Opus、FLAC 和 WEBA；Desktop 本地文件通过授权 `zcode-media://` URL，Desktop SSH/WSL/Docker 文件通过 Host loopback HTTP Range Proxy，手机 `/remote` 仅使用 workspace-scoped 小文件 inline 读取
-- `pdf`：渲染 PDF 只读预览；当前识别 `pdf`，只提供预览能力，不提供编辑能力。所有入口统一创建 `file` source，由 PreviewPane 的 `resolvePreviewPanePdfSource` 惰性升级为 `pdf`（与 image 的升级模式一致），保证 tab key 全部走 `file:{path}` 去重。数据加载走 `fileService` 的分段读取（`stat` 拿 size；小于 `2MB` 循环 `readFileRange` 拉全量，超过则交给 pdf.js range 按需分段加载），无整档大小上限；旧远端（`stat` 不返回 `size`）回退整档 base64 的 `readMediaPreview` 旧通道，保留其 8MB 上限
-- `office`：以只读模式预览 `.xlsx`、`.xlsm`、`.xls`、`.docx` 和 `.doc`；Excel 以 `.xlsx` 为完整支持路径，`.xlsm` / `.xls` 仅展示渲染库能够解析的数据，`.docx` / `.doc` 统一交给 Word 渲染器。`.xlsx` 在插件面板可用时优先分流到内置 `spreadsheets` 查看面板，Preview Pane 只承接 `.xlsm` / `.xls` 与回退路径，分流规则见 [office-file-preview](office-file-preview.md) 的入口路由章节
-- `pptx`：渲染 PPTX 只读预览；当前识别 `.pptx`，以左侧垂直缩略图列表和右侧单页预览展示，底部工具栏提供翻页、页码跳转和缩放。所有入口仍创建 `file` source，由 PreviewPane 惰性升级为 `pptx`，保证 tab key 继续走 `file:{path}` 去重。第一期只实现 `PresentationPreviewEngine`，编辑、导出、写回仅保留分层接口。新 Host 使用 `64MB` 上限；旧远端缺少 `stat.size/readFileRange` 时保留 `8MB` base64 兼容上限，并显示独立的本地化提示而不是误报 `64MB` 或透出远端路径。详见 `docs/ui/pptx-preview.md`
+- `pdf` / `office` / `pptx`：内联预览已移除，按二进制文件提示（不提供编辑、导出或渲染）；用户通过外部应用打开。
 
 ## 文件与文本渲染规则
 
@@ -37,10 +35,6 @@
 - 代码源码渲染为逐行结构：每行包含不可选中的 `line` 行号区和可选中的 `code` 内容区
 - 横向滚动时 `line` 行号区保持 sticky 固定；开启自动换行后，仅 `code` 内容区参与换行
 - 普通文本/代码文件以 `256KB` 为预览上限：上限内一次读取并作为单个完整文档渲染，保证 UTF-8 解码、行号和滚动上下文连续；超过上限时不渲染局部内容，显示本地化提示，引导用户使用其他编辑器打开
-- `256KB` 上限只约束普通文本/代码预览；PDF、PPTX 和 Office 文件继续使用各自的二进制读取、大小限制和渲染链路
-- `.pdf` 文件进入 PDF 只读预览，按页渲染并支持滚动浏览；不提供源码视图切换，当前版本不提供编辑、批注能力
-- Word、Excel、PPTX 与 PDF 文档预览的通用顶部标题栏下方必须展示 `border-border` 横向分隔线；普通代码、图片、Markdown 等预览保持原有无分隔线标题栏。
-- `.pptx` 文件进入 PPTX 只读预览，主区域只挂载选中页；不提供源码视图、内置编辑、导出或保存能力，
   但顶栏保留与 XLSX、DOCX 相同的通用“在外部编辑器打开”按钮，该操作不属于 Preview Pane 内部编辑或写回
 
 ## 路径处理
@@ -60,17 +54,12 @@
 
 - `packages/ui/src/PreviewPane.tsx`：pane 壳、面包屑、视图切换和文件读取生命周期
 - `packages/ui/src/components/ui/code-viewer.tsx`：通用 `CodeViewer` Shiki 代码查看组件，负责逐行渲染、sticky 行号和换行策略；side pane 和后续 markdown 代码块复用同一入口
-- `packages/ui/src/components/ui/pdf-viewer.tsx`：通用 `PdfViewer` PDF 只读预览组件，负责按页渲染与滚动浏览；由 preview pane 的 `pdf` source 分派使用，不承担编辑能力，详见 `docs/ui/pdf-viewer.md`
-- `packages/ui/src/previewPanePdfContent.tsx`：pdf 正文薄包装，懒加载 `PdfViewer`（react-pdf 体积较大，只在首次打开 PDF 预览时进入 bundle）
-- `packages/ui/src/previewPanePptxContent.tsx`：pptx 正文薄包装，懒加载 PPTX 预览组件和 `@aiden0z/pptx-renderer`
 - `packages/ui/src/lib/shikiHighlighter.ts`：通用 Shiki 高亮缓存与异步 token 化入口，避免 `components/ui` 依赖 `ai-elements` 的实现细节
 - `packages/ui/src/previewPaneContent.tsx`：按 `CodeViewerSource` 类型分派正文渲染
 - `packages/ui/src/previewPaneOfficeContent.tsx`：Office 二进制解码、懒加载和统一错误边界
 - `packages/ui/src/previewPaneOfficeXlsxContent.tsx`：Excel 只读渲染与主题适配
 - `packages/ui/src/previewPaneOfficeDocxContent.tsx`：DOCX 解析、白纸主题和响应式容器
-- `packages/ui/src/lib/officeFilePreview.ts`：Office 扩展名识别和 base64 解码
 - `packages/ui/src/lib/codeViewer.ts`：预览 source 类型、工具调用预览提取、语言和图片类型识别
 - `packages/ui/src/lib/codeViewerSource.ts`：Code Viewer source 路径规范化
 - `packages/ui/src/lib/workspaceSidePane.ts`：Code Viewer tab key 生成与复用
 - `packages/ui/src/plugin-ui/officeViewerOpen.ts`：`.xlsx` 文件打开到内置 spreadsheets 查看面板的路由表、能力门与文档驱动
-- `docs/ui/office-file-preview.md`：Office 文件预览的边界、状态组合和验证契约

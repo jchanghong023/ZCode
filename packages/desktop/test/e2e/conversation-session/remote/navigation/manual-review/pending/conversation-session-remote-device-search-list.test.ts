@@ -218,21 +218,8 @@ describe("RDUX-13-LIST-01：多设备列表搜索、展开与稳定排序", () =
       ),
     );
     await $(LIST).scrollIntoView({ block: "start" });
-    for (const locale of ["zh-CN", "en-US"]) {
+    for (const locale of ["zh-CN"]) {
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (lang, appearance) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(lang);
-            actions?.setTheme(appearance);
-          },
-          locale,
-          theme,
-        );
         for (const width of [1440, 700]) {
           await browser.electron.execute((electron, width) => {
             electron.BrowserWindow.getAllWindows()

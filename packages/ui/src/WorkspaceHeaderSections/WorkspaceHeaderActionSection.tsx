@@ -1,27 +1,20 @@
 import { WorkspaceEditorButtonGroup } from "@/WorkspaceEditorButtonGroup.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
-import { WorkspaceTerminalToggleButton } from "@/WorkspaceTerminalToggleButton.js";
 import { cn } from "@/components/lib/utils.js";
 import type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 import { WorkspaceHelpMenuButton } from "@/WorkspaceHelpMenuButton.js";
-import { ConversationShareMenu } from "@/ConversationShareMenu.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 
 export type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeaderActionSection({
   variant = "task",
-  activeTaskId,
-  user,
   readOnlyReason,
   workspaceAbsPath,
   workspaceIdentity,
   remoteTarget,
-  isWebRemoteControl = false,
   isDesktop,
-  isTerminalOpen,
   isSidePaneOpen,
-  onToggleTerminal,
   onToggleSidePane,
   toggleSidePaneShortcutLabel,
   onSelectedEditorChange,
@@ -48,27 +41,9 @@ export function WorkspaceHeaderActionSection({
           onSelectedEditorChange={onSelectedEditorChange}
         />
       ) : null}
-      {/* 分享发布接口依赖登录态；未登录时隐藏入口，避免用户打开后只能得到鉴权失败。 */}
-      {activeTaskId &&
-      user &&
-      isDesktop !== false &&
-      !isWebRemoteControl &&
-      remoteTarget?.kind !== "server" ? (
-        <ConversationShareMenu
-          taskId={activeTaskId}
-          useWindowsCaptionSpacing={useWindowsCaptionSpacing}
-        />
-      ) : null}
       {!simplifyForNarrowRemote ? (
         <>
           {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}
-          {/* Bugfix: 远程控制移动端头部空间过窄，终端入口在这里会和核心操作争抢宽度。 */}
-          <WorkspaceTerminalToggleButton
-            isTerminalOpen={isTerminalOpen}
-            onToggleTerminal={onToggleTerminal}
-            disabledReason={readOnlyReason}
-            useWindowsCaptionSpacing={useWindowsCaptionSpacing}
-          />
         </>
       ) : null}
       {/* 远程控制移动端只保留图标，避免 diff 数字把按钮撑宽导致标题拥挤。 */}

@@ -18,13 +18,10 @@ export function createE2EStartupCredentialSeed(
     return (
       // 营销投放 spec 按主题拆成 marketing-touch-delivery*.test.ts，领取用例都需要本地 JWT。
       fileName?.startsWith("marketing-touch-delivery") ||
-      fileName === "conversation-session-share-popover.test.ts" ||
       fileName === "marketing-touch-entitlement.test.ts" ||
       // Rewards 专项走本地控制面，需要同时验证 OAuth 与 JWT 注入。
       fileName === "marketing-touch-rewards.test.ts" ||
       fileName === "jwt-401-auto-logout.test.ts" ||
-      // 语音输入只对已登录用户显示，ticket 请求带 zcodejwttoken。
-      fileName === "composer-voice-input.test.ts" ||
       isRequestSecuritySpec(fileName) ||
       fileName === "coding-plan-upgrade-webview-refresh-provider.test.ts" ||
       fileName === "start-plan-manual-claim-experience.test.ts" ||

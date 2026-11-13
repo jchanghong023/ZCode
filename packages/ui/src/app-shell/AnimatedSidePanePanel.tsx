@@ -24,7 +24,6 @@ import { FileManagerPane } from "@/WorkspaceFileTree.js";
 import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { composerScopeKey, resolveComposerScope } from "@/v4/composer/composerDraftStore.js";
-import { SidePaneTerminalPane } from "@/SidePaneTerminalPane.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import {
@@ -37,12 +36,8 @@ import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import { BrowserUseSidePaneContent } from "@/browser-use/BrowserUseSidePaneContent.js";
 import { BrowserSitePermissionsPage } from "@/browser-use/BrowserSitePermissionsPage.js";
 import { findScreenshotSurfaceTabForRender } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
-import { HumanBrowserView } from "@/browser-use/HumanBrowserView.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
-import { TreemappingPane } from "@/TreemappingPane.js";
-import { WhiteboardPane } from "@/WhiteboardPane.js";
-import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
@@ -122,10 +117,8 @@ import {
   FileDiffIcon,
   FolderOpenIcon,
   EarthIcon,
-  GlobeIcon,
   MessageSquareTextIcon,
   PlusIcon,
-  SquareTerminalIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -312,21 +305,20 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop,
   isMacDesktop,
   isVisible,
+  isBrowserOpen: _isBrowserOpen,
   sidePaneState,
   recentClosedSidePaneTabs,
-  isBrowserOpen,
-  supportsEmbeddedBrowser = true,
   workspaceAbsPath,
   taskCwd,
   workspaceIdentity,
   workspaceRemoteSessionId,
   activeTaskId,
+  browserNavigationRequest: _browserNavigationRequest,
   sidePaneOwnerId,
   gitState,
   activeGitSourceId,
   panelRef,
   panelElementRef,
-  browserNavigationRequest,
   browserRestoreUrls,
   screenshotSurfaceRequest: screenshotSurfaceRequestProp = null,
   screenshotSurfaceTabId = null,
@@ -342,19 +334,17 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs,
   onCloseAllTabs,
   onReopenClosedTab,
-  onOpenBrowserTab,
   onOpenBrowserPermissionSettings,
-  onOpenWhiteboard: _onOpenWhiteboard,
   onOpenDeveloperTools,
   onOpenFileManager,
   onNavigateFileManager,
   onOpenPluginMarket,
   onCreateTask,
-  onOpenTerminalTab,
   onOpenReviewTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
+  onBrowserNavigationRequestHandled: _onBrowserNavigationRequestHandled,
   onOpenCodeViewer,
   onOpenFileLink,
   onOpenSubagentSession,
@@ -364,7 +354,6 @@ export function AnimatedSidePanePanel({
   onOpenWorkflowRun,
   onOpenBackgroundBash,
   onRefreshGit,
-  onBrowserNavigationRequestHandled,
   onBrowserUrlChange,
   onBrowserPageMetadataChange,
   onSelectGitSource,
@@ -401,22 +390,21 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop?: boolean;
   isMacDesktop?: boolean;
   isVisible: boolean;
+  isBrowserOpen: boolean;
   sidePaneState: WorkspaceSidePaneState | null;
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
-  isBrowserOpen: boolean;
-  supportsEmbeddedBrowser?: boolean;
   workspaceAbsPath: string;
   /** 当前任务的 cwd；worktree 任务不是 workspace 目录（docs/git/worktree.md §3.7）。 */
   taskCwd?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   activeTaskId: string | null;
+  browserNavigationRequest: BrowserNavigationRequest | null;
   sidePaneOwnerId: string | null;
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
   activeGitSourceId: GitChangeSourceId;
   panelRef: RefObject<PanelImperativeHandle | null>;
   panelElementRef: RefObject<HTMLDivElement | null>;
-  browserNavigationRequest: BrowserNavigationRequest | null;
   browserRestoreUrls: Record<string, string>;
   screenshotSurfaceRequest?: BrowserViewScreenshotSurfacePreparePayload | null;
   screenshotSurfaceTabId?: string | null;
@@ -434,19 +422,17 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   onReopenClosedTab: (tabId: string) => void;
-  onOpenBrowserTab: () => void;
   onOpenBrowserPermissionSettings?: (origin: string) => void;
-  onOpenWhiteboard: () => void;
   onOpenDeveloperTools: () => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
   onOpenPluginMarket?: () => void;
   onCreateTask?: (request?: CreateTaskRequest) => void;
-  onOpenTerminalTab: () => void;
   onOpenReviewTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
+  onBrowserNavigationRequestHandled: (requestId: string) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
@@ -460,7 +446,6 @@ export function AnimatedSidePanePanel({
   /** run 目录页里点一行 → 打开那个 run 的详情页 tab（目录 → 详情是这一页存在的理由）。 */
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   onRefreshGit: () => void;
-  onBrowserNavigationRequestHandled: (requestId: string) => void;
   onBrowserUrlChange: (tabId: string, url: string) => void;
   onBrowserPageMetadataChange: (tabId: string, metadata: BrowserSidePaneMetadata) => void;
   onSelectGitSource: (value: GitChangeSourceId) => void;
@@ -777,20 +762,6 @@ export function AnimatedSidePanePanel({
       icon: FileDiffIcon,
       onOpen: onOpenReviewTab,
     },
-    terminal: {
-      id: "terminal",
-      label: intl.formatMessage({ id: "terminal.title" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.terminal" }),
-      icon: SquareTerminalIcon,
-      onOpen: onOpenTerminalTab,
-    },
-    browser: {
-      id: "browser",
-      label: intl.formatMessage({ id: "browser.title" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.browser" }),
-      icon: GlobeIcon,
-      onOpen: onOpenBrowserTab,
-    },
     "developer-tools": {
       id: "developer-tools",
       label: intl.formatMessage({ id: "developerTools.title" }),
@@ -804,9 +775,8 @@ export function AnimatedSidePanePanel({
     canOpenSites,
     developerToolsEnabled,
     hasReviewTab,
-    supportsEmbeddedBrowser,
   })
-    .filter((itemId) => !isOfficeMode || (itemId !== "terminal" && itemId !== "review"))
+    .filter((itemId) => !isOfficeMode || itemId !== "review")
     .map((itemId) => openTabLauncherItemById[itemId]);
   const closeSidePaneButton =
     isVisible && !mobileOverlay && onCloseSidePane ? (
@@ -920,11 +890,6 @@ export function AnimatedSidePanePanel({
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
-        treemappingTitle: intl.formatMessage({ id: "treemapping.title" }),
-        whiteboardTitle: intl.formatMessage({ id: "whiteboard.title" }),
-        modelTrajectoryTitle: intl.formatMessage({
-          id: "modelTrajectory.title",
-        }),
         newTabTitle: intl.formatMessage({ id: "sidePane.newTab" }),
         pluginMarketTitle: intl.formatMessage({ id: "workspace.openPluginsSettings" }),
         developerToolsTitle: intl.formatMessage({
@@ -1359,27 +1324,6 @@ export function AnimatedSidePanePanel({
                             onRefresh={onRefreshGit}
                             onRevealFileInTree={onRevealGitFileInTree}
                           />
-                        ) : tab.type === "treemapping" ? (
-                          <TreemappingPane
-                            activeTaskId={activeTaskId}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            source={tab.source ?? { kind: "current" }}
-                          />
-                        ) : tab.type === "whiteboard" ? (
-                          <WhiteboardPane
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            boardId={tab.boardId}
-                          />
-                        ) : tab.type === "model-trajectory" ? (
-                          <ModelTrajectoryPane
-                            taskId={tab.taskId}
-                            title={tab.title}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            onClose={() => onCloseTab(tab.id)}
-                          />
                         ) : tab.type === "new-tab" ? (
                           openTabLauncher
                         ) : tab.type === "plugin-market" ? (
@@ -1424,67 +1368,12 @@ export function AnimatedSidePanePanel({
                               enabled={isVisible && tab.id === contentActiveTabId}
                             />
                           </ServiceProvider>
-                        ) : tab.type === "terminal" ? (
-                          <SidePaneTerminalPane
-                            services={services}
-                            sessionId={tab.id}
-                            workspaceKey={workspaceKey}
-                            cwd={tab.cwd ?? taskCwd ?? workspaceAbsPath}
-                            isVisible={isVisible && tab.id === contentActiveTabId}
-                            isWindowsDesktop={isWindowsDesktop}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                          />
                         ) : tab.type === "browser-permissions" ? (
                           <BrowserSitePermissionsPage
                             origin={tab.origin}
                             isVisible={isVisible && tab.id === contentActiveTabId}
                           />
-                        ) : (
-                          <HumanBrowserView
-                            browserKey={tab.id}
-                            onOpenPermissionSettings={onOpenBrowserPermissionSettings}
-                            agentOpened={tab.agentOpened}
-                            deferEmptyGuest
-                            isResidencyRestore={tab.residency === "restoring"}
-                            isVisible={isVisible && isBrowserOpen && tab.id === contentActiveTabId}
-                            isSelected={tab.id === contentActiveTabId}
-                            isCurrentTask={currentTaskTabIds.has(tab.id)}
-                            // restoring 只挂载不会提交 document 的 bootstrap URL，
-                            // 由 main 独占 pageState/URL 恢复事务。
-                            automaticRestoreUrl={
-                              tab.residency === "restoring"
-                                ? (browserRestoreUrls[tab.id] ?? tab.initialUrl)
-                                : undefined
-                            }
-                            initialUrl={
-                              tab.residency === "restoring"
-                                ? undefined
-                                : (browserRestoreUrls[tab.id] ?? tab.initialUrl)
-                            }
-                            faviconUrl={tab.faviconUrl}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            // 切换 workspace 的那次 commit 里 props 已是新 workspace，tabs 仍是旧的；
-                            // 读当前 workspace 会以错误 scope attach，触发 workspace-mismatch。
-                            workspaceKey={tab.workspaceKey ?? workspaceKey}
-                            remoteSessionId={tab.remoteSessionId ?? workspaceRemoteSessionId}
-                            residencyGeneration={tab.residencyGeneration}
-                            sessionId={tab.ownerTaskId ?? "unscoped"}
-                            onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
-                            onPageMetadataChange={(metadata) =>
-                              onBrowserPageMetadataChange(tab.id, metadata)
-                            }
-                            navigationRequest={
-                              browserNavigationRequest?.targetTabId === tab.id
-                                ? {
-                                    id: browserNavigationRequest.id,
-                                    url: browserNavigationRequest.url,
-                                  }
-                                : null
-                            }
-                            onNavigationRequestHandled={onBrowserNavigationRequestHandled}
-                          />
-                        )}
+                        ) : null}
                       </TabsContent>
                     );
                   })}

@@ -97,11 +97,6 @@ describe(marker, () => {
     const config = readSSHRuntimeConfig(marker);
     await prepareV4ConversationE2E({ skipProvider: true });
     await installHandoffRpcProbe();
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(value: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
-    );
     await $('[data-testid="project-section"]').moveTo();
     await $('[data-testid="virtual-project-add"]').click();
     await $('[data-testid="virtual-project-name"]').setValue(marker);
@@ -188,22 +183,9 @@ describe(marker, () => {
     await $('[data-testid="project-section"]').moveTo();
     await $('[data-testid="virtual-project-add"]').click();
     await $('[data-testid="virtual-project-name"]').setValue(`${marker}_PRESENTATION`);
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"])
         for (const width of [1440, 480]) {
-          await browser.execute(
-            (language, color) => {
-              const actions = (
-                window as Window & {
-                  __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-                }
-              ).__testActions;
-              actions?.setLocale(language);
-              actions?.setTheme(color);
-            },
-            locale,
-            theme,
-          );
           await browser.electron.execute((electron, size) => {
             electron.BrowserWindow.getAllWindows()
               .find((window) => window.isVisible())

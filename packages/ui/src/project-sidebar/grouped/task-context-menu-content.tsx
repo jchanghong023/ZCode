@@ -29,7 +29,6 @@ export function GroupedTaskContextMenuContent({
   onOpenTaskPathInFileManager,
   onCopyText,
   onOpenProviderConfig,
-  onOpenTaskFeedback,
   disabledReason,
   archiveDisabledReason,
 }: {
@@ -51,7 +50,6 @@ export function GroupedTaskContextMenuContent({
   onOpenTaskPathInFileManager: () => void;
   onCopyText: (label: string, text: string | null) => void;
   onOpenProviderConfig: () => void;
-  onOpenTaskFeedback: () => void;
   disabledReason?: string;
   /** 归档专属的禁用原因（运行中任务）；其余操作不受影响。 */
   archiveDisabledReason?: string;
@@ -210,10 +208,6 @@ export function GroupedTaskContextMenuContent({
         <span className="truncate">
           {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
         </span>
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={onOpenTaskFeedback}>
-        {intl.formatMessage({ id: "taskList.feedback" })}
       </ContextMenuItem>
     </ContextMenuContent>
   );

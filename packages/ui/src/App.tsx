@@ -42,8 +42,6 @@ import {
   type StartExtensionDraft,
 } from "@/extension-slots/index.js";
 import { CommandCenterDialog } from "@/command-center/CommandCenterDialog.js";
-import { FeedbackHost } from "@/feedback/FeedbackHost.js";
-import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import {
   resolveQuickPickConversationNavigation,
   selectQuickPickConversationTaskIds,
@@ -71,7 +69,6 @@ import { useTaskSidePaneMemoryBridge } from "@/app-shell/useTaskSidePaneMemoryBr
 import { resolveAppWorkspaceRpcTarget } from "@/app-shell/workspaceRpcTarget.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
-import { useMarketingTaskCompletionRefresh } from "@/components/marketing-touch/useMarketingTaskCompletionRefresh.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
 import type {
@@ -104,7 +101,6 @@ const EMPTY_REMOTE_CONNECTION_LOGS: NonNullable<AppProps["remoteConnectionLogs"]
 
 export function App({
   services,
-  baseFeedbackService,
   onConnectRemote,
   onSelectRemoteProject,
   onCancelRemoteProject,
@@ -146,13 +142,12 @@ export function App({
   const newTaskShortcutLabel = useShortcutCommandLabel("newTask");
   const goBackShortcutLabel = useShortcutCommandLabel("navigateBack");
   const goForwardShortcutLabel = useShortcutCommandLabel("navigateForward");
-  const toggleTerminalShortcutLabel = useShortcutCommandLabel("toggleTerminal");
   const toggleSidePaneShortcutLabel = useShortcutCommandLabel("toggleSidePane");
   const toggleSidePaneFullViewShortcutLabel = useShortcutCommandLabel("toggleSidePaneFullView");
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
-  const { intl, locale, setLocale } = useZCodeIntl();
+  const { intl, locale } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const platform = usePlatform();
   // 命令中心「重新加载扩展」：只有桌面本机 Host 提供扩展门面时才出现。
@@ -227,8 +222,6 @@ export function App({
     useState<ChatViewSummaryPanelVariant | null>(null);
   const draftFocusVersion = workspaceShellZCodeState.draftFocusVersion;
   const {
-    isTerminalOpen,
-    setIsTerminalOpen,
     sidePaneState,
     recentClosedSidePaneTabs,
     isSidePaneCollapsed,
@@ -239,19 +232,15 @@ export function App({
     handleOpenCodeViewer,
     handleOpenCodeViewers,
     handleOpenBrowserUrl,
-    handleToggleBrowser,
-    handleOpenBrowserTab,
     handleOpenBrowserPermissionSettings,
     handleToggleGit,
     handleOpenGit,
-    handleOpenWhiteboard,
     handleOpenDeveloperTools,
     handleOpenExtensionView,
     handleOpenExtensionLogs,
     handleOpenFileManager,
     handleNavigateFileManager,
     handleOpenPluginMarket,
-    handleOpenTerminalTab,
     handleOpenSubagentSession,
     handleOpenBackgroundBash,
     handleOpenSubagentDirectory,
@@ -264,7 +253,6 @@ export function App({
     handleOpenWorkflowActorSession,
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
-    handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,
     handleCloseCodeViewer,
@@ -289,18 +277,9 @@ export function App({
     isWorkspaceVisible,
     supportsEmbeddedBrowser,
     platform,
-    defaultWhiteboardNamePrefix: intl.formatMessage({
-      id: "whiteboard.defaultName",
-    }),
   });
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const notificationEnabled = useZCodeStore((s) => s.notificationEnabled);
-  useMarketingTaskCompletionRefresh({
-    workspacePath: workspaceAbsPath,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    ...(workspaceRemoteSessionId ? { endpointKey: workspaceRemoteSessionId } : {}),
-    rpcReady: workspaceRpcReady,
-  });
   useWorkspaceTerminalTaskNotifications({
     workspacePath: workspaceAbsPath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -627,16 +606,6 @@ export function App({
     },
     [onCreateTask, workspaceReadOnlyReason],
   );
-  const handleToggleTerminalIfWritable = useCallback(() => {
-    if (!workspaceReadOnlyReason) {
-      handleToggleTerminal();
-    }
-  }, [handleToggleTerminal, workspaceReadOnlyReason]);
-  const handleOpenTerminalTabIfWritable = useCallback(() => {
-    if (!workspaceReadOnlyReason) {
-      handleOpenTerminalTab();
-    }
-  }, [handleOpenTerminalTab, workspaceReadOnlyReason]);
   const handleOpenGitIfWritable = useCallback(() => {
     if (!workspaceReadOnlyReason) {
       handleOpenGit();
@@ -729,27 +698,7 @@ export function App({
   const handleOpenQuickPick = useCallback(() => {
     setIsQuickPickOpen((open) => !open);
   }, []);
-  const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
-  const openFeedbackTickets = useFeedbackStore((state) => state.openTickets);
   const isLoggedIn = Boolean(user);
-  const handleOpenFeedback = useCallback(() => {
-    void platform.openFeedback();
-  }, [platform]);
-
-  useEffect(() => {
-    // 内置反馈中心合并了"提交反馈 / 我的反馈"两个 Tab，
-    // 老的 OpenTicketsPanel IPC 仍然兼容（直接打开列表），未来如果还需要单独入口可以复用。
-    const disposeFeedbackDialog = platform.onOpenFeedbackDialog?.(() => {
-      openFeedbackSubmit();
-    });
-    const disposeTicketsPanel = platform.onOpenTicketsPanel?.(() => {
-      openFeedbackTickets();
-    });
-    return () => {
-      disposeFeedbackDialog?.();
-      disposeTicketsPanel?.();
-    };
-  }, [openFeedbackSubmit, openFeedbackTickets, platform]);
   const handleOpenCommunity = useCallback(() => platform.openCommunity(), [platform]);
   const handleOpenProductDocs = useCallback(() => {
     platform.openExternal(ZCODE_PRODUCT_DOCS_URL);
@@ -875,7 +824,6 @@ export function App({
       getTheme: () => theme,
       setTheme,
       getLocale: () => locale,
-      setLocale,
       setChatMessages: (messages) => {
         setTestMessages([...messages]);
       },
@@ -894,7 +842,6 @@ export function App({
       services.botsService,
       services.zcodeTaskService,
       services.zcodeAgentService,
-      setLocale,
       theme,
       setTheme,
       testMessages,
@@ -1060,7 +1007,6 @@ export function App({
     findInTask: handleOpenTaskFind,
     toggleSidebar: () => runVisibleWorkspaceCommand(handleToggleSidebar),
     switchTheme: handleSwitchTheme,
-    toggleTerminal: () => runVisibleWorkspaceCommand(handleToggleTerminalIfWritable),
     // ⌥⌘B 与 header 最右侧按钮共用同一条 toggle 入口，
     // 避免快捷键和按钮行为漂移；空面板的展示统一由 Open tab 空态承接。
     toggleSidePane: () => runVisibleWorkspaceCommand(handleToggleSidePane),
@@ -1101,12 +1047,10 @@ export function App({
   const quickPickCommands = useMemo(
     () =>
       createQuickPickCommands({
-        supportsTerminal: !isOfficeMode,
         supportsReview: !isOfficeMode,
         allowOpenWorkspace,
         canOpenCommunity: canOpenCommunityFromQuickPick,
         isSidebarVisible,
-        supportsEmbeddedBrowser,
         // quick pick 命令只关心登录态布尔值。
         // 如果依赖完整 user 对象，auth store 返回等价新引用时会重建整组 command/run 闭包。
         isLoggedIn,
@@ -1115,7 +1059,6 @@ export function App({
           newTask: newTaskShortcutLabel,
           openWorkspace: openWorkspaceShortcutLabel,
           toggleSidebar: toggleSidebarShortcutLabel,
-          toggleTerminal: toggleTerminalShortcutLabel,
         },
         handlers: {
           createTask: () => runVisibleWorkspaceCommand(() => handleCreateTaskIfWritable()),
@@ -1130,16 +1073,11 @@ export function App({
             openSettingsTab();
           },
           switchTheme: handleSwitchTheme,
-          openFeedback: handleOpenFeedback,
           openCommunity: handleOpenCommunity,
           openProductDocs: handleOpenProductDocs,
           login: onLogin,
           logout: onLogout,
           toggleSidebar: () => runVisibleWorkspaceCommand(handleToggleSidebar),
-          toggleTerminal: () => runVisibleWorkspaceCommand(handleToggleTerminalIfWritable),
-          togglePreview: () => runVisibleWorkspaceCommand(handleToggleBrowser),
-          openTerminalTab: () => runVisibleWorkspaceCommand(handleOpenTerminalTabIfWritable),
-          openBrowserTab: () => runVisibleWorkspaceCommand(handleOpenBrowserTab),
           openReviewTab: () => runVisibleWorkspaceCommand(handleOpenGitIfWritable),
           // 「打开扩展日志」与「重新加载扩展」同一条件：有扩展门面（docs/plugins/extension-host.md §16.8）。
           ...(reloadExtensions
@@ -1157,16 +1095,11 @@ export function App({
       isOfficeMode,
       canOpenCommunityFromQuickPick,
       handleOpenCommunity,
-      handleOpenFeedback,
       handleOpenProductDocs,
       handleOpenSettingsSection,
       handleSwitchTheme,
-      handleOpenBrowserTab,
       handleOpenGitIfWritable,
-      handleOpenTerminalTabIfWritable,
-      handleToggleBrowser,
       handleToggleSidebar,
-      handleToggleTerminalIfWritable,
       isLoggedIn,
       isSidebarVisible,
       newTaskShortcutLabel,
@@ -1179,7 +1112,6 @@ export function App({
       openWorkspaceShortcutLabel,
       supportsEmbeddedBrowser,
       toggleSidebarShortcutLabel,
-      toggleTerminalShortcutLabel,
       themeTarget,
     ],
   );
@@ -1235,9 +1167,6 @@ export function App({
         onSearchResultHighlightRequest={handleSearchResultHighlightRequest}
         onOpenCodeViewer={handleOpenCodeViewerIfWritable}
       />
-      {/* Bugfix: 反馈是应用级能力，必须固定走本机 base host；SSH session 连接中或断开时，
-          workspace-scoped services 会切成断连代理，不能让反馈提交跟随远程 session 失效。 */}
-      <FeedbackHost feedbackService={baseFeedbackService} platform={platform} />
       <PluginUiWorkspaceProvider onOpenSidePane={handleOpenPluginUi}>
         {/* 扩展视图标签的打开入口：启动页条目与能力 views.open（docs/plugins/extension-host.md §8）。 */}
         <ExtensionViewsProvider
@@ -1247,6 +1176,8 @@ export function App({
         >
           <WorkspaceShellLayout
             services={services}
+            isBrowserOpen={isBrowserOpen}
+            browserNavigationRequest={browserNavigationRequest}
             workspaceReadOnlyReason={workspaceReadOnlyReason}
             workspaceMainView={workspaceMainView}
             pluginStoreOpenVersion={pluginStoreOpenVersion}
@@ -1312,9 +1243,7 @@ export function App({
             canGoForward={canGoForward}
             canTaskNavBack={canTaskNavBack}
             canTaskNavForward={canTaskNavForward}
-            isTerminalOpen={isTerminalOpen}
             isSidebarVisible={isSidebarVisible}
-            isBrowserOpen={isBrowserOpen}
             supportsEmbeddedBrowser={supportsEmbeddedBrowser}
             isGitOpen={isGitOpen}
             isSidePaneOpen={isSidePaneOpen}
@@ -1339,7 +1268,6 @@ export function App({
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeGitSourceId={activeGitSourceId}
             gitState={gitState}
-            browserNavigationRequest={browserNavigationRequest}
             browserRestoreUrls={browserRestoreUrls}
             providerConfigFile={providerConfigFile}
             taskNativeSessionLogFile={taskNativeSessionLogFile}
@@ -1369,16 +1297,11 @@ export function App({
             handleBrowserUrlChange={handleBrowserUrlChange}
             handleBrowserPageMetadataChange={handleBrowserPageMetadataChange}
             handleToggleSidebar={handleToggleSidebar}
-            handleToggleTerminal={handleToggleTerminalIfWritable}
-            handleToggleBrowser={handleToggleBrowser}
-            handleOpenBrowserTab={handleOpenBrowserTab}
             handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
-            handleOpenWhiteboard={handleOpenWhiteboard}
             handleOpenDeveloperTools={handleOpenDeveloperTools}
             handleOpenFileManager={handleOpenFileManager}
             handleNavigateFileManager={handleNavigateFileManager}
             handleOpenPluginMarket={handleOpenPluginMarket}
-            handleOpenTerminalTab={handleOpenTerminalTabIfWritable}
             handleToggleGit={handleToggleGitIfWritable}
             handleToggleSidePane={handleToggleSidePane}
             handleOpenBrowserUrl={handleOpenBrowserUrl}
@@ -1405,7 +1328,6 @@ export function App({
             handleCloseAllSidePaneTabs={handleCloseAllSidePaneTabs}
             handleReopenClosedSidePaneTab={handleReopenClosedSidePaneTab}
             handleBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
-            setIsTerminalOpen={setIsTerminalOpen}
             setGitSelectedSourceId={setGitSelectedSourceId}
             // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
             taskFindDialogProps={taskFindDialogProps}

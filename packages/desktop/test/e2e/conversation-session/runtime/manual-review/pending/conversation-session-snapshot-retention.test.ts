@@ -48,21 +48,9 @@ test(
       let page = rendererPage(browser);
       // 测试 bridge 会额外持有 store；误连普通 E2E 构建会污染生产回收证据，必须先拒绝。
       assert.deepEqual(
-        await page.evaluate((allowEmptyTrajectoryBridge) => {
-          return Object.keys(window).filter((key) => {
-            if (!/^__zcode.*StoreE2E$/u.test(key)) return false;
-            // 现有生产构建无条件暴露该无历史入口。保留它，只接受空请求；不能删除根来伪造回收。
-            if (allowEmptyTrajectoryBridge && key === "__zcodeModelTrajectoryStoreE2E") {
-              const bridge = (
-                window as Window & {
-                  __zcodeModelTrajectoryStoreE2E?: { getState(): { pendingRequest: unknown } };
-                }
-              ).__zcodeModelTrajectoryStoreE2E;
-              return bridge?.getState().pendingRequest !== null;
-            }
-            return true;
-          });
-        }, returnToDraft),
+        await page.evaluate(() => {
+          return Object.keys(window).filter((key) => /^__zcode.*StoreE2E$/u.test(key));
+        }),
         [],
         "SPR01 必须使用未暴露 E2E store bridge 的生产 renderer",
       );

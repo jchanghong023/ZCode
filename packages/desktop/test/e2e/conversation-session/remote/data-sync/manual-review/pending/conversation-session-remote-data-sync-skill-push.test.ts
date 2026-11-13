@@ -143,21 +143,8 @@ async function captureDialogScreenshots(): Promise<void> {
   if (!artifactDir) return;
   const dir = resolve(artifactDir, "dsync-04");
   await mkdir(dir, { recursive: true });
-  for (const locale of ["zh-CN", "en-US"]) {
+  for (const locale of ["zh-CN"]) {
     for (const theme of ["light", "dark"]) {
-      await browser.execute(
-        (language, color) => {
-          const actions = (
-            window as Window & {
-              __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-            }
-          ).__testActions;
-          actions?.setLocale(language);
-          actions?.setTheme(color);
-        },
-        locale,
-        theme,
-      );
       for (const width of [1440, 700]) {
         await browser.electron.execute((electron, size) => {
           electron.BrowserWindow.getAllWindows()
@@ -171,15 +158,6 @@ async function captureDialogScreenshots(): Promise<void> {
       }
     }
   }
-  await browser.execute(() => {
-    const actions = (
-      window as Window & {
-        __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-      }
-    ).__testActions;
-    actions?.setLocale("zh-CN");
-    actions?.setTheme("light");
-  });
   await browser.electron.execute((electron) => {
     electron.BrowserWindow.getAllWindows()
       .find((window) => window.isVisible())

@@ -31,7 +31,7 @@ This keeps Electron-specific `window.zcode` access inside desktop renderer boots
   session registry 和 handle binding 重新校验。
 - 同一 Agent runtime 内可按 `workspaceKey` 共享无状态 `node_repl` process；官方市场插件可在 manifest
   声明 `"isolation": "workspace"` 共享（自行按 `_meta.root_session_id ?? _meta.session_id` 划分状态；`root_session_id` 只在 subagent / 工作流子代理的调用中出现，指向派生它的顶层 session，见
-  `docs/plugins/2026-10-15-office-viewer-builtin-panels-spec.md` §8）；第三方 server 保持 session isolation，
+  原 office-viewer 内置面板规范，已随文档预览移除）；第三方 server 保持 session isolation，
   其 `isolation` 声明被忽略。
 - mobile `/remote` 只复用 desktop shared-host attachment 已有的 Agent/MCP runtime；relay 和
   desktop main 不保存 MCP tool/kernel state 或 conversation state。

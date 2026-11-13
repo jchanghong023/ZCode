@@ -136,25 +136,8 @@ async function assertLogTimestampContrast(captureName: string) {
 }
 
 async function capture(state: string) {
-  for (const locale of ["zh-CN", "en-US"] as const) {
+  for (const locale of ["zh-CN"] as const) {
     for (const theme of ["light", "dark"]) {
-      await browser.execute(
-        (lang, appearance) => {
-          const actions = (
-            window as Window & {
-              __testActions?: {
-                setLocale(value: "zh-CN" | "en-US"): void;
-                setTheme(value: string): void;
-              };
-            }
-          ).__testActions;
-          if (!actions) throw new Error("Missing appearance actions");
-          actions.setLocale(lang);
-          actions.setTheme(appearance);
-        },
-        locale,
-        theme,
-      );
       for (const width of [1400, 900]) {
         // macOS 限制原生窗口高度；响应式覆盖使用真实 renderer viewport。
         await setRendererViewport(width, 1000);
@@ -173,11 +156,6 @@ async function capture(state: string) {
       }
     }
   }
-  await browser.execute(() =>
-    (
-      window as Window & { __testActions?: { setLocale(value: "zh-CN"): void } }
-    ).__testActions?.setLocale("zh-CN"),
-  );
 }
 
 describe(`${marker}: 远程键盘与视觉矩阵`, () => {
@@ -191,14 +169,6 @@ describe(`${marker}: 远程键盘与视觉矩阵`, () => {
     const config = readSSHRuntimeConfig(marker);
     await prepareSSHConnectionPage(marker);
     await prepareV4ConversationE2E({ skipProvider: true });
-    await browser.execute(() => {
-      localStorage.setItem("zcode:workspace-shell:sidebar-width-px", "264");
-      (
-        window as Window & {
-          __testActions?: { setLocale(value: "zh-CN"): void };
-        }
-      ).__testActions?.setLocale("zh-CN");
-    });
     await openWorkspaceDraftFromSidebar(DEFAULT_WORKSPACE);
     await browser.refresh();
     // 本步骤只重载侧栏宽度；草稿导航不保证恢复到默认项目，不应成为无障碍场景的额外前置。

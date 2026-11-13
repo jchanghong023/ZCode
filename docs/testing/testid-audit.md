@@ -39,7 +39,6 @@
 | `TID_PREVIEW_PREV_BUTTON` | `PreviewPane` 用自动滚动加载，没有显式"上一段"按钮，testid 定义多余 |
 | `TID_PREVIEW_NEXT_BUTTON` | 同上 |
 | `TID_WORKSPACE_PATH` | 未在任何组件中使用 |
-| `TID_LOCALE_TOGGLE` | `LocaleSwitcher.tsx` 没有使用此 testid |
 
 ---
 
@@ -78,7 +77,6 @@
 **P2（清理冗余）**
 - 删除 `TID_PREVIEW_PREV_BUTTON`、`TID_PREVIEW_NEXT_BUTTON`（或真正实现翻页按钮）
 - 删除 `TID_WORKSPACE_PATH`（无对应 UI）
-- 在 `LocaleSwitcher.tsx` 补上 `TID_LOCALE_TOGGLE`，或从 `test-ids.ts` 删除
 
 ---
 

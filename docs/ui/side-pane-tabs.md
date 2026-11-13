@@ -18,7 +18,7 @@
 
 - 先匹配工作区（`workspaceIdentity?.trim() || workspacePath`）；旧的未标记工作区 tab 沿用所在 registry。
 - 新 tab 提交时独立补齐缺失的工作区和 owner；已有 owner 不得覆盖，但不能因已有 owner 而漏掉工作区。
-- Git、Developer Tools、Treemapping 是工作区公共 tab；其他 tab 归属打开时的对话/草稿。
+- Git、Developer Tools 是工作区公共 tab；其他 tab 归属打开时的对话/草稿。
 - browser-use 使用 `sessionId`；Subagent/Bash 使用 `rootSessionId`；侧边聊天、Plan、Workflow、插件面板使用 `parentSessionId`；其余使用冻结的 `ownerTaskId`。未标记 owner 与 null 保持草稿语义。
 - 关闭菜单只选择当前可见 tab。关闭后只激活当前 scope 的剩余 tab；展开时没有可见 tab 则创建当前 scope 的新标签页，保持展开；主动收起不变。隐藏 tab 保留。
 - 「进入草稿默认收起」只在进入 scope 时生效：首次同步，或 `workspaceKey` / `ownerTaskId` 变化。草稿 scope 内只有插件面板 scope（`pluginUiSessionId` / 插件工作区）变化时，只重新选择活动 tab，展开/收起保持当前值；没有可见 tab 时仍收起，活动 tab 为插件面板及已有任务的规则不变。草稿 runtime 的插件 session id 在草稿创建后才异步到达；这条变化不是重新进入草稿，不能收起用户刚在草稿里打开的文件树、浏览器等 tab（MPS01 回归）。
@@ -33,7 +33,7 @@
 
 - 唯一触发信号是草稿首发提交（SessionPane 的 draft session created commit）。它在切换当前任务之前标记“待升级的 sessionId”。fork 跳转、点选已有会话、分屏绑定已有会话都不带这个标记，不迁移。
 - 迁移在侧栏 scope 同步时完成，与 scope 解析在同一次 canonical commit 里执行。条件同时满足才迁移：同一工作区；上一个 owner 是草稿（null）；新 owner 等于标记的 sessionId。标记在下一次 owner 变化时被消费，不依赖超时。
-- 迁移范围：草稿 scope 中可见、且按 `ownerTaskId` 判断归属的 tab（Browser、站点权限、文件管理、Code Viewer、白板、模型轨迹、终端）。工作区公共 tab 本来就可见，不改。browser-use、Subagent、侧边聊天等按会话 id 归属的 tab 在草稿里不存在，不处理。
+- 迁移范围：草稿 scope 中可见、且按 `ownerTaskId` 判断归属的 tab（Browser、站点权限、文件管理、Code Viewer）。工作区公共 tab 本来就可见，不改。browser-use、Subagent、侧边聊天等按会话 id 归属的 tab 在草稿里不存在，不处理。
 - 新标签页（`new-tab`）不迁移。它只是空入口，留在草稿 scope。草稿只有新标签页时，新任务不带任何 tab，侧栏收起。
 - 迁移后草稿 scope 的活动 tab 成为新任务的活动 tab；该 tab 是未迁移的新标签页时，按原规则选新任务的可见 tab。
 - 新任务继承首发时草稿侧栏的展开/收起状态（用户当时看到的状态，不是草稿的历史偏好），并把它写成新任务的偏好。迁移的 tab 与工作区公共 tab 都按这条规则。首发后新任务没有可见 tab 时收起，不写偏好。

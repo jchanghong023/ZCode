@@ -19,8 +19,7 @@ type ThemeWindow = typeof window & {
     getTheme(): string;
     setTheme(theme: string): void;
     getLocale(): "zh-CN" | "en-US";
-    setLocale(locale: "zh-CN" | "en-US"): void;
-  };
+    };
 };
 
 describe("本地项目原生多目录选择", () => {
@@ -118,13 +117,6 @@ describe("本地项目原生多目录选择", () => {
     );
     try {
       for (const width of [1200, 390]) {
-        await browser.execute(
-          (viewportWidth) =>
-            (window as ThemeWindow).__testActions!.setLocale(
-              viewportWidth === 1200 ? "en-US" : "zh-CN",
-            ),
-          width,
-        );
         await browser.electron.execute((electron, nextWidth) => {
           const appWindow = electron.BrowserWindow.getAllWindows()[0]!;
           appWindow.setMinimumSize(320, 480);
@@ -171,10 +163,6 @@ describe("本地项目原生多目录选择", () => {
       await browser.execute(
         (value) => (window as ThemeWindow).__testActions!.setTheme(value),
         trustTheme,
-      );
-      await browser.execute(
-        (locale) => (window as ThemeWindow).__testActions!.setLocale(locale),
-        trustLocale,
       );
     }
     // 原生 resize 返回时弹窗尺寸过渡仍会移动按钮；等待实际布局收口，避免单次点击落空。

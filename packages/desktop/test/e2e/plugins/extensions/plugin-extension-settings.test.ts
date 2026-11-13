@@ -270,7 +270,7 @@ describe("PLM-EXT-P2D 插件设置与扩展的 settings 能力", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (a) 保存前：settings.get 只有默认值。
     evidence.initialProbe = await log.waitFor(
@@ -343,7 +343,7 @@ describe("PLM-EXT-P2D 插件设置与扩展的 settings 能力", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       await capturePluginManualReview(CASE_ID, `settings-saved-${locale}-${theme}`);
     }
 
@@ -366,7 +366,7 @@ describe("PLM-EXT-P2D 插件设置与扩展的 settings 能力", () => {
       "the other extension should read only its own values",
     );
     expect(String(evidence.otherProbeAfterSave)).toContain("hasToken=false mode=lite keys=mode");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (g) 清除敏感值：两处都删，onDidChange 再触发一次，hasToken=false。
     const changedBefore = (await log.lines()).filter((line) =>
@@ -451,9 +451,9 @@ describe("PLM-EXT-P2D 插件设置与扩展的 settings 能力", () => {
       `settings update plugin=${PLUGIN_ID} keys=1 cleared=0`,
     );
     await capturePluginManualReview(CASE_ID, "settings-update-account-view-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await capturePluginManualReview(CASE_ID, "settings-update-account-view-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (i) 只写自己的插件：第二个扩展写不属于它的 token、写类型不符的 mode，都报 invalid-input，什么都没写。
     evidence.foreignTokenLog = await log.waitFor(

@@ -1,3 +1,5 @@
+> 2026-11-13：Marketing Touch 已删除；文中营销 E2E / MTC 用例为历史记录。
+
 # 公共内容弹窗验收记录
 
 日期：2026-09-04。用例语义来源：`docs/cloud-content-dialog-plan.md` 第 7 节 accepted cases。

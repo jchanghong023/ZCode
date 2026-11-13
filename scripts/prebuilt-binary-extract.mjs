@@ -39,13 +39,16 @@ export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cw
   mkdirSync(extractDir, { recursive: true });
   if (archiveExt === "zip") {
     if (process.platform === "win32") {
-      runCommand("powershell.exe", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        `Expand-Archive -LiteralPath '${archivePath.replaceAll("'", "''")}' -DestinationPath '${extractDir.replaceAll("'", "''")}' -Force`,
+      // Bugfix: Expand-Archive -Force 在 Windows PowerShell 5.1 下调用的是 .NET Core 才有的
+      // ExtractToDirectory(string,string,bool) 重载；用户级 PSModulePath 混入 PowerShell 7 的
+      // Microsoft.PowerShell.Archive 后，powershell.exe 会加载该模块并抛 MethodException
+      // （找不到参数计数为 3 的重载），导致 prepare:native-search 直接失败、dev:desktop 起不来。
+      // 改用系统自带 bsdtar（Win10 1803+ 支持 zip），并用绝对路径避免被 Git 的 GNU tar 抢占。
+      runCommand(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe"), [
+        "-xf",
+        archivePath,
+        "-C",
+        extractDir,
       ]);
       return;
     }

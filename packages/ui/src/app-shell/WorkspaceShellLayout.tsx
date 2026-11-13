@@ -14,7 +14,6 @@ import { GripHorizontal, LoaderCircle } from "lucide-react";
 import { TID_APP_HEADER } from "@zcode/shared/test-ids";
 // 保活：workspace tab 真正关闭时，按 workspaceKey 回收 side pane terminal 的常驻 PTY/xterm。
 // 对称下侧 Terminal.tsx 的 openWorkspaceKeys 回收。
-import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
 import { V4ChatPane } from "@/v4/V4ChatPane.js";
 import { V4WorkspaceChatArea } from "@/v4/V4WorkspaceChatArea.js";
 import { V4SplitPaneEntryProvider } from "@/v4/splitPaneEntryContext.js";
@@ -79,7 +78,6 @@ import {
   findScreenshotSurfaceTabForRender,
   useBrowserScreenshotSurfaceRequest,
 } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
-import { AnimatedTerminalPanel } from "@/app-shell/AnimatedTerminalPanel.js";
 import { SIDE_PANE_DEFAULT_EXPANDED_SIZE } from "@/app-shell/sidePaneLayout.js";
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
 import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
@@ -161,7 +159,7 @@ const CONVERSATION_AUTO_COLLAPSE_RESIZE_IDLE_MS = 300;
 // 性能修复：ResizablePanelGroup 收到深相等的新 panelIds 数组，
 // 会跟随 chat streaming render 重算布局上下文；固定数组语义上不会随消息变化。
 const WORKSPACE_BODY_PANEL_IDS = ["conversation-column", "browser"];
-const WORKSPACE_CONVERSATION_PANEL_IDS = ["conversation", "terminal"];
+const WORKSPACE_CONVERSATION_PANEL_IDS = ["conversation"];
 
 type WebRemoteNavigationDragSession = {
   pointerId: number;
@@ -369,12 +367,11 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   canGoForward,
   canTaskNavBack,
   canTaskNavForward,
-  isTerminalOpen,
   isSidebarVisible,
   isSidePaneOpen,
   sidePaneFullView,
   isBrowserOpen,
-  supportsEmbeddedBrowser,
+  supportsEmbeddedBrowser: _supportsEmbeddedBrowser,
   summaryPanelVariantOverride,
   onSummaryPanelVariantOverrideChange,
   sidePaneState,
@@ -423,16 +420,11 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleBrowserUrlChange,
   handleBrowserPageMetadataChange,
   handleToggleSidebar,
-  handleToggleTerminal,
-  handleToggleBrowser,
-  handleOpenBrowserTab,
   handleOpenBrowserPermissionSettings,
-  handleOpenWhiteboard,
   handleOpenDeveloperTools,
   handleOpenFileManager,
   handleNavigateFileManager,
   handleOpenPluginMarket,
-  handleOpenTerminalTab,
   handleToggleGit,
   handleOpenGitReview,
   handleToggleSidePane,
@@ -460,7 +452,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleCloseAllSidePaneTabs,
   handleReopenClosedSidePaneTab,
   handleBrowserNavigationRequestHandled,
-  setIsTerminalOpen,
   setGitSelectedSourceId,
   taskFindDialogProps,
 }: WorkspaceShellLayoutProps) {
@@ -798,16 +789,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     () => workspaceTabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath),
     [workspaceTabs],
   );
-  // 保活回收：workspace tab 真正关闭（从 openWorkspaceKeys 移除）时，回收属于该 workspace 的
-  // side pane terminal 常驻 session（杀 PTY + 销 xterm），避免孤儿进程泄漏。
-  // 切 workspace 不会让 workspaceKey 离开这个集合，所以保活的 session 不受影响。
-  // 对称下侧 Terminal.tsx:145-177 的 openWorkspaceKeys 回收逻辑。
-  useEffect(() => {
-    const retained = new Set(openWorkspaceKeys);
-    sidePaneTerminalSessionRegistry.releaseByPredicate(
-      (entry) => Boolean(entry.workspaceKey) && !retained.has(entry.workspaceKey),
-    );
-  }, [openWorkspaceKeys]);
   // 完整视图（docs/ui/side-pane-full-view.md）只读派生：不改侧栏、面板宽度等原有状态，退出后自然恢复。
   const fullViewController = isWebRemoteControlShell ? undefined : sidePaneFullView;
   const activeFullView =
@@ -841,16 +822,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     activeTaskTitle?.trim() || intl.formatMessage({ id: "taskList.untitled" });
   // 完整视图保留左侧任务列表与左上角按钮组，侧栏显隐只由用户开关决定。
   const isSidebarPanelVisible = isSidebarVisible;
-  const {
-    panelRef: terminalPanelRef,
-    panelElementRef: terminalPanelElementRef,
-    isVisible: isTerminalVisible,
-  } = useAnimatedResizablePanel({
-    // 浮窗只承载对话本身；终端只在普通视图和完整视图的对话 tab 中显示，开合状态不变。
-    open: isTerminalOpen && !isFloatingFullView,
-    expandedSize: "30%",
-    rememberExpandedSize: true,
-  });
   const {
     panelRef: sidePanePanelRef,
     panelElementRef: sidePanePanelElementRef,
@@ -2194,6 +2165,8 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   const renderSidePanePanel = (options: { mobileOverlay?: boolean } = {}) => (
     <AnimatedSidePanePanel
       services={services}
+      isBrowserOpen={isBrowserOpen}
+      browserNavigationRequest={browserNavigationRequest}
       isDesktop={isDesktop}
       isWindowsDesktop={isWindowsDesktop}
       frameClassName={resolveWorkspaceShellWindowChromeClass({
@@ -2242,8 +2215,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       fullViewSlotRef={options.mobileOverlay ? undefined : setFullViewSlotElement}
       sidePaneState={sidePaneState}
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
-      isBrowserOpen={isBrowserOpen}
-      supportsEmbeddedBrowser={supportsEmbeddedBrowser}
       workspaceAbsPath={workspaceAbsPath}
       taskCwd={
         resolvedActiveTaskMeta?.taskId === activeTaskId ? resolvedActiveTaskMeta?.cwd : undefined
@@ -2258,7 +2229,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       panelElementRef={
         options.mobileOverlay ? mobileSidePanePanelElementRef : sidePanePanelElementRef
       }
-      browserNavigationRequest={browserNavigationRequest}
       browserRestoreUrls={browserRestoreUrls}
       screenshotSurfaceRequest={options.mobileOverlay ? null : screenshotSurfaceRequest}
       screenshotSurfaceTabId={options.mobileOverlay ? null : (screenshotSurfaceTab?.id ?? null)}
@@ -2275,16 +2245,13 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onCloseOtherTabs={handleCloseOtherSidePaneTabs}
       onCloseAllTabs={handleCloseAllSidePaneTabs}
       onReopenClosedTab={handleReopenClosedSidePaneTab}
-      onOpenBrowserTab={handleOpenBrowserTab}
       onOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
-      onOpenWhiteboard={handleOpenWhiteboard}
       onOpenDeveloperTools={handleOpenDeveloperTools}
       onOpenFileManager={handleOpenFileManager}
       onNavigateFileManager={handleNavigateFileManager}
       onOpenPluginMarket={handleOpenPluginMarket}
       onCreateTask={handleCreateTaskInChat}
       isMacDesktop={isMacDesktop}
-      onOpenTerminalTab={handleOpenTerminalTab}
       onOpenReviewTab={handleToggleGit}
       onOpenSelectionSideConversation={handleOpenSelectionSideConversationLauncher}
       onRevealGitFileInTree={handleRevealGitFileInTree}
@@ -2472,11 +2439,8 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                 isDesktop={isDesktop}
                 simplifyForNarrowRemote
                 isSidebarVisible={isSidebarVisible}
-                isTerminalOpen={isTerminalOpen}
                 isSidePaneOpen={isSidePaneOpen}
                 onRefreshGit={handleRefreshGit}
-                onToggleTerminal={handleToggleTerminal}
-                onToggleBrowser={handleToggleBrowser}
                 onToggleSidePane={handleToggleSidePane}
                 toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
                 onReloadSession={handleReloadSession}
@@ -2825,7 +2789,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                               supportsNativeRoundedCorners:
                                 desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
                             }),
-                        isTerminalVisible && "rounded-b-[var(--workspace-panel-radius)] border-b",
                         "border-[0.5px]",
                         !isFullView && "shadow-xs",
                         isWebRemoteControlShell &&
@@ -2884,11 +2847,8 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                             isDesktop={isDesktop}
                             simplifyForNarrowRemote={simplifyHeaderForNarrowRemote}
                             isSidebarVisible={isSidebarVisible}
-                            isTerminalOpen={isTerminalOpen}
                             isSidePaneOpen={isSidePaneOpen}
                             onRefreshGit={handleRefreshGit}
-                            onToggleTerminal={handleToggleTerminal}
-                            onToggleBrowser={handleToggleBrowser}
                             onToggleSidePane={handleToggleSidePane}
                             toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
                             onReloadSession={handleReloadSession}
@@ -3114,35 +3074,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                       </div>
                     </section>
                   </ResizablePanel>
-                  {isWebRemoteControlShell ||
-                  (workspaceMainView !== "automations" && workspaceMainView !== "plugin-store") ? (
-                    <AnimatedTerminalPanel
-                      frameClassName={cn(
-                        isSidePaneVisible
-                          ? "rounded-[var(--workspace-panel-radius)] border border-border"
-                          : resolveWorkspaceShellWindowChromeClass({
-                              isMacDesktop,
-                              isWindowsDesktop,
-                              isLinuxDesktop,
-                              macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
-                              isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
-                              supportsNativeRoundedCorners:
-                                desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
-                            }),
-                        "rounded-t-[var(--workspace-panel-radius)] border-t",
-                      )}
-                      services={services}
-                      workspaceAbsPath={workspaceAbsPath}
-                      workspaceIdentity={workspaceIdentity}
-                      openWorkspaceKeys={openWorkspaceKeys}
-                      isVisible={isTerminalVisible}
-                      isWindowsDesktop={isWindowsDesktop}
-                      panelRef={terminalPanelRef}
-                      panelElementRef={terminalPanelElementRef}
-                      onClose={() => setIsTerminalOpen(false)}
-                      onOpenBrowserUrl={handleOpenBrowserUrl}
-                    />
-                  ) : null}
                 </ResizablePanelGroup>
               </SidePaneFullViewConversationHost>
             </ResizablePanel>

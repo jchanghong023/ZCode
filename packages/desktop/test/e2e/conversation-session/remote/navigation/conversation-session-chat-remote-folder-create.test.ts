@@ -50,19 +50,6 @@ async function captureAppearance() {
     ["en-US", "light", 1440],
     ["zh-CN", "dark", 480],
   ] as const) {
-    await browser.execute(
-      (locale, theme) => {
-        const actions = (
-          window as Window & {
-            __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-          }
-        ).__testActions;
-        actions?.setLocale(locale);
-        actions?.setTheme(theme);
-      },
-      locale,
-      theme,
-    );
     await browser.electron.execute((electron, width) => {
       electron.BrowserWindow.getAllWindows()
         .find((window) => window.isVisible())

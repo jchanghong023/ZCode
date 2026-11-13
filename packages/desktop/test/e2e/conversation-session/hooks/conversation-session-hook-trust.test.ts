@@ -238,19 +238,7 @@ async function verifyHookReminderLayouts(): Promise<void> {
         });
       }, width);
       for (const theme of ["zai-light", "zai-dark"]) {
-        for (const locale of ["zh-CN", "en-US"]) {
-          await browser.execute(
-            ({ theme, locale }) => {
-              const actions = (
-                window as typeof window & {
-                  __testActions: { setTheme(value: string): void; setLocale(value: string): void };
-                }
-              ).__testActions;
-              actions.setTheme(theme);
-              actions.setLocale(locale);
-            },
-            { theme, locale },
-          );
+        for (const locale of ["zh-CN"]) {
           const popover = $(sel(TID_V4_WORKSPACE_HOOK_PENDING_POPOVER));
           await expect(popover).toHaveText(
             expect.stringContaining(
@@ -281,15 +269,6 @@ async function verifyHookReminderLayouts(): Promise<void> {
       )!;
       await target.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride");
     });
-    await browser.execute(({ theme, locale }) => {
-      const actions = (
-        window as typeof window & {
-          __testActions: { setTheme(value: string): void; setLocale(value: string): void };
-        }
-      ).__testActions;
-      actions.setTheme(theme);
-      actions.setLocale(locale);
-    }, original);
   }
 }
 

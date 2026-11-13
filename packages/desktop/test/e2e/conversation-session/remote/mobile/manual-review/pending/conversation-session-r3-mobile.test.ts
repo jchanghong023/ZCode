@@ -868,12 +868,6 @@ PY`,
     );
     if (!projectId) throw new Error(`${marker}: SSH 项目缺少 projectId`);
     // 项目创建已打开所属 Source 的草稿；全局新建会改为本地未分类任务。
-    await browser.execute(() => {
-      const actions = (window as Window & { __testActions?: { setLocale(locale: string): void } })
-        .__testActions;
-      if (!actions) throw new Error("Missing locale actions");
-      actions.setLocale("zh-CN");
-    });
     await waitForV4Pane((pane) => pane.sessionId === "draft", `${marker}: 桌面不是空草稿`);
     expect(await getV4Messages("user")).toHaveLength(0);
 

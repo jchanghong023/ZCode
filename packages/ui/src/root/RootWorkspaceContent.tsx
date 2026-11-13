@@ -6,15 +6,14 @@ import { ServiceProvider } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { WorkspaceSettingsLayer } from "@/root/WorkspaceSettingsLayer.js";
 import type { AppProps } from "@/app-shell/types.js";
-import type { RootProps, WorkspaceSettingsLayerProps } from "@/root/types.js";
-import type { IFeedbackService, IServiceAccessor } from "@zcode/services";
+import type { RootProps } from "@/root/types.js";
+import type { IServiceAccessor } from "@zcode/services";
 import { ConversationTelemetryWorkspaceAttachment } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
 
 const StableWorkspaceApp = memo(App);
 
 interface RootWorkspaceContentProps {
   workspaceScopedServices: IServiceAccessor;
-  baseFeedbackService: IFeedbackService;
   workspaceShellPath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -34,8 +33,6 @@ interface RootWorkspaceContentProps {
   remoteWorkspaceSessions: NonNullable<AppProps["remoteWorkspaceSessions"]>;
   allowRemoteWorkspace: NonNullable<RootProps["allowRemoteWorkspace"]>;
   handleBackFromSettings: () => void;
-  // Bugfix：工作区内的设置层显式转发 props，漏掉它会让分享管理解析到会话却不显示「跳转对话」。
-  handleOpenTaskFromSettings: NonNullable<WorkspaceSettingsLayerProps["onOpenTask"]>;
   handleLogout?: () => void;
   onLogin?: () => void;
   user: AppProps["user"];
@@ -58,7 +55,6 @@ interface RootWorkspaceContentProps {
 
 export function RootWorkspaceContent({
   workspaceScopedServices,
-  baseFeedbackService,
   workspaceShellPath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -78,7 +74,6 @@ export function RootWorkspaceContent({
   remoteWorkspaceSessions,
   allowRemoteWorkspace,
   handleBackFromSettings,
-  handleOpenTaskFromSettings,
   handleLogout,
   onLogin,
   user,
@@ -150,7 +145,6 @@ export function RootWorkspaceContent({
             >
               <StableWorkspaceApp
                 services={workspaceScopedServices}
-                baseFeedbackService={baseFeedbackService}
                 onConnectRemote={handleConnectRemote}
                 onSelectRemoteProject={handleSelectRemoteProject}
                 onCancelRemoteProject={handleCancelRemoteProject}
@@ -208,7 +202,6 @@ export function RootWorkspaceContent({
             windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
             captionWorkspacePath={activeWorkspacePath}
             onBack={activeWorkspacePath ? handleBackFromSettings : undefined}
-            onOpenTask={handleOpenTaskFromSettings}
             onCreateTask={handleCreateTask}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenRemoteWorkspace={handleOpenRemoteWorkspace}

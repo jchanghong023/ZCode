@@ -855,12 +855,11 @@ export async function seedSettings(partial: Partial<AppSettings>): Promise<Parti
 }
 
 type E2ELocale = "zh-CN" | "en-US";
-type LocaleTestActions = { getLocale(): E2ELocale; setLocale(locale: E2ELocale): void };
+type LocaleTestActions = { getLocale(): E2ELocale };
 
 /**
- * 运行中把界面语言固定为 locale，并等 renderer 生效。
- * 首帧跟随宿主系统语言：容器、英文系统下是英文，断言中文文案的 spec 必须自己固定语言。
- * 走真实的 setLocale（写进设置文件）；clearAppData 会清掉它，之后的 case 要重新调用。
+ * 等 renderer 注册测试动作并确认当前界面语言。
+ * 界面语言已单语化为 zh-CN，这里只做就绪断言，不再切换语言。
  */
 export async function pinE2ELocale(locale: E2ELocale): Promise<void> {
   const readLocale = () =>
@@ -873,9 +872,6 @@ export async function pinE2ELocale(locale: E2ELocale): Promise<void> {
     timeout: 30000,
     timeoutMsg: "renderer 没有注册 __testActions，无法固定界面语言",
   });
-  await browser.execute((next) => {
-    (window as Window & { __testActions?: LocaleTestActions }).__testActions?.setLocale(next);
-  }, locale);
   await browser.waitUntil(async () => (await readLocale()) === locale, {
     timeout: 15000,
     timeoutMsg: `界面语言没有切到 ${locale}`,

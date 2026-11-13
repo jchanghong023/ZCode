@@ -16,8 +16,7 @@ export type QuickPickCommandIcon =
   | "sidebarOpen"
   | "skills"
   | "themeDark"
-  | "themeLight"
-  | "terminal";
+  | "themeLight";
 
 export type QuickPickCommandSectionId =
   | "suggested"
@@ -54,16 +53,11 @@ interface QuickPickCommandHandlers {
   openSkillsSettings: () => void;
   openMcpSettings: () => void;
   switchTheme: () => void;
-  openFeedback: () => void | Promise<void>;
   openCommunity: () => void | Promise<void>;
   openProductDocs: () => void | Promise<void>;
   login?: () => void | Promise<void>;
   logout?: () => void | Promise<void>;
   toggleSidebar: () => void;
-  toggleTerminal: () => void;
-  togglePreview: () => void;
-  openTerminalTab: () => void;
-  openBrowserTab: () => void;
   openReviewTab: () => void;
   /** 只有桌面本机 Host 提供扩展门面时才有（docs/plugins/extension-host.md §12.1）。 */
   reloadExtensions?: () => void;
@@ -76,15 +70,12 @@ interface CreateQuickPickCommandsOptions {
   canOpenCommunity: boolean;
   isSidebarVisible: boolean;
   isLoggedIn: boolean;
-  supportsEmbeddedBrowser?: boolean;
-  supportsTerminal?: boolean;
   supportsReview?: boolean;
   themeTarget: "dark" | "light";
   shortcuts: {
     newTask: string;
     openWorkspace: string;
     toggleSidebar: string;
-    toggleTerminal: string;
   };
   handlers: QuickPickCommandHandlers;
 }
@@ -94,8 +85,6 @@ export function createQuickPickCommands({
   canOpenCommunity,
   isSidebarVisible,
   isLoggedIn,
-  supportsEmbeddedBrowser = true,
-  supportsTerminal = true,
   supportsReview = true,
   themeTarget,
   shortcuts,
@@ -138,58 +127,6 @@ export function createQuickPickCommands({
       keywords: ["sidebar", "left sidebar", "toggle sidebar", "侧栏", "侧边栏", "切换侧栏"],
       run: handlers.toggleSidebar,
     },
-    {
-      id: "toggle-terminal",
-      sectionId: "panels",
-      titleId: "quickPick.command.toggleTerminal",
-      icon: "terminal",
-      shortcut: shortcuts.toggleTerminal,
-      keywords: ["terminal", "shell", "console", "终端"],
-      run: handlers.toggleTerminal,
-    },
-    ...(supportsEmbeddedBrowser
-      ? [
-          {
-            id: "toggle-preview",
-            sectionId: "panels",
-            titleId: "quickPick.command.togglePreview",
-            icon: "browser",
-            keywords: [
-              "preview",
-              "browser",
-              "web",
-              "show",
-              "hide",
-              "预览",
-              "浏览器",
-              "网页",
-              "显示",
-              "隐藏",
-            ],
-            run: handlers.togglePreview,
-          } satisfies QuickPickCommand,
-        ]
-      : []),
-    {
-      id: "add-terminal-tab",
-      sectionId: "panels",
-      titleId: "quickPick.command.addTerminalTab",
-      icon: "terminal",
-      keywords: ["add", "terminal", "tab", "new terminal", "添加终端", "终端标签"],
-      run: handlers.openTerminalTab,
-    },
-    ...(supportsEmbeddedBrowser
-      ? [
-          {
-            id: "add-browser-tab",
-            sectionId: "panels",
-            titleId: "quickPick.command.addBrowserTab",
-            icon: "browser",
-            keywords: ["add", "browser", "tab", "preview", "添加浏览器", "浏览器标签"],
-            run: handlers.openBrowserTab,
-          } satisfies QuickPickCommand,
-        ]
-      : []),
     {
       id: "add-review-tab",
       sectionId: "panels",
@@ -234,25 +171,6 @@ export function createQuickPickCommands({
       run: handlers.openMcpSettings,
     },
   ];
-
-  commands.push({
-    id: "feedback",
-    sectionId: "app",
-    titleId: "quickPick.command.feedback",
-    icon: "feedback",
-    keywords: [
-      "feedback",
-      "issue",
-      "support",
-      "tickets",
-      "问题上报",
-      "问题反馈",
-      "反馈",
-      "我的反馈",
-      "工单",
-    ],
-    run: handlers.openFeedback,
-  });
 
   if (canOpenCommunity) {
     commands.push({
@@ -317,10 +235,5 @@ export function createQuickPickCommands({
     });
   }
 
-  return commands.filter(
-    (command) =>
-      (supportsTerminal ||
-        (command.id !== "toggle-terminal" && command.id !== "add-terminal-tab")) &&
-      (supportsReview || command.id !== "add-review-tab"),
-  );
+  return commands.filter((command) => supportsReview || command.id !== "add-review-tab");
 }

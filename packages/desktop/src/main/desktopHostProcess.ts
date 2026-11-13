@@ -322,7 +322,7 @@ export function spawnHostProcess(
   });
 
   const databaseStartupRelay = bindDatabaseStartupRelay(win, child, hostId);
-  const unbindAppNavigation = bindAppControlNavigationHost(win, child, (id) =>
+  const unbindAppNavigation = bindAppControlNavigationHost(win, child, (id: number) =>
     BrowserWindow.fromId(id),
   );
   child.once("exit", unbindAppNavigation);

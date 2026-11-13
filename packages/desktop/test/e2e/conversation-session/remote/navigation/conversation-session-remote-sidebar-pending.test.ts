@@ -27,23 +27,6 @@ const run = promisify(execFile);
 
 /** 只读远端当前 release；走 docker exec，不占用被测 SSH 连接。 */
 async function setAppearance(locale: "zh-CN" | "en-US", theme: "light" | "dark") {
-  await browser.execute(
-    (lang, appearance) => {
-      const actions = (
-        window as Window & {
-          __testActions?: {
-            setLocale(value: "zh-CN" | "en-US"): void;
-            setTheme(value: string): void;
-          };
-        }
-      ).__testActions;
-      if (!actions) throw new Error("Missing appearance actions");
-      actions.setLocale(lang);
-      actions.setTheme(appearance);
-    },
-    locale,
-    theme,
-  );
   await browser.executeAsync((done) =>
     requestAnimationFrame(() => requestAnimationFrame(() => done())),
   );
@@ -129,7 +112,7 @@ describe(`${CASE_MARKER}: 待处理设备在项目行与详情显示具体原因
     ).toBe("server");
 
     const details = $('[data-testid="remote-identity-details"]');
-    for (const locale of ["zh-CN", "en-US"] as const) {
+    for (const locale of ["zh-CN"] as const) {
       for (const theme of ["light", "dark"] as const) {
         await setAppearance(locale, theme);
         // 状态是行内关键信息，窄侧栏里也必须完整显示，由项目名和设备名让出空间。

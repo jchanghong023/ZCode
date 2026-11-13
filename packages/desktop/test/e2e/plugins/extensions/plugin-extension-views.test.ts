@@ -124,7 +124,7 @@ describe("PLM-EXT-2B 扩展视图、context 组成与生成速率", () => {
     });
     await prepareV4ConversationE2E();
     await setCurrentElectronRendererContentSize(1400, 900);
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await log.waitFor(
       (line) => line.includes(`[${VIEW_PLUGIN}] activated in`),
       "the view fixture should activate",
@@ -330,7 +330,7 @@ describe("PLM-EXT-2B 扩展视图、context 组成与生成速率", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       // 原由 PLM-EXT-2C 断言：页面经 hostContext 跟随宿主的主题与语言。
       await waitForViewPage(
         CONTEXT_VIEW,
@@ -342,7 +342,7 @@ describe("PLM-EXT-2B 扩展视图、context 组成与生成速率", () => {
       );
       screenshots.push(await capturePluginManualReview(CASE_ID, `view-${locale}-${theme}`));
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     // 切换 App 语言后扩展收到 env.onDidChange：先 en-US，切回后 zh-CN（只看切换之后的日志）。
     await browser.waitUntil(
       async () => {

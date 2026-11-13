@@ -70,9 +70,7 @@ export interface WorkspaceHeaderActionSectionProps {
   remoteTarget?: RemoteTarget;
   isWebRemoteControl?: boolean;
   isDesktop?: boolean;
-  isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
-  onToggleTerminal: () => void;
   onToggleSidePane: () => void;
   toggleSidePaneShortcutLabel?: string;
   onSelectedEditorChange?: (editor: EditorInfo | null) => void;

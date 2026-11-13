@@ -34,7 +34,6 @@ const activePopover = '[data-testid="mcp-failure-popover"][data-state="open"]';
 
 type PresentationWindow = Window & {
   __testActions?: {
-    setLocale(locale: "zh-CN" | "en-US"): void;
     setTheme(theme: "zai-light" | "zai-dark"): void;
   };
 };
@@ -116,13 +115,6 @@ describe("MCP 启动失败处理建议（候选）", () => {
       ["zh-CN", "zai-dark"],
       ["en-US", "zai-light"],
     ] as const) {
-      await browser.execute(
-        ({ locale, theme }) => {
-          (window as PresentationWindow).__testActions!.setLocale(locale);
-          (window as PresentationWindow).__testActions!.setTheme(theme);
-        },
-        { locale, theme },
-      );
       const row = await browser.$(`[data-testid="${pythonRow}"]`);
       await row.scrollIntoView({ block: "center" });
       await row.$(`button[aria-label="${locale === "zh-CN" ? "详情" : "Details"}"]`).click();
@@ -160,13 +152,6 @@ describe("MCP 启动失败处理建议（候选）", () => {
         ["zh-CN", "zai-light"],
         ["en-US", "zai-dark"],
       ] as const) {
-        await page.evaluate(
-          ({ locale, theme }) => {
-            (window as PresentationWindow).__testActions!.setLocale(locale);
-            (window as PresentationWindow).__testActions!.setTheme(theme);
-          },
-          { locale, theme },
-        );
         await page
           .getByTestId(pythonRow)
           .getByRole("button", { name: locale === "zh-CN" ? "详情" : "Details", exact: true })

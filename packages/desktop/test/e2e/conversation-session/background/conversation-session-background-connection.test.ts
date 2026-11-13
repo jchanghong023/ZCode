@@ -280,11 +280,6 @@ describe(marker, () => {
     });
     await selectUpstreamThoughtLevelValue("disabled");
     await installHandoffRpcProbe();
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(value: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
-    );
     await openProjectForm();
     await $('[data-testid="virtual-project-name"]').setValue(`${marker}_LOCAL`);
     await $('[data-testid="virtual-project-save"]').click();
@@ -692,21 +687,8 @@ describe(marker, () => {
     await settings();
     const failed = $('[data-testid="remote-connection-minimized"]');
     await browser.waitUntil(async () => (await failed.getText()).includes("失败"));
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (language, color) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(language);
-            actions?.setTheme(color);
-          },
-          locale,
-          theme,
-        );
         await browser.electron.execute((electron) =>
           electron.BrowserWindow.getAllWindows()
             .find((window) => window.isVisible())
@@ -732,11 +714,6 @@ describe(marker, () => {
       electron.BrowserWindow.getAllWindows()
         .find((window) => window.isVisible())
         ?.setSize(1440, 900),
-    );
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(value: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
     );
     await setV4ComposerText("Docker background draft");
     await settings();

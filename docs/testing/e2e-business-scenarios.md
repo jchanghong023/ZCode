@@ -171,7 +171,6 @@ Lint 的 671 条既有警告均不在本次改动文件。测试及 JSON 格式�
 | [conversation-session/workflows](../../packages/desktop/test/e2e/conversation-session/workflows/)                       |        25 |         0 |          9 |
 | [feedback/help](../../packages/desktop/test/e2e/feedback/help/)                                                         |         3 |         0 |          0 |
 | [feedback/logs](../../packages/desktop/test/e2e/feedback/logs/)                                                         |         1 |         1 |          0 |
-| [feedback/upload](../../packages/desktop/test/e2e/feedback/upload/)                                                     |         1 |         0 |          0 |
 | [git/commit](../../packages/desktop/test/e2e/git/commit/)                                                               |         1 |         0 |          0 |
 | [git/worktrees](../../packages/desktop/test/e2e/git/worktrees/)                                                         |         0 |         1 |          0 |
 | [infrastructure/lifecycle](../../packages/desktop/test/e2e/infrastructure/lifecycle/)                                   |         1 |         0 |          0 |

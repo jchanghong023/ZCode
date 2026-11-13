@@ -344,7 +344,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (a) 未授权：扩展照常激活，会话能力报 not-granted；清单没有声明档位的扩展报 not-declared。
     evidence.notGranted = await log.waitFor(
@@ -375,7 +375,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       await waitForVisibleGrantRow(
         PLUGIN_ID,
         "the needs-consent row should stay after switching presentation",
@@ -386,7 +386,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
     expect(String(evidence.grantRowEnglish)).toContain("Needs permission");
 
     // (c) 授权对话框（spec 原文）→ 授权：grants.json 有记录，启动页的行消失。
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await waitForVisibleGrantRow(
       PLUGIN_ID,
       "the needs-consent row should be visible before granting",
@@ -405,7 +405,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
     // 取消（Esc）不授权：没有记录，这一行还在。对话框文案在打开时按当时的语言生成，所以换语言后重新打开截图。
     await dismissDialog(TID_EXTENSION_GRANT_DIALOG);
     expect(await readGrantsFile()).toBeNull();
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await waitForVisibleGrantRow(PLUGIN_ID, "the needs-consent row should stay after cancelling");
     await clickGrantRow(PLUGIN_ID);
     evidence.grantDialogEnglish = await waitForDialog(
@@ -445,7 +445,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
 
     // (d) 发一条 replay 消息建正式会话；换语言触发探测：listSessions 有这个会话，readSession 读到它的消息。
     // 先回到中文，后面换成英文时 env.onDidChange 才会触发。
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await sendV4Prompt(PROMPT);
     const session = await waitForV4Pane(
       (snapshot) => Boolean(snapshot.sessionId && snapshot.sessionId !== "draft"),
@@ -457,7 +457,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
     // 录制的回复是 deepseek-e2e-ok（provider-basic.json 的 upstream-provider-basic）。
     await waitForV4AssistantMessageContaining("deepseek-e2e-ok");
     const beforeEnglish = (await log.lines()).length;
-    await setPluginPresentation({ locale: "en-US", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     evidence.grantedList = await waitForLogAfter(
       beforeEnglish,
       (line) =>
@@ -495,7 +495,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
     expect((await log.lines()).some((line) => line.includes("E2E_SESSIONS_LATE_ACTIVATED"))).toBe(
       false,
     );
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await clickPluginControl("plugin-settings-enabled-switch", { pluginId: LATE_ID });
     evidence.enableDialogChinese = await waitForDialog(
       TID_EXTENSION_ENABLE_CONFIRM_DIALOG,
@@ -519,7 +519,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
     );
     evidence.permissionsGranted = granted;
     await capture("permissions-granted-zh-CN-zai-dark");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await capture("permissions-granted-en-US-zai-light");
     await clickPluginControl(TID_EXTENSION_PERMISSIONS_REVOKE, { pluginId: PLUGIN_ID });
     const revoked = await waitForPermissions(
@@ -542,7 +542,7 @@ describe("PLM-EXT-P3A 扩展的会话读权限、授权与审计", () => {
 
     // (g) 撤销后：换语言再探测，又报 not-granted。
     const beforeChinese = (await log.lines()).length;
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     evidence.revokedList = await waitForLogAfter(
       beforeChinese,
       (line) => line.includes(`E2E_SESSIONS_LIST plugin=${PLUGIN_ID} reason=locale-zh-CN`),

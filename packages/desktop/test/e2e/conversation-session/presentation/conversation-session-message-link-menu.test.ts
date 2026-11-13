@@ -67,22 +67,6 @@ describe("消息正文链接菜单", () => {
       for (const theme of ["zai-light", "zai-dark"] as const) {
         const locale = theme === "zai-dark" ? "zh-CN" : "en-US";
         await setCurrentElectronRendererContentSize(width, 800);
-        await browser.execute(
-          (next) => {
-            const actions = (
-              window as typeof window & {
-                __testActions?: {
-                  setLocale: (locale: string) => void;
-                  setTheme: (theme: string) => void;
-                };
-              }
-            ).__testActions;
-            if (!actions) throw new Error("Missing presentation actions");
-            actions.setLocale(next.locale);
-            actions.setTheme(next.theme);
-          },
-          { locale, theme },
-        );
         await openMenu();
         const expected =
           locale === "zh-CN"

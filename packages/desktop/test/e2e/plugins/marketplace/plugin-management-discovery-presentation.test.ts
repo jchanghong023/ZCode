@@ -32,7 +32,7 @@ describe("PLM-LC-001/002 插件商店发现、入口与展示 E2E", () => {
 
     const fixture = await createPluginLifecycleFixture();
     await openPluginSettings();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1440, height: 720 });
+    await setPluginPresentation({ theme: "zai-light", width: 1440, height: 720 });
 
     expect(await isPressed("plugin-store-segment-public")).toBe(true);
     await addLifecycleMarketplaceThroughUi(fixture);
@@ -74,7 +74,7 @@ describe("PLM-LC-001/002 插件商店发现、入口与展示 E2E", () => {
 
     await assertPluginStoreFitsViewport();
     await capturePluginManualReview("PLM-LC-002", "zh-zai-light-wide");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 720, height: 720 });
+    await setPluginPresentation({ theme: "zai-dark", width: 720, height: 720 });
     await assertPluginStoreFitsViewport();
     expect(await hasPluginControl("plugin-store-create")).toBe(true);
     expect(await hasPluginControl("plugin-store-sources-open")).toBe(true);

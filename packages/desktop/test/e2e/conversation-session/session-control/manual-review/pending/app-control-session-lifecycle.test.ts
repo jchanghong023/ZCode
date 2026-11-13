@@ -476,17 +476,16 @@ describe(`${CASE}: App session lifecycle through actual tools`, () => {
       locale: "zh-CN" | "en-US",
       phase: string,
     ) => {
-      await setPluginPresentation({ theme, locale, width: 1200, height: 900 });
+      await setPluginPresentation({ theme, width: 1200, height: 900 });
       await showMobileTaskHome(page!);
       await page!.evaluate(
         (next) => {
           const actions = (
             window as Window & {
-              __testActions?: { setLocale(value: string): void; setTheme(value: string): void };
+              __testActions?: { setTheme(value: string): void };
             }
           ).__testActions;
           if (!actions) throw new Error("SCT04 mobile presentation actions unavailable");
-          actions.setLocale(next.locale);
           actions.setTheme(next.theme);
         },
         { theme, locale },
@@ -527,11 +526,11 @@ describe(`${CASE}: App session lifecycle through actual tools`, () => {
     await selectV4TaskById(fork.session.sessionId);
     await waitForV4AssistantMessageContaining("SCT04_NEXT_DONE");
     for (const theme of ["zai-light", "zai-dark"] as const) {
-      for (const locale of ["zh-CN", "en-US"] as const) await captureSource(theme, locale, "live");
+      for (const locale of ["zh-CN"] as const) await captureSource(theme, locale, "live");
     }
     // 规格 0.13：持久化载荷只带 sessionId，标题由运行侧按 id 解析，所以这里断言的是**当前**标题——
     // 改动前它是发送那一刻的快照。点击走既有导航 owner，落到发起方会话。
-    await setPluginPresentation({ theme: "zai-dark", locale: "zh-CN", width: 1200, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
     await selectV4TaskById(fork.session.sessionId);
     const sourceLink = await $(`${sourceSelector} [data-source-session-navigable="true"]`);
     await sourceLink.waitForDisplayed({ timeout: 30_000 });

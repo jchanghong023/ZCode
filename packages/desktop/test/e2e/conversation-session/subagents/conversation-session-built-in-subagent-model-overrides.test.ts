@@ -96,7 +96,6 @@ describe("Subagent 模型与 reasoning effort 覆盖 E2E", () => {
     this.timeout(300000);
 
     await prepareV4ConversationE2E({ skipProvider: true });
-    await setRendererLocale("en-US");
     await configureSubagentReasoningOverrides();
     await seedPersistedModelSelection({
       modelId: UPSTREAM_MODEL,
@@ -208,17 +207,7 @@ async function configureSubagentReasoningOverrides() {
     Explore: OVERRIDE_MODEL_VALUE,
     "general-purpose": PRIMARY_MODEL_VALUE,
   });
-  await waitForExploreInvalidEffortError(
-    "Select a reasoning effort supported by this model",
-    "英文",
-  );
-  await setRendererLocale("zh-CN");
   await waitForExploreInvalidEffortError("请选择当前模型支持的推理档位", "中文");
-  await setRendererLocale("en-US");
-  await waitForExploreInvalidEffortError(
-    "Select a reasoning effort supported by this model",
-    "英文恢复",
-  );
 
   await selectThoughtLevelInScope(sel(testId(TID_SUBAGENT_ROW, "Explore")), EXPLORE_EFFORT);
   await waitForAgentsState(
@@ -262,39 +251,6 @@ async function configureSubagentReasoningOverrides() {
     timeoutMsg: "设置页返回按钮没有出现",
   });
   await waitForWorkspaceApp(DEFAULT_WORKSPACE, 30000);
-}
-
-async function setRendererLocale(locale: "en-US" | "zh-CN") {
-  const changed = await browser.execute((nextLocale) => {
-    const actions = (
-      window as typeof window & {
-        __testActions?: Record<string, unknown>;
-      }
-    ).__testActions;
-    const setLocale = actions?.setLocale;
-    if (typeof setLocale !== "function") return false;
-    (setLocale as (value: string) => void)(nextLocale);
-    return true;
-  }, locale);
-  if (!changed) {
-    throw new Error(`I20 缺少 renderer locale test action: ${locale}`);
-  }
-  await browser.waitUntil(
-    async () =>
-      browser.execute((expectedLocale) => {
-        const actions = (
-          window as typeof window & {
-            __testActions?: Record<string, unknown>;
-          }
-        ).__testActions;
-        const getLocale = actions?.getLocale;
-        return typeof getLocale === "function" && getLocale() === expectedLocale;
-      }, locale),
-    {
-      timeout: 15_000,
-      timeoutMsg: `I20 renderer locale 没有切换到 ${locale}`,
-    },
-  );
 }
 
 async function waitForExploreInvalidEffortError(expectedText: string, localeLabel: string) {

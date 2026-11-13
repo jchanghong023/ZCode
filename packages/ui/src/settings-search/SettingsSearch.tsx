@@ -11,7 +11,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import enUS from "@/i18n/locales/en-US.js";
 import type { SettingsSearchResult } from "@/settings-search/contract.js";
 import {
   isSettingsSectionAvailable,
@@ -57,14 +56,8 @@ export function SettingsSearch({
             setting: item.id,
             label: intl.formatMessage({ id: item.id }),
             sectionLabel,
-            keys: settingsNavigationSearchKeys([
-              intl.formatMessage({ id: item.id }),
-              enUS[item.id] ?? "",
-            ]),
-            descriptionKeys: [
-              intl.formatMessage({ id: item.description }),
-              enUS[item.description] ?? "",
-            ],
+            keys: settingsNavigationSearchKeys([intl.formatMessage({ id: item.id })]),
+            descriptionKeys: [intl.formatMessage({ id: item.description })],
             visibility: item.visibility,
           }),
         );
@@ -74,7 +67,7 @@ export function SettingsSearch({
             setting: undefined,
             label: sectionLabel,
             sectionLabel,
-            keys: settingsNavigationSearchKeys([sectionLabel, enUS[section.titleId] ?? ""]),
+            keys: settingsNavigationSearchKeys([sectionLabel]),
             descriptionKeys: [],
             visibility: "all" as const,
           },

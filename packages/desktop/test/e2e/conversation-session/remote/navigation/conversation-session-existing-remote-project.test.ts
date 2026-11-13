@@ -139,11 +139,6 @@ describe(marker, () => {
     const config = readSSHRuntimeConfig(marker);
     await prepareV4ConversationE2E({ skipProvider: true });
     await installHandoffRpcProbe();
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
-    );
     await clickTestIdByDom(TID_TASK_SETTINGS_BUTTON);
     await clickTestIdByDom(testId(TID_SETTINGS_SECTION_NAV, "remoteDevices"));
     await $("[data-settings-content-frame]").$('.//button[normalize-space(.)="新建连接"]').click();
@@ -244,21 +239,8 @@ describe(marker, () => {
     await openList();
     await pick.waitForDisplayed();
     const artifacts = process.env.ZCODE_E2E_ARTIFACT_DIR!;
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (language, color) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(language);
-            actions?.setTheme(color);
-          },
-          locale,
-          theme,
-        );
         for (const width of [1440, 480]) {
           await browser.electron.execute(
             (electron, size) =>

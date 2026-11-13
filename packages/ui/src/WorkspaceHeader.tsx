@@ -80,10 +80,8 @@ export function WorkspaceHeader({
   isDesktop,
   simplifyForNarrowRemote = false,
   isSidebarVisible,
-  isTerminalOpen,
   isSidePaneOpen,
   onRefreshGit,
-  onToggleTerminal,
   onToggleSidePane,
   toggleSidePaneShortcutLabel,
   onReloadSession,
@@ -128,11 +126,8 @@ export function WorkspaceHeader({
   isDesktop?: boolean;
   simplifyForNarrowRemote?: boolean;
   isSidebarVisible: boolean;
-  isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
   onRefreshGit: () => void;
-  onToggleTerminal: () => void;
-  onToggleBrowser: () => void;
   onToggleSidePane: () => void;
   toggleSidePaneShortcutLabel?: string;
   onReloadSession: (options?: {
@@ -234,9 +229,7 @@ export function WorkspaceHeader({
           remoteTarget={remoteTarget}
           isWebRemoteControl={isWebRemoteControl}
           isDesktop={isDesktop}
-          isTerminalOpen={isTerminalOpen}
           isSidePaneOpen={isSidePaneOpen}
-          onToggleTerminal={onToggleTerminal}
           onToggleSidePane={onToggleSidePane}
           toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
           simplifyForNarrowRemote={simplifyForNarrowRemote}

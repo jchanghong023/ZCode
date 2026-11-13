@@ -402,21 +402,7 @@ async function demoClick(
 
 // ---------- 页面导航 ----------
 
-async function setLocaleAndTheme(locale: "zh-CN" | "en-US", theme: "light" | "dark") {
-  await browser.execute(
-    (language, color) => {
-      const actions = (
-        window as Window & {
-          __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-        }
-      ).__testActions;
-      if (!actions) throw new Error("Missing locale/theme test actions");
-      actions.setLocale(language);
-      actions.setTheme(color);
-    },
-    locale,
-    theme,
-  );
+async function settlePresentation() {
   await browser.executeAsync((done) =>
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 120))),
   );
@@ -1064,7 +1050,7 @@ describe(`${MARKER}: 数据同步功能演示走查`, () => {
     await prepareSSHConnectionPage(MARKER);
     await prepareV4ConversationE2E({ skipProvider: true });
     await setWindowWidth(WINDOW.width);
-    await setLocaleAndTheme("zh-CN", "light");
+    await settlePresentation();
     const fixture = await createPluginLifecycleFixture("1.0.0");
     await addMarketplaceSourceThroughAgent(fixture.marketplaceRoot);
     await installMarketplacePluginThroughAgent(
@@ -1646,19 +1632,19 @@ describe(`${MARKER}: 数据同步功能演示走查`, () => {
         await waitForRow(`${PLUGIN.older}@inline`, "difference");
       },
       run: async () => {
-        await setLocaleAndTheme("zh-CN", "dark");
+        await settlePresentation();
         await say("深色主题：推送、更新、差异、已同步标签都清晰可读", LONG_BEAT_MS);
         await openTab("skills");
         await beat();
-        await setLocaleAndTheme("en-US", "dark");
+        await settlePresentation();
         await say("英文界面", LONG_BEAT_MS);
         await openTab("overview");
         await beat();
-        await setLocaleAndTheme("en-US", "light");
+        await settlePresentation();
         await say("English · light theme", BEAT_MS);
       },
       cleanup: async () => {
-        await setLocaleAndTheme("zh-CN", "light");
+        await settlePresentation();
         await closeDataSyncDialog();
       },
     });

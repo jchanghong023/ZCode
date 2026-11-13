@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { NodePersonalProviderConfigRepository } from "@zcode/provider-node";
-import { ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
 import {
   TID_LOGIN_USE_API_KEY_BUTTON,
   TID_TASK_SETTINGS_BUTTON,
@@ -187,31 +186,8 @@ describe("Composer 五档压缩", () => {
           settingsFile,
           JSON.stringify({
             ...settings,
-            computerUseComposerEntryHidden: false,
             locale: "zh-CN",
             localePreference: "zh-CN",
-          }),
-        );
-        const configFile = join(paths.homeDir, ".zcode", "cli", "config.json");
-        const config = JSON.parse(
-          await readFile(configFile, "utf8").catch((error: NodeJS.ErrnoException) => {
-            if (error.code === "ENOENT") return "{}";
-            throw error;
-          }),
-        );
-        await mkdir(dirname(configFile), { recursive: true });
-        await writeFile(
-          configFile,
-          JSON.stringify({
-            ...config,
-            plugins: {
-              ...config.plugins,
-              enabled: true,
-              enabledPlugins: {
-                ...config.plugins?.enabledPlugins,
-                [ZCODE_CUA_OFFICIAL_PLUGIN_ID]: true,
-              },
-            },
           }),
         );
         const repo = new NodePersonalProviderConfigRepository({
@@ -232,13 +208,6 @@ describe("Composer 五档压缩", () => {
       },
     });
     await switchV4Model(UPSTREAM_PROVIDER_ID, UPSTREAM_SECONDARY_MODEL, "max");
-    // 修复原因：CUA 入口要等 renderer 插件 store 初始化（plugin-management.listPlugins，
-    // 冷启动实测 7s+，与官方插件 seed 同一条 agent 串行链）后才知道插件已启用。
-    // 默认 5s 隐式等待在冷启动下不够，这里按真实耗时显式等待优先级 0 的控件。
-    await $('[data-composer-collapse-priority="0"]').waitForDisplayed({
-      timeout: 60000,
-      timeoutMsg: "CUA 入口没有出现（插件 store 未就绪或插件未启用？）",
-    });
     await switchV4Mode("plan");
     await $('[data-composer-collapse-priority="2"]').waitForDisplayed({ timeout: 30000 });
     await mkdir(evidence, { recursive: true });

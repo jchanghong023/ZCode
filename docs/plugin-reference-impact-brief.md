@@ -43,7 +43,7 @@
 
 | Rank | From | Semantic edge | To | Condition | Why inspect it | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| must-inspect | plugin reference | renders-in | Composer Plugin surface | Plugin → file → session → whiteboard | 入口排序、禁选与 canonical 插入 | `MentionPlugin.tsx`、UI focused tests |
+| must-inspect | plugin reference | renders-in | Composer Plugin surface | Plugin → file → session | 入口排序、禁选与 canonical 插入 | `MentionPlugin.tsx`、UI focused tests |
 | must-inspect | plugin reference | renders-in | Plugin Store try surface | installed 且有 example prompt；disabled 的 runtime eligibility 不变 | canonical 构造、标准新建草稿、无自动发送 | `PluginStoreDetailView.tsx`、`PluginsSection.tsx`、Root new-task tests |
 | must-inspect | plugin reference | served-by | catalog service | request identity 改变先清空并拒绝 stale | authority 隔离 | `usePluginReferenceCatalog.ts`、protocol test |
 | must-inspect | plugin reference | served-by | reminder injector | 只解析 `displayInput`，按最终 tool visibility 取交集 | 防模板扩权与虚假 MCP 提示 | core runtime tests |

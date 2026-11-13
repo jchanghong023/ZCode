@@ -534,9 +534,8 @@ CR-01 本地隔离 Electron 回归（2026-10-12），以下三组各 1 case pass
 
 ## 帮助配置迁移 HC-01～HC-05
 
-正式用例：`help-client-config.test.ts`（8 个 case），来源 staging 已经用户授权转正，保留默认 desktop E2E 收集。
-覆盖真实帮助菜单、中英文链接、成功缓存、同语言默认值、内置反馈弹窗、跨 endpoint
-反馈地址、HTTP/业务/JSON 失败恢复，以及窄屏 Chromium Web 重载后的 HTTP cache 行为。
+正式用例：`help-client-config.test.ts`（7 个 case），来源 staging 已经用户授权转正，保留默认 desktop E2E 收集。
+覆盖真实帮助菜单、中英文链接、成功缓存、同语言默认值、HTTP/业务/JSON 失败恢复，以及窄屏 Chromium Web 重载后的 HTTP cache 行为。
 使用 case-local HTTP fixture；无模型请求。历史验证不计成本轮通过。
 详细覆盖矩阵、剪枝、fixture 合同见 [帮助配置验证](help-client-config-e2e.md)。
 Todo103 本轮运行证据记录在 staging-integration ledger。

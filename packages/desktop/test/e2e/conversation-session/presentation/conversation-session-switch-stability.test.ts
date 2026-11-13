@@ -153,10 +153,6 @@ async function verifyMobileSwitch(taskId: string, expectedTitle: string) {
     });
     for (const theme of ["zai-light", "zai-dark"]) {
       await page.evaluate((theme) => (window as any).__testActions.setTheme(theme), theme);
-      await page.evaluate(
-        (locale) => (window as any).__testActions.setLocale(locale),
-        theme === "zai-light" ? "zh-CN" : "en-US",
-      );
       await showMobileTaskHome(page);
       await page.getByTestId("virtual-project-new-task").click();
       await page.getByTestId("v4-composer-input").waitFor();
@@ -280,10 +276,6 @@ describe("SSV01/02/04 后台运行 session 的切换稳定性", () => {
       evidence.push({ runId, completedTaskId: completed.taskId, runningTaskId: running.taskId });
       // 采样窗口只用于观测绘制；运行态由受控真实 Provider 流保持，不改业务时钟。
       for (let i = 0; i < 2; i++) {
-        await browser.execute((iteration) => {
-          (window as any).__testActions.setTheme(iteration === 0 ? "zai-light" : "zai-dark");
-          (window as any).__testActions.setLocale(iteration === 0 ? "zh-CN" : "en-US");
-        }, i);
         await mark(`draft-${i}:start`);
         await startDraftFromProject(DEFAULT_WORKSPACE);
         await browser.pause(1400);

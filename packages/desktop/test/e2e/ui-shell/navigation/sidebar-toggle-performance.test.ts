@@ -37,46 +37,12 @@ describe("STF 左右侧栏开关布局性能", () => {
       [1000, "zai-dark", "en-US"],
     ] as const) {
       await setRendererViewport(width, 900);
-      await browser.execute(
-        (theme, locale) => {
-          const actions = (
-            window as Window & {
-              __testActions?: { setTheme(value: string): void; setLocale(value: string): void };
-            }
-          ).__testActions!;
-          actions.setTheme(theme);
-          actions.setLocale(locale);
-        },
-        theme,
-        locale,
-      );
       await settle();
       await browser.execute(() => {
         Object.assign(window, {
           __sidebarPerfNode: document.querySelector('[data-testid="sidebar"]'),
         });
       });
-      // 底部终端共用尺寸控制 hook，必须验证收起、恢复及保留实例。
-      await click('[data-testid="terminal-toggle"]');
-      const terminalHeight = await $("#terminal").getSize("height");
-      expect(terminalHeight).toBeGreaterThan(100);
-      await browser.execute(() => {
-        Object.assign(window, { __bottomTerminalPerfNode: document.querySelector("#terminal") });
-      });
-      await click('[data-testid="terminal-toggle"]');
-      expect(await $("#terminal").getSize("height")).toBeLessThanOrEqual(1);
-      await click('[data-testid="terminal-toggle"]');
-      expect(
-        Math.abs((await $("#terminal").getSize("height")) - terminalHeight),
-      ).toBeLessThanOrEqual(2);
-      expect(
-        await browser.execute(
-          () =>
-            (window as Window & { __bottomTerminalPerfNode?: Element }).__bottomTerminalPerfNode ===
-            document.querySelector("#terminal"),
-        ),
-      ).toBe(true);
-      await click('[data-testid="terminal-toggle"]');
       for (const heavy of [false, true]) {
         if (heavy) {
           // 仅注入测试负载，真实 shell/开关/尺寸 owner 不替换；这不是会话或 provider 夹具。
@@ -123,27 +89,6 @@ describe("STF 左右侧栏开关布局性能", () => {
           );
         await browser.saveScreenshot(join(artifactDir, `${prefix}.png`));
       }
-      await click(rightToggle);
-      await $('[data-state="active"] [data-side-pane-open-tab-item="terminal"]').click();
-      await browser.waitUntil(
-        async () =>
-          !/New tab|新标签页/.test(
-            await $('[data-side-pane-tab-id][data-state="active"]').getText(),
-          ),
-      );
-      const tab = await $('[data-side-pane-tab-id][data-state="active"]').getAttribute(
-        "data-side-pane-tab-id",
-      );
-      const before = await geometry();
-      results.push(await measure(`${width}-terminal-close`, rightToggle));
-      results.push(await measure(`${width}-terminal-restore`, rightToggle));
-      expect(
-        await $('[data-side-pane-tab-id][data-state="active"]').getAttribute(
-          "data-side-pane-tab-id",
-        ),
-      ).toBe(tab);
-      expect(Math.abs((await geometry()).right - before.right)).toBeLessThanOrEqual(2);
-      await browser.saveScreenshot(join(artifactDir, `${width}-terminal-restored.png`));
       await click('[data-testid="side-pane-full-view-toggle"]');
       expect(
         await $("[data-side-pane-full-view-host]").getAttribute("data-side-pane-full-view-host"),

@@ -40,7 +40,6 @@ import { type TabStore, type TabStoreState } from "@/store/tabStore.js";
 import type { RootProps } from "@/root/types.js";
 import {
   hadPersistedPaneLayoutAtModuleLoad,
-  INITIAL_PANE_LAYOUT,
   usePaneLayoutStore,
 } from "@/v4/paneLayoutStore.js";
 import { resolveWorkbenchNewTaskTarget } from "@/conversation-workspace-target/workbenchTarget.js";
@@ -769,32 +768,6 @@ export function useRootWorkspaceActions({
     }
   }, [activeWorkspaceIdentity, activeWorkspacePath, tabStoreApi]);
 
-  // 设置页（分享管理）跳到指定会话：与自动化「打开会话」共用 workspace 解析，
-  // 远程 tab 未打开时 fail-closed，不凭 identity 伪造远程 tab。
-  const handleOpenTaskFromSettings = useCallback(
-    (target: { workspacePath: string; workspaceIdentity?: string; taskId: string }) => {
-      const workspaceResult = ensureTaskNavigationWorkspace({
-        workspacePath: target.workspacePath,
-        workspaceIdentity: target.workspaceIdentity,
-        activateTabByPath: (workspacePath, options) =>
-          tabStoreApi.getState().activateTabByPath(workspacePath, options),
-        addLocalWorkspaceTab: (workspacePath) => addTab(workspacePath),
-      });
-      if (!workspaceResult.accepted) {
-        logger.warn("[Root] open task from settings rejected", {
-          reason: workspaceResult.reason,
-        });
-        toast(intl.formatMessage({ id: "automations.runs.openSessionFailed" }));
-        return;
-      }
-      useZCodeSessionStore
-        .getState()
-        .setActiveTaskId(target.workspacePath, target.taskId, target.workspaceIdentity);
-      notifyTaskNavigationCommitted(target);
-    },
-    [addTab, intl, tabStoreApi],
-  );
-
   return {
     workspaceActionError,
     setWorkspaceActionError,
@@ -810,6 +783,5 @@ export function useRootWorkspaceActions({
     handleOpenFolderFromWorkspaceMenu,
     handleCreateTask,
     handleBackFromSettings,
-    handleOpenTaskFromSettings,
   };
 }

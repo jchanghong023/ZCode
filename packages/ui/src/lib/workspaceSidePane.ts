@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- Side pane tab 状态集中维护 Browser/Git/CodeViewer/Treemapping/Whiteboard 的打开、复用、关闭和排序规则；拆分需要同步迁移现有内存恢复逻辑。 */
+/* eslint-disable max-lines -- Side pane tab 状态集中维护 Browser/Git/CodeViewer 的打开、复用、关闭和排序规则；拆分需要同步迁移现有内存恢复逻辑。 */
 import {
   createUuid,
   type BrowserTabResidencyState,
@@ -9,7 +9,7 @@ import type {
   ExtensionLogsSidePaneTab,
   ExtensionViewSidePaneTab,
 } from "@/extension-slots/contract.js";
-import { inferMediaPreview, isPptxPreviewPath, type CodeViewerSource } from "@/lib/codeViewer.js";
+import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import { normalizeCodeViewerSource } from "@/lib/codeViewerSource.js";
 
 export interface BrowserSidePaneTab {
@@ -80,40 +80,6 @@ export interface CodeViewerSidePaneTab {
   sourceKey: string | null;
 }
 
-export type TreemappingSidePaneSource =
-  | { kind: "current" }
-  | { kind: "message"; messageId: string; turnIndex?: number };
-
-export interface TreemappingSidePaneTab {
-  id: "treemapping";
-  type: "treemapping";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-  source?: TreemappingSidePaneSource;
-}
-
-export interface WhiteboardSidePaneTab {
-  id: string;
-  type: "whiteboard";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  boardId: string;
-  openedAt?: number;
-  title: string;
-}
-
-export interface ModelTrajectorySidePaneTab {
-  id: string;
-  type: "model-trajectory";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-  /** 目标 task/session id；model-io 按该 id 匹配。 */
-  taskId: string;
-  title?: string | null;
-}
-
 export interface PluginMarketSidePaneTab {
   id: "plugin-market";
   type: "plugin-market";
@@ -128,17 +94,6 @@ export interface DeveloperToolsSidePaneTab {
   ownerTaskId?: string | null;
   workspaceKey?: string | null;
   openedAt?: number;
-}
-
-export interface TerminalSidePaneTab {
-  id: string;
-  type: "terminal";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-  title: string;
-  cwd?: string;
-  remoteSessionId?: string | null;
 }
 
 /** browser-use 受控浏览器视图（renderer `<webview>` + main CDP）。 */
@@ -576,12 +531,8 @@ export type WorkspaceSidePaneTab =
   | BrowserPermissionsSidePaneTab
   | GitSidePaneTab
   | CodeViewerSidePaneTab
-  | TreemappingSidePaneTab
-  | WhiteboardSidePaneTab
-  | ModelTrajectorySidePaneTab
   | PluginMarketSidePaneTab
   | DeveloperToolsSidePaneTab
-  | TerminalSidePaneTab
   | BrowserUseSidePaneTab
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
@@ -623,6 +574,13 @@ export interface WorkspaceSidePaneState {
   activeTabId: string;
 }
 
+const LEGACY_REMOVED_SIDE_PANE_TAB_TYPES: ReadonlySet<string> = new Set([
+  "treemapping",
+  "whiteboard",
+  "model-trajectory",
+  "browser",
+]);
+
 export function normalizeWorkspaceSidePaneState(
   current: WorkspaceSidePaneState | null,
 ): WorkspaceSidePaneState | null {
@@ -630,9 +588,11 @@ export function normalizeWorkspaceSidePaneState(
     return null;
   }
 
-  // Treemapping 当前需要从侧边栏隐藏。旧版本可能已经把 treemapping tab
-  // 写进了 workspace 级 side pane 记忆，这里在状态边界统一过滤，避免恢复后入口继续出现。
-  const filteredTabs = current.tabs.filter((tab) => tab.type !== "treemapping");
+  // Treemapping、Whiteboard、Model Trajectory 已从产品移除。旧版本可能已经把对应 tab
+  // 写进了 workspace 级 side pane 内存，这里在状态边界统一过滤，避免恢复后出现未知 tab。
+  const filteredTabs = current.tabs.filter(
+    (tab) => !LEGACY_REMOVED_SIDE_PANE_TAB_TYPES.has(tab.type),
+  );
   if (filteredTabs.length === 0) {
     return null;
   }
@@ -712,51 +672,11 @@ function createGitSidePaneTab(): GitSidePaneTab {
   return { id: "git", type: "git", openedAt: Date.now() };
 }
 
-function createTreemappingSidePaneTab(
-  source: TreemappingSidePaneSource = { kind: "current" },
-): TreemappingSidePaneTab {
-  return {
-    id: "treemapping",
-    type: "treemapping",
-    openedAt: Date.now(),
-    source,
-  };
-}
-
-function createModelTrajectorySidePaneTab(options: {
-  taskId: string;
-  title?: string | null;
-}): ModelTrajectorySidePaneTab {
-  return {
-    // 同一个 task 复用同一个 tab，避免重复打开多份相同轨迹。
-    id: `model-trajectory:${options.taskId}`,
-    type: "model-trajectory",
-    openedAt: Date.now(),
-    taskId: options.taskId,
-    title: options.title ?? null,
-  };
-}
-
 function createDeveloperToolsSidePaneTab(): DeveloperToolsSidePaneTab {
   return {
     id: "developer-tools",
     type: "developer-tools",
     openedAt: Date.now(),
-  };
-}
-
-function createTerminalSidePaneTab(options: {
-  title: string;
-  cwd?: string;
-  remoteSessionId?: string | null;
-}): TerminalSidePaneTab {
-  return {
-    id: `terminal:${createUuid()}`,
-    type: "terminal",
-    openedAt: Date.now(),
-    title: options.title,
-    ...(options.cwd ? { cwd: options.cwd } : {}),
-    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
   };
 }
 
@@ -1000,41 +920,21 @@ function createWorkflowArtifactSidePaneTab(
   };
 }
 
-function createWhiteboardSidePaneTab(options: {
-  boardId: string;
-  title: string;
-}): WhiteboardSidePaneTab {
-  return {
-    id: `whiteboard:${options.boardId}`,
-    type: "whiteboard",
-    boardId: options.boardId,
-    openedAt: Date.now(),
-    title: options.title,
-  };
-}
-
 function getCodeViewerTabSourceKey(source: CodeViewerSource): string | null {
   const workspaceScope = source.workspaceIdentity?.trim()
     ? source.workspaceIdentity.trim()
     : (source.workspacePath ?? "");
   const scopedKeyPrefix = workspaceScope ? `${workspaceScope}:` : "";
-  // 文件树把 PPTX 表示为通用 `file` source，引用反向打开则使用带导航意图的
-  // `pptx` source。旧 key 直接包含 source.type，导致同一 workspace 路径被拆成两个 tab。
-  // source type 只是入口表示，不是文件身份；这里只归一 PPTX，避免扩大其它预览类型的语义。
   const resourceType =
-    source.type === "pptx" || (source.type === "file" && isPptxPreviewPath(source.path))
-      ? "pptx"
-      : source.type === "media" || (source.type === "file" && inferMediaPreview(source.path))
-        ? "media"
-        : source.type;
+    source.type === "media" || (source.type === "file" && inferMediaPreview(source.path))
+      ? "media"
+      : source.type;
 
   if (
     source.type === "file" ||
     source.type === "code-review" ||
     source.type === "image" ||
-    source.type === "media" ||
-    source.type === "pdf" ||
-    source.type === "pptx"
+    source.type === "media"
   ) {
     return `${scopedKeyPrefix}${resourceType}:${source.path}`;
   }
@@ -1191,7 +1091,6 @@ export function isSidePaneTabVisibleInScope(
     // 扩展日志同样是工作区级（§16.8）。
     case "extension-logs":
     case "plugin-market":
-    case "treemapping":
       return true;
     case "browser-use":
       return tab.sessionId === scope.ownerTaskId;
@@ -1211,10 +1110,7 @@ export function isSidePaneTabVisibleInScope(
     case "browser-permissions":
     case "file-manager":
     case "code-viewer":
-    case "whiteboard":
-    case "model-trajectory":
     case "new-tab":
-    case "terminal":
       return sidePaneOwnerKey(tab.ownerTaskId) === sidePaneOwnerKey(scope.ownerTaskId);
   }
 }
@@ -1237,9 +1133,6 @@ const DRAFT_ADOPTABLE_TAB_TYPES = new Set<WorkspaceSidePaneTab["type"]>([
   "browser-permissions",
   "file-manager",
   "code-viewer",
-  "whiteboard",
-  "model-trajectory",
-  "terminal",
 ]);
 
 /** 草稿首发升级为正式任务时，把草稿 scope 中按 ownerTaskId 归属的可见 tab 迁到新任务。 */
@@ -1867,33 +1760,6 @@ export function activateGitSidePane(
   return activateSidePaneTab(current, createGitSidePaneTab());
 }
 
-export function activateTreemappingSidePane(
-  current: WorkspaceSidePaneState | null,
-  source?: TreemappingSidePaneSource,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createTreemappingSidePaneTab(source));
-}
-
-export function openWhiteboardSidePane(
-  current: WorkspaceSidePaneState | null,
-  options: {
-    boardId: string;
-    title: string;
-  },
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createWhiteboardSidePaneTab(options));
-}
-
-export function openModelTrajectorySidePane(
-  current: WorkspaceSidePaneState | null,
-  options: {
-    taskId: string;
-    title?: string | null;
-  },
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createModelTrajectorySidePaneTab(options));
-}
-
 export function activatePluginMarketSidePane(
   current: WorkspaceSidePaneState | null,
 ): WorkspaceSidePaneState {
@@ -1954,13 +1820,6 @@ export function moveAppScopedExtensionViewTabs(
   const tabs = [...(next?.tabs ?? []), ...added];
   if (tabs.length === 0) return { previous: remaining, next: null };
   return { previous: remaining, next: { tabs, activeTabId: next?.activeTabId || tabs[0]!.id } };
-}
-
-export function openTerminalSidePane(
-  current: WorkspaceSidePaneState | null,
-  options: { title: string; cwd?: string; remoteSessionId?: string | null },
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createTerminalSidePaneTab(options));
 }
 
 export function openSubagentSessionSidePane(

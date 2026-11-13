@@ -17,7 +17,7 @@ export function ContextMentionOptionContent({
           options={{
             basePath: workspacePath,
             // 这里只给 file/directory 传 kind，让 fileDisplay 继续按文件和文件夹图标渲染；
-            // whiteboard 等非文件类候选不应该伪装成文件路径。
+            // 其它非文件类候选不应该伪装成文件路径。
             kind:
               item.data?.kind === "file" || item.data?.kind === "directory"
                 ? item.data.kind

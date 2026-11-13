@@ -202,7 +202,7 @@ for (const mobile of [false, true])
 
 for (const mobile of [false, true])
   for (const theme of ["light", "dark"])
-    for (const mode of ["tail", "final", "cua", "stream"])
+    for (const mode of ["tail", "final", "stream"])
       test(`SSV05 group identity ${mobile ? "mobile" : "desktop"}/${theme}/${mode}`, async () => {
         const page = await browser.newPage({
           viewport: { width: mobile ? 430 : 1250, height: 800 },
@@ -248,7 +248,7 @@ for (const mobile of [false, true])
                 probe.animationRestarts += 1;
             });
           }, rowId);
-          for (const expected of [120, 180, 240, mode === "final" || mode === "cua" ? 242 : 241]) {
+          for (const expected of [120, 180, 240, mode === "final" ? 242 : 241]) {
             await page.getByRole("button", { name: "Next page", exact: true }).click();
             await page.waitForFunction(
               (count) =>

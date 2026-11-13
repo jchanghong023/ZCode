@@ -32,7 +32,7 @@ App 允许设置「数据存储路径」（`setting.json.dataBaseDir`），但**
 | Computer Use Helper、日志导出对 cli 目录的引用 | `homedir()/.zcode/...`                                                                           | 否（硬编码）             | `packages/desktop/src/main/exportLogs.ts:34-48`                                  |
 | `v2/setting.json` 本身                         | 永远写在真实 HOME（bootstrap 文件）                                                              | 刻意不跟随               | `packages/services/src/setting/settingService.ts:36-46`                          |
 | GLM provider 的 workspace 配置目录             | `getDataBaseDir()/.zcode/cli/...`，与上面 CLI 读 `~/.zcode/cli` 两套口径并存                     | 是                       | `packages/services/src/paths.ts:295-299, 355-362`                                |
-| 轨迹查看器读 model-io                          | 同时扫 `homedir()` 与 `dataBaseDir` 两处                                                         | 两处都读                 | `packages/services/src/zcode-agent/modelTrajectoryFileTail.ts:16-22`             |
+| model-io 读取路径                               | 同时扫 `homedir()` 与 `dataBaseDir` 两处                                                         | 两处都读                 | `packages/services/src/zcode-agent/modelTrajectoryFileTail.ts:16-22`             |
 
 凭据系统密钥的登记顺序、拒绝条件与例外边界见[系统安全存储规格](plans/2026-10-29-system-credential-storage.md#数据存储路径切换2026-11-12)。
 

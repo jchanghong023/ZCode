@@ -45,7 +45,7 @@ type Terminal = {
 const { spawn } = createRequire(join(repoRoot, "packages/desktop/package.json"))("node-pty") as {
   spawn(file: string, args: string[], options: Record<string, unknown>): Pty;
 };
-const { Terminal } = createRequire(join(repoRoot, "packages/ui/package.json"))("@xterm/xterm") as {
+const { Terminal } = createRequire(join(repoRoot, "apps/zcode-cli/packages/bootstrap/package.json"))("@xterm/xterm") as {
   Terminal: new (options: Record<string, unknown>) => Terminal;
 };
 

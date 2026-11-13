@@ -233,7 +233,7 @@ describe("PLM-EXT-P2E 扩展日志控制台", () => {
       afterElectronProcessExit: () => log.mark(),
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await waitForSlot(EMIT_ITEM, (slot) => slot.text === "E2E logs", "emit slot should render");
 
     // (a) 启动页「扩展」分区的「扩展日志」一行打开 extension-logs 标签。
@@ -381,7 +381,7 @@ describe("PLM-EXT-P2E 扩展日志控制台", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       screenshots.push(await capturePluginManualReview(CASE_ID, `logs-${locale}-${theme}`));
     }
     evidence.filterLabelsEnUS = {
@@ -389,7 +389,7 @@ describe("PLM-EXT-P2E 扩展日志控制台", () => {
       level: await readFilterLabel(TID_EXTENSION_LOGS_LEVEL_FILTER),
     };
     expect(evidence.filterLabelsEnUS).toEqual({ source: "All sources", level: "All levels" });
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (g) 清空只清视图；之后的新日志照常出现。
     const lastSeqBeforeClear = Math.max(...(await readRows()).map((row) => row.seq));

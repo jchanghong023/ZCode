@@ -285,7 +285,7 @@ after:  Adapter upload/extract -> CLI verify-archive/extract/verify/restart
 
 ## 连接日志与失败契约
 
-- SSH、WSL、Docker 连接失败的“反馈”入口默认开启诊断日志上传，用户可在提交前取消勾选。预填的最近 30 行脱敏连接日志与诊断 ZIP 是两份材料，正文有日志不能关闭附件默认值；提交与恢复选择遵循[反馈日志语义](../feedback-simplified-flow.md#日志语义)。
+- SSH、WSL、Docker 连接失败时仍展示错误、最近日志与重连入口；应用内反馈表单已移除，诊断日志不再从连接失败页面直接上传。
 - Host 仅转发连接流水线 `onLog` 主动上报的进度，console 与其他服务的诊断输出不进入用户可见日志。统一过滤绝对路径、凭据、token、连接档案及设备标识；含空格路径按引号或明确路径字段边界过滤，保留路径之后的非路径失败原因；未加引号且无法消歧的路径尾部保持保守遮蔽，仅保留退出码等明确诊断；向导、最近日志与反馈使用相同过滤结果。密码、私钥口令等已知秘密只按完整 token 遮蔽（秘密两端为字母、数字或下划线时，相邻字符不能也是这类字符）；不能按子串替换，否则短密码会把 `device` 这类固定文案改成 `[redacted]ice`，反推出密码。
 - 等待安装确认记为 info。失败响应始终包含非空消息和 shared 登记的错误码；已确认领域码优先于 cause 文本推断，未明确分类的 AggregateError 和阶段包装使用可识别的内层错误。SSH 认证及已知私钥解密失败由 SSH 适配边界赋予 `remote-authentication-failed`，阶段 fallback 不覆盖该分类；本次连接尝试中，keyboard-interactive 的名称、说明或提示文字明确要求动态口令或二次验证（`verification code`、`one-time`、`OTP`、`passcode`、`second factor` / `two-factor`、`2FA`、`MFA`、`authenticator`、动态口令、动态密码）且认证最终失败时，SSH 适配边界赋予 `remote-authentication-unsupported`，不提示"检查用户名、密码或私钥"。提示的轮数和个数不是证据：错误密码后服务器在同一轮里重复问 `Password:`、或其他文字的 challenge（如 `LDAP Password:`）都保持 `remote-authentication-failed`，保留就地补密码入口；只识别不到关键词时退回认证失败，这一方向可以让用户继续补凭据。该记录只属于单次连接尝试：自动恢复复用同一个 SSH backend 重新连接时重新判断，不能沿用上一次连接看到的提示。认证成功的流程不变：每个提示仍回答同一个密码；UI 中英文分类同步，旧无 code 文本保留兼容兜底。拒绝连接/不可达、超时、DNS、可信 host-key 错误、下载、上传、预检、安装、空间、权限、取消和未知分别分类，中英文映射同步。
 - Host 连接管理服务是最近操作日志的唯一 owner；每台设备保留最近一次连接或更新最多 100 行，仅存在运行时内存。尚未握手的连接按 profile 隔离；握手后归到 sourceServerId，同设备不同线路共享最近操作。新操作替换旧日志，旧操作迟到输出不能覆盖新操作。更新后的内部重连属于同一次更新。更新期间被拒绝的连接不是新操作，不写入也不替换更新日志。

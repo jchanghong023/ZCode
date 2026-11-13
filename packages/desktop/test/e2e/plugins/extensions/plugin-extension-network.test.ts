@@ -243,7 +243,7 @@ describe("PLM-EXT-H3 扩展进程的网络跟随设置页", () => {
       },
     });
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // Main 的环境可能已有代理与 CA：capture 模式下 WDIO 把上游抓包代理的变量写进自己的环境，Electron 继承它。
     // 扩展进程的代理、No Proxy 与 CA 只来自设置页（与 CLI 相同，用户决策）：Main 环境里的这些变量一律不传。
@@ -298,14 +298,14 @@ describe("PLM-EXT-H3 扩展进程的网络跟随设置页", () => {
       { timeout: 15000, timeoutMsg: "the custom certificate should be saved in setting.json" },
     );
     await capturePluginManualReview(CASE_ID, "network-settings-zh-CN-zai-light");
-    await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1400, height: 900 });
     await browser.execute((hint) => {
       Array.from(document.querySelectorAll<HTMLInputElement>("input"))
         .find((element) => (element.placeholder ?? "").includes(hint))
         ?.scrollIntoView({ block: "center" });
     }, CA_PLACEHOLDER);
     await capturePluginManualReview(CASE_ID, "network-settings-en-US-zai-dark");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
     await closeSettings();
     const linesBeforeCa = (await log.lines()).length;
     await runReloadFromCommandCenter();

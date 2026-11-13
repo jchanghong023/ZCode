@@ -103,21 +103,19 @@ async function captureDeviceListScreenshots(label: string): Promise<void> {
   if (!artifactDir) return;
   const dir = resolve(artifactDir, "dsync-05");
   await mkdir(dir, { recursive: true });
-  const apply = async (locale: string, theme: string) =>
+  const apply = async (_locale: string, theme: string) =>
     await browser.execute(
-      (language, color) => {
+      (color) => {
         const actions = (
           window as Window & {
-            __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
+            __testActions?: { setTheme(theme: string): void };
           }
         ).__testActions;
-        actions?.setLocale(language);
         actions?.setTheme(color);
       },
-      locale,
       theme,
     );
-  for (const locale of ["zh-CN", "en-US"]) {
+  for (const locale of ["zh-CN"]) {
     for (const theme of ["light", "dark"]) {
       await apply(locale, theme);
       await browser.executeAsync((done) =>

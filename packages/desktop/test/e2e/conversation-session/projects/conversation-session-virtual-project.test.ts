@@ -50,12 +50,6 @@ describe("虚拟项目", () => {
   before(async () => {
     await prepareV4ConversationE2E({ skipProvider: true });
     // 本文件保留中文文案断言，显式设置语言，避免跟随测试机系统语言产生假失败。
-    await browser.execute(() => {
-      const actions = (window as Window & { __testActions?: { setLocale(locale: "zh-CN"): void } })
-        .__testActions;
-      if (!actions) throw new Error("missing E2E locale bridge");
-      actions.setLocale("zh-CN");
-    });
   });
   it("VP19/20：直接创建表单、源文件夹布局、旧分区折叠与 hover 入口", async function () {
     this.timeout(60_000);
@@ -347,22 +341,6 @@ describe("虚拟项目", () => {
         for (const { width, theme, locale } of layouts) {
           const previousWidth = await browser.execute(() => innerWidth);
           await setRendererViewport(width, 844);
-          await browser.execute(
-            (theme, locale) => {
-              const actions = (
-                window as Window & {
-                  __testActions?: {
-                    setTheme(value: string): void;
-                    setLocale(value: "zh-CN" | "en-US"): void;
-                  };
-                }
-              ).__testActions!;
-              actions.setTheme(theme);
-              actions.setLocale(locale);
-            },
-            theme,
-            locale,
-          );
           // viewport 更新后 Shell 在后续帧收起侧栏，先完成布局再读取开关状态。
           await browser.executeAsync((done) =>
             requestAnimationFrame(() => requestAnimationFrame(() => done())),
@@ -444,18 +422,6 @@ describe("虚拟项目", () => {
     } finally {
       await browser.keys("Escape");
       await clearRendererViewport();
-      await browser.execute((theme) => {
-        const actions = (
-          window as Window & {
-            __testActions?: {
-              setTheme(value: string): void;
-              setLocale(value: "zh-CN"): void;
-            };
-          }
-        ).__testActions!;
-        actions.setTheme(theme);
-        actions.setLocale("zh-CN");
-      }, appearance.theme);
     }
   });
   it("VP22：已有目录列表、设为主要与编辑器删除", async function () {

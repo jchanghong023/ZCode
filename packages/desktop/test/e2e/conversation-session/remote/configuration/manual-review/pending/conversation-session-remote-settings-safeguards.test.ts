@@ -143,12 +143,6 @@ describe(`${CASE_MARKER}: 设置防护、连接编辑与机器标注`, () => {
     await selectSSHRemoteDirectory(path, CASE_MARKER);
     await waitForWorkspaceApp(path, 120_000);
     const tab = await waitForRemoteTab({ caseMarker: CASE_MARKER, expectedPath: path });
-    await browser.execute(() => {
-      const actions = (window as Window & { __testActions?: { setLocale(locale: "zh-CN"): void } })
-        .__testActions;
-      if (!actions) throw new Error("Missing locale actions");
-      actions.setLocale("zh-CN");
-    });
     await section("remoteDevices");
     await $('[data-remote-connection-status="online"]').waitForDisplayed();
     // RDUX-13：编辑在设备行「更多」菜单里。
@@ -172,14 +166,7 @@ describe(`${CASE_MARKER}: 设置防护、连接编辑与机器标注`, () => {
       process.env.ZCODE_E2E_ARTIFACT_DIR ?? ".e2e-artifacts/remote-settings-safeguards",
     );
     await mkdir(artifactDir, { recursive: true });
-    for (const locale of ["zh-CN", "en-US"] as const) {
-      await browser.execute(
-        (value) =>
-          (
-            window as Window & { __testActions?: { setLocale(value: "zh-CN" | "en-US"): void } }
-          ).__testActions?.setLocale(value),
-        locale,
-      );
+    for (const locale of ["zh-CN"] as const) {
       for (const theme of ["light", "dark"]) {
         await browser.execute(
           (value) =>
@@ -205,11 +192,6 @@ describe(`${CASE_MARKER}: 设置防护、连接编辑与机器标注`, () => {
         }
       }
     }
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(value: "zh-CN"): void } }
-      ).__testActions?.setLocale("zh-CN"),
-    );
     await clickButton("取消", '[role="dialog"]');
     await browser.electron.execute((electron) =>
       electron.BrowserWindow.getAllWindows()

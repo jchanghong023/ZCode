@@ -18,15 +18,16 @@ export type SettingsSectionId =
   | "plugins"
   | "projects"
   | "archives"
-  | "shares"
   | "usage"
   | "subagents"
   | "commands"
   | "hooks"
   | "workspaceFileSearch"
-  | "computerUse"
   | "automations"
   | "shortcuts";
+
+/** 使用统计入口临时隐藏；统计实现、service 与深链保留，恢复时改为 true。 */
+export const USAGE_STATS_ENTRY_VISIBLE = false;
 
 export type SettingsUsageTabTarget = "app" | "codingPlan";
 export type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
@@ -86,13 +87,11 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "plugins" ||
     value === "projects" ||
     value === "archives" ||
-    value === "shares" ||
     value === "usage" ||
     value === "subagents" ||
     value === "commands" ||
     value === "hooks" ||
     value === "workspaceFileSearch" ||
-    value === "computerUse" ||
     value === "automations" ||
     value === "shortcuts"
   );

@@ -4,7 +4,7 @@
 
 PromptMentionNode 原来在 TextNode DOM 首部插入 img/svg，同时 getTextContent 返回 canonical Markdown。Lexical 沿 firstChild 找不到实际文字，选区 offset 又与展示文字长度不一致，导致全选端点位于 mention 时内部选区与浏览器选区分叉。
 
-适用于主 Composer（含编辑态）和消息行内编辑共享的 LexicalChatInput（行内编辑将并入 composer 编辑态，见 [Composer 编辑态](composer-edit-mode.md)），覆盖 files、skills、commands、subagents、sessions、whiteboards、plugins。
+适用于主 Composer（含编辑态）和消息行内编辑共享的 LexicalChatInput（行内编辑将并入 composer 编辑态，见 [Composer 编辑态](composer-edit-mode.md)），覆盖 files、skills、commands、subagents、sessions、plugins。
 
 ## 合同
 

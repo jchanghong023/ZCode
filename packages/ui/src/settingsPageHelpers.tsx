@@ -3,15 +3,9 @@ import type {
   AppToolSearchMode,
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
-  LocalePreference,
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
-import {
-  appToolSearchModeSchema,
-  DEFAULT_APP_TOOL_SEARCH_MODE,
-  LOCALE_NATIVE_NAMES,
-  SUPPORTED_LOCALES,
-} from "@zcode/shared";
+import { appToolSearchModeSchema, DEFAULT_APP_TOOL_SEARCH_MODE } from "@zcode/shared";
 import {
   TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH,
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
@@ -21,8 +15,6 @@ import {
 import { useState, useCallback, useEffect } from "react";
 import type { IPlatformService } from "@zcode/shared";
 import {
-  TID_SETTINGS_LOCALE_SELECT_ITEM,
-  TID_SETTINGS_LOCALE_SELECT_TRIGGER,
   testId,
 } from "@zcode/shared/test-ids";
 import {
@@ -136,7 +128,6 @@ export function TaskAutoArchiveSettings({
 }
 
 export function GeneralSectionContent({
-  localePreference,
   interfaceMode = "coding",
   setInterfaceMode = () => {},
   notificationEnabled,
@@ -162,7 +153,6 @@ export function GeneralSectionContent({
   isLinuxDesktop,
   linuxCloseToTray,
   showIntegratedTerminalShell = false,
-  setLocalePreference,
   setNotificationEnabled,
   setNotificationSoundEnabled,
   onDataBaseDirChange,
@@ -180,7 +170,6 @@ export function GeneralSectionContent({
   onAutoDownloadAndInstallUpdatesChange,
   onOpenOnboardingDialog,
 }: {
-  localePreference: LocalePreference;
   interfaceMode?: InterfaceMode;
   setInterfaceMode?: (mode: InterfaceMode) => void;
   notificationEnabled: boolean;
@@ -217,7 +206,6 @@ export function GeneralSectionContent({
   };
   showIntegratedTerminalShell?: boolean;
   platform?: IPlatformService;
-  setLocalePreference: (locale: LocalePreference) => void;
   setNotificationEnabled: (enabled: boolean) => void;
   setNotificationSoundEnabled: (enabled: boolean) => void;
   onDataBaseDirChange: (dir: string) => Promise<void>;
@@ -342,47 +330,6 @@ export function GeneralSectionContent({
 
   return (
     <div className="space-y-4">
-      <SettingsGroupCard>
-        <SettingsRow
-          searchId="settings.locale"
-          label={intl.formatMessage({ id: "settings.locale" })}
-          description={intl.formatMessage({ id: "settings.localeDescription" })}
-          control={
-            <Select
-              value={localePreference}
-              onValueChange={(value) => setLocalePreference(value as LocalePreference)}
-            >
-              <SelectTrigger
-                size="lg"
-                className="w-[260px] min-w-0 justify-between"
-                data-testid={TID_SETTINGS_LOCALE_SELECT_TRIGGER}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  value="system"
-                  data-testid={testId(TID_SETTINGS_LOCALE_SELECT_ITEM, "system")}
-                >
-                  {intl.formatMessage({ id: "settings.locale.system" })}
-                </SelectItem>
-                {/* 语言选项显示各语言本名（LOCALE_NATIVE_NAMES），不随界面语言翻译。 */}
-                {SUPPORTED_LOCALES.map((locale) => (
-                  <SelectItem
-                    key={locale}
-                    value={locale}
-                    lang={locale}
-                    data-testid={testId(TID_SETTINGS_LOCALE_SELECT_ITEM, locale)}
-                  >
-                    {LOCALE_NATIVE_NAMES[locale]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-        />
-      </SettingsGroupCard>
-
       <SettingsGroupCard>
         <SettingsRow
           searchId="settings.interfaceMode"

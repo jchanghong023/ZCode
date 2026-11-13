@@ -64,11 +64,6 @@ describe(marker, () => {
     await selectUpstreamThoughtLevelValue("disabled");
     await installHandoffRpcProbe();
     const localBefore = await callHandoffHost<ProjectTree>(ServiceChannels.Project, "readTree");
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
-    );
     const originalTargetLabel = await $(
       `[data-testid="${TID_COMPOSER_WORKSPACE_TRIGGER}"]`,
     ).getText();
@@ -147,21 +142,8 @@ describe(marker, () => {
     expect((await callHandoffHost<ProjectTree>(ServiceChannels.Project, "readTree")).tasks).toEqual(
       localBefore.tasks,
     );
-    for (const locale of ["zh-CN", "en-US"])
+    for (const locale of ["zh-CN"])
       for (const theme of ["light", "dark"]) {
-        await browser.execute(
-          (l, t) => {
-            const actions = (
-              window as Window & {
-                __testActions?: { setLocale(locale: string): void; setTheme(theme: string): void };
-              }
-            ).__testActions;
-            actions?.setLocale(l);
-            actions?.setTheme(t);
-          },
-          locale,
-          theme,
-        );
         await browser.electron.execute((electron) =>
           electron.BrowserWindow.getAllWindows()
             .find((window) => window.isVisible())
@@ -189,11 +171,6 @@ describe(marker, () => {
       electron.BrowserWindow.getAllWindows()
         .find((window) => window.isVisible())
         ?.setSize(1440, 1000),
-    );
-    await browser.execute(() =>
-      (
-        window as Window & { __testActions?: { setLocale(locale: string): void } }
-      ).__testActions?.setLocale("zh-CN"),
     );
     await browser.saveScreenshot(join(process.env.ZCODE_E2E_ARTIFACT_DIR!, "choice-desktop.png"));
     await browser.keys("Escape");

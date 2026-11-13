@@ -6,9 +6,6 @@ export interface SidePaneTabPresentationLabels {
   browserTitle: string;
   reviewTitle: string;
   codeViewerTitle: string;
-  treemappingTitle: string;
-  whiteboardTitle: string;
-  modelTrajectoryTitle: string;
   developerToolsTitle: string;
   /** 扩展日志标签（docs/plugins/extension-host.md §16.8）。 */
   extensionLogsTitle: string;
@@ -75,16 +72,11 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "new-tab") return "new tab launcher";
   if (tab.type === "git") return "git diff";
-  if (tab.type === "treemapping") return "file activity diff map treemapping";
-  if (tab.type === "whiteboard") return `${tab.title} whiteboard canvas draw sketch`;
-  if (tab.type === "model-trajectory") {
-    return `${tab.title ?? ""} ${tab.taskId} model trajectory call io`;
-  }
   if (tab.type === "plugin-market") return "plugin marketplace store plugins";
   if (tab.type === "developer-tools") {
     return "developer tools token debug network status request response headers";
   }
-  if (tab.type === "terminal" || tab.type === "bash-output")
+  if (tab.type === "bash-output")
     return `${tab.title} terminal shell command`;
   if (tab.type === "file-manager") return `${tab.target.workspacePath} ${tab.source?.path ?? ""}`;
   return tab.source.path ?? tab.source.title;
@@ -104,9 +96,6 @@ export function getLocalizedSidePaneTabTitle(
         "browser.permission.settings": labels.browserPermissionsTitle,
         "sidePane.review": labels.reviewTitle,
         "codeViewer.title": labels.codeViewerTitle,
-        "treemapping.title": labels.treemappingTitle,
-        "whiteboard.title": labels.whiteboardTitle,
-        "modelTrajectory.title": labels.modelTrajectoryTitle,
         "developerTools.title": labels.developerToolsTitle,
         "extensions.logs.title": labels.extensionLogsTitle,
         "workspace.openPluginsSettings": labels.pluginMarketTitle,
@@ -149,10 +138,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "browser-permissions") return labels.browserPermissionsTitle;
   if (tab.type === "file-manager") return labels.fileManagerTitle ?? labels.codeViewerTitle;
   if (tab.type === "git") return labels.reviewTitle;
-  if (tab.type === "treemapping") return labels.treemappingTitle;
-  if (tab.type === "whiteboard") return labels.whiteboardTitle;
-  if (tab.type === "model-trajectory") return labels.modelTrajectoryTitle;
   if (tab.type === "developer-tools") return labels.developerToolsTitle;
-  if (tab.type === "terminal" || tab.type === "bash-output") return labels.terminalTitle;
+  if (tab.type === "bash-output") return labels.terminalTitle;
   return labels.codeViewerTitle;
 }

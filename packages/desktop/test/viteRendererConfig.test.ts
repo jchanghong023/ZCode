@@ -83,26 +83,6 @@ describe("desktop renderer Vite dependency aliases", () => {
     });
   });
 
-  it("publishes PDF.js CMaps for non-latin PDF rendering", async () => {
-    const desktopRoot = resolve(import.meta.dirname, "..");
-    const configFile = resolve(desktopRoot, "vite.config.ts");
-    const result = await loadConfigFromFile(
-      {
-        command: "build",
-        mode: "production",
-        isPreview: false,
-        isSsrBuild: false,
-      },
-      configFile,
-      desktopRoot,
-      "silent",
-    );
-
-    expect(result?.config.plugins?.some((plugin) => plugin.name === "zcode:pdfjs-cmaps")).toBe(
-      true,
-    );
-  });
-
   it("injects the E2E store bridge only from the runner flag", async () => {
     vi.stubEnv("ZCODE_ENV", "test");
     vi.stubEnv("VITE_ZCODE_E2E_STORE_BRIDGE", "1");

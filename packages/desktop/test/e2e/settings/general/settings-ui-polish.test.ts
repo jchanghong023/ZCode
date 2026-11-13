@@ -101,7 +101,7 @@ describe("设置页 UI polish E2E", () => {
     expect(await settingsLogo.$("svg").getSize("width")).toBe(13);
     expect(await settingsLogo.$("animate").isExisting()).toBe(false);
     for (const theme of ["light", "dark"]) {
-      await setPresentation({ locale: "zh-CN", theme });
+      await setPresentation({ theme });
       expect(await settingsLogo.$("svg").getSize("width")).toBe(13);
       const screenshotDir = join(process.cwd(), ".e2e-artifacts", "desktop-logo");
       await mkdir(screenshotDir, { recursive: true });
@@ -794,8 +794,7 @@ describe("设置页 UI polish E2E", () => {
     await setRendererViewport(390, 844);
     try {
       for (const presentation of [
-        { locale: "zh-CN", theme: "dark" },
-        { locale: "en-US", theme: "light" },
+        { theme: "dark" },
       ]) {
         await setPresentation(presentation);
         await verifyModelEditorFocusFeedback();
@@ -890,7 +889,7 @@ describe("设置页 UI polish E2E", () => {
       ).toBe(true);
     } finally {
       await clearRendererViewport();
-      await setPresentation({ locale: "zh-CN", theme: "dark" });
+      await setPresentation({ theme: "dark" });
     }
 
     await browser.waitUntil(
@@ -1123,8 +1122,7 @@ describe("设置页 UI polish E2E", () => {
     await clickVisibleButton(/保存|Save/);
     await $('[data-model-settings-scroll="true"]').waitForExist({ reverse: true });
     for (const presentation of [
-      { locale: "zh-CN", theme: "dark" },
-      { locale: "en-US", theme: "light" },
+      { theme: "dark" },
     ]) {
       await setPresentation(presentation);
       const badge = $(
@@ -1234,13 +1232,11 @@ async function verifyModelEditorFocusFeedback(): Promise<void> {
   await browser.waitUntil(async () => (await readStyle()).background === normal.background);
 }
 
-async function setPresentation(input: { locale: string; theme: string }): Promise<void> {
+async function setPresentation(input: { theme: string }): Promise<void> {
   const error = await browser.executeAsync((next, done: (error?: string) => void) => {
     const actions = (window as typeof window & { __testActions?: Record<string, unknown> })
       .__testActions;
-    if (typeof actions?.setLocale !== "function" || typeof actions?.setTheme !== "function")
-      return done("missing presentation test actions");
-    (actions.setLocale as (value: string) => void)(next.locale);
+    if (typeof actions?.setTheme !== "function") return done("missing presentation test actions");
     (actions.setTheme as (value: string) => void)(next.theme);
     requestAnimationFrame(() => requestAnimationFrame(() => done()));
   }, input);

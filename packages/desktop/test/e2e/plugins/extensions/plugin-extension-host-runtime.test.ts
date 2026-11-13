@@ -293,7 +293,7 @@ describe("PLM-EXT-2A 扩展进程基础设施与插槽", () => {
     // 配好上游模型并进入真实草稿：草稿有预热会话，composer.status 的点击作用域是会话。
     await prepareV4ConversationE2E();
     await setCurrentElectronRendererContentSize(1400, 900);
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (a) 激活后 composer.status 显示在用量圆环左边。
     await waitForSlotText(STATUS_ITEM, READY_TEXT, 60000);
@@ -460,13 +460,13 @@ describe("PLM-EXT-2A 扩展进程基础设施与插槽", () => {
       ["en-US", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       screenshots.push(await capturePluginManualReview(CASE_ID, `slots-${locale}-${theme}`));
     }
     evidence.screenshots = screenshots;
 
     // 工具栏变窄时扩展条目最先收起（只留图标）：任何其他档位收起时，扩展条目必须已收起。
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 900, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 900, height: 900 });
     await browser.waitUntil(
       async () =>
         browser.execute(
@@ -488,7 +488,7 @@ describe("PLM-EXT-2A 扩展进程基础设施与插槽", () => {
     );
     evidence.narrowCollapse = collapse;
     screenshots.push(await capturePluginManualReview(CASE_ID, "composer-narrow-zh-CN-zai-light"));
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // (b) 杀掉扩展进程：gen + 1 重启，插槽文字由扩展重新设置（动态值随进程清空）。
     const first = await readStatusState();
@@ -567,10 +567,10 @@ describe("PLM-EXT-2A 扩展进程基础设施与插槽", () => {
       ["zh-CN", "zai-light"],
       ["en-US", "zai-dark"],
     ] as const) {
-      await setPluginPresentation({ locale, theme, width: 1400, height: 900 });
+      await setPluginPresentation({ theme, width: 1400, height: 900 });
       screenshots.push(await capturePluginManualReview(CASE_ID, `stopped-${locale}-${theme}`));
     }
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 1400, height: 900 });
+    await setPluginPresentation({ theme: "zai-light", width: 1400, height: 900 });
 
     // 命令中心「重新加载扩展」：清零预算并重启，已停止时也能用。
     await runReloadFromCommandCenter();

@@ -21,7 +21,7 @@ export function getPromptMentionVariantClassName(category: MentionCategory): str
   if (category === "plugins" || category === "extensions") {
     return "text-plugin-node-foreground";
   }
-  if (category === "whiteboards" || category === "elements") {
+  if (category === "elements") {
     return "text-file-node-foreground";
   }
   return "text-file-node-foreground";

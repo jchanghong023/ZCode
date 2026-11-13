@@ -2478,7 +2478,9 @@ app.whenReady().then(async () => {
     });
   }
 
-  registerAppControlNavigationIpc(ipcMain, (contents) => BrowserWindow.fromWebContents(contents));
+  registerAppControlNavigationIpc(ipcMain, (contents: Electron.WebContents) =>
+    BrowserWindow.fromWebContents(contents),
+  );
   registerPlatformIpcHandlers({
     fetchHelpConfig: readHelpConfig,
     logger,

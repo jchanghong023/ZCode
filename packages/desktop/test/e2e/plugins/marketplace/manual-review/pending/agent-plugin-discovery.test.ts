@@ -145,7 +145,7 @@ async function checkRecommendationSetting(expected: boolean, next?: boolean, che
         .find((window) => window.webContents.getURL() === url)
         ?.setMinimumSize(320, 480);
     }, rendererUrl);
-    await setPluginPresentation({ locale: "en-US", theme: "zai-light", width: 390, height: 844 });
+    await setPluginPresentation({ theme: "zai-light", width: 390, height: 844 });
     await browser.execute(() => {
       document
         .querySelector('[data-testid="settings-plugin-auto-recommendation"]')
@@ -163,7 +163,7 @@ async function checkRecommendationSetting(expected: boolean, next?: boolean, che
       }),
     ).toBe(true);
     await capturePluginManualReview("plm-lc-021", "setting-default-light-narrow");
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-dark", width: 1200, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
   }
   await clickTestIdByDom(TID_SETTINGS_BACK_BUTTON);
   if (restoreHiddenSidebar) await browser.$('button[aria-label="切换侧边栏"]').click();
@@ -179,7 +179,7 @@ describe("PLM-LC-021 Agent official plugin discovery", () => {
     requirePluginManualReview();
     const readEnabledScopes = await seedDisabledPlugin();
     await prepareV4ConversationE2E();
-    await setPluginPresentation({ locale: "zh-CN", theme: "zai-dark", width: 1200, height: 900 });
+    await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
     await checkRecommendationSetting(false, undefined, true);
     await checkDisabledRequest();
     await checkRecommendationSetting(false, true);
@@ -233,7 +233,7 @@ describe("PLM-LC-021 Agent official plugin discovery", () => {
           .find((window) => window.webContents.getURL() === url)
           ?.setMinimumSize(320, 480);
       }, rendererUrl);
-      await setPluginPresentation({ locale: "zh-CN", theme: "zai-light", width: 390, height: 844 });
+      await setPluginPresentation({ theme: "zai-light", width: 390, height: 844 });
       await waitForTestIdByDom("plugin-install-card", { timeout: 15_000 });
       await browser.waitUntil(
         () =>
@@ -275,10 +275,10 @@ describe("PLM-LC-021 Agent official plugin discovery", () => {
       await captureStep("05-skipped-no-installation");
       await expectDiscoveryTools("E2E_AGENT_PLUGIN_SKIP", true);
 
-      await setPluginPresentation({ locale: "zh-CN", theme: "zai-dark", width: 1200, height: 900 });
+      await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
       await checkRecommendationSetting(true);
       await startWorkspaceDraft();
-      await setPluginPresentation({ locale: "en-US", theme: "zai-dark", width: 1200, height: 900 });
+      await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
       await setV4ComposerText(INSTALL_PROMPT);
       await captureStep("06-new-install-request");
       await sendV4PromptAndWaitAccepted(
@@ -297,7 +297,7 @@ describe("PLM-LC-021 Agent official plugin discovery", () => {
         "Install and enable in this workspace",
       );
       await captureStep("07-install-confirmation");
-      await setPluginPresentation({ locale: "en-US", theme: "zai-light", width: 390, height: 844 });
+      await setPluginPresentation({ theme: "zai-light", width: 390, height: 844 });
       expect(
         await browser.execute(() => {
           const button = document.querySelector<HTMLElement>(
@@ -312,7 +312,7 @@ describe("PLM-LC-021 Agent official plugin discovery", () => {
         }),
       ).toBe(true);
       await captureStep("07b-narrow-install-confirmation");
-      await setPluginPresentation({ locale: "zh-CN", theme: "zai-dark", width: 1200, height: 900 });
+      await setPluginPresentation({ theme: "zai-dark", width: 1200, height: 900 });
       const sessionId = (await getV4ConversationState()).taskId;
       if (!sessionId) throw new Error("安装确认时缺少 sessionId");
       const pane = browser.$(`[data-session-id="${sessionId}"][data-session-generation]`);

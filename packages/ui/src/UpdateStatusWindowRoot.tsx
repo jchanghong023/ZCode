@@ -1,4 +1,4 @@
-import type { IPlatformService, Locale, UpdateStatePayload } from "@zcode/shared";
+import type { IPlatformService, UpdateStatePayload } from "@zcode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";
@@ -6,15 +6,12 @@ import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 
 export function UpdateStatusWindowRoot({
   platform,
-  initialLocale,
   onRequestClose,
 }: {
   platform: IPlatformService;
-  initialLocale: Locale;
   onRequestClose: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  const [locale, setLocale] = useState<Locale>(initialLocale);
   const [updateState, setUpdateState] = useState<UpdateStatePayload | null>(null);
   const [readyVersion, setReadyVersion] = useState<string | null>(null);
   const revisionRef = useRef(0);
@@ -56,11 +53,6 @@ export function UpdateStatusWindowRoot({
         setReadyVersion(version);
       }),
     );
-    disposers.push(
-      platform.onApplicationLocaleChanged?.((nextLocale) => {
-        setLocale(nextLocale);
-      }) ?? (() => {}),
-    );
 
     return () => {
       for (const dispose of disposers) {
@@ -73,7 +65,7 @@ export function UpdateStatusWindowRoot({
     <div className="min-h-screen bg-transparent text-foreground">
       {/* 独立更新窗口不挂 workspace setting/broadcast service，不能只依赖启动时 locale。
           主窗口切语言后由 main 进程推送最新解析语言，这里重建 Provider 让弹窗文案实时跟随。 */}
-      <ZCodeIntlProvider key={locale} initialLocale={locale}>
+      <ZCodeIntlProvider>
         <UpdateStatusDialogController
           platform={platform}
           version={readyVersion}
