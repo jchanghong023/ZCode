@@ -54,9 +54,11 @@ function wrapWebSocket(ws: WebSocket): ISocket {
     onClose: onClose.event,
     onEnd: onEnd.event,
     write(buffer: VSBuffer) {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(buffer.buffer);
+      // 修复原因（P0-1）：非 OPEN 状态静默丢弃会掩盖发送失败；抛错让上层感知断链。
+      if (ws.readyState !== ws.OPEN) {
+        throw new Error("WebSocket is not open");
       }
+      ws.send(buffer.buffer);
     },
     end() {
       ws.close();

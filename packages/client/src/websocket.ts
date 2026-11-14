@@ -43,9 +43,12 @@ function wrapBrowserWebSocket(ws: WebSocket): ISocket {
     onClose: onClose.event,
     onEnd: onEnd.event,
     write(buffer: VSBuffer) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(buffer.buffer as Uint8Array<ArrayBuffer>);
+      // 修复原因（P0-1）：非 OPEN 状态静默丢弃会让断线后的请求永久挂起；
+      // 抛错沿 ChannelClient.sendRequest 的失败路径变成请求 rejection。
+      if (ws.readyState !== WebSocket.OPEN) {
+        throw new Error("WebSocket is not open");
       }
+      ws.send(buffer.buffer as Uint8Array<ArrayBuffer>);
     },
     end() {
       ws.close();
@@ -69,6 +72,7 @@ export function connectViaWebSocket(
 
     ws.addEventListener("error", () => {
       if (!settled) {
+        settled = true;
         reject(new Error(`WebSocket connection failed: ${wsUrl}`));
       }
     });
@@ -80,6 +84,7 @@ export function connectViaWebSocket(
       });
 
       if (!settled) {
+        settled = true;
         reject(
           new Error(
             event.reason
@@ -91,10 +96,22 @@ export function connectViaWebSocket(
     });
 
     ws.addEventListener("open", () => {
-      settled = true;
       options?.onOpenSocket?.(ws);
       const socket = wrapBrowserWebSocket(ws);
-      resolve(connectViaProtocol(new SocketProtocol(socket)));
+      const protocol = new SocketProtocol(socket);
+      const client = new ChannelClient(protocol);
+      // 修复原因（P0-1）：Initialize 超时/半开连接时 client 自行 dispose，但 ws 可能
+      // 仍是 OPEN，close 事件不会到来。终结必须关闭底层 socket，让调用方的 onClose
+      // 生命周期（重连管理器）可达。
+      client.onDidClose(() => {
+        ws.close();
+      });
+      client.onDidInitialize(() => {
+        if (!settled) {
+          settled = true;
+          resolve(new RemoteServiceAccess(client));
+        }
+      });
     });
   });
 }

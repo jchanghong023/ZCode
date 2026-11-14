@@ -71,6 +71,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   private unackBytes = 0;
   private saturated = false;
   private overflowed = false;
+  private closeFired = false;
 
   // 心跳
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
@@ -116,6 +117,9 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
     this.disposables.add(
       this.socket.onClose(() => {
         this._onSocketClose.fire();
+        // 修复原因（P0-1）：socket 关闭也是协议终结，ChannelClient 依赖 onClose
+        // fail-closed；原来只通知重连观察面，裸用 PersistentProtocol 时请求会永久挂起。
+        this.fireClose();
       }),
     );
   }
@@ -245,6 +249,15 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
     this.writeMessage(
       new ProtocolMessage(ProtocolMessageType.Disconnect, 0, this.incomingAckId, VSBuffer.alloc(0)),
     );
+    this.fireClose();
+  }
+
+  /** onClose 至多触发一次；Disconnect 帧、socket 关闭与本地 dispose 共用同一边沿。 */
+  private fireClose(): void {
+    if (this.closeFired) {
+      return;
+    }
+    this.closeFired = true;
     this._onClose.fire();
   }
 
@@ -279,6 +292,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   }
 
   dispose(): void {
+    this.fireClose();
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
     }

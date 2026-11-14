@@ -13,6 +13,7 @@ import {
   Root,
   ZCodeIntlProvider,
   generateMobileDeviceFingerprint,
+  logger,
   setStreamClientId,
   type Theme,
 } from "@zcode/ui";
@@ -99,6 +100,35 @@ function renderWebBootstrapFailure(error: unknown): void {
   );
 }
 
+/** 断线重建 accessor 的退避序列（毫秒）；用尽后停留在显式断线屏。 */
+const WEB_RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 15000, 30000];
+
+function renderWebDisconnected(message: string, onRetry?: () => void): void {
+  document.title = "ZCode - Web (disconnected)";
+  root.render(
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        flexDirection: "column",
+        gap: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--text-secondary, #888)",
+      }}
+    >
+      <p>Connection lost: {message}</p>
+      {onRetry ? (
+        <button type="button" onClick={onRetry}>
+          Reconnect
+        </button>
+      ) : (
+        <p>Reconnecting…</p>
+      )}
+    </div>,
+  );
+}
+
 function isWebOAuthCallback(): boolean {
   return isWebOAuthCallbackUrl(new URL(window.location.href));
 }
@@ -174,17 +204,19 @@ async function bootstrapWebApp() {
     return;
   }
 
-  try {
-    const services = await connectViaWebSocket(bootstrap.wsUrl, {
-      onClose: () => {},
-    });
-    const platform = createWebPlatform();
-    document.title = "ZCode - Web + Server";
+  const platform = createWebPlatform();
+  // 每次重建连接都换 key：Root 及其 store/订阅整体重挂载，v4 走 fresh-subscribe，
+  // 不在旧 accessor 上原地续传（等价刷新恢复路径，见 docs/v4-refactor/05 §8.2）。
+  let connectionGeneration = 0;
 
+  const renderApp = (services: Awaited<ReturnType<typeof connectViaWebSocket>>) => {
+    connectionGeneration += 1;
+    document.title = "ZCode - Web + Server";
     root.render(
       <AppErrorBoundary>
         <ZCodeIntlProvider>
           <Root
+            key={connectionGeneration}
             services={services}
             platform={platform}
             initialWorkspaceAbsPath={bootstrap.initialWorkspaceAbsPath}
@@ -197,9 +229,84 @@ async function bootstrapWebApp() {
         </ZCodeIntlProvider>
       </AppErrorBoundary>,
     );
-  } catch (error) {
-    renderWebBootstrapFailure(error);
-  }
+  };
+
+  // 修复原因（P0-1）：原实现 onClose 传空函数，断线后 UI 无感知、请求永久挂起。
+  // 现在断线进入显式 disconnected 状态，按退避重建 accessor；ChannelClient 已保证
+  // 旧连接上的 pending 请求全部 fail-closed，这里只负责生命周期与可见状态。
+  let reconnectAttempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let connecting = false;
+  let closed = false;
+  let activeSocket: WebSocket | null = null;
+
+  const scheduleReconnect = () => {
+    if (reconnectTimer !== null || connecting) {
+      return;
+    }
+    if (reconnectAttempt >= WEB_RECONNECT_DELAYS_MS.length) {
+      renderWebDisconnected("server unreachable", () => {
+        reconnectAttempt = 0;
+        void connect();
+      });
+      return;
+    }
+    const delay = WEB_RECONNECT_DELAYS_MS[reconnectAttempt];
+    reconnectAttempt += 1;
+    renderWebDisconnected("reconnecting");
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      void connect();
+    }, delay);
+  };
+
+  const connect = async (): Promise<void> => {
+    if (connecting) {
+      return;
+    }
+    connecting = true;
+    try {
+      const services = await connectViaWebSocket(bootstrap.wsUrl, {
+        onOpenSocket: (ws) => {
+          activeSocket = ws;
+        },
+        onClose: (event) => {
+          // 只处理当前活跃 socket 的关闭；被替换的旧 socket 迟到事件不再触发重连。
+          if (activeSocket === null) {
+            return;
+          }
+          activeSocket = null;
+          closed = true;
+          logger.warn(
+            `[web] RPC transport closed (code=${event.code}, reason=${event.reason || "none"})`,
+          );
+          scheduleReconnect();
+        },
+      });
+      closed = false;
+      reconnectAttempt = 0;
+      renderApp(services);
+    } catch (error) {
+      if (connectionGeneration === 0) {
+        // 首次连接失败：保留原有 bootstrap 失败语义，不进入重连循环。
+        renderWebBootstrapFailure(error);
+        return;
+      }
+      logger.warn("[web] RPC reconnect failed", error);
+      scheduleReconnect();
+    } finally {
+      connecting = false;
+    }
+  };
+
+  window.addEventListener("online", () => {
+    if (closed && reconnectTimer === null && !connecting) {
+      reconnectAttempt = 0;
+      void connect();
+    }
+  });
+
+  await connect();
 }
 
 void bootstrapWebApp();

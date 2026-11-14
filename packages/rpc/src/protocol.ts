@@ -24,6 +24,12 @@ import { Event, Emitter, IDisposable, DisposableStore } from "./foundation.js";
 export interface IMessagePassingProtocol {
   send(buffer: VSBuffer): void;
   readonly onMessage: Event<VSBuffer>;
+  /**
+   * 传输终结通知：socket 关闭/错误、协议级 Disconnect 或本地 dispose 都触发，至多一次。
+   * 有连接语义的实现（SocketProtocol/PersistentProtocol）必须提供；
+   * 内存队列等无连接语义的实现可缺省，上层按“永不关闭”处理。
+   */
+  readonly onClose?: Event<void>;
   drain?(): Promise<void>;
 }
 
@@ -238,8 +244,12 @@ export class SocketProtocol implements IMessagePassingProtocol {
   private readonly _onMessage = new Emitter<VSBuffer>();
   readonly onMessage = this._onMessage.event;
 
+  private readonly _onClose = new Emitter<void>();
+  readonly onClose = this._onClose.event;
+
   private readonly chunkStream = new ChunkStream();
   private readonly disposables = new DisposableStore();
+  private closed = false;
 
   constructor(private socket: ISocket) {
     this.disposables.add(
@@ -248,9 +258,24 @@ export class SocketProtocol implements IMessagePassingProtocol {
         this.readMessages();
       }),
     );
+    // 修复原因（P0-1）：原实现只订阅 onData，socket 关闭后 ChannelClient 的 in-flight
+    // 请求永久挂起。close/error 都必须上抛为协议终结，让上层 fail-closed。
+    this.disposables.add(socket.onClose(() => this.handleClose()));
+    this.disposables.add(socket.onEnd(() => this.handleClose()));
+  }
+
+  private handleClose(): void {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
+    this._onClose.fire();
   }
 
   send(buffer: VSBuffer): void {
+    if (this.closed) {
+      throw new Error("SocketProtocol is closed");
+    }
     this.writeMessage(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
   }
 
@@ -302,8 +327,10 @@ export class SocketProtocol implements IMessagePassingProtocol {
   }
 
   dispose(): void {
+    this.handleClose();
     this.disposables.dispose();
     this._onMessage.dispose();
+    this._onClose.dispose();
   }
 }
 

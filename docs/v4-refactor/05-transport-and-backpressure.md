@@ -412,6 +412,27 @@ UI high-level put(bytes)
 
 RPC 的 ACK、心跳与短断重放只负责探测和换管道：同一条卡死 TCP/ws 上不原地重发；新 socket 上用同 msgId 重放未 ACK physical frame，对端去重。长断或宽限窗越界仍回到 subscribe/resync。
 
+### 8.2 Web RPC 传输生命周期（P0-1）
+
+浏览器 ↔ server 的 `/ws` 当前使用裸 `SocketProtocol`（无 ACK/重放）。`PersistentProtocol`
+不接入该链路：两端必须同时升级，mock server 与真实 server 同构约束下不能单端改接。
+传输终结语义由公共接口承载，不依赖具体 framing 实现：
+
+- `IMessagePassingProtocol` 暴露 `onClose`：socket 关闭/错误、协议级 Disconnect、
+  本地 dispose 都触发，且至多触发一次。`SocketProtocol`/`PersistentProtocol` 必须实现；
+  内存队列等无连接语义的实现可缺省。
+- `ChannelClient` 订阅 `protocol.onClose`，触发即 `dispose(ConnectionClosed)`：
+  所有 in-flight 与排队等待 Initialize 的 Promise 请求 fail-closed，事件订阅 emitter 终结。
+  传输关闭后新建请求立即 reject，不再静默丢弃。
+- `ChannelClient` 的 Initialize 等待有 15s deadline：超时按连接失败 dispose，
+  不允许半开连接把请求永久挂在 Uninitialized 队列。
+- 浏览器与 Node 的 WebSocket wrapper 在非 OPEN 状态 `write()` 必须抛错而不是静默丢弃，
+  让发送失败沿 `sendRequest` 的既有路径变成请求 rejection。
+- Web 入口持有连接生命周期：`onClose` 进入显式断线状态（可见提示），按退避重建
+  accessor；重建成功后以新 `key` 重挂载 Root，所有 store/订阅从零重建，v4 走
+  fresh-subscribe（等价刷新恢复路径）。不做同连接原地重放，不伪造 seq/logEpoch 续传。
+- server 侧 socket close 已有 connectionScope + ChannelServer 清理，保持不变。
+
 ## 9. 验收边界
 
 协议黄金测试至少机械覆盖：

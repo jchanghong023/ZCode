@@ -16,6 +16,9 @@ enum State {
   Idle,
 }
 
+/** Initialize 等待上限：半开连接不能让请求永久挂在 Uninitialized 队列（P0-1）。 */
+const INITIALIZE_TIMEOUT_MS = 15_000;
+
 export class ChannelClient implements IChannelClient, IDisposable {
   private state = State.Uninitialized;
   private isDisposed = false;
@@ -26,12 +29,34 @@ export class ChannelClient implements IChannelClient, IDisposable {
   private pendingRejections = new Map<number, (error: Error) => void>();
   private lastRequestId = 0;
   private protocolListener: IDisposable | null;
+  private protocolCloseListener: IDisposable | null = null;
+  private initializeTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly _onDidInitialize = new Emitter<void>();
   readonly onDidInitialize = this._onDidInitialize.event;
 
+  private readonly _onDidClose = new Emitter<Error>();
+  /** 连接终结（传输关闭、Initialize 超时或本地 dispose）通知，携带 fail-closed 原因。 */
+  readonly onDidClose = this._onDidClose.event;
+
   constructor(private protocol: IMessagePassingProtocol) {
     this.protocolListener = this.protocol.onMessage((msg) => this.onBuffer(msg));
+    // 修复原因（P0-1）：传输关闭必须 fail-closed 所有 pending 请求并终结事件订阅，
+    // 否则断线后 in-flight Promise 永不 settle、事件流永久静默。
+    if (this.protocol.onClose) {
+      this.protocolCloseListener = this.protocol.onClose(() => {
+        const error = new Error("RPC transport closed");
+        error.name = "ConnectionClosed";
+        this.dispose(error);
+      });
+    }
+    this.initializeTimer = setTimeout(() => {
+      if (this.state === State.Uninitialized && !this.isDisposed) {
+        const error = new Error(`RPC Initialize timed out after ${INITIALIZE_TIMEOUT_MS}ms`);
+        error.name = "ConnectionClosed";
+        this.dispose(error);
+      }
+    }, INITIALIZE_TIMEOUT_MS);
   }
 
   getChannel<T extends IChannel>(channelName: string): T {
@@ -153,6 +178,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
     const emitter = new Emitter<any>({
       onWillAddFirstListener: () => {
         const doRequest = () => {
+          // dispose 可能发生在 Initialize 之前；排队中的订阅不能再发到已终结的传输上。
+          if (this.isDisposed) {
+            return;
+          }
           this.activeRequests.add(emitter);
           this.sendRequest(RequestType.EventListen, id, channelName, name, arg);
         };
@@ -165,7 +194,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
       },
       onDidRemoveLastListener: () => {
         this.activeRequests.delete(emitter);
-        this.sendCancelOrDispose(RequestType.EventDispose, id);
+        // dispose 触发的批量清理不再向已关闭传输发 EventDispose。
+        if (!this.isDisposed) {
+          this.sendCancelOrDispose(RequestType.EventDispose, id);
+        }
         this.handlers.delete(id);
       },
     });
@@ -200,8 +232,29 @@ export class ChannelClient implements IChannelClient, IDisposable {
     serialize(writer, arg);
     try {
       this.protocol.send(writer.buffer);
-    } catch {
-      /* noop */
+    } catch (error) {
+      // 修复原因（P0-1）：发送失败（序列化异常或传输已关闭）原来被静默吞掉，
+      // 请求永久挂起。Promise 请求必须立即 fail-closed；事件订阅终结其 emitter。
+      const reject = this.pendingRejections.get(id);
+      if (reject) {
+        this.pendingRejections.delete(id);
+        this.handlers.delete(id);
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+      const handler = this.handlers.get(id);
+      if (handler) {
+        this.handlers.delete(id);
+        handler({
+          type: ResponseType.EventError,
+          id,
+          data: {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : "Error",
+            stack: undefined,
+          },
+        });
+      }
     }
   }
 
@@ -248,6 +301,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
   private onResponse(response: IRawResponse): void {
     if (response.type === ResponseType.Initialize) {
       this.state = State.Idle;
+      if (this.initializeTimer) {
+        clearTimeout(this.initializeTimer);
+        this.initializeTimer = null;
+      }
       this._onDidInitialize.fire();
       return;
     }
@@ -267,13 +324,20 @@ export class ChannelClient implements IChannelClient, IDisposable {
       return;
     }
     this.isDisposed = true;
+    if (this.initializeTimer) {
+      clearTimeout(this.initializeTimer);
+      this.initializeTimer = null;
+    }
     this.protocolListener?.dispose();
     this.protocolListener = null;
+    this.protocolCloseListener?.dispose();
+    this.protocolCloseListener = null;
 
     const rejection = reason ?? new Error("ChannelClient disposed");
     if (!reason) {
       rejection.name = "ConnectionClosed";
     }
+    this._onDidClose.fire(rejection);
     // 传输已终结时，所有已发出以及排队等待 Initialize 的 Promise 请求都必须
     // fail-closed。否则上层的 in-flight 去重 Promise 会永久占用 workspace key。
     for (const [id, reject] of this.pendingRejections) {
@@ -286,6 +350,9 @@ export class ChannelClient implements IChannelClient, IDisposable {
     }
     this.activeRequests.clear();
     this.pendingRejections.clear();
+    // 事件订阅的 handler 不持有 reject，必须显式清空，避免已终结连接的映射残留。
+    this.handlers.clear();
     this._onDidInitialize.dispose();
+    this._onDidClose.dispose();
   }
 }
