@@ -9,6 +9,14 @@
 
 本仓库是**纯 Web 应用**：浏览器前端 + 模拟后端服务。桌面 app 与真实 Agent 运行时已删除；`packages/server` 是按 ZCode Protocol v4 实现的**模拟后端**（内存态、确定性数据），通过与真实服务端完全相同的 WebSocket RPC 传输（`@zcode/rpc` ChannelServer）向 UI 提供全部服务。
 
+## 项目目标与 UI 保真
+
+本项目基于上游 ZCode 的浏览器端 UI 构建自有产品（以 AI 为中心的需求澄清与需求跟踪平台，方向演进中）。**不跟随上游更新**，上游代码以 `base` 分支为冻结锚点（≈ v3.18.2），仅作只读参考。完整背景、范围、验收方式与后端替换路径见 [项目目标与 UI 保真策略](docs/project-goal.md)。
+
+- UI 保真：上游来源的 UI 效果（视觉、交互、布局）以 `base` 为唯一基准，禁止为自有功能修改；对上游 UI 文件的改动仅限接线类（导入、导航、数据源适配）。涉及 UI 改动的验收须与 `base` 对照（`git diff base... -- packages/ui`）并做浏览器截图比对。
+- 叠加式扩展：自有功能以新增模块接入，遵循架构治理登记（architecture:adopt / exceptions），复用 `packages/ui/src/components/ui` 控件库并遵守 `DESIGN.md`，视觉上与上游原生内容无异。
+- 前端与协议按生产质量实现与验证；`packages/server` 模拟后端为原型（内存假数据），只要求协议语义保真，不要求生产级实现；后续由自有后端实现同一套 `packages/services` 契约完成替换。
+
 ## 老代码对比基准
 
 - 与老代码（重构前）对比时，统一使用 `base` 分支：它停在 `3f2287ac`（"refactor: 重构为纯 Web 应用（浏览器前端 + 模拟后端）"，2026-11-14）之上，仅追加一个纯 oxfmt 格式化提交（与 `3f2287ac` 内容一致，只有空白差异），已推送 `origin/base`，不要在其上继续提交。
