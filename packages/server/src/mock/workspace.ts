@@ -1,6 +1,7 @@
 // 模拟工作区服务：文件系统 / Git / 文件监听 / 系统信息 / 终端 / 媒体预览。
 // 除系统信息返回本机 home 目录外，全部基于 MockRuntime 的虚拟状态，不触碰真实文件系统与进程。
 import { homedir } from "node:os";
+import * as nodePath from "node:path";
 
 import { Emitter, type Event } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
@@ -75,8 +76,40 @@ function resolveNode(root: VirtualFileNode, path: string): VirtualFileNode | nul
   return node;
 }
 
+/**
+ * 把跨过 RPC 的路径映射成虚拟工作区相对路径。
+ * 修复原因：readdir 返回的是「工作区绝对路径 + 文件名」，UI 随后把该绝对路径原样交给
+ * readTextFile/stat/readFileRange。旧实现直接按段解析，盘符与目录名被当成虚拟节点名，
+ * 解析必然失败，预览因此恒为空（isBinary=false、totalBytes=0），而不是内容缺失。
+ * 依据：真实服务以工作区根为基准接受绝对路径；虚拟 FS 的根就代表 runtime.workspacePath。
+ */
+function toWorkspaceRelativePath(workspacePath: string, path: string): string {
+  if (!path || !nodePath.isAbsolute(path)) return path;
+  const root = nodePath.resolve(workspacePath);
+  const resolved = nodePath.resolve(path);
+  // Windows 盘符与目录大小写不敏感；POSIX 保持原样比较。
+  const normalize =
+    process.platform === "win32"
+      ? (value: string) => value.toLowerCase()
+      : (value: string) => value;
+  const rootComparable = normalize(root).replace(/[\\/]+$/, "");
+  const resolvedComparable = normalize(resolved);
+  if (resolvedComparable === rootComparable) return "";
+  const prefix = `${rootComparable}${nodePath.sep}`;
+  if (!resolvedComparable.startsWith(prefix)) return path;
+  return resolved.slice(root.replace(/[\\/]+$/, "").length + 1);
+}
+
 export class MockFileService implements IFileService {
   constructor(private readonly runtime: MockRuntime) {}
+
+  /** 统一入口：绝对路径先收敛为工作区相对路径，相对路径按原样解析。 */
+  private resolveVirtual(path: string): VirtualFileNode | null {
+    return resolveNode(
+      this.runtime.virtualRoot,
+      toWorkspaceRelativePath(this.runtime.workspacePath, path),
+    );
+  }
 
   async searchWorkspaceFiles(params: {
     rootPath: string;
@@ -112,7 +145,7 @@ export class MockFileService implements IFileService {
 
   async readdir(params: { path: string; includeHidden?: boolean }): Promise<FileEntry[]> {
     const base = params.path || this.runtime.workspacePath;
-    const node = resolveNode(this.runtime.virtualRoot, base) ?? this.runtime.virtualRoot;
+    const node = this.resolveVirtual(base) ?? this.runtime.virtualRoot;
     if (node.kind !== "directory" || !node.children) return [];
     const entries: FileEntry[] = [];
     for (const child of node.children.values()) {
@@ -130,7 +163,7 @@ export class MockFileService implements IFileService {
   }
 
   async stat(params: { path: string }): Promise<FileStat> {
-    const node = resolveNode(this.runtime.virtualRoot, params.path);
+    const node = this.resolveVirtual(params.path);
     if (!node) {
       throw new Error(`mock: ENOENT ${params.path}`);
     }
@@ -145,7 +178,7 @@ export class MockFileService implements IFileService {
   async checkFilesExist(params: { paths: string[] }) {
     return params.paths.map((path) => ({
       path,
-      exists: resolveNode(this.runtime.virtualRoot, path) !== null,
+      exists: this.resolveVirtual(path) !== null,
     }));
   }
 
@@ -174,7 +207,7 @@ export class MockFileService implements IFileService {
     offset?: number;
     length?: number;
   }): Promise<FileTextSlice> {
-    const node = resolveNode(this.runtime.virtualRoot, params.path);
+    const node = this.resolveVirtual(params.path);
     const content = node?.kind === "file" ? (node.content ?? "") : "";
     const bytes = Buffer.byteLength(content, "utf8");
     const offset = params.offset ?? 0;
@@ -202,7 +235,7 @@ export class MockFileService implements IFileService {
     offset: number;
     length: number;
   }): Promise<Uint8Array> {
-    const node = resolveNode(this.runtime.virtualRoot, params.path);
+    const node = this.resolveVirtual(params.path);
     const content = node?.kind === "file" ? (node.content ?? "") : "";
     return Buffer.from(content, "utf8").subarray(params.offset, params.offset + params.length);
   }
