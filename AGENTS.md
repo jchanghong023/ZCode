@@ -9,6 +9,11 @@
 
 本仓库是**纯 Web 应用**：浏览器前端 + 模拟后端服务。桌面 app 与真实 Agent 运行时已删除；`packages/server` 是按 ZCode Protocol v4 实现的**模拟后端**（内存态、确定性数据），通过与真实服务端完全相同的 WebSocket RPC 传输（`@zcode/rpc` ChannelServer）向 UI 提供全部服务。
 
+## 老代码对比基准
+
+- 与老代码（重构前）对比时，统一使用 `base` 分支：它停在 `3f2287ac`（"refactor: 重构为纯 Web 应用（浏览器前端 + 模拟后端）"，2026-11-14），已推送 `origin/base`，不要在其上继续提交。
+- 该分支检出于工作树 `F:\code2026\zcode-baseline`，作为只读参考；查老实现优先读该工作树文件或用 `git diff base... -- <路径>` / `git show base:<文件>`，不要在主工作树切换分支。
+
 ## 命令与仓库结构
 
 开工前运行 `node scripts/check-workspace-freshness.mjs` 检查基线。Node 版本以 `mise.toml` 为准。
