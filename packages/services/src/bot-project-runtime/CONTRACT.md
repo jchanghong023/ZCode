@@ -1,3 +1,5 @@
+> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
+
 # Bot 远端项目 runtime 路由
 
 物理连接唯一 owner 是窗口 Host 的 SourceManager / URL Registry。router 只查已保留 host，显式重连复用 connectHost，不读旧 settings 连接记录、不创建 logical session 或第二条 runtime MessagePort。Server 的自有 Bot 直接使用本地服务。
@@ -7,3 +9,4 @@
 每个 Bot 消费者持有自己的动态订阅句柄。换代只订阅新 Source 的未来事件，固定 bot-channel-continuous，无 replay/snapshot 拼接；关闭或换代丢弃旧连接迟到事件。无轮询 timer、状态镜像、接受输入队列或连接缓存。设置仍是 app runtime preferences 的来源，主动同步仅枚举 Bot Repo 已固化的目标。
 
 桌面 desktop-continuous 与手机 web-remote-replayable 原 attachment 语义均不改变。移除旧 main Bot 消息分支不移除 TaskRealtimeBus owner、lease、CommandInbox 或远端 canonical alias。
+

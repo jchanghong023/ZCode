@@ -187,6 +187,7 @@ GUI 用例保持 manual-review/pending，不据此扩展到实体手机、Window
 - 当前没有 active task、active task 不在当前 grouped view 中，或 grouped view 尚未完成挂载时，沿用顶层 grouped draft 作为兜底。
 - 如果当前已经处于 grouped draft 态，再次点击全局 `New task` 复用当前 draft 的 placement，避免把正在编辑的 group draft 意外移动到顶层。
 - 单个 group header/menu 内的 `New task` 始终显式创建到对应 group，不受当前 active task 影响。
+- 全局 `New task` 读取分组结构必须使用当前 workspace 的 `taskGroupService` 实例；服务换代后新建动作不能复用旧闭包，否则会把草稿放进旧组织结构。
 - grouped draft 的 placement 只能在 draft session 实际创建或预热 session 实际提升成功后，显式绑定到新 task id。创建命令必须在第一次异步等待前捕获稳定的 draft identity 与 placement；ACK 或 pending command 重发完成时只提交该快照，并仅在当前 draft identity 仍匹配时清除草稿。null-session pending create 还必须持久化来源 workspace scope，并按 `workspaceIdentity?.trim() || workspacePath` 过滤恢复入口，禁止在其他 workspace 展示或消费。普通任务选择、fork 跳转和恢复已有 session 只负责导航，不得据此推断为草稿提升，避免误改已有 task 的 group 归属和排序。
 - root draft 首发提升时，Host 必须在同一个 SQLite transaction 内提交 task row 与顶层 `sort_order`，事务提交后才允许发布 sessions-index/task list 刷新。Renderer 即使先收到 sessions-index 内容帧、后收到 grouped structure，也必须继续沿用 optimistic root 顶部位置，禁止把尚未取得权威 `sort_order` 的新 task 临时补到列表末尾后再上移。
 

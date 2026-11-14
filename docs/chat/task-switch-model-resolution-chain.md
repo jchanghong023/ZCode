@@ -46,6 +46,9 @@ store 和 sessions-index summary 都不是模型持久权威。
 - 切换 session 不把草稿 workspace 默认值写入历史 session。
 - workspace 身份使用 `workspaceIdentity?.trim() || workspacePath`；远程恢复还必须保持
   `remoteSessionId`，禁止只按路径复用订阅、缓存或 provider registry。
+- pane 在复用中切换 workspace/task 时，shell 的 `activeSessionId` 与创建草稿/发送动作必须使用当前
+  `sessionId`、`workspacePath`、`workspaceIdentity`；不能因为 split pane 接管 primary 后
+  `primaryPaneSessionId` 为空，或动作闭包未随 workspace 变化重建，而继续指向上一会话/上一工作区。
 
 ## 再次打开的差异
 

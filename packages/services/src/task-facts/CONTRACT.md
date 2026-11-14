@@ -1,3 +1,5 @@
+> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
+
 # task-facts
 
 会话事实摄入和命令交接的唯一应用入口。无 SQLite、Agent 进程、计时器、UI 或第二份状态缓存；存储、CLI 来源和事件发布通过端口注入。
@@ -11,3 +13,4 @@
 - 标题/删除意图仅是旧版本交接。bit 1=删除，bit 2=标题，bit 4=orphan，bit 8=归属已判断；确认后的位清理由存储事务完成。
 
 冷恢复 child 索引修复通过最小 listSessions/listTaskMetas/removeSubagentIndexRow 端口执行，每批 64 条、existing-only，逐条核对工作区身份和订阅代际；只删被 CLI 明确标为 subagent_child、workflow_child、nested_workflow_child、selection_side_chat 的隐藏索引，不删正文。fork、workflow_parent、未知类型及身份未确认的记录保留；列表隐藏不改变辅助对话的聊天能力。
+

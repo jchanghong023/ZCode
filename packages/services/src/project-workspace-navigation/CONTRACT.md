@@ -1,3 +1,5 @@
+> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
+
 # 项目 workspace 导航 admission
 
 唯一目录 owner 是 ProjectService，唯一远端连接与 logical scope owner 是窗口 Registry / SourceManager。导航只组合现有端口，不缓存项目/任务事实，不拥有 Agent 或 accepted queue。
@@ -11,3 +13,4 @@
 Existing task navigation validates taskId/workspaceKey against the authority tree, then resolves its original directories. It never calls prepareSession or creates a replacement cwd. Remote membership and physical-owner checks also cover this path.
 
 本地未归类草稿导航还接受可选 draftId（UUID）与 reuseDraft；由 ProjectService 校验和准备。与 projectId/task 互斥，不接受客户端自行指定目录；目录的待发送身份与首发消费仍归客户端现有命令恢复链路。
+

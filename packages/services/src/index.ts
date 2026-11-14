@@ -52,7 +52,7 @@ export {
   createConversationTelemetryService,
   type ConversationTelemetryWorkspaceTarget,
   type IConversationTelemetryService,
-} from "./conversation-telemetry/conversationTelemetry.js";
+} from "./conversation-telemetry/contract.js";
 
 // File service — IFileService is both a type (interface) and value (descriptor)
 export { IFileService } from "./file/file.js";

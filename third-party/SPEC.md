@@ -72,3 +72,7 @@ sequenceDiagram
 2. 独立 Server staging 的组件归档分别包含 npm、Node 与搜索工具声明，工具声明缺失时 staging 失败。
 3. 执行 `node scripts/licenses.mjs check`，如实记录在当前依赖树上的结果；不以更新哈希代替重新生成与审核。
 4. 最终安装包未实际构建时，不声称完成全平台安装包审计。
+
+2026-11-14 逐项复检结论：`react-remove-scroll-bar@2.3.8`、`@hono/node-ws@1.3.0`、`ansi-to-react@6.2.6` 的精确 npm 归档都没有 LICENSE/COPYING/NOTICE，对应 release ref 的源码树也没有；`react-remove-scroll-bar` 的 npm gitHead 已不可达，仓库没有 2.3.8 对应的 ref。`react-remove-scroll-bar` 与 `@hono/node-ws` 后来补的 LICENSE 分别晚于 2.3.8（2024-12-15）和 1.3.0（2026-01-07）发布，`@hono/node-ws` 维护者还明确说明该文件从下一个版本起才随包发布；`ansi-to-react` 全部历史都没有许可文件。后补原文以固定 commit、SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不合并进这些版本的声明，也不据此关闭 `reviewRequired`。
+
+2026-11-14 复检当前 `main` 的 tarball（SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有 LICENSE/COPYING/NOTICE 或版权行。

@@ -3105,11 +3105,15 @@ export function SessionPane({
       reportDraftCreated,
       handleOpenSelectionSideConversationWithPrompt,
       intl,
-      resolveInitialDraftConfig,
-      createSubmissionFromComposer,
       sessionId,
       settleCurrentQueueInputs,
       waitForDraftSession,
+      // Bug 原因：pane 复用切换 workspace 时，createSession 的 workspaceId、目录与
+      // worktree 查看目标都由这些值决定；漏列会继续把新任务建到上一工作区。
+      viewWorktreeCreation,
+      workspaceIdentity,
+      workspaceKey,
+      workspacePath,
     ],
   );
 
@@ -4284,6 +4288,7 @@ export function SessionPane({
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
   // 事件后另发查询拼接第二份状态，避免并发 child 的 in-flight refresh 丢更新。
   const subagents = snapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
+  // revision 可独立于 running 引用推进；停止请求必须在新水位到达后重新裁决，避免一直等待。
   useEffect(() => {
     const next = new Map(
       [...pendingSubagentStopsRef.current].filter(([, pending]) => {
@@ -4298,7 +4303,7 @@ export function SessionPane({
     if (next.size === pendingSubagentStopsRef.current.size) return;
     pendingSubagentStopsRef.current = next;
     setPendingSubagentStops(next);
-  }, [sessionId, subagents.running]);
+  }, [sessionId, subagents.revision, subagents.running]);
   const panelPendingSubagentStops = useMemo(
     () =>
       new Set(

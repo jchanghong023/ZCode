@@ -1,25 +1,13 @@
 # gen-ui-service
 
-Target Workspace Host owns bounded, nonsymlink fragment reads. Desktop Local Host owns persisted
-widget state and issues sandbox registrations with explicit gen-ui provenance. Remote workspace
-content uses the existing remote services route; desktop state uses base services. No new Agent,
-MCP server, content publication journal or accepted command queue is introduced.
+当前治理范围（纯 Web）：gen-ui 服务契约 `contract.ts`（`IGenUiService`）。执行 Host 的片段读取与
+桌面 Host 的 widget 状态实现已随裁撤移除；mock 后端（`packages/server/src/mock/domains/compat-surfaces.ts`）
+与 `packages/ui/src/gen-ui` 按同一契约注册与调用。
 
-The execution Host owns an output root under its application data directory and passes that root
-to the Agent at process startup. Host reads and Agent context use the same scope-to-directory
-function, keyed by workspace identity (path fallback) and session ID. These subdirectories organize
-generated files; reads may reference any file under the Host output root, including a parent
-session's file retained by fork. Files outside the output root are rejected, with no legacy path fallback.
-Creation failures surface before the runtime advertises a writable directory. HTML stays on the
-execution machine; widget state stays on the desktop. The fixed application data root remains valid
-when the workspace contains it, including when the user opens their home directory. Workspace
-containment and the current session's output subdirectory are not read authorization boundaries.
-Widget state remains scoped to the current workspace identity and session.
-
-State storage is an injected adapter. Atomic file replacement and the existing cross-process file
-lock serialize full snapshots; notifications project durable state. Only modelContent is exported
-as untrusted next-turn context. Main owns native sandbox resources, not persisted state.
-
-Model state travels as bounded `genUiContext` input metadata, never appended to user text.
-The CLI owns legacy-tail decoding and reminder projection; queued inputs retain the snapshot
-captured at admission. Empty arrays identify new-format input. See `docs/specs/gen-ui-model-context.md`.
+- `readDocument` 属于执行 Host：只读受限、非符号链接的片段；创建失败必须在运行时宣告可写目录之前暴露。
+- 状态属于桌面 Host：按 workspace identity（路径兜底）+ session 定界，状态存储是注入的 adapter；
+  原子替换与跨进程文件锁序列化整份快照，通知只是持久状态的投影。
+- `prepareSandbox` 返回带入站证明的沙箱句柄；Main 拥有原生沙箱资源，不拥有持久状态。
+- 模型状态只作为受限的 `genUiContext` 元数据传递，不拼接到用户正文；旧尾部解码与提醒投影归 CLI。
+- 不引入新的 Agent、MCP server、内容发布日志或已接受命令队列：远程 workspace 走现有远程服务路由，
+  桌面状态走 base services。

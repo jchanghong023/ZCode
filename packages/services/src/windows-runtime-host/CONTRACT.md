@@ -1,3 +1,5 @@
+> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
+
 # windows-runtime-host
 
 Windows CLI 的内核进程归属边界。Host 负责路由，原生 helper 独占 Job 句柄。
@@ -11,3 +13,4 @@ Windows CLI 的内核进程归属边界。Host 负责路由，原生 helper 独�
 - helper 或 Host 崩溃由 KILL_ON_JOB_CLOSE / 父进程句柄与控制连接断开触发清理。
 - 未收到 empty 时先确认 helper 退出，再按唯一 Job 名只读核验；Job 不存在或活动成员为零才释放。核验失败保留归属，下次主动请求重试。
 - 不持久化、不迁移 session，也不通过 PID/PPID 查询补认归属。
+

@@ -272,6 +272,8 @@ export function V4WorkspaceChatArea({
       sessionId: primaryPaneSessionId,
       // primaryPaneSessionId 在 active task 被 split pane 接管时会刻意置空，
       // 辅助对话划词路由仍需保留 shell 真正的 active task id。
+      // Bug 原因：activeSessionId 读取当前 sessionId；primary 被 split pane 接管时
+      // primaryPaneSessionId 恒为 null，不能靠它覆盖 sessionId 变化，否则划词/侧聊路由停在上一个任务。
       activeSessionId: sessionId,
       activeSelectionSideChatSessionId,
       provider,
@@ -321,6 +323,7 @@ export function V4WorkspaceChatArea({
       readOnlyReason,
       allowEscapeStopOutsidePane,
       primaryPaneSessionId,
+      sessionId,
       activeSelectionSideChatSessionId,
       provider,
       onSessionCreated,

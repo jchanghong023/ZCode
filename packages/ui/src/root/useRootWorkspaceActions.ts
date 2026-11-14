@@ -391,6 +391,9 @@ export function useRootWorkspaceActions({
       }
     },
     [
+      // Bug 原因：Grouped 新建在首个 await 前读取组织结构；服务换代后必须用新实例，
+      // 否则本次草稿会按旧 taskGroupService 的成员结果写入错误分组。
+      services.taskGroupService,
       services.projectService,
       intl,
       composerClientNamespace,

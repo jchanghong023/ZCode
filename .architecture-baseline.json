@@ -66,15 +66,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/app-control",
-      "module": "app-control",
-      "detail": "module.ts",
-      "message": "模块 app-control 缺少 module.ts",
-      "fingerprint": "0532c826492bf9bc",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/host/database-startup",
       "module": "host-database-startup",
       "detail": "CONTRACT.md",
@@ -111,38 +102,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/task-groups",
-      "module": "task-groups",
-      "detail": "contract.example.ts",
-      "message": "模块 task-groups 缺少 contract.example.ts",
-      "fingerprint": "0e29fb78dfabfa62",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/adapters/src/memory-diagnostics",
       "module": "cli-memory-diagnostics",
       "detail": "contract.example.ts",
       "message": "模块 cli-memory-diagnostics 缺少 contract.example.ts",
       "fingerprint": "0e4777deb03aec38",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-catalog",
-      "module": "project-catalog",
-      "detail": "contract.example.ts",
-      "message": "模块 project-catalog 缺少 contract.example.ts",
-      "fingerprint": "0f76442e94a5ebcf",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/task-groups",
-      "module": "task-groups",
-      "detail": "module.ts",
-      "message": "模块 task-groups 缺少 module.ts",
-      "fingerprint": "0fe29628854ad73d",
       "global": false
     },
     {
@@ -170,15 +134,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 cli-session-fork-commit 缺少 CONTRACT.md",
       "fingerprint": "1404a4cd1cb4c8b1",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-storage",
-      "module": "project-storage",
-      "detail": "module.ts",
-      "message": "模块 project-storage 缺少 module.ts",
-      "fingerprint": "15e89976bcdd8251",
       "global": false
     },
     {
@@ -237,38 +192,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/bot-project-runtime",
-      "module": "bot-project-runtime",
-      "detail": "contract.example.ts",
-      "message": "模块 bot-project-runtime 缺少 contract.example.ts",
-      "fingerprint": "1fe4140c2bcc215a",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/bots/topic-history-attachment",
-      "module": "bot-topic-history-attachment",
-      "detail": "contract.ts",
-      "message": "模块 bot-topic-history-attachment 缺少 contract.ts",
-      "fingerprint": "20077f409619e1dc",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/main/file-open-apps",
       "module": "file-open-apps",
       "detail": "module.ts",
       "message": "模块 file-open-apps 缺少 module.ts",
       "fingerprint": "212e9eef3ce835ce",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/task-facts",
-      "module": "task-facts",
-      "detail": "contract.ts",
-      "message": "模块 task-facts 缺少 contract.ts",
-      "fingerprint": "223758d9a77037b9",
       "global": false
     },
     {
@@ -300,24 +228,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/startup-storage",
-      "module": "startup-storage",
-      "detail": "contract.ts",
-      "message": "模块 startup-storage 缺少 contract.ts",
-      "fingerprint": "25e6d97e7e0a348b",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/app-control",
-      "module": "app-control",
-      "detail": "contract.ts",
-      "message": "模块 app-control 缺少 contract.ts",
-      "fingerprint": "262531fbb16c71c9",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/cli-session-control",
       "module": "cli-session-control-runtime",
       "detail": "contract.example.ts",
@@ -332,24 +242,6 @@
       "detail": "module.ts",
       "message": "模块 remote-projects 缺少 module.ts",
       "fingerprint": "293eb607c33bc4ae",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/task-facts",
-      "module": "task-facts",
-      "detail": "module.ts",
-      "message": "模块 task-facts 缺少 module.ts",
-      "fingerprint": "29f5cb83a85ae822",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/git/managed-worktree",
-      "module": "managed-worktree-repo",
-      "detail": "module.ts",
-      "message": "模块 managed-worktree-repo 缺少 module.ts",
-      "fingerprint": "2a456fbd23bc3fc6",
       "global": false
     },
     {
@@ -377,24 +269,6 @@
       "detail": "contract.example.ts",
       "message": "模块 session-lifecycle 缺少 contract.example.ts",
       "fingerprint": "2cab833ef8883bcf",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/windows-runtime-host",
-      "module": "windows-runtime-host",
-      "detail": "contract.ts",
-      "message": "模块 windows-runtime-host 缺少 contract.ts",
-      "fingerprint": "2e00f60fe1db110b",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/bot-project-runtime",
-      "module": "bot-project-runtime",
-      "detail": "module.ts",
-      "message": "模块 bot-project-runtime 缺少 module.ts",
-      "fingerprint": "2eea62b61926e687",
       "global": false
     },
     {
@@ -480,15 +354,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/git/managed-worktree",
-      "module": "managed-worktree-repo",
-      "detail": "contract.example.ts",
-      "message": "模块 managed-worktree-repo 缺少 contract.example.ts",
-      "fingerprint": "4131cf2caac9d335",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust",
       "module": "workspace-mcp-trust",
       "detail": "contract.example.ts",
@@ -503,15 +368,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 plugin-api 缺少 CONTRACT.md",
       "fingerprint": "45c11df6c9cdd863",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/data-sync",
-      "module": "data-sync-service",
-      "detail": "contract.example.ts",
-      "message": "模块 data-sync-service 缺少 contract.example.ts",
-      "fingerprint": "4618c35e9bfae07c",
       "global": false
     },
     {
@@ -548,15 +404,6 @@
       "detail": "contract.example.ts",
       "message": "模块 provider-tool-rounds 缺少 contract.example.ts",
       "fingerprint": "47a6cde34fd812f3",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-storage",
-      "module": "project-storage",
-      "detail": "contract.example.ts",
-      "message": "模块 project-storage 缺少 contract.example.ts",
-      "fingerprint": "4853463c60799a6c",
       "global": false
     },
     {
@@ -606,29 +453,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/bots/topic-history-attachment",
-      "module": "bot-topic-history-attachment",
-      "detail": "contract.example.ts",
-      "message": "模块 bot-topic-history-attachment 缺少 contract.example.ts",
-      "fingerprint": "4d6ef8045d49b049",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/main/microphone-access",
       "module": "desktop-microphone-access",
       "detail": "contract.ts",
       "message": "模块 desktop-microphone-access 缺少 contract.ts",
       "fingerprint": "4daf9a70013b8325",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/conversation-telemetry",
-      "module": "conversation-telemetry-service",
-      "detail": "contract.ts",
-      "message": "模块 conversation-telemetry-service 缺少 contract.ts",
-      "fingerprint": "4eff7d260fb2bd84",
       "global": false
     },
     {
@@ -656,15 +485,6 @@
       "detail": "module.ts",
       "message": "模块 workflow-tool-entrypoints 缺少 module.ts",
       "fingerprint": "5290a9be3321084f",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/plugin-ui-bridge",
-      "module": "plugin-ui-bridge",
-      "detail": "contract.example.ts",
-      "message": "模块 plugin-ui-bridge 缺少 contract.example.ts",
-      "fingerprint": "545ef1179af3402e",
       "global": false
     },
     {
@@ -719,15 +539,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 mcp-ui 缺少 CONTRACT.md",
       "fingerprint": "56b5f6016b4955fb",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/task-facts",
-      "module": "task-facts",
-      "detail": "contract.example.ts",
-      "message": "模块 task-facts 缺少 contract.example.ts",
-      "fingerprint": "56d9c890bbc7a6a4",
       "global": false
     },
     {
@@ -795,15 +606,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/app-control",
-      "module": "app-control",
-      "detail": "contract.example.ts",
-      "message": "模块 app-control 缺少 contract.example.ts",
-      "fingerprint": "5e1211ecd327c667",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/cli-session-control",
       "module": "cli-session-control-runtime",
       "detail": "CONTRACT.md",
@@ -827,15 +629,6 @@
       "detail": "contract.ts",
       "message": "模块 web-share-manage 缺少 contract.ts",
       "fingerprint": "60c552c16bee13d5",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/window-project-directory",
-      "module": "window-project-directory",
-      "detail": "contract.example.ts",
-      "message": "模块 window-project-directory 缺少 contract.example.ts",
-      "fingerprint": "60f2ff3c867f5368",
       "global": false
     },
     {
@@ -948,15 +741,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/extensions",
-      "module": "extensions-service",
-      "detail": "module.ts",
-      "message": "模块 extensions-service 缺少 module.ts",
-      "fingerprint": "69f297c85c538c70",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft",
       "module": "local-ttft-cli",
       "detail": "contract.example.ts",
@@ -1016,15 +800,6 @@
       "detail": "contract.example.ts",
       "message": "模块 remote-projects 缺少 contract.example.ts",
       "fingerprint": "75c36096784f47f3",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/gen-ui",
-      "module": "gen-ui-service",
-      "detail": "module.ts",
-      "message": "模块 gen-ui-service 缺少 module.ts",
-      "fingerprint": "7636a27f6005eac9",
       "global": false
     },
     {
@@ -1182,15 +957,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/voice-input",
-      "module": "voice-input-service",
-      "detail": "module.ts",
-      "message": "模块 voice-input-service 缺少 module.ts",
-      "fingerprint": "936661aa2246b19c",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract",
       "module": "tool-search-comparison",
       "detail": "CONTRACT.md",
@@ -1245,15 +1011,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/managed-worktree-tasks",
-      "module": "managed-worktree-tasks",
-      "detail": "contract.example.ts",
-      "message": "模块 managed-worktree-tasks 缺少 contract.example.ts",
-      "fingerprint": "99de16f301828833",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/services/src/zcode-agent/resident-rows-range",
       "module": "remote-resident-rows-range",
       "detail": "contract.example.ts",
@@ -1268,15 +1025,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 desktop-microphone-access 缺少 CONTRACT.md",
       "fingerprint": "9c9fd5cde8b0bcbe",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/window-project-directory",
-      "module": "window-project-directory",
-      "detail": "module.ts",
-      "message": "模块 window-project-directory 缺少 module.ts",
-      "fingerprint": "9cdeff4780d199c1",
       "global": false
     },
     {
@@ -1304,15 +1052,6 @@
       "detail": "contract.example.ts",
       "message": "模块 cli-session-fork-commit 缺少 contract.example.ts",
       "fingerprint": "9dc30b2dfc7c847b",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/startup-storage",
-      "module": "startup-storage",
-      "detail": "contract.example.ts",
-      "message": "模块 startup-storage 缺少 contract.example.ts",
-      "fingerprint": "9dc94bb77870149f",
       "global": false
     },
     {
@@ -1380,24 +1119,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/project",
-      "module": "project",
-      "detail": "contract.example.ts",
-      "message": "模块 project 缺少 contract.example.ts",
-      "fingerprint": "a4a18a702d397d28",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/voice-input",
-      "module": "voice-input-service",
-      "detail": "contract.example.ts",
-      "message": "模块 voice-input-service 缺少 contract.example.ts",
-      "fingerprint": "a8763ca2da6f0a3f",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/host/topic-resource-relay",
       "module": "window-topic-resource-relay",
       "detail": "contract.example.ts",
@@ -1452,15 +1173,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/provider-provisioning-status",
-      "module": "provider-provisioning-status",
-      "detail": "module.ts",
-      "message": "模块 provider-provisioning-status 缺少 module.ts",
-      "fingerprint": "b231f6093d6c0490",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust",
       "module": "workspace-mcp-trust",
       "detail": "CONTRACT.md",
@@ -1484,15 +1196,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 office-runtime 缺少 CONTRACT.md",
       "fingerprint": "b467693e857d6bff",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-workspace-navigation",
-      "module": "project-workspace-navigation",
-      "detail": "module.ts",
-      "message": "模块 project-workspace-navigation 缺少 module.ts",
-      "fingerprint": "b47ebf689d67f6a9",
       "global": false
     },
     {
@@ -1632,29 +1335,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/gen-ui",
-      "module": "gen-ui-service",
-      "detail": "contract.example.ts",
-      "message": "模块 gen-ui-service 缺少 contract.example.ts",
-      "fingerprint": "bfd1381db2087538",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat",
       "module": "provider-builtin-tool-compat",
       "detail": "contract.example.ts",
       "message": "模块 provider-builtin-tool-compat 缺少 contract.example.ts",
       "fingerprint": "c00f8d86cbd9a026",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project",
-      "module": "project",
-      "detail": "module.ts",
-      "message": "模块 project 缺少 module.ts",
-      "fingerprint": "c015ef8c360109e3",
       "global": false
     },
     {
@@ -1691,24 +1376,6 @@
       "detail": "contract.example.ts",
       "message": "模块 node-repl-call-ledger 缺少 contract.example.ts",
       "fingerprint": "c194e9974aef15cf",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/data-sync",
-      "module": "data-sync-service",
-      "detail": "module.ts",
-      "message": "模块 data-sync-service 缺少 module.ts",
-      "fingerprint": "c3242c18dd594f0c",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/plugin-ui-bridge",
-      "module": "plugin-ui-bridge",
-      "detail": "module.ts",
-      "message": "模块 plugin-ui-bridge 缺少 module.ts",
-      "fingerprint": "c3b40a6d20c7719b",
       "global": false
     },
     {
@@ -1767,15 +1434,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/bot-project-runtime",
-      "module": "bot-project-runtime",
-      "detail": "contract.ts",
-      "message": "模块 bot-project-runtime 缺少 contract.ts",
-      "fingerprint": "c7d7396023fffbd0",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/core/src/tool/session-control",
       "module": "cli-session-control-tools",
       "detail": "contract.example.ts",
@@ -1799,15 +1457,6 @@
       "detail": "contract.ts",
       "message": "模块 cli-official-command-endpoint 缺少 contract.ts",
       "fingerprint": "ca46f7fdf55e4827",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/storage",
-      "module": "storage",
-      "detail": "contract.example.ts",
-      "message": "模块 storage 缺少 contract.example.ts",
-      "fingerprint": "ca631aee5cf5e9ca",
       "global": false
     },
     {
@@ -1848,15 +1497,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/storage",
-      "module": "storage",
-      "detail": "module.ts",
-      "message": "模块 storage 缺少 module.ts",
-      "fingerprint": "cfe2af8d03797f9e",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/renderer/src/local-ttft",
       "module": "local-ttft-desktop",
       "detail": "CONTRACT.md",
@@ -1875,15 +1515,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-workspace-navigation",
-      "module": "project-workspace-navigation",
-      "detail": "contract.example.ts",
-      "message": "模块 project-workspace-navigation 缺少 contract.example.ts",
-      "fingerprint": "d1c4cdae10e2edd2",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/desktop/src/main/embedded-browser-permission-contract",
       "module": "embedded-browser-permission",
       "detail": "module.ts",
@@ -1898,15 +1529,6 @@
       "detail": "CONTRACT.md",
       "message": "模块 session-features 缺少 CONTRACT.md",
       "fingerprint": "d311797916367c65",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/conversation-telemetry",
-      "module": "conversation-telemetry-service",
-      "detail": "module.ts",
-      "message": "模块 conversation-telemetry-service 缺少 module.ts",
-      "fingerprint": "d32159d5ce7e6947",
       "global": false
     },
     {
@@ -1947,56 +1569,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/windows-runtime-host",
-      "module": "windows-runtime-host",
-      "detail": "contract.example.ts",
-      "message": "模块 windows-runtime-host 缺少 contract.example.ts",
-      "fingerprint": "d7ed52864f048b53",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/git/managed-worktree",
-      "module": "managed-worktree-repo",
-      "detail": "contract.ts",
-      "message": "模块 managed-worktree-repo 缺少 contract.ts",
-      "fingerprint": "d831efdafa26856d",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "packages/ui/src/voice-input",
       "module": "voice-input",
       "detail": "contract.example.ts",
       "message": "模块 voice-input 缺少 contract.example.ts",
       "fingerprint": "da3b417600a42a5e",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/extensions",
-      "module": "extensions-service",
-      "detail": "contract.example.ts",
-      "message": "模块 extensions-service 缺少 contract.example.ts",
-      "fingerprint": "da4ceb20fad070f1",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-catalog",
-      "module": "project-catalog",
-      "detail": "module.ts",
-      "message": "模块 project-catalog 缺少 module.ts",
-      "fingerprint": "dc995d306b872f4d",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/bots/topic-history-attachment",
-      "module": "bot-topic-history-attachment",
-      "detail": "module.ts",
-      "message": "模块 bot-topic-history-attachment 缺少 module.ts",
-      "fingerprint": "dcf0a38468231779",
       "global": false
     },
     {
@@ -2064,29 +1641,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/provider-provisioning-status",
-      "module": "provider-provisioning-status",
-      "detail": "contract.example.ts",
-      "message": "模块 provider-provisioning-status 缺少 contract.example.ts",
-      "fingerprint": "e356553fe72d7ac4",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/adapters/src/storage/session-data-files",
       "module": "cli-session-data-files",
       "detail": "module.ts",
       "message": "模块 cli-session-data-files 缺少 module.ts",
       "fingerprint": "e385af6f7e0b9946",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/windows-runtime-host",
-      "module": "windows-runtime-host",
-      "detail": "module.ts",
-      "message": "模块 windows-runtime-host 缺少 module.ts",
-      "fingerprint": "e3aa3b9314db1907",
       "global": false
     },
     {
@@ -2118,15 +1677,6 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/conversation-telemetry",
-      "module": "conversation-telemetry-service",
-      "detail": "contract.example.ts",
-      "message": "模块 conversation-telemetry-service 缺少 contract.example.ts",
-      "fingerprint": "e730e45dd680bbb6",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/bootstrap/src/plugin-discovery",
       "module": "agent-plugin-discovery",
       "detail": "contract.example.ts",
@@ -2141,15 +1691,6 @@
       "detail": "contract.ts",
       "message": "模块 plugin-api 缺少 contract.ts",
       "fingerprint": "eaa69e6cc3f511a3",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/project-workspace-navigation",
-      "module": "project-workspace-navigation",
-      "detail": "contract.ts",
-      "message": "模块 project-workspace-navigation 缺少 contract.ts",
-      "fingerprint": "ebb124b51c28cf88",
       "global": false
     },
     {
@@ -2199,29 +1740,11 @@
     },
     {
       "rule": "missing-module-artifact",
-      "file": "packages/services/src/managed-worktree-tasks",
-      "module": "managed-worktree-tasks",
-      "detail": "module.ts",
-      "message": "模块 managed-worktree-tasks 缺少 module.ts",
-      "fingerprint": "f5dee1d042f3d1a1",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
       "file": "apps/zcode-cli/packages/node-repl-host/src/call-ledger",
       "module": "node-repl-call-ledger",
       "detail": "module.ts",
       "message": "模块 node-repl-call-ledger 缺少 module.ts",
       "fingerprint": "f823473cc7b1590a",
-      "global": false
-    },
-    {
-      "rule": "missing-module-artifact",
-      "file": "packages/services/src/startup-storage",
-      "module": "startup-storage",
-      "detail": "module.ts",
-      "message": "模块 startup-storage 缺少 module.ts",
-      "fingerprint": "f9c13941494de564",
       "global": false
     },
     {

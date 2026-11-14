@@ -79,7 +79,10 @@ Apache-2.0 复制内容中的 147 个已确认改编文件包含文件内来源�
 
 ### 尚不能仅靠补声明关闭的条目
 
-- React Best Practices：上游 `vercel-labs/agent-skills` 的固定参考 `063bee94c3f4df8453406c830b0a7df0f2860278` 中，根 README 与技能 frontmatter 声明 MIT，但树中无完整 LICENSE 文件。保留本地 Shu Ding / Vercel 署名；未编造上游版权年份或许可证原文。现已登记到 `copied-components.json`，参与输入哈希和严格门禁。来源：[README](https://github.com/vercel-labs/agent-skills/blob/063bee94c3f4df8453406c830b0a7df0f2860278/README.md)、[技能声明](https://github.com/vercel-labs/agent-skills/blob/063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/SKILL.md)。
+- React Best Practices：上游 `vercel-labs/agent-skills` 的固定参考 `063bee94c3f4df8453406c830b0a7df0f2860278` 中，根 README 与技能 frontmatter 声明 MIT，但树中无完整 LICENSE 文件。保留本地 Shu Ding / Vercel 署名；未编造上游版权年份或许可证原文。现已登记到 `copied-components.json`，参与输入哈希和严格门禁。来源：[README](https://github.com/vercel-labs/agent-skills/blob/063bee94c3f4df8453406c830b0a7df0f2860278/README.md)、[技能声明](https://github.com/vercel-labs/agent-skills/blob/063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/SKILL.md)。 2026-11-14 复检上游 `main`（tarball SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有许可文件或版权行。
+- `react-remove-scroll-bar@2.3.8`：npm 归档 27 个文件无许可文件；npm 记录的 gitHead `b3b1287aad81def2e2ae707274b74531b61ddbaf` 已不可达，仓库也没有 2.3.8 对应的 ref。上游 2025-05-21 才在 commit `7301c160fda44cb8cf2b9fdfde61efad35736196` 加入 MIT LICENSE（Copyright (c) 2025 Anton Korzunov），晚于 2024-12-15 的发布，只能作为证据保留，不能作为该版本的许可原文。
+- `@hono/node-ws@1.3.0`：npm 归档 10 个文件无许可文件，`@hono/node-ws@1.3.0` tag 对应的 `2c026b9d5bfff006dc9abdc1b33c53856d2d784f` 树也没有 LICENSE。上游 2026-09-29 才在 commit `a8e2af4d857aa7fabf290cdf6f67307678e50409` 加入 MIT LICENSE（Copyright (c) 2022 - present, Yusuke Wada and Hono contributors），维护者在 issue #2157 明确说明该文件从下一个版本起才会进入 npm 包，因此不能关闭 1.3.0。
+- `ansi-to-react@6.2.6`：npm 归档 4 个文件无许可文件；tag `v6.2.6` 对应的 `145140971e9d83ccac32265f24b1c55dea437896` 树无许可文件，全部历史也没有 LICENSE/COPYING/NOTICE 或版权行，README 只有 BSD-3-Clause 标识链接，无法取得完整原文。
 - `webfetch-processing.ts` 的清单判词称其提示词来自 Gemini CLI，但本次取得的上游 `cfbcaa8df13ea4610bb379b377b56d62980c0032` 的 `web-fetch.ts` 未找到被指认的句子；无法据此添加 Google 归属并宣称问题解决。
 - Windows 浏览器导入中的解密实现、混合来源技能描述、商标资产和兼容层的授权/来源问题，需要各自的证据，不能通过追加通用 NOTICE 关闭。
 - 原清单提及 `apps/zcode-cli/.agents/skills/` 下的技能，但该目录在当前 checkout 中不存在；锁文件中残留来源信息不代表还分发那些文件。
