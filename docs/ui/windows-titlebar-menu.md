@@ -12,11 +12,10 @@
 - 新任务草稿态不会渲染完整 `WorkspaceHeader`，但 Windows/Linux 桌面端仍需要保留右上角 Terminal 切换按钮和合并菜单按钮。UI 在 shell 外层标题栏区域依次渲染共享的 Terminal 入口与 `WindowsCaptionMenuButton`，只恢复桌面窗口级入口，不恢复 workspace 路径、分支和 task 相关 header 内容。Windows 草稿态合并菜单按钮保持和 session task header 入口一致的尺寸、直角和 hover 样式，但去掉左侧边框，外层不额外绘制 `bg-background-win-alt` 或 `border-b border-border`，避免在透明标题区形成孤立色块。
 - Linux 新任务草稿态的合并菜单外层保留 Linux 标题栏 surface 样式，左下角使用 `rounded-bl-xl`，和右侧自绘窗口按钮区域形成同一层级。
 - 新任务草稿态在桌面端不渲染完整 `WorkspaceHeader`，但会在相同布局位置渲染轻量 `<header class="h-10 [app-region:drag]">` 作为标题栏拖拽区。该 header 参与主内容纵向布局，避免用 absolute overlay 覆盖 ChatView，同时仍低于右上角窗口菜单的点击层级。
-- 检查更新菜单项订阅 `IPlatformService.onUpdateStateChanged()`，并在菜单打开时通过 `IPlatformService.getUpdateState()` 主动拉取当前状态。主进程的 `electron-updater` 状态会通过 `PlatformChannels.UpdateStateChanged` 持续同步到 renderer，因此 Windows 自绘菜单可以和 macOS 原生菜单一样显示检查、下载进度和可重启安装状态。
 
 ## 当前菜单项
 
-- 合并菜单：New task、Open Workspace、Open in File Explorer、About ZCode、Check for Updates（检查中/下载中会显示状态与百分比）、Feedback、Community（有可用入口时）、Export Logs、Toggle Developer Tools（开发态）、Resource Manager（资源管理器，开发态）、Close Window
+- 合并菜单：New task、Open Workspace、Open in File Explorer、About ZCode、Feedback、Community（有可用入口时）、Export Logs、Toggle Developer Tools（开发态）、Resource Manager（资源管理器，开发态）、Close Window
 
 ## Windows 工作区外沿
 

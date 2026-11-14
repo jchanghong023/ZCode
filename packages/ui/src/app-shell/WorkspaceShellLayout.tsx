@@ -259,8 +259,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   desktopWindowChromeState,
   macWindowControlsLeftPaddingPx,
   windowsWindowControlsRightPaddingPx = 136,
-  updateReadyVersion,
-  updateState,
   sidebarContainerRef,
   toggleSidebarShortcutLabel,
   newTaskShortcutLabel,
@@ -308,7 +306,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   fileChangeFindQuery,
   onFileChangeFindMatchCountChange,
   appLogoUrl,
-  platform,
   reloadSessionDisabled,
   reloadSessionPending,
   handleReloadSession,
@@ -1778,11 +1775,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       });
     }
   }, [activeTaskId, workspaceKey]);
-  const hasUpdateStatusButton =
-    updateReadyVersion !== null ||
-    updateState?.kind === "update-available" ||
-    updateState?.kind === "download-progress" ||
-    updateState?.kind === "update-downloaded";
   const renderSidePanePanel = () => (
     <AnimatedSidePanePanel
       services={services}
@@ -1822,7 +1814,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                 isSidebarVisible,
                 isMacDesktop,
                 isMacFullscreen,
-                hasUpdateReady: hasUpdateStatusButton,
               }),
               onSelectSurface: fullViewController.setSurface,
             }
@@ -2113,7 +2104,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                             projectName={projectName}
                             activeTaskTitle={activeTaskTitle}
                             activeTaskChangeSummary={activeTaskChangeSummary}
-                            hasUpdateReady={hasUpdateStatusButton}
                             activeTaskId={activeTaskId}
                             user={user}
                             activeTraceId={activeTraceId}
@@ -2353,8 +2343,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
             isWindowsDesktop={isWindowsDesktop}
             isDesktop={isDesktop}
             isSidebarVisible={isSidebarVisible}
-            updateReadyVersion={updateReadyVersion}
-            updateState={updateState}
             toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
             newTaskShortcutLabel={newTaskShortcutLabel}
             goBackShortcutLabel={goBackShortcutLabel}
@@ -2365,7 +2353,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
             canGoForward={canGoForward}
             showNewTaskButton={showTopOverlayNewTaskButton}
             appLogoUrl={appLogoUrl}
-            platform={platform}
             onToggleSidebar={handleToggleSidebar}
             onCreateTask={handleCreateTaskInChat}
             onGoBack={primaryNavigationBack}

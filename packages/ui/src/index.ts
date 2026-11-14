@@ -8,7 +8,6 @@ export {
   useAssistantCodeCommentFeatureEnabled,
 } from "./AssistantCodeCommentFeatureProvider.js";
 export { Root } from "./Root.js";
-export { UpdateStatusWindowRoot } from "./UpdateStatusWindowRoot.js";
 export { ConfirmDialogHost } from "./ConfirmDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
