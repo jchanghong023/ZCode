@@ -113,7 +113,6 @@ import {
   MockManagedWorktreeService,
   MockOffPeakTaskService,
   MockOnboardingRecordService,
-  MockProjectService,
   MockPromptAttachmentTransferService,
   MockSourceServerManagementService,
   MockSourceServerWorkspaceService,
@@ -121,6 +120,7 @@ import {
   MockWindowControllerService,
   MockWindowProjectChangesService,
 } from "./planning.js";
+import { MockProjectService } from "./project.js";
 import { MockRuntime } from "./runtime.js";
 import {
   MockFileService,

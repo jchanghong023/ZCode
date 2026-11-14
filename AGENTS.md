@@ -63,7 +63,7 @@
 
 - mock 服务按 `packages/services` 的接口与 descriptor 注册进 `ServiceCollection`；新增 UI 消费的服务方法必须在 `packages/server/src/mock/` 提供同形状实现（可用 `Parameters/ReturnType` 从接口派生签名）。
 - v4 会话流必须用 `@zcode/shared/zcode-protocol-v4` 的 zod schema 产帧并在发射前自校验；`subscriptionId`/`seq`/`logEpoch` 记账不可伪造。
-- 模拟数据全部在内存中（虚拟工作区、虚拟 git 状态），不访问真实文件系统、不发起真实网络请求。
+- 模拟数据全部在内存中（虚拟工作区、虚拟 git 状态），不发起真实网络请求；唯一例外是本地项目选目录：`projectService.readDirectory` 读取本机真实目录名（只读目录/文件类型，不读写文件内容），`systemService.info` 返回真实 home 目录。
 - 改 UI 行为时优先让模拟后端贴合真实协议语义，而不是给 UI 加 mock 分支。
 
 ## 实现与验证

@@ -12,8 +12,18 @@ ProjectEditor 仍是名称、roots、primary 的唯一草稿 owner；多选结�
                                                 ProjectEditor 草稿
                                                          ↓ 显式保存
                                                    Host saveProject
-远端 / Web / 手机 → 原 projectService.readDirectory(hostId) → 同一草稿
+Web 本地（Chrome / Firefox）→ projectService.readDirectory(hostId)
+                                  ↓ 服务端真实目录浏览（只读目录名）
+                          ProjectEditor 草稿 → 显式保存 → Host saveProject
+远端 / 手机 → 原 projectService.readDirectory(hostId) → 同一草稿
 ```
+
+## Web 形态
+
+浏览器不向页面暴露系统绝对路径（`showDirectoryPicker` 仅 Chromium 且拿不到完整路径），因此 Web 本地项目
+统一走服务端目录浏览：`projectService.readDirectory` 读取本机真实目录名，`systemService.info().homedir`
+返回真实 home。Chrome 与 Firefox 走同一条 RPC，不使用浏览器专属 API。目录浏览只读名称与类型，
+不读写文件内容；远端 Host 仍通过所属连接浏览。
 
 ## 边界与失败语义
 

@@ -1,5 +1,6 @@
 // 模拟后端运行时：所有 mock 服务的内存状态中心。
-// 只保留内存态，不落盘、不访问真实文件系统、不发起真实网络请求。
+// 只保留内存态，不落盘、不发起真实网络请求；唯一例外是本地目录浏览
+// （projectService.readDirectory 读取本机真实目录名），文件内容不读写。
 import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {

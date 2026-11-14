@@ -3,6 +3,7 @@
 // 业务层全部来自 mock 服务集合。
 import { hostname } from "node:os";
 import { readFile, stat } from "node:fs/promises";
+import localAppConfig from "../../../config/default.json" with { type: "json" };
 import * as nodePath from "node:path";
 import { basename, extname, resolve } from "node:path";
 import { Hono, type Context } from "hono";
@@ -290,6 +291,11 @@ export function createMockHttpServer(
   }
 
   app.get("/api/server-info", (c) => c.json(createServerInfo(options, workspacePath)));
+
+  // 纯 Web 形态下客户端配置由本机 mock 提供，避免浏览器直连外部 ZCode endpoint。
+  app.get("/api/v1/client/configs", (c) =>
+    c.json({ code: 0, data: { configs: { feedbackUrl: localAppConfig } } }),
+  );
 
   // Web 端启动期（canOpenCommunity/openFeedback）按同源 /api/v1/client/configs 读取
   // help/community 配置。mock 是自洽站点：返回内存态配置，与 config/default.json 同形，

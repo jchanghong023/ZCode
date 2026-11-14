@@ -1699,6 +1699,10 @@ global:
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
 
 exceptions:
+  - id: mock-project-service-split
+    rule: unmanaged-new-file
+    paths: [packages/server/src/mock/project.ts]
+    reason: 纯 Web 模拟后端把本地项目与目录浏览从 planning.ts 拆出以满足 max-lines；server 为原型模块，后续由自有后端整体替换时一并删除。
   - id: sidebar-bottom-activity-remove-marketing-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/sidebar-activity/SidebarBottomActivity.tsx]

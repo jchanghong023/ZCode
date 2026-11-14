@@ -1,5 +1,7 @@
 // 模拟工作区服务：文件系统 / Git / 文件监听 / 系统信息 / 终端 / 媒体预览。
-// 全部基于 MockRuntime 的虚拟状态，不触碰真实文件系统与进程。
+// 除系统信息返回本机 home 目录外，全部基于 MockRuntime 的虚拟状态，不触碰真实文件系统与进程。
+import { homedir } from "node:os";
+
 import { Emitter, type Event } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {
@@ -509,7 +511,8 @@ export class MockSystemService implements ISystemService {
   constructor(private readonly runtime: MockRuntime) {}
 
   async info(): Promise<SystemInfo> {
-    return { homedir: this.runtime.workspacePath, platform: process.platform };
+    // 本地项目选目录需要真实 home；其余工作区状态仍是 MockRuntime 的内存投影。
+    return { homedir: homedir(), platform: process.platform };
   }
 
   async listIntegratedTerminalShells(): Promise<IntegratedTerminalShellOption[]> {

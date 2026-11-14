@@ -3,7 +3,6 @@
 // 方法签名统一从对应服务接口派生（Parameters/ReturnType）。
 import { Emitter } from "@zcode/rpc";
 import type { WindowHostControllerFrame } from "@zcode/services";
-import type { ProjectTask, VirtualProject } from "@zcode/services";
 import { createUuid } from "@zcode/shared";
 import type {
   IBotsService,
@@ -13,7 +12,6 @@ import type {
   IOffPeakTaskService,
   IOnboardingRecordService,
   IPromptAttachmentTransferService,
-  IProjectService,
   ISourceServerManagementService,
   ISourceServerWorkspaceService,
   ITaskGroupService,
@@ -32,109 +30,6 @@ function asResult<T>(value: unknown): T {
 }
 
 // ── 项目（虚拟项目目录：一个「演示项目」） ──
-
-export class MockProjectService implements IProjectService {
-  constructor(private readonly runtime: MockRuntime) {}
-
-  private demoProject(): VirtualProject {
-    return {
-      id: "project_demo",
-      hostId: "local",
-      name: "ZCode Web Demo",
-      nameOverridden: false,
-      roots: [{ rootPath: this.runtime.workspacePath, position: 0, isPrimary: true }],
-      position: 0,
-      pinned: false,
-      deleted: false,
-      createdAt: this.runtime.startedAt,
-      updatedAt: this.runtime.startedAt,
-    };
-  }
-
-  async readDirectory(
-    params?: P<IProjectService["readDirectory"]>,
-  ): Promise<AR<IProjectService["readDirectory"]>> {
-    const path = params?.path ?? this.runtime.workspacePath;
-    return asResult({ path, entries: [] });
-  }
-
-  async readProjects(
-    _params?: P<IProjectService["readProjects"]>,
-  ): Promise<AR<IProjectService["readProjects"]>> {
-    return [this.demoProject()];
-  }
-
-  async readTree(
-    _params?: P<IProjectService["readTree"]>,
-  ): Promise<AR<IProjectService["readTree"]>> {
-    // 树投影：项目 + 任务；任务行镜像会话运行时的 task 记录。
-    const tasks: ProjectTask[] = [...this.runtime.tasks.values()]
-      .filter((record) => {
-        const session = this.runtime.sessions.get(record.sessionId);
-        return !session || isListedSession(session);
-      })
-      .map((record) => ({
-        taskId: record.sessionId,
-        traceId: `trace_${record.sessionId}`,
-        title: record.title || "新任务",
-        workspacePath: record.workspacePath,
-        createdAt: record.createdAt,
-        updatedAt: record.lastActivityAt,
-        mode: "build" as const,
-        provider: "glm" as const,
-        projectId: null,
-        hostId: "local",
-        pinned: record.pinned,
-        archived: record.archived,
-      }));
-    return { projects: [this.demoProject()], tasks };
-  }
-
-  async saveProject(
-    input: P<IProjectService["saveProject"]>,
-  ): Promise<AR<IProjectService["saveProject"]>> {
-    void input;
-    return this.demoProject();
-  }
-
-  async deleteProject(_id: string): Promise<void> {}
-
-  async restoreProject(_id: string): Promise<AR<IProjectService["restoreProject"]>> {
-    return this.demoProject();
-  }
-
-  async moveTask(_input: P<IProjectService["moveTask"]>): Promise<void> {}
-
-  async reorderProjects(_ids: string[]): Promise<void> {}
-
-  async prepareSession(
-    _params?: P<IProjectService["prepareSession"]>,
-  ): Promise<AR<IProjectService["prepareSession"]>> {
-    return asResult({
-      workspacePath: this.runtime.workspacePath,
-      additionalDirectories: [],
-      projectId: null,
-    });
-  }
-
-  async measureProjectData(_ids: string[]): Promise<AR<IProjectService["measureProjectData"]>> {
-    return asResult({ projects: [] });
-  }
-
-  async deleteProjectData(_id: string): Promise<AR<IProjectService["deleteProjectData"]>> {
-    return asResult({ deletedBytes: 0 });
-  }
-
-  async resolveSessionDirectories(
-    _task: P<IProjectService["resolveSessionDirectories"]>,
-  ): Promise<AR<IProjectService["resolveSessionDirectories"]>> {
-    return asResult({
-      workspacePath: this.runtime.workspacePath,
-      additionalDirectories: [],
-      projectId: null,
-    });
-  }
-}
 
 export class MockTaskGroupService implements ITaskGroupService {
   async read(): Promise<AR<ITaskGroupService["read"]>> {
