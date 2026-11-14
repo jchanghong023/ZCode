@@ -27,7 +27,7 @@ import type { Theme } from "@/useTheme.js";
  * 那个值刻意不用）。
  *
  * **刻意不做 iframe**：renderer 没有 CSP，`allow-scripts allow-same-origin` 的 sandbox 组合
- * 等价于逃逸。html 因此走既有的浏览器 tab（见 `WorkflowArtifactHtmlCard`）。
+ * 等价于逃逸。html 因此只给元数据卡与「在工作区显示」（见 `WorkflowArtifactHtmlCard`）。
  */
 
 /** 文本类：正文用等宽 code viewer 呈现。`text/markdown` 不在其中——它走 MessageResponse。 */
@@ -44,23 +44,14 @@ interface WorkflowArtifactBodyProps {
   /** 正在查看的版本；内容产物的字节按它读。 */
   version: number;
   bytes: Uint8Array<ArrayBuffer> | null;
-  blob: Blob | null;
-  objectUrl: string | null;
   /** 字节读取的状态：loading 与 error 都由本组件呈现（各查看器自己的 loading 只覆盖解析）。 */
   loading: boolean;
   error: string | null;
   /** 预置看板的条目流；内容产物恒空。 */
   items: readonly ArtifactItem[];
   theme: Theme;
-  resolvedTheme: "light" | "dark";
-  /** html 的「在浏览器中打开」；缺席即只显示提示。 */
-  onOpenBrowserUrl?: (url: string) => void;
-  /** 本地文件系统上的绝对路径（desktop-local ∧ `sourcePath` 在场时才有）。 */
-  localSourcePath?: string;
   /** 「在工作区显示」：已绑定好路径的文件树 reveal；缺席即无渲染器的卡片上不出这个按钮。 */
   onReveal?: () => void;
-  /** 查看的是不是最新版——旧版的工作区原文件早就被覆盖了，html 预览因此只对最新版开放。 */
-  isLatestVersion: boolean;
   /** 元数据（含预置看板的 spec）还在读；预置正文据此区分「还没到」与「真的没有」。 */
   metadataLoading: boolean;
 }
@@ -126,14 +117,8 @@ export function WorkflowArtifactBody(props: WorkflowArtifactBodyProps) {
 function WorkflowArtifactContent({
   artifact,
   bytes,
-  blob,
-  objectUrl,
   theme,
-  resolvedTheme,
-  onOpenBrowserUrl,
   onReveal,
-  localSourcePath,
-  isLatestVersion,
 }: WorkflowArtifactBodyProps & { bytes: Uint8Array<ArrayBuffer> }) {
   const { intl } = useZCodeIntl();
   const contentType = artifact.contentType ?? "application/octet-stream";
@@ -169,9 +154,6 @@ function WorkflowArtifactContent({
       <WorkflowArtifactHtmlCard
         artifact={artifact}
         bytes={bytes.length}
-        isLatestVersion={isLatestVersion}
-        {...(localSourcePath === undefined ? {} : { localSourcePath })}
-        {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
         {...(onReveal === undefined ? {} : { onReveal })}
       />
     );

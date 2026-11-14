@@ -173,7 +173,6 @@ export function FileManagerPane({
               canOpenLocalFileManager={canOpenLocalFileManager}
               activePreviewPath={source?.path}
               onOpenPreview={navigate}
-              onOpenBrowserUrl={previewProps.onOpenBrowserUrl}
             />
           ) : null}
         </ResizablePanel>

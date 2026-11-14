@@ -237,20 +237,6 @@ export class MockFileService implements IFileService {
     content: string;
   }): Promise<void> {}
 
-  async readDesignSourceFile(params: { path: string }) {
-    const node = resolveNode(this.runtime.virtualRoot, params.path);
-    return { content: node?.kind === "file" ? (node.content ?? "") : "" };
-  }
-
-  async writeDesignSourceFile(params: { path: string; expectedContent: string; content: string }) {
-    const node = resolveNode(this.runtime.virtualRoot, params.path);
-    if (node?.kind === "file" && node.content === params.expectedContent) {
-      node.content = params.content;
-      node.mtimeMs = Date.now();
-      return { written: true };
-    }
-    return { written: false };
-  }
 }
 
 export class MockFileWatcherService implements IFileWatcherService {

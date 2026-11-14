@@ -1,7 +1,7 @@
 import type { DraftPluginUiOpenRequest } from "@/plugin-ui/contract.js";
 import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
-/* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
+/* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 side pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
@@ -67,10 +67,6 @@ import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { resolveTopOverlayLeadingPaddingClass, WorkspaceHeader } from "@/WorkspaceHeader.js";
 import { WorkspaceSidebar, type SidebarFileTreeOpenRequest } from "@/WorkspaceSidebar.js";
 import { AnimatedSidePanePanel } from "@/app-shell/AnimatedSidePanePanel.js";
-import {
-  findScreenshotSurfaceTabForRender,
-  useBrowserScreenshotSurfaceRequest,
-} from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
 import { SIDE_PANE_DEFAULT_EXPANDED_SIZE } from "@/app-shell/sidePaneLayout.js";
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
 import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
@@ -89,8 +85,7 @@ import {
 } from "@/git-branch-switcher/display.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { getPathLeaf, toFileUrl } from "@/lib/path.js";
-import { shouldOpenAssistantHtmlInBrowser } from "@/lib/assistantPreviewCards.js";
+import { getPathLeaf } from "@/lib/path.js";
 import { setWorkspaceSidebarResizeActive } from "@/lib/workspaceSidebarResizeState.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
@@ -138,7 +133,7 @@ const CONVERSATION_AUTO_COLLAPSE_SIDEBAR_WIDTH_PX = 360;
 const CONVERSATION_AUTO_COLLAPSE_RESIZE_IDLE_MS = 300;
 // 性能修复：ResizablePanelGroup 收到深相等的新 panelIds 数组，
 // 会跟随 chat streaming render 重算布局上下文；固定数组语义上不会随消息变化。
-const WORKSPACE_BODY_PANEL_IDS = ["conversation-column", "browser"];
+const WORKSPACE_BODY_PANEL_IDS = ["conversation-column", "side-pane"];
 const WORKSPACE_CONVERSATION_PANEL_IDS = ["conversation"];
 
 type WorkspaceSidebarResizeSession = {
@@ -295,8 +290,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   isSidebarVisible,
   isSidePaneOpen,
   sidePaneFullView,
-  isBrowserOpen,
-  supportsEmbeddedBrowser: _supportsEmbeddedBrowser,
   summaryPanelVariantOverride,
   onSummaryPanelVariantOverrideChange,
   sidePaneState,
@@ -316,8 +309,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   gitWorktreeChangeSummary,
   activeGitSourceId,
   gitState,
-  browserNavigationRequest,
-  browserRestoreUrls,
   providerConfigFile,
   taskNativeSessionLogFile,
   taskSessionFile,
@@ -342,10 +333,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleStartDraftInWorkspace,
   handleOpenCommandCenter,
   handleRefreshGit,
-  handleBrowserUrlChange,
-  handleBrowserPageMetadataChange,
   handleToggleSidebar,
-  handleOpenBrowserPermissionSettings,
   handleOpenDeveloperTools,
   handleOpenFileManager,
   handleNavigateFileManager,
@@ -376,7 +364,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleCloseOtherSidePaneTabs,
   handleCloseAllSidePaneTabs,
   handleReopenClosedSidePaneTab,
-  handleBrowserNavigationRequestHandled,
   setGitSelectedSourceId,
   taskFindDialogProps,
 }: WorkspaceShellLayoutProps) {
@@ -447,10 +434,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleOpenFileManager],
   );
-  const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
-  const screenshotSurfaceTab = screenshotSurfaceRequest
-    ? findScreenshotSurfaceTabForRender(sidePaneState?.tabs ?? [], screenshotSurfaceRequest)
-    : undefined;
   const restorePaneSession = useTabStore((state) =>
     state.tabs.some(
       (tab) =>
@@ -687,10 +670,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     () => readStoredWorkspaceSidebarWidthPx() ?? WORKSPACE_SIDEBAR_DEFAULT_WIDTH_PX,
   );
   const workspaceSidebarPanelWidthPxRef = useRef(workspaceSidebarPanelWidthPx);
-  const openWorkspaceKeys = useMemo(
-    () => workspaceTabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath),
-    [workspaceTabs],
-  );
   // 完整视图（docs/ui/side-pane-full-view.md）只读派生：不改侧栏、面板宽度等原有状态，退出后自然恢复。
   const fullViewController = sidePaneFullView;
   const activeFullView =
@@ -701,7 +680,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     : activeFullView.surface === "conversation"
       ? "conversation"
       : "floating";
-  const isFloatingFullView = fullViewMode === "floating";
   const isFullViewRef = useRef(isFullView);
   isFullViewRef.current = isFullView;
   const [fullViewSlotElement, setFullViewSlotElement] = useState<HTMLDivElement | null>(null);
@@ -729,9 +707,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     panelElementRef: sidePanePanelElementRef,
     isVisible: isSidePaneVisible,
   } = useAnimatedResizablePanel({
-    // 截图 surface 由 browser-use tab 自己的 fixed 承载层提供尺寸，不能再把整个右侧
-    // ResizablePanel 撑开；否则自动化页会闪出空白的 tab 栏，且面板过渡期间 guest surface
-    // 仍可能被 Chromium 判定为不可合成。
     open: workspaceMainView === "chat" && isSidePaneOpen,
     expandedSize: SIDE_PANE_DEFAULT_EXPANDED_SIZE,
     rememberExpandedSize: true,
@@ -1429,11 +1404,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleStartDraftInWorkspace, showChatMainView],
   );
-  const handleCreateProjectDraft = useCallback(
-    (path: string, identity?: string) =>
-      handleStartDraftInWorkspaceInChat(path, identity, undefined, "project"),
-    [handleStartDraftInWorkspaceInChat],
-  );
   const activeWorkspacePurpose = currentWorkspaceTab?.workspacePurpose ?? "project";
   const handleSelectConversationWorkspace = useCallback(async () => {
     if (!onResolveConversationWorkspace) {
@@ -1700,16 +1670,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
           path: target.path,
         });
         if (fileStat.type === "file") {
-          if (
-            shouldOpenAssistantHtmlInBrowser({
-              path: target.path,
-              workspaceIdentity: target.workspaceIdentity,
-              workspaceRemoteSessionId: target.workspaceRemoteSessionId,
-            })
-          ) {
-            handleOpenBrowserUrl(toFileUrl(target.path));
-            return;
-          }
+          // 内嵌浏览器已移除：html 与其它文件一样进代码预览，不再尝试用 window.open 打开 file:// 链接。
           handleOpenCodeViewer({
             type: "file",
             title: getPathLeaf(target.path),
@@ -1785,7 +1746,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     [
       findFileLinkOwnerWorkspace,
       baseServices.fileService,
-      handleOpenBrowserUrl,
       handleOpenCodeViewer,
       intl,
       openFileTreeRequest,
@@ -1851,8 +1811,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   const renderSidePanePanel = () => (
     <AnimatedSidePanePanel
       services={services}
-      isBrowserOpen={isBrowserOpen}
-      browserNavigationRequest={browserNavigationRequest}
       isDesktop={isDesktop}
       isWindowsDesktop={isWindowsDesktop}
       frameClassName={resolveWorkspaceShellWindowChromeClass({
@@ -1908,9 +1866,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       activeGitSourceId={activeGitSourceId}
       panelRef={sidePanePanelRef}
       panelElementRef={sidePanePanelElementRef}
-      browserRestoreUrls={browserRestoreUrls}
-      screenshotSurfaceRequest={screenshotSurfaceRequest}
-      screenshotSurfaceTabId={screenshotSurfaceTab?.id ?? null}
       fileChangeFindActiveIndex={fileChangeFindActiveIndex}
       fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
       fileChangeFindQuery={fileChangeFindQuery}
@@ -1924,7 +1879,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onCloseOtherTabs={handleCloseOtherSidePaneTabs}
       onCloseAllTabs={handleCloseAllSidePaneTabs}
       onReopenClosedTab={handleReopenClosedSidePaneTab}
-      onOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
       onOpenDeveloperTools={handleOpenDeveloperTools}
       onOpenFileManager={handleOpenFileManager}
       onNavigateFileManager={handleNavigateFileManager}
@@ -1944,9 +1898,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
       onOpenWorkflowRun={handleOpenWorkflowRun}
       onRefreshGit={handleRefreshGit}
-      onBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
-      onBrowserUrlChange={handleBrowserUrlChange}
-      onBrowserPageMetadataChange={handleBrowserPageMetadataChange}
       onSelectGitSource={setGitSelectedSourceId}
     />
   );
@@ -2102,7 +2053,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
             )}
           />
         ) : null}
-        {/* 右侧主工作区：上方 header，下面左侧会话+终端，右侧共享 browser/code-viewer 槽位 */}
+        {/* 右侧主工作区：上方 header，下面左侧会话+终端，右侧共享 side pane 槽位 */}
         <div
           data-panel=""
           id="content"
@@ -2416,8 +2367,8 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                 </ResizablePanelGroup>
               </SidePaneFullViewConversationHost>
             </ResizablePanel>
-            {/* Bugfix：Browser Guest Host 必须与主视图路由解耦，避免 automations/plugin
-                    切换时卸载 Guest；截图请求期间由上层临时展开真实面板承载可合成的 WebContents。 */}
+            {/* Bugfix：side pane 面板必须与主视图路由解耦，避免 automations/plugin
+                    切换时卸载已挂载的 pane 内容。 */}
             {sidePanePanel}
           </ResizablePanelGroup>
         </div>

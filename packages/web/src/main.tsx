@@ -67,16 +67,10 @@ function resolveWebThemePreference(): Theme {
 
 const root = createRoot(document.getElementById("root")!);
 const webAuthService = createWebAuthService();
-let isPageUnloading = false;
-
 // 初始化 Web 端流式 clientId，确保所有 hook 在首次渲染前就使用稳定 ID
 {
   setStreamClientId(generateMobileDeviceFingerprint());
 }
-
-window.addEventListener("beforeunload", () => {
-  isPageUnloading = true;
-});
 
 interface WebBootstrapResult {
   wsUrl: string;
@@ -205,7 +199,6 @@ async function bootstrapWebApp() {
             restoreSession={bootstrap.restoreSession}
             allowOpenWorkspace={bootstrap.allowOpenWorkspace}
             preferDirectoryBrowser
-            supportsEmbeddedBrowser={false}
             allowRemoteWorkspace={false}
           />
         </ZCodeIntlProvider>

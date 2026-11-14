@@ -7,7 +7,7 @@ export type MentionCategory =
   | "plugins"
   /** 插件 composer.mention 条目给的候选项（docs/plugins/extension-host.md §16.6）：序列化为 insertText 原文。 */
   | "extensions"
-  /** 内置浏览器设计模式点选的页面元素（不进 @ 候选面板，只由点选插入） */
+  /** 历史设计模式点选的页面元素（不进 @ 候选面板，只由点选插入） */
   | "elements";
 
 export interface MentionItemData {

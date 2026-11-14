@@ -89,7 +89,7 @@ export function buildSessionMentionMarkdown(sessionId: string, label?: string): 
 
 // Plugin 引用的 canonical 持久化载体：
 /**
- * 内置浏览器设计模式点选的页面元素：`[@名称](zcode-element://引用 id)`。
+ * 历史设计模式点选的页面元素：`[@名称](zcode-element://引用 id)`。
  * id 与消息末尾网页元素块里的 `Reference: zcode-element://…` 一致，模型据此把正文里的指代对到元素。
  */
 export const ELEMENT_MENTION_SCHEME = "zcode-element://";

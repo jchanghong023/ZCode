@@ -15,7 +15,7 @@ import { HISTORY_NAVIGATION_UPDATE_TAG, PROGRAMMATIC_UPDATE_TAG } from "@/lib/ed
 import { buildElementMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { $createPromptMentionNode, PromptMentionNode } from "@/mentions/nodes/PromptMentionNode.js";
 
-// 设计模式点选的元素在输入框正文里是元素 token（docs/browser-use/2026-11-03-browser-design-mode-spec.md 第四节），
+// 点选的网页元素在输入框正文里是元素 token，
 // 像 Skill / Goal 一样能在前后穿插文字。引用列表（useWebElementContexts）是唯一来源，这里只做两个方向的同步：
 // 列表多了 → 在正文末尾插入 token、光标落到它后面；列表少了 → 删掉对应 token；用户在正文里删掉 token → 通知调用方移除这条引用；
 // 撤销等把已移除引用的 token 带回正文 → 直接去掉（引用的截图和页面信息已经丢了，不能留一个空壳 token 发出去）。

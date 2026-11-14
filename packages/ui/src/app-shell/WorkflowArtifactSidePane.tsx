@@ -29,7 +29,7 @@ import {
 import { joinFilePath } from "@/lib/path.js";
 import type { WorkflowArtifactSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
-import { resolveTheme, type Theme } from "@/useTheme.js";
+import type { Theme } from "@/useTheme.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
@@ -43,11 +43,9 @@ const EMPTY_SUMMARIES: readonly WorkflowRunArtifactSummary[] = [];
 
 const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
   tab,
-  onOpenBrowserUrl,
   onRevealFileInTree,
 }: {
   tab: WorkflowArtifactSidePaneTab;
-  onOpenBrowserUrl?: (url: string) => void;
   onRevealFileInTree?: (path: string) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -116,7 +114,6 @@ const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
           metadataLoading={metadataLoading}
           tab={tab}
           theme={theme}
-          {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
           {...(onRevealFileInTree === undefined ? {} : { onRevealFileInTree })}
         />
       )}
@@ -133,7 +130,6 @@ function WorkflowArtifactView({
   metadataLoading,
   tab,
   theme,
-  onOpenBrowserUrl,
   onRevealFileInTree,
 }: {
   artifact: WorkflowRunArtifactView;
@@ -141,7 +137,6 @@ function WorkflowArtifactView({
   metadataLoading: boolean;
   tab: WorkflowArtifactSidePaneTab;
   theme: Theme;
-  onOpenBrowserUrl?: (url: string) => void;
   onRevealFileInTree?: (path: string) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -169,7 +164,6 @@ function WorkflowArtifactView({
       ? selectedVersion
       : artifact.version;
   const versionIndex = availableVersions.indexOf(version);
-  const isLatestVersion = version === artifact.version;
 
   const bytesState = useWorkflowRunArtifactBytes({
     sessionId: tab.parentSessionId,
@@ -313,19 +307,13 @@ function WorkflowArtifactView({
       <div className="min-h-0 flex-1">
         <WorkflowArtifactBody
           artifact={artifact}
-          blob={bytesState.blob}
           bytes={bytesState.bytes}
           error={bytesState.error}
-          isLatestVersion={isLatestVersion}
           items={dataState.items}
           loading={bytesState.loading}
           metadataLoading={metadataLoading}
-          objectUrl={bytesState.objectUrl}
-          resolvedTheme={resolveTheme(theme)}
           theme={theme}
           version={version}
-          {...(localSourcePath === undefined ? {} : { localSourcePath })}
-          {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
           {...(reveal === undefined ? {} : { onReveal: reveal })}
         />
       </div>
@@ -418,12 +406,9 @@ function ArtifactVersionStepper({
  */
 export const WorkflowArtifactSidePane = memo(function WorkflowArtifactSidePane({
   tab,
-  onOpenBrowserUrl,
   onRevealFileInTree,
 }: {
   tab: WorkflowArtifactSidePaneTab;
-  /** html 产物的「在浏览器中打开」。 */
-  onOpenBrowserUrl?: (url: string) => void;
   /** 「在工作区显示」：复用既有的文件树 reveal（与 Git 面板同一条路径）。 */
   onRevealFileInTree?: (path: string) => void;
 }) {
@@ -440,7 +425,6 @@ export const WorkflowArtifactSidePane = memo(function WorkflowArtifactSidePane({
     <V4PaneConversationProvider scope={scope}>
       <WorkflowArtifactContent
         tab={tab}
-        {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
         {...(onRevealFileInTree === undefined ? {} : { onRevealFileInTree })}
       />
     </V4PaneConversationProvider>

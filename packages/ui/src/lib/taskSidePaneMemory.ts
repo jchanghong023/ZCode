@@ -15,9 +15,6 @@ export interface TaskSidePaneMemoryState {
   /** 工具调用的自动打开已消费记录；不随消息行卸载清空。 */
   pluginUiAutoOpenKeys: ReadonlySet<string>;
   activeGitSourceId: GitChangeSourceId;
-  browserUrls: Record<string, string>;
-  /** @deprecated 旧版单浏览器 tab 的 URL，保留用于读取历史内存状态。 */
-  browserUrl: string | null;
 }
 
 const DEFAULT_TASK_SIDE_PANE_MEMORY_STATE: TaskSidePaneMemoryState = {
@@ -27,8 +24,6 @@ const DEFAULT_TASK_SIDE_PANE_MEMORY_STATE: TaskSidePaneMemoryState = {
   sidePaneFullViewByOwner: {},
   pluginUiAutoOpenKeys: new Set(),
   activeGitSourceId: "unstaged",
-  browserUrls: {},
-  browserUrl: null,
 };
 
 export const TASK_SIDE_PANE_MEMORY_MAX_ENTRIES = 50;

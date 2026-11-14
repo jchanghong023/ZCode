@@ -4,7 +4,7 @@ import {
   appToolSearchModeSchema,
   DEFAULT_APP_TOOL_SEARCH_MODE,
 } from "./app-runtime-preferences.js";
-import { SUPPORTED_LOCALES, type AppSettings } from "./protocol.js";
+import { SUPPORTED_LOCALES } from "./protocol.js";
 import { resolvePersistedUiLocale, resolvePersistedUiLocalePreference } from "./locale.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -12,10 +12,6 @@ import { wslUserSchema } from "./wslUserValidation.js";
 import { ZCODE_ENABLED_AGENT_PROVIDERS } from "./zcode-agent-policy.js";
 import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
 import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
-import {
-  DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
-  embeddedBrowserViewportPreferenceSchema,
-} from "./browser-use/command-metadata.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
 import {
   connectionProfileSchema,
@@ -203,26 +199,6 @@ function sanitizeDesktopWindowSize(value: unknown): unknown {
   const { desktopWindowSize: _desktopWindowSize, ...next } = raw;
   // 窗口尺寸是非关键偏好，坏值若参与整份 schema 校验，会让其他合法设置全部回退默认。
   // 读取历史设置时只丢弃损坏字段；写入 patch 仍保持严格校验，避免继续产生坏数据。
-  return next;
-}
-
-function sanitizeEmbeddedBrowserViewportPreference(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-  const raw = value as Record<string, unknown>;
-  if (!("embeddedBrowserViewportPreference" in raw)) {
-    return value;
-  }
-  const parsed = embeddedBrowserViewportPreferenceSchema.safeParse(
-    raw.embeddedBrowserViewportPreference,
-  );
-  if (parsed.success) {
-    return value;
-  }
-  const { embeddedBrowserViewportPreference: _embeddedBrowserViewportPreference, ...next } = raw;
-  // 显示偏好不是关键启动状态，单字段损坏不应让整份 setting.json 被隔离。
-  // 读取时只丢弃坏偏好并回到默认值；patch 写入仍严格拒绝非法尺寸与缩放。
   return next;
 }
 
@@ -526,11 +502,6 @@ const appSettingsObjectSchema = z.object({
   httpProxy: nonEmptyStringSchema.optional(),
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
-  embeddedBrowserAllowInsecureCertificates: z.boolean().default(false),
-  fileTreeHtmlClickOpensBrowser: z.boolean().default(false),
-  embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.default(
-    DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
-  ),
   // 输入框电脑操作入口改为默认不展示，设置项保留、默认关闭。
   // default 只对缺省字段生效，显式存过 false 的用户仍保持展示。
   computerUseComposerEntryHidden: z.boolean().default(true),
@@ -593,17 +564,15 @@ const appSettingsObjectSchema = z.object({
 
 export const appSettingsSchema = z.preprocess(
   (value) =>
-    sanitizeEmbeddedBrowserViewportPreference(
-      sanitizeDesktopWindowSize(
-        migrateMessageStreamShowReasoningDefault(
-          migrateCloseToTrayOnWindowsDefault(
-            migrateLegacyLocalePreference(
-              applyPersistedUiLocaleFields(
-                sanitizeZCodeEndpointOrigin(
-                  migrateLegacyWorkspaceSession(
-                    migrateLegacyBuiltinAgentCliProviders(
-                      migrateRemoteBoundaryIntroAcknowledgement(migrateTaskAutoArchiveReset(value)),
-                    ),
+    sanitizeDesktopWindowSize(
+      migrateMessageStreamShowReasoningDefault(
+        migrateCloseToTrayOnWindowsDefault(
+          migrateLegacyLocalePreference(
+            applyPersistedUiLocaleFields(
+              sanitizeZCodeEndpointOrigin(
+                migrateLegacyWorkspaceSession(
+                  migrateLegacyBuiltinAgentCliProviders(
+                    migrateRemoteBoundaryIntroAcknowledgement(migrateTaskAutoArchiveReset(value)),
                   ),
                 ),
               ),
@@ -626,9 +595,6 @@ export const appSettingsPatchSchema = z.object({
   httpProxy: nonEmptyStringSchema.optional(),
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
-  embeddedBrowserAllowInsecureCertificates: z.boolean().optional(),
-  fileTreeHtmlClickOpensBrowser: z.boolean().optional(),
-  embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.optional(),
   computerUseComposerEntryHidden: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),

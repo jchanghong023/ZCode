@@ -71,7 +71,6 @@ export function SidePaneTabOverview({
       }),
     [
       currentTime,
-      labels.browserTitle,
       labels.codeViewerTitle,
       labels.relativeTime,
       labels.reviewTitle,
@@ -97,7 +96,6 @@ export function SidePaneTabOverview({
       }),
     [
       currentTime,
-      labels.browserTitle,
       labels.codeViewerTitle,
       labels.relativeTime,
       labels.reviewTitle,

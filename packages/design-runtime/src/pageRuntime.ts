@@ -12,7 +12,7 @@ import type {
 } from "./contract.js";
 import type { ElementInspector } from "./elementInspector.js";
 
-// 注入 guest 页面的设计运行时（docs/browser-use/2026-11-03-browser-design-mode-spec.md）。
+// 页面内运行的 inspector 辅助脚本。
 // 和 createElementInspector 一样经 `.toString()` 序列化执行，函数体必须自包含。
 // 页面状态（选中框、预览）只是投影：选中集合、样式改动、CSS 变量、当前方案的 owner 是宿主，页面刷新后由宿主重新推送。
 // 页面 → 宿主：`window.postMessage({ [bridgeKey]: 1, events })`，由内置浏览器固定 guest preload 校验后

@@ -18,11 +18,10 @@ import type {
 import type { IServiceAccessor } from "@zcode/services";
 import type { SavedWorkflowsOpenTarget } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
 import type { SavedWorkflowHubTarget } from "@/v4/savedWorkflowHubContext.js";
-import type { BrowserNavigationRequest, RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
+import type { RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import type {
-  BrowserSidePaneMetadata,
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenSelectionSideChatRequest,
@@ -199,7 +198,6 @@ export interface AppProps {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
-  supportsEmbeddedBrowser?: boolean;
 }
 
 export interface GitChangeSummary {
@@ -248,8 +246,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   canTaskNavBack: boolean;
   canTaskNavForward: boolean;
   isSidebarVisible: boolean;
-  isBrowserOpen: boolean;
-  supportsEmbeddedBrowser: boolean;
   isGitOpen: boolean;
   isSidePaneOpen: boolean;
   /** Side Pane 完整视图控制器（仅桌面；spec：docs/ui/side-pane-full-view.md）。 */
@@ -286,8 +282,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   gitWorktreeChangeSummary: GitChangeSummary;
   activeGitSourceId: GitChangeSourceId;
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
-  browserNavigationRequest: BrowserNavigationRequest | null;
-  browserRestoreUrls: Record<string, string>;
   providerConfigFile: ReturnType<
     typeof import("@/hooks/useWorkspaceProviderConfigFile.js").useWorkspaceProviderConfigFile
   >;
@@ -331,10 +325,7 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   ) => void;
   handleOpenCommandCenter: () => void;
   handleRefreshGit: () => void;
-  handleBrowserUrlChange: (tabId: string, url: string) => void;
-  handleBrowserPageMetadataChange: (tabId: string, metadata: BrowserSidePaneMetadata) => void;
   handleToggleSidebar: () => void;
-  handleOpenBrowserPermissionSettings: (origin: string) => void;
   handleOpenDeveloperTools: () => void;
   handleOpenFileManager: (target?: FileManagerTarget) => void;
   handleNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
@@ -371,7 +362,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   handleCloseOtherSidePaneTabs: (tabId: string) => void;
   handleCloseAllSidePaneTabs: () => void;
   handleReopenClosedSidePaneTab: (tabId: string) => void;
-  handleBrowserNavigationRequestHandled: (requestId: string) => void;
   setGitSelectedSourceId: (value: GitChangeSourceId) => void;
   taskFindDialogProps: TaskFindDialogProps;
 }

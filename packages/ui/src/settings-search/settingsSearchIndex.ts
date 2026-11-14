@@ -216,36 +216,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     visibility: "all",
   },
   {
-    id: "settings.browser.control.title",
-    section: "browser",
-    description: "settings.browser.control.description",
-    visibility: "all",
-  },
-  {
-    id: "settings.browser.import.title",
-    section: "browser",
-    description: "settings.browser.import.description",
-    visibility: "notWindows",
-  },
-  {
-    id: "settings.embeddedBrowserAllowInsecureCertificates",
-    section: "browser",
-    description: "settings.embeddedBrowserAllowInsecureCertificatesDescription",
-    visibility: "desktop",
-  },
-  {
-    id: "settings.browser.clearCache.title",
-    section: "browser",
-    description: "settings.browser.clearCache.description",
-    visibility: "all",
-  },
-  {
-    id: "settings.browser.clearAll.title",
-    section: "browser",
-    description: "settings.browser.clearAll.description",
-    visibility: "all",
-  },
-  {
     id: "settings.memory.workspaceMemory",
     section: "memory",
     description: "settings.memoryDescription",
@@ -268,12 +238,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     section: "general",
     description: "chat.officeSuggestions.settingDescription",
     visibility: "all",
-  },
-  {
-    id: "settings.browser.htmlClickOpensBrowser",
-    section: "browser",
-    description: "settings.browser.htmlClickOpensBrowserDescription",
-    visibility: "desktop",
   },
 ] as const satisfies readonly {
   id: string;

@@ -174,7 +174,7 @@ modules:
   - id: e2e-report
     roots: [packages/e2e-report/src]
     managed: false
-  # design-runtime：内置浏览器设计模式注入页面的运行时（docs/browser-use/2026-11-03-browser-design-mode-spec.md）
+  # design-runtime：网页元素上下文的共享类型与页面 inspector 表达式。
   - id: design-runtime
     roots: [packages/design-runtime/src]
     managed: true
@@ -183,7 +183,7 @@ modules:
       - packages/design-runtime/src/index.ts
       - packages/design-runtime/src/contract.ts
     layers: {app: "."}
-    owner: browser
+    owner: conversation
   - id: zcode-cli
     roots: [apps/zcode-cli]
     managed: false
@@ -624,7 +624,7 @@ modules:
     layers: {app: .}
     owner: agent
 
-  # remote-input-prediction：回放型客户端输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。?
+  # remote-input-prediction：回放型客户端输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。
   - id: remote-input-prediction
     roots:
       - packages/shared/src/zcode-protocol-v4/input-prediction
@@ -971,21 +971,6 @@ modules:
       app: .
     owner: plugin
 
-  # embedded-browser-permission：由 architecture:adopt 登记
-  - id: embedded-browser-permission
-    roots:
-      - packages/desktop/src/main/embedded-browser-permission-contract
-      - packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts
-    managed: true
-    requires:
-      - desktop
-      - shared
-    publicEntrypoints:
-      - packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts
-      - packages/desktop/src/main/embedded-browser-permission-contract/contract.ts
-    layers:
-      adapters: .
-    owner: desktop
   # data-sync-service：数据同步分类服务形状与本机设备同步状态（docs/remote/data-sync.md）
   - id: data-sync-service
     roots:
@@ -1551,18 +1536,6 @@ modules:
     layerOrder: [domain, app, adapters, ui]
     owner: plugin
 
-  # 内置浏览器本地 HTML 的受控文件读取边界。
-  - id: browser-local-preview
-    roots:
-      - packages/desktop/src/main/browser-local-preview
-    managed: true
-    requires: [shared]
-    publicEntrypoints:
-      - packages/desktop/src/main/browser-local-preview/index.ts
-      - packages/desktop/src/main/browser-local-preview/contract.ts
-    layers:
-      adapters: .
-    owner: desktop
   # plugin-api：插件作者用的类型包 @zcode-dev/plugin-api（docs/plugins/extension-host.md §17.9）。
   # 只转出 extension-host-protocol 与 v4 协议（shared）的类型；四个子入口都是公开入口。
   # tsup.config.ts 与 scripts/ 产出仓库外用的 dist 声明。
@@ -1766,11 +1739,6 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/shared/src/shortcutCommands.ts]
     reason: 已准入的快捷键命令表只追加一条 toggleSidePaneFullView 命令（Side Pane 完整视图，docs/ui/side-pane-full-view.md）；命令表仍是唯一数据源，签名与模块边界不变，接管整个 shared 包不在本次范围内。
-  - id: browser-session-recent-visits-ui
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/store/browserRecentVisitsStore.ts
-    reason: Session 最近访问仅为 renderer 内存态展示数据，复用既有 UI store 与浏览器 owner，不改变 UI 模块边界或跨层契约。
   - id: zcode-site-deploy-runtime-template
     rule: unmanaged-new-file
     paths: [apps/zcode-cli/packages/zcode-site-plugin/skills/site-deploy/templates/static-server.mjs]
@@ -1796,7 +1764,6 @@ exceptions:
   - id: test-ids-subpath-import-unmanaged-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx
       - packages/ui/src/hooks/useStartPlanRecommendation.ts
       - packages/ui/src/settings/DynamicWorkflowModeSetting.tsx
     reason: 已准入的存量文件只把 TID 导入从 @zcode/shared 根入口改为 @zcode/shared/test-ids 子路径（根入口不再导出 test-ids，以收窄受影响单测范围）；行为与模块边界不变，接管 ui 目录不在本次范围内。
@@ -2078,41 +2045,10 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/desktop/src/host/hostServiceResourceTelemetry.ts]
     reason: Existing main-branch registration point gains a Host-only event and capability gate; adopting the whole Host runtime is outside this telemetry change.
-  - id: browser-device-presets-export-unmanaged-new-files
+  - id: element-mention-sync-plugin-unmanaged-new-file
     rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/browser-use/browserPageExport.ts
-      - packages/ui/src/browser-use/useBrowserPageExport.ts
-      - packages/desktop/src/main/desktopCaptureBrowserGuestPage.ts
-    reason: Browser pane export (docs/browser-use/2026-10-16-browser-device-presets-and-export-spec.md) colocates with the existing unmanaged browser-use view and toolbar it extends, and its main-side PNG capture sits next to the existing unmanaged desktopPrintToPdf handler it mirrors; adopting packages/ui/src/browser-use and packages/desktop/src/main as managed modules needs a separate boundary refactor of the embedded browser.
-  - id: browser-element-screenshot-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/browser-use/browserElementScreenshot.ts]
-    reason: Element picker screenshots (docs/browser-use/2026-11-03-browser-element-screenshot-and-live-reload-spec.md) reuse the unmanaged browser-use main-side capture; the helper sits next to the existing unmanaged browser view, and the composer side reuses plugin-ui's public useContextImageAttachments; adopting packages/ui/src/browser-use as a managed module needs a separate boundary refactor.
-  - id: browser-file-live-reload-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/browser-use/useBrowserFileLiveReload.ts]
-    reason: Browser file:// live reload (docs/browser-use/2026-11-03-browser-element-screenshot-and-live-reload-spec.md) mirrors the unmanaged usePptxFileWatch pattern and is wired only into the existing unmanaged UnifiedBrowserView; adopting packages/ui/src/browser-use as a managed module needs a separate boundary refactor of the embedded browser.
-  - id: browser-design-mode-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/browser-use/BrowserDesignInspector.tsx
-      - packages/ui/src/browser-use/BrowserDesignFields.tsx
-      - packages/ui/src/browser-use/browserDesignProperties.ts
-      - packages/ui/src/browser-use/BrowserDesignToolbar.tsx
-      - packages/ui/src/browser-use/useBrowserDesignMode.ts
-      - packages/ui/src/browser-use/useBrowserDesignRuntime.ts
-      - packages/ui/src/browser-use/useBrowserDesignSourceWriter.ts
-      - packages/ui/src/v4/composer/ElementMentionSyncPlugin.tsx
-    reason: Browser design mode (docs/browser-use/2026-11-03-browser-design-mode-spec.md) adds the thin host layer next to the existing unmanaged UnifiedBrowserView it extends; page logic lives in the managed design-runtime package. Adopting packages/ui/src/browser-use as a managed module needs a separate boundary refactor of the embedded browser.
-  - id: browser-design-preload-bridge-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [packages/desktop/src/preload/embeddedBrowserDesignBridge.ts]
-    reason: The design runtime's page-to-host forwarder (docs/browser-use/2026-11-03-browser-design-mode-spec.md) is installed by the existing unmanaged embedded browser guest preload next to its embeddedBrowserWheel forwarder and reuses the same sendToHost channel registry; adopting packages/desktop/src/preload as a managed module needs a separate boundary refactor.
-  - id: file-tree-html-click-browser-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/settings/FileTreeHtmlOpenSetting.tsx]
-    reason: The opt-in "open HTML in the built-in browser on click" switch (docs/browser-use/2026-11-03-browser-element-screenshot-and-live-reload-spec.md) is a self-contained settings row rendered by the existing unmanaged BrowserSettingsSection, following the ProactiveSuggestionsSetting pattern; adopting packages/ui/src/settings needs a separate module boundary refactor.
+    paths: [packages/ui/src/v4/composer/ElementMentionSyncPlugin.tsx]
+    reason: 输入框里的元素 token 同步插件与既有 Skill/Goal token 同构，只跟随 composer 的引用列表；接管 packages/ui/src/v4/composer 需要单独的重构。
   - id: request-verification-config-recovery-presentation
     rule: unmanaged-new-file
     paths:

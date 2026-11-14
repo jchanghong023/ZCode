@@ -149,7 +149,7 @@ export const TID_BROWSER_DEVTOOLS_BUTTON = "browser-devtools-button";
 export const TID_BROWSER_EXPORT_PNG_ITEM = "browser-export-png-item";
 export const TID_BROWSER_EXPORT_PDF_ITEM = "browser-export-pdf-item";
 export const TID_BROWSER_SITE_SETTINGS_ITEM = "browser-site-settings-item";
-/** 浏览器设计模式（docs/browser-use/2026-11-03-browser-design-mode-spec.md） */
+/** 浏览器设计模式 */
 export const TID_BROWSER_DESIGN_TOOLBAR = "browser-design-toolbar";
 export const TID_BROWSER_DESIGN_PANEL_BUTTON = "browser-design-panel-button";
 export const TID_BROWSER_DESIGN_VARIANT_SELECT = "browser-design-variant-select";

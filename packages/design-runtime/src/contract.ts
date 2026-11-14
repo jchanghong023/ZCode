@@ -1,4 +1,4 @@
-// 设计运行时与宿主之间的数据形状（docs/browser-use/2026-11-03-browser-design-mode-spec.md）。
+// 网页元素上下文与页面 inspector 之间的数据形状。
 // 页面侧脚本、宿主 hook、提示词拼装都只依赖这里的类型；不含宿主或 React 依赖。
 
 /** 运行时版本：页面里已装同版本时复用，不同版本先 dispose 再装。 */

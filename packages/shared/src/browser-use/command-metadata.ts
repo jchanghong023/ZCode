@@ -9,7 +9,7 @@ export const BROWSER_VIEWPORT_LIMITS = {
 } as const;
 
 /**
- * 人类用户自由尺寸工具栏的设备预设（docs/browser-use/2026-10-16-browser-device-presets-and-export-spec.md）。
+ * 人类用户自由尺寸工具栏的设备预设。
  * 只是输入宽高的快捷方式，全部落在 BROWSER_VIEWPORT_LIMITS 内；Agent viewport 不使用。
  */
 export const BROWSER_VIEWPORT_PRESETS = [

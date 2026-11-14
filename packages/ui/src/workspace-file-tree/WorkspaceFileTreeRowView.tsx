@@ -7,7 +7,6 @@ import {
   ChevronRight,
   CopyIcon,
   FolderOpenIcon,
-  GlobeIcon,
   LoaderCircle,
   MessageSquarePlusIcon,
   PanelRightIcon,
@@ -57,8 +56,6 @@ import type {
   WorkspaceFileTreeContextMenuLabels,
 } from "@/workspace-file-tree/types.js";
 import {
-  createWorkspaceFileTreeHtmlBrowserUrl,
-  isWorkspaceFileTreeHtmlFile,
 } from "@/workspace-file-tree/helpers.js";
 import { getWorkspaceFileTreeHierarchyGuideStyle } from "@/workspace-file-tree/hierarchyGuides.js";
 import { useWorkspaceFileTreeRowDragState } from "@/workspace-file-tree/useWorkspaceFileTreeRowDragState.js";
@@ -76,7 +73,6 @@ export function WorkspaceFileTreeRowView({
   installedEditors,
   isRemoteWorkspaceFileTree,
   remoteTarget,
-  htmlClickOpensBrowser = false,
   workspacePath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -84,7 +80,6 @@ export function WorkspaceFileTreeRowView({
   onSelect,
   onToggleDirectory,
   onOpenPreview,
-  onOpenBrowserUrl,
   onKeyDown,
 }: {
   layout?: "absolute" | "static";
@@ -98,7 +93,6 @@ export function WorkspaceFileTreeRowView({
   installedEditors: EditorInfo[];
   isRemoteWorkspaceFileTree: boolean;
   remoteTarget?: OpenInEditorRemoteTarget;
-  htmlClickOpensBrowser?: boolean;
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -106,7 +100,6 @@ export function WorkspaceFileTreeRowView({
   onSelect: (path: string) => void;
   onToggleDirectory: (row: WorkspaceFileTreeRow) => void;
   onOpenPreview: (row: WorkspaceFileTreeRow) => void;
-  onOpenBrowserUrl?: (url: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, row: WorkspaceFileTreeRow) => void;
 }) {
   const platform = usePlatform();
@@ -154,11 +147,6 @@ export function WorkspaceFileTreeRowView({
     name: row.name,
   };
 
-  const canOpenInBrowser =
-    !isDeletedFile &&
-    !isRemoteWorkspaceFileTree &&
-    Boolean(onOpenBrowserUrl) &&
-    isWorkspaceFileTreeHtmlFile(row);
   const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
     onSelect(row.path);
     if (event.detail > 1) {
@@ -171,12 +159,6 @@ export function WorkspaceFileTreeRowView({
     if (isDeletedFile) {
       // 修复：Git deleted 行是从状态里补出来的虚拟文件，真实文件已不存在。
       // 点击时只保留选中能力，避免继续打开预览导致文件读取失败。
-      return;
-    }
-    // 用户开了「单击 HTML 在内置浏览器打开」时，本地 .html 单击进浏览器；
-    // 条件与右键「在浏览器中打开」相同（远端 workspace 的文件不在本机磁盘，仍走源码预览）。
-    if (htmlClickOpensBrowser && canOpenInBrowser) {
-      handleOpenInBrowser();
       return;
     }
     // 文件树单击文件之前只更新选中态，必须双击才打开预览。
@@ -219,14 +201,6 @@ export function WorkspaceFileTreeRowView({
       error: result.error ?? "unknown-error",
     });
     toast(contextMenuLabels.openFailed);
-  };
-  const handleOpenInBrowser = () => {
-    const url = createWorkspaceFileTreeHtmlBrowserUrl(row);
-    if (!url) {
-      return;
-    }
-
-    onOpenBrowserUrl?.(url);
   };
   const handleRevealInFileManager = async () => {
     if (wslFileManagerEditor) {
@@ -418,12 +392,6 @@ export function WorkspaceFileTreeRowView({
                 });
             }}
           />
-          {canOpenInBrowser ? (
-            <ContextMenuItem onSelect={handleOpenInBrowser}>
-              <GlobeIcon aria-hidden="true" className="size-4" />
-              {contextMenuLabels.openInBrowser}
-            </ContextMenuItem>
-          ) : null}
           {!isDirectory && (
             <FileSaveAsMenuItem
               variant="context"

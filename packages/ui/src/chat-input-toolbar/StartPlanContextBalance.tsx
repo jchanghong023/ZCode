@@ -1,4 +1,4 @@
-import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
+import { Button } from "@/components/ui/button.js";
 import { LoaderCircle, RocketIcon } from "lucide-react";
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
@@ -147,7 +147,7 @@ export function ChatStartPlanBalancePanel({
         </div>
         {config.onUpgradeClick ? (
           <div className="inline-flex shrink-0 items-center gap-1">
-            <CodingPlanEntryButton
+            <Button
               type="button"
               size="xs"
               className={cn(
@@ -171,7 +171,7 @@ export function ChatStartPlanBalancePanel({
                   variant="surface"
                 />
               ) : null}
-            </CodingPlanEntryButton>
+            </Button>
             {upgradeButtonHighlighted ? (
               <CodingPlanBillingDiscountInfoDialog config={billingDiscount.config} />
             ) : null}

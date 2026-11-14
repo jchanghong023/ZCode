@@ -2,7 +2,6 @@ import {
   BookOpenIcon,
   FileDiffIcon,
   FolderOpenIcon,
-  GlobeIcon,
   LogInIcon,
   LogOutIcon,
   MessageCirclePlus,
@@ -14,7 +13,6 @@ import {
   ScrollTextIcon,
   ServerIcon,
   SettingsIcon,
-  SquareTerminalIcon,
   SunIcon,
   UsersIcon,
   WandSparkles,
@@ -23,7 +21,6 @@ import type { QuickPickCommandIcon } from "@/quickpick/quickPickCommands.js";
 
 export const QUICK_PICK_ICON_BY_KIND = {
   book: BookOpenIcon,
-  browser: GlobeIcon,
   community: UsersIcon,
   diff: FileDiffIcon,
   feedback: MessageSquareIcon,

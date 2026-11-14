@@ -16,7 +16,6 @@ import {
   Anchor,
   Brain,
   Blocks,
-  Globe2,
   Cable,
   WandSparkles,
   HardDrive,
@@ -146,13 +145,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.hooks.title",
     groupId: "agentCapabilities",
   },
-  {
-    id: "browser",
-    icon: Globe2,
-    titleId: "settings.browser.title",
-    groupId: "basics",
-  },
-  // 原型导航顺序：浏览器之后才是远程设备；电脑控制继续紧随其后并受灰度门禁。
+  // 原型导航顺序：基础设置之后是远程设备；电脑控制继续紧随其后并受灰度门禁。
   {
     id: "remoteDevices",
     icon: HardDrive,

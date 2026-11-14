@@ -6,7 +6,6 @@ export type SettingsSectionId =
   | "agentBehavior"
   | "appearance"
   | "migration"
-  | "browser"
   | "modelProvider"
   | "remoteDevices"
   | "dataSync"
@@ -75,7 +74,6 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "agentBehavior" ||
     value === "appearance" ||
     value === "migration" ||
-    value === "browser" ||
     value === "modelProvider" ||
     value === "remoteDevices" ||
     value === "dataSync" ||

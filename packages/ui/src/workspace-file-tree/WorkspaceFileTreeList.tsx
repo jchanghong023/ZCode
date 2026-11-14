@@ -68,7 +68,6 @@ export function WorkspaceFileTreeList({
   onSelect,
   onToggleDirectory,
   onOpenPreview,
-  onOpenBrowserUrl,
   onKeyDown,
 }: {
   rootError: Error | null;
@@ -91,7 +90,6 @@ export function WorkspaceFileTreeList({
   onSelect: (path: string) => void;
   onToggleDirectory: (row: WorkspaceFileTreeRow) => void;
   onOpenPreview: (row: WorkspaceFileTreeRow) => void;
-  onOpenBrowserUrl?: (url: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, row: WorkspaceFileTreeRow) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -133,7 +131,6 @@ export function WorkspaceFileTreeList({
       installedEditors={editorState.installedEditors}
       isRemoteWorkspaceFileTree={editorState.isRemoteWorkspaceFileTree}
       remoteTarget={editorState.remoteTarget}
-      htmlClickOpensBrowser={editorState.htmlClickOpensBrowser === true}
       workspaceRemoteSessionId={editorState.workspaceRemoteSessionId}
       workspacePath={workspacePath}
       workspaceIdentity={workspaceIdentity}
@@ -141,7 +138,6 @@ export function WorkspaceFileTreeList({
       onSelect={onSelect}
       onToggleDirectory={onToggleDirectory}
       onOpenPreview={onOpenPreview}
-      onOpenBrowserUrl={onOpenBrowserUrl}
       onKeyDown={onKeyDown}
     />
   );

@@ -55,7 +55,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
-import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 export { attachRemoteProjectWorkspace } from "@/project-sidebar/remote-navigation.js";
 export { useRemoteWorkspaceConnectionGate } from "@/project-sidebar/useRemoteWorkspaceConnectionGate.js";
 export { resolveEntryProject } from "@/project-sidebar/view.js";
@@ -94,7 +93,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
   const { intl } = useZCodeIntl();
   const tabStore = useTabStoreApi();
   const setTheme = useZCodeStore((state) => state.setTheme);
-  const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
   const { view, setView } = preferences;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [groupedToolbar, setGroupedToolbar] = useState<HTMLDivElement | null>(null);
@@ -123,7 +121,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
     }),
     [props.workspacePath, props.workspaceIdentity, pin, openTaskFiles],
   );
-  const msg = (id: string) => intl.formatMessage({ id: `project.${id}` });
   const start = async (projectId?: string, hostId?: string, taskGroupId?: string | null) => {
     const activeTaskId = useZCodeSessionStore
       .getState()
@@ -197,12 +194,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
     tabStore.getState().openSettingsTab();
   }, [tabStore]);
   const changeTheme = useCallback((value: string) => setTheme(value as Theme), [setTheme]);
-  const upgrade = useCallback<
-    NonNullable<Parameters<typeof WorkspaceSidebarFooter>[0]["onUpgradeClick"]>
-  >(
-    (providerId, funnelContext) => openCodingPlanUpgrade({ providerId, funnelContext }),
-    [openCodingPlanUpgrade],
-  );
   return (
     <ProjectTaskListContext.Provider value={taskPresentation}>
       <SidebarTooltipProvider>
@@ -317,7 +308,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
                 onThemeChange={changeTheme}
                 onSettingsButtonClick={openSettings}
                 onUsageClick={openSettings}
-                onUpgradeClick={upgrade}
                 onLogin={props.onLogin}
                 onLogout={props.onLogout}
                 user={props.user}

@@ -19,7 +19,7 @@ export type WebElementRect = PageElementRect;
 export type WebElementStyleSummary = PageElementStyleSummary;
 
 /**
- * 选中元素时在 main 侧按元素 rect 裁出的截图（docs/browser-use/2026-11-03-browser-element-screenshot-and-live-reload-spec.md）。
+ * 选中元素时按元素 rect 裁出的截图。
  * 只在内存里随 chip 走：composer 附加时把它预上传为图片附件，不进提示词文本，也不进历史回显。
  */
 export interface WebElementScreenshot {

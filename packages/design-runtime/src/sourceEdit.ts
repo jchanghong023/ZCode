@@ -2,7 +2,7 @@ import { parse } from "parse5";
 import type { DefaultTreeAdapterMap } from "parse5";
 import type { DesignSourcePath } from "./contract.js";
 
-// 属性面板写回源码（docs/browser-use/2026-11-03-browser-design-mode-spec.md 第五节）。只在宿主侧用，不进页面。
+// 属性面板写回源码；只在宿主侧用，不进页面。
 // 只改目标元素开始标签里的 style 属性、只含文字的元素的文字、或 :root 里一条 CSS 变量声明的值，文件其余字节原样保留。
 // 找不到或对不上就返回 null，调用方不写：宁可不写，也不能写到另一个元素上。
 

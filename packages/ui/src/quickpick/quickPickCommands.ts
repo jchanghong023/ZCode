@@ -1,6 +1,5 @@
 export type QuickPickCommandIcon =
   | "book"
-  | "browser"
   | "community"
   | "diff"
   | "feedback"

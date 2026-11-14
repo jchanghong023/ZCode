@@ -1,6 +1,6 @@
 # Design runtime
 
-Injected page runtime for the embedded browser's design tools (docs/browser-use/2026-11-03-browser-design-mode-spec.md).
+Page inspector helpers shared by the composer web-element context.
 
 - Page-side functions (`createElementInspector`, `installDesignRuntime`, `readDesignPageSignals`) are serialized with `.toString()` and run inside the guest page. Their bodies must stay self-contained: they may use only their parameters and page globals.
 - Page → host traffic is `window.postMessage({ [bridgeKey]: 1, events })`; the embedded browser's fixed guest preload checks source, shape and size and forwards it with `sendToHost`. Host → page traffic is the fixed `DesignRuntimeCommand` set over `executeJavaScript`. Page scripts can forge events, so every host-side parser (`parseDesignRuntimeEvents`, `parseDesignPageInfo`, `parseDesignPageSignals`) caps strings and arrays (`DESIGN_PAGE_LIMITS`); the result only ever becomes a user-visible, removable element reference, and a forged source path can only fail to match.

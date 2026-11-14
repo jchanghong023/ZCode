@@ -7,8 +7,8 @@
 
 本规格同时覆盖三个包，因为这次它们的版本事实源清单**结构性地变了**：Browser Use 原本的
 五处事实源里，第五处 `NODE_REPL_SERVER_VERSION` 随宿主迁出，成了 node-repl-host 自己的
-记录。此前每版一份的 `docs/browser-use/*-browser-use-plugin-version-*-spec.md` 系列只描述
-单插件，无法表达迁出后的归属。
+记录。此前每版一份的 browser-use 插件版本 spec 系列只描述单插件，无法表达迁出后的归属；
+内嵌浏览器移除后该系列已随 spec 目录一并下线。
 
 ## 1. 版本决策
 

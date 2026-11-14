@@ -13,7 +13,6 @@ import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { resolveRemoteWorkspaceSessionIdForTarget } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { clearBrowserRecentVisitsForTask } from "@/store/browserRecentVisitsStore.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
@@ -199,10 +198,6 @@ export function useArchiveManagement() {
               msg("deletedResult", { title: task.title, count: result.retainedArtifacts }),
             );
             for (const id of result.sessionIds) {
-              clearBrowserRecentVisitsForTask(
-                task.workspaceIdentity?.trim() || task.workspacePath,
-                id,
-              );
               removeTaskState(task.workspacePath, id, task.workspaceIdentity);
             }
           } else {

@@ -132,7 +132,6 @@ export function App({
   isDesktop,
   isMacDesktop,
   isWindowsDesktop,
-  supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
 }: AppProps) {
   // 展示 label 统一从快捷键生效表取（用户改键后 tooltip 同步更新），不再硬编码键位。
   const toggleSidebarShortcutLabel = useShortcutCommandLabel("toggleSidebar");
@@ -143,7 +142,6 @@ export function App({
   const toggleSidePaneFullViewShortcutLabel = useShortcutCommandLabel("toggleSidePaneFullView");
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
-  const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const { intl, locale } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const platform = usePlatform();
@@ -224,12 +222,9 @@ export function App({
     isSidePaneCollapsed,
     setIsSidePaneCollapsed,
     isSidebarVisible,
-    browserNavigationRequest,
-    setBrowserNavigationRequest,
     handleOpenCodeViewer,
     handleOpenCodeViewers,
     handleOpenBrowserUrl,
-    handleOpenBrowserPermissionSettings,
     handleToggleGit,
     handleOpenGit,
     handleOpenDeveloperTools,
@@ -261,8 +256,6 @@ export function App({
     handleCloseOtherSidePaneTabs,
     handleCloseAllSidePaneTabs,
     handleReopenClosedSidePaneTab,
-    handleBrowserNavigationRequestHandled,
-    handleBrowserPageMetadataChange,
     markSidePaneDraftPromotion,
   } = useAppPanels({
     workspaceAbsPath,
@@ -270,10 +263,7 @@ export function App({
     workspaceRemoteSessionId,
     activeTaskId,
     sidePaneOwnerId,
-    isDesktop,
     isWorkspaceVisible,
-    supportsEmbeddedBrowser,
-    platform,
   });
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const notificationEnabled = useZCodeStore((s) => s.notificationEnabled);
@@ -352,7 +342,7 @@ export function App({
   const [canOpenCommunityFromQuickPick, setCanOpenCommunityFromQuickPick] = useState(false);
   const [gitSelectedSourceId, setGitSelectedSourceId] = useState<GitChangeSourceId>("unstaged");
   const [gitRefreshVersion, setGitRefreshVersion] = useState(0);
-  const { browserRestoreUrls, handleBrowserUrlChange } = useTaskSidePaneMemoryBridge({
+  useTaskSidePaneMemoryBridge({
     activeTaskId,
     gitSelectedSourceId,
     setGitSelectedSourceId,
@@ -421,7 +411,6 @@ export function App({
   );
   const commandCenterWorkspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
   const activeSidePaneTab = useMemo(() => getActiveSidePaneTab(sidePaneState), [sidePaneState]);
-  const isBrowserOpen = activeSidePaneTab?.type === "browser";
   const isGitOpen = activeSidePaneTab?.type === "git";
   const hasGitTab = sidePaneState?.tabs.some((tab) => tab.type === "git") ?? false;
   const handleRefreshGit = useCallback(() => {
@@ -800,7 +789,6 @@ export function App({
     workspaceAbsPath,
     workspaceIdentity,
     services,
-    setBrowserNavigationRequest,
     setTestMessages,
   });
 
@@ -1103,7 +1091,6 @@ export function App({
       runVisibleWorkspaceCommand,
       openSettingsTab,
       openWorkspaceShortcutLabel,
-      supportsEmbeddedBrowser,
       toggleSidebarShortcutLabel,
       themeTarget,
     ],
@@ -1169,8 +1156,6 @@ export function App({
         >
           <WorkspaceShellLayout
             services={services}
-            isBrowserOpen={isBrowserOpen}
-            browserNavigationRequest={browserNavigationRequest}
             workspaceReadOnlyReason={workspaceReadOnlyReason}
             workspaceMainView={workspaceMainView}
             pluginStoreOpenVersion={pluginStoreOpenVersion}
@@ -1232,7 +1217,6 @@ export function App({
             canTaskNavBack={canTaskNavBack}
             canTaskNavForward={canTaskNavForward}
             isSidebarVisible={isSidebarVisible}
-            supportsEmbeddedBrowser={supportsEmbeddedBrowser}
             isGitOpen={isGitOpen}
             isSidePaneOpen={isSidePaneOpen}
             sidePaneFullView={supportsSidePaneFullView ? sidePaneFullView : undefined}
@@ -1256,7 +1240,6 @@ export function App({
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeGitSourceId={activeGitSourceId}
             gitState={gitState}
-            browserRestoreUrls={browserRestoreUrls}
             providerConfigFile={providerConfigFile}
             taskNativeSessionLogFile={taskNativeSessionLogFile}
             taskSessionFile={taskSessionFile}
@@ -1282,10 +1265,7 @@ export function App({
             handleOpenCommandCenter={handleOpenQuickPick}
             handleRefreshGit={handleRefreshGit}
             handleOpenGitReview={handleOpenGitReview}
-            handleBrowserUrlChange={handleBrowserUrlChange}
-            handleBrowserPageMetadataChange={handleBrowserPageMetadataChange}
             handleToggleSidebar={handleToggleSidebar}
-            handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
             handleOpenDeveloperTools={handleOpenDeveloperTools}
             handleOpenFileManager={handleOpenFileManager}
             handleNavigateFileManager={handleNavigateFileManager}
@@ -1315,7 +1295,6 @@ export function App({
             handleCloseOtherSidePaneTabs={handleCloseOtherSidePaneTabs}
             handleCloseAllSidePaneTabs={handleCloseAllSidePaneTabs}
             handleReopenClosedSidePaneTab={handleReopenClosedSidePaneTab}
-            handleBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
             setGitSelectedSourceId={setGitSelectedSourceId}
             // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
             taskFindDialogProps={taskFindDialogProps}

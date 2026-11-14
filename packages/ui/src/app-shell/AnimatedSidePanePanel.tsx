@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- Side pane 当前集中承载 tabs、browser/git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
+/* eslint-disable max-lines -- Side pane 当前集中承载 tabs、git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { ServiceProvider, useComposerClientNamespace } from "@/hooks/useServices.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
@@ -17,7 +17,6 @@ import {
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import {
   isRemoteWorkspaceIdentity,
-  type BrowserViewScreenshotSurfacePreparePayload,
   type GitChangeSourceId,
 } from "@zcode/shared";
 import { FileManagerPane } from "@/WorkspaceFileTree.js";
@@ -33,9 +32,6 @@ import {
   type SidePaneFullViewSurface,
 } from "@/side-pane-full-view/index.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
-import { BrowserUseSidePaneContent } from "@/browser-use/BrowserUseSidePaneContent.js";
-import { BrowserSitePermissionsPage } from "@/browser-use/BrowserSitePermissionsPage.js";
-import { findScreenshotSurfaceTabForRender } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
@@ -87,18 +83,12 @@ import {
   shouldRenderPreviewPaneHeavyContent,
   type OpenTabLauncherItemId,
 } from "@/app-shell/animatedSidePanePanelModel.js";
-import type { BrowserNavigationRequest, RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
+import type { RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
 import { useDeveloperToolsVisibility } from "@/hooks/useDeveloperToolsVisibility.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
-import { logger } from "@/logger.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import {
   shouldMountSidePaneContent,
-  shouldMountBrowserTabGuest,
-  type BrowserSidePaneTab,
-  type BrowserUseSidePaneTab,
-  type BrowserSidePaneMetadata,
   type OpenScopedSubagentSideTabRequest,
   type OpenScopedWorkflowActorSessionSideTabRequest,
   type OpenScopedWorkflowWorkspaceSideTabRequest,
@@ -139,42 +129,6 @@ const EMPTY_TABS_SCROLL_MASK_EDGES: TabsScrollMaskEdges = {
   left: false,
   right: false,
 };
-
-function SuspendedBrowserSidePaneContent({
-  tab,
-}: {
-  tab: BrowserSidePaneTab | BrowserUseSidePaneTab;
-}) {
-  const platform = usePlatform();
-  const tabId = tab.type === "browser-use" ? tab.tabId : tab.id;
-  const generation = tab.residencyGeneration ?? 0;
-
-  useEffect(() => {
-    if (tab.residency !== "suspended") return;
-    // React effect 在旧 UnifiedBrowserView 提交 unmount 后运行；此时回 ack，main 才能安全
-    // 关闭对应 guest WebContents，避免 suspend 被 render-process-gone 当成 crash 立即重建。
-    // info 级打点：挂起换壳会先卸载 <webview>，若卸载瞬间
-    // CDP 仍 attached 即打开主进程 UAF 窗口；这条日志把换壳时刻与 UnifiedBrowserView 的
-    // 卸载打点对齐，用于归因 guest destroyed 的销毁者。
-    logger.info("[browser-use] tab 换挂起壳，suspend ready ack", { generation, tabId });
-    void platform.browserViewSuspendReady?.({ tabId, generation }).catch((error) => {
-      logger.debug("[browser-use] suspend ready ack 失败", {
-        error: error instanceof Error ? error.message : String(error),
-        generation,
-        tabId,
-      });
-    });
-  }, [generation, platform, tab.residency, tabId]);
-
-  return (
-    <TabsContent
-      value={tab.id}
-      forceMount
-      data-browser-tab-residency="suspended"
-      className="relative z-10 h-full min-h-0 bg-background data-[state=inactive]:hidden"
-    />
-  );
-}
 
 function readViewportInlineIntersectionSize(element: HTMLElement | null) {
   if (!element || typeof window === "undefined") {
@@ -305,7 +259,6 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop,
   isMacDesktop,
   isVisible,
-  isBrowserOpen: _isBrowserOpen,
   sidePaneState,
   recentClosedSidePaneTabs,
   workspaceAbsPath,
@@ -313,15 +266,11 @@ export function AnimatedSidePanePanel({
   workspaceIdentity,
   workspaceRemoteSessionId,
   activeTaskId,
-  browserNavigationRequest: _browserNavigationRequest,
   sidePaneOwnerId,
   gitState,
   activeGitSourceId,
   panelRef,
   panelElementRef,
-  browserRestoreUrls,
-  screenshotSurfaceRequest: screenshotSurfaceRequestProp = null,
-  screenshotSurfaceTabId = null,
   fileChangeFindActiveIndex,
   fileChangeFindNavigationRequestId,
   fileChangeFindQuery,
@@ -334,7 +283,6 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs,
   onCloseAllTabs,
   onReopenClosedTab,
-  onOpenBrowserPermissionSettings,
   onOpenDeveloperTools,
   onOpenFileManager,
   onNavigateFileManager,
@@ -344,7 +292,6 @@ export function AnimatedSidePanePanel({
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
-  onBrowserNavigationRequestHandled: _onBrowserNavigationRequestHandled,
   onOpenCodeViewer,
   onOpenFileLink,
   onOpenSubagentSession,
@@ -354,8 +301,6 @@ export function AnimatedSidePanePanel({
   onOpenWorkflowRun,
   onOpenBackgroundBash,
   onRefreshGit,
-  onBrowserUrlChange,
-  onBrowserPageMetadataChange,
   onSelectGitSource,
   frameClassName = "rounded-xl border border-border",
   captionControlsStyle,
@@ -390,7 +335,6 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop?: boolean;
   isMacDesktop?: boolean;
   isVisible: boolean;
-  isBrowserOpen: boolean;
   sidePaneState: WorkspaceSidePaneState | null;
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
   workspaceAbsPath: string;
@@ -399,15 +343,11 @@ export function AnimatedSidePanePanel({
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   activeTaskId: string | null;
-  browserNavigationRequest: BrowserNavigationRequest | null;
   sidePaneOwnerId: string | null;
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
   activeGitSourceId: GitChangeSourceId;
   panelRef: RefObject<PanelImperativeHandle | null>;
   panelElementRef: RefObject<HTMLDivElement | null>;
-  browserRestoreUrls: Record<string, string>;
-  screenshotSurfaceRequest?: BrowserViewScreenshotSurfacePreparePayload | null;
-  screenshotSurfaceTabId?: string | null;
   fileChangeFindActiveIndex: number;
   fileChangeFindNavigationRequestId: number;
   fileChangeFindQuery: string;
@@ -422,7 +362,6 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   onReopenClosedTab: (tabId: string) => void;
-  onOpenBrowserPermissionSettings?: (origin: string) => void;
   onOpenDeveloperTools: () => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
@@ -432,7 +371,6 @@ export function AnimatedSidePanePanel({
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
-  onBrowserNavigationRequestHandled: (requestId: string) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
@@ -446,8 +384,6 @@ export function AnimatedSidePanePanel({
   /** run 目录页里点一行 → 打开那个 run 的详情页 tab（目录 → 详情是这一页存在的理由）。 */
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   onRefreshGit: () => void;
-  onBrowserUrlChange: (tabId: string, url: string) => void;
-  onBrowserPageMetadataChange: (tabId: string, metadata: BrowserSidePaneMetadata) => void;
   onSelectGitSource: (value: GitChangeSourceId) => void;
   mobileOverlay?: boolean;
   mobileStacked?: boolean;
@@ -476,13 +412,6 @@ export function AnimatedSidePanePanel({
     resolveComposerScope(draftProjectId, workspaceIdentity, composerClientNamespace),
   );
   const tabs = sidePaneState?.tabs ?? EMPTY_SIDE_PANE_TABS;
-  const screenshotSurfaceRequest = screenshotSurfaceRequestProp;
-  const isScreenshotSurfaceActive = Boolean(screenshotSurfaceRequest);
-  const screenshotSurfaceTab = screenshotSurfaceTabId
-    ? tabs.find((tab) => tab.id === screenshotSurfaceTabId)
-    : screenshotSurfaceRequest
-      ? findScreenshotSurfaceTabForRender(tabs, screenshotSurfaceRequest)
-      : undefined;
   const visibleTabs = useMemo(
     () =>
       getVisibleSidePaneTabs(tabs, {
@@ -493,8 +422,6 @@ export function AnimatedSidePanePanel({
       }),
     [sidePaneOwnerId, tabs, workspaceKey, pluginUiTarget.sessionId, pluginUiWorkspaceKey],
   );
-  // 「当前对话」与标签栏可见性共用 scope 判定；后台对话的 guest 据此由 main 静音。
-  const currentTaskTabIds = useMemo(() => new Set(visibleTabs.map((tab) => tab.id)), [visibleTabs]);
   const activeTabId = sidePaneState?.activeTabId ?? "";
   const visibleActiveTabId = visibleTabs.some((tab) => tab.id === activeTabId)
     ? activeTabId
@@ -579,7 +506,7 @@ export function AnimatedSidePanePanel({
 
   useEffect(() => {
     if (shouldMountContent) {
-      // 收起时不能卸载 Tabs/Git/Browser，否则再次打开会丢失内容状态并重复初始化。
+      // 收起时不能卸载 Tabs/Git，否则再次打开会丢失内容状态并重复初始化。
       // 尺寸过渡期间也保留实例，避免内容先消失、恢复后重复初始化。
       setHasRenderedSidePane(true);
     }
@@ -697,7 +624,7 @@ export function AnimatedSidePanePanel({
       const rightOverflow = activeTabRect.right - viewportRect.right;
 
       if (leftOverflow < 0) {
-        // 从外部激活 tab（例如打开文件或切回旧 Browser）时，
+        // 从外部激活 tab（例如打开文件或切回旧 tab）时，
         // active tab 可能已经被横向滚动区域遮住。这里按真实 DOM 宽度滚回可视区，
         // 避免使用固定宽度估算导致长标题 / favicon tab 对不齐。
         viewport.scrollBy({ left: leftOverflow, behavior: "smooth" });
@@ -886,7 +813,6 @@ export function AnimatedSidePanePanel({
         noResults: intl.formatMessage({ id: "sidePane.noTabsFound" }),
         closeTab: (title) => intl.formatMessage({ id: "sidePane.closeTab" }, { title }),
         relativeTime: (timestamp) => formatTaskRelativeTime(timestamp, intl),
-        browserTitle: intl.formatMessage({ id: "browser.title" }),
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
@@ -896,9 +822,6 @@ export function AnimatedSidePanePanel({
           id: "developerTools.title",
         }),
         extensionLogsTitle: intl.formatMessage({ id: "extensions.logs.title" }),
-        browserPermissionsTitle: intl.formatMessage({
-          id: "browser.permission.settings",
-        }),
         terminalTitle: intl.formatMessage({ id: "terminal.title" }),
         subagentTypeLabel: intl.formatMessage({ id: "sidePane.subagent" }),
         subagentDirectoryTitle: intl.formatMessage({
@@ -929,13 +852,12 @@ export function AnimatedSidePanePanel({
       aria-hidden={!isVisible}
       data-workspace-side-frame={mobileOverlay ? undefined : "true"}
       className={cn(
-        // 独立外框放在内容层：关闭仍保留 Browser Guest 和 tab 实例，不改变面板持久化边界。
+        // 独立外框放在内容层：关闭仍保留 tab 实例，不改变面板持久化边界。
         "h-full overflow-hidden bg-background",
-        // 开关动画期间保持内容展开宽度；截图、完整视图和手机布局仍由各自宿主定尺寸。
+        // 开关动画期间保持内容展开宽度；完整视图和手机布局仍由各自宿主定尺寸。
         !mobileOverlay &&
           !mobileStacked &&
           !fullView &&
-          !isScreenshotSurfaceActive &&
           "w-[var(--side-pane-content-width,100%)]",
         !mobileOverlay && frameClassName,
         !mobileOverlay && "border-[0.5px] shadow-xs",
@@ -962,7 +884,7 @@ export function AnimatedSidePanePanel({
             <div
               className={cn(
                 "h-full min-h-0",
-                !hasVisibleTabs && !screenshotSurfaceRequest && !fullView && "hidden",
+                !hasVisibleTabs && !fullView && "hidden",
               )}
             >
               <Tabs
@@ -1112,44 +1034,6 @@ export function AnimatedSidePanePanel({
                     <div className="absolute inset-0 z-10">{openTabLauncher}</div>
                   ) : null}
                   {tabs.map((tab) => {
-                    if (
-                      (tab.type === "browser" || tab.type === "browser-use") &&
-                      !shouldMountBrowserTabGuest(tab)
-                    ) {
-                      return <SuspendedBrowserSidePaneContent key={tab.id} tab={tab} />;
-                    }
-                    if (tab.type === "browser-use") {
-                      return (
-                        <BrowserUseSidePaneContent
-                          key={tab.id}
-                          tab={tab}
-                          onOpenPermissionSettings={onOpenBrowserPermissionSettings}
-                          isPanelVisible={isVisible}
-                          isSelected={tab.id === contentActiveTabId}
-                          isCurrentTask={currentTaskTabIds.has(tab.id)}
-                          screenshotSurfaceRequest={
-                            screenshotSurfaceTab?.id === tab.id ? screenshotSurfaceRequest : null
-                          }
-                          // restoring guest 的完整 history 由 main 在 did-attach 后写入；
-                          // renderer 同时消费 initialUrl 会抢先提交导航，使 Chromium 拒绝 restore。
-                          automaticRestoreUrl={
-                            tab.residency === "restoring"
-                              ? (browserRestoreUrls[tab.id] ?? tab.restoreUrl ?? undefined)
-                              : undefined
-                          }
-                          initialUrl={
-                            tab.residency === "restoring" ? undefined : browserRestoreUrls[tab.id]
-                          }
-                          workspacePath={workspaceAbsPath}
-                          workspaceIdentity={workspaceIdentity}
-                          residencyGeneration={tab.residencyGeneration}
-                          onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
-                          onPageMetadataChange={(metadata) =>
-                            onBrowserPageMetadataChange(tab.id, metadata)
-                          }
-                        />
-                      );
-                    }
                     return (
                       <TabsContent
                         key={tab.id}
@@ -1231,7 +1115,7 @@ export function AnimatedSidePanePanel({
                         ) : tab.type === "workflow-directory" ? (
                           // 类型分支必须先收窄，回调缺席在**分支内部**处理：把
                           // `&& onOpenWorkflowRun` 写进条件会让这个 tab 类型继续留在后面
-                          // 那些分支的联合里（browser 分支于是拿它去读 residency）。
+                          // 那些分支的联合里，后续分支会读到不属于它的字段。
                           onOpenWorkflowRun ? (
                             <WorkflowRunDirectorySidePane
                               tab={tab}
@@ -1257,7 +1141,6 @@ export function AnimatedSidePanePanel({
                           // 不新造第二条定位路径。
                           <WorkflowArtifactSidePane
                             tab={tab}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
                             {...(onRevealGitFileInTree === undefined
                               ? {}
                               : { onRevealFileInTree: onRevealGitFileInTree })}
@@ -1366,11 +1249,6 @@ export function AnimatedSidePanePanel({
                               enabled={isVisible && tab.id === contentActiveTabId}
                             />
                           </ServiceProvider>
-                        ) : tab.type === "browser-permissions" ? (
-                          <BrowserSitePermissionsPage
-                            origin={tab.origin}
-                            isVisible={isVisible && tab.id === contentActiveTabId}
-                          />
                         ) : null}
                       </TabsContent>
                     );
@@ -1395,9 +1273,7 @@ export function AnimatedSidePanePanel({
           aria-hidden={!isVisible}
           className={cn(
             "h-full w-full min-w-0 border-l border-border bg-background transition-opacity duration-200 ease-out",
-            isVisible || isScreenshotSurfaceActive
-              ? "opacity-100"
-              : "pointer-events-none opacity-0",
+            isVisible ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
           {panelContent}
@@ -1419,7 +1295,7 @@ export function AnimatedSidePanePanel({
         />
       ) : null}
       <ResizablePanel
-        id="browser"
+        id="side-pane"
         panelRef={panelRef}
         elementRef={panelElementRef}
         defaultSize={panelLayout.defaultSize}
@@ -1439,9 +1315,7 @@ export function AnimatedSidePanePanel({
           mobileStacked &&
             !mobileOverlay &&
             "max-md:!h-[min(45dvh,24rem)] max-md:!w-full max-md:!min-w-0 max-md:!max-w-none max-md:!flex-none max-md:!basis-auto max-md:border-l-0 max-md:border-t",
-          // 截图期间 panel 仍保持 opacity=1，避免 opacity=0 让 Chromium 丢弃 guest
-          // compositor surface；实际 browser surface 已 fixed 到窗口内的低透明合成层，不会露出 tab 栏。
-          isVisible || isScreenshotSurfaceActive ? "opacity-100" : "pointer-events-none opacity-0",
+          isVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
         {panelContent}

@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatArtifactBytes } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
-import { toFileUrl } from "@/lib/path.js";
 import type { WorkflowRunArtifactView } from "@/hooks/useWorkflowRunArtifacts.js";
 
 /**
@@ -92,50 +91,30 @@ export function ArtifactMetadataCard({
 export function WorkflowArtifactHtmlCard({
   artifact,
   bytes,
-  localSourcePath,
-  isLatestVersion,
-  onOpenBrowserUrl,
   onReveal,
 }: {
   artifact: WorkflowRunArtifactView;
   bytes: number;
-  localSourcePath?: string;
-  isLatestVersion: boolean;
-  onOpenBrowserUrl?: (url: string) => void;
   onReveal?: () => void;
 }) {
   const { intl } = useZCodeIntl();
-  const openable =
-    isLatestVersion && localSourcePath !== undefined && onOpenBrowserUrl !== undefined;
   return (
     <ArtifactMetadataCard
       artifact={artifact}
       bytes={bytes}
       note={intl.formatMessage({
-        id: openable
-          ? "chat.toolCall.workflow.run.artifacts.openInBrowserNote"
-          : "chat.toolCall.workflow.run.artifacts.localOnly",
+        id: "chat.toolCall.workflow.run.artifacts.localOnly",
       })}
       testId="workflow-artifact-html-card"
-      {...(openable
-        ? {
+      {...(onReveal === undefined
+        ? {}
+        : {
             action: {
-              label: intl.formatMessage({
-                id: "chat.toolCall.workflow.run.artifacts.openInBrowser",
-              }),
-              onActivate: () => onOpenBrowserUrl(toFileUrl(localSourcePath)),
-              testId: "workflow-artifact-open-in-browser",
+              label: intl.formatMessage({ id: "chat.toolCall.workflow.run.artifacts.reveal" }),
+              onActivate: onReveal,
+              testId: "workflow-artifact-html-reveal",
             },
-          }
-        : onReveal === undefined
-          ? {}
-          : {
-              action: {
-                label: intl.formatMessage({ id: "chat.toolCall.workflow.run.artifacts.reveal" }),
-                onActivate: onReveal,
-                testId: "workflow-artifact-html-reveal",
-              },
-            })}
+          })}
     />
   );
 }

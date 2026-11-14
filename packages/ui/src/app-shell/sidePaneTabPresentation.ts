@@ -3,7 +3,6 @@ import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 
 export interface SidePaneTabPresentationLabels {
   fileManagerTitle?: string;
-  browserTitle: string;
   reviewTitle: string;
   codeViewerTitle: string;
   developerToolsTitle: string;
@@ -11,7 +10,6 @@ export interface SidePaneTabPresentationLabels {
   extensionLogsTitle: string;
   pluginMarketTitle: string;
   newTabTitle?: string;
-  browserPermissionsTitle: string;
   terminalTitle: string;
   subagentTypeLabel: string;
   subagentDirectoryTitle: string;
@@ -65,11 +63,6 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "subagent-directory") {
     return `${tab.rootSessionId} ${tab.parentSessionId} subagent directory`;
   }
-  if (tab.type === "browser-permissions") return `${tab.origin} permissions settings`;
-  if (tab.type === "browser") return tab.initialUrl ?? "";
-  if (tab.type === "browser-use") {
-    return `${tab.title ?? ""} ${tab.sessionId} browser use`;
-  }
   if (tab.type === "new-tab") return "new tab launcher";
   if (tab.type === "git") return "git diff";
   if (tab.type === "plugin-market") return "plugin marketplace store plugins";
@@ -92,8 +85,6 @@ export function getLocalizedSidePaneTabTitle(
       const titleByMessageId: Record<string, string> = {
         "sidePane.newTab": labels.newTabTitle ?? "New tab",
         "fileManager.title": labels.fileManagerTitle ?? labels.codeViewerTitle,
-        "browser.title": labels.browserTitle,
-        "browser.permission.settings": labels.browserPermissionsTitle,
         "sidePane.review": labels.reviewTitle,
         "codeViewer.title": labels.codeViewerTitle,
         "developerTools.title": labels.developerToolsTitle,
@@ -134,8 +125,6 @@ export function getSidePaneTabTypeLabel(
     return tab.subagentType.trim() || labels.subagentTypeLabel;
   }
   if (tab.type === "subagent-directory") return labels.subagentDirectoryTitle;
-  if (tab.type === "browser" || tab.type === "browser-use") return labels.browserTitle;
-  if (tab.type === "browser-permissions") return labels.browserPermissionsTitle;
   if (tab.type === "file-manager") return labels.fileManagerTitle ?? labels.codeViewerTitle;
   if (tab.type === "git") return labels.reviewTitle;
   if (tab.type === "developer-tools") return labels.developerToolsTitle;
