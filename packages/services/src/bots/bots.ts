@@ -16,6 +16,22 @@ import type {
 } from "@zcode/shared";
 import type { ZCodeAgentAppRuntimePreferences } from "../zcode-agent/zcodeAgent.js";
 
+/**
+ * Bot 主题资源读取请求。原实现随 bots 运行时一起移除，这里只保留接口层需要的
+ * 请求形状（IBotsService.validateTopicResource/readTopicResource 的可选契约）。
+ */
+export interface TopicResourceRequest {
+  taskId: string;
+  inputId: string;
+  messageId: string;
+  authorizationId: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  resourceIndex?: number;
+  signal?: AbortSignal;
+  remoteSessionId?: string;
+}
+
 export interface BotCreateBindCodeParams {
   botId?: string;
   allowedWorkspaces?: string[];
@@ -131,10 +147,10 @@ export interface IBotsService {
     params: import("@zcode/shared").ChannelReplyHostRequest,
   ): Promise<import("@zcode/shared").ChannelReplyResult>;
   validateTopicResource?(
-    params: import("#src/bots/topicResource.js").TopicResourceRequest,
+    params: TopicResourceRequest,
   ): Promise<void>;
   readTopicResource?(
-    params: import("#src/bots/topicResource.js").TopicResourceRequest,
+    params: TopicResourceRequest,
   ): Promise<import("@zcode/shared").ZCodePromptAttachment>;
   /**
    * 将 App 全局交互偏好同步给 Bot 已持有的远端 runtime；不得为此建立新的远端连接。

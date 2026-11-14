@@ -3,15 +3,14 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "lib": ["ES2022"]
+    "lib": ["ES2022"],
+    "types": ["node"]
   },
   "include": ["src"],
-  // server 同时直接 import 了 shared / services / client / rpc。
-  // 之前 references 不完整，构建时会退回到沿着包入口抓源码，造成 rpc 报错被重复放大。
+  // server 直接 import shared / services / rpc，references 指向声明产物避免重复检查。
   "references": [
     { "path": "../shared" },
     { "path": "../services" },
-    { "path": "../client" },
     { "path": "../rpc" }
   ]
 }

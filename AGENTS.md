@@ -5,6 +5,10 @@
 - 定位问题时，未明确要求修改代码就先调查原因。结合源码、日志和运行时证据，区分已确认原因与待验证假设。
 - 保留与任务无关的本地改动，不自行恢复已移除的模块或内部依赖。
 
+## 仓库形态
+
+本仓库是**纯 Web 应用**：浏览器前端 + 模拟后端服务。桌面 app 与真实 Agent 运行时已删除；`packages/server` 是按 ZCode Protocol v4 实现的**模拟后端**（内存态、确定性数据），通过与真实服务端完全相同的 WebSocket RPC 传输（`@zcode/rpc` ChannelServer）向 UI 提供全部服务。
+
 ## 命令与仓库结构
 
 开工前运行 `node scripts/check-workspace-freshness.mjs` 检查基线。Node 版本以 `mise.toml` 为准。
@@ -13,74 +17,73 @@
 
 | 用途             | 命令                                                      |
 | ---------------- | --------------------------------------------------------- |
-| 类型检查         | `pnpm typecheck`                                          |
-| Lint             | `pnpm lint` / `pnpm lint:fix`                             |
-| 格式检查         | `pnpm fmt:check`                                          |
-| 桌面开发         | `pnpm dev:desktop`                                        |
-| Web 开发         | `pnpm dev:web`                                            |
-| 提交前检查       | `pnpm verify:pre-push`（工作区、Lint、schema 与架构检查） |
-| 架构检查         | `pnpm architecture:check --changed`                       |
-| 模块阅读包       | `pnpm architecture:context <module-id>`                   |
-| 未使用依赖与导出 | `pnpm knip`                                               |
-| 导出引用查询     | `pnpm dep:refs --list-exports <file>`                     |
+| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）             |
+| 仅模拟后端       | `pnpm dev:server`                                          |
+| 仅前端           | `pnpm dev:web`                                             |
+| 构建             | `pnpm build`（server 产物可托管 web dist 单进程部署）      |
+| 类型检查         | `pnpm typecheck`                                           |
+| Lint             | `pnpm lint` / `pnpm lint:fix`                              |
+| 格式检查         | `pnpm fmt:check`                                           |
+| 提交前检查       | `pnpm verify:pre-push`（工作区、Lint 与架构检查）          |
+| 架构检查         | `pnpm architecture:check --changed`                        |
+| 模块阅读包       | `pnpm architecture:context <module-id>`                    |
+| 未使用依赖与导出 | `pnpm knip`                                                |
+| 导出引用查询     | `pnpm dep:refs --list-exports <file>`                      |
 
-App 业务单测已退役，不新增或恢复 App 业务单测 test/spec 或 `contract.test.ts`；保留 CLI、CUA、E2E、浏览器验收和工程门禁测试。工程 Vitest 使用 `pnpm test:engineering <文件>`，push 自动运行 `pnpm test:engineering:affected --scope push`，CLI/CUA 使用各包独立入口，不默认全量。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
+工程 Vitest 使用 `pnpm test:engineering <文件>`；工程门禁测试使用 `pnpm test:architecture`（node:test）。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
 
-测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
-
-- `packages/desktop`：Electron main、host、renderer。
-- `packages/web`、`packages/server`：Web 客户端与服务端。
+- `packages/web`：浏览器前端入口（Vite）。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。
-- `packages/services`：业务服务；`packages/rpc`：RPC 框架。
-- `packages/shared`：共享协议与类型；`packages/client`：Agent 客户端 SDK。
-- `apps/zcode-cli`：Agent CLI 与运行时。
+- `packages/server`：模拟 Web 后端（Hono + WebSocket RPC + mock 服务集合）。
+- `packages/rpc`：VS Code 风格 IPC/RPC 框架（传输层为生产实现）。
+- `packages/client`：浏览器连接 SDK（WebSocket → IServiceAccessor）。
+- `packages/services`：服务接口与 descriptor（浏览器安全契约层；实现全部在 mock server）。
+- `packages/shared`：共享协议与类型（含 `zcode-protocol-v4` 会话协议）。
+- `packages/provider`、`packages/model-option-map`、`packages/session-control`：模型选择/选项编译/会话控制契约。
+- `packages/design-runtime`：浏览器设计调试运行时。
 - `CONTEXT.md`：插件商店领域词汇；修改相关 UI 前阅读。
 - `DESIGN.md`：UI 设计规范；修改 UI 前阅读。
+
+## 模拟后端约定
+
+- mock 服务按 `packages/services` 的接口与 descriptor 注册进 `ServiceCollection`；新增 UI 消费的服务方法必须在 `packages/server/src/mock/` 提供同形状实现（可用 `Parameters/ReturnType` 从接口派生签名）。
+- v4 会话流必须用 `@zcode/shared/zcode-protocol-v4` 的 zod schema 产帧并在发射前自校验；`subscriptionId`/`seq`/`logEpoch` 记账不可伪造。
+- 模拟数据全部在内存中（虚拟工作区、虚拟 git 状态），不访问真实文件系统、不发起真实网络请求。
+- 改 UI 行为时优先让模拟后端贴合真实协议语义，而不是给 UI 加 mock 分支。
 
 ## 实现与验证
 
 - 代码改动使用 `.agents/skills/architecture-governance/SKILL.md`，先运行架构检查，再读取目标模块的受控上下文。
 - 避免重复状态和多条写入路径。明确唯一所有者、接口、依赖方向、事件顺序与幂等边界，不能用超时掩盖同步问题。
-- App 行为改动先更新 spec，确定 E2E、浏览器验收或可重复运行时场景；交互改动先维护 E2E 再改实现。工程工具、CLI/CUA 先补其回归测试。实际执行必要验证，未执行或环境受限时如实说明。
+- UI 行为改动先更新 spec，确定浏览器验收或可重复运行时场景；交互改动先维护验收场景再改实现。实际执行必要验证，未执行或环境受限时如实说明。
 - 修复 bug 时用中文注释说明原因和修复依据。发现设计缺陷时先与用户对齐，不不断增加兜底分支。
-- PR 描述须说明背景、设计意图与修改前后行为；包含 bugfix 时逐项说明触发场景、根因证据、修复机制及回归验证，并尽量关联已有工单链接。未确认的根因或引入提交如实标注，不根据模块或时间接近推断归因。
-- 涉及状态、时序、远端或异步同步的方案，用图展示所有者及事件顺序。
+- PR 描述须说明背景、设计意图与修改前后行为；包含 bugfix 时逐项说明触发场景、根因证据、修复机制及回归验证。未确认的根因或引入提交如实标注，不根据模块或时间接近推断归因。
+- 涉及状态、时序或异步同步的方案，用图展示所有者及事件顺序。
 - 必须执行 `pnpm typecheck` 和 `pnpm lint`，报告真实结果，不将已有失败写成通过。
 - 修改 React 组件或 hooks 后，必须运行 `pnpm lint`（Oxlint），检查 `react/exhaustive-deps` 和 `react/rules-of-hooks`。复核本次改动新增及相关的缺失、多余、不稳定依赖与调用位置诊断，不能因仅告警或退出码为 0 就忽略，也不机械补齐整个对象依赖或禁用规则。被根配置忽略的文件须按 [React Hooks 检查](docs/testing/react-hooks-lint.md) 补做专项扫描；渲染问题仍须运行时验证。
-- 使用异步文件和网络 IO；跨包导入使用公开入口，遵守现有路径别名。
-- 禁止 UI 直接调用 Repo、Service 引用 Runtime 具体实现、跨域导入实现细节及循环依赖。
+- 跨包导入使用公开入口，遵守现有路径别名。
+- 禁止 UI 直接调用 Repo、Service 引用传输层具体实现、跨域导入实现细节及循环依赖。
 
 ## UI 与平台边界
 
-- 遵守 `DESIGN.md`，复用已有组件，兼顾桌面与手机 Web 的布局、交互、主题和国际化。
-- 组件通过 `packages/ui/src/hooks/` 访问服务；平台操作通过 `IPlatformService`（`packages/shared/src/platform.ts`），不直接调用 `window.zcode`。
-- 通过依赖注入处理 Desktop、Web、本地和远程环境的差异，并兼顾 Windows、macOS 和 Linux。
+- 遵守 `DESIGN.md`，复用已有组件，兼顾桌面与移动浏览器的布局、交互、主题和国际化。
+- 组件通过 `packages/ui/src/hooks/` 访问服务；平台操作通过 `IPlatformService`（`packages/shared/src/platform.ts`），浏览器实现见 `packages/web/src/platform/`，不直接调用 `window.zcode`。
 - Zustand 状态位于 `packages/ui/src/store/`。广播同步的主题、语言等字段需要防止回环；UI 局部状态不应被误当作服务端事实。
 - hooks 中含 JSX 的文件使用 `.tsx`。
 
-## 进程、协议与远程控制
+## 协议
 
-- Desktop app 通过 stdio 与 Agent 通信。协议改动同步更新 `packages/shared/src/zcode-protocol/index.ts`，提供严格类型与运行时校验。
-- Main 负责窗口、原生操作、进程调度和消息转发，不承载 task/session 业务状态。
-- 每个窗口使用一个 window-scoped Local Host；本地 workspace 共享该 Host。远程 workspace 由窗口内的连接注册表管理，不另建 Desktop Remote Host。
-- 手机远控连接桌面已有 Host attachment，复用会话运行时；不为手机另起 Agent、Local Host 或远程会话。
-- Desktop 的 `desktop-continuous` 实时链路与手机的 `web-remote-replayable` 恢复链路必须明确区分。修改 stream、snapshot、queue 或重连时，同时验证两种语义。
-- 外部 relay 与 Main 只做鉴权、配对、心跳、转发及 attachment 调度，不保存任务队列、快照等业务状态。
-- 已接受的 busy/running 输入由 CLI/runtime `CommandInbox` 串行 admission；Renderer 只保留未提交草稿与 pending optimistic overlay，Host owner/lease 负责路由。
-- 保留 owner/lease、跨 Host 路由和 stale run 防护，不能仅根据单一路径删除边界判断。
+- 浏览器与模拟后端之间是 `/ws` 上的二进制帧协议（`packages/rpc` SocketProtocol），其上是 Channel RPC；会话面为 ZCode Protocol v4（`packages/shared/src/zcode-protocol-v4/`）。
+- 协议改动同步更新 `packages/shared/src/zcode-protocol-v4/`，提供严格 zod 校验，mock server 与 UI 同批更新。
 
 ## Workspace Identity
 
-- `workspaceIdentity` 用于身份隔离，`workspacePath` 用于文件操作、命令 cwd、Git 和路径展示。
-- 身份 key 统一为 `workspaceIdentity?.trim() || workspacePath`，适用于去重、绑定、缓存、队列、持久化和请求关联。
-- 远程链路贯穿传递 `workspaceIdentity` 与 `remoteSessionId`，不得仅按路径匹配。
-- 新接口保留本地路径 fallback；远程 identity 复用现有构造和解析工具，不在业务代码中手写格式。
+- `workspaceIdentity` 用于身份隔离，`workspacePath` 用于路径展示与虚拟工作区键。
+- 身份 key 统一为 `workspaceIdentity?.trim() || workspacePath`。
 
 ## 日志
 
-- UI 使用 `packages/ui/src/logger.ts`，不直接使用 `console.log` 或 `window.zcode?.log`。
-- Agent/session/runtime 相关服务日志使用 `createServiceLogger(scope)`（`packages/services/src/logger/serviceLogger.ts`）。
-- `debug` 用于协议原始数据、流式 chunk 和逐条工具更新等高频诊断，生产环境不落盘。
-- `info` 用于进程和会话生命周期、权限结果、一次性初始化等生产可用事件。
-- `warn` 用于可恢复异常；`error` 用于崩溃、握手失败、鉴权丢失等不可恢复错误。
+- UI 使用 `packages/ui/src/logger.ts`，不直接使用 `console.log`。
+- 服务日志使用 `createServiceLogger(scope)`（`packages/services/src/logger/serviceLogger.ts`）。
+- `debug` 用于协议原始数据与流式 chunk 等高频诊断；`info` 用于生命周期事件；`warn` 用于可恢复异常；`error` 用于不可恢复错误。
 - 不在日志、示例或提交中写入凭据、真实用户数据和内部服务地址。

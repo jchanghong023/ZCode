@@ -1,0 +1,2007 @@
+/* eslint-disable max-lines -- IZCodeAgentService 是 150+ 方法的单一协议面：帧发射、命令分派
+   与旧会话兼容桩必须实现同一个类才能保证契约完整，拆文件会让「实现完整性」分散到多处。 */
+// 模拟 ZCode Agent 服务：实现 v4 conversation / sessions-index / workspace-config
+// 三个 topic 的订阅-帧流协议与命令面。所有帧在发射前经 shared 的 zod schema 校验，
+// 保证与真实执行端同一条协议契约（fail-closed，坏帧宁可抛错也不上线）。
+// 方法签名统一从 IZCodeAgentService 派生（Parameters/ReturnType），避免与契约漂移。
+import { Emitter, Event, type IDisposable } from "@zcode/rpc";
+import { createUuid, type SessionLifecycleSnapshot, type ZCodeSessionInfo } from "@zcode/shared";
+import {
+  conversationTopicFrameSchema,
+  conversationTopicWireFrameSchema,
+  parseCommandEnvelope,
+  sessionsIndexTopicFrameSchema,
+  sessionsIndexTopicWireFrameSchema,
+  workspaceConfigTopicFrameSchema,
+  workspaceConfigTopicWireFrameSchema,
+  type ClientHello,
+  type CommandAck,
+  type CommandEnvelope,
+  type CommandsQueryResult,
+  type ConversationDelta,
+  type ConversationTopicWireFrame,
+  type HelloMessage,
+  type SessionsIndexTopicWireFrame,
+  type StatePatch,
+  type WireConversationRow,
+  type WorkspaceConfigTopicWireFrame,
+} from "@zcode/shared/zcode-protocol-v4";
+import type { IZCodeAgentService } from "@zcode/services";
+import {
+  buildConversationSnapshot,
+  buildSessionSummary,
+  isListedSession,
+  workspaceKeyOf,
+  type MockRuntime,
+  type MockSession,
+} from "./runtime.js";
+
+type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
+type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
+
+interface ConversationSubscription {
+  sessionId: string;
+  ordinal: number;
+}
+
+interface SessionsIndexSubscription {
+  workspaceKey: string;
+  ordinal: number;
+}
+
+interface WorkspaceConfigSubscription {
+  workspaceKey: string;
+  ordinal: number;
+}
+
+function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown): T {
+  return schema.parse(value);
+}
+
+const emptyWorkspaceConfigState = {
+  taskIndex: { tasks: [], updatedAt: 0 },
+  slashCommands: { commands: [], updatedAt: 0 },
+};
+
+export class MockZCodeAgentService implements IZCodeAgentService {
+  private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
+  private readonly sessionsIndexFrameEmitter = new Emitter<SessionsIndexTopicWireFrame>();
+  private readonly workspaceConfigFrameEmitter = new Emitter<WorkspaceConfigTopicWireFrame>();
+  private readonly sessionLifecycleEmitter = new Emitter<SessionLifecycleSnapshot>();
+  private readonly runtimeRestartedEmitter = new Emitter<{ workspaceKey: string }>();
+  private readonly conversationSubs = new Map<string, ConversationSubscription>();
+  private readonly sessionsIndexSubs = new Map<string, SessionsIndexSubscription>();
+  private readonly workspaceConfigSubs = new Map<string, WorkspaceConfigSubscription>();
+  private sessionGeneration = 1;
+  private storageGeneration = 0;
+
+  constructor(private readonly runtime: MockRuntime) {}
+
+  // ── 帧发射 ──
+
+  private emitConversationFrame(
+    session: MockSession,
+    payload:
+      | { kind: "snapshot"; snapshot: ReturnType<typeof buildConversationSnapshot> }
+      | { kind: "deltas"; deltas: ConversationDelta[] },
+    deliveryKind: "initial" | "online" | "recovery",
+  ): void {
+    const topic = `conversation/${session.sessionId}`;
+    const fromSeq = payload.kind === "snapshot" ? 0 : session.seq;
+    if (payload.kind === "deltas") {
+      session.seq += 1;
+    }
+    const toSeq = session.seq;
+    for (const [subscriptionId, sub] of this.conversationSubs) {
+      if (sub.sessionId !== session.sessionId) continue;
+      sub.ordinal += 1;
+      const logicalFrame = assertFrame(conversationTopicFrameSchema, {
+        topic,
+        subscriptionId,
+        fromSeq,
+        toSeq,
+        sentAt: Date.now(),
+        payload,
+      });
+      const wire = assertFrame(conversationTopicWireFrameSchema, {
+        wireVersion: 3,
+        kind: "complete",
+        deliveryKind,
+        logicalFrameId: createUuid(),
+        logicalFrameOrdinal: sub.ordinal,
+        topic,
+        subscriptionId,
+        frame: logicalFrame,
+      }) as ConversationTopicWireFrame;
+      this.conversationFrameEmitter.fire(wire);
+    }
+  }
+
+  private emitSessionsIndex(
+    workspaceKey: string,
+    payload:
+      | { kind: "snapshot"; snapshot: { sessions: ReturnType<typeof buildSessionSummary>[] } }
+      | {
+          kind: "deltas";
+          deltas: Array<
+            | { op: "session.upserted"; session: ReturnType<typeof buildSessionSummary> }
+            | { op: "session.removed"; sessionId: string }
+          >;
+        },
+    deliveryKind: "initial" | "online" | "recovery",
+  ): void {
+    const topic = `sessions-index/${workspaceKey}`;
+    const logEpoch = "sidx-epoch-1";
+    for (const [subscriptionId, sub] of this.sessionsIndexSubs) {
+      if (sub.workspaceKey !== workspaceKey) continue;
+      sub.ordinal += 1;
+      // sessions-index 帧的 (fromSeq, toSeq] 记账按订阅独立推进：快照固定 fromSeq=0。
+      const fromSeq = payload.kind === "snapshot" ? 0 : sub.ordinal - 1;
+      const toSeq = sub.ordinal;
+      const inner = assertFrame(sessionsIndexTopicFrameSchema, {
+        topic,
+        subscriptionId,
+        fromSeq,
+        toSeq,
+        sentAt: Date.now(),
+        ...(payload.kind === "snapshot"
+          ? {
+              payload: {
+                kind: "snapshot",
+                snapshot: {
+                  protocolVersion: 1,
+                  workspaceId: workspaceKey,
+                  logEpoch,
+                  sessions: payload.snapshot.sessions,
+                },
+              },
+            }
+          : { payload: { kind: "deltas", deltas: payload.deltas } }),
+      });
+      const wire = assertFrame(sessionsIndexTopicWireFrameSchema, {
+        wireVersion: 3,
+        kind: "complete",
+        deliveryKind,
+        logicalFrameId: createUuid(),
+        logicalFrameOrdinal: sub.ordinal,
+        topic,
+        subscriptionId,
+        frame: inner,
+      }) as SessionsIndexTopicWireFrame;
+      this.sessionsIndexFrameEmitter.fire(wire);
+    }
+  }
+
+  private emitWorkspaceConfigSnapshot(
+    workspaceKey: string,
+    deliveryKind: "initial" | "recovery",
+  ): void {
+    const topic = `workspace-config/${workspaceKey}`;
+    for (const [subscriptionId, sub] of this.workspaceConfigSubs) {
+      if (sub.workspaceKey !== workspaceKey) continue;
+      sub.ordinal += 1;
+      const inner = assertFrame(workspaceConfigTopicFrameSchema, {
+        topic,
+        subscriptionId,
+        fromSeq: 0,
+        toSeq: sub.ordinal,
+        sentAt: Date.now(),
+        payload: {
+          kind: "snapshot",
+          snapshot: {
+            protocolVersion: 1,
+            workspaceId: workspaceKey,
+            logEpoch: "wcfg-epoch-1",
+            config: emptyWorkspaceConfigState,
+          },
+        },
+      });
+      const wire = assertFrame(workspaceConfigTopicWireFrameSchema, {
+        wireVersion: 3,
+        kind: "complete",
+        deliveryKind,
+        logicalFrameId: createUuid(),
+        logicalFrameOrdinal: sub.ordinal,
+        topic,
+        subscriptionId,
+        frame: inner,
+      }) as WorkspaceConfigTopicWireFrame;
+      this.workspaceConfigFrameEmitter.fire(wire);
+    }
+  }
+
+  /** 应用一个 state patch 并以 deltas 帧下发（control/usage/plan 等 A 区键）。 */
+  private patchState(
+    session: MockSession,
+    patch: StatePatch,
+    deltas: ConversationDelta[] = [],
+  ): void {
+    session.revision += 1;
+    const fullPatch: StatePatch = { ...patch, revision: session.revision };
+    this.emitConversationFrame(
+      session,
+      { kind: "deltas", deltas: [{ op: "state.updated", patch: fullPatch }, ...deltas] },
+      "online",
+    );
+  }
+
+  private appendRow(session: MockSession, row: WireConversationRow): void {
+    session.rows.push(row);
+    this.emitConversationFrame(
+      session,
+      { kind: "deltas", deltas: [{ op: "row.appended", row }] },
+      "online",
+    );
+  }
+
+  private upsertRow(session: MockSession, row: WireConversationRow): void {
+    const index = session.rows.findIndex((existing) => existing.rowId === row.rowId);
+    if (index >= 0) session.rows[index] = row;
+    this.emitConversationFrame(
+      session,
+      { kind: "deltas", deltas: [{ op: "row.upserted", row }] },
+      "online",
+    );
+  }
+
+  private publishSessionsIndexUpsert(session: MockSession): void {
+    if (!isListedSession(session)) return;
+    this.emitSessionsIndex(
+      session.workspaceKey,
+      {
+        kind: "deltas",
+        deltas: [{ op: "session.upserted", session: buildSessionSummary(session) }],
+      },
+      "online",
+    );
+  }
+
+  private publishSessionsIndexRemoved(workspaceKey: string, sessionId: string): void {
+    this.emitSessionsIndex(
+      workspaceKey,
+      { kind: "deltas", deltas: [{ op: "session.removed", sessionId }] },
+      "online",
+    );
+  }
+
+  private nextRowId(session: MockSession): number {
+    const last = session.rows.at(-1);
+    return (last?.rowId ?? -1) + 1;
+  }
+
+  // ── turn 模拟：流式回复 + 工具调用 + plan ──
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async runTurn(session: MockSession, commandId: string, text: string): Promise<void> {
+    const startedAt = Date.now();
+    const turnId = `turn_${createUuid()}`;
+    const responseId = `resp_${createUuid()}`;
+    session.lastActivityAt = startedAt;
+    session.phase = "running";
+    this.patchState(session, {
+      control: {
+        phase: "running",
+        sessionEnded: false,
+        canStop: true,
+        stopState: "stoppable",
+        stopTargetKind: "assistant",
+        activeWorks: [{ kind: "primaryTurn", sourceCommandId: commandId, startedAt }],
+        lastError: null,
+        apiRetry: null,
+      },
+    });
+
+    const turnHeader: WireConversationRow = {
+      kind: "turnHeader",
+      rowId: this.nextRowId(session),
+      turnId,
+      entityId: `entity_${createUuid()}`,
+      createdAt: startedAt,
+      createdAtSeq: session.seq,
+      origin: "userInput",
+      executionKind: "agent",
+      sourceCommandId: commandId,
+      state: "running",
+      startedAt,
+    };
+    this.appendRow(session, turnHeader);
+
+    const userInputRow: WireConversationRow = {
+      kind: "userInput",
+      rowId: this.nextRowId(session),
+      turnId,
+      entityId: `entity_${createUuid()}`,
+      createdAt: Date.now(),
+      createdAtSeq: session.seq,
+      text,
+      origin: "realUser",
+      sourceCommandId: commandId,
+      clientId: "mock-client",
+      inputOrigin: "desktop",
+    };
+    this.appendRow(session, userInputRow);
+    this.publishSessionsIndexUpsert(session);
+
+    // 工具调用演示：读取虚拟工作区文件，驱动工具卡渲染。
+    const toolCallRow: WireConversationRow = {
+      kind: "toolCall",
+      rowId: this.nextRowId(session),
+      turnId,
+      entityId: `entity_${createUuid()}`,
+      createdAt: Date.now(),
+      createdAtSeq: session.seq,
+      assistantResponseId: responseId,
+      toolCallId: `tool_${createUuid()}`,
+      toolName: "read_file",
+      status: "running",
+      inputText: JSON.stringify({ path: "README.md" }),
+      input: { path: "README.md" },
+      startedAt: Date.now(),
+    };
+    this.appendRow(session, toolCallRow);
+    await this.sleep(60);
+    if (session.activeTurn === null) {
+      return this.finalizeInterruptedTurn(session, turnHeader);
+    }
+
+    const succeededTool: WireConversationRow = {
+      ...toolCallRow,
+      status: "success",
+      output: {
+        text: "# ZCode Web Demo\n\n这是一个模拟后端驱动的演示工作区。（内容节选）",
+      },
+      endedAt: Date.now(),
+    };
+    this.upsertRow(session, succeededTool);
+
+    // plan/todo 面板演示。
+    session.plan = {
+      items: [
+        { id: "1", content: "分析请求内容", status: "completed" },
+        { id: "2", content: "整理回复要点", status: "inProgress" },
+        { id: "3", content: "输出结论", status: "pending" },
+      ],
+      updatedAt: Date.now(),
+    };
+    this.patchState(session, { plan: session.plan });
+
+    const streamingRow: WireConversationRow = {
+      kind: "assistantText",
+      rowId: this.nextRowId(session),
+      turnId,
+      entityId: `entity_${createUuid()}`,
+      createdAt: Date.now(),
+      createdAtSeq: session.seq,
+      assistantResponseId: responseId,
+      text: "",
+      state: "streaming",
+      model: "GLM-5.3-Flash",
+    };
+    this.appendRow(session, streamingRow);
+
+    const reply = this.buildReplyText(text);
+    const chunkSize = 24;
+    for (let offset = 0; offset < reply.length; offset += chunkSize) {
+      if (session.activeTurn === null) {
+        this.upsertRow(session, {
+          ...streamingRow,
+          text: reply.slice(0, offset),
+          state: "interrupted",
+        });
+        return this.finalizeInterruptedTurn(session, turnHeader);
+      }
+      const chunk = reply.slice(offset, offset + chunkSize);
+      this.emitConversationFrame(
+        session,
+        {
+          kind: "deltas",
+          deltas: [{ op: "row.delta", rowId: streamingRow.rowId, path: "text", append: chunk }],
+        },
+        "online",
+      );
+      await this.sleep(45);
+    }
+
+    this.upsertRow(session, { ...streamingRow, text: reply, state: "complete" });
+    this.finalizeTurn(session, turnHeader, startedAt, reply);
+  }
+
+  private finalizeInterruptedTurn(session: MockSession, turnHeader: WireConversationRow): void {
+    session.phase = "completedInterrupted";
+    session.lastActivityAt = Date.now();
+    if (turnHeader.kind === "turnHeader") {
+      this.upsertRow(session, {
+        ...turnHeader,
+        state: "completedInterrupted",
+        endedAt: Date.now(),
+        activeMs: Date.now() - turnHeader.startedAt,
+      });
+    }
+    this.patchState(session, {
+      control: {
+        phase: "completedInterrupted",
+        sessionEnded: true,
+        canStop: false,
+        stopState: "idle",
+        stopTargetKind: "unknown",
+        activeWorks: [],
+        lastError: null,
+        apiRetry: null,
+      },
+    });
+    this.publishSessionsIndexUpsert(session);
+    this.runtime.onWorkspaceTaskListChanged.fire({
+      workspacePath: session.workspaceRef.workspacePath,
+      type: "workspace_task_list_changed",
+    });
+  }
+
+  private finalizeTurn(
+    session: MockSession,
+    turnHeader: WireConversationRow,
+    startedAt: number,
+    reply: string,
+  ): void {
+    session.phase = "completedSuccess";
+    session.lastActivityAt = Date.now();
+    if (turnHeader.kind === "turnHeader") {
+      this.upsertRow(session, {
+        ...turnHeader,
+        state: "completedSuccess",
+        endedAt: Date.now(),
+        activeMs: Date.now() - startedAt,
+        outputTokens: Math.ceil(reply.length / 2),
+      });
+    }
+    session.usage = {
+      contextWindow: {
+        usedTokens: 1200 + Math.ceil(reply.length / 2),
+        maxTokens: 128000,
+        autoCompactThresholdTokens: 100000,
+      },
+      cumulative: {
+        inputTokens: session.usage.cumulative.inputTokens + 800,
+        outputTokens: session.usage.cumulative.outputTokens + Math.ceil(reply.length / 2),
+        cacheReadTokens: session.usage.cumulative.cacheReadTokens,
+        cacheWriteTokens: session.usage.cumulative.cacheWriteTokens + 200,
+      },
+    };
+    if (session.meta.titleSource === "default") {
+      session.meta = { title: textToTitle(reply), titleSource: "generated" };
+    }
+    this.patchState(session, {
+      control: {
+        phase: "completedSuccess",
+        sessionEnded: true,
+        canStop: false,
+        stopState: "idle",
+        stopTargetKind: "unknown",
+        activeWorks: [],
+        lastError: null,
+        apiRetry: null,
+      },
+      usage: session.usage,
+      meta: session.meta,
+    });
+    this.publishSessionsIndexUpsert(session);
+    this.runtime.onWorkspaceTaskListChanged.fire({
+      workspacePath: session.workspaceRef.workspacePath,
+      type: "workspace_task_list_changed",
+    });
+  }
+
+  /** 模拟回复正文：确定性生成，不访问网络。 */
+  private buildReplyText(input: string): string {
+    const trimmed = input.trim();
+    return [
+      `已收到你的消息：「${trimmed.slice(0, 80)}${trimmed.length > 80 ? "…" : ""}」。`,
+      "",
+      "这是模拟后端生成的回复。当前链路为：",
+      "",
+      "1. 浏览器 UI 通过 WebSocket RPC 连接模拟服务；",
+      "2. 模拟服务按 ZCode Protocol v4 推送会话帧（快照 + 增量）；",
+      "3. 流式文本、工具调用与计划面板均由内存状态驱动。",
+      "",
+      "你可以继续发送消息、新建任务、在侧栏重命名/归档，或在设置页浏览各项配置。",
+    ].join("\n");
+  }
+
+  // ── 会话与命令 ──
+
+  private ensureSession(params: { sessionId: string }): MockSession {
+    const session = this.runtime.sessions.get(params.sessionId);
+    if (!session) {
+      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+    }
+    return session;
+  }
+
+  private ackAccepted(envelope: CommandEnvelope, result?: CommandAck["result"]): CommandAck {
+    return {
+      commandId: envelope.commandId,
+      status: "accepted",
+      revisionAtDecision: envelope.sessionId
+        ? (this.runtime.sessions.get(envelope.sessionId)?.revision ?? 0)
+        : 0,
+      ...(result ? { result } : {}),
+    };
+  }
+
+  private createSessionInternal(envelope: CommandEnvelope): CommandAck {
+    const payload = envelope.payload as {
+      sessionId?: string;
+      firstInput?: { text: string };
+      config?: Record<string, unknown>;
+    };
+    const sessionRef: { workspacePath: string; workspaceIdentity?: string } =
+      envelope.workspace ?? { workspacePath: this.runtime.workspacePath };
+    const sessionId = payload.sessionId ?? this.runtime.newSessionId();
+    const now = Date.now();
+    const session: MockSession = {
+      sessionId,
+      workspaceKey: workspaceKeyOf(sessionRef),
+      workspaceRef: {
+        workspacePath: sessionRef.workspacePath,
+        ...(sessionRef.workspaceIdentity
+          ? { workspaceIdentity: sessionRef.workspaceIdentity }
+          : {}),
+      },
+      logEpoch: this.runtime.newLogEpoch(),
+      seq: 0,
+      revision: 0,
+      phase: payload.firstInput ? "prewarming" : "draft",
+      createdAt: now,
+      lastActivityAt: now,
+      meta: { title: "", titleSource: "default" },
+      rows: [],
+      usage: {
+        contextWindow: null,
+        cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      },
+      plan: null,
+      pendingInteractions: [],
+      queuedInputs: [],
+      autoDrain: true,
+      activeTurn: null,
+      config: {
+        provider: "account:bigmodel-start-plan",
+        model: "GLM-5.3-Flash",
+        thought: "max",
+        thoughtLevels: ["low", "medium", "high", "max"],
+        followupMode: "queue",
+        mode: "build",
+        modelSelection: {
+          providerId: "bigmodel",
+          modelId: "GLM-5.3-Flash",
+          options: { reasoningLevel: "max" },
+        },
+      },
+    };
+    if (payload.config) {
+      Object.assign(session.config, payload.config);
+    }
+    this.runtime.sessions.set(sessionId, session);
+    this.runtime.tasks.set(sessionId, {
+      sessionId,
+      workspacePath: sessionRef.workspacePath,
+      ...(sessionRef.workspaceIdentity ? { workspaceIdentity: sessionRef.workspaceIdentity } : {}),
+      title: "",
+      titleSource: "default",
+      pinned: false,
+      archived: false,
+      unread: false,
+      createdAt: now,
+      lastActivityAt: now,
+    });
+    this.publishSessionsIndexUpsert(session);
+    this.runtime.onWorkspaceTaskListChanged.fire({
+      workspacePath: sessionRef.workspacePath,
+      type: "workspace_task_list_changed",
+    });
+
+    if (payload.firstInput?.text) {
+      void this.runTurn(session, envelope.commandId, payload.firstInput.text);
+      return this.ackAccepted(envelope, {
+        type: "createSession",
+        sessionId,
+        input: { delivery: "startNow", inputId: `input_${createUuid()}` },
+      });
+    }
+    return this.ackAccepted(envelope, { type: "createSession", sessionId });
+  }
+
+  private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
+    const payload = envelope.payload as { text: string };
+    if (session.activeTurn !== null) {
+      session.queuedInputs.push({ inputId: `input_${createUuid()}`, text: payload.text });
+      this.patchState(session, { queue: { items: [], autoDrain: session.autoDrain } });
+      return this.ackAccepted(envelope, {
+        type: "inputAccepted",
+        delivery: "queue",
+        inputId: `input_${createUuid()}`,
+      });
+    }
+    session.activeTurn = {
+      abort: () => {
+        session.activeTurn = null;
+      },
+    };
+    void this.runTurn(session, envelope.commandId, payload.text);
+    return this.ackAccepted(envelope, {
+      type: "inputAccepted",
+      delivery: "startNow",
+      inputId: `input_${createUuid()}`,
+    });
+  }
+
+  private handleEnvelope(envelope: CommandEnvelope): CommandAck {
+    if (envelope.type === "createSession") {
+      return this.createSessionInternal(envelope);
+    }
+    const session = this.ensureSession({ sessionId: envelope.sessionId ?? "" });
+    switch (envelope.type) {
+      case "sendText":
+        return this.sendTextInternal(session, envelope);
+      case "stop":
+        session.activeTurn?.abort();
+        session.activeTurn = null;
+        return this.ackAccepted(envelope);
+      case "resolveInteraction": {
+        const payload = envelope.payload as { interactionId: string };
+        const interaction = session.pendingInteractions.find(
+          (item) => item.interactionId === payload.interactionId,
+        );
+        session.pendingInteractions = session.pendingInteractions.filter(
+          (item) => item.interactionId !== payload.interactionId,
+        );
+        const permissionToolCallId =
+          interaction?.payload.kind === "permission"
+            ? (interaction.payload as { toolCallId: string }).toolCallId
+            : undefined;
+        if (permissionToolCallId) {
+          const row = session.rows.find(
+            (candidate) =>
+              candidate.kind === "toolCall" && candidate.toolCallId === permissionToolCallId,
+          );
+          if (row?.kind === "toolCall") {
+            this.upsertRow(session, { ...row, status: "running" });
+            const succeeded: WireConversationRow = {
+              ...row,
+              status: "success",
+              endedAt: Date.now(),
+            };
+            setTimeout(() => this.upsertRow(session, succeeded), 120);
+          }
+        }
+        this.patchState(session, { pendingInteractions: session.pendingInteractions });
+        return this.ackAccepted(envelope, {
+          type: "resolveInteraction",
+          resolvedBy: { clientId: envelope.clientId },
+        });
+      }
+      case "renameSession": {
+        const payload = envelope.payload as { title: string };
+        session.meta = { title: payload.title, titleSource: "custom" };
+        const task = this.runtime.tasks.get(session.sessionId);
+        if (task) {
+          task.title = payload.title;
+          task.titleSource = "custom";
+        }
+        this.patchState(session, { meta: session.meta });
+        this.publishSessionsIndexUpsert(session);
+        return this.ackAccepted(envelope);
+      }
+      case "deleteSession": {
+        this.runtime.sessions.delete(session.sessionId);
+        this.runtime.tasks.delete(session.sessionId);
+        this.publishSessionsIndexRemoved(session.workspaceKey, session.sessionId);
+        this.runtime.onWorkspaceTaskListChanged.fire({
+          workspacePath: session.workspaceRef.workspacePath,
+          type: "workspace_task_list_changed",
+        });
+        return this.ackAccepted(envelope);
+      }
+      case "switchModelConfig": {
+        const payload = envelope.payload as { provider: string; model: string; thought: string };
+        session.revision += 1;
+        session.config = {
+          ...session.config,
+          provider: payload.provider,
+          model: payload.model,
+          thought: payload.thought,
+          modelSelection: {
+            providerId: payload.provider,
+            modelId: payload.model,
+            options: { reasoningLevel: payload.thought },
+          },
+        };
+        this.emitConversationFrame(
+          session,
+          {
+            kind: "deltas",
+            deltas: [
+              {
+                op: "state.updated",
+                patch: {
+                  revision: session.revision,
+                  config: { ...session.config },
+                },
+              },
+              {
+                op: "row.appended",
+                row: {
+                  kind: "timelineMarker",
+                  rowId: this.nextRowId(session),
+                  turnId: `turn_${createUuid()}`,
+                  createdAt: Date.now(),
+                  createdAtSeq: session.seq,
+                  lane: "lightBoundary",
+                  marker: {
+                    type: "modelChange",
+                    fromProvider: "account:bigmodel-start-plan",
+                    fromModel: "GLM-5.3-Flash",
+                    toProvider: payload.provider,
+                    toModel: payload.model,
+                    toThought: payload.thought,
+                  },
+                },
+              },
+            ],
+          },
+          "online",
+        );
+        return this.ackAccepted(envelope);
+      }
+      case "setAutoDrain": {
+        session.autoDrain = (envelope.payload as { autoDrain: boolean }).autoDrain;
+        this.patchState(session, { queue: { items: [], autoDrain: session.autoDrain } });
+        return this.ackAccepted(envelope);
+      }
+      case "setAssistantFeedback": {
+        const payload = envelope.payload as {
+          target: { rowId: number };
+          feedback: "like" | "dislike" | null;
+        };
+        const row = session.rows.find((candidate) => candidate.rowId === payload.target.rowId);
+        if (row?.kind === "assistantText") {
+          this.upsertRow(session, {
+            ...row,
+            ...(payload.feedback ? { feedback: payload.feedback } : {}),
+          });
+        }
+        return this.ackAccepted(envelope);
+      }
+      default:
+        // 其余命令（编辑重发、队列操作、goal、workflow 等）mock 一律接受且不改变状态。
+        return this.ackAccepted(envelope);
+    }
+  }
+
+  // ── v4 握手与订阅 ──
+
+  async helloConversationV4(): Promise<HelloMessage> {
+    return {
+      kind: "hello",
+      protocolVersion: 3,
+      connectionId: `mock-conn-${createUuid()}`,
+      clientMode: "web-remote-replayable",
+      deliveryProfile: "replayable",
+      serverTime: Date.now(),
+      capabilities: {
+        nativeDialogs: false,
+        localTerminal: false,
+        binaryFrames: true,
+        compression: "none",
+        workflowRunDeltas: true,
+        independentPlanState: true,
+        genUiContext: false,
+      },
+      auth: {},
+    };
+  }
+
+  async initializeConversationV4(_clientHello: ClientHello): Promise<void> {}
+
+  async setConnectionFlowStateV4(
+    _params: P<IZCodeAgentService["setConnectionFlowStateV4"]>,
+  ): Promise<void> {}
+
+  async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
+    const workspaceKey = workspaceKeyOf(params);
+    const session = this.ensureOrSeedDraftSession(params, workspaceKey);
+    const subscriptionId = `sub-${createUuid()}`;
+    this.conversationSubs.set(subscriptionId, { sessionId: session.sessionId, ordinal: 0 });
+    const snapshot = buildConversationSnapshot(session);
+    this.emitConversationFrame(session, { kind: "snapshot", snapshot }, "initial");
+    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: session.logEpoch } };
+  }
+
+  /** 订阅时目标会话可能尚未创建（draft 预热窗口）；按 workspace 种子一个空会话。 */
+  private ensureOrSeedDraftSession(
+    params: { sessionId: string; workspacePath: string; workspaceIdentity?: string },
+    workspaceKey: string,
+  ): MockSession {
+    const existing = this.runtime.sessions.get(params.sessionId);
+    if (existing) return existing;
+    const now = Date.now();
+    const session: MockSession = {
+      sessionId: params.sessionId,
+      workspaceKey,
+      workspaceRef: {
+        workspacePath: params.workspacePath,
+        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+      },
+      logEpoch: this.runtime.newLogEpoch(),
+      seq: 0,
+      revision: 0,
+      phase: "draft",
+      createdAt: now,
+      lastActivityAt: now,
+      meta: { title: "", titleSource: "default" },
+      rows: [],
+      usage: {
+        contextWindow: null,
+        cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      },
+      plan: null,
+      pendingInteractions: [],
+      queuedInputs: [],
+      autoDrain: true,
+      activeTurn: null,
+      config: {
+        provider: "account:bigmodel-start-plan",
+        model: "GLM-5.3-Flash",
+        thought: "max",
+        thoughtLevels: ["low", "medium", "high", "max"],
+        followupMode: "queue",
+        mode: "build",
+        modelSelection: {
+          providerId: "bigmodel",
+          modelId: "GLM-5.3-Flash",
+          options: { reasoningLevel: "max" },
+        },
+      },
+    };
+    this.runtime.sessions.set(params.sessionId, session);
+    return session;
+  }
+
+  async resyncConversationV4(params: P<IZCodeAgentService["resyncConversationV4"]>) {
+    const sub = this.conversationSubs.get(params.subscriptionId);
+    const session = sub ? this.runtime.sessions.get(sub.sessionId) : undefined;
+    if (!sub || !session) {
+      throw new Error("fault.subscription.unknownSubscription");
+    }
+    const snapshot = buildConversationSnapshot(session);
+    this.emitConversationFrame(session, { kind: "snapshot", snapshot }, "recovery");
+    return {
+      ack: {
+        subscriptionId: params.subscriptionId,
+        mode: "snapshot" as const,
+        logEpoch: session.logEpoch,
+      },
+    };
+  }
+
+  async unsubscribeConversationV4(
+    params: P<IZCodeAgentService["unsubscribeConversationV4"]>,
+  ): Promise<void> {
+    this.conversationSubs.delete(params.subscriptionId);
+  }
+
+  async conversationRowsRangeV4(params: P<IZCodeAgentService["conversationRowsRangeV4"]>) {
+    const session = this.runtime.sessions.get(params.sessionId);
+    const rows = session?.rows ?? [];
+    const beforeRowId = params.beforeRowId ?? Number.MAX_SAFE_INTEGER;
+    const eligible = rows.filter((row) => row.rowId < beforeRowId);
+    const start = Math.max(0, eligible.length - params.limit);
+    return {
+      rows: eligible.slice(start),
+      atSeq: session?.seq ?? 0,
+      atRevision: session?.revision ?? 0,
+      atLogEpoch: session?.logEpoch ?? "unknown",
+      hasMore: start > 0,
+    };
+  }
+
+  async conversationPlansV4(params: P<IZCodeAgentService["conversationPlansV4"]>) {
+    const session = this.runtime.sessions.get(params.sessionId);
+    return {
+      plans: (session?.rows ?? []).filter(
+        (row): row is Extract<WireConversationRow, { kind: "toolCall" }> =>
+          row.kind === "toolCall" && row.toolName === "exit_plan_mode",
+      ),
+      atSeq: session?.seq ?? 0,
+      atLogEpoch: session?.logEpoch ?? "unknown",
+    };
+  }
+
+  async conversationInputPredictionV4(
+    _params: P<IZCodeAgentService["conversationInputPredictionV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationInputPredictionV4"]>> {
+    return { kind: "unsupported" } as unknown as AR<
+      IZCodeAgentService["conversationInputPredictionV4"]
+    >;
+  }
+
+  async sendConversationCommandV4(
+    params: P<IZCodeAgentService["sendConversationCommandV4"]>,
+  ): Promise<CommandAck> {
+    const parsed = parseCommandEnvelope(params.envelope);
+    if (!parsed.ok) {
+      return {
+        commandId: params.envelope.commandId,
+        status: "rejected",
+        reasonCode: "fault.command.invalidEnvelope",
+        revisionAtDecision: 0,
+      };
+    }
+    return this.handleEnvelope(parsed.envelope);
+  }
+
+  async queryConversationCommandsV4(
+    params: P<IZCodeAgentService["queryConversationCommandsV4"]>,
+  ): Promise<CommandsQueryResult> {
+    return {
+      results: params.commands.map((key) => ({ key, result: "unknown" as const })),
+      ...(params.clock ? { clock: { clockOffsetMs: 0, sampledAt: Date.now() } } : {}),
+    } as unknown as CommandsQueryResult;
+  }
+
+  async subscribeSessionsIndexV4(params: P<IZCodeAgentService["subscribeSessionsIndexV4"]>) {
+    const workspaceKey = workspaceKeyOf(params);
+    const subscriptionId = `sub-${createUuid()}`;
+    this.sessionsIndexSubs.set(subscriptionId, { workspaceKey, ordinal: 0 });
+    const sessions = [...this.runtime.sessions.values()]
+      .filter((session) => session.workspaceKey === workspaceKey && isListedSession(session))
+      .map((session) => buildSessionSummary(session));
+    this.emitSessionsIndex(workspaceKey, { kind: "snapshot", snapshot: { sessions } }, "initial");
+    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "sidx-epoch-1" } };
+  }
+
+  async resyncSessionsIndexV4(params: P<IZCodeAgentService["resyncSessionsIndexV4"]>) {
+    const sub = this.sessionsIndexSubs.get(params.subscriptionId);
+    if (!sub) throw new Error("fault.subscription.unknownSubscription");
+    const sessions = [...this.runtime.sessions.values()]
+      .filter((session) => session.workspaceKey === sub.workspaceKey)
+      .map((session) => buildSessionSummary(session));
+    this.emitSessionsIndex(
+      sub.workspaceKey,
+      { kind: "snapshot", snapshot: { sessions } },
+      "recovery",
+    );
+    return {
+      ack: {
+        subscriptionId: params.subscriptionId,
+        mode: "snapshot" as const,
+        logEpoch: "sidx-epoch-1",
+      },
+    };
+  }
+
+  async unsubscribeSessionsIndexV4(
+    params: P<IZCodeAgentService["unsubscribeSessionsIndexV4"]>,
+  ): Promise<void> {
+    this.sessionsIndexSubs.delete(params.subscriptionId);
+  }
+
+  async reconcileSessionsIndexV4(
+    params: NonNullable<P<IZCodeAgentService["reconcileSessionsIndexV4"]>>,
+  ) {
+    return {
+      sessions: params.sessionIds.map((sessionId) => {
+        const session = this.runtime.sessions.get(sessionId);
+        if (!session) {
+          return { sessionId, exists: false as const, deleted: false as const };
+        }
+        return {
+          sessionId,
+          exists: true as const,
+          deleted: false,
+          title: session.meta.title,
+          titleSource: session.meta.titleSource,
+          createdAt: session.createdAt,
+          updatedAt: session.lastActivityAt,
+          ...(session.phase === "completedSuccess"
+            ? { lastOutcome: "completed" as const }
+            : session.phase === "completedInterrupted"
+              ? { lastOutcome: "interrupted" as const }
+              : {}),
+        };
+      }),
+    };
+  }
+
+  async subscribeWorkspaceConfigV4(params: P<IZCodeAgentService["subscribeWorkspaceConfigV4"]>) {
+    const workspaceKey = workspaceKeyOf(params);
+    const subscriptionId = `sub-${createUuid()}`;
+    this.workspaceConfigSubs.set(subscriptionId, { workspaceKey, ordinal: 0 });
+    this.emitWorkspaceConfigSnapshot(workspaceKey, "initial");
+    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "wcfg-epoch-1" } };
+  }
+
+  async resyncWorkspaceConfigV4(params: P<IZCodeAgentService["resyncWorkspaceConfigV4"]>) {
+    const sub = this.workspaceConfigSubs.get(params.subscriptionId);
+    if (!sub) throw new Error("fault.subscription.unknownSubscription");
+    this.emitWorkspaceConfigSnapshot(sub.workspaceKey, "recovery");
+    return {
+      ack: {
+        subscriptionId: params.subscriptionId,
+        mode: "snapshot" as const,
+        logEpoch: "wcfg-epoch-1",
+      },
+    };
+  }
+
+  async unsubscribeWorkspaceConfigV4(
+    params: P<IZCodeAgentService["unsubscribeWorkspaceConfigV4"]>,
+  ): Promise<void> {
+    this.workspaceConfigSubs.delete(params.subscriptionId);
+  }
+
+  onDynamicConversationFrame(
+    _params: P<IZCodeAgentService["onDynamicConversationFrame"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicConversationFrame"]> {
+    return this.conversationFrameEmitter.event as unknown as ReturnType<
+      IZCodeAgentService["onDynamicConversationFrame"]
+    >;
+  }
+
+  onDynamicSessionsIndexFrame(
+    _params: P<IZCodeAgentService["onDynamicSessionsIndexFrame"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicSessionsIndexFrame"]> {
+    return this.sessionsIndexFrameEmitter.event as unknown as ReturnType<
+      IZCodeAgentService["onDynamicSessionsIndexFrame"]
+    >;
+  }
+
+  onDynamicWorkspaceConfigFrame(
+    _params: P<IZCodeAgentService["onDynamicWorkspaceConfigFrame"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicWorkspaceConfigFrame"]> {
+    return this.workspaceConfigFrameEmitter.event as unknown as ReturnType<
+      IZCodeAgentService["onDynamicWorkspaceConfigFrame"]
+    >;
+  }
+
+  onDynamicSessionLifecycle(
+    _params: P<IZCodeAgentService["onDynamicSessionLifecycle"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicSessionLifecycle"]> {
+    return this.sessionLifecycleEmitter.event as unknown as ReturnType<
+      IZCodeAgentService["onDynamicSessionLifecycle"]
+    >;
+  }
+
+  async getSessionLifecycle(
+    params: P<IZCodeAgentService["getSessionLifecycle"]>,
+  ): Promise<AR<IZCodeAgentService["getSessionLifecycle"]>> {
+    const session = this.runtime.sessions.get(params.sessionId);
+    if (!session) return null;
+    return {
+      sessionId: session.sessionId,
+      // mock 运行时无常驻进程概念：会话存在即视为 ready，否则 UI 的 runtimeBlocked 会禁用发送。
+      state: "ready",
+      generation: this.sessionGeneration,
+      revision: session.revision,
+      lastError: null,
+    };
+  }
+
+  async ensureSessionReady(_params: P<IZCodeAgentService["ensureSessionReady"]>): Promise<void> {}
+
+  async stopSessionRuntime(_params: P<IZCodeAgentService["stopSessionRuntime"]>): Promise<void> {}
+
+  async restartSessionRuntime(
+    _params: P<IZCodeAgentService["restartSessionRuntime"]>,
+  ): Promise<void> {}
+
+  onAgentRuntimeRestarted(listener: (event: { workspaceKey: string }) => void): IDisposable {
+    return this.runtimeRestartedEmitter.event(listener);
+  }
+
+  /** 可选 runtime 事件：mock 无进程换代，恒为空事件。 */
+  readonly onAgentRuntimeLifecycle: NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]> =
+    Event.None as unknown as NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]>;
+  readonly onAgentRuntimeExited: NonNullable<IZCodeAgentService["onAgentRuntimeExited"]> =
+    Event.None as unknown as NonNullable<IZCodeAgentService["onAgentRuntimeExited"]>;
+
+  // ── 附件 ──
+
+  async attachmentBeginV4(_params: P<IZCodeAgentService["attachmentBeginV4"]>) {
+    return {
+      uploadId: _params.uploadId,
+      state: "committed" as const,
+      nextChunkIndex: 0,
+      ref: `att_${createUuid()}`,
+      totalBytes: _params.totalBytes,
+    } as unknown as AR<IZCodeAgentService["attachmentBeginV4"]>;
+  }
+
+  async attachmentChunkV4(_params: P<IZCodeAgentService["attachmentChunkV4"]>) {
+    return { uploadId: _params.uploadId, nextChunkIndex: _params.chunkIndex + 1 };
+  }
+
+  async attachmentCommitV4(_params: P<IZCodeAgentService["attachmentCommitV4"]>) {
+    return { ref: `att_${createUuid()}` };
+  }
+
+  async attachmentAbortV4(_params: P<IZCodeAgentService["attachmentAbortV4"]>): Promise<void> {}
+
+  async attachmentPreviewSourceV4(_params: P<IZCodeAgentService["attachmentPreviewSourceV4"]>) {
+    return { kind: "chunked" as const };
+  }
+
+  async attachmentReadV4(_params: P<IZCodeAgentService["attachmentReadV4"]>) {
+    return { dataBase64: "", mediaType: "text/plain", totalBytes: 0, nextOffset: null };
+  }
+
+  async conversationAttachmentReadV4(
+    _params: P<IZCodeAgentService["conversationAttachmentReadV4"]>,
+  ) {
+    return { dataBase64: "", mediaType: "text/plain", totalBytes: 0, nextOffset: null };
+  }
+
+  async conversationAttachmentStatV4(
+    _params: P<IZCodeAgentService["conversationAttachmentStatV4"]>,
+  ) {
+    return { mediaType: "text/plain", totalBytes: 0 };
+  }
+
+  // ── 旧会话面（mock 返回内存态或最小合法结果） ──
+
+  async prepareStorage(_params: P<IZCodeAgentService["prepareStorage"]>): Promise<void> {
+    this.storageGeneration += 1;
+  }
+
+  async getStorageStartupState(): Promise<AR<IZCodeAgentService["getStorageStartupState"]>> {
+    return { generation: this.storageGeneration, state: null };
+  }
+
+  onDynamicStorageStartupState(): ReturnType<IZCodeAgentService["onDynamicStorageStartupState"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicStorageStartupState"]>;
+  }
+
+  async initialize(
+    params: P<IZCodeAgentService["initialize"]>,
+  ): Promise<AR<IZCodeAgentService["initialize"]>> {
+    return {
+      available: true,
+      workspaceKey: workspaceKeyOf(params),
+      protocolName: "ZCode Protocol",
+      protocolVersion: 1,
+      transportKind: "stdio",
+    };
+  }
+
+  async syncAppRuntimePreferences(
+    _preferences: P<IZCodeAgentService["syncAppRuntimePreferences"]>,
+  ): Promise<void> {}
+
+  async syncDynamicWorkflowUserMode(
+    _params: P<IZCodeAgentService["syncDynamicWorkflowUserMode"]>,
+  ): Promise<void> {}
+
+  async getWorkspaceRuntimeIdentity(
+    params: P<IZCodeAgentService["getWorkspaceRuntimeIdentity"]>,
+  ): Promise<AR<IZCodeAgentService["getWorkspaceRuntimeIdentity"]>> {
+    return {
+      generation: this.sessionGeneration,
+      identity: `mock-${workspaceKeyOf(params)}`,
+      workspaceKey: workspaceKeyOf(params),
+    };
+  }
+
+  async createSession(
+    _params: P<IZCodeAgentService["createSession"]>,
+  ): Promise<AR<IZCodeAgentService["createSession"]>> {
+    throw new Error("mock: legacy createSession 由 v4 createSession 命令承担");
+  }
+
+  async resumeSession(
+    _params: P<IZCodeAgentService["resumeSession"]>,
+  ): Promise<AR<IZCodeAgentService["resumeSession"]>> {
+    throw new Error("mock: legacy resumeSession 由 v4 订阅承担");
+  }
+
+  async listSessions(_params: P<IZCodeAgentService["listSessions"]>): Promise<ZCodeSessionInfo[]> {
+    return [];
+  }
+
+  async listSessionSubagents(
+    _params: P<IZCodeAgentService["listSessionSubagents"]>,
+  ): Promise<AR<IZCodeAgentService["listSessionSubagents"]>> {
+    return { subagents: [], endedTotal: 0, revision: 0 } as unknown as AR<
+      IZCodeAgentService["listSessionSubagents"]
+    >;
+  }
+
+  async getAppUsageStats(
+    _params: P<IZCodeAgentService["getAppUsageStats"]>,
+  ): Promise<AR<IZCodeAgentService["getAppUsageStats"]>> {
+    return { generatedAt: Date.now(), ranges: [] } as unknown as AR<
+      IZCodeAgentService["getAppUsageStats"]
+    >;
+  }
+
+  async getTaskTokenUsage(
+    _params: P<IZCodeAgentService["getTaskTokenUsage"]>,
+  ): Promise<AR<IZCodeAgentService["getTaskTokenUsage"]>> {
+    return {
+      taskId: _params.sessionId,
+      totalTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      modelRequestCount: 0,
+      modelErrorCount: 0,
+    } as unknown as AR<IZCodeAgentService["getTaskTokenUsage"]>;
+  }
+
+  async readSession(
+    _params: P<IZCodeAgentService["readSession"]>,
+  ): Promise<AR<IZCodeAgentService["readSession"]>> {
+    throw new Error("mock: legacy readSession 由 v4 投影承担");
+  }
+
+  async readSessionMessages(
+    _params: P<IZCodeAgentService["readSessionMessages"]>,
+  ): Promise<AR<IZCodeAgentService["readSessionMessages"]>> {
+    return { messages: [], nextBeforeMessageId: null } as unknown as AR<
+      IZCodeAgentService["readSessionMessages"]
+    >;
+  }
+
+  async readSessionDebug(
+    _params: P<IZCodeAgentService["readSessionDebug"]>,
+  ): Promise<AR<IZCodeAgentService["readSessionDebug"]>> {
+    return { events: [], notes: [] } as unknown as AR<IZCodeAgentService["readSessionDebug"]>;
+  }
+
+  async readSessionEvents(
+    _params: P<IZCodeAgentService["readSessionEvents"]>,
+  ): Promise<AR<IZCodeAgentService["readSessionEvents"]>> {
+    return [] as unknown as AR<IZCodeAgentService["readSessionEvents"]>;
+  }
+
+  async readWorkspacePresentation(
+    _params: P<IZCodeAgentService["readWorkspacePresentation"]>,
+  ): Promise<AR<IZCodeAgentService["readWorkspacePresentation"]>> {
+    return {
+      workspace: {
+        workspacePath: _params.workspacePath,
+        workspaceKey: _params.workspaceIdentity?.trim() || _params.workspacePath,
+      },
+      mode: "build",
+      slashCommands: [],
+    } as unknown as AR<IZCodeAgentService["readWorkspacePresentation"]>;
+  }
+
+  async grantWorkspaceHookTrust(
+    _params: P<IZCodeAgentService["grantWorkspaceHookTrust"]>,
+  ): Promise<AR<IZCodeAgentService["grantWorkspaceHookTrust"]>> {
+    return { skills: [] } as unknown as AR<IZCodeAgentService["grantWorkspaceHookTrust"]>;
+  }
+
+  async setWorkspaceMcpTrust(
+    _params: P<IZCodeAgentService["setWorkspaceMcpTrust"]>,
+  ): Promise<AR<IZCodeAgentService["setWorkspaceMcpTrust"]>> {
+    return { applied: false } as unknown as AR<IZCodeAgentService["setWorkspaceMcpTrust"]>;
+  }
+
+  async listMcpServerStatuses(
+    _params: P<IZCodeAgentService["listMcpServerStatuses"]>,
+  ): Promise<AR<IZCodeAgentService["listMcpServerStatuses"]>> {
+    return { servers: [], mode: "all" } as unknown as AR<
+      IZCodeAgentService["listMcpServerStatuses"]
+    >;
+  }
+
+  async listPlugins(
+    _params: P<IZCodeAgentService["listPlugins"]>,
+  ): Promise<AR<IZCodeAgentService["listPlugins"]>> {
+    return { plugins: [], marketplaces: [] } as unknown as AR<IZCodeAgentService["listPlugins"]>;
+  }
+
+  async getPluginsOverview(
+    _params: P<IZCodeAgentService["getPluginsOverview"]>,
+  ): Promise<AR<IZCodeAgentService["getPluginsOverview"]>> {
+    return {
+      marketplaces: [],
+      availablePlugins: [],
+      installedPlugins: [],
+      restorableBuiltins: [],
+      diagnostics: [],
+      capability: { canInstall: false, canConfigure: false },
+    } as unknown as AR<IZCodeAgentService["getPluginsOverview"]>;
+  }
+
+  async getPluginReferenceCatalog(
+    _params: P<IZCodeAgentService["getPluginReferenceCatalog"]>,
+  ): Promise<AR<IZCodeAgentService["getPluginReferenceCatalog"]>> {
+    return { authority: "workspace" as const, plugins: [] } as unknown as AR<
+      IZCodeAgentService["getPluginReferenceCatalog"]
+    >;
+  }
+
+  async getSkillReferenceCatalog(
+    _params: P<IZCodeAgentService["getSkillReferenceCatalog"]>,
+  ): Promise<AR<IZCodeAgentService["getSkillReferenceCatalog"]>> {
+    return { authority: "workspace" as const, skills: [] } as unknown as unknown as AR<
+      IZCodeAgentService["getSkillReferenceCatalog"]
+    >;
+  }
+
+  async resolveSuggestedPluginReference(
+    _params: P<IZCodeAgentService["resolveSuggestedPluginReference"]>,
+  ): Promise<AR<IZCodeAgentService["resolveSuggestedPluginReference"]>> {
+    throw new Error("mock: 建议插件解析未启用");
+  }
+
+  async listSavedWorkflows(
+    _params: P<IZCodeAgentService["listSavedWorkflows"]>,
+  ): Promise<AR<IZCodeAgentService["listSavedWorkflows"]>> {
+    return { workflows: [] } as unknown as AR<IZCodeAgentService["listSavedWorkflows"]>;
+  }
+
+  async getSavedWorkflow(
+    _params: P<IZCodeAgentService["getSavedWorkflow"]>,
+  ): Promise<AR<IZCodeAgentService["getSavedWorkflow"]>> {
+    throw new Error("fault.workflow.notFound");
+  }
+
+  async updateSavedWorkflowMeta(
+    _params: P<IZCodeAgentService["updateSavedWorkflowMeta"]>,
+  ): Promise<AR<IZCodeAgentService["updateSavedWorkflowMeta"]>> {
+    throw new Error("fault.workflow.notFound");
+  }
+
+  async deleteSavedWorkflow(
+    _params: P<IZCodeAgentService["deleteSavedWorkflow"]>,
+  ): Promise<AR<IZCodeAgentService["deleteSavedWorkflow"]>> {
+    throw new Error("fault.workflow.notFound");
+  }
+
+  async listSavedWorkflowRuns(
+    _params: P<IZCodeAgentService["listSavedWorkflowRuns"]>,
+  ): Promise<AR<IZCodeAgentService["listSavedWorkflowRuns"]>> {
+    return { runs: [], hasMore: false } as unknown as AR<
+      IZCodeAgentService["listSavedWorkflowRuns"]
+    >;
+  }
+
+  async moveSavedWorkflow(
+    _params: P<IZCodeAgentService["moveSavedWorkflow"]>,
+  ): Promise<AR<IZCodeAgentService["moveSavedWorkflow"]>> {
+    throw new Error("fault.workflow.notFound");
+  }
+
+  async saveSavedWorkflowFromRun(
+    _params: P<IZCodeAgentService["saveSavedWorkflowFromRun"]>,
+  ): Promise<AR<IZCodeAgentService["saveSavedWorkflowFromRun"]>> {
+    throw new Error("fault.workflow.notFound");
+  }
+
+  async findSavedWorkflowForRun(
+    _params: P<IZCodeAgentService["findSavedWorkflowForRun"]>,
+  ): Promise<AR<IZCodeAgentService["findSavedWorkflowForRun"]>> {
+    return null as unknown as AR<IZCodeAgentService["findSavedWorkflowForRun"]>;
+  }
+
+  async listAutomations(
+    _params: P<IZCodeAgentService["listAutomations"]>,
+  ): Promise<AR<IZCodeAgentService["listAutomations"]>> {
+    return [];
+  }
+
+  async listAllAutomations(): Promise<AR<IZCodeAgentService["listAllAutomations"]>> {
+    return [];
+  }
+
+  async collectLocalRuntimeChildProcesses(
+    _params: P<IZCodeAgentService["collectLocalRuntimeChildProcesses"]>,
+  ): Promise<AR<IZCodeAgentService["collectLocalRuntimeChildProcesses"]>> {
+    return { children: [] } as unknown as AR<
+      IZCodeAgentService["collectLocalRuntimeChildProcesses"]
+    >;
+  }
+
+  async generateWorkspaceText(
+    _params: P<IZCodeAgentService["generateWorkspaceText"]>,
+  ): Promise<AR<IZCodeAgentService["generateWorkspaceText"]>> {
+    throw new Error("mock: generateWorkspaceText 未实现");
+  }
+
+  async testModelConnectivity(
+    _params: P<IZCodeAgentService["testModelConnectivity"]>,
+  ): Promise<AR<IZCodeAgentService["testModelConnectivity"]>> {
+    return { ok: true, latencyMs: 12 } as unknown as AR<
+      IZCodeAgentService["testModelConnectivity"]
+    >;
+  }
+
+  async sendPrompt(
+    _params: P<IZCodeAgentService["sendPrompt"]>,
+  ): Promise<AR<IZCodeAgentService["sendPrompt"]>> {
+    throw new Error("mock: legacy sendPrompt 已退役，请使用 v4 sendConversationCommandV4");
+  }
+
+  async compactSession(
+    _params: P<IZCodeAgentService["compactSession"]>,
+  ): Promise<AR<IZCodeAgentService["compactSession"]>> {
+    return { status: "noop" } as unknown as AR<IZCodeAgentService["compactSession"]>;
+  }
+
+  async goalSession(
+    _params: P<IZCodeAgentService["goalSession"]>,
+  ): Promise<AR<IZCodeAgentService["goalSession"]>> {
+    return { status: "noop" } as unknown as AR<IZCodeAgentService["goalSession"]>;
+  }
+
+  async closeSession(
+    params: P<IZCodeAgentService["closeSession"]>,
+  ): Promise<AR<IZCodeAgentService["closeSession"]>> {
+    const session = this.runtime.sessions.get(params.sessionId);
+    if (session?.activeTurn) session.activeTurn.abort();
+    return false as unknown as AR<IZCodeAgentService["closeSession"]>;
+  }
+
+  async setModel(
+    _params: P<IZCodeAgentService["setModel"]>,
+  ): Promise<AR<IZCodeAgentService["setModel"]>> {
+    throw new Error("mock: legacy setModel 由 v4 switchModelConfig 承担");
+  }
+
+  async setThoughtLevel(
+    _params: P<IZCodeAgentService["setThoughtLevel"]>,
+  ): Promise<AR<IZCodeAgentService["setThoughtLevel"]>> {
+    throw new Error("mock: legacy setThoughtLevel 由 v4 switchModelConfig 承担");
+  }
+
+  async setMode(
+    _params: P<IZCodeAgentService["setMode"]>,
+  ): Promise<AR<IZCodeAgentService["setMode"]>> {
+    throw new Error("mock: legacy setMode 由 v4 switchCollaborationMode 承担");
+  }
+
+  async respondProviderRuntimeHeaders(
+    _params: P<IZCodeAgentService["respondProviderRuntimeHeaders"]>,
+  ): Promise<void> {}
+
+  async respondSessionRuntimePreferences(
+    _params: P<IZCodeAgentService["respondSessionRuntimePreferences"]>,
+  ): Promise<void> {}
+
+  onDynamicProviderRuntimeHeadersRequest(): ReturnType<
+    IZCodeAgentService["onDynamicProviderRuntimeHeadersRequest"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicProviderRuntimeHeadersRequest"]
+    >;
+  }
+
+  onDynamicWorkspaceProviderRuntimeHeadersRequest(
+    _params: P<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]> {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]
+    >;
+  }
+
+  onDynamicWorkspaceProviderRuntimeHeadersCancelled(
+    _params: P<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]> {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]
+    >;
+  }
+
+  onDynamicSessionRuntimePreferencesRequest(): ReturnType<
+    IZCodeAgentService["onDynamicSessionRuntimePreferencesRequest"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicSessionRuntimePreferencesRequest"]
+    >;
+  }
+
+  onDynamicProcessResourceSample(): ReturnType<
+    IZCodeAgentService["onDynamicProcessResourceSample"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicProcessResourceSample"]
+    >;
+  }
+
+  onDynamicPluginStartupDegraded(
+    _params: P<IZCodeAgentService["onDynamicPluginStartupDegraded"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicPluginStartupDegraded"]> {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicPluginStartupDegraded"]
+    >;
+  }
+
+  onDynamicRemoteConversationTelemetry(): ReturnType<
+    IZCodeAgentService["onDynamicRemoteConversationTelemetry"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicRemoteConversationTelemetry"]
+    >;
+  }
+
+  onDynamicMcpTelemetry(): ReturnType<IZCodeAgentService["onDynamicMcpTelemetry"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicMcpTelemetry"]>;
+  }
+
+  onDynamicMcpResourceSamples(): ReturnType<IZCodeAgentService["onDynamicMcpResourceSamples"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicMcpResourceSamples"]>;
+  }
+
+  onDynamicToolExecResource(): ReturnType<IZCodeAgentService["onDynamicToolExecResource"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicToolExecResource"]>;
+  }
+
+  onDynamicSessionEvent(
+    _params: P<IZCodeAgentService["onDynamicSessionEvent"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicSessionEvent"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicSessionEvent"]>;
+  }
+
+  onDynamicLocalTtftFacts(
+    _params: P<IZCodeAgentService["onDynamicLocalTtftFacts"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicLocalTtftFacts"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicLocalTtftFacts"]>;
+  }
+
+  onDynamicConversationTelemetryFact(
+    _params: P<IZCodeAgentService["onDynamicConversationTelemetryFact"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicConversationTelemetryFact"]> {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicConversationTelemetryFact"]
+    >;
+  }
+
+  onDynamicModelRequestMetrics(
+    _params: NonNullable<P<IZCodeAgentService["onDynamicModelRequestMetrics"]>>,
+  ): ReturnType<NonNullable<IZCodeAgentService["onDynamicModelRequestMetrics"]>> {
+    return Event.None as unknown as ReturnType<
+      NonNullable<IZCodeAgentService["onDynamicModelRequestMetrics"]>
+    >;
+  }
+
+  onDynamicOffPeakLifecycle(
+    _params: P<IZCodeAgentService["onDynamicOffPeakLifecycle"]>,
+  ): ReturnType<IZCodeAgentService["onDynamicOffPeakLifecycle"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicOffPeakLifecycle"]>;
+  }
+
+  async controlOffPeakExecutionV4(
+    _params: P<IZCodeAgentService["controlOffPeakExecutionV4"]>,
+  ): Promise<AR<IZCodeAgentService["controlOffPeakExecutionV4"]>> {
+    return { kind: "unsupported" } as unknown as AR<
+      IZCodeAgentService["controlOffPeakExecutionV4"]
+    >;
+  }
+
+  onDynamicCuaPermissionObservation(): ReturnType<
+    IZCodeAgentService["onDynamicCuaPermissionObservation"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicCuaPermissionObservation"]
+    >;
+  }
+
+  onDynamicPluginUiToolResult(): ReturnType<IZCodeAgentService["onDynamicPluginUiToolResult"]> {
+    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicPluginUiToolResult"]>;
+  }
+
+  async conversationFileChangesV4(
+    _params: P<IZCodeAgentService["conversationFileChangesV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationFileChangesV4"]>> {
+    return { files: 0, additions: 0, deletions: 0, items: [] } as unknown as AR<
+      IZCodeAgentService["conversationFileChangesV4"]
+    >;
+  }
+
+  async conversationFileRewindPreviewV4(
+    _params: P<IZCodeAgentService["conversationFileRewindPreviewV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationFileRewindPreviewV4"]>> {
+    return { canApply: false, ignoredFiles: [], safeFiles: [], unsafeFiles: [] } as unknown as AR<
+      IZCodeAgentService["conversationFileRewindPreviewV4"]
+    >;
+  }
+
+  async backgroundBashOutputV4(
+    _params: P<IZCodeAgentService["backgroundBashOutputV4"]>,
+  ): Promise<AR<IZCodeAgentService["backgroundBashOutputV4"]>> {
+    return { kind: "unsupported" } as unknown as AR<IZCodeAgentService["backgroundBashOutputV4"]>;
+  }
+
+  async conversationWorkflowRunEventsV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunEventsV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunEventsV4"]>> {
+    return { events: [], hasMore: false } as unknown as AR<
+      IZCodeAgentService["conversationWorkflowRunEventsV4"]
+    >;
+  }
+
+  async conversationWorkflowRunsV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunsV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunsV4"]>> {
+    return { runs: [] } as unknown as AR<IZCodeAgentService["conversationWorkflowRunsV4"]>;
+  }
+
+  async conversationWorkflowRunArtifactsV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>> {
+    return { artifacts: [], hasMore: false } as unknown as AR<
+      IZCodeAgentService["conversationWorkflowRunArtifactsV4"]
+    >;
+  }
+
+  async conversationWorkflowRunArtifactDataV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>> {
+    return { items: [], hasMore: false } as unknown as AR<
+      IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]
+    >;
+  }
+
+  async conversationWorkflowRunArtifactReadV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>> {
+    return {
+      dataBase64: "",
+      mediaType: "text/plain",
+      totalBytes: 0,
+      nextOffset: null,
+    } as unknown as AR<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>;
+  }
+
+  async conversationWorkflowRunWorkspaceV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>> {
+    return { rows: [], hasMore: false } as unknown as AR<
+      IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]
+    >;
+  }
+
+  async conversationWorkflowRunNodeResultV4(
+    _params: P<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>,
+  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>> {
+    return { content: "", truncated: false } as unknown as AR<
+      IZCodeAgentService["conversationWorkflowRunNodeResultV4"]
+    >;
+  }
+
+  async previewSessionDeletion(
+    _params: P<NonNullable<IZCodeAgentService["previewSessionDeletion"]>>,
+  ): Promise<AR<NonNullable<IZCodeAgentService["previewSessionDeletion"]>>> {
+    return { sessions: [], totalBytes: 0 } as unknown as AR<
+      NonNullable<IZCodeAgentService["previewSessionDeletion"]>
+    >;
+  }
+
+  async executeSessionDeletion(
+    _params: P<NonNullable<IZCodeAgentService["executeSessionDeletion"]>>,
+  ): Promise<AR<NonNullable<IZCodeAgentService["executeSessionDeletion"]>>> {
+    return { deletedSessionIds: [], failedSessionIds: [] } as unknown as AR<
+      NonNullable<IZCodeAgentService["executeSessionDeletion"]>
+    >;
+  }
+
+  async measureSessionData(
+    _params: P<NonNullable<IZCodeAgentService["measureSessionData"]>>,
+  ): Promise<AR<NonNullable<IZCodeAgentService["measureSessionData"]>>> {
+    return { totalBytes: 0, sessions: [] } as unknown as AR<
+      NonNullable<IZCodeAgentService["measureSessionData"]>
+    >;
+  }
+
+  async purgeSessionData(
+    _params: P<NonNullable<IZCodeAgentService["purgeSessionData"]>>,
+  ): Promise<AR<NonNullable<IZCodeAgentService["purgeSessionData"]>>> {
+    return { purgedBytes: 0 } as unknown as AR<NonNullable<IZCodeAgentService["purgeSessionData"]>>;
+  }
+
+  supportsWorktreeCwd(
+    _target: NonNullable<P<IZCodeAgentService["supportsWorktreeCwd"]>>,
+  ): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  supportsExtensionInputSource(
+    _target: NonNullable<P<IZCodeAgentService["supportsExtensionInputSource"]>>,
+  ): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  supportsConversationQuoteComment(
+    _target: NonNullable<P<IZCodeAgentService["supportsConversationQuoteComment"]>>,
+  ): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  hasActiveCuaOperationTurn(): boolean {
+    return false;
+  }
+
+  async disposeWorkspace(_params: P<IZCodeAgentService["disposeWorkspace"]>): Promise<void> {
+    for (const [sessionId, session] of this.runtime.sessions) {
+      if (session.workspaceKey === workspaceKeyOf(_params)) {
+        session.activeTurn?.abort();
+        this.runtime.sessions.delete(sessionId);
+      }
+    }
+  }
+
+  async openMcpUiInstance(
+    _params: P<IZCodeAgentService["openMcpUiInstance"]>,
+  ): Promise<AR<IZCodeAgentService["openMcpUiInstance"]>> {
+    throw new Error("mock: openMcpUiInstance 未启用");
+  }
+
+  async readMcpResource(
+    _params: P<IZCodeAgentService["readMcpResource"]>,
+  ): Promise<AR<IZCodeAgentService["readMcpResource"]>> {
+    throw new Error("mock: readMcpResource 未启用");
+  }
+
+  async sampleMcpApp(
+    _params: P<IZCodeAgentService["sampleMcpApp"]>,
+  ): Promise<AR<IZCodeAgentService["sampleMcpApp"]>> {
+    throw new Error("mock: sampleMcpApp 未启用");
+  }
+
+  async callMcpToolForUi(
+    _params: P<IZCodeAgentService["callMcpToolForUi"]>,
+  ): Promise<AR<IZCodeAgentService["callMcpToolForUi"]>> {
+    throw new Error("mock: callMcpToolForUi 未启用");
+  }
+
+  async readMcpResourceForUi(
+    _params: P<IZCodeAgentService["readMcpResourceForUi"]>,
+  ): Promise<AR<IZCodeAgentService["readMcpResourceForUi"]>> {
+    throw new Error("mock: readMcpResourceForUi 未启用");
+  }
+
+  async claimAppToolCallForUi(
+    _params: P<IZCodeAgentService["claimAppToolCallForUi"]>,
+  ): Promise<AR<IZCodeAgentService["claimAppToolCallForUi"]>> {
+    throw new Error("mock: claimAppToolCallForUi 未启用");
+  }
+
+  async addPluginMarketplace(
+    _params: P<IZCodeAgentService["addPluginMarketplace"]>,
+  ): Promise<AR<IZCodeAgentService["addPluginMarketplace"]>> {
+    throw new Error("mock: addPluginMarketplace 未启用");
+  }
+
+  async installPlugin(
+    _params: P<IZCodeAgentService["installPlugin"]>,
+  ): Promise<AR<IZCodeAgentService["installPlugin"]>> {
+    throw new Error("mock: installPlugin 未启用");
+  }
+
+  async updatePlugin(
+    _params: P<IZCodeAgentService["updatePlugin"]>,
+  ): Promise<AR<IZCodeAgentService["updatePlugin"]>> {
+    throw new Error("mock: updatePlugin 未启用");
+  }
+
+  async restoreBuiltinPlugin(
+    _params: P<IZCodeAgentService["restoreBuiltinPlugin"]>,
+  ): Promise<AR<IZCodeAgentService["restoreBuiltinPlugin"]>> {
+    throw new Error("mock: restoreBuiltinPlugin 未启用");
+  }
+
+  async configurePlugin(
+    _params: P<IZCodeAgentService["configurePlugin"]>,
+  ): Promise<AR<IZCodeAgentService["configurePlugin"]>> {
+    throw new Error("mock: configurePlugin 未启用");
+  }
+
+  async resetPluginConfig(
+    _params: P<IZCodeAgentService["resetPluginConfig"]>,
+  ): Promise<AR<IZCodeAgentService["resetPluginConfig"]>> {
+    throw new Error("mock: resetPluginConfig 未启用");
+  }
+
+  async createAutomation(
+    _params: P<IZCodeAgentService["createAutomation"]>,
+  ): Promise<AR<IZCodeAgentService["createAutomation"]>> {
+    throw new Error("mock: createAutomation 未启用");
+  }
+
+  async updateAutomation(
+    _params: P<IZCodeAgentService["updateAutomation"]>,
+  ): Promise<AR<IZCodeAgentService["updateAutomation"]>> {
+    throw new Error("mock: updateAutomation 未启用");
+  }
+
+  async runAutomationNow(
+    _params: P<IZCodeAgentService["runAutomationNow"]>,
+  ): Promise<AR<IZCodeAgentService["runAutomationNow"]>> {
+    throw new Error("mock: runAutomationNow 未启用");
+  }
+
+  async validateMcpUiInstance(
+    _params: P<IZCodeAgentService["validateMcpUiInstance"]>,
+  ): Promise<AR<IZCodeAgentService["validateMcpUiInstance"]>> {
+    return null as unknown as AR<IZCodeAgentService["validateMcpUiInstance"]>;
+  }
+
+  async recycleMcpUiInstance(
+    _params: P<IZCodeAgentService["recycleMcpUiInstance"]>,
+  ): Promise<AR<IZCodeAgentService["recycleMcpUiInstance"]>> {
+    return null as unknown as AR<IZCodeAgentService["recycleMcpUiInstance"]>;
+  }
+
+  async closeMcpUiInstance(
+    _params: P<IZCodeAgentService["closeMcpUiInstance"]>,
+  ): Promise<AR<IZCodeAgentService["closeMcpUiInstance"]>> {
+    return null as unknown as AR<IZCodeAgentService["closeMcpUiInstance"]>;
+  }
+
+  async cancelMcpAppSampling(
+    _params: P<IZCodeAgentService["cancelMcpAppSampling"]>,
+  ): Promise<AR<IZCodeAgentService["cancelMcpAppSampling"]>> {
+    return null as unknown as AR<IZCodeAgentService["cancelMcpAppSampling"]>;
+  }
+
+  async cancelMcpToolCallForUi(
+    _params: P<IZCodeAgentService["cancelMcpToolCallForUi"]>,
+  ): Promise<AR<IZCodeAgentService["cancelMcpToolCallForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["cancelMcpToolCallForUi"]>;
+  }
+
+  async listMcpResourcesForUi(
+    _params: P<IZCodeAgentService["listMcpResourcesForUi"]>,
+  ): Promise<AR<IZCodeAgentService["listMcpResourcesForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["listMcpResourcesForUi"]>;
+  }
+
+  async listMcpResourceTemplatesForUi(
+    _params: P<IZCodeAgentService["listMcpResourceTemplatesForUi"]>,
+  ): Promise<AR<IZCodeAgentService["listMcpResourceTemplatesForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["listMcpResourceTemplatesForUi"]>;
+  }
+
+  async subscribeMcpResourceForUi(
+    _params: P<IZCodeAgentService["subscribeMcpResourceForUi"]>,
+  ): Promise<AR<IZCodeAgentService["subscribeMcpResourceForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["subscribeMcpResourceForUi"]>;
+  }
+
+  async unsubscribeMcpResourceForUi(
+    _params: P<IZCodeAgentService["unsubscribeMcpResourceForUi"]>,
+  ): Promise<AR<IZCodeAgentService["unsubscribeMcpResourceForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["unsubscribeMcpResourceForUi"]>;
+  }
+
+  async registerAppToolsForUi(
+    _params: P<IZCodeAgentService["registerAppToolsForUi"]>,
+  ): Promise<AR<IZCodeAgentService["registerAppToolsForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["registerAppToolsForUi"]>;
+  }
+
+  async unregisterAppToolsForUi(
+    _params: P<IZCodeAgentService["unregisterAppToolsForUi"]>,
+  ): Promise<AR<IZCodeAgentService["unregisterAppToolsForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["unregisterAppToolsForUi"]>;
+  }
+
+  async resolveAppToolCallForUi(
+    _params: P<IZCodeAgentService["resolveAppToolCallForUi"]>,
+  ): Promise<AR<IZCodeAgentService["resolveAppToolCallForUi"]>> {
+    return null as unknown as AR<IZCodeAgentService["resolveAppToolCallForUi"]>;
+  }
+
+  async removePluginMarketplace(
+    _params: P<IZCodeAgentService["removePluginMarketplace"]>,
+  ): Promise<AR<IZCodeAgentService["removePluginMarketplace"]>> {
+    return null as unknown as AR<IZCodeAgentService["removePluginMarketplace"]>;
+  }
+
+  async updatePluginMarketplace(
+    _params: P<IZCodeAgentService["updatePluginMarketplace"]>,
+  ): Promise<AR<IZCodeAgentService["updatePluginMarketplace"]>> {
+    return null as unknown as AR<IZCodeAgentService["updatePluginMarketplace"]>;
+  }
+
+  async cancelPluginOperation(
+    _params: P<IZCodeAgentService["cancelPluginOperation"]>,
+  ): Promise<AR<IZCodeAgentService["cancelPluginOperation"]>> {
+    return null as unknown as AR<IZCodeAgentService["cancelPluginOperation"]>;
+  }
+
+  async uninstallPlugin(
+    _params: P<IZCodeAgentService["uninstallPlugin"]>,
+  ): Promise<AR<IZCodeAgentService["uninstallPlugin"]>> {
+    return null as unknown as AR<IZCodeAgentService["uninstallPlugin"]>;
+  }
+
+  async deleteAutomation(
+    _params: P<IZCodeAgentService["deleteAutomation"]>,
+  ): Promise<AR<IZCodeAgentService["deleteAutomation"]>> {
+    return null as unknown as AR<IZCodeAgentService["deleteAutomation"]>;
+  }
+
+  async setAutomationEnabled(
+    _params: P<IZCodeAgentService["setAutomationEnabled"]>,
+  ): Promise<AR<IZCodeAgentService["setAutomationEnabled"]>> {
+    return null as unknown as AR<IZCodeAgentService["setAutomationEnabled"]>;
+  }
+
+  async restartAutomation(
+    _params: P<IZCodeAgentService["restartAutomation"]>,
+  ): Promise<AR<IZCodeAgentService["restartAutomation"]>> {
+    return null as unknown as AR<IZCodeAgentService["restartAutomation"]>;
+  }
+
+  async listAutomationRuns(
+    _params: P<IZCodeAgentService["listAutomationRuns"]>,
+  ): Promise<AR<IZCodeAgentService["listAutomationRuns"]>> {
+    return null as unknown as AR<IZCodeAgentService["listAutomationRuns"]>;
+  }
+
+  async deleteAutomationRun(
+    _params: P<IZCodeAgentService["deleteAutomationRun"]>,
+  ): Promise<AR<IZCodeAgentService["deleteAutomationRun"]>> {
+    return null as unknown as AR<IZCodeAgentService["deleteAutomationRun"]>;
+  }
+
+  async listPluginUiSurfaces(
+    _params: P<IZCodeAgentService["listPluginUiSurfaces"]>,
+  ): Promise<AR<IZCodeAgentService["listPluginUiSurfaces"]>> {
+    return [] as unknown as AR<IZCodeAgentService["listPluginUiSurfaces"]>;
+  }
+
+  async validatePlugin(
+    _params: P<IZCodeAgentService["validatePlugin"]>,
+  ): Promise<AR<IZCodeAgentService["validatePlugin"]>> {
+    return {
+      ok: true,
+      issues: [],
+      diagnostics: [],
+      compatibility: { runnable: [], diagnosticOnly: [], unsupported: [] },
+    } as unknown as AR<IZCodeAgentService["validatePlugin"]>;
+  }
+
+  async describePlugin(
+    _params: P<IZCodeAgentService["describePlugin"]>,
+  ): Promise<AR<IZCodeAgentService["describePlugin"]>> {
+    return null as unknown as AR<IZCodeAgentService["describePlugin"]>;
+  }
+
+  async setPluginEnabled(
+    _params: P<IZCodeAgentService["setPluginEnabled"]>,
+  ): Promise<AR<IZCodeAgentService["setPluginEnabled"]>> {
+    return {} as unknown as AR<IZCodeAgentService["setPluginEnabled"]>;
+  }
+
+  onDynamicPluginOperationProgress(): ReturnType<
+    IZCodeAgentService["onDynamicPluginOperationProgress"]
+  > {
+    return Event.None as unknown as ReturnType<
+      IZCodeAgentService["onDynamicPluginOperationProgress"]
+    >;
+  }
+
+  disposeAll(): void {
+    for (const session of this.runtime.sessions.values()) {
+      session.activeTurn?.abort();
+    }
+    this.runtime.sessions.clear();
+    this.conversationSubs.clear();
+    this.sessionsIndexSubs.clear();
+    this.workspaceConfigSubs.clear();
+  }
+}
+
+function textToTitle(text: string): string {
+  const firstLine = text.trim().split("\n")[0] ?? "";
+  return firstLine.slice(0, 24) || "新任务";
+}

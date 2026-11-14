@@ -56,9 +56,9 @@ describe("web Vite config", () => {
       "silent",
     );
 
-    expect(result?.config.plugins?.some((plugin) => plugin.name === "zcode:pdfjs-cmaps")).toBe(
-      true,
-    );
+    // Bugfix：PDF.js CMaps 发布随 legacy desktop features trim 移除（插件已不存在），
+    // 这里只保留 config 可加载的冒烟断言。
+    expect(Array.isArray(result?.config.plugins)).toBe(true);
   });
 
   it("显式 ZCODE_ENV=production 时注入生产 ZAI OAuth 和 API 链接", async () => {

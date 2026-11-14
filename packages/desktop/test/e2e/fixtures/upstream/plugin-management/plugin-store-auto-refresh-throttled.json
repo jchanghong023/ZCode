@@ -1,6 +1,0 @@
-{
-  "version": 1,
-  "caseName": "plugin-store-auto-refresh-throttled",
-  "spec": "./test/e2e/plugins/marketplace/plugin-store-auto-refresh-throttled.test.ts",
-  "fixtures": []
-}
