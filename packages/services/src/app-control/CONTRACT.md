@@ -23,4 +23,3 @@ Host dispatch 授权点为最后一次读取同一项目树快照、核对 calle
 调用方分两类（`docs/plugins/extension-host.md` §17.2）。`bind` 为模型工具构造会话类上下文（`caller: "session"`，带根会话）；`requireTarget` 只对会话类复验根会话仍是本 Host 的真实任务，客户端类只核对连接代际与 fence。客户端类的 create/send 需要它自己的来源标识（§17.8），在支持之前报 `unavailable`，不退化成不标来源。
 
 `bindClient`（§17.2）为 Host 进程内的可信非会话客户端构造客户端类上下文：callerId 是 `<sourceServerId>:client:<clientId>`（clientId 跨连接代际不变，是幂等键的一部分），fence 是 `connectionId`，范围与会话类相同（写只到本 Host，发现仍经 `bindAppDiscoverySources`）。每次端口调用都经 binding 的 `assertCurrent`（代际、释放与授权由构造方判断）。发现端口与导航端口只依赖两类共有的连接事实 `AppControlCallerConnection`。`AppControlService` 由 `createLocalServices` 的 `onAppControlServiceCreated` 回调交给进程内的扩展网关，不注册进 ServiceCollection，不出现在 RPC 上。
-

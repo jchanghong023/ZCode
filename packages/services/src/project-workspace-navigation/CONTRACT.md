@@ -13,4 +13,3 @@
 Existing task navigation validates taskId/workspaceKey against the authority tree, then resolves its original directories. It never calls prepareSession or creates a replacement cwd. Remote membership and physical-owner checks also cover this path.
 
 本地未归类草稿导航还接受可选 draftId（UUID）与 reuseDraft；由 ProjectService 校验和准备。与 projectId/task 互斥，不接受客户端自行指定目录；目录的待发送身份与首发消费仍归客户端现有命令恢复链路。
-

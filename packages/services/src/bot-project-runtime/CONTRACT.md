@@ -9,4 +9,3 @@
 每个 Bot 消费者持有自己的动态订阅句柄。换代只订阅新 Source 的未来事件，固定 bot-channel-continuous，无 replay/snapshot 拼接；关闭或换代丢弃旧连接迟到事件。无轮询 timer、状态镜像、接受输入队列或连接缓存。设置仍是 app runtime preferences 的来源，主动同步仅枚举 Bot Repo 已固化的目标。
 
 桌面 desktop-continuous 与手机 web-remote-replayable 原 attachment 语义均不改变。移除旧 main Bot 消息分支不移除 TaskRealtimeBus owner、lease、CommandInbox 或远端 canonical alias。
-

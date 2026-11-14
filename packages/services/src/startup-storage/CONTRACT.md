@@ -9,4 +9,3 @@ main 只调度启动，由此 adapter 调用现有 resolver 定位的 CLI 执行
 成功要求子进程零退出并返回版本化严格 JSON；共享 schema 校验后返回 migration 结果。非零退出或解析失败传播到 main 已有重试/备份/退出交互。无超时重启或重试队列；SQL runner 自己处理幂等、锁和回滚。输出限额防失控，不按数据库大小设置执行截止时间。
 
 时序：app migration → CLI storage-migrate → 两者成功 → scheduler/Host/window。两个库不宣称跨进程原子事务；重试依赖每库 ledger，未知未来 id 和校验和规则仍由公共 runner 执行。
-
