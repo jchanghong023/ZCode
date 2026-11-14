@@ -83,4 +83,3 @@ export function resolveChatEnterShortcut({
 }): "Enter" | undefined {
   return enterSubmits ? "Enter" : undefined;
 }
-

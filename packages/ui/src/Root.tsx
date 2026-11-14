@@ -166,16 +166,16 @@ export function Root(props: RootProps) {
               <TabStoreProvider>
                 <ProjectDirectoryProvider isDesktop={props.isDesktop}>
                   <DiffsWorkerPoolProvider>
-                      <AssistantCodeCommentFeatureProvider
-                        enabled={props.assistantCodeCommentCardsEnabled}
-                      >
-                        <RequestSecurityHost />
-                        <RemoteConnectionProgressProvider>
-                          <DataSyncDialogProvider>
-                            <RootInner {...props} />
-                          </DataSyncDialogProvider>
-                        </RemoteConnectionProgressProvider>
-                      </AssistantCodeCommentFeatureProvider>
+                    <AssistantCodeCommentFeatureProvider
+                      enabled={props.assistantCodeCommentCardsEnabled}
+                    >
+                      <RequestSecurityHost />
+                      <RemoteConnectionProgressProvider>
+                        <DataSyncDialogProvider>
+                          <RootInner {...props} />
+                        </DataSyncDialogProvider>
+                      </RemoteConnectionProgressProvider>
+                    </AssistantCodeCommentFeatureProvider>
                   </DiffsWorkerPoolProvider>
                 </ProjectDirectoryProvider>
               </TabStoreProvider>
@@ -813,7 +813,6 @@ function RootInner({
       }),
     [activeWorkspacePath, activeWorkspaceIdentity, handleResolveConversationWorkspace, tabStoreApi],
   );
-
 
   useEffect(() => {
     // Bugfix: fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。

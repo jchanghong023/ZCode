@@ -1,8 +1,5 @@
 import { useEffect, useRef } from "react";
-import type {
-  ProjectTaskRef,
-  WindowHostTaskUnreadSignal,
-} from "@/project-sidebar/contract.js";
+import type { ProjectTaskRef, WindowHostTaskUnreadSignal } from "@/project-sidebar/contract.js";
 import { mutateProjectTask } from "@/project-sidebar/task-mutation.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
@@ -44,10 +41,7 @@ export function useProjectUnreadSignals(
   const taskKey = (target: ProjectTaskRef) =>
     JSON.stringify([target.workspaceIdentity?.trim() || target.workspacePath, target.taskId]);
   // 队列挂在组件级 ref 上：跨 effect 串行；命令自身负责校验当前记录是否仍然有效。
-  const enqueueForegroundCommand = (
-    target: ProjectTaskRef,
-    command: () => Promise<void>,
-  ) => {
+  const enqueueForegroundCommand = (target: ProjectTaskRef, command: () => Promise<void>) => {
     const key = taskKey(target);
     const previous = foregroundQueuesRef.current.get(key) ?? Promise.resolve();
     const current = previous.then(command);
@@ -231,8 +225,7 @@ export function useProjectUnreadSignals(
       let committed = false;
       void enqueueForegroundCommand(target, async () => {
         try {
-          if (disposed || operation.viewed || isDesktopViewing(target))
-            return;
+          if (disposed || operation.viewed || isDesktopViewing(target)) return;
           operation.started = true;
           const meta = await mutateProjectTask(
             ports,

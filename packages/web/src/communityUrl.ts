@@ -30,8 +30,7 @@ export async function resolveWebHelpConfig(options: ResolveWebCommunityUrlOption
   // 生产部署是同源 SPA+后端）；不再默认指向生产 endpoint，避免 HTTP 站点发起跨域
   // HTTPS 请求被 CORS/403 拦截，控制台出现启动期错误。
   const locationOrigin =
-    typeof globalThis.location?.origin === "string" &&
-    globalThis.location.origin.startsWith("http")
+    typeof globalThis.location?.origin === "string" && globalThis.location.origin.startsWith("http")
       ? globalThis.location.origin
       : undefined;
   const endpoint =

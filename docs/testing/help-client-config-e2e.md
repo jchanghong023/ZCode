@@ -18,11 +18,11 @@ Todo103 复验修正：`setApplicationLocale` 是 Main 原生菜单状态，不�
 
 ## UI Surface Matrix
 
-| 场景 / 入口                          | 共享实现 / owner                                       | 默认与校验                          | 提交落点                   | 模式差异 / 隔离                      |
-| ------------------------------------ | ------------------------------------------------------ | ----------------------------------- | -------------------------- | ------------------------------------ |
-| 问号菜单社群                         | WorkspaceHelpMenuButton → platform → desktopHelpConfig | 当前语言远端→内置                   | shell.openExternal         | Desktop / Web 平台分别打开；不改会话 |
-| Windows caption / 命令候选社群可见性 | canOpenCommunity                                       | 同语言无远端及默认值则 false        | 只读                       | 不把显示状态当成已打开链接           |
-| 浏览器配置读取                       | resolveWebHelpConfig / readHelpConfig                  | envelope、同语言默认值              | fetch + 内存 Map           | Web 省略 platform；无远控 Host 新增  |
+| 场景 / 入口                          | 共享实现 / owner                                       | 默认与校验                   | 提交落点           | 模式差异 / 隔离                      |
+| ------------------------------------ | ------------------------------------------------------ | ---------------------------- | ------------------ | ------------------------------------ |
+| 问号菜单社群                         | WorkspaceHelpMenuButton → platform → desktopHelpConfig | 当前语言远端→内置            | shell.openExternal | Desktop / Web 平台分别打开；不改会话 |
+| Windows caption / 命令候选社群可见性 | canOpenCommunity                                       | 同语言无远端及默认值则 false | 只读               | 不把显示状态当成已打开链接           |
+| 浏览器配置读取                       | resolveWebHelpConfig / readHelpConfig                  | envelope、同语言默认值       | fetch + 内存 Map   | Web 省略 platform；无远控 Host 新增  |
 
 ## Shared And Divergent Behavior / State Owners
 

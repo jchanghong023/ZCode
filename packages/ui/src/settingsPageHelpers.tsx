@@ -14,9 +14,7 @@ import {
 } from "@zcode/shared/test-ids";
 import { useState, useCallback, useEffect } from "react";
 import type { IPlatformService } from "@zcode/shared";
-import {
-  testId,
-} from "@zcode/shared/test-ids";
+import { testId } from "@zcode/shared/test-ids";
 import {
   Select,
   SelectContent,

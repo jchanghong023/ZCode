@@ -32,29 +32,29 @@ pnpm build      # 构建全部包；packages/web 产物为静态站点
 
 ## 仓库结构
 
-| 目录                  | 职责                                                     |
-| --------------------- | -------------------------------------------------------- |
-| `packages/web`        | 浏览器前端入口（Vite）                                    |
-| `packages/ui`         | 共享 React 组件、hooks 与 Zustand store                   |
-| `packages/server`     | 模拟 Web 后端（Hono + WebSocket RPC + mock 服务集合）     |
-| `packages/rpc`        | VS Code 风格 IPC/RPC 框架（生产实现）                     |
-| `packages/client`     | 浏览器连接 SDK（WebSocket → IServiceAccessor）            |
-| `packages/services`   | 服务接口与 descriptor 契约层                              |
-| `packages/shared`     | 共享协议与类型（含 ZCode Protocol v4）                    |
-| `packages/provider`   | Provider/模型选择纯逻辑                                   |
-| `docs/`               | 前端设计相关文档                                          |
-| `DESIGN.md`           | UI 设计规范                                               |
-| `CONTEXT.md`          | 插件商店领域词汇                                          |
+| 目录                | 职责                                                  |
+| ------------------- | ----------------------------------------------------- |
+| `packages/web`      | 浏览器前端入口（Vite）                                |
+| `packages/ui`       | 共享 React 组件、hooks 与 Zustand store               |
+| `packages/server`   | 模拟 Web 后端（Hono + WebSocket RPC + mock 服务集合） |
+| `packages/rpc`      | VS Code 风格 IPC/RPC 框架（生产实现）                 |
+| `packages/client`   | 浏览器连接 SDK（WebSocket → IServiceAccessor）        |
+| `packages/services` | 服务接口与 descriptor 契约层                          |
+| `packages/shared`   | 共享协议与类型（含 ZCode Protocol v4）                |
+| `packages/provider` | Provider/模型选择纯逻辑                               |
+| `docs/`             | 前端设计相关文档                                      |
+| `DESIGN.md`         | UI 设计规范                                           |
+| `CONTEXT.md`        | 插件商店领域词汇                                      |
 
 ## 常用命令
 
-| 用途       | 命令                |
-| ---------- | ------------------- |
-| 类型检查   | `pnpm typecheck`    |
-| Lint       | `pnpm lint`         |
-| 格式检查   | `pnpm fmt:check`    |
+| 用途       | 命令                                |
+| ---------- | ----------------------------------- |
+| 类型检查   | `pnpm typecheck`                    |
+| Lint       | `pnpm lint`                         |
+| 格式检查   | `pnpm fmt:check`                    |
 | 架构检查   | `pnpm architecture:check --changed` |
-| 提交前检查 | `pnpm verify:pre-push` |
+| 提交前检查 | `pnpm verify:pre-push`              |
 
 ## License
 

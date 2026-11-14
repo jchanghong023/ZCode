@@ -348,19 +348,19 @@ export function useWorkspaceTaskNavigation({
           if (!workspace.accepted) throw new Error("Navigation target is disconnected");
           // 与侧栏选择共用工作台 owner，避免只改 shell activeTaskId 而分屏仍显示原会话。
           selectWorkbenchSession(
-              origin.activeTaskId
-                ? {
-                    sessionId: origin.activeTaskId,
-                    workspaceScope: { workspacePath: workspaceAbsPath, workspaceIdentity },
-                  }
-                : null,
-              {
-                workspacePath: entry.workspacePath,
-                workspaceIdentity: entry.workspaceIdentity,
-                remoteSessionId,
-                sessionId: entry.taskId,
-              },
-            );
+            origin.activeTaskId
+              ? {
+                  sessionId: origin.activeTaskId,
+                  workspaceScope: { workspacePath: workspaceAbsPath, workspaceIdentity },
+                }
+              : null,
+            {
+              workspacePath: entry.workspacePath,
+              workspaceIdentity: entry.workspaceIdentity,
+              remoteSessionId,
+              sessionId: entry.taskId,
+            },
+          );
           useZCodeSessionStore.setState({ taskNavHistory: next.history });
           handleSelectTask(
             entry.workspacePath,

@@ -55,8 +55,7 @@ import type {
   WorkspaceFileGitStatusLabels,
   WorkspaceFileTreeContextMenuLabels,
 } from "@/workspace-file-tree/types.js";
-import {
-} from "@/workspace-file-tree/helpers.js";
+import {} from "@/workspace-file-tree/helpers.js";
 import { getWorkspaceFileTreeHierarchyGuideStyle } from "@/workspace-file-tree/hierarchyGuides.js";
 import { useWorkspaceFileTreeRowDragState } from "@/workspace-file-tree/useWorkspaceFileTreeRowDragState.js";
 import { WorkspaceFileTreeRowName } from "@/workspace-file-tree/WorkspaceFileTreeRowName.js";

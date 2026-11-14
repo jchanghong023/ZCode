@@ -1962,7 +1962,6 @@ export const ConversationTimelineMarkerDivider = memo(function ConversationTimel
   );
 });
 
-
 const TimelineMarkerRowView = memo(function TimelineMarkerRowView({
   row,
   context,

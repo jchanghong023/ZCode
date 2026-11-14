@@ -1163,8 +1163,7 @@ export function McpSettingsSection({
     [query, scopedServers],
   );
   const connectedRemoteSyncTarget =
-    shouldShowRemoteSyncActions({ remoteSessionId, remoteTarget }) &&
-    activeWorkspacePath
+    shouldShowRemoteSyncActions({ remoteSessionId, remoteTarget }) && activeWorkspacePath
       ? remoteTarget
       : null;
   const isRemoteSyncContext = Boolean(connectedRemoteSyncTarget);

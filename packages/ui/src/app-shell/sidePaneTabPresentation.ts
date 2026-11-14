@@ -69,8 +69,7 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "developer-tools") {
     return "developer tools token debug network status request response headers";
   }
-  if (tab.type === "bash-output")
-    return `${tab.title} terminal shell command`;
+  if (tab.type === "bash-output") return `${tab.title} terminal shell command`;
   if (tab.type === "file-manager") return `${tab.target.workspacePath} ${tab.source?.path ?? ""}`;
   return tab.source.path ?? tab.source.title;
 }

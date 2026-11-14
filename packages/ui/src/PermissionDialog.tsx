@@ -36,8 +36,7 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
-import {
-} from "@/lib/mobileTextInput.js";
+import {} from "@/lib/mobileTextInput.js";
 import {
   getPermissionOptionDisplayKind,
   getPermissionRequestPreview,

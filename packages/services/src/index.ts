@@ -128,9 +128,7 @@ export {
   IWindowProjectChangesService,
   type WindowProjectDirectoryServices,
 } from "#src/window-project-directory/contract.js";
-export {
-  createWindowProjectChangesService,
-} from "#src/window-project-directory/index.js";
+export { createWindowProjectChangesService } from "#src/window-project-directory/index.js";
 export type {
   WindowHostControllerFrame,
   WindowHostControllerMutation,

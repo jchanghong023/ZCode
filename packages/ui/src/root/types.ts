@@ -1,7 +1,4 @@
-import type {
-  IPlatformService,
-  UserInfo,
-} from "@zcode/shared";
+import type { IPlatformService, UserInfo } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import type { CreateTaskOptions, CreateTaskRequest } from "@/app-shell/types.js";
 

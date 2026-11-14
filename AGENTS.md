@@ -11,7 +11,7 @@
 
 ## 老代码对比基准
 
-- 与老代码（重构前）对比时，统一使用 `base` 分支：它停在 `3f2287ac`（"refactor: 重构为纯 Web 应用（浏览器前端 + 模拟后端）"，2026-11-14），已推送 `origin/base`，不要在其上继续提交。
+- 与老代码（重构前）对比时，统一使用 `base` 分支：它停在 `3f2287ac`（"refactor: 重构为纯 Web 应用（浏览器前端 + 模拟后端）"，2026-11-14）之上，仅追加一个纯 oxfmt 格式化提交（与 `3f2287ac` 内容一致，只有空白差异），已推送 `origin/base`，不要在其上继续提交。
 - 该分支检出于工作树 `F:\code2026\zcode-baseline`，作为只读参考；查老实现优先读该工作树文件或用 `git diff base... -- <路径>` / `git show base:<文件>`，不要在主工作树切换分支。
 
 ## 命令与仓库结构
@@ -20,20 +20,20 @@
 
 以下命令从仓库根目录执行：
 
-| 用途             | 命令                                                      |
-| ---------------- | --------------------------------------------------------- |
-| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）             |
-| 仅模拟后端       | `pnpm dev:server`                                          |
-| 仅前端           | `pnpm dev:web`                                             |
-| 构建             | `pnpm build`（server 产物可托管 web dist 单进程部署）      |
-| 类型检查         | `pnpm typecheck`                                           |
-| Lint             | `pnpm lint` / `pnpm lint:fix`                              |
-| 格式检查         | `pnpm fmt:check`                                           |
-| 提交前检查       | `pnpm verify:pre-push`（工作区、Lint 与架构检查）          |
-| 架构检查         | `pnpm architecture:check --changed`                        |
-| 模块阅读包       | `pnpm architecture:context <module-id>`                    |
-| 未使用依赖与导出 | `pnpm knip`                                                |
-| 导出引用查询     | `pnpm dep:refs --list-exports <file>`                      |
+| 用途               | 命令                                                  |
+| ------------------ | ----------------------------------------------------- |
+| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）          |
+| 仅模拟后端         | `pnpm dev:server`                                     |
+| 仅前端             | `pnpm dev:web`                                        |
+| 构建               | `pnpm build`（server 产物可托管 web dist 单进程部署） |
+| 类型检查           | `pnpm typecheck`                                      |
+| Lint               | `pnpm lint` / `pnpm lint:fix`                         |
+| 格式检查           | `pnpm fmt:check`                                      |
+| 提交前检查         | `pnpm verify:pre-push`（工作区、Lint 与架构检查）     |
+| 架构检查           | `pnpm architecture:check --changed`                   |
+| 模块阅读包         | `pnpm architecture:context <module-id>`               |
+| 未使用依赖与导出   | `pnpm knip`                                           |
+| 导出引用查询       | `pnpm dep:refs --list-exports <file>`                 |
 
 工程 Vitest 使用 `pnpm test:engineering <文件>`；工程门禁测试使用 `pnpm test:architecture`（node:test）。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
 

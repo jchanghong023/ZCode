@@ -1187,49 +1187,47 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       targetRemoteSessionId?: string,
       expectedUnreadAt?: number,
     ) => {
-        const workspaceResult = ensureTaskNavigationWorkspace({
-          workspacePath: targetWorkspacePath,
-          workspaceIdentity: targetWorkspaceIdentity,
-          activateTabByPath: tabStoreApi.getState().activateTabByPath,
-          addLocalWorkspaceTab: (workspacePath) => {
-            tabStoreApi.getState().addTab(workspacePath);
-          },
-        });
-        if (!workspaceResult.accepted) {
-          logger.warn("[automations] 运行历史目标远程 workspace 未连接，保留当前页面", {
-            sessionId: taskId,
-            workspaceIdentity: targetWorkspaceIdentity,
-            workspacePath: targetWorkspacePath,
-          });
-          toast(intl.formatMessage({ id: "automations.runs.openSessionFailed" }));
-          return;
-        }
-        if (workspaceResult.openedLocalTab) {
-          logger.info("[automations] 为运行历史会话补开本地 workspace tab", {
-            sessionId: taskId,
-            workspacePath: targetWorkspacePath,
-          });
-        }
-        const resolvedRemoteSessionId =
-          targetRemoteSessionId ??
-          // tab 分类变化不影响点击回调；目标连接从窗口 store 读取，保持最新远端身份。
-          tabStoreApi
-            .getState()
-            .tabs.filter(isWorkspaceTab)
-            .find(
-              (tab) =>
-                (tab.workspaceIdentity?.trim() || tab.workspacePath) ===
-                (targetWorkspaceIdentity?.trim() || targetWorkspacePath),
-            )?.remoteSessionId;
-        const target: WorkbenchSessionTarget = {
-          workspacePath: targetWorkspacePath,
-          ...(targetWorkspaceIdentity?.trim()
-            ? { workspaceIdentity: targetWorkspaceIdentity }
-            : {}),
-          ...(resolvedRemoteSessionId ? { remoteSessionId: resolvedRemoteSessionId } : {}),
+      const workspaceResult = ensureTaskNavigationWorkspace({
+        workspacePath: targetWorkspacePath,
+        workspaceIdentity: targetWorkspaceIdentity,
+        activateTabByPath: tabStoreApi.getState().activateTabByPath,
+        addLocalWorkspaceTab: (workspacePath) => {
+          tabStoreApi.getState().addTab(workspacePath);
+        },
+      });
+      if (!workspaceResult.accepted) {
+        logger.warn("[automations] 运行历史目标远程 workspace 未连接，保留当前页面", {
           sessionId: taskId,
-        };
-        selectWorkbenchSession(shellWorkbenchBindingRef.current, target);
+          workspaceIdentity: targetWorkspaceIdentity,
+          workspacePath: targetWorkspacePath,
+        });
+        toast(intl.formatMessage({ id: "automations.runs.openSessionFailed" }));
+        return;
+      }
+      if (workspaceResult.openedLocalTab) {
+        logger.info("[automations] 为运行历史会话补开本地 workspace tab", {
+          sessionId: taskId,
+          workspacePath: targetWorkspacePath,
+        });
+      }
+      const resolvedRemoteSessionId =
+        targetRemoteSessionId ??
+        // tab 分类变化不影响点击回调；目标连接从窗口 store 读取，保持最新远端身份。
+        tabStoreApi
+          .getState()
+          .tabs.filter(isWorkspaceTab)
+          .find(
+            (tab) =>
+              (tab.workspaceIdentity?.trim() || tab.workspacePath) ===
+              (targetWorkspaceIdentity?.trim() || targetWorkspacePath),
+          )?.remoteSessionId;
+      const target: WorkbenchSessionTarget = {
+        workspacePath: targetWorkspacePath,
+        ...(targetWorkspaceIdentity?.trim() ? { workspaceIdentity: targetWorkspaceIdentity } : {}),
+        ...(resolvedRemoteSessionId ? { remoteSessionId: resolvedRemoteSessionId } : {}),
+        sessionId: taskId,
+      };
+      selectWorkbenchSession(shellWorkbenchBindingRef.current, target);
       // 只有目标 workspace 已经激活或补开成功后才关闭 Automations，避免失败时看起来像跳转成功。
       showChatMainView();
       if (typeof expectedUnreadAt === "number") {
@@ -1824,7 +1822,9 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       })}
       showWindowControls={usesInlineWindowControls}
       // 工作区保活与侧栏动画会保留 DOM；独立 guest 浮层必须同步服从当前页面的展示状态。
-      isVisible={isWorkspaceVisible && workspaceMainView === "chat" && isSidePaneOpen && isSidePaneVisible}
+      isVisible={
+        isWorkspaceVisible && workspaceMainView === "chat" && isSidePaneOpen && isSidePaneVisible
+      }
       onCloseSidePane={handleToggleSidePane}
       toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
       fullViewToggle={
@@ -1999,19 +1999,14 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
             isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
-          <aside
-            ref={sidebarContainerRef}
-            className={cn("h-full overflow-hidden select-none")}
-          >
+          <aside ref={sidebarContainerRef} className={cn("h-full overflow-hidden select-none")}>
             <ScopedErrorBoundary
               scope="workspace-sidebar"
               resetKeys={workspaceOnlyResetKeys}
               variant="panel"
               className="h-full"
             >
-              <V4SplitPaneEntryProvider
-                enabled
-              >
+              <V4SplitPaneEntryProvider enabled>
                 <WorkflowRunOpenProvider onOpenRun={handleOpenSidebarWorkflowRun}>
                   {renderWorkspaceSidebar()}
                 </WorkflowRunOpenProvider>
@@ -2333,7 +2328,9 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                   onOpenBrowserUrl={handleOpenBrowserUrl}
                                   onOpenAutomationsMain={handleOpenAutomations}
                                   onOpenCodeViewer={handleOpenCodeViewer}
-                                  onAutoOpenAssistantPptx={isDesktop ? handleAutoOpenAssistantPptx : undefined}
+                                  onAutoOpenAssistantPptx={
+                                    isDesktop ? handleAutoOpenAssistantPptx : undefined
+                                  }
                                   onOpenBackgroundBash={handleOpenBackgroundBash}
                                   onOpenSubagentSession={handleOpenSubagentSession}
                                   onOpenSubagentDirectory={handleOpenSubagentDirectory}
@@ -2407,7 +2404,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
             hideTaskNavigationButtons={false}
           />
         </ScopedErrorBoundary>
-
       </div>
     </SavedWorkflowHubProvider>
   );

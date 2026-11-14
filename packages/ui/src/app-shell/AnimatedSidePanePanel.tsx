@@ -15,10 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
-import {
-  isRemoteWorkspaceIdentity,
-  type GitChangeSourceId,
-} from "@zcode/shared";
+import { isRemoteWorkspaceIdentity, type GitChangeSourceId } from "@zcode/shared";
 import { FileManagerPane } from "@/WorkspaceFileTree.js";
 import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
@@ -855,10 +852,7 @@ export function AnimatedSidePanePanel({
         // 独立外框放在内容层：关闭仍保留 tab 实例，不改变面板持久化边界。
         "h-full overflow-hidden bg-background",
         // 开关动画期间保持内容展开宽度；完整视图和手机布局仍由各自宿主定尺寸。
-        !mobileOverlay &&
-          !mobileStacked &&
-          !fullView &&
-          "w-[var(--side-pane-content-width,100%)]",
+        !mobileOverlay && !mobileStacked && !fullView && "w-[var(--side-pane-content-width,100%)]",
         !mobileOverlay && frameClassName,
         !mobileOverlay && "border-[0.5px] shadow-xs",
         mobileStacked && "max-md:rounded-none max-md:border-0",
@@ -881,12 +875,7 @@ export function AnimatedSidePanePanel({
           <>
             {/* 收起或切换对话时保留其他对话的内容挂载，避免丢失辅助对话草稿和引用。
                 展开后的空标签集合由 useAppPanels 统一补建「新标签页」。 */}
-            <div
-              className={cn(
-                "h-full min-h-0",
-                !hasVisibleTabs && !fullView && "hidden",
-              )}
-            >
+            <div className={cn("h-full min-h-0", !hasVisibleTabs && !fullView && "hidden")}>
               <Tabs
                 value={
                   fullView?.surface === "conversation"

@@ -14,13 +14,13 @@
 `packages/shared` 的 `Locale` / `SUPPORTED_LOCALES` / `resolveLocaleFromLanguageTag` / `toZhOrEnLocale`
 仍然存在，因为这些是**数据契约**而不是 UI 资源：
 
-| 消费方 | 用途 |
-| ------ | ---- |
-| 插件 manifest / 插件安装（`zcode-protocol-v4/pluginInstall.ts`） | 按 locale 取插件显示名回退链 |
-| 服务端分享页、机器人消息、营销投放（`packages/services`） | 服务端内容仍是多语言字段 |
-| Desktop Main 原生菜单、插件沙箱（`packages/desktop/src/main`） | 主进程侧语言解析，不在本次前端删除范围 |
-| CLI（`apps/zcode-cli`） | 独立 i18n 体系 |
-| `setting.json` 读写（`packages/shared/src/locale.ts`） | 旧值兼容，避免旧版本读到未知值重置全部设置 |
+| 消费方                                                           | 用途                                       |
+| ---------------------------------------------------------------- | ------------------------------------------ |
+| 插件 manifest / 插件安装（`zcode-protocol-v4/pluginInstall.ts`） | 按 locale 取插件显示名回退链               |
+| 服务端分享页、机器人消息、营销投放（`packages/services`）        | 服务端内容仍是多语言字段                   |
+| Desktop Main 原生菜单、插件沙箱（`packages/desktop/src/main`）   | 主进程侧语言解析，不在本次前端删除范围     |
+| CLI（`apps/zcode-cli`）                                          | 独立 i18n 体系                             |
+| `setting.json` 读写（`packages/shared/src/locale.ts`）           | 旧值兼容，避免旧版本读到未知值重置全部设置 |
 
 ## 请求语言（X-Client-Language）
 

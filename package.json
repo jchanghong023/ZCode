@@ -2,6 +2,7 @@
   "name": "zcode",
   "version": "3.18.2",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"pnpm --filter @zcode/server dev\" \"pnpm --filter @zcode/web dev\"",
@@ -65,6 +66,5 @@
       "vitest@4.1.7": "patches/vitest@4.1.7.patch",
       "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch"
     }
-  },
-  "license": "Apache-2.0"
+  }
 }

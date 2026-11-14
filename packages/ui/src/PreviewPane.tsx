@@ -495,9 +495,7 @@ export function PreviewPane({
     [source, sourceWorkspacePath],
   );
   const fileSource =
-    (source?.type === "file" || source?.type === "code-review") &&
-    !imageSource &&
-    !mediaSource
+    (source?.type === "file" || source?.type === "code-review") && !imageSource && !mediaSource
       ? source
       : null;
   const codeCommentBucket = useMemo(

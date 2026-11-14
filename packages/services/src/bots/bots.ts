@@ -146,9 +146,7 @@ export interface IBotsService {
   replyToChannel?(
     params: import("@zcode/shared").ChannelReplyHostRequest,
   ): Promise<import("@zcode/shared").ChannelReplyResult>;
-  validateTopicResource?(
-    params: TopicResourceRequest,
-  ): Promise<void>;
+  validateTopicResource?(params: TopicResourceRequest): Promise<void>;
   readTopicResource?(
     params: TopicResourceRequest,
   ): Promise<import("@zcode/shared").ZCodePromptAttachment>;

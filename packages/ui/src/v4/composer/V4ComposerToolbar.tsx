@@ -339,7 +339,8 @@ export interface V4ComposerToolbarProps {
   sessionId: string | null;
   phase: SessionPhase | null;
   provider?: ZCodeProvider;
-  /** 当前工具条是否运行在 Web 远控壳中。 */  /** 草稿态（sessionId=null），仅区分新任务呈现，不改变选择来源。 */
+  /** 当前工具条是否运行在 Web 远控壳中。 */
+  /** 草稿态（sessionId=null），仅区分新任务呈现，不改变选择来源。 */
   draftMode?: boolean;
   /** 当前 scope 的 Composer 选择；新任务与已有会话都只显示这份状态。 */
   draftConfig?: Partial<SessionConfigState>;
@@ -382,7 +383,8 @@ function V4ComposerModelControlsImpl({
   modelSelectionReload,
   modelSelectionRefresh,
   sessionId,
-  provider,  draftMode = false,
+  provider,
+  draftMode = false,
   draftConfig,
   usage,
   disabled,

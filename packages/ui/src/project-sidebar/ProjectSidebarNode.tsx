@@ -40,10 +40,7 @@ type Props = Pick<
   | "onSelect"
   | "refresh"
 > &
-  Pick<
-    ProjectSidebarProps,
-    "isDesktop" | "onCreateTask" | "onReconnectRemoteWorkspace"
-  > & {
+  Pick<ProjectSidebarProps, "isDesktop" | "onCreateTask" | "onReconnectRemoteWorkspace"> & {
     service?: IProjectService;
     remoteService?: IRemoteProjectService;
     onExpandedChange(project: VirtualProject, expanded: boolean): void;

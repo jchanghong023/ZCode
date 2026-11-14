@@ -236,7 +236,6 @@ export class MockFileService implements IFileService {
     rootPath: string;
     content: string;
   }): Promise<void> {}
-
 }
 
 export class MockFileWatcherService implements IFileWatcherService {

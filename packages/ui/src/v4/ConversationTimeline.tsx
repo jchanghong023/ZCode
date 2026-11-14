@@ -657,7 +657,6 @@ function ConversationTimelineImpl({
     return () => window.clearInterval(timer);
   }, [hasRunningUnit]);
 
-
   useLayoutEffect(() => {
     const element = timelineRootRef.current;
     if (!element) return;

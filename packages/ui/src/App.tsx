@@ -777,12 +777,7 @@ export function App({
         { createSource: createSource ?? "project" },
       );
     },
-    [
-      activateTabByPath,
-      addTab,
-      tabStoreApi,
-      workspaceShellZCodeState.selectedProvider,
-    ],
+    [activateTabByPath, addTab, tabStoreApi, workspaceShellZCodeState.selectedProvider],
   );
 
   useWorkspaceShellLifecycle({

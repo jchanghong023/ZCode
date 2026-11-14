@@ -17,10 +17,7 @@ import {
 } from "@/lib/providerSettingsFormTypes.js";
 import { useEffect, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  type CodingPlanStatus,
-  type ModelProviderNavItem,
-} from "./constants.js";
+import { type CodingPlanStatus, type ModelProviderNavItem } from "./constants.js";
 import { InlineEditableProviderCard } from "./InlineEditableProviderCard.js";
 import {
   ModelProviderLoadingCard,
@@ -40,7 +37,6 @@ import type { ProviderSettingsView } from "@zcode/services";
 import type { SavePersonalModelDraftInput } from "@zcode/provider";
 import { resolveAccountProviderInspectionAccess } from "@/lib/accountProviderAccess.js";
 import { projectProviderSettingsViewToFormProviders } from "@/lib/providerSettingsFormProjection.js";
-
 
 function isPlanNavItem(
   item: ModelProviderNavItem | null,

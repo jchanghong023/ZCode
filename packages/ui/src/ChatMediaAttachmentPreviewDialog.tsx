@@ -74,7 +74,10 @@ export function ChatMediaAttachmentPreviewDialog({
             </pre>
           ) : attachment?.url ? (
             isPdf ? (
-              <p className="max-w-xl px-6 text-center text-ui-base text-muted-foreground" role="status">
+              <p
+                className="max-w-xl px-6 text-center text-ui-base text-muted-foreground"
+                role="status"
+              >
                 {unavailableLabel}
               </p>
             ) : isVideo ? (

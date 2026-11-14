@@ -140,7 +140,8 @@ export interface ConversationStatusPanelProps {
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
-  /** 当前是否为粗指针手机视口。 */  layoutMode?: "none" | "auto" | "inline";
+  /** 当前是否为粗指针手机视口。 */
+  layoutMode?: "none" | "auto" | "inline";
   summaryPanelVariantOverride?: ChatViewSummaryPanelVariant | null;
   onVariantChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   terminalSectionOpen?: boolean;
@@ -1941,7 +1942,8 @@ function ConversationStatusPanelImpl({
   endedWorkflowRunCount = 0,
   endedSubagentCount = 0,
   rootSessionId,
-  parentSessionId,  layoutMode = "none",
+  parentSessionId,
+  layoutMode = "none",
   summaryPanelVariantOverride,
   onVariantChange,
   terminalSectionOpen,

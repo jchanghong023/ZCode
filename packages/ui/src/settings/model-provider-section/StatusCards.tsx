@@ -516,11 +516,7 @@ export function CodingPlanStatusPanel({
           />,
         ];
 
-  return (
-    <div className="space-y-3">
-      {planCards}
-    </div>
-  );
+  return <div className="space-y-3">{planCards}</div>;
 }
 
 export function hasStartPlanEntitlementQuota(

@@ -122,9 +122,7 @@ function renderWebAuthCallbackPage(): void {
   );
 }
 
-
 // 访问 window.localStorage 本身在部分浏览器会抛错，统一包在方法里交给调用方兜底。
-
 
 function resolveDefaultWsOrigin(): string {
   return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
@@ -161,10 +159,6 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
     return { wsUrl };
   }
 }
-
-
-
-
 
 async function bootstrapWebApp() {
   if (isWebOAuthCallback()) {

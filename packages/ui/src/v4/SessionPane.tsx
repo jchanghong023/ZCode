@@ -600,11 +600,7 @@ export function SessionPane({
     fileRewindPreview,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
-  const {
-    modelSelectionService,
-    zcodeSessionService,
-    zcodeTaskService,
-  } = useServices();
+  const { modelSelectionService, zcodeSessionService, zcodeTaskService } = useServices();
   const { intl } = useZCodeIntl();
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const baseWorkspaceServices = useBaseWorkspaceServices();
@@ -1146,13 +1142,7 @@ export function SessionPane({
         clientKind: isDesktop ? "desktop" : "web",
       });
     },
-    [
-      platform,
-      workspacePath,
-      workspaceIdentity,
-      remoteSessionId,
-      isDesktop,
-    ],
+    [platform, workspacePath, workspaceIdentity, remoteSessionId, isDesktop],
   );
   const handleDraftSessionCreated = useCallback(
     async (
@@ -1707,7 +1697,7 @@ export function SessionPane({
   );
   const handleOpenSubagentDirectory = useCallback(
     (request: import("@/lib/workspaceSidePane.js").OpenSubagentDirectorySideTabRequest) => {
-            onOpenSubagentDirectory?.({
+      onOpenSubagentDirectory?.({
         ...request,
         rootSessionId: request.rootSessionId ?? rootSessionId ?? request.parentSessionId,
         workspacePath,
@@ -1715,13 +1705,7 @@ export function SessionPane({
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [
-      onOpenSubagentDirectory,
-      remoteSessionId,
-      rootSessionId,
-      workspaceIdentity,
-      workspacePath,
-    ],
+    [onOpenSubagentDirectory, remoteSessionId, rootSessionId, workspaceIdentity, workspacePath],
   );
   const handleOpenPlanDetail = useCallback(
     (request: OpenPlanDetailSideTabRequest) => {
@@ -3640,12 +3624,7 @@ export function SessionPane({
         if (!latest || latest.sessionId !== sessionId || !latestQueueItem) {
           return null;
         }
-        return dispatchCommand(
-          "sendQueuedNow",
-          { queueItemId },
-          sessionId,
-          latest.revision,
-        );
+        return dispatchCommand("sendQueuedNow", { queueItemId }, sessionId, latest.revision);
       })().then((ack) => {
         if (!ack) return;
         if (ack.status !== "accepted" && ack.status !== "noop") {
@@ -3653,11 +3632,7 @@ export function SessionPane({
         }
       });
     },
-    [
-      dispatchCommand,
-      focusTimelineToLatest,
-      sessionId,
-    ],
+    [dispatchCommand, focusTimelineToLatest, sessionId],
   );
 
   const handleReorderQueueItem = useCallback(
@@ -4825,7 +4800,7 @@ export function SessionPane({
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
           snapshot={snapshot}
-                  />
+        />
       ) : null}
       {composerNode}
       {composerEdit.editSession?.conflictPreview ? (
@@ -4923,9 +4898,7 @@ export function SessionPane({
         onDragOver={effectiveDropTargetController?.onDragOver}
         onDragLeave={effectiveDropTargetController?.onDragLeave}
         onDrop={effectiveDropTargetController?.onDrop}
-        className={cn(
-          "relative flex h-full min-h-0 flex-col",
-        )}
+        className={cn("relative flex h-full min-h-0 flex-col")}
       >
         {effectiveDropTargetController?.active ? (
           <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm">
@@ -4950,9 +4923,7 @@ export function SessionPane({
 
         <div
           ref={conversationLayoutContainerRef}
-          className={cn(
-            "@container/conversation relative flex min-h-0 flex-1 flex-col",
-          )}
+          className={cn("@container/conversation relative flex min-h-0 flex-1 flex-col")}
         >
           {!isDraft ? (
             <ConversationStatusPanel
@@ -5017,18 +4988,14 @@ export function SessionPane({
               pendingSubagentStops={panelPendingSubagentStops}
               onOpenSubagentSession={onOpenSubagentSession ? handleOpenSubagentSession : undefined}
               onOpenSubagentDirectory={
-                onOpenSubagentDirectory
-                  ? handleOpenSubagentDirectory
-                  : undefined
+                onOpenSubagentDirectory ? handleOpenSubagentDirectory : undefined
               }
               onOpenWorkflowRun={
                 onOpenWorkflowRun && sessionId ? handleOpenWorkflowRunFromPanel : undefined
               }
               endedWorkflowRunCount={endedWorkflowRunCount}
               onOpenWorkflowRunDirectory={
-                onOpenWorkflowRunDirectory
-                  ? handleOpenWorkflowRunDirectoryFromPanel
-                  : undefined
+                onOpenWorkflowRunDirectory ? handleOpenWorkflowRunDirectoryFromPanel : undefined
               }
             />
           ) : null}
@@ -5111,8 +5078,7 @@ export function SessionPane({
                         </div>
                       ) : isDraft ? (
                         <div data-testid={TID_CHAT_EMPTY} className="w-full">
-                          <ConversationDraftEmptyState
-                          />
+                          <ConversationDraftEmptyState />
                         </div>
                       ) : null
                     }
