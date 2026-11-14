@@ -34,8 +34,6 @@ export interface RootProps {
   allowOpenWorkspace?: boolean;
   /** 是否优先使用服务端目录浏览器，Web 普通模式不能依赖系统目录选择框 */
   preferDirectoryBrowser?: boolean;
-  /** 是否启用远程工作区能力，Web 普通模式先只支持本地 server 工作区 */
-  allowRemoteWorkspace?: boolean;
   initialSidebarFileTreeOpen?: boolean;
   /** Assistant code-comment 卡片灰度；默认关闭，关闭时保留原始 directive。 */
   assistantCodeCommentCardsEnabled?: boolean;
@@ -52,7 +50,6 @@ export interface WorkspaceSettingsLayerProps {
   /** 设置页分享管理「跳转对话」；与 Root 层 SettingsPage 使用同一导航入口。 */
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenWorkspace?: () => void;
-  onOpenRemoteWorkspace?: () => void;
   allowOpenWorkspace?: RootProps["allowOpenWorkspace"];
   onLogin?: () => void;
   onLogout?: () => void;

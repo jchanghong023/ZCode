@@ -10,8 +10,6 @@ export const projectSidebarModule = {
     "shared",
     "ui",
     "conversation-workspace-target",
-    "remote-connection-flow",
-    "data-sync",
     "managed-worktree-ui",
     // 分组会话行复用同一张悬停卡片（docs/ui/task-row-hover-details.md）。
     "task-row-hover",
@@ -22,12 +20,7 @@ export const projectSidebarModule = {
   publicEntrypoints: [
     "index.tsx",
     "contract.ts",
-    "remote-project-connection.ts",
     "useSavedWorkflowProjectOptions.ts",
-    "RemoteProjectMenu.tsx",
     "WorkspaceDragOverlay.tsx",
-    "useRemoteProjectConnectionPresentation.ts",
-    "OfflineRemoteProjectRows.tsx",
-    "RemoteConversationDisconnected.tsx",
   ],
 } as const;

@@ -19,7 +19,6 @@ import {
   summarizeProjectRemoval,
   type ProjectManagementRow,
 } from "@/project-sidebar/project-management-view.js";
-import { DeviceTag } from "@/project-sidebar/ProjectManagementRow.js";
 import {
   isProjectDataCandidate,
   type ProjectDataTotals,
@@ -31,8 +30,8 @@ import { formatBytes } from "@/resource-manager/resourceUsageView.js";
 type DataState = ProjectDataTotals | "measuring" | null | undefined;
 
 /**
- * 确认时的行集合由调用方冻结；对话框只展示按设备拆分的后果。
- * 本机候选可勾选「同时删除 ZCode 数据」：每次打开默认不勾选，勾选后改写标题、说明与按钮，并要求输入确认词。
+ * 确认时的行集合由调用方冻结；对话框只展示移除的后果。
+ * 可勾选「同时删除 ZCode 数据」：每次打开默认不勾选，勾选后改写标题、说明与按钮，并要求输入确认词。
  */
 export function ProjectRemovalDialog({
   rows,
@@ -45,7 +44,7 @@ export function ProjectRemovalDialog({
   onCancel(): void;
   onConfirm(rows: readonly ProjectManagementRow[], options?: ProjectRemovalOptions): void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl } = useZCodeIntl();
   const msg = (id: string, values?: Record<string, string | number>) =>
     intl.formatMessage({ id: `projectManagement.${id}` }, values);
   const count = (id: string, n: number, values?: Record<string, string | number>) =>
@@ -79,17 +78,10 @@ export function ProjectRemovalDialog({
   }, [rows, measureData]);
 
   const summary = shown ? summarizeProjectRemoval(shown) : null;
-  const hasLocal = summary?.devices.some((device) => device.hostId === "local");
-  const hasRemote = summary?.devices.some((device) => device.hostId !== "local");
   const localCount = shown?.filter(isProjectDataCandidate).length ?? 0;
   const totals = data && data !== "measuring" ? data : null;
   const confirmWord = msg("confirm.data.word");
   const deleting = deleteData && Boolean(totals);
-  const remoteDevices = new Intl.ListFormat(locale, { type: "conjunction" }).format(
-    (summary?.devices ?? [])
-      .filter((device) => device.hostId !== "local")
-      .map((device) => device.label ?? device.hostId),
-  );
   const toggleData = (checked: boolean) => {
     setDeleteData(checked);
     // 取消勾选即清空确认词，再次勾选必须重新输入。
@@ -118,33 +110,20 @@ export function ProjectRemovalDialog({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="divide-y divide-border rounded-xl border border-border bg-surface px-3">
-              {summary.devices.map((device) => (
-                <div
-                  key={device.hostId}
-                  data-testid="project-management-confirm-device"
-                  data-host-id={device.hostId}
-                  className="flex min-w-0 flex-col gap-0.5 py-2.5"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 text-ui-base">
-                      {count("projectsCount", device.count)}
-                    </span>
-                    <DeviceTag host={device.host} label={device.label} />
-                  </div>
-                  {device.hostId !== "local" ? (
-                    <span className="text-ui-sm text-foreground-subtle">
-                      {formatCountMessage(
-                        intl,
-                        "projectManagement.confirm.remoteNote",
-                        device.count,
-                        {
-                          device: device.label ?? device.hostId,
-                        },
-                      )}
-                    </span>
-                  ) : null}
+              <div
+                data-testid="project-management-confirm-device"
+                data-host-id="local"
+                className="flex min-w-0 flex-col gap-0.5 py-2.5"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 flex-1 text-ui-base">
+                    {count("projectsCount", shown.length)}
+                  </span>
+                  <span className="truncate text-ui-sm text-foreground-subtle">
+                    {msg("thisComputer")}
+                  </span>
                 </div>
-              ))}
+              </div>
             </div>
             {data ? (
               <label
@@ -199,11 +178,7 @@ export function ProjectRemovalDialog({
                           />
                         ) : null}
                       </span>
-                      <span className="text-ui-sm">
-                        {hasRemote
-                          ? msg("confirm.data.notDeletedRemote", { devices: remoteDevices })
-                          : msg("confirm.data.notDeleted")}
-                      </span>
+                      <span className="text-ui-sm">{msg("confirm.data.notDeleted")}</span>
                     </>
                   ) : (
                     <span className="text-ui-sm text-foreground-subtle">
@@ -237,8 +212,7 @@ export function ProjectRemovalDialog({
               </>
             ) : (
               <div className="flex flex-col gap-1 text-ui-sm text-foreground-subtle">
-                {hasLocal ? <span>{msg("confirm.restoreLocal")}</span> : null}
-                {hasRemote ? <span>{msg("confirm.restoreRemote")}</span> : null}
+                <span>{msg("confirm.restoreLocal")}</span>
               </div>
             )}
             <AlertDialogFooter>

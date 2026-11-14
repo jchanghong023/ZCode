@@ -94,37 +94,20 @@ import {
   buildTaskSidePaneMemoryKey,
 } from "@/lib/taskSidePaneMemory.js";
 
-const EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY: NonNullable<
-  AppProps["remoteWorkspaceRecoveryByWorkspaceKey"]
-> = {};
-const EMPTY_REMOTE_CONNECTION_LOGS: NonNullable<AppProps["remoteConnectionLogs"]> = [];
-
 export function App({
   services,
-  onConnectRemote,
-  onSelectRemoteProject,
-  onCancelRemoteProject,
-  onReconnectRemoteWorkspace,
   onLogout,
   onLogin,
   user,
-  reconnectingRemoteWorkspaceKeys,
-  remoteWorkspaceRecoveryByWorkspaceKey = EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY,
-  remoteWorkspaceErrorByWorkspaceKey,
-
-  remoteConnectionLogs = EMPTY_REMOTE_CONNECTION_LOGS,
   onCreateTask,
   onCreateConversationTask,
   onCreateConversationTaskOnSource,
   onResolveConversationWorkspace,
   onOpenWorkspace,
   onOpenFolderFromWorkspaceMenu,
-  onOpenRemoteWorkspace,
-  remoteConnectionInProgress = false,
   onReturnToWorkspace,
   allowOpenWorkspace = true,
   initialSidebarFileTreeOpen,
-  allowRemoteWorkspace = true,
   workspaceAbsPath,
   workspaceRemoteSessionId,
   workspaceIdentity: explicitWorkspaceIdentity,
@@ -1163,28 +1146,17 @@ export function App({
             onOpenAutomationConsumed={handleOpenAutomationConsumed}
             handleOpenAutomations={handleOpenAutomations}
             handleOpenPluginStore={handleOpenPluginStoreForScope}
-            onConnectRemote={onConnectRemote}
-            onSelectRemoteProject={onSelectRemoteProject}
-            onCancelRemoteProject={onCancelRemoteProject}
-            onReconnectRemoteWorkspace={onReconnectRemoteWorkspace}
             onLogout={onLogout}
             onLogin={onLogin}
             user={user}
-            reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-            remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
-            remoteWorkspaceRecoveryByWorkspaceKey={remoteWorkspaceRecoveryByWorkspaceKey}
-            remoteConnectionLogs={remoteConnectionLogs}
             onCreateTask={handleCreateTaskIfWritable}
             onCreateConversationTask={onCreateConversationTask}
             onCreateConversationTaskOnSource={onCreateConversationTaskOnSource}
             onResolveConversationWorkspace={onResolveConversationWorkspace}
             onOpenWorkspace={onOpenWorkspace}
             onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
-            onOpenRemoteWorkspace={onOpenRemoteWorkspace}
-            remoteConnectionInProgress={remoteConnectionInProgress}
             allowOpenWorkspace={allowOpenWorkspace}
             initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
-            allowRemoteWorkspace={allowRemoteWorkspace}
             workspaceAbsPath={workspaceAbsPath}
             workspaceRemoteSessionId={workspaceRemoteSessionId}
             workspaceIdentity={workspaceIdentity}

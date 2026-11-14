@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Clock, FolderMinus, FolderX, MessageCircleOff, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
@@ -12,11 +12,6 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  buildRemoteHostWorkspaceIdentity,
-  parseRemoteWorkspaceIdentity,
-  type RemoteProjectHost,
-} from "@/project-sidebar/contract.js";
 import {
   buildProjectManagementRows,
   formatCountMessage,
@@ -37,10 +32,8 @@ import {
 } from "@/project-sidebar/ProjectManagementRow.js";
 import { ProjectRemovalDialog } from "@/project-sidebar/ProjectRemovalDialog.js";
 import { RemovedProjects } from "@/project-sidebar/RemovedProjects.js";
-import { remoteHostLabel } from "@/project-sidebar/RemoteHostSection.js";
 import { ProjectDirectoryProvider } from "@/project-sidebar/ProjectDirectoryProvider.js";
 import { ProjectEditor } from "@/project-sidebar/ProjectEditor.js";
-import { projectKey } from "@/project-sidebar/view.js";
 
 const PAGE = 50;
 const SORTS = ["lastActive", "name", "sessions"] as const;
@@ -70,28 +63,11 @@ function ProjectManagementContent() {
   const [pending, setPending] = useState<readonly ProjectManagementRow[] | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
-  const hostLabel = useCallback(
-    (host: RemoteProjectHost) => {
-      const sourceServerId = parseRemoteWorkspaceIdentity(
-        buildRemoteHostWorkspaceIdentity(host.id, "/"),
-      )?.sourceServerId;
-      return (sourceServerId && state.deviceNames.get(sourceServerId)) || remoteHostLabel(host);
-    },
-    [state.deviceNames],
-  );
   // 「最近活动」与疑似原因按目录版本取一次当前时间，渲染之间保持稳定。
   const now = useMemo(() => Date.now(), [state.tree]);
   const rows = useMemo(
-    () =>
-      buildProjectManagementRows({
-        tree: state.tree,
-        availability: state.availability,
-        directory: state.directory,
-        canRemoveEntries: Boolean(state.remoteService),
-        now,
-        hostLabel,
-      }),
-    [state.tree, state.availability, state.directory, state.remoteService, now, hostLabel],
+    () => buildProjectManagementRows({ tree: state.tree, now }),
+    [state.tree, now],
   );
   const unused = useMemo(() => summarizeUnusedProjects(rows), [rows]);
   const visible = useMemo(
@@ -105,16 +81,9 @@ function ProjectManagementContent() {
     [selectable, draft],
   );
   const disabled = state.busy || state.loading;
-  const canEdit = (row: ProjectManagementRow) => {
-    const availability = state.availability.get(row.key);
-    return Boolean(
-      state.service &&
-      !row.project.legacySingleRoot &&
-      (availability?.online ?? true) &&
-      !availability?.unresolved,
-    );
-  };
-  // 同一目录可属于多个项目；只用 Host + ID 取当前事实，离线或移除后不保留旧编辑草稿。
+  const canEdit = (row: ProjectManagementRow) =>
+    Boolean(state.service && !row.project.legacySingleRoot);
+  // 同一目录可属于多个项目；只用 ID 取当前事实，移除后不保留旧编辑草稿。
   const editingRow = rows.find((row) => row.key === editingKey && canEdit(row));
   useEffect(() => {
     if (editingKey && !editingRow) setEditingKey(null);
@@ -332,7 +301,6 @@ function ProjectManagementContent() {
               <span className="md:hidden">{msg("selectAll")}</span>
               <span className="hidden md:inline">{msg("column.project")}</span>
             </span>
-            <span className="hidden md:block">{msg("column.device")}</span>
             <span className="hidden text-right md:block">{msg("column.sessions")}</span>
             <span className="hidden text-right md:block">{msg("column.lastActive")}</span>
             <span className="hidden md:block" />
@@ -406,10 +374,7 @@ function ProjectManagementContent() {
         <ProjectEditor
           key={editingRow.key}
           project={editingRow.project}
-          host={editingRow.host}
-          projects={state.tree.projects.filter(
-            (project) => !state.availability.get(projectKey(project))?.entryId,
-          )}
+          projects={state.tree.projects}
           service={state.service}
           onClose={() => setEditingKey(null)}
           onSaved={state.refresh}

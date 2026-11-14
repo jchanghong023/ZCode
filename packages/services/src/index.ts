@@ -124,7 +124,6 @@ export type { ZCodeTaskListItem } from "./session/zcodeTaskListTypes.js";
 export { IWindowControllerService } from "./window-controller/windowController.js";
 export {
   IWindowProjectService,
-  IWindowRemoteProjectService,
   IWindowProjectChangesService,
   type WindowProjectDirectoryServices,
 } from "#src/window-project-directory/contract.js";
@@ -336,14 +335,6 @@ export type {
   SaveProjectInput,
   ProjectDirectories,
 } from "#src/project/contract.js";
-
-export { IRemoteProjectService } from "#src/remote-projects/contract.js";
-export type {
-  RemoteProjectHost,
-  RemoteProjectEntry,
-  RemoteProjectCache,
-  RemoteProjectDirectory,
-} from "#src/remote-projects/contract.js";
 
 export { readProjectCatalog, projectSelectionId } from "#src/project-catalog/index.js";
 export type { ProjectCatalogPort, ProjectCatalogSnapshot } from "#src/project-catalog/contract.js";

@@ -28,7 +28,6 @@ import type {
   NotificationsShowResult,
 } from "#src/extension-host/notifications.js";
 import type {
-  CancelPendingRemoteConnectionRequest,
   BindRemoteWorkspaceSessionContextRequest,
   BrowserViewScreenshotSurfacePreparePayload,
   BrowserViewScreenshotSurfaceReadyPayload,
@@ -41,10 +40,8 @@ import type {
   BrowserViewRestoredTabShell,
   BrowserViewRestoreTabsRequest,
   BrowserViewViewportChangedPayload,
-  ConnectRemoteRequest,
   DesktopCommandId,
   DesktopTitleBarTheme,
-  DockerContainerInfo,
   EmbeddedBrowserOpenUrlRequest,
   EmbeddedBrowserPermissionPromptEvent,
   EmbeddedBrowserPermissionResolveRequest,
@@ -70,9 +67,7 @@ import type {
   PostUpdateReleaseNotesPayload,
   RemoteSessionClosedEvent,
   RemoteSessionReconnectedEvent,
-  SSHConfigAliasOption,
   TaskNotificationPayload,
-  WSLDistro,
   UpdateCheckResultPayload,
   UpdateStatePayload,
   DesktopZoomState,
@@ -122,10 +117,8 @@ export const ServiceChannels = {
   /** 受管 worktree 任务管理（列表、删除、起点、fork 到新 worktree），仅本地桌面 Host。 */
   ManagedWorktrees: "managed-worktrees",
   TaskGroups: "task-groups",
-  RemoteProjects: "remote-projects",
   /** 手机远端 attachment 的窗口目录；原 project 继续属于工作区。 */
   WindowProject: "window-project",
-  WindowRemoteProjects: "window-remote-projects",
   WindowProjectChanges: "window-project-changes",
   /** 会话分享发布、预览与 continuation API 编排 */
   ConversationShare: "conversation-share",
@@ -248,32 +241,18 @@ export const PlatformChannels = {
   OpenMicrophoneSettings: "zcode:open-microphone-settings",
   /** Renderer → Main：在 main 截取内置浏览器 guest 当前视口为 PNG（renderer 侧 capturePage 会崩溃） */
   CaptureBrowserGuestPage: "zcode:capture-browser-guest-page",
-  /** Main → Renderer：转发远程连接过程日志 */
-  RemoteConnectionLog: "zcode:remote-connection-log",
   /** Main → Renderer：远程 workspace session 已关闭 */
   RemoteSessionClosed: "zcode:remote-session-closed",
   /** Main → Renderer：Source 自动重连后的 logical session 已换代并完成 port ready */
   RemoteSessionReconnected: "zcode:remote-session-reconnected",
   /** 检查目录是否已在其他窗口打开，如果是则激活该窗口 */
   ActivateOrSetWorkspace: "zcode:activate-or-set-workspace",
-  /** 建立 SSH 远程连接 */
-  ConnectRemote: "zcode:connect-remote",
   /** Desktop Renderer → Main：为在线 Source 创建配置专用 attachment */
   RequestSourceSettingsAttachment: "zcode:request-source-settings-attachment",
-  /** 取消当前窗口正在进行中的远程连接 */
-  CancelPendingRemoteConnection: "zcode:cancel-pending-remote-connection",
   /** Renderer → Main：绑定远程 logical session 的 canonical workspace context */
   BindRemoteWorkspaceSessionContext: "zcode:bind-remote-workspace-session-context",
   /** 释放当前窗口里的远程 session */
   DisposeRemoteSession: "zcode:dispose-remote-session",
-  /** Renderer → Main：检查本机 Docker daemon 是否可用 */
-  IsDockerAvailable: "zcode:is-docker-available",
-  /** Renderer → Main：列出本机可用的 WSL 发行版 */
-  ListWSLDistros: "zcode:list-wsl-distros",
-  /** Renderer → Main：列出当前可连接的 Docker 容器 */
-  ListDockerContainers: "zcode:list-docker-containers",
-  /** Renderer → Main：列出 SSH config 里可用于快速填表的 alias */
-  ListSSHConfigAliases: "zcode:list-ssh-config-aliases",
   /** Renderer → Main：从用户目录加载 CLI MCP 配置 */
   LoadMcpFromUserDirectory: "zcode:load-mcp-from-user-directory",
   /** Renderer → Main：保存 CLI MCP 配置到用户目录 */
@@ -881,18 +860,6 @@ export interface PlatformChannelMap {
     request: CaptureBrowserGuestPageRequest;
     response: CaptureBrowserGuestPageResult;
   };
-  [PlatformChannels.RemoteConnectionLog]: {
-    request: {
-      label: string;
-      requestId?: string;
-      sessionId?: string;
-      level: "info" | "warn" | "error";
-      source: string;
-      message: string;
-      timestamp: string;
-    };
-    response: void;
-  };
   [PlatformChannels.RemoteSessionClosed]: {
     request: RemoteSessionClosedEvent;
     response: void;
@@ -909,23 +876,9 @@ export interface PlatformChannelMap {
     request: string;
     response: void;
   };
-  [PlatformChannels.ConnectRemote]: {
-    request: ConnectRemoteRequest;
-    response: {
-      success: boolean;
-      error?: string;
-      reasonCode?: string;
-      retryable?: boolean;
-      sessionId?: string;
-    };
-  };
   [PlatformChannels.RequestSourceSettingsAttachment]: {
     request: { sourceServerId: string };
     response: { attachmentId: string };
-  };
-  [PlatformChannels.CancelPendingRemoteConnection]: {
-    request: CancelPendingRemoteConnectionRequest;
-    response: void;
   };
   [PlatformChannels.BindRemoteWorkspaceSessionContext]: {
     request: BindRemoteWorkspaceSessionContextRequest;
@@ -934,22 +887,6 @@ export interface PlatformChannelMap {
   [PlatformChannels.DisposeRemoteSession]: {
     request: string;
     response: void;
-  };
-  [PlatformChannels.IsDockerAvailable]: {
-    request: void;
-    response: boolean;
-  };
-  [PlatformChannels.ListWSLDistros]: {
-    request: void;
-    response: WSLDistro[];
-  };
-  [PlatformChannels.ListDockerContainers]: {
-    request: void;
-    response: DockerContainerInfo[];
-  };
-  [PlatformChannels.ListSSHConfigAliases]: {
-    request: void;
-    response: SSHConfigAliasOption[];
   };
   [PlatformChannels.LoadMcpFromUserDirectory]: {
     request: LoadCliMcpFromUserDirectoryRequest;

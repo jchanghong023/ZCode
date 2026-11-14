@@ -1,7 +1,7 @@
 import { stageV4ComposerDraftAttachments } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
 import { readProjectSidebarView } from "@/project-sidebar/index.js";
 /* eslint-disable max-lines -- Root workspace action hook 集中编排项目、远程和 conversation 入口；合并期保持动作边界完整，后续按领域拆分。 */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DesktopCommandIds,
   remoteHostIdFromWorkspaceIdentity,
@@ -11,19 +11,13 @@ import {
   type ZCodeTaskClientMode,
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
-import type {
-  CreateTaskOptions,
-  CreateTaskRequest,
-  RemoteConnectionOpenPreference,
-} from "@/app-shell/types.js";
+import type { CreateTaskOptions, CreateTaskRequest } from "@/app-shell/types.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { resolveLogoutProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
-import { parseWslUncWorkspacePath } from "@/lib/wslUncWorkspace.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
-import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import {
   resolveComposerScope,
@@ -99,9 +93,6 @@ export function useRootWorkspaceActions({
   setUser,
   onProviderFamilyDomainClearedAfterLogout,
   userId,
-  onOpenRemoteConnection,
-  openRemoteProjectWorkspace,
-  openMobileProjectDraft,
   workbenchGroupClientMode = "desktop-continuous",
 }: {
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
@@ -122,27 +113,11 @@ export function useRootWorkspaceActions({
   setUser: (user: UserInfo | null) => void;
   onProviderFamilyDomainClearedAfterLogout?: () => void;
   userId?: string;
-  onOpenRemoteConnection?: (preference?: RemoteConnectionOpenPreference) => void;
-  openRemoteProjectWorkspace?: (target: {
-    hostId: string;
-    workspacePath: string;
-    workspaceIdentity?: string;
-    expectedMembershipId?: string;
-    projectId: string | null;
-    isCurrent?: () => boolean;
-  }) => Promise<void>;
-  openMobileProjectDraft?: (request: CreateTaskOptions) => Promise<void>;
   workbenchGroupClientMode?: ZCodeTaskClientMode;
 }) {
   const navigationSequence = useRef(0);
   const [workspaceActionError, setWorkspaceActionError] = useState<string | null>(null);
   const requestConfirmation = useConfirmDialog();
-  // Root 的远端装配依赖本 hook 返回的动作，函数引用每轮都会变化；它只用于点击执行，
-  // 不应使整个新建入口失稳。与任务导航一致，读取最近已提交实现，并冻结本次操作的实现。
-  const remoteProjectOpener = useRef(openRemoteProjectWorkspace);
-  useLayoutEffect(() => {
-    remoteProjectOpener.current = openRemoteProjectWorkspace;
-  });
 
   useEffect(() => {
     useWorkbenchGroupStore.getState().configureClientMode(workbenchGroupClientMode);
@@ -247,7 +222,6 @@ export function useRootWorkspaceActions({
 
   const startNewTaskFromActiveWorkspace = useCallback(
     async (source: string, request?: CreateTaskRequest) => {
-      const openRemoteProjectWorkspace = remoteProjectOpener.current;
       const sequence = ++navigationSequence.current;
       const originTab = tabStoreApi.getState().activeTabId;
       const originWorkspace = activeWorkspacePath
@@ -359,16 +333,6 @@ export function useRootWorkspaceActions({
             throw new Error("project.remote-project-required");
         }
         if (!isCurrent()) return;
-        if (workbenchGroupClientMode === "web-remote-replayable") {
-          if (!openMobileProjectDraft) throw new Error("project.remote-navigation-unavailable");
-          // 归属先在共享入口解析，目录仍只由 bridge owner 准备；旧 Root 不写交接后的草稿。
-          await openMobileProjectDraft({
-            ...requestOptions,
-            ...(projectId ? { projectId } : {}),
-            ...(hostId ? { hostId } : {}),
-          });
-          return;
-        }
         if (!services.projectService) throw new Error("project.service-unavailable");
         const pendingDraft =
           !projectId && (!hostId || hostId === "local")
@@ -387,24 +351,11 @@ export function useRootWorkspaceActions({
             : {}),
         });
         if (!isCurrent()) return;
-        if (hostId && hostId !== "local") {
-          if (!target.workspaceIdentity || !openRemoteProjectWorkspace)
-            throw new Error("project.remote-navigation-unavailable");
-          await openRemoteProjectWorkspace({
-            ...target,
-            hostId,
-            isCurrent,
-            ...(typeof request === "object" && request.remoteProjectMembershipId
-              ? { expectedMembershipId: request.remoteProjectMembershipId }
-              : {}),
-          });
-        }
         // 目录准备成功才提交导航；失败保留当前会话和分屏。
-        if (!hostId || hostId === "local")
-          addTab(target.workspacePath, {
-            workspacePurpose: target.projectId ? "project" : "conversation",
-            ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
-          });
+        addTab(target.workspacePath, {
+          workspacePurpose: target.projectId ? "project" : "conversation",
+          ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        });
         startDraftInWorkspace(target.workspacePath, target.workspaceIdentity, {
           ...(typeof request === "string" ? { provider: request } : request),
           ...(pendingDraft ? { draftId: pendingDraft.draftId } : {}),
@@ -447,8 +398,6 @@ export function useRootWorkspaceActions({
       activeWorkspaceIdentity,
       tabStoreApi,
       addTab,
-      openMobileProjectDraft,
-      workbenchGroupClientMode,
       startDraftInWorkspace,
     ],
   );
@@ -568,32 +517,6 @@ export function useRootWorkspaceActions({
         );
       };
       try {
-        const wslUncWorkspace = parseWslUncWorkspacePath(path);
-        if (wslUncWorkspace && onOpenRemoteConnection) {
-          const shouldOpenWslConnection = await requestConfirmation({
-            title: intl.formatMessage({ id: "workspace.wslUncPrompt.title" }),
-            description: intl.formatMessage(
-              { id: "workspace.wslUncPrompt.description" },
-              {
-                path,
-              },
-            ),
-            confirmLabel: intl.formatMessage({ id: "workspace.wslUncPrompt.openWsl" }),
-            cancelLabel: intl.formatMessage({ id: "workspace.wslUncPrompt.continuePath" }),
-          });
-          if (shouldOpenWslConnection) {
-            logger.info("[Root] 用户选择通过 WSL 远程连接打开 UNC 工作区", {
-              distro: wslUncWorkspace.distro,
-              path,
-            });
-            onOpenRemoteConnection({
-              preferredKind: "wsl",
-              preferredWslDistro: wslUncWorkspace.distro,
-            });
-            return;
-          }
-        }
-
         if (!isCurrent()) return;
         // 项目模型迁移后，单独 addTab 不再赋予项目归属。桌面目录入口必须先由
         // Host 原子复用/创建项目，再初始化草稿，不能沿用该目录的旧草稿归属。
@@ -628,17 +551,7 @@ export function useRootWorkspaceActions({
         setWorkspaceActionError(err instanceof Error ? err.message : String(err));
       }
     },
-    [
-      addTab,
-      intl,
-      onOpenRemoteConnection,
-      platform,
-      requestConfirmation,
-      services.projectService,
-      isDesktop,
-      startDraftInWorkspace,
-      tabStoreApi,
-    ],
+    [addTab, platform, services.projectService, isDesktop, startDraftInWorkspace, tabStoreApi],
   );
 
   const handleOpenWorkspace = useCallback(() => {

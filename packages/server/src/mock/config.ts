@@ -4,7 +4,9 @@ import {
   BIGMODEL_PROVIDER_ID,
   createUuid,
   type AppSettings,
+  type AppUsageSnapshot,
   type ClientConfigReadOptions,
+  type CodingPlanUsageSnapshot,
   type ClientConfigSnapshot,
   type ModelConnectivityResult,
   type OAuthAccountAvailability,
@@ -424,23 +426,102 @@ export class MockModelSelectionService implements IModelSelectionService {
 
 // ── 用量与套餐 ──
 
+function createEmptyAppUsageSnapshot(range: AppUsageSnapshot["range"]): AppUsageSnapshot {
+  return {
+    range,
+    generatedAt: Date.now(),
+    timeZone: "UTC",
+    source: "agent-db",
+    summary: {
+      totalTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      cacheHitRate: 0,
+      totalSessions: 0,
+      totalTurns: 0,
+      toolCallCount: 0,
+      toolErrorRate: 0,
+      modelErrorRate: 0,
+      avgTimeToFirstTokenMs: null,
+      avgTurnDurationMs: null,
+      activeDays: 0,
+      currentStreakDays: 0,
+      longestSessionMs: 0,
+      longestStreakDays: 0,
+      peakDayTokens: 0,
+      favoriteModel: null,
+    },
+    heatmap: { startDate: null, endDate: null, maxTokens: 0, weeks: [] },
+    dailyModelUsage: [],
+    models: [],
+    tools: [],
+  };
+}
+
+const EMPTY_USAGE_DETAIL_SUMMARY: CodingPlanUsageSnapshot["detail"]["model"] = {
+  cacheHitRate: null,
+  cacheHitRateTrend: null,
+  totalCredits: 0,
+  totalCreditsTrend: null,
+  averageDailyCredits: 0,
+  averageDailyCreditsTrend: null,
+};
+
+function createEmptyCodingPlanUsageSnapshot(
+  request: P<IUsageStatsService["getCodingPlanUsageSnapshot"]>,
+): CodingPlanUsageSnapshot {
+  return {
+    range: request.range,
+    rangeStartDate: "",
+    rangeEndDate: "",
+    generatedAt: Date.now(),
+    sourceProvider: { id: request.preferredProviderId, name: request.preferredProviderId },
+    quota: null,
+    activity: {
+      summary: {
+        totalTokens: 0,
+        peakDailyTokens: 0,
+        peakDailyTokensDate: null,
+        totalUsageDurationMs: 0,
+        currentStreakDays: 0,
+        longestStreakDays: 0,
+        favoriteModelName: null,
+      },
+      heatmap: { startDate: null, endDate: null, maxTokens: 0, weeks: [] },
+    },
+    detail: { model: EMPTY_USAGE_DETAIL_SUMMARY, tool: EMPTY_USAGE_DETAIL_SUMMARY },
+    modelUsage: {
+      xTime: [],
+      granularity: "day",
+      totalModelCallCount: 0,
+      totalTokensUsage: 0,
+      modelDataList: [],
+      modelSummaryList: [],
+    },
+    toolUsage: {
+      xTime: [],
+      granularity: "day",
+      toolDataList: [],
+      toolSummaryList: [],
+    },
+    health: { xTime: [], proMaxDecodeSpeed: [], liteDecodeSpeed: [] },
+  };
+}
+
 export class MockUsageStatsService implements IUsageStatsService {
   async getAppUsageSnapshot(
-    _request: P<IUsageStatsService["getAppUsageSnapshot"]>,
+    request: P<IUsageStatsService["getAppUsageSnapshot"]>,
   ): Promise<AR<IUsageStatsService["getAppUsageSnapshot"]>> {
-    return { generatedAt: Date.now(), ranges: [] } as unknown as AR<
-      IUsageStatsService["getAppUsageSnapshot"]
-    >;
+    return createEmptyAppUsageSnapshot(request.range);
   }
 
   async getCodingPlanUsageSnapshot(
-    _request: P<IUsageStatsService["getCodingPlanUsageSnapshot"]>,
+    request: P<IUsageStatsService["getCodingPlanUsageSnapshot"]>,
   ): Promise<AR<IUsageStatsService["getCodingPlanUsageSnapshot"]>> {
-    return {
-      generatedAt: Date.now(),
-      windows: [],
-      usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
-    } as unknown as AR<IUsageStatsService["getCodingPlanUsageSnapshot"]>;
+    return createEmptyCodingPlanUsageSnapshot(request);
   }
 
   async getCodingPlanRegularTps(

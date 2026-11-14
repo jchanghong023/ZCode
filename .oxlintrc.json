@@ -154,8 +154,7 @@
         "src/runtime/methods/session-fork.ts",
         "src/runtime/methods/steering.ts",
         "src/runtime/methods/turn.ts",
-        "src/runtime/methods/turn-model-step.ts",
-        "**/packages/ui/src/remote-connection-flow/index.ts"
+        "src/runtime/methods/turn-model-step.ts"
       ],
       "rules": {
         "max-lines": ["warn", { "max": 800, "skipBlankLines": true, "skipComments": true }]

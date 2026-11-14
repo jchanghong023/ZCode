@@ -201,7 +201,11 @@ export class MockZCodeTaskService implements IZCodeTaskService {
             };
       tasks.push(...(await this.listTasks(workspace)));
     }
-    return { tasks, total: tasks.length } as unknown as AR<IZCodeTaskService["listTaskList"]>;
+    return {
+      items: tasks,
+      total: tasks.length,
+      hasMore: false,
+    } as AR<IZCodeTaskService["listTaskList"]>;
   }
 
   async listArchivedTasks(

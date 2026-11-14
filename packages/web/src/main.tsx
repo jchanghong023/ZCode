@@ -193,7 +193,6 @@ async function bootstrapWebApp() {
             restoreSession={bootstrap.restoreSession}
             allowOpenWorkspace={bootstrap.allowOpenWorkspace}
             preferDirectoryBrowser
-            allowRemoteWorkspace={false}
           />
         </ZCodeIntlProvider>
       </AppErrorBoundary>,

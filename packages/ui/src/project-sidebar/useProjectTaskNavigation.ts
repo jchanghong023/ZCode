@@ -1,29 +1,18 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import type {
   ProjectSidebarProps,
-  ProjectTree,
-  IRemoteProjectService,
   ProjectTaskNavigation,
   ProjectTaskNavigationResult,
 } from "@/project-sidebar/contract.js";
-import { attachRemoteProjectWorkspace } from "@/project-sidebar/remote-navigation.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { onTaskNavigationCommitted } from "@/store/zcodeSessionStoreNavigation.js";
-import { useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
-import { useRemoteWorkspaceConnectionGate } from "@/project-sidebar/useRemoteWorkspaceConnectionGate.js";
+import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 
 /** 打开任务才绑定 workspace；列表 mutation 不借导航创建 scope。 */
-export function useProjectTaskNavigation(
-  props: ProjectSidebarProps,
-  tree: ProjectTree,
-  remoteService?: IRemoteProjectService,
-): ProjectTaskNavigation {
-  const activeWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);
+export function useProjectTaskNavigation(props: ProjectSidebarProps): ProjectTaskNavigation {
   const tabStore = useTabStoreApi();
-  const waitForConnection = useRemoteWorkspaceConnectionGate(props.reconnectingRemoteWorkspaceKeys);
   const sequence = useRef(0);
   useLayoutEffect(
     () => () => {
@@ -31,9 +20,9 @@ export function useProjectTaskNavigation(
     },
     [],
   );
-  const latest = useRef({ props, tree, remoteService, activeWorkspaceIdentity, waitForConnection });
+  const latest = useRef({ props });
   useLayoutEffect(() => {
-    latest.current = { props, tree, remoteService, activeWorkspaceIdentity, waitForConnection };
+    latest.current = { props };
   });
   return useCallback(
     (path, taskId, identity, remoteSessionId, unreadAt, options) => {
@@ -42,32 +31,12 @@ export function useProjectTaskNavigation(
         status: "unavailable",
         reason: "project.navigation-cancelled",
       };
-      const { props, tree, remoteService, activeWorkspaceIdentity, waitForConnection } =
-        latest.current;
-      const readFocus = () =>
-        props.workspacePath
-          ? useZCodeSessionStore
-              .getState()
-              .getWorkspaceState(props.workspacePath, activeWorkspaceIdentity ?? undefined)
-          : undefined;
-      const originFocus = readFocus();
+      const { props } = latest.current;
       let selecting = false;
       let supersededByNavigation = false;
       const navigationObserver = onTaskNavigationCommitted(() => {
         if (!selecting) supersededByNavigation = true;
       });
-      // 同一目录内切换任务或新草稿也会使旧连接失效，不能仅比较 workspace 身份。
-      const isCurrent = () =>
-        !options?.signal?.aborted &&
-        !supersededByNavigation &&
-        sequence.current === request &&
-        latest.current.activeWorkspaceIdentity === activeWorkspaceIdentity &&
-        readFocus()?.activeTaskId === originFocus?.activeTaskId &&
-        readFocus()?.draftFocusVersion === originFocus?.draftFocusVersion &&
-        (!identity ||
-          latest.current.tree.tasks.some(
-            (task) => task.taskId === taskId && task.workspaceIdentity === identity,
-          ));
       const selectionResult = (): ProjectTaskNavigationResult => {
         const state = tabStore.getState();
         // 原回调会在模型重建或远端 scope 不可用时拒绝选择；投递事件不能冒充实际打开。
@@ -79,34 +48,7 @@ export function useProjectTaskNavigation(
       };
       const open = async (): Promise<ProjectTaskNavigationResult> => {
         if (options?.signal?.aborted) return cancelled;
-        const task = tree.tasks.find(
-          (item) =>
-            item.taskId === taskId &&
-            (item.workspaceIdentity || item.workspacePath) === (identity || path),
-        );
-        if (identity && task && remoteService) {
-          const directory = await remoteService.readDirectory();
-          if (!isCurrent()) return cancelled;
-          if (directory.hosts.some((host) => host.id === task.hostId)) {
-            remoteSessionId = await attachRemoteProjectWorkspace({
-              hostId: task.hostId,
-              workspacePath: path,
-              workspaceIdentity: identity,
-              remoteService,
-              isCurrent,
-              findSession: (key) =>
-                Object.values(useRemoteWorkspaceSessionStore.getState().sessionsById).find(
-                  (session) => session.workspaceIdentity === key,
-                ),
-              waitForPendingConnection: waitForConnection,
-              connect: props.onConnectRemote,
-              bind: (sessionId, workspacePath, guard) =>
-                props.onSelectRemoteProject(sessionId, workspacePath, undefined, identity, guard),
-              cancel: props.onCancelRemoteProject,
-            });
-          }
-        }
-        // 远端绑定会合法改变 workspace/focus；提交选择前只复验本请求的取消及代际。
+        // 提交选择前只复验本请求的取消及代际。
         if (options?.signal?.aborted || sequence.current !== request || supersededByNavigation)
           return cancelled;
         // 必须观察本次调用产生的完整导航提交；缓存 activeTaskId 可能仍属于已离开的草稿。

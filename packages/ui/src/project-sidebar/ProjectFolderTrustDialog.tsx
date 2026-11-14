@@ -13,8 +13,6 @@ export interface ProjectFolderTrustRequest {
   roots: string[];
   /** 聊天固定目录创建时展示本次名称；恢复沿用已确认项目的名称。 */
   projectName?: string;
-  /** 远程设备名；本地名称在渲染时翻译，避免语言切换后保留旧译文。 */
-  deviceLabel?: string;
   restoring: boolean;
   resolve(accepted: boolean): void;
 }
@@ -54,9 +52,7 @@ export function ProjectFolderTrustDialog({
         </DialogTitle>
         <div className="grid min-w-0 gap-2">
           {request.projectName ? <p className="break-words">{request.projectName}</p> : null}
-          <p className="break-words text-foreground-subtle">
-            {request.deviceLabel ?? msg("thisComputer")}
-          </p>
+          <p className="break-words text-foreground-subtle">{msg("thisComputer")}</p>
           <ul className="max-h-48 min-w-0 space-y-2 overflow-y-auto font-mono text-ui-sm select-text">
             {request.roots.map((root) => (
               <li key={root} data-testid="project-folder-trust-path" className="break-all">

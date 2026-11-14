@@ -199,62 +199,6 @@ export const TID_TOOL_SUMMARY_TRIGGER = "tool-summary-trigger";
 /** 终端容器 */
 export const TID_TERMINAL = "terminal";
 
-// SSHDialog
-/** 打开 SSH 连接弹窗的触发按钮 */
-export const TID_SSH_CONNECT_TRIGGER = "ssh-connect-trigger";
-/** SSH 连接弹窗容器 */
-export const TID_SSH_DIALOG = "ssh-dialog";
-/** 远程连接方式切换到 SSH */
-export const TID_REMOTE_KIND_SSH = "remote-kind-ssh";
-/** 远程连接方式切换到 Server */
-export const TID_REMOTE_KIND_SERVER = "remote-kind-server";
-/** 远程连接方式切换到 WSL */
-export const TID_REMOTE_KIND_WSL = "remote-kind-wsl";
-/** 远程连接方式切换到 Docker */
-export const TID_REMOTE_KIND_DOCKER = "remote-kind-docker";
-/** SSH 主机地址输入框 */
-export const TID_SSH_HOST_INPUT = "ssh-host-input";
-/** SSH 端口号输入框 */
-export const TID_SSH_PORT_INPUT = "ssh-port-input";
-/** SSH 用户名输入框 */
-export const TID_SSH_USERNAME_INPUT = "ssh-username-input";
-/** SSH config alias 选择框 */
-export const TID_SSH_CONFIG_ALIAS_SELECT = "ssh-config-alias-select";
-/** 设置入口「从 SSH config 导入」按钮。 */
-export const TID_SSH_CONFIG_IMPORT = "remote-ssh-config-import";
-/** 已关联 SSH config Host 的标签。 */
-export const TID_SSH_CONFIG_ALIAS_CHIP = "remote-ssh-config-alias-chip";
-/** 新建连接表单头部的实时目标预览。 */
-export const TID_REMOTE_NEW_CONNECTION_PREVIEW = "remote-new-connection-preview";
-/** SSH 密码输入框 */
-export const TID_SSH_PASSWORD_INPUT = "ssh-password-input";
-/** SSH 私钥路径输入框 */
-export const TID_SSH_PRIVATE_KEY_INPUT = "ssh-private-key-input";
-/** SSH 认证方式：密码 */
-export const TID_SSH_AUTH_PASSWORD = "ssh-auth-password";
-/** SSH 认证方式：私钥 */
-export const TID_SSH_AUTH_PRIVATE_KEY = "ssh-auth-private-key";
-/** WSL 发行版选择框 */
-export const TID_WSL_DISTRO_SELECT = "wsl-distro-select";
-/** WSL Linux 用户输入框 */
-export const TID_WSL_USER_INPUT = "wsl-user-input";
-/** Docker 容器选择框 */
-export const TID_DOCKER_CONTAINER_SELECT = "docker-container-select";
-/** Docker 容器名称/ID 输入框 */
-export const TID_DOCKER_CONTAINER_INPUT = "docker-container-input";
-/** Server 远程服务 URL 输入框 */
-export const TID_SERVER_URL_INPUT = "server-url-input";
-/** Server 远程服务名称输入框 */
-export const TID_SERVER_NAME_INPUT = "server-name-input";
-/** Server 远程服务 token 输入框 */
-export const TID_SERVER_TOKEN_INPUT = "server-token-input";
-/** Server 远程默认工作区路径输入框 */
-export const TID_SERVER_WORKSPACE_PATH_INPUT = "server-workspace-path-input";
-/** SSH 连接确认按钮 */
-export const TID_SSH_CONNECT_BUTTON = "ssh-connect-button";
-/** SSH 弹窗取消按钮 */
-export const TID_SSH_CANCEL_BUTTON = "ssh-cancel-button";
-
 // Sidebar
 /** 侧边栏容器 */
 export const TID_SIDEBAR = "sidebar";
@@ -286,8 +230,6 @@ export const TID_VIRTUAL_PROJECT_CREATE_TASK = "virtual-project-create-task";
 export const TID_VIRTUAL_PROJECT_ACTION_PREFIX = "virtual-project";
 /** 全局置顶任务区 */
 export const TID_PROJECT_PINNED_TASKS = "project-pinned-tasks";
-/** 远端 host 分组（data-host-id 为 host id） */
-export const TID_REMOTE_PROJECT_HOST = "remote-project-host";
 /** Composer workspace 选择触发器 */
 export const TID_COMPOSER_WORKSPACE_TRIGGER = "composer-workspace-trigger";
 /** Composer workspace 菜单的远程连接入口 */
@@ -595,12 +537,6 @@ export const TID_WORKSPACE_FILE_TREE_PANEL = "workspace-file-tree-panel";
 export const TID_WORKSPACE_FILE_TREE_REFRESH_BUTTON = "workspace-file-tree-refresh-button";
 /** 工作区文件树条目（动态后缀为文件绝对路径） */
 export const TID_WORKSPACE_FILE_TREE_ROW = "workspace-file-tree-row";
-// SSH 错误提示
-/** SSH 连接错误信息 */
-export const TID_SSH_ERROR = "ssh-error";
-/** SSH 连接成功提示 */
-export const TID_SSH_SUCCESS = "ssh-success";
-
 // V4 会话 pane（protocol-v4 竖切；定位协议带 paneId 维度：同 session 双 pane 时靠 paneId 后缀区分）
 /** v4 会话 pane 容器（动态后缀为 paneId） */
 export const TID_V4_SESSION_PANE = "v4-session-pane";

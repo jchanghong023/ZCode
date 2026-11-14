@@ -3,14 +3,12 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Collapsible } from "@/components/ui/collapsible.js";
 import { ProjectNodeContent, type ProjectNodeProps } from "@/project-sidebar/ProjectNodeContent.js";
-import { buildRemoteHostWorkspaceIdentity } from "@/project-sidebar/contract.js";
 import { projectKey } from "@/project-sidebar/view.js";
 import { parseWorkbenchSessionDragPayload } from "@/v4/workbenchDragDrop.js";
 
 export function ProjectNode(props: ProjectNodeProps) {
   const { project, expanded, onExpandedChange, onMove } = props;
-  const online = props.availability?.online ?? true;
-  const editable = online && !project.legacySingleRoot;
+  const editable = !project.legacySingleRoot;
   const [sessionDropOver, setSessionDropOver] = useState(false);
   const dragDepth = useRef(0);
   const sessionDropTarget = editable && sessionDropOver;
@@ -32,9 +30,7 @@ export function ProjectNode(props: ProjectNodeProps) {
       document.removeEventListener("drop", clear, true);
     };
   }, [editable, sessionDropTarget]);
-  // 主目录失效限制新建和文件入口，历史消息由独立存储读取；不能把目录存在性当作折叠开关。
-  const canOpen = online;
-  const isOpen = canOpen && expanded;
+  const isOpen = expanded;
   const data = useMemo(
     () => ({ hostId: project.hostId, pinned: project.pinned }),
     [project.hostId, project.pinned],
@@ -69,13 +65,7 @@ export function ProjectNode(props: ProjectNodeProps) {
         : "after"
       : null;
   return (
-    <Collapsible
-      asChild
-      open={isOpen}
-      onOpenChange={(value) => {
-        if (canOpen) onExpandedChange(value);
-      }}
-    >
+    <Collapsible asChild open={isOpen} onOpenChange={onExpandedChange}>
       <section
         ref={setNodeRef}
         style={{
@@ -89,12 +79,6 @@ export function ProjectNode(props: ProjectNodeProps) {
         }}
         data-project-id={project.id}
         data-project-host={project.hostId}
-        data-project-workspace-identity={
-          project.hostId !== "local" && project.roots.length === 1
-            ? buildRemoteHostWorkspaceIdentity(project.hostId, project.roots[0]!.rootPath)
-            : undefined
-        }
-        data-connection-state={props.remoteHost?.connectionStatus}
         data-project-name={project.name}
         data-primary-root-status={project.primaryRootStatus}
         className={`min-w-0 rounded-xl ${sessionDropTarget ? "bg-accent" : ""}`}
@@ -149,7 +133,6 @@ export function ProjectNode(props: ProjectNodeProps) {
         <ProjectNodeContent
           {...props}
           editable={editable}
-          canOpen={canOpen}
           isOpen={isOpen}
           attributes={attributes}
           listeners={listeners}

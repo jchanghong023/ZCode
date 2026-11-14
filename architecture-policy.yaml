@@ -298,8 +298,6 @@ modules:
       - shared
       - ui
       - conversation-workspace-target
-      - remote-connection-flow
-      - data-sync
       - managed-worktree-ui
       # 分组会话行复用同一张悬停卡片（docs/ui/task-row-hover-details.md）。
       - task-row-hover
@@ -308,13 +306,8 @@ modules:
     publicEntrypoints:
       - packages/ui/src/project-sidebar/index.tsx
       - packages/ui/src/project-sidebar/contract.ts
-      - packages/ui/src/project-sidebar/remote-project-connection.ts
       - packages/ui/src/project-sidebar/useSavedWorkflowProjectOptions.ts
-      - packages/ui/src/project-sidebar/RemoteProjectMenu.tsx
       - packages/ui/src/project-sidebar/WorkspaceDragOverlay.tsx
-      - packages/ui/src/project-sidebar/useRemoteProjectConnectionPresentation.ts
-      - packages/ui/src/project-sidebar/OfflineRemoteProjectRows.tsx
-      - packages/ui/src/project-sidebar/RemoteConversationDisconnected.tsx
     layers:
       contract: contract.ts
       ui: .
@@ -533,23 +526,6 @@ modules:
       ui: components
     layerOrder: [domain, app, adapters, ui]
     owner: plugin
-  # remote-connection-flow：由 architecture:adopt 登记
-  - id: remote-connection-flow
-    roots:
-      - packages/ui/src/remote-connection-flow
-    managed: true
-    requires:
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/remote-connection-flow/index.ts
-      - packages/ui/src/remote-connection-flow/contract.ts
-      - packages/ui/src/remote-connection-flow/ui/RemoteConnectionProgress.tsx
-    layers:
-      app: .
-      ui: ui
-    layerOrder: [app, ui]
-    owner: remote
   # project-workflow：由 architecture:adopt 登记
   - id: project-workflow
     roots:
@@ -1951,10 +1927,6 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/settings/ProactiveSuggestionsSetting.tsx]
     reason: 已有的主动任务推荐设置行只增加 SettingsRow 的稳定定位 id，不改变引导记录读写和模块依赖；搜索实现独立登记在 settings-search 模块，不把现有引导设置迁入搜索模块。
-  - id: remote-connection-flow-existing-size
-    rule: max-file-lines
-    paths: [packages/ui/src/remote-connection-flow/index.ts]
-    reason: Preserve the existing single hook owner and closure; module adoption must not mechanically split state to satisfy line counts.
   - id: gen-ui-tweak-runtime-size
     rule: max-file-lines
     paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]

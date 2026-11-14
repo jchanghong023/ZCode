@@ -1,46 +1,25 @@
 import { useEffect, useRef, useState, type ReactElement, type PointerEvent } from "react";
 import { HoverCard as HoverCardPrimitive } from "radix-ui";
-import { ChevronRight, Settings } from "lucide-react";
 import { Anchor, createPopperScope } from "@radix-ui/react-popper";
-import { sourceServerConnectionStateSchema } from "@zcode/shared";
-import type { RemoteProjectHost } from "@/project-sidebar/contract.js";
-import { remoteHostLabel } from "@/project-sidebar/RemoteHostSection.js";
-import { RemoteConnectionProgressSection } from "@/project-sidebar/RemoteConnectionProgressSection.js";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  formatRemoteProjectConnectionAddress,
-  resolveRemoteConnectionPresentation,
-} from "@/lib/remoteConnectionPresentation.js";
 
 const useHoverCardScope = HoverCardPrimitive.createHoverCardScope();
 const usePopperScope = createPopperScope();
 
-/**
- * 项目模型迁移曾漏接详情；项目入口只读项目及其可选 Host，悬停结束即关闭，不保存点击锁定状态。
- * 待处理设备只提供定位设置的入口，实际处理仍由设置页设备卡完成。
- */
+/** 项目入口只读项目及其目录，悬停结束即关闭，不保存点击锁定状态。 */
 export function ProjectIdentityHoverCard({
-  host,
   title,
-  deviceName,
   paths,
-  connectionError,
   anchorToMenu = false,
   contentClassName,
-  onOpenDeviceSettings,
   children,
 }: {
-  host?: RemoteProjectHost;
   title: string;
-  deviceName?: string;
   paths: readonly string[];
-  /** 项目行已合并旧 workspace 错误的连接错误；缺省读 Host 投影。 */
-  connectionError?: string;
   anchorToMenu?: boolean;
   contentClassName?: string;
-  onOpenDeviceSettings?: () => void;
   children: ReactElement;
 }) {
   const { intl } = useZCodeIntl();
@@ -84,25 +63,12 @@ export function ProjectIdentityHoverCard({
     changeOpen(false);
   };
   useEffect(() => {
-    // Host 消失或换代时撤销旧浮层，不能在设备重新出现后恢复旧的展示状态。
     clearTimeout(openTimer.current);
     setOpen(false);
     overDetails.current = false;
     return () => clearTimeout(openTimer.current);
-  }, [host?.id]);
+  }, [title]);
   const msg = (id: string) => intl.formatMessage({ id });
-  // 旧详情以 Host 存在为前提，普通项目无法查看目录；Host 只决定远程附加信息。
-  const error = connectionError ?? host?.lastConnectionError;
-  const presentation = host
-    ? resolveRemoteConnectionPresentation({
-        state:
-          sourceServerConnectionStateSchema.safeParse(host.lastConnectionStatus).data ??
-          host.connectionStatus,
-        // 修复原因：缺少 upgradeTarget 时操作名固定回退成“更新远端”，与设置页设备卡矛盾。
-        upgradeTarget: host.upgradeTarget,
-        projectError: error,
-      })
-    : undefined;
   return (
     <HoverCard {...scope} open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
@@ -135,7 +101,7 @@ export function ProjectIdentityHoverCard({
       <HoverCardContent
         {...scope}
         ref={details}
-        data-testid={host ? "remote-identity-details" : "project-identity-details"}
+        data-testid="project-identity-details"
         role="tooltip"
         side="right"
         align="start"
@@ -158,69 +124,15 @@ export function ProjectIdentityHoverCard({
         <div className="@container/project-details max-h-(--radix-hover-card-content-available-height) overflow-y-auto p-3">
           <div className="flex min-w-0 items-center gap-3 border-b border-border pb-3">
             <strong className="min-w-0 flex-1 break-words font-medium">{title}</strong>
-            {/* 修复原因：曾显示 pending 的泛化文案“需要处理”，看不出要更新、安装还是确认身份；改用与项目行一致的短状态。 */}
-            {presentation ? (
-              <span className={presentation.foreground}>
-                {intl.formatMessage(
-                  { id: presentation.shortMessageId },
-                  presentation.recovery?.values,
-                )}
-              </span>
-            ) : null}
           </div>
-          {host && presentation ? (
-            <RemoteConnectionProgressSection
-              host={host}
-              status={presentation.status}
-              error={error}
-            />
-          ) : null}
           {/* 菜单旁可用空间很窄时，横向标签会把路径挤成一字一行；改为上下排列。 */}
           <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 @min-[16rem]/project-details:grid-cols-[auto_minmax(0,1fr)]">
-            {/* 标题已展示项目名，正文只保留目录和远程连接信息，避免重复。 */}
-            {host ? (
-              <>
-                <dt className="text-remote-foreground-muted">
-                  {msg("workspaceSidebar.projectDevice")}
-                </dt>
-                <dd className="break-words">{deviceName || remoteHostLabel(host)}</dd>
-                <dt className="text-remote-foreground-muted">
-                  {msg("workspaceSidebar.projectLine")}
-                </dt>
-                <dd>{msg(`remote.kind.${host.kind}`)}</dd>
-                <dt className="text-remote-foreground-muted">
-                  {msg("settings.source.connectionAddress")}
-                </dt>
-                <dd className="break-all font-mono">
-                  {host.target ? formatRemoteProjectConnectionAddress(host.target) : "—"}
-                </dd>
-              </>
-            ) : null}
+            {/* 标题已展示项目名，正文只保留目录，避免重复。 */}
             <dt className="text-remote-foreground-muted">{msg("workspaceSidebar.projectPath")}</dt>
             <dd className="min-w-0 break-all font-mono">
               {paths.length ? paths.map((path) => <div key={path}>{path}</div>) : "—"}
             </dd>
           </dl>
-          {presentation?.status === "pending" && onOpenDeviceSettings ? (
-            <button
-              type="button"
-              data-testid="remote-identity-device-settings"
-              className={cn(
-                "mt-3 flex w-full items-center gap-1.5 border-t border-border pt-3 text-left hover:underline",
-                presentation.foreground,
-              )}
-              onClick={() => {
-                setOpen(false);
-                onOpenDeviceSettings();
-              }}
-            >
-              <Settings aria-hidden="true" className="size-3.5" />
-              <span className="min-w-0 flex-1 break-words">
-                {msg(presentation.actionMessageId)}
-              </span>
-              <ChevronRight aria-hidden="true" className="size-3.5" />
-            </button>
-          ) : null}
         </div>
       </HoverCardContent>
     </HoverCard>

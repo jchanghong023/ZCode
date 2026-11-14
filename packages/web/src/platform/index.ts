@@ -1,9 +1,4 @@
-import {
-  resolveLocaleFromLanguageTag,
-  toZhOrEnLocale,
-  type IPlatformService,
-  type RemoteTarget,
-} from "@zcode/shared";
+import { resolveLocaleFromLanguageTag, toZhOrEnLocale, type IPlatformService } from "@zcode/shared";
 import { playTaskNotificationSound } from "@zcode/ui";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "#src/communityUrl.js";
 import { saveBrowserFile } from "#src/platform/saveBrowserFile.js";
@@ -25,24 +20,10 @@ export function createWebPlatform(): IPlatformService {
     getPathForFile: () => null,
     createTempTextAttachment: () =>
       Promise.reject(new Error("Temporary text attachments require a desktop host")),
-    onRemoteConnectionLog: () => () => {},
     onRemoteSessionClosed: () => () => {},
     // Web 端无多窗口管理
     activateOrSetWorkspace: () => Promise.resolve({ activated: false }),
-    // 普通 Web 模式只保证 server 本地工作区可用；远程 WebSocket 只暴露部分 service，
-    // 与 Root/RemoteServiceAccess 需要的完整 accessor 不匹配，直接拒绝避免卡在首屏。
-    async connectRemote(options: RemoteTarget) {
-      return {
-        success: false,
-        error: `Remote connect is not supported in Web mode yet: ${options.kind}`,
-      };
-    },
-    cancelPendingRemoteConnection: (_requestId?: string) => Promise.resolve(),
     disposeRemoteSession: () => Promise.resolve(),
-    isDockerAvailable: () => Promise.resolve(false),
-    listWSLDistros: () => Promise.resolve([]),
-    listDockerContainers: () => Promise.resolve([]),
-    listSSHConfigAliases: () => Promise.resolve([]),
     loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
     saveMcpToUserDirectory: () =>
       Promise.resolve({

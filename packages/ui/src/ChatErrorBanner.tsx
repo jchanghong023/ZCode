@@ -1,6 +1,4 @@
 import { resolveRequestSecurityErrorMessageId } from "@/request-security-edition/errors.js";
-import { getRemoteConnectionFailureCode } from "@/lib/remoteWorkspaceServiceError.js";
-import { formatRemoteConnectionError } from "@/lib/remoteConnectionPresentation.js";
 /**
  * ChatErrorBanner — 错误提示组件
  *
@@ -108,13 +106,6 @@ export function resolveChatErrorBannerDisplayMessage(
   intl: IntlInstance,
   modelConfigTarget: ChatErrorBannerModelConfigTarget = "local",
 ): string {
-  const remoteCode = getRemoteConnectionFailureCode(error);
-  if (remoteCode)
-    return formatRemoteConnectionError({
-      fallback: error.message,
-      reasonCode: remoteCode,
-      formatMessage: intl.formatMessage,
-    });
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({
       id:
@@ -187,10 +178,8 @@ export function ChatErrorBanner({
   onDismiss,
   onOpenModelSettings,
   modelConfigTarget = "local",
-  onReconnect,
 }: {
   error: ZCodeUiError;
-  onReconnect?: () => void;
   onRetry?: () => void;
   retryLabel?: string;
   retryDisabled?: boolean;
@@ -208,7 +197,6 @@ export function ChatErrorBanner({
     intl,
     modelConfigTarget,
   );
-  const remoteConnectionFailure = Boolean(getRemoteConnectionFailureCode(error));
   const modelConfigMissing = isModelConfigMissingError(error);
   const hookBlocked = error.code === "fault.runtime.hookBlocked";
   if (shouldSuppressChatErrorBanner(error)) {
@@ -347,12 +335,7 @@ export function ChatErrorBanner({
           </Button>
         ) : null}
 
-        {remoteConnectionFailure && onReconnect ? (
-          <Button variant="outline" size="sm" onClick={onReconnect}>
-            {intl.formatMessage({ id: "remote.conversation.reconnect" })}
-          </Button>
-        ) : null}
-        {!remoteConnectionFailure && !modelConfigMissing && onRetry ? (
+        {!modelConfigMissing && onRetry ? (
           <Button variant="outline" size="sm" onClick={onRetry} disabled={retryDisabled}>
             {retryLabel ?? intl.formatMessage({ id: "chat.error.retry" })}
           </Button>

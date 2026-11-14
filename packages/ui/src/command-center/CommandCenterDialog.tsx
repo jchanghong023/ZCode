@@ -1,5 +1,3 @@
-import { getRemoteConnectionFailureCode } from "@/lib/remoteWorkspaceServiceError.js";
-import { formatRemoteConnectionError } from "@/lib/remoteConnectionPresentation.js";
 import { isRemoteConversationWorkspace } from "@/conversation-workspace-target/purpose.js";
 /* eslint-disable max-lines -- 聚合命令、任务、文件三类搜索结果，后续可按 result section 拆分。 */
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -590,16 +588,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
       })
       .catch((error) => {
         if (!cancelled) {
-          const remoteCode = getRemoteConnectionFailureCode(error);
-          setWorkspaceFilesError(
-            remoteCode
-              ? formatRemoteConnectionError({
-                  fallback: String(error),
-                  reasonCode: remoteCode,
-                  formatMessage: intl.formatMessage,
-                })
-              : String(error),
-          );
+          setWorkspaceFilesError(String(error));
         }
       })
       .finally(() => {
@@ -611,7 +600,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     return () => {
       cancelled = true;
     };
-  }, [fileService, loadedWorkspaceKey, searchFiles, workspaceAbsPath, workspaceKey, intl]);
+  }, [fileService, loadedWorkspaceKey, searchFiles, workspaceAbsPath, workspaceKey]);
 
   const rememberSearch = useCallback(
     (scope: CommandCenterSearchScope = activeScope) => {

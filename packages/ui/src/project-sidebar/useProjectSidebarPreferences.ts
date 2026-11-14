@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  ProjectAvailability,
-  ProjectSidebarView,
-  VirtualProject,
-} from "@/project-sidebar/contract.js";
+import type { ProjectSidebarView, VirtualProject } from "@/project-sidebar/contract.js";
 import { projectKey } from "@/project-sidebar/view.js";
 import { getSafeLocalStorage } from "@/lib/browserEnvironment.js";
 import { readWorkspaceExpansionState } from "@/lib/workspaceExpansionPreference.js";
@@ -13,7 +9,6 @@ import { reconcileProjectOrder, moveProjectOrder } from "@/project-sidebar/proje
 import { readProjectSidebarView } from "@/project-sidebar/view-preference.js";
 
 const KEY = "zcode-project-sidebar-preferences";
-const EMPTY_AVAILABILITY: ReadonlyMap<string, ProjectAvailability> = new Map();
 interface Preferences {
   order: string[];
   view: ProjectSidebarView;
@@ -33,20 +28,7 @@ function write(key: string, value: unknown) {
     /* 浏览器禁用存储时仍保持当前窗口偏好，不影响 Host 命令。 */
   }
 }
-export function useProjectSidebarPreferences(
-  projects: VirtualProject[],
-  loading: boolean,
-  availability: ReadonlyMap<string, ProjectAvailability> = EMPTY_AVAILABILITY,
-) {
-  const upgradeKeys = useMemo(
-    () =>
-      new Map(
-        [...availability].flatMap(([key, value]) =>
-          value.upgradeEntryId ? [[`legacy:${value.upgradeEntryId}`, key] as const] : [],
-        ),
-      ),
-    [availability],
-  );
+export function useProjectSidebarPreferences(projects: VirtualProject[], loading: boolean) {
   const [legacyExpansion] = useState(readWorkspaceExpansionState);
   const [preferences, setPreferences] = useState<Preferences>(() => {
     const saved = read(KEY);
@@ -56,7 +38,6 @@ export function useProjectSidebarPreferences(
           ? saved.order.filter((key): key is string => typeof key === "string")
           : [],
         loading ? [] : projects.map(projectKey),
-        upgradeKeys,
       ),
       // 视图兼容旧选择；项目/时间线沿用各自排序，分组使用 Host 的手动顺序。
       view: readProjectSidebarView(),
@@ -103,11 +84,7 @@ export function useProjectSidebarPreferences(
   useEffect(() => {
     if (loading) return;
     setPreferences((previous) => {
-      const order = reconcileProjectOrder(
-        previous.order,
-        JSON.parse(currentKeys) as string[],
-        upgradeKeys,
-      );
+      const order = reconcileProjectOrder(previous.order, JSON.parse(currentKeys) as string[]);
       if (
         order.length === previous.order.length &&
         order.every((key, index) => key === previous.order[index])
@@ -117,20 +94,17 @@ export function useProjectSidebarPreferences(
       write(KEY, next);
       return next;
     });
-  }, [currentKeys, loading, upgradeKeys]);
-  const changeOrder = useCallback(
-    (change: (order: string[]) => string[]) => {
-      setPreferences((previous) => {
-        const next = {
-          ...previous,
-          order: change(reconcileProjectOrder(previous.order, [], upgradeKeys)),
-        };
-        write(KEY, next);
-        return next;
-      });
-    },
-    [upgradeKeys],
-  );
+  }, [currentKeys, loading]);
+  const changeOrder = useCallback((change: (order: string[]) => string[]) => {
+    setPreferences((previous) => {
+      const next = {
+        ...previous,
+        order: change(reconcileProjectOrder(previous.order, [])),
+      };
+      write(KEY, next);
+      return next;
+    });
+  }, []);
   const update = useCallback(
     (patch: Partial<Preferences>) =>
       setPreferences((previous) => {
@@ -163,7 +137,7 @@ export function useProjectSidebarPreferences(
         ]),
       sort: (items: VirtualProject[]) => {
         // 删除只由权威目录移除行；提前清理排序键会把刷新前的旧行追加到末尾，造成跳动。
-        const order = reconcileProjectOrder(preferences.order, items.map(projectKey), upgradeKeys);
+        const order = reconcileProjectOrder(preferences.order, items.map(projectKey));
         const positions = new Map(order.map((key, index) => [key, index]));
         return [...items].sort(
           (a, b) => positions.get(projectKey(a))! - positions.get(projectKey(b))!,
@@ -194,6 +168,6 @@ export function useProjectSidebarPreferences(
         }),
       setExpanded,
     }),
-    [preferences, changeOrder, setView, setExpanded, legacyExpansion, upgradeKeys],
+    [preferences, changeOrder, setView, setExpanded, legacyExpansion],
   );
 }

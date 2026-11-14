@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { RemoteProjectEntry, VirtualProject } from "@/project-sidebar/contract.js";
+import type { VirtualProject } from "@/project-sidebar/contract.js";
 import {
   formatCountMessage,
   type ProjectManagementRow,
@@ -11,11 +11,9 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { formatBytes } from "@/resource-manager/resourceUsageView.js";
 
-/** 本批成功移除的项；远程入口在移除前抓取，撤销时按原 projectId / roots / membership 重新登记。 */
+/** 本批成功移除的项。 */
 interface RemovedProject {
   row: ProjectManagementRow;
-  entry?: RemoteProjectEntry;
-  membershipId?: string;
 }
 export interface ProjectManagementFailure {
   kind: "remove" | "undo" | "restore" | "purge";
@@ -39,9 +37,7 @@ export interface ProjectRemovalOptions {
   deleteData?: { totalBytes?: number };
 }
 
-/** 数据只在本机删除：远程项目的数据在其设备上，入口移除也不涉及数据。 */
-export const isProjectDataCandidate = (row: ProjectManagementRow) =>
-  row.removal === "delete" && row.project.hostId === "local";
+export const isProjectDataCandidate = (row: ProjectManagementRow) => row.removal === "delete";
 
 export function useProjectManagement() {
   const directory = useProjectDirectory();
@@ -60,7 +56,7 @@ export function useProjectManagement() {
    * 批次按发起顺序依次执行：不并发，也不丢弃。body 可返回结果回调，在本批刷新结束后执行（刷新失败也执行）。
    * Bugfix：原先批次在途时再发起的操作直接忽略。toast 点击后总会关闭，于是两种情况下点「撤销」
    * 都被静默吞掉、项目再也无法撤销：① 撤销 toast 在本批 refresh() 结束前弹出；② 上一批的 toast
-   * 仍可见时用户又发起了新批次（远程移除可能持续数秒）。现在 toast 在本批结束后才弹，且后发的操作
+   * 仍可见时用户又发起了新批次（多项目移除可能持续数秒）。现在 toast 在本批结束后才弹，且后发的操作
    * 排队等待而不是被丢弃。排队的重复移除会因行已不在树中被跳过；撤销与恢复本身幂等。
    */
   const exclusive = (body: () => Promise<(() => void) | void>) => {
@@ -216,23 +212,11 @@ export function useProjectManagement() {
         const alive = current.tree.projects.some(
           (project) => projectKey(project) === row.key && !project.deleted,
         );
-        const entryId = current.availability.get(row.key)?.entryId;
-        if (!alive || (row.removal === "entry" && entryId !== row.entryId)) continue;
+        if (!alive || row.removal !== "delete") continue;
         try {
-          if (row.removal === "delete") {
-            if (!current.service) throw new Error("project.service-unavailable");
-            await current.service.deleteProject(row.project.id, row.project.hostId);
-            removed.push({ row });
-          } else if (row.removal === "entry" && row.entryId) {
-            if (!current.remoteService) throw new Error("remote-project.entry-not-found");
-            const entry = current.directory.entries.find((item) => item.id === row.entryId);
-            await current.remoteService.removeEntry(row.entryId);
-            removed.push({
-              row,
-              ...(entry ? { entry } : {}),
-              ...(row.host ? { membershipId: row.host.membershipId } : {}),
-            });
-          }
+          if (!current.service) throw new Error("project.service-unavailable");
+          await current.service.deleteProject(row.project.id, row.project.hostId);
+          removed.push({ row });
         } catch (cause) {
           failed.push({ row, cause });
           logger.error("[project-management] 移除项目失败", {
@@ -274,7 +258,7 @@ export function useProjectManagement() {
             () => purge(purgeFailed),
           );
         if (!removed.length) return;
-        // 不带撤销：本机项目已无法恢复，只撤销远程入口会误导。
+        // 不带撤销：本机项目已无法恢复。
         return () =>
           resultToast(
             formatCountMessage(intl, "projectManagement.data.removedToast", removed.length, {
@@ -306,20 +290,9 @@ export function useProjectManagement() {
       const failed: { item: RemovedProject; cause: unknown }[] = [];
       let restored = 0;
       for (const item of removed) {
-        const { row, entry } = item;
+        const { row } = item;
         try {
-          if (row.removal === "delete") {
-            await latest.current.service!.restoreProject(row.project.id, row.project.hostId);
-          } else {
-            // 无 projectId 的旧入口没有远端身份，重新登记会变成另一个项目，只能报失败。
-            if (!entry?.projectId || !latest.current.remoteService)
-              throw new Error("project.undo-unavailable");
-            await latest.current.remoteService.addEntry({
-              hostId: entry.hostId,
-              ...(item.membershipId ? { expectedMembershipId: item.membershipId } : {}),
-              project: { projectId: entry.projectId, name: entry.name, roots: entry.roots },
-            });
-          }
+          await latest.current.service!.restoreProject(row.project.id, row.project.hostId);
           restored++;
         } catch (cause) {
           failed.push({ item, cause });

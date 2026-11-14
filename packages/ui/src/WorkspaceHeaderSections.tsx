@@ -1,21 +1,8 @@
 import { useSessionRuntimeRestart } from "@/app-shell/useWorkspaceSessionReload.js";
-import { useOptionalProjectSelectionDirectory } from "@/project-sidebar/index.js";
-import { resolveWorkspaceRemoteSessionId } from "@/lib/workspaceServiceResolver.js";
-import { RemoteConnectionStateIcon } from "@/remote-connection/RemoteConnectionStateIcon.js";
-import { useRemoteProjectPresentationFacts } from "@/hooks/RemoteProjectPresentationContext.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
-import {
-  formatRemoteDeviceName,
-  resolveRemoteConnectionPresentation,
-} from "@/lib/remoteConnectionPresentation.js";
 import { WorkspaceContextPath } from "@/WorkspaceHeaderSections/WorkspaceContextPath.js";
 import { WorkspaceLastActivity } from "@/WorkspaceHeaderSections/WorkspaceLastActivity.js";
 /* eslint-disable max-lines -- Header 标题区当前同时承载 task 菜单、路径上下文和 workspace 级状态提示，先保持单文件收口，避免菜单链路迁移时再引入回归。 */
-import {
-  parseRemoteWorkspaceIdentity,
-  remoteHostIdFromWorkspaceIdentity,
-  type ZCodeTaskMeta,
-} from "@zcode/shared";
+import { type ZCodeTaskMeta } from "@zcode/shared";
 import {
   TID_WORKSPACE_MORE_BUTTON,
   TID_WORKSPACE_PATH,
@@ -59,8 +46,6 @@ import {
   useDataSyncDeviceOnline,
   useDataSyncEntry,
 } from "@/data-sync/index.js";
-import { useSourceServerDisplayNames } from "@/hooks/useSourceServerDisplayNames.js";
-import { useRemoteDevicePresentationInput } from "@/hooks/useSourceServerStatuses.js";
 
 export type { WorkspaceHeaderState, WorkspaceHeaderTitleSectionProps };
 export {
@@ -184,41 +169,7 @@ export function WorkspaceHeaderTitleSection({
   const remoteWorkspaceHostLabel = remoteTarget
     ? formatRemoteWorkspaceHeaderHostLabel(remoteTarget)
     : null;
-  const sourceServerDisplayNames = useSourceServerDisplayNames();
-  const sourceServerId = parseRemoteWorkspaceIdentity(workspaceIdentity ?? "")?.sourceServerId;
-  const sourceServerDisplayName = sourceServerId
-    ? sourceServerDisplayNames.get(sourceServerId)?.trim()
-    : undefined;
-  const deviceInput = useRemoteDevicePresentationInput(sourceServerId);
-  // 远控 tab 只携带身份，bridge 已在身份索引登记；直接读 tab sessionId 会误报断线。
-  const attached = useRemoteWorkspaceSessionStore((state) => {
-    const sessionId = resolveWorkspaceRemoteSessionId(
-      { workspacePath: workspaceAbsPath, workspaceIdentity, remoteSessionId, remoteTarget },
-      state,
-    );
-    return Boolean(sessionId && state.sessionsById[sessionId]?.services);
-  });
-  // 远控没有 Source 管理服务，设备名称复用窗口目录；精确 Host 身份避免同路径串设备。
-  const projectDirectory = useOptionalProjectSelectionDirectory();
-  const hostId = remoteHostIdFromWorkspaceIdentity(workspaceIdentity ?? "");
-  const directoryTarget = projectDirectory?.directory.hosts.find(
-    (host) => host.id === hostId,
-  )?.target;
-  const projectFacts = useRemoteProjectPresentationFacts(
-    workspaceIdentity?.trim() || workspaceAbsPath,
-  );
-  const presentation = resolveRemoteConnectionPresentation({
-    ...deviceInput,
-    attached,
-    ...projectFacts,
-  });
-  const remoteStatusLabel = presentation.recovery
-    ? intl.formatMessage({ id: presentation.recovery.messageId }, presentation.recovery.values)
-    : intl.formatMessage({ id: presentation.shortMessageId });
   const workspaceDisplayLabel = formatRemoteWorkspaceDisplayLabel(projectName, remoteTarget);
-  const remoteDeviceName =
-    formatRemoteDeviceName(remoteTarget ?? directoryTarget ?? undefined, sourceServerDisplayName) ??
-    intl.formatMessage({ id: "workspaceSidebar.remoteProject" });
   // worktree 任务的头部标识只读当前任务的 worktree 根目录（docs/git/worktree.md §3.7）。
   const managedWorktreeLabel =
     activeTaskMeta?.taskId === activeTaskId
@@ -356,9 +307,7 @@ export function WorkspaceHeaderTitleSection({
               className="flex w-full min-w-0 flex-col gap-3 text-left"
             >
               <span className="flex min-w-0 items-start gap-2">
-                {isRemoteWorkspace ? (
-                  <RemoteConnectionStateIcon presentation={presentation} project />
-                ) : managedWorktree ? (
+                {managedWorktree ? (
                   <FolderGit2 className="size-4 shrink-0" />
                 ) : (
                   <Folder className="size-4 shrink-0" />
@@ -367,22 +316,6 @@ export function WorkspaceHeaderTitleSection({
                   <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                     {workspaceContextLabel}
                   </span>
-                  {isRemoteWorkspace ? (
-                    <span className="inline-flex w-fit min-w-0 max-w-full items-center gap-1 rounded-full bg-surface py-px pl-1.5 pr-2 text-ui-sm font-normal text-foreground-subtle">
-                      <span className={cn("size-1.5 shrink-0 rounded-full", presentation.dot)} />
-                      <span className="truncate">{remoteDeviceName}</span>
-                      {presentation.status !== "online" ? (
-                        <span>
-                          {presentation.recovery
-                            ? intl.formatMessage(
-                                { id: presentation.recovery.messageId },
-                                presentation.recovery.values,
-                              )
-                            : intl.formatMessage({ id: presentation.shortMessageId })}
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
                   {workspaceContextOpen && isRemoteWorkspace ? (
                     <span
                       data-workspace-context-path=""
@@ -423,29 +356,16 @@ export function WorkspaceHeaderTitleSection({
           <Button
             type="button"
             variant="ghost"
-            size={isRemoteWorkspace ? "sm" : compact ? "icon-sm" : "icon-md"}
-            className={
-              isRemoteWorkspace
-                ? "min-w-0 max-w-40 gap-1.5 px-1.5 text-foreground-subtle"
-                : undefined
-            }
+            size={compact ? "icon-sm" : "icon-md"}
             data-testid={TID_WORKSPACE_PATH}
             // 上下文信息改为 tooltip 承载后，这个按钮不再有 DOM title；工作区绝对路径
             // 是 e2e 判定“header 属于哪个工作区”的唯一锚点（aria-label 只有显示名），
             // 因此单独用数据属性暴露，避免和 tooltip 争抢原生提示。
             data-workspace-abs-path={workspaceAbsPath}
-            aria-description={isRemoteWorkspace ? remoteStatusLabel : undefined}
             aria-label={[workspaceContextLabel, workspaceBranchLabel].filter(Boolean).join(" · ")}
             onClick={() => setWorkspaceContextOpen(true)}
           >
-            {isRemoteWorkspace ? (
-              <>
-                <RemoteConnectionStateIcon presentation={presentation} project />
-                <span data-workspace-device-name="" className="min-w-0 truncate text-ui-sm">
-                  {remoteDeviceName}
-                </span>
-              </>
-            ) : managedWorktree ? (
+            {managedWorktree ? (
               <FolderGit2 className="size-4 text-foreground-subtle" />
             ) : (
               <Folder className="size-4 text-foreground-subtle" />

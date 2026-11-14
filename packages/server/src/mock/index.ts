@@ -46,7 +46,6 @@ import {
   IProjectService,
   IProviderProvisioningTargetService,
   IProviderSettingsService,
-  IRemoteProjectService,
   ISettingService,
   ISettingsSyncService,
   ISkillSyncService,
@@ -62,7 +61,6 @@ import {
   IWindowControllerService,
   IWindowProjectChangesService,
   IWindowProjectService,
-  IWindowRemoteProjectService,
   IZCodeAgentService,
   IZCodeSessionService,
   IZCodeTaskService,
@@ -117,7 +115,6 @@ import {
   MockOnboardingRecordService,
   MockProjectService,
   MockPromptAttachmentTransferService,
-  MockRemoteProjectService,
   MockSourceServerManagementService,
   MockSourceServerWorkspaceService,
   MockTaskGroupService,
@@ -172,9 +169,7 @@ export function createMockServices(options: MockServicesOptions): {
   services.register(IProjectService, new MockProjectService(runtime));
   services.register(ITaskGroupService, new MockTaskGroupService());
   services.register(IManagedWorktreeService, new MockManagedWorktreeService());
-  services.register(IRemoteProjectService, new MockRemoteProjectService());
   services.register(IWindowProjectService, new MockProjectService(runtime));
-  services.register(IWindowRemoteProjectService, new MockRemoteProjectService());
   services.register(IWindowProjectChangesService, new MockWindowProjectChangesService());
   services.register(IWindowControllerService, new MockWindowControllerService(runtime));
   services.register(ISourceServerWorkspaceService, new MockSourceServerWorkspaceService());

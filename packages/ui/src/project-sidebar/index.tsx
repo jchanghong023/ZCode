@@ -6,17 +6,9 @@ export { ProjectManagement } from "@/project-sidebar/ProjectManagement.js";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
 import { TID_SIDEBAR } from "@zcode/shared/test-ids";
-import { remoteHostIdFromWorkspaceIdentity } from "@/project-sidebar/contract.js";
-import type {
-  ProjectSidebarProps,
-  VirtualProject,
-  Theme,
-  RemoteProjectHost,
-} from "@/project-sidebar/contract.js";
+import type { ProjectSidebarProps, VirtualProject, Theme } from "@/project-sidebar/contract.js";
 import { useProjectPinIntent } from "@/project-sidebar/useProjectPinIntent.js";
 import { ProjectTaskListContext } from "@/project-sidebar/ProjectTaskListContext.js";
-import { useProjectRemoteSync } from "@/project-sidebar/useProjectRemoteSync.js";
-import { useProjectConnectionDiagnostics } from "@/project-sidebar/useProjectConnectionDiagnostics.js";
 import { useProjectDirectory } from "@/project-sidebar/ProjectDirectoryProvider.js";
 export {
   ProjectDirectoryProvider,
@@ -33,7 +25,6 @@ import {
   selectSortedProjects,
   projectKey,
   projectHasUnread,
-  projectSourceServerId,
 } from "@/project-sidebar/view.js";
 import { TaskGroupedView } from "@/project-sidebar/TaskGroupedView.js";
 import { taskGroupKey } from "@/project-sidebar/grouped-view.js";
@@ -46,7 +37,6 @@ import { ProjectCreation } from "@/project-sidebar/ProjectCreation.js";
 import { ProjectEditor } from "@/project-sidebar/ProjectEditor.js";
 import { ManagedWorktreesDialog } from "@/project-sidebar/ManagedWorktreesDialog.js";
 import { useManagedWorktreeService } from "@/project-sidebar/useManagedWorktrees.js";
-import { RemoteProjectPicker } from "@/project-sidebar/RemoteProjectPicker.js";
 import { ProjectSections } from "@/project-sidebar/ProjectSections.js";
 import { ProjectSidebarListHeader } from "@/project-sidebar/ProjectSidebarListHeader.js";
 import { ProjectSidebarNavigation } from "@/project-sidebar/ProjectSidebarNavigation.js";
@@ -55,9 +45,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
-export { attachRemoteProjectWorkspace } from "@/project-sidebar/remote-navigation.js";
-export { useRemoteWorkspaceConnectionGate } from "@/project-sidebar/useRemoteWorkspaceConnectionGate.js";
-export { resolveEntryProject } from "@/project-sidebar/view.js";
 export type {
   SidebarFileTreeOpenRequest,
   ProjectSidebarProps,
@@ -67,22 +54,15 @@ export type {
 export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebarProps) {
   const {
     tree: authoritativeTree,
-    directory,
     service,
-    remoteService,
-    availability,
-    hostReadErrors,
     refresh,
     error,
     loading,
     preferences,
     groups,
-    deviceNames,
   } = useProjectDirectory();
   const { tree, pin } = useProjectPinIntent(authoritativeTree);
-  const remoteSync = useProjectRemoteSync(directory);
-  const diagnostics = useProjectConnectionDiagnostics(directory, props, hostReadErrors);
-  const navigateToTask = useProjectTaskNavigation(props, tree, remoteService);
+  const navigateToTask = useProjectTaskNavigation(props);
   useAppControlNavigation(props, tree, navigateToTask);
   const onSelectTask = useCallback<ProjectSidebarProps["onSelectTask"]>(
     (...args) => {
@@ -103,16 +83,7 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
   const managedWorktreeService = useManagedWorktreeService();
   // 入口条件：桌面且 Host 提供服务；是否 Git 仓库交给弹窗空状态表达。
   const canManageWorktrees = Boolean(managedWorktreeService && props.isDesktop);
-  // 当前任务只影响远端“创建项目”的默认设备；分组继承在点击时读，
-  // 避免本地会话/草稿切换让全部项目的菜单与 Tooltip 重渲染。
-  const hasActiveRemoteTask = useZCodeSessionStore((state) =>
-    Boolean(
-      props.workspaceIdentity &&
-      state.workspaces[props.workspaceIdentity.trim() || props.workspacePath]?.activeTaskId,
-    ),
-  );
-  const [remotePicker, setRemotePicker] = useState<RemoteProjectHost | null>(null);
-  const { openFiles, openTaskFiles } = useProjectFileTree(props, directory, remoteService);
+  const { openFiles, openTaskFiles } = useProjectFileTree(props);
   const taskPresentation = useMemo(
     () => ({
       activeWorkspaceKey: props.workspaceIdentity?.trim() || props.workspacePath,
@@ -121,7 +92,7 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
     }),
     [props.workspacePath, props.workspaceIdentity, pin, openTaskFiles],
   );
-  const start = async (projectId?: string, hostId?: string, taskGroupId?: string | null) => {
+  const start = async (projectId?: string, taskGroupId?: string | null) => {
     const activeTaskId = useZCodeSessionStore
       .getState()
       .getWorkspaceState(props.workspacePath, props.workspaceIdentity).activeTaskId;
@@ -143,14 +114,10 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
     props.onCreateTask({
       projectId: projectId ?? null,
       taskGroupId: taskGroupId === undefined ? inheritedGroup : taskGroupId,
-      ...(hostId ? { hostId } : {}),
     });
   };
   const projects = preferences.sort(selectSortedProjects(tree));
-  const expandableProjects = projects.filter(
-    (project) => availability.get(projectKey(project))?.online !== false,
-  );
-  const hasExpandedProjects = expandableProjects.some(preferences.isExpanded);
+  const hasExpandedProjects = projects.some(preferences.isExpanded);
   const reorder = (active: string, over: string) => {
     const source = projects.find((item) => projectKey(item) === active);
     const target = projects.find((item) => projectKey(item) === over);
@@ -165,28 +132,20 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
     <ProjectSidebarNode
       key={projectKey(project)}
       project={project}
-      deviceLabel={deviceNames.get(projectSourceServerId(project) ?? "")}
-      remoteHost={directory.hosts.find((host) => host.id === project.hostId)}
-      diagnostics={diagnostics.get(project.hostId)}
       expanded={preferences.isExpanded(project)}
       onExpandedChange={preferences.setExpanded}
       hasUnread={projectHasUnread(authoritativeTree, project)}
-      availability={availability.get(projectKey(project))}
       tasks={selectProjectRows(tree, {
         kind: "project",
         projectId: project.id,
-        hostId: project.hostId,
       })}
       onSelect={onSelectTask}
       refresh={refresh}
       service={service}
-      remoteService={remoteService}
       isDesktop={props.isDesktop}
       onCreateTask={props.onCreateTask}
-      onReconnectRemoteWorkspace={props.onReconnectRemoteWorkspace}
       onEdit={setEditor}
       onViewFiles={openFiles}
-      remoteActions={remoteSync.actions}
       onOpenWorktrees={canManageWorktrees ? setWorktreeProject : undefined}
     />
   );
@@ -239,7 +198,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
                           <ProjectSections
                             tree={tree}
                             projects={projects}
-                            directory={directory}
                             renderProject={renderProject}
                             onReorder={reorder}
                             loading={loading}
@@ -248,9 +206,9 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
                             onCreate={() => action(() => start())}
                             onAddProject={() => setCreating(true)}
                             hasExpandedProjects={hasExpandedProjects}
-                            canToggleProjects={expandableProjects.length > 0}
+                            canToggleProjects={projects.length > 0}
                             onToggleProjects={() =>
-                              preferences.setAllExpanded(expandableProjects, !hasExpandedProjects)
+                              preferences.setAllExpanded(projects, !hasExpandedProjects)
                             }
                           />
                         </>
@@ -272,9 +230,7 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
                             workspacePath={props.workspacePath}
                             workspaceIdentity={props.workspaceIdentity}
                             onOpenAutomations={props.onOpenAutomations}
-                            onCreate={(groupId) =>
-                              action(() => start(undefined, undefined, groupId))
-                            }
+                            onCreate={(groupId) => action(() => start(undefined, groupId))}
                           />
                         </>
                       ) : (
@@ -317,33 +273,14 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
               />
             </div>
           </div>
-          {creating && service && remoteService ? (
+          {creating && service ? (
             <ProjectCreation
               workspacePath={props.workspacePath}
               workspaceIdentity={props.workspaceIdentity}
               onCreateTask={props.onCreateTask}
-              directory={directory}
-              defaultDeviceId={
-                hasActiveRemoteTask && props.workspaceIdentity
-                  ? (remoteHostIdFromWorkspaceIdentity(props.workspaceIdentity) ?? "local")
-                  : "local"
-              }
-              allowDeviceManagement={props.isDesktop === true}
               projects={tree.projects}
               service={service}
-              remoteService={remoteService}
-              onOpenRemoteWorkspace={props.onOpenRemoteWorkspace}
               onClose={() => setCreating(false)}
-              onSaved={refresh}
-            />
-          ) : null}
-          {remotePicker && service && remoteService ? (
-            <RemoteProjectPicker
-              key={remotePicker.membershipId}
-              host={remotePicker}
-              service={service}
-              remoteService={remoteService}
-              onClose={() => setRemotePicker(null)}
               onSaved={refresh}
             />
           ) : null}
@@ -351,10 +288,7 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
             <ProjectEditor
               key={editor.project?.id ?? "new"}
               project={editor.project}
-              host={directory.hosts.find((host) => host.id === editor.project?.hostId)}
-              projects={tree.projects.filter(
-                (project) => !availability.get(projectKey(project))?.entryId,
-              )}
+              projects={tree.projects}
               service={service}
               onClose={() => setEditor(null)}
               onSaved={refresh}
@@ -370,7 +304,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
               onOpenTask={onSelectTask}
             />
           ) : null}
-          {remoteSync.dialog}
         </aside>
       </SidebarTooltipProvider>
     </ProjectTaskListContext.Provider>

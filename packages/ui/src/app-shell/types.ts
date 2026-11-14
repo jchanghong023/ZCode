@@ -9,9 +9,6 @@ import type {
   GitChangeSourceId,
   DesktopWindowChromeState,
   IPlatformService,
-  RemoteTarget,
-  SourceServerUpdateTarget,
-  RemoteWorkspaceSessionEntry,
   UpdateStatePayload,
   UserInfo,
 } from "@zcode/shared";
@@ -33,7 +30,6 @@ import type {
   WorkspaceSidePaneState,
 } from "@/lib/workspaceSidePane.js";
 import type { WorkspaceZCodeUIState } from "@/store/zcodeSessionStore.js";
-import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import type { Theme } from "@/useTheme.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -60,7 +56,6 @@ export interface WorkspaceShellZCodeState {
 export interface CreateTaskOptions {
   /** Renderer 发起方租约；异步准备期间取消或换草稿后不得导航。 */
   isCurrent?: () => boolean;
-  remoteProjectMembershipId?: string;
   /** 只在目标准备和新草稿导航完成后通知发起界面；不自动发送。 */
   onComplete?: () => void;
   onError?: (error: unknown) => void;
@@ -96,84 +91,11 @@ export interface CreateTaskOptions {
 
 export type CreateTaskRequest = ZCodeProvider | CreateTaskOptions;
 
-export interface RemoteWorkspaceRecoveryStatus {
-  mode: "automatic" | "manual";
-  attempt?: number;
-  limit?: number;
-}
-
-/** 仅用于 Renderer 连接反馈，不传入 Host 的恢复/遥测协议。 */
-export interface RemoteConnectionFeedbackOptions {
-  announceReusedConnection?: boolean;
-}
-
-export type DeviceAdditionResult =
-  | { kind: "connected"; sourceServerId: string | undefined }
-  | { kind: "cancelled"; background?: boolean };
-
-/** 仅当前 renderer 内存中的原 owner 引用；不序列化草稿或凭据。 */
-export interface DeviceAdditionReturnTarget {
-  /**
-   * 已有设备连接留在原项目页；只有新增设备往返设置。
-   * data-sync：从「设置 → 数据同步」发起（连接已有设备或新增设备），完成后留在数据同步页，
-   * 不跳到「远程设备」页。
-   */
-  kind: "connect-device" | "add-device" | "data-sync";
-  isCurrent(): boolean;
-  /** 只投递连接层可见性；原 owner 决定自己的提交门禁。 */
-  onVisibilityChange?(visible: boolean): void;
-  /** 返回导航前由原 owner 校验异步成员资格；Root 随后重验原意图。 */
-  canFinish?(result: DeviceAdditionResult): Promise<boolean>;
-  finish(result: DeviceAdditionResult): void | Promise<void>;
-}
-
-export interface RemoteConnectionOpenPreference {
-  returnTarget?: DeviceAdditionReturnTarget;
-  /** 完成意图由发起入口确定；凭据、安装和重试不得替换它。 */
-  completion?: "device-management";
-  /** 原地重连交接的失败/等待事实；打开时只展示，不自动重发。 */
-  initialFailure?: {
-    code?: string;
-    message: string;
-    logs?: RemoteConnectionLogEntry[];
-    profileId?: string;
-    /** 交接前固定的非敏感失败身份，不从最新 Profile 重建。 */
-    failedTarget?: SourceServerUpdateTarget;
-    resolvedWslTarget?: Required<Extract<RemoteTarget, { kind: "wsl" }>>;
-  };
-  /** 已有项目的连接意图；安装、升级和凭据交互结束后仍打开该目录。 */
-  preferredDirectoryPath?: string;
-  preferredWorkspaceTabId?: string;
-  /** 未加载 tab 的已保存项目；完成后恢复该入口，不进入新建项目选择。 */
-  preferredProjectEntryId?: string;
-  preferredTarget?: RemoteTarget;
-  preferredKind?: RemoteTarget["kind"];
-  preferredWslDistro?: string;
-  preferredSourceServerId?: string;
-  /** 用户从设备/连接记录点击“连接”时精确选择的 Profile；弹窗消费后直达第 4 步。 */
-  preferredProfileId?: string;
-}
-
 export interface AppProps {
   services: IServiceAccessor;
-  onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
-  onSelectRemoteProject: (
-    sessionId: string,
-    path: string,
-    localWorkspacePath?: string,
-    preparedWorkspaceIdentity?: string,
-    isCurrent?: () => boolean | Promise<boolean>,
-  ) => Promise<void>;
-  onCancelRemoteProject: (sessionId: string) => Promise<void>;
-  onReconnectRemoteWorkspace: (workspaceKey: string) => Promise<void>;
   onLogout?: () => void;
   onLogin?: () => void;
   user?: UserInfo | null;
-  reconnectingRemoteWorkspaceKeys: string[];
-  remoteWorkspaceRecoveryByWorkspaceKey?: Record<string, RemoteWorkspaceRecoveryStatus>;
-  remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
-
-  remoteConnectionLogs?: RemoteConnectionLogEntry[];
   onCreateTask: (request?: CreateTaskRequest) => void;
   onCreateConversationTask?: () => void;
   onCreateConversationTaskOnSource?: (sourceServerId: string) => void;
@@ -184,13 +106,9 @@ export interface AppProps {
   }>;
   onOpenWorkspace: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
-  onOpenRemoteWorkspace?: (preference?: RemoteConnectionOpenPreference) => void | boolean;
-  remoteConnectionInProgress?: boolean;
   onReturnToWorkspace?: () => void;
   allowOpenWorkspace?: boolean;
   initialSidebarFileTreeOpen?: boolean;
-  allowRemoteWorkspace?: boolean;
-  remoteWorkspaceSessions?: RemoteWorkspaceSessionEntry[];
   workspaceAbsPath: string;
   workspaceRemoteSessionId?: string;
   workspaceIdentity?: string;

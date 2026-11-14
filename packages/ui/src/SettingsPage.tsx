@@ -1,6 +1,5 @@
 import { useSetInterfaceModeWithTelemetry } from "@/lib/appTelemetry.js";
 import { DataSyncSection } from "@/data-sync/index.js";
-import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
 /* oxlint-disable eslint(max-lines) */
 import { ArrowLeft, type LucideIcon } from "lucide-react";
 import {
@@ -43,15 +42,12 @@ import {
   clearPendingSettingsPluginOrigin,
   clearPendingSettingsPluginScopeKey,
   consumeInitialSettingsSection,
-  consumePendingSettingsSourceServerId,
-  consumePendingSettingsSourceServerDetails,
   consumePendingSettingsPluginOrigin,
   consumePendingSettingsPluginScopeKey,
   consumePendingSettingsPluginTab,
   consumePendingSettingsModelProviderTarget,
   consumePendingSettingsUsageTab,
   resolveSettingsSection,
-  setPendingSettingsSectionIntent,
   shouldFallbackSettingsUsageTabToApp,
   writeLastSettingsSectionPreference,
   type SettingsModelProviderTarget,
@@ -62,12 +58,7 @@ import {
   resolveEntitledAccountProviderAccessFingerprint,
 } from "@/lib/accountProviderAccess.js";
 import { buildUsageEntitlementCacheKey } from "@/lib/usageEntitlementCache.js";
-import {
-  ArchiveManagement,
-  ProjectManagement,
-  useOptionalProjectDirectory,
-} from "@/project-sidebar/index.js";
-import { resolveRecentRemoteProjectPreference } from "@/project-sidebar/remote-project-connection.js";
+import { ArchiveManagement, ProjectManagement } from "@/project-sidebar/index.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import { UsageStatsSection, type UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
@@ -112,7 +103,7 @@ import { useSelectDirectory } from "@/hooks/usePlatform.js";
 import { ServiceProvider, useServices } from "@/hooks/useServices.js";
 import { DEFAULT_APP_TOOL_SEARCH_MODE, type AppToolSearchMode } from "@zcode/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
-import type { CreateTaskRequest, RemoteConnectionOpenPreference } from "@/app-shell/types.js";
+import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { resolveModelProviderConnectivityWorkspacePath } from "@/lib/modelProviderConnectivityTarget.js";
 import {
@@ -123,9 +114,7 @@ import {
   isSettingsSectionAvailable,
   resolveSettingsSectionForPlatform,
 } from "@/settingsPageHelpers.js";
-import { SourceServerManagementPanel } from "@/settings/SourceServerManagementPanel.js";
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
-import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { AppearanceSectionContent } from "./settingsCodePreview.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
@@ -299,7 +288,6 @@ export function SettingsPage({
   captionWorkspacePath,
   onBack,
   onCreateTask,
-  onOpenRemoteWorkspace,
   onLogin,
   onLogout,
   user,
@@ -313,7 +301,6 @@ export function SettingsPage({
   /** 设置页内跳转到指定会话（分享管理「跳转对话」）；Root 注入。 */
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenWorkspace?: () => void;
-  onOpenRemoteWorkspace?: (preference?: RemoteConnectionOpenPreference) => void;
   /** 远程设备卡「新任务」：激活该设备已打开的 tab 并开新草稿（Root 注入）。 */
   allowOpenWorkspace?: boolean;
   onLogin?: () => void;
@@ -325,7 +312,6 @@ export function SettingsPage({
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);
   const platform = usePlatform();
-  const remoteWorkspaceController = useOptionalRemoteWorkspaceController();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(() => {
     const initialSection = consumeInitialSettingsSection("general");
     const visibleInitialSection = resolveSettingsSectionForPlatform(
@@ -337,13 +323,7 @@ export function SettingsPage({
     writeLastSettingsSectionPreference(visibleInitialSection);
     return visibleInitialSection;
   });
-  const [targetSourceServerId, setTargetSourceServerId] = useState(
-    consumePendingSettingsSourceServerId,
-  );
   const [searchTarget, setSearchTarget] = useState<{ id: SettingsSearchId } | null>(null);
-  const [targetSourceServerDetails, setTargetSourceServerDetails] = useState(
-    consumePendingSettingsSourceServerDetails,
-  );
   const [pluginTab, setPluginTab] = useState(() => consumePendingSettingsPluginTab());
   const settingsNavRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -416,8 +396,6 @@ export function SettingsPage({
   const setFontSmoothingEnabled = useZCodeStore((state) => state.setFontSmoothingEnabled);
   const uiFontSizePx = useZCodeStore((state) => state.uiFontSizePx);
   const setUiFontSizePx = useZCodeStore((state) => state.setUiFontSizePx);
-  const hideProjectDeviceNames = useZCodeStore((state) => state.hideProjectDeviceNames);
-  const setHideProjectDeviceNames = useZCodeStore((state) => state.setHideProjectDeviceNames);
   const notificationEnabled = useZCodeStore((state) => state.notificationEnabled);
   const setNotificationEnabled = useZCodeStore((state) => state.setNotificationEnabled);
   const notificationSoundEnabled = useZCodeStore((state) => state.notificationSoundEnabled);
@@ -678,7 +656,6 @@ export function SettingsPage({
   );
   const navigateToSettingsSection = (section: SettingsSectionId, setting?: SettingsSearchId) => {
     setPluginNavigationOrigin(undefined);
-    setTargetSourceServerId(undefined);
     setSettingsSectionNavigationVersion((version) => version + 1);
     setActiveSettingsSection(section);
     if (setting) setSearchTarget({ id: setting });
@@ -697,8 +674,6 @@ export function SettingsPage({
     setActiveSettingsSection("usage");
   }, [setActiveSettingsSection]);
   const activeWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
-  const activateTab = useTabStore((state) => state.activateTab);
-  const openSettingsTab = useTabStore((state) => state.openSettingsTab);
   const tabs = useTabStore((state) => state.tabs);
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
   // Settings 打开后 activeTab 会变成 settings，本地反查 activeTab 读 identity 会稳定丢失。
@@ -741,7 +716,6 @@ export function SettingsPage({
   const selectDirectory = useSelectDirectory();
   const services = useServices();
   const localHostServices = useBaseWorkspaceServices();
-  const projectDirectory = useOptionalProjectDirectory();
   // SettingsPage 可能挂在远端 workspace 的 ServiceProvider 下；共享设置属于本机 Host，
   // 读写必须固定走本机 settingService，否则会写进远端 setting。
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings({
@@ -836,10 +810,6 @@ export function SettingsPage({
         setActiveSettingsSection(section, activeSection);
         // 设置入口是一级路由边界。即使仍落在同一 section，也必须销毁旧的 New/Edit/Detail 子状态。
         setSettingsSectionNavigationVersion((version) => version + 1);
-        setTargetSourceServerId(section === "remoteDevices" ? detail?.sourceServerId : undefined);
-        setTargetSourceServerDetails(
-          section === "remoteDevices" && detail?.sourceServerDetails === true,
-        );
         if (section === "usage" && detail?.usageTab) {
           setUsageActiveTab(detail.usageTab);
         }
@@ -1780,127 +1750,9 @@ export function SettingsPage({
                               <DataSyncSection
                                 snapshot={sourceManagementSnapshot}
                                 deviceSyncStateService={localHostServices.deviceSyncStateService}
-                                onOpenRemoteConnection={onOpenRemoteWorkspace}
                                 onOpenMigration={requestMigrationDialog}
                               />
                             ) : null
-                          ) : activeSection === "remoteDevices" ? (
-                            sharedSettings && isDesktop && sourceManagement ? (
-                              <SourceServerManagementPanel
-                                key={`remote:${settingsSectionNavigationVersion}`}
-                                targetSourceServerId={targetSourceServerId}
-                                targetSourceServerDetails={targetSourceServerDetails}
-                                onTargetSourceServerFocused={() => {
-                                  setTargetSourceServerId(undefined);
-                                  setTargetSourceServerDetails(false);
-                                }}
-                                management={sourceManagement}
-                                onCreateConnection={
-                                  onOpenRemoteWorkspace
-                                    ? () =>
-                                        onOpenRemoteWorkspace({ completion: "device-management" })
-                                    : undefined
-                                }
-                                onConnectProfile={
-                                  remoteWorkspaceController
-                                    ? (profileId) =>
-                                        remoteWorkspaceController.dispatch({
-                                          type: "connect-device",
-                                          profileId,
-                                          effect: "device-management",
-                                        })
-                                    : onOpenRemoteWorkspace
-                                      ? (profileId) =>
-                                          onOpenRemoteWorkspace({
-                                            preferredProfileId: profileId,
-                                            completion: "device-management",
-                                          })
-                                      : undefined
-                                }
-                                onDisconnectSource={
-                                  remoteWorkspaceController
-                                    ? (sourceServerId) =>
-                                        remoteWorkspaceController.dispatch({
-                                          type: "disconnect-device",
-                                          sourceServerId,
-                                        })
-                                    : undefined
-                                }
-                                onOpenProject={
-                                  onOpenRemoteWorkspace
-                                    ? async (sourceServerId, path, profileId) => {
-                                        // 仅传目录会被 Root 当成新建；复用侧栏唯一目录 owner，同步固定原入口。
-                                        const preference =
-                                          projectDirectory &&
-                                          resolveRecentRemoteProjectPreference(
-                                            projectDirectory.directory,
-                                            {
-                                              sourceServerId,
-                                              path,
-                                              profileId,
-                                            },
-                                          );
-                                        if (!preference) {
-                                          throw Object.assign(
-                                            new Error("remote-project.entry-not-found"),
-                                            {
-                                              code: "recent-project-unresolved",
-                                            },
-                                          );
-                                        }
-                                        onBack?.();
-                                        onOpenRemoteWorkspace(preference);
-                                      }
-                                    : undefined
-                                }
-                                onShowUpdateDetails={(sourceServerId) => {
-                                  setPendingSettingsSectionIntent("remoteDevices", {
-                                    sourceServerId,
-                                    sourceServerDetails: true,
-                                  });
-                                  openSettingsTab();
-                                }}
-                                workspaceTabs={workspaceTabs}
-                                onShowInSidebar={(sourceServerId) => {
-                                  const target = workspaceTabs.find(
-                                    (tab) =>
-                                      getWorkspaceSourceServerId(tab, {
-                                        workspaceHistory:
-                                          sourceManagementSnapshot?.workspaceHistory,
-                                      }) === sourceServerId,
-                                  );
-                                  onBack?.();
-                                  if (target) {
-                                    activateTab(target.id);
-                                    requestAnimationFrame(() => {
-                                      const row = Array.from(
-                                        document.querySelectorAll<HTMLElement>(
-                                          "[data-remote-project-identity]",
-                                        ),
-                                      ).find(
-                                        (element) =>
-                                          element.dataset.remoteProjectIdentity ===
-                                          target.workspaceIdentity,
-                                      );
-                                      row?.scrollIntoView({ block: "center" });
-                                      row
-                                        ?.querySelector<HTMLElement>('[role="button"]')
-                                        ?.focus({ preventScroll: true });
-                                    });
-                                  }
-                                }}
-                                settings={sharedSettings}
-                                onUpdateSettings={updateSharedSettings}
-                                hideProjectDeviceNames={hideProjectDeviceNames}
-                                onHideProjectDeviceNamesChange={setHideProjectDeviceNames}
-                              />
-                            ) : (
-                              <p className="text-ui-sm text-remote-foreground-muted">
-                                {intl.formatMessage({
-                                  id: sharedSettings ? "settings.source.empty" : "common.loading",
-                                })}
-                              </p>
-                            )
                           ) : activeSection === "appearance" ? (
                             <AppearanceSectionContent
                               isMacDesktop={Boolean(isDesktop && isMacDesktop)}

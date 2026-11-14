@@ -1,4 +1,3 @@
-import type { IRemoteProjectService } from "#src/remote-projects/contract.js";
 import type { ITaskGroupService } from "#src/task-groups/contract.js";
 import type { WindowProjectDirectoryServices } from "#src/window-project-directory/contract.js";
 import type { IProjectService } from "#src/project/contract.js";
@@ -68,7 +67,6 @@ export interface IServiceAccessor {
   readonly projectService?: IProjectService;
   /** 受管 worktree 管理；仅本地桌面 Host 提供，手机与旧 Host 缺省。 */
   readonly managedWorktreeService?: IManagedWorktreeService;
-  readonly remoteProjectService?: IRemoteProjectService;
   readonly windowProjectDirectory?: WindowProjectDirectoryServices;
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;

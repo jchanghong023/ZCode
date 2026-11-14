@@ -19,28 +19,15 @@ interface RootWorkspaceContentProps {
   workspaceRemoteSessionId?: string;
   activeWorkspacePath: string | null;
   isSettingsTabActive: boolean;
-  handleConnectRemote: AppProps["onConnectRemote"];
-  handleSelectRemoteProject: AppProps["onSelectRemoteProject"];
-  handleCancelRemoteProject: AppProps["onCancelRemoteProject"];
-  handleReconnectRemoteWorkspace: AppProps["onReconnectRemoteWorkspace"];
   handleCreateTask: AppProps["onCreateTask"];
   handleCreateConversationTask: NonNullable<AppProps["onCreateConversationTask"]>;
   handleResolveConversationWorkspace: NonNullable<AppProps["onResolveConversationWorkspace"]>;
   handleOpenWorkspace: AppProps["onOpenWorkspace"];
   handleOpenFolderFromWorkspaceMenu: AppProps["onOpenFolderFromWorkspaceMenu"];
-  handleOpenRemoteWorkspace?: AppProps["onOpenRemoteWorkspace"];
-  remoteConnectionInProgress?: AppProps["remoteConnectionInProgress"];
-  remoteWorkspaceSessions: NonNullable<AppProps["remoteWorkspaceSessions"]>;
-  allowRemoteWorkspace: NonNullable<RootProps["allowRemoteWorkspace"]>;
   handleBackFromSettings: () => void;
   handleLogout?: () => void;
   onLogin?: () => void;
   user: AppProps["user"];
-  reconnectingRemoteWorkspaceKeys: AppProps["reconnectingRemoteWorkspaceKeys"];
-  remoteWorkspaceRecoveryByWorkspaceKey: AppProps["remoteWorkspaceRecoveryByWorkspaceKey"];
-  remoteWorkspaceErrorByWorkspaceKey: AppProps["remoteWorkspaceErrorByWorkspaceKey"];
-
-  remoteConnectionLogs?: AppProps["remoteConnectionLogs"];
   allowOpenWorkspace: NonNullable<RootProps["allowOpenWorkspace"]>;
   initialSidebarFileTreeOpen?: boolean;
   isDesktop?: RootProps["isDesktop"];
@@ -56,28 +43,15 @@ export function RootWorkspaceContent({
   workspaceRemoteSessionId,
   activeWorkspacePath,
   isSettingsTabActive,
-  handleConnectRemote,
-  handleSelectRemoteProject,
-  handleCancelRemoteProject,
-  handleReconnectRemoteWorkspace,
   handleCreateTask,
   handleCreateConversationTask,
   handleResolveConversationWorkspace,
   handleOpenWorkspace,
   handleOpenFolderFromWorkspaceMenu,
-  handleOpenRemoteWorkspace,
-  remoteConnectionInProgress,
-  remoteWorkspaceSessions,
-  allowRemoteWorkspace,
   handleBackFromSettings,
   handleLogout,
   onLogin,
   user,
-  reconnectingRemoteWorkspaceKeys,
-  remoteWorkspaceRecoveryByWorkspaceKey,
-  remoteWorkspaceErrorByWorkspaceKey,
-
-  remoteConnectionLogs,
   allowOpenWorkspace,
   initialSidebarFileTreeOpen,
   isDesktop,
@@ -137,17 +111,9 @@ export function RootWorkspaceContent({
             >
               <StableWorkspaceApp
                 services={workspaceScopedServices}
-                onConnectRemote={handleConnectRemote}
-                onSelectRemoteProject={handleSelectRemoteProject}
-                onCancelRemoteProject={handleCancelRemoteProject}
-                onReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
                 onLogout={handleLogout}
                 onLogin={onLogin}
                 user={user}
-                reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-                remoteWorkspaceRecoveryByWorkspaceKey={remoteWorkspaceRecoveryByWorkspaceKey}
-                remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
-                remoteConnectionLogs={remoteConnectionLogs}
                 workspaceAbsPath={workspaceShellPath}
                 workspaceRemoteSessionId={workspaceRemoteSessionId}
                 workspaceIdentity={workspaceIdentity}
@@ -156,13 +122,9 @@ export function RootWorkspaceContent({
                 onResolveConversationWorkspace={handleResolveConversationWorkspace}
                 onOpenWorkspace={handleOpenWorkspace}
                 onOpenFolderFromWorkspaceMenu={handleOpenFolderFromWorkspaceMenu}
-                onOpenRemoteWorkspace={handleOpenRemoteWorkspace}
-                remoteConnectionInProgress={remoteConnectionInProgress}
                 onReturnToWorkspace={handleBackFromSettings}
                 allowOpenWorkspace={allowOpenWorkspace}
                 initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
-                allowRemoteWorkspace={allowRemoteWorkspace}
-                remoteWorkspaceSessions={remoteWorkspaceSessions}
                 isWorkspaceVisible={!isSettingsTabActive}
                 isDesktop={isDesktop}
                 isMacDesktop={isMacDesktop}
@@ -190,7 +152,6 @@ export function RootWorkspaceContent({
             onBack={activeWorkspacePath ? handleBackFromSettings : undefined}
             onCreateTask={handleCreateTask}
             onOpenWorkspace={handleOpenWorkspace}
-            onOpenRemoteWorkspace={handleOpenRemoteWorkspace}
             allowOpenWorkspace={allowOpenWorkspace}
             onLogin={onLogin}
             onLogout={handleLogout}

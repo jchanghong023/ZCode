@@ -440,30 +440,6 @@ export function createOpenInEditorRemoteTarget(
   }
 }
 
-export interface WSLDistro {
-  name: string;
-  isDefault: boolean;
-  state: string;
-  version: 1 | 2 | null;
-}
-
-export interface DockerContainerInfo {
-  id: string;
-  image: string;
-  name: string;
-  state: string;
-  status: string;
-}
-
-export interface SSHConfigAliasOption {
-  alias: string;
-  host?: string;
-  port?: number;
-  username?: string;
-  privateKeyPath?: string;
-  source?: string;
-}
-
 export interface ZCodeStdioTapDevState {
   enabled: boolean;
   visible: boolean;
@@ -563,16 +539,6 @@ export interface DesktopWindowChromeState {
 
 export interface RemoteServiceSession {
   sessionId: string;
-}
-
-export interface RemoteConnectionRuntimeLog {
-  label: string;
-  requestId?: string;
-  sessionId?: string;
-  level: "info" | "warn" | "error";
-  source: string;
-  message: string;
-  timestamp: string;
 }
 
 export interface RemoteSessionClosedEvent {
@@ -685,19 +651,6 @@ export interface EmbeddedBrowserSitePermissionUpdateRequest {
 
 export interface EmbeddedBrowserSitePermissionResetRequest {
   origin: string;
-}
-
-export interface ConnectRemoteRequest {
-  target: RemoteTarget;
-  requestId?: string;
-  workspacePath?: string;
-  workspaceIdentity?: string;
-  connectTrigger?: import("./remoteUsageTelemetry.js").RemoteWorkspaceConnectTrigger;
-  confirmSourceServerInstall?: boolean;
-}
-
-export interface CancelPendingRemoteConnectionRequest {
-  requestId?: string;
 }
 
 export interface BindRemoteWorkspaceSessionContextRequest {
@@ -876,9 +829,6 @@ export interface IPlatformService {
     payload: MaterializeWorkflowArtifactFileRequest,
   ): Promise<MaterializeWorkflowArtifactFileResult>;
 
-  /** 订阅当前窗口内远程连接过程日志，返回 disposer */
-  onRemoteConnectionLog(handler: (entry: RemoteConnectionRuntimeLog) => void): () => void;
-
   /** 订阅远程 workspace session 关闭事件，返回 disposer */
   onRemoteSessionClosed(handler: (event: RemoteSessionClosedEvent) => void): () => void;
 
@@ -888,35 +838,8 @@ export interface IPlatformService {
   /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
   activateOrSetWorkspace(path: string): Promise<{ activated: boolean }>;
 
-  /** 建立远程连接（Desktop: 在当前窗口创建远程 session；Web: HTTP API） */
-  connectRemote(
-    options: RemoteTarget,
-    requestId?: string,
-    context?: {
-      workspacePath?: string;
-      workspaceIdentity?: string;
-      connectTrigger?: import("./remoteUsageTelemetry.js").RemoteWorkspaceConnectTrigger;
-      confirmSourceServerInstall?: boolean;
-    },
-  ): Promise<{
-    success: boolean;
-    error?: string;
-    reasonCode?: string;
-    retryable?: boolean;
-    sessionId?: string;
-    /** 本次直接复用的在线连接目标，凭据不参与认证也不得持久化。 */
-    reusedConnectionTarget?: RemoteTarget;
-    /** 安装/升级等待时由 Host 确认的实际连接线路。 */
-    profileId?: string;
-    /** WSL 安装/升级等待使用本次已解析身份；预览失败也不能重新选择系统默认值。 */
-    resolvedWslTarget?: Required<WSLConnectOptions>;
-  }>;
-
   /** Desktop-only：请求在线 Source 的无 workspace 配置 attachment。 */
   requestSourceSettingsAttachment?(sourceServerId: string): Promise<{ attachmentId: string }>;
-
-  /** 取消当前窗口尚未建立完成的远程连接（可选：Web 平台可忽略） */
-  cancelPendingRemoteConnection?(requestId?: string): Promise<void>;
 
   /** 将 canonical workspace 身份绑定到已创建的远程 logical session。 */
   bindRemoteWorkspaceSessionContext?(
@@ -925,18 +848,6 @@ export interface IPlatformService {
 
   /** 释放当前窗口里已创建的远程 session */
   disposeRemoteSession(sessionId: string): Promise<void>;
-
-  /** 检查本机 Docker daemon 是否可用 */
-  isDockerAvailable(): Promise<boolean>;
-
-  /** 列出本机可用的 WSL 发行版 */
-  listWSLDistros(): Promise<WSLDistro[]>;
-
-  /** 列出当前可连接的 Docker 容器 */
-  listDockerContainers(): Promise<DockerContainerInfo[]>;
-
-  /** 列出当前机器 SSH config 中可用于快速填表的 alias */
-  listSSHConfigAliases(): Promise<SSHConfigAliasOption[]>;
 
   /** 读取宿主环境中的原生 MCP 用户目录配置；手机远控通过已连接桌面 host 转发。 */
   loadMcpFromUserDirectory?(

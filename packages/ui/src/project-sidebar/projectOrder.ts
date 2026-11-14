@@ -2,23 +2,11 @@
 export function reconcileProjectOrder(
   saved: readonly string[],
   current: readonly string[],
-  upgradeKeys?: ReadonlyMap<string, string>,
 ): string[] {
-  const retained = upgradeKeys?.size
-    ? saved.map((key) => {
-        try {
-          // 首次升级入口解析后 projectId/Host 会变化；按入口 ID 原位换键，不能当新项目追加到末尾。
-          const identity: unknown = JSON.parse(key);
-          return Array.isArray(identity) ? (upgradeKeys.get(identity[1]) ?? key) : key;
-        } catch {
-          return key;
-        }
-      })
-    : saved;
   // 手机等接收端没有创建页面的 prepend 回调；旧逻辑把新项目追加到末尾。
   // 仅将未记录的项目按目录顺序前插，已记录项目（包括暂时离线项）保留手动位置。
-  const existing = new Set(retained);
-  return [...new Set([...current.filter((key) => !existing.has(key)), ...retained])];
+  const existing = new Set(saved);
+  return [...new Set([...current.filter((key) => !existing.has(key)), ...saved])];
 }
 export function moveProjectOrder(
   saved: readonly string[],

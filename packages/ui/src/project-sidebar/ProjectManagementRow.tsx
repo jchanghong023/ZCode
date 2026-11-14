@@ -11,17 +11,16 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { REMOTE_KIND_PRESENTATION } from "@/remote-connection/RemoteConnectionTags.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatCountMessage,
   type ProjectManagementRow,
 } from "@/project-sidebar/project-management-view.js";
 import { ProjectFolderIcon } from "@/project-sidebar/ProjectFolderIcon.js";
-import type { RemoteProjectHost, VirtualProject } from "@/project-sidebar/contract.js";
+import type { VirtualProject } from "@/project-sidebar/contract.js";
 
-/** 表格列只在宽屏出现；窄屏把设备、会话和最近活动折成一行元信息。 */
-export const PROJECT_MANAGEMENT_GRID = "md:grid-cols-[1rem_minmax(0,1fr)_8rem_4.75rem_7rem_1.5rem]";
+/** 表格列只在宽屏出现；窄屏把会话和最近活动折成一行元信息。 */
+export const PROJECT_MANAGEMENT_GRID = "md:grid-cols-[1rem_minmax(0,1fr)_4.75rem_7rem_1.5rem]";
 const TAG =
   "inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-ui-xs";
 
@@ -44,36 +43,6 @@ export function useRelativeTime() {
       return format.format(-Math.floor(diff / unit[1]), unit[0]);
     };
   }, [locale]);
-}
-
-export function DeviceTag({ host, label }: { host?: RemoteProjectHost; label?: string }) {
-  const { intl } = useZCodeIntl();
-  if (!host)
-    return (
-      <span className="truncate text-ui-sm text-foreground-subtle">
-        {intl.formatMessage({ id: "project.thisComputer" })}
-      </span>
-    );
-  const presentation = host.kind === "server" ? undefined : REMOTE_KIND_PRESENTATION[host.kind];
-  const name = label ?? host.id;
-  return (
-    <span
-      data-remote-connection-kind={host.kind}
-      title={name}
-      className={cn(
-        TAG,
-        "min-w-0 max-w-full border",
-        presentation?.className ?? "border-transparent bg-surface-hover text-foreground-subtle",
-      )}
-    >
-      {presentation ? <presentation.Icon aria-hidden="true" className="size-3" /> : null}
-      <span className="truncate">
-        {host.kind === "server"
-          ? name
-          : `${intl.formatMessage({ id: `remote.kind.${host.kind}` })} · ${name}`}
-      </span>
-    </span>
-  );
 }
 
 function ReasonTag({ row }: { row: ProjectManagementRow }) {
@@ -160,13 +129,7 @@ export function ProjectManagementListRow({
     intl.formatMessage({ id: `projectManagement.${id}` }, values);
   const { project } = row;
   const removable = row.removal !== null;
-  const known = row.sessions !== null;
-  const sessions = known ? String(row.sessions) : "—";
-  const lastActive = !known
-    ? "—"
-    : row.lastActiveAt === null
-      ? msg("never")
-      : relative(row.lastActiveAt, now);
+  const lastActive = row.lastActiveAt === null ? msg("never") : relative(row.lastActiveAt, now);
   const primary = project.roots.find((root) => root.isPrimary) ?? project.roots[0];
   const others = project.roots.filter((root) => root !== primary);
   const iconClass = "mt-0.5 hidden size-4 shrink-0 text-foreground-subtle md:mt-0 md:block";
@@ -225,39 +188,16 @@ export function ProjectManagementListRow({
             </div>
           ) : null}
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm text-foreground-subtle md:hidden">
-            {row.host ? (
-              <DeviceTag host={row.host} label={row.deviceLabel} />
-            ) : (
-              <span>{intl.formatMessage({ id: "project.thisComputer" })}</span>
-            )}
+            <span>{formatCountMessage(intl, "projectManagement.sessionsCount", row.sessions)}</span>
             <span aria-hidden="true">·</span>
-            <span>
-              {known
-                ? formatCountMessage(intl, "projectManagement.sessionsCount", row.sessions!)
-                : msg("offline")}
-            </span>
-            {known ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{lastActive}</span>
-              </>
-            ) : null}
+            <span>{lastActive}</span>
           </span>
         </div>
       </div>
-      <div className="hidden min-w-0 md:flex">
-        <DeviceTag host={row.host} label={row.deviceLabel} />
-      </div>
-      <span
-        className="hidden text-right text-ui-sm tabular-nums text-foreground-subtle md:block"
-        title={known ? undefined : msg("offline")}
-      >
-        {sessions}
+      <span className="hidden text-right text-ui-sm tabular-nums text-foreground-subtle md:block">
+        {row.sessions}
       </span>
-      <span
-        className="hidden truncate text-right text-ui-sm text-foreground-subtle md:block"
-        title={known ? undefined : msg("offline")}
-      >
+      <span className="hidden truncate text-right text-ui-sm text-foreground-subtle md:block">
         {lastActive}
       </span>
       <div>

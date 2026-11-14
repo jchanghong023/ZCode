@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { IServiceAccessor } from "@zcode/services";
+import type { SourceServerManagementSnapshot } from "@zcode/shared";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { useRemoteDevicePresentationInputs } from "@/hooks/useSourceServerStatuses.js";
+import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
-import {
-  formatRemoteDeviceName,
-  resolveRemoteConnectionPresentation,
-} from "@/lib/remoteConnectionPresentation.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
 import type {
@@ -97,6 +94,30 @@ function normalizeInitialScopeKey(key: string | undefined): string | null {
   return trimmed && trimmed !== LOCAL_USER_SCOPE_KEY ? trimmed : null;
 }
 
+/** 设备名与在线状态都只取自管理快照：在线 = 该设备当前 Profile 的连接状态为 online。 */
+function buildDeviceStates(
+  snapshot: SourceServerManagementSnapshot | null,
+): SettingsScopeDeviceState[] {
+  if (!snapshot) return [];
+  return snapshot.servers.map((server) => {
+    const profiles = snapshot.profiles.filter(
+      (profile) =>
+        profile.sourceServerId === server.sourceServerId && profile.lifecycleState !== "retired",
+    );
+    const profile =
+      profiles.find((item) => item.profileId === server.preferredProfileId) ?? profiles[0];
+    return {
+      sourceServerId: server.sourceServerId,
+      name: server.displayName,
+      online: profile
+        ? snapshot.states.some(
+            (state) => state.profileId === profile.profileId && state.state === "online",
+          )
+        : false,
+    };
+  });
+}
+
 /**
  * 设置页 Scope 的唯一状态 owner（插件 / MCP / 技能 / 命令 / 子智能体 / 钩子共用）。
  *
@@ -119,17 +140,10 @@ export function useSettingsScope(params: {
   const base = useBaseWorkspaceServices();
   const remoteUserAvailable = Boolean(useOptionalPlatform()?.requestSourceSettingsAttachment);
   const { targets, loaded: catalogLoaded } = useConfigWorkspaceTargets();
-  const inputs = useRemoteDevicePresentationInputs();
-  const devices = useMemo<SettingsScopeDeviceState[]>(
-    () =>
-      [...inputs.entries()].map(([sourceServerId, input]) => ({
-        sourceServerId,
-        name: formatRemoteDeviceName(input.target, input.displayName) ?? sourceServerId,
-        // 与数据同步页设备行的「已连接」判断一致：只取自管理快照。
-        online: resolveRemoteConnectionPresentation(input).status === "online",
-      })),
-    [inputs],
+  const { snapshot: deviceSnapshot } = useSourceServerManagementSnapshot(
+    base.sourceServerManagementService,
   );
+  const devices = useMemo(() => buildDeviceStates(deviceSnapshot), [deviceSnapshot]);
   const context = useMemo(
     () => ({ targets, devices, remoteUserAvailable }),
     [devices, remoteUserAvailable, targets],

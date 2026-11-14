@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from "react";
-import type { DeviceSyncResult, SourceServerWorkspaceHistoryEntry } from "@zcode/shared";
-import {
-  formatRemoteConnectionDescription,
-  formatRemoteDeviceName,
-  resolveRemoteConnectionPresentation,
-  type RemoteConnectionPresentationInput,
-} from "@/lib/remoteConnectionPresentation.js";
+import type {
+  ConnectionProfile,
+  DeviceSyncResult,
+  SourceServerManagementSnapshot,
+  SourceServerProfileTarget,
+  SourceServerWorkspaceHistoryEntry,
+} from "@zcode/shared";
 import { logger } from "@/logger.js";
 import {
   ensureSourceSettingsServices,
@@ -22,23 +22,59 @@ import type {
 } from "@/data-sync/contract.js";
 import { DataSyncDialog } from "@/data-sync/ui/DataSyncDialog.js";
 
-/** 设备行与入口共用：名称与「传输方式 · 地址」取自管理快照的同一份展示输入。 */
-export function toDataSyncDeviceSummary(
+/** 设备当前生效的 Profile：优先 Preferred，其次第一条未退役；不连接设备，只读快照。 */
+function activeProfileOf(
+  snapshot: SourceServerManagementSnapshot | null,
   sourceServerId: string,
-  input: RemoteConnectionPresentationInput,
-  fallbackName?: string,
+): ConnectionProfile | undefined {
+  if (!snapshot) return undefined;
+  const server = snapshot.servers.find((item) => item.sourceServerId === sourceServerId);
+  const profiles = snapshot.profiles.filter(
+    (profile) => profile.sourceServerId === sourceServerId && profile.lifecycleState !== "retired",
+  );
+  return (
+    profiles.find((profile) => profile.profileId === server?.preferredProfileId) ?? profiles[0]
+  );
+}
+
+function formatProfileTarget(target?: SourceServerProfileTarget): string {
+  if (!target) return "";
+  switch (target.kind) {
+    case "ssh":
+      return `SSH · ${target.username}@${target.host}${target.port ? `:${target.port}` : ""}`;
+    case "wsl":
+      return ["WSL", target.distro, target.user].filter(Boolean).join(" · ");
+    case "docker":
+      return `Docker · ${target.container}`;
+  }
+}
+
+/** 设备行与入口共用：名称与「传输方式 · 地址」取自管理快照的同一份设备记录。 */
+export function toDataSyncDeviceSummary(
+  snapshot: SourceServerManagementSnapshot | null,
+  sourceServerId: string,
 ): DataSyncDeviceSummary {
+  const server = snapshot?.servers.find((item) => item.sourceServerId === sourceServerId);
+  const profile = activeProfileOf(snapshot, sourceServerId);
   return {
     sourceServerId,
-    name: formatRemoteDeviceName(input.target, input.displayName) ?? fallbackName ?? sourceServerId,
-    description: formatRemoteConnectionDescription(input.target),
-    ...(input.target ? { remoteKind: input.target.kind } : {}),
+    name: server?.displayName ?? profile?.displayName ?? sourceServerId,
+    description: formatProfileTarget(profile?.target),
+    ...(profile?.target ? { remoteKind: profile.target.kind } : {}),
   };
 }
 
-/** 设备是否在线：与设备行的「已连接」判断一致，只取自管理快照。 */
-export function isDataSyncDeviceOnline(input: RemoteConnectionPresentationInput): boolean {
-  return resolveRemoteConnectionPresentation(input).status === "online";
+/** 设备是否在线：该设备当前 Profile 的连接状态为 online，只取自管理快照。 */
+export function isDataSyncDeviceOnline(
+  snapshot: SourceServerManagementSnapshot | null,
+  sourceServerId: string,
+): boolean {
+  const profile = activeProfileOf(snapshot, sourceServerId);
+  return profile
+    ? (snapshot?.states.some(
+        (state) => state.profileId === profile.profileId && state.state === "online",
+      ) ?? false)
+    : false;
 }
 
 /** 每次推送结束写入设备同步状态；它是设备行「上次同步」的唯一数据源。 */

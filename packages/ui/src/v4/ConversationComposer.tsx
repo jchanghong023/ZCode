@@ -7,8 +7,6 @@ import { StoreContext } from "@/store/StoreProvider.js";
 import { toTelemetryUiMode } from "@/lib/appTelemetry.js";
 import { ComposerSubmissionPendingContext } from "@/project-sidebar/index.js";
 /* oxlint-disable eslint(max-lines) -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
-import { useRemoteProjectReconnect } from "@/hooks/RemoteProjectPresentationContext.js";
-import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
@@ -611,8 +609,6 @@ function ConversationComposerImpl({
   onDropTargetControllerChange,
 }: ConversationComposerProps) {
   const remoteAvailable = useRemoteConversationAvailable();
-  const remoteController = useOptionalRemoteWorkspaceController();
-  const reconnectProject = useRemoteProjectReconnect();
   const [targetSelectionPending, setTargetSelectionPending] = useState(false);
   const targetSelectionPendingRef = useRef(false);
   const updateTargetSelectionPending = useCallback((pending: boolean) => {
@@ -2734,18 +2730,6 @@ function ConversationComposerImpl({
         <div className="mb-6 w-full shrink-0">
           <ChatErrorBanner
             error={visibleError}
-            onReconnect={
-              reconnectProject || remoteController
-                ? () => {
-                    const request = reconnectProject
-                      ? reconnectProject(workspaceKey)
-                      : remoteController?.dispatch({ type: "reconnect-workspace", workspaceKey });
-                    void request?.catch((error: unknown) =>
-                      logger.warn("[v4-composer] 项目重连失败", { error }),
-                    );
-                  }
-                : undefined
-            }
             onRetry={onRetryError}
             onDismiss={onDismissError}
             onOpenModelSettings={onOpenModelSettings}

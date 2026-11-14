@@ -6,7 +6,7 @@ import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 import { filterWorkspaceTabsForSettingsSource } from "@/settings/settingsSourceWorkspace.js";
 import { logger } from "@/logger.js";
-const EMPTY: ConfigCatalogSnapshot = { projects: [], directory: { hosts: [], entries: [] } };
+const EMPTY: ConfigCatalogSnapshot = { projects: [] };
 
 export function useConfigWorkspaceTargets(sourceServerId?: string | null) {
   const services = useBaseWorkspaceServices();
@@ -25,7 +25,6 @@ export function useConfigWorkspaceTargets(sourceServerId?: string | null) {
         if (!services.projectService) throw new Error("project.service-unavailable");
         const result = await readConfigCatalog({
           projectService: services.projectService,
-          remoteProjectService: services.remoteProjectService,
         });
         if (serial === request) setLoaded({ services, snapshot: result });
       } catch (error) {

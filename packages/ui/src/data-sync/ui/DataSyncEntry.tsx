@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from "react";
-import { BlocksIcon, CableIcon, ChevronDown, UploadCloud, WandIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+import { BlocksIcon, CableIcon, WandIcon } from "lucide-react";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { useRemoteDevicePresentationInput } from "@/hooks/useSourceServerStatuses.js";
+import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { DataSyncCategoryId, DataSyncDialogRequest } from "@/data-sync/contract.js";
 import { isDataSyncDeviceOnline } from "@/data-sync/ui/DataSyncDialogContainer.js";
@@ -22,10 +17,13 @@ export type DataSyncEntryCategory = Extract<DataSyncCategoryId, "skills" | "mcp"
 
 export type DataSyncEntryRequest = DataSyncDialogRequest;
 
-/** 设备在线判断与数据同步页一致：取自管理快照的同一份展示输入；不会为此建立连接。 */
+/** 设备在线判断与数据同步页一致：取自管理快照；不会为此建立连接。 */
 export function useDataSyncDeviceOnline(sourceServerId: string | null | undefined): boolean {
-  const input = useRemoteDevicePresentationInput(sourceServerId ?? undefined);
-  return input ? isDataSyncDeviceOnline(input) : false;
+  const management = useBaseWorkspaceServices().sourceServerManagementService;
+  const { snapshot } = useSourceServerManagementSnapshot(management, {
+    enabled: Boolean(sourceServerId),
+  });
+  return sourceServerId ? isDataSyncDeviceOnline(snapshot, sourceServerId) : false;
 }
 
 /**
@@ -74,7 +72,7 @@ const ENTRY_ITEMS: ReadonlyArray<{
   { category: "plugins", messageId: "remote.syncPlugins", icon: BlocksIcon },
 ];
 
-/** Header 更多菜单与连接向导下拉共用的三个同步项；设备离线时禁用。 */
+/** Header 更多菜单共用的三个同步项；设备离线时禁用。 */
 export function DataSyncEntryMenuItems(props: {
   disabled?: boolean;
   stopMouseDownPropagation?: boolean;
@@ -99,33 +97,5 @@ export function DataSyncEntryMenuItems(props: {
         </DropdownMenuItem>
       ))}
     </>
-  );
-}
-
-/** 连接向导「一键同步」下拉。 */
-export function DataSyncEntryDropdownButton(props: {
-  disabled?: boolean;
-  onSelect(category: DataSyncEntryCategory): void;
-}) {
-  const { intl } = useZCodeIntl();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="gap-1"
-          data-testid="data-sync-entry-trigger"
-        >
-          <UploadCloud className="size-3.5" aria-hidden="true" />
-          {intl.formatMessage({ id: "remote.syncAll" })}
-          <ChevronDown className="size-3.5 text-foreground-subtle" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DataSyncEntryMenuItems disabled={props.disabled} onSelect={props.onSelect} />
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

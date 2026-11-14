@@ -301,8 +301,12 @@ export function DataSyncDialog(props: DataSyncDialogProps) {
                     aria-hidden="true"
                   />
                   <span className="truncate">{props.device.name}</span>
-                  <span className="text-foreground-subtlest">·</span>
-                  <span className="truncate">{props.device.description}</span>
+                  {props.device.description ? (
+                    <>
+                      <span className="text-foreground-subtlest">·</span>
+                      <span className="truncate">{props.device.description}</span>
+                    </>
+                  ) : null}
                 </div>
               </div>
               {offline ? (

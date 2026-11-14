@@ -1,4 +1,3 @@
-import { RemoteTaskDeviceLabel } from "@/remote-connection/RemoteTaskDeviceLabel.js";
 /* eslint-disable max-lines -- task item 同时承载默认列表和 timeline 两行布局的共享交互，先保持动作链路集中避免归档/置顶回归。 */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -55,7 +54,6 @@ import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
 import { TaskTitleOverflowText } from "@/components/TaskTitleOverflowText.js";
 import { createTaskWorkbenchDragPreview } from "@/lib/taskWorkbenchDragPreview.js";
-import { resolveTaskSourceLabel } from "@/lib/taskSourceAttribution.js";
 import { logger } from "@/logger.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
@@ -74,7 +72,6 @@ interface TaskListItemProps {
   isActive: boolean;
   isMobileActive?: boolean;
   hoverEnabled?: boolean;
-  connectionOverlay?: "disconnected" | "reconnecting";
   onSelectTask: (taskId: string) => void;
   onArchiveTaskInline: (e: React.MouseEvent, taskId: string) => void;
   onCancelArchiveConfirm: () => void;
@@ -91,14 +88,6 @@ interface TaskListItemProps {
   actionsDisabled?: boolean;
   actionsDisabledReason?: string;
   renameOnDoubleClick?: boolean;
-}
-
-export function shouldShowRemoteConnectionOverlay(params: {
-  workspaceIdentity?: string;
-  connectionOverlay?: "disconnected" | "reconnecting";
-}): boolean {
-  const workspaceIdentity = params.workspaceIdentity?.trim() ?? "";
-  return Boolean(workspaceIdentity.startsWith("remote:") && params.connectionOverlay);
 }
 
 function areJsonFieldsEqual(left: unknown, right: unknown) {
@@ -125,7 +114,6 @@ function areTaskListItemTaskFieldsEqual(left: ZCodeTaskMeta, right: ZCodeTaskMet
     left.unreadAt === right.unreadAt &&
     getTaskAutomationIdentity(left) === getTaskAutomationIdentity(right) &&
     left.status === right.status &&
-    resolveTaskSourceLabel(left) === resolveTaskSourceLabel(right) &&
     areJsonFieldsEqual(left.pendingInteraction, right.pendingInteraction) &&
     areJsonFieldsEqual(getTaskListRowActivity(left), getTaskListRowActivity(right)) &&
     areJsonFieldsEqual(left.changeSummary, right.changeSummary)
@@ -142,7 +130,6 @@ function areTaskListItemPropsEqual(left: TaskListItemProps, right: TaskListItemP
     left.isActive === right.isActive &&
     left.isMobileActive === right.isMobileActive &&
     left.hoverEnabled === right.hoverEnabled &&
-    left.connectionOverlay === right.connectionOverlay &&
     left.isArchiveConfirming === right.isArchiveConfirming &&
     left.variant === right.variant &&
     left.showPinAction === right.showPinAction &&
@@ -171,7 +158,6 @@ export const MemoTaskItem = memo(function TaskListItem({
   isActive,
   isMobileActive = false,
   hoverEnabled = true,
-  connectionOverlay,
   onSelectTask,
   onArchiveTaskInline,
   onCancelArchiveConfirm,
@@ -277,7 +263,6 @@ export const MemoTaskItem = memo(function TaskListItem({
           { label: taskAttentionLabel, count: String(taskAttention.count) },
         )
       : taskAttentionLabel;
-  const taskSourceLabel = resolveTaskSourceLabel(task);
   const taskTitle =
     task.title ||
     intl.formatMessage({
@@ -439,18 +424,6 @@ export const MemoTaskItem = memo(function TaskListItem({
   const taskTimeLabel = formatTaskRelativeTime(task.updatedAt, intl);
   const taskChangeSummary = getTaskChangeSummary(task);
   const isRemoteTask = Boolean(task.workspaceIdentity?.trim());
-  const remoteConnectionUnavailable = shouldShowRemoteConnectionOverlay({
-    workspaceIdentity: task.workspaceIdentity,
-    connectionOverlay,
-  });
-  const remoteConnectionBadge = remoteConnectionUnavailable ? (
-    <Badge
-      data-remote-connection-overlay="true"
-      className="h-5 shrink-0 border-transparent bg-warning-surface px-2 text-ui-xs font-medium text-warning-surface-foreground"
-    >
-      {intl.formatMessage({ id: "taskList.remoteConnectionUnknown" })}
-    </Badge>
-  ) : null;
   const archiveLabel = intl.formatMessage({
     id: isArchiveConfirming
       ? "common.confirm"
@@ -701,7 +674,6 @@ export const MemoTaskItem = memo(function TaskListItem({
                 </span>
               </ControlHintTooltip>
             ) : null}
-            {remoteConnectionBadge}
             <TaskTitleOverflowText
               className="text-ui-base text-foreground"
               title={taskTitleWithChanges}
@@ -727,14 +699,6 @@ export const MemoTaskItem = memo(function TaskListItem({
               <span className="truncate" data-task-workspace-label="true">
                 {worktreeLabel ?? workspaceLabel}
               </span>
-              {taskSourceLabel ? (
-                <>
-                  <span aria-hidden="true" className="text-foreground-subtlest">
-                    ·
-                  </span>
-                  <RemoteTaskDeviceLabel task={task} className="truncate" />
-                </>
-              ) : null}
             </div>
             <div className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
               {!hasPendingInteraction ? (
@@ -807,8 +771,6 @@ export const MemoTaskItem = memo(function TaskListItem({
                   </span>
                 </ControlHintTooltip>
               ) : null}
-              {/* 默认行与 timeline 共用远程断连投影，工作流多行布局不改变连接状态。 */}
-              {remoteConnectionBadge}
               <TaskTitleOverflowText
                 className="text-ui-base text-foreground"
                 title={taskTitleWithChanges}

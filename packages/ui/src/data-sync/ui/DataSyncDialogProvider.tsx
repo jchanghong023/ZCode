@@ -6,7 +6,7 @@ import {
   recordDataSyncResult,
   toDataSyncDeviceSummary,
 } from "@/data-sync/ui/DataSyncDialogContainer.js";
-import { useRemoteDevicePresentationInput } from "@/hooks/useSourceServerStatuses.js";
+import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 
@@ -71,12 +71,12 @@ function DataSyncSession({
 }) {
   const base = useBaseWorkspaceServices();
   const platform = useOptionalPlatform();
-  const input = useRemoteDevicePresentationInput(request.sourceServerId);
+  const { snapshot } = useSourceServerManagementSnapshot(base.sourceServerManagementService);
   return (
     <DataSyncDialogContainer
       {...presentation}
-      device={toDataSyncDeviceSummary(request.sourceServerId, input ?? {})}
-      online={input ? isDataSyncDeviceOnline(input) : false}
+      device={toDataSyncDeviceSummary(snapshot, request.sourceServerId)}
+      online={isDataSyncDeviceOnline(snapshot, request.sourceServerId)}
       sourceServices={base}
       requestSourceSettingsAttachment={platform?.requestSourceSettingsAttachment}
       initialCategory={request.category}

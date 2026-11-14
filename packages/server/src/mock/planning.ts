@@ -1,4 +1,4 @@
-// 模拟项目与规划类服务：项目目录、任务分组、受管 worktree、远端项目、
+// 模拟项目与规划类服务：项目目录、任务分组、受管 worktree、
 // 窗口任务列表、Source Server、闲时任务、Bots、会话分享、附件暂存、Onboarding。
 // 方法签名统一从对应服务接口派生（Parameters/ReturnType）。
 import { Emitter } from "@zcode/rpc";
@@ -14,7 +14,6 @@ import type {
   IOnboardingRecordService,
   IPromptAttachmentTransferService,
   IProjectService,
-  IRemoteProjectService,
   ISourceServerManagementService,
   ISourceServerWorkspaceService,
   ITaskGroupService,
@@ -222,42 +221,6 @@ export class MockManagedWorktreeService implements IManagedWorktreeService {
   }
 }
 
-export class MockRemoteProjectService implements IRemoteProjectService {
-  async readDirectory(): Promise<AR<IRemoteProjectService["readDirectory"]>> {
-    return asResult({ hosts: [], entries: [] });
-  }
-
-  async connectHost(_id: string): Promise<AR<IRemoteProjectService["connectHost"]>> {
-    throw new Error("mock: 远程项目未启用");
-  }
-
-  async saveHost(
-    _input: P<IRemoteProjectService["saveHost"]>,
-  ): Promise<AR<IRemoteProjectService["saveHost"]>> {
-    throw new Error("mock: 远程项目未启用");
-  }
-
-  async bindHost(
-    _input: P<IRemoteProjectService["bindHost"]>,
-  ): Promise<AR<IRemoteProjectService["bindHost"]>> {
-    throw new Error("mock: 远程项目未启用");
-  }
-
-  async removeHost(_id: string): Promise<void> {}
-
-  async addEntry(
-    _input: P<IRemoteProjectService["addEntry"]>,
-  ): Promise<AR<IRemoteProjectService["addEntry"]>> {
-    throw new Error("mock: 远程项目未启用");
-  }
-
-  async refreshEntry(_input: P<IRemoteProjectService["refreshEntry"]>): Promise<boolean> {
-    return false;
-  }
-
-  async removeEntry(_id: string): Promise<void> {}
-}
-
 export class MockWindowProjectChangesService implements IWindowProjectChangesService {
   private readonly changeEmitter = new Emitter<never>();
 
@@ -360,7 +323,7 @@ export class MockWindowControllerService implements IWindowControllerService {
   async listTaskList(
     _params: P<IWindowControllerService["listTaskList"]>,
   ): Promise<AR<IWindowControllerService["listTaskList"]>> {
-    return asResult({ tasks: [], total: 0, addresses: [] });
+    return asResult({ items: [], total: 0, hasMore: false });
   }
 
   async getTaskMeta(

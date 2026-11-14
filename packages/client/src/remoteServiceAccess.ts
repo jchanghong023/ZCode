@@ -17,7 +17,6 @@ import {
   IProjectService,
   IManagedWorktreeService,
   ITaskGroupService,
-  IRemoteProjectService,
   IConversationShareService,
   IBotsService,
   IFileWatcherService,
@@ -61,7 +60,6 @@ import {
   IPromptAttachmentTransferService,
   IWindowControllerService,
   IWindowProjectService,
-  IWindowRemoteProjectService,
   IWindowProjectChangesService,
   type WindowProjectDirectoryServices,
   type IServiceAccessor,
@@ -91,7 +89,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly taskGroupService: ITaskGroupService;
   readonly projectService: IProjectService;
   readonly managedWorktreeService?: IManagedWorktreeService;
-  readonly remoteProjectService: IRemoteProjectService;
   readonly conversationShareService: IConversationShareService;
   readonly botsService: IBotsService;
   readonly fileWatcherService: IFileWatcherService;
@@ -155,9 +152,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
         projectService: ProxyChannel.toService(
           channelClient.getChannel(IWindowProjectService.channelName),
         ),
-        remoteProjectService: ProxyChannel.toService(
-          channelClient.getChannel(IWindowRemoteProjectService.channelName),
-        ),
         changesService: ProxyChannel.toService(
           channelClient.getChannel(IWindowProjectChangesService.channelName),
         ),
@@ -203,9 +197,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.zcodeAgentService = ProxyChannel.toService<IZCodeAgentService>(
       channelClient.getChannel(IZCodeAgentService.channelName),
-    );
-    this.remoteProjectService = ProxyChannel.toService<IRemoteProjectService>(
-      channelClient.getChannel(IRemoteProjectService.channelName),
     );
     this.taskGroupService = ProxyChannel.toService<ITaskGroupService>(
       channelClient.getChannel(ITaskGroupService.channelName),

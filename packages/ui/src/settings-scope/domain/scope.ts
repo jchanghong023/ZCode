@@ -1,6 +1,5 @@
 import { remoteHostIdFromWorkspaceIdentity } from "@zcode/shared";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
-import { formatRemoteDeviceName } from "@/lib/remoteConnectionPresentation.js";
 import { getWorkspaceKey } from "@/lib/workspaceKey.js";
 import type {
   ConfigWorkspaceTarget,
@@ -73,7 +72,7 @@ function remoteDeviceOf(
       remoteHostIdFromWorkspaceIdentity(identity) ??
       (identity || target.workspacePath),
     sourceServerId,
-    name: record?.name ?? formatRemoteDeviceName(target.remoteTarget) ?? null,
+    name: record?.name ?? null,
   };
 }
 

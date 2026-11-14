@@ -1,29 +1,23 @@
 import { SidebarNativeTooltip, ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { ProjectIdentityHoverCard } from "@/project-sidebar/ProjectIdentityHoverCard.js";
-import { remoteHostLabel } from "@/project-sidebar/RemoteHostSection.js";
 import { memo } from "react";
 import type { useSortable } from "@dnd-kit/sortable";
 import {
   Ellipsis,
-  FolderMinus,
   Folders,
   ListTree,
   Pin,
   PinOff,
   Pencil,
-  Settings,
   Trash2,
   MessageCirclePlus,
 } from "lucide-react";
 import { ProjectFolderIcon } from "@/project-sidebar/ProjectFolderIcon.js";
-import { sourceServerConnectionStateSchema } from "@zcode/shared";
 import type {
   ProjectTask,
   VirtualProject,
   ProjectSidebarProps,
-  ProjectAvailability,
   ProjectRowAction,
-  RemoteProjectHost,
 } from "@/project-sidebar/contract.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -45,20 +39,12 @@ import {
 } from "@/components/ui/context-menu.js";
 import { ProjectTaskRows } from "@/project-sidebar/ProjectTaskRows.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { resolveRemoteConnectionPresentation } from "@/lib/remoteConnectionPresentation.js";
-import { RemoteConnectionStateIcon } from "@/remote-connection/RemoteConnectionStateIcon.js";
 import { ManagedWorktreeCreatingRows } from "@/managed-worktrees/index.js";
 
-// 修复原因：memo 内容的内联默认对象/数组会在每次渲染时新建引用，触发引用稳定性门禁。
-const DEFAULT_AVAILABILITY: ProjectAvailability = { online: true };
 const EMPTY_ADDITIONAL_ACTIONS: ProjectRowAction[] = [];
 
 export type ProjectNodeProps = {
   project: VirtualProject;
-  remoteHost?: RemoteProjectHost;
-  deviceLabel?: string;
-  hideDeviceName?: boolean;
-  diagnostics?: { error?: string };
   expanded: boolean;
   onExpandedChange(value: boolean): void;
   tasks: ProjectTask[];
@@ -72,10 +58,6 @@ export type ProjectNodeProps = {
   onMove(task: { workspacePath: string; workspaceIdentity?: string; taskId: string }): void;
   onSelect: ProjectSidebarProps["onSelectTask"];
   refresh(): Promise<void>;
-  availability?: ProjectAvailability;
-  onRemoveEntry?(): void;
-  /** 仅桌面端远程项目提供：从菜单或待处理详情跳到“设置 › 远程设备”。 */
-  onOpenDeviceSettings?(): void;
   /** 仅桌面端提供：跳到“设置 › 项目”批量管理。 */
   onManageProjects?(): void;
 };
@@ -84,10 +66,6 @@ export type ProjectNodeProps = {
 // 外壳只把稳定的激活器属性传入 memo 内容，位移和蓝线变化不穿透到整棵内容树。
 export const ProjectNodeContent = memo(function ProjectNodeContent({
   project,
-  remoteHost,
-  deviceLabel,
-  hideDeviceName = false,
-  diagnostics,
   tasks,
   hasUnread = false,
   onCreate,
@@ -97,9 +75,6 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
   onPin,
   onSelect,
   refresh,
-  availability = DEFAULT_AVAILABILITY,
-  onRemoveEntry,
-  onOpenDeviceSettings,
   onManageProjects,
   additionalActions = EMPTY_ADDITIONAL_ACTIONS,
   editable,
@@ -112,22 +87,10 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
   Pick<ReturnType<typeof useSortable>, "attributes" | "listeners" | "setActivatorNodeRef"> & {
     dragEnabled: boolean;
     editable: boolean;
-    canOpen: boolean;
     isOpen: boolean;
   }) {
   const { intl } = useZCodeIntl();
   const msg = (id: string) => intl.formatMessage({ id: `project.${id}` });
-  // 修复原因：新项目行曾无条件显示本地文件夹；远程图标只读 Host 现有投影，复用统一五态。
-  const remotePresentation = remoteHost
-    ? resolveRemoteConnectionPresentation({
-        state:
-          sourceServerConnectionStateSchema.safeParse(remoteHost.lastConnectionStatus).data ??
-          remoteHost.connectionStatus,
-        attached: availability.online,
-        upgradeTarget: remoteHost.upgradeTarget,
-        projectError: diagnostics?.error ?? remoteHost.lastConnectionError,
-      })
-    : undefined;
   const primaryRootDisabledReason =
     project.primaryRootStatus === "missing"
       ? msg("primaryRootMissing")
@@ -139,16 +102,6 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
   // 原因：右键是快捷入口的补充；与更多菜单共用操作定义，避免再次删掉 hover 功能。
   const management: ProjectRowAction[] = [
     ...additionalActions,
-    ...(onOpenDeviceSettings
-      ? [
-          {
-            id: "device-settings",
-            label: msg("deviceSettings"),
-            icon: Settings,
-            run: onOpenDeviceSettings,
-          },
-        ]
-      : []),
     ...(editable
       ? [
           { id: "edit", label: msg("edit"), icon: Pencil, run: onEdit },
@@ -160,10 +113,6 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
           },
           { id: "delete", label: msg("delete"), icon: Trash2, run: onDelete, destructive: true },
         ]
-      : []),
-    // 可编辑的远程项目菜单与本地项目一致；从本机移除只在不能删除项目时（离线、legacy 单 root）兜底。
-    ...(!editable && availability.entryId && onRemoveEntry
-      ? [{ id: "remove-entry", label: msg("removeEntry"), icon: FolderMinus, run: onRemoveEntry }]
       : []),
     ...(onManageProjects
       ? [
@@ -186,18 +135,14 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
     disabled: Boolean(primaryRootDisabledReason) || !onViewFiles,
   }));
   const contextActions = [
-    ...(availability.online
-      ? [
-          {
-            id: "create-task",
-            label: msg("createTask"),
-            icon: MessageCirclePlus,
-            run: onCreate,
-            disabled: Boolean(primaryRootDisabledReason),
-          },
-          ...files,
-        ]
-      : []),
+    {
+      id: "create-task",
+      label: msg("createTask"),
+      icon: MessageCirclePlus,
+      run: onCreate,
+      disabled: Boolean(primaryRootDisabledReason),
+    },
+    ...files,
     ...management,
   ];
   return (
@@ -205,12 +150,8 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
       <ContextMenu modal={false}>
         {/* 标题区域不含行尾按钮，作为锚点时浮层会遮住操作；以整行边界定位，保留更多/新建入口可点击。 */}
         <ProjectIdentityHoverCard
-          host={remoteHost}
           title={project.name}
-          deviceName={deviceLabel}
           paths={project.roots.map((root) => root.rootPath)}
-          connectionError={diagnostics?.error}
-          onOpenDeviceSettings={onOpenDeviceSettings}
         >
           <ContextMenuTrigger asChild>
             <div
@@ -259,35 +200,22 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
                           project.pinned && "group-hover/project-row:hidden",
                         )}
                       >
-                        {remotePresentation ? (
-                          <RemoteConnectionStateIcon presentation={remotePresentation} project />
-                        ) : (
-                          <ProjectFolderIcon
-                            rootCount={project.roots.length}
-                            open={isOpen}
-                            className="size-4 shrink-0 text-foreground-subtle"
-                          />
-                        )}
+                        <ProjectFolderIcon
+                          rootCount={project.roots.length}
+                          open={isOpen}
+                          className="size-4 shrink-0 text-foreground-subtle"
+                        />
                       </span>
                       {project.pinned ? (
                         <Pin className="hidden size-4 text-foreground-subtle group-hover/project-row:block" />
                       ) : null}
                     </span>
-                    {/* 不同字号按框居中会让设备名基线上浮；文字单独对齐基线，外层图标仍居中。 */}
                     <span className="flex min-w-0 items-baseline gap-2">
                       <span className="truncate text-ui-base text-foreground-subtle">
                         {project.name}
                       </span>
-                      {remoteHost && !hideDeviceName ? (
-                        <span
-                          data-testid="project-device"
-                          className="max-w-24 truncate text-ui-sm text-remote-foreground-muted"
-                        >
-                          {deviceLabel || remoteHostLabel(remoteHost)}
-                        </span>
-                      ) : null}
                     </span>
-                    {!isOpen && availability.online && hasUnread ? (
+                    {!isOpen && hasUnread ? (
                       <span
                         data-testid="virtual-project-unread"
                         data-workspace-unread-indicator="true"
@@ -305,25 +233,6 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
                           {msg("legacySingleRoot")}
                         </span>
                       </SidebarNativeTooltip>
-                    ) : null}
-                    {/* 修复原因：待处理设备曾统一显示“离线”，与普通离线无法区分；改为展示模型短状态。
-                        连接中/失败同样曾落入“离线”分支，出现图标在转、文字写离线的矛盾；只有普通离线显示“离线”。 */}
-                    {!availability.online ? (
-                      <span
-                        data-testid="project-status-label"
-                        className={cn(
-                          "text-ui-sm",
-                          remotePresentation?.status === "pending" && !availability.unresolved
-                            ? remotePresentation.foreground
-                            : "text-foreground-subtle",
-                        )}
-                      >
-                        {availability.unresolved
-                          ? msg("unresolved")
-                          : remotePresentation && remotePresentation.status !== "offline"
-                            ? intl.formatMessage({ id: remotePresentation.shortMessageId })
-                            : msg("offline")}
-                      </span>
                     ) : null}
                   </Button>
                 </CollapsibleTrigger>
@@ -351,58 +260,54 @@ export const ProjectNodeContent = memo(function ProjectNodeContent({
                     <ProjectMenuItems actions={management} />
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {availability.online ? (
-                  <>
-                    {/* 主目录失效时多 root 也复用禁用按钮，避免菜单仍能打开附加目录。 */}
-                    {files.length > 1 && !primaryRootDisabledReason ? (
-                      <DropdownMenu modal={false}>
-                        <ControlHintTooltip title={showFiles}>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              data-testid="virtual-project-files"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={showFiles}
-                              className="text-foreground-subtle hover:text-foreground"
-                            >
-                              <ListTree className="size-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        </ControlHintTooltip>
-                        <DropdownMenuContent
-                          align="end"
-                          className="max-w-(--radix-dropdown-menu-content-available-width)"
+                {/* 主目录失效时多 root 也复用禁用按钮，避免菜单仍能打开附加目录。 */}
+                {files.length > 1 && !primaryRootDisabledReason ? (
+                  <DropdownMenu modal={false}>
+                    <ControlHintTooltip title={showFiles}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          data-testid="virtual-project-files"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={showFiles}
+                          className="text-foreground-subtle hover:text-foreground"
                         >
-                          <ProjectMenuItems actions={files} />
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <TaskRowActionButton
-                        testId="virtual-project-files"
-                        label={showFiles}
-                        showTooltip
-                        disabledReason={
-                          primaryRootDisabledReason ??
-                          (!files.length || !onViewFiles ? msg("noFolders") : undefined)
-                        }
-                        className="text-foreground-subtle hover:text-foreground"
-                        onClick={() => files[0]?.run()}
-                      >
-                        <ListTree className="size-3.5" />
-                      </TaskRowActionButton>
-                    )}
-                    <TaskRowActionButton
-                      testId="virtual-project-create-task"
-                      label={msg("createTask")}
-                      showTooltip
-                      disabledReason={primaryRootDisabledReason}
-                      className="text-foreground-subtle hover:text-foreground"
-                      onClick={onCreate}
+                          <ListTree className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </ControlHintTooltip>
+                    <DropdownMenuContent
+                      align="end"
+                      className="max-w-(--radix-dropdown-menu-content-available-width)"
                     >
-                      <MessageCirclePlus className="size-3.5" />
-                    </TaskRowActionButton>
-                  </>
-                ) : null}
+                      <ProjectMenuItems actions={files} />
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <TaskRowActionButton
+                    testId="virtual-project-files"
+                    label={showFiles}
+                    showTooltip
+                    disabledReason={
+                      primaryRootDisabledReason ??
+                      (!files.length || !onViewFiles ? msg("noFolders") : undefined)
+                    }
+                    className="text-foreground-subtle hover:text-foreground"
+                    onClick={() => files[0]?.run()}
+                  >
+                    <ListTree className="size-3.5" />
+                  </TaskRowActionButton>
+                )}
+                <TaskRowActionButton
+                  testId="virtual-project-create-task"
+                  label={msg("createTask")}
+                  showTooltip
+                  disabledReason={primaryRootDisabledReason}
+                  className="text-foreground-subtle hover:text-foreground"
+                  onClick={onCreate}
+                >
+                  <MessageCirclePlus className="size-3.5" />
+                </TaskRowActionButton>
               </div>
             </div>
           </ContextMenuTrigger>

@@ -124,11 +124,6 @@ const WORKSPACE_SIDEBAR_RESIZE_KEYBOARD_STEP_PX = 16;
 const WORKSPACE_SIDEBAR_PANEL_WIDTH_CSS_VAR = "--workspace-sidebar-panel-width";
 const WORKSPACE_SIDEBAR_WIDTH_CSS_VAR = "--workspace-sidebar-width";
 const CONVERSATION_AUTO_COLLAPSE_SIDE_PANE_WIDTH_PX = 480;
-// 修复原因：WorkspaceShellLayout 是 memo 组件，默认 []/{} 会在缺省调用时每次创建新引用；
-// 远控/本地入口缺省这些集合时复用常量，避免浅比较误判 props 变化。
-const EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY: NonNullable<
-  WorkspaceShellLayoutProps["remoteWorkspaceRecoveryByWorkspaceKey"]
-> = {};
 const CONVERSATION_AUTO_COLLAPSE_SIDEBAR_WIDTH_PX = 360;
 const CONVERSATION_AUTO_COLLAPSE_RESIZE_IDLE_MS = 300;
 // 性能修复：ResizablePanelGroup 收到深相等的新 panelIds 数组，
@@ -240,27 +235,17 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   onOpenAutomationConsumed,
   handleOpenAutomations,
   handleOpenPluginStore,
-  onConnectRemote,
-  onSelectRemoteProject,
-  onCancelRemoteProject,
-  onReconnectRemoteWorkspace,
   onLogout,
   onLogin,
   user,
-  reconnectingRemoteWorkspaceKeys,
-  remoteWorkspaceRecoveryByWorkspaceKey = EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY,
-  remoteWorkspaceErrorByWorkspaceKey,
-
   onCreateTask,
   onCreateConversationTask,
   onCreateConversationTaskOnSource,
   onResolveConversationWorkspace,
   onOpenWorkspace,
   onOpenFolderFromWorkspaceMenu,
-  onOpenRemoteWorkspace,
   allowOpenWorkspace = true,
   initialSidebarFileTreeOpen,
-  allowRemoteWorkspace = true,
   workspaceAbsPath,
   workspaceRemoteSessionId,
   workspaceIdentity,
@@ -1550,10 +1535,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
           workspaceIdentity={workspaceIdentity}
           onCreateTask={handleCreateTaskInChat}
           onSelectConversationWorkspace={handleSelectConversationWorkspace}
-          allowRemoteWorkspace={allowRemoteWorkspace}
-          onOpenRemoteWorkspace={onOpenRemoteWorkspace}
-          onConnectRemote={onConnectRemote}
-          onCancelRemote={onCancelRemoteProject}
         >
           {isOfficeMode ? (
             <WorkspacePluginPreview
@@ -1616,16 +1597,12 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       workspaceRemoteSessionId,
       handleOpenPluginStore,
       handleSelectComposerPlugin,
-      allowRemoteWorkspace,
       activeWorkspacePurpose,
       gitDirtyFileCount,
       gitState.summary,
       handleRefreshGit,
       handleSelectConversationWorkspace,
       handleCreateTaskInChat,
-      onOpenRemoteWorkspace,
-      onConnectRemote,
-      onCancelRemoteProject,
       workspaceAbsPath,
       workspaceIdentity,
       worktreeEligible,
@@ -1935,15 +1912,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onCreateConversationTask={onCreateConversationTask ?? handleCreateTaskInChat}
       onCreateConversationTaskOnSource={onCreateConversationTaskOnSource}
       onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
-      onOpenRemoteWorkspace={onOpenRemoteWorkspace}
       theme={theme}
-      onConnectRemote={onConnectRemote}
-      onSelectRemoteProject={onSelectRemoteProject}
-      onCancelRemoteProject={onCancelRemoteProject}
-      onReconnectRemoteWorkspace={onReconnectRemoteWorkspace}
-      reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-      remoteWorkspaceRecoveryByWorkspaceKey={remoteWorkspaceRecoveryByWorkspaceKey}
-      remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
       onLogout={onLogout}
       onLogin={onLogin}
       user={user}

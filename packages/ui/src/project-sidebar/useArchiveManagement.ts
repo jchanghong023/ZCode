@@ -1,4 +1,3 @@
-import { remoteHostLabel } from "@/project-sidebar/RemoteHostSection.js";
 import type { V4SessionDeletionPreview } from "@zcode/shared/zcode-protocol-v4";
 import { useEffect, useRef, useState } from "react";
 import type { ProjectTask } from "@/project-sidebar/contract.js";
@@ -64,8 +63,7 @@ export function useArchiveManagement() {
       const project =
         latest.current.tree.projects.find((project) => project.id === task.projectId)?.name ??
         msg("unclassified");
-      const host = latest.current.directory.hosts.find((host) => host.id === task.hostId);
-      return `${task.title} · ${project} · ${host ? remoteHostLabel(host) : msg("localDevice")} · ${task.workspacePath}`;
+      return `${task.title} · ${project} · ${msg("localDevice")} · ${task.workspacePath}`;
     };
     const previews = new Map<
       string,

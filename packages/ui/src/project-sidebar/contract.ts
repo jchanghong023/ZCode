@@ -1,19 +1,8 @@
-import type { Locale, RemoteTarget, UserInfo } from "@zcode/shared";
+import type { Locale, UserInfo } from "@zcode/shared";
 import type { LucideIcon } from "lucide-react";
-import type {
-  AppProps,
-  CreateTaskRequest,
-  RemoteWorkspaceRecoveryStatus,
-} from "@/app-shell/types.js";
+import type { CreateTaskRequest } from "@/app-shell/types.js";
 import type { Theme } from "@/useTheme.js";
 export { LEGACY_SINGLE_ROOT_PROJECT_PREFIX } from "@zcode/services";
-export interface ProjectDevice {
-  id: string;
-  label: string;
-  status: string;
-  sourceServerId?: string;
-}
-
 export interface ProjectRowAction {
   id: string;
   label: string;
@@ -24,13 +13,6 @@ export interface ProjectRowAction {
   /** 与上一组操作之间画分隔线；首项忽略。 */
   separatorBefore?: boolean;
 }
-export {
-  buildRemoteHostWorkspaceIdentity,
-  parseRemoteWorkspaceIdentity,
-  buildRemoteWorkspaceIdentity,
-  buildServerRemoteWorkspaceIdentity,
-  remoteHostIdFromWorkspaceIdentity,
-} from "@zcode/shared";
 export type {
   WindowHostTaskAddress,
   WindowHostControllerTaskActivity,
@@ -53,10 +35,6 @@ export type {
   WindowHostControllerMutation,
   WindowHostControllerFrame,
   WindowHostTaskUnreadSignal,
-  IRemoteProjectService,
-  RemoteProjectDirectory,
-  RemoteProjectEntry,
-  RemoteProjectHost,
   IManagedWorktreeService,
   ManagedWorktreeGroup,
 } from "@zcode/services";
@@ -64,13 +42,6 @@ export type {
   ManagedWorktreeEntry,
   ManagedWorktreeTaskRef as ManagedWorktreeTask,
 } from "@zcode/shared";
-export interface ProjectAvailability {
-  entryId?: string;
-  /** 仅首次升级入口用于替换旧排序键，不改变项目身份。 */
-  upgradeEntryId?: string;
-  online: boolean;
-  unresolved?: boolean;
-}
 export type { Locale, Theme };
 export type ProjectSidebarView = "projects" | "grouped" | "timeline" | "unread";
 export interface SidebarFileTreeTarget {
@@ -120,29 +91,10 @@ export interface ProjectSidebarProps {
   onCreateConversationTask: () => void;
   onCreateConversationTaskOnSource?: (sourceServerId: string) => void;
   onOpenFolderFromWorkspaceMenu: () => void;
-  onOpenRemoteWorkspace?: AppProps["onOpenRemoteWorkspace"];
   theme: Theme;
-  onConnectRemote: (
-    options: RemoteTarget,
-    requestId?: string,
-    context?: { confirmSourceServerInstall?: boolean },
-    feedback?: import("@/app-shell/types.js").RemoteConnectionFeedbackOptions,
-  ) => Promise<string>;
-  onSelectRemoteProject: (
-    sessionId: string,
-    path: string,
-    localWorkspacePath?: string,
-    preparedWorkspaceIdentity?: string,
-    isCurrent?: () => boolean | Promise<boolean>,
-  ) => Promise<void>;
-  onCancelRemoteProject: (sessionId: string) => Promise<void>;
-  onReconnectRemoteWorkspace: (workspaceKey: string) => Promise<void>;
   onLogout?: () => void;
   onLogin?: () => void;
   user?: UserInfo | null;
-  reconnectingRemoteWorkspaceKeys: string[];
-  remoteWorkspaceRecoveryByWorkspaceKey?: Record<string, RemoteWorkspaceRecoveryStatus>;
-  remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;

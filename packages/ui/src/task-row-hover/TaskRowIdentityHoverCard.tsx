@@ -11,7 +11,6 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getTaskChangeSummary } from "@/lib/taskChangeSummary.js";
 import { formatWorktreeLabel } from "@/managed-worktrees/index.js";
-import { RemoteTaskDeviceLabel } from "@/remote-connection/RemoteTaskDeviceLabel.js";
 import type { TaskRowIdentityHoverCardProps } from "@/task-row-hover/contract.js";
 import { WorkspaceContextPath } from "@/WorkspaceHeaderSections/WorkspaceContextPath.js";
 import { WorkspaceLastActivity } from "@/WorkspaceHeaderSections/WorkspaceLastActivity.js";
@@ -169,7 +168,6 @@ function LocalTaskRowIdentityDetails({
     <TaskRowIdentityDetailsBody
       task={task}
       workspaceLabel={workspaceLabel}
-      isRemote={false}
       pathNode={<LocalWorkspaceContextPath path={taskCwd} services={services} />}
       branchLabel={branchLabel}
     />
@@ -196,7 +194,6 @@ function RemoteTaskRowIdentityDetails({
     <TaskRowIdentityDetailsBody
       task={task}
       workspaceLabel={workspaceLabel}
-      isRemote
       pathNode={
         rpcReady ? (
           <WorkspaceContextPath
@@ -218,13 +215,11 @@ function RemoteTaskRowIdentityDetails({
 function TaskRowIdentityDetailsBody({
   task,
   workspaceLabel,
-  isRemote,
   pathNode,
   branchLabel,
 }: {
   task: ZCodeTaskMeta;
   workspaceLabel: string;
-  isRemote: boolean;
   pathNode: ReactNode;
   branchLabel: string | null;
 }) {
@@ -239,7 +234,6 @@ function TaskRowIdentityDetailsBody({
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">
             {formatWorktreeLabel(intl, task.worktreeRoot) ?? workspaceLabel}
           </span>
-          {isRemote ? <RemoteTaskDeviceLabel task={task} /> : null}
           {pathNode}
         </span>
       </div>

@@ -3,7 +3,6 @@ import { SortableProjects } from "@/project-sidebar/SortableProjects.js";
 import type {
   ProjectSidebarProps,
   ProjectTree,
-  RemoteProjectDirectory,
   VirtualProject,
 } from "@/project-sidebar/contract.js";
 import { selectProjectRows } from "@/project-sidebar/view.js";
@@ -12,7 +11,6 @@ import { PurposeSections } from "@/project-sidebar/PurposeSections.js";
 export function ProjectSections({
   tree,
   projects,
-  directory,
   renderProject,
   onSelect,
   refresh,
@@ -26,7 +24,6 @@ export function ProjectSections({
 }: {
   tree: ProjectTree;
   projects: VirtualProject[];
-  directory: RemoteProjectDirectory;
   renderProject(project: VirtualProject): ReactNode;
   onSelect: ProjectSidebarProps["onSelectTask"];
   refresh(): Promise<void>;
@@ -38,10 +35,7 @@ export function ProjectSections({
   onReorder(active: string, over: string): void;
   loading: boolean;
 }) {
-  const foreignHosts = new Set(directory.hosts.map((host) => host.id));
-  const localTasks = selectProjectRows(tree, { kind: "project", projectId: null }).filter(
-    (task) => task.hostId === "local" && !foreignHosts.has(task.hostId),
-  );
+  const localTasks = selectProjectRows(tree, { kind: "project", projectId: null });
   return (
     <PurposeSections
       onAdd={onAddProject}
