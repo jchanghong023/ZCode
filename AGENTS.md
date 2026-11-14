@@ -20,22 +20,22 @@
 
 以下命令从仓库根目录执行：
 
-| 用途               | 命令                                                  |
-| ------------------ | ----------------------------------------------------- |
-| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）          |
-| 仅模拟后端         | `pnpm dev:server`                                     |
-| 仅前端             | `pnpm dev:web`                                        |
-| 构建               | `pnpm build`（server 产物可托管 web dist 单进程部署） |
-| 类型检查           | `pnpm typecheck`                                      |
-| Lint               | `pnpm lint` / `pnpm lint:fix`                         |
-| 格式检查           | `pnpm fmt:check`                                      |
-| 提交前检查         | `pnpm verify:pre-push`（工作区、Lint 与架构检查）     |
-| 架构检查           | `pnpm architecture:check --changed`                   |
-| 模块阅读包         | `pnpm architecture:context <module-id>`               |
-| 未使用依赖与导出   | `pnpm knip`                                           |
-| 导出引用查询       | `pnpm dep:refs --list-exports <file>`                 |
+| 用途               | 命令                                                             |
+| ------------------ | ---------------------------------------------------------------- |
+| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）                     |
+| 仅模拟后端         | `pnpm dev:server`                                                |
+| 仅前端             | `pnpm dev:web`                                                   |
+| 构建               | `pnpm build`（server 产物可托管 web dist 单进程部署）            |
+| 类型检查           | `pnpm typecheck`                                                 |
+| Lint               | `pnpm lint` / `pnpm lint:fix`                                    |
+| 格式检查           | `pnpm fmt:check`                                                 |
+| 推送前检查         | `pnpm verify:pre-push`（工作区、Lint、架构检查与受影响工程测试） |
+| 架构检查           | `pnpm architecture:check --changed`                              |
+| 模块阅读包         | `pnpm architecture:context <module-id>`                          |
+| 未使用依赖与导出   | `pnpm knip`                                                      |
+| 导出引用查询       | `pnpm dep:refs --list-exports <file>`                            |
 
-工程 Vitest 使用 `pnpm test:engineering <文件>`；工程门禁测试使用 `pnpm test:architecture`（node:test）。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
+工程 Vitest 使用 `pnpm test:engineering <文件>`；工程门禁测试使用 `pnpm test:architecture`（node:test）。范围见 [测试规格](docs/testing/unit-test-quality.md)。`.husky/pre-push` 钩子已移除，推送检查需手动运行 `pnpm verify:pre-push`；移除前的钩子机制见 [pre-push 说明](docs/testing/pre-push-hook.md)。
 
 - `packages/web`：浏览器前端入口（Vite）。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。

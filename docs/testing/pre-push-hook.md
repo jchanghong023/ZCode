@@ -1,5 +1,7 @@
 # Pre-push Hook
 
+> **状态**：`.husky/pre-push` 钩子已在 `da4c177a`（"chore: 移除 pre-push 钩子"）删除，推送检查不再被自动强制执行。本文档保留为移除前的机制记录；`pnpm verify:pre-push` 现需手动运行。
+
 Husky 的 `.husky/pre-push` 使用当前 PATH 中的 Node / pnpm，执行 `pnpm verify:pre-push`。
 不强制依赖 mise，也不自动安装工具、stash 工作区或跳过失败检查。
 
