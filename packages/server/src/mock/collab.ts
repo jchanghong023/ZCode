@@ -723,7 +723,14 @@ export class MockMemoryService implements IMemoryService {
 
 export class MockSkillsService implements ISkillsService {
   async list(_params: P<ISkillsService["list"]>): Promise<AR<ISkillsService["list"]>> {
-    return { skills: [] } as unknown as AR<ISkillsService["list"]>;
+    // Bugfix：契约 SkillsListResult 要求 skills/capability/diagnostics 三字段齐全。
+    // 之前只回 skills，UI setDiagnostics(undefined) 后渲染 diagnostics.filter 直接崩溃
+    // （设置页「技能」页签整块落入错误边界）。mock 按契约返回空集合。
+    return {
+      skills: [],
+      capability: { userScopeAvailable: true },
+      diagnostics: [],
+    };
   }
 
   async setEnabled(_params: P<ISkillsService["setEnabled"]>): Promise<void> {}
