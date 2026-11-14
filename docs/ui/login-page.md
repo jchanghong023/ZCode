@@ -4,7 +4,7 @@
 
 工号 owner、保存恢复、退出事件顺序及连接时序见 `packages/web/src/auth/CONTRACT.md`。每个标签页使用 sessionStorage 恢复工号；退出或切换卸载 Root、释放本连接并回到入口，不清模型/工具凭据，不改变服务端共享项目及会话。
 
-工号入口复用现有 Input/Button 与 text-ui 字号。已进入界面可观察当前工号并切换；侧栏及设置的退出入口执行同一浏览器退出命令。
+工号入口复用现有 Input/Button 与 text-ui 字号。进入后仅在既有侧栏账户入口展示工号并提供退出／切换，不新增顶部工号栏、不挤占主界面高度；侧栏及设置的退出入口执行同一浏览器退出命令。
 
 WelcomeScreen/LoginPanel 仅是模型配置引导，保留 API Key 保存与跳过，不能再启动产品账号登录。模型设置保留 Provider 配置、API Key、模型编辑、连通性测试和后端发布的既有模型/套餐视图；不再把浏览器操作者当作套餐账号，不提供旧产品 OAuth 连接、购买授权或解绑入口。切换工号不会重置 Provider family 设置或密钥。MCP OAuth 和独立模型/工具调用凭据保留。
 

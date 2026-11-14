@@ -64,12 +64,6 @@ export function EmployeeEntry({ owner, children }: {
       </form>
     </main>
   );
-  return <>
-    <div className="flex items-center justify-end gap-3 border-b border-border bg-background px-4 py-1 text-ui-sm text-foreground" aria-label="当前操作者">
-      <span>当前工号：{employeeNumber}</span>
-      {owner.persistenceError && <span role="alert">{owner.persistenceError}</span>}
-      <Button size="sm" variant="ghost" onClick={() => owner.leave()}>退出 / 切换工号</Button>
-    </div>
-    <div className="min-h-0 flex-1">{children}</div>
-  </>;
+  // 修复原因：额外的顶部工号栏挤占了保留界面的高度；操作者与退出入口已由既有侧栏承载。
+  return <div className="min-h-0 flex-1">{children}</div>;
 }
