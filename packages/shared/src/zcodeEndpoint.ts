@@ -15,8 +15,6 @@ export const TEST_ZAI_OAUTH_CLIENT_ID = "client_P8X5CMWmlaRO9gyO-KSqtg";
 export interface ZCodeEndpointUrls {
   origin: string;
   apiBaseUrl: string;
-  webRemoteCallbackUrl: string;
-  webShareCallbackUrl: string;
   zcodePlanOpenAiBaseUrl: string;
   zcodePlanAnthropicBaseUrl: string;
   zcodePlanBillingCurrentUrl: string;
@@ -299,9 +297,6 @@ export function buildZCodeEndpointUrls(origin: string): ZCodeEndpointUrls {
   return {
     origin: normalizedOrigin,
     apiBaseUrl: `${normalizedOrigin}/api/v1`,
-    // OAuth 回调落点沿用历史已登记路径 /remote/v4；登录回调页仍由该路径承接。
-    webRemoteCallbackUrl: `${normalizedOrigin}/remote/v4`,
-    webShareCallbackUrl: `${normalizedOrigin}/cn/share/callback`,
     zcodePlanOpenAiBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan`,
     zcodePlanAnthropicBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan/anthropic`,
     zcodePlanBillingCurrentUrl: `${normalizedOrigin}/api/v1/zcode-plan/billing/current`,

@@ -35,6 +35,7 @@ import {
   buildSessionSummary,
   isListedSession,
   workspaceKeyOf,
+  workspaceRefOf,
   type MockRuntime,
   type MockSession,
 } from "./runtime.js";
@@ -49,11 +50,14 @@ interface ConversationSubscription {
 
 interface SessionsIndexSubscription {
   workspaceKey: string;
+  /** wire topic 沿用请求键；业务/水位仍按规范身份归一，兼容无 identity 的既有请求。 */
+  wireWorkspaceKey: string;
   ordinal: number;
 }
 
 interface WorkspaceConfigSubscription {
   workspaceKey: string;
+  wireWorkspaceKey: string;
   ordinal: number;
 }
 
@@ -136,24 +140,25 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         },
     deliveryKind: "initial" | "online" | "recovery",
   ): void {
-    const topic = `sessions-index/${workspaceKey}`;
+    const canonicalTopic = `sessions-index/${workspaceKey}`;
     const subscribers = [...this.sessionsIndexSubs].filter(
       ([, sub]) => sub.workspaceKey === workspaceKey,
     );
     if (subscribers.length === 0) return;
     // topic 水位是工作区级唯一顺序：同一 workspace 的所有订阅者共享 (fromSeq, toSeq]。
     // 没有订阅者时不推进，避免产生无人观察的水位空洞。
-    const current = this.runtime.topics.position(topic);
+    const current = this.runtime.topics.position(canonicalTopic);
     let logEpoch = current.logEpoch;
     let fromSeq = 0;
     let toSeq = current.seq;
     if (payload.kind === "deltas") {
-      const advanced = this.runtime.topics.advance(topic);
+      const advanced = this.runtime.topics.advance(canonicalTopic);
       logEpoch = advanced.logEpoch;
       fromSeq = advanced.fromSeq;
       toSeq = advanced.toSeq;
     }
     for (const [subscriptionId, sub] of subscribers) {
+      const topic = `sessions-index/${sub.wireWorkspaceKey}`;
       sub.ordinal += 1;
       const inner =
         payload.kind === "snapshot"
@@ -167,7 +172,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
                 kind: "snapshot",
                 snapshot: {
                   protocolVersion: 1,
-                  workspaceId: workspaceKey,
+                  workspaceId: sub.wireWorkspaceKey,
                   logEpoch,
                   sessions: payload.snapshot.sessions,
                 },
@@ -199,13 +204,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     workspaceKey: string,
     deliveryKind: "initial" | "recovery",
   ): void {
-    const topic = `workspace-config/${workspaceKey}`;
+    const canonicalTopic = `workspace-config/${workspaceKey}`;
     const subscribers = [...this.workspaceConfigSubs].filter(
       ([, sub]) => sub.workspaceKey === workspaceKey,
     );
     if (subscribers.length === 0) return;
-    const position = this.runtime.topics.position(topic);
+    const position = this.runtime.topics.position(canonicalTopic);
     for (const [subscriptionId, sub] of subscribers) {
+      const topic = `workspace-config/${sub.wireWorkspaceKey}`;
       sub.ordinal += 1;
       const inner = assertFrame(workspaceConfigTopicFrameSchema, {
         topic,
@@ -217,7 +223,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           kind: "snapshot",
           snapshot: {
             protocolVersion: 1,
-            workspaceId: workspaceKey,
+            workspaceId: sub.wireWorkspaceKey,
             logEpoch: position.logEpoch,
             config: emptyWorkspaceConfigState,
           },
@@ -674,8 +680,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       firstInput?: { text: string };
       config?: Record<string, unknown>;
     };
-    const sessionRef: { workspacePath: string; workspaceIdentity?: string } =
-      envelope.workspace ?? { workspacePath: this.runtime.workspacePath };
+    const sessionRef = workspaceRefOf(
+      envelope.workspace ?? { workspacePath: this.runtime.workspacePath },
+    );
     const sessionId = payload.sessionId ?? this.runtime.newSessionId();
     const now = Date.now();
     const session: MockSession = {
@@ -1152,10 +1159,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const session: MockSession = {
       sessionId: params.sessionId,
       workspaceKey,
-      workspaceRef: {
-        workspacePath: params.workspacePath,
-        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-      },
+      workspaceRef: workspaceRefOf(params),
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -1278,7 +1282,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async subscribeSessionsIndexV4(params: P<IZCodeAgentService["subscribeSessionsIndexV4"]>) {
     const workspaceKey = workspaceKeyOf(params);
     const subscriptionId = `sub-${createUuid()}`;
-    this.sessionsIndexSubs.set(subscriptionId, { workspaceKey, ordinal: 0 });
+    this.sessionsIndexSubs.set(subscriptionId, {
+      workspaceKey,
+      wireWorkspaceKey: params.workspaceIdentity?.trim() || params.workspacePath,
+      ordinal: 0,
+    });
     const sessions = [...this.runtime.sessions.values()]
       .filter((session) => session.workspaceKey === workspaceKey && isListedSession(session))
       .map((session) => buildSessionSummary(session));
@@ -1344,7 +1352,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async subscribeWorkspaceConfigV4(params: P<IZCodeAgentService["subscribeWorkspaceConfigV4"]>) {
     const workspaceKey = workspaceKeyOf(params);
     const subscriptionId = `sub-${createUuid()}`;
-    this.workspaceConfigSubs.set(subscriptionId, { workspaceKey, ordinal: 0 });
+    this.workspaceConfigSubs.set(subscriptionId, {
+      workspaceKey,
+      wireWorkspaceKey: params.workspaceIdentity?.trim() || params.workspacePath,
+      ordinal: 0,
+    });
     this.emitWorkspaceConfigSnapshot(workspaceKey, "initial");
     const position = this.runtime.topics.position(`workspace-config/${workspaceKey}`);
     return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: position.logEpoch } };
@@ -1601,7 +1613,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return {
       workspace: {
         workspacePath: _params.workspacePath,
-        workspaceKey: _params.workspaceIdentity?.trim() || _params.workspacePath,
+        workspaceKey: workspaceKeyOf(_params),
       },
       mode: "build",
       slashCommands: [],

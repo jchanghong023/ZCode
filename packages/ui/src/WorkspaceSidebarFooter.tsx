@@ -28,7 +28,6 @@ import {
 import {
   Copy,
   PencilRuler,
-  LoaderCircle,
   LogInIcon,
   LogOut,
   Palette,
@@ -106,11 +105,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const platform = usePlatform();
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useSetInterfaceModeWithTelemetry(platform, "app.profile");
-  const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
   const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
   const avatarFallbackText = getAvatarFallbackText(user);
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
-  const showAuthRestoreLoading = !user && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
     enabled: true,
     workspaceIdentity,
@@ -132,14 +129,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         <AvatarFallback className="bg-background text-foreground">
           {user ? (
             avatarFallbackText
-          ) : showAuthRestoreLoading ? (
-            <>
-              {/* Bugfix: OAuth 启动恢复未落定前，footer 之前会直接显示未登录头像，
-                  用户很容易把“还在校验”误判成“已经退出”。
-                  这里用 loading 图标明确表达“状态确认中”，等恢复成功或失败后再展示最终状态。 */}
-              <LoaderCircle className="size-4 animate-spin" />
-              <span className="sr-only">{intl.formatMessage({ id: "common.loading" })}</span>
-            </>
           ) : (
             <User className="size-4" />
           )}

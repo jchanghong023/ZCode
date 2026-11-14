@@ -4,16 +4,10 @@ import { readProjectSidebarView } from "@/project-sidebar/index.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   remoteHostIdFromWorkspaceIdentity,
-  type AppSettings,
-  type IPlatformService,
-  type UserInfo,
   type ZCodeTaskClientMode,
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import type { CreateTaskOptions, CreateTaskRequest } from "@/app-shell/types.js";
-import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
-import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
-import { resolveLogoutProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
@@ -75,7 +69,6 @@ export function resolveNewTaskTargetFromRequest(
 
 export function useRootWorkspaceActions({
   intl,
-  platform,
   services,
   tabStoreApi,
   addTab,
@@ -84,16 +77,10 @@ export function useRootWorkspaceActions({
   isDesktop = false,
   allowOpenWorkspace,
   openDirectoryBrowser,
-  refreshProviderState,
-  updateAppSettings,
-  setOAuthError,
-  setUser,
-  onProviderFamilyDomainClearedAfterLogout,
-  userId,
+  leaveOperator,
   workbenchGroupClientMode = "desktop-continuous",
 }: {
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
-  platform: IPlatformService;
   services: IServiceAccessor;
   tabStoreApi: TabStore;
   addTab: TabStoreState["addTab"];
@@ -102,17 +89,11 @@ export function useRootWorkspaceActions({
   isDesktop?: boolean;
   allowOpenWorkspace: NonNullable<RootProps["allowOpenWorkspace"]>;
   openDirectoryBrowser?: () => void;
-  refreshProviderState: () => Promise<void>;
-  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  setOAuthError: (error: string | null) => void;
-  setUser: (user: UserInfo | null) => void;
-  onProviderFamilyDomainClearedAfterLogout?: () => void;
-  userId?: string;
+  leaveOperator: () => void;
   workbenchGroupClientMode?: ZCodeTaskClientMode;
 }) {
   const navigationSequence = useRef(0);
   const [workspaceActionError, setWorkspaceActionError] = useState<string | null>(null);
-  const requestConfirmation = useConfirmDialog();
 
   useEffect(() => {
     useWorkbenchGroupStore.getState().configureClientMode(workbenchGroupClientMode);
@@ -287,9 +268,8 @@ export function useRootWorkspaceActions({
         if (!hasExplicitProject && newTaskTarget) {
           // 原因：仅远程继承项目会让本地快捷键落入未归类。按任务完整身份读取归属，不能由 cwd 猜项目。
           if (newTaskTarget.workspaceIdentity) {
-            hostId =
-              remoteHostIdFromWorkspaceIdentity(newTaskTarget.workspaceIdentity) ?? undefined;
-            if (!hostId) throw new Error("project.host-identity-required");
+            // 修复原因：当前后端稳定 identity 不含旧 remote authority，不能因此拒绝新建任务。
+            hostId = remoteHostIdFromWorkspaceIdentity(newTaskTarget.workspaceIdentity) ?? "local";
           }
           const workspace = useZCodeSessionStore
             .getState()
@@ -412,64 +392,8 @@ export function useRootWorkspaceActions({
     setWorkspaceActionError,
   });
 
-  const handleLogout = useCallback(async () => {
-    // 浏览器没有宿主进程，无法查询后台运行中的 Agent 会话数；统一使用默认退出确认文案。
-    const confirmed = await requestConfirmation({
-      title: intl.formatMessage({ id: "logout.confirm.title" }),
-      description: intl.formatMessage({ id: "logout.confirm.descriptionDefault" }),
-      confirmLabel: intl.formatMessage({ id: "logout.confirm.ok" }),
-      cancelLabel: intl.formatMessage({ id: "logout.confirm.cancel" }),
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    // Bug 原因：telemetry 是辅助链路；等待网络重试会延迟退出登录，甚至在旧的无超时实现里
-    // 无限阻塞主流程。这里只调度事件，Main 侧负责有界重试与退出 drain。
-    void reportAppTelemetryEvent(
-      platform,
-      {
-        elementName: "app_user_logout",
-        eventRegion: "app_profile",
-        eventType: "ck",
-        eventExtraDetail: {},
-        userId,
-      },
-      "Root",
-    );
-    const settingsBeforeLogout = await services.settingService.get();
-    const nextProviderFamilyDomain = resolveLogoutProviderFamilyDomain({
-      currentDomain: settingsBeforeLogout.providerFamilyDomain,
-    });
-    await services.oauthService.logout();
-    await updateAppSettings({
-      providerFamilyDomain: (nextProviderFamilyDomain ?? "") as AppSettings["providerFamilyDomain"],
-      providerFamilyDomainUpdatedAt: Date.now(),
-      providerFamilyDomainMigrated: true,
-    });
-    if (!nextProviderFamilyDomain) {
-      onProviderFamilyDomainClearedAfterLogout?.();
-    }
-    // ZAI/BigModel provider 已恢复为 App 登录镜像。
-    // 派生 Coding/Start key 由 OAuth logout 的 host hook 统一清理，Root 只负责刷新展示态。
-    setOAuthError(null);
-    setUser(null);
-    // 退出登录后刷新 Account Source 与 Registry，避免继续展示退出前的 Provider 状态。
-    await refreshProviderState();
-  }, [
-    intl,
-    requestConfirmation,
-    refreshProviderState,
-    onProviderFamilyDomainClearedAfterLogout,
-    platform,
-    services.oauthService,
-    services.modelSelectionService,
-    services.settingService,
-    setOAuthError,
-    setUser,
-    updateAppSettings,
-    userId,
-  ]);
+  // 工号退出只通知浏览器 owner；不得清理共享设置或模型/工具凭据。
+  const handleLogout = leaveOperator;
 
   const handleSelectProject = useCallback(
     async (path: string, activateOtherWindow = true) => {

@@ -274,10 +274,10 @@ export interface V4PaneConversationProviderProps {
  * refCount + 30s keep-warm），并把 pane 自己的 services 注入子树——附件上传、
  * sessions-index 守卫等 hook 用 pane 的 accessor，不误用 shell 当前 workspace 的。
  *
- * 远程目标在 session store 尚未注册真实 services 时保持 remote-waiting，不挂载子数据层，
- * 因而不会拿断连代理创建连接或发起订阅；同时绝不回落 base services，也不为 pane
- * 另起独立 runtime（远控保护约束）。重连 ready 后 services 换新引用 → 注册表保持
- * 原 layer/transport 身份，并在 commit 阶段单向激活最新 proxy。
+ * 当前后端的稳定 workspaceIdentity 只区分数据，直接使用根 services 挂载数据层；
+ * 仅显式旧远程元数据在 attachment 尚未注册时保持 remote-waiting，避免误投当前后端。
+ * 重连 ready 后 services 换新引用 → 注册表保持原 layer/transport 身份，
+ * 并在 commit 阶段单向激活最新 proxy，不为 pane 另起独立 runtime。
  */
 export function V4PaneConversationProvider({
   scope,

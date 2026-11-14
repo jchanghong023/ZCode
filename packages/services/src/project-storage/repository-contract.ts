@@ -58,7 +58,7 @@ export interface ProjectDirectories {
   workspacePath: string;
   /** 任务 cwd；只在与 workspacePath 不同时出现（受管 worktree 任务，docs/git/worktree.md §6.6.1）。 */
   cwd?: string;
-  /** 远端装配层登记后的 attachment 身份；执行仍使用 workspacePath。 */
+  /** 当前后端登记的稳定工作区身份，不是远程连接开关；执行仍使用 workspacePath/cwd。 */
   workspaceIdentity?: string;
   additionalDirectories: string[];
   projectId: string | null;

@@ -2,6 +2,7 @@ interface WorkspaceTabIdentityLike {
   workspacePath: string;
   remoteSessionId?: string;
   workspaceIdentity?: string;
+  remoteTarget?: unknown;
 }
 
 interface WorkspaceTabMatchOptions {
@@ -10,12 +11,9 @@ interface WorkspaceTabMatchOptions {
   previousWorkspaceIdentity?: string;
 }
 
-function hasRemoteTabIdentity(tab: WorkspaceTabIdentityLike): boolean {
-  return Boolean(tab.workspaceIdentity || tab.remoteSessionId);
-}
-
 function isLocalWorkspaceTab(tab: WorkspaceTabIdentityLike): boolean {
-  return !hasRemoteTabIdentity(tab);
+  // 修复原因：path-only 导航仍应复用当前后端带稳定 identity 的 tab，不能创建重复入口。
+  return !tab.remoteSessionId && !tab.remoteTarget;
 }
 
 export function isSameWorkspaceTab(

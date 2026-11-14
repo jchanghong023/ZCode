@@ -1,3 +1,7 @@
+# 退役记录：旧 Desktop 产品账号验证
+
+本文仅保留历史验证记录，不是当前纯 Web 产品验收规范；其中 OAuth、Desktop、手机远控及已删除测试均不得恢复。当前工号入口与模型配置验收以 `../ui/login-page.md`、`../../packages/web/src/auth/CONTRACT.md` 为准。
+
 # Desktop Auth/Config E2E Cases
 
 MR 凭据修复回归：`auth-config/credentials/manual-review/pending/system-credential-owner.test.ts` 增加 800,000

@@ -1233,17 +1233,11 @@ const zhCN: Record<string, string> = {
 
   // 应用头部
   "app.currentTheme": "当前: {theme}",
-  "app.login": "连接使用",
-  "app.logout": "断开连接",
-  "logout.confirm.title": "断开连接并重启 ZCode？",
-  "logout.confirm.descriptionWithRunningSessions":
-    "检测到 {count} 个会话正在运行。断开连接会中断这些会话并重启 App。",
-  "logout.confirm.descriptionDefault": "断开连接后会重启 App，之后需要重新连接账号。",
-  "logout.confirm.ok": "断开连接并重启",
-  "logout.confirm.cancel": "取消",
-  "sidebar.profile.accountId": "ID: {id}",
-  "sidebar.profile.copyUserId": "点击复制用户 ID",
-  "sidebar.profile.userIdCopied": "用户 ID 已复制",
+  "app.login": "模型配置",
+  "app.logout": "退出 / 切换工号",
+  "sidebar.profile.accountId": "工号: {id}",
+  "sidebar.profile.copyUserId": "点击复制工号",
+  "sidebar.profile.userIdCopied": "工号已复制",
   "sidebar.profile.userIdCopyFailed": "复制失败，请重试",
   "sidebar.profile.notLoggedIn": "连接使用",
   "app.selectFile": "选择文件以开始",

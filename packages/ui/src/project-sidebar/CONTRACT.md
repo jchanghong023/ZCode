@@ -2,6 +2,12 @@
 
 Host projectService 的 readTree 决定行集合、项目归属和 CLI 事实镜像；UI 只保存折叠、视图与表单草稿。实时 sessions-index 只附加 activity，不补行、不写回归属。读取以请求序号拒绝迟到结果；workspace 变化立即取消旧结果资格。
 
+当前纯 Web 裁决：Host/local 指当前浏览器连接的后端，不指浏览器电脑。所有工号共享同一目录/项目/会话，
+工号不参与 host、identity、路径键或筛选；ProjectDirectory 仍只持有服务端事实的 UI 投影。
+当前后端的稳定 workspaceIdentity 不能被当成远程 attachment 门禁：项目任务的文件入口、观察和新建归属
+必须在无 remoteSessionId 时仍能使用当前后端。显式非 local 项目/旧远程连接继续拒绝误投，不恢复旧远程功能。
+文件入口保持 task 固化 cwd 与 identity，不能丢身份或借用同路径的旧远程服务。
+
 设置页、侧栏与 composer 复用公开的 `useOptionalProjectDirectory` 读取同一本地项目目录 owner；嵌套 Provider 复用，不得从 tabs/cwd 生成第二份项目投影。
 
 session 标题通过 `useOptionalProjectSelectionDirectory` 读取同一 owner 的项目投影，

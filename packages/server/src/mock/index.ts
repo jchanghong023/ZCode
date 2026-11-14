@@ -79,8 +79,10 @@ export function createMockServices(options: MockServicesOptions): {
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime));
   services.register(IZCodeTaskService, new MockZCodeTaskService(runtime));
   services.register(IZCodeSessionService, new MockZCodeSessionService());
-  services.register(IProjectService, new MockProjectService(runtime));
-  services.register(IWindowProjectService, new MockProjectService(runtime));
+  // 修复原因：两个 descriptor 各 new 一张项目表会让窗口目录与会话准备互相看不到项目。
+  const projectService = new MockProjectService(runtime);
+  services.register(IProjectService, projectService);
+  services.register(IWindowProjectService, projectService);
 
   return { services, runtime };
 }

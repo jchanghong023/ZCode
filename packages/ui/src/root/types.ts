@@ -3,6 +3,8 @@ import type { IServiceAccessor } from "@zcode/services";
 import type { CreateTaskOptions, CreateTaskRequest } from "@/app-shell/types.js";
 
 export interface RootProps {
+  /** 浏览器 owner 的只读操作者投影与退出命令；不参与 RPC 身份。 */
+  operator: { employeeNumber: string; leave: () => void };
   services: IServiceAccessor;
   platform: IPlatformService;
   /** 如果从 main 进程传入则跳过项目选择页 */

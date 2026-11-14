@@ -273,7 +273,7 @@ function workspaceBadgeFor(scope: PaneWorkspaceScope): PaneWorkspaceBadge {
   return {
     label,
     workspacePath: scope.workspacePath,
-    remote: Boolean(scope.workspaceIdentity || scope.remoteSessionId),
+    remote: Boolean(scope.remoteSessionId),
   };
 }
 

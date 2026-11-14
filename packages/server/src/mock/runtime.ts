@@ -1,6 +1,9 @@
 // 模拟后端运行时：所有 mock 服务的内存状态中心。
 // 只保留内存态，不落盘、不发起真实网络请求；唯一例外是本地目录浏览
 // （projectService.readDirectory 读取本机真实目录名），文件内容不读写。
+import { createHash } from "node:crypto";
+import { hostname } from "node:os";
+import { resolve } from "node:path";
 import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {
@@ -17,8 +20,18 @@ import type {
 
 export type WorkspaceRef = { workspacePath: string; workspaceIdentity?: string };
 
+/** 稳定后端身份不含操作者或连接 ID；元信息、项目、会话和任务必须共用此规则。 */
+export function workspaceIdentityOf(workspacePath: string): string {
+  return `workspace:${createHash("sha256").update(hostname()).update("\0").update(resolve(workspacePath)).digest("hex")}`;
+}
+
 export function workspaceKeyOf(ref: WorkspaceRef): string {
-  return ref.workspaceIdentity?.trim() || ref.workspacePath;
+  // 修复原因：只在 server-info 补身份会让路径型创建与带身份查询落到两套任务/topic。
+  return ref.workspaceIdentity?.trim() || workspaceIdentityOf(ref.workspacePath);
+}
+
+export function workspaceRefOf(ref: WorkspaceRef): WorkspaceRef {
+  return { workspacePath: ref.workspacePath, workspaceIdentity: workspaceKeyOf(ref) };
 }
 
 /**
@@ -145,6 +158,8 @@ export class MockRuntime {
   readonly topics = new MockTopicLog();
   /** task 索引变更信号（IZCodeTaskService.onDynamicWorkspaceEvent）。 */
   readonly onWorkspaceTaskListChanged = new Emitter<{ workspacePath: string; type: string }>();
+  /** 项目表提交后的通知；窗口项目目录与普通项目读取共享同一个 owner。 */
+  readonly onProjectsChanged = new Emitter<void>();
 
   constructor(options: MockRuntimeOptions) {
     this.workspacePath = options.workspacePath;

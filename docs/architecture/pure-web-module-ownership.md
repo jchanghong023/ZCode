@@ -3,6 +3,7 @@
 可执行模块边界以 `architecture-policy.yaml` 和各模块 `module.ts` 为唯一依据，不在本文复制模块目录或引入登记流程框架。
 
 - web 提供浏览器平台操作；ui 通过 hooks 使用服务与平台接口。
+- `browser-employee-entry` 复用 `packages/web/src/auth` 登记根，替代原 `web-auth`；该模块只拥有当前标签页的自报工号、浏览器保存与入口展示。Root 只接收只读操作者投影和退出命令，不再存在产品 OAuth RPC、后端账号 mock 或 token 恢复 owner。模型/工具凭据不属于此模块。
 - services 保留现有接口、descriptor 与装配方式；rpc/client 保留真实传输实现。
 - server 的 mock 数据在内存中；领域拆分不创建第二套服务注册表或复制状态。
 - shared 的浏览器安全契约与 Node 专用实现分开，Node 专用入口不得进入浏览器图。

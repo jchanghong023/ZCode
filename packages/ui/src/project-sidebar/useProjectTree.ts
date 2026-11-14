@@ -239,8 +239,11 @@ export function useProjectTree() {
     for (const project of tree.projects)
       for (const root of project.roots) byKey.set(root.rootPath, { workspacePath: root.rootPath });
     for (const tab of tabs)
-      if (isWorkspaceTab(tab) && !tab.workspaceIdentity && !tab.remoteSessionId)
-        byKey.set(tab.workspacePath, { workspacePath: tab.workspacePath });
+      if (isWorkspaceTab(tab) && !tab.remoteTarget && !tab.remoteSessionId)
+        byKey.set(tab.workspaceIdentity || tab.workspacePath, {
+          workspacePath: tab.workspacePath,
+          ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+        });
     return [...byKey.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, { workspacePath, workspaceIdentity }]) => ({

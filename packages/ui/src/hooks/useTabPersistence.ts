@@ -90,7 +90,7 @@ function buildDefaultPersistPatch(state: TabStoreState): Partial<AppSettings> {
         (candidate.workspaceIdentity?.trim() || candidate.workspacePath) ===
         (state.activeWorkspaceIdentity?.trim() || state.activeWorkspacePath),
     );
-  if (tab?.workspaceIdentity || tab?.remoteSessionId) return {};
+  if (tab?.remoteTarget || tab?.remoteSessionId) return {};
   return {
     lastActiveWorkspace: tab
       ? {

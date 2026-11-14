@@ -29,15 +29,16 @@ export function useProjectFileTree(props: ProjectSidebarProps) {
     async (task: ProjectTask, remoteSessionId?: string) => {
       const identity = task.workspaceIdentity?.trim();
       const sessions = useRemoteWorkspaceSessionStore.getState();
-      const sessionId = identity
-        ? (sessions.sessionIdByWorkspaceIdentity[identity] ?? remoteSessionId)
-        : undefined;
+      const sessionId =
+        task.hostId !== "local" && identity
+          ? (sessions.sessionIdByWorkspaceIdentity[identity] ?? remoteSessionId)
+          : undefined;
       const session = sessionId ? sessions.sessionsById[sessionId] : undefined;
-      // 原因：远端 cwd 可与本地同名；只接受该任务 identity 对应的 session，不能退回本机读取。
-      // 手机 bridge 将 identity 绑定单独保存在索引，不一定重复写入 session 元数据。
+      // 修复原因：当前后端任务的 identity 不是远程连接证据；仅显式非 local 任务检查原 attachment。
       if (
-        identity &&
-        (!session ||
+        task.hostId !== "local" &&
+        (!identity ||
+          !session ||
           (sessions.sessionIdByWorkspaceIdentity[identity] !== sessionId &&
             session.workspaceIdentity !== identity))
       )
@@ -47,7 +48,8 @@ export function useProjectFileTree(props: ProjectSidebarProps) {
       onOpenFileManager?.({
         workspacePath: filesPath,
         workspaceName: getPathLeaf(filesPath) || filesPath,
-        ...(identity ? { workspaceIdentity: identity, workspaceRemoteSessionId: sessionId } : {}),
+        ...(identity ? { workspaceIdentity: identity } : {}),
+        ...(sessionId ? { workspaceRemoteSessionId: sessionId } : {}),
       });
     },
     [onOpenFileManager],

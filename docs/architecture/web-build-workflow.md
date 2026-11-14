@@ -57,6 +57,12 @@ workspace 内其它包（`shared` / `rpc` / `services` / `ui` 等）以源码形
 - `pnpm dev` 并行启动两端：`packages/server` 以 `tsx watch src/entry-http.ts` 跑 mock 后端（默认 `:3030`，`PORT` 可覆盖），`packages/web` 跑 Vite（`:5173`，`/api`、`/ws` 代理到 `:3030`）。
 - VS Code 配置与之一致：任务 `zcode: mock server (:3030)`、`zcode: web dev (:5173)`、`zcode: dev (mock server + web)`；启动配置 `ZCode Web: Chrome (:5173)`（先起两端）与 `ZCode Server: Mock (:3030)`（仅起 web）。不存在 Electron / 桌面调试入口。
 - 生产形态：`packages/server` 产物支持 `ZCODE_WEB_STATIC_ROOT=<packages/web/dist>` 单进程托管前端静态资源。
+- 对外部署必须提供 HTTPS 安全上下文、同源 `/api` 与 `/ws` Upgrade，以及预览/下载返回的可达资源路径。
+  localStorage、sessionStorage、IndexedDB、Blob/object URL、WebSocket 与 `crypto.randomUUID` 必须可用；
+  不能将 localhost HTTP 的可用性当作任意服务器 HTTP 可部署的证据。
+- 后端替换验收固定一份 `packages/web/dist`，将部署包与逐文件 SHA-256 清单一起保存；
+  同一包先连 mock 再连真实后端，不因后端差异重建带特判的前端。完整接入面见
+  [模拟后端规范 §8](mock-backend.md#8-真实后端替换契约)。本仓库仍只实现模拟后端。
 
 ## 扩展与维护规则
 

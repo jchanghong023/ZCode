@@ -1,5 +1,27 @@
 # 本地项目使用系统多目录选择器
 
+## 当前纯 Web 裁决（覆盖下方历史桌面说明）
+
+目录是浏览器当前连接的后端服务器（含挂载目录）可访问的目录，不是浏览器电脑的目录。
+ProjectEditor 是未保存 roots/primary/name 的唯一草稿 owner；保存后后端项目服务拥有组织态，
+创建会话固定其 cwd，切换项目或工号不得改写会话 cwd。`hostId: local` 指当前后端。
+
+```text
+浏览器 → 同源 RPC projectService.readDirectory → 后端只读目录浏览
+        ← 服务器绝对路径与目录名
+ProjectEditor 草稿 → 显式 saveProject → 后端共享项目表
+                   → prepareSession → cwd + 稳定 workspaceIdentity → 当前后端会话服务
+```
+
+工作区 identity 是数据身份而非旧远程 Host 路由；非空 identity 不得造成 remote-waiting。
+只有显式旧远程连接元数据继续遵循断连拒绝，不允许误投当前后端，不恢复 SSH/relay/桌面运行时。
+工号仅浏览器自报操作者，不进入身份、路径键或项目/会话过滤；所有浏览器共享业务事实，
+但各自保留握手及订阅生命周期。一端取消订阅不得删除另一端订阅。
+
+验收：两个独立浏览器以不同工号进入，浏览后端目录并保存项目，创建带稳定 identity 的会话；
+另一端看到同一项目/任务，刷新后可加载会话、文件树、Git 和已有预览，无旧远程等待；
+一端断开/取消订阅不影响另一端继续接收会话更新。以下桌面用例仅是历史记录，不恢复其测试体系。
+
 ## 行为与归属
 
 桌面创建本地项目、编辑本地项目的「添加文件夹」使用操作系统原生目录选择框，允许一次多选目录。沿用平台接口的 native dialog 能力，新增可选 `IPlatformService.selectDirectories(): Promise<string[]>`；Electron main 使用 `openDirectory`、`createDirectory`、`multiSelections`，返回全部路径，取消返回空数组。旧 `selectDirectory` 单选契约不变。

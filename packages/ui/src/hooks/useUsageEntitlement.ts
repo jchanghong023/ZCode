@@ -169,11 +169,10 @@ export function useUsageEntitlementWithService(
   const requirePreferredProvider = options.requirePreferredProvider === true;
   const allowEnvApiKey = options.allowEnvApiKey;
   const authScope = useZCodeStoreWithDefault(
-    (store) => (store.user ? `${store.user.id}:${store.authSessionSeq}` : "signed-out"),
+    (store) => `connection:${store.authSessionSeq}`,
     "unscoped",
   );
-  const enabled =
-    (options.enabled ?? true) && Boolean(usageStatsService) && authScope !== "signed-out";
+  const enabled = (options.enabled ?? true) && Boolean(usageStatsService);
   const suppliedCacheKey = options.cacheKey?.trim() ?? "";
   const freshnessCacheKey =
     authScope === "unscoped" ? suppliedCacheKey : `${suppliedCacheKey}:auth:${authScope}`;
@@ -299,9 +298,9 @@ export function useUsageEntitlementWithService(
       }
       logger.debug("[useUsageEntitlement] 开始读取权益信息", {
         reason,
-        includeSubscription,
-        preferredProviderId,
-        accountAccess,
+        includeSubscription: requestOptions.includeSubscription,
+        preferredProviderId: requestOptions.preferredProviderId,
+        accountAccess: requestOptions.accountAccess,
         cacheKey,
         freshnessKey,
       });

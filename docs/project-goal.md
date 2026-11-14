@@ -16,6 +16,11 @@
 
 仓库里只有一个可运行拓扑：浏览器前端直连内存模拟后端，不存在桌面 shell、Agent CLI、Host/relay 或远程主机进程。
 
+当前产品入口使用自报工号，无密码、不验证本人；浏览器只保存当前操作者标记，不将工号作为
+可信身份、服务路由或数据隔离键。所有工号共享当前后端的项目和会话。模型与工具的调用凭据
+独立保留，不等于旧第三方产品账号。服务器目录是后端可访问的真实目录（含挂载目录），
+不是浏览器用户电脑的目录；`workspaceIdentity` 表达工作区身份，不表示另一条 SSH/Host 连接。
+
 ```text
 浏览器
   packages/web（Vite 入口 main.tsx、浏览器平台实现 src/platform）
@@ -67,7 +72,11 @@
 
 ## 后端替换路径
 
-前端与模拟后端之间唯一的耦合面是 `packages/services` 的服务接口 / descriptor 与 `packages/shared` 的 Protocol v4 契约。将来对接自有后端时，实现同一套契约即可整体替换 `packages/server`，UI 层零改动。
+替换边界同时包含同源 HTTP 启动元信息、静态站点和浏览器可访问的资源 URL，以及
+`packages/services` 的服务接口 / descriptor、`packages/rpc` 的二进制 Channel 传输与
+`packages/shared` 的 Protocol v4 契约；不能只实现 TypeScript 接口或只替换 WebSocket。
+完整对接要求见 [模拟后端规范 §8](architecture/mock-backend.md#8-真实后端替换契约)。
+真实后端实现这一整套契约后，替换 `packages/server`，不得再以 UI 特判适配后端差异。
 
 ```text
 现在:  浏览器 UI ── WS RPC（Protocol v4）── packages/server 模拟后端（内存假数据）

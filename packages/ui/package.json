@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./button": "./src/components/ui/button.tsx",
+    "./input": "./src/components/ui/input.tsx",
     "./dialog": "./src/components/ui/dialog.tsx",
     "./alert-dialog": "./src/components/ui/alert-dialog.tsx",
     "./dropdown-menu": "./src/components/ui/dropdown-menu.tsx",

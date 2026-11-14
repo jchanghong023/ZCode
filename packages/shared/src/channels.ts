@@ -7,7 +7,6 @@ import type {
   MigrateLegacyCommonMcpResult,
   SaveCliMcpToUserDirectoryRequest,
 } from "./index.js";
-import type { OAuthStateRegistration } from "./oauth.js";
 import type { AppSettings, Locale } from "./protocol.js";
 import type { StorageCleanRequest, StorageCleanResult, StorageUsageSnapshot } from "./storage.js";
 import type {
@@ -121,8 +120,6 @@ export const ServiceChannels = {
   ConversationShare: "conversation-share",
   /** 文件系统监视服务 */
   FileWatcher: "file-watcher",
-  /** OAuth 认证服务 */
-  OAuth: "oauth",
   /** 新 Provider Config 的设置读写 Facade */
   ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
@@ -339,7 +336,7 @@ export const PlatformChannels = {
   StorageRevealPath: "zcode:storage-reveal-path",
   /** Main → 资源管理器 renderer：扫描进度快照推送 */
   StorageScanProgress: "zcode:storage-scan-progress",
-  /** Renderer → Main：打开外部 URL（用于 OAuth 跳转浏览器） */
+  /** Renderer → Main：打开外部 URL */
   OpenExternal: "zcode:open-external",
   /** Renderer → Main：查询当前语言下是否存在可用的用户社群入口 */
   CanOpenCommunity: "zcode:can-open-community",
@@ -365,16 +362,10 @@ export const PlatformChannels = {
    * 立刻消失可能打断正在进行的拖拽。
    */
   NotifyCuaHelperPermissionDragEnded: "zcode:notify-cua-helper-permission-drag-ended",
-  /** Renderer → Main：上报 OAuth state 用于 deep link 路由 */
-  OAuthRegisterState: "zcode:oauth-register-state",
-  /** Main → Renderer：转发 deep link URL */
-  OAuthCallback: "zcode:oauth-callback",
   /** Main → Renderer：转发支付 deep link URL */
   PaymentCallback: "zcode:payment-callback",
   /** Main → Renderer：外部分享页请求导入 share code。 */
   ShareImport: "zcode:share-import",
-  /** Renderer → Main：OAuth 回调已处理完成，可继续后置启动流程 */
-  OAuthCallbackHandled: "zcode:oauth-callback-handled",
   /** Renderer → Main：renderer 已就绪，可接收缓存的 deep link */
   RendererReady: "zcode:renderer-ready",
   /** Renderer → Main：同步当前 renderer 的 telemetry 上下文 */
@@ -1031,24 +1022,12 @@ export interface PlatformChannelMap {
     request: { operationId: string };
     response: void;
   };
-  [PlatformChannels.OAuthRegisterState]: {
-    request: OAuthStateRegistration;
-    response: void;
-  };
-  [PlatformChannels.OAuthCallback]: {
-    request: string;
-    response: void;
-  };
   [PlatformChannels.PaymentCallback]: {
     request: string;
     response: void;
   };
   [PlatformChannels.ShareImport]: {
     request: { shareCode: string };
-    response: void;
-  };
-  [PlatformChannels.OAuthCallbackHandled]: {
-    request: void;
     response: void;
   };
   [PlatformChannels.RendererReady]: {

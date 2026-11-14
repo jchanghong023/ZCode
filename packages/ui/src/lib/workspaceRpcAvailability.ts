@@ -5,9 +5,8 @@ interface WorkspaceRpcAvailabilityTarget {
 }
 
 export function isRemoteWorkspaceRpcTarget(target: WorkspaceRpcAvailabilityTarget): boolean {
-  return Boolean(
-    target.workspaceIdentity?.trim() || target.remoteSessionId?.trim() || target.remoteTarget,
-  );
+  // 修复原因：当前后端的稳定 identity 不能暂停正常的工作区 RPC。
+  return Boolean(target.remoteSessionId?.trim() || target.remoteTarget);
 }
 
 export function shouldEnableWorkspaceRpc(target: WorkspaceRpcAvailabilityTarget): boolean {

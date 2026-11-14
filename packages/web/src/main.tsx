@@ -8,6 +8,7 @@ import "core-js/stable/array/to-reversed";
 import "core-js/stable/object/group-by";
 import { createWebPlatform } from "#src/platform/index.js";
 import { createRoot } from "react-dom/client";
+import type { ReactNode } from "react";
 import {
   AppErrorBoundary,
   Root,
@@ -20,13 +21,7 @@ import {
 import "./styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 
-import { WebCallbackPage } from "./auth/WebCallbackPage.js";
-import { createWebAuthService } from "./auth/webAuthService.js";
-import {
-  isWebOAuthCallbackUrl,
-  parseOAuthState,
-  resolveSafeAppReturnTo,
-} from "./auth/oauthStateCodec.js";
+import { EmployeeEntry, createEmployeeEntry } from "./auth/index.js";
 import type { ServerRemoteInfo } from "@zcode/shared";
 
 function resolveWebThemePreference(): Theme {
@@ -67,7 +62,13 @@ function resolveWebThemePreference(): Theme {
 }
 
 const root = createRoot(document.getElementById("root")!);
-const webAuthService = createWebAuthService();
+const employeeEntry = createEmployeeEntry();
+let stopConnection: (() => void) | null = null;
+let entryGeneration = 0;
+
+function renderEntry(content: ReactNode = null): void {
+  root.render(<div className="flex h-dvh flex-col"><EmployeeEntry owner={employeeEntry}>{content}</EmployeeEntry></div>);
+}
 // 初始化 Web 端流式 clientId，确保所有 hook 在首次渲染前就使用稳定 ID
 {
   setStreamClientId(generateMobileDeviceFingerprint());
@@ -85,7 +86,7 @@ interface WebBootstrapResult {
 function renderWebBootstrapFailure(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   document.title = "ZCode - Web";
-  root.render(
+  renderEntry(
     <div
       style={{
         display: "flex",
@@ -105,7 +106,7 @@ const WEB_RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 15000, 30000];
 
 function renderWebDisconnected(message: string, onRetry?: () => void): void {
   document.title = "ZCode - Web (disconnected)";
-  root.render(
+  renderEntry(
     <div
       style={{
         display: "flex",
@@ -129,45 +130,12 @@ function renderWebDisconnected(message: string, onRetry?: () => void): void {
   );
 }
 
-function isWebOAuthCallback(): boolean {
-  return isWebOAuthCallbackUrl(new URL(window.location.href));
-}
-
-function renderWebAuthCallbackPage(): void {
-  document.title = "ZCode - Sign In";
-  const callbackState = parseOAuthState(
-    new URLSearchParams(window.location.search).get("state") ?? "",
-  );
-  const safeRetryTarget = resolveSafeAppReturnTo(callbackState?.app_return_to);
-  root.render(
-    <WebCallbackPage
-      authService={webAuthService}
-      onSuccess={({ appReturnTo }) => {
-        window.location.replace(appReturnTo ?? "/");
-      }}
-      onRetry={() => {
-        window.location.replace(safeRetryTarget ?? "/");
-      }}
-    />,
-  );
-}
-
-// 访问 window.localStorage 本身在部分浏览器会抛错，统一包在方法里交给调用方兜底。
-
 function resolveDefaultWsOrigin(): string {
   return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
 }
 
 async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
-  const params = new URLSearchParams(window.location.search);
-  const remoteId = params.get("remote");
-  const wsUrl = remoteId
-    ? `${resolveDefaultWsOrigin()}/ws/remote/${remoteId}`
-    : `${resolveDefaultWsOrigin()}/ws`;
-
-  if (remoteId) {
-    return { wsUrl };
-  }
+  const wsUrl = `${resolveDefaultWsOrigin()}/ws`;
 
   try {
     const response = await fetch("/api/server-info", {
@@ -190,19 +158,16 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
   }
 }
 
-async function bootstrapWebApp() {
-  if (isWebOAuthCallback()) {
-    renderWebAuthCallbackPage();
-    return;
-  }
-
+async function bootstrapWebApp(generation: number) {
+  const isCurrentEntry = () => generation === entryGeneration && employeeEntry.employeeNumber !== null;
   let bootstrap: WebBootstrapResult;
   try {
     bootstrap = await resolveWebBootstrap();
   } catch (error) {
-    renderWebBootstrapFailure(error);
+    if (isCurrentEntry()) renderWebBootstrapFailure(error);
     return;
   }
+  if (!isCurrentEntry()) return;
 
   const platform = createWebPlatform();
   // 每次重建连接都换 key：Root 及其 store/订阅整体重挂载，v4 走 fresh-subscribe，
@@ -212,13 +177,14 @@ async function bootstrapWebApp() {
   const renderApp = (services: Awaited<ReturnType<typeof connectViaWebSocket>>) => {
     connectionGeneration += 1;
     document.title = "ZCode - Web + Server";
-    root.render(
+    renderEntry(
       <AppErrorBoundary>
         <ZCodeIntlProvider>
           <Root
             key={connectionGeneration}
             services={services}
             platform={platform}
+            operator={{ employeeNumber: employeeEntry.employeeNumber!, leave: () => employeeEntry.leave() }}
             initialWorkspaceAbsPath={bootstrap.initialWorkspaceAbsPath}
             initialWorkspaceIdentity={bootstrap.initialWorkspaceIdentity}
             initialTaskId={bootstrap.initialTaskId}
@@ -238,9 +204,23 @@ async function bootstrapWebApp() {
   let connecting = false;
   let closed = false;
   let activeSocket: WebSocket | null = null;
+  let attemptGeneration = 0;
+  let disposed = false;
+  const closeActiveSocket = () => {
+    activeSocket?.close();
+    activeSocket = null;
+  };
+  stopConnection = () => {
+    disposed = true;
+    attemptGeneration += 1;
+    if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    closeActiveSocket();
+    window.removeEventListener("online", handleOnline);
+  };
 
   const scheduleReconnect = () => {
-    if (reconnectTimer !== null || connecting) {
+    if (disposed || !isCurrentEntry() || reconnectTimer !== null || connecting) {
       return;
     }
     if (reconnectAttempt >= WEB_RECONNECT_DELAYS_MS.length) {
@@ -260,52 +240,85 @@ async function bootstrapWebApp() {
   };
 
   const connect = async (): Promise<void> => {
-    if (connecting) {
+    if (disposed || !isCurrentEntry() || connecting || activeSocket !== null) {
       return;
     }
     connecting = true;
+    const attempt = ++attemptGeneration;
+    let retry = false;
+    let attemptClosed = false;
     try {
       const services = await connectViaWebSocket(bootstrap.wsUrl, {
         onOpenSocket: (ws) => {
+          if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) {
+            ws.close();
+            return;
+          }
           activeSocket = ws;
         },
         onClose: (event) => {
           // 只处理当前活跃 socket 的关闭；被替换的旧 socket 迟到事件不再触发重连。
-          if (activeSocket === null) {
+          if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) {
             return;
           }
+          attemptClosed = true;
           activeSocket = null;
           closed = true;
           logger.warn(
             `[web] RPC transport closed (code=${event.code}, reason=${event.reason || "none"})`,
           );
-          scheduleReconnect();
+          if (!connecting) scheduleReconnect();
         },
       });
+      if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) return;
+      if (attemptClosed) { retry = true; return; }
       closed = false;
       reconnectAttempt = 0;
       renderApp(services);
     } catch (error) {
+      if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) return;
+      // 本轮失败即撤销关闭事件资格，异步 close 到达时不能再启动第二条恢复路径。
+      attemptGeneration += 1;
+      closeActiveSocket();
+      closed = true;
       if (connectionGeneration === 0) {
-        // 首次连接失败：保留原有 bootstrap 失败语义，不进入重连循环。
-        renderWebBootstrapFailure(error);
-        return;
+        renderWebDisconnected(error instanceof Error ? error.message : String(error), () => {
+          reconnectAttempt = 0;
+          void connect();
+        });
+      } else {
+        logger.warn("[web] RPC reconnect failed", error);
+        retry = true;
       }
-      logger.warn("[web] RPC reconnect failed", error);
-      scheduleReconnect();
     } finally {
       connecting = false;
+      // Bug 原因：connecting 尚为 true 时安排重试会被准入守卫丢弃。
+      // 必须先释放本轮连接资格，再安排唯一 timer；旧 attempt 的关闭回调不能污染下一轮。
+      if (retry || (attemptClosed && connectionGeneration > 0)) scheduleReconnect();
     }
   };
 
-  window.addEventListener("online", () => {
-    if (closed && reconnectTimer === null && !connecting) {
+  function handleOnline() {
+    if (!disposed && closed && reconnectTimer === null && !connecting) {
       reconnectAttempt = 0;
       void connect();
     }
-  });
+  }
+  window.addEventListener("online", handleOnline);
 
   await connect();
 }
 
-void bootstrapWebApp();
+// 旧 remote/授权回调不再是产品入口，不读取其中的 Host 或账号参数。
+if (window.location.pathname.startsWith("/remote") || new URLSearchParams(window.location.search).has("remote")) {
+  window.history.replaceState(null, "", "/");
+}
+function handleEntryChange() {
+  entryGeneration += 1;
+  stopConnection?.();
+  stopConnection = null;
+  renderEntry();
+  if (employeeEntry.employeeNumber) void bootstrapWebApp(entryGeneration);
+}
+employeeEntry.subscribe(handleEntryChange);
+handleEntryChange();

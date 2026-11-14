@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useStore } from "zustand";
+import type { UserInfo } from "@zcode/shared";
 import type { IBroadcastService } from "@zcode/services";
 import { createZCodeStore, type ZCodeStore, type ZCodeState } from "./index.js";
 
@@ -20,18 +21,18 @@ export const StoreContext = createContext<ZCodeStore | null>(null);
 
 export function StoreProvider({
   broadcastService,
-  initialIsRestoringOAuthSession = false,
+  initialUser = null,
   children,
 }: {
   broadcastService: IBroadcastService;
-  initialIsRestoringOAuthSession?: boolean;
+  initialUser?: UserInfo | null;
   children: ReactNode;
 }) {
   // 只在首次渲染时创建 store，避免 HMR 重复订阅
   const storeRef = useRef<ZCodeStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createZCodeStore(broadcastService, {
-      initialIsRestoringOAuthSession,
+      initialUser,
     });
   }
 

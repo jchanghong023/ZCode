@@ -24,7 +24,7 @@ export function useTaskInteractionAutoResolutionSnooze(
   const contextServices = useOptionalServices();
   const workspaceIdentity = target.workspaceIdentity?.trim() || undefined;
   const remoteSessionId = target.remoteSessionId?.trim() || undefined;
-  const isRemoteTarget = Boolean(workspaceIdentity || remoteSessionId);
+  const isRemoteTarget = Boolean(remoteSessionId);
   const selectTargetServices = useCallback(
     (state: ReturnType<typeof useRemoteWorkspaceSessionStore.getState>) => {
       if (!isRemoteTarget) {

@@ -34,7 +34,7 @@
 | 文件树 / 文件读取 / 搜索                                        | supported   | 虚拟工作区 fixture；不读写真实文件                                 |
 | Git 面板                                                        | supported   | 虚拟仓库状态；不发起真实 git/网络                                  |
 | 设置、凭据（内存）、客户端配置                                  | supported   | 设置域内存态；凭据不落盘                                           |
-| OAuth / 账号                                                    | compatible  | 固定已登录模拟账号，不发起真实 OAuth                               |
+| 产品操作者                                                      | supported   | 浏览器自报工号；不是服务端账号，不分区项目/会话，不提供旧产品 OAuth |
 | Provider / 模型选择 / 用量                                      | compatible  | 确定性模型目录与空用量；不联网                                     |
 | Coding Plan 订阅/支付/企业套餐                                  | unavailable | 读取返回空集合；支付/领取/协议签置抛错                             |
 | 插件目录/安装/配置、扩展宿主、扩展视图/授权                     | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错   |
@@ -159,7 +159,7 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 
 - conversation 订阅按 `sessionId` 匹配；session 属于另一个 workspace 时按 `fault.command.sessionNotFound` 处理，不读取跨工作区状态。
 - sessions-index 与 workspace-config 订阅按 `workspaceKey`（`workspaceIdentity ?? workspacePath`）匹配，跨工作区不串帧。
-- agent topic 的每个 WebSocket 连接由 `createZCodeAgentConnectionScope` 建立独立 ownership：帧只路由给拥有该 `subscriptionId` 的连接，跨连接 resync/unsubscribe 被拒绝。
+- agent topic 的每个 WebSocket 连接由 `createZCodeAgentConnectionScope` 建立独立 ownership：帧只路由给拥有该 `subscriptionId` 的连接；跨连接 resync 报 `fault.subscription.notOwned`，非本连接的 unsubscribe 幂等忽略且不删除原连接订阅。
 - controller topic 仅由共享的 `MockWindowControllerService` 订阅表过滤，当前没有逐连接 ownership；这是原型限制，本次不新增 scope 机制。
 
 ## 6. 能力投影与前端
@@ -199,3 +199,159 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 7. 受支持命令（`createSession`、`renameSession`、`setFollowupMode`、运行中 `sendText` 入队、`switchModelConfig`）产生可观察状态转换与合法帧；命令信封的 workspace 身份为完整 `ZCodeWorkspaceRef`（`workspaceKey = workspaceIdentity?.trim() || workspacePath`），`createSession` payload 带 `workspaceId = workspaceKey`。
 
 已知未覆盖：浏览器渲染、真实文件/Git 操作、controller topic（由 UI 运行时使用），以及 command 去重/CAS（见 §4 限制）。
+
+## 8. 真实后端替换契约
+
+本节是裁剪后保留前端的对接规格，不授权开发真实业务后端。契约中的 Host 指服务所有者，
+在当前 Web 拓扑中就是浏览器连接的后端，不意味着恢复 SSH、relay 或桌面进程。
+方法的精确字段、联合类型和可选性以本节链接的源码契约与 zod schema 为准，不能将表中说明
+当作可另行简化的 DTO。模拟实现的 `unavailable` 也属于可观察契约：能力未开放时明确拒绝，
+不是要求为已经裁撤的产品页面重建实现。
+
+### 8.1 HTTP、资源与部署
+
+| 接入面 | 请求与响应 | 必须保持的行为 |
+| --- | --- | --- |
+| 启动元信息 | `GET /api/server-info` → `ServerRemoteInfo`，用 `serverRemoteInfoOutputSchema` 校验 | 稳定 serverId、version/protocolVersion、compatibility、capabilities、workspaces 的 path/identity；目录均属于后端。identity 合法非空不触发另一条远程连接 |
+| 客户端配置 | `GET /api/v1/client/configs` → 当前 `code/data.configs` 配置响应 | 平台 help/community 等消费者仍可读取；不得要求旧产品账号 Bearer token |
+| RPC | 同源 `GET /ws` 升级 WebSocket，双向二进制帧 | 不是 JSON WebSocket、REST 或 SSE；正式部署的入口必须转发 Upgrade，不能只代理 `/api` |
+| 站点 | `/`、构建 assets 与 SPA 路由 | 提供相同的前端构建产物、正确 MIME；index 不缓存，带 hash 的构建资源可长期缓存 |
+| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src` |
+| 下载 | `IPlatformService` 浏览器实现 fetch URL 或下载字节 | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体 |
+
+旧产品账号授权、回调、轮询和 token 交换接口不属于替换合同。工号只由浏览器操作者模块
+保存和恢复，本轮没有后端登录接口；不能把工号塞进 `clientId`、`subscriptionId`、
+`hostId`、`workspaceIdentity` 或严格的 v4 帧。现有可选部署访问 token 是另一层站点访问控制，
+不代表工号认证，也不允许据此分区共享业务数据。
+
+真实浏览器部署要求 HTTPS 安全上下文（开发 localhost 的豁免不证明服务器 HTTP 可用）；
+允许站点使用 localStorage、sessionStorage、IndexedDB、WebSocket、Blob/object URL 和
+`crypto.randomUUID`。存储被禁用、代理阻断 Upgrade 或资源证书不可用属于部署失败，
+不能以 mock 特判修前端。同源 `/ws`、`/api` 及返回的资源路径必须在正式入口真实存在，
+Vite 的开发代理不是生产路由。
+
+### 8.2 二进制传输与 Channel RPC
+
+直接复用 `@zcode/rpc` 最小且最不易产生协议漂移。非 TypeScript 后端也必须实现同一字节格式：
+
+- `SocketProtocol` 的帧头固定 13 字节：type:u8、id:u32BE、ack:u32BE、payloadLength:u32BE；
+  普通消息 type=1。解析必须支持跨 WebSocket message 的半帧与同一 message 内多帧。
+  当前 `/ws` 用 `SocketProtocol`，不是 `PersistentProtocol` 的透明会话续传。
+- payload 为 `serialize(header)` + `serialize(body)`；类型标签、VQL 长度、字符串 UTF-8、
+  顶层 Uint8Array、嵌套二进制 marker 均沿用
+  [`serialization.ts`](../../packages/rpc/src/serialization.ts)，不能换成自定义 JSON 编码。
+- 服务端发 Channel Initialize，客户端再开始调用；客户端等待 Initialize 的现有上限为 15 秒。
+  本 Web 入口直接 `ChannelServer`，不添加 `IPCServer` 的首条 ctx 消息。
+- 请求头与响应类型以 [`channels.shared.ts`](../../packages/rpc/src/channels.shared.ts)、
+  [`channelClient.ts`](../../packages/rpc/src/channelClient.ts)、
+  [`channelServer.ts`](../../packages/rpc/src/channelServer.ts) 为准；请求 id 只在当前连接中对应结果。
+  Promise success/error、事件 listen/fire/dispose 与取消都要保留，错误不能变成假成功的空值。
+- [`ProxyChannel`](../../packages/rpc/src/proxy-channel.ts) 把方法实参作为数组传输；
+  `onXxx` 是 Event，`onDynamicXxx(arg)` 是参数化 Event。销毁监听器会退订，
+  不能将事件当成返回 Promise 的普通方法。
+- [`ServiceCollection`](../../packages/services/src/collection.ts) 的公开边界与凭据恢复限制保留。
+  不做本人认证不等于放开网络端的 `recoverStore`，更不能把原来非公开的宿主方法全部开放。
+  客户端代理是惰性的，能创建代理不证明服务端存在频道；可选能力依能力协商开放。
+
+断线终结旧 ChannelClient：所有 pending 请求失败、事件释放。浏览器按有限退避新建连接、
+accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或旧订阅继续修改新页面。
+失败后的下一次安排在连接标记清除后发生；首次启动失败、自动重试耗尽和手动恢复仍有可见状态。
+
+### 8.3 业务调用面
+
+以下按实际页面消费者分组，而不是只给接口名。所有路径相对 `packages/services/src/`；
+接口参数/返回 DTO 中引用的 `@zcode/shared` 类型同属替换合同。
+完整客户端装配以 `packages/client/src/remoteServiceAccess.ts` 和 `IServiceAccessor` 为准，
+可选服务缺席时不得伪造可用能力。
+
+| 保留消费者 | 方法／事件与数据语义 | 精确契约 |
+| --- | --- | --- |
+| 项目选择、侧栏、创建会话 | `readDirectory({path?,includeHidden?}) → {path,entries}` 浏览后端目录；`readProjects/readTree` 返回共享项目/roots/任务；`saveProject`、软删除/恢复/排序/移动需真实状态变化；`prepareSession/resolveSessionDirectories` 返回固化 cwd、附加目录与 identity | `project/contract.ts`、`project-storage/repository-contract.ts`；`broadcastService.onMessage` 的 `state:projects` 使其他连接刷新 |
+| 文件树与目录刷新 | `readdir({path,includeHidden?}) → FileEntry[]`、`stat → FileStat`；`watch/unwatch` 与 `onDynamicChange(id)`；搜索用 rootPath/query/limit，返回有界路径候选而不是整个磁盘 | `file/file.ts`、`fileWatcher/fileWatcher.ts`；UI `useFileService`、`useFileWatcherService` |
+| 文件搜索/忽略配置 | `searchWorkspaceFiles`；`listWorkspaceFilesLength` + `listWorkspaceFilesRange({rootPath,offset,length})` 返回列式打包裸字符串；忽略规则 read/transform/write 保持用户编辑语义 | `file/file.ts`、shared 的 workspaceFileEntriesCodec；未提供写能力时明确拒绝 |
+| 文本、代码、Markdown、SVG、HTML 预览 | `readTextFile({path,offset?,length?}) → FileTextSlice` 保持分页/截断；`readMediaPreview → {dataBase64,mediaType,...}` 支持图片及 SVG 原字节下载；服务器路径只作为 RPC 参数 | `file/file.ts`、UI `PreviewPane.tsx`、`components/ai-elements/markdown-image.tsx` |
+| 音频／视频 | `prepare({path,expectedKind}) → MediaPreviewPreparation`；inline 为 base64 + MIME，URL 分支必须浏览器可达；`host-range-url` 带 previewId/过期时间，`refreshPlaybackUrl` 续期，`release` 释放 | `media-preview/mediaPreview.ts`；URL 服务需正确 Content-Type/Range/Content-Range 与过期行为；不恢复 PDF/Office/PPTX 预览 |
+| 文件字节 | `readFileRange({path,offset,length}) → Uint8Array` EOF 可短读；`readBinaryPreview` 返回有界预览，不改变当前已裁剪的页面范围 | `file/file.ts`；保持顶层二进制快速通道 |
+| Git 面板与分支 | `refresh({workspacePath,...})` 返回一致状态快照；summary/repositoryInfo/localBranches/changes/ignoredPaths/diff/branchComparison/identity 查询；stage/unstage/discard、switch/createBranch、commit/push 后应可重新读取变化 | `git/git.ts` 与 shared Git DTO；UI `useGitRepository`、`useGitBranchSwitcher`、GitActions。结构化失败保留，不把冲突/不存在仓库当空成功 |
+| 历史会话、时间线和组织态 | `zcodeTaskService` 的列表/任务查询与动态 workspace 事件；controller workspaces/tasks-index 快照增量及 unread/tasksRemoved 信号；标题、置顶、归档、未读、删除按唯一 owner 改写 | `session/zcodeTaskService.ts`、`window-controller/windowController.ts`、`task-groups/contract.ts`；不得按工号拆表或过滤 |
+| 会话正文、输入、队列、权限、模型切换 | 先 hello/initialize，再 conversation/sessions-index/workspace-config subscribe；命令 ACK 与下行投影分离，分页查询有界；具体见 §8.4 | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`；UI `v4` 消费 |
+| 模型设置与选择器 | `providerSettingsService.getView/refresh`、个人 Provider/模型创建修改启停排序、`testModelConnectivity`；`modelSelectionService.getView` 与变更事件保持设置视图/执行目录分工 | `model-provider/providerFacadeServices.ts`；UI `useModelProviders`、Composer。工号切换不清理 API Key 或切换模型目录 |
+| 设置、凭据、系统与跨连接刷新 | setting get/update/变更事件；credential load/save/delete 及网络恢复限制；system info 返回后端信息/home；broadcast 消息用于失效刷新，不作为另一份业务事实 | `setting/setting.ts`、`credential/credential.ts`、`system/system.ts`、`broadcast/broadcast.ts` |
+| 保留设置页与辅助面 | 插件/MCP/子智能体/命令/hooks/memory/output-style 的读配置与写操作；同步、用量、分享、附件、自动化等只在既有能力开放时执行，未实现写入明确失败 | `plugins/plugins.ts`、`plugins/pluginManagement.ts`、`mcp-sync/`、`subagents/`、`commands/`、`hooks/`、`memory/`、`output-style/` 等 `IServiceAccessor` 指向的契约；§2 能力表记录 mock 当前限制，不授权裁撤这些尚保留入口 |
+
+这里保留协议中已有但页面未使用的字段/方法，不意味着恢复其退役页面，例如 Git commit graph。
+模型/工具授权独立于产品登录；MCP OAuth 等调用凭据不得按关键字批量删除。
+真实后端须逐个实现保留消费者所需的公开方法和事件，或按现有能力语义明确关闭；
+不能靠前端按后端名称判断、假数据分支、缺方法空实现或吞掉业务错误通过验收。
+
+### 8.4 Protocol v4 与连接边界
+
+wire 名称中的 v4 不是可自行填写的版本数字，使用 schema 的 `V4_WIRE_PROTOCOL_VERSION`。
+`HelloMessage`、`ClientHello`、命令与帧均严格校验，当前 `V4_WIRE_PROTOCOL_VERSION=3`，
+不得按产品名猜测版本或添加工号字段。
+
+```mermaid
+sequenceDiagram
+  participant B as 浏览器连接
+  participant C as 当前连接 ChannelServer/scope
+  participant R as 后端共享项目/会话事实源
+  B->>C: /ws 二进制连接
+  C-->>B: Channel Initialize
+  B->>C: helloConversationV4()
+  C-->>B: hello(connectionId, mode, profile, capabilities)
+  B->>C: initializeConversationV4(clientHello)
+  B->>C: listen 动态帧 + subscribe topic
+  C->>R: 按 workspaceKey/session 查询
+  C-->>B: RPC response 仅 ACK(subscriptionId, logEpoch, mode)
+  C-->>B: post-response owned snapshot notification
+  B->>C: sendConversationCommandV4(envelope)
+  C->>R: 校验/去重/CAS后状态转换
+  C-->>B: CommandAck
+  R-->>C: 同一事实增量
+  C-->>B: 当前连接拥有的帧(subscriptionId, seq区间)
+  B->>C: unsubscribe / 断开
+  C->>C: 仅释放本连接握手与订阅
+```
+
+- `helloConversationV4 → initializeConversationV4` 的 mode/profile 由连接 scope 可信给定；
+  当前 Web 为 `web-remote-replayable` / `replayable`。客户端只回应已协商能力，
+  不得用 clientHello 覆盖可信 mode。`auth.userId` 留位不等于工号认证。
+- 精确 wire 方法/通知词表见 shared `transport.ts` 的 `V4_METHODS/V4_NOTIFICATIONS`；
+  RPC 公开包装方法见 `zcodeAgent.ts`，不能拿 wire 路径替换 Channel 方法名。
+- conversation、sessions-index、workspace-config 和 controller topic 都要实现
+  subscribe/resync/unsubscribe；subscribe/resync response 只含 ACK，首帧在响应之后作为
+  owned notification 发送，不能内嵌初始 snapshot 或在 ACK 前发出不可归属的帧。
+  `subscriptionId` 按连接拥有；重连必须取得新 id，不跨浏览器取消或复用他人订阅。
+- `workspaceKey = workspaceIdentity?.trim() || workspacePath`。路径用于目录展示与执行，
+  identity 用于工作区隔离；两者均不能包含工号。同路径稳定 identity 的项目仍由当前 backend 服务。
+- snapshot 对齐 logEpoch 与当前 toSeq；增量严格匹配 `(fromSeq,toSeq]`。丢帧/代际改变走
+  既有 resync/snapshot 规则，不能伪造 seq 或把缺席 snapshot 当成删除。详细水位规则见 §5。
+- `TopicWireFrame` 的 complete/fragment、logicalFrameId、deliveryKind、校验和、尺寸上限
+  使用 `wire.ts`、`wire-codec.ts`、`wire-reassembly.ts`；conversation/sessions-index/
+  workspace-config 的动态事件发 wire candidate，由客户端 assembler 校验重组，再应用逻辑帧。
+  不能把逻辑 snapshot 直接当分片协议传递，或跳过坏分片的 typed fault。
+- `sendConversationCommandV4` 接收 schema 定义的 envelope（commandId、workspace、
+  sessionId 及命令所需版本等），返回 `accepted/noop/rejected/duplicate` 等规范 ACK；
+  下行投影才是可观察状态。非法 envelope、能力未开放、会话不存在、订阅不属于本连接，
+  保留 §4 与 `wire-fault.ts` 的 fault 分类，不返回通用“成功”。
+- 真实后端需遵守 commandId 幂等/去重、baseRevision/baseLogEpoch 的冲突裁决与
+  `queryConversationCommandsV4` 结果查询；模拟实现目前没有完整去重/CAS/持久结果查询，
+  不能照搬此简化作为生产语义。`conversationRowsRangeV4`、plans、workflow/artifact 查询
+  与 attachment begin/chunk/commit 及字节查询的参数/返回值见 `transport.ts`、`snapshot.ts`、
+  `command.ts`、`wire.ts` 及相应严格 schema，不重建第二套 DTO。
+- 共享的是项目/会话事实，不是连接和握手状态。Agent 的逐连接 ownership 已实现；
+  mock controller topic 的 ownership 简化仍为 §5.3 的原型限制，本轮不扩成生产安全框架。
+  真实后端应对所有逐连接订阅实施同等隔离。主题等浏览器偏好不自动升级为共享业务事实。
+
+### 8.5 固定前端的替换验收
+
+完成裁剪与浏览器验收后，将同一次 `pnpm build:web` 的 `packages/web/dist` 整体作为
+替换验收对象，保存部署包与各文件 SHA-256 清单；mock 与真实后端必须使用完全同一份产物，
+不得为新后端重打带特判的前端包。清单跟随交付包，不提交构建产物到源码库。
+
+验收以电脑浏览器进行：工号进入/恢复/切换，两个独立上下文查看同一项目/会话并观察更新；
+服务器目录选择、文件树、Git、当前文本/图片/媒体预览；合法非空 identity 正常加载；
+一个连接退订/退出不影响另一个连接；连接成功后停服、至少一次重连失败、恢复服务后自动恢复，
+耗尽重试后手动恢复。检查网络没有旧产品账号授权/token 请求，也没有旧远程主机路由。
+同时检查 HTTPS 部署的 `/ws` Upgrade、HTTP 元信息和资源 URL 可达；localhost 开发成功只证明开发链路。
+

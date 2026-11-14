@@ -25,9 +25,8 @@ export function resolveRemoteWorkspaceSessionIdForTarget<TServices>(params: {
   const workspaceIdentity = params.workspaceIdentity?.trim() || undefined;
   const matchingActiveTab =
     params.activeTab &&
-    (workspaceIdentity
-      ? params.activeTab.workspaceIdentity?.trim() === workspaceIdentity
-      : params.activeTab.workspacePath === params.workspacePath)
+    params.activeTab.workspacePath === params.workspacePath &&
+    (!workspaceIdentity || params.activeTab.workspaceIdentity?.trim() === workspaceIdentity)
       ? params.activeTab
       : null;
   const activeTabWorkspaceIdentity = matchingActiveTab?.workspaceIdentity?.trim() || undefined;
@@ -71,9 +70,10 @@ export function useResolvedRemoteWorkspaceSessionId(
         return null;
       }
 
-      const matches = workspaceIdentity
-        ? activeTab.workspaceIdentity?.trim() === workspaceIdentity.trim()
-        : activeTab.workspacePath === workspacePath;
+      const matches =
+        activeTab.workspacePath === workspacePath &&
+        (!workspaceIdentity ||
+          activeTab.workspaceIdentity?.trim() === workspaceIdentity.trim());
       // 首次新建补全 tab 分类曾让同工作区所有会话行更新；只订阅连接解析真正消费的字段。
       return matches
         ? {

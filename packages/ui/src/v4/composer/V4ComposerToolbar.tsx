@@ -539,10 +539,8 @@ function V4ComposerModelControlsImpl({
     resolveModelProviderFamilySpecByProviderId(effectiveConfig?.provider ?? "")?.id ??
     sharedSettings?.providerFamilyDomain ??
     "bigmodel";
-  const user = useZCodeStoreWithDefault((state) => state.user, undefined);
-  const connectionAuthenticated =
-    user !== null &&
-    Boolean(
+  // 工号只是浏览器操作者；模型账号可用性只读后端 Provider View，不能由工号推导。
+  const connectionAuthenticated = Boolean(
       providerSettingsView?.providers.some(
         (p) =>
           p.effectiveConfig.access?.type === "zhipu-account" &&
@@ -556,7 +554,7 @@ function V4ComposerModelControlsImpl({
   const authSessionSeq = useZCodeStoreWithDefault((state) => state.authSessionSeq, 0);
   const teamUsageScope = useMemo(
     () => ({}),
-    [baseServices, connectionFamily, user?.id, authSessionSeq],
+    [baseServices, connectionFamily, authSessionSeq],
   );
   const contextTeamUsageSourceCacheRef = useRef<{
     scope: object;

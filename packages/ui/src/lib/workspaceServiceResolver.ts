@@ -24,6 +24,8 @@ export function resolveWorkspaceRemoteSessionId<TServices>(
   target: WorkspaceServiceTarget,
   state: WorkspaceServiceResolverState<TServices>,
 ): string | undefined {
+  // 修复原因：identity 只区分数据；当前后端即使存在同名缓存，也不能借用旧远程 attachment。
+  if (!target.remoteSessionId && !target.remoteTarget) return undefined;
   const workspaceIdentity = target.workspaceIdentity?.trim();
   const candidateSessionIds = [
     target.remoteSessionId,
@@ -46,7 +48,7 @@ export function isRemoteWorkspaceTarget(
   target: WorkspaceServiceTarget,
   resolvedRemoteSessionId?: string,
 ): boolean {
-  return Boolean(target.workspaceIdentity || target.remoteTarget || resolvedRemoteSessionId);
+  return Boolean(target.remoteSessionId || target.remoteTarget || resolvedRemoteSessionId);
 }
 
 export function resolveWorkspaceServices(
@@ -57,9 +59,8 @@ export function resolveWorkspaceServices(
   const remoteSessionId = resolveWorkspaceRemoteSessionId(target, state);
   const isRemoteWorkspace = isRemoteWorkspaceTarget(target, remoteSessionId);
 
-  // 远端历史恢复时 tab 可能先只有 workspaceIdentity，remoteSessionId 稍后才回填。
-  // 这种状态不能落回 baseServices，否则会用本机 sqlite 查询远端 workspace 并缓存空结果；
-  // 这里统一要求远端目标必须解析到远端 session 后才返回 services。
+  // 显式旧远程目标缺少 attachment 时仍拒绝，不把请求误投当前后端；
+  // 当前后端只有 identity 的工作区则正常使用根 accessor。
   if (isRemoteWorkspace) {
     const services = remoteSessionId ? state.sessionsById[remoteSessionId]?.services : undefined;
     return services

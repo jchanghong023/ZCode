@@ -208,7 +208,9 @@ export function useGlobalTaskList(params: {
     });
   }, [controllerRevision, load, taskListVersionSignature, workspaceSourceGenerationSignature]);
 
-  const hasRemoteScope = params.workspaceTabs.some((tab) => Boolean(tab.workspaceIdentity));
+  const hasRemoteScope = params.workspaceTabs.some((tab) =>
+    Boolean(tab.remoteSessionId || tab.remoteTarget),
+  );
   return {
     items,
     total,

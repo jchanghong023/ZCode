@@ -68,7 +68,7 @@ export function hasRemoteWorkspaceIdentity(entry: {
   remoteTarget?: RemoteTarget;
   workspaceIdentity?: string;
 }): boolean {
-  return Boolean(entry.remoteSessionId || entry.remoteTarget || entry.workspaceIdentity);
+  return Boolean(entry.remoteSessionId || entry.remoteTarget);
 }
 
 export function isSshRemoteWorkspaceIdentity(workspaceIdentity?: string | null): boolean {

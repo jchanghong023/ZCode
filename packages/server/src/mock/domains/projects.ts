@@ -18,7 +18,13 @@ import {
   IWindowControllerService,
   IWindowProjectChangesService,
 } from "@zcode/services";
-import { isListedSession, type MockRuntime, type MockTaskRecord } from "../runtime.js";
+import {
+  isListedSession,
+  workspaceIdentityOf,
+  workspaceKeyOf,
+  type MockRuntime,
+  type MockTaskRecord,
+} from "../runtime.js";
 import { toTaskMeta } from "../zcodeTask.js";
 import type { MockServiceRegistrar } from "./contract.js";
 
@@ -119,14 +125,14 @@ export class MockManagedWorktreeService implements IManagedWorktreeService {
 }
 
 export class MockWindowProjectChangesService implements IWindowProjectChangesService {
-  private readonly changeEmitter = new Emitter<never>();
+  constructor(private readonly runtime: MockRuntime) {}
 
   async getCapabilities(): Promise<AR<IWindowProjectChangesService["getCapabilities"]>> {
     return { version: 1 as const };
   }
 
   get onDidChange(): R<IWindowProjectChangesService["onDidChange"]> {
-    return this.changeEmitter.event as unknown as R<IWindowProjectChangesService["onDidChange"]>;
+    return this.runtime.onProjectsChanged.event;
   }
 }
 
@@ -200,23 +206,43 @@ export class MockWindowControllerService implements IWindowControllerService {
   private readonly subscriptions = new Map<string, ControllerTopic>();
   /** 已下发的 tasks-index 行；delta 只针对真实变化，避免整表重发。 */
   private lastTaskRows = new Map<string, WindowHostControllerTaskRow>();
+  /** 仅用于判断工作区投影是否变化；事实仍从 runtime.sessions 派生。 */
+  private lastWorkspaceSignature = "";
 
   constructor(private readonly runtime: MockRuntime) {
     this.lastTaskRows = this.snapshotTaskRows();
+    this.lastWorkspaceSignature = JSON.stringify(this.workspaceRefs());
     this.runtime.onWorkspaceTaskListChanged.event(() => this.publishTaskChanges());
   }
 
   private snapshotTaskRows(): Map<string, WindowHostControllerTaskRow> {
     const rows = new Map<string, WindowHostControllerTaskRow>();
     for (const record of this.runtime.tasks.values()) {
-      // controller 只投影本进程的 workspace 事实（workspaces 快照也只列这一个）。
-      if (record.workspacePath !== this.runtime.workspacePath) continue;
       const session = this.runtime.sessions.get(record.sessionId);
       // draft 会话是纯内存态，不属于任务索引（与 sessions-index 的列表口径一致）。
       if (session && !isListedSession(session)) continue;
       rows.set(record.sessionId, controllerTaskRow(this.runtime, record));
     }
     return rows;
+  }
+
+  private workspaceRefs() {
+    const refs = new Map([
+      [
+        this.runtime.workspacePath,
+        {
+          workspacePath: this.runtime.workspacePath,
+          workspaceIdentity: workspaceIdentityOf(this.runtime.workspacePath),
+        },
+      ],
+    ]);
+    for (const session of this.runtime.sessions.values()) {
+      refs.set(session.workspaceRef.workspacePath, {
+        workspacePath: session.workspaceRef.workspacePath,
+        workspaceIdentity: workspaceKeyOf(session.workspaceRef),
+      });
+    }
+    return [...refs.values()];
   }
 
   private emitWorkspaceSnapshot(subscriptionId: string): void {
@@ -233,13 +259,11 @@ export class MockWindowControllerService implements IWindowControllerService {
         snapshot: {
           protocolVersion: 1,
           logEpoch: position.logEpoch,
-          workspaces: [
-            {
-              workspacePath: this.runtime.workspacePath,
-              sourceAvailability: "online",
-              connectionState: "online",
-            },
-          ],
+          workspaces: this.workspaceRefs().map((ref) => ({
+            ...ref,
+            sourceAvailability: "online",
+            connectionState: "online",
+          })),
         },
       },
     });
@@ -270,6 +294,14 @@ export class MockWindowControllerService implements IWindowControllerService {
 
   /** 任务索引变化 → 一条 delta 帧；没有变化或没有订阅者时不推进 topic 水位。 */
   private publishTaskChanges(): void {
+    const signature = JSON.stringify(this.workspaceRefs());
+    if (signature !== this.lastWorkspaceSignature) {
+      this.lastWorkspaceSignature = signature;
+      this.runtime.topics.advance(CONTROLLER_WORKSPACES_TOPIC);
+      for (const [subscriptionId, topic] of this.subscriptions) {
+        if (topic === CONTROLLER_WORKSPACES_TOPIC) this.emitWorkspaceSnapshot(subscriptionId);
+      }
+    }
     const next = this.snapshotTaskRows();
     const deltas: WindowHostControllerTaskDelta[] = [];
     for (const [taskId, row] of next) {
@@ -304,7 +336,7 @@ export class MockWindowControllerService implements IWindowControllerService {
   private taskRecord(address: WindowHostTaskAddress): MockTaskRecord | undefined {
     const record = this.runtime.tasks.get(address.taskId);
     if (!record || record.workspacePath !== address.workspacePath) return undefined;
-    if ((record.workspaceIdentity ?? undefined) !== (address.workspaceIdentity ?? undefined)) {
+    if (workspaceKeyOf(record) !== workspaceKeyOf(address)) {
       return undefined;
     }
     return record;
@@ -344,7 +376,7 @@ export class MockWindowControllerService implements IWindowControllerService {
         const matched = scopes.some(
           (scope) =>
             scope.workspacePath === row.address.workspacePath &&
-            (scope.workspaceIdentity?.trim() || undefined) === row.address.workspaceIdentity,
+            workspaceKeyOf(scope) === workspaceKeyOf(row.address),
         );
         if (!matched) return false;
       }
@@ -653,7 +685,7 @@ export function registerProjectsMockServices(
 ): void {
   services.register(ITaskGroupService, new MockTaskGroupService());
   services.register(IManagedWorktreeService, new MockManagedWorktreeService());
-  services.register(IWindowProjectChangesService, new MockWindowProjectChangesService());
+  services.register(IWindowProjectChangesService, new MockWindowProjectChangesService(runtime));
   services.register(IWindowControllerService, new MockWindowControllerService(runtime));
   services.register(ISourceServerWorkspaceService, new MockSourceServerWorkspaceService());
   services.register(ISourceServerManagementService, new MockSourceServerManagementService());

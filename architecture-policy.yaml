@@ -834,12 +834,12 @@ modules:
       ui: .
     owner: conversation
 
-  - id: web-auth
+  # browser-employee-entry：复用退役产品认证目录，唯一 owner 为浏览器标签页。
+  - id: browser-employee-entry
     roots:
       - packages/web/src/auth
     managed: true
     requires:
-      - shared
       - ui
     publicEntrypoints:
       - packages/web/src/auth/index.ts

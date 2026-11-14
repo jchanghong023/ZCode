@@ -98,10 +98,9 @@ function GroupedTaskRowComponent({
   // 交互胶囊是当前最高优先级的右侧状态；无论来自 sessions-index 摘要还是
   // activity attention，都不应再并排显示相对时间并挤压任务标题。
   const hasPendingInteraction = Boolean(task.pendingInteraction) || taskAttention !== null;
-  // Bugfix：远端 session 未就绪时打开文件树必然会被 resolver 拒绝，因此不要暴露
-  // 无效 action；本地 task 不需要 remoteSessionId，仍保持入口可用。
+  // 修复原因：当前后端任务也有稳定 identity，不能要求已裁撤的 remote session 才显示文件入口。
   const canOpenFileTree =
-    Boolean(onOpenFileTree) && (!task.workspaceIdentity?.trim() || Boolean(remoteSessionId));
+    Boolean(onOpenFileTree) && (task.hostId === "local" || Boolean(remoteSessionId));
   const taskAttentionLabel = taskAttention
     ? intl.formatMessage({
         id: taskAttention.kind === "userInput" ? "taskList.userInputTag" : "taskList.permissionTag",

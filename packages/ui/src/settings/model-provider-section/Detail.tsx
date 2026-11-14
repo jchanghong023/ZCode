@@ -1,15 +1,11 @@
-/* eslint-disable max-lines -- Model Provider 详情页当前集中编排 Plan Card、API Key 表单和 OAuth 套餐态；后续稳定后再按 family/API/OAuth 拆分。 */
+/* eslint-disable max-lines -- Model Provider 详情页当前集中编排 Plan Card、API Key 表单和后端套餐展示态。 */
 import {
-  BIGMODEL_PROVIDER_ID,
-  ZAI_PROVIDER_ID,
-  type BuiltinModelProviderId,
   type ProviderFamilyConnectionSelectionSettings,
   type ProviderFamilyDomain,
   isStartPlanModelProviderId,
   isIndividualCodingPlanModelProviderId,
   resolveModelProviderFamilySpecByProviderId,
   type ModelConnectivityResult,
-  type OAuthProviderId,
 } from "@zcode/shared";
 import {
   getProviderFormApiKeyManagementUrl,
@@ -24,7 +20,6 @@ import {
   PresetProviderPlaceholderCard,
   CodingPlanStatusPanel,
 } from "./StatusCards.js";
-import { type CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
 import { resolveCodingPlanStatusPanelViewState } from "./codingPlanStatusPanelViewState.js";
 import {
   ProviderFamilyDetailShell,
@@ -198,10 +193,6 @@ export function ModelProviderSectionDetail({
   activeProviderFamily,
   startPlanSubscriptionCount = 0,
   presetLoading,
-  codingPlanAuthError,
-  presetSubscriptionProviderId,
-  codingPlanStatusSyncProviderId,
-  codingPlanDisconnectProviderId,
   onSave,
   onAddPersonalModel,
   onSavePersonalModelDraft,
@@ -210,12 +201,8 @@ export function ModelProviderSectionDetail({
   onDelete,
   onReorderProviderModels,
   onTestModel,
-  onCodingPlanLogin,
   onRetryCodingPlan,
-  onCodingPlanDisconnect,
   onOpenApiKeyUrl,
-  onOpenBigModelRegistration,
-  onCodingPlanPurchaseComplete,
   onSelectNavItem,
   providerSettingsView: providerSettingsViewOverride,
 }: {
@@ -226,10 +213,6 @@ export function ModelProviderSectionDetail({
   activeProviderFamily?: ProviderFamilyDomain | null;
   startPlanSubscriptionCount?: number;
   presetLoading: boolean;
-  codingPlanAuthError?: string | null;
-  presetSubscriptionProviderId: BuiltinModelProviderId | null;
-  codingPlanStatusSyncProviderId: BuiltinModelProviderId | null;
-  codingPlanDisconnectProviderId: BuiltinModelProviderId | null;
   onSave: (config: ProviderSettingsFormProvider) => void | Promise<void>;
   onAddPersonalModel?: (
     providerId: string,
@@ -248,21 +231,7 @@ export function ModelProviderSectionDetail({
   onReorderProviderModels?: (providerId: string, modelIds: string[]) => Promise<void>;
   onTestModel: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
   onRetryCodingPlan?: () => void | Promise<void>;
-  onCodingPlanLogin: (
-    presetId: BuiltinModelProviderId,
-    providerId: OAuthProviderId,
-    providerName: string,
-    status: CodingPlanStatus,
-    options?: CodingPlanLoginOptions,
-  ) => number | void;
-  onCodingPlanDisconnect: (
-    presetId: BuiltinModelProviderId,
-    providerId: OAuthProviderId,
-    providerName: string,
-  ) => void;
   onOpenApiKeyUrl: (url: string) => void;
-  onOpenBigModelRegistration: () => void;
-  onCodingPlanPurchaseComplete: () => void | Promise<void>;
   onSelectNavItem?: (item: ModelProviderNavItem) => void;
   providerSettingsView?: ProviderSettingsView | null;
 }) {
@@ -401,25 +370,10 @@ export function ModelProviderSectionDetail({
       providerId: selectedNavItem.presetId,
       fallback: selectedNavItem.provider,
     });
-    const codingPlanLoginPending = presetSubscriptionProviderId === selectedNavItem.presetId;
-    const codingPlanStatusSyncPending = codingPlanStatusSyncProviderId === selectedNavItem.presetId;
-    const codingPlanDisconnectPending = codingPlanDisconnectProviderId === selectedNavItem.presetId;
-    const hasResolvedEntitlementStatus =
-      selectedNavItem.status === "purchased" || selectedNavItem.status === "notPurchased";
-    const statusPanelViewState =
-      codingPlanDisconnectPending || (codingPlanStatusSyncPending && !hasResolvedEntitlementStatus)
-        ? {
-            // 登录/登出后的 provider key 与权益刷新是异步链路。
-            // 刷新落定前继续展示旧的未连接/已连接状态会让用户误以为操作失败。
-            displayStatus: "checking" as const,
-            actionStatus: "checking" as const,
-            balanceStatus: "checking" as const,
-            loginLoading: codingPlanStatusSyncPending,
-          }
-        : resolveCodingPlanStatusPanelViewState({
-            status: selectedNavItem.status,
-            loginPending: codingPlanLoginPending || codingPlanStatusSyncPending,
-          });
+    const statusPanelViewState = resolveCodingPlanStatusPanelViewState({
+      status: selectedNavItem.status,
+      loginPending: false,
+    });
     const visibleStatusLabelId =
       statusPanelViewState.displayStatus === "checking" ? undefined : selectedNavItem.statusLabelId;
     const isStartPlanProvider = isStartPlanModelProviderId(selectedNavItem.presetId);
@@ -467,7 +421,6 @@ export function ModelProviderSectionDetail({
       const statusPanel = (
         <CodingPlanStatusPanel
           providerId={selectedNavItem.presetId}
-          providerName={selectedNavItem.providerName}
           status={selectedNavItem.status}
           viewState={statusPanelViewState}
           planLevel={selectedNavItem.planLevel}
@@ -476,8 +429,6 @@ export function ModelProviderSectionDetail({
           subscriptionDetails={selectedNavItem.subscriptionDetails}
           quotaLimits={selectedNavItem.quotaLimits}
           mcpQuotaLimit={selectedNavItem.mcpQuotaLimit ?? null}
-          authError={codingPlanAuthError}
-          onOpenRegistration={onOpenBigModelRegistration}
           purchaseUrl={selectedNavItem.purchaseUrl}
           inactivePlanTitle={selectedNavItem.inactivePlanTitle}
           statusLabelId={visibleStatusLabelId}
@@ -496,28 +447,9 @@ export function ModelProviderSectionDetail({
                     force: true,
                     reason: "manual",
                   })
-              : onCodingPlanPurchaseComplete
+              : onRetryCodingPlan
           }
           onOpenPurchase={onOpenApiKeyUrl}
-          onDisconnect={
-            (selectedNavItem.oauthProviderId === BIGMODEL_PROVIDER_ID ||
-              selectedNavItem.oauthProviderId === ZAI_PROVIDER_ID) &&
-            dedicatedProvider.providerId === selectedNavItem.presetId
-              ? () => {
-                  onCodingPlanDisconnect(
-                    selectedNavItem.presetId,
-                    selectedNavItem.oauthProviderId,
-                    selectedNavItem.providerName,
-                  );
-                }
-              : undefined
-          }
-          disconnectLoading={codingPlanDisconnectProviderId === selectedNavItem.presetId}
-          // Plan Card 在未登录/登录失效时仍然是用户当前选中的入口。
-          // 之前详情页没有打开状态卡内置登录动作，导致用户能进入 Coding tab 却只能看到“未连接”文案。
-          loginActionVisible
-          loginActionPlacement="trailing"
-          reloginOnFailure={reloginOnFailure}
           onRetry={
             retryTeamPlan ??
             (selectedNavItem.type === "codingPlan" &&
@@ -530,15 +462,6 @@ export function ModelProviderSectionDetail({
               ? onRetryCodingPlan
               : undefined)
           }
-          onLogin={(options) => {
-            return onCodingPlanLogin(
-              selectedNavItem.presetId,
-              selectedNavItem.oauthProviderId,
-              selectedNavItem.providerName,
-              selectedNavItem.status,
-              options,
-            );
-          }}
         />
       );
 
@@ -572,13 +495,8 @@ export function ModelProviderSectionDetail({
         <div className="space-y-3">
           <CodingPlanStatusPanel
             providerId={selectedNavItem.presetId}
-            providerName={selectedNavItem.providerName}
-            status={selectedNavItem.status}
+              status={selectedNavItem.status}
             viewState={statusPanelViewState}
-            // 未登录状态下右侧只渲染 Plan Card，不再回退到 API Key 表单。
-            // 因此登录入口必须留在 Plan Card 本身，否则用户进入 Coding tab 后没有下一步动作。
-            loginActionVisible
-            loginActionPlacement="trailing"
             purchaseUrl={selectedNavItem.purchaseUrl}
             planLevel={selectedNavItem.planLevel}
             inactivePlanTitle={selectedNavItem.inactivePlanTitle}
@@ -598,25 +516,13 @@ export function ModelProviderSectionDetail({
                       force: true,
                       reason: "manual",
                     })
-                : onCodingPlanPurchaseComplete
+                : onRetryCodingPlan
             }
             subscriptionRenewTime={selectedNavItem.subscriptionRenewTime}
             subscriptionExpireTime={selectedNavItem.subscriptionExpireTime}
             subscriptionDetails={selectedNavItem.subscriptionDetails}
             quotaLimits={selectedNavItem.quotaLimits}
             mcpQuotaLimit={selectedNavItem.mcpQuotaLimit ?? null}
-            authError={codingPlanAuthError}
-            onOpenRegistration={onOpenBigModelRegistration}
-            onLogin={(options) => {
-              return onCodingPlanLogin(
-                selectedNavItem.presetId,
-                selectedNavItem.oauthProviderId,
-                selectedNavItem.providerName,
-                selectedNavItem.status,
-                options,
-              );
-            }}
-            reloginOnFailure={reloginOnFailure}
             onRetry={
               retryTeamPlan ??
               (selectedNavItem.type === "codingPlan" &&
@@ -631,21 +537,6 @@ export function ModelProviderSectionDetail({
                 : undefined)
             }
             onOpenPurchase={onOpenApiKeyUrl}
-            onDisconnect={
-              (selectedNavItem.oauthProviderId === BIGMODEL_PROVIDER_ID ||
-                selectedNavItem.oauthProviderId === ZAI_PROVIDER_ID) &&
-              selectedNavItem.provider?.providerId === selectedNavItem.presetId &&
-              selectedNavItem.status !== "disconnected"
-                ? () => {
-                    onCodingPlanDisconnect(
-                      selectedNavItem.presetId,
-                      selectedNavItem.oauthProviderId,
-                      selectedNavItem.providerName,
-                    );
-                  }
-                : undefined
-            }
-            disconnectLoading={codingPlanDisconnectProviderId === selectedNavItem.presetId}
           />
           {planModelsVisible ? (
             providerSettingsView && !dedicatedProvider ? (
@@ -716,12 +607,12 @@ function CodingPlanAccessBanner({ title, description }: { title: string; descrip
 function resolveCodingPlanAccessBanner(
   status: CodingPlanStatus,
   intl: ReturnType<typeof useZCodeIntl>["intl"],
-  reloginOnFailure = false,
+  credentialFailed = false,
 ): { title: string; description: string } | null {
   if (
     status !== "disconnected" &&
     status !== "notPurchased" &&
-    !(status === "unavailable" && reloginOnFailure)
+    !(status === "unavailable" && credentialFailed)
   ) {
     return null;
   }
@@ -731,7 +622,7 @@ function resolveCodingPlanAccessBanner(
     }),
     description: intl.formatMessage({
       id:
-        status === "unavailable" && reloginOnFailure
+        status === "unavailable" && credentialFailed
           ? "settings.modelProvider.codingPlan.description.credentialFailed"
           : `settings.modelProvider.codingPlan.description.${status}`,
     }),

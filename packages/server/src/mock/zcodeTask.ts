@@ -540,7 +540,7 @@ export class MockZCodeSessionService implements IZCodeSessionService {
   ): Promise<AR<IZCodeSessionService["getWorkspaceRuntimeIdentity"]>> {
     return {
       generation: 1,
-      identity: "mock",
+      identity: `mock-${workspaceKeyOf(_params)}`,
       workspaceKey: workspaceKeyOf(_params),
     } as unknown as AR<IZCodeSessionService["getWorkspaceRuntimeIdentity"]>;
   }

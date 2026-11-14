@@ -1,27 +1,14 @@
-// 模拟设置领域：应用设置、内存凭据、OAuth 账号、客户端配置与首页场景。
+// 模拟设置领域：应用设置、内存模型/工具凭据、客户端配置与首页场景。
 // AppSettings 是设置页的唯一权威内存态，不落盘。
-import { Emitter, type Event } from "@zcode/rpc";
 import {
-  BIGMODEL_PROVIDER_ID,
-  createUuid,
   type AppSettings,
   type ClientConfigReadOptions,
   type ClientConfigSnapshot,
-  type OAuthAccountAvailability,
-  type OAuthCallbackResult,
-  type OAuthCachedSessionRestoreResult,
-  type OAuthProviderId,
-  type OAuthProviderMeta,
-  type OAuthSessionState,
-  type OAuthStartResponse,
-  type OAuthWebsiteSession,
-  type UserInfo,
 } from "@zcode/shared";
 import {
   IClientConfigService,
   IClientScenesService,
   ICredentialService,
-  IOAuthService,
   ISettingService,
 } from "@zcode/services";
 import type { MockRuntime } from "../runtime.js";
@@ -94,95 +81,6 @@ export class MockCredentialService implements ICredentialService {
   async delete(key: string): Promise<void> {
     this.store.delete(key);
   }
-}
-
-// ── OAuth（永远已登录的模拟账号） ──
-
-const MOCK_USER: UserInfo = {
-  id: "mock-user-001",
-  username: "nsfnaqdr",
-  displayName: "nsfnaqdr",
-};
-
-export class MockOAuthService implements IOAuthService {
-  private readonly sessionChangeEmitter = new Emitter<OAuthSessionState>();
-  readonly onDidChangeSession: Event<OAuthSessionState> = this.sessionChangeEmitter.event;
-
-  async getProviders(): Promise<OAuthProviderMeta[]> {
-    return [
-      { id: BIGMODEL_PROVIDER_ID, displayName: "智谱开放平台", enabled: true, order: 0 },
-      { id: "zai", displayName: "Z.ai", enabled: true, order: 1 },
-    ];
-  }
-
-  async getActiveProvider(): Promise<OAuthProviderId | null> {
-    return BIGMODEL_PROVIDER_ID;
-  }
-
-  async getAccountAvailability(): Promise<OAuthAccountAvailability> {
-    return {
-      loginProvider: BIGMODEL_PROVIDER_ID,
-      userId: MOCK_USER.id,
-      sessionRevision: "mock-rev-1",
-      families: ["start-plan"] as unknown as OAuthAccountAvailability["families"],
-    };
-  }
-
-  async getWebsiteSession(): Promise<OAuthWebsiteSession | null> {
-    return {
-      loginProvider: BIGMODEL_PROVIDER_ID,
-      userId: MOCK_USER.id,
-      sessionRevision: "mock-rev-1",
-      zcodeJwtToken: null,
-      legacyOAuthToken: null,
-    };
-  }
-
-  async refreshAccountProfile(
-    _expected?: Partial<OAuthAccountAvailability>,
-  ): Promise<OAuthAccountAvailability> {
-    return this.getAccountAvailability();
-  }
-
-  async restoreCachedSession(): Promise<UserInfo | null> {
-    return MOCK_USER;
-  }
-
-  async restoreCachedSessionState(): Promise<OAuthCachedSessionRestoreResult> {
-    return { status: "authenticated", userInfo: MOCK_USER };
-  }
-
-  async restoreSession(): Promise<UserInfo | null> {
-    return MOCK_USER;
-  }
-
-  async startOAuth(provider: OAuthProviderId): Promise<OAuthStartResponse> {
-    return { provider, authorizeUrl: "about:blank#mock-oauth", state: `state_${createUuid()}` };
-  }
-
-  async startOAuthWithPolling(provider: OAuthProviderId): Promise<OAuthStartResponse> {
-    return this.startOAuth(provider);
-  }
-
-  async pollPendingOAuth(): Promise<OAuthCallbackResult | null> {
-    return null;
-  }
-
-  async handleCallback(_url: string): Promise<OAuthCallbackResult | null> {
-    return null;
-  }
-
-  async refreshToken(_provider?: OAuthProviderId): Promise<void> {}
-
-  async logout(_provider?: OAuthProviderId): Promise<void> {
-    this.sessionChangeEmitter.fire("signed-out");
-  }
-
-  async logoutAll(): Promise<void> {
-    this.sessionChangeEmitter.fire("signed-out");
-  }
-
-  async cancelPending(_provider?: OAuthProviderId): Promise<void> {}
 }
 
 // ── 客户端配置 / 场景 ──
@@ -271,7 +169,6 @@ export function registerSettingsMockServices(
 ): void {
   services.register(ISettingService, new MockSettingService(runtime));
   services.register(ICredentialService, new MockCredentialService());
-  services.register(IOAuthService, new MockOAuthService());
   services.register(IClientConfigService, new MockClientConfigService());
   services.register(IClientScenesService, new MockClientScenesService());
 }

@@ -81,21 +81,21 @@ export function resolveBaseWorkspaceServices(
 }
 
 function hasRemoteWorkspaceMetadata(tab: WorkspaceServiceTargetTab | null | undefined): boolean {
-  return Boolean(
-    tab?.workspaceIdentity?.trim() || tab?.remoteSessionId?.trim() || tab?.remoteTarget,
-  );
+  return Boolean(tab?.remoteSessionId?.trim() || tab?.remoteTarget);
 }
 
 export function resolveWorkspaceServiceIsRemoteTarget(params: {
   workspacePath: string | null | undefined;
   workspaceIdentity?: string | null;
   preferredRemoteSessionId?: string | null;
+  remoteTarget?: unknown;
   activeWorkspacePath?: string | null;
   activeWorkspaceIdentity?: string | null;
   activeTab?: WorkspaceServiceTargetTab | null;
   workspaceTabs?: readonly WorkspaceServiceTargetTab[];
 }): boolean {
-  if (params.workspaceIdentity?.trim() || params.preferredRemoteSessionId?.trim()) {
+  // 修复原因：稳定工作区身份属于当前后端数据，不代表已裁撤的远程 Host 连接。
+  if (params.preferredRemoteSessionId?.trim() || params.remoteTarget) {
     return true;
   }
 
@@ -105,15 +105,11 @@ export function resolveWorkspaceServiceIsRemoteTarget(params: {
   }
 
   if (params.activeWorkspacePath === params.workspacePath) {
-    if (params.activeWorkspaceIdentity?.trim()) {
-      return true;
-    }
-
-    // 日志里远程 SSH workspace 已经恢复成 tab，但草稿预热入口一度只拿到
-    // workspacePath，导致 /mnt/... 被当成本地 workspace 走 base services 并在 Windows 上 spawn 本地 agent。
-    // 这里用当前 tab 的远程元数据兜住这类 path-only 调用，避免远程目标误回落到本机 host。
+    // 显式旧远程元数据不能误投当前后端；稳定 identity 本身不参与此判定。
     if (
       params.activeTab?.workspacePath === params.workspacePath &&
+      (!params.workspaceIdentity?.trim() ||
+        params.activeTab?.workspaceIdentity?.trim() === params.workspaceIdentity.trim()) &&
       hasRemoteWorkspaceMetadata(params.activeTab)
     ) {
       return true;
@@ -121,7 +117,10 @@ export function resolveWorkspaceServiceIsRemoteTarget(params: {
   }
 
   const matchingTabs = (params.workspaceTabs ?? []).filter(
-    (tab) => tab.workspacePath === params.workspacePath,
+    (tab) =>
+      tab.workspacePath === params.workspacePath &&
+      (!params.workspaceIdentity?.trim() ||
+        tab.workspaceIdentity?.trim() === params.workspaceIdentity.trim()),
   );
   return matchingTabs.length === 1 && hasRemoteWorkspaceMetadata(matchingTabs[0]);
 }
@@ -174,6 +173,7 @@ export function useWorkspaceServicesResolution(
       workspacePath,
       workspaceIdentity,
       preferredRemoteSessionId,
+      remoteTarget,
       activeWorkspacePath: state.activeWorkspacePath,
       activeWorkspaceIdentity: state.activeWorkspaceIdentity,
       activeTab: (() => {

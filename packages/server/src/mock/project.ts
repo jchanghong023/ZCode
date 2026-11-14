@@ -1,5 +1,5 @@
-// 本地项目服务：项目草稿、真实目录浏览与内存态项目表。
-// 目录浏览读取本机真实目录名（只读），其余项目状态仍保存在内存中。
+// 当前后端项目服务：草稿、只读服务器目录浏览与共享内存项目表；local 不是浏览器电脑。
+// 文件/Git 仍使用虚拟 fixture，不扩展真实文件写入。
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import * as nodePath from "node:path";
@@ -7,7 +7,7 @@ import * as nodePath from "node:path";
 import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
 import { createUuid, type FileEntry } from "@zcode/shared";
 
-import { isListedSession, type MockRuntime } from "./runtime.js";
+import { isListedSession, workspaceIdentityOf, type MockRuntime } from "./runtime.js";
 
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
@@ -123,6 +123,7 @@ export class MockProjectService implements IProjectService {
         traceId: `trace_${record.sessionId}`,
         title: record.title || "新任务",
         workspacePath: record.workspacePath,
+        workspaceIdentity: record.workspaceIdentity,
         createdAt: record.createdAt,
         updatedAt: record.lastActivityAt,
         mode: "build" as const,
@@ -171,12 +172,16 @@ export class MockProjectService implements IProjectService {
       updatedAt: now,
     };
     this.projects.set(project.id, project);
+    this.runtime.onProjectsChanged.fire();
     return project;
   }
 
   async deleteProject(id: string): Promise<void> {
     const project = this.projects.get(id);
-    if (project) this.projects.set(id, { ...project, deleted: true, updatedAt: Date.now() });
+    if (project) {
+      this.projects.set(id, { ...project, deleted: true, updatedAt: Date.now() });
+      this.runtime.onProjectsChanged.fire();
+    }
   }
 
   async restoreProject(id: string): Promise<AR<IProjectService["restoreProject"]>> {
@@ -184,6 +189,7 @@ export class MockProjectService implements IProjectService {
     if (!project) return this.demoProject();
     const restored = { ...project, deleted: false, updatedAt: Date.now() };
     this.projects.set(id, restored);
+    this.runtime.onProjectsChanged.fire();
     return restored;
   }
 
@@ -200,6 +206,7 @@ export class MockProjectService implements IProjectService {
       : project?.roots.find((root) => root.isPrimary)?.rootPath;
     return asResult({
       workspacePath: primaryRoot ?? this.runtime.workspacePath,
+      workspaceIdentity: workspaceIdentityOf(primaryRoot ?? this.runtime.workspacePath),
       additionalDirectories:
         project && primaryRoot
           ? project.roots
@@ -224,6 +231,7 @@ export class MockProjectService implements IProjectService {
     const project = this.projectForWorkspace(task.workspacePath);
     return asResult({
       workspacePath: task.workspacePath,
+      workspaceIdentity: workspaceIdentityOf(task.workspacePath),
       additionalDirectories: project
         ? project.roots
             .filter((root) => root.rootPath !== task.workspacePath)

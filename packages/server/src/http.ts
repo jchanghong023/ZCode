@@ -32,6 +32,7 @@ import {
   type ServerRemoteInfo,
 } from "@zcode/shared";
 import { resolveServerOsUser } from "@zcode/shared/node";
+import { workspaceIdentityOf } from "./mock/runtime.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -121,7 +122,13 @@ function createServerInfo(options: MockHttpServerOptions, workspacePath: string)
     version: ZCODE_VERSION,
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
     authRequired: Boolean(options.authToken),
-    workspaces: [{ path: workspacePath, label: basename(workspacePath) || workspacePath }],
+    workspaces: [
+      {
+        path: workspacePath,
+        label: basename(workspacePath) || workspacePath,
+        workspaceIdentity: workspaceIdentityOf(workspacePath),
+      },
+    ],
     compatibility: ZCODE_COMPATIBILITY_MANIFEST,
     migration: { failedPathCount: 0 },
     identity: { osUser: resolveServerOsUser(), hostname: hostname() },

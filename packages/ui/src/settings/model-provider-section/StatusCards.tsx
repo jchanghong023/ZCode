@@ -1,8 +1,6 @@
 /* eslint-disable max-lines -- Coding Plan/Start Plan 状态卡集中编排状态、动作和套餐区块，当前先保持同一文件避免拆散状态语义。 */
 import {
-  BIGMODEL_PROVIDER_ID,
   isStartPlanModelProviderId,
-  resolveModelProviderFamilySpecByProviderId,
   type UsageEntitlementSubscriptionDetail,
   type UsageQuotaLimit,
   type ZCodeAccountAccess,
@@ -31,14 +29,8 @@ import {
 } from "./constants.js";
 import type { CodingPlanStatusPanelViewState } from "./codingPlanStatusPanelViewState.js";
 import { CodingPlanStatusMeta, StartPlanStatusMeta } from "./CodingPlanStatusMeta.js";
-import { CodingPlanStatusActions } from "./CodingPlanStatusActions.js";
-import type { CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
 import { StartPlanQuotaStatusCard } from "./StartPlanQuotaStatusCard.js";
 import { resolveStartPlanQuotaCardEntries } from "./StartPlanBalanceCard.js";
-import {
-  BigModelRegistrationHint,
-  isBigModelUnregisteredAuthError,
-} from "./BigModelRegistrationHint.js";
 import { formatQuotaModelDisplayName } from "./quotaModelDisplayName.js";
 
 const CODING_PLAN_USAGE_SUMMARY_COLORS = [
@@ -123,11 +115,8 @@ export function PresetProviderPlaceholderCard({
 
 export function CodingPlanStatusPanel({
   providerId,
-  providerName,
   status,
   viewState,
-  loginLoading,
-  disconnectLoading,
   purchaseUrl,
   planLevel,
   inactivePlanTitle,
@@ -136,15 +125,8 @@ export function CodingPlanStatusPanel({
   subscriptionDetails,
   quotaLimits = [],
   mcpQuotaLimit = null,
-  authError,
-  onOpenRegistration,
-  onLogin,
   onRetry,
-  reloginOnFailure = false,
   onOpenPurchase,
-  onDisconnect,
-  loginActionPlacement = "inline",
-  loginActionVisible = false,
   usageDetailsVisible = true,
   statusLabelId,
   statusMessage,
@@ -154,11 +136,8 @@ export function CodingPlanStatusPanel({
   onQuotaResetEntitlementRefresh,
 }: {
   providerId: CodingPlanProviderId;
-  providerName: string;
   status: CodingPlanStatus;
   viewState?: CodingPlanStatusPanelViewState;
-  loginLoading?: boolean;
-  disconnectLoading?: boolean;
   purchaseUrl?: string;
   planLevel?: string | null;
   inactivePlanTitle?: string | null;
@@ -168,17 +147,9 @@ export function CodingPlanStatusPanel({
   quotaLimits?: UsageQuotaLimit[];
   /** 官方 Server MCP 额度（服务端下发的总额度）。不在 quota.limits[] 里，由 nav item 单独透传。 */
   mcpQuotaLimit?: UsageQuotaLimit | null;
-  authError?: string | null;
-  onOpenRegistration?: () => void;
-  onLogin?: (options?: CodingPlanLoginOptions) => number | void | Promise<void>;
-  /** 凭据获取失败提供主动重新登录，不据此自动退出账号。 */
-  reloginOnFailure?: boolean;
   /** Start 套餐获取失败沿用 Host 手动刷新，不强制重新登录。 */
   onRetry?: () => void;
   onOpenPurchase?: (url: string) => void;
-  onDisconnect?: () => void;
-  loginActionPlacement?: "inline" | "trailing";
-  loginActionVisible?: boolean;
   usageDetailsVisible?: boolean;
   statusLabelId?: string;
   statusMessage?: string | null;
@@ -212,7 +183,7 @@ export function CodingPlanStatusPanel({
     displayStatus: status,
     actionStatus: status,
     balanceStatus: status,
-    loginLoading: loginLoading === true,
+    loginLoading: false,
   };
   const isDisconnected = effectiveViewState.displayStatus === "disconnected";
   const isChecking = effectiveViewState.displayStatus === "checking";
@@ -220,22 +191,7 @@ export function CodingPlanStatusPanel({
   const isUnsupported = effectiveViewState.displayStatus === "unsupported";
   const isPurchased = effectiveViewState.displayStatus === "purchased";
   const isNotPurchased = effectiveViewState.displayStatus === "notPurchased";
-  const actionIsDisconnected = effectiveViewState.actionStatus === "disconnected";
   const isStartPlanProvider = isStartPlanModelProviderId(providerId);
-  const providerIcon =
-    resolveModelProviderFamilySpecByProviderId(providerId)?.oauthProviderId ?? null;
-  const canDisconnectProvider =
-    !isStartPlanProvider &&
-    Boolean(onDisconnect) &&
-    !isDisconnected &&
-    !isChecking &&
-    !isUnavailable &&
-    !isUnsupported;
-  const loginButtonId = isStartPlanProvider
-    ? isUnavailable
-      ? "chat.error.action.relogin"
-      : "settings.modelProvider.startPlan.login"
-    : "settings.modelProvider.codingPlan.connect";
   const defaultStatusBadgeId = isUnsupported
     ? "settings.modelProvider.codingPlan.status.unsupported"
     : isDisconnected
@@ -264,19 +220,10 @@ export function CodingPlanStatusPanel({
   const teamPlanWarningVisible = !isChecking && teamPlanAvailabilityReason !== undefined;
   const recoverableUnavailable =
     effectiveViewState.actionStatus === "unavailable" && !teamPlanUnavailableStatusVisible;
-  const reloginVisible = recoverableUnavailable && reloginOnFailure && Boolean(onLogin);
   const retryVisible =
     (recoverableUnavailable ||
       statusLabelId === "settings.modelProvider.codingPlan.status.unavailable") &&
-    !reloginVisible &&
     Boolean(onRetry);
-  const trailingLoginVisible =
-    !reloginVisible &&
-    !retryVisible &&
-    loginActionVisible &&
-    loginActionPlacement === "trailing" &&
-    (actionIsDisconnected || recoverableUnavailable) &&
-    Boolean(onLogin);
   const rawPlanLevel = planLevel?.trim() ?? "";
   const normalizedPlanLevel = rawPlanLevel.toUpperCase();
   const displayPlanLevel = /^GLM[\s_-]+CODING\b/i.test(rawPlanLevel)
@@ -289,11 +236,6 @@ export function CodingPlanStatusPanel({
     isPurchased &&
     Boolean(purchaseUrl) &&
     Boolean(onOpenPurchase);
-  const shouldShowBigModelRegistrationHint =
-    isChecking &&
-    providerIcon === BIGMODEL_PROVIDER_ID &&
-    isBigModelUnregisteredAuthError(authError);
-  const inlineDisconnectVisible = canDisconnectProvider && !isPurchased;
   const planTitle = resolveCodingPlanStatusCardTitle({
     isPurchased,
     isStartPlanProvider,
@@ -307,12 +249,6 @@ export function CodingPlanStatusPanel({
       id: "settings.modelProvider.planCard.codingPlan",
     }),
   });
-  const notPurchasedStatusLabel = isNotPurchased ? (
-    <span className="flex w-fit items-center gap-1.5 text-foreground-subtle">
-      <InfoIcon className="size-3 shrink-0" aria-hidden="true" />
-      <span>{intl.formatMessage({ id: statusBadgeId })}</span>
-    </span>
-  ) : null;
   const startPlanEntries = resolveStartPlanQuotaCardEntries({
     plans: subscriptionDetails ?? [],
     limits: quotaLimits,
@@ -342,31 +278,11 @@ export function CodingPlanStatusPanel({
               })
             : null
         }
-        unlinkLabel={
-          canDisconnectProvider
-            ? intl.formatMessage({
-                id: "settings.modelProvider.codingPlan.disconnect",
-              })
-            : null
-        }
-        unlinkLoading={disconnectLoading}
         onManage={
           canManageCodingPlan && purchaseUrl && onOpenPurchase
             ? () => onOpenPurchase(purchaseUrl)
             : undefined
         }
-        onUnlink={canDisconnectProvider ? onDisconnect : undefined}
-      />
-    ) : shouldShowBigModelRegistrationHint ? (
-      <BigModelRegistrationHint onOpenRegistration={onOpenRegistration} />
-    ) : inlineDisconnectVisible ? (
-      <CodingPlanStatusMeta
-        statusLabel={notPurchasedStatusLabel ?? intl.formatMessage({ id: statusBadgeId })}
-        unlinkLabel={intl.formatMessage({
-          id: "settings.modelProvider.codingPlan.disconnect",
-        })}
-        unlinkLoading={disconnectLoading}
-        onUnlink={onDisconnect}
       />
     ) : (
       <span
@@ -387,31 +303,7 @@ export function CodingPlanStatusPanel({
     usageDetailsVisible &&
     isPurchased &&
     (isStartPlanProvider || hasDisplayableCodingPlanUsageLimits(quotaLimits));
-  // 同 family 已登录时默认登录动作只刷新；凭据失败后的主动恢复必须强制进入 OAuth。
-  const trailingAction = reloginVisible ? (
-    <Button
-      type="button"
-      size="lg"
-      onClick={() => onLogin?.({ forceOAuth: true })}
-      disabled={effectiveViewState.loginLoading}
-    >
-      {intl.formatMessage({ id: "login.expired.action" })}
-    </Button>
-  ) : retryVisible ? (
-    <Button type="button" size="lg" onClick={onRetry} disabled={effectiveViewState.loginLoading}>
-      {intl.formatMessage({ id: "common.retry" })}
-    </Button>
-  ) : trailingLoginVisible ? (
-    <Button
-      type="button"
-      size="lg"
-      onClick={() => onLogin?.()}
-      disabled={effectiveViewState.loginLoading}
-    >
-      {effectiveViewState.loginLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-      {intl.formatMessage({ id: loginButtonId }, { provider: providerName })}
-    </Button>
-  ) : null;
+  const trailingAction = retryVisible ? <Button type="button" size="lg" onClick={onRetry}>{intl.formatMessage({ id: "common.retry" })}</Button> : null;
   const statusContent = (
     <>
       {isPurchased && statusLabelId === "settings.modelProvider.codingPlan.status.unavailable" ? (
@@ -420,21 +312,6 @@ export function CodingPlanStatusPanel({
         </span>
       ) : null}
       {statusMeta}
-      <CodingPlanStatusActions
-        providerName={providerName}
-        isDisconnected={actionIsDisconnected}
-        isUnavailable={recoverableUnavailable}
-        isPurchased={isPurchased}
-        loginLoading={effectiveViewState.loginLoading}
-        loginButtonId={loginButtonId}
-        loginVisible={
-          loginActionVisible && !trailingLoginVisible && !reloginVisible && !retryVisible
-        }
-        canDisconnectProvider={inlineDisconnectVisible ? false : canDisconnectProvider}
-        disconnectLoading={disconnectLoading}
-        onLogin={onLogin}
-        onDisconnect={onDisconnect}
-      />
     </>
   );
   const planCards =

@@ -27,9 +27,9 @@ export type {
   ProjectRoot,
 } from "#src/project-storage/repository-contract.js";
 
-/** 当前 Host 的权威项目服务；远端通过现有 attachment 的服务代理调用。 */
+/** 当前浏览器连接的后端拥有共享项目；identity 不选择旧远程 Host，工号不参与项目分区。 */
 export interface IProjectService {
-  /** 项目选目录只访问所属 Host 的文件服务；不建立 workspace 或启动 Agent。 */
+  /** 项目选目录只访问当前后端服务器文件服务，不是浏览器设备；不建立 workspace 或启动 Agent。 */
   readDirectory(params?: {
     hostId?: string;
     path?: string;
