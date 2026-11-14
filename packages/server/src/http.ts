@@ -3,6 +3,7 @@
 // 业务层全部来自 mock 服务集合。
 import { hostname } from "node:os";
 import { readFile, stat } from "node:fs/promises";
+import * as nodePath from "node:path";
 import { basename, extname, resolve } from "node:path";
 import { Hono, type Context } from "hono";
 import { serve } from "@hono/node-server";
@@ -198,6 +199,27 @@ const staticMimeTypes: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
+// 盘符路径（"Z:/x"、"Z:\x"、"Z:x"）在 Windows 的 path.resolve 下会被当作绝对/盘符相对
+// 路径解析到另一块盘（含 subst 虚拟盘与映射的网络盘），一律拒绝，不做静态资源解析。
+const DRIVE_QUALIFIED_PATH_PATTERN = /^[a-zA-Z]:/;
+
+function isPathDriveQualified(pathname: string): boolean {
+  return DRIVE_QUALIFIED_PATH_PATTERN.test(pathname);
+}
+
+// pathApi 可注入便于跨平台测试。Windows 跨盘时 path.relative 返回的是绝对路径（如
+// "Z:\marker.txt"），不以 ".." 开头，曾因此被误判为「在静态根内」导致越盘读取；
+// relative 结果为绝对路径的一律视为越界，posix 语义不受影响。
+function isInsideDirectory(
+  root: string,
+  candidate: string,
+  pathApi: Pick<typeof nodePath, "relative" | "isAbsolute" | "sep"> = nodePath,
+): boolean {
+  const diff = pathApi.relative(root, candidate);
+  if (pathApi.isAbsolute(diff)) return false;
+  return diff === "" || (!diff.startsWith("..") && !diff.includes(`..${pathApi.sep}`));
+}
+
 async function resolveStaticFile(
   staticRoot: string,
   pathname: string,
@@ -206,15 +228,23 @@ async function resolveStaticFile(
   const root = resolve(staticRoot);
   const normalizedPathname = pathname === "/" ? "/index.html" : pathname;
   const relativePath = decodeURIComponent(normalizedPathname).replace(/^\/+/, "");
-  let candidate = resolve(root, relativePath);
-  const diff = relativePath === "" ? "" : relativePath;
-  if (diff.startsWith("..")) {
+  // 盘符路径必须在 resolve 之前拦截（含 %3A 解码后的形式），否则 Windows 上会解析到
+  // 静态根所在盘之外的路径；直接 404，也不进入 SPA fallback。
+  if (isPathDriveQualified(relativePath)) {
     return null;
   }
+  let candidate = resolve(root, relativePath);
+  if (!isInsideDirectory(root, candidate)) {
+    return null;
+  }
+
   try {
     const candidateStat = await stat(candidate);
     if (candidateStat.isDirectory()) {
       candidate = resolve(candidate, "index.html");
+      if (!isInsideDirectory(root, candidate)) {
+        return null;
+      }
       const indexStat = await stat(candidate);
       return indexStat.isFile() ? candidate : null;
     }
