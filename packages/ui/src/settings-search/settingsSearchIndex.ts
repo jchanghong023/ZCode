@@ -3,14 +3,25 @@ import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 export interface SettingsSearchAvailability {
   desktop: boolean;
   macDesktop: boolean;
-  windowsHost: boolean;
   tray: boolean;
-  notWindows: boolean;
   workflow: boolean;
+}
+
+/**
+ * 当前产品是纯浏览器应用，不显示需要桌面宿主的设置条目。
+ */
+export function resolveSettingsSearchAvailability(): Omit<SettingsSearchAvailability, "workflow"> {
+  return { desktop: false, macDesktop: false, tray: false };
 }
 
 // 翻译 key 同时作为稳定定位 id；索引只描述入口，不持有任何配置值。
 export const SETTINGS_SEARCH_ITEMS = [
+  {
+    id: "settings.interfaceMode",
+    section: "general",
+    description: "settings.interfaceMode.description",
+    visibility: "all",
+  },
   {
     id: "settings.taskAutoArchive",
     section: "archives",
@@ -22,30 +33,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     section: "archives",
     description: "settings.taskAutoArchiveDaysDescription",
     visibility: "all",
-  },
-  {
-    id: "settings.interfaceMode",
-    section: "general",
-    description: "settings.interfaceMode.description",
-    visibility: "all",
-  },
-  {
-    id: "settings.terminalProfile",
-    section: "general",
-    description: "settings.terminalProfileDescription",
-    visibility: "all",
-  },
-  {
-    id: "settings.terminalFontFamily",
-    section: "general",
-    description: "settings.terminalFontFamilyDescription",
-    visibility: "all",
-  },
-  {
-    id: "settings.integratedTerminalShell",
-    section: "general",
-    description: "settings.integratedTerminalShellDescription",
-    visibility: "windowsHost",
   },
   {
     id: "settings.httpProxy",

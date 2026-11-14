@@ -29,7 +29,6 @@ import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
 import { ThemeHeroVisual } from "./openWorkspacePageThemeHero.js";
 import { useZCodeStore } from "./store/StoreProvider.js";
-import { DesktopOverlayWindowControls } from "@/DesktopOverlayWindowControls.js";
 import { toast } from "@/components/ui/toast.js";
 import type { useCredentialStoreRecovery } from "@/hooks/useCredentials.js";
 import {
@@ -55,7 +54,6 @@ export function CredentialStoreRecovery({
       data-testid="credential-store-recovery"
       className="relative flex min-h-dvh items-center justify-center bg-background p-4 text-foreground"
     >
-      <DesktopOverlayWindowControls />
       <section className="w-full max-w-md space-y-4 rounded-2xl border border-popover-border bg-background p-6 text-ui-base shadow-md">
         <h1 className="text-ui-lg font-semibold">{text("login.credentialStore.title")}</h1>
         <p className="text-foreground-subtle">
@@ -153,7 +151,6 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
       <ThemeHeroVisual className="absolute inset-0" />
       {/* 原生拖拽命中不受 pointer-events/z-index 约束；拖拽层必须避开窗控，且先于 no-drag 区声明。 */}
       <div className="pointer-events-none absolute left-0 top-0 right-0 z-10 flex h-12 items-center [app-region:drag] platform-windows-desktop:right-[134px] platform-linux-desktop:right-[134px]" />
-      <DesktopOverlayWindowControls />
       {/* 矮窗口展开表单时，绝对定位的协议会盖住操作区；同一滚动布局保证两者可达，窗控仍在外层。 */}
       <div className="relative z-10 flex h-dvh flex-col items-center overflow-y-auto px-4 pb-6 pt-14 sm:px-6">
         <div className="flex w-full flex-1 shrink-0 items-center justify-center py-6">

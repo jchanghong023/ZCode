@@ -1,6 +1,7 @@
-import { randomUUID } from "node:crypto";
+// 修复原因：协议门禁同样被浏览器类型面引用，UUID 复用跨端实现，不依赖 Node 加密模块。
 import { Emitter } from "@zcode/rpc";
 import {
+  createUuid,
   zcodeStorageStartupStateSchema,
   type ZCodeStorageStartupState,
   type DatabaseStartupErrorCode,
@@ -100,8 +101,8 @@ export class ZCodeStorageStartupGate {
         ? { ...this.current, phase: "failed", errorCode: code, sequence: this.current.sequence + 1 }
         : {
             schemaVersion: 1,
-            attemptId: randomUUID(),
-            databaseId: `unresolved:${randomUUID()}`,
+            attemptId: createUuid(),
+            databaseId: `unresolved:${createUuid()}`,
             databaseKind: "session",
             sequence: 1,
             phase: "failed",

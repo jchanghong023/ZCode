@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   countPublicMethods,
   discoverFiles,
+  findMissingPolicyPaths,
   importDeclarationsOf,
   isException,
   layerForFile,
@@ -16,6 +17,18 @@ import {
 } from "./policy.mjs";
 import { loadWorkspace } from "./resolver.mjs";
 import { cycleViolations, unmanagedNewFileViolations, violation } from "./violations.mjs";
+import { browserBoundaryViolations } from "./browser-boundary.mjs";
+import { findMissingPackageEntrypoints } from "./package-entrypoints.mjs";
+
+// 修复原因：结构完整性与浏览器安全边界不能被历史 baseline 变成永久豁免。
+const integrityRules = new Set([
+  "missing-policy-path",
+  "missing-package-entrypoint",
+  "browser-policy",
+  "browser-node-import",
+  "browser-node-contract",
+  "browser-node-entrypoint",
+]);
 
 async function readBaseline(cwd) {
   try {
@@ -37,6 +50,29 @@ export async function checkArchitecture({
   const modulesByFile = new Map(files.map((file) => [file, moduleForFile(file, policy)]));
   const edges = new Map(files.map((file) => [file, []]));
   const violations = [];
+  const declarationsByFile = new Map();
+  for (const missing of await findMissingPolicyPaths(policy, cwd)) {
+    violations.push(
+      violation({
+        cwd,
+        rule: "missing-policy-path",
+        file: "architecture-policy.yaml",
+        detail: `${missing.owner}:${missing.kind}:${missing.path}`,
+        message: `${missing.owner} 的 ${missing.kind} 路径不存在：${missing.path}`,
+        global: true,
+      }),
+    );
+  }
+  for (const missing of await findMissingPackageEntrypoints(workspace)) {
+    violations.push(
+      violation({
+        cwd,
+        rule: "missing-package-entrypoint",
+        ...missing,
+        global: true,
+      }),
+    );
+  }
   const manifestRequiresByModule = new Map();
   const moduleIds = new Set(policy.modules.map((module) => module.id));
 
@@ -122,6 +158,7 @@ export async function checkArchitecture({
     if (!module) continue;
     const source = await fs.readFile(file, "utf8");
     const declarations = importDeclarationsOf(file, source);
+    declarationsByFile.set(file, declarations);
     // 边对所有文件建立（含 unmanaged），否则 --changed 的反向闭包与环检测都会缺边；规则只对 managed 生效。
     for (const { specifier } of declarations) {
       const target = resolveImport(file, specifier, knownFiles, workspace);
@@ -291,6 +328,10 @@ export async function checkArchitecture({
     }
   }
 
+  violations.push(
+    ...browserBoundaryViolations({ cwd, policy, workspace, files, declarationsByFile }),
+  );
+
   if (policy.global.forbidCycles)
     violations.push(...cycleViolations(edges, policy, modulesByFile, cwd));
   if (addedFiles) violations.push(...unmanagedNewFileViolations(addedFiles, policy, cwd));
@@ -318,8 +359,10 @@ export async function checkArchitecture({
   const scoped = changed
     ? violations.filter((item) => item.global || changed.has(path.resolve(cwd, item.file)))
     : violations;
-  const baselineViolations = scoped.filter((item) => baselineFingerprints.has(item.fingerprint));
-  const newViolations = scoped.filter((item) => !baselineFingerprints.has(item.fingerprint));
+  const accepted = (item) =>
+    !integrityRules.has(item.rule) && baselineFingerprints.has(item.fingerprint);
+  const baselineViolations = scoped.filter(accepted);
+  const newViolations = scoped.filter((item) => !accepted(item));
   return {
     policy,
     violations: scoped,
@@ -341,7 +384,9 @@ export async function updateBaseline({ cwd = process.cwd(), violations, scope = 
     ? previous.filter((item) => !item.global && !scope.has(path.resolve(cwd, item.file)))
     : [];
   const merged = new Map();
-  for (const item of [...kept, ...violations]) merged.set(item.fingerprint, item);
+  for (const item of [...kept, ...violations]) {
+    if (!integrityRules.has(item.rule)) merged.set(item.fingerprint, item);
+  }
   const entries = [...merged.values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
   await fs.writeFile(filename, `${JSON.stringify({ version: 1, violations: entries }, null, 2)}\n`);
   return entries;

@@ -15,8 +15,6 @@ export async function readPackageNotices(directory) {
   async function visit(path) {
     for (const entry of await readdir(path, { withFileTypes: true })) {
       if (["node_modules", ".git", "test", "tests", "fixtures"].includes(entry.name)) continue;
-      // Chromium 聚合许可由打包流程经 resources/licenses/electron 单独分发，不进 npm 通知。
-      if (entry.isFile() && entry.name === "LICENSES.chromium.html") continue;
       const full = join(path, entry.name);
       if (entry.isDirectory()) await visit(full);
       else if (entry.isFile() && noticeName.test(entry.name)) {
@@ -251,7 +249,6 @@ export async function scanInstalledPackages(root, projects) {
   }
   for (const project of projects) await scanNodeModules(join(project.path, "node_modules"));
   await scanNodeModules(join(root, "node_modules"));
-  await scanNodeModules(join(root, "apps/zcode-cli/node_modules"));
   return installed;
 }
 

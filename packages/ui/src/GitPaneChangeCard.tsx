@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { GitDiffResult } from "@zcode/shared";
-import { ChevronDownIcon, CopyIcon, FolderOpenIcon, ListTreeIcon } from "lucide-react";
+import { ChevronDownIcon, CopyIcon, ListTreeIcon } from "lucide-react";
 import { DiffViewer } from "@/components/ui/diff-viewer.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -24,32 +24,27 @@ export function GitPaneChangeCard({
   diffState,
   isDiffLoading,
   isExpanded,
-  canRevealInFileManager,
   codePreviewSettings,
   resolvedTheme,
   onCopyAbsolutePath,
   onCopyRelativePath,
   onOpenChange,
-  onRevealInFileManager,
   onRevealInFileTree,
 }: {
   change: GitPaneFileChange;
   contextMenuLabels: {
     copyAbsolutePath: string;
     copyRelativePath: string;
-    revealInFileManager: string;
     revealInFileTree: string;
   };
   diffState: GitDiffResult | null;
   isDiffLoading: boolean;
   isExpanded: boolean;
-  canRevealInFileManager: boolean;
   codePreviewSettings: CodePreviewSettings;
   resolvedTheme: ResolvedTheme;
   onCopyAbsolutePath: (change: GitPaneFileChange) => void;
   onCopyRelativePath: (change: GitPaneFileChange) => void;
   onOpenChange: (change: GitPaneFileChange, nextOpen: boolean) => void;
-  onRevealInFileManager: (change: GitPaneFileChange) => void;
   onRevealInFileTree?: (change: GitPaneFileChange) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -125,13 +120,6 @@ export function GitPaneChangeCard({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-56">
-          <ContextMenuItem
-            disabled={!canRevealInFileManager}
-            onSelect={() => onRevealInFileManager(change)}
-          >
-            <FolderOpenIcon className="size-4" />
-            {contextMenuLabels.revealInFileManager}
-          </ContextMenuItem>
           <ContextMenuItem onSelect={() => onCopyAbsolutePath(change)}>
             <CopyIcon className="size-4" />
             {contextMenuLabels.copyAbsolutePath}

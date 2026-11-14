@@ -2,22 +2,8 @@ node_modules/
 dist/
 # zcode-server-cli 发行包 staging 输出（spec §7.1），本地组装产物不入库。
 dist-release/
-# Bugfix: macOS CI 按架构隔离 electron-builder 输出目录，这些仍是构建产物。
-packages/desktop/dist-*/
 out/
 prebuilds/
-bundled-resources/
-mock-cdn/
-packages/desktop/bundled-resources/
-packages/desktop/bundled-agents/
-packages/desktop/bundled-tools/
-packages/desktop/mock-cdn/
-packages/desktop/.e2e-home/
-# 修复原因：Windows shard runner 会生成带 run id 的 HOME；中断后不应把测试产物误判为源码改动。
-packages/desktop/.e2e-home-*/
-packages/desktop/.e2e-artifacts/
-packages/desktop/.e2e-cache/
-packages/desktop/.e2e-network-capture/
 *.tsbuildinfo
 .DS_Store
 coverage/
@@ -29,8 +15,6 @@ coverage/
 .zed/
 .cache
 # CI 会跨任务保留这些下载缓存；不应进入 Git 未跟踪源码枚举。
-/.electron-builder-cache/
-/.electron-cache/
 /.pnpm-store/
 /.npm-cache/
 .turbo/
@@ -64,9 +48,6 @@ binding.Makefile
 **/build/Makefile
 **/build/Release/*.node
 
-# CUA 权限浮窗吸附用的 Swift 辅助二进制（由 prepare:macos-window-bounds 从
-# packages/desktop/native/macos-window-bounds/main.swift 编出，源码入库、产物不入库）
-packages/desktop/resources/macos-window-bounds/
 # CUA Helper SEA 基座下载缓存（scripts/cua-helper-sea-base.mjs 落盘的官方 Node 22 运行时，纯下载产物）
 /.tmp/
 # R3 服务器部署时写入的实际 commit 标记（harness/remote/deploy-server.sh 产出，随环境变化）
@@ -75,6 +56,3 @@ packages/desktop/resources/macos-window-bounds/
 __pycache__/
 *.pyc
 .zcode-runtime
-
-# CR-01：afterPack 生成的 NSIS helper define，按架构命名，不得入库
-packages/desktop/build/generated/

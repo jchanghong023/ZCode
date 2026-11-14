@@ -1,5 +1,10 @@
 # Release changelog body bullets
 
+> **状态：历史记录。** 本文记录桌面端发布时代 `release-it` 生成 changelog 的规则。
+> `npm run release`、`.release-it.mjs`、`@release-it/conventional-changelog` 与
+> `scripts/release-it/changelog-writer.mjs` 均已随桌面端裁撤删除，当前仓库没有 release 脚本，
+> 文中命令与实现路径只作追溯，不能执行。
+
 更新日期：2026-05-08
 
 `npm run release` 使用 `release-it` 生成版本 changelog。发布配置迁移到 `.release-it.mjs`，因为 `@release-it/conventional-changelog` 的 `writerOpts.transform` 和模板需要 JavaScript 函数，JSON 配置无法表达。

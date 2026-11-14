@@ -23,7 +23,6 @@ import { PluginSearchEmptyState } from "@/settings/PluginInstallEmptyState.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";
 import { formatMemoryUpdatedAt } from "@/settings/memoryUpdatedAt.js";
-import { WorkspaceEditorButtonGroup } from "@/WorkspaceEditorButtonGroup.js";
 
 export type MemoryViewerLoadingState = "idle" | "loading" | "ready" | "error";
 
@@ -192,9 +191,7 @@ export function MemorySettingsViewer({
                   <span
                     data-testid={testId(TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS, file.name)}
                     className="mr-3 shrink-0"
-                  >
-                    <WorkspaceEditorButtonGroup workspaceAbsPath={file.path} />
-                  </span>
+                  ></span>
                 </div>
               </Fragment>
             ))}

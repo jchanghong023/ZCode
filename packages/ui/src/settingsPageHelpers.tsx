@@ -1,10 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- settings helper 聚合应用常规、Agent 行为与自动归档设置。 */
-import type {
-  AppToolSearchMode,
-  IntegratedTerminalShellOption,
-  IntegratedTerminalShellSelection,
-  ZCodeInteractionBehavior,
-} from "@zcode/shared";
+import type { AppToolSearchMode, ZCodeInteractionBehavior } from "@zcode/shared";
 import { appToolSearchModeSchema, DEFAULT_APP_TOOL_SEARCH_MODE } from "@zcode/shared";
 import {
   TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH,
@@ -13,7 +8,6 @@ import {
   TID_SETTINGS_TOOL_SEARCH_OPTION,
 } from "@zcode/shared/test-ids";
 import { useState, useCallback, useEffect } from "react";
-import type { IPlatformService } from "@zcode/shared";
 import { testId } from "@zcode/shared/test-ids";
 import {
   Select,
@@ -134,26 +128,15 @@ export function GeneralSectionContent({
   keepAwakeWhileRunning = false,
   desktopChromiumHardwareAccelerationEnabled = true,
   dataBaseDir,
-  terminalInheritSystemProfile = true,
-  terminalFontFamily = "",
-  integratedTerminalShell = { mode: "auto" },
-  integratedTerminalShellOptions = [],
   httpProxy = "",
   httpProxyNoProxy = "",
   httpProxyCaCertPath = "",
   defaultHomeDir,
-  isDesktop,
   isWindowsDesktop,
   isLinuxDesktop,
-  linuxCloseToTray,
-  showIntegratedTerminalShell = false,
   setNotificationEnabled,
   setNotificationSoundEnabled,
   onDataBaseDirChange,
-  onSelectDataBaseDir,
-  onTerminalInheritSystemProfileChange = async () => {},
-  onTerminalFontFamilyChange = async () => {},
-  onIntegratedTerminalShellChange = async () => {},
   onHttpProxyChange = async () => {},
   onHttpProxyNoProxyChange = async () => {},
   onHttpProxyCaCertPathChange = async () => {},
@@ -170,36 +153,16 @@ export function GeneralSectionContent({
   keepAwakeWhileRunning?: boolean;
   desktopChromiumHardwareAccelerationEnabled?: boolean;
   dataBaseDir: string;
-  terminalInheritSystemProfile: boolean;
-  terminalFontFamily: string;
-  integratedTerminalShell?: IntegratedTerminalShellSelection;
-  integratedTerminalShellOptions?: IntegratedTerminalShellOption[];
   httpProxy?: string;
   httpProxyNoProxy?: string;
   httpProxyCaCertPath?: string;
   defaultHomeDir: string;
-  isDesktop?: boolean;
   isWindowsDesktop?: boolean;
   /** Linux 桌面端（isDesktop 且非 win/mac）；关闭驻留托盘设置在 Linux 上按能力自适应展示 */
   isLinuxDesktop?: boolean;
-  /** Linux 关闭驻留托盘能力状态（spec：docs/desktop/linux-close-to-tray.md）；Windows 不传 */
-  linuxCloseToTray?: {
-    /** 能力探测中或确认不可用，开关锁定 */
-    disabled: boolean;
-    /** 确认不可用（描述文案切换为"未提供系统托盘"） */
-    unavailable: boolean;
-    /** GNOME 系桌面且无托盘（追加 AppIndicator 扩展安装提示） */
-    gnomeLikeHint: boolean;
-  };
-  showIntegratedTerminalShell?: boolean;
-  platform?: IPlatformService;
   setNotificationEnabled: (enabled: boolean) => void;
   setNotificationSoundEnabled: (enabled: boolean) => void;
   onDataBaseDirChange: (dir: string) => Promise<void>;
-  onSelectDataBaseDir: () => Promise<string | null>;
-  onTerminalInheritSystemProfileChange: (enabled: boolean) => Promise<void>;
-  onTerminalFontFamilyChange: (fontFamily: string) => Promise<void>;
-  onIntegratedTerminalShellChange?: (selection: IntegratedTerminalShellSelection) => Promise<void>;
   onHttpProxyChange?: (httpProxy: string) => Promise<void>;
   onHttpProxyNoProxyChange?: (noProxy: string) => Promise<void>;
   onHttpProxyCaCertPathChange?: (caCertPath: string) => Promise<void>;
@@ -210,66 +173,8 @@ export function GeneralSectionContent({
 }) {
   const { intl } = useZCodeIntl();
   const hasServices = Boolean(useOptionalServices());
-  // 部分 SSR 单测会用精简 props 直接渲染本组件，新增终端设置项后旧 helper 未必同步传值。
-  // 这里把运行时缺省值兜到“继承系统 profile”，避免 undefined.trim() 把无关测试打断。
-  const [localTerminalFontFamily, setLocalTerminalFontFamily] = useState(terminalFontFamily);
-
-  useEffect(() => {
-    setLocalTerminalFontFamily(terminalFontFamily);
-  }, [terminalFontFamily]);
-
-  const normalizedTerminalFontFamily = localTerminalFontFamily.trim();
-  const isTerminalFontFamilyDirty = normalizedTerminalFontFamily !== terminalFontFamily;
-  const integratedTerminalShellValue =
-    integratedTerminalShell.mode === "shell" ? integratedTerminalShell.id : "auto";
-  const selectedIntegratedTerminalShellOption =
-    integratedTerminalShell.mode === "shell"
-      ? (integratedTerminalShellOptions.find(
-          (option) => option.id === integratedTerminalShell.id,
-        ) ?? {
-          dialect: integratedTerminalShell.dialect,
-          id: integratedTerminalShell.id,
-          label: integratedTerminalShell.label,
-          path: integratedTerminalShell.path,
-          source: "system" as const,
-        })
-      : undefined;
-  const visibleIntegratedTerminalShellOptions = selectedIntegratedTerminalShellOption
-    ? [
-        selectedIntegratedTerminalShellOption,
-        ...integratedTerminalShellOptions.filter(
-          (option) => option.id !== selectedIntegratedTerminalShellOption.id,
-        ),
-      ]
-    : integratedTerminalShellOptions;
-
-  const handleTerminalFontFamilySave = useCallback(async () => {
-    await onTerminalFontFamilyChange(normalizedTerminalFontFamily);
-  }, [normalizedTerminalFontFamily, onTerminalFontFamilyChange]);
-
-  const handleIntegratedTerminalShellChange = useCallback(
-    async (value: string) => {
-      if (value === "auto") {
-        await onIntegratedTerminalShellChange({ mode: "auto" });
-        return;
-      }
-      const option = visibleIntegratedTerminalShellOptions.find(
-        (candidate) => candidate.id === value,
-      );
-      if (!option) {
-        return;
-      }
-      await onIntegratedTerminalShellChange({
-        mode: "shell",
-        dialect: option.dialect,
-        id: option.id,
-        label: option.label,
-        path: option.path,
-      });
-    },
-    [onIntegratedTerminalShellChange, visibleIntegratedTerminalShellOptions],
-  );
-
+  // 纯浏览器不展示 Chromium 宿主参数、保持唤醒和关闭驻留托盘等桌面设置。
+  const canUseDesktopShell = false;
   const [localHttpProxy, setLocalHttpProxy] = useState(httpProxy);
 
   useEffect(() => {
@@ -345,86 +250,6 @@ export function GeneralSectionContent({
           }
         />
         {hasServices ? <ProactiveSuggestionsSetting /> : null}
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <SettingsRow
-          searchId="settings.terminalProfile"
-          label={intl.formatMessage({ id: "settings.terminalProfile" })}
-          description={intl.formatMessage({ id: "settings.terminalProfileDescription" })}
-          control={
-            <Switch
-              checked={terminalInheritSystemProfile}
-              onCheckedChange={(checked) => {
-                void onTerminalInheritSystemProfileChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          searchId="settings.terminalFontFamily"
-          label={intl.formatMessage({ id: "settings.terminalFontFamily" })}
-          description={intl.formatMessage({ id: "settings.terminalFontFamilyDescription" })}
-          control={
-            <Button
-              type="button"
-              size="lg"
-              disabled={!isTerminalFontFamilyDirty}
-              onClick={() => void handleTerminalFontFamilySave()}
-            >
-              {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
-            </Button>
-          }
-          detail={
-            <Input
-              size="lg"
-              value={localTerminalFontFamily}
-              placeholder={intl.formatMessage({
-                id: "settings.terminalFontFamilyPlaceholder",
-              })}
-              onChange={(event) => {
-                setLocalTerminalFontFamily(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && isTerminalFontFamilyDirty) {
-                  void handleTerminalFontFamilySave();
-                }
-              }}
-              className="max-w-[520px] font-mono"
-            />
-          }
-        />
-        {showIntegratedTerminalShell ? (
-          <SettingsRow
-            searchId="settings.integratedTerminalShell"
-            label={intl.formatMessage({ id: "settings.integratedTerminalShell" })}
-            description={intl.formatMessage({
-              id: "settings.integratedTerminalShellDescription",
-            })}
-            control={
-              <Select
-                value={integratedTerminalShellValue}
-                onValueChange={(value) => {
-                  void handleIntegratedTerminalShellChange(value);
-                }}
-              >
-                <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">
-                    {intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
-                  </SelectItem>
-                  {visibleIntegratedTerminalShellOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-          />
-        ) : null}
       </SettingsGroupCard>
 
       <SettingsGroupCard>
@@ -536,7 +361,7 @@ export function GeneralSectionContent({
       </SettingsGroupCard>
 
       <SettingsGroupCard>
-        {isDesktop ? (
+        {canUseDesktopShell ? (
           <>
             <SettingsRow
               searchId="settings.desktopChromiumHardwareAcceleration"
@@ -584,25 +409,16 @@ export function GeneralSectionContent({
             />
           }
         />
-        {isWindowsDesktop || isLinuxDesktop ? (
+        {canUseDesktopShell && (isWindowsDesktop || isLinuxDesktop) ? (
           <SettingsRow
             searchId="settings.closeToTrayOnWindows"
             label={intl.formatMessage({ id: "settings.closeToTrayOnWindows" })}
-            description={
-              linuxCloseToTray?.unavailable
-                ? linuxCloseToTray.gnomeLikeHint
-                  ? `${intl.formatMessage({ id: "settings.closeToTrayUnavailable" })} ${intl.formatMessage({ id: "settings.closeToTrayGnomeHint" })}`
-                  : intl.formatMessage({ id: "settings.closeToTrayUnavailable" })
-                : intl.formatMessage({
-                    id: "settings.closeToTrayOnWindowsDescription",
-                  })
-            }
+            description={intl.formatMessage({
+              id: "settings.closeToTrayOnWindowsDescription",
+            })}
             control={
               <Switch
                 checked={closeToTrayOnWindows}
-                // Linux 上托盘能力未知（探测中）或确认不可用时都锁定，防止误开导致关窗失联
-                //（spec：docs/desktop/linux-close-to-tray.md）。
-                disabled={Boolean(linuxCloseToTray?.disabled)}
                 onCheckedChange={(checked) => {
                   void onCloseToTrayOnWindowsChange(checked);
                 }}
@@ -610,7 +426,7 @@ export function GeneralSectionContent({
             }
           />
         ) : null}
-        {isDesktop ? (
+        {canUseDesktopShell ? (
           <SettingsRow
             searchId="settings.keepAwakeWhileRunning"
             label={intl.formatMessage({ id: "settings.keepAwakeWhileRunning" })}
@@ -644,7 +460,6 @@ export function GeneralSectionContent({
               dataBaseDir={dataBaseDir}
               defaultHomeDir={defaultHomeDir}
               onDataBaseDirChange={onDataBaseDirChange}
-              onSelectDataBaseDir={onSelectDataBaseDir}
             />
           }
         />

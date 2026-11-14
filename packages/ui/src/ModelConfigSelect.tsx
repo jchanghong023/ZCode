@@ -263,6 +263,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
     triggerLabel = previous.triggerLabel;
   } else presentation.current = { composerOptions, modelGroups, normalizedValue, triggerLabel };
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const [hoverTooltipOpen, setHoverTooltipOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [expandedWidth, setExpandedWidth] = useState<number | null>(null);
@@ -293,6 +294,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
 
   const handlePopoverOpenChange = useCallback(
     (nextOpen: boolean) => {
+      setHoverTooltipOpen(false);
       // 打开前测量真实按钮，不能在替换文案后反过来测量占位内容。
       if (nextOpen && composerOptions && buttonRef.current)
         setExpandedWidth(buttonRef.current.getBoundingClientRect().width);
@@ -654,8 +656,9 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           }
           shortcut={guideTooltipOpen ? undefined : shortcutLabel}
           triggerRef={triggerRef}
-          // 菜单打开时 Tooltip 不能再成为最上层；否则 Escape 只关闭提示，菜单仍锁住指针。
-          open={open ? false : guideTooltipOpen ? true : undefined}
+          // 菜单打开时关闭提示；始终传布尔值，避免 false/undefined 切换受控模式而告警。
+          open={!open && (guideTooltipOpen || hoverTooltipOpen)}
+          onOpenChange={setHoverTooltipOpen}
           className={guideTooltipOpen ? "bg-background py-0.5 pr-0.5 pl-2" : undefined}
         >
           {modelTrigger}

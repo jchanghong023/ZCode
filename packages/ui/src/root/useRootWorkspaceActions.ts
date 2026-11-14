@@ -3,7 +3,6 @@ import { readProjectSidebarView } from "@/project-sidebar/index.js";
 /* eslint-disable max-lines -- Root workspace action hook 集中编排项目、远程和 conversation 入口；合并期保持动作边界完整，后续按领域拆分。 */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DesktopCommandIds,
   remoteHostIdFromWorkspaceIdentity,
   type AppSettings,
   type IPlatformService,
@@ -82,10 +81,8 @@ export function useRootWorkspaceActions({
   addTab,
   activeWorkspacePath,
   activeWorkspaceIdentity,
-  supportsSettings,
   isDesktop = false,
   allowOpenWorkspace,
-  preferDirectoryBrowser,
   openDirectoryBrowser,
   refreshProviderState,
   updateAppSettings,
@@ -102,10 +99,8 @@ export function useRootWorkspaceActions({
   addTab: TabStoreState["addTab"];
   activeWorkspacePath: string | null;
   activeWorkspaceIdentity: string | null;
-  supportsSettings: boolean;
   isDesktop?: boolean;
   allowOpenWorkspace: NonNullable<RootProps["allowOpenWorkspace"]>;
-  preferDirectoryBrowser: boolean;
   openDirectoryBrowser?: () => void;
   refreshProviderState: () => Promise<void>;
   updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
@@ -418,26 +413,10 @@ export function useRootWorkspaceActions({
   });
 
   const handleLogout = useCallback(async () => {
-    let runningAgentSessionCount: number | null = null;
-    try {
-      const sessionActivity = await platform.getDesktopSessionActivity?.();
-      runningAgentSessionCount =
-        typeof sessionActivity?.runningAgentSessionCount === "number"
-          ? sessionActivity.runningAgentSessionCount
-          : null;
-    } catch (error) {
-      logger.warn("[Root] 查询桌面运行中会话数量失败，使用保守退出登录文案", { error });
-    }
-
+    // 浏览器没有宿主进程，无法查询后台运行中的 Agent 会话数；统一使用默认退出确认文案。
     const confirmed = await requestConfirmation({
       title: intl.formatMessage({ id: "logout.confirm.title" }),
-      description:
-        runningAgentSessionCount !== null && runningAgentSessionCount > 0
-          ? intl.formatMessage(
-              { id: "logout.confirm.descriptionWithRunningSessions" },
-              { count: String(runningAgentSessionCount) },
-            )
-          : intl.formatMessage({ id: "logout.confirm.descriptionDefault" }),
+      description: intl.formatMessage({ id: "logout.confirm.descriptionDefault" }),
       confirmLabel: intl.formatMessage({ id: "logout.confirm.ok" }),
       cancelLabel: intl.formatMessage({ id: "logout.confirm.cancel" }),
     });
@@ -477,9 +456,6 @@ export function useRootWorkspaceActions({
     setUser(null);
     // 退出登录后刷新 Account Source 与 Registry，避免继续展示退出前的 Provider 状态。
     await refreshProviderState();
-    // Coding Plan 官网 webview 使用独立持久 partition，App logout 必须同步清理。
-    await platform.executeDesktopCommand(DesktopCommandIds.ClearCodingPlanWebviewStorage);
-    await platform.executeDesktopCommand(DesktopCommandIds.RelaunchApp);
   }, [
     intl,
     requestConfirmation,
@@ -531,15 +507,8 @@ export function useRootWorkspaceActions({
           ).id;
         }
         if (!isCurrent()) return;
-        // 桌面端：检查是否已有其他窗口打开了该目录，如果是则激活该窗口对应 tab
-        const result = activateOtherWindow
-          ? await platform.activateOrSetWorkspace(path)
-          : { activated: false };
-        if (!isCurrent()) return;
-        if (result.activated) {
-          logger.info("[Root] 目录已在其他窗口打开，已激活该窗口对应 tab，跳过重复打开");
-          return;
-        }
+        // 浏览器只有一个窗口，没有跨窗口激活语义；直接复用/新增本窗口 tab。
+        void activateOtherWindow;
 
         // 新增 tab（如果已在本窗口打开则激活它）
         addTab(path);
@@ -554,100 +523,27 @@ export function useRootWorkspaceActions({
         setWorkspaceActionError(err instanceof Error ? err.message : String(err));
       }
     },
-    [addTab, platform, services.projectService, isDesktop, startDraftInWorkspace, tabStoreApi],
+    [addTab, services.projectService, isDesktop, startDraftInWorkspace, tabStoreApi],
   );
 
   const handleOpenWorkspace = useCallback(() => {
     if (!allowOpenWorkspace) {
-      // Web 远程控制当前只保证“进入 desktop 已打开的 workspace”。
-      // 之前这里继续放开“打开工作区”，用户会被带进打开工作区中间页，
-      // 但后续的新工作区/新会话链路并没有在 Web 远程控制模式里补齐，看起来就像页面一直卡住。
-      // 这里直接拦掉入口，避免把用户带进半支持状态。
       logger.info("[Root] 当前模式不支持打开其他工作区，已忽略请求");
       return;
     }
     setWorkspaceActionError(null);
-
-    if (preferDirectoryBrowser) {
-      void openFolderFromWorkspaceEntry({
-        preferDirectoryBrowser,
-        openDirectoryBrowser,
-        selectDirectory: () => platform.selectDirectory(),
-        onSelectProject: (path) => {
-          void handleSelectProject(path);
-        },
-      });
-      return;
-    }
-
-    // 打开工作区中间页作为“新标签页”会在启动空态、Cmd/Ctrl+O
-    // 和菜单打开工作区时抢占整页。现在打开工作区只保留为动作：本地优先直接弹系统目录选择，
-    // 不再进入中间页面；不支持系统目录选择的壳层由启动兜底负责创建默认 workspace。
-    if (!supportsSettings) {
-      void handleEnsureConversationWorkspace().catch((error) => {
-        logger.error("[Root] 创建对话 workspace 失败", { error });
-      });
-      return;
-    }
-
-    void openFolderFromWorkspaceEntry({
-      selectDirectory: () => platform.selectDirectory(),
-      onSelectProject: (path) => {
-        void handleSelectProject(path);
-      },
-    });
-  }, [
-    allowOpenWorkspace,
-    handleEnsureConversationWorkspace,
-    handleSelectProject,
-    openDirectoryBrowser,
-    platform,
-    preferDirectoryBrowser,
-    supportsSettings,
-  ]);
+    // 纯浏览器只有服务端目录浏览器一个入口；不再保留系统目录选择框分支。
+    openFolderFromWorkspaceEntry({ openDirectoryBrowser });
+  }, [allowOpenWorkspace, openDirectoryBrowser]);
 
   const handleOpenFolderFromWorkspaceMenu = useCallback(() => {
     if (!allowOpenWorkspace) {
       logger.info("[Root] 当前模式不支持从空态菜单打开文件夹，已忽略请求");
       return;
     }
-
-    // 空态 workspace 菜单的 Open folder 需要复用根级打开工作区动作。
-    // 因此这里调用同一个入口函数，只把 Root 里的 selectDirectory 与项目选择回调注入进去。
-    if (preferDirectoryBrowser) {
-      void openFolderFromWorkspaceEntry({
-        preferDirectoryBrowser,
-        openDirectoryBrowser,
-        selectDirectory: () => platform.selectDirectory(),
-        onSelectProject: (path) => {
-          void handleSelectProject(path);
-        },
-      });
-      return;
-    }
-
-    if (!supportsSettings) {
-      void handleEnsureConversationWorkspace().catch((error) => {
-        logger.error("[Root] 从空态菜单创建对话 workspace 失败", { error });
-      });
-      return;
-    }
-
-    void openFolderFromWorkspaceEntry({
-      selectDirectory: () => platform.selectDirectory(),
-      onSelectProject: (path) => {
-        void handleSelectProject(path);
-      },
-    });
-  }, [
-    allowOpenWorkspace,
-    handleEnsureConversationWorkspace,
-    handleSelectProject,
-    openDirectoryBrowser,
-    platform,
-    preferDirectoryBrowser,
-    supportsSettings,
-  ]);
+    // 空态 workspace 菜单复用根级打开工作区动作。
+    openFolderFromWorkspaceEntry({ openDirectoryBrowser });
+  }, [allowOpenWorkspace, openDirectoryBrowser]);
 
   const handleCreateTask = useCallback(
     (request?: CreateTaskRequest) => {

@@ -1,10 +1,34 @@
-import type {
-  AccountAccessIdentityInput,
-  AccountRequestAuthInput,
-  AccountRequestAuthMaterial,
-  AccountRequestAuthResolver,
-} from "./accountProviderRequestAuthService.js";
+// 修复原因：浏览器可达的鉴权 DTO/端口由契约拥有，不再从 Node 加密实现反向导入。
+import type { RequestVerificationReason } from "@zcode/shared";
 import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@zcode/shared";
+
+export interface AccountRequestAuthMaterial {
+  /** 私有传输字段兼容旧命名；套餐 OAuth 实际传入短期 Project Token。 */
+  apiKey?: string;
+  apiKeyId?: string;
+  headers?: Record<string, string>;
+  accountScope?: string;
+}
+
+export interface AccountRequestAuthInput {
+  providerId: string;
+  modelId?: string;
+  accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+  expectedAccountScope?: string;
+  rejectedProjectTokenFingerprint?: string;
+  reason: RequestVerificationReason | "off-peak" | "usage";
+}
+
+export interface AccountAccessIdentityInput {
+  providerId: string;
+  accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+}
+
+export interface AccountRequestAuthResolver {
+  resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
+  resolveCurrent(input: AccountRequestAuthInput): Promise<AccountRequestAuthMaterial>;
+  assertCurrent(input: AccountAccessIdentityInput): Promise<void>;
+}
 
 /**
  * 请求期 Account 鉴权边界。
@@ -33,10 +57,3 @@ export function createAccountRequestAuthService(
     },
   };
 }
-
-export type {
-  AccountRequestAuthInput,
-  AccountAccessIdentityInput,
-  AccountRequestAuthMaterial,
-  AccountRequestAuthResolver,
-} from "./accountProviderRequestAuthService.js";

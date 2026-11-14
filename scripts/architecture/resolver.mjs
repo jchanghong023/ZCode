@@ -119,21 +119,34 @@ function matchMap(map, key) {
   return null;
 }
 
-function targetsOf(value) {
+export function targetsOf(value, conditions = null) {
   if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(targetsOf);
+  if (Array.isArray(value)) return value.flatMap((item) => targetsOf(item, conditions));
   if (value && typeof value === "object") {
+    if (conditions) {
+      // 修复原因：浏览器图必须按 browser/import/default 条件选分支，不能误走 node 专用实现。
+      const selected = Object.entries(value).find(([key]) => conditions.includes(key));
+      return selected ? targetsOf(selected[1], conditions) : [];
+    }
     const ordered = EXPORT_CONDITION_ORDER.filter((key) => key in value).map((key) => value[key]);
     const rest = Object.entries(value)
       .filter(([key]) => !EXPORT_CONDITION_ORDER.includes(key))
       .map(([, item]) => item);
-    return [...ordered, ...rest].flatMap(targetsOf);
+    return [...ordered, ...rest].flatMap((item) => targetsOf(item));
   }
   return [];
 }
 
 function substitute(target, wildcard) {
   return wildcard === null ? target : target.replace("*", wildcard);
+}
+
+export function mappedImportTargets(from, specifier, workspace, conditions = null) {
+  const pkg = workspace && nearestPackage(from, workspace);
+  const hit = specifier.startsWith("#") && pkg?.imports && matchMap(pkg.imports, specifier);
+  return hit
+    ? targetsOf(hit.value, conditions).map((target) => substitute(target, hit.wildcard))
+    : [];
 }
 
 function stripExtension(base) {
@@ -159,7 +172,7 @@ function probe(absolute, knownFiles) {
   return null;
 }
 
-export function resolveSpecifier(from, specifier, knownFiles, workspace = null) {
+export function resolveSpecifier(from, specifier, knownFiles, workspace = null, conditions = null) {
   if (specifier.startsWith(".")) {
     return probe(path.resolve(path.dirname(from), specifier), knownFiles);
   }
@@ -167,12 +180,12 @@ export function resolveSpecifier(from, specifier, knownFiles, workspace = null) 
   const pkg = nearestPackage(from, workspace);
 
   if (specifier.startsWith("#") && pkg?.imports) {
-    const hit = matchMap(pkg.imports, specifier);
-    if (hit) {
-      for (const target of targetsOf(hit.value)) {
-        const found = probe(path.resolve(pkg.dir, substitute(target, hit.wildcard)), knownFiles);
-        if (found) return found;
-      }
+    for (const target of mappedImportTargets(from, specifier, workspace, conditions)) {
+      const found = target.startsWith(".")
+        ? probe(path.resolve(pkg.dir, target), knownFiles)
+        : !target.startsWith("#") &&
+          resolveSpecifier(from, target, knownFiles, workspace, conditions);
+      if (found) return found;
     }
   }
 
@@ -200,7 +213,10 @@ export function resolveSpecifier(from, specifier, knownFiles, workspace = null) 
   const candidates = [];
   const hit = matchMap(owner.exports, subpath);
   if (hit)
-    candidates.push(...targetsOf(hit.value).map((target) => substitute(target, hit.wildcard)));
+    candidates.push(
+      ...targetsOf(hit.value, conditions).map((target) => substitute(target, hit.wildcard)),
+    );
+  if (conditions && hit && candidates.length === 0) return null;
   if (subpath === ".") {
     if (owner.main) candidates.push(owner.main);
     candidates.push("./src/index", "./index");

@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
 import type { IServiceAccessor, ISettingService } from "@zcode/services";
 import { useServices } from "./useServices.js";
-import { usePlatform } from "./usePlatform.js";
 
 type SettingsSnapshot = {
   settings: AppSettings | null;
@@ -109,7 +108,6 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
   // context，“记住 Source 选择”会写入远端 setting，Controller 本地快照随后把选择重置为本机。
   const settingsServices = options.services ?? contextualServices;
   const { botsService, broadcastService, settingService, zcodeAgentService } = settingsServices;
-  const platform = usePlatform();
   const cacheKey = resolveSettingsCacheKey(options.cacheKey, settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(() => getSettingsSnapshot(cacheKey));
 
@@ -134,14 +132,6 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
     };
   }, [cacheKey, refresh]);
 
-  useEffect(() => {
-    return (
-      platform.onSettingsChanged?.(() => {
-        void refresh();
-      }) ?? (() => {})
-    );
-  }, [platform, refresh]);
-
   const update = useCallback(
     async (
       patch: Partial<AppSettings>,
@@ -155,7 +145,6 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         if (expectedAccountSettings) await refresh();
         throw error;
       }
-      platform.syncAppSettings?.(patch);
       await refresh();
       if (
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
@@ -190,7 +179,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         }
       }
     },
-    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, platform, refresh],
+    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, refresh],
   );
 
   return {

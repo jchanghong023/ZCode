@@ -1,12 +1,10 @@
-import { useEffect, useId, useRef, useState, type DragEvent } from "react";
-import { FolderOpen, LoaderCircle, Plus } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { LoaderCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
-import { cn } from "@/components/lib/utils.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 
@@ -28,11 +26,9 @@ export function AddMarketplaceSourceDialog({
   error?: string | null;
 }) {
   const { intl } = useZCodeIntl();
-  const platform = useOptionalPlatform();
-  // 仅桌面端能把拖拽 File / 目录选择框解析成 agent 可访问的本地绝对路径；Web 端隐藏这些入口。
-  const canPickPath = platform?.canSelectFilePath ?? false;
+  // 浏览器不能把拖拽 File / 目录选择框解析成 agent 可访问的本机绝对路径，
+  // 本地路径来源只保留文本输入；移除原本只供桌面宿主使用的拖拽与目录选择接线。
   const [source, setSource] = useState("");
-  const [dragActive, setDragActive] = useState(false);
   const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const riskAcknowledgementId = useId();
   const trimmedSource = source.trim();
@@ -65,51 +61,11 @@ export function AddMarketplaceSourceDialog({
     }
   };
 
-  const handleChooseDirectory = async () => {
-    if (!platform) return;
-    try {
-      const dir = await platform.selectDirectory();
-      if (dir) setSource(dir);
-    } catch {
-      // 取消或对话框异常时静默：保留当前输入，不打断添加流程。
-    }
-  };
-
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setDragActive(false);
-    const file = event.dataTransfer.files[0];
-    if (!file) return;
-    const path = platform?.getPathForFile?.(file)?.trim();
-    if (path) setSource(path);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="plugin-store-add-source-dialog"
-        className={cn(
-          "w-[min(420px,calc(100vw-2rem))] max-w-none transition-colors",
-          canPickPath && dragActive ? "border-border-hover bg-surface-hover" : "",
-        )}
-        onDragOver={
-          canPickPath
-            ? (event) => {
-                event.preventDefault();
-                setDragActive(true);
-              }
-            : undefined
-        }
-        onDragLeave={
-          canPickPath
-            ? (event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDragActive(false);
-                }
-              }
-            : undefined
-        }
-        onDrop={canPickPath ? handleDrop : undefined}
+        className="w-[min(420px,calc(100vw-2rem))] max-w-none transition-colors"
       >
         <DialogTitle className="text-ui-lg font-medium text-foreground">
           {intl.formatMessage({ id: "settings.plugins.marketplaces.add" })}
@@ -158,11 +114,6 @@ export function AddMarketplaceSourceDialog({
           }}
           placeholder={intl.formatMessage({ id: "settings.plugins.marketplaces.source" })}
         />
-        {canPickPath ? (
-          <p className="text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "settings.plugins.marketplaces.dropHint" })}
-          </p>
-        ) : null}
         <div className="flex items-start gap-2">
           <Checkbox
             id={riskAcknowledgementId}
@@ -177,17 +128,6 @@ export function AddMarketplaceSourceDialog({
           </Label>
         </div>
         <div className="flex justify-end gap-2">
-          {canPickPath ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => void handleChooseDirectory()}
-            >
-              <FolderOpen data-icon="inline-start" aria-hidden="true" />
-              {intl.formatMessage({ id: "settings.plugins.marketplaces.chooseDirectory" })}
-            </Button>
-          ) : null}
           <Button
             type="button"
             data-testid="plugin-store-add-source-submit"

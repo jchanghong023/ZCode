@@ -43,7 +43,7 @@ export async function saveFileCopy(
 }
 
 /** 浏览器只能确认交付下载，不能把 success 误报成已经写入磁盘；取消始终不提示。 */
-export function fileSaveSuccessMessageId(result: SaveFileResult, canOpenLocalFiles?: boolean) {
+export function fileSaveSuccessMessageId(result: SaveFileResult) {
   if (!result.success || result.canceled) return null;
-  return canOpenLocalFiles ? "fileActions.saved" : "fileActions.downloadStarted";
+  return "fileActions.downloadStarted";
 }

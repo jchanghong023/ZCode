@@ -4,75 +4,86 @@
 
 第三方复制内容保留各自许可、版权及适用的文件内修改声明。包元数据不能单独替代上游原始材料。没有取得证据的事项保持阻断，不能通过更新哈希、删除记录或编造权利人关闭。第一方代码的对外许可由开源导出覆盖层提供，不在本目录声明。
 
-| 所有者                                                                                              | 职责                                                             |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `third-party/*.json`、`third-party/upstream/`、`third-party/native-search/`、`third-party/runtime/` | 材料与待核验事项的唯一登记入口和原文快照                         |
-| `scripts/third-party-npm.mjs`                                                                       | 解析锁文件生产图与实际安装图、读取包内原文                       |
-| `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`）                                | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`                |
-| `scripts/licenses.mjs check [--strict]`                                                             | 显式许可标识、新鲜度与材料完整性检查                             |
-| `scripts/third-party-notices.mjs`                                                                   | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
+| 所有者                                                               | 职责                                                             |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `third-party/*.json`、`third-party/upstream/`                        | 当前输入与原文快照的唯一登记入口                                 |
+| `third-party/native-search/`、`third-party/runtime/`                 | 已退役发行格式的材料保留区；不是当前 Web 发行输入                |
+| `scripts/third-party-npm.mjs`                                        | 解析锁文件生产图与实际安装图、读取包内原文                       |
+| `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`） | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`                |
+| `scripts/licenses.mjs check [--strict]`                              | 显式许可标识、输入新鲜度与材料完整性检查                         |
+| `scripts/third-party-notices.mjs`                                    | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
+
+## 当前发行范围
+
+当前产品是固定中文的纯 Web 应用：`packages/web` 构建静态资源，由 `packages/server` 在本地提供 HTTP 服务，业务数据来自内存 mock 后端。发行物只有 Web 部署目录。
+
+- 当前声明输入 = 当前锁文件的生产依赖图 + `copied-components.json` 登记的现存复制源码/素材 + `npm-overrides.json` 的补充原文 + 根 `package.json` 的补丁。
+- Desktop（Electron）、CLI、独立 Server 发行包/SEA 与原生搜索工具均已退役，当前仓库没有对应目录或构建入口。
+- `third-party/runtime/`、`third-party/native-search/`、`third-party/upstream/` 中仍保留退役格式的许可原文和来源登记，作为历史法律归属材料保存；它们不是当前发行输入，不得复制进 Web 发行，也不得为了通过检查删除。
+- 原 `embedded-components.json`（Skia、QuickJS-NG）随 `@napi-rs/canvas`、`quickjs-wasi` 离开依赖图而移除登记：当前 Web 生产图没有内嵌原生/WASM 组件。相应原文快照仍在 `third-party/upstream/`，但不进入当前声明。
+- 生成器不得探测目录是否存在后静默跳过：`copied-components.json` 或 `npm-overrides.json` 指向的当前资产缺失时直接失败。
 
 ## npm 生产图的范围
 
 - 生产图取所有工作区项目的生产依赖，包括不发布的内部应用；内部应用的构建工具（如 Vite 插件）必须放在 `devDependencies`，否则会把构建工具误算为生产依赖。
-- 只登记 pnpm 在当前宿主上会安装的包：锁文件 `packages` 段的 `os`/`cpu`/`libc` 约束与 `pnpm-workspace.yaml` 的 `supportedArchitectures`（`current` 取宿主值）按 pnpm 的可安装规则比对。不可安装的平台包及只经由它们引入的依赖不安装、不分发，不进生产图，也不作为缺失安装报错；不再维护按包名的例外名单。
-- pnpm 只在 Linux 宿主上检查 `libc`，因此在 macOS / Windows 上生成的声明包含 glibc 与 musl 两类 Linux 平台包，是最全的集合；正式生成声明在 macOS 上执行。
-- 非宽松许可的生产依赖只按包名逐项登记人工复核结论，登记同时绑定许可类别，许可变化后重新阻断：
-  - LGPL：只允许以独立、可替换的动态库形式分发的 libvips（sharp 的 `@img/sharp-libvips-*` 与内含 libvips DLL 的 `@img/sharp-win32-*`，只由真实 Computer Use 包引入），声明中附原文。
-  - 内部应用独有且不随产品分发的依赖（当前为 `apps/dev-docs` 的 `elkjs`，按 EPL-2.0 使用）。
-  - 其余 LGPL/GPL/EPL 等仍按类别阻断。
+- 只登记 pnpm 在当前宿主上会安装的包：锁文件 `packages` 段的 `os`/`cpu`/`libc` 约束与 `pnpm-workspace.yaml` 的 `supportedArchitectures`（`current` 取宿主值）按 pnpm 的可安装规则比对。不可安装的平台包及只经由它们引入的依赖不安装、不分发，不进生产图，也不作为缺失安装报错；不维护按包名的例外名单。
+- 同一包名可以同时存在多个兼容版本；声明按 `name@version` 分别登记，不按包名合并。
+- 非宽松许可的生产依赖按包名逐项登记人工复核结论，登记同时绑定许可类别，许可变化后重新阻断。当前 Web 生产图没有非宽松许可依赖，`scripts/licenses.mjs` 的 `PROD_REVIEWED` 为空：Mermaid 渲染链的 `mermaid`、`@streamdown/mermaid`、`cytoscape` 等为 MIT/Apache-2.0，`dompurify` 为 `MPL-2.0 OR Apache-2.0`（采用 Apache-2.0 选项）。`elkjs` 不在当前锁图，原消费者 `apps/dev-docs` 已删除；`sharp`/`@img/sharp-*` 也不在锁图，原 Computer Use 分发路径已退役，二者都不能沿用旧理由放行。任何 LGPL/GPL/EPL 或 MPL-only 包进入生产图时，必须按当时真实调用方和发行策略重新登记，否则检查阻断。
 - 开源导出树的工作区与锁文件不同于闭源，其声明与 inventory 由导出流程在开源依赖树上重新生成，不沿用闭源声明。
+
+## 补充原文登记
+
+`npm-overrides.json` 只登记当前生产图中、包内缺少完整许可文件的精确版本。每条记录绑定固定上游来源与原文 SHA-256；包名或版本离开生产图即视为过期登记，生成直接失败。升级依赖时必须重新核对来源和原文，不能把旧版本材料套到新版本，也不能编造版权人。`khroma@2.1.0` 这类包没有独立 LICENSE 文件，但记录中的 `license` 仅作为包内元数据缺失时的标识补充，不冒充完整原文。
+
+2026-11-14 逐项复检结论：`react-remove-scroll-bar@2.3.8`、`@hono/node-ws@1.3.0`、`ansi-to-react@6.2.6` 的精确 npm 归档都没有 LICENSE/COPYING/NOTICE，对应 release ref 的源码树也没有；`react-remove-scroll-bar` 的 npm gitHead 已不可达，仓库没有 2.3.8 对应的 ref。`react-remove-scroll-bar` 与 `@hono/node-ws` 后来补的 LICENSE 分别晚于 2.3.8（2024-12-15）和 1.3.0（2026-01-07）发布，`@hono/node-ws` 维护者还明确说明该文件从下一个版本起才随包发布；`ansi-to-react` 全部历史都没有许可文件。后补原文以固定 commit、SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不合并进这些版本的声明，也不据此关闭 `reviewRequired`。
+
+## 复制源码、技能与素材
+
+`copied-components.json` 是复制内容的登记入口，`inventory.json` 保存对应文件、固定上游参考和 SHA-256，根 `THIRD-PARTY-NOTICES.md` 由生成器输出原始版权及许可文本。最初引入的 commit 未记录时保留 `importRevision: null`，不把本次核验的版本当成最初版本。
+
+当前登记项：
+
+| 内容                   | 本地范围                                                                     | 上游许可与修改说明                                                                                                                                                                                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shadcn/ui              | `packages/ui/src/components/ui/`、`packages/ui/src/styles.css` 的衍生部分    | MIT；本地修改包含样式、国际化和组件组合，自有组件不归属于上游。                                                                                                                                                                                             |
+| AI Elements            | `packages/ui/src/components/ai-elements/`、`.agents/skills/ai-elements/`     | Apache-2.0，Copyright 2023 Vercel, Inc.；本地修改包含样式、导入路径、组件扩展及技能说明。                                                                                                                                                                   |
+| agent-browser 技能     | `.agents/skills/agent-browser/`                                              | Apache-2.0，Copyright 2025 Vercel Inc.；同一上游版本中的 dogfood 技能不在当前 checkout，不在此登记。                                                                                                                                                        |
+| VS Code IPC 与基础工具 | `packages/rpc/src/`、`packages/rpc/examples/` 的衍生部分，及 `wire-codec.ts` | MIT，保留 Microsoft 原始版权行；本地进行了模块拆分、传输扩展和封装修改，不将所有本地实现归属于上游。                                                                                                                                                        |
+| Superpowers 技能描述   | `packages/ui/src/lib/builtinSkillI18n.ts`                                    | MIT，Copyright (c) 2025 Jesse Vincent；只覆盖该文件中的 Superpowers 描述及翻译，原 CLI 插件实现随命令工作区删除。                                                                                                                                           |
+| Material Icon Theme    | `packages/web/public/material-icons/`                                        | MIT；本地按 Web 资源路径引用，不再包含 Desktop 副本。                                                                                                                                                                                                       |
+| React Best Practices   | `.agents/skills/react-best-practices/`                                       | MIT 标识；固定 revision `063bee94c3f4df8453406c830b0a7df0f2860278` 全树无 LICENSE/COPYING/NOTICE、无版权行，raw LICENSE 与 GitHub license API 均返回 404；2026-11-14 复检 `main` 仍无；[blocked]，待 Vercel/权利人提供完整 MIT 版权许可原文；参与严格门禁。 |
+
+React Best Practices 的证据核验保持阻断：固定 revision 的完整 tarball 中不存在 `Permission is hereby granted` 或任何 `Copyright` 文本，根 README 只有 `## License` 后跟 `MIT`，技能 frontmatter 只有 `license: MIT`。2026-11-14 复检当前 `main` 的 tarball（SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有 LICENSE/COPYING/NOTICE 或版权行。原始 README 与 SKILL 快照及 SHA-256 作为 `reviewEvidence` 登记在 `copied-components.json`（分别对应 `third-party/upstream/7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651.txt` 与 `third-party/upstream/71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355.txt`）；已试 URL 与所需材料同在该登记中。这些快照只用于追溯，不作为许可全文输出；未取得版权行前不得用其他仓库的 MIT 文本拼接或推测版权人关闭该项。
+
+已退役且不再登记为当前输入的材料：Fig autocomplete 生成的 CLI 注册表、CLI design-plugin 的 design-resources 与 html-ppt 模板、Knip 文档镜像及其字体、Desktop 的 Material Icons 副本、dogfood 技能、Superpowers CLI 插件目录。仍可取得的原文快照保留在 `third-party/upstream/`，但不会进入当前声明或 Web 发行；随本地目录一起删除且无上游快照的材料不再声称仍被保留。
 
 ## 开发、构建与校验边界
 
 ```text
-开发 / bootstrap / build → readThirdPartyNotices 等读取已有材料 → 复制或嵌入产物
+开发 / bootstrap / build → readThirdPartyNotices 等读取已有材料 → Web 构建嵌入声明
 显式 notices / check     → 核验输入与原文 → 更新清单或报告失败
 ```
 
-- 构建不更新清单，也不隐式运行许可校验；inventory 过期、待核验项或原生登记不匹配都不阻断开发和打包。
-- 声明文件和所需材料仍是打包输入；缺失、无法读取或无法解析时保留原始错误，不生成空声明。
-- 原生材料只在显式生成时 `{ verify: true }` 核验输入和原文。
-- `readVerifiedNotices(root, { requireComplete: true })` 目前只由显式检查使用；接入 SEA 发布与 SMB 上传前，必须先按本仓库依赖树重新生成声明并关闭已登记缺口，否则两条发布路径会立即失败。
+- 构建不更新清单，也不隐式运行许可校验；inventory 过期、待核验项都不阻断开发和打包。
+- 声明文件仍是打包输入；缺失、无法读取或无法解析时保留原始错误，不生成空声明。
+- `readVerifiedNotices(root, { requireComplete: true })` 只由显式检查使用。
+- Windows checkout 的 CRLF 输入在新鲜度哈希中归一化为 LF；上游原文快照与最终声明按原始字节校验。
 
 ## 交付入口（本仓库已接入）
 
-| 产物                        | 位置                                                                                                                          | 接入点                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Desktop                     | `Resources/THIRD-PARTY-NOTICES.md`、`Resources/licenses/electron/`                                                            | `electron-builder.config.js` 的 `extraResources` 与 `afterExtract` |
-| Web                         | 部署根目录 `THIRD-PARTY-NOTICES.md`，HTML `rel="license"`                                                                     | `packages/web/vite.config.ts` 的 `thirdPartyNoticesVitePlugin`     |
-| Server HTTP / remote bundle | `packages/server/dist/`、`dist/remote/`                                                                                       | `tsup.config.ts` 的 `onSuccess`、`build-remote.ts`                 |
-| CLI                         | `apps/zcode-cli/packages/cli/dist/THIRD-PARTY-NOTICES.md`                                                                     | `scripts/build.mjs`                                                |
-| 搜索工具                    | 每个工具目录的 `THIRD-PARTY-NOTICES.txt`、`SOURCES.json`；SEA 内嵌同名资产                                                    | `prepare-native-search-tools.mjs`、`sea-runtime-tool-assets.mjs`   |
-| 远端组件                    | `server/`、`node-pty/<platform>/`、`glm/<platform>/` 的声明，`node/<platform>/LICENSE.node.txt`                               | `prepare-prebuilds.mjs`，在组件哈希计算前复制                      |
-| 独立 Server 发行包          | `runtime/THIRD-PARTY-NOTICES.md`、`LICENSE.node.txt`、`NODE-SOURCES.json`、`licenses/{agent,official-plugins}/`、工具目录声明 | `stageCli.ts` 读取后显式传入 `stage.ts`                            |
-| 统一分发包                  | `agent/THIRD-PARTY-NOTICES.md`                                                                                                | `scripts/build-zcode.mjs`                                          |
+| 产物 | 位置                                                      | 接入点                                                         |
+| ---- | --------------------------------------------------------- | -------------------------------------------------------------- |
+| Web  | 部署根目录 `THIRD-PARTY-NOTICES.md`，HTML `rel="license"` | `packages/web/vite.config.ts` 的 `thirdPartyNoticesVitePlugin` |
 
-未接入：`zcode --licenses` 入口与 SEA 内嵌 Node 许可（SEA 基底 Node 版本随构建机浮动，`runtime/sources.json` 只登记固定版本）；producer 归档内嵌声明（会改变已固定 SHA-256 的归档字节）。
-
-## Electron 事件顺序
-
-```mermaid
-sequenceDiagram
-    participant Builder as electron-builder
-    participant Legal as third-party-notices
-    participant Files as 目标平台发行目录
-    Builder->>Files: 解包目标 Electron
-    Builder->>Legal: afterExtract(context)
-    Legal->>Files: 保存 LICENSE / LICENSES.chromium.html / SOURCES.json
-    Builder->>Files: macOS 重命名与顶层材料清理
-    Builder->>Files: afterPack 既有校验（不做许可校验）
-```
-
-材料从实际目标归档读取，不从宿主 Electron 替代。重复 staging 覆盖同一目标目录；不同目标使用各自 appOutDir。Windows 重命名后的 `LICENSE.electron.txt` 也可读取。
+Server 当前不单独复制声明，部署随 Web 根目录声明。Desktop、CLI、搜索工具与 SEA 的 staging 入口不属于当前发行链路。
 
 ## 验收
 
-1. `node --test scripts/third-party-notices.test.mjs`：缺少 inventory 或哈希过期时构建复制仍成功，显式校验失败；严格校验拒绝待核验项；缺少声明时保留 ENOENT。
-2. 独立 Server staging 的组件归档分别包含 npm、Node 与搜索工具声明，工具声明缺失时 staging 失败。
-3. 执行 `node scripts/licenses.mjs check`，如实记录在当前依赖树上的结果；不以更新哈希代替重新生成与审核。
-4. 最终安装包未实际构建时，不声称完成全平台安装包审计。
+1. `pnpm install --frozen-lockfile`：安装快照必须与 `pnpm-lock.yaml` 一致，否则生成器拒绝运行。
+2. `node scripts/licenses.mjs notices`：从最终锁文件和现存资产重新生成声明与 inventory。
+3. `node scripts/licenses.mjs check`：校验许可标识、声明哈希与全部输入文件的新鲜度。
+4. `node scripts/licenses.mjs check --strict`：材料完整性门禁；`reviewRequired` 非空时如实失败，不能靠更新哈希放行。
+5. `node --test scripts/third-party-notices.test.mjs`：验证构建复制/嵌入在声明或 inventory 缺失时仍成功，显式校验失败。
+6. `pnpm --filter @zcode/web build`：验证 Web 产物根目录包含当前 `THIRD-PARTY-NOTICES.md` 且 HTML 带 `rel="license"`。
 
-2026-11-14 逐项复检结论：`react-remove-scroll-bar@2.3.8`、`@hono/node-ws@1.3.0`、`ansi-to-react@6.2.6` 的精确 npm 归档都没有 LICENSE/COPYING/NOTICE，对应 release ref 的源码树也没有；`react-remove-scroll-bar` 的 npm gitHead 已不可达，仓库没有 2.3.8 对应的 ref。`react-remove-scroll-bar` 与 `@hono/node-ws` 后来补的 LICENSE 分别晚于 2.3.8（2024-12-15）和 1.3.0（2026-01-07）发布，`@hono/node-ws` 维护者还明确说明该文件从下一个版本起才随包发布；`ansi-to-react` 全部历史都没有许可文件。后补原文以固定 commit、SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不合并进这些版本的声明，也不据此关闭 `reviewRequired`。
-
-2026-11-14 复检当前 `main` 的 tarball（SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有 LICENSE/COPYING/NOTICE 或版权行。
+最终安装包未实际构建时，不声称完成发行审计。

@@ -1,9 +1,18 @@
 # Web 平台适配
 
-`createWebPlatform` 是普通 Web 和手机远控共用的 IPlatformService 实现。平台代理仍只路由原有获准操作；文件保存始终发生在当前浏览器，不把远端文件路径传给桌面下载器。
+`createWebPlatform` 是纯浏览器前端的 `IPlatformService` 实现，只承载浏览器本机能力：
 
-- `saveFile` 接收原始 ArrayBuffer 或 URL 读取结果，最多 50 MiB，允许空文件。
-- URL 内容按流读取并检查实际字节数；异常停止读取。只接受 HTTP、HTTPS、data、blob 来源。
-- 下载文件名清理路径和非法字符；触发后移除临时链接并回收 Blob URL。
-- success 只表示交付给浏览器下载，不能视为用户已确认或文件已落盘。取消下载无法被页面可靠观察。
-- 此模块不持有工作区、任务、session 或 stream 状态；现有远控连接、事件和 owner 语义保持不变。
+- 下载保存：`saveFile` 接收原始 ArrayBuffer 或 URL 读取结果，最多 50 MiB；URL 只接受
+  HTTP、HTTPS、data、blob；异常停止读取。`success` 只表示交给浏览器下载器，不代表已落盘。
+- 外链入口：`openExternal` 只允许 http/https；反馈与社群地址由同源客户端配置解析。
+- 浏览器通知：任务通知与扩展通知使用 Notification API；点击回调由平台实例唯一持有，
+  扩展通知按每插件 60 秒 1 条、每日 20 条限流。
+- 遥测：mock 后端没有接收端，平台只派发本地 `zcode:telemetry` 事件，不伪装成服务端上报。
+- 设备标识：浏览器物理属性指纹。
+
+`IPlatformService` 不再保留本机路径选择、本机应用、文件管理器、编辑器枚举、MCP 用户目录、
+宿主临时文件、产物物化或媒体 URL 等仅用于返回空/不支持的宿主端口；对应 UI 入口已删除，
+调用方改用后端 workspace 服务或浏览器原生能力。内嵌浏览器、原生窗口、桌面命令、
+应用内购买、deep link OAuth、日志导出等 Desktop 能力已从契约移除。
+
+浏览器本机能力与服务端工作区能力的边界见 `docs/ui/browser-capabilities.md`。

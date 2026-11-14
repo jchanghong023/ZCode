@@ -156,7 +156,7 @@ function startBrowserNativeDownload(source: string) {
 export async function downloadImagePreview(
   item: ImagePreviewDialogItem,
   saveFile?: IPlatformService["saveFile"],
-): Promise<{ kind: "saved"; path: string } | { kind: "started" } | { kind: "canceled" }> {
+): Promise<{ kind: "started" } | { kind: "canceled" }> {
   if (!item.src) throw new ImageDownloadError("download_failed");
   if (saveFile && isHttpSource(item.src)) {
     const result = await saveFile({
@@ -165,8 +165,8 @@ export async function downloadImagePreview(
     });
     if (result.canceled) return { kind: "canceled" };
     if (!result.success) throw new Error(result.error || "save_failed");
-    // Web 保存成功只表示浏览器已开始下载，不会返回可供本机打开的路径。
-    return result.path ? { kind: "saved", path: result.path } : { kind: "started" };
+    // 保存成功只表示浏览器已开始下载，不返回也不假设本机文件路径。
+    return { kind: "started" };
   }
   let blob: Blob;
   try {
@@ -187,8 +187,8 @@ export async function downloadImagePreview(
     const result = await saveFile({ data: await blob.arrayBuffer(), suggestedName: filename });
     if (result.canceled) return { kind: "canceled" };
     if (!result.success) throw new Error(result.error || "save_failed");
-    // Web 保存成功只表示浏览器已开始下载，不会返回可供本机打开的路径。
-    return result.path ? { kind: "saved", path: result.path } : { kind: "started" };
+    // 保存成功只表示浏览器已开始下载，不返回也不假设本机文件路径。
+    return { kind: "started" };
   }
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");

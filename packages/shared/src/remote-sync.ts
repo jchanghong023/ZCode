@@ -1,6 +1,9 @@
 import type { ModelSelection } from "./model-selection.js";
 import type { BuiltInSubagentName } from "./subagents-types.js";
-import type { WorkspaceHookDefinition, WorkspaceHookEventName } from "./workspace-hook-config.js";
+import type {
+  WorkspaceHookDefinition,
+  WorkspaceHookEventName,
+} from "./workspace-hooks/contract.js";
 
 export interface RemoteSyncWriteAccessResult {
   ok: boolean;

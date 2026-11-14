@@ -14,17 +14,14 @@ export function TaskActionMenuContent({
   intl,
   isPinned,
   isArchived = false,
-  fileManagerLabel,
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
-  providerConfigFile,
   disableTaskActions = false,
   disableTaskTargetActions = false,
   disablePinTaskAction = false,
   disabledReason,
   archiveDisabledReason,
-  hideMobileUnsupportedActions = false,
   Item,
   Separator,
   onTogglePinTask,
@@ -33,19 +30,16 @@ export function TaskActionMenuContent({
   onMarkTaskAsUnread,
   onRestartTask,
   restartPending = false,
-  onOpenTaskPathInFileManager,
   onCopyWorkspacePath,
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
-  onOpenProviderConfig,
 }: {
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   };
   isPinned: boolean;
   isArchived?: boolean;
-  fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
@@ -53,14 +47,12 @@ export function TaskActionMenuContent({
     path: string | null;
     exists: boolean;
   };
-  providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   disableTaskActions?: boolean;
   disableTaskTargetActions?: boolean;
   disablePinTaskAction?: boolean;
   disabledReason?: string;
   /** 归档专属的禁用原因（运行中任务）；其余操作不受影响。 */
   archiveDisabledReason?: string;
-  hideMobileUnsupportedActions?: boolean;
   Item: React.ComponentType<TaskActionMenuItemProps>;
   Separator: React.ComponentType<TaskActionMenuSeparatorProps>;
   onTogglePinTask: () => void;
@@ -70,12 +62,10 @@ export function TaskActionMenuContent({
   onMarkTaskAsUnread: () => void;
   onRestartTask?: () => void;
   restartPending?: boolean;
-  onOpenTaskPathInFileManager: () => void;
   onCopyWorkspacePath: () => void;
   onCopyTaskPath: () => void;
   onCopyTaskLogPath: () => void;
   onCopySessionId?: () => void;
-  onOpenProviderConfig: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
 
@@ -137,19 +127,6 @@ export function TaskActionMenuContent({
         </Item>
       ) : null}
       <Separator />
-      {!hideMobileUnsupportedActions ? (
-        <Item
-          disabled={disableTaskActions}
-          title={disableTaskActions ? disabledReason : undefined}
-          onSelect={() => {
-            if (!disableTaskActions) {
-              onOpenTaskPathInFileManager();
-            }
-          }}
-        >
-          {fileManagerLabel}
-        </Item>
-      ) : null}
       <Item
         disabled={disableTaskActions}
         title={disableTaskActions ? disabledReason : undefined}
@@ -184,23 +161,6 @@ export function TaskActionMenuContent({
           onSelect={onCopySessionId}
         >
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
-        </Item>
-      ) : null}
-      {!hideMobileUnsupportedActions ? (
-        /* Bugfix: 手机远控运行在浏览器里，无法可靠打开桌面端 provider 配置文件。
-           这里只在远控移动端隐藏入口，桌面端仍沿用“路径已知即可前往配置”的能力。 */
-        <Item
-          disabled={disableTaskActions || providerConfigFile.loading || !providerConfigFile.path}
-          title={disableTaskActions ? disabledReason : undefined}
-          onSelect={() => {
-            if (!disableTaskActions) {
-              onOpenProviderConfig();
-            }
-          }}
-        >
-          <span className="truncate">
-            {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
-          </span>
         </Item>
       ) : null}
     </>

@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { useProjectDirectoryServices } from "@/project-sidebar/useProjectDirectoryServices.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
@@ -43,7 +42,6 @@ export function ProjectEditor({
 }) {
   const { intl } = useZCodeIntl();
   const sidebar = useOptionalProjectDirectory();
-  const platform = useOptionalPlatform();
   const msg = (id: string) => intl.formatMessage({ id: `project.${id}` });
   const [name, setName] = useState(project?.name ?? "");
   const [nameEdited, setNameEdited] = useState(false);
@@ -77,25 +75,10 @@ export function ProjectEditor({
     if (!roots.length) setPrimary(next[0] ?? "");
     setBrowsing(false);
   };
-  const browse = async () => {
-    const request = ++epoch.current;
-    // 本地优先用系统多选；没有平台能力时退回 Host 目录浏览。
-    if (!platform?.selectDirectories) {
-      if (current(request)) setBrowsing(true);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const selected = await platform.selectDirectories();
-      logger.debug("[ProjectEditor] native directory selection", { count: selected.length });
-      if (current(request) && selected.length) addRoots(selected);
-    } catch (cause) {
-      logger.warn("[ProjectEditor] native directory selection failed", cause);
-      if (current(request)) setError(formatProjectError(cause, intl.formatMessage));
-    } finally {
-      if (current(request)) setBusy(false);
-    }
+  const browse = () => {
+    // 浏览器没有本机目录选择框；项目根目录一律经后端 workspace 目录浏览选择。
+    epoch.current += 1;
+    setBrowsing(true);
   };
   const save = async () => {
     if (saveFlight.current) return;

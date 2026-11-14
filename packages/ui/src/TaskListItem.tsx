@@ -859,7 +859,6 @@ MemoTaskItem.displayName = "MemoTaskItem";
 export function TaskListItemContextMenuContent({
   organizationActions,
   workspacePath,
-  remoteSessionId,
   task,
   isPinned,
   isArchived = false,
@@ -896,37 +895,25 @@ export function TaskListItemContextMenuContent({
   const workspaceActionsDisabledReason = workspaceActionsDisabled
     ? (disabledReason ?? intl.formatMessage({ id: "workspaceSidebar.unavailableLocalDirectory" }))
     : undefined;
-  const {
-    taskSessionFile,
-    taskNativeSessionLogFile,
-    providerConfigFile,
-    fileManagerLabel,
-    handleCopyText,
-    handleOpenTaskPathInFileManager,
-    handleOpenProviderConfig,
-  } = useTaskListItemContextActions({
-    workspacePath,
-    remoteSessionId,
-    workspaceIdentity: task.workspaceIdentity,
-    taskId: task.taskId,
-    provider: task.provider,
-    intl,
-    // row 级菜单已收敛为列表级单例，只有菜单真正打开时才挂载此组件。
-    // 因此路径探测和 provider 配置探测可以直接随打开态运行，避免每个 idle row 订阅和计算。
-    loadTaskPaths: true,
-    loadProviderConfig: true,
-  });
+  const { taskSessionFile, taskNativeSessionLogFile, handleCopyText } =
+    useTaskListItemContextActions({
+      workspacePath,
+      workspaceIdentity: task.workspaceIdentity,
+      taskId: task.taskId,
+      provider: task.provider,
+      // row 级菜单已收敛为列表级单例，只有菜单真正打开时才挂载此组件。
+      // 因此路径探测可以直接随打开态运行，避免每个 idle row 订阅和计算。
+      loadTaskPaths: true,
+    });
   return (
     <TaskListItemContextMenu
       organizationActions={organizationActions}
       intl={intl}
       isPinned={isPinned}
       isArchived={isArchived}
-      fileManagerLabel={fileManagerLabel}
       taskSessionFile={taskSessionFile}
       activeSessionId={task.taskId}
       taskNativeSessionLogFile={taskNativeSessionLogFile}
-      providerConfigFile={providerConfigFile}
       disableTaskActions={workspaceActionsDisabled}
       disabledReason={workspaceActionsDisabledReason}
       archiveDisabledReason={archiveDisabledReason}
@@ -941,9 +928,6 @@ export function TaskListItemContextMenuContent({
       }}
       onMarkTaskAsUnread={() => {
         onMarkTaskAsUnread(task.taskId);
-      }}
-      onOpenTaskPathInFileManager={() => {
-        void handleOpenTaskPathInFileManager();
       }}
       onCopyWorkspacePath={() => {
         void handleCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), workspacePath);
@@ -962,9 +946,6 @@ export function TaskListItemContextMenuContent({
       }}
       onCopySessionId={() => {
         void handleCopyText(intl.formatMessage({ id: "appHeader.copySessionId" }), task.taskId);
-      }}
-      onOpenProviderConfig={() => {
-        void handleOpenProviderConfig();
       }}
     />
   );

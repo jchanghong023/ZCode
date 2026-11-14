@@ -1,9 +1,9 @@
+# 只登记当前真实存在的 workspace：根仓库仅 packages/*；apps/*（Desktop 外壳与 zcode-cli）已退役删除，
+# 留着不存在的 apps 路径会让 pnpm install 生成空 importer 并与锁图不一致。
 packages:
-  - apps/dev-docs
   - packages/*
-  - apps/zcode-cli
-  - apps/zcode-cli/packages/*
-  - apps/zcode-cli/tools/*
+# 保留多平台架构矩阵：发布与 CI 仍要在 darwin/linux/win32 及 x64/arm64 上安装，
+# 当前依赖里仍含平台相关的可选原生包，没有证据支持收窄到当前平台。
 supportedArchitectures:
   os:
     - current
@@ -17,16 +17,9 @@ supportedArchitectures:
   libc:
     - current
     - glibc
+# 只保留当前锁图中仍有 install 构建脚本的包（esbuild、msw）；
+# electron、node-pty、koffi、ssh2、protobufjs 等原生/桌面依赖已不在锁里，对应许可同步删除。
+# 这里只收紧、不新增：后续新出现的构建脚本仍需人工评估后显式批准。
 allowBuilds:
-  cpu-features: true
-  edgedriver: true
-  electron: true
-  electron-winstaller: true
   esbuild: true
-  geckodriver: true
-  koffi: true
   msw: true
-  node-pty: true
-  protobufjs: true
-  ssh2: true
-  unsafe-pointer: true

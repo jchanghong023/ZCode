@@ -2,8 +2,7 @@ import { useSetInterfaceModeWithTelemetry } from "@/lib/appTelemetry.js";
 import { SidebarNativeTooltip, ControlHintTooltip } from "@/ControlHintTooltip.js";
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
 import type { UserInfo } from "@zcode/shared";
-import { memo, useCallback, useEffect, useState } from "react";
-import { DesktopCommandIds } from "@zcode/shared";
+import { memo, useState } from "react";
 import {
   TID_LOGIN_MENU_ITEM,
   TID_LOGIN_TRIGGER,
@@ -21,7 +20,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -33,16 +31,12 @@ import {
   LoaderCircle,
   LogInIcon,
   LogOut,
-  Maximize,
   Palette,
   Settings,
   User,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import type { Theme } from "@/useTheme.js";
@@ -51,9 +45,6 @@ import {
   WorkspaceSidebarFooterUsageSummaryContent,
   useWorkspaceSidebarFooterUsageSummaryState,
 } from "@/WorkspaceSidebarFooterUsageSummary.js";
-
-const DESKTOP_ZOOM_MIN_LEVEL = -3;
-const DESKTOP_ZOOM_MAX_LEVEL = 5;
 
 function getSidebarProfileName(user?: UserInfo | null): string {
   const displayName = user?.displayName?.trim();
@@ -96,7 +87,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   user,
   workspacePath,
   workspaceIdentity,
-  isDesktop = false,
   className,
 }: {
   theme: Theme;
@@ -116,9 +106,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const platform = usePlatform();
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useSetInterfaceModeWithTelemetry(platform, "app.profile");
-  const zoomInShortcutLabel = useShortcutCommandLabel("zoomIn");
-  const zoomOutShortcutLabel = useShortcutCommandLabel("zoomOut");
-  const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
   const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
   const avatarFallbackText = getAvatarFallbackText(user);
@@ -173,43 +160,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
       : intl.formatMessage({ id: "settings.title" });
   const usageButtonClick = onUsageClick ?? onSettingsButtonClick;
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [desktopZoomLevel, setDesktopZoomLevel] = useState(0);
-  const runDesktopZoomCommand = useCallback(
-    (command: (typeof DesktopCommandIds)["ZoomIn" | "ZoomOut" | "ResetZoom"]) => {
-      void platform.executeDesktopCommand(command);
-    },
-    [platform],
-  );
-
-  useEffect(() => {
-    if (!isDesktop) {
-      setDesktopZoomLevel(0);
-      return;
-    }
-
-    let isCancelled = false;
-    void platform.getDesktopZoomLevel?.().then((state) => {
-      if (!isCancelled && Number.isFinite(state.zoomLevel)) {
-        setDesktopZoomLevel(state.zoomLevel);
-      }
-    });
-
-    const dispose = platform.onDesktopZoomLevelChanged?.((state) => {
-      if (Number.isFinite(state.zoomLevel)) {
-        setDesktopZoomLevel(state.zoomLevel);
-      }
-    });
-
-    return () => {
-      isCancelled = true;
-      dispose?.();
-    };
-  }, [isDesktop, platform]);
-
-  const canResetDesktopZoom = desktopZoomLevel !== 0;
-  const canZoomIn = desktopZoomLevel < DESKTOP_ZOOM_MAX_LEVEL;
-  const canZoomOut = desktopZoomLevel > DESKTOP_ZOOM_MIN_LEVEL;
-
   return (
     // footer 被 Settings 复用，页面专属边距由调用方传入，避免修改共享默认样式。
     <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", className)}>
@@ -344,46 +294,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-            {/* 快捷键设置（a58fdef 一系）：缩放子菜单 label 读生效表，设置页改绑后即时跟随 */}
-            {/* Bugfix: ecc6952 收口重复缩放子菜单时误留了语言之后的那份，导致菜单顺序变成
-                语言→缩放→主题；账户菜单分组顺序固定为 语言→主题→界面模式→缩放→用量→登录/登出，
-                这里把唯一一份（读生效表）挪回用量摘要之前。
-                staging 的 1d3179cb83 独立做过同一处移动（位置一致、缺本注释与 JSX 缩进），
-                合并时保留本版本，不要再补第二份缩放子菜单。 */}
-            {isDesktop ? (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <ZoomIn className="size-4" />
-                  {intl.formatMessage({ id: "sidebar.settings.interfaceZoom" })}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-50">
-                  <DropdownMenuItem
-                    disabled={!canZoomIn}
-                    onSelect={() => runDesktopZoomCommand(DesktopCommandIds.ZoomIn)}
-                  >
-                    <ZoomIn className="size-4" />
-                    {intl.formatMessage({ id: "titleBar.menu.view.zoomIn" })}
-                    <DropdownMenuShortcut>{zoomInShortcutLabel}</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={!canZoomOut}
-                    onSelect={() => runDesktopZoomCommand(DesktopCommandIds.ZoomOut)}
-                  >
-                    <ZoomOut className="size-4" />
-                    {intl.formatMessage({ id: "titleBar.menu.view.zoomOut" })}
-                    <DropdownMenuShortcut>{zoomOutShortcutLabel}</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={!canResetDesktopZoom}
-                    onSelect={() => runDesktopZoomCommand(DesktopCommandIds.ResetZoom)}
-                  >
-                    <Maximize className="size-4" />
-                    {intl.formatMessage({ id: "titleBar.menu.view.actualSize" })}
-                    <DropdownMenuShortcut>{resetZoomShortcutLabel}</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ) : null}
             <WorkspaceSidebarFooterUsageSummaryContent onUsageClick={usageButtonClick} />
             {onLogin && !user ? (
               <>

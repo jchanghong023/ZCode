@@ -1,6 +1,5 @@
 import { SidebarNativeTooltip, ControlHintTooltip } from "@/ControlHintTooltip.js";
 /* eslint-disable max-lines -- 文件树行集中维护拖拽、打开方式、Git 状态与上下文菜单交互。 */
-import type { EditorInfo, OpenInEditorRemoteTarget } from "@zcode/shared";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import {
   AlertCircle,
@@ -20,17 +19,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu.js";
-import { toast } from "@/components/ui/toast.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
-import {
-  FileApplicationChoices,
-  FileSaveAsMenuItem,
-  useFileApplications,
-} from "@/file-menu/index.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
+import { FileSaveAsMenuItem } from "@/file-menu/index.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
-import { logger } from "@/logger.js";
-import { resolveWorkspaceFileManagerEditor } from "@/lib/workspaceEditorSelection.js";
 import { buildFileMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import {
   dispatchWorkspaceFileAddToChat,
@@ -55,7 +46,6 @@ import type {
   WorkspaceFileGitStatusLabels,
   WorkspaceFileTreeContextMenuLabels,
 } from "@/workspace-file-tree/types.js";
-import {} from "@/workspace-file-tree/helpers.js";
 import { getWorkspaceFileTreeHierarchyGuideStyle } from "@/workspace-file-tree/hierarchyGuides.js";
 import { useWorkspaceFileTreeRowDragState } from "@/workspace-file-tree/useWorkspaceFileTreeRowDragState.js";
 import { WorkspaceFileTreeRowName } from "@/workspace-file-tree/WorkspaceFileTreeRowName.js";
@@ -68,10 +58,6 @@ export function WorkspaceFileTreeRowView({
   directoryGitStatuses,
   gitStatusLabelByStatus,
   contextMenuLabels,
-  canOpenLocalFileManager,
-  installedEditors,
-  isRemoteWorkspaceFileTree,
-  remoteTarget,
   workspacePath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -88,10 +74,6 @@ export function WorkspaceFileTreeRowView({
   directoryGitStatuses: WorkspaceFileGitStatus[];
   gitStatusLabelByStatus: WorkspaceFileGitStatusLabels;
   contextMenuLabels: WorkspaceFileTreeContextMenuLabels;
-  canOpenLocalFileManager: boolean;
-  installedEditors: EditorInfo[];
-  isRemoteWorkspaceFileTree: boolean;
-  remoteTarget?: OpenInEditorRemoteTarget;
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -101,23 +83,11 @@ export function WorkspaceFileTreeRowView({
   onOpenPreview: (row: WorkspaceFileTreeRow) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, row: WorkspaceFileTreeRow) => void;
 }) {
-  const platform = usePlatform();
-  const fileApplications = useFileApplications(
-    row.type === "file" ? { path: row.path, pathKind: "file", workspaceIdentity } : null,
-    isRemoteWorkspaceFileTree,
-  );
-  const openApps =
-    row.type === "file" && !isRemoteWorkspaceFileTree ? fileApplications.apps : installedEditors;
   const { isDragging, setIsDragging } = useWorkspaceFileTreeRowDragState();
-  const fileActions = useFileContextActions({
-    canOpenLocalFileManager,
-    isRemoteWorkspace: isRemoteWorkspaceFileTree,
-    openFailedMessage: contextMenuLabels.openFailed,
-  });
+  const fileActions = useFileContextActions();
   const relativePath = getWorkspaceFileRelativePath(workspacePath, row.path);
   const isDirectory = row.type === "directory";
   const isDeletedFile = isWorkspaceFileTreeDeletedFile(row, gitStatus);
-  const wslFileManagerEditor = resolveWorkspaceFileManagerEditor(installedEditors, remoteTarget);
   const rowStyle = {
     ...style,
     "--workspace-file-tree-depth": row.depth,
@@ -179,38 +149,6 @@ export function WorkspaceFileTreeRowView({
       return;
     }
     onOpenPreview(row);
-  };
-  const handleOpenInEditor = async (editor: EditorInfo) => {
-    if (isDeletedFile) {
-      return;
-    }
-    // 远程文件树以前整项禁用第三方打开，且调用只传 Linux path；
-    // 这里把已脱敏 remoteTarget 与文件/目录类型交给 main，由唯一平台边界生成正确 URI。
-    const result = await platform.openInEditor(editor.id, row.path, {
-      pathKind: isDirectory ? "directory" : "file",
-      remoteTarget,
-      workspaceIdentity,
-    });
-    if (result.success) {
-      return;
-    }
-    logger.warn("[WorkspaceFileTree] 打开文件树条目失败", {
-      editorId: editor.id,
-      path: row.path,
-      error: result.error ?? "unknown-error",
-    });
-    toast(contextMenuLabels.openFailed);
-  };
-  const handleRevealInFileManager = async () => {
-    if (wslFileManagerEditor) {
-      await handleOpenInEditor(wslFileManagerEditor);
-      return;
-    }
-    await fileActions.revealInFileManager({
-      path: row.path,
-      deleted: isDeletedFile,
-      kind: isDirectory ? "directory" : "file",
-    });
   };
   const rowElement = (
     <SidebarNativeTooltip>
@@ -336,14 +274,6 @@ export function WorkspaceFileTreeRowView({
       </div>
     </SidebarNativeTooltip>
   );
-  // 普通远程路径不能交给本机文件管理器，但 WSL Explorer 会在 main 边界
-  // 转成 UNC；因此它和“打开方式 → 资源管理器”必须共享相同的可用性与执行路径。
-  const canRevealInFileManager =
-    (!isDeletedFile && Boolean(wslFileManagerEditor)) ||
-    fileActions.canRevealInFileManager({
-      path: row.path,
-      deleted: isDeletedFile,
-    });
   const canOpenPrimary = !isDeletedFile;
 
   return (
@@ -351,11 +281,7 @@ export function WorkspaceFileTreeRowView({
       className={cn(layout === "absolute" ? "absolute left-0 top-0 w-full px-1" : "w-full")}
       style={rowStyle}
     >
-      <ContextMenu
-        onOpenChange={(open) => {
-          if (open && !isDeletedFile) void fileApplications.load();
-        }}
-      >
+      <ContextMenu>
         <ContextMenuTrigger asChild>{rowElement}</ContextMenuTrigger>
         <ContextMenuContent className="w-64 max-w-[calc(100vw-1rem)]">
           <ContextMenuItem disabled={!canOpenPrimary} onSelect={handleOpenPrimary}>
@@ -368,29 +294,6 @@ export function WorkspaceFileTreeRowView({
             )}
             {contextMenuLabels.open}
           </ContextMenuItem>
-          <FileApplicationChoices
-            variant="context"
-            applications={[...openApps]}
-            loading={fileApplications.loading}
-            disabled={isDeletedFile}
-            onOpenDefault={
-              !isDirectory &&
-              !isRemoteWorkspaceFileTree &&
-              platform.canOpenLocalFiles &&
-              platform.openExternalFile
-                ? () => void fileApplications.openDefault()
-                : undefined
-            }
-            onSelect={(editor) => {
-              if (isDirectory || isRemoteWorkspaceFileTree)
-                void handleOpenInEditor({ ...editor, iconDataUrl: editor.iconDataUrl ?? "" });
-              else
-                void fileApplications.open({
-                  ...editor,
-                  isDefault: "isDefault" in editor && Boolean(editor.isDefault),
-                });
-            }}
-          />
           {!isDirectory && (
             <FileSaveAsMenuItem
               variant="context"
@@ -402,13 +305,6 @@ export function WorkspaceFileTreeRowView({
             />
           )}
           <ContextMenuSeparator />
-          <ContextMenuItem
-            disabled={!canRevealInFileManager}
-            onSelect={() => void handleRevealInFileManager()}
-          >
-            <FolderOpenIcon aria-hidden="true" className="size-4" />
-            {contextMenuLabels.reveal}
-          </ContextMenuItem>
           <ContextMenuItem onSelect={() => void handleCopyAbsolutePath()}>
             <CopyIcon aria-hidden="true" className="size-4" />
             {contextMenuLabels.copyAbsolutePath}

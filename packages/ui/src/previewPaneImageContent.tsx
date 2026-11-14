@@ -104,9 +104,7 @@ export function ImagePreviewContent({
         { alt: title, filename: sourcePath ? getPathLeaf(sourcePath) : title, src },
         platform?.saveFile,
       );
-      if (result.kind === "saved") {
-        toast(intl.formatMessage({ id: "markdownImage.downloadSucceeded" }));
-      } else if (result.kind === "started") {
+      if (result.kind === "started") {
         toast(intl.formatMessage({ id: "markdownImage.downloadStarted" }));
       }
     } catch (error) {

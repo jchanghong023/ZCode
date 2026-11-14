@@ -1,5 +1,9 @@
 # Git Checkpoint 底层能力实现总结
 
+> **状态：历史实现记录（桌面端阶段）。** 文中 `packages/services/src/git/...`、`packages/services/src/node.ts`、
+> `packages/desktop/...` 与 `packages/services/test/...` 路径已随纯 Web 重构删除；当前 Git checkpoint
+> 由 `packages/server/src/mock/workspace.ts` 的 `MockGitCheckpointService` 提供，契约在 `packages/services`。
+
 更新日期：2026-04-13
 
 ## 本次目标

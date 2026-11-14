@@ -73,10 +73,6 @@ export function WorkspaceFileTreeStickyFolders({
               directoryGitStatuses={getWorkspaceDirectoryGitStatuses(gitStatusByPath, row.path)}
               gitStatusLabelByStatus={gitStatusLabelByStatus}
               contextMenuLabels={contextMenuLabels}
-              canOpenLocalFileManager={editorState.canOpenLocalFileManager}
-              installedEditors={editorState.installedEditors}
-              isRemoteWorkspaceFileTree={editorState.isRemoteWorkspaceFileTree}
-              remoteTarget={editorState.remoteTarget}
               workspaceRemoteSessionId={editorState.workspaceRemoteSessionId}
               workspacePath={workspacePath}
               workspaceIdentity={workspaceIdentity}

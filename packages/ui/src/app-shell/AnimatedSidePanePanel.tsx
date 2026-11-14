@@ -28,7 +28,6 @@ import {
   SidePaneFullViewToggleButton,
   type SidePaneFullViewSurface,
 } from "@/side-pane-full-view/index.js";
-import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
@@ -301,7 +300,6 @@ export function AnimatedSidePanePanel({
   onSelectGitSource,
   frameClassName = "rounded-xl border border-border",
   captionControlsStyle,
-  showWindowControls,
   onCloseSidePane,
   toggleSidePaneShortcutLabel,
   fullViewToggle,
@@ -717,7 +715,6 @@ export function AnimatedSidePanePanel({
           onToggleSidePane={onCloseSidePane}
           shortcutLabel={toggleSidePaneShortcutLabel}
         />
-        {showWindowControls ? <DesktopWindowControls /> : null}
       </div>
     ) : null;
   const openTabLauncher = (
@@ -1156,7 +1153,6 @@ export function AnimatedSidePanePanel({
                                   }
                             }
                             mobileOverlay={mobileOverlay}
-                            canOpenLocalFileManager={Boolean(isDesktop)}
                             onNavigate={(source) => onNavigateFileManager(tab.id, source)}
                             onClose={() => onCloseTab(tab.id)}
                             workspacePath={taskCwd ?? workspaceAbsPath}

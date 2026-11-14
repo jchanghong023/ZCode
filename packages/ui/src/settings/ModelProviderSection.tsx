@@ -7,7 +7,6 @@ import {
 import {
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
-  DesktopCommandIds,
   isStartPlanModelProviderId,
   type BuiltinModelProviderId,
   type ModelConnectivityResult,
@@ -252,7 +251,7 @@ export function ModelProviderSection({
   const { intl, locale } = useZCodeIntl();
   const confirmDialog = useConfirmDialog();
   const platform = usePlatform();
-  const { modelSelectionService, oauthService } = useServices();
+  const { oauthService } = useServices();
   const {
     modelProviders,
     providerTemplates,
@@ -813,10 +812,6 @@ export function ModelProviderSection({
           currentDomain: sharedSettings?.providerFamilyDomain,
         });
         await oauthService.logout();
-        // Coding Plan 官网 webview 使用独立持久 partition，provider Unlink 也属于账号边界。
-        if (typeof platform.executeDesktopCommand === "function") {
-          await platform.executeDesktopCommand(DesktopCommandIds.ClearCodingPlanWebviewStorage);
-        }
         await updateSharedSettings({
           providerFamilyDomain: (nextProviderFamilyDomain ?? "") as never,
           providerFamilyDomainUpdatedAt: Date.now(),
@@ -843,12 +838,9 @@ export function ModelProviderSection({
     },
     [
       oauthService,
-      platform,
       updateSharedSettings,
       sharedSettings?.providerFamilyDomain,
-      modelSelectionService,
       refresh,
-      refreshCodingPlanEntitlements,
       refreshCodingPlanProducts,
       refreshCodingPlanPurchaseTokenState,
     ],

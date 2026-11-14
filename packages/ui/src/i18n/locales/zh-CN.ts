@@ -2126,17 +2126,6 @@ const zhCN: Record<string, string> = {
   "settings.agentBehavior.title": "行为与工具",
   "settings.systemTitle": "常规",
   "settings.systemDescription": "这些设置会影响当前窗口的显示与交互。",
-  "settings.terminalProfile": "继承系统终端 Profile",
-  "settings.terminalProfileDescription":
-    "启动内置终端时尽量继承登录 shell 环境、代理、Kube 变量和本机终端字体。",
-  "settings.terminalFontFamily": "终端字体",
-  "settings.terminalFontFamilyDescription":
-    "留空时自动探测系统终端配置；填写后作为 ZCode 终端的字体覆盖。",
-  "settings.terminalFontFamilyPlaceholder": "留空自动继承，例如 MesloLGS NF, monospace",
-  "settings.integratedTerminalShell": "集成终端Shell",
-  "settings.integratedTerminalShellDescription":
-    "在新建会话或应用重启后恢复的会话中使用。当前会话保持现有 shell；Windows 下 Bash 工具用此 shell，自动优先 Git Bash，找不到回退 cmd.exe。",
-  "settings.integratedTerminalShell.auto": "自动选择",
   "settings.toolSearch": "工具搜索",
   "settings.toolSearchDescription":
     "自动：按模型选择原生或本地搜索；本地：通过本地搜索按需加载工具；关闭：发送完整工具目录。新建会话或应用重启后恢复会话时生效，当前会话保持原设置。",

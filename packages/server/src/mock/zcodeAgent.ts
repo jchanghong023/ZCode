@@ -10,6 +10,7 @@ import {
   conversationTopicFrameSchema,
   conversationTopicWireFrameSchema,
   parseCommandEnvelope,
+  queueItemSchema,
   sessionsIndexTopicFrameSchema,
   sessionsIndexTopicWireFrameSchema,
   workspaceConfigTopicFrameSchema,
@@ -21,9 +22,11 @@ import {
   type ConversationDelta,
   type ConversationTopicWireFrame,
   type HelloMessage,
+  type QueueItem,
   type SessionsIndexTopicWireFrame,
   type StatePatch,
   type WireConversationRow,
+  type WorkspaceConfigState,
   type WorkspaceConfigTopicWireFrame,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IZCodeAgentService } from "@zcode/services";
@@ -58,9 +61,10 @@ function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown
   return schema.parse(value);
 }
 
-const emptyWorkspaceConfigState = {
-  taskIndex: { tasks: [], updatedAt: 0 },
-  slashCommands: { commands: [], updatedAt: 0 },
+/** workspace-config 目录：模拟后端没有可配置目录（只读空投影，形状按协议）。 */
+const emptyWorkspaceConfigState: WorkspaceConfigState = {
+  configOptions: [],
+  slashCommands: [],
 };
 
 export class MockZCodeAgentService implements IZCodeAgentService {
@@ -87,11 +91,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     deliveryKind: "initial" | "online" | "recovery",
   ): void {
     const topic = `conversation/${session.sessionId}`;
-    const fromSeq = payload.kind === "snapshot" ? 0 : session.seq;
-    if (payload.kind === "deltas") {
-      session.seq += 1;
-    }
-    const toSeq = session.seq;
+    const isDelta = payload.kind === "deltas";
+    const fromSeq = isDelta ? session.seq : 0;
+    const toSeq = isDelta ? session.seq + 1 : session.seq;
+    const wireFrames: ConversationTopicWireFrame[] = [];
     for (const [subscriptionId, sub] of this.conversationSubs) {
       if (sub.sessionId !== session.sessionId) continue;
       sub.ordinal += 1;
@@ -113,8 +116,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         subscriptionId,
         frame: logicalFrame,
       }) as ConversationTopicWireFrame;
-      this.conversationFrameEmitter.fire(wire);
+      wireFrames.push(wire);
     }
+    // 帧全部通过 schema 后再提交水位：校验失败不留下永久 seq 空洞。
+    if (isDelta) session.seq = toSeq;
+    for (const wire of wireFrames) this.conversationFrameEmitter.fire(wire);
   }
 
   private emitSessionsIndex(
@@ -131,21 +137,32 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     deliveryKind: "initial" | "online" | "recovery",
   ): void {
     const topic = `sessions-index/${workspaceKey}`;
-    const logEpoch = "sidx-epoch-1";
-    for (const [subscriptionId, sub] of this.sessionsIndexSubs) {
-      if (sub.workspaceKey !== workspaceKey) continue;
+    const subscribers = [...this.sessionsIndexSubs].filter(
+      ([, sub]) => sub.workspaceKey === workspaceKey,
+    );
+    if (subscribers.length === 0) return;
+    // topic 水位是工作区级唯一顺序：同一 workspace 的所有订阅者共享 (fromSeq, toSeq]。
+    // 没有订阅者时不推进，避免产生无人观察的水位空洞。
+    const current = this.runtime.topics.position(topic);
+    let logEpoch = current.logEpoch;
+    let fromSeq = 0;
+    let toSeq = current.seq;
+    if (payload.kind === "deltas") {
+      const advanced = this.runtime.topics.advance(topic);
+      logEpoch = advanced.logEpoch;
+      fromSeq = advanced.fromSeq;
+      toSeq = advanced.toSeq;
+    }
+    for (const [subscriptionId, sub] of subscribers) {
       sub.ordinal += 1;
-      // sessions-index 帧的 (fromSeq, toSeq] 记账按订阅独立推进：快照固定 fromSeq=0。
-      const fromSeq = payload.kind === "snapshot" ? 0 : sub.ordinal - 1;
-      const toSeq = sub.ordinal;
-      const inner = assertFrame(sessionsIndexTopicFrameSchema, {
-        topic,
-        subscriptionId,
-        fromSeq,
-        toSeq,
-        sentAt: Date.now(),
-        ...(payload.kind === "snapshot"
-          ? {
+      const inner =
+        payload.kind === "snapshot"
+          ? assertFrame(sessionsIndexTopicFrameSchema, {
+              topic,
+              subscriptionId,
+              fromSeq,
+              toSeq,
+              sentAt: Date.now(),
               payload: {
                 kind: "snapshot",
                 snapshot: {
@@ -155,9 +172,15 @@ export class MockZCodeAgentService implements IZCodeAgentService {
                   sessions: payload.snapshot.sessions,
                 },
               },
-            }
-          : { payload: { kind: "deltas", deltas: payload.deltas } }),
-      });
+            })
+          : assertFrame(sessionsIndexTopicFrameSchema, {
+              topic,
+              subscriptionId,
+              fromSeq,
+              toSeq,
+              sentAt: Date.now(),
+              payload: { kind: "deltas", deltas: payload.deltas },
+            });
       const wire = assertFrame(sessionsIndexTopicWireFrameSchema, {
         wireVersion: 3,
         kind: "complete",
@@ -177,21 +200,25 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     deliveryKind: "initial" | "recovery",
   ): void {
     const topic = `workspace-config/${workspaceKey}`;
-    for (const [subscriptionId, sub] of this.workspaceConfigSubs) {
-      if (sub.workspaceKey !== workspaceKey) continue;
+    const subscribers = [...this.workspaceConfigSubs].filter(
+      ([, sub]) => sub.workspaceKey === workspaceKey,
+    );
+    if (subscribers.length === 0) return;
+    const position = this.runtime.topics.position(topic);
+    for (const [subscriptionId, sub] of subscribers) {
       sub.ordinal += 1;
       const inner = assertFrame(workspaceConfigTopicFrameSchema, {
         topic,
         subscriptionId,
         fromSeq: 0,
-        toSeq: sub.ordinal,
+        toSeq: position.seq,
         sentAt: Date.now(),
         payload: {
           kind: "snapshot",
           snapshot: {
             protocolVersion: 1,
             workspaceId: workspaceKey,
-            logEpoch: "wcfg-epoch-1",
+            logEpoch: position.logEpoch,
             config: emptyWorkspaceConfigState,
           },
         },
@@ -245,7 +272,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   private publishSessionsIndexUpsert(session: MockSession): void {
-    if (!isListedSession(session)) return;
+    if (!this.runtime.sessions.has(session.sessionId) || !isListedSession(session)) return;
     this.emitSessionsIndex(
       session.workspaceKey,
       {
@@ -324,6 +351,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
     this.appendRow(session, userInputRow);
     this.publishSessionsIndexUpsert(session);
+    // phase 已是 running：任务索引（controller/tasks-index）必须能看到活跃任务。
+    this.runtime.onWorkspaceTaskListChanged.fire({
+      workspacePath: session.workspaceRef.workspacePath,
+      type: "workspace_task_list_changed",
+    });
 
     // 工具调用演示：读取虚拟工作区文件，驱动工具卡渲染。
     const toolCallRow: WireConversationRow = {
@@ -410,6 +442,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   private finalizeInterruptedTurn(session: MockSession, turnHeader: WireConversationRow): void {
+    // turn 已收口：清掉运行句柄，后续 sendText 才会开始新 turn，队列才允许续跑。
+    session.activeTurn = null;
     session.phase = "completedInterrupted";
     session.lastActivityAt = Date.now();
     if (turnHeader.kind === "turnHeader") {
@@ -437,6 +471,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       workspacePath: session.workspaceRef.workspacePath,
       type: "workspace_task_list_changed",
     });
+    this.maybeStartNextInput(session);
   }
 
   private finalizeTurn(
@@ -445,6 +480,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     startedAt: number,
     reply: string,
   ): void {
+    // turn 已收口：清掉运行句柄，后续 sendText 才会开始新 turn，队列才允许续跑。
+    session.activeTurn = null;
     session.phase = "completedSuccess";
     session.lastActivityAt = Date.now();
     if (turnHeader.kind === "turnHeader") {
@@ -491,6 +528,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       workspacePath: session.workspaceRef.workspacePath,
       type: "workspace_task_list_changed",
     });
+    this.maybeStartNextInput(session);
   }
 
   /** 模拟回复正文：确定性生成，不访问网络。 */
@@ -511,9 +549,16 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   // ── 会话与命令 ──
 
-  private ensureSession(params: { sessionId: string }): MockSession {
+  private ensureSession(params: {
+    sessionId: string;
+    workspace?: { workspacePath: string; workspaceIdentity?: string };
+  }): MockSession {
     const session = this.runtime.sessions.get(params.sessionId);
     if (!session) {
+      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+    }
+    if (params.workspace && session.workspaceKey !== workspaceKeyOf(params.workspace)) {
+      // 会话按工作区隔离：不属于调用方工作区的会话对外等价于不存在。
       throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
     }
     return session;
@@ -528,6 +573,99 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         : 0,
       ...(result ? { result } : {}),
     };
+  }
+
+  private ackNoop(
+    envelope: CommandEnvelope,
+    session: MockSession,
+    reasonCode?: string,
+  ): CommandAck {
+    return {
+      commandId: envelope.commandId,
+      status: "noop",
+      ...(reasonCode ? { reasonCode } : {}),
+      revisionAtDecision: session.revision,
+    };
+  }
+
+  /** 未实现命令的唯一出口：明确拒绝，绝不返回 accepted 让 UI 以为状态已变。 */
+  private rejectUnsupported(envelope: CommandEnvelope, session: MockSession | null): CommandAck {
+    return {
+      commandId: envelope.commandId,
+      status: "rejected",
+      reasonCode: "fault.command.capabilityUnsupported",
+      message: `mock: 命令 ${envelope.type} 未实现`,
+      revisionAtDecision: session?.revision ?? 0,
+    };
+  }
+
+  private createQueueItem(
+    session: MockSession,
+    envelope: CommandEnvelope,
+    text: string,
+  ): QueueItem {
+    const queueItemId = `input_${createUuid()}`;
+    return assertFrame(queueItemSchema, {
+      inputOrigin: "desktop",
+      sourceCommandId: envelope.commandId,
+      queueItemId,
+      clientId: envelope.clientId,
+      kind: "sendText",
+      text,
+      attachments: [],
+      delivery: { requested: "queue", admitted: "queue" },
+      order: {
+        admissionSeq: session.nextAdmissionSeq++,
+        queuePosition: session.queuedInputs.length,
+      },
+      steer: { state: "notRequested" },
+      dispatch: { state: "queued" },
+      admittedAt: Date.now(),
+    });
+  }
+
+  private findQueueItem(session: MockSession, queueItemId: string): QueueItem | undefined {
+    return session.queuedInputs.find((item) => item.queueItemId === queueItemId);
+  }
+
+  /** queue 投影是唯一出口：items 顺序、位置与自动续跑开关一起下发。 */
+  private patchQueue(session: MockSession): void {
+    session.queuedInputs.forEach((item, index) => {
+      item.order = { ...item.order, queuePosition: index };
+    });
+    this.patchState(session, {
+      queue: {
+        items: session.queuedInputs,
+        autoDrain: session.autoDrain,
+        ...(session.pauseReason ? { pauseReason: session.pauseReason } : {}),
+      },
+    });
+  }
+
+  private startTurn(session: MockSession, commandId: string, text: string): void {
+    session.activeTurn = {
+      abort: () => {
+        session.activeTurn = null;
+      },
+    };
+    void this.runTurn(session, commandId, text);
+  }
+
+  /** turn 结束后处理 sendQueuedNow 提升项或 autoDrain 队列；运行中不并发开新 turn。 */
+  private maybeStartNextInput(session: MockSession): void {
+    // 删除后旧 turn 可能才结束，不能让它复活索引或继续启动排队输入。
+    if (!this.runtime.sessions.has(session.sessionId) || session.activeTurn !== null) return;
+    if (session.pendingStartText !== null) {
+      const text = session.pendingStartText;
+      session.pendingStartText = null;
+      this.startTurn(session, `input_${createUuid()}`, text);
+      return;
+    }
+    if (!session.autoDrain) return;
+    const next = session.queuedInputs.shift();
+    if (!next) return;
+    this.patchQueue(session);
+    this.startTurn(session, next.sourceCommandId, next.text);
   }
 
   private createSessionInternal(envelope: CommandEnvelope): CommandAck {
@@ -564,7 +702,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       plan: null,
       pendingInteractions: [],
       queuedInputs: [],
+      nextAdmissionSeq: 1,
       autoDrain: true,
+      pendingStartText: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -616,20 +756,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
     const payload = envelope.payload as { text: string };
     if (session.activeTurn !== null) {
-      session.queuedInputs.push({ inputId: `input_${createUuid()}`, text: payload.text });
-      this.patchState(session, { queue: { items: [], autoDrain: session.autoDrain } });
+      // 运行中发送真实进入队列：ACK 的 delivery=queue 与 snapshot.queue.items 一致。
+      const item = this.createQueueItem(session, envelope, payload.text);
+      session.queuedInputs.push(item);
+      this.patchQueue(session);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
         delivery: "queue",
-        inputId: `input_${createUuid()}`,
+        inputId: item.queueItemId,
       });
     }
-    session.activeTurn = {
-      abort: () => {
-        session.activeTurn = null;
-      },
-    };
-    void this.runTurn(session, envelope.commandId, payload.text);
+    this.startTurn(session, envelope.commandId, payload.text);
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",
@@ -641,24 +778,193 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (envelope.type === "createSession") {
       return this.createSessionInternal(envelope);
     }
-    const session = this.ensureSession({ sessionId: envelope.sessionId ?? "" });
+    if (!envelope.sessionId) {
+      // 没有会话归属的命令（如 createSelectionSideSession）一律走未实现分支，不先抛 fault。
+      return this.rejectUnsupported(envelope, null);
+    }
+    const session = this.ensureSession({
+      sessionId: envelope.sessionId,
+      workspace: envelope.workspace,
+    });
     switch (envelope.type) {
       case "sendText":
         return this.sendTextInternal(session, envelope);
-      case "stop":
-        session.activeTurn?.abort();
-        session.activeTurn = null;
+      case "stop": {
+        if (session.activeTurn !== null) {
+          // stop 暂停自动续跑：队列保留，直到 setAutoDrain 恢复。
+          session.autoDrain = false;
+          session.pauseReason = "stopped";
+          session.activeTurn.abort();
+          session.activeTurn = null;
+          this.patchQueue(session);
+          return this.ackAccepted(envelope);
+        }
+        if (session.autoDrain || session.queuedInputs.length > 0) {
+          session.autoDrain = false;
+          session.pauseReason = "stopped";
+          this.patchQueue(session);
+          return this.ackAccepted(envelope);
+        }
+        return this.ackNoop(envelope, session);
+      }
+      case "sendQueuedNow": {
+        const payload = envelope.payload as { queueItemId: string };
+        const index = session.queuedInputs.findIndex(
+          (item) => item.queueItemId === payload.queueItemId,
+        );
+        const item = index >= 0 ? session.queuedInputs[index] : undefined;
+        if (!item) return this.ackNoop(envelope, session);
+        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
+        session.queuedInputs.splice(index, 1);
+        if (session.activeTurn !== null) {
+          // 立即发送 = 中断当前 turn；队列项在中断收口后开始，不并发写会话状态。
+          session.pendingStartText = item.text;
+          session.activeTurn.abort();
+          session.activeTurn = null;
+        } else {
+          this.startTurn(session, item.sourceCommandId, item.text);
+        }
+        this.patchQueue(session);
         return this.ackAccepted(envelope);
+      }
+      case "lockQueueItemEdit": {
+        const payload = envelope.payload as { queueItemId: string; editorId: string };
+        const item = this.findQueueItem(session, payload.queueItemId);
+        if (!item) return this.ackNoop(envelope, session);
+        if (item.dispatch.state !== "queued") {
+          return this.ackNoop(envelope, session, "guard.queueItemReserved");
+        }
+        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
+        item.editLock = {
+          editorId: payload.editorId,
+          clientId: envelope.clientId,
+          inputOrigin: "desktop",
+        };
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "releaseQueueItemEdit": {
+        const payload = envelope.payload as { queueItemId: string };
+        const item = this.findQueueItem(session, payload.queueItemId);
+        if (!item?.editLock) return this.ackNoop(envelope, session);
+        delete item.editLock;
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "editQueueItem": {
+        const payload = envelope.payload as {
+          queueItemId: string;
+          newText: string;
+          editorId?: string;
+          attachments?: QueueItem["attachments"];
+          conversationQuotes?: QueueItem["conversationQuotes"];
+          modelSelection?: QueueItem["modelSelection"];
+          mode?: QueueItem["mode"];
+          planEnabled?: boolean;
+        };
+        const item = this.findQueueItem(session, payload.queueItemId);
+        if (!item) return this.ackNoop(envelope, session);
+        if (payload.editorId && item.editLock?.editorId !== payload.editorId) {
+          return this.ackNoop(envelope, session, "guard.queueEditLockLost");
+        }
+        const updated = assertFrame(queueItemSchema, {
+          ...item,
+          text: payload.newText,
+          ...(payload.attachments !== undefined ? { attachments: payload.attachments } : {}),
+          ...(payload.conversationQuotes !== undefined
+            ? { conversationQuotes: payload.conversationQuotes }
+            : {}),
+          ...(payload.modelSelection !== undefined
+            ? { modelSelection: payload.modelSelection }
+            : {}),
+          ...(payload.mode !== undefined ? { mode: payload.mode } : {}),
+          ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
+        });
+        // 同一命令释放编辑锁（docs/ui/composer-edit-mode.md）。
+        delete updated.editLock;
+        Object.assign(item, updated);
+        delete item.editLock;
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "reorderQueueItem": {
+        const payload = envelope.payload as {
+          queueItemId: string;
+          beforeQueueItemId: string | null;
+        };
+        const from = session.queuedInputs.findIndex(
+          (item) => item.queueItemId === payload.queueItemId,
+        );
+        const item = from >= 0 ? session.queuedInputs[from] : undefined;
+        if (!item) return this.ackNoop(envelope, session);
+        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
+        session.queuedInputs.splice(from, 1);
+        const before =
+          payload.beforeQueueItemId === null
+            ? session.queuedInputs.length
+            : session.queuedInputs.findIndex(
+                (candidate) => candidate.queueItemId === payload.beforeQueueItemId,
+              );
+        if (before < 0) {
+          session.queuedInputs.splice(from, 0, item);
+          return this.ackNoop(envelope, session);
+        }
+        session.queuedInputs.splice(before, 0, item);
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "deleteQueueItem": {
+        const payload = envelope.payload as { queueItemId: string };
+        const index = session.queuedInputs.findIndex(
+          (item) => item.queueItemId === payload.queueItemId,
+        );
+        const item = index >= 0 ? session.queuedInputs[index] : undefined;
+        if (!item) return this.ackNoop(envelope, session);
+        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
+        session.queuedInputs.splice(index, 1);
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "applyQueueItemsConfig": {
+        const payload = envelope.payload as {
+          queueItemIds: string[];
+          modelSelection?: QueueItem["modelSelection"];
+          mode?: QueueItem["mode"];
+        };
+        let applied = 0;
+        for (const item of session.queuedInputs) {
+          if (!payload.queueItemIds.includes(item.queueItemId)) continue;
+          if (item.dispatch.state !== "queued" || item.editLock || item.kind === "compact") {
+            continue;
+          }
+          if (payload.modelSelection !== undefined) item.modelSelection = payload.modelSelection;
+          if (payload.mode !== undefined) item.mode = payload.mode;
+          applied += 1;
+        }
+        if (applied === 0) return this.ackNoop(envelope, session);
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
+      case "setAutoDrain": {
+        const payload = envelope.payload as { autoDrain: boolean };
+        session.autoDrain = payload.autoDrain;
+        if (payload.autoDrain) delete session.pauseReason;
+        else session.pauseReason = "manual";
+        this.patchQueue(session);
+        if (payload.autoDrain) this.maybeStartNextInput(session);
+        return this.ackAccepted(envelope);
+      }
       case "resolveInteraction": {
         const payload = envelope.payload as { interactionId: string };
         const interaction = session.pendingInteractions.find(
           (item) => item.interactionId === payload.interactionId,
         );
+        if (!interaction) return this.ackNoop(envelope, session, "proto.alreadyResolved");
         session.pendingInteractions = session.pendingInteractions.filter(
           (item) => item.interactionId !== payload.interactionId,
         );
         const permissionToolCallId =
-          interaction?.payload.kind === "permission"
+          interaction.payload.kind === "permission"
             ? (interaction.payload as { toolCallId: string }).toolCallId
             : undefined;
         if (permissionToolCallId) {
@@ -692,6 +998,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         }
         this.patchState(session, { meta: session.meta });
         this.publishSessionsIndexUpsert(session);
+        this.runtime.onWorkspaceTaskListChanged.fire({
+          workspacePath: session.workspaceRef.workspacePath,
+          type: "workspace_task_list_changed",
+        });
         return this.ackAccepted(envelope);
       }
       case "deleteSession": {
@@ -755,9 +1065,16 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         );
         return this.ackAccepted(envelope);
       }
-      case "setAutoDrain": {
-        session.autoDrain = (envelope.payload as { autoDrain: boolean }).autoDrain;
-        this.patchState(session, { queue: { items: [], autoDrain: session.autoDrain } });
+      case "switchCollaborationMode": {
+        const payload = envelope.payload as { mode: string };
+        session.config = { ...session.config, mode: payload.mode };
+        this.patchState(session, { config: { ...session.config } });
+        return this.ackAccepted(envelope);
+      }
+      case "setFollowupMode": {
+        const payload = envelope.payload as { mode: "queue" | "guide" };
+        session.config = { ...session.config, followupMode: payload.mode };
+        this.patchState(session, { config: { ...session.config } });
         return this.ackAccepted(envelope);
       }
       case "setAssistantFeedback": {
@@ -766,17 +1083,16 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           feedback: "like" | "dislike" | null;
         };
         const row = session.rows.find((candidate) => candidate.rowId === payload.target.rowId);
-        if (row?.kind === "assistantText") {
-          this.upsertRow(session, {
-            ...row,
-            ...(payload.feedback ? { feedback: payload.feedback } : {}),
-          });
-        }
+        if (row?.kind !== "assistantText") return this.ackNoop(envelope, session);
+        const updated: Record<string, unknown> = { ...row };
+        if (payload.feedback) updated["feedback"] = payload.feedback;
+        else delete updated["feedback"];
+        this.upsertRow(session, updated as unknown as WireConversationRow);
         return this.ackAccepted(envelope);
       }
       default:
-        // 其余命令（编辑重发、队列操作、goal、workflow 等）mock 一律接受且不改变状态。
-        return this.ackAccepted(envelope);
+        // 未实现命令必须明确拒绝：以前一律 accepted 会让 UI 以为状态已经变化。
+        return this.rejectUnsupported(envelope, session);
     }
   }
 
@@ -825,7 +1141,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     workspaceKey: string,
   ): MockSession {
     const existing = this.runtime.sessions.get(params.sessionId);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.workspaceKey !== workspaceKey) {
+        // 会话 id 属于另一个工作区时等价于不存在，避免跨工作区读取会话状态。
+        throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+      }
+      return existing;
+    }
     const now = Date.now();
     const session: MockSession = {
       sessionId: params.sessionId,
@@ -849,7 +1171,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       plan: null,
       pendingInteractions: [],
       queuedInputs: [],
+      nextAdmissionSeq: 1,
       autoDrain: true,
+      pendingStartText: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -959,25 +1283,27 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       .filter((session) => session.workspaceKey === workspaceKey && isListedSession(session))
       .map((session) => buildSessionSummary(session));
     this.emitSessionsIndex(workspaceKey, { kind: "snapshot", snapshot: { sessions } }, "initial");
-    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "sidx-epoch-1" } };
+    const position = this.runtime.topics.position(`sessions-index/${workspaceKey}`);
+    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: position.logEpoch } };
   }
 
   async resyncSessionsIndexV4(params: P<IZCodeAgentService["resyncSessionsIndexV4"]>) {
     const sub = this.sessionsIndexSubs.get(params.subscriptionId);
     if (!sub) throw new Error("fault.subscription.unknownSubscription");
     const sessions = [...this.runtime.sessions.values()]
-      .filter((session) => session.workspaceKey === sub.workspaceKey)
+      .filter((session) => session.workspaceKey === sub.workspaceKey && isListedSession(session))
       .map((session) => buildSessionSummary(session));
     this.emitSessionsIndex(
       sub.workspaceKey,
       { kind: "snapshot", snapshot: { sessions } },
       "recovery",
     );
+    const position = this.runtime.topics.position(`sessions-index/${sub.workspaceKey}`);
     return {
       ack: {
         subscriptionId: params.subscriptionId,
         mode: "snapshot" as const,
-        logEpoch: "sidx-epoch-1",
+        logEpoch: position.logEpoch,
       },
     };
   }
@@ -1020,18 +1346,20 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const subscriptionId = `sub-${createUuid()}`;
     this.workspaceConfigSubs.set(subscriptionId, { workspaceKey, ordinal: 0 });
     this.emitWorkspaceConfigSnapshot(workspaceKey, "initial");
-    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "wcfg-epoch-1" } };
+    const position = this.runtime.topics.position(`workspace-config/${workspaceKey}`);
+    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: position.logEpoch } };
   }
 
   async resyncWorkspaceConfigV4(params: P<IZCodeAgentService["resyncWorkspaceConfigV4"]>) {
     const sub = this.workspaceConfigSubs.get(params.subscriptionId);
     if (!sub) throw new Error("fault.subscription.unknownSubscription");
     this.emitWorkspaceConfigSnapshot(sub.workspaceKey, "recovery");
+    const position = this.runtime.topics.position(`workspace-config/${sub.workspaceKey}`);
     return {
       ack: {
         subscriptionId: params.subscriptionId,
         mode: "snapshot" as const,
-        logEpoch: "wcfg-epoch-1",
+        logEpoch: position.logEpoch,
       },
     };
   }
@@ -1315,7 +1643,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       installedPlugins: [],
       restorableBuiltins: [],
       diagnostics: [],
-      capability: { canInstall: false, canConfigure: false },
+      capability: { supported: false, reason: "mock" },
     } as unknown as AR<IZCodeAgentService["getPluginsOverview"]>;
   }
 

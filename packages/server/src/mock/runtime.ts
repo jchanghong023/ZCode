@@ -4,10 +4,10 @@
 import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {
-  ConversationDelta,
   ConversationSnapshot,
   PlanState,
   PendingInteraction,
+  QueueItem,
   SessionMetaState,
   SessionPhase,
   SessionUsageState,
@@ -21,9 +21,33 @@ export function workspaceKeyOf(ref: WorkspaceRef): string {
   return ref.workspaceIdentity?.trim() || ref.workspacePath;
 }
 
-export interface MockQueuedInput {
-  inputId: string;
-  text: string;
+/**
+ * topic 级水位：`logEpoch` + `seq` 是 topic 的唯一权威顺序。
+ * 同一 topic 的所有订阅者看到同一对 (fromSeq, toSeq]；不按订阅者各算一份序号。
+ */
+export class MockTopicLog {
+  private readonly positions = new Map<string, { logEpoch: string; seq: number }>();
+
+  /** 读取（必要时创建）topic 当前水位；快照帧用它作为 toSeq。 */
+  position(topic: string): { logEpoch: string; seq: number } {
+    return { ...this.current(topic) };
+  }
+
+  /** 追加一条 topic 顺序记录；返回本条记录的 (fromSeq, toSeq]。 */
+  advance(topic: string): { logEpoch: string; fromSeq: number; toSeq: number } {
+    const current = this.current(topic);
+    const fromSeq = current.seq;
+    current.seq += 1;
+    return { logEpoch: current.logEpoch, fromSeq, toSeq: current.seq };
+  }
+
+  private current(topic: string): { logEpoch: string; seq: number } {
+    const existing = this.positions.get(topic);
+    if (existing) return existing;
+    const created = { logEpoch: `epoch-${createUuid()}`, seq: 0 };
+    this.positions.set(topic, created);
+    return created;
+  }
 }
 
 /** 一个模拟会话：v4 conversation topic 的权威状态。 */
@@ -43,9 +67,15 @@ export interface MockSession {
   usage: SessionUsageState;
   plan: PlanState | null;
   pendingInteractions: PendingInteraction[];
-  /** 尚未投影到 userInput row 的排队输入（mock 简化：仅记录条数供 ACK）。 */
-  queuedInputs: MockQueuedInput[];
+  /** 已准入但尚未开始的排队输入；queue 投影与 ACK 共用这一份状态。 */
+  queuedInputs: QueueItem[];
+  /** queue 的准入序号；order.admissionSeq 单调递增。 */
+  nextAdmissionSeq: number;
   autoDrain: boolean;
+  /** autoDrain=false 的原因（stopped / manual）；恢复自动续跑时清除。 */
+  pauseReason?: "stopped" | "manual" | "error";
+  /** sendQueuedNow 在运行中提升的输入：当前 turn 中断后立即开始。 */
+  pendingStartText: string | null;
   /** 运行中的 turn 模拟器；stop 命令通过它中断。 */
   activeTurn: { abort: () => void } | null;
   /** 会话配置（createSession.config 合并 + switchModelConfig 更新）。 */
@@ -111,6 +141,8 @@ export class MockRuntime {
   readonly virtualRoot: VirtualFileNode;
   readonly git: MockGitState;
   readonly settings = new Map<string, unknown>();
+  /** sessions-index / workspace-config / controller topic 的唯一水位账本。 */
+  readonly topics = new MockTopicLog();
   /** task 索引变更信号（IZCodeTaskService.onDynamicWorkspaceEvent）。 */
   readonly onWorkspaceTaskListChanged = new Emitter<{ workspacePath: string; type: string }>();
 
@@ -278,7 +310,11 @@ export function buildConversationSnapshot(session: MockSession): ConversationSna
     config: session.config,
     modelTransition: null,
     usage: session.usage,
-    queue: { items: [], autoDrain: session.autoDrain },
+    queue: {
+      items: session.queuedInputs,
+      autoDrain: session.autoDrain,
+      ...(session.pauseReason ? { pauseReason: session.pauseReason } : {}),
+    },
     pendingInteractions: session.pendingInteractions,
     pendingCommands: [],
     backgroundWorks: [],

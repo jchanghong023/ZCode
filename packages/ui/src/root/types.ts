@@ -32,8 +32,6 @@ export interface RootProps {
   supportsSettings?: boolean;
   /** 是否允许在当前壳层里切换/新开工作区 */
   allowOpenWorkspace?: boolean;
-  /** 是否优先使用服务端目录浏览器，Web 普通模式不能依赖系统目录选择框 */
-  preferDirectoryBrowser?: boolean;
   initialSidebarFileTreeOpen?: boolean;
   /** Assistant code-comment 卡片灰度；默认关闭，关闭时保留原始 directive。 */
   assistantCodeCommentCardsEnabled?: boolean;

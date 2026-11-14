@@ -8,7 +8,6 @@ import {
 } from "@/data-sync/ui/DataSyncDialogContainer.js";
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 
 const OpenContext = createContext<((request: DataSyncDialogRequest) => void) | null>(null);
 const ResultVersionContext = createContext(0);
@@ -70,7 +69,6 @@ function DataSyncSession({
   onClose(): void;
 }) {
   const base = useBaseWorkspaceServices();
-  const platform = useOptionalPlatform();
   const { snapshot } = useSourceServerManagementSnapshot(base.sourceServerManagementService);
   return (
     <DataSyncDialogContainer
@@ -78,7 +76,6 @@ function DataSyncSession({
       device={toDataSyncDeviceSummary(snapshot, request.sourceServerId)}
       online={isDataSyncDeviceOnline(snapshot, request.sourceServerId)}
       sourceServices={base}
-      requestSourceSettingsAttachment={platform?.requestSourceSettingsAttachment}
       initialCategory={request.category}
       workspace={request.workspace}
       workspaceHistory={request.workspaceHistory}

@@ -17,18 +17,14 @@ export function GroupedTaskContextMenuContent({
   currentGroupId,
   groups,
   intl,
-  fileManagerLabel,
   taskSessionFile,
   taskNativeSessionLogFile,
-  providerConfigFile,
   onMoveTaskToGroup,
   onMoveTaskToTop,
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
-  onOpenTaskPathInFileManager,
   onCopyText,
-  onOpenProviderConfig,
   disabledReason,
   archiveDisabledReason,
 }: {
@@ -38,18 +34,14 @@ export function GroupedTaskContextMenuContent({
   intl: {
     formatMessage: (desc: { id: string }) => string;
   };
-  fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null };
   taskNativeSessionLogFile: { loading: boolean; path: string | null };
-  providerConfigFile: { loading: boolean; path: string | null };
   onMoveTaskToGroup: (task: ZCodeTaskMeta, groupId: string | null) => void;
   onMoveTaskToTop: (task: ZCodeTaskMeta) => void;
   onStartRenameTask: (task: ZCodeTaskMeta) => void;
   onArchiveTask: (task: ZCodeTaskMeta) => void;
   onMarkTaskAsUnread: (task: ZCodeTaskMeta) => void;
-  onOpenTaskPathInFileManager: () => void;
   onCopyText: (label: string, text: string | null) => void;
-  onOpenProviderConfig: () => void;
   disabledReason?: string;
   /** 归档专属的禁用原因（运行中任务）；其余操作不受影响。 */
   archiveDisabledReason?: string;
@@ -155,19 +147,6 @@ export function GroupedTaskContextMenuContent({
         </ContextMenuItem>
       </SidebarNativeTooltip>
       <ContextMenuSeparator />
-      <SidebarNativeTooltip>
-        <ContextMenuItem
-          disabled={Boolean(disabledReason)}
-          title={disabledReason}
-          onSelect={() => {
-            if (!disabledReason) {
-              onOpenTaskPathInFileManager();
-            }
-          }}
-        >
-          {fileManagerLabel}
-        </ContextMenuItem>
-      </SidebarNativeTooltip>
       <ContextMenuItem
         onSelect={() =>
           onCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), task.workspacePath)
@@ -200,14 +179,6 @@ export function GroupedTaskContextMenuContent({
         }
       >
         {intl.formatMessage({ id: "appHeader.copySessionId" })}
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={providerConfigFile.loading || !providerConfigFile.path}
-        onSelect={onOpenProviderConfig}
-      >
-        <span className="truncate">
-          {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
-        </span>
       </ContextMenuItem>
     </ContextMenuContent>
   );

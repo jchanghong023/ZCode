@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- 跨端 platform contract 集中声明 renderer 能力；OAuth 与 browser lifecycle 必须保持 desktop/web 类型合同，本 MR 不拆分平台边界。 */
+/* eslint-disable max-lines -- platform contract 集中声明浏览器本机端口与已裁撤能力的类型事实，保留既有跨端 DTO 不拆分。 */
 import type {
   DockerConnectOptions,
   RemoteTarget,
@@ -6,35 +6,13 @@ import type {
   WSLConnectOptions,
 } from "./remoteTarget.js";
 import type { PluginSandboxPlatformPort } from "./mcp-apps/contract.js";
-import type {
-  LoadCliMcpFromUserDirectoryRequest,
-  LoadCliMcpFromUserDirectoryResult,
-  MigrateLegacyCommonMcpRequest,
-  MigrateLegacyCommonMcpResult,
-  SaveCliMcpToUserDirectoryRequest,
-} from "./mcp.js";
-import type { OAuthStateRegistration } from "./oauth.js";
-import type { AppSettings, Locale } from "./protocol.js";
+import type { Locale } from "./protocol.js";
 import type {
   ExtensionNotificationClick,
   ExtensionNotificationPayload,
   NotificationsShowResult,
 } from "#src/extension-host/notifications.js";
-import type {
-  ArmsCustomEventPayload,
-  RendererTelemetryEventPayload,
-  TelemetryRendererContext,
-} from "./telemetry.js";
-import type {
-  RendererActionTraceBatchV1,
-  RendererActionTraceConfigV1,
-} from "./rendererActionTrace.js";
-import type { RendererHeapSample } from "./validation.js";
-import type {
-  CuaAccessibilitySettingsResult,
-  OpenCuaPermissionOnboardingOptions,
-  PrepareCuaHelperPermissionDragResult,
-} from "./cuaAccessibilitySettings.js";
+import type { ArmsCustomEventPayload, RendererTelemetryEventPayload } from "./telemetry.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
 export interface AppNavigationTarget {
   workspacePath: string;
@@ -733,493 +711,55 @@ export type CuaOsSupport =
 /**
  * 平台操作接口 —— 替代直接访问 window.zcode
  *
- * 定义需要宿主环境（Electron main / Web server）参与的操作。
- * Desktop 和 Web 各自提供不同的实现，UI 层通过此接口统一消费。
- *
- * 设计原则：只放"必须穿越进程边界且不适合做成 RPC service"的操作，
- * 比如 native dialog、窗口生命周期控制等。
- * 业务服务（文件、终端、凭据等）走 IServiceAccessor 的 RPC 通道。
+ * 定义浏览器下载、外链、通知等本机交互，由 Web 入口提供实现。
+ * 工作区文件、MCP、Git 等业务能力通过 IServiceAccessor 的 RPC 通道访问，
+ * 不在这里模拟桌面进程、原生对话框或窗口管理。
  */
 export interface IPlatformService {
-  /** 是否支持当前客户端本机文件的默认应用与目录操作；Web 不具备此能力。 */
-  canOpenLocalFiles?: boolean;
-
-  /** 当前平台的文件选择框是否能返回 agent 可访问的本地绝对路径 */
-  canSelectFilePath?: boolean;
-
   /**
-   * 插件 UI 沙箱平台端口。只有桌面端实现；
-   * web / 手机远控为 undefined，plugin-ui 据此回退到普通 MCP 工具卡片。
+   * 插件 UI 沙箱平台端口。浏览器不具备隔离沙箱宿主，故 Web 端省略；
+   * plugin-ui 据此回退到普通 MCP 工具卡片。
    */
   pluginSandbox?: PluginSandboxPlatformPort;
 
-  /** 打开系统目录选择框，返回选中路径或 null */
-  selectDirectory(): Promise<string | null>;
+  /** 浏览器下载端口：把字节或同源/HTTP(S)/data/blob URL 交给当前浏览器下载器。 */
+  saveFile(payload: SaveFileRequest): Promise<SaveFileResult>;
 
-  /** 打开系统多目录选择框，返回 Host 可访问的本地路径；取消返回空数组，Web 不提供 */
-  selectDirectories?(): Promise<string[]>;
-
-  /** 打开系统文件选择框，返回选中文件路径或 null */
-  selectFile(): Promise<string | null>;
-
-  /** 打开系统多文件选择框，返回选中的文件路径；取消时返回空数组 */
-  selectFiles?(): Promise<string[]>;
-
-  /** 桌面通过原生另存为对话框写入；Web 在当前浏览器发起下载。 */
-  saveFile?(payload: SaveFileRequest): Promise<SaveFileResult>;
-
-  /**
-   * 用 Chromium 打印引擎把当前 webContents 的 print 媒体版面输出为 PDF（矢量文本）。
-   * 页面尺寸由 renderer 注入的 @page CSS 决定（preferCSSPageSize）；仅 Desktop 实现。
-   */
-  printPageToPdf?(): Promise<PrintPageToPdfResult>;
-
-  /**
-   * 麦克风系统权限（仅 Desktop 实现）。macOS 未询问过时弹出系统授权；
-   * openSettings 只打开固定的系统设置地址，返回 false 表示当前系统没有可跳转的页面。
-   */
-  microphone?: {
-    ensureAccess(): Promise<MicrophoneAccessResult>;
-    /** macOS：重置 ZCode 自己的麦克风授权记录并重新请求；其他系统返回 failed */
-    resetAccess(): Promise<MicrophoneAccessResetResult>;
-    openSettings(target: MicrophoneSettingsTarget): Promise<boolean>;
-  };
-
-  /**
-   * 在 main 进程截取内置浏览器 guest 当前可见视口为 PNG。renderer 侧 `<webview>.capturePage()`
-   * 会让 renderer 原生崩溃（V8 FATAL），与 Agent 截图一样只能由 main 取帧；仅 Desktop 实现。
-   */
-  captureBrowserGuestPage?(
-    payload: CaptureBrowserGuestPageRequest,
-  ): Promise<CaptureBrowserGuestPageResult>;
-
-  /**
-   * 从浏览器 File 对象解析宿主本地路径；只有 Desktop preload 能安全实现。
-   * Web/手机端返回 null，避免 UI 层依赖 Electron 的非标准 File.path。
-   */
-  getPathForFile?(file: unknown): string | null;
-
-  /** 把 Agent 已授权的 Desktop 本地视频路径转换为可供媒体元素读取的宿主 URL。 */
-  createLocalMediaPreviewUrl?(path: string): string;
-
-  /**
-   * 在宿主 ~/.zcode 临时目录创建文本附件文件。
-   * 手机远控必须通过 shared-host/platform proxy 写到桌面宿主，避免大文本进入 prompt payload。
-   */
-  createTempTextAttachment?(
-    payload: CreateTempTextAttachmentRequest,
-  ): Promise<CreateTempTextAttachmentResult>;
-
-  /**
-   * 把 dwf 产物某一版的字节写成宿主本机上的一份副本（只在路径为空时写），返回其路径。
-   * 仅 Desktop 实现：手机远控与普通 Web 端没有「用本机 App 打开文件」的能力，缺席即不出入口。
-   */
-  materializeWorkflowArtifactFile?(
-    payload: MaterializeWorkflowArtifactFileRequest,
-  ): Promise<MaterializeWorkflowArtifactFileResult>;
-
-  /** 订阅远程 workspace session 关闭事件，返回 disposer */
-  onRemoteSessionClosed(handler: (event: RemoteSessionClosedEvent) => void): () => void;
-
-  /** 订阅 Source transport 自动重连后的 logical session 换代事件。 */
-  onRemoteSessionReconnected?(handler: (event: RemoteSessionReconnectedEvent) => void): () => void;
-
-  /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
-  activateOrSetWorkspace(path: string): Promise<{ activated: boolean }>;
-
-  /** Desktop-only：请求在线 Source 的无 workspace 配置 attachment。 */
-  requestSourceSettingsAttachment?(sourceServerId: string): Promise<{ attachmentId: string }>;
-
-  /** 将 canonical workspace 身份绑定到已创建的远程 logical session。 */
-  bindRemoteWorkspaceSessionContext?(
-    context: BindRemoteWorkspaceSessionContextRequest,
-  ): Promise<BindRemoteWorkspaceSessionContextResult>;
-
-  /** 释放当前窗口里已创建的远程 session */
-  disposeRemoteSession(sessionId: string): Promise<void>;
-
-  /** 读取宿主环境中的原生 MCP 用户目录配置；手机远控通过已连接桌面 host 转发。 */
-  loadMcpFromUserDirectory?(
-    payload?: LoadCliMcpFromUserDirectoryRequest,
-  ): Promise<LoadCliMcpFromUserDirectoryResult>;
-
-  /** 写入宿主环境中的原生 MCP 用户目录配置；普通 Web 没有宿主时返回 unsupported。 */
-  saveMcpToUserDirectory?(
-    payload: SaveCliMcpToUserDirectoryRequest,
-  ): Promise<{ success: boolean; error?: string }>;
-
-  /** 迁移旧版 Common MCP 配置；仅宿主环境可执行，手机远控通过 desktop attachment 转发。 */
-  migrateLegacyCommonMcp?(
-    payload?: MigrateLegacyCommonMcpRequest,
-  ): Promise<MigrateLegacyCommonMcpResult>;
-
-  /** 打开外部 URL（用于 OAuth 跳转浏览器） */
+  /** 用系统浏览器新标签打开外部 URL；Web 端只允许 http/https。 */
   openExternal(url: string): void;
 
-  /** 按系统应用标识读取真实 App 图标；非 Desktop 平台可不实现。 */
-  getApplicationIcon?(
-    request: string | ApplicationIconRequest,
-  ): Promise<ApplicationIconInfo | null>;
-
-  /** 打开反馈入口，由平台自行解析最终地址 */
+  /** 打开反馈入口，由平台自行解析最终地址。 */
   openFeedback(): Promise<void>;
 
-  /** 订阅 main 进程打开内置反馈对话框事件（Desktop） */
-  onOpenFeedbackDialog?(handler: () => void): () => void;
-
-  /** 订阅 main 进程打开我的工单面板事件（Desktop） */
-  onOpenTicketsPanel?(handler: () => void): () => void;
-
-  /** 打开用户社群入口，由平台自行解析当前语言对应渠道 */
+  /** 打开用户社群入口，由平台自行解析当前语言对应渠道。 */
   openCommunity(): Promise<void>;
 
-  /** 查询当前语言下是否存在可用的用户社群入口 */
+  /** 查询当前语言下是否存在可用的用户社群入口。 */
   canOpenCommunity(locale: Locale): Promise<boolean>;
 
-  /** 在系统文件管理器中打开指定路径 */
-  openInFileManager(path: string): Promise<{ success: boolean; error?: string }>;
-
-  /** 使用系统默认应用打开本地文件；普通 Web 平台返回 unsupported。 */
-  openExternalFile?(path: string): Promise<{ success: boolean; error?: string }>;
-
-  /** 打开 ZCode Computer Use 的完整权限引导。Desktop only。 */
-  openCuaPermissionOnboarding?(
-    options?: OpenCuaPermissionOnboardingOptions,
-  ): Promise<CuaAccessibilitySettingsResult>;
-  /** 取消本 renderer 以 operationId 发起的 onboarding participant。Desktop only。 */
-  cancelCuaPermissionOnboarding?(operationId: string): void;
-  /**
-   * 预热并缓存已验证的 Helper 路径 + 指纹，使随后的 dragstart 能同步 startDrag。
-   * 必须在拖拽浮窗挂载时调用：Electron 原生拖拽要求在 dragstart 事件链路里同步调用
-   * startDrag，等不了 install/verify 这类异步 I/O（否则错过 OS 拖拽手势窗口）。Desktop only。
-   */
-  prepareCuaHelperPermissionDrag?(): Promise<PrepareCuaHelperPermissionDragResult>;
-  /** 从权限浮窗把 Helper.app 拖进 macOS 权限列表。Desktop only。 */
-  startCuaHelperPermissionDrag?(): void;
-
-  /** 上报 OAuth state 给 main process，用于 deep link 路由 */
-  registerOAuthState(payload: OAuthStateRegistration): void;
-
-  /**
-   * 注册 OAuth deep link 回调监听
-   * @returns disposer 函数，调用后只移除当前回调
-   */
-  onOAuthCallback(callback: (url: string) => void): () => void;
-
-  /**
-   * 注册支付 deep link 回调监听
-   * @returns disposer 函数，调用后只移除当前回调
-   */
-  onPaymentCallback(callback: (url: string) => void): () => void;
-
-  /** 注册 `zcode://share/import?code=...` 导入意图。 */
-  onShareImport?(callback: (payload: { shareCode: string }) => void): () => void;
-
-  /** 通知 main process renderer 已就绪，触发缓存的冷启动 deep link 转发 */
-  notifyRendererReady(): void;
-
-  /** 触发任务状态对应的系统通知，由宿主环境决定是否真正展示 */
+  /** 触发任务状态对应的浏览器通知；用户未授权时由平台自行忽略。 */
   showTaskNotification(payload: TaskNotificationPayload): void;
 
+  /** 用户点击任务通知后回调要打开的任务；由浏览器通知实现绑定点击。 */
+  onTaskNotificationClick(handler: (taskId: string) => void): () => void;
+
   /**
-   * 扩展的系统通知（docs/plugins/extension-host.md §18.1 H8）：Main 判断窗口焦点与平台支持后弹出，
-   * 返回是否弹出与原因。Web 与手机远控不实现。
+   * 扩展系统通知（docs/plugins/extension-host.md §18.1 H8）：宿主判断窗口焦点与平台支持后弹出，
+   * 返回是否弹出与原因。Web 端由浏览器 Notification API 实现。
    */
   showExtensionNotification?(
     payload: ExtensionNotificationPayload,
   ): Promise<NotificationsShowResult>;
 
-  /** 用户点了扩展通知：Main 恢复并聚焦窗口后回调，带要打开的视图。返回 disposer。 */
+  /** 用户点了扩展通知：浏览器聚焦窗口后回调，带要打开的视图。返回 disposer。 */
   onExtensionNotificationClick?(handler: (click: ExtensionNotificationClick) => void): () => void;
 
-  /** 同步当前 UI 上下文，供宿主启动/日活事件使用；Web 可不实现。 */
-  syncTelemetryContext?(context: TelemetryRendererContext): void;
-
-  /** 通过宿主环境统一上报 UI 侧 telemetry 事件 */
+  /** 通过宿主环境统一上报 UI 侧 telemetry 事件；mock 后端没有接收端时由实现方本地丢弃。 */
   reportTelemetryEvent(payload: RendererTelemetryEventPayload): Promise<void>;
 
-  /** 通过宿主环境上报 ARMS 自定义事件；Web 端当前为空实现 */
+  /** 通过宿主环境上报 ARMS 自定义事件；mock 后端没有接收端时由实现方本地丢弃。 */
   reportArmsCustomEvent(payload: ArmsCustomEventPayload): Promise<void>;
 
-  /** 读取 Desktop Renderer 用户操作 Trace 的当前灰度配置；Web/手机不实现。 */
-  getRendererActionTraceConfig?(): Promise<RendererActionTraceConfigV1>;
-  /** 订阅 Main 推送的 Renderer 用户操作 Trace 配置；Web/手机不实现。 */
-  onRendererActionTraceConfigChanged?(
-    callback: (config: RendererActionTraceConfigV1) => void,
-  ): () => void;
-  /** Renderer → Main：发送已结束的 ui_action batch；严格旁路、fire-and-forget。 */
-  reportRendererActionTraceBatch?(batch: RendererActionTraceBatchV1): void;
-  reportLocalTtftBatch?(batch: import("./local-ttft/contract.js").LocalTtftBatch): void;
-
-  /**
-   * Renderer → Main：主窗口 renderer 每 60 秒的 heap 读数，进 `renderer_main` 角色事件。单向 send、fire-and-forget；
-   * Web 端与手机远控没有桥，不实现即 no-op。
-   */
-  reportRendererHeapSample?(sample: RendererHeapSample): void;
-
-  /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程（用于跨窗口去重） */
-  syncWindowTabs(paths: string[]): void;
-
-  /** 同步当前窗口的未读 task 数给宿主环境，用于 Dock / 任务栏徽标聚合 */
-  syncWindowUnreadCount(count: number): void;
-  /** 当前窗口 active task 变化；Main 只在该窗口前台时发布全局 PiP focus。 */
-  syncActiveTaskSession(sessionId: string | null): void;
-
-  /** 同步需要 main 进程即时感知的应用设置；Web fallback 可忽略 */
-  syncAppSettings?(patch: Partial<AppSettings>): void;
-
-  /**
-   * 查询"关闭驻留托盘"能力；桌面端 main 进程探测后返回，Web/手机远控无桥不实现。
-   * 设置页据此决定 Linux 上的开关是否置灰。
-   */
-  getCloseToTrayCapability?(): Promise<DesktopCloseToTrayCapability>;
-
-  /** 快捷键设置页录制态开关；桌面端 main 据此暂时摘除可配置菜单 accelerator，Web 可忽略 */
-  setShortcutRecordingActive?(active: boolean): void;
-
-  /** 注册 main 进程要求聚焦某个 workspace tab 的回调，返回 disposer */
-  onFocusTab(handler: (path: string) => void): () => void;
-
-  /** 注册 main 进程触发新建 tab 的回调，返回 disposer */
-  onNewTab(handler: () => void): () => void;
-
-  /** 注册 main 进程请求关闭当前上下文的回调，返回 disposer */
-  onCloseActiveContextRequest?(handler: () => void): () => void;
-
-  /** 注册内置浏览器 webview 请求打开新页面的回调，返回 disposer */
-  onOpenBrowserUrl?(handler: (request: EmbeddedBrowserOpenUrlRequest) => void): () => void;
-  /** 注册内置浏览器网页权限弹窗请求（main → renderer），返回 disposer */
-  onEmbeddedBrowserPermissionPrompt?(
-    handler: (event: EmbeddedBrowserPermissionPromptEvent) => void,
-  ): () => void;
-  /** 回传用户对内置浏览器权限弹窗的决策（renderer → main） */
-  resolveEmbeddedBrowserPermissionPrompt?(request: EmbeddedBrowserPermissionResolveRequest): void;
-  /** 读取内置浏览器站点权限记录（设置页「网站权限」） */
-  getEmbeddedBrowserSitePermissions?(): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
-  /** 修改/删除单条站点权限；返回更新后的快照 */
-  setEmbeddedBrowserSitePermission?(
-    request: EmbeddedBrowserSitePermissionUpdateRequest,
-  ): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
-  /** 清空全部站点权限记录 */
-  clearEmbeddedBrowserSitePermissions?(): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
-  /** 重置单个站点的全部权限记录（删除该 origin 下所有持久决定）；返回更新后的快照 */
-  resetEmbeddedBrowserSitePermission?(
-    request: EmbeddedBrowserSitePermissionResetRequest,
-  ): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
-  /** 注册 agent 首次 browser 命令建好受控 view 的回调（自动开 browser-use tab），返回 disposer */
-  onBrowserViewDownloadStarted?(
-    handler: (payload: { webContentsId: number; urls: string[] }) => void,
-  ): () => void;
-  onBrowserViewReady?(
-    handler: (payload: {
-      workspaceKey: string;
-      remoteSessionId?: string;
-      sessionId: string;
-      tabId: string;
-      browserId: string;
-      browserGeneration: number;
-    }) => void,
-  ): () => void;
-
-  /** browser-use 命中真实 tab 时刷新标签页操作状态，返回 disposer。 */
-  onBrowserViewOperation?(handler: (payload: BrowserViewOperationPayload) => void): () => void;
-
-  /** browser visibility capability：显式显示/隐藏当前 IAB browser-use pane。 */
-  onBrowserViewVisibility?(
-    handler: (payload: {
-      visible: boolean;
-      workspaceKey: string;
-      remoteSessionId: string | undefined;
-      sessionId: string;
-      tabId?: string;
-      browserId: string;
-      browserGeneration: number;
-    }) => void,
-  ): () => void;
-
-  /** Agent setViewportSize 与 renderer 自由尺寸的单 tab 同步事件。 */
-  onBrowserViewViewportChanged?(
-    handler: (payload: BrowserViewViewportChangedPayload) => void,
-  ): () => void;
-
-  /** 注册 main 截图前准备后台 guest 合成表面的回调，返回 disposer。 */
-  onBrowserViewScreenshotSurfacePrepare?(
-    handler: (payload: BrowserViewScreenshotSurfacePreparePayload) => void,
-  ): () => void;
-
-  /** 注册 main 截图完成后释放后台 guest 合成表面的回调，返回 disposer。 */
-  onBrowserViewScreenshotSurfaceRelease?(
-    handler: (payload: BrowserViewScreenshotSurfaceReleasePayload) => void,
-  ): () => void;
-
-  /** 上报目标 guest 已在连续动画帧中稳定的截图合成表面。 */
-  browserViewScreenshotSurfaceReady?(payload: BrowserViewScreenshotSurfaceReadyPayload): void;
-
-  onBrowserViewCloseTab?(handler: (payload: BrowserViewCloseTabNotification) => void): () => void;
-
-  /** main 请求 renderer 卸载 guest、保留 logical shell。 */
-  onBrowserViewSuspend?(
-    handler: (payload: BrowserViewResidencyTransitionPayload) => void,
-  ): () => void;
-
-  /** main 请求 renderer 为 suspended shell 重新挂载 guest。 */
-  onBrowserViewRestore?(
-    handler: (payload: BrowserViewResidencyTransitionPayload) => void,
-  ): () => void;
-
-  /** 注册 main 进程触发新建任务的回调，返回 disposer */
-  onNewTask(handler: () => void): () => void;
-
-  /** 注册 main 进程触发打开工作区的回调，返回 disposer */
-  onOpenWorkspace(handler: () => void): () => void;
-
-  /** 注册 main 进程通过 deep link 直接打开本地工作区目录的回调，返回 disposer */
-  onOpenWorkspacePath?(handler: (path: string) => void): () => void;
-
-  /** 注册窗口全屏状态变化回调，返回 disposer */
-  onWindowFullscreenChanged(handler: (isFullscreen: boolean) => void): () => void;
-
-  /** 读取当前桌面窗口最大化状态与系统原生圆角能力 */
-  getDesktopWindowChromeState?(): Promise<DesktopWindowChromeState>;
-
-  /** 注册桌面窗口最大化状态与系统原生圆角能力变化回调 */
-  onDesktopWindowChromeStateChanged?(
-    handler: (state: DesktopWindowChromeState) => void,
-  ): () => void;
-
-  /** 同步读取当前原生窗口控制区安全边距，用于首屏启动态初始化 */
-  getWindowControlsOverlayMetrics?(): WindowControlsOverlayMetrics | null;
-
-  /** 注册原生窗口控制区安全边距变化回调，返回 disposer */
-  onWindowControlsOverlayChanged?(
-    handler: (metrics: WindowControlsOverlayMetrics) => void,
-  ): () => void;
-
-  /** 同步读取当前桌面窗口页面缩放档位；Web fallback 可返回默认 0 */
-  getDesktopZoomLevel?(): Promise<DesktopZoomState>;
-
-  /** 注册当前桌面窗口页面缩放档位变化回调，返回 disposer */
-  onDesktopZoomLevelChanged?(handler: (state: DesktopZoomState) => void): () => void;
-
-  /** 注册用户点击系统通知后跳转到对应任务的回调，返回 disposer */
-  onTaskNotificationClick(handler: (taskId: string) => void): () => void;
-
-  /** 显式 App 导航能力：只在桌面导航 owner 挂载时注册，返回真实导航提交结果。 */
-  onAppControlNavigation?(handler: AppNavigationHandler): () => void;
-
-  /** 导出日志：打包 ~/.zcode/v2 及外部 agent 日志为 zip 并在系统文件浏览器中显示 */
-  exportLogs(): Promise<{ success: boolean; path?: string; error?: string }>;
-
-  /** 截取当前窗口，用于错误反馈携带现场画面；Web fallback 可返回 null */
-  captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
-
-  /** 可信宿主导航自己承载的 guest；main 负责本地 HTML 的目录授权。 */
-  browserViewLoadUrl?(payload: { webContentsId: number; url: string }): Promise<void>;
-
-  /** `<webview>` guest 上报；active=true 表示 agent 无 tabId 命令优先读取当前可见页。 */
-  browserViewAttachGuest?(payload: {
-    key: string;
-    webContentsId: number;
-    active?: boolean;
-    workspaceKey?: string;
-    remoteSessionId?: string;
-    /** human browser tab 的对话归属；缺失时 main 必须保持不可认领，避免跨对话泄漏。 */
-    sessionId?: string;
-    residencyGeneration?: number;
-  }): Promise<BrowserGuestAttachResult>;
-
-  /** 重建 `<webview>` 前让 main 精确断开旧 guest 的 CDP；false 时不得销毁旧节点。 */
-  browserViewDetachGuest?(payload: { key: string; webContentsId: number }): Promise<boolean>;
-
-  /** 用户显式关闭 Browser tab；与 budget suspend 使用不同 IPC authority。 */
-  browserViewCloseTab?(payload: BrowserViewCloseTabRequest): Promise<void>;
-
-  /** 上报 selected/visible/loading 与恢复元数据。 */
-  browserViewReportResidency?(payload: BrowserViewResidencyReportPayload): Promise<void>;
-
-  /** 草稿首发：把草稿 human tab 的 main owner 从 unscoped 升级为新会话；返回已升级的 tabId。 */
-  browserViewPromoteDraftTabs?(payload: BrowserViewPromoteDraftTabsRequest): Promise<string[]>;
-
-  /** renderer 已按指定 generation 卸载 guest。 */
-  browserViewSuspendReady?(payload: { tabId: string; generation: number }): Promise<void>;
-
-  /** 用户选中 suspended tab 时请求 main single-flight 恢复。 */
-  browserViewEnsureResident?(payload: BrowserViewCloseTabRequest): Promise<void>;
-
-  /** workspace/task 启动时读取持久化 logical shells。 */
-  browserViewRestoreTabs?(
-    payload: BrowserViewRestoreTabsRequest,
-  ): Promise<BrowserViewRestoredTabShell[]>;
-
-  /** Renderer 自由尺寸回写 main；null 表示恢复宿主自然 viewport。 */
-  browserViewUpdateViewport?(payload: {
-    tabId: string;
-    viewport: BrowserViewportSize | null;
-  }): Promise<void>;
-
-  /** 从自动发现的本机 Chrome Profile 一次性导入 Cookie 与 LocalStorage。 */
-  importChromeBrowserData?(
-    options?: ChromeBrowserDataImportOptions,
-  ): Promise<ChromeBrowserDataImportResult>;
-
-  /** 清理内置浏览器持久化分区；cache 模式保留认证数据，all 模式清理全部站点数据。 */
-  clearEmbeddedBrowserData?(mode: "cache" | "all"): Promise<EmbeddedBrowserDataClearResult>;
-
-  /** 查询桌面端当前正在运行的会话数量；非桌面端可返回 0 */
-  getDesktopSessionActivity?(): Promise<{
-    runningAgentSessionCount: number;
-  }>;
-
-  /** 开发环境 stdio tap proxy 开关状态；非桌面平台可不实现 */
-  getZCodeStdioTapDevState?(): Promise<ZCodeStdioTapDevState>;
-
-  /** 是否为本地开发运行形态；桌面端用 !app.isPackaged 注入，Web 端可省略。 */
-  isLocalDevelopmentRuntime?: boolean;
-
-  /** 设置文件由桌面菜单命令更新后的通知，renderer 用于刷新 settings snapshot。 */
-  onSettingsChanged?(callback: () => void): () => void;
-
-  /** 桌面主进程解析后的应用语言变化；独立轻量窗口没有 settingService 时使用。 */
-  onApplicationLocaleChanged?(callback: (locale: Locale) => void): () => void;
-
-  /** 宿主系统语言；桌面端由 main 进程读取，Web 端可回退到 navigator.language。 */
-  getSystemLocale?(): Promise<Locale>;
-
-  /** 获取已安装编辑器/终端；传文件路径时追加匹配类型的本机应用（含图标）。 */
-  getInstalledEditors(filePath?: string): Promise<EditorInfo[]>;
-
-  /** 本机文件的系统关联应用；Web/远端/目录不提供本机应用。 */
-  getFileApplications?(target: FileApplicationTarget): Promise<FileApplicationInfo[]>;
-
-  /** 重新确认系统关联后，使用该应用打开本机文件。 */
-  openFileWithApplication?(
-    applicationId: string,
-    target: FileApplicationTarget,
-  ): Promise<{ success: boolean; error?: string }>;
-
-  /** 用指定编辑器打开路径 */
-  openInEditor(
-    editorId: string,
-    path: string,
-    options?: OpenInEditorOptions,
-  ): Promise<{ success: boolean; error?: string }>;
-
-  /** 执行桌面窗口级命令（标题栏菜单、缩放、窗口控制等）。
-   *  返回值直通 main 进程 handler 的 return（大多数命令无返回值；
-   *  GetCuaOsSupport 返回 CuaOsSupport），因此放宽为 unknown。 */
-  executeDesktopCommand(command: DesktopCommandId): Promise<unknown>;
-
-  /** 同步应用菜单语言，驱动 main 进程重建原生菜单 */
-  setApplicationLocale(locale: Locale): Promise<void>;
-
-  /** 同步桌面标题栏亮/暗色，驱动原生窗口控制按钮配色 */
-  setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
-
-  /** 获取当前设备的稳定标识符
-   *
-   * - 桌面端：基于 userData 路径的 SHA-256，始终稳定且唯一
-   * - 手机端（Web 远程控制）：物理属性指纹（browserPlatform | screen.width | screen.height | colorDepth），
-   *   抗浏览器/网络/语言/时区变化，换手机才会变
-   */
+  /** 获取当前浏览器实例的稳定标识符（物理属性指纹，抗语言/时区变化）。 */
   getDeviceId(): string;
 }

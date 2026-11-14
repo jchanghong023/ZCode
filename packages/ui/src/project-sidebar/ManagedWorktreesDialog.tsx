@@ -1,15 +1,8 @@
 // 项目菜单 → Worktrees 管理弹窗（docs/git/worktree.md §3.6、§3.7、§3.8）。
 // 列表每次打开都向 Host 重新读取；删除、移除记录后同样重新读取，不在 UI 侧推算结果。
-import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
-import {
-  ChevronDown,
-  Copy,
-  FolderOpen,
-  GitBranch,
-  SquareArrowOutUpRight,
-  Trash2,
-} from "lucide-react";
-import type { EditorInfo, ManagedWorktreeError } from "@zcode/shared";
+import { useState, type ComponentProps, type ReactNode } from "react";
+import { ChevronDown, Copy, GitBranch, Trash2 } from "lucide-react";
+import type { ManagedWorktreeError } from "@zcode/shared";
 import type {
   IManagedWorktreeService,
   ManagedWorktreeEntry,
@@ -44,17 +37,12 @@ import {
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
-import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { readLastSelectedEditorId } from "@/lib/editorPreference.js";
-import { isFileManagerOpenTarget, sortInstalledEditorsForOpenWith } from "@/lib/openWithEditors.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
-import { getFileManagerLabel } from "@/workspace-file-tree/helpers.js";
 
 type ZCodeIntl = ReturnType<typeof useZCodeIntl>["intl"];
 
@@ -84,35 +72,6 @@ function describeRemoveError(intl: ZCodeIntl, error: ManagedWorktreeError): RowE
     return { message: msg("error.removing") };
   if (error.code === "session-close-failed") return { message: msg("error.sessionClose") };
   return { message: msg("error.generic"), detail: error.detail || error.code };
-}
-
-/** 外部编辑器沿用顶部编辑器按钮持久化的偏好；文件管理器单独成项，不作为编辑器候选。 */
-function usePreferredEditor(): EditorInfo | null {
-  const platform = usePlatform();
-  const [editors, setEditors] = useState<EditorInfo[]>([]);
-  useEffect(() => {
-    let disposed = false;
-    platform
-      .getInstalledEditors()
-      .then((installed) => {
-        if (!disposed) setEditors(installed);
-      })
-      .catch((error: unknown) => {
-        logger.warn("[managed-worktree] 获取已安装编辑器失败", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    return () => {
-      disposed = true;
-    };
-  }, [platform]);
-  return useMemo(() => {
-    const candidates = sortInstalledEditorsForOpenWith(editors).filter(
-      (editor) => !isFileManagerOpenTarget(editor),
-    );
-    const preferredId = readLastSelectedEditorId();
-    return candidates.find((editor) => editor.id === preferredId) ?? candidates[0] ?? null;
-  }, [editors]);
 }
 
 /** 图标按钮 + 提示。禁用原因用 aria-disabled 表达，保留键盘焦点，让提示仍可通过键盘读到。 */
@@ -219,7 +178,6 @@ function TaskActions({
 function WorktreeRow({
   worktree,
   error,
-  editor,
   pruning,
   busy,
   onOpenTask,
@@ -228,7 +186,6 @@ function WorktreeRow({
 }: {
   worktree: ManagedWorktreeEntry;
   error?: RowError;
-  editor: EditorInfo | null;
   pruning: boolean;
   busy: boolean;
   onOpenTask(task: ManagedWorktreeTask): void;
@@ -238,29 +195,13 @@ function WorktreeRow({
   const { intl } = useZCodeIntl();
   const msg = (id: string, values?: Record<string, string>) =>
     intl.formatMessage({ id: `git.managedWorktree.dialog.${id}` }, values);
-  const platform = usePlatform();
-  const { copyPath, revealInFileManager } = useFileContextActions({
-    canOpenLocalFileManager: true,
-  });
+  const { copyPath } = useFileContextActions();
   const missing = worktree.state === "missing";
   const branch = worktree.branchName
     ? worktree.branchName
     : worktree.head
       ? msg("detached", { sha: worktree.head.slice(0, 7) })
       : null;
-  const openInEditor = async () => {
-    if (!editor) return;
-    const result = await platform.openInEditor(editor.id, worktree.path, {
-      pathKind: "directory",
-    });
-    if (result.success) return;
-    logger.warn("[managed-worktree] 在编辑器中打开 worktree 失败", {
-      path: worktree.path,
-      editor: editor.id,
-      error: result.error ?? "unknown-error",
-    });
-    toast(msg("openInEditorFailed", { editor: editor.name }));
-  };
   return (
     <li
       data-testid="managed-worktree-row"
@@ -333,25 +274,6 @@ function WorktreeRow({
           </Button>
         ) : (
           <>
-            <IconAction
-              label={getFileManagerLabel(intl)}
-              testId="managed-worktree-reveal"
-              onClick={() => void revealInFileManager({ path: worktree.path, kind: "directory" })}
-            >
-              <FolderOpen className="size-3.5" />
-            </IconAction>
-            {editor ? (
-              <IconAction
-                label={intl.formatMessage(
-                  { id: "appHeader.openInEditor" },
-                  { editor: editor.name },
-                )}
-                testId="managed-worktree-open-editor"
-                onClick={() => void openInEditor()}
-              >
-                <SquareArrowOutUpRight className="size-3.5" />
-              </IconAction>
-            ) : null}
             {/* 创建中的 worktree 由创建记录的"放弃"处理，不显示删除（§3.11）。
                 有任务使用且有改动时禁用；没有任务时允许强制删除，确认框写明会丢弃改动。
                 删除时 Host 仍会重新检查所有条件。 */}
@@ -390,7 +312,6 @@ export function ManagedWorktreesDialog({
   const msg = (id: string, values?: Record<string, string>) =>
     intl.formatMessage({ id: `git.managedWorktree.dialog.${id}` }, values);
   const { groups, loading, error, reload } = useManagedWorktreeList(service, project.id);
-  const editor = usePreferredEditor();
   const [confirming, setConfirming] = useState<ManagedWorktreeEntry | null>(null);
   const [removing, setRemoving] = useState(false);
   const [pruningRoot, setPruningRoot] = useState<string | null>(null);
@@ -533,7 +454,6 @@ export function ManagedWorktreesDialog({
                     key={worktree.path}
                     worktree={worktree}
                     error={rowErrors[worktree.path]}
-                    editor={editor}
                     pruning={pruningRoot === worktree.sourceRoot}
                     busy={busy}
                     onOpenTask={openTask}

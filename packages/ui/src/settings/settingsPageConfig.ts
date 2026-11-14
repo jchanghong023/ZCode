@@ -229,12 +229,11 @@ export const SETTINGS_SECTION_GROUPS = BASE_SETTINGS_SECTION_GROUPS.map((group) 
 
 export type { SettingsSectionId };
 
-/** 依赖本机 Source Server 管理的数据同步分区，Web 与手机远控不显示。 */
-const DESKTOP_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>(["dataSync"]);
+/**
+ * 浏览器不提供 Source Server 配置附件；设置页、搜索与菜单复用同一分区可用性判断。
+ */
+const DESKTOP_SHELL_SETTINGS_SECTIONS = new Set<SettingsSectionId>(["dataSync"]);
 
-export function isSettingsSectionAvailable(
-  section: SettingsSectionId,
-  isDesktop: boolean,
-): boolean {
-  return isDesktop || !DESKTOP_ONLY_SETTINGS_SECTIONS.has(section);
+export function isSettingsSectionAvailable(section: SettingsSectionId): boolean {
+  return !DESKTOP_SHELL_SETTINGS_SECTIONS.has(section);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import type {
   ConnectionProfile,
   DeviceSyncResult,
@@ -7,10 +7,6 @@ import type {
   SourceServerWorkspaceHistoryEntry,
 } from "@zcode/shared";
 import { logger } from "@/logger.js";
-import {
-  ensureSourceSettingsServices,
-  useSourceSettingsServices,
-} from "@/store/sourceSettingsServiceStore.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import type {
@@ -103,7 +99,6 @@ export function DataSyncDialogContainer(props: {
   online: boolean;
   workspaceHistory?: readonly SourceServerWorkspaceHistoryEntry[];
   sourceServices: IServiceAccessor;
-  requestSourceSettingsAttachment?: (sourceServerId: string) => Promise<{ attachmentId: string }>;
   initialCategory?: DataSyncCategoryId;
   workspace?: DataSyncWorkspaceMapping;
   minimized: boolean;
@@ -111,22 +106,12 @@ export function DataSyncDialogContainer(props: {
   onClose(): void;
   onPushFinished(result: DeviceSyncResult): Promise<void>;
 }) {
-  const { sourceServerId } = props.device;
-  const targetServices = useSourceSettingsServices(sourceServerId);
   const tabs = useTabStore((state) => state.tabs);
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
   const { online } = props;
-  const request = props.requestSourceSettingsAttachment;
-
-  useEffect(() => {
-    if (!online || targetServices || !request) return;
-    ensureSourceSettingsServices(sourceServerId, request).catch((error: unknown) =>
-      logger.warn("[DataSync] 申请设备配置连接失败", {
-        sourceServerId,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
-  }, [online, request, sourceServerId, targetServices]);
+  // 浏览器没有跨设备 source-settings attachment：数据同步只保留只读设备状态与入口语义，
+  // 不再伪造远端 targetServices。入口本身由桌面壳层能力契约关闭。
+  const targetServices = undefined;
 
   return (
     <DataSyncDialog

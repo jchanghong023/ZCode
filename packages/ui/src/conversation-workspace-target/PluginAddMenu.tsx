@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ChevronDown, LoaderCircle, Plus, Sparkles } from "lucide-react";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { Button } from "@/components/ui/button.js";
@@ -25,9 +26,10 @@ export function PluginAddMenu({
   size?: "default" | "lg";
 }) {
   const { intl } = useZCodeIntl();
-  const creator = usePluginCreator(onCreateTask);
+  const [open, setOpen] = useState(false);
+  const creator = usePluginCreator(onCreateTask, open);
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant={variant} size={size} data-testid={testId}>
           {creator.busy ? (

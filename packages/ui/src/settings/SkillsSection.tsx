@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   Import,
   Plus,
   Trash2,
@@ -27,8 +26,6 @@ import type { IServiceAccessor } from "@zcode/services";
 import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { toast } from "@/components/ui/toast.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useConfigWorkspaceServicesResolution as useWorkspaceServicesResolution } from "@/workspace-config-catalog/index.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { buildSkillMentionMarkdown } from "@/mentions/mentionMarkdown.js";
@@ -111,34 +108,11 @@ function SkillDetailField({
   );
 }
 
-function SkillPathDetailField({
-  label,
-  path,
-  openLabel,
-  onOpen,
-}: {
-  label: string;
-  path: string;
-  openLabel: string;
-  onOpen: () => void;
-}) {
+function SkillPathDetailField({ label, path }: { label: string; path: string }) {
   return (
     <div className="min-w-0 col-span-2">
       <div className="text-ui-base font-medium text-foreground">{label}</div>
-      <div className="mt-1">
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          aria-label={openLabel}
-          title={openLabel}
-          className="inline-flex h-auto max-w-full items-baseline gap-1.5 whitespace-normal break-all px-0 py-0 text-left align-baseline font-mono text-ui-base font-normal text-foreground-subtle underline-offset-2 hover:text-foreground hover:underline"
-          onClick={onOpen}
-        >
-          <span>{path}</span>
-          <ExternalLink className="relative top-px size-3 shrink-0" aria-hidden="true" />
-        </Button>
-      </div>
+      <div className="mt-1 break-all font-mono text-ui-base text-foreground-subtle">{path}</div>
     </div>
   );
 }
@@ -180,7 +154,6 @@ export function SkillsSection({
   cacheAuthorityKey,
 }: SkillsSectionProps) {
   const { intl, locale } = useZCodeIntl();
-  const platform = usePlatform();
   const plugins = usePluginManagementStore((state) => state.plugins);
   const installedPlugins = usePluginManagementStore((state) => state.installedPlugins);
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);
@@ -560,16 +533,6 @@ export function SkillsSection({
     ? (skills.find((skill) => skill.id === selectedSkill.id) ?? selectedSkill)
     : null;
   const selectedSkillPublishedAt = formatSkillPublishedAt(detailSkill?.metadata?.publishedAt);
-  const openSkillFilePath = useCallback(
-    async (path: string) => {
-      const result = await platform.openInFileManager(path);
-      if (!result.success) {
-        toast(intl.formatMessage({ id: "appHeader.openInFileManagerFailed" }));
-      }
-    },
-    [intl, platform],
-  );
-
   // 诊断条数不等于加载失败的技能数；同一次扫描可以返回可用技能和多个目录级警告。
   // 按严重级别展示真实统计，避免把 warning 误报成“所有技能加载失败”。
   const diagnosticErrorCount = diagnostics.filter(
@@ -966,10 +929,6 @@ export function SkillsSection({
                       id: "settings.skills.detail.path",
                     })}
                     path={detailSkill.path}
-                    openLabel={intl.formatMessage({
-                      id: "settings.skills.detail.openPath",
-                    })}
-                    onOpen={() => void openSkillFilePath(detailSkill.path)}
                   />
                 </div>
               </div>

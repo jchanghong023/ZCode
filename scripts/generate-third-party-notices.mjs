@@ -1,11 +1,7 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
-import {
-  noticesFileName,
-  readNativeSearchNotices,
-  repositoryRoot,
-} from "./third-party-notices.mjs";
+import { noticesFileName, repositoryRoot } from "./third-party-notices.mjs";
 
 export async function generateThirdPartyNotices(root = repositoryRoot) {
   const inputs = {};
@@ -17,16 +13,9 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
   const readJson = async (file) => JSON.parse(await readInput(file));
   const overrides = await readJson("third-party/npm-overrides.json");
   const copied = await readJson("third-party/copied-components.json");
-  const embedded = await readJson("third-party/embedded-components.json");
-  const runtimes = await readJson("third-party/runtime/sources.json");
-  for (const runtime of runtimes.node) {
-    if (hashBytes(await readInput(runtime.file)) !== runtime.sha256)
-      throw new Error(`Changed Node ${runtime.version} license`);
-  }
   const pkg = await readJson("package.json");
   await readInput("pnpm-lock.yaml");
   await readInput("pnpm-workspace.yaml");
-  await readInput("third-party/native-search/sources.json");
   const { packages, notInstalled, workspaceManifests } = await collectNpmNotices(root, overrides);
   // 修复：递归扫描会把 bundled-agents/mock-cdn 的可删除缓存当作源码输入，重建立即失效。
   // workspace 边界由 pnpm 解析，同一份项目集合用于依赖图和 manifest 新鲜度检查。
@@ -54,10 +43,17 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       sha256: addText(bytes, `${item.name}@${item.version}`, member),
     })),
   }));
-  async function copiedFiles(file, files) {
-    if ((await stat(join(root, file))).isDirectory()) {
+  async function copiedFiles(file, files, id) {
+    let entry;
+    try {
+      entry = await stat(join(root, file));
+    } catch (error) {
+      // 当前发行资产缺失必须显式失败：不得把它当作“已退役”而静默跳过。
+      throw new Error(`Missing copied component path: ${id}: ${file}`, { cause: error });
+    }
+    if (entry.isDirectory()) {
       for (const child of (await readdir(join(root, file))).sort())
-        await copiedFiles(`${file}/${child}`, files);
+        await copiedFiles(`${file}/${child}`, files, id);
     } else {
       const bytes = await readInput(file);
       files.push({ file, sha256: hashBytes(bytes) });
@@ -66,7 +62,14 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
   const copiedInventory = [];
   for (const record of copied) {
     if (record.file) {
-      const bytes = await readInput(record.file);
+      let bytes;
+      try {
+        bytes = await readInput(record.file);
+      } catch (error) {
+        throw new Error(`Missing copied-source license: ${record.id}: ${record.file}`, {
+          cause: error,
+        });
+      }
       if (hashBytes(bytes) !== record.sha256)
         throw new Error(`Changed copied-source license: ${record.id}`);
       addText(bytes, record.id, record.source);
@@ -74,7 +77,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       throw new Error(`Missing copied-source license or review: ${record.id}`);
     }
     const files = [];
-    for (const file of record.roots) await copiedFiles(file, files);
+    for (const file of record.roots) await copiedFiles(file, files, record.id);
     for (const file of record.modifiedFiles ?? []) {
       // 修复：集中 NOTICE 不能替代 Apache 4(b) 的文件内修改声明，重新生成时也不能抹掉这一义务。
       if (!files.some((entry) => entry.file === file))
@@ -83,24 +86,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
         throw new Error(`Missing file-local modification notice: ${file}`);
     }
     copiedInventory.push({ ...record, files });
-  }
-  for (const component of embedded) {
-    if (!packages.some((item) => `${item.name}@${item.version}` === component.parentPackage))
-      throw new Error(`Stale embedded component: ${component.parentPackage}`);
-    for (const evidence of component.buildEvidence ?? []) {
-      if (hashBytes(await readInput(evidence.file)) !== evidence.sha256)
-        throw new Error(`Changed embedded build provenance: ${component.id}`);
-    }
-    for (const notice of component.notices) {
-      const bytes = await readInput(notice.file);
-      if (hashBytes(bytes) !== notice.sha256)
-        throw new Error(`Changed embedded notice: ${component.id}`);
-      addText(
-        bytes,
-        `${notice.component ?? component.id} (inside ${component.parentPackage})`,
-        notice.source,
-      );
-    }
   }
   // 上游 AI Elements 的 LICENSE 是短版授权头，还需随包提供 Apache 2.0 全文。
   addText(
@@ -112,14 +97,9 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
   for (const [name, file] of Object.entries(pkg.pnpm?.patchedDependencies ?? {})) {
     patches.push({ package: name, file, sha256: hashBytes(await readInput(file)) });
   }
-  const native = await readNativeSearchNotices(root, { verify: true });
-  for (const file of Object.keys(native.inventory.inputs)) await readInput(file);
-  for (const component of native.inventory.components) {
-    for (const notice of component.notices) await readInput(notice.file);
-  }
   const sections = [
     "# Third-party notices",
-    "Generated by `node scripts/licenses.mjs notices` from the current workspace production dependency graph, copied source/assets and native search tools. This is a conservative union across distributions; not every listed component is included on every platform. Versions, source references and hashes are recorded in `third-party/inventory.json` and `third-party/native-search/sources.json` in the source repository.",
+    "Generated by `node scripts/licenses.mjs notices` from the current workspace production dependency graph and copied source/assets. The current distribution is the Web application served with its local server and in-memory mock backend. Retired Desktop, CLI and native-search packaging materials are not inputs to this notice and are not included in current builds.",
     "Original copyright, license and NOTICE text is retained below. Identical text is shared by the components listed above it. Package metadata license identifiers are descriptive; they do not replace the original terms. Copyright holders are never inferred from npm author fields.",
     "## npm packages",
     ...packageInventory.map(
@@ -137,13 +117,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       (item) =>
         `- ${item.id} (${item.license ?? "not established"}): ${item.roots.join(", ")}. License reference: ${item.source ?? "not established"}. Original import revision: ${item.importRevision ?? "not recorded"}.${item.reviewRequired ? ` Review required: ${item.reviewRequired}` : ""}`,
     ),
-    "Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.",
-    "## Embedded native and WASM components",
-    ...embedded.map(
-      (item) =>
-        `- ${item.id} inside ${item.parentPackage}; upstream revision ${item.revision}; source: ${item.source}. ${item.reviewRequired ?? ""}`,
-    ),
-    "Electron/Chromium target-specific notices are shipped separately under Resources/licenses/electron. Distributions containing an independent Node runtime also include its exact-version LICENSE.node.txt; SEA includes that text in --licenses output.",
     "## Modified npm packages",
     ...patches.map(
       (item) =>
@@ -159,14 +132,17 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       "````text\n" + record.bytes.toString("utf8") + "\n````",
     );
   }
-  sections.push("## Native search tools", "````text\n" + native.bytes.toString("utf8") + "\n````");
+  sections.push(
+    "## Retained historical materials",
+    "`third-party/runtime/`, `third-party/native-search/` and the remaining `third-party/upstream/` snapshots are retained as provenance for retired Desktop, CLI and native-search packaging. They are not inputs to the current Web distribution and are not listed as current components; do not copy them into a Web release.",
+  );
   const bytes = Buffer.from(`${sections.join("\n\n")}\n`);
   const inventory = {
     schemaVersion: 1,
     inputHashEncoding:
       "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
     scope:
-      "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
+      "Production dependency union across the current Web workspace projects and copied source/assets; excludes retired Desktop, CLI and native-search release inputs; not a per-installer SBOM or a certification of all licensing obligations.",
     noticesSha256: hashBytes(bytes),
     inputs: Object.fromEntries(Object.entries(inputs).sort(([a], [b]) => a.localeCompare(b, "en"))),
     packages: packageInventory,
@@ -174,8 +150,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     copied: copiedInventory,
     patches,
     exceptions: overrides.filter((item) => item.acceptedMissingNotice || item.evidenceKind),
-    embedded,
-    runtimes,
     reviewRequired: [
       // 修复：复制源码的缺口此前只写在 README，重生成清单后严格门禁也无法阻断。
       ...copied
@@ -188,15 +162,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
           reason:
             "Original version-specific publisher copyright/license material remains incomplete.",
         })),
-      ...embedded
-        .filter((item) => item.reviewRequired)
-        .map((item) => ({ id: item.id, reason: item.reviewRequired })),
-      ...native.inventory.components
-        .filter((item) => !item.notices.length)
-        .map((item) => ({
-          id: `${item.id}@${item.version}`,
-          reason: "No original notice snapshot for this recorded native component.",
-        })),
     ],
   };
   await writeFile(join(root, noticesFileName), bytes);
@@ -205,6 +170,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     `${JSON.stringify(inventory, null, 2)}\n`,
   );
   console.log(
-    `${relative(root, join(root, noticesFileName))}: ${packages.length} package versions, ${copied.length} copied components, ${native.inventory.archives.length} native archives, ${bytes.length} bytes`,
+    `${relative(root, join(root, noticesFileName))}: ${packages.length} package versions, ${copied.length} copied components, ${bytes.length} bytes`,
   );
 }

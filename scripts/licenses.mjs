@@ -104,18 +104,12 @@ const WEAK_ALLOW = [
   ],
 ];
 // ---------- 生产依赖的逐项复核结论：按包名登记并绑定许可类别，许可变化后重新阻断 ----------
-const PROD_REVIEWED = [
-  [
-    /^@img\/sharp-(libvips-|win32-)/,
-    "yellow-lgpl",
-    "libvips 以独立、可替换的共享库随 sharp 分发，仅真实 Computer Use 截图使用；声明附 LGPL-3.0 原文",
-  ],
-  [
-    /^elkjs$/,
-    "yellow-weak",
-    "仅内部开发文档站 apps/dev-docs 使用，不随产品分发、不部署；按 EPL-2.0 使用",
-  ],
-];
+// 当前 Web 生产图没有需要逐项放行的非宽松许可依赖：Mermaid 渲染链的 mermaid、
+// @streamdown/mermaid、cytoscape 等为 MIT/Apache-2.0，dompurify 为 MPL-2.0 OR Apache-2.0
+// 且可选 Apache-2.0。elkjs 与 sharp/libvips 均不在当前锁图：前者只服务已删除的内部文档站，
+// 后者依赖已退役的 Computer Use 分发路径。两者都不得沿用旧消费者理由放行；重新进入生产图时
+// 必须按当时的真实调用方和发行策略重新登记，未登记的非宽松许可会直接阻断。
+const PROD_REVIEWED = [];
 function weakAllowReason(r) {
   if (r.isProd) {
     for (const [re, bucket, why] of PROD_REVIEWED)

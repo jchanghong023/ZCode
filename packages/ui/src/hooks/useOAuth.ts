@@ -79,18 +79,14 @@ export function useOAuth() {
         setPendingProvider(provider);
         setAuthorizeUrl(null);
 
-        const {
-          authorizeUrl,
-          state,
-          provider: startedProvider,
-        } = await oauthService.startOAuthWithPolling(provider);
+        const { authorizeUrl, provider: startedProvider } =
+          await oauthService.startOAuthWithPolling(provider);
 
         if (loginAttemptRef.current !== loginAttempt) {
           return;
         }
 
         setAuthorizeUrl(authorizeUrl);
-        platform.registerOAuthState({ state, provider: startedProvider });
         setOAuthPollingActive(isBuiltinOAuthProvider(startedProvider));
         platform.openExternal(authorizeUrl);
         void reportAppTelemetryEvent(

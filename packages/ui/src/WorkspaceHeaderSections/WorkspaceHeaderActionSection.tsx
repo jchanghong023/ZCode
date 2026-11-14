@@ -1,25 +1,15 @@
-import { WorkspaceEditorButtonGroup } from "@/WorkspaceEditorButtonGroup.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { cn } from "@/components/lib/utils.js";
 import type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 import { WorkspaceHelpMenuButton } from "@/WorkspaceHelpMenuButton.js";
-import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 
 export type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeaderActionSection({
-  variant = "task",
-  readOnlyReason,
-  workspaceAbsPath,
-  workspaceIdentity,
-  remoteTarget,
-  isDesktop,
   isSidePaneOpen,
   onToggleSidePane,
   toggleSidePaneShortcutLabel,
-  onSelectedEditorChange,
   hideHelpMenu = false,
-  showWindowControls = false,
   useWindowsCaptionSpacing = false,
 }: WorkspaceHeaderActionSectionProps) {
   return (
@@ -31,16 +21,7 @@ export function WorkspaceHeaderActionSection({
         useWindowsCaptionSpacing ? "-my-2 h-12 gap-0" : "gap-0.5",
       )}
     >
-      {variant === "task" ? (
-        <WorkspaceEditorButtonGroup
-          disabledReason={readOnlyReason}
-          workspaceAbsPath={workspaceAbsPath}
-          workspaceIdentity={workspaceIdentity}
-          remoteTarget={remoteTarget}
-          onSelectedEditorChange={onSelectedEditorChange}
-        />
-      ) : null}
-      {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}
+      {!hideHelpMenu ? <WorkspaceHelpMenuButton /> : null}
       {!isSidePaneOpen ? (
         <WorkspaceSidePaneToggleButton
           isSidePaneOpen={isSidePaneOpen}
@@ -49,7 +30,6 @@ export function WorkspaceHeaderActionSection({
           useWindowsCaptionSpacing={useWindowsCaptionSpacing}
         />
       ) : null}
-      {showWindowControls && !isSidePaneOpen ? <DesktopWindowControls /> : null}
     </div>
   );
 }

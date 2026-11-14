@@ -48,8 +48,6 @@ import {
 export interface AgentConversationTransportTarget {
   workspacePath: string;
   workspaceIdentity?: string;
-  /** Desktop 本地媒体协议 URL；Web/remote 不注入，因此保持分片读取。 */
-  createLocalMediaPreviewUrl?: (path: string) => string;
 }
 
 type ConversationV4AgentService = Pick<
@@ -536,24 +534,6 @@ export function createAgentConversationTransport(
       params.signal?.throwIfAborted();
       await ensureHandshake();
       params.signal?.throwIfAborted();
-      if (target.createLocalMediaPreviewUrl && params.mediaType?.startsWith("video/")) {
-        const source = await agentService.attachmentPreviewSourceV4({
-          ...workspace,
-          sessionId: params.sessionId,
-          ref: params.ref,
-          ...(params.target ? { target: params.target } : {}),
-          ...(params.attachmentIndex !== undefined
-            ? { attachmentIndex: params.attachmentIndex }
-            : {}),
-        });
-        params.signal?.throwIfAborted();
-        if (source.kind === "local_path") {
-          return {
-            url: target.createLocalMediaPreviewUrl(source.path),
-            mediaType: source.mediaType,
-          };
-        }
-      }
       const chunks: Uint8Array[] = [];
       let offset = 0;
       let totalBytes: number | null = null;

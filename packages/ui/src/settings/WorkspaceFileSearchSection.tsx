@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderOpen, RotateCcw, Save, Undo2 } from "lucide-react";
+import { RotateCcw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { toast } from "@/components/ui/toast.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
@@ -60,7 +59,6 @@ function ActiveWorkspaceFileSearchEditor({
   workspaceIdentity?: string;
 }) {
   const { intl } = useZCodeIntl();
-  const platform = usePlatform();
   const resolution = useWorkspaceServicesResolution(workspacePath, undefined, workspaceIdentity);
   const services = resolution.services;
   const rpcReady = resolution.rpcReady;
@@ -175,18 +173,6 @@ function ActiveWorkspaceFileSearchEditor({
   // "有未保存的修改"提示只表达真实差异（template 态未编辑时不显示）。
   const dirty = loaded !== null && loaded.source === "file" && draft !== loaded.content;
 
-  // 「打开文件位置」：.zcodeignore 位于 workspace 根，打开根目录即所在位置
-  // （与 WindowsCaptionMenuButton/ModelTrajectoryPane 先例一致传目录）。
-  // 远程 workspace 的规则文件在远端机器，本地文件管理器无法打开，按钮不展示。
-  const isLocalWorkspace = !workspaceIdentity?.trim();
-  const revealTargetReady = loaded?.source === "file";
-  const handleReveal = useCallback(async () => {
-    const result = await platform.openInFileManager(workspacePath);
-    if (!result.success) {
-      toast(intl.formatMessage({ id: "appHeader.openInFileManagerFailed" }));
-    }
-  }, [intl, platform, workspacePath]);
-
   return (
     // 排版对齐设置页统一规范：导语 + SettingsGroupCard 卡片，
     // 文字统一 text-ui-base；textarea 因内容是规则文本保留等宽字体。
@@ -251,23 +237,6 @@ function ActiveWorkspaceFileSearchEditor({
               <Undo2 className="size-4" />
               {intl.formatMessage({ id: "settings.workspaceFileSearch.restoreDefaults" })}
             </Button>
-            {isLocalWorkspace ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!revealTargetReady || loading || saving}
-                title={
-                  revealTargetReady
-                    ? undefined
-                    : intl.formatMessage({ id: "settings.workspaceFileSearch.revealHint" })
-                }
-                onClick={() => void handleReveal()}
-                data-testid="workspace-file-search-ignore-reveal"
-              >
-                <FolderOpen className="size-4" />
-                {intl.formatMessage({ id: "settings.workspaceFileSearch.reveal" })}
-              </Button>
-            ) : null}
             {dirty ? (
               <span className="text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "settings.workspaceFileSearch.unsaved" })}

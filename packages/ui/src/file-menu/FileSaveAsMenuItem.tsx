@@ -50,7 +50,7 @@ function WorkspaceFileSaveAsMenuItem(props: Props) {
     setSaving(true);
     try {
       const result = await saveFileCopy(fileService, props.path, platform.saveFile.bind(platform));
-      const messageId = fileSaveSuccessMessageId(result, platform.canOpenLocalFiles);
+      const messageId = fileSaveSuccessMessageId(result);
       if (messageId) toast(intl.formatMessage({ id: messageId }));
     } catch (error) {
       logger.warn("[FileSaveAs] 保存文件副本失败", { path: props.path, error: String(error) });

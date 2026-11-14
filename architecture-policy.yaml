@@ -1,6 +1,8 @@
 version: 1
 
-# 存量模块先标记为 legacy；新模块或完成迁移的模块设置 managed: true。
+# 原因：纯 Web 裁撤后只登记现存路径；有源码的受管模块补齐真实治理产物，
+# 裁撤后已无源码与消费者的退役模块撤销登记（见 docs/architecture/pure-web-module-ownership.md），
+# 不降低 managed 状态、不以空壳产物消账。
 modules:
   - id: session-control
     roots: [packages/session-control/src, packages/session-control/vitest.config.ts]
@@ -22,85 +24,24 @@ modules:
       - packages/shared/src/app-control/contract.ts
     layers: { contract: . }
     owner: conversation
-  - id: cli-session-control-tools
-    roots: [apps/zcode-cli/packages/core/src/tool/session-control]
-    managed: true
-    requires: [session-control, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/tool/session-control/contract.ts
-      - apps/zcode-cli/packages/core/src/tool/session-control/index.ts
-    layers: { app: . }
-    owner: agent
-  - id: cli-session-control-bootstrap
-    roots: [apps/zcode-cli/packages/bootstrap/src/session-control]
-    managed: true
-    requires: [session-control, app-control-protocol, shared, zcode-cli, cli-session-control-tools]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/session-control/contract.ts
-      - apps/zcode-cli/packages/bootstrap/src/session-control/index.ts
-    layers: { adapters: . }
-    owner: agent
-  - id: cli-session-control-runtime
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/cli-session-control
-      - apps/zcode-cli/packages/bootstrap/tests/cli-session-control/vitest.config.ts
-    managed: true
-    requires: [session-control, zcode-cli, cli-active-transcript]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/cli-session-control/contract.ts
-      - apps/zcode-cli/packages/bootstrap/src/cli-session-control/index.ts
-    layers: { adapters: . }
-    owner: agent
-  - id: cli-active-transcript
-    roots: [apps/zcode-cli/packages/bootstrap/src/active-transcript]
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/active-transcript/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/active-transcript/contract.ts
-    layers: { adapters: . }
-    owner: conversation
-  - id: cli-session-fork-commit
-    roots: [apps/zcode-cli/packages/core/src/runtime/session-fork-commit]
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/index.ts
-      - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/contract.ts
-    layers: { app: . }
-    owner: conversation
-  - id: cli-conversation-materialization
-    roots: [apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization]
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/contract.ts
-    layers: { adapters: . }
-    owner: conversation
-  - id: app-control-navigation
-    roots: [packages/desktop/src/app-control-navigation]
-    managed: true
-    requires: [app-control, shared, desktop, services]
-    publicEntrypoints:
-      - packages/desktop/src/app-control-navigation/contract.ts
-      - packages/desktop/src/app-control-navigation/index.ts
-      - packages/desktop/src/app-control-navigation/host.ts
-      - packages/desktop/src/app-control-navigation/main.ts
-      - packages/desktop/src/app-control-navigation/renderer.ts
-    layers: { adapters: . }
-    owner: conversation
   - id: rpc
     roots: [packages/rpc/src]
     managed: false
   - id: shared
     roots: [packages/shared/src]
     managed: false
+  - id: model-option-map
+    roots: [packages/model-option-map/src]
+    managed: false
+  - id: workspace-hooks
+    roots: [packages/shared/src/workspace-hooks]
+    managed: true
+    requires: []
+    publicEntrypoints: [packages/shared/src/workspace-hooks/contract.ts]
+    layers: { contract: . }
+    owner: hooks
   - id: provider
     roots: [packages/provider/src]
-    managed: false
-  - id: provider-node
-    roots: [packages/provider-node/src]
     managed: false
   - id: services
     roots: [packages/services/src]
@@ -109,13 +50,7 @@ modules:
     roots: [packages/services/src/session]
     managed: false
     requires: [shared]
-    publicEntrypoints:
-      - packages/services/src/session/contract.ts
-      - packages/services/src/session/taskIndexRepo.ts
-      - packages/services/src/session/automationRepo.ts
-      - packages/services/src/session/offPeakTaskRepo.ts
-      - packages/services/src/session/tasksDatabase/migrations.ts
-      - packages/services/src/session/tasksDatabase/prepared.ts
+    publicEntrypoints: []
     owner: conversation
   - id: storage
     roots: [packages/services/src/storage]
@@ -131,26 +66,20 @@ modules:
   - id: server
     roots: [packages/server/src]
     managed: false
-  - id: zcode-server-cli
-    roots: [packages/zcode-server-cli/src]
-    managed: false
+  # mock-domains：纯 Web 模拟后端的领域装配层，权威状态仍由 server 的 MockRuntime 持有。
+  - id: mock-domains
+    roots: [packages/server/src/mock/domains]
+    managed: true
+    requires: [services, shared, rpc, provider, server]
+    publicEntrypoints:
+      - packages/server/src/mock/domains/contract.ts
+    layers: { adapters: . }
+    owner: runtime
   - id: ui
     roots: [packages/ui/src]
     managed: false
   - id: web
     roots: [packages/web/src]
-    managed: false
-  - id: desktop
-    roots: [packages/desktop/src]
-    managed: false
-  - id: formal-proof
-    roots: [packages/formal-proof/src]
-    managed: false
-  - id: stream-animate
-    roots: [packages/stream-animate/src]
-    managed: false
-  - id: e2e-report
-    roots: [packages/e2e-report/src]
     managed: false
   # design-runtime：网页元素上下文的共享类型与页面 inspector 表达式。
   - id: design-runtime
@@ -162,9 +91,6 @@ modules:
       - packages/design-runtime/src/contract.ts
     layers: { app: "." }
     owner: conversation
-  - id: zcode-cli
-    roots: [apps/zcode-cli]
-    managed: false
   # sqlite-migrations：由 architecture:adopt 登记
   # Agent runtime 退出诊断：desktop 稳定性上报与 Host 退出提示共用的纯函数判定。
   - id: agent-crash-diagnostic
@@ -192,9 +118,7 @@ modules:
     roots: [packages/services/src/conversation-telemetry]
     managed: true
     requires: [shared, services, rpc, conversation-telemetry-engine]
-    publicEntrypoints:
-      - packages/services/src/conversation-telemetry/remoteConversationTelemetry.ts
-      - packages/services/src/conversation-telemetry/contract.ts
+    publicEntrypoints: [packages/services/src/conversation-telemetry/contract.ts]
     layers: { app: "." }
     owner: conversation
   - id: sqlite-migrations
@@ -210,9 +134,7 @@ modules:
     owner: persistence
   # project-storage：由 architecture:adopt 登记
   - id: project-storage
-    roots:
-      - packages/services/src/project-storage
-      - packages/services/src/session/tasksDatabase
+    roots: [packages/services/src/project-storage]
     managed: true
     requires:
       - shared
@@ -221,12 +143,10 @@ modules:
       - session
       - task-groups
     publicEntrypoints:
-      - packages/services/src/session/tasksDatabase/migrations.ts
-      - packages/services/src/session/tasksDatabase/prepared.ts
-      - packages/services/src/project-storage/index.ts
-      - packages/services/src/project-storage/contract.ts
-      - packages/services/src/project-storage/startup.ts
-      - packages/services/src/project-storage/startup-entry.ts
+      [
+        packages/services/src/project-storage/contract.ts,
+        packages/services/src/project-storage/repository-contract.ts,
+      ]
     layers:
       adapters: .
     owner: conversation
@@ -236,9 +156,7 @@ modules:
       - packages/services/src/project
     managed: true
     requires: [project-storage, services, shared]
-    publicEntrypoints:
-      - packages/services/src/project/index.ts
-      - packages/services/src/project/contract.ts
+    publicEntrypoints: [packages/services/src/project/contract.ts]
     layers:
       adapters: .
     owner: conversation
@@ -268,17 +186,6 @@ modules:
       ui: .
     owner: conversation
   # remote-projects：由 architecture:adopt 登记
-  - id: remote-projects
-    roots:
-      - packages/services/src/remote-projects
-    managed: true
-    requires: [services, shared, project-storage]
-    publicEntrypoints:
-      - packages/services/src/remote-projects/index.ts
-      - packages/services/src/remote-projects/contract.ts
-    layers:
-      adapters: .
-    owner: conversation
   # workspace-config-catalog：由 architecture:adopt 登记
   - id: workspace-config-catalog
     roots:
@@ -298,7 +205,7 @@ modules:
     roots:
       - packages/services/src/project-catalog
     managed: true
-    requires: [project, remote-projects]
+    requires: [project]
     publicEntrypoints:
       - packages/services/src/project-catalog/index.ts
       - packages/services/src/project-catalog/contract.ts
@@ -337,12 +244,7 @@ modules:
     roots: [packages/services/src/gen-ui]
     managed: true
     requires: [services, shared, rpc, gen-ui-protocol, mcp-apps-protocol]
-    publicEntrypoints:
-      [
-        packages/services/src/gen-ui/index.ts,
-        packages/services/src/gen-ui/contract.ts,
-        packages/services/src/gen-ui/node.ts,
-      ]
+    publicEntrypoints: [packages/services/src/gen-ui/contract.ts]
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: conversation
@@ -375,21 +277,6 @@ modules:
     layers:
       domain: "."
     owner: plugin
-  - id: mcp-ui
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui
-      - apps/zcode-cli/packages/core/src/runtime/methods/sample-model.ts
-    managed: true
-    requires: [zcode-cli, shared, mcp-apps-protocol]
-    publicEntrypoints:
-      [
-        apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/index.ts,
-        apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/contract.ts,
-        apps/zcode-cli/packages/core/src/runtime/methods/sample-model.ts,
-      ]
-    layers:
-      app: "."
-    owner: plugin
   - id: plugin-ui-bridge
     roots: [packages/services/src/plugin-ui-bridge]
     managed: true
@@ -404,31 +291,10 @@ modules:
     layers:
       app: "."
     owner: plugin
-  - id: plugin-sandbox
-    roots:
-      - packages/desktop/src/main/pluginSandbox
-      - packages/desktop/src/host/pluginSandbox
-      - packages/desktop/src/preload/pluginSandbox
-      - packages/desktop/src/renderer/src/plugin-sandbox
-    managed: true
-    requires: [desktop, shared, mcp-apps-protocol, gen-ui-protocol]
-    publicEntrypoints: [
-        packages/desktop/src/host/pluginSandbox/index.ts,
-        packages/desktop/src/host/pluginSandbox/contract.ts,
-        packages/desktop/src/preload/pluginSandbox/hostBridge.ts,
-        packages/desktop/src/main/pluginSandbox/index.ts,
-        packages/desktop/src/main/pluginSandbox/contract.ts,
-        # 页面兼容接口由宿主及其契约测试维护。
-        packages/desktop/src/renderer/src/plugin-sandbox/aliasRuntime.ts,
-        packages/desktop/src/renderer/src/plugin-sandbox/aliasApi.ts,
-      ]
-    layers:
-      adapters: "."
-    owner: plugin
   - id: plugin-ui
     roots: [packages/ui/src/plugin-ui]
     managed: true
-    requires: [ui, shared, services, mcp-apps-protocol, plugin-ui-bridge, plugin-sandbox]
+    requires: [ui, shared, services, mcp-apps-protocol, plugin-ui-bridge]
     publicEntrypoints:
       [
         packages/ui/src/plugin-ui/index.ts,
@@ -460,141 +326,42 @@ modules:
       app: .
     owner: conversation
   # host-database-startup：由 architecture:adopt 登记
-  - id: host-database-startup
-    roots:
-      - packages/desktop/src/host/database-startup
-    managed: true
-    requires:
-      - project-storage
-      - shared
-      - desktop
-    publicEntrypoints:
-      - packages/desktop/src/host/database-startup/contract.ts
-      - packages/desktop/src/host/database-startup/tasksStorageWorker.ts
-      - packages/desktop/src/host/database-startup/hostDatabaseStartup.ts
-      - packages/desktop/src/host/database-startup/storagePreparationProcesses.ts
-    layers:
-      adapters: .
-    owner: persistence
   # cli-subagent-config：由 architecture:adopt 登记
-  - id: cli-subagent-config
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents
-      - apps/zcode-cli/packages/bootstrap/tests/runtime-subagents
-    managed: true
-    requires:
-      - shared
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents/contract.ts
-    layers:
-      domain: .
-    owner: agent
   # cli-session-execution：由 architecture:adopt 登记
-  - id: cli-session-execution
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/session-execution
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/interaction-response-race.ts
-      - apps/zcode-cli/packages/bootstrap/tests/session-execution
-      - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
-      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/permission-full-access.ts
-      - apps/zcode-cli/packages/contracts/src/interfaces/permission-full-access.ts
-      - apps/zcode-cli/packages/core/tests/permission-full-access.test.ts
-      - apps/zcode-cli/packages/bootstrap/tests/draft-permission-full-access.test.ts
-    managed: true
-    requires:
-      - shared
-      - zcode-cli
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/session-execution/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/session-execution/contract.ts
-      - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
-    layers:
-      app: .
-    owner: conversation
 
   # 保留既有源码位置；精确登记源文件，不扩大到整个 CLI 或 handlers 目录。
-  - id: cli-arguments
-    roots:
-      - apps/zcode-cli/packages/cli/src/argument-parsing
-      - apps/zcode-cli/packages/cli/src/arguments.ts
-      - apps/zcode-cli/packages/cli/tests/argument-parsing
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - apps/zcode-cli/packages/cli/src/arguments.ts
-      - apps/zcode-cli/packages/cli/src/argument-parsing/contract.ts
-    layers: { adapters: . }
-    owner: agent
-  - id: workflow-tool-entrypoints
-    roots:
-      - apps/zcode-cli/packages/core/src/tool/workflow-entrypoints
-      - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/list-models.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/fill-workflow-hole.ts
-      - apps/zcode-cli/packages/core/tests/workflow-entrypoints
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/list-models.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/fill-workflow-hole.ts
-      - apps/zcode-cli/packages/core/src/tool/workflow-entrypoints/contract.ts
-    layers: { app: . }
-    owner: agent
-
-  - id: tool-result-settlement
-    roots:
-      - apps/zcode-cli/packages/core/src/runtime/tool-result-settlement
-      - apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts
-      - apps/zcode-cli/packages/core/tests/tool-result-settlement
-    managed: true
-    requires: [zcode-cli, session-features]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts
-      - apps/zcode-cli/packages/core/src/runtime/tool-result-settlement/contract.ts
-    layers: { app: . }
-    owner: agent
 
   # remote-input-prediction：回放型客户端输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。
   - id: remote-input-prediction
     roots:
-      - packages/shared/src/zcode-protocol-v4/input-prediction
-      - packages/services/src/zcode-agent/inputPredictionSwitch.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts
-      - apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts
+      [
+        packages/shared/src/zcode-protocol-v4/input-prediction,
+        packages/services/src/zcode-agent/inputPredictionSwitch.ts,
+      ]
     managed: true
-    requires: [shared, zcode-cli]
+    requires: [shared]
     publicEntrypoints:
-      - packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts
-      - packages/services/src/zcode-agent/inputPredictionSwitch.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts
-      - apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts
+      [
+        packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts,
+        packages/services/src/zcode-agent/inputPredictionSwitch.ts,
+      ]
     layers: { app: . }
     owner: remote
   # context-composition：context 组成（扩展进程 P1）：v4 线格式、CLI 分类/预演/修订号/协议处理、App 侧查询与通知。
   # 规格：apps/zcode-cli/docs/design/v2/model/context-composition.md。
   - id: context-composition
     roots:
-      - packages/shared/src/zcode-protocol-v4/context-composition
-      - apps/zcode-cli/packages/core/src/runtime/context-composition
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition
-      - packages/services/src/zcode-agent/contextCompositionClient.ts
-      - apps/zcode-cli/packages/core/tests/context-composition
-      - apps/zcode-cli/packages/bootstrap/tests/context-composition
+      [
+        packages/shared/src/zcode-protocol-v4/context-composition,
+        packages/services/src/zcode-agent/contextCompositionClient.ts,
+      ]
     managed: true
-    requires: [rpc, services, shared, tool-discovery, zcode-cli]
+    requires: [rpc, services, shared]
     publicEntrypoints:
-      - packages/shared/src/zcode-protocol-v4/context-composition/contract.ts
-      - apps/zcode-cli/packages/core/src/runtime/context-composition/index.ts
-      # runtime 内部的变更点直接引用 state.ts：经 index 会形成 context-refresh → query → preview → context-refresh 的环。
-      - apps/zcode-cli/packages/core/src/runtime/context-composition/state.ts
-      - apps/zcode-cli/packages/core/src/runtime/context-composition/query.ts
-      - apps/zcode-cli/packages/core/src/runtime/context-composition/classifier.ts
-      - apps/zcode-cli/packages/core/src/runtime/context-composition/items.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/tracker.ts
-      - packages/services/src/zcode-agent/contextCompositionClient.ts
+      [
+        packages/shared/src/zcode-protocol-v4/context-composition/contract.ts,
+        packages/services/src/zcode-agent/contextCompositionClient.ts,
+      ]
     layers: { app: . }
     owner: agent
   # plugin-host-queries：扩展进程 P2 的插件宿主查询——敏感选项私有存储、plugins/readUserOptions、
@@ -602,54 +369,22 @@ modules:
   # 「Sensitive Option Storage」「Composer Mention Items」。
   - id: plugin-host-queries
     roots:
-      - packages/shared/src/zcode-protocol/plugin-host-queries
-      - apps/zcode-cli/packages/adapters/src/config/plugin-secrets.adapter.ts
-      - apps/zcode-cli/packages/bootstrap/src/plugin-secrets.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-user-options.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-mention-items.ts
-      - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
+      [
+        packages/shared/src/zcode-protocol/plugin-host-queries,
+        packages/services/src/zcode-agent/pluginHostQueriesClient.ts,
+      ]
     managed: true
-    requires: [services, shared, zcode-cli]
+    requires: [services, shared]
     publicEntrypoints:
-      - packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts
-      - apps/zcode-cli/packages/adapters/src/config/plugin-secrets.adapter.ts
-      - apps/zcode-cli/packages/bootstrap/src/plugin-secrets.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-user-options.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-mention-items.ts
-      - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
+      [
+        packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts,
+        packages/services/src/zcode-agent/pluginHostQueriesClient.ts,
+      ]
     layers: { app: . }
     owner: plugin
   # remote-resident-rows-range：rowsRange 只读热会话（residency="resident-only"）的 Host 侧执行端能力确认，
   # 供手机任务列表预加载；旧 CLI 不认识该参数时 Host 直接拒绝，不触发冷恢复。
-  - id: remote-resident-rows-range
-    roots:
-      - packages/services/src/zcode-agent/resident-rows-range
-    managed: true
-    requires: [shared, services]
-    publicEntrypoints:
-      - packages/services/src/zcode-agent/resident-rows-range/contract.ts
-    layers: { app: . }
-    owner: remote
   # 官方市场工具只在接到支持卡片的输入时开放，目录排序和安装由 CLI 所有。
-  - id: agent-plugin-discovery
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-discovery-port.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-install-interaction.ts
-      - apps/zcode-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts
-      - apps/zcode-cli/packages/contracts/src/tools/plugin-discovery.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
-    managed: true
-    requires: [shared, zcode-cli, plugin-install-interaction]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/contract.ts
-      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/subscription.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-discovery-port.ts
-      - apps/zcode-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts
-      - apps/zcode-cli/packages/contracts/src/tools/plugin-discovery.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
-    layers: { app: . }
-    owner: plugin
   # 卡片只投影协议载荷并提交选择；不拥有安装或重载状态。
   - id: plugin-install-interaction
     roots:
@@ -668,135 +403,15 @@ modules:
       - packages/ui/src/settings/PluginAutoRecommendationSetting.tsx
     layers: { app: . }
     owner: plugin
-  - id: tool-discovery
-    roots:
-      - apps/zcode-cli/packages/core/src/tool/search
-      - apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts
-      - apps/zcode-cli/packages/contracts/src/tools/tool-search.ts
-      - apps/zcode-cli/packages/core/tests/tool-discovery
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/tool/search/contract.ts
-      - apps/zcode-cli/packages/core/src/tool/search/exposure.ts
-      - apps/zcode-cli/packages/core/src/tool/search/history.ts
-      - apps/zcode-cli/packages/core/src/tool/search/search.ts
-      - apps/zcode-cli/packages/core/src/tool/search/description.ts
-      - apps/zcode-cli/packages/core/src/tool/search/local-projection.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts
-      - apps/zcode-cli/packages/contracts/src/tools/tool-search.ts
-    layers: { app: . }
-    owner: agent
   # node-repl-call-ledger：node_repl 结果里可信事实的唯一来源（apps/zcode-cli/docs/design/v2/tool/20-node-repl-call-ledger.md）
-  - id: node-repl-call-ledger
-    roots:
-      - apps/zcode-cli/packages/node-repl-host/src/call-ledger
-      - apps/zcode-cli/packages/node-repl-host/test/call-ledger
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/node-repl-host/src/call-ledger/contract.ts
-    layers: { adapters: . }
-    owner: agent
-  - id: session-features
-    roots:
-      - apps/zcode-cli/packages/core/src/runtime/session-features
-      - apps/zcode-cli/packages/core/tests/session-features
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/runtime/session-features/contract.ts
-    layers: { app: . }
-    owner: agent
-  - id: provider-tool-rounds
-    roots:
-      - apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds
-      - apps/zcode-cli/packages/core/tests/provider-tool-rounds
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds/contract.ts
-    layers: { app: . }
-    owner: agent
-  - id: provider-builtin-tool-compat
-    roots:
-      - apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat
-      - apps/zcode-cli/packages/adapters/tests/provider-builtin-tool-compat
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat/contract.ts
-    layers: { adapters: . }
-    owner: agent
-  - id: conversation-quote-context
-    roots:
-      - apps/zcode-cli/packages/core/src/runtime/conversation-quote-context
-      - apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts
-      - apps/zcode-cli/packages/core/tests/conversation-quote-context
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/runtime/conversation-quote-context/contract.ts
-      - apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts
-    layers: { domain: . }
-    owner: agent
-  - id: tool-search-comparison
-    roots:
-      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract
-      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
-      - apps/zcode-cli/tools/prompt-trajectory/tests/tool-search-comparison
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/contract.ts
-      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
-    layers: { domain: . }
-    owner: agent
-  - id: window-topic-resource-relay
-    roots:
-      - packages/desktop/src/host/topic-resource-relay
-      - packages/desktop/src/host/windowTopicResourceRelay.ts
-      - packages/desktop/test/topic-resource-relay
-    managed: true
-    requires: [services, shared]
-    publicEntrypoints:
-      - packages/desktop/src/host/topic-resource-relay/contract.ts
-      - packages/desktop/src/host/windowTopicResourceRelay.ts
-    layers: { adapters: . }
-    owner: desktop
-  - id: channel-reply-tool
-    roots:
-      - apps/zcode-cli/packages/core/src/tool/channel-reply
-      - apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts
-      - apps/zcode-cli/packages/core/tests/channel-reply
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts
-      - apps/zcode-cli/packages/core/src/tool/channel-reply/contract.ts
-    layers: { app: . }
-    owner: agent
   # topic-resource-tool：ReadSessionContext(topic, attachment) 拆出的话题资源工具（会话工具设计 0.8）。
-  - id: topic-resource-tool
-    roots:
-      - apps/zcode-cli/packages/core/src/tool/topic-resource
-      - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
-      - apps/zcode-cli/packages/core/src/tool/topic-resource/contract.ts
-    layers: { app: . }
-    owner: agent
-
   # composer-toolbar-layout：登记既有 DOM 布局入口，不改调用路径。
   - id: composer-toolbar-layout
     roots:
-      - packages/ui/src/composer-toolbar-layout
-      - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
-      - packages/ui/test/composer-toolbar-layout
+      [
+        packages/ui/src/composer-toolbar-layout,
+        packages/ui/src/prompt-editor/useComposerToolbarFit.ts,
+      ]
     managed: true
     requires: []
     publicEntrypoints:
@@ -814,10 +429,7 @@ modules:
       - services
       - session
       - shared
-    publicEntrypoints:
-      - packages/services/src/task-groups/index.ts
-      - packages/services/src/task-groups/contract.ts
-      - packages/services/src/task-groups/migration-v6.ts
+    publicEntrypoints: [packages/services/src/task-groups/contract.ts]
     layers:
       adapters: .
     owner: conversation
@@ -827,12 +439,7 @@ modules:
     roots:
       - packages/services/src/window-project-directory
     managed: true
-    requires:
-      - project
-      - remote-projects
-      - rpc
-      - services
-      - shared
+    requires: [project, rpc, services, shared]
     publicEntrypoints:
       - packages/services/src/window-project-directory/index.ts
       - packages/services/src/window-project-directory/contract.ts
@@ -840,28 +447,6 @@ modules:
       adapters: .
     owner: conversation
   # conversation-share-interaction：由 architecture:adopt 登记
-  - id: conversation-share-interaction
-    roots:
-      - packages/ui/src/conversation-share-interaction
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/conversation-share-interaction/index.ts
-      - packages/ui/src/conversation-share-interaction/contract.ts
-      - packages/ui/src/conversation-share-interaction/ConversationSharePopover.tsx
-      - packages/ui/src/conversation-share-interaction/ConversationShareExpiryPicker.tsx
-      - packages/ui/src/conversation-share-interaction/ConversationSharePreflightStatus.tsx
-      - packages/ui/src/conversation-share-interaction/conversationSharePopoverActions.ts
-      - packages/ui/src/conversation-share-interaction/conversationSharePreflightRequest.ts
-      - packages/ui/src/conversation-share-interaction/conversationSharePreflightResponse.ts
-      - packages/ui/src/conversation-share-interaction/SettingsShareManagement.tsx
-    layers:
-      contract: contract.ts
-      ui: .
-    owner: conversation
 
   # workspace-plugin-preview：由 architecture:adopt 登记
   - id: workspace-plugin-preview
@@ -879,17 +464,6 @@ modules:
     owner: plugin
 
   # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
-  - id: office-runtime
-    roots:
-      - apps/zcode-cli/packages/office-runtime
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - apps/zcode-cli/packages/office-runtime/index.ts
-      - apps/zcode-cli/packages/office-runtime/contract.ts
-    layers:
-      app: .
-    owner: plugin
 
   # data-sync-service：数据同步分类服务形状与本机设备同步状态（docs/remote/data-sync.md）
   - id: data-sync-service
@@ -900,9 +474,7 @@ modules:
       - services
       - shared
     publicEntrypoints:
-      - packages/services/src/data-sync/index.ts
-      - packages/services/src/data-sync/contract.ts
-      - packages/services/src/data-sync/node.ts
+      [packages/services/src/data-sync/index.ts, packages/services/src/data-sync/contract.ts]
     layers:
       app: .
     owner: remote
@@ -916,9 +488,7 @@ modules:
       - shared
       - rpc
     publicEntrypoints:
-      - packages/services/src/voice-input/index.ts
-      - packages/services/src/voice-input/contract.ts
-      - packages/services/src/voice-input/node.ts
+      [packages/services/src/voice-input/index.ts, packages/services/src/voice-input/contract.ts]
     layers:
       adapters: .
     owner: desktop
@@ -931,9 +501,10 @@ modules:
       - services
       - shared
     publicEntrypoints:
-      - packages/services/src/provider-provisioning-status/index.ts
-      - packages/services/src/provider-provisioning-status/contract.ts
-      - packages/services/src/provider-provisioning-status/node.ts
+      [
+        packages/services/src/provider-provisioning-status/index.ts,
+        packages/services/src/provider-provisioning-status/contract.ts,
+      ]
     layers:
       app: .
     owner: remote
@@ -958,24 +529,6 @@ modules:
     layerOrder: [contract, domain, app, ui]
     owner: remote
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集（docs/chat/composer-voice-input.md）
-  - id: voice-input
-    roots:
-      - packages/ui/src/voice-input
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/voice-input/index.ts
-      - packages/ui/src/voice-input/contract.ts
-    layers:
-      contract: contract.ts
-      domain: domain
-      adapters: adapters
-      ui: .
-    layerOrder: [contract, domain, adapters, ui]
-    owner: desktop
   # settings-scope：设置页 Scope 菜单按设备分组（docs/remote/data-sync.md「Scope 菜单按设备分组」）
   - id: settings-scope
     roots:
@@ -1048,70 +601,11 @@ modules:
     layers:
       ui: .
   # local-ttft-desktop：由 architecture:adopt 登记
-  - id: local-ttft-desktop
-    roots:
-      - packages/desktop/src/renderer/src/local-ttft
-    managed: true
-    requires:
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/desktop/src/renderer/src/local-ttft/contract.ts
-    layers:
-      ui: .
   # local-ttft-cli：由 architecture:adopt 登记
-  - id: local-ttft-cli
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft
-    managed: true
-    requires:
-      - shared
-      - zcode-cli
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft/contract.ts
-    layers:
-      adapters: .
   # cli-official-command-endpoint：由 architecture:adopt 登记
-  - id: cli-official-command-endpoint
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/official-command-endpoint
-      - apps/zcode-cli/packages/bootstrap/tests/official-command-endpoint
-    managed: true
-    requires:
-      - shared
-      - zcode-cli
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/official-command-endpoint/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/official-command-endpoint/contract.ts
-    layers:
-      adapters: .
-    owner: identity
   # zcode-site-panel：zcode-site 插件自带的 Sites 面板（MCP server + 页面），由 architecture:adopt 登记
-  - id: zcode-site-panel
-    roots:
-      - apps/zcode-cli/packages/zcode-site-plugin/src
-    managed: true
-    requires:
-      - shared
-    publicEntrypoints:
-      - apps/zcode-cli/packages/zcode-site-plugin/src/index.ts
-      - apps/zcode-cli/packages/zcode-site-plugin/src/contract.ts
-    layers:
-      app: .
-    owner: plugin
 
   # file-open-apps：由 architecture:adopt 登记
-  - id: file-open-apps
-    roots:
-      - packages/desktop/src/main/file-open-apps
-    managed: true
-    requires: [shared]
-    publicEntrypoints:
-      - packages/desktop/src/main/file-open-apps/index.ts
-      - packages/desktop/src/main/file-open-apps/contract.ts
-    layers:
-      adapters: .
-    owner: desktop
   # ui-file-menu：由 architecture:adopt 登记
   - id: ui-file-menu
     roots:
@@ -1189,75 +683,10 @@ modules:
     layers:
       domain: .
   # cli-session-data-files：由 architecture:adopt 登记
-  - id: cli-session-data-files
-    roots:
-      - apps/zcode-cli/packages/adapters/src/storage/session-data-files
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - apps/zcode-cli/packages/adapters/src/storage/session-data-files/index.ts
-      - apps/zcode-cli/packages/adapters/src/storage/session-data-files/contract.ts
-    layers:
-      adapters: .
   # cli-session-data：由 architecture:adopt 登记
-  - id: cli-session-data
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data
-    managed: true
-    requires:
-      - shared
-      - zcode-cli
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/contract.ts
-    layers:
-      app: .
 
-  - id: cli-plugin-startup-budget
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget
-    managed: true
-    requires: [zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget/contract.ts
-    layers:
-      app: .
-    owner: plugin
-  - id: provider-regression
-    roots: [apps/zcode-cli/tools/provider-regression]
-    managed: true
-    requires: [zcode-cli, provider, provider-node, shared]
-    publicEntrypoints:
-      - apps/zcode-cli/tools/provider-regression/index.ts
-      - apps/zcode-cli/tools/provider-regression/contract.ts
-    layers: { adapters: . }
-    owner: agent
   # session-lifecycle：由 architecture:adopt 登记
-  - id: session-lifecycle
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle
-      - apps/zcode-cli/packages/bootstrap/tests/session-lifecycle
-    managed: true
-    requires: [shared]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle/contract.ts
-    layers:
-      app: .
-    owner: agent-runtime
   # workspace-mcp-trust：由 architecture:adopt 登记
-  - id: workspace-mcp-trust
-    roots:
-      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust
-    managed: true
-    requires: [zcode-cli, shared]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/index.ts
-      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/contract.ts
-    layers:
-      adapters: .
-    owner: cli
   # composer-edit-mode：由 architecture:adopt 登记
   - id: composer-edit-mode
     roots:
@@ -1272,35 +701,7 @@ modules:
       ui: .
     owner: conversation
   # desktop-microphone-access：由 architecture:adopt 登记
-  - id: desktop-microphone-access
-    roots:
-      - packages/desktop/src/main/microphone-access
-    managed: true
-    requires:
-      - shared
-    publicEntrypoints:
-      - packages/desktop/src/main/microphone-access/index.ts
-      - packages/desktop/src/main/microphone-access/contract.ts
-    layers:
-      adapters: .
-    owner: desktop
   # web-share-manage：由 architecture:adopt 登记
-  - id: web-share-manage
-    roots:
-      - packages/web/src/share-manage
-    managed: true
-    requires:
-      - shared
-      - ui
-      - web
-      - web-auth
-    publicEntrypoints:
-      - packages/web/src/share-manage/index.ts
-      - packages/web/src/share-manage/contract.ts
-      - packages/web/src/share-manage/mockConversationShareManageClient.ts
-    layers:
-      ui: .
-    owner: conversation
   # managed-worktree-shared：由 architecture:adopt 登记
   - id: managed-worktree-shared
     roots:
@@ -1324,9 +725,7 @@ modules:
       - rpc
       - services
       - shared
-    publicEntrypoints:
-      - packages/services/src/managed-worktree-tasks/index.ts
-      - packages/services/src/managed-worktree-tasks/contract.ts
+    publicEntrypoints: [packages/services/src/managed-worktree-tasks/contract.ts]
     layers:
       app: .
     owner: desktop
@@ -1389,31 +788,11 @@ modules:
       - services
       - shared
     publicEntrypoints:
-      - packages/services/src/extensions/index.ts
-      - packages/services/src/extensions/contract.ts
-      - packages/services/src/extensions/node.ts
+      [packages/services/src/extensions/index.ts, packages/services/src/extensions/contract.ts]
     layers:
       app: .
     owner: plugin
   # extension-host：全 App 唯一的扩展进程与 Main 侧监管器（docs/plugins/extension-host.md §12.1）。
-  - id: extension-host
-    roots:
-      - packages/desktop/src/extension-host
-      - packages/desktop/src/main/extensionHostSupervisor.ts
-    managed: true
-    requires:
-      - extension-host-protocol
-      # 扩展视图的进程内 MCP Client 宣告 MCP Apps 能力、页面资源 mimeType（§8）。
-      - mcp-apps-protocol
-      - rpc
-      - desktop
-    publicEntrypoints:
-      - packages/desktop/src/extension-host/index.ts
-      - packages/desktop/src/extension-host/contract.ts
-      - packages/desktop/src/main/extensionHostSupervisor.ts
-    layers:
-      adapters: .
-    owner: plugin
   # extension-slots：Renderer 的贡献表快照、插槽组件（docs/plugins/extension-host.md §6）。
   - id: extension-slots
     roots:
@@ -1441,23 +820,6 @@ modules:
   # plugin-api：插件作者用的类型包 @zcode-dev/plugin-api（docs/plugins/extension-host.md §17.9）。
   # 只转出 extension-host-protocol 与 v4 协议（shared）的类型；四个子入口都是公开入口。
   # tsup.config.ts 与 scripts/ 产出仓库外用的 dist 声明。
-  - id: plugin-api
-    roots:
-      - packages/plugin-api/src
-      - packages/plugin-api/scripts
-      - packages/plugin-api/tsup.config.ts
-    managed: true
-    requires:
-      - extension-host-protocol
-      - shared
-    publicEntrypoints:
-      - packages/plugin-api/src/contract.ts
-      - packages/plugin-api/src/manifest.ts
-      - packages/plugin-api/src/sessions.ts
-      - packages/plugin-api/src/protocol-v4.ts
-    layers:
-      contract: .
-    owner: plugin
   # 选区批注输入浮层；调用方是 v4 选区浮层，引用数据仍归 ui lib。
   - id: selection-comment
     roots:
@@ -1499,16 +861,15 @@ modules:
     owner: authentication
 
   - id: resource-manager
-    roots:
-      - packages/ui/src/resource-manager
-      - packages/services/src/process/processResourceSampler.ts
+    roots: [packages/ui/src/resource-manager]
     managed: true
     requires: [shared, ui]
     publicEntrypoints:
-      - packages/ui/src/resource-manager/ResourceManagerApp.tsx
-      - packages/ui/src/resource-manager/contract.ts
-      - packages/ui/src/resource-manager/resourceUsageView.ts
-      - packages/services/src/process/processResourceSampler.ts
+      [
+        packages/ui/src/resource-manager/ResourceManagerApp.tsx,
+        packages/ui/src/resource-manager/contract.ts,
+        packages/ui/src/resource-manager/resourceUsageView.ts,
+      ]
     layers:
       contract: contract.ts
       adapters: ../../../services/src/process/processResourceSampler.ts
@@ -1545,22 +906,6 @@ modules:
     owner: conversation
 
   # cli-memory-diagnostics：由 architecture:adopt 登记
-  - id: cli-memory-diagnostics
-    roots:
-      - apps/zcode-cli/packages/adapters/src/memory-diagnostics
-      - apps/zcode-cli/packages/adapters/tests/memory-diagnostics
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/resource-sampler.ts
-      - packages/services/src/feedback/feedbackLogArchive.ts
-    managed: true
-    requires: [shared, zcode-cli]
-    publicEntrypoints:
-      - apps/zcode-cli/packages/adapters/src/memory-diagnostics/index.ts
-      - apps/zcode-cli/packages/adapters/src/memory-diagnostics/contract.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/resource-sampler.ts
-      - packages/services/src/feedback/feedbackLogArchive.ts
-    layers:
-      adapters: .
-    owner: agent
   - id: mobile-ui
     roots: [packages/ui/src/components/mobile-ui]
     managed: true
@@ -1583,16 +928,36 @@ global:
   forbidDeepImports: true
   managedOnly: true
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
+  # 浏览器公共面包含每个包的全部安全子入口；Node 专用入口显式排除，不能由 baseline 放行。
+  browserScopes: [packages/ui/src, packages/web/src, packages/client/src]
+  browserPackages:
+    - "@zcode/ui"
+    - "@zcode/client"
+    - "@zcode/shared"
+    - "@zcode/services"
+    - "@zcode/rpc"
+    - "@zcode/provider"
+    - "@zcode/model-option-map"
+    - "@zcode/session-control"
+    - "@zcode/design-runtime"
+  nodeEntrypoints:
+    - "@zcode/shared/node"
+    - "@zcode/shared/agent-crash-diagnostic"
+    - "@zcode/shared/sqlite-migrations"
+    - "@zcode/shared/managed-worktree"
+    - "@zcode/shared/workspace-hook-discovery"
+    - "@zcode/shared/workspace-hook-mutation"
+  nativePackages: ["@napi-rs/keyring"]
 
 exceptions:
+  - id: storage-startup-gate-browser-uuid-existing-edit
+    rule: unmanaged-new-file
+    paths: [packages/services/src/zcode-agent/zcodeStorageStartupGate.ts]
+    reason: 既有协议启动门禁只将 Node randomUUID 替换为 shared 跨端 UUID 工具，移除浏览器契约的传递 Node 依赖；不新增文件，不改变状态 owner、订阅或超时顺序。整个 services 目录接管不在本次 P0 范围，此精确准入不豁免浏览器安全规则。
   - id: mock-project-service-split
     rule: unmanaged-new-file
     paths: [packages/server/src/mock/project.ts]
     reason: 纯 Web 模拟后端把本地项目与目录浏览从 planning.ts 拆出以满足 max-lines；server 为原型模块，后续由自有后端整体替换时一并删除。
-  - id: sidebar-bottom-activity-remove-marketing-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/sidebar-activity/SidebarBottomActivity.tsx]
-    reason: 已准入的上游文件只移除营销 Banner 与全局通知的共享槽位仲裁，保留 GlobalNoticeSurface 渲染；owner、模块边界与全局通知行为不变，接管 sidebar-activity 目录不在本次范围内。
   - id: region-copy-suggested-prompts-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/featureSuggestedPrompts.ts]
@@ -1601,75 +966,21 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/lib/userActionTraceCatalog.ts]
     reason: 上游已有埋点目录仅删除已移除分组选项的三个事件声明；本次不接管整个 UI lib 目录。
-  - id: assistant-block-order-tool-part-order-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/agent/tool-part-order.ts]
-    reason: 已准入的工具 part 选择只增加 blockIndex 排序（apps/zcode-cli/docs/design/v2/model/assistant-block-order.md），declarationIndex 与物理顺序兜底不变；接管整个 core 包不在本次范围内。
-  - id: assistant-block-order-prompt-trajectory-continuity-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/tools/prompt-trajectory/src/message-continuity.ts]
-    reason: 已准入的调试工具比较回复前折叠多个文字块，适配每个文字块单独回放（apps/zcode-cli/docs/design/v2/model/assistant-block-order.md）；只读比较逻辑，不改变模块边界。
-  - id: session-features-attribution-header-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/adapters/src/model/runner-attribution.ts]
-    reason: 已准入的归因头构造器只追加 x-zcode-session-features（docs/design/v2/model/session-features-header.md）；它仍是全部归因头的唯一写入点，签名与模块边界不变，接管整个 adapters 包不在本次范围内。
-  - id: session-features-workflow-command-pattern-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/methods/dynamic-workflow-activation.ts]
-    reason: 已准入的动态工作流激活只导出既有 `/workflow` 历史判据常量，供 session-features 的历史推导复用同一判据；激活行为、owner 与模块边界不变。
-  - id: node-repl-call-ledger-cua-bridge-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/node-repl-host/src/cua-bridge.ts]
-    reason: 已准入的 node_repl CUA bridge 只删去 Worker 侧的会话信息构造与目标应用身份记录，二者移到主线程 CUA broker（apps/zcode-cli/docs/design/v2/tool/20-node-repl-call-ledger.md）；subagent 拒绝与对模型的行为不变，接管整个 node-repl-host 包不在本次范围内。
-  - id: node-repl-call-ledger-cua-broker-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/node-repl-host/src/cua-broker.ts]
-    reason: 已准入的 node_repl CUA broker 改为只认 node-repl-call-ledger 签发的本次调用 token，按账本条目构造会话信息并把目标应用身份记进账本（20-node-repl-call-ledger.md「CUA broker」）；MR !3207 再在 token 校验之后把会话能力标签用的 computerUse 记进账本（docs/design/v2/model/session-features-header.md）；runtime 调用与响应格式不变。
-  - id: node-repl-call-ledger-result-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/node-repl-host/src/result.ts]
-    reason: 已准入的 node_repl 结果组装改为只从账本 facts 取可信 key，忽略 Worker 结果消息里的同名字段（20-node-repl-call-ledger.md「结果组装」）；MR !3207 按同样处置追加 zcode/nodeReplBrowserUse、zcode/nodeReplComputerUse 两个 key（docs/design/v2/model/session-features-header.md）；结果内容与其他 meta 处置不变。
-  - id: offpeak-expiration-codes-existing-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/off-peak/model-binding.ts]
-    reason: 已准入的闲时请求包装器仅复用共享错误码判断，补齐 3106 运行超时的既有生命周期通知；不改变 owner、控制协议或模块边界，不扩展为整个 CLI runtime 目录接管。
-  - id: multi-cursor-badge-title-passthrough-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/node-repl-host/src/cua-broker.ts
-    reason: 已准入的 node_repl CUA broker 仅增透传可选 actionTitle 字段（node_repl cell title → badge 文字，docs/cua/producer/multi-session-cursor-overlay-spec.md §4.8）——cua-broker 按 ledger meta 构建的 requestContext 注入、parseContext 白名单补字段；签名、broker 形态与模块边界不变，不接管 zcode-cli 目录。
-  - id: conversation-share-manage-scope-passthrough-edit
-    rule: unmanaged-new-file
-    paths: [packages/services/src/conversation-share/conversationShareConnectionScope.ts]
-    reason: 已准入的分享 attachment 作用域包装只追加设置页分享管理的四个方法（docs/conversation-share-v1.md「设置页分享管理」）：桌面分支原样透传，手机远控分支拒绝；不改变 R3 受信连接、发布/导入作用域与模块边界，接管整个 services/conversation-share 目录（含既有超长文件）不在本次范围内。
   - id: conversation-selection-comment-quote-schema-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/conversationSelection.ts]
     reason: 已准入的对话引用 schema 只追加可选 comment 与 agent 字段（选区批注，docs/ui/conversation-selection-side-chat.md「选区批注」）；仍是 conversationQuotes 的唯一 schema，长度上限与模块边界不变，接管整个 shared 包不在本次范围内。
-  - id: conversation-selection-comment-model-guidance-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts]
-    reason: 已准入的引用模型材料拼装只在引用带批注时追加一句说明（docs/ui/conversation-selection-side-chat.md「选区批注」）；仍是 withConversationQuotes 的唯一实现，canonical 正文与 Bot 投递边界不变，接管整个 core 包不在本次范围内。
   - id: side-pane-full-view-shortcut-command-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/shortcutCommands.ts]
     reason: 已准入的快捷键命令表只追加一条 toggleSidePaneFullView 命令（Side Pane 完整视图，docs/ui/side-pane-full-view.md）；命令表仍是唯一数据源，签名与模块边界不变，接管整个 shared 包不在本次范围内。
-  - id: zcode-site-deploy-runtime-template
-    rule: unmanaged-new-file
-    paths:
-      [apps/zcode-cli/packages/zcode-site-plugin/skills/site-deploy/templates/static-server.mjs]
-    reason: site-deploy 技能复制进用户部署包的静态站服务器模板，只在 Sites runner 的容器里由 start.sh 执行；仓库代码不 import 它，也不属于任何运行时模块。同目录的 start.sh 模板是 shell，不受本规则约束。
-  - id: opensource-cua-test-project-config
-    rule: unmanaged-new-file
-    paths: [packages/zcode-cua/vitest.config.ts]
-    reason: 该文件只装配测试项目，开源占位版本用于保持根单测入口可运行；不包含 producer 运行逻辑，不为同目录实现文件开放例外。
   - id: project-location-cache-recovery-existing-edit
     rule: unmanaged-new-file
     paths:
-      - packages/shared/src/project-access-token.ts
-      - packages/shared/src/project-access-token-client.ts
-      - packages/services/src/model-provider/accountProjectTokenClient.ts
-      - packages/services/src/credential/credentialService.ts
+      [
+        packages/shared/src/project-access-token.ts,
+        packages/shared/src/project-access-token-client.ts,
+      ]
     reason: 已有项目 Token 与凭据存储增加派生缓存的局部恢复端口，并把换证请求失败按固定类别分码（ZCT-2111046389485834240）；已确认的 PAT 签发临时故障仅在原 pending 内重试一次，不扩展到 Key 创建或 OAuth；保持原有 owner 和共享文件锁，不接管全目录。
   - id: plugin-agent-permission-mode-restrict-only-existing-edit
     rule: unmanaged-new-file
@@ -1691,14 +1002,6 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/shared/src/userInstructions.ts]
     reason: 用户自定义指令字节上限共享常量（与 CLI 读取截断对齐，spec：docs/ui/settings-personalization.md），服务层校验与 UI 计数共用同一数值；仅两个常量导出，接管整个 shared 目录不在本次范围内。
-  - id: remote-workspace-admission-deadline-existing-edit
-    rule: unmanaged-new-file
-    paths: [packages/desktop/src/host/remoteWorkspacePreparation.ts]
-    reason: 已准入的远程项目目录 admission 只增加 30 秒截止时间和可重试的无响应错误码（3.16.2 远端回归 R8，docs/remote/project-first-remote-navigation-spec.md §2.4）；owner、调用方与模块边界不变，接管 desktop host 目录不在本次修复范围内。
-  - id: gen-ui-existing-capability-check
-    rule: unmanaged-new-file
-    paths: [packages/services/src/zcode-agent/independentPlanSupport.ts]
-    reason: 在已存在的 CLI 能力查询入口补充 GenUI 上下文能力检查，防止旧 CLI 静默丢弃状态；保持既有 services/agent 边界，不扩展本次修复为整个 zcode-agent 模块接管。
   - id: connection-log-secret-token-unmanaged-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/source-server/connectionLog.ts]
@@ -1707,100 +1010,10 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/shared/src/source-server/connectionErrors.ts]
     reason: 已存在的连接错误归一化码表补一项 ECONNRESET → remote-host-unreachable，修复在线断连恢复失败被误报为预检失败；签名与模块边界不变，接管整个 shared 包不在本次修复范围内。
-  - id: remote-authentication-unsupported-presentation-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/lib/remoteConnectionPresentationErrors.ts]
-    reason: 已存在的远程连接错误展示映射为新增公开码 remote-authentication-unsupported 补一项标题与“查看详情”操作，修复 SSH 二次验证失败被提示为检查密码；签名与模块边界不变，接管 ui 目录不在本次修复范围内。
-  - id: source-server-operation-log-level-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/desktop/src/host/sourceServerOperationLogs.ts]
-    reason: 已有连接日志封装透传 TransportContext 已定义的 level，使低版本 glibc 提示保留 warn；Host 仍是唯一日志 owner，签名与模块边界不变，接管整个 desktop 包不在本次范围内。
   - id: client-config-public-field-unmanaged-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/clientConfig.ts]
     reason: Existing upstream public config parser gains one validated recommendation field; ownership and module boundaries remain unchanged, and adopting the shared package is outside this change.
-  - id: highspeed-transcript-owner-existing-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/highspeed/highspeedTurnHydration.ts]
-    reason: 该文件已存在于集成基线；本次仅在既有 transcript 水合映射中保留稳定匿名 ownerKey，不新增模块、IO 或状态 owner。账号归属校验仍由 Host 执行，UI store 继续拥有临时查询占位。接管整个 UI 目录不在此变更范围，行为和验收见 docs/highspeed/highspeed-card-spec.md。
-  - id: client-config-optional-authorization-existing-readers
-    rule: unmanaged-new-file
-    paths:
-      - packages/services/src/client-config/clientConfigService.ts
-      - packages/provider-node/src/zcode-builtin-download.ts
-    reason: 现有配置读取器新增宿主注入的可选 JWT，并隔离身份缓存和 CDN 请求头；不新增源码文件或改变服务与下载器的 owner，整包架构接管不属于本次请求头修复。
-  - id: highspeed-fallback-snapshot-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/methods/turn-execution-fallback.ts]
-    reason: 合并已存在于 staging 的加速卡回退模块，仅将可变 Session 读取替换为本轮固定候选；保持现有 Core 模块边界，不在同步分支时机械拆分整个 runtime。
-  - id: session-owned-workflow-shutdown-existing-files
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-submit.ts
-      - apps/zcode-cli/packages/bootstrap/src/app/workflow-driver-quiescence.ts
-    reason: 两个文件已存在于集成基线；本次在既有 bootstrap owner 内补启动关闭互斥和 actor 清理等待，不新增模块或跨层依赖。整个 bootstrap/app 的接管另行治理，生命周期公开模块边界保持不变。
-  - id: workflow-quota-auto-resume-unmanaged-file
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/bootstrap/src/app/dynamic-workflow-quota-resume.ts]
-    reason: 额度停止的 run 到点自动续跑，是 run service 旁的一个宿主模块（只读 journal 行、订阅结算、经注入的 resume 续跑）；与同目录的 run service 文件同属未受管的 zcode-cli bootstrap，接管该目录需要单独的模块边界整理。
-  - id: mcp-node-fallback-unmanaged-file
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/adapters/src/mcp/node-fallback.ts
-      - apps/zcode-cli/packages/bootstrap/src/app/mcp-node-fallback.ts
-    reason: 桌面 Electron Node 下 stdio MCP 的 node/npm/npx 回退（apps/zcode-cli/docs/design/v2/mcp-node-fallback.md）。adapters 文件只负责 shim 目录与子进程 env 合并，经 CreateMcpAdapterOptions.nodeFallback 注入；bootstrap 文件只判定 Electron 并给出随包 npm 候选目录。两者同属未受管的 zcode-cli，接管 adapters/mcp 或 bootstrap/app 需要单独的模块边界整理。
-  - id: workflow-unrecognized-code-cap-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/adapters/src/model/workflow-model-failure-policy.ts]
-    reason: 已准入的 workflow 模型错误策略表只增加一行（分类器不认识的业务码在同一次请求里连续出现 10 次时停 run）、一个连续计数入参与两个计数纯函数；runner 与 driver 读同一函数的约束与模块边界不变，接管 adapters/model 目录不在本次范围内。
-  - id: plugin-async-discovery-existing-callers
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-ui-surfaces.ts
-      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/runtime-cleanup.ts
-      - apps/zcode-cli/packages/cli/src/plugins-command-shared.ts
-      - apps/zcode-cli/packages/cli/src/plugins-marketplace-command.ts
-      - apps/zcode-cli/packages/cli/src/tui-prompt-handler-queries.ts
-    reason: 已有插件发现调用方迁移为 await；runtime-cleanup 在原进程关闭编排中释放注入的准备 owner，没有新增文件。对应契约见 docs/workspace-capability-discovery-cache.md，不为此次异步化与预热接管整个 CLI 或协议目录。
-  - id: automation-self-pause-turn-visibility-existing-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/methods/turn-tool-visibility.ts]
-    reason: 已有 turn 工具可见性 owner 仅增加当前 automation 自暂停的反向可见性规则；不新增跨模块依赖或 owner，接管整个 zcode-cli runtime 超出本次缺陷修复范围。
-  - id: compact-bundle-reminder-builder-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/methods/runtime-reminder-persistence.ts]
-    reason: 已入库的隐藏提醒落盘函数拆出只构建记录的函数，供 compaction 把公告、summary 与附件交给同一个 store 事务；记录不再写 tools 字段，中断标记按普通 user 文本取正文；Core 模块边界不变，接管整个 runtime 目录不在本次范围内。
-  - id: tool-search-schema-key-order-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/contracts/src/tools/tool-search.ts]
-    reason: 已入库的 ToolSearch 输入 schema 改走统一的 toToolJsonSchema，使 key 顺序与其他工具一致，$schema 随之从 draft-07 改为 2020-12；contracts 模块边界不变，接管整个 tools 目录不在本次范围内。
-  - id: tool-search-removal-reason-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/adapters/src/model/tool-search.ts
-      - apps/zcode-cli/packages/core/src/tool/search/exposure.ts
-      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
-    reason: 已入库的 ToolSearch 能力解析、公告渲染与离线轨迹识别按删除原因分段，并由 adapter 声明 Anthropic 协议的提醒折叠能力；增量事实、持久化与模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
-  - id: interrupt-marker-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/methods/interrupt-marker.ts]
-    reason: 停止轮次后给模型的中断标记放在 runtime/methods 的独立小文件，避免继续增大已超行数的 turn.ts；复用隐藏提醒的落盘函数（persistRuntimeReminderMessage）与历史提交，Core 模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
-  - id: instruction-files-delta-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/context/sections/instruction-files.ts]
-    reason: 指令文件与 MEMORY.md 索引的按文件渲染、hash 与增量文案放在 context/sections 的独立小文件，完整公告与增量公告共用（apps/zcode-cli/docs/design/v2/loop/meta-user-context.md）；只被同包的 request-user-context 与 context-refresh 引用，Core 模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
-  - id: prompt-snapshot-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/helpers/prompt-snapshot.ts]
-    reason: 主会话已发 system 的快照读写放在 runtime/helpers 的独立小文件（apps/zcode-cli/docs/design/v2/loop/prompt-snapshot.md）；数据存在现有 session_entry（类型 runtime/prompt_snapshot），不改表，只被同包的 turn-loop、resume、compact-active、session-fork 与 rebuildContextPrefix 引用，Core 模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
-  - id: gen-ui-output-fork-session-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/helpers/gen-ui-output.ts]
-    reason: 已入库的 Gen UI 输出目录解析加一个可选 session id 参数，fork 时取子会话自己的目录写入环境更新（docs/specs/gen-ui-output-directory.md）；默认仍取当前会话，调用方与 Core 模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
-  - id: off-peak-takeover-context-prefix-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/off-peak/turn.ts]
-    reason: 已入库的闲时接管函数换成用户模型后，按新模型重建 Context Prefix，与 guide 换模型共用 rebuildContextPrefix；接管时机、归属与 Core 模块边界不变，接管整个 zcode-cli 目录不在本次范围内。
   - id: turn-work-segment-comment-unmanaged-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/conversationTurnRenderUnitTypes.ts]
@@ -1826,46 +1039,21 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/settings/ProactiveSuggestionsSetting.tsx]
     reason: 已有的主动任务推荐设置行只增加 SettingsRow 的稳定定位 id，不改变引导记录读写和模块依赖；搜索实现独立登记在 settings-search 模块，不把现有引导设置迁入搜索模块。
-  - id: gen-ui-tweak-runtime-size
-    rule: max-file-lines
-    paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]
-    reason: Keep parameter binding and registration lifecycle together; runtime-manifest.json and tests verify file integrity.
-  - id: gen-ui-tweak-runtime-lint
-    rule: disable-count
-    paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]
-    reason: Allow the control-character validation regex and the single-file parameter-control runtime.
-  - id: workflow-amend-provider-boundary-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/contracts/src/tools/amend-workflow.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow-resolve.ts
-    reason: Admitted upstream files edited only to make an own-run AmendWorkflow that brings in a new provider ask the user; adopting the zcode-cli contracts and core handlers needs a separate module boundary refactor.
-  - id: remote-device-list-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/settings/SourceServerDeviceRow.tsx
-      - packages/ui/src/settings/sourceServerDeviceList.ts
-      - packages/ui/src/lib/remoteConnectionPresentation.ts
-    reason: Settings remote device list (RDUX-13) splits the presentational row and pure ordering/search helpers out of the existing SourceServerManagementPanel, and removes the now-unused settings navigation status aggregate from the admitted presentation model; adopting packages/ui/src/settings or packages/ui/src/lib needs a separate module boundary refactor (same pattern as settings-machine-unmanaged-edit).
   - id: workflow-share-unmanaged-new-files
     rule: unmanaged-new-file
     paths:
-      - packages/services/src/conversation-share/conversationShareInlineImages.ts
-      - packages/services/src/conversation-share/conversationShareWorkflowSnapshot.ts
-      - packages/shared/src/conversation-share-content.ts
-      - packages/shared/src/conversation-share-tool-presentation.ts
-      - packages/ui/src/v4/ConversationShareContent.tsx
-      - packages/ui/src/v4/ConversationShareWorkflow.tsx
-      - packages/ui/src/v4/conversationShareItems.ts
-      - packages/ui/src/ToolCallBlocks/ToolPresentation.tsx
-      - packages/ui/src/ToolCallBlocks/presentationCapabilities.tsx
-      - packages/ui/src/ToolCallBlocks/renderers/list-models.tsx
-      - packages/ui/src/ToolCallBlocks/renderers/list-saved-workflows-presentation.tsx
-      - packages/ui/src/ToolCallBlocks/renderers/web-fetch.tsx
-      - packages/ui/src/hooks/useToolPresentationHostCapabilities.ts
-      - packages/ui/src/chat-input-toolbar/thoughtLevelLabels.ts
-      - packages/ui/src/components/workflow-timeline/subagent-model-label.ts
-      - packages/desktop/src/main/fileApplications.ts
+      [
+        packages/shared/src/conversation-share-content.ts,
+        packages/shared/src/conversation-share-tool-presentation.ts,
+        packages/ui/src/ToolCallBlocks/ToolPresentation.tsx,
+        packages/ui/src/ToolCallBlocks/presentationCapabilities.tsx,
+        packages/ui/src/ToolCallBlocks/renderers/list-models.tsx,
+        packages/ui/src/ToolCallBlocks/renderers/list-saved-workflows-presentation.tsx,
+        packages/ui/src/ToolCallBlocks/renderers/web-fetch.tsx,
+        packages/ui/src/hooks/useToolPresentationHostCapabilities.ts,
+        packages/ui/src/chat-input-toolbar/thoughtLevelLabels.ts,
+        packages/ui/src/components/workflow-timeline/subagent-model-label.ts,
+      ]
     reason: Feature-branch files admitted path-exact; adopting conversation-share, tool presentation or renderer directories needs a separate module boundary refactor (same pattern as settings-machine-unmanaged-edit).
   # 既有 workflow 摘要 renderer 的展示调整；仅登记这两个文件，不放开整个 renderer 目录。
   - id: workflow-summary-row-existing-ui-edit
@@ -1876,13 +1064,7 @@ exceptions:
     reason: Existing workflow row renderers edited only to replace decorative summary dots with layout spacing; adopting the renderer directory requires a separate module boundary refactor. Other architecture rules remain enforced.
   - id: workflow-notifications-unmanaged-files
     rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/core/src/runtime-task/workflow-blocked-reminder.ts
-      - apps/zcode-cli/packages/core/src/runtime/methods/dynamic-workflow-blocked-reminder.ts
-      - apps/zcode-cli/packages/core/src/runtime-task/workflow-notification-copy.ts
-      - apps/zcode-cli/packages/core/src/runtime/methods/dynamic-workflow-run-hole-notification.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/model-reference.ts
-      - packages/shared/src/test-ids-workflow.ts
+    paths: [packages/shared/src/test-ids-workflow.ts]
     reason: Workflow reminder, notification and model reference files reached staging without the MR architecture gate running; adopting the zcode-cli core and shared test ids needs a separate module boundary refactor.
   - id: composer-toolbar-unmanaged-files
     rule: unmanaged-new-file
@@ -1897,12 +1079,6 @@ exceptions:
       - packages/ui/src/lib/providerFamilyConnectionTransition.ts
       - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
     reason: Composer model, provider and toolbar files reached staging without the MR architecture gate running; adopting the packages/ui composer toolbar needs a separate module boundary refactor.
-  - id: provider-endpoint-routing-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/adapters/src/model/endpoint-routing-edition/index.ts
-      - apps/zcode-cli/packages/adapters/src/model/provider-endpoint-routing-options.ts
-    reason: Existing upstream routing assembly files gain the endpoint origin and injected JWT reader; adopting the full CLI model adapter directory needs a separate module boundary refactor.
   - id: workflow-mode-user-choice-unmanaged-edit
     rule: unmanaged-new-file
     paths:
@@ -1911,36 +1087,6 @@ exceptions:
       - packages/ui/src/store/dynamicWorkflowAvailabilityStore.ts
       - packages/ui/src/hooks/useDynamicWorkflowAvailability.ts
     reason: Admitted upstream files edited only to let the user's dynamic workflow mode choice always win, keep the settings row visible, and describe that the snapshot reload no longer waits for CLI answers; adopting packages/shared/src and packages/ui/src needs a separate module boundary refactor.
-  - id: workflow-source-error-hint-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/contracts/src/tools/fill-workflow-hole.ts
-    reason: Admitted upstream file edited only to rename the constant its comment refers to (CREATE_WORKFLOW_SOURCE_ERROR split into conflict and missing messages); adopting apps/zcode-cli needs a separate module boundary refactor.
-  - id: workflow-analyzer-complexity-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-bindings.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-calls.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-functions.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-loops.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-settle.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-state.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-strands.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-types.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/flow-strands.ts
-    reason: Admitted upstream analyzer files edited only to stop the workflow analysis from growing much faster than the script (callback bindings, loop regions, join control, flow strands); adopting apps/zcode-cli/packages/dynamic-workflow needs a separate module boundary refactor that first breaks its 24 internal import cycles.
-  - id: off-peak-model-descriptor-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/runtime/off-peak/model-binding.ts]
-    reason: 已入库的闲时 Model 包装改用 contracts 的 modelDescriptorOf 复制全部数据字段，修复逐字段手抄漏掉 requestCapabilities；包装行为与 Core 模块边界不变，接管整个 runtime 目录不在本次范围内。
-  - id: workflow-draft-read-state-per-path-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/tool/handlers/workflow-draft-read-state.ts]
-    reason: 已入库的工作流草稿读状态登记改走 setReadFileStateEntry，跟随读状态改为每个路径一条；草稿流程与 Core 模块边界不变，接管整个 tool 目录不在本次范围内。
-  - id: workflow-skill-gate-compact-read-state-comment-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/core/src/tool/handlers/workflow-skill-gate.ts]
-    reason: 已入库的工作流技能门只更新一句注释，跟随 compaction 后读取状态改为只留补回的文件；门的判据、代码与 Core 模块边界不变，接管整个 tool 目录不在本次范围内。
   - id: conversation-telemetry-existing-state-machine-size
     rule: max-file-lines
     paths:
@@ -1953,10 +1099,6 @@ exceptions:
       - packages/shared/src/conversation-telemetry/conversationTelemetryEngine.ts
       - packages/shared/src/conversation-telemetry/messageTelemetry.ts
     reason: Preserve the two original file-length annotations while relocating the existing implementation.
-  - id: host-service-telemetry-existing-file
-    rule: unmanaged-new-file
-    paths: [packages/desktop/src/host/hostServiceResourceTelemetry.ts]
-    reason: Existing main-branch registration point gains a Host-only event and capability gate; adopting the whole Host runtime is outside this telemetry change.
   - id: element-mention-sync-plugin-unmanaged-new-file
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/composer/ElementMentionSyncPlugin.tsx]
@@ -1966,26 +1108,9 @@ exceptions:
     paths:
       - packages/ui/src/request-security-edition/errors.ts
     reason: 在现有官方版本安全校验展示入口补充配置读取失败的分类与本地化，不改变状态 owner 或模块边界；公共 errors.ts 入口及其开源占位实现承接同一契约，沿用本条精确路径准入；接管整个 UI 安全校验目录不属于本次网络恢复修复。
-  - id: node-repl-no-progress-hint-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/node-repl-host/src/no-progress-guard.ts
-      - apps/zcode-cli/packages/node-repl-host/src/tool-contract.ts
-    reason: Admitted upstream node_repl host gains a self-contained no-progress hint file and a serverInfo version bump; adopting the whole node-repl-host package needs a separate module boundary refactor.
-  - id: zcode-cua-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths:
-      - packages/zcode-cua/src/**
-    reason: The whole zcode-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch.
   - id: ui-more-locales-new-files
     rule: unmanaged-new-file
-    paths:
-      - packages/shared/src/locale.ts
-      - packages/desktop/src/main/desktopApplicationLocaleBootstrap.ts
-      - packages/ui/src/i18n/localeMessages.ts
-      - packages/ui/src/i18n/locales/ja-JP.ts
-      - packages/ui/src/i18n/locales/ko-KR.ts
-      - packages/ui/src/i18n/locales/ru-RU.ts
+    paths: [packages/shared/src/locale.ts, packages/ui/src/i18n/localeMessages.ts]
     reason: 新增日/俄/韩界面语言（docs/i18n/ui-locales.md）。locale.ts 是语言解析与回退的唯一事实源；Main 冷启动只读 setting.json 取界面语言；localeMessages 只装配各语言文案表；三份文案表与 en-US/zh-CN 同构，单文件远超 800 行上限，登记 managed 模块也须另加行数例外。接管整个 ui/shared/desktop 目录不在本次范围内。
   - id: visualize-plugin-icon-existing-edit
     rule: unmanaged-new-file
@@ -2002,65 +1127,27 @@ exceptions:
   - id: ui-more-locales-existing-edit
     rule: unmanaged-new-file
     paths:
-      - packages/desktop/src/host/hostSessionCreateTelemetry.ts
-      - packages/services/src/marketing-touch/marketingTouch.ts
-      - packages/services/src/marketing-touch/marketingTouchService.ts
-      - packages/shared/src/marketingTouch.ts
-      - packages/ui/src/app-shell/WorkflowRunHoleParts.tsx
-      - packages/ui/src/app-shell/WorkflowRunProvenance.tsx
-      - packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx
-      - packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx
+      [
+        packages/services/src/marketing-touch/marketingTouch.ts,
+        packages/shared/src/marketingTouch.ts,
+        packages/ui/src/app-shell/WorkflowRunHoleParts.tsx,
+        packages/ui/src/app-shell/WorkflowRunProvenance.tsx,
+        packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx,
+        packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
+      ]
     reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言，投放内容仍按中英渲染），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 marketing-touch/workflow-timeline 目录不在本次范围内。
-  - id: dwf-held-elsewhere-and-leftovers-existing-edit
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-fill.ts
-      - apps/zcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-roster-phases.ts
-      - apps/zcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-roster.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow-source.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/fill-workflow-hole-resolve.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/get-workflow-run-format-roster.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/get-workflow-run-summary.ts
-    reason: Existing dynamic-workflow files only gain the refusal for a run held by another process and accurate wording for unfinished steps (docs/dynamic-workflow/launch.md); no new file, owner or module boundary changes.
-  - id: dwf-websearch-budget
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/bootstrap/src/app/workflow-driver-types.ts
-      - apps/zcode-cli/packages/bootstrap/src/app/workflow-driver-web-search-budget.ts
-      - apps/zcode-cli/packages/contracts/src/interfaces/workflow-web-search-budget.port.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/actor-budgets.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/analysis/actor-models.ts
-      - apps/zcode-cli/packages/dynamic-workflow/src/engine/persona.ts
-    reason: The per-task WebSearch limit for workflow subagents (docs/dynamic-workflow/authoring.md, "A subagent's search budget") adds three small files beside the workflow driver, the contracts interfaces and the compiler's persona check, and edits three existing ones; it follows the existing escalation path and changes no owner or module boundary.
-  - id: design-plugin-third-party-resources
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/design-plugin/skills/design/design-resources/**
-    reason: 内置 design 插件随包的第三方设计资源（骨架里的 deck-stage.js、schema.ts 等示例资产），按上游字节保留并登记在 third-party/copied-components.json；它们只作为技能读取或复制给用户的模板，不被任何产品代码 import，不构成产品模块。
   - id: agent-runtime-exit-banner
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/AgentRuntimeExitBanner.tsx]
     reason: 后台 runtime 意外退出时会话底部的说明横幅与订阅 hook（docs/ui/agent-runtime-exit-notice.md），与 PendingCommandRecoveryBanner 同级；只读 services 的 onAgentRuntimeExited，不持有会话状态，不接管整个 ui 未受管模块。
-  - id: background-subagent-stall-notice
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/core/src/subagent/background-stall.ts
-      - apps/zcode-cli/packages/core/src/runtime/methods/subagent-stall-reminder.ts
-      - apps/zcode-cli/packages/core/src/tool/handlers/task-output-projection.ts
-    reason: 后台 Agent 无进展提醒（apps/zcode-cli/docs/design/v2/tool/07-subagent.md「后台 Agent 无进展提醒」）新增纯逻辑停滞钟与 runtime 接线两个小文件，与既有 workflow 空闲提醒钟同构；task-output-projection 只为运行中的 local_agent 加 activity 投影。进展事实仍归 RuntimeTaskRegistry，投递复用后台通知队列，不改变模块边界。
-  - id: previous-runtime-subagent-leftovers-observation
-    rule: unmanaged-new-file
-    paths: [apps/zcode-cli/packages/bootstrap/src/app/subagent-observation.ts]
-    reason: TUI 的子代理观察与 V4 冷恢复共用 projectSessionSubagents；只多传本进程启动时间，使上一代 runtime 崩溃遗留的 child 不再显示为 running（apps/zcode-cli/docs/design/v2/tool/07-subagent.md「上一代 runtime 遗留的 Agent」）。不改变模块边界。
-  - id: total-tokens-reminder
-    rule: unmanaged-new-file
-    paths:
-      - apps/zcode-cli/packages/core/src/context/total-tokens.ts
-      - apps/zcode-cli/packages/core/src/runtime/helpers/total-tokens-budget.ts
-      - apps/zcode-cli/packages/core/src/runtime/helpers/provider-entry-origins.ts
-    reason: token 预算提醒（apps/zcode-cli/docs/design/v2/loop/meta-user-context.md「Total-tokens reminder」）新增两个小文件：预算行文本与计数器纯函数；已准入的 provider-entry-origins 只追加真实用户 prompt 的判定，复用既有来源判据。提醒走现有 system-reminder 来源与投影，不新增 owner、协议或模块边界，接管整个 zcode-cli 不在本次范围内。
   - id: startup-failure-export-logs
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/root/GlobalDatabaseStartupLoading.tsx
     reason: 启动失败页在现有复制诊断/重试/退出旁增加导出日志按钮（docs/desktop/database-migration-startup-gate-plan.md）。只扩展既有失败页交互，不新增文件、不改变启动状态 owner 或模块边界；接管 packages/ui/src/root 不在本次范围内。
+  - id: browser-host-ports-existing-edits
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/shortcuts/bindings.ts
+      - packages/ui/src/settings/WorkspaceFileSearchSection.tsx
+    reason: 仅接纳两个已有文件的浏览器宿主端口清理：快捷键注释移除原生菜单通道描述，工作区搜索设置移除本机文件定位入口；不新增文件、不改变状态 owner，不豁免浏览器安全规则。

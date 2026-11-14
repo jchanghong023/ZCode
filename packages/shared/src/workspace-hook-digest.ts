@@ -10,56 +10,11 @@ import {
   type WorkspaceHookEventName,
   type WorkspaceHookRuntimeRoot,
   type WorkspaceHookSourceInput,
-} from "./workspace-hook-config.js";
-
-export interface CanonicalWorkspaceHookEntryData {
-  reviewItemId: string;
-  event: WorkspaceHookEventName;
-  matcherIndex: number;
-  hookIndex: number;
-  sourceFileIndex: number;
-  sourceRelativePath: string;
-  matcher: string | null;
-  type: "command" | "process";
-  command: string;
-  args?: string[];
-  async?: boolean;
-  shell?: true | string;
-  resolvedTimeoutMs: number;
-  resolvedMaxOutputBytes: number;
-  statusMessage?: string;
-  /** 只在声明写成 `deny` 时在场：`allow` 与缺省同义，不进条目也不进摘要。 */
-  onError?: "deny";
-  sourceRootEnabled: boolean;
-  declarationEnabled: boolean;
-  runtimeHooksEnabled: boolean;
-  configuredEnabled: boolean;
-  editable: boolean;
-  declarationDigestAlgorithm: "sha256";
-  hookDeclarationDigest: string;
-}
-
-export interface WorkspaceHookBundleSnapshotData {
-  schemaVersion: typeof WORKSPACE_HOOK_DIGEST_SCHEMA_VERSION;
-  workspaceIdentity: string;
-  discoveredAt: string;
-  sourceFiles: Array<{
-    canonicalPath: string;
-    baseDir: string;
-    discoveryOrder: number;
-    configFileKind: WorkspaceHookConfigFileKind;
-    explicitProjectConfig: boolean;
-    editable: boolean;
-    hooksRoot: {
-      enabled?: boolean;
-      timeoutMs?: number;
-      maxOutputBytes?: number;
-    };
-  }>;
-  hooks: CanonicalWorkspaceHookEntryData[];
-  digestAlgorithm: "sha256";
-  bundleDigest: string;
-}
+} from "./workspace-hooks/contract.js";
+import type {
+  CanonicalWorkspaceHookEntryData,
+  WorkspaceHookBundleSnapshotData,
+} from "./workspace-hooks/contract.js";
 
 export function resolveWorkspaceHookEntries(input: {
   workspacePath: string;

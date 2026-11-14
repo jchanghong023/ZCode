@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { FileApplicationInfo } from "@zcode/shared";
-import { ChevronDown, Copy, Download, Ellipsis, FolderOpen, MessageSquarePlus } from "lucide-react";
+import { Copy, Download, Ellipsis, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   ContextMenu,
@@ -14,20 +13,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { downloadImagePreview, readBoundedImageBlob } from "@/lib/imagePreviewDownload.js";
-import { DefaultFileApplicationLabel, FileApplicationChoices } from "@/file-menu/index.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import { readBoundedImageBlob } from "@/lib/imagePreviewDownload.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { captureImageComposerTarget } from "@/image-preview-editor/composerTarget.js";
 import { copyPreviewImage } from "@/lib/copyPreviewImage.js";
-import { getContainingDirectoryPath } from "@/lib/path.js";
-import {
-  getFileManagerLabel,
-  getSystemFileLocatorEditorId,
-} from "@/workspace-file-tree/helpers.js";
 import { toast } from "@/components/ui/toast.js";
 import { logger } from "@/logger.js";
 
+/**
+ * 图片预览动作。浏览器只有三类真实动作：加入对话、复制、下载。
+ * 本机默认应用/文件管理器/编辑器入口属于已裁撤宿主能力，这里不再接线。
+ */
 export function ImagePreviewActions({
   children,
   zoomControls,
@@ -52,43 +48,19 @@ export function ImagePreviewActions({
   onAdded: () => void;
   onAddEdited?: () => void;
   onBusyChange?: (busy: boolean) => void;
-  onDownload: () => Promise<string | null>;
+  onDownload: () => Promise<void>;
   downloading: boolean;
 }) {
   const { intl } = useZCodeIntl();
-  const platform = useOptionalPlatform();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false),
     alive = useRef(true);
-  const [localPath, setLocalPath] = useState<string | null>(null);
-  const [applications, setApplications] = useState<FileApplicationInfo[]>([]);
-  const [appsOpen, setAppsOpen] = useState(false);
-  const defaultApplication = applications.find((app) => app.isDefault) ?? null;
-  const native = Boolean(
-    platform?.canOpenLocalFiles && platform.saveFile && platform.openExternalFile,
-  );
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
     };
   }, []);
-  useEffect(() => {
-    if (!localPath || !native || !platform?.getFileApplications) return;
-    let canceled = false;
-    // 只有保存后的真实本机文件才能查询系统关联；下载/定位也必须刷新默认应用身份。
-    void platform
-      .getFileApplications({ path: localPath, pathKind: "file" })
-      .then((apps) => {
-        if (!canceled) setApplications(apps);
-      })
-      .catch(() => {
-        if (!canceled) setApplications([]);
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [localPath, native, platform]);
   const run = async (action: string, task: () => Promise<void>) => {
     if (pending.current || downloading) return;
     pending.current = true;
@@ -116,38 +88,11 @@ export function ImagePreviewActions({
       }
     }
   };
-  const ensureLocalPath = async () => {
-    if (localPath) return localPath;
-    // 对话图片只有预览字节，不能猜测宿主路径。用户明确保存后才使用返回的本机副本。
-    const result = await downloadImagePreview({ src, alt, filename }, platform?.saveFile);
-    if (!alive.current || result.kind !== "saved") return null;
-    setLocalPath(result.path);
-    return result.path;
-  };
-  const openApplication = (app?: FileApplicationInfo) =>
-    run("open", async () => {
-      const path = await ensureLocalPath();
-      if (!path || !alive.current) return;
-      const result =
-        app && platform?.openFileWithApplication
-          ? await platform.openFileWithApplication(app.id, { path, pathKind: "file" })
-          : await platform?.openExternalFile?.(path);
-      if (!result?.success) throw new Error(result?.error || "open_failed");
+  const download = () =>
+    run("download", async () => {
+      // 下载动作由调用方负责（浏览器下载端口），这里只转发并统一忙态/错误提示。
+      await onDownload();
     });
-  const chooseApplication = () =>
-    run("applications", async () => {
-      const path = await ensureLocalPath();
-      if (!path || !alive.current) return;
-      const apps = (await platform?.getFileApplications?.({ path, pathKind: "file" })) ?? [];
-      if (!alive.current) return;
-      setApplications(apps);
-      setAppsOpen(true);
-    });
-  const download = async () => {
-    const path = await onDownload();
-    // 常规下载与“保存并打开”共享同一份本机副本，避免定位仍禁用或打开时重复保存。
-    if (path && alive.current) setLocalPath(path);
-  };
   const actions = [
     {
       id: "add",
@@ -186,26 +131,6 @@ export function ImagePreviewActions({
           if (alive.current) toast(intl.formatMessage({ id: "preview.image.copied" }));
         }),
     },
-    ...(native
-      ? [
-          {
-            id: "reveal",
-            label: getFileManagerLabel(intl),
-            Icon: FolderOpen,
-            disabled: !ready,
-            select: () =>
-              void run("reveal", async () => {
-                const path = await ensureLocalPath();
-                if (!path || !platform || !alive.current) return;
-                const locator = getSystemFileLocatorEditorId();
-                const result = locator
-                  ? await platform.openInEditor(locator, path, { pathKind: "file" })
-                  : await platform.openInFileManager(getContainingDirectoryPath(path) ?? path);
-                if (!result.success) throw new Error(result.error || "reveal_failed");
-              }),
-          },
-        ]
-      : []),
     {
       id: "download",
       label: intl.formatMessage({ id: "markdownImage.download" }),
@@ -236,58 +161,6 @@ export function ImagePreviewActions({
       </ContextMenu>
       <div className="absolute right-16 top-4 z-20 flex max-w-[calc(100%-5rem)] items-center gap-1 rounded-xl border border-popover-border bg-popover p-1.5 shadow-sm platform-mac-desktop:top-12 platform-windows-desktop:top-[calc(env(titlebar-area-height,48px)_+_0.5rem)] platform-windows-desktop:right-20 platform-linux-desktop:right-20">
         {zoomControls}
-        {native ? (
-          <DropdownMenu open={appsOpen} onOpenChange={setAppsOpen}>
-            <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-border">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-none px-2"
-                disabled={!ready || busy || downloading}
-                onClick={() => void openApplication(defaultApplication ?? undefined)}
-              >
-                <DefaultFileApplicationLabel application={defaultApplication}>
-                  {defaultApplication
-                    ? undefined
-                    : intl.formatMessage({
-                        id: localPath ? "common.open" : "preview.image.saveAndOpen",
-                      })}
-                </DefaultFileApplicationLabel>
-              </Button>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="rounded-none"
-                  aria-label={intl.formatMessage({
-                    id: localPath ? "appHeader.selectOpenApp" : "preview.image.saveAndChooseApp",
-                  })}
-                  disabled={!ready || busy || downloading}
-                  onPointerDown={(event) => {
-                    if (event.button !== 0) return;
-                    event.preventDefault();
-                    void chooseApplication();
-                  }}
-                  onKeyDown={(event) => {
-                    if (["Enter", " ", "ArrowDown"].includes(event.key)) {
-                      event.preventDefault();
-                      void chooseApplication();
-                    }
-                  }}
-                >
-                  <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-            </div>
-            <DropdownMenuContent align="end">
-              <FileApplicationChoices
-                applications={applications}
-                onSelect={(app) => void openApplication(app)}
-                onOpenDefault={() => void openApplication()}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
         <Button
           size="icon-sm"
           variant="ghost"

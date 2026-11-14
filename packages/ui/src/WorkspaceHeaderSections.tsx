@@ -149,23 +149,14 @@ export function WorkspaceHeaderTitleSection({
     workspaceHeaderState.selectedProvider,
   );
   const menuTaskProvider = activeTaskProvider ?? workspaceHeaderProvider;
-  const {
-    taskSessionFile,
-    taskNativeSessionLogFile,
-    providerConfigFile,
-    fileManagerLabel,
-    handleCopyText,
-    handleOpenTaskPathInFileManager,
-    handleOpenProviderConfig,
-  } = useTaskListItemContextActions({
-    workspacePath: workspaceAbsPath,
-    remoteSessionId,
-    workspaceIdentity,
-    taskId: activeTaskId ?? "",
-    // 任务日志查询与 Header 当前展示态使用同一个 provider。
-    provider: menuTaskProvider,
-    intl,
-  });
+  const { taskSessionFile, taskNativeSessionLogFile, handleCopyText } =
+    useTaskListItemContextActions({
+      workspacePath: workspaceAbsPath,
+      workspaceIdentity,
+      taskId: activeTaskId ?? "",
+      // 任务日志查询与 Header 当前展示态使用同一个 provider。
+      provider: menuTaskProvider,
+    });
   const remoteWorkspaceHostLabel = remoteTarget
     ? formatRemoteWorkspaceHeaderHostLabel(remoteTarget)
     : null;
@@ -439,16 +430,13 @@ export function WorkspaceHeaderTitleSection({
               <TaskActionMenuContent
                 intl={intl}
                 isPinned={isPinned}
-                fileManagerLabel={fileManagerLabel}
                 taskSessionFile={taskSessionFile}
                 activeSessionId={activeSessionId}
                 taskNativeSessionLogFile={taskNativeSessionLogFile}
-                providerConfigFile={providerConfigFile}
                 disableTaskTargetActions={disableTaskTargetActions || taskMenuMembershipLoading}
                 disableTaskActions={Boolean(readOnlyReason)}
                 disabledReason={readOnlyReason}
                 disablePinTaskAction={taskMenuMembershipLoading}
-                hideMobileUnsupportedActions={false}
                 Item={DropdownMenuItem}
                 Separator={DropdownMenuSeparator}
                 onRestartTask={
@@ -532,9 +520,6 @@ export function WorkspaceHeaderTitleSection({
                       });
                     });
                 }}
-                onOpenTaskPathInFileManager={() => {
-                  void handleOpenTaskPathInFileManager();
-                }}
                 onCopyWorkspacePath={() => {
                   void handleCopyText(
                     intl.formatMessage({ id: "appHeader.copyPath" }),
@@ -558,9 +543,6 @@ export function WorkspaceHeaderTitleSection({
                     intl.formatMessage({ id: "appHeader.copySessionId" }),
                     activeSessionId,
                   );
-                }}
-                onOpenProviderConfig={() => {
-                  void handleOpenProviderConfig();
                 }}
               />
             </DropdownMenuContent>

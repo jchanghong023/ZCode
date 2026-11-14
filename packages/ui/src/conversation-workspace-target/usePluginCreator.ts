@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
-import type { CreateTaskRequest } from "@/app-shell/types.js";
+import type { CreateTaskOptions, CreateTaskRequest } from "@/app-shell/types.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { toast } from "@/components/ui/toast.js";
 import { logger } from "@/logger.js";
 import { loadPluginCreatorPrefill } from "@/settings/pluginCreatorPrefill.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
@@ -14,8 +12,8 @@ import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 
 export function usePluginCreator(
   onCreateTask: ((request?: CreateTaskRequest) => void) | undefined,
+  menuOpen: boolean,
 ) {
-  const { intl } = useZCodeIntl();
   const tabStore = useTabStoreApi();
   const activeWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
   const activeWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);
@@ -29,73 +27,107 @@ export function usePluginCreator(
     activeGroup: group,
     paneLayout,
   });
-  const targetKey = target?.workspaceIdentity?.trim() || target?.workspacePath || "";
-  const resolution = useWorkspaceServicesResolution(
-    target?.workspacePath,
-    undefined,
-    target?.workspaceIdentity,
-  );
+  const workspacePath = target?.workspacePath;
+  const workspaceIdentity = target?.workspaceIdentity;
+  const targetKey = workspaceIdentity?.trim() || workspacePath || "";
+  const resolution = useWorkspaceServicesResolution(workspacePath, undefined, workspaceIdentity);
   const scope = useMemo(
-    () => ({ active: true }),
-    [targetKey, resolution.services, resolution.remoteSessionId, resolution.rpcReady, onCreateTask],
+    () => ({
+      menuOpen,
+      targetKey,
+      services: resolution.services,
+      remoteSessionId: resolution.remoteSessionId,
+      rpcReady: resolution.rpcReady,
+      onCreateTask,
+    }),
+    [
+      menuOpen,
+      targetKey,
+      resolution.services,
+      resolution.remoteSessionId,
+      resolution.rpcReady,
+      onCreateTask,
+    ],
   );
+  const [prepared, setPrepared] = useState<{
+    scope: object;
+    prefill: CreateTaskOptions | null;
+  } | null>(null);
+  const canPrepare = Boolean(menuOpen && workspacePath && onCreateTask && resolution.rpcReady);
+
   useEffect(() => {
-    scope.active = true;
-    return () => {
-      scope.active = false;
-    };
-  }, [scope]);
-  const pending = useRef<object | null>(null);
-  const [busyScope, setBusyScope] = useState<object | null>(null);
-  const create = useCallback(async () => {
-    if (pending.current === scope || !target || !onCreateTask) return;
-    if (!resolution.rpcReady) {
-      toast(intl.formatMessage({ id: "pluginCreator.unavailable" }), { variant: "warning" });
-      return;
-    }
-    const isCurrent = () => {
-      const state = tabStore.getState();
-      const groups = useWorkbenchGroupStore.getState();
-      const current = resolveWorkbenchNewTaskTarget({
-        activeWorkspacePath: state.activeWorkspacePath,
-        activeWorkspaceIdentity: state.activeWorkspaceIdentity,
-        activeGroup: groups.activeGroupId ? (groups.groups[groups.activeGroupId] ?? null) : null,
-        paneLayout: usePaneLayoutStore.getState(),
+    if (!canPrepare || !workspacePath) return;
+    let current = true;
+    // 原因：mock 没有官方创建技能，原入口却始终可点击。菜单打开时查询已有目录，
+    // 当前目标没有技能就禁用；不新增后端能力字段，也不在点击后伪造创建成功。
+    void loadPluginCreatorPrefill(
+      () =>
+        resolution.services.skillsService.list({
+          workspacePath,
+          workspaceIdentity,
+          provider: ZCODE_AGENT_PROVIDER,
+        }),
+      () => current,
+    )
+      .then((prefill) => {
+        if (current) setPrepared({ scope, prefill });
+      })
+      .catch((error: unknown) => {
+        if (!current) return;
+        setPrepared({ scope, prefill: null });
+        if (!(error instanceof Error && error.message === "plugin_creator_unavailable")) {
+          logger.warn("[PluginCreator] 技能目录查询失败", { error, workspaceKey: targetKey });
+        }
       });
-      return (
-        scope.active &&
-        (current?.workspaceIdentity?.trim() || current?.workspacePath || "") === targetKey &&
-        !isWorkspaceReadOnly(state, target.workspacePath, target.workspaceIdentity)
-      );
+    return () => {
+      current = false;
     };
-    pending.current = scope;
-    setBusyScope(scope);
-    try {
-      const prefill = await loadPluginCreatorPrefill(
-        () =>
-          resolution.services.skillsService.list({
-            workspacePath: target.workspacePath,
-            workspaceIdentity: target.workspaceIdentity,
-            provider: ZCODE_AGENT_PROVIDER,
-          }),
-        isCurrent,
-      );
-      if (prefill) {
-        logger.info("[PluginCreator] 已解析创建技能", { workspaceKey: targetKey });
-        onCreateTask({ ...prefill, expectedWorkspaceKey: targetKey });
-      }
-    } catch (error) {
-      if (isCurrent()) {
-        logger.warn("[PluginCreator] 创建技能不可用", {
-          error: error instanceof Error ? error.message : String(error),
-          workspaceKey: targetKey,
-        });
-        toast(intl.formatMessage({ id: "pluginCreator.unavailable" }), { variant: "warning" });
-      }
-    } finally {
-      if (pending.current === scope) pending.current = null;
-      if (scope.active) setBusyScope(null);
-    }
-  }, [intl, onCreateTask, resolution, scope, tabStore, target, targetKey]);
-  return { create, busy: busyScope === scope, available: Boolean(target && onCreateTask) };
+  }, [
+    canPrepare,
+    resolution.services.skillsService,
+    scope,
+    targetKey,
+    workspaceIdentity,
+    workspacePath,
+  ]);
+
+  const create = useCallback(() => {
+    if (
+      !onCreateTask ||
+      !workspacePath ||
+      !resolution.rpcReady ||
+      prepared?.scope !== scope ||
+      !prepared.prefill
+    )
+      return;
+    const state = tabStore.getState();
+    const groups = useWorkbenchGroupStore.getState();
+    const current = resolveWorkbenchNewTaskTarget({
+      activeWorkspacePath: state.activeWorkspacePath,
+      activeWorkspaceIdentity: state.activeWorkspaceIdentity,
+      activeGroup: groups.activeGroupId ? (groups.groups[groups.activeGroupId] ?? null) : null,
+      paneLayout: usePaneLayoutStore.getState(),
+    });
+    if (
+      (current?.workspaceIdentity?.trim() || current?.workspacePath || "") !== targetKey ||
+      isWorkspaceReadOnly(state, workspacePath, workspaceIdentity)
+    )
+      return;
+    onCreateTask({ ...prepared.prefill, expectedWorkspaceKey: targetKey });
+  }, [
+    onCreateTask,
+    prepared,
+    resolution.rpcReady,
+    scope,
+    tabStore,
+    targetKey,
+    workspaceIdentity,
+    workspacePath,
+  ]);
+
+  return {
+    create,
+    busy: canPrepare && prepared?.scope !== scope,
+    available: Boolean(resolution.rpcReady && prepared?.scope === scope && prepared.prefill),
+  };
 }

@@ -19,8 +19,7 @@ export async function startPresetSubscriptionLogin(params: {
   }
 
   try {
-    const { authorizeUrl, state, provider } = await params.oauthService.startOAuth(oauthProviderId);
-    params.platform.registerOAuthState({ state, provider });
+    const { authorizeUrl, provider } = await params.oauthService.startOAuth(oauthProviderId);
     params.platform.openExternal(authorizeUrl);
     logger.info("[ModelProviderSection] 已发起模型供应商 App OAuth 登录", {
       presetId: params.presetId,

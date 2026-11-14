@@ -107,15 +107,13 @@ test("managed module needs contracts and documentation but no unit test", async 
   });
 });
 
-test("repository policy discovers both refactored provider modules", async () => {
+test("repository policy discovers the refactored provider module", async () => {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const policy = await loadPolicy(root);
-  for (const id of ["provider", "provider-node"]) {
-    // 新门禁若沿用旧仓库目录，会漏掉重构后的模块，使 context 无法找到其源码。
-    const module = policy.modules.find((item) => item.id === id);
-    assert.ok(module, `missing module: ${id}`);
-    assert.deepEqual(module.roots, [join(root, "packages", id, "src")]);
-  }
+  // 原因：provider-node 已裁撤；纯 Web 仓库只保留 provider 源码根。
+  const provider = policy.modules.find((item) => item.id === "provider");
+  assert.ok(provider, "missing module: provider");
+  assert.deepEqual(provider.roots, [join(root, "packages", "provider", "src")]);
 });
 
 test("changed files exclude CI caches but retain tracked and untracked source paths", async () => {
@@ -129,12 +127,9 @@ test("changed files exclude CI caches but retain tracked and untracked source pa
     if (process.platform !== "win32") paths.push('line\nbreak".ts');
     for (const file of paths) await writeFile(join(cwd, file), "export {};\n");
     await git(cwd, "add", "staged.ts");
-    for (const cache of [
-      ".electron-builder-cache",
-      ".electron-cache",
-      ".pnpm-store",
-      ".npm-cache",
-    ]) {
+    // 原因：只断言当前 .gitignore 真实保留的 pnpm/npm 下载缓存；Electron 缓存目录随桌面裁撤，
+    // 不再恢复退役忽略项，也不绕过 Git 自身的 ignore 过滤。
+    for (const cache of [".pnpm-store", ".npm-cache"]) {
       await mkdir(join(cwd, cache));
       await writeFile(join(cwd, cache, "cached.ts"), "export {};\n");
     }

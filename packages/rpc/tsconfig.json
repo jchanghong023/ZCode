@@ -1,6 +1,10 @@
 {
-  // 这里改成 composite project，是因为之前 consumers 会顺着 package export 直接把 rpc 源码拖进来重复检查。
-  // 改成可被 project references 消费的独立工程后，typecheck 会优先复用 rpc 自己生成的声明产物，避免同一批错误被放大打印。
+  // rpc 是内部源码 workspace 包：package.json 的 exports.types/default 都指向同一份 src 入口，
+  // 这里保留 composite + 声明 emit，是因为 services/server/ui/client 的 project references
+  // 会把 @zcode/rpc 的源码导入重定向到本工程生成的 dist 声明，避免同一批错误被放大打印。
+  // dist 是构建/引用产物，不是运行时入口，干净工作区不需要它预先存在。
+  // 注意：不要把 noEmit 写进本文件——被引用工程必须可 emit（否则消费者报 TS6310）；
+  // 包内类型检查由 package.json 的 typecheck 脚本用 `--noEmit --composite false` 完成。
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",

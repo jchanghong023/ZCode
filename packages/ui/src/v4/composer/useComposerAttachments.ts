@@ -12,8 +12,7 @@ import {
   OversizedInlineVideoAttachmentError,
   createChatComposerAttachment,
   createChatComposerPathAttachment,
-  createClipboardTextAttachmentFilenameForDate,
-  createClipboardTextPathComposerAttachment,
+  createClipboardTextComposerAttachment,
   formatAttachmentSize,
   revokeChatComposerAttachment,
   serializeChatComposerAttachment,
@@ -23,7 +22,6 @@ import {
 } from "@/lib/chatAttachments.js";
 import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
 import type { IPromptAttachmentTransferService } from "@zcode/services";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
@@ -260,7 +258,6 @@ export function useComposerAttachments(
     disabled = false,
     listenAddToChatEvents = true,
   } = options;
-  const platform = usePlatform();
   const { promptAttachmentTransferService } = useServices();
   const { intl } = useZCodeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
@@ -742,28 +739,13 @@ export function useComposerAttachments(
   );
 
   const addAttachmentFiles = useCallback(
-    (selectedFiles: File[], fromPicker = false): string[] => {
+    (selectedFiles: File[]): string[] => {
+      // 浏览器没有宿主绝对路径；选择器/拖拽/粘贴拿到的 File 一律走上传字节链路。
       return addPreparedAttachments(
-        selectedFiles.map((file) => {
-          let localPath: string | undefined;
-          try {
-            const resolvedPath = platform.getPathForFile?.(file);
-            localPath = resolvedPath?.trim() ? resolvedPath : undefined;
-          } catch (error) {
-            // Electron 32+ 的 File 需要经 preload webUtils 解析；失败时仍可走 Web bytes。
-            logger.warn("[v4-composer-attachments] 解析附件本地路径失败", error);
-          }
-          const attachment = createChatComposerAttachment(file, localPath);
-          if (fromPicker && localPath && !attachment.mimeType.startsWith("image/")) {
-            // Bug 原因：共享入口剥离非图片 File 会让拖入视频/PDF 丢失预览；仅选择器走原路径附件。
-            revokeChatComposerAttachment(attachment);
-            return createChatComposerPathAttachment(localPath);
-          }
-          return attachment;
-        }),
+        selectedFiles.map((file) => createChatComposerAttachment(file)),
       );
     },
-    [addPreparedAttachments, platform],
+    [addPreparedAttachments],
   );
 
   useLayoutEffect(() => {
@@ -779,7 +761,7 @@ export function useComposerAttachments(
       showAttachmentLimitWarning();
       return;
     }
-    // 选择器返回 File 后仍可创建本地缩略图；发送继续由 getPathForFile 走原路径引用。
+    // 选择器返回 File 后直接生成浏览器本地缩略图，发送走上传字节链路。
     attachmentInputRef.current?.click();
   }, [scopeKey, showAttachmentLimitWarning]);
 
@@ -787,7 +769,7 @@ export function useComposerAttachments(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.currentTarget.files ?? []);
       event.currentTarget.value = "";
-      addAttachmentFiles(files, true);
+      addAttachmentFiles(files);
     },
     [addAttachmentFiles],
   );
@@ -817,26 +799,20 @@ export function useComposerAttachments(
       if (!shouldCreateClipboardTextAttachment(text)) return;
       event.preventDefault();
       event.stopPropagation?.();
-      void (async () => {
-        try {
-          const attachment = await platform.createTempTextAttachment?.({
-            text,
-            filename: createClipboardTextAttachmentFilenameForDate(),
-          });
-          if (!attachment) throw new Error("当前平台不支持临时文本附件");
-          addPreparedAttachments([createClipboardTextPathComposerAttachment(text, attachment)]);
-        } catch (error) {
-          logger.warn("[v4-composer-attachments] 创建粘贴文本临时附件失败", error);
-          setAttachmentError(
-            intl.formatMessage(
-              { id: "chat.attachments.readFailed" },
-              { message: error instanceof Error ? error.message : String(error) },
-            ),
-          );
-        }
-      })();
+      try {
+        // 长粘贴在浏览器内直接构造文本 File，不依赖宿主临时文件目录。
+        addPreparedAttachments([createClipboardTextComposerAttachment(text)]);
+      } catch (error) {
+        logger.warn("[v4-composer-attachments] 创建粘贴文本附件失败", error);
+        setAttachmentError(
+          intl.formatMessage(
+            { id: "chat.attachments.readFailed" },
+            { message: error instanceof Error ? error.message : String(error) },
+          ),
+        );
+      }
     },
-    [addAttachmentFiles, addPreparedAttachments, disabled, intl, platform],
+    [addAttachmentFiles, addPreparedAttachments, disabled, intl],
   );
 
   const clearDragFeedbackTimer = useCallback(() => {

@@ -161,7 +161,6 @@ function releaseEntry(entry: RegistryEntry): void {
 export function acquireWorkspaceConnection(
   scope: WorkspaceConnectionScope,
   agentService: WorkspaceConnectionAgentService,
-  createLocalMediaPreviewUrl?: (path: string) => string,
 ): WorkspaceConnectionLease {
   const key = buildWorkspaceConnectionKey(scope);
   const existing = registry.get(key);
@@ -199,7 +198,6 @@ export function acquireWorkspaceConnection(
     const initialTransport = createAgentConversationTransport(agentService, {
       workspacePath: scope.workspacePath,
       ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
-      ...(createLocalMediaPreviewUrl ? { createLocalMediaPreviewUrl } : {}),
     });
     const replaceableTransport = isRemote
       ? new ReplaceableConversationTransport(initialTransport)

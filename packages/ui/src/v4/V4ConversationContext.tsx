@@ -33,7 +33,6 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IServiceAccessor } from "@zcode/services";
 import { ServiceProvider } from "@/hooks/useServices.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import {
   useWorkspaceServicesResolution,
   type WorkspaceServicesResolution,
@@ -154,22 +153,14 @@ function ReadyV4ConversationProvider({
   workspaceIdentity,
   children,
   services,
-  remoteSessionId,
 }: V4ConversationProviderProps & {
   services: IServiceAccessor;
-  remoteSessionId: string | null;
 }) {
   const { zcodeAgentService } = services;
-  const platform = usePlatform();
   const bundle = useMemo(() => {
     const transport = createAgentConversationTransport(zcodeAgentService, {
       workspacePath,
       workspaceIdentity,
-      // 主 workspace resolver 已识别远端 endpoint，但这里曾丢弃
-      // remoteSessionId，导致远端绝对路径被交给本机 zcode-media。仅本地 endpoint 注入转换器。
-      ...(remoteSessionId === null && platform.createLocalMediaPreviewUrl
-        ? { createLocalMediaPreviewUrl: platform.createLocalMediaPreviewUrl }
-        : {}),
     });
     const layer = new SessionDataLayer({ transport });
     return {
@@ -204,13 +195,7 @@ function ReadyV4ConversationProvider({
           }
         : {}),
     } satisfies V4ConversationContextValue;
-  }, [
-    platform.createLocalMediaPreviewUrl,
-    remoteSessionId,
-    workspacePath,
-    workspaceIdentity,
-    zcodeAgentService,
-  ]);
+  }, [workspacePath, workspaceIdentity, zcodeAgentService]);
 
   useEffect(() => {
     return () => {
@@ -249,7 +234,6 @@ export function V4ConversationProvider({
       workspacePath={workspacePath}
       workspaceIdentity={workspaceIdentity}
       services={ready.services}
-      remoteSessionId={ready.remoteSessionId}
     >
       <RemoteConversationAvailability available={resolution.rpcReady} banner={disconnectedBanner}>
         {children}
@@ -347,7 +331,6 @@ function ReadyV4PaneConversationProvider({
   services: IServiceAccessor;
 }) {
   const agentService = services.zcodeAgentService;
-  const platform = usePlatform();
 
   // 与 V4ConversationProvider 相同的 useMemo 同步建连模式（renderer 无 StrictMode，
   // memo 双调不存在）；dep 变化时先建新租约再在 effect cleanup 释放旧租约——
@@ -360,7 +343,6 @@ function ReadyV4PaneConversationProvider({
         ...(scope.remoteSessionId ? { remoteSessionId: scope.remoteSessionId } : {}),
       },
       agentService,
-      scope.remoteSessionId ? undefined : platform.createLocalMediaPreviewUrl,
     );
     return {
       lease,
@@ -399,13 +381,7 @@ function ReadyV4PaneConversationProvider({
           : {}),
       } satisfies V4ConversationContextValue,
     };
-  }, [
-    agentService,
-    platform.createLocalMediaPreviewUrl,
-    scope.workspacePath,
-    scope.workspaceIdentity,
-    scope.remoteSessionId,
-  ]);
+  }, [agentService, scope.workspacePath, scope.workspaceIdentity, scope.remoteSessionId]);
 
   useLayoutEffect(() => {
     // acquire 发生在 render，只负责稳定租约；远端 proxy 换代引发的 store 更新和

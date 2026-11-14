@@ -12,24 +12,17 @@ import type {
   McpServerStatus,
   McpSource,
   NativeMcpServerRecord,
-  ZCodeMcpListMode,
-  ZCodeMcpServerStatusSnapshot,
   ZCodeMcpServer,
 } from "@zcode/shared";
+import type { ZCodeMcpListMode, ZCodeMcpServerStatusSnapshot } from "@zcode/shared";
 import { convertToZCodeAgentMcpServer } from "@zcode/shared";
 import { logger } from "@/logger.js";
 import {
   fetchNativeMcpServers,
-  migrateLegacyCommonMcpFromDesktop,
   persistCliMcpToUserDirectory,
   type McpDirectoryService,
-  type McpPlatformService,
-  type MigrateLegacyResult,
 } from "@/store/mcpStoreDesktop.js";
-import {
-  importLegacyCommonServersToZCodeAgent,
-  migrateStoredCommonMcpToZCodeAgent,
-} from "@/store/mcpStoreMigration.js";
+import { migrateStoredCommonMcpToZCodeAgent } from "@/store/mcpStoreMigration.js";
 import {
   buildServerList,
   DEFAULT_MCP_CONFIG,
@@ -42,12 +35,6 @@ import {
 } from "@/store/mcpStoreHelpers.js";
 import { isRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
 import { mergeMcpServerStatusSnapshots } from "@/store/mcpStoreStatusList.js";
-
-let mcpPlatformService: McpPlatformService | null = null;
-
-export function setMcpStorePlatform(platform: McpPlatformService | null): void {
-  mcpPlatformService = platform;
-}
 
 interface UpdateServerStatusOptions {
   invalidateStatusListRequests?: boolean;
@@ -143,7 +130,6 @@ interface McpStoreState {
   mergePreloadedMcpServers: (preloaded: Record<string, McpServerConfig>) => void;
   deletePreloadedMcpServer: (source: McpSource, name: string) => void;
   setCurrentSessionId: (sessionId: string | null) => void;
-  migrateLegacyCommonMcp: () => Promise<MigrateLegacyResult>;
 }
 
 export const useMcpStore = create<McpStoreState>((set, get) => {
@@ -165,22 +151,15 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
   }
 
   /**
-   * 读写通道只看当前绑定的目标。
-   *
-   * Bug 原因：远端「用户」目标只有 home 路径与 authority、没有 workspace identity。旧逻辑无 identity
-   * 就丢弃传入的服务走本机 platform；写入又用当前 tab 设置的全局目录服务。结果是在本机 tab 选
-   * 「B · 用户」读写本机，在远端 A tab 选「B · 用户」读 B 写 A、选「本机 · 用户」写 A。
-   * 修法：服务与路径 / identity / authority 作为一组绑定，读写都只用这一组。本机目标（无 identity、
-   * 无 authority：本机项目、本机「用户」）走 desktop platform，保留旧 common MCP 迁移；
-   * 远端目标没有绑定服务时 fail-closed，不回退本机。
+   * 路径、identity、authority 和目录服务作为一组绑定，读写只能使用当前目标。
+   * 修复原因：删除桌面端口后，本地工作区仍被旧分支返回 null，导致已绑定的后端
+   * 服务被丢弃并在启动时报告 MCP directory service is not ready。
+   * 纯 Web 的本地与远端目标都使用绑定的 IMcpSyncService，不回退其他目标。
    */
-  function resolveTargetDirectoryService(): McpDirectoryService | null {
-    const { currentAuthorityKey, currentDirectoryService, currentWorkspaceIdentity } = get();
-    if (!currentWorkspaceIdentity && !currentAuthorityKey) {
-      return null;
-    }
+  function resolveTargetDirectoryService(): McpDirectoryService {
+    const { currentDirectoryService } = get();
     if (!currentDirectoryService) {
-      throw new Error("MCP directory service is not bound to the remote target");
+      throw new Error("MCP directory service is not bound to the target");
     }
     return currentDirectoryService;
   }
@@ -255,11 +234,7 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
     }
 
     try {
-      await persistCliMcpToUserDirectory(
-        mcpPlatformService,
-        payload,
-        resolveTargetDirectoryService(),
-      );
+      await persistCliMcpToUserDirectory(resolveTargetDirectoryService(), payload);
     } catch (error) {
       logger.warn(`[mcpStore] persist ${source} MCP failed`, String(error));
     }
@@ -329,14 +304,12 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
           logger.info(
             `[mcpStore] loadMcpFromUserDirectory workspace=${latestWorkspacePath ?? "<none>"} identity=${currentWorkspaceIdentity ?? "<none>"}`,
           );
-          let servers = await fetchNativeMcpServers(
-            mcpPlatformService,
-            { workspacePath: latestWorkspacePath },
-            activeDirectoryService,
-          );
-          if (!activeDirectoryService) {
+          let servers = await fetchNativeMcpServers(activeDirectoryService, {
+            workspacePath: latestWorkspacePath,
+          });
+          if (activeDirectoryService) {
             servers = await migrateStoredCommonMcpToZCodeAgent(
-              mcpPlatformService,
+              activeDirectoryService,
               servers,
               latestWorkspacePath,
             );
@@ -493,18 +466,14 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
         // 开关变化会触发 agent 侧 mcp/list 读取磁盘配置做真实连接。
         // 必须先等 enable 状态落盘，再更新本地列表驱动刷新，否则 agent 会读到旧开关。
         try {
-          await persistCliMcpToUserDirectory(
-            mcpPlatformService,
-            {
-              action: "set-enabled",
-              source: targetServer.source,
-              name: targetServer.name,
-              enabled,
-              projectPath: targetServer.projectPath,
-              location: targetServer.location,
-            },
-            resolveTargetDirectoryService(),
-          );
+          await persistCliMcpToUserDirectory(resolveTargetDirectoryService(), {
+            action: "set-enabled",
+            source: targetServer.source,
+            name: targetServer.name,
+            enabled,
+            projectPath: targetServer.projectPath,
+            location: targetServer.location,
+          });
         } catch (error) {
           logger.warn("[mcpStore] persist MCP enabled override failed", String(error));
         }
@@ -770,27 +739,5 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
     },
 
     setCurrentSessionId: (sessionId) => set({ currentSessionId: sessionId }),
-
-    migrateLegacyCommonMcp: async () => {
-      const result = await migrateLegacyCommonMcpFromDesktop(mcpPlatformService);
-      const latestWorkspacePath = get().currentProjectPath || undefined;
-      const currentNativeServers =
-        get().nativeServers.length > 0
-          ? get().nativeServers
-          : await fetchNativeMcpServers(mcpPlatformService, { workspacePath: latestWorkspacePath });
-      const migration = await importLegacyCommonServersToZCodeAgent(
-        mcpPlatformService,
-        result.servers ?? {},
-        currentNativeServers,
-        result.sourcePath,
-      );
-      if (migration.changed) {
-        const servers = await fetchNativeMcpServers(mcpPlatformService, {
-          workspacePath: latestWorkspacePath,
-        });
-        set(commitState({ nativeServers: servers }));
-      }
-      return migration;
-    },
   };
 });

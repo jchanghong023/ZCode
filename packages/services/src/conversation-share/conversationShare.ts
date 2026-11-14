@@ -2,6 +2,7 @@
 import type {
   ConversationShareAccessMode,
   ConversationShareCapabilities,
+  ConversationShareErrorKind,
   ConversationShareContinuation,
   ConversationShareManagedItem,
   ConversationShareManagedList,
@@ -15,7 +16,6 @@ import type { WireConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { Event as RpcEvent, type Event } from "@zcode/rpc";
 
 import { createServiceDescriptor } from "../descriptors.js";
-import type { ConversationShareClientErrorKind } from "./conversationShareHttpClient.js";
 
 export type ConversationShareSelection =
   | { kind: "all" }
@@ -77,7 +77,7 @@ export interface ConversationSharePreflightResult {
 }
 
 export type ConversationShareServiceErrorKind =
-  | ConversationShareClientErrorKind
+  | ConversationShareErrorKind
   | "artifact_protocol_not_ready"
   | "connection_unavailable"
   | "invalid_selection"

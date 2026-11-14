@@ -237,18 +237,6 @@ test("实际选中测试失败返回 1，无关测试不执行", async (t) => {
   assert.ok(!result.stdout.includes("UNSELECTED_TEST_EXECUTED"));
 });
 
-test("pre-push retains the engineering runner and the E2E provider seed regression", async () => {
-  const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-  assert.match(pkg.scripts["verify:pre-push"], /test:engineering:affected --scope push/);
-  const files = JSON.parse(
-    await readFile(join(root, "scripts/engineering-test-files.json"), "utf8"),
-  );
-  const seed = "packages/desktop/test/modelProviderRestartConfig.test.ts";
-  assert.ok(files.includes(seed));
-  await readFile(join(root, seed));
-});
-
 test("official selection never loads a CUA project sharing the same source", async (t) => {
   const { write, git, invoke } = await fixture(t);
   await write(

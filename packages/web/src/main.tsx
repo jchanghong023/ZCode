@@ -224,7 +224,6 @@ async function bootstrapWebApp() {
             initialTaskId={bootstrap.initialTaskId}
             restoreSession={bootstrap.restoreSession}
             allowOpenWorkspace={bootstrap.allowOpenWorkspace}
-            preferDirectoryBrowser
           />
         </ZCodeIntlProvider>
       </AppErrorBoundary>,

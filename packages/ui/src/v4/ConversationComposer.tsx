@@ -675,7 +675,7 @@ function ConversationComposerImpl({
     telemetrySeed: ConversationPromptTelemetrySeed;
     requestedDelivery?: "startNow" | "queue" | "guide";
   } | null>(null);
-  const [sendTooltipOpen, setSendTooltipOpen] = useState(false);
+  const [actionTooltipOpen, setActionTooltipOpen] = useState(false);
   // submit 经 ref 读取最新文本/pending，避免回调随每次输入变更引用。
   const textRef = useRef("");
   const contentRevisionRef = useRef(0);
@@ -1359,7 +1359,7 @@ function ConversationComposerImpl({
   const showStopControl = canStop && !hasDraftToSubmit;
 
   useEffect(() => {
-    if (!canSend) setSendTooltipOpen(false);
+    if (!canSend) setActionTooltipOpen(false);
   }, [canSend]);
 
   const submit: ComposerSubmit = useCallback(
@@ -2541,8 +2541,14 @@ function ConversationComposerImpl({
             />
           </span>
         ) : null}
+        {/* 同一操作位始终复用现有的受控提示状态；不靠重挂载修告警，保留按钮焦点。 */}
         {showStopControl ? (
-          <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
+          <ControlHintTooltip
+            title={stopTooltipTitle}
+            shortcut="Esc"
+            open={actionTooltipOpen}
+            onOpenChange={setActionTooltipOpen}
+          >
             <Button
               type="button"
               variant="secondary"
@@ -2560,8 +2566,8 @@ function ConversationComposerImpl({
           <ControlHintTooltip
             title={resolvedSendTooltipTitle}
             shortcut={resolvedSendTooltipShortcut}
-            open={Boolean(modifierTooltip) || sendTooltipOpen}
-            onOpenChange={setSendTooltipOpen}
+            open={Boolean(modifierTooltip) || actionTooltipOpen}
+            onOpenChange={setActionTooltipOpen}
           >
             <Button
               type="submit"
@@ -2608,7 +2614,7 @@ function ConversationComposerImpl({
       modifierTooltip,
       resolvedSendTooltipShortcut,
       resolvedSendTooltipTitle,
-      sendTooltipOpen,
+      actionTooltipOpen,
       remoteAvailable,
       sendShortcut,
       sendTooltipTitle,

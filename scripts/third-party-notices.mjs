@@ -18,8 +18,18 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
   if (hash(bytes) !== manifest.noticesSha256)
     throw new Error("Third-party notices changed; regenerate the inventory");
   for (const [file, expected] of Object.entries(manifest.inputs)) {
+    let text;
+    try {
+      text = await readFile(resolve(root, file), "utf8");
+    } catch (error) {
+      // 登记输入已从工作区删除时也不能当作“已退役”跳过，必须重新生成清单。
+      throw new Error(
+        `Third-party input is missing: ${file}. Run node scripts/licenses.mjs notices`,
+        { cause: error },
+      );
+    }
     // 工作区文本允许 Windows checkout 的 CRLF；原始许可和发行声明另用字节哈希校验。
-    if (hash((await readFile(resolve(root, file), "utf8")).replaceAll("\r\n", "\n")) !== expected) {
+    if (hash(text.replaceAll("\r\n", "\n")) !== expected) {
       throw new Error(`Third-party input changed: ${file}. Run node scripts/licenses.mjs notices`);
     }
   }
@@ -40,6 +50,8 @@ export async function stageThirdPartyNotices(directory, root = repositoryRoot) {
 }
 
 export async function readNodeNotices(version, root = repositoryRoot) {
+  // 当前 Web 发行不附带独立 Node 运行时；此入口只为仍在使用的历史打包流水线保留，
+  // 其原文来源登记在 third-party/runtime/sources.json，不进入根声明生成输入。
   const normalized = version.replace(/^v/u, "");
   const sources = JSON.parse(
     await readFile(resolve(root, "third-party/runtime/sources.json"), "utf8"),
@@ -59,28 +71,8 @@ export async function stageNodeNotices(directory, version, root = repositoryRoot
   return resolve(directory, "LICENSE.node.txt");
 }
 
-export async function stageElectronNotices(extractedRoot, resources, version) {
-  const directory = resolve(resources, "licenses/electron");
-  const records = [];
-  for (const name of ["LICENSE", "LICENSES.chromium.html"]) {
-    let bytes;
-    try {
-      bytes = await readFile(resolve(extractedRoot, name));
-    } catch (error) {
-      if (name !== "LICENSE" || error.code !== "ENOENT") throw error;
-      bytes = await readFile(resolve(extractedRoot, "LICENSE.electron.txt"));
-    }
-    await mkdir(directory, { recursive: true });
-    await writeFile(resolve(directory, name), bytes);
-    records.push({ file: name, sha256: hash(bytes) });
-  }
-  // 修复：取实际目标平台的解包材料，避免交叉编译误用宿主 Electron 的许可证集合。
-  await writeFile(
-    resolve(directory, "SOURCES.json"),
-    `${JSON.stringify({ version, origin: "electron-builder target distribution", records }, null, 2)}\n`,
-  );
-}
-
+// 原生搜索工具不随当前 Web 发行；这些入口与 sources.json 只为保留历史打包材料与
+// 尚未删除的流水线调用而存在，根声明生成不再消费它们。
 export async function readNativeSearchNotices(root = repositoryRoot, { verify = false } = {}) {
   const inventoryPath = resolve(root, "third-party/native-search/sources.json");
   const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));

@@ -215,7 +215,6 @@ export function createPage(
       const connection = acquireWorkspaceConnection(
         latest.current.scope,
         services.zcodeAgentService,
-        platform.createLocalMediaPreviewUrl,
       );
       releaseLease = () => connection.release();
       const lease = connection.layer.acquire(latest.current.scope.sessionId);

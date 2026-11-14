@@ -2,10 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "zcode: tsup watch (debug)",
-      "type": "process",
-      "command": "node",
-      "args": ["${workspaceFolder}/.vscode/tsup-watch.mjs"],
+      "label": "zcode: mock server (:3030)",
+      "type": "shell",
+      "command": "pnpm --filter @zcode/server dev",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -13,10 +12,10 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "zcode-dev"
       },
       "problemMatcher": {
-        "owner": "custom",
+        "owner": "zcode-mock-server",
         "pattern": {
           "regexp": "^(.*)$",
           "message": 1
@@ -24,15 +23,14 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "\\[HOST\\] CLI Watching for changes in"
+          "endsPattern": "localhost:3030"
         }
       }
     },
     {
-      "label": "zcode: vite dev",
-      "type": "process",
-      "command": "node",
-      "args": ["${workspaceFolder}/.vscode/vite-dev.mjs"],
+      "label": "zcode: web dev (:5173)",
+      "type": "shell",
+      "command": "pnpm --filter @zcode/web dev",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -40,10 +38,10 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "zcode-dev"
       },
       "problemMatcher": {
-        "owner": "custom",
+        "owner": "zcode-web-vite",
         "pattern": {
           "regexp": "^(.*)$",
           "message": 1
@@ -51,70 +49,15 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "VITE v.*ready in .*"
+          "endsPattern": "ready in [0-9]+ ms"
         }
       }
     },
     {
-      "label": "zcode: prepare desktop debug",
-      "dependsOn": ["zcode: tsup watch (debug)", "zcode: vite dev"],
-      "dependsOrder": "parallel"
-    },
-    {
-      "label": "zcode: start electron (debug)",
-      "type": "process",
-      "command": "node",
-      "args": ["${workspaceFolder}/.vscode/start-electron.mjs"],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "isBackground": true,
-      "dependsOn": ["zcode: prepare desktop debug"],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "zcode-debug"
-      },
-      "problemMatcher": {
-        "owner": "custom",
-        "pattern": {
-          "regexp": "^(.*)$",
-          "message": 1
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "Debugger listening on ws://127\\.0\\.0\\.1:9231/"
-        }
-      }
-    },
-    {
-      "label": "zcode: start electron (debug with host inspect)",
-      "type": "process",
-      "command": "node",
-      "args": ["${workspaceFolder}/.vscode/start-electron.mjs", "--host-inspect"],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "isBackground": true,
-      "dependsOn": ["zcode: prepare desktop debug"],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "zcode-debug"
-      },
-      "problemMatcher": {
-        "owner": "custom",
-        "pattern": {
-          "regexp": "^(.*)$",
-          "message": 1
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "Debugger listening on ws://127\\.0\\.0\\.1:9231/"
-        }
-      }
+      "label": "zcode: dev (mock server + web)",
+      "dependsOn": ["zcode: mock server (:3030)", "zcode: web dev (:5173)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     }
   ]
 }

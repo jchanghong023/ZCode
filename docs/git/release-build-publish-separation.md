@@ -1,10 +1,16 @@
 # Release 构建与发布元数据分离
 
+> **状态：历史记录（桌面端发布链路已退役）。** 本文描述的是桌面安装包与 CI 发布时代的设计与验收，
+> `pnpm release`、release-it、`.gitlab/ci/*`、`scripts/ci-collect-artifacts.mjs`、
+> `scripts/validate-release-artifacts.mjs`、`scripts/upload-oss.sh` 等入口已随桌面端裁撤删除，
+> 当前仓库不再提供这些脚本或发布流水线；命令只作追溯，不能在当前仓库执行。
+> 现行工程与构建入口见 [Web 构建与清理工作流](../architecture/web-build-workflow.md)。
+
 ## 目的
 
 安装包、签名、公证、blockmap 和 Electron Builder 生成的 `latest.yml` 在构建阶段完成。发布日志由 infra 通过 API 直接编辑共享目录中的更新清单；z-code CI 的人工确认只决定是否继续上传/发布，不再读取仓库 changelog 或改写更新清单。
 
-## 当前 CI 时序
+## 当时的 CI 时序（已退役）
 
 ```text
 pnpm release（默认 release-it）
@@ -49,7 +55,7 @@ commit/tag
 
 `build:remote:assets` 每次收集当前版本前只清理共享发布根目录中的旧 `manifest-*.json` 和 `components/`，不触碰并行平台构建写入的 `macos-*`、`windows-*`、`linux-*` 目录。这样同版本重试不会把上一次的 remote manifest 或组件混入当前候选集合。
 
-## 关键文件
+## 关键文件（历史路径，当前仓库不存在）
 
 - `scripts/ci-collect-artifacts.mjs`：只收集并修正基础制品，不再注入 release notes。
 - `scripts/validate-release-artifacts.mjs`：approve 放行后、upload 前校验六个平台和 remote assets 的完整性。

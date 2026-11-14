@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
@@ -19,18 +18,14 @@ export function DataBaseDirControl({
   dataBaseDir,
   defaultHomeDir,
   onDataBaseDirChange,
-  onSelectDataBaseDir,
 }: {
   dataBaseDir: string;
   defaultHomeDir: string;
   onDataBaseDirChange: (dir: string) => Promise<void>;
-  onSelectDataBaseDir: () => Promise<string | null>;
 }) {
   const { intl } = useZCodeIntl();
-  const platform = useOptionalPlatform();
   const services = useBaseWorkspaceServices();
   const projectService = services.projectService;
-  const canPickPath = platform?.canSelectFilePath ?? false;
   const directoryBrowserServices = useMemo(
     () =>
       projectService
@@ -51,7 +46,6 @@ export function DataBaseDirControl({
   const [browserOpen, setBrowserOpen] = useState(false);
   const effectiveDir = dataBaseDir || defaultHomeDir;
   const [localDataBaseDir, setLocalDataBaseDir] = useState(effectiveDir);
-  const [isPickingDataBaseDir, setIsPickingDataBaseDir] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMessageId, setErrorMessageId] = useState("settings.dataBaseDirCopyFailed");
 
@@ -64,30 +58,10 @@ export function DataBaseDirControl({
   const isDirty = localDataBaseDir.trim() !== effectiveDir;
   const isSaving = saveState === "saving";
 
-  const handleBrowseDataBaseDir = useCallback(async () => {
-    // 浏览器不暴露系统绝对路径：改走服务端真实目录浏览（Chrome/Firefox 同一 RPC）。
-    if (!canPickPath) {
-      if (directoryBrowserServices) setBrowserOpen(true);
-      return;
-    }
-    setIsPickingDataBaseDir(true);
-    try {
-      const selectedDir = await onSelectDataBaseDir();
-      if (!selectedDir) {
-        return;
-      }
-
-      // 之前这里允许手输任意字符串，用户填错路径后仍会触发整份数据复制。
-      // 这里改成只接受系统目录弹窗返回的真实文件夹路径，先更新草稿值，再由“保存”统一触发迁移，
-      // 避免把“浏览目录”和“执行数据迁移”这两个风险不同的动作混在一起。
-      setLocalDataBaseDir(selectedDir);
-      if (saveState !== "idle") {
-        setSaveState("idle");
-      }
-    } finally {
-      setIsPickingDataBaseDir(false);
-    }
-  }, [canPickPath, directoryBrowserServices, onSelectDataBaseDir, saveState]);
+  const handleBrowseDataBaseDir = useCallback(() => {
+    // 浏览器不暴露系统绝对路径：唯一入口是服务端真实目录浏览（Chrome/Firefox 同一 RPC）。
+    if (directoryBrowserServices) setBrowserOpen(true);
+  }, [directoryBrowserServices]);
 
   const handleSave = useCallback(async () => {
     const trimmed = localDataBaseDir.trim();
@@ -116,7 +90,7 @@ export function DataBaseDirControl({
             data-testid={TID_SETTINGS_DATA_BASE_DIR_INPUT}
             value={localDataBaseDir}
             readOnly
-            disabled={isSaving || isPickingDataBaseDir}
+            disabled={isSaving}
             placeholder={intl.formatMessage({ id: "settings.dataBaseDirPlaceholder" })}
             className="flex-1 font-mono"
           />
@@ -127,8 +101,8 @@ export function DataBaseDirControl({
             variant="outline"
             size="sm"
             data-testid={TID_SETTINGS_DATA_BASE_DIR_BROWSE}
-            disabled={isSaving || isPickingDataBaseDir}
-            onClick={() => void handleBrowseDataBaseDir()}
+            disabled={isSaving}
+            onClick={handleBrowseDataBaseDir}
           >
             {intl.formatMessage({ id: "settings.dataBaseDirBrowse" })}
           </Button>
@@ -136,7 +110,7 @@ export function DataBaseDirControl({
             type="button"
             size="sm"
             data-testid={TID_SETTINGS_DATA_BASE_DIR_SAVE}
-            disabled={!isDirty || isSaving || isPickingDataBaseDir}
+            disabled={!isDirty || isSaving}
             onClick={() => void handleSave()}
           >
             {isSaving ? (

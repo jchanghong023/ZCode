@@ -1,4 +1,4 @@
-import { useCallback, useContext, useLayoutEffect } from "react";
+import { useCallback, useContext } from "react";
 import { StoreContext } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import {
@@ -74,28 +74,6 @@ export async function reportAppTelemetryEvent(
 /** 只在埋点边界映射；没有交互来源时不假定默认编程模式。 */
 export function toTelemetryUiMode(mode: InterfaceMode | undefined): TelemetryUiMode {
   return mode === "office" ? "work" : mode === "coding" ? "code" : "unknown";
-}
-
-/** 从唯一 store 同步现有宿主上下文；不创建业务事件或额外轮询。 */
-export function useInterfaceModeTelemetry(platform: IPlatformService, enabled: boolean): void {
-  const store = useContext(StoreContext);
-  useLayoutEffect(() => {
-    if (!enabled || !store || !platform.syncTelemetryContext) return;
-    const sync = () => {
-      try {
-        platform.syncTelemetryContext?.({
-          ...collectTelemetryRendererContext(),
-          uiMode: toTelemetryUiMode(store.getState().interfaceMode),
-        });
-      } catch {
-        // 埋点桥失败不能中断启动、模式切换或跨窗口广播。
-      }
-    };
-    sync();
-    return store.subscribe((state, previous) => {
-      if (state.interfaceMode !== previous.interfaceMode) sync();
-    });
-  }, [enabled, platform, store]);
 }
 
 /** 用户入口显式调用；初始化、快捷键及广播仍使用原 store 命令。 */

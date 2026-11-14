@@ -18,7 +18,6 @@ import { Checkbox } from "@/components/ui/checkbox.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
-import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import type { OnboardingRecordEntry } from "@zcode/shared";
 
 /** 追加本地引导记录（userId 由 host 补全）；channel 缺失挂起时 5 秒超时按写失败处理。 */
@@ -35,7 +34,6 @@ async function appendOnboardingRecord(
 
 export function OccupationOnboarding({
   children,
-  showWindowControls = false,
   showChildrenWhileLoading = false,
   isMacDesktop,
   isWindowsDesktop,
@@ -276,12 +274,6 @@ export function OccupationOnboarding({
       className="relative flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground"
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-12 [app-region:drag]" />
-      {/* 与 Settings 相同，计入 Workspace 的 4px 外层留白、1px 边框和 8px 内边距。 */}
-      {showWindowControls ? (
-        <div className="absolute right-1 top-1 z-30 mt-px mr-px flex h-12 items-center px-2">
-          <DesktopWindowControls />
-        </div>
-      ) : null}
       <div className="relative grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-2 lg:gap-1 lg:p-1">
         <div className="flex min-h-0 flex-col pt-12 [@media(max-height:740px)]:pt-10">
           <OnboardingHeader

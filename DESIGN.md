@@ -9,6 +9,10 @@ copy of their numeric color values in documentation.
 
 This file is meant for coding agents. When generating or editing UI in this repo, follow this file before inventing new visual rules.
 
+Product scope is desktop browsers only. Phone/mobile layouts, touch-specific adaptation,
+and phone-screen testing are out of scope. Retained compatibility styles and controls
+do not establish mobile support; mobile clauses in historical specs are not current requirements.
+
 ## Highest-priority UI constraint
 
 The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for application interface typography:
@@ -18,14 +22,14 @@ The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for ap
 - Do not introduce Tailwind's built-in `text-base`, `text-sm`, or `text-xs` for application UI.
 - Do not introduce arbitrary UI font sizes such as `text-[13px]` or inline `font-size` values.
 - The only content-level exceptions are code, Diff, and terminal rendering that consume their independent numeric font-size settings. Their surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
-- Mobile Web editable inputs that must prevent iOS focus zoom use the fixed `text-mobile-input-safe` compatibility token (16px). Do not use it as a general UI hierarchy token.
+- The retained `text-mobile-input-safe` compatibility token (16px) documents legacy usage, not a mobile/iOS requirement. Do not use it as a general UI hierarchy token.
 - Never implement interface font scaling by changing `html` or `document.documentElement.style.fontSize`; update only `--ui-font-size`.
 
 Treat violations of this section as design-system defects, not stylistic preferences.
 
 ## Product Character
 
-ZCode is a desktop-first and web-compatible AI workspace. The interface should feel calm, dense, and operational rather than decorative.
+ZCode is a desktop-browser-only AI workspace, not a native desktop application. The interface should feel calm, dense, and operational rather than decorative.
 
 Design for:
 
@@ -33,7 +37,7 @@ Design for:
 - high information density
 - readable chat and tool output
 - keyboard-driven workflows
-- desktop and web parity
+- consistent desktop browser behavior
 - macOS, Windows, and Linux compatibility
 - internationalization and variable text length
 - light and dark themes, plus Zai variants already supported by the codebase
@@ -47,16 +51,12 @@ Avoid:
 
 ## Theme Modes
 
-### Full-page desktop overlays
+### Full-page browser overlays
 
-Login, Coding Plan upgrade, and Rewards surfaces must keep minimize, maximize/restore,
-and close-window controls reachable at the top right on Windows and Linux. Reuse
-`DesktopWindowControls` and the existing platform CSS variants. Keep the controls
-outside scrolling content and above page decoration, with a non-draggable hit area.
-The embedded website's close-page action remains separate from close-window.
-macOS keeps native traffic lights; ordinary Web and mobile Web hide desktop controls.
-Verify all three surfaces in both themes, including narrow windows, maximize/restore,
-minimize, and close-page versus close-window behavior.
+All product surfaces run in desktop browsers. Do not render native minimize,
+maximize/restore, traffic-light, or close-window controls. Closing an in-app overlay
+returns to the previous application view; it must not close the browser window.
+Verify overlays in both themes at desktop browser window sizes.
 
 User-facing theme choices are:
 
@@ -246,8 +246,8 @@ currently mapped to `--color-tag`.
 - Never mix `bg-background`, `bg-card`, and `bg-surface` without a clear layering reason.
 - Never replace semantic tokens with ad hoc values like `text-white/60`, `border-white/10`, or arbitrary neutral alpha fills.
 
-- `DesktopWindowFrame` uses `bg-background-alt` on macOS desktop. Windows, Linux, and Web keep `bg-background-win-alt`; child surface colors remain independent.
-- Linux desktop uses a `16px` outer window-shell radius around the `12px` workspace panels and their `4px` outer inset. Keep the shell radius and compositor clip path equal; maximized windows use `0px`.
+- The current desktop browser uses `DesktopWindowFrame` with `bg-background-win-alt`; child surface colors remain independent.
+- Native shell radii and compositor clipping are historical compatibility details, not current browser design or acceptance requirements.
 
 ### Lucide 前景透明度
 
@@ -293,14 +293,14 @@ by default). These tokens preserve the larger responsive heading while following
 the interface font setting. They are reserved for this page heading; ordinary
 section titles and controls retain the standard scale.
 
-`text-mobile-input-safe` is a fixed 16px platform-compatibility token. It is
-reserved for editable controls on mobile Web surfaces where iOS focus zoom must
-be prevented, and therefore does not scale with `--ui-font-size`.
+`text-mobile-input-safe` is a retained fixed 16px compatibility token and does not
+scale with `--ui-font-size`. Existing usage does not establish mobile browser support
+or a phone-screen acceptance requirement.
 
 - Changing the interface font size updates only `--ui-font-size`; never mutate the root `html` font size.
 - Icons, spacing, radii, and other `rem`-based geometry must not scale with the interface font setting.
 - Code, Diff, and terminal content retain their independent font-size settings; only their surrounding interface controls use `text-ui-*`.
-- Mobile Web inputs that require the iOS 16px focus-zoom floor use `text-mobile-input-safe`.
+- Preserve existing compatibility-token usage; do not add mobile-specific inputs or iOS zoom checks.
 
 ### Type roles
 
@@ -429,7 +429,7 @@ Control size and primary/secondary action emphasis do not independently change r
 - Buttons, tags, counters, and icon buttons do not qualify for `rounded-full` merely because of their component type.
 - Do not introduce arbitrary radius values or use the ambiguous bare `rounded` utility.
 - Use `rounded-none` or side-specific radius removal only where joined surfaces must form a continuous shape.
-- Apply the same rules on desktop and mobile Web, across platforms and themes.
+- Apply the same rules across supported desktop browsers, platforms, and themes.
 
 ## Sizing
 
@@ -567,7 +567,7 @@ Extension slots are shell-owned positions where extensions supply data only (spe
 - **`composer.mention`**: one group per entry in the composer `@` panel, after the built-in groups. The group header (the entry title) is always shown, even when it is the only visible group. Candidate rows use the skills row density: a `size-3.5` whitelisted icon, the label in `text-ui-base font-medium` (truncated at half the row), the description in `text-ui-xs text-foreground-subtlest`. Loading reuses the panel's skeleton rows; a denied or failed query and "Extensions stopped" reuse the panel's error status row, one line inside the group, so other groups stay usable. A chosen candidate becomes a mention chip in the plugin colour (`text-plugin-node-foreground`) with the generic plugin icon; it serializes to the candidate's `insertText`.
 - **Extension permissions** (spec §17.7): the launcher "Extensions" section shows one "Needs permission" row per plugin whose declared session tiers are not granted yet, right after the "Extensions stopped" row: a `SidePaneLauncherRow` with `KeyRoundIcon`, the plugin name, a `bg-tag` "Needs permission" label, the requested tiers as the description, and a "Grant" capsule that opens the consent dialog. The consent dialog and the enable confirmation reuse the shared `ConfirmDialog` (title names the plugin, the spec text is the description, default confirm button, no keyboard hints); no custom dialog chrome. The plugin details page shows a "Permissions" section after "Information" when the plugin declares or holds tiers: the same `border-b` heading as "Information", a `bg-tag` status label with the tiers, a primary "Grant" or an outline "Revoke" button at `size="sm"`, a one-line `text-ui-sm text-foreground-subtle` note, a "System notifications" row when the notifications tier is granted (spec §18.1 H8: `text-ui-base` label, `text-ui-sm text-foreground-subtle` note under it, the shared default-size `Switch` at the row end, on by default), and "Recent actions" rows in the information grid (`grid-cols-[8rem_minmax(0,1fr)]`, time in `tabular-nums text-foreground-subtle`). No destructive or warning fills. Desktop only.
 - **Icons**: only Lucide names in the extension icon whitelist render (`packages/ui/src/extension-slots/components/extensionIcons.ts`); any other name falls back to `PuzzleIcon`. The whitelist: `activity`, `bell`, `bot`, `chart-bar`, `chart-pie` (alias `pie-chart`), `clock`, `cpu`, `database`, `eye`, `file-text`, `gauge`, `git-branch`, `git-merge`, `git-pull-request`, `globe`, `info`, `layers`, `list`, `log-in`, `log-out`, `message-square`, `puzzle`, `sparkles`, `terminal`, `timer`, `zap`. Add a name in both places; a whitelisted icon uses the same size and `currentColor` as the built-in icons of that slot.
-- **Scope**: desktop only. Web and phone remote control render no slot. Verify in Zai Light and Zai Dark, zh-CN and en-US, at narrow toolbar widths where the composer slot collapses first, and with long navigation titles that must truncate.
+- **Scope**: retained extension-host integration notes. The current Web mock supplies no real extension host or slot contributions; these notes do not define additional current acceptance pages.
 
 ## Elevation and Depth
 
@@ -595,11 +595,12 @@ Depth rules:
 
 ## Workspace layout
 
-Desktop and wide Web workspace content uses independent conversation, bottom terminal, and Side Pane frames. The conversation frame contains WorkspaceHeader and conversation; the optional terminal has its own frame below it, and Side Pane owns its tab bar. Frames use their own background and border, with 4px resizable gaps matching the macOS outer inset. Resize handles keep a transparent 4px hit area and show a 2px tertiary foreground (`foreground-subtlest/50`) line on hover, focus or drag. The indicator extends along the panel edge, inset by the panel radius at both ends, with rounded ends and no mask. Layout frames do not count toward content radius levels. Mobile remote control retains its single-column and drawer presentation. See [workspace independent panels](docs/design/workspace-independent-panels.md) for platform chrome and persistence boundaries.
+Desktop browser workspace content uses independent conversation and Side Pane frames. The conversation frame contains WorkspaceHeader and conversation, and Side Pane owns its tab bar. Frames use their own background and border, with 4px resizable gaps matching the existing outer inset. Resize handles keep a transparent 4px hit area and show a 2px tertiary foreground (`foreground-subtlest/50`) line on hover, focus or drag. The indicator extends along the panel edge, inset by the panel radius at both ends, with rounded ends and no mask. Layout frames do not count toward content radius levels. See [workspace independent panels](docs/design/workspace-independent-panels.md) for platform chrome and persistence boundaries.
 
-## Responsive Behavior
+## Desktop Browser Resizing
 
-The product is desktop-first, but UI must remain functional on smaller screens.
+The product supports computer browser windows only. Preserve usable layouts when
+those windows resize; do not add phone layouts or phone-screen acceptance checks.
 
 Rules:
 
@@ -607,25 +608,24 @@ Rules:
 - Use breakpoints mainly for layout, width, visibility, and density changes.
 - Do not change the semantic meaning of components across breakpoints.
 - Prefer changing `max-width`, `grid`, `flex`, and visibility over changing component identity.
-- Preserve primary actions at all breakpoints; do not hide core workflows behind desktop-only affordances.
+- Preserve primary actions in supported desktop browser windows.
 
 ### Breakpoint roles
 
-| Breakpoint     | Preferred use                                                                                                                                                                                                                                |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sm:`          | Dialog width, button arrangement, small-screen layout corrections                                                                                                                                                                            |
-| `md:`          | Grid columns and form layout expansion                                                                                                                                                                                                       |
-| `lg:`          | Desktop toolbar visibility and secondary information density                                                                                                                                                                                 |
-| `xl:`          | Chat and complex content arrangements                                                                                                                                                                                                        |
-| `2xl:`         | Wide-screen reading-width caps, not ordinary page behavior                                                                                                                                                                                   |
-| `compact-web:` | Phone and narrow Web (`< 40rem` without a desktop platform class) layout corrections that must not change narrow desktop windows; CSS only, do not copy its condition into JS (see [settings narrow layout](docs/settings-narrow-layout.md)) |
+| Breakpoint     | Preferred use                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sm:`          | Dialog width and button arrangement within desktop browser windows                                                                             |
+| `md:`          | Grid columns and form layout expansion                                                                                                         |
+| `lg:`          | Desktop toolbar visibility and secondary information density                                                                                   |
+| `xl:`          | Chat and complex content arrangements                                                                                                          |
+| `2xl:`         | Wide-screen reading-width caps, not ordinary page behavior                                                                                     |
+| `compact-web:` | Retained legacy phone-layout CSS variant (`< 40rem` without a desktop platform class); not a current product target or acceptance requirement. |
 
 Start with the unprefixed layout, then add the fewest breakpoints needed. Prefer changing
 layout, `max-width`, and visibility to repeatedly switching fixed dimensions or semantic
-colors, borders, and radii. Keep essential actions available below desktop breakpoints.
-Dialogs should reuse patterns such as `sm:max-w-*`; grids grow from one column rather
-than starting desktop-wide and being repeatedly reduced. Fix unstable base layout before
-adding breakpoint overrides.
+colors, borders, and radii. Keep essential actions available in desktop browser windows.
+Dialogs should reuse patterns such as `sm:max-w-*`; flexible grids should preserve
+their semantic structure. Fix unstable layout before adding breakpoint overrides.
 
 ## Accessibility and Internationalization
 
@@ -652,7 +652,7 @@ adding breakpoint overrides.
 - use text hierarchy to express density
 - use monospace for technical values and command-like content
 - support all shipped themes
-- design for desktop, web, and cross-platform rendering constraints
+- design for desktop browser and cross-platform rendering constraints
 - account for localization and long labels
 
 ## Don't

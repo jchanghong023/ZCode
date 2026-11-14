@@ -3,9 +3,15 @@ import { logger } from "@/logger.js";
 import {
   fetchNativeMcpServers,
   persistCliMcpToUserDirectory,
-  type McpPlatformService,
-  type MigrateLegacyResult,
+  type McpDirectoryService,
 } from "@/store/mcpStoreDesktop.js";
+
+interface MigrateLegacyResult {
+  totalCount: number;
+  importedCount: number;
+  skippedCount: number;
+  sourcePath?: string;
+}
 import {
   clearLegacyCommonMcpServers,
   readLegacyCommonMcpServers,
@@ -25,7 +31,7 @@ function isZCodeAgentUserServer(server: NativeMcpServerRecord): boolean {
 }
 
 export async function importLegacyCommonServersToZCodeAgent(
-  platform: McpPlatformService | null,
+  directoryService: McpDirectoryService | null,
   legacyServers: Record<string, McpServerConfig>,
   nativeServers: NativeMcpServerRecord[],
   sourcePath?: string,
@@ -56,7 +62,7 @@ export async function importLegacyCommonServersToZCodeAgent(
     }
 
     try {
-      const persisted = await persistCliMcpToUserDirectory(platform, {
+      const persisted = await persistCliMcpToUserDirectory(directoryService, {
         action: "upsert",
         source: "zcodeagentmcp",
         name,
@@ -99,7 +105,7 @@ export async function importLegacyCommonServersToZCodeAgent(
 }
 
 export async function migrateStoredCommonMcpToZCodeAgent(
-  platform: McpPlatformService | null,
+  directoryService: McpDirectoryService | null,
   nativeServers: NativeMcpServerRecord[],
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
@@ -110,7 +116,7 @@ export async function migrateStoredCommonMcpToZCodeAgent(
 
   // 旧通用 MCP 保存在 localStorage，不迁移就直接去掉 common 读取会让用户配置从设置页和运行时消失。
   const migration = await importLegacyCommonServersToZCodeAgent(
-    platform,
+    directoryService,
     legacyServers,
     nativeServers,
     "localStorage:zcode-mcp-config",
@@ -126,5 +132,5 @@ export async function migrateStoredCommonMcpToZCodeAgent(
   logger.info(
     `[mcpStore] migrated ${migration.importedCount} legacy common MCP servers to zcode agent config`,
   );
-  return fetchNativeMcpServers(platform, { workspacePath });
+  return fetchNativeMcpServers(directoryService, { workspacePath });
 }

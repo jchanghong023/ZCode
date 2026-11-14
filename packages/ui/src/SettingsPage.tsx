@@ -13,9 +13,6 @@ import {
 } from "react";
 import type {
   AppSettings,
-  DesktopCloseToTrayCapability,
-  IntegratedTerminalShellOption,
-  IntegratedTerminalShellSelection,
   UsageEntitlementSnapshot,
   UserInfo,
   ZCodeInteractionBehavior,
@@ -31,8 +28,8 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
@@ -93,12 +90,10 @@ import { isWorkspaceTab } from "@/store/tabStore.js";
 import type { Theme } from "@/useTheme.js";
 import { WindowsTopLeftLogo } from "@/WindowsTopLeftLogo.js";
 
-import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import { WorkspaceHelpMenuButton } from "@/WorkspaceHelpMenuButton.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { useSelectDirectory } from "@/hooks/usePlatform.js";
 import { ServiceProvider, useServices } from "@/hooks/useServices.js";
 import { DEFAULT_APP_TOOL_SEARCH_MODE, type AppToolSearchMode } from "@zcode/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -307,10 +302,9 @@ export function SettingsPage({
   user?: UserInfo | null;
 }) {
   const { intl } = useZCodeIntl();
+  const platform = usePlatform();
   const { settingsSectionGroups, settingsSections } = useMemo(() => createSettingsPageConfig(), []);
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
-  const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);
-  const platform = usePlatform();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(() => {
     const initialSection = consumeInitialSettingsSection("general");
     const visibleInitialSection = resolveSettingsSectionForPlatform(
@@ -337,38 +331,6 @@ export function SettingsPage({
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeSection]);
 
-  // Linux 关闭驻留托盘能力查询（spec：docs/desktop/linux-close-to-tray.md）：打开设置页时
-  // 经 platform IPC 触发 main 侧探测（带 stale 缓存），用户装完 AppIndicator 扩展重开
-  // 设置页即可解除置灰；Web/远控无桥不查询。
-  const [linuxCloseToTrayCapability, setLinuxCloseToTrayCapability] =
-    useState<DesktopCloseToTrayCapability | null>(null);
-  useEffect(() => {
-    if (!isLinuxDesktop) {
-      return;
-    }
-    let cancelled = false;
-    platform
-      .getCloseToTrayCapability?.()
-      .then((capability) => {
-        if (!cancelled) {
-          setLinuxCloseToTrayCapability(capability);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isLinuxDesktop, platform]);
-  const linuxCloseToTray = isLinuxDesktop
-    ? {
-        // 探测中按不可用锁定，防止查询完成前误开导致关窗失联
-        disabled: linuxCloseToTrayCapability === null || !linuxCloseToTrayCapability.supported,
-        unavailable: linuxCloseToTrayCapability?.supported === false,
-        gnomeLikeHint:
-          linuxCloseToTrayCapability?.supported === false &&
-          linuxCloseToTrayCapability.gnomeLikeWithoutTray,
-      }
-    : undefined;
   const [pluginNavigationOrigin, setPluginNavigationOrigin] = useState(() =>
     consumePendingSettingsPluginOrigin(),
   );
@@ -622,10 +584,10 @@ export function SettingsPage({
     if (setting) setSearchTarget({ id: setting });
   };
   useEffect(() => {
-    if (!isSettingsSectionAvailable(activeSection, Boolean(isDesktop))) {
+    if (!isSettingsSectionAvailable(activeSection)) {
       setActiveSettingsSection("general");
     }
-  }, [activeSection, isDesktop, setActiveSettingsSection]);
+  }, [activeSection, setActiveSettingsSection]);
   const handleOpenModelProviderSettings = useCallback(() => {
     setActiveSettingsSection("modelProvider");
   }, [setActiveSettingsSection]);
@@ -674,7 +636,6 @@ export function SettingsPage({
     activeWorkspaceTab?.remoteSessionId?.trim() ||
     activeWorkspaceTab?.remoteTarget,
   );
-  const selectDirectory = useSelectDirectory();
   const services = useServices();
   const localHostServices = useBaseWorkspaceServices();
   // SettingsPage 可能挂在远端 workspace 的 ServiceProvider 下；共享设置属于本机 Host，
@@ -712,13 +673,6 @@ export function SettingsPage({
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const modelIoFullRetentionEnabled = sharedSettings?.modelIoFullRetentionEnabled === true;
   const [dataBaseDir, setDataBaseDir] = useState("");
-  const [terminalInheritSystemProfile, setTerminalInheritSystemProfile] = useState(true);
-  const [terminalFontFamily, setTerminalFontFamily] = useState("");
-  const [integratedTerminalShell, setIntegratedTerminalShell] =
-    useState<IntegratedTerminalShellSelection>({ mode: "auto" });
-  const [integratedTerminalShellOptions, setIntegratedTerminalShellOptions] = useState<
-    IntegratedTerminalShellOption[]
-  >([]);
   const [httpProxy, setHttpProxy] = useState("");
   const [httpProxyNoProxy, setHttpProxyNoProxy] = useState("");
   const [httpProxyCaCertPath, setHttpProxyCaCertPath] = useState("");
@@ -734,7 +688,6 @@ export function SettingsPage({
   const [zcodeInteractionBehavior, setZCodeInteractionBehavior] =
     useState<ZCodeInteractionBehavior>("queue");
   const [defaultHomeDir, setDefaultHomeDir] = useState("");
-  const [hostPlatform, setHostPlatform] = useState("");
 
   useEffect(() => {
     if (
@@ -790,14 +743,13 @@ export function SettingsPage({
 
   useEffect(() => {
     let active = true;
-    // 修复原因：远程 tab 的 services 属于 Source，但 Main 启动、native picker 和
-    // 本机 shell 枚举都使用 Desktop 配置；读写必须同属 base Host，不能随 tab 切换。
+    // 修复原因：远程 tab 的 services 属于 Source，但设置了本机路径/代理的配置
+    // 由 base Host 持有；读写必须同属 base Host，不能随 tab 切换。
     localHostServices.settingService
       .get()
       .then((settings: AppSettings) => {
         if (!active) return;
         setDataBaseDir(settings.dataBaseDir ?? "");
-        setIntegratedTerminalShell(settings.integratedTerminalShell ?? { mode: "auto" });
         setHttpProxy(settings.httpProxy ?? "");
         setHttpProxyNoProxy(settings.httpProxyNoProxy ?? "");
         setHttpProxyCaCertPath(settings.httpProxyCaCertPath ?? "");
@@ -812,19 +764,6 @@ export function SettingsPage({
       .then((info) => {
         if (!active) return;
         setDefaultHomeDir(info.homedir);
-        setHostPlatform(info.platform);
-        if (info.platform !== "win32") {
-          setIntegratedTerminalShellOptions([]);
-          return;
-        }
-        void localHostServices.systemService
-          .listIntegratedTerminalShells()
-          .then((options) => {
-            if (active) setIntegratedTerminalShellOptions(options);
-          })
-          .catch(() => {
-            if (active) setIntegratedTerminalShellOptions([]);
-          });
       })
       .catch(() => {});
     return () => {
@@ -834,13 +773,11 @@ export function SettingsPage({
 
   useEffect(() => {
     let active = true;
-    // 终端 Profile 与任务归档由目标 Environment 消费，仍读 Source；切换后丢弃旧响应。
+    // 任务归档由目标 Environment 消费，仍读 Source；切换后丢弃旧响应。
     services.settingService
       .get()
       .then((settings: AppSettings) => {
         if (!active) return;
-        setTerminalInheritSystemProfile(settings.terminalInheritSystemProfile ?? true);
-        setTerminalFontFamily(settings.terminalFontFamily ?? "");
         setTaskAutoArchiveEnabled(settings.taskAutoArchiveEnabled ?? false);
         setTaskAutoArchiveOlderThanDays(settings.taskAutoArchiveOlderThanDays ?? 30);
       })
@@ -858,54 +795,6 @@ export function SettingsPage({
     setMessageStreamShowTodos(sharedSettings.messageStreamShowTodos ?? false);
     setZCodeInteractionBehavior(sharedSettings.zcodeInteractionBehavior ?? "queue");
   }, [sharedSettings]);
-  const handleTerminalInheritSystemProfileChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.terminal",
-        action: "toggle_system_profile",
-        trigger: "switch",
-        operation: () => services.settingService.update({ terminalInheritSystemProfile: enabled }),
-        completed: {
-          resultSource: "setting_service",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-      setTerminalInheritSystemProfile(enabled);
-    },
-    [services.settingService],
-  );
-  const handleTerminalFontFamilyChange = useCallback(
-    async (fontFamily: string) => {
-      const normalizedFontFamily = fontFamily.trim();
-      await runSettingsActionAsync({
-        featureId: "settings.terminal",
-        action: "save_font_family",
-        trigger: "button",
-        operation: () =>
-          services.settingService.update({ terminalFontFamily: normalizedFontFamily }),
-        completed: { resultSource: "setting_service", configured: normalizedFontFamily.length > 0 },
-      });
-      setTerminalFontFamily(normalizedFontFamily);
-    },
-    [services.settingService],
-  );
-  const handleIntegratedTerminalShellChange = useCallback(
-    async (selection: IntegratedTerminalShellSelection) => {
-      await runSettingsActionAsync({
-        featureId: "settings.terminal",
-        action: "change_shell",
-        trigger: "select",
-        operation: () =>
-          localHostServices.settingService.update({ integratedTerminalShell: selection }),
-        completed: {
-          resultSource: "setting_service",
-          valueAfter: selection.mode === "auto" ? "auto" : "explicit",
-        },
-      });
-      setIntegratedTerminalShell(selection);
-    },
-    [localHostServices.settingService],
-  );
   const handleToolSearchModeChange = useCallback(
     async (mode: AppToolSearchMode) => {
       await runSettingsActionAsync({
@@ -1088,12 +977,11 @@ export function SettingsPage({
           stateAfter: enabled ? "enabled" : "disabled",
         },
       });
-      platform.syncAppSettings?.({ closeToTrayOnWindows: enabled });
       setCloseToTrayOnWindows(enabled);
     },
-    [localHostServices.settingService, platform],
+    [localHostServices.settingService],
   );
-  // keep-awake：走 useSettings 统一写盘 + syncAppSettings，和 Automations/创建页入口共享同一状态源。
+  // keep-awake：走 useSettings 统一写盘，和 Automations/创建页入口共享同一状态源。
   const handleKeepAwakeWhileRunningChange = useCallback(
     async (enabled: boolean) => {
       await runSettingsActionAsync({
@@ -1268,21 +1156,6 @@ export function SettingsPage({
         >
           {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
 
-          {usesInlineWindowControls ? (
-            <div
-              className={cn(
-                "absolute z-30 mt-px mr-px flex h-12 items-center gap-0.5 px-2 pointer-events-auto [app-region:no-drag]",
-                // 外沿留白变化后，悬浮操作组也必须同步，否则与内容 Header 错位。
-                isWindowsDesktop ? "right-1.5 top-1.5" : "right-1 top-1",
-              )}
-            >
-              {/* Bug 原因：Windows/Linux 设置页仍保留旧 caption 下箭头，与主界面和 macOS 的帮助入口不一致。
-                  统一复用问号帮助按钮，并让它在普通 flex 流中紧邻自绘窗控。
-                  Settings 的独立标题层还需计入 4px 外层留白和 1px 边框，才能与 Workspace 控制组对齐。 */}
-              <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} />
-              <DesktopWindowControls />
-            </div>
-          ) : null}
           {/* 手机窄屏 Web 下 68px 图标栏会挤占内容宽度，compact-web 下改成顶部横向滚动导航条。
               spec：docs/settings-narrow-layout.md */}
           <aside className="min-w-0">
@@ -1338,13 +1211,6 @@ export function SettingsPage({
               <div className="px-3 pb-3 max-lg:flex max-lg:justify-center compact-web:shrink-0 compact-web:px-1 compact-web:pb-0">
                 <SettingsSearch
                   sections={settingsSections}
-                  availability={{
-                    desktop: Boolean(isDesktop),
-                    windowsHost: hostPlatform === "win32",
-                    tray: Boolean(isWindowsDesktop || isLinuxDesktop),
-                    notWindows: !isWindowsDesktop,
-                    macDesktop: Boolean(isDesktop && isMacDesktop),
-                  }}
                   onSelect={({ section, setting }) => navigateToSettingsSection(section, setting)}
                 />
               </div>
@@ -1379,7 +1245,7 @@ export function SettingsPage({
                           {groupLabel}
                         </div>
                         {group.sections
-                          .filter(({ id }) => isSettingsSectionAvailable(id, Boolean(isDesktop)))
+                          .filter(({ id }) => isSettingsSectionAvailable(id))
                           .map(({ id, icon: Icon, titleId }) => {
                             const isActive = activeSection === id;
                             const label = intl.formatMessage({ id: titleId });
@@ -1463,22 +1329,11 @@ export function SettingsPage({
                 isWindowsDesktop ? "rounded-md" : "rounded-xl",
               )}
             >
-              {!usesInlineWindowControls ? (
-                <div
-                  className={cn(
-                    // Settings 使用和 new task 一致的问号定位：在内容面板内定位，外层让出自绘窗口按钮区，内层保持 top-2.5/right-2.5。
-                    "absolute top-0 z-50 h-10 w-10 pointer-events-auto [app-region:no-drag]",
-                    "right-0",
-                  )}
-                >
-                  <div className="absolute right-2.5 top-2.5 pointer-events-auto [app-region:no-drag]">
-                    <WorkspaceHelpMenuButton
-                      className="relative z-50 [app-region:no-drag]"
-                      isDesktop={Boolean(isDesktop)}
-                    />
-                  </div>
+              <div className="absolute top-0 z-50 h-10 w-10 pointer-events-auto [app-region:no-drag] right-0">
+                <div className="absolute right-2.5 top-2.5 pointer-events-auto [app-region:no-drag]">
+                  <WorkspaceHelpMenuButton className="relative z-50 [app-region:no-drag]" />
                 </div>
-              ) : null}
+              </div>
               <SettingsBreadcrumbProvider
                 onItemsChange={setSettingsBreadcrumbItems}
                 sectionLabel={settingsBreadcrumbSectionLabel}
@@ -1490,13 +1345,9 @@ export function SettingsPage({
                       // 此时外层已经提供 max-lg:h-16 的顶部拖拽/避让区，内层 h-10 再保留会把内容额外压低。
                       // Electron 的 drag 区不能和右上角帮助/窗口按钮命中区域重叠；
                       // 这里把右侧按钮区域从拖拽条里让出来，避免真实鼠标点击被标题栏拖拽吞掉。
-                      // Windows/Linux 设置页共同避开右上角菜单与内联窗控组。
+                      // 浏览器没有内联窗控组，标题区只避让右上角问号菜单。
 
-                      className={cn(
-                        "min-w-0 flex-1 [app-region:drag]",
-                        // 四个 28px 按钮、组内 2px 间距和左右 8px padding，共 134px。
-                        usesInlineWindowControls ? "mr-[134px]" : "mr-12",
-                      )}
+                      className="min-w-0 flex-1 [app-region:drag] mr-12"
                     >
                       <SettingsHeaderBreadcrumb
                         ariaLabel={intl.formatMessage({
@@ -1554,11 +1405,8 @@ export function SettingsPage({
                             <GeneralSectionContent
                               interfaceMode={interfaceMode}
                               setInterfaceMode={setInterfaceMode}
-                              isDesktop={isDesktop}
                               isWindowsDesktop={isWindowsDesktop}
                               isLinuxDesktop={isLinuxDesktop}
-                              linuxCloseToTray={linuxCloseToTray}
-                              platform={platform}
                               notificationEnabled={notificationEnabled}
                               notificationSoundEnabled={notificationSoundEnabled}
                               closeToTrayOnWindows={closeToTrayOnWindows}
@@ -1567,15 +1415,10 @@ export function SettingsPage({
                                 desktopChromiumHardwareAccelerationEnabled
                               }
                               dataBaseDir={dataBaseDir}
-                              terminalInheritSystemProfile={terminalInheritSystemProfile}
-                              terminalFontFamily={terminalFontFamily}
-                              integratedTerminalShell={integratedTerminalShell}
-                              integratedTerminalShellOptions={integratedTerminalShellOptions}
                               httpProxy={httpProxy}
                               httpProxyNoProxy={httpProxyNoProxy}
                               httpProxyCaCertPath={httpProxyCaCertPath}
                               defaultHomeDir={defaultHomeDir}
-                              showIntegratedTerminalShell={hostPlatform === "win32"}
                               setNotificationEnabled={(enabled) =>
                                 runUserAction({
                                   input: {
@@ -1607,12 +1450,6 @@ export function SettingsPage({
                                 })
                               }
                               onDataBaseDirChange={handleDataBaseDirChange}
-                              onSelectDataBaseDir={selectDirectory}
-                              onTerminalInheritSystemProfileChange={
-                                handleTerminalInheritSystemProfileChange
-                              }
-                              onTerminalFontFamilyChange={handleTerminalFontFamilyChange}
-                              onIntegratedTerminalShellChange={handleIntegratedTerminalShellChange}
                               onHttpProxyChange={handleHttpProxyChange}
                               onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
                               onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}

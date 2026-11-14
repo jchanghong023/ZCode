@@ -28,11 +28,6 @@ export {
   REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE,
   createRemoteWorkspaceDisconnectedError,
 } from "./lib/remoteWorkspaceServiceError.js";
-export {
-  getSourceSettingsServices,
-  registerSourceSettingsServices,
-  useSourceSettingsServices,
-} from "./store/sourceSettingsServiceStore.js";
 
 // Hooks —— 统一的服务和平台操作访问层
 export {
@@ -41,7 +36,6 @@ export {
   useWorkspaceServices,
   PlatformProvider,
   usePlatform,
-  useSelectDirectory,
   useReaddir,
   useSystemInfo,
   useIntranetProbe,

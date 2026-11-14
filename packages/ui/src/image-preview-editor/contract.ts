@@ -7,7 +7,7 @@ export interface ImagePreviewSurfaceProps {
   alt: string;
   filename?: string;
   imageTestId?: string;
-  onDownload: () => Promise<string | null>;
+  onDownload: () => Promise<void>;
   downloading: boolean;
   onSaved: () => void;
   onNavigationGuardChange?: (guard: ((proceed: () => void) => void) | null) => void;

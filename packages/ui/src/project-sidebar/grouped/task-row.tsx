@@ -238,24 +238,15 @@ function GroupedTaskRowComponent({
       typeof window.matchMedia === "function" &&
       window.matchMedia("(hover: none)").matches,
   );
-  const {
-    taskSessionFile,
-    taskNativeSessionLogFile,
-    providerConfigFile,
-    fileManagerLabel,
-    handleCopyText,
-    handleOpenTaskPathInFileManager,
-    handleOpenProviderConfig,
-  } = useTaskListItemContextActions({
-    workspacePath: task.workspacePath,
-    remoteSessionId,
-    workspaceIdentity: task.workspaceIdentity,
-    taskId: task.taskId,
-    provider: task.provider,
-    intl,
-    loadTaskPaths: contextMenuOpen,
-    loadProviderConfig: contextMenuOpen,
-  });
+  // 浏览器不再提供宿主文件管理器或配置文件打开端口，分组列表沿用同一复制动作契约。
+  const { taskSessionFile, taskNativeSessionLogFile, handleCopyText } =
+    useTaskListItemContextActions({
+      workspacePath: task.workspacePath,
+      workspaceIdentity: task.workspaceIdentity,
+      taskId: task.taskId,
+      provider: task.provider,
+      loadTaskPaths: contextMenuOpen,
+    });
   const handleSelect = () => {
     onSelectTask(task.workspacePath, task.taskId, task.workspaceIdentity);
   };
@@ -478,18 +469,14 @@ function GroupedTaskRowComponent({
           currentGroupId={currentGroupId}
           groups={groups}
           intl={intl}
-          fileManagerLabel={fileManagerLabel}
           taskSessionFile={taskSessionFile}
           taskNativeSessionLogFile={taskNativeSessionLogFile}
-          providerConfigFile={providerConfigFile}
           onMoveTaskToGroup={onMoveTaskToGroup}
           onMoveTaskToTop={onMoveTaskToTop}
           onStartRenameTask={onStartRenameTask}
           onArchiveTask={onArchiveTask}
           onMarkTaskAsUnread={onMarkTaskAsUnread}
-          onOpenTaskPathInFileManager={() => void handleOpenTaskPathInFileManager()}
           onCopyText={(label, text) => void handleCopyText(label, text)}
-          onOpenProviderConfig={() => void handleOpenProviderConfig()}
           disabledReason={workspaceActionsDisabledReason}
           archiveDisabledReason={archiveDisabledReason}
         />

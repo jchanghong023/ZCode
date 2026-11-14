@@ -1,245 +1,142 @@
 #!/usr/bin/env node
 
-import process from "node:process";
 import { existsSync, readFileSync } from "node:fs";
-import { delimiter, dirname, join, resolve } from "node:path";
-import { homedir } from "node:os";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runCommand } from "./spawn-command.mjs";
+import process from "node:process";
+
+import { runCommand, runCommandAndReadStdout } from "./spawn-command.mjs";
 import { clearHoistedPatchedDependencyTargets } from "./bootstrap-patched-dependencies.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
-const gitCommand = "git";
-const withRemoteAssets = process.argv.includes("--with-remote");
+// 保持原始命令名：scripts/spawn-command.mjs 在 Windows 上会为 pnpm/npm 加 shell，
+// 交给 cmd 解析 .cmd shim；改写成 pnpm.cmd 反而会破坏 pnpm 的包上下文。
+const pnpmCommand = "pnpm";
+const packageJsonPath = resolve(rootDir, "package.json");
+// bootstrap 只准备纯 Web 形态的两端：浏览器前端与内存态 mock-server。
+// 桌面 runtime、远程资源发行链、apps/zcode-cli 子模块都已随桌面端裁撤，不再属于首装链。
+const expectedArtifacts = ["packages/server/dist/entry-http.js", "packages/web/dist/index.html"];
 
-function prependPathEntries(pathValue, entries) {
-  const currentEntries = pathValue ? pathValue.split(delimiter) : [];
-  return [...entries, ...currentEntries].join(delimiter);
-}
-
-function resolvePinnedNodeBin() {
-  if (process.platform === "win32") {
-    return undefined;
-  }
-
+function readPinnedToolVersions() {
   const miseConfigPath = resolve(rootDir, "mise.toml");
   if (!existsSync(miseConfigPath)) {
-    return undefined;
-  }
-
-  const miseConfig = readFileSync(miseConfigPath, "utf8");
-  const match = miseConfig.match(/^\s*node\s*=\s*"([^"]+)"/m);
-  const version = match?.[1]?.trim();
-  if (!version) {
-    return undefined;
-  }
-
-  const nvmNodeBin = join(homedir(), ".nvm", "versions", "node", `v${version}`, "bin");
-  return existsSync(nvmNodeBin) ? nvmNodeBin : undefined;
-}
-
-function resolveUserPnpmBin() {
-  if (process.platform === "win32") {
-    return undefined;
-  }
-
-  const pnpmBin = join(homedir(), "Library", "pnpm");
-  return existsSync(join(pnpmBin, "pnpm")) ? pnpmBin : undefined;
-}
-
-function resolvePnpmCommand() {
-  if (!withRemoteAssets) {
-    return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-  }
-
-  const userPnpmBin = resolveUserPnpmBin();
-  if (userPnpmBin) {
-    return join(userPnpmBin, process.platform === "win32" ? "pnpm.cmd" : "pnpm");
-  }
-
-  return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-}
-
-function resolveBootstrapWithRemoteEnv(baseEnv = process.env) {
-  if (!withRemoteAssets) {
     return {};
   }
 
-  // 修复原因：默认 dev:desktop 使用生产账号；远程构建若沿用通用 test 默认值，
-  // 会把生产凭据发往测试模型地址并返回 401。入口统一选择环境并传给所有构建子进程。
-  const zcodeEnv = baseEnv.ZCODE_ENV?.trim().toLowerCase() || "production";
-  if (zcodeEnv !== "test" && zcodeEnv !== "production") {
-    throw new Error(`Invalid ZCODE_ENV for bootstrap:with-remote: ${zcodeEnv}`);
-  }
-
-  const pathEntries = [resolvePinnedNodeBin(), resolveUserPnpmBin()].filter(Boolean);
-
-  return {
-    ZCODE_ENV: zcodeEnv,
-    // bootstrap:with-remote 是手动远程资源初始化入口，自动化等非 TTY 环境里
-    // pnpm install 可能要求确认清理 node_modules。只在该入口禁用确认，不改变 CI/生产构建命令。
-    HUSKY: "0",
-    PNPM_CONFIG_CONFIRM_MODULES_PURGE: "false",
-    npm_config_confirm_modules_purge: "false",
-    // remote assets 和 bootstrap build 同一轮里会触发大量 workspace 构建。
-    // 这里把降峰值限制在 bootstrap:with-remote 子进程，不修改 build/build:bootstrap 的全局语义。
-    PNPM_CONFIG_WORKSPACE_CONCURRENCY: "1",
-    ZCODE_BOOTSTRAP_WITH_REMOTE: "1",
-    ...(pathEntries.length > 0
-      ? {
-          PATH: prependPathEntries(baseEnv.PATH, pathEntries),
-        }
-      : {}),
-  };
+  const miseConfig = readFileSync(miseConfigPath, "utf8");
+  // 只读取 [tools] 中的 node/pnpm 两个固定版本，供后续版本检查与提示使用。
+  const node = miseConfig.match(/^\s*node\s*=\s*"([^"]+)"/m)?.[1]?.trim();
+  const pnpm = miseConfig.match(/^\s*pnpm\s*=\s*"([^"]+)"/m)?.[1]?.trim();
+  return { node, pnpm };
 }
 
-const bootstrapWithRemoteEnv = resolveBootstrapWithRemoteEnv();
-const pnpmCommand = resolvePnpmCommand();
+function readPackageManagerVersion() {
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  const packageManager =
+    typeof packageJson.packageManager === "string" ? packageJson.packageManager : "";
+  const match = packageManager.match(/^pnpm@(.+)$/u);
+  return match?.[1]?.trim();
+}
 
-function runGit(args) {
-  runCommand(gitCommand, args, {
+function assertToolchain() {
+  const pinned = readPinnedToolVersions();
+  const currentNode = process.versions.node;
+  const nodeMajor = Number.parseInt(currentNode.split(".")[0] ?? "0", 10);
+  if (!Number.isFinite(nodeMajor) || nodeMajor < 24) {
+    throw new Error(
+      `需要 Node.js 24+（package.json engines 要求），当前 ${currentNode}；固定版本见 mise.toml。`,
+    );
+  }
+  if (pinned.node && currentNode !== pinned.node) {
+    // 小版本漂移不阻断安装与构建，但必须提示：工具链固定版本才是验收基准。
+    console.warn(
+      `[bootstrap] Node ${currentNode} 与 mise.toml 固定版本 ${pinned.node} 不一致；如需完全一致请运行 mise install。`,
+    );
+  }
+
+  const expectedPnpm = pinned.pnpm ?? readPackageManagerVersion();
+  if (!expectedPnpm) {
+    return;
+  }
+
+  const actualPnpm = readPnpmVersion(expectedPnpm);
+  if (actualPnpm !== expectedPnpm) {
+    throw new Error(
+      `需要 pnpm ${expectedPnpm}（mise.toml / package.json packageManager），当前 ${actualPnpm}。` +
+        `请运行 mise install，或执行 corepack prepare pnpm@${expectedPnpm} --activate / npm i -g pnpm@${expectedPnpm}。`,
+    );
+  }
+}
+
+function readPnpmVersion(expectedPnpm) {
+  try {
+    return runCommandAndReadStdout(pnpmCommand, ["--version"], {
+      cwd: rootDir,
+      env: process.env,
+    }).trim();
+  } catch (error) {
+    // 找不到 pnpm 时 spawnSync 只会给 ENOENT；这里换成可执行的中文提示。
+    throw new Error(
+      `无法运行 pnpm（需要 ${expectedPnpm}）：${error instanceof Error ? error.message : String(error)}。` +
+        `请先安装固定版本，或改用 mise install。`,
+    );
+  }
+}
+
+function runPnpm(args) {
+  runCommand(pnpmCommand, args, {
     cwd: rootDir,
     env: process.env,
   });
 }
 
-function runPnpm(args, options = {}) {
-  runCommand(pnpmCommand, args, {
-    cwd: rootDir,
-    env: {
-      ...process.env,
-      ...bootstrapWithRemoteEnv,
-      ...options.env,
-    },
-  });
-}
-
-function runBootstrapServerBuild() {
-  const serverDir = resolve(rootDir, "packages/server");
-
-  // bootstrap:with-remote 的最终构建过去复用 build:bootstrap，导致 @zcode/server build
-  // 内部再次嵌套 pnpm run build:remote；在本地低内存环境中 tsx/esbuild 子进程容易卡住或被停掉。
-  // 同时不能按 dist 文件存在就跳过构建：开发时 version 经常不变，旧 entry-http 或 remote bundle
-  // 会让本地/远端继续运行旧协议。这里仅保留直接执行等价入口的低内存优化，CI 和生产 build 脚本保持原样。
-  runCommand(process.execPath, [resolve(rootDir, "node_modules/tsup/dist/cli-default.js")], {
-    cwd: serverDir,
-    env: {
-      ...process.env,
-      ...bootstrapWithRemoteEnv,
-    },
-  });
-  runCommand(
-    process.execPath,
-    [resolve(rootDir, "node_modules/tsx/dist/cli.mjs"), "build-remote.ts"],
-    {
-      cwd: serverDir,
-      env: {
-        ...process.env,
-        ...bootstrapWithRemoteEnv,
-      },
-    },
-  );
-}
-
-function runBootstrapE2eReportBuild() {
-  const e2eReportDir = resolve(rootDir, "packages/e2e-report");
-  // Bugfix: bootstrap:with-remote 的最终构建不能再嵌套 pnpm build:node。
-  // 低内存环境中 pnpm shim + tsc 会被 SIGKILL；这里只在 bootstrap runner 中直接执行等价入口。
-  runCommand(
-    process.execPath,
-    [resolve(rootDir, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"],
-    {
-      cwd: e2eReportDir,
-      env: {
-        ...process.env,
-        ...bootstrapWithRemoteEnv,
-      },
-    },
-  );
-  runCommand(process.execPath, [resolve(rootDir, "node_modules/vite/bin/vite.js"), "build"], {
-    cwd: e2eReportDir,
-    env: {
-      ...process.env,
-      ...bootstrapWithRemoteEnv,
-    },
-  });
-}
-
-function runBootstrapStreamAnimateBuild() {
-  const streamAnimateDir = resolve(rootDir, "packages/stream-animate");
-  // Bugfix: bootstrap:with-remote 串行最终构建时，继续通过 pnpm 执行 stream-animate 的 tsc
-  // 仍可能命中 shim 被 SIGKILL；这里仅在 bootstrap runner 中直接执行等价入口。
-  runCommand(
-    process.execPath,
-    [resolve(rootDir, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.server.json"],
-    {
-      cwd: streamAnimateDir,
-      env: {
-        ...process.env,
-        ...bootstrapWithRemoteEnv,
-      },
-    },
-  );
-  runCommand(process.execPath, [resolve(rootDir, "node_modules/vite/bin/vite.js"), "build"], {
-    cwd: streamAnimateDir,
-    env: {
-      ...process.env,
-      ...bootstrapWithRemoteEnv,
-    },
-  });
-}
-
-function runBootstrapDesktopBuild() {
-  const desktopDir = resolve(rootDir, "packages/desktop");
-  // bootstrap:with-remote 的目标是完成远程资源和本地 runtime 初始化。
-  // 继续触发 desktop app bundle 会进入生产构建脚本里的 tsup/vite 路径，在本地低内存环境中被 SIGKILL。
-  // 这里仅在 bootstrap runner 中保留 build meta，生产/CI 的 build:no-runtime-assets 仍保持原语义。
-  runCommand(process.execPath, ["scripts/build-metadata.mjs"], {
-    cwd: desktopDir,
-    env: {
-      ...process.env,
-      ...bootstrapWithRemoteEnv,
-    },
-  });
-  console.log("[bootstrap:with-remote] skip desktop app bundle build; runtime assets are prepared");
-}
-
-function runBootstrapWithRemoteBuild() {
-  for (const filter of ["@zcode/rpc", "@zcode/web", "@zcode/formal-proof"]) {
-    // pnpm -r 会在 bootstrap:with-remote 的最终构建阶段并发启动多个 Vite/esbuild/tsup。
-    // remote assets 已经占过一轮内存峰值，这里显式串行包构建，且不改变 build:bootstrap/CI 命令。
-    runPnpm(["--filter", filter, "build"]);
+function assertExpectedArtifacts() {
+  const missing = expectedArtifacts.filter((artifact) => !existsSync(resolve(rootDir, artifact)));
+  if (missing.length > 0) {
+    const relativePaths = missing.map((artifact) => relative(rootDir, resolve(rootDir, artifact)));
+    throw new Error(`构建结束但产物缺失：${relativePaths.join(", ")}`);
   }
-  runBootstrapE2eReportBuild();
-  runBootstrapStreamAnimateBuild();
-  runBootstrapServerBuild();
-  runBootstrapDesktopBuild();
 }
 
-runGit(["submodule", "update", "--init", "--recursive", "apps/zcode-cli"]);
+async function main() {
+  assertToolchain();
 
-const clearedPatchedDependencies = await clearHoistedPatchedDependencyTargets({
-  rootDir,
-  packageJsonPath: resolve(rootDir, "package.json"),
-});
-if (clearedPatchedDependencies.length > 0) {
-  console.log(
-    `[bootstrap] refreshed hoisted patched dependencies: ${clearedPatchedDependencies.join(", ")}`,
+  const clearedPatchedDependencies = await clearHoistedPatchedDependencyTargets({
+    rootDir,
+    packageJsonPath,
+  });
+  if (clearedPatchedDependencies.length > 0) {
+    // pnpm 10 + hoisted node-linker 会把 patch 直接应用到目标目录，重复 install 会再次
+    // 应用同一 diff 并稳定失败；这里只清理可重建的依赖目标，让本次 install 重新打 patch。
+    console.log(
+      `[bootstrap] refreshed hoisted patched dependencies: ${clearedPatchedDependencies.join(", ")}`,
+    );
+  }
+
+  console.log("[bootstrap] 安装 workspace 依赖：pnpm install");
+  runPnpm(["install"]);
+
+  // 根 build 契约是串行 build:server && build:web；这里复用根脚本，不另立构建流程。
+  console.log("[bootstrap] 构建 mock-server 与 web：pnpm build");
+  runPnpm(["run", "build"]);
+
+  assertExpectedArtifacts();
+  console.log("[bootstrap] 完成：packages/server/dist 与 packages/web/dist 已就绪。");
+}
+
+const unsupportedArgs = process.argv.slice(2);
+if (unsupportedArgs.length > 0) {
+  console.error(
+    `[bootstrap] 不支持的参数：${unsupportedArgs.join(" ")}\n` +
+      "bootstrap 只安装依赖并构建 Web + mock-server；--with-remote 等桌面/远程发行入口已移除。",
   );
+  process.exit(1);
 }
 
-runPnpm(withRemoteAssets ? ["install", "--config.confirmModulesPurge=false"] : ["install"]);
-
-// Desktop runtime 入口只准备本机资源；Source Server archive 由下方显式远程入口负责。
-runPnpm(["prepare:desktop-runtime"]);
-
-if (withRemoteAssets) {
-  runBootstrapWithRemoteBuild();
-  // Bug 原因：R3 首装只消费 Source Server archive，旧 bootstrap 只生成 legacy
-  // manifest/components，导致开发态继续命中 gitignore 中的历史 dist-release。
-  // 放在最终 workspace build 之后，确保 archive 收集的是本轮最新编译产物。
-  runPnpm(["--filter", "@zcode/server-cli", "stage:remote-assets"]);
-} else {
-  runPnpm(["run", "build:bootstrap"]);
+try {
+  await main();
+} catch (error) {
+  console.error(`[bootstrap] 失败：${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
 }

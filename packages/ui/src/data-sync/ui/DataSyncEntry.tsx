@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from "react";
 import { BlocksIcon, CableIcon, WandIcon } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -36,10 +35,10 @@ export function useDataSyncEntry(options: { onPushFinished?(): void | Promise<vo
   open(request: DataSyncEntryRequest): void;
   dialog: ReactNode;
 } {
-  const request = useOptionalPlatform()?.requestSourceSettingsAttachment;
   const openDialog = useOpenDataSyncDialog();
   const resultVersion = useDataSyncResultVersion();
-  const available = Boolean(request && openDialog);
+  // 跨设备同步依赖桌面壳层提供的 source-settings attachment；浏览器没有该宿主端口。
+  const available = false;
   const onPushFinishedRef = useRef(options.onPushFinished);
   const seenResultVersionRef = useRef(resultVersion);
   useEffect(() => {

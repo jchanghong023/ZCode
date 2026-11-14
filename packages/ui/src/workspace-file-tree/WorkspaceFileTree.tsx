@@ -9,16 +9,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
-import {
-  ArrowLeft,
-  Copy,
-  Ellipsis,
-  FolderOpen,
-  GitCommitVertical,
-  RefreshCw,
-  Search,
-  X,
-} from "lucide-react";
+import { ArrowLeft, Copy, Ellipsis, GitCommitVertical, RefreshCw, Search, X } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -30,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { toast } from "@/components/ui/toast.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   TID_WORKSPACE_FILE_TREE_PANEL,
@@ -51,13 +41,6 @@ import {
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
 import { WORKSPACE_FILE_TREE_VIRTUAL_ROW_HEIGHT_PX } from "@/workspace-file-tree/constants.js";
-import { getFileManagerLabel } from "@/workspace-file-tree/helpers.js";
-import { useInstalledFileTreeEditors } from "@/workspace-file-tree/useInstalledFileTreeEditors.js";
-import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
-import {
-  resolveWorkspaceEditorSelection,
-  resolveWorkspaceFileManagerEditor,
-} from "@/lib/workspaceEditorSelection.js";
 import { useWorkspaceFileTreeData } from "@/workspace-file-tree/useWorkspaceFileTreeData.js";
 import { useWorkspaceFileTreeStickyFolders } from "@/workspace-file-tree/useWorkspaceFileTreeStickyFolders.js";
 import {
@@ -92,13 +75,11 @@ export function WorkspaceFileTree({
   workspaceRemoteSessionId,
   revealPath,
   temporaryExternalDirectory = false,
-  canOpenLocalFileManager = false,
   activePreviewPath,
   onClose,
   onOpenPreview,
 }: WorkspaceFileTreeProps) {
   const { intl } = useZCodeIntl();
-  const platform = usePlatform();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const pendingActivePreviewRevealPathRef = useRef<string | null>(null);
@@ -123,27 +104,6 @@ export function WorkspaceFileTree({
     workspaceRemoteSessionId,
     enableWorkspaceFeatures: !temporaryExternalDirectory,
   });
-  const { installedEditors } = useInstalledFileTreeEditors();
-  const isRemoteWorkspaceFileTree = Boolean(workspaceRemoteSessionId || workspaceIdentity);
-  const { remoteTarget } = useWorkspaceOpenInEditorTarget({
-    workspacePath,
-    workspaceIdentity,
-    workspaceRemoteSessionId,
-  });
-  const availableEditors = useMemo(
-    () =>
-      isRemoteWorkspaceFileTree && !remoteTarget
-        ? []
-        : resolveWorkspaceEditorSelection({
-            installedEditors,
-            selectedEditorId: null,
-            remoteTarget,
-          }).availableEditors,
-    [installedEditors, isRemoteWorkspaceFileTree, remoteTarget],
-  );
-  const wslFileManagerEditor = resolveWorkspaceFileManagerEditor(availableEditors, remoteTarget);
-  const canOpenInFileManager =
-    Boolean(wslFileManagerEditor) || (canOpenLocalFileManager && !isRemoteWorkspaceFileTree);
   const hasFileSearchQuery = fileSearchQuery.trim().length > 0;
   const searchIndex = useWorkspaceFileSearchIndex({
     workspacePath,
@@ -241,7 +201,6 @@ export function WorkspaceFileTree({
     }),
     [intl],
   );
-  const fileManagerLabel = getFileManagerLabel(intl);
   const fileContextMenuLabels = useMemo(
     () => ({
       addToChat: intl.formatMessage({ id: "workspaceFileTree.addToChat" }),
@@ -255,11 +214,8 @@ export function WorkspaceFileTree({
       openInBrowser: intl.formatMessage({
         id: "workspaceFileTree.openInBrowser",
       }),
-      openFailed: intl.formatMessage({ id: "workspaceFileTree.openFailed" }),
-      openWith: intl.formatMessage({ id: "workspaceFileTree.openWith" }),
-      reveal: fileManagerLabel,
     }),
-    [fileManagerLabel, intl],
+    [intl],
   );
 
   const scrollMaskStyle = useMemo<CSSProperties | undefined>(() => {
@@ -412,34 +368,6 @@ export function WorkspaceFileTree({
   }, [hasFileSearchQuery, refreshSearchIndex, treeData]);
   const refreshInProgress =
     rootLoading || treeData.refreshingLoadedDirectories || searchIndexLoading;
-
-  const handleOpenInFileManager = useCallback(async () => {
-    if (!canOpenInFileManager) {
-      return;
-    }
-    const result = wslFileManagerEditor
-      ? await platform.openInEditor(wslFileManagerEditor.id, workspacePath, {
-          pathKind: "directory",
-          remoteTarget,
-          workspaceIdentity,
-        })
-      : await platform.openInFileManager(workspacePath);
-    if (!result.success) {
-      logger.warn("[WorkspaceFileTree] 打开 workspace 路径失败", {
-        path: workspacePath,
-        error: result.error ?? "unknown-error",
-      });
-      toast(intl.formatMessage({ id: "appHeader.openInFileManagerFailed" }));
-    }
-  }, [
-    canOpenInFileManager,
-    intl,
-    platform,
-    remoteTarget,
-    workspaceIdentity,
-    workspacePath,
-    wslFileManagerEditor,
-  ]);
 
   const handleCopyPath = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
@@ -598,13 +526,7 @@ export function WorkspaceFileTree({
     workspaceName?.trim() ||
     getPathLeaf(workspacePath) ||
     intl.formatMessage({ id: "workspaceFileTree.title" });
-  const editorState = {
-    workspaceRemoteSessionId,
-    canOpenLocalFileManager,
-    installedEditors: availableEditors,
-    isRemoteWorkspaceFileTree,
-    remoteTarget,
-  };
+  const editorState = { workspaceRemoteSessionId };
 
   return (
     <section
@@ -688,13 +610,6 @@ export function WorkspaceFileTree({
             </SidebarNativeTooltip>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem
-              disabled={!canOpenInFileManager}
-              onSelect={() => void handleOpenInFileManager()}
-            >
-              <FolderOpen className="size-4" />
-              {fileManagerLabel}
-            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void handleCopyPath()}>
               <Copy className="size-4" />
               {intl.formatMessage({ id: "appHeader.copyPath" })}

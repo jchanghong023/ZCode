@@ -17,6 +17,7 @@ import {
   type createSettingsPageConfig,
 } from "@/settings/settingsPageConfig.js";
 import {
+  resolveSettingsSearchAvailability,
   SETTINGS_SEARCH_ITEMS,
   type SettingsSearchAvailability,
 } from "@/settings-search/settingsSearchIndex.js";
@@ -29,16 +30,14 @@ import { resolveDynamicWorkflowModeSettingView } from "@/settings/DynamicWorkflo
 
 export function SettingsSearch({
   sections,
-  availability,
   onSelect,
 }: {
   sections: ReturnType<typeof createSettingsPageConfig>["settingsSections"];
-  availability: Omit<SettingsSearchAvailability, "workflow">;
   onSelect: (result: SettingsSearchResult) => void;
 }) {
   const { intl } = useZCodeIntl();
   const visible: SettingsSearchAvailability = {
-    ...availability,
+    ...resolveSettingsSearchAvailability(),
     workflow: resolveDynamicWorkflowModeSettingView(useDynamicWorkflowAvailability()) !== null,
   };
   const [open, setOpen] = useState(false);
@@ -79,7 +78,7 @@ export function SettingsSearch({
   const results = entries
     .flatMap((entry) => {
       if (
-        !isSettingsSectionAvailable(entry.section, availability.desktop) ||
+        !isSettingsSectionAvailable(entry.section) ||
         (entry.visibility !== "all" && !visible[entry.visibility])
       )
         return [];

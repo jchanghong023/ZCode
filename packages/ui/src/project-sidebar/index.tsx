@@ -18,7 +18,6 @@ export {
 } from "@/project-sidebar/ProjectDirectoryProvider.js";
 export { ProjectComposerMenu } from "@/project-sidebar/ProjectComposerMenu.js";
 import { useProjectTaskNavigation } from "@/project-sidebar/useProjectTaskNavigation.js";
-import { useAppControlNavigation } from "@/project-sidebar/useAppControlNavigation.js";
 import { useProjectFileTree } from "@/project-sidebar/useProjectFileTree.js";
 import {
   selectProjectRows,
@@ -63,7 +62,6 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
   } = useProjectDirectory();
   const { tree, pin } = useProjectPinIntent(authoritativeTree);
   const navigateToTask = useProjectTaskNavigation(props);
-  useAppControlNavigation(props, tree, navigateToTask);
   const onSelectTask = useCallback<ProjectSidebarProps["onSelectTask"]>(
     (...args) => {
       void navigateToTask(...args);

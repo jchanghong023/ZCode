@@ -1,7 +1,7 @@
 // 模拟任务索引与会话门面服务：tasks-index 的内存镜像，与 v4 会话共享同一份运行时状态。
 // 方法签名统一从 IZCodeTaskService / IZCodeSessionService 派生。
-import { Emitter, Event, type Event as EventType } from "@zcode/rpc";
-import { createUuid, type ZCodeTaskMeta } from "@zcode/shared";
+import { Emitter, Event } from "@zcode/rpc";
+import type { ZCodeTaskMeta } from "@zcode/shared";
 import type { IZCodeSessionService, IZCodeTaskService } from "@zcode/services";
 import {
   isListedSession,
@@ -14,16 +14,19 @@ type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type R<M> = M extends (...args: never) => unknown ? M : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 
-function toTaskMeta(record: MockTaskRecord): ZCodeTaskMeta {
+/** 任务记录 → 任务 meta；task 服务与 controller tasks-index 共用同一投影。 */
+export function toTaskMeta(record: MockTaskRecord): ZCodeTaskMeta {
   return {
     taskId: record.sessionId,
-    traceId: `trace_${createUuid()}`,
+    // 确定性 traceId：同一任务多次读取必须得到同一 meta，否则 delta 对比会永远“有变化”。
+    traceId: `trace_${record.sessionId}`,
     title: record.title || "新任务",
     ...(record.titleSource === "custom" ? { titleOverridden: true } : {}),
     workspacePath: record.workspacePath,
     ...(record.workspaceIdentity ? { workspaceIdentity: record.workspaceIdentity } : {}),
     createdAt: record.createdAt,
     updatedAt: record.lastActivityAt,
+    ...(record.unread ? { unreadAt: record.lastActivityAt } : {}),
     mode: "build" as const,
     provider: "glm" as const,
   };

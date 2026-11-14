@@ -1,4 +1,3 @@
-import { useInterfaceModeTelemetry } from "@/lib/appTelemetry.js";
 import { ProjectDirectoryProvider } from "@/project-sidebar/ProjectDirectoryProvider.js";
 import { DataSyncDialogProvider } from "@/data-sync/index.js";
 /* eslint-disable max-lines -- Root 当前集中编排启动、workspace shell wiring 和 Web 远控同步，先保持入口收口避免跨层状态拆散。 */
@@ -11,7 +10,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { LucideProvider, RefreshCw } from "lucide-react";
 import {
   APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
-  DesktopCommandIds,
   appRuntimePreferencesChangedBroadcastPayloadSchema,
 } from "@zcode/shared";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
@@ -51,7 +49,6 @@ import {
   shouldOpenFallbackWorkspaceAfterCreate,
 } from "@/lib/rootStartupGate.js";
 import { StoreProvider, useZCodeStore } from "@/store/StoreProvider.js";
-import { setMcpStorePlatform } from "@/store/mcpStore.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { TabStoreProvider, useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isSettingsTab, isWorkspaceTab } from "@/store/tabStore.js";
@@ -67,7 +64,6 @@ import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useRootProviderSettingsSnapshot } from "@/root/useRootProviderSettingsSnapshot.js";
 import { useRootOAuthEffects } from "@/root/useRootOAuthEffects.js";
 import { consumeZcodeJwtInvalidRestartMarker } from "@/root/zcodeJwtInvalidRestartMarker.js";
-import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
 import { useBotBroadcastEffects } from "@/root/useBotBroadcastEffects.js";
@@ -91,7 +87,6 @@ import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailabilit
 import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
 import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainMigration.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
 import {
   disposeConversationTelemetrySupervisors,
@@ -172,14 +167,11 @@ function RootInner({
   restoreSession = true,
   supportsSettings = true,
   allowOpenWorkspace = true,
-  preferDirectoryBrowser,
   initialSidebarFileTreeOpen,
 }: RootProps) {
   const credentialRecovery = useCredentialStoreRecovery(isDesktop === true);
-  useInterfaceModeTelemetry(platform, isDesktop === true);
   useEffect(() => {
     setRequestSecurityReporter(platform);
-    setMcpStorePlatform(platform);
     // 对话 UI perf 只属于 desktop-continuous；Web/mobile 即使能看到权威状态也不装 reporter。
     setUiPerfArmsReporter(isDesktop ? platform : null);
     setSessionOpenArmsReporter(isDesktop ? platform : null);
@@ -187,7 +179,6 @@ function RootInner({
     setSendFunnelArmsReporter(isDesktop ? platform : null);
     return () => {
       setRequestSecurityReporter(null);
-      setMcpStorePlatform(null);
       setUiPerfArmsReporter(null);
       setSessionOpenArmsReporter(null);
       setSendFunnelArmsReporter(null);
@@ -215,8 +206,7 @@ function RootInner({
   // 工作区级 ServiceProvider 内（远程 Host 的 accessor），由它们取数会拿到另一台 Host 的答案。
   useDynamicWorkflowAvailabilityLoader(services.codingPlanSubscriptionService);
 
-  const { intl, locale, localeResolved } = useZCodeIntl();
-  const theme = useZCodeStore((state) => state.theme);
+  const { intl } = useZCodeIntl();
   const user = useZCodeStore((state) => state.user);
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
   const setUser = useZCodeStore((state) => state.setUser);
@@ -271,7 +261,6 @@ function RootInner({
   );
   const didRequestFallbackWorkspaceRef = useRef(false);
   const rootInnerMountedRef = useRef(true);
-  const [hasEnteredNativeThemeSyncSurface, setHasEnteredNativeThemeSyncSurface] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -336,34 +325,39 @@ function RootInner({
     services.zcodeAgentService,
   ]);
 
+  const runtimePreferencesReady = Boolean(appSettings);
+  const askUserQuestionAutoResolutionEnabled =
+    appSettings?.askUserQuestionAutoResolutionEnabled !== false;
+  const modelIoFullRetentionEnabled = appSettings?.modelIoFullRetentionEnabled === true;
+  const pluginAutoRecommendationEnabled = appSettings?.pluginAutoRecommendationEnabled === true;
+
   useEffect(() => {
-    if (!appSettings) {
+    if (!runtimePreferencesReady) {
       return;
     }
     void services.zcodeAgentService
       .syncAppRuntimePreferences({
-        askUserQuestionAutoResolutionEnabled:
-          appSettings.askUserQuestionAutoResolutionEnabled !== false,
-        modelIoFullRetentionEnabled: appSettings.modelIoFullRetentionEnabled === true,
-        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
+        askUserQuestionAutoResolutionEnabled,
+        modelIoFullRetentionEnabled,
+        pluginAutoRecommendationEnabled,
       })
       .catch((error) => {
         logger.warn("[settings] 初始化运行时偏好失败", error);
       });
     void services.botsService
       .syncAppRuntimePreferences({
-        askUserQuestionAutoResolutionEnabled:
-          appSettings.askUserQuestionAutoResolutionEnabled !== false,
-        modelIoFullRetentionEnabled: appSettings.modelIoFullRetentionEnabled === true,
-        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
+        askUserQuestionAutoResolutionEnabled,
+        modelIoFullRetentionEnabled,
+        pluginAutoRecommendationEnabled,
       })
       .catch((error) => {
         logger.warn("[settings] 初始化 Bot 运行时偏好失败", error);
       });
   }, [
-    appSettings?.askUserQuestionAutoResolutionEnabled,
-    appSettings?.modelIoFullRetentionEnabled,
-    appSettings?.pluginAutoRecommendationEnabled,
+    runtimePreferencesReady,
+    askUserQuestionAutoResolutionEnabled,
+    modelIoFullRetentionEnabled,
+    pluginAutoRecommendationEnabled,
     services.botsService,
     services.zcodeAgentService,
   ]);
@@ -428,7 +422,6 @@ function RootInner({
     };
   }, [refreshAppSettings, refreshProviderState, services]);
 
-  const shouldPreferDirectoryBrowser = Boolean(preferDirectoryBrowser);
   const isResolvingStartupAuthState = isRestoringOAuthSession;
   const rootProviderAvailability = resolveProviderAvailabilityState({
     modelSelectionView: rootModelSelectionView,
@@ -513,10 +506,8 @@ function RootInner({
     addTab,
     activeWorkspacePath,
     activeWorkspaceIdentity,
-    supportsSettings,
     isDesktop,
     allowOpenWorkspace,
-    preferDirectoryBrowser: shouldPreferDirectoryBrowser,
     openDirectoryBrowser: handleOpenDirectoryBrowser,
     refreshProviderState,
     updateAppSettings,
@@ -684,37 +675,8 @@ function RootInner({
     startDraftInWorkspace,
     startNewTaskFromActiveWorkspace,
     openWorkspace: handleOpenWorkspace,
-    openWorkspacePath: handleSelectProject,
-    setWorkspaceActionError,
-    allowOpenWorkspace,
     isDesktop,
-    locale,
-    localeResolved,
-    tabs,
-    activeWorkspacePath,
-    activeWorkspaceIdentity,
-    hasCompletedFullTabRestore: hasCompletedFullRestore,
   });
-
-  useEffect(() => {
-    if (!platform.onCloseActiveContextRequest) {
-      return;
-    }
-
-    return platform.onCloseActiveContextRequest(() => {
-      const event = new Event(CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT, {
-        cancelable: true,
-      });
-      window.dispatchEvent(event);
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      // 关闭请求先广播给 workspace 层判断 side pane active tab。
-      // 没有可见 workspace 或没有可关闭的 side pane tab 时，才回落到关窗口语义。
-      void platform.executeDesktopCommand(DesktopCommandIds.CloseWindow);
-    });
-  }, [platform]);
 
   useRootOAuthEffects({
     accountIntentKey: JSON.stringify([
@@ -733,29 +695,6 @@ function RootInner({
     setOAuthPollingActive,
     markOAuthSuccess,
     onReauthenticationRequired: handleReauthenticationRequired,
-  });
-
-  const canEnterNativeThemeSyncSurface = Boolean(
-    !isStartupRenderBlocked &&
-    !welcomeScreenOpenReason &&
-    (workspaceShellPath || isSettingsTabActive),
-  );
-
-  useEffect(() => {
-    if (!canEnterNativeThemeSyncSurface) {
-      return;
-    }
-
-    // macOS nativeTheme 会影响窗口 vibrancy。这里等 RootStartupLoading
-    // 真正退出并进入主界面/设置页后一轮再允许同步，避免启动壳背景被应用主题提前改写。
-    setHasEnteredNativeThemeSyncSurface(true);
-  }, [canEnterNativeThemeSyncSurface]);
-
-  useDesktopNativeThemeSync({
-    enabled: hasEnteredNativeThemeSyncSurface,
-    isDesktop,
-    platform,
-    theme,
   });
 
   useEffect(() => {

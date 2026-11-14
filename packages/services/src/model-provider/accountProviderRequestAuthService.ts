@@ -1,4 +1,3 @@
-import type { RequestVerificationReason } from "@zcode/shared";
 import { createHash } from "node:crypto";
 import {
   BIGMODEL_PROVIDER_ID,
@@ -9,40 +8,18 @@ import {
   type ZCodeProviderAccountAccess,
   ZAI_PROVIDER_ID,
 } from "@zcode/shared";
-
-export interface AccountRequestAuthMaterial {
-  /** 私有传输字段兼容旧命名；套餐 OAuth 实际传入短期 Project Token。 */
-  apiKey?: string;
-  apiKeyId?: string;
-  headers?: Record<string, string>;
-  accountScope?: string;
-}
-
-export interface AccountRequestAuthInput {
-  providerId: string;
-  modelId?: string;
-  accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
-  expectedAccountScope?: string;
-  rejectedProjectTokenFingerprint?: string;
-  reason: RequestVerificationReason | "off-peak" | "usage";
-}
-
-export interface AccountAccessIdentityInput {
-  providerId: string;
-  accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
-}
+import type {
+  AccountAccessIdentityInput,
+  AccountRequestAuthInput,
+  AccountRequestAuthMaterial,
+  AccountRequestAuthResolver,
+} from "./accountRequestAuthService.js";
 
 export class AccountRequestCredentialUnavailableError extends Error {
   constructor(readonly providerId: string) {
     super(`Account request credential is unavailable: ${providerId}`);
     this.name = "AccountRequestCredentialUnavailableError";
   }
-}
-
-export interface AccountRequestAuthResolver {
-  resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
-  resolveCurrent(input: AccountRequestAuthInput): Promise<AccountRequestAuthMaterial>;
-  assertCurrent(input: AccountAccessIdentityInput): Promise<void>;
 }
 
 interface AccountProviderRequestAuthServiceOptions {

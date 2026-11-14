@@ -1,10 +1,11 @@
+// 修复原因：浏览器项目契约只依赖已有纯仓储 DTO，不穿过数据库迁移与 Node 装配契约。
 import type {
   ProjectDirectories,
   ProjectTaskRef,
   ProjectTree,
   SaveProjectInput,
   VirtualProject,
-} from "#src/project-storage/contract.js";
+} from "#src/project-storage/repository-contract.js";
 import { ServiceChannels } from "@zcode/shared";
 import type { FileEntry } from "@zcode/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
@@ -15,7 +16,7 @@ export type {
   ProjectDataPort,
   ProjectDataSession,
 } from "#src/project/data/contract.js";
-export { LEGACY_SINGLE_ROOT_PROJECT_PREFIX } from "#src/project-storage/contract.js";
+export { LEGACY_SINGLE_ROOT_PROJECT_PREFIX } from "#src/project-storage/repository-contract.js";
 export type {
   ProjectDirectories,
   ProjectTask,
@@ -24,7 +25,7 @@ export type {
   SaveProjectInput,
   VirtualProject,
   ProjectRoot,
-} from "#src/project-storage/contract.js";
+} from "#src/project-storage/repository-contract.js";
 
 /** 当前 Host 的权威项目服务；远端通过现有 attachment 的服务代理调用。 */
 export interface IProjectService {

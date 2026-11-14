@@ -1,8 +1,55 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
+  "ignore": [".agents/**", "docs/**"],
   "workspaces": {
-    ".": {}
-  },
-  "ignore": [".agents/**", ".claude/**", "docs/**", "packages/ui/src/components/**"]
+    ".": {
+      "entry": [
+        "scripts/*.test.mjs",
+        "scripts/test/*.test.mjs",
+        "scripts/architecture/architecture-check.mjs",
+        "scripts/assert-node-version.mjs",
+        "scripts/bootstrap.mjs",
+        "scripts/check-push-worktree.mjs",
+        "scripts/check-stale-doc-phrases.mjs",
+        "scripts/check-workspace-freshness.mjs",
+        "scripts/clean.mjs",
+        "scripts/dep-refs.mjs",
+        "scripts/dependency-graph.mjs",
+        "scripts/licenses.mjs",
+        "scripts/mise-run.mjs",
+        "scripts/run-affected-engineering-tests.mjs"
+      ]
+    },
+    "packages/rpc": {
+      "entry": ["examples/*.ts"]
+    },
+    "packages/shared": {
+      "entry": ["src/**/module.ts", "src/**/contract.example.ts"]
+    },
+    "packages/session-control": {
+      "entry": ["src/module.ts", "src/contract.example.ts"]
+    },
+    "packages/design-runtime": {
+      "entry": ["src/module.ts", "src/contract.example.ts"]
+    },
+    "packages/ui": {
+      "entry": [
+        "src/components/ui/*.tsx",
+        "src/components/mobile-ui/*.{ts,tsx}",
+        "src/components/ai-elements/*.tsx",
+        "src/components/icons/*.ts",
+        "src/components/lib/*.ts",
+        "src/components/ClientSceneLucideIcon.tsx",
+        "src/components/ModelInputCapabilityBadge.tsx",
+        "src/components/PluginIcon.tsx",
+        "src/components/TaskTitleOverflowText.tsx",
+        "src/**/module.ts",
+        "src/**/contract.example.ts"
+      ]
+    },
+    "packages/web": {
+      "entry": ["src/**/module.ts", "src/**/contract.example.ts"]
+    }
+  }
 }

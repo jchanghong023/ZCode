@@ -9,6 +9,6 @@ export type { IPlatformService };
 
 /** 契约边界示例：web 端平台服务只有一个入口。 */
 export interface WebPlatformContract {
-  /** 创建浏览器平台实现；所有宿主相关能力按 Web fallback 返回空/拒绝。 */
+  /** 创建浏览器平台实现；只提供真实可执行的浏览器本机端口。 */
   createWebPlatform(): IPlatformService;
 }

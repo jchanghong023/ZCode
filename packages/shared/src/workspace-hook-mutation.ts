@@ -1,11 +1,11 @@
 import { open, mkdir, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
-import type { WorkspaceHookBundleSnapshotData } from "./workspace-hook-digest.js";
+import type { WorkspaceHookBundleSnapshotData } from "./workspace-hooks/contract.js";
 import { createWorkspaceHookDeclarationDigest } from "./workspace-hook-digest.js";
 import {
   workspaceHooksConfigSchema,
   type WorkspaceHookDefinition,
-} from "./workspace-hook-config.js";
+} from "./workspace-hooks/contract.js";
 
 export interface AtomicWorkspaceHookConfigWriteOptions {
   beforeRename?: () => void | Promise<void>;

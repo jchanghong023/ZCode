@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { IServiceAccessor } from "@zcode/services";
 import type { SourceServerManagementSnapshot } from "@zcode/shared";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
@@ -21,10 +20,6 @@ import {
   resolveDefaultSettingsScopeKey,
   resolveSettingsScope,
 } from "@/settings-scope/domain/scope.js";
-import {
-  ensureSourceSettingsServices,
-  useSourceSettingsServices,
-} from "@/store/sourceSettingsServiceStore.js";
 import {
   useConfigWorkspaceTargets,
   type ConfigWorkspaceTarget,
@@ -56,36 +51,15 @@ function useServicesHomeDir(services: IServiceAccessor | undefined): string | un
 }
 
 /**
- * 远端「用户」只经该设备的 source-settings attachment 读写，不要求打开项目。
- * 设备离线时 Host 会 detach attachment，但 renderer 只能经 port close 感知；
- * 因此在线判断以管理快照为准，离线时即使旧服务仍在注册表中也不再使用（fail-closed）。
+ * 浏览器没有跨设备 source-settings attachment，远端「用户」配置不可达。
+ * 这里返回明确的空结果，不再经平台端口申请 attachment 或用本机服务冒充远端。
  */
-function useRemoteUserServices(sourceServerId: string | null, online: boolean) {
-  const request = useOptionalPlatform()?.requestSourceSettingsAttachment;
-  const registered = useSourceSettingsServices(sourceServerId ?? undefined);
-  const services = sourceServerId && online ? registered : undefined;
-  const [failedSourceServerId, setFailedSourceServerId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!sourceServerId || !online || registered || !request) return;
-    let current = true;
-    setFailedSourceServerId(null);
-    ensureSourceSettingsServices(sourceServerId, request).catch((error: unknown) => {
-      logger.warn("[settings-scope] 申请设备配置连接失败", {
-        sourceServerId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      if (current) setFailedSourceServerId(sourceServerId);
-    });
-    return () => {
-      current = false;
-    };
-  }, [online, registered, request, sourceServerId]);
-  const homedir = useServicesHomeDir(services);
-  return {
-    services,
-    homedir,
-    failed: Boolean(sourceServerId && failedSourceServerId === sourceServerId && !registered),
-  };
+function useRemoteUserServices(): {
+  services: IServiceAccessor | undefined;
+  homedir: string | undefined;
+  failed: boolean;
+} {
+  return { services: undefined, homedir: undefined, failed: false };
 }
 
 function normalizeInitialScopeKey(key: string | undefined): string | null {
@@ -138,7 +112,8 @@ export function useSettingsScope(params: {
 }): SettingsScopeState {
   const { workspacePath, workspaceIdentity, initialScopeKey, onFallback } = params;
   const base = useBaseWorkspaceServices();
-  const remoteUserAvailable = Boolean(useOptionalPlatform()?.requestSourceSettingsAttachment);
+  // 远端用户配置依赖已裁撤的桌面 attachment 端口，浏览器只使用工作区配置。
+  const remoteUserAvailable = false;
   const { targets, loaded: catalogLoaded } = useConfigWorkspaceTargets();
   const { snapshot: deviceSnapshot } = useSourceServerManagementSnapshot(
     base.sourceServerManagementService,
@@ -195,7 +170,7 @@ export function useSettingsScope(params: {
   const remoteOnline = remoteSourceServerId
     ? devices.some((item) => item.sourceServerId === remoteSourceServerId && item.online)
     : false;
-  const remote = useRemoteUserServices(remoteSourceServerId, remoteOnline);
+  const remote = useRemoteUserServices();
   const localHomeDir = useServicesHomeDir(base);
   const localAnchor = useMemo<ConfigWorkspaceTarget | null>(() => {
     if (device.kind !== "local") return null;

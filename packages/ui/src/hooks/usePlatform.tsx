@@ -1,10 +1,10 @@
 /**
  * usePlatform —— 通过 React Context 提供 IPlatformService
  *
- * 平台操作（native dialog、窗口生命周期等）通过此 hook 访问，
- * 替代直接调用 window.zcode。
+ * 浏览器下载、外链、通知等本机交互通过此 hook 访问，
+ * 不直接调用宿主全局对象。
  */
-import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { IPlatformService } from "@zcode/shared";
 
 const PlatformContext = createContext<IPlatformService | null>(null);
@@ -30,10 +30,4 @@ export function usePlatform(): IPlatformService {
 export function useOptionalPlatform(): IPlatformService | null {
   const ctx = useContext(PlatformContext);
   return ctx;
-}
-
-/** 选择目录的便捷 hook */
-export function useSelectDirectory() {
-  const platform = usePlatform();
-  return useCallback(() => platform.selectDirectory(), [platform]);
 }

@@ -1,5 +1,5 @@
 import { modeTriggerColor } from "@/chat-input-toolbar/display-help.js";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { LightbulbIcon, XIcon, ChevronDownIcon } from "lucide-react";
 import {
   ZCODE_AGENT_PROVIDER,
@@ -63,6 +63,8 @@ function V4ComposerModeSwitchImpl({
   | "onSwitchMode"
 >) {
   const { intl } = useZCodeIntl();
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const modeMenuOpen = activeConfigPicker === "mode";
   // 原草稿回调随 scope 换代，旧确认不能把权限写入后来选中的任务。
   const confirmMode = useYoloModeConfirmation(disabled ? null : onSwitchMode, draftConfig?.mode);
   const requestSwitchMode = useCallback(
@@ -116,13 +118,18 @@ function V4ComposerModeSwitchImpl({
   return (
     <div className="flex min-w-0 items-center gap-1">
       <DropdownMenu
-        open={activeConfigPicker === "mode"}
-        onOpenChange={(open) => onConfigPickerOpenChange("mode", open)}
+        open={modeMenuOpen}
+        onOpenChange={(open) => {
+          setTooltipOpen(false);
+          onConfigPickerOpenChange("mode", open);
+        }}
       >
         <ControlHintTooltip
           title={intl.formatMessage({ id: "chat.toolbar.mode.label" })}
           shortcut={modeShortcutLabel}
-          open={activeConfigPicker === "mode" ? false : undefined}
+          // 提示始终由本组件控制；不能用 false/undefined 临时隐藏而改变 Radix 状态所有者。
+          open={!modeMenuOpen && tooltipOpen}
+          onOpenChange={setTooltipOpen}
         >
           <DropdownMenuTrigger asChild>
             <Button

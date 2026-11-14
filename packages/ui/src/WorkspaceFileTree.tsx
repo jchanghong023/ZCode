@@ -25,7 +25,6 @@ type FileManagerPaneProps = Omit<ComponentProps<typeof PreviewPane>, "source"> &
   source: CodeViewerSource | null;
   target: FileManagerTarget;
   mobileOverlay: boolean;
-  canOpenLocalFileManager: boolean;
   onNavigate: (source: CodeViewerSource) => void;
 };
 
@@ -33,7 +32,6 @@ export function FileManagerPane({
   source,
   target,
   mobileOverlay,
-  canOpenLocalFileManager,
   onNavigate,
   ...previewProps
 }: FileManagerPaneProps) {
@@ -170,7 +168,6 @@ export function FileManagerPane({
           {canNavigate ? (
             <WorkspaceFileTree
               {...target}
-              canOpenLocalFileManager={canOpenLocalFileManager}
               activePreviewPath={source?.path}
               onOpenPreview={navigate}
             />

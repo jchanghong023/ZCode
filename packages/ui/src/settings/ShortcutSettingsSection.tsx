@@ -8,7 +8,6 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
@@ -39,7 +38,6 @@ import { useShortcutRecording } from "@/settings/useShortcutRecording.js";
 export function ShortcutSettingsSection({ isDesktop = false }: { isDesktop?: boolean }) {
   const { intl } = useZCodeIntl();
   const { settings, update } = useSettings();
-  const platform = usePlatform();
   const [query, setQuery] = useState("");
   const [recording, setRecording] = useState<RecordingState | null>(null);
   const keySearch = useShortcutKeySearch();
@@ -193,8 +191,7 @@ export function ShortcutSettingsSection({ isDesktop = false }: { isDesktop?: boo
 
   // 录制态抑制：录制监听注册晚于 useAppKeyboard 的 capture 监听（同阶段先注册先执行），
   // 不抑制的话录制按下的组合会先触发原命令，改键永远不成功。
-  // renderer 通道靠内核标记短路 useAppKeyboard；menu 通道靠 main 摘除菜单 accelerator
-  // （macOS 系统菜单先于 renderer 吃键，preventDefault 拦不住）。
+  // 浏览器只有 renderer 通道：靠内核标记短路 useAppKeyboard。
   // 按键搜索武装态复用同一套键盘独占（同样是显式意图下捕获组合键，不触发命令）。
   const keyboardExclusive = recording !== null || keySearch.armed;
   useEffect(() => {
@@ -202,12 +199,10 @@ export function ShortcutSettingsSection({ isDesktop = false }: { isDesktop?: boo
       return;
     }
     setShortcutRecordingActive(true);
-    platform.setShortcutRecordingActive?.(true);
     return () => {
       setShortcutRecordingActive(false);
-      platform.setShortcutRecordingActive?.(false);
     };
-  }, [keyboardExclusive, platform]);
+  }, [keyboardExclusive]);
 
   useShortcutRecording({
     recording,

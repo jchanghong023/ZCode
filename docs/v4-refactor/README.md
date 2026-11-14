@@ -1,48 +1,42 @@
 # V4 会话架构：当前状态与文档导航
 
-更新日期：2026-07-15
+更新日期：2026-11-14
 
-V4 conversation 主链路已经落地：CLI 维护 canonical facts、command inbox 和 product projection；
-Host/relay 转发连接与 topic；renderer/web 订阅 projection、发送 command，并只保留局部 UI 状态。
+V4 conversation 的 wire 契约与产品语义仍约束现行代码；本文的拓扑一节描述**当前纯 Web 仓库**。
+本目录其余文档混合了两类内容：
 
-本目录混合了两类文档：
+- 协议/投影/订阅/故障等**契约规格**：字段、命令、reason code 与不变量仍是现行事实源；
+- **实施轨迹**：phasing、deletion、review、parity 记录保留当时基线，正文里的 CLI/Host/relay/desktop
+  路径、行数和“待实现”只代表当时状态，不描述当前拓扑。
 
-- 当前规格：schema、恢复、fault、sessions-index 等仍约束现行代码；
-- 实施轨迹：phasing、review、deletion/parity 记录迁移依据，正文中的 legacy 路径、行数和“待实现”
-  只代表当时状态。
+产品语义见 [Project Goal](../project-goal.md) 与各契约文档，目录总览见 [docs/README.md](../README.md)。
 
-产品语义优先读 [Conversation Product Protocol](../conversation-product-protocol.md)，系统总览优先读
-[ZCode Protocol](../zcode-protocol.md) 与 [Message Flow](../architecture/message-flow.md)。
-
-## 当前拓扑
+## 当前拓扑（纯 Web）
 
 ```text
-Electron / Web / mobile remote
-  |-- SessionPane + read-only projection stores
+浏览器
+  packages/web 入口 main.tsx（Vite）+ packages/ui（V4 会话界面 src/v4）
+  |-- SessionPane / WorkbenchPane + 只读 projection store
   |-- command(commandId, clientId, baseRevision, payload)
-  `-- local draft / scroll / focus / optimistic overlay
+  `-- 局部草稿 / 滚动 / 焦点 / 乐观覆盖
           |
-          | @zcode/rpc MessagePort / remote attachment
+          | /ws WebSocket（@zcode/client 连接 SDK）
           v
-Host connection scope
-  |-- trusted clientMode / connectionId
-  |-- owned topic subscription routing
-  |-- runtime generation / stale subscription cleanup
-  `-- no conversation reducer or second queue
+packages/rpc：SocketProtocol 二进制帧 + Channel RPC
           |
-          | @zcode/shared/zcode-protocol-v4 over stdio
+          | services 接口/descriptor：packages/services
+          | 会话 wire 契约：packages/shared/zcode-protocol-v4
           v
-ZCode CLI
-  |-- transcript + session metadata + goal facts
-  |-- V4 command inbox / durable input admission
-  |-- ProductProjection + SessionsIndexProjection
-  |-- topic publisher: snapshot / delta / seq / logEpoch
-  `-- runtime config, queue, interaction and active/background work
+packages/server 模拟后端
+  |-- mock/index.ts：唯一集中装配（ServiceCollection）
+  |-- MockRuntime：内存权威状态（sessions/tasks/virtualRoot/git）
+  |-- MockTopicLog：topic 的 logEpoch/seq 唯一顺序（不落盘）
+  `-- mock/zcodeAgent.ts：会话命令 ACK、订阅与投影下发
 ```
 
-手机 `/remote` 通过 shared-host attachment 连接桌面已存在、承载目标 workspace scope 的 Local/Remote Host。relay 和
-desktop main 只做鉴权、配对、心跳与 frame/app payload 透传，不拥有 session、queue、snapshot 或
-projection。
+仓库里没有 CLI、Host/relay、desktop main 进程；旧拓扑中的这些角色已随纯 Web 重构删除。下文出现
+“CLI 权威、Host 转发、mobile replayable”等表述时，指的是这些规格成文时的原产品拓扑，不是当前
+可执行入口。协议字段、reason code、帧形状与投影语义保持原文，不因进程已删除而删改。
 
 ## 当前不变量
 
@@ -50,44 +44,61 @@ projection。
   或 action availability。
 - command 使用 `commandId` 幂等身份和可选 `baseRevision`；ACK 与后续 projection 分工明确。
 - 每个 attachment/subscription 有独立 ownership、generation、seq 和 recovery；下行帧只投递 owner port。
-- desktop 是 continuous online delivery；mobile remote 是 replayable recovery。两端共享 CLI 事实，
-  但 recovery frame 不能扩散到桌面 online 主链路。
-- snapshot 原子替换；delta 必须连续；gap/epoch 变化触发 resync，恢复在途时不能让迟到 online 帧覆盖。
-- session queue 和 interaction pending state 位于 CLI；Host、relay、renderer 不建立第二份 accepted queue。
+- snapshot 原子替换；delta 必须连续；gap/epoch 变化触发 resync，恢复在途时不能让迟到帧覆盖。
+- 会话 queue 与 interaction pending state 是服务端（当前为 mock 后端）事实；客户端不建立第二份
+  accepted queue。
 - identity/cache/topic 隔离使用 `workspaceIdentity?.trim() || workspacePath`；路径执行仍使用
-  `workspacePath`，远程链路还要携带 `remoteSessionId`。
-- `tasks-index` 拥有持久 task 行集合以及 pin/archive/group/unread 等组织态；`sessions-index` 只拥有
-  列表活性与实时详情摘要，客户端以 task row 为左表做字段级 join。
+  `workspacePath`。
+- task 行集合归 `tasks-index`，`sessions-index` 只拥有列表活性与实时详情摘要，客户端以 task row 为
+  左表做字段级 join。当前 mock 后端以内存任务索引提供同样的分离。
 
 ## 当前代码入口
 
-| 层                 | 入口                                                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| V4 schema          | `packages/shared/src/zcode-protocol-v4/`                                                                    |
-| UI transport/store | `packages/ui/src/v4/agentConversationTransport.ts`、`conversationProjectionStore.ts`、`sessionDataLayer.ts` |
-| UI pane/commands   | `packages/ui/src/v4/SessionPane.tsx`、`ConversationComposer.tsx`                                            |
-| Host/service route | `packages/services/src/zcode-agent/zcodeAgentConnectionScope.ts`、`zcodeAgentService.ts`                    |
-| CLI gateway        | `apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/v4-gateway.ts`                                     |
-| CLI projection     | `product-projection.ts`、`sessions-index-projection.ts`                                                     |
-| CLI commands       | `apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/`                                         |
+| 层                 | 入口                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| V4 schema          | `packages/shared/src/zcode-protocol-v4/`                                                                         |
+| 浏览器连接         | `packages/web/src/main.tsx`、`packages/client`（`connectViaWebSocket`）                                          |
+| UI transport/store | `packages/ui/src/v4/agentConversationTransport.ts`、`conversationProjectionStore.ts`、`sessionDataLayer.ts`      |
+| UI pane/commands   | `packages/ui/src/v4/SessionPane.tsx`、`ConversationComposer.tsx`、`WorkbenchPane.tsx`、`V4WorkspaceChatArea.tsx` |
+| 服务契约           | `packages/services/src/zcode-agent/zcodeAgent.ts`、`zcodeAgentConnectionScope.ts`                                |
+| 服务端装配         | `packages/server/src/mock/index.ts`                                                                              |
+| 服务端会话实现     | `packages/server/src/mock/zcodeAgent.ts`、`runtime.ts`（`MockRuntime`/`MockTopicLog`）                           |
 
 ## 文档索引
 
-| 文档                                                                   | 当前角色                                    |
-| ---------------------------------------------------------------------- | ------------------------------------------- |
-| [01-topology.md](./01-topology.md)                                     | 拓扑和职责设计；结合当前总览读取            |
-| [02-projection.md](./02-projection.md)                                 | projection 设计与裁决依据                   |
-| [03-commands.md](./03-commands.md)                                     | command/ACK/inbox 规格与未完成项            |
-| [04-sync-and-recovery.md](./04-sync-and-recovery.md)                   | topic 订阅、seq、snapshot、recovery 约束    |
-| [05-transport-and-backpressure.md](./05-transport-and-backpressure.md) | transport/wire/backpressure 规格            |
-| [06-ui.md](./06-ui.md)                                                 | V4 UI 设计和实施轨迹                        |
-| [07-persistence.md](./07-persistence.md)                               | canonical facts、投影重建和迁移             |
-| [08-phasing.md](./08-phasing.md)                                       | 历史分期与清理轨迹，不是当前进度表          |
-| [09-protocol-schema.md](./09-protocol-schema.md)                       | 早期 schema 设计；字段冲突时让位于代码与 10 |
-| [10-protocol-spec.md](./10-protocol-spec.md)                           | V4 字段级主规格                             |
-| [11-deletion-plan.md](./11-deletion-plan.md)                           | 历史删除执行清单                            |
-| [12-fault-catalog.md](./12-fault-catalog.md)                           | fault/reason code 词表                      |
-| [13-golden-test-mapping.md](./13-golden-test-mapping.md)               | case 到 reducer/protocol/WDIO 证据映射      |
-| [14-sessions-index.md](./14-sessions-index.md)                         | sessions-index 当前规格和实现入口           |
-| [design-review.md](./design-review.md)                                 | 迁移前代码审计与风险轨迹                    |
-| [review-meeting-brief.md](./review-meeting-brief.md)                   | 评审历史输入，不是现状摘要                  |
+状态含义：
+
+- **契约规格**：字段/命令/订阅/故障语义仍是现行事实源；文中实现路径若指向已删除进程，以当前代码为准。
+- **UI 实施**：UI 主干已落地，正文保留实施期设计与对账内容。
+- **历史记录**：只用于追溯迁移与验收过程，不描述当前拓扑，也不是当前验证证据。
+- **规划**：待执行/待验证的计划，不能当作已实现或已验证。
+
+| 文档                                                                             | 状态     | 当前角色                                                 |
+| -------------------------------------------------------------------------------- | -------- | -------------------------------------------------------- |
+| [01-topology.md](./01-topology.md)                                               | 历史记录 | 原产品进程拓扑（CLI/Host/relay/desktop）；当前拓扑见本文 |
+| [02-projection.md](./02-projection.md)                                           | 契约规格 | 投影语义与裁决；当前实现方为 mock 后端                   |
+| [03-commands.md](./03-commands.md)                                               | 契约规格 | command/ACK/inbox 语义；admission 段落描述历史 CLI       |
+| [04-sync-and-recovery.md](./04-sync-and-recovery.md)                             | 契约规格 | topic 订阅、seq、snapshot、recovery 规则；投递边界为历史 |
+| [05-transport-and-backpressure.md](./05-transport-and-backpressure.md)           | 契约规格 | transport/wire/backpressure 限额；relay 段落为历史       |
+| [06-ui.md](./06-ui.md)                                                           | UI 实施  | V4 UI 设计与实施轨迹；当前入口见上表                     |
+| [07-persistence.md](./07-persistence.md)                                         | 历史记录 | CLI 持久化与 tasks-index.sqlite；模拟后端只有内存态      |
+| [08-phasing.md](./08-phasing.md)                                                 | 历史记录 | M0–M6 分期与清理轨迹，不是当前进度表                     |
+| [09-protocol-schema.md](./09-protocol-schema.md)                                 | 契约规格 | 早期 schema 速查；字段冲突以 10 与代码为准               |
+| [10-protocol-spec.md](./10-protocol-spec.md)                                     | 契约规格 | V4 字段级主规格                                          |
+| [11-deletion-plan.md](./11-deletion-plan.md)                                     | 历史记录 | 硬切迁移的文件级删除清单                                 |
+| [12-fault-catalog.md](./12-fault-catalog.md)                                     | 契约规格 | fault/reason code 词表                                   |
+| [13-golden-test-mapping.md](./13-golden-test-mapping.md)                         | 历史记录 | 迁移期 case 到测试证据的映射；相关测试体系已退役         |
+| [14-sessions-index.md](./14-sessions-index.md)                                   | 契约规格 | sessions-index 规格；持久 task 库为历史实现              |
+| [15-timeline-resolver-design.md](./15-timeline-resolver-design.md)               | 历史记录 | timeline resolver 方案与根因分析                         |
+| [15-timeline-resolver-design-review.md](./15-timeline-resolver-design-review.md) | 历史记录 | 前审记录                                                 |
+| [16-timeline-authority-plan.md](./16-timeline-authority-plan.md)                 | 历史记录 | timeline authority 实施计划与裁决                        |
+| [17-cold-resume-runtime-activation.md](./17-cold-resume-runtime-activation.md)   | 历史记录 | CLI runtime 冷恢复方案                                   |
+| [18-resume-race-audit-plan.md](./18-resume-race-audit-plan.md)                   | 规划     | 冷启动竞态审计计划，未作为当前证据                       |
+| [design-review.md](./design-review.md)                                           | 历史记录 | 迁移前代码审计                                           |
+| [review-meeting-brief.md](./review-meeting-brief.md)                             | 历史记录 | 评审历史输入                                             |
+| [m5-composer-parity.md](./m5-composer-parity.md)                                 | UI 实施  | composer 能力对账轨迹                                    |
+| [m5-composer-restore.md](./m5-composer-restore.md)                               | UI 实施  | composer 还原记录                                        |
+| [m6-model-selection-parity.md](./m6-model-selection-parity.md)                   | UI 实施  | 模型选择对账轨迹；旧路径只是基线                         |
+| [m6-p1-runtime-model-resolution.md](./m6-p1-runtime-model-resolution.md)         | 历史记录 | 已被 Provider Refactor 取代                              |
+| [v4-chat-layout-parity.md](./v4-chat-layout-parity.md)                           | UI 实施  | 会话区布局对账                                           |
+| [v4-goal-command-parity-plan.md](./v4-goal-command-parity-plan.md)               | 规划     | `/goal` 命令对账计划，不是验收证据                       |

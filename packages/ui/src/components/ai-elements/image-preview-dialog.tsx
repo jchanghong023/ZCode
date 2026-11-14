@@ -101,17 +101,14 @@ export function ImagePreviewDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeIndex, items.length, open]);
 
-  const downloadActiveImage = async (): Promise<string | null> => {
-    if (!activeItem?.src || activeItemIsVideo || isDownloading) return null;
+  const downloadActiveImage = async (): Promise<void> => {
+    if (!activeItem?.src || activeItemIsVideo || isDownloading) return;
     setIsDownloading(true);
     try {
       const result = await downloadImagePreview(activeItem, platform?.saveFile);
-      if (result.kind === "saved") {
-        toast(intl.formatMessage({ id: "markdownImage.downloadSucceeded" }));
-      } else if (result.kind === "started") {
+      if (result.kind === "started") {
         toast(intl.formatMessage({ id: "markdownImage.downloadStarted" }));
       }
-      return result.kind === "saved" ? result.path : null;
     } catch (error) {
       logger.warn("[ImagePreviewDialog] 图片下载失败", {
         // 签名 URL 的 userinfo/query/fragment 不参与排障，禁止写入持久化日志。
@@ -119,7 +116,6 @@ export function ImagePreviewDialog({
         error: error instanceof Error ? error.message : String(error),
       });
       toast(intl.formatMessage({ id: "markdownImage.downloadFailed" }));
-      return null;
     } finally {
       setIsDownloading(false);
     }

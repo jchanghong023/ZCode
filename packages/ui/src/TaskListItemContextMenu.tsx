@@ -10,21 +10,17 @@ export function TaskListItemContextMenu({
   intl,
   isPinned,
   isArchived = false,
-  fileManagerLabel,
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
-  providerConfigFile,
   onTogglePinTask,
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
-  onOpenTaskPathInFileManager,
   onCopyWorkspacePath,
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
-  onOpenProviderConfig,
   disableTaskActions = false,
   disabledReason,
   archiveDisabledReason,
@@ -35,7 +31,6 @@ export function TaskListItemContextMenu({
   };
   isPinned: boolean;
   isArchived?: boolean;
-  fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
@@ -43,17 +38,14 @@ export function TaskListItemContextMenu({
     path: string | null;
     exists: boolean;
   };
-  providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   onTogglePinTask: () => void;
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
   onMarkTaskAsUnread: () => void;
-  onOpenTaskPathInFileManager: () => void;
   onCopyWorkspacePath: () => void;
   onCopyTaskPath: () => void;
   onCopyTaskLogPath: () => void;
   onCopySessionId?: () => void;
-  onOpenProviderConfig: () => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
   archiveDisabledReason?: string;
@@ -65,23 +57,19 @@ export function TaskListItemContextMenu({
         intl={intl}
         isPinned={isPinned}
         isArchived={isArchived}
-        fileManagerLabel={fileManagerLabel}
         taskSessionFile={taskSessionFile}
         activeSessionId={activeSessionId}
         taskNativeSessionLogFile={taskNativeSessionLogFile}
-        providerConfigFile={providerConfigFile}
         Item={ContextMenuItem}
         Separator={ContextMenuSeparator}
         onTogglePinTask={onTogglePinTask}
         onStartRenameTask={onStartRenameTask}
         onArchiveTask={onArchiveTask}
         onMarkTaskAsUnread={onMarkTaskAsUnread}
-        onOpenTaskPathInFileManager={onOpenTaskPathInFileManager}
         onCopyWorkspacePath={onCopyWorkspacePath}
         onCopyTaskPath={onCopyTaskPath}
         onCopyTaskLogPath={onCopyTaskLogPath}
         onCopySessionId={onCopySessionId}
-        onOpenProviderConfig={onOpenProviderConfig}
         disableTaskActions={disableTaskActions}
         disabledReason={disabledReason}
         archiveDisabledReason={archiveDisabledReason}

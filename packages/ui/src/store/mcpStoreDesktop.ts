@@ -1,96 +1,40 @@
 import type {
-  IPlatformService,
   LoadCliMcpFromUserDirectoryRequest,
-  MigrateLegacyCommonMcpRequest,
-  MigrateLegacyCommonMcpResult,
   NativeMcpServerRecord,
   SaveCliMcpToUserDirectoryRequest,
 } from "@zcode/shared";
 import type { IMcpSyncService } from "@zcode/services";
 import { logger } from "@/logger.js";
 
-export type McpPlatformService = Pick<
-  IPlatformService,
-  "loadMcpFromUserDirectory" | "saveMcpToUserDirectory" | "migrateLegacyCommonMcp"
->;
-
+/**
+ * MCP 用户目录读写的唯一来源是后端 workspace 服务。
+ * 浏览器没有宿主 ~/.zcode 目录，也不再有平台端口兜底：服务未绑定时显式失败/返回 false。
+ */
 export type McpDirectoryService = Pick<
   IMcpSyncService,
   "loadMcpFromUserDirectory" | "saveMcpToUserDirectory"
 >;
 
-export interface MigrateLegacyResult {
-  totalCount: number;
-  importedCount: number;
-  skippedCount: number;
-  sourcePath?: string;
-}
-
 export async function persistCliMcpToUserDirectory(
-  platform: McpPlatformService | null,
+  directoryService: McpDirectoryService | null,
   payload: SaveCliMcpToUserDirectoryRequest,
-  directoryService?: McpDirectoryService | null,
 ): Promise<boolean> {
-  if (directoryService) {
-    await directoryService.saveMcpToUserDirectory(payload);
-    return true;
-  }
-  if (!platform?.saveMcpToUserDirectory) {
-    logger.warn(
-      "[mcpStore] platform MCP save unavailable, skip persisting CLI MCP to user directory",
-    );
+  if (!directoryService) {
+    logger.warn("[mcpStore] MCP directory service unavailable, skip persisting CLI MCP");
     return false;
   }
-
-  const result = await platform.saveMcpToUserDirectory(payload);
-  if (!result?.success) {
-    throw new Error(result?.error ?? "Failed to persist MCP config");
-  }
+  await directoryService.saveMcpToUserDirectory(payload);
   return true;
 }
 
-async function fetchLegacyCommonMcp(
-  platform: McpPlatformService | null,
-  payload?: MigrateLegacyCommonMcpRequest,
-): Promise<MigrateLegacyCommonMcpResult> {
-  if (!platform?.migrateLegacyCommonMcp) {
-    return { servers: {}, totalCount: 0, importedCount: 0, skippedCount: 0 };
-  }
-
-  return platform.migrateLegacyCommonMcp(payload ?? {});
-}
-
 export async function fetchNativeMcpServers(
-  platform: McpPlatformService | null,
+  directoryService: McpDirectoryService | null,
   payload?: LoadCliMcpFromUserDirectoryRequest,
-  directoryService?: McpDirectoryService | null,
 ): Promise<NativeMcpServerRecord[]> {
-  if (directoryService) {
-    const result = await directoryService.loadMcpFromUserDirectory(payload);
-    return result.servers ?? [];
+  if (!directoryService) {
+    // 读取失败不是“配置为空”：调用方据此保持 not-ready，不能下发空列表覆盖运行态。
+    throw new Error("MCP directory service is not ready");
   }
-  if (!platform?.loadMcpFromUserDirectory) {
-    return [];
-  }
-  const result = await platform.loadMcpFromUserDirectory(payload);
+  const result = await directoryService.loadMcpFromUserDirectory(payload);
   return result.servers ?? [];
-}
-
-export async function peekLegacyCommonMcpCount(
-  platform: McpPlatformService | null,
-): Promise<number> {
-  try {
-    const result = await fetchLegacyCommonMcp(platform);
-    const count = result.totalCount || Object.keys(result.servers ?? {}).length;
-    return count;
-  } catch {
-    return 0;
-  }
-}
-
-export async function migrateLegacyCommonMcpFromDesktop(
-  platform: McpPlatformService | null,
-  payload?: MigrateLegacyCommonMcpRequest,
-): Promise<MigrateLegacyCommonMcpResult> {
-  return fetchLegacyCommonMcp(platform, payload);
 }

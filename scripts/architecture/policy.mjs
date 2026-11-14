@@ -80,6 +80,11 @@ function validatePolicy(raw, cwd) {
       : null,
     acceptedUpstreamCommits: raw.global?.acceptedUpstreamCommits ?? [],
     acceptedUpstreamSnapshot: raw.global?.acceptedUpstreamSnapshot ?? null,
+    // 原因：浏览器安全面与 Node 专属面由策略统一声明，不能在检查器中另存拓扑。
+    browserScopes: raw.global?.browserScopes ?? [],
+    browserPackages: raw.global?.browserPackages ?? [],
+    nodeEntrypoints: raw.global?.nodeEntrypoints ?? [],
+    nativePackages: raw.global?.nativePackages ?? [],
   };
   if (
     !Array.isArray(global.acceptedUpstreamCommits) ||
@@ -164,6 +169,69 @@ export async function loadPolicy(cwd = process.cwd()) {
   return validatePolicy(parseYaml(content), cwd);
 }
 
+export async function findMissingPolicyPaths(policy, cwd = process.cwd()) {
+  const missing = [];
+  const exists = async (target, fileOnly = false) => {
+    try {
+      const stat = await fs.stat(target);
+      return fileOnly ? stat.isFile() : stat.isFile() || stat.isDirectory();
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+      throw error;
+    }
+  };
+  // 原因：裁撤模块后的失效登记不能因 unmanaged、增量范围或 baseline 而被静默忽略。
+  for (const module of policy.modules) {
+    for (const root of module.roots) {
+      if (!(await exists(path.resolve(cwd, root)))) {
+        missing.push({
+          kind: "root",
+          path: posix(path.relative(cwd, path.resolve(cwd, root))),
+          owner: module.id,
+        });
+      }
+    }
+    for (const entry of module.publicEntrypoints ?? []) {
+      const candidates = [
+        path.resolve(cwd, entry),
+        ...module.roots.map((root) => path.resolve(cwd, root, entry)),
+      ];
+      let found = false;
+      for (const candidate of candidates) {
+        if (await exists(candidate, true)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) missing.push({ kind: "publicEntrypoint", path: entry, owner: module.id });
+    }
+  }
+  for (const exception of policy.exceptions ?? []) {
+    for (const declared of exception.paths) {
+      let found = false;
+      if (/[*?[\]{}]/.test(declared)) {
+        // 原因：通配例外必须仍命中真实文件，且不能借依赖或构建产物维持失效豁免。
+        const exclude = ["node_modules", "dist"].flatMap((name) => [
+          name,
+          `${name}/**`,
+          `**/${name}`,
+          `**/${name}/**`,
+        ]);
+        for await (const match of fs.glob(declared, { cwd, exclude })) {
+          if (await exists(path.resolve(cwd, match), true)) {
+            found = true;
+            break;
+          }
+        }
+      } else {
+        found = await exists(path.resolve(cwd, declared));
+      }
+      if (!found) missing.push({ kind: "exception", path: declared, owner: exception.id });
+    }
+  }
+  return missing;
+}
+
 export function moduleForFile(file, policy) {
   const candidates = policy.modules
     .filter((module) =>
@@ -213,13 +281,37 @@ export function importDeclarationsOf(file, source) {
         typeOnly: !!clause?.isTypeOnly || allMembersTypeOnly,
       });
     } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
-      imports.push({ specifier: node.moduleSpecifier.text, typeOnly: !!node.isTypeOnly });
+      const named = node.exportClause;
+      const allMembersTypeOnly =
+        !!named &&
+        ts.isNamedExports(named) &&
+        named.elements.length > 0 &&
+        named.elements.every((element) => element.isTypeOnly);
+      imports.push({
+        specifier: node.moduleSpecifier.text,
+        typeOnly: !!node.isTypeOnly || allMembersTypeOnly,
+      });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference) &&
       ts.isStringLiteral(node.moduleReference.expression)
     ) {
       imports.push({ specifier: node.moduleReference.expression.text, typeOnly: false });
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      imports.push({ specifier: node.argument.literal.text, typeOnly: true });
+    } else if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require")) &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      // 原因：字面量动态加载也会把 Node 依赖带进浏览器；计算表达式不猜测目标。
+      imports.push({ specifier: node.arguments[0].text, typeOnly: false });
     }
     ts.forEachChild(node, visit);
   }

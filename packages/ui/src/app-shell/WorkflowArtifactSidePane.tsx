@@ -13,11 +13,7 @@ import {
   isArtifactPresetKind,
   isTextArtifactContentType,
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
-import {
-  ArtifactOpenAsFileButton,
-  useCanOpenArtifactAsFile,
-  useCanSaveArtifactAsFile,
-} from "@/file-menu/index.js";
+import { ArtifactOpenAsFileButton } from "@/file-menu/index.js";
 import { WorkflowArtifactBody } from "@/app-shell/workflow-artifacts/WorkflowArtifactBody.js";
 import { artifactPresetFieldPaths } from "@/app-shell/workflow-artifacts/presets/spec.js";
 import { useWorkflowRunArtifactBytes } from "@/hooks/useWorkflowRunArtifactBytes.js";
@@ -202,12 +198,7 @@ function WorkflowArtifactView({
       ? joinFilePath(tab.workspacePath, sourcePath)
       : undefined;
 
-  // 头部只留一个文件控件：能「作为文件打开」时「在工作区显示」收进它的菜单，否则独立成按钮。
-  const canOpenAsFile = useCanOpenArtifactAsFile();
-  const canSaveAsFile = useCanSaveArtifactAsFile();
-  const openAsFile = !preset && canSaveAsFile;
-  // Web 只有保存按钮，没有本机打开菜单，不能随保存能力一起隐藏原来的定位入口。
-  const revealInMenu = !preset && canOpenAsFile;
+  // 浏览器只有「保存副本」动作；「在工作区显示」始终独立成按钮，不依赖本机打开能力。
   const reveal =
     localSourcePath !== undefined && onRevealFileInTree !== undefined
       ? () => onRevealFileInTree(localSourcePath)
@@ -257,18 +248,17 @@ function WorkflowArtifactView({
             versionIndex={versionIndex}
           />
           <div className="ml-auto flex items-center gap-1">
-            {openAsFile ? (
+            {!preset ? (
               <ArtifactOpenAsFileButton
                 artifactId={artifact.id}
-                // 只交**属于这一版**的字节：换版本那一帧 bytes 还是旧版的，而副本只写一次。
+                // 只交**属于这一版**的字节：换版本那一帧 bytes 还是旧版的。
                 bytes={bytesState.bytesVersion === version ? bytesState.bytes : null}
                 fileName={artifactOpenAsFileName(artifact, version)}
                 runId={tab.runId}
                 version={version}
-                {...(reveal === undefined ? {} : { onReveal: reveal })}
               />
             ) : null}
-            {!revealInMenu && reveal !== undefined ? (
+            {reveal !== undefined ? (
               <Button
                 data-testid="workflow-artifact-reveal"
                 onClick={reveal}

@@ -6,12 +6,10 @@ import type { IPlatformService, ZCodeTaskClientMode } from "@zcode/shared";
 import { readV4ComposerDraft, V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
 import { readComposerWorkspaceScope } from "@/v4/composer/composerDraftStore.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
-import { isWorkspaceTab, type TabStoreState, type WindowTabState } from "@/store/tabStore.js";
-import { useTabStore } from "@/store/TabStoreProvider.js";
-import { logger } from "@/logger.js";
 import { matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
 import { isShortcutRecordingActive } from "@/shortcuts/bindings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
+import { logger } from "@/logger.js";
 
 export function useRootPlatformEffects({
   initialWorkspaceAbsPath,
@@ -28,16 +26,7 @@ export function useRootPlatformEffects({
   startDraftInWorkspace,
   startNewTaskFromActiveWorkspace,
   openWorkspace,
-  openWorkspacePath,
-  setWorkspaceActionError,
-  allowOpenWorkspace = true,
   isDesktop,
-  locale,
-  localeResolved = true,
-  tabs,
-  activeWorkspacePath,
-  activeWorkspaceIdentity,
-  hasCompletedFullTabRestore = true,
 }: {
   initialWorkspaceAbsPath?: string;
   initialWorkspaceIdentity?: string;
@@ -63,20 +52,27 @@ export function useRootPlatformEffects({
   ) => void;
   startNewTaskFromActiveWorkspace: (source: string) => void;
   openWorkspace: () => void;
-  openWorkspacePath: (workspacePath: string, activateOtherWindow?: boolean) => void | Promise<void>;
-  setWorkspaceActionError: (message: string | null) => void;
-  allowOpenWorkspace?: boolean;
   isDesktop?: boolean;
-  locale: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["locale"];
-  /** IntlProvider 是否已从持久化设置确定语言；未确定前 locale 只是占位初值。 */
-  localeResolved?: boolean;
-  tabs: WindowTabState[];
-  activeWorkspacePath?: string | null;
-  activeWorkspaceIdentity?: string | null;
-  hasCompletedFullTabRestore?: boolean;
 }) {
   const didBootstrapInitialWorkspaceRef = useRef(false);
   const composerClientNamespace = useComposerClientNamespace();
+  useEffect(() => {
+    // 通知是浏览器真实能力；清理桌面生命周期事件时不能同时删掉任务跳转订阅。
+    return platform.onTaskNotificationClick((taskId) => {
+      const workspaces = useZCodeSessionStore.getState().workspaces;
+      for (const [workspacePath, state] of Object.entries(workspaces)) {
+        const task = state.taskListCache?.find((entry) => entry.taskId === taskId);
+        if (state.activeTaskId !== taskId && !task) continue;
+        const targetPath = task?.workspacePath ?? workspacePath;
+        const identity = task?.workspaceIdentity;
+        activateTabByPath(targetPath, identity ? { workspaceIdentity: identity } : undefined);
+        useZCodeSessionStore.getState().setActiveTaskId(targetPath, taskId, identity);
+        return;
+      }
+      logger.warn("[Root] onTaskNotificationClick: task not found:", taskId);
+    });
+  }, [activateTabByPath, platform]);
+
   useEffect(() => {
     // 启动时必须先判断 OAuth 本地会话，再恢复历史/初始 workspace。
     // 如果这里抢先 addTab，未登录用户会先看到主界面，之后才被登录页覆盖。
@@ -85,23 +81,6 @@ export function useRootPlatformEffects({
     }
 
     didBootstrapInitialWorkspaceRef.current = true;
-    if (
-      isDesktop &&
-      initialWorkspaceAbsPath &&
-      initialWorkspacePurpose === "project" &&
-      clientMode === "desktop-continuous" &&
-      !initialWorkspaceIdentity &&
-      !initialTaskId &&
-      !initialTaskDraft &&
-      !isRendererReloadNavigation()
-    ) {
-      // 冷启动的 project 标记只描述 tab，不能代替草稿 projectId；与运行中系统目录
-      // 入口共用 Host 项目接纳，完成前保留启动屏障，避免空归属草稿先被预热。
-      void Promise.resolve(openWorkspacePath(initialWorkspaceAbsPath)).finally(() => {
-        setIsBootstrappingInitialWorkspace(false);
-      });
-      return;
-    }
     if (initialWorkspaceAbsPath) {
       const savedScope = readComposerWorkspaceScope(
         initialWorkspaceAbsPath,
@@ -153,7 +132,6 @@ export function useRootPlatformEffects({
     setIsBootstrappingInitialWorkspace(false);
   }, [
     addTab,
-    openWorkspacePath,
     isDesktop,
     canBootstrapInitialWorkspace,
     initialTaskId,
@@ -166,96 +144,6 @@ export function useRootPlatformEffects({
     setIsBootstrappingInitialWorkspace,
     startDraftInWorkspace,
   ]);
-
-  useEffect(() => {
-    const disposeFocusTab = platform.onFocusTab((path: string) => {
-      logger.info("[Root] onFocusTab:", path);
-      // 跨窗口打开由目标窗口完成项目接纳，避免只激活目录后留下未归类草稿。
-      void openWorkspacePath(path, false);
-    });
-    const disposeNewTab = platform.onNewTab(() => {
-      logger.info("[Root] onNewTab");
-      setWorkspaceActionError(null);
-      // 新标签过去会打开工作区中间页，导致启动/快捷键都可能进入中间页。
-      // 现在新标签语义收敛为“打开工作区”动作，由 Root 决定目录选择或默认 workspace 兜底。
-      openWorkspace();
-    });
-    // 新建回调包含当前语言；同步更新订阅，避免快捷键展示切换语言前的错误提示。
-    const disposeNewTask = platform.onNewTask(() => {
-      startNewTaskFromActiveWorkspace("onNewTask");
-    });
-    const disposeOpenWorkspace = platform.onOpenWorkspace(() => {
-      logger.info("[Root] onOpenWorkspace");
-      openWorkspace();
-    });
-    const disposeOpenWorkspacePath = platform.onOpenWorkspacePath
-      ? platform.onOpenWorkspacePath((path: string) => {
-          if (!allowOpenWorkspace) {
-            logger.info("[Root] 当前模式不支持通过 deep link 打开文件夹，已忽略请求");
-            return;
-          }
-
-          logger.info("[Root] onOpenWorkspacePath:", path);
-          // 系统服务 deep link 对应输入框上方 Open folder 语义。
-          // 这里复用 handleSelectProject，而不是把路径作为聊天附件，才能保留 tab 去重、
-          // 跨窗口激活和 recentProjects 更新这些手动打开文件夹的既有行为。
-          openWorkspacePath(path);
-        })
-      : () => {};
-    const disposeNotificationClick = platform.onTaskNotificationClick((taskId: string) => {
-      logger.info("[Root] onTaskNotificationClick:", taskId);
-      // 遍历所有 workspace 找到 taskId 所属的 workspace，然后激活对应 tab 并切换任务
-      const workspaces = useZCodeSessionStore.getState().workspaces;
-      for (const [workspacePath, workspaceState] of Object.entries(workspaces)) {
-        const taskMeta = workspaceState.taskListCache?.find((task) => task.taskId === taskId);
-        const hasTask = workspaceState.activeTaskId === taskId || Boolean(taskMeta);
-        if (hasTask) {
-          const targetWorkspacePath = taskMeta?.workspacePath ?? workspacePath;
-          const targetWorkspaceIdentity = taskMeta?.workspaceIdentity;
-          // 通知点击会从全局 workspace store 反查 task。
-          // 远端任务必须用 task meta 自带的 workspaceIdentity 激活和选中，否则会落到 path-only 桶。
-          activateTabByPath(
-            targetWorkspacePath,
-            targetWorkspaceIdentity ? { workspaceIdentity: targetWorkspaceIdentity } : undefined,
-          );
-          useZCodeSessionStore
-            .getState()
-            .setActiveTaskId(targetWorkspacePath, taskId, targetWorkspaceIdentity);
-          return;
-        }
-      }
-      logger.warn("[Root] onTaskNotificationClick: task not found in any workspace:", taskId);
-    });
-    return () => {
-      disposeFocusTab();
-      disposeNewTab();
-      disposeNewTask();
-      disposeOpenWorkspace();
-      disposeOpenWorkspacePath();
-      disposeNotificationClick();
-    };
-  }, [
-    activeWorkspaceIdentity,
-    activeWorkspacePath,
-    platform,
-    startNewTaskFromActiveWorkspace,
-    tabs,
-  ]);
-
-  useEffect(() => {
-    if (!isDesktop || !hasCompletedFullTabRestore) {
-      return;
-    }
-
-    const paths = tabs
-      .filter(isWorkspaceTab)
-      // 启动期远程 workspace 现在会先以“断开占位 tab”恢复，
-      // 这些 tab 没有 remoteSessionId，但本质仍是远程会话，不能当成本地路径同步给主进程窗口列表。
-      // 这里改成按完整远程身份字段过滤，避免把远程路径误同步到本地窗口标签。
-      .filter((tab) => !tab.remoteSessionId && !tab.workspaceIdentity && !tab.remoteTarget)
-      .map((tab) => tab.workspacePath);
-    platform.syncWindowTabs(paths);
-  }, [hasCompletedFullTabRestore, isDesktop, platform, tabs]);
 
   useEffect(() => {
     if (isDesktop) {
@@ -275,7 +163,7 @@ export function useRootPlatformEffects({
         return;
       }
 
-      // Web 端没有宿主菜单，补一层 best-effort 键盘监听，按平台主修饰键落到同一套根级动作。
+      // 浏览器没有宿主菜单，补一层键盘监听，按平台主修饰键落到同一套根级动作。
       // 耦合说明：这里固定使用默认键位（Ctrl/Cmd+N、+O），与「menu 通道命令在 Web 端不可配置」
       // （设置页置灰）配套——若未来放开 Web 端 menu 通道改键，
       // 此处必须改为读快捷键生效表，否则用户改键后 Web 行为会分裂。
@@ -293,58 +181,4 @@ export function useRootPlatformEffects({
       window.removeEventListener("keydown", handleWindowKeydown, true);
     };
   }, [isDesktop, openWorkspace, startNewTaskFromActiveWorkspace]);
-
-  useEffect(() => {
-    if (!isDesktop) {
-      return;
-    }
-    // 冷启动竞态修复：IntlProvider 读完 setting.json 之前，locale 只是占位初值（无本地偏好时按
-    // navigator 系统语言，中文系统即 zh-CN）。以前这里一挂载就把占位值推给 Main，Main 再广播给
-    // Host，导致 UI 选 ja/ru/ko 的用户冷启动后几秒内遥测、client/configs、marketing/touch、
-    // getCustomerInfo 等请求带 X-Client-Language=zh-CN。Main 启动时已从 setting.json 同步拿到
-    // 真实语言，所以这里必须等语言确定后再同步，不能用占位值覆盖。
-    if (!localeResolved) {
-      return;
-    }
-
-    let disposed = false;
-
-    // 原生菜单文案之前在 main 进程里写死，renderer 切换 locale 只会更新 React 标题栏菜单。
-    // 结果就是桌面端会同时出现两套语言，Help 里的反馈/导出日志也无法跟随当前语言切换。
-    // 这里把当前 locale 主动同步给 main，让原生菜单和标题栏菜单都从同一份语言状态重建。
-    platform.setApplicationLocale(locale).catch((error) => {
-      if (disposed) {
-        return;
-      }
-      logger.error("[Root] 同步应用菜单语言失败", { locale, error });
-    });
-
-    return () => {
-      disposed = true;
-    };
-  }, [isDesktop, locale, localeResolved, platform]);
-
-  const activeTabId = useTabStore((state: TabStoreState) => state.activeTabId);
-  const activeTabCandidate = useTabStore((state: TabStoreState) =>
-    state.tabs.find((tab: WindowTabState) => tab.id === state.activeTabId),
-  );
-  const activeTab =
-    activeTabCandidate && isWorkspaceTab(activeTabCandidate) ? activeTabCandidate : undefined;
-  const lastSyncedSessionIdRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!isDesktop) return;
-    const workspacePath = activeTab?.workspacePath;
-    const workspaceIdentity = activeTab?.workspaceIdentity;
-    const syncActiveSession = (): void => {
-      const nextSessionId = workspacePath
-        ? (useZCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
-            .activeTaskId ?? null)
-        : null;
-      if (nextSessionId === lastSyncedSessionIdRef.current) return;
-      lastSyncedSessionIdRef.current = nextSessionId;
-      platform.syncActiveTaskSession(nextSessionId);
-    };
-    syncActiveSession();
-    return useZCodeSessionStore.subscribe(syncActiveSession);
-  }, [activeTab, activeTabId, isDesktop, platform]);
 }

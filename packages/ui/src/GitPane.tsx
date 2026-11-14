@@ -16,7 +16,6 @@ import {
 import { type GitPaneFileChange, type GitPaneRepositoryState } from "@/hooks/useGitRepository.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
-import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { joinFilePath, isAbsoluteFilePath } from "@/lib/path.js";
 import {
@@ -43,7 +42,6 @@ const GIT_PANE_CHANGE_ROW_OVERSCAN = 14;
 export function GitPane({
   workspacePath,
   gitState,
-  isDesktop,
   selectedSourceId,
   fileChangeFindActiveIndex,
   fileChangeFindNavigationRequestId,
@@ -53,8 +51,6 @@ export function GitPane({
   onClose: _onClose,
   onRefresh,
   onRevealFileInTree,
-  workspaceIdentity,
-  workspaceRemoteSessionId,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -75,19 +71,7 @@ export function GitPane({
   const { intl } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
-  const workspaceOpenTarget = useWorkspaceOpenInEditorTarget({
-    workspacePath,
-    workspaceIdentity,
-    workspaceRemoteSessionId,
-  });
-  const fileActions = useFileContextActions({
-    canOpenLocalFileManager: Boolean(isDesktop),
-    isRemoteWorkspace:
-      Boolean(workspaceRemoteSessionId || workspaceIdentity?.trim()) ||
-      workspaceOpenTarget.isRemoteWorkspace,
-    remoteTarget: workspaceOpenTarget.remoteTarget,
-    workspaceIdentity,
-  });
+  const fileActions = useFileContextActions();
   const resolvedTheme = resolveTheme(theme);
   const [expandedPath, setExpandedPath] = useState<string | null>(null);
   const [diffStateByKey, setDiffStateByKey] = useState<Record<string, GitDiffLoadState>>({});
@@ -419,17 +403,6 @@ export function GitPane({
     [fileActions, resolveChangePath, workspacePath],
   );
 
-  const handleRevealChangeInFileManager = useCallback(
-    (change: GitPaneFileChange) => {
-      void fileActions.revealInFileManager({
-        path: resolveChangePath(change),
-        deleted: change.kind === "deleted",
-        kind: "file",
-      });
-    },
-    [fileActions, resolveChangePath],
-  );
-
   const handleRevealChangeInFileTree = useCallback(
     (change: GitPaneFileChange) => {
       onRevealFileInTree?.(resolveChangePath(change));
@@ -441,7 +414,6 @@ export function GitPane({
     () => ({
       copyAbsolutePath: intl.formatMessage({ id: "fileActions.copyAbsolutePath" }),
       copyRelativePath: intl.formatMessage({ id: "fileActions.copyRelativePath" }),
-      revealInFileManager: intl.formatMessage({ id: "git.changeContext.revealInFileManager" }),
       revealInFileTree: intl.formatMessage({ id: "git.changeContext.revealInFileTree" }),
     }),
     [intl],
@@ -514,16 +486,11 @@ export function GitPane({
                       diffState={diffState}
                       isDiffLoading={isDiffLoading}
                       isExpanded={isExpanded}
-                      canRevealInFileManager={fileActions.canRevealInFileManager({
-                        path: resolveChangePath(change),
-                        deleted: change.kind === "deleted",
-                      })}
                       codePreviewSettings={codePreviewSettings}
                       resolvedTheme={resolvedTheme}
                       onCopyAbsolutePath={handleCopyAbsolutePath}
                       onCopyRelativePath={handleCopyRelativePath}
                       onOpenChange={handleExpandChange}
-                      onRevealInFileManager={handleRevealChangeInFileManager}
                       onRevealInFileTree={
                         onRevealFileInTree ? handleRevealChangeInFileTree : undefined
                       }
