@@ -18,14 +18,12 @@
 | ---------------------------------------------------------------- | ------------------------------------------ |
 | 插件 manifest / 插件安装（`zcode-protocol-v4/pluginInstall.ts`） | 按 locale 取插件显示名回退链               |
 | 服务端分享页、机器人消息、营销投放（`packages/services`）        | 服务端内容仍是多语言字段                   |
-| Desktop Main 原生菜单、插件沙箱（`packages/desktop/src/main`）   | 主进程侧语言解析，不在本次前端删除范围     |
-| CLI（`apps/zcode-cli`）                                          | 独立 i18n 体系                             |
 | `setting.json` 读写（`packages/shared/src/locale.ts`）           | 旧值兼容，避免旧版本读到未知值重置全部设置 |
 
 ## 请求语言（X-Client-Language）
 
-`X-Client-Language` 链路不变，仍然由 renderer 把当前界面语言同步给 Main/Host。由于界面语言固定，
-桌面端挂载后推送的值恒为 `zh-CN`，`setting.json` 里残留的其它语言值不再影响该请求头。
+`X-Client-Language` 属于请求头契约，前端固定使用 `zh-CN`。桌面端与真实 Host 已移除，
+浏览器端不再有界面语言同步链路；`setting.json` 里残留的其它语言值不影响界面或请求。
 详细链路见 [ZCode Endpoint Client Language Header](../zcode-endpoint-client-language-header.md)。
 
 ## 兼容性
