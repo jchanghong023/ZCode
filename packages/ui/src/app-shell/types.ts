@@ -12,7 +12,6 @@ import type {
   RemoteTarget,
   SourceServerUpdateTarget,
   RemoteWorkspaceSessionEntry,
-  UpdateStatePayload,
   UserInfo,
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
@@ -231,8 +230,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   desktopWindowChromeState: DesktopWindowChromeState | null;
   macWindowControlsLeftPaddingPx: number;
   windowsWindowControlsRightPaddingPx: number;
-  updateReadyVersion: string | null;
-  updateState: UpdateStatePayload | null;
   sidebarContainerRef: RefObject<HTMLElement | null>;
   toggleSidebarShortcutLabel: string;
   newTaskShortcutLabel: string;

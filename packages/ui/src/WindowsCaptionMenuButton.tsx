@@ -1,5 +1,4 @@
 import { DesktopCommandIds } from "@zcode/shared";
-import type { UpdateStatePayload } from "@zcode/shared";
 import { useCallback, useEffect, useState } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -20,13 +19,6 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { WINDOWS_CAPTION_CONTROL_CLASS } from "@/windowCaptionControls.js";
 import { ChevronDownIcon } from "lucide-react";
-
-import {
-  shouldShowDesktopUpdateEntry,
-  getUpdateMenuLabelId,
-  getUpdateMenuLabelValues,
-} from "@/lib/desktopUpdateMenu.js";
-export { shouldShowDesktopUpdateEntry } from "@/lib/desktopUpdateMenu.js";
 
 const WINDOWS_CAPTION_MENU_ALIGN_OFFSET = -12;
 
@@ -57,26 +49,11 @@ export function WindowsCaptionMenuButton({
     platform,
     intl,
   });
-  const [updateState, setUpdateState] = useState<UpdateStatePayload | null>(null);
   const [stdioTapDevState, setStdioTapDevState] = useState({
     enabled: false,
     visible: false,
   });
   const [showCommunityMenuItem, setShowCommunityMenuItem] = useState(false);
-  const showDesktopUpdateEntry = shouldShowDesktopUpdateEntry();
-
-  const syncUpdateState = useCallback(async () => {
-    if (!platform.getUpdateState) {
-      return;
-    }
-
-    try {
-      const payload = await platform.getUpdateState();
-      setUpdateState(payload);
-    } catch (error) {
-      logger.warn("[WindowsCaptionMenuButton] 同步自动更新状态失败", { error });
-    }
-  }, [platform]);
 
   const syncStdioTapDevState = useCallback(async () => {
     if (!platform.getZCodeStdioTapDevState) {
@@ -94,16 +71,8 @@ export function WindowsCaptionMenuButton({
   }, [platform]);
 
   useEffect(() => {
-    if (showDesktopUpdateEntry) {
-      void syncUpdateState();
-    }
     void syncStdioTapDevState();
-    return showDesktopUpdateEntry
-      ? (platform.onUpdateStateChanged?.((payload) => {
-          setUpdateState(payload);
-        }) ?? (() => {}))
-      : undefined;
-  }, [platform, showDesktopUpdateEntry, syncStdioTapDevState, syncUpdateState]);
+  }, [syncStdioTapDevState]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -141,11 +110,6 @@ export function WindowsCaptionMenuButton({
   ) => {
     void (async () => {
       await platform.executeDesktopCommand(command);
-      if (command === DesktopCommandIds.CheckForUpdates) {
-        // Bugfix: 这个 Windows 合并菜单才是截图里的入口。
-        // 点击后菜单会关闭，重新打开前主动拉取 main 中的 updater 状态，避免一直显示静态“检查更新”。
-        await syncUpdateState();
-      }
     })();
   };
 
@@ -160,9 +124,6 @@ export function WindowsCaptionMenuButton({
     <DropdownMenu
       onOpenChange={(open) => {
         if (open) {
-          if (showDesktopUpdateEntry) {
-            void syncUpdateState();
-          }
           void syncStdioTapDevState();
         }
       }}
@@ -227,17 +188,6 @@ export function WindowsCaptionMenuButton({
         <DropdownMenuItem onSelect={() => handleExecuteDesktopCommand(DesktopCommandIds.ShowAbout)}>
           {intl.formatMessage({ id: "titleBar.menu.help.about" })}
         </DropdownMenuItem>
-        {showDesktopUpdateEntry ? (
-          <DropdownMenuItem
-            disabled={updateState?.enabled === false}
-            onSelect={() => handleExecuteDesktopCommand(DesktopCommandIds.CheckForUpdates)}
-          >
-            {intl.formatMessage(
-              { id: getUpdateMenuLabelId(updateState) },
-              getUpdateMenuLabelValues(updateState),
-            )}
-          </DropdownMenuItem>
-        ) : null}
         <DropdownMenuItem
           onSelect={() => handleExecuteDesktopCommand(DesktopCommandIds.OpenResourceManager)}
         >
