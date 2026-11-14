@@ -87,7 +87,6 @@ export function ConversationDraftSuggestedPromptsContainer({
   remoteSessionId,
   onOpenAutomations,
   isDesktop = false,
-  isWebRemoteControl = false,
 }: Props) {
   const { intl, locale } = useZCodeIntl();
   const platform = usePlatform();
@@ -298,7 +297,7 @@ export function ConversationDraftSuggestedPromptsContainer({
       const resolved =
         await resolution.services.pluginManagementService.resolveSuggestedPluginReference({
           ...targetParams(),
-          ...resolveSuggestedPluginClientBoundary(isWebRemoteControl),
+          ...resolveSuggestedPluginClientBoundary(),
           stableId: current.plugin.stableId,
           operationId: current.operationId,
         });
@@ -307,7 +306,6 @@ export function ConversationDraftSuggestedPromptsContainer({
       return prependResolvedPlugin(current.plugin, requestVersion, resolved.icon);
     },
     [
-      isWebRemoteControl,
       prependResolvedPlugin,
       resolution.services.pluginManagementService,
       targetParams,
@@ -429,7 +427,7 @@ export function ConversationDraftSuggestedPromptsContainer({
             ...targetParams(),
             telemetry: {
               entry: "recommended_prompt",
-              client_kind: isWebRemoteControl ? "mobile" : "desktop",
+              client_kind: "desktop",
             },
             pluginName: flow.result!.pluginName!,
             marketplace: flow.result!.marketplace!,
@@ -476,7 +474,7 @@ export function ConversationDraftSuggestedPromptsContainer({
               ...targetParams(),
               telemetry: {
                 entry: "recommended_prompt",
-                client_kind: isWebRemoteControl ? "mobile" : "desktop",
+                client_kind: "desktop",
               },
               pluginId: flow.plugin.stableId,
               enabled: true,
@@ -624,7 +622,7 @@ export function ConversationDraftSuggestedPromptsContainer({
           operation,
           resolution.services.pluginManagementService.resolveSuggestedPluginReference({
             ...targetParams(),
-            ...resolveSuggestedPluginClientBoundary(isWebRemoteControl),
+            ...resolveSuggestedPluginClientBoundary(),
             stableId: plugin.stableId,
             operationId: operation.operationId,
           }),
@@ -714,7 +712,6 @@ export function ConversationDraftSuggestedPromptsContainer({
       cancelOperation,
       clearOperationFeedback,
       isDesktop,
-      isWebRemoteControl,
       locale,
       onOpenAutomations,
       platform,

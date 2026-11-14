@@ -57,7 +57,6 @@ interface PluginStorePageProps {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
-  isWebRemoteControl?: boolean;
   workspacePath?: string | null;
   workspaceIdentity?: string;
   onCreateTask?: (request?: CreateTaskRequest) => void;
@@ -75,7 +74,6 @@ export function PluginStorePage({
   isDesktop = false,
   isMacDesktop = false,
   isWindowsDesktop = false,
-  isWebRemoteControl = false,
   workspacePath,
   workspaceIdentity,
   onCreateTask,
@@ -134,10 +132,10 @@ export function PluginStorePage({
         : view === "detail"
           ? ("store_detail" as const)
           : ("store_list" as const),
-      client_kind: isWebRemoteControl ? ("mobile" as const) : ("desktop" as const),
+      client_kind: "desktop" as const,
     };
     return withPluginTelemetry(pluginManagementService, telemetry);
-  }, [pluginManagementService, embedded, isWebRemoteControl, view]);
+  }, [pluginManagementService, embedded, view]);
 
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
   const [segment, setSegment] = useState<PluginStoreSegment>("public");
@@ -184,11 +182,11 @@ export function PluginStorePage({
         ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
         withPluginTelemetry(pluginManagementService, {
           trigger: "automatic",
-          client_kind: isWebRemoteControl ? "mobile" : "desktop",
+          client_kind: "desktop",
         }),
       );
     }
-  }, [marketplaces, isWebRemoteControl, pluginManagementService, updateMarketplace]);
+  }, [marketplaces, pluginManagementService, updateMarketplace]);
 
   const items = useMemo(
     () =>
@@ -232,7 +230,7 @@ export function PluginStorePage({
                 : view === "detail"
                   ? "store_detail"
                   : "store_list",
-              client_kind: isWebRemoteControl ? "mobile" : "desktop",
+              client_kind: "desktop",
               ...(view === "detail" && detailPluginId ? { plugin_id: detailPluginId } : {}),
             },
           },
@@ -243,7 +241,7 @@ export function PluginStorePage({
     });
     observer.observe(root);
     return () => observer.disconnect();
-  }, [platform, view, detailPluginId, embedded, isWebRemoteControl]);
+  }, [platform, view, detailPluginId, embedded]);
   // 插件自身 warning 诊断（如声明的技能路径扫描为空）：详情高级区展示，避免静默失败。
   const detailPluginInfo = detailItem?.info;
   const detailPluginWarnings = detailPluginInfo
@@ -586,7 +584,6 @@ export function PluginStorePage({
               testId="plugin-store-create"
               variant="secondary"
               size="lg"
-              isWebRemoteControl={isWebRemoteControl}
               onCreateTask={onCreateTask}
               onAddMarketplace={() => {
                 setAddMarketplaceError(null);
@@ -641,7 +638,6 @@ export function PluginStorePage({
             isWindowsDesktop={isWindowsDesktop}
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
-            isWebRemoteControl={isWebRemoteControl}
             initialScopeKey={managementScope}
             onScopeChange={setManagementScope}
             onCreateTask={onCreateTask}
@@ -760,7 +756,7 @@ export function PluginStorePage({
                   schema_version: "1",
                   action: "search",
                   entry: embedded ? "side_pane_market" : "store_list",
-                  client_kind: isWebRemoteControl ? "mobile" : "desktop",
+                  client_kind: "desktop",
                 },
               },
               "plugin-discovery",

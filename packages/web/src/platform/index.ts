@@ -1,27 +1,18 @@
 import {
-  mobilePluginDiscoveryTelemetrySchema,
   resolveLocaleFromLanguageTag,
   toZhOrEnLocale,
-  sessionCreateTelemetrySchema,
   type IPlatformService,
   type RemoteTarget,
-  type WebRemoteControlStatus,
 } from "@zcode/shared";
 import { playTaskNotificationSound } from "@zcode/ui";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "#src/communityUrl.js";
-import type { WebRemoteControlPlatformProxy } from "#src/platform/contract.js";
 import { saveBrowserFile } from "#src/platform/saveBrowserFile.js";
-export type { WebRemoteControlPlatformProxy } from "#src/platform/contract.js";
 
 async function resolveFeedbackUrl(): Promise<string | undefined> {
   return (await resolveWebHelpConfig()).feedback_url;
 }
 
-export function createWebPlatform(options?: {
-  externalWebRemoteControlProxy?: WebRemoteControlPlatformProxy;
-}): IPlatformService {
-  const platformProxy = options?.externalWebRemoteControlProxy;
-
+export function createWebPlatform(): IPlatformService {
   return {
     canSelectFilePath: false,
     canOpenLocalFiles: false,
@@ -32,86 +23,39 @@ export function createWebPlatform(options?: {
     selectFile: () => Promise.resolve(null),
     selectFiles: () => Promise.resolve([]),
     getPathForFile: () => null,
-    createTempTextAttachment: (payload) =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("createTempTextAttachment", payload)
-        : Promise.reject(new Error("Temporary text attachments require a desktop host")),
+    createTempTextAttachment: () =>
+      Promise.reject(new Error("Temporary text attachments require a desktop host")),
     onRemoteConnectionLog: () => () => {},
     onRemoteSessionClosed: () => () => {},
     // Web 端无多窗口管理
     activateOrSetWorkspace: () => Promise.resolve({ activated: false }),
-    // Bugfix: Web 远程控制模式虽然复用了 web UI，但它背后其实挂着 desktop。
-    // 之前这里仍然走普通 web 的 `/api/connect-remote`，既不能命中 desktop main，
-    // 也拿不到 remote session 的 MessagePort，结果看起来像“支持”，实际必然失败。
-    // 先显式拒绝，避免用户沿着错误链路继续排查；后续如果要支持，需要单独补 remote session 注入协议。
-    async connectRemote(
-      options: RemoteTarget,
-      _requestId?: string,
-      _context?: {
-        workspacePath: string;
-        workspaceIdentity?: string;
-        connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
-      },
-    ) {
-      if (platformProxy) {
-        return {
-          success: false,
-          error: `Remote connect is not supported in Web remote control mode yet: ${options.kind}`,
-        };
-      }
-
-      // TODO(web-remote-workspace): 普通 Web 模式先只保证 server 本地工作区可用。
-      // 之前这里虽然能打开 ?remote=<id> 新标签页，但远程 WebSocket 只暴露部分 service，
-      // 与 Root/RemoteServiceAccess 需要的完整 accessor 不匹配，最终会在项目向导或首屏卡住。
+    // 普通 Web 模式只保证 server 本地工作区可用；远程 WebSocket 只暴露部分 service，
+    // 与 Root/RemoteServiceAccess 需要的完整 accessor 不匹配，直接拒绝避免卡在首屏。
+    async connectRemote(options: RemoteTarget) {
       return {
         success: false,
         error: `Remote connect is not supported in Web mode yet: ${options.kind}`,
       };
     },
     cancelPendingRemoteConnection: (_requestId?: string) => Promise.resolve(),
-    // Web 端不作为 Web 远程控制的发起端，保留空实现以兼容统一接口。
-    startWebRemoteControl: () =>
-      Promise.reject(new Error("Web remote control can only be started from desktop")),
-    stopWebRemoteControl: () => Promise.resolve(),
-    getWebRemoteControlStatus: () =>
-      Promise.resolve<WebRemoteControlStatus>({
-        status: "idle",
-      }),
     disposeRemoteSession: () => Promise.resolve(),
-    isDockerAvailable: () =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("isDockerAvailable")
-        : Promise.resolve(false),
-    listWSLDistros: () =>
-      platformProxy ? platformProxy.requestPlatformMethod("listWSLDistros") : Promise.resolve([]),
-    listDockerContainers: () =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("listDockerContainers")
-        : Promise.resolve([]),
-    listSSHConfigAliases: () =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("listSSHConfigAliases")
-        : Promise.resolve([]),
-    loadMcpFromUserDirectory: (payload) =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("loadMcpFromUserDirectory", payload)
-        : Promise.resolve({ servers: [] }),
-    saveMcpToUserDirectory: (payload) =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("saveMcpToUserDirectory", payload)
-        : Promise.resolve({
-            success: false,
-            error: "MCP native directory management requires a desktop attachment",
-          }),
-    migrateLegacyCommonMcp: (payload) =>
-      platformProxy
-        ? platformProxy.requestPlatformMethod("migrateLegacyCommonMcp", payload)
-        : Promise.resolve({
-            servers: {},
-            totalCount: 0,
-            importedCount: 0,
-            skippedCount: 0,
-          }),
+    isDockerAvailable: () => Promise.resolve(false),
+    listWSLDistros: () => Promise.resolve([]),
+    listDockerContainers: () => Promise.resolve([]),
+    listSSHConfigAliases: () => Promise.resolve([]),
+    loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
+    saveMcpToUserDirectory: () =>
+      Promise.resolve({
+        success: false,
+        error: "MCP native directory management requires a desktop attachment",
+      }),
+    migrateLegacyCommonMcp: () =>
+      Promise.resolve({
+        servers: {},
+        totalCount: 0,
+        importedCount: 0,
+        skippedCount: 0,
+      }),
     openExternal: (url) => {
       window.open(url, "_blank", "noopener,noreferrer");
     },
@@ -144,13 +88,8 @@ export function createWebPlatform(options?: {
     onOAuthCallback: () => () => {},
     onPaymentCallback: () => () => {},
     notifyRendererReady: () => {},
-    reportTelemetryEvent: async (event) => {
-      // 手机只开放 session_create 和插件发现事件；管理结果仍由 Desktop Host 唯一上报。
-      const parsed = sessionCreateTelemetrySchema
-        .or(mobilePluginDiscoveryTelemetrySchema)
-        .safeParse(event);
-      if (parsed.success) platformProxy?.reportTelemetryEvent?.(parsed.data);
-    },
+    // Web 端没有桌面宿主承接业务遥测；此前仅远控 bridge 会注入代理转发，现恒为 no-op。
+    reportTelemetryEvent: () => Promise.resolve(),
     reportArmsCustomEvent: () => Promise.resolve(),
     showTaskNotification: (payload) => {
       if (document.hasFocus()) {

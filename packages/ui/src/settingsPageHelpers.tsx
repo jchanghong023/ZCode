@@ -134,8 +134,6 @@ export function GeneralSectionContent({
   notificationSoundEnabled,
   closeToTrayOnWindows,
   keepAwakeWhileRunning = false,
-  mobilePushEnabled = true,
-  onMobilePushEnabledChange = async () => {},
   desktopChromiumHardwareAccelerationEnabled = true,
   receivePreviewUpdates,
   autoDownloadAndInstallUpdates,
@@ -176,9 +174,6 @@ export function GeneralSectionContent({
   notificationSoundEnabled: boolean;
   closeToTrayOnWindows: boolean;
   keepAwakeWhileRunning?: boolean;
-  /** 本机 offline push 上报开关（spec：docs/web-remote-control/mobile-event-push.md 6.4），仅桌面端展示 */
-  mobilePushEnabled?: boolean;
-  onMobilePushEnabledChange?: (enabled: boolean) => Promise<void>;
   desktopChromiumHardwareAccelerationEnabled?: boolean;
   receivePreviewUpdates: boolean;
   autoDownloadAndInstallUpdates: boolean;
@@ -635,23 +630,6 @@ export function GeneralSectionContent({
             />
           }
         />
-        {isDesktop ? (
-          <SettingsRow
-            searchId="settings.mobilePush"
-            label={intl.formatMessage({ id: "settings.mobilePush" })}
-            description={intl.formatMessage({ id: "settings.mobilePushDescription" })}
-            control={
-              <Switch
-                aria-label={intl.formatMessage({ id: "settings.mobilePush" })}
-                data-testid="settings-mobile-push-switch"
-                checked={mobilePushEnabled}
-                onCheckedChange={(checked) => {
-                  void onMobilePushEnabledChange(checked);
-                }}
-              />
-            }
-          />
-        ) : null}
         {isWindowsDesktop || isLinuxDesktop ? (
           <SettingsRow
             searchId="settings.closeToTrayOnWindows"

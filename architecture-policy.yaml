@@ -288,7 +288,6 @@ modules:
       - shared
       - ui
       - conversation-workspace-target
-      - web-remote-control-ui
       - remote-connection-flow
       - data-sync
       - managed-worktree-ui
@@ -581,130 +580,6 @@ modules:
     layers:
       app: .
     owner: conversation
-  # web-remote-relay：由 architecture:adopt 登记
-  - id: web-remote-relay
-    roots:
-      - packages/shared/src/web-remote-relay
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/shared/src/web-remote-relay/index.ts
-      - packages/shared/src/web-remote-relay/contract.ts
-    layers:
-      contract: contract.ts
-      domain: domain
-      adapters: .
-    owner: remote
-    layerOrder:
-      - contract
-      - domain
-      - app
-      - adapters
-      - ui
-  # desktop-web-remote-relay：由 architecture:adopt 登记
-  - id: desktop-web-remote-relay
-    roots:
-      - packages/desktop/src/main/web-remote-relay
-    managed: true
-    requires:
-      - client
-      - desktop
-      - shared
-      - web-remote-relay
-    publicEntrypoints:
-      - packages/desktop/src/main/web-remote-relay/index.ts
-      - packages/desktop/src/main/web-remote-relay/contract.ts
-    layers:
-      contract: contract.ts
-      adapters: .
-    owner: remote
-    layerOrder:
-      - contract
-      - domain
-      - app
-      - adapters
-      - ui
-  # mobile-ui：由 architecture:adopt 登记
-  - id: mobile-ui
-    roots:
-      - packages/ui/src/components/mobile-ui
-    managed: true
-    requires:
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/components/mobile-ui/index.ts
-      - packages/ui/src/components/mobile-ui/contract.ts
-      - packages/ui/src/components/mobile-ui/DevicePlatformIcon.tsx
-      - packages/ui/src/components/mobile-ui/ZCodeAppLogo.tsx
-      - packages/ui/src/components/mobile-ui/bottom-sheet.tsx
-    layers:
-      contract: contract.ts
-      ui: .
-    owner: remote
-    layerOrder:
-      - contract
-      - domain
-      - app
-      - adapters
-      - ui
-  # web-remote-control-ui：由 architecture:adopt 登记
-  - id: web-remote-control-ui
-    roots:
-      - packages/ui/src/web-remote-control
-    managed: true
-    requires:
-      - mobile-ui
-      - services
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/web-remote-control/index.ts
-      - packages/ui/src/web-remote-control/contract.ts
-      - packages/ui/src/web-remote-control/WebRemoteControlDeviceHeader.tsx
-      - packages/ui/src/web-remote-control/app/useWebRemoteControlAuthSync.ts
-    layers:
-      contract: contract.ts
-      domain: domain
-      app: app
-      ui: .
-    owner: remote
-    layerOrder:
-      - contract
-      - domain
-      - app
-      - adapters
-      - ui
-  # web-remote-control：由 architecture:adopt 登记
-  - id: web-remote-control
-    roots:
-      - packages/web/src/web-remote-control
-    managed: true
-    requires:
-      - client
-      - mobile-ui
-      - shared
-      - ui
-      - web
-      - web-auth
-      - web-remote-relay
-    publicEntrypoints:
-      - packages/web/src/web-remote-control/index.ts
-      - packages/web/src/web-remote-control/contract.ts
-      - packages/web/src/web-remote-control/views.ts
-      - packages/web/src/web-remote-control/adapters/webRemoteControlThemeSeed.ts
-    layers:
-      contract: contracts
-      domain: domain
-      app: app
-      adapters: adapters
-      ui: ui
-    owner: remote
-    layerOrder:
-      - contract
-      - domain
-      - app
-      - adapters
-      - ui
 
   # 保留既有源码位置；精确登记源文件，不扩大到整个 CLI 或 handlers 目录。
   - id: cli-arguments
@@ -749,8 +624,7 @@ modules:
     layers: {app: .}
     owner: agent
 
-  # remote-input-prediction：手机远控输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。
-  # 规格：docs/web-remote-control/mobile-input-prediction.md。
+  # remote-input-prediction：回放型客户端输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。?
   - id: remote-input-prediction
     roots:
       - packages/shared/src/zcode-protocol-v4/input-prediction
@@ -1728,7 +1602,6 @@ modules:
       - packages/web/src/auth
     managed: true
     requires:
-      - mobile-ui
       - shared
       - ui
     publicEntrypoints:

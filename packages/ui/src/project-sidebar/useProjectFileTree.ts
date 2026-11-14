@@ -19,7 +19,6 @@ export function useProjectFileTree(
   const {
     workspacePath,
     workspaceIdentity,
-    webRemoteControlWorkspaceSwitcher,
     onConnectRemote,
     onSelectRemoteProject,
     onCancelRemoteProject,
@@ -58,7 +57,6 @@ export function useProjectFileTree(
         props: {
           workspacePath,
           workspaceIdentity,
-          webRemoteControlWorkspaceSwitcher,
           onConnectRemote,
           onSelectRemoteProject,
           onCancelRemoteProject,
@@ -81,7 +79,6 @@ export function useProjectFileTree(
     [
       workspacePath,
       workspaceIdentity,
-      webRemoteControlWorkspaceSwitcher,
       onConnectRemote,
       onSelectRemoteProject,
       onCancelRemoteProject,
@@ -96,19 +93,6 @@ export function useProjectFileTree(
     async (task: ProjectTask, remoteSessionId?: string) => {
       const generation = ++request.current;
       const identity = task.workspaceIdentity?.trim();
-      const key = identity || task.workspacePath;
-      if (
-        webRemoteControlWorkspaceSwitcher &&
-        (workspaceIdentity?.trim() || workspacePath) !== key
-      ) {
-        await webRemoteControlWorkspaceSwitcher.switchWorkspace(key, {
-          taskHostId: task.hostId,
-          fileTreeTaskId: task.taskId,
-          mobileNavigationIntent: "chat",
-        });
-        // 跨 workspace 由新 Root 消费文件请求，旧页面不能再次创建标签。
-        return;
-      }
       if (generation !== request.current) return;
       const sessions = useRemoteWorkspaceSessionStore.getState();
       const sessionId = identity
@@ -132,7 +116,7 @@ export function useProjectFileTree(
         ...(identity ? { workspaceIdentity: identity, workspaceRemoteSessionId: sessionId } : {}),
       });
     },
-    [webRemoteControlWorkspaceSwitcher, workspaceIdentity, workspacePath, onOpenFileManager],
+    [onOpenFileManager],
   );
   return { openFiles, openTaskFiles };
 }

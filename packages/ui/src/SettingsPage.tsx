@@ -297,7 +297,6 @@ export function SettingsPage({
   isDesktop,
   isWindowsDesktop,
   isMacDesktop,
-  isWebRemoteControl = false,
   windowsWindowControlsRightPaddingPx: _windowsWindowControlsRightPaddingPx,
   captionWorkspacePath,
   onBack,
@@ -310,7 +309,6 @@ export function SettingsPage({
   isDesktop?: boolean;
   isWindowsDesktop?: boolean;
   isMacDesktop?: boolean;
-  isWebRemoteControl?: boolean;
   windowsWindowControlsRightPaddingPx?: number;
   captionWorkspacePath?: string | null;
   onBack?: () => void;
@@ -1205,22 +1203,6 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  // 本机 offline push 开关：设置文件是唯一数据源，Main 每次上报前读取，不需要额外通知 Main。
-  const handleMobilePushEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.notification",
-        action: "toggle_mobile_push",
-        trigger: "switch",
-        operation: () => updateSharedSettings({ mobilePushEnabled: enabled }),
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-    },
-    [updateSharedSettings],
-  );
   const handleDesktopChromiumHardwareAccelerationChange = useCallback(
     async (enabled: boolean) => {
       await runSettingsActionAsync({
@@ -1734,8 +1716,6 @@ export function SettingsPage({
                               notificationSoundEnabled={notificationSoundEnabled}
                               closeToTrayOnWindows={closeToTrayOnWindows}
                               keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
-                              mobilePushEnabled={sharedSettings?.mobilePushEnabled ?? true}
-                              onMobilePushEnabledChange={handleMobilePushEnabledChange}
                               desktopChromiumHardwareAccelerationEnabled={
                                 desktopChromiumHardwareAccelerationEnabled
                               }
@@ -2033,7 +2013,6 @@ export function SettingsPage({
                               isDesktop={Boolean(isDesktop)}
                               isMacDesktop={Boolean(isMacDesktop)}
                               isWindowsDesktop={Boolean(isWindowsDesktop)}
-                              isWebRemoteControl={isWebRemoteControl}
                               initialTab={pluginTab}
                               initialScopeKey={pluginScopeKey}
                               workspacePath={activeWorkspacePath}
@@ -2051,7 +2030,6 @@ export function SettingsPage({
                               key={`mcp:${settingsSectionNavigationVersion}`}
                               mode="mcp"
                               initialScopeKey={pluginScopeKey}
-                              isWebRemoteControl={isWebRemoteControl}
                               workspacePath={activeWorkspacePath}
                               workspaceIdentity={activeWorkspaceIdentity}
                               onCreateTask={onCreateTask}
@@ -2065,7 +2043,6 @@ export function SettingsPage({
                             <PluginsSection
                               key={`skill:${settingsSectionNavigationVersion}`}
                               mode="skill"
-                              isWebRemoteControl={isWebRemoteControl}
                               workspacePath={activeWorkspacePath}
                               workspaceIdentity={activeWorkspaceIdentity}
                               onCreateTask={onCreateTask}
@@ -2117,7 +2094,6 @@ export function SettingsPage({
                           ) : activeSection === "commands" ? (
                             <PluginsSection
                               mode="command"
-                              isWebRemoteControl={isWebRemoteControl}
                               workspacePath={activeWorkspacePath}
                               workspaceIdentity={activeWorkspaceIdentity}
                               onCreateTask={onCreateTask}

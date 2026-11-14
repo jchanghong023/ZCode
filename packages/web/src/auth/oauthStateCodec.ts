@@ -178,6 +178,20 @@ export function buildReturnToCallbackUrl(
   return returnToUrl.toString();
 }
 
+/**
+ * Web OAuth 回调落点判定：/remote/v4 路径上携带 state 且有 code/authCode/error 任一参数。
+ * BigModel 使用 authCode；必须先进入既有回调校验，不能落回未登录门禁。
+ */
+export function isWebOAuthCallbackUrl(url: URL): boolean {
+  return (
+    ["/remote/v4", "/remote/v4/"].includes(url.pathname) &&
+    url.searchParams.has("state") &&
+    (url.searchParams.has("code") ||
+      url.searchParams.has("authCode") ||
+      url.searchParams.has("error"))
+  );
+}
+
 export function createBrowserNonce(): string {
   if (globalThis.crypto?.randomUUID) {
     return globalThis.crypto.randomUUID();

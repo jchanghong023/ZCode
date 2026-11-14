@@ -50,7 +50,6 @@ export interface V4InteractionDialogsProps {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
-  isWebRemoteControl?: boolean;
   provider?: ZCodeProvider;
   snapshot: ConversationSnapshot | null;
   onCommandSettled?: (commandId: string) => void;
@@ -89,7 +88,6 @@ export function V4InteractionDialogs({
   workspacePath,
   workspaceIdentity,
   remoteSessionId,
-  isWebRemoteControl = false,
   provider,
   snapshot,
   onCommandSettled,
@@ -375,7 +373,6 @@ export function V4InteractionDialogs({
         {...(workspaceIdentity === undefined ? {} : { workspaceIdentity })}
         {...(remoteSessionId === undefined ? {} : { remoteSessionId })}
         {...(workflowSessionModel === undefined ? {} : { workflowSessionModel })}
-        isWebRemoteControl={isWebRemoteControl}
         provider={provider}
         responding={response?.pending}
         committedMode={response?.committedMode}

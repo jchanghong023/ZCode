@@ -149,11 +149,6 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const webRemoteControlRelayV2DeviceSchema = z.object({
-  deviceSid: z.string().min(1),
-  userId: z.string().min(1),
-  endpointOrigin: z.url(),
-});
 const remoteConversationWorkspaceRecordSchema = z
   .object({
     workspacePath: nonEmptyStringSchema,
@@ -161,14 +156,6 @@ const remoteConversationWorkspaceRecordSchema = z
   })
   .strict();
 
-const webRemoteControlExternalRelayDeviceSchema = z.object({
-  deviceSid: nonEmptyStringSchema,
-});
-const webRemoteControlLastEnabledContextSchema = z.object({
-  workspacePath: nonEmptyStringSchema,
-  workspaceIdentity: nonEmptyStringSchema.optional(),
-  initialTaskId: nonEmptyStringSchema.optional(),
-});
 const zcodeEndpointOriginSchema = z.preprocess((value) => {
   if (typeof value !== "string") {
     return undefined;
@@ -555,9 +542,6 @@ const appSettingsObjectSchema = z.object({
   // default(false)：新装与存量用户首次启动都视为未归位，由 main 进程按平台决定是否迁移。
   closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
   keepAwakeWhileRunning: z.boolean().default(false),
-  // 本机 offline push 上报开关（spec：docs/web-remote-control/mobile-event-push.md 6.4）。
-  // 必须声明在完整 schema，否则合并后显式 false 会被剥离。
-  mobilePushEnabled: z.boolean().default(true),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
@@ -604,9 +588,6 @@ const appSettingsObjectSchema = z.object({
   autoDownloadAndInstallUpdates: z.boolean().default(false),
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
-  webRemoteControlRelayV2Device: webRemoteControlRelayV2DeviceSchema.optional(),
-  webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
-  webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
 });
 
@@ -653,7 +634,6 @@ export const appSettingsPatchSchema = z.object({
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
-  mobilePushEnabled: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   closeToTrayLinuxMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
@@ -718,8 +698,5 @@ export const appSettingsPatchSchema = z.object({
     .partialRecord(electronReleaseChannelSchema, nonEmptyStringSchema)
     .optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
-  webRemoteControlRelayV2Device: webRemoteControlRelayV2DeviceSchema.optional(),
-  webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
-  webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
 });

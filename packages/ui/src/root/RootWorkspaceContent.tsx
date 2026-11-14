@@ -42,10 +42,7 @@ interface RootWorkspaceContentProps {
 
   remoteConnectionLogs?: AppProps["remoteConnectionLogs"];
   allowOpenWorkspace: NonNullable<RootProps["allowOpenWorkspace"]>;
-  webRemoteControlWorkspaceSwitcher?: RootProps["webRemoteControlWorkspaceSwitcher"];
   initialSidebarFileTreeOpen?: boolean;
-  initialWebRemoteControlMobileNavigationIntent?: RootProps["initialWebRemoteControlMobileNavigationIntent"];
-  webRemoteControlTerminalTransportState?: RootProps["webRemoteControlTerminalTransportState"];
   isDesktop?: RootProps["isDesktop"];
   isMacDesktop?: RootProps["isMacDesktop"];
   isWindowsDesktop?: RootProps["isWindowsDesktop"];
@@ -83,10 +80,7 @@ export function RootWorkspaceContent({
 
   remoteConnectionLogs,
   allowOpenWorkspace,
-  webRemoteControlWorkspaceSwitcher,
   initialSidebarFileTreeOpen,
-  initialWebRemoteControlMobileNavigationIntent,
-  webRemoteControlTerminalTransportState,
   isDesktop,
   isMacDesktop,
   isWindowsDesktop,
@@ -168,12 +162,7 @@ export function RootWorkspaceContent({
                 remoteConnectionInProgress={remoteConnectionInProgress}
                 onReturnToWorkspace={handleBackFromSettings}
                 allowOpenWorkspace={allowOpenWorkspace}
-                webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
                 initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
-                initialWebRemoteControlMobileNavigationIntent={
-                  initialWebRemoteControlMobileNavigationIntent
-                }
-                webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
                 allowRemoteWorkspace={allowRemoteWorkspace}
                 remoteWorkspaceSessions={remoteWorkspaceSessions}
                 isWorkspaceVisible={!isSettingsTabActive}

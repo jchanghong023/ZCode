@@ -5,7 +5,6 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
-import { resolveRemoteFrontendVersion } from "./vite/remoteFrontendVersion.mjs";
 // Bugfix: Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
 import {
@@ -38,7 +37,7 @@ export default defineConfig(({ mode }) => {
   };
   const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(endpointEnv);
   const zaiOAuthOrigin = resolveZaiOAuthOrigin(endpointEnv);
-  // 远控与桌面/分享页一致，BigModel 授权域名必须跟随产品环境。
+  // 与桌面/分享页一致，BigModel 授权域名必须跟随产品环境。
   const bigmodelOAuthOrigin = resolveBigModelApiOrigin(endpointEnv);
   // ZAI OAuth client_id 是公开标识，允许注入浏览器包；secret/token 不得走 VITE_。
   const zaiOAuthClientId = resolveZaiOAuthClientId(endpointEnv);
@@ -71,12 +70,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
         },
-        "/api/v1/remote": {
-          target: zcodeEndpointOrigin,
-          changeOrigin: true,
-          secure: true,
-          ws: true,
-        },
         // 将 /ws 和 /api 请求代理到 server（默认 3030 端口）
         "/ws": { target: "ws://localhost:3030", ws: true },
         "/api": { target: "http://localhost:3030" },
@@ -97,9 +90,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      __ZCODE_VERSION__: JSON.stringify(
-        resolveRemoteFrontendVersion(version, process.env.WEB_REMOTE_FRONTEND_VERSION),
-      ),
+      __ZCODE_VERSION__: JSON.stringify(version),
       __ZCODE_MIN_COMPATIBLE_VERSION__: JSON.stringify(minCompatibleVersion),
       __ZCODE_COMMIT__: JSON.stringify(env.ZCODE_COMMIT || "unknown"),
       __ZCODE_ENV__: JSON.stringify(zcodeEnv),

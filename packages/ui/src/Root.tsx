@@ -42,7 +42,6 @@ import {
   attachRemoteProjectWorkspace,
   resolveEntryProject,
   useRemoteWorkspaceConnectionGate,
-  useWebRemoteControlRendererActions,
 } from "@/project-sidebar/index.js";
 import { useTabPersistence, type WorkspacePersistenceGate } from "@/hooks/useTabPersistence.js";
 import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
@@ -87,7 +86,6 @@ import { RemoteWorkspaceControllerProvider } from "@/remote/useRemoteWorkspaceCo
 import { useRootProviderStateRefresh } from "@/root/useRootProviderStateRefresh.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useRootProviderSettingsSnapshot } from "@/root/useRootProviderSettingsSnapshot.js";
-import { useWebRemoteControlAuthSync } from "@/web-remote-control/app/useWebRemoteControlAuthSync.js";
 import { useRootOAuthEffects } from "@/root/useRootOAuthEffects.js";
 import { consumeZcodeJwtInvalidRestartMarker } from "@/root/zcodeJwtInvalidRestartMarker.js";
 import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
@@ -98,12 +96,7 @@ import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionSto
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
-import {
-  WebRemoteControlFeatureProvider,
-  useWebRemoteControlFeatureEnabled,
-} from "@/WebRemoteControlFeatureProvider.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
-import { useWebRemoteControlStatus } from "@/hooks/useWebRemoteControlStatus.js";
 import {
   CODE_COMMENT_REMOVE_BROADCAST_CHANNEL,
   CODE_COMMENT_PREVIEW_RESTORE_BROADCAST_CHANNEL,
@@ -174,7 +167,6 @@ export function Root(props: RootProps) {
               <TabStoreProvider>
                 <ProjectDirectoryProvider isDesktop={props.isDesktop}>
                   <DiffsWorkerPoolProvider>
-                    <WebRemoteControlFeatureProvider enabled={props.webRemoteControlFeatureEnabled}>
                       <AssistantCodeCommentFeatureProvider
                         enabled={props.assistantCodeCommentCardsEnabled}
                       >
@@ -187,7 +179,6 @@ export function Root(props: RootProps) {
                           </RemoteConnectionProgressProvider>
                         </CodingPlanUpgradeDialogProvider>
                       </AssistantCodeCommentFeatureProvider>
-                    </WebRemoteControlFeatureProvider>
                   </DiffsWorkerPoolProvider>
                 </ProjectDirectoryProvider>
               </TabStoreProvider>
@@ -217,11 +208,7 @@ function RootInner({
   preferDirectoryBrowser,
   supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
   allowRemoteWorkspace = true,
-  webRemoteControlWorkspaceSwitcher,
   initialSidebarFileTreeOpen,
-  initialWebRemoteControlMobileNavigationIntent,
-  webRemoteControlTerminalTransportState,
-  initialWorkspaceLoadingFallback,
 }: RootProps) {
   const credentialRecovery = useCredentialStoreRecovery(isDesktop === true);
   useInterfaceModeTelemetry(platform, isDesktop === true);
@@ -271,7 +258,6 @@ function RootInner({
   const theme = useZCodeStore((state) => state.theme);
   const user = useZCodeStore((state) => state.user);
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
-  useWebRemoteControlAuthSync(platform, services.oauthService, user?.id, isRestoringOAuthSession);
   const setUser = useZCodeStore((state) => state.setUser);
   const setIsRestoringOAuthSession = useZCodeStore((state) => state.setIsRestoringOAuthSession);
   const setOAuthError = useZCodeStore((state) => state.setOAuthError);
@@ -539,14 +525,6 @@ function RootInner({
     },
     [tabStoreApi],
   );
-  const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
-  // Bugfix: WebRemoteControlDialog 只是可开关的展示入口，不能由它的本地 state 决定全局远控状态。
-  // Root 直接轮询 main 进程状态，让远控会话 running/active 成为唯一真值来源。
-  const webRemoteControlStatus = useWebRemoteControlStatus({
-    enabled: Boolean(webRemoteControlFeatureEnabled && isDesktop),
-  });
-  const webRemoteControlSessionActive =
-    webRemoteControlStatus.status === "running" || webRemoteControlStatus.status === "active";
   const refreshProviderState = useRootProviderStateRefresh(services);
   useRootProviderSettingsSnapshot(services);
   useEffect(() => {
@@ -590,11 +568,8 @@ function RootInner({
     modelSelectionViewHydrated:
       rootProviderAvailability.hydrated || rootModelSelectionRead.state.status === "error",
   });
-  const isWebRemoteControlRoot = Boolean(webRemoteControlWorkspaceSwitcher);
   const providerAvailabilityLoginEntryGuardEnabled =
-    shouldEnableProviderAvailabilityLoginEntryGuard({
-      isWebRemoteControlRoot,
-    });
+    shouldEnableProviderAvailabilityLoginEntryGuard();
   const { startupCheckCompleted: providerAvailabilityStartupCheckCompleted } =
     useProviderAvailabilityLoginEntryGuard({
       enabled: providerAvailabilityLoginEntryGuardEnabled,
@@ -621,7 +596,6 @@ function RootInner({
       },
     });
   const isResolvingProviderStartupState = shouldResolveProviderStartupState({
-    isWebRemoteControlRoot,
     providerStartupSyncPending,
     providerAvailabilityStartupCheckCompleted,
   });
@@ -728,10 +702,7 @@ function RootInner({
     userId: user?.id,
     onOpenRemoteConnection: allowRemoteWorkspace ? handleOpenRemoteConnection : undefined,
     openRemoteProjectWorkspace: openPreparedRemoteProjectWorkspace,
-    openMobileProjectDraft: webRemoteControlWorkspaceSwitcher?.openProjectDraft,
-    workbenchGroupClientMode: isWebRemoteControlRoot
-      ? "web-remote-replayable"
-      : "desktop-continuous",
+    workbenchGroupClientMode: "desktop-continuous",
   });
   const handleRemoteWorkspaceActivated = useCallback(
     ({
@@ -848,34 +819,6 @@ function RootInner({
     [activeWorkspacePath, activeWorkspaceIdentity, handleResolveConversationWorkspace, tabStoreApi],
   );
 
-  useEffect(() => {
-    if (!platform.onWebRemoteControlReconnectWorkspace) {
-      return;
-    }
-
-    return platform.onWebRemoteControlReconnectWorkspace(async (request) => {
-      try {
-        await handleReconnectRemoteWorkspace(request.workspaceKey, {
-          activateWorkspaceAfterReconnect: false,
-          showErrorToast: false,
-          throwOnFailure: true,
-        });
-        return {
-          requestId: request.requestId,
-          workspaceKey: request.workspaceKey,
-          success: true,
-        };
-      } catch (error) {
-        return {
-          requestId: request.requestId,
-          workspaceKey: request.workspaceKey,
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    });
-  }, [handleReconnectRemoteWorkspace, platform]);
-  useWebRemoteControlRendererActions(platform);
 
   useEffect(() => {
     // Bugfix: fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。
@@ -1018,7 +961,7 @@ function RootInner({
   }, [isStartupRenderBlocked, welcomeScreenOpenReason]);
 
   useRootPlatformEffects({
-    clientMode: isWebRemoteControlRoot ? "web-remote-replayable" : "desktop-continuous",
+    clientMode: "desktop-continuous",
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
     initialWorkspacePurpose,
@@ -1044,9 +987,6 @@ function RootInner({
     tabs,
     activeWorkspacePath,
     activeWorkspaceIdentity,
-    reconnectingRemoteWorkspaceKeys,
-    remoteWorkspaceErrorByWorkspaceKey,
-    webRemoteControlFeatureEnabled,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
   });
@@ -1507,7 +1447,6 @@ function RootInner({
     isDesktop,
     isMacDesktop,
     isWindowsDesktop,
-    isWebRemoteControl: Boolean(webRemoteControlWorkspaceSwitcher),
     captionWorkspacePath: activeWorkspacePath,
     onBack: activeWorkspacePath ? handleBackFromSettings : undefined,
     onCreateTask: handleCreateTask,
@@ -1567,24 +1506,6 @@ function RootInner({
     );
   }
 
-  if (
-    !workspaceShellPath &&
-    !isDesktop &&
-    initialWorkspaceAbsPath &&
-    initialWorkspaceLoadingFallback
-  ) {
-    // 非桌面入口的 workspace tab 由 effect 注入，首帧不能返回 null。
-    // 这里延续入口 loading，等任务列表有 workspaceShellPath 后再切换，避免露出浏览器白底。
-    return (
-      <RootShell>
-        {rootModelSelectionErrorNode}
-        {requestSecurityBridgeNode}
-        {initialWorkspaceLoadingFallback}
-        {directoryBrowserDialog}
-      </RootShell>
-    );
-  }
-
   if (!workspaceShellPath) {
     return remoteConnectionDialogOpen || directoryBrowserOpen || rootModelSelectionErrorNode ? (
       <RootShell>
@@ -1625,10 +1546,7 @@ function RootInner({
               reconnectingKeys={reconnectingRemoteWorkspaceKeys}
               errors={remoteWorkspaceErrorByWorkspaceKey}
               recovery={remoteWorkspaceRecoveryByWorkspaceKey}
-              onReconnect={
-                webRemoteControlWorkspaceSwitcher?.reconnectWorkspace ??
-                handleReconnectRemoteWorkspace
-              }
+              onReconnect={handleReconnectRemoteWorkspace}
             >
               <RootWorkspaceContent
                 workspaceScopedServices={workspaceScopedServices}
@@ -1661,12 +1579,7 @@ function RootInner({
                 remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
                 remoteConnectionLogs={remoteConnectionLogs}
                 allowOpenWorkspace={allowOpenWorkspace}
-                webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
                 initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
-                initialWebRemoteControlMobileNavigationIntent={
-                  initialWebRemoteControlMobileNavigationIntent
-                }
-                webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
                 isDesktop={isDesktop}
                 isMacDesktop={isMacDesktop}
                 isWindowsDesktop={isWindowsDesktop}

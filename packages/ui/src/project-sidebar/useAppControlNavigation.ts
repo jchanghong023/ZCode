@@ -9,7 +9,7 @@ import type {
 
 /** 桌面只登记既有导航 owner；手机共享目录/事件不会因此接收桌面导航。 */
 export function useAppControlNavigation(
-  props: Pick<ProjectSidebarProps, "isDesktop" | "isWebRemoteControl">,
+  props: Pick<ProjectSidebarProps, "isDesktop">,
   tree: ProjectTree,
   navigate: ProjectTaskNavigation,
 ): void {
@@ -19,7 +19,7 @@ export function useAppControlNavigation(
     latest.current = { tree, navigate };
   });
   useEffect(() => {
-    if (!props.isDesktop || props.isWebRemoteControl || !platform?.onAppControlNavigation) return;
+    if (!props.isDesktop || !platform?.onAppControlNavigation) return;
     const lifetime = new AbortController();
     const handler: AppNavigationHandler = async (target, signal) => {
       const activeSignal = AbortSignal.any([signal, lifetime.signal]);
@@ -50,5 +50,5 @@ export function useAppControlNavigation(
       lifetime.abort();
       unregister();
     };
-  }, [platform, props.isDesktop, props.isWebRemoteControl]);
+  }, [platform, props.isDesktop]);
 }

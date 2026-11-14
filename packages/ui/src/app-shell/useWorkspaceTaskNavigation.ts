@@ -44,7 +44,6 @@ export function useWorkspaceTaskNavigation({
   intl,
   workspaceAbsPath,
   workspaceIdentity,
-  isWebRemoteControl = false,
   activateTabByPath,
   onNavigateToTask,
   onNavigateToAutomations,
@@ -53,7 +52,6 @@ export function useWorkspaceTaskNavigation({
   intl: { formatMessage: (descriptor: { id: string }) => string };
   workspaceAbsPath: string;
   workspaceIdentity?: string;
-  isWebRemoteControl?: boolean;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
   onNavigateToTask?: () => void;
   onNavigateToAutomations?: (target: AutomationsNavigationTarget) => void;
@@ -349,8 +347,7 @@ export function useWorkspaceTaskNavigation({
           });
           if (!workspace.accepted) throw new Error("Navigation target is disconnected");
           // 与侧栏选择共用工作台 owner，避免只改 shell activeTaskId 而分屏仍显示原会话。
-          if (!isWebRemoteControl)
-            selectWorkbenchSession(
+          selectWorkbenchSession(
               origin.activeTaskId
                 ? {
                     sessionId: origin.activeTaskId,
@@ -395,7 +392,6 @@ export function useWorkspaceTaskNavigation({
       baseServices,
       handleSelectTask,
       intl,
-      isWebRemoteControl,
       onNavigateToAutomations,
       onNavigateToPluginStore,
       tabStoreApi,

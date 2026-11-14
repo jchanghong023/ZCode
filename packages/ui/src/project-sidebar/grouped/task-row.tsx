@@ -1,6 +1,6 @@
 import { TID_TASK_ITEM, TID_TASK_ROW_WORKTREE_ICON, testId } from "@zcode/shared/test-ids";
 import type { ProjectTask as ZCodeTaskMeta } from "@/project-sidebar/contract.js";
-import { memo, useContext, useState } from "react";
+import { memo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { UniqueIdentifier } from "@dnd-kit/core";
@@ -24,7 +24,6 @@ import {
   isTaskListRowRunning,
 } from "@/v4/taskListRowActivity.js";
 import { GroupedTaskContextMenuContent } from "@/project-sidebar/grouped/task-context-menu-content.js";
-import { ProjectTaskListContext } from "@/project-sidebar/ProjectTaskListContext.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { TaskInteractionBadge } from "@/TaskInteractionBadge.js";
 import { TaskRowIdentityHoverCard } from "@/task-row-hover/index.js";
@@ -81,7 +80,6 @@ function GroupedTaskRowComponent({
   tooltipsDisabled?: boolean;
 }) {
   const { intl } = useZCodeIntl();
-  const presentation = useContext(ProjectTaskListContext);
   const workspaceActionsDisabled = useOptionalTabStore((state) =>
     isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
   );
@@ -468,7 +466,7 @@ function GroupedTaskRowComponent({
           task={task}
           workspaceLabel={workspaceLabel}
           remoteSessionId={remoteSessionId}
-          disabled={presentation.isWebRemoteControl}
+          disabled={false}
         >
           <ContextMenuTrigger asChild>{interactiveTaskRow}</ContextMenuTrigger>
         </TaskRowIdentityHoverCard>

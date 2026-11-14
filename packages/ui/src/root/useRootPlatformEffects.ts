@@ -13,11 +13,6 @@ import { toast } from "@/components/ui/toast.js";
 import { matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
 import { isShortcutRecordingActive } from "@/shortcuts/bindings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
-import {
-  useWebRemoteControlWorkspaceSync,
-  shouldPublishCompleteWorkspaceSnapshot,
-} from "@/root/rootPlatformWorkspaceSync.js";
-import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 
 export function useRootPlatformEffects({
   initialWorkspaceAbsPath,
@@ -43,9 +38,6 @@ export function useRootPlatformEffects({
   tabs,
   activeWorkspacePath,
   activeWorkspaceIdentity,
-  reconnectingRemoteWorkspaceKeys = [],
-  remoteWorkspaceErrorByWorkspaceKey = {},
-  webRemoteControlFeatureEnabled = false,
   hasCompletedFullTabRestore = true,
   intl,
 }: {
@@ -83,9 +75,6 @@ export function useRootPlatformEffects({
   tabs: WindowTabState[];
   activeWorkspacePath?: string | null;
   activeWorkspaceIdentity?: string | null;
-  reconnectingRemoteWorkspaceKeys?: string[];
-  remoteWorkspaceErrorByWorkspaceKey?: Record<string, string>;
-  webRemoteControlFeatureEnabled?: boolean;
   hasCompletedFullTabRestore?: boolean;
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
 }) {
@@ -303,7 +292,7 @@ export function useRootPlatformEffects({
   ]);
 
   useEffect(() => {
-    if (!isDesktop || !shouldPublishCompleteWorkspaceSnapshot(hasCompletedFullTabRestore)) {
+    if (!isDesktop || !hasCompletedFullTabRestore) {
       return;
     }
 
@@ -316,16 +305,6 @@ export function useRootPlatformEffects({
       .map((tab) => tab.workspacePath);
     platform.syncWindowTabs(paths);
   }, [hasCompletedFullTabRestore, isDesktop, platform, tabs]);
-
-  useWebRemoteControlWorkspaceSync({
-    platform,
-    tabs,
-    isDesktop: Boolean(isDesktop),
-    featureEnabled: webRemoteControlFeatureEnabled,
-    hasCompletedFullTabRestore,
-    reconnectingRemoteWorkspaceKeys,
-    remoteWorkspaceErrorByWorkspaceKey,
-  });
 
   useEffect(() => {
     if (isDesktop) {

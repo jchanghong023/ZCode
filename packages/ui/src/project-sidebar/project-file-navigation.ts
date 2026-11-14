@@ -16,7 +16,6 @@ export async function resolveProjectFileTarget(input: {
     ProjectSidebarProps,
     | "workspacePath"
     | "workspaceIdentity"
-    | "webRemoteControlWorkspaceSwitcher"
     | "onConnectRemote"
     | "onSelectRemoteProject"
     | "onCancelRemoteProject"
@@ -34,18 +33,7 @@ export async function resolveProjectFileTarget(input: {
     ? buildRemoteHostWorkspaceIdentity(project.hostId, rootPath)
     : undefined;
   let sessionId = identity ? input.findSession(identity)?.sessionId : undefined;
-  if (props.webRemoteControlWorkspaceSwitcher) {
-    if ((props.workspaceIdentity?.trim() || props.workspacePath) !== (identity || rootPath)) {
-      await props.webRemoteControlWorkspaceSwitcher.switchWorkspace(identity || rootPath, {
-        mobileNavigationIntent: "chat",
-        openFileManager: true,
-      });
-      // 切换会重建 Root，由目标页面初始化文件面板，旧页面不再处理目标。
-      return null;
-    }
-    // 手机只复用可信 attachment；不调用桌面连接器新建远端运行时。
-    sessionId = identity ? input.findSession(identity)?.sessionId : undefined;
-  } else if (identity && !sessionId) {
+  if (identity && !sessionId) {
     if (!input.remoteService) throw new Error("project.connection-unavailable");
     sessionId = await attachRemoteProjectWorkspace({
       hostId: project.hostId,

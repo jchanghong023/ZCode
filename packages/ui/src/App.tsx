@@ -123,10 +123,7 @@ export function App({
   remoteConnectionInProgress = false,
   onReturnToWorkspace,
   allowOpenWorkspace = true,
-  webRemoteControlWorkspaceSwitcher,
   initialSidebarFileTreeOpen,
-  initialWebRemoteControlMobileNavigationIntent,
-  webRemoteControlTerminalTransportState,
   allowRemoteWorkspace = true,
   workspaceAbsPath,
   workspaceRemoteSessionId,
@@ -556,7 +553,7 @@ export function App({
     handleToggleSidePaneCollapse();
   }, [handleToggleSidePaneCollapse]);
   // Side Pane 完整视图只在桌面端提供（docs/ui/side-pane-full-view.md）。
-  const supportsSidePaneFullView = Boolean(isDesktop) && !webRemoteControlWorkspaceSwitcher;
+  const supportsSidePaneFullView = Boolean(isDesktop);
   const sidePaneFullView = useSidePaneFullView({
     workspacePath: workspaceAbsPath,
     workspaceIdentity,
@@ -626,12 +623,12 @@ export function App({
   );
   const handleAutoOpenAssistantPptx = useCallback(
     (request: AssistantPreviewCardsAutoOpenRequest) => {
-      if (!isDesktop || webRemoteControlWorkspaceSwitcher || workspaceReadOnlyReason) {
+      if (!isDesktop || workspaceReadOnlyReason) {
         return;
       }
       handleOpenCodeViewers(request.sources);
     },
-    [handleOpenCodeViewers, isDesktop, webRemoteControlWorkspaceSwitcher, workspaceReadOnlyReason],
+    [handleOpenCodeViewers, isDesktop, workspaceReadOnlyReason],
   );
   const projectName = getPathLeaf(workspaceAbsPath);
   const handleOpenTaskFind = useCallback(() => {
@@ -779,13 +776,11 @@ export function App({
       ) {
         addTab(targetWorkspacePath, targetTabOptions);
       }
-      if (!webRemoteControlWorkspaceSwitcher) {
-        // 修复原因：workspace 行“新建对话”以前由叶子组件直接 activateTab + startDraft，
-        // 没有退出重启恢复的 workbench group/pane。group primary binding 因而仍可覆盖草稿。
-        // desktop 所有显式新建入口统一先回到单 primary pane；手机 /remote 不消费这份本地布局。
-        useWorkbenchGroupStore.getState().deactivateActiveGroup();
-        usePaneLayoutStore.getState().resetToPrimaryPane();
-      }
+      // 修复原因：workspace 行“新建对话”以前由叶子组件直接 activateTab + startDraft，
+      // 没有退出重启恢复的 workbench group/pane。group primary binding 因而仍可覆盖草稿。
+      // desktop 所有显式新建入口统一先回到单 primary pane。
+      useWorkbenchGroupStore.getState().deactivateActiveGroup();
+      usePaneLayoutStore.getState().resetToPrimaryPane();
       store.startDraft(
         targetWorkspacePath,
         targetSelectedProvider,
@@ -798,7 +793,6 @@ export function App({
       addTab,
       tabStoreApi,
       workspaceShellZCodeState.selectedProvider,
-      webRemoteControlWorkspaceSwitcher,
     ],
   );
 
@@ -907,7 +901,6 @@ export function App({
     intl,
     workspaceAbsPath,
     workspaceIdentity,
-    isWebRemoteControl: Boolean(webRemoteControlWorkspaceSwitcher),
     activateTabByPath,
     onNavigateToTask: handleNavigateToTaskMain,
     onNavigateToAutomations: handleNavigateToAutomationsMain,
@@ -1210,12 +1203,7 @@ export function App({
             onOpenRemoteWorkspace={onOpenRemoteWorkspace}
             remoteConnectionInProgress={remoteConnectionInProgress}
             allowOpenWorkspace={allowOpenWorkspace}
-            webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
             initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
-            initialWebRemoteControlMobileNavigationIntent={
-              initialWebRemoteControlMobileNavigationIntent
-            }
-            webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
             allowRemoteWorkspace={allowRemoteWorkspace}
             workspaceAbsPath={workspaceAbsPath}
             workspaceRemoteSessionId={workspaceRemoteSessionId}

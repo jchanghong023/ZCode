@@ -76,7 +76,6 @@ export function ChatPromptEditor({
   promptHistory,
   className,
   shellClassName,
-  avoidIosInputFocusZoom = false,
   compactPlaceholder = false,
   layout = "stacked",
   onChange,
@@ -140,7 +139,6 @@ export function ChatPromptEditor({
   promptHistory?: readonly string[];
   className?: string;
   shellClassName?: string;
-  avoidIosInputFocusZoom?: boolean;
   compactPlaceholder?: boolean;
   /**
    * stacked：输入区在上、工具栏在下；inline：[+] 输入区 [控件][发送] 排成一行，控件只显示图标
@@ -377,7 +375,6 @@ export function ChatPromptEditor({
         inputTestId={inputTestId}
         editorApiRef={resolvedInputApiRef}
         promptHistory={promptHistory}
-        avoidIosInputFocusZoom={avoidIosInputFocusZoom}
         compactPlaceholder={compactPlaceholder}
         onPaste={onPaste}
         excludedSlashCommandNames={excludedSlashCommandNames}

@@ -18,7 +18,6 @@ export function WorkspaceHeaderActionSection({
   onToggleSidePane,
   toggleSidePaneShortcutLabel,
   onSelectedEditorChange,
-  simplifyForNarrowRemote = false,
   hideHelpMenu = false,
   showWindowControls = false,
   useWindowsCaptionSpacing = false,
@@ -41,12 +40,7 @@ export function WorkspaceHeaderActionSection({
           onSelectedEditorChange={onSelectedEditorChange}
         />
       ) : null}
-      {!simplifyForNarrowRemote ? (
-        <>
-          {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}
-        </>
-      ) : null}
-      {/* 远程控制移动端只保留图标，避免 diff 数字把按钮撑宽导致标题拥挤。 */}
+      {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}
       {!isSidePaneOpen ? (
         <WorkspaceSidePaneToggleButton
           isSidePaneOpen={isSidePaneOpen}

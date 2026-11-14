@@ -70,12 +70,3 @@ const env = ((import.meta as ImportMeta & { env?: WebImportMetaEnv }).env ??
   {}) as WebImportMetaEnv;
 
 export const WEB_ZAI_OAUTH_CONFIG: WebZaiOAuthConfig = createWebZaiOAuthConfig(env);
-
-export function resolveWebAuthDevReturnTo(
-  config: WebZaiOAuthConfig,
-  surface: "remote" | "share" = "remote",
-): string | undefined {
-  return config.devOrigin
-    ? `${config.devOrigin}/${surface === "share" ? "share/callback" : "remote/v4"}`
-    : undefined;
-}

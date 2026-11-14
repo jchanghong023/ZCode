@@ -259,6 +259,22 @@ export function createMockHttpServer(
 
   app.get("/api/server-info", (c) => c.json(createServerInfo(options, workspacePath)));
 
+  // Web 端启动期（canOpenCommunity/openFeedback）按同源 /api/v1/client/configs 读取
+  // help/community 配置。mock 是自洽站点：返回内存态配置，与 config/default.json 同形，
+  // HTTP/HTTPS 部署下浏览器都能直接消费，不再指向生产 endpoint。
+  app.get("/api/v1/client/configs", (c) =>
+    c.json({
+      community_urls: {
+        "zh-CN":
+          "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&qr_code=true",
+        "en-US": "https://discord.gg/z9aBcQXZQ3",
+      },
+      feedback_url:
+        "https://zhipu-ai.feishu.cn/share/base/form/shrcnrXlh93cJIUFYBFndnnL7pe",
+      feedback_use_external_form: false,
+    }),
+  );
+
   app.get(
     "/ws",
     upgradeWebSocket(() => ({
