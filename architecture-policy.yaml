@@ -1675,6 +1675,15 @@ modules:
     layers:
       adapters: .
     owner: agent
+  - id: mobile-ui
+    roots: [packages/ui/src/components/mobile-ui]
+    managed: true
+    requires: [ui]
+    publicEntrypoints:
+      - packages/ui/src/components/mobile-ui/index.ts
+      - packages/ui/src/components/mobile-ui/contract.ts
+    layers: { ui: . }
+    owner: ui
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
