@@ -227,3 +227,36 @@ export interface ModelProviderNavGroup {
   title: string;
   items: ModelProviderNavItem[];
 }
+
+/**
+ * 团队套餐目录的最小投影。
+ * 企业套餐购买/报价已下线，UI 只保留已订阅团队在导航与用量来源中的展示字段。
+ */
+export interface CodingPlanTeamProductLike {
+  family?: "zai" | "bigmodel";
+  productId: string;
+  productName?: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  apiKeyStatus?: string | null;
+  apiKeyUnavailableReason?: string | null;
+  apiKeyUnavailableMessage?: string | null;
+  teamProjects?: Array<{
+    organizationId?: string | null;
+    organizationName?: string | null;
+    projectId?: string | null;
+    projectName?: string | null;
+    apiKeyStatus?: string | null;
+    apiKeyUnavailableReason?: string | null;
+    apiKeyUnavailableMessage?: string | null;
+  }> | null;
+}
+
+/** 旧商品缺少 family 时只在这一规范化边界解释为 BigModel。 */
+export function resolveCodingPlanTeamProductFamily(
+  product: Pick<CodingPlanTeamProductLike, "family">,
+): "zai" | "bigmodel" {
+  return product.family ?? "bigmodel";
+}

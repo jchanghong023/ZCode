@@ -69,7 +69,6 @@ import {
   consumePendingSettingsModelProviderTarget,
   type SettingsModelProviderTarget,
 } from "@/lib/settingsNavigation.js";
-import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 
 export {
   fuzzyMatch,
@@ -403,45 +402,6 @@ export function ModelProviderSection({
     error: sharedSettingsError,
     update: updateSharedSettings,
   } = useSettings();
-  const authenticatedEnterpriseProducts = useEnterpriseCodingPlanProducts({
-    enabled:
-      codingPlanPurchaseTokenAuthenticatedByProviderId[
-        BUILTIN_MODEL_PROVIDER_IDS.bigmodelTeamCodingPlan
-      ] === true,
-    authenticated: true,
-    family: "bigmodel",
-  });
-  // zai 与 bigmodel Team Plan 对称化。原仅 bigmodel 调 hook，
-  // zai 团队订阅永远拉不到、也无法展示对应团队。
-  // zai 独立调 hook（zai family 走 zai provider），下游合并两 family 的订阅产品。
-  const authenticatedZaiEnterpriseProducts = useEnterpriseCodingPlanProducts({
-    enabled:
-      codingPlanPurchaseTokenAuthenticatedByProviderId[
-        BUILTIN_MODEL_PROVIDER_IDS.zaiTeamCodingPlan
-      ] === true,
-    authenticated: true,
-    family: "zai",
-  });
-  const refreshAuthenticatedEnterpriseProducts = useCallback(async () => {
-    await Promise.all([
-      authenticatedEnterpriseProducts.refresh(),
-      authenticatedZaiEnterpriseProducts.refresh(),
-    ]);
-  }, [authenticatedEnterpriseProducts, authenticatedZaiEnterpriseProducts]);
-  const subscribedTeamProducts = useMemo(
-    () => [
-      ...(authenticatedEnterpriseProducts.snapshot?.productList.filter(
-        (product) => product.subscribed === true,
-      ) ?? []),
-      ...(authenticatedZaiEnterpriseProducts.snapshot?.productList.filter(
-        (product) => product.subscribed === true,
-      ) ?? []),
-    ],
-    [
-      authenticatedEnterpriseProducts.snapshot?.productList,
-      authenticatedZaiEnterpriseProducts.snapshot?.productList,
-    ],
-  );
   const connectionSelections = sharedSettings?.providerFamilyConnectionSelections ?? {};
   const familyConnectionSettingsFailed = sharedSettingsError !== null && sharedSettings === null;
   const effectiveConnectionSelections = useMemo(
@@ -527,7 +487,6 @@ export function ModelProviderSection({
         refreshModelProviders: refresh,
         refreshCodingPlanEntitlements: () =>
           refreshCodingPlanEntitlements({ force: true, reason: refreshReason }),
-        refreshTeamPlanProducts: refreshAuthenticatedEnterpriseProducts,
         refreshCodingPlanProducts,
         refreshPurchaseTokenState: refreshCodingPlanPurchaseTokenState,
         refreshPlanSnapshots,
@@ -535,7 +494,6 @@ export function ModelProviderSection({
     },
     [
       refresh,
-      refreshAuthenticatedEnterpriseProducts,
       refreshCodingPlanEntitlements,
       refreshCodingPlanProducts,
       refreshCodingPlanPurchaseTokenState,
@@ -681,7 +639,7 @@ export function ModelProviderSection({
       modelProvidersLoading: loading,
       displayOrder,
       codingPlanEntitlements,
-      subscribedTeamProducts,
+      subscribedTeamProducts: [],
       providerFamilyDomain: effectiveProviderFamilyDomain,
       startPlanFamilyDomain,
       availableFamilies: accountAvailability?.families,
@@ -1103,7 +1061,6 @@ export function ModelProviderSection({
           await refreshCodingPlanPurchaseTokenState();
           await refreshModelProviderSection({
             refresh,
-            refreshTeamPlanProducts: refreshAuthenticatedEnterpriseProducts,
           });
           await refreshCodingPlanEntitlements();
         })().catch((error) =>

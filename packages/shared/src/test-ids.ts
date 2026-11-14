@@ -889,7 +889,6 @@ export function virtualProjectActionTestId(actionId: string, context = false): s
 }
 
 /** 左侧栏头像上方的可手动领取 Start Plan banner。 */
-export const TID_MANUAL_CLAIM_PLAN_BANNER = "manual-claim-plan-banner";
 
 /** 插件 UI 沙箱卡片容器与其中的 webview。 */
 export const TID_PLUGIN_UI_CARD = "plugin-ui-card";

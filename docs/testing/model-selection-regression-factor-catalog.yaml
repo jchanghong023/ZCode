@@ -98,8 +98,6 @@ dimensions:
         label: Steering / Guide
       - id: connectivity
         label: Provider/model connectivity
-      - id: manual-claim-plan
-        label: Manual claim plan
       - id: tui
         label: CLI/TUI model、effort、variant
 

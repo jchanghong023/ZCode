@@ -7,16 +7,15 @@ import {
   type ZCodeAccountAccess,
   type ZCodeProviderAccountAccess,
 } from "@zcode/shared";
+import { formatTeamPlanDisplayName } from "@/lib/teamPlanDisplayName.js";
 import {
-  resolveEnterpriseCodingPlanProductFamily,
-  type EnterpriseCodingPlanProductDisplay,
-} from "@/settings/model-provider-section/enterpriseCodingPlanProducts.js";
+  resolveCodingPlanTeamProductFamily,
+  type CodingPlanTeamProductLike,
+} from "@/settings/model-provider-section/constants.js";
 import type {
   SidebarUsageCodingPlanProviderId,
   SidebarUsageCodingPlanSourceId,
 } from "@/lib/sidebarUsageCodingPlanProviderPreference.js";
-import { formatTeamPlanDisplayName } from "@/lib/teamPlanDisplayName.js";
-
 export interface CodingPlanUsageSource {
   id: SidebarUsageCodingPlanSourceId;
   providerId: SidebarUsageCodingPlanProviderId;
@@ -69,13 +68,13 @@ export function buildCodingPlanUsageSources({
   subscribedTeamProducts,
 }: {
   accountAccesses: Partial<Record<ProviderFamilyDomain, ZCodeProviderAccountAccess>>;
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts: CodingPlanTeamProductLike[];
 }): CodingPlanUsageSource[] {
   return buildTeamCodingPlanUsageSources(subscribedTeamProducts, accountAccesses);
 }
 
 function buildTeamCodingPlanUsageSources(
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[],
+  subscribedTeamProducts: CodingPlanTeamProductLike[],
   accountAccesses: Partial<Record<ProviderFamilyDomain, ZCodeProviderAccountAccess>>,
 ): CodingPlanUsageSource[] {
   const seen = new Set<string>();
@@ -113,7 +112,7 @@ function buildTeamCodingPlanUsageSources(
       // 原 createBigModelTeamPlanConnectionKey + bigmodelCodingPlan providerId
       // 硬编码 bigmodel，zai team product 的 sourceId 用了 bigmodel 前缀、providerId 也错。
       // 按 product.family 用 family-aware key + 对应 codingPlan providerId。
-      const productFamily = resolveEnterpriseCodingPlanProductFamily(product);
+      const productFamily = product.family ?? "bigmodel";
       const baseAccess = accountAccesses[productFamily];
       if (baseAccess?.mode !== "team-coding-plan") {
         return [];
@@ -199,7 +198,7 @@ function formatTeamUsageSourceLabel({
   projectId,
   projectName,
 }: {
-  product: EnterpriseCodingPlanProductDisplay;
+  product: CodingPlanTeamProductLike;
   organizationId?: string | null;
   organizationName?: string | null;
   projectId?: string | null;
@@ -217,6 +216,6 @@ function formatTeamUsageSourceLabel({
   }
   // 原硬编码 "BigModel - " 前缀，zai team source 显示出来品牌也错位。
   // 按 product.family 取品牌前缀，与 codingPlanItem.providerName 对齐。
-  const brandPrefix = `${getModelProviderFamilySpec(resolveEnterpriseCodingPlanProductFamily(product)).label} - `;
+  const brandPrefix = `${getModelProviderFamilySpec(resolveCodingPlanTeamProductFamily(product)).label} - `;
   return `${brandPrefix}${teamPlanName}`;
 }
