@@ -77,12 +77,12 @@
 
 ## 阻塞交互隔离
 
-设置页打开后，它是当前窗口唯一可交互的主表面。底层 workspace 为了保留会话订阅、草稿、终端和布局状态继续挂载，但必须同时标记为 `aria-hidden` 和 `inert`；仅使用透明度与 `pointer-events` 隐藏不够，因为权限卡片的自动聚焦仍可能把焦点从设置表单抢走。
+设置页打开后，它是当前窗口唯一可交互的主表面。底层 workspace 为了保留会话订阅、草稿、终端和布局状态继续挂载，通过原生 `inert` 同时隔离焦点、键盘/指针交互与无障碍树；仅使用透明度与 `pointer-events` 隐藏不够，因为权限卡片的自动聚焦仍可能把焦点从设置表单抢走。不再叠加 `aria-hidden`：原生 `inert` 已提供无障碍隔离，避免切层时先对仍持有焦点的祖先设置 `aria-hidden` 而被浏览器拒绝。
 
 ```text
 CLI pending interaction
   -> conversation snapshot 继续更新
-  -> 被设置页覆盖的 workspace（mounted + aria-hidden + inert）
+  -> 被设置页覆盖的 workspace（mounted + inert）
        |-> 不聚焦 Permission / AskUserQuestion
        |-> 不接收键盘或指针交互
        `-> 任务徽标 / 系统通知仍可提示
@@ -99,6 +99,10 @@ CLI pending interaction
 | 设置页    | `AskUserQuestion`    | 与普通权限使用同一表面隔离规则；不强制切回会话        |
 | 设置页    | 请求完成或自动结束   | 只更新后台 task 投影；设置页不切换                    |
 | workspace | 权限或问答仍 pending | 按既有 bottom dock 交互展示并允许响应                 |
+
+电脑浏览器回归：通过侧栏齿轮进入设置（鼠标与键盘），不再出现 `Blocked aria-hidden`；
+workspace 保持原 DOM 实例且为 inert，焦点不留在其子树，Tab 只进入设置页可交互控件。
+显式返回后 workspace 恢复交互，设置表单与已有布局不变。
 
 该边界只约束 renderer 表面和焦点所有权，不修改 `pendingInteractions`、请求倒计时、权限响应、任务通知、desktop `desktop-continuous` 或手机 `web-remote-replayable` 的协议与恢复语义。手机 `/remote` 没有桌面设置覆盖层时继续使用现有移动端交互，不从本 case 推导新的远控行为。
 

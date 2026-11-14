@@ -73,8 +73,8 @@ export function RootWorkspaceContent({
     <ProjectDirectoryProvider isDesktop={isDesktop}>
       <div
         className={isSettingsTabActive ? "h-full opacity-0 pointer-events-none" : "h-full"}
-        aria-hidden={isSettingsTabActive}
         data-root-workspace-surface={isSettingsTabActive ? "inert" : "interactive"}
+        // 原生 inert 已移除焦点与无障碍树；叠加 aria-hidden 会在焦点尚未移出时被浏览器拒绝。
         inert={isSettingsTabActive ? true : undefined}
       >
         {/* Bugfix: 设置页之前通过条件分支直接替换整个 App，关闭设置时会把主界面整棵树卸载再重建，
