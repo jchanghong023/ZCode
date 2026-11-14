@@ -101,7 +101,6 @@ import {
   writeSidebarUsageCodingPlanProviderPreference,
 } from "@/lib/sidebarUsageCodingPlanProviderPreference.js";
 import { resolveEntitledAccountProviderAccess } from "@/lib/accountProviderAccess.js";
-import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
 import {
   resolveDraftDisplayedConfig,
   resolveDraftModelThoughtOption,
@@ -554,21 +553,6 @@ function V4ComposerModelControlsImpl({
             p.accountState?.availability === "available"),
       ),
     );
-  const enterpriseProducts = useEnterpriseCodingPlanProducts({
-    enabled:
-      !providerSourcesLoading &&
-      (contextPlanConnection.kind === "teamCoding" || activeConfigPicker === "model") &&
-      connectionAuthenticated,
-    authenticated: connectionAuthenticated,
-    family: connectionFamily,
-  });
-  const subscribedTeamProducts = useMemo(
-    () =>
-      (connectionAuthenticated
-        ? enterpriseProducts.snapshot?.productList.filter((product) => product.subscribed === true)
-        : undefined) ?? [],
-    [connectionAuthenticated, enterpriseProducts.snapshot?.productList],
-  );
   const authSessionSeq = useZCodeStoreWithDefault((state) => state.authSessionSeq, 0);
   const teamUsageScope = useMemo(
     () => ({}),
@@ -596,7 +580,7 @@ function V4ComposerModelControlsImpl({
             entitlementSnapshot: entitlements[contextPlanConnection.providerId]?.snapshot ?? null,
             providerId: contextPlanConnection.providerId,
             teamSelection: contextPlanConnection.selection,
-            subscribedTeamProducts,
+            subscribedTeamProducts: [],
           })
         : null,
     [
@@ -605,7 +589,6 @@ function V4ComposerModelControlsImpl({
       contextAccountProviderAccess?.access,
       contextPlanConnection,
       entitlements,
-      subscribedTeamProducts,
     ],
   );
   useEffect(() => {
@@ -937,7 +920,7 @@ function V4ComposerModelControlsImpl({
     () =>
       buildComposerPlanGroups(
         modelSelectGroups,
-        subscribedTeamProducts,
+        [],
         providerSettingsView,
         displayProvider,
         modelGroupLabels,
@@ -945,7 +928,6 @@ function V4ComposerModelControlsImpl({
       ),
     [
       modelSelectGroups,
-      subscribedTeamProducts,
       providerSettingsView,
       displayProvider,
       modelGroupLabels,

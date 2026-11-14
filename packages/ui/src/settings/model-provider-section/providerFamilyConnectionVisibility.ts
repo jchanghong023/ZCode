@@ -18,14 +18,12 @@ import { resolveMcpQuotaLimit } from "@/lib/codingPlanQuotaPresentation.js";
 import { resolveUsageEntitlementOutcome } from "@/lib/codingPlanProvider.js";
 import { formatTeamPlanDisplayName } from "@/lib/teamPlanDisplayName.js";
 import {
-  resolveEnterpriseCodingPlanProductFamily,
-  type EnterpriseCodingPlanProductDisplay,
-} from "@/settings/model-provider-section/enterpriseCodingPlanProducts.js";
-import {
   type CodingPlanEntitlementState,
   type CodingPlanStatus,
+  type CodingPlanTeamProductLike,
   type ModelProviderNavGroup,
-} from "@/settings/model-provider-section/constants.js";
+} from "./constants.js";
+import { resolveCodingPlanTeamProductFamily } from "./constants.js";
 
 type TeamPlanNavItem = Extract<ModelProviderNavGroup["items"][number], { type: "teamPlan" }>;
 
@@ -254,7 +252,7 @@ export function buildVisibleFamilyConnectionItems({
 }: {
   items: Array<Extract<ModelProviderNavGroup["items"][number], { type: "codingPlan" }>>;
   codingPlanEntitlements?: Partial<Record<string, CodingPlanEntitlementState>>;
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts: CodingPlanTeamProductLike[];
   showPurchasedTeamPlanFallback: boolean;
   connectionSelections?: ProviderFamilyConnectionSelectionSettings;
   teamPlanSelections?: Partial<
@@ -285,7 +283,7 @@ export function buildVisibleFamilyConnectionKeys({
   modelProviders,
 }: {
   items: Array<Extract<ModelProviderNavGroup["items"][number], { type: "codingPlan" }>>;
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts: CodingPlanTeamProductLike[];
   showPurchasedTeamPlanFallback: boolean;
   modelProviders: readonly ProviderSettingsFormProvider[];
 }): Set<string> {
@@ -310,7 +308,7 @@ function filterStartPlanItemsByEntitlement({
 }: {
   items: Array<Extract<ModelProviderNavGroup["items"][number], { type: "codingPlan" }>>;
   codingPlanEntitlements: Partial<Record<string, CodingPlanEntitlementState>>;
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts: CodingPlanTeamProductLike[];
   connectionSelections?: ProviderFamilyConnectionSelectionSettings;
 }): Array<Extract<ModelProviderNavGroup["items"][number], { type: "codingPlan" }>> {
   // 原变量名 hasBigModelTeamPlan 暗示只服务 bigmodel，但逻辑
@@ -382,7 +380,7 @@ function appendSubscribedTeamPlanItems({
     >
   >;
   showPurchasedTeamPlanFallback: boolean;
-  subscribedTeamProducts: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts: CodingPlanTeamProductLike[];
 }): ModelProviderNavGroup["items"] {
   // 原实现先 items.find(bigmodelCodingPlan)，不存在时直接 return items。
   // 当设置页只展示 zai family（providerFamilyDomain === "zai"）时，codingPlanItems 里
@@ -430,7 +428,7 @@ function appendSubscribedTeamPlanItems({
   const productTeamItems: TeamPlanNavItem[] = subscribedTeamProducts.flatMap((product) => {
     // 按 product.family 找对应 family 的 codingPlanItem 作为 team item 的展示基线。
     // 缺省 bigmodel，向后兼容未标记 family 的旧数据。
-    const productFamily = resolveEnterpriseCodingPlanProductFamily(product);
+    const productFamily = resolveCodingPlanTeamProductFamily(product);
     const codingPlanItemForProduct = resolveCodingPlanItemForFamily(items, productFamily);
     if (!codingPlanItemForProduct) {
       return [];
@@ -585,7 +583,7 @@ function appendSubscribedTeamPlanItems({
   ];
 }
 
-function resolveTeamPlanDisplayName(product: EnterpriseCodingPlanProductDisplay): string | null {
+function resolveTeamPlanDisplayName(product: CodingPlanTeamProductLike): string | null {
   return formatTeamPlanDisplayName(product);
 }
 

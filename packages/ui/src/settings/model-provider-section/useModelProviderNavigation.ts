@@ -18,6 +18,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   CODING_PLAN_PROVIDER_SPECS,
   type CodingPlanEntitlementState,
+  type CodingPlanTeamProductLike,
   type ModelProviderNavGroup,
   type PresetProviderSpec,
 } from "@/settings/model-provider-section/constants.js";
@@ -31,7 +32,6 @@ import {
   sortModelProvidersForDisplay,
   type ProviderOrderView,
 } from "@/lib/modelProviderOrdering.js";
-import type { EnterpriseCodingPlanProductDisplay } from "@/settings/model-provider-section/enterpriseCodingPlanProducts.js";
 import {
   buildVisibleFamilyConnectionItems,
   resolveCodingPlanEntitlementState,
@@ -61,7 +61,7 @@ interface UseModelProviderNavigationOptions {
   pendingConnectionSelections?: ProviderFamilyConnectionSelectionSettings;
   familyConnectionSettingsLoading?: boolean;
   familyConnectionSettingsFailed?: boolean;
-  subscribedTeamProducts?: EnterpriseCodingPlanProductDisplay[];
+  subscribedTeamProducts?: CodingPlanTeamProductLike[];
   showPurchasedTeamPlanFallback?: boolean;
   selectedNodeKey: string | null;
   setSelectedNodeKey: (key: string | null) => void;

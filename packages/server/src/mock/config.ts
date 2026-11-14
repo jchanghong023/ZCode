@@ -599,10 +599,6 @@ export class MockCodingPlanSubscriptionService implements ICodingPlanSubscriptio
     return { items: [] } as unknown as AR<ICodingPlanSubscriptionService["getStartPlanPreview"]>;
   }
 
-  async getBillingDiscount(): Promise<AR<ICodingPlanSubscriptionService["getBillingDiscount"]>> {
-    return null as unknown as AR<ICodingPlanSubscriptionService["getBillingDiscount"]>;
-  }
-
   async getOffPeakClientConfig(
     _params: P<ICodingPlanSubscriptionService["getOffPeakClientConfig"]>,
   ): Promise<AR<ICodingPlanSubscriptionService["getOffPeakClientConfig"]>> {

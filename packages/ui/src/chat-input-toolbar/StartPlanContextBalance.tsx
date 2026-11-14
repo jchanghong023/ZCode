@@ -2,11 +2,6 @@ import { Button } from "@/components/ui/button.js";
 import { LoaderCircle, RocketIcon } from "lucide-react";
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
-import {
-  CodingPlanBillingDiscountBadgePill,
-  CodingPlanBillingDiscountInfoDialog,
-  useCodingPlanBillingDiscount,
-} from "@/CodingPlanBillingDiscount.js";
 import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
 import { formatStartPlanBucketResetTime } from "@/lib/codingPlanQuotaPresentation.js";
@@ -124,8 +119,6 @@ export function ChatStartPlanBalancePanel({
   locale: string;
   separated?: boolean;
 }) {
-  const billingDiscount = useCodingPlanBillingDiscount();
-  const upgradeButtonHighlighted = billingDiscount.active === true;
   const limits = getVisibleStartPlanLimits(config.snapshot);
 
   if (!config.loading && limits.length === 0) {
@@ -150,11 +143,7 @@ export function ChatStartPlanBalancePanel({
             <Button
               type="button"
               size="xs"
-              className={cn(
-                "h-6 shrink-0 gap-1 px-2 text-ui-sm",
-                upgradeButtonHighlighted &&
-                  "button-gradient rounded-full pr-[5px] text-white hover:bg-transparent hover:opacity-90 dark:bg-[#484A58] dark:hover:bg-[#484A58]",
-              )}
+              className="h-6 shrink-0 gap-1 px-2 text-ui-sm"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -163,18 +152,7 @@ export function ChatStartPlanBalancePanel({
             >
               <RocketIcon className="size-3" />
               {intl.formatMessage({ id: "chat.quota.action.upgrade" })}
-              {upgradeButtonHighlighted ? (
-                <CodingPlanBillingDiscountBadgePill
-                  config={billingDiscount.config}
-                  iconVisible={false}
-                  size="compact"
-                  variant="surface"
-                />
-              ) : null}
             </Button>
-            {upgradeButtonHighlighted ? (
-              <CodingPlanBillingDiscountInfoDialog config={billingDiscount.config} />
-            ) : null}
           </div>
         ) : null}
       </div>
