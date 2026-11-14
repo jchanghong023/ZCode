@@ -165,6 +165,7 @@ export function createMockServices(options: MockServicesOptions): {
   services.register(IBotsService, new MockBotsService(runtime));
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime));
   services.register(IZCodeTaskService, new MockZCodeTaskService(runtime));
+  services.register(IOffPeakTaskService, new MockOffPeakTaskService());
   services.register(IZCodeSessionService, new MockZCodeSessionService());
   services.register(IProjectService, new MockProjectService(runtime));
   services.register(ITaskGroupService, new MockTaskGroupService());
