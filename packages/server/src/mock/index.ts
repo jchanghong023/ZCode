@@ -41,6 +41,8 @@ import {
 } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
 import { MockZCodeSessionService, MockZCodeTaskService } from "./zcodeTask.js";
+import { IAIReqService } from "@zcode/services/aireq";
+import { MockAIReqService } from "../aireq/contract.js";
 
 export interface MockServicesOptions {
   workspacePath: string;
@@ -76,7 +78,9 @@ export function createMockServices(options: MockServicesOptions): {
   registerCompatSurfacesMockServices(services);
 
   // 协议面与任务索引：v4 会话、会话列表、任务门面、项目目录。
-  services.register(IZCodeAgentService, new MockZCodeAgentService(runtime));
+  const aiReqService = new MockAIReqService();
+  services.register(IAIReqService, aiReqService.remote);
+  services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
   services.register(IZCodeTaskService, new MockZCodeTaskService(runtime));
   services.register(IZCodeSessionService, new MockZCodeSessionService());
   // 修复原因：两个 descriptor 各 new 一张项目表会让窗口目录与会话准备互相看不到项目。

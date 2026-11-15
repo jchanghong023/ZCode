@@ -61,9 +61,7 @@ export const ProjectTaskRow = memo(function Row({
         isWorkspaceActive={presentation.activeWorkspaceKey === workspaceKey}
         mobileActiveTaskKey={presentation.mobileActiveTaskKey}
         onOpenFileTree={
-          presentation.onOpenTaskFiles &&
-          showFiles &&
-          (task.hostId === "local" || remoteSessionId)
+          presentation.onOpenTaskFiles && showFiles && (task.hostId === "local" || remoteSessionId)
             ? openFiles
             : undefined
         }

@@ -1,0 +1,299 @@
+import { ChevronDown } from "lucide-react";
+import type { AIReqAnalysisSnapshot, AIReqProgressScheduler } from "../../contract.js";
+import { Button } from "@/components/ui/button.js";
+import { Input } from "@/components/ui/input.js";
+import { Label } from "@/components/ui/label.js";
+import { Switch } from "@/components/ui/switch.js";
+import { SelectItem } from "@/components/ui/select.js";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
+import {
+  MarkdownTableBody,
+  MarkdownTableCell,
+  MarkdownTableHead,
+  MarkdownTableHeader,
+  MarkdownTableRow,
+} from "@/components/ai-elements/markdown-table.js";
+import {
+  cellClass,
+  tableClass,
+  headClass,
+  FilterSelect,
+  time,
+  shortTime,
+  runLabels,
+} from "./AnalysisPresentation.js";
+
+const presets = [15, 30, 60, 120];
+
+export function AnalysisSettings({
+  snapshot,
+  scheduler,
+  settingsOpen,
+  setSettingsOpen,
+  onOpenModelSettings,
+  projectSearch,
+  setProjectSearch,
+  interval,
+  setInterval,
+  canManage,
+  pending,
+  message,
+  mutate,
+}: {
+  snapshot: AIReqAnalysisSnapshot;
+  scheduler: AIReqProgressScheduler;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+  onOpenModelSettings(): void;
+  projectSearch: string;
+  setProjectSearch: (value: string) => void;
+  interval: string;
+  setInterval: (value: string) => void;
+  canManage: boolean;
+  pending: boolean;
+  message: string;
+  mutate: (action: () => void | Promise<void>, success: string) => Promise<void>;
+}) {
+  const minutes = Number(interval);
+  const positiveInterval = /^\d+$/.test(interval) && Number.isSafeInteger(minutes) && minutes >= 1;
+  const validInterval =
+    positiveInterval &&
+    Number.isFinite(
+      new Date(
+        Date.parse(snapshot.currentTime ?? new Date().toISOString()) + minutes * 60_000,
+      ).getTime(),
+    );
+  const visibleProjects = snapshot.projects.filter((project) =>
+    `${project.id} ${project.name}`.toLowerCase().includes(projectSearch.toLowerCase()),
+  );
+  return (
+    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-3xl">
+        <DialogTitle>分析设置</DialogTitle>
+        <DialogDescription>项目开关立即保存；统一间隔修改后点击保存。</DialogDescription>
+        <Collapsible
+          defaultOpen
+          aria-labelledby="analysis-projects-title"
+          className="overflow-hidden rounded-lg border border-border"
+        >
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-auto w-full justify-between rounded-none px-4 py-3"
+            >
+              <span
+                id="analysis-projects-title"
+                className="flex items-center gap-2 text-ui-base font-medium"
+              >
+                项目分析范围
+                <span className="text-ui-sm font-normal text-foreground-subtle">
+                  {snapshot.projects.filter((project) => project.enabled).length} /{" "}
+                  {snapshot.projects.length} 已开启
+                </span>
+              </span>
+              <ChevronDown className="size-4 text-foreground-subtle" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-border px-4 py-3">
+              <Label htmlFor="analysis-project-search" className="sr-only">
+                搜索项目
+              </Label>
+              <Input
+                id="analysis-project-search"
+                className="h-8 max-w-sm"
+                placeholder="搜索项目名称"
+                value={projectSearch}
+                onChange={(event) => setProjectSearch(event.target.value)}
+              />
+            </div>
+            <div className="max-h-48 overflow-auto">
+              <table className={`${tableClass} min-w-[640px]`}>
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-24" />
+                  <col className="w-28" />
+                  <col className="w-36" />
+                  <col />
+                </colgroup>
+                <MarkdownTableHeader className={headClass}>
+                  <MarkdownTableRow className="border-y border-border">
+                    <MarkdownTableHead
+                      className={`${cellClass} font-medium text-foreground-subtle`}
+                    >
+                      项目
+                    </MarkdownTableHead>
+                    <MarkdownTableHead
+                      className={`${cellClass} font-medium text-foreground-subtle`}
+                    >
+                      自动分析
+                    </MarkdownTableHead>
+                    <MarkdownTableHead
+                      className={`${cellClass} font-medium text-foreground-subtle`}
+                    >
+                      待分析 SR
+                    </MarkdownTableHead>
+                    <MarkdownTableHead
+                      className={`${cellClass} font-medium text-foreground-subtle`}
+                    >
+                      最近分析
+                    </MarkdownTableHead>
+                    <MarkdownTableHead
+                      className={`${cellClass} font-medium text-foreground-subtle`}
+                    >
+                      状态
+                    </MarkdownTableHead>
+                  </MarkdownTableRow>
+                </MarkdownTableHeader>
+                <MarkdownTableBody>
+                  {visibleProjects.map((project) => (
+                    <MarkdownTableRow
+                      key={project.id}
+                      className="border-b border-border last:border-0"
+                    >
+                      <MarkdownTableCell className={cellClass}>{project.name}</MarkdownTableCell>
+                      <MarkdownTableCell className={cellClass}>
+                        <Switch
+                          checked={project.enabled}
+                          disabled={!canManage}
+                          aria-label={`启用${project.name}进度分析`}
+                          onCheckedChange={(enabled) =>
+                            mutate(
+                              () => scheduler.setProjectEnabled(project.id, enabled),
+                              `已${enabled ? "启用" : "停用"}“${project.name}”的自动分析。`,
+                            )
+                          }
+                        />
+                      </MarkdownTableCell>
+                      <MarkdownTableCell className={`${cellClass} tabular-nums`}>
+                        {project.pendingCount}
+                      </MarkdownTableCell>
+                      <MarkdownTableCell
+                        className={`${cellClass} whitespace-nowrap tabular-nums`}
+                        title={time(project.lastRunAt)}
+                      >
+                        {shortTime(project.lastRunAt)}
+                      </MarkdownTableCell>
+                      <MarkdownTableCell className={cellClass}>
+                        {project.runningCount
+                          ? `${project.runningCount} 个分析中`
+                          : !project.enabled
+                            ? "已关闭"
+                            : !snapshot.enabled
+                              ? "全局暂停"
+                              : project.lastStatus
+                                ? runLabels[project.lastStatus]
+                                : "等待首次分析"}
+                      </MarkdownTableCell>
+                    </MarkdownTableRow>
+                  ))}
+                </MarkdownTableBody>
+              </table>
+            </div>
+            {!visibleProjects.length && (
+              <p className="px-4 py-3 text-ui-sm text-foreground-subtle">没有匹配项目。</p>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+        <section
+          aria-labelledby="analysis-schedule-title"
+          className="min-w-0 overflow-hidden rounded-lg border border-border"
+        >
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="h-auto w-full justify-between px-4 py-3">
+                <span id="analysis-schedule-title">调度设置</span>
+                <ChevronDown className="size-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-3 border-b border-border bg-surface p-4 text-ui-sm">
+                <form
+                  className="flex flex-wrap items-center gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (validInterval)
+                      mutate(
+                        () => scheduler.configure(snapshot.enabled, minutes),
+                        "全局间隔已保存。",
+                      );
+                  }}
+                >
+                  <Label htmlFor="analysis-minutes">统一间隔</Label>
+                  <FilterSelect
+                    id="analysis-interval-preset"
+                    label="间隔预设"
+                    className="w-32"
+                    disabled={!canManage}
+                    value={presets.includes(minutes) ? String(minutes) : "custom"}
+                    onChange={(value) => {
+                      if (canManage) setInterval(value === "custom" ? "" : value);
+                    }}
+                  >
+                    <SelectItem value="custom">自定义</SelectItem>
+                    {presets.map((value) => (
+                      <SelectItem key={value} value={String(value)}>
+                        {value} 分钟
+                      </SelectItem>
+                    ))}
+                  </FilterSelect>
+                  <Input
+                    id="analysis-minutes"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={interval}
+                    disabled={!canManage}
+                    onChange={(event) => setInterval(event.target.value)}
+                    aria-invalid={!validInterval}
+                    aria-describedby="analysis-interval-help"
+                    className="h-9 w-24"
+                  />
+                  <span>分钟</span>
+                  <Button
+                    size="sm"
+                    type="submit"
+                    disabled={!canManage || !validInterval || minutes === snapshot.intervalMinutes}
+                  >
+                    保存间隔
+                  </Button>
+                  {/* 原版此处可直接进入角色模型配置，静态说明会丢失设置操作入口。 */}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      onOpenModelSettings();
+                    }}
+                  >
+                    查看 Agent 模型配置
+                  </Button>
+                </form>
+                <p id="analysis-interval-help" className="text-foreground-subtle">
+                  所有 SR
+                  共用间隔；项目开关立即保存。关闭自动调度不取消在途分析，仍可手动分析已开启项目。
+                  {!validInterval && (
+                    <span role="alert" className="text-destructive">
+                      {positiveInterval
+                        ? "间隔超出可表示的日期范围，请使用更小的分钟数。"
+                        : "请输入正整数分钟数。"}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+        <p role="status" aria-live="polite" className="text-ui-sm text-foreground-subtle">
+          {pending ? "正在提交…" : message}
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+}

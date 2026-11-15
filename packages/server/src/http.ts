@@ -33,6 +33,8 @@ import {
 } from "@zcode/shared";
 import { resolveServerOsUser } from "@zcode/shared/node";
 import { workspaceIdentityOf } from "./mock/runtime.js";
+import { getConnectionServices, validateAIReqIdentity } from "./aireq/contract.js";
+import type { AIReqIdentity } from "@zcode/services/aireq";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -79,13 +81,20 @@ const log = (...args: unknown[]) =>
   console.log(formatLogPrefix("zcode-mock-server:http", process.pid), ...args);
 
 /** 为一条 WebSocket 连接装配 ChannelServer 并暴露全部 mock 服务。 */
-function setupChannelServer(ws: WebSocket, services: ServiceCollection): void {
+function setupChannelServer(
+  ws: WebSocket,
+  services: ServiceCollection,
+  identity: AIReqIdentity,
+): void {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
   const loggedServer = new LoggingChannelServer(rawServer, log);
-  const agentService = services.getOptional(IZCodeAgentService);
+  const overrides = getConnectionServices(services, identity);
+  const agentService = overrides.get(IZCodeAgentService.channelName) as
+    | IZCodeAgentService
+    | undefined;
   const connectionScope = agentService
     ? createZCodeAgentConnectionScope(agentService, {
         connectionId: `mock-ws-${crypto.randomUUID()}`,
@@ -93,7 +102,6 @@ function setupChannelServer(ws: WebSocket, services: ServiceCollection): void {
         role: "terminal-client",
       })
     : undefined;
-  const overrides = new Map<string, unknown>();
   if (connectionScope) {
     overrides.set(IZCodeAgentService.channelName, connectionScope.service);
   }
@@ -321,11 +329,20 @@ export function createMockHttpServer(
 
   app.get(
     "/ws",
-    upgradeWebSocket(() => ({
-      onOpen(_event, ws) {
-        setupChannelServer(ws.raw as WebSocket, services);
-      },
-    })),
+    upgradeWebSocket((c) => {
+      const query = new URL(c.req.url).searchParams;
+      const employeeId = query.get("employeeId") ?? "";
+      const identity = validateAIReqIdentity({
+        employeeId,
+        clientId: query.get("clientId") ?? "",
+        ...(query.get("demo") ? { demo: query.get("demo")! } : {}),
+      });
+      return {
+        onOpen(_event, ws) {
+          setupChannelServer(ws.raw as WebSocket, services, identity);
+        },
+      };
+    }),
   );
 
   if (options.staticRoot?.trim()) {

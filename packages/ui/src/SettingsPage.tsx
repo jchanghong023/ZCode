@@ -1,16 +1,8 @@
 import { useSetInterfaceModeWithTelemetry } from "@/lib/appTelemetry.js";
 import { DataSyncSection } from "@/data-sync/index.js";
 /* oxlint-disable eslint(max-lines) */
-import { ArrowLeft, type LucideIcon } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-} from "react";
+import { ArrowLeft } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AppSettings,
   UsageEntitlementSnapshot,
@@ -27,7 +19,6 @@ import {
 } from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
-import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
@@ -78,7 +69,11 @@ import {
   type SettingsSearchId,
 } from "@/settings-search/index.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
-import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
+import {
+  SettingsPageFrame,
+  SettingsSidebarButton,
+  SETTINGS_FRAME_CONTENT_CLASSNAME,
+} from "@/settings/SettingsPageParts.js";
 import {
   SettingsBreadcrumbProvider,
   SettingsHeaderBreadcrumb,
@@ -88,7 +83,6 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 import type { Theme } from "@/useTheme.js";
-import { WindowsTopLeftLogo } from "@/WindowsTopLeftLogo.js";
 
 import { WorkspaceHelpMenuButton } from "@/WorkspaceHelpMenuButton.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
@@ -230,47 +224,6 @@ function hasActiveCodingPlanSnapshot(
       // quota 暂时失败时服务仍能确认当前 provider，但旧过滤条件会把
       // Coding Plan tab 当成未开通套餐删除。只有明确 no_plan 才应隐藏入口。
       snapshot.unavailableReason === "unavailable")
-  );
-}
-
-function SettingsSidebarButton({
-  icon: Icon,
-  label,
-  active,
-  children,
-  className,
-  ...buttonProps
-}: {
-  icon: LucideIcon;
-  label: string;
-  active?: boolean;
-  children?: ReactNode;
-  className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <ControlHintTooltip title={label} side="right" align="center">
-      <button
-        {...buttonProps}
-        type={buttonProps.type ?? "button"}
-        aria-label={label}
-        className={cn(
-          "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-left transition-colors",
-          "max-lg:mx-auto max-lg:size-10 max-lg:justify-center max-lg:px-0",
-          "compact-web:mx-0 compact-web:h-8 compact-web:w-auto compact-web:shrink-0 compact-web:px-2.5",
-          active
-            ? "bg-surface-hover text-foreground"
-            : "text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground",
-          className,
-        )}
-      >
-        <span className="flex size-4 shrink-0 items-center justify-center text-current">
-          <Icon className="size-4 text-foreground" />
-        </span>
-        <span className="min-w-0 flex-1 max-lg:sr-only compact-web:not-sr-only">
-          {children ?? <span className="truncate text-ui-base text-foreground">{label}</span>}
-        </span>
-      </button>
-    </ControlHintTooltip>
   );
 }
 
@@ -1141,549 +1094,470 @@ export function SettingsPage({
 
   return (
     <SettingsSearchTargetContext.Provider value={searchTarget}>
-      <DesktopWindowFrame
-        title={intl.formatMessage({ id: "settings.title" })}
-        isDesktop={isDesktop}
-        isMacDesktop={isMacDesktop}
-        isWindowsDesktop={isWindowsDesktop}
+      <SettingsBreadcrumbProvider
+        onItemsChange={setSettingsBreadcrumbItems}
+        sectionLabel={settingsBreadcrumbSectionLabel}
       >
-        <div
-          data-testid={TID_SETTINGS_PAGE}
-          data-active-section={activeSection}
-          // 隐式 auto 行会按 Memory viewer 的内容高度撑出窗口，随后被 DesktopWindowFrame 裁切且没有滚动条。
-          // 固定为单个 minmax(0, 1fr) 行，让普通设置页和内部滚动 viewer 都以窗口剩余高度为边界。
-          className="relative grid h-screen min-h-full w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)] compact-web:grid-cols-1 compact-web:grid-rows-[auto_minmax(0,1fr)]"
-        >
-          {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
-
-          {/* 手机窄屏 Web 下 68px 图标栏会挤占内容宽度，compact-web 下改成顶部横向滚动导航条。
-              spec：docs/settings-narrow-layout.md */}
-          <aside className="min-w-0">
-            <div className="flex h-full flex-col compact-web:flex-row compact-web:items-center">
-              <div className="h-12 [app-region:drag] compact-web:hidden"></div>
-              <div className="px-2 pb-3 pt-3 compact-web:shrink-0 compact-web:py-1.5 compact-web:pr-0">
-                {onBack ? (
-                  <ControlHintTooltip
-                    title={intl.formatMessage({
+        <SettingsPageFrame
+          title={intl.formatMessage({ id: "settings.title" })}
+          isDesktop={isDesktop}
+          isMacDesktop={isMacDesktop}
+          isWindowsDesktop={isWindowsDesktop}
+          rootProps={{ "data-testid": TID_SETTINGS_PAGE, "data-active-section": activeSection }}
+          backButton={
+            onBack ? (
+              <ControlHintTooltip
+                title={intl.formatMessage({
+                  id: "workspace.backToWorkspace",
+                })}
+                side="right"
+                align="center"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  data-testid={TID_SETTINGS_BACK_BUTTON}
+                  aria-label={intl.formatMessage({
+                    id: "workspace.backToWorkspace",
+                  })}
+                  className="m-1 w-[calc(100%-0.5rem)] justify-start gap-2 rounded-xl bg-surface px-1.5 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground max-lg:m-1 max-lg:size-10 max-lg:justify-center max-lg:px-0"
+                  onClick={() => {
+                    runUserAction({
+                      input: {
+                        featureId: "settings.navigation",
+                        action: "back_to_workspace",
+                        trigger: "button",
+                      },
+                      operation: () => {
+                        if (pluginNavigationOrigin === "plugin-store") {
+                          requestPluginStoreOpen("user");
+                        }
+                        onBack?.();
+                      },
+                      completed: { resultSource: "local_commit" },
+                      failureStage: "navigation_commit",
+                    });
+                  }}
+                >
+                  <ArrowLeft className="size-4" />
+                  <span className="max-lg:sr-only">
+                    {intl.formatMessage({
                       id: "workspace.backToWorkspace",
                     })}
-                    side="right"
-                    align="center"
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="lg"
-                      data-testid={TID_SETTINGS_BACK_BUTTON}
-                      aria-label={intl.formatMessage({
-                        id: "workspace.backToWorkspace",
-                      })}
-                      className="m-1 w-[calc(100%-0.5rem)] justify-start gap-2 rounded-xl bg-surface px-1.5 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground max-lg:m-1 max-lg:size-10 max-lg:justify-center max-lg:px-0"
-                      onClick={() => {
-                        runUserAction({
-                          input: {
-                            featureId: "settings.navigation",
-                            action: "back_to_workspace",
-                            trigger: "button",
-                          },
-                          operation: () => {
-                            if (pluginNavigationOrigin === "plugin-store") {
-                              requestPluginStoreOpen("user");
-                            }
-                            onBack?.();
-                          },
-                          completed: { resultSource: "local_commit" },
-                          failureStage: "navigation_commit",
-                        });
-                      }}
-                    >
-                      <ArrowLeft className="size-4" />
-                      <span className="max-lg:sr-only">
-                        {intl.formatMessage({
-                          id: "workspace.backToWorkspace",
-                        })}
-                      </span>
-                    </Button>
-                  </ControlHintTooltip>
-                ) : null}
-              </div>
-
-              <div className="px-3 pb-3 max-lg:flex max-lg:justify-center compact-web:shrink-0 compact-web:px-1 compact-web:pb-0">
-                <SettingsSearch
-                  sections={settingsSections}
-                  onSelect={({ section, setting }) => navigateToSettingsSection(section, setting)}
-                />
-              </div>
-
-              <nav
-                ref={settingsNavRef}
-                aria-label={intl.formatMessage({ id: "settings.navLabel" })}
-                className="flex-1 overflow-y-auto px-2 pb-3 compact-web:min-w-0 compact-web:overflow-x-auto compact-web:overflow-y-hidden compact-web:py-1.5"
-              >
-                <div className="space-y-4 compact-web:flex compact-web:items-center compact-web:gap-2 compact-web:space-y-0">
-                  {settingsSectionGroups.map((group, groupIndex) => {
-                    const groupLabel = intl.formatMessage({
-                      id: group.titleId,
-                    });
-                    const groupLabelId = `settings-sidebar-group-${group.id}`;
-
-                    return (
-                      <div
-                        key={group.id}
-                        role="group"
-                        aria-labelledby={groupLabelId}
-                        className={cn(
-                          "space-y-1 compact-web:flex compact-web:shrink-0 compact-web:items-center compact-web:gap-1 compact-web:space-y-0",
-                          groupIndex > 0 &&
-                            "max-lg:border-t max-lg:border-border max-lg:pt-3 compact-web:border-t-0 compact-web:border-l compact-web:pt-0 compact-web:pl-2",
-                        )}
-                      >
-                        <div
-                          id={groupLabelId}
-                          className="px-2.5 pb-1 text-ui-sm font-medium text-remote-foreground-muted max-lg:sr-only"
-                        >
-                          {groupLabel}
-                        </div>
-                        {group.sections
-                          .filter(({ id }) => isSettingsSectionAvailable(id))
-                          .map(({ id, icon: Icon, titleId }) => {
-                            const isActive = activeSection === id;
-                            const label = intl.formatMessage({ id: titleId });
-
-                            return (
-                              <SettingsSidebarButton
-                                key={id}
-                                icon={Icon}
-                                label={label}
-                                active={isActive}
-                                aria-current={isActive ? "page" : undefined}
-                                data-testid={testId(TID_SETTINGS_SECTION_NAV, id)}
-                                data-settings-section-nav={id}
-                                onClick={() => {
-                                  runUserAction({
-                                    input: {
-                                      featureId: "settings.navigation",
-                                      action: "open_section",
-                                      trigger: "button",
-                                    },
-                                    operation: () => navigateToSettingsSection(id),
-                                    completed: { resultSource: "local_commit", sectionId: id },
-                                    failureStage: "navigation_commit",
-                                  });
-                                }}
-                              >
-                                <span className="flex min-w-0 flex-1 items-center gap-2">
-                                  <span className="truncate text-ui-base text-foreground">
-                                    {label}
-                                  </span>
-                                </span>
-                              </SettingsSidebarButton>
-                            );
-                          })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </nav>
-
-              <div className="max-lg:hidden">
-                <WorkspaceSidebarFooter
-                  theme={theme}
-                  onThemeChange={handleFooterThemeChange}
-                  onSettingsButtonClick={onBack}
-                  onUsageClick={handleOpenUsageSettings}
-                  onLogin={onLogin}
-                  onLogout={onLogout}
-                  settingsButtonMode="back"
-                  user={user}
-                  // 头像菜单是 WorkspaceSidebarFooter 的共享菜单，Settings 场景不能丢失桌面平台能力。
-                  // 之前这里没透传 isDesktop，导致同一个头像菜单在设置页缺少界面缩放入口。
-                  isDesktop={isDesktop}
-                />
-              </div>
-            </div>
-          </aside>
-
-          <section
-            data-settings-content-frame="true"
-            className={cn(
-              "flex min-h-0 flex-col",
-              // 桌面平台统一复用主工作区的面板 inset；左侧仍与导航相接，顶部由独立拖拽留白承接。
-              isDesktop ? (isWindowsDesktop ? "pr-1.5 pb-1.5" : "pr-1 pb-1") : "p-0",
-            )}
-          >
-            <div
-              data-settings-top-inset={isDesktop ? "true" : undefined}
-              // 下方面板使用 h-full；顶部留白不能参与 flex 收缩，否则 6px 会变成小数像素。
-              className={cn(
-                "shrink-0 [app-region:drag]",
-                isDesktop && (isWindowsDesktop ? "h-1.5" : "h-1"),
-                isMacDesktop && "max-lg:h-16",
-              )}
+                  </span>
+                </Button>
+              </ControlHintTooltip>
+            ) : null
+          }
+          search={
+            <SettingsSearch
+              sections={settingsSections}
+              onSelect={({ section, setting }) => navigateToSettingsSection(section, setting)}
             />
+          }
+          navigationRef={settingsNavRef}
+          navigationLabel={intl.formatMessage({ id: "settings.navLabel" })}
+          navigation={
+            <div className="space-y-4 compact-web:flex compact-web:items-center compact-web:gap-2 compact-web:space-y-0">
+              {settingsSectionGroups.map((group, groupIndex) => {
+                const groupLabel = intl.formatMessage({
+                  id: group.titleId,
+                });
+                const groupLabelId = `settings-sidebar-group-${group.id}`;
+
+                return (
+                  <div
+                    key={group.id}
+                    role="group"
+                    aria-labelledby={groupLabelId}
+                    className={cn(
+                      "space-y-1 compact-web:flex compact-web:shrink-0 compact-web:items-center compact-web:gap-1 compact-web:space-y-0",
+                      groupIndex > 0 &&
+                        "max-lg:border-t max-lg:border-border max-lg:pt-3 compact-web:border-t-0 compact-web:border-l compact-web:pt-0 compact-web:pl-2",
+                    )}
+                  >
+                    <div
+                      id={groupLabelId}
+                      className="px-2.5 pb-1 text-ui-sm font-medium text-remote-foreground-muted max-lg:sr-only"
+                    >
+                      {groupLabel}
+                    </div>
+                    {group.sections
+                      .filter(({ id }) => isSettingsSectionAvailable(id))
+                      .map(({ id, icon: Icon, titleId }) => {
+                        const isActive = activeSection === id;
+                        const label = intl.formatMessage({ id: titleId });
+
+                        return (
+                          <SettingsSidebarButton
+                            key={id}
+                            icon={Icon}
+                            label={label}
+                            active={isActive}
+                            aria-current={isActive ? "page" : undefined}
+                            data-testid={testId(TID_SETTINGS_SECTION_NAV, id)}
+                            data-settings-section-nav={id}
+                            onClick={() => {
+                              runUserAction({
+                                input: {
+                                  featureId: "settings.navigation",
+                                  action: "open_section",
+                                  trigger: "button",
+                                },
+                                operation: () => navigateToSettingsSection(id),
+                                completed: { resultSource: "local_commit", sectionId: id },
+                                failureStage: "navigation_commit",
+                              });
+                            }}
+                          >
+                            <span className="flex min-w-0 flex-1 items-center gap-2">
+                              <span className="truncate text-ui-base text-foreground">{label}</span>
+                            </span>
+                          </SettingsSidebarButton>
+                        );
+                      })}
+                  </div>
+                );
+              })}
+            </div>
+          }
+          footer={
+            <WorkspaceSidebarFooter
+              theme={theme}
+              onThemeChange={handleFooterThemeChange}
+              onSettingsButtonClick={onBack}
+              onUsageClick={handleOpenUsageSettings}
+              onLogin={onLogin}
+              onLogout={onLogout}
+              settingsButtonMode="back"
+              user={user}
+              // 头像菜单是 WorkspaceSidebarFooter 的共享菜单，Settings 场景不能丢失桌面平台能力。
+              // 之前这里没透传 isDesktop，导致同一个头像菜单在设置页缺少界面缩放入口。
+              isDesktop={isDesktop}
+            />
+          }
+          help={<WorkspaceHelpMenuButton className="relative z-50 [app-region:no-drag]" />}
+          header={
+            <SettingsHeaderBreadcrumb
+              ariaLabel={intl.formatMessage({
+                id: "settings.breadcrumbLabel",
+              })}
+              items={visibleSettingsBreadcrumbItems}
+            />
+          }
+        >
+          <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
             <div
-              data-settings-panel-frame="true"
               className={cn(
-                "relative flex flex-col min-h-0 h-full border border-border bg-background",
-                // 直接写像素圆角会绕过设计 token；设置页与工作区统一复用 rounded-md（默认 6px）。
-                isWindowsDesktop ? "rounded-md" : "rounded-xl",
+                SETTINGS_FRAME_CONTENT_CLASSNAME,
+                "flex flex-col gap-8",
+                isMacDesktop && "pt-0",
+                // isWindowsDesktop && "pt-12",
               )}
             >
-              <div className="absolute top-0 z-50 h-10 w-10 pointer-events-auto [app-region:no-drag] right-0">
-                <div className="absolute right-2.5 top-2.5 pointer-events-auto [app-region:no-drag]">
-                  <WorkspaceHelpMenuButton className="relative z-50 [app-region:no-drag]" />
-                </div>
-              </div>
-              <SettingsBreadcrumbProvider
-                onItemsChange={setSettingsBreadcrumbItems}
-                sectionLabel={settingsBreadcrumbSectionLabel}
-              >
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="flex h-12 shrink-0">
-                    <div
-                      // Settings 窄布局会像左侧导航一样在 max-lg 收成 icon rail。
-                      // 此时外层已经提供 max-lg:h-16 的顶部拖拽/避让区，内层 h-10 再保留会把内容额外压低。
-                      // Electron 的 drag 区不能和右上角帮助/窗口按钮命中区域重叠；
-                      // 这里把右侧按钮区域从拖拽条里让出来，避免真实鼠标点击被标题栏拖拽吞掉。
-                      // 浏览器没有内联窗控组，标题区只避让右上角问号菜单。
-
-                      className="min-w-0 flex-1 [app-region:drag] mr-12"
-                    >
-                      <SettingsHeaderBreadcrumb
-                        ariaLabel={intl.formatMessage({
-                          id: "settings.breadcrumbLabel",
-                        })}
-                        items={visibleSettingsBreadcrumbItems}
-                      />
+              {/* 数据同步自带标题与迁移入口，避免公共页头重复显示标题和间距。 */}
+              {activeSection !== "dataSync" ? (
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
+                      {showActiveSectionTitle ? (
+                        <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
+                          {activeSectionLabel}
+                        </h2>
+                      ) : null}
+                      {!hasVisibleSettingsBreadcrumb && activeSectionMeta.titleBadgeId ? (
+                        <span className="inline-flex h-6 items-center rounded-md border border-border px-2 text-ui-xs font-semibold tracking-normal text-foreground">
+                          {intl.formatMessage({
+                            id: activeSectionMeta.titleBadgeId,
+                          })}
+                        </span>
+                      ) : null}
+                      {activeSection === "usage" ? (
+                        <SettingsUsageProviderTabs
+                          activeTab={usageActiveTab}
+                          codingPlanSources={usageCodingPlanSources}
+                          onTabChange={handleUsageTabSelect}
+                        />
+                      ) : null}
                     </div>
                   </div>
-                  <>
-                    <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-                      <div
-                        className={cn(
-                          SETTINGS_FRAME_CONTENT_CLASSNAME,
-                          "flex flex-col gap-8",
-                          isMacDesktop && "pt-0",
-                          // isWindowsDesktop && "pt-12",
-                        )}
-                      >
-                        {/* 数据同步自带标题与迁移入口，避免公共页头重复显示标题和间距。 */}
-                        {activeSection !== "dataSync" ? (
-                          <div>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex min-w-0 flex-wrap items-center gap-3">
-                                {showActiveSectionTitle ? (
-                                  <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
-                                    {activeSectionLabel}
-                                  </h2>
-                                ) : null}
-                                {!hasVisibleSettingsBreadcrumb && activeSectionMeta.titleBadgeId ? (
-                                  <span className="inline-flex h-6 items-center rounded-md border border-border px-2 text-ui-xs font-semibold tracking-normal text-foreground">
-                                    {intl.formatMessage({
-                                      id: activeSectionMeta.titleBadgeId,
-                                    })}
-                                  </span>
-                                ) : null}
-                                {activeSection === "usage" ? (
-                                  <SettingsUsageProviderTabs
-                                    activeTab={usageActiveTab}
-                                    codingPlanSources={usageCodingPlanSources}
-                                    onTabChange={handleUsageTabSelect}
-                                  />
-                                ) : null}
-                              </div>
-                            </div>
-                            {activeSection === "projects" ? (
-                              <p className="mt-2 max-w-2xl text-ui-base text-foreground-subtle">
-                                {intl.formatMessage({ id: "projectManagement.intro" })}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        <div className="space-y-8">
-                          {activeSection === "general" ? (
-                            <GeneralSectionContent
-                              interfaceMode={interfaceMode}
-                              setInterfaceMode={setInterfaceMode}
-                              isWindowsDesktop={isWindowsDesktop}
-                              isLinuxDesktop={isLinuxDesktop}
-                              notificationEnabled={notificationEnabled}
-                              notificationSoundEnabled={notificationSoundEnabled}
-                              closeToTrayOnWindows={closeToTrayOnWindows}
-                              keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
-                              desktopChromiumHardwareAccelerationEnabled={
-                                desktopChromiumHardwareAccelerationEnabled
-                              }
-                              dataBaseDir={dataBaseDir}
-                              httpProxy={httpProxy}
-                              httpProxyNoProxy={httpProxyNoProxy}
-                              httpProxyCaCertPath={httpProxyCaCertPath}
-                              defaultHomeDir={defaultHomeDir}
-                              setNotificationEnabled={(enabled) =>
-                                runUserAction({
-                                  input: {
-                                    featureId: "settings.notification",
-                                    action: "toggle_notification",
-                                    trigger: "switch",
-                                  },
-                                  operation: () => setNotificationEnabled(enabled),
-                                  completed: {
-                                    resultSource: "local_commit",
-                                    stateAfter: enabled ? "enabled" : "disabled",
-                                  },
-                                  failureStage: "local_commit",
-                                })
-                              }
-                              setNotificationSoundEnabled={(enabled) =>
-                                runUserAction({
-                                  input: {
-                                    featureId: "settings.notification",
-                                    action: "toggle_notification_sound",
-                                    trigger: "switch",
-                                  },
-                                  operation: () => setNotificationSoundEnabled(enabled),
-                                  completed: {
-                                    resultSource: "local_commit",
-                                    stateAfter: enabled ? "enabled" : "disabled",
-                                  },
-                                  failureStage: "local_commit",
-                                })
-                              }
-                              onDataBaseDirChange={handleDataBaseDirChange}
-                              onHttpProxyChange={handleHttpProxyChange}
-                              onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
-                              onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
-                              onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
-                              onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
-                              onDesktopChromiumHardwareAccelerationChange={
-                                handleDesktopChromiumHardwareAccelerationChange
-                              }
-                              onOpenOnboardingDialog={() =>
-                                runUserAction({
-                                  input: {
-                                    featureId: "settings.navigation",
-                                    action: "open_onboarding",
-                                    trigger: "button",
-                                  },
-                                  operation: openOccupationOnboarding,
-                                  completed: { resultSource: "local_commit" },
-                                  failureStage: "dialog_open",
-                                })
-                              }
-                            />
-                          ) : activeSection === "agentBehavior" ? (
-                            <AgentBehaviorSectionContent
-                              toolSearchMode={toolSearchMode}
-                              onToolSearchModeChange={handleToolSearchModeChange}
-                              nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
-                              onNativeSearchEnhancementsEnabledChange={
-                                handleNativeSearchEnhancementsEnabledChange
-                              }
-                              messageStreamShowReasoning={messageStreamShowReasoning}
-                              messageStreamShowTodos={messageStreamShowTodos}
-                              zcodeInteractionBehavior={zcodeInteractionBehavior}
-                              askUserQuestionAutoResolutionEnabled={
-                                askUserQuestionAutoResolutionEnabled
-                              }
-                              modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
-                              onMessageStreamShowReasoningChange={
-                                handleMessageStreamShowReasoningChange
-                              }
-                              onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
-                              onZCodeInteractionBehaviorChange={
-                                handleZCodeInteractionBehaviorChange
-                              }
-                              onAskUserQuestionAutoResolutionEnabledChange={
-                                handleAskUserQuestionAutoResolutionEnabledChange
-                              }
-                              onModelIoFullRetentionEnabledChange={
-                                handleModelIoFullRetentionEnabledChange
-                              }
-                            />
-                          ) : activeSection === "dataSync" ? (
-                            isDesktop ? (
-                              <DataSyncSection
-                                snapshot={sourceManagementSnapshot}
-                                deviceSyncStateService={localHostServices.deviceSyncStateService}
-                                onOpenMigration={requestMigrationDialog}
-                              />
-                            ) : null
-                          ) : activeSection === "appearance" ? (
-                            <AppearanceSectionContent
-                              isMacDesktop={Boolean(isDesktop && isMacDesktop)}
-                              fontSmoothingEnabled={fontSmoothingEnabled}
-                              setFontSmoothingEnabled={setFontSmoothingEnabled}
-                              codePreviewSettings={codePreviewSettings}
-                              setCodePreviewSettings={handleCodePreviewSettingsChange}
-                              theme={theme}
-                              setTheme={(nextTheme) => handleFooterThemeChange(nextTheme)}
-                              uiFontSizePx={uiFontSizePx}
-                              setUiFontSizePx={(fontSizePx) =>
-                                runUserAction({
-                                  input: {
-                                    featureId: "settings.appearance",
-                                    action: "change_ui_font_size",
-                                    trigger: "keyboard",
-                                  },
-                                  operation: () => setUiFontSizePx(fontSizePx),
-                                  completed: {
-                                    resultSource: "local_commit",
-                                    valueAfter: String(fontSizePx),
-                                  },
-                                  failureStage: "local_commit",
-                                })
-                              }
-                            />
-                          ) : activeSection === "shortcuts" ? (
-                            <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
-                          ) : activeSection === "modelProvider" ? (
-                            <ServiceProvider services={localHostServices}>
-                              {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}
-                              <ModelProviderSection
-                                workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""}
-                                connectivityWorkspacePath={
-                                  localModelProviderConnectivityWorkspacePath
-                                }
-                                connectivityWorkspaceRequired={isRemoteModelProviderWorkspace}
-                                pendingModelProviderTarget={pendingModelProviderTarget}
-                                onConsumePendingModelProviderTarget={() =>
-                                  setPendingModelProviderTarget(undefined)
-                                }
-                              />
-                            </ServiceProvider>
-                          ) : activeSection === "personalization" ? (
-                            // 个性化指令编辑的是本机 ~/.zcode/AGENTS.md（Agent 实际读取的文件）。
-                            // 仅桌面本地入口可编辑：手机远控的 base services 可能归属远程
-                            // Source（remoteWorkspaceServiceCollection 注册的是远端 settingService），
-                            // 编辑会写错机器；Web 端只显示本地桌面端指引。
-                            <PersonalizationSection
-                              settingService={localHostServices.settingService}
-                              isDesktop={Boolean(isDesktop)}
-                            />
-                          ) : activeSection === "memory" ? (
-                            <MemorySettingsPage
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              isDesktop={Boolean(isDesktop)}
-                              workspaceDisplayNames={memoryWorkspaceDisplayNames}
-                            />
-                          ) : activeSection === "plugin" ? (
-                            <PluginsSection
-                              key={`plugin:${settingsSectionNavigationVersion}`}
-                              isDesktop={Boolean(isDesktop)}
-                              isMacDesktop={Boolean(isMacDesktop)}
-                              isWindowsDesktop={Boolean(isWindowsDesktop)}
-                              initialTab={pluginTab}
-                              initialScopeKey={pluginScopeKey}
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              showMarketplaceBreadcrumb={pluginNavigationOrigin === "plugin-store"}
-                              onCreateTask={onCreateTask}
-                              onOpenPluginStore={(_returnScopeKey, intent) => {
-                                // 添加市场与浏览插件都先离开设置层，再显示商店。
-                                requestPluginStoreOpen({ returnScopeKey: "user", intent });
-                                onBack?.();
-                              }}
-                            />
-                          ) : activeSection === "mcp" ? (
-                            <PluginsSection
-                              key={`mcp:${settingsSectionNavigationVersion}`}
-                              mode="mcp"
-                              initialScopeKey={pluginScopeKey}
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              onCreateTask={onCreateTask}
-                              onOpenPluginStore={(_returnScopeKey, intent) => {
-                                // 添加市场与浏览插件都先离开设置层，再显示商店。
-                                requestPluginStoreOpen({ returnScopeKey: "user", intent });
-                                onBack?.();
-                              }}
-                            />
-                          ) : activeSection === "skill" ? (
-                            <PluginsSection
-                              key={`skill:${settingsSectionNavigationVersion}`}
-                              mode="skill"
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              onCreateTask={onCreateTask}
-                              onOpenPluginStore={(_returnScopeKey, intent) => {
-                                // 添加市场与浏览插件都先离开设置层，再显示商店。
-                                requestPluginStoreOpen({ returnScopeKey: "user", intent });
-                                onBack?.();
-                              }}
-                            />
-                          ) : activeSection === "migration" ? (
-                            <MigrationSection
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              isDesktop={isDesktop}
-                            />
-                          ) : activeSection === "projects" ? (
-                            <ProjectManagement />
-                          ) : activeSection === "archives" ? (
-                            <div className="min-w-0 space-y-6">
-                              <TaskAutoArchiveSettings
-                                taskAutoArchiveEnabled={taskAutoArchiveEnabled}
-                                taskAutoArchiveOlderThanDays={taskAutoArchiveOlderThanDays}
-                                onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
-                                onTaskAutoArchiveOlderThanDaysChange={
-                                  handleTaskAutoArchiveOlderThanDaysChange
-                                }
-                              />
-                              <ArchiveManagement />
-                            </div>
-                          ) : activeSection === "usage" ? (
-                            <UsageStatsSection
-                              activeTab={usageActiveTab}
-                              providerSourcesLoading={usageProviderSettingsLoading}
-                              selectedCodingPlanSource={selectedUsageCodingPlanSource}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              workspacePath={activeWorkspacePath ?? undefined}
-                            />
-                          ) : activeSection === "subagents" ? (
-                            <SubagentsSection
-                              onManageModels={handleOpenModelProviderSettings}
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                            />
-                          ) : activeSection === "automations" ? (
-                            <AutomationsSection
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                            />
-                          ) : activeSection === "commands" ? (
-                            <PluginsSection
-                              mode="command"
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                              onCreateTask={onCreateTask}
-                              onOpenPluginStore={(_returnScopeKey, intent) => {
-                                // 添加市场与浏览插件都先离开设置层，再显示商店。
-                                requestPluginStoreOpen({ returnScopeKey: "user", intent });
-                                onBack?.();
-                              }}
-                            />
-                          ) : activeSection === "hooks" ? (
-                            <HooksSection
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                            />
-                          ) : activeSection === "workspaceFileSearch" ? (
-                            <WorkspaceFileSearchSection
-                              workspacePath={activeWorkspacePath}
-                              workspaceIdentity={activeWorkspaceIdentity}
-                            />
-                          ) : null}
-                        </div>
-                      </div>
-                    </main>
-                  </>
+                  {activeSection === "projects" ? (
+                    <p className="mt-2 max-w-2xl text-ui-base text-foreground-subtle">
+                      {intl.formatMessage({ id: "projectManagement.intro" })}
+                    </p>
+                  ) : null}
                 </div>
-              </SettingsBreadcrumbProvider>
+              ) : null}
+              <div className="space-y-8">
+                {activeSection === "general" ? (
+                  <GeneralSectionContent
+                    interfaceMode={interfaceMode}
+                    setInterfaceMode={setInterfaceMode}
+                    isWindowsDesktop={isWindowsDesktop}
+                    isLinuxDesktop={isLinuxDesktop}
+                    notificationEnabled={notificationEnabled}
+                    notificationSoundEnabled={notificationSoundEnabled}
+                    closeToTrayOnWindows={closeToTrayOnWindows}
+                    keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
+                    desktopChromiumHardwareAccelerationEnabled={
+                      desktopChromiumHardwareAccelerationEnabled
+                    }
+                    dataBaseDir={dataBaseDir}
+                    httpProxy={httpProxy}
+                    httpProxyNoProxy={httpProxyNoProxy}
+                    httpProxyCaCertPath={httpProxyCaCertPath}
+                    defaultHomeDir={defaultHomeDir}
+                    setNotificationEnabled={(enabled) =>
+                      runUserAction({
+                        input: {
+                          featureId: "settings.notification",
+                          action: "toggle_notification",
+                          trigger: "switch",
+                        },
+                        operation: () => setNotificationEnabled(enabled),
+                        completed: {
+                          resultSource: "local_commit",
+                          stateAfter: enabled ? "enabled" : "disabled",
+                        },
+                        failureStage: "local_commit",
+                      })
+                    }
+                    setNotificationSoundEnabled={(enabled) =>
+                      runUserAction({
+                        input: {
+                          featureId: "settings.notification",
+                          action: "toggle_notification_sound",
+                          trigger: "switch",
+                        },
+                        operation: () => setNotificationSoundEnabled(enabled),
+                        completed: {
+                          resultSource: "local_commit",
+                          stateAfter: enabled ? "enabled" : "disabled",
+                        },
+                        failureStage: "local_commit",
+                      })
+                    }
+                    onDataBaseDirChange={handleDataBaseDirChange}
+                    onHttpProxyChange={handleHttpProxyChange}
+                    onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
+                    onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
+                    onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
+                    onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
+                    onDesktopChromiumHardwareAccelerationChange={
+                      handleDesktopChromiumHardwareAccelerationChange
+                    }
+                    onOpenOnboardingDialog={() =>
+                      runUserAction({
+                        input: {
+                          featureId: "settings.navigation",
+                          action: "open_onboarding",
+                          trigger: "button",
+                        },
+                        operation: openOccupationOnboarding,
+                        completed: { resultSource: "local_commit" },
+                        failureStage: "dialog_open",
+                      })
+                    }
+                  />
+                ) : activeSection === "agentBehavior" ? (
+                  <AgentBehaviorSectionContent
+                    toolSearchMode={toolSearchMode}
+                    onToolSearchModeChange={handleToolSearchModeChange}
+                    nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
+                    onNativeSearchEnhancementsEnabledChange={
+                      handleNativeSearchEnhancementsEnabledChange
+                    }
+                    messageStreamShowReasoning={messageStreamShowReasoning}
+                    messageStreamShowTodos={messageStreamShowTodos}
+                    zcodeInteractionBehavior={zcodeInteractionBehavior}
+                    askUserQuestionAutoResolutionEnabled={askUserQuestionAutoResolutionEnabled}
+                    modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
+                    onMessageStreamShowReasoningChange={handleMessageStreamShowReasoningChange}
+                    onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
+                    onZCodeInteractionBehaviorChange={handleZCodeInteractionBehaviorChange}
+                    onAskUserQuestionAutoResolutionEnabledChange={
+                      handleAskUserQuestionAutoResolutionEnabledChange
+                    }
+                    onModelIoFullRetentionEnabledChange={handleModelIoFullRetentionEnabledChange}
+                  />
+                ) : activeSection === "dataSync" ? (
+                  isDesktop ? (
+                    <DataSyncSection
+                      snapshot={sourceManagementSnapshot}
+                      deviceSyncStateService={localHostServices.deviceSyncStateService}
+                      onOpenMigration={requestMigrationDialog}
+                    />
+                  ) : null
+                ) : activeSection === "appearance" ? (
+                  <AppearanceSectionContent
+                    isMacDesktop={Boolean(isDesktop && isMacDesktop)}
+                    fontSmoothingEnabled={fontSmoothingEnabled}
+                    setFontSmoothingEnabled={setFontSmoothingEnabled}
+                    codePreviewSettings={codePreviewSettings}
+                    setCodePreviewSettings={handleCodePreviewSettingsChange}
+                    theme={theme}
+                    setTheme={(nextTheme) => handleFooterThemeChange(nextTheme)}
+                    uiFontSizePx={uiFontSizePx}
+                    setUiFontSizePx={(fontSizePx) =>
+                      runUserAction({
+                        input: {
+                          featureId: "settings.appearance",
+                          action: "change_ui_font_size",
+                          trigger: "keyboard",
+                        },
+                        operation: () => setUiFontSizePx(fontSizePx),
+                        completed: {
+                          resultSource: "local_commit",
+                          valueAfter: String(fontSizePx),
+                        },
+                        failureStage: "local_commit",
+                      })
+                    }
+                  />
+                ) : activeSection === "shortcuts" ? (
+                  <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
+                ) : activeSection === "modelProvider" ? (
+                  <ServiceProvider services={localHostServices}>
+                    {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}
+                    <ModelProviderSection
+                      workspacePath={activeWorkspacePath ?? captionWorkspacePath ?? ""}
+                      connectivityWorkspacePath={localModelProviderConnectivityWorkspacePath}
+                      connectivityWorkspaceRequired={isRemoteModelProviderWorkspace}
+                      pendingModelProviderTarget={pendingModelProviderTarget}
+                      onConsumePendingModelProviderTarget={() =>
+                        setPendingModelProviderTarget(undefined)
+                      }
+                    />
+                  </ServiceProvider>
+                ) : activeSection === "personalization" ? (
+                  // 个性化指令编辑的是本机 ~/.zcode/AGENTS.md（Agent 实际读取的文件）。
+                  // 仅桌面本地入口可编辑：手机远控的 base services 可能归属远程
+                  // Source（remoteWorkspaceServiceCollection 注册的是远端 settingService），
+                  // 编辑会写错机器；Web 端只显示本地桌面端指引。
+                  <PersonalizationSection
+                    settingService={localHostServices.settingService}
+                    isDesktop={Boolean(isDesktop)}
+                  />
+                ) : activeSection === "memory" ? (
+                  <MemorySettingsPage
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    isDesktop={Boolean(isDesktop)}
+                    workspaceDisplayNames={memoryWorkspaceDisplayNames}
+                  />
+                ) : activeSection === "plugin" ? (
+                  <PluginsSection
+                    key={`plugin:${settingsSectionNavigationVersion}`}
+                    isDesktop={Boolean(isDesktop)}
+                    isMacDesktop={Boolean(isMacDesktop)}
+                    isWindowsDesktop={Boolean(isWindowsDesktop)}
+                    initialTab={pluginTab}
+                    initialScopeKey={pluginScopeKey}
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    showMarketplaceBreadcrumb={pluginNavigationOrigin === "plugin-store"}
+                    onCreateTask={onCreateTask}
+                    onOpenPluginStore={(_returnScopeKey, intent) => {
+                      // 添加市场与浏览插件都先离开设置层，再显示商店。
+                      requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                      onBack?.();
+                    }}
+                  />
+                ) : activeSection === "mcp" ? (
+                  <PluginsSection
+                    key={`mcp:${settingsSectionNavigationVersion}`}
+                    mode="mcp"
+                    initialScopeKey={pluginScopeKey}
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    onCreateTask={onCreateTask}
+                    onOpenPluginStore={(_returnScopeKey, intent) => {
+                      // 添加市场与浏览插件都先离开设置层，再显示商店。
+                      requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                      onBack?.();
+                    }}
+                  />
+                ) : activeSection === "skill" ? (
+                  <PluginsSection
+                    key={`skill:${settingsSectionNavigationVersion}`}
+                    mode="skill"
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    onCreateTask={onCreateTask}
+                    onOpenPluginStore={(_returnScopeKey, intent) => {
+                      // 添加市场与浏览插件都先离开设置层，再显示商店。
+                      requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                      onBack?.();
+                    }}
+                  />
+                ) : activeSection === "migration" ? (
+                  <MigrationSection
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    isDesktop={isDesktop}
+                  />
+                ) : activeSection === "projects" ? (
+                  <ProjectManagement />
+                ) : activeSection === "archives" ? (
+                  <div className="min-w-0 space-y-6">
+                    <TaskAutoArchiveSettings
+                      taskAutoArchiveEnabled={taskAutoArchiveEnabled}
+                      taskAutoArchiveOlderThanDays={taskAutoArchiveOlderThanDays}
+                      onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
+                      onTaskAutoArchiveOlderThanDaysChange={
+                        handleTaskAutoArchiveOlderThanDaysChange
+                      }
+                    />
+                    <ArchiveManagement />
+                  </div>
+                ) : activeSection === "usage" ? (
+                  <UsageStatsSection
+                    activeTab={usageActiveTab}
+                    providerSourcesLoading={usageProviderSettingsLoading}
+                    selectedCodingPlanSource={selectedUsageCodingPlanSource}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    workspacePath={activeWorkspacePath ?? undefined}
+                  />
+                ) : activeSection === "subagents" ? (
+                  <SubagentsSection
+                    onManageModels={handleOpenModelProviderSettings}
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                  />
+                ) : activeSection === "automations" ? (
+                  <AutomationsSection
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                  />
+                ) : activeSection === "commands" ? (
+                  <PluginsSection
+                    mode="command"
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                    onCreateTask={onCreateTask}
+                    onOpenPluginStore={(_returnScopeKey, intent) => {
+                      // 添加市场与浏览插件都先离开设置层，再显示商店。
+                      requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                      onBack?.();
+                    }}
+                  />
+                ) : activeSection === "hooks" ? (
+                  <HooksSection
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                  />
+                ) : activeSection === "workspaceFileSearch" ? (
+                  <WorkspaceFileSearchSection
+                    workspacePath={activeWorkspacePath}
+                    workspaceIdentity={activeWorkspaceIdentity}
+                  />
+                ) : null}
+              </div>
             </div>
-          </section>
-        </div>
-      </DesktopWindowFrame>
+          </main>
+        </SettingsPageFrame>
+      </SettingsBreadcrumbProvider>
     </SettingsSearchTargetContext.Provider>
   );
 }

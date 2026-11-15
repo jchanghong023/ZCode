@@ -303,7 +303,11 @@ export function CodingPlanStatusPanel({
     usageDetailsVisible &&
     isPurchased &&
     (isStartPlanProvider || hasDisplayableCodingPlanUsageLimits(quotaLimits));
-  const trailingAction = retryVisible ? <Button type="button" size="lg" onClick={onRetry}>{intl.formatMessage({ id: "common.retry" })}</Button> : null;
+  const trailingAction = retryVisible ? (
+    <Button type="button" size="lg" onClick={onRetry}>
+      {intl.formatMessage({ id: "common.retry" })}
+    </Button>
+  ) : null;
   const statusContent = (
     <>
       {isPurchased && statusLabelId === "settings.modelProvider.codingPlan.status.unavailable" ? (

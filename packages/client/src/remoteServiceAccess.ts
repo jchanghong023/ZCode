@@ -1,6 +1,7 @@
 import { IGenUiService } from "@zcode/services";
 import { ProxyChannel, type IChannelClient } from "@zcode/rpc";
 import {
+  IAIReqService,
   IFileService,
   IMediaPreviewService,
   IGitService,
@@ -70,6 +71,7 @@ import {
  * 新增服务只需在此添加一个 getter。
  */
 export class RemoteServiceAccess implements IServiceAccessor {
+  readonly aiReqService: IAIReqService;
   readonly windowProjectDirectory?: WindowProjectDirectoryServices;
   readonly fileService: IFileService;
   readonly mediaPreviewService: IMediaPreviewService;
@@ -144,6 +146,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
       windowProjectDirectory?: boolean;
     } = {},
   ) {
+    this.aiReqService = ProxyChannel.toService<IAIReqService>(
+      channelClient.getChannel(IAIReqService.channelName),
+    );
     // 远端工作区的 project 必须保留 Source 语义；只有显式能力才创建完整窗口目录组。
     if (options.windowProjectDirectory) {
       this.windowProjectDirectory = {

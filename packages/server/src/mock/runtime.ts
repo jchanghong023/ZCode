@@ -68,6 +68,8 @@ export interface MockSession {
   sessionId: string;
   workspaceKey: string;
   workspaceRef: WorkspaceRef;
+  /** 原生草稿创建者不可由订阅或附件请求改写，防止猜测 ID 后认领他人草稿。 */
+  draftCreatorActor?: string;
   logEpoch: string;
   /** topic 帧水位；(fromSeq, toSeq] 记账。 */
   seq: number;
@@ -87,8 +89,8 @@ export interface MockSession {
   autoDrain: boolean;
   /** autoDrain=false 的原因（stopped / manual）；恢复自动续跑时清除。 */
   pauseReason?: "stopped" | "manual" | "error";
-  /** sendQueuedNow 在运行中提升的输入：当前 turn 中断后立即开始。 */
-  pendingStartText: string | null;
+  /** 保留提升项的原命令与附件；仅保存正文会使中断续跑丢失接纳身份。 */
+  pendingStartInput: QueueItem | null;
   /** 运行中的 turn 模拟器；stop 命令通过它中断。 */
   activeTurn: { abort: () => void } | null;
   /** 会话配置（createSession.config 合并 + switchModelConfig 更新）。 */

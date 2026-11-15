@@ -7,6 +7,7 @@ import { useOffPeakTaskStore } from "@/store/offPeakTaskStore.js";
 export function useOffPeakEligibility(
   settings: AppSettings | null | undefined,
   registryRevision: number | undefined,
+  enabled = true,
 ): void {
   const { offPeakTaskService, codingPlanSubscriptionService } = useServices();
   const initialize = useOffPeakTaskStore((state) => state.initialize);
@@ -18,13 +19,15 @@ export function useOffPeakEligibility(
     : undefined;
 
   useEffect(() => {
+    if (!enabled) return;
     void initialize({ offPeakTaskService, codingPlanSubscriptionService });
-  }, [initialize, offPeakTaskService, codingPlanSubscriptionService]);
+  }, [enabled, initialize, offPeakTaskService, codingPlanSubscriptionService]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (freshnessKey === undefined) return;
     // Settings 变化只是失效信号；ProviderSettings View revision 来自 Registry 已完成发布。
     // 即使选择没变，账号稍后就绪也会重查；相同 key 的双入口通知由 Store 去重。
     void refresh(offPeakTaskService, freshnessKey);
-  }, [freshnessKey, offPeakTaskService, refresh]);
+  }, [enabled, freshnessKey, offPeakTaskService, refresh]);
 }

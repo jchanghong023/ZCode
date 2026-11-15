@@ -200,6 +200,8 @@ export interface ZCodeAgentResolveSuggestedPluginReferenceParams extends ZCodeAg
 // ---- 定时任务(automation)管理参数 ----
 
 export interface ZCodeAgentCreateAutomationParams extends ZCodeAgentWorkspaceTarget {
+  /** Stable across explicit retries of the same action; a different payload must be rejected. */
+  operationId?: string;
   projectId?: string | null;
   title: string;
   cronExpr: string;
@@ -228,6 +230,8 @@ export interface ZCodeAgentUpdateAutomationParams extends ZCodeAgentWorkspaceTar
 }
 
 export interface ZCodeAgentAutomationIdParams extends ZCodeAgentWorkspaceTarget {
+  /** Omitted by legacy callers; explicit retries reuse the same ID. */
+  operationId?: string;
   automationId: string;
 }
 

@@ -6,7 +6,8 @@
     "#src/*": "./src/*"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./aireq": "./src/aireq/index.ts"
   },
   "scripts": {
     "lint": "oxlint",

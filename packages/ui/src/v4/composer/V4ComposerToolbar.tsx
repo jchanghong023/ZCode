@@ -334,6 +334,7 @@ export interface V4ComposerToolbarProps {
   modelSelectionView?: ModelSelectionView | null;
   modelSelectionState?: ModelSelectionState;
   modelSelectionReload?: () => void;
+  onOpenModelSettings?: () => void;
   modelSelectionRefresh?: () => Promise<ModelSelectionRefreshResult>;
   sessionId: string | null;
   phase: SessionPhase | null;
@@ -380,6 +381,7 @@ function V4ComposerModelControlsImpl({
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
+  onOpenModelSettings,
   modelSelectionRefresh,
   sessionId,
   provider,
@@ -541,21 +543,18 @@ function V4ComposerModelControlsImpl({
     "bigmodel";
   // 工号只是浏览器操作者；模型账号可用性只读后端 Provider View，不能由工号推导。
   const connectionAuthenticated = Boolean(
-      providerSettingsView?.providers.some(
-        (p) =>
-          p.effectiveConfig.access?.type === "zhipu-account" &&
-          p.effectiveConfig.access.accountType === connectionFamily &&
-          p.enabled &&
-          p.accountState?.unavailableReason !== "not-authenticated" &&
-          (p.effectiveConfig.access.mode === "team-coding-plan" ||
-            p.accountState?.availability === "available"),
-      ),
-    );
-  const authSessionSeq = useZCodeStoreWithDefault((state) => state.authSessionSeq, 0);
-  const teamUsageScope = useMemo(
-    () => ({}),
-    [baseServices, connectionFamily, authSessionSeq],
+    providerSettingsView?.providers.some(
+      (p) =>
+        p.effectiveConfig.access?.type === "zhipu-account" &&
+        p.effectiveConfig.access.accountType === connectionFamily &&
+        p.enabled &&
+        p.accountState?.unavailableReason !== "not-authenticated" &&
+        (p.effectiveConfig.access.mode === "team-coding-plan" ||
+          p.accountState?.availability === "available"),
+    ),
   );
+  const authSessionSeq = useZCodeStoreWithDefault((state) => state.authSessionSeq, 0);
+  const teamUsageScope = useMemo(() => ({}), [baseServices, connectionFamily, authSessionSeq]);
   const contextTeamUsageSourceCacheRef = useRef<{
     scope: object;
     sources: CodingPlanUsageSource[];
@@ -779,9 +778,14 @@ function V4ComposerModelControlsImpl({
 
   // 修复：恢复「管理模型」入口（老版 onManageModels = 打开设置页并定位模型供应商区）。
   const handleOpenModelProviderSettings = useCallback(() => {
+    // 独立业务壳接管模型设置导航，不能同时写入无人消费的旧标签意图。
+    if (onOpenModelSettings) {
+      onOpenModelSettings();
+      return;
+    }
     setPendingSettingsSectionIntent("modelProvider");
     openSettingsTab();
-  }, [openSettingsTab]);
+  }, [onOpenModelSettings, openSettingsTab]);
   const showManageModelsAction = shouldShowManageModelsAction(handleOpenModelProviderSettings);
   const manageModelsLabel = intl.formatMessage({
     id: "chat.toolbar.model.manageModels",

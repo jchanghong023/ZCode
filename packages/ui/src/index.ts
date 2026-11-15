@@ -1,4 +1,3 @@
-export { App } from "./App.js";
 export { AppErrorBoundary, ScopedErrorBoundary } from "./ErrorBoundary.js";
 export type { ScopedErrorBoundaryVariant } from "./ErrorBoundary.js";
 export { Button, buttonVariants } from "./components/ui/button.js";
@@ -7,7 +6,6 @@ export {
   AssistantCodeCommentFeatureProvider,
   useAssistantCodeCommentFeatureEnabled,
 } from "./AssistantCodeCommentFeatureProvider.js";
-export { Root } from "./Root.js";
 export { ConfirmDialogHost } from "./ConfirmDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
@@ -83,7 +81,11 @@ export {
 } from "./lib/userActionTraceCatalog.js";
 export { setReactErrorArmsReporter } from "./lib/reactErrorArmsTelemetry.js";
 export { recordArmsCustomEventForE2E } from "./lib/armsCustomEventObservability.js";
-export { generateMobileDeviceFingerprint, setStreamClientId } from "./lib/streamClientId.js";
+export {
+  generateMobileDeviceFingerprint,
+  getStreamClientId,
+  setStreamClientId,
+} from "./lib/streamClientId.js";
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 export { logger } from "./logger.js";
 

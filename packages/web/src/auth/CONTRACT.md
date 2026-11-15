@@ -1,8 +1,8 @@
 # 浏览器工号入口
 
-唯一 owner 是每个浏览器标签页的 EmployeeEntry controller；工号是自报操作者标识，不验证本人，不是模型凭据、RPC 身份或权限。服务端不维护工号登录态，所有工号使用同源 `/ws` 的同一套项目与会话。工号不进入 clientId、workspaceIdentity、订阅或 v4 帧。
+唯一 owner 是每个浏览器标签页的 EmployeeEntry controller；工号是自报操作者标识，不验证本人，不是认证或模型凭据。连接与普通 AIReq 请求显式携带已校验工号，仅用于模拟操作权限；服务器不维护登录态，各工号共享同源 `/ws` 项目和配置。不能将工号写进 v4 帧。
 
-使用 sessionStorage `zcode:employee-number` 保存当前标签页工号，刷新恢复；空白输入不准入，提交前 trim。存储失败可继续当前页使用，并明确提示本次不能保存。退出/切换先清除该键并撤销入口代次，然后取消本标签页 timer、关闭连接并渲染输入页（卸载当前 Root）；不删除服务器数据、浏览器偏好或模型/工具凭据。UI 的 user 仅为 owner 的只读展示投影，不参与数据分区，不写回 owner。
+使用 sessionStorage `zcode:employee-number` 保存当前标签页工号。恢复缓存和提交输入都先 trim，再严格匹配 `^[a-z][0-9]{8}$`，不转小写、不转数字，保留前导零；非法缓存清除，非法输入原位提示。存储失败可继续当前页使用，并明确提示刷新不能恢复。退出/切换清除该键、撤销入口代次、关闭当前连接并回到输入页；不删除服务器数据、浏览器外观或模型/工具凭据。UI user 只是当前工号的展示投影，不另建业务数据分区。
 
 进入后的工号展示与退出／切换复用既有侧栏账户入口；入口组件不渲染顶部操作者栏，
 不改变主界面的全高布局。连接、保存恢复和共享数据语义不受展示位置影响。
@@ -11,12 +11,12 @@
 stateDiagram-v2
     [*] --> Restore
     Restore --> Entry: 无已存工号
-    Restore --> Active: 恢复非空工号
+    Restore --> Active: 恢复格式合法工号
     Entry --> Active: 提交工号 / 保存 / 连接
     Active --> Entry: 退出或切换 / 清保存 / 卸载 / 关闭
 ```
 
-连接生命周期唯一 owner 为 main.tsx 的 bootstrap 实例。每次只允许一个连接过程和一个重试 timer。失败先清 connecting，再安排有限退避；旧 attempt 的迟到 close 不得影响新连接。连接断开立即撤销当前 socket 并渲染断线页（卸载旧 Root/订阅），恢复使用新 accessor 和新 Root。七档退避耗尽后显式手动恢复，online 仅是额外恢复入口；首次失败仍提供手动恢复。退出后所有回调失效。
+连接生命周期唯一 owner 为 main.tsx bootstrap。EmployeeEntry 保留 createEmployeeEntry/EmployeeEntry API，复用当前 ThemeHeroVisual（显式主题，无伪造 store）、Input/Button 和主题 token。标题为“以AI为中心的需求和ISSUE管理平台”，副标题说明需求澄清、方案评审与进度；输入错误、持久化错误、提交 busy 明确展示。连接加载、断线、重试和退出由 main owner 管理；失败不能留在 loading，旧连接结果不得影响新身份。
 
 ```mermaid
 sequenceDiagram

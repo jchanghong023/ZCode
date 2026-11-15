@@ -53,9 +53,15 @@ describe("web Vite config", () => {
     const webRoot = resolve(import.meta.dirname, "..");
     const result = await loadConfigFromFile(
       { command: "serve", mode: "development", isPreview: false, isSsrBuild: false },
-      resolve(webRoot, "vite.config.ts"), webRoot, "silent",
+      resolve(webRoot, "vite.config.ts"),
+      webRoot,
+      "silent",
     );
-    for (const name of ["VITE_ZAI_OAUTH_CLIENT_ID", "VITE_ZAI_OAUTH_ORIGIN", "VITE_BIGMODEL_OAUTH_ORIGIN"]) {
+    for (const name of [
+      "VITE_ZAI_OAUTH_CLIENT_ID",
+      "VITE_ZAI_OAUTH_ORIGIN",
+      "VITE_BIGMODEL_OAUTH_ORIGIN",
+    ]) {
       expect(result?.config.define?.[`import.meta.env.${name}`]).toBeUndefined();
     }
     expect(result?.config.server?.proxy).not.toHaveProperty("/api/v1/oauth");

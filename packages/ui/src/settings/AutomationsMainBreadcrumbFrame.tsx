@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { cn } from "@/components/lib/utils.js";
 import {
   SettingsBreadcrumbProvider,
   SettingsHeaderBreadcrumb,
@@ -12,11 +13,13 @@ import {
 export function AutomationsMainBreadcrumbFrame({
   ariaLabel,
   children,
+  headerClassName,
   isDesktop,
   sectionLabel,
 }: {
   ariaLabel: string;
   children: ReactNode;
+  headerClassName?: string;
   isDesktop: boolean;
   sectionLabel: string;
 }) {
@@ -27,7 +30,7 @@ export function AutomationsMainBreadcrumbFrame({
       <div className="flex min-h-0 flex-1 flex-col">
         {isDesktop ? (
           <div
-            className="h-12 shrink-0 [app-region:drag]"
+            className={cn("h-12 shrink-0 [app-region:drag]", headerClassName)}
             data-testid="automations-main-drag-region"
           >
             <SettingsHeaderBreadcrumb ariaLabel={ariaLabel} items={items} />

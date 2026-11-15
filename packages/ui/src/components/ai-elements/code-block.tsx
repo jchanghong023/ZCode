@@ -41,6 +41,8 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   language: string;
   enableSyntaxHighlighting?: boolean;
   showLineNumbers?: boolean;
+  /** 控制此代码材料的复制动作，默认 true。 */
+  showExportActions?: boolean;
   theme?: BundledTheme;
   /**
    * 应用主题（store 耦合剥离）：仅透传给 Mermaid 渲染分支；
@@ -64,6 +66,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 
 interface CodeBlockContextType {
   code: string;
+  showExportActions: boolean;
   renderingMermaid: boolean;
   mermaidPreviewAvailable: boolean;
   openMermaidPreview: () => void;
@@ -139,6 +142,7 @@ function useDocumentVisibilityRevision(enabled: boolean): number {
 // Context
 const CodeBlockContext = createContext<CodeBlockContextType>({
   code: "",
+  showExportActions: true,
   renderingMermaid: false,
   mermaidPreviewAvailable: false,
   openMermaidPreview: () => {},
@@ -252,6 +256,7 @@ export const CodeBlock = ({
   enableSyntaxHighlighting = true,
   language,
   showLineNumbers = false,
+  showExportActions = true,
   theme,
   appTheme,
   wrapLongLines = false,
@@ -316,6 +321,7 @@ export const CodeBlock = ({
   const contextValue = useMemo(
     () => ({
       code,
+      showExportActions,
       renderingMermaid: shouldRenderMermaid,
       mermaidPreviewAvailable: Boolean(mermaidPreviewSvg),
       openMermaidPreview,
@@ -324,6 +330,7 @@ export const CodeBlock = ({
     }),
     [
       code,
+      showExportActions,
       isWrapped,
       mermaidPreviewSvg,
       openMermaidPreview,
@@ -484,11 +491,12 @@ export const CodeBlockCopyButton = ({
 }: CodeBlockCopyButtonProps) => {
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
-  const { code } = useContext(CodeBlockContext);
+  const { code, showExportActions } = useContext(CodeBlockContext);
   const { intl } = useZCodeIntl();
   const label = title ?? intl.formatMessage({ id: "codeBlock.copyCode" });
 
   const copyToClipboard = useCallback(async () => {
+    if (!showExportActions) return;
     if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
       onError?.(new Error("Clipboard API not available"));
       return;
@@ -504,7 +512,7 @@ export const CodeBlockCopyButton = ({
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [code, onCopy, onError, timeout, isCopied]);
+  }, [code, onCopy, onError, timeout, isCopied, showExportActions]);
 
   useEffect(
     () => () => {
@@ -512,6 +520,8 @@ export const CodeBlockCopyButton = ({
     },
     [],
   );
+
+  if (!showExportActions) return null;
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 

@@ -56,7 +56,6 @@ export {
   resolveEndpointSuggestionOpenRequest,
 } from "./model-provider-section/utils.js";
 
-
 function resolveCodingPlanIntentProviderId(
   target: SettingsModelProviderTarget | undefined,
 ): BuiltinModelProviderId | null {
@@ -96,7 +95,6 @@ function shouldRefreshCodingPlanEntitlementsAfterSave(
     getProviderFormApiKey(nextProvider).trim()
   );
 }
-
 
 function clearPendingProviderFamilyConnectionSelection(
   selections: ProviderFamilyConnectionSelectionSettings,
@@ -328,9 +326,12 @@ export function ModelProviderSection({
   }, [connectionSelections]);
 
   const presetProviders = useMemo(
-    () => PRESET_PROVIDER_SPECS.map((preset) => ({
-      ...preset, provider: modelProviders.find((provider) => provider.providerId === preset.id) ?? null,
-    })), [modelProviders],
+    () =>
+      PRESET_PROVIDER_SPECS.map((preset) => ({
+        ...preset,
+        provider: modelProviders.find((provider) => provider.providerId === preset.id) ?? null,
+      })),
+    [modelProviders],
   );
 
   const effectiveProviderFamilyDomain = sharedSettings?.providerFamilyDomain;
@@ -366,7 +367,6 @@ export function ModelProviderSection({
     refresh: refreshCodingPlanEntitlements,
     selectedPlanKey: selectedPlanAccessKey,
   });
-
 
   const handleSave = useCallback(
     async (config: ProviderSettingsFormProvider) => {
@@ -409,7 +409,6 @@ export function ModelProviderSection({
     },
     [platform],
   );
-
 
   const persistProviderFamilyModeForNavItem = useCallback(
     async (item: (typeof navigationItems)[number]) => {
@@ -460,11 +459,7 @@ export function ModelProviderSection({
         );
       }
     },
-    [
-      connectionSelections,
-      sharedSettings,
-      updateSharedSettings,
-    ],
+    [connectionSelections, sharedSettings, updateSharedSettings],
   );
 
   const handleSelectNavItem = useCallback((item: (typeof navigationItems)[number]) => {
@@ -635,7 +630,6 @@ export function ModelProviderSection({
           }}
           onOpenApiKeyUrl={handleOpenApiKeyUrl}
           onSelectNavItem={handleSelectConnectionItem}
-
         />
       )}
     </ModelProviderSectionLayout>

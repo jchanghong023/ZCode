@@ -35,9 +35,7 @@ export function resolveWorkspaceOpenInEditorTarget(
   // 修复原因：远程文件动作以前只携带 Linux path，renderer 无法判断它属于哪个 SSH/WSL 目标；
   // identity/session 已提供时精确匹配，旧调用仅在工作区匹配唯一时提取既有脱敏目标。
   const matchedTab = matches.length === 1 ? matches[0] : undefined;
-  const hasRemoteMatch = matches.some((tab) =>
-    Boolean(tab.remoteSessionId || tab.remoteTarget),
-  );
+  const hasRemoteMatch = matches.some((tab) => Boolean(tab.remoteSessionId || tab.remoteTarget));
   const remoteTarget = matchedTab?.remoteTarget;
   return {
     isRemoteWorkspace: hasRemoteMatch,

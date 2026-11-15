@@ -72,8 +72,7 @@ export function useResolvedRemoteWorkspaceSessionId(
 
       const matches =
         activeTab.workspacePath === workspacePath &&
-        (!workspaceIdentity ||
-          activeTab.workspaceIdentity?.trim() === workspaceIdentity.trim());
+        (!workspaceIdentity || activeTab.workspaceIdentity?.trim() === workspaceIdentity.trim());
       // 首次新建补全 tab 分类曾让同工作区所有会话行更新；只订阅连接解析真正消费的字段。
       return matches
         ? {

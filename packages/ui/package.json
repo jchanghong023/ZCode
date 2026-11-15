@@ -4,8 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./aireq": "./src/aireq/index.ts",
+    "./theme-hero": "./src/openWorkspacePageThemeHero.tsx",
     "./button": "./src/components/ui/button.tsx",
     "./input": "./src/components/ui/input.tsx",
+    "./label": "./src/components/ui/label.tsx",
+    "./alert": "./src/components/ui/alert.tsx",
     "./dialog": "./src/components/ui/dialog.tsx",
     "./alert-dialog": "./src/components/ui/alert-dialog.tsx",
     "./dropdown-menu": "./src/components/ui/dropdown-menu.tsx",

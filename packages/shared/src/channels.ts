@@ -84,6 +84,8 @@ import type {
 
 /** RPC 服务频道名。与 ServiceDescriptor.channelName 对应。 */
 export const ServiceChannels = {
+  /** AIReq 共享内存业务，经现有二进制 Channel RPC 提供。 */
+  AIReq: "aireq",
   File: "file",
   MediaPreview: "media-preview",
   System: "system",

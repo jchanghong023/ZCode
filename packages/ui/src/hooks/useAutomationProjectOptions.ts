@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { VirtualProject } from "@zcode/services";
+import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { logger } from "@/logger.js";
@@ -29,10 +30,17 @@ export function resolveAutomationProjectOptions(
 }
 
 /** 定义选择 Host 的虚拟项目；空项目在提交时初始化目录，不随打开的 tab 增减。 */
-export function useAutomationProjectOptions(): AutomationProjectOption[] {
+export function useAutomationProjectOptions(): AutomationProjectOption[];
+export function useAutomationProjectOptions(
+  provided: AutomationWorkspaceOption[] | undefined,
+): AutomationWorkspaceOption[];
+export function useAutomationProjectOptions(
+  provided?: AutomationWorkspaceOption[],
+): AutomationWorkspaceOption[] {
   const services = useBaseWorkspaceServices();
   const [projects, setProjects] = useState<VirtualProject[]>([]);
   useEffect(() => {
+    if (provided !== undefined) return;
     let generation = 0;
     const refresh = async () => {
       const request = ++generation;
@@ -54,6 +62,7 @@ export function useAutomationProjectOptions(): AutomationProjectOption[] {
       generation++;
       subscription.dispose();
     };
-  }, [services]);
-  return useMemo(() => resolveAutomationProjectOptions(projects), [projects]);
+  }, [services, provided]);
+  const local = useMemo(() => resolveAutomationProjectOptions(projects), [projects]);
+  return provided ?? local;
 }

@@ -915,6 +915,42 @@ modules:
       - packages/ui/src/components/mobile-ui/contract.ts
     layers: { ui: . }
     owner: ui
+  # aireq-contract：由 architecture:adopt 登记
+  - id: aireq-contract
+    roots:
+      - packages/services/src/aireq
+    managed: true
+    requires: [services, shared, rpc]
+    publicEntrypoints:
+      - packages/services/src/aireq/index.ts
+      - packages/services/src/aireq/contract.ts
+    layers:
+      app: .
+    owner: requirements
+  # aireq-mock：由 architecture:adopt 登记
+  - id: aireq-mock
+    roots:
+      - packages/server/src/aireq
+    managed: true
+    requires: [aireq-contract, services, shared, rpc]
+    publicEntrypoints:
+      - packages/server/src/aireq/contract.ts
+    layers:
+      adapters: .
+    owner: requirements
+  # aireq-ui：由 architecture:adopt 登记
+  - id: aireq-ui
+    roots:
+      - packages/ui/src/aireq
+    managed: true
+    requires: [aireq-contract, services, shared, ui]
+    publicEntrypoints:
+      - packages/ui/src/aireq/index.ts
+      - packages/ui/src/aireq/contract.ts
+    layers:
+      contract: contract.ts
+      ui: .
+    owner: requirements
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
@@ -1151,3 +1187,17 @@ exceptions:
       - packages/ui/src/shortcuts/bindings.ts
       - packages/ui/src/settings/WorkspaceFileSearchSection.tsx
     reason: 仅接纳两个已有文件的浏览器宿主端口清理：快捷键注释移除原生菜单通道描述，工作区搜索设置移除本机文件定位入口；不新增文件、不改变状态 owner，不豁免浏览器安全规则。
+  - id: aireq-native-composer-existing-integration
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/SessionPane.tsx
+      - packages/ui/src/v4/ConversationComposer.tsx
+    reason: AIReq通过现有v4会话和输入草稿所有者集成可选回填及首次发送端口；仅修改两个既有文件，不复制v4、不改变原生协议或新增并行状态，不接管整个ui模块。
+  - id: aireq-automation-existing-integration
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/settings/AutomationsSection.tsx
+      - packages/ui/src/settings/AutomationEditView.tsx
+      - packages/ui/src/hooks/useOffPeakEligibility.ts
+      - packages/ui/src/hooks/useAutomationProjectOptions.ts
+    reason: AIReq自动化复用四个既有表单及查询入口，通过可选参数注入模拟项目范围并保持默认行为；不反向依赖aireq-ui、不新增状态所有者、不接管整个settings或hooks模块。

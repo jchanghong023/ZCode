@@ -393,9 +393,18 @@ export function resolveMarkdownTableVirtualScrollMax({
   return Math.max(0, tableWidth - trackWidth);
 }
 
-export type MarkdownTableProps = ComponentProps<"table"> & MarkdownTableNodeProp;
+export type MarkdownTableProps = ComponentProps<"table"> &
+  MarkdownTableNodeProp & {
+    showExportActions?: boolean;
+  };
 
-export function MarkdownTable({ className, children, node: _node, ...props }: MarkdownTableProps) {
+export function MarkdownTable({
+  className,
+  children,
+  node: _node,
+  showExportActions = true,
+  ...props
+}: MarkdownTableProps) {
   const { intl } = useZCodeIntl();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [expandedScrollEnabled, setExpandedScrollEnabled] = useState(false);
@@ -1073,6 +1082,7 @@ export function MarkdownTable({ className, children, node: _node, ...props }: Ma
   );
 
   const handleCopyMarkdown = useCallback(async () => {
+    if (!showExportActions) return;
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
       toast(
         intl.formatMessage({ id: "markdownTable.copyFailed" }, { error: "clipboard-unavailable" }),
@@ -1091,9 +1101,10 @@ export function MarkdownTable({ className, children, node: _node, ...props }: Ma
         ),
       );
     }
-  }, [getRows, intl]);
+  }, [getRows, intl, showExportActions]);
 
   const handleDownloadCsv = useCallback(() => {
+    if (!showExportActions) return;
     if (
       typeof document === "undefined" ||
       typeof Blob === "undefined" ||
@@ -1115,7 +1126,7 @@ export function MarkdownTable({ className, children, node: _node, ...props }: Ma
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [getRows, intl]);
+  }, [getRows, intl, showExportActions]);
   useEffect(() => () => widthMotionRef.current?.dispose(), []);
 
   const handleToggleExpandedScroll = useCallback(() => {
@@ -1168,17 +1179,21 @@ export function MarkdownTable({ className, children, node: _node, ...props }: Ma
   const toolbar = useMemo(
     () => (
       <div className="flex items-center justify-end gap-1" data-markdown-table-toolbar="">
-        <MarkdownTableActionButton
-          label={copyLabel}
-          onClick={() => {
-            void handleCopyMarkdown();
-          }}
-        >
-          <CopyIcon className="size-3.5" />
-        </MarkdownTableActionButton>
-        <MarkdownTableActionButton label={downloadLabel} onClick={handleDownloadCsv}>
-          <DownloadIcon className="size-3.5" />
-        </MarkdownTableActionButton>
+        {showExportActions ? (
+          <>
+            <MarkdownTableActionButton
+              label={copyLabel}
+              onClick={() => {
+                void handleCopyMarkdown();
+              }}
+            >
+              <CopyIcon className="size-3.5" />
+            </MarkdownTableActionButton>
+            <MarkdownTableActionButton label={downloadLabel} onClick={handleDownloadCsv}>
+              <DownloadIcon className="size-3.5" />
+            </MarkdownTableActionButton>
+          </>
+        ) : null}
         <MarkdownTableActionButton label={previewLabel} onClick={() => setPreviewOpen(true)}>
           <Maximize2Icon className="size-3.5" />
         </MarkdownTableActionButton>
@@ -1195,6 +1210,7 @@ export function MarkdownTable({ className, children, node: _node, ...props }: Ma
     ),
     [
       canToggleExpandedScroll,
+      showExportActions,
       copyLabel,
       downloadLabel,
       previewLabel,

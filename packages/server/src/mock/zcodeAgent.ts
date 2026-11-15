@@ -4,6 +4,7 @@
 // 三个 topic 的订阅-帧流协议与命令面。所有帧在发射前经 shared 的 zod schema 校验，
 // 保证与真实执行端同一条协议契约（fail-closed，坏帧宁可抛错也不上线）。
 // 方法签名统一从 IZCodeAgentService 派生（Parameters/ReturnType），避免与契约漂移。
+import { createHash } from "node:crypto";
 import { Emitter, Event, type IDisposable } from "@zcode/rpc";
 import { createUuid, type SessionLifecycleSnapshot, type ZCodeSessionInfo } from "@zcode/shared";
 import {
@@ -42,6 +43,7 @@ import {
 
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
+type MockSubmission = Pick<QueueItem, "modelSelection" | "mode" | "planEnabled">;
 
 interface ConversationSubscription {
   sessionId: string;
@@ -83,7 +85,75 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private sessionGeneration = 1;
   private storageGeneration = 0;
 
-  constructor(private readonly runtime: MockRuntime) {}
+  private readonly boundSessions = new Set<string>();
+  private readonly commandResults = new Map<string, { digest: string; ack: CommandAck }>();
+  private readonly turnAttachments = new Map<
+    string,
+    import("@zcode/shared/zcode-protocol-v4").AttachmentRef[]
+  >();
+  private readonly uploads = new Map<
+    string,
+    {
+      sessionId: string;
+      actor: string;
+      workspaceKey: string;
+      fileName: string;
+      mime: string;
+      totalBytes: number;
+      totalChunks: number;
+      checksum: string;
+      chunks: Buffer[];
+      ref?: string;
+    }
+  >();
+  private readonly attachments = new Map<
+    string,
+    {
+      actor: string;
+      sessionId: string;
+      bytes: Buffer;
+      mime: string;
+      fileName: string;
+      workspaceKey: string;
+    }
+  >();
+  constructor(
+    private readonly runtime: MockRuntime,
+    private readonly business?: {
+      admitNative(sessionId: string, commandId: string, text: string): void;
+      publishNativeAdmission(sessionId: string): void;
+      completeNative(sessionId: string, commandId: string, text: string): string;
+      seedNative(sessionId: string): string | undefined;
+      getNativeBinding(
+        sessionId: string,
+      ): { providerId: string; modelId: string; reasoning: string } | undefined;
+      isPublishedNativeSession(sessionId: string): boolean;
+      actorKey(): string;
+      registerNativeDraft(
+        sessionId: string,
+        workspace: { workspacePath: string; workspaceIdentity?: string },
+        original: () => boolean,
+        exists: () => boolean,
+      ): void;
+      automations?: Partial<IZCodeAgentService>;
+    },
+  ) {
+    for (const name of [
+      "listAutomations",
+      "listAllAutomations",
+      "createAutomation",
+      "updateAutomation",
+      "deleteAutomation",
+      "setAutomationEnabled",
+      "restartAutomation",
+      "runAutomationNow",
+      "listAutomationRuns",
+      "deleteAutomationRun",
+    ] as const) {
+      const method = business?.automations?.[name];
+      if (method) Object.assign(this, { [name]: method });
+    }
+  }
 
   // ── 帧发射 ──
 
@@ -308,7 +378,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private async runTurn(session: MockSession, commandId: string, text: string): Promise<void> {
+  private async runTurn(
+    session: MockSession,
+    commandId: string,
+    text: string,
+    submission: MockSubmission,
+  ): Promise<void> {
+    const modelSelection = submission.modelSelection ?? session.config.modelSelection;
+    const model = modelSelection?.modelId ?? session.config.model;
     const startedAt = Date.now();
     const turnId = `turn_${createUuid()}`;
     const responseId = `resp_${createUuid()}`;
@@ -354,6 +431,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       sourceCommandId: commandId,
       clientId: "mock-client",
       inputOrigin: "desktop",
+      attachments: this.turnAttachments.get(commandId),
+      modelSelection,
+      ...(submission.mode !== undefined ? { mode: submission.mode } : {}),
+      ...(submission.planEnabled !== undefined ? { planEnabled: submission.planEnabled } : {}),
     };
     this.appendRow(session, userInputRow);
     this.publishSessionsIndexUpsert(session);
@@ -362,6 +443,42 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       workspacePath: session.workspaceRef.workspacePath,
       type: "workspace_task_list_changed",
     });
+
+    if (this.business) {
+      await this.sleep(80);
+      if (session.activeTurn === null) return this.finalizeInterruptedTurn(session, turnHeader);
+      try {
+        const reply = this.business.completeNative(session.sessionId, commandId, text);
+        this.appendRow(session, {
+          kind: "assistantText",
+          rowId: this.nextRowId(session),
+          turnId,
+          entityId: `entity_${createUuid()}`,
+          createdAt: Date.now(),
+          createdAtSeq: session.seq,
+          assistantResponseId: responseId,
+          text: reply,
+          state: "complete",
+          model,
+        });
+        this.finalizeTurn(session, turnHeader, startedAt, reply);
+      } catch (error) {
+        this.appendRow(session, {
+          kind: "assistantText",
+          rowId: this.nextRowId(session),
+          turnId,
+          entityId: `entity_${createUuid()}`,
+          createdAt: Date.now(),
+          createdAtSeq: session.seq,
+          assistantResponseId: responseId,
+          text: `业务产物未完成：${error instanceof Error ? error.message : String(error)}。消息已保留，请重新读取当前材料；不会假报成功。`,
+          state: "complete",
+          model,
+        });
+        this.finalizeInterruptedTurn(session, turnHeader);
+      }
+      return;
+    }
 
     // 工具调用演示：读取虚拟工作区文件，驱动工具卡渲染。
     const toolCallRow: WireConversationRow = {
@@ -416,7 +533,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       assistantResponseId: responseId,
       text: "",
       state: "streaming",
-      model: "GLM-5.3-Flash",
+      model,
     };
     this.appendRow(session, streamingRow);
 
@@ -559,14 +676,27 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     sessionId: string;
     workspace?: { workspacePath: string; workspaceIdentity?: string };
   }): MockSession {
-    const session = this.runtime.sessions.get(params.sessionId);
-    if (!session) {
-      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
-    }
-    if (params.workspace && session.workspaceKey !== workspaceKeyOf(params.workspace)) {
+    let session = this.runtime.sessions.get(params.sessionId);
+    if (!session && params.workspace && this.business?.getNativeBinding(params.sessionId))
+      session = this.ensureOrSeedDraftSession(
+        { ...params.workspace, sessionId: params.sessionId },
+        workspaceKeyOf(params.workspace),
+      );
+    if (!session) throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+    if (
+      params.workspace &&
+      (session.workspaceKey !== workspaceKeyOf(params.workspace) ||
+        session.workspaceRef.workspacePath !== params.workspace.workspacePath)
+    ) {
       // 会话按工作区隔离：不属于调用方工作区的会话对外等价于不存在。
       throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
     }
+    if (
+      session.draftCreatorActor &&
+      session.draftCreatorActor !== this.business?.actorKey() &&
+      !this.business?.isPublishedNativeSession(session.sessionId)
+    )
+      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
     return session;
   }
 
@@ -611,14 +741,19 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     text: string,
   ): QueueItem {
     const queueItemId = `input_${createUuid()}`;
+    const submission = envelope.payload as MockSubmission;
     return assertFrame(queueItemSchema, {
       inputOrigin: "desktop",
+      // 附件归已接纳输入所有，不属于编辑锁，也不能被空数组覆盖。
+      attachments: this.turnAttachments.get(envelope.commandId) ?? [],
       sourceCommandId: envelope.commandId,
       queueItemId,
       clientId: envelope.clientId,
       kind: "sendText",
       text,
-      attachments: [],
+      ...(submission.modelSelection ? { modelSelection: submission.modelSelection } : {}),
+      ...(submission.mode !== undefined ? { mode: submission.mode } : {}),
+      ...(submission.planEnabled !== undefined ? { planEnabled: submission.planEnabled } : {}),
       delivery: { requested: "queue", admitted: "queue" },
       order: {
         admissionSeq: session.nextAdmissionSeq++,
@@ -648,42 +783,66 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     });
   }
 
-  private startTurn(session: MockSession, commandId: string, text: string): void {
+  private startTurn(
+    session: MockSession,
+    commandId: string,
+    text: string,
+    attachments?: QueueItem["attachments"],
+    submission: MockSubmission = {},
+  ): void {
+    // 队列编辑后的附件以队列项为准，沿用原命令身份进入同一 turn 管线。
+    if (attachments !== undefined) this.turnAttachments.set(commandId, attachments);
     session.activeTurn = {
       abort: () => {
         session.activeTurn = null;
       },
     };
-    void this.runTurn(session, commandId, text);
+    void this.runTurn(session, commandId, text, submission);
   }
 
   /** turn 结束后处理 sendQueuedNow 提升项或 autoDrain 队列；运行中不并发开新 turn。 */
   private maybeStartNextInput(session: MockSession): void {
     // 删除后旧 turn 可能才结束，不能让它复活索引或继续启动排队输入。
     if (!this.runtime.sessions.has(session.sessionId) || session.activeTurn !== null) return;
-    if (session.pendingStartText !== null) {
-      const text = session.pendingStartText;
-      session.pendingStartText = null;
-      this.startTurn(session, `input_${createUuid()}`, text);
+    if (session.pendingStartInput !== null) {
+      const input = session.pendingStartInput;
+      session.pendingStartInput = null;
+      this.startTurn(session, input.sourceCommandId, input.text, input.attachments, input);
       return;
     }
     if (!session.autoDrain) return;
     const next = session.queuedInputs.shift();
     if (!next) return;
     this.patchQueue(session);
-    this.startTurn(session, next.sourceCommandId, next.text);
+    this.startTurn(session, next.sourceCommandId, next.text, next.attachments, next);
   }
 
   private createSessionInternal(envelope: CommandEnvelope): CommandAck {
     const payload = envelope.payload as {
       sessionId?: string;
-      firstInput?: { text: string };
+      firstInput?: {
+        text: string;
+        attachments?: import("@zcode/shared/zcode-protocol-v4").AttachmentRef[];
+        modelSelection?: import("@zcode/shared").ModelSelection;
+      };
       config?: Record<string, unknown>;
     };
-    const sessionRef = workspaceRefOf(
-      envelope.workspace ?? { workspacePath: this.runtime.workspacePath },
-    );
+    if (!envelope.workspace) throw new Error("创建会话缺少请求工作区。");
+    const sessionRef = workspaceRefOf(envelope.workspace);
     const sessionId = payload.sessionId ?? this.runtime.newSessionId();
+    const existing = this.runtime.sessions.get(sessionId);
+    // 刷新/重复准备不能用新 createSession 覆盖已接纳 rows；首发重放由 commandId 收据对账。
+    if (existing) {
+      if (
+        existing.workspaceKey !== workspaceKeyOf(sessionRef) ||
+        existing.workspaceRef.workspacePath !== sessionRef.workspacePath ||
+        (existing.draftCreatorActor && existing.draftCreatorActor !== this.business?.actorKey())
+      )
+        throw new Error("fault.command.sessionNotFound");
+      if (payload.firstInput)
+        throw new Error("此会话已存在，请通过原消息编号查询接纳结果或使用 sendText。");
+      return this.ackAccepted(envelope, { type: "createSession", sessionId });
+    }
     const now = Date.now();
     const session: MockSession = {
       sessionId,
@@ -694,6 +853,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           ? { workspaceIdentity: sessionRef.workspaceIdentity }
           : {}),
       },
+      ...(this.business ? { draftCreatorActor: this.business.actorKey() } : {}),
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -711,7 +871,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       queuedInputs: [],
       nextAdmissionSeq: 1,
       autoDrain: true,
-      pendingStartText: null,
+      pendingStartInput: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -731,26 +891,42 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       Object.assign(session.config, payload.config);
     }
     this.runtime.sessions.set(sessionId, session);
-    this.runtime.tasks.set(sessionId, {
+    this.business?.registerNativeDraft(
       sessionId,
-      workspacePath: sessionRef.workspacePath,
-      ...(sessionRef.workspaceIdentity ? { workspaceIdentity: sessionRef.workspaceIdentity } : {}),
-      title: "",
-      titleSource: "default",
-      pinned: false,
-      archived: false,
-      unread: false,
-      createdAt: now,
-      lastActivityAt: now,
-    });
-    this.publishSessionsIndexUpsert(session);
-    this.runtime.onWorkspaceTaskListChanged.fire({
-      workspacePath: sessionRef.workspacePath,
-      type: "workspace_task_list_changed",
-    });
+      session.workspaceRef,
+      () =>
+        this.runtime.sessions.get(sessionId) === session &&
+        session.phase === "draft" &&
+        session.rows.length === 0 &&
+        session.queuedInputs.length === 0 &&
+        session.activeTurn === null,
+      () => this.runtime.sessions.get(sessionId) === session,
+    );
+    // AIReq 私有预热不进入普通任务产品；显式业务首发负责发布提案。
+    if (!this.business) {
+      this.runtime.tasks.set(sessionId, {
+        sessionId,
+        workspacePath: sessionRef.workspacePath,
+        ...(sessionRef.workspaceIdentity
+          ? { workspaceIdentity: sessionRef.workspaceIdentity }
+          : {}),
+        title: "",
+        titleSource: "default",
+        pinned: false,
+        archived: false,
+        unread: false,
+        createdAt: now,
+        lastActivityAt: now,
+      });
+      this.publishSessionsIndexUpsert(session);
+      this.runtime.onWorkspaceTaskListChanged.fire({
+        workspacePath: sessionRef.workspacePath,
+        type: "workspace_task_list_changed",
+      });
+    }
 
-    if (payload.firstInput?.text) {
-      void this.runTurn(session, envelope.commandId, payload.firstInput.text);
+    if (payload.firstInput) {
+      this.sendTextInternal(session, { ...envelope, sessionId, payload: payload.firstInput });
       return this.ackAccepted(envelope, {
         type: "createSession",
         sessionId,
@@ -760,20 +936,68 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return this.ackAccepted(envelope, { type: "createSession", sessionId });
   }
 
+  private validateInputAttachments(
+    session: MockSession,
+    attachments: QueueItem["attachments"],
+  ): void {
+    const actor = this.business?.actorKey() ?? "mock";
+    if (attachments.length > 8) throw new Error("最多接纳八个附件。");
+    for (const attachment of attachments) {
+      const value = this.attachments.get(attachment.ref);
+      if (
+        !value ||
+        value.actor !== actor ||
+        value.sessionId !== session.sessionId ||
+        value.workspaceKey !== session.workspaceKey ||
+        attachment.bytes !== value.bytes.length ||
+        attachment.mime !== value.mime ||
+        attachment.fileName !== value.fileName
+      )
+        throw new Error("附件不属于当前原生输入范围或元数据不符。");
+    }
+  }
+
   private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
-    const payload = envelope.payload as { text: string };
+    const payload = envelope.payload as MockSubmission & {
+      text: string;
+      attachments?: import("@zcode/shared/zcode-protocol-v4").AttachmentRef[];
+    };
+    // 先校验真实字节及归属，再执行业务接纳；失败不能留下已采用的输入。
+    this.validateInputAttachments(session, payload.attachments ?? []);
+    this.business?.admitNative(session.sessionId, envelope.commandId, payload.text);
+    this.turnAttachments.set(envelope.commandId, payload.attachments ?? []);
+    if (session.rows.length === 0) {
+      const binding = this.business?.getNativeBinding(session.sessionId);
+      if (binding) {
+        session.config = {
+          ...session.config,
+          provider: binding.providerId,
+          model: binding.modelId,
+          thought: binding.reasoning,
+          thoughtLevels: ["default", "low", "medium", "high"],
+          modelSelection: {
+            providerId: binding.providerId,
+            modelId: binding.modelId,
+            options: { reasoningLevel: binding.reasoning },
+          },
+        };
+        this.boundSessions.add(session.sessionId);
+      }
+    }
     if (session.activeTurn !== null) {
       // 运行中发送真实进入队列：ACK 的 delivery=queue 与 snapshot.queue.items 一致。
       const item = this.createQueueItem(session, envelope, payload.text);
       session.queuedInputs.push(item);
       this.patchQueue(session);
+      this.business?.publishNativeAdmission(session.sessionId);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
         delivery: "queue",
         inputId: item.queueItemId,
       });
     }
-    this.startTurn(session, envelope.commandId, payload.text);
+    this.startTurn(session, envelope.commandId, payload.text, undefined, payload);
+    this.business?.publishNativeAdmission(session.sessionId);
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",
@@ -825,11 +1049,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         session.queuedInputs.splice(index, 1);
         if (session.activeTurn !== null) {
           // 立即发送 = 中断当前 turn；队列项在中断收口后开始，不并发写会话状态。
-          session.pendingStartText = item.text;
+          session.pendingStartInput = item;
           session.activeTurn.abort();
           session.activeTurn = null;
         } else {
-          this.startTurn(session, item.sourceCommandId, item.text);
+          this.startTurn(session, item.sourceCommandId, item.text, item.attachments, item);
         }
         this.patchQueue(session);
         return this.ackAccepted(envelope);
@@ -874,6 +1098,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         if (payload.editorId && item.editLock?.editorId !== payload.editorId) {
           return this.ackNoop(envelope, session, "guard.queueEditLockLost");
         }
+        if (payload.attachments !== undefined)
+          this.validateInputAttachments(session, payload.attachments);
         const updated = assertFrame(queueItemSchema, {
           ...item,
           text: payload.newText,
@@ -1022,6 +1248,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         return this.ackAccepted(envelope);
       }
       case "switchModelConfig": {
+        if (this.business?.getNativeBinding(session.sessionId))
+          throw new Error("此 Agent 会话保留创建时模型和思考强度，请修改平台配置后用于新会话。");
         const payload = envelope.payload as { provider: string; model: string; thought: string };
         session.revision += 1;
         session.config = {
@@ -1135,6 +1363,36 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
     const workspaceKey = workspaceKeyOf(params);
     const session = this.ensureOrSeedDraftSession(params, workspaceKey);
+    const binding = this.business?.getNativeBinding(session.sessionId);
+    if (binding && !this.boundSessions.has(session.sessionId)) {
+      this.boundSessions.add(session.sessionId);
+      session.config = {
+        ...session.config,
+        provider: binding.providerId,
+        model: binding.modelId,
+        thought: binding.reasoning,
+        thoughtLevels: ["default", "low", "medium", "high"],
+        modelSelection: {
+          providerId: binding.providerId,
+          modelId: binding.modelId,
+          options: { reasoningLevel: binding.reasoning },
+        },
+      };
+    }
+    const seed =
+      session.rows.length === 0 ? this.business?.seedNative(session.sessionId) : undefined;
+    if (seed)
+      this.appendRow(session, {
+        kind: "assistantText",
+        rowId: this.nextRowId(session),
+        turnId: `seed-${session.sessionId}`,
+        entityId: `entity_${createUuid()}`,
+        createdAt: Date.now(),
+        createdAtSeq: session.seq,
+        text: seed,
+        state: "complete",
+        model: session.config.model,
+      });
     const subscriptionId = `sub-${createUuid()}`;
     this.conversationSubs.set(subscriptionId, { sessionId: session.sessionId, ordinal: 0 });
     const snapshot = buildConversationSnapshot(session);
@@ -1149,12 +1407,20 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   ): MockSession {
     const existing = this.runtime.sessions.get(params.sessionId);
     if (existing) {
-      if (existing.workspaceKey !== workspaceKey) {
+      if (
+        existing.workspaceKey !== workspaceKey ||
+        existing.workspaceRef.workspacePath !== params.workspacePath ||
+        (existing.draftCreatorActor &&
+          existing.draftCreatorActor !== this.business?.actorKey() &&
+          !this.business?.isPublishedNativeSession(existing.sessionId))
+      ) {
         // 会话 id 属于另一个工作区时等价于不存在，避免跨工作区读取会话状态。
         throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
       }
       return existing;
     }
+    if (this.business && !this.business.getNativeBinding(params.sessionId))
+      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
     const now = Date.now();
     const session: MockSession = {
       sessionId: params.sessionId,
@@ -1177,7 +1443,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       queuedInputs: [],
       nextAdmissionSeq: 1,
       autoDrain: true,
-      pendingStartText: null,
+      pendingStartInput: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -1221,7 +1487,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async conversationRowsRangeV4(params: P<IZCodeAgentService["conversationRowsRangeV4"]>) {
-    const session = this.runtime.sessions.get(params.sessionId);
+    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     const rows = session?.rows ?? [];
     const beforeRowId = params.beforeRowId ?? Number.MAX_SAFE_INTEGER;
     const eligible = rows.filter((row) => row.rowId < beforeRowId);
@@ -1236,7 +1502,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async conversationPlansV4(params: P<IZCodeAgentService["conversationPlansV4"]>) {
-    const session = this.runtime.sessions.get(params.sessionId);
+    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     return {
       plans: (session?.rows ?? []).filter(
         (row): row is Extract<WireConversationRow, { kind: "toolCall" }> =>
@@ -1267,14 +1533,52 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         revisionAtDecision: 0,
       };
     }
-    return this.handleEnvelope(parsed.envelope);
+    // 缓存接纳结果同样按当前请求工作区隔离，不能绕过归属检查。
+    const requestWorkspace = workspaceRefOf(params);
+    if (
+      parsed.envelope.workspace &&
+      (workspaceKeyOf(parsed.envelope.workspace) !== workspaceKeyOf(requestWorkspace) ||
+        parsed.envelope.workspace.workspacePath !== requestWorkspace.workspacePath)
+    )
+      throw new Error("命令工作区与当前请求不一致。");
+    const key = `${this.business?.actorKey() ?? "mock"}:${parsed.envelope.sessionId ?? "draft"}:${parsed.envelope.commandId}`;
+    const digest = JSON.stringify([requestWorkspace, parsed.envelope]);
+    const prior = this.commandResults.get(key);
+    if (prior) {
+      if (prior.digest !== digest) throw new Error("原生消息编号不能用于不同输入。");
+      return prior.ack;
+    }
+    const ack = this.handleEnvelope({
+      ...parsed.envelope,
+      workspace: { ...requestWorkspace, workspaceKey: workspaceKeyOf(requestWorkspace) },
+    });
+    if (ack.status !== "rejected") this.commandResults.set(key, { digest, ack });
+    return ack;
   }
 
   async queryConversationCommandsV4(
     params: P<IZCodeAgentService["queryConversationCommandsV4"]>,
   ): Promise<CommandsQueryResult> {
     return {
-      results: params.commands.map((key) => ({ key, result: "unknown" as const })),
+      results: params.commands.map((key) => {
+        const result =
+          this.commandResults.get(
+            `${this.business?.actorKey() ?? "mock"}:${key.sessionId ?? "draft"}:${key.commandId}`,
+          )?.ack ?? ("unknown" as const);
+        const session = key.sessionId
+          ? this.ensureSession({ sessionId: key.sessionId, workspace: params })
+          : undefined;
+        const header = session?.rows.find(
+          (row) => row.kind === "turnHeader" && row.sourceCommandId === key.commandId,
+        );
+        return {
+          key,
+          result,
+          ...(header?.kind === "turnHeader"
+            ? { turn: { turnId: header.turnId, state: header.state } }
+            : {}),
+        };
+      }),
       ...(params.clock ? { clock: { clockOffsetMs: 0, sampledAt: Date.now() } } : {}),
     } as unknown as CommandsQueryResult;
   }
@@ -1449,44 +1753,228 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   // ── 附件 ──
 
-  async attachmentBeginV4(_params: P<IZCodeAgentService["attachmentBeginV4"]>) {
-    return {
-      uploadId: _params.uploadId,
-      state: "committed" as const,
-      nextChunkIndex: 0,
-      ref: `att_${createUuid()}`,
-      totalBytes: _params.totalBytes,
-    } as unknown as AR<IZCodeAgentService["attachmentBeginV4"]>;
+  async attachmentBeginV4(params: P<IZCodeAgentService["attachmentBeginV4"]>) {
+    const actor = this.business?.actorKey() ?? "mock";
+    // 未知会话不能取得上传归属；合法业务 provisional 仍走现有会话 owner。
+    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
+    if (
+      typeof params.uploadId !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(params.uploadId) ||
+      !params.fileName ||
+      params.fileName.length > 255 ||
+      params.fileName.includes("\0") ||
+      params.fileName.includes("\r") ||
+      params.fileName.includes("\n") ||
+      !/^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/.test(params.mime) ||
+      !Number.isSafeInteger(params.totalBytes) ||
+      params.totalBytes < 0 ||
+      params.totalBytes > 20 * 1024 * 1024 ||
+      !Number.isSafeInteger(params.totalChunks) ||
+      params.totalChunks < 0 ||
+      params.totalChunks > 4096 ||
+      (params.totalBytes === 0) !== (params.totalChunks === 0) ||
+      !/^sha256:[a-f0-9]{64}$/.test(params.checksum)
+    )
+      throw new Error("附件元数据无效。");
+    const key = `${actor}:${params.uploadId}`;
+    const existing = this.uploads.get(key);
+    if (
+      existing &&
+      (existing.sessionId !== params.sessionId ||
+        existing.workspaceKey !== session.workspaceKey ||
+        existing.checksum !== params.checksum ||
+        existing.fileName !== params.fileName ||
+        existing.totalBytes !== params.totalBytes ||
+        existing.totalChunks !== params.totalChunks ||
+        existing.mime !== params.mime)
+    )
+      throw new Error("上传编号已用于其他文件。");
+    const upload = existing ?? {
+      actor,
+      workspaceKey: session.workspaceKey,
+      sessionId: params.sessionId,
+      fileName: params.fileName,
+      mime: params.mime,
+      totalBytes: params.totalBytes,
+      totalChunks: params.totalChunks,
+      checksum: params.checksum,
+      chunks: [],
+    };
+    this.uploads.set(key, upload);
+    return upload.ref
+      ? {
+          uploadId: params.uploadId,
+          state: "committed" as const,
+          nextChunkIndex: upload.chunks.length,
+          ref: upload.ref,
+        }
+      : {
+          uploadId: params.uploadId,
+          state: "staging" as const,
+          nextChunkIndex: upload.chunks.length,
+        };
   }
-
-  async attachmentChunkV4(_params: P<IZCodeAgentService["attachmentChunkV4"]>) {
-    return { uploadId: _params.uploadId, nextChunkIndex: _params.chunkIndex + 1 };
+  private attachmentUpload(params: { uploadId: string; sessionId: string }) {
+    const actor = this.business?.actorKey() ?? "mock";
+    this.ensureSession({ sessionId: params.sessionId });
+    const upload = this.uploads.get(`${actor}:${params.uploadId}`);
+    if (!upload || upload.sessionId !== params.sessionId)
+      throw new Error("附件上传不存在或归属不符。");
+    return upload;
   }
-
-  async attachmentCommitV4(_params: P<IZCodeAgentService["attachmentCommitV4"]>) {
-    return { ref: `att_${createUuid()}` };
+  async attachmentChunkV4(params: P<IZCodeAgentService["attachmentChunkV4"]>) {
+    const upload = this.attachmentUpload(params);
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(params.dataBase64))
+      throw new Error("附件块不是有效 base64。");
+    const chunk = Buffer.from(params.dataBase64, "base64");
+    if (
+      chunk.length > 512 * 1024 ||
+      !Number.isSafeInteger(params.chunkIndex) ||
+      params.chunkIndex < 0 ||
+      params.chunkIndex >= upload.totalChunks
+    )
+      throw new Error("附件块无效或过大。");
+    if (params.chunkIndex < upload.chunks.length) {
+      if (!upload.chunks[params.chunkIndex]!.equals(chunk)) throw new Error("已接纳块不能改写。");
+    } else {
+      if (
+        params.chunkIndex !== upload.chunks.length ||
+        upload.ref ||
+        upload.chunks.reduce((total, item) => total + item.length, 0) + chunk.length >
+          upload.totalBytes
+      )
+        throw new Error("附件块顺序或大小不符。");
+      upload.chunks.push(chunk);
+    }
+    return { uploadId: params.uploadId, nextChunkIndex: upload.chunks.length };
   }
-
-  async attachmentAbortV4(_params: P<IZCodeAgentService["attachmentAbortV4"]>): Promise<void> {}
-
-  async attachmentPreviewSourceV4(_params: P<IZCodeAgentService["attachmentPreviewSourceV4"]>) {
+  async attachmentCommitV4(params: P<IZCodeAgentService["attachmentCommitV4"]>) {
+    const upload = this.attachmentUpload(params);
+    if (upload.ref) return { ref: upload.ref };
+    if (upload.chunks.length !== upload.totalChunks) throw new Error("附件块尚未上传完整。");
+    const bytes = Buffer.concat(upload.chunks);
+    if (
+      bytes.length !== upload.totalBytes ||
+      `sha256:${createHash("sha256").update(bytes).digest("hex")}` !== upload.checksum
+    )
+      throw new Error("附件大小或 SHA-256 校验失败。");
+    const ref = `att_${createUuid()}`;
+    this.attachments.set(ref, {
+      actor: upload.actor,
+      sessionId: upload.sessionId,
+      workspaceKey: upload.workspaceKey,
+      bytes,
+      mime: upload.mime,
+      fileName: upload.fileName,
+    });
+    upload.ref = ref;
+    return { ref };
+  }
+  async attachmentAbortV4(params: P<IZCodeAgentService["attachmentAbortV4"]>): Promise<void> {
+    const actor = this.business?.actorKey() ?? "mock";
+    const value = this.uploads.get(`${actor}:${params.uploadId}`);
+    if (value && value.sessionId !== params.sessionId) throw new Error("上传归属不符。");
+    if (
+      value?.ref &&
+      ![...this.runtime.sessions.values()].some(
+        (session) =>
+          // ACK 后草稿 abort 只能移除暂存句柄，队列／提升项仍持有真实字节。
+          session.queuedInputs.some((item) =>
+            item.attachments.some((attachment) => attachment.ref === value.ref),
+          ) ||
+          session.pendingStartInput?.attachments.some(
+            (attachment) => attachment.ref === value.ref,
+          ) ||
+          session.rows.some(
+            (row) =>
+              row.kind === "userInput" &&
+              row.attachments?.some((attachment) => attachment.ref === value.ref),
+          ),
+      )
+    )
+      this.attachments.delete(value.ref);
+    this.uploads.delete(`${actor}:${params.uploadId}`);
+  }
+  async attachmentPreviewSourceV4(params: P<IZCodeAgentService["attachmentPreviewSourceV4"]>) {
+    this.attachmentFor(params);
     return { kind: "chunked" as const };
   }
-
-  async attachmentReadV4(_params: P<IZCodeAgentService["attachmentReadV4"]>) {
-    return { dataBase64: "", mediaType: "text/plain", totalBytes: 0, nextOffset: null };
+  private attachmentFor(params: {
+    sessionId: string;
+    ref: string;
+    target?: { rowId: number; entityId: string };
+    attachmentIndex?: number;
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }) {
+    const value = this.attachments.get(params.ref);
+    if (!value) throw new Error("附件不存在。");
+    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
+    const own = value.actor === (this.business?.actorKey() ?? "mock");
+    if (value.sessionId !== session.sessionId || value.workspaceKey !== session.workspaceKey)
+      throw new Error("附件不属于当前会话投影。");
+    const adopted = session.rows.some(
+      (row) =>
+        row.kind === "userInput" &&
+        (!params.target ||
+          (row.rowId === params.target.rowId && row.entityId === params.target.entityId)) &&
+        (params.attachmentIndex === undefined
+          ? row.attachments?.some((item) => item.ref === params.ref)
+          : row.attachments?.[params.attachmentIndex]?.ref === params.ref),
+    );
+    // 旧校验把上传 actor 当成永久读者；跨 actor 只共享已发布会话中真实采用的行附件。
+    if (!own) {
+      if (!adopted || !this.business?.isPublishedNativeSession(session.sessionId))
+        throw new Error("附件不属于当前会话投影。");
+      return value;
+    }
+    // 已接纳但尚未生成行的输入同样拥有附件；不能依赖已释放的上传暂存。
+    const queued =
+      !params.target &&
+      (session.queuedInputs.some((item) =>
+        item.attachments.some((attachment) => attachment.ref === params.ref),
+      ) ||
+        session.pendingStartInput?.attachments.some((attachment) => attachment.ref === params.ref));
+    const draft =
+      !params.target &&
+      [...this.uploads.values()].some(
+        (upload) =>
+          upload.sessionId === params.sessionId &&
+          upload.ref === params.ref &&
+          upload.actor === (this.business?.actorKey() ?? "mock"),
+      );
+    if (!adopted && !queued && !draft) throw new Error("附件不属于当前会话投影。");
+    return value;
   }
-
+  async attachmentReadV4(params: P<IZCodeAgentService["attachmentReadV4"]>) {
+    const value = this.attachmentFor(params);
+    if (
+      !Number.isSafeInteger(params.offset) ||
+      params.offset < 0 ||
+      !Number.isSafeInteger(params.limit) ||
+      params.limit < 1 ||
+      params.limit > 512 * 1024
+    )
+      throw new Error("附件读取范围无效。");
+    const bytes = value.bytes.subarray(params.offset, params.offset + params.limit);
+    const next = params.offset + bytes.length;
+    return {
+      dataBase64: bytes.toString("base64"),
+      mediaType: value.mime,
+      totalBytes: value.bytes.length,
+      nextOffset: next < value.bytes.length ? next : null,
+    };
+  }
   async conversationAttachmentReadV4(
-    _params: P<IZCodeAgentService["conversationAttachmentReadV4"]>,
+    params: P<IZCodeAgentService["conversationAttachmentReadV4"]>,
   ) {
-    return { dataBase64: "", mediaType: "text/plain", totalBytes: 0, nextOffset: null };
+    return this.attachmentReadV4(params);
   }
-
   async conversationAttachmentStatV4(
-    _params: P<IZCodeAgentService["conversationAttachmentStatV4"]>,
+    params: P<IZCodeAgentService["conversationAttachmentStatV4"]>,
   ) {
-    return { mediaType: "text/plain", totalBytes: 0 };
+    const value = this.attachmentFor(params);
+    return { mediaType: value.mime, totalBytes: value.bytes.length };
   }
 
   // ── 旧会话面（mock 返回内存态或最小合法结果） ──

@@ -1,0 +1,205 @@
+import { useState } from "react";
+import { MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
+import type { AIReqRequirementGroup } from "../contract.js";
+import { useAIReq } from "../AIReqContext.js";
+import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
+import { AIReqAgentModelSummary } from "./AIReqAgentModelSummary.js";
+import { AIReqDeleteRequirement } from "./AIReqDeleteRequirement.js";
+
+const operationLabels: Record<string, string> = {
+  createProposal: "创建提案",
+  generateRequirements: "整理需求",
+  supplementRequirements: "补充需求",
+  runRequirementsReview: "需求评审",
+  acceptProposal: "接手技术方案",
+  generateProposalSolution: "方案 Agent 更新材料",
+  returnProposal: "退回业务补充",
+  confirmProposal: "确认需求与方案",
+  publishProposal: "提交并推送",
+};
+/** 查看历史只读取已记录事实，不恢复退役的开发、修订或争议写入口。 */
+export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }) {
+  const aireq = useAIReq()!;
+  const [panel, setPanel] = useState<"info" | "history">();
+  const operations = aireq.view?.operations.filter((item) => item.irId === group.id) ?? [];
+  if (
+    aireq.selection.projectId !== group.projectId ||
+    aireq.selection.irId !== group.id ||
+    aireq.selection.srId
+  )
+    return null;
+  return (
+    <>
+      <AIReqDeleteRequirement
+        group={group}
+        renderTrigger={(openDelete, prohibition) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="shrink-0" aria-label="更多提案选项">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" data-testid="proposal-more-menu">
+              <DropdownMenuItem onSelect={() => setPanel("info")}>提案信息</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setPanel("history")}>操作记录</DropdownMenuItem>
+              {openDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={!!prohibition}
+                    title={prohibition}
+                    onSelect={openDelete}
+                  >
+                    <span className="min-w-0">
+                      删除提案
+                      {prohibition && (
+                        <span className="block max-w-64 whitespace-normal break-words text-ui-sm text-foreground-subtle">
+                          {prohibition}
+                        </span>
+                      )}
+                    </span>
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      />
+      <Dialog
+        open={!!panel}
+        onOpenChange={(open) => {
+          if (!open) setPanel(undefined);
+        }}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{panel === "info" ? "提案信息" : "操作记录"}</DialogTitle>
+            <DialogDescription>
+              {group.id} · {group.title} · 只读，不改变阶段或发送消息。
+            </DialogDescription>
+          </DialogHeader>
+          {panel === "info" ? (
+            <div className="space-y-4 text-ui-sm">
+              <dl className="space-y-3">
+                <div>
+                  <dt className="text-foreground-subtle">提出人</dt>
+                  <dd>{group.proposalLocation?.employeeId ?? "未记录"}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-subtle">方案参与人</dt>
+                  <dd>{group.developerAcceptance?.employeeId ?? "尚未记录"}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-subtle">需求文件</dt>
+                  <dd className="break-all font-mono">{group.documentPath}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-subtle">来源</dt>
+                  <dd>服务端共享内存模拟，不执行真实 Git 或模型。</dd>
+                </div>
+              </dl>
+              <AIReqAgentModelSummary
+                binding={aireq.session?.modelConfig ?? group.review?.modelConfig}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4 text-ui-sm" data-testid="proposal-operation-records">
+              {operations.length ? (
+                operations.map((item) => (
+                  <section key={item.operationId} className="space-y-1 border-b border-border pb-3">
+                    <p>
+                      {operationLabels[item.type] ?? item.type} ·{" "}
+                      {item.status === "completed"
+                        ? "已完成"
+                        : item.status === "running"
+                          ? "进行中"
+                          : "失败"}
+                    </p>
+                    <time dateTime={item.startedAt}>
+                      {new Date(item.startedAt).toLocaleString("zh-CN", {
+                        timeZone: "Asia/Shanghai",
+                        hour12: false,
+                      })}
+                    </time>
+                    {item.steps.map((step, index) => (
+                      <p key={index} className="text-foreground-subtle">
+                        {step.detail}
+                      </p>
+                    ))}
+                    {item.error && <p className="text-destructive">{item.error}</p>}
+                  </section>
+                ))
+              ) : (
+                <p>暂无操作记录。</p>
+              )}
+              {[
+                ...(group.returnFeedbackHistory ?? []),
+                ...(group.returnFeedback ? [group.returnFeedback] : []),
+              ].map((feedback, index) => (
+                <details key={`${feedback.returnedAt}:${index}`}>
+                  <summary className="cursor-pointer">
+                    退回意见 · {feedback.employeeId} · {feedback.returnedAt} ·{" "}
+                    {feedback.resumedAt ? "已补充" : "待处理"}
+                  </summary>
+                  <p
+                    className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words"
+                    tabIndex={0}
+                  >
+                    {feedback.reason}
+                  </p>
+                </details>
+              ))}
+              {(group.reviewHistory ?? []).map((review, index) => (
+                <details key={`${review.id}:${index}`}>
+                  <summary className="cursor-pointer">
+                    历史评审 · 第 {review.round ?? 1} 轮 · {review.id}
+                  </summary>
+                  <p className="my-2 break-all text-foreground-subtle">
+                    版本 {review.snapshotDigest} ·{" "}
+                    {review.humanDecision
+                      ? `人工通过 ${review.humanDecision.employeeId} · ${review.humanDecision.decidedAt}`
+                      : "无当前批准"}
+                  </p>
+                  {review.agents?.length ? (
+                    review.agents.map((agent) => (
+                      <details key={agent.id} className="my-2">
+                        <summary className="cursor-pointer">
+                          {agent.name} · {agent.status} · 会话 {agent.session.sessionId}
+                        </summary>
+                        {agent.report?.trim() ? (
+                          <AIReqMarkdownDocument>{agent.report}</AIReqMarkdownDocument>
+                        ) : (
+                          <p role="status">历史报告正文不可用。</p>
+                        )}
+                      </details>
+                    ))
+                  ) : (
+                    <AIReqMarkdownDocument>
+                      {review.report || "历史报告正文不可用。"}
+                    </AIReqMarkdownDocument>
+                  )}
+                </details>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

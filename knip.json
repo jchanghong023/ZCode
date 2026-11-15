@@ -1,31 +1,59 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
-  "ignore": [".agents/**", "docs/**"],
+  "ignore": [".agents/**"],
   "workspaces": {
     ".": {
       "entry": [
         "scripts/*.test.mjs",
         "scripts/test/*.test.mjs",
-        "scripts/architecture/architecture-check.mjs",
-        "scripts/assert-node-version.mjs",
-        "scripts/bootstrap.mjs",
-        "scripts/check-push-worktree.mjs",
-        "scripts/check-stale-doc-phrases.mjs",
-        "scripts/check-workspace-freshness.mjs",
-        "scripts/clean.mjs",
-        "scripts/dep-refs.mjs",
-        "scripts/dependency-graph.mjs",
         "scripts/licenses.mjs",
-        "scripts/mise-run.mjs",
-        "scripts/run-affected-engineering-tests.mjs"
+        "scripts/mise-run.mjs"
       ]
     },
     "packages/rpc": {
       "entry": ["examples/*.ts"]
     },
     "packages/shared": {
-      "entry": ["src/**/module.ts", "src/**/contract.example.ts"]
+      "entry": [
+        "src/app-control/index.ts",
+        "src/app-control/contract.ts",
+        "src/workspace-hooks/contract.ts",
+        "src/agent-crash-diagnostic/index.ts",
+        "src/agent-crash-diagnostic/contract.ts",
+        "src/conversation-telemetry/index.ts",
+        "src/conversation-telemetry/contract.ts",
+        "src/conversation-telemetry/messageTelemetry.ts",
+        "src/conversation-telemetry/providerTelemetryIdentity.ts",
+        "src/conversation-telemetry/remoteTelemetryEvent.ts",
+        "src/sqlite-migrations/index.ts",
+        "src/sqlite-migrations/contract.ts",
+        "src/gen-ui/index.ts",
+        "src/gen-ui/contract.ts",
+        "src/mcp-apps/index.ts",
+        "src/mcp-apps/contract.ts",
+        "src/mcp-apps/hostContract.ts",
+        "src/zcode-protocol-v4/input-prediction/contract.ts",
+        "src/zcode-protocol-v4/context-composition/contract.ts",
+        "src/zcode-protocol/plugin-host-queries/contract.ts",
+        "src/plugin-discovery/contract.ts",
+        "src/plugin-store-visibility.ts",
+        "src/zcode-protocol-v4/pluginInstall.ts",
+        "src/request-security-edition/index.ts",
+        "src/request-security-edition/policy.ts",
+        "src/request-security-edition/verification-policy.ts",
+        "src/request-security-edition/contract.ts",
+        "src/local-ttft/contract.ts",
+        "src/zcode-protocol-v4/session-data/index.ts",
+        "src/zcode-protocol-v4/session-data/contract.ts",
+        "src/managed-worktree/index.ts",
+        "src/managed-worktree/contract.ts",
+        "src/extension-host/index.ts",
+        "src/extension-host/contract.ts",
+        "src/credential-security/contract.ts",
+        "src/**/module.ts",
+        "src/**/contract.example.ts"
+      ]
     },
     "packages/session-control": {
       "entry": ["src/module.ts", "src/contract.example.ts"]
@@ -33,8 +61,51 @@
     "packages/design-runtime": {
       "entry": ["src/module.ts", "src/contract.example.ts"]
     },
+    "packages/services": {
+      "entry": [
+        "src/storage/contract.ts",
+        "src/conversation-telemetry/contract.ts",
+        "src/project-storage/contract.ts",
+        "src/project-storage/repository-contract.ts",
+        "src/project/contract.ts",
+        "src/project-catalog/index.ts",
+        "src/project-catalog/contract.ts",
+        "src/gen-ui/contract.ts",
+        "src/plugin-ui-bridge/index.ts",
+        "src/plugin-ui-bridge/contract.ts",
+        "src/plugin-ui-bridge/appToolsContract.ts",
+        "src/plugin-ui-bridge/samplingContract.ts",
+        "src/zcode-agent/inputPredictionSwitch.ts",
+        "src/zcode-agent/contextCompositionClient.ts",
+        "src/zcode-agent/pluginHostQueriesClient.ts",
+        "src/task-groups/contract.ts",
+        "src/window-project-directory/index.ts",
+        "src/window-project-directory/contract.ts",
+        "src/data-sync/index.ts",
+        "src/data-sync/contract.ts",
+        "src/voice-input/index.ts",
+        "src/voice-input/contract.ts",
+        "src/provider-provisioning-status/index.ts",
+        "src/provider-provisioning-status/contract.ts",
+        "src/managed-worktree-tasks/contract.ts",
+        "src/extensions/index.ts",
+        "src/extensions/contract.ts",
+        "src/aireq/contract.ts",
+        "src/**/module.ts",
+        "src/**/contract.example.ts"
+      ]
+    },
+    "packages/server": {
+      "entry": [
+        "src/mock/domains/contract.ts",
+        "src/aireq/contract.ts",
+        "src/**/module.ts",
+        "src/**/contract.example.ts"
+      ]
+    },
     "packages/ui": {
       "entry": [
+        "src/aireq/contract.ts",
         "src/components/ui/*.tsx",
         "src/components/mobile-ui/*.{ts,tsx}",
         "src/components/ai-elements/*.tsx",
@@ -44,12 +115,82 @@
         "src/components/ModelInputCapabilityBadge.tsx",
         "src/components/PluginIcon.tsx",
         "src/components/TaskTitleOverflowText.tsx",
+        "src/components/cloud-content-dialog/CloudContentDialog.tsx",
+        "src/assets/channel-icons/index.ts",
+        "src/project-sidebar/index.tsx",
+        "src/project-sidebar/contract.ts",
+        "src/project-sidebar/useSavedWorkflowProjectOptions.ts",
+        "src/project-sidebar/WorkspaceDragOverlay.tsx",
+        "src/workspace-config-catalog/index.ts",
+        "src/workspace-config-catalog/contract.ts",
+        "src/conversation-workspace-target/index.ts",
+        "src/conversation-workspace-target/contract.ts",
+        "src/conversation-workspace-target/purpose.ts",
+        "src/conversation-workspace-target/sourceIdentity.ts",
+        "src/conversation-workspace-target/workbenchTarget.ts",
+        "src/conversation-workspace-target/usePluginCreator.ts",
+        "src/conversation-workspace-target/PluginAddMenu.tsx",
+        "src/gen-ui/index.ts",
+        "src/gen-ui/contract.ts",
+        "src/gen-ui/host.ts",
+        "src/plugin-ui/index.ts",
+        "src/plugin-ui/contract.ts",
+        "src/plugin-ui/hostPrimitives.ts",
+        "src/project-workflow/contract.ts",
+        "src/project-workflow/useWorkflowRunSave.ts",
+        "src/project-workflow/WorkflowRunSaveControls.tsx",
+        "src/project-workflow/WorkflowRunPaneSaveSlots.tsx",
+        "src/v4/PluginInstallCard.tsx",
+        "src/settings/PluginAutoRecommendationSetting.tsx",
+        "src/prompt-editor/useComposerToolbarFit.ts",
+        "src/composer-toolbar-layout/contract.ts",
+        "src/workspace-plugin-preview/index.ts",
+        "src/workspace-plugin-preview/contract.ts",
+        "src/data-sync/index.ts",
+        "src/data-sync/contract.ts",
+        "src/settings-scope/index.ts",
+        "src/settings-scope/contract.ts",
+        "src/side-pane-full-view/index.ts",
+        "src/side-pane-full-view/contract.ts",
+        "src/v4/telemetry/local-ttft/contract.ts",
+        "src/file-menu/index.ts",
+        "src/file-menu/contract.ts",
+        "src/image-preview-editor/index.ts",
+        "src/image-preview-editor/contract.ts",
+        "src/hooks/useImageFilePreview.ts",
+        "src/lib/copyPreviewImage.ts",
+        "src/lib/imagePreviewDownload.ts",
+        "src/v4/ConversationImageFileMention.tsx",
+        "src/conversation-user-input-presentation/contract.ts",
+        "src/v4/ConversationUserInputBubble.tsx",
+        "src/composer-edit-mode/index.ts",
+        "src/composer-edit-mode/contract.ts",
+        "src/managed-worktrees/index.ts",
+        "src/managed-worktrees/contract.ts",
+        "src/ToolCallBlocks/session/contract.ts",
+        "src/extension-slots/index.ts",
+        "src/extension-slots/contract.ts",
+        "src/selection-comment/index.ts",
+        "src/selection-comment/contract.ts",
+        "src/resource-manager/ResourceManagerApp.tsx",
+        "src/resource-manager/contract.ts",
+        "src/resource-manager/resourceUsageView.ts",
+        "src/settings-search/index.ts",
+        "src/settings-search/contract.ts",
+        "src/task-row-hover/index.ts",
+        "src/task-row-hover/contract.ts",
         "src/**/module.ts",
         "src/**/contract.example.ts"
       ]
     },
     "packages/web": {
-      "entry": ["src/**/module.ts", "src/**/contract.example.ts"]
+      "entry": [
+        "src/auth/index.ts",
+        "src/auth/contract.ts",
+        "src/platform/contract.ts",
+        "src/**/module.ts",
+        "src/**/contract.example.ts"
+      ]
     }
   }
 }

@@ -360,6 +360,8 @@ export const MessageBranchPage = ({ className, ...props }: MessageBranchPageProp
 export type MessageResponseProps = {
   /** 办公模式的正式回答固定换行，不覆盖用户保存的代码预览设置。 */
   forceCodeWrap?: boolean;
+  /** 隐藏材料内复制/下载动作；默认保留聊天当前行为。 */
+  showExportActions?: boolean;
   className?: string;
   children?: ReactNode;
   dir?: "auto" | "ltr" | "rtl";
@@ -1716,6 +1718,7 @@ export const messageResponsePropsAreEqual = (
 ): boolean =>
   prevProps.children === nextProps.children &&
   prevProps.forceCodeWrap === nextProps.forceCodeWrap &&
+  prevProps.showExportActions === nextProps.showExportActions &&
   nextProps.streaming === prevProps.streaming &&
   nextProps.workspacePath === prevProps.workspacePath &&
   nextProps.workspaceHomePath === prevProps.workspaceHomePath &&
@@ -1735,6 +1738,7 @@ export const MessageResponse = memo(
     className,
     streaming = false,
     forceCodeWrap = false,
+    showExportActions = true,
     onOpenCodeViewer,
     onOpenFileLink,
     onOpenExternalUrl,
@@ -1850,13 +1854,16 @@ export const MessageResponse = memo(
           workspaceIdentity,
           workspaceRemoteSessionId,
           wrapLongLines,
-        }) + (forceCodeWrap ? ":wrap-locked" : "")
+        }) +
+        (forceCodeWrap ? ":wrap-locked" : "") +
+        (showExportActions ? "" : ":no-export")
       );
     }, [
       codeBlockTheme,
       codePreviewSettings.fontSizePx,
       wrapLongLines,
       forceCodeWrap,
+      showExportActions,
       renderZCodeFileCitations,
       readAttachment,
       sessionId,
@@ -2003,6 +2010,7 @@ export const MessageResponse = memo(
             <CodeBlock
               className="my-4 border border-border bg-card"
               code={codeText}
+              showExportActions={showExportActions}
               // 流式消息里的代码围栏会被 Streamdown 反复拆分/重挂载。
               // 高亮等消息完成后再启动，避免 async highlighter 和消息流更新叠加触发 React #185。
               enableSyntaxHighlighting={!renderStreaming}
@@ -2024,7 +2032,9 @@ export const MessageResponse = memo(
         blockquote: MarkdownBlockquote,
         li: MarkdownListItem,
         ol: MarkdownOrderedList,
-        table: MarkdownTable,
+        table: (tableProps: ComponentProps<typeof MarkdownTable>) => (
+          <MarkdownTable {...tableProps} showExportActions={showExportActions} />
+        ),
         tbody: MarkdownTableBody,
         td: MarkdownTableCell,
         th: MarkdownTableHead,
@@ -2037,6 +2047,7 @@ export const MessageResponse = memo(
         codePreviewSettings.fontSizePx,
         wrapLongLines,
         forceCodeWrap,
+        showExportActions,
         onOpenFileLink,
         onOpenCodeViewer,
         onOpenExternalUrl,
@@ -2081,7 +2092,7 @@ export const MessageResponse = memo(
           // 这样工作区文件链接和 http/https 外链都能走我们自己的安全分流，其它协议仍保持不可点击。
           linkSafety={messageLinkSafety}
           plugins={streamdownPlugins}
-          controls={STREAMDOWN_CONTROLS}
+          controls={showExportActions ? STREAMDOWN_CONTROLS : false}
           // Streamdown 的 harden 插件会在自定义 a renderer 之前把 file:// 标成 [blocked]。
           // 这里先把 file URI 规整成本地路径 href，让后续 resolveMarkdownFileLink 统一走预览/文件树打开逻辑。
           rehypePlugins={messageRehypePluginsWithReveal}

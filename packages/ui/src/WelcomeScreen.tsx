@@ -4,7 +4,15 @@ import { Button } from "./components/ui/button.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
 import type { useCredentialStoreRecovery } from "@/hooks/useCredentials.js";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog.js";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog.js";
 
 export function CredentialStoreRecovery({
   recovery,
@@ -91,7 +99,6 @@ export function CredentialStoreRecovery({
   );
 }
 
-
 export type LoginCompleteReason = "apiKey" | "skip";
 interface LoginPanelProps {
   active: boolean;
@@ -101,14 +108,26 @@ interface LoginPanelProps {
 /** 仅配置模型调用凭据；产品操作者入口由浏览器 owner 管理。 */
 export function LoginPanel({ active, onComplete }: LoginPanelProps) {
   if (!active) return null;
-  return <div className="space-y-4 text-ui-base">
-    <h1 className="text-ui-xl font-semibold">模型配置</h1>
-    <LoginApiKeyForm onCancel={() => { void onComplete("skip"); }} onSaved={() => onComplete("apiKey")} onSkipped={() => onComplete("skip")} />
-  </div>;
+  return (
+    <div className="space-y-4 text-ui-base">
+      <h1 className="text-ui-xl font-semibold">模型配置</h1>
+      <LoginApiKeyForm
+        onCancel={() => {
+          void onComplete("skip");
+        }}
+        onSaved={() => onComplete("apiKey")}
+        onSkipped={() => onComplete("skip")}
+      />
+    </div>
+  );
 }
 
 export function WelcomeScreen({ onComplete }: Omit<LoginPanelProps, "active">) {
-  return <main className="flex min-h-full items-center justify-center bg-background p-6 text-foreground">
-    <section className="w-full max-w-sm rounded-2xl bg-background p-8 shadow-md"><LoginPanel active onComplete={onComplete} /></section>
-  </main>;
+  return (
+    <main className="flex min-h-full items-center justify-center bg-background p-6 text-foreground">
+      <section className="w-full max-w-sm rounded-2xl bg-background p-8 shadow-md">
+        <LoginPanel active onComplete={onComplete} />
+      </section>
+    </main>
+  );
 }

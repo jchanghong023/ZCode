@@ -1068,11 +1068,14 @@ export interface AutomationEditSubmit {
 export interface AutomationEditViewProps {
   /** null = 新建；否则编辑。 */
   editing: ZCodeAutomation | null;
+  /** 同一目标仅在显式保存成功后递增；启停或后台刷新不覆盖未保存输入。 */
+  savedRevision?: number;
   /** 新建预填(来自 More ideas 模板)。 */
   initialDraft?: { title: string; cronExpr: string; prompt: string } | null;
   /** 当前列表所在项目,作为新建的默认目标项目。 */
   defaultWorkspacePath: string;
   defaultWorkspaceIdentity?: string;
+  projectOptions?: AutomationWorkspaceOption[];
   onManageModels?: () => void;
   saving: boolean;
   onSubmit: (params: AutomationEditSubmit) => Promise<boolean>;
@@ -1198,9 +1201,11 @@ function normalizeAutomationScheduleRule(
 
 export function AutomationEditView({
   editing,
+  savedRevision = 0,
   initialDraft,
   defaultWorkspacePath,
   defaultWorkspaceIdentity,
+  projectOptions,
   onManageModels,
   saving,
   onSubmit,
@@ -1224,6 +1229,9 @@ export function AutomationEditView({
     id: "automations.edit.titlePlaceholder",
   });
   const previousLocalizedDefaultTitleRef = useRef(localizedDefaultCreateTitle);
+  // 初始化只取当时的本地化默认值；语言变化由下方专用 effect 更新，不能重置未保存表单。
+  const defaultCreateTitleRef = useRef(localizedDefaultCreateTitle);
+  defaultCreateTitleRef.current = localizedDefaultCreateTitle;
   const titleTouchedRef = useRef(false);
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -1252,11 +1260,12 @@ export function AutomationEditView({
   );
   const currentEditSignaturesRef = useRef<AutomationEditFieldSignatures | null>(null);
   const touchedFieldBaselinesRef = useRef<Partial<AutomationEditFieldSignatures>>({});
+  const initializedEditRef = useRef<{ automationId: string; savedRevision: number } | null>(null);
   const [endAt, setEndAt] = useState<number | undefined>(() => editing?.endAt);
   // 目标项目 key(仅新建时可改;编辑锁定为 automation 所属项目)。
   const [workspaceKey, setWorkspaceKey] = useState<string | null>(null);
 
-  const localWorkspaceOptions = useAutomationProjectOptions();
+  const localWorkspaceOptions = useAutomationProjectOptions(projectOptions);
   const editingWorkspaceOption = editing
     ? findAutomationWorkspaceOptionByKey(
         localWorkspaceOptions,
@@ -1281,10 +1290,25 @@ export function AutomationEditView({
   const workspaceOptionsRef = useRef(workspaceOptions);
   workspaceOptionsRef.current = workspaceOptions;
 
-  // 打开/切换编辑对象时重置表单。
+  // 对象引用也会随启停变化；只在切目标或显式保存成功时回填并重置脏基线。
   useEffect(() => {
-    setTab("settings");
-    setRunsPage(1);
+    if (
+      editing &&
+      initializedEditRef.current?.automationId === editing.automationId &&
+      initializedEditRef.current.savedRevision === savedRevision
+    ) {
+      return;
+    }
+    // 保存完成只更新字段基线，不能覆盖等待期间用户切换的历史标签及分页。
+    const resetNavigation =
+      !editing || initializedEditRef.current?.automationId !== editing.automationId;
+    initializedEditRef.current = editing
+      ? { automationId: editing.automationId, savedRevision }
+      : null;
+    if (resetNavigation) {
+      setTab("settings");
+      setRunsPage(1);
+    }
     setTouchedFields(new Set());
     setValidationErrors(new Set());
     touchedFieldBaselinesRef.current = {};
@@ -1315,7 +1339,7 @@ export function AutomationEditView({
       titleTouchedRef.current = false;
       modelManuallyChangedRef.current = false;
       thoughtManuallyChangedRef.current = false;
-      setTitle(initialDraft?.title ?? localizedDefaultCreateTitle);
+      setTitle(initialDraft?.title ?? defaultCreateTitleRef.current);
       setPrompt(initialDraft?.prompt ?? "");
       modelSelection.current = "";
       setModel("");
@@ -1332,7 +1356,7 @@ export function AutomationEditView({
         }),
       );
     }
-  }, [editing, initialDraft, defaultWorkspacePath, defaultWorkspaceIdentity]);
+  }, [editing, savedRevision, initialDraft, defaultWorkspacePath, defaultWorkspaceIdentity]);
 
   useEffect(() => {
     const nextTitle = resolveLocalizedAutomationCreateTitle({
@@ -1816,9 +1840,7 @@ export function AutomationEditView({
       saving,
       model,
       thoughtLevel,
-      selectedWorkspace?.workspaceIdentity,
-      selectedWorkspace?.workspacePath,
-      selectedWorkspace?.projectId,
+      selectedWorkspace,
     ],
   );
 

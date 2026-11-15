@@ -405,3 +405,4 @@ export {
 export * from "./request-security-edition/verification-policy.js";
 
 export * from "./conversation-share-tool-presentation.js";
+export { splitMarkdownFrontmatter, parseAgentFrontmatter } from "./subagent-profile-frontmatter.js";

@@ -151,6 +151,8 @@ export interface ZCodeAutomationRun {
 
 /** 创建 automation 的入参（workspace 由调用方从 session 上下文注入）。 */
 export interface ZCodeAutomationCreateParams {
+  /** Idempotency key for creation; retries retain this ID and the original payload. */
+  operationId?: string;
   projectId?: string | null;
   hostId?: string;
   /** 创建定义时固化，之后不跟随虚拟项目 roots 编辑。 */

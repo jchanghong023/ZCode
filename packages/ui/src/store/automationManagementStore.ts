@@ -4,6 +4,7 @@ import {
   AUTOMATION_CREATE_LIMIT,
   AUTOMATION_CREATE_LIMIT_ERROR_CODE,
   isAutomationCreateLimitError,
+  createUuid,
   type ZCodeAutomation,
   type ZCodeAutomationRun,
   type ZCodeAutomationScheduleRule,
@@ -25,6 +26,7 @@ export interface AutomationRunsEntry {
 export type AutomationRunNowResult = "queued" | "duplicate" | "failed";
 
 export interface CreateAutomationInput {
+  operationId?: string;
   projectId?: string | null;
   title: string;
   cronExpr: string;
@@ -107,6 +109,26 @@ function toMessage(error: unknown): string {
 
 let automationLoadSeq = 0;
 const inFlightRunNowAutomationIds = new Set<string>();
+
+type PendingAutomationOperation = { id: string; payload: string; inFlight: boolean };
+// This store owns unresolved RPC intents, not server receipts. Never replay them automatically.
+const pendingAutomationOperations = new Map<string, PendingAutomationOperation>();
+
+function beginAutomationOperation(
+  key: string,
+  payload: string,
+  explicitId?: string,
+): PendingAutomationOperation | null {
+  const pending = pendingAutomationOperations.get(key);
+  if (pending?.inFlight) return null;
+  const operation =
+    pending?.payload === payload && (!explicitId || pending.id === explicitId)
+      ? pending
+      : { id: explicitId ?? createUuid(), payload, inFlight: false };
+  operation.inFlight = true;
+  pendingAutomationOperations.set(key, operation);
+  return operation;
+}
 
 function sameWorkspace(
   current: Pick<AutomationManagementState, "workspacePath" | "workspaceIdentity">,
@@ -216,8 +238,30 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
 
   async createAutomation(input, agentService) {
     const { automations, workspacePath, workspaceIdentity } = get();
-    if (!workspacePath) return null;
-    if (automations.length >= AUTOMATION_CREATE_LIMIT) {
+    if (!workspacePath && !input.workspacePath) {
+      set({ error: "自动化项目工作区尚未就绪，请等待项目加载后重试。" });
+      return null;
+    }
+    const targetPath = input.workspacePath ?? workspacePath!;
+    const targetIdentity = input.workspaceIdentity ?? workspaceIdentity;
+    const key = JSON.stringify(["create", targetPath, targetIdentity]);
+    const payload = JSON.stringify([
+      input.projectId,
+      input.title,
+      input.cronExpr,
+      input.prompt,
+      input.modelSelection,
+      input.mode,
+      input.recurring,
+      input.maxRuns,
+      input.endAt,
+      input.scheduleRule,
+    ]);
+    // A retry may be reading the receipt of a creation that already reached the limit.
+    if (
+      automations.length >= AUTOMATION_CREATE_LIMIT &&
+      pendingAutomationOperations.get(key)?.payload !== payload
+    ) {
       // 创建入口分散在表单、模板和会话，单独禁用某个按钮仍可绕过。
       // store 以管理页的全量列表做快速拒绝，服务层事务继续承担最终一致性校验。
       set({
@@ -225,16 +269,20 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
       });
       return null;
     }
+    const operation = beginAutomationOperation(key, payload, input.operationId);
+    if (!operation) return null;
     set({ operationId: `automation:create:${input.title}`, error: null });
     try {
       const created = await agentService.createAutomation({
-        workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...input,
+        workspacePath: targetPath,
+        ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
+        operationId: operation.id,
       });
+      pendingAutomationOperations.delete(key);
       const requestId = ++automationLoadSeq;
       await loadInto(set, get, {
-        workspacePath,
+        workspacePath: workspacePath ?? targetPath,
         workspaceIdentity,
         agentService,
         requestId,
@@ -252,6 +300,7 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
       set({ error: message });
       return null;
     } finally {
+      operation.inFlight = false;
       set({ operationId: null });
     }
   },
@@ -382,6 +431,14 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
     if (!viewWorkspacePath) return;
     const actionScope = resolveAutomationActionScope(state, automationId);
     if (!actionScope) return;
+    const key = JSON.stringify([
+      "restart",
+      actionScope.workspacePath,
+      actionScope.workspaceIdentity,
+      automationId,
+    ]);
+    const operation = beginAutomationOperation(key, key);
+    if (!operation) return;
     set({ operationId: `automation:restart:${automationId}`, error: null });
     try {
       await agentService.restartAutomation({
@@ -390,7 +447,9 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
           ? { workspaceIdentity: actionScope.workspaceIdentity }
           : {}),
         automationId,
+        operationId: operation.id,
       });
+      pendingAutomationOperations.delete(key);
       const requestId = ++automationLoadSeq;
       await loadInto(set, get, {
         workspacePath: viewWorkspacePath,
@@ -405,6 +464,7 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
       });
       set({ error: toMessage(error) });
     } finally {
+      operation.inFlight = false;
       set({ operationId: null });
     }
   },
@@ -418,6 +478,14 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
     if (inFlightRunNowAutomationIds.has(automationId)) {
       return "duplicate";
     }
+    const key = JSON.stringify([
+      "runNow",
+      actionScope.workspacePath,
+      actionScope.workspaceIdentity,
+      automationId,
+    ]);
+    const operation = beginAutomationOperation(key, key);
+    if (!operation) return "duplicate";
     // React 禁用按钮存在一次渲染延迟，连续点击会在 UI 更新前重入。
     // 这里只在当前 RPC 请求期间使用同步内存锁；请求返回后恢复入口，
     // 活动 run 的重复触发继续交由 host single-flight 返回 duplicate。
@@ -430,7 +498,9 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
           ? { workspaceIdentity: actionScope.workspaceIdentity }
           : {}),
         automationId,
+        operationId: operation.id,
       });
+      pendingAutomationOperations.delete(key);
       if (result.status === "duplicate") {
         return "duplicate";
       }
@@ -441,6 +511,8 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
         agentService,
         requestId,
       });
+      if (sameWorkspace(get(), viewWorkspacePath, state.workspaceIdentity))
+        await get().loadRuns(automationId, agentService, true);
       return "queued";
     } catch (error) {
       logger.error("[automations] runNow failed", {
@@ -450,6 +522,7 @@ export const useAutomationManagementStore = create<AutomationManagementState>((s
       set({ error: toMessage(error) });
       return "failed";
     } finally {
+      operation.inFlight = false;
       inFlightRunNowAutomationIds.delete(automationId);
       set({ operationId: null });
     }

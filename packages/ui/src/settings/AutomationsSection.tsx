@@ -6,6 +6,7 @@ import {
   useState,
   type ComponentType,
   type SVGProps,
+  type ReactNode,
 } from "react";
 import { CircleCheck, RotateCcw, TriangleAlert } from "lucide-react";
 import {
@@ -75,6 +76,16 @@ import {
   hasAutomationFailureState,
   resolveAutomationStatusKind,
   type AutomationStatusKind,
+  AUTOMATION_STATUS_FILTERS,
+  SCHEDULED_AUTOMATION_STATUS_FILTERS,
+  SCHEDULED_AUTOMATION_STATUS_LABELS,
+  DEFAULT_AUTOMATION_STATUS_FILTER,
+  filterAutomationsByStatus,
+  filterOffPeakTasksByStatus,
+  resolveAutomationTabState,
+  resolveScheduledAutomationStatus,
+  type AutomationStatusFilter,
+  type AutomationTabState,
 } from "@/settings/automationFormat.js";
 import { describeAutomationCardSchedule } from "@/settings/automationCardSchedule.js";
 import { AutomationEditView, type AutomationEditSubmit } from "@/settings/AutomationEditView.js";
@@ -95,15 +106,6 @@ import {
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
-import {
-  AUTOMATION_STATUS_FILTERS,
-  DEFAULT_AUTOMATION_STATUS_FILTER,
-  filterAutomationsByStatus,
-  filterOffPeakTasksByStatus,
-  resolveAutomationTabState,
-  type AutomationStatusFilter,
-  type AutomationTabState,
-} from "@/settings/automationStatusFilter.js";
 import { isRemoteAutomationWorkspace } from "@/hooks/useAutomationProjectOptions.js";
 import {
   reportAutomationActionClick,
@@ -137,8 +139,14 @@ import {
   type SavedWorkflowsOpenTarget,
 } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
 import { AutomationTemplateSkeletonGrid } from "@/settings/AutomationTemplateSkeletonGrid.js";
+import type { AutomationWorkspaceOption } from "./automationWorkspaceOptions.js";
 
 interface AutomationsSectionProps {
+  /** 产品可仅开放定时模拟任务，并用只读运行视图替换旧工作流中枢。 */
+  scheduledOnly?: boolean;
+  nativeWorkflowContent?: ReactNode;
+  projectOptions?: AutomationWorkspaceOption[];
+  runNowNotice?: string;
   workspacePath?: string | null;
   workspaceIdentity?: string;
   /** 「Create via chat」:切到会话让 agent 用 CronCreate 创建;缺省则回退到手动创建整页。
@@ -224,7 +232,7 @@ export interface AutomationDraft {
 type AutomationsView =
   | { mode: "list" }
   | { mode: "create"; draft: AutomationDraft | null }
-  | { mode: "edit"; automation: ZCodeAutomation }
+  | { mode: "edit"; automation: ZCodeAutomation; savedRevision?: number }
   | { mode: "offpeak-create"; draft?: OffPeakCreateDraft }
   | { mode: "offpeak-edit"; task: ZCodeOffPeakTask };
 
@@ -520,6 +528,10 @@ export function AutomationsSection({
   openWorkflow,
   onOpenWorkflowConsumed,
   onOpenSession,
+  scheduledOnly = false,
+  nativeWorkflowContent,
+  runNowNotice,
+  projectOptions,
 }: AutomationsSectionProps) {
   const { intl, locale } = useZCodeIntl();
   const platform = usePlatform();
@@ -529,7 +541,7 @@ export function AutomationsSection({
   const providerSettingsView =
     providerSettingsRead.state.status === "ready" ? providerSettingsRead.state.view : null;
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
-  useOffPeakEligibility(sharedSettings, providerSettingsView?.revision);
+  useOffPeakEligibility(sharedSettings, providerSettingsView?.revision, !scheduledOnly);
 
   const automations = useAutomationManagementStore((state) => state.automations);
   const automationCreateLimitReached = automations.length >= AUTOMATION_CREATE_LIMIT;
@@ -598,7 +610,8 @@ export function AutomationsSection({
   // 动态工作流灰度：未命中就没有「工作流」标签，
   // 页面退回单一的「自动化」。快照未就绪时 enabled 为 false，宁可标题晚半拍长出切换，也不先闪
   // 一个标签再收起——中枢很少是用户进 app 后第一眼看的东西。
-  const { enabled: dynamicWorkflowEnabled } = useDynamicWorkflowAvailability();
+  const { enabled: dynamicWorkflowAvailable } = useDynamicWorkflowAvailability();
+  const dynamicWorkflowEnabled = nativeWorkflowContent !== undefined || dynamicWorkflowAvailable;
   // 顶级标签「自动化 / 工作流」：页标题即切换。中枢已是跨项目视图，记忆不再按项目分桶，用 app 级单 key。
   const [storedPageTab, setPageTabState] = useState<AutomationsPageTab>(() =>
     readAutomationsPageTab(),
@@ -617,7 +630,7 @@ export function AutomationsSection({
   });
   const currentWorkspaceIsRemote = isRemoteAutomationWorkspace(activeWorkspaceTab);
   // 灰度中途翻转：只藏创建入口；有非终态存量仍展示并跑到终态。
-  const offPeakGrayEnabled = offPeakGrayConfig?.enabled === true;
+  const offPeakGrayEnabled = !scheduledOnly && offPeakGrayConfig?.enabled === true;
   const offPeakCreationEnabled = offPeakGrayEnabled && !currentWorkspaceIsRemote;
   // 扫描全部 provider 会把未选中的 Coding Plan 当成当前执行凭证。
   // mock 演示字段仍可覆盖；真实路径只接受与当前 family/selectedKey 一致的脱敏 resolver 快照。
@@ -627,16 +640,28 @@ export function AutomationsSection({
       !offPeakStoreLoading &&
       !isCurrentOffPeakCodingPlanSupported(offPeakCodingPlanSupport, sharedSettings));
   const offPeakVisible =
-    !currentWorkspaceIsRemote && (offPeakGrayEnabled || offPeakTasks.length > 0);
-  const hasAnyTasks = automations.length > 0 || offPeakTasks.length > 0;
+    !scheduledOnly && !currentWorkspaceIsRemote && (offPeakGrayEnabled || offPeakTasks.length > 0);
+  const hasAnyTasks = automations.length > 0 || (!scheduledOnly && offPeakTasks.length > 0);
   const visibleTabs = resolveVisibleAutomationTabs({
     hasAnyTasks,
     offPeakVisible,
   });
   const hasVisibleTaskCards =
     tab === "scheduled" ? automations.length > 0 : offPeakTasks.length > 0;
-  const visibleAutomations = filterAutomationsByStatus(automations, statusFilter);
+  const visibleAutomations = scheduledOnly
+    ? automations.filter(
+        (automation) =>
+          statusFilter === DEFAULT_AUTOMATION_STATUS_FILTER ||
+          resolveScheduledAutomationStatus(automation, runsCache[automation.automationId]?.runs) ===
+            statusFilter,
+      )
+    : filterAutomationsByStatus(automations, statusFilter);
   const visibleOffPeakTasks = filterOffPeakTasksByStatus(offPeakTasks, statusFilter);
+  // 修复原因：执行中必须读取既有历史 owner 的在途记录，不能从 enabled 推断。
+  useEffect(() => {
+    if (!scheduledOnly) return;
+    for (const automation of automations) void loadRuns(automation.automationId, zcodeAgentService);
+  }, [scheduledOnly, automations, loadRuns, zcodeAgentService]);
   const { showOffPeakTemplates, showScheduledTemplates } = resolveAutomationTemplateVisibility({
     hasAnyTasks,
     offPeakCreationEnabled,
@@ -712,7 +737,7 @@ export function AutomationsSection({
     // 后台关闭闲时灰度后，Idle tab 会被隐藏；旧状态若继续停在 idle，
     // 定时任务列表也会被 tab === "idle" 一并隐藏。回到 Scheduled，确保定时任务始终可访问。
     setTab(nextTab);
-  }, [offPeakVisible, tab]);
+  }, [offPeakVisible, setTab, tab]);
 
   useEffect(() => {
     if (!openAutomationTab) return;
@@ -754,6 +779,7 @@ export function AutomationsSection({
     openAutomationId,
     openAutomationTab,
     setPageTab,
+    setTab,
     tab,
     visibleTabs,
     workspaceIdentity,
@@ -799,7 +825,7 @@ export function AutomationsSection({
     try {
       await Promise.all([
         refresh(zcodeAgentService),
-        offPeakRefresh(offPeakTaskService),
+        ...(!scheduledOnly ? [offPeakRefresh(offPeakTaskService)] : []),
         ...(offPeakGrayEnabled ? [offPeakRefreshCodingPlanSupport(offPeakTaskService)] : []),
       ]);
       setNow(Date.now());
@@ -807,6 +833,7 @@ export function AutomationsSection({
       setRefreshing(false);
     }
   }, [
+    scheduledOnly,
     offPeakGrayEnabled,
     offPeakRefresh,
     offPeakRefreshCodingPlanSupport,
@@ -822,7 +849,7 @@ export function AutomationsSection({
     if (currentWorkspaceIsRemote) return;
     setTab("idle");
     setView({ mode: "offpeak-create", draft });
-  }, [consumePendingCreateDraft, currentWorkspaceIsRemote]);
+  }, [consumePendingCreateDraft, currentWorkspaceIsRemote, setTab]);
 
   useEffect(() => {
     if (!currentWorkspaceIsRemote) return;
@@ -832,7 +859,7 @@ export function AutomationsSection({
         ? { mode: "list" }
         : current,
     );
-  }, [currentWorkspaceIsRemote]);
+  }, [currentWorkspaceIsRemote, setTab]);
 
   const showCodingPlanRequiredToast = useCallback(() => {
     toast(intl.formatMessage({ id: "offPeak.create.codingPlanToast" }), {
@@ -923,6 +950,7 @@ export function AutomationsSection({
     offPeakNavRefreshed,
     offPeakTasks,
     onOpenAutomationConsumed,
+    setTab,
     openAutomationId,
     workspaceIdentity,
     workspacePath,
@@ -982,14 +1010,28 @@ export function AutomationsSection({
       workspaceIdentity: targetIdentity,
     }: AutomationEditSubmit) => {
       if (view.mode === "edit") {
-        const ok = await updateAutomation(view.automation.automationId, input, zcodeAgentService);
-        if (!ok) {
+        const automationId = view.automation.automationId;
+        const ok = await updateAutomation(automationId, input, zcodeAgentService);
+        const state = useAutomationManagementStore.getState();
+        const saved = state.automations.find((item) => item.automationId === automationId);
+        if (!ok || state.error || !saved) {
           toast(
             intl.formatMessage({
               id: getAutomationActionErrorToastId("update"),
             }),
           );
+          return false;
         } else {
+          // 保存后仍可能留在编辑页；只接纳显式保存的 store 快照，后台刷新不回填草稿。
+          setView((current) =>
+            current.mode === "edit" && current.automation.automationId === automationId
+              ? {
+                  ...current,
+                  automation: saved,
+                  savedRevision: (current.savedRevision ?? 0) + 1,
+                }
+              : current,
+          );
           setNow(Date.now());
         }
         return ok;
@@ -1048,20 +1090,17 @@ export function AutomationsSection({
       const message = useAutomationManagementStore.getState().error;
       if (message) toast(intl.formatMessage({ id: getAutomationActionErrorToastId("toggle") }));
       else {
-        // 编辑页 view 持有进入页面时的 automation 对象；列表刷新不会自动替换
-        // 这个局部对象，导致菜单点击 Pause/Resume 后文案仍停在旧状态。
-        setView((prev) =>
-          prev.mode === "edit" && prev.automation.automationId === automation.automationId
-            ? {
-                mode: "edit",
-                automation: {
-                  ...prev.automation,
-                  enabled,
-                  lifecycleStatus: enabled ? "active" : "paused",
-                },
-              }
-            : prev,
-        );
+        // 启停沿用 store 已保存对象，不复制进入编辑页时的旧正文，也不重置草稿基线。
+        const saved = useAutomationManagementStore
+          .getState()
+          .automations.find((item) => item.automationId === automation.automationId);
+        if (saved) {
+          setView((current) =>
+            current.mode === "edit" && current.automation.automationId === automation.automationId
+              ? { ...current, automation: saved }
+              : current,
+          );
+        }
         setNow(Date.now());
       }
     },
@@ -1109,12 +1148,16 @@ export function AutomationsSection({
             (run) => run.trigger === "manual" && Boolean(run.sessionId),
           )?.sessionId;
         toast(
-          intl.formatMessage({ id: "scheduledPreview.toast.running" }, { title: automation.title }),
+          runNowNotice ??
+            intl.formatMessage(
+              { id: "scheduledPreview.toast.running" },
+              { title: automation.title },
+            ),
           {
             durationMs: 4000,
             position: "top-center",
             variant: "info",
-            ...(latestSessionId && onOpenSession
+            ...(!runNowNotice && latestSessionId && onOpenSession
               ? {
                   actionLabel: intl.formatMessage({
                     id: "scheduledPreview.toast.view",
@@ -1141,6 +1184,7 @@ export function AutomationsSection({
       }
     },
     [
+      runNowNotice,
       intl,
       loadRuns,
       onOpenSession,
@@ -1175,8 +1219,12 @@ export function AutomationsSection({
       });
       await deleteAutomation(automation.automationId, zcodeAgentService);
       const message = useAutomationManagementStore.getState().error;
-      if (message) toast(intl.formatMessage({ id: getAutomationActionErrorToastId("delete") }));
-      // 若在编辑该任务的整页,删除后回列表。
+      // 删除失败时必须保留编辑页及草稿，不能仅吐司后无条件回列表。
+      if (message) {
+        toast(intl.formatMessage({ id: getAutomationActionErrorToastId("delete") }));
+        return;
+      }
+      // 若在编辑该任务的整页,删除成功后回列表。
       setView((prev) =>
         prev.mode === "edit" && prev.automation.automationId === automation.automationId
           ? { mode: "list" }
@@ -1376,9 +1424,11 @@ export function AutomationsSection({
       <>
         <AutomationEditView
           editing={view.mode === "edit" ? view.automation : null}
+          savedRevision={view.mode === "edit" ? (view.savedRevision ?? 0) : 0}
           initialDraft={view.mode === "create" ? view.draft : null}
           defaultWorkspacePath={workspacePath}
           defaultWorkspaceIdentity={workspaceIdentity}
+          projectOptions={projectOptions}
           saving={
             operationId?.startsWith("automation:create") ||
             operationId?.startsWith("automation:update") ||
@@ -1439,7 +1489,17 @@ export function AutomationsSection({
     </div>
   );
 
+  // 修复原因：独立 AIReq 的内容列横向留白比原生设置少 8px，不修改其他消费者。
+  const contentClassName = cn(SETTINGS_FRAME_CONTENT_CLASSNAME, scheduledOnly && "lg:px-6");
+
   if (pageTab === "workflow") {
+    if (nativeWorkflowContent !== undefined)
+      return (
+        <div className={contentClassName}>
+          {pageHeader}
+          {nativeWorkflowContent}
+        </div>
+      );
     return (
       <SavedWorkflowsSection
         header={pageHeader}
@@ -1456,32 +1516,39 @@ export function AutomationsSection({
   }
 
   return (
-    <div data-automations-content className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "flex flex-col")}>
+    <div data-automations-content className={cn(contentClassName, "flex flex-col")}>
       {pageHeader}
 
       {/* Tab：Scheduled 常驻；Idle 仅在灰度命中或有闲时存量时出现（D31），不再提供 All 混排视图。
          有任务时右上对齐创建（4866-1735）；空态创建入口在大卡内（4889-2013），不重复顶栏按钮。 */}
       {visibleTabs.length > 0 ? (
-        <div className="mt-8 flex items-center justify-between">
+        <div
+          className={cn(
+            "mt-8 flex items-center",
+            scheduledOnly ? "justify-end" : "justify-between",
+          )}
+        >
           {/* 修复原因：tab 曾与右侧操作组共用 12px 间距，未体现最新设计要求的 8px 紧凑节奏。 */}
-          <div className="flex items-center gap-2" data-testid={TID_OFFPEAK_TAB}>
-            {/* 修复原因：未选中态旧实现强制显示 surface 背景，无法与 hover、选中态形成层级。 */}
-            {visibleTabs.map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={cn(
-                  "rounded-full px-3 py-1 text-ui-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
-                  tab === key
-                    ? "bg-selected text-foreground"
-                    : "text-foreground-subtle hover:bg-hover hover:text-foreground",
-                )}
-                onClick={() => setTab(key)}
-              >
-                {intl.formatMessage({ id: `offPeak.tabs.${key}` })}
-              </button>
-            ))}
-          </div>
+          {!scheduledOnly && (
+            <div className="flex items-center gap-2" data-testid={TID_OFFPEAK_TAB}>
+              {/* 修复原因：未选中态旧实现强制显示 surface 背景，无法与 hover、选中态形成层级。 */}
+              {visibleTabs.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-ui-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
+                    tab === key
+                      ? "bg-selected text-foreground"
+                      : "text-foreground-subtle hover:bg-hover hover:text-foreground",
+                  )}
+                  onClick={() => setTab(key)}
+                >
+                  {intl.formatMessage({ id: `offPeak.tabs.${key}` })}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <ControlHintTooltip
               title={intl.formatMessage({
@@ -1519,29 +1586,32 @@ export function AutomationsSection({
         </div>
       ) : null}
 
-      {/* 状态筛选：定时 / 闲时共用一组（全部 / 进行中 / 已完成 / 失败），只在当前 tab 有任务时出现。
-         样式沿用顶栏 tab 的胶囊，但字号与内边距更小以体现层级。 */}
+      {/* AIReq 仅定时入口按源六态筛选；其余消费者保留定时 / 闲时共用四组筛选。 */}
       {visibleTabs.length > 0 && hasVisibleTaskCards ? (
         <div
           className="mt-3 flex flex-wrap items-center gap-1.5"
           data-testid={TID_AUTOMATIONS_STATUS_FILTER}
         >
-          {AUTOMATION_STATUS_FILTERS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={statusFilter === key}
-              className={cn(
-                "rounded-full px-2.5 py-0.5 text-ui-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
-                statusFilter === key
-                  ? "bg-selected text-foreground"
-                  : "text-foreground-subtle hover:bg-hover hover:text-foreground",
-              )}
-              onClick={() => setStatusFilter(key)}
-            >
-              {intl.formatMessage({ id: `automations.statusFilter.${key}` })}
-            </button>
-          ))}
+          {(scheduledOnly ? SCHEDULED_AUTOMATION_STATUS_FILTERS : AUTOMATION_STATUS_FILTERS).map(
+            (key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={statusFilter === key}
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-ui-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
+                  statusFilter === key
+                    ? "bg-selected text-foreground"
+                    : "text-foreground-subtle hover:bg-hover hover:text-foreground",
+                )}
+                onClick={() => setStatusFilter(key)}
+              >
+                {scheduledOnly
+                  ? SCHEDULED_AUTOMATION_STATUS_LABELS[key]
+                  : intl.formatMessage({ id: `automations.statusFilter.${key}` })}
+              </button>
+            ),
+          )}
         </div>
       ) : null}
 
@@ -1558,9 +1628,8 @@ export function AutomationsSection({
           )}
         >
           <div className="flex w-full flex-col gap-4">
-            {/* keep-awake 是全局开关（与设置页「常规」镜像），定时任务运行会话同样受益，
-               在定时/闲时两个 tab 都展示。列表态放在任务卡之前，空态保持大空卡在前。 */}
-            {hasAnyTasks ? (
+            {/* AIReq 纯 Web 模拟不提供主机唤醒控制；保留其他调用方既有的通用控件。 */}
+            {!scheduledOnly && hasAnyTasks ? (
               <AutomationKeepAwakeNotice
                 checked={sharedSettings?.keepAwakeWhileRunning ?? false}
                 onChange={(value) =>
@@ -1712,16 +1781,30 @@ export function AutomationsSection({
                                       </span>
                                     </>
                                   ) : status === "active" ? (
-                                    <AutomationScheduleBadge
-                                      text={scheduleCardText}
-                                      icon={
-                                        <StatusIcon
-                                          className="size-4 shrink-0"
-                                          strokeWidth={1.33}
-                                          aria-hidden="true"
-                                        />
-                                      }
-                                    />
+                                    <>
+                                      {scheduledOnly && (
+                                        <span className="text-ui-sm text-success">
+                                          {
+                                            SCHEDULED_AUTOMATION_STATUS_LABELS[
+                                              resolveScheduledAutomationStatus(
+                                                automation,
+                                                runsCache[automation.automationId]?.runs,
+                                              )
+                                            ]
+                                          }
+                                        </span>
+                                      )}
+                                      <AutomationScheduleBadge
+                                        text={scheduleCardText}
+                                        icon={
+                                          <StatusIcon
+                                            className="size-4 shrink-0"
+                                            strokeWidth={1.33}
+                                            aria-hidden="true"
+                                          />
+                                        }
+                                      />
+                                    </>
                                   ) : (
                                     <>
                                       <span
@@ -1818,7 +1901,7 @@ export function AutomationsSection({
             </div>
 
             {/* Figma 4798:2443：空态保持唤醒提示条位于大空卡之后。 */}
-            {!hasAnyTasks ? (
+            {!scheduledOnly && !hasAnyTasks ? (
               <AutomationKeepAwakeNotice
                 checked={sharedSettings?.keepAwakeWhileRunning ?? false}
                 onChange={(value) =>

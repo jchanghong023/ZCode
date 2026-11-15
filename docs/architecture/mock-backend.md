@@ -23,27 +23,28 @@
 
 ### 2.1 矩阵
 
-| 领域 / 接口                                                     | 状态        | 说明                                                               |
-| --------------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
-| conversation / sessions-index topic                             | supported   | 快照 + 增量、seq/logEpoch、workspace 隔离                          |
-| workspace-config topic                                          | compatible  | 空配置目录（`configOptions: []`, `slashCommands: []`），只读快照   |
-| controller/workspaces、controller/tasks-index                   | supported   | workspaces 单工作区快照；tasks-index 由 runtime 任务投影并增量下发 |
-| controller 任务/归档删除                                        | unavailable | 不跨入会话生命周期执行删除，调用明确拒绝                           |
-| v4 会话命令（见 §4）                                            | supported   | 真实内存状态转换                                                   |
-| 其它 v4 会话命令                                                | unavailable | ACK `rejected` + `fault.command.capabilityUnsupported`             |
-| 文件树 / 文件读取 / 搜索                                        | supported   | 虚拟工作区 fixture；不读写真实文件                                 |
-| Git 面板                                                        | supported   | 虚拟仓库状态；不发起真实 git/网络                                  |
-| 设置、凭据（内存）、客户端配置                                  | supported   | 设置域内存态；凭据不落盘                                           |
+| 领域 / 接口                                                     | 状态        | 说明                                                                |
+| --------------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| conversation / sessions-index topic                             | supported   | 快照 + 增量、seq/logEpoch、workspace 隔离                           |
+| workspace-config topic                                          | compatible  | 空配置目录（`configOptions: []`, `slashCommands: []`），只读快照    |
+| controller/workspaces、controller/tasks-index                   | supported   | workspaces 单工作区快照；tasks-index 由 runtime 任务投影并增量下发  |
+| controller 任务/归档删除                                        | unavailable | 不跨入会话生命周期执行删除，调用明确拒绝                            |
+| v4 会话命令（见 §4）                                            | supported   | 真实内存状态转换                                                    |
+| 其它 v4 会话命令                                                | unavailable | ACK `rejected` + `fault.command.capabilityUnsupported`              |
+| 文件树 / 文件读取 / 搜索                                        | supported   | 虚拟工作区 fixture；不读写真实文件                                  |
+| Git 面板                                                        | supported   | 虚拟仓库状态；不发起真实 git/网络                                   |
+| 设置、凭据（内存）、客户端配置                                  | supported   | 设置域内存态；凭据不落盘                                            |
 | 产品操作者                                                      | supported   | 浏览器自报工号；不是服务端账号，不分区项目/会话，不提供旧产品 OAuth |
-| Provider / 模型选择 / 用量                                      | compatible  | 确定性模型目录与空用量；不联网                                     |
-| Coding Plan 订阅/支付/企业套餐                                  | unavailable | 读取返回空集合；支付/领取/协议签置抛错                             |
-| 插件目录/安装/配置、扩展宿主、扩展视图/授权                     | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错   |
-| 工作区资产（子智能体/命令/钩子/记忆/技能/输出风格）             | compatible  | 只读空集合；写操作抛错                                             |
-| 配置同步（MCP/插件/技能/用户配置/设备同步）                     | compatible  | 只读空清单；写入返回不可写/空结果，不伪造远端成功                  |
-| 任务分组 / 受管 worktree / Source Server                        | compatible  | 空分组/空快照；需要真实仓库或远端的写操作抛错                      |
-| 闲时任务 / Bots                                                 | unavailable | 只读空投影，注册/保存/绑定抛错                                     |
-| 会话分享 / 附件暂存 / Onboarding / 加速卡                       | unavailable | `publish/import=false`，空快照；真实操作抛错                       |
-| 反馈 / GenUI / 语音 / 云内容 / 营销触达 / Provider Provisioning | unavailable | 空形状读取；真实操作抛错                                           |
+| Provider / 模型选择 / 用量                                      | compatible  | 确定性模型目录与空用量；不联网                                      |
+| Coding Plan 订阅/支付/企业套餐                                  | unavailable | 读取返回空集合；支付/领取/协议签置抛错                              |
+| 插件目录/安装/配置、扩展宿主、扩展视图/授权                     | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错    |
+| 工作区资产（子智能体/命令/钩子/记忆/技能/输出风格）             | compatible  | 只读空集合；写操作抛错                                              |
+| 配置同步（MCP/插件/技能/用户配置/设备同步）                     | compatible  | 只读空清单；写入返回不可写/空结果，不伪造远端成功                   |
+| 任务分组 / 受管 worktree / Source Server                        | compatible  | 空分组/空快照；需要真实仓库或远端的写操作抛错                       |
+| 闲时任务 / Bots                                                 | unavailable | 只读空投影，注册/保存/绑定抛错                                      |
+| 会话附件 begin/chunk/commit/read                                | supported   | 原生服务持有实际内存字节与 SHA-256，上传与采用授权，不写盘          |
+| 会话分享 / Onboarding / 加速卡                                  | unavailable | `publish/import=false`，空快照；真实操作抛错                        |
+| 反馈 / GenUI / 语音 / 云内容 / 营销触达 / Provider Provisioning | unavailable | 空形状读取；真实操作抛错                                            |
 
 ## 3. 状态所有者
 
@@ -94,8 +95,8 @@ mock/index.ts（唯一集中装配）
 
 1. **`accepted` 必须可观察**：写队列命令要更新 `queue.items`，会话生命周期命令要更新 `phase/control`，标题/模型命令要更新 `meta/config` 并下发帧。
 2. **不做假成功**：未实现命令一律走 `rejected` 分支；`default` 分支只有这一个出口。
-3. **不提供 command 去重**：mock 不缓存 `commandId`，不会返回 `duplicate`；客户端重试可能重复执行（模拟后端限制，UI 不得依赖 duplicate 语义）。
-4. **CAS 未裁决**：`baseRevision` / `baseLogEpoch` 按协议必填项校验，但 mock 不比较版本；ACK 的 `revisionAtDecision` 是客户端对账依据。
+3. **命令重放**：当前原生 owner 按操作者/客户端、sessionId、commandId 保留已接纳 ACK 与输入摘要；相同请求重放返回原决定，不重复追加消息，不同输入复用编号拒绝。query 同时返回当前 turn 事实。
+4. **CAS 边界**：通用原生命令仍按协议校验版本字段，不替代 AIReq 自身的材料版本、候选、配置 revision 与业务命令 CAS。AIReq 写入口在其唯一业务 owner 执行这些门禁。
 5. `noop` 不改变 revision，也不推进 topic 水位（除显式 `patchQueue` 的受支持命令外）。
 6. 会话从 `MockRuntime.sessions` 删除后，旧 turn 不得再次发布 sessions-index upsert 或启动队列下一项；controller 不直接删除会话。
 
@@ -210,14 +211,14 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 
 ### 8.1 HTTP、资源与部署
 
-| 接入面 | 请求与响应 | 必须保持的行为 |
-| --- | --- | --- |
-| 启动元信息 | `GET /api/server-info` → `ServerRemoteInfo`，用 `serverRemoteInfoOutputSchema` 校验 | 稳定 serverId、version/protocolVersion、compatibility、capabilities、workspaces 的 path/identity；目录均属于后端。identity 合法非空不触发另一条远程连接 |
-| 客户端配置 | `GET /api/v1/client/configs` → 当前 `code/data.configs` 配置响应 | 平台 help/community 等消费者仍可读取；不得要求旧产品账号 Bearer token |
-| RPC | 同源 `GET /ws` 升级 WebSocket，双向二进制帧 | 不是 JSON WebSocket、REST 或 SSE；正式部署的入口必须转发 Upgrade，不能只代理 `/api` |
-| 站点 | `/`、构建 assets 与 SPA 路由 | 提供相同的前端构建产物、正确 MIME；index 不缓存，带 hash 的构建资源可长期缓存 |
-| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src` |
-| 下载 | `IPlatformService` 浏览器实现 fetch URL 或下载字节 | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体 |
+| 接入面         | 请求与响应                                                                          | 必须保持的行为                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 启动元信息     | `GET /api/server-info` → `ServerRemoteInfo`，用 `serverRemoteInfoOutputSchema` 校验 | 稳定 serverId、version/protocolVersion、compatibility、capabilities、workspaces 的 path/identity；目录均属于后端。identity 合法非空不触发另一条远程连接 |
+| 客户端配置     | `GET /api/v1/client/configs` → 当前 `code/data.configs` 配置响应                    | 平台 help/community 等消费者仍可读取；不得要求旧产品账号 Bearer token                                                                                   |
+| RPC            | 同源 `GET /ws` 升级 WebSocket，双向二进制帧                                         | 不是 JSON WebSocket、REST 或 SSE；正式部署的入口必须转发 Upgrade，不能只代理 `/api`                                                                     |
+| 站点           | `/`、构建 assets 与 SPA 路由                                                        | 提供相同的前端构建产物、正确 MIME；index 不缓存，带 hash 的构建资源可长期缓存                                                                           |
+| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL                                          | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src`                                                            |
+| 下载           | `IPlatformService` 浏览器实现 fetch URL 或下载字节                                  | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体                                                                            |
 
 旧产品账号授权、回调、轮询和 token 交换接口不属于替换合同。工号只由浏览器操作者模块
 保存和恢复，本轮没有后端登录接口；不能把工号塞进 `clientId`、`subscriptionId`、
@@ -264,20 +265,20 @@ accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或�
 完整客户端装配以 `packages/client/src/remoteServiceAccess.ts` 和 `IServiceAccessor` 为准，
 可选服务缺席时不得伪造可用能力。
 
-| 保留消费者 | 方法／事件与数据语义 | 精确契约 |
-| --- | --- | --- |
-| 项目选择、侧栏、创建会话 | `readDirectory({path?,includeHidden?}) → {path,entries}` 浏览后端目录；`readProjects/readTree` 返回共享项目/roots/任务；`saveProject`、软删除/恢复/排序/移动需真实状态变化；`prepareSession/resolveSessionDirectories` 返回固化 cwd、附加目录与 identity | `project/contract.ts`、`project-storage/repository-contract.ts`；`broadcastService.onMessage` 的 `state:projects` 使其他连接刷新 |
-| 文件树与目录刷新 | `readdir({path,includeHidden?}) → FileEntry[]`、`stat → FileStat`；`watch/unwatch` 与 `onDynamicChange(id)`；搜索用 rootPath/query/limit，返回有界路径候选而不是整个磁盘 | `file/file.ts`、`fileWatcher/fileWatcher.ts`；UI `useFileService`、`useFileWatcherService` |
-| 文件搜索/忽略配置 | `searchWorkspaceFiles`；`listWorkspaceFilesLength` + `listWorkspaceFilesRange({rootPath,offset,length})` 返回列式打包裸字符串；忽略规则 read/transform/write 保持用户编辑语义 | `file/file.ts`、shared 的 workspaceFileEntriesCodec；未提供写能力时明确拒绝 |
-| 文本、代码、Markdown、SVG、HTML 预览 | `readTextFile({path,offset?,length?}) → FileTextSlice` 保持分页/截断；`readMediaPreview → {dataBase64,mediaType,...}` 支持图片及 SVG 原字节下载；服务器路径只作为 RPC 参数 | `file/file.ts`、UI `PreviewPane.tsx`、`components/ai-elements/markdown-image.tsx` |
-| 音频／视频 | `prepare({path,expectedKind}) → MediaPreviewPreparation`；inline 为 base64 + MIME，URL 分支必须浏览器可达；`host-range-url` 带 previewId/过期时间，`refreshPlaybackUrl` 续期，`release` 释放 | `media-preview/mediaPreview.ts`；URL 服务需正确 Content-Type/Range/Content-Range 与过期行为；不恢复 PDF/Office/PPTX 预览 |
-| 文件字节 | `readFileRange({path,offset,length}) → Uint8Array` EOF 可短读；`readBinaryPreview` 返回有界预览，不改变当前已裁剪的页面范围 | `file/file.ts`；保持顶层二进制快速通道 |
-| Git 面板与分支 | `refresh({workspacePath,...})` 返回一致状态快照；summary/repositoryInfo/localBranches/changes/ignoredPaths/diff/branchComparison/identity 查询；stage/unstage/discard、switch/createBranch、commit/push 后应可重新读取变化 | `git/git.ts` 与 shared Git DTO；UI `useGitRepository`、`useGitBranchSwitcher`、GitActions。结构化失败保留，不把冲突/不存在仓库当空成功 |
-| 历史会话、时间线和组织态 | `zcodeTaskService` 的列表/任务查询与动态 workspace 事件；controller workspaces/tasks-index 快照增量及 unread/tasksRemoved 信号；标题、置顶、归档、未读、删除按唯一 owner 改写 | `session/zcodeTaskService.ts`、`window-controller/windowController.ts`、`task-groups/contract.ts`；不得按工号拆表或过滤 |
-| 会话正文、输入、队列、权限、模型切换 | 先 hello/initialize，再 conversation/sessions-index/workspace-config subscribe；命令 ACK 与下行投影分离，分页查询有界；具体见 §8.4 | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`；UI `v4` 消费 |
-| 模型设置与选择器 | `providerSettingsService.getView/refresh`、个人 Provider/模型创建修改启停排序、`testModelConnectivity`；`modelSelectionService.getView` 与变更事件保持设置视图/执行目录分工 | `model-provider/providerFacadeServices.ts`；UI `useModelProviders`、Composer。工号切换不清理 API Key 或切换模型目录 |
-| 设置、凭据、系统与跨连接刷新 | setting get/update/变更事件；credential load/save/delete 及网络恢复限制；system info 返回后端信息/home；broadcast 消息用于失效刷新，不作为另一份业务事实 | `setting/setting.ts`、`credential/credential.ts`、`system/system.ts`、`broadcast/broadcast.ts` |
-| 保留设置页与辅助面 | 插件/MCP/子智能体/命令/hooks/memory/output-style 的读配置与写操作；同步、用量、分享、附件、自动化等只在既有能力开放时执行，未实现写入明确失败 | `plugins/plugins.ts`、`plugins/pluginManagement.ts`、`mcp-sync/`、`subagents/`、`commands/`、`hooks/`、`memory/`、`output-style/` 等 `IServiceAccessor` 指向的契约；§2 能力表记录 mock 当前限制，不授权裁撤这些尚保留入口 |
+| 保留消费者                           | 方法／事件与数据语义                                                                                                                                                                                                                                     | 精确契约                                                                                                                                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 项目选择、侧栏、创建会话             | `readDirectory({path?,includeHidden?}) → {path,entries}` 浏览后端目录；`readProjects/readTree` 返回共享项目/roots/任务；`saveProject`、软删除/恢复/排序/移动需真实状态变化；`prepareSession/resolveSessionDirectories` 返回固化 cwd、附加目录与 identity | `project/contract.ts`、`project-storage/repository-contract.ts`；`broadcastService.onMessage` 的 `state:projects` 使其他连接刷新                                                                                          |
+| 文件树与目录刷新                     | `readdir({path,includeHidden?}) → FileEntry[]`、`stat → FileStat`；`watch/unwatch` 与 `onDynamicChange(id)`；搜索用 rootPath/query/limit，返回有界路径候选而不是整个磁盘                                                                                 | `file/file.ts`、`fileWatcher/fileWatcher.ts`；UI `useFileService`、`useFileWatcherService`                                                                                                                                |
+| 文件搜索/忽略配置                    | `searchWorkspaceFiles`；`listWorkspaceFilesLength` + `listWorkspaceFilesRange({rootPath,offset,length})` 返回列式打包裸字符串；忽略规则 read/transform/write 保持用户编辑语义                                                                            | `file/file.ts`、shared 的 workspaceFileEntriesCodec；未提供写能力时明确拒绝                                                                                                                                               |
+| 文本、代码、Markdown、SVG、HTML 预览 | `readTextFile({path,offset?,length?}) → FileTextSlice` 保持分页/截断；`readMediaPreview → {dataBase64,mediaType,...}` 支持图片及 SVG 原字节下载；服务器路径只作为 RPC 参数                                                                               | `file/file.ts`、UI `PreviewPane.tsx`、`components/ai-elements/markdown-image.tsx`                                                                                                                                         |
+| 音频／视频                           | `prepare({path,expectedKind}) → MediaPreviewPreparation`；inline 为 base64 + MIME，URL 分支必须浏览器可达；`host-range-url` 带 previewId/过期时间，`refreshPlaybackUrl` 续期，`release` 释放                                                             | `media-preview/mediaPreview.ts`；URL 服务需正确 Content-Type/Range/Content-Range 与过期行为；不恢复 PDF/Office/PPTX 预览                                                                                                  |
+| 文件字节                             | `readFileRange({path,offset,length}) → Uint8Array` EOF 可短读；`readBinaryPreview` 返回有界预览，不改变当前已裁剪的页面范围                                                                                                                              | `file/file.ts`；保持顶层二进制快速通道                                                                                                                                                                                    |
+| Git 面板与分支                       | `refresh({workspacePath,...})` 返回一致状态快照；summary/repositoryInfo/localBranches/changes/ignoredPaths/diff/branchComparison/identity 查询；stage/unstage/discard、switch/createBranch、commit/push 后应可重新读取变化                               | `git/git.ts` 与 shared Git DTO；UI `useGitRepository`、`useGitBranchSwitcher`、GitActions。结构化失败保留，不把冲突/不存在仓库当空成功                                                                                    |
+| 历史会话、时间线和组织态             | `zcodeTaskService` 的列表/任务查询与动态 workspace 事件；controller workspaces/tasks-index 快照增量及 unread/tasksRemoved 信号；标题、置顶、归档、未读、删除按唯一 owner 改写                                                                            | `session/zcodeTaskService.ts`、`window-controller/windowController.ts`、`task-groups/contract.ts`；不得按工号拆表或过滤                                                                                                   |
+| 会话正文、输入、队列、权限、模型切换 | 先 hello/initialize，再 conversation/sessions-index/workspace-config subscribe；命令 ACK 与下行投影分离，分页查询有界；具体见 §8.4                                                                                                                       | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`；UI `v4` 消费                                                                                                                                                     |
+| 模型设置与选择器                     | `providerSettingsService.getView/refresh`、个人 Provider/模型创建修改启停排序、`testModelConnectivity`；`modelSelectionService.getView` 与变更事件保持设置视图/执行目录分工                                                                              | `model-provider/providerFacadeServices.ts`；UI `useModelProviders`、Composer。工号切换不清理 API Key 或切换模型目录                                                                                                       |
+| 设置、凭据、系统与跨连接刷新         | setting get/update/变更事件；credential load/save/delete 及网络恢复限制；system info 返回后端信息/home；broadcast 消息用于失效刷新，不作为另一份业务事实                                                                                                 | `setting/setting.ts`、`credential/credential.ts`、`system/system.ts`、`broadcast/broadcast.ts`                                                                                                                            |
+| 保留设置页与辅助面                   | 插件/MCP/子智能体/命令/hooks/memory/output-style 的读配置与写操作；同步、用量、分享、附件、自动化等只在既有能力开放时执行，未实现写入明确失败                                                                                                            | `plugins/plugins.ts`、`plugins/pluginManagement.ts`、`mcp-sync/`、`subagents/`、`commands/`、`hooks/`、`memory/`、`output-style/` 等 `IServiceAccessor` 指向的契约；§2 能力表记录 mock 当前限制，不授权裁撤这些尚保留入口 |
 
 这里保留协议中已有但页面未使用的字段/方法，不意味着恢复其退役页面，例如 Git commit graph。
 模型/工具授权独立于产品登录；MCP OAuth 等调用凭据不得按关键字批量删除。
@@ -334,9 +335,9 @@ sequenceDiagram
   sessionId 及命令所需版本等），返回 `accepted/noop/rejected/duplicate` 等规范 ACK；
   下行投影才是可观察状态。非法 envelope、能力未开放、会话不存在、订阅不属于本连接，
   保留 §4 与 `wire-fault.ts` 的 fault 分类，不返回通用“成功”。
-- 真实后端需遵守 commandId 幂等/去重、baseRevision/baseLogEpoch 的冲突裁决与
-  `queryConversationCommandsV4` 结果查询；模拟实现目前没有完整去重/CAS/持久结果查询，
-  不能照搬此简化作为生产语义。`conversationRowsRangeV4`、plans、workflow/artifact 查询
+- 真实后端需遵守完整 commandId 幂等/去重、baseRevision/baseLogEpoch 的冲突裁决与
+  `queryConversationCommandsV4` 结果查询；本内存实现的结果在进程重启后清除，
+  不代表生产持久化或完整通用 CAS。`conversationRowsRangeV4`、plans、workflow/artifact 查询
   与 attachment begin/chunk/commit 及字节查询的参数/返回值见 `transport.ts`、`snapshot.ts`、
   `command.ts`、`wire.ts` 及相应严格 schema，不重建第二套 DTO。
 - 共享的是项目/会话事实，不是连接和握手状态。Agent 的逐连接 ownership 已实现；
@@ -349,9 +350,38 @@ sequenceDiagram
 替换验收对象，保存部署包与各文件 SHA-256 清单；mock 与真实后端必须使用完全同一份产物，
 不得为新后端重打带特判的前端包。清单跟随交付包，不提交构建产物到源码库。
 
-验收以电脑浏览器进行：工号进入/恢复/切换，两个独立上下文查看同一项目/会话并观察更新；
-服务器目录选择、文件树、Git、当前文本/图片/媒体预览；合法非空 identity 正常加载；
-一个连接退订/退出不影响另一个连接；连接成功后停服、至少一次重连失败、恢复服务后自动恢复，
-耗尽重试后手动恢复。检查网络没有旧产品账号授权/token 请求，也没有旧远程主机路由。
+验收以电脑浏览器进行：工号进入/恢复/切换，两个独立上下文查看同一项目与 AIReq 业务事实；
+新入口只含提案、需求分析、正式需求、Issue、Skill 设计、自动化及 AIReq 设置，不恢复目录型业务项目、
+文件树、Git 面板、自由聊天或执行验收入口。一个连接退订/退出不影响另一个连接；
+连接失败/恢复后重读当前事实，不自动重发创建、发送、确认、保存或分析动作。
 同时检查 HTTPS 部署的 `/ws` Upgrade、HTTP 元信息和资源 URL 可达；localhost 开发成功只证明开发链路。
 
+## 9. AIReq 共享内存业务
+
+`src/aireq/contract.ts` 是业务模块唯一公开接线面。`mock/index.ts` 保留原服务装配，
+另注册仅含 `bootstrap/call/onDidChange` 的 AIReq RPC 对象，并把原生 admission/completion/seed
+回调传给现有 `MockZCodeAgentService`。业务模块不持有第二套 rows、附件、订阅或 seq。
+
+- 普通方法通过原 `/ws` 二进制 Channel 调用，每次显式传工号与 clientId；白名单和参数检查先于领域执行。
+  `/ws?employeeId=…&clientId=…&demo=…` 固定逐连接原生身份，ALS 仅传递请求上下文；
+  随后仍由 `createZCodeAgentConnectionScope` 管理握手、订阅和关闭。工号不是认证。
+- 项目、Release、提案、IR/SR、Issue、材料、配置与已保存 Skill 共享。项目仅保存名称、远程仓库、
+  默认分支，服务分配明确模拟托管路径，不把 VirtualProject 当业务项目，不要求用户选本地目录。
+  Skill 设计会话与未发送表单按工号＋clientId＋项目独立；保存后技能目录仍共享。
+- 提案只允许当前公开动作；IR/SR 生成与方案更新只由已接纳原生消息完成回调调用。
+  源开发执行、自由聊天、人工登记 MR、手工宣称已合入、编码和验收动作不在 RPC 白名单。
+  首发草稿编号与操作编号去重；业务命令校验读取 revision，确认和发布额外绑定完整材料与候选版本。
+- 唯一五秒时钟检查 MR opened/closed/merged 与完整当前文件；未合入、不完整、读取失败或候选失效
+  都保留提案及原因。核验通过才转正并登记 SR 分支；新 SR 没有代码分析证据，保持 0%。
+  原生已接纳回合和分析 pending 不依赖页面存活；重连不重放，进程重启恢复样例。
+- 正式负责人、排期、99→100 人工门禁与 Issue 完成/重开由服务端复核；Issue 仅属于项目，
+  不属于 Release。分析任务按 SR 三元组唯一，25/50 分页只传摘要，报告按需读取；
+  启动现有后端前设置 `AIREQ_DEMO=analysis-scale`，再打开 `/?demo=analysis-scale`，可得到初始 300 任务、1000 历史的规模样例；不写入正式需求列表，所有连接仍共享唯一调度器，不按 URL 或工号复制任务。
+- 模型、追加指令及项目保存有版本门禁，平台配置仅 owner 写；九个当前角色与原生模型目录同形，
+  会话和分析历史保留创建时绑定。追加指令每角色限 102400 UTF-8 字节。Skill 显式保存绑定
+  产物 revision/操作编号、包含全部临时文件且拒绝同名覆盖。
+- 自动化复用原生服务方法，定义和 stopped 模拟运行记录都在内存；历史主/actor 会话只读，
+  task/workpool 输出按需读取，不创建真实调度或影响 IR/SR。所有模拟材料均为本仓库自含文本，
+  dev tsx 和 tsup 无源仓库、浏览器 `?raw` 或独立 worker 依赖。
+
+本节描述实现边界，不是 gate、构建或浏览器验收通过记录。

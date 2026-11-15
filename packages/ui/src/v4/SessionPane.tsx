@@ -120,6 +120,7 @@ import {
   ConversationComposer,
   type ConversationComposerSendOptions,
   type ConversationComposerSendResult,
+  type ConversationComposerProps,
 } from "@/v4/ConversationComposer.js";
 import {
   useConversationDropTarget,
@@ -287,6 +288,30 @@ import {
 } from "@/lib/conversationSelectionReference.js";
 
 export interface SessionPaneProps {
+  embedded?: boolean;
+  composerPlaceholder?: ConversationComposerProps["composerPlaceholder"];
+  composerAriaLabel?: string;
+  conversationEmptyState?: ReactNode;
+  composerInputPreview?: ConversationComposerProps["composerInputPreview"];
+  onInputPreview?: ConversationComposerProps["onInputPreview"];
+  composerTools?: ConversationComposerProps["composerTools"];
+  externalTextInsertRequest?: ConversationComposerProps["externalTextInsertRequest"];
+  composerTrailingTools?: ConversationComposerProps["composerTrailingTools"];
+  onExternalTextInsertApplied?: ConversationComposerProps["onExternalTextInsertApplied"];
+  onOpenModelSettings?: () => void;
+  /** 显式重连前由宿主恢复当前会话的可重读事实；失败不得继续原生重试。 */
+  onBeforeReconnect?: () => Promise<void>;
+  autoFocusEnabled?: boolean;
+  /** 保持原生输入挂载时，宿主可暂停编辑与工具条全局快捷键。 */
+  interactionEnabled?: boolean;
+  conversationExtension?: {
+    prepareFirstSend: (
+      text: string,
+      options: ConversationComposerSendOptions,
+      preparedSessionId: string,
+    ) => Promise<string>;
+    onFirstSendAccepted: (sessionId: string) => void;
+  };
   paneId: string;
   sessionId: string | null;
   /** 低基数打开入口，由 pane 宿主提供；缺省仅用于兼容旧调用。 */
@@ -532,6 +557,21 @@ function createAgentPresentationCapabilities(agents: ReturnType<typeof useSubage
  */
 export function SessionPane({
   paneId,
+  embedded = false,
+  composerPlaceholder,
+  composerAriaLabel,
+  conversationEmptyState,
+  composerInputPreview,
+  onInputPreview,
+  composerTools,
+  composerTrailingTools,
+  externalTextInsertRequest,
+  onExternalTextInsertApplied,
+  onOpenModelSettings,
+  onBeforeReconnect,
+  autoFocusEnabled = true,
+  interactionEnabled = true,
+  conversationExtension,
   sessionId,
   openTrigger,
   rootSessionId,
@@ -587,6 +627,10 @@ export function SessionPane({
   onSearchResultHighlightDone,
 }: SessionPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
+  const firstSendAcceptedRef = useRef<{
+    commandId: string | null;
+    settle: () => void;
+  } | null>(null);
   const remoteAvailable = useRemoteConversationAvailable();
   const {
     layer,
@@ -631,6 +675,7 @@ export function SessionPane({
   const composerDraftGeneration = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).draftFocusVersion,
   );
+  // draftFocusVersion 是外部 pending-draft 账本的失效信号；同 scope 新建草稿也必须重读。
   const pendingAtEntry = useMemo(() => {
     if (sessionId !== null || newTaskComposerScope.projectId !== null) return null;
     const pending = readPendingTaskDraft(newTaskComposerScope);
@@ -851,12 +896,13 @@ export function SessionPane({
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
+  const snapshotConfig = snapshot?.config;
   useEffect(() => {
     if (
       !sessionId ||
       snapshot?.sessionId !== sessionId ||
-      !snapshot.config.provider.trim() ||
-      !snapshot.config.model.trim() ||
+      !snapshotConfig?.provider.trim() ||
+      !snapshotConfig.model.trim() ||
       !workspaceConfigOptions?.length
     ) {
       return;
@@ -869,15 +915,12 @@ export function SessionPane({
       .setTaskConfigOptions(
         workspacePath,
         sessionId,
-        projectSessionConfigToTaskConfigOptions(workspaceConfigOptions, snapshot.config),
+        projectSessionConfigToTaskConfigOptions(workspaceConfigOptions, snapshotConfig),
         workspaceIdentity,
       );
   }, [
     sessionId,
-    snapshot?.config.mode,
-    snapshot?.config.model,
-    snapshot?.config.provider,
-    snapshot?.config.thought,
+    snapshotConfig,
     snapshot?.sessionId,
     workspaceConfigOptions,
     workspaceIdentity,
@@ -2439,14 +2482,14 @@ export function SessionPane({
     (!snapshot.runtimeInitialization || snapshot.runtimeInitialization.status === "ready"),
   );
   useEffect(() => {
-    if (sessionId === null && effectiveSessionId && pluginUiRuntimeReady && snapshot) {
-      observeDraftPermissionGrant(effectiveSessionId, snapshot.config);
+    if (sessionId === null && effectiveSessionId && pluginUiRuntimeReady && snapshotConfig) {
+      observeDraftPermissionGrant(effectiveSessionId, snapshotConfig);
     }
   }, [
     sessionId,
     effectiveSessionId,
     pluginUiRuntimeReady,
-    snapshot?.config,
+    snapshotConfig,
     observeDraftPermissionGrant,
   ]);
   useLayoutEffect(() => {
@@ -2668,7 +2711,7 @@ export function SessionPane({
 
   useEffect(() => {
     if (!effectiveSessionId) {
-      setLease({ sessionId, layer, lease: null });
+      setLease((binding) => ({ ...binding, layer, lease: null }));
       return;
     }
     const nextLease = layer.acquire(effectiveSessionId);
@@ -2677,12 +2720,13 @@ export function SessionPane({
     const offOnlineModelTransition = nextLease.store.onOnlineModelTransition((transition) => {
       onlineModelTransitionHandlerRef.current(effectiveSessionId, nextLease.store, transition);
     });
-    setLease({ sessionId, layer, lease: nextLease });
+    // 绑定身份由 useSessionPaneLease 在 render 归约；晋升不重建同一 effective lease。
+    setLease((binding) => ({ ...binding, layer, lease: nextLease }));
     return () => {
       offOnlineModelTransition();
       nextLease.release();
     };
-  }, [layer, effectiveSessionId]);
+  }, [layer, effectiveSessionId, setLease]);
 
   useEffect(() => {
     if (!sessionId || !lease || snapshot?.sessionId !== sessionId) return;
@@ -3486,6 +3530,101 @@ export function SessionPane({
       text: string,
       options?: ConversationComposerSendOptions,
     ): Promise<ConversationComposerSendResult> => {
+      if (sessionId === null && conversationExtension) {
+        let settleFirstSend: typeof firstSendAcceptedRef.current = null;
+        let submittedCommandId: string | null = null;
+        const previousFirstSend = firstSendAcceptedRef.current;
+        try {
+          if (!options?.submission) throw new Error("首次发送缺少原生输入快照，草稿已保留。");
+          const draftBinding = await waitForDraftSession();
+          await ensureDraftPrewarmConfigBeforeSendRef.current(draftBinding.sessionId);
+          const currentSnapshot = snapshotRef.current;
+          if (
+            currentSnapshot?.sessionId !== draftBinding.sessionId ||
+            (currentSnapshot.runtimeInitialization &&
+              currentSnapshot.runtimeInitialization.status !== "ready")
+          ) {
+            throw new Error("草稿会话尚未就绪，请稍后重新发送，输入已保留。");
+          }
+          // Bug 原因：业务首发另建会话会使预上传附件跨 owner；先占住同一预热生命周期再登记业务。
+          if (!draftBinding.beginPromotion()) throw new Error("草稿会话已切换，请重新发送");
+          const targetSessionId = await conversationExtension.prepareFirstSend(
+            text,
+            options,
+            draftBinding.sessionId,
+          );
+          if (targetSessionId !== draftBinding.sessionId)
+            throw new Error("首次发送会话与原生草稿不一致，输入已保留。");
+          if (!draftBinding.beginPromotion()) throw new Error("草稿会话已切换，请重新发送");
+          // Bug 原因：权威帧或 registry 可在 dispatch 的 ACK await 返回前完成唯一一次附件结算；
+          // 必须先登记发布回调，但只能由 Composer 接纳后的结算消费，不能在这里提前提升。
+          settleFirstSend = {
+            commandId: null,
+            settle: () => {
+              draftBinding.promote();
+              conversationExtension.onFirstSendAccepted(targetSessionId);
+            },
+          };
+          firstSendAcceptedRef.current = settleFirstSend;
+          const ack = await dispatchCommand(
+            "sendText",
+            {
+              text,
+              ...options.submission,
+              attachments: options.attachments ?? [],
+              conversationQuotes: options.conversationQuotes ?? [],
+              ...(options.requestedDelivery
+                ? { requestedDelivery: options.requestedDelivery }
+                : {}),
+            },
+            targetSessionId,
+            undefined,
+            undefined,
+            options.telemetrySeed,
+            (envelope) => {
+              // ACK 丢失后用户显式重试复用原命令水位；不能把同一 provisional 首发变成第二条输入。
+              const previous = pendingCommandRegistry
+                .list(targetSessionId)
+                .find((entry) => entry.replay.kind === "input" && entry.replay.type === "sendText");
+              if (previous) {
+                if (
+                  previous.replay.kind !== "input" ||
+                  JSON.stringify(previous.replay.payload) !== JSON.stringify(envelope.payload)
+                ) {
+                  throw new Error("首次发送结果尚待核实，请先恢复原草稿或重新读取会话。");
+                }
+                envelope.commandId = previous.commandId;
+                envelope.clientId = previous.clientId;
+                envelope.issuedAt = previous.issuedAt;
+              }
+              if (settleFirstSend) settleFirstSend.commandId = envelope.commandId;
+              options.onCommandCreated?.(envelope.commandId);
+              submittedCommandId = envelope.commandId;
+            },
+          );
+          if (ack.status !== "accepted" && ack.status !== "duplicate") {
+            if (firstSendAcceptedRef.current === settleFirstSend) {
+              firstSendAcceptedRef.current = null;
+            }
+            throw new Error(ack.reasonCode ?? "原生会话尚未接纳发送，草稿已保留。");
+          }
+          setSendSubmissionError(null);
+          return "sent";
+        } catch (error) {
+          // 未发出新命令时恢复旧的未知回执结算；已知 provider 拒绝才清理本次回调。
+          // 传输异常不代表拒绝，不能丢掉迟到权威帧的唯一结算入口。
+          if (firstSendAcceptedRef.current === settleFirstSend) {
+            if (submittedCommandId === null) {
+              firstSendAcceptedRef.current = previousFirstSend;
+            } else if (isProviderNotReadyError(error)) {
+              firstSendAcceptedRef.current = null;
+            }
+          }
+          const detail = error instanceof Error ? error.message : String(error);
+          setSendSubmissionError({ code: "SEND_FAILED", message: detail, detail });
+          throw error;
+        }
+      }
       const editSession = sessionId
         ? getComposerEditSession(composerEditSessionKey(workspaceKey, sessionId))
         : undefined;
@@ -3495,10 +3634,24 @@ export function SessionPane({
       // 失效态的发送是普通新消息；结算后同样由 onSubmissionSettled 退出编辑态并恢复原草稿。
       return sendComposerText(text, options);
     },
-    [sendComposerText, sessionId, submitComposerEdit, workspaceKey],
+    [
+      sendComposerText,
+      sessionId,
+      submitComposerEdit,
+      workspaceKey,
+      conversationExtension,
+      dispatchCommand,
+      waitForDraftSession,
+    ],
   );
   const handleComposerSubmissionSettled = useCallback(
-    (scopeId: string) => {
+    (scopeId: string, commandId?: string | null) => {
+      const accepted = firstSendAcceptedRef.current;
+      // 旧 scope 的附件可能晚到；只能消费同一命令的首发回调，不能提升新草稿。
+      if (accepted && accepted.commandId === commandId) {
+        firstSendAcceptedRef.current = null;
+        accepted.settle();
+      }
       if (!sessionId) return;
       const editSession = getComposerEditSession(composerEditSessionKey(workspaceKey, sessionId));
       // 只结束本次提交所属的编辑；提交期间已切换到另一编辑目标时保持新编辑态。
@@ -4122,43 +4275,79 @@ export function SessionPane({
   // 恰好是每次输入都可能重渲染的组件。这里固定 button 版的引用，不动 handleStop 的双入口设计。
   const handleStopFromButton = useCallback(() => handleStop("button"), [handleStop]);
 
+  const reconnectTarget = useMemo(
+    () => ({
+      paneId,
+      sessionId,
+      workspacePath,
+      workspaceIdentity,
+      provider,
+      layer,
+      lease,
+      active: false,
+    }),
+    [paneId, sessionId, workspacePath, workspaceIdentity, provider, layer, lease],
+  );
+  const reconnectTargetRef = useRef(reconnectTarget);
+  reconnectTargetRef.current = reconnectTarget;
+  const reconnectFlightRef = useRef<typeof reconnectTarget | null>(null);
+  useLayoutEffect(() => {
+    reconnectTarget.active = true;
+    return () => {
+      reconnectTarget.active = false;
+    };
+  }, [reconnectTarget]);
+
   const handleRetrySubscribe = useCallback(() => {
-    if (state.lifecycle?.state !== "faulted") {
-      void lease?.store.retry();
-      return;
-    }
-    // faulted 不能通过重复单任务 close 恢复；扩大到工作区必须由用户明确选择。
+    const target = reconnectTarget;
+    const isCurrentTarget = () => target.active && reconnectTargetRef.current === target;
+    if (!isCurrentTarget() || reconnectFlightRef.current === target) return;
+    reconnectFlightRef.current = target;
+    // Bug 根因：只重试原生订阅不会清除宿主故障；跨 await 只认本次绑定，
+    // 连续点击只恢复一次，A → B → A 或卸载后也不能把迟到恢复用在新目标上。
     void (async () => {
-      if (
-        !(await confirmLifecycleRecovery({
-          title: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
-          description: intl.formatMessage({ id: "taskList.recoverWorkspaceDescription" }),
-          confirmLabel: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
-        }))
-      )
-        return;
       try {
-        await zcodeTaskService.restartWorkspaceProcess({
-          workspacePath,
-          workspaceIdentity,
-          provider: provider ?? ZCODE_AGENT_PROVIDER,
-          bumpRuntimeEpoch: true,
-        });
-        await lease?.store.retry();
+        if (state.lifecycle?.state === "faulted") {
+          // faulted 恢复扩大到工作区，宿主恢复也必须等用户明确同意之后。
+          const confirmed = await confirmLifecycleRecovery({
+            title: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
+            description: intl.formatMessage({ id: "taskList.recoverWorkspaceDescription" }),
+            confirmLabel: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
+          });
+          if (!confirmed || !isCurrentTarget()) return;
+        }
+        if (onBeforeReconnect) {
+          await onBeforeReconnect();
+          if (!isCurrentTarget()) return;
+        }
+        if (state.lifecycle?.state === "faulted") {
+          await zcodeTaskService.restartWorkspaceProcess({
+            workspacePath: target.workspacePath,
+            workspaceIdentity: target.workspaceIdentity,
+            provider: target.provider ?? ZCODE_AGENT_PROVIDER,
+            bumpRuntimeEpoch: true,
+          });
+          if (!isCurrentTarget()) return;
+        }
+        await target.lease?.store.retry();
       } catch (error) {
-        logger.warn("[session-lifecycle] 工作区恢复失败", { workspacePath, error });
-        toast(intl.formatMessage({ id: "taskList.restartFailed" }));
+        logger.warn("[session-lifecycle] 重新连接失败", {
+          workspacePath: target.workspacePath,
+          sessionId: target.sessionId,
+          error,
+        });
+        if (isCurrentTarget()) toast(intl.formatMessage({ id: "taskList.restartFailed" }));
+      } finally {
+        if (reconnectFlightRef.current === target) reconnectFlightRef.current = null;
       }
     })();
   }, [
-    lease,
+    reconnectTarget,
+    onBeforeReconnect,
     state.lifecycle?.state,
     confirmLifecycleRecovery,
     intl,
     zcodeTaskService,
-    workspacePath,
-    workspaceIdentity,
-    provider,
   ]);
 
   // loadOlder 触发（接近顶部自动预取）。store 内部单飞防重入。
@@ -4560,9 +4749,14 @@ export function SessionPane({
     ? "remote"
     : "local";
   const handleOpenModelSettings = useCallback(() => {
+    // 业务壳没有旧设置标签消费者，优先由宿主导航到实际模型页。
+    if (onOpenModelSettings) {
+      onOpenModelSettings();
+      return;
+    }
     setPendingSettingsSectionIntent("modelProvider");
     openSettingsTab();
-  }, [openSettingsTab]);
+  }, [onOpenModelSettings, openSettingsTab]);
   const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
   const recoverableCommand = recoverableCommands[0] ?? null;
   const handleDismissPendingRecovery = useCallback(() => {
@@ -4628,6 +4822,12 @@ export function SessionPane({
   const composerNode = readOnly ? null : (
     <ConversationComposer
       key="conversation-composer"
+      composerPlaceholder={composerPlaceholder}
+      composerAriaLabel={composerAriaLabel}
+      composerInputPreview={composerInputPreview}
+      onInputPreview={onInputPreview}
+      composerTools={composerTools}
+      composerTrailingTools={composerTrailingTools}
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       inputPending={state.optimisticCommands.some((command) =>
@@ -4663,17 +4863,24 @@ export function SessionPane({
       telemetryDraftConfig={telemetryDraftConfig}
       // 完整视图浮窗默认是一条输入框：草稿项目栏不进入浮窗，切到对话 tab 再选择项目。
       contextHeader={isDraft && !isFloatingPresentation ? draftComposerHeader : undefined}
-      centered={isDraft}
+      centered={isDraft && !embedded}
       layout={isFloatingPresentation ? "inline" : "stacked"}
       workingDurationMs={
         floatingTurnRunning ? floatingLatestTurnSummary?.workDurationMs : undefined
       }
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
-      externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
-      onExternalTextInsertApplied={handleExternalTextInsertApplied}
-      autoFocusEnabled={focused}
+      externalTextInsertRequest={
+        focused
+          ? (externalTextInsertRequest ?? (sessionId === null ? composerTextInsertRequest : null))
+          : null
+      }
+      onExternalTextInsertApplied={
+        externalTextInsertRequest ? onExternalTextInsertApplied : handleExternalTextInsertApplied
+      }
+      autoFocusEnabled={focused && autoFocusEnabled}
       disabled={
+        !interactionEnabled ||
         connecting ||
         draftRuntimeRebuilding ||
         composerEdit.pendingLockQueueItemId !== null ||
@@ -4824,6 +5031,7 @@ export function SessionPane({
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {/* 完整视图浮窗只露出输入框，草稿推荐提示不进入浮窗。 */}
       {isDraft &&
+      !embedded &&
       !isFloatingPresentation &&
       (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
@@ -5081,14 +5289,16 @@ export function SessionPane({
                         <div className="p-6 text-center text-ui-base text-foreground-subtle">
                           {intl.formatMessage({ id: "remote.conversation.placeholder" })}
                         </div>
-                      ) : isDraft ? (
+                      ) : conversationEmptyState ? (
+                        conversationEmptyState
+                      ) : isDraft && !embedded ? (
                         <div data-testid={TID_CHAT_EMPTY} className="w-full">
                           <ConversationDraftEmptyState />
                         </div>
                       ) : null
                     }
                     // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
-                    centerEmptyStateWithDock={isDraft && !isFloatingPresentation}
+                    centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
                     floatingComposerDock={isFloatingPresentation}
                     onComposerDockHeightChange={
                       isFloatingPresentation && focused

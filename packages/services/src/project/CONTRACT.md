@@ -44,6 +44,7 @@
 
   UI 异步读取沿用既有 generation / effect cleanup，旧 accessor 的迟到结果不得覆盖新连接。
   conversation、sessions-index、workspace-config 继续由逐连接 facade 保护订阅归属；共享业务不共享握手。
+
 - 运行验收：稳定 identity 下打开后端目录、创建项目和会话，刷新后任务/会话可加载，文件树/Git/预览仍可用，
   不出现 identity-only 的 remote-waiting；两个独立浏览器以不同工号观察同一项目和任务，一端退订/断线另一端仍接收更新。
 - mock 仍是内存原型：目录浏览只读服务器目录名，文件/Git 使用原 fixture；不增加真实文件写入或 Git 执行。

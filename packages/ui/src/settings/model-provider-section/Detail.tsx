@@ -495,7 +495,7 @@ export function ModelProviderSectionDetail({
         <div className="space-y-3">
           <CodingPlanStatusPanel
             providerId={selectedNavItem.presetId}
-              status={selectedNavItem.status}
+            status={selectedNavItem.status}
             viewState={statusPanelViewState}
             purchaseUrl={selectedNavItem.purchaseUrl}
             planLevel={selectedNavItem.planLevel}
