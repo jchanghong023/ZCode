@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillSummary, SkillsListResult } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
-import { WandSparkles } from "lucide-react";
+import { ChevronDown, CircleUserRound, Folder, WandSparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,18 +10,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import {
   SettingsResourceGroupHeader,
   SettingsResourceList,
 } from "@/settings/SettingsResourceGroup.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
+import { PluginSearchEmptyState } from "@/settings/PluginInstallEmptyState.js";
 import { groupScopedSkillsBySource } from "@/settings/pluginCapabilityProjection.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -126,17 +127,28 @@ export function AIReqSkillsSettings() {
         只读技能目录。设计和模拟保存请使用工作区独立的“Skill 设计”；这里不安装、启停或删除技能。
       </p>
       <div className="flex min-w-0 flex-wrap items-center gap-3">
-        <Select value={scope} onValueChange={setScope}>
-          <SelectTrigger aria-label="技能作用域" className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="user">共享模拟 profile</SelectItem>
-            <SelectItem value="project" disabled={!projectId}>
-              当前项目
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        {/* 修复原因：宽下拉框破坏技能工具栏的紧凑布局；沿用共享作用域胶囊，但保留模拟归属标签。 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" aria-label="技能作用域" className="rounded-full pl-2.5 pr-1.5">
+              {scope === "user" ? (
+                <CircleUserRound className="size-4" aria-hidden="true" />
+              ) : (
+                <Folder className="size-4" aria-hidden="true" />
+              )}
+              <span>{scope === "user" ? "共享模拟 profile" : "当前项目"}</span>
+              <ChevronDown className="size-4 text-foreground-subtlest" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuRadioGroup value={scope} onValueChange={setScope}>
+              <DropdownMenuRadioItem value="user">共享模拟 profile</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="project" disabled={!projectId}>
+                当前项目
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="flex h-7 items-center gap-1 px-3 text-ui-base font-medium">
           <span>技能</span>
           <span className="text-ui-sm text-foreground-subtle">{skills.length}</span>
@@ -149,6 +161,11 @@ export function AIReqSkillsSettings() {
           onChange={(event) => setQuery(event.target.value)}
           clearLabel="清空搜索"
           onClear={() => setQuery("")}
+        />
+        <SettingsResourceHeaderActions
+          onRefresh={() => void refresh()}
+          refreshing={loading}
+          refreshLabel="刷新技能"
         />
       </div>
       {loading && (
@@ -166,24 +183,17 @@ export function AIReqSkillsSettings() {
       )}
       {result && (
         <>
-          <section className="space-y-4">
-            <SettingsResourceGroupHeader
-              title="已安装技能"
-              count={localSkills.length}
-              actions={
-                <SettingsResourceHeaderActions
-                  onRefresh={() => void refresh()}
-                  refreshing={loading}
-                  refreshLabel="刷新技能"
-                />
-              }
-            />
-            <SettingsResourceList
-              items={localSkills}
-              getKey={(skill) => skill.id}
-              renderItem={renderSkill}
-            />
-          </section>
+          {/* 修复原因：搜索空结果不应留下“已安装技能 0”分组，空态复用设置页的居中边框容器。 */}
+          {localSkills.length > 0 && (
+            <section className="space-y-4">
+              <SettingsResourceGroupHeader title="已安装技能" count={localSkills.length} />
+              <SettingsResourceList
+                items={localSkills}
+                getKey={(skill) => skill.id}
+                renderItem={renderSkill}
+              />
+            </section>
+          )}
           {pluginGroups.map((group) => (
             <section key={group.id} className="space-y-4">
               <SettingsResourceGroupHeader title={group.label} count={group.skills.length} />
@@ -195,9 +205,9 @@ export function AIReqSkillsSettings() {
             </section>
           ))}
           {!skills.length && (
-            <p className="text-ui-base text-foreground-subtle">
-              {query ? "没有匹配的技能，请修改搜索条件。" : "此作用域尚无技能。"}
-            </p>
+            <PluginSearchEmptyState
+              label={query.trim() ? "没有匹配的技能，请修改搜索条件。" : "此作用域尚无技能。"}
+            />
           )}
           {result.diagnostics.length > 0 && (
             <details className="text-ui-sm">

@@ -166,9 +166,8 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   );
   const openModelSettings = useCallback(() => openSettings("models"), [openSettings]);
   const closeSettings = () => {
+    // 修复：设置仅覆盖已挂载业务页；强制切 chat 会丢失分析或 Skill 页的返回位置。
     setSettingsOpen(false);
-    // 原版返回激活讨论工作区，不恢复进入设置前的分析页，也不重建会话。
-    ai.setMainView("chat");
   };
   const openHelp = (returnFocusTo?: HTMLButtonElement | null) =>
     ai.navigate(() => {
@@ -512,8 +511,10 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           }}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-          {/* 修复：非聊天工作页原有 frame 始终预留 48px；删除其旧面包屑后不能连同占位一起移除。 */}
-          {ai.mainView !== "chat" && <div className="h-12 shrink-0 bg-background" />}
+          {/* 修复：自动化自持面包屑顶栏，不能再叠加业务页的 48px 留白。 */}
+          {ai.mainView !== "chat" && ai.mainView !== "automations" && (
+            <div className="h-12 shrink-0 bg-background" />
+          )}
           {ai.error && (
             <div
               role="alert"

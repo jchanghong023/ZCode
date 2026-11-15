@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { BranchCopyProps } from "./contract.js";
 
-export function BranchCopy({ branch, onMessage, compact = false }: BranchCopyProps) {
+export function BranchCopy({ branch, onMessage }: BranchCopyProps) {
   const [copiedBranch, setCopiedBranch] = useState<string>();
   const [feedback, setFeedback] = useState("");
   const [pending, setPending] = useState(false);
@@ -32,7 +32,7 @@ export function BranchCopy({ branch, onMessage, compact = false }: BranchCopyPro
           size="sm"
           disabled={pending}
           title={branch}
-          className={`h-8 w-full min-w-0 justify-start gap-1 px-0 text-ui-sm ${compact ? "" : "font-mono"}`}
+          className="h-8 w-full min-w-0 justify-start gap-1 px-0 font-mono text-ui-sm"
           aria-label={`复制分支 ${branch}`}
           onClick={async (event) => {
             event.stopPropagation();
@@ -53,9 +53,7 @@ export function BranchCopy({ branch, onMessage, compact = false }: BranchCopyPro
             }
           }}
         >
-          <span className="min-w-0 flex-1 truncate text-left">
-            {compact ? (copied ? "已复制" : "复制分支") : branch}
-          </span>
+          <span className="min-w-0 flex-1 truncate text-left">{branch}</span>
           {copied ? (
             <Check aria-hidden="true" className="size-3 shrink-0" />
           ) : (

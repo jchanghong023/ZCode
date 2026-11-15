@@ -41,8 +41,11 @@ export function AIReqAutomations({
   );
   const [session, setSession] = useState<AutomationSession | null>(null);
   return (
-    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto" data-testid="aireq-automations">
-      {/* 修复原因：Shell 已有 48px 空条；此处复用 24px 面包屑区，避免原生桌面 48px 重复留白。 */}
+    <div
+      className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-xl border-[0.5px] border-border bg-background shadow-xs"
+      data-testid="aireq-automations"
+    >
+      {/* 修复：独立页面保留原生圆角外框，顶部位置仅由此处面包屑区提供。 */}
       <AutomationsMainBreadcrumbFrame
         ariaLabel="自动化导航"
         isDesktop

@@ -6,6 +6,5 @@
 export type IssuePage = "issueCreate" | "issueAnalysis" | "issueProgress";
 export interface BranchCopyProps {
   branch: string;
-  compact?: boolean;
   onMessage(message: string): void;
 }
