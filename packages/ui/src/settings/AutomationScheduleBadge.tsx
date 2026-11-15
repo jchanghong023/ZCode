@@ -8,11 +8,11 @@ import {
 } from "@/components/ui/tooltip.js";
 
 export function AutomationScheduleBadge({
-  dimmed = false,
+  tone = "active",
   icon,
   text,
 }: {
-  dimmed?: boolean;
+  tone?: "active" | "muted" | "completed";
   icon: ReactNode;
   text: string;
 }) {
@@ -48,8 +48,12 @@ export function AutomationScheduleBadge({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex w-fit min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-lg bg-success/10 py-0.5 pl-1 pr-2 font-normal text-success",
-              dimmed && "opacity-40",
+              "inline-flex w-fit min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-lg py-0.5 pl-1 pr-2 font-normal",
+              // 根因：暂停／失败的整枚徽章曾叠加 40% 透明度，文字也被淡化到难以阅读。
+              tone === "muted"
+                ? "bg-surface text-foreground-subtle"
+                : "bg-success/10 text-success",
+              tone === "completed" && "opacity-40",
             )}
           >
             <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>

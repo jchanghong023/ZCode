@@ -416,7 +416,8 @@ function AutomationActionsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex size-6 items-center justify-center rounded-md opacity-100 transition-colors hover:bg-hover md:opacity-0 md:group-hover:opacity-100 data-[state=open]:bg-hover data-[state=open]:opacity-100"
+          // 根因：桌面端只在 hover 恢复透明度，键盘已聚焦时按钮仍不可见。
+          className="flex size-6 items-center justify-center rounded-md opacity-100 transition-colors hover:bg-hover focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 data-[state=open]:bg-hover data-[state=open]:opacity-100"
           data-testid={TID_AUTOMATION_CARD_MENU}
           aria-label={intl.formatMessage({ id: "automations.moreActions" })}
           disabled={busy}
@@ -1423,6 +1424,7 @@ export function AutomationsSection({
     return (
       <>
         <AutomationEditView
+          scheduledOnly={scheduledOnly}
           editing={view.mode === "edit" ? view.automation : null}
           savedRevision={view.mode === "edit" ? (view.savedRevision ?? 0) : 0}
           initialDraft={view.mode === "create" ? view.draft : null}
@@ -1732,6 +1734,8 @@ export function AutomationsSection({
                             tabIndex={0}
                             onClick={() => setView({ mode: "edit", automation })}
                             onKeyDown={(event) => {
+                              // 根因：内部菜单按钮的 Enter／Space 会冒泡，不能当作卡片自身的导航。
+                              if (event.target !== event.currentTarget) return;
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
                                 setView({ mode: "edit", automation });
@@ -1770,15 +1774,16 @@ export function AutomationsSection({
                                         </span>
                                       </span>
                                       {/* 失败态也只展示 cron 摘要，禁止把已过期 nextRunAt 误写成“下次运行”。 */}
-                                      <span className="inline-flex min-w-0 items-center rounded-md bg-success/10 py-0.5 pl-1 pr-2 font-normal text-success opacity-40">
-                                        <span className="flex size-5 shrink-0 items-center justify-center">
+                                      <AutomationScheduleBadge
+                                        tone="muted"
+                                        text={scheduleCardText}
+                                        icon={
                                           <AutomationClockIcon
                                             className="size-4"
                                             aria-hidden="true"
                                           />
-                                        </span>
-                                        <span className="truncate pl-1">{scheduleCardText}</span>
-                                      </span>
+                                        }
+                                      />
                                     </>
                                   ) : status === "active" ? (
                                     <>
@@ -1827,7 +1832,7 @@ export function AutomationsSection({
                                       {status === "paused" || status === "completed" ? (
                                         /* 暂停/完成后调度不再推进，只展示 cron 摘要，不展示 nextRunAt。 */
                                         <AutomationScheduleBadge
-                                          dimmed
+                                          tone={status === "completed" ? "completed" : "muted"}
                                           text={scheduleCardText}
                                           icon={
                                             <AutomationClockIcon
@@ -1840,12 +1845,8 @@ export function AutomationsSection({
                                     </>
                                   )}
                                 </div>
-                                <span
-                                  className={cn(
-                                    "inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-surface px-1.5 py-0.5 text-ui-base font-normal text-foreground-subtle",
-                                    (hasFailure || status === "paused") && "opacity-40",
-                                  )}
-                                >
+                                {/* 根因：次数已经使用 semantic 次要前景，额外压到 40% 会让失败／暂停任务不可读。 */}
+                                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-surface px-1.5 py-0.5 text-ui-base font-normal text-foreground-subtle">
                                   {runCountText}
                                 </span>
                               </div>

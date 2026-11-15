@@ -150,8 +150,11 @@ import {
   isSessionCreatedAutomation as resolveIsSessionCreatedAutomation,
   parseCronToBuilder,
   resolveAutomationStatusKind,
+  resolveScheduledAutomationStatus,
+  SCHEDULED_AUTOMATION_STATUS_LABELS,
   WEEKDAY_ORDER,
   type AutomationStatusKind,
+  type AutomationStatusFilterKind,
   type CronBuilderState,
   type CronFrequency,
   type CustomRepeatUnit,
@@ -1068,6 +1071,8 @@ export interface AutomationEditSubmit {
 export interface AutomationEditViewProps {
   /** null = 新建；否则编辑。 */
   editing: ZCodeAutomation | null;
+  /** 定时任务专用入口与列表共享等待／执行状态，旧入口保留生命周期语义。 */
+  scheduledOnly?: boolean;
   /** 同一目标仅在显式保存成功后递增；启停或后台刷新不覆盖未保存输入。 */
   savedRevision?: number;
   /** 新建预填(来自 More ideas 模板)。 */
@@ -1175,8 +1180,13 @@ const RUN_STATUS_TEXT_CLASS: Record<RunStatusKind, string> = {
   skipped: "text-warning",
 };
 
-const AUTOMATION_STATUS_DOT_CLASS: Record<AutomationStatusKind, string> = {
+const AUTOMATION_STATUS_DOT_CLASS: Record<
+  AutomationStatusKind | AutomationStatusFilterKind,
+  string
+> = {
   active: "bg-success",
+  waiting: "bg-success",
+  inProgress: "bg-success",
   paused: "bg-warning",
   failed: "bg-destructive",
   completed: "bg-foreground-subtlest",
@@ -1201,6 +1211,7 @@ function normalizeAutomationScheduleRule(
 
 export function AutomationEditView({
   editing,
+  scheduledOnly = false,
   savedRevision = 0,
   initialDraft,
   defaultWorkspacePath,
@@ -1945,6 +1956,9 @@ export function AutomationEditView({
   );
   const runsPageItems = buildRunsPageItems(runsCurrentPage, runsTotalPages);
   const editStatus = editing ? resolveAutomationStatusKind(editing) : null;
+  // 根因：active 只表示允许调度；编辑页曾直接译成“运行中”，与列表的真实运行记录派生不一致。
+  const scheduledEditStatus =
+    editing && scheduledOnly ? resolveScheduledAutomationStatus(editing, runs) : null;
   const showEditingSettingsActions = Boolean(editing && tab === "settings");
   const showCreateSettingsAction = !editing && tab === "settings";
 
@@ -2100,15 +2114,17 @@ export function AutomationEditView({
                       <span
                         className={cn(
                           "size-1.5 shrink-0 rounded-full",
-                          AUTOMATION_STATUS_DOT_CLASS[editStatus],
+                          AUTOMATION_STATUS_DOT_CLASS[scheduledEditStatus ?? editStatus],
                         )}
                         aria-hidden="true"
                       />
                     </span>
                     <span className="min-w-0 truncate">
-                      {intl.formatMessage({
-                        id: `automations.lifecycle.${editStatus}`,
-                      })}
+                      {scheduledEditStatus
+                        ? SCHEDULED_AUTOMATION_STATUS_LABELS[scheduledEditStatus]
+                        : intl.formatMessage({
+                            id: `automations.lifecycle.${editStatus}`,
+                          })}
                     </span>
                   </span>
                 </div>
