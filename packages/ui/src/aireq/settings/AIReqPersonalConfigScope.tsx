@@ -12,8 +12,8 @@ export function AIReqPersonalConfigScope() {
       {/* 所有者与权限只摘要一次，模拟路径等次级信息按需展开。 */}
       <p>
         {zh
-          ? `共享模拟配置由 ${source.backend?.owner ?? "j00808874"} 管理，其他工号只读；技能目录所有人只读。`
-          : `Shared mock settings are managed by ${source.backend?.owner ?? "j00808874"}. Others have read-only access; the skills directory is read-only for everyone.`}
+          ? `共享模拟配置由 ${source.backend?.owner ?? "j00808874"} 管理，其他工号只读。`
+          : `Shared mock settings are managed by ${source.backend?.owner ?? "j00808874"}. Others have read-only access.`}
       </p>
       <details>
         <summary className="cursor-pointer">

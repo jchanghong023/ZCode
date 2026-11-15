@@ -14,11 +14,6 @@ export type {
   AIReqDataSource,
   AIReqFileVersion,
   AIReqIdentity,
-  AIReqIssue,
-  AIReqIssueInput,
-  AIReqIssueScope,
-  AIReqIssueServices,
-  AIReqIssueSnapshot,
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqPrHandoff,
@@ -48,8 +43,6 @@ export type {
 } from "@zcode/services/aireq";
 export {
   AIREQ_CONTRACT_VERSION,
-  ISSUE_STATUSES,
-  ISSUE_TYPES,
   MATERIAL_KIND_LABELS,
   PROGRESS_STATUSES,
   PROPOSAL_PHASE_OPTIONS,
@@ -95,7 +88,4 @@ export type AIReqMainView =
   | "chat"
   | "automations"
   | "skillDesign"
-  | "requirementAnalysis"
-  | "issueCreate"
-  | "issueAnalysis"
-  | "issueProgress";
+  | "requirementAnalysis";

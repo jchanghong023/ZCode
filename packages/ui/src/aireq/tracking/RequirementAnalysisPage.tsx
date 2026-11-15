@@ -379,7 +379,7 @@ function ConnectedProgressAnalysis({
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
       <section
         aria-label="分析任务与执行历史"
-        className="min-w-0 overflow-hidden rounded-xl border border-border"
+        className="min-w-0 rounded-xl border border-border"
       >
         <Tabs
           value={tab}

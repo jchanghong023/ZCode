@@ -59,8 +59,6 @@ Provider / account / entitlement / personal config
 | 历史任务恢复       | Session/task switch             | Snapshot hydrator        | persisted Session config             | cold-resume + Registry           | resume path                           | Session timeline                   | Task index 不是 authority                 |
 | Automation 编辑    | `AutomationEditView`            | automation form draft    | inherit 或 automation record         | automation model options         | automation save                       | automation record/run snapshot     | 不改 Chat Session                         |
 | Automation 运行    | scheduler / manual dispatch     | run snapshot             | saved selection                      | run-time Registry/auth           | dispatch                              | automation execution               | 不重新读取 Chat Draft                     |
-| Off-Peak 编辑      | `OffPeakEditView`               | Off-Peak form            | task record                          | hidden exact model + entitlement | offpeak save                          | Off-Peak task record               | 不写 Recent/default                       |
-| Off-Peak 执行      | scheduler                       | task/run record          | persisted selection                  | ticket、JWT、Team scope          | task dispatch                         | Off-Peak runtime                   | 不创建普通 Chat runtime                   |
 | User Subagent      | `SubagentsSection`              | profile/Markdown         | parent inherit                       | child profile + Registry         | Markdown save / child create          | child runtime/timeline             | readonly child 无 picker                  |
 | Built-in Subagent  | Built-in model control          | built-in override        | built-in profile                     | Registry                         | built-in override save                | child runtime                      | 不污染 parent timeline                    |
 | Provider 设置      | provider settings section       | settings form            | source overlay                       | schema/complete/revision         | Provider facade                       | personal/account config + Registry | 不直接创建 runtime model                  |
@@ -259,7 +257,7 @@ Automation/Subagent/Off-Peak 隔离、remote snapshot authority、workspaceKey �
 ## 8. Graph drift 和范围缺口
 
 - 当前没有 live codegraph index，因此本目录的 code evidence 标记为 source-reading/rg evidence；不能把 graph 未索引误判为功能不存在。
-- `OffPeakEditView` 是实际模型选择入口，但 feature graph 对它的独立 surface 描述不完整。
+- 原 Off-Peak 编辑入口已随 Web 无损资源清理退役，不再作为当前模型选择 surface；既有执行记录仅作历史证据。
 - Login、Bot、官方 MCP、Git commit、标题、Goal verifier、Project memory 都是实际模型消费者，但当前 graph 只部分表达了它们和 model-selection 的语义边。
 - 旧 client-config、`magic_name`、fallback、tombstone 相关路径只能作为 migration/legacy boundary，不应继续作为当前 Provider Registry 的来源。
 - 这次新增 backlog 专门记录 code graph 之外通过 spec、resolver、input-intent、ModelFactory 和 case catalog 交叉发现的隐含边，不把它们悄悄塞进单一 `surface` 因子。

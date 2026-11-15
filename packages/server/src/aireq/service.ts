@@ -45,7 +45,6 @@ import {
 } from "./progress.js";
 import { withPrototypePlanning, updatePrototypeSrPlanning } from "./planning.js";
 import { createPrototypeProgressScheduler } from "./progress-scheduler.js";
-import { createPrototypeIssues } from "./issues.js";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { retryPrototypeMaterialRead, retryPrototypeSessionRead } from "./recovery.js";
 import { getPrototypePeers } from "./collaboration.js";
@@ -72,8 +71,6 @@ const ownerPaths = new Set([
   "progressScheduler.configure",
   "progressScheduler.runNow",
   "progressScheduler.advance",
-  "issues.configure",
-  "issues.runNow",
 ]);
 const provenance = {
   kind: "sample" as const,
@@ -101,7 +98,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   readonly automations: AutomationServices = createPrototypeAutomationServices((sessionId) =>
     this.resolveNativeTaskSession(sessionId),
   );
-  private readonly issues = createPrototypeIssues();
   // 规模样例也包含真实 SR；按浏览器 URL 另建调度器会绕过同 SR 并发去重，必须启动时统一选定。
   private readonly scheduler = createPrototypeProgressScheduler({
     scaleDemo: process.env.AIREQ_DEMO === "analysis-scale",
@@ -145,7 +141,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
     models.subscribePrototypeAgentModels(() => this.changed.fire({ type: "models" }));
     this.scheduler.subscribe(() => this.changed.fire({ type: "scheduler" }));
-    this.issues.subscribe(() => this.changed.fire({ type: "issues" }));
     skills.onPrototypeSkillDesignSupplement((sessionId) =>
       this.changed.fire({ type: "skills", sessionId }),
     );
@@ -217,10 +212,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("progress.assignOwner", assignPrototypeIrOwner);
     add("progress.updateSr", updatePrototypeSrProgress);
     add("planning.updateSr", updatePrototypeSrPlanning);
-    add("skills.list", (input: { workspacePath: string }) => ({
-      skills: readPrototypeSkills(input.workspacePath),
-      diagnostics: [],
-    }));
     add("skillDesign.session", skills.prototypeSkillDesignSession);
     add("skillDesign.binding", skills.prototypeSkillDesignBinding);
     add("skillDesign.workspaceIdentity", (projectId: string) => `aireq-mock:${projectId}`);
@@ -232,10 +223,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("skillDesign.listSkills", readPrototypeSkills);
     add("skillDesign.savePreview", skills.savePrototypeSkillDesignPreview);
     add("collaboration.peers", getPrototypePeers);
-    for (const name of ["read", "create", "configure", "runNow", "confirm", "reopen"] as const)
-      this.methods.set(`issues.${name}`, (...args) =>
-        Reflect.apply(this.issues[name], this.issues, args),
-      );
     for (const name of [
       "read",
       "queryTasks",

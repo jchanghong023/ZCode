@@ -2,6 +2,8 @@
 
 设计见 `docs/plugins/extension-host.md` §6，样式见 `DESIGN.md`「Extension slots」。
 
+当前 AIReq Web 会话不登记桌面 workbench pane。Composer 与 mention 消费方直接导入各自无沙箱入口，不经全量 `index.ts` 拉入 `ExtensionViewPane` / `extensionViewPage`。旧壳仍消费扩展视图和日志等资产，保留其源实现及 SDK 依赖；这不恢复 Web 沙箱或桌面产品入口。
+
 - 只持三份数据的最近一份（§16.1）：静态表（Window Host，经 `onDynamicContributions` 的 `static` 消息，按 `rev` 整份替换，每次订阅的第一份直接替换）、贡献表快照（扩展进程：运行状态与动态值，按 gen/rev 整份替换，增量只更新这份快照，共用协议的 `applyContributionMessage`，`detached` 清空）、扩展进程状态（Main）。每个 `IExtensionsService` 一份 store，第一个使用者订阅、最后一个释放时退订。
 - 合并只在 `domain/slotSelectors.ts`：`selectSlotEntries(sources, slot, scope)` 返回某个插槽的条目（静态条目 ⊕ 运行状态 ⊕ 按作用域合并的动态值），扩展进程停止时 target 是扩展的条目带 `hostStopped`；激活失败的扩展的条目不返回。`selectExtensionProblems` 每个插件最多一行问题；`selectStaticViews` 列出静态表的视图。新插槽只在这里加选择函数，不维护第二份条目表。
 - 扩展门面只在桌面本机 Host 注册（取 base services）。Web 与手机远控没有它，插槽不显示。

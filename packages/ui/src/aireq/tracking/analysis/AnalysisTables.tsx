@@ -15,6 +15,7 @@ import {
 } from "@/components/ai-elements/markdown-table.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { BranchCopy } from "../BranchCopy.js";
+import { TrackingTableScroll } from "../TrackingTableScroll.js";
 import {
   cellClass,
   tableClass,
@@ -39,29 +40,25 @@ export function AnalysisTaskTable({
   taskActions: (task: AIReqAnalysisTask) => ReactNode;
 }) {
   return (
-    // 表格不限制高度：纵向随页面滚动，窄窗口只在这里横向滚动。
-    <div className="min-w-0 overflow-x-auto">
-      <table data-testid="analysis-task-table" className={`${tableClass} min-w-[864px]`}>
+    // 合并固定多列，避免正文宽度足够时仍横滚；仅窄面板横滚，纵向随页面滚动。
+    <TrackingTableScroll label="SR 任务表格">
+      <table data-testid="analysis-task-table" className={`${tableClass} min-w-[640px]`}>
         <colgroup>
           <col />
-          <col className="w-44" />
-          <col className="w-28" />
-          <col className="w-24" />
-          <col className="w-40" />
+          <col />
+          <col />
           <col className="w-32" />
         </colgroup>
-        <MarkdownTableHeader className="bg-background text-foreground-subtle">
-          <MarkdownTableRow className="border-y border-border">
-            {["SR / 项目 · IR", "开发分支", "进度", "状态", "下次 / 最近分析", "操作"].map(
-              (title) => (
-                <MarkdownTableHead
-                  key={title}
-                  className={`${cellClass} font-medium text-foreground-subtle`}
-                >
-                  {title}
-                </MarkdownTableHead>
-              ),
-            )}
+        <MarkdownTableHeader className="bg-surface text-foreground-subtle">
+          <MarkdownTableRow className="border-y border-border hover:bg-transparent">
+            {["需求与项目", "状态与进度", "分支与分析时间", "操作"].map((title) => (
+              <MarkdownTableHead
+                key={title}
+                className={`${cellClass} font-medium text-foreground-subtle`}
+              >
+                {title}
+              </MarkdownTableHead>
+            ))}
           </MarkdownTableRow>
         </MarkdownTableHeader>
         <MarkdownTableBody>
@@ -78,10 +75,15 @@ export function AnalysisTaskTable({
                 />
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <BranchCopy branch={task.branch} onMessage={onMessage} />
-              </MarkdownTableCell>
-              <MarkdownTableCell className={`${cellClass} whitespace-nowrap tabular-nums`}>
-                <div className="flex min-w-16 items-center gap-2">
+                <ControlHintTooltip title={task.error ?? taskLabels[task.state]}>
+                  <span
+                    tabIndex={0}
+                    className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                  >
+                    <Status value={task.state}>{taskLabels[task.state]}</Status>
+                  </span>
+                </ControlHintTooltip>
+                <div className="mt-2 flex min-w-0 items-center gap-2 tabular-nums">
                   <Progress
                     value={task.percent}
                     aria-label={`${task.srTitle}进度`}
@@ -94,35 +96,24 @@ export function AnalysisTaskTable({
                 </div>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <ControlHintTooltip title={task.error ?? taskLabels[task.state]}>
-                  <span
-                    tabIndex={0}
-                    className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
-                  >
-                    <Status value={task.state}>{taskLabels[task.state]}</Status>
-                  </span>
-                </ControlHintTooltip>
-              </MarkdownTableCell>
-              <MarkdownTableCell
-                className={`${cellClass} whitespace-nowrap text-ui-sm tabular-nums`}
-              >
-                <p title={time(task.nextRunAt)}>
+                <BranchCopy branch={task.branch} onMessage={onMessage} />
+                <p className="mt-1 text-ui-sm tabular-nums" title={time(task.nextRunAt)}>
                   <span className="mr-2 text-foreground-subtle">下次</span>
                   {task.state === "completed" ? "已停止" : shortTime(task.nextRunAt)}
                 </p>
-                <p className="mt-0.5" title={time(task.lastRunAt)}>
+                <p className="mt-0.5 text-ui-sm tabular-nums" title={time(task.lastRunAt)}>
                   <span className="mr-2 text-foreground-subtle">最近</span>
                   {shortTime(task.lastRunAt)}
                 </p>
               </MarkdownTableCell>
-              <MarkdownTableCell className={`${cellClass} text-right`}>
+              <MarkdownTableCell className="px-2 py-2.5 text-right align-middle">
                 {taskActions(task)}
               </MarkdownTableCell>
             </MarkdownTableRow>
           ))}
         </MarkdownTableBody>
       </table>
-    </div>
+    </TrackingTableScroll>
   );
 }
 
@@ -140,19 +131,17 @@ export function AnalysisHistoryTable({
   openReport: (id: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
-    <div className="min-w-0 overflow-x-auto">
-      <table data-testid="analysis-history-table" className={`${tableClass} min-w-[864px]`}>
+    <TrackingTableScroll label="执行历史表格">
+      <table data-testid="analysis-history-table" className={`${tableClass} min-w-[640px]`}>
         <colgroup>
           <col />
-          <col className="w-44" />
-          <col className="w-40" />
-          <col className="w-28" />
-          <col className="w-28" />
-          <col className="w-24" />
+          <col />
+          <col />
+          <col className="w-32" />
         </colgroup>
-        <MarkdownTableHeader className="bg-background text-foreground-subtle">
-          <MarkdownTableRow className="border-y border-border">
-            {["SR / 项目 · IR", "执行分支", "执行时间", "结果", "进度变化", "报告"].map((title) => (
+        <MarkdownTableHeader className="bg-surface text-foreground-subtle">
+          <MarkdownTableRow className="border-y border-border hover:bg-transparent">
+            {["需求与项目", "执行信息", "结果与进度", "操作"].map((title) => (
               <MarkdownTableHead
                 key={title}
                 className={`${cellClass} font-medium text-foreground-subtle`}
@@ -177,23 +166,22 @@ export function AnalysisHistoryTable({
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
                 <BranchCopy branch={run.branch} onMessage={onMessage} />
-              </MarkdownTableCell>
-              <MarkdownTableCell
-                className={`${cellClass} tabular-nums`}
-                title={time(run.startedAt)}
-              >
-                <p className="whitespace-nowrap">{shortTime(run.startedAt)}</p>
+                <p className="mt-1 tabular-nums" title={time(run.startedAt)}>
+                  <span className="mr-2 text-foreground-subtle">开始</span>
+                  {shortTime(run.startedAt)}
+                </p>
                 <p className="text-ui-sm text-foreground-subtle">
                   {run.trigger === "schedule" ? "定时" : "手动"} · {duration(run)}
                 </p>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
                 <Status value={run.status}>{runLabels[run.status]}</Status>
+                <p className="mt-2 text-ui-sm text-foreground-subtle">进度（执行前 → 后）</p>
+                <p className="tabular-nums">
+                  {run.before}% → {run.after}%
+                </p>
               </MarkdownTableCell>
-              <MarkdownTableCell className={`${cellClass} whitespace-nowrap tabular-nums`}>
-                {run.before}% → {run.after}%
-              </MarkdownTableCell>
-              <MarkdownTableCell className={cellClass}>
+              <MarkdownTableCell className="px-2 py-2.5 text-right align-middle">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -208,6 +196,6 @@ export function AnalysisHistoryTable({
           ))}
         </MarkdownTableBody>
       </table>
-    </div>
+    </TrackingTableScroll>
   );
 }

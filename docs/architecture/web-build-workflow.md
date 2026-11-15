@@ -43,6 +43,15 @@
 
 workspace 内其它包（`shared` / `rpc` / `services` / `ui` 等）以源码形式被前端与 mock 后端消费，不进入首装链，也不需要单独构建；它们由 `tsc -b` 与打包器按需处理。
 
+### 无损发布资源收敛
+
+- 默认生产构建不生成源码映射；开发／非生产调试仍生成映射。`hidden` 仅隐藏引用、仍发布源码，不符合此规则；如需线上诊断，另行授权生成并私存映射，不随公开站点分发。
+- 公式排版继续使用现有 KaTeX 样式、字体与语义；电脑浏览器只发布 WOFF2，不发布同字体的 WOFF／TTF 兼容副本。构建输入中移除旧格式引用，不在打包后手工删文件，不改字体族、字重、字形或公式布局。
+- 全部通用组件、图标与第三方许可继续保留。源码映射和未选用字体格式主要影响发布包体积，不等同于浏览器首屏下载量。
+- 验收生产构建的 `.map`／字体格式与 CSS URL，真实浏览器确认公式字体加载、浅／深色下公式正常且无重复可见层；不提高已有最低浏览器要求。
+
+2026-11-15 发布实测：`bun run build` 通过，生产目录无源码映射及 WOFF／TTF；CSS 字体 URL 无断链。真实 Chromium 在深浅主题下读取实际需求材料，公式字形、隐藏 MathML 层、JSON 高亮及 Mermaid 正常，实际请求仅使用 WOFF2。构建仍提示存在大于 500 kB 的 JS chunk，本轮未裁撤渲染能力或进行首屏性能基准。
+
 ## 清理语义
 
 入口：`bun run clean`、`bun run clean:deps`（均由 `scripts/clean.mjs` 实现；`mise` 任务 `clean` / `clean-deps` 只转发）。
@@ -105,6 +114,18 @@ sequenceDiagram
   ```
 
   PowerShell 使用 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再运行 `bun packages/server/dist/entry-http.js`。只发布两端 `dist` 时仍须安装固定版本 Bun；后端包内已打包非 builtin 依赖，不依赖生产目录的 `node_modules`。
+
+- 静态响应由 `packages/server/src/http.ts` 统一协商 `Accept-Encoding`：支持 `br`、`gzip`、`identity`，
+  按有效 `q` 权重选择，压缩编码同权时优先 Brotli；显式编码优先于 `*`，`q=0` 不得选中。
+  未声明或空头返回原文；仅在没有可接受的压缩编码时使用隐式允许的原文。
+  显式 `identity` 权重高于压缩编码时返回原文；所有支持的表示均被禁止时返回 `406`。
+- 压缩按请求异步执行，不依赖预生成的 `.br` / `.gz` 文件、不新增缓存状态；
+  Brotli 使用 quality 4，避免默认高压缩等级拖慢请求。所有协商响应（含原文与 `406`）
+  设置 `Vary: Accept-Encoding`，压缩响应设置对应 `Content-Encoding`；
+  `Content-Type`、现有 `Cache-Control`、静态目录安全检查与 SPA fallback 不变。
+- 回归验收：真实 HTTP 请求覆盖 gzip/Brotli 解压后与源文件字节一致、不同权重与同权优先级、
+  编码大小写、`q=0`、通配符、缺省/空头、显式原文、不可接受编码的 `406`、
+  SPA fallback 的 HTML 类型与 `no-cache`，以及 HEAD 无响应体。不修改 `/api`、`/ws` 的编码行为。
 
 - 对外部署必须提供 HTTPS 安全上下文、同源 `/api` 与 `/ws` Upgrade，以及预览/下载返回的可达资源路径。
   localStorage、sessionStorage、IndexedDB、Blob/object URL、WebSocket 与 `crypto.randomUUID` 必须可用；

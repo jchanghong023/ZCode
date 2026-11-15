@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight, FileText, PanelRightClose, Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,7 @@ import {
 import type { AIReqRequirementGroup, AIReqSystemRequirement } from "../contract.js";
 import { BranchCopy } from "./BranchCopy.js";
 import { AIReqEmployeePicker } from "./EmployeePicker.js";
+import { TrackingTableScroll } from "./TrackingTableScroll.js";
 import { AIReqFormalReport } from "./formal/FormalReport.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
 
@@ -247,45 +249,38 @@ export function AIReqFormalTable() {
             )}
           </div>
         </header>
-        <div
-          role="region"
-          aria-label="正式需求表格滚动区域"
-          tabIndex={0}
-          className="mt-3 overflow-x-auto rounded-xl border border-border bg-background focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-          data-testid="formal-table-scroll"
+        <TrackingTableScroll
+          label="正式需求表格滚动区域"
+          className="mt-3 rounded-xl border border-border bg-background"
+          viewportTestId="formal-table-scroll"
         >
           <table
-            className="w-full min-w-[1168px] table-fixed border-separate border-spacing-0 text-ui-base"
+            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 text-ui-base"
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
-              <col />
-              <col className="w-36" />
-              <col className="w-36" />
-              <col className="w-28" />
-              <col className="w-36" />
-              <col className="w-32" />
-              <col className="w-32" />
-              <col className="w-16" />
-              <col className="w-24" />
+              {/* 四组弹性列适应内容列，不再为每个辅助字段单独保留固定宽度。 */}
+              <col className="w-[30%]" />
+              <col className="w-[20%]" />
+              <col className="w-[25%]" />
+              <col className="w-[25%]" />
             </colgroup>
-            <MarkdownTableHeader className="bg-background">
-              <MarkdownTableRow>
-                {[
-                  "需求",
-                  "状态与进度",
-                  "负责人 / 开发人员",
-                  "开发分支",
-                  "依赖关系",
-                  "计划开始",
-                  "计划结束",
-                  "问题",
-                  "最近分析",
-                ].map((title, index) => (
+            <MarkdownTableHeader className="bg-surface">
+              <MarkdownTableRow className="hover:bg-transparent">
+                {["需求", "状态与问题", "人员与计划", "开发与分析"].map((title, index) => (
                   <MarkdownTableHead
                     key={title}
                     scope="col"
-                    className={`whitespace-nowrap bg-background px-2 font-medium text-foreground-subtle ${index === 0 ? "sticky left-0 z-30" : ""}`}
+                    className={`whitespace-nowrap px-2 font-medium text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
+                    // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
+                    style={
+                      index === 0
+                        ? {
+                            backgroundImage:
+                              "linear-gradient(var(--color-surface), var(--color-surface))",
+                          }
+                        : undefined
+                    }
                   >
                     {title}
                   </MarkdownTableHead>
@@ -336,7 +331,7 @@ export function AIReqFormalTable() {
                       onClick={() => open(group)}
                     >
                       <MarkdownTableCell
-                        className="sticky left-0 z-10 bg-background px-2"
+                        className="sticky left-0 z-10 bg-background px-2 py-1.5 align-top"
                         style={{
                           backgroundImage:
                             "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
@@ -374,7 +369,7 @@ export function AIReqFormalTable() {
                           <div className="min-w-0">
                             <Button
                               variant="link"
-                              className="h-auto max-w-full justify-start p-0 text-left font-medium whitespace-normal"
+                              className="h-auto max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 open(group);
@@ -382,161 +377,166 @@ export function AIReqFormalTable() {
                             >
                               {group.title}
                             </Button>
-                            <p className="mt-1 font-mono text-ui-xs text-foreground-subtle">
+                            <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
                             </p>
                           </div>
                         </div>
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2">
+                      <MarkdownTableCell className="px-2 py-1.5 align-top">
                         <ProgressValue
                           value={irProgress(srs)}
                           label={group.title}
                           status={irProgressStatus(srs)}
                         />
-                      </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2">
-                        <AssignOwner group={group} />
-                        <p
-                          className="mt-1 text-ui-xs text-foreground-subtle"
-                          title={developers.join("、")}
-                        >
-                          {developers.length} 名开发人员
+                        <p className="mt-1 text-ui-sm tabular-nums">
+                          问题：{srs.reduce((count, sr) => count + (sr.progress?.issues.length ?? 0), 0)} 项
                         </p>
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 text-ui-sm text-foreground-subtle">
-                        见各 SR
+                      <MarkdownTableCell className="px-2 py-1.5 align-top">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <AssignOwner group={group} />
+                          <ControlHintTooltip title={developers.join("、") || "暂无开发人员"}>
+                            <span
+                              tabIndex={0}
+                              className="rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            >
+                              {developers.length} 名开发人员
+                            </span>
+                          </ControlHintTooltip>
+                        </div>
+                        <div className="mt-1 space-y-0 break-words text-ui-sm tabular-nums">
+                          <p title={plan.plannedStart?.replace("T", " ")}>
+                            <span className="text-foreground-subtle">开始：</span>
+                            {planningDate(plan.plannedStart)}
+                          </p>
+                          <p title={plan.plannedEnd?.replace("T", " ")}>
+                            <span className="text-foreground-subtle">结束：</span>
+                            {planningDate(plan.plannedEnd)}
+                          </p>
+                          {plan.incomplete && <p className="text-foreground-subtle">部分未排期</p>}
+                        </div>
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 text-ui-sm text-foreground-subtle">
-                        {dependencies ? `${dependencies} 条依赖 · 见各 SR` : "无前置依赖"}
-                      </MarkdownTableCell>
-                      <MarkdownTableCell
-                        className="px-2 text-ui-sm tabular-nums"
-                        title={plan.plannedStart?.replace("T", " ")}
-                      >
-                        <p>{planningDate(plan.plannedStart)}</p>
-                        {plan.incomplete && (
-                          <p className="mt-1 text-foreground-subtle">部分未排期</p>
-                        )}
-                      </MarkdownTableCell>
-                      <MarkdownTableCell
-                        className="px-2 text-ui-sm tabular-nums"
-                        title={plan.plannedEnd?.replace("T", " ")}
-                      >
-                        {planningDate(plan.plannedEnd)}
-                      </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 tabular-nums">
-                        {srs.reduce((count, sr) => count + (sr.progress?.issues.length ?? 0), 0)} 项
-                      </MarkdownTableCell>
-                      <MarkdownTableCell
-                        className="whitespace-nowrap px-2 text-ui-sm text-foreground-subtle"
-                        title={latest(srs)}
-                      >
-                        {date(latest(srs))}
+                      <MarkdownTableCell className="space-y-0.5 px-2 py-1.5 align-top text-ui-sm">
+                        <p className="text-foreground-subtle">开发分支：见各 SR</p>
+                        <p className="break-words">
+                          {dependencies ? `${dependencies} 条依赖 · 见各 SR` : "无前置依赖"}
+                        </p>
+                        <p className="break-words text-foreground-subtle" title={latest(srs)}>
+                          最近分析：{date(latest(srs))}
+                        </p>
                       </MarkdownTableCell>
                     </MarkdownTableRow>
                     {showChildren &&
-                      children.map((sr) => (
-                        <MarkdownTableRow
-                          key={sr.id}
-                          data-sr-id={sr.id}
-                          aria-selected={
-                            aireq.selection.irId === group.id && aireq.selection.srId === sr.id
-                          }
-                          className={`cursor-pointer ${aireq.selection.irId === group.id && aireq.selection.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
-                          onClick={() => open(group, sr)}
-                        >
-                          <MarkdownTableCell
-                            className="sticky left-0 z-10 bg-background pr-2 pl-9"
-                            style={{
-                              backgroundImage:
-                                "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
-                            }}
+                      children.map((sr) => {
+                        const warnings = planningWarnings(view, sr);
+                        return (
+                          <MarkdownTableRow
+                            key={sr.id}
+                            data-sr-id={sr.id}
+                            aria-selected={
+                              aireq.selection.irId === group.id && aireq.selection.srId === sr.id
+                            }
+                            className={`cursor-pointer ${aireq.selection.irId === group.id && aireq.selection.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                            onClick={() => open(group, sr)}
                           >
-                            <Button
-                              variant="link"
-                              className="h-auto max-w-full p-0 text-left whitespace-normal"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                open(group, sr);
+                            <MarkdownTableCell
+                              className="sticky left-0 z-10 bg-background pr-2 pl-9 py-1.5 align-top"
+                              style={{
+                                backgroundImage:
+                                  "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
                               }}
                             >
-                              {sr.title}
-                            </Button>
-                            <p className="mt-1 font-mono text-ui-xs text-foreground-subtle">
-                              SR · {sr.id}
-                            </p>
-                          </MarkdownTableCell>
-                          <MarkdownTableCell className="px-2">
-                            <ProgressValue
-                              value={srProgress(sr)}
-                              label={sr.title}
-                              status={srProgressStatus(sr)}
-                            />
-                          </MarkdownTableCell>
-                          <MarkdownTableCell className="px-2">
-                            <AIReqEditPlanning group={group} sr={sr} compact />
-                            <p className="mt-1 text-ui-xs text-foreground-subtle">
-                              {sr.planning?.source === "manual"
-                                ? "人工确认"
-                                : sr.planning
-                                  ? "AI 建议"
-                                  : "待分析"}
-                            </p>
-                          </MarkdownTableCell>
-                          <MarkdownTableCell className="px-2">
-                            {sr.trackingBranch?.name?.trim() ? (
-                              // 正式 SR 直接展示平台映射的真实分支名，复制反馈不能替换业务标识。
-                              <BranchCopy
-                                key={sr.trackingBranch.name}
-                                branch={sr.trackingBranch.name}
-                                onMessage={setCopyMessage}
-                              />
-                            ) : (
-                              <span
-                                role="alert"
-                                className="text-ui-sm text-destructive"
-                                title="正式 SR 必须已有平台分配的开发分支；当前映射缺失属于数据异常。"
+                              <Button
+                                variant="link"
+                                className="h-auto max-w-full p-0 text-left whitespace-normal [overflow-wrap:anywhere]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  open(group, sr);
+                                }}
                               >
-                                开发分支缺失
-                              </span>
-                            )}
-                          </MarkdownTableCell>
-                          <MarkdownTableCell className="px-2">
-                            <AIReqDependencies sr={sr} view={view} compact />
-                            {planningWarnings(view, sr).length > 0 && (
-                              <p
-                                className="mt-1 text-ui-xs"
-                                title={planningWarnings(view, sr).join("\n")}
-                              >
-                                需协调排期
+                                {sr.title}
+                              </Button>
+                              <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
+                                SR · {sr.id}
                               </p>
-                            )}
-                          </MarkdownTableCell>
-                          <MarkdownTableCell
-                            className="whitespace-nowrap px-2 text-ui-sm tabular-nums"
-                            title={sr.planning?.plannedStart?.replace("T", " ")}
-                          >
-                            {planningDate(sr.planning?.plannedStart)}
-                          </MarkdownTableCell>
-                          <MarkdownTableCell
-                            className="whitespace-nowrap px-2 text-ui-sm tabular-nums"
-                            title={sr.planning?.plannedEnd?.replace("T", " ")}
-                          >
-                            {planningDate(sr.planning?.plannedEnd)}
-                          </MarkdownTableCell>
-                          <MarkdownTableCell className="px-2 tabular-nums">
-                            {sr.progress?.issues.length ?? 0} 项
-                          </MarkdownTableCell>
-                          <MarkdownTableCell
-                            className="whitespace-nowrap px-2 text-ui-sm text-foreground-subtle"
-                            title={sr.progress?.analysedAt}
-                          >
-                            {date(sr.progress?.analysedAt)}
-                          </MarkdownTableCell>
-                        </MarkdownTableRow>
-                      ))}
+                            </MarkdownTableCell>
+                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                              <ProgressValue
+                                value={srProgress(sr)}
+                                label={sr.title}
+                                status={srProgressStatus(sr)}
+                              />
+                              <p className="mt-1 text-ui-sm tabular-nums">
+                                问题：{sr.progress?.issues.length ?? 0} 项
+                              </p>
+                            </MarkdownTableCell>
+                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <AIReqEditPlanning group={group} sr={sr} compact />
+                                <span className="text-ui-sm text-foreground-subtle">
+                                  {sr.planning?.source === "manual"
+                                    ? "人工确认"
+                                    : sr.planning
+                                      ? "AI 建议"
+                                      : "待分析"}
+                                </span>
+                              </div>
+                              <div className="mt-1 space-y-0 break-words text-ui-sm tabular-nums">
+                                <p title={sr.planning?.plannedStart?.replace("T", " ")}>
+                                  <span className="text-foreground-subtle">开始：</span>
+                                  {planningDate(sr.planning?.plannedStart)}
+                                </p>
+                                <p title={sr.planning?.plannedEnd?.replace("T", " ")}>
+                                  <span className="text-foreground-subtle">结束：</span>
+                                  {planningDate(sr.planning?.plannedEnd)}
+                                </p>
+                              </div>
+                            </MarkdownTableCell>
+                            <MarkdownTableCell className="space-y-0.5 px-2 py-1.5 align-top text-ui-sm">
+                              {sr.trackingBranch?.name?.trim() ? (
+                                // 分支名仍直接读取平台映射，截断后可聚焦查看全文及复制。
+                                <BranchCopy
+                                  key={sr.trackingBranch.name}
+                                  branch={sr.trackingBranch.name}
+                                  onMessage={setCopyMessage}
+                                />
+                              ) : (
+                                <span
+                                  role="alert"
+                                  className="text-ui-sm text-destructive"
+                                  title="正式 SR 必须已有平台分配的开发分支；当前映射缺失属于数据异常。"
+                                >
+                                  开发分支缺失
+                                </span>
+                              )}
+                              <div className="flex items-start gap-1">
+                                <span className="shrink-0 text-foreground-subtle">依赖：</span>
+                                <div className="min-w-0 flex-1">
+                                  <AIReqDependencies sr={sr} view={view} compact />
+                                </div>
+                              </div>
+                              {warnings.length > 0 && (
+                                <ControlHintTooltip title={warnings.join("\n")}>
+                                  <span
+                                    tabIndex={0}
+                                    className="block rounded-sm text-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                  >
+                                    需协调排期
+                                  </span>
+                                </ControlHintTooltip>
+                              )}
+                              <p
+                                className="break-words text-foreground-subtle"
+                                title={sr.progress?.analysedAt}
+                              >
+                                最近分析：{date(sr.progress?.analysedAt)}
+                              </p>
+                            </MarkdownTableCell>
+                          </MarkdownTableRow>
+                        );
+                      })}
                   </Fragment>
                 );
               })}
@@ -553,7 +553,7 @@ export function AIReqFormalTable() {
                     : "当前版本尚无正式需求。"}
             </p>
           )}
-        </div>
+        </TrackingTableScroll>
         <div className="flex h-8 shrink-0 items-center gap-2 text-ui-sm">
           <p
             role={aireq.error ? "alert" : "status"}

@@ -616,8 +616,7 @@ export type AIReqAgentRole =
   | "execution"
   | "ir-acceptance"
   | "skill-design"
-  | "progress-analysis"
-  | "issue-analysis";
+  | "progress-analysis";
 export interface AIReqAgentModelBinding {
   role: AIReqAgentRole;
   roleName: string;

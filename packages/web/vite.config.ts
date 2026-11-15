@@ -33,7 +33,25 @@ export default defineConfig(({ mode }) => {
   const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(endpointEnv);
 
   return {
-    plugins: [react(), tailwindcss(), thirdPartyNoticesVitePlugin()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: "katex-woff2-only",
+        enforce: "pre",
+        transform(source, id) {
+          if (!id.endsWith(".css")) return;
+          // Tailwind 先展开 KaTeX 的 @import；只移除旧字体格式，保留原样式和 WOFF2。
+          // 在 Vite 收集字体 URL 前裁剪，避免构建后删文件留下失效引用。
+          const code = source.replace(
+            /,\s*url\([^)]*KaTeX_[^)]*\.(?:woff|ttf)["']?\)\s*format\(["'](?:woff|truetype)["']\)/g,
+            "",
+          );
+          return code === source ? undefined : { code, map: null };
+        },
+      },
+      thirdPartyNoticesVitePlugin(),
+    ],
     resolve: {
       alias: [
         // 修复 UI 组件库中的 @ 别名解析失败。
@@ -82,8 +100,8 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_ZCODE_ENDPOINT_ORIGIN": JSON.stringify(zcodeEndpointOrigin),
     },
     build: {
-      // 生产不在浏览器产物暴露 sourceMappingURL，避免客户端侧还原业务源码。
-      sourcemap: mode === "production" ? "hidden" : true,
+      // hidden 仍会产出可公开下载的源码映射；生产不生成，开发调试继续保留。
+      sourcemap: mode !== "production",
     },
   };
 });

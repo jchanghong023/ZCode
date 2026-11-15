@@ -114,10 +114,10 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
               </div>
               <div className="flex flex-col items-center gap-1 text-center">
                 <h1 id="aireq-entry-title" className="text-ui-xl font-semibold tracking-tight">
-                  以AI为中心的需求和ISSUE管理平台
+                  以AI为中心的需求管理平台
                 </h1>
                 <p className="text-ui-base/relaxed text-foreground-subtle">
-                  与团队一起澄清需求、评审方案和跟踪需求和issue进度
+                  与团队一起澄清需求、评审方案和跟踪需求进度
                 </p>
               </div>
             </header>

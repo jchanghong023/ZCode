@@ -2,6 +2,10 @@
 
 Renderer 模块，层序 `domain → app → adapters → components`；公开入口为 `index.ts`。
 
+当前 AIReq Web 产品不接入沙箱：`ToolCallBlocks` 只使用原工具 renderer（MCP 文本、失败与取消结果照常可读），`SessionPane` 不登记沙箱 session、动作或草稿打开请求，时间线不发布 UI 实例推导和手动固定订阅。历史 prompt 上下文、图片附件及来源标签仍保留，消费方直接导入不含宿主的模块，不经过此模块全量入口。
+
+下述桌面实现仍供未裁撤的旧壳、侧栏与插件设置资产使用，不代表当前 Web 产品开放这些能力。由于这些真实消费者仍在，`@modelcontextprotocol/client`、`core`、`ext-apps` 依赖暂不能移除。
+
 - 本地草稿复用预热 session。pane 提供有效 session 投影及保活能力，页面 owner 在创建时取得引用，真正销毁时释放；展示卸载不释放，重载连续持有。草稿换代先通知页面失效，首发提升只解除草稿槽位，不销毁原页面。审批、附件与 Composer 上下文使用同一有效 session；普通工具调用不产生聊天回合。范围与验收见 [草稿 UI spec](../../../../docs/plugins/draft-mcp-ui-session-spec.md)。
 
 - 窗口唯一页面管理器统一管理 MCP 与 Gen UI 的容量和回收；`createPage` 持有 MCP controller、AppBridge、独立 workspace/session lease、通知 feed 和内存快照。卡片、侧栏只登记锚点。内联页面位于滚动容器内部，侧栏单独定位；原子移动保留同一 guest，不重读资源、不重新握手。解绑必须在 DOM 卸载前同步移入隐藏承载区。

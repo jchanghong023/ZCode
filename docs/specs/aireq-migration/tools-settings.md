@@ -1,6 +1,6 @@
 # AIReq 工具、输入辅助与设置迁移规格
 
-状态：实现已集成，验证进行中。本文件保留 `todo.md` 第 8 节六项、第 9 节八项全部需求／场景，已按当前目标源码同步接口；不表示全部待办或浏览器门禁通过。最终权威执行证据由主集成追加至根 `todo.md`。
+状态：实现已集成，验证进行中，已按当前目标源码同步接口；不表示全部待办或浏览器门禁通过。Issue 角色与技能设置页已按 `integration.md` 裁撤节移除，相关历史条款不再生效；独立 Skill 设计及其模拟目录／保存能力保留。最终权威执行证据由主集成追加至根 `todo.md`。
 
 本轮显示验收以用户指定的 `base` 设置页为参照：沿用原有 SettingsRow、SettingsGroupCard、语义颜色和表单间距；首屏仅保留一条共享配置所有者与只读权限摘要，配置路径、模拟归属和切换工号边界收进可展开说明。模型设置及个性化复用同一说明组件；默认模型控件之前不得重复展示所有者文案。展开后仍可读到路径仅为模拟标签、不访问本机或 OMP、外观仅存当前浏览器的边界。
 
@@ -52,17 +52,17 @@ Skill 设计空会话沿用 `base` 的空态字阶与语义色，文案读取既
 
 工号是 `/^[a-z][0-9]{8}$/` 操作标识，保留前导零，不是认证。原型 owner 样例 `j00808874`，visitor 如 `j00808877`。后端的 owner/profile/configDirectory/userSkillsDirectory 在目标表现为明确的**模拟配置归属与模拟路径**；切换工号不切换 Token、凭据、后端账号、配置根或共享项目。
 
-权限矩阵：全部设置对全员可查看；外观全员可改；独立 Skill 的填写／回填／显式发送／预览／确认模拟保存全员可用；项目／Release、模型、个性化写入仅 owner；技能管理当前所有人只读。自动化工作页保持源端已开放的模拟操作（源没有以 settingsWrite 限制这些操作），不误套“平台设置”只读权限。前端控件、快捷键和 mock 方法入口做同一判断；不新增真实账号、RBAC、多租户或宿主控制。
+权限矩阵：保留的四项设置对全员可查看；外观全员可改；独立 Skill 的填写／回填／显式发送／预览／确认模拟保存全员可用；项目／Release、模型、个性化写入仅 owner。自动化工作页保持源端已开放的模拟操作，不误套“平台设置”只读权限。前端控件、快捷键和 mock 方法入口做同一判断；不新增真实账号、RBAC、多租户或宿主控制。
 
 ### 2.1 设置框架与离开所有权
 
-设置页复用当前 ZCode 的 `SettingsPageParts.SettingsPageFrame/SettingsSidebarButton`，原生 SettingsPage 与 AIReq 共用侧栏宽度、窄屏图标栏、返回按钮区域、底部菜单、右侧面板及标题基线；保留原生平台条件、测试标识、帮助和面包屑。AIReq 浏览器关闭桌面窗控，仅提供外观、项目与 Release、模型设置、个性化、技能五个分区。主工作台页脚使用原生共享页脚扩展，项目与 Release 通过菜单选择，不使用常驻 HTML select 或模拟账号工具条。
+设置页复用当前 ZCode 的 `SettingsPageParts.SettingsPageFrame/SettingsSidebarButton`，原生 SettingsPage 与 AIReq 共用侧栏宽度、窄屏图标栏、返回按钮区域、底部菜单、右侧面板及标题基线；保留原生平台条件、测试标识、帮助和面包屑。AIReq 浏览器关闭桌面窗控，仅提供外观、项目与 Release、模型设置、个性化四个分区。主工作台页脚使用原生共享页脚扩展，项目与 Release 通过菜单选择，不使用常驻 HTML select 或模拟账号工具条。
 
 Shell 唯一持有设置开关及当前分区：首次进入项目，普通齿轮记住最后选择，项目管理强制项目，输入框模型入口强制模型。子页只持有脏草稿的 pending action 和保存／丢弃／取消门禁，不另存模块级最近分区，不通过 key 重建设置绕过门禁。返回经同一门禁关闭设置，显露进入设置前仍挂载的业务页；不修改 AIReqContext 的 mainView、项目、Release、IR 或 history，不发送、不创建会话。设置覆盖整个视口；完整工作台（含业务侧栏、原生会话与 composer providers）保持挂载但隐藏且 inert，保留正文、PNG、临时选模及会话 lease。全局需求分析不受 Release 缺失门禁阻挡；提案录入与正式需求继续遵循各自项目／Release 前置条件。
 
-最近分区复用原生 `settingsNavigation` 偏好读写，硬刷新后普通齿轮仍恢复最后接纳的分区；AIReq 的 appearance/projects/models/personalization/skills 分别映射原生 appearance/general/modelProvider/personalization/skill，其他原生分区或未知偏好回到项目。Shell 仅初始化读取，不在挂载时重写偏好；手动切分区及项目管理／模型入口的显式意图均在原有未保存门禁接纳之后更新当前分区与同一原生偏好，取消或保存失败不得修改记忆。
+最近分区复用原生 `settingsNavigation` 偏好读写，硬刷新后普通齿轮仍恢复最后接纳的分区；AIReq 的 appearance/projects/models/personalization 分别映射原生 appearance/general/modelProvider/personalization，已裁撤的 skill 或其他未知偏好回到项目。Shell 仅初始化读取，不在挂载时重写偏好；手动切分区及项目管理／模型入口的显式意图均在原有未保存门禁接纳之后更新当前分区与同一原生偏好，取消或保存失败不得修改记忆。
 
-设置侧栏在返回按钮与分组导航之间保留 base 的“搜索设置”入口，复用现有搜索弹窗、中文／拼音模糊匹配、清空、空结果和键盘交互。搜索仅投影当前五个分区及仍保留的外观固定设置行，不恢复已裁撤的原生分区或旧平台配置项。选中分区沿用上述原生 ID 映射；外观设置行沿用稳定 searchId 的滚动、聚焦和短暂高亮。
+设置侧栏在返回按钮与分组导航之间保留“搜索设置”入口，复用现有搜索弹窗、中文／拼音模糊匹配、清空、空结果和键盘交互。搜索仅投影当前四个分区及仍保留的外观固定设置行，不恢复已裁撤的原生分区或旧平台配置项。选中分区沿用上述原生 ID 映射；外观设置行沿用稳定 searchId 的滚动、聚焦和短暂高亮。
 
 搜索弹窗只拥有查询与打开状态，AIReqSettingsPage 拥有定位目标；Shell 仍唯一持有分区。顺序为：选择结果 → 搜索弹窗结束焦点锁 → 原有未保存门禁 → 接纳分区和定位目标 → 已挂载设置行定位。取消或保存失败保持原分区、草稿和原定位目标。验收：入口可见；搜索“字号”定位外观行；搜索“模型”进入模型设置；脏草稿搜索跳转可取消／丢弃；无匹配显示空态；Esc 先清空再关闭并恢复入口焦点。
 
@@ -145,17 +145,16 @@ Sketch 的笔宽指示、选中边框与成功／错误提示同样使用当前 
 
 | 编号／源功能             | 目标页面／服务                                                    | 可观察验收                                                                                                                                                                                                                                                                                                                            |
 | ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 9.1 两组设置导航         | 当前 SettingsPage/配置 + AIReq 内容                               | 个人工具仅外观；平台配置依次项目／Release、模型、个性化、技能；保留设置返回和可见分区选择／最近设置落点；没有 Skill 设计表单、需求分析、浏览器／电脑控制、快捷键管理、子代理、插件等空分区；不加载被删除入口的服务／权限查询／事件                                                                                                    |
+| 9.1 两组设置导航 | 当前 SettingsPage/配置 + AIReq 内容 | 个人工具仅外观；平台配置依次项目／Release、模型、个性化；保留设置返回和可见分区选择／最近设置落点；技能设置页及搜索目标已删除；不加载被删除入口的服务／权限查询／事件 |
 | 9.1 外观全部字段         | 当前 settingsCodePreview/StoreProvider                            | 跟随系统／浅色／深色、UI 字号、浅／深代码主题、显示行号、长行换行、代码字号（源12–20px）和双主题预览可用；数字输入 blur/Enter 提交、合法范围夹值，Escape 恢复，非法值不污染；使用当前目标字体范围与token，全部控件关联标签／说明，键盘可用；visitor 同样可改且不改变其他人的外观                                                      |
 | 9.2 项目列表与配置       | AIReqProjectSettings、projects.saveRepository/readWorkflow        | 显示项目／Release总数、当前项目标记、名称、仓库、默认分支、每Release IR/SR/提案数量／已有需求或待规划；空项目／空Release分别有正确提示；owner可添加／修改，取消不写；只保存名称、remote URL、defaultBranch，不索要服务器目录／个人目录                                                                                                |
 | 9.2 仓库／分支校验       | mock 项目写入口                                                   | 名称／仓库／分支非空；支持含主机的HTTP(S)/SSH/git URL和 user@host:path SCP，拒绝本地路径／缺主机URL；保留源 `savePrototypeRepository` 分支语法约束（空白、..、@{、非法特殊符、前导-或/、尾/或.或.lock、//、单独@、点开头路径段）；错误保留弹窗值，成功只表明内存保存、连接／分支未检查，无Git探测                                     |
 | 9.2 Release创建          | createRelease、项目／Release共享状态                              | 可选所属项目并即时展示继承仓库／分支，Release名称trim、同项目忽略大小写重名拒绝；取消不写；成功分配稳定releaseId并更新计数；不单独配仓库、不建Git分支、重复提交不重复记录                                                                                                                                                             |
-| 9.3 角色配置             | AIReqAgentModelSettings、models.read/save/revision/bindingChanged | 保留默认模型和每角色 inherit、显示继承模型及有效配置、思考 default/low/medium/high、模型名/供应商、保存／取消／错误；九个当前角色为 requirements、requirements-review-a/b/c、requirements-review（综合）、solution、progress-analysis、issue-analysis、skill-design；不开放 planning/execution/ir-acceptance；不新增供应商API Key设置 |
+| 9.3 角色配置 | AIReqAgentModelSettings、models.read/save/revision/bindingChanged | 保留默认模型和每角色 inherit、显示继承模型及有效配置、思考 default/low/medium/high、模型名/供应商、保存／取消／错误；八个当前角色为 requirements、requirements-review-a/b/c、requirements-review（综合）、solution、progress-analysis、skill-design；删除 issue-analysis 模型及追加提示配置，不开放 planning/execution/ir-acceptance；不新增供应商 API Key 设置 |
 | 9.3 模型快照             | AIReqAgentModelBinding + 模拟session／analysis run                | 保存只影响后续创建；历史保留role、modelKey/name/providerId/modelId、reasoning、inherited、configurationRevision；跟随默认解析一次，不动态改历史；Skill工具条读取同一份绑定。取消恢复保存值；保存失败不更新基线，不离开                                                                                                                |
 | 9.4 用户追加指令         | AIReqPersonalizationSettings、prompts.read/updateDraft/save       | Agent可切换，各自草稿不互覆盖；初始追加值为空，内置／样例职责不填入；清空保存只清用户追加；textarea、字节计数、超限agent列表、保存／取消／反馈保留；保存读取最新输入而非离开确认时旧闭包；长文本连续输入不递归更新                                                                                                                    |
 | 9.4 UTF-8边界            | 当前 shared USER_INSTRUCTIONS_MAX_BYTES + mock 校验               | 每角色最多102400字节，等号可保存；中文／emoji按UTF-8而非JS长度；任一角色超限则保留全部草稿并禁普通保存、Ctrl/Cmd+S、保存并离开；缩短恢复；直接RPC同样拒绝，原保存值不变，不仅禁UI                                                                                                                                                     |
 | 9.5 未保存导航门禁       | 设置主壳统一 pendingNavigation／最新draft actions                 | 模型／个性化切分区、返回工作区和所有设置导航均经“保存更改？”紧凑Dialog（max-w-md，448px）；取消停留并保留草稿；丢弃恢复全部已保存值后离开；保存成功才执行原导航，失败显示原因且留在原分区；pending中防重复，快捷键不能绕过权限／大小；不能因删除页内“未保存”文案而删除门禁                                                            |
-| 9.6 技能管理实际开放能力 | 当前技能目录阅读控件、skills.list                                 | 保留共享profile／项目作用域切换、搜索／清空、匹配数量、分组、刷新、状态／路径、详情开关与键盘打开、完整正文／描述／元信息、诊断展开（返回诊断时）、加载／错误重试／空列表／空搜索；详情关闭回原触发焦点；模拟路径不能打开本机文件；owner与visitor均只读，无安装、启停、删除、导入或通用创建Skill入口                                  |
 | 9.7 owner/visitor一致性  | mock 请求身份和capabilities；所有写入口                           | visitor能查全部页、切agent/范围、搜索／筛选／复制；不能编辑平台草稿、保存、Ctrl/Cmd+S或RPC越权；owner也不能通过技能列表执行源未支持操作；visitor独立Skill设计仍可保存模拟产物；权限变化时脏配置不自动提交、不静默授予写权                                                                                                             |
 | 9.8 模拟配置归属         | backend模拟归属视图 + AIReqPersonalConfigScope                    | 明示共享模拟配置的owner和scope，项目技能和共享profile路径各自准确；切工号后仍同一模型／提示词／项目／Release／技能目录，不要求启动OMP、设置个人开发目录或切配置根；浏览器草稿、外观和连接独立，不错把共享业务按工号复制                                                                                                               |
 
@@ -175,7 +174,6 @@ Sketch 的笔宽指示、选中边框与成功／错误提示同样使用当前 
 | skillDesign.session(projectId)/workspaceIdentity(projectId)/binding(sessionId)                                                                                  | 解析设计session及模拟归属；创建时模型绑定                                                          | 保留稳定sessionId，不与IR/SR绑定，不用visitor号替换共享归属；读取不生成回复                                                                   |
 | skillDesign.read/saveDraft(sessionId,draft)/prompt(sessionId,draft)/temporaryDirectory(sessionId)                                                               | 读取说明、串行保存说明、准备完整prompt、读取临时路径                                               | prompt不生成产物；表单本地版本防止订阅重读覆盖正在编辑值                                                                                      |
 | skillDesign.readPreview(sessionId)/listSkills(workspacePath)/savePreview(sessionId,workspacePath,name,target)                                                   | 查询当前产物／冲突目录、显式保存project或user全文件                                                | 源 `skills {sessionId}` 通知；目标保存附带expectedPreviewRevision和operationId，保存返回路径／revision／receipt，避免源参数缺版本导致保存错版 |
-| skills.list({workspacePath,workspaceIdentity,provider,...})                                                                                                     | 读取目录、能力与诊断结果，按profile/project显示                                                    | 不提供当前未支持的目录写方法；设计保存后通知目录失效重读                                                                                      |
 | zcodeAgentService.listAutomations/listAllAutomations/createAutomation/updateAutomation/deleteAutomation/setAutomationEnabled/restartAutomation/runAutomationNow | 使用既有共享自动化输入／结果语义；由目标mock持有模拟定义和记录                                     | 支持更新／历史重读通知；不引入真实scheduler；runNow返回queued只代表接纳演示记录，不是模型正在执行                                             |
 | zcodeAgentService.listAutomationRuns/deleteAutomationRun                                                                                                        | 指定automationId/workspace范围历史；删除精确runId                                                  | 不删除需求会话或IR/SR；失败保留页面                                                                                                           |
 | listNativeTaskRuns({scope,sessionId})/readNativeTaskOutput({scope,sessionId,runId,outputId})                                                                    | 只读运行及按需单份输出                                                                             | 有声明才订阅onNativeTaskRunsChanged，快照revision防过期；actor只读走当前v4会话读取                                                            |
@@ -349,7 +347,7 @@ sequenceDiagram
 
 - Skill 设计：保留原版表单顺序、说明折叠、对话／文件标签、输入辅助、准备／明确发送、预览与显式模拟保存；分栏尺寸与显示以当前 ZCode 为准，折叠展开及设置往返保持用户偏好和草稿。
 - 自动化／工作流：保留原版列表、筛选、面包屑、创建编辑、运行记录、输出与只读会话的业务操作及顺序；控件、布局与标题沿用当前 ZCode，不按源几何重建；仍不启动真实执行引擎。
-- 五项设置：外观、项目／Release、九角色模型、个性化、技能按原版功能与控件清单逐项核对；完整窗口、导航、标题、内容框和控件必须使用当前 ZCode 同一设计语言，而非并排再造简化设置页。
+- 四项设置：外观、项目／Release、八角色模型、个性化按保留功能与控件清单逐项核对；完整窗口、导航、标题、内容框和控件必须使用当前 ZCode 同一设计语言，而非并排再造简化设置页。
 - 所有颜色来自当前 ZCode token，字体和通用控件复用当前实现；不复制源 CSS 或旧组件库。原生输入、附件、保存离开门禁、设置分区记忆及权限合同不因视觉保真修正改变。
 - 最终由主代理逐页实际点击并查看目标截图，验证折叠、调整分栏后保持和设置往返；原版仅核对功能，不比较坐标、固定比例或布局几何，不能以页面存在或控制台没有报错替代产品验收。
 - 工作流 Tab 与独立自动化历史不是同一个入口：前者按原版只读消费当前已经存在的 canonical 业务会话，不增加源页面没有的历史会话选择器和第二个刷新按钮；无可用会话明确不可用，绝不为解锁图而新建、改绑或发送需求会话。自动化运行历史及其只读弹窗继续保持独立，不改变 IR／SR。

@@ -42,10 +42,8 @@ import {
   type MentionPanelGroupId,
 } from "./mentionPanelRouting.js";
 import { $createPromptMentionNode } from "./nodes/PromptMentionNode.js";
-import {
-  ExtensionMentionOptionContent,
-  useExtensionMentionGroups,
-} from "@/extension-slots/index.js";
+import { ExtensionMentionOptionContent } from "@/extension-slots/components/ExtensionMentionOptionContent.js";
+import { useExtensionMentionGroups } from "@/extension-slots/adapters/useExtensionMentionGroups.js";
 import { useFileMentionProvider } from "./providers/fileMentionProvider.js";
 import { usePluginsMentionProvider } from "./providers/pluginsMentionProvider.js";
 import { useSessionsMentionProvider } from "./providers/sessionsMentionProvider.js";

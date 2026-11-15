@@ -23,7 +23,7 @@ export function AnalysisRunConfirmation({
   onOpenChange(open: boolean): void;
   scope: string;
   count: number;
-  unit: "SR" | "Issue";
+  unit: "SR";
   disabled: boolean;
   onConfirm(): void;
 }) {

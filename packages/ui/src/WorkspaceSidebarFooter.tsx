@@ -20,16 +20,29 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Copy, PencilRuler, LogInIcon, LogOut, Palette, Settings, User } from "lucide-react";
+import {
+  Copy,
+  PencilRuler,
+  LogInIcon,
+  LogOut,
+  Maximize,
+  Palette,
+  Settings,
+  User,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
+import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
 import type { Theme } from "@/useTheme.js";
 import {
   WorkspaceSidebarFooterPlanBadge,
@@ -119,6 +132,36 @@ function WorkspaceSidebarFooterThemeMenu({
             })}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
+
+function WorkspaceSidebarFooterZoomMenu() {
+  const { intl } = useZCodeIntl();
+  const platform = usePlatform();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <ZoomIn className="size-4" />
+        {intl.formatMessage({ id: "sidebar.settings.interfaceZoom" })}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-48">
+        <DropdownMenuItem onSelect={() => platform.changeInterfaceZoom("in")}>
+          <ZoomIn className="size-4" />
+          {intl.formatMessage({ id: "titleBar.menu.view.zoomIn" })}
+          <DropdownMenuShortcut>{formatCommandShortcutLabel("+")}</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => platform.changeInterfaceZoom("out")}>
+          <ZoomOut className="size-4" />
+          {intl.formatMessage({ id: "titleBar.menu.view.zoomOut" })}
+          <DropdownMenuShortcut>{formatCommandShortcutLabel("-")}</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => platform.changeInterfaceZoom("reset")}>
+          <Maximize className="size-4" />
+          {intl.formatMessage({ id: "titleBar.menu.view.actualSize" })}
+          <DropdownMenuShortcut>{formatCommandShortcutLabel("0")}</DropdownMenuShortcut>
+        </DropdownMenuItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );
@@ -249,6 +292,7 @@ function WorkspaceSidebarFooterNativeMenu({
           </DropdownMenuRadioGroup>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+      <WorkspaceSidebarFooterZoomMenu />
       <WorkspaceSidebarFooterUsageSummaryContent onUsageClick={usageButtonClick} />
       {onLogin && !user ? (
         <>
@@ -349,6 +393,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <>
                 {customMenuContent}
                 <WorkspaceSidebarFooterThemeMenu theme={theme} onThemeChange={onThemeChange} />
+                <WorkspaceSidebarFooterZoomMenu />
               </>
             ) : (
               <WorkspaceSidebarFooterNativeMenu

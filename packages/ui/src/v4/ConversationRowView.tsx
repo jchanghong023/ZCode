@@ -1,5 +1,5 @@
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
-import { GenUiMessageResponse } from "@/gen-ui/index.js";
+import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
 import { expandTopicInputMessages } from "@/v4/topicInputMessages.js";
 import { ConnectedBotGroupDeliveryAction } from "@/v4/BotGroupDeliveryAction.js";
@@ -107,7 +107,8 @@ import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { logger } from "@/logger.js";
-import { PluginUiModelContextChip, formatPluginDisplayName } from "@/plugin-ui/index.js";
+import { PluginUiModelContextChip } from "@/plugin-ui/adapters/PluginUiModelContextChip.js";
+import { formatPluginDisplayName } from "@/plugin-ui/domain/pluginDisplayName.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
 import {
   FileDisplayIcon,
@@ -1582,9 +1583,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           导致 assistant 正文虽然在 JSX 上标了 selectable，框选逻辑却永远找不到该区域。
           selectable 语义必须放在稳定的 DOM 包装层上，完成态和 streaming 共用同一路径。 */}
       <div ref={textElement} data-conversation-selectable="true" className="w-full text-ui-base">
-        <GenUiMessageResponse
-          completed={row.state === "complete"}
-          messageKey={`${row.rowId}:${row.entityId ?? ""}`}
+        <MessageResponse
           renderZCodeFileCitations
           streaming={streaming}
           workspacePath={context.workspacePath}
@@ -1600,7 +1599,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           readAttachment={context.readAttachment}
         >
           {visibleText}
-        </GenUiMessageResponse>
+        </MessageResponse>
       </div>
       {codeCommentCardsEnabled && codeCommentCards && codeCommentCards.length > 0 ? (
         <div className="mt-3">

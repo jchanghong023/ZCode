@@ -2,3 +2,26 @@
 
 /* 共享样式只扫描 UI 包；Web 独立入口的状态类也必须参与 Tailwind 生成。 */
 @source "./**/*.{ts,tsx}";
+
+/* CSS zoom 不改变视口单位；整屏容器使用补偿后的布局尺寸，保留内部滚动。 */
+#root,
+.h-dvh {
+  height: calc(100dvh / var(--interface-zoom, 1));
+}
+
+.min-h-dvh {
+  min-height: calc(100dvh / var(--interface-zoom, 1));
+}
+
+.w-screen {
+  width: calc(100vw / var(--interface-zoom, 1));
+}
+
+/* Popper 的 fixed 坐标已经是浏览器像素：只缩放内容，避免弹层位置被再次放大。 */
+[data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--interface-zoom, 1));
+}
+
+[data-radix-popper-content-wrapper] > * {
+  zoom: var(--interface-zoom, 1);
+}

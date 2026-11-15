@@ -1,7 +1,6 @@
 import { completeNewModelSelection } from "@zcode/provider";
 import { useSubagents } from "@/hooks/useSubagents.js";
 import { ToolPresentationCapabilitiesProvider } from "@/ToolCallBlocks/presentationCapabilities.js";
-import { V4_PRIMARY_PANE_ID } from "@/v4/paneLayoutStore.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useSessionRuntimeRestart } from "@/app-shell/useWorkspaceSessionReload.js";
 import { isRequestVerificationConfigNetworkError } from "@/request-security-edition/errors.js";
@@ -57,12 +56,6 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
-import {
-  PluginUiSessionProvider,
-  registerPluginUiPaneSession,
-  useOpenPluginUi,
-} from "@/plugin-ui/index.js";
-import { useExtensionWorkbenchPane } from "@/extension-slots/index.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -2484,117 +2477,22 @@ export function SessionPane({
     async () => undefined,
   );
   const effectiveSessionId = sessionId ?? recoveringDraft?.sessionId ?? prewarmSessionId;
-  const pluginUiRuntimeReady = Boolean(
+  const effectiveSessionRuntimeReady = Boolean(
     effectiveSessionId &&
     lease?.sessionId === effectiveSessionId &&
     snapshot?.sessionId === effectiveSessionId &&
     (!snapshot.runtimeInitialization || snapshot.runtimeInitialization.status === "ready"),
   );
   useEffect(() => {
-    if (sessionId === null && effectiveSessionId && pluginUiRuntimeReady && snapshotConfig) {
+    if (sessionId === null && effectiveSessionId && effectiveSessionRuntimeReady && snapshotConfig) {
       observeDraftPermissionGrant(effectiveSessionId, snapshotConfig);
     }
   }, [
     sessionId,
     effectiveSessionId,
-    pluginUiRuntimeReady,
+    effectiveSessionRuntimeReady,
     snapshotConfig,
     observeDraftPermissionGrant,
-  ]);
-  useLayoutEffect(() => {
-    if (!effectiveSessionId || !pluginUiRuntimeReady || readOnly) return;
-    return registerPluginUiPaneSession(
-      paneId,
-      sessionId,
-      {
-        workspacePath,
-        workspaceIdentity,
-        remoteSessionId: remoteSessionId ?? undefined,
-        sessionId: effectiveSessionId,
-      },
-      sessionId === null ? prewarmBinding?.retain : undefined,
-    );
-  }, [
-    paneId,
-    sessionId,
-    effectiveSessionId,
-    pluginUiRuntimeReady,
-    workspacePath,
-    workspaceIdentity,
-    remoteSessionId,
-    readOnly,
-    prewarmBinding,
-  ]);
-  // 扩展的屏幕会话报告（docs/plugins/extension-host.md §3.4、§9）：只报本机工作区的主对话窗格，
-  // 观察视图与辅助对话不报。草稿多带所选模型：它只在 Renderer，Window Host 用它做 context 预演。
-  useExtensionWorkbenchPane(
-    effectiveSessionId &&
-      !readOnly &&
-      !selectionSideChat &&
-      !rootSessionId &&
-      !remoteSessionId &&
-      !(workspaceIdentity && isRemoteWorkspaceIdentity(workspaceIdentity))
-      ? {
-          paneId,
-          sessionId: effectiveSessionId,
-          workspacePath,
-          ...(workspaceIdentity ? { workspaceIdentity } : {}),
-          isDraft: sessionId === null,
-          focused,
-          ...(sessionId === null && draftConfig.modelSelection
-            ? { draftModel: draftConfig.modelSelection }
-            : {}),
-        }
-      : null,
-  );
-  const openPluginUi = useOpenPluginUi();
-  const pluginUiOpenRequest = useZCodeSessionStore(
-    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).pluginUiOpenRequest,
-  );
-  useEffect(() => {
-    if (
-      !pluginUiOpenRequest ||
-      paneId !== V4_PRIMARY_PANE_ID ||
-      !focused ||
-      sessionId !== null ||
-      readOnly
-    )
-      return;
-    const store = useZCodeSessionStore.getState();
-    // 请求归属原草稿代际；StrictMode 重放与配置变化不能让旧请求打开新会话。
-    if (
-      store.getWorkspaceState(workspacePath, workspaceIdentity).pluginUiOpenRequest !==
-      pluginUiOpenRequest
-    )
-      return;
-    if (pluginUiOpenRequest.invalidationVersion !== draftRuntimeInvalidationVersion) {
-      store.clearPluginUiOpenRequest(
-        workspacePath,
-        pluginUiOpenRequest.requestId,
-        workspaceIdentity,
-      );
-      return;
-    }
-    if (!pluginUiRuntimeReady || !effectiveSessionId || !openPluginUi) return;
-    store.clearPluginUiOpenRequest(workspacePath, pluginUiOpenRequest.requestId, workspaceIdentity);
-    const {
-      requestId: _requestId,
-      invalidationVersion: _version,
-      ...request
-    } = pluginUiOpenRequest;
-    openPluginUi({ ...request, parentSessionId: effectiveSessionId });
-  }, [
-    pluginUiOpenRequest,
-    paneId,
-    focused,
-    sessionId,
-    readOnly,
-    workspacePath,
-    workspaceIdentity,
-    draftRuntimeInvalidationVersion,
-    pluginUiRuntimeReady,
-    effectiveSessionId,
-    openPluginUi,
   ]);
 
   useEffect(() => {
@@ -5050,21 +4948,6 @@ export function SessionPane({
       ) : null}
     </>
   );
-  // 插件图片与草稿附件共用有效 session，首发提升不迁移附件。
-  const pluginUiUploadAttachment = useCallback(
-    async (input: { fileName: string; mime: string; dataBase64: string }) => {
-      if (!effectiveSessionId) throw new Error("Plugin UI attachments need an open session");
-      const { ref } = await attachmentPut({ sessionId: effectiveSessionId, ...input });
-      const padding = input.dataBase64.endsWith("==") ? 2 : input.dataBase64.endsWith("=") ? 1 : 0;
-      return {
-        ref,
-        fileName: input.fileName,
-        mime: input.mime,
-        bytes: Math.floor((input.dataBase64.length * 3) / 4) - padding,
-      };
-    },
-    [attachmentPut, effectiveSessionId],
-  );
   // 分享浮窗不再替换输入区，保持 Composer 与对话滚动位置稳定。
   const conversationBottomDock = conversationBottomDockContent ? (
     <ConversationBottomDockTransition mode="chat">
@@ -5083,16 +4966,6 @@ export function SessionPane({
   );
 
   const paneContent = (
-    <PluginUiSessionProvider
-      workspacePath={workspacePath}
-      workspaceIdentity={workspaceIdentity}
-      remoteSessionId={remoteSessionId}
-      sessionId={pluginUiRuntimeReady ? effectiveSessionId : null}
-      readOnly={readOnly || !pluginUiRuntimeReady || (sessionId === null && !focused)}
-      sendText={dispatchSendText}
-      uploadAttachment={pluginUiUploadAttachment}
-      projectionStore={pluginUiRuntimeReady ? lease?.store : null}
-    >
       <div
         ref={paneRef}
         data-testid={testId(TID_V4_SESSION_PANE, paneId)}
@@ -5347,7 +5220,6 @@ export function SessionPane({
           )}
         </div>
       </div>
-    </PluginUiSessionProvider>
   );
   return (
     <ToolPresentationCapabilitiesProvider value={agentPresentationCapabilities}>

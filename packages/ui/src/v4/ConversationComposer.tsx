@@ -184,13 +184,13 @@ import {
   webElementScreenshotFiles,
   type WebElementContextComposerAttachment,
 } from "@/lib/webElementContext.js";
+import { PluginUiModelContextChip } from "@/plugin-ui/adapters/PluginUiModelContextChip.js";
 import {
-  PluginUiModelContextChip,
   type ContextImageAttachmentsOptions,
   useContextImageAttachments,
   usePluginUiContextImages,
-  usePluginUiModelContexts,
-} from "@/plugin-ui/index.js";
+} from "@/plugin-ui/adapters/usePluginUiContextImages.js";
+import { usePluginUiModelContexts } from "@/plugin-ui/adapters/pluginUiModelContextEvents.js";
 import { usePptxElementReferences } from "@/v4/composer/usePptxElementReferences.js";
 import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip.js";
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
@@ -207,7 +207,7 @@ import {
   V4ComposerModelControls,
   type ModelSelectionSource,
 } from "@/v4/composer/V4ComposerToolbar.js";
-import { ComposerStatusSlot } from "@/extension-slots/index.js";
+import { ComposerStatusSlot } from "@/extension-slots/components/ComposerStatusSlot.js";
 import {
   resolveV4ComposerConfigPickerState,
   type V4ComposerConfigPicker,

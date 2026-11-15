@@ -101,6 +101,16 @@ function emitBrowserTelemetryEvent(kind: "ui" | "arms", payload: unknown): void 
 export function createWebPlatform(): IPlatformService {
   return {
     saveFile: saveBrowserFile,
+    changeInterfaceZoom: (command) => {
+      const root = document.documentElement;
+      // 浏览器版没有桌面缩放命令；CSS zoom 同时缩放布局和控件，不能用改字号代替。
+      const percent = Math.round((Number(root.style.zoom) || 1) * 100);
+      const next = command === "reset" ? 100 : percent + (command === "in" ? 10 : -10);
+      const factor = Math.max(50, Math.min(200, next)) / 100;
+      root.style.zoom = String(factor);
+      // dvh/vw 不随 CSS zoom 缩小；派生尺寸补偿避免放大后 footer 被挤出视口。
+      root.style.setProperty("--interface-zoom", String(factor));
+    },
     openExternal: openExternalUrl,
     openFeedback: async () => {
       const feedbackUrl = await resolveFeedbackUrl();

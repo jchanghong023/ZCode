@@ -1,7 +1,7 @@
 import { projectGenUiReferences } from "@/gen-ui/domain/references.js";
 
 export function collectGenUiSourcePaths(text: string): readonly string[] {
-  // 这里只识别完整引用以去重，不挂载页面；执行时机和文件授权仍由原有 Gen UI 链路负责。
+  // 这里只识别完整引用供文件摘要去重；不挂载页面，也不授权读取文件。
   return [
     ...new Set(
       projectGenUiReferences(text, true).flatMap((part) =>

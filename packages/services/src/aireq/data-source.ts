@@ -1,5 +1,3 @@
-import type { AIReqIssueServices } from "./issues.js";
-import type { ISkillsService } from "../skills/skills.js";
 import type { SkillSummary } from "@zcode/shared";
 import type {
   AIReqAction,
@@ -117,7 +115,6 @@ export interface AIReqDataSource {
     listRuns(request: NativeTaskRunsRequest): Promise<NativeTaskRunsSnapshot>;
     readOutput(request: NativeTaskOutputRequest): Promise<NativeTaskOutputContent>;
   };
-  issues?: AIReqIssueServices;
   employeeDirectory?: AIReqEmployeeDirectory;
   planning?: {
     updateSr(
@@ -175,7 +172,6 @@ export interface AIReqDataSource {
   models?: AIReqModelServices;
   prompts?: AIReqPromptServices;
   skillDesign?: AIReqSkillDesignServices;
-  skills?: Pick<ISkillsService, "list">;
   collaboration?: { peers(projectId?: string): AIReqPeer[] };
   prototype?: AIReqPrototypeScenarios;
 }

@@ -6,6 +6,8 @@ import { readFile, stat } from "node:fs/promises";
 import localAppConfig from "../../../config/default.json" with { type: "json" };
 import * as nodePath from "node:path";
 import { basename, extname, resolve } from "node:path";
+import { promisify } from "node:util";
+import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import { Hono, type Context } from "hono";
 import type { ServerWebSocket } from "bun";
 import {
@@ -290,6 +292,43 @@ function staticContentType(filePath: string): string {
   return staticMimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
+const compressBrotli = promisify(brotliCompress);
+const compressGzip = promisify(gzip);
+
+function negotiateStaticEncoding(
+  acceptEncoding: string | undefined,
+): "br" | "gzip" | "identity" | null {
+  const qualities = new Map<string, number>();
+  for (const entry of acceptEncoding?.split(",") ?? []) {
+    const match =
+      /^\s*(br|gzip|identity|\*)\s*(?:;\s*q\s*=\s*(0(?:\.\d{0,3})?|1(?:\.0{0,3})?))?\s*$/i.exec(
+        entry,
+      );
+    if (match) {
+      qualities.set(match[1]!.toLowerCase(), match[2] === undefined ? 1 : Number(match[2]));
+    }
+  }
+
+  // 原处理器始终返回原文；必须按权重协商，且显式 q=0 不能被通配符覆盖。
+  let selected: "br" | "gzip" | "identity" | null = null;
+  let bestQuality = 0;
+  for (const encoding of ["br", "gzip"] as const) {
+    const quality = qualities.get(encoding) ?? qualities.get("*") ?? 0;
+    if (quality > bestQuality) {
+      selected = encoding;
+      bestQuality = quality;
+    }
+  }
+  const identityQuality = qualities.get("identity");
+  if (identityQuality !== undefined && identityQuality > bestQuality) {
+    return "identity";
+  }
+  if (selected) {
+    return selected;
+  }
+  return (identityQuality ?? (qualities.get("*") === 0 ? 0 : 1)) > 0 ? "identity" : null;
+}
+
 export function createMockHttpServer(
   services: ServiceCollection,
   workspacePath: string,
@@ -352,12 +391,32 @@ export function createMockHttpServer(
       if (!filePath) {
         return c.notFound();
       }
-      return c.body(await readFile(filePath), 200, {
-        "Cache-Control": filePath.endsWith("index.html")
-          ? "no-cache"
-          : "public, max-age=31536000, immutable",
-        "Content-Type": staticContentType(filePath),
-      });
+      c.header("Vary", "Accept-Encoding");
+      const encoding = negotiateStaticEncoding(c.req.header("Accept-Encoding"));
+      if (!encoding) {
+        return c.text("Not Acceptable", 406);
+      }
+      c.header(
+        "Cache-Control",
+        filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable",
+      );
+      c.header("Content-Type", staticContentType(filePath));
+      if (encoding !== "identity") {
+        c.header("Content-Encoding", encoding);
+      }
+      if (c.req.method === "HEAD") {
+        return c.body(null);
+      }
+      const content = await readFile(filePath);
+      const body =
+        encoding === "br"
+          ? await compressBrotli(content, {
+              params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 },
+            })
+          : encoding === "gzip"
+            ? await compressGzip(content)
+            : content;
+      return c.body(body);
     });
   }
 

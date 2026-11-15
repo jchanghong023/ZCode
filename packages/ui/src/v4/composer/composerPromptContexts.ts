@@ -22,7 +22,7 @@ import {
   buildPromptWithPluginUiContexts,
   parsePromptPluginUiContexts,
   type PluginUiModelContext,
-} from "@/plugin-ui/index.js";
+} from "@/plugin-ui/domain/pluginUiModelContext.js";
 
 export interface ComposerPromptContexts {
   codeComments: readonly CodeCommentComposerAttachment[];

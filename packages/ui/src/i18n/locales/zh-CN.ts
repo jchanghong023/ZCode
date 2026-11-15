@@ -1165,12 +1165,6 @@ const zhCN: Record<string, string> = {
   "bots.deleteFailed": "删除机器人失败：{error}",
 
   // 登录
-  "welcome.title": "Welcome to ZCode",
-  "welcome.username": "用户名",
-  "welcome.password": "密码",
-  "welcome.login": "登录",
-  "welcome.loggingIn": "登录中...",
-  "welcome.loginFailed": "登录失败",
   "login.title": "欢迎来到 ZCode",
   "login.description": "登录 Z.AI，开始使用 ZCode",
   "login.copyright": "© 2026 北京智谱华章科技股份有限公司",
@@ -1388,7 +1382,6 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.model.remoteWaiting": "等待远程模型",
   "chat.toolbar.model.targetMissing": "暂无模型目标",
   "settings.subagents.modelLoadFailed": "模型列表加载失败。",
-  "root.modelSelection.loadFailed": "模型配置加载失败。",
   "diff.placeholder.badge": "UI 占位",
   "diff.placeholder.description":
     "当前先完成右侧 Diff 面板的前端壳层，真实 Git service 与命令执行后续再接入。",
@@ -1734,17 +1727,6 @@ const zhCN: Record<string, string> = {
   "directoryBrowser.errorSystem": "无法获取系统信息",
   "directoryBrowser.errorReadDir": "无法读取目录：{error}",
 
-  "updateDialog.later": "稍后",
-  "forceUpdate.title": "需要升级 ZCode 后继续使用",
-  "forceUpdate.description":
-    "当前版本 v{currentVersion} 低于最低可用版本 v{minimalVersion}。请先完成升级，升级前暂时无法继续使用当前客户端。",
-  "forceUpdate.currentVersion": "当前版本",
-  "forceUpdate.minimalVersion": "最低版本",
-  "forceUpdate.action.check": "检查并下载更新",
-  "forceUpdate.action.restart": "重启安装更新",
-  "forceUpdate.action.reload": "刷新页面",
-  "projectSelector.heroTitle": "快速打开，专注工作。",
-  "projectSelector.heroDescription": "选择一个工作区，继续上次的进度，保持界面干净清爽。",
   "appError.title": "应用界面出了点问题",
   "appError.description":
     "刚才的页面错误已经被拦住了，所以不会直接白屏。你可以先重试；如果问题持续，再刷新应用恢复界面。",
@@ -1823,24 +1805,6 @@ const zhCN: Record<string, string> = {
   "remote.syncMcp": "同步 MCP 配置",
   "remote.syncPlugins": "同步插件",
   "settings.machine.unknownRemote": "远程设备",
-  "sourceServer.updateAvailableToast": "{source} 有可用更新\n设备 {current} → {available}。",
-  "sourceServer.updateRequiredToast":
-    "{source} 必须更新后才能连接\n当前 {current}，需要 {available}。",
-  "sourceServer.updateStartedToast": "正在更新 {source}…",
-  "sourceServer.updateCompletedToast": "{source} 已更新并重新连接。",
-  "sourceServer.updateFailedToast": "{source} 更新失败，请在远程设备中查看日志并重试。",
-  "sourceServer.reinstallCompletedToast": "{source} 已重新安装并重新连接。",
-  "sourceServer.reinstallFailedToast": "{source} 重新安装失败，请在远程设备中查看日志并重试。",
-  "sourceServer.stopCompletedToast": "已停止 {source} 的远端服务。",
-  "sourceServer.stopFailedToast": "未能停止 {source} 的远端服务，请查看详情。",
-  "sourceServer.restartCompletedToast": "已重启 {source} 的远端服务并重新连接。",
-  "sourceServer.restartFailedToast": "未能重启 {source} 的远端服务，请查看详情。",
-  "sourceServer.controllerUpdateAvailableToast":
-    "{source} 需要更新 ZCode\nDesktop {current} → {available}，请更新 ZCode 后重新连接。",
-
-  // 文件树
-  "fileTree.loading": "加载中...",
-  "fileTree.error": "加载失败",
 
   // 终端
   "terminal.title": "终端",
@@ -6033,13 +5997,6 @@ const zhCN: Record<string, string> = {
   "zcode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
   "zcode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
   "zcode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
-
-  // 调试信息栏
-  "debugInfo.taskId": "Task ID",
-  "debugInfo.traceId": "Trace ID",
-  "debugInfo.sessionId": "Session ID",
-  "debugInfo.provider": "Provider",
-  "debugInfo.copied": "已复制",
 
   // 资源管理器
   "resourceManager.title": "资源管理器",

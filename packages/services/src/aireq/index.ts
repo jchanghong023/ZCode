@@ -4,7 +4,6 @@ export * from "./domain.js";
 export * from "./progress.js";
 export * from "./planning.js";
 export * from "./sr-dependencies.js";
-export * from "./issues.js";
 export * from "./progress-scheduler.js";
 export * from "./proposal-list.js";
 export * from "./data-source.js";

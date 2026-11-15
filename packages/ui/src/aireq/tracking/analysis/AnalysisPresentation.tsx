@@ -96,12 +96,15 @@ export function RowLabel({ title, subtitle }: { title: string; subtitle: string 
       <ControlHintTooltip title={title} description={subtitle}>
         <span
           tabIndex={0}
-          className="block truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+          className="block whitespace-normal break-words rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
         >
           {title}
         </span>
       </ControlHintTooltip>
-      <p className="mt-0.5 truncate text-ui-sm text-foreground-subtle" title={subtitle}>
+      <p
+        className="mt-0.5 whitespace-normal break-words text-ui-sm text-foreground-subtle"
+        title={subtitle}
+      >
         {subtitle}
       </p>
     </div>

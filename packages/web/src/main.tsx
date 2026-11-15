@@ -61,6 +61,24 @@ function resolveWebThemePreference(): Theme {
 
 const root = createRoot(document.getElementById("root")!);
 const employeeEntry = createEmployeeEntry();
+const platform = createWebPlatform();
+// 页面只注册一次；登录／重连和 footer 重挂载不能叠加快捷键或执行两次缩放。
+window.addEventListener("keydown", (event) => {
+  const apple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  const primary = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  if (!primary || event.altKey || event.defaultPrevented) return;
+  const command =
+    event.key === "+" || event.key === "="
+      ? "in"
+      : event.key === "-"
+        ? "out"
+        : event.key === "0"
+          ? "reset"
+          : null;
+  if (!command) return;
+  event.preventDefault();
+  platform.changeInterfaceZoom(command);
+});
 let stopConnection: (() => void) | null = null;
 let entryGeneration = 0;
 let application: ReactNode = null;
@@ -137,14 +155,13 @@ async function bootstrapWebApp(generation: number) {
   }
   if (!isCurrentEntry()) return;
 
-  const platform = createWebPlatform();
   const demo = new URLSearchParams(window.location.search).get("demo");
   // 修复原因：断线只替换 accessor 并重读，不卸载未发送草稿与业务工作区。
   let hasConnected = false;
 
   const renderApp = (services: Awaited<ReturnType<typeof connectViaWebSocket>>) => {
     hasConnected = true;
-    document.title = "AIReq · 需求与 Issue 管理";
+    document.title = "AIReq · 需求管理";
     connectionNotice = null;
     application = (
       <AIReqWebApplication

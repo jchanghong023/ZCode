@@ -8,5 +8,14 @@ export const pluginUiModule = {
   id: "plugin-ui",
   requires: ["services", "ui", "shared", "mcp-apps-protocol", "plugin-ui-bridge"],
   provides: ["plugin-ui-components"],
-  publicEntrypoints: ["index.ts", "contract.ts", "hostPrimitives.ts"],
+  publicEntrypoints: [
+    "index.ts",
+    "contract.ts",
+    "hostPrimitives.ts",
+    "adapters/PluginUiModelContextChip.tsx",
+    "domain/pluginDisplayName.ts",
+    "adapters/usePluginUiContextImages.ts",
+    "adapters/pluginUiModelContextEvents.ts",
+    "domain/pluginUiModelContext.ts",
+  ],
 } as const;

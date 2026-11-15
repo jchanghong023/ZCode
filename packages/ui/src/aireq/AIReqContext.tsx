@@ -264,9 +264,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         "automations",
         "skillDesign",
         "requirementAnalysis",
-        "issueCreate",
-        "issueAnalysis",
-        "issueProgress",
       ].includes(event.state.aiReqMainView)
         ? event.state.aiReqMainView
         : "chat";

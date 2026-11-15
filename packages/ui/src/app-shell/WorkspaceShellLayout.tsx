@@ -56,11 +56,8 @@ import type { ManagedWorktreeCreationSettlement } from "@zcode/shared";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 
 import { AUTOMATIONS_TOAST_ANCHOR_ID, AutomationsSection } from "@/settings/AutomationsSection.js";
-import type {
-  SavedWorkflowLaunchTarget,
-  SavedWorkflowsOpenArtifactParams,
-  SavedWorkflowsOpenRunParams,
-} from "@/settings/saved-workflows/SavedWorkflowsSection.js";
+import type { SavedWorkflowLaunchTarget } from "@/settings/saved-workflows/useSavedWorkflowLauncher.js";
+import type { SavedWorkflowsOpenRunParams } from "@/settings/saved-workflows/savedWorkflowContract.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
@@ -228,8 +225,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   pluginStoreOpenVersion,
   openAutomationId,
   openAutomationTab,
-  openWorkflow,
-  onOpenWorkflowConsumed,
   onOpenSavedWorkflowInHub,
   onWorkspaceMainViewChange,
   onOpenAutomationConsumed,
@@ -1308,45 +1303,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleOpenSavedWorkflowRun, handleSelectTaskInChat, workspaceTabs],
   );
-  // 中枢的产物 chip：与「查看实例」逐字同构（同一条「先回到发起它的会话」的路径），
-  // 只是终点是 `workflow-artifact` tab 而不是 run 详情页。
-  const handleOpenSavedWorkflowArtifact = useCallback(
-    (params: SavedWorkflowsOpenArtifactParams) => {
-      const targetWorkspacePath = params.workspacePath || workspaceAbsPath;
-      const targetWorkspaceIdentity =
-        params.workspaceIdentity ?? (workspaceIdentity?.trim() ? workspaceIdentity : undefined);
-      const targetRemoteSessionId = workspaceTabs.find(
-        (tab) =>
-          tab.workspacePath === targetWorkspacePath &&
-          (!targetWorkspaceIdentity || tab.workspaceIdentity === targetWorkspaceIdentity),
-      )?.remoteSessionId;
-      handleSelectTaskInChat(
-        targetWorkspacePath,
-        params.sessionId,
-        targetWorkspaceIdentity,
-        targetRemoteSessionId,
-      );
-      handleOpenWorkflowArtifact({
-        workspacePath: targetWorkspacePath,
-        ...(targetWorkspaceIdentity ? { workspaceIdentity: targetWorkspaceIdentity } : {}),
-        ...(targetRemoteSessionId ? { remoteSessionId: targetRemoteSessionId } : {}),
-        parentSessionId: params.sessionId,
-        runId: params.runId,
-        artifactId: params.artifactId,
-        ...(params.title === undefined ? {} : { title: params.title }),
-        // 中枢的 chip 载荷带得到 contentType（html 产物据它直接开浏览器 tab）；`sourcePath`
-        // 那份载荷没有，由 `handleOpenWorkflowArtifact` 自己查 journal 补。
-        ...(params.contentType === undefined ? {} : { contentType: params.contentType }),
-      });
-    },
-    [
-      handleOpenWorkflowArtifact,
-      handleSelectTaskInChat,
-      workspaceAbsPath,
-      workspaceIdentity,
-      workspaceTabs,
-    ],
-  );
   const handlePaneActiveSessionChange = useCallback(
     (
       scope: {
@@ -2175,14 +2131,9 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                       workspacePath={workspaceAbsPath}
                                       workspaceIdentity={workspaceIdentity}
                                       onCreateViaChat={handleCreateAutomationInChat}
-                                      onNavigateToLaunchedRun={handleNavigateToLaunchedRun}
-                                      onOpenWorkflowRun={handleOpenSavedWorkflowRun}
-                                      onOpenWorkflowArtifact={handleOpenSavedWorkflowArtifact}
                                       openAutomationId={openAutomationId}
                                       openAutomationTab={openAutomationTab}
                                       onOpenAutomationConsumed={onOpenAutomationConsumed}
-                                      openWorkflow={openWorkflow}
-                                      onOpenWorkflowConsumed={onOpenWorkflowConsumed}
                                       onOpenSession={({
                                         sessionId,
                                         workspacePath,

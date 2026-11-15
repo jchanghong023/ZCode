@@ -6,8 +6,6 @@ import {
   CalendarClock,
   WandSparkles,
   FileSearch,
-  CirclePlus,
-  ListChecks,
   TableProperties,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -37,7 +35,6 @@ import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import {
   AIReqFormalWorkspace,
   AIReqRequirementAnalysisPage,
-  AIReqIssuePages,
 } from "../tracking/index.js";
 import { AIReqAutomations } from "../tools/AIReqAutomations.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
@@ -54,13 +51,12 @@ import {
   ModelSettingsNavigationContext,
 } from "./ModelSettingsNavigationContext.js";
 
-type Section = "appearance" | "projects" | "models" | "personalization" | "skills";
+type Section = "appearance" | "projects" | "models" | "personalization";
 const nativeSettingsSections = {
   appearance: "appearance",
   projects: "general",
   models: "modelProvider",
   personalization: "personalization",
-  skills: "skill",
 } satisfies Record<Section, SettingsSectionId>;
 
 function readSettingsSection(): Section {
@@ -72,8 +68,6 @@ function readSettingsSection(): Section {
       return "models";
     case "personalization":
       return "personalization";
-    case "skill":
-      return "skills";
     default:
       return "projects";
   }
@@ -82,9 +76,6 @@ const pages = [
   { view: "automations", label: "自动化", icon: CalendarClock },
   { view: "skillDesign", label: "Skill 设计", icon: WandSparkles },
   { view: "requirementAnalysis", label: "需求分析", icon: FileSearch },
-  { view: "issueCreate", label: "新建 Issue", icon: CirclePlus },
-  { view: "issueAnalysis", label: "Issue 分析", icon: FileSearch },
-  { view: "issueProgress", label: "Issue 进度", icon: ListChecks },
 ] satisfies { view: AIReqMainView; label: string; icon: typeof CalendarClock }[];
 export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const ai = useAIReq()!;
@@ -223,10 +214,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           项目设置
         </Button>
       </div>
-    );
-  else if (ai.mainView.startsWith("issue"))
-    content = (
-      <AIReqIssuePages page={ai.mainView as "issueCreate" | "issueAnalysis" | "issueProgress"} />
     );
   else if (ai.mainView === "automations") content = <AIReqAutomations {...scope} />;
   else if (ai.mainView === "skillDesign") content = <AIReqSkillDesignPage />;
@@ -415,7 +402,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   新建需求提案
                 </Button>
               )}
-              {pages.slice(0, 3).map((page) => (
+              {pages.map((page) => (
                 <Button
                   key={page.view}
                   variant="ghost"
@@ -441,20 +428,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                 <TableProperties className="size-4" />
                 正式需求
               </Button>
-              {pages.slice(3).map((page) => (
-                <Button
-                  key={page.view}
-                  variant="ghost"
-                  size="lg"
-                  className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
-                  aria-pressed={!settings && ai.mainView === page.view}
-                  disabled={!project}
-                  onClick={() => navigate(() => ai.setMainView(page.view))}
-                >
-                  <page.icon className="size-4" />
-                  {page.label}
-                </Button>
-              ))}
             </div>
             <div className="border-t border-border/50 py-3">
               <AIReqRequirementList

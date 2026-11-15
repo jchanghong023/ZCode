@@ -1,6 +1,37 @@
 # AIReq 迁移：公共契约、唯一入口与集成规格
 
-状态：实现已集成，验证进行中。本文件保留实施前确立的需求与覆盖场景，并按当前目标源码同步接口与所有权；不表示全部 85 项待办或浏览器门禁已经完成。授权依据为根目录 `todo.md`，覆盖第 2、3、4、10 节全部 41 个待办；最终权威证据由主集成追加至 `todo.md`，提案、正式需求／分析／Issue、工具／设置的详细业务规格仍须同时成立。
+状态：实现已集成，验证进行中。本文件保留实施前确立的需求与覆盖场景，并按当前目标源码同步接口与所有权；不表示全部迁移待办或浏览器门禁已经完成。授权依据为根目录 `todo.md`；最终权威证据由主集成追加至 `todo.md`，提案、正式需求／分析、工具／设置的详细业务规格仍须同时成立。
+
+## Issue 功能裁撤（2026-11-15）
+
+本节取代本文及 tracking、tools-settings、todo 中此前要求迁移 Issue 的条款。当前产品只保留需求管理；删除“新建 Issue／Issue 分析／Issue 进度”三个入口、页面、导航类型与专属草稿，不以隐藏按钮替代删除。登录标题与说明同步移除 ISSUE 产品承诺。
+
+服务端删除 Issue 内存状态、样例、调度、订阅与 `issues.*` 分派；公共契约、数据源和事件联合不再开放 Issue 类型、方法或通知。移除 `issue-analysis` 模型角色及个性化配置，不留下别名或空实现。需求报告中的问题／风险字段不属于 Issue 产品，继续保留。
+
+保留需求提案、正式需求、需求分析、自动化、Skill 设计、项目／Release、设置，以及全部通用控件和原生 v4 会话能力；不改变这些能力的状态所有者、调用路径和协议。
+
+验收：真实电脑浏览器登录前后均无 Issue 产品文案及三个入口；默认需求分析、其余业务导航、设置模型／个性化角色列表正常。旧 `issues.*` 调用由既有操作白名单拒绝。完成代码与文档后集中执行 typecheck、lint、架构检查及浏览器场景，不新增测试文件或用例。
+### 技能设置页裁撤
+
+删除设置中的“技能”分区、搜索目标、恢复该页的导航映射与专属目录组件，同时删除仅供该页使用的 `skills.list` 普通业务操作及数据源字段。旧的 skill 设置偏好按既有默认规则回到项目设置，不增加兼容页面。保留工作区独立“Skill 设计”、设计预览／模拟保存所需目录数据和全部通用技能控件，不修改原生服务的通用技能能力。
+
+设置只保留外观、项目／Release、模型、个性化四个分区。电脑浏览器验证设置侧栏及搜索不再提供技能页、旧偏好不打开空页，Skill 设计仍可进入。
+
+## 无损资源清理（2026-11-15）
+
+本轮仅清理已关闭的旧产品分支及冗余发布资源，不裁撤现有 AIReq 功能，不改变服务端业务 owner、工号／workspace 身份、v4 帧、会话发送和重连规则。保留提案、评审、正式需求、需求分析、定时自动化、NativeTaskRuns、Skill 设计、Sketch、普通工具文本、Markdown、Mermaid、代码高亮、公式及全部通用控件。
+
+- 自动化收敛为当前可达的 Scheduled 与 NativeTaskRuns；移除固定 `scheduledOnly`／`nativeWorkflowContent` 接线下不可达的闲时任务与旧 Saved Workflow 中枢专属分支，保留列表、编辑、启停、模拟立即运行、历史、筛选和既有草稿语义。不增加另一份任务状态或服务实现。
+- 当前 Web 平台不提供 `pluginSandbox`，不承诺 Plugin UI／Gen UI／桌面扩展沙箱呈现。断开其不可用的产品渲染与宿主接线，普通 assistant 正文仍经原 MessageResponse 显示，普通 MCP 文本工具结果仍正常可读；不可用交互资源不得假装加载或执行成功。仅在全部消费者退役后移除专属实现与 SDK 依赖，不删除通用弹层、布局、代码／图表控件，不改变 v4 wire 契约。
+- 中文表只删除确认没有保留代码消费者的旧产品词条；静态与动态 ID、模板前缀、通用控件、异常和隐藏交互分支均计入消费者。不得用未翻译 ID 回显或宽泛默认文案代替丢失的翻译，不删除仍供保留资产使用的词条。
+- 生产源码映射与公式字体发布规则遵循 `docs/architecture/web-build-workflow.md`；保留开发调试与现有电脑浏览器兼容能力。
+
+验收：代码和文档全部完成后集中运行 typecheck、lint、架构检查与受影响既有工程测试，构建一次并确认生产目录没有 `.map`、WOFF／TTF 兼容副本及失效字体 URL。真实电脑浏览器验证登录、默认需求分析、提案／Skill 对话与材料、自动化列表／编辑／模拟运行及历史、NativeTaskRuns、设置，以及公式与代码／图形阅读；检查相关中文文案、字体加载和控制台。体积报告区分磁盘产物、入口脚本和实际网络，不把删除 map 说成同额首屏加速；不新增永久测试文件或用例。
+
+本轮实测：根 typecheck、lint（最终 0 警告／0 错误）、architecture:check --changed（0 违规）、前后端生产构建通过；现有 Vite 工程测试 6 项通过。生产 Web 目录 22,727,406 字节（21.67 MiB），没有 `.map`、WOFF 或 TTF，19 个独立 WOFF2 文件的 CSS URL 均有效。中文表保守删除 36 个确认无消费者的旧词条（源码减少 2,497 字节）；归档、项目管理等仍有动态或保留控件消费者的词条未删。MCP Apps 三项 SDK 仍供保留的旧壳／扩展资产使用，未卸依赖。
+
+隔离生产服务与真实 Chromium 1440×1000 验证：工号进入、默认需求分析、自动化筛选／编辑保存、立即运行后的手动 stopped 历史与只读会话；选择现有提案后 NativeTaskRuns 的 task／workpool 与报告输出可读。提案显式发送补充后正文正常、材料实际显示行内／块级公式、JSON 高亮和 Mermaid；深浅主题截图确认保真，KaTeX_Main／Math／Size1 实际经 WOFF2 加载，辅助 MathML 层仍裁剪。Skill 表单回填、明确发送、临时文件预览及全部文件模拟保存正常，设置可进入；最终浏览器错误与 warning 均为 0。未重走全部历史业务／浏览器组合，未测首屏提速；旧 dist 不是同源码基线，不将其体积差作为此次精确性能收益。
+
 
 ## 1. 事实依据与冲突裁决
 
@@ -13,9 +44,8 @@
 | `backend/scope.ts`、`prototype-data-source.ts`、`mock/backend.ts`                  | 单 worker 原型 owner、请求局部身份、内存任务；目标单 mock 进程内一个 AIReq owner，移除 worker 与旧协议，普通业务显式传入请求身份；server 局部 AsyncLocalStorage 可为迁入的纯 mock getter 提供并发安全上下文，不能使用全局可变工号。                    |
 | 源 `AIReqContext.tsx:63-198`、`navigation.ts`                                      | 每次登录／刷新默认进入需求分析，仅继承初始项目；不恢复上次页面、IR／SR、筛选或展开。当前生命周期内支持前进／后退；切项目保留功能页并清理旧对象。不得误读“刷新恢复”为恢复旧聊天页。                                                                     |
 | 源 `AIReqSidebar.tsx:55-67` 与 `WorkspaceShellLayout.tsx:1489-1490,1723-1813`      | 实际装配提案、自动化、Skill 设计、需求分析、正式需求、Issue 三页和设置。不能从 `types.ts` 中的旧 Action 或 Workbench 中未使用的只读开发组件推断开放能力。                                                                                              |
-| 源侧栏 Issue 按 `!project                                                          |                                                                                                                                                                                                                                                        | !releaseId` 禁用；Issue 服务按项目读取 | 按 todo §7.2 裁决：Issue 三页只要求项目，没有 Release 仍可管理；Release 切换不重建 Issue。需求页仍要求有效 Release。 |
 | 源项目对象仍含 `root/commonDir`，应用启动要求 workspace.path；源规格只要求远程仓库 | 项目用户模型为名称＋远程仓库＋默认分支，Release 继承仓库；遗留路径仅作服务端模拟 workspace 标识，不展示目录恢复页、不要求用户选服务器目录，不转换为 `VirtualProject`。                                                                                 |
-| 源 mock 权限                                                                       | 固定 owner 样例 `j00808874`；平台配置仅 owner 修改，所有已登录访问者可查看、使用外观与独立 Skill 设计。`prototypeProposalDiscussionAllowed()` 取决于共享 Web 类型而非当前工号；不能误扩为“所有访客提案都只读”。具体进度和 Issue 操作权限沿源领域检查。 |
+| 源 mock 权限 | 固定 owner 样例 `j00808874`；平台配置仅 owner 修改，所有已登录访问者可查看、使用外观与独立 Skill 设计。`prototypeProposalDiscussionAllowed()` 取决于共享 Web 类型而非当前工号；不能误扩为“所有访客提案都只读”。具体进度操作权限沿源领域检查。 |
 | 源规格的旧控件复制、Firefox 上限／禁止 polyfill、OMP 独占部署条款                  | 目标采用当前 ZCode 控件、已存在浏览器补丁和运行环境，不复制源控件／主题、不撤销目标已有兼容能力、不启动 OMP。Firefox 验证证据要求仍有效；已有 Chrome 证据不能代称 Firefox。                                                                            |
 | 实施前目标 `Root.tsx/App.tsx` 与源 `AIReqApplication.tsx`                          | 历史调查：旧目标整棵 Root/App 绑定目录、账号恢复及文件／Git 主壳，不适合复用。当前已移除旧产品专属 App/Root 入口，改由独立 AIReqApplication 与业务壳装配必要 Provider、基础组件及 v4 会话竖切；全部通用控件和通用资产保留，不移植源 Root/App。         |
 
@@ -27,7 +57,7 @@
 
 | 源实际入口／子面                   | 目标工作区与服务                                   | 可观察验收                                                                                                                                                                                        |
 | ---------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AIReqEntry`                       | 现有 `packages/web/src/auth` owner，AIReq 登录内容 | 标题“以AI为中心的需求和ISSUE管理平台”；副标题“与团队一起澄清需求、评审方案和跟踪需求和issue进度”；工号、进入工作台、标识非认证说明。表单 Enter 与按钮一致，空值禁用，非法值就地报错，前导零保留。 |
+| `AIReqEntry` | 现有 `packages/web/src/auth` owner，AIReq 登录内容 | 标题“以AI为中心的需求管理平台”；副标题“与团队一起澄清需求、评审方案和跟踪需求进度”；工号、进入工作台、标识非认证说明。表单 Enter 与按钮一致，空值禁用，非法值就地报错，前导零保留。 |
 | `AIReqContext` 默认导航            | `AIReqApplication` → requirementAnalysis           | 初次进入、重新登录和刷新从需求分析开始，不打开旧会话；恢复合法工号并重读当前服务端状态。                                                                                                          |
 | 新建需求提案／提案 IR 列表／搜索   | 原生工作区与面板；workflow、v4                     | 新建只进入未发送草稿；列表搜索、组合筛选、排序、阶段、提出人、继续讨论、允许删除的确认和取消可用；正式需求不被草稿删除。                                                                          |
 | 提案时间线、四路评审与材料         | 原生讨论与材料阅读区；workflow、readPrHandoff、v4  | 澄清→评审→方案→模拟入库；历史只读、可返回当前；材料选择、只读 Markdown／代码／依赖图、工期预估和逐文件确认均有实际内容，过期／失败不伪造结果。                                                    |
@@ -35,10 +65,9 @@
 | Skill 设计                         | 独立内容区；skillDesign 与 v4                      | 说明表单、可折叠左栏、可编辑准备草稿、明确发送、临时文件 Tabs／预览、明确目标与模拟保存；关闭分栏不丢草稿。                                                                                       |
 | 需求分析                           | 独立内容区；progressScheduler                      | 项目范围、统一设置、任务／执行历史、统计、分页、报告弹窗、批量确认、失败与重试可达。                                                                                                              |
 | 正式需求                           | 大表格＋同页右栏；workflow、planning、progress     | 无正式需求树／开发聊天；IR／SR 选择只改变报告／材料，保留筛选、滚动、展开与分栏；分支复制和人工完成门禁生效。                                                                                     |
-| 新建 Issue／Issue 分析／Issue 进度 | 三个独立页；issues                                 | 无 Release 可用；字段校验、创建稳定编号／分支、分析任务／历史／报告、进度、合入后人工完成及重开均真实改变内存状态。                                                                               |
 | 项目／Release 菜单                 | footer 菜单；workflow、projects                    | 当前工号／切换工号、Web 所有者样例、项目单选、Release 单选、添加／管理、帮助；Release 仅列当前项目的项。长名称完整 title 可读，无项目和无 Release 文案不同。                                      |
 | 前进／后退                         | AIReqContext 单一 history owner                    | 浏览器与工具栏前进／后退一致；新导航截断 forward 分支；只改变浏览选择，不发消息、不推进阶段；失效对象提示不可用，不偷偷创建。                                                                     |
-| 设置                               | AIReqSettingsPage（复用当前控件）                  | 个人工具只含外观；平台配置含项目／Release、模型、个性化、技能。外观浅色／深色／系统，模型／个性化脏草稿离开门禁，普通访问者可看不可写平台配置。                                                   |
+| 设置 | AIReqSettingsPage（复用当前控件） | 个人工具只含外观；平台配置含项目／Release、模型、个性化。外观浅色／深色／系统，模型／个性化脏草稿离开门禁，普通访问者可看不可写平台配置。 |
 | 帮助／输入辅助／弹窗               | 当前 Dialog、Dropdown、Tooltip、Input、Button 等   | 帮助关闭回触发按钮；菜单／弹窗可键盘打开、取消、关闭并还原焦点；Sketch 只回填 PNG，语音仅示例文字；无音频权限请求、自动发送或隐式推进。                                                           |
 
 所有首次读取有加载／空／失败三态；背景重读保留已读内容、滚动及打开的报告，固定位置反馈错误；明确材料“生成中／尚未生成／缺失／读取失败／版本过期”，与网络断开分开。消息、附件、模型与目标在失败／取消后保留。完整页面字段和按钮的业务细节由各领域规格补足，不以本表概述缩窄范围。
@@ -48,6 +77,8 @@
 项目／Release 入口必须装配当前 `WorkspaceSidebarFooter`，保留其 Avatar、Button、独立设置齿轮、DropdownMenu 和原生主题子菜单；不复制源 footer，不使用常驻 HTML select 或工号／帮助图标条。通用 footer 仅增加可选 presentation 端口（ReactNode 菜单内容、标题、次行说明、无障碍标签和触发按钮 ref）；未传端口时默认产品的 DOM、菜单顺序与账户／用量行为不变。自定义业务菜单模式不挂载账户／用量／entitlement 查询组件，不显示登录、Coding／Office 或旧产品账户菜单。
 
 `AIReqWorkspaceFooter` 经当前 AIReq context/data-source 读取项目、当前项目 Release、工号和 `backend.owner`／provenance，不制造 UserInfo 或第二份选择状态。主菜单按工号、切换工号、Web 所有者（sample 标注演示）、项目单选子菜单（添加或管理项目）、Release 单选子菜单（添加或管理 Release）、帮助、原生主题排序；无项目禁用 Release，无 Release 提供明确空态。项目／Release 命令只经已注册的 `ai.navigate` 未保存门禁接纳。管理回调显式进入项目设置，齿轮回调打开 shell 记忆的设置页，切换工号调用既有退出回调。设置 back 模式保留身份、切换工号、帮助和主题，齿轮执行同一受门禁保护的返回回调，不恢复旧产品账号或用量功能。主题只使用当前 ZCode store 的 system／zai-dark／zai-light。
+
+footer 的原生偏好菜单恢复“界面缩放”，主工作区和设置 back 模式均保留；主题之后提供放大、缩小、实际大小及平台对应快捷键。菜单和键盘统一调用 Web 平台端口，规则与验收见 `docs/ui/browser-capabilities.md`，不恢复桌面宿主或旧账户功能。
 
 主题唯一所有者为现有 StoreProvider 创建的 ZCode store（与 `base` App 读写路径一致），AIReqApplication 不额外挂载带独立状态的 useTheme。事件顺序与边界如下；固定主题时，旧系统监听必须被清除，系统事件不得覆盖选择。用户指定本轮不运行浏览器验证。
 
@@ -112,23 +143,22 @@ UI 的 `data-source.ts` 保留源 hook／数据源接口的业务形状，改为
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `readWorkflow`、`command(action,selection,revision)`、`readPrHandoff(group)`、`retryMaterial(path,selection)`、`retrySession(selection)`                                                       | AIReq owner；command 按当前开放 Action allowlist，保留失败 receipt、文件版本和返回 view。retrySession 只针对已有有效业务会话。                                                                                                        |
 | `progress.assignOwner(projectId,irId,employeeId)`、`progress.updateSr(projectId,irId,srId,percent,reason)`、`planning.updateSr(projectId,irId,srId,input)`                                     | 同一 owner，验证复合归属、权限、排期和 99→100 门禁；不可任意改百分比。                                                                                                                                                                |
-| `issues.read/create/configure/runNow/confirm/reopen`                                                                                                                                           | 保留源 scope/input/snapshot 和编号／分支；project scope，不注入 Release。Issue 设置写入仍按 owner 限制，完成／重开按领域权限。                                                                                                        |
 | `projects.saveRepository(input)`；command 内 `registerProject/createRelease`                                                                                                                   | 同一 owner，远程仓库配置只校验并内存保存；名称、URL、默认分支、Release 项目归属均保留。                                                                                                                                               |
 | `models.read/save/samples/revision/bindingChanged`、`prompts.read/updateDraft/save`                                                                                                            | 实际 wire 保留 models 各方法和 `prompts.read/save`；`models.save(settings,expectedRevision)`、`prompts.save(value,expectedRevision)` 校验版本／owner／UTF-8 上限。`updateDraft` 仅为 UI 本地编辑适配，不是 RPC path，不广播私人草稿。 |
-| `skills.list`、`skillDesign.session/binding/workspaceIdentity/read/saveDraft/prompt/temporaryDirectory/readPreview/listSkills/savePreview`                                                     | 保留预览与模拟归属，个人设计草稿／会话按 employee+client 绑定；prompt 只准备草稿，savePreview 明确确认并改变内存样例，不写真实文件。逻辑临时路径不可用于浏览器 fs。                                                                   |
+| `skillDesign.session/binding/workspaceIdentity/read/saveDraft/prompt/temporaryDirectory/readPreview/listSkills/savePreview` | 保留预览与模拟归属，个人设计草稿／会话按 employee+client 绑定；prompt 只准备草稿，savePreview 明确确认并改变内存样例，不写真实文件。逻辑临时路径不可用于浏览器 fs。 |
 | `collaboration.peers`                                                                                                                                                                          | 只读样例协作投影；不引入真实员工目录或认证。                                                                                                                                                                                          |
 | `progressScheduler.read/queryTasks/queryRuns/readRun/setProjectEnabled/configure/runNow`                                                                                                       | 单 owner 调度器，保留服务端分页与全匹配范围；advance 仅受控演示场景，不作为浏览器计时器职责。                                                                                                                                         |
 | `prototype.setProposalMergeScenario`、`prototype.readPrHandoff`                                                                                                                                | 明确演示操作；不替代普通 readPrHandoff 与实际门禁，不自动将 opened/closed 当 merged。                                                                                                                                                 |
 | `createFreeChat/readFreeChat/readRecentFreeChats`、`selectProject` 的后端全局选择；`projects.readDevelopmentRoot/listDirectories/check*Directory`、`prototype.directoryIssue/restoreDirectory` | 不进入目标产品公开操作集；目录恢复链和自由聊天已裁撤。项目选择只归 UI，业务请求必须显式带 projectId，不写全局 project context。                                                                                                       |
 | contract 中存在但页面不开放的旧编码／验收 Action                                                                                                                                               | 从目标可执行判别联合和 dispatch 分支去掉，不用 capabilities 隐藏按钮却留下可调用后门。材料历史仍按需求材料规则只读。                                                                                                                  |
 
-源事件映射为单一 `onDidChange` 的 `workflow/issues/models/prompts/scheduler/skills(sessionId)/error`；`freeChats` 不迁。当前类型中的 `backendEpoch/revision/projectId/irId/operationId` 为可选字段，不能宣称每个通知均具备完整持久水位；事件只失效重读，不携带私人草稿，也不借用 v4 的 `seq/logEpoch/subscriptionId`。来源错误转固定错误反馈，不当作成功变更；§3.4 的一致性场景仍是验收要求。
+源事件映射为单一 `onDidChange` 的 `workflow/models/prompts/scheduler/skills(sessionId)/error`；`freeChats` 不迁，`issues` 已裁撤。当前类型中的 `backendEpoch/revision/projectId/irId/operationId` 为可选字段，不能宣称每个通知均具备完整持久水位；事件只失效重读，不携带私人草稿，也不借用 v4 的 `seq/logEpoch/subscriptionId`。来源错误转固定错误反馈，不当作成功变更；§3.4 的一致性场景仍是验收要求。
 
 ### 3.3 单一状态所有权、ID 与隔离
 
 | 状态                                                                                                       | 唯一 owner／作用域                                                                                           | 非 owner 的职责                                                                                             |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| 项目、Release、IR／SR、材料、文件摘要、评审、确认、MR／合入事实、正式进度、排期、Issue、报告、操作 receipt | server 单一 `MockAIReqService`／AIReq 内存域，同一 mock 后端全工号共享                                       | UI 只保留可丢弃读投影；无 localStorage 业务数据库，无每工号复制项目／需求。                                 |
+| 项目、Release、IR／SR、材料、文件摘要、评审、确认、MR／合入事实、正式进度、排期、报告、操作 receipt | server 单一 `MockAIReqService`／AIReq 内存域，同一 mock 后端全工号共享 | UI 只保留可丢弃读投影；无 localStorage 业务数据库，无每工号复制项目／需求。 |
 | 模拟分析任务、五秒提案合入检查、自动化共享定义／运行和业务产物                                             | 单一 AIReq 内存业务 owner；自动化复用既有native服务入口；native 消息／附件归既有 `MockRuntime` v4 owner      | 页面不拥有业务 timer，不因离线取消，不在 mount 自动发送或 runNow。自动化项目scope见下文。                   |
 | 模型／提示词平台配置、配置版本、模拟 Skill 保存结果                                                        | 同一 server owner；固定 Web owner 的模拟配置归属                                                             | 切工号不切账号、凭据或配置根；表单 save/取消与只读投影。                                                    |
 | 业务对话消息与附件接纳／帧日志                                                                             | 现有 v4 server owner，AIReq 只登记业务会话关联和产物；不得另建聊天数据库                                     | v4 SessionDataLayer 为会话投影 owner；AIReq 订阅材料变化，不复制消息真相。                                  |
@@ -137,7 +167,7 @@ UI 的 `data-source.ts` 保留源 hook／数据源接口的业务形状，改为
 | 浏览页、项目／Release／对象选择、history、筛选、排序、展开、面板尺寸、设置脏草稿                           | AIReqContext 与对应 UI controller；当前浏览器／标签页、项目和 Release 的正确作用域                           | 不写 server 当前项目；页面 history 不作为重放命令。                                                         |
 | 外观／字体／代码预览偏好                                                                                   | 当前 ZCode 外观 store，浏览器本地偏好                                                                        | 不同步为后端共享配置。不同浏览器上下文相互独立，不将偏好算入业务 revision。                                 |
 
-ID 沿用源稳定 string ID，不将标题、数组索引、材料路径或百分比当对象 ID。Release 必须属于 project；IR 属于 project+Release；SR 属于 project+IR；Issue 只属于 project，可选 IR／SR 关联必须属于该项目且为正式需求；会话绑定 project+IR/角色/轮次，Skill 独立会话绑定用户设计空间。每次读取／写入检查复合归属，不能在跨项目切换后凭同名 ID 误写。`root/commonDir/sessionFile` 若仍为 v4 需要，仅是模拟资源标识，绝不表示本机文件已存在。
+ID 沿用源稳定 string ID，不将标题、数组索引、材料路径或百分比当对象 ID。Release 必须属于 project；IR 属于 project+Release；SR 属于 project+IR；会话绑定 project+IR/角色/轮次，Skill 独立会话绑定用户设计空间。每次读取／写入检查复合归属，不能在跨项目切换后凭同名 ID 误写。`root/commonDir/sessionFile` 若仍为 v4 需要，仅是模拟资源标识，绝不表示本机文件已存在。
 
 每次 AIReq RPC 都传不可变身份快照；server 方法和异步 continuation 保留该上下文，不使用全局 `setEmployeeId`、全局 selectedProject 或连接共享可变身份。server 内可将显式请求身份放入局部 `AsyncLocalStorage.run` 以复用源纯 mock getter，异步延续必须保持请求隔离；此 Node 能力只属于 server adapter，不进入浏览器合同，也不替代每次业务 RPC 的 identity 参数。原生 `IZCodeAgentService` 方法不带工号：同源 `/ws?employeeId=...` 建连时校验并固定当前标识，逐连接 facade 将调用绑定此不可变身份，同时保留现有 `createZCodeAgentConnectionScope`；切工号关闭旧连接并换代，不在存活连接上更换 actor。准备／解析业务会话时由 AIReq owner 校验允许绑定，不能向别人的私有 Skill 会话发送；未经校验的 selection 不是权限，不修改 v4 schema 来伪装普通业务帧。
 
@@ -233,7 +263,7 @@ sequenceDiagram
 
 当前 Provider 链为 AppErrorBoundary → ZCodeIntlProvider → LucideProvider → TooltipProvider → ServiceProvider（当前 accessor、工号／client 草稿 namespace）→ PlatformProvider → StoreProvider → TabStoreProvider → AIReqDataSourceProvider → AIReqProvider → AIReqShell。未引入目录 Provider、旧账号恢复门禁、旧 session/tab 自动恢复或旧 Root 的 DiffsWorkerPoolProvider；弹窗／toast 沿用当前实现。
 
-会话分支才挂 `V4ConversationProvider`／`V4PaneConversationProvider` → 当前 `SessionPane`；正式需求、分析、Issue 不挂它。`useWorkspaceServices` 实际依赖 TabStoreProvider 和 base service 注册，进入连接时 `registerBaseWorkspaceServices`，换 attachment／退出时按既有生命周期清理；仅用逻辑 workspace identity，不生成第二远程 workspace 连接。必要的 Tab 只是组件上下文，不恢复旧任务导航。分栏拖动只变布局，不改变 session key、订阅 scope 或重建会话。当前 SessionPane 必须禁止旧文件／Git／自由聊天入口，但保留合法附件、草稿与临时模型能力；不能另写一个聊天组件规避其依赖。
+会话分支才挂 `V4ConversationProvider`／`V4PaneConversationProvider` → 当前 `SessionPane`；正式需求、分析不挂它。`useWorkspaceServices` 实际依赖 TabStoreProvider 和 base service 注册，进入连接时 `registerBaseWorkspaceServices`，换 attachment／退出时按既有生命周期清理；仅用逻辑 workspace identity，不生成第二远程 workspace 连接。必要的 Tab 只是组件上下文，不恢复旧任务导航。分栏拖动只变布局，不改变 session key、订阅 scope 或重建会话。当前 SessionPane 必须禁止旧文件／Git／自由聊天入口，但保留合法附件、草稿与临时模型能力；不能另写一个聊天组件规避其依赖。
 
 #### 4.2.1 当前 v4 组件的最小集成接口
 
@@ -270,12 +300,12 @@ sequenceDiagram
 
 `prototype-data-source.ts` 直接依赖 `mock/{workflow,free-chats,workspace,recovery,project-settings,project-directories,agent-models,personalization,skill-design,skills,collaboration,proposal-pr-handoff,progress,planning,progress-scheduler,backend}.ts` 和 `mock-services.ts`；后者直接依赖 `mock/{free-chats,chat,files,settings,skills,events}.ts`。这说明只复制 prototype-data-source 不是闭包，也说明不能把此整包视为全可达业务。
 
-- 必需业务闭包：`mock/{workflow,proposal-delivery,proposal-flow,proposal-pr-handoff,proposal-storage,requirements-review,project-settings,project-releases,agent-models,model-settings,personalization,progress,planning,progress-scheduler,skill-design,skills,collaboration,recovery,events,backend,materials}.ts` 的当前可达部分，加 `backend/prototype-issues.ts`；`mock/{workspace,files,settings,chat,automations}.ts` 仅保留当前 v4／材料／自动化桥接所需部分。所有模块 state 收口到 server owner，而非在多个导入单例里另存一份表。
+- 必需业务闭包：`mock/{workflow,proposal-delivery,proposal-flow,proposal-pr-handoff,proposal-storage,requirements-review,project-settings,project-releases,agent-models,model-settings,personalization,progress,planning,progress-scheduler,skill-design,skills,collaboration,recovery,events,backend,materials}.ts` 的当前可达部分；`mock/{workspace,files,settings,chat,automations}.ts` 仅保留当前 v4／材料／自动化桥接所需部分。所有模块 state 收口到 server owner，而非在多个导入单例里另存一份表。
 - `workflow.ts` 还实际导入 `sr-delivery.ts/ir-acceptance.ts/requirement-freeze.ts/project-directories.ts`；`chat.ts` 实际导入 `free-chats.ts`、旧 ir-acceptance/planning/executing/pr 样例。迁移时删除对应 Action、分派、种子会话／材料及 import 的运行链，不因“依赖闭包”恢复编码／验收／自由聊天／目录设置。只读需求历史所需的事实字段保留，不转换为执行功能。
 - 当前聊天回复依赖的可达样例：`mock/{proposal-discussion,proposal-solution-discussion,proposal-solution-updated,requirements-generated,requirements-supplemented,requirements-review-dialogue,requirements-review-independent-request,requirements-review-request,requirements-review-a,requirements-review-b,requirements-review-c,requirements-review-summary,automation-output,skill-design-chat,skill-design-checklist,skill-design-discussion,skill-design-generated,skills-detail,proposal-solution}.md`；以及 `mock/prompts/{proposal-discussion,automation-review,automation-summary}.md` 和同目录 `skill-design-prompt.md`。角色配置仍引用的 `mock/prompts/*.md` 由模型／个性化规格按实际角色闭包保留，不把停用角色提示词作为新功能。
 - 源大量 `?raw` Markdown import 依赖 Vite；目标 server 构建不能默认支持。将实际可达样例作为目标 server 源码字符串／受支持构建资源提供，确保生产单进程可读；不复制源 build/public 发行包，不从绝对源路径读取。
 
-业务页面闭包从 §2 实际分派的 `AIReqWorkbench/AIReqFormalProgress/AIReqRequirementAnalysisPage/AIReqIssuePages/AIReqSkillDesignPage/AIReqAutomations` 及项目／模型／个性化设置递归迁移，只迁 AIReq 自有组件／领域与必需样例；其 Button/Dialog/Markdown/SessionPane 等导入改接**当前目标已有实现**。各领域规格负责精确业务叶子文件和字段，不把源通用 UI、preview/runtime、copy-manifest、node_modules、build 或旧图标／预览引擎纳入闭包。
+业务页面闭包从 §2 实际分派的 `AIReqWorkbench/AIReqFormalProgress/AIReqRequirementAnalysisPage/AIReqSkillDesignPage/AIReqAutomations` 及项目／模型／个性化设置递归迁移，只迁 AIReq 自有组件／领域与必需样例；其 Button/Dialog/Markdown/SessionPane 等导入改接**当前目标已有实现**。各领域规格负责精确业务叶子文件和字段，不把源通用 UI、preview/runtime、copy-manifest、node_modules、build 或旧图标／预览引擎纳入闭包。
 
 ## 6. todo §2／3／4／10 逐项覆盖与验收
 
@@ -289,7 +319,7 @@ sequenceDiagram
 | 2-04    | 源业务 → docs/specs/aireq-migration        | 规格早于行为代码，不另初始化 OpenSpec 工程。                                                                        |
 | 2-05    | 源领域／异步 → §3                          | ID、权限、版本、失败、幂等、唯一 owner 和事件顺序明确，拒绝失效和跨项目写入。                                       |
 | 2-06    | AIReq 产品授权 → docs/project-goal.md      | 唯一 AIReq 入口替换旧任务聊天；当前组件视觉保留，不沿旧“所有业务默认可见”规则。                                     |
-| 2-07    | 源规格／代码差异 → §1                      | version 3、无 Release Issue、默认需求分析、目录及停用 Action 有明确裁决，无真实能力扩域。                           |
+| 2-07 | 源规格／代码差异 → §1 | version 3、Issue 裁撤、默认需求分析、目录及停用 Action 有明确裁决，无真实能力扩域。 |
 | 3-01    | 源业务模块 → ui/aireq                      | 新模块与必要主壳接线；不整包替换 UI、复制通用控件或降级依赖。                                                       |
 | 3-02    | 源服务接口 → services/client/server        | 浏览器安全 descriptor、accessor、ProxyChannel、唯一集中装配可用，跨包无深导入。                                     |
 | 3-03    | contract v3 operations/events → §3.2       | 当前可达参数／结果／错误经 `/ws`，不启动旧 HTTP/WS worker 服务。                                                    |
@@ -303,9 +333,9 @@ sequenceDiagram
 | 4-01    | AIReqEntry → web/auth                      | 精确产品标题／副标题、工号正则、按钮、加载、错误、退出；无密码/OAuth/API Key。                                      |
 | 4-02    | 源业务登录 → 当前视觉组件                  | 现有背景、卡片、图标、字阶、Input/Button；不复制旧主题，不恢复旧账号流。                                            |
 | 4-03    | Sidebar／Context → AIReqShell              | 所有导航、提案列表、菜单、前后退、设置可达；登录／刷新默认落需求分析、项目切换与空态符合 §1。                       |
-| 4-04    | shell 实际分派 → §2 八类工作区             | 新建提案、自动化、Skill、分析、正式需求和 Issue 三页均显示真实业务内容，不空占位。                                  |
+| 4-04 | shell 实际分派 → §2 五类工作区 | 新建提案、自动化、Skill、分析、正式需求均显示真实业务内容，不空占位。 |
 | 4-05    | 需求讨论／材料 → 当前 resizable primitives | 讨论、材料和正式表格／报告功能完整；复用当前 ZCode 面板与布局，不复刻源几何，不恢复普通任务聊天产品。               |
-| 4-06    | scope 切换 → Context + typed reads         | 切项目保留功能页、清旧对象；需求按 Release、Issue 按项目；无项目／Release／内容分别呈现。                           |
+| 4-06 | scope 切换 → Context + typed reads | 切项目保留功能页、清旧对象；需求按 Release；无项目／Release／内容分别呈现。 |
 | 4-07    | 项目设置 → AIReqProject/Release            | 只要求名称、仓库、默认分支；Release 继承；不强加目录，不混用 VirtualProject。                                       |
 | 4-08    | 当前 DESIGN → 所有业务 UI                  | 语义 token、text-ui-\*、当前图标控件状态，浅／深／系统及窄电脑窗口可用。                                            |
 | 4-09    | 拖动／弹窗／输入 → 实际父面板              | 不溢出／裁按钮，不固定旧宽度；开合和拖动不丢草稿或重建会话。                                                        |
@@ -339,7 +369,7 @@ sequenceDiagram
 
 ## 7. 用户确认的最终产品保真标准
 
-- AIReq 仅是当前可达业务功能与操作语义的来源；保留登录、导航、讨论、正式需求、两类分析、Issue、Skill、自动化和五项设置的功能，不迁移其视觉实现或将其控件坐标、间距、布局和分栏比例作为验收基准。
+- AIReq 仅是业务功能与操作语义的来源；当前保留登录、导航、讨论、正式需求、需求分析、Skill 设计、自动化和四项设置，删除 Issue 与技能设置页。不迁移其视觉实现或将其控件坐标、间距、布局和分栏比例作为验收基准。
 - 架构和全部视觉（主界面、业务页、设置、弹窗及输入辅助）以当前检出的 ZCode 与 `DESIGN.md` 为唯一依据。复用现有服务、状态所有者、控件、字体、语义颜色、布局、底栏、菜单与设置框架，不复制旧组件库、源 CSS 或恢复已裁撤产品。已有合理业务布局不因撤销几何复刻标准而重建。
 - 主导航沿用当前 ZCode `DesktopWindowFrame` 的浏览器不透明底层 `bg-background-win-alt`，工作内容区使用 `bg-background`，深浅主题均保持原生分层。不能直接用与内容背景同值的 Zai Dark `bg-sidebar` 代替原生窗口底层，也不能写死颜色或修改全局主题 token 来补救。
 - 导航、讨论／材料和各工具工作区使用当前 ZCode 的布局与可调整面板实现，按实际父容器保证阅读及操作可达，保留用户分栏偏好与草稿。不再以 AIReq 的导航宽度、分隔线宽度、是否折叠或默认百分比裁决当前 ZCode 设计。

@@ -25,7 +25,6 @@ export async function createRemoteAIReqDataSource(
   const clientId = identity.clientId;
   const workflowListeners = new Set<() => void>();
   const modelListeners = new Set<() => void>();
-  const issueListeners = new Set<() => void>();
   const schedulerListeners = new Set<() => void>();
   const skillListeners = new Set<(sessionId: string) => void>();
   // 头像只切换同一已读取评审中的会话；不把异步刷新间隙当成工作区丢失。
@@ -139,7 +138,6 @@ export async function createRemoteAIReqDataSource(
     }
     invalidationGeneration += 1;
     if (initializing) return;
-    if (frame.type === "issues") emit(issueListeners);
     if (frame.type === "scheduler") emit(schedulerListeners);
     if (frame.type === "skills")
       for (const listener of skillListeners) listener(frame.sessionId ?? "");
@@ -354,33 +352,12 @@ export async function createRemoteAIReqDataSource(
         return metadata.skillDesignSample;
       },
     },
-    skills: { list: (...args) => call("skills.list", args) },
     collaboration: {
       peers: (projectId) =>
         metadata.peers.filter((peer) => !projectId || peer.projectId === projectId),
     },
     get prototype(): AIReqDataSource["prototype"] {
       return metadata.scenarioOperations ? scenarios : undefined;
-    },
-    issues: {
-      read: (...args) => call("issues.read", args),
-      create: (...args) => call("issues.create", args),
-      configure: async (...args) => {
-        await call("issues.configure", args);
-      },
-      runNow: async (...args) => {
-        await call("issues.runNow", args);
-      },
-      confirm: async (...args) => {
-        await call("issues.confirm", args);
-      },
-      reopen: async (...args) => {
-        await call("issues.reopen", args);
-      },
-      subscribe: (listener) => subscribe(issueListeners, listener),
-      dispose: () => {
-        issueListeners.clear();
-      },
     },
     progressScheduler: {
       read: () => call("progressScheduler.read", []),

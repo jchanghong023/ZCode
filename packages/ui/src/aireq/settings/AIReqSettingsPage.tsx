@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folders, Package, Palette, User, WandSparkles, HelpCircle } from "lucide-react";
+import { ArrowLeft, Folders, Package, Palette, User, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -28,42 +28,32 @@ import { AIReqWorkspaceFooter } from "../shell/AIReqWorkspaceFooter.js";
 import { AIReqAgentModelSettings, type AIReqModelDraftActions } from "./AIReqAgentModelSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings } from "./AIReqProjectSettings.js";
-import { AIReqSkillsSettings } from "./AIReqSkillsSettings.js";
 
-export type AIReqSettingsSection =
-  | "appearance"
-  | "projects"
-  | "models"
-  | "personalization"
-  | "skills";
+export type AIReqSettingsSection = "appearance" | "projects" | "models" | "personalization";
 export type AIReqNavigationGuard = (navigate: () => void) => void;
 const titles: Record<AIReqSettingsSection, string> = {
   appearance: "外观",
   projects: "AIReq 项目与 Release",
   models: "模型设置",
   personalization: "个性化",
-  skills: "技能",
 };
 const icons = {
   appearance: Palette,
   projects: Folders,
   models: Package,
   personalization: User,
-  skills: WandSparkles,
 };
 const searchSections = [
   { id: "appearance", label: titles.appearance },
   { id: "general", label: titles.projects, includeSettings: false },
   { id: "modelProvider", label: titles.models, includeSettings: false },
   { id: "personalization", label: titles.personalization, includeSettings: false },
-  { id: "skill", label: titles.skills, includeSettings: false },
 ] as const;
 const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
   appearance: "appearance",
   general: "projects",
   modelProvider: "models",
   personalization: "personalization",
-  skill: "skills",
 };
 
 function Appearance() {
@@ -231,7 +221,7 @@ export function AIReqSettingsPage({
             {(
               [
                 ["个人工具", ["appearance"]],
-                ["平台配置", ["projects", "models", "personalization", "skills"]],
+                ["平台配置", ["projects", "models", "personalization"]],
               ] as const
             ).map(([group, entries], index) => (
               <div
@@ -289,10 +279,8 @@ export function AIReqSettingsPage({
                 <AIReqProjectSettings />
               ) : section === "models" ? (
                 <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
-              ) : section === "personalization" ? (
-                <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
               ) : (
-                <AIReqSkillsSettings />
+                <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
               )}
             </div>
           </div>

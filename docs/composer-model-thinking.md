@@ -174,6 +174,8 @@ ModelSelectionView（支持的模型与档位）
 
 影响面：must-inspect 为 V4ComposerToolbar → ModelConfigSelect/ComposerModelMenu 与 useComposerToolbarFit；选择权威仍为 Composer 草稿，布局测量只投影 DOM。AutomationEditView、OffPeakEditView、SubagentsSection 与 workflow settings 虽复用 ModelConfigSelect，但各自持久化边界不同且不启用 composerOptions，属隔离边界；本次不修改产品代码。Desktop continuous 与手机 replayable 不涉及改动。当前环境无可调用 codegraph，未执行图索引的 depth-2 扫描，以当前源码调用点和现有用例核对，不宣称完成 codegraph 影响扫描；无新增语义图节点或 owner 关系。沿用 CT 已有 case-local fixture，不新增发送或 fixture 请求。
 
+2026-11-15 范围更新：上段是桌面阶段的历史复核；`OffPeakEditView` 已随当前 Web 的闲时任务专属界面退役，不再作为可执行入口。当前自动化仍使用 `AutomationEditView`，其模型、思考与保存隔离语义不变。
+
 复核结果：增强后的工具栏 Electron E2E 11 项通过，case-local fixture 校验、typecheck:e2e、全仓 typecheck、lint（62 条既有 warning、0 error）和 architecture check 通过。全仓 conversation coverage audit 被未修改的 Highspeed card fixture 两条 syntheticReason 与 manifest 不一致阻断（REQUEST_LEDGER_METADATA_MISMATCH），不计为本次工具栏测试失败；未执行 Docker admission 或手机远控真机验证。
 
 ## Effort 控件按档位数量展示

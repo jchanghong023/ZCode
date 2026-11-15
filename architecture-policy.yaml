@@ -252,15 +252,11 @@ modules:
   - id: gen-ui
     roots: [packages/ui/src/gen-ui]
     managed: true
-    requires: [ui, services, gen-ui-service, gen-ui-protocol, mcp-apps-protocol, plugin-ui]
+    requires: [ui, gen-ui-protocol]
     publicEntrypoints:
-      [
-        packages/ui/src/gen-ui/index.ts,
-        packages/ui/src/gen-ui/contract.ts,
-        packages/ui/src/gen-ui/host.ts,
-      ]
-    layers: { domain: domain, app: app, adapters: adapters, ui: components }
-    layerOrder: [domain, app, adapters, ui]
+      - packages/ui/src/gen-ui/index.ts
+      - packages/ui/src/gen-ui/contract.ts
+    layers: { domain: "." }
     owner: conversation
 
   # 插件 UI（MCP Apps 沙箱）：模块边界见各模块 CONTRACT.md。
@@ -300,6 +296,11 @@ modules:
         packages/ui/src/plugin-ui/index.ts,
         packages/ui/src/plugin-ui/contract.ts,
         packages/ui/src/plugin-ui/hostPrimitives.ts,
+        packages/ui/src/plugin-ui/adapters/PluginUiModelContextChip.tsx,
+        packages/ui/src/plugin-ui/domain/pluginDisplayName.ts,
+        packages/ui/src/plugin-ui/adapters/usePluginUiContextImages.ts,
+        packages/ui/src/plugin-ui/adapters/pluginUiModelContextEvents.ts,
+        packages/ui/src/plugin-ui/domain/pluginUiModelContext.ts,
       ]
     layers:
       domain: domain
@@ -809,6 +810,10 @@ modules:
     publicEntrypoints:
       - packages/ui/src/extension-slots/index.ts
       - packages/ui/src/extension-slots/contract.ts
+      # 当前 Web 只消费无沙箱的状态、mention 投影，不经沙箱宿主 barrel。
+      - packages/ui/src/extension-slots/components/ComposerStatusSlot.tsx
+      - packages/ui/src/extension-slots/components/ExtensionMentionOptionContent.tsx
+      - packages/ui/src/extension-slots/adapters/useExtensionMentionGroups.ts
     layers:
       domain: domain
       app: app

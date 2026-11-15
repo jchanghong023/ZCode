@@ -117,17 +117,6 @@ const sampleSettings: AIReqAgentModelSettings = {
       model: "inherit",
       reasoning: "default",
     },
-    {
-      id: "issue-analysis",
-      name: "Issue 分析 Agent",
-      nameEn: "Issue Analysis Agent",
-      description:
-        "根据 Issue 完成标准与开发分支代码证据分析进度、遗留问题和合入情况。AI 最高 99%，合入后由人工确认完成。",
-      descriptionEn:
-        "Assess Issue progress, remaining issues and merge status from completion criteria and branch evidence. AI progress is capped at 99%; human confirmation is required after merge.",
-      model: "inherit",
-      reasoning: "default",
-    },
   ],
 };
 

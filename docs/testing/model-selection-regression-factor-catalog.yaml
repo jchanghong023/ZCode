@@ -1447,11 +1447,6 @@ generationPolicy:
     - evidenceLayers
 
 graphDrift:
-  - id: GRAPH-DRIFT-001
-    status: candidate
-    liveSurface: packages/ui/src/settings/OffPeakEditView.tsx
-    graphRelation: off-peak settings editor is not fully declared as a distinct UI surface
-    followUp: confirm whether it should become a stable surface node
   - id: GRAPH-DRIFT-002
     status: candidate
     liveSurface: login, bot, official MCP, Git commit, title, goal verifier, project memory

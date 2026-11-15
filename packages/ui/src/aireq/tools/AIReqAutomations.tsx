@@ -55,7 +55,6 @@ export function AIReqAutomations({
         <AutomationsSection
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
-          scheduledOnly
           runNowNotice="已登记 stopped 模拟运行记录，未执行模型或真实调度。"
           projectOptions={projectOptions}
           onOpenSession={setSession}

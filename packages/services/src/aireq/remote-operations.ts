@@ -4,8 +4,7 @@ import type {
   NativeTaskOutputRequest,
   NativeTaskOutputContent,
 } from "./native-task-runs.js";
-import type { AIReqIssue, AIReqIssueInput, AIReqIssueScope, AIReqIssueSnapshot } from "./issues.js";
-import type { SkillSummary, SkillsListResult, ZCodeProvider } from "@zcode/shared";
+import type { SkillSummary } from "@zcode/shared";
 import type {
   AIReqBackendView,
   AIReqDataSource,
@@ -74,11 +73,6 @@ export interface AIReqRemotePrompts {
   draft: Record<string, string>;
   revision: number;
 }
-export interface AIReqRemoteSkillsInput {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  provider?: ZCodeProvider;
-}
 interface Operation<A extends unknown[], R> {
   args: A;
   result: R;
@@ -88,15 +82,6 @@ interface Operation<A extends unknown[], R> {
 export interface AIReqRemoteOperations {
   "nativeTasks.listRuns": Operation<[request: NativeTaskRunsRequest], NativeTaskRunsSnapshot>;
   "nativeTasks.readOutput": Operation<[request: NativeTaskOutputRequest], NativeTaskOutputContent>;
-  "issues.read": Operation<[scope: AIReqIssueScope], AIReqIssueSnapshot>;
-  "issues.create": Operation<[input: AIReqIssueInput], AIReqIssue>;
-  "issues.configure": Operation<
-    [scope: AIReqIssueScope, enabled: boolean, intervalMinutes: number],
-    null
-  >;
-  "issues.runNow": Operation<[scope: AIReqIssueScope], null>;
-  "issues.confirm": Operation<[scope: AIReqIssueScope, id: string], null>;
-  "issues.reopen": Operation<[scope: AIReqIssueScope, id: string, reason: string], null>;
   readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[group: AIReqWorkflowView["groups"][number]], AIReqPrHandoff>;
   command: Operation<
@@ -122,7 +107,6 @@ export interface AIReqRemoteOperations {
   "models.bindingChanged": Operation<[binding: AIReqAgentModelBinding], boolean>;
   "prompts.read": Operation<[], AIReqRemotePrompts>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
-  "skills.list": Operation<[input: AIReqRemoteSkillsInput], SkillsListResult>;
   "skillDesign.session": Operation<[projectId: string], string>;
   "skillDesign.binding": Operation<[sessionId: string], AIReqAgentModelBinding>;
   "skillDesign.workspaceIdentity": Operation<[projectId: string], string>;
@@ -195,7 +179,6 @@ export interface AIReqRemoteBootstrap {
 }
 export type AIReqRemoteEvent = (
   | { type: "workflow" }
-  | { type: "issues" }
   | { type: "models" }
   | { type: "prompts" }
   | { type: "scheduler" }

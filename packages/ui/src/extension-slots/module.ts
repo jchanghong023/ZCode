@@ -14,5 +14,11 @@ export const extensionSlotsModule = {
     "mcp-apps-protocol",
   ],
   provides: ["extension-slots-components"],
-  publicEntrypoints: ["index.ts", "contract.ts"],
+  publicEntrypoints: [
+    "index.ts",
+    "contract.ts",
+    "components/ComposerStatusSlot.tsx",
+    "components/ExtensionMentionOptionContent.tsx",
+    "adapters/useExtensionMentionGroups.ts",
+  ],
 } as const;
