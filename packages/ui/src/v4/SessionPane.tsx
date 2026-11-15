@@ -68,12 +68,6 @@ import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js"
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import type { SessionOpenTrigger } from "@/lib/sessionOpenArmsTelemetry.js";
-import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
-import { resolveWorkflowResumeHandler } from "@/v4/workflowResumeGate.js";
-import {
-  workflowSessionModelOf,
-  type WorkflowRunSettingsChange,
-} from "@/components/workflow-timeline/workflowRunSettings.js";
 import { useWorkflowRunJournalSummaries } from "@/hooks/useWorkflowRunJournalSummaries.js";
 import { usePlanIdentitySnapshot } from "@/hooks/usePlanIdentitySnapshot.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -157,7 +151,6 @@ import {
 import type { ConversationStatusPanelWorkflowRunTarget } from "@/v4/conversationStatusPanelModel.js";
 import {
   buildWorkflowRunByRunId,
-  buildWorkflowSaveCandidatesByRunId,
   buildWorkflowRunByToolCallId,
   buildWorkflowRunPendingQuestionsByRunId,
   buildWorkflowFillGraphByRunId,
@@ -1870,12 +1863,6 @@ export function SessionPane({
     () => buildWorkflowDraftByToolCallId(workflowRows),
     [workflowRows],
   );
-  // runId → 转写里认领过它的 SaveWorkflow 候选（docs/dynamic-workflow/transcript-and-notifications.md
-  // 「Which workflow a run is saved as」规则 1）。行窗口一遍建成，随窗口重建。
-  const workflowSaveCandidatesByRunId = useMemo(
-    () => buildWorkflowSaveCandidatesByRunId(workflowRows),
-    [workflowRows],
-  );
   // Workflow 通知 manifest 的升级条目 Waiting→Answered 联查表（runId → 停驻 qid 集合）。
   const workflowRunPendingQuestionsByRunId = useMemo(
     () => buildWorkflowRunPendingQuestionsByRunId(snapshot?.workflowRuns?.runs),
@@ -2259,55 +2246,6 @@ export function SessionPane({
     [dispatchCommand, intl, readOnly, sessionId],
   );
 
-  // 动态工作流灰度快照：只读 store，
-  // 取数在 Root 里做一次。未就绪时 enabled 为 false，按未命中处理。
-  const { enabled: dynamicWorkflowEnabled } = useDynamicWorkflowAvailability();
-
-  // resumeWorkflowRun：工具卡页脚的 Resume。与详情页
-  // 同一条 v4 命令，不携 baseRevision；`name` 喂恢复后完成通知的主题。
-  const handleResumeWorkflowRun = useCallback(
-    (workId: string, name?: string) => {
-      if (!sessionId) return;
-      void dispatchCommand(
-        "resumeWorkflowRun",
-        { workId, ...(name ? { name } : {}) },
-        sessionId,
-      ).then((ack) => {
-        if (ack.status !== "accepted" && ack.status !== "noop") {
-          logger.warn(`[v4-pane] resumeWorkflowRun 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-        }
-      });
-    },
-    [dispatchCommand, sessionId],
-  );
-
-  // amendWorkflowRunSettings：run 卡的「配置」。回 ACK 给弹层——拒绝理由画在弹层里，不是控制台的一行 warn。门与 Resume 相同。
-  const handleAmendWorkflowRunSettings = useCallback(
-    (workId: string, change: WorkflowRunSettingsChange): Promise<CommandAck> =>
-      dispatchCommand("amendWorkflowRunSettings", { workId, ...change }, sessionId),
-    [dispatchCommand, sessionId],
-  );
-  const workflowSessionModel = useMemo(
-    () => workflowSessionModelOf(snapshot?.sessionId === sessionId ? snapshot?.config : undefined),
-    [sessionId, snapshot?.config, snapshot?.sessionId],
-  );
-
-  /**
-   * 「让 ZCode 帮我提炼保存」那条用户消息的发送口（docs/dynamic-workflow/transcript-and-notifications.md
-   * 「The message the lead sends」）：与中枢的「提升为全局」同一条先例——GUI 写、自动发、用户不再确认。
-   *
-   * 经 ref 转一手而不是直接引 `handleSendText`：后者定义在本文件更下面，而 rowContext 的 memo
-   * 工厂在**同一次渲染里**就会跑到，直接引会落进 TDZ。ref 在渲染中赋值，点击总在挂载之后。
-   */
-  const sendTextRef = useRef<typeof handleSendText | null>(null);
-  const handleSendWorkflowSaveRequest = useCallback(async (text: string) => {
-    const send = sendTextRef.current;
-    if (send === null) throw new Error("send path not mounted");
-    const result = await send(text);
-    // 被挡下（会话忙着确认别的、队列暂停待确认）就不是「已交给 ZCode」：抛回弹层，让它留在原处。
-    if (result !== "sent") throw new Error(`workflow save request not sent: ${result}`);
-  }, []);
-
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
@@ -2342,33 +2280,6 @@ export function SessionPane({
       onOpenWorkflowArtifact:
         runtimeReady && onOpenWorkflowArtifact ? handleOpenWorkflowArtifact : undefined,
       onCancelBackgroundWork: readOnly || !runtimeReady ? undefined : handleCancelBackgroundWork,
-      // Resume 进入会话上下文的唯一供给点；灰度与只读两道门都在 resolveWorkflowResumeHandler 里，
-      // 断在这里等于工具卡页脚与摘要卡的按钮一起消失。
-      onResumeWorkflowRun: resolveWorkflowResumeHandler({
-        readOnly: readOnly || !runtimeReady,
-        dynamicWorkflowEnabled,
-        handler: handleResumeWorkflowRun,
-      }),
-      onAmendWorkflowRunSettings:
-        runtimeReady && sessionId
-          ? resolveWorkflowResumeHandler({
-              readOnly,
-              dynamicWorkflowEnabled,
-              handler: handleAmendWorkflowRunSettings,
-            })
-          : undefined,
-      // 保存与 Resume 同一道门、同一个供给点：写文件与起引擎都属于「Resume 被收走的地方一并收走」
-      // （docs/dynamic-workflow/launch.md「Gray release」）。芯片不经这道门，它只是一条事实。
-      onSendWorkflowSaveRequest:
-        runtimeReady && sessionId
-          ? resolveWorkflowResumeHandler({
-              readOnly,
-              dynamicWorkflowEnabled,
-              handler: handleSendWorkflowSaveRequest,
-            })
-          : undefined,
-      workflowSaveCandidatesByRunId,
-      ...(workflowSessionModel === undefined ? {} : { workflowSessionModel }),
       workflowRunByToolCallId,
       workflowRunByRunId,
       workflowRunPendingQuestionsByRunId,
@@ -2421,12 +2332,6 @@ export function SessionPane({
       readOnly,
       runtimeReady,
       handleCancelBackgroundWork,
-      dynamicWorkflowEnabled,
-      handleResumeWorkflowRun,
-      handleAmendWorkflowRunSettings,
-      handleSendWorkflowSaveRequest,
-      workflowSaveCandidatesByRunId,
-      workflowSessionModel,
       workflowRunByToolCallId,
       workflowRunByRunId,
       workflowRunPendingQuestionsByRunId,
@@ -3565,8 +3470,6 @@ export function SessionPane({
     },
     [finishComposerEdit, keepEditConfigOnExit, sessionId, workspaceKey],
   );
-  // 上面那个 ref 的唯一赋值点（见 handleSendWorkflowSaveRequest 的说明）。
-  sendTextRef.current = handleSendText;
 
   const handleComposerEditRewindWorkspace = useCallback(() => {
     composerEditWorkspaceModeRef.current = "rewind";

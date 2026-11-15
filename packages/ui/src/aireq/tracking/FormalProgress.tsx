@@ -25,8 +25,8 @@ import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.j
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
 import { getEmployeeId } from "../identity.js";
-import { AssignOwner, AIReqDependencies, AIReqEditPlanning } from "./RequirementPlanning.js";
-import { irPlanning, planningDate, planningWarnings, srDependencies } from "../contract.js";
+import { AssignOwner, AIReqEditPlanning } from "./RequirementPlanning.js";
+import { irPlanning, planningDate, planningWarnings } from "../contract.js";
 import {
   irProgress,
   irProgressStatus,
@@ -49,9 +49,7 @@ export function AIReqFormalTable() {
   const [status, setStatus] = useState("all");
   const [owner, setOwner] = useState("all");
   const [ownerEmployeeId, setOwnerEmployeeId] = useState("");
-  const [expanded, setExpanded] = useState(
-    () => new Set(aireq.view?.groups.slice(0, 1).map((group) => group.id)),
-  );
+  const [expanded, setExpanded] = useState(() => new Set<string>());
   const [filteredExpansion, setFilteredExpansion] = useState<Record<string, boolean>>({});
   const [copyMessage, setCopyMessage] = useState("");
   const view = aireq.view;
@@ -95,22 +93,6 @@ export function AIReqFormalTable() {
         rows.some((sr) => srProgressStatus(sr) === status))
     );
   });
-  const latest = (rows: AIReqSystemRequirement[]) =>
-    rows
-      .map((sr) => sr.progress?.analysedAt ?? "")
-      .sort()
-      .at(-1);
-  const date = (value?: string) =>
-    value
-      ? new Date(value).toLocaleString("zh-CN", {
-          timeZone: "Asia/Shanghai",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-      : "尚未分析";
   return (
     <main
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background [scrollbar-gutter:stable]"
@@ -260,14 +242,14 @@ export function AIReqFormalTable() {
           >
             <colgroup>
               {/* 四组弹性列适应内容列，不再为每个辅助字段单独保留固定宽度。 */}
-              <col className="w-[30%]" />
-              <col className="w-[20%]" />
-              <col className="w-[25%]" />
-              <col className="w-[25%]" />
+              <col className="w-[34%]" />
+              <col className="w-[22%]" />
+              <col className="w-[28%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
-                {["需求", "状态与问题", "人员与计划", "开发与分析"].map((title, index) => (
+                {["需求", "状态与问题", "人员与计划", "操作"].map((title, index) => (
                   <MarkdownTableHead
                     key={title}
                     scope="col"
@@ -317,10 +299,9 @@ export function AIReqFormalTable() {
                     ),
                   ),
                 ];
-                const dependencies = srs.reduce(
-                  (count, sr) => count + srDependencies(view, sr).length,
-                  0,
-                );
+                const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
+                const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
+                const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
                 // 主题行色含透明度：固定列在不透明底色上叠加同一行色，避免滚动透字和双层选中色。
                 return (
                   <Fragment key={group.id}>
@@ -367,16 +348,18 @@ export function AIReqFormalTable() {
                             )}
                           </Button>
                           <div className="min-w-0">
-                            <Button
-                              variant="link"
-                              className="h-auto max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                open(group);
-                              }}
-                            >
-                              {group.title}
-                            </Button>
+                            <ControlHintTooltip title={group.title}>
+                              <Button
+                                variant="link"
+                                className="h-auto w-full max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  open(group);
+                                }}
+                              >
+                                <span className="line-clamp-2">{group.title}</span>
+                              </Button>
+                            </ControlHintTooltip>
                             <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
@@ -390,47 +373,37 @@ export function AIReqFormalTable() {
                           label={group.title}
                           status={irProgressStatus(srs)}
                         />
-                        <p className="mt-1 text-ui-sm tabular-nums">
-                          问题：
-                          {srs.reduce(
-                            (count, sr) => count + (sr.progress?.issues.length ?? 0),
-                            0,
-                          )}{" "}
-                          项
-                        </p>
+                        <IssueCount issues={issues} />
+                        {missingBranches > 0 && (
+                          <p className="mt-1 text-ui-sm text-destructive">
+                            开发分支缺失：{missingBranches} 项
+                          </p>
+                        )}
                       </MarkdownTableCell>
                       <MarkdownTableCell className="px-2 py-1.5 align-top">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <AssignOwner group={group} />
-                          <ControlHintTooltip title={developers.join("、") || "暂无开发人员"}>
-                            <span
-                              tabIndex={0}
-                              className="rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                            >
-                              {developers.length} 名开发人员
-                            </span>
-                          </ControlHintTooltip>
-                        </div>
-                        <div className="mt-1 space-y-0 break-words text-ui-sm tabular-nums">
-                          <p title={plan.plannedStart?.replace("T", " ")}>
-                            <span className="text-foreground-subtle">开始：</span>
-                            {planningDate(plan.plannedStart)}
+                        <p className="break-words text-ui-sm">
+                          负责人：{group.ownerEmployeeId ?? "未分配"}
+                        </p>
+                        <ControlHintTooltip title={developers.join("、") || "暂无开发人员"}>
+                          <p
+                            tabIndex={0}
+                            className="line-clamp-2 rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          >
+                            开发：{developers.join("、") || "未分配"}
                           </p>
-                          <p title={plan.plannedEnd?.replace("T", " ")}>
-                            <span className="text-foreground-subtle">结束：</span>
-                            {planningDate(plan.plannedEnd)}
-                          </p>
-                          {plan.incomplete && <p className="text-foreground-subtle">部分未排期</p>}
-                        </div>
+                        </ControlHintTooltip>
+                        <PlanRange start={plan.plannedStart} end={plan.plannedEnd} />
+                        {plan.incomplete && (
+                          <p className="text-ui-sm text-foreground-subtle">部分未排期</p>
+                        )}
+                        <PlanningAlert warnings={warnings} />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="space-y-0.5 px-2 py-1.5 align-top text-ui-sm">
-                        <p className="text-foreground-subtle">开发分支：见各 SR</p>
-                        <p className="break-words">
-                          {dependencies ? `${dependencies} 条依赖 · 见各 SR` : "无前置依赖"}
-                        </p>
-                        <p className="break-words text-foreground-subtle" title={latest(srs)}>
-                          最近分析：{date(latest(srs))}
-                        </p>
+                      <MarkdownTableCell className="px-2 py-1.5 align-top">
+                        <FormalActions
+                          group={group}
+                          onDetail={() => open(group)}
+                          onMessage={setCopyMessage}
+                        />
                       </MarkdownTableCell>
                     </MarkdownTableRow>
                     {showChildren &&
@@ -453,16 +426,18 @@ export function AIReqFormalTable() {
                                   "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
                               }}
                             >
-                              <Button
-                                variant="link"
-                                className="h-auto max-w-full p-0 text-left whitespace-normal [overflow-wrap:anywhere]"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  open(group, sr);
-                                }}
-                              >
-                                {sr.title}
-                              </Button>
+                              <ControlHintTooltip title={sr.title}>
+                                <Button
+                                  variant="link"
+                                  className="h-auto w-full max-w-full justify-start p-0 text-left whitespace-normal [overflow-wrap:anywhere]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    open(group, sr);
+                                  }}
+                                >
+                                  <span className="line-clamp-2">{sr.title}</span>
+                                </Button>
+                              </ControlHintTooltip>
                               <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
                                 SR · {sr.id}
                               </p>
@@ -473,71 +448,30 @@ export function AIReqFormalTable() {
                                 label={sr.title}
                                 status={srProgressStatus(sr)}
                               />
-                              <p className="mt-1 text-ui-sm tabular-nums">
-                                问题：{sr.progress?.issues.length ?? 0} 项
-                              </p>
+                              <IssueCount issues={sr.progress?.issues ?? []} />
+                              {!sr.trackingBranch?.name?.trim() && (
+                                <p role="alert" className="mt-1 text-ui-sm text-destructive">
+                                  开发分支缺失
+                                </p>
+                              )}
                             </MarkdownTableCell>
                             <MarkdownTableCell className="px-2 py-1.5 align-top">
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                <AIReqEditPlanning group={group} sr={sr} compact />
-                                <span className="text-ui-sm text-foreground-subtle">
-                                  {sr.planning?.source === "manual"
-                                    ? "人工确认"
-                                    : sr.planning
-                                      ? "AI 建议"
-                                      : "待分析"}
-                                </span>
-                              </div>
-                              <div className="mt-1 space-y-0 break-words text-ui-sm tabular-nums">
-                                <p title={sr.planning?.plannedStart?.replace("T", " ")}>
-                                  <span className="text-foreground-subtle">开始：</span>
-                                  {planningDate(sr.planning?.plannedStart)}
-                                </p>
-                                <p title={sr.planning?.plannedEnd?.replace("T", " ")}>
-                                  <span className="text-foreground-subtle">结束：</span>
-                                  {planningDate(sr.planning?.plannedEnd)}
-                                </p>
-                              </div>
-                            </MarkdownTableCell>
-                            <MarkdownTableCell className="space-y-0.5 px-2 py-1.5 align-top text-ui-sm">
-                              {sr.trackingBranch?.name?.trim() ? (
-                                // 分支名仍直接读取平台映射，截断后可聚焦查看全文及复制。
-                                <BranchCopy
-                                  key={sr.trackingBranch.name}
-                                  branch={sr.trackingBranch.name}
-                                  onMessage={setCopyMessage}
-                                />
-                              ) : (
-                                <span
-                                  role="alert"
-                                  className="text-ui-sm text-destructive"
-                                  title="正式 SR 必须已有平台分配的开发分支；当前映射缺失属于数据异常。"
-                                >
-                                  开发分支缺失
-                                </span>
-                              )}
-                              <div className="flex items-start gap-1">
-                                <span className="shrink-0 text-foreground-subtle">依赖：</span>
-                                <div className="min-w-0 flex-1">
-                                  <AIReqDependencies sr={sr} view={view} compact />
-                                </div>
-                              </div>
-                              {warnings.length > 0 && (
-                                <ControlHintTooltip title={warnings.join("\n")}>
-                                  <span
-                                    tabIndex={0}
-                                    className="block rounded-sm text-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                                  >
-                                    需协调排期
-                                  </span>
-                                </ControlHintTooltip>
-                              )}
-                              <p
-                                className="break-words text-foreground-subtle"
-                                title={sr.progress?.analysedAt}
-                              >
-                                最近分析：{date(sr.progress?.analysedAt)}
+                              <p className="break-words text-ui-sm">
+                                开发：{sr.planning?.developerEmployeeId ?? "未分配"}
                               </p>
+                              <PlanRange
+                                start={sr.planning?.plannedStart}
+                                end={sr.planning?.plannedEnd}
+                              />
+                              <PlanningAlert warnings={warnings} />
+                            </MarkdownTableCell>
+                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                              <FormalActions
+                                group={group}
+                                sr={sr}
+                                onDetail={() => open(group, sr)}
+                                onMessage={setCopyMessage}
+                              />
                             </MarkdownTableCell>
                           </MarkdownTableRow>
                         );
@@ -584,6 +518,115 @@ export function AIReqFormalTable() {
         </p>
       </div>
     </main>
+  );
+}
+
+function IssueCount({ issues }: { issues: { title: string }[] }) {
+  return (
+    <ControlHintTooltip
+      title={
+        issues.length
+          ? `${issues
+              .slice(0, 3)
+              .map((issue) => issue.title)
+              .join("；")}${issues.length > 3 ? "；其余见详情" : ""}`
+          : "暂无问题记录，完整分析判断见详情"
+      }
+    >
+      <p
+        tabIndex={0}
+        className="mt-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        问题：{issues.length} 项
+      </p>
+    </ControlHintTooltip>
+  );
+}
+
+function PlanRange({ start, end }: { start?: string; end?: string }) {
+  return (
+    <ControlHintTooltip
+      title={`计划开始：${start?.replace("T", " ") || "未排期"}\n计划结束：${end?.replace("T", " ") || "未排期"}`}
+    >
+      <p
+        tabIndex={0}
+        className="mt-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        计划：{planningDate(start).split(" ")[0]} → {planningDate(end).split(" ")[0]}
+      </p>
+    </ControlHintTooltip>
+  );
+}
+
+function PlanningAlert({ warnings }: { warnings: string[] }) {
+  if (!warnings.length) return null;
+  return (
+    <ControlHintTooltip
+      title={`${warnings[0]}${warnings.length > 1 ? `（另 ${warnings.length - 1} 项，见详情）` : ""}`}
+    >
+      <p
+        tabIndex={0}
+        className="mt-1 rounded-sm text-ui-sm text-warning-surface-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        排期冲突／需协调
+      </p>
+    </ControlHintTooltip>
+  );
+}
+
+function FormalActions({
+  group,
+  sr,
+  onDetail,
+  onMessage,
+}: {
+  group: AIReqRequirementGroup;
+  sr?: AIReqSystemRequirement;
+  onDetail: () => void;
+  onMessage: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-1" onClick={(event) => event.stopPropagation()}>
+      <Button size="sm" variant="ghost" onClick={onDetail}>
+        详情
+      </Button>
+      {/* 子表单关闭前保留 Popover 挂载，避免外部焦点关闭菜单时一并卸载 Dialog。 */}
+      <Popover
+        open={open}
+        onOpenChange={(value) => {
+          if (!dialogOpen) setOpen(value);
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="ghost" aria-label={`${sr?.title ?? group.title}的更多操作`}>
+            更多
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className={cn("w-72 gap-2", dialogOpen && "invisible pointer-events-none")}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <p className="text-ui-sm text-foreground-subtle">需求负责人</p>
+          <AssignOwner group={group} onDialogOpenChange={setDialogOpen} />
+          {sr && (
+            <>
+              <AIReqEditPlanning group={group} sr={sr} onDialogOpenChange={setDialogOpen} />
+              {sr.trackingBranch?.name?.trim() && (
+                <BranchCopy branch={sr.trackingBranch.name} onMessage={onMessage} />
+              )}
+            </>
+          )}
+          {!sr && (
+            <p className="text-ui-sm text-foreground-subtle">
+              开发安排与分支复制见各 SR 更多操作或详情。
+            </p>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 

@@ -234,14 +234,14 @@ function ConnectedProgressAnalysis({
     reportTrigger.current = trigger;
     setSelectedRunId(id);
   };
-  const taskActions = (task: AIReqAnalysisTask) =>
+  const taskActions = (task: AIReqAnalysisTask, onOpenReport: () => void) =>
     task.error && task.lastRunId ? (
       <div className="flex items-center justify-end gap-1">
         <Button
           variant="ghost"
           size="sm"
           aria-label={`查看 ${task.srId} 失败原因`}
-          onClick={(event) => openReport(task.lastRunId!, event.currentTarget)}
+          onClick={onOpenReport}
         >
           原因
         </Button>
@@ -264,7 +264,7 @@ function ConnectedProgressAnalysis({
         variant="ghost"
         size="sm"
         aria-label={`查看 ${task.srId} 最近报告`}
-        onClick={(event) => openReport(task.lastRunId!, event.currentTarget)}
+        onClick={onOpenReport}
       >
         查看报告
       </Button>
@@ -500,6 +500,7 @@ function ConnectedProgressAnalysis({
                 projects={snapshot.projects}
                 onMessage={setMessage}
                 taskActions={taskActions}
+                openReport={openReport}
               />
               {!taskResult.total && (
                 <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
@@ -603,7 +604,6 @@ function ConnectedProgressAnalysis({
                     <AnalysisHistoryTable
                       items={historyResult.items}
                       projects={snapshot.projects}
-                      onMessage={setMessage}
                       selectedRunId={selectedRunId}
                       openReport={openReport}
                     />
@@ -643,6 +643,7 @@ function ConnectedProgressAnalysis({
         {selectedRun ? (
           <ReportPane
             run={selectedRun}
+            onMessage={setMessage}
             feedback={
               <UpdateFeedback
                 error={reportQuery.error}
@@ -676,8 +677,8 @@ function ConnectedProgressAnalysis({
               if (reportTrigger.current?.isConnected) reportTrigger.current.focus();
             }}
           >
-            <DialogTitle>分析报告</DialogTitle>
-            <DialogDescription>正在读取所选执行报告。</DialogDescription>
+            <DialogTitle>分析执行详情</DialogTitle>
+            <DialogDescription>正在读取所选执行信息与报告。</DialogDescription>
             <QueryFeedback
               loading={reportQuery.loading}
               error={reportQuery.error}

@@ -89,11 +89,8 @@ export const ServiceChannels = {
   File: "file",
   MediaPreview: "media-preview",
   System: "system",
-  Terminal: "terminal",
   /** Git 服务 */
   Git: "git",
-  /** Git checkpoint 服务 */
-  GitCheckpoint: "git-checkpoint",
   Setting: "setting",
   /** 凭据管理（从 main IPC 迁移到 host RPC） */
   Credential: "credential",
@@ -118,24 +115,18 @@ export const ServiceChannels = {
   /** 手机远端 attachment 的窗口目录；原 project 继续属于工作区。 */
   WindowProject: "window-project",
   WindowProjectChanges: "window-project-changes",
-  /** 会话分享发布、预览与 continuation API 编排 */
-  ConversationShare: "conversation-share",
   /** 文件系统监视服务 */
   FileWatcher: "file-watcher",
   /** 新 Provider Config 的设置读写 Facade */
   ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
   ModelSelection: "model-selection",
-  /** 远端 Environment 内部 Provider Provisioning target */
-  ProviderProvisioningTarget: "provider-provisioning-target",
   /** Source Server 端 workspace 身份解析服务 */
   SourceServerWorkspace: "source-server-workspace",
   /** 桌面 Host 的 Source Server 目录与连接管理服务 */
   SourceServerManagement: "source-server-management",
   /** 桌面 Host 的数据同步设备状态（按 sourceServerId 记录上次同步结果，仅本机注册） */
   DeviceSyncState: "device-sync-state",
-  /** 桌面 Host 的数据同步页模型提供商：读取 / 重试 Main 协调器的 Provisioning lane（仅本机注册） */
-  ProviderProvisioningStatus: "provider-provisioning-status",
   /** 桌面 Host 的扩展门面（docs/plugins/extension-host.md）：贡献表、扩展进程状态、命令、重新加载（仅本机注册） */
   Extensions: "extensions",
   /** 桌面 Host 的扩展视图门面（docs/plugins/extension-host.md §8）：视图实例、页面请求与通知、views.open（仅本机注册） */
@@ -144,13 +135,10 @@ export const ServiceChannels = {
   ExtensionGrants: "extension-grants",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
-  /** Coding Plan 订阅购买服务 */
-  CodingPlanSubscription: "coding-plan-subscription",
   ClientConfig: "client-config",
   /** ZCode 客户端场景配置服务 */
   ClientScenes: "client-scenes",
   CloudContent: "cloud-content",
-  MarketingTouch: "marketing-touch",
   /** 桌面 Host 的语音输入：连接 zcode-server ASR（docs/chat/composer-voice-input.md，仅本机 base 连接） */
   VoiceInput: "voice-input",
   /** Skills 管理服务 */
@@ -179,8 +167,6 @@ export const ServiceChannels = {
   Hooks: "hooks",
   /** Memory 管理服务 */
   Memory: "memory",
-  /** OutputStyle 管理服务 */
-  OutputStyle: "output-style",
   /** 首次启动设置同步服务 */
   SettingsSync: "settings-sync",
   /** Bots 远程聊天控制服务 */
@@ -608,7 +594,6 @@ export const HostMessageTypes = {
   /** main → window Host：释放一个远程 logical session */
   DisposeRemoteWorkspaceSession: "dispose-remote-workspace-session",
   /** main → host：复用现有服务，对新的 RPC MessagePort 暴露服务 */
-  SetTerminalOwner: "set-terminal-owner",
   AttachServicePort: "attach-service-port",
   /** main → host：精确释放一个 RPC MessagePort attachment */
   DetachServicePort: "detach-service-port",
@@ -644,10 +629,6 @@ export const HostMessageTypes = {
   PluginSandboxRegisterResult: "plugin-sandbox-register-result",
   /** Main → Host：全局前台 ZCode 窗口派生的 producer focus fact。 */
   CuaPipFocusChanged: "cua-pip-focus-changed",
-  /** main → host：要求 Host 现读本地 Source，并同步指定 Remote Environment。 */
-  ProviderProvisioningExecute: "provider-provisioning-execute",
-  /** main → host：数据同步页读取 / 重试 Provisioning lane 的结果。 */
-  ProviderProvisioningLaneResult: "provider-provisioning-lane-result",
   /** main → host：资源管理器请求 Host 采样其后代进程（Agent / MCP / 终端）的 CPU 与内存 */
   ResourceUsageSnapshotRequest: "resource-usage-snapshot-request",
   ResourceUsageSnapshotCancel: "resource-usage-snapshot-cancel",
@@ -762,12 +743,6 @@ export const HostResponseTypes = {
   PluginSandboxRegisterRequest: "plugin-sandbox-register-request",
   /** host → main：RPC 网络遥测批次（channel.command 成功率/耗时） */
   NetworkTelemetryBatch: "network-telemetry-batch",
-  /** host → main：本地 Provisioning Source 成功持久化。 */
-  ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
-  /** host → main：一次 Remote Environment 同步执行完毕。 */
-  ProviderProvisioningExecutionResult: "provider-provisioning-execution-result",
-  /** host → main：数据同步页按设备读取或重试 Provisioning lane。 */
-  ProviderProvisioningLaneRequest: "provider-provisioning-lane-request",
 } as const;
 
 // ============================================================================

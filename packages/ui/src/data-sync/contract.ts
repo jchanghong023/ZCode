@@ -6,7 +6,6 @@ import type {
 import type {
   DataSyncWorkspaceMapping,
   DeviceSyncResult,
-  ProviderProvisioningLaneStatus,
   RemoteTarget,
   SourceServerWorkspaceHistoryEntry,
 } from "@zcode/shared";
@@ -66,4 +65,4 @@ export type {
   IDeviceSyncStateService,
   IServiceAccessor,
 };
-export type { ProviderProvisioningLaneStatus, ProviderSettingsView };
+export type { ProviderSettingsView };

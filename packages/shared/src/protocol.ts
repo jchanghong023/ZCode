@@ -4,7 +4,6 @@ import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
-import type { DynamicWorkflowMode } from "./dynamic-workflow-feature.js";
 import type { AppToolSearchMode } from "./app-runtime-preferences.js";
 
 // ── Domain types ──
@@ -100,15 +99,6 @@ export type IntegratedTerminalShellSelection =
       label: string;
       path: string;
     };
-
-/** 当前 host 可识别的 Windows shell 选项。 */
-export interface IntegratedTerminalShellOption {
-  dialect: IntegratedTerminalShellDialect;
-  id: string;
-  label: string;
-  path: string;
-  source: "system" | "path";
-}
 
 /** 默认语言 */
 export const DEFAULT_LOCALE: Locale = "zh-CN";
@@ -330,11 +320,6 @@ export interface AppSettings {
   pluginAutoRecommendationEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   modelIoFullRetentionEnabled?: boolean;
-  /**
-   * 用户选的动态工作流模式（docs/dynamic-workflow/launch.md「The user's choice」）。缺席 = 跟随服务端
-   * 提供的模式；只在功能已提供时生效。选回提供的模式时删除该字段，未改动的安装继续跟随服务端翻转。
-   */
-  dynamicWorkflowMode?: DynamicWorkflowMode;
   /** 已启用的内置 Agent CLI；UI 对外仍展示为“Install”，底层语义保持为启用内置能力。 */
   enabledBuiltinAgentCliProviders?: ZCodeProvider[];
   /** 设置页中每个 Provider Family 当前唯一的结构化连接选择。 */

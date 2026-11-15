@@ -46,7 +46,6 @@ export type { ModelExecutionSelectionFallback } from "../model-execution.js";
 export * from "../off-peak-execution.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
-import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
 import { errorAttributionSchema } from "../zcode-protocol-v4/snapshot.js";
 import { workflowLaunchMetaSchema } from "../zcode-protocol-v4/workflow-row-meta.js";
 // 后台详情共享精简的只读响应 schema，不携带命令或计时元数据。
@@ -2018,8 +2017,6 @@ export const zcodeSessionSubagentsResultSchema = z
   })
   .strict();
 export type ZCodeSessionSubagentsResult = z.infer<typeof zcodeSessionSubagentsResultSchema>;
-/** 服务端 feature key 的取值域在协议里的 zod 形态（packages/shared/src/dynamic-workflow-feature.ts）。 */
-export const zcodeDynamicWorkflowModeSchema = z.enum(DYNAMIC_WORKFLOW_MODES);
 
 export const zcodeSessionCreateParamsSchema = z
   .object({
@@ -2039,12 +2036,6 @@ export const zcodeSessionCreateParamsSchema = z
     // host 只按本地服务装配/远程/端形态决定是否注册工具，不读取灰度；
     // 缺省不下发 = 不注册；灰度与套餐准入在实际创建的 Host handler 校验。
     offPeakToolEnabled: z.boolean().optional(),
-    // 动态工作流灰度：与 offPeakToolEnabled 同一
-    // 模式——host 裁决后下发，缺省不下发 = 不注册工作流工具簇（fail-closed）。
-    dynamicWorkflowEnabled: z.boolean().optional(),
-    // 灰度 mode 随布尔同行下发（launch.md「On demand: activation」）：`onDemand` 让 CLI 把十个
-    // 工具推迟到会话首次 `/workflow` 才注册；缺席 = 按布尔行事（alwaysOn），供旧 Host 配对。
-    dynamicWorkflowMode: zcodeDynamicWorkflowModeSchema.optional(),
   })
   .strict();
 export type ZCodeSessionCreateParams = z.infer<typeof zcodeSessionCreateParamsSchema>;
@@ -2062,9 +2053,6 @@ export const zcodeSessionResumeParamsSchema = z
     toolDenylist: z.array(nonEmptyString).optional(),
     // 与 create 同语义；resume 不带会导致冷恢复丢 Off-Peak 工具面。
     offPeakToolEnabled: z.boolean().optional(),
-    // 与 create 同语义；resume 不带会导致冷恢复丢工作流工具簇。
-    dynamicWorkflowEnabled: z.boolean().optional(),
-    dynamicWorkflowMode: zcodeDynamicWorkflowModeSchema.optional(),
   })
   .strict();
 export type ZCodeSessionResumeParams = z.infer<typeof zcodeSessionResumeParamsSchema>;
@@ -2777,30 +2765,6 @@ export const zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema = z
   .strict();
 export type ZCodeWorkspaceUpdateOffPeakToolPolicyResult = z.infer<
   typeof zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema
->;
-
-// 动态工作流灰度门禁：workspace 级事实，
-// 与 Off-Peak 同一套 host→CLI 同步模式；旧 CLI method-not-found → host 降级忽略。
-export const zcodeWorkspaceUpdateDynamicWorkflowPolicyParamsSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    enabled: z.boolean(),
-    // launch.md「On demand: activation」：mode 与布尔同行；缺席时 CLI 按布尔行事（alwaysOn）。
-    mode: zcodeDynamicWorkflowModeSchema.optional(),
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateDynamicWorkflowPolicyParams = z.infer<
-  typeof zcodeWorkspaceUpdateDynamicWorkflowPolicyParamsSchema
->;
-
-export const zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    enabled: z.boolean(),
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateDynamicWorkflowPolicyResult = z.infer<
-  typeof zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema
 >;
 
 export const zcodePermissionRequestParamsSchema = z
@@ -4403,8 +4367,6 @@ export const zcodeProtocolMethods = {
   // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
   // CLI 对 legacy create/resume 与 v4 冷恢复统一读取。旧 CLI method-not-found → host 降级忽略。
   workspaceUpdateOffPeakToolPolicy: "workspace/updateOffPeakToolPolicy",
-  // 动态工作流灰度门禁：同 Off-Peak 的同步模式。
-  workspaceUpdateDynamicWorkflowPolicy: "workspace/updateDynamicWorkflowPolicy",
   // LLM 执行面在 CLI，直连不可行；消费仅 services 内部
   // （commit message），待 v4 workspace 查询/命令面覆盖后移除。
   workspaceGenerateText: "workspace/generateText",

@@ -16,7 +16,6 @@ export type {
   SystemInfo,
   AppSettings,
   IntegratedTerminalShellDialect,
-  IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
   Locale,
   LocalePreference,
@@ -117,8 +116,6 @@ export * from "./zcode-session-visible-content.js";
 export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
-export * from "./conversation-share.js";
-export * from "./conversation-share-content.js";
 export * from "./conversation-preview-artifacts.js";
 export * from "./zcode-session-task-status.js";
 export * from "./zcode-session-content-profile.js";
@@ -132,7 +129,6 @@ export * from "./media-preview.js";
 export * from "./plugin-display-name.js";
 export * from "./zcode-agent-runtime.js";
 export * from "./runtimeEnv.js";
-export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
 export * from "./server-remote.js";
@@ -302,7 +298,6 @@ export { formatTimestamp, formatLogPrefix } from "./log-format.js";
 export * from "./model-provider-types.js";
 export * from "./model-provider-family.js";
 export * from "./provider-family-connection-selection.js";
-export * from "./provider-provisioning.js";
 export * from "./custom-model-value.js";
 export * from "./model-selection-types.js";
 export * from "./model-selection-key.js";
@@ -344,7 +339,6 @@ export * from "./intranetProbe.js";
 export * from "./intranetDefaults.js";
 export * from "./hooks.js";
 export * from "./memory.js";
-export * from "./output-style.js";
 export * from "./openrouter-attribution.js";
 export * from "./workspaceSessionRestore.js";
 export * from "./skill-scan-policy.js";
@@ -404,5 +398,4 @@ export {
 } from "./request-security-edition/policy.js";
 export * from "./request-security-edition/verification-policy.js";
 
-export * from "./conversation-share-tool-presentation.js";
 export { splitMarkdownFrontmatter, parseAgentFrontmatter } from "./subagent-profile-frontmatter.js";

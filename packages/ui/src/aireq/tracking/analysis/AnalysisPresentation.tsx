@@ -93,20 +93,22 @@ export function FilterSelect({
 export function RowLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="min-w-0">
-      <ControlHintTooltip title={title} description={subtitle}>
+      <ControlHintTooltip title={title}>
         <span
           tabIndex={0}
-          className="block whitespace-normal break-words rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+          className="line-clamp-2 whitespace-normal break-words rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
         >
           {title}
         </span>
       </ControlHintTooltip>
-      <p
-        className="mt-0.5 whitespace-normal break-words text-ui-sm text-foreground-subtle"
-        title={subtitle}
-      >
-        {subtitle}
-      </p>
+      <ControlHintTooltip title={subtitle}>
+        <span
+          tabIndex={0}
+          className="mt-0.5 block truncate rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+        >
+          {subtitle}
+        </span>
+      </ControlHintTooltip>
     </div>
   );
 }

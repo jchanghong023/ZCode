@@ -33,28 +33,31 @@
 
 ### 2.1 矩阵
 
-| 领域 / 接口                                                     | 状态        | 说明                                                                |
-| --------------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| conversation / sessions-index topic                             | supported   | 快照 + 增量、seq/logEpoch、workspace 隔离                           |
-| workspace-config topic                                          | compatible  | 空配置目录（`configOptions: []`, `slashCommands: []`），只读快照    |
-| controller/workspaces、controller/tasks-index                   | supported   | workspaces 单工作区快照；tasks-index 由 runtime 任务投影并增量下发  |
-| controller 任务/归档删除                                        | unavailable | 不跨入会话生命周期执行删除，调用明确拒绝                            |
-| v4 会话命令（见 §4）                                            | supported   | 真实内存状态转换                                                    |
-| 其它 v4 会话命令                                                | unavailable | ACK `rejected` + `fault.command.capabilityUnsupported`              |
-| 文件树 / 文件读取 / 搜索                                        | supported   | 虚拟工作区 fixture；不读写真实文件                                  |
-| Git 面板                                                        | supported   | 虚拟仓库状态；不发起真实 git/网络                                   |
-| 设置、凭据（内存）、客户端配置                                  | supported   | 设置域内存态；凭据不落盘                                            |
-| 产品操作者                                                      | supported   | 浏览器自报工号；不是服务端账号，不分区项目/会话，不提供旧产品 OAuth |
-| Provider / 模型选择 / 用量                                      | compatible  | 确定性模型目录与空用量；不联网                                      |
-| Coding Plan 订阅/支付/企业套餐                                  | unavailable | 读取返回空集合；支付/领取/协议签置抛错                              |
-| 插件目录/安装/配置、扩展宿主、扩展视图/授权                     | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错    |
-| 工作区资产（子智能体/命令/钩子/记忆/技能/输出风格）             | compatible  | 只读空集合；写操作抛错                                              |
-| 配置同步（MCP/插件/技能/用户配置/设备同步）                     | compatible  | 只读空清单；写入返回不可写/空结果，不伪造远端成功                   |
-| 任务分组 / 受管 worktree / Source Server                        | compatible  | 空分组/空快照；需要真实仓库或远端的写操作抛错                       |
-| 闲时任务 / Bots                                                 | unavailable | 只读空投影，注册/保存/绑定抛错                                      |
-| 会话附件 begin/chunk/commit/read                                | supported   | 原生服务持有实际内存字节与 SHA-256，上传与采用授权，不写盘          |
-| 会话分享 / Onboarding / 加速卡                                  | unavailable | `publish/import=false`，空快照；真实操作抛错                        |
-| 反馈 / GenUI / 语音 / 云内容 / 营销触达 / Provider Provisioning | unavailable | 空形状读取；真实操作抛错                                            |
+| 领域 / 接口                                         | 状态        | 说明                                                                |
+| --------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| conversation / sessions-index topic                 | supported   | 快照 + 增量、seq/logEpoch、workspace 隔离                           |
+| workspace-config topic                              | compatible  | 空配置目录（`configOptions: []`, `slashCommands: []`），只读快照    |
+| controller/workspaces、controller/tasks-index       | supported   | workspaces 单工作区快照；tasks-index 由 runtime 任务投影并增量下发  |
+| controller 任务/归档删除                            | unavailable | 不跨入会话生命周期执行删除，调用明确拒绝                            |
+| v4 会话命令（见 §4）                                | supported   | 真实内存状态转换                                                    |
+| 其它 v4 会话命令                                    | unavailable | ACK `rejected` + `fault.command.capabilityUnsupported`              |
+| 文件树 / 文件读取 / 搜索                            | supported   | 虚拟工作区 fixture；不读写真实文件                                  |
+| Git 面板                                            | supported   | 虚拟仓库状态；不发起真实 git/网络                                   |
+| 设置、凭据（内存）、客户端配置                      | supported   | 设置域内存态；凭据不落盘                                            |
+| 产品操作者                                          | supported   | 浏览器自报工号；不是服务端账号，不分区项目/会话，不提供旧产品 OAuth |
+| Provider / 模型选择 / 用量                          | compatible  | 确定性模型目录与空用量；不联网                                      |
+| 插件目录/安装/配置、扩展宿主、扩展视图/授权         | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错    |
+| 工作区资产（子智能体/命令/钩子/记忆/技能/输出风格） | compatible  | 只读空集合；写操作抛错                                              |
+| 配置同步（MCP/插件/技能/用户配置/设备同步）         | compatible  | 只读空清单；写入返回不可写/空结果，不伪造远端成功                   |
+| 任务分组 / 受管 worktree / Source Server            | compatible  | 空分组/空快照；需要真实仓库或远端的写操作抛错                       |
+| 闲时任务 / Bots                                     | unavailable | 只读空投影，注册/保存/绑定抛错                                      |
+| 会话附件 begin/chunk/commit/read                    | supported   | 原生服务持有实际内存字节与 SHA-256，上传与采用授权，不写盘          |
+| Onboarding / 加速卡                                 | unavailable | 空快照；真实操作抛错                                                |
+| 反馈 / GenUI / 语音 / 云内容                        | unavailable | 空形状读取；真实操作抛错                                            |
+
+终端、Git 检查点、营销触达、Desktop Provider Provisioning、会话分享与商业订阅交易已退役，
+不保留 descriptor、客户端代理或服务注册。当前需求／Skill／自动化使用的内存模拟业务与
+原生 v4 会话、附件及模型目录继续保留；商业套餐 DTO 若仍供保留控件展示使用，不代表交易能力。
 
 ## 3. 状态所有者
 

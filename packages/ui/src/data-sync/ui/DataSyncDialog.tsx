@@ -173,7 +173,6 @@ export function DataSyncDialog(props: DataSyncDialogProps) {
   });
   const providers = useDataSyncProviders({
     sourceServices: props.sourceServices,
-    sourceServerId: props.device.sourceServerId,
     online: props.online,
   });
   const activeCategory = DATA_SYNC_CATEGORIES.find((category) => category.id === activeTab);
@@ -339,7 +338,7 @@ export function DataSyncDialog(props: DataSyncDialogProps) {
               ) : null}
               <div className="min-h-0 flex-1 overflow-hidden">
                 {activeTab === "providers" ? (
-                  <DataSyncProvidersPanel state={providers} disabled={offline} />
+                  <DataSyncProvidersPanel state={providers} />
                 ) : activeCategory && activeView ? (
                   <CategoryPanel
                     key={activeCategory.id}

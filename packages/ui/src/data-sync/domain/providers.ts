@@ -1,4 +1,4 @@
-import type { ProviderProvisioningLaneStatus, ProviderSettingsView } from "@/data-sync/contract.js";
+import type { ProviderSettingsView } from "@/data-sync/contract.js";
 
 /** 模型提供商分类的一行（只读）。API Key 在投影时就掩码，明文不进入弹窗状态。 */
 export interface DataSyncProviderRow {
@@ -35,35 +35,4 @@ export function toDataSyncProviderRows(view: ProviderSettingsView): DataSyncProv
         ...(apiKey ? { maskedApiKey: maskDataSyncApiKey(apiKey) } : {}),
       };
     });
-}
-
-/** 分类顶部状态行的展示态；`retrying` 期间按执行中显示。 */
-export type DataSyncProvisioningDisplay =
-  | { kind: "loading" }
-  | { kind: "error" }
-  | { kind: "none" }
-  | { kind: "running" }
-  | { kind: "never" }
-  | { kind: "success"; at: number }
-  | { kind: "failed"; at: number; errorCode?: string };
-
-export function resolveDataSyncProvisioningDisplay(
-  view:
-    | { phase: "loading" }
-    | { phase: "error" }
-    | { phase: "ready"; status: ProviderProvisioningLaneStatus },
-  retrying: boolean,
-): DataSyncProvisioningDisplay {
-  if (view.phase !== "ready") return { kind: view.phase };
-  const { status } = view;
-  if (status.lane === "none") return { kind: "none" };
-  if (retrying || status.running) return { kind: "running" };
-  if (!status.lastResult) return { kind: "never" };
-  return status.lastResult.outcome === "success"
-    ? { kind: "success", at: status.lastResult.at }
-    : {
-        kind: "failed",
-        at: status.lastResult.at,
-        ...(status.lastResult.errorCode ? { errorCode: status.lastResult.errorCode } : {}),
-      };
 }

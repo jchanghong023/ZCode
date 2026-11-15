@@ -26,6 +26,7 @@ import { useAIReqDataSource } from "../../data-source.js";
 import { getEmployeeId } from "../../identity.js";
 import { AssignOwner, AIReqPlanningSummary } from "../RequirementPlanning.js";
 import { ProgressStatusBadge, ProgressValue } from "./ProgressDisplay.js";
+import { BranchCopy } from "../BranchCopy.js";
 
 // 报告继续读取同一上下文投影；确认表单只持有未保存输入，不复制正式需求状态。
 function ReportSection({ title, children }: { title: string; children: ReactNode }) {
@@ -134,6 +135,7 @@ function ConfirmProgress({
 
 export function AIReqFormalReport() {
   const aireq = useAIReq()!;
+  const [copyMessage, setCopyMessage] = useState("");
   const view = aireq.view;
   const group = view?.groups.find(
     (item) =>
@@ -276,15 +278,30 @@ export function AIReqFormalReport() {
             {rows.map((sr) => (
               <li key={sr.id} className="space-y-2 text-ui-sm">
                 <p className="font-medium">{sr.title}</p>
-                {sr.trackingBranch && (
-                  <p
-                    className="break-all text-ui-sm text-foreground-subtle"
-                    data-testid="sr-tracking-branch"
-                  >
-                    平台模拟开发分支：{sr.trackingBranch.name} · 基点：
-                    {sr.trackingBranch.baseCommit}
+                {sr.trackingBranch?.name?.trim() ? (
+                  <div className="space-y-1" data-testid="sr-tracking-branch">
+                    <p className="break-all text-ui-sm text-foreground-subtle">
+                      平台模拟开发分支：{sr.trackingBranch.name}
+                    </p>
+                    <BranchCopy branch={sr.trackingBranch.name} onMessage={setCopyMessage} />
+                    <p className="break-all text-ui-sm text-foreground-subtle">
+                      基点：{sr.trackingBranch.baseCommit}
+                    </p>
+                  </div>
+                ) : (
+                  <p role="alert" className="text-ui-sm text-destructive">
+                    开发分支缺失：正式 SR 必须已有平台分配的开发分支，当前映射缺失属于数据异常。
                   </p>
                 )}
+                <p className="text-ui-sm text-foreground-subtle">
+                  最近分析：
+                  {sr.progress?.analysedAt
+                    ? new Date(sr.progress.analysedAt).toLocaleString("zh-CN", {
+                        timeZone: "Asia/Shanghai",
+                        hour12: false,
+                      })
+                    : "尚未分析"}
+                </p>
                 {sr.progress ? (
                   <>
                     <p className="break-all font-mono text-ui-sm text-foreground-subtle">
@@ -318,6 +335,13 @@ export function AIReqFormalReport() {
             ))}
           </ul>
         </ReportSection>
+        <p
+          role="status"
+          aria-live="polite"
+          className="break-words text-ui-sm text-foreground-subtle"
+        >
+          {copyMessage}
+        </p>
         <div className="space-y-1 text-ui-sm text-foreground-subtle">
           <p>
             最近分析 ·{" "}

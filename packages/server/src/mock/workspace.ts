@@ -1,4 +1,4 @@
-// 模拟工作区服务：文件系统 / Git / 文件监听 / 系统信息 / 终端 / 媒体预览。
+// 模拟工作区服务：文件系统 / Git / 文件监听 / 系统信息 / 媒体预览。
 // 除系统信息返回本机 home 目录外，全部基于 MockRuntime 的虚拟状态，不触碰真实文件系统与进程。
 import { homedir } from "node:os";
 import * as nodePath from "node:path";
@@ -6,13 +6,11 @@ import * as nodePath from "node:path";
 import { Emitter, type Event } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {
-  IGitCheckpointService,
   IGitService,
   IFileService,
   IFileWatcherService,
   IMediaPreviewService,
   ISystemService,
-  ITerminalService,
 } from "@zcode/services";
 import type {
   GitBranchComparison,
@@ -44,7 +42,6 @@ import type {
   IntranetProbeRequest,
   IntranetProbeResult,
   SystemInfo,
-  IntegratedTerminalShellOption,
   FileEntry,
   FileStat,
   FileTextSlice,
@@ -521,49 +518,12 @@ export class MockGitService implements IGitService {
   }
 }
 
-export class MockGitCheckpointService implements IGitCheckpointService {
-  constructor(private readonly runtime: MockRuntime) {}
-
-  async createCheckpoint(_params: unknown) {
-    void this.runtime;
-    return { checkpointId: `ckpt_${Date.now()}` } as never;
-  }
-
-  async diffCheckpoints(_params: unknown) {
-    return { hunks: [] } as never;
-  }
-
-  async restoreBetweenCheckpoints(_params: unknown) {
-    return { restored: [] } as never;
-  }
-
-  async deleteCheckpoint(_params: unknown): Promise<void> {}
-}
-
 export class MockSystemService implements ISystemService {
   constructor(private readonly runtime: MockRuntime) {}
 
   async info(): Promise<SystemInfo> {
     // 本地项目选目录需要真实 home；其余工作区状态仍是 MockRuntime 的内存投影。
     return { homedir: homedir(), platform: process.platform };
-  }
-
-  async listIntegratedTerminalShells(): Promise<IntegratedTerminalShellOption[]> {
-    if (process.platform === "win32") {
-      return [
-        { id: "cmd", dialect: "cmd", label: "Command Prompt", path: "cmd.exe", source: "system" },
-        {
-          id: "git-bash",
-          dialect: "git-bash",
-          label: "Git Bash",
-          path: "bash.exe",
-          source: "system",
-        },
-      ];
-    }
-    return [
-      { id: "git-bash", dialect: "git-bash", label: "bash", path: "/bin/bash", source: "system" },
-    ];
   }
 
   async probeIntranet(_request: IntranetProbeRequest): Promise<IntranetProbeResult> {
@@ -576,48 +536,6 @@ export class MockSystemService implements ISystemService {
       strategy: "tcp-connect",
       results: [],
     };
-  }
-}
-
-export class MockTerminalService implements ITerminalService {
-  private readonly dataEmitter = new Emitter<string>();
-  private readonly exitEmitter = new Emitter<number>();
-  private readonly terminals = new Set<string>();
-
-  async create(_params: { cols: number; rows: number; cwd?: string }) {
-    const id = `term_${createUuid()}`;
-    this.terminals.add(id);
-    return {
-      id,
-      shell: "mock-shell",
-      fontFamily: "monospace",
-      fontFamilySource: "system" as const,
-    };
-  }
-
-  async write(params: { id: string; data: string }): Promise<void> {
-    // 回显输入，模拟终端行为（不执行任何真实命令）。
-    void params.id;
-    this.dataEmitter.fire(`mock-shell> ${params.data}`);
-  }
-
-  async resize(_params: { id: string; cols: number; rows: number }): Promise<void> {}
-
-  async dispose(params: { id: string }): Promise<void> {
-    this.terminals.delete(params.id);
-    this.exitEmitter.fire(0);
-  }
-
-  async listTerminalIdsUnderPath(_params: { path: string }): Promise<string[]> {
-    return [...this.terminals];
-  }
-
-  onDynamicData(_id: string): Event<string> {
-    return this.dataEmitter.event;
-  }
-
-  onDynamicExit(_id: string): Event<number> {
-    return this.exitEmitter.event;
   }
 }
 

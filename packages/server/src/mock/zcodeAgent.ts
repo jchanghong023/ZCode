@@ -2007,10 +2007,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     _preferences: P<IZCodeAgentService["syncAppRuntimePreferences"]>,
   ): Promise<void> {}
 
-  async syncDynamicWorkflowUserMode(
-    _params: P<IZCodeAgentService["syncDynamicWorkflowUserMode"]>,
-  ): Promise<void> {}
-
   async getWorkspaceRuntimeIdentity(
     params: P<IZCodeAgentService["getWorkspaceRuntimeIdentity"]>,
   ): Promise<AR<IZCodeAgentService["getWorkspaceRuntimeIdentity"]>> {

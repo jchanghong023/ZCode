@@ -3,6 +3,7 @@ import type { AIReqAnalysisRun } from "../../contract.js";
 import { Button } from "@/components/ui/button.js";
 import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { RunModelFacts } from "../RunModelFacts.js";
+import { BranchCopy } from "../BranchCopy.js";
 import { duration, runLabels, Status, time } from "./AnalysisPresentation.js";
 
 export function ReportPane({
@@ -11,12 +12,14 @@ export function ReportPane({
   retryDisabledReason,
   onRestoreFocus,
   feedback,
+  onMessage,
 }: {
   run: AIReqAnalysisRun;
   onRetry: () => void;
   retryDisabledReason?: string;
   onRestoreFocus: () => void;
   feedback: ReactNode;
+  onMessage: (value: string) => void;
 }) {
   const report = run.report;
   return (
@@ -30,7 +33,7 @@ export function ReportPane({
     >
       <div className="flex shrink-0 items-start justify-between gap-2 pr-6">
         <div className="min-w-0">
-          <DialogTitle>分析报告</DialogTitle>
+          <DialogTitle>分析执行详情</DialogTitle>
           <DialogDescription className="mt-1 break-all">{run.srId}</DialogDescription>
         </div>
       </div>
@@ -39,6 +42,14 @@ export function ReportPane({
           <h3 className="min-w-0 flex-1 break-words font-medium">{run.srTitle}</h3>
           <Status value={run.status}>{runLabels[run.status]}</Status>
         </div>
+        <p className="break-words text-ui-sm text-foreground-subtle">
+          项目：{run.projectId} · {run.irId} · {run.srId}
+        </p>
+        <section aria-label="开发分支" className="space-y-1">
+          <h4 className="font-medium">开发分支</h4>
+          {run.branch?.trim() && <p className="break-all font-mono text-ui-sm">{run.branch}</p>}
+          <BranchCopy branch={run.branch} onMessage={onMessage} />
+        </section>
         {run.status !== "failed" && <p className="break-words leading-relaxed">{run.message}</p>}
         {run.status === "failed" && (
           <section
@@ -75,12 +86,14 @@ export function ReportPane({
             </p>
           </section>
         )}
-        <details className="border-t border-border pt-3 text-ui-sm">
+        <details open className="border-t border-border pt-3 text-ui-sm">
           <summary className="cursor-pointer text-foreground-subtle">
             执行信息 · {duration(run)} · {run.before}% → {run.after}%
           </summary>
           <div className="pt-3">
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-ui-sm">
+              <dt className="text-foreground-subtle">触发方式</dt>
+              <dd>{run.trigger === "schedule" ? "定时" : "手动"}</dd>
               <dt className="text-foreground-subtle">开始</dt>
               <dd>{time(run.startedAt)}</dd>
               <dt className="text-foreground-subtle">结束</dt>
@@ -124,7 +137,9 @@ export function ReportPane({
               )}
             />
           </>
-        ) : null}
+        ) : (
+          <p className="text-foreground-subtle">本次执行未生成分析报告，执行信息仍可查阅。</p>
+        )}
       </div>
       {feedback}
     </DialogContent>

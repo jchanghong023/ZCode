@@ -7,14 +7,7 @@
 
 import { workflowRunStopReasonMessageId } from "@/components/workflow-graph/run-status-presentation.js";
 import { memo, type ReactNode } from "react";
-import type { WorkflowRunSaveSlots } from "@/project-workflow/WorkflowRunSaveControls.js";
-import {
-  ArrowUpRightIcon,
-  ListIcon,
-  RotateCcwIcon,
-  SlidersHorizontalIcon,
-  SquareIcon,
-} from "lucide-react";
+import { ArrowUpRightIcon, ListIcon, SquareIcon } from "lucide-react";
 import type { WorkflowRunState, WorkflowRunUsage } from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -28,89 +21,46 @@ import { useNowTicker } from "@/components/workflow-graph/use-now-ticker.js";
 
 const formatCount = (value: number): string => value.toLocaleString();
 
-/**
- * 摘要行的模型段：run 能配置时它也是一枚按钮（悬停下划线），打开同一个「配置」弹层、锚在它自己身上；
- * 否则就是一段带 tooltip 的字。
- */
+/** 运行使用的模型只读摘要。 */
 function SubagentModelSegment({
   children,
   className,
-  configureOpen,
-  onConfigureFrom,
   title,
 }: {
   children: ReactNode;
   className?: string;
-  configureOpen: boolean;
-  onConfigureFrom?: (element: HTMLElement) => void;
   title: string;
 }) {
-  if (onConfigureFrom === undefined) {
-    return (
-      <span className={className} data-testid="workflow-run-subagent-model" title={title}>
-        {children}
-      </span>
-    );
-  }
   return (
-    <button
-      aria-expanded={configureOpen}
-      aria-haspopup="dialog"
-      className={`${className ?? ""} cursor-pointer rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/40`}
-      data-testid="workflow-run-subagent-model"
-      onClick={(event) => onConfigureFrom(event.currentTarget)}
-      title={title}
-      type="button"
-    >
+    <span className={className} data-testid="workflow-run-subagent-model" title={title}>
       {children}
-    </button>
+    </span>
   );
 }
 
 /**
- * 状态头：第一行是名字与控件（Configure、
- * Resume、Stop），第二行是灯与状态词 + 并发芯片——三枚按钮挤在状态旁边太满，状态因此单独成行。
+ * 状态头：名字与停止控件，随后展示运行状态与并发芯片。
  * 其下是 lineage 行与与聊天卡页脚**同文案**的摘要行——同一个 run 在两个面上必须说同一句话。
  * 摘要行素材缺席（图不可得，建不出时间线）时退回既有的用量行。
  */
 export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
   cancellable,
-  configureOpen = false,
   onCancel,
-  onConfigureFrom,
   onOpenSuccessor,
-  onResume,
   rejection,
-  resumable,
   run,
-  saveSlots,
   subagentModel,
   summaryParts,
   title,
   usage,
 }: {
   cancellable: boolean;
-  /** 「配置」弹层此刻开着（Configure 钮与模型段的 aria-expanded）。 */
-  configureOpen?: boolean;
   onCancel: () => void;
-  /**
-   * 打开「配置」弹层、锚在点中的那个元素上。缺席即这个 run 不能配置：没有 Configure 钮，模型段只是字。
-   */
-  onConfigureFrom?: (element: HTMLElement) => void;
-  /** 最近一次 Stop / Resume 被拒的解释；`detail` 是 ACK 携带的诊断。 */
+  /** 最近一次 Stop 被拒的解释；`detail` 是 ACK 携带的诊断。 */
   rejection?: { text: string; detail?: string };
   /** 打开替代了本 run 的后继（`run.supersededBy`）；宿主解析不到后继时缺席，那一行是静态文字。 */
   onOpenSuccessor?: () => void;
-  onResume: () => void;
-  resumable: boolean;
   run: WorkflowRunState | undefined;
-  /**
-   * 「已保存」芯片与「保存」/「再次运行」（docs/dynamic-workflow/transcript-and-notifications.md
-   * 「Saving the run, and running it again」）。同一个 run 在完成卡与这里必须说同一句话，所以两处
-   * 用的是同一个控制器造出来的这两个节点，本组件只负责摆位置：动词排在 Stop 之前，芯片在第二行。
-   * `null` / 缺席即没有服务上下文（那时一个控件都不画）。
-   */
-  saveSlots?: WorkflowRunSaveSlots | null;
   /**
    * 这次 run 的子代理模型：`name` 是屏幕上的词，`title` 里是强度与规范串
    * （docs/dynamic-workflow/presentation.md「The run pane」）。状态头第一行不再摆模型芯片——
@@ -123,10 +73,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
   usage: WorkflowRunUsage | undefined;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const saveChip = saveSlots?.leading ?? null;
-  const saveVerb = saveSlots?.trailing ?? null;
   const cancelLabel = intl.formatMessage({ id: "chat.toolCall.workflow.run.cancel" });
-  const resumeLabel = intl.formatMessage({ id: "chat.toolCall.workflow.run.resume" });
   // 并发芯片（docs/dynamic-workflow/concurrency.md「What the user sees」）：生效的界（共享 cap 与
   // 本 run 的界取小）被压在界之下、或 run 有自己的界，且 run 能配置时在场；冷却是一个 deadline，
   // 所以有冷却时走秒针，让它自己过期。
@@ -145,46 +92,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
         <span className="min-w-0 flex-1 truncate font-mono text-ui-base font-medium text-foreground">
           {title}
         </span>
-        {/* Configure 排在 Resume / Stop 之前：打开「配置」弹层，锚在这枚钮下。 */}
-        {onConfigureFrom === undefined ? null : (
-          <Button
-            aria-expanded={configureOpen}
-            aria-haspopup="dialog"
-            data-testid="workflow-run-configure"
-            onClick={(event) => onConfigureFrom(event.currentTarget)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <SlidersHorizontalIcon className="size-3.5" />
-            {intl.formatMessage({ id: "chat.toolCall.workflow.run.configure" })}
-          </Button>
-        )}
-        {/* Resume 只在可恢复时渲染（谓词见 isWorkflowRunResumable）：按钮的存在本身就是能力门控。 */}
-        {resumable ? (
-          <ControlHintTooltip
-            title={intl.formatMessage({ id: "chat.toolCall.workflow.run.resumeHint" })}
-            side="bottom"
-          >
-            <Button
-              aria-label={resumeLabel}
-              data-testid="workflow-run-resume"
-              onClick={onResume}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <RotateCcwIcon className="size-3.5" />
-              {resumeLabel}
-            </Button>
-          </ControlHintTooltip>
-        ) : null}
-        {/* 「保存」/「再次运行」排在 Stop 之前：与完成卡表头同一个次序——先是「留下它」，
-            最后才是「停掉它」。 */}
-        {saveVerb}
-        {/* Stop 与卡上那枚钮同图标（实心方块）：同一个动作在两个面上不能长得不一样。可用时提示
-            带第二行「停下的运行可以恢复」——动词从「取消」改过来之后，要在按下去之前就说清楚
-            这不是丢弃；不可用时只剩那句为什么不可用，没有第二行可说。 */}
+        {/* Stop 与运行卡使用同一个动作和图标。 */}
         <ControlHintTooltip
           title={
             cancellable
@@ -211,7 +119,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
         </ControlHintTooltip>
       </div>
       {/* 第二行：灯与状态词 + 并发芯片。run 不在投影里时两者都没有，整行缺席。 */}
-      {run === undefined && concurrency === undefined && saveChip === null ? null : (
+      {run === undefined && concurrency === undefined ? null : (
         <div
           className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2"
           data-testid="workflow-run-status-row"
@@ -219,8 +127,6 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
           {run ? <WorkflowRunStatus run={run} testId="workflow-run-status" /> : null}
           {/* 「{n} 处留白待补全」（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：与卡上同一枚芯片。 */}
           <RunHolesWaitingChip run={run} testId="workflow-run-holes" />
-          {/* 芯片跟在状态词之后：第一行三枚按钮已经很满，而它本来也不是一个动作。 */}
-          {saveChip}
           {/* 「最大并发数 4」：这次 run 最多能有几个子代理同时在飞——治理器把共享桶压到了本 run 的界
             之下，或者用户给这次 run 定了自己的上限（高于或低于默认）。run 快慢的原因就在这里，一眼可见。
             跑在默认上、或 run 已不能配置（完成 / 被替代）时整块缺席。
@@ -317,13 +223,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
                 </span>
               ) : null}
               {i === 0 && subagentModel !== undefined ? (
-                <SubagentModelSegment
-                  configureOpen={configureOpen}
-                  title={subagentModel.title}
-                  {...(onConfigureFrom === undefined ? {} : { onConfigureFrom })}
-                >
-                  {part}
-                </SubagentModelSegment>
+                <SubagentModelSegment title={subagentModel.title}>{part}</SubagentModelSegment>
               ) : (
                 <span>{part}</span>
               )}
@@ -342,9 +242,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
             {subagentModel === undefined ? null : (
               <SubagentModelSegment
                 className="min-w-0 truncate text-ui-xs text-foreground-subtle"
-                configureOpen={configureOpen}
                 title={subagentModel.title}
-                {...(onConfigureFrom === undefined ? {} : { onConfigureFrom })}
               >
                 {intl.formatMessage(
                   { id: "chat.toolCall.workflow.run.subagentModel.label" },

@@ -30,9 +30,19 @@ import type {
 } from "../contract.js";
 import { AIReqEmployeePicker } from "./EmployeePicker.js";
 
-export function AssignOwner({ group }: { group: AIReqRequirementGroup }) {
+export function AssignOwner({
+  group,
+  onDialogOpenChange,
+}: {
+  group: AIReqRequirementGroup;
+  onDialogOpenChange?: (open: boolean) => void;
+}) {
   const source = useAIReqDataSource();
-  const [open, setOpen] = useState(false);
+  const [open, setDialogOpen] = useState(false);
+  const setOpen = (value: boolean) => {
+    setDialogOpen(value);
+    onDialogOpenChange?.(value);
+  };
   const [owner, setOwner] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -164,15 +174,21 @@ export function AIReqEditPlanning({
   group,
   sr,
   compact = false,
+  onDialogOpenChange,
 }: {
   group: AIReqRequirementGroup;
   sr: AIReqSystemRequirement;
   compact?: boolean;
+  onDialogOpenChange?: (open: boolean) => void;
 }) {
   const source = useAIReqDataSource();
   const aireq = useAIReq()!;
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [open, setDialogOpen] = useState(false);
+  const setOpen = (value: boolean) => {
+    setDialogOpen(value);
+    onDialogOpenChange?.(value);
+  };
   const [input, setInput] = useState<AIReqSrPlanningInput>({});
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);

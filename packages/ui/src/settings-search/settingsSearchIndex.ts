@@ -4,13 +4,12 @@ export interface SettingsSearchAvailability {
   desktop: boolean;
   macDesktop: boolean;
   tray: boolean;
-  workflow: boolean;
 }
 
 /**
  * 当前产品是纯浏览器应用，不显示需要桌面宿主的设置条目。
  */
-export function resolveSettingsSearchAvailability(): Omit<SettingsSearchAvailability, "workflow"> {
+export function resolveSettingsSearchAvailability(): SettingsSearchAvailability {
   return { desktop: false, macDesktop: false, tray: false };
 }
 
@@ -201,12 +200,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     section: "agentBehavior",
     description: "settings.pluginAutoRecommendationDescription",
     visibility: "all",
-  },
-  {
-    id: "settings.dynamicWorkflow",
-    section: "agentBehavior",
-    description: "settings.dynamicWorkflowDescription",
-    visibility: "workflow",
   },
   {
     id: "chat.officeSuggestions.setting",

@@ -133,7 +133,6 @@
         "src/conversation-workspace-target/PluginAddMenu.tsx",
         "src/gen-ui/index.ts",
         "src/gen-ui/contract.ts",
-        "src/gen-ui/host.ts",
         "src/plugin-ui/index.ts",
         "src/plugin-ui/contract.ts",
         "src/plugin-ui/hostPrimitives.ts",

@@ -5,9 +5,7 @@ import {
   IFileService,
   IMediaPreviewService,
   IGitService,
-  IGitCheckpointService,
   ISystemService,
-  ITerminalService,
   ISettingService,
   IOnboardingRecordService,
   ICredentialService,
@@ -18,26 +16,21 @@ import {
   IProjectService,
   IManagedWorktreeService,
   ITaskGroupService,
-  IConversationShareService,
   IBotsService,
   IFileWatcherService,
   IModelSelectionService,
   IProviderSettingsService,
-  IProviderProvisioningTargetService,
   ISourceServerWorkspaceService,
   ISourceServerManagementService,
   IDeviceSyncStateService,
-  IProviderProvisioningStatusService,
   IExtensionsService,
   IExtensionViewsService,
   IExtensionGrantsService,
   IVoiceInputService,
   IUsageStatsService,
-  ICodingPlanSubscriptionService,
   IClientConfigService,
   IClientScenesService,
   ICloudContentService,
-  IMarketingTouchService,
   IOffPeakTaskService,
   IHighspeedCardService,
   ISkillsService,
@@ -54,7 +47,6 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
-  IOutputStyleService,
   ISettingsSyncService,
   IFeedbackService,
   IPromptAttachmentTransferService,
@@ -76,9 +68,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly fileService: IFileService;
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
-  readonly gitCheckpointService: IGitCheckpointService;
   readonly systemService: ISystemService;
-  readonly terminalService: ITerminalService;
   readonly settingService: ISettingService;
   readonly onboardingRecordService: IOnboardingRecordService;
   readonly credentialService: ICredentialService;
@@ -90,30 +80,24 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly taskGroupService: ITaskGroupService;
   readonly projectService: IProjectService;
   readonly managedWorktreeService?: IManagedWorktreeService;
-  readonly conversationShareService: IConversationShareService;
   readonly botsService: IBotsService;
   readonly fileWatcherService: IFileWatcherService;
   readonly providerSettingsService: IProviderSettingsService;
   readonly modelSelectionService: IModelSelectionService;
-  /** Host-only target proxy；不属于 IServiceAccessor，避免向 Renderer 暴露 Secret 写入接口。 */
-  readonly providerProvisioningTargetService!: IProviderProvisioningTargetService;
   readonly sourceServerWorkspaceService: ISourceServerWorkspaceService;
   /** 仅 desktop base attachment 注册；其他 scope 必须按可选能力消费。 */
   readonly sourceServerManagementService?: ISourceServerManagementService;
   /** 仅 desktop base attachment 注册：数据同步页的设备同步状态。 */
   readonly deviceSyncStateService?: IDeviceSyncStateService;
-  readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   /** 仅 desktop base attachment 注册：扩展（docs/plugins/extension-host.md）。 */
   readonly extensionsService?: IExtensionsService;
   readonly extensionViewsService?: IExtensionViewsService;
   readonly extensionGrantsService?: IExtensionGrantsService;
   readonly voiceInputService?: IVoiceInputService;
   readonly usageStatsService: IUsageStatsService;
-  readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
   readonly clientConfigService: IClientConfigService;
   readonly clientScenesService: IClientScenesService;
   readonly cloudContentService: ICloudContentService;
-  readonly marketingTouchService: IMarketingTouchService;
   readonly offPeakTaskService: IOffPeakTaskService;
   readonly highspeedCardService: IHighspeedCardService;
   readonly skillsService: ISkillsService;
@@ -131,7 +115,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
-  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -171,14 +154,8 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.gitService = ProxyChannel.toService<IGitService>(
       channelClient.getChannel(IGitService.channelName),
     );
-    this.gitCheckpointService = ProxyChannel.toService<IGitCheckpointService>(
-      channelClient.getChannel(IGitCheckpointService.channelName),
-    );
     this.systemService = ProxyChannel.toService<ISystemService>(
       channelClient.getChannel(ISystemService.channelName),
-    );
-    this.terminalService = ProxyChannel.toService<ITerminalService>(
-      channelClient.getChannel(ITerminalService.channelName),
     );
     this.settingService = ProxyChannel.toService<ISettingService>(
       channelClient.getChannel(ISettingService.channelName),
@@ -216,9 +193,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.zcodeSessionService = ProxyChannel.toService<IZCodeSessionService>(
       channelClient.getChannel(IZCodeSessionService.channelName),
     );
-    this.conversationShareService = ProxyChannel.toService<IConversationShareService>(
-      channelClient.getChannel(IConversationShareService.channelName),
-    );
     this.botsService = ProxyChannel.toService<IBotsService>(
       channelClient.getChannel(IBotsService.channelName),
     );
@@ -231,12 +205,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.modelSelectionService = ProxyChannel.toService<IModelSelectionService>(
       channelClient.getChannel(IModelSelectionService.channelName),
     );
-    Object.defineProperty(this, "providerProvisioningTargetService", {
-      value: ProxyChannel.toService<IProviderProvisioningTargetService>(
-        channelClient.getChannel(IProviderProvisioningTargetService.channelName),
-      ),
-      enumerable: false,
-    });
     this.sourceServerWorkspaceService = ProxyChannel.toService<ISourceServerWorkspaceService>(
       channelClient.getChannel(ISourceServerWorkspaceService.channelName),
     );
@@ -270,11 +238,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
           channelClient.getChannel(IExtensionGrantsService.channelName),
         )
       : undefined;
-    this.providerProvisioningStatusService = options.deviceSyncStateService
-      ? ProxyChannel.toService<IProviderProvisioningStatusService>(
-          channelClient.getChannel(IProviderProvisioningStatusService.channelName),
-        )
-      : undefined;
     // 语音输入只连接本机 Host（docs/chat/composer-voice-input.md）：与数据同步同一开关，
     // 只在桌面 base 连接打开，Web / 手机远控 / 远程 workspace 连接不创建代理。
     this.voiceInputService = options.deviceSyncStateService
@@ -285,9 +248,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(
       channelClient.getChannel(IUsageStatsService.channelName),
     );
-    this.codingPlanSubscriptionService = ProxyChannel.toService<ICodingPlanSubscriptionService>(
-      channelClient.getChannel(ICodingPlanSubscriptionService.channelName),
-    );
     this.clientConfigService = ProxyChannel.toService<IClientConfigService>(
       channelClient.getChannel(IClientConfigService.channelName),
     );
@@ -296,9 +256,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.cloudContentService = ProxyChannel.toService<ICloudContentService>(
       channelClient.getChannel(ICloudContentService.channelName),
-    );
-    this.marketingTouchService = ProxyChannel.toService<IMarketingTouchService>(
-      channelClient.getChannel(IMarketingTouchService.channelName),
     );
     this.offPeakTaskService = ProxyChannel.toService<IOffPeakTaskService>(
       channelClient.getChannel(IOffPeakTaskService.channelName),
@@ -350,9 +307,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.memoryService = ProxyChannel.toService<IMemoryService>(
       channelClient.getChannel(IMemoryService.channelName),
-    );
-    this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
-      channelClient.getChannel(IOutputStyleService.channelName),
     );
     this.settingsSyncService = ProxyChannel.toService<ISettingsSyncService>(
       channelClient.getChannel(ISettingsSyncService.channelName),

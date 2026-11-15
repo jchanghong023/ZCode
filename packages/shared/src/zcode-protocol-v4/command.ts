@@ -18,7 +18,6 @@ import { modelSelectionSchema } from "../model-selection.js";
 import { modelExecutionSchema } from "../model-execution.js";
 import { submissionModeSchema } from "./submission.js";
 import { botGroupInputSourceSchema, zcodeAutomationBotDeliveryTargetSchema } from "../bots.js";
-import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
 import {
   amendWorkflowRunSettingsPayloadSchema,
   amendWorkflowRunSettingsResultSchema,
@@ -120,10 +119,6 @@ export const commandPayloadSchemas = {
     // 新会话的实际创建路径，不透传则 OffPeakCreate/OffPeakList 永不注册。additive，
     // 旧 CLI 的 z.object 会静默丢弃该键（fail-closed）。
     offPeakToolEnabled: z.boolean().optional(),
-    // 动态工作流灰度 flag，与 offPeakToolEnabled 同一模式。
-    dynamicWorkflowEnabled: z.boolean().optional(),
-    // 灰度 mode 与布尔同行（launch.md「On demand: activation」）；旧 CLI 的 z.object 静默丢弃。
-    dynamicWorkflowMode: z.enum(DYNAMIC_WORKFLOW_MODES).optional(),
   }),
   // 父会话由 envelope.sessionId 指定；服务端从父 record 派生完整运行配置。
   // firstInput 存在时，child 创建完成后立即启动首条普通输入；缺省则保持空副屏。

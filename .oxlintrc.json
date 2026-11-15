@@ -192,14 +192,8 @@
   },
   "globals": {},
   "ignorePatterns": [
-    "dist-release",
     "packages/ui/src/components/ui",
     "packages/ui/src/components/ai-elements",
-    ".claude/skills",
-    ".agents/skills",
-    "packages/formal-proof",
-    "apps/zcode-cli",
-    "packages/zcode-cua",
-    "docs/electron"
+    ".agents/skills"
   ]
 }

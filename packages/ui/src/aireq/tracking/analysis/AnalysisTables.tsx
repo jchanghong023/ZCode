@@ -1,10 +1,17 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type {
   AIReqAnalysisSnapshot,
   AIReqAnalysisTask,
   AIReqAnalysisRunSummary,
 } from "../../contract.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog.js";
 import { Progress } from "@/components/ui/progress.js";
 import {
   MarkdownTableBody,
@@ -23,7 +30,6 @@ import {
   Status,
   time,
   shortTime,
-  duration,
   runLabels,
   taskLabels,
 } from "./AnalysisPresentation.js";
@@ -33,12 +39,17 @@ export function AnalysisTaskTable({
   projects,
   onMessage,
   taskActions,
+  openReport,
 }: {
   items: AIReqAnalysisTask[];
   projects: AIReqAnalysisSnapshot["projects"];
   onMessage: (value: string) => void;
-  taskActions: (task: AIReqAnalysisTask) => ReactNode;
+  taskActions: (task: AIReqAnalysisTask, onOpenReport: () => void) => ReactNode;
+  openReport: (id: string, trigger: HTMLButtonElement) => void;
 }) {
+  const [detailTaskId, setDetailTaskId] = useState<string>();
+  const detailTrigger = useRef<HTMLButtonElement | null>(null);
+  const reportAfterClose = useRef<(() => void) | undefined>(undefined);
   return (
     // 合并固定多列，避免正文宽度足够时仍横滚；仅窄面板横滚，纵向随页面滚动。
     <TrackingTableScroll label="SR 任务表格">
@@ -51,7 +62,7 @@ export function AnalysisTaskTable({
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-y border-border hover:bg-transparent">
-            {["需求与项目", "状态与进度", "分支与分析时间", "操作"].map((title) => (
+            {["需求与项目", "状态与进度", "下次分析", "操作"].map((title) => (
               <MarkdownTableHead
                 key={title}
                 className={`${cellClass} font-medium text-foreground-subtle`}
@@ -75,14 +86,13 @@ export function AnalysisTaskTable({
                 />
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <ControlHintTooltip title={task.error ?? taskLabels[task.state]}>
-                  <span
-                    tabIndex={0}
-                    className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
-                  >
-                    <Status value={task.state}>{taskLabels[task.state]}</Status>
-                  </span>
-                </ControlHintTooltip>
+                <Status value={task.state}>{taskLabels[task.state]}</Status>
+                {task.error && (
+                  <p className="mt-1 break-words text-ui-sm text-destructive">{task.error}</p>
+                )}
+                {!task.branch?.trim() && (
+                  <p className="mt-1 text-ui-sm text-destructive">开发分支缺失</p>
+                )}
                 <div className="mt-2 flex min-w-0 items-center gap-2 tabular-nums">
                   <Progress
                     value={task.percent}
@@ -96,18 +106,89 @@ export function AnalysisTaskTable({
                 </div>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <BranchCopy branch={task.branch} onMessage={onMessage} />
-                <p className="mt-1 text-ui-sm tabular-nums" title={time(task.nextRunAt)}>
-                  <span className="mr-2 text-foreground-subtle">下次</span>
-                  {task.state === "completed" ? "已停止" : shortTime(task.nextRunAt)}
-                </p>
-                <p className="mt-0.5 text-ui-sm tabular-nums" title={time(task.lastRunAt)}>
-                  <span className="mr-2 text-foreground-subtle">最近</span>
-                  {shortTime(task.lastRunAt)}
-                </p>
+                <ControlHintTooltip title={time(task.nextRunAt)}>
+                  <span
+                    tabIndex={0}
+                    className="rounded-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                  >
+                    {task.state === "completed" ? "已停止" : shortTime(task.nextRunAt)}
+                  </span>
+                </ControlHintTooltip>
               </MarkdownTableCell>
               <MarkdownTableCell className="px-2 py-2.5 text-right align-middle">
-                {taskActions(task)}
+                <Dialog
+                  open={detailTaskId === task.id}
+                  onOpenChange={(open) => setDetailTaskId(open ? task.id : undefined)}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`查看 ${task.srId} 任务详情`}
+                      onClick={(event) => {
+                        detailTrigger.current = event.currentTarget;
+                      }}
+                    >
+                      查看详情
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-2xl"
+                    onCloseAutoFocus={(event) => {
+                      const openNextReport = reportAfterClose.current;
+                      if (!openNextReport) return;
+                      event.preventDefault();
+                      reportAfterClose.current = undefined;
+                      openNextReport();
+                    }}
+                  >
+                    <DialogTitle>SR 任务详情</DialogTitle>
+                    <DialogDescription>
+                      {task.irId} · {task.srId}
+                    </DialogDescription>
+                    <div className="min-h-0 space-y-4 overflow-y-auto text-ui-base">
+                      <h3 className="break-words font-medium">{task.srTitle}</h3>
+                      <p className="break-words">
+                        项目：
+                        {projects.find((project) => project.id === task.projectId)?.name ??
+                          task.projectId}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Status value={task.state}>{taskLabels[task.state]}</Status>
+                        <span className="tabular-nums">{task.percent}%</span>
+                      </div>
+                      {task.error && (
+                        <p className="break-words text-destructive">原因：{task.error}</p>
+                      )}
+                      <section aria-label="开发分支" className="space-y-1">
+                        <h4 className="font-medium">开发分支</h4>
+                        {task.branch?.trim() && (
+                          <p className="break-all font-mono text-ui-sm">{task.branch}</p>
+                        )}
+                        <BranchCopy branch={task.branch} onMessage={onMessage} />
+                      </section>
+                      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
+                        <dt className="text-foreground-subtle">下次分析</dt>
+                        <dd>{task.state === "completed" ? "已停止" : time(task.nextRunAt)}</dd>
+                        <dt className="text-foreground-subtle">最近分析</dt>
+                        <dd>{time(task.lastRunAt)}</dd>
+                      </dl>
+                      <div className="border-t border-border pt-3">
+                        {task.lastRunId ? (
+                          taskActions(task, () => {
+                            const trigger = detailTrigger.current;
+                            if (!trigger || !task.lastRunId) return;
+                            // 先卸载任务弹窗，再打开报告；回焦目标始终是表格入口。
+                            reportAfterClose.current = () => openReport(task.lastRunId!, trigger);
+                            setDetailTaskId(undefined);
+                          })
+                        ) : (
+                          <p className="text-foreground-subtle">尚无分析报告。</p>
+                        )}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </MarkdownTableCell>
             </MarkdownTableRow>
           ))}
@@ -120,13 +201,11 @@ export function AnalysisTaskTable({
 export function AnalysisHistoryTable({
   items,
   projects,
-  onMessage,
   selectedRunId,
   openReport,
 }: {
   items: AIReqAnalysisRunSummary[];
   projects: AIReqAnalysisSnapshot["projects"];
-  onMessage: (value: string) => void;
   selectedRunId?: string;
   openReport: (id: string, trigger: HTMLButtonElement) => void;
 }) {
@@ -141,7 +220,7 @@ export function AnalysisHistoryTable({
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-y border-border hover:bg-transparent">
-            {["需求与项目", "执行信息", "结果与进度", "操作"].map((title) => (
+            {["需求与项目", "开始时间", "结果与进度", "操作"].map((title) => (
               <MarkdownTableHead
                 key={title}
                 className={`${cellClass} font-medium text-foreground-subtle`}
@@ -165,17 +244,20 @@ export function AnalysisHistoryTable({
                 />
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <BranchCopy branch={run.branch} onMessage={onMessage} />
-                <p className="mt-1 tabular-nums" title={time(run.startedAt)}>
-                  <span className="mr-2 text-foreground-subtle">开始</span>
-                  {shortTime(run.startedAt)}
-                </p>
-                <p className="text-ui-sm text-foreground-subtle">
-                  {run.trigger === "schedule" ? "定时" : "手动"} · {duration(run)}
-                </p>
+                <ControlHintTooltip title={time(run.startedAt)}>
+                  <span
+                    tabIndex={0}
+                    className="rounded-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                  >
+                    {shortTime(run.startedAt)}
+                  </span>
+                </ControlHintTooltip>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
                 <Status value={run.status}>{runLabels[run.status]}</Status>
+                {!run.branch?.trim() && (
+                  <p className="mt-1 text-ui-sm text-destructive">开发分支缺失</p>
+                )}
                 <p className="mt-2 text-ui-sm text-foreground-subtle">进度（执行前 → 后）</p>
                 <p className="tabular-nums">
                   {run.before}% → {run.after}%
@@ -186,7 +268,7 @@ export function AnalysisHistoryTable({
                   variant="ghost"
                   size="sm"
                   aria-haspopup="dialog"
-                  aria-label={`查看 ${run.srId} ${time(run.startedAt)} 报告`}
+                  aria-label={`查看 ${run.srId} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}
                 >
                   查看详情

@@ -1,10 +1,9 @@
-// 模拟工作区资产领域：子智能体、命令、钩子、记忆、技能、输出风格。
+// 模拟工作区资产领域：子智能体、命令、钩子、记忆、技能。
 // 资产列表为只读投影（空集合）；写操作明确抛错，不返回假成功。
 import {
   ICommandsService,
   IHooksService,
   IMemoryService,
-  IOutputStyleService,
   ISkillsService,
   ISubagentsService,
 } from "@zcode/services";
@@ -150,33 +149,10 @@ export class MockSkillsService implements ISkillsService {
   async deleteSkill(_params: P<ISkillsService["deleteSkill"]>): Promise<void> {}
 }
 
-export class MockOutputStyleService implements IOutputStyleService {
-  async listStyles() {
-    return { styles: [] };
-  }
-
-  async addStyle(_params: { config: unknown }): Promise<void> {}
-
-  async updateStyle(_params: { id: string; config: unknown }): Promise<void> {}
-
-  async deleteStyle(_params: { id: string }): Promise<void> {}
-
-  async getUserStylesDirectory() {
-    return { path: "~/.zcode/output-styles（模拟）" };
-  }
-
-  async setActiveStyle(_params: { styleId: string }): Promise<void> {}
-
-  async getActiveStyle() {
-    return { styleId: null };
-  }
-}
-
 export function registerAssetsMockServices(services: MockServiceRegistrar): void {
   services.register(ISubagentsService, new MockSubagentsService());
   services.register(ICommandsService, new MockCommandsService());
   services.register(IHooksService, new MockHooksService());
   services.register(IMemoryService, new MockMemoryService());
   services.register(ISkillsService, new MockSkillsService());
-  services.register(IOutputStyleService, new MockOutputStyleService());
 }

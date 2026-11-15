@@ -58,11 +58,6 @@ import { modelSelectionSchema } from "./model-selection.js";
 import { localeSchema } from "./validationAppSettings.js";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
-import {
-  providerProvisioningErrorCodeSchema,
-  providerProvisioningLaneStatusSchema,
-  providerProvisioningTriggerSchema,
-} from "./provider-provisioning.js";
 import { zcodeProviderSchema } from "./providers.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -612,25 +607,6 @@ export const hostApplicationLocaleChangedMessageSchema = z
   })
   .strict();
 
-export const hostProviderProvisioningExecuteMessageSchema = z
-  .object({
-    type: z.literal("provider-provisioning-execute"),
-    requestId: nonEmptyStringSchema,
-    environmentKey: nonEmptyStringSchema,
-    remoteSessionId: nonEmptyStringSchema,
-    trigger: providerProvisioningTriggerSchema,
-  })
-  .strict();
-
-/** main → host：数据同步页读取 / 重试 Provisioning lane 的结果（按 requestId 关联）。 */
-export const hostProviderProvisioningLaneResultMessageSchema = z
-  .object({
-    type: z.literal("provider-provisioning-lane-result"),
-    requestId: nonEmptyStringSchema,
-    status: providerProvisioningLaneStatusSchema,
-  })
-  .strict();
-
 /** 手机只提交项目意图；实际目录和远端 scope 必须由窗口 Host 准备。 */
 export const hostPrepareProjectWorkspaceMessageSchema = z
   .object({
@@ -733,8 +709,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostPluginSandboxRegisterResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
   hostApplicationLocaleChangedMessageSchema,
-  hostProviderProvisioningExecuteMessageSchema,
-  hostProviderProvisioningLaneResultMessageSchema,
 ]);
 
 export const hostRemoteWorkspaceConnectedResponseSchema = z
@@ -1294,37 +1268,6 @@ export const hostNetworkTelemetryBatchResponseSchema = z.object({
   observations: z.array(networkObservationSchema).max(500),
 });
 
-export const hostProviderProvisioningSourceChangedResponseSchema = z
-  .object({
-    type: z.literal("provider-provisioning-source-changed"),
-    trigger: providerProvisioningTriggerSchema.exclude(["environment-online", "user-retry"]),
-  })
-  .strict();
-
-/**
- * host → main：数据同步页按设备读取（read）、等当前执行结束后读取（wait）或重试（retry）
- * Provisioning lane。Main 总是回 provider-provisioning-lane-result。
- */
-export const hostProviderProvisioningLaneRequestResponseSchema = z
-  .object({
-    type: z.literal("provider-provisioning-lane-request"),
-    requestId: nonEmptyStringSchema,
-    sourceServerId: nonEmptyStringSchema,
-    action: z.enum(["read", "wait", "retry"]),
-  })
-  .strict();
-
-export const hostProviderProvisioningExecutionResultResponseSchema = z
-  .object({
-    type: z.literal("provider-provisioning-execution-result"),
-    requestId: nonEmptyStringSchema,
-    environmentKey: nonEmptyStringSchema,
-    status: z.enum(["applied", "already-applied", "unsupported", "failed", "rollback_failed"]),
-    error: z.string().optional(),
-    errorCode: providerProvisioningErrorCodeSchema.optional(),
-  })
-  .strict();
-
 export const hostResourceUsageProcessSchema = z
   .object({
     pid: z.number().int().positive(),
@@ -1401,9 +1344,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostCredentialKeyShareRequestResponseSchema,
   hostPluginSandboxRegisterRequestResponseSchema,
   hostNetworkTelemetryBatchResponseSchema,
-  hostProviderProvisioningSourceChangedResponseSchema,
-  hostProviderProvisioningExecutionResultResponseSchema,
-  hostProviderProvisioningLaneRequestResponseSchema,
   hostCronRunResultResponseSchema,
   hostOffPeakRunResultResponseSchema,
   hostCronSchedulerWakeRequestResponseSchema,

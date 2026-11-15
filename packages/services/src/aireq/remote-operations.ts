@@ -60,9 +60,6 @@ export interface AIReqRemoteError {
   code: AIReqRemoteErrorCode;
   message: string;
 }
-export type AIReqRemoteResponse<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: AIReqRemoteError };
 export interface AIReqRemoteWorkflow {
   view: AIReqWorkflowView;
   session?: AIReqNativeSessionRef;

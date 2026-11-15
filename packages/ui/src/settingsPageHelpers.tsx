@@ -25,7 +25,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { PluginAutoRecommendationSetting } from "@/settings/PluginAutoRecommendationSetting.js";
-import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,
@@ -632,7 +631,6 @@ export function AgentBehaviorSectionContent({
         />
         {/* docs/dynamic-workflow/launch.md「The user's choice」：服务端未提供时整行不渲染。 */}
         {hasServices ? <PluginAutoRecommendationSetting /> : null}
-        {hasServices ? <DynamicWorkflowModeSetting /> : null}
         <SettingsRow
           searchId="settings.modelIoFullRetention"
           label={intl.formatMessage({ id: "settings.modelIoFullRetention" })}

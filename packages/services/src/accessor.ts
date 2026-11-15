@@ -12,11 +12,8 @@ import type { IPluginUiAppToolsService } from "./plugin-ui-bridge/appToolsContra
 import type { IFileService } from "./file/file.js";
 import type { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 import type { ICloudContentService } from "#src/cloud-content/cloudContent.js";
-import type { IMarketingTouchService } from "#src/marketing-touch/marketingTouch.js";
 import type { IGitService } from "./git/git.js";
-import type { IGitCheckpointService } from "./git/gitCheckpoint.js";
 import type { ISystemService } from "./system/system.js";
-import type { ITerminalService } from "./terminal/terminal.js";
 import type { ISettingService } from "./setting/setting.js";
 import type { ICredentialService } from "./credential/credential.js";
 import type { IBroadcastService } from "./broadcast/broadcast.js";
@@ -30,13 +27,11 @@ import type {
   IProviderSettingsService,
 } from "./model-provider/providerFacadeServices.js";
 import type { IUsageStatsService } from "./usage-stats/usageStats.js";
-import type { ICodingPlanSubscriptionService } from "./coding-plan-subscription/codingPlanSubscription.js";
 import type { IClientConfigService } from "./client-config/clientConfig.js";
 import type { IClientScenesService } from "./client-scenes/clientScenes.js";
 import type { ISkillsService } from "./skills/skills.js";
 import type { ISkillSyncService } from "./skill-sync/skillSync.js";
 import type { IDeviceSyncStateService, IUserConfigSyncService } from "./data-sync/index.js";
-import type { IProviderProvisioningStatusService } from "./provider-provisioning-status/index.js";
 import type {
   IExtensionGrantsService,
   IExtensionsService,
@@ -51,7 +46,6 @@ import type { ISubagentsService } from "./subagents/subagents.js";
 import type { ICommandsService } from "./commands/commands.js";
 import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
-import type { IOutputStyleService } from "./output-style/outputStyle.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -59,7 +53,6 @@ import type { IWindowControllerService } from "./window-controller/windowControl
 import type { ISourceServerWorkspaceService } from "./source-server-workspace/sourceServerWorkspace.js";
 import type { ISourceServerManagementService } from "./source-server-management/sourceServerManagement.js";
 import type { IOnboardingRecordService } from "./onboarding/onboardingRecord.js";
-import type { IConversationShareService } from "./conversation-share/conversationShare.js";
 
 /** UI 层消费的统一服务接口 */
 export interface IServiceAccessor {
@@ -72,11 +65,8 @@ export interface IServiceAccessor {
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly cloudContentService?: ICloudContentService;
-  readonly marketingTouchService?: IMarketingTouchService;
   readonly gitService: IGitService;
-  readonly gitCheckpointService: IGitCheckpointService;
   readonly systemService: ISystemService;
-  readonly terminalService: ITerminalService;
   readonly settingService: ISettingService;
   /** Onboarding 完成记录（本地持久化）；旧测试 double / 不支持的 host 可不提供。 */
   readonly onboardingRecordService?: IOnboardingRecordService;
@@ -87,7 +77,6 @@ export interface IServiceAccessor {
   readonly windowControllerService?: IWindowControllerService;
   readonly zcodeAgentService: IZCodeAgentService;
   readonly zcodeSessionService: IZCodeSessionService;
-  readonly conversationShareService: IConversationShareService;
   readonly botsService: IBotsService;
   readonly fileWatcherService: IFileWatcherService;
   /** 当前 Environment 的 Provider 配置与设置视图。 */
@@ -100,8 +89,6 @@ export interface IServiceAccessor {
   readonly sourceServerManagementService?: ISourceServerManagementService;
   /** 仅桌面本机 Host 注册：数据同步页的设备同步状态。 */
   readonly deviceSyncStateService?: IDeviceSyncStateService;
-  /** 仅桌面本机 Host 注册：数据同步页模型提供商的 Provisioning lane 状态与重试。 */
-  readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   /** 仅桌面本机 Host 注册：扩展（docs/plugins/extension-host.md）。Web / 手机 / 远端不提供。 */
   readonly extensionsService?: IExtensionsService;
   /** 仅桌面本机 Host 注册：扩展视图（与 extensionsService 同一开关）。Web / 手机 / 远端不提供。 */
@@ -111,7 +98,6 @@ export interface IServiceAccessor {
   /** 语音输入；只在桌面 base 连接存在 */
   readonly voiceInputService?: IVoiceInputService;
   readonly usageStatsService: IUsageStatsService;
-  readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
   readonly clientConfigService: IClientConfigService;
   readonly clientScenesService: IClientScenesService;
   /** 闲时任务管理（独立服务面）。 */
@@ -137,7 +123,6 @@ export interface IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
-  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

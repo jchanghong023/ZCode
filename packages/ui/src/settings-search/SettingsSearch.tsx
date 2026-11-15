@@ -23,8 +23,6 @@ import {
   matchesSettingsNavigation,
   settingsNavigationSearchKeys,
 } from "@/settings-search/settingsNavigationSearch.js";
-import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
-import { resolveDynamicWorkflowModeSettingView } from "@/settings/DynamicWorkflowModeSetting.js";
 
 export function SettingsSearch({
   sections,
@@ -37,10 +35,7 @@ export function SettingsSearch({
   onSelect: (result: SettingsSearchResult) => void;
 }) {
   const { intl } = useZCodeIntl();
-  const visible: SettingsSearchAvailability = {
-    ...resolveSettingsSearchAvailability(),
-    workflow: resolveDynamicWorkflowModeSettingView(useDynamicWorkflowAvailability()) !== null,
-  };
+  const visible: SettingsSearchAvailability = resolveSettingsSearchAvailability();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selectedRef = useRef<SettingsSearchResult | null>(null);

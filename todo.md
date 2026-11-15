@@ -350,3 +350,11 @@ flowchart LR
 - 根 typecheck、lint（最终 0 warning／0 error）、architecture:check --changed（0 违规）、前后端 build 通过；既有 Vite 工程测试 6 项通过。生产 Web 为 22,727,406 字节（21.67 MiB），0 map／WOFF／TTF，19 个独立 WOFF2；CSS URL 均存在。构建保留大 JS chunk 提示；未用历史 dist 充当同源码性能基线。
 - 隔离生产服务 `:3137`、真实 Chromium 1440×1000 完成登录、默认需求分析、自动化筛选／编辑保存、模拟立即运行／stopped 历史／只读会话、NativeTaskRuns task／workpool／报告，以及 Skill 表单回填／显式发送／临时预览／全文件模拟保存和设置入口。提案实际发送后更新材料；深浅主题下公式、JSON 高亮与 Mermaid 正常，实际 WOFF2 请求与 MathML 裁剪正常；最终浏览器无错误或 warning。
 - 本轮未新增永久测试或验证脚本；未重复完整业务验收、Firefox／Chrome 109 全矩阵或首屏速度基准，不将部署减重写成已测提速。
+
+## 17. 废弃接口与实现退役（2026-11-15）
+
+- 清理终端／Git 检查点／营销／Desktop Provider Provisioning／会话分享／商业订阅交易的契约、SDK 接线、服务注册、模拟实现及失效治理记录；同步删除专属 DTO、Host schema 和无消费者的 AIReq 类型／原型辅助函数。
+- 删除商业灰度取数和用户 mode 同步链，裁撤其旧工作流 Resume／配置／保存消费者及 project-workflow 模块；不以删除灰度为由开放旧功能。保留当前需求／评审／模拟入库、分析／排期、Skill 内存生成与保存、Scheduled／NativeTaskRuns、模型目录、v4 会话／附件和全部通用控件。
+- 根 typecheck、lint（最终 0 warning／0 error）、architecture:check --changed（0 违规）及前后端 build 通过；保留构建的大 chunk 提示。
+- 隔离服务 `:3148` 与 Chromium 1440×1000 验证登录、默认需求分析、提案显式发送与模拟回复、Skill 表单回填／发送／两文件预览／全部文件模拟保存、自动化列表／历史、列表菜单立即运行产生手动 stopped 记录、NativeTaskRuns task／workpool／报告及设置。最后观察区间无页面错误或 console warning，查看了深色 Skill 预览和项目设置截图。
+- 未新增永久测试或验证脚本；未重复完整业务链、浅色主题及浏览器兼容矩阵。验收结束关闭本轮标签页与隔离服务，不停止其他服务。

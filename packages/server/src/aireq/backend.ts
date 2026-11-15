@@ -9,7 +9,6 @@ export const PROTOTYPE_BACKEND = {
 };
 export const prototypeSettingsWriteAllowed = () => getEmployeeId() === PROTOTYPE_BACKEND.owner;
 export const prototypeProposalDiscussionAllowed = () => isEmployeeId(getEmployeeId());
-export const prototypeCodeDevelopmentAllowed = () => false;
 export function requirePrototypeSettingsWrite(): void {
   if (!prototypeSettingsWriteAllowed())
     throw Object.assign(new Error("仅所有者 j00808874 可修改平台配置。"), { code: "FORBIDDEN" });

@@ -1,4 +1,4 @@
-// 兼容面领域：反馈、GenUI、语音、云内容、营销触达与 Provider Provisioning。
+// 兼容面领域：反馈、GenUI、语音与云内容。
 // 这些能力在纯 Web 模拟后端不可用：读取返回形状合法的空值，写入明确拒绝。
 import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
@@ -6,9 +6,6 @@ import {
   ICloudContentService,
   IFeedbackService,
   IGenUiService,
-  IMarketingTouchService,
-  IProviderProvisioningStatusService,
-  IProviderProvisioningTargetService,
   IVoiceInputService,
 } from "@zcode/services";
 import type { MockServiceRegistrar } from "./contract.js";
@@ -113,7 +110,7 @@ export class MockGenUiService implements IGenUiService {
   }
 }
 
-// ── 语音输入 / 云内容 / 营销触达 ──
+// ── 语音输入 / 云内容 ──
 
 export class MockVoiceInputService implements IVoiceInputService {
   private readonly eventEmitter = new Emitter<never>();
@@ -143,42 +140,9 @@ export class MockCloudContentService {
   async release(_input: { leaseId: string }): Promise<void> {}
 }
 
-export class MockMarketingTouchService {
-  async query(_input: { locale: string }) {
-    return { scope: "mock", banners: [], notices: [] };
-  }
-
-  async report(_input: Record<string, unknown>): Promise<void> {}
-}
-
-export class MockProviderProvisioningStatusService {
-  async getStatus(_params: Record<string, unknown>) {
-    return { state: "idle" as const };
-  }
-
-  async retry(_params: Record<string, unknown>) {
-    return { state: "idle" as const };
-  }
-}
-
-export class MockProviderProvisioningTargetService {
-  async apply(_envelope: unknown): Promise<never> {
-    throw new Error("mock: Provider Provisioning 仅支持受信 Desktop Host");
-  }
-}
-
 export function registerCompatSurfacesMockServices(services: MockServiceRegistrar): void {
   services.register(IFeedbackService, new MockFeedbackService());
   services.register(IGenUiService, new MockGenUiService());
   services.register(IVoiceInputService, new MockVoiceInputService());
   services.register(ICloudContentService, new MockCloudContentService() as never);
-  services.register(IMarketingTouchService, new MockMarketingTouchService() as never);
-  services.register(
-    IProviderProvisioningTargetService,
-    new MockProviderProvisioningTargetService(),
-  );
-  services.register(
-    IProviderProvisioningStatusService,
-    new MockProviderProvisioningStatusService() as never,
-  );
 }

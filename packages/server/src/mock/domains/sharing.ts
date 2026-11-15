@@ -1,8 +1,7 @@
-// 模拟分享领域：会话分享、附件暂存、Onboarding 记录与加速卡。
-// 分享/暂存需要远端存储，纯 Web 模拟后端只暴露不可用能力与空集合。
+// 附件暂存、Onboarding 记录与加速卡。
+// 附件暂存需要远端存储，纯 Web 模拟后端不提供暂存写入。
 import { Emitter } from "@zcode/rpc";
 import {
-  IConversationShareService,
   IHighspeedCardService,
   IOnboardingRecordService,
   IPromptAttachmentTransferService,
@@ -15,84 +14,6 @@ type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 /** 复杂 result 的空实现统一经 unknown 收敛；字段缺失由 UI 空集合兜底。 */
 function asResult<T>(value: unknown): T {
   return value as T;
-}
-
-// ── 会话分享 / 附件暂存 / Onboarding / 加速卡 ──
-
-export class MockConversationShareService implements IConversationShareService {
-  async getCapabilities(): Promise<AR<IConversationShareService["getCapabilities"]>> {
-    return asResult({ publish: false, import: false });
-  }
-
-  async preflight(
-    _input: P<IConversationShareService["preflight"]>,
-  ): Promise<AR<IConversationShareService["preflight"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  async publish(
-    _input: P<IConversationShareService["publish"]>,
-  ): Promise<AR<IConversationShareService["publish"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  onDynamicPublishProgress(
-    _operationId: string,
-  ): ReturnType<IConversationShareService["onDynamicPublishProgress"]> {
-    return new Emitter<never>().event as unknown as ReturnType<
-      IConversationShareService["onDynamicPublishProgress"]
-    >;
-  }
-
-  async importShare(
-    _input: P<IConversationShareService["importShare"]>,
-  ): Promise<AR<IConversationShareService["importShare"]>> {
-    throw new Error("mock: 会话导入未启用");
-  }
-
-  onDynamicImportProgress(
-    _operationId: string,
-  ): ReturnType<IConversationShareService["onDynamicImportProgress"]> {
-    return new Emitter<never>().event as unknown as ReturnType<
-      IConversationShareService["onDynamicImportProgress"]
-    >;
-  }
-
-  async getImportedConversation(
-    _input: P<IConversationShareService["getImportedConversation"]>,
-  ): Promise<AR<IConversationShareService["getImportedConversation"]>> {
-    throw new Error("mock: 会话导入未启用");
-  }
-
-  async getPreview(_shareCode: string): Promise<AR<IConversationShareService["getPreview"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  async getContinuation(
-    _input: P<IConversationShareService["getContinuation"]>,
-  ): Promise<AR<IConversationShareService["getContinuation"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  async listManagedShares(
-    _input: P<IConversationShareService["listManagedShares"]>,
-  ): Promise<AR<IConversationShareService["listManagedShares"]>> {
-    return asResult({ items: [], nextCursor: null });
-  }
-
-  async revokeManagedShare(
-    _shareId: string,
-  ): Promise<AR<IConversationShareService["revokeManagedShare"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  async restoreManagedShare(
-    _shareId: string,
-  ): Promise<AR<IConversationShareService["restoreManagedShare"]>> {
-    throw new Error("mock: 会话分享未启用");
-  }
-
-  async deleteManagedShare(_shareId: string): Promise<void> {}
 }
 
 export class MockPromptAttachmentTransferService implements IPromptAttachmentTransferService {
@@ -180,7 +101,6 @@ export class MockHighspeedCardService implements IHighspeedCardService {
 }
 
 export function registerSharingMockServices(services: MockServiceRegistrar): void {
-  services.register(IConversationShareService, new MockConversationShareService());
   services.register(IPromptAttachmentTransferService, new MockPromptAttachmentTransferService());
   services.register(IOnboardingRecordService, new MockOnboardingRecordService());
   services.register(IHighspeedCardService, new MockHighspeedCardService());

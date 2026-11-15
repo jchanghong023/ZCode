@@ -309,23 +309,6 @@ modules:
       ui: components
     layerOrder: [domain, app, adapters, ui]
     owner: plugin
-  # project-workflow：由 architecture:adopt 登记
-  - id: project-workflow
-    roots:
-      - packages/ui/src/project-workflow
-    managed: true
-    requires:
-      - shared
-      - ui
-      - project-sidebar
-    publicEntrypoints:
-      - packages/ui/src/project-workflow/contract.ts
-      - packages/ui/src/project-workflow/useWorkflowRunSave.ts
-      - packages/ui/src/project-workflow/WorkflowRunSaveControls.tsx
-      - packages/ui/src/project-workflow/WorkflowRunPaneSaveSlots.tsx
-    layers:
-      app: .
-    owner: conversation
   # host-database-startup：由 architecture:adopt 登记
   # cli-subagent-config：由 architecture:adopt 登记
   # cli-session-execution：由 architecture:adopt 登记
@@ -447,7 +430,6 @@ modules:
     layers:
       adapters: .
     owner: conversation
-  # conversation-share-interaction：由 architecture:adopt 登记
 
   # workspace-plugin-preview：由 architecture:adopt 登记
   - id: workspace-plugin-preview
@@ -493,22 +475,6 @@ modules:
     layers:
       adapters: .
     owner: desktop
-  # provider-provisioning-status：数据同步页模型提供商读取 / 重试 Main 协调器的 Provisioning lane（R3 §8.3.6）
-  - id: provider-provisioning-status
-    roots:
-      - packages/services/src/provider-provisioning-status
-    managed: true
-    requires:
-      - services
-      - shared
-    publicEntrypoints:
-      [
-        packages/services/src/provider-provisioning-status/index.ts,
-        packages/services/src/provider-provisioning-status/contract.ts,
-      ]
-    layers:
-      app: .
-    owner: remote
   # data-sync：设置页「数据同步」与同步弹窗（docs/remote/data-sync.md）
   - id: data-sync
     roots:
@@ -1033,7 +999,6 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/hooks/useStartPlanRecommendation.ts
-      - packages/ui/src/settings/DynamicWorkflowModeSetting.tsx
     reason: 已准入的存量文件只把 TID 导入从 @zcode/shared 根入口改为 @zcode/shared/test-ids 子路径（根入口不再导出 test-ids，以收窄受影响单测范围）；行为与模块边界不变，接管 ui 目录不在本次范围内。
   - id: settings-personalization-section-new-file
     rule: unmanaged-new-file
@@ -1077,12 +1042,11 @@ exceptions:
   - id: hooks-lint-existing-ui-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/app-shell/useWorkflowRunPaneSettings.ts
       - packages/ui/src/hooks/useOnboardingRecordService.ts
       - packages/ui/src/lib/workflowRunAckStore.ts
       - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
       - packages/ui/src/workspace-file-search/useWorkspaceFileSearchFilter.ts
-    reason: 已准入的五个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
+    reason: 已准入的四个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
   - id: onboarding-existing-module-edit
     rule: unmanaged-new-file
     paths:
@@ -1097,8 +1061,6 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       [
-        packages/shared/src/conversation-share-content.ts,
-        packages/shared/src/conversation-share-tool-presentation.ts,
         packages/ui/src/ToolCallBlocks/ToolPresentation.tsx,
         packages/ui/src/ToolCallBlocks/presentationCapabilities.tsx,
         packages/ui/src/ToolCallBlocks/renderers/list-models.tsx,
@@ -1133,14 +1095,6 @@ exceptions:
       - packages/ui/src/lib/providerFamilyConnectionTransition.ts
       - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
     reason: Composer model, provider and toolbar files reached staging without the MR architecture gate running; adopting the packages/ui composer toolbar needs a separate module boundary refactor.
-  - id: workflow-mode-user-choice-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/shared/src/dynamic-workflow-feature.ts
-      - packages/ui/src/settings/DynamicWorkflowModeSetting.tsx
-      - packages/ui/src/store/dynamicWorkflowAvailabilityStore.ts
-      - packages/ui/src/hooks/useDynamicWorkflowAvailability.ts
-    reason: Admitted upstream files edited only to let the user's dynamic workflow mode choice always win, keep the settings row visible, and describe that the snapshot reload no longer waits for CLI answers; adopting packages/shared/src and packages/ui/src needs a separate module boundary refactor.
   - id: conversation-telemetry-existing-state-machine-size
     rule: max-file-lines
     paths:
@@ -1182,14 +1136,12 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       [
-        packages/services/src/marketing-touch/marketingTouch.ts,
-        packages/shared/src/marketingTouch.ts,
         packages/ui/src/app-shell/WorkflowRunHoleParts.tsx,
         packages/ui/src/app-shell/WorkflowRunProvenance.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
       ]
-    reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言，投放内容仍按中英渲染），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 marketing-touch/workflow-timeline 目录不在本次范围内。
+    reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 workflow-timeline 目录不在本次范围内。
   - id: agent-runtime-exit-banner
     rule: unmanaged-new-file
     paths: [packages/ui/src/v4/AgentRuntimeExitBanner.tsx]
@@ -1216,6 +1168,5 @@ exceptions:
     paths:
       - packages/ui/src/settings/AutomationsSection.tsx
       - packages/ui/src/settings/AutomationEditView.tsx
-      - packages/ui/src/hooks/useOffPeakEligibility.ts
       - packages/ui/src/hooks/useAutomationProjectOptions.ts
-    reason: AIReq自动化复用四个既有表单及查询入口，通过可选参数注入模拟项目范围并保持默认行为；不反向依赖aireq-ui、不新增状态所有者、不接管整个settings或hooks模块。
+    reason: AIReq自动化复用三个既有表单及查询入口，通过可选参数注入模拟项目范围并保持默认行为；不反向依赖aireq-ui、不新增状态所有者、不接管整个settings或hooks模块。

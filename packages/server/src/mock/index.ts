@@ -6,12 +6,10 @@ import {
   IBroadcastService,
   IFileService,
   IFileWatcherService,
-  IGitCheckpointService,
   IGitService,
   IMediaPreviewService,
   IProjectService,
   ISystemService,
-  ITerminalService,
   IWindowProjectService,
   IZCodeAgentService,
   IZCodeSessionService,
@@ -33,11 +31,9 @@ import { MockRuntime } from "./runtime.js";
 import {
   MockFileService,
   MockFileWatcherService,
-  MockGitCheckpointService,
   MockGitService,
   MockMediaPreviewService,
   MockSystemService,
-  MockTerminalService,
 } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
 import { MockZCodeSessionService, MockZCodeTaskService } from "./zcodeTask.js";
@@ -55,13 +51,11 @@ export function createMockServices(options: MockServicesOptions): {
   const runtime = new MockRuntime({ workspacePath: options.workspacePath });
   const services = new ServiceCollection();
 
-  // 工作区/传输基础服务：虚拟文件系统、git、终端、系统信息。
+  // 工作区/传输基础服务：虚拟文件系统、git、系统信息。
   services.register(IFileService, new MockFileService(runtime));
   services.register(IFileWatcherService, new MockFileWatcherService(runtime));
   services.register(IGitService, new MockGitService(runtime));
-  services.register(IGitCheckpointService, new MockGitCheckpointService(runtime));
   services.register(ISystemService, new MockSystemService(runtime));
-  services.register(ITerminalService, new MockTerminalService());
   services.register(IMediaPreviewService, new MockMediaPreviewService());
   services.register(IBroadcastService, new MockBroadcastService());
 

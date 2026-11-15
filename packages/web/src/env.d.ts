@@ -8,7 +8,6 @@ interface ImportMetaEnv {
   readonly BASE_URL: string;
   readonly DEV: boolean;
   readonly PROD: boolean;
-  readonly VITE_CONVERSATION_SHARE_PREVIEW_MOCK?: string;
   readonly VITE_ZCODE_BASE_URL?: string;
   readonly VITE_ZCODE_ENDPOINT_ORIGIN?: string;
 }

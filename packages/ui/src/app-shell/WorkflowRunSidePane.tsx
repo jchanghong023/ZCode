@@ -13,12 +13,6 @@ import {
   WorkflowRunResultSections,
   WorkflowRunStatusHeader,
 } from "@/app-shell/WorkflowRunSidePaneSections.js";
-import {
-  useWorkflowRunPaneSettings,
-  workflowRunTabScope,
-} from "@/app-shell/useWorkflowRunPaneSettings.js";
-import { WorkflowRunSettingsPopover } from "@/components/workflow-timeline/WorkflowRunSettingsPopover.js";
-import { WorkflowRunPaneSaveSlots } from "@/project-workflow/WorkflowRunPaneSaveSlots.js";
 import { resolveWorkflowLaunchProvenance } from "@/app-shell/workflowRunLaunchProvenance.js";
 import {
   describeWorkflowRunActionRejection,
@@ -38,11 +32,9 @@ import type {
 import { logger } from "@/logger.js";
 import {
   isWorkflowRunCancellable,
-  isWorkflowRunResumable,
   workflowRunResultView,
   type WorkflowActorInstance,
 } from "@/app-shell/workflowRunPanel.js";
-import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { useWorkflowRunArtifacts } from "@/hooks/useWorkflowRunArtifacts.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import {
@@ -94,7 +86,11 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   // 打开请求里的 workspace 作用域（actor / 脚本 / 产物 / 后继 tab 都带同一份）。
   const { remoteSessionId, workspaceIdentity, workspacePath } = tab;
   const tabScope = useMemo(
-    () => workflowRunTabScope({ remoteSessionId, workspaceIdentity, workspacePath }),
+    () => ({
+      workspacePath,
+      ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      ...(remoteSessionId ? { remoteSessionId } : {}),
+    }),
     [remoteSessionId, workspaceIdentity, workspacePath],
   );
 
@@ -222,43 +218,6 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
     ).then((ack) => recordAck("cancel", ack));
   }, [recordAck, sendCommand, tab.parentSessionId, tab.runId]);
 
-  // Resume 可用性只读投影的 `resumable` 状态位：
-  // 重启后投影由 CLI 冷回放补齐，这里不再另查 journal 摘要。
-  //
-  // 再叠一道灰度门：已有的 run 照常渲染
-  // ——状态头、时间线、产物一件不少——唯独 Resume 收起来，因为按下去会真的起一台引擎。
-  // 快照未就绪时 enabled 为 false，按未命中处理：宁可按钮晚半拍出现，也不给一个随时会消失的按钮。
-  const { enabled: dynamicWorkflowEnabled } = useDynamicWorkflowAvailability();
-  const resumable = isWorkflowRunResumable(run) && dynamicWorkflowEnabled;
-  // 「配置」：与 Resume 同一道灰度门；
-  // 被接受后面板跟着工作流走到新 run（useWorkflowRunPaneSettings）。
-  const settings = useWorkflowRunPaneSettings({
-    enabled: dynamicWorkflowEnabled,
-    run,
-    runs: snapshot?.workflowRuns?.runs,
-    sendCommand,
-    sessionConfig: snapshot?.sessionId === tab.parentSessionId ? snapshot?.config : undefined,
-    tab,
-    ...(onOpenWorkflowRun === undefined ? {} : { onOpenWorkflowRun }),
-  });
-  const handleResume = useCallback(() => {
-    // resume 是新 v4 命令（不携 baseRevision，与 cancel 同类）；workId ≡ runId。
-    // `name` 喂恢复后完成通知的主题——重启后原工具 input 不可得，tab 上的展示名是仅存来源。
-    void sendCommand(
-      createCommandEnvelope({
-        type: "resumeWorkflowRun",
-        payload: {
-          workId: tab.runId,
-          ...(tab.workflowName?.trim() ? { name: tab.workflowName.trim() } : {}),
-        },
-        sessionId: tab.parentSessionId,
-      }),
-    ).then((ack) => {
-      recordAck("resume", ack);
-      // 接受后活投影会以 run-started 翻回 running，reducer 随之剥掉 resumable，按钮自然收起。
-    });
-  }, [recordAck, sendCommand, tab.parentSessionId, tab.runId, tab.workflowName]);
-
   const handleOpenActor = useCallback(
     (instance: WorkflowActorInstance) => {
       onOpenWorkflowActorSession?.({
@@ -345,41 +304,19 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
       data-workflow-run-id={tab.runId}
       data-workflow-run-status={run?.status ?? "absent"}
     >
-      {/* 「保存 / 再次运行」（docs/dynamic-workflow/transcript-and-notifications.md「Saving the run,
-          and running it again」）：与完成卡同一个控制器，因此同一个 run 在两处说同一句话。 */}
-      <WorkflowRunPaneSaveSlots rows={snapshot?.rows.window} run={run} tab={tab}>
-        {(slots) => (
-          <WorkflowRunStatusHeader
-            cancellable={cancellable}
-            configureOpen={settings.popover.open}
-            onCancel={handleCancel}
-            {...(settings.configurable ? { onConfigureFrom: settings.popover.toggleFrom } : {})}
-            {...(onOpenWorkflowRun === undefined || successor === undefined
-              ? {}
-              : { onOpenSuccessor: handleOpenSuccessor })}
-            onResume={handleResume}
-            {...(rejectionView === undefined ? {} : { rejection: rejectionView })}
-            resumable={resumable}
-            run={run}
-            saveSlots={slots}
-            {...(subagentModel === undefined ? {} : { subagentModel })}
-            summaryParts={summaryParts}
-            title={runTitle}
-            usage={run?.usage}
-          />
-        )}
-      </WorkflowRunPaneSaveSlots>
-
-      {run === undefined || !settings.configurable ? null : (
-        <WorkflowRunSettingsPopover
-          anchorRef={settings.popover.anchorRef}
-          host={settings.host}
-          onAccepted={settings.onAccepted}
-          onOpenChange={settings.popover.setOpen}
-          open={settings.popover.open}
-          run={run}
-        />
-      )}
+      <WorkflowRunStatusHeader
+        cancellable={cancellable}
+        onCancel={handleCancel}
+        {...(onOpenWorkflowRun === undefined || successor === undefined
+          ? {}
+          : { onOpenSuccessor: handleOpenSuccessor })}
+        {...(rejectionView === undefined ? {} : { rejection: rejectionView })}
+        run={run}
+        {...(subagentModel === undefined ? {} : { subagentModel })}
+        summaryParts={summaryParts}
+        title={runTitle}
+        usage={run?.usage}
+      />
 
       {provenance === undefined ? null : (
         <WorkflowRunProvenance

@@ -17,6 +17,9 @@
 不需要后端账号会话契约；模型与工具凭据仍通过原 ICredentialService / Provider 服务访问，
 工号切换或退出不触发这些服务的删除、解绑或设置重置。
 
+终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
+不再注册兼容空壳。Provider 设置、模型目录、用量投影及当前 AIReq／自动化内存业务仍沿既有契约访问。
+
 当前后端的 `MockRuntime` 与项目服务是共享业务事实源，不按浏览器工号、连接或 subscriptionId 分区。
 工作区身份按服务器主机及绝对目录稳定派生，贯穿 HTTP 元信息、prepare/resolve、任务、controller 和 v4 topic；
 identity 不是旧远程 Host 的连接开关。目录选择只读服务器目录，虚拟文件与 Git fixture 不改为真实 IO。
