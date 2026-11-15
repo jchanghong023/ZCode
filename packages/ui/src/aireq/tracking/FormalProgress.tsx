@@ -19,6 +19,8 @@ import {
 } from "@/components/ai-elements/markdown-table.js";
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { cn } from "@/components/lib/utils.js";
+import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
 import { getEmployeeId } from "../identity.js";
@@ -109,13 +111,13 @@ export function AIReqFormalTable() {
       : "尚未分析";
   return (
     <main
-      className="flex h-full min-h-0 min-w-0 flex-col bg-background"
+      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background [scrollbar-gutter:stable]"
       data-testid="aireq-formal-table"
     >
       {/* 修复：AIReq 固定显示主导航，此处仅保留原版 48px 空白顶栏。 */}
       <div className="h-12 shrink-0" />
-      {/* 沿用 base 内容列的居中与水平留白；宽表格单独限宽，窄窗口仍在表格内滚动。 */}
-      <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 md:py-6 lg:px-8">
+      {/* 与 base 表格式页面一致：外层纵向滚动，内层只负责限宽居中。 */}
+      <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0 pt-4 md:pt-6")}>
         <header className="shrink-0 space-y-3 border-b border-border pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
@@ -249,7 +251,7 @@ export function AIReqFormalTable() {
           role="region"
           aria-label="正式需求表格滚动区域"
           tabIndex={0}
-          className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-background focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+          className="mt-3 overflow-x-auto rounded-xl border border-border bg-background focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
           data-testid="formal-table-scroll"
         >
           <table
@@ -267,7 +269,7 @@ export function AIReqFormalTable() {
               <col className="w-16" />
               <col className="w-24" />
             </colgroup>
-            <MarkdownTableHeader className="sticky top-0 z-20 bg-background">
+            <MarkdownTableHeader className="bg-background">
               <MarkdownTableRow>
                 {[
                   "需求",

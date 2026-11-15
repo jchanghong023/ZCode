@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.j
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { cn } from "@/components/lib/utils.js";
+import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import type {
   AIReqDataSource,
@@ -49,30 +51,33 @@ export function AIReqRequirementAnalysisPage({
         ariaLabel="需求分析导航"
         sectionLabel="需求分析"
       >
-        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-          <header className="mb-6 flex shrink-0 flex-wrap items-start justify-between gap-3">
-            <div>
-              {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
-              <h1 className="text-ui-page-title font-medium tracking-[0.114px]">需求分析</h1>
-              <p className="mt-2 text-ui-base text-foreground-subtle">
-                跟踪正式需求的开发进度，查看代码依据与待处理问题。
+        {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
+        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0 pt-4 md:pt-6")}>
+            <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
+                <h1 className="text-ui-page-title font-medium tracking-[0.114px]">需求分析</h1>
+                <p className="mt-2 text-ui-base text-foreground-subtle">
+                  跟踪正式需求的开发进度，查看代码依据与待处理问题。
+                </p>
+              </div>
+              {source?.progressScheduler && !source.capabilities.settingsWrite && (
+                <Badge variant="outline">只读</Badge>
+              )}
+            </header>
+            {source?.progressScheduler ? (
+              <ConnectedProgressAnalysis
+                source={source}
+                scheduler={source.progressScheduler}
+                onOpenModelSettings={onOpenModelSettings}
+              />
+            ) : (
+              <p role="status" className="text-ui-base text-foreground-subtle">
+                需求分析暂不可用，请稍后重试。
               </p>
-            </div>
-            {source?.progressScheduler && !source.capabilities.settingsWrite && (
-              <Badge variant="outline">只读</Badge>
             )}
-          </header>
-          {source?.progressScheduler ? (
-            <ConnectedProgressAnalysis
-              source={source}
-              scheduler={source.progressScheduler}
-              onOpenModelSettings={onOpenModelSettings}
-            />
-          ) : (
-            <p role="status" className="text-ui-base text-foreground-subtle">
-              需求分析暂不可用，请稍后重试。
-            </p>
-          )}
+          </div>
         </div>
       </AutomationsMainBreadcrumbFrame>
     </main>
@@ -303,7 +308,7 @@ function ConnectedProgressAnalysis({
   );
   return (
     <section
-      className="flex min-h-fit flex-1 shrink-0 flex-col gap-3"
+      className="min-w-0 space-y-3"
       data-testid="aireq-requirement-analysis"
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
@@ -371,10 +376,10 @@ function ConnectedProgressAnalysis({
         message={message}
         mutate={mutate}
       />
-      {/* 矮窗口改由页面滚动承接溢出，不能让筛选区把表格压缩到不可读。 */}
+      {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
       <section
         aria-label="分析任务与执行历史"
-        className="flex min-h-96 flex-1 shrink-0 flex-col overflow-hidden rounded-xl border border-border"
+        className="min-w-0 overflow-hidden rounded-xl border border-border"
       >
         <Tabs
           value={tab}
@@ -382,7 +387,7 @@ function ConnectedProgressAnalysis({
             setTab(value);
             setSelectedRunId(undefined);
           }}
-          className="min-h-0 min-w-0 flex-1 gap-0"
+          className="min-w-0 gap-0"
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-3 pt-3">
             <TabsList aria-label="进度分析列表">
@@ -495,7 +500,7 @@ function ConnectedProgressAnalysis({
             />
           )}
           {tab === "tasks" && taskResult && (
-            <TabsContent value="tasks" className="m-0 flex min-h-0 min-w-0 flex-1 flex-col">
+            <TabsContent value="tasks" className="m-0 min-w-0 flex-none">
               <AnalysisTaskTable
                 items={taskResult.items}
                 projects={snapshot.projects}
@@ -503,7 +508,7 @@ function ConnectedProgressAnalysis({
                 taskActions={taskActions}
               />
               {!taskResult.total && (
-                <p className="flex flex-1 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
+                <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
                   当前范围没有正式 SR 任务。
                 </p>
               )}
@@ -525,7 +530,7 @@ function ConnectedProgressAnalysis({
             </TabsContent>
           )}
           {tab === "history" && (
-            <TabsContent value="history" className="m-0 flex min-h-0 min-w-0 flex-1 flex-col">
+            <TabsContent value="history" className="m-0 min-w-0 flex-none">
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-3 py-2">
                 <FilterSelect
                   id="analysis-history-status"
@@ -600,7 +605,7 @@ function ConnectedProgressAnalysis({
               />
               {historyResult && (
                 <>
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <div className="min-w-0">
                     <AnalysisHistoryTable
                       items={historyResult.items}
                       projects={snapshot.projects}
@@ -609,7 +614,7 @@ function ConnectedProgressAnalysis({
                       openReport={openReport}
                     />
                     {!historyResult.total && (
-                      <p className="flex flex-1 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
+                      <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
                         当前条件下没有执行历史。
                       </p>
                     )}

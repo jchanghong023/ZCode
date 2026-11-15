@@ -18,7 +18,6 @@ import { BranchCopy } from "../BranchCopy.js";
 import {
   cellClass,
   tableClass,
-  headClass,
   RowLabel,
   Status,
   time,
@@ -40,10 +39,8 @@ export function AnalysisTaskTable({
   taskActions: (task: AIReqAnalysisTask) => ReactNode;
 }) {
   return (
-    // 空表格仅保留表头高度，将剩余空间交给父级空态，而不是占满后把提示推到底部。
-    <div
-      className={`${items.length ? "min-h-0 flex-1" : "shrink-0"} overflow-auto [scrollbar-gutter:stable]`}
-    >
+    // 表格不限制高度：纵向随页面滚动，窄窗口只在这里横向滚动。
+    <div className="min-w-0 overflow-x-auto">
       <table data-testid="analysis-task-table" className={`${tableClass} min-w-[864px]`}>
         <colgroup>
           <col />
@@ -53,7 +50,7 @@ export function AnalysisTaskTable({
           <col className="w-40" />
           <col className="w-32" />
         </colgroup>
-        <MarkdownTableHeader className={headClass}>
+        <MarkdownTableHeader className="bg-background text-foreground-subtle">
           <MarkdownTableRow className="border-y border-border">
             {["SR / 项目 · IR", "开发分支", "进度", "状态", "下次 / 最近分析", "操作"].map(
               (title) => (
@@ -143,9 +140,7 @@ export function AnalysisHistoryTable({
   openReport: (id: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
-    <div
-      className={`${items.length ? "min-h-0 flex-1" : "shrink-0"} overflow-auto [scrollbar-gutter:stable]`}
-    >
+    <div className="min-w-0 overflow-x-auto">
       <table data-testid="analysis-history-table" className={`${tableClass} min-w-[864px]`}>
         <colgroup>
           <col />
@@ -155,7 +150,7 @@ export function AnalysisHistoryTable({
           <col className="w-28" />
           <col className="w-24" />
         </colgroup>
-        <MarkdownTableHeader className={headClass}>
+        <MarkdownTableHeader className="bg-background text-foreground-subtle">
           <MarkdownTableRow className="border-y border-border">
             {["SR / 项目 · IR", "执行分支", "执行时间", "结果", "进度变化", "报告"].map((title) => (
               <MarkdownTableHead
