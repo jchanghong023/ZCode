@@ -10,6 +10,7 @@
 // 与「v4 composer 不做附件草稿持久化」的裁决一致）。
 import { logger } from "@/logger.js";
 import {
+  createUuid,
   modelSelectionSchema,
   remoteHostIdFromWorkspaceIdentity,
   type ModelSelection,
@@ -85,7 +86,7 @@ function writePendingTaskDraft(scope: ComposerScope, value: PendingTaskDraft | n
 export function ensurePendingTaskDraft(scope: ComposerScope): PendingTaskDraft {
   const current = readPendingTaskDraft(scope);
   if (current) return current;
-  const next = { draftId: crypto.randomUUID() };
+  const next = { draftId: createUuid() };
   writePendingTaskDraft(scope, next);
   return next;
 }

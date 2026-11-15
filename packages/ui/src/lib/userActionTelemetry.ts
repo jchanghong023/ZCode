@@ -6,6 +6,7 @@ import type {
   RendererActionTraceSpanV1,
 } from "@zcode/shared";
 import {
+  createUuid,
   RENDERER_ACTION_TRACE_MAX_BATCH_BYTES,
   RENDERER_ACTION_TRACE_MAX_BATCH_SPANS,
 } from "@zcode/shared";
@@ -129,7 +130,7 @@ export class RendererUserActionTelemetry implements UserActionTelemetry {
     }
 
     const active: ActiveAction = {
-      actionId: crypto.randomUUID(),
+      actionId: createUuid(),
       entry,
       input,
       spanId: this.randomHex(8),

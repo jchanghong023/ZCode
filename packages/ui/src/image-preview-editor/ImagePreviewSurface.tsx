@@ -1,3 +1,4 @@
+import { createUuid } from "@zcode/shared";
 import {
   useEffect,
   useLayoutEffect,
@@ -232,7 +233,7 @@ export function ImagePreviewSurface({
     if (tool === "text") {
       if (textDraft?.text?.trim()) commit([...history.present, textDraft]);
       setTextDraft({
-        id: crypto.randomUUID(),
+        id: createUuid(),
         tool: "text",
         color,
         width: Math.max(2, 4 / fit),
@@ -253,7 +254,7 @@ export function ImagePreviewSurface({
       return;
     }
     const mark: Annotation = {
-      id: crypto.randomUUID(),
+      id: createUuid(),
       tool,
       color,
       width: Math.max(2, 3 / fit),

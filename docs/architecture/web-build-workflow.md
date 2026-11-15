@@ -57,6 +57,45 @@ workspace 内其它包（`shared` / `rpc` / `services` / `ui` 等）以源码形
 - `bun run dev` 并行启动两端：后端包的 `dev` 从包目录执行 `cd ../.. && bun --watch packages/server/src/entry-http.ts`，将 Bun watch 的执行位置固定为仓库根，保证其它 workspace 的共享源码变更也触发重启（默认 `:3030`，`PORT` 可覆盖）。不在 `packages/server` 内直接 watch，避免遗漏包外源码；后端默认 `workspacePath` 因此为仓库根，可用 `ZCODE_SERVER_WORKSPACE` 覆盖。`packages/web` 以 Bun 执行 Vite（`:5173`，`/api`、`/ws` 代理到 `:3030`）。后端不提供其它运行时 fallback。
 - VS Code 配置与之一致：任务 `zcode: mock server (:3030)`、`zcode: web dev (:5173)`、`zcode: dev (mock server + web)`；启动配置 `ZCode Web: Chrome (:5173)` 调试浏览器（先起两端），`ZCode Server: Mock (:3030)` 通过 `type: "bun"`、`runtime: "bun"` 直接调试 `src/entry-http.ts`（仅先起 web）。后端需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，不能使用 Chrome 调试器调试 Bun。
 - Bun 调试字段以[扩展 schema](https://github.com/oven-sh/bun/blob/main/packages/bun-vscode/package.json) 为准。[官方调试说明](https://bun.sh/guides/runtime/vscode-debugger) 提醒该扩展存在稳定性问题，并推荐 Bun Web debugger；这里不承诺扩展无故障。
+
+### Firefox 开发客户端生命周期
+
+- Vite 8.0.8 实际开发客户端启用了 `forwardConsole`，会将 warning/error 与未处理异常转发给开发服务器。
+  HMR 连接断开后仍转发日志，send 失败生成的未处理异常又被转发，形成
+  `send was called before connect` 连锁错误。当前 `isBundleMode=false`，不把未执行的 bundled-dev 分支当根因。
+- 使用 pnpm 精确版本补丁：连接 owner 派生 `isDisconnected`，仅在既无已连接通道、也无在途连接时，
+  不发起无接收方的控制台转发。连接建立中仍沿用原 send 等待；本地控制台输出与活页转发均保留。
+  不以 beforeunload/pagehide 另建状态或等待窗口：Firefox 的断开和晚到日志不受这些事件顺序保证。
+- HMR 连接、活页错误报告、React Fast Refresh 和样式更新继续启用，不关闭 HMR／overlay，
+  不增加定时等待或屏蔽未处理异常。仅修复当前 Vite 版本，升级时按真实行为移除补丁。
+- 验收：真实 Firefox 通过局域网 HTTP 首次打开、刷新、热更新现有 React 组件并还原，
+  可见标题双向更新且页面时间原点不变，浏览器无 warning/error 或未处理异常。
+- Web RPC 的关闭码 1000（正常关闭）／1001（端点离开）按 info 生命周期事件记录；
+  异常关闭仍为 warn，断线提示与重连流程不变。
+- 工程回归执行已安装 Vite 的真实转发与连接函数：覆盖未连接、建连等待和断开，
+  检查原始日志仍可见、等待中的日志连接成功后送达、断开后不再触发转发异常；不比较补丁文字。
+
+```mermaid
+sequenceDiagram
+  participant D as 浏览器文档
+  participant V as Vite 开发客户端
+  participant H as HMR 连接
+  D->>V: 控制台日志／异常（本地始终输出）
+  V->>H: 已连接则转发／连接中则等待原连接
+  H-->>V: onDisconnection（原 owner 置为断开）
+  D->>V: 晚到的本地日志
+  Note over V,H: 既无连接也无在途连接，不再发起远端转发
+  Note over D,V: 不制造转发异常，不屏蔽本地输出
+```
+
+2026-11-15 实测：Firefox 128.14 ESR 通过 `http://192.168.31.171:5173` 打开开发模式，
+首次加载及连续 3 次刷新无 warning/error 或未处理异常。临时改动真实需求分析标题后，
+标题热更新为验收文本并热恢复原文，`performance.timeOrigin` 保持不变，临时源码改动已还原。
+另明确注入 HMR 断开后的 warning 与异常：原始 warning／异常各自可见，未出现转发连锁错误。
+该故障注入独立于正常场景的零告警结果，不将原始诊断屏蔽或算作修复失败。
+
+### 生产静态托管
+
 - 生产形态：从仓库根运行以下命令，`ZCODE_WEB_STATIC_ROOT` 指向前端构建目录的绝对路径，由一个 Bun 进程托管 HTTP + WebSocket + SPA fallback：
 
   ```bash

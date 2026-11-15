@@ -1,3 +1,4 @@
+import { createUuid } from "@zcode/shared";
 import { useEffect, useRef, useState } from "react";
 import { FolderGit2, GitBranch, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -327,7 +328,7 @@ export function AIReqProjectSettings() {
                 const payload = JSON.stringify(input);
                 // 同一输入重试沿用逻辑动作 ID；断线后不能意外创建第二个项目。
                 if (repositoryOperation.current?.payload !== payload)
-                  repositoryOperation.current = { payload, operationId: crypto.randomUUID() };
+                  repositoryOperation.current = { payload, operationId: createUuid() };
                 await source.projects!.saveRepository!({
                   ...input,
                   operationId: repositoryOperation.current.operationId,

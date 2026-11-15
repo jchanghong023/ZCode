@@ -1,0 +1,31 @@
+diff --git a/dist/client/client.mjs b/dist/client/client.mjs
+index 25702bc844acd581b8a2f1d58adfd722899416bc..d5eb7bb6af37151be278c70a8c9dddc3c94b600a 100644
+--- a/dist/client/client.mjs
++++ b/dist/client/client.mjs
+@@ -353,6 +353,9 @@ const normalizeModuleRunnerTransport = (transport) => {
+ 	let connectingPromise;
+ 	return {
+ 		...transport,
++		get isDisconnected() {
++			return !isConnected && !connectingPromise;
++		},
+ 		...invokeableTransport.connect ? { async connect(onMessage) {
+ 			if (isConnected) return;
+ 			if (connectingPromise) {
+@@ -477,6 +480,8 @@ var Queue = class {
+ function setupForwardConsoleHandler(transport, options) {
+ 	if (!options.enabled) return;
+ 	function sendError(type, error) {
++		// 修复：断连后转发会自行产生未处理异常并被再次转发；本地原始错误仍正常输出。
++		if (transport.isDisconnected) return;
+ 		transport.send({
+ 			type: "custom",
+ 			event: "vite:forward-console",
+@@ -491,6 +496,7 @@ function setupForwardConsoleHandler(transport, options) {
+ 		});
+ 	}
+ 	function sendLog(level, args) {
++		if (transport.isDisconnected) return;
+ 		transport.send({
+ 			type: "custom",
+ 			event: "vite:forward-console",

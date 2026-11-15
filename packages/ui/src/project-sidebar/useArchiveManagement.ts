@@ -1,3 +1,4 @@
+import { createUuid } from "@zcode/shared";
 import type { V4SessionDeletionPreview } from "@zcode/shared/zcode-protocol-v4";
 import { useEffect, useRef, useState } from "react";
 import type { ProjectTask } from "@/project-sidebar/contract.js";
@@ -181,7 +182,7 @@ export function useArchiveManagement() {
               { service, controller },
               task,
               approved.preview.revision,
-              crypto.randomUUID(),
+              createUuid(),
               approved.remoteSessionId,
             );
             if (result.status !== "deleted") {

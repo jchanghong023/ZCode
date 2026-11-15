@@ -232,9 +232,10 @@ async function bootstrapWebApp(generation: number) {
           attemptClosed = true;
           activeSocket = null;
           closed = true;
-          logger.warn(
-            `[web] RPC transport closed (code=${event.code}, reason=${event.reason || "none"})`,
-          );
+          // 原因：刷新时的正常关闭/端点离开不是传输异常；保留生命周期日志、断线提示与重连。
+          const message = `[web] RPC transport closed (code=${event.code}, reason=${event.reason || "none"})`;
+          if (event.code === 1000 || event.code === 1001) logger.info(message);
+          else logger.warn(message);
           if (!connecting) scheduleReconnect();
         },
       });

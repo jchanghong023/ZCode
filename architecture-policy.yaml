@@ -1065,6 +1065,10 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/components/workflow-run-line/WorkflowRunRail.tsx]
     reason: Existing upstream workflow rail edited only to adapt native titles within the sidebar tooltip scope; workflow ownership and imports remain unchanged except for the shared UI tooltip adapter.
+  - id: lan-http-action-uuid-existing-edit
+    rule: unmanaged-new-file
+    paths: [packages/ui/src/lib/userActionTelemetry.ts]
+    reason: 已准入的存量遥测文件仅把无保护 randomUUID 改为现有 shared createUuid，兼容 Firefox 局域网 HTTP；action/span owner、采样和上报时点不变，不新增文件或放开目录。见 docs/specs/aireq-migration/connection-identity.md。
   - id: hooks-lint-existing-ui-edit
     rule: unmanaged-new-file
     paths:
