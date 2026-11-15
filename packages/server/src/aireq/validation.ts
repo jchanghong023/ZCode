@@ -3,15 +3,14 @@ import type { AIReqRemoteCall, AIReqRemotePath } from "@zcode/services/aireq";
 type ArgumentKind = "string" | "number" | "boolean" | "object" | "strings" | "optionalString";
 /** Shallow wire-shape checks only; domain rules stay with the owning operation. */
 const argumentsByPath = {
-  "nativeTasks.listRuns": ["object"],
-  "nativeTasks.readOutput": ["object"],
   readWorkflow: ["object"],
   command: ["object", "object", "number"],
   retryMaterial: ["string", "object"],
   retrySession: ["object"],
   readPrHandoff: ["object"],
-  "progress.assignOwner": ["string", "string", "string"],
-  "progress.updateSr": ["string", "string", "string", "number", "string"],
+  "progress.recordTest": ["string", "string", "string", "object"],
+  "progress.cleanupPreview": ["string", "string"],
+  "progress.cleanupBranches": ["string", "string", "object"],
   "planning.updateSr": ["string", "string", "string", "object"],
   "projects.saveRepository": ["object"],
   "models.read": [],
@@ -34,6 +33,11 @@ const argumentsByPath = {
   "collaboration.peers": ["optionalString"],
   "prototype.setProposalMergeScenario": ["string", "string", "string"],
   "prototype.readPrHandoff": ["object", "optionalString"],
+  "prototype.setProposalReviewScenario": ["string", "string", "string", "string"],
+  "prototype.releaseProposalReviewResults": ["string", "string"],
+  "prototype.failNextBranchCreation": ["string", "string", "string"],
+  "prototype.simulateCodeMerge": ["string", "string", "string", "object"],
+  "prototype.failNextBranchCleanup": ["string", "string", "string", "object"],
   "progressScheduler.read": [],
   "progressScheduler.queryTasks": ["object", "number", "number"],
   "progressScheduler.queryRuns": ["object", "number", "number"],
@@ -42,6 +46,7 @@ const argumentsByPath = {
   "progressScheduler.configure": ["boolean", "number"],
   "progressScheduler.runNow": ["object"],
   "progressScheduler.advance": [],
+  "progressScheduler.setScenario": ["object", "string"],
 } satisfies Record<AIReqRemotePath, readonly ArgumentKind[]>;
 
 function object(value: unknown): value is Record<string, unknown> {

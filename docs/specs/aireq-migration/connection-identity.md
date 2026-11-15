@@ -4,6 +4,7 @@
 
 - Web entry 是当前连接的唯一 owner。首次渲染前初始化 stream client ID，再读取 `getStreamClientId()` 的规范值并固定；每次 `/ws` 连接传 `employeeId`、同一 `clientId`，以及当前页面 URL 的可选 `demo`。
 - AIReqApplication 对同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 stream singleton，demo 来自当前页面 URL。原生与业务调用必须具有完全相同的 employee/client/demo scope。私有 Skill 不能退化为仅按工号授权。
+- 当前组 1 不设 owner／负责人权限：所有合法工号都能修改共享配置和执行满足现有条件的业务动作。backend.owner 仅为模拟来源；身份与 clientId 仍用于操作留痕、幂等及私有 Skill 会话绑定，换工号不得读取另一身份的设计会话。移入设置不改变 employee/client/demo scope、连接或订阅所有者。
 - accessor 换代仅更换 attachment 和订阅；不得以连接代次作为 React key。退避、旧 attempt 失效和明确退出行为保持不变，正文、附件、当前选择及草稿 owner 不重挂。连接成功状态只需布尔值，不维护无用途的累计代次。
 - 局域网 HTTP（非 loopback）是受支持的访问方式；Firefox 中 `isSecureContext=false` 时
   `crypto.randomUUID` 和 `crypto.subtle` 不可用。浏览器会话、草稿、操作、遥测和预览的 UUID
@@ -13,6 +14,8 @@
   安全上下文继续使用 WebCrypto；局域网 HTTP 使用浏览器可用的标准 SHA-256 实现计算同一摘要，
   不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
   无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
+
+组 1 实测（2026-11-15）：两个合法非 owner 工号均可保存共享设置，配置成功日志与命令回执使用实际 employee/client。Skill 设置切模型分区及返回工作区后原生未发送正文和一个 ready 图片附件保留；公开服务跨 client 读取同一私有 Skill session 仍被拒绝。本组使用 Chromium／localhost 开发环境，不新增 Firefox／局域网或完整重连矩阵的通过声明；详见 tools-settings.md 的组 1 实际验收。
 
 ## 时间与失效边界
 

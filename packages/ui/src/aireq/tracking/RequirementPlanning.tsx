@@ -115,14 +115,11 @@ export function AIReqEditPlanning({
   const proposal = aireq.view?.drafts.some(
     (item) => item.projectId === group.projectId && item.id === group.id,
   );
-  // 正式新 SR 尚无 AI 排期时，也必须允许负责人创建人工安排。
-  const canEdit =
-    !proposal &&
-    source.planning &&
-    (getEmployeeId() === "j00808874" || getEmployeeId() === group.ownerEmployeeId);
+  // 正式新 SR 尚无 AI 排期时，也允许创建人工安排。
+  const canEdit = !proposal && source.planning;
   if (!canEdit)
     return compact ? (
-      <span className="text-ui-sm">{sr.planning?.developerEmployeeId ?? "未分配"}</span>
+      <span className="text-ui-sm">{sr.developerEmployeeId ?? "待认领"}</span>
     ) : null;
   const warnings =
     aireq.view && open ? planningWarnings(aireq.view, sr, { ...sr.planning!, ...input }) : [];
@@ -136,10 +133,13 @@ export function AIReqEditPlanning({
             ? "max-w-full justify-start text-left focus-visible:ring-2 focus-visible:ring-ring/50"
             : undefined
         }
-        aria-label={`调整${sr.title}开发安排`}
+        aria-label={`调整${sr.title}开发测试分工与计划`}
         onClick={() => {
           setInput({
-            developerEmployeeId: sr.planning?.developerEmployeeId,
+            developerEmployeeId: sr.developerEmployeeId,
+            testingEmployeeId: sr.testingEmployeeId,
+            operationId: crypto.randomUUID(),
+            expectedRevision: aireq.view!.revision,
             plannedStart: sr.planning?.plannedStart,
             plannedEnd: sr.planning?.plannedEnd,
           });
@@ -147,14 +147,14 @@ export function AIReqEditPlanning({
           setOpen(true);
         }}
       >
-        {compact ? (sr.planning?.developerEmployeeId ?? "分配开发人员") : "调整开发安排"}
+        {compact ? (sr.developerEmployeeId ?? "分配开发／测试负责人") : "调整分工与计划"}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>调整开发安排</DialogTitle>
+            <DialogTitle>调整开发／测试分工与计划</DialogTitle>
             <DialogDescription>
-              {sr.title} · 调整开发人员和计划时间，需求内容与依赖关系保持不变。
+              {sr.title} · 初始继承 IR 联系人，可显式调整或留空待认领；负责人不是操作权限，代办留实际操作者。
             </DialogDescription>
           </DialogHeader>
           <form
@@ -174,7 +174,7 @@ export function AIReqEditPlanning({
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor={`${id}-developer`}>开发人员工号</Label>
+              <Label htmlFor={`${id}-developer`}>开发负责人工号</Label>
               <Input
                 id={`${id}-developer`}
                 value={input.developerEmployeeId ?? ""}
@@ -202,6 +202,14 @@ export function AIReqEditPlanning({
               <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
                 一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
               </p>
+              <Button type="button" size="sm" variant="outline" onClick={() => setInput((current) => ({ ...current, developerEmployeeId: getEmployeeId() }))}>由我负责开发</Button>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${id}-testing`}>测试负责人工号</Label>
+              <Input id={`${id}-testing`} value={input.testingEmployeeId ?? ""} pattern="[a-z][0-9]{8}"
+                title="一个小写字母后接 8 位数字；可留空待认领。" placeholder="留空表示待认领"
+                onChange={(event) => setInput((current) => ({ ...current, testingEmployeeId: event.target.value.trim() || undefined }))} />
+              <Button type="button" size="sm" variant="outline" onClick={() => setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))}>由我负责测试</Button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -406,7 +414,7 @@ export function AIReqPlanningSummary({
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 text-ui-sm">
-              <span>开发人员：{sr.planning?.developerEmployeeId ?? "未分配"}</span>
+              <span>开发负责人：{sr.developerEmployeeId ?? "待认领"} · 测试负责人：{sr.testingEmployeeId ?? "待认领"}</span>
               <Badge variant="outline">
                 {sr.planning?.source === "manual" ? "人工调整" : sr.planning ? "AI 建议" : "待分析"}
               </Badge>

@@ -1,5 +1,3 @@
-import { requirePrototypeSettingsWrite } from "./backend.js";
-import { PROTOTYPE_BACKEND } from "./backend.js";
 import type {
   AIReqAgentModelSettings,
   AIReqAgentRole,
@@ -42,7 +40,7 @@ const sampleSettings: AIReqAgentModelSettings = {
       id: "requirements",
       name: "业务需求 Agent",
       nameEn: "Requirements Agent",
-      description: "澄清业务目标，整理 IR 与 SR。",
+      description: "澄清目标、范围与可验收性，只整理 IR 业务原始需求，不提前拆 SR。",
       descriptionEn: "Clarify business goals and organize requirements.",
       model: "openai/gpt-5.2",
       reasoning: "high",
@@ -51,8 +49,8 @@ const sampleSettings: AIReqAgentModelSettings = {
       id: "requirements-review-a",
       name: "需求评审 A",
       nameEn: "Requirements Reviewer A",
-      description: "与 B、C 并行只读审查同版 IR／SR，独立保留问题与依据。",
-      descriptionEn: "Independently review the same IR/SR version alongside B and C.",
+      description: "前置单 Agent 检查业务目标、范围、歧义与可验收性；完整审查时独立检查需求覆盖与一致性。",
+      descriptionEn: "Review original business goals and acceptance; review coverage and consistency in the full package.",
       model: "anthropic/claude-opus-4.5",
       reasoning: "high",
     },
@@ -60,8 +58,8 @@ const sampleSettings: AIReqAgentModelSettings = {
       id: "requirements-review-b",
       name: "需求评审 B",
       nameEn: "Requirements Reviewer B",
-      description: "使用不同模型独立只读审查，不参考 A、C 的结论。",
-      descriptionEn: "Read-only review with a different model, independently of A and C.",
+      description: "完整审查时使用不同模型独立检查技术方案与跨 SR 依赖。",
+      descriptionEn: "Independently review full-package technical design and cross-SR dependencies.",
       model: "openai/gpt-5.2",
       reasoning: "high",
     },
@@ -69,8 +67,8 @@ const sampleSettings: AIReqAgentModelSettings = {
       id: "requirements-review-c",
       name: "需求评审 C",
       nameEn: "Requirements Reviewer C",
-      description: "使用第三个模型审查边界、异常与可验收性。",
-      descriptionEn: "Use a third model to review boundaries, exceptions and verifiability.",
+      description: "完整审查时检查开发任务可执行性、测试充分性及业务验收追溯。",
+      descriptionEn: "Review task executability, testing sufficiency and business-acceptance traceability.",
       model: "deepseek/deepseek-v3.2",
       reasoning: "high",
     },
@@ -89,9 +87,9 @@ const sampleSettings: AIReqAgentModelSettings = {
       name: "方案 Agent",
       nameEn: "Solution Agent",
       description:
-        "在需求提案阶段讨论和完善技术方案，明确 SR 依赖、边界与取舍；业务缺口返回澄清，不编制开发计划、不执行编码。",
+        "业务通过后拆分稳定 SR，完善每 SR 独立 proposal、specs、design、tasks、test-plan 以及 IR 依赖和整体验收；只生成文档，不执行开发或测试。",
       descriptionEn:
-        "Discuss and refine the proposal solution, SR dependencies, boundaries and trade-offs. Return business gaps for clarification; do not plan development tasks or write code.",
+        "Split stable SRs after business approval and refine independent OpenSpec changes including tasks and test plans. Generate documents only; never execute development or tests.",
       model: "anthropic/claude-opus-4.5",
       reasoning: "high",
     },
@@ -111,9 +109,9 @@ const sampleSettings: AIReqAgentModelSettings = {
       name: "需求分析 Agent",
       nameEn: "Requirement Analysis Agent",
       description:
-        "根据需求、验收标准和代码证据给出 0%～99% 实现进度、遗留问题与不确定项，核对默认分支合入情况。AI 最高 99%；只有已合入且 AI 分析到 99% 时，人工才能确认到 100%／已完成。不编码、不修复代码。",
+        "依据 SR tasks、代码与合入证据估计 0–99 并给审查意见；不执行 tasks。代码合入后业务进度固定 99，人工测试通过才 100，不要求 AI 恰好评分 99；失败保留上次成功报告。",
       descriptionEn:
-        "Assess implementation progress from requirements, acceptance criteria and code evidence; report a percentage, remaining issues and uncertainty. AI progress is capped at 99%. Only human confirmation of a merged SR at 99% can mark 100% and complete. Never write or fix code.",
+        "Estimate 0–99 from SR tasks, code and merge evidence without executing tasks. Merged code is effectively 99; explicit human test acceptance alone reaches 100. Failed runs retain the last successful report.",
       model: "inherit",
       reasoning: "default",
     },
@@ -125,7 +123,6 @@ const sampleSettings: AIReqAgentModelSettings = {
 let savedSettings = structuredClone(sampleSettings);
 // 本步仅替换设置；尚未改造的流程页面仍需原有静态会话配置，不能因打开设置而破坏样例。
 const historicalStageRoles = new Set(["planning", "execution", "ir-acceptance"]);
-if (PROTOTYPE_BACKEND.owner === "j00808875") savedSettings.defaultModel = "openai/gpt-5.2";
 export function readPrototypeAgentModels(): AIReqAgentModelSettings {
   return structuredClone({
     ...savedSettings,
@@ -136,7 +133,6 @@ export function savePrototypeAgentModels(
   settings: AIReqAgentModelSettings,
   expectedRevision: number,
 ): void {
-  requirePrototypeSettingsWrite();
   if (expectedRevision !== configurationRevision)
     throw Object.assign(new Error("模型配置已变化，请重新读取。"), { code: "VERSION_CONFLICT" });
   const allowed = sampleSettings.agents.map((agent) => agent.id);

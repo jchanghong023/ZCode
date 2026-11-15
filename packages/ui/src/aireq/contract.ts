@@ -21,6 +21,8 @@ export type {
   AIReqProgressScheduler,
   AIReqProgressStatus,
   AIReqProject,
+  AIReqProjectProgress,
+  AIReqProgressSummary,
   AIReqProposalMergeScenario,
   AIReqRemoteArgs,
   AIReqRemoteBootstrap,
@@ -37,9 +39,12 @@ export type {
   AIReqSystemRequirement,
   AIReqWorkflowResult,
   AIReqWorkflowView,
-  NativeTaskActor,
-  NativeTaskOutputContent,
-  NativeTaskRunsSnapshot,
+  AIReqTodo,
+  AIReqTestAcceptanceInput,
+  AIReqBranchCleanupInput,
+  AIReqBranchCleanupItem,
+  AIReqCodeMergeInput,
+  AIReqVersionedProgressInput,
 } from "@zcode/services/aireq";
 export {
   AIREQ_CONTRACT_VERSION,
@@ -76,6 +81,11 @@ export {
   srDependencies,
   srProgress,
   srProgressStatus,
+  deriveAIReqTodos,
+  fullReviewCurrent,
+  fullReviewReadyBlocker,
+  fullReviewBlocker,
+  alignmentBlocker,
 } from "@zcode/services/aireq";
 
 /** 独立需求管理应用；普通业务身份每次显式传递，会话复用现有连接。 */
@@ -84,4 +94,12 @@ export interface AIReqApplicationProps {
   platform: IPlatformService;
   operator: { employeeNumber: string; leave(): void };
 }
-export type AIReqMainView = "chat" | "automations" | "skillDesign" | "requirementAnalysis";
+export type AIReqMainView = "chat" | "projectProgress" | "todos" | "proposals" | "formal" | "requirementAnalysis";
+
+/** Shared draft commands; the Settings page remains the only pending-navigation owner. */
+export interface AIReqSettingsDraftActions {
+  save(): boolean | Promise<boolean>;
+  discard(): void;
+  canSave?: boolean;
+  canDiscard?: boolean;
+}

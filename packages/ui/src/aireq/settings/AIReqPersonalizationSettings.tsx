@@ -1,4 +1,3 @@
-import { getEmployeeId } from "../identity.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useEffect, useRef, useState } from "react";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
@@ -54,8 +53,7 @@ function PersonalizationContent({
     (agent) => encoder.encode(draft[agent.id] ?? "").length > USER_INSTRUCTIONS_MAX_BYTES,
   );
   const currentBytes = encoder.encode(draft[selected] ?? "").length;
-  const canManage = source.capabilities.settingsWrite === true && getEmployeeId() === "j00808874";
-  const canSave = canManage && dirtyCount > 0 && oversized.length === 0;
+  const canSave = dirtyCount > 0 && oversized.length === 0;
   const dirty = dirtyCount > 0;
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -100,7 +98,7 @@ function PersonalizationContent({
           }
         : null,
     );
-  }, [dirty, canManage, canSave, saving, onDraftActionsChange]);
+  }, [dirty, canSave, saving, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange?.(null), [onDraftActionsChange]);
   return (
     <div className="space-y-5" data-testid="aireq-personalization-settings">
@@ -146,7 +144,6 @@ function PersonalizationContent({
         </Label>
         <SettingsFormTextarea
           id="agent-system-prompt-append"
-          readOnly={!canManage}
           className="min-h-64 w-full text-ui-base"
           spellCheck={false}
           value={draft[selected] ?? ""}
@@ -158,7 +155,6 @@ function PersonalizationContent({
           aria-describedby="agent-prompt-help agent-prompt-size"
           aria-invalid={currentBytes > USER_INSTRUCTIONS_MAX_BYTES}
           onChange={(event) => {
-            if (!canManage) return;
             const value = event.target.value;
             setDraft((current) => ({ ...current, [selected]: value }));
             setMessage(null);
@@ -188,7 +184,7 @@ function PersonalizationContent({
         <Button
           variant="ghost"
           size="lg"
-          disabled={!dirtyCount || !canManage || saving}
+          disabled={!dirtyCount || saving}
           onClick={() => {
             setDraft({ ...saved });
             setMessage(null);

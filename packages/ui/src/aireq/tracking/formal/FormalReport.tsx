@@ -1,32 +1,18 @@
-import { useId, useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button.js";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge.js";
-import { Label } from "@/components/ui/label.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog.js";
-import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
+import { Button } from "@/components/ui/button.js";
 import {
   irProgress,
   irProgressStatus,
   irSrs,
-  srCompletionBlocker,
   srProgress,
   srProgressStatus,
-  type AIReqRequirementGroup,
-  type AIReqSystemRequirement,
 } from "../../contract.js";
 import { useAIReq } from "../../AIReqContext.js";
-import { useAIReqDataSource } from "../../data-source.js";
-import { getEmployeeId } from "../../identity.js";
 import { AIReqPlanningSummary } from "../RequirementPlanning.js";
 import { ProgressStatusBadge, ProgressValue } from "./ProgressDisplay.js";
 import { BranchCopy } from "../BranchCopy.js";
+import { AIReqBranchCleanup, AIReqFormalSimulationControls, AIReqFormalTestControls } from "./FormalOperations.js";
 
 // 报告继续读取同一上下文投影；确认表单只持有未保存输入，不复制正式需求状态。
 function ReportSection({ title, children }: { title: string; children: ReactNode }) {
@@ -35,101 +21,6 @@ function ReportSection({ title, children }: { title: string; children: ReactNode
       <h2 className="text-ui-base font-medium">{title}</h2>
       {children}
     </section>
-  );
-}
-function ConfirmProgress({
-  group,
-  sr,
-}: {
-  group: AIReqRequirementGroup;
-  sr: AIReqSystemRequirement;
-}) {
-  const source = useAIReqDataSource();
-  const id = useId();
-  const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const canEdit =
-    Boolean(source.progress) &&
-    (getEmployeeId() === "j00808874" || getEmployeeId() === group.ownerEmployeeId);
-  const blocker = !canEdit
-    ? "当前工号没有人工确认完成权限。"
-    : srCompletionBlocker(sr);
-  return (
-    <>
-      <div className="space-y-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={Boolean(blocker)}
-          aria-describedby={blocker ? `${id}-completion-reason` : undefined}
-          onClick={() => {
-            setReason("");
-            setError("");
-            setOpen(true);
-          }}
-        >
-          人工确认完成
-        </Button>
-        {blocker && (
-          <p id={`${id}-completion-reason`} className="text-ui-sm leading-5 text-foreground-subtle">
-            {blocker}
-          </p>
-        )}
-      </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>确认完成</DialogTitle>
-            <DialogDescription>
-              {sr.title} · 仅将 AI 已分析到 99% 且已合入的进度确认为 100%。
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              if (saving || blocker || !reason.trim()) return;
-              setSaving(true);
-              setError("");
-              try {
-                await source.progress!.updateSr(group.projectId, group.id, sr.id, 100, reason);
-                setOpen(false);
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor={`${id}-reason`}>完成确认依据</Label>
-              <SettingsFormTextarea
-                id={`${id}-reason`}
-                required
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="说明完成标准已满足的依据"
-              />
-            </div>
-            {error && (
-              <p role="alert" className="text-ui-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                取消
-              </Button>
-              <Button disabled={saving || Boolean(blocker) || !reason.trim()} type="submit">
-                {saving ? "确认中…" : "确认到 100%"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -141,7 +32,7 @@ export function AIReqFormalReport() {
     (item) =>
       item.projectId === aireq.selection.projectId &&
       item.id === aireq.selection.irId &&
-      item.releaseId === aireq.releaseId,
+      (!aireq.releaseId || item.releaseId === aireq.releaseId),
   );
   if (!view || !group)
     return (
@@ -180,14 +71,12 @@ export function AIReqFormalReport() {
         </li>
       )),
     );
-  const manual = selected?.progress?.manual;
+  const manual = selected?.testAcceptance?.outcome === "passed" ? selected.testAcceptance : undefined;
   const hasAnalysis = rows.some((sr) => sr.progress);
   const progressSource = manual
     ? "人工确认"
     : selected
-      ? hasAnalysis
-        ? "AI 分析"
-        : "尚未分析"
+      ? selected.codeMerge ? "代码合入事实" : hasAnalysis ? "AI 模拟分析" : "尚未分析"
       : undefined;
   return (
     <main className="h-full min-h-0 overflow-auto bg-background" data-testid="aireq-formal-report">
@@ -213,9 +102,9 @@ export function AIReqFormalReport() {
             {selected
               ? manual
                 ? "完成状态来自人工确认；下方保留此前 AI 分析及代码证据。"
-                : hasAnalysis
-                  ? "进度分析 Agent 根据需求、验收标准与代码证据判断。"
-                  : "尚未分析；0% 为新需求的初始进度，不代表已有代码分析结论。"
+                : selected.codeMerge ? "代码已合入，有效进度固定 99%；原始 AI 评分仅作证据。"
+                  : hasAnalysis ? "模拟进度分析根据需求、验收标准与代码证据估计，不执行开发任务。"
+                    : "尚未分析；0% 为新需求的初始进度，不代表已有代码分析结论。"
               : `${all.length} 个 SR 的进度算术平均值；全部 SR 完成后 IR 才完成。`}
           </p>
           {manual && (
@@ -228,7 +117,27 @@ export function AIReqFormalReport() {
             </p>
           )}
         </header>
-        {selected && <ConfirmProgress key={selected.id} group={group} sr={selected} />}
+        {rows.map((sr) => sr.lastAnalysisFailure && (
+          <p key={sr.id} role="alert" className="text-ui-sm text-destructive">
+            {sr.title}：最近分析失败，保留上次成功进度与报告 · {sr.lastAnalysisFailure.message}
+          </p>
+        ))}
+        {selected && (
+          <>
+            <AIReqFormalTestControls key={`test:${selected.id}`} group={group} sr={selected} />
+            <AIReqFormalSimulationControls key={`simulation:${selected.id}`} group={group} sr={selected} />
+            {selected.progress && <p className="text-ui-sm text-foreground-subtle">
+              原始 AI 模拟评分：{selected.progress.aiPercent ?? Math.min(99, selected.progress.percent)}% · 有效业务进度：{percent}%
+              {selected.progress.stale ? " · 报告已过期，等待当前版本分析" : ""}
+            </p>}
+          </>
+        )}
+        {!selected && <>
+          <AIReqBranchCleanup key={group.id} group={group} rows={all} />
+          <Button type="button" variant="link" className="h-auto p-0 text-ui-sm whitespace-normal" onClick={() => aireq.startProposalDraft(group.id)}>
+            新增关联 IR（新业务范围，不修改当前正式需求）
+          </Button>
+        </>}
         <ReportSection title={manual ? "此前 AI 报告的问题与不确定项" : "值得关注的问题与不确定项"}>
           {issues.length ? (
             <ul className="space-y-4">
@@ -279,7 +188,14 @@ export function AIReqFormalReport() {
                     <p className="break-all text-ui-sm text-foreground-subtle">
                       平台模拟开发分支：{sr.trackingBranch.name}
                     </p>
-                    <BranchCopy branch={sr.trackingBranch.name} onMessage={setCopyMessage} />
+                    {sr.trackingBranch.status !== "deleted" && (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) &&
+                      <BranchCopy branch={sr.trackingBranch.name} onMessage={setCopyMessage} />}
+                    {sr.trackingBranch.status === "deleted" && <p>已清理（模拟）；分支名仅为历史登记。</p>}
+                    {sr.trackingBranch.error && <p role="alert" className="text-destructive">{sr.trackingBranch.error}</p>}
+                    {sr.trackingBranch.status === "failed" && !sr.trackingBranch.pushedAt && <Button
+                      size="sm" variant="outline" disabled={aireq.pending}
+                      onClick={() => void aireq.command({ type: "retrySrBranch", projectId: group.projectId, irId: group.id, srId: sr.id })}
+                    >重试创建开发分支（模拟）</Button>}
                     <p className="break-all text-ui-sm text-foreground-subtle">
                       基点：{sr.trackingBranch.baseCommit}
                     </p>
@@ -289,6 +205,7 @@ export function AIReqFormalReport() {
                     开发分支缺失：正式 SR 必须已有平台分配的开发分支，当前映射缺失属于数据异常。
                   </p>
                 )}
+                {sr.codeMerge && <p className="break-all text-ui-sm">已核实代码合入（模拟）：{sr.codeMerge.commit} → {sr.codeMerge.branch}</p>}
                 <p className="text-ui-sm text-foreground-subtle">
                   最近分析：
                   {sr.progress?.analysedAt
@@ -302,7 +219,7 @@ export function AIReqFormalReport() {
                   <>
                     <p className="break-all font-mono text-ui-sm text-foreground-subtle">
                       {sr.progress.branch} → {project?.defaultBranch} ·{" "}
-                      {sr.progress.merged ? "已合入" : "尚未确认合入，最高 99%"}
+                      {sr.codeMerge ? "已合入（模拟）" : "尚未确认合入，最高 99%"}
                     </p>
                     <p className="break-all text-ui-sm text-foreground-subtle">
                       分析版本：{sr.progress.codeVersion} · 默认分支版本：
@@ -351,7 +268,7 @@ export function AIReqFormalReport() {
           <p className="break-all">
             仓库：{project?.repositoryUrl ?? "尚未配置"} · 默认分支：{project?.defaultBranch}
           </p>
-          <p>0%～99% 由 AI 分析，人工只能在 99% 且已合入后确认到 100%。</p>
+          <p>未合入由 AI 估计 0%～99%；合入固定 99%，仅人工测试通过可到 100%。全部结果为服务端内存模拟。</p>
         </div>
       </div>
     </main>

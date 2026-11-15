@@ -3,11 +3,9 @@ import { AIReqSkillFilePreview } from "./AIReqSkillFilePreview.js";
 import { createUuid } from "@zcode/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check,
   ChevronDown,
   FileCode2,
   MessageSquare,
-  ArrowRight,
   WandSparkles,
   PanelLeftClose,
   PanelLeftOpen,
@@ -16,8 +14,6 @@ import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/componen
 import { Button } from "@/components/ui/button.js";
 import { Label } from "@/components/ui/label.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
-import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
-import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import {
   Select,
   SelectContent,
@@ -35,15 +31,24 @@ import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import type { ExternalTextInsertRequest } from "@/v4/ConversationComposer.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqSkillDesignDraft, AIReqSkillDesignPreview } from "../contract.js";
+import type {
+  AIReqSettingsDraftActions,
+  AIReqSkillDesignDraft,
+  AIReqSkillDesignPreview,
+} from "../contract.js";
 import type { SkillSummary } from "@zcode/shared";
-import { SKILL_DESIGN_FIELDS } from "./skill-design-fields.js";
+import { AIReqSkillBriefForm } from "./AIReqSkillBriefForm.js";
+
+type SkillDesignPageProps = {
+  active: boolean;
+  onDraftActionsChange: (actions: AIReqSettingsDraftActions | null) => void;
+};
 
 type ComposerInputPreview = { text: string; summary: string };
 
 const skillDesignPanels = ["skill-brief", "skill-conversation"];
 
-export function AIReqSkillDesignPage() {
+export function AIReqSkillDesignPage({ active, onDraftActionsChange }: SkillDesignPageProps) {
   const source = useAIReqDataSource();
   const aireq = useAIReq();
   const project = aireq?.view?.projects.find((item) => item.id === aireq.selection.projectId);
@@ -51,33 +56,26 @@ export function AIReqSkillDesignPage() {
     ? source.projects?.readDevelopmentRoot(project.id, source.backend?.owner)
     : undefined;
   return (
-    <main
-      className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+    <section
+      className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden bg-background px-4 pb-4 md:px-6"
       aria-label="Skill 设计"
     >
-      <AutomationsMainBreadcrumbFrame
-        isDesktop={false}
-        sectionLabel="Skill 设计"
-        ariaLabel="Skill 设计导航"
-      >
-        {/* 修复原因：源页将分栏限制在 7xl 内容列，铺满宽屏会改变默认 40/60 的实际控件位置。 */}
-        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 md:px-6 md:py-6">
-          {source.skillDesign ? (
-            <SkillDesignEditor
-              key={`${source.backend?.id}:${project?.id ?? "personal"}`}
-              projectId={project?.id ?? "personal"}
-              projectName={project?.name ?? "未选择项目"}
-              workspacePath={developmentRoot ?? source.backend?.configDirectory ?? ""}
-              developmentRoot={developmentRoot}
-            />
-          ) : (
-            <p role="status" className="text-ui-sm text-foreground-subtle">
-              技能设计暂不可用，请稍后重试。
-            </p>
-          )}
-        </div>
-      </AutomationsMainBreadcrumbFrame>
-    </main>
+      {source.skillDesign ? (
+        <SkillDesignEditor
+          key={`${source.backend?.id}:${project?.id ?? "personal"}`}
+          projectId={project?.id ?? "personal"}
+          projectName={project?.name ?? "未选择项目"}
+          workspacePath={developmentRoot ?? source.backend?.configDirectory ?? ""}
+          developmentRoot={developmentRoot}
+          active={active}
+          onDraftActionsChange={onDraftActionsChange}
+        />
+      ) : (
+        <p role="status" className="text-ui-sm text-foreground-subtle">
+          技能设计暂不可用，请稍后重试。
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -86,12 +84,14 @@ function SkillDesignEditor({
   projectName,
   workspacePath,
   developmentRoot,
+  active,
+  onDraftActionsChange,
 }: {
   projectId: string;
   projectName: string;
   workspacePath: string;
   developmentRoot?: string;
-}) {
+} & SkillDesignPageProps) {
   const source = useAIReqDataSource();
   const design = source.skillDesign!;
   const [session, setSession] = useState<{ id: string; identity: string }>();
@@ -135,6 +135,8 @@ function SkillDesignEditor({
     <ReadySkillDesignEditor
       key={session.id}
       {...{ projectId, projectName, workspacePath, developmentRoot }}
+      active={active}
+      onDraftActionsChange={onDraftActionsChange}
       sessionId={session.id}
       identity={session.identity}
     />
@@ -148,6 +150,8 @@ function ReadySkillDesignEditor({
   developmentRoot,
   sessionId,
   identity,
+  active: editorActive,
+  onDraftActionsChange,
 }: {
   projectId: string;
   projectName: string;
@@ -155,7 +159,7 @@ function ReadySkillDesignEditor({
   developmentRoot?: string;
   sessionId: string;
   identity: string;
-}) {
+} & SkillDesignPageProps) {
   const source = useAIReqDataSource();
   const design = source.skillDesign!;
   const scope = useMemo(
@@ -174,8 +178,10 @@ function ReadySkillDesignEditor({
   const pendingDraftSaves = useRef(0);
   const draftSave = useRef<Promise<void>>(Promise.resolve());
   const draftSaveError = useRef<unknown>(undefined);
+  const [draftUnsettled, setDraftUnsettled] = useState(false);
+  const [discardedRevision, setDiscardedRevision] = useState<number>();
+  const currentActions = useRef<AIReqSettingsDraftActions | null>(null);
   const [tab, setTab] = useState("chat");
-  const [optionalOpen, setOptionalOpen] = useState(false);
   const briefPanel = useRef<PanelImperativeHandle | null>(null);
   const [briefOpen, setBriefOpen] = useState(true);
   const [composerInputPreview, setComposerInputPreview] = useState<ComposerInputPreview>();
@@ -193,8 +199,6 @@ function ReadySkillDesignEditor({
   const [notice, setNotice] = useState("");
   const [savedPath, setSavedPath] = useState("");
   const saveOperation = useRef<{ key: string; id: string } | undefined>(undefined);
-  const coreFields = SKILL_DESIGN_FIELDS.filter((field) => field.required);
-  const completed = SKILL_DESIGN_FIELDS.filter((field) => draft?.[field.id].trim()).length;
   const targetName = preview?.name ?? "";
   const validName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetName) && targetName.length <= 64;
   const targetDirectory = !preview
@@ -215,6 +219,7 @@ function ReadySkillDesignEditor({
       : "";
   const updateDraft = (next: AIReqSkillDesignDraft) => {
     setDraft(next);
+    setDraftUnsettled(true);
     setNotice("");
     const version = ++draftVersion.current;
     pendingDraftSaves.current++;
@@ -228,6 +233,7 @@ function ReadySkillDesignEditor({
           if (version === draftVersion.current) {
             draftSaveError.current = undefined;
             if (active.current) setError("");
+            if (active.current) setDraftUnsettled(false);
           }
           return true;
         },
@@ -353,7 +359,7 @@ function ReadySkillDesignEditor({
     return () => window.clearTimeout(timer);
   }, [insertRequest]);
   const save = async () => {
-    if (!targetDirectory || !preview || !validName || collision || savedPath || saving) return;
+    if (!targetDirectory || !preview || !validName || collision || savedPath || saving) return false;
     const revision = preview.revision;
     const key = `${sessionId}:${revision}:${saveTarget}:${targetName}`;
     if (saveOperation.current?.key !== key) saveOperation.current = { key, id: createUuid() };
@@ -370,17 +376,51 @@ function ReadySkillDesignEditor({
         revision,
         operationId,
       );
-      if (!active.current || previewRevision.current !== revision) return;
+      if (!active.current || previewRevision.current !== revision) return false;
       setSavedPath(receipt.path);
       setError("");
       setNotice("");
       setFillError("");
+      return true;
     } catch (cause) {
       if (active.current) setError(cause instanceof Error ? cause.message : "保存失败。");
+      return false;
     } finally {
       if (active.current) setSaving(false);
     }
   };
+  const unsavedPreview = Boolean(preview && !savedPath && preview.revision !== discardedRevision);
+  const dirty = draftUnsettled || unsavedPreview;
+  const canSave =
+    !saving &&
+    (draftUnsettled || !unsavedPreview || Boolean(targetDirectory && validName && !collision));
+  const canDiscard = !draftUnsettled && !saving;
+  currentActions.current = {
+    canSave,
+    canDiscard,
+    save: async () => {
+      await draftSave.current;
+      if (draftSaveError.current && (!draft || !(await updateDraft(draft)))) return false;
+      return unsavedPreview ? save() : true;
+    },
+    discard: () => {
+      if (pendingDraftSaves.current || draftSaveError.current) return;
+      setDiscardedRevision(preview?.revision);
+    },
+  };
+  useEffect(() => {
+    onDraftActionsChange(
+      dirty
+        ? {
+            canSave,
+            canDiscard,
+            save: () => currentActions.current?.save() ?? false,
+            discard: () => currentActions.current?.discard(),
+          }
+        : null,
+    );
+    return () => onDraftActionsChange(null);
+  }, [dirty, canSave, canDiscard, onDraftActionsChange]);
   if (loading)
     return (
       <p role="status" className="text-ui-sm text-foreground-subtle">
@@ -425,145 +465,17 @@ function ReadySkillDesignEditor({
           collapsedSize="0px"
           onResize={(size) => setBriefOpen(size.asPercentage > 0)}
         >
-          <section
-            className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border"
-            id="skill-design-brief"
-            aria-labelledby="skill-design-brief-title"
-            aria-hidden={!briefOpen}
-            inert={!briefOpen}
-          >
-            <div className="shrink-0 space-y-2 border-b border-border p-4">
-              <div className="flex items-center justify-between gap-2">
-                <h3 id="skill-design-brief-title" className="text-ui-base font-medium">
-                  技能说明
-                </h3>
-                <span className="text-ui-sm text-foreground-subtle">已填写 {completed} 项</span>
-              </div>
-              <p className="text-ui-sm text-foreground-subtle">
-                填写任务目标后，填入右侧输入框，核对后再发送。技能标识由模型推荐。
-              </p>
-            </div>
-            <div
-              className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
-              data-testid="skill-design-fields"
-            >
-              {coreFields.map((field) => (
-                <div key={field.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor={`skill-design-${field.id}`}>{field.label}</Label>
-                    {Boolean(draft[field.id].trim()) && (
-                      <Check className="size-3.5 text-foreground-subtle" aria-label="已填写" />
-                    )}
-                  </div>
-                  <SettingsFormTextarea
-                    id={`skill-design-${field.id}`}
-                    rows={2}
-                    aria-describedby={`skill-design-${field.id}-hint`}
-                    className="min-h-16 w-full resize-y"
-                    value={draft[field.id]}
-                    placeholder={field.placeholder}
-                    onChange={(event) => updateDraft({ ...draft, [field.id]: event.target.value })}
-                  />
-                  <p
-                    id={`skill-design-${field.id}-hint`}
-                    className="text-ui-sm text-foreground-subtle"
-                  >
-                    {field.hint}
-                  </p>
-                </div>
-              ))}
-              <Collapsible open={optionalOpen} onOpenChange={setOptionalOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="px-0">
-                    <ChevronDown
-                      className={`size-3 transition-transform ${optionalOpen ? "" : "-rotate-90"}`}
-                    />
-                    补充字段（选填）
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-4 pt-3">
-                    {SKILL_DESIGN_FIELDS.filter((field) => !field.required).map((field) => (
-                      <div key={field.id} className="space-y-1.5">
-                        <Label htmlFor={`skill-design-${field.id}`}>{field.label}</Label>
-                        <SettingsFormTextarea
-                          id={`skill-design-${field.id}`}
-                          rows={3}
-                          aria-describedby={`skill-design-${field.id}-hint`}
-                          className="w-full"
-                          value={draft[field.id]}
-                          placeholder={field.placeholder}
-                          onChange={(event) =>
-                            updateDraft({ ...draft, [field.id]: event.target.value })
-                          }
-                        />
-                        <p
-                          id={`skill-design-${field.id}-hint`}
-                          className="text-ui-sm text-foreground-subtle"
-                        >
-                          {field.hint}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              {draft.notes.length > 0 && (
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      对话补充记录（{draft.notes.length}）
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <ul className="list-inside list-disc space-y-2 break-words text-ui-sm text-foreground-subtle">
-                      {draft.notes.map((note, index) => (
-                        <li key={index}>{note}</li>
-                      ))}
-                    </ul>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </div>
-            <div className="shrink-0 space-y-2 border-t border-border p-3">
-              <Collapsible>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="px-0 text-foreground-subtle">
-                    <ChevronDown className="size-3" />
-                    临时生成路径
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <p className="break-all font-mono text-ui-sm text-foreground-subtle">
-                    {temporaryDirectory}
-                  </p>
-                </CollapsibleContent>
-              </Collapsible>
-              {fillError && (
-                <p role="alert" className="text-ui-sm text-destructive">
-                  {fillError}
-                </p>
-              )}
-              {insertRequest && (
-                <p role="status" className="text-ui-sm text-foreground-subtle">
-                  正在填入聊天输入框…
-                </p>
-              )}
-              {notice && (
-                <p role="status" className="text-ui-sm text-foreground-subtle">
-                  {notice}
-                </p>
-              )}
-              <Button
-                className="w-full"
-                disabled={Boolean(insertRequest) || filling}
-                onClick={fillComposer}
-              >
-                <ArrowRight className="size-3.5" />
-                填入聊天输入框
-              </Button>
-            </div>
-          </section>
+          <AIReqSkillBriefForm
+            draft={draft}
+            briefOpen={briefOpen}
+            temporaryDirectory={temporaryDirectory}
+            fillError={fillError}
+            insertPending={Boolean(insertRequest)}
+            notice={notice}
+            filling={filling}
+            updateDraft={updateDraft}
+            fillComposer={fillComposer}
+          />
         </ResizablePanel>
         {briefOpen && <ResizableHandle />}
         <ResizablePanel id="skill-conversation" defaultSize="60%" minSize="360px">
@@ -631,7 +543,7 @@ function ReadySkillDesignEditor({
                     workspacePath={scope.workspacePath}
                     workspaceIdentity={scope.workspaceIdentity}
                     embedded
-                    focused={tab === "chat"}
+                    focused={editorActive && tab === "chat"}
                     conversationEmptyState={
                       <div className="mx-auto flex min-h-64 max-w-md flex-col items-center justify-center gap-3 px-6 py-8 text-center">
                         <WandSparkles className="size-6 text-foreground-subtle" />

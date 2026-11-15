@@ -8,20 +8,13 @@ import type {
   AIReqRemotePath,
   AIReqRemoteResult,
 } from "./remote-operations.js";
-import type { AIReqSelection } from "./types.js";
-
-/** Explicit caller context; employee ID is a prototype permission hint, not authentication. */
-export interface AIReqIdentity {
-  employeeId: string;
-  clientId: string;
-  demo?: string;
-}
+import type { AIReqIdentity, AIReqSelection } from "./types.js";
 
 /** Shared mock owns accepted business state. Clients only retain projections and unsent drafts. */
 export interface IAIReqService {
   /** Reads metadata without creating work; safe to repeat after reconnect. */
   bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap>;
-  /** Server validates identity, permission and versions before admission. Mutations emit onDidChange after commit. */
+  /** Server validates identity, ownership, stages and versions before admission. Mutations emit onDidChange after commit. */
   call<P extends AIReqRemotePath>(
     identity: AIReqIdentity,
     path: P,

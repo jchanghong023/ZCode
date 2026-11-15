@@ -43,6 +43,7 @@ export function AIReqMaterialsPane() {
   const [path, setPath] = useState("");
   const [readFeedback, setReadFeedback] = useState("");
   const [showPlanning, setShowPlanning] = useState(false);
+  const [historyVersion, setHistoryVersion] = useState("");
   const sr = view?.srs.find(
     (item) =>
       item.id === selection.srId &&
@@ -54,23 +55,12 @@ export function AIReqMaterialsPane() {
   );
 
   const proposal = view?.drafts.some((item) => item.id === group?.id);
-  // IR 只读需求文件；SR 只读自身规格，不能按 IR 混入开发产物。
-  const materials =
-    view?.materials.filter((item) => {
-      if (item.projectId !== selection.projectId || item.irId !== selection.irId) return false;
-      if (selection.srId) {
-        if (item.srId !== selection.srId) return false;
-        if (item.kind === "sr" && item.path === sr?.documentPath) return true;
-        return false;
-      }
-      return (
-        item.path === group?.documentPath ||
-        (item.kind === "sr" && item.path.endsWith("/spec.md")) ||
-        (!item.srId &&
-          item.kind === "solution" &&
-          (item.path.endsWith("/design.md") || item.path.endsWith("/sr-dependencies.json")))
-      );
-    }) ?? [];
+  const historical = group?.materialHistory?.find((item) => item.version === historyVersion);
+  // 同一 IR 包内切换各 SR；历史快照只读，永不回写当前材料。
+  const materials = (historical?.materials ?? view?.materials ?? []).filter((item) =>
+    item.projectId === selection.projectId && item.irId === selection.irId &&
+    (!selection.srId || item.srId === selection.srId),
+  );
   const proposalSolutionView =
     proposal && (selection.discussionPhase ?? group?.proposalStage) === "solution";
   const preferred =
@@ -109,7 +99,7 @@ export function AIReqMaterialsPane() {
     !path &&
     !selection.srId &&
     group?.status === "draft" &&
-    (group.pendingFirstMessage || (!group.snapshot && !group.files.length && !materials.length));
+    !group.snapshot && !group.files.length && !materials.length;
   return (
     <aside
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
@@ -119,6 +109,19 @@ export function AIReqMaterialsPane() {
         <div
           className={`mx-auto w-full min-w-0 space-y-2 ${!showPlanning && path.endsWith("/sr-dependencies.json") ? "max-w-4xl" : "max-w-[72ch]"}`}
         >
+          {group && <div className="flex flex-wrap gap-2">
+            <Select value={selection.srId ?? "ir"} onValueChange={(id) => aireq.select({
+              ...selection, srId: id === "ir" ? undefined : id, materialPath: undefined,
+            })}>
+              <SelectTrigger aria-label="选择 IR 或独立 SR 材料"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="ir">IR 共享及全部材料</SelectItem>{view?.srs.filter((item) => item.irId === group.id && item.projectId === group.projectId).map((item) => <SelectItem key={item.id} value={item.id}>{item.id} · {item.title}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={historyVersion || "current"} onValueChange={(id) => { setHistoryVersion(id === "current" ? "" : id); setPath(""); }}>
+              <SelectTrigger aria-label="选择材料历史版本"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="current">当前材料</SelectItem>{group.materialHistory?.map((item, index) => <SelectItem key={`${item.version}:${index}`} value={item.version}>历史只读 · {item.reason} · {new Date(item.changedAt).toLocaleString("zh-CN")}</SelectItem>)}</SelectContent>
+            </Select>
+            {historical && <p className="text-ui-sm text-foreground-subtle">历史只读 · 失效原因：{historical.reason} · 版本 {historical.version}</p>}
+          </div>}
           {proposalSolutionView && group && (
             <nav
               aria-label="方案材料定位"
@@ -268,26 +271,7 @@ export function AIReqMaterialsPane() {
               )}
             </div>
           ) : !selection.irId ? (
-            selection.proposalDraftId ? (
-              <section className="space-y-4" data-testid="proposal-material-empty">
-                <h2 className="text-ui-base font-medium">从描述需求开始</h2>
-                <p className="text-ui-sm leading-6 text-foreground-subtle">
-                  先在对话输入框说明想解决的问题，再点击发送。可从下面三点开始，不必一次写完整：
-                </p>
-                <ol className="list-decimal space-y-2 pl-5 text-ui-sm">
-                  <li>现在遇到了什么问题，希望达成什么目标？</li>
-                  <li>谁会使用，在什么场景使用？</li>
-                  <li>期望得到什么结果，怎样判断完成？</li>
-                </ol>
-                <p className="text-ui-sm leading-6 text-foreground-subtle">
-                  AI 会围绕缺失信息追问并整理需求；首次发送后，需求与拆分出的 SR 材料会在这里展示。
-                </p>
-              </section>
-            ) : (
-              <p className="text-ui-base text-foreground-subtle">
-                选择需求或新建提案后，在此查看只读材料。
-              </p>
-            )
+            <p className="text-ui-base text-foreground-subtle">从提案表选择需求后，在此查看只读材料。</p>
           ) : awaitingRequirements ? (
             <section className="space-y-3">
               <h2 className="text-ui-base font-medium">继续讨论，完善需求</h2>
@@ -304,10 +288,8 @@ export function AIReqMaterialsPane() {
                 ? "所选材料不在当前材料清单中。"
                 : "所选对象的材料清单读取失败，请重新读取。只展示当前 IR／SR 的需求与方案材料。"}
             </p>
-          ) : current.valid === false ? (
-            <p role="alert" className="text-ui-sm text-destructive">
-              当前材料已失效或过期，不能作为本轮批准依据。
-            </p>
+          ) : current.valid === false && !historical ? (
+            <div className="space-y-2"><p role="alert" className="text-ui-sm text-destructive">当前材料已失效或过期，不能作为本轮批准依据；以下内容只读保留。</p><AIReqMarkdownDocument>{current.content ?? "无历史正文。"}</AIReqMarkdownDocument></div>
           ) : !current.content?.trim() ? (
             <p role="status" className="text-ui-sm text-foreground-subtle">
               材料没有正文。
@@ -342,7 +324,7 @@ export function AIReqMaterialsPane() {
           )}
         </div>
       </div>
-      {(proposal || !group) && <AIReqDocumentPhaseActions />}
+      {!historical && (proposal || !group) && <AIReqDocumentPhaseActions />}
     </aside>
   );
 }

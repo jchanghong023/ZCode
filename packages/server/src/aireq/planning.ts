@@ -1,14 +1,11 @@
 import type {
-  AIReqSrPlanning,
   AIReqSrPlanningInput,
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
 import { getEmployeeId, isEmployeeId } from "./identity.js";
-import { getPrototypeWorkflow, prototypeWorkflowChanges } from "./workflow.js";
-import { withPrototypeProgress } from "./progress.js";
+import { operatePrototypeProgress } from "./progress.js";
 import { prototypeSrSolutionAnalysis } from "./proposal-flow.js";
 
-const manualPlans = new Map<string, AIReqSrPlanning>();
 const samples: Record<string, AIReqSrPlanningInput> = {
   "sr-auth": {
     developerEmployeeId: "j00808875",
@@ -45,20 +42,28 @@ export function withPrototypePlanning(view: AIReqWorkflowView): AIReqWorkflowVie
       );
       if (!group) return { ...sr, planning: undefined };
       const suggestion = sr.projectId === "demo-aurora" ? (samples[sr.id] ?? {}) : {};
-      const saved = manualPlans.get(`${sr.projectId}:${sr.irId}:${sr.id}`);
+      const developerEmployeeId = sr.planning
+        ? sr.developerEmployeeId
+        : sr.developerEmployeeId ?? group.contacts?.development ?? suggestion.developerEmployeeId;
+      const testingEmployeeId = sr.planning
+        ? sr.testingEmployeeId
+        : sr.testingEmployeeId ?? group.contacts?.testing;
       return {
         ...sr,
+        developerEmployeeId,
+        testingEmployeeId,
         solutionAnalysis: prototypeSrSolutionAnalysis(group, sr.id),
-        planning: structuredClone(
-          saved ??
-            sr.planning ?? {
-              ...suggestion,
-              suggestion,
-              source: "ai",
-              assumptions:
-                "AI 建议样例：项目时区 Asia/Shanghai；计划起点为 2026-11-16 09:00（已有正式需求沿用历史样例）。依赖顺序仅作建议，未接入真实人员日历、请假或其他项目占用；未分配人员需人工确认，不代表已确认可用。",
-            },
-        ),
+        planning: {
+          ...(sr.planning ?? {
+            ...suggestion,
+            suggestion,
+            source: "ai",
+            assumptions:
+              "AI 建议样例：项目时区 Asia/Shanghai；计划不代表人员可用性或实际开发活动，需人工协调。",
+          }),
+          developerEmployeeId,
+          testingEmployeeId,
+        },
       };
     }),
   };
@@ -70,31 +75,15 @@ export async function updatePrototypeSrPlanning(
   srId: string,
   input: AIReqSrPlanningInput,
 ): Promise<void> {
-  const view = withPrototypePlanning(withPrototypeProgress(getPrototypeWorkflow({ projectId })));
-  const group = view.groups.find((item) => item.projectId === projectId && item.id === irId);
-  const sr = view.srs.find(
-    (item) =>
-      item.projectId === projectId &&
-      item.id === srId &&
-      item.irId === irId &&
-      group?.srIds.includes(item.id),
-  );
   const actor = getEmployeeId();
   if (!isEmployeeId(actor)) throw new Error("请先登录有效工号。");
-  if (view.drafts.some((item) => item.id === irId))
-    throw new Error(
-      "提案仅提供工期预估，请通过方案对话更新 sr-dependencies.json；转正后再安排人员和时间。",
-    );
-  if (!group || !sr?.planning) throw new Error("SR 排期不存在，请先完成当前版本的方案分析。");
-  if (actor !== "j00808874" && actor !== group.ownerEmployeeId)
-    throw new Error("只有管理员或 IR 负责人可调整开发安排。");
   if (
     !input ||
-    (input.developerEmployeeId !== undefined &&
-      input.developerEmployeeId !== "" &&
-      !isEmployeeId(input.developerEmployeeId))
+    [input.developerEmployeeId, input.testingEmployeeId].some(
+      (employeeId) => employeeId !== undefined && employeeId !== "" && !isEmployeeId(employeeId),
+    )
   )
-    throw new Error("开发人员工号须为一个小写字母后接 8 位数字。");
+    throw new Error("开发、测试负责人工号须为一个小写字母后接 8 位数字。");
   for (const value of [input.plannedStart, input.plannedEnd]) {
     if (value === undefined || value === "") continue;
     // Date.parse 会将二月三十日等坏日期归一化，必须按上海时区回读逐分钟校验。
@@ -111,15 +100,26 @@ export async function updatePrototypeSrPlanning(
     throw new Error("请同时填写开始和结束时间，或同时清空以取消排期。");
   if (input.plannedStart && input.plannedEnd && input.plannedEnd <= input.plannedStart)
     throw new Error("计划结束时间必须晚于开始时间。");
-  // 依赖只读，调整排期不得改写 Git 文档或依赖事实；冲突由界面持续提示。
-  manualPlans.set(`${projectId}:${irId}:${srId}`, {
-    ...sr.planning,
-    developerEmployeeId: input.developerEmployeeId || undefined,
-    plannedStart: input.plannedStart || undefined,
-    plannedEnd: input.plannedEnd || undefined,
-    source: "manual",
-    updatedBy: actor,
-    updatedAt: new Date().toISOString(),
-  });
-  prototypeWorkflowChanges.fire();
+  // 分工和排期一次原子写回 SR，不能由独立 manualPlans 覆盖联系人或待办事实。
+  operatePrototypeProgress(
+    projectId, irId, srId,
+    { operationId: input.operationId!, expectedRevision: input.expectedRevision! },
+    "updateSrPlanning", input,
+    (state, group, target, employeeId, at) => {
+      const sr = target!;
+      const projected = withPrototypePlanning({ ...state, groups: [group], srs: [sr] }).srs[0]!;
+      sr.developerEmployeeId = Object.hasOwn(input, "developerEmployeeId") ? input.developerEmployeeId || undefined : projected.developerEmployeeId;
+      sr.testingEmployeeId = Object.hasOwn(input, "testingEmployeeId") ? input.testingEmployeeId || undefined : projected.testingEmployeeId;
+      sr.planning = {
+        ...projected.planning!,
+        developerEmployeeId: undefined,
+        testingEmployeeId: undefined,
+        plannedStart: Object.hasOwn(input, "plannedStart") ? input.plannedStart || undefined : projected.planning?.plannedStart,
+        plannedEnd: Object.hasOwn(input, "plannedEnd") ? input.plannedEnd || undefined : projected.planning?.plannedEnd,
+        source: "manual",
+        updatedBy: employeeId,
+        updatedAt: at,
+      };
+    },
+  );
 }

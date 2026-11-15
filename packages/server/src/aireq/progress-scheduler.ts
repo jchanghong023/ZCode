@@ -12,18 +12,23 @@ import type {
   AIReqProgressScheduler,
 } from "@zcode/services/aireq";
 import type { AIReqProgressAnalysis, AIReqSystemRequirement } from "@zcode/services/aireq";
-import { requirePrototypeSettingsWrite } from "./backend.js";
-import { withPrototypeProgress } from "./progress.js";
+import { srProgress } from "@zcode/services/aireq";
+import { acceptPrototypeProgressReport, initializePrototypeProgress, withPrototypeProgress } from "./progress.js";
+import { prototypeAnalysisReport, prototypeProgressFingerprint } from "./progress-scheduler-state.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { getPrototypeWorkflow, prototypeWorkflowChanges } from "./workflow.js";
 
 interface Input {
   sr: AIReqSystemRequirement;
+  releaseId?: string;
+  defaultVersion?: string;
   fingerprint: string;
 }
 interface Pending {
   run: AIReqAnalysisRun;
   input: Input;
+  held?: boolean;
+  fail?: boolean;
 }
 interface ScaleInput {
   input: Input;
@@ -54,12 +59,14 @@ function failureMessage(failure: AIReqAnalysisFailure): string {
   return `${failure.stage}失败：${failure.reason}`;
 }
 
-/** One source-lifetime memory scheduler. No timer, Git access, model call or formal-report write. */
+/** Service-lifetime memory scheduler; accepted reports write to the existing workflow owner. */
 export function createPrototypeProgressScheduler(
   options: { scaleDemo?: boolean } = {},
-): AIReqProgressScheduler {
+): AIReqProgressScheduler & { tick(): void } {
+  initializePrototypeProgress();
   const scaleDemo = options.scaleDemo === true;
-  let clock = Date.parse("2026-11-12T09:00:00.000Z");
+  let clock = Date.now();
+  let clockOffset = 0;
   let enabled = true;
   let intervalMinutes = 60;
   let nextCheck = clock + intervalMinutes * 60_000;
@@ -73,7 +80,7 @@ export function createPrototypeProgressScheduler(
   const scaleInputs = new Map<string, ScaleInput>();
   const analysed = new Map<string, string>();
   const pending = new Map<string, Pending>();
-  const failedSamples = new Set<string>();
+  const scenarios = new Map<string, "fail-next" | "hold-next">();
   const runs: AIReqAnalysisRun[] = [];
   const listeners = new Set<() => void>();
   const at = () => new Date(clock).toISOString();
@@ -84,21 +91,22 @@ export function createPrototypeProgressScheduler(
   };
   const nextAt = () => new Date(clock + intervalMinutes * 60_000).toISOString();
   const active = (task: AIReqAnalysisTask) =>
-    projects.get(task.projectId) === true && inputs.has(task.id) && task.percent < 100;
+    projects.get(task.projectId) === true && inputs.has(task.id) && task.percent < 100 &&
+    Boolean(task.branch.trim()) && inputs.get(task.id)?.sr.trackingBranch?.status !== "failed";
   const emit = () => {
     for (const listener of listeners) listener();
   };
-  const requireWrite = () => {
-    requirePrototypeSettingsWrite();
+  const requireActive = () => {
     if (disposed) throw new Error("需求分析服务已关闭，请刷新页面后重试。");
   };
   const matches = (
-    row: { projectId: string; irId: string; srId: string; srTitle: string },
+    row: { projectId: string; releaseId?: string; irId: string; srId: string; srTitle: string },
     filter: AIReqAnalysisFilter,
   ) => {
     const search = filter.srSearch?.trim().toLowerCase();
     return (
       (!filter.projectId || row.projectId === filter.projectId) &&
+      (!filter.releaseId || (row.releaseId ?? inputs.get(JSON.stringify([row.projectId, row.irId, row.srId]))?.releaseId) === filter.releaseId) &&
       (!filter.irId || row.irId === filter.irId) &&
       (!filter.srId || row.srId === filter.srId) &&
       (!search ||
@@ -127,6 +135,7 @@ export function createPrototypeProgressScheduler(
     batchId: run.batchId,
     taskId: run.taskId,
     projectId: run.projectId,
+    releaseId: run.releaseId,
     irId: run.irId,
     srId: run.srId,
     srTitle: run.srTitle,
@@ -141,10 +150,7 @@ export function createPrototypeProgressScheduler(
   });
 
   function branchFor(sr: AIReqSystemRequirement): string {
-    const branch = sr.trackingBranch?.name;
-    if (!branch?.trim())
-      throw new Error(`开发分支缺失：${sr.projectId}/${sr.irId}/${sr.id}，请修复平台分支映射。`);
-    return branch;
+    return sr.trackingBranch?.name?.trim() ?? "";
   }
   function promptSnapshot() {
     const additionalPrompt = readPrototypeAgentPrompts().saved["progress-analysis"] ?? "";
@@ -164,6 +170,7 @@ export function createPrototypeProgressScheduler(
       task = {
         id,
         projectId: sr.projectId,
+        releaseId: input.releaseId,
         irId: sr.irId,
         irTitle,
         srId: sr.id,
@@ -174,7 +181,9 @@ export function createPrototypeProgressScheduler(
       };
       tasks.set(id, task);
     }
-    Object.assign(task, { irTitle, srTitle: sr.title, percent: sr.progress?.percent ?? 0, branch });
+    Object.assign(task, { irTitle, srTitle: sr.title, percent: srProgress(sr), branch, releaseId: input.releaseId });
+    if (!branch || sr.trackingBranch?.status === "failed")
+      task.error = sr.trackingBranch?.error ?? "开发分支缺失，不能分析。";
   }
 
   function reconcile(): void {
@@ -185,32 +194,13 @@ export function createPrototypeProgressScheduler(
         for (const sr of view.srs.filter(
           (item) => item.irId === group.id && group.srIds.includes(item.id),
         )) {
-          // Compare requirement and code evidence only, not analysis timestamps/manual progress edits.
-          const fingerprint = JSON.stringify({
-            requirement: [
-              group.snapshot?.digest,
-              group.revision,
-              group.files,
-              sr.documentPath,
-              sr.title,
-            ],
-            code: [
-              sr.trackingBranch,
-              sr.materialDigest,
-              sr.materials,
-              sr.codeMerge,
-              sr.delivery?.candidate,
-              sr.progress?.codeVersion,
-              sr.progress?.defaultVersion,
-            ],
-          });
-          candidates.push({ input: { sr, fingerprint }, irTitle: group.title });
+          const fingerprint = prototypeProgressFingerprint(view, group, sr);
+          candidates.push({ input: { sr, fingerprint, releaseId: group.releaseId,
+            defaultVersion: view.repositoryHeads?.[project.repositoryId] }, irTitle: group.title });
         }
       }
     }
     candidates.push(...scaleInputs.values());
-    // 先校验完整正式范围，异常映射不能留下半次 reconcile 的状态。
-    for (const { input } of candidates) branchFor(input.sr);
     inputs.clear();
     for (const { input, irTitle } of candidates) putInput(input, irTitle);
     for (const project of readPrototypeProjectSettings().projects)
@@ -236,20 +226,7 @@ export function createPrototypeProgressScheduler(
   }
 
   function report(input: Input): AIReqProgressAnalysis {
-    const existing = input.sr.progress;
-    return {
-      percent: Math.min(existing?.percent ?? 0, 99),
-      merged: existing?.merged ?? false,
-      certain: false,
-      branch: branchFor(input.sr),
-      analysedAt: at(),
-      codeVersion: existing?.codeVersion ?? "未记录",
-      defaultVersion: existing?.defaultVersion ?? "未记录",
-      implemented: existing?.implemented ?? [],
-      remaining: existing?.remaining ?? ["尚无可用代码依据，暂时保持当前进度。"],
-      issues: existing?.issues ?? [],
-      activity: existing?.activity ?? [],
-    };
+    return prototypeAnalysisReport(input.sr, input.fingerprint, at(), input.defaultVersion);
   }
 
   function admit(filter: AIReqAnalysisFilter, trigger: AIReqAnalysisRun["trigger"]): void {
@@ -268,6 +245,7 @@ export function createPrototypeProgressScheduler(
         batchId,
         taskId: task.id,
         projectId: task.projectId,
+        releaseId: task.releaseId,
         irId: task.irId,
         srId: task.srId,
         srTitle: task.srTitle,
@@ -277,12 +255,17 @@ export function createPrototypeProgressScheduler(
         startedAt: at(),
         modelConfig: structuredClone(modelConfig),
         promptSnapshot: { ...prompt },
-        message: "正在分析代码与需求文档。",
+        message: "模拟：正在分析 SR OpenSpec tasks、材料和代码／合并事实，不执行开发任务。",
         before: task.percent,
         after: task.percent,
       };
       runs.push(run);
-      pending.set(task.id, { run, input: structuredClone(inputs.get(task.id)!) });
+      const scenario = scenarios.get(task.id);
+      scenarios.delete(task.id);
+      pending.set(task.id, {
+        run, input: structuredClone(inputs.get(task.id)!),
+        held: scenario === "hold-next", fail: scenario === "fail-next",
+      });
       task.state = "running";
       task.error = undefined;
       task.nextRunAt = undefined;
@@ -316,6 +299,10 @@ export function createPrototypeProgressScheduler(
           sessions: [],
           approvals: [],
           materials: [],
+          ...(percent === 100 ? {
+            codeMerge: { commit: `memory-scale-code-${srId}`, branch: project.defaultBranch, checkedAt: at(), files: [] },
+            testAcceptance: { operationId: `memory-scale-test-${srId}`, outcome: "passed" as const, employeeId: "j00808874", at: at(), reason: "规模模拟样例人工测试通过", codeVersion: `memory-scale-code-${srId}` },
+          } : {}),
           trackingBranch: {
             name: `sr/${srId}`,
             baseCommit: "memory-scale-base",
@@ -405,7 +392,7 @@ export function createPrototypeProgressScheduler(
     }
     reconcile();
   } else {
-    // One compact fixture per outcome. Memory samples never update formal reports.
+    // Compact historical simulations use the same report admission path as later runs.
     for (const [srId, status] of [
       ["sr-auth", "succeeded"],
       ["sr-session", "skipped"],
@@ -423,6 +410,11 @@ export function createPrototypeProgressScheduler(
           : status === "skipped"
             ? "需求与代码未发生变化，已跳过重复分析。"
             : failureMessage(failureSamples[2]!);
+      const fixtureReport = status === "succeeded" ? { ...report(input), analysedAt: timestamp } : undefined;
+      if (fixtureReport) acceptPrototypeProgressReport(task.projectId, task.irId, srId,
+        input.fingerprint, prototypeProgressFingerprint, fixtureReport);
+      if (status === "failed") acceptPrototypeProgressReport(task.projectId, task.irId, srId,
+        input.fingerprint, prototypeProgressFingerprint, undefined, `模拟：${message}`);
       runs.push({
         id: `memory-demo-fixture-${srId}`,
         batchId: "memory-demo-fixtures",
@@ -440,8 +432,9 @@ export function createPrototypeProgressScheduler(
         promptSnapshot: promptSnapshot(),
         message,
         before: task.percent,
-        after: task.percent,
-        report: status === "succeeded" ? report(input) : undefined,
+        // 样例成功也须记录实际写回值，不能把执行前分数复制为执行后分数。
+        after: fixtureReport?.percent ?? task.percent,
+        report: fixtureReport,
         failure: status === "failed" ? failureSamples[2] : undefined,
       });
       task.lastRunAt = timestamp;
@@ -452,7 +445,6 @@ export function createPrototypeProgressScheduler(
         task.state = "failed";
       }
       if (status === "failed") {
-        failedSamples.add(task.id);
         for (const [index, failure] of failureSamples.slice(0, 2).entries()) {
           const earlier = new Date(clock - (3 - index) * 60_000).toISOString();
           runs.push({
@@ -484,6 +476,62 @@ export function createPrototypeProgressScheduler(
     emit();
   });
 
+  const advanceTo = (nextClock: number) => {
+    requireActive();
+    reconcile();
+    requireTime(nextClock + intervalMinutes * 60_000);
+    clock = nextClock;
+    for (const [id, pendingRun] of pending) {
+      if (pendingRun.held) continue;
+      const { run, input } = pendingRun;
+      const task = tasks.get(id)!;
+      run.endedAt = at();
+      const current = inputs.get(id);
+      if (!current || current.fingerprint !== input.fingerprint) {
+        run.status = "skipped";
+        run.message = "模拟：输入对象或材料／代码／合并事实版本已变化，迟到结果已拒绝写回。";
+      } else if (pendingRun.fail) {
+        run.status = "failed";
+        run.failure = failureSamples[1];
+        run.message = `模拟：${failureMessage(failureSamples[1]!)}`;
+        task.error = run.message;
+        analysed.delete(id);
+        acceptPrototypeProgressReport(run.projectId, run.irId, run.srId, input.fingerprint,
+          prototypeProgressFingerprint, undefined, run.message);
+      } else if (analysed.get(id) === input.fingerprint) {
+        run.status = "skipped";
+        run.report = structuredClone(current.sr.progress);
+        run.message = "模拟：任务材料、代码与合并事实版本未变化，已跳过重复分析。";
+      } else {
+        const detail = report(input);
+        const scale = scaleInputs.get(id);
+        const accepted = scale ? true : acceptPrototypeProgressReport(
+          run.projectId, run.irId, run.srId, input.fingerprint, prototypeProgressFingerprint, detail);
+        run.status = accepted ? "succeeded" : "skipped";
+        run.message = accepted ? "模拟分析完成；最新报告已统一写回正式 SR。" : "输入版本已变化，迟到结果已拒绝写回。";
+        if (accepted) {
+          if (scale) scale.input.sr.progress = detail;
+          run.report = detail;
+          analysed.set(id, input.fingerprint);
+          task.error = undefined;
+        }
+      }
+      const latest = withPrototypeProgress(getPrototypeWorkflow({ projectId: run.projectId }))
+        .srs.find((sr) => sr.irId === run.irId && sr.id === run.srId);
+      run.after = latest ? srProgress(latest) : task.percent;
+      if (run.report && latest?.progress) run.report = structuredClone(latest.progress);
+      task.nextRunAt = nextAt();
+      pending.delete(id);
+    }
+    if (enabled && clock >= nextCheck) {
+      lastCheckAt = at();
+      nextCheck = clock + intervalMinutes * 60_000;
+      admit({}, "schedule");
+    }
+    reconcile();
+    emit();
+  };
+
   return {
     read(): AIReqAnalysisSnapshot {
       const projectSummaries = readPrototypeProjectSettings().projects.map((project) => ({
@@ -496,7 +544,7 @@ export function createPrototypeProgressScheduler(
         lastStatus: undefined as AIReqAnalysisRunSummary["status"] | undefined,
       }));
       const byProject = new Map(projectSummaries.map((project) => [project.id, project]));
-      const irs = new Map<string, { projectId: string; id: string; title: string }>();
+      const irs = new Map<string, { projectId: string; releaseId?: string; id: string; title: string }>();
       for (const task of tasks.values()) {
         const project = byProject.get(task.projectId);
         if (project) {
@@ -505,6 +553,7 @@ export function createPrototypeProgressScheduler(
         }
         irs.set(JSON.stringify([task.projectId, task.irId]), {
           projectId: task.projectId,
+          releaseId: task.releaseId,
           id: task.irId,
           title: task.irTitle,
         });
@@ -585,7 +634,7 @@ export function createPrototypeProgressScheduler(
       };
     },
     setProjectEnabled(projectId, value) {
-      requireWrite();
+      requireActive();
       if (!readPrototypeProjectSettings().projects.some((project) => project.id === projectId))
         throw new Error("请选择已有项目。");
       if (typeof value !== "boolean") throw new Error("项目分析开关无效。");
@@ -595,7 +644,7 @@ export function createPrototypeProgressScheduler(
       emit();
     },
     configure(value, minutes) {
-      requireWrite();
+      requireActive();
       if (typeof value !== "boolean") throw new Error("全局分析开关无效。");
       if (!Number.isSafeInteger(minutes) || minutes < 1)
         throw new Error("全局检查间隔须为正整数分钟。");
@@ -609,55 +658,46 @@ export function createPrototypeProgressScheduler(
       emit();
     },
     runNow(filter) {
-      requireWrite();
+      requireActive();
       reconcile();
       admit(filter, "manual");
       emit();
     },
-    advance() {
-      requireWrite();
+    setScenario(filter, scenario) {
+      requireActive();
       reconcile();
-      // Finish only runs already admitted. A separate click can then simulate the next due check.
-      const nextClock = requireTime(
-        pending.size || !enabled ? clock + 1000 : Math.max(clock + 1000, nextCheck),
-      );
-      requireTime(nextClock + intervalMinutes * 60_000);
-      if (pending.size) {
-        clock = nextClock;
-        for (const [id, { run, input }] of pending) {
-          const task = tasks.get(id)!;
-          run.endedAt = at();
-          run.report = report(input);
-          if (analysed.get(id) === input.fingerprint) {
-            run.status = "skipped";
-            run.message = "需求与代码未发生变化，已跳过重复分析。";
-          } else if (
-            task.projectId === "demo-aurora" &&
-            task.srId === "sr-permissions" &&
-            !failedSamples.has(id)
-          ) {
-            failedSamples.add(id);
-            run.status = "failed";
-            run.failure = failureSamples[0];
-            run.report = undefined;
-            run.message = failureMessage(failureSamples[0]!);
-            task.error = run.message;
-          } else {
-            run.status = "succeeded";
-            run.message = "分析完成，当前进度未发生变化。";
-            analysed.set(id, input.fingerprint);
-          }
-          task.nextRunAt = nextAt();
-        }
-        pending.clear();
-      } else if (enabled) {
-        clock = nextClock;
-        lastCheckAt = at();
-        nextCheck = clock + intervalMinutes * 60_000;
-        admit({}, "schedule");
-      } else clock = nextClock;
-      reconcile();
+      if (!filter.projectId || !filter.irId || !filter.srId ||
+          !["normal", "fail-next", "hold-next", "release-held"].includes(scenario))
+        throw new Error("模拟分析控制须指定已有项目、IR 和 SR。");
+      const task = [...tasks.values()].find((item) => matches(item, filter));
+      if (!task) throw new Error("指定正式 SR 不存在。");
+      const running = pending.get(task.id);
+      if (scenario === "release-held") {
+        if (!running?.held) throw new Error("此 SR 没有暂缓结果。");
+        running.held = false;
+      } else if (scenario === "normal") scenarios.delete(task.id);
+      else if (scenario === "hold-next" && running) running.held = true;
+      else scenarios.set(task.id, scenario);
       emit();
+    },
+    // 后台只按真实经过时间推进；不能因存在暂缓项而每五秒跳到下一小时。
+    tick() {
+      requireActive();
+      const now = Math.max(clock, Date.now() + clockOffset);
+      let runnable = false;
+      for (const item of pending.values()) if (!item.held) runnable = true;
+      if (runnable || (enabled && now >= nextCheck)) advanceTo(now);
+      else clock = now;
+    },
+    advance() {
+      requireActive();
+      let runnable = false;
+      for (const item of pending.values()) if (!item.held) runnable = true;
+      const nextClock = requireTime(
+        runnable || !enabled ? clock + 1000 : Math.max(clock + 1000, nextCheck),
+      );
+      clockOffset = nextClock - Date.now();
+      advanceTo(nextClock);
     },
     // Resource cleanup is not a settings write: read-only visitors must also be able to unmount.
     dispose() {

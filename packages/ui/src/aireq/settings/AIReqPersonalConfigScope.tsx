@@ -9,11 +9,11 @@ export function AIReqPersonalConfigScope() {
       className="space-y-1 text-ui-sm text-foreground-subtle"
       data-testid="aireq-personal-config-scope"
     >
-      {/* 所有者与权限只摘要一次，模拟路径等次级信息按需展开。 */}
+      {/* 共享配置与模拟路径只摘要一次，次级信息按需展开。 */}
       <p>
         {zh
-          ? `共享模拟配置由 ${source.backend?.owner ?? "j00808874"} 管理，其他工号只读。`
-          : `Shared mock settings are managed by ${source.backend?.owner ?? "j00808874"}. Others have read-only access.`}
+          ? "所有合法工号共享并可修改同一份模拟配置。"
+          : "All valid employee IDs share and can edit the same mock settings."}
       </p>
       <details>
         <summary className="cursor-pointer">

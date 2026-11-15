@@ -4,19 +4,19 @@ import type {
   AIReqPrHandoffScenario,
   AIReqRequirementGroup,
 } from "@zcode/services/aireq";
-import { hasCurrentProposalSolution, requirementsReviewBlocker } from "@zcode/services/aireq";
+import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
 import { getEmployeeId } from "./identity.js";
-import { prototypeChangeRoot } from "./proposal-storage.js";
+import { prototypeIrRoot } from "./proposal-storage.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 
 /** 仅推导平台托管仓库的交接样例，不创建分支或访问文件系统。 */
 export function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
   const { group, project, employeeId, scenario = "current" } = input;
-  const changeRoot = prototypeChangeRoot(group.id);
+  const changeRoot = prototypeIrRoot(group.id);
   const sourceDirectory = group.proposalLocation?.directory ?? "";
   const branch = `ir/${group.id}`;
   const blockers: string[] = [];
-  const reviewBlocker = requirementsReviewBlocker(group);
+  const reviewBlocker = alignmentBlocker(group);
   if (reviewBlocker) blockers.push(reviewBlocker);
   if (
     !project ||

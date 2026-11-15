@@ -1,6 +1,5 @@
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqProject } from "@zcode/services/aireq";
-import { requirePrototypeSettingsWrite } from "./backend.js";
 
 interface PrototypeProjectSettings {
   projects: AIReqProject[];
@@ -45,7 +44,6 @@ export function savePrototypeRepository(
     ? settings.projects.find((item) => item.id === input.projectId)
     : undefined;
   if (input.projectId && !existing) throw new Error("请选择已有项目。");
-  requirePrototypeSettingsWrite();
   if (input.expectedRevision !== (existing?.revision ?? 0))
     throw Object.assign(new Error("项目配置已变化，请重新读取。"), { code: "VERSION_CONFLICT" });
   const name = input.name.trim();

@@ -31,6 +31,13 @@ const operationLabels: Record<string, string> = {
   returnProposal: "退回业务补充",
   confirmProposal: "确认需求与方案",
   publishProposal: "提交并推送",
+  importProposals: "原子导入提案",
+  runFullReview: "完整材料三审与终审",
+  approveFullReview: "人工通过完整终审",
+  confirmAlignment: "独立视角确认",
+  closeProposalPr: "关闭未合并文档 PR",
+  reviseProposalMaterial: "修改材料并失效旧批准",
+  assignContacts: "调整联系人",
 };
 
 // 同一历史弹窗的时间统一转为北京时间，避免 UTC 原文与本地格式混排。
@@ -107,7 +114,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
               <dl className="space-y-3">
                 <div>
                   <dt className="text-foreground-subtle">提出人</dt>
-                  <dd>{group.proposalLocation?.employeeId ?? "未记录"}</dd>
+                  <dd>{group.submittedBy}</dd>
                 </div>
                 <div>
                   <dt className="text-foreground-subtle">方案参与人</dt>
@@ -116,6 +123,8 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                 <div>
                   <dt className="text-foreground-subtle">需求文件</dt>
                   <dd className="break-all font-mono">{group.documentPath}</dd>
+                  <p className="mt-2 whitespace-pre-wrap">{group.originalText}</p>
+                  {group.sourceIrId && <p>关联来源 IR：{group.sourceIrId}</p>}
                 </div>
                 <div>
                   <dt className="text-foreground-subtle">来源</dt>
@@ -169,13 +178,14 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                   </p>
                 </details>
               ))}
-              {(group.reviewHistory ?? []).map((review, index) => (
+              {[...(group.originalReviewHistory ?? []), ...(group.reviewHistory ?? [])].map((review, index) => (
                 <details key={`${review.id}:${index}`}>
                   <summary className="cursor-pointer">
                     历史评审 · 第 {review.round ?? 1} 轮 · {review.id}
                   </summary>
                   <p className="my-2 break-all text-foreground-subtle">
                     版本 {review.snapshotDigest} ·{" "}
+                    {review.invalidatedReason && <span className="block text-destructive">失效原因：{review.invalidatedReason}</span>}
                     {review.humanDecision ? (
                       <>
                         人工通过 {review.humanDecision.employeeId} ·{" "}
@@ -206,6 +216,11 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                     </AIReqMarkdownDocument>
                   )}
                 </details>
+              ))}
+              {[...(group.alignmentHistory ?? []), ...(group.alignment ?? [])].map((entry, index) => (
+                <p key={`${entry.perspective}:${entry.confirmedAt}:${index}`} className="break-all">
+                  {entry.perspective === "business" ? "业务" : entry.perspective === "development" ? "开发" : "测试"}视角 · {entry.employeeId} · {recordTime(entry.confirmedAt)} · 版本 {entry.version}（历史只读）
+                </p>
               ))}
             </div>
           )}

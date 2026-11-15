@@ -8,7 +8,6 @@ export { AIReqRequirementList } from "./AIReqRequirementList.js";
 export { AIReqRequirementSearch } from "./AIReqRequirementSearch.js";
 export { AIReqRequirementMenu } from "./AIReqRequirementMenu.js";
 export { AIReqDeleteRequirement } from "./AIReqDeleteRequirement.js";
-export { AIReqProposalDraftComposer } from "./AIReqProposalDraftComposer.js";
 export {
   AIReqProposalDeliveryControls,
   AIReqProposalBackgroundStatus,

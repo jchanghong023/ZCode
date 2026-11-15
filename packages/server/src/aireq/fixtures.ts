@@ -1,4 +1,4 @@
-import type { AIReqWorkflowView } from "@zcode/services/aireq";
+import type { AIReqWorkflowView, AIReqMaterialView } from "@zcode/services/aireq";
 import { proposalVersion } from "@zcode/services/aireq";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
@@ -13,7 +13,6 @@ import {
 } from "./fixture-builders.js";
 import { prototypeProposalDependencies, prototypeProposalSolution } from "./proposal-flow.js";
 import { requirementMaterials } from "./materials.js";
-import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
@@ -267,186 +266,78 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     intakeProposal,
   ];
   drafts[1]!.proposalStage = "solution";
-  drafts[1]!.sessions.push(sessionRef("demo-aurora", "draft-notification", "solution"));
-  drafts[1]!.developerHandoff = {
-    employeeId: "j00808876",
-    submittedAt: "2026-11-10T09:30:00.000Z",
-  };
-  drafts[1]!.developerAcceptance = {
-    employeeId: "j00808874",
-    acceptedAt: "2026-11-10T09:35:00.000Z",
-    round: 1,
-  };
-  drafts[1]!.createdAt = "2026-11-07T09:00:00.000Z";
-  reviewProposal.createdAt = "2026-11-08T10:00:00.000Z";
-  readyProposal.createdAt = "2026-11-09T11:00:00.000Z";
-  intakeProposal.createdAt = "2026-11-06T08:00:00.000Z";
-  for (const [proposal, employeeId, acceptedAt, generatedAt] of [
-    [readyProposal, "j00808875", "2026-11-10T12:00:00.000Z", "2026-11-11T08:00:00.000Z"],
-    [intakeProposal, "j00808877", "2026-11-10T14:00:00.000Z", "2026-11-10T15:00:00.000Z"],
-  ] as const) {
-    proposal.proposalStage = "solution";
-    proposal.status = "solution-ready";
-    proposal.sessions.push(sessionRef(proposal.projectId, proposal.id, "solution"));
-    proposal.developerHandoff = {
-      employeeId: proposal.proposalLocation!.employeeId,
-      submittedAt: acceptedAt,
-    };
-    proposal.developerAcceptance = { employeeId, acceptedAt, round: proposal.proposalRound! };
-    proposal.srDependencyFile = prototypeProposalDependencies(
-      proposal,
-      srs.filter((sr) => sr.projectId === proposal.projectId && sr.irId === proposal.id),
-    );
-    const solution = prototypeProposalSolution(proposal);
-    proposal.proposalSolution = {
-      path: solution.path,
-      employeeId,
-      generatedAt,
-      round: proposal.proposalRound!,
-      valid: true,
-      requirementsDigest: proposal.snapshot!.digest,
-    };
-    proposal.files.push({ path: solution.path, sha256: solution.sha256, size: solution.size });
-    proposal.files.push({
-      path: proposal.srDependencyFile.path,
-      sha256: proposal.srDependencyFile.sha256,
-      size: proposal.srDependencyFile.size,
-    });
-  }
-  // Match the existing confirm → push → manual PR actions; compute the candidate only
-  // after all current requirement and solution file versions have been collected.
-  const candidate = "sample-proposal-draft-audit-subscription-round-1";
-  intakeProposal.proposalDelivery = {
-    candidate,
-    version: proposalVersion(intakeProposal),
-    files: structuredClone(intakeProposal.files),
-    confirmedBy: "j00808874",
-    confirmedAt: "2026-11-10T16:00:00.000Z",
-    pushedCandidate: candidate,
-    pushedAt: "2026-11-10T16:10:00.000Z",
-    prCandidate: candidate,
-  };
-  intakeProposal.confirmation = {
-    operationId: "sample-confirm-draft-audit-subscription",
-    snapshotDigest: intakeProposal.snapshot!.digest,
-    confirmedAt: intakeProposal.proposalDelivery.confirmedAt,
-  };
-  intakeProposal.requirementsPr = {
-    url: "https://example.invalid/demo/pulls/43",
-    sourceBranch: readPrototypeProposalPrHandoff(intakeProposal).branch,
-    targetBranch: sharedSettings.projects.find(
-      (project) => project.id === intakeProposal.projectId,
-    )!.defaultBranch,
-    recordedAt: "2026-11-11T09:00:00.000Z",
-    platformVerified: false,
-  };
+  readyProposal.proposalStage = "solution";
+  intakeProposal.proposalStage = "solution";
+  readyProposal.status = "solution-ready";
   intakeProposal.status = "requirements-pr";
-  for (const item of [...groups, ...drafts]) {
-    const rows = srs.filter((sr) => sr.projectId === item.projectId && sr.irId === item.id);
-    if (rows.some((sr) => sr.startedAt)) item.developmentStartedAt = createdAt;
+  // 业务澄清样例不预先拆 SR；只有历史上已通过前置评审的方案样例保留独立 SR。
+  for (const proposal of drafts.filter((item) => item.proposalStage !== "solution")) {
+    for (let index = srs.length - 1; index >= 0; index--)
+      if (srs[index]!.projectId === proposal.projectId && srs[index]!.irId === proposal.id) srs.splice(index, 1);
+    proposal.srIds = [];
   }
-  for (const item of [...groups, ...drafts])
+  const materials: AIReqMaterialView[] = [];
+  for (const item of [...groups, ...drafts]) {
     item.releaseId = readPrototypeProjectReleases(item.projectId)[0]?.id ?? "";
-  const materials = [...groups, ...drafts].flatMap((item) =>
-    requirementMaterials(
-      item.projectId,
-      item.id,
-      item.title,
-      srs.filter((sr) => sr.irId === item.id),
-    ),
-  );
-  for (const item of [...groups, drafts[1]!, reviewProposal, readyProposal, intakeProposal])
-    item.review = createPrototypeRequirementsReview(item, "j00808874", true);
-  drafts[1]!.review!.createdAt = "2026-11-09T09:00:00.000Z";
-  reviewProposal.review!.passed = false;
-  reviewProposal.review!.humanDecision = undefined;
-  reviewProposal.review!.createdAt = "2026-11-10T11:00:00.000Z";
-  readyProposal.review!.createdAt = "2026-11-10T11:30:00.000Z";
-  intakeProposal.review!.createdAt = "2026-11-10T13:00:00.000Z";
-  for (const item of groups) {
-    item.srDependencyFile = prototypeProposalDependencies(
-      item,
-      srs.filter((sr) => sr.projectId === item.projectId && sr.irId === item.id),
-    );
-    const solution = prototypeProposalSolution(item);
-    item.files.push({ path: solution.path, sha256: solution.sha256, size: solution.size });
-    item.files.push({
-      path: item.srDependencyFile.path,
-      sha256: item.srDependencyFile.sha256,
-      size: item.srDependencyFile.size,
-    });
-    item.merge = {
-      commit: `sample-merged-${item.id}`,
-      branch: "main",
-      checkedAt: createdAt,
-      files: structuredClone(item.files),
-    };
-    if (item.developmentStartedAt)
-      freezePrototypeRequirement(item, "j00808874", item.developmentStartedAt);
+    item.contacts = { business: item.submittedBy ?? "j00808874", development: "j00808874", testing: "j00808875" };
+    const rows = srs.filter((sr) => sr.projectId === item.projectId && sr.irId === item.id);
+    for (const sr of rows) {
+      sr.developerEmployeeId = item.contacts.development;
+      sr.testingEmployeeId = item.contacts.testing;
+    }
+    const bundle = requirementMaterials(item.projectId, item.id, item.title, rows);
+    if (rows.length) {
+      item.srDependencyFile = prototypeProposalDependencies(item, rows);
+      const summary = prototypeProposalSolution(item);
+      const summaryIndex = bundle.findIndex((material) => material.path === summary.path);
+      if (summaryIndex >= 0) bundle.splice(summaryIndex, 1);
+      bundle.push(summary, item.srDependencyFile);
+      item.proposalSolution = { path: summary.path, employeeId: "j00808874", generatedAt: createdAt,
+        round: item.proposalRound ?? 1, valid: true, requirementsDigest: `sample-digest:${item.projectId}:${item.id}` };
+    }
+    item.files = bundle.map(({ path, sha256, size }) => ({ path, sha256, size }));
+    item.snapshot = { version: 1, projectId: item.projectId, irId: item.id, title: item.title,
+      documentPath: item.documentPath, files: structuredClone(item.files),
+      srs: rows.map(({ id, title, documentPath }) => ({ id, title, documentPath })),
+      digest: `sample-digest:${item.projectId}:${item.id}` };
+    materials.push(...bundle);
+    if (rows.length || item === reviewProposal) {
+      item.originalReview = createPrototypeRequirementsReview(item, "j00808874", rows.length > 0);
+      item.sessions.push(...prototypeReviewSessions(item.originalReview));
+    }
+    if (rows.length && item.proposalStage === "solution") {
+      item.sessions.push(sessionRef(item.projectId, item.id, "solution"));
+      item.developerAcceptance = { employeeId: "j00808874", acceptedAt: createdAt, round: 1 };
+    }
+    if (groups.includes(item) || item === readyProposal || item === intakeProposal) {
+      item.review = createPrototypeRequirementsReview(item, "j00808874", true, "full");
+      item.sessions.push(...prototypeReviewSessions(item.review));
+      if (groups.includes(item) || item === intakeProposal) {
+        item.alignment = (["business", "development", "testing"] as const).map((perspective) => ({
+          perspective, version: proposalVersion(item), employeeId: "j00808874", confirmedAt: createdAt,
+        }));
+      }
+    }
+    if (groups.includes(item)) {
+      item.merge = { commit: `sample-merged-${item.id}`, branch: sharedSettings.projects.find((project) =>
+        project.id === item.projectId)!.defaultBranch, checkedAt: createdAt, files: structuredClone(item.files) };
+      freezePrototypeRequirement(item, "j00808874", createdAt);
+    }
+  }
+  for (const sr of srs.filter((row) => row.status === "completed")) {
+    const project = sharedSettings.projects.find((item) => item.id === sr.projectId)!;
+    sr.codeMerge = { commit: `${sr.id}-head`, branch: project.defaultBranch,
+      checkedAt: "2026-11-11T01:30:00.000Z", files: [] };
+    if (["sr-onboarding", "sr-notification-inbox", "sr-audit-retention", "sr-mobile-profile"].includes(sr.id)) {
+      sr.testAcceptance = { operationId: `sample-test-${sr.id}`, outcome: "passed", employeeId: "j00808874",
+        at: "2026-11-11T01:30:00.000Z", reason: "历史模拟样例测试通过", codeVersion: `${sr.id}-head` };
+      sr.acceptanceHistory = [structuredClone(sr.testAcceptance)];
+    } else sr.status = "developing";
   }
   if (prototypeRecoveryScenario === "proposal-feedback") {
-    const proposal = drafts[1]!;
-    proposal.proposalStage = "requirements";
-    proposal.proposalRound = 2;
-    proposal.developerAcceptance = undefined;
-    proposal.developerHandoff = undefined;
-    proposal.returnFeedback = {
-      employeeId: "j00808875",
-      returnedAt: createdAt,
-      reason:
-        "方案 Agent 提问，开发暂时无法回答：\n1. 通知发送失败后，是否自动重试？重试次数和间隔由谁确定？\n2. 用户取消后，已发送的通知是否保留？\n请业务补充上述规则和验收行为，由业务 Agent 更新 IR／SR。",
-    };
-    proposal.sessions.push(
-      sessionRef(proposal.projectId, proposal.id, "requirements", undefined, undefined, 2),
-    );
-  }
-  if (prototypeRecoveryScenario === "proposal-intake") {
-    const proposal = drafts[1]!;
-    proposal.srDependencyFile = prototypeProposalDependencies(
-      proposal,
-      srs.filter((sr) => sr.projectId === proposal.projectId && sr.irId === proposal.id),
-    );
-    const material = prototypeProposalSolution(proposal);
-    proposal.status = "solution-ready";
-    proposal.proposalSolution = {
-      path: material.path,
-      employeeId: "j00808874",
-      generatedAt: createdAt,
-      round: 1,
-      valid: true,
-      requirementsDigest: proposal.snapshot!.digest,
-    };
-    proposal.files.push({ path: material.path, sha256: material.sha256, size: material.size });
-    proposal.files.push({
-      path: proposal.srDependencyFile.path,
-      sha256: proposal.srDependencyFile.sha256,
-      size: proposal.srDependencyFile.size,
-    });
-  }
-  for (const proposal of drafts.filter(
-    (item) => item.proposalStage === "solution" && !item.srDependencyFile,
-  )) {
-    proposal.srDependencyFile = prototypeProposalDependencies(
-      proposal,
-      srs.filter((sr) => sr.projectId === proposal.projectId && sr.irId === proposal.id),
-    );
-    proposal.srDependencyFile.valid = false;
-  }
-  materials.push(
-    ...groups.map((group) => prototypeProposalSolution(group)),
-    ...drafts
-      .filter((item) => item.proposalStage === "solution")
-      .map((group) => prototypeProposalSolution(group)),
-  );
-  materials.push(
-    ...[...groups, ...drafts].flatMap((item) =>
-      item.srDependencyFile ? [item.srDependencyFile] : [],
-    ),
-  );
-  if (prototypeRecoveryScenario === "review-chat")
-    drafts[0]!.review = createPrototypeRequirementsReview(drafts[0]!, "j00808876");
-  for (const group of [...groups, ...drafts]) {
-    if (group.review) group.sessions.push(...prototypeReviewSessions(group.review));
+    drafts[1]!.proposalStage = "requirements";
+    drafts[1]!.returnFeedback = { employeeId: "j00808875", returnedAt: createdAt,
+      reason: "【模拟】请补充通知失败后的业务恢复规则及验收依据。" };
   }
   const result: AIReqWorkflowView = {
     version: 1,

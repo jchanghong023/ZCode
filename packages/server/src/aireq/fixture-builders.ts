@@ -10,7 +10,7 @@ import type {
 } from "@zcode/services/aireq";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import {
-  prototypeChangeRoot,
+  prototypeIrRoot,
   prototypeSpecPath,
   prototypeProposalLocation,
 } from "./proposal-storage.js";
@@ -137,10 +137,13 @@ export function group(
   );
   return {
     id,
+    originalText: title,
+    submittedBy: proposerId,
+    contacts: { business: proposerId },
     projectId,
     releaseId: PROTOTYPE_RELEASE_ID,
     title,
-    documentPath: `${prototypeChangeRoot(id)}/proposal.md`,
+    documentPath: `${prototypeIrRoot(id)}/requirements.md`,
     ...(draft
       ? {
           proposalLocation: prototypeProposalLocation(projectId, proposerId),
@@ -150,7 +153,7 @@ export function group(
       : {
           proposalRound: 1,
           proposalSolution: {
-            path: `${prototypeChangeRoot(id)}/design.md`,
+            path: `${prototypeIrRoot(id)}/acceptance.md`,
             employeeId: "j00808874",
             generatedAt: createdAt,
             round: 1,
@@ -184,7 +187,7 @@ export function group(
         title: srTitle,
         documentPath,
       })),
-      documentPath: `${prototypeChangeRoot(id)}/proposal.md`,
+      documentPath: `${prototypeIrRoot(id)}/requirements.md`,
       files,
       digest,
     },

@@ -4,9 +4,9 @@ import type { AIReqOperationReceipt, AIReqRequirementGroup } from "./types.js";
 export const PROPOSAL_PHASE_OPTIONS = [
   { id: "all", title: "全部阶段" },
   { id: "0", title: "业务需求" },
-  { id: "1", title: "需求评审" },
-  { id: "2", title: "技术方案" },
-  { id: "3", title: "需求入库" },
+  { id: "1", title: "原始需求评审" },
+  { id: "2", title: "完整方案与审查" },
+  { id: "3", title: "三方对齐与文档 PR" },
 ];
 
 /** Only actual intake failures need attention; waiting/unpushed proposals are not errors. */
@@ -29,9 +29,9 @@ export function proposalProcessingHint(group: AIReqRequirementGroup): string {
       : group.proposalDelivery?.pushedAt
         ? "等待合入"
         : "待提交";
-  if (phase === 1) return group.review?.humanDecision ? "已人工通过" : "待人工判断";
+  if (phase === 1) return group.originalReview?.humanDecision ? "已人工通过" : "待人工判断";
   if (group.returnFeedback && !group.returnFeedback.resumedAt) return "待业务补充";
-  if (phase === 2) return group.status === "solution-ready" ? "待入库" : "方案中";
+  if (phase === 2) return group.review ? "待完整审查人工决定" : "完善方案与测试材料";
   return "业务需求";
 }
 
@@ -50,6 +50,8 @@ export function proposalUpdatedTime(
   };
   include(group.developerHandoff?.submittedAt);
   include(group.developerAcceptance?.acceptedAt);
+  include(group.originalReview?.createdAt);
+  for (const review of group.originalReviewHistory ?? []) include(review.createdAt);
   include(group.review?.createdAt);
   for (const review of group.reviewHistory ?? []) include(review.createdAt);
   for (const decision of group.requirementsDecisions ?? []) {

@@ -2,13 +2,13 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   PanelRightClose,
   PanelRightOpen,
-  MessageCirclePlus,
-  CalendarClock,
-  WandSparkles,
+  ListTodo,
   FileSearch,
   TableProperties,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -25,17 +25,15 @@ import {
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import type { AIReqMainView } from "../contract.js";
-import { conversationReadOnlyReason, proposalDeliveryCurrent } from "../contract.js";
-import { AIReqRequirementList } from "../proposals/AIReqRequirementList.js";
-import { AIReqRequirementSearch } from "../proposals/AIReqRequirementSearch.js";
+import { conversationReadOnlyReason, proposalProgressIndex } from "../contract.js";
 import { AIReqStageHeader, AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
-import { AIReqProposalDraftComposer } from "../proposals/AIReqProposalDraftComposer.js";
+import { AIReqProposalTable } from "../proposals/AIReqProposalTable.js";
+import { AIReqTodoPage } from "../AIReqTodoPage.js";
+import { AIReqProjectProgressPage } from "../projects/AIReqProjectProgressPage.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/index.js";
-import { AIReqAutomations } from "../tools/AIReqAutomations.js";
-import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
-import { AIReqSettingsPage } from "../settings/AIReqSettingsPage.js";
+import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import {
   WorkspaceSidebarToolbar,
@@ -48,12 +46,13 @@ import {
   ModelSettingsNavigationContext,
 } from "./ModelSettingsNavigationContext.js";
 
-type Section = "appearance" | "projects" | "models" | "personalization";
+type Section = AIReqSettingsSection;
 const nativeSettingsSections = {
   appearance: "appearance",
   projects: "general",
   models: "modelProvider",
   personalization: "personalization",
+  skillDesign: "skill",
 } satisfies Record<Section, SettingsSectionId>;
 
 function readSettingsSection(): Section {
@@ -65,25 +64,29 @@ function readSettingsSection(): Section {
       return "models";
     case "personalization":
       return "personalization";
+    case "skill":
+      return "skillDesign";
     default:
       return "projects";
   }
 }
 const pages = [
-  { view: "automations", label: "自动化", icon: CalendarClock },
-  { view: "skillDesign", label: "Skill 设计", icon: WandSparkles },
-  { view: "requirementAnalysis", label: "需求分析", icon: FileSearch },
-] satisfies { view: AIReqMainView; label: string; icon: typeof CalendarClock }[];
+  { view: "projectProgress", label: "项目进度", labelEn: "Project progress", icon: ChartNoAxesCombined },
+  { view: "todos", label: "待办列表", labelEn: "Todos", icon: ListTodo },
+  { view: "formal", label: "正式需求", labelEn: "Formal requirements", icon: TableProperties },
+  { view: "proposals", label: "需求提案", labelEn: "Proposals", icon: TableProperties },
+  { view: "requirementAnalysis", label: "进度分析", labelEn: "Progress analysis", icon: FileSearch },
+] satisfies { view: AIReqMainView; label: string; labelEn: string; icon: typeof FileSearch }[];
 export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const ai = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const { setNavigationGuard } = ai;
   const source = useAIReqDataSource();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<Section>(readSettingsSection);
   const settings = settingsOpen ? settingsSection : null;
-  const [search, setSearch] = useState(false);
-  const [query, setQuery] = useState("");
-  const [listOpen, setListOpen] = useState(true);
   const [navigationWidth, setNavigationWidth] = useState(() => {
     try {
       const saved = Number(localStorage.getItem("zcode:workspace-shell:sidebar-width-px"));
@@ -127,13 +130,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const workspace = source.resolveWorkspace(ai.view, ai.selection);
   const scope = { workspacePath: workspace.path ?? "", workspaceIdentity: workspace.identity };
-  const drafts =
-    ai.view?.drafts.filter(
-      (item) =>
-        item.projectId === ai.selection.projectId &&
-        item.releaseId === ai.releaseId &&
-        !item.pendingFirstMessage,
-    ) ?? [];
   const navigate = (action: () => void) =>
     ai.navigate(() => {
       setSettingsOpen(false);
@@ -149,12 +145,13 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       ai.navigate(() => {
         if (section) commitSettingsSection(section);
         setSettingsOpen(true);
+        setSettingsMounted(true);
       }),
     [ai, commitSettingsSection],
   );
   const openModelSettings = useCallback(() => openSettings("models"), [openSettings]);
   const closeSettings = () => {
-    // 修复：设置仅覆盖已挂载业务页；强制切 chat 会丢失分析或 Skill 页的返回位置。
+    // 设置覆盖层关闭后仍保持设计会话与原生 composer 挂载。
     setSettingsOpen(false);
   };
   const openHelp = (returnFocusTo?: HTMLButtonElement | null) =>
@@ -177,7 +174,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
     ai.selectionReady &&
     !ai.error &&
     proposal &&
-    (proposalDeliveryCurrent(proposal) || proposal.status === "requirements-pr") &&
+    (proposalProgressIndex(proposal, ai.selection) === 3) &&
     (ai.selection.proposalStep === "intake" ||
       (!ai.selection.proposalStep && !ai.selection.discussionPhase));
   const resizeNavigation = (width: number, remember = false) => {
@@ -198,12 +195,13 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
     setMaterialsOpen((open) => !open);
   };
   const formal =
-    ai.mainView === "chat" &&
-    Boolean(
-      ai.selection.formalView || ai.view?.groups.some((item) => item.id === ai.selection.irId),
-    );
+    ai.mainView === "formal" ||
+    (ai.mainView === "chat" && Boolean(ai.selection.formalView || ai.view?.groups.some((item) => item.id === ai.selection.irId)));
   let content;
-  if (!project && ai.view)
+  if (ai.mainView === "projectProgress")
+    content = <AIReqProjectProgressPage onManageProjects={() => openSettings("projects")} />;
+  else if (ai.mainView === "todos") content = <AIReqTodoPage />;
+  else if (!project && ai.view)
     content = (
       <div className="m-auto p-6 text-foreground-subtle">
         尚无项目，请在项目设置中添加名称、远程仓库与默认分支。
@@ -212,19 +210,9 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
         </Button>
       </div>
     );
-  else if (ai.mainView === "automations") content = <AIReqAutomations {...scope} />;
-  else if (ai.mainView === "skillDesign") content = <AIReqSkillDesignPage />;
   else if (ai.mainView === "requirementAnalysis")
     content = <AIReqRequirementAnalysisPage onOpenModelSettings={openModelSettings} />;
-  else if (!ai.releaseId && ai.view)
-    content = (
-      <div className="m-auto p-6 text-foreground-subtle">
-        当前项目尚无 Release。
-        <Button variant="outline" onClick={() => openSettings("projects")}>
-          管理 Release
-        </Button>
-      </div>
-    );
+  else if (ai.mainView === "proposals") content = <AIReqProposalTable />;
   else if (formal) content = <AIReqFormalWorkspace />;
   else
     content = (
@@ -238,7 +226,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                 className="min-w-0 flex-1 truncate text-ui-base font-medium"
                 title={proposal?.title}
               >
-                {proposal?.title ?? (ai.selection.proposalDraftId ? "新建需求提案" : "AIReq")}
+                {proposal?.title ?? "AIReq"}
               </span>
               {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
               <Button
@@ -256,9 +244,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
               </Button>
             </div>
             {ai.selection.irId && <AIReqStageHeader />}
-            {ai.selection.proposalDraftId ? (
-              <AIReqProposalDraftComposer />
-            ) : ai.selection.srId &&
+            {ai.selection.srId &&
               proposal &&
               ai.view?.srs.some(
                 (item) =>
@@ -321,7 +307,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
               </div>
             ) : (
               <div className="m-auto p-6 text-foreground-subtle">
-                选择需求提案或新建提案开始讨论。
+                请从需求提案表进入讨论。
               </div>
             )}
           </div>
@@ -382,23 +368,8 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           className="flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
         >
           <WorkspaceSidebarToolbar {...toolbar} />
-          {/* 功能导航和提案列表共用滚动区，矮窗口不能把剩余列表高度挤到零。 */}
           <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
             <div className="flex flex-col gap-1 px-2 py-3">
-              {/* 修复：入口随服务端动作能力展示，不能向无创建权限的访问者暴露可点击命令。 */}
-              {source.capabilities.workflowCommands.includes("createProposal") && (
-                <Button
-                  data-testid="new-requirement"
-                  className="w-full justify-start gap-2 text-ui-base font-normal"
-                  size="lg"
-                  variant="ghost"
-                  disabled={ai.pending || !project || !ai.releaseId}
-                  onClick={() => navigate(ai.startProposalDraft)}
-                >
-                  <MessageCirclePlus className="size-4" />
-                  新建需求提案
-                </Button>
-              )}
               {pages.map((page) => (
                 <Button
                   key={page.view}
@@ -409,35 +380,9 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   onClick={() => navigate(() => ai.setMainView(page.view))}
                 >
                   <page.icon className="size-4" />
-                  {page.label}
+                  {zh ? page.label : page.labelEn}
                 </Button>
               ))}
-              <Button
-                variant="ghost"
-                size="lg"
-                className={`w-full justify-start gap-2 ${formal && !settings ? "bg-selected" : ""}`}
-                aria-pressed={formal && !settings}
-                disabled={!project}
-                onClick={() =>
-                  navigate(() =>
-                    ai.select({ projectId: ai.selection.projectId, formalView: "list" }),
-                  )
-                }
-              >
-                <TableProperties className="size-4" />
-                正式需求
-              </Button>
-            </div>
-            <div className="border-t border-border/50 py-3">
-              <AIReqRequirementList
-                title="需求提案"
-                groups={drafts}
-                open={listOpen}
-                onOpenChange={setListOpen}
-                onSearch={() => setSearch(true)}
-                onNavigate={() => ai.navigate(() => setSettingsOpen(false))}
-                automationsActive={Boolean(settings) || ai.mainView !== "chat" || formal}
-              />
             </div>
           </div>
           <AIReqWorkspaceFooter
@@ -486,8 +431,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           }}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-          {/* 修复：自动化自持面包屑顶栏，不能再叠加业务页的 48px 留白。 */}
-          {ai.mainView !== "chat" && ai.mainView !== "automations" && (
+          {ai.mainView !== "chat" && (
             <div className="h-12 shrink-0 bg-background" />
           )}
           {ai.error && (
@@ -522,25 +466,27 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           </ModelSettingsNavigationContext.Provider>
         </div>
       </div>
-      {settings && (
-        <AIReqSettingsPage
-          section={settings}
-          onSectionChange={commitSettingsSection}
-          onClose={closeSettings}
-          onManageProjects={() => openSettings("projects")}
-          onHelp={openHelp}
-          onLogout={logout}
-          onNavigationGuardChange={guardChange}
-        />
+      {settingsMounted && (
+        <div
+          hidden={!settingsOpen}
+          inert={!settingsOpen}
+          aria-hidden={!settingsOpen}
+          className={settingsOpen ? "flex min-h-0 flex-1 flex-col" : "hidden"}
+        >
+          <ModelSettingsNavigationContext.Provider value={openModelSettings}>
+            <AIReqSettingsPage
+              active={settingsOpen}
+              section={settingsSection}
+              onSectionChange={commitSettingsSection}
+              onClose={closeSettings}
+              onManageProjects={() => openSettings("projects")}
+              onHelp={openHelp}
+              onLogout={logout}
+              onNavigationGuardChange={guardChange}
+            />
+          </ModelSettingsNavigationContext.Provider>
+        </div>
       )}
-      <AIReqRequirementSearch
-        scope="proposals"
-        open={search}
-        onOpenChange={setSearch}
-        query={query}
-        onQueryChange={setQuery}
-        onNavigate={() => ai.navigate(() => setSettingsOpen(false))}
-      />
       <AIReqWorkflowHelp open={help} onOpenChange={setHelp} returnFocusRef={helpReturnFocus} />
     </div>
   );

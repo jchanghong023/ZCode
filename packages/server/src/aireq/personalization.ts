@@ -1,4 +1,3 @@
-import { requirePrototypeSettingsWrite } from "./backend.js";
 import { readPrototypeAgentModels } from "./agent-models.js";
 export interface PrototypeAgentPrompts {
   [agentId: string]: string;
@@ -21,7 +20,6 @@ export function savePrototypeAgentPrompts(
   value: PrototypeAgentPrompts,
   expectedRevision: number,
 ): void {
-  requirePrototypeSettingsWrite();
   validate(value);
   if (expectedRevision !== revision)
     throw Object.assign(new Error("追加指令版本已变化，请重新读取。"), {

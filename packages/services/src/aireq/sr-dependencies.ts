@@ -14,7 +14,7 @@ export function readSrDependencies(
   material = group.srDependencyFile,
   requireEstimates = true,
 ): { document?: AIReqSrDependencyDocument; issue?: string } {
-  const root = group.documentPath.replace(/proposal\.md$/, "");
+  const root = `docs/requirements/${group.id}/`;
   if (
     !material ||
     material.path !== `${root}sr-dependencies.json` ||

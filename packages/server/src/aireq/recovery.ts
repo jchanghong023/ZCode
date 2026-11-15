@@ -7,7 +7,7 @@ export type PrototypeRecoveryScenario = (typeof PROTOTYPE_RECOVERY_SCENARIOS)[nu
 export const prototypeRecoveryScenario = PROTOTYPE_RECOVERY_SCENARIOS.find(
   (value) => value === process.env.AIREQ_DEMO,
 );
-const defaultMaterial = "openspec/changes/add-automation-workflows/proposal.md";
+const defaultMaterial = "docs/requirements/draft-automation/requirements.md";
 const defaultSession = "demo-aurora-draft-automation-ir-requirements";
 const recoveredMaterials = new Set<string>();
 const recoveredSessions = new Set<string>();

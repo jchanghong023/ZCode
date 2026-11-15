@@ -1,9 +1,3 @@
-import type {
-  NativeTaskRunsRequest,
-  NativeTaskRunsSnapshot,
-  NativeTaskOutputRequest,
-  NativeTaskOutputContent,
-} from "./native-task-runs.js";
 import type { SkillSummary } from "@zcode/shared";
 import type {
   AIReqBackendView,
@@ -40,6 +34,13 @@ import type {
   AIReqAnalysisRunSummary,
   AIReqAnalysisRun,
 } from "./progress-scheduler.js";
+import type {
+  AIReqTestAcceptanceInput,
+  AIReqBranchCleanupInput,
+  AIReqBranchCleanupItem,
+  AIReqCodeMergeInput,
+  AIReqVersionedProgressInput,
+} from "./progress.js";
 
 /** Typed operations on the existing binary Channel RPC. */
 export const AIREQ_CONTRACT_VERSION = 3;
@@ -77,8 +78,6 @@ interface Operation<A extends unknown[], R> {
 
 /** Explicit reachable operation allowlist. Absent top-level results are null. */
 export interface AIReqRemoteOperations {
-  "nativeTasks.listRuns": Operation<[request: NativeTaskRunsRequest], NativeTaskRunsSnapshot>;
-  "nativeTasks.readOutput": Operation<[request: NativeTaskOutputRequest], NativeTaskOutputContent>;
   readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[group: AIReqWorkflowView["groups"][number]], AIReqPrHandoff>;
   command: Operation<
@@ -87,9 +86,16 @@ export interface AIReqRemoteOperations {
   >;
   retryMaterial: Operation<[path: string, selection: AIReqSelection], boolean>;
   retrySession: Operation<[selection: AIReqSelection], null>;
-  "progress.assignOwner": Operation<[projectId: string, irId: string, employeeId: string], null>;
-  "progress.updateSr": Operation<
-    [projectId: string, irId: string, srId: string, percent: number, reason: string],
+  "progress.recordTest": Operation<
+    [projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput],
+    null
+  >;
+  "progress.cleanupPreview": Operation<
+    [projectId: string, irId: string],
+    AIReqBranchCleanupItem[]
+  >;
+  "progress.cleanupBranches": Operation<
+    [projectId: string, irId: string, input: AIReqBranchCleanupInput],
     null
   >;
   "planning.updateSr": Operation<
@@ -129,6 +135,20 @@ export interface AIReqRemoteOperations {
     [projectId: string, irId: string, scenario: AIReqProposalMergeScenario],
     null
   >;
+  "prototype.setProposalReviewScenario": Operation<
+    [projectId: string, irId: string, kind: "original" | "full", scenario: "normal" | "blocked" | "failed" | "hold"],
+    null
+  >;
+  "prototype.releaseProposalReviewResults": Operation<[projectId: string, irId: string], null>;
+  "prototype.failNextBranchCreation": Operation<[projectId: string, irId: string, srId: string], null>;
+  "prototype.simulateCodeMerge": Operation<
+    [projectId: string, irId: string, srId: string, input: AIReqCodeMergeInput],
+    null
+  >;
+  "prototype.failNextBranchCleanup": Operation<
+    [projectId: string, irId: string, srId: string, input: AIReqVersionedProgressInput],
+    null
+  >;
   "prototype.readPrHandoff": Operation<
     [group: AIReqWorkflowView["groups"][number], scenario?: AIReqPrHandoffScenario],
     AIReqPrHandoff
@@ -147,6 +167,10 @@ export interface AIReqRemoteOperations {
   "progressScheduler.configure": Operation<[enabled: boolean, intervalMinutes: number], null>;
   "progressScheduler.runNow": Operation<[filter: AIReqAnalysisFilter], null>;
   "progressScheduler.advance": Operation<[], null>;
+  "progressScheduler.setScenario": Operation<
+    [filter: AIReqAnalysisFilter, scenario: "normal" | "fail-next" | "hold-next" | "release-held"],
+    null
+  >;
 }
 export type AIReqRemotePath = keyof AIReqRemoteOperations;
 export type AIReqRemoteArgs<P extends AIReqRemotePath> = AIReqRemoteOperations[P]["args"];

@@ -121,7 +121,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     private readonly runtime: MockRuntime,
     private readonly business?: {
       admitNative(sessionId: string, commandId: string, text: string): void;
-      publishNativeAdmission(sessionId: string): void;
       completeNative(sessionId: string, commandId: string, text: string): string;
       seedNative(sessionId: string): string | undefined;
       getNativeBinding(
@@ -135,25 +134,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         original: () => boolean,
         exists: () => boolean,
       ): void;
-      automations?: Partial<IZCodeAgentService>;
     },
-  ) {
-    for (const name of [
-      "listAutomations",
-      "listAllAutomations",
-      "createAutomation",
-      "updateAutomation",
-      "deleteAutomation",
-      "setAutomationEnabled",
-      "restartAutomation",
-      "runAutomationNow",
-      "listAutomationRuns",
-      "deleteAutomationRun",
-    ] as const) {
-      const method = business?.automations?.[name];
-      if (method) Object.assign(this, { [name]: method });
-    }
-  }
+  ) {}
 
   // ── 帧发射 ──
 
@@ -989,7 +971,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       const item = this.createQueueItem(session, envelope, payload.text);
       session.queuedInputs.push(item);
       this.patchQueue(session);
-      this.business?.publishNativeAdmission(session.sessionId);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
         delivery: "queue",
@@ -997,7 +978,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       });
     }
     this.startTurn(session, envelope.commandId, payload.text, undefined, payload);
-    this.business?.publishNativeAdmission(session.sessionId);
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",

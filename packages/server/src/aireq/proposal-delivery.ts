@@ -3,7 +3,7 @@ import {
   proposalVersion,
   proposalDeliveryCurrent,
   hasCurrentProposalSolution,
-  requirementsReviewBlocker,
+  alignmentBlocker,
 } from "@zcode/services/aireq";
 import { proposalDependencyMaterialIssue } from "@zcode/services/aireq";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
@@ -12,7 +12,6 @@ import type {
   AIReqRequirementGroup,
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
-import { prototypeProposalDiscussionAllowed } from "./backend.js";
 
 export type PrototypeProposalDeliveryAction = Extract<
   AIReqAction,
@@ -77,9 +76,7 @@ export function validatePrototypeProposalDeliveryAction(
   group: AIReqRequirementGroup,
   action: PrototypeProposalDeliveryAction,
 ): void {
-  if (!prototypeProposalDiscussionAllowed())
-    throw new Error("当前 Web 仅支持只读查看提案，请使用团队 Web 进行需求确认与入库操作。");
-  const blocker = requirementsReviewBlocker(group);
+  const blocker = alignmentBlocker(group);
   if (blocker) throw new Error(blocker);
   const dependencyIssue = proposalDependencyMaterialIssue(group, view.materials);
   if (dependencyIssue) throw new Error(dependencyIssue);

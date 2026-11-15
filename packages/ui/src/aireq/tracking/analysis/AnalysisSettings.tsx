@@ -40,7 +40,6 @@ export function AnalysisSettings({
   setProjectSearch,
   interval,
   setInterval,
-  canManage,
   pending,
   message,
   mutate,
@@ -54,7 +53,6 @@ export function AnalysisSettings({
   setProjectSearch: (value: string) => void;
   interval: string;
   setInterval: (value: string) => void;
-  canManage: boolean;
   pending: boolean;
   message: string;
   mutate: (action: () => void | Promise<void>, success: string) => Promise<void>;
@@ -161,7 +159,6 @@ export function AnalysisSettings({
                       <MarkdownTableCell className={cellClass}>
                         <Switch
                           checked={project.enabled}
-                          disabled={!canManage}
                           aria-label={`启用${project.name}进度分析`}
                           onCheckedChange={(enabled) =>
                             mutate(
@@ -233,10 +230,9 @@ export function AnalysisSettings({
                     id="analysis-interval-preset"
                     label="间隔预设"
                     className="w-32"
-                    disabled={!canManage}
                     value={presets.includes(minutes) ? String(minutes) : "custom"}
                     onChange={(value) => {
-                      if (canManage) setInterval(value === "custom" ? "" : value);
+                      setInterval(value === "custom" ? "" : value);
                     }}
                   >
                     <SelectItem value="custom">自定义</SelectItem>
@@ -252,7 +248,6 @@ export function AnalysisSettings({
                     min="1"
                     step="1"
                     value={interval}
-                    disabled={!canManage}
                     onChange={(event) => setInterval(event.target.value)}
                     aria-invalid={!validInterval}
                     aria-describedby="analysis-interval-help"
@@ -262,7 +257,7 @@ export function AnalysisSettings({
                   <Button
                     size="sm"
                     type="submit"
-                    disabled={!canManage || !validInterval || minutes === snapshot.intervalMinutes}
+                    disabled={!validInterval || minutes === snapshot.intervalMinutes}
                   >
                     保存间隔
                   </Button>

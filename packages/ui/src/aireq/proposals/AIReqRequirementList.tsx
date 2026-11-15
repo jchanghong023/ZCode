@@ -42,7 +42,7 @@ export function AIReqRequirementList({
   groups,
   onSearch,
   onNavigate,
-  automationsActive,
+  workspaceInactive,
   open,
   onOpenChange,
 }: {
@@ -52,7 +52,7 @@ export function AIReqRequirementList({
   groups: AIReqRequirementGroup[];
   onSearch(): void;
   onNavigate?: () => void;
-  automationsActive?: boolean;
+  workspaceInactive?: boolean;
 }) {
   const aireq = useAIReq()!;
   const source = useOptionalAIReqDataSource();
@@ -249,7 +249,7 @@ export function AIReqRequirementList({
         <div className="px-2">
           {visibleGroups.map((group) => {
             const selected =
-              !automationsActive && aireq.selection.irId === group.id && !aireq.selection.srId;
+              !workspaceInactive && aireq.selection.irId === group.id && !aireq.selection.srId;
             const intakeIssue = proposalNeedsAttention(group);
             const processingHint = proposalProcessingHint(group);
             const processingLabel = intakeIssue

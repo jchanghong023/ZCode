@@ -68,7 +68,7 @@ export function AIReqFormalTable() {
       </div>
     );
   const groups = view.groups.filter(
-    (group) => group.projectId === aireq.selection.projectId && group.releaseId === aireq.releaseId,
+    (group) => group.projectId === aireq.selection.projectId && (!aireq.releaseId || group.releaseId === aireq.releaseId),
   );
   const normalized = query.trim().toLocaleLowerCase();
   const open = (group: AIReqRequirementGroup, sr?: AIReqSystemRequirement) =>
@@ -83,7 +83,7 @@ export function AIReqFormalTable() {
   const visible = groups.filter((group) => {
     const rows = irSrs(view, group);
     return (
-      (matches(group.id, group.title) || rows.some((sr) => matches(sr.id, sr.title))) &&
+      (matches(group.id, group.originalText ?? group.title) || rows.some((sr) => matches(sr.id, sr.title))) &&
       (status === "all" ||
         irProgressStatus(rows) === status ||
         rows.some((sr) => srProgressStatus(sr) === status))
@@ -116,7 +116,7 @@ export function AIReqFormalTable() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <Select value={aireq.selection.projectId ?? ""} onValueChange={aireq.switchProject}>
+            <Select value={aireq.selection.projectId ?? ""} onValueChange={(id) => aireq.navigate(() => aireq.switchProject(id))}>
               <SelectTrigger className="h-9 w-36 rounded-lg bg-surface" aria-label="正式需求项目">
                 <SelectValue placeholder="选择项目" />
               </SelectTrigger>
@@ -128,12 +128,13 @@ export function AIReqFormalTable() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={aireq.releaseId} onValueChange={aireq.setReleaseId}>
+            <Select value={aireq.releaseId || "all"} onValueChange={(value) => aireq.navigate(() => aireq.setReleaseId(value === "all" ? "" : value))}>
               <SelectTrigger className="h-9 w-40 rounded-lg bg-surface" aria-label="正式需求版本">
                 <SelectValue placeholder="选择版本" />
               </SelectTrigger>
               <SelectContent>
-                {view.releases.map((item) => (
+                <SelectItem value="all">全部 Release</SelectItem>
+                {view.releases.filter((item) => item.projectId === aireq.selection.projectId).map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.title}
                   </SelectItem>
@@ -185,7 +186,7 @@ export function AIReqFormalTable() {
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
-                {["需求", "状态与问题", "人员与计划", "操作"].map((title, index) => (
+                {["原始需求／SR 与 Release", "状态、进度与最新审查", "负责人及计划", "操作"].map((title, index) => (
                   <MarkdownTableHead
                     key={title}
                     scope="col"
@@ -208,7 +209,7 @@ export function AIReqFormalTable() {
             <MarkdownTableBody>
               {visible.map((group) => {
                 const srs = irSrs(view, group);
-                const groupMatches = matches(group.id, group.title);
+                const groupMatches = matches(group.id, group.originalText ?? group.title);
                 const children = srs.filter(
                   (sr) =>
                     (groupMatches || matches(sr.id, sr.title)) &&
@@ -231,7 +232,7 @@ export function AIReqFormalTable() {
                 const developers = [
                   ...new Set(
                     srs.flatMap((sr) =>
-                      sr.planning?.developerEmployeeId ? [sr.planning.developerEmployeeId] : [],
+                      sr.developerEmployeeId ? [sr.developerEmployeeId] : [],
                     ),
                   ),
                 ];
@@ -285,7 +286,7 @@ export function AIReqFormalTable() {
                           </Button>
                           <FileText className="mt-1 size-4 shrink-0 text-foreground-subtle" />
                           <div className="min-w-0 flex-1">
-                            <ControlHintTooltip title={group.title}>
+                            <ControlHintTooltip title={group.originalText ?? group.title}>
                               <Button
                                 variant="link"
                                 className="h-auto w-full max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
@@ -294,12 +295,13 @@ export function AIReqFormalTable() {
                                   open(group);
                                 }}
                               >
-                                <span className="line-clamp-2">{group.title}</span>
+                                <span className="line-clamp-2">{group.originalText ?? group.title}</span>
                               </Button>
                             </ControlHintTooltip>
                             <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
+                              {" · "}{view.releases.find((release) => release.id === group.releaseId)?.title ?? group.releaseId}
                             </p>
                           </div>
                         </div>
@@ -388,6 +390,15 @@ export function AIReqFormalTable() {
                                 status={srProgressStatus(sr)}
                               />
                               <IssueCount issues={sr.progress?.issues ?? []} />
+                              <p className="mt-1 line-clamp-2 text-ui-sm text-foreground-subtle">
+                                最新审查：{sr.progress ? sr.progress.issues[0]?.title ?? "当前报告无阻断问题" : "尚未分析"}
+                              </p>
+                              {sr.lastAnalysisFailure && <p className="text-ui-sm text-destructive">最近分析失败，保留旧报告</p>}
+                              {sr.progress?.stale && <p className="text-ui-sm text-foreground-subtle">报告已过期，等待当前版本分析</p>}
+                              <p className="break-all text-ui-sm text-foreground-subtle">
+                                {sr.trackingBranch?.name ?? "分支缺失"}{sr.trackingBranch?.status === "deleted" ? "（已清理，模拟）" : ""}
+                              </p>
+                              {sr.trackingBranch?.error && <p className="text-ui-sm text-destructive">{sr.trackingBranch.error}</p>}
                               {!sr.trackingBranch?.name?.trim() && (
                                 <p role="alert" className="mt-1 text-ui-sm text-destructive">
                                   开发分支缺失
@@ -396,7 +407,7 @@ export function AIReqFormalTable() {
                             </MarkdownTableCell>
                             <MarkdownTableCell className="px-4 py-3 align-middle">
                               <p className="break-words text-ui-sm">
-                                开发：{sr.planning?.developerEmployeeId ?? "未分配"}
+                                开发：{sr.developerEmployeeId ?? "待认领"} · 测试：{sr.testingEmployeeId ?? "待认领"}
                               </p>
                               <PlanRange
                                 start={sr.planning?.plannedStart}
@@ -424,11 +435,11 @@ export function AIReqFormalTable() {
             <p role="status" className="py-12 text-center text-ui-sm text-foreground-subtle">
               {!aireq.selection.projectId
                 ? "请先选择项目。"
-                : !aireq.releaseId
-                  ? "当前项目尚无 Release，请先创建版本。"
+                : !view.releases.length
+                  ? "当前项目尚无 Release，请在设置中创建。"
                   : groups.length
                     ? "没有符合条件的需求。"
-                    : "当前版本尚无正式需求。"}
+                    : "当前范围暂无正式需求。"}
             </p>
           )}
         </TrackingTableScroll>
@@ -537,6 +548,7 @@ function FormalActions({
   onMessage: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const aireq = useAIReq()!;
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
@@ -576,7 +588,11 @@ function FormalActions({
           {sr && (
             <>
               <AIReqEditPlanning group={group} sr={sr} onDialogOpenChange={setDialogOpen} />
-              {sr.trackingBranch?.name?.trim() && (
+              {sr.trackingBranch?.status === "failed" && !sr.trackingBranch.pushedAt && <Button
+                size="sm" variant="outline" disabled={aireq.pending}
+                onClick={() => void aireq.command({ type: "retrySrBranch", projectId: group.projectId, irId: group.id, srId: sr.id })}
+              >重试创建开发分支（模拟）</Button>}
+              {sr.trackingBranch?.name?.trim() && sr.trackingBranch.status !== "deleted" && (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) && (
                 <BranchCopy branch={sr.trackingBranch.name} onMessage={onMessage} />
               )}
             </>
@@ -597,15 +613,12 @@ const formalDetailPanels = ["formal-table", "formal-inspector"];
 
 export function AIReqFormalWorkspace() {
   const aireq = useAIReq()!;
-  const detail =
-    aireq.selection.formalView === "detail" ||
-    (aireq.selection.formalView !== "list" &&
-      Boolean(
-        aireq.view?.groups.some(
-          (group) =>
-            group.projectId === aireq.selection.projectId && group.id === aireq.selection.irId,
-        ),
-      ));
+  const detail = aireq.selection.formalView !== "list" && Boolean(
+    aireq.view?.groups.some((group) =>
+      group.projectId === aireq.selection.projectId && group.id === aireq.selection.irId &&
+      (!aireq.releaseId || group.releaseId === aireq.releaseId),
+    ),
+  );
   return (
     <ResizablePanelGroup
       layoutId="aireq-formal-progress-layout-v4"

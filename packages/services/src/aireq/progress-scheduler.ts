@@ -2,6 +2,7 @@ import type { AIReqAgentModelBinding, AIReqProgressAnalysis } from "./types.js";
 
 export interface AIReqAnalysisFilter {
   projectId?: string;
+  releaseId?: string;
   irId?: string;
   srId?: string;
   srSearch?: string;
@@ -18,6 +19,7 @@ export interface AIReqAnalysisProject {
 export interface AIReqAnalysisTask {
   id: string;
   projectId: string;
+  releaseId?: string;
   irId: string;
   irTitle: string;
   srId: string;
@@ -35,6 +37,7 @@ export interface AIReqAnalysisRunSummary {
   batchId: string;
   taskId: string;
   projectId: string;
+  releaseId?: string;
   irId: string;
   srId: string;
   srTitle: string;
@@ -81,7 +84,7 @@ export interface AIReqAnalysisSnapshot {
   currentTime?: string;
   lastCheckAt?: string;
   projects: AIReqAnalysisProject[];
-  irs: { projectId: string; id: string; title: string }[];
+  irs: { projectId: string; releaseId?: string; id: string; title: string }[];
   tasksTotal: number;
   runsTotal: number;
   scaleDemo: boolean;
@@ -106,6 +109,10 @@ export interface AIReqProgressScheduler {
   setProjectEnabled(projectId: string, enabled: boolean): void | Promise<void>;
   configure(enabled: boolean, intervalMinutes: number): void | Promise<void>;
   runNow(filter: AIReqAnalysisFilter): void | Promise<void>;
+  setScenario(
+    filter: AIReqAnalysisFilter,
+    scenario: "normal" | "fail-next" | "hold-next" | "release-held",
+  ): void | Promise<void>;
   advance(): void | Promise<void>;
   dispose(): void;
 }

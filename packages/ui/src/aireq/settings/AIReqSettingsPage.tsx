@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folders, Package, Palette, User, HelpCircle } from "lucide-react";
+import { ArrowLeft, Folders, Package, Palette, User, HelpCircle, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -25,35 +25,47 @@ import {
 } from "@/settings-search/index.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { AIReqWorkspaceFooter } from "../shell/AIReqWorkspaceFooter.js";
-import { AIReqAgentModelSettings, type AIReqModelDraftActions } from "./AIReqAgentModelSettings.js";
+import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings } from "./AIReqProjectSettings.js";
+import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
+import { AIReqWorkspaceActiveContext } from "../shell/ModelSettingsNavigationContext.js";
+import type { AIReqSettingsDraftActions } from "../contract.js";
 
-export type AIReqSettingsSection = "appearance" | "projects" | "models" | "personalization";
+export type AIReqSettingsSection =
+  | "appearance"
+  | "projects"
+  | "models"
+  | "personalization"
+  | "skillDesign";
 export type AIReqNavigationGuard = (navigate: () => void) => void;
 const titles: Record<AIReqSettingsSection, string> = {
   appearance: "外观",
   projects: "AIReq 项目与 Release",
   models: "模型设置",
   personalization: "个性化",
+  skillDesign: "Skill 设计",
 };
 const icons = {
   appearance: Palette,
   projects: Folders,
   models: Package,
   personalization: User,
+  skillDesign: WandSparkles,
 };
 const searchSections = [
   { id: "appearance", label: titles.appearance },
   { id: "general", label: titles.projects, includeSettings: false },
   { id: "modelProvider", label: titles.models, includeSettings: false },
   { id: "personalization", label: titles.personalization, includeSettings: false },
+  { id: "skill", label: titles.skillDesign, includeSettings: false },
 ] as const;
 const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
   appearance: "appearance",
   general: "projects",
   modelProvider: "models",
   personalization: "personalization",
+  skill: "skillDesign",
 };
 
 function Appearance() {
@@ -83,6 +95,7 @@ function Appearance() {
 }
 
 export function AIReqSettingsPage({
+  active,
   onClose,
   section,
   onSectionChange,
@@ -91,6 +104,7 @@ export function AIReqSettingsPage({
   onLogout,
   onNavigationGuardChange,
 }: {
+  active: boolean;
   onClose: () => void;
   section: AIReqSettingsSection;
   onSectionChange: (section: AIReqSettingsSection) => void;
@@ -99,21 +113,39 @@ export function AIReqSettingsPage({
   onLogout: () => void;
   onNavigationGuardChange?: (guard: AIReqNavigationGuard | null) => void;
 }) {
-  const actions = useRef<AIReqModelDraftActions | null>(null);
+  const actions = useRef<{
+    form: AIReqSettingsDraftActions | null;
+    skill: AIReqSettingsDraftActions | null;
+  }>({ form: null, skill: null });
   const pending = useRef<(() => void) | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [canSave, setCanSave] = useState(false);
+  const [canDiscard, setCanDiscard] = useState(true);
+  const [skillMounted, setSkillMounted] = useState(section === "skillDesign");
   const [error, setError] = useState("");
   const [searchTarget, setSearchTarget] = useState<{ id: SettingsSearchId } | null>(null);
-  const onDraftActionsChange = useCallback((next: AIReqModelDraftActions | null) => {
-    actions.current = next;
-    setCanSave(Boolean(next && next.canSave !== false));
-  }, []);
+  const updateActions = useCallback(
+    (kind: "form" | "skill", next: AIReqSettingsDraftActions | null) => {
+      actions.current[kind] = next;
+      const { form, skill } = actions.current;
+      setCanSave(form?.canSave !== false && skill?.canSave !== false);
+      setCanDiscard(form?.canDiscard !== false && skill?.canDiscard !== false);
+    },
+    [],
+  );
+  const onDraftActionsChange = useCallback(
+    (next: AIReqSettingsDraftActions | null) => updateActions("form", next),
+    [updateActions],
+  );
+  const onSkillDraftActionsChange = useCallback(
+    (next: AIReqSettingsDraftActions | null) => updateActions("skill", next),
+    [updateActions],
+  );
   const guard = useCallback<AIReqNavigationGuard>((navigate) => {
     if (pending.current) return;
-    if (!actions.current) {
+    if (!actions.current.form && !actions.current.skill) {
       navigate();
       return;
     }
@@ -122,25 +154,40 @@ export function AIReqSettingsPage({
     setConfirm(true);
   }, []);
   useEffect(() => {
+    if (!active) return;
     onNavigationGuardChange?.(guard);
     return () => onNavigationGuardChange?.(null);
-  }, [guard, onNavigationGuardChange]);
+  }, [active, guard, onNavigationGuardChange]);
   const finish = useCallback(() => {
     const next = pending.current;
     pending.current = null;
-    actions.current = null;
+    actions.current.form = null;
+    actions.current.skill = null;
     setConfirm(false);
     next?.();
   }, []);
   // 快捷键曾绕过门禁结算；所有入口共用保存动作与同步忙锁，成功后仅消费一次 pending。
   const save = useCallback(async () => {
     const current = actions.current;
-    if (busyRef.current || !current || current.canSave === false) return;
+    if (
+      busyRef.current ||
+      current.form?.canSave === false ||
+      current.skill?.canSave === false
+    )
+      return;
+    // 说明自动保存可能在确认框打开后完成；已无脏动作时直接结算原导航。
+    if (!current.form && !current.skill) {
+      if (pending.current) finish();
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setError("");
     try {
-      if (await current.save()) {
+      if (
+        (!current.form || (await current.form.save())) &&
+        (!current.skill || (await current.skill.save()))
+      ) {
         if (pending.current) finish();
       } else {
         setError("保存失败，请检查当前权限、大小限制或连接状态后重试。");
@@ -153,8 +200,12 @@ export function AIReqSettingsPage({
     }
   }, [finish]);
   useEffect(() => {
+    if (section === "skillDesign") setSkillMounted(true);
+  }, [section]);
+  useEffect(() => {
+    if (!active) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!actions.current) return;
+      if (!actions.current.form && !actions.current.skill) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -169,7 +220,7 @@ export function AIReqSettingsPage({
       window.removeEventListener("beforeunload", beforeUnload);
       window.removeEventListener("keydown", saveShortcut);
     };
-  }, [save]);
+  }, [active, save]);
   const navigate = (next: AIReqSettingsSection) => {
     if (next === section) return;
     guard(() => {
@@ -220,7 +271,7 @@ export function AIReqSettingsPage({
           <div className="space-y-4 compact-web:flex compact-web:items-center compact-web:gap-2 compact-web:space-y-0">
             {(
               [
-                ["个人工具", ["appearance"]],
+                ["个人工具", ["appearance", "skillDesign"]],
                 ["平台配置", ["projects", "models", "personalization"]],
               ] as const
             ).map(([group, entries], index) => (
@@ -267,23 +318,49 @@ export function AIReqSettingsPage({
           </Button>
         }
       >
-        <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "flex flex-col gap-8")}>
+        <main
+          className={
+            section === "skillDesign"
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+              : "min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+          }
+        >
+          <div
+            className={cn(
+              SETTINGS_FRAME_CONTENT_CLASSNAME,
+              section === "skillDesign" ? "max-w-7xl pb-3 lg:pb-3" : "flex flex-col gap-8",
+            )}
+          >
             <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
               {titles[section]}
             </h2>
-            <div className="space-y-8">
+            <div className={section === "skillDesign" ? "hidden" : "space-y-8"}>
               {section === "appearance" ? (
                 <Appearance />
               ) : section === "projects" ? (
                 <AIReqProjectSettings />
               ) : section === "models" ? (
                 <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
-              ) : (
+              ) : section === "personalization" ? (
                 <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
-              )}
+              ) : null}
             </div>
           </div>
+          {skillMounted && (
+            <div
+              hidden={section !== "skillDesign"}
+              inert={section !== "skillDesign" || !active}
+              aria-hidden={section !== "skillDesign"}
+              className={section === "skillDesign" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
+            >
+              <AIReqWorkspaceActiveContext.Provider value={active && section === "skillDesign"}>
+                <AIReqSkillDesignPage
+                  active={active && section === "skillDesign"}
+                  onDraftActionsChange={onSkillDraftActionsChange}
+                />
+              </AIReqWorkspaceActiveContext.Provider>
+            </div>
+          )}
         </main>
       </SettingsPageFrame>
       <Dialog
@@ -299,7 +376,7 @@ export function AIReqSettingsPage({
           <DialogHeader>
             <DialogTitle>保存更改？</DialogTitle>
             <DialogDescription>
-              当前配置尚未保存。保存成功后才会离开；取消将保留所有草稿。
+              当前更改尚未保存。保存成功后才会离开；取消将保留所有草稿。Skill 丢弃仅放弃本版确认保存，保留临时预览、未发送正文与附件。
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -320,9 +397,12 @@ export function AIReqSettingsPage({
             </Button>
             <Button
               variant="outline"
-              disabled={busy}
+              disabled={busy || !canDiscard}
               onClick={() => {
-                actions.current?.discard();
+                const { form, skill } = actions.current;
+                if (form?.canDiscard === false || skill?.canDiscard === false) return;
+                form?.discard();
+                skill?.discard();
                 finish();
               }}
             >

@@ -1,7 +1,22 @@
-import { srCompletionBlocker } from "@zcode/services/aireq";
-import type { AIReqProgressAnalysis, AIReqWorkflowView } from "@zcode/services/aireq";
-import { getEmployeeId, isEmployeeId } from "./identity.js";
-import { getPrototypeWorkflow, prototypeWorkflowChanges } from "./workflow.js";
+import { createHash } from "node:crypto";
+import { srCompletionBlocker, srProgress } from "@zcode/services/aireq";
+import type {
+  AIReqBranchCleanupInput,
+  AIReqBranchCleanupItem,
+  AIReqCodeMergeInput,
+  AIReqProgressAnalysis,
+  AIReqRequirementGroup,
+  AIReqSystemRequirement,
+  AIReqTestAcceptanceInput,
+  AIReqVersionedProgressInput,
+  AIReqWorkflowView,
+} from "@zcode/services/aireq";
+import { currentIdentity, getEmployeeId, isEmployeeId } from "./identity.js";
+import { prototypeDefaultCommit } from "./fixture-builders.js";
+import {
+  getPrototypeWorkflow,
+  mutatePrototypeWorkflow,
+} from "./workflow.js";
 
 const samples: Record<string, { percent: number; merged?: boolean; certain?: boolean }> = {
   "sr-auth": { percent: 72 },
@@ -15,23 +30,31 @@ const samples: Record<string, { percent: number; merged?: boolean; certain?: boo
   "sr-mobile-notifications": { percent: 40 },
   "sr-mobile-profile": { percent: 100, merged: true, certain: true },
 };
-const owners = new Map<string, string>([
-  ["demo-aurora:ir-auth", "j00808875"],
-  ["demo-aurora:ir-notifications", "j00808876"],
-  ["demo-mobile:ir-mobile", "j00808875"],
-]);
-const reports = new Map<string, AIReqProgressAnalysis>();
+
+/** 启动时一次迁入唯一 owner；读投影不维护报告缓存或第二份可写事实。 */
+export function initializePrototypeProgress(): void {
+  mutatePrototypeWorkflow((state) => {
+    const seeded = withPrototypeProgress(state);
+    let changed = false;
+    for (let index = 0; index < state.srs.length; index++) {
+      const sr = state.srs[index]!;
+      const progress = seeded.srs[index]?.progress;
+      if (!sr.progress && progress) {
+        sr.progress = progress;
+        changed = true;
+      }
+    }
+    return changed;
+  });
+}
 
 /** 固定的代码证据样例；不调用模型，不查询远程仓库，不推断真实开发结果。 */
 export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowView {
   const formal = view.groups;
   return {
     ...view,
-    groups: view.groups.map((group) => ({
-      ...group,
-      ownerEmployeeId: owners.get(`${group.projectId}:${group.id}`) ?? group.ownerEmployeeId,
-    })),
-    drafts: view.drafts.map((group) => ({ ...group, ownerEmployeeId: undefined })),
+    groups: view.groups,
+    drafts: view.drafts,
     srs: view.srs.map((sr) => {
       if (
         !formal.some(
@@ -40,8 +63,7 @@ export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowVie
         )
       )
         return sr;
-      const key = JSON.stringify([sr.projectId, sr.irId, sr.id]);
-      let progress = reports.get(key) ?? sr.progress;
+      let progress = sr.progress;
       if (!progress) {
         const sampleProject = sr.id.startsWith("sr-mobile-") ? "demo-mobile" : "demo-aurora";
         const sample = sr.projectId === sampleProject ? samples[sr.id] : undefined;
@@ -52,12 +74,13 @@ export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowVie
             ? {
                 manual: {
                   employeeId: "j00808874",
-                  reason: "AI 已分析到 99%，合入后人工确认完成（样例）。",
+                  reason: "代码已合入，人工记录测试通过（历史模拟样例）。",
                   at: analysedAt,
                 },
               }
             : {}),
           percent: sample.percent,
+          aiPercent: Math.min(99, sample.percent),
           merged: sample.merged ?? false,
           certain: sample.certain ?? false,
           branch: sr.trackingBranch?.name ?? "",
@@ -79,8 +102,11 @@ export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowVie
                 : sample.certain
                   ? [
                       {
-                        title: "等待合入默认分支",
-                        detail: "分支实现审查已通过；尚未合入，进度最高 99%。",
+                        // 同版合入样例的原始报告不能再声称尚未合入；运行后的历史报告不重写。
+                        title: sample.merged ? "等待人工测试验收" : "等待合入默认分支",
+                        detail: sample.merged
+                          ? "代码已合入；有效进度固定 99%，等待人工记录本版本测试结果。"
+                          : "分支实现审查已通过；尚未合入，进度最高 99%。",
                       },
                     ]
                   : [
@@ -100,67 +126,225 @@ export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowVie
                 ]
               : [],
         };
-        reports.set(key, progress);
       }
-      return { ...sr, progress: structuredClone(progress) };
+      const projected = { ...sr, progress: structuredClone(progress) };
+      projected.progress.percent = srProgress(projected);
+      if (projected.progress.inputFingerprint &&
+          (projected.progress.defaultVersion !== prototypeDefaultCommit(view, sr.projectId) ||
+           (sr.codeMerge && projected.progress.codeVersion !== sr.codeMerge.commit)))
+        projected.progress.stale = true;
+      return projected;
     }),
   };
 }
-export async function assignPrototypeIrOwner(
+export function operatePrototypeProgress(
   projectId: string,
   irId: string,
-  employeeId: string,
-): Promise<void> {
-  if (
-    !getPrototypeWorkflow({ projectId }).groups.some(
-      (group) => group.projectId === projectId && group.id === irId,
-    )
-  )
-    throw new Error("提案不设置负责人；转为正式需求后再分配。");
-  if (getEmployeeId() !== "j00808874") throw new Error("只有管理员可分配需求负责人。");
-  if (!isEmployeeId(employeeId)) throw new Error("工号须为一个小写字母后接 8 位数字。");
-  const view = getPrototypeWorkflow({ projectId });
-  if (![...view.groups, ...view.drafts].some((group) => group.id === irId))
-    throw new Error("IR 不存在。");
-  owners.set(`${projectId}:${irId}`, employeeId);
-  prototypeWorkflowChanges.fire();
+  srId: string | undefined,
+  input: AIReqVersionedProgressInput,
+  type: string,
+  payload: unknown,
+  change: (
+    state: AIReqWorkflowView,
+    group: AIReqRequirementGroup,
+    sr: AIReqSystemRequirement | undefined,
+    employeeId: string,
+    at: string,
+  ) => void,
+): void {
+  const employeeId = getEmployeeId();
+  if (!isEmployeeId(employeeId)) throw new Error("请先登录有效工号。");
+  if (!input || typeof input.operationId !== "string" || !input.operationId.trim() ||
+      !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0)
+    throw new Error("操作标识或预期版本无效。");
+  const identity = currentIdentity();
+  const digest = createHash("sha256")
+    .update(JSON.stringify([type, projectId, irId, srId, input, payload, identity]))
+    .digest("hex");
+  mutatePrototypeWorkflow((state) => {
+    const previous = state.operations.find((item) => item.operationId === input.operationId);
+    if (previous) {
+      if (previous.commandDigest !== digest) throw new Error("同一操作标识不能提交不同内容。");
+      return false;
+    }
+    if (state.revision !== input.expectedRevision) throw new Error("业务版本已变化，请刷新后重试。");
+    const group = state.groups.find((item) => item.projectId === projectId && item.id === irId);
+    const sr = srId ? state.srs.find((item) =>
+      item.projectId === projectId && item.irId === irId && item.id === srId &&
+      group?.srIds.includes(item.id)) : undefined;
+    if (!group || (srId && !sr)) throw new Error("正式 IR/SR 不存在或不属于当前项目。");
+    const at = new Date().toISOString();
+    // 样例报告也先归入同一 SR；后续分析、验收均只更新 workflow 内的报告事实。
+    if (sr && !sr.progress) {
+      sr.progress = withPrototypeProgress({ ...state, groups: [group], srs: [sr] }).srs[0]?.progress;
+    }
+    change(state, group, sr, employeeId, at);
+    state.operations.push({
+      operationId: input.operationId,
+      identity: identity ? { ...identity } : undefined,
+      commandDigest: digest,
+      type,
+      status: "completed",
+      startedAt: at,
+      completedAt: at,
+      revision: state.revision + 1,
+      irId,
+      srId,
+      steps: [{ name: type, at, detail: `${employeeId} · ${projectId}/${irId}${srId ? `/${srId}` : ""}` }],
+    });
+  });
 }
-export async function updatePrototypeSrProgress(
+
+
+export async function recordPrototypeSrTest(
   projectId: string,
   irId: string,
   srId: string,
-  percent: number,
-  reason: string,
+  input: AIReqTestAcceptanceInput,
 ): Promise<void> {
-  const view = withPrototypeProgress(getPrototypeWorkflow({ projectId }));
-  const group = view.groups.find((item) => item.projectId === projectId && item.id === irId);
-  const sr = view.srs.find(
-    (item) =>
-      item.projectId === projectId &&
-      item.id === srId &&
-      item.irId === irId &&
-      group?.srIds.includes(item.id),
-  );
-  const employeeId = getEmployeeId();
-  if (!group || !sr) throw new Error("正式 IR/SR 不存在或不属于当前项目。");
-  if (!isEmployeeId(employeeId)) throw new Error("请先登录有效工号。");
-  if (
-    employeeId !== "j00808874" &&
-    (!group?.ownerEmployeeId || employeeId !== group.ownerEmployeeId)
-  )
-    throw new Error("只有管理员或该 IR 负责人可以确认完成。");
-  if (!sr?.progress) throw new Error("SR 分析记录不存在。");
-  if (percent !== 100)
-    throw new Error("人工不能修改开发百分比，只能将 AI 已分析到 99% 的进度确认到 100%。");
-  if (typeof reason !== "string" || !reason.trim()) throw new Error("请填写完成确认依据。");
-  // 已确认对象不重复生成记录，保留第一次确认的业务事实。
-  if (sr.progress.percent === 100 && sr.progress.manual) return;
-  const blocker = srCompletionBlocker(sr);
-  if (blocker) throw new Error(blocker);
-  reports.set(JSON.stringify([projectId, irId, srId]), {
-    ...sr.progress,
-    percent,
-    manual: { employeeId, reason: reason.trim(), at: new Date().toISOString() },
+  operatePrototypeProgress(projectId, irId, srId, input, "recordSrTest", input, (_state, _group, target, employeeId, at) => {
+    const sr = target!;
+    if (input.outcome !== "passed" && input.outcome !== "failed") throw new Error("请选择测试通过或不通过。");
+    if (typeof input.reason !== "string" || !input.reason.trim()) throw new Error("请填写本次测试的验收依据或问题。");
+    const version = sr.codeMerge?.commit;
+    if (!version || input.expectedCodeVersion !== version) throw new Error("已合入代码版本已变化，请基于新版本重新测试。");
+    const blocker = srCompletionBlocker(sr);
+    if (blocker) throw new Error(blocker);
+    const acceptance = {
+      operationId: input.operationId, outcome: input.outcome, employeeId, at,
+      reason: input.reason.trim(), codeVersion: version,
+    };
+    sr.testAcceptance = acceptance;
+    sr.acceptanceHistory = [...(sr.acceptanceHistory ?? []), acceptance];
+    if (input.outcome === "failed") {
+      sr.developmentIssues = [...(sr.developmentIssues ?? []), {
+        id: `test-issue-${input.operationId}`, detail: acceptance.reason,
+        failedCodeVersion: version, reportedBy: employeeId, reportedAt: at, status: "open",
+      }];
+    } else {
+      for (const issue of sr.developmentIssues ?? []) {
+        if (issue.status === "awaiting-retest") {
+          if (issue.fixCodeVersion !== version || issue.failedCodeVersion === version)
+            throw new Error("问题修复版本不匹配，不能确认通过。");
+          issue.status = "resolved";
+          issue.resolvedAt = at;
+        }
+      }
+    }
+    if (sr.progress) {
+      sr.progress.percent = input.outcome === "passed" ? 100 : 99;
+      sr.progress.manual = input.outcome === "passed" ? { employeeId, reason: acceptance.reason, at } : undefined;
+    }
+    sr.status = input.outcome === "passed" ? "completed" : "developing";
   });
-  prototypeWorkflowChanges.fire();
+}
+
+/** 明确的外部模拟输入；不运行 Git、不修改业务代码，也不直接完成测试。 */
+export async function simulatePrototypeCodeMerge(
+  projectId: string,
+  irId: string,
+  srId: string,
+  input: AIReqCodeMergeInput,
+): Promise<void> {
+  operatePrototypeProgress(projectId, irId, srId, input, "simulateCodeMerge", input, (state, _group, target, _employeeId, at) => {
+    const sr = target!;
+    if (typeof input.fix !== "boolean") throw new Error("模拟合入类型无效。");
+    if (srProgress(sr) === 100) throw new Error("已完成 SR 不再接纳代码合入模拟。");
+    if (!sr.trackingBranch?.name || sr.trackingBranch.status === "failed" || sr.trackingBranch.status === "deleted")
+      throw new Error("开发分支尚不可用，不能模拟合入。");
+    const open = (sr.developmentIssues ?? []).filter((issue) => issue.status === "open");
+    if (input.fix && !open.length) throw new Error("没有待修复测试问题。");
+    if (!input.fix && open.length) throw new Error("存在测试失败问题，请使用模拟修复合入。");
+    const commit = `simulated-${input.fix ? "fix" : "code"}-${sr.id}-${state.revision + 1}`;
+    const project = state.projects.find((item) => item.id === projectId)!;
+    sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
+    state.repositoryHeads ??= {};
+    state.repositoryHeads[project.repositoryId] = commit;
+    for (const issue of open) {
+      issue.status = "awaiting-retest";
+      issue.fixCodeVersion = commit;
+    }
+    // 合入只改变外部代码事实和业务值；不能伪造新 AI 报告或改写旧分析的代码版本。
+    if (sr.progress) sr.progress = { ...sr.progress, percent: 99, merged: true, stale: true };
+    sr.status = "developing";
+  });
+}
+
+function cleanupItems(state: AIReqWorkflowView, projectId: string, irId: string): AIReqBranchCleanupItem[] {
+  const view = withPrototypeProgress(state);
+  const group = view.groups.find((item) => item.projectId === projectId && item.id === irId);
+  if (!group) throw new Error("正式 IR 不存在。");
+  const srs = view.srs.filter((sr) => sr.projectId === projectId && sr.irId === irId && group.srIds.includes(sr.id));
+  if (!srs.length || srs.length !== group.srIds.length || srs.some((sr) => srProgress(sr) !== 100))
+    throw new Error("只有本 IR 全部 SR 测试通过达到 100% 后才允许清理开发分支。");
+  return srs.map((sr) => ({
+    srId: sr.id, branch: sr.trackingBranch?.name ?? "",
+    status: sr.trackingBranch?.status ?? "ready", error: sr.trackingBranch?.error,
+  }));
+}
+export function previewPrototypeBranchCleanup(projectId: string, irId: string): AIReqBranchCleanupItem[] {
+  return cleanupItems(getPrototypeWorkflow({ projectId }), projectId, irId);
+}
+export async function failNextPrototypeBranchCleanup(
+  projectId: string, irId: string, srId: string, input: AIReqVersionedProgressInput,
+): Promise<void> {
+  operatePrototypeProgress(projectId, irId, srId, input, "failNextBranchCleanup", input, (_state, _group, target) => {
+    const sr = target!;
+    if (!sr.trackingBranch?.name || sr.trackingBranch.status === "deleted") throw new Error("没有可清理的登记开发分支。");
+    sr.trackingBranch.nextCleanupFailure = true;
+  });
+}
+export async function cleanupPrototypeBranches(
+  projectId: string, irId: string, input: AIReqBranchCleanupInput,
+): Promise<void> {
+  operatePrototypeProgress(projectId, irId, undefined, input, "cleanupBranches", input, (state, _group, _target, _employeeId, at) => {
+    const items = cleanupItems(state, projectId, irId);
+    if (!Array.isArray(input.branches) || input.branches.some((branch) => typeof branch !== "string") ||
+        JSON.stringify([...new Set(input.branches)].sort()) !== JSON.stringify([...new Set(items.map((item) => item.branch))].sort()))
+      throw new Error("确认分支清单与当前 IR 登记分支不符，请重新预览。");
+    const project = state.projects.find((item) => item.id === projectId)!;
+    for (const item of items) {
+      const sr = state.srs.find((row) => row.projectId === projectId && row.irId === irId && row.id === item.srId)!;
+      const branch = sr.trackingBranch;
+      if (!branch || branch.status === "deleted") continue;
+      if (!branch.name.trim() || branch.name === project.defaultBranch || branch.name === `refs/heads/${project.defaultBranch}`) {
+        branch.status = "failed";
+        branch.error = "保护规则：不得清理空分支或项目主分支。";
+      } else if (branch.nextCleanupFailure) {
+        branch.nextCleanupFailure = false;
+        branch.status = "failed";
+        branch.error = "模拟：本次分支清理失败；可重试失败项。";
+      } else {
+        branch.status = "deleted";
+        branch.deletedAt = at;
+        branch.error = undefined;
+      }
+    }
+  });
+}
+
+/** 分析唯一写回点；同一输入之外的迟到结果不能改写当前事实。 */
+export function acceptPrototypeProgressReport(
+  projectId: string, irId: string, srId: string, expectedFingerprint: string,
+  fingerprint: (state: AIReqWorkflowView, group: AIReqRequirementGroup, sr: AIReqSystemRequirement) => string,
+  report: AIReqProgressAnalysis | undefined, failure?: string,
+): boolean {
+  let accepted = false;
+  mutatePrototypeWorkflow((state) => {
+    const group = state.groups.find((item) => item.projectId === projectId && item.id === irId);
+    const sr = state.srs.find((item) => item.projectId === projectId && item.irId === irId && item.id === srId && group?.srIds.includes(item.id));
+    if (!group || !sr || fingerprint(state, group, sr) !== expectedFingerprint) return false;
+    if (!sr.progress) sr.progress = withPrototypeProgress({ ...state, groups: [group], srs: [sr] }).srs[0]?.progress;
+    if (failure) {
+      sr.lastAnalysisFailure = { message: failure, at: new Date().toISOString() };
+      if (sr.progress) sr.progress = { ...sr.progress, analysisFailure: { message: failure, at: new Date().toISOString() }, stale: true };
+    } else if (report) {
+      sr.lastAnalysisFailure = undefined;
+      const manual = sr.progress?.manual;
+      sr.progress = { ...structuredClone(report), manual, inputFingerprint: expectedFingerprint, stale: false };
+      sr.progress.percent = srProgress(sr);
+    } else return false;
+    accepted = true;
+  });
+  return accepted;
 }

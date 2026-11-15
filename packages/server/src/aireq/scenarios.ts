@@ -17,3 +17,9 @@ export const SUPPORTED_AIREQ_DEMOS = [
   "operation-failure",
   "mr-create-failure",
 ] as const;
+
+/** Controls provide external mock results only; the ordinary owner still applies all gates. */
+export const PROTOTYPE_REVIEW_SCENARIOS = ["normal", "blocked", "failed", "hold"] as const;
+export const PROTOTYPE_PROPOSAL_MERGE_SCENARIOS = [
+  "unmerged", "merged", "incomplete", "failed", "mr-closed", "stale-version",
+] as const;

@@ -110,13 +110,8 @@ export function AIReqProjectSettings() {
   if (!aireq) return null;
   const projects = aireq.view?.projects ?? [];
   const releaseCount = projectViews.reduce((count, item) => count + item.view.releases.length, 0);
-  const canAdd = Boolean(
-    employeeId === "j00808874" &&
-    source.capabilities.settingsWrite &&
-    source.projects?.saveRepository,
-  );
-  const canEdit = canAdd;
-  const canSave = projectId ? canEdit : canAdd;
+  const canSaveRepository = Boolean(source.projects?.saveRepository);
+  const canCreateRelease = source.capabilities.workflowCommands.includes("createRelease");
   const openProject = (project?: AIReqProject) => {
     setProjectRevision(project?.revision ?? 0);
     repositoryOperation.current = null;
@@ -162,7 +157,7 @@ export function AIReqProjectSettings() {
             {projects.length} 个项目 · {releaseCount} 个 Release
           </p>
         </div>
-        {canAdd && (
+        {canSaveRepository && (
           <Button onClick={() => openProject()}>
             <Plus className="size-4" />
             添加项目
@@ -184,7 +179,7 @@ export function AIReqProjectSettings() {
                 </div>
                 <Button
                   variant="outline"
-                  disabled={!canEdit}
+                  disabled={!canSaveRepository}
                   onClick={() => openProject(project)}
                   aria-label={`修改${project.name}仓库配置`}
                 >
@@ -216,16 +211,12 @@ export function AIReqProjectSettings() {
                   </p>
                 )}
                 <p className="text-ui-sm text-foreground-subtle">
-                  仅共享模拟配置所有者（{source.backend?.owner ?? "j00808874"}）可修改项目与 Release
-                  设置，其他账号只读。
+                  所有合法工号均可修改共享项目与 Release 设置。
                 </p>
               </div>
               <Button
                 variant="outline"
-                disabled={
-                  employeeId !== "j00808874" ||
-                  !source.capabilities.workflowCommands.includes("createRelease")
-                }
+                disabled={!canCreateRelease}
                 onClick={() => openRelease(project.id)}
                 aria-label={`为${project.name}添加 Release`}
               >
@@ -267,10 +258,7 @@ export function AIReqProjectSettings() {
                 <p>尚未添加 Release。创建第一个 Release，开始整理本项目的需求。</p>
                 <Button
                   variant="outline"
-                  disabled={
-                    employeeId !== "j00808874" ||
-                    !source.capabilities.workflowCommands.includes("createRelease")
-                  }
+                  disabled={!canCreateRelease}
                   onClick={() => openRelease(project.id)}
                 >
                   添加第一个 Release
@@ -313,7 +301,7 @@ export function AIReqProjectSettings() {
             className="flex min-h-0 flex-col gap-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (!canSave || saving) return;
+              if (!canSaveRepository || saving) return;
               setSaving(true);
               setProjectError("");
               try {
@@ -354,7 +342,7 @@ export function AIReqProjectSettings() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   required
-                  disabled={saving || !canSave}
+                  disabled={saving || !canSaveRepository}
                 />
               </div>
               <div className="space-y-2">
@@ -365,7 +353,7 @@ export function AIReqProjectSettings() {
                   onChange={(event) => setRepositoryUrl(event.target.value)}
                   placeholder="ssh://git@git.example.internal/team/project.git"
                   required
-                  disabled={saving || !canSave}
+                  disabled={saving || !canSaveRepository}
                   aria-describedby="project-repository-help"
                 />
                 <p id="project-repository-help" className="text-ui-sm text-foreground-subtle">
@@ -380,7 +368,7 @@ export function AIReqProjectSettings() {
                   onChange={(event) => setDefaultBranch(event.target.value)}
                   placeholder="例如 main 或 master"
                   required
-                  disabled={saving || !canSave}
+                  disabled={saving || !canSaveRepository}
                 />
               </div>
               {source.provenance.kind === "sample" && (
@@ -406,7 +394,7 @@ export function AIReqProjectSettings() {
               <Button
                 type="submit"
                 disabled={
-                  !canSave ||
+                  !canSaveRepository ||
                   saving ||
                   !name.trim() ||
                   !repositoryUrl.trim() ||
@@ -437,7 +425,8 @@ export function AIReqProjectSettings() {
             className="flex min-h-0 flex-col gap-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (!canAdd || releaseSaving || !releaseProjectId || !releaseTitle.trim()) return;
+              if (!canCreateRelease || releaseSaving || !releaseProjectId || !releaseTitle.trim())
+                return;
               setReleaseSaving(true);
               setReleaseError("");
               try {
@@ -529,7 +518,7 @@ export function AIReqProjectSettings() {
               <Button
                 type="submit"
                 disabled={
-                  !canAdd ||
+                  !canCreateRelease ||
                   releaseSaving ||
                   !releaseTitle.trim() ||
                   !releaseProjectId ||

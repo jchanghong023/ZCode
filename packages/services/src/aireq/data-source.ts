@@ -20,11 +20,12 @@ import type {
 } from "./types.js";
 import type { AIReqProgressScheduler } from "./progress-scheduler.js";
 import type {
-  NativeTaskRunsRequest,
-  NativeTaskRunsSnapshot,
-  NativeTaskOutputRequest,
-  NativeTaskOutputContent,
-} from "./native-task-runs.js";
+  AIReqTestAcceptanceInput,
+  AIReqBranchCleanupInput,
+  AIReqBranchCleanupItem,
+  AIReqCodeMergeInput,
+  AIReqVersionedProgressInput,
+} from "./progress.js";
 
 export interface AIReqBackendView {
   id: string;
@@ -105,16 +106,20 @@ export interface AIReqPrototypeScenarios {
     group: AIReqWorkflowView["groups"][number],
     scenario?: AIReqPrHandoffScenario,
   ): AIReqPrHandoff | Promise<AIReqPrHandoff>;
+  setProposalReviewScenario(
+    projectId: string, irId: string, kind: "original" | "full",
+    scenario: "normal" | "blocked" | "failed" | "hold",
+  ): void | Promise<void>;
+  releaseProposalReviewResults(projectId: string, irId: string): void | Promise<void>;
+  failNextBranchCreation(projectId: string, irId: string, srId: string): void | Promise<void>;
+  simulateCodeMerge(projectId: string, irId: string, srId: string, input: AIReqCodeMergeInput): Promise<void>;
+  failNextBranchCleanup(projectId: string, irId: string, srId: string, input: AIReqVersionedProgressInput): Promise<void>;
 }
 export interface AIReqEmployeeDirectory {
   kind: "sample" | "live";
   entries: readonly { employeeId: string; name: string; department: string }[];
 }
 export interface AIReqDataSource {
-  nativeTasks?: {
-    listRuns(request: NativeTaskRunsRequest): Promise<NativeTaskRunsSnapshot>;
-    readOutput(request: NativeTaskOutputRequest): Promise<NativeTaskOutputContent>;
-  };
   employeeDirectory?: AIReqEmployeeDirectory;
   planning?: {
     updateSr(
@@ -126,20 +131,18 @@ export interface AIReqDataSource {
   };
   progressScheduler?: AIReqProgressScheduler;
   progress?: {
-    assignOwner(projectId: string, irId: string, employeeId: string): Promise<void>;
-    updateSr(
-      projectId: string,
-      irId: string,
-      srId: string,
-      percent: number,
-      reason: string,
+    recordTest(
+      projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput,
+    ): Promise<void>;
+    cleanupPreview(projectId: string, irId: string): Promise<AIReqBranchCleanupItem[]>;
+    cleanupBranches(
+      projectId: string, irId: string, input: AIReqBranchCleanupInput,
     ): Promise<void>;
   };
   provenance: AIReqDataProvenance;
   clientId: string;
   backend?: AIReqBackendView;
   capabilities: {
-    settingsWrite?: boolean;
     proposalDiscussion?: boolean;
     codeDevelopment?: boolean;
     workflowCommands: readonly AIReqAction["type"][];

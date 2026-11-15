@@ -1,4 +1,3 @@
-import { getEmployeeId } from "../identity.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
@@ -48,13 +47,12 @@ function ModelSettingsContent({
   const [savedRevision, setSavedRevision] = useState(() => source.models!.revision());
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
-  const canManage = source.capabilities.settingsWrite === true && getEmployeeId() === "j00808874";
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const [saving, setSaving] = useState(false);
   const currentActions = useRef<AIReqModelDraftActions | null>(null);
   const savingRef = useRef(false);
   const save = async () => {
-    if (!canManage || savingRef.current || !dirty) return false;
+    if (savingRef.current || !dirty) return false;
     savingRef.current = true;
     setSaving(true);
     setMessage(null);
@@ -74,7 +72,7 @@ function ModelSettingsContent({
   };
   // 离开确认与快捷键始终调用最新草稿，避免 Dialog 打开后保存旧闭包。
   currentActions.current = {
-    canSave: canManage && dirty && !saving,
+    canSave: dirty && !saving,
     save,
     discard: () => {
       setDraft(structuredClone(saved));
@@ -85,18 +83,17 @@ function ModelSettingsContent({
     onDraftActionsChange?.(
       dirty
         ? {
-            canSave: canManage && !saving,
+            canSave: !saving,
             save: () => currentActions.current?.save() ?? false,
             discard: () => currentActions.current?.discard(),
           }
         : null,
     );
-  }, [dirty, canManage, saving, onDraftActionsChange]);
+  }, [dirty, saving, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange?.(null), [onDraftActionsChange]);
   const modelName = (id: string) =>
     source.models!.choices.find((model) => model.id === id)?.name ?? id;
   const updateAgent = (id: string, patch: { model?: string; reasoning?: string }) => {
-    if (!canManage) return;
     setDraft((current) => ({
       ...current,
       agents: current.agents.map((agent) => (agent.id === id ? { ...agent, ...patch } : agent)),
@@ -139,7 +136,6 @@ function ModelSettingsContent({
             controlLayout="wide"
             control={
               <Select
-                disabled={!canManage}
                 value={draft.defaultModel}
                 onValueChange={(defaultModel) => {
                   setDraft((current) => ({ ...current, defaultModel }));
@@ -180,7 +176,6 @@ function ModelSettingsContent({
                 control={
                   <div className="w-full min-w-0 space-y-2">
                     <Select
-                      disabled={!canManage}
                       value={agent.model}
                       onValueChange={(model) => updateAgent(agent.id, { model })}
                     >
@@ -203,7 +198,6 @@ function ModelSettingsContent({
                         {zh ? "思考强度" : "Reasoning"}
                       </span>
                       <Select
-                        disabled={!canManage}
                         value={agent.reasoning}
                         onValueChange={(reasoning) => updateAgent(agent.id, { reasoning })}
                       >
@@ -235,7 +229,7 @@ function ModelSettingsContent({
       <SettingsFormActions>
         <Button
           size="lg"
-          disabled={!dirty || !canManage || saving}
+          disabled={!dirty || saving}
           onClick={() => {
             void save();
           }}
@@ -245,7 +239,7 @@ function ModelSettingsContent({
         <Button
           variant="ghost"
           size="lg"
-          disabled={!dirty || !canManage || saving}
+          disabled={!dirty || saving}
           onClick={() => {
             setDraft(structuredClone(saved));
             setMessage(null);

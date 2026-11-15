@@ -4,7 +4,6 @@ import { Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
-import { Badge } from "@/components/ui/badge.js";
 import { Switch } from "@/components/ui/switch.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
@@ -14,8 +13,8 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
+import { useAIReq } from "../AIReqContext.js";
 import type {
-  AIReqDataSource,
   AIReqAnalysisFilter,
   AIReqAnalysisRunSummary,
   AIReqAnalysisTask,
@@ -41,15 +40,16 @@ export function AIReqRequirementAnalysisPage({
   onOpenModelSettings(): void;
 }) {
   const source = useOptionalAIReqDataSource();
+  const aireq = useAIReq()!;
   return (
     <main
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-      aria-label="需求分析"
+      aria-label="进度分析"
     >
       <AutomationsMainBreadcrumbFrame
         isDesktop={false}
-        ariaLabel="需求分析导航"
-        sectionLabel="需求分析"
+        ariaLabel="进度分析导航"
+        sectionLabel="进度分析"
       >
         {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
@@ -57,24 +57,21 @@ export function AIReqRequirementAnalysisPage({
             <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
               <div>
                 {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
-                <h1 className="text-ui-page-title font-medium tracking-[0.114px]">需求分析</h1>
+                <h1 className="text-ui-page-title font-medium tracking-[0.114px]">进度分析</h1>
                 <p className="mt-2 text-ui-base text-foreground-subtle">
                   跟踪正式需求的开发进度，查看代码依据与待处理问题。
                 </p>
               </div>
-              {source?.progressScheduler && !source.capabilities.settingsWrite && (
-                <Badge variant="outline">只读</Badge>
-              )}
             </header>
             {source?.progressScheduler ? (
               <ConnectedProgressAnalysis
-                source={source}
+                key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}`}
                 scheduler={source.progressScheduler}
                 onOpenModelSettings={onOpenModelSettings}
               />
             ) : (
               <p role="status" className="text-ui-base text-foreground-subtle">
-                需求分析暂不可用，请稍后重试。
+                进度分析暂不可用，请稍后重试。
               </p>
             )}
           </div>
@@ -84,21 +81,21 @@ export function AIReqRequirementAnalysisPage({
   );
 }
 function ConnectedProgressAnalysis({
-  source,
   scheduler,
   onOpenModelSettings,
 }: {
-  source: AIReqDataSource;
   scheduler: AIReqProgressScheduler;
   onOpenModelSettings(): void;
 }) {
   const [revision, setRevision] = useState(0);
+  const aireq = useAIReq()!;
+  const projectId = aireq.selection.projectId ?? "";
+  const releaseId = aireq.releaseId;
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const loadSnapshot = useCallback(() => scheduler.read(), [scheduler]);
   const snapshotQuery = useSchedulerQuery(loadSnapshot, revision);
   const snapshot = snapshotQuery.value;
   const [interval, setInterval] = useState("");
-  const [projectId, setProjectId] = useState("all");
   const [irId, setIrId] = useState("all");
   const [projectSearch, setProjectSearch] = useState("");
   const [srSearch, setSrSearch] = useState("");
@@ -119,7 +116,6 @@ function ConnectedProgressAnalysis({
     count: number;
     scope: string;
   }>();
-  const canManage = source.capabilities.settingsWrite === true;
   const [pending, setPending] = useState(false);
   const mutation = useRef(false);
   const lifecycle = useRef<object | undefined>(undefined);
@@ -140,7 +136,7 @@ function ConnectedProgressAnalysis({
     if (intervalMinutes !== undefined) setInterval(String(intervalMinutes));
   }, [intervalMinutes]);
   const mutate = async (action: () => void | Promise<void>, success: string) => {
-    if (!canManage || mutation.current) return;
+    if (mutation.current) return;
     const scope = lifecycle.current;
     mutation.current = true;
     setPending(true);
@@ -161,15 +157,16 @@ function ConnectedProgressAnalysis({
       }
     }
   };
-  const irs = snapshot?.irs.filter((ir) => projectId === "all" || ir.projectId === projectId) ?? [];
+  const irs = snapshot?.irs.filter((ir) => ir.projectId === projectId && (!releaseId || ir.releaseId === releaseId)) ?? [];
   const dateError = Boolean(since && until && since > until);
   const filter: AIReqAnalysisFilter = useMemo(
     () => ({
-      projectId: projectId === "all" ? undefined : projectId,
+      projectId: projectId || "__no_project__",
+      releaseId: releaseId || undefined,
       irId: irId === "all" ? undefined : irId,
       srSearch,
     }),
-    [projectId, irId, srSearch],
+    [projectId, releaseId, irId, srSearch],
   );
   const loadTasks = useCallback(
     () => scheduler.queryTasks(filter, taskPage, taskPageSize),
@@ -210,17 +207,15 @@ function ConnectedProgressAnalysis({
   const selectedRun = reportQuery.value?.run;
   const selectedTask = reportQuery.value?.task;
   const retryBlocker = (task?: AIReqAnalysisTask) =>
-    !canManage
-      ? "仅平台设置所有者可重试；只读访问仍可查看失败原因。"
-      : !task
-        ? "此 SR 已不在当前任务范围，无法重试。"
-        : !snapshot?.projects.find((project) => project.id === task.projectId)?.enabled
-          ? "项目分析已关闭，请先开启项目分析。"
-          : task.state === "running"
-            ? "此 SR 正在分析，不会重复接纳；完成后再查看结果。"
-            : task.state === "completed" || task.percent >= 100
-              ? "此 SR 已完成，分析已停止。"
-              : undefined;
+    !task
+      ? "此 SR 已不在当前任务范围，无法重试。"
+      : !snapshot?.projects.find((project) => project.id === task.projectId)?.enabled
+        ? "项目分析已关闭，请先开启项目分析。"
+        : task.state === "running"
+          ? "此 SR 正在分析，不会重复接纳；完成后再查看结果。"
+          : task.state === "completed" || task.percent >= 100
+            ? "此 SR 已完成，分析已停止。"
+            : undefined;
   const retry = (task: AIReqAnalysisTask) => {
     const exact = { projectId: task.projectId, irId: task.irId, srId: task.srId };
     void mutate(async () => {
@@ -314,7 +309,7 @@ function ConnectedProgressAnalysis({
           <Switch
             id="analysis-enabled"
             checked={snapshot.enabled}
-            disabled={!canManage || pending}
+            disabled={pending}
             onCheckedChange={(enabled) =>
               mutate(
                 () => scheduler.configure(enabled, snapshot.intervalMinutes),
@@ -328,7 +323,7 @@ function ConnectedProgressAnalysis({
           <span className="tabular-nums text-foreground-subtle" title={time(snapshot.nextCheckAt)}>
             下次检查 {shortTime(snapshot.nextCheckAt)}
           </span>
-          <span className="tabular-nums text-foreground-subtle">{runningCount} 个运行中</span>
+          <span className="tabular-nums text-foreground-subtle">全局 {runningCount} 个运行中</span>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
           <Settings2 aria-hidden="true" className="size-4" />
@@ -337,6 +332,12 @@ function ConnectedProgressAnalysis({
             {snapshot.projects.filter((project) => project.enabled).length}/
             {snapshot.projects.length} 项目
           </span>
+        </Button>
+        <Button variant="outline" size="sm" disabled={pending} onClick={() => void mutate(
+          () => scheduler.advance(),
+          "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
+        )}>
+          模拟推进下一次调度检查
         </Button>
       </div>
       <AnalysisRunConfirmation
@@ -347,7 +348,7 @@ function ConnectedProgressAnalysis({
         scope={analysisRequest?.scope ?? ""}
         count={analysisRequest?.count ?? 0}
         unit="SR"
-        disabled={pending || !canManage}
+        disabled={pending}
         onConfirm={() => {
           if (!analysisRequest) return;
           const requestedFilter = analysisRequest.filter;
@@ -368,7 +369,6 @@ function ConnectedProgressAnalysis({
         setProjectSearch={setProjectSearch}
         interval={interval}
         setInterval={setInterval}
-        canManage={canManage}
         pending={pending}
         message={message}
         mutate={mutate}
@@ -408,18 +408,26 @@ function ConnectedProgressAnalysis({
               label="项目"
               triggerClassName="rounded-lg bg-surface"
               value={projectId}
-              onChange={(value) => {
-                setProjectId(value);
+              onChange={(value) => aireq.navigate(() => {
+                aireq.switchProject(value);
                 setIrId("all");
                 resetAnalysisPages();
-              }}
+              })}
             >
-              <SelectItem value="all">全部项目</SelectItem>
+              {!snapshot.projects.length && <SelectItem value="none" disabled>请在设置创建项目</SelectItem>}
               {snapshot.projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}
                 </SelectItem>
               ))}
+            </FilterSelect>
+            <FilterSelect id="analysis-release" label="Release" triggerClassName="rounded-lg bg-surface"
+              value={releaseId || "all"} onChange={(value) => aireq.navigate(() => {
+                aireq.setReleaseId(value === "all" ? "" : value);
+                setIrId("all"); resetAnalysisPages();
+              })}>
+              <SelectItem value="all">全部 Release</SelectItem>
+              {aireq.view?.releases.filter((release) => release.projectId === projectId).map((release) => <SelectItem key={release.id} value={release.id}>{release.title}</SelectItem>)}
             </FilterSelect>
             <FilterSelect
               id="analysis-ir"
@@ -438,18 +446,17 @@ function ConnectedProgressAnalysis({
                 </SelectItem>
               ))}
             </FilterSelect>
-            {(projectId !== "all" || irId !== "all" || srSearch) && (
+            {(irId !== "all" || srSearch) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setProjectId("all");
                   setIrId("all");
                   setSrSearch("");
                   resetAnalysisPages();
                 }}
               >
-                清除范围筛选
+                清除搜索／IR 筛选
               </Button>
             )}
           </div>
@@ -458,13 +465,13 @@ function ConnectedProgressAnalysis({
               <TabsTrigger value="tasks" aria-label="SR 任务">
                 SR 任务{" "}
                 <span className="ml-1 tabular-nums text-foreground-subtle">
-                  {snapshot.tasksTotal}
+                  {taskResult?.total ?? "…"}
                 </span>
               </TabsTrigger>
               <TabsTrigger value="history" aria-label="执行历史">
                 执行历史{" "}
                 <span className="ml-1 tabular-nums text-foreground-subtle">
-                  {snapshot.runsTotal}
+                  {historyResult?.total ?? "…"}
                 </span>
               </TabsTrigger>
             </TabsList>
@@ -472,7 +479,6 @@ function ConnectedProgressAnalysis({
               <Button
                 size="sm"
                 disabled={
-                  !canManage ||
                   pending ||
                   taskQuery.loading ||
                   Boolean(taskQuery.error) ||
@@ -482,7 +488,7 @@ function ConnectedProgressAnalysis({
                   setAnalysisRequest({
                     filter: { ...filter },
                     count: taskResult?.eligibleCount ?? 0,
-                    scope: `分析全部筛选结果，包含其他分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "全部项目"}；IR：${irId === "all" ? "全部 IR" : irId}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
+                    scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${irId === "all" ? "全部 IR" : irId}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
                   })
                 }
                 aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}

@@ -43,7 +43,12 @@ export async function createRemoteAIReqDataSource(
     const group = view.drafts.find(
       (item) => item.id === target.irId && item.projectId === target.projectId,
     );
-    const review = [group?.review, ...(group?.reviewHistory ?? [])].find((item) =>
+    const review = [
+      group?.originalReview,
+      group?.review,
+      ...(group?.originalReviewHistory ?? []),
+      ...(group?.reviewHistory ?? []),
+    ].find((item) =>
       item?.agents?.some((agent) => agent.session.sessionId === snapshot.value.session?.sessionId),
     );
     const session = review?.agents?.find(
@@ -180,6 +185,21 @@ export async function createRemoteAIReqDataSource(
       await call("prototype.setProposalMergeScenario", args);
     },
     readPrHandoff: (...args) => call("prototype.readPrHandoff", args),
+    setProposalReviewScenario: async (...args) => {
+      await call("prototype.setProposalReviewScenario", args);
+    },
+    releaseProposalReviewResults: async (...args) => {
+      await call("prototype.releaseProposalReviewResults", args);
+    },
+    failNextBranchCreation: async (...args) => {
+      await call("prototype.failNextBranchCreation", args);
+    },
+    simulateCodeMerge: async (...args) => {
+      await call("prototype.simulateCodeMerge", args);
+    },
+    failNextBranchCleanup: async (...args) => {
+      await call("prototype.failNextBranchCleanup", args);
+    },
   };
   const source: AIReqDataSource = {
     clientId,
@@ -224,12 +244,14 @@ export async function createRemoteAIReqDataSource(
     },
     subscribeWorkflow: (listener) => subscribe(workflowListeners, listener),
     command: async (action, target, revision) => {
-      const result = await call("command", [action, target, revision], target);
+      // 普通业务按钮没有显式编号；在唯一远程入口补齐一次，避免被 owner 的幂等门禁拒绝。
+      const command = {
+        ...action,
+        operationId: action.operationId ?? crypto.randomUUID(),
+        expectedRevision: action.expectedRevision ?? revision,
+      };
+      const result = await call("command", [command, target, revision], target);
       await refreshMetadata();
-      if (action.type === "createProposal" && result.projectId && result.irId) {
-        const createdSelection = { projectId: result.projectId, irId: result.irId };
-        result.view = await source.readWorkflow(createdSelection);
-      }
       return result;
     },
     resolveSession: (view, target) =>
@@ -268,16 +290,13 @@ export async function createRemoteAIReqDataSource(
       disposed = true;
       subscription.dispose();
     },
-    nativeTasks: {
-      listRuns: (...args) => call("nativeTasks.listRuns", args),
-      readOutput: (...args) => call("nativeTasks.readOutput", args),
-    },
     progress: {
-      assignOwner: async (...args) => {
-        await call("progress.assignOwner", args);
+      recordTest: async (...args) => {
+        await call("progress.recordTest", args);
       },
-      updateSr: async (...args) => {
-        await call("progress.updateSr", args);
+      cleanupPreview: (...args) => call("progress.cleanupPreview", args),
+      cleanupBranches: async (...args) => {
+        await call("progress.cleanupBranches", args);
       },
     },
     planning: {
@@ -376,6 +395,9 @@ export async function createRemoteAIReqDataSource(
       },
       advance: async () => {
         await call("progressScheduler.advance", []);
+      },
+      setScenario: async (...args) => {
+        await call("progressScheduler.setScenario", args);
       },
       dispose() {
         schedulerListeners.clear();

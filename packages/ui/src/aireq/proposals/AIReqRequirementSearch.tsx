@@ -41,8 +41,7 @@ export function AIReqRequirementSearch({
   ).filter(
     (group) =>
       group.projectId === aireq.selection.projectId &&
-      group.releaseId === aireq.releaseId &&
-      !group.pendingFirstMessage,
+      (!aireq.releaseId || group.releaseId === aireq.releaseId),
   );
   const normalized = query.trim().toLocaleLowerCase();
   const choose = (irId: string, srId?: string) => {

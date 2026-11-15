@@ -75,7 +75,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
                   }}
                 >
                   <TabStoreProvider>
-                    <div className="flex h-full min-h-0 flex-col bg-background text-ui-base text-foreground">
+                    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-ui-base text-foreground">
                       {error && (
                         <div
                           role="alert"

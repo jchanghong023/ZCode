@@ -44,9 +44,9 @@ interface DeliveryDialog {
   files: AIReqFileVersion[];
 }
 const stepTitles: Record<DeliveryStep, string> = {
-  confirm: "确认材料并创建 MR",
-  push: "创建分支、提交推送并创建 MR",
-  pr: "MR 信息与后台定时核验",
+  confirm: "确认完整包并创建文档 PR",
+  push: "模拟文档分支、提交与 PR",
+  pr: "文档 PR 与 owner 合入核验",
 };
 const mergeScenarios: { id: AIReqProposalMergeScenario; title: string }[] = [
   { id: "unmerged", title: "提案分支尚未合入" },
@@ -54,6 +54,7 @@ const mergeScenarios: { id: AIReqProposalMergeScenario; title: string }[] = [
   { id: "incomplete", title: "提案分支已合入，文档不完整" },
   { id: "failed", title: "查询 MR 或默认分支失败" },
   { id: "mr-closed", title: "MR 已关闭且未合入" },
+  { id: "stale-version", title: "合入候选与当前材料版本不符" },
 ];
 
 export function AIReqProposalBackgroundStatus({
@@ -177,7 +178,7 @@ export function AIReqProposalBackgroundStatus({
       {source.prototype && (
         <details className="space-y-2 rounded-lg border border-border p-4">
           <summary className="cursor-pointer text-ui-sm text-foreground-subtle">
-            原型后台结果演示
+            模拟 Git 核验结果（不执行真实操作）
           </summary>
           <div className="mt-3 space-y-2">
             <Label htmlFor={`merge-scenario-${group.id}`}>预置 Git 检查结果</Label>
@@ -466,7 +467,7 @@ export function AIReqProposalDeliveryControls({
                   />
                   <fieldset className="space-y-2">
                     <legend className="text-ui-sm font-medium">
-                      确认业务需求、全部 SR、技术方案与 SR 依赖
+                      确认 IR 业务材料、全部 SR 独立 change、测试方案及整体验收
                     </legend>
                     <ul className="max-h-64 space-y-2 overflow-auto">
                       {dialog.files.map((file) => (

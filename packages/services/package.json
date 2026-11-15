@@ -7,7 +7,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./aireq": "./src/aireq/index.ts"
+    "./aireq": "./src/aireq/index.ts",
+    "./logger": "./src/logger/serviceLogger.ts"
   },
   "scripts": {
     "lint": "bun --bun run oxlint",

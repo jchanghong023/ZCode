@@ -8,10 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { ConversationComposerSendOptions } from "../v4/ConversationComposer.js";
 import { getEmployeeId } from "./identity.js";
 import { useAIReqDataSource } from "./data-source.js";
-import { selectionForRelease } from "./contract.js";
 import type {
   AIReqAction,
   AIReqDataSource,
@@ -37,7 +35,9 @@ interface AIReqContextValue {
   canGoForward: boolean;
   goBack(): void;
   goForward(): void;
-  startProposalDraft(): void;
+  startProposalDraft(sourceIrId?: string): void;
+  proposalDraft: { id: string; sourceIrId?: string } | null;
+  closeProposalDraft(): void;
   pending: boolean;
   selectionReady: boolean;
   error?: string;
@@ -49,12 +49,7 @@ interface AIReqContextValue {
   retryMaterial(path: string): Promise<boolean>;
   retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
   command(value: AIReqAction): Promise<AIReqWorkflowResult | undefined>;
-  openFirstDiscussion(
-    text: string,
-    options: ConversationComposerSendOptions,
-    preparedSessionId: string,
-  ): Promise<AIReqNativeSessionRef>;
-  finishFirstDiscussion(sessionId: string): void;
+  setDraftNavigationGuard(guard: ((navigate: () => void) => void) | null): void;
   setNavigationGuard(guard: ((navigate: () => void) => void) | null): void;
   navigate(action: () => void): void;
   report(error: unknown): void;
@@ -65,28 +60,11 @@ function sourceScope(source: AIReqDataSource): string {
 }
 export const useAIReq = () => useContext(AIReqContext);
 
-function scopeProposalDraft(value: AIReqSelection, webId: string): AIReqSelection {
-  if (!value.proposalDraftId) return value;
-  try {
-    const key = JSON.parse(value.proposalDraftId);
-    if (
-      Array.isArray(key) &&
-      key[0] === webId &&
-      key[1] === getEmployeeId() &&
-      key[2] === value.projectId &&
-      key[3] === value.proposalDraftReleaseId
-    )
-      return value;
-  } catch {
-    /* 无效历史记录不恢复其他账号的未发送输入。 */
-  }
-  return { projectId: value.projectId };
-}
 
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
   const source = useAIReqDataSource();
-  // 每次进入工作台都从需求分析开始，不恢复上一位用户或上次登录的页面／需求会话。
+  // 登录默认待办；不恢复上一工号的会话或未发送提案。
   const [selection, setSelection] = useState<AIReqSelection>(() => ({
     projectId: source.initialSelection.projectId,
   }));
@@ -98,9 +76,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }>(() => ({
     index: 0,
     extent: 0,
-    mainView: "requirementAnalysis",
+    mainView: "todos",
   }));
   const navigationRef = useRef(navigation);
+  const releaseRef = useRef("");
   const recordNavigation = useCallback(
     (target: AIReqSelection, mainView: WorkspaceMainView) => {
       const previous = navigationRef.current;
@@ -113,6 +92,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationIndex: next.index,
           aiReqNavigationExtent: next.extent,
           aiReqMainView: mainView,
+          aiReqReleaseId: releaseRef.current,
         },
         "",
       );
@@ -133,29 +113,35 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
   const viewRef = useRef(view);
   const [error, setError] = useState<string>();
+  const commandError = useRef(false);
   const [pending, setPending] = useState(true);
   const [releaseId, updateReleaseId] = useState("");
   const requestRevision = useRef(0);
-  const provisional = useRef(
-    new Map<string, { projectId: string; irId: string; sessionId: string }>(),
-  );
-  const creatingFirst = useRef<Promise<AIReqNativeSessionRef> | null>(null);
+  const [proposalDraft, setProposalDraft] = useState<{ id: string; sourceIrId?: string } | null>(null);
+  const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
   const guardRef = useRef<((navigate: () => void) => void) | null>(null);
   const historyReturn = useRef<{ delta: number } | null>(null);
   const approvedHistory = useRef(false);
   const setNavigationGuard = useCallback((guard: ((navigate: () => void) => void) | null) => {
     guardRef.current = guard;
   }, []);
+  const setDraftNavigationGuard = useCallback((guard: ((navigate: () => void) => void) | null) => {
+    draftGuardRef.current = guard;
+  }, []);
   const navigate = useCallback((action: () => void) => {
-    if (guardRef.current) guardRef.current(action);
-    else action();
+    const next = () => {
+      if (draftGuardRef.current) draftGuardRef.current(action);
+      else action();
+    };
+    if (guardRef.current) guardRef.current(next);
+    else next();
   }, []);
   const report = useCallback(
     (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)),
     [],
   );
   const load = useCallback(
-    async (target: AIReqSelection, projectChanged = false, throwOnError = false) => {
+    async (target: AIReqSelection, _projectChanged = false, throwOnError = false) => {
       const revision = ++requestRevision.current;
       setPending(true);
       try {
@@ -164,13 +150,15 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         viewRef.current = next;
         setView(next);
         setLoadedSelection({ ...target });
-        setError(next.error);
-        updateReleaseId((current) =>
-          !projectChanged &&
-          next.releases.some((item) => item.id === current && item.projectId === target.projectId)
-            ? current
-            : (next.releases.find((item) => item.projectId === target.projectId)?.id ?? ""),
-        );
+        // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
+        if (!commandError.current) setError(next.error);
+        const current = releaseRef.current;
+        if (current && !next.releases.some(
+          (item) => item.id === current && item.projectId === target.projectId,
+        )) {
+          releaseRef.current = "";
+          updateReleaseId("");
+        }
       } catch (cause) {
         if (revision === requestRevision.current) report(cause);
         if (throwOnError) throw cause;
@@ -193,8 +181,17 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }, [source, refresh]);
   const select = useCallback(
     (value: AIReqSelection, addHistory = true, mainView: WorkspaceMainView = "chat") => {
-      value = scopeProposalDraft(value, sourceScope(source));
       const projectChanged = selectionRef.current.projectId !== value.projectId;
+      if (projectChanged) {
+        releaseRef.current = "";
+        updateReleaseId("");
+      }
+      const selectedGroup = [...(viewRef.current?.drafts ?? []), ...(viewRef.current?.groups ?? [])]
+        .find((item) => item.projectId === value.projectId && item.id === value.irId);
+      if (selectedGroup && releaseRef.current && selectedGroup.releaseId !== releaseRef.current) {
+        releaseRef.current = selectedGroup.releaseId;
+        updateReleaseId(selectedGroup.releaseId);
+      }
       if (
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
@@ -204,6 +201,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       source.selectProject(value.projectId);
       selectionRef.current = value;
       setSelection(value);
+      commandError.current = false;
       setError(undefined);
       void load(value, projectChanged);
     },
@@ -232,6 +230,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         aiReqNavigationIndex: navigationRef.current.index,
         aiReqNavigationExtent: navigationRef.current.extent,
         aiReqMainView: navigationRef.current.mainView,
+        aiReqReleaseId: releaseRef.current,
       },
       "",
     );
@@ -249,68 +248,48 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           approvedHistory.current = true;
           window.history.go(delta);
         };
-        if (guardRef.current) guardRef.current(resume);
+        if (guardRef.current || draftGuardRef.current) navigate(resume);
         else resume();
         return;
       }
-      if (guardRef.current && !approvedHistory.current && index !== navigationRef.current.index) {
+      if ((guardRef.current || draftGuardRef.current) && !approvedHistory.current && index !== navigationRef.current.index) {
         historyReturn.current = { delta: index - navigationRef.current.index };
         window.history.go(navigationRef.current.index - index);
         return;
       }
       approvedHistory.current = false;
-      const mainView: WorkspaceMainView = [
-        "chat",
-        "automations",
-        "skillDesign",
-        "requirementAnalysis",
-      ].includes(event.state.aiReqMainView)
-        ? event.state.aiReqMainView
-        : "chat";
+      const savedView = event.state.aiReqMainView;
+      const mainView: WorkspaceMainView = ["projectProgress", "todos", "proposals", "formal", "requirementAnalysis"].includes(savedView)
+        ? savedView : "chat";
+      const restoredRelease = typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const next = { index, extent: navigationRef.current.extent, mainView };
       navigationRef.current = next;
       setNavigation(next);
       window.history.replaceState({ ...event.state, aiReqNavigationExtent: next.extent }, "");
       select(event.state.aiReqSelection as AIReqSelection, false, mainView);
+      releaseRef.current = restoredRelease;
+      updateReleaseId(restoredRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [source, select]);
-  const startProposalDraft = useCallback(() => {
-    const projectId = selectionRef.current.projectId;
-    if (
-      !projectId ||
-      !releaseId ||
-      !source.capabilities.workflowCommands.includes("createProposal")
-    )
-      return;
-    const key = JSON.stringify([sourceScope(source), getEmployeeId(), projectId, releaseId]);
-    const target: AIReqSelection = {
-      projectId,
-      proposalDraftId: key,
-      proposalDraftReleaseId: releaseId,
-    };
+  }, [source, select, navigate]);
+  const startProposalDraft = useCallback((sourceIrId?: string) => {
+    navigate(() => {
+      recordNavigation(selectionRef.current, "proposals");
+      setProposalDraft({ id: crypto.randomUUID(), sourceIrId });
+    });
+  }, [navigate, recordNavigation]);
+  const setReleaseId = useCallback((id: string) => {
     const current = selectionRef.current;
-    if (current.projectId === projectId && current.proposalDraftId === key && !current.irId) return;
-    select(target);
-  }, [source, releaseId, select]);
-  const setReleaseId = useCallback(
-    (id: string) => {
-      const current = selectionRef.current;
-      const data = viewRef.current;
-      if (!data?.releases.some((item) => item.id === id && item.projectId === current.projectId))
-        return;
-      updateReleaseId(id);
-      if (current.proposalDraftId && current.projectId) {
-        const key = JSON.stringify([sourceScope(source), getEmployeeId(), current.projectId, id]);
-        select({ projectId: current.projectId, proposalDraftId: key, proposalDraftReleaseId: id });
-        return;
-      }
-      const next = selectionForRelease(current, data, id);
-      if (next !== current) select(next, true, navigationRef.current.mainView);
-    },
-    [source, select],
-  );
+    if (id && !viewRef.current?.releases.some(
+      (item) => item.id === id && item.projectId === current.projectId,
+    )) return;
+    releaseRef.current = id;
+    updateReleaseId(id);
+    const target = { projectId: current.projectId, ...(current.formalView ? { formalView: "list" as const } : {}) };
+    recordNavigation(target, navigationRef.current.mainView);
+    select(target, false, navigationRef.current.mainView);
+  }, [select, recordNavigation]);
   const retryMaterial = useCallback(
     async (path: string) => {
       try {
@@ -354,14 +333,24 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           throw new Error(result.error ?? result.receipt.error ?? "操作失败。");
         // An operation completing in the background must not navigate a different view.
         if (selectionRef.current !== target) return result;
-        if (value.type === "createProposal")
-          select({ projectId: result.projectId, irId: result.irId });
+        commandError.current = false;
+        if (value.type === "createProposal" || value.type === "importProposals") await refresh();
         else if (value.type === "runRequirementsReview" || value.type === "submitProposalReview")
           select({
             ...target,
             discussionPhase: "requirements",
             proposalStep: "requirements-review",
             reviewAgent: undefined,
+            proposalEditing: undefined,
+          });
+        else if (value.type === "runFullReview")
+          // 修复：完整评审结束后的默认头像必须与实际原生报告会话一致。
+          select({
+            ...target,
+            discussionPhase: "solution",
+            proposalStep: "solution",
+            reviewAgent: "summary",
+            materialPath: undefined,
             proposalEditing: undefined,
           });
         else if (["acceptProposal", "returnProposal"].includes(value.type))
@@ -377,76 +366,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         setError(undefined);
         return result;
       } catch (cause) {
-        report(cause);
+        if (selectionRef.current === target) {
+          commandError.current = true;
+          report(cause);
+        }
         return undefined;
       }
     },
     [source, refresh, report, select],
-  );
-  const openFirstDiscussion = useCallback(
-    async (_text: string, _options: ConversationComposerSendOptions, preparedSessionId: string) => {
-      if (!preparedSessionId.trim()) throw new Error("原生草稿会话尚未就绪，输入未发送");
-      if (creatingFirst.current) {
-        const session = await creatingFirst.current;
-        if (session.sessionId !== preparedSessionId)
-          throw new Error("首次发送会话与原生草稿不一致，输入未发送");
-        return session;
-      }
-      const target = selectionRef.current;
-      const targetRelease = target.proposalDraftReleaseId ?? releaseId;
-      const key =
-        target.proposalDraftId ??
-        JSON.stringify([sourceScope(source), getEmployeeId(), target.projectId, targetRelease]);
-      const create = async () => {
-        const result = await source.command(
-          {
-            type: "createProposal",
-            projectId: target.projectId,
-            releaseId: targetRelease,
-            // 输入槽会反复用于新提案；幂等 ID 必须绑定当前原生草稿，不能永久绑定项目和 Release。
-            clientDraftId: JSON.stringify([key, preparedSessionId]),
-            // Bug 原因：附件已属于原生预热会话，业务登记不得再分配第二个会话。
-            preparedSessionId,
-          },
-          target,
-          viewRef.current?.revision ?? 0,
-        );
-        if (result.status === "failed") throw new Error(result.error ?? "提案创建失败，输入未发送");
-        const created = { projectId: result.projectId, irId: result.irId };
-        const next = result.view ?? (await source.readWorkflow(created));
-        const session = source.resolveSession(next, created);
-        if (!session || !result.projectId || !result.irId)
-          throw new Error("需求讨论会话尚未就绪，输入未发送");
-        if (session.sessionId !== preparedSessionId)
-          throw new Error("需求讨论会话与原生草稿不一致，输入未发送");
-        provisional.current.set(key, {
-          projectId: result.projectId,
-          irId: result.irId,
-          sessionId: session.sessionId,
-        });
-        return session;
-      };
-      const flight = create();
-      creatingFirst.current = flight;
-      try {
-        return await flight;
-      } finally {
-        if (creatingFirst.current === flight) creatingFirst.current = null;
-      }
-    },
-    [source, releaseId],
-  );
-  const finishFirstDiscussion = useCallback(
-    (sessionId: string) => {
-      const target = selectionRef.current;
-      const provisionalTarget =
-        target.proposalDraftId && provisional.current.get(target.proposalDraftId);
-      if (provisionalTarget && provisionalTarget.sessionId === sessionId) {
-        provisional.current.delete(target.proposalDraftId!);
-        select({ projectId: provisionalTarget.projectId, irId: provisionalTarget.irId });
-      } else void refresh();
-    },
-    [select, refresh],
   );
   return (
     <AIReqContext.Provider
@@ -479,8 +406,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         command,
         report,
         startProposalDraft,
-        openFirstDiscussion,
-        finishFirstDiscussion,
+        proposalDraft,
+        closeProposalDraft: () => setProposalDraft(null),
+        setDraftNavigationGuard,
         setNavigationGuard,
         navigate,
       }}

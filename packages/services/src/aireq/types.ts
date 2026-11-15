@@ -1,3 +1,12 @@
+import type { AIReqProjectProgress } from "./progress-types.js";
+
+/** Caller identity records provenance and isolates private sessions; it is not authorization. */
+export interface AIReqIdentity {
+  employeeId: string;
+  clientId: string;
+  demo?: string;
+}
+
 /** Phase-one frontend presentation contracts. No OMP runtime dependency or execution authority. */
 export const AIREQ_WORKFLOW_VERSION = 1 as const;
 export const AIREQ_WORKFLOW_STAGES = ["planning", "executing", "pr"] as const;
@@ -79,6 +88,9 @@ export interface AIReqReviewAgent {
   promptSnapshot?: string;
 }
 export interface AIReqReview {
+  kind?: "original" | "full";
+  invalidatedReason?: string;
+  held?: boolean;
   agents?: AIReqReviewAgent[];
   humanDecision?: { employeeId: string; decidedAt: string; reviewId: string };
   id: string;
@@ -155,7 +167,8 @@ export type AIReqProposalMergeScenario =
   | "merged"
   | "incomplete"
   | "failed"
-  | "mr-closed";
+  | "mr-closed"
+  | "stale-version";
 export interface AIReqRequirementsDecision {
   reviewId: string;
   snapshotDigest: string;
@@ -223,10 +236,15 @@ export interface AIReqSrDelivery {
   humanResolution?: { note: string; employeeId: string; resolvedAt: string };
 }
 export interface AIReqSystemRequirement {
+  testingEmployeeId?: string;
+  lastAnalysisFailure?: { message: string; at: string };
+  testAcceptance?: AIReqTestAcceptance;
+  acceptanceHistory?: AIReqTestAcceptance[];
+  developmentIssues?: AIReqDevelopmentIssue[];
   planning?: AIReqSrPlanning;
   solutionAnalysis?: AIReqSrSolutionAnalysis;
   progress?: AIReqProgressAnalysis;
-  trackingBranch?: { name: string; baseCommit: string; createdAt: string; pushedAt: string };
+  trackingBranch?: { name: string; baseCommit: string; createdAt: string; pushedAt: string; status?: "ready" | "failed" | "deleted"; error?: string; deletedAt?: string; nextCleanupFailure?: boolean };
   ompWebId?: string;
   id: string;
   projectId: string;
@@ -301,6 +319,9 @@ export interface AIReqSrSolutionAnalysis {
 export interface AIReqSrPlanningInput {
   developerEmployeeId?: string;
   plannedStart?: string;
+  testingEmployeeId?: string;
+  operationId?: string;
+  expectedRevision?: number;
   plannedEnd?: string;
 }
 export interface AIReqSrPlanning extends AIReqSrPlanningInput {
@@ -311,8 +332,21 @@ export interface AIReqSrPlanning extends AIReqSrPlanningInput {
   updatedAt?: string;
 }
 export interface AIReqRequirementGroup {
+  originalText: string;
+  submittedBy: string;
+  sourceIrId?: string;
+  contacts?: { business?: string; development?: string; testing?: string };
+  contactHistory?: { employeeId: string; at: string; contacts: { business?: string; development?: string; testing?: string } }[];
+  originalReview?: AIReqReview;
+  originalReviewHistory?: AIReqReview[];
+  alignment?: AIReqAlignment[];
+  alignmentHistory?: AIReqAlignment[];
+  materialHistory?: { version: string; reason: string; changedAt: string; materials: AIReqMaterialView[] }[];
+  reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
+  heldReviews?: AIReqReview[];
+  rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
+  branchCreationFailures?: string[];
   ownerEmployeeId?: string;
-  pendingFirstMessage?: boolean;
   clientDraftId?: string;
   ompWebId?: string;
   id: string;
@@ -379,6 +413,8 @@ export interface AIReqRequirementGroup {
 }
 export interface AIReqOperationReceipt {
   operationId: string;
+  /** Request identity captured at admission; absent on historical sample receipts. */
+  identity?: AIReqIdentity;
   commandDigest: string;
   type: string;
   status: "running" | "completed" | "failed";
@@ -399,6 +435,8 @@ export interface AIReqMaterialView extends AIReqFileVersion {
     | "ir"
     | "sr"
     | "solution"
+    | "test-plan"
+    | "acceptance"
     | AIReqStageMaterial["kind"]
     | "attachment"
     | "ir-acceptance-report"
@@ -420,6 +458,8 @@ export interface AIReqRepositoryAIReqelopment {
   owners: (AIReqObjectRef & { title: string })[];
 }
 export interface AIReqWorkflowView {
+  todos?: AIReqTodo[];
+  projectProgress?: AIReqProjectProgress[];
   ompWebId?: string;
   version: 1;
   revision: number;
@@ -452,10 +492,19 @@ export type AIReqWorkflowCommand = AIReqCommandBase &
     | { type: "createRelease"; title: string }
     | {
         type: "createProposal";
+        originalText: string;
+        sourceIrId?: string;
         clientDraftId?: string;
         releaseId: string;
-        preparedSessionId?: string;
       }
+    | { type: "importProposals"; releaseId: string; originalTexts: string[] }
+    | { type: "assignContacts"; contacts: { business?: string; development?: string; testing?: string } }
+    | { type: "runFullReview" }
+    | { type: "approveFullReview"; reviewId: string; snapshotDigest: string }
+    | { type: "confirmAlignment"; perspective: "business" | "development" | "testing"; version: string }
+    | { type: "closeProposalPr"; candidate: string }
+    | { type: "retrySrBranch"; srId: string }
+    | { type: "reviseProposalMaterial"; target: "requirements" | "solution" | "test-plan"; note: string }
     | { type: "deleteRequirement"; version: 1; projectId: string; irId: string }
     | { type: "submitProposalReview" }
     | { type: "acceptProposal"; reviewId?: string; snapshotDigest?: string }
@@ -529,6 +578,10 @@ export interface AIReqSelection {
 }
 
 export interface AIReqProgressAnalysis {
+  aiPercent?: number;
+  inputFingerprint?: string;
+  analysisFailure?: { message: string; at: string };
+  stale?: boolean;
   percent: number;
   merged: boolean;
   certain: boolean;
@@ -697,4 +750,37 @@ export interface AIReqSkillSaveReceipt {
   revision: number;
   target: "project" | "user";
   name: string;
+}
+export type AIReqReviewScenario = "normal" | "blocked" | "failed" | "hold";
+export interface AIReqAlignment {
+  perspective: "business" | "development" | "testing";
+  version: string;
+  employeeId: string;
+  confirmedAt: string;
+}
+export interface AIReqTestAcceptance {
+  operationId: string;
+  outcome: "passed" | "failed";
+  employeeId: string;
+  at: string;
+  reason: string;
+  codeVersion: string;
+}
+export interface AIReqDevelopmentIssue {
+  id: string;
+  detail: string;
+  failedCodeVersion: string;
+  reportedBy: string;
+  reportedAt: string;
+  status: "open" | "awaiting-retest" | "resolved";
+  fixCodeVersion?: string;
+  resolvedAt?: string;
+}
+export interface AIReqTodo extends AIReqObjectRef {
+  id: string;
+  title: string;
+  kind: "business-discussion" | "original-review" | "solution" | "full-review" | "alignment" | "publish" | "development" | "testing" | "fix" | "failure";
+  employeeId?: string;
+  perspective?: AIReqAlignment["perspective"];
+  selection: AIReqSelection;
 }

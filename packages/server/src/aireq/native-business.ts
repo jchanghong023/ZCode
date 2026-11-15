@@ -1,8 +1,7 @@
-import { conversationReadOnlyReason, requirementsReviewCurrent } from "@zcode/services/aireq";
+import { conversationReadOnlyReason, requirementsReviewCurrent, fullReviewCurrent, proposalVersion } from "@zcode/services/aireq";
 import {
   getPrototypeWorkflow,
   applyPrototypeAction,
-  publishPrototypeProposalForSession,
 } from "./workflow.js";
 import {
   prototypeSkillDesignReply,
@@ -24,6 +23,7 @@ export class AIReqNativeBusiness {
   private readonly results = new Map<string, { text: string; reply: string }>();
   private readonly failures = new Set<string>();
   private readonly actors = new Map<string, import("@zcode/services/aireq").AIReqIdentity>();
+  private readonly admittedVersions = new Map<string, string>();
   private readonly nativeDrafts = new Map<
     string,
     {
@@ -32,7 +32,6 @@ export class AIReqNativeBusiness {
       workspaceIdentity?: string;
       original: () => boolean;
       exists: () => boolean;
-      proposalKey?: string;
     }
   >();
   registerNativeDraft(
@@ -44,32 +43,6 @@ export class AIReqNativeBusiness {
     if (this.nativeDrafts.has(sessionId)) throw new Error("原生草稿已登记。");
     this.nativeDrafts.set(sessionId, { actor: this.actorKey(), ...workspace, original, exists });
   }
-  assertPreparedDraft(
-    sessionId: string,
-    workspace: { workspacePath: string; workspaceIdentity?: string },
-    proposalKey: string,
-  ): void {
-    const draft = this.nativeDrafts.get(sessionId);
-    // 只接纳原生 owner 已登记的草稿；未知编号绝不能通过业务创建补种。
-    if (
-      !draft ||
-      !draft.exists() ||
-      draft.actor !== this.actorKey() ||
-      draft.workspacePath !== workspace.workspacePath ||
-      draft.workspaceIdentity !== workspace.workspaceIdentity ||
-      (draft.proposalKey
-        ? draft.proposalKey !== proposalKey
-        : !draft.original() || Boolean(locate(sessionId)))
-    )
-      throw new Error("预热草稿不存在、已使用或不属于当前操作者及工作区。");
-  }
-  bindPreparedDraft(sessionId: string, proposalKey: string): void {
-    this.nativeDrafts.get(sessionId)!.proposalKey = proposalKey;
-  }
-  publishNativeAdmission(sessionId: string): void {
-    // 仅在原生命令已写入接纳投影后发布；预热和失败重试都不产生可见提案。
-    publishPrototypeProposalForSession(sessionId);
-  }
   actorKey(): string {
     const actor = currentIdentity();
     if (!actor) throw new Error("INVALID_IDENTITY");
@@ -78,28 +51,10 @@ export class AIReqNativeBusiness {
   isPublishedNativeSession(sessionId: string): boolean {
     const target = locate(sessionId);
     if (!target) return false;
-    // 绑定 proposalKey 仅表示首发准备；共享权限必须来自已发布业务的精确 canonical ref。
+    // 共享读取只来自业务 owner 登记的精确 canonical ref，不依赖首条聊天发布。
     return [...target.view.groups, ...target.view.drafts].some(
-      (item) =>
-        item.projectId === target.ref.projectId &&
-        item.id === target.ref.irId &&
-        !item.pendingFirstMessage,
+      (item) => item.projectId === target.ref.projectId && item.id === target.ref.irId,
     );
-  }
-  protected resolveNativeTaskSession(sessionId: string) {
-    const target = locate(sessionId);
-    // 修复原因：运行样例只挂在已发布的 canonical 业务会话，不能借草稿或未知编号解锁。
-    if (!target || !this.isPublishedNativeSession(sessionId)) return undefined;
-    const binding = this.getNativeBinding(sessionId);
-    const project = target.view.projects.find((item) => item.id === target.ref.projectId);
-    if (!binding || !project) return undefined;
-    return {
-      sessionId,
-      projectId: project.id,
-      workspacePath: project.root,
-      workspaceIdentity: `aireq-mock:${project.id}`,
-      binding,
-    };
   }
   getNativeBinding(sessionId: string) {
     const draft = this.nativeDrafts.get(sessionId);
@@ -145,11 +100,9 @@ export class AIReqNativeBusiness {
     );
     if (reason) throw new Error(reason);
     if (ref.role === "reviewer") {
-      if (
-        !proposal ||
-        !requirementsReviewCurrent(proposal) ||
-        !proposal.review?.agents?.some((agent) => agent.session.sessionId === sessionId)
-      )
+      const review = ref.phase === "solution" ? proposal?.review : proposal?.originalReview;
+      if (!proposal || !(ref.phase === "solution" ? fullReviewCurrent(proposal) : requirementsReviewCurrent(proposal)) ||
+        !review?.agents?.some((agent) => agent.session.sessionId === sessionId))
         throw new Error("历史评审仅供只读查看。");
     } else if (
       !proposal ||
@@ -157,6 +110,7 @@ export class AIReqNativeBusiness {
       proposal.status === "requirements-pr"
     )
       throw new Error("当前或历史会话只读，请回到有效讨论阶段。");
+    this.admittedVersions.set(`${sessionId}:${commandId}`, proposalVersion(proposal!));
   }
   completeNative(sessionId: string, commandId: string, text: string): string {
     const actor = this.actors.get(`${sessionId}:${commandId}`);
@@ -180,15 +134,17 @@ export class AIReqNativeBusiness {
       const { ref, view } = target;
       const proposal = view.drafts.find((item) => item.id === ref.irId);
       const selection = { projectId: ref.projectId, irId: ref.irId };
+      if (!proposal || this.admittedVersions.get(key) !== proposalVersion(proposal))
+        throw new Error("当前材料已变化，拒绝迟到的原生业务完成结果。");
       if (ref.role === "reviewer")
         reply =
           "【模拟评审追问】\n\n当前独立意见与综合报告仅依据本轮 IR 和全部 SR。追问已记录，不修改需求、报告版本或人工决定。请结合材料核对范围、异常路径与可验收性。";
       else if (ref.phase === "solution" && text.trim()) {
         applyPrototypeAction({ type: "generateProposalSolution", ...selection }, selection, text);
         reply =
-          "【服务端内存模拟】\n\n已根据本轮方案讨论同步更新 design.md 和 sr-dependencies.json，包含全部 SR 的依赖、正数工作日预估与假设。旧文件确认已失效，请在右侧逐文件查看当前版本。未调用模型、Git 或外部服务。";
+          "【服务端内存模拟】\n\n已按讨论拆分稳定 SR，并完善每个独立 change 的 proposal、design、tasks、specs、test-plan；同步 IR 依赖 JSON 与整体验收。整包旧审查和三方确认失效；未调用模型、Git，不执行开发任务。";
       } else if (proposal && text.trim()) {
-        const initial = !proposal.srIds.length;
+        const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
         applyPrototypeAction(
           {
             type: initial ? "generateRequirements" : "supplementRequirements",
@@ -198,8 +154,8 @@ export class AIReqNativeBusiness {
           selection,
         );
         reply = initial
-          ? "【服务端内存模拟】\n\n已按输入整理 IR，并建立“业务操作与结果展示”“异常处理与恢复”两个稳定 SR。右侧可阅读当前需求；请继续补充范围和验收标准，再发起四路评审。未调用真实模型。"
-          : "【服务端内存模拟】\n\n已将补充写入当前 IR 与全部 SR，保留稳定编号；旧评审、方案与文件确认不再作为当前版本依据。请重新评审本轮需求。";
+          ? "【服务端内存模拟】\n\n已整理 IR 原始业务需求文档，尚未创建 SR。请完善目标、范围和验收标准，再由单个业务需求 Agent 评审并人工通过。未调用真实模型。"
+          : "【服务端内存模拟】\n\n已更新 IR 业务需求，原始短需求与历史保留；前置单评审及下游整包批准已失效，请重新评审。";
       } else
         reply =
           "附件已在当前原生会话接纳；尚无可用文字材料，需求文档尚未生成。请明确补充业务目标。";
@@ -213,7 +169,7 @@ export class AIReqNativeBusiness {
     const proposal = [...target.view.groups, ...target.view.drafts].find(
       (item) => item.id === target.ref.irId,
     );
-    const review = [proposal?.review, ...(proposal?.reviewHistory ?? [])].find((item) =>
+    const review = [proposal?.originalReview, ...(proposal?.originalReviewHistory ?? []), proposal?.review, ...(proposal?.reviewHistory ?? [])].find((item) =>
       item?.agents?.some((agent) => agent.session.sessionId === sessionId),
     );
     return review?.agents?.find((agent) => agent.session.sessionId === sessionId)?.report;

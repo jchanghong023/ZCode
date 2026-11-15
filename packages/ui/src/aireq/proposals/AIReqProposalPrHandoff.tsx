@@ -96,7 +96,7 @@ export function AIReqProposalPrHandoff({
               </dd>
             </div>
             <div>
-              <dt className="text-foreground-subtle">目标 · 平台托管 Git 仓库</dt>
+              <dt className="text-foreground-subtle">目标 · 模拟 Git 仓库（不执行真实提交）</dt>
               <dd className="mt-0.5 break-all font-mono" data-testid="proposal-pr-target">
                 {handoff.repositoryUrl ?? "尚未配置"}
               </dd>
@@ -116,7 +116,7 @@ export function AIReqProposalPrHandoff({
           </dl>
           <details className="text-ui-sm" data-testid="proposal-pr-file-list">
             <summary className="cursor-pointer text-foreground-subtle">
-              同一 change 的 {handoff.files.length} 份文件与版本
+              同一 IR 完整包（含各 SR 独立 change）的 {handoff.files.length} 份文件与版本
             </summary>
             <ul className="mt-2 max-h-48 space-y-3 overflow-auto">
               {handoff.files.map((file) => (
@@ -160,7 +160,7 @@ export function AIReqProposalPrHandoff({
       {handoff &&
         (handoff.ready ? (
           <p className="text-ui-sm text-foreground-subtle" data-testid="proposal-pr-handoff-ready">
-            需求与方案已就绪；平台从最新默认分支创建提案分支并提交推送，无需个人开发目录。
+            完整材料、审查及三方确认已就绪；模拟文档 PR 包含 IR 共享材料、全部 SR 独立 change 和测试方案。
           </p>
         ) : (
           <ul
@@ -174,8 +174,8 @@ export function AIReqProposalPrHandoff({
           </ul>
         ))}
       <p className="text-ui-sm text-foreground-subtle">
-        同名冲突不能直接覆盖，旧方案不能提交。提案分支合入默认分支且文档完整后，后台定时核验后自动转为正式需求并创建各
-        SR 分支；不要求手填 MR 链接或人工确认合并。
+        同名冲突不能直接覆盖，旧版本不能提交。只有 owner 核实同一完整候选合入才转正并创建各 SR 分支；
+        一个 IR 一个文档 PR，提交即冻结，关闭未合并 PR 后才能修改。
       </p>
     </section>
   );

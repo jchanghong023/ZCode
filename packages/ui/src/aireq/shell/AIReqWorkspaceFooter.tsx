@@ -12,6 +12,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
@@ -30,6 +31,8 @@ export function AIReqWorkspaceFooter({
   settingsButtonMode?: "settings" | "back";
 }) {
   const ai = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const source = useAIReqDataSource();
   const theme = useZCodeStore((state) => state.theme);
   const setTheme = useZCodeStore((state) => state.setTheme);
@@ -40,8 +43,10 @@ export function AIReqWorkspaceFooter({
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
   const release = releases.find((item) => item.id === ai.releaseId);
   const back = settingsButtonMode === "back";
-  const projectLabel = project?.name ?? "请选择项目";
-  const releaseLabel = release?.title ?? (project ? "尚无 Release" : "请先选择项目");
+  const projectLabel = project?.name ?? (zh ? "请选择项目" : "Choose project");
+  const releaseLabel = release?.title ?? (project
+    ? releases.length ? zh ? "全部 Release" : "All Releases" : zh ? "尚无 Release" : "No Releases"
+    : zh ? "请先选择项目" : "Choose a project first");
 
   return (
     <WorkspaceSidebarFooter
@@ -52,7 +57,7 @@ export function AIReqWorkspaceFooter({
       onSettingsButtonClick={onOpenSettings}
       settingsButtonMode={settingsButtonMode}
       profileTriggerRef={menuTriggerRef}
-      profileAriaLabel={back ? `工号 ${employeeId}` : "项目与 Release 菜单"}
+      profileAriaLabel={back ? `${zh ? "工号" : "Employee"} ${employeeId}` : zh ? "项目与 Release 菜单" : "Project and Release menu"}
       profileLabel={
         <span title={back ? employeeId : projectLabel}>{back ? employeeId : projectLabel}</span>
       }
@@ -64,22 +69,22 @@ export function AIReqWorkspaceFooter({
           {/* 身份是只读信息而非不可用操作，不套用 disabled 的透明度。 */}
           <DropdownMenuLabel className="flex items-center gap-2 font-normal text-foreground">
             <UserRound className="size-4 shrink-0" />
-            工号 {employeeId}
+            {zh ? "工号" : "Employee"} {employeeId}
           </DropdownMenuLabel>
           <DropdownMenuItem onSelect={onLogout}>
             <LogOut className="size-4" />
-            切换工号
+            {zh ? "切换工号" : "Switch employee"}
           </DropdownMenuItem>
           <DropdownMenuLabel className="font-normal text-foreground">
-            Web 所有者 {source.backend?.owner ?? "未提供"}
-            {source.provenance.kind === "sample" ? " · 演示" : ""}
+            Web {zh ? "所有者" : "owner"} {source.backend?.owner ?? (zh ? "未提供" : "unavailable")}
+            {source.provenance.kind === "sample" ? zh ? " · 演示" : " · Demo" : ""}
           </DropdownMenuLabel>
           {!back ? (
             <>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger data-testid="project-select">
                   <FolderGit2 className="size-4" />
-                  <span className="shrink-0">项目</span>
+                  <span className="shrink-0">{zh ? "项目" : "Project"}</span>
                   <span
                     className="ml-4 max-w-40 truncate text-foreground-subtle"
                     title={projectLabel}
@@ -101,11 +106,11 @@ export function AIReqWorkspaceFooter({
                     ))}
                   </DropdownMenuRadioGroup>
                   {!ai.view?.projects.length ? (
-                    <DropdownMenuItem disabled>尚无项目</DropdownMenuItem>
+                    <DropdownMenuItem disabled>{zh ? "尚无项目" : "No projects"}</DropdownMenuItem>
                   ) : null}
                   <DropdownMenuItem onSelect={onManageProjects}>
                     <Plus className="size-4" />
-                    添加或管理项目
+                    {zh ? "添加或管理项目" : "Add or manage projects"}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -125,6 +130,7 @@ export function AIReqWorkspaceFooter({
                     value={release?.id ?? ""}
                     onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id))}
                   >
+                    <DropdownMenuRadioItem value="">{zh ? "全部 Release" : "All Releases"}</DropdownMenuRadioItem>
                     {releases.map((item) => (
                       <DropdownMenuRadioItem key={item.id} value={item.id} className="min-w-0">
                         <span className="truncate" title={item.title}>
@@ -134,11 +140,11 @@ export function AIReqWorkspaceFooter({
                     ))}
                   </DropdownMenuRadioGroup>
                   {!releases.length ? (
-                    <DropdownMenuItem disabled>当前项目尚无 Release</DropdownMenuItem>
+                    <DropdownMenuItem disabled>{zh ? "当前项目尚无 Release" : "This project has no Releases"}</DropdownMenuItem>
                   ) : null}
                   <DropdownMenuItem onSelect={onManageProjects}>
                     <Plus className="size-4" />
-                    添加或管理 Release
+                    {zh ? "添加或管理 Release" : "Add or manage Releases"}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -150,7 +156,7 @@ export function AIReqWorkspaceFooter({
             data-testid="aireq-workflow-help-open"
           >
             <CircleHelp className="size-4" />
-            帮助
+            {zh ? "帮助" : "Help"}
           </DropdownMenuItem>
         </>
       }
