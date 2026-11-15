@@ -84,7 +84,7 @@ export function AnalysisSettings({
           <CollapsibleTrigger asChild>
             <Button
               variant="ghost"
-              className="h-auto w-full justify-between rounded-none px-4 py-3"
+              className="group/analysis-toggle h-auto w-full justify-between rounded-none px-4 py-3"
             >
               <span
                 id="analysis-projects-title"
@@ -96,7 +96,8 @@ export function AnalysisSettings({
                   {snapshot.projects.length} 已开启
                 </span>
               </span>
-              <ChevronDown className="size-4 text-foreground-subtle" />
+              {/* 由原生折叠状态驱动箭头，不维护重复的展开状态。 */}
+              <ChevronDown className="size-4 text-foreground-subtle transition-transform group-data-[state=open]/analysis-toggle:rotate-180" />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -206,9 +207,12 @@ export function AnalysisSettings({
         >
           <Collapsible defaultOpen>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="h-auto w-full justify-between px-4 py-3">
+              <Button
+                variant="ghost"
+                className="group/analysis-toggle h-auto w-full justify-between px-4 py-3"
+              >
                 <span id="analysis-schedule-title">调度设置</span>
-                <ChevronDown className="size-4" />
+                <ChevronDown className="size-4 transition-transform group-data-[state=open]/analysis-toggle:rotate-180" />
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>

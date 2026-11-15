@@ -150,11 +150,11 @@ export function AIReqReviewNavigation() {
         className="mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-2"
         data-testid="review-session-actions"
       >
-        <Tabs value={selected} onValueChange={choose} className="min-w-0">
+        <Tabs value={selected} onValueChange={choose} className="min-w-0 max-w-full">
           <TabsList
             ref={tabList}
             aria-label="评审 Agent 会话"
-            className="h-11 gap-1 p-1 group-data-horizontal/tabs:h-11"
+            className="h-auto max-w-full flex-wrap gap-1 p-1 group-data-horizontal/tabs:h-auto"
             onKeyDownCapture={(event) => {
               const ids = ["summary", "a", "b", "c"] as const;
               const index = ids.indexOf(selected);
@@ -184,11 +184,11 @@ export function AIReqReviewNavigation() {
                   key={id}
                   title={`${label} · ${agent?.session.modelConfig?.modelName ?? "模型未配置"}`}
                 >
-                  <span className="inline-flex">
+                  <span className="inline-flex min-w-0 max-w-full">
                     <TabsTrigger
                       value={id}
                       aria-label={label}
-                      className="h-9 w-9 flex-none p-1.5 data-[state=active]:bg-selected data-[state=active]:ring-1 data-[state=active]:ring-border"
+                      className="h-auto min-h-9 max-w-full flex-none gap-1.5 px-2 py-1.5 data-[state=active]:bg-selected data-[state=active]:ring-1 data-[state=active]:ring-border"
                       data-testid={`review-avatar-${id}`}
                     >
                       <WorkflowAgentFace
@@ -198,8 +198,12 @@ export function AIReqReviewNavigation() {
                           agent?.status === "completed" ? "done" : (agent?.status ?? "failed")
                         }
                         showCompletionMark={agent?.status === "completed"}
-                        className="size-6"
+                        className="size-6 shrink-0"
                       />
+                      {/* 可见文字区分评审入口，不让颜色或悬停成为辨认前提。 */}
+                      <span className="whitespace-normal text-ui-base">
+                        {id === "summary" ? "综合意见" : `评审 ${id.toUpperCase()}`}
+                      </span>
                     </TabsTrigger>
                   </span>
                 </ControlHintTooltip>

@@ -76,7 +76,7 @@ export function IssueStatus({ issue }: { issue: AIReqIssue }) {
       : issue.status === "developing"
         ? "bg-progress-surface text-progress-surface-foreground"
         : issue.status === "pending"
-          ? "bg-tag text-foreground-subtle"
+          ? "bg-tag text-foreground"
           : "bg-warning-surface text-warning-surface-foreground";
   return (
     <Badge variant="secondary" className={`whitespace-nowrap font-normal ${color}`}>

@@ -114,7 +114,8 @@ export function AIReqFormalTable() {
     >
       {/* 修复：AIReq 固定显示主导航，此处仅保留原版 48px 空白顶栏。 */}
       <div className="h-12 shrink-0" />
-      <div className="flex min-h-0 w-full flex-1 flex-col px-3 py-4 md:px-4 md:py-6">
+      {/* 沿用 base 内容列的居中与水平留白；宽表格单独限宽，窄窗口仍在表格内滚动。 */}
+      <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 md:py-6 lg:px-8">
         <header className="shrink-0 space-y-3 border-b border-border pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}

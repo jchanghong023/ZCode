@@ -6,7 +6,7 @@ import { progressLabel, type AIReqProgressStatus } from "../../contract.js";
 // 复用主题语义色；待合入／待验收表示等待人工处理，不表示异常或失败。
 const progressAppearance = {
   待开发: {
-    badge: "bg-tag text-foreground-subtle",
+    badge: "bg-tag text-foreground",
     indicator: "bg-foreground-subtle",
     icon: CircleDashed,
   },

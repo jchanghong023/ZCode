@@ -263,7 +263,7 @@ export function AIReqEditPlanning({
                 }}
                 placeholder="留空表示未分配"
               />
-              <p id={`${id}-developer-hint`} className="text-ui-xs text-foreground-subtle">
+              <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
                 一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
               </p>
             </div>
@@ -297,11 +297,11 @@ export function AIReqEditPlanning({
                 />
               </div>
             </div>
-            <p className="text-ui-xs text-foreground-subtle">
+            <p className="text-ui-sm text-foreground-subtle">
               项目时区：Asia/Shanghai。开始和结束同时留空可取消排期；不单独维护工时。
             </p>
             {sr.planning?.suggestion && (
-              <p className="text-ui-xs leading-5 text-foreground-subtle">
+              <p className="text-ui-sm leading-5 text-foreground-subtle">
                 原 AI 建议：{planningDate(sr.planning.suggestion.plannedStart)} →{" "}
                 {planningDate(sr.planning.suggestion.plannedEnd)}
                 。人工调整后保留建议，后台不得直接覆盖。
@@ -315,7 +315,7 @@ export function AIReqEditPlanning({
                     <li key={warning}>{warning}</li>
                   ))}
                 </ul>
-                <p className="mt-2 text-ui-xs text-foreground-subtle">
+                <p className="mt-2 text-ui-sm text-foreground-subtle">
                   可保存人工安排；提醒持续保留，不自动移动其他 SR。
                 </p>
               </div>
@@ -400,11 +400,11 @@ export function AIReqPlanningSummary({
             {table}
           </AIReqMarkdownDocument>
         )}
-        <p className="text-ui-xs leading-5 text-foreground-subtle">
+        <p className="text-ui-sm leading-5 text-foreground-subtle">
           预估与依赖共同读取 sr-dependencies.json；通过方案对话让 AI
           更新。缺项标为待预估／待补充，提交前须补齐。
         </p>
-        <p className="text-ui-xs leading-5 text-foreground-subtle">
+        <p className="text-ui-sm leading-5 text-foreground-subtle">
           工作日不代表承诺日期或实际用时，不直接相加为 IR 总工期。转正后再安排人员及起止时间。
         </p>
       </section>
@@ -416,7 +416,7 @@ export function AIReqPlanningSummary({
     <section className="space-y-4" data-testid="requirement-planning-summary">
       <div>
         <h2 className="text-ui-base font-medium">开发安排</h2>
-        <p className="mt-1 text-ui-xs leading-5 text-foreground-subtle">
+        <p className="mt-1 text-ui-sm leading-5 text-foreground-subtle">
           人员与排期：数据库元数据；实现思路与依赖：仓库文档。时间为计划，不代表实际开发活动。
         </p>
       </div>
@@ -450,7 +450,8 @@ export function AIReqPlanningSummary({
                     ?.prerequisites.map((item) => `${item.srId}：${item.reason}`)
                     .join("；") || "无前置依赖"}
                 </p>
-                <p className="text-ui-xs leading-5">
+                {/* 排期判断依据是辅助说明，不能按弱元数据缩小。 */}
+                <p className="text-ui-sm leading-5">
                   可并行 SR（由依赖图推导）：
                   {parallelSrIds(group, sr.id)
                     .map(
@@ -462,7 +463,7 @@ export function AIReqPlanningSummary({
                   。各自前置依赖就绪后再协调安排。
                 </p>
                 {sr.solutionAnalysis.uncertainties.map((issue) => (
-                  <p key={issue} className="text-ui-xs leading-5 text-foreground-subtle">
+                  <p key={issue} className="text-ui-sm leading-5 text-foreground-subtle">
                     待确认：{issue}
                   </p>
                 ))}
@@ -491,12 +492,12 @@ export function AIReqPlanningSummary({
               </div>
             </dl>
             {sr.planning && (
-              <p className="text-ui-xs leading-5 text-foreground-subtle">
+              <p className="text-ui-sm leading-5 text-foreground-subtle">
                 {sr.planning.assumptions}
               </p>
             )}
             {sr.planning?.source === "manual" && (
-              <p className="text-ui-xs text-foreground-subtle">
+              <p className="text-ui-sm text-foreground-subtle">
                 人工安排：{sr.planning.updatedBy} ·{" "}
                 {sr.planning.updatedAt
                   ? new Date(sr.planning.updatedAt).toLocaleString("zh-CN", {
@@ -507,13 +508,13 @@ export function AIReqPlanningSummary({
               </p>
             )}
             {sr.planning?.source === "manual" && sr.planning.suggestion && (
-              <p className="text-ui-xs text-foreground-subtle">
+              <p className="text-ui-sm text-foreground-subtle">
                 原 AI 建议：{planningDate(sr.planning.suggestion.plannedStart)} →{" "}
                 {planningDate(sr.planning.suggestion.plannedEnd)}；由 {sr.planning.updatedBy} 调整。
               </p>
             )}
             {planningWarnings(view, sr).map((warning) => (
-              <p key={warning} className="text-ui-xs leading-5" role="status">
+              <p key={warning} className="text-ui-sm leading-5" role="status">
                 排期提醒：{warning}
               </p>
             ))}

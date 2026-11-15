@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqPersonalConfigScope } from "./AIReqPersonalConfigScope.js";
 
@@ -45,7 +46,8 @@ function ModelSettingsContent({
   const [saved, setSaved] = useState(source.models!.read);
   const [draft, setDraft] = useState(source.models!.read);
   const [savedRevision, setSavedRevision] = useState(() => source.models!.revision());
-  const [message, setMessage] = useState("");
+  // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const canManage = source.capabilities.settingsWrite === true && getEmployeeId() === "j00808874";
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const [saving, setSaving] = useState(false);
@@ -55,14 +57,15 @@ function ModelSettingsContent({
     if (!canManage || savingRef.current || !dirty) return false;
     savingRef.current = true;
     setSaving(true);
+    setMessage(null);
     try {
       await source.models!.save(draft, savedRevision);
       setSaved(structuredClone(source.models!.read()));
       setSavedRevision(source.models!.revision());
-      setMessage(zh ? "模型配置已保存" : "Model configuration saved");
+      setMessage({ kind: "success", text: zh ? "模型配置已保存" : "Model configuration saved" });
       return true;
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : String(cause));
+      setMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
       return false;
     } finally {
       savingRef.current = false;
@@ -75,7 +78,7 @@ function ModelSettingsContent({
     save,
     discard: () => {
       setDraft(structuredClone(saved));
-      setMessage("");
+      setMessage(null);
     },
   };
   useEffect(() => {
@@ -98,7 +101,7 @@ function ModelSettingsContent({
       ...current,
       agents: current.agents.map((agent) => (agent.id === id ? { ...agent, ...patch } : agent)),
     }));
-    setMessage("");
+    setMessage(null);
   };
   const modelOptions = source.models!.choices.map((model) => (
     <SelectItem key={model.id} value={model.id}>
@@ -112,13 +115,7 @@ function ModelSettingsContent({
           ? "为各 Agent 设置模型与思考强度，选择“跟随默认”时使用默认模型。"
           : "Set a model and reasoning level for each Agent. Choose “Follow default” to use the default model."}
       </p>
-      <AIReqPersonalConfigScope
-        scopeLabel={
-          zh
-            ? "共享模拟配置由 j00808874 管理，其他工号只读。"
-            : "The person who started this shared Web manages these settings. Others have read-only access."
-        }
-      />
+      <AIReqPersonalConfigScope />
       <p
         className="text-ui-sm leading-6 text-foreground-subtle"
         data-testid="agent-model-effective-scope"
@@ -146,7 +143,7 @@ function ModelSettingsContent({
                 value={draft.defaultModel}
                 onValueChange={(defaultModel) => {
                   setDraft((current) => ({ ...current, defaultModel }));
-                  setMessage("");
+                  setMessage(null);
                 }}
               >
                 <SelectTrigger
@@ -234,18 +231,10 @@ function ModelSettingsContent({
           })}
         </SettingsGroupCard>
       </section>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* 与原生个性化表单统一主次操作顺序、样式及尺寸。 */}
+      <SettingsFormActions>
         <Button
-          variant="outline"
-          disabled={!dirty || !canManage}
-          onClick={() => {
-            setDraft(structuredClone(saved));
-            setMessage("");
-          }}
-        >
-          {zh ? "取消" : "Cancel"}
-        </Button>
-        <Button
+          size="lg"
           disabled={!dirty || !canManage || saving}
           onClick={() => {
             void save();
@@ -253,10 +242,27 @@ function ModelSettingsContent({
         >
           {zh ? "保存配置" : "Save configuration"}
         </Button>
-      </div>
-      <p role="status" className="text-ui-base text-foreground-subtle">
-        {message}
-      </p>
+        <Button
+          variant="ghost"
+          size="lg"
+          disabled={!dirty || !canManage || saving}
+          onClick={() => {
+            setDraft(structuredClone(saved));
+            setMessage(null);
+          }}
+        >
+          {zh ? "取消" : "Cancel"}
+        </Button>
+      </SettingsFormActions>
+      {message && (
+        <p
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`text-ui-base ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+        >
+          {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+          {message.text}
+        </p>
+      )}
     </div>
   );
 }

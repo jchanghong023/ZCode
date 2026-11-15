@@ -150,7 +150,8 @@ export function AIReqWorkflowHelp({
                   </span>
                   <div className="min-w-0 space-y-1">
                     <h4 className="text-ui-base font-medium">{zh ? step.title : step.titleEn}</h4>
-                    <p className="text-ui-sm leading-6 text-foreground-subtle">
+                    {/* 流程步骤是主要阅读正文，按 base 字阶显示，不弱化为辅助说明。 */}
+                    <p className="text-ui-base leading-6 text-foreground">
                       {zh ? step.description : step.descriptionEn}
                     </p>
                   </div>

@@ -49,7 +49,7 @@ export function AIReqRequirementAnalysisPage({
         ariaLabel="需求分析导航"
         sectionLabel="需求分析"
       >
-        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
           <header className="mb-6 flex shrink-0 flex-wrap items-start justify-between gap-3">
             <div>
               {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
@@ -303,7 +303,7 @@ function ConnectedProgressAnalysis({
   );
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-3"
+      className="flex min-h-fit flex-1 shrink-0 flex-col gap-3"
       data-testid="aireq-requirement-analysis"
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
@@ -371,9 +371,10 @@ function ConnectedProgressAnalysis({
         message={message}
         mutate={mutate}
       />
+      {/* 矮窗口改由页面滚动承接溢出，不能让筛选区把表格压缩到不可读。 */}
       <section
         aria-label="分析任务与执行历史"
-        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border"
+        className="flex min-h-96 flex-1 shrink-0 flex-col overflow-hidden rounded-xl border border-border"
       >
         <Tabs
           value={tab}
@@ -502,7 +503,7 @@ function ConnectedProgressAnalysis({
                 taskActions={taskActions}
               />
               {!taskResult.total && (
-                <p className="px-4 py-8 text-center text-ui-base text-foreground-subtle">
+                <p className="flex flex-1 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
                   当前范围没有正式 SR 任务。
                 </p>
               )}
@@ -608,7 +609,7 @@ function ConnectedProgressAnalysis({
                       openReport={openReport}
                     />
                     {!historyResult.total && (
-                      <p className="px-4 py-8 text-center text-ui-base text-foreground-subtle">
+                      <p className="flex flex-1 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
                         当前条件下没有执行历史。
                       </p>
                     )}

@@ -40,7 +40,10 @@ export function AnalysisTaskTable({
   taskActions: (task: AIReqAnalysisTask) => ReactNode;
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
+    // 空表格仅保留表头高度，将剩余空间交给父级空态，而不是占满后把提示推到底部。
+    <div
+      className={`${items.length ? "min-h-0 flex-1" : "shrink-0"} overflow-auto [scrollbar-gutter:stable]`}
+    >
       <table data-testid="analysis-task-table" className={`${tableClass} min-w-[864px]`}>
         <colgroup>
           <col />
@@ -140,7 +143,9 @@ export function AnalysisHistoryTable({
   openReport: (id: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
+    <div
+      className={`${items.length ? "min-h-0 flex-1" : "shrink-0"} overflow-auto [scrollbar-gutter:stable]`}
+    >
       <table data-testid="analysis-history-table" className={`${tableClass} min-w-[864px]`}>
         <colgroup>
           <col />

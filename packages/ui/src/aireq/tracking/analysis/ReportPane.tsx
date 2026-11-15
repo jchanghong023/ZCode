@@ -34,7 +34,7 @@ export function ReportPane({
           <DialogDescription className="mt-1 break-all">{run.srId}</DialogDescription>
         </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-ui-base text-foreground">
         <div className="flex items-center gap-3">
           <h3 className="min-w-0 flex-1 break-words font-medium">{run.srTitle}</h3>
           <Status value={run.status}>{runLabels[run.status]}</Status>
@@ -132,10 +132,11 @@ export function ReportPane({
 }
 function ReportList({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="space-y-1 text-ui-sm">
+    // 报告结论属于正文，不沿用执行元数据的辅助字号和弱化颜色。
+    <div className="space-y-2 text-ui-base leading-6 text-foreground">
       <h5 className="font-medium">{title}</h5>
       {items.length ? (
-        <ul className="list-disc space-y-1 break-words pl-4 text-foreground-subtle">
+        <ul className="list-disc space-y-1 break-words pl-4">
           {items.map((item, index) => (
             <li key={index}>{item}</li>
           ))}

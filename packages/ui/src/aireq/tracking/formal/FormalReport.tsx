@@ -278,7 +278,7 @@ export function AIReqFormalReport() {
                 <p className="font-medium">{sr.title}</p>
                 {sr.trackingBranch && (
                   <p
-                    className="break-all text-ui-xs text-foreground-subtle"
+                    className="break-all text-ui-sm text-foreground-subtle"
                     data-testid="sr-tracking-branch"
                   >
                     平台模拟开发分支：{sr.trackingBranch.name} · 基点：
@@ -287,11 +287,11 @@ export function AIReqFormalReport() {
                 )}
                 {sr.progress ? (
                   <>
-                    <p className="break-all font-mono text-ui-xs text-foreground-subtle">
+                    <p className="break-all font-mono text-ui-sm text-foreground-subtle">
                       {sr.progress.branch} → {project?.defaultBranch} ·{" "}
                       {sr.progress.merged ? "已合入" : "尚未确认合入，最高 99%"}
                     </p>
-                    <p className="break-all text-ui-xs text-foreground-subtle">
+                    <p className="break-all text-ui-sm text-foreground-subtle">
                       分析版本：{sr.progress.codeVersion} · 默认分支版本：
                       {sr.progress.defaultVersion} ·{" "}
                       {sr.progress.certain ? "实现判断确定" : "判断仍有不确定项"}

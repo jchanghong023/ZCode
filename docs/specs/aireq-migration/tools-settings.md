@@ -2,6 +2,24 @@
 
 状态：实现已集成，验证进行中。本文件保留 `todo.md` 第 8 节六项、第 9 节八项全部需求／场景，已按当前目标源码同步接口；不表示全部待办或浏览器门禁通过。最终权威执行证据由主集成追加至根 `todo.md`。
 
+本轮显示验收以用户指定的 `base` 设置页为参照：沿用原有 SettingsRow、SettingsGroupCard、语义颜色和表单间距；首屏仅保留一条共享配置所有者与只读权限摘要，配置路径、模拟归属和切换工号边界收进可展开说明。模型设置及个性化复用同一说明组件；默认模型控件之前不得重复展示所有者文案。展开后仍可读到路径仅为模拟标签、不访问本机或 OMP、外观仅存当前浏览器的边界。
+
+模型设置的表单操作与 `base` 个性化页一致：复用 SettingsFormActions，左侧实心 `size="lg"` 保存、右侧 ghost `size="lg"` 取消；保存中禁用两项，保留现有权限、脏草稿与保存语义。主题设置只通过既有 StoreProvider 的 Zustand owner 读写，不在 AIReqApplication 另建 useTheme 状态或系统监听。
+
+本轮显示修复以 `base` 的语义 token 和代码预览传参约定为准：Sketch 的全部颜色色块在未选中时也有随主题变化的可见边界，选中态另有外圈，不改变画笔／橡皮擦的真实颜色；Skill 临时文件的原始 frontmatter 与非 Markdown 预览都读取同一份 ZCode store 代码设置，按当前明暗选择代码主题，并传入字号、行号及换行设置，不新增设置所有者。浏览器由用户验收。
+
+本轮三项显示修复的非浏览器检查：workspace freshness、typecheck、lint（0 警告／0 错误）及 architecture:check --changed（0 违规）通过。真实 Skill 非 Markdown 预览的 React SSR 验证通过：在浅色应用中配置 18px／深色代码主题、深色应用中配置 16px／浅色代码主题，输出均采用对应代码字号和明暗。JSDOM 提示未实现 canvas.getContext，本场景不验证 Canvas 或真实布局；原始元数据展开、色块边界和状态标签实际对比度仍由用户在浏览器验收。
+
+本轮四项显示修复：个性化设置从既有 draft／saved 差异派生未保存 Agent 清单，在 Agent 选项及表单内显示“未保存”，明确保存／取消作用于全部草稿；切换 Agent 保留标记，保存成功或取消后清除，失败保留。模型与个性化保存反馈采用单一带类型的反馈状态：成功保留辅助色和 status，失败使用 `text-destructive`、alert 及固定“保存失败”前缀并保留原因；修改或取消清除旧反馈。沿用 `base` 的字阶、语义错误色和未保存提示，不新增业务状态所有者。本轮不运行浏览器，由用户验收实际效果。
+
+本轮四项修复检查：workspace freshness、typecheck、lint（0 警告／0 错误）、architecture:check --changed（0 违规）通过。Bun + JSDOM 挂载真实个性化表单的临时场景通过：编辑后显示未保存 Agent 与全量草稿范围；保存拒绝显示带前缀的错误色 alert、保留草稿；重试成功及取消清除未保存标记，取消恢复已保存内容。未运行浏览器，未实测真实服务失败、Agent 下拉切换及箭头旋转的视觉效果。
+
+本轮技能详情按用户指定的 `base` SkillsSection 恢复：最大宽度 xl、最大高度 min(80vh,640px)，固定分隔标题区使用 `text-ui-lg`；描述独立成区且限高滚动，字段与正文放在内部滚动区。保留模拟来源、元信息及技能原文，不新增本机文件操作。浏览器显示由用户验收。
+
+本轮六项显示修复检查：workspace freshness、`bun run typecheck`、`bun run lint`（0 警告／0 错误）与 `bun run architecture:check --changed`（0 违规）通过。未运行浏览器；技能弹窗布局、复选框实际边界对比度、菜单身份文本、路径字阶、Issue 进度条颜色及流程说明布局由用户验收。
+
+Skill 设计空会话沿用 `base` 的空态字阶与语义色，文案读取既有 `briefOpen`：展开时可提示左侧整理目标，收起时改为下方输入或展开“技能说明”，不得指向当前隐藏面板。不增加布局状态或改变对话流程。本轮不运行浏览器。
+
 ## 1. 权威来源与实际装配
 
 源根 `S = F:/code2026/oh-my-pi/packages/aireq-frontend/`，下文 `U = S/packages/ui/src/`，`A = U/aireq/`。源仓库只读，不成为目标构建、运行或资源加载依赖。

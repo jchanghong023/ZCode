@@ -31,6 +31,15 @@ import {
   type MutationProps,
 } from "./shared.js";
 
+// 列表和详情共用状态配色，避免详情遗漏等待态后仍显示开发中的蓝色。
+const progressIndicatorClass = {
+  pending: "bg-foreground-subtle",
+  developing: "bg-progress-surface-foreground",
+  merging: "bg-warning",
+  confirming: "bg-warning",
+  completed: "bg-success",
+} satisfies Record<keyof typeof ISSUE_STATUSES, string>;
+
 export function IssueProgress({
   scope,
   service,
@@ -180,11 +189,7 @@ export function IssueProgress({
                       <span className="tabular-nums">{item.percent}%</span>
                       <Progress
                         className="mt-1 h-1"
-                        indicatorClassName={
-                          item.status === "completed"
-                            ? "bg-success"
-                            : "bg-progress-surface-foreground"
-                        }
+                        indicatorClassName={progressIndicatorClass[item.status]}
                         value={item.percent}
                         aria-label={`${item.id} 进度 ${item.percent}%`}
                       />
@@ -233,8 +238,10 @@ export function IssueProgress({
               )}
             </IssueTable>
             <p className="text-ui-sm text-foreground-subtle">
-              共 {items.length} 个 Issue · 点击任意一行查看报告和材料。
-              {issue && "可横向滚动查看其余列。"}
+              共 {items.length} 个 Issue
+              {/* 无结果时没有可点击行，不展示与空态矛盾的操作提示。 */}
+              {items.length > 0 && " · 点击任意一行查看报告和材料。"}
+              {items.length > 0 && issue && "可横向滚动查看其余列。"}
             </p>
           </div>
         </div>
@@ -271,11 +278,7 @@ export function IssueProgress({
                     <span className="tabular-nums">{issue.percent}%</span>
                     <Progress
                       className="h-1 flex-1"
-                      indicatorClassName={
-                        issue.status === "completed"
-                          ? "bg-success"
-                          : "bg-progress-surface-foreground"
-                      }
+                      indicatorClassName={progressIndicatorClass[issue.status]}
                       value={issue.percent}
                       aria-label={`${issue.id} 进度 ${issue.percent}%`}
                     />

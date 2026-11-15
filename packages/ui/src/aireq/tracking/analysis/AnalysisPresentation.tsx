@@ -108,6 +108,7 @@ export function RowLabel({ title, subtitle }: { title: string; subtitle: string 
   );
 }
 export function Status({ value, children }: { value: string; children: ReactNode }) {
+  // 关键状态文字使用不透明前景色，避免辅助灰字在中性底色上对比度不足。
   const appearance =
     value === "failed"
       ? { icon: TriangleAlert, color: "bg-destructive-surface text-destructive-surface-foreground" }
@@ -116,10 +117,10 @@ export function Status({ value, children }: { value: string; children: ReactNode
         : value === "completed" || value === "succeeded"
           ? { icon: CheckCircle2, color: "bg-success-surface text-success-surface-foreground" }
           : value === "paused"
-            ? { icon: PauseCircle, color: "bg-tag text-foreground-subtle" }
+            ? { icon: PauseCircle, color: "bg-tag text-foreground" }
             : value === "skipped"
-              ? { icon: SkipForward, color: "bg-tag text-foreground-subtle" }
-              : { icon: CircleDashed, color: "bg-tag text-foreground-subtle" };
+              ? { icon: SkipForward, color: "bg-tag text-foreground" }
+              : { icon: CircleDashed, color: "bg-tag text-foreground" };
   const Icon = appearance.icon;
   return (
     <Badge

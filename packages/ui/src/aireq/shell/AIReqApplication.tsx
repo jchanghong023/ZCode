@@ -14,7 +14,6 @@ import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { AlertDialogHost } from "@/AlertDialogHost.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { getStreamClientId } from "@/lib/streamClientId.js";
-import { useTheme } from "@/useTheme.js";
 import { setEmployeeId } from "../identity.js";
 import type { AIReqApplicationProps } from "../contract.js";
 import { AIReqDataSourceProvider } from "../data-source.js";
@@ -35,7 +34,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
   const [source, setSource] = useState<AIReqDataSource>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
-  useTheme();
+  // 主题交由下方 StoreProvider 统一初始化和订阅，避免独立 useTheme 的旧 system 监听覆盖固定主题。
   useEffect(() => {
     let active = true;
     let owned: AIReqDataSource | undefined;

@@ -32,6 +32,14 @@ const operationLabels: Record<string, string> = {
   confirmProposal: "确认需求与方案",
   publishProposal: "提交并推送",
 };
+
+// 同一历史弹窗的时间统一转为北京时间，避免 UTC 原文与本地格式混排。
+function recordTime(value: string) {
+  return `${new Date(value).toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour12: false,
+  })}（北京时间）`;
+}
 /** 查看历史只读取已记录事实，不恢复退役的开发、修订或争议写入口。 */
 export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }) {
   const aireq = useAIReq()!;
@@ -132,10 +140,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                           : "失败"}
                     </p>
                     <time dateTime={item.startedAt}>
-                      {new Date(item.startedAt).toLocaleString("zh-CN", {
-                        timeZone: "Asia/Shanghai",
-                        hour12: false,
-                      })}
+                      {recordTime(item.startedAt)}
                     </time>
                     {item.steps.map((step, index) => (
                       <p key={index} className="text-foreground-subtle">
@@ -154,7 +159,8 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
               ].map((feedback, index) => (
                 <details key={`${feedback.returnedAt}:${index}`}>
                   <summary className="cursor-pointer">
-                    退回意见 · {feedback.employeeId} · {feedback.returnedAt} ·{" "}
+                    退回意见 · {feedback.employeeId} ·{" "}
+                    <time dateTime={feedback.returnedAt}>{recordTime(feedback.returnedAt)}</time> ·{" "}
                     {feedback.resumedAt ? "已补充" : "待处理"}
                   </summary>
                   <p
@@ -172,9 +178,16 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                   </summary>
                   <p className="my-2 break-all text-foreground-subtle">
                     版本 {review.snapshotDigest} ·{" "}
-                    {review.humanDecision
-                      ? `人工通过 ${review.humanDecision.employeeId} · ${review.humanDecision.decidedAt}`
-                      : "无当前批准"}
+                    {review.humanDecision ? (
+                      <>
+                        人工通过 {review.humanDecision.employeeId} ·{" "}
+                        <time dateTime={review.humanDecision.decidedAt}>
+                          {recordTime(review.humanDecision.decidedAt)}
+                        </time>
+                      </>
+                    ) : (
+                      "无当前批准"
+                    )}
                   </p>
                   {review.agents?.length ? (
                     review.agents.map((agent) => (

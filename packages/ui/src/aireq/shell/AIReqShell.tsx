@@ -398,72 +398,75 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           className="flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
         >
           <WorkspaceSidebarToolbar {...toolbar} />
-          <div className="flex shrink-0 flex-col gap-1 px-2 py-3">
-            {/* 修复：入口随服务端动作能力展示，不能向无创建权限的访问者暴露可点击命令。 */}
-            {source.capabilities.workflowCommands.includes("createProposal") && (
+          {/* 功能导航和提案列表共用滚动区，矮窗口不能把剩余列表高度挤到零。 */}
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+            <div className="flex flex-col gap-1 px-2 py-3">
+              {/* 修复：入口随服务端动作能力展示，不能向无创建权限的访问者暴露可点击命令。 */}
+              {source.capabilities.workflowCommands.includes("createProposal") && (
+                <Button
+                  data-testid="new-requirement"
+                  className="w-full justify-start gap-2 text-ui-base font-normal"
+                  size="lg"
+                  variant="ghost"
+                  disabled={ai.pending || !project || !ai.releaseId}
+                  onClick={() => navigate(ai.startProposalDraft)}
+                >
+                  <MessageCirclePlus className="size-4" />
+                  新建需求提案
+                </Button>
+              )}
+              {pages.slice(0, 3).map((page) => (
+                <Button
+                  key={page.view}
+                  variant="ghost"
+                  size="lg"
+                  className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
+                  aria-pressed={!settings && ai.mainView === page.view}
+                  onClick={() => navigate(() => ai.setMainView(page.view))}
+                >
+                  <page.icon className="size-4" />
+                  {page.label}
+                </Button>
+              ))}
               <Button
-                data-testid="new-requirement"
-                className="w-full justify-start gap-2 text-ui-base font-normal"
-                size="lg"
-                variant="ghost"
-                disabled={ai.pending || !project || !ai.releaseId}
-                onClick={() => navigate(ai.startProposalDraft)}
-              >
-                <MessageCirclePlus className="size-4" />
-                新建需求提案
-              </Button>
-            )}
-            {pages.slice(0, 3).map((page) => (
-              <Button
-                key={page.view}
-                variant="ghost"
-                size="lg"
-                className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
-                aria-pressed={!settings && ai.mainView === page.view}
-                onClick={() => navigate(() => ai.setMainView(page.view))}
-              >
-                <page.icon className="size-4" />
-                {page.label}
-              </Button>
-            ))}
-            <Button
-              variant="ghost"
-              size="lg"
-              className={`w-full justify-start gap-2 ${formal && !settings ? "bg-selected" : ""}`}
-              aria-pressed={formal && !settings}
-              disabled={!project}
-              onClick={() =>
-                navigate(() => ai.select({ projectId: ai.selection.projectId, formalView: "list" }))
-              }
-            >
-              <TableProperties className="size-4" />
-              正式需求
-            </Button>
-            {pages.slice(3).map((page) => (
-              <Button
-                key={page.view}
                 variant="ghost"
                 size="lg"
-                className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
-                aria-pressed={!settings && ai.mainView === page.view}
+                className={`w-full justify-start gap-2 ${formal && !settings ? "bg-selected" : ""}`}
+                aria-pressed={formal && !settings}
                 disabled={!project}
-                onClick={() => navigate(() => ai.setMainView(page.view))}
+                onClick={() =>
+                  navigate(() => ai.select({ projectId: ai.selection.projectId, formalView: "list" }))
+                }
               >
-                <page.icon className="size-4" />
-                {page.label}
+                <TableProperties className="size-4" />
+                正式需求
               </Button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-t border-border/50 py-3">
-            <AIReqRequirementList
-              title="需求提案"
-              groups={drafts}
-              open={listOpen}
-              onOpenChange={setListOpen}
-              onSearch={() => setSearch(true)}
-              onNavigate={() => ai.navigate(() => setSettingsOpen(false))}
-              automationsActive={Boolean(settings) || ai.mainView !== "chat" || formal}
-            />
+              {pages.slice(3).map((page) => (
+                <Button
+                  key={page.view}
+                  variant="ghost"
+                  size="lg"
+                  className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
+                  aria-pressed={!settings && ai.mainView === page.view}
+                  disabled={!project}
+                  onClick={() => navigate(() => ai.setMainView(page.view))}
+                >
+                  <page.icon className="size-4" />
+                  {page.label}
+                </Button>
+              ))}
+            </div>
+            <div className="border-t border-border/50 py-3">
+              <AIReqRequirementList
+                title="需求提案"
+                groups={drafts}
+                open={listOpen}
+                onOpenChange={setListOpen}
+                onSearch={() => setSearch(true)}
+                onNavigate={() => ai.navigate(() => setSettingsOpen(false))}
+                automationsActive={Boolean(settings) || ai.mainView !== "chat" || formal}
+              />
+            </div>
           </div>
           <AIReqWorkspaceFooter
             onOpenSettings={() => openSettings()}

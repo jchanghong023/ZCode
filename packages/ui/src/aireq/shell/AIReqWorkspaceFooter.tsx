@@ -3,6 +3,7 @@ import { CircleHelp, FolderGit2, Layers, LogOut, Plus, UserRound } from "lucide-
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import {
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -60,18 +61,19 @@ export function AIReqWorkspaceFooter({
       }
       customMenuContent={
         <>
-          <DropdownMenuItem disabled>
-            <UserRound className="size-4" />
+          {/* 身份是只读信息而非不可用操作，不套用 disabled 的透明度。 */}
+          <DropdownMenuLabel className="flex items-center gap-2 font-normal text-foreground">
+            <UserRound className="size-4 shrink-0" />
             工号 {employeeId}
-          </DropdownMenuItem>
+          </DropdownMenuLabel>
           <DropdownMenuItem onSelect={onLogout}>
             <LogOut className="size-4" />
             切换工号
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
+          <DropdownMenuLabel className="font-normal text-foreground">
             Web 所有者 {source.backend?.owner ?? "未提供"}
             {source.provenance.kind === "sample" ? " · 演示" : ""}
-          </DropdownMenuItem>
+          </DropdownMenuLabel>
           {!back ? (
             <>
               <DropdownMenuSub>

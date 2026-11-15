@@ -74,12 +74,8 @@ export function AIReqProposalPrHandoff({
       data-testid="proposal-pr-handoff"
       aria-label="需求 MR 材料准备"
     >
-      <div className="space-y-1">
-        <h3 className="text-ui-base font-medium">需求 MR 材料准备</h3>
-        <p className="text-ui-sm text-foreground-subtle">
-          确认材料 → 创建分支并提交推送 → 自动创建 MR → 人工评审、合并 → 后台定时核验并转正。
-        </p>
-      </div>
+      {/* 完整流程已在父级交付弹窗说明，卡片只保留材料准备信息。 */}
+      <h3 className="text-ui-base font-medium">需求 MR 材料准备</h3>
       {!currentResult && (
         <p role="status" className="text-ui-sm text-foreground-subtle">
           正在加载需求 MR 材料准备…

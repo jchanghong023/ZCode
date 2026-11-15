@@ -637,7 +637,9 @@ function ReadySkillDesignEditor({
                         <WandSparkles className="size-6 text-foreground-subtle" />
                         <h2 className="text-ui-lg font-medium">从一个任务开始设计技能</h2>
                         <p className="text-ui-base leading-6 text-foreground-subtle">
-                          在左侧整理目标，或直接在下方描述需求。核对内容并发送后，再预览和确认保存。
+                          {/* 收起说明面板后不再指向不可见的左侧区域。 */}
+                          {briefOpen ? "在左侧整理目标，" : "展开“技能说明”整理目标，"}或直接在下方描述需求。
+                          核对内容并发送后，再预览和确认保存。
                         </p>
                       </div>
                     }

@@ -126,13 +126,15 @@ SOFTWARE.
         padding: 0;
         margin: 0 2px;
         border-radius: 50%;
-        border: 2px solid transparent;
+        /* 黑色／白色色块在相近主题背景上也要可辨，真实绘图颜色保持不变。 */
+        border: 2px solid var(--color-foreground);
       }
       .color-btn:hover {
         opacity: 0.8;
       }
       .color-btn.active {
-        border-color: var(--color-foreground);
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
       }
       .viewport {
         position: relative;

@@ -60,7 +60,7 @@ export function AIReqRequirementSearch({
           ? "搜索当前项目与 Release 的 IR 或所属 SR，选择后进入提案 IR。"
           : "搜索当前项目与 Release 的 IR 和 SR，选择后查看已有内容。"
       }
-      className={`${quickPickDialogClassName} top-16 max-h-[calc(100dvh-4.5rem)] -translate-y-0 sm:top-20 sm:max-h-[calc(100dvh-6rem)] platform-linux-desktop:top-16 sm:platform-linux-desktop:top-20`}
+      className={quickPickDialogClassName}
     >
       <Command shouldFilter={false} loop className={quickPickCommandClassName}>
         <div className="border-b border-border px-2 pt-2 pb-2">
@@ -115,13 +115,14 @@ export function AIReqRequirementSearch({
                     </CommandShortcut>
                   </CommandItem>
                 )}
-                {scope === "formal" &&
+                {/* 命中 SR 时展示具体条目；提案搜索仍只导航到父 IR。 */}
+                {(scope === "formal" || !!normalized) &&
                   srs.map((sr) => (
                     <CommandItem
                       key={sr.id}
                       value={`sr:${sr.id}`}
                       className={quickPickItemClassName}
-                      onSelect={() => choose(group.id, sr.id)}
+                      onSelect={() => choose(group.id, scope === "formal" ? sr.id : undefined)}
                     >
                       <MessageSquare className="size-3.5 shrink-0 text-foreground-subtle" />
                       <span className="min-w-0 flex-1 truncate" title={sr.title}>
@@ -131,7 +132,7 @@ export function AIReqRequirementSearch({
                         </span>
                       </span>
                       <CommandShortcut className={quickPickMetadataClassName}>
-                        进度报告
+                        {scope === "proposals" ? "需求讨论" : "进度报告"}
                       </CommandShortcut>
                     </CommandItem>
                   ))}

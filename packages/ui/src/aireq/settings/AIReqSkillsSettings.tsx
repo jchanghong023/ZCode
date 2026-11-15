@@ -230,20 +230,25 @@ export function AIReqSkillsSettings() {
         }}
       >
         <DialogContent
-          className="max-h-[85vh] overflow-y-auto sm:max-w-3xl"
+          className="flex max-h-[min(80vh,640px)] max-w-xl flex-col gap-0 overflow-hidden p-0"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             trigger.current?.focus();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>{selected?.name}</DialogTitle>
-            <DialogDescription>{selected?.description}</DialogDescription>
+          {/* 与 base 一致：标题固定，描述及详细字段在独立内容区滚动。 */}
+          <DialogHeader className="shrink-0 border-b border-popover-border px-4 pt-4 pb-3">
+            <DialogTitle className="truncate pr-8 text-ui-lg">{selected?.name}</DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4">
-              {/* 修复原因：源详情将归属、状态及标准元信息分栏展示，正文保留原文而非仅渲染 Markdown。 */}
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-ui-sm">
+            <div className="min-h-0 space-y-4 overflow-auto px-4 py-5">
+              <div className="grid gap-1.5">
+                <h3 className="text-ui-base font-medium text-foreground">描述</h3>
+                <DialogDescription className="max-h-40 overflow-auto whitespace-pre-wrap text-ui-base/relaxed text-foreground-subtle">
+                  {selected.description || "暂无描述"}
+                </DialogDescription>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-ui-base">
                 {[
                   [
                     "归属",
@@ -260,20 +265,20 @@ export function AIReqSkillsSettings() {
                   ["所有者", selected.metadata?.ownerId],
                 ].map(([label, value]) => (
                   <div key={label} className="min-w-0 space-y-1">
-                    <dt className="text-foreground-subtle">{label}</dt>
-                    <dd className="break-all">
+                    <dt className="font-medium text-foreground">{label}</dt>
+                    <dd className="break-all text-foreground-subtle">
                       {value == null || value === "" ? "—" : String(value)}
                     </dd>
                   </div>
                 ))}
                 <div className="col-span-2 space-y-1">
-                  <dt className="text-foreground-subtle">模拟路径（不打开本机文件）</dt>
-                  <dd className="break-all font-mono">{selected.path}</dd>
+                  <dt className="font-medium text-foreground">模拟路径（不打开本机文件）</dt>
+                  <dd className="break-all font-mono text-foreground-subtle">{selected.path}</dd>
                 </div>
                 {selected.metadata && (
                   <div className="col-span-2 space-y-1">
-                    <dt className="text-foreground-subtle">元信息</dt>
-                    <dd className="break-all">
+                    <dt className="font-medium text-foreground">元信息</dt>
+                    <dd className="break-all text-foreground-subtle">
                       {Object.entries(selected.metadata)
                         .map(([key, value]) => `${key}: ${String(value)}`)
                         .join(" · ")}

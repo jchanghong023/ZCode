@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
+import { resolveTheme } from "@/useTheme.js";
 
 /** 元数据与正文分别展示；保存仍使用后端返回的完整原文件，不重写内容。 */
 export function AIReqSkillFilePreview({
@@ -18,6 +19,11 @@ export function AIReqSkillFilePreview({
 }) {
   const theme = useZCodeStore((state) => state.theme);
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
+  // 与正文代码围栏共用设置，避免原始文件和元数据退回默认主题及 14px 字号。
+  const codeTheme =
+    resolveTheme(theme) === "dark"
+      ? codePreviewSettings.darkTheme
+      : codePreviewSettings.lightTheme;
   if (!file.path.endsWith(".md"))
     return (
       <CodeBlock
@@ -25,7 +31,10 @@ export function AIReqSkillFilePreview({
         code={file.content}
         language={file.path.endsWith(".json") ? "json" : "text"}
         appTheme={theme}
-        wrapLongLines
+        theme={codeTheme}
+        fontSizePx={codePreviewSettings.fontSizePx}
+        showLineNumbers={codePreviewSettings.showLineNumbers}
+        wrapLongLines={codePreviewSettings.wrapLongLines}
       >
         <CodeBlockHeader
           displayFile={file.path}
@@ -63,7 +72,10 @@ export function AIReqSkillFilePreview({
                 code={frontmatter}
                 language="yaml"
                 appTheme={theme}
-                wrapLongLines
+                theme={codeTheme}
+                fontSizePx={codePreviewSettings.fontSizePx}
+                showLineNumbers={codePreviewSettings.showLineNumbers}
+                wrapLongLines={codePreviewSettings.wrapLongLines}
               >
                 <CodeBlockHeader displayFile="Frontmatter" language="yaml" />
               </CodeBlock>

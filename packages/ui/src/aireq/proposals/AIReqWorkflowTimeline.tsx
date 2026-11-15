@@ -186,6 +186,12 @@ export function AIReqWorkflowTimeline({
               onClick={() => onSelect(index)}
             >
               {labels[index]}
+              {/* 查看历史只切换选中态，当前业务阶段必须仍有独立的可见标记。 */}
+              {index === phase && (
+                <span className="rounded-sm bg-surface px-1 text-ui-xs text-foreground-subtle">
+                  当前
+                </span>
+              )}
             </Button>
             {station.pills.map((pill) => (
               <Button

@@ -32,7 +32,7 @@ function resolveWebThemePreference(): Theme {
   return "zai-dark";
 }
 
-// 初始化主题：默认 Zai dark，后续由 useTheme hook 接管
+// 初始化主题：默认 Zai dark，工作台挂载后由 StoreProvider 的 ZCode store 接管。
 // system 模式下需要查询系统偏好；非 system 模式直接用存储值
 {
   const saved = resolveWebThemePreference();

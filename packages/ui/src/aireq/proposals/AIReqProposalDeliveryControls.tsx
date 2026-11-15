@@ -475,6 +475,8 @@ export function AIReqProposalDeliveryControls({
                             {dialog.step === "confirm" && (
                               <Checkbox
                                 data-testid="proposal-delivery-file-check"
+                                // 未勾选框也是必需操作入口，局部增强边界而不改变通用 Checkbox。
+                                className="data-[state=unchecked]:border-foreground/60"
                                 aria-label={`确认 ${file.path}`}
                                 checked={checkedFiles.includes(file.path)}
                                 disabled={!editable}
@@ -494,7 +496,7 @@ export function AIReqProposalDeliveryControls({
                               <span className="block">
                                 {requirementMaterialName(file.path, aireq.view?.srs) ?? "需求材料"}
                               </span>
-                              <span className="block break-all font-mono text-ui-xs text-foreground-subtle">
+                              <span className="block break-all font-mono text-ui-base text-foreground">
                                 {file.path}
                               </span>
                             </span>
@@ -507,6 +509,7 @@ export function AIReqProposalDeliveryControls({
                     <label className="flex items-start gap-2 text-ui-sm">
                       <Checkbox
                         data-testid="proposal-delivery-confirm-all"
+                        className="data-[state=unchecked]:border-foreground/60"
                         checked={acknowledged}
                         disabled={!editable}
                         onCheckedChange={(checked) => setAcknowledged(checked === true)}

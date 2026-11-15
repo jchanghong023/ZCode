@@ -49,7 +49,26 @@
 
 `AIReqWorkspaceFooter` 经当前 AIReq context/data-source 读取项目、当前项目 Release、工号和 `backend.owner`／provenance，不制造 UserInfo 或第二份选择状态。主菜单按工号、切换工号、Web 所有者（sample 标注演示）、项目单选子菜单（添加或管理项目）、Release 单选子菜单（添加或管理 Release）、帮助、原生主题排序；无项目禁用 Release，无 Release 提供明确空态。项目／Release 命令只经已注册的 `ai.navigate` 未保存门禁接纳。管理回调显式进入项目设置，齿轮回调打开 shell 记忆的设置页，切换工号调用既有退出回调。设置 back 模式保留身份、切换工号、帮助和主题，齿轮执行同一受门禁保护的返回回调，不恢复旧产品账号或用量功能。主题只使用当前 ZCode store 的 system／zai-dark／zai-light。
 
+主题唯一所有者为现有 StoreProvider 创建的 ZCode store（与 `base` App 读写路径一致），AIReqApplication 不额外挂载带独立状态的 useTheme。事件顺序与边界如下；固定主题时，旧系统监听必须被清除，系统事件不得覆盖选择。用户指定本轮不运行浏览器验证。
+
+```mermaid
+sequenceDiagram
+  participant UI as 外观设置或原生主题菜单
+  participant Store as ZCode store（唯一 owner）
+  participant System as 系统主题事件
+  participant DOM as 页面主题
+  UI->>Store: setTheme（固定或跟随系统）
+  Store->>System: 清理旧监听，仅 system 时注册
+  Store->>DOM: 应用已选择主题
+  System-->>Store: 亮暗变化（仅 system 监听有效）
+  Store->>DOM: 仅偏好仍为 system 时应用
+```
+
+本轮六项修复验证：`bun run typecheck` 通过，`bun run lint` 为 0 警告／0 错误，`bun run architecture:check --changed` 为 0 违规。Bun + JSDOM 临时场景调用真实 ZCode store，验证 system → 固定深色 → system → 固定浅色，系统明暗事件不覆盖固定选择，监听数量依次为 1／0／1／0。未打开浏览器，1100×450 布局与其余视觉效果由用户验收。开工 freshness 检查因 `git fetch origin --prune` 的 TLS 握手失败未完成，本轮以本地 `base` 为视觉参照。
+
 帮助复用当前 Dialog/Button，以受限滚动区呈现“需求提案／开发进度跟踪”两组八步完整业务说明（提出需求、检查需求、制定方案、自动入库、安排人员与排期、查看代码证据、核对完成条件、持续跟踪遗留问题），不缩成简短占位文案。旧个人 OMP／数据库／真实 Git 描述替换为共享模拟项目和后端内存边界。关闭／我知道了回焦到实际打开帮助的 footer 按钮；每个 footer 自持触发 ref，onHelp(returnFocusTo?) 传递具体按钮，帮助组件消费 returnFocusRef，不持有导航状态。
+
+流程帮助八个步骤的主要说明按用户指定的 `base` 正文角色使用 `text-ui-base leading-6 text-foreground`，不得沿用辅助说明的字号和弱化颜色；步骤标题、序号、弹窗结构及操作不变。本轮不运行浏览器，实际显示效果由用户验收。
 
 ## 3. 公共契约与最小传输设计
 

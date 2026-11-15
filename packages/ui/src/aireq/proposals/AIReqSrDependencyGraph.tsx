@@ -119,7 +119,8 @@ export function AIReqSrDependencyGraph({
     return <p className="text-ui-sm text-foreground-subtle">当前 IR 没有 SR。</p>;
   return (
     <section className="space-y-3" aria-label="SR 依赖图" data-testid="sr-dependency-graph">
-      <p className="text-ui-xs text-foreground-subtle">
+      {/* 操作说明是辅助信息，不使用弱元数据字号。 */}
+      <p className="text-ui-sm leading-6 text-foreground-subtle">
         箭头从前置 SR 指向依赖它的
         SR。可拖动平移、用按钮缩放；点击连线或聚焦后按 Enter／空格查看原因；缺少完整工期预估的节点标为“待预估”，请在方案对话中补齐。
         {!graph.edges.length && "各 SR 无前置依赖，可独立安排。"}

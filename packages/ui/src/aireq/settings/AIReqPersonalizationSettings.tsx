@@ -45,8 +45,10 @@ function PersonalizationContent({
   const [draft, setDraft] = useState(() => ({ ...source.prompts!.read().saved }));
   const [savedRevision, setSavedRevision] = useState(() => source.prompts!.read().revision);
   const [selected, setSelected] = useState("requirements");
-  const [message, setMessage] = useState("");
-  const dirtyCount = agents.filter((agent) => draft[agent.id] !== saved[agent.id]).length;
+  // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const dirtyAgents = agents.filter((agent) => draft[agent.id] !== saved[agent.id]);
+  const dirtyCount = dirtyAgents.length;
   const encoder = new TextEncoder();
   const oversized = agents.filter(
     (agent) => encoder.encode(draft[agent.id] ?? "").length > USER_INSTRUCTIONS_MAX_BYTES,
@@ -62,14 +64,15 @@ function PersonalizationContent({
     if (!canSave || savingRef.current) return false;
     savingRef.current = true;
     setSaving(true);
+    setMessage(null);
     try {
       await source.prompts!.save(draft, savedRevision);
       setSaved({ ...source.prompts!.read().saved });
       setSavedRevision(source.prompts!.read().revision);
-      setMessage(zh ? "追加提示词已保存。" : "Appended instructions saved.");
+      setMessage({ kind: "success", text: zh ? "追加提示词已保存。" : "Appended instructions saved." });
       return true;
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : String(cause));
+      setMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
       return false;
     } finally {
       savingRef.current = false;
@@ -81,7 +84,7 @@ function PersonalizationContent({
     save,
     discard: () => {
       setDraft({ ...saved });
-      setMessage("");
+      setMessage(null);
     },
   };
   useEffect(() => {
@@ -103,20 +106,14 @@ function PersonalizationContent({
           ? "为各 Agent 追加表达偏好和工作约定，不替换内置指令。"
           : "Add preferences and working conventions for each Agent without replacing built-in instructions."}
       </p>
-      <AIReqPersonalConfigScope
-        scopeLabel={
-          zh
-            ? "共享模拟配置由 j00808874 管理，其他工号只读。"
-            : "The person who started this shared Web manages these settings. Others have read-only access."
-        }
-      />
+      <AIReqPersonalConfigScope />
       <div className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select
           value={selected}
           onValueChange={(value) => {
             setSelected(value);
-            setMessage("");
+            setMessage(null);
           }}
         >
           <SelectTrigger id="personalization-agent" size="lg" className="w-full sm:w-72">
@@ -126,10 +123,21 @@ function PersonalizationContent({
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 {zh ? agent.name : agent.nameEn}
+                {draft[agent.id] !== saved[agent.id] && (zh ? " · 未保存" : " · Unsaved")}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {/* 草稿属于全部 Agent，切换当前编辑项不能隐藏其他 Agent 的未保存状态。 */}
+        {dirty && (
+          <p role="status" className="text-ui-base leading-6 text-foreground-subtle">
+            {zh ? "未保存：" : "Unsaved: "}
+            {dirtyAgents.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
+            {zh
+              ? "。保存或取消将应用于全部草稿。"
+              : ". Save or cancel applies to all drafts."}
+          </p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="agent-system-prompt-append">
@@ -152,7 +160,7 @@ function PersonalizationContent({
             if (!canManage) return;
             const value = event.target.value;
             setDraft((current) => ({ ...current, [selected]: value }));
-            setMessage("");
+            setMessage(null);
           }}
         />
         <div className="flex flex-wrap items-start justify-between gap-2 text-ui-sm text-foreground-subtle">
@@ -182,15 +190,21 @@ function PersonalizationContent({
           disabled={!dirtyCount || !canManage || saving}
           onClick={() => {
             setDraft({ ...saved });
-            setMessage("");
+            setMessage(null);
           }}
         >
           {zh ? "取消" : "Cancel"}
         </Button>
       </SettingsFormActions>
-      <p role="status" className="text-ui-base text-foreground-subtle">
-        {message}
-      </p>
+      {message && (
+        <p
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`text-ui-base ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+        >
+          {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+          {message.text}
+        </p>
+      )}
     </div>
   );
 }

@@ -10,6 +10,16 @@
 
 目标保留原 AIReq 业务组件组织，适配当前 `packages/ui` 的控件、Markdown、工作流图、Canvas、v4 会话及主题；不搬旧通用控件库、不复制 CSS。`@zcode/services` 提供 AIReq 业务公开契约，客户端按目标同源 `/ws` 二进制 Channel RPC 调用；目标 `packages/server/src/mock/index.ts` 集中装配 AIReq 内存域。业务状态只能由该 mock 域持有，聊天 rows/协议水位仍由现有 MockRuntime 和会话服务持有。
 
+本轮显示验收以用户指定的 `base` 同类 Quick Pick 和 Dialog 为参照：搜索沿用居中弹层、语义颜色与列表字阶；非空查询命中 SR 时逐项显示其标题与编号，选择后仍进入父提案，不新增导航状态。操作记录、退回意见和历史人工评审时间统一显示为北京时间，并明确时区，原始时间保留在 `time.dateTime`。浏览器验收包括同提案多个 SR 命中、父提案跳转及同弹窗三类时间显示。
+
+本轮修复后 `bun run typecheck`、`bun run lint`（0 警告、0 错误）与 `bun run architecture:check --changed` 均通过。用户随后取消浏览器验证，实际显示效果由用户验收；上述搜索、设置、排期和时间场景未完成浏览器验收。
+
+本轮六项显示修复按用户指定的 `base` 原生控件实施：评审切换入口同时展示头像与可见名称，不依赖颜色或悬停辨认；窄讨论栏允许换行，不裁掉入口。顶部阶段导航独立表示“正在查看”（原选中样式）与“实际当前”（可见“当前”标记、`aria-current`），切换历史不改写业务阶段。工作台导航的功能入口与提案列表放在同一纵向滚动区，顶部工具条和底部项目菜单保留，1100×450 桌面下可滚动访问全部提案。浏览器验收由用户执行。
+
+SR 依赖图的箭头方向、平移缩放与依赖原因查看说明属于操作辅助信息，按 `base` 字阶使用 `text-ui-sm leading-6 text-foreground-subtle`，不得使用弱元数据字号。图与交互行为不变。
+
+本轮提交确认显示修复：逐文件及总确认沿用原生 Checkbox，局部加强未勾选态边框，不改动通用控件与勾选语义；待核对路径使用 `font-mono text-ui-base text-foreground`。完整交付流程只保留弹窗说明一处，材料准备卡片保留自身标题与材料事实，不重复流程。工作区菜单中的工号和 Web 所有者使用可读的非交互菜单说明，不以 disabled 操作项呈现，不新增身份操作。浏览器由用户验收。
+
 ### 1.1 实际可达装配（不是按文件名推断开放）
 
 1. `S/app/AIReqApplication.tsx:34-146`：AIReqProvider → BrowserApplication → Root；连接 key 只取后端、访问工号、项目，IR/Agent/轮次只更换 task/session。此结构语义需迁移，不复制旧连接实现。
