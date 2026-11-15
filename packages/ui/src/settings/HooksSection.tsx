@@ -160,6 +160,14 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   const { intl, locale } = useZCodeIntl();
   const confirmDialog = useConfirmDialog();
   const hooksState = useHooksStore();
+  const {
+    initialize: initializeHooks,
+    addHook,
+    updateHook,
+    deleteHook,
+    toggleHook,
+    importHook,
+  } = hooksState;
   const plugins = usePluginManagementStore((state) => state.plugins);
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);
   const installedPlugins = usePluginManagementStore((state) => state.installedPlugins);
@@ -308,7 +316,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
 
   useEffect(() => {
     if (!targetServiceResolution.rpcReady) return;
-    void hooksState.initialize(
+    void initializeHooks(
       targetWorkspacePath ?? undefined,
       targetWorkspaceIdentity,
       hooksService,
@@ -317,7 +325,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   }, [
     hooksService,
     cacheAuthorityKey,
-    hooksState.initialize,
+    initializeHooks,
     targetServiceResolution.rpcReady,
     targetWorkspaceIdentity,
     targetWorkspacePath,
@@ -343,7 +351,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   const handleRefresh = useCallback(async () => {
     if (!targetServiceResolution.rpcReady) return;
     await Promise.all([
-      hooksState.initialize(
+      initializeHooks(
         targetWorkspacePath ?? undefined,
         targetWorkspaceIdentity,
         hooksService,
@@ -361,7 +369,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   }, [
     hooksService,
     cacheAuthorityKey,
-    hooksState.initialize,
+    initializeHooks,
     initializePlugins,
     pluginManagementService,
     targetServiceResolution.rpcReady,
@@ -388,7 +396,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
     if (latestReviewScopeTarget.scopeKey !== selectedScopeKey) {
       setSelectedScopeKey(latestReviewScopeTarget.scopeKey);
     }
-  }, [latestReviewScopeTarget, selectedScopeKey]);
+  }, [latestReviewScopeTarget, selectedScopeKey, setSelectedScopeKey]);
 
   const invalidateDraft = useCallback(
     async (reason: string) => {
@@ -406,10 +414,10 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
     async (config: HookConfig) => {
       try {
         if (editingHook) {
-          await hooksState.updateHook(editingHook.id, config, hooksService);
+          await updateHook(editingHook.id, config, hooksService);
           await invalidateDraft("hook-updated");
         } else {
-          await hooksState.addHook(config, hooksService);
+          await addHook(config, hooksService);
           await invalidateDraft("hook-added");
         }
         closeForm();
@@ -417,14 +425,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [
-      closeForm,
-      editingHook,
-      hooksService,
-      hooksState.addHook,
-      hooksState.updateHook,
-      invalidateDraft,
-    ],
+    [closeForm, editingHook, hooksService, addHook, updateHook, invalidateDraft],
   );
   const handleCreateHook = useCallback(() => {
     openForm({ hook: null });
@@ -443,39 +444,39 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
       });
       if (!confirmed) return;
       try {
-        await hooksState.deleteHook(hook.id, hooksService);
+        await deleteHook(hook.id, hooksService);
         await invalidateDraft("hook-deleted");
         closeForm();
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [closeForm, confirmDialog, hooksService, hooksState.deleteHook, intl, invalidateDraft],
+    [closeForm, confirmDialog, hooksService, deleteHook, intl, invalidateDraft],
   );
 
   const handleToggle = useCallback(
     async (hook: Hook, enabled: boolean) => {
       try {
-        await hooksState.toggleHook(hook.id, enabled, hooksService);
+        await toggleHook(hook.id, enabled, hooksService);
         await invalidateDraft(enabled ? "hook-enabled" : "hook-disabled");
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [hooksService, hooksState.toggleHook, invalidateDraft],
+    [hooksService, toggleHook, invalidateDraft],
   );
 
   const handleImport = useCallback(
     async (hook: Hook) => {
       try {
-        await hooksState.importHook(hook.id, hooksService);
+        await importHook(hook.id, hooksService);
         await invalidateDraft("hook-imported");
         toast(intl.formatMessage({ id: "settings.hooks.imported" }));
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [hooksService, hooksState.importHook, intl, invalidateDraft],
+    [hooksService, importHook, intl, invalidateDraft],
   );
 
   if (form && targetServiceResolution.rpcReady) {

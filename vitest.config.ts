@@ -3,6 +3,8 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 import engineeringTestFiles from "./scripts/engineering-test-files.json";
 
+if (!process.versions.bun) throw new Error("Vitest must run under Bun");
+
 export default defineConfig({
   // 测试固定注入事件上报端点，使遥测上报链路在单测中可验证；真实构建由 scripts/build-time-config.mjs 决定。
   define: {
@@ -27,6 +29,11 @@ export default defineConfig({
   },
   test: {
     setupFiles: ["./vitest.setup.ts"],
+    // Bun 原生 Zod namespace 含 __esModule；Vitest 将其误当 CJS 展平后会丢失命名导出 z。
+    // 仅让 Zod 经 Vite 的 ESM 转换，保留其他依赖既有的 CJS interop 与测试语义。
+    server: {
+      deps: { inline: ["zod"] },
+    },
     // 官方依赖图不追踪 setupFiles；公共配置变化必须明确选中整个工程套件并报告跳过。
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
@@ -61,6 +68,8 @@ export default defineConfig({
           name: "engineering",
           include: engineeringTestFiles,
           pool: "forks",
+          // Vitest forks 使用当前 process.execPath；显式保留 Bun 启动参数，不回退到 Node。
+          execArgv: process.execArgv,
           fileParallelism: false,
           maxWorkers: 1,
         },

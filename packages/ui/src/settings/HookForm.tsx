@@ -163,6 +163,7 @@ export function HookForm({
     customJson,
     event,
     hook?.enabled,
+    hook?.shell,
     intl,
     matcher,
     onSave,

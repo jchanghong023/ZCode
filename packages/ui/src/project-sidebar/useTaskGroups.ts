@@ -36,16 +36,20 @@ export function useTaskGroups(tree: ProjectTree) {
       }
     }
   }, [service]);
+  const invalidateRequests = useCallback(() => {
+    // 清理使旧读取失效，必须推进当前水位，而不是捕获订阅建立时的数字。
+    serial.current++;
+  }, []);
   useEffect(() => {
     void refresh();
     const subscription = services.broadcastService.onMessage((event) => {
       if (event.channel === "state:task-groups") void refresh();
     });
     return () => {
-      serial.current++;
+      invalidateRequests();
       subscription.dispose();
     };
-  }, [services.broadcastService, refresh]);
+  }, [services.broadcastService, refresh, invalidateRequests]);
   // 活动时间/stream 不触发登记；仅首次身份、系统标记和明确删除有组织语义。
   const signature = useMemo(() => {
     // 原来每次活动渲染都排序并在比较器中反复序列化；只在事实输入变化时计算一次键。

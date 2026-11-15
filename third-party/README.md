@@ -83,7 +83,7 @@ React Best Practices 的真实缺口仍保留在 `copied-components.json` 与 `i
 
 - 复制内容缺少完整上游许可原文：React Best Practices（固定 revision 与 2026-11-14 复检的 `main` 均无 LICENSE/COPYING/NOTICE 和版权行；证据快照、已试 URL 与所需材料见 `copied-components.json` 的 `reviewEvidence`）。
 - `react-remove-scroll-bar@2.3.8`：npm 归档 27 个文件无许可文件；npm 记录的 gitHead `b3b1287aad81def2e2ae707274b74531b61ddbaf` 已不可达，仓库也没有 2.3.8 对应的 ref。上游 2025-05-21 才在 commit `7301c160fda44cb8cf2b9fdfde61efad35736196` 加入 MIT LICENSE（Copyright (c) 2025 Anton Korzunov），晚于 2024-12-15 的发布，只能作为证据保留，不能作为该版本的许可原文。
-- `@hono/node-ws@1.3.0`：npm 归档 10 个文件无许可文件，`@hono/node-ws@1.3.0` tag 对应的 `2c026b9d5bfff006dc9abdc1b33c53856d2d784f` 树也没有 LICENSE。上游 2026-09-29 才在 commit `a8e2af4d857aa7fabf290cdf6f67307678e50409` 加入 MIT LICENSE（Copyright (c) 2022 - present, Yusuke Wada and Hono contributors），维护者在 issue #2157 明确说明该文件从下一个版本起才会进入 npm 包，因此不能关闭 1.3.0。
+- `@hono/node-ws@1.3.0` 已随后端迁移 Bun 移出依赖图，不再属于当前 `reviewRequired`；此前缺少版本对应许可的核验快照仅保留作历史证据，不表示许可缺口已补齐。
 - `ansi-to-react@6.2.6`：npm 归档 4 个文件无许可文件；tag `v6.2.6` 对应的 `145140971e9d83ccac32265f24b1c55dea437896` 树无许可文件，全部历史也没有 LICENSE/COPYING/NOTICE 或版权行，README 只有 BSD-3-Clause 标识链接，无法取得完整原文。
 - 后补的 `react-remove-scroll-bar` 与 `@hono/node-ws` LICENSE 原文以固定 commit 和 SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不进入声明正文，也不用于关闭 `reviewRequired`。
 

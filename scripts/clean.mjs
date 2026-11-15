@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -12,7 +12,7 @@ const packagesDir = join(repoRoot, "packages");
 const buildDirNames = new Set(["dist"]);
 const incrementalMetadataSuffix = ".tsbuildinfo";
 const dependenciesDirName = "node_modules";
-const usage = `用法: node scripts/clean.mjs [--dependencies]
+const usage = `用法: bun scripts/clean.mjs [--dependencies]
 
 默认只删除构建产物：根与 packages/* 下的 dist 目录，以及对应目录里的 *.tsbuildinfo 增量元数据。
 --dependencies 额外删除根与 packages/* 的 node_modules（之后需要重新安装依赖）。

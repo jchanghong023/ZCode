@@ -155,7 +155,9 @@ export class Emitter<T> implements IDisposable {
     if (this.disposed) {
       return;
     }
-    for (const listener of [...this.listeners]) {
+    // 回调可重入并增删监听器；本轮只通知派发开始时的快照，不能直接遍历 Set。
+    const listeners = Array.from(this.listeners);
+    for (const listener of listeners) {
       listener(event);
     }
   }

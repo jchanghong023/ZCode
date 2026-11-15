@@ -4,7 +4,7 @@
     {
       "label": "zcode: mock server (:3030)",
       "type": "shell",
-      "command": "pnpm --filter @zcode/server dev",
+      "command": "bun run dev:server",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -30,7 +30,7 @@
     {
       "label": "zcode: web dev (:5173)",
       "type": "shell",
-      "command": "pnpm --filter @zcode/web dev",
+      "command": "bun run dev:web",
       "options": {
         "cwd": "${workspaceFolder}"
       },

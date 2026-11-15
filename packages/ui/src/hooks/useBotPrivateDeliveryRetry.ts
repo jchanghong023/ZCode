@@ -10,8 +10,12 @@ export function useBotPrivateDeliveryRetry(botId: string, deliveryId: string) {
     ++generation.current;
     busy.current = false;
     setState("idle");
-    return () => {
+    // 原因：清理必须使当前在途重试失效，而非恢复 effect 启动时的代次。
+    const invalidateRetry = () => {
       ++generation.current;
+    };
+    return () => {
+      invalidateRetry();
     };
   }, [botId, deliveryId]);
   const retry = useCallback(async () => {

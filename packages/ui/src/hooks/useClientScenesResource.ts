@@ -88,15 +88,16 @@ export function useClientScenesResource(
     },
   );
 
+  const { mutate } = resource;
   useEffect(() => {
     if (!enabled) return;
     // macOS 点击关闭只 hide BrowserWindow，renderer 与 SWR 缓存不会销毁；
     // 重新 show 时若仍在去重窗口内，内建 focus revalidate 会继续复用旧 Scene。
     // hidden -> visible 必须绕过去重窗口强制重验，同时按 Service/cache authority 合并并发消费方。
     return getClientScenesVisibilityRecovery()?.subscribe(visibilityAuthority, () => {
-      void resource.mutate().catch(() => undefined);
+      void mutate().catch(() => undefined);
     });
-  }, [enabled, resource.mutate, visibilityAuthority]);
+  }, [enabled, mutate, visibilityAuthority]);
 
   return {
     scenes: resource.data ?? EMPTY_SCENES,

@@ -182,6 +182,13 @@ export function OnboardingDialog(props: {
       autoScannedSessionStepRef.current = false;
     }
   }, [wizardStep]);
+  const {
+    scan: scanSessions,
+    isScanning: sessionsScanning,
+    candidates: sessionCandidates,
+    scanError: sessionScanError,
+    supportState: sessionSupportState,
+  } = sessionMigration;
 
   useEffect(() => {
     // 修复原因：删除欢迎页时一并删掉了 `view === "wizard"` 门禁，而 wizardStep 初始就是 session、
@@ -191,10 +198,10 @@ export function OnboardingDialog(props: {
       !settingsSync.state.open ||
       !shouldAutoScanOnboardingSessions({
         wizardStep,
-        supported: sessionMigration.supportState.supported,
-        isScanning: sessionMigration.isScanning,
-        candidateCount: sessionMigration.candidates.length,
-        scanError: sessionMigration.scanError,
+        supported: sessionSupportState.supported,
+        isScanning: sessionsScanning,
+        candidateCount: sessionCandidates.length,
+        scanError: sessionScanError,
         hasAutoScannedInCurrentEntry: autoScannedSessionStepRef.current,
       })
     ) {
@@ -202,13 +209,13 @@ export function OnboardingDialog(props: {
     }
 
     autoScannedSessionStepRef.current = true;
-    void sessionMigration.scan();
+    void scanSessions();
   }, [
-    sessionMigration.candidates.length,
-    sessionMigration.isScanning,
-    sessionMigration.scan,
-    sessionMigration.scanError,
-    sessionMigration.supportState.supported,
+    sessionCandidates.length,
+    sessionsScanning,
+    scanSessions,
+    sessionScanError,
+    sessionSupportState.supported,
     settingsSync.state.open,
     wizardStep,
   ]);

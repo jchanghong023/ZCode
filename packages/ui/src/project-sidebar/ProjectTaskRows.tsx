@@ -27,6 +27,7 @@ export const ProjectTaskRow = memo(function Row({
   renameOnDoubleClick?: boolean;
 }) {
   const presentation = useContext(ProjectTaskListContext);
+  const { onOpenTaskFiles } = presentation;
   const { remoteSessionId, rename, pin, archive, unread } = useProjectTaskActions(task, refresh);
   const workspaceKey = task.workspaceIdentity?.trim() || task.workspacePath;
   // 原因：每行订阅完整 activeTaskId 会让同工作区所有行随选择更新；只订阅自身选中态。
@@ -40,8 +41,8 @@ export const ProjectTaskRow = memo(function Row({
     [onSelect, task],
   );
   const openFiles = useCallback(
-    () => presentation.onOpenTaskFiles?.(task, remoteSessionId ?? undefined),
-    [presentation.onOpenTaskFiles, task, remoteSessionId],
+    () => onOpenTaskFiles?.(task, remoteSessionId ?? undefined),
+    [onOpenTaskFiles, task, remoteSessionId],
   );
   // 原因：内联 JSX 每次都会创建新引用，导致 TaskList 的 memo 比较失效。
   const organizationActions = useMemo(() => <TaskGroupTaskMenu task={task} />, [task]);

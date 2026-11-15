@@ -846,10 +846,10 @@ function SubagentForm({
   const { intl } = useZCodeIntl();
   const initialFormStateKey = createSubagentFormInitialStateKey(initial);
   const initialFormState = useMemo(
-    () => createSubagentFormInitialState(initial),
+    () => ({ ...createSubagentFormInitialState(initial), identity: initialFormStateKey }),
     [initial, initialFormStateKey],
   );
-  const previousInitialFormStateKeyRef = useRef(initialFormStateKey);
+  const previousInitialFormStateKeyRef = useRef(initialFormState.identity);
   const [name, setName] = useState(initialFormState.name);
   const [description, setDescription] = useState(initialFormState.description);
   const [color, setColor] = useState<AgentColor>(initialFormState.color);
@@ -930,11 +930,11 @@ function SubagentForm({
   const selectedColorIndex = Math.max(0, AGENT_COLORS.indexOf(color));
 
   useEffect(() => {
-    if (previousInitialFormStateKeyRef.current === initialFormStateKey) {
+    if (previousInitialFormStateKeyRef.current === initialFormState.identity) {
       return;
     }
-    previousInitialFormStateKeyRef.current = initialFormStateKey;
-    const nextInitialState = createSubagentFormInitialState(initial);
+    previousInitialFormStateKeyRef.current = initialFormState.identity;
+    const nextInitialState = initialFormState;
 
     // 保存/刷新后表单组件可能复用旧实例；必须按最新 agent 快照回灌字段，
     // 否则已写入 Markdown 的 model 会继续停留在本地 inherit 状态。
@@ -951,7 +951,7 @@ function SubagentForm({
     setDescriptionError(null);
     setPromptError(null);
     setModelError(null);
-  }, [initial, initialFormStateKey]);
+  }, [initialFormState]);
 
   const validate = (): boolean => {
     const trimmedName = name.trim();

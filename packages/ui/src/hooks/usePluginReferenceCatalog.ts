@@ -121,7 +121,7 @@ export function usePluginReferenceCatalog(
   // 实例重连时都创建新的请求身份。渲染只接受同一 scope 的结果，因此 effect 尚未
   // 发出新请求的首帧也不会短暂泄露上一 authority 的 catalog。
   const requestScope = useMemo(
-    () => ({}),
+    () => ({ enabled, remoteSessionId, requestKey, rpcReady, services, workspacePath }),
     [enabled, remoteSessionId, requestKey, rpcReady, services, workspacePath],
   );
 

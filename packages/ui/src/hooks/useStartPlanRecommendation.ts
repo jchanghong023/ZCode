@@ -31,13 +31,12 @@ export function useStartPlanRecommendation(
     refreshOnMount: true,
     mountRefreshReason: "access",
   });
+  const { refresh, error, snapshot } = entitlement;
   return useCallback(
     async (selection: ModelSelection): Promise<ModelSelection | null> => {
       // 提交不等待网络；过期额度跳过推荐，访问刷新沿用一分钟节流与失败退避。
-      void entitlement.refresh({ silent: true, reason: "access" });
-      const candidate = entitlement.error
-        ? null
-        : resolveStartPlanRecommendation(selection, view, entitlement.snapshot);
+      void refresh({ silent: true, reason: "access" });
+      const candidate = error ? null : resolveStartPlanRecommendation(selection, view, snapshot);
       if (!candidate || !services) return selection;
       try {
         // 每次读同一 Host 的偏好，覆盖另一入口或手机刚勾选后的下一次提交。
@@ -82,15 +81,6 @@ export function useStartPlanRecommendation(
       }
       return choice === "confirm" ? candidate : selection;
     },
-    [
-      entitlement.error,
-      entitlement.snapshot,
-      entitlement.refresh,
-      intl,
-      requestChoice,
-      services,
-      surface,
-      view,
-    ],
+    [error, snapshot, refresh, intl, requestChoice, services, surface, view],
   );
 }

@@ -104,8 +104,12 @@ export function ConversationDraftSuggestedPromptsContainer({
     registerRecommendedPromptPane(recommendationPaneId, recommendationMode);
     return () => unregisterRecommendedPromptPane(recommendationPaneId);
   }, [proactive, recommendationMode, recommendationPaneId]);
-  const recommendedItems = useMemo(
-    () => getRecommendedPromptsForPane(recommendationPaneId, recommendationMode),
+  // revision 标识这次从外部推荐 owner 读取的结果，保留无 props 变化时的刷新。
+  const { items: recommendedItems } = useMemo(
+    () => ({
+      revision: recommendationRevision,
+      items: getRecommendedPromptsForPane(recommendationPaneId, recommendationMode),
+    }),
     [recommendationMode, recommendationPaneId, recommendationRevision],
   );
   const [closing, setClosing] = useState(false);

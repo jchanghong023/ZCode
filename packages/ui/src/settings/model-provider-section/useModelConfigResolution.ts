@@ -23,7 +23,7 @@ export function useModelConfigResolution({
   const [resolving, setResolving] = useState(false);
   const [defaultsLoaded, setDefaultsLoaded] = useState(false);
   const generationRef = useRef(0);
-  const identity = useMemo(() => ({}), [open, modelId, resolve]);
+  const identity = useMemo(() => ({ open, modelId, resolve }), [open, modelId, resolve]);
   const identityRef = useRef(identity);
   identityRef.current = identity;
   const enabledRef = useRef(enabled);
@@ -82,6 +82,7 @@ export function useModelConfigResolution({
   );
 
   const idle = useIdleTrigger(() => resolveCurrent());
+  const { cancel: cancelIdle, schedule: scheduleIdle } = idle;
 
   useEffect(() => {
     generationRef.current += 1;
@@ -93,7 +94,7 @@ export function useModelConfigResolution({
       !normalizedModelId ||
       normalizedModelId === originalModelId
     ) {
-      idle.cancel();
+      cancelIdle();
       setResult(null);
       setResolving(false);
       setDefaultsLoaded(false);
@@ -102,12 +103,12 @@ export function useModelConfigResolution({
     }
     // 恢复成功与开启智能模式同批提交，沿用同一结果，不紧接着再发一次自动解析。
     if (result?.identity === identity) return;
-    idle.schedule();
+    scheduleIdle();
   }, [
     enabled,
     identity,
-    idle.cancel,
-    idle.schedule,
+    cancelIdle,
+    scheduleIdle,
     modelId,
     open,
     originalModelId,

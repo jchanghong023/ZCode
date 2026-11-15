@@ -184,19 +184,23 @@ export function GroupItem({
       groupId: node.group.id,
     },
   });
+  const setGroupDragNodeRef = groupDraggable.setNodeRef;
+  const setExpandedHeaderNodeRef = expandedGroupHeaderDroppable.setNodeRef;
+  const setCollapsedGroupNodeRef = collapsedGroupDroppable.setNodeRef;
+  const setGroupOverNodeRef = groupOverDroppable.setNodeRef;
   const setGroupHeaderNodeRef = useCallback(
     (element: HTMLDivElement | null) => {
-      groupDraggable.setNodeRef(element);
-      expandedGroupHeaderDroppable.setNodeRef(element);
+      setGroupDragNodeRef(element);
+      setExpandedHeaderNodeRef(element);
     },
-    [expandedGroupHeaderDroppable.setNodeRef, groupDraggable.setNodeRef],
+    [setExpandedHeaderNodeRef, setGroupDragNodeRef],
   );
   const setGroupItemNodeRef = useCallback(
     (element: HTMLDivElement | null) => {
-      collapsedGroupDroppable.setNodeRef(element);
-      groupOverDroppable.setNodeRef(element);
+      setCollapsedGroupNodeRef(element);
+      setGroupOverNodeRef(element);
     },
-    [collapsedGroupDroppable.setNodeRef, groupOverDroppable.setNodeRef],
+    [setCollapsedGroupNodeRef, setGroupOverNodeRef],
   );
   useLayoutEffect(() => {
     if (!renaming) {

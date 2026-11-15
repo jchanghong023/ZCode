@@ -7,8 +7,8 @@
     "./globals": "./src/globals.d.ts"
   },
   "scripts": {
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint": "bun --bun run oxlint",
+    "lint:fix": "bun --bun run oxlint --fix"
   },
   "dependencies": {
     "@zcode/rpc": "workspace:*",

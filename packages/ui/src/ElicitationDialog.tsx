@@ -2,6 +2,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -71,16 +72,23 @@ function getElicitationCountdownRefreshDelay(
 
 function useElicitationCountdownSeconds(autoResolution: InteractionAutoResolution | undefined) {
   const [clockNow, setClockNow] = useState(Date.now);
+  const resolutionState = autoResolution?.state;
+  const resolutionStartedAt = autoResolution?.startedAt;
+  const resolutionBoundary =
+    autoResolution?.state === "snoozed" ? autoResolution.snoozedAt : autoResolution?.deadlineAt;
+  const refreshDelay = useEffectEvent((now: number) =>
+    getElicitationCountdownRefreshDelay(autoResolution, now),
+  );
 
   useEffect(() => {
-    if (!autoResolution || autoResolution.state === "snoozed") return;
+    if (!resolutionState || resolutionState === "snoozed") return;
     let timeoutId: number | undefined;
     const schedule = () => {
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       const now = Date.now();
       setClockNow(now);
       if (document.visibilityState === "hidden") return;
-      const delay = getElicitationCountdownRefreshDelay(autoResolution, now);
+      const delay = refreshDelay(now);
       if (delay !== null) {
         timeoutId = window.setTimeout(schedule, delay);
       }
@@ -93,11 +101,7 @@ function useElicitationCountdownSeconds(autoResolution: InteractionAutoResolutio
       window.removeEventListener("focus", schedule);
       document.removeEventListener("visibilitychange", schedule);
     };
-  }, [
-    autoResolution?.state,
-    autoResolution?.startedAt,
-    autoResolution?.state === "snoozed" ? autoResolution.snoozedAt : autoResolution?.deadlineAt,
-  ]);
+  }, [resolutionState, resolutionStartedAt, resolutionBoundary]);
 
   return getElicitationCountdownSeconds(autoResolution, clockNow);
 }

@@ -1383,6 +1383,8 @@ function ConversationComposerImpl({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const commitLifecycleContent = captureComposerContentLifecycleCommit();
+    // 清理本次生命周期持有的集合；集合内容仍由发送回执实时更新。
+    const commandResolutionCleanups = commandResolutionCleanupsRef.current;
     const flush = () => persistDraftNow(draftScopeRef.current);
     window.addEventListener("pagehide", flush);
     window.addEventListener("blur", flush);
@@ -1396,8 +1398,8 @@ function ConversationComposerImpl({
         window.clearTimeout(draftPersistTimerRef.current);
         draftPersistTimerRef.current = null;
       }
-      for (const cleanup of commandResolutionCleanupsRef.current) cleanup();
-      commandResolutionCleanupsRef.current.clear();
+      for (const cleanup of commandResolutionCleanups) cleanup();
+      commandResolutionCleanups.clear();
     };
   }, [
     captureComposerContentLifecycleCommit,
@@ -1924,7 +1926,6 @@ function ConversationComposerImpl({
       sessionId,
       snapshotDraftOfEditor,
       updateText,
-      updateComposerContent,
       webElementContexts,
       pptxElementReferences,
       workspaceIdentity,
@@ -2542,6 +2543,7 @@ function ConversationComposerImpl({
     );
   }, [
     attachmentPreviewTitle,
+    videoAttachmentPreviewTitle,
     attachmentsApi,
     clearCodeCommentContexts,
     clearConversationSelectionReferences,

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createVitest } from "vitest/node";
@@ -35,7 +35,7 @@ export async function main(argv = process.argv.slice(2)) {
     const options = await parseArgs(argv);
     if (options.help) {
       console.log(
-        "用法：pnpm test:engineering:affected [--scope worktree|push] [--base <commit>] [--files <files...>] [--dry-run] [--json]\n使用 Vitest 官方选择；全量选择跳过工程测试并成功退出，脏工作区 Push 和错误非零退出。0=通过/无选中测试/跳过全量，1=测试失败，2=阻止执行/脚本错误。",
+        "用法：bun run test:engineering:affected [--scope worktree|push] [--base <commit>] [--files <files...>] [--dry-run] [--json]\n使用 Vitest 官方选择；全量选择跳过工程测试并成功退出，脏工作区 Push 和错误非零退出。0=通过/无选中测试/跳过全量，1=测试失败，2=阻止执行/脚本错误。",
       );
       return 0;
     }

@@ -343,6 +343,7 @@ export function OffPeakEditView({
     if (ok) onBack();
   }, [
     canSubmit,
+    showToast,
     editing,
     effectiveThoughtLevel,
     intl,

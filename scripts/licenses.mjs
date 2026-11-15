@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /* eslint-disable max-lines -- 三方 license 盘点/声明/门禁一体脚本，数据表与校验逻辑集中维护。 */
 // 三方 license 盘点/声明/门禁 一体脚本
 //
 // 用法：
-//   node scripts/licenses.mjs notices   生成 THIRD-PARTY-NOTICES.md（精确版本、原始版权和许可文本）
-//   node scripts/licenses.mjs check     手动门禁：出现 allowlist 之外或许可未知的包即退出码 1
+//   bun scripts/licenses.mjs notices   生成 THIRD-PARTY-NOTICES.md（精确版本、原始版权和许可文本）
+//   bun scripts/licenses.mjs check     手动门禁：出现 allowlist 之外或许可未知的包即退出码 1
 //
 // 数据口径：
 // - 实装清单 = 全 workspace node_modules 的递归集合，含嵌套版本与符号链接。
@@ -145,13 +145,13 @@ if (command === "check") {
       .reviewRequired ?? [];
   if (reviewRequired.length)
     console.warn(
-      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 node scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,
+      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 bun scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,
     );
   const n = installed.size;
   console.log(
     `✓ 许可标识与声明新鲜度检查通过：${n} 个实装包（构建依赖复核 ${[...installed.values()].filter((r) => r.bucket.startsWith("yellow")).length} 项）；材料限制见 third-party/README.md`,
   );
 } else {
-  console.error("用法: node scripts/licenses.mjs [notices|check]");
+  console.error("用法: bun scripts/licenses.mjs [notices|check]");
   process.exit(2);
 }

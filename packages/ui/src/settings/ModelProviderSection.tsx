@@ -288,7 +288,10 @@ export function ModelProviderSection({
     error: sharedSettingsError,
     update: updateSharedSettings,
   } = useSettings();
-  const connectionSelections = sharedSettings?.providerFamilyConnectionSelections ?? {};
+  const connectionSelections = useMemo(
+    () => sharedSettings?.providerFamilyConnectionSelections ?? {},
+    [sharedSettings?.providerFamilyConnectionSelections],
+  );
   const familyConnectionSettingsFailed = sharedSettingsError !== null && sharedSettings === null;
   const effectiveConnectionSelections = useMemo(
     () => ({

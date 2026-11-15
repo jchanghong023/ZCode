@@ -23,7 +23,7 @@ export function useProjectUnreadSignals(
 ) {
   const services = useBaseWorkspaceServices();
   const tabs = useTabStoreApi();
-  const scopeKey = JSON.stringify(scopes);
+  const subscriptionScopeKey = services.windowControllerService ? null : JSON.stringify(scopes);
   const latestRefresh = useRef(refresh);
   latestRefresh.current = refresh;
   const received = useRef(new Map<string, { updatedAt: number; status: string }>());
@@ -117,7 +117,7 @@ export function useProjectUnreadSignals(
       return Promise.all(writes);
     };
     const clearOnFocus = () => {
-      for (const [key, entry] of [...foregroundCompletions]) {
+      for (const [key, entry] of foregroundCompletions) {
         // 只清「已补写且用户回到窗口时任务仍在面前」的记录；
         // 未补写的（还没离开过）保持记录，等真正的离开事件。
         if (!entry.written || entry.marker == null) continue;
@@ -258,9 +258,12 @@ export function useProjectUnreadSignals(
         })
         .finally(() => pending.delete(operation));
     };
+    const subscribedScopes = subscriptionScopeKey
+      ? (JSON.parse(subscriptionScopeKey) as typeof scopes)
+      : [];
     const subscriptions = services.windowControllerService
       ? [services.windowControllerService.onDynamicTaskUnreadSignal()(receive)]
-      : scopes.map((scope) =>
+      : subscribedScopes.map((scope) =>
           services.zcodeTaskService.onDynamicWorkspaceEvent(scope)((event) => {
             if (
               event.type !== "workspace_task_list_changed" ||
@@ -289,5 +292,5 @@ export function useProjectUnreadSignals(
       window.removeEventListener("focus", flushThenClear);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [services, tabs, services.windowControllerService ? "controller" : scopeKey]);
+  }, [services, tabs, subscriptionScopeKey]);
 }

@@ -12,18 +12,14 @@
     },
     {
       "name": "ZCode Server: Mock (:3030)",
-      "type": "pwa-node",
+      "type": "bun",
       "request": "launch",
       "program": "${workspaceFolder}/packages/server/src/entry-http.ts",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["--import", "tsx"],
+      "runtime": "bun",
       "cwd": "${workspaceFolder}",
       "env": {
         "PORT": "3030"
       },
-      "console": "integratedTerminal",
-      "sourceMaps": true,
-      "skipFiles": ["<node_internals>/**"],
       "preLaunchTask": "zcode: web dev (:5173)"
     }
   ]

@@ -61,7 +61,7 @@ export function ModelRowInput({
     scopeKey: providerId,
     resolve: onResolveDraft,
   });
-  const { draft } = editor;
+  const { draft, reset: resetDraft, commit: commitEditorDraft } = editor;
   const [draftErrorField, setDraftErrorField] = useState<
     | "id"
     | "contextWindow"
@@ -76,8 +76,8 @@ export function ModelRowInput({
     editor.change(patch);
     setDraftErrorField(null);
   };
-  const commitDraft = async (): Promise<boolean> => {
-    const result = await editor.commit();
+  const commitDraft = useCallback(async (): Promise<boolean> => {
+    const result = await commitEditorDraft();
     if (result.status === "invalid") {
       setDraftErrorField(result.field);
       return false;
@@ -85,23 +85,23 @@ export function ModelRowInput({
     setDraftErrorField(null);
     await onCommit(result.model, draftBasedOnRevision);
     return true;
-  };
+  }, [commitEditorDraft, draftBasedOnRevision, onCommit]);
 
   const cancelMetadataDialog = useCallback(() => {
-    editor.reset(model);
+    resetDraft(model);
     setDraftErrorField(null);
     setCommitErrorMessage(null);
     setMetadataDialogOpen(false);
-  }, [model]);
+  }, [model, resetDraft]);
 
   const openMetadataDialog = useCallback(() => {
     setEditingModel(model);
-    editor.reset(model);
+    resetDraft(model);
     setDraftErrorField(null);
     setCommitErrorMessage(null);
     setDraftBasedOnRevision(settingsRevision);
     setMetadataDialogOpen(true);
-  }, [model, settingsRevision]);
+  }, [model, resetDraft, settingsRevision]);
 
   const handleMetadataDialogOpenChange = useCallback(
     (open: boolean) => {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across the current Web workspace projects and copied source/assets; excludes retired Desktop, CLI and native-search release inputs; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "5dfc35643f8d976f6e0fc9cb27554830659795f956262c3d9bbd1dbed9fe916e",
+  "noticesSha256": "4c5fb45c189a1613c9e501251eff340424c45a2ee93f728fcd37ad1c09a2b245",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "e2c3b0f4a1dc1368dee821f03c000d818a48421d09f3872525dddffe73f2112b",
     ".agents/skills/agent-browser/references/commands.md": "17522fc56d742663f47231ff06c4811abc87e12c7f78e11f94d253ddd540a909",
@@ -220,16 +220,16 @@
     ".agents/skills/react-best-practices/rules/server-parallel-nested-fetching.md": "4d9c44e579e1286013acf5cb5f65b04297d2b68909f44f8163804656514a78ff",
     ".agents/skills/react-best-practices/rules/server-serialization.md": "4d025c42043c56e6355196a2e885d168cdb15248d0797146c9db838a57b34946",
     ".agents/skills/react-best-practices/SKILL.md": "8c841f73b4f158d617a58d442d55e347f0f8a3c8a58734ccfdf81ce08e169a58",
-    "package.json": "cc949614fe263b5cd735499d8af6031f4f40d973231385444c6278fe911a216f",
-    "packages/client/package.json": "e76f441549130dc3e5e68072a36b6cb9044e19a6625f1e813f19a4def2b1b689",
-    "packages/design-runtime/package.json": "b6dc98000617715d546d33c1c2b349dad61953f81ce81b3e549c6fa9eb632879",
-    "packages/model-option-map/package.json": "3c4f3581fda415d2567e9c33be2fbecb6fe2160fddd2a5a2265012bed977b77b",
-    "packages/provider/package.json": "15f9c8ab922851ee4b0f45010f2aaa50019bb64c873e2e19d756ffe8ca725a67",
+    "package.json": "437684f0ddb28d93dd9602375657127b0cf40703aa81c690ec094b97d1e55bca",
+    "packages/client/package.json": "4063d85b84fd67d7f0039b6dc21cb13ece5d59b6d236ccba3909ac402791f791",
+    "packages/design-runtime/package.json": "f7f61981aa7d72f0b610951b8d661a31fa3dbe9ba3f9b65050d48ffdda8859b8",
+    "packages/model-option-map/package.json": "62a76bf12a234fb5e1b975f614edbb0907acdb9e8ad9183e94b2cb414b57354b",
+    "packages/provider/package.json": "f1bce76f146e9b39ad7ae507fa7c31a6f133d0797d2650c59c030c6686ce9e1e",
     "packages/rpc/examples/01-basic-ipc.ts": "bb4423c1642918846010f9307262c379536ca9541d79df6ebba120b5cf792f3e",
     "packages/rpc/examples/02-proxy-channel.ts": "66dda9aec12cd46da8a56560cb765a3de590917bbc40f329185e6fd05a388fff",
     "packages/rpc/examples/03-ipc-server-client.ts": "9b873f565b4a3426ee3a5338a975cb6ab76e29af094cf6bbee4f7030f872f758",
     "packages/rpc/examples/04-remote-connection.ts": "fe43a2d631ba54a1cf63a86e344b6e2e58d83c2e8c95f2f8b7371f63e6442541",
-    "packages/rpc/package.json": "9ad716a00cc1f79fc3121b6221add35d671f92613c617df7395b467944748acd",
+    "packages/rpc/package.json": "4d8239fe3b83b52d497f527891b97c4ccccb9529c3bbdb60567519427d91536d",
     "packages/rpc/src/buffer.ts": "6bc6a44e6abd088f72d57616d9556d78ce078b6f3813bf75402dde386781492c",
     "packages/rpc/src/channelClient.ts": "7a4609df381ca3b54b0b53f43aa700374eb3970f37e3ffdadb626e9603255d82",
     "packages/rpc/src/channels.shared.ts": "b258b76cf9bd792b117b0dc4c1ef7a4ee1e7245ab878c5c7ffe07b33a07c3bf6",
@@ -246,12 +246,12 @@
     "packages/rpc/src/proxy-channel.ts": "ec5b43e6a3a622a88a8aaa6af9cb37dbfe517932ee7f4a337019ec138bb2d513",
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "fd41df3ba2c5e88a52c6b8045b9e0a663b8ee27b54c0f1e146f10d03f6f773bd",
-    "packages/server/package.json": "0968e1221936a2967f1d6552c1384dbb0dc9c3da8952d853f69a203d36b6dd7b",
-    "packages/services/package.json": "f6e07350918a4aa961698c558570c3bd93db421ebcb853d630f4d7948aeb9872",
-    "packages/session-control/package.json": "abe4e64b8ceebb9fa9240e6c88d2b9f5bfa55fc15733f70a51b7502294aef8f3",
-    "packages/shared/package.json": "979f2d3ce53a73b2074814d041e1b5b145a26bfbc8ef5125eb324d0dc71ab1e1",
+    "packages/server/package.json": "9d23f10c90a3ed806da1214c7366f7039b87afe74542d69037cdeecb28cf3d4b",
+    "packages/services/package.json": "84462504a1135ac0a412e5f0c035a52f6b58fb019ca0997e3e4ee0f9f469f3b2",
+    "packages/session-control/package.json": "18c4fe69751d27654c87da4f8a6fd0bbc58c5a113e4b94b806d82dda68561c10",
+    "packages/shared/package.json": "d65981c8b2bb22e81beaea0b0c159d60e2fd3f725f878fc6bedb62ba7d69162f",
     "packages/shared/src/zcode-protocol-v4/wire-codec.ts": "ac2494a3acc795c809c94ee9393f50271a9c2a0fd33813459e5ab93842ceef75",
-    "packages/ui/package.json": "f72d94628eb732ae40d8a4dab31e2fda796e77e86a09eebf6541d11003143560",
+    "packages/ui/package.json": "204e3bb641f45c171135d165cee84d4b3b37c16a08ec10d7ae2aa09d4f4b8c13",
     "packages/ui/src/components/ai-elements/agent.tsx": "830e7ea9e927de1524851337f1d35bda0e5690e3e4fa307fff854b60006b16c7",
     "packages/ui/src/components/ai-elements/artifact.tsx": "7d73f08864d6280ac86c77d32e56d0e702f8aa6208e5910820139d0fb08ce64c",
     "packages/ui/src/components/ai-elements/attachments.tsx": "7a847ce6c8ac9dc630481a82dd20a5e9e00949bf710a41fea1d32a18123011d8",
@@ -260,7 +260,7 @@
     "packages/ui/src/components/ai-elements/chain-of-thought.tsx": "c6333b6dcfde5a79e9c12bee55412e1f9fd60dd3e440002a2c976147461b321e",
     "packages/ui/src/components/ai-elements/chat-loading.tsx": "21a495a53ccb0d7c1db1d2b62c41e8b6274bc582a2e88ed54d6be3e3338d3f82",
     "packages/ui/src/components/ai-elements/checkpoint.tsx": "72459f6fb8668e9245ec32542f92c7de809cc9b5a366bb44ab08f91ea4e1255b",
-    "packages/ui/src/components/ai-elements/code-block.tsx": "0085e326a3124a62ffa26c563b0115161958fc5f528205c247358be667cc3e26",
+    "packages/ui/src/components/ai-elements/code-block.tsx": "a28783a1ec5e48b970b7522c439d007904f733d8de631f74411e3a014d74593c",
     "packages/ui/src/components/ai-elements/commit.tsx": "e9f5dcffac4ec7702b6d77b41cfc28fab54f0595375dd2c992dc972c0a9e74d2",
     "packages/ui/src/components/ai-elements/confirmation.tsx": "bb39ae89d5550f4ffcbb36e73dc8b75d1c9930f0fdba28cc8ff135d753b65a9b",
     "packages/ui/src/components/ai-elements/connection.tsx": "6e6cf65efcef612a3d14f5fda69e27009bc06046d1f7aa842a1a93b9142a7f81",
@@ -279,9 +279,9 @@
     "packages/ui/src/components/ai-elements/markdown-blockquote.tsx": "0c76599780a464136703d40d07172dcc62730dee1ce01a155100cf4712440a7f",
     "packages/ui/src/components/ai-elements/markdown-image.tsx": "aedf797b19d4f5d37fc7e8833b2824a9d1a1a4fca440b69519b43a43eb122e90",
     "packages/ui/src/components/ai-elements/markdown-list.tsx": "ecf50ad4f48cd460ddcf90db7b463671f915d8c22c7cb8e7760ff3b02282c7f1",
-    "packages/ui/src/components/ai-elements/markdown-table.tsx": "e598edff66f537d3838fc233c10b931156d06172b1921fbe387e02878ce61d02",
+    "packages/ui/src/components/ai-elements/markdown-table.tsx": "310799f6b893c5033e736bd2944e162ac7439a0a09e58eeabda79359f1cab600",
     "packages/ui/src/components/ai-elements/mermaid-block.tsx": "0a68cb98554853a9b4bbdddc142456f91ad34cb10fa6cd611f37d335041e2537",
-    "packages/ui/src/components/ai-elements/message.tsx": "91cebd6e2b6a7260c1df37ba6439219e1f75d39dbdccd6715b4eb21578b70a53",
+    "packages/ui/src/components/ai-elements/message.tsx": "e4523d39ba5554da4d0df58aa540c1e0deec3ab10ac4366b6dd2eefae7893b7c",
     "packages/ui/src/components/ai-elements/mic-selector.tsx": "4fbbf1818e99986fa18c8aff094576efbbccdf2fe00d402dba668bd5460fb9ab",
     "packages/ui/src/components/ai-elements/model-selector.tsx": "8f2cc2b786d93c6294893e7916a339275bfe7b5a0615ff71246996565ab9149e",
     "packages/ui/src/components/ai-elements/node.tsx": "d7b68c41717a509bd9063f0a9fc0c4525ceb2b23bae4028bcd49ec949fc6268f",
@@ -361,7 +361,7 @@
     "packages/ui/src/components/ui/ZCodeAboutLogo.tsx": "1e5b7c2e8a9dc98a3c597cbe34122521319eaeb89825e4c41641e77715d1407a",
     "packages/ui/src/lib/builtinSkillI18n.ts": "a7cf4c090c5de4735c70cb868e2a2bcb87994736e15ed558371c2996b081647a",
     "packages/ui/src/styles.css": "ccd3d5d07f1bc16c12fe4ff6840e822d95cbd4cc8df06e8053853a92052f9a49",
-    "packages/web/package.json": "a17f69846bfea7b8052b82eb74bffe4d689940c99e2afee38d69d771362f13b6",
+    "packages/web/package.json": "e1253dcca7cd2b6d31018eccc0538df2d4268ce8650d5e2800114ae6c02ad89e",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/web/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -1511,11 +1511,11 @@
     "patches/@radix-ui__react-collapsible@1.1.12.patch": "4b7b3781f603e111bb33aef9c4b1694ac9bacd3dff47692606de9876d4631164",
     "patches/@radix-ui__react-menu@2.1.16.patch": "4b05eae73074149ac453ee047d9f48707df7d5c9ddedeab8d514f9b9fa097a6c",
     "patches/vitest@4.1.7.patch": "11fdb66aa985e1d77e68752deeb7c1130ae33c9a4e2968f23aae8adaf8bc9ba0",
-    "pnpm-lock.yaml": "7d7e3f868b6a0939afa02030b8bae940d937fa49d4b24621778f80f38954831b",
+    "pnpm-lock.yaml": "d5bf88973e32efe2bc5a40dd0dd35d084a8bc34902d1bf16165878bc833465f3",
     "pnpm-workspace.yaml": "ca246df899133c0183e8978cb0ff751d080e9056df84d187f7bbca45fb136791",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "third-party/copied-components.json": "7d3460d0bab55cda5f4f4c40ffb6cae48b62e3d1f08bf573344a32fc971b24fa",
-    "third-party/npm-overrides.json": "a474c626875cb4258e52b789e928aac6d5f522be1c55a558656a671ab9df3569",
+    "third-party/npm-overrides.json": "8949dc0fa81fd3df1f0bf2eff7792d578964f8016fa7463867c2a162419446ca",
     "third-party/upstream/014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff.txt": "014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff",
     "third-party/upstream/0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a.txt": "0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a",
     "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
@@ -1527,7 +1527,6 @@
     "third-party/upstream/992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093.txt": "992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093",
     "third-party/upstream/a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400.txt": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
     "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
-    "third-party/upstream/c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817.txt": "c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817",
     "third-party/upstream/cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9.txt": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9",
     "third-party/upstream/cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670.txt": "cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670",
     "third-party/upstream/cf81859d85e99ff2fad83d51d9dfd85ca5189b23c4442aacf1890c54665d92f4.txt": "cf81859d85e99ff2fad83d51d9dfd85ca5189b23c4442aacf1890c54665d92f4",
@@ -1727,38 +1726,6 @@
         {
           "member": "LICENSE",
           "sha256": "0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce"
-        }
-      ]
-    },
-    {
-      "name": "@hono/node-server",
-      "version": "1.19.14",
-      "license": "MIT",
-      "repository": "https://github.com/honojs/node-server.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "6895190430d809c4c57a7582ecc2f99acbc2ea39a5dfad20262a41d5b3e91733"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
-        }
-      ]
-    },
-    {
-      "name": "@hono/node-ws",
-      "version": "1.3.0",
-      "license": "MIT",
-      "repository": "git+https://github.com/honojs/middleware.git",
-      "notices": [
-        {
-          "member": "README.md (license section)",
-          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
-        },
-        {
-          "member": "https://registry.npmjs.org/@hono%2fnode-ws/1.3.0",
-          "sha256": "c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817"
         }
       ]
     },
@@ -8454,22 +8421,6 @@
       ]
     },
     {
-      "name": "ws",
-      "version": "8.20.0",
-      "license": "MIT",
-      "repository": "git+https://github.com/websockets/ws.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "2b29dcfe0d6471f7e8c92c5fb38c9f93edee10330937055440192f1832b1ecef"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "c63ef91c14f147f837c11850187ac35794e22e192ee846ad0daffb55e13a86cd"
-        }
-      ]
-    },
-    {
       "name": "y18n",
       "version": "4.0.3",
       "license": "ISC",
@@ -8975,7 +8926,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/code-block.tsx",
-          "sha256": "0085e326a3124a62ffa26c563b0115161958fc5f528205c247358be667cc3e26"
+          "sha256": "a28783a1ec5e48b970b7522c439d007904f733d8de631f74411e3a014d74593c"
         },
         {
           "file": "packages/ui/src/components/ai-elements/commit.tsx",
@@ -9051,7 +9002,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/markdown-table.tsx",
-          "sha256": "e598edff66f537d3838fc233c10b931156d06172b1921fbe387e02878ce61d02"
+          "sha256": "310799f6b893c5033e736bd2944e162ac7439a0a09e58eeabda79359f1cab600"
         },
         {
           "file": "packages/ui/src/components/ai-elements/mermaid-block.tsx",
@@ -9059,7 +9010,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/message.tsx",
-          "sha256": "91cebd6e2b6a7260c1df37ba6439219e1f75d39dbdccd6715b4eb21578b70a53"
+          "sha256": "e4523d39ba5554da4d0df58aa540c1e0deec3ab10ac4366b6dd2eefae7893b7c"
         },
         {
           "file": "packages/ui/src/components/ai-elements/mic-selector.tsx",
@@ -14934,45 +14885,6 @@
       }
     },
     {
-      "package": "@hono/node-ws@1.3.0",
-      "repo": "honojs/middleware",
-      "refs": [
-        "2c026b9d5bfff006dc9abdc1b33c53856d2d784f"
-      ],
-      "file": "third-party/upstream/c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817.txt",
-      "sha256": "c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817",
-      "source": "https://registry.npmjs.org/@hono%2fnode-ws/1.3.0",
-      "evidenceKind": "publisher-license-identifier-and-standard-terms",
-      "license": "MIT",
-      "reviewEvidence": {
-        "checkedOn": "2026-11-14",
-        "status": "blocked",
-        "result": "The exact 1.3.0 npm archive contains 10 files and no LICENSE, COPYING or NOTICE; only package.json declares \"license\": \"MIT\". The @hono/node-ws@1.3.0 tag resolves to 2c026b9d5bfff006dc9abdc1b33c53856d2d784f (committed and published 2026-01-07), and that tree has no LICENSE. The monorepo's first LICENSE (MIT, Copyright (c) 2022 - present, Yusuke Wada and Hono contributors) was added in commit a8e2af4d857aa7fabf290cdf6f67307678e50409 on 2026-09-29 via PR #2158; the maintainer stated in issue #2157 that it \"will be included in the npm tarball of each package from the next release\". No release has shipped since (1.3.1 is dated 2026-05-01, before the LICENSE), so the added text does not cover the published 1.3.0 artifact.",
-        "npmArchiveSha256": "48b94f87b85ca84428491d7275f0fad16450254bd49d9b2b4f621539fda8a2af",
-        "npmArchiveFileCount": 10,
-        "npmArchiveLicenseFiles": [],
-        "npmPublishedAt": "2026-01-07T02:33:52.900Z",
-        "packumentGitHead": "2c026b9d5bfff006dc9abdc1b33c53856d2d784f",
-        "releaseTag": "@hono/node-ws@1.3.0",
-        "sourceRevision": "2c026b9d5bfff006dc9abdc1b33c53856d2d784f",
-        "sourceTreeUrl": "https://api.github.com/repos/honojs/middleware/git/trees/2c026b9d5bfff006dc9abdc1b33c53856d2d784f?recursive=1",
-        "upstreamLicenseFiles": [],
-        "laterUpstreamLicense": {
-          "source": "https://raw.githubusercontent.com/honojs/middleware/a8e2af4d857aa7fabf290cdf6f67307678e50409/LICENSE",
-          "commit": "a8e2af4d857aa7fabf290cdf6f67307678e50409",
-          "committedOn": "2026-09-29",
-          "pullRequest": "https://github.com/honojs/middleware/pull/2158",
-          "maintainerStatement": "https://github.com/honojs/middleware/issues/2157",
-          "file": "third-party/upstream/6895190430d809c4c57a7582ecc2f99acbc2ea39a5dfad20262a41d5b3e91733.txt",
-          "sha256": "6895190430d809c4c57a7582ecc2f99acbc2ea39a5dfad20262a41d5b3e91733",
-          "bytes": 1101,
-          "copyright": "Copyright (c) 2022 - present, Yusuke Wada and Hono contributors",
-          "applicability": "Not applicable to 1.3.0: added after the release, and the maintainer says it will ship only from the next release. Retained as evidence only, never as version-specific notice text."
-        },
-        "requiredMaterial": "A complete MIT text naming the copyright holder that covers the published 1.3.0 tarball, or a release that ships the new LICENSE together with an upgrade of this dependency."
-      }
-    },
-    {
       "package": "ansi-to-react@6.2.6",
       "repo": "nteract/ansi-to-react",
       "refs": [
@@ -15008,10 +14920,6 @@
     },
     {
       "id": "react-remove-scroll-bar@2.3.8",
-      "reason": "Original version-specific publisher copyright/license material remains incomplete."
-    },
-    {
-      "id": "@hono/node-ws@1.3.0",
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {

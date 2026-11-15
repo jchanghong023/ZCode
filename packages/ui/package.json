@@ -26,8 +26,8 @@
     "./replay": "./src/replay.ts"
   },
   "scripts": {
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint": "bun --bun run oxlint",
+    "lint:fix": "bun --bun run oxlint --fix"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

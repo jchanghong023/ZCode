@@ -97,14 +97,36 @@ function useProviderFamilyEntitlements(params: {
     }),
   });
   const start = useUsageEntitlement(startOptions);
+  const {
+    error: codingError,
+    loading: codingLoading,
+    refresh: refreshCoding,
+    snapshot: codingSnapshot,
+  } = coding;
+  const {
+    error: startError,
+    loading: startLoading,
+    refresh: refreshStart,
+    snapshot: startSnapshot,
+  } = start;
 
   return useMemo(
     () => ({
-      coding,
+      coding: {
+        error: codingError,
+        loading: codingLoading,
+        refresh: refreshCoding,
+        snapshot: codingSnapshot,
+      },
       codingEnabled,
       codingFingerprint,
       codingPlanProviderId,
-      start,
+      start: {
+        error: startError,
+        loading: startLoading,
+        refresh: refreshStart,
+        snapshot: startSnapshot,
+      },
       startEnabled,
       startPlanProviderId,
       startProviderFingerprint,
@@ -112,17 +134,17 @@ function useProviderFamilyEntitlements(params: {
     // Family 编排重构后这里每次渲染都返回新对象，导致上层等价权益事实
     // 失去引用稳定性，并把套餐状态更新放大成 Provider 设置页的 access refresh 循环。
     [
-      coding.error,
-      coding.loading,
-      coding.refresh,
-      coding.snapshot,
+      codingError,
+      codingLoading,
+      refreshCoding,
+      codingSnapshot,
       codingEnabled,
       codingFingerprint,
       codingPlanProviderId,
-      start.error,
-      start.loading,
-      start.refresh,
-      start.snapshot,
+      startError,
+      startLoading,
+      refreshStart,
+      startSnapshot,
       startEnabled,
       startPlanProviderId,
       startProviderFingerprint,
@@ -194,33 +216,37 @@ export function useCodingPlanEntitlements({
     selection: connectionSelections.bigmodel,
     providerSettingsView,
   });
+  const { refresh: refreshZaiCoding } = zaiFamily.coding;
+  const { refresh: refreshZaiStart } = zaiFamily.start;
+  const { refresh: refreshBigmodelCoding } = bigmodelFamily.coding;
+  const { refresh: refreshBigmodelStart } = bigmodelFamily.start;
 
   const refresh = useCallback(
     (options: UsageEntitlementRefreshOptions = {}) => {
       // Start/Coding 使用独立 provider id 与 cache key；两边都可用时并行刷新。
       const refreshJobs: Array<Promise<void>> = [];
       if (zaiFamily.codingEnabled) {
-        refreshJobs.push(zaiFamily.coding.refresh(options));
+        refreshJobs.push(refreshZaiCoding(options));
       }
       if (zaiFamily.startEnabled) {
-        refreshJobs.push(zaiFamily.start.refresh(options));
+        refreshJobs.push(refreshZaiStart(options));
       }
       if (bigmodelFamily.codingEnabled) {
-        refreshJobs.push(bigmodelFamily.coding.refresh(options));
+        refreshJobs.push(refreshBigmodelCoding(options));
       }
       if (bigmodelFamily.startEnabled) {
-        refreshJobs.push(bigmodelFamily.start.refresh(options));
+        refreshJobs.push(refreshBigmodelStart(options));
       }
       return Promise.all(refreshJobs).then(() => undefined);
     },
     [
-      bigmodelFamily.coding.refresh,
+      refreshBigmodelCoding,
       bigmodelFamily.codingEnabled,
-      bigmodelFamily.start.refresh,
+      refreshBigmodelStart,
       bigmodelFamily.startEnabled,
-      zaiFamily.coding.refresh,
+      refreshZaiCoding,
       zaiFamily.codingEnabled,
-      zaiFamily.start.refresh,
+      refreshZaiStart,
       zaiFamily.startEnabled,
     ],
   );

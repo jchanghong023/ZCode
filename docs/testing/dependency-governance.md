@@ -1,41 +1,43 @@
 # 依赖与导出扫描治理（Knip）
 
-本文说明 `pnpm knip` 在本仓库的定位、可执行命令、报告解读规则，以及为什么部分 UI 控件与架构治理产物被配置成入口而不是忽略。依赖版本与增删以各 `package.json` 和 lockfile 为准，本文不复写 manifest 内容。
+本文说明 `bun run knip` 在本仓库的定位、可执行命令、报告解读规则，以及为什么部分 UI 控件与架构治理产物被配置成入口而不是忽略。依赖版本与增删以各 `package.json` 和 lockfile 为准，本文不复写 manifest 内容。
+
+工程脚本统一通过 `bun run <脚本>` 执行；Bun 是前端、模拟后端与工程脚本的统一运行时。pnpm 仅负责依赖管理，通过 `bun x --bun --package pnpm@10.33.2 pnpm <命令>` 显式选择固定包，避免系统 pnpm / Corepack shim。工具版本与首装门禁见 [Web 构建工作流](../architecture/web-build-workflow.md)。
 
 ## 定位与门禁边界
 
-- `pnpm knip` 是**诊断报告**，不是自动删除清单，也不在当前 `pnpm verify:pre-push` 门禁链路中。
+- `bun run knip` 是**诊断报告**，不是自动删除清单，也不在当前 `bun run verify:pre-push` 门禁链路中。
 - 有发现时 Knip 以非零码退出属正常行为；阅读报告即可，禁止用 `--no-exit-code` 或包装脚本把发现伪造成通过。
 - 真正阻断门禁的检查：
-  - `pnpm verify:pre-push`：工作区、Lint、架构工具测试、变更架构检查、受影响工程测试。
-  - `pnpm test:architecture`：Node 工程门禁测试，具体文件以根 `package.json` 的脚本为准。
-  - `pnpm architecture:check -- --changed`：模块边界与治理产物检查，并校验包 `exports`/`imports` 是否指向真实文件、通配是否为空、条件分支是否悬空。
+  - `bun run verify:pre-push`：工作区、Lint、架构工具测试、变更架构检查、受影响工程测试。
+  - `bun run test:architecture`：Bun 执行的工程门禁测试（允许 Bun 的 `node:*` 兼容 API），具体文件以根 `package.json` 的脚本为准。
+  - `bun run architecture:check --changed`：模块边界与治理产物检查，并校验包 `exports`/`imports` 是否指向真实文件、通配是否为空、条件分支是否悬空。
 - Knip 报告与上述门禁互补：门禁保护“声明入口必须真实”，Knip 发现“代码图里可能没人引用的文件、导出与依赖”。
-- 根 workspace 的 `entry` 覆盖现有 Node 工程测试 `scripts/*.test.mjs` 与 `scripts/test/*.test.mjs`，让这些测试实际使用的审计工具依赖进入扫描图；不新增用例，也不把历史业务脚本升级为运行时入口。
+- 根 workspace 的 `entry` 覆盖现有工程测试 `scripts/*.test.mjs` 与 `scripts/test/*.test.mjs`，让这些测试实际使用的审计工具依赖进入扫描图；不新增用例，也不把历史业务脚本升级为运行时入口。
 
 ## 可执行命令
 
 ```sh
 # 全仓报告（默认 symbols reporter）
-pnpm knip
+bun run knip
 
 # 单 workspace
-pnpm knip --workspace packages/ui
+bun run knip --workspace packages/ui
 
 # 只看某一类问题
-pnpm knip --include files
-pnpm knip --include dependencies
-pnpm knip --include exports,types
+bun run knip --include files
+bun run knip --include dependencies
+bun run knip --include exports,types
 
 # 供脚本消费的结构化输出
-pnpm knip --reporter json
+bun run knip --reporter json
 ```
 
 导出是否还有其他引用者，用符号级查询确认，不要只凭 Knip 的文件级结论删除：
 
 ```sh
-pnpm dep:refs <file>:<exportName>
-pnpm dep:refs --list-exports <file>
+bun run dep:refs <file>:<exportName>
+bun run dep:refs --list-exports <file>
 ```
 
 `dep:refs` 仅做静态分析，不识别动态 `import()` 与字符串路径；Knip 会解析字面量 `import()`，两者结论不一致时以运行时证据和逐项审查为准。
@@ -84,7 +86,7 @@ Knip 会自动发现 pnpm workspace；`knip.json` 的 `workspaces` 是**按 work
 | `packages/model-option-map` | `exports`：`.`                                                                  | 模型选项编译公共入口                                                                                                                        |
 | `packages/provider`         | `exports`：`.`                                                                  | provider 接口公共入口                                                                                                                       |
 | `packages/rpc`              | `exports`：`.`；`examples/*.ts`                                                 | `demo:*` 脚本直接执行的示例程序                                                                                                             |
-| `packages/server`           | `exports`：`.`；tsup `entry: src/entry-http.ts`                                 | 包入口 + `tsup.config.ts` 的实际构建入口                                                                                                    |
+| `packages/server`           | `exports`：`.`；显式 `entry: src/entry-http.ts`                                 | 包入口 + Bun 构建/开发脚本的实际 HTTP 入口；移除后端打包器配置后仍保持可达                                                                  |
 | `packages/services`         | `exports`：`.`                                                                  | 服务契约层公共入口                                                                                                                          |
 | `packages/session-control`  | `exports` 四个子路径；`src/module.ts`、`src/contract.example.ts`                | 公共契约 + 治理产物                                                                                                                         |
 | `packages/shared`           | `exports` 各子路径；`src/**/module.ts`、`src/**/contract.example.ts`            | 共享协议子入口 + 治理产物                                                                                                                   |
@@ -96,7 +98,7 @@ Knip 会自动发现 pnpm workspace；`knip.json` 的 `workspaces` 是**按 work
 - **CSS**：`packages/ui/src/styles.css` 与 `packages/web/src/styles.css` 通过 Tailwind 编译器把 `@import`/`@plugin` 转为依赖边，因此 `tailwind-scrollbar-hide`、`shadcn`、`katex`、`lucide-colors.mjs` 等按 CSS 消费计入使用；CSS 文件本身不需要额外 `entry`。
 - **动态导入**：仓库内没有需要 `ignoreUnresolved` 兜底的表达式式动态导入；字面量 `import()` 由 Knip 正常解析。
 - **测试**：根 workspace 启用 `vitest` 插件后，插件沿 workspace 祖先继承到各包，`*.test.*`、`*.spec.*` 作为入口；测试清单仍以 `scripts/engineering-test-files.json` 为准。
-- **构建/开发脚本**：`server` 由 tsup 插件解析入口，`web` 由 Vite 插件解析 `index.html`；不为同类入口重复手写 `entry`。
+- **构建/开发脚本**：`server` 的 `src/entry-http.ts` 是 Bun build 与 Bun watch 的非导出入口，显式登记在 Knip `entry`；`web` 由 Vite 插件解析 `index.html`，不重复登记同类入口。Bun 是工具链可执行文件，由 mise 固定，不作为 npm 依赖补装。
 
 ## 已知诊断项（不代表可删除）
 

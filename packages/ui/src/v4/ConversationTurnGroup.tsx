@@ -170,7 +170,6 @@ function TurnChatLoadingSlot({
 function useConversationAssistantWorkItems(
   rows: readonly AssistantWorkRow[],
   context: ConversationRowRenderContext,
-  stageTailIsRunning = false,
 ) {
   const showReasoning = context.messageStreamShowReasoning === true;
   const firstReasoningRowId = context.messageStreamFirstReasoningRowId;
@@ -189,13 +188,11 @@ function useConversationAssistantWorkItems(
 
 function ConversationAssistantWorkItems({
   rows,
-  stageTailIsRunning = false,
   ...props
 }: {
   rows: readonly AssistantWorkRow[];
-  stageTailIsRunning?: boolean;
 } & Omit<React.ComponentProps<typeof ConversationAssistantWorkContent>, "items">) {
-  const items = useConversationAssistantWorkItems(rows, props.context, stageTailIsRunning);
+  const items = useConversationAssistantWorkItems(rows, props.context);
   return <ConversationAssistantWorkContent items={items} {...props} />;
 }
 
@@ -1119,7 +1116,14 @@ function ConversationTurnGroupImpl({
   const assistantTextTerminal =
     latestAssistantTextRow?.state === "complete" || latestAssistantTextRow?.state === "interrupted";
   const assistantRawCopyText = useMemo(
-    () => (assistantTextTerminal ? resolveAssistantCopyText(unit) : undefined),
+    () =>
+      assistantTextTerminal
+        ? resolveAssistantCopyText({
+            assistantTextRows: unit.assistantTextRows,
+            assistantWorkRows: unit.assistantWorkRows,
+            latestAssistantTextRow: unit.latestAssistantTextRow,
+          })
+        : undefined,
     [
       assistantTextTerminal,
       unit.assistantTextRows,

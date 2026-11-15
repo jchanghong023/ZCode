@@ -138,6 +138,9 @@ export function useSessionOpenArmsTelemetry({
     rendererTiming?: SessionOpenRendererTiming;
   }>({ openTiming, rendererTiming });
   latestTimingRef.current = { openTiming, rendererTiming };
+  // 打开分类只取 acquire 当时的投影；后续 snapshot 到达不能重启同一次打开计时。
+  const latestSnapshotSessionIdRef = useRef(snapshot?.sessionId);
+  latestSnapshotSessionIdRef.current = snapshot?.sessionId;
 
   useLayoutEffect(() => {
     if (!enabled || readOnly || !sessionId) {
@@ -145,7 +148,7 @@ export function useSessionOpenArmsTelemetry({
       return undefined;
     }
     const resolvedOpenKind: SessionOpenKind =
-      openKind ?? (snapshot?.sessionId === sessionId ? "keep_warm" : "cold");
+      openKind ?? (latestSnapshotSessionIdRef.current === sessionId ? "keep_warm" : "cold");
     const runtime: SessionOpenRuntime = {
       identity: {
         sessionOpenId: createSessionTraceId(),

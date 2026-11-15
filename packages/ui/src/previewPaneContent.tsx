@@ -112,8 +112,12 @@ export function PreviewPaneContent({
     unavailable: intl.formatMessage({ id: "codeViewer.mediaUnavailable" }),
     unsupported: intl.formatMessage({ id: "codeViewer.mediaUnsupported" }),
   };
+  const diffBefore = source.type === "multi-file-diff" ? source.beforeContent : null;
+  const diffAfter = source.type === "multi-file-diff" ? source.afterContent : null;
+  const diffPath = source.type === "multi-file-diff" ? source.path : null;
+  const diffTitle = source.type === "multi-file-diff" ? source.title : null;
   const multiFileDiffFiles = useMemo(() => {
-    if (source.type !== "multi-file-diff") {
+    if (diffBefore === null || diffAfter === null || diffTitle === null) {
       return null;
     }
 
@@ -121,23 +125,17 @@ export function PreviewPaneContent({
     // JSX 内联 oldFile/newFile 会生成新对象并强制 diff 重新渲染。
     return {
       oldFile: {
-        name: source.path ?? source.title,
-        contents: source.beforeContent,
-        cacheKey: `old:${source.path ?? source.title}:${source.beforeContent.length}:${source.beforeContent.slice(0, 100)}:${source.beforeContent.slice(-100)}`,
+        name: diffPath ?? diffTitle,
+        contents: diffBefore,
+        cacheKey: `old:${diffPath ?? diffTitle}:${diffBefore.length}:${diffBefore.slice(0, 100)}:${diffBefore.slice(-100)}`,
       },
       newFile: {
-        name: source.path ?? source.title,
-        contents: source.afterContent,
-        cacheKey: `new:${source.path ?? source.title}:${source.afterContent.length}:${source.afterContent.slice(0, 100)}:${source.afterContent.slice(-100)}`,
+        name: diffPath ?? diffTitle,
+        contents: diffAfter,
+        cacheKey: `new:${diffPath ?? diffTitle}:${diffAfter.length}:${diffAfter.slice(0, 100)}:${diffAfter.slice(-100)}`,
       },
     };
-  }, [
-    source.type,
-    source.type === "multi-file-diff" ? source.afterContent : null,
-    source.type === "multi-file-diff" ? source.beforeContent : null,
-    source.type === "multi-file-diff" ? source.path : null,
-    source.type === "multi-file-diff" ? source.title : null,
-  ]);
+  }, [diffAfter, diffBefore, diffPath, diffTitle]);
 
   if (source.type === "patch") {
     return (

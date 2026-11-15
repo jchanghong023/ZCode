@@ -28,30 +28,30 @@
 
 ## 命令与仓库结构
 
-开工前运行 `node scripts/check-workspace-freshness.mjs` 检查基线。Node 版本以 `mise.toml` 为准。
+开工前运行 `bun scripts/check-workspace-freshness.mjs` 检查基线。全仓库 JavaScript/TypeScript 仅使用 Bun，版本以 `mise.toml` 为准；`node:*` / `@types/node` 是 Bun 兼容 API/类型，不要求 Node.js。包管理用 `bun x --bun --package pnpm@10.33.2 pnpm <命令>`，不调用依赖 Node/Corepack 的系统 pnpm shim。
 
 以下命令从仓库根目录执行：
 
-| 用途               | 命令                                                             |
-| ------------------ | ---------------------------------------------------------------- |
-| 开发（server+web） | `pnpm dev`（mock server :3030 + vite :5173）                     |
-| 仅模拟后端         | `pnpm dev:server`                                                |
-| 仅前端             | `pnpm dev:web`                                                   |
-| 构建               | `pnpm build`（server 产物可托管 web dist 单进程部署）            |
-| 类型检查           | `pnpm typecheck`                                                 |
-| Lint               | `pnpm lint` / `pnpm lint:fix`                                    |
-| 格式检查           | `pnpm fmt:check`                                                 |
-| 推送前检查         | `pnpm verify:pre-push`（工作区、Lint、架构检查与受影响工程测试） |
-| 架构检查           | `pnpm architecture:check --changed`                              |
-| 模块阅读包         | `pnpm architecture:context <module-id>`                          |
-| 未使用依赖与导出   | `pnpm knip`                                                      |
-| 导出引用查询       | `pnpm dep:refs --list-exports <file>`                            |
+| 用途               | 命令                                                                |
+| ------------------ | ------------------------------------------------------------------- |
+| 开发（server+web） | `bun run dev`（mock server :3030 + vite :5173）                     |
+| 仅模拟后端         | `bun run dev:server`                                                |
+| 仅前端             | `bun run dev:web`                                                   |
+| 构建               | `bun run build`（server 产物可托管 web dist 单进程部署）            |
+| 类型检查           | `bun run typecheck`                                                 |
+| Lint               | `bun run lint` / `bun run lint:fix`                                 |
+| 格式检查           | `bun run fmt:check`                                                 |
+| 推送前检查         | `bun run verify:pre-push`（工作区、Lint、架构检查与受影响工程测试） |
+| 架构检查           | `bun run architecture:check --changed`                              |
+| 模块阅读包         | `bun run architecture:context <module-id>`                          |
+| 未使用依赖与导出   | `bun run knip`                                                      |
+| 导出引用查询       | `bun run dep:refs --list-exports <file>`                            |
 
-工程 Vitest 使用 `pnpm test:engineering <文件>`；工程门禁测试使用 `pnpm test:architecture`（node:test）。范围见 [测试规格](docs/testing/unit-test-quality.md)。`.husky/pre-push` 钩子已移除，推送检查需手动运行 `pnpm verify:pre-push`；移除前的钩子机制见 [pre-push 说明](docs/testing/pre-push-hook.md)。
+工程 Vitest 使用 `bun run test:engineering <文件>`；工程门禁测试使用 `bun run test:architecture`（Bun 执行 `node:test` 兼容 API）。范围见 [测试规格](docs/testing/unit-test-quality.md)。`.husky/pre-push` 钩子已移除，推送检查需手动运行 `bun run verify:pre-push`；移除前的钩子机制见 [pre-push 说明](docs/testing/pre-push-hook.md)。
 
 - `packages/web`：浏览器前端入口（Vite）。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。
-- `packages/server`：模拟 Web 后端（Hono + WebSocket RPC + mock 服务集合）。
+- `packages/server`：模拟 Web 后端（Bun + Hono + WebSocket RPC + mock 服务集合）。
 - `packages/rpc`：VS Code 风格 IPC/RPC 框架（传输层为生产实现）。
 - `packages/client`：浏览器连接 SDK（WebSocket → IServiceAccessor）。
 - `packages/services`：服务接口与 descriptor（浏览器安全契约层；实现全部在 mock server）。
@@ -76,8 +76,8 @@
 - 修复 bug 时用中文注释说明原因和修复依据。发现设计缺陷时先与用户对齐，不不断增加兜底分支。
 - PR 描述须说明背景、设计意图与修改前后行为；包含 bugfix 时逐项说明触发场景、根因证据、修复机制及回归验证。未确认的根因或引入提交如实标注，不根据模块或时间接近推断归因。
 - 涉及状态、时序或异步同步的方案，用图展示所有者及事件顺序。
-- 必须执行 `pnpm typecheck` 和 `pnpm lint`，报告真实结果，不将已有失败写成通过。
-- 修改 React 组件或 hooks 后，必须运行 `pnpm lint`（Oxlint），检查 `react/exhaustive-deps` 和 `react/rules-of-hooks`。复核本次改动新增及相关的缺失、多余、不稳定依赖与调用位置诊断，不能因仅告警或退出码为 0 就忽略，也不机械补齐整个对象依赖或禁用规则。被根配置忽略的文件须按 [React Hooks 检查](docs/testing/react-hooks-lint.md) 补做专项扫描；渲染问题仍须运行时验证。
+- 必须执行 `bun run typecheck` 和 `bun run lint`，报告真实结果，不将已有失败写成通过。
+- 修改 React 组件或 hooks 后，必须运行 `bun run lint`（Oxlint），检查 `react/exhaustive-deps` 和 `react/rules-of-hooks`。复核本次改动新增及相关的缺失、多余、不稳定依赖与调用位置诊断，不能因仅告警或退出码为 0 就忽略，也不机械补齐整个对象依赖或禁用规则。被根配置忽略的文件须按 [React Hooks 检查](docs/testing/react-hooks-lint.md) 补做专项扫描；渲染问题仍须运行时验证。
 - 跨包导入使用公开入口，遵守现有路径别名。
 - 禁止 UI 直接调用 Repo、Service 引用传输层具体实现、跨域导入实现细节及循环依赖。
 

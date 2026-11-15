@@ -181,6 +181,9 @@ function ToolCallBlockComponent({
       ) : null,
     [
       childToolCalls,
+      animateDiffCountOnMount,
+      disableSummaryContentAnimation,
+      onOpenWorkflowRun,
       depth,
       onLoadFullToolCallFields,
       onOpenAutomationsMain,
@@ -264,7 +267,6 @@ function ToolCallBlockComponent({
       showTodoToolCalls,
       sourceLabel,
       statusLabel,
-      suppressSourceLabel,
       theme,
       toolCallNode,
       toolPreviewCodeViewer,

@@ -179,15 +179,19 @@ function WorkflowNotificationBaseRow({
     return () => clearInterval(timer);
   }, []);
 
-  const openRunLink = onOpenRun ? (
-    <button
-      type="button"
-      onClick={onOpenRun}
-      className="text-ui-sm text-foreground-subtle decoration-dotted underline-offset-2 hover:text-foreground hover:underline"
-    >
-      {intl.formatMessage({ id: "chat.toolCall.workflow.openRunDetails" })}
-    </button>
-  ) : null;
+  const openRunLink = useMemo(
+    () =>
+      onOpenRun ? (
+        <button
+          type="button"
+          onClick={onOpenRun}
+          className="text-ui-sm text-foreground-subtle decoration-dotted underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {intl.formatMessage({ id: "chat.toolCall.workflow.openRunDetails" })}
+        </button>
+      ) : null,
+    [intl, onOpenRun],
+  );
 
   const isEscalation = notification.kind === "escalation";
   const isStall = notification.kind === "stall";

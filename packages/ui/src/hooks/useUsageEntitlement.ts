@@ -209,7 +209,10 @@ export function useUsageEntitlementWithService(
   );
 
   // 原因：effect 清理之前也可能收到旧回包；请求归属必须跟随渲染时的服务、身份和 enabled。
-  const requestScope = useMemo(() => ({}), [usageStatsService, enabled, freshnessKey]);
+  const requestScope = useMemo(
+    () => ({ usageStatsService, enabled, freshnessKey }),
+    [usageStatsService, enabled, freshnessKey],
+  );
   const currentRequestScope = useRef<object | null>(requestScope);
   currentRequestScope.current = requestScope;
   useEffect(() => {
@@ -395,7 +398,15 @@ export function useUsageEntitlementWithService(
         });
       }
     },
-    [cacheKey, enabled, freshnessKey, requestOptions, usageStatsService, requestScope],
+    [
+      cacheKey,
+      enabled,
+      freshnessKey,
+      includeSubscription,
+      requestOptions,
+      usageStatsService,
+      requestScope,
+    ],
   );
 
   useEffect(() => {

@@ -981,15 +981,15 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     [applyWorkspaceSidebarWidth, isSidebarPanelVisible],
   );
 
-  useEffect(() => {
-    return () => {
-      setWorkspaceSidebarResizeActive({
-        active: false,
-        panelElement: workspaceSidebarPanelElementRef.current,
-        shellElement: workspaceShellRef.current,
-      });
-    };
+  const clearWorkspaceSidebarResize = useCallback(() => {
+    // 原因：面板节点可在存活期间替换；卸载须清理最新节点，不能捕获首次挂载的 DOM。
+    setWorkspaceSidebarResizeActive({
+      active: false,
+      panelElement: workspaceSidebarPanelElementRef.current,
+      shellElement: workspaceShellRef.current,
+    });
   }, []);
+  useEffect(() => clearWorkspaceSidebarResize, [clearWorkspaceSidebarResize]);
 
   const activeSearchResultHighlightRequest = useMemo(() => {
     if (!searchResultHighlightRequest || searchResultHighlightRequest.taskId !== activeTaskId) {
@@ -1004,11 +1004,12 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     return activeWorkspaceKey === requestWorkspaceKey ? searchResultHighlightRequest : null;
   }, [activeTaskId, searchResultHighlightRequest, workspaceAbsPath, workspaceIdentity]);
   const renderChatFindDialog = () => <TaskFindDialog {...taskFindDialogProps} placement="chat" />;
+  const { staged, unstaged } = gitState.datasets;
   const gitDirtyFileCount = useMemo(() => {
     // 关键业务逻辑：同一个文件可能同时出现在 staged / unstaged。
     // 这里按 path 去重后再统计，避免入口里“未提交更改文件数”被重复计算。
-    return getGitDirtyFileCount(gitState.datasets);
-  }, [gitState.datasets.staged, gitState.datasets.unstaged]);
+    return getGitDirtyFileCount({ staged, unstaged });
+  }, [staged, unstaged]);
   // Bug 原因：此前本地 workspace 没有 identity 时只按路径取第一个 tab；同路径远程 tab 在前时，
   // 本地任务的 Header 会显示远程设备与连接状态。与 TabStore 共用匹配规则，未传 identity 只命中本地 tab。
   const currentWorkspaceTab = useMemo(
@@ -1590,6 +1591,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       </>
     ),
     [
+      intl,
       isOfficeMode,
       workspaceRemoteSessionId,
       handleOpenPluginStore,

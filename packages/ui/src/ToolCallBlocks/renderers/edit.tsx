@@ -278,6 +278,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
         </>
       ),
     [
+      context.animateDiffCountOnMount,
       context.childToolList,
       context.codePreviewSettings,
       context.displayModel,

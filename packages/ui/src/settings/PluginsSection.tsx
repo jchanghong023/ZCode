@@ -344,6 +344,7 @@ function PluginList({
     },
     [
       configScope,
+      usePluginManagementStore,
       confirmEnable,
       intl,
       locale,
@@ -370,7 +371,15 @@ function PluginList({
       }
       toast(intl.formatMessage({ id: "settings.plugins.scope.restored" }, { plugin: pluginLabel }));
     },
-    [intl, locale, pluginManagementService, plugins, resetPluginConfig, storeItemById],
+    [
+      intl,
+      locale,
+      pluginManagementService,
+      plugins,
+      resetPluginConfig,
+      storeItemById,
+      usePluginManagementStore,
+    ],
   );
   const uninstall = usePluginUninstall({
     store: usePluginManagementStore,
@@ -386,7 +395,7 @@ function PluginList({
       if (usePluginManagementStore.getState().error) return;
       await refreshAfterPluginChange();
     },
-    [pluginManagementService, refreshAfterPluginChange, updatePlugin],
+    [pluginManagementService, refreshAfterPluginChange, updatePlugin, usePluginManagementStore],
   );
   const [updatingAll, setUpdatingAll] = useState(false);
   const updateAllAbortRef = useRef<AbortController | null>(null);
@@ -1035,38 +1044,36 @@ export function PluginsSection({
     <SettingsScopeBlockedNotice state={scopeBlocked} device={scope.device} />
   ) : null;
 
-  const updatePluginCount = useCallback(
-    (count: number) => {
-      setCapabilityCounts((current) =>
-        current.plugins === count ? current : { ...current, plugins: count },
-      );
-    },
+  // 子列表的计数 effect 依赖回调身份；scope/目标切换后即使数量相同也要重新报告。
+  const countReporters = useMemo(
+    () => ({
+      scopeKey: selectedScope.key,
+      targetKey: selectedTargetKey,
+      updatePluginCount: (count: number) => {
+        setCapabilityCounts((current) =>
+          current.plugins === count ? current : { ...current, plugins: count },
+        );
+      },
+      updateMcpCount: (count: number) => {
+        setCapabilityCounts((current) =>
+          current.mcps === count ? current : { ...current, mcps: count },
+        );
+      },
+      updateSkillCount: (count: number) => {
+        setCapabilityCounts((current) =>
+          current.skills === count ? current : { ...current, skills: count },
+        );
+      },
+      updateCommandCount: (count: number) => {
+        setCapabilityCounts((current) =>
+          current.commands === count ? current : { ...current, commands: count },
+        );
+      },
+    }),
     [selectedScope.key, selectedTargetKey],
   );
-  const updateMcpCount = useCallback(
-    (count: number) => {
-      setCapabilityCounts((current) =>
-        current.mcps === count ? current : { ...current, mcps: count },
-      );
-    },
-    [selectedScope.key, selectedTargetKey],
-  );
-  const updateSkillCount = useCallback(
-    (count: number) => {
-      setCapabilityCounts((current) =>
-        current.skills === count ? current : { ...current, skills: count },
-      );
-    },
-    [selectedScope.key, selectedTargetKey],
-  );
-  const updateCommandCount = useCallback(
-    (count: number) => {
-      setCapabilityCounts((current) =>
-        current.commands === count ? current : { ...current, commands: count },
-      );
-    },
-    [selectedScope.key, selectedTargetKey],
-  );
+  const { updatePluginCount, updateMcpCount, updateSkillCount, updateCommandCount } =
+    countReporters;
   const handleMcpEditorOpenChange = useCallback((open: boolean) => {
     setMcpEditorOpen(open);
     if (!open) setMcpFormScopeKey(null);

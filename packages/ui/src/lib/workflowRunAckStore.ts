@@ -102,5 +102,9 @@ export function useWorkflowRunAcknowledged(): (runId: string) => boolean {
   const store = getWorkflowRunAckStore();
   const version = useSyncExternalStore(store.subscribe, store.getVersion, store.getVersion);
   // 谓词随版本换引用：调用方把它放进 useMemo 依赖，集合一变行选择就重算。
-  return useMemo(() => (runId: string) => store.isAcknowledged(runId), [store, version]);
+  return useMemo(() => {
+    // 版本是谓词身份的失效信号，不复制确认集合。
+    void version;
+    return (runId: string) => store.isAcknowledged(runId);
+  }, [store, version]);
 }

@@ -13,9 +13,12 @@ export function attachPluginUiResourceDeltaFeed(
   store: ConversationProjectionStore,
   scope: PluginUiSessionScope,
 ): () => void {
+  return attachSessionFeed(store, buildPluginUiSessionKey(scope));
+}
+
+function attachSessionFeed(store: ConversationProjectionStore, sessionKey: string): () => void {
   let entry = feeds.get(store);
   if (!entry) {
-    const sessionKey = buildPluginUiSessionKey(scope);
     const off = store.onLiveDeltas((deltas) => {
       for (const delta of deltas) {
         if (
@@ -48,8 +51,8 @@ export function usePluginUiResourceDeltaFeed(
 ): void {
   const sessionKey = scope ? buildPluginUiSessionKey(scope) : null;
   useEffect(() => {
-    if (!store || !scope) return;
-    return attachPluginUiResourceDeltaFeed(store, scope);
+    if (!store || sessionKey === null) return;
+    return attachSessionFeed(store, sessionKey);
     // scope 按会话键比较（SessionPane 每次渲染可能新建对象），不把对象本身放进依赖。
   }, [store, sessionKey]);
 }

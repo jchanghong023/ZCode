@@ -404,26 +404,26 @@ export function ProviderModelsSection({
     scopeKey: providerId,
     resolve: resolveAddModelConfig,
   });
-  const { draft: addDraft } = editor;
+  const { draft: addDraft, reset: resetAddDraft, cancel: cancelAddDraft } = editor;
 
   const openAddDialog = useCallback(() => {
-    editor.reset(createEmptyModel());
+    resetAddDraft(createEmptyModel());
     setAddDraftErrorField(null);
     setAddCommitError(null);
     setAddDialogOpen(true);
-  }, [editor.reset]);
+  }, [resetAddDraft]);
 
   const updateAddDraft = (patch: Partial<ProviderModelDraftValues>) => {
     editor.change(patch);
     setAddDraftErrorField(null);
   };
 
-  const cancelAddDialog = () => {
+  const cancelAddDialog = useCallback(() => {
     setAddDialogOpen(false);
-    editor.reset(createEmptyModel());
+    resetAddDraft(createEmptyModel());
     setAddDraftErrorField(null);
-    editor.cancel();
-  };
+    cancelAddDraft();
+  }, [cancelAddDraft, resetAddDraft]);
 
   const handleAddDialogOpenChange = useCallback(
     (open: boolean) => {

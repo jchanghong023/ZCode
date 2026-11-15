@@ -97,6 +97,7 @@
     },
     "packages/server": {
       "entry": [
+        "src/entry-http.ts",
         "src/mock/domains/contract.ts",
         "src/aireq/contract.ts",
         "src/**/module.ts",

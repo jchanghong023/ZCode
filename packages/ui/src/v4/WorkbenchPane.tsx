@@ -321,21 +321,22 @@ export function WorkbenchLeafPane({
   const handleClosePane = useCallback(() => {
     onClosePane(paneId);
   }, [onClosePane, paneId]);
+  const { onSessionDeleted, onSessionCreated } = shell;
   const handleSessionDeleted = useCallback(() => {
     if (isGroupPrimary) {
       // group primary 删除过去只关闭布局，shell 仍指向已删除 session。
       // accepted 后必须先解散 group，再让 shell 回当前 workspace draft；secondary
       // 仅恢复普通 session 身份，不能在这里被隐式提升。
       handleClosePane();
-      shell.onSessionDeleted?.();
+      onSessionDeleted?.();
       return;
     }
     if (isPrimary) {
-      shell.onSessionDeleted?.();
+      onSessionDeleted?.();
       return;
     }
     handleClosePane();
-  }, [handleClosePane, isGroupPrimary, isPrimary, shell.onSessionDeleted]);
+  }, [handleClosePane, isGroupPrimary, isPrimary, onSessionDeleted]);
   const handleBindSession = useCallback(
     (createdSessionId: string, origin?: "draft-promotion") => {
       const shouldSyncShellActive = onBindSession(paneId, createdSessionId) !== false;
@@ -352,12 +353,12 @@ export function WorkbenchLeafPane({
         // 必须先让 workbench 宿主把 draft pane 原地绑定并接管整个布局；否则随后
         // focus secondary 会改写 shell activeTaskId，primary 就因没有独立 binding 退回 draft。
         onBindSession(paneId, createdSessionId);
-        shell.onSessionCreated?.(createdSessionId, origin);
+        onSessionCreated?.(createdSessionId, origin);
         return;
       }
       handleBindSession(createdSessionId, origin);
     },
-    [handleBindSession, isPrimary, onBindSession, paneId, primaryBinding, shell.onSessionCreated],
+    [handleBindSession, isPrimary, onBindSession, paneId, primaryBinding, onSessionCreated],
   );
   if (!isPrimary && !binding) {
     // sanitize/迁移保证非 primary 叶子必有绑定；此处是转移瞬间的防御渲染。

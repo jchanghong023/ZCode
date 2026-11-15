@@ -48,13 +48,13 @@ async function fixture(t) {
   await write("package.json", '{"type":"module"}');
   await write(
     "vitest.config.mjs",
-    'export default {test:{name:"engineering",include:["*.test.mjs"],maxWorkers:1,setupFiles:["./vitest.setup.ts"],forceRerunTriggers:["**/package.json/**","**/{vitest,vite}.config.*/**","**/{vitest,vite}.config.*","**/vitest.setup.ts"]}}',
+    'export default {test:{name:"engineering",include:["*.test.mjs"],pool:"forks",execArgv:process.execArgv,maxWorkers:1,setupFiles:["./vitest.setup.ts"],forceRerunTriggers:["**/package.json/**","**/{vitest,vite}.config.*/**","**/{vitest,vite}.config.*","**/vitest.setup.ts"]}}',
   );
   await write("vitest.setup.ts", "// shared setup\n");
   await write("source.mjs", "export const value = 1;");
   await write(
     "a.test.mjs",
-    'import {test,expect} from "vitest"; import {value} from "./source.mjs"; import {writeFile} from "node:fs/promises"; test("selected",async()=>{expect(value).toBe(2);await writeFile(new URL("./selected",import.meta.url),"yes")});',
+    `import {test,expect} from "vitest"; import {value} from "./source.mjs"; import {writeFile} from "node:fs/promises"; test("selected",async()=>{expect(value).toBe(2);expect(process.versions.bun).toBeTruthy();expect(process.execPath).toBe(${JSON.stringify(process.execPath)});await writeFile(new URL("./selected",import.meta.url),"yes")});`,
   );
   await write("other.test.mjs", 'throw new Error("UNSELECTED_TEST_EXECUTED");');
   await git("init", "-b", "main");
@@ -143,7 +143,7 @@ test("任务起点覆盖已提交改动，旧 WIP、staged 和新增测试正常
   ]);
 });
 
-test("无改动、无关联、Node 测试都不执行，说明并成功退出", async (t) => {
+test("无改动、无关联、node:test 工程门禁文件都不由 Vitest 执行，说明并成功退出", async (t) => {
   const { root, write, invoke } = await fixture(t);
   assert.match((await invoke()).stdout, /无选中测试/u);
   await write("resource.txt", "unrelated");
@@ -151,7 +151,7 @@ test("无改动、无关联、Node 测试都不执行，说明并成功退出", 
     "tool.test.mjs",
     'import test from "node:test";test("node",()=>{throw new Error("NODE_EXECUTED")});',
   );
-  // 夹具 root include 会包括此文件，放入 scripts/ 才符合根 Node 测试边界。
+  // 夹具 root include 会包括此文件，放入 scripts/ 才符合根工程门禁的清单边界。
   const { mkdir, rename } = await import("node:fs/promises");
   await mkdir(join(root, "scripts"));
   await rename(join(root, "tool.test.mjs"), join(root, "scripts/tool.test.mjs"));

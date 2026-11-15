@@ -1,42 +1,36 @@
-# 仓库固定工具链：本文件是 Node / pnpm 版本的唯一声明来源。
-# `scripts/bootstrap.mjs` 会读取这里的版本做检查；README 的手动安装替代方案也以这里为准。
+# 仓库固定 Bun 版本；pnpm 版本只由 package.json 的 packageManager 声明。
+# 工程脚本直接用 Bun；安装依赖由 bootstrap 选择固定 pnpm 包，绕开系统 shim。
 [tools]
-node = "24.14.0"
-pnpm = "10.33.2"
-
-[env]
-# mise 已按 [tools] 提供固定 pnpm；禁用 corepack 对 packageManager 字段的额外校验，
-# 避免没有 corepack 缓存的机器在 pnpm 启动时再下载一份同版本包管理器。
-COREPACK_ENABLE_PROJECT_SPEC = "0"
+bun = "1.4.4"
 
 [tasks.install]
 description = "Install root workspace dependencies with the pinned pnpm."
-run = "mise exec -- node scripts/mise-run.mjs pnpm install"
+run = "mise exec -- bun x --bun --package pnpm@10.33.2 pnpm install"
 
 [tasks.bootstrap]
-description = "Install dependencies and build the Web client + mock server (same as pnpm bootstrap)."
-run = "mise exec -- node scripts/mise-run.mjs pnpm bootstrap"
+description = "Install dependencies and build the Web client + mock server (same as bun run bootstrap)."
+run = "mise exec -- bun run bootstrap"
 
 [tasks.build]
-description = "Build the mock server then the Web client (same as pnpm build)."
-run = "mise exec -- node scripts/mise-run.mjs pnpm build"
+description = "Build the mock server then the Web client (same as bun run build)."
+run = "mise exec -- bun run build"
 
 [tasks.dev]
 description = "Start the mock server (:3030) and web client (:5173) dev servers."
-run = "mise exec -- node scripts/mise-run.mjs pnpm dev"
+run = "mise exec -- bun run dev"
 
 [tasks.typecheck]
 description = "Run the root TypeScript project references check."
-run = "mise exec -- node scripts/mise-run.mjs pnpm typecheck"
+run = "mise exec -- bun run typecheck"
 
 [tasks.lint]
 description = "Run the root linter."
-run = "mise exec -- node scripts/mise-run.mjs pnpm lint"
+run = "mise exec -- bun run lint"
 
 [tasks.clean]
-description = "Remove build outputs (dist + *.tsbuildinfo) only (same as pnpm clean)."
-run = "mise exec -- node scripts/mise-run.mjs pnpm clean"
+description = "Remove build outputs (dist + *.tsbuildinfo) only (same as bun run clean)."
+run = "mise exec -- bun run clean"
 
 [tasks.clean-deps]
-description = "Remove build outputs and node_modules for a clean reinstall (same as pnpm clean:deps)."
-run = "mise exec -- node scripts/mise-run.mjs pnpm clean:deps"
+description = "Remove build outputs and node_modules for a clean reinstall (same as bun run clean:deps)."
+run = "mise exec -- bun run clean:deps"

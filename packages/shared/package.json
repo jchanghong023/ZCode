@@ -40,8 +40,8 @@
     "./credential-security": "./src/credential-security/module.ts"
   },
   "scripts": {
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint": "bun --bun run oxlint",
+    "lint:fix": "bun --bun run oxlint --fix"
   },
   "dependencies": {
     "@zcode/model-option-map": "workspace:*",

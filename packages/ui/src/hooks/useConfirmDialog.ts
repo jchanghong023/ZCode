@@ -44,6 +44,6 @@ export function useYoloModeConfirmation(scope: unknown, currentMode: string | un
         if (confirmed && !controller.signal.aborted) apply();
       });
     },
-    [currentMode, intl, requestConfirmation, scope],
+    [currentMode, intl, requestConfirmation],
   );
 }

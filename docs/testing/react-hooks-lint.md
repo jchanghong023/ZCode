@@ -15,10 +15,8 @@
 ## 接入策略
 
 - `react/exhaustive-deps` 先设为 `warn`，存量诊断逐项复核后修复。
-- `react/rules-of-hooks` 默认 `error`；2026-11-04 首次扫描发现的七个文件精确登记为
-  `warn`，诊断仍可见。该例外覆盖这些文件中的同规则诊断，不是按行或按条数冻结的基线。
-  后续逐文件清理并删除例外，不放宽其他规则或新增文件。
-- `pnpm lint` 自动执行这些检查；CI/pre-push 沿用同一入口。
+- `react/rules-of-hooks` 为 `error`；存量调用位置例外已随修复移除，不新增降级名单。
+- `bun run lint` 自动执行这些检查；CI/pre-push 沿用同一入口。
 - 不使用 `lint:fix` 批量修复 Hooks。新增依赖可能重建订阅或扩大渲染范围，删除依赖
   可能移除业务上的失效条件，均须结合 owner、调用方与运行时场景判断。
 
@@ -38,9 +36,9 @@
 
 ## 验收
 
-工程回归：`node --test scripts/test/react-hooks-lint.test.mjs scripts/test/source-size-policy.test.mjs`。
-该回归也纳入现有 `test:architecture` 入口。验证缺失/多余依赖可见、普通文件非法
-Hook 调用阻断、精确存量文件仍告警、包内运行继承配置，以及原有插件规则不丢失。
+工程回归：`bun run test:architecture`，包括 `scripts/test/react-hooks-lint.test.mjs`。
+验证缺失/多余依赖可见、非法 Hook 调用阻断（包括已整改的存量文件）、
+包内运行继承配置，以及原有插件规则不丢失。
 正确的精确依赖和完整对象依赖均保持规则原有语义，不把静态检查包装成性能证明。
 
 专项扫描使用独立的临时配置，只启用两条 Hooks 规则。Oxlint 1.60.0 的 `--no-ignore`
@@ -59,13 +57,9 @@ cat > "$audit_dir/hooks.json" <<'JSON'
   }
 }
 JSON
-pnpm exec oxlint -c "$audit_dir/hooks.json" \
+bun --bun run oxlint -c "$audit_dir/hooks.json" \
   --no-ignore --disable-nested-config --format json \
-  packages/ui/src packages/desktop/src packages/web/src packages/web-share/src \
-  packages/stream-animate/src packages/e2e-report/src apps/dev-docs/src \
-  apps/zcode-cli/packages/tui/src apps/zcode-cli/packages/debug/src \
-  apps/zcode-cli/packages/office-runtime/ui \
-  apps/zcode-cli/packages/zcode-site-plugin/src/ui > "$audit_dir/result.json"
+  packages/ui/src packages/web/src packages/design-runtime/src > "$audit_dir/result.json"
 ```
 
 保留原始 JSON；按规则、类别、文件和行号汇总。缺失、多余、不稳定引用、复杂表达式、
@@ -151,3 +145,22 @@ revision 越过停止请求水位时，也必须重新裁决 pending；不能只
 从 1→2 后应移除已不在运行列表中的停止请求。
 浏览器中执行实际 useEffect 表达式的隔离 React 场景已通过：revision=1 时 pending=1，
 仅推进 revision 到 2 后 pending=0，running 数组保持同一引用，无浏览器运行错误。
+
+## 2026-11-15 存量告警修复约束
+
+- 保持现有状态所有者和服务调用入口；依赖修复只捕获闭包真正读取的值，不以整个不稳定对象代替成员。
+- 刷新代际、相对时间 tick、资源版本等显式失效信号必须在计算中表达其语义，不因静态规则判为多余而删除。
+- effect 清理捕获本次订阅或挂载使用的资源；需要读取最新值的清理不得误改为旧快照。
+- 分组拖拽预览与交互行使用独立组件生命周期：预览不挂载菜单、拖拽注册或任务路径 RPC；
+  同一外层实例在普通行 → 预览 → 普通行切换时，Hook 顺序固定，普通行交互恢复。
+- onboarding 的可选服务读取改用无条件上下文读取，保留缺少 Provider 或未注册服务时返回 null。
+- 验收覆盖根 Lint、被根配置忽略的本次修改文件的 Hooks 专项扫描、类型检查、架构检查及现有两套工程测试。
+  浏览器验证分组行模式切换与菜单、预览；对失效信号及资源清理的关键修改使用可重复运行时场景。
+  不恢复已退役的 App 业务单测，不新增 Lint 规则屏蔽或扩大 Hooks 例外。
+  既有文件修改失去上游原样内容准入时，仅按架构策略登记实际修改文件的精确路径，不放开目录。
+
+本轮浏览器证据：StrictMode 下渲染实际 `GroupedTaskRow`，同一外层实例从交互行切为预览再切回；
+预览无交互行节点、路径 RPC 为 0，切回后 Enter 选择及菜单重命名均生效。
+右键菜单打开后才触发 2 次路径读取；无 Provider 的 onboarding 服务读取为 null，
+连接实际模拟后端的 Provider 下返回已注册服务。浏览器无运行错误，临时验收页已删除。
+这是隔离组件验收，不代表设置、插件及所有会话异步组合的完整端到端覆盖。

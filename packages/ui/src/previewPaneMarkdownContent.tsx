@@ -32,7 +32,14 @@ export function MarkdownPreviewContent({
 }: MarkdownPreviewContentProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const selectionScope = useMemo(
-    () => ({}),
+    // 文档与来源身份变化必须清除旧选区，不能删掉这些失效信号。
+    () => ({
+      content,
+      sourceKey,
+      sourcePath,
+      workspaceKey: selectionTarget?.workspaceKey,
+      sessionId: selectionTarget?.sessionId,
+    }),
     [content, sourceKey, sourcePath, selectionTarget?.workspaceKey, selectionTarget?.sessionId],
   );
   return (

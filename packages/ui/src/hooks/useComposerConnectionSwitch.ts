@@ -60,7 +60,10 @@ export function useComposerConnectionSwitch({
   const { update, refresh: refreshSettings } = useSettings({ services: base });
   const { intl } = useZCodeIntl();
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-  const token = useMemo(() => ({}), [target, base, workspaceKey, scopeId]);
+  const token = useMemo(
+    () => ({ target, base, workspaceKey, scopeId }),
+    [target, base, workspaceKey, scopeId],
+  );
   const owner = useRef({ token, mounted: true });
   owner.current = { token, mounted: true };
   const inFlight = useRef(false);

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
-import { resolveSpawnRuntimeOptions } from "./spawn-command.mjs";
+import { resolveSpawnCommand } from "./spawn-command.mjs";
 
 const exec = promisify(execFile);
 export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -153,10 +153,11 @@ export function assertInstalledLockfileSnapshot(rootLockfile, installedLockfile)
 }
 
 async function readWorkspaceProjects(root) {
-  const { stdout } = await exec("pnpm", ["-r", "list", "--depth", "-1", "--json"], {
+  const resolved = resolveSpawnCommand("pnpm", ["-r", "list", "--depth", "-1", "--json"]);
+  const { stdout } = await exec(resolved.command, resolved.args, {
     cwd: root,
     maxBuffer: 64 * 1024 * 1024,
-    ...resolveSpawnRuntimeOptions("pnpm"),
+    ...resolved.options,
   });
   return JSON.parse(stdout);
 }
@@ -170,16 +171,21 @@ async function readLockedWorkspaceProductionGraph(root, workspaceProjects) {
   // pnpm 10.33.2 的递归 list 在 Windows 会一次打开整个 workspace，超过句柄上限。
   // 固定根 lockfile 后按唯一 workspace 名称逐项过滤，保留完整 deduped 子树并限制峰值句柄数。
   for (const project of workspaceProjects) {
-    const { stdout } = await exec(
-      "pnpm",
-      ["--filter", project.name, "list", "--prod", "--json", "--depth", "Infinity"],
-      {
-        cwd: root,
-        env: createPnpmLockfileOnlyEnv(),
-        maxBuffer: 64 * 1024 * 1024,
-        ...resolveSpawnRuntimeOptions("pnpm"),
-      },
-    );
+    const resolved = resolveSpawnCommand("pnpm", [
+      "--filter",
+      project.name,
+      "list",
+      "--prod",
+      "--json",
+      "--depth",
+      "Infinity",
+    ]);
+    const { stdout } = await exec(resolved.command, resolved.args, {
+      cwd: root,
+      env: createPnpmLockfileOnlyEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+      ...resolved.options,
+    });
     const rows = JSON.parse(stdout);
     if (rows.length !== 1) {
       throw new Error(`Unexpected pnpm production graph rows for ${project.name}: ${rows.length}`);

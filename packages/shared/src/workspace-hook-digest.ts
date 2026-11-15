@@ -5,7 +5,6 @@ import {
   WORKSPACE_HOOK_EVENT_NAMES,
   resolveWorkspaceHookConfiguredGates,
   resolveWorkspaceHookTimeoutMs,
-  type WorkspaceHookConfigFileKind,
   type WorkspaceHookDefinition,
   type WorkspaceHookEventName,
   type WorkspaceHookRuntimeRoot,

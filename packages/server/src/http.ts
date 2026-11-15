@@ -7,9 +7,7 @@ import localAppConfig from "../../../config/default.json" with { type: "json" };
 import * as nodePath from "node:path";
 import { basename, extname, resolve } from "node:path";
 import { Hono, type Context } from "hono";
-import { serve } from "@hono/node-server";
-import { createNodeWebSocket } from "@hono/node-ws";
-import type { WebSocket } from "ws";
+import type { ServerWebSocket } from "bun";
 import {
   Emitter,
   VSBuffer,
@@ -36,34 +34,26 @@ import { workspaceIdentityOf } from "./mock/runtime.js";
 import { getConnectionServices, validateAIReqIdentity } from "./aireq/contract.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 
-function wrapWebSocket(ws: WebSocket): ISocket {
+interface ConnectionData {
+  identity: AIReqIdentity;
+  transport?: ReturnType<typeof wrapWebSocket>;
+}
+
+function wrapWebSocket(ws: ServerWebSocket<ConnectionData>) {
   const onData = new Emitter<VSBuffer>();
   const onClose = new Emitter<void>();
   const onEnd = new Emitter<void>();
+  let closed = false;
 
-  ws.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
-    const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
-    onData.fire(VSBuffer.wrap(new Uint8Array(buf)));
-  });
-  ws.on("close", () => {
-    onClose.fire();
-    onEnd.fire();
-  });
-  ws.on("error", () => {
-    onClose.fire();
-    onEnd.fire();
-  });
-
-  return {
+  const socket: ISocket = {
     onData: onData.event,
     onClose: onClose.event,
     onEnd: onEnd.event,
-    write(buffer: VSBuffer) {
-      // 修复原因（P0-1）：非 OPEN 状态静默丢弃会掩盖发送失败；抛错让上层感知断链。
-      if (ws.readyState !== ws.OPEN) {
-        throw new Error("WebSocket is not open");
+    write(buffer) {
+      // Bun 的 0 表示发送失败，-1 表示已缓存；不能把失败伪装成成功。
+      if (ws.readyState !== 1 || ws.send(buffer.buffer) === 0) {
+        throw new Error("WebSocket send failed");
       }
-      ws.send(buffer.buffer);
     },
     end() {
       ws.close();
@@ -75,6 +65,22 @@ function wrapWebSocket(ws: WebSocket): ISocket {
       ws.close();
     },
   };
+
+  return {
+    socket,
+    receive(data: Uint8Array) {
+      onData.fire(VSBuffer.wrap(data));
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      onClose.fire();
+      onEnd.fire();
+      onData.dispose();
+      onClose.dispose();
+      onEnd.dispose();
+    },
+  };
 }
 
 const log = (...args: unknown[]) =>
@@ -82,11 +88,10 @@ const log = (...args: unknown[]) =>
 
 /** 为一条 WebSocket 连接装配 ChannelServer 并暴露全部 mock 服务。 */
 function setupChannelServer(
-  ws: WebSocket,
+  socket: ISocket,
   services: ServiceCollection,
   identity: AIReqIdentity,
 ): void {
-  const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
@@ -290,8 +295,7 @@ export function createMockHttpServer(
   workspacePath: string,
   options: MockHttpServerOptions = {},
 ) {
-  const app = new Hono();
-  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+  const app = new Hono<{ Bindings: { server: Bun.Server<ConnectionData> } }>();
 
   const authToken = options.authToken?.trim();
   if (authToken) {
@@ -327,23 +331,18 @@ export function createMockHttpServer(
     }),
   );
 
-  app.get(
-    "/ws",
-    upgradeWebSocket((c) => {
-      const query = new URL(c.req.url).searchParams;
-      const employeeId = query.get("employeeId") ?? "";
-      const identity = validateAIReqIdentity({
-        employeeId,
-        clientId: query.get("clientId") ?? "",
-        ...(query.get("demo") ? { demo: query.get("demo")! } : {}),
-      });
-      return {
-        onOpen(_event, ws) {
-          setupChannelServer(ws.raw as WebSocket, services, identity);
-        },
-      };
-    }),
-  );
+  app.get("/ws", (c) => {
+    const query = new URL(c.req.url).searchParams;
+    const identity = validateAIReqIdentity({
+      employeeId: query.get("employeeId") ?? "",
+      clientId: query.get("clientId") ?? "",
+      ...(query.get("demo") ? { demo: query.get("demo")! } : {}),
+    });
+    if (c.env.server.upgrade(c.req.raw, { data: { identity }, headers: c.res.headers })) {
+      return new Response(null);
+    }
+    return c.text("WebSocket upgrade required", 400);
+  });
 
   if (options.staticRoot?.trim()) {
     const staticRoot = options.staticRoot.trim();
@@ -362,15 +361,34 @@ export function createMockHttpServer(
     });
   }
 
-  const port = options.port ?? 3030;
-  const server = serve({ fetch: app.fetch, hostname: options.host, port }, () => {
-    const address = server.address();
-    const listenPort = typeof address === "object" && address ? address.port : port;
-    const listenHost = options.host?.trim() || "localhost";
-    log(`http://${listenHost}:${listenPort}`);
+  const server = Bun.serve<ConnectionData>({
+    port: options.port ?? 3030,
+    hostname: options.host,
+    fetch(request, server) {
+      return app.fetch(request, { server });
+    },
+    websocket: {
+      // 保持原长连接语义：不能用 Bun 默认空闲超时中断无人发言的 RPC 订阅。
+      idleTimeout: 0,
+      open(ws) {
+        ws.binaryType = "uint8array";
+        const transport = wrapWebSocket(ws);
+        ws.data.transport = transport;
+        setupChannelServer(transport.socket, services, ws.data.identity);
+      },
+      message(ws, message) {
+        if (typeof message === "string") {
+          ws.close(1003, "Binary RPC frames required");
+          return;
+        }
+        ws.data.transport?.receive(message);
+      },
+      close(ws) {
+        ws.data.transport?.close();
+      },
+    },
   });
-
-  injectWebSocket(server);
+  log(`http://${options.host?.trim() || "localhost"}:${server.port}`);
 
   return server;
 }

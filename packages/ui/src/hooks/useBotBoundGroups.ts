@@ -71,9 +71,13 @@ export function useBotBoundGroups(bot: BotConfig) {
     const subscription = broadcastService.onMessage((message) => {
       if (message.channel === "bots:group-state") void reload();
     });
+    // 原因：清理要推进最新请求代次，不能把挂载时的数字快照写回。
+    const invalidateRequests = () => {
+      ++revision.current;
+    };
     return () => {
       alive.current = false;
-      ++revision.current;
+      invalidateRequests();
       subscription.dispose();
     };
   }, [broadcastService, reload]);

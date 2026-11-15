@@ -519,13 +519,13 @@ function EndDatePicker({
   value: string;
 }) {
   const [open, setOpen] = useState(false);
-  const selectedDate = parseDateInputValue(value);
+  const selectedDate = useMemo(() => parseDateInputValue(value), [value]);
   const minDate = parseDateInputValue(min);
   const [visibleMonth, setVisibleMonth] = useState(() => selectedDate ?? minDate ?? new Date());
 
   useEffect(() => {
     if (open && selectedDate) setVisibleMonth(selectedDate);
-  }, [open, selectedDate?.getTime()]);
+  }, [open, selectedDate]);
 
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
@@ -1419,8 +1419,9 @@ export function AutomationEditView({
   // 切到 History tab(编辑态)时加载运行历史，并在停留期间轻量刷新。
   // cron run/outcome 由 scheduler/host 异步写入；只加载一次会让用户看到会话已结束但历史仍为空。
   // onLoadRuns 由父组件 inline 传入，不能作为依赖，否则每次 runsCache 更新都会重启 effect 形成请求循环。
+  const editingAutomationId = editing?.automationId;
   useEffect(() => {
-    if (tab !== "history" || !editing) {
+    if (tab !== "history" || !editingAutomationId) {
       return;
     }
     onLoadRunsRef.current?.();
@@ -1428,7 +1429,7 @@ export function AutomationEditView({
       onLoadRunsRef.current?.();
     }, 5_000);
     return () => window.clearInterval(timer);
-  }, [tab, editing?.automationId]);
+  }, [tab, editingAutomationId]);
 
   const isSessionCreatedAutomation = resolveIsSessionCreatedAutomation(editing);
   // 会话来源但无法由 UI 安全回显的旧 cron 保持只读；用户显式重设后以持久化标记退出该路径。
@@ -1450,17 +1451,20 @@ export function AutomationEditView({
     () => (cronExpr ? describeCronBuilder(builder, intl) : ""),
     [builder, cronExpr, intl],
   );
-  const selectedWorkspace: AutomationWorkspaceOption | null =
-    findAutomationWorkspaceOptionByKey(workspaceOptions, workspaceKey) ??
-    (editing
-      ? {
-          workspacePath: editing.workspacePath,
-          workspaceIdentity: editing.workspaceIdentity,
-          projectId: editing.projectId,
-          hostId: editing.hostId,
-          label: editingWorkspaceOption?.label ?? workspaceLabelFromPath(editing.workspacePath),
-        }
-      : null);
+  const selectedWorkspace = useMemo<AutomationWorkspaceOption | null>(
+    () =>
+      findAutomationWorkspaceOptionByKey(workspaceOptions, workspaceKey) ??
+      (editing
+        ? {
+            workspacePath: editing.workspacePath,
+            workspaceIdentity: editing.workspaceIdentity,
+            projectId: editing.projectId,
+            hostId: editing.hostId,
+            label: editingWorkspaceOption?.label ?? workspaceLabelFromPath(editing.workspacePath),
+          }
+        : null),
+    [editing, editingWorkspaceOption?.label, workspaceKey, workspaceOptions],
+  );
   // 新建态无有效项目时保留空目标，避免模型配置读取悄悄回退到 conversation/default workspace。
   const selectedWorkspacePath = selectedWorkspace?.workspacePath ?? "";
   const selectedWorkspaceIdentity = selectedWorkspace?.workspaceIdentity;

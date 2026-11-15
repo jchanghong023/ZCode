@@ -153,7 +153,8 @@ export function useWorkspaceSessionsIndexItems(
   // 从各 store 聚合会话 → ZCodeTaskMeta + hydration 状态（tick 驱动重算，引用稳定）。
   const previousItemsRef = useRef<ZCodeTaskMeta[]>([]);
   const previousHydratingRef = useRef<string[]>([]);
-  return useMemo(() => {
+  // signature/tick 标记这次聚合读取的订阅集合与投影代际，不另持有会话事实副本。
+  const { result } = useMemo(() => {
     const metas: ZCodeTaskMeta[] = [];
     const hydratingEndpointKeys = new Set<string>();
     const sourceRevisionByScopeKey: Record<string, string> = {};
@@ -206,11 +207,12 @@ export function useWorkspaceSessionsIndexItems(
         : nextHydrating;
     previousHydratingRef.current = hydrating;
     return {
-      items,
-      sourceRevisionByScopeKey,
-      hydratingEndpointKeys: hydrating,
+      signature,
+      tick,
+      result: { items, sourceRevisionByScopeKey, hydratingEndpointKeys: hydrating },
     };
-  }, [signature, subscriptionSet, tick]);
+  }, [baseAgentService, signature, subscriptionSet, tick]);
+  return result;
 }
 
 function buildSummaryIdentityKey(scope: WorkspaceSessionsIndexScope, sessionId: string): string {

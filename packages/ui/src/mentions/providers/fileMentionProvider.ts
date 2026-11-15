@@ -67,7 +67,16 @@ export function useFileMentionProvider(
     getMentionGroupLimitForQuery(query, defaultPreviewLimit) ?? WORKSPACE_FILE_SEARCH_DISPLAY_CAP;
   // 连接实例也属于作用域：相同路径的远程重连不能接纳旧 Host 的查询结果。
   const scope = useMemo(
+    // 查询作用域保留连接、项目版本与启用状态；查询词不参与，保留增量 miss 补扫语义。
     () => ({
+      fileService,
+      projectService,
+      workspacePath,
+      workspaceIdentity,
+      enabled,
+      sessionId,
+      projectId,
+      projectRevision,
       error: null as Error | null,
       lastMissQuery: null as string | null,
     }),

@@ -78,11 +78,6 @@ export function usePlanIdentitySnapshot(
         now: Date.now(),
         entitlementCacheTtlMs: USAGE_ENTITLEMENT_CACHE_TTL_MS,
       }),
-    [
-      codingPlanEntitlement.snapshot,
-      connectionSelection,
-      normalizedDomain,
-      startPlanEntitlement.snapshot,
-    ],
+    [codingPlanEntitlement.snapshot, normalizedDomain, startPlanEntitlement.snapshot],
   );
 }

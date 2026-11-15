@@ -437,13 +437,18 @@ export function ChatContextUsage({
     now: opportunityNow,
     opportunity: { ...opportunityBadge, sourceKey: resetSourceKey },
   });
+  const reminderKey = opportunityReminder?.opportunityKey;
+  const reminderPhase = opportunityReminder?.phase;
   const dismissOpportunityReminder = useCallback(() => {
-    if (!opportunityReminder) return;
-    contextQuotaResetOpportunityDismissalStore.dismiss(opportunityReminder);
-  }, [opportunityReminder?.opportunityKey, opportunityReminder?.phase]);
+    if (!reminderKey || !reminderPhase) return;
+    contextQuotaResetOpportunityDismissalStore.dismiss({
+      opportunityKey: reminderKey,
+      phase: reminderPhase,
+    });
+  }, [reminderKey, reminderPhase]);
   useEffect(() => {
     // 设置覆盖层保留工作区挂载；后台监听不能把设置页点击算作提醒已读。
-    if (!isWorkspaceVisible || !opportunityReminder || contextOpen) return;
+    if (!isWorkspaceVisible || !reminderKey || contextOpen) return;
     const handleOutsidePointerDown = (event: PointerEvent) => {
       if (
         shouldDismissContextQuotaResetOpportunityReminder(
@@ -456,13 +461,7 @@ export function ChatContextUsage({
     };
     document.addEventListener("pointerdown", handleOutsidePointerDown, true);
     return () => document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
-  }, [
-    isWorkspaceVisible,
-    contextOpen,
-    dismissOpportunityReminder,
-    opportunityReminder?.opportunityKey,
-    opportunityReminder?.phase,
-  ]);
+  }, [isWorkspaceVisible, contextOpen, dismissOpportunityReminder, reminderKey, reminderPhase]);
   // 五小时与周额度各自维护撒花轨迹，避免一类完成压制另一类的触发器动效。
   const resetCelebrationStateByTypeRef = useRef<
     Record<CodingPlanResetType, CodingPlanQuotaResetCelebrationState | null>
@@ -496,6 +495,8 @@ export function ChatContextUsage({
   };
   const [autoPlayReservationRetryTick, setAutoPlayReservationRetryTick] = useState(0);
 
+  const { reserveAutomaticCompletion, commitAutomaticCompletion, releaseAutomaticCompletion } =
+    resetUi;
   // Main 返回 claim winner 前 Composer 可能已经卸载或切换 source。现在先获取带 token
   // 的临时 reservation，只有组件与候选仍有效且即将展示时才 commit played；失效 winner release，
   // busy loser 保留 observedAt，等待真实 played 广播或 reservation 释放后重试。
@@ -533,7 +534,7 @@ export function ChatContextUsage({
         continue;
       }
       void coordinateCodingPlanQuotaResetAutoPlay({
-        reserve: () => resetUi.reserveAutomaticCompletion(resetType, completedAt),
+        reserve: () => reserveAutomaticCompletion(resetType, completedAt),
         isCurrent: () => {
           const latest = latestAutomaticCompletionCandidateRef.current;
           return (
@@ -542,8 +543,8 @@ export function ChatContextUsage({
             latest.completedAtByType[resetType] === completedAt
           );
         },
-        commit: resetUi.commitAutomaticCompletion,
-        release: resetUi.releaseAutomaticCompletion,
+        commit: commitAutomaticCompletion,
+        release: releaseAutomaticCompletion,
         onCommitted: () => {
           const current = claimedAutomaticCompletionRef.current;
           const completedAtByType =
@@ -591,13 +592,12 @@ export function ChatContextUsage({
       }
     };
   }, [
-    automaticCompletionCandidateByType.FIVE_HOUR,
-    automaticCompletionCandidateByType.WEEK,
+    automaticCompletionCandidateByType,
     autoPlayReservationRetryTick,
     resetSourceKey,
-    resetUi.commitAutomaticCompletion,
-    resetUi.releaseAutomaticCompletion,
-    resetUi.reserveAutomaticCompletion,
+    commitAutomaticCompletion,
+    releaseAutomaticCompletion,
+    reserveAutomaticCompletion,
   ]);
 
   // Tooltip/撒花只消费本窗口已经 claim 成功且仍对应当前候选的 used_at。
@@ -748,7 +748,7 @@ export function ChatContextUsage({
     if (!contextOpen) {
       return;
     }
-    if (opportunityReminder) {
+    if (reminderKey) {
       dismissOpportunityReminder();
     }
     setResetTooltipDismissed((prev) => {
@@ -771,8 +771,8 @@ export function ChatContextUsage({
     contextOpen,
     phaseByType,
     automaticCompletedAtByType,
-    opportunityReminder?.opportunityKey,
-    opportunityReminder?.phase,
+    reminderKey,
+    reminderPhase,
     dismissOpportunityReminder,
   ]);
 

@@ -6,9 +6,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint"
+    "build": "bun --bun run tsc",
+    "typecheck": "bun --bun run tsc --noEmit",
+    "lint": "bun --bun run oxlint"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

@@ -22,9 +22,14 @@ export function useSessionsIndex(
 ): UseSessionsIndexResult {
   const { zcodeAgentService } = useServices();
 
-  const store = useMemo(
-    () => new SessionsIndexStore(),
-    // 每个 workspace 一个 store 实例（依赖变化 → 全新 store 冷启动）。
+  const { store } = useMemo(
+    () => ({
+      workspacePath,
+      workspaceIdentity,
+      zcodeAgentService,
+      store: new SessionsIndexStore(),
+    }),
+    // 每个 workspace 和服务代际持有独立 store，避免跨连接复用投影。
     [workspacePath, workspaceIdentity, zcodeAgentService],
   );
 
@@ -38,9 +43,9 @@ export function useSessionsIndex(
   }, [store, workspacePath, workspaceIdentity, zcodeAgentService]);
 
   // useSyncExternalStore：store.subscribe/getState 是类字段箭头函数，引用稳定。
-  const state = useSyncExternalStore(store.subscribe, store.getState);
-  // state 变化即代表列表可能变化；getSessions 内部缓存稳定引用。
-  const sessions = useMemo(() => store.getSessions(), [store, state]);
+  useSyncExternalStore(store.subscribe, store.getState);
+  // getSessions 已由 store 按投影版本缓存，不再另建 React 缓存。
+  const sessions = store.getSessions();
 
   return { sessions, status: store.getStatus() };
 }

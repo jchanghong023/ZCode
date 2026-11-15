@@ -47,18 +47,21 @@ export function useExtra(value: number) { return useCallback(() => 1, [value]); 
   }
 });
 
-test("conditional Hooks block new files and remain visible in an admitted legacy file", async () => {
+test("conditional Hooks block both new and repaired legacy files", async () => {
   const source = `import { useState } from "react";
 export function Example({ enabled }: { enabled: boolean }) {
   if (enabled) return useState(0)[0];
   return null;
 }`;
-  const regular = await lint(source);
-  assert.equal(regular.code, 1);
-  assert.equal(regular.diagnostics.find((item) => item.code === hooksRule)?.severity, "error");
-  const legacy = await lint(source, "packages/ui/src/hooks/useOnboardingRecordService.ts");
-  assert.equal(legacy.code, 0);
-  assert.equal(legacy.diagnostics.find((item) => item.code === hooksRule)?.severity, "warning");
+  for (const file of [
+    "packages/ui/src/Example.tsx",
+    "packages/ui/src/project-sidebar/grouped/task-row.tsx",
+    "packages/ui/src/hooks/useOnboardingRecordService.ts",
+  ]) {
+    const result = await lint(source, file);
+    assert.equal(result.code, 1);
+    assert.equal(result.diagnostics.find((item) => item.code === hooksRule)?.severity, "error");
+  }
 });
 
 test("precise callbacks and whole-object dependencies keep the native rule semantics", async () => {

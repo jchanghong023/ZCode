@@ -20,9 +20,10 @@ function Content(props: Props & { scopeRef: PluginUiScopeRef }) {
 
 /** 模块组装入口：将只读会话适配器与纯视图连接。 */
 export const PluginUiSidePane = memo(function PluginUiSidePane(props: Props) {
+  const { surfaceId, toolCallId, instanceId } = props.tab;
   const scopeRef = useMemo(
-    () => readPluginUiScopeRef(props.tab),
-    [props.tab.surfaceId, props.tab.toolCallId, props.tab.instanceId],
+    () => readPluginUiScopeRef({ surfaceId, toolCallId, instanceId }),
+    [surfaceId, toolCallId, instanceId],
   );
   if (!scopeRef) return null;
   return (

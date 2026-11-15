@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // 规则改了以后，旧说法常留在别的文档里（同一条规则在多处复述）。这里登记已作废的说法，
 // 在当前事实文档里出现即失败。历史计划与重构记录保留当时的写法，不检查。
 import { readdir, readFile } from "node:fs/promises";

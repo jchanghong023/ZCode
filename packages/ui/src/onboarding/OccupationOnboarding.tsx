@@ -182,7 +182,7 @@ export function OccupationOnboarding({
     userEditedRef.current = true;
   };
 
-  const applyLatestEntry = () => {
+  const applyLatestEntry = useCallback(() => {
     const entry = latestEntry;
     setStep(0);
     setOccupation(
@@ -197,19 +197,20 @@ export function OccupationOnboarding({
     setSuggestions(entry?.proactiveSuggestionsEnabled ?? initialMode === "office");
     setMigration(false);
     setError(false);
-  };
+  }, [latestEntry, savedInterfaceMode]);
+  const applyLatestEntryRef = useRef(applyLatestEntry);
+  applyLatestEntryRef.current = applyLatestEntry;
   useEffect(() => {
     if (!requested) return;
     userEditedRef.current = false;
     suggestionsEditedRef.current = false;
-    applyLatestEntry();
+    applyLatestEntryRef.current();
     // latestEntry 异步到达时若引导已打开，重新预填一次（用户未交互前覆盖默认值）。
-  }, [requested]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [requested]);
   useEffect(() => {
     if (!onboardingVisible || userEditedRef.current) return;
     applyLatestEntry();
-    // eslint-disable-line react-hooks/exhaustive-deps
-  }, [latestEntry]);
+  }, [latestEntry, onboardingVisible, applyLatestEntry]);
   if (!settings) return showChildrenWhileLoading ? <>{children}</> : null;
   // 判定进行中先不渲染，避免引导闪现后立即消失（判定为需引导）或先闪引导再进主界面。
   // 只有疑似首跑（settings 里也没有职业）才等待记录判定；存量用户（已有

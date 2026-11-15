@@ -92,7 +92,9 @@ export function DirectoryBrowser({
   // 同一向导收起后会重建浏览器实例；卸载必须撤销旧请求，不能让迟到结果改写恢复后的目录。
   useEffect(() => {
     let disposed = false;
-    const homeRequestId = requestGuardRef.current.begin();
+    // 清理必须使本次挂载的请求守卫失效，而非卸载时可能已替换的 ref。
+    const requestGuard = requestGuardRef.current;
+    const homeRequestId = requestGuard.begin();
     if (initialPath) {
       void navigateTo(initialPath);
     } else {
@@ -113,7 +115,7 @@ export function DirectoryBrowser({
     }
     return () => {
       disposed = true;
-      requestGuardRef.current.begin();
+      requestGuard.begin();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

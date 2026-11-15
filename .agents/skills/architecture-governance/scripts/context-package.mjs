@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { generateContext } from "../../../../scripts/architecture/index.mjs";
@@ -6,7 +6,7 @@ import { generateContext } from "../../../../scripts/architecture/index.mjs";
 const [, , moduleId, ...args] = process.argv;
 if (!moduleId) {
   console.error(
-    "用法: node .agents/skills/architecture-governance/scripts/context-package.mjs <module-id> [--output <file>]",
+    "用法: bun .agents/skills/architecture-governance/scripts/context-package.mjs <module-id> [--output <file>]",
   );
   process.exit(1);
 }

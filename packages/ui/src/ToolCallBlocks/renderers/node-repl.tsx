@@ -156,6 +156,7 @@ function FriendlyCodeBlock({
 export function NodeReplToolCallBlock(context: ToolCallBlockRenderContext) {
   const { intl } = useZCodeIntl();
   const { toolCall } = context.toolCallNode;
+  const { onOpenCodeViewer } = context;
   const model = useMemo(() => buildNodeReplDisplayModel(toolCall), [toolCall]);
   const formatMessage = useCallback((id: string) => intl.formatMessage({ id }), [intl]);
   const summary = useMemo(
@@ -251,14 +252,14 @@ export function NodeReplToolCallBlock(context: ToolCallBlockRenderContext) {
         {model.persistedResult && fullResultLabel ? (
           <div className="flex flex-wrap items-center gap-2 text-ui-base text-foreground-subtle">
             <span>{fullResultLabel}</span>
-            {context.onOpenCodeViewer ? (
+            {onOpenCodeViewer ? (
               <Button
                 type="button"
                 variant="link"
                 size="xs"
                 className="px-0"
                 onClick={() =>
-                  context.onOpenCodeViewer?.({
+                  onOpenCodeViewer?.({
                     type: "file",
                     title: resultLabel,
                     path: model.persistedResult!.artifactPath,
@@ -327,7 +328,7 @@ export function NodeReplToolCallBlock(context: ToolCallBlockRenderContext) {
     ),
     [
       context.isRunning,
-      context.onOpenCodeViewer,
+      onOpenCodeViewer,
       copyDetailsLabel,
       copyResultLabel,
       detailContentLabel,

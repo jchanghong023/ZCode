@@ -9,6 +9,16 @@
 - 唯一允许的本地读取：项目选目录/目录浏览读取本机真实目录名（`projectService.readDirectory`），不读写文件内容。
 - 唯一传输层例外：`MockRuntime` 内的 topic 水位账本（`MockTopicLog`）是协议顺序的权威来源；不落盘。
 
+### 1.1 Bun 运行时
+
+- 仓库唯一 JavaScript/TypeScript 执行运行时为 Bun，固定版本见 `mise.toml`；后端、前端开发/构建、测试与工程脚本均不得启动 Node.js。`node:*` 与 `@types/node` 仅作为 Bun 兼容 API/类型保留，不代表 Node.js 运行时依赖。
+- 包管理继续使用 pnpm，但由 Bun 执行；不保留 Node.js 后端或脚本回退入口。
+- `packages/server/src/http.ts` 只负责 Hono 路由、Bun HTTP/WebSocket 宿主与 `ISocket` 适配；业务状态所有者、`/api`/`/ws` 路径、鉴权、静态资源语义与 v4 二进制 RPC 不变。
+- 每个 WebSocket 连接独占一套 `ISocket`、`SocketProtocol`、`ChannelServer` 与 agent connection scope。升级前完成鉴权/身份校验；open 时装配服务；二进制消息按原始字节视图传入协议；close 时仅触发一次关闭/结束并释放连接 scope 和 RPC 订阅。Bun 传输层不复制会话或 topic 状态，不新增重试/重放账本。
+- `createMockHttpServer()` 返回 Bun server，由调用者通过 `stop()` 停止；开发入口在仓库根目录使用 Bun watch，覆盖跨 workspace 源码，默认 `workspacePath` 为仓库根（`ZCODE_SERVER_WORKSPACE` 可覆盖）；构建使用 Bun bundler，生产入口为 `bun packages/server/dist/entry-http.js`。
+
+验收：Bun 下验证源码与构建产物启动、HTTP 元信息、鉴权拒绝/允许、静态文件与 SPA fallback、带身份的真实二进制 RPC 请求，以及断连后重新连接；工程门禁及前端构建也必须由 Bun 执行，不使用 Node.js 回退。
+
 ## 2. 能力状态
 
 每个领域/接口在能力矩阵中只有一种状态：

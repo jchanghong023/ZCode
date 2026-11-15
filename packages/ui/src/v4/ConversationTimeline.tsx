@@ -1120,6 +1120,7 @@ function ConversationTimelineImpl({
     syncTurnNavigatorViewport,
   ]);
 
+  const hasNoRenderUnits = renderUnitCount === 0;
   useLayoutEffect(() => {
     const contentColumn = virtualHistoryRef.current;
     if (!contentColumn || typeof ResizeObserver === "undefined") return;
@@ -1244,14 +1245,15 @@ function ConversationTimelineImpl({
     getActiveUserScrollIntent,
     markLayoutScrollGuard,
     measureElement,
-    renderUnitCount === 0,
+    hasNoRenderUnits,
     scrollToBottom,
     virtualizer,
   ]);
 
+  const liveUnitHeightCacheKey = getUnitHeightCacheKey(liveUnit ?? undefined);
   useLayoutEffect(() => {
     const element = liveTailRef.current;
-    const cacheKey = getUnitHeightCacheKey(liveUnit ?? undefined);
+    const cacheKey = liveUnitHeightCacheKey;
     if (!element || cacheKey === undefined) return;
 
     const cacheHeight = (entry?: ResizeObserverEntry) => {
@@ -1295,7 +1297,7 @@ function ConversationTimelineImpl({
     commitFollowing,
     getActiveUserScrollIntent,
     isContentWidthChanging,
-    liveUnit?.key,
+    liveUnitHeightCacheKey,
     markLayoutScrollGuard,
     scrollToBottom,
   ]);
@@ -1621,6 +1623,9 @@ function ConversationTimelineImpl({
     userAdjustedScrollSinceRestoreRef.current = false;
 
     const restoredState = readChatSessionScrollMemoryState(scrollMemoryKey);
+    // scope 恢复只记录进入时的窗口；后续追加消息不能重新清空测高和恢复滚动。
+    const entryRows = rowsRef.current;
+    const entryRowWindowKey = `${entryRows.length}:${entryRows[0]?.rowId ?? "none"}:${entryRows[entryRows.length - 1]?.rowId ?? "none"}`;
     const pendingRestoreWait = resolvePendingScrollMemoryRestoreWait(
       restoredState,
       scrollRef.current,
@@ -1630,7 +1635,7 @@ function ConversationTimelineImpl({
       scrollMemoryKey && restoredState && pendingRestoreWait
         ? {
             key: scrollMemoryKey,
-            rowWindowKey,
+            rowWindowKey: entryRowWindowKey,
             state: restoredState,
             waitFor: pendingRestoreWait,
           }
@@ -1738,6 +1743,7 @@ function ConversationTimelineImpl({
     canLoadOlder,
     restoreScrollMemory,
     rowCount,
+    rows.length,
     rowWindowKey,
     measuredLayoutRevision,
     scrollMemoryKey,

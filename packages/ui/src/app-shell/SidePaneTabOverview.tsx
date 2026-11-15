@@ -55,64 +55,33 @@ export function SidePaneTabOverview({
   const [query, setQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const queryParts = useMemo(() => normalizeSearchQuery(query), [query]);
-  const tabItems = useMemo(
-    () =>
-      tabs.map((tab) => {
-        const title = getLocalizedSidePaneTabTitle(tab, labels);
-        const hint = getSidePaneTabSearchHint(tab);
-        const typeLabel = getSidePaneTabTypeLabel(tab, labels);
-        return {
-          tab,
-          title,
-          hint,
-          openedAtLabel: labels.relativeTime(tab.openedAt ?? currentTime),
-          searchFields: buildSearchFields(title, hint, typeLabel),
-        };
-      }),
-    [
-      currentTime,
-      labels.codeViewerTitle,
-      labels.relativeTime,
-      labels.reviewTitle,
-      labels.developerToolsTitle,
-      labels.terminalTitle,
-      labels.subagentTypeLabel,
-      tabs,
-    ],
-  );
-  const recentClosedItems = useMemo(
-    () =>
-      recentClosedTabs.map((item) => {
-        const title = getLocalizedSidePaneTabTitle(item.tab, labels);
-        const hint = getSidePaneTabSearchHint(item.tab);
-        const typeLabel = getSidePaneTabTypeLabel(item.tab, labels);
-        return {
-          item,
-          title,
-          hint,
-          closedAtLabel: labels.relativeTime(item.closedAt),
-          searchFields: buildSearchFields(title, hint, typeLabel),
-        };
-      }),
-    [
-      currentTime,
-      labels.codeViewerTitle,
-      labels.relativeTime,
-      labels.reviewTitle,
-      labels.developerToolsTitle,
-      labels.terminalTitle,
-      labels.subagentTypeLabel,
-      recentClosedTabs,
-    ],
-  );
-  const filteredTabItems = useMemo(
-    () => filterAndRankSearchItems(tabItems, queryParts),
-    [queryParts, tabItems],
-  );
-  const filteredRecentClosedItems = useMemo(
-    () => filterAndRankSearchItems(recentClosedItems, queryParts),
-    [queryParts, recentClosedItems],
-  );
+  // 原因：relativeTime 内部读取当前时间；每分钟的渲染也必须刷新已关闭标签的相对时间。
+  const tabItems = tabs.map((tab) => {
+    const title = getLocalizedSidePaneTabTitle(tab, labels);
+    const hint = getSidePaneTabSearchHint(tab);
+    const typeLabel = getSidePaneTabTypeLabel(tab, labels);
+    return {
+      tab,
+      title,
+      hint,
+      openedAtLabel: labels.relativeTime(tab.openedAt ?? currentTime),
+      searchFields: buildSearchFields(title, hint, typeLabel),
+    };
+  });
+  const recentClosedItems = recentClosedTabs.map((item) => {
+    const title = getLocalizedSidePaneTabTitle(item.tab, labels);
+    const hint = getSidePaneTabSearchHint(item.tab);
+    const typeLabel = getSidePaneTabTypeLabel(item.tab, labels);
+    return {
+      item,
+      title,
+      hint,
+      closedAtLabel: labels.relativeTime(item.closedAt),
+      searchFields: buildSearchFields(title, hint, typeLabel),
+    };
+  });
+  const filteredTabItems = filterAndRankSearchItems(tabItems, queryParts);
+  const filteredRecentClosedItems = filterAndRankSearchItems(recentClosedItems, queryParts);
   const hasAnySearchResult = filteredTabItems.length > 0 || filteredRecentClosedItems.length > 0;
 
   useEffect(() => {

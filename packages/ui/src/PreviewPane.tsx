@@ -15,7 +15,6 @@ import {
 import { ChevronRightIcon, Ellipsis, EyeIcon, FileCode2Icon } from "lucide-react";
 import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import type { FileMediaPreview, FileTextSlice } from "@zcode/shared";
 import { TID_PREVIEW_PANE } from "@zcode/shared/test-ids";
@@ -438,7 +437,7 @@ export function PreviewPane({
       ),
     [source, workspacePath, markdownSelectionTarget?.workspaceKey],
   );
-  const { fileService, fileWatcherService, mediaPreviewService } = useWorkspaceServices(
+  const { fileService, mediaPreviewService } = useWorkspaceServices(
     sourceWorkspacePath,
     source?.workspaceRemoteSessionId,
     source?.workspaceIdentity,

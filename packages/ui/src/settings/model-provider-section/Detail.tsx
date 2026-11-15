@@ -292,15 +292,16 @@ export function ModelProviderSectionDetail({
     cacheKey: selectedNavItem?.key ?? undefined,
     refreshOnMount: false,
   });
+  const { refresh: refreshSelectedTeamPlanEntitlement } = selectedTeamPlanEntitlement;
   useEffect(() => {
     if (!selectedTeamPlanContext) {
       return;
     }
-    void selectedTeamPlanEntitlement.refresh({
+    void refreshSelectedTeamPlanEntitlement({
       silent: true,
       reason: "access",
     });
-  }, [selectedTeamPlanContext, selectedTeamPlanEntitlement.refresh]);
+  }, [selectedTeamPlanContext, refreshSelectedTeamPlanEntitlement]);
   const effectiveSelectedPlanNavItem = isPlanNavItem(selectedNavItem)
     ? resolveTeamScopedPlanNavItem(selectedNavItem, selectedTeamPlanEntitlement)
     : null;

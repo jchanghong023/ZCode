@@ -676,10 +676,15 @@ export function SessionPane({
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).draftFocusVersion,
   );
   // draftFocusVersion 是外部 pending-draft 账本的失效信号；同 scope 新建草稿也必须重读。
-  const pendingAtEntry = useMemo(() => {
-    if (sessionId !== null || newTaskComposerScope.projectId !== null) return null;
-    const pending = readPendingTaskDraft(newTaskComposerScope);
-    return pending?.workspacePath === workspacePath && pending.commandId ? pending : null;
+  const { pending: pendingAtEntry } = useMemo(() => {
+    const pending =
+      sessionId === null && newTaskComposerScope.projectId === null
+        ? readPendingTaskDraft(newTaskComposerScope)
+        : null;
+    return {
+      generation: composerDraftGeneration,
+      pending: pending?.workspacePath === workspacePath && pending.commandId ? pending : null,
+    };
   }, [sessionId, workspacePath, newTaskComposerScope, composerDraftGeneration]);
   const [resolvedDraftCommand, setResolvedDraftCommand] = useState<string | null>(null);
   const recoveringDraft =
@@ -791,8 +796,13 @@ export function SessionPane({
       }
     }
   }, [conversationTelemetry, snapshot]);
-  const fileChangesRequestCache = useMemo(
-    () => new Map<string, Promise<V4ConversationFileChangesResult>>(),
+  const { cache: fileChangesRequestCache } = useMemo(
+    () => ({
+      fileChanges,
+      sessionId,
+      logEpoch: snapshot?.logEpoch,
+      cache: new Map<string, Promise<V4ConversationFileChangesResult>>(),
+    }),
     [fileChanges, sessionId, snapshot?.logEpoch],
   );
   const [dismissedErrorKeys, setDismissedErrorKeys] = useState<readonly string[]>([]);
@@ -970,8 +980,8 @@ export function SessionPane({
     [workspaceIdentity, workspacePath],
   );
   // 配置/发送顺序只属于当前会话，不能让 A 的慢回执阻塞 B。
-  const configCommandBarrier = useMemo(
-    () => createConfigCommandBarrier(),
+  const { barrier: configCommandBarrier } = useMemo(
+    () => ({ workspaceKey, sessionId, barrier: createConfigCommandBarrier() }),
     [workspaceKey, sessionId],
   );
   // 软审核不是阻塞交互，不能隐藏 Composer 或禁用选区引用。
@@ -1164,7 +1174,7 @@ export function SessionPane({
   const commitCreatedTask = projectDirectory?.commitCreatedTask;
   const refreshTaskGroups = projectDirectory?.refreshTaskGroups;
   const draftNavigation = useMemo(
-    () => ({ controller: new AbortController() }),
+    () => ({ workspaceKey, sessionId, controller: new AbortController() }),
     [workspaceKey, sessionId],
   );
   useEffect(() => {
@@ -1601,7 +1611,6 @@ export function SessionPane({
       resolveRecentScope,
       conversationTelemetry,
       layer,
-      provider,
       sendCommand,
       remoteAvailable,
       sessionId,
@@ -2683,16 +2692,7 @@ export function SessionPane({
       // 消费 store 已按 deliveryKind 去重后的同一 realtime online 事件。
       showModelChangeNotice(transition.from, transition.to);
     },
-    [
-      effectiveSessionId,
-      focused,
-      provider,
-      sessionId,
-      showModelChangeNotice,
-      workspaceIdentity,
-      workspaceKey,
-      workspacePath,
-    ],
+    [effectiveSessionId, focused, showModelChangeNotice],
   );
   const onlineModelTransitionHandlerRef = useRef(handleOnlineModelTransition);
   useLayoutEffect(() => {
@@ -4073,6 +4073,7 @@ export function SessionPane({
     [handleDraftSelectThought, handleSelectModel, sessionId],
   );
 
+  // Bug 根因：恢复回调曾遗漏模型目录依赖，目录更新后仍从旧 provider 列表选回退模型。
   const handleRecoverCustomModelSelection = useCallback(
     async (value: string, sourceModel: ModelSelectionSource | null) => {
       const decoded = decodeCustomModelValue(value);
@@ -4082,10 +4083,9 @@ export function SessionPane({
       const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
       let modelValue = value;
       if (!decoded.modelName) {
-        const fallbackModel =
-          modelSelectionView?.providers.find(
-            (candidate) => candidate.providerId === decoded.providerId,
-          )?.models[0]?.modelId ?? (modelSelectionView ? null : undefined);
+        const fallbackModel = modelSelectionView?.providers.find(
+          (candidate) => candidate.providerId === decoded.providerId,
+        )?.models[0]?.modelId;
         if (!fallbackModel) {
           logger.warn("[v4-pane] custom provider 恢复跳过：provider 没有可用模型", {
             customProviderId: decoded.providerId,
@@ -4158,7 +4158,7 @@ export function SessionPane({
     [
       provider,
       handleDraftSelectModel,
-      sessionId,
+      modelSelectionView?.providers,
       showModelChangeNotice,
       workspaceIdentity,
       workspacePath,

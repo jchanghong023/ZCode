@@ -1,21 +1,19 @@
 import { spawn } from "node:child_process";
 
-import { withPinnedNodePath } from "./mise-toolchain-env.mjs";
+import { withPinnedBunPath } from "./mise-toolchain-env.mjs";
+import { resolveSpawnCommand } from "./spawn-command.mjs";
 
 const [requestedCommand, ...args] = process.argv.slice(2);
 if (!requestedCommand) {
-  console.error("Usage: node scripts/mise-run.mjs <command> [...args]");
+  console.error("Usage: bun scripts/mise-run.mjs <command> [...args]");
   process.exit(1);
 }
 
-// Windows 上 pnpm 是 .cmd 文件；其他平台直接使用 pnpm 可执行入口。
-const command =
-  process.platform === "win32" && requestedCommand === "pnpm" ? "pnpm.cmd" : requestedCommand;
-const child = spawn(command, args, {
+const { command, args: spawnArgs, options } = resolveSpawnCommand(requestedCommand, args);
+const child = spawn(command, spawnArgs, {
+  ...options,
   cwd: process.cwd(),
-  env: withPinnedNodePath(process.env, process.execPath),
-  // Windows 的 .cmd 入口需要 shell 才能被 Node spawn。
-  shell: process.platform === "win32",
+  env: withPinnedBunPath(process.env, process.execPath),
   stdio: "inherit",
 });
 

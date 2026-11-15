@@ -484,7 +484,8 @@ class DraftSessionPrewarmCoordinator {
     this.clearRetryTimer();
     current.retiring = true;
     current.binding = null;
-    for (const invalidate of [...current.retainers]) invalidate();
+    // 回调会释放 retainer，必须按本轮快照通知，避免遍历期间重新登记导致重复执行。
+    for (const invalidate of Array.from(current.retainers)) invalidate();
     current.retainers.clear();
     current.controller.dispose();
     this.emitBindings();
@@ -602,9 +603,14 @@ export function useDraftSessionPrewarm(params: {
     () => ({ workspaceKey, paneId, transportIdentity }),
     [paneId, transportIdentity, workspaceKey],
   );
-  const generation = useMemo(() => ({ owner }), [enabled, invalidationVersion, owner]);
+  const generation = useMemo(
+    () => ({ owner, enabled, invalidationVersion }),
+    [enabled, invalidationVersion, owner],
+  );
   const acquired = useRef<AcquiredDraftPrewarm | null>(null);
+  const latestCommandsRef = useRef({ dispatchCommand, resolveInitialConfig });
   useLayoutEffect(() => {
+    latestCommandsRef.current = { dispatchCommand, resolveInitialConfig };
     if (acquired.current?.generation === generation) {
       acquired.current.coordinator.update(dispatchCommand, resolveInitialConfig);
     }
@@ -618,12 +624,10 @@ export function useDraftSessionPrewarm(params: {
     if (!enabled) return;
     // 原先在 render 登记，未启用预热的历史页没有 acquire/release，Map 会永久保留闭包中的
     // 已关闭 store 和历史。登记与订阅必须同属已提交的 effect，中止 render 也不能留下 owner。
-    const coordinator = getDraftSessionPrewarmCoordinator({
-      ...owner,
-      dispatchCommand,
-      resolveInitialConfig,
-    });
-    coordinator.update(dispatchCommand, resolveInitialConfig);
+    // 命令更新只替换 coordinator 的调用入口，不重新 acquire 当前预热生命周期。
+    const commands = latestCommandsRef.current;
+    const coordinator = getDraftSessionPrewarmCoordinator({ ...owner, ...commands });
+    coordinator.update(commands.dispatchCommand, commands.resolveInitialConfig);
     acquired.current = { generation, coordinator };
     const release = coordinator.acquire({
       generation,

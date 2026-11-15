@@ -2,6 +2,7 @@ import { PenIcon } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useRef,
@@ -35,7 +36,8 @@ export function useFreshFills(
   };
   const [fresh, setFresh] = useState<ReadonlySet<string>>(compute);
   const key = fills.map((fill) => `${fill.holeId}@${fill.filledAt ?? ""}`).join("\u0000");
-  useEffect(() => {
+  // 内容键决定计时器生命期，effect event 读取对应的最新投影而不跟随数组引用重启。
+  const refresh = useEffectEvent(() => {
     const next = compute();
     setFresh(next);
     if (next.size === 0) return undefined;
@@ -45,8 +47,8 @@ export function useFreshFills(
     );
     const timer = setTimeout(() => setFresh(new Set()), Math.max(0, latest + FILL_FRESH_MS - now));
     return () => clearTimeout(timer);
-    // 只按补全的身份与时刻重算（`key`）：`fills` 数组每帧是新引用，按它依赖会让定时器每帧重置。
-  }, [key]);
+  });
+  useEffect(() => refresh(), [key]);
   return fresh;
 }
 

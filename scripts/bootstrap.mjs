@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
@@ -10,9 +10,8 @@ import { clearHoistedPatchedDependencyTargets } from "./bootstrap-patched-depend
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
-// 保持原始命令名：scripts/spawn-command.mjs 在 Windows 上会为 pnpm/npm 加 shell，
-// 交给 cmd 解析 .cmd shim；改写成 pnpm.cmd 反而会破坏 pnpm 的包上下文。
-const pnpmCommand = "pnpm";
+// 显式选择 pnpm 包并强制用 Bun 执行，绕开系统 Corepack / pnpm shim。
+const bunCommand = "bun";
 const packageJsonPath = resolve(rootDir, "package.json");
 // bootstrap 只准备纯 Web 形态的两端：浏览器前端与内存态 mock-server。
 // 桌面 runtime、远程资源发行链、apps/zcode-cli 子模块都已随桌面端裁撤，不再属于首装链。
@@ -25,10 +24,9 @@ function readPinnedToolVersions() {
   }
 
   const miseConfig = readFileSync(miseConfigPath, "utf8");
-  // 只读取 [tools] 中的 node/pnpm 两个固定版本，供后续版本检查与提示使用。
-  const node = miseConfig.match(/^\s*node\s*=\s*"([^"]+)"/m)?.[1]?.trim();
-  const pnpm = miseConfig.match(/^\s*pnpm\s*=\s*"([^"]+)"/m)?.[1]?.trim();
-  return { node, pnpm };
+  // Bun 固定版本从 mise.toml 读取；pnpm 固定版本归 packageManager 所有。
+  const bun = miseConfig.match(/^\s*bun\s*=\s*"([^"]+)"/m)?.[1]?.trim();
+  return { bun };
 }
 
 function readPackageManagerVersion() {
@@ -41,51 +39,66 @@ function readPackageManagerVersion() {
 
 function assertToolchain() {
   const pinned = readPinnedToolVersions();
-  const currentNode = process.versions.node;
-  const nodeMajor = Number.parseInt(currentNode.split(".")[0] ?? "0", 10);
-  if (!Number.isFinite(nodeMajor) || nodeMajor < 24) {
+  const expectedBun = pinned.bun;
+  if (!expectedBun) {
+    throw new Error("mise.toml 缺少固定 Bun 版本；请恢复 [tools] bun 配置后重试。");
+  }
+  const bunInstallHint = `请运行 mise install，或按 https://bun.sh/docs/installation 安装 Bun ${expectedBun} 并加入 PATH。`;
+  if (!process.versions.bun) {
     throw new Error(
-      `需要 Node.js 24+（package.json engines 要求），当前 ${currentNode}；固定版本见 mise.toml。`,
+      `bootstrap 必须由 Bun ${expectedBun} 执行：bun scripts/bootstrap.mjs。${bunInstallHint}`,
     );
   }
-  if (pinned.node && currentNode !== pinned.node) {
-    // 小版本漂移不阻断安装与构建，但必须提示：工具链固定版本才是验收基准。
-    console.warn(
-      `[bootstrap] Node ${currentNode} 与 mise.toml 固定版本 ${pinned.node} 不一致；如需完全一致请运行 mise install。`,
+  let actualBun;
+  try {
+    actualBun = runCommandAndReadStdout(bunCommand, ["--version"], {
+      cwd: rootDir,
+      env: process.env,
+    }).trim();
+  } catch (error) {
+    throw new Error(
+      `无法运行 Bun（需要 ${expectedBun}）：${error instanceof Error ? error.message : String(error)}。${bunInstallHint}`,
+    );
+  }
+  if (actualBun !== expectedBun || process.versions.bun !== expectedBun) {
+    throw new Error(
+      `需要 Bun ${expectedBun}（mise.toml），当前进程 ${process.versions.bun}，PATH 中 ${actualBun}。${bunInstallHint}`,
     );
   }
 
-  const expectedPnpm = pinned.pnpm ?? readPackageManagerVersion();
+  const expectedPnpm = readPackageManagerVersion();
   if (!expectedPnpm) {
-    return;
+    throw new Error("package.json 缺少固定 packageManager（需要 pnpm@<版本>）。");
   }
 
   const actualPnpm = readPnpmVersion(expectedPnpm);
   if (actualPnpm !== expectedPnpm) {
     throw new Error(
-      `需要 pnpm ${expectedPnpm}（mise.toml / package.json packageManager），当前 ${actualPnpm}。` +
-        `请运行 mise install，或执行 corepack prepare pnpm@${expectedPnpm} --activate / npm i -g pnpm@${expectedPnpm}。`,
+      `需要 pnpm ${expectedPnpm}（package.json packageManager），当前 ${actualPnpm}。` +
+        `请检查 Bun 包缓存与 registry，并重试 bun x --bun --package pnpm@${expectedPnpm} pnpm --version。`,
     );
   }
+  return expectedPnpm;
 }
 
 function readPnpmVersion(expectedPnpm) {
   try {
-    return runCommandAndReadStdout(pnpmCommand, ["--version"], {
-      cwd: rootDir,
-      env: process.env,
-    }).trim();
+    return runCommandAndReadStdout(
+      bunCommand,
+      ["x", "--bun", "--package", `pnpm@${expectedPnpm}`, "pnpm", "--version"],
+      { cwd: rootDir, env: process.env },
+    ).trim();
   } catch (error) {
-    // 找不到 pnpm 时 spawnSync 只会给 ENOENT；这里换成可执行的中文提示。
+    // 不尝试全局 pnpm shim；缓存缺失或 registry 不可达时明确失败。
     throw new Error(
-      `无法运行 pnpm（需要 ${expectedPnpm}）：${error instanceof Error ? error.message : String(error)}。` +
-        `请先安装固定版本，或改用 mise install。`,
+      `无法通过 Bun 获取或运行 pnpm ${expectedPnpm}：${error instanceof Error ? error.message : String(error)}。` +
+        `请检查 registry 网络与 Bun 缓存，重试 bun x --bun --package pnpm@${expectedPnpm} pnpm --version。`,
     );
   }
 }
 
-function runPnpm(args) {
-  runCommand(pnpmCommand, args, {
+function runPnpm(version, args) {
+  runCommand(bunCommand, ["x", "--bun", "--package", `pnpm@${version}`, "pnpm", ...args], {
     cwd: rootDir,
     env: process.env,
   });
@@ -100,7 +113,7 @@ function assertExpectedArtifacts() {
 }
 
 async function main() {
-  assertToolchain();
+  const pnpmVersion = assertToolchain();
 
   const clearedPatchedDependencies = await clearHoistedPatchedDependencyTargets({
     rootDir,
@@ -114,12 +127,14 @@ async function main() {
     );
   }
 
-  console.log("[bootstrap] 安装 workspace 依赖：pnpm install");
-  runPnpm(["install"]);
+  console.log(
+    `[bootstrap] 安装 workspace 依赖：bun x --bun --package pnpm@${pnpmVersion} pnpm install`,
+  );
+  runPnpm(pnpmVersion, ["install"]);
 
   // 根 build 契约是串行 build:server && build:web；这里复用根脚本，不另立构建流程。
-  console.log("[bootstrap] 构建 mock-server 与 web：pnpm build");
-  runPnpm(["run", "build"]);
+  console.log("[bootstrap] 构建 mock-server 与 web：bun run build");
+  runCommand(bunCommand, ["run", "build"], { cwd: rootDir, env: process.env });
 
   assertExpectedArtifacts();
   console.log("[bootstrap] 完成：packages/server/dist 与 packages/web/dist 已就绪。");

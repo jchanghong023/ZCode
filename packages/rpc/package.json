@@ -12,17 +12,16 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc -p tsconfig.json --noEmit --composite false",
-    "demo:basic": "node --loader ts-node/esm examples/01-basic-ipc.ts",
-    "demo:proxy": "node --loader ts-node/esm examples/02-proxy-channel.ts",
-    "demo:messageport": "node --loader ts-node/esm examples/03-messageport-ipc.ts",
-    "demo:remote": "node --loader ts-node/esm examples/04-remote-connection.ts",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "build": "bun --bun run tsc",
+    "typecheck": "bun --bun run tsc -p tsconfig.json --noEmit --composite false",
+    "demo:basic": "bun examples/01-basic-ipc.ts",
+    "demo:proxy": "bun examples/02-proxy-channel.ts",
+    "demo:messageport": "bun examples/03-messageport-ipc.ts",
+    "demo:remote": "bun examples/04-remote-connection.ts",
+    "lint": "bun --bun run oxlint",
+    "lint:fix": "bun --bun run oxlint --fix"
   },
   "devDependencies": {
-    "ts-node": "^10.9.0",
     "typescript": "^5.9.3"
   }
 }

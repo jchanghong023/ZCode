@@ -1,6 +1,6 @@
 # 测试规格：纯 Web 证据体系
 
-更新日期：2026-11-14
+更新日期：2026-11-15
 
 本仓库是浏览器前端 + 内存模拟后端（见 [项目目标](../project-goal.md)）。测试只覆盖当前存在的工程：
 `packages/*` 的浏览器、契约与 mock 服务，以及 `scripts/` 下的工程门禁工具。仓库没有桌面 app、
@@ -9,33 +9,35 @@ Agent CLI、CUA producer、Android 工程或浏览器 E2E harness；描述这些
 
 ## 1. 现行证据类型
 
-| 证据类型     | 覆盖对象                                                                  | 入口                                       |
-| ------------ | ------------------------------------------------------------------------- | ------------------------------------------ |
-| 工程 Vitest  | 明确清单中的契约、传输适配、配置加载与渲染动作等可实现纯函数/装配断言的点 | `pnpm test:engineering`                    |
-| 工程门禁测试 | 架构治理、边界、包入口、依赖扫描配置、退役证据审计等工具行为              | `pnpm test:architecture`（`node:test`）    |
-| 浏览器验收   | 保留 UI 的视觉、交互、布局与真实运行时行为                                | `pnpm dev` + 真实浏览器操作（见 §4）       |
-| 静态检查     | 类型、Lint、格式、模块边界与架构策略                                      | `pnpm typecheck` / `lint` / `fmt:check` 等 |
+| 证据类型     | 覆盖对象                                                                  | 入口                                                            |
+| ------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 工程 Vitest  | 明确清单中的契约、传输适配、配置加载与渲染动作等可实现纯函数/装配断言的点 | `bun run test:engineering`                                      |
+| 工程门禁测试 | 架构治理、边界、包入口、依赖扫描配置、退役证据审计等工具行为              | `bun run test:architecture`（Bun runner，兼容 `node:test` API） |
+| 浏览器验收   | 保留 UI 的视觉、交互、布局与真实运行时行为                                | `bun run dev` + 真实浏览器操作（见 §4）                         |
+| 静态检查     | 类型、Lint、格式、模块边界与架构策略                                      | `bun run typecheck` / `bun run lint` / `bun run fmt:check` 等   |
 
-`pnpm knip` 是诊断报告，不是门禁，也不构成删除控件或依赖的理由（见
+`bun run knip` 是诊断报告，不是门禁，也不构成删除控件或依赖的理由（见
 [依赖与导出扫描治理](dependency-governance.md)）。
 
 ## 2. 现行命令
 
-以下命令从仓库根目录执行，全部存在于 `package.json`：
+以下命令从仓库根目录执行，全部存在于 `package.json`。唯一运行时为 `mise.toml` 固定版本的 Bun；
+pnpm 只负责包管理且由 Bun 执行。Vitest 的 `forks` worker 使用当前 Bun 的 `process.execPath`，
+并显式继承 `process.execArgv`；`node:test`、`node:*` 仅是兼容 API，不启动 Node.js。
 
-| 用途             | 命令                                                                                                                                      |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 工程 Vitest 全量 | `pnpm test:engineering`                                                                                                                   |
-| 指定工程文件     | `pnpm test:engineering <文件>`                                                                                                            |
-| 受影响工程测试   | `pnpm test:engineering:affected`，可选 `--scope worktree`、`--scope push`、`--base <commit>`、`--files <files...>`、`--dry-run`、`--json` |
-| 工程门禁测试     | `pnpm test:architecture`                                                                                                                  |
-| 类型检查         | `pnpm typecheck`（根 `tsc -b` 覆盖全部 workspace 包与 `packages/shared/tsconfig.testing.json`）                                           |
-| Lint / 格式      | `pnpm lint`、`pnpm fmt:check`                                                                                                             |
-| 变更架构检查     | `pnpm architecture:check -- --changed`                                                                                                    |
-| 推送前检查       | `pnpm verify:pre-push`                                                                                                                    |
+| 用途             | 命令                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工程 Vitest 全量 | `bun run test:engineering`                                                                                                                   |
+| 指定工程文件     | `bun run test:engineering <文件>`                                                                                                            |
+| 受影响工程测试   | `bun run test:engineering:affected`，可选 `--scope worktree`、`--scope push`、`--base <commit>`、`--files <files...>`、`--dry-run`、`--json` |
+| 工程门禁测试     | `bun run test:architecture`                                                                                                                  |
+| 类型检查         | `bun run typecheck`（根 `tsc -b` 覆盖全部 workspace 包与 `packages/shared/tsconfig.testing.json`）                                           |
+| Lint / 格式      | `bun run lint`、`bun run fmt:check`                                                                                                          |
+| 变更架构检查     | `bun run architecture:check --changed`                                                                                                       |
+| 推送前检查       | `bun run verify:pre-push`                                                                                                                    |
 
 `verify:pre-push` 依次执行：工作区干净检查（`scripts/check-push-worktree.mjs`）、Lint、
-`pnpm test:architecture`、`architecture:check -- --changed`、受影响工程测试（`--scope push`）。
+`bun run test:architecture`、`architecture:check --changed`、受影响工程测试（`--scope push`）。
 `.husky/pre-push` 钩子已删除，推送前检查必须手动运行；历史机制见 [Pre-push Hook](pre-push-hook.md)。
 
 ## 3. 工程 Vitest 清单
@@ -44,7 +46,7 @@ Agent CLI、CUA producer、Android 工程或浏览器 E2E harness；描述这些
   根 `vitest.config.ts` 只注册 `engineering` 项目，`include` 直接取该清单，不做目录通配发现。
 - 清单条目必须是现存测试文件。指向已删除文件的条目属于登记缺陷：不是当前证据，必须在同一变更内移除，
   且不能用来宣称对应行为仍有覆盖。
-- 新增工程测试：先把精确路径写入清单，再运行 `pnpm test:engineering` 全量确认；只改单文件不足以证明
+- 新增工程测试：先把精确路径写入清单，再运行 `bun run test:engineering` 全量确认；只改单文件不足以证明
   清单完整。
 - 公共配置变化（`vitest.config.ts`、`vitest.setup.ts`、`package.json`、清单本身）会强制重跑整个工程套件，
   这是预期行为：受影响选择不会替代全量。
@@ -63,16 +65,16 @@ Agent CLI、CUA producer、Android 工程或浏览器 E2E harness；描述这些
 
 ## 4. 浏览器验收
 
-- 启动：`pnpm dev`（模拟后端 :3030，Vite :5173，`/api`、`/ws` 已代理），在真实浏览器打开
-  <http://localhost:5173>。也可 `pnpm dev:server` / `pnpm dev:web` 分别启动。
+- 启动：`bun run dev`（模拟后端 :3030，Vite :5173，`/api`、`/ws` 已代理），在真实浏览器打开
+  <http://localhost:5173>。也可 `bun run dev:server` / `bun run dev:web` 分别启动。
 - 验收的是**真实界面运行时行为**：相同数据下改动前后的渲染与交互一致，保留 UI 不被自有功能改动，
   仅在电脑浏览器覆盖受影响面，不进行手机屏幕适配或测试。
 - 仓库当前没有 Playwright、WebdriverIO 或桌面 E2E harness，也没有 `test:e2e` 类命令。不要声称
   E2E 已运行或通过；`docs/testing/` 中桌面 E2E、WDIO、覆盖矩阵与运行记录属于裁撤前历史证据。
 - UI 行为改动：先更新对应 spec，写明可复现的操作路径与预期结果，再实现并按该路径实际验收；交互改动
   先维护验收场景。无法执行时如实说明未执行，不以“无测试可选”当作通过。
-- 协议/模拟服务接线改动的验证仍走现有手段：`pnpm typecheck` 覆盖 schema 与装配类型，`pnpm lint` 与
-  `pnpm architecture:check -- --changed` 覆盖边界，行为层面在 `pnpm dev` 的真实浏览器中操作对应会话/
+- 协议/模拟服务接线改动的验证仍走现有手段：`bun run typecheck` 覆盖 schema 与装配类型，`bun run lint` 与
+  `bun run architecture:check --changed` 覆盖边界，行为层面在 `bun run dev` 的真实浏览器中操作对应会话/
   页面确认；仓库没有独立的协议冒烟或自动化协议脚本，不为本次改动新增。
 
 ## 5. 架构与开发规则
@@ -88,7 +90,7 @@ Agent CLI、CUA producer、Android 工程或浏览器 E2E harness；描述这些
 - `docs/testing/` 的历史覆盖矩阵、`unit-test-review/` 账本和旧运行记录中的 App 单测路径属于退役前证据，
   不表示当前仍有该覆盖；历史用例数与通过记录不改写。
 - 现行覆盖文档中的退役证据逐处写 `retired:原路径`；只有退役证据的状态行记为 unit-retired / missing，
-  混合证据保留其实际剩余覆盖。`pnpm test:architecture` 中的 `scripts/test/retired-app-unit-evidence.test.mjs`
+  混合证据保留其实际剩余覆盖。`bun run test:architecture` 中的 `scripts/test/retired-app-unit-evidence.test.mjs`
   会审计现行 coverage matrix。
 - 机器读取的自动化索引、精确路径白名单、roadmap 与派生统计只声明现行证据；不得把规划文档当作验证证据。
 - 不恢复 App 业务单测体系，包括 `packages/server` 的业务单测、`packages/*/test` 通配发现、coverage 配置和
@@ -99,8 +101,8 @@ Agent CLI、CUA producer、Android 工程或浏览器 E2E harness；描述这些
 1. 记录起点：删除/保留清单，确认产品运行时文件未被误删或改写。
 2. 架构检查器仍拒绝缺少 `module.ts` / `contract.ts` / `contract.example.ts` / `CONTRACT.md` 的模块，
    且不要求 `contract.test.ts`；生成器不删除已有测试。
-3. 改动 Vitest 清单或配置后运行 `pnpm test:engineering` 全量；改动门禁工具后运行 `pnpm test:architecture`。
-4. 按改动面运行 `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check -- --changed`；
+3. 改动 Vitest 清单或配置后运行 `bun run test:engineering` 全量；改动门禁工具后运行 `bun run test:architecture`。
+4. 按改动面运行 `bun run typecheck`、`bun run lint`、`bun run fmt:check`、`bun run architecture:check --changed`；
    涉及协议或 mock 装配时同样以这些检查和 §4 的真实浏览器操作为准；UI 行为按 §4 做浏览器验收。
 5. 未执行的检查如实报告，不能以“没有测试可选”当作通过。
 

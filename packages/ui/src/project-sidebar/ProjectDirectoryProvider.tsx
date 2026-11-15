@@ -7,15 +7,17 @@ import { useTaskGroups } from "@/project-sidebar/useTaskGroups.js";
 function useDirectoryState() {
   const result = useProjectTree();
   const groups = useTaskGroups(result.factTree);
+  const factProjects = result.factTree.projects;
   const sortedProjects = useMemo(
-    () => selectSortedProjects(result.factTree),
-    [result.factTree.projects],
+    () => selectSortedProjects({ projects: factProjects }),
+    [factProjects],
   );
   const preferences = useProjectSidebarPreferences(sortedProjects, result.loading);
+  const { sort } = preferences;
   const projects = useMemo(() => {
-    const sorted = preferences.sort(sortedProjects);
+    const sorted = sort(sortedProjects);
     return [...sorted.filter((p) => p.pinned), ...sorted.filter((p) => !p.pinned)];
-  }, [sortedProjects, preferences.order]);
+  }, [sortedProjects, sort]);
   // Context 不受消费方 memo 保护；父级更新 children 时，等价目录不能再次广播。
   return useMemo(
     () => ({ ...result, preferences, projects, groups }),

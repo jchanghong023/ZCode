@@ -64,43 +64,6 @@
     "source": "https://raw.githubusercontent.com/davidjerleke/embla-carousel/0fe65834136f1aa35e4c1a4a477e5ccb4bb5ee54/LICENSE"
   },
   {
-    "package": "@hono/node-ws@1.3.0",
-    "repo": "honojs/middleware",
-    "refs": ["2c026b9d5bfff006dc9abdc1b33c53856d2d784f"],
-    "file": "third-party/upstream/c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817.txt",
-    "sha256": "c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817",
-    "source": "https://registry.npmjs.org/@hono%2fnode-ws/1.3.0",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "MIT",
-    "reviewEvidence": {
-      "checkedOn": "2026-11-14",
-      "status": "blocked",
-      "result": "The exact 1.3.0 npm archive contains 10 files and no LICENSE, COPYING or NOTICE; only package.json declares \"license\": \"MIT\". The @hono/node-ws@1.3.0 tag resolves to 2c026b9d5bfff006dc9abdc1b33c53856d2d784f (committed and published 2026-01-07), and that tree has no LICENSE. The monorepo's first LICENSE (MIT, Copyright (c) 2022 - present, Yusuke Wada and Hono contributors) was added in commit a8e2af4d857aa7fabf290cdf6f67307678e50409 on 2026-09-29 via PR #2158; the maintainer stated in issue #2157 that it \"will be included in the npm tarball of each package from the next release\". No release has shipped since (1.3.1 is dated 2026-05-01, before the LICENSE), so the added text does not cover the published 1.3.0 artifact.",
-      "npmArchiveSha256": "48b94f87b85ca84428491d7275f0fad16450254bd49d9b2b4f621539fda8a2af",
-      "npmArchiveFileCount": 10,
-      "npmArchiveLicenseFiles": [],
-      "npmPublishedAt": "2026-01-07T02:33:52.900Z",
-      "packumentGitHead": "2c026b9d5bfff006dc9abdc1b33c53856d2d784f",
-      "releaseTag": "@hono/node-ws@1.3.0",
-      "sourceRevision": "2c026b9d5bfff006dc9abdc1b33c53856d2d784f",
-      "sourceTreeUrl": "https://api.github.com/repos/honojs/middleware/git/trees/2c026b9d5bfff006dc9abdc1b33c53856d2d784f?recursive=1",
-      "upstreamLicenseFiles": [],
-      "laterUpstreamLicense": {
-        "source": "https://raw.githubusercontent.com/honojs/middleware/a8e2af4d857aa7fabf290cdf6f67307678e50409/LICENSE",
-        "commit": "a8e2af4d857aa7fabf290cdf6f67307678e50409",
-        "committedOn": "2026-09-29",
-        "pullRequest": "https://github.com/honojs/middleware/pull/2158",
-        "maintainerStatement": "https://github.com/honojs/middleware/issues/2157",
-        "file": "third-party/upstream/6895190430d809c4c57a7582ecc2f99acbc2ea39a5dfad20262a41d5b3e91733.txt",
-        "sha256": "6895190430d809c4c57a7582ecc2f99acbc2ea39a5dfad20262a41d5b3e91733",
-        "bytes": 1101,
-        "copyright": "Copyright (c) 2022 - present, Yusuke Wada and Hono contributors",
-        "applicability": "Not applicable to 1.3.0: added after the release, and the maintainer says it will ship only from the next release. Retained as evidence only, never as version-specific notice text."
-      },
-      "requiredMaterial": "A complete MIT text naming the copyright holder that covers the published 1.3.0 tarball, or a release that ships the new LICENSE together with an upgrade of this dependency."
-    }
-  },
-  {
     "package": "lru_map@0.4.1",
     "file": "third-party/upstream/0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a.txt",
     "sha256": "0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a",

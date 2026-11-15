@@ -2,7 +2,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 import { pathToFileURL } from "node:url";
-import { tsImport } from "tsx/esm/api";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
@@ -46,12 +45,11 @@ export async function loadBuiltinProviderConfig({ root = repositoryRoot, env = p
   try {
     const content = await readFile(sourcePath, "utf8");
     // 构建期复用运行时的完整 Release 校验，避免打包成功后才发现 Schema 不兼容。
-    // tsx 仅供构建工具加载仓库 TS，不进入产品 bundle，也不复制一份校验规则。
+    // Bun 原生加载仓库 TS，不需要额外 loader，也不复制一份校验规则。
     // Windows 绝对路径的盘符会被 ESM 当作协议，转为 file URL 后各平台共用同一加载入口。
-    const { decodeZCodeBuiltinRelease } = await tsImport(
+    const { decodeZCodeBuiltinRelease } = await import(
       pathToFileURL(resolve(repositoryRoot, "packages/provider-node/src/zcode-builtin-release.ts"))
-        .href,
-      import.meta.url,
+        .href
     );
     decodeZCodeBuiltinRelease(JSON.parse(content));
     return { environment, sourcePath, content };

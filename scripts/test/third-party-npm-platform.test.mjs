@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { delimiter, dirname } from "node:path";
 import { test } from "node:test";
 
 import {
@@ -8,6 +10,8 @@ import {
   productionPackages,
   readLockfilePlatformConstraints,
 } from "../third-party-npm.mjs";
+import { resolveSpawnCommand } from "../spawn-command.mjs";
+import { withPinnedBunPath } from "../mise-toolchain-env.mjs";
 
 const LOCKFILE = `lockfileVersion: '9.0'
 
@@ -63,6 +67,44 @@ test("锁图查询强制使用 pnpm lockfile-only 模式", () => {
     createPnpmLockfileOnlyEnv({ NPM_CONFIG_LOCKFILE_ONLY: "false" }).NPM_CONFIG_LOCKFILE_ONLY,
     "true",
   );
+});
+
+test("包管理器始终由当前 Bun 执行，pnpm 绕过系统 shim 并使用 packageManager 固定版本", () => {
+  assert.ok(process.versions.bun, "engineering tests must run under Bun");
+  const { packageManager } = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  for (const platform of ["win32", "linux"]) {
+    for (const name of ["pnpm", "pnpm.cmd"]) {
+      assert.deepEqual(resolveSpawnCommand(name, ["--version"], platform), {
+        command: process.execPath,
+        args: ["x", "--bun", "--package", packageManager, "pnpm", "--version"],
+        options: { shell: false },
+      });
+    }
+    assert.deepEqual(resolveSpawnCommand("npm", ["--version"], platform), {
+      command: process.execPath,
+      args: ["--bun", "run", "npm", "--version"],
+      options: { shell: false },
+    });
+  }
+  assert.deepEqual(resolveSpawnCommand(process.execPath, ["script.mjs"]), {
+    command: process.execPath,
+    args: ["script.mjs"],
+    options: { shell: false },
+  });
+});
+
+test("mise 子进程将当前 Bun 目录置首并保留 Windows Path 及已有工具目录", () => {
+  const directory = dirname(process.execPath);
+  const result = withPinnedBunPath(
+    { Path: ["other-tools", directory, "more-tools"].join(delimiter), KEEP: "value" },
+    process.execPath,
+  );
+  assert.deepEqual(result, {
+    Path: [directory, "other-tools", "more-tools"].join(delimiter),
+    KEEP: "value",
+  });
 });
 
 test("安装快照与根 lockfile 内容一致即通过，换行风格差异不算漂移", () => {

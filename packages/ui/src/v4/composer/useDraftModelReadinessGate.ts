@@ -51,7 +51,10 @@ export function useDraftModelReadinessGate(params: {
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const enabled = sessionId === null && isZCodeAgentProvider(displayProvider);
   const gateKey = `${workspaceKey}\u0000${displayProvider}`;
-  const scope = useMemo(() => ({ gateKey }), [enabled, gateKey, modelSelectionService]);
+  const scope = useMemo(
+    () => ({ enabled, gateKey, modelSelectionService }),
+    [enabled, gateKey, modelSelectionService],
+  );
   const [state, setState] = useState<DraftModelReadinessState>(() => ({
     scope,
     status: enabled ? "checking" : "ready",

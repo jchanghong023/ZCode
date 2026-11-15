@@ -258,7 +258,7 @@ export async function audit(baseRef, headRef, runDirectory) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   if (process.argv.length !== 5)
     throw new Error(
-      "Usage: node scripts/marketing-touch-coverage-audit.mjs <base> <head> <run-dir>",
+      "Usage: bun scripts/marketing-touch-coverage-audit.mjs <base> <head> <run-dir>",
     );
   console.log(JSON.stringify(await audit(...process.argv.slice(2)), null, 2));
 }

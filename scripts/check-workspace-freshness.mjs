@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // 开工前基线新鲜度检查 —— 当前分支落后自己的远端、或（非特性分支时）落后
 // origin/main 超阈值，直接失败，防止在旧架构上分析、写测试、修已经消失的问题。
 //
@@ -12,7 +12,7 @@
 //   3) ahead>0（特性/MR 分支）且落后 origin/main 超阈值 → 警告不失败：分叉是正常的，
 //      但数字会打出来，由你决定是否 rebase（有未合并的草稿变更时不要盲目 rebase）。
 //
-// 用法：node scripts/check-workspace-freshness.mjs [--max-behind-main 50] [--no-fetch]
+// 用法：bun scripts/check-workspace-freshness.mjs [--max-behind-main 50] [--no-fetch]
 
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";

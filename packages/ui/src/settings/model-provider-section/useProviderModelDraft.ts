@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ModelConfigObject, ModelConfigResolution } from "@zcode/provider";
 import type { ProviderSettingsFormModel } from "@/lib/providerSettingsFormTypes.js";
 import {
@@ -36,12 +36,16 @@ export function useProviderModelDraft({
   }
   const resolveRef = useRef(resolve);
   resolveRef.current = resolve;
-  const resolveRecommended = useCallback(
-    (id: string) => {
-      if (!resolveRef.current) throw new Error("Model Config Resolution 未配置");
-      // 公共草稿持有个人意图；只向 Host 取推荐基线，不用半有效表单拼装第二份 Overlay。
-      return resolveRef.current(id, {});
-    },
+  // 解析器身份属于供应商 scope；即使新供应商的模型 ID 相同也必须重建解析代次。
+  const recommendationSource = useMemo(
+    () => ({
+      scopeKey,
+      resolve: (id: string) => {
+        if (!resolveRef.current) throw new Error("Model Config Resolution 未配置");
+        // 公共草稿持有个人意图；只向 Host 取推荐基线，不用半有效表单拼装第二份 Overlay。
+        return resolveRef.current(id, {});
+      },
+    }),
     [scopeKey],
   );
   const smart = rawDraft.useRecommendedConfigValue !== false;
@@ -54,7 +58,7 @@ export function useProviderModelDraft({
     enabled: smart,
     modelId: rawDraft.idValue,
     originalModelId,
-    resolve: resolve ? resolveRecommended : undefined,
+    resolve: resolve ? recommendationSource.resolve : undefined,
   });
   const modelWithResolution = (
     resolution: ModelConfigResolution | null | undefined,

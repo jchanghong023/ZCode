@@ -64,11 +64,10 @@ function ProjectManagementContent() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
   // 「最近活动」与疑似原因按目录版本取一次当前时间，渲染之间保持稳定。
-  const now = useMemo(() => Date.now(), [state.tree]);
-  const rows = useMemo(
-    () => buildProjectManagementRows({ tree: state.tree, now }),
-    [state.tree, now],
-  );
+  const { rows, now } = useMemo(() => {
+    const now = Date.now();
+    return { rows: buildProjectManagementRows({ tree: state.tree, now }), now };
+  }, [state.tree]);
   const unused = useMemo(() => summarizeUnusedProjects(rows), [rows]);
   const visible = useMemo(
     () => selectProjectManagementRows(rows, { query, filter, sort }),

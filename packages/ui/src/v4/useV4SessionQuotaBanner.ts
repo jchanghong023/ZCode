@@ -79,6 +79,7 @@ export function useV4SessionQuotaBanner(params: {
       isStartPlanProvider ? activeProviderId! : "",
     ),
   });
+  const refreshEntitlement = entitlement.refresh;
   const reminderVersion = useSyncExternalStore(
     startPlanQuotaReminderStore.subscribe,
     startPlanQuotaReminderStore.getSnapshot,
@@ -89,9 +90,11 @@ export function useV4SessionQuotaBanner(params: {
     () => ({ sessionId: params.sessionId, activeProviderId, modelId }),
     [params.sessionId, activeProviderId, modelId],
   );
-  const state = useMemo(
-    () =>
-      buildSessionQuotaBannerState({
+  // 隐藏状态由 reminder store 持有；版本变化必须使同一展示实例重新裁决。
+  const { state } = useMemo(
+    () => ({
+      reminderVersion,
+      state: buildSessionQuotaBannerState({
         activeProviderId,
         snapshot: entitlement.snapshot,
         modelId,
@@ -115,6 +118,7 @@ export function useV4SessionQuotaBanner(params: {
           ? { mcpUnavailableNotice: params.mcpUnavailableNotice }
           : {}),
       }),
+    }),
     [
       activeProviderId,
       reminderOwner,
@@ -173,9 +177,9 @@ export function useV4SessionQuotaBanner(params: {
     if (!isStartPlanProvider || previousPhase === params.phase) return;
     if (isRunningPhase(previousPhase) !== isRunningPhase(params.phase)) {
       // 任务开始会预占额度，终止会扣减或释放；必须绕过普通 freshness 校正一次。
-      void entitlement.refresh({ force: true, silent: true, reason: "manual" });
+      void refreshEntitlement({ force: true, silent: true, reason: "manual" });
     }
-  }, [entitlement.refresh, isStartPlanProvider, params.phase]);
+  }, [refreshEntitlement, isStartPlanProvider, params.phase]);
 
   const modelRefreshInitializedRef = useRef(false);
   const previousModelKeyRef = useRef<string | null>(null);
@@ -188,9 +192,9 @@ export function useV4SessionQuotaBanner(params: {
       return;
     }
     if (nextKey && nextKey !== previousKey) {
-      void entitlement.refresh({ reason: "initial" });
+      void refreshEntitlement({ reason: "initial" });
     }
-  }, [activeProviderId, entitlement.refresh, isStartPlanProvider, modelId]);
+  }, [activeProviderId, refreshEntitlement, isStartPlanProvider, modelId]);
 
   const dismiss = useCallback(() => {
     if (state.reminderKey) {

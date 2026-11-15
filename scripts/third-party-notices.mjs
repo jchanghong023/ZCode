@@ -24,13 +24,13 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
     } catch (error) {
       // 登记输入已从工作区删除时也不能当作“已退役”跳过，必须重新生成清单。
       throw new Error(
-        `Third-party input is missing: ${file}. Run node scripts/licenses.mjs notices`,
+        `Third-party input is missing: ${file}. Run bun scripts/licenses.mjs notices`,
         { cause: error },
       );
     }
     // 工作区文本允许 Windows checkout 的 CRLF；原始许可和发行声明另用字节哈希校验。
     if (hash(text.replaceAll("\r\n", "\n")) !== expected) {
-      throw new Error(`Third-party input changed: ${file}. Run node scripts/licenses.mjs notices`);
+      throw new Error(`Third-party input changed: ${file}. Run bun scripts/licenses.mjs notices`);
     }
   }
   if (requireComplete && !Array.isArray(manifest.reviewRequired))

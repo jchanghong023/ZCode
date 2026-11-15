@@ -38,27 +38,7 @@ import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
 import { TaskTitleOverflowText } from "@/components/TaskTitleOverflowText.js";
 
-function GroupedTaskRowComponent({
-  task,
-  currentGroupId,
-  groups,
-  remoteSessionId,
-  isActive,
-  isMobileActive,
-  workspaceLabel,
-  onSelectTask,
-  onCloseTask,
-  onOpenFileTree,
-  onMoveTaskToGroup,
-  onMoveTaskToTop,
-  onStartRenameTask,
-  onArchiveTask,
-  onMarkTaskAsUnread,
-  dragId,
-  dragging,
-  dragOverlay,
-  tooltipsDisabled,
-}: {
+type GroupedTaskRowProps = {
   task: ZCodeTaskMeta;
   currentGroupId?: string;
   groups: TaskGroupMenuItem[];
@@ -78,7 +58,15 @@ function GroupedTaskRowComponent({
   dragging?: boolean;
   dragOverlay?: boolean;
   tooltipsDisabled?: boolean;
-}) {
+};
+
+function useTaskRowPresentation({
+  task,
+  remoteSessionId,
+  isActive,
+  onOpenFileTree,
+  dragOverlay,
+}: GroupedTaskRowProps) {
   const { intl } = useZCodeIntl();
   const workspaceActionsDisabled = useOptionalTabStore((state) =>
     isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
@@ -149,8 +137,44 @@ function GroupedTaskRowComponent({
         }}
       />
     ) : null;
+  return {
+    intl,
+    workspaceActionsDisabled,
+    workspaceActionsDisabledReason,
+    snoozeInteractionAutoResolution,
+    workspaceKey,
+    hasPendingInteraction,
+    canOpenFileTree,
+    taskAttentionDisplay,
+    leadingIndicator,
+    taskTitle,
+    taskTimeLabel,
+    isTaskCron,
+    isTaskOffPeak,
+    worktreeLabel,
+    statusDotClassName,
+    canShowHoverActions,
+    workflowRunLinesNode,
+  };
+}
 
-  const taskRow = (
+function GroupedTaskRowPreview(props: GroupedTaskRowProps) {
+  const { task, isMobileActive, isActive, dragging, dragOverlay } = props;
+  const {
+    intl,
+    snoozeInteractionAutoResolution,
+    hasPendingInteraction,
+    taskAttentionDisplay,
+    leadingIndicator,
+    taskTitle,
+    taskTimeLabel,
+    isTaskCron,
+    isTaskOffPeak,
+    statusDotClassName,
+    canShowHoverActions,
+  } = useTaskRowPresentation(props);
+
+  return (
     <div
       role={dragOverlay ? undefined : "button"}
       tabIndex={dragOverlay ? undefined : 0}
@@ -224,9 +248,47 @@ function GroupedTaskRowComponent({
       </span>
     </div>
   );
+}
 
-  // DragOverlay 高频渲染时只返回纯展示节点，避免隐藏 action tooltip 的 Radix ref 循环和 task 路径 RPC。
-  if (dragOverlay) return taskRow;
+function GroupedTaskRowInteraction(props: GroupedTaskRowProps) {
+  const {
+    task,
+    currentGroupId,
+    groups,
+    remoteSessionId,
+    isActive,
+    isMobileActive,
+    workspaceLabel,
+    onSelectTask,
+    onCloseTask,
+    onOpenFileTree,
+    onMoveTaskToGroup,
+    onMoveTaskToTop,
+    onStartRenameTask,
+    onArchiveTask,
+    onMarkTaskAsUnread,
+    dragId,
+    dragging,
+    tooltipsDisabled,
+  } = props;
+  const {
+    intl,
+    workspaceActionsDisabled,
+    workspaceActionsDisabledReason,
+    snoozeInteractionAutoResolution,
+    workspaceKey,
+    hasPendingInteraction,
+    canOpenFileTree,
+    taskAttentionDisplay,
+    leadingIndicator,
+    taskTitle,
+    taskTimeLabel,
+    isTaskCron,
+    isTaskOffPeak,
+    worktreeLabel,
+    statusDotClassName,
+    workflowRunLinesNode,
+  } = useTaskRowPresentation(props);
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [taskRowHovered, setTaskRowHovered] = useState(false);
@@ -298,7 +360,7 @@ function GroupedTaskRowComponent({
     event.preventDefault();
     handleSelect();
   };
-  const dragDisabled = workspaceActionsDisabled || !dragId || contextMenuOpen || dragOverlay;
+  const dragDisabled = workspaceActionsDisabled || !dragId || contextMenuOpen;
   const draggable = useDraggable({
     id: dragId ?? `disabled:${workspaceKey}:${task.taskId}`,
     disabled: dragDisabled,
@@ -306,7 +368,7 @@ function GroupedTaskRowComponent({
   });
   const droppable = useDroppable({
     id: dragId ?? `disabled-drop:${workspaceKey}:${task.taskId}`,
-    disabled: workspaceActionsDisabled || !dragId || dragOverlay,
+    disabled: workspaceActionsDisabled || !dragId,
     data: { type: "grouped-task", taskKey: dragId },
   });
 
@@ -481,6 +543,16 @@ function GroupedTaskRowComponent({
         />
       ) : null}
     </ContextMenu>
+  );
+}
+
+function GroupedTaskRowComponent(props: GroupedTaskRowProps) {
+  // 原因：同一组件在预览分支提前返回会改变 Hook 数量；独立子组件保留固定顺序，
+  // 且预览不挂载菜单、拖拽注册或任务路径请求，避免高频拖拽触发 Radix ref 循环。
+  return props.dragOverlay ? (
+    <GroupedTaskRowPreview {...props} />
+  ) : (
+    <GroupedTaskRowInteraction {...props} />
   );
 }
 export const GroupedTaskRow = memo(GroupedTaskRowComponent);

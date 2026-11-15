@@ -6,26 +6,22 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/entry-http.ts",
-    "build": "tsup",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "dev": "cd ../.. && bun --watch packages/server/src/entry-http.ts",
+    "start": "bun dist/entry-http.js",
+    "build": "bun build --target=bun --outdir=dist ./src/entry-http.ts",
+    "lint": "bun --bun run oxlint",
+    "lint:fix": "bun --bun run oxlint --fix"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.11",
-    "@hono/node-ws": "^1.3.0",
     "@zcode/provider": "workspace:*",
     "@zcode/rpc": "workspace:*",
     "@zcode/services": "workspace:*",
     "@zcode/shared": "workspace:*",
-    "hono": "^4.12.9",
-    "ws": "^8.20.0"
+    "hono": "^4.12.9"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.4",
     "@types/node": "^25.5.0",
-    "@types/ws": "^8.18.1",
-    "tsup": "^8.4.0",
-    "tsx": "^4.19.4",
     "typescript": "^6.0.2"
   }
 }

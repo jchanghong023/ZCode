@@ -43,7 +43,11 @@ export function useProjectTree() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const serial = useRef(0);
-  const reads = useMemo(() => ({ flight: null as Promise<void> | null, dirty: false }), [service]);
+  // 每代服务拥有独立 single-flight；切换服务不能复用旧请求。
+  const reads = useMemo(
+    () => ({ service, flight: null as Promise<void> | null, dirty: false }),
+    [service],
+  );
   const pendingCommits = useRef(
     new Set<{
       target: ProjectTaskRef;
@@ -254,7 +258,8 @@ export function useProjectTree() {
   const scopeKey = JSON.stringify(scopes);
   useProjectUnreadSignals(scopes, refresh);
   const observeSources = useCallback(async () => {
-    if (!registry || !scopes.length) return;
+    const workspaceScopes = JSON.parse(scopeKey) as typeof scopes;
+    if (!registry || !workspaceScopes.length) return;
     // 原来活动 revision 反复注册观察并重读目录；观察只随 scope 换代。
     // 返回行不进入项目树，显式刷新仍能重试失败的注册。
     await registry
@@ -266,7 +271,7 @@ export function useProjectTree() {
         },
         {
           kind: "timeline",
-          workspaceScopes: JSON.parse(scopeKey),
+          workspaceScopes,
           sortBy: "updated",
           limit: 0,
         },
@@ -286,7 +291,8 @@ export function useProjectTree() {
     return () => window.removeEventListener("focus", onFocus);
   }, [refreshDirectory]);
   useEffect(() => {
-    const subscriptions = (registry ? [] : scopes).map((scope) =>
+    const subscribedScopes = JSON.parse(scopeKey) as typeof scopes;
+    const subscriptions = (registry ? [] : subscribedScopes).map((scope) =>
       services.zcodeTaskService.onDynamicWorkspaceEvent(scope)((event) => {
         if (event.type === "workspace_task_list_changed") void refresh();
       }),
@@ -303,9 +309,14 @@ export function useProjectTree() {
   }, [scopeKey, services, projectChanges, refresh, registry]);
   const activity = useWorkspaceSessionsIndexItems(registry ? [] : scopes);
   const lastDisplay = useRef<ProjectTree>(EMPTY);
+  // 将外部可变注册表的版本与本轮快照配对，活动更新不能因 tree 引用未变而遗漏。
+  const registryActivity = useMemo(
+    () => ({ revision, rows: registry?.readActivities() }),
+    [registry, revision],
+  );
   const displayedTree = useMemo(() => {
-    const activities = registry
-      ? registry.readActivities()
+    const activities = registryActivity.rows
+      ? registryActivity.rows
       : activity.items.flatMap((task) => {
           const live = getTaskListRowActivity(task);
           return live
@@ -324,7 +335,7 @@ export function useProjectTree() {
     const next = applyProjectTaskActivities(tree, activities);
     lastDisplay.current = stabilizeProjectTree(lastDisplay.current, next);
     return lastDisplay.current;
-  }, [tree, activity.items, registry, revision]);
+  }, [tree, activity.items, registryActivity]);
   return useMemo(
     () => ({
       tree: displayedTree,

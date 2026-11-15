@@ -274,7 +274,7 @@ export function useAppPanels(options: {
       sidePaneOwnerIdRef.current,
       false,
     );
-  }, []);
+  }, [setIsSidePaneCollapsed]);
 
   const commitSidePaneState = useCallback(
     (updater: (current: WorkspaceSidePaneState | null) => WorkspaceSidePaneState | null) => {
@@ -300,7 +300,7 @@ export function useAppPanels(options: {
       setSidePaneState(next);
       return next;
     },
-    [currentSidePaneScope],
+    [currentSidePaneScope, setIsSidePaneCollapsed],
   );
 
   const commitOpenedSidePaneState = useCallback(
@@ -368,7 +368,7 @@ export function useAppPanels(options: {
       restored.isSidePaneCollapsed;
     setIsSidePaneCollapsed(collapsed);
     commitSidePaneState(() => (moved ? moved.next : restored.sidePaneState));
-  }, [commitSidePaneState, sidePaneMemoryKey]);
+  }, [commitSidePaneState, setIsSidePaneCollapsed, sidePaneMemoryKey]);
 
   const markSidePaneDraftPromotion = useCallback((sessionId: string) => {
     pendingDraftPromotionRef.current = sessionId;
@@ -473,6 +473,7 @@ export function useAppPanels(options: {
     activeTaskId,
     activeWorkspaceKey,
     commitSidePaneState,
+    setIsSidePaneCollapsed,
     sidePaneOwnerId,
     pluginUiTarget.sessionId,
     pluginUiWorkspaceKey,
@@ -942,7 +943,7 @@ export function useAppPanels(options: {
         workspaceKey,
       });
     },
-    [commitOpenedSidePaneState],
+    [commitOpenedSidePaneState, setIsSidePaneCollapsed],
   );
 
   const handleOpenWorkflowRunDirectory = useCallback(
@@ -960,7 +961,7 @@ export function useAppPanels(options: {
         workspaceKey,
       });
     },
-    [commitOpenedSidePaneState],
+    [commitOpenedSidePaneState, setIsSidePaneCollapsed],
   );
 
   const handleOpenWorkflowActorSession = useCallback(
@@ -980,7 +981,7 @@ export function useAppPanels(options: {
         workspaceKey,
       });
     },
-    [commitOpenedSidePaneState],
+    [commitOpenedSidePaneState, setIsSidePaneCollapsed],
   );
 
   const handleOpenWorkflowWorkspace = useCallback(
@@ -1000,7 +1001,7 @@ export function useAppPanels(options: {
         workspaceKey,
       });
     },
-    [commitOpenedSidePaneState],
+    [commitOpenedSidePaneState, setIsSidePaneCollapsed],
   );
 
   // 内嵌浏览器已移除，html 产物同样落产物 tab；产物卡只提供「在工作区显示」。
@@ -1021,7 +1022,7 @@ export function useAppPanels(options: {
         workspaceKey,
       });
     },
-    [commitOpenedSidePaneState],
+    [commitOpenedSidePaneState, setIsSidePaneCollapsed],
   );
 
   const closeSelectionSideChatRuntime = useCallback(
@@ -1161,7 +1162,7 @@ export function useAppPanels(options: {
       const next = closeCodeViewerSidePane(current);
       return next;
     });
-  }, [commitSidePaneState, currentSidePaneScope, setIsSidePaneCollapsed, workspaceAbsPath]);
+  }, [commitSidePaneState, workspaceAbsPath]);
 
   const handleCloseGit = useCallback(() => {
     logger.info(`[App] 关闭右侧面板 mode=git workspace=${workspaceAbsPath}`);
@@ -1169,7 +1170,7 @@ export function useAppPanels(options: {
       const next = closeGitSidePane(current);
       return next;
     });
-  }, [commitSidePaneState, currentSidePaneScope, setIsSidePaneCollapsed, workspaceAbsPath]);
+  }, [commitSidePaneState, workspaceAbsPath]);
 
   const handleActivateSidePaneTab = useCallback(
     (tabId: string) => {

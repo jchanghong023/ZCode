@@ -362,19 +362,23 @@ export function InlineEditableProviderCard({
     [],
   );
 
-  const persistModelOrder = useCallback(
-    async (modelIds: readonly string[]) => {
-      const target = reorderModelIdsTargetRef.current;
-      if (!target) throw new Error("当前设置入口未装配 Model 调序能力");
-      await runSaveOperation(async () => {
-        await target([...modelIds]);
-      });
-    },
+  // 调序队列以 persist 身份划分 owner；同模型集合切换供应商也必须丢弃旧 pending。
+  const modelOrderOwner = useMemo(
+    () => ({
+      providerId: provider.providerId,
+      persist: async (modelIds: readonly string[]) => {
+        const target = reorderModelIdsTargetRef.current;
+        if (!target) throw new Error("当前设置入口未装配 Model 调序能力");
+        await runSaveOperation(async () => {
+          await target([...modelIds]);
+        });
+      },
+    }),
     [provider.providerId, runSaveOperation],
   );
   const optimisticModelOrder = useOptimisticReorder({
     authoritativeIds: authoritativeModelIds,
-    persist: persistModelOrder,
+    persist: modelOrderOwner.persist,
   });
 
   // 成员与配置只有 Host View 一份事实。旧本地副本在异步成功/失败时会覆盖新 View，
@@ -468,10 +472,12 @@ export function InlineEditableProviderCard({
   };
 
   useEffect(() => {
+    // 清理要读取卸载时的删除意图，不能在挂载时快照成 false 后重新保存已删除供应商。
+    const isDeleteRequested = () => deleteRequestedRef.current;
     return () => {
       cancelIdleDraftSave();
       const cleanupAction = resolveProviderDraftCleanupAction({
-        deleteRequested: deleteRequestedRef.current,
+        deleteRequested: isDeleteRequested(),
       });
       if (cleanupAction === "skip-delete") {
         // 确认删除会触发详情卡片卸载；如果 cleanup 继续补保存草稿，

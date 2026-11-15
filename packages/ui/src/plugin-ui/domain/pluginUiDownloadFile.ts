@@ -47,7 +47,9 @@ function lastPathSegment(uri: string): string {
 /** 去掉路径分隔与控制字符，长度限制与桌面 saveFile 的 basename 截断一致（120）。 */
 export function sanitizePluginUiDownloadFileName(name: string): string {
   return name
-    .replace(/[\\/\u0000-\u001f]/g, "_")
+    .replace(/[\\/\p{Cc}]/gu, (character) =>
+      character.charCodeAt(0) < 32 || character === "\\" || character === "/" ? "_" : character,
+    )
     .replace(/^\.+/, "")
     .trim()
     .slice(0, 120);
