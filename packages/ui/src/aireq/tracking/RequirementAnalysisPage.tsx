@@ -1,6 +1,6 @@
 import { AnalysisRunConfirmation } from "./AnalysisRunConfirmation.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Settings2 } from "lucide-react";
+import { Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
@@ -308,7 +308,7 @@ function ConnectedProgressAnalysis({
   );
   return (
     <section className="min-w-0 space-y-3" data-testid="aireq-requirement-analysis">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-1">
         <div className="flex flex-wrap items-center gap-3 text-ui-sm">
           <Label htmlFor="analysis-enabled">自动分析</Label>
           <Switch
@@ -328,7 +328,7 @@ function ConnectedProgressAnalysis({
           <span className="tabular-nums text-foreground-subtle" title={time(snapshot.nextCheckAt)}>
             下次检查 {shortTime(snapshot.nextCheckAt)}
           </span>
-          <Badge variant="outline">{runningCount} 个运行中</Badge>
+          <span className="tabular-nums text-foreground-subtle">{runningCount} 个运行中</span>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
           <Settings2 aria-hidden="true" className="size-4" />
@@ -374,16 +374,86 @@ function ConnectedProgressAnalysis({
         mutate={mutate}
       />
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
-      <section aria-label="分析任务与执行历史" className="min-w-0 rounded-xl border border-border">
+      <section aria-label="分析任务与执行历史" className="min-w-0">
         <Tabs
           value={tab}
           onValueChange={(value) => {
             setTab(value);
             setSelectedRunId(undefined);
           }}
-          className="min-w-0 gap-0"
+          className="min-w-0 gap-3"
         >
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-3 pt-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative min-w-56 flex-1">
+              <Label htmlFor="analysis-sr-search" className="sr-only">
+                搜索 SR（任务与历史）
+              </Label>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-foreground-subtle"
+              />
+              <Input
+                id="analysis-sr-search"
+                className="h-9 rounded-lg bg-surface pl-9"
+                placeholder="搜索 SR 名称或编号"
+                value={srSearch}
+                onChange={(event) => {
+                  setSrSearch(event.target.value);
+                  resetAnalysisPages();
+                }}
+              />
+            </div>
+            <FilterSelect
+              id="analysis-project"
+              label="项目"
+              triggerClassName="rounded-lg bg-surface"
+              value={projectId}
+              onChange={(value) => {
+                setProjectId(value);
+                setIrId("all");
+                resetAnalysisPages();
+              }}
+            >
+              <SelectItem value="all">全部项目</SelectItem>
+              {snapshot.projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              id="analysis-ir"
+              label="IR"
+              triggerClassName="rounded-lg bg-surface"
+              value={irId}
+              onChange={(value) => {
+                setIrId(value);
+                resetAnalysisPages();
+              }}
+            >
+              <SelectItem value="all">全部 IR</SelectItem>
+              {irs.map((ir) => (
+                <SelectItem key={`${ir.projectId}-${ir.id}`} value={ir.id}>
+                  {ir.id} · {ir.title}
+                </SelectItem>
+              ))}
+            </FilterSelect>
+            {(projectId !== "all" || irId !== "all" || srSearch) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setProjectId("all");
+                  setIrId("all");
+                  setSrSearch("");
+                  resetAnalysisPages();
+                }}
+              >
+                清除范围筛选
+              </Button>
+            )}
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <TabsList aria-label="进度分析列表">
               <TabsTrigger value="tasks" aria-label="SR 任务">
                 SR 任务{" "}
@@ -421,70 +491,6 @@ function ConnectedProgressAnalysis({
               </Button>
             )}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2 p-3">
-            <FilterSelect
-              id="analysis-project"
-              label="项目"
-              value={projectId}
-              onChange={(value) => {
-                setProjectId(value);
-                setIrId("all");
-                resetAnalysisPages();
-              }}
-            >
-              <SelectItem value="all">全部项目</SelectItem>
-              {snapshot.projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              id="analysis-ir"
-              label="IR"
-              value={irId}
-              onChange={(value) => {
-                setIrId(value);
-                resetAnalysisPages();
-              }}
-            >
-              <SelectItem value="all">全部 IR</SelectItem>
-              {irs.map((ir) => (
-                <SelectItem key={`${ir.projectId}-${ir.id}`} value={ir.id}>
-                  {ir.id} · {ir.title}
-                </SelectItem>
-              ))}
-            </FilterSelect>
-            <div className="min-w-56 flex-1">
-              <Label htmlFor="analysis-sr-search" className="sr-only">
-                搜索 SR（任务与历史）
-              </Label>
-              <Input
-                id="analysis-sr-search"
-                className="h-9"
-                placeholder="搜索 SR 名称或编号"
-                value={srSearch}
-                onChange={(event) => {
-                  setSrSearch(event.target.value);
-                  resetAnalysisPages();
-                }}
-              />
-            </div>
-            {(projectId !== "all" || irId !== "all" || srSearch) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setProjectId("all");
-                  setIrId("all");
-                  setSrSearch("");
-                  resetAnalysisPages();
-                }}
-              >
-                清除范围筛选
-              </Button>
-            )}
-          </div>
           {tab === "tasks" && (
             <QueryFeedback
               loading={taskQuery.loading}
@@ -494,7 +500,7 @@ function ConnectedProgressAnalysis({
             />
           )}
           {tab === "tasks" && taskResult && (
-            <TabsContent value="tasks" className="m-0 min-w-0 flex-none">
+            <TabsContent value="tasks" className="m-0 min-w-0 flex-none rounded-xl border border-border bg-surface">
               <AnalysisTaskTable
                 items={taskResult.items}
                 projects={snapshot.projects}
@@ -525,12 +531,13 @@ function ConnectedProgressAnalysis({
             </TabsContent>
           )}
           {tab === "history" && (
-            <TabsContent value="history" className="m-0 min-w-0 flex-none">
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-3 py-2">
+            <TabsContent value="history" className="m-0 min-w-0 flex-none space-y-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <FilterSelect
                   id="analysis-history-status"
                   label="历史状态"
                   className="w-36"
+                  triggerClassName="rounded-lg bg-surface"
                   value={historyStatus}
                   onChange={(value) => {
                     setHistoryStatus(value);
@@ -550,7 +557,7 @@ function ConnectedProgressAnalysis({
                 <Input
                   id="analysis-since"
                   aria-label="开始时间（含）"
-                  className="h-9 w-48"
+                  className="h-9 w-48 rounded-lg bg-surface"
                   type="datetime-local"
                   value={since}
                   onChange={(event) => {
@@ -564,7 +571,7 @@ function ConnectedProgressAnalysis({
                 <Input
                   id="analysis-until"
                   aria-label="结束时间（含）"
-                  className="h-9 w-48"
+                  className="h-9 w-48 rounded-lg bg-surface"
                   type="datetime-local"
                   value={until}
                   onChange={(event) => {
@@ -600,7 +607,7 @@ function ConnectedProgressAnalysis({
               />
               {historyResult && (
                 <>
-                  <div className="min-w-0">
+                  <div className="min-w-0 rounded-xl border border-border bg-surface">
                     <AnalysisHistoryTable
                       items={historyResult.items}
                       projects={snapshot.projects}

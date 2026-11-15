@@ -24,7 +24,7 @@ import {
 import { useAIReq } from "../../AIReqContext.js";
 import { useAIReqDataSource } from "../../data-source.js";
 import { getEmployeeId } from "../../identity.js";
-import { AssignOwner, AIReqPlanningSummary } from "../RequirementPlanning.js";
+import { AIReqPlanningSummary } from "../RequirementPlanning.js";
 import { ProgressStatusBadge, ProgressValue } from "./ProgressDisplay.js";
 import { BranchCopy } from "../BranchCopy.js";
 
@@ -54,7 +54,7 @@ function ConfirmProgress({
     Boolean(source.progress) &&
     (getEmployeeId() === "j00808874" || getEmployeeId() === group.ownerEmployeeId);
   const blocker = !canEdit
-    ? "仅正式管理员或当前 IR 负责人可人工确认完成。"
+    ? "当前工号没有人工确认完成权限。"
     : srCompletionBlocker(sr);
   return (
     <>
@@ -202,10 +202,6 @@ export function AIReqFormalReport() {
             <Badge variant="outline">{hasAnalysis ? "进度分析报告" : "尚未分析"}</Badge>
           </div>
           <h1 className="text-ui-lg font-semibold">{title}</h1>
-          <div className="flex flex-wrap items-center gap-2 text-ui-sm">
-            <span className="text-foreground-subtle">需求负责人</span>
-            <AssignOwner group={group} />
-          </div>
           <ProgressValue
             value={percent}
             label={title}

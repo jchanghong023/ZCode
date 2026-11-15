@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { MoreHorizontal } from "lucide-react";
 import type {
   AIReqAnalysisSnapshot,
   AIReqAnalysisTask,
@@ -24,7 +25,6 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { BranchCopy } from "../BranchCopy.js";
 import { TrackingTableScroll } from "../TrackingTableScroll.js";
 import {
-  cellClass,
   tableClass,
   RowLabel,
   Status,
@@ -33,6 +33,9 @@ import {
   runLabels,
   taskLabels,
 } from "./AnalysisPresentation.js";
+
+const cellClass = "px-4 py-3 text-left align-middle";
+const headerClass = "h-10 px-4 text-left text-ui-sm font-normal text-foreground-subtle";
 
 export function AnalysisTaskTable({
   items,
@@ -55,17 +58,17 @@ export function AnalysisTaskTable({
     <TrackingTableScroll label="SR 任务表格">
       <table data-testid="analysis-task-table" className={`${tableClass} min-w-[640px]`}>
         <colgroup>
+          <col className="w-[44%]" />
           <col />
-          <col />
-          <col />
-          <col className="w-32" />
+          <col className="w-36" />
+          <col className="w-14" />
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
-          <MarkdownTableRow className="border-y border-border hover:bg-transparent">
+          <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求与项目", "状态与进度", "下次分析", "操作"].map((title) => (
               <MarkdownTableHead
                 key={title}
-                className={`${cellClass} font-medium text-foreground-subtle`}
+                className={headerClass}
               >
                 {title}
               </MarkdownTableHead>
@@ -77,7 +80,7 @@ export function AnalysisTaskTable({
             <MarkdownTableRow
               key={task.id}
               data-task-id={task.id}
-              className="border-b border-border last:border-0 hover:bg-hover"
+              className="group/row border-b border-border last:border-0 hover:bg-hover"
             >
               <MarkdownTableCell className={cellClass}>
                 <RowLabel
@@ -115,7 +118,7 @@ export function AnalysisTaskTable({
                   </span>
                 </ControlHintTooltip>
               </MarkdownTableCell>
-              <MarkdownTableCell className="px-2 py-2.5 text-right align-middle">
+              <MarkdownTableCell className="px-2 py-3 text-right align-middle">
                 <Dialog
                   open={detailTaskId === task.id}
                   onOpenChange={(open) => setDetailTaskId(open ? task.id : undefined)}
@@ -123,13 +126,15 @@ export function AnalysisTaskTable({
                   <DialogTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                      aria-haspopup="dialog"
                       aria-label={`查看 ${task.srId} 任务详情`}
                       onClick={(event) => {
                         detailTrigger.current = event.currentTarget;
                       }}
                     >
-                      查看详情
+                      <MoreHorizontal aria-hidden="true" className="size-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent
@@ -213,17 +218,17 @@ export function AnalysisHistoryTable({
     <TrackingTableScroll label="执行历史表格">
       <table data-testid="analysis-history-table" className={`${tableClass} min-w-[640px]`}>
         <colgroup>
+          <col className="w-[44%]" />
+          <col className="w-36" />
           <col />
-          <col />
-          <col />
-          <col className="w-32" />
+          <col className="w-14" />
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
-          <MarkdownTableRow className="border-y border-border hover:bg-transparent">
+          <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求与项目", "开始时间", "结果与进度", "操作"].map((title) => (
               <MarkdownTableHead
                 key={title}
-                className={`${cellClass} font-medium text-foreground-subtle`}
+                className={headerClass}
               >
                 {title}
               </MarkdownTableHead>
@@ -235,7 +240,7 @@ export function AnalysisHistoryTable({
             <MarkdownTableRow
               key={run.id}
               data-run-id={run.id}
-              className={`border-b border-border last:border-0 hover:bg-hover ${selectedRunId === run.id ? "bg-selected" : ""}`}
+              className={`group/row border-b border-border last:border-0 hover:bg-hover ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
               <MarkdownTableCell className={cellClass}>
                 <RowLabel
@@ -263,15 +268,16 @@ export function AnalysisHistoryTable({
                   {run.before}% → {run.after}%
                 </p>
               </MarkdownTableCell>
-              <MarkdownTableCell className="px-2 py-2.5 text-right align-middle">
+              <MarkdownTableCell className="px-2 py-3 text-right align-middle">
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
                   aria-haspopup="dialog"
                   aria-label={`查看 ${run.srId} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}
                 >
-                  查看详情
+                  <MoreHorizontal aria-hidden="true" className="size-4" />
                 </Button>
               </MarkdownTableCell>
             </MarkdownTableRow>

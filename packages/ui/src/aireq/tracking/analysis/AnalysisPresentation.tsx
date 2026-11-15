@@ -6,6 +6,7 @@ import {
   CircleDashed,
   PauseCircle,
   SkipForward,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Label } from "@/components/ui/label.js";
@@ -67,6 +68,7 @@ export function FilterSelect({
   children,
   disabled,
   className = "w-44",
+  triggerClassName,
 }: {
   id: string;
   label: string;
@@ -75,6 +77,7 @@ export function FilterSelect({
   children: ReactNode;
   disabled?: boolean;
   className?: string;
+  triggerClassName?: string;
 }) {
   return (
     <div className={className}>
@@ -82,7 +85,7 @@ export function FilterSelect({
         {label}
       </Label>
       <Select value={value} disabled={disabled} onValueChange={onChange}>
-        <SelectTrigger id={id} className="h-9 w-full">
+        <SelectTrigger id={id} className={`h-9 w-full ${triggerClassName ?? ""}`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>{children}</SelectContent>
@@ -92,23 +95,26 @@ export function FilterSelect({
 }
 export function RowLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="min-w-0">
-      <ControlHintTooltip title={title}>
-        <span
-          tabIndex={0}
-          className="line-clamp-2 whitespace-normal break-words rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
-        >
-          {title}
-        </span>
-      </ControlHintTooltip>
-      <ControlHintTooltip title={subtitle}>
-        <span
-          tabIndex={0}
-          className="mt-0.5 block truncate rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
-        >
-          {subtitle}
-        </span>
-      </ControlHintTooltip>
+    <div className="flex min-w-0 items-start gap-3">
+      <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
+      <div className="min-w-0">
+        <ControlHintTooltip title={title}>
+          <span
+            tabIndex={0}
+            className="line-clamp-2 whitespace-normal break-words rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+          >
+            {title}
+          </span>
+        </ControlHintTooltip>
+        <ControlHintTooltip title={subtitle}>
+          <span
+            tabIndex={0}
+            className="mt-0.5 block truncate rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+          >
+            {subtitle}
+          </span>
+        </ControlHintTooltip>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useId, useState } from "react";
-import { UserRound } from "lucide-react";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { buildMarkdownTableText } from "@/components/ai-elements/markdown-table.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -28,85 +27,6 @@ import type {
   AIReqSystemRequirement,
   AIReqWorkflowView,
 } from "../contract.js";
-import { AIReqEmployeePicker } from "./EmployeePicker.js";
-
-export function AssignOwner({
-  group,
-  onDialogOpenChange,
-}: {
-  group: AIReqRequirementGroup;
-  onDialogOpenChange?: (open: boolean) => void;
-}) {
-  const source = useAIReqDataSource();
-  const [open, setDialogOpen] = useState(false);
-  const setOpen = (value: boolean) => {
-    setDialogOpen(value);
-    onDialogOpenChange?.(value);
-  };
-  const [owner, setOwner] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  if (getEmployeeId() !== "j00808874" || !source.progress)
-    return <span className="font-mono text-ui-sm">{group.ownerEmployeeId ?? "未分配"}</span>;
-  return (
-    <span onClick={(event) => event.stopPropagation()}>
-      <Button
-        size="sm"
-        variant="ghost"
-        aria-label={`分配${group.title}负责人`}
-        onClick={() => {
-          setOwner(group.ownerEmployeeId ?? "");
-          setError("");
-          setOpen(true);
-        }}
-      >
-        <UserRound className="size-3.5" />
-        {group.ownerEmployeeId ?? "分配负责人"}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>分配需求负责人</DialogTitle>
-            <DialogDescription>
-              {group.title} · 每个 IR 设置一名负责人，负责跟进所属 SR。
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setSaving(true);
-              setError("");
-              try {
-                await source.progress!.assignOwner(group.projectId, group.id, owner.trim());
-                setOpen(false);
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {open && <AIReqEmployeePicker value={owner} onChange={setOwner} required />}
-            {error && (
-              <p role="alert" className="text-ui-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                取消
-              </Button>
-              <Button disabled={saving || !owner.trim()} type="submit">
-                {saving ? "保存中…" : "保存负责人"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </span>
-  );
-}
 
 export function AIReqDependencies({
   sr,

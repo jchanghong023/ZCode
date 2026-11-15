@@ -1,5 +1,12 @@
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, PanelRightClose, Search } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  MoreHorizontal,
+  PanelRightClose,
+  Search,
+} from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -24,8 +31,7 @@ import { cn } from "@/components/lib/utils.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
-import { getEmployeeId } from "../identity.js";
-import { AssignOwner, AIReqEditPlanning } from "./RequirementPlanning.js";
+import { AIReqEditPlanning } from "./RequirementPlanning.js";
 import { irPlanning, planningDate, planningWarnings } from "../contract.js";
 import {
   irProgress,
@@ -37,7 +43,6 @@ import {
 } from "../contract.js";
 import type { AIReqRequirementGroup, AIReqSystemRequirement } from "../contract.js";
 import { BranchCopy } from "./BranchCopy.js";
-import { AIReqEmployeePicker } from "./EmployeePicker.js";
 import { TrackingTableScroll } from "./TrackingTableScroll.js";
 import { AIReqFormalReport } from "./formal/FormalReport.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
@@ -47,8 +52,6 @@ export function AIReqFormalTable() {
   const aireq = useAIReq()!;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [owner, setOwner] = useState("all");
-  const [ownerEmployeeId, setOwnerEmployeeId] = useState("");
   const [expanded, setExpanded] = useState(() => new Set<string>());
   const [filteredExpansion, setFilteredExpansion] = useState<Record<string, boolean>>({});
   const [copyMessage, setCopyMessage] = useState("");
@@ -80,13 +83,6 @@ export function AIReqFormalTable() {
   const visible = groups.filter((group) => {
     const rows = irSrs(view, group);
     return (
-      (owner !== "mine" ||
-        group.ownerEmployeeId === getEmployeeId() ||
-        rows.some((sr) => sr.planning?.developerEmployeeId === getEmployeeId())) &&
-      (owner !== "unassigned" || !group.ownerEmployeeId) &&
-      (owner !== "specified" ||
-        !ownerEmployeeId.trim() ||
-        group.ownerEmployeeId === ownerEmployeeId.trim()) &&
       (matches(group.id, group.title) || rows.some((sr) => matches(sr.id, sr.title))) &&
       (status === "all" ||
         irProgressStatus(rows) === status ||
@@ -102,59 +98,50 @@ export function AIReqFormalTable() {
       <div className="h-12 shrink-0" />
       {/* 与 base 表格式页面一致：外层纵向滚动，内层只负责限宽居中。 */}
       <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0 pt-4 md:pt-6")}>
-        <header className="shrink-0 space-y-3 border-b border-border pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
-            <h1 className="shrink-0 text-ui-page-title font-medium tracking-[0.114px]">正式需求</h1>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Select value={aireq.selection.projectId ?? ""} onValueChange={aireq.switchProject}>
-                <SelectTrigger className="h-7 w-40" aria-label="正式需求项目">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {view.projects.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={aireq.releaseId} onValueChange={aireq.setReleaseId}>
-                <SelectTrigger className="h-7 w-44" aria-label="正式需求版本">
-                  <SelectValue placeholder="选择版本" />
-                </SelectTrigger>
-                <SelectContent>
-                  {view.releases.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-ui-sm text-foreground-subtle" data-testid="formal-counts">
-                <span className="whitespace-nowrap font-medium text-foreground">
-                  {visible.length} 个 IR
-                </span>
-                <span className="ml-3 inline-block">
-                  当前 Release 共 {groups.length} 个 IR ·{" "}
-                  {groups.reduce((count, group) => count + irSrs(view, group).length, 0)} 个 SR
-                </span>
-              </span>
-            </div>
+        <header className="shrink-0 space-y-5">
+          <div className="space-y-2">
+            <h1 className="text-ui-page-title font-medium tracking-[0.114px]">正式需求</h1>
+            <p className="text-ui-sm text-foreground-subtle">
+              查看 IR 与 SR 的开发进度、问题和人员计划，选择需求阅读同页报告。
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative min-w-40 flex-1">
-              <Search className="pointer-events-none absolute top-2 left-2.5 size-3.5 text-foreground-subtle" />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-60 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
               <Input
-                className="h-7 pl-8"
+                className="h-9 rounded-lg bg-surface pl-9"
                 aria-label="搜索正式需求"
                 placeholder="搜索 IR／SR 名称或编号"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
+            <Select value={aireq.selection.projectId ?? ""} onValueChange={aireq.switchProject}>
+              <SelectTrigger className="h-9 w-36 rounded-lg bg-surface" aria-label="正式需求项目">
+                <SelectValue placeholder="选择项目" />
+              </SelectTrigger>
+              <SelectContent>
+                {view.projects.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={aireq.releaseId} onValueChange={aireq.setReleaseId}>
+              <SelectTrigger className="h-9 w-40 rounded-lg bg-surface" aria-label="正式需求版本">
+                <SelectValue placeholder="选择版本" />
+              </SelectTrigger>
+              <SelectContent>
+                {view.releases.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-7 w-28" aria-label="筛选开发状态">
+              <SelectTrigger className="h-9 w-28 rounded-lg bg-surface" aria-label="筛选开发状态">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -166,64 +153,14 @@ export function AIReqFormalTable() {
                 ))}
               </SelectContent>
             </Select>
-            <Select
-              value={owner}
-              onValueChange={(value) => {
-                setOwner(value);
-                setOwnerEmployeeId("");
-              }}
-            >
-              <SelectTrigger className="h-7 w-40" aria-label="筛选需求负责人">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部需求</SelectItem>
-                <SelectItem value="mine">我负责的</SelectItem>
-                <SelectItem value="specified">指定 IR 负责人</SelectItem>
-                <SelectItem value="unassigned">未分配 IR 负责人</SelectItem>
-              </SelectContent>
-            </Select>
-            {owner === "specified" && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7"
-                    aria-label="输入或选择 IR 负责人"
-                  >
-                    {ownerEmployeeId.trim() || "输入或选择工号"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="max-h-[70dvh] w-96 overflow-y-auto"
-                  aria-label="筛选 IR 负责人"
-                >
-                  <AIReqEmployeePicker
-                    value={ownerEmployeeId}
-                    onChange={setOwnerEmployeeId}
-                    ownerIds={groups.flatMap((group) =>
-                      group.ownerEmployeeId ? [group.ownerEmployeeId] : [],
-                    )}
-                  />
-                  {!ownerEmployeeId.trim() && (
-                    <p role="status" className="mt-2 text-ui-xs text-foreground-subtle">
-                      选择后按工号精确筛选；当前尚未限定负责人。
-                    </p>
-                  )}
-                </PopoverContent>
-              </Popover>
-            )}
-            {(normalized || status !== "all" || owner !== "all") && (
+            {(normalized || status !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-9 rounded-lg"
                 onClick={() => {
                   setQuery("");
                   setStatus("all");
-                  setOwner("all");
-                  setOwnerEmployeeId("");
                 }}
               >
                 清除筛选
@@ -233,19 +170,18 @@ export function AIReqFormalTable() {
         </header>
         <TrackingTableScroll
           label="正式需求表格滚动区域"
-          className="mt-3 rounded-xl border border-border bg-background"
+          className="mt-4 rounded-xl border border-border bg-surface"
           viewportTestId="formal-table-scroll"
         >
           <table
-            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 text-ui-base"
+            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 bg-background text-ui-base"
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
-              {/* 四组弹性列适应内容列，不再为每个辅助字段单独保留固定宽度。 */}
-              <col className="w-[34%]" />
-              <col className="w-[22%]" />
-              <col className="w-[28%]" />
-              <col className="w-[16%]" />
+              <col className="w-[40%]" />
+              <col className="w-[24%]" />
+              <col />
+              <col className="w-14" />
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
@@ -253,7 +189,7 @@ export function AIReqFormalTable() {
                   <MarkdownTableHead
                     key={title}
                     scope="col"
-                    className={`whitespace-nowrap px-2 font-medium text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
+                    className={`h-10 min-w-0 whitespace-nowrap px-4 font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
                     // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
                     style={
                       index === 0
@@ -308,11 +244,11 @@ export function AIReqFormalTable() {
                     <MarkdownTableRow
                       data-ir-id={group.id}
                       aria-selected={selected}
-                      className={`cursor-pointer ${selected ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                      className={`group/row cursor-pointer ${selected ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
                       onClick={() => open(group)}
                     >
                       <MarkdownTableCell
-                        className="sticky left-0 z-10 bg-background px-2 py-1.5 align-top"
+                        className="sticky left-0 z-10 bg-background px-4 py-3 align-middle"
                         style={{
                           backgroundImage:
                             "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
@@ -347,7 +283,8 @@ export function AIReqFormalTable() {
                               <ChevronRight className="size-4" />
                             )}
                           </Button>
-                          <div className="min-w-0">
+                          <FileText className="mt-1 size-4 shrink-0 text-foreground-subtle" />
+                          <div className="min-w-0 flex-1">
                             <ControlHintTooltip title={group.title}>
                               <Button
                                 variant="link"
@@ -360,14 +297,14 @@ export function AIReqFormalTable() {
                                 <span className="line-clamp-2">{group.title}</span>
                               </Button>
                             </ControlHintTooltip>
-                            <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
+                            <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
                             </p>
                           </div>
                         </div>
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 py-1.5 align-top">
+                      <MarkdownTableCell className="px-4 py-3 align-middle">
                         <ProgressValue
                           value={irProgress(srs)}
                           label={group.title}
@@ -380,14 +317,11 @@ export function AIReqFormalTable() {
                           </p>
                         )}
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 py-1.5 align-top">
-                        <p className="break-words text-ui-sm">
-                          负责人：{group.ownerEmployeeId ?? "未分配"}
-                        </p>
+                      <MarkdownTableCell className="px-4 py-3 align-middle">
                         <ControlHintTooltip title={developers.join("、") || "暂无开发人员"}>
                           <p
                             tabIndex={0}
-                            className="line-clamp-2 rounded-sm text-ui-sm text-foreground-subtle outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            className="line-clamp-2 rounded-sm text-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                           >
                             开发：{developers.join("、") || "未分配"}
                           </p>
@@ -398,7 +332,7 @@ export function AIReqFormalTable() {
                         )}
                         <PlanningAlert warnings={warnings} />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-2 py-1.5 align-top">
+                      <MarkdownTableCell className="min-w-0 px-4 py-3 align-middle">
                         <FormalActions
                           group={group}
                           onDetail={() => open(group)}
@@ -416,33 +350,38 @@ export function AIReqFormalTable() {
                             aria-selected={
                               aireq.selection.irId === group.id && aireq.selection.srId === sr.id
                             }
-                            className={`cursor-pointer ${aireq.selection.irId === group.id && aireq.selection.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                            className={`group/row cursor-pointer ${aireq.selection.irId === group.id && aireq.selection.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
                             onClick={() => open(group, sr)}
                           >
                             <MarkdownTableCell
-                              className="sticky left-0 z-10 bg-background pr-2 pl-9 py-1.5 align-top"
+                              className="sticky left-0 z-10 bg-background pr-4 pl-12 py-3 align-middle"
                               style={{
                                 backgroundImage:
                                   "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
                               }}
                             >
-                              <ControlHintTooltip title={sr.title}>
-                                <Button
-                                  variant="link"
-                                  className="h-auto w-full max-w-full justify-start p-0 text-left whitespace-normal [overflow-wrap:anywhere]"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    open(group, sr);
-                                  }}
-                                >
-                                  <span className="line-clamp-2">{sr.title}</span>
-                                </Button>
-                              </ControlHintTooltip>
-                              <p className="mt-1 break-all font-mono text-ui-xs text-foreground-subtle">
-                                SR · {sr.id}
-                              </p>
+                              <div className="flex items-start gap-2">
+                                <FileText className="mt-1 size-4 shrink-0 text-foreground-subtle" />
+                                <div className="min-w-0 flex-1">
+                                  <ControlHintTooltip title={sr.title}>
+                                    <Button
+                                      variant="link"
+                                      className="h-auto w-full max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        open(group, sr);
+                                      }}
+                                    >
+                                      <span className="line-clamp-2">{sr.title}</span>
+                                    </Button>
+                                  </ControlHintTooltip>
+                                  <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
+                                    SR · {sr.id}
+                                  </p>
+                                </div>
+                              </div>
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                            <MarkdownTableCell className="px-4 py-3 align-middle">
                               <ProgressValue
                                 value={srProgress(sr)}
                                 label={sr.title}
@@ -455,7 +394,7 @@ export function AIReqFormalTable() {
                                 </p>
                               )}
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                            <MarkdownTableCell className="px-4 py-3 align-middle">
                               <p className="break-words text-ui-sm">
                                 开发：{sr.planning?.developerEmployeeId ?? "未分配"}
                               </p>
@@ -465,7 +404,7 @@ export function AIReqFormalTable() {
                               />
                               <PlanningAlert warnings={warnings} />
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-2 py-1.5 align-top">
+                            <MarkdownTableCell className="min-w-0 px-4 py-3 align-middle">
                               <FormalActions
                                 group={group}
                                 sr={sr}
@@ -493,6 +432,18 @@ export function AIReqFormalTable() {
             </p>
           )}
         </TrackingTableScroll>
+        <div
+          className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle"
+          data-testid="formal-counts"
+        >
+          <span className="whitespace-nowrap font-medium text-foreground">
+            {visible.length} 个 IR
+          </span>
+          <span>
+            当前 Release 共 {groups.length} 个 IR ·{" "}
+            {groups.reduce((count, group) => count + irSrs(view, group).length, 0)} 个 SR
+          </span>
+        </div>
         <div className="flex h-8 shrink-0 items-center gap-2 text-ui-sm">
           <p
             role={aireq.error ? "alert" : "status"}
@@ -588,10 +539,7 @@ function FormalActions({
   const [open, setOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
-    <div className="flex flex-wrap items-center gap-1" onClick={(event) => event.stopPropagation()}>
-      <Button size="sm" variant="ghost" onClick={onDetail}>
-        详情
-      </Button>
+    <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
       {/* 子表单关闭前保留 Popover 挂载，避免外部焦点关闭菜单时一并卸载 Dialog。 */}
       <Popover
         open={open}
@@ -600,8 +548,13 @@ function FormalActions({
         }}
       >
         <PopoverTrigger asChild>
-          <Button size="sm" variant="ghost" aria-label={`${sr?.title ?? group.title}的更多操作`}>
-            更多
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="pointer-events-none shrink-0 rounded-md text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-hover focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+            aria-label={`${sr?.title ?? group.title}的更多操作`}
+          >
+            <MoreHorizontal className="size-4" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -609,8 +562,17 @@ function FormalActions({
           className={cn("w-72 gap-2", dialogOpen && "invisible pointer-events-none")}
           onClick={(event) => event.stopPropagation()}
         >
-          <p className="text-ui-sm text-foreground-subtle">需求负责人</p>
-          <AssignOwner group={group} onDialogOpenChange={setDialogOpen} />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => {
+              setOpen(false);
+              onDetail();
+            }}
+          >
+            查看详情
+          </Button>
           {sr && (
             <>
               <AIReqEditPlanning group={group} sr={sr} onDialogOpenChange={setDialogOpen} />
