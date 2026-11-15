@@ -1078,13 +1078,11 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/app-shell/useWorkflowRunPaneSettings.ts
-      - packages/ui/src/hooks/useBotBoundGroups.ts
-      - packages/ui/src/hooks/useBotPrivateDeliveryRetry.ts
       - packages/ui/src/hooks/useOnboardingRecordService.ts
       - packages/ui/src/lib/workflowRunAckStore.ts
       - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
       - packages/ui/src/workspace-file-search/useWorkspaceFileSearchFilter.ts
-    reason: 已准入的七个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
+    reason: 已准入的五个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
   - id: onboarding-existing-module-edit
     rule: unmanaged-new-file
     paths:
