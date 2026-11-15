@@ -21,9 +21,7 @@ export function AIReqSkillFilePreview({
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
   // 与正文代码围栏共用设置，避免原始文件和元数据退回默认主题及 14px 字号。
   const codeTheme =
-    resolveTheme(theme) === "dark"
-      ? codePreviewSettings.darkTheme
-      : codePreviewSettings.lightTheme;
+    resolveTheme(theme) === "dark" ? codePreviewSettings.darkTheme : codePreviewSettings.lightTheme;
   if (!file.path.endsWith(".md"))
     return (
       <CodeBlock

@@ -441,14 +441,7 @@ function ConversationTimelineImpl({
         rows,
         topicPreparations,
       ),
-    [
-      liveNowMs,
-      rows,
-      rowsPartition,
-      sessionPhase,
-      topicPreparations,
-      selectRenderUnits,
-    ],
+    [liveNowMs, rows, rowsPartition, sessionPhase, topicPreparations, selectRenderUnits],
   );
   const renderUnitCount = renderUnits.history.length + renderUnits.tail.length;
   const { virtualizedUnits, liveUnit, liveUnitIndex } = useMemo(

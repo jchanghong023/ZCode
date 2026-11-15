@@ -391,7 +391,12 @@ export function AIReqFormalTable() {
                           status={irProgressStatus(srs)}
                         />
                         <p className="mt-1 text-ui-sm tabular-nums">
-                          问题：{srs.reduce((count, sr) => count + (sr.progress?.issues.length ?? 0), 0)} 项
+                          问题：
+                          {srs.reduce(
+                            (count, sr) => count + (sr.progress?.issues.length ?? 0),
+                            0,
+                          )}{" "}
+                          项
                         </p>
                       </MarkdownTableCell>
                       <MarkdownTableCell className="px-2 py-1.5 align-top">

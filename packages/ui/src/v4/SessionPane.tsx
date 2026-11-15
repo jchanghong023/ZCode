@@ -2484,7 +2484,12 @@ export function SessionPane({
     (!snapshot.runtimeInitialization || snapshot.runtimeInitialization.status === "ready"),
   );
   useEffect(() => {
-    if (sessionId === null && effectiveSessionId && effectiveSessionRuntimeReady && snapshotConfig) {
+    if (
+      sessionId === null &&
+      effectiveSessionId &&
+      effectiveSessionRuntimeReady &&
+      snapshotConfig
+    ) {
       observeDraftPermissionGrant(effectiveSessionId, snapshotConfig);
     }
   }, [
@@ -4966,260 +4971,260 @@ export function SessionPane({
   );
 
   const paneContent = (
+    <div
+      ref={paneRef}
+      data-testid={testId(TID_V4_SESSION_PANE, paneId)}
+      data-session-id={sessionId ?? "draft"}
+      data-session-lifecycle={state.lifecycle?.state}
+      data-session-generation={state.lifecycle?.generation}
+      data-initial-draft-provider={initialDraftConfigForDiagnostics?.provider ?? ""}
+      data-initial-draft-model={initialDraftConfigForDiagnostics?.model ?? ""}
+      data-projection-seq={snapshot?.seq ?? ""}
+      data-running-subagent-ids={subagents.running.map((item) => item.childSessionId).join(",")}
+      data-running-subagent-work-ids={(snapshot?.backgroundWorks ?? [])
+        .filter((work) => work.kind === "subagent" && work.status === "running")
+        .map((work) => work.childSessionId ?? work.workId)
+        .join(",")}
+      data-v4-conversation-drop-target="true"
+      onDragOver={effectiveDropTargetController?.onDragOver}
+      onDragLeave={effectiveDropTargetController?.onDragLeave}
+      onDrop={effectiveDropTargetController?.onDrop}
+      className={cn("relative flex h-full min-h-0 flex-col")}
+    >
+      {effectiveDropTargetController?.active ? (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
+            <Hand className="size-4 text-foreground" />
+            <span>
+              {intl.formatMessage({
+                id:
+                  effectiveDropTargetController.kind === "workspace"
+                    ? "chat.composer.workspaceFileDragHint"
+                    : "chat.attachments.dragHint",
+              })}
+            </span>
+          </div>
+        </div>
+      ) : null}
+      <ConversationHeader
+        title={snapshot?.meta.title ?? ""}
+        onClosePane={onClosePane}
+        workspaceBadge={workspaceBadge}
+      />
+
       <div
-        ref={paneRef}
-        data-testid={testId(TID_V4_SESSION_PANE, paneId)}
-        data-session-id={sessionId ?? "draft"}
-        data-session-lifecycle={state.lifecycle?.state}
-        data-session-generation={state.lifecycle?.generation}
-        data-initial-draft-provider={initialDraftConfigForDiagnostics?.provider ?? ""}
-        data-initial-draft-model={initialDraftConfigForDiagnostics?.model ?? ""}
-        data-projection-seq={snapshot?.seq ?? ""}
-        data-running-subagent-ids={subagents.running.map((item) => item.childSessionId).join(",")}
-        data-running-subagent-work-ids={(snapshot?.backgroundWorks ?? [])
-          .filter((work) => work.kind === "subagent" && work.status === "running")
-          .map((work) => work.childSessionId ?? work.workId)
-          .join(",")}
-        data-v4-conversation-drop-target="true"
-        onDragOver={effectiveDropTargetController?.onDragOver}
-        onDragLeave={effectiveDropTargetController?.onDragLeave}
-        onDrop={effectiveDropTargetController?.onDrop}
-        className={cn("relative flex h-full min-h-0 flex-col")}
+        ref={conversationLayoutContainerRef}
+        className={cn("@container/conversation relative flex min-h-0 flex-1 flex-col")}
       >
-        {effectiveDropTargetController?.active ? (
-          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm">
-            <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
-              <Hand className="size-4 text-foreground" />
-              <span>
-                {intl.formatMessage({
-                  id:
-                    effectiveDropTargetController.kind === "workspace"
-                      ? "chat.composer.workspaceFileDragHint"
-                      : "chat.attachments.dragHint",
-                })}
-              </span>
-            </div>
+        {!isDraft ? (
+          <ConversationStatusPanel
+            workspacePath={workspacePath}
+            gitCwd={sessionCwd}
+            workspaceIdentity={workspaceIdentity}
+            gitSummary={gitSummary}
+            gitDirtyFileCount={gitDirtyFileCount}
+            gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
+            gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+            activeTaskChangeSummary={activeTaskChangeSummary}
+            goal={selectionSideChat ? null : (snapshot?.goal ?? null)}
+            sessionPlans={state.sessionPlans}
+            plan={snapshot?.plan ?? null}
+            backgroundWorks={snapshot?.backgroundWorks ?? []}
+            runningSubagents={subagents.running}
+            workflowRuns={snapshot?.workflowRuns?.runs ?? []}
+            endedSubagentCount={subagents.endedTotal}
+            rootSessionId={rootSessionId ?? sessionId ?? undefined}
+            parentSessionId={sessionId ?? undefined}
+            layoutMode={statusPanelLayout}
+            summaryPanelVariantOverride={effectiveSummaryPanelVariantOverride}
+            onVariantChange={handleSummaryPanelVariantChange}
+            terminalSectionOpen={terminalSectionOpen}
+            onTerminalSectionOpenChange={setTerminalSectionOpen}
+            agentSectionOpen={agentSectionOpen}
+            onAgentSectionOpenChange={setAgentSectionOpen}
+            workflowSectionOpen={workflowSectionOpen}
+            onWorkflowSectionOpenChange={setWorkflowSectionOpen}
+            onRefreshGit={onRefreshGit}
+            onOpenGitReview={onOpenGitReview}
+            onPauseGoal={
+              !readOnly && !selectionSideChat && snapshot?.availability.pauseGoal.allowed
+                ? handlePauseGoal
+                : undefined
+            }
+            onResumeGoal={
+              !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
+                ? handleResumeGoal
+                : undefined
+            }
+            onOpenPlanDetail={onOpenPlanDetail ? handleOpenPlanDetail : undefined}
+            onOpenBackgroundBash={
+              onOpenBackgroundBash && sessionId
+                ? (work) =>
+                    onOpenBackgroundBash({
+                      workspacePath,
+                      workspaceIdentity: workspaceIdentity ?? undefined,
+                      remoteSessionId: remoteSessionId ?? undefined,
+                      rootSessionId: rootSessionId ?? sessionId,
+                      sessionId,
+                      workId: work.workId,
+                      title: work.title,
+                    })
+                : undefined
+            }
+            onCancelBackgroundWork={
+              readOnly || runtimeOffline ? undefined : handleCancelBackgroundWork
+            }
+            onStopSubagent={readOnly || runtimeOffline ? undefined : handleStopSubagent}
+            timersPaused={runtimeOffline}
+            pendingSubagentStops={panelPendingSubagentStops}
+            onOpenSubagentSession={onOpenSubagentSession ? handleOpenSubagentSession : undefined}
+            onOpenSubagentDirectory={
+              onOpenSubagentDirectory ? handleOpenSubagentDirectory : undefined
+            }
+            onOpenWorkflowRun={
+              onOpenWorkflowRun && sessionId ? handleOpenWorkflowRunFromPanel : undefined
+            }
+            endedWorkflowRunCount={endedWorkflowRunCount}
+            onOpenWorkflowRunDirectory={
+              onOpenWorkflowRunDirectory ? handleOpenWorkflowRunDirectoryFromPanel : undefined
+            }
+          />
+        ) : null}
+
+        {readOnly && controlLastError ? (
+          <div
+            role="alert"
+            data-testid="v4-subagent-readonly-error"
+            className="mx-4 mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-ui-base text-[var(--color-danger)]"
+          >
+            {controlLastError.message}
           </div>
         ) : null}
-        <ConversationHeader
-          title={snapshot?.meta.title ?? ""}
-          onClosePane={onClosePane}
-          workspaceBadge={workspaceBadge}
-        />
 
-        <div
-          ref={conversationLayoutContainerRef}
-          className={cn("@container/conversation relative flex min-h-0 flex-1 flex-col")}
-        >
-          {!isDraft ? (
-            <ConversationStatusPanel
+        {errored && remoteAvailable ? (
+          <>
+            <SessionSubscriptionErrorPanel
+              error={state.lastError ?? intl.formatMessage({ id: "chat.error.connectionLost" })}
+              sessionId={sessionId}
               workspacePath={workspacePath}
-              gitCwd={sessionCwd}
-              workspaceIdentity={workspaceIdentity}
-              gitSummary={gitSummary}
-              gitDirtyFileCount={gitDirtyFileCount}
-              gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
-              gitWorktreeChangeSummary={gitWorktreeChangeSummary}
-              activeTaskChangeSummary={activeTaskChangeSummary}
-              goal={selectionSideChat ? null : (snapshot?.goal ?? null)}
-              sessionPlans={state.sessionPlans}
-              plan={snapshot?.plan ?? null}
-              backgroundWorks={snapshot?.backgroundWorks ?? []}
-              runningSubagents={subagents.running}
-              workflowRuns={snapshot?.workflowRuns?.runs ?? []}
-              endedSubagentCount={subagents.endedTotal}
-              rootSessionId={rootSessionId ?? sessionId ?? undefined}
-              parentSessionId={sessionId ?? undefined}
-              layoutMode={statusPanelLayout}
-              summaryPanelVariantOverride={effectiveSummaryPanelVariantOverride}
-              onVariantChange={handleSummaryPanelVariantChange}
-              terminalSectionOpen={terminalSectionOpen}
-              onTerminalSectionOpenChange={setTerminalSectionOpen}
-              agentSectionOpen={agentSectionOpen}
-              onAgentSectionOpenChange={setAgentSectionOpen}
-              workflowSectionOpen={workflowSectionOpen}
-              onWorkflowSectionOpenChange={setWorkflowSectionOpen}
-              onRefreshGit={onRefreshGit}
-              onOpenGitReview={onOpenGitReview}
-              onPauseGoal={
-                !readOnly && !selectionSideChat && snapshot?.availability.pauseGoal.allowed
-                  ? handlePauseGoal
+              onReconnect={handleRetrySubscribe}
+              reconnectLabel={
+                state.lifecycle?.state === "faulted"
+                  ? intl.formatMessage({ id: "taskList.recoverWorkspace" })
                   : undefined
-              }
-              onResumeGoal={
-                !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
-                  ? handleResumeGoal
-                  : undefined
-              }
-              onOpenPlanDetail={onOpenPlanDetail ? handleOpenPlanDetail : undefined}
-              onOpenBackgroundBash={
-                onOpenBackgroundBash && sessionId
-                  ? (work) =>
-                      onOpenBackgroundBash({
-                        workspacePath,
-                        workspaceIdentity: workspaceIdentity ?? undefined,
-                        remoteSessionId: remoteSessionId ?? undefined,
-                        rootSessionId: rootSessionId ?? sessionId,
-                        sessionId,
-                        workId: work.workId,
-                        title: work.title,
-                      })
-                  : undefined
-              }
-              onCancelBackgroundWork={
-                readOnly || runtimeOffline ? undefined : handleCancelBackgroundWork
-              }
-              onStopSubagent={readOnly || runtimeOffline ? undefined : handleStopSubagent}
-              timersPaused={runtimeOffline}
-              pendingSubagentStops={panelPendingSubagentStops}
-              onOpenSubagentSession={onOpenSubagentSession ? handleOpenSubagentSession : undefined}
-              onOpenSubagentDirectory={
-                onOpenSubagentDirectory ? handleOpenSubagentDirectory : undefined
-              }
-              onOpenWorkflowRun={
-                onOpenWorkflowRun && sessionId ? handleOpenWorkflowRunFromPanel : undefined
-              }
-              endedWorkflowRunCount={endedWorkflowRunCount}
-              onOpenWorkflowRunDirectory={
-                onOpenWorkflowRunDirectory ? handleOpenWorkflowRunDirectoryFromPanel : undefined
               }
             />
-          ) : null}
-
-          {readOnly && controlLastError ? (
-            <div
-              role="alert"
-              data-testid="v4-subagent-readonly-error"
-              className="mx-4 mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-ui-base text-[var(--color-danger)]"
-            >
-              {controlLastError.message}
-            </div>
-          ) : null}
-
-          {errored && remoteAvailable ? (
-            <>
-              <SessionSubscriptionErrorPanel
-                error={state.lastError ?? intl.formatMessage({ id: "chat.error.connectionLost" })}
-                sessionId={sessionId}
-                workspacePath={workspacePath}
-                onReconnect={handleRetrySubscribe}
-                reconnectLabel={
-                  state.lifecycle?.state === "faulted"
-                    ? intl.formatMessage({ id: "taskList.recoverWorkspace" })
-                    : undefined
-                }
-              />
-              {/* 错误面板替换了时间线和它的底部区域；原因横幅要跟过来，否则重连失败时说明就没了。
+            {/* 错误面板替换了时间线和它的底部区域；原因横幅要跟过来，否则重连失败时说明就没了。
                   仍放在窗格底部：顶部右侧是浮动的状态胶囊，会盖住横幅的关闭按钮。 */}
-              {runtimeExitBanner ? (
-                <div className="mx-auto w-full max-w-2xl shrink-0 px-4">{runtimeExitBanner}</div>
-              ) : null}
-            </>
-          ) : (
-            <SessionPluginReferenceIconBoundary
-              enabled={pluginReferenceIconsEnabled}
-              remoteSessionId={remoteSessionId}
-              sessionId={sessionId}
-              workspaceIdentity={workspaceIdentity}
+            {runtimeExitBanner ? (
+              <div className="mx-auto w-full max-w-2xl shrink-0 px-4">{runtimeExitBanner}</div>
+            ) : null}
+          </>
+        ) : (
+          <SessionPluginReferenceIconBoundary
+            enabled={pluginReferenceIconsEnabled}
+            remoteSessionId={remoteSessionId}
+            sessionId={sessionId}
+            workspaceIdentity={workspaceIdentity}
+            workspacePath={workspacePath}
+          >
+            <BotGroupDeliveryProvider
+              taskId={sessionId}
               workspacePath={workspacePath}
+              workspaceIdentity={workspaceIdentity}
             >
-              <BotGroupDeliveryProvider
-                taskId={sessionId}
-                workspacePath={workspacePath}
-                workspaceIdentity={workspaceIdentity}
-              >
-                <ForkDestinationContext.Provider value={forkDestinationValue}>
-                  <ConversationTimeline
-                    scrollToBottomActionRef={timelineScrollToBottomRef}
-                    scrollToQueryActionRef={timelineScrollToQueryRef}
-                    rows={timelineRows?.window ?? []}
-                    pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
-                    apiRetry={timelineSnapshot?.control.apiRetry ?? null}
-                    totalCount={timelineRows?.totalCount ?? 0}
-                    sessionKey={sessionId ?? "draft"}
-                    scrollMemoryKey={timelineScrollMemoryKey}
-                    rowContext={rowContext}
-                    onFork={forkActionsEnabled ? handleFork : undefined}
-                    onRetry={retryActionsEnabled ? handleRetry : undefined}
-                    onFeedbackChange={
-                      !readOnly && !selectionSideChat && sessionId
-                        ? handleAssistantFeedback
-                        : undefined
-                    }
-                    onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
-                    canLoadOlder={
-                      !state.editPresentation && timelineSnapshot
-                        ? hasOlderRows(timelineSnapshot)
-                        : false
-                    }
-                    loadingOlder={timelineSnapshot ? state.loadingOlder : false}
-                    onLoadOlder={handleLoadOlder}
-                    onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
-                    turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
-                    bottomDock={conversationBottomDock}
-                    emptyState={
-                      !remoteAvailable ? (
-                        <div className="p-6 text-center text-ui-base text-foreground-subtle">
-                          {intl.formatMessage({ id: "remote.conversation.placeholder" })}
-                        </div>
-                      ) : conversationEmptyState ? (
-                        conversationEmptyState
-                      ) : isDraft && !embedded ? (
-                        <div data-testid={TID_CHAT_EMPTY} className="w-full">
-                          <ConversationDraftEmptyState />
-                        </div>
-                      ) : null
-                    }
-                    // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
-                    centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
-                    floatingComposerDock={isFloatingPresentation}
-                    onComposerDockHeightChange={
-                      isFloatingPresentation && focused
-                        ? panePresentation.reportComposerDockHeight
-                        : undefined
-                    }
-                    onLatestTurnSummaryChange={
-                      isFloatingPresentation && focused
-                        ? handleFloatingLatestTurnSummaryChange
-                        : undefined
-                    }
-                    summaryPanelLayout={statusPanelLayout}
-                    conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
-                    conversationFindActiveIndex={
-                      !isDraft && focused ? conversationFindActiveIndex : -1
-                    }
-                    conversationFindNavigationRequestId={
-                      !isDraft && focused ? conversationFindNavigationRequestId : 0
-                    }
-                    onConversationFindMatchStateChange={
-                      !isDraft && focused ? onConversationFindMatchStateChange : undefined
-                    }
-                    searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
-                    onSearchResultHighlightDone={onSearchResultHighlightDone}
-                    sessionPhase={isDraft ? undefined : snapshot?.control.phase}
-                    selectionActions={
-                      !isDraft &&
-                      sessionId &&
-                      !readOnly &&
-                      !selectionSideChat &&
-                      !isMobileTextInputViewport
-                        ? {
-                            enabled: focused && !blockingInteractionId,
-                            sideActionDisabled: selectionSideActionBlocked,
-                            commentEnabled: selectionCommentSupported,
-                            annotationWorkspaceKey: workspaceKey,
-                            onAddToCurrentTask: handleAddSelectionToCurrentTask,
-                            onAskInSideChat: handleOpenSelectionSideConversation,
-                          }
-                        : undefined
-                    }
-                  />
-                </ForkDestinationContext.Provider>
-              </BotGroupDeliveryProvider>
-            </SessionPluginReferenceIconBoundary>
-          )}
-        </div>
+              <ForkDestinationContext.Provider value={forkDestinationValue}>
+                <ConversationTimeline
+                  scrollToBottomActionRef={timelineScrollToBottomRef}
+                  scrollToQueryActionRef={timelineScrollToQueryRef}
+                  rows={timelineRows?.window ?? []}
+                  pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
+                  apiRetry={timelineSnapshot?.control.apiRetry ?? null}
+                  totalCount={timelineRows?.totalCount ?? 0}
+                  sessionKey={sessionId ?? "draft"}
+                  scrollMemoryKey={timelineScrollMemoryKey}
+                  rowContext={rowContext}
+                  onFork={forkActionsEnabled ? handleFork : undefined}
+                  onRetry={retryActionsEnabled ? handleRetry : undefined}
+                  onFeedbackChange={
+                    !readOnly && !selectionSideChat && sessionId
+                      ? handleAssistantFeedback
+                      : undefined
+                  }
+                  onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
+                  canLoadOlder={
+                    !state.editPresentation && timelineSnapshot
+                      ? hasOlderRows(timelineSnapshot)
+                      : false
+                  }
+                  loadingOlder={timelineSnapshot ? state.loadingOlder : false}
+                  onLoadOlder={handleLoadOlder}
+                  onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
+                  turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
+                  bottomDock={conversationBottomDock}
+                  emptyState={
+                    !remoteAvailable ? (
+                      <div className="p-6 text-center text-ui-base text-foreground-subtle">
+                        {intl.formatMessage({ id: "remote.conversation.placeholder" })}
+                      </div>
+                    ) : conversationEmptyState ? (
+                      conversationEmptyState
+                    ) : isDraft && !embedded ? (
+                      <div data-testid={TID_CHAT_EMPTY} className="w-full">
+                        <ConversationDraftEmptyState />
+                      </div>
+                    ) : null
+                  }
+                  // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
+                  centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
+                  floatingComposerDock={isFloatingPresentation}
+                  onComposerDockHeightChange={
+                    isFloatingPresentation && focused
+                      ? panePresentation.reportComposerDockHeight
+                      : undefined
+                  }
+                  onLatestTurnSummaryChange={
+                    isFloatingPresentation && focused
+                      ? handleFloatingLatestTurnSummaryChange
+                      : undefined
+                  }
+                  summaryPanelLayout={statusPanelLayout}
+                  conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
+                  conversationFindActiveIndex={
+                    !isDraft && focused ? conversationFindActiveIndex : -1
+                  }
+                  conversationFindNavigationRequestId={
+                    !isDraft && focused ? conversationFindNavigationRequestId : 0
+                  }
+                  onConversationFindMatchStateChange={
+                    !isDraft && focused ? onConversationFindMatchStateChange : undefined
+                  }
+                  searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
+                  onSearchResultHighlightDone={onSearchResultHighlightDone}
+                  sessionPhase={isDraft ? undefined : snapshot?.control.phase}
+                  selectionActions={
+                    !isDraft &&
+                    sessionId &&
+                    !readOnly &&
+                    !selectionSideChat &&
+                    !isMobileTextInputViewport
+                      ? {
+                          enabled: focused && !blockingInteractionId,
+                          sideActionDisabled: selectionSideActionBlocked,
+                          commentEnabled: selectionCommentSupported,
+                          annotationWorkspaceKey: workspaceKey,
+                          onAddToCurrentTask: handleAddSelectionToCurrentTask,
+                          onAskInSideChat: handleOpenSelectionSideConversation,
+                        }
+                      : undefined
+                  }
+                />
+              </ForkDestinationContext.Provider>
+            </BotGroupDeliveryProvider>
+          </SessionPluginReferenceIconBoundary>
+        )}
       </div>
+    </div>
   );
   return (
     <ToolPresentationCapabilitiesProvider value={agentPresentationCapabilities}>

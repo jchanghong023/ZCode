@@ -519,12 +519,7 @@ export function AutomationsSection({
     if (onCreateViaChat) {
       onCreateViaChat(intl.formatMessage({ id: "automations.createViaChat.prompt" }));
     } else setView({ mode: "create", draft: null });
-  }, [
-    automationCreateLimitReached,
-    intl,
-    onCreateViaChat,
-    showAutomationCreateLimitToast,
-  ]);
+  }, [automationCreateLimitReached, intl, onCreateViaChat, showAutomationCreateLimitToast]);
 
   const handleUseTemplate = useCallback(
     (template: ScheduledAutomationTemplate) => {
@@ -904,20 +899,20 @@ export function AutomationsSection({
           data-testid={TID_AUTOMATIONS_STATUS_FILTER}
         >
           {SCHEDULED_AUTOMATION_STATUS_FILTERS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={statusFilter === key}
-                className={cn(
-                  "rounded-full px-2.5 py-0.5 text-ui-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
-                  statusFilter === key
-                    ? "bg-selected text-foreground"
-                    : "text-foreground-subtle hover:bg-hover hover:text-foreground",
-                )}
-                onClick={() => setStatusFilter(key)}
-              >
-                {SCHEDULED_AUTOMATION_STATUS_LABELS[key]}
-              </button>
+            <button
+              key={key}
+              type="button"
+              aria-pressed={statusFilter === key}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-ui-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
+                statusFilter === key
+                  ? "bg-selected text-foreground"
+                  : "text-foreground-subtle hover:bg-hover hover:text-foreground",
+              )}
+              onClick={() => setStatusFilter(key)}
+            >
+              {SCHEDULED_AUTOMATION_STATUS_LABELS[key]}
+            </button>
           ))}
         </div>
       ) : null}
@@ -1049,16 +1044,16 @@ export function AutomationsSection({
                                     </>
                                   ) : status === "active" ? (
                                     <>
-                                        <span className="text-ui-sm text-success">
-                                          {
-                                            SCHEDULED_AUTOMATION_STATUS_LABELS[
-                                              resolveScheduledAutomationStatus(
-                                                automation,
-                                                runsCache[automation.automationId]?.runs,
-                                              )
-                                            ]
-                                          }
-                                        </span>
+                                      <span className="text-ui-sm text-success">
+                                        {
+                                          SCHEDULED_AUTOMATION_STATUS_LABELS[
+                                            resolveScheduledAutomationStatus(
+                                              automation,
+                                              runsCache[automation.automationId]?.runs,
+                                            )
+                                          ]
+                                        }
+                                      </span>
                                       <AutomationScheduleBadge
                                         text={scheduleCardText}
                                         icon={
@@ -1152,7 +1147,6 @@ export function AutomationsSection({
                 </div>
               )}
             </div>
-
           </div>
 
           {/* 修复原因：真实任务卡与模板此前只靠空白分区，遗漏了 Figma 4835:5515 的分割线；
@@ -1169,59 +1163,59 @@ export function AutomationsSection({
           ) : null}
 
           {/* Scheduled task template：点击只预填新建整页。 */}
-            <section
-              data-automations-scheduled-templates
-              aria-busy={automationTemplates.loading}
-              className="flex w-full flex-col gap-4"
-            >
-              <h2 className="text-ui-base font-medium leading-5 text-foreground-subtle">
-                {intl.formatMessage({ id: "automations.moreIdeas" })}
-              </h2>
-              {automationTemplates.loading ? (
-                <AutomationTemplateSkeletonGrid
-                  label={intl.formatMessage({ id: "common.loading" })}
-                />
-              ) : automationTemplates.scheduled.length === 0 ? (
-                <div
-                  data-automation-template-empty-state
-                  className="flex min-h-[114px] w-full items-center justify-center rounded-xl border border-card-border bg-background p-3 text-center text-ui-base font-normal text-foreground-subtlest"
-                >
-                  {intl.formatMessage({ id: "automations.templates.unavailable" })}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {automationTemplates.scheduled.map((template) => {
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => handleUseTemplate(template)}
-                        className="group flex min-h-[114px] flex-col gap-2 overflow-hidden rounded-xl border border-card-border bg-background p-3 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
-                      >
-                        <div className="flex min-w-0 items-center gap-1 text-foreground">
-                          <span className="flex size-5 shrink-0 items-center justify-center">
-                            <AutomationScheduledTemplateIcon
-                              iconName={template.iconName}
-                              name={template.icon}
-                            />
-                          </span>
-                          <span className="truncate text-ui-base font-medium leading-5 text-foreground">
-                            {resolveAutomationTemplateText(template.title, locale)}
-                          </span>
-                        </div>
-                        {/* Bug 原因：定时模板首次实现时把周期时间拼进标题行，和闲时模板的底部时间层级不一致。 */}
-                        <p className="line-clamp-2 flex-1 text-ui-base font-normal leading-5 text-foreground-subtle">
-                          {resolveAutomationTemplateText(template.description, locale)}
-                        </p>
-                        <div className="text-ui-base font-normal leading-5 text-foreground-subtle">
-                          {describeAutomationCardSchedule({ cronExpr: template.cronExpr }, intl)}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+          <section
+            data-automations-scheduled-templates
+            aria-busy={automationTemplates.loading}
+            className="flex w-full flex-col gap-4"
+          >
+            <h2 className="text-ui-base font-medium leading-5 text-foreground-subtle">
+              {intl.formatMessage({ id: "automations.moreIdeas" })}
+            </h2>
+            {automationTemplates.loading ? (
+              <AutomationTemplateSkeletonGrid
+                label={intl.formatMessage({ id: "common.loading" })}
+              />
+            ) : automationTemplates.scheduled.length === 0 ? (
+              <div
+                data-automation-template-empty-state
+                className="flex min-h-[114px] w-full items-center justify-center rounded-xl border border-card-border bg-background p-3 text-center text-ui-base font-normal text-foreground-subtlest"
+              >
+                {intl.formatMessage({ id: "automations.templates.unavailable" })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {automationTemplates.scheduled.map((template) => {
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => handleUseTemplate(template)}
+                      className="group flex min-h-[114px] flex-col gap-2 overflow-hidden rounded-xl border border-card-border bg-background p-3 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                    >
+                      <div className="flex min-w-0 items-center gap-1 text-foreground">
+                        <span className="flex size-5 shrink-0 items-center justify-center">
+                          <AutomationScheduledTemplateIcon
+                            iconName={template.iconName}
+                            name={template.icon}
+                          />
+                        </span>
+                        <span className="truncate text-ui-base font-medium leading-5 text-foreground">
+                          {resolveAutomationTemplateText(template.title, locale)}
+                        </span>
+                      </div>
+                      {/* Bug 原因：定时模板首次实现时把周期时间拼进标题行，和闲时模板的底部时间层级不一致。 */}
+                      <p className="line-clamp-2 flex-1 text-ui-base font-normal leading-5 text-foreground-subtle">
+                        {resolveAutomationTemplateText(template.description, locale)}
+                      </p>
+                      <div className="text-ui-base font-normal leading-5 text-foreground-subtle">
+                        {describeAutomationCardSchedule({ cronExpr: template.cronExpr }, intl)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       )}
     </div>

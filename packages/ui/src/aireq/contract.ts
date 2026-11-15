@@ -84,8 +84,4 @@ export interface AIReqApplicationProps {
   platform: IPlatformService;
   operator: { employeeNumber: string; leave(): void };
 }
-export type AIReqMainView =
-  | "chat"
-  | "automations"
-  | "skillDesign"
-  | "requirementAnalysis";
+export type AIReqMainView = "chat" | "automations" | "skillDesign" | "requirementAnalysis";

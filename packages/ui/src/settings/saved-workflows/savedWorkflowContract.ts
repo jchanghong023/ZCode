@@ -7,4 +7,3 @@ export interface SavedWorkflowsOpenRunParams {
   workspacePath: string;
   workspaceIdentity?: string;
 }
-

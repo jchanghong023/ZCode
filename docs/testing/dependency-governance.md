@@ -105,7 +105,7 @@ Knip 会自动发现 pnpm workspace；`knip.json` 的 `workspaces` 是**按 work
 以下内容会按规则出现在报告里，需要 owner 逐项判断：
 
 - `packages/ui/src/components/` 下不进入保留集合的业务组件（如 `cloud-content-dialog`、`coding-plan-quota-reset`、`workflow-graph`、`workflow-run-line`、`workflow-timeline`）在无引用时进入 `files`；这正是本配置要恢复的可见性。
-- 根 `scripts/deterministic-tar-archive.mjs`、`scripts/builtin-provider-config.mjs` 目前没有被 `package.json`、`mise.toml`、测试或其它脚本引用，会作为真实 unused file 出现；确认用途前不得为消除报告添加 `ignore`。
+- 曾被登记为 unused 的 `scripts/deterministic-tar-archive.mjs`、`scripts/builtin-provider-config.mjs` 已随退役的 CLI/桌面打包链路删除；同类真实 unused 文件仍应出现在报告中，不得为消除报告添加 `ignore`。
 - 53 条既有“缺 module 产物”baseline 由架构基线负责，不在 Knip 配置中补空壳或降级。
 - 根 `ignore` 仅保留 `.agents/**` 与 `docs/**`：它们是技能/文档示例资产（如 `.agents/skills/ai-elements/scripts/*.tsx`），不属于产品源码依赖图；任何 `packages/**` 产品源码都不在全局 ignore 中。
 

@@ -139,9 +139,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                           ? "进行中"
                           : "失败"}
                     </p>
-                    <time dateTime={item.startedAt}>
-                      {recordTime(item.startedAt)}
-                    </time>
+                    <time dateTime={item.startedAt}>{recordTime(item.startedAt)}</time>
                     {item.steps.map((step, index) => (
                       <p key={index} className="text-foreground-subtle">
                         {step.detail}

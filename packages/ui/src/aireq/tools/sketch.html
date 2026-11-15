@@ -555,7 +555,10 @@ SOFTWARE.
           var buttons = document.querySelectorAll(selector);
           var i;
           for (i = 0; i < buttons.length; i++) {
-            buttons[i].setAttribute("aria-pressed", String(buttons[i].classList.contains("active")));
+            buttons[i].setAttribute(
+              "aria-pressed",
+              String(buttons[i].classList.contains("active")),
+            );
             buttons[i].addEventListener("click", function () {
               if (busy()) return;
               selectButton(selector, this);
@@ -711,7 +714,9 @@ SOFTWARE.
           }
           if (
             !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) ||
-            event.ctrlKey || event.metaKey || event.altKey
+            event.ctrlKey ||
+            event.metaKey ||
+            event.altKey
           )
             return;
           event.preventDefault();
@@ -720,9 +725,11 @@ SOFTWARE.
           finishStroke();
           pasteGeneration++;
           const step = event.shiftKey ? 50 : 10;
-          const width = canvas.width +
+          const width =
+            canvas.width +
             (event.key === "ArrowRight" ? step : event.key === "ArrowLeft" ? -step : 0);
-          const height = canvas.height +
+          const height =
+            canvas.height +
             (event.key === "ArrowDown" ? step : event.key === "ArrowUp" ? -step : 0);
           if (Math.max(200, width) === canvas.width && Math.max(150, height) === canvas.height)
             return;

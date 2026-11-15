@@ -307,10 +307,7 @@ function ConnectedProgressAnalysis({
     0,
   );
   return (
-    <section
-      className="min-w-0 space-y-3"
-      data-testid="aireq-requirement-analysis"
-    >
+    <section className="min-w-0 space-y-3" data-testid="aireq-requirement-analysis">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-3 text-ui-sm">
           <Label htmlFor="analysis-enabled">自动分析</Label>
@@ -377,10 +374,7 @@ function ConnectedProgressAnalysis({
         mutate={mutate}
       />
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
-      <section
-        aria-label="分析任务与执行历史"
-        className="min-w-0 rounded-xl border border-border"
-      >
+      <section aria-label="分析任务与执行历史" className="min-w-0 rounded-xl border border-border">
         <Tabs
           value={tab}
           onValueChange={(value) => {

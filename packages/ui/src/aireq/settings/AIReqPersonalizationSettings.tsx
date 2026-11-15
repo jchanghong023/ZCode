@@ -69,7 +69,10 @@ function PersonalizationContent({
       await source.prompts!.save(draft, savedRevision);
       setSaved({ ...source.prompts!.read().saved });
       setSavedRevision(source.prompts!.read().revision);
-      setMessage({ kind: "success", text: zh ? "追加提示词已保存。" : "Appended instructions saved." });
+      setMessage({
+        kind: "success",
+        text: zh ? "追加提示词已保存。" : "Appended instructions saved.",
+      });
       return true;
     } catch (cause) {
       setMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
@@ -133,9 +136,7 @@ function PersonalizationContent({
           <p role="status" className="text-ui-base leading-6 text-foreground-subtle">
             {zh ? "未保存：" : "Unsaved: "}
             {dirtyAgents.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
-            {zh
-              ? "。保存或取消将应用于全部草稿。"
-              : ". Save or cancel applies to all drafts."}
+            {zh ? "。保存或取消将应用于全部草稿。" : ". Save or cancel applies to all drafts."}
           </p>
         )}
       </div>

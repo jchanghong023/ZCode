@@ -52,17 +52,15 @@ export function SettingsSearch({
         const sectionLabel = section.label ?? intl.formatMessage({ id: section.titleId });
         const items = SETTINGS_SEARCH_ITEMS.filter(
           (item) => section.includeSettings !== false && item.section === section.id,
-        ).map(
-          (item) => ({
-            section: section.id,
-            setting: item.id,
-            label: intl.formatMessage({ id: item.id }),
-            sectionLabel,
-            keys: settingsNavigationSearchKeys([intl.formatMessage({ id: item.id })]),
-            descriptionKeys: [intl.formatMessage({ id: item.description })],
-            visibility: item.visibility,
-          }),
-        );
+        ).map((item) => ({
+          section: section.id,
+          setting: item.id,
+          label: intl.formatMessage({ id: item.id }),
+          sectionLabel,
+          keys: settingsNavigationSearchKeys([intl.formatMessage({ id: item.id })]),
+          descriptionKeys: [intl.formatMessage({ id: item.description })],
+          visibility: item.visibility,
+        }));
         return [
           {
             section: section.id,

@@ -32,10 +32,7 @@ import { AIReqStageHeader, AIReqMaterialsPane } from "../proposals/AIReqWorkbenc
 import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
 import { AIReqProposalDraftComposer } from "../proposals/AIReqProposalDraftComposer.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
-import {
-  AIReqFormalWorkspace,
-  AIReqRequirementAnalysisPage,
-} from "../tracking/index.js";
+import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/index.js";
 import { AIReqAutomations } from "../tools/AIReqAutomations.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
 import { AIReqSettingsPage } from "../settings/AIReqSettingsPage.js";
@@ -422,7 +419,9 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                 aria-pressed={formal && !settings}
                 disabled={!project}
                 onClick={() =>
-                  navigate(() => ai.select({ projectId: ai.selection.projectId, formalView: "list" }))
+                  navigate(() =>
+                    ai.select({ projectId: ai.selection.projectId, formalView: "list" }),
+                  )
                 }
               >
                 <TableProperties className="size-4" />

@@ -37,11 +37,8 @@
     "check:workspace-freshness": "bun scripts/check-workspace-freshness.mjs"
   },
   "devDependencies": {
-    "@jridgewell/trace-mapping": "0.3.31",
     "@types/node": "^25.5.0",
     "concurrently": "^9.1.2",
-    "istanbul-lib-coverage": "3.2.2",
-    "istanbul-lib-instrument": "6.0.3",
     "knip": "^6.0.6",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.57.0",
