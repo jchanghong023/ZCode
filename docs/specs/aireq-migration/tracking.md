@@ -12,7 +12,7 @@
 - 数据链：`S/backend/prototype-data-source.ts` 每个后端样例作用域创建一次 `createPrototypeProgressScheduler`、`createPrototypeIssues`；`readWorkflow` 叠加 progress/planning 投影；`S/backend/scope.ts:46-58,77-79` 将 workflow、scheduler、issues 事件与相应写入口公开；`S/client/remote-data-source.ts` 为现有网络适配参考。
 - 当前契约 `S/backend/contract.ts` 是 **version 3**。README 中旧版 contract/version、历史任意人工百分比、94% 直接完成及旧布局记录不是当前合同。
 - 原版仅作为功能、字段和业务操作语义依据；架构、控件、布局、配色、字体与显示只以当前检出的 ZCode、`DESIGN.md`、当前 `components/ui/`、`styles.css` 与现有壳为准。源坐标、宽高、默认分区比例和旧主题不构成视觉验收标准，不对比 upstream/base；已有合理业务布局不重建。
-- 需求分析、正式需求与 Issue 三页的业务页 `h1` 统一使用通用较大标题字阶 `text-ui-xl`，保留既有字重和布局，不使用 Settings 专用标题 token；不据此调整页面顶部留白或其他页面标题。
+- 自动化、需求分析、正式需求与 Issue 三页的业务页标题统一使用 `text-ui-page-title font-medium tracking-[0.114px]`：默认字号 30px、行高 34px，字号为 `--ui-font-size + 16px`；电脑窄窗口也保持同级，不使用 Settings 专用标题 token。不调整页面顶部留白。验收须在 1280×720 和 900×700 比较各页实际字号、字重及行高，并确认正式需求筛选操作仍可达。
 
 ## 2. 逐项源 → 目标 → 可观察验收
 
@@ -271,3 +271,9 @@ stateDiagram-v2
 正式需求、需求分析、新建 Issue、Issue 分析、Issue 进度逐页以原版为功能项、工具栏操作顺序、字段、筛选、分页、表格与同页右栏／报告关系的业务依据，不另造操作流程或省略控件。架构、控件、布局、配色、字体与全部显示遵循当前检出的 ZCode 与 `DESIGN.md`；源坐标、间距、固定尺寸和默认分区比例不构成目标视觉验收标准。保留现有合理分栏与用户偏好，不复制源旧组件库，不重建布局；现有服务契约、唯一事实所有者、共享状态与访客门禁保持不变。
 
 所有代码与文档完成后，由主集成实际操作并截图目标各页及关键展开态；报告／材料切换、分栏拖动、筛选保留和页级范围分别验收。原版仅核对业务功能，不做视觉或几何比对；目标显示按当前 ZCode 与 `DESIGN.md` 验收。不能以任务数量、渲染成功或工程测试通过代替功能与显示验收，本轮未执行检查、测试或浏览器验证。
+
+### 2026-11-15 标题层级统一复验
+
+- 引入共享 `text-ui-page-title`（默认 30px／34px、500 字重），替换业务页的 18px 标题与自动化固定字号，并注册到 `cn` 字号合并组，避免被前景色类覆盖。
+- 当前 Chromium 在 1280×720、900×700 实测自动化、需求分析、正式需求、新建 Issue、Issue 分析、Issue 进度均为 30px／34px、500 字重；截图确认正式需求窄窗口筛选换行后仍可见，自动化原有标题几何保持。
+- 浏览器未记录运行错误。未新增业务测试。

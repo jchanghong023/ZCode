@@ -117,8 +117,8 @@ export function AIReqFormalTable() {
       <div className="flex min-h-0 w-full flex-1 flex-col px-3 py-4 md:px-4 md:py-6">
         <header className="shrink-0 space-y-3 border-b border-border pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* 修复业务页标题与正文同级的问题：使用通用较大字阶，不借用 Settings 专用 token。 */}
-            <h1 className="shrink-0 text-ui-xl font-semibold tracking-tight">正式需求</h1>
+            {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
+            <h1 className="shrink-0 text-ui-page-title font-medium tracking-[0.114px]">正式需求</h1>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Select value={aireq.selection.projectId ?? ""} onValueChange={aireq.switchProject}>
                 <SelectTrigger className="h-7 w-40" aria-label="正式需求项目">

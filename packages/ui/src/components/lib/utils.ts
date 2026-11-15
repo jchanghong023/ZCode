@@ -6,6 +6,7 @@ const mergeUiClasses = extendTailwindMerge({
     classGroups: {
       // text-ui-* 是字号而不是 text color；显式注册，避免和 text-foreground 等颜色类互相覆盖。
       "font-size": [
+        "text-ui-page-title",
         "text-ui-xl",
         "text-ui-lg",
         "text-ui-base",

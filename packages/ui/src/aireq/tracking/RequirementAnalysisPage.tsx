@@ -52,8 +52,8 @@ export function AIReqRequirementAnalysisPage({
         <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
           <header className="mb-6 flex shrink-0 flex-wrap items-start justify-between gap-3">
             <div>
-              {/* 修复业务页标题与正文同级的问题：使用通用较大字阶，不借用 Settings 专用 token。 */}
-              <h1 className="text-ui-xl font-semibold tracking-tight">需求分析</h1>
+              {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
+              <h1 className="text-ui-page-title font-medium tracking-[0.114px]">需求分析</h1>
               <p className="mt-2 text-ui-base text-foreground-subtle">
                 跟踪正式需求的开发进度，查看代码依据与待处理问题。
               </p>

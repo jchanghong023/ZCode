@@ -19,6 +19,7 @@ The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for ap
 
 - UI components must use `text-ui-xl`, `text-ui-lg`, `text-ui-base`, `text-ui-caption`, `text-ui-sm`, or `text-ui-xs`.
 - The shared Settings section heading may use the dedicated `text-ui-settings-title` / `lg:text-ui-settings-title-lg` role defined below.
+- Top-level business page headings (Automations, requirement analysis, formal requirements, and Issue pages) use `text-ui-page-title`.
 - Do not introduce Tailwind's built-in `text-base`, `text-sm`, or `text-xs` for application UI.
 - Do not introduce arbitrary UI font sizes such as `text-[13px]` or inline `font-size` values.
 - The only content-level exceptions are code, Diff, and terminal rendering that consume their independent numeric font-size settings. Their surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
@@ -280,6 +281,11 @@ All interface typography must use the dedicated `text-ui-*` scale. The Appearanc
 | `text-ui-sm`      | `--ui-font-size - 2px` |    12px |
 | `text-ui-xs`      | `--ui-font-size - 4px` |    10px |
 | `text-ui-2xs`     | `--ui-font-size - 5px` |     9px |
+
+`text-ui-page-title` is the shared top-level business page heading role:
+`--ui-font-size + 16px` (30px by default), with a line-height ratio of `34 / 30`.
+Use `font-medium tracking-[0.114px]` to preserve the existing Automations heading
+hierarchy at all desktop window widths; section headings retain the standard scale.
 
 `text-ui-2xs` is a restricted exception below the `text-ui-xs` floor: it is permitted
 only for graph **axis furniture** — timebase tick labels, channel codes, and unit

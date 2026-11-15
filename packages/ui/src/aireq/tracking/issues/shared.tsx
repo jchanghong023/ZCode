@@ -32,8 +32,8 @@ export function IssuePageHeading({ page, scope }: { page: IssuePage; scope: AIRe
   const project = aireq.view?.projects.find((item) => item.id === scope.projectId);
   return (
     <header className="space-y-2">
-      {/* 修复业务页标题与正文同级的问题：使用通用较大字阶，不借用 Settings 专用 token。 */}
-      <h1 className="text-ui-xl font-semibold tracking-tight">{pageLabels[page]}</h1>
+      {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
+      <h1 className="text-ui-page-title font-medium tracking-[0.114px]">{pageLabels[page]}</h1>
       <p className="text-ui-base leading-6 text-foreground-subtle">{pageDescriptions[page]}</p>
       {page !== "issueCreate" && (
         <p className="text-ui-sm text-foreground-subtle">{project?.name ?? "未选择项目"}</p>

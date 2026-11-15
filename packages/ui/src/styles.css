@@ -180,6 +180,9 @@ body {
   --text-ui-settings-title--line-height: calc(4 / 3);
   --text-ui-settings-title-lg: calc(var(--ui-font-size) + 16px);
   --text-ui-settings-title-lg--line-height: 1.2;
+  /* 修复：业务页标题须与自动化同级，统一跟随 UI 字号，避免固定 30px 与 18px 混用。 */
+  --text-ui-page-title: calc(var(--ui-font-size) + 16px);
+  --text-ui-page-title--line-height: calc(34 / 30);
   --text-ui-xl: calc(var(--ui-font-size) + 4px);
   --text-ui-lg: calc(var(--ui-font-size) + 2px);
   --text-ui-base: var(--ui-font-size);
