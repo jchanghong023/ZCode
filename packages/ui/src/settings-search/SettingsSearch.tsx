@@ -12,10 +12,8 @@ import {
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { SettingsSearchResult } from "@/settings-search/contract.js";
-import {
-  isSettingsSectionAvailable,
-  type createSettingsPageConfig,
-} from "@/settings/settingsPageConfig.js";
+import { isSettingsSectionAvailable } from "@/settings/settingsPageConfig.js";
+import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import {
   resolveSettingsSearchAvailability,
   SETTINGS_SEARCH_ITEMS,
@@ -32,7 +30,10 @@ export function SettingsSearch({
   sections,
   onSelect,
 }: {
-  sections: ReturnType<typeof createSettingsPageConfig>["settingsSections"];
+  sections: readonly ({
+    id: SettingsSectionId;
+    includeSettings?: boolean;
+  } & ({ titleId: string; label?: never } | { label: string; titleId?: never }))[];
   onSelect: (result: SettingsSearchResult) => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -48,8 +49,10 @@ export function SettingsSearch({
   const entries = useMemo(
     () =>
       sections.flatMap((section) => {
-        const sectionLabel = intl.formatMessage({ id: section.titleId });
-        const items = SETTINGS_SEARCH_ITEMS.filter((item) => item.section === section.id).map(
+        const sectionLabel = section.label ?? intl.formatMessage({ id: section.titleId });
+        const items = SETTINGS_SEARCH_ITEMS.filter(
+          (item) => section.includeSettings !== false && item.section === section.id,
+        ).map(
           (item) => ({
             section: section.id,
             setting: item.id,

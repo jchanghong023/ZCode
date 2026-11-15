@@ -51,11 +51,11 @@ export default defineConfig(({ mode }) => {
       ],
     },
     server: {
-      port: 5173,
+      port: 5174,
       proxy: {
-        // 将 /ws 和 /api 请求代理到 server（默认 3030 端口）
-        "/ws": { target: "ws://localhost:3030", ws: true },
-        "/api": { target: "http://localhost:3030" },
+        // main 使用独立后端端口，避免同时运行 base 时代理到另一套内存状态。
+        "/ws": { target: "ws://localhost:3031", ws: true },
+        "/api": { target: "http://localhost:3031" },
       },
     },
     optimizeDeps: {

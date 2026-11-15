@@ -362,7 +362,7 @@ export function createMockHttpServer(
   }
 
   const server = Bun.serve<ConnectionData>({
-    port: options.port ?? 3030,
+    port: options.port ?? 3031,
     hostname: options.host,
     fetch(request, server) {
       return app.fetch(request, { server });

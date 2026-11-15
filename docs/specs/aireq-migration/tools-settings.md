@@ -44,6 +44,32 @@ Shell 唯一持有设置开关及当前分区：首次进入项目，普通齿�
 
 最近分区复用原生 `settingsNavigation` 偏好读写，硬刷新后普通齿轮仍恢复最后接纳的分区；AIReq 的 appearance/projects/models/personalization/skills 分别映射原生 appearance/general/modelProvider/personalization/skill，其他原生分区或未知偏好回到项目。Shell 仅初始化读取，不在挂载时重写偏好；手动切分区及项目管理／模型入口的显式意图均在原有未保存门禁接纳之后更新当前分区与同一原生偏好，取消或保存失败不得修改记忆。
 
+设置侧栏在返回按钮与分组导航之间保留 base 的“搜索设置”入口，复用现有搜索弹窗、中文／拼音模糊匹配、清空、空结果和键盘交互。搜索仅投影当前五个分区及仍保留的外观固定设置行，不恢复已裁撤的原生分区或旧平台配置项。选中分区沿用上述原生 ID 映射；外观设置行沿用稳定 searchId 的滚动、聚焦和短暂高亮。
+
+搜索弹窗只拥有查询与打开状态，AIReqSettingsPage 拥有定位目标；Shell 仍唯一持有分区。顺序为：选择结果 → 搜索弹窗结束焦点锁 → 原有未保存门禁 → 接纳分区和定位目标 → 已挂载设置行定位。取消或保存失败保持原分区、草稿和原定位目标。验收：入口可见；搜索“字号”定位外观行；搜索“模型”进入模型设置；脏草稿搜索跳转可取消／丢弃；无匹配显示空态；Esc 先清空再关闭并恢复入口焦点。
+
+普通侧栏分区切换获准后清空旧搜索定位；搜索命中外观行后切到模型再返回外观，不应再次滚动、聚焦或高亮旧命中。门禁取消时不清空原定位。
+
+`aireq-ui` 通过 `settings-search` 公开入口单向依赖搜索 UI，不反向导入 AIReq 实现。
+
+```mermaid
+sequenceDiagram
+  participant Search as 搜索弹窗（查询）
+  participant Page as 设置页（门禁、定位目标）
+  participant Shell as Shell（当前分区）
+  participant Row as 已挂载设置行
+  Search->>Search: 选中结果并结束焦点锁
+  Search->>Page: 导航请求
+  alt 有未保存草稿
+    Page->>Page: 保存／丢弃／取消
+  end
+  opt 导航获准
+    Page->>Shell: 更新分区与原生偏好
+    Page->>Row: 发布定位目标
+    Row->>Row: 滚动、聚焦、短暂高亮
+  end
+```
+
 ## 3. 第 8 节逐项覆盖及可观察验收
 
 表中编号顺序对应第 8 节的六个待办；子行是同项内不可丢的开放交互。

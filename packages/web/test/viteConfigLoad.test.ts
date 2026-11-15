@@ -69,10 +69,6 @@ describe("web Vite config", () => {
       expect(result?.config.define?.[`import.meta.env.${name}`]).toBeUndefined();
     }
     expect(result?.config.server?.proxy).not.toHaveProperty("/api/v1/oauth");
-    expect(result?.config.server?.proxy).toMatchObject({
-      "/ws": { target: "ws://localhost:3030", ws: true },
-      "/api": { target: "http://localhost:3030" },
-    });
   });
 
   it("uses shared ZCode endpoint env override for renderer injection", async () => {

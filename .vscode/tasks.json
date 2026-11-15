@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "zcode: mock server (:3030)",
+      "label": "zcode: mock server (:3031)",
       "type": "shell",
       "command": "bun run dev:server",
       "options": {
@@ -23,12 +23,12 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "localhost:3030"
+          "endsPattern": "localhost:3031"
         }
       }
     },
     {
-      "label": "zcode: web dev (:5173)",
+      "label": "zcode: web dev (:5174)",
       "type": "shell",
       "command": "bun run dev:web",
       "options": {
@@ -55,7 +55,7 @@
     },
     {
       "label": "zcode: dev (mock server + web)",
-      "dependsOn": ["zcode: mock server (:3030)", "zcode: web dev (:5173)"],
+      "dependsOn": ["zcode: mock server (:3031)", "zcode: web dev (:5174)"],
       "dependsOrder": "parallel",
       "problemMatcher": []
     }

@@ -9,7 +9,7 @@ function resolveWorkspacePath(): string {
 
 async function main(): Promise<void> {
   const workspacePath = resolveWorkspacePath();
-  const port = Number(process.env["PORT"]) || 3030;
+  const port = Number(process.env["PORT"]) || 3031;
   const host = process.env["ZCODE_SERVER_HOST"]?.trim() || process.env["HOST"]?.trim() || undefined;
   const staticRoot = process.env["ZCODE_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["ZCODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;

@@ -4,7 +4,7 @@
  */
 export const aireqUiModule = {
   id: "aireq-ui",
-  requires: ["aireq-contract", "services", "shared", "ui"],
+  requires: ["aireq-contract", "services", "shared", "ui", "settings-search"],
   provides: ["aireq-ui"],
   publicEntrypoints: ["index.ts", "contract.ts"],
 } as const;

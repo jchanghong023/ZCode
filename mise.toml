@@ -16,7 +16,7 @@ description = "Build the mock server then the Web client (same as bun run build)
 run = "mise exec -- bun run build"
 
 [tasks.dev]
-description = "Start the mock server (:3030) and web client (:5173) dev servers."
+description = "Start the mock server (:3031) and web client (:5174) dev servers."
 run = "mise exec -- bun run dev"
 
 [tasks.typecheck]

@@ -2,25 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "ZCode Web: Chrome (:5173)",
+      "name": "ZCode Web: Chrome (:5174)",
       "type": "pwa-chrome",
       "request": "launch",
-      "url": "http://localhost:5173",
+      "url": "http://localhost:5174",
       "webRoot": "${workspaceFolder}/packages/web",
       "sourceMaps": true,
       "preLaunchTask": "zcode: dev (mock server + web)"
     },
     {
-      "name": "ZCode Server: Mock (:3030)",
+      "name": "ZCode Server: Mock (:3031)",
       "type": "bun",
       "request": "launch",
       "program": "${workspaceFolder}/packages/server/src/entry-http.ts",
       "runtime": "bun",
       "cwd": "${workspaceFolder}",
       "env": {
-        "PORT": "3030"
+        "PORT": "3031"
       },
-      "preLaunchTask": "zcode: web dev (:5173)"
+      "preLaunchTask": "zcode: web dev (:5174)"
     }
   ]
 }

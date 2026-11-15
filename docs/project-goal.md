@@ -41,12 +41,12 @@ AIReq 不是架构、UI 或几何基准。架构、服务接入、布局、控�
 
 | 入口           | 命令 / 文件                                                                                         |
 | -------------- | --------------------------------------------------------------------------------------------------- |
-| 同时启动前后端 | `pnpm dev`（模拟后端 :3030，Vite 前端 :5173，`/api`、`/ws` 代理到 :3030）                           |
+| 同时启动前后端 | `bun run dev`（模拟后端 :3031，Vite 前端 :5174，`/api`、`/ws` 代理到 :3031）                        |
 | 仅模拟后端     | `pnpm dev:server` → `packages/server/src/entry-http.ts`（`PORT` 可覆盖）                            |
 | 仅前端         | `pnpm dev:web` → `packages/web/src/main.tsx`                                                        |
 | 构建           | `pnpm build`（`build:server` + `build:web`；`ZCODE_WEB_STATIC_ROOT=<web dist>` 单进程托管静态资源） |
 | 初始化         | `pnpm bootstrap`（工具链校验、patch 依赖刷新、install、build）                                      |
-| 浏览器验收     | 打开 <http://localhost:5173>，在真实浏览器中按页面实际操作验证                                      |
+| 浏览器验收     | 打开 <http://localhost:5174>，在真实浏览器中按页面实际操作验证                                      |
 
 协议与装配的事实来源是代码与 [模拟后端规范](architecture/mock-backend.md)、[Web 构建与清理工作流](architecture/web-build-workflow.md)；本文只固定形态与边界。
 

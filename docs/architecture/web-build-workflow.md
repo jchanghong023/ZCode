@@ -54,8 +54,9 @@ workspace 内其它包（`shared` / `rpc` / `services` / `ui` 等）以源码形
 
 ## 开发
 
-- `bun run dev` 并行启动两端：后端包的 `dev` 从包目录执行 `cd ../.. && bun --watch packages/server/src/entry-http.ts`，将 Bun watch 的执行位置固定为仓库根，保证其它 workspace 的共享源码变更也触发重启（默认 `:3030`，`PORT` 可覆盖）。不在 `packages/server` 内直接 watch，避免遗漏包外源码；后端默认 `workspacePath` 因此为仓库根，可用 `ZCODE_SERVER_WORKSPACE` 覆盖。`packages/web` 以 Bun 执行 Vite（`:5173`，`/api`、`/ws` 代理到 `:3030`）。后端不提供其它运行时 fallback。
-- VS Code 配置与之一致：任务 `zcode: mock server (:3030)`、`zcode: web dev (:5173)`、`zcode: dev (mock server + web)`；启动配置 `ZCode Web: Chrome (:5173)` 调试浏览器（先起两端），`ZCode Server: Mock (:3030)` 通过 `type: "bun"`、`runtime: "bun"` 直接调试 `src/entry-http.ts`（仅先起 web）。后端需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，不能使用 Chrome 调试器调试 Bun。
+- `bun run dev` 并行启动两端：后端包的 `dev` 从包目录执行 `cd ../.. && bun --watch packages/server/src/entry-http.ts`，将 Bun watch 的执行位置固定为仓库根，保证其它 workspace 的共享源码变更也触发重启（默认 `:3031`，`PORT` 可覆盖）。不在 `packages/server` 内直接 watch，避免遗漏包外源码；后端默认 `workspacePath` 因此为仓库根，可用 `ZCODE_SERVER_WORKSPACE` 覆盖。`packages/web` 以 Bun 执行 Vite（`:5174`，`/api`、`/ws` 代理到 `:3031`）。后端不提供其它运行时 fallback。
+- main 使用前端 `5174`、后端 `3031`；base 保持前端 `5173`、后端 `3030`，支持两套服务同时运行。前端端口与代理目标由 `packages/web/vite.config.ts` 配置，后端入口与 `createMockHttpServer` 的默认监听端口均为 `3031`（生产静态托管也适用）；不根据分支名动态切换。`PORT` 仅覆盖后端监听端口，不自动修改 Vite 代理。
+- VS Code 配置与之一致：任务 `zcode: mock server (:3031)`、`zcode: web dev (:5174)`、`zcode: dev (mock server + web)`；启动配置 `ZCode Web: Chrome (:5174)` 调试浏览器（先起两端），`ZCode Server: Mock (:3031)` 通过 `type: "bun"`、`runtime: "bun"` 直接调试 `src/entry-http.ts`（仅先起 web）。后端需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，不能使用 Chrome 调试器调试 Bun。
 - Bun 调试字段以[扩展 schema](https://github.com/oven-sh/bun/blob/main/packages/bun-vscode/package.json) 为准。[官方调试说明](https://bun.sh/guides/runtime/vscode-debugger) 提醒该扩展存在稳定性问题，并推荐 Bun Web debugger；这里不承诺扩展无故障。
 
 ### Firefox 开发客户端生命周期
@@ -125,3 +126,4 @@ sequenceDiagram
 3. `bun run clean` 后 `node_modules` 仍在、`dist` 与 `*.tsbuildinfo` 消失，随后 `bun run build` 可重建。
 4. `bun run clean:deps` 后 `node_modules` 消失、源码与仓库外文件不受影响。
 5. `scripts/clean.mjs` 对未知参数、越权目标路径失败，而非静默跳过。
+6. base 使用 `5173` / `3030` 运行时，main 的 `bun run dev` 仍在 `5174` / `3031` 启动；访问 main 的 `/api/server-info` 与 `/ws` 均到达 main 后端，Vite 开发客户端继续可用。VS Code 任务、就绪匹配和调试 URL 使用同一组 main 端口。

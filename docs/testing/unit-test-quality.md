@@ -65,8 +65,8 @@ pnpm 只负责包管理且由 Bun 执行。Vitest 的 `forks` worker 使用当�
 
 ## 4. 浏览器验收
 
-- 启动：`bun run dev`（模拟后端 :3030，Vite :5173，`/api`、`/ws` 已代理），在真实浏览器打开
-  <http://localhost:5173>。也可 `bun run dev:server` / `bun run dev:web` 分别启动。
+- 启动：`bun run dev`（模拟后端 :3031，Vite :5174，`/api`、`/ws` 已代理），在真实浏览器打开
+  <http://localhost:5174>。也可 `bun run dev:server` / `bun run dev:web` 分别启动。
 - 验收的是**真实界面运行时行为**：相同数据下改动前后的渲染与交互一致，保留 UI 不被自有功能改动，
   仅在电脑浏览器覆盖受影响面，不进行手机屏幕适配或测试。
 - 仓库当前没有 Playwright、WebdriverIO 或桌面 E2E harness，也没有 `test:e2e` 类命令。不要声称

@@ -18,6 +18,12 @@ import {
   SETTINGS_FRAME_CONTENT_CLASSNAME,
 } from "@/settings/SettingsPageParts.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import {
+  SettingsSearch,
+  SettingsSearchTargetContext,
+  type SettingsSearchId,
+} from "@/settings-search/index.js";
+import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { AIReqWorkspaceFooter } from "../shell/AIReqWorkspaceFooter.js";
 import { AIReqAgentModelSettings, type AIReqModelDraftActions } from "./AIReqAgentModelSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
@@ -44,6 +50,20 @@ const icons = {
   models: Package,
   personalization: User,
   skills: WandSparkles,
+};
+const searchSections = [
+  { id: "appearance", label: titles.appearance },
+  { id: "general", label: titles.projects, includeSettings: false },
+  { id: "modelProvider", label: titles.models, includeSettings: false },
+  { id: "personalization", label: titles.personalization, includeSettings: false },
+  { id: "skill", label: titles.skills, includeSettings: false },
+] as const;
+const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
+  appearance: "appearance",
+  general: "projects",
+  modelProvider: "models",
+  personalization: "personalization",
+  skill: "skills",
 };
 
 function Appearance() {
@@ -96,6 +116,7 @@ export function AIReqSettingsPage({
   const busyRef = useRef(false);
   const [canSave, setCanSave] = useState(false);
   const [error, setError] = useState("");
+  const [searchTarget, setSearchTarget] = useState<{ id: SettingsSearchId } | null>(null);
   const onDraftActionsChange = useCallback((next: AIReqModelDraftActions | null) => {
     actions.current = next;
     setCanSave(Boolean(next && next.canSave !== false));
@@ -162,11 +183,13 @@ export function AIReqSettingsPage({
   const navigate = (next: AIReqSettingsSection) => {
     if (next === section) return;
     guard(() => {
+      // 旧搜索目标不能跨分区保留，否则返回外观时重新挂载会再次抢焦点。
+      setSearchTarget(null);
       onSectionChange(next);
     });
   };
   return (
-    <>
+    <SettingsSearchTargetContext.Provider value={searchTarget}>
       <SettingsPageFrame
         title="设置"
         isDesktop={false}
@@ -187,6 +210,20 @@ export function AIReqSettingsPage({
               <span className="max-lg:sr-only">返回工作区</span>
             </Button>
           </ControlHintTooltip>
+        }
+        search={
+          <SettingsSearch
+            sections={searchSections}
+            onSelect={({ section: targetSection, setting }) => {
+              const next = searchSectionTargets[targetSection];
+              if (!next) return;
+              // AIReq 迁移漏接搜索；沿用离开门禁，接纳后才更换分区和定位目标。
+              guard(() => {
+                onSectionChange(next);
+                setSearchTarget(setting ? { id: setting } : null);
+              });
+            }}
+          />
         }
         navigationLabel="设置分区"
         navigation={
@@ -309,6 +346,6 @@ export function AIReqSettingsPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </SettingsSearchTargetContext.Provider>
   );
 }

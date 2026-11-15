@@ -41,14 +41,14 @@ bun run bootstrap
 ## 开发
 
 ```bash
-bun run dev    # 同时启动 Bun 模拟后端(:3030)与 Bun 执行的 Vite(:5173)
+bun run dev    # 同时启动 Bun 模拟后端(:3031)与 Bun 执行的 Vite(:5174)
 ```
 
-也可分别启动：`bun run dev:server`（默认 :3030，`PORT` 可覆盖）、`bun run dev:web`（Vite :5173，`/api` 与 `/ws` 代理到 :3030）。后端包的开发脚本使用 `cd ../.. && bun --watch packages/server/src/entry-http.ts`，从仓库根执行 watch，确保其它 workspace 共享源码变更也触发重启；默认 `workspacePath` 为仓库根，可通过 `ZCODE_SERVER_WORKSPACE` 覆盖。
+也可分别启动：`bun run dev:server`（默认 :3031，`PORT` 可覆盖）、`bun run dev:web`（Vite :5174，`/api` 与 `/ws` 代理到 :3031）。main 使用独立端口，可与 base（前端 :5173、后端 :3030）同时运行。后端包的开发脚本使用 `cd ../.. && bun --watch packages/server/src/entry-http.ts`，从仓库根执行 watch，确保其它 workspace 共享源码变更也触发重启；默认 `workspacePath` 为仓库根，可通过 `ZCODE_SERVER_WORKSPACE` 覆盖。
 
-仓库内置 VS Code 任务：`zcode: mock server (:3030)`、`zcode: web dev (:5173)`、`zcode: dev (mock server + web)`。启动配置 `ZCode Web: Chrome (:5173)` 只调试浏览器；`ZCode Server: Mock (:3030)` 使用 Bun 调试器，需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，并让 VS Code 的 `PATH` 可找到固定版本 Bun。该配置字段已按[扩展 schema](https://github.com/oven-sh/bun/blob/main/packages/bun-vscode/package.json) 设置；[官方文档](https://bun.sh/guides/runtime/vscode-debugger) 提醒扩展存在稳定性问题，并推荐 Bun Web debugger。Chrome 调试器不能用于调试 Bun 后端。
+仓库内置 VS Code 任务：`zcode: mock server (:3031)`、`zcode: web dev (:5174)`、`zcode: dev (mock server + web)`。启动配置 `ZCode Web: Chrome (:5174)` 只调试浏览器；`ZCode Server: Mock (:3031)` 使用 Bun 调试器，需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，并让 VS Code 的 `PATH` 可找到固定版本 Bun。该配置字段已按[扩展 schema](https://github.com/oven-sh/bun/blob/main/packages/bun-vscode/package.json) 设置；[官方文档](https://bun.sh/guides/runtime/vscode-debugger) 提醒扩展存在稳定性问题，并推荐 Bun Web debugger。Chrome 调试器不能用于调试 Bun 后端。
 
-打开 <http://localhost:5173> 即可使用完整界面：会话/任务管理、流式对话、工具调用展示、文件树、Git 面板、设置页等。所有数据由模拟后端的内存状态驱动（虚拟工作区、确定性回复）。
+打开 <http://localhost:5174> 即可使用完整界面：会话/任务管理、流式对话、工具调用展示、文件树、Git 面板、设置页等。所有数据由模拟后端的内存状态驱动（虚拟工作区、确定性回复）。
 
 ## 构建
 
@@ -63,7 +63,7 @@ ZCODE_WEB_STATIC_ROOT="$PWD/packages/web/dist" bun packages/server/dist/entry-ht
 # 或：ZCODE_WEB_STATIC_ROOT="$PWD/packages/web/dist" bun run --cwd packages/server start
 ```
 
-`ZCODE_WEB_STATIC_ROOT` 必须指向前端静态产物目录，推荐绝对路径。PowerShell 先执行 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再执行 `bun packages/server/dist/entry-http.js`；`PORT` 可覆盖默认端口 3030。
+`ZCODE_WEB_STATIC_ROOT` 必须指向前端静态产物目录，推荐绝对路径。PowerShell 先执行 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再执行 `bun packages/server/dist/entry-http.js`；`PORT` 可覆盖默认端口 3031。
 
 ## 清理
 

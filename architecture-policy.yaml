@@ -943,7 +943,7 @@ modules:
     roots:
       - packages/ui/src/aireq
     managed: true
-    requires: [aireq-contract, services, shared, ui]
+    requires: [aireq-contract, services, shared, ui, settings-search]
     publicEntrypoints:
       - packages/ui/src/aireq/index.ts
       - packages/ui/src/aireq/contract.ts
