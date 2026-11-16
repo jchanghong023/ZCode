@@ -31,7 +31,7 @@
 
 ## 命令与仓库结构
 
-开工前运行 `bun scripts/check-workspace-freshness.mjs` 检查基线。全仓库 JavaScript/TypeScript 仅使用 Bun，版本以 `mise.toml` 为准；`node:*` / `@types/node` 是 Bun 兼容 API/类型，不要求 Node.js。包管理用 `bun x --bun --package pnpm@10.33.2 pnpm <命令>`，不调用依赖 Node/Corepack 的系统 pnpm shim。
+开工以当前本地工作区为准，不执行远端新鲜度检查，不因落后远端阻止任务。除非用户明确要求同步远端，禁止自动执行 `git fetch`、`git pull`、`git merge` 或 `git rebase`；不得为通过门禁自行同步。全仓库 JavaScript/TypeScript 仅使用 Bun，版本以 `mise.toml` 为准；`node:*` / `@types/node` 是 Bun 兼容 API/类型，不要求 Node.js。包管理用 `bun x --bun --package pnpm@10.33.2 pnpm <命令>`，不调用依赖 Node/Corepack 的系统 pnpm shim。
 
 以下命令从仓库根目录执行：
 

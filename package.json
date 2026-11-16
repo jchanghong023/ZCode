@@ -33,8 +33,7 @@
     "architecture:baseline:update": "bun scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "bun scripts/architecture/architecture-check.mjs context",
     "architecture:adopt": "bun scripts/architecture/architecture-check.mjs adopt",
-    "docs:stale-phrases:check": "bun scripts/check-stale-doc-phrases.mjs",
-    "check:workspace-freshness": "bun scripts/check-workspace-freshness.mjs"
+    "docs:stale-phrases:check": "bun scripts/check-stale-doc-phrases.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

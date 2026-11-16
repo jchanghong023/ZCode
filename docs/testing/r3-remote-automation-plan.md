@@ -143,7 +143,6 @@ change-map + materials preflight
 ### 已有命令与能力
 
 ```bash
-node scripts/check-workspace-freshness.mjs
 pnpm bootstrap:with-remote
 pnpm dev:desktop
 

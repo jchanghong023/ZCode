@@ -100,9 +100,13 @@ flowchart LR
 
 ## 检查与证据
 
+2026-11-16 起移除远端新鲜度门禁及其脚本／命令入口。任务以当前本地工作区为准，落后远端不构成暂停或重派原因；未经用户明确要求，不执行 fetch／pull／merge／rebase。下方既有 freshness 结果仅保留历史证据，不再是执行前置，也不授权自动同步。验收：命令入口与脚本已删除，现行任务不再要求该检查；其余类型、Lint 与架构门禁保持。
+
+本次移除验证：删除入口的一次性 Bun 断言通过；执行目录引用检索仅剩不可执行的上游历史快照记录。`architecture:check --changed` 通过（0 违规），工程测试 11 文件／119 用例通过。`typecheck` 退出 2：本次未改动的 `native-business.ts` 中 `result.view` 可能未定义，`planning.ts` 中 `assumptions` 类型不匹配；`lint` 退出 1（4107 警告／102 错误），输出包含 `.tmp-g5/vite-cache/deps` 生成依赖诊断。不修改这些无关文件、不重跑检查，不将其记为通过；本次未执行 fetch／pull／merge／rebase。
+
 1. 逐组先更新对应规格与验收场景，再同批迁移实现、公开契约、SDK、schema、导出和全部消费者；不留兼容别名、双轨接口或后组补接线。任务文件的源码行号只作定位线索，不重复 31 份全量审查。
 2. 每项使用其自身的真实公开调用、现存工程测试、必要电脑浏览器或一次性隔离内存断言证明行为；无消费者的删除项可用精确引用／导入证明。静态关键词扫描不能代替错误、归属、状态和时序验证。临时装配与数据验证后清理，不向产品注册公开夹具、调试命令或 window 全局。
-3. 按第 1→9 组串行收口。实施前运行 freshness 与变更前架构检查并读取受影响模块 context；代码组收口一次 typecheck、Lint、`architecture:check --changed`，复核相关 Hooks，根 Lint 忽略的受影响 React 文件按 [Hooks 检查规则](../../testing/react-hooks-lint.md) 定向扫描。纯规则第 1 组不运行类型／Lint。Bun 版本以根 `mise.toml` 为准。
+3. 按第 1→9 组串行收口。实施前运行变更前架构检查并读取受影响模块 context；代码组收口一次 typecheck、Lint、`architecture:check --changed`，复核相关 Hooks，根 Lint 忽略的受影响 React 文件按 [Hooks 检查规则](../../testing/react-hooks-lint.md) 定向扫描。纯规则第 1 组不运行类型／Lint。Bun 版本以根 `mise.toml` 为准。
 4. 当前已获必要浏览器及隐藏 Skill 验证授权；旧“不进行浏览器验收”只描述历史审查，不再限制本轮。只验证受影响电脑路径和具体验收缺口，不进行手机／上游／base 对照；未验证项如实记录。
 5. 工程测试仅从根 `scripts/engineering-test-files.json` 现行清单按实际影响选择；触及根 package.json、公共 Vitest 配置或清单才执行规定全量。不默认跑架构测试全套，不扩测试体系。最终构建仅第 9 组运行一次 `bun run build`，不得代替前组首次行为验证；后组改变证据输入时复验受影响路径，输入未变的证据复用。
 6. 每组实际命令、对象／条件／预期／观察和未验限制写本文件本轮记录；协议细节回写既有 CONTRACT／架构文档。单项、组收口与最终发布边界分别声明，历史通过不得冒充当前结果，不自动提交、推送或部署。
