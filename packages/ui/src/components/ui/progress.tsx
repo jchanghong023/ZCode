@@ -35,6 +35,8 @@ function Progress({ className, indicatorClassName, segments, value, ...props }: 
         className,
       )}
       {...props}
+      // 修复：数值不能只用于宽度；Root 也需同值，避免确定进度被读为不确定状态。
+      value={value == null ? value : normalizedValue}
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"

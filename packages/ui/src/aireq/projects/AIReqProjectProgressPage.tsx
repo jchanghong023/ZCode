@@ -127,15 +127,16 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                     {summary.requirements.map((item) => {
                       const srs = view?.srs.filter((sr) => sr.projectId === project.id && sr.irId === item.irId) ?? [];
                       const itemRelease = releases.find((entry) => entry.id === item.releaseId);
+                      // 修复：悬停底色叠加后辅助色对比不足，编号与未分析提示改用现有前景色。
                       return <tr key={item.irId} className="group/row border-b border-border/50 last:border-0 hover:bg-surface-hover">
                         <td className="px-4 py-3">
                           <Button variant="ghost" className="h-auto w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => openReport(item.irId)}>{item.originalText}</Button>
-                          <span className="block text-ui-sm text-foreground-subtle">{item.irId}</span>
+                          <span className="block text-ui-sm text-foreground-subtle group-hover/row:text-foreground">{item.irId}</span>
                         </td>
                         <td className="px-4 py-3 text-ui-sm">{itemRelease?.title ?? item.releaseId}</td>
                         <td className="px-4 py-3 text-ui-sm">
                           <span>{item.srCount} SR</span>
-                          {item.unanalyzedCount > 0 && <span className="block text-foreground-subtle">{zh ? `${item.unanalyzedCount} 未分析（按 0 计）` : `${item.unanalyzedCount} unanalyzed (zero)`}</span>}
+                          {item.unanalyzedCount > 0 && <span className="block text-foreground-subtle group-hover/row:text-foreground">{zh ? `${item.unanalyzedCount} 未分析（按 0 计）` : `${item.unanalyzedCount} unanalyzed (zero)`}</span>}
                         </td>
                         <td className="px-4 py-3"><OverviewProgress percent={item.percent} label={item.irId} zh={zh} /></td>
                         <td className="px-2 py-3 text-right">
