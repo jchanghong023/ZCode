@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
 import { srProgressStatus, type AIReqSelection } from "../contract.js";
 import { OverviewProgress } from "./OverviewProgress.js";
@@ -54,6 +54,7 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
     <main
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-overview"
+      aria-label={zh ? "项目概览" : "Project overview"}
     >
       {/* 后台重读曾反复撑高标题区；状态移出内容流，保留读屏提示和原有详情位置。 */}
       <p role="status" className="sr-only">
@@ -63,20 +64,14 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
             : "Updating; existing values are the last read snapshot."
           : ""}
       </p>
-      <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6 pt-6"}>
-        <header className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目概览" : "Project overview"}</h1>
-            <ProjectPageHelp scope="project-overview" />
-          </div>
-          {ai.error && view && (
-            <p className="text-ui-sm text-foreground-subtle">
-              {zh
-                ? "已有数值仅代表上次成功读取；请使用上方重试入口。"
-                : "Values reflect the last successful read; use Retry above."}
-            </p>
-          )}
-        </header>
+      <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-4 pt-5"}>
+        {ai.error && view && (
+          <p className="text-ui-sm text-foreground-subtle">
+            {zh
+              ? "已有数值仅代表上次成功读取；请使用上方重试入口。"
+              : "Values reflect the last successful read; use Retry above."}
+          </p>
+        )}
         <section className="space-y-4" aria-label={zh ? "当前项目详情" : "Current project details"}>
           {!project ? (
             <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
@@ -114,11 +109,12 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 rounded-xl border border-card-border bg-card p-4 md:grid-cols-6">
-                    <div className="space-y-2 md:col-span-2">
-                      <div className="text-ui-sm text-foreground">
-                        {zh ? "范围进度" : "Scope progress"} ·{" "}
-                        {release?.title ?? (zh ? "全部 Release" : "All Releases")}
+                  {/* 页签已说明当前页面；进度与数量按任务分组，不重复标题和 Release。 */}
+                  <div className="grid grid-cols-3 gap-6 border-b border-border pb-5">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex min-h-6 items-center gap-1 text-ui-sm text-foreground-subtle">
+                        {zh ? "整体进度" : "Overall progress"}
+                        <ProjectPageHelp scope="project-overview" />
                       </div>
                       <OverviewProgress
                         percent={summary.percent}
@@ -127,48 +123,68 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                         prominent
                       />
                     </div>
-                    <div>
-                      <div className="text-ui-sm text-foreground">
-                        {zh ? "正式 IR" : "Formal IRs"}
+                    <dl className="col-span-2 grid grid-cols-4 gap-4">
+                      <div className="min-w-0 space-y-2">
+                        <dt className="flex min-h-6 items-center text-ui-sm text-foreground-subtle">
+                          {zh ? "正式需求" : "Formal requirements"}
+                        </dt>
+                        <dd className="text-ui-xl font-medium tabular-nums">
+                          {summary.formalCount}
+                        </dd>
                       </div>
-                      <div className="mt-1 text-ui-xl font-medium tabular-nums">
-                        {summary.formalCount}
+                      <div className="min-w-0 space-y-2">
+                        <dt className="flex min-h-6 items-center text-ui-sm text-foreground-subtle">
+                          {zh ? "提案" : "Proposals"}
+                        </dt>
+                        <dd>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto gap-1 p-0 text-ui-xl font-medium tabular-nums"
+                            aria-label={
+                              zh
+                                ? `查看 ${summary.proposalCount} 条提案`
+                                : `View ${summary.proposalCount} proposals`
+                            }
+                            onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+                          >
+                            {summary.proposalCount}
+                            <ChevronRight
+                              className="size-3.5 text-foreground-subtle"
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        </dd>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-ui-sm text-foreground">{zh ? "提案" : "Proposals"}</div>
-                      <div className="mt-1 text-ui-xl font-medium tabular-nums">
-                        {summary.proposalCount}
+                      <div className="min-w-0 space-y-2">
+                        <dt className="flex min-h-6 items-center text-ui-sm text-foreground-subtle">
+                          {zh ? "开发单元（SR）" : "Development units (SR)"}
+                        </dt>
+                        <dd className="text-ui-xl font-medium tabular-nums">{summary.srCount}</dd>
                       </div>
-                      {/* 修复：提案入口只在需求子页时，从全项目总览处理提案需额外切换视图。 */}
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-ui-sm"
-                        onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
-                      >
-                        {zh ? "查看提案" : "View proposals"}
-                      </Button>
-                    </div>
-                    <div>
-                      <div className="text-ui-sm text-foreground">SR</div>
-                      <div className="mt-1 text-ui-xl font-medium tabular-nums">
-                        {summary.srCount}
+                      <div className="min-w-0 space-y-2">
+                        <dt className="flex min-h-6 items-center text-ui-sm text-foreground-subtle">
+                          {zh ? "未分析单元" : "Unanalyzed units"}
+                        </dt>
+                        <dd className="text-ui-xl font-medium tabular-nums">
+                          {summary.unanalyzedCount}
+                        </dd>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-ui-sm text-foreground">
-                        {zh ? "未分析" : "Unanalyzed"}
-                      </div>
-                      <div className="mt-1 text-ui-xl font-medium tabular-nums">
-                        {summary.unanalyzedCount}
-                      </div>
-                      <div className="text-ui-sm text-foreground-subtle">
-                        {zh ? "按 0 计" : "Counted as zero"}
-                      </div>
-                    </div>
+                    </dl>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <h2 className="font-medium">{zh ? "正式需求" : "Formal requirements"}</h2>
+                      <p role="status" className="text-ui-sm text-foreground-subtle tabular-nums">
+                        {onlyUnanalyzed
+                          ? zh
+                            ? `${visibleRequirements.length} / ${summary.requirements.length} 条`
+                            : `${visibleRequirements.length} of ${summary.requirements.length}`
+                          : zh
+                            ? `共 ${summary.requirements.length} 条`
+                            : `${summary.requirements.length} total`}
+                      </p>
+                    </div>
                     <Button
                       variant={onlyUnanalyzed ? "secondary" : "outline"}
                       size="sm"
@@ -177,11 +193,6 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                     >
                       {zh ? "仅未分析" : "Unanalyzed only"}
                     </Button>
-                    <p role="status" className="text-ui-sm text-foreground-subtle">
-                      {zh
-                        ? `显示 ${visibleRequirements.length} / ${summary.requirements.length} 个正式 IR`
-                        : `${visibleRequirements.length} of ${summary.requirements.length} formal IRs`}
-                    </p>
                   </div>
                   <div className="overflow-x-auto rounded-xl border border-border bg-surface">
                     <table

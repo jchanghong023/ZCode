@@ -29,7 +29,8 @@ import {
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import {
   AIReqRequirementContext,
   AIReqRequirementViews,
@@ -56,6 +57,8 @@ import { ProgressValue } from "./formal/ProgressDisplay.js";
 // 表格始终由工作区固定挂载；筛选、展开和复制反馈留在本 owner，切行仅更新右侧报告。
 export function AIReqFormalTable() {
   const aireq = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [expanded, setExpanded] = useState(() => new Set<string>());
@@ -103,18 +106,13 @@ export function AIReqFormalTable() {
     <main
       className="@container/conversation h-full min-h-0 min-w-0 overflow-hidden bg-background"
       data-testid="aireq-formal-table"
+      aria-label={zh ? "正式需求" : "Formal requirements"}
     >
       <div
         className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
       >
-        <header className="shrink-0 space-y-5">
+        <header className="shrink-0 space-y-3">
           <AIReqRequirementViews />
-          <div className="space-y-2">
-            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>正式需求</h1>
-            <p className="text-ui-sm text-foreground-subtle">
-              查看 IR 与 SR 的开发进度、问题和人员计划，选择需求阅读同页报告。
-            </p>
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
@@ -152,6 +150,7 @@ export function AIReqFormalTable() {
                 清除筛选
               </Button>
             )}
+            <ProjectPageHelp scope="formal-requirements" />
           </div>
         </header>
         <TrackingTableScroll
@@ -409,22 +408,36 @@ export function AIReqFormalTable() {
           )}
         </TrackingTableScroll>
         <div
-          className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle"
+          className="relative mt-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 text-ui-sm text-foreground-subtle"
           data-testid="formal-counts"
         >
-          <span className="whitespace-nowrap font-medium text-foreground">
-            {visible.length} 个 IR
-          </span>
-          <span>
-            当前 Release 共 {groups.length} 个 IR ·{" "}
-            {groups.reduce((count, group) => count + irSrs(view, group).length, 0)} 个 SR
-          </span>
-        </div>
-        <div className="flex h-8 shrink-0 items-center gap-2 text-ui-sm">
+          {/* 原页脚重复计数、误称 Release 范围且空反馈占行；统计与真实反馈合并，规则移入帮助。 */}
+          <p role="status" className="flex flex-wrap gap-x-3 gap-y-1 tabular-nums">
+            <span>
+              {normalized || status !== "all"
+                ? zh
+                  ? `显示 ${visible.length} / ${groups.length} 条需求`
+                  : `${visible.length} of ${groups.length} requirements`
+                : zh
+                  ? `共 ${groups.length} 条需求`
+                  : `${groups.length} requirements`}
+            </span>
+            {!normalized && status === "all" && (
+              <span>
+                {zh
+                  ? `${groups.reduce((count, group) => count + irSrs(view, group).length, 0)} 个开发单元`
+                  : `${groups.reduce((count, group) => count + irSrs(view, group).length, 0)} development units`}
+              </span>
+            )}
+          </p>
           <p
             role={aireq.error ? "alert" : "status"}
             aria-live="polite"
-            className={`min-w-0 flex-1 truncate ${aireq.error ? "text-destructive" : "text-foreground-subtle"}`}
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              aireq.error ? "text-destructive" : "text-foreground-subtle",
+              !aireq.error && !copyMessage && "sr-only",
+            )}
             title={aireq.error ?? copyMessage}
           >
             {aireq.error ?? copyMessage}
@@ -440,9 +453,6 @@ export function AIReqFormalTable() {
             </Button>
           )}
         </div>
-        <p className="shrink-0 py-2 text-ui-sm text-foreground-subtle">
-          IR 时间由 SR 计划汇总，进度为 SR 平均值。
-        </p>
       </div>
     </main>
   );
@@ -552,7 +562,8 @@ function PersonnelPlan({
     ...warnings,
   ].join("\n");
   return (
-    <div className="min-w-0 space-y-1 text-ui-sm">
+    // 修复：展开长表后 sr-only 绝对定位曾越出滚动域，撑高 document；就地定位使排期读屏文本随单元格裁剪。
+    <div className="relative min-w-0 space-y-1 text-ui-sm">
       <ControlHintTooltip title={personnel}>
         <p
           tabIndex={0}

@@ -1,4 +1,4 @@
-import { ArrowLeft, Settings2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -39,6 +39,60 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
         ? "analysis"
         : "requirements";
   const release = releases.find((item) => item.id === ai.releaseId);
+
+  // 修复：提案讨论属于需求详情，不能继续用项目级页签冒充当前页面导航。
+  if (ai.mainView === "chat" && proposalView) {
+    const proposal = ai.view?.drafts.find(
+      (item) => item.projectId === project?.id && item.id === ai.selection.irId,
+    );
+    const requirementRelease = releases.find((item) => item.id === proposal?.releaseId);
+    return (
+      <header className="shrink-0 border-b border-border/50" data-testid="aireq-discussion-header">
+        <div className={`mx-auto min-w-0 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+          <nav
+            aria-label={zh ? "需求讨论导航" : "Requirement discussion navigation"}
+            className="flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-ui-sm [padding-left:max(0px,calc(4.75rem_-_(100cqw_-_100%)_/_2))]"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 max-w-60 text-foreground-subtle"
+              onClick={() => ai.navigate(() => ai.setMainView("projectOverview"))}
+            >
+              <span className="truncate">{project?.name ?? (zh ? "项目" : "Project")}</span>
+            </Button>
+            <ChevronRight
+              className="size-3.5 shrink-0 text-foreground-subtlest"
+              aria-hidden="true"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-foreground-subtle"
+              onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+            >
+              {zh ? "需求提案" : "Proposals"}
+            </Button>
+            <ChevronRight
+              className="size-3.5 shrink-0 text-foreground-subtlest"
+              aria-hidden="true"
+            />
+            <span aria-current="page" className="font-medium">
+              {zh ? "需求讨论" : "Requirement discussion"}
+            </span>
+            {requirementRelease && (
+              <span
+                className="ml-auto min-w-0 truncate text-foreground-subtle"
+                title={requirementRelease.title}
+              >
+                {requirementRelease.title}
+              </span>
+            )}
+          </nav>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="shrink-0 border-b border-border/50" data-testid="aireq-project-space-header">

@@ -105,7 +105,8 @@ export function AIReqPhaseHeader({
   if (placement === "header")
     return (
       <header
-        className="@container/conversation shrink-0 space-y-2 overflow-y-auto border-b border-border py-2 [scrollbar-gutter:stable_both-edges]"
+        // 修复：阶段区与输入框均以讨论面板判定断点，避免滚动槽使阶段区提前切为窄列。
+        className="shrink-0 space-y-2 overflow-y-auto border-b border-border py-2 [scrollbar-gutter:stable_both-edges]"
         data-testid="aireq-phase-header"
       >
         {details}

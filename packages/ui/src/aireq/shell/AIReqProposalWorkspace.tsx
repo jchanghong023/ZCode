@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -18,7 +18,7 @@ import { AIReqMaterialsPane, AIReqStageHeader } from "../proposals/AIReqWorkbenc
 import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
 import { AIReqRequirementMenu } from "../proposals/AIReqRequirementMenu.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
-import { AIReqRequirementContext, AIReqRequirementViews } from "./AIReqRequirementNavigation.js";
+import { AIReqRequirementContext } from "./AIReqRequirementNavigation.js";
 
 /** 提案详情只拥有面板展示；需求、阶段与原生会话仍由既有 owner 管理。 */
 export function AIReqProposalWorkspace({ active }: { active: boolean }) {
@@ -64,10 +64,18 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     <ResizablePanelGroup orientation="horizontal" layoutId="aireq-proposal-workspace-v3">
       <ResizablePanel id="discussion" defaultSize="52%" minSize="35%">
         <div
-          className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
+          className={`@container/conversation flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
-            <AIReqRequirementViews />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mr-auto gap-1 text-foreground-subtle"
+              onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              {zh ? "返回提案列表" : "Back to proposals"}
+            </Button>
             {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
             <Button
               variant="ghost"
@@ -91,7 +99,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               )}
             </Button>
           </div>
-          <AIReqRequirementContext />
+          {/* 修复：身份区与原生 composer 共用面板容器、滚动槽和内容列，不再贴边。 */}
+          <AIReqRequirementContext discussion />
           {ai.selection.irId && <AIReqStageHeader />}
           {selectedSr ? (
             <div className="space-y-3 p-6 text-ui-base">
