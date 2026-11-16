@@ -25,23 +25,25 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-progress"
     >
-      {/* 后台重读曾反复撑高标题区；状态移出内容流，保留读屏提示和原有卡片位置。 */}
-      <p role="status" className="sr-only">
-        {ai.pending && view
-          ? zh
-            ? "正在更新；已有数值为上次读取结果。"
-            : "Updating; existing values are the last read snapshot."
-          : ""}
-      </p>
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6"}>
         <header className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
+          <div className="min-w-0 flex-1 space-y-2">
             <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目" : "Projects"}</h1>
             <p className="text-ui-sm text-foreground-subtle">
               {zh
                 ? "查看全部项目，进入项目空间处理需求与进度。"
                 : "Explore all projects and open a project space to work with requirements and progress."}
             </p>
+            <details className="max-w-3xl text-ui-sm text-foreground-subtle">
+              <summary className="w-fit cursor-pointer hover:text-foreground">
+                {zh ? "进度如何计算" : "How progress is calculated"}
+              </summary>
+              <p className="mt-2">
+                {zh
+                  ? "进度按项目全部 Release 的正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
+                  : "Progress averages formal SRs across all project Releases, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."}
+              </p>
+            </details>
             {ai.error && view && (
               <p className="text-ui-sm text-foreground-subtle">
                 {zh
@@ -50,10 +52,19 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
               </p>
             )}
           </div>
-          <Button variant="outline" onClick={onManageProjects}>
-            <Settings2 className="size-4" />
-            {zh ? "项目配置" : "Project settings"}
-          </Button>
+          <div className="relative shrink-0">
+            <Button variant="outline" onClick={onManageProjects}>
+              <Settings2 className="size-4" />
+              {zh ? "项目配置" : "Project settings"}
+            </Button>
+            {/* 修复：后台读取的可见反馈脱离文档流，不再推移已有项目卡片。 */}
+            <p
+              role="status"
+              className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-xs text-foreground-subtle"
+            >
+              {ai.pending && view ? (zh ? "正在更新…" : "Updating…") : ""}
+            </p>
+          </div>
         </header>
         <section className="space-y-3" aria-label={zh ? "全部项目总览" : "All project totals"}>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -69,7 +80,7 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                 >
                   <button
                     type="button"
-                    className="flex h-full w-full cursor-pointer flex-col gap-3 rounded-xl border-2 border-transparent p-4 text-left hover:bg-surface-hover focus-visible:border-foreground"
+                    className="flex w-full flex-1 cursor-pointer flex-col gap-3 rounded-xl border-2 border-transparent p-4 text-left hover:bg-surface-hover focus-visible:border-foreground"
                     onClick={() => ai.openProject(item.id)}
                     aria-label={zh ? "进入" + item.name : "Open " + item.name}
                   >
@@ -85,19 +96,12 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                       )}
                     </span>
                     {total ? (
-                      <>
-                        <span className="w-full space-y-1">
-                          <span className="block text-ui-sm text-foreground">
-                            {zh ? "项目总进度 · 全部 Release" : "Total progress · All Releases"}
-                          </span>
-                          <OverviewProgress percent={total.percent} label={item.name} zh={zh} />
+                      <span className="w-full space-y-1">
+                        <span className="block text-ui-sm text-foreground">
+                          {zh ? "项目总进度 · 全部 Release" : "Total progress · All Releases"}
                         </span>
-                        <span className="text-ui-sm text-foreground tabular-nums">
-                          {zh
-                            ? `提案 ${total.proposalCount} · 正式 IR ${total.formalCount}`
-                            : `${total.proposalCount} proposals · ${total.formalCount} formal IRs`}
-                        </span>
-                      </>
+                        <OverviewProgress percent={total.percent} label={item.name} zh={zh} />
+                      </span>
                     ) : (
                       <span className="text-ui-sm text-foreground-subtle">{unavailable}</span>
                     )}
@@ -106,6 +110,37 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                       <ArrowRight className="size-3.5" aria-hidden="true" />
                     </span>
                   </button>
+                  {total && (
+                    // 修复：全项目计数独立可聚焦；沿用 Context 原子切项目并清空 Release，避免范围错配及多条历史。
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 px-4 py-3">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-ui-sm tabular-nums"
+                        aria-label={
+                          zh
+                            ? `查看${item.name}的全部提案（${total.proposalCount}）`
+                            : `View all proposals in ${item.name} (${total.proposalCount})`
+                        }
+                        onClick={() => ai.openProject(item.id, "proposals")}
+                      >
+                        {zh ? `提案 ${total.proposalCount}` : `${total.proposalCount} proposals`}
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-ui-sm tabular-nums"
+                        aria-label={
+                          zh
+                            ? `查看${item.name}的全部正式需求（${total.formalCount}）`
+                            : `View all formal requirements in ${item.name} (${total.formalCount})`
+                        }
+                        onClick={() => ai.openProject(item.id, "formal")}
+                      >
+                        {zh ? `正式 IR ${total.formalCount}` : `${total.formalCount} formal IRs`}
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               );
             })}

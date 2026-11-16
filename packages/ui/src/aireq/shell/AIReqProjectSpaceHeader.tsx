@@ -1,5 +1,4 @@
-import { ArrowLeft, Copy, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -11,33 +10,17 @@ import {
 } from "@/components/ui/select.js";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
 
 export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
-  const { writeClipboardText } = usePlatform();
-  const [copiedLink, setCopiedLink] = useState("");
-  const [copyError, setCopyError] = useState("");
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
-  const release = releases.find((item) => item.id === ai.releaseId);
   const formalGroup = ai.view?.groups.find(
     (item) => item.projectId === project?.id && item.id === ai.selection.irId,
-  );
-  const proposal = ai.view?.drafts.find(
-    (item) => item.projectId === project?.id && item.id === ai.selection.irId,
-  );
-  const group = formalGroup ?? proposal;
-  const groupRelease = releases.find((item) => item.id === group?.releaseId);
-  const sr = ai.view?.srs.find(
-    (item) =>
-      item.projectId === project?.id &&
-      item.irId === ai.selection.irId &&
-      item.id === ai.selection.srId,
   );
   // 详情仍属于需求；仅从唯一导航和目标归属派生选中，不另存一份页签。
   const proposalView =
@@ -55,14 +38,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
       : ai.mainView === "requirementAnalysis"
         ? "analysis"
         : "requirements";
-  const detail = ai.mainView === "chat" && Boolean(ai.selection.irId);
-  const returnLabel = proposalView
-    ? zh
-      ? "返回提案列表"
-      : "Back to proposals"
-    : zh
-      ? "返回正式需求列表"
-      : "Back to formal requirements";
+  const release = releases.find((item) => item.id === ai.releaseId);
 
   return (
     <header className="shrink-0 border-b border-border/50" data-testid="aireq-project-space-header">
@@ -172,74 +148,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {section === "requirements" && (
-            <Tabs
-              value={requirementView}
-              onValueChange={(value) =>
-                ai.navigate(() => ai.setMainView(value === "proposals" ? "proposals" : "formal"))
-              }
-            >
-              <TabsList aria-label={zh ? "需求视图" : "Requirement views"}>
-                <TabsTrigger value="proposals" className="px-3">
-                  {zh ? "提案" : "Proposals"}
-                </TabsTrigger>
-                <TabsTrigger value="formal" className="px-3">
-                  {zh ? "正式" : "Formal"}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
         </div>
-        {detail && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/50 pt-2 text-ui-sm">
-            <span className="min-w-0 flex-1 truncate font-medium" title={sr?.title ?? group?.title}>
-              {sr?.title ?? group?.title ?? ai.selection.irId}
-            </span>
-            {groupRelease && <span className="text-foreground-subtle">{groupRelease.title}</span>}
-            <span className="shrink-0 font-mono text-foreground-subtle">
-              {ai.selection.srId ?? ai.selection.irId}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!ai.objectLink()}
-              onClick={async () => {
-                const link = ai.objectLink();
-                if (!link) return;
-                try {
-                  await writeClipboardText(link);
-                  setCopiedLink(link);
-                  setCopyError("");
-                } catch (cause) {
-                  setCopiedLink("");
-                  setCopyError(cause instanceof Error ? cause.message : String(cause));
-                }
-              }}
-            >
-              <Copy className="size-3.5" aria-hidden="true" />
-              {copiedLink && copiedLink === ai.objectLink()
-                ? zh
-                  ? "已复制"
-                  : "Copied"
-                : zh
-                  ? "复制链接"
-                  : "Copy link"}
-            </Button>
-            {copyError && (
-              <span role="alert" className="text-destructive">
-                {zh ? "复制失败：" : "Copy failed: "}
-                {copyError}
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => ai.navigate(() => ai.setMainView(requirementView))}
-            >
-              {returnLabel}
-            </Button>
-          </div>
-        )}
       </div>
     </header>
   );

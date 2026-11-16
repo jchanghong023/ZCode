@@ -1,4 +1,6 @@
-import { MoreHorizontal } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -10,13 +12,14 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqSelection } from "../contract.js";
+import { srProgressStatus, type AIReqSelection } from "../contract.js";
 import { OverviewProgress } from "./OverviewProgress.js";
 
 export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProjects(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const [onlyUnanalyzed, setOnlyUnanalyzed] = useState(false);
   const view = ai.view;
   const project = view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = view?.releases.filter((item) => item.projectId === project?.id) ?? [];
@@ -29,6 +32,9 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
         ? release && projection.releases.find((item) => item.releaseId === release.id)
         : projection.total
       : undefined;
+  // 仅筛选当前快照，不改写服务端顺序或另存一份需求事实。
+  const visibleRequirements =
+    summary?.requirements.filter((item) => !onlyUnanalyzed || item.unanalyzedCount > 0) ?? [];
   const unavailable = ai.pending
     ? zh
       ? "正在读取进度…"
@@ -173,17 +179,32 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                       </div>
                     </div>
                   </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button
+                      variant={onlyUnanalyzed ? "secondary" : "outline"}
+                      size="sm"
+                      aria-pressed={onlyUnanalyzed}
+                      onClick={() => setOnlyUnanalyzed((current) => !current)}
+                    >
+                      {zh ? "仅未分析" : "Unanalyzed only"}
+                    </Button>
+                    <p role="status" className="text-ui-sm text-foreground-subtle">
+                      {zh
+                        ? `显示 ${visibleRequirements.length} / ${summary.requirements.length} 个正式 IR`
+                        : `${visibleRequirements.length} of ${summary.requirements.length} formal IRs`}
+                    </p>
+                  </div>
                   <div className="overflow-x-auto rounded-xl border border-border bg-surface">
                     <table
-                      className="w-full min-w-[680px] table-fixed text-left"
+                      className="w-full min-w-[760px] table-fixed text-left"
                       aria-label={zh ? "项目正式需求进度表" : "Project formal requirement progress"}
                     >
                       <colgroup>
-                        <col className="w-[32%]" />
+                        <col className="w-[30%]" />
                         <col className="w-[20%]" />
                         <col className="w-[16%]" />
                         <col />
-                        <col className="w-14" />
+                        <col className="w-24" />
                       </colgroup>
                       <thead className="text-ui-sm text-foreground-subtle">
                         <tr>
@@ -207,12 +228,19 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                         </tr>
                       </thead>
                       <tbody>
-                        {summary.requirements.map((item) => {
+                        {visibleRequirements.map((item) => {
                           const srs =
                             view?.srs.filter(
                               (sr) => sr.projectId === project.id && sr.irId === item.irId,
                             ) ?? [];
                           const itemRelease = releases.find((entry) => entry.id === item.releaseId);
+                          // 聚合百分比不能证明验收；复用契约中按合入版本与人工验收派生的 SR 状态。
+                          const acceptedCount = srs.filter(
+                            (sr) => srProgressStatus(sr) === "已完成",
+                          ).length;
+                          const awaitingAcceptanceCount = srs.filter(
+                            (sr) => srProgressStatus(sr) === "待验收",
+                          ).length;
                           // 修复：悬停底色叠加后辅助色对比不足，编号与未分析提示改用现有前景色。
                           return (
                             <tr
@@ -235,39 +263,24 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                                 {itemRelease?.title ?? item.releaseId}
                               </td>
                               <td className="px-4 py-3 text-ui-sm">
-                                <span>{item.srCount} SR</span>
-                                {item.unanalyzedCount > 0 && (
-                                  <span className="block text-foreground-subtle group-hover/row:text-foreground">
-                                    {zh
-                                      ? `${item.unanalyzedCount} 未分析（按 0 计）`
-                                      : `${item.unanalyzedCount} unanalyzed (zero)`}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <OverviewProgress
-                                  percent={item.percent}
-                                  label={item.irId}
-                                  zh={zh}
-                                />
-                              </td>
-                              <td className="px-2 py-3 text-right">
+                                {/* SR 数原为静态文字且菜单悬停才出现；让数量直接打开原有报告菜单。 */}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                                      variant="link"
+                                      size="sm"
+                                      className="h-auto p-0 text-ui-sm"
                                       aria-label={
                                         zh
-                                          ? `${item.irId} 的报告操作`
-                                          : `Report actions for ${item.irId}`
+                                          ? `查看 ${item.irId} 的 ${item.srCount} 个 SR 报告`
+                                          : `View ${item.srCount} SR reports for ${item.irId}`
                                       }
                                     >
-                                      <MoreHorizontal aria-hidden="true" className="size-4" />
+                                      {item.srCount} SR
+                                      <ChevronDown aria-hidden="true" className="size-3" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="max-w-80">
+                                  <DropdownMenuContent align="start" className="max-w-80">
                                     <DropdownMenuItem onSelect={() => openReport(item.irId)}>
                                       {zh ? "查看 IR 报告" : "View IR report"}
                                     </DropdownMenuItem>
@@ -290,16 +303,83 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                                     ))}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
+                                {item.unanalyzedCount > 0 && (
+                                  <span className="block text-foreground-subtle group-hover/row:text-foreground">
+                                    {zh
+                                      ? `${item.unanalyzedCount} 未分析（按 0 计）`
+                                      : `${item.unanalyzedCount} unanalyzed (zero)`}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <OverviewProgress
+                                  percent={item.percent}
+                                  label={item.irId}
+                                  zh={zh}
+                                />
+                                {acceptedCount > 0 || awaitingAcceptanceCount > 0 ? (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {acceptedCount > 0 && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="h-auto max-w-full whitespace-normal bg-success-surface text-success-surface-foreground"
+                                      >
+                                        {zh
+                                          ? `已验收 ${acceptedCount}/${srs.length} SR`
+                                          : `Accepted ${acceptedCount}/${srs.length} SRs`}
+                                      </Badge>
+                                    )}
+                                    {awaitingAcceptanceCount > 0 && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="h-auto max-w-full whitespace-normal bg-warning-surface text-warning-surface-foreground"
+                                      >
+                                        {zh
+                                          ? `${awaitingAcceptanceCount} SR 待验收`
+                                          : `Awaiting acceptance: ${awaitingAcceptanceCount}`}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="px-2 py-3 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openReport(item.irId)}
+                                  aria-label={
+                                    zh ? `查看 ${item.irId} 报告` : `View ${item.irId} report`
+                                  }
+                                >
+                                  {zh ? "IR 报告" : "IR report"}
+                                </Button>
                               </td>
                             </tr>
                           );
                         })}
-                        {!summary.requirements.length && (
+                        {!visibleRequirements.length && (
                           <tr>
                             <td colSpan={5} className="px-4 py-6 text-foreground-subtle">
-                              {zh
-                                ? "此范围暂无正式需求。提案不参与进度计算。"
-                                : "No formal requirements in this scope. Proposals do not contribute to progress."}
+                              {onlyUnanalyzed ? (
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span>
+                                    {zh
+                                      ? "当前范围没有未分析的正式需求。"
+                                      : "No unanalyzed formal requirements in this scope."}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setOnlyUnanalyzed(false)}
+                                  >
+                                    {zh ? "显示全部" : "Show all"}
+                                  </Button>
+                                </div>
+                              ) : zh ? (
+                                "此范围暂无正式需求。提案不参与进度计算。"
+                              ) : (
+                                "No formal requirements in this scope. Proposals do not contribute to progress."
+                              )}
                             </td>
                           </tr>
                         )}

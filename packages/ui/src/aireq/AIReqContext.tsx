@@ -83,7 +83,7 @@ interface AIReqContextValue {
   releaseId: string;
   setReleaseId(id: string, options?: { inProposalDialog?: boolean }): void;
   switchProject(projectId: string): void;
-  openProject(projectId: string): void;
+  openProject(projectId: string, mainView?: "projectOverview" | "proposals" | "formal"): void;
   select(value: AIReqSelection, releaseId?: string): void;
   openAnalysis(value: AIReqSelection, releaseId?: string): void;
   objectLink(): string | undefined;
@@ -307,10 +307,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [select],
   );
   const openProject = useCallback(
-    (projectId: string) => {
+    (
+      projectId: string,
+      mainView: "projectOverview" | "proposals" | "formal" = "projectOverview",
+    ) => {
+      // 首页数量代表全项目：清空旧范围后一次选择目标，避免多步跳转污染历史。
       releaseRef.current = "";
       updateReleaseId("");
-      select({ projectId }, true, "projectOverview");
+      select({ projectId }, true, mainView);
     },
     [select],
   );
@@ -720,7 +724,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         releaseId,
         setReleaseId,
         switchProject,
-        openProject: (projectId) => navigate(() => openProject(projectId)),
+        openProject: (projectId, mainView) => navigate(() => openProject(projectId, mainView)),
         select: (value, targetReleaseId) =>
           navigate(() => select(value, true, "chat", targetReleaseId)),
         openAnalysis: (value, targetReleaseId) =>

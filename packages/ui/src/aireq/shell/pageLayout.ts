@@ -9,4 +9,4 @@ export const AIREQ_PAGE_CONTENT_CLASSNAME = cn(
 );
 
 export const AIREQ_PAGE_TITLE_CLASSNAME =
-  "text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg";
+  "text-ui-page-title font-semibold tracking-tight text-foreground";

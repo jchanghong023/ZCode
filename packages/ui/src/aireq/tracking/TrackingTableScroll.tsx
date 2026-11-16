@@ -3,16 +3,18 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 
-/** 只投影 DOM 横向滚动状态；纵向滚动仍由所属页面负责。 */
+/** 只投影 DOM 横向滚动状态；页面可通过 viewportClassName 将表格设为自身纵向滚动域。 */
 export function TrackingTableScroll({
   children,
   label,
   className,
+  viewportClassName,
   viewportTestId,
 }: {
   children: ReactNode;
   label: string;
   className?: string;
+  viewportClassName?: string;
   viewportTestId?: string;
 }) {
   const id = useId();
@@ -94,7 +96,10 @@ export function TrackingTableScroll({
         aria-describedby={overflowing ? `${id}-hint` : undefined}
         tabIndex={0}
         data-testid={viewportTestId}
-        className="min-w-0 overflow-x-auto rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className={cn(
+          "min-w-0 overflow-x-auto rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          viewportClassName,
+        )}
         onKeyDown={(event) => {
           // 不接管单元格内按钮、输入框或依赖链接的按键。
           if (

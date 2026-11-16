@@ -33,6 +33,7 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIReqRequirementViews } from "../shell/AIReqRequirementNavigation.js";
 import { proposalPhaseLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv } from "./proposal-csv.js";
 
@@ -238,6 +239,9 @@ export function AIReqProposalTable() {
   return (
     <main className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]">
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-4`}>
+        <div className="pt-4">
+          <AIReqRequirementViews />
+        </div>
         <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>需求提案</h1>
         <div className="flex flex-wrap gap-2">
           <Button

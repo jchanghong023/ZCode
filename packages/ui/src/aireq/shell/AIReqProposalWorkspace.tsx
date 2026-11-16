@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -18,6 +18,7 @@ import { AIReqMaterialsPane, AIReqStageHeader } from "../proposals/AIReqWorkbenc
 import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
 import { AIReqRequirementMenu } from "../proposals/AIReqRequirementMenu.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
+import { AIReqRequirementContext, AIReqRequirementViews } from "./AIReqRequirementNavigation.js";
 
 /** 提案详情只拥有面板展示；需求、阶段与原生会话仍由既有 owner 管理。 */
 export function AIReqProposalWorkspace({ active }: { active: boolean }) {
@@ -65,24 +66,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         <div
           className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
         >
-          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-4">
-            {proposal && (
-              <Button
-                variant="ghost"
-                size="icon-md"
-                aria-label={zh ? "返回提案列表" : "Back to proposals"}
-                title={zh ? "返回提案列表" : "Back to proposals"}
-                onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
-              >
-                <ArrowLeft aria-hidden="true" className="size-4" />
-              </Button>
-            )}
-            <span
-              className="min-w-0 flex-1 truncate text-ui-base font-medium"
-              title={proposal?.title}
-            >
-              {proposal?.title ?? "AIReq"}
-            </span>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
+            <AIReqRequirementViews />
             {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
             <Button
               variant="ghost"
@@ -106,6 +91,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               )}
             </Button>
           </div>
+          <AIReqRequirementContext />
           {ai.selection.irId && <AIReqStageHeader />}
           {selectedSr ? (
             <div className="space-y-3 p-6 text-ui-base">

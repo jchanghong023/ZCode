@@ -40,7 +40,10 @@ export function OverviewProgress({
         className="h-1.5 min-w-12 flex-1 bg-border"
         indicatorClassName="bg-brand"
       />
-      <span className="shrink-0 font-mono text-ui-sm tabular-nums">{progressLabel(percent)}</span>
+      {/* 数值位数曾挤压进度槽，让 99% 看起来比 100% 更长；固定数字区后同列使用同一标尺。 */}
+      <span className="w-12 shrink-0 text-right font-mono text-ui-sm tabular-nums">
+        {progressLabel(percent)}
+      </span>
     </div>
   );
 }

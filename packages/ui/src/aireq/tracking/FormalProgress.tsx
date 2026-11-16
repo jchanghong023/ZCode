@@ -4,7 +4,6 @@ import {
   ChevronRight,
   FileText,
   MoreHorizontal,
-  PanelRightClose,
   Search,
   TriangleAlert,
 } from "lucide-react";
@@ -31,6 +30,10 @@ import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import {
+  AIReqRequirementContext,
+  AIReqRequirementViews,
+} from "../shell/AIReqRequirementNavigation.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
@@ -98,11 +101,14 @@ export function AIReqFormalTable() {
   return (
     // 修复：详情分栏打开时按表格面板而非整个工作区计算内容宽度。
     <main
-      className="@container/conversation h-full min-h-0 min-w-0 overflow-y-auto bg-background [scrollbar-gutter:stable_both-edges]"
+      className="@container/conversation h-full min-h-0 min-w-0 overflow-hidden bg-background"
       data-testid="aireq-formal-table"
     >
-      <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
+      <div
+        className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
+      >
         <header className="shrink-0 space-y-5">
+          <AIReqRequirementViews />
           <div className="space-y-2">
             <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>正式需求</h1>
             <p className="text-ui-sm text-foreground-subtle">
@@ -150,7 +156,8 @@ export function AIReqFormalTable() {
         </header>
         <TrackingTableScroll
           label="正式需求表格滚动区域"
-          className="mt-4 rounded-xl border border-border bg-surface"
+          className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface"
+          viewportClassName="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
           viewportTestId="formal-table-scroll"
         >
           <table
@@ -158,28 +165,25 @@ export function AIReqFormalTable() {
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
-              <col className="w-[36%]" />
-              <col className="w-[24%]" />
+              <col className="w-[34%]" />
+              <col className="w-[30%]" />
               <col />
               <col className="w-14" />
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
-                {["原始需求／SR 与 Release", "状态、进度与最新审查", "负责人及计划", "操作"].map(
+                {["原始需求／SR 与 Release", "状态、进度与关注项", "负责人及计划", "操作"].map(
                   (title, index) => (
                     <MarkdownTableHead
                       key={title}
                       scope="col"
-                      className={`h-10 min-w-0 whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
-                      // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
-                      style={
-                        index === 0
-                          ? {
-                              backgroundImage:
-                                "linear-gradient(var(--color-surface), var(--color-surface))",
-                            }
-                          : undefined
-                      }
+                      // 修复：列头和固定首列共用真实的双向滚动容器，避免仅 top-0 仍随页面滚走。
+                      className={`sticky top-0 h-10 min-w-0 bg-background whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "left-0 z-30" : "z-20"}`}
+                      // surface 含透明度：所有列头统一在不透明底色上合成，避免固定首列与其余表头色块分裂。
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(var(--color-surface), var(--color-surface))",
+                      }}
                     >
                       {title}
                     </MarkdownTableHead>
@@ -220,16 +224,7 @@ export function AIReqFormalTable() {
                     srs.flatMap((sr) => (sr.testingEmployeeId ? [sr.testingEmployeeId] : [])),
                   ),
                 ];
-                const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
-                const testIssueCount = srs.reduce(
-                  (count, sr) =>
-                    count +
-                    (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ??
-                      0),
-                  0,
-                );
                 const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
-                const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
                 // 主题行色含透明度：固定列在不透明底色上叠加同一行色，避免滚动透字和双层选中色。
                 return (
                   <Fragment key={group.id}>
@@ -307,13 +302,7 @@ export function AIReqFormalTable() {
                           label={group.title}
                           status={irProgressStatus(srs)}
                         />
-                        <IssueCount issues={issues} />
-                        <TestIssueCount count={testIssueCount} />
-                        {missingBranches > 0 && (
-                          <p className="mt-1 text-ui-sm text-destructive">
-                            开发分支缺失：{missingBranches} 项
-                          </p>
-                        )}
+                        <AnalysisSummary srs={srs} aggregate />
                       </MarkdownTableCell>
                       <MarkdownTableCell className="px-4 py-3 align-middle">
                         <PersonnelPlan
@@ -380,44 +369,7 @@ export function AIReqFormalTable() {
                                 label={sr.title}
                                 status={srProgressStatus(sr)}
                               />
-                              <IssueCount issues={sr.progress?.issues ?? []} />
-                              <TestIssueCount
-                                count={
-                                  sr.developmentIssues?.filter(
-                                    (issue) => issue.status !== "resolved",
-                                  ).length ?? 0
-                                }
-                              />
-                              <p className="mt-1 line-clamp-2 text-ui-sm text-foreground-subtle">
-                                最新审查：
-                                {sr.progress
-                                  ? (sr.progress.issues[0]?.title ?? "当前报告无阻断问题")
-                                  : "尚未分析"}
-                              </p>
-                              {sr.lastAnalysisFailure && (
-                                <p className="text-ui-sm text-destructive">
-                                  最近分析失败，保留旧报告
-                                </p>
-                              )}
-                              {sr.progress?.stale && (
-                                <p className="text-ui-sm text-foreground-subtle">
-                                  报告已过期，等待当前版本分析
-                                </p>
-                              )}
-                              <p className="break-all text-ui-sm text-foreground-subtle">
-                                {sr.trackingBranch?.name ?? "分支缺失"}
-                                {sr.trackingBranch?.status === "deleted" ? "（已清理，模拟）" : ""}
-                              </p>
-                              {sr.trackingBranch?.error && (
-                                <p className="text-ui-sm text-destructive">
-                                  {sr.trackingBranch.error}
-                                </p>
-                              )}
-                              {!sr.trackingBranch?.name?.trim() && (
-                                <p role="alert" className="mt-1 text-ui-sm text-destructive">
-                                  开发分支缺失
-                                </p>
-                              )}
+                              <AnalysisSummary srs={[sr]} />
                             </MarkdownTableCell>
                             <MarkdownTableCell className="px-4 py-3 align-middle">
                               <PersonnelPlan
@@ -496,33 +448,80 @@ export function AIReqFormalTable() {
   );
 }
 
-function IssueCount({ issues }: { issues: { title: string }[] }) {
+function AnalysisSummary({
+  srs,
+  aggregate = false,
+}: {
+  srs: AIReqSystemRequirement[];
+  aggregate?: boolean;
+}) {
+  // 修复：零问题不代表已分析；折叠 IR 也必须直接呈现子 SR 的证据缺口。
+  const unanalysed = srs.filter((sr) => !sr.progress).length;
+  const failed = srs.filter((sr) => sr.lastAnalysisFailure).length;
+  const stale = srs.filter((sr) => sr.progress?.stale).length;
+  const health = [
+    unanalysed ? (aggregate ? `${unanalysed} 个 SR 未分析` : "尚未分析") : "",
+    failed
+      ? aggregate
+        ? `分析失败 ${failed}`
+        : srs[0]?.progress
+          ? "分析失败，保留旧报告"
+          : "分析失败，暂无报告"
+      : "",
+    stale ? (aggregate ? `报告过期 ${stale}` : "报告已过期") : "",
+  ].filter(Boolean);
+  const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
+  const testIssues = srs.reduce(
+    (count, sr) =>
+      count + (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0),
+    0,
+  );
+  const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
+  const branchErrors = srs.flatMap((sr) =>
+    sr.trackingBranch?.error ? [sr.trackingBranch.error] : [],
+  );
+  const primary = testIssues
+    ? `未解决测试问题：${testIssues} 项`
+    : missingBranches
+      ? `开发分支缺失：${missingBranches} 项`
+      : branchErrors.length
+        ? "开发分支异常，查看详情"
+        : issues.length
+          ? `分析问题 ${issues.length} 项 · ${issues[0]?.title}`
+          : health.length
+            ? ""
+            : srs.length
+              ? "当前报告无阻断问题"
+              : "暂无 SR，尚无分析报告";
+  const detail = [...health, primary, ...branchErrors, ...issues.map((issue) => issue.title)]
+    .filter(Boolean)
+    .join("；");
   return (
-    <ControlHintTooltip
-      title={
-        issues.length
-          ? `${issues
-              .slice(0, 3)
-              .map((issue) => issue.title)
-              .join("；")}${issues.length > 3 ? "；其余见详情" : ""}`
-          : "暂无分析问题记录，完整判断见详情"
-      }
-    >
-      <p
+    <ControlHintTooltip title={detail}>
+      <div
         tabIndex={0}
-        className="mt-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="mt-1 space-y-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        分析问题：{issues.length} 项
-      </p>
+        {health.length > 0 && (
+          <p className={failed ? "text-destructive" : "text-warning-surface-foreground"}>
+            {health.join(" · ")}
+          </p>
+        )}
+        {primary && (
+          <p
+            className={cn(
+              "line-clamp-1",
+              testIssues || missingBranches || branchErrors.length
+                ? "text-destructive"
+                : "text-foreground-subtle",
+            )}
+          >
+            {primary}
+          </p>
+        )}
+      </div>
     </ControlHintTooltip>
   );
-}
-
-// 人工验收问题与 AI 分析问题来自不同事实；未复测解决前必须在列表中可见。
-function TestIssueCount({ count }: { count: number }) {
-  return count > 0 ? (
-    <p className="mt-1 text-ui-sm text-destructive">未解决测试问题：{count} 项</p>
-  ) : null;
 }
 
 function PersonnelPlan({
@@ -703,6 +702,7 @@ export function AIReqFormalWorkspace() {
               defaultValue="report"
               className="h-full min-h-0 gap-0 overflow-hidden rounded-xl border border-border bg-background"
             >
+              <AIReqRequirementContext />
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
                 <TabsList variant="line" aria-label="需求详情">
                   <TabsTrigger value="report">进度报告</TabsTrigger>
@@ -710,20 +710,15 @@ export function AIReqFormalWorkspace() {
                     <FileText className="size-3.5" />
                     需求材料
                   </TabsTrigger>
-                  <TabsTrigger value="history" aria-label={locale === "zh-CN" ? "讨论与评审历史" : "Discussion and review history"}>
+                  <TabsTrigger
+                    value="history"
+                    aria-label={
+                      locale === "zh-CN" ? "讨论与评审历史" : "Discussion and review history"
+                    }
+                  >
                     {locale === "zh-CN" ? "讨论／评审" : "History"}
                   </TabsTrigger>
                 </TabsList>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="收起需求详情"
-                  onClick={() =>
-                    aireq.select({ projectId: aireq.selection.projectId, formalView: "list" })
-                  }
-                >
-                  <PanelRightClose className="size-4" />
-                </Button>
               </div>
               {aireq.error && (
                 <div
@@ -757,7 +752,9 @@ export function AIReqFormalWorkspace() {
               </TabsContent>
               <TabsContent value="history" className="min-h-0 flex-1 overflow-hidden">
                 {aireq.selectionReady ? (
-                  <AIReqFormalHistory key={`${aireq.selection.projectId}:${aireq.selection.irId}`} />
+                  <AIReqFormalHistory
+                    key={`${aireq.selection.projectId}:${aireq.selection.irId}`}
+                  />
                 ) : (
                   <FormalDetailLoading failed={Boolean(aireq.error)} />
                 )}
