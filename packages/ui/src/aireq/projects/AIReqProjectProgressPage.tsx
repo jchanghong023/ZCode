@@ -6,6 +6,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
 import { OverviewProgress } from "./OverviewProgress.js";
+import { ProjectPageHelp } from "./ProjectPageHelp.js";
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
 export function AIReqProjectProgressPage({ onManageProjects }: { onManageProjects(): void }) {
   const ai = useAIReq()!;
@@ -28,22 +29,10 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6"}>
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目" : "Projects"}</h1>
-            <p className="text-ui-sm text-foreground-subtle">
-              {zh
-                ? "查看全部项目，进入项目空间处理需求与进度。"
-                : "Explore all projects and open a project space to work with requirements and progress."}
-            </p>
-            <details className="max-w-3xl text-ui-sm text-foreground-subtle">
-              <summary className="w-fit cursor-pointer hover:text-foreground">
-                {zh ? "进度如何计算" : "How progress is calculated"}
-              </summary>
-              <p className="mt-2">
-                {zh
-                  ? "进度按项目全部 Release 的正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
-                  : "Progress averages formal SRs across all project Releases, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."}
-              </p>
-            </details>
+            <div className="flex items-center gap-2">
+              <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目" : "Projects"}</h1>
+              <ProjectPageHelp scope="all-projects" />
+            </div>
             {ai.error && view && (
               <p className="text-ui-sm text-foreground-subtle">
                 {zh

@@ -14,6 +14,7 @@ import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../she
 import { useAIReq } from "../AIReqContext.js";
 import { srProgressStatus, type AIReqSelection } from "../contract.js";
 import { OverviewProgress } from "./OverviewProgress.js";
+import { ProjectPageHelp } from "./ProjectPageHelp.js";
 
 export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProjects(): void }) {
   const ai = useAIReq()!;
@@ -64,22 +65,10 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
       </p>
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6 pt-6"}>
         <header className="space-y-2">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目概览" : "Project overview"}</h1>
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh
-              ? "查看当前范围的需求进度，进入 IR 或 SR 阅读报告。"
-              : "Review requirement progress in this scope and open IR or SR reports."}
-          </p>
-          <details className="text-ui-sm text-foreground-subtle">
-            <summary className="w-fit cursor-pointer hover:text-foreground">
-              {zh ? "进度如何计算" : "How progress is calculated"}
-            </summary>
-            <p className="mt-2">
-              {zh
-                ? "进度按范围内正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
-                : "Progress averages formal SRs in scope, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."}
-            </p>
-          </details>
+          <div className="flex items-center gap-2">
+            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目概览" : "Project overview"}</h1>
+            <ProjectPageHelp scope="project-overview" />
+          </div>
           {ai.error && view && (
             <p className="text-ui-sm text-foreground-subtle">
               {zh
