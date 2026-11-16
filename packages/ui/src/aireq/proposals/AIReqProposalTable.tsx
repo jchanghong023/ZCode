@@ -1,6 +1,7 @@
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
@@ -32,7 +33,7 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqRequirementViews } from "../shell/AIReqRequirementNavigation.js";
 import { proposalPhaseLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv } from "./proposal-csv.js";
@@ -237,68 +238,73 @@ export function AIReqProposalTable() {
     }
   };
   return (
-    <main className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]">
+    <main
+      aria-label={zh ? "需求提案" : "Proposals"}
+      className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]"
+    >
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-4`}>
-        <div className="pt-4">
+        {/* 页签已标明提案视图；操作与视图同排，避免重复标题和分散的操作行。 */}
+        <header className="flex flex-wrap items-center justify-between gap-3 pt-4">
           <AIReqRequirementViews />
-        </div>
-        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>需求提案</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            data-testid="new-requirement"
-            disabled={busy}
-            onClick={() => {
-              setBaseline(undefined);
-              ai.startProposalDraft();
-            }}
-          >
-            新增提案
-          </Button>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              fileGeneration.current++;
-              setCsvContent(null);
-              setFileName("");
-              setFileError("");
-              setOperationId(createUuid());
-              setBaseline(undefined);
-              ai.startProposalImport();
-            }}
-          >
-            导入
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadProposalCsv(
-                filtered.map((item) => item.originalText),
-                "需求提案.csv",
-              )
-            }
-          >
-            导出
-          </Button>
-        </div>
-        {!ready && (
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh
-              ? "新增与导入需要选择具体 Release；可在弹窗内选择。"
-              : "Choose a specific Release in the dialog when adding or importing proposals."}
-          </p>
-        )}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <Button
+              data-testid="new-requirement"
+              disabled={busy}
+              onClick={() => {
+                setBaseline(undefined);
+                ai.startProposalDraft();
+              }}
+            >
+              新增提案
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                fileGeneration.current++;
+                setCsvContent(null);
+                setFileName("");
+                setFileError("");
+                setOperationId(createUuid());
+                setBaseline(undefined);
+                ai.startProposalImport();
+              }}
+            >
+              导入
+            </Button>
+            <Button
+              variant="outline"
+              title={
+                zh ? "导出全部筛选结果，不限当前页" : "Export all filtered results across all pages"
+              }
+              onClick={() =>
+                downloadProposalCsv(
+                  filtered.map((item) => item.originalText),
+                  "需求提案.csv",
+                )
+              }
+            >
+              导出
+            </Button>
+          </div>
+        </header>
         <div className="flex flex-wrap items-center gap-2">
-          <Input
-            aria-label={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
-            placeholder={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(0);
-            }}
-            className="max-w-sm"
-          />
+          <div className="relative min-w-60 flex-1">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
+            />
+            <Input
+              aria-label={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
+              placeholder={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(0);
+              }}
+              className="h-9 rounded-lg bg-surface pl-9"
+            />
+          </div>
           <Input
             aria-label="筛选提交人工号"
             placeholder="提交人工号"
@@ -307,24 +313,33 @@ export function AIReqProposalTable() {
               setSubmitter(event.target.value);
               setPage(0);
             }}
-            className="max-w-48"
+            className="h-9 w-40 rounded-lg bg-surface"
           />
-          <select
-            aria-label="筛选当前状态"
-            className="rounded-md border border-border bg-background px-3 py-2 text-ui-sm"
-            value={phase}
-            onChange={(event) => {
-              setPhase(event.target.value);
+          <Select
+            value={phase || "all"}
+            onValueChange={(value) => {
+              setPhase(value === "all" ? "" : value);
               setPage(0);
             }}
           >
-            <option value="">全部状态</option>
-            {[...new Set(groups.map((item) => proposalPhaseLabel(item)))].map((label) => (
-              <option key={label}>{label}</option>
-            ))}
-          </select>
-          <span className="text-ui-sm text-foreground-subtle">
-            共 {filtered.length} 条；导出包含全部筛选结果
+            <SelectTrigger aria-label="筛选当前状态" className="h-9 w-44 rounded-lg bg-surface">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              {[...new Set(groups.map((item) => proposalPhaseLabel(item)))].map((label) => (
+                <SelectItem key={label} value={label}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span
+            className="ml-auto shrink-0 text-ui-sm tabular-nums text-foreground-subtle"
+            role="status"
+          >
+            {query || submitter || phase ? `${filtered.length} / ${groups.length}` : groups.length}{" "}
+            {zh ? "条" : "items"}
           </span>
         </div>
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">

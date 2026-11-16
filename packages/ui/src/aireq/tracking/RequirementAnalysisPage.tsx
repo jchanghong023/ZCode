@@ -1,15 +1,23 @@
 import { AnalysisRunConfirmation } from "./AnalysisRunConfirmation.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Settings2 } from "lucide-react";
+import { ChevronDown, Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
 import type {
@@ -46,15 +54,7 @@ export function AIReqRequirementAnalysisPage({
     >
       {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
-          <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>分析运行</h1>
-              <p className="mt-2 text-ui-base text-foreground-subtle">
-                查看当前项目与 Release 的分析任务、执行历史与失败原因。
-              </p>
-            </div>
-          </header>
+        <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0 pt-4")}>
           {source?.progressScheduler ? (
             <ConnectedProgressAnalysis
               key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}:${aireq.selection.irId ?? ""}:${aireq.selection.srId ?? ""}`}
@@ -305,8 +305,9 @@ function ConnectedProgressAnalysis({
   const currentProject = snapshot.projects.find((project) => project.id === projectId);
   return (
     <section className="min-w-0 space-y-3" data-testid="aireq-requirement-analysis">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-1">
-        <div className="flex flex-wrap items-center gap-3 text-ui-sm">
+      {/* 页签已标明页面；状态紧邻排列，辅助操作集中，避免重复标题与均分空白。 */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm">
           <span className="text-foreground-subtle">
             {!currentProject?.enabled
               ? "当前项目分析已关闭"
@@ -318,26 +319,41 @@ function ConnectedProgressAnalysis({
             下次检查 {shortTime(snapshot.nextCheckAt)}
           </span>
           <span className="tabular-nums text-foreground-subtle">
-            当前项目 {currentProject?.runningCount ?? 0} 个运行中
+            项目运行中 {currentProject?.runningCount ?? 0}
           </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onOpenAnalysisSettings}>
-          <Settings2 aria-hidden="true" className="size-4" />
-          分析设置
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() =>
-            void mutate(
-              () => scheduler.advance(),
-              "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
-            )
-          }
-        >
-          模拟推进下一次调度检查
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <ProjectPageHelp scope="analysis-runs" />
+          <Button variant="ghost" size="sm" onClick={onOpenAnalysisSettings}>
+            <Settings2 aria-hidden="true" className="size-3.5" />
+            分析设置
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" disabled={pending}>
+                模拟操作
+                <ChevronDown aria-hidden="true" className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-ui-sm font-normal text-foreground-subtle">
+                全局操作，不受页面筛选限制
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={pending}
+                aria-label="模拟推进下一次调度检查"
+                onSelect={() =>
+                  void mutate(
+                    () => scheduler.advance(),
+                    "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
+                  )
+                }
+              >
+                推进一次调度检查（模拟）
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       {/* 退场动画期间保留提交快照，避免范围和数量闪为空值。 */}
       <AnalysisRunConfirmation
@@ -369,73 +385,21 @@ function ConnectedProgressAnalysis({
           }}
           className="min-w-0 gap-3"
         >
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <div className="relative min-w-56 flex-1">
-              <Label htmlFor="analysis-sr-search" className="sr-only">
-                搜索 SR（任务与历史）
-              </Label>
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-foreground-subtle"
-              />
-              <Input
-                id="analysis-sr-search"
-                className="h-9 rounded-lg bg-surface pl-9"
-                placeholder="搜索 SR 名称或编号"
-                value={srSearch}
-                onChange={(event) => {
-                  setTargetSrId("");
-                  setSrSearch(event.target.value);
-                  resetAnalysisPages();
-                }}
-              />
-            </div>
-            <FilterSelect
-              id="analysis-ir"
-              label="IR"
-              triggerClassName="rounded-lg bg-surface"
-              value={irId}
-              onChange={(value) => {
-                setTargetSrId("");
-                setIrId(value);
-                resetAnalysisPages();
-              }}
-            >
-              <SelectItem value="all">全部 IR</SelectItem>
-              {irs.map((ir) => (
-                <SelectItem key={`${ir.projectId}-${ir.id}`} value={ir.id}>
-                  {ir.id} · {ir.title}
-                </SelectItem>
-              ))}
-            </FilterSelect>
-            {(irId !== "all" || srSearch) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setIrId("all");
-                  setSrSearch("");
-                  setTargetSrId("");
-                  resetAnalysisPages();
-                }}
-              >
-                清除搜索／IR 筛选
-              </Button>
-            )}
-          </div>
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <TabsList aria-label="分析运行列表">
-              <TabsTrigger value="tasks" aria-label="SR 任务">
-                SR 任务{" "}
+              <TabsTrigger value="tasks" aria-label="分析任务">
+                分析任务{" "}
                 <span className="ml-1 tabular-nums text-foreground-subtle">
                   {taskResult?.total ?? "…"}
                 </span>
               </TabsTrigger>
               <TabsTrigger value="history" aria-label="执行历史">
                 执行历史{" "}
-                <span className="ml-1 tabular-nums text-foreground-subtle">
-                  {historyResult?.total ?? "…"}
-                </span>
+                {historyResult && (
+                  <span className="ml-1 tabular-nums text-foreground-subtle">
+                    {historyResult.total}
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
             {tab === "tasks" && (
@@ -461,6 +425,61 @@ function ConnectedProgressAnalysis({
               </Button>
             )}
           </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative min-w-56 flex-1">
+              <Label htmlFor="analysis-sr-search" className="sr-only">
+                搜索开发单元（任务与历史）
+              </Label>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-foreground-subtle"
+              />
+              <Input
+                id="analysis-sr-search"
+                className="h-9 rounded-lg bg-surface pl-9"
+                placeholder="搜索开发单元名称或编号"
+                value={srSearch}
+                onChange={(event) => {
+                  setTargetSrId("");
+                  setSrSearch(event.target.value);
+                  resetAnalysisPages();
+                }}
+              />
+            </div>
+            <FilterSelect
+              id="analysis-ir"
+              label="筛选需求"
+              className="w-60 max-w-full"
+              triggerClassName="rounded-lg bg-surface"
+              value={irId}
+              onChange={(value) => {
+                setTargetSrId("");
+                setIrId(value);
+                resetAnalysisPages();
+              }}
+            >
+              <SelectItem value="all">全部需求</SelectItem>
+              {irs.map((ir) => (
+                <SelectItem key={`${ir.projectId}-${ir.id}`} value={ir.id}>
+                  {ir.title} · {ir.id}
+                </SelectItem>
+              ))}
+            </FilterSelect>
+            {(irId !== "all" || srSearch) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIrId("all");
+                  setSrSearch("");
+                  setTargetSrId("");
+                  resetAnalysisPages();
+                }}
+              >
+                清除筛选
+              </Button>
+            )}
+          </div>
           {tab === "tasks" && (
             <QueryFeedback
               loading={taskQuery.loading}
@@ -483,7 +502,9 @@ function ConnectedProgressAnalysis({
                 openRequirement={openRequirement}
                 initialTaskId={
                   targetSrId
-                    ? taskResult.items.find((task) => task.irId === irId && task.srId === targetSrId)?.id
+                    ? taskResult.items.find(
+                        (task) => task.irId === irId && task.srId === targetSrId,
+                      )?.id
                     : undefined
                 }
               />
