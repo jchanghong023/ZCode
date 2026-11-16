@@ -1,5 +1,7 @@
 import { FolderGit2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Badge } from "@/components/ui/badge.js";
+import { Card } from "@/components/ui/card.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,54 +45,44 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} min-w-0 space-y-6`}>
         <header className="space-y-2">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目进度" : "Project progress"}</h1>
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh ? "各项目总览始终包含全部 Release；当前项目详情与正式需求、提案及进度分析共用范围。" : "Project totals always include every Release. Details share the current project and Release with formal requirements, proposals and progress analysis."}
-          </p>
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh ? "进度按全部正式 SR 等权平均，提案不计入；未分析按 0 并标注，合入为 99%，人工验收通过才为 100%。" : "Progress averages all formal SRs directly, excluding proposals. Unanalyzed SRs count as zero and are marked; merge means 99%, and human test acceptance means 100%."}
-          </p>
+          <p className="text-ui-sm text-foreground-subtle">{zh ? "查看各项目进度，了解当前项目的需求状况。" : "Review progress across projects and explore the current project."}</p>
+          <details className="text-ui-sm text-foreground-subtle">
+            <summary className="w-fit cursor-pointer hover:text-foreground">{zh ? "进度如何计算" : "How progress is calculated"}</summary>
+            <p className="mt-2">{zh ? "各项目总览包含全部 Release；当前项目详情与正式需求、提案及进度分析共用范围。进度按全部正式 SR 等权平均，提案不计入；未分析按 0 并标注，合入为 99%，人工验收通过才为 100%。" : "Project totals include all Releases. Details share their scope with formal requirements, proposals and progress analysis. Progress averages formal SRs, excluding proposals. Unanalyzed SRs count as zero; merge means 99%, and human test acceptance means 100%."}</p>
+          </details>
           {ai.pending && view && <p role="status" className="text-ui-sm text-foreground-subtle">{zh ? "正在更新；已有数值为上次读取结果。" : "Updating; existing values are the last read snapshot."}</p>}
           {ai.error && view && <p className="text-ui-sm text-foreground-subtle">{zh ? "读取或操作失败，已有数值仅代表上次成功读取；请使用上方重试入口。" : "A read or operation failed. Existing values reflect the last successful read; use Retry above."}</p>}
         </header>
         <section className="space-y-3" aria-label={zh ? "全部项目总览" : "All project totals"}>
           <h2 className="text-ui-lg font-medium">{zh ? "全部项目" : "All projects"}</h2>
-          <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-            <table className="w-full min-w-[540px] text-left">
-              <thead className="text-ui-sm text-foreground-subtle">
-                <tr>{(zh ? ["项目", "提案数", "正式 IR 数", "项目总进度"] : ["Project", "Proposals", "Formal IRs", "Total progress"]).map((label) => <th key={label} className="border-b border-border px-4 py-3 font-medium">{label}</th>)}</tr>
-              </thead>
-              <tbody>
-                {view?.projects.map((item) => {
-                  const total = view.projectProgress?.find((entry) => entry.projectId === item.id)?.total;
-                  return <tr key={item.id} className={`border-b border-border/50 last:border-0 hover:bg-surface-hover ${project?.id === item.id ? "bg-selected" : ""}`}>
-                    <td className="px-4 py-3">
-                      <Button variant="ghost" className="h-auto max-w-full justify-start gap-2 whitespace-normal text-left" onClick={() => ai.navigate(() => ai.switchProject(item.id))} aria-pressed={project?.id === item.id}>
-                        <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
-                        <span className="break-words">{item.name}</span>
-                      </Button>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">{total ? total.proposalCount : <span className="text-ui-sm text-foreground-subtle">{unavailable}</span>}</td>
-                    <td className="px-4 py-3 tabular-nums">{total ? total.formalCount : "—"}</td>
-                    <td className="px-4 py-3">{total ? <OverviewProgress percent={total.percent} label={item.name} zh={zh} /> : "—"}</td>
-                  </tr>;
-                })}
-                {!view?.projects.length && <tr><td colSpan={4} className="px-4 py-6 text-foreground-subtle">
-                  {view ? zh ? "尚无项目。" : "No projects yet." : unavailable}
-                  {view && <Button variant="outline" className="ml-3" onClick={onManageProjects}>{zh ? "项目设置" : "Project settings"}</Button>}
-                </td></tr>}
-              </tbody>
-            </table>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {view?.projects.map((item) => {
+              const total = view.projectProgress?.find((entry) => entry.projectId === item.id)?.total;
+              const selected = project?.id === item.id;
+              return <Card key={item.id} className={`gap-0 py-0 transition-colors hover:border-border-hover ${selected ? "border-foreground-subtle bg-card-selected" : ""}`}>
+                <button type="button" className="flex h-full w-full cursor-pointer flex-col gap-3 rounded-xl border-2 border-transparent p-4 text-left hover:bg-surface-hover focus-visible:border-foreground" onClick={() => ai.navigate(() => ai.switchProject(item.id))} aria-pressed={selected}>
+                  <span className="flex w-full items-start justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 font-medium"><FolderGit2 className="size-4 shrink-0 text-foreground-subtle" /><span className="break-words">{item.name}</span></span>
+                    {selected && <Badge variant="secondary" className="shrink-0">{zh ? "当前项目" : "Current"}</Badge>}
+                  </span>
+                  {total ? <>
+                    <span className="w-full space-y-1"><span className="block text-ui-sm text-foreground">{zh ? "项目总进度 · 全部 Release" : "Total progress · All Releases"}</span><OverviewProgress percent={total.percent} label={item.name} zh={zh} /></span>
+                    <span className="text-ui-sm text-foreground tabular-nums">{zh ? `提案 ${total.proposalCount} · 正式 IR ${total.formalCount}` : `${total.proposalCount} proposals · ${total.formalCount} formal IRs`}</span>
+                  </> : <span className="text-ui-sm text-foreground-subtle">{unavailable}</span>}
+                </button>
+              </Card>;
+            })}
           </div>
+          {!view?.projects.length && <div className="rounded-xl border border-border bg-surface px-4 py-6 text-foreground-subtle">
+            {view ? zh ? "尚无项目。" : "No projects yet." : unavailable}
+            {view && <Button variant="outline" className="ml-3" onClick={onManageProjects}>{zh ? "项目设置" : "Project settings"}</Button>}
+          </div>}
           {view?.projects.length && !view.projectProgress && !ai.pending ? <Button variant="outline" onClick={() => void ai.refresh()}>{zh ? "重新读取进度" : "Reload progress"}</Button> : null}
         </section>
         <section className="space-y-4" aria-label={zh ? "当前项目详情" : "Current project details"}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-ui-lg font-medium">{project ? zh ? `${project.name} · 正式需求进度` : `${project.name} · Formal requirement progress` : zh ? "当前项目详情" : "Current project details"}</h2>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={project?.id ?? ""} onValueChange={(id) => ai.navigate(() => ai.switchProject(id))} disabled={!view?.projects.length}>
-                <SelectTrigger className="h-9 w-40 rounded-lg bg-surface" aria-label={zh ? "项目进度项目" : "Progress project"}><SelectValue placeholder={zh ? "选择项目" : "Select project"} /></SelectTrigger>
-                <SelectContent>{view?.projects.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
-              </Select>
               <Select value={ai.releaseId || "all"} onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id === "all" ? "" : id))} disabled={!project || !releases.length}>
                 <SelectTrigger className="h-9 w-44 rounded-lg bg-surface" aria-label={zh ? "项目进度 Release" : "Progress Release"}><SelectValue placeholder={zh ? "选择 Release" : "Select Release"} /></SelectTrigger>
                 <SelectContent>
@@ -112,11 +104,14 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
               <p>{unavailable}</p>
               {!ai.pending && <Button variant="outline" onClick={() => void ai.refresh()}>{zh ? "重试" : "Retry"}</Button>}
             </div> : <>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3 text-ui-sm">
-                <span>{release?.title ?? (zh ? "全部 Release" : "All Releases")}</span>
-                <span>{zh ? `提案 ${summary.proposalCount} · 正式 IR ${summary.formalCount} · SR ${summary.srCount}` : `${summary.proposalCount} proposals · ${summary.formalCount} formal IRs · ${summary.srCount} SRs`}</span>
-                <span className="text-foreground-subtle">{zh ? `未分析 ${summary.unanalyzedCount}（按 0 计）` : `${summary.unanalyzedCount} unanalyzed (counted as zero)`}</span>
-                <OverviewProgress percent={summary.percent} label={project.name} zh={zh} />
+              <div className="grid gap-4 rounded-xl border border-card-border bg-card p-4 md:grid-cols-5">
+                <div className="space-y-2 md:col-span-2">
+                  <div className="text-ui-sm text-foreground">{zh ? "范围进度" : "Scope progress"} · {release?.title ?? (zh ? "全部 Release" : "All Releases")}</div>
+                  <OverviewProgress percent={summary.percent} label={project.name} zh={zh} prominent />
+                </div>
+                <div><div className="text-ui-sm text-foreground">{zh ? "正式 IR" : "Formal IRs"}</div><div className="mt-1 text-ui-xl font-medium tabular-nums">{summary.formalCount}</div><div className="text-ui-sm text-foreground-subtle">{zh ? `提案 ${summary.proposalCount}` : `${summary.proposalCount} proposals`}</div></div>
+                <div><div className="text-ui-sm text-foreground">SR</div><div className="mt-1 text-ui-xl font-medium tabular-nums">{summary.srCount}</div></div>
+                <div><div className="text-ui-sm text-foreground">{zh ? "未分析" : "Unanalyzed"}</div><div className="mt-1 text-ui-xl font-medium tabular-nums">{summary.unanalyzedCount}</div><div className="text-ui-sm text-foreground-subtle">{zh ? "按 0 计" : "Counted as zero"}</div></div>
               </div>
               <div className="overflow-x-auto rounded-xl border border-border bg-surface">
                 <table className="w-full min-w-[680px] table-fixed text-left" aria-label={zh ? "项目正式需求进度表" : "Project formal requirement progress"}>
@@ -185,10 +180,14 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
   );
 }
 
-function OverviewProgress({ percent, label, zh }: { percent: number | null; label: string; zh: boolean }) {
+function OverviewProgress({ percent, label, zh, prominent = false }: { percent: number | null; label: string; zh: boolean; prominent?: boolean }) {
   if (percent === null) return <span className="text-ui-sm text-foreground-subtle">{zh ? "暂无正式需求" : "No formal requirements"}</span>;
+  if (prominent) return <div className="space-y-2">
+    <span className="text-ui-xl font-medium tabular-nums">{progressLabel(percent)}</span>
+    <Progress value={percent} aria-label={zh ? `${label}进度` : `${label} progress`} aria-valuetext={progressLabel(percent)} className="h-1.5 bg-border" indicatorClassName="bg-brand" />
+  </div>;
   return <div className="flex min-w-28 items-center gap-2">
-    <Progress value={percent} aria-label={zh ? `${label}进度` : `${label} progress`} aria-valuetext={progressLabel(percent)} className="h-1 min-w-12 flex-1" />
+    <Progress value={percent} aria-label={zh ? `${label}进度` : `${label} progress`} aria-valuetext={progressLabel(percent)} className="h-1.5 min-w-12 flex-1 bg-border" indicatorClassName="bg-brand" />
     <span className="shrink-0 font-mono text-ui-sm tabular-nums">{progressLabel(percent)}</span>
   </div>;
 }
