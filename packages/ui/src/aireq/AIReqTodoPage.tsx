@@ -235,10 +235,11 @@ export function AIReqTodoPage() {
                   <td className="px-2 py-3 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
+                        {/* 分工是行内次操作，沿用其他表格的悬停／聚焦／展开显隐，避免每行常驻省略号。 */}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-8 rounded-lg text-foreground-subtle hover:text-foreground focus-visible:text-foreground"
+                          className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:text-foreground focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                           aria-label={`${todoObjectLabel(item)} · ${item.title} 的分工操作`}
                         >
                           <MoreHorizontal aria-hidden="true" className="size-4" />
