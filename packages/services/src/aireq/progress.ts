@@ -1,8 +1,4 @@
-import type {
-  AIReqRequirementGroup,
-  AIReqSystemRequirement,
-  AIReqWorkflowView,
-} from "./types.js";
+import type { AIReqRequirementGroup, AIReqSystemRequirement, AIReqWorkflowView } from "./types.js";
 
 import type { AIReqProgressSummary, AIReqProjectProgress } from "./progress-types.js";
 export interface AIReqVersionedProgressInput {
@@ -31,8 +27,12 @@ export const PROGRESS_STATUSES = ["待开发", "开发中", "待合入", "待验
 export type AIReqProgressStatus = (typeof PROGRESS_STATUSES)[number];
 
 export function srProgress(sr: AIReqSystemRequirement): number {
-  if (sr.codeMerge && sr.testAcceptance?.outcome === "passed" &&
-      sr.testAcceptance.codeVersion === sr.codeMerge.commit) return 100;
+  if (
+    sr.codeMerge &&
+    sr.testAcceptance?.outcome === "passed" &&
+    sr.testAcceptance.codeVersion === sr.codeMerge.commit
+  )
+    return 100;
   if (sr.codeMerge) return 99;
   return Math.max(0, Math.min(99, sr.progress?.aiPercent ?? sr.progress?.percent ?? 0));
 }
@@ -65,13 +65,21 @@ export function projectProgress(view: AIReqWorkflowView, projectId: string): AIR
   const total = emptyProgressSummary();
   const releases = view.releases
     .filter((release) => release.projectId === projectId)
-    .map((release) => ({ releaseId: release.id, ...emptyProgressSummary() }));
+    .map((release) => ({
+      releaseId: release.id,
+      title: release.title,
+      createdAt: release.createdAt,
+      ...emptyProgressSummary(),
+    }));
   const byRelease = new Map(releases.map((release) => [release.releaseId, release]));
-  const byIr = new Map<string, {
-    requirement: AIReqProgressSummary["requirements"][number];
-    release: AIReqProgressSummary | undefined;
-    sum: number;
-  }>();
+  const byIr = new Map<
+    string,
+    {
+      requirement: AIReqProgressSummary["requirements"][number];
+      release: AIReqProgressSummary | undefined;
+      sum: number;
+    }
+  >();
   const sums = new Map<AIReqProgressSummary, number>([
     [total, 0],
     ...releases.map((release): [AIReqProgressSummary, number] => [release, 0]),

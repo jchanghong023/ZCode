@@ -80,7 +80,11 @@ interface AIReqContextValue {
   releaseId: string;
   setReleaseId(id: string, options?: { inProposalDialog?: boolean }): void;
   switchProject(projectId: string): void;
-  openProject(projectId: string, mainView?: "projectOverview" | "proposals" | "formal"): void;
+  openProject(
+    projectId: string,
+    mainView?: "projectOverview" | "proposals" | "formal",
+    releaseId?: string,
+  ): void;
   select(value: AIReqSelection, releaseId?: string): void;
   openAnalysis(value: AIReqSelection, releaseId?: string): void;
   objectLink(): string | undefined;
@@ -248,6 +252,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       mainView: WorkspaceMainView = "chat",
       targetReleaseId?: string,
     ) => {
+      const previousReleaseId = releaseRef.current;
       const projectChanged = selectionRef.current.projectId !== value.projectId;
       if (projectChanged) {
         releaseRef.current = "";
@@ -259,6 +264,15 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       ].find((item) => item.projectId === value.projectId && item.id === value.irId);
       // 全部 Release 已包含同项目详情；只有跨项目或不同具体版本才收窄范围。
       const detailRelease = targetReleaseId ?? selectedGroup?.releaseId;
+      // 项目页的 Release 卡片必须先设置范围，再记录唯一历史；空字符串明确表示全部 Release。
+      if (
+        targetReleaseId !== undefined &&
+        mainView !== "chat" &&
+        mainView !== "requirementAnalysis"
+      ) {
+        releaseRef.current = targetReleaseId;
+        updateReleaseId(targetReleaseId);
+      }
       if (
         (mainView === "chat" || mainView === "requirementAnalysis") &&
         detailRelease &&
@@ -283,7 +297,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       if (
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
-          navigationRef.current.mainView !== mainView)
+          navigationRef.current.mainView !== mainView ||
+          previousReleaseId !== releaseRef.current)
       )
         recordNavigation(value, mainView, null, requirementView);
       source.selectProject(value.projectId);
@@ -307,11 +322,18 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     (
       projectId: string,
       mainView: "projectOverview" | "proposals" | "formal" = "projectOverview",
+      releaseId?: string,
     ) => {
-      // 首页数量代表全项目：清空旧范围后一次选择目标，避免多步跳转污染历史。
-      releaseRef.current = "";
-      updateReleaseId("");
-      select({ projectId }, true, mainView);
+      if (
+        releaseId &&
+        !viewRef.current?.projectProgress?.some(
+          (project) =>
+            project.projectId === projectId &&
+            project.releases.some((release) => release.releaseId === releaseId),
+        )
+      )
+        return;
+      select({ projectId }, true, mainView, releaseId ?? "");
     },
     [select],
   );
@@ -716,7 +738,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         releaseId,
         setReleaseId,
         switchProject,
-        openProject: (projectId, mainView) => navigate(() => openProject(projectId, mainView)),
+        openProject: (projectId, mainView, releaseId) =>
+          navigate(() => openProject(projectId, mainView, releaseId)),
         select: (value, targetReleaseId) =>
           navigate(() => select(value, true, "chat", targetReleaseId)),
         openAnalysis: (value, targetReleaseId) =>

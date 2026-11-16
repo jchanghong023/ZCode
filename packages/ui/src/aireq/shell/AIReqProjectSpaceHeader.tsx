@@ -128,9 +128,9 @@ export function AIReqProjectSpaceHeader({ onReturnProjects }: { onReturnProjects
             </SelectContent>
           </Select>
           <Select
-            value={release?.id ?? "all"}
+            value={release?.id ?? (ai.releaseId || "all")}
             onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id === "all" ? "" : id))}
-            disabled={!project || !releases.length}
+            disabled={!project || !releases.length || !ai.selectionReady}
           >
             <SelectTrigger
               className="w-52 max-w-full bg-surface"
@@ -139,6 +139,11 @@ export function AIReqProjectSpaceHeader({ onReturnProjects }: { onReturnProjects
               <SelectValue placeholder={zh ? "选择 Release" : "Choose Release"} />
             </SelectTrigger>
             <SelectContent>
+              {ai.releaseId && !release && (
+                <SelectItem value={ai.releaseId} disabled>
+                  {zh ? "正在读取 Release…" : "Loading Release…"}
+                </SelectItem>
+              )}
               <SelectItem value="all">{zh ? "全部 Release" : "All Releases"}</SelectItem>
               {releases.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
