@@ -5,7 +5,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { srProgressStatus } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 
-export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProjects(): void }) {
+export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProjects(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -76,11 +76,11 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
           <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
             <p>
               {zh
-                ? "请选择项目，或在设置中添加名称、远程仓库和默认分支。"
-                : "Choose a project, or add a name, remote repository and default branch in settings."}
+                ? "请选择项目，或返回项目列表添加项目。"
+                : "Choose a project, or return to the project list to add one."}
             </p>
-            <Button variant="outline" onClick={onManageProjects}>
-              {zh ? "项目设置" : "Project settings"}
+            <Button variant="outline" onClick={onReturnProjects}>
+              {zh ? "返回项目列表" : "Back to projects"}
             </Button>
           </div>
         ) : (
@@ -89,11 +89,11 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
               <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
                 <p>
                   {zh
-                    ? "当前项目尚无 Release，请在设置中添加。"
-                    : "This project has no Releases. Add one in settings."}
+                    ? "当前项目尚无 Release，请返回项目列表配置。"
+                    : "This project has no Releases. Return to the project list to configure it."}
                 </p>
-                <Button variant="outline" onClick={onManageProjects}>
-                  {zh ? "管理 Release" : "Manage Releases"}
+                <Button variant="outline" onClick={onReturnProjects}>
+                  {zh ? "返回项目列表" : "Back to projects"}
                 </Button>
               </div>
             )}

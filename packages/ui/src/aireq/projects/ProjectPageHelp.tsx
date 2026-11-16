@@ -41,8 +41,8 @@ export function ProjectPageHelp({
         : "Expand a requirement to see its development units (SRs), then select a requirement or unit to read its progress report."
       : allProjects
         ? zh
-          ? "查看全部项目，进入项目空间处理需求与进度。"
-          : "Explore all projects and open a project space to work with requirements and progress."
+          ? "按项目查看各 Release 的需求与进度；点击 Release 卡片进入对应概览。"
+          : "Review each project's Releases and open a Release card to view its overview."
         : zh
           ? "查看当前范围的需求进度，进入 IR 或 SR 阅读报告。"
           : "Review requirement progress in this scope and open IR or SR reports.";
@@ -56,8 +56,8 @@ export function ProjectPageHelp({
         : "Requirement (IR) progress averages its development units (SRs). Unanalyzed units count as zero; code merge means 99%, and human test acceptance means 100%."
       : allProjects
         ? zh
-          ? "进度按项目全部 Release 的正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
-          : "Progress averages formal SRs across all project Releases, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."
+          ? "每个 Release 的进度按该范围内正式 SR 等权平均，提案不计入；未分析按 0 计，代码合入为 99%，人工验收通过才为 100%。"
+          : "Each Release averages its formal SRs, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."
         : zh
           ? "进度按范围内正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
           : "Progress averages formal SRs in scope, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%.";

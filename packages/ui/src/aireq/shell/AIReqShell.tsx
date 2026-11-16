@@ -18,6 +18,7 @@ import {
 } from "../projects/AIReqProjectProgressPage.js";
 import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/index.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
+import type { AIReqProjectSettingsRequest } from "../settings/AIReqProjectSettings.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
@@ -68,6 +69,8 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const [todosMounted, setTodosMounted] = useState(false);
   const [proposalsMounted, setProposalsMounted] = useState(false);
   const [analysisProjectId, setAnalysisProjectId] = useState<string>();
+  const [projectSettingsRequest, setProjectSettingsRequest] =
+    useState<AIReqProjectSettingsRequest | null>(null);
   const [skillMounted, setSkillMounted] = useState(false);
   const [skillActions, setSkillActions] = useState<AIReqSettingsDraftActions | null>(null);
   const [settingsSection, setSettingsSection] = useState<Section>(readSettingsSection);
@@ -98,6 +101,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
     (section?: Section, projectId?: string) =>
       ai.navigate(() => {
         if (section) commitSettingsSection(section);
+        setProjectSettingsRequest(null);
         setAnalysisProjectId(projectId);
         ai.openSettings();
         setSettingsMounted(true);
@@ -105,6 +109,17 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
     [ai, commitSettingsSection],
   );
   const openModelSettings = useCallback(() => openSettings("models"), [openSettings]);
+  const openProjectSettings = (request: AIReqProjectSettingsRequest) =>
+    ai.navigate(() => {
+      commitSettingsSection("projects");
+      setAnalysisProjectId(undefined);
+      setProjectSettingsRequest(request);
+      ai.openSettings();
+      setSettingsMounted(true);
+    });
+  const projectSettingsRequestHandled = useCallback((request: AIReqProjectSettingsRequest) => {
+    setProjectSettingsRequest((current) => (current === request ? null : current));
+  }, []);
   const openHelp = (returnFocusTo?: HTMLButtonElement | null) =>
     ai.navigate(() => {
       helpReturnFocus.current = returnFocusTo ?? null;
@@ -123,20 +138,29 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       ));
   let content;
   if (ai.mainView === "projectProgress")
-    content = <AIReqProjectProgressPage onManageProjects={() => openSettings("projects")} />;
+    content = (
+      <AIReqProjectProgressPage
+        onAddProject={() => openProjectSettings({ kind: "create" })}
+        onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
+      />
+    );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "projectOverview")
-    content = <AIReqProjectOverviewPage onManageProjects={() => openSettings("projects")} />;
+    content = (
+      <AIReqProjectOverviewPage
+        onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
+      />
+    );
   else if (!project && ai.view)
     content = (
       <div className="m-auto space-y-3 p-6 text-foreground-subtle">
         <p>
           {zh
-            ? "尚无项目，请在项目配置中添加项目。"
-            : "No project selected. Add a project in settings."}
+            ? "尚无项目，请返回项目列表添加项目。"
+            : "No project selected. Return to the project list to add one."}
         </p>
-        <Button variant="outline" onClick={() => openSettings("projects")}>
-          {zh ? "项目配置" : "Project settings"}
+        <Button variant="outline" onClick={() => navigate(() => ai.setMainView("projectProgress"))}>
+          {zh ? "返回项目列表" : "Back to projects"}
         </Button>
       </div>
     );
@@ -211,7 +235,9 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
         <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <div className="relative shrink-0">
             {projectSpace ? (
-              <AIReqProjectSpaceHeader onManageProjects={() => openSettings("projects")} />
+              <AIReqProjectSpaceHeader
+                onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
+              />
             ) : (
               <div className="h-12" />
             )}
@@ -316,6 +342,8 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
               active={settingsOpen || ai.mainView === "skillDesign"}
               section={settingsSection}
               analysisProjectId={analysisProjectId}
+              projectSettingsRequest={projectSettingsRequest}
+              onProjectSettingsRequestHandled={projectSettingsRequestHandled}
               onSectionChange={commitSettingsSection}
               onClose={ai.closeSettings}
               onHelp={openHelp}

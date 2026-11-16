@@ -50,7 +50,7 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 
 ## 第 3 组只读项目进度
 
-既有 `readWorkflow` 返回的 `view.projectProgress` 覆盖所有项目，每项为 `{projectId, total, releases}`；`releases` 含该项目全部 Release（包括空 Release）。`total` 与逐 Release 项复用 `AIReqProgressSummary`：提案数、正式 IR 数、正式 SR 数、未分析 SR 数、`percent` 及全部正式 IR 摘要。现有 `view.groups/drafts/srs/materials` 等仍只含当前项目，不能为汇总而跨项目混入。
+既有 `readWorkflow` 返回的 `view.projectProgress` 覆盖所有项目，每项为 `{projectId, total, releases}`；`releases` 含该项目全部 Release（包括空 Release），每项的 `releaseId`、`title`、`createdAt` 与汇总来自同一项目快照。`total` 与逐 Release 项复用 `AIReqProgressSummary`：提案数、正式 IR 数、正式 SR 数、未分析 SR 数、`percent` 及全部正式 IR 摘要。现有 `view.groups/drafts/srs/materials` 等仍只含当前项目，不能为汇总而跨项目混入。
 
 每次读取从同一 workflow owner 按项目获取当前事实，并复用 `withPrototypeProgress`／`withPrototypePlanning` 后调用公共纯函数 `projectProgress`。项目及 Release 直接累计所有正式 SR 的 `srProgress` 后除以 SR 数，不先平均 IR；提案及其 SR 不入进度。未分析且无合入／有效验收事实的 SR 按 0 并标记；合入 99、匹配版本的人工通过 100，事实优先。无正式 SR 为 `null`，零 SR 正式 IR 保留摘要，未全部完成的显示不得舍入为 100。
 

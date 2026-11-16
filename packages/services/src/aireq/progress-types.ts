@@ -17,5 +17,5 @@ export interface AIReqProgressSummary {
 export interface AIReqProjectProgress {
   projectId: string;
   total: AIReqProgressSummary;
-  releases: Array<{ releaseId: string } & AIReqProgressSummary>;
+  releases: Array<{ releaseId: string; title: string; createdAt: string } & AIReqProgressSummary>;
 }

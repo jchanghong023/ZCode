@@ -15,7 +15,7 @@ export function OverviewProgress({
   if (percent === null)
     return (
       <span className="text-ui-sm text-foreground-subtle">
-        {zh ? "暂无正式需求" : "No formal requirements"}
+        {zh ? "暂无进度" : "No progress yet"}
       </span>
     );
   if (prominent)

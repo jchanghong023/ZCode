@@ -1,6 +1,6 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { createUuid } from "@zcode/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderGit2, GitBranch, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -28,6 +28,10 @@ import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
+
+export type AIReqProjectSettingsRequest =
+  | { kind: "create" }
+  | { kind: "project"; projectId: string };
 
 function validateRepository(name: string, remote: string, branch: string) {
   if (!name.trim()) return "请输入项目名称。";
@@ -63,9 +67,15 @@ function validateRepository(name: string, remote: string, branch: string) {
 export function AIReqProjectSettings({
   guard,
   onDraftActionsChange,
+  active,
+  request,
+  onRequestHandled,
 }: {
   guard: (navigate: () => void) => void;
   onDraftActionsChange: (actions: AIReqSettingsDraftActions | null) => void;
+  active: boolean;
+  request: AIReqProjectSettingsRequest | null;
+  onRequestHandled(request: AIReqProjectSettingsRequest): void;
 }) {
   const source = useAIReqDataSource();
   const aireq = useAIReq();
@@ -92,23 +102,34 @@ export function AIReqProjectSettings({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [targetError, setTargetError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [releaseSaving, setReleaseSaving] = useState(false);
   const [projectViews, setProjectViews] = useState<
     { project: AIReqProject; view: AIReqWorkflowView }[]
   >([]);
+  const projectElements = useRef(new Map<string, HTMLElement>());
+  const loadedSnapshot = useRef<{
+    source: typeof source;
+    view: AIReqWorkflowView | undefined;
+    refreshKey: number;
+  } | null>(null);
   useEffect(() => {
     let active = true;
+    const view = aireq?.view;
     setLoading(true);
     setLoadError("");
     Promise.all(
-      (aireq?.view?.projects ?? []).map(async (project) => ({
+      (view?.projects ?? []).map(async (project) => ({
         project,
         view: await source.readWorkflow({ projectId: project.id }),
       })),
     )
       .then((views) => {
-        if (active) setProjectViews(views);
+        if (active) {
+          loadedSnapshot.current = { source, view, refreshKey };
+          setProjectViews(views);
+        }
       })
       .catch((cause) => {
         if (active) setLoadError(formatUserFacingError(cause, "读取项目配置失败，请重试。"));
@@ -241,8 +262,7 @@ export function AIReqProjectSettings({
     );
   }, [dirty, busy, canSave, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange(null), [onDraftActionsChange]);
-  if (!aireq) return null;
-  const openProject = (project?: AIReqProject) => {
+  const openProject = useCallback((project?: AIReqProject) => {
     setProjectRevision(project?.revision ?? 0);
     repositoryOperation.current = null;
     setProjectId(project?.id);
@@ -257,7 +277,48 @@ export function AIReqProjectSettings({
     setProjectError("");
     setMessage("");
     setProjectOpen(true);
-  };
+  }, []);
+  useEffect(() => {
+    if (!active || !request) return;
+    setTargetError("");
+    if (request.kind === "create") {
+      if (canSaveRepository) openProject();
+      else setTargetError(zh ? "当前无法添加项目。" : "Adding a project is unavailable.");
+      onRequestHandled(request);
+      return;
+    }
+    // 项目列表更新后必须等待同一快照的配置加载，不能用旧列表判定目标不存在。
+    if (
+      loading ||
+      loadError ||
+      loadedSnapshot.current?.source !== source ||
+      loadedSnapshot.current?.view !== aireq?.view ||
+      loadedSnapshot.current?.refreshKey !== refreshKey
+    )
+      return;
+    const element = projectElements.current.get(request.projectId);
+    if (element) {
+      element.scrollIntoView({ block: "start" });
+      element.focus({ preventScroll: true });
+    } else {
+      setTargetError(zh ? "目标项目不存在或已被删除。" : "The requested project is unavailable.");
+    }
+    onRequestHandled(request);
+  }, [
+    active,
+    request,
+    loading,
+    loadError,
+    projectViews,
+    source,
+    aireq?.view,
+    refreshKey,
+    canSaveRepository,
+    onRequestHandled,
+    openProject,
+    zh,
+  ]);
+  if (!aireq) return null;
   const openRelease = (id: string) => {
     initialReleaseProject.current = id;
     setReleaseProjectId(id);
@@ -280,6 +341,11 @@ export function AIReqProjectSettings({
             重试
           </Button>
         </div>
+      )}
+      {targetError && (
+        <p role="alert" className="text-ui-sm text-destructive">
+          {targetError}
+        </p>
       )}
       <AIReqSettingsTarget
         id="aireq.projects"
@@ -325,7 +391,15 @@ export function AIReqProjectSettings({
       </div>
       {projectViews.map(({ project, view }) => (
         <SettingsGroupCard key={project.id}>
-          <article data-project-id={project.id}>
+          <article
+            data-project-id={project.id}
+            tabIndex={-1}
+            className="rounded-xl focus:outline-none focus:ring-2 focus:ring-input-border-focused"
+            ref={(element) => {
+              if (element) projectElements.current.set(project.id, element);
+              else projectElements.current.delete(project.id);
+            }}
+          >
             <header className="space-y-3 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
