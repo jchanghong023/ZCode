@@ -1,5 +1,7 @@
 # AIReq 只读材料渲染合同
 
+> 当前需求工作区按 [项目空间规格](project-space.md)（2026-11-16）：同一 IR 在提案／正式生命周期内保留上下文，材料区只承担只读阅读与定位，三方确认等当前阶段主动作移入阶段主体。保留现有可拖拽、收起／展开面板及材料／历史选择；正式报告优先状态、关注问题和下一步，再展示证据与维护信息。不增加手工编辑、SR 开发工作台或新的文档状态来源。本轮实际截图与检查另行记录，不复用下文历史结论冒充通过。
+
 ## 范围与所有权
 
 需求、方案、报告和 Skill Markdown 正文统一使用当前 ZCode `MarkdownDocument`（`@uiw/react-markdown-preview` 静态文档阅读器），不再复用聊天 `MessageResponse` 排版。表格、代码、Mermaid 与图片预览继续复用现有基础控件，不复制源控件或引入第二份业务状态。`AIReqMarkdownDocument` 是材料只读策略包装；业务版本/正文仍归 AIReq 服务所有，阅读器仅消费正文、主题与代码设置。视觉与验收合同见 `docs/ui/markdown-preview-renderers.md`。

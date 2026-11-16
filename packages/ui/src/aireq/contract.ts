@@ -95,7 +95,15 @@ export interface AIReqApplicationProps {
   platform: IPlatformService;
   operator: { employeeNumber: string; leave(): void };
 }
-export type AIReqMainView = "chat" | "projectProgress" | "todos" | "proposals" | "formal" | "requirementAnalysis" | "skillDesign";
+export type AIReqMainView =
+  | "chat"
+  | "projectProgress"
+  | "projectOverview"
+  | "todos"
+  | "proposals"
+  | "formal"
+  | "requirementAnalysis"
+  | "skillDesign";
 
 /** Shared draft commands; the Settings page remains the only pending-navigation owner. */
 export interface AIReqSettingsDraftActions {

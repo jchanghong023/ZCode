@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folders, Package, Palette, User, HelpCircle } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Bot, Folders, Palette, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +12,8 @@ import {
 } from "@/components/ui/dialog.js";
 import { AppearanceSectionContent } from "@/settingsCodePreview.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
-import {
-  SettingsPageFrame,
-  SettingsSidebarButton,
-} from "@/settings/SettingsPageParts.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { SettingsPageFrame, SettingsSidebarButton } from "@/settings/SettingsPageParts.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   SettingsSearch,
@@ -25,37 +24,36 @@ import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings } from "./AIReqProjectSettings.js";
+import { AIReqAnalysisSettings } from "../tracking/analysis/AIReqAnalysisSettings.js";
 import type { AIReqSettingsDraftActions } from "../contract.js";
 
 export type AIReqSettingsSection =
   | "appearance"
   | "projects"
   | "models"
-  | "personalization";
+  | "personalization"
+  | "analysis";
 export type AIReqNavigationGuard = (navigate: () => void) => void;
-const titles: Record<AIReqSettingsSection, string> = {
+const chineseTitles = {
   appearance: "外观",
-  projects: "AIReq 项目与 Release",
-  models: "模型设置",
-  personalization: "个性化",
+  projects: "项目配置",
+  models: "模型",
+  personalization: "Agent 指令",
+  analysis: "分析设置",
 };
-const icons = {
-  appearance: Palette,
-  projects: Folders,
-  models: Package,
-  personalization: User,
+const englishTitles = {
+  appearance: "Appearance",
+  projects: "Project configuration",
+  models: "Models",
+  personalization: "Agent instructions",
+  analysis: "Analysis settings",
 };
-const searchSections = [
-  { id: "appearance", label: titles.appearance },
-  { id: "general", label: titles.projects, includeSettings: false },
-  { id: "modelProvider", label: titles.models, includeSettings: false },
-  { id: "personalization", label: titles.personalization, includeSettings: false },
-] as const;
 const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
   appearance: "appearance",
   general: "projects",
   modelProvider: "models",
   personalization: "personalization",
+  agentBehavior: "analysis",
 };
 
 function Appearance() {
@@ -101,6 +99,31 @@ export function AIReqSettingsPage({
   onNavigationGuardChange?: (guard: AIReqNavigationGuard | null) => void;
   skillActions: AIReqSettingsDraftActions | null;
 }) {
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
+  const titles = zh ? chineseTitles : englishTitles;
+  const aiTitle = zh ? "AI 配置" : "AI configuration";
+  const aiSection = section === "models" || section === "personalization" || section === "analysis";
+  const contentRef = useRef<HTMLElement>(null);
+  const searchSections = useMemo(
+    () =>
+      [
+        { id: "appearance", label: titles.appearance },
+        { id: "general", label: titles.projects, includeSettings: false },
+        { id: "modelProvider", label: `${aiTitle} · ${titles.models}`, includeSettings: false },
+        {
+          id: "personalization",
+          label: `${aiTitle} · ${titles.personalization}`,
+          includeSettings: false,
+        },
+        { id: "agentBehavior", label: `${aiTitle} · ${titles.analysis}`, includeSettings: false },
+      ] as const,
+    [titles, aiTitle],
+  );
+  useLayoutEffect(() => {
+    // AI 子页共用稳定的页签栏；仅重置正文滚动，保留键盘切换后的页签焦点。
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [section]);
   const actions = useRef<{
     form: AIReqSettingsDraftActions | null;
     skill: AIReqSettingsDraftActions | null;
@@ -153,11 +176,7 @@ export function AIReqSettingsPage({
   // 快捷键曾绕过门禁结算；所有入口共用保存动作与同步忙锁，成功后仅消费一次 pending。
   const save = useCallback(async () => {
     const current = actions.current;
-    if (
-      busyRef.current ||
-      current.form?.canSave === false ||
-      current.skill?.canSave === false
-    )
+    if (busyRef.current || current.form?.canSave === false || current.skill?.canSave === false)
       return;
     // 说明自动保存可能在确认框打开后完成；已无脏动作时直接结算原导航。
     if (!current.form && !current.skill) {
@@ -213,11 +232,15 @@ export function AIReqSettingsPage({
   return (
     <SettingsSearchTargetContext.Provider value={searchTarget}>
       <SettingsPageFrame
-        title="设置"
+        title={zh ? "设置" : "Settings"}
         isDesktop={false}
         isMacDesktop={false}
         isWindowsDesktop={false}
-        rootProps={{ "data-testid": "aireq-settings", "data-active-section": section, style: { gridTemplateColumns: "68px minmax(0, 1fr)" } }}
+        rootProps={{
+          "data-testid": "aireq-settings",
+          "data-active-section": section,
+          style: { gridTemplateColumns: "68px minmax(0, 1fr)" },
+        }}
         backButton={
           <ControlHintTooltip title="返回工作区" side="right" align="center">
             <Button
@@ -248,36 +271,40 @@ export function AIReqSettingsPage({
             }}
           />
         }
-        navigationLabel="设置分区"
+        navigationLabel={zh ? "设置分区" : "Settings categories"}
         navigation={
-          <div className="space-y-4 compact-web:flex compact-web:items-center compact-web:gap-2 compact-web:space-y-0">
+          <div className="space-y-1">
             {(
               [
-                ["个人工具", ["appearance"]],
-                ["平台配置", ["projects", "models", "personalization"]],
+                {
+                  id: "appearance",
+                  icon: Palette,
+                  label: titles.appearance,
+                  active: section === "appearance",
+                },
+                {
+                  id: "projects",
+                  icon: Folders,
+                  label: titles.projects,
+                  active: section === "projects",
+                },
+                {
+                  id: aiSection ? section : "models",
+                  icon: Bot,
+                  label: aiTitle,
+                  active: aiSection,
+                },
               ] as const
-            ).map(([group, entries], index) => (
-              <div
-                key={group}
-                role="group"
-                aria-label={group}
-                className={`space-y-1 ${index ? "border-t border-border pt-3" : ""}`}
-              >
-                <div className="sr-only">
-                  {group}
-                </div>
-                {entries.map((id) => (
-                  <SettingsSidebarButton
-                    key={id}
-                    icon={icons[id]}
-                    label={titles[id]}
-                    className="mx-auto size-10 justify-center px-0 [&>span:last-child]:sr-only"
-                    active={section === id}
-                    aria-current={section === id ? "page" : undefined}
-                    onClick={() => navigate(id)}
-                  />
-                ))}
-              </div>
+            ).map((entry) => (
+              <SettingsSidebarButton
+                key={entry.label}
+                icon={entry.icon}
+                label={entry.label}
+                className="mx-auto size-10 justify-center px-0 [&>span:last-child]:sr-only"
+                active={entry.active}
+                aria-current={entry.active ? "page" : undefined}
+                onClick={() => navigate(entry.id)}
+              />
             ))}
           </div>
         }
@@ -293,23 +320,43 @@ export function AIReqSettingsPage({
           </Button>
         }
       >
-        {/* 修复：分区切换后复用滚动容器会沿用旧页面位置，使新标题移出视野。 */}
-        <main key={section} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        <main ref={contentRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 pb-8 lg:px-8 lg:pb-10">
             <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
-              {titles[section]}
+              {aiSection ? aiTitle : titles[section]}
             </h2>
-            <div className="space-y-8">
-              {section === "appearance" ? (
-                <Appearance />
-              ) : section === "projects" ? (
-                <AIReqProjectSettings />
-              ) : section === "models" ? (
-                <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
-              ) : section === "personalization" ? (
-                <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
-              ) : null}
-            </div>
+            {aiSection ? (
+              <Tabs
+                value={section}
+                onValueChange={(next) => navigate(next as AIReqSettingsSection)}
+                activationMode="manual"
+                className="min-w-0"
+              >
+                <TabsList aria-label={aiTitle}>
+                  {(["models", "personalization", "analysis"] as const).map((id) => (
+                    <TabsTrigger key={id} value={id}>
+                      {titles[id]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <TabsContent key={section} value={section} className="mt-6 space-y-8">
+                  {section === "models" ? (
+                    <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
+                  ) : section === "personalization" ? (
+                    <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
+                  ) : (
+                    <AIReqAnalysisSettings
+                      onOpenModelSettings={() => navigate("models")}
+                      onDraftActionsChange={onDraftActionsChange}
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div key={section} className="space-y-8">
+                {section === "appearance" ? <Appearance /> : <AIReqProjectSettings />}
+              </div>
+            )}
           </div>
         </main>
       </SettingsPageFrame>

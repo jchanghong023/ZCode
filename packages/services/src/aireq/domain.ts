@@ -288,7 +288,9 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
   const push = (group: AIReqRequirementGroup, kind: AIReqTodo["kind"], title: string,
     employeeId?: string, extra: Partial<AIReqTodo> = {}) => {
     result.push({ id: `${group.projectId}:${group.id}:${kind}:${extra.srId ?? extra.perspective ?? ""}`,
-      projectId: group.projectId, irId: group.id, kind, title, employeeId,
+      // 跨项目待办不能从当前项目投影补名字或 Release；由同一 IR 事实一次派生。
+      projectId: group.projectId, irId: group.id, requirementTitle: group.title,
+      releaseId: group.releaseId, kind, title, employeeId,
       selection: { projectId: group.projectId, irId: group.id,
         ...(extra.srId ? { srId: extra.srId, formalView: "detail" as const } : {}) }, ...extra });
   };

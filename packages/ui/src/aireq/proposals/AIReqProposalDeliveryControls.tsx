@@ -348,7 +348,10 @@ export function AIReqProposalDeliveryControls({
         ].join("\n")
       : "");
   return (
-    <section className={compact ? "flex shrink-0 items-center gap-2" : "space-y-2"} data-testid="proposal-delivery-controls">
+    <section
+      className={compact ? "flex shrink-0 items-center gap-2" : "space-y-2"}
+      data-testid="proposal-delivery-controls"
+    >
       <Button
         size="sm"
         variant={compact ? "default" : "outline"}
@@ -387,6 +390,16 @@ export function AIReqProposalDeliveryControls({
         <p role="alert" className="text-ui-sm text-destructive">
           {result.error}
         </p>
+      )}
+      {!compact && !handoffLoading && !pushed && launchHandoff && !launchHandoff.ready && (
+        <div className="space-y-1 text-ui-sm text-foreground-subtle" role="status">
+          <p>提交剩余条件</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {launchHandoff.blockers.map((blocker) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+        </div>
       )}
       {!compact && (
         <p className="text-ui-sm text-foreground-subtle">
@@ -574,7 +587,11 @@ export function AIReqProposalDeliveryControls({
                     disabled={!canSubmit}
                   >
                     {/* 修复：推送已成功时，重试只补建 MR，不能提示再次推送。 */}
-                    {dialog.step === "confirm" ? "确认、提交推送并创建 MR" : pushed ? "重试创建 MR" : "提交推送并创建 MR"}
+                    {dialog.step === "confirm"
+                      ? "确认、提交推送并创建 MR"
+                      : pushed
+                        ? "重试创建 MR"
+                        : "提交推送并创建 MR"}
                   </Button>
                 )}
               </DialogFooter>

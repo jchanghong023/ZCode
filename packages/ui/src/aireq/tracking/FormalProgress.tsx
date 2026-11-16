@@ -69,7 +69,9 @@ export function AIReqFormalTable() {
       </div>
     );
   const groups = view.groups.filter(
-    (group) => group.projectId === aireq.selection.projectId && (!aireq.releaseId || group.releaseId === aireq.releaseId),
+    (group) =>
+      group.projectId === aireq.selection.projectId &&
+      (!aireq.releaseId || group.releaseId === aireq.releaseId),
   );
   const normalized = query.trim().toLocaleLowerCase();
   const open = (group: AIReqRequirementGroup, sr?: AIReqSystemRequirement) =>
@@ -84,7 +86,8 @@ export function AIReqFormalTable() {
   const visible = groups.filter((group) => {
     const rows = irSrs(view, group);
     return (
-      (matches(group.id, group.originalText ?? group.title) || rows.some((sr) => matches(sr.id, sr.title))) &&
+      (matches(group.id, group.originalText ?? group.title) ||
+        rows.some((sr) => matches(sr.id, sr.title))) &&
       (status === "all" ||
         irProgressStatus(rows) === status ||
         rows.some((sr) => srProgressStatus(sr) === status))
@@ -115,31 +118,6 @@ export function AIReqFormalTable() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <Select value={aireq.selection.projectId ?? ""} onValueChange={(id) => aireq.navigate(() => aireq.switchProject(id))}>
-              <SelectTrigger className="h-9 w-36 rounded-lg bg-surface" aria-label="正式需求项目">
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                {view.projects.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={aireq.releaseId || "all"} onValueChange={(value) => aireq.navigate(() => aireq.setReleaseId(value === "all" ? "" : value))}>
-              <SelectTrigger className="h-9 w-40 rounded-lg bg-surface" aria-label="正式需求版本">
-                <SelectValue placeholder="选择版本" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部 Release</SelectItem>
-                {view.releases.filter((item) => item.projectId === aireq.selection.projectId).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="h-9 w-28 rounded-lg bg-surface" aria-label="筛选开发状态">
                 <SelectValue />
@@ -185,24 +163,26 @@ export function AIReqFormalTable() {
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
-                {["原始需求／SR 与 Release", "状态、进度与最新审查", "负责人及计划", "操作"].map((title, index) => (
-                  <MarkdownTableHead
-                    key={title}
-                    scope="col"
-                    className={`h-10 min-w-0 whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
-                    // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
-                    style={
-                      index === 0
-                        ? {
-                            backgroundImage:
-                              "linear-gradient(var(--color-surface), var(--color-surface))",
-                          }
-                        : undefined
-                    }
-                  >
-                    {title}
-                  </MarkdownTableHead>
-                ))}
+                {["原始需求／SR 与 Release", "状态、进度与最新审查", "负责人及计划", "操作"].map(
+                  (title, index) => (
+                    <MarkdownTableHead
+                      key={title}
+                      scope="col"
+                      className={`h-10 min-w-0 whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
+                      // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
+                      style={
+                        index === 0
+                          ? {
+                              backgroundImage:
+                                "linear-gradient(var(--color-surface), var(--color-surface))",
+                            }
+                          : undefined
+                      }
+                    >
+                      {title}
+                    </MarkdownTableHead>
+                  ),
+                )}
               </MarkdownTableRow>
             </MarkdownTableHeader>
             <MarkdownTableBody>
@@ -230,20 +210,22 @@ export function AIReqFormalTable() {
                 const plan = irPlanning(srs);
                 const developers = [
                   ...new Set(
-                    srs.flatMap((sr) =>
-                      sr.developerEmployeeId ? [sr.developerEmployeeId] : [],
-                    ),
+                    srs.flatMap((sr) => (sr.developerEmployeeId ? [sr.developerEmployeeId] : [])),
                   ),
                 ];
                 const testers = [
                   ...new Set(
-                    srs.flatMap((sr) =>
-                      sr.testingEmployeeId ? [sr.testingEmployeeId] : [],
-                    ),
+                    srs.flatMap((sr) => (sr.testingEmployeeId ? [sr.testingEmployeeId] : [])),
                   ),
                 ];
                 const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
-                const testIssueCount = srs.reduce((count, sr) => count + (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0), 0);
+                const testIssueCount = srs.reduce(
+                  (count, sr) =>
+                    count +
+                    (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ??
+                      0),
+                  0,
+                );
                 const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
                 const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
                 // 主题行色含透明度：固定列在不透明底色上叠加同一行色，避免滚动透字和双层选中色。
@@ -302,13 +284,17 @@ export function AIReqFormalTable() {
                                   open(group);
                                 }}
                               >
-                                <span className="line-clamp-2">{group.originalText ?? group.title}</span>
+                                <span className="line-clamp-2">
+                                  {group.originalText ?? group.title}
+                                </span>
                               </Button>
                             </ControlHintTooltip>
                             <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
-                              {" · "}{view.releases.find((release) => release.id === group.releaseId)?.title ?? group.releaseId}
+                              {" · "}
+                              {view.releases.find((release) => release.id === group.releaseId)
+                                ?.title ?? group.releaseId}
                             </p>
                           </div>
                         </div>
@@ -393,16 +379,38 @@ export function AIReqFormalTable() {
                                 status={srProgressStatus(sr)}
                               />
                               <IssueCount issues={sr.progress?.issues ?? []} />
-                              <TestIssueCount count={sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0} />
+                              <TestIssueCount
+                                count={
+                                  sr.developmentIssues?.filter(
+                                    (issue) => issue.status !== "resolved",
+                                  ).length ?? 0
+                                }
+                              />
                               <p className="mt-1 line-clamp-2 text-ui-sm text-foreground-subtle">
-                                最新审查：{sr.progress ? sr.progress.issues[0]?.title ?? "当前报告无阻断问题" : "尚未分析"}
+                                最新审查：
+                                {sr.progress
+                                  ? (sr.progress.issues[0]?.title ?? "当前报告无阻断问题")
+                                  : "尚未分析"}
                               </p>
-                              {sr.lastAnalysisFailure && <p className="text-ui-sm text-destructive">最近分析失败，保留旧报告</p>}
-                              {sr.progress?.stale && <p className="text-ui-sm text-foreground-subtle">报告已过期，等待当前版本分析</p>}
+                              {sr.lastAnalysisFailure && (
+                                <p className="text-ui-sm text-destructive">
+                                  最近分析失败，保留旧报告
+                                </p>
+                              )}
+                              {sr.progress?.stale && (
+                                <p className="text-ui-sm text-foreground-subtle">
+                                  报告已过期，等待当前版本分析
+                                </p>
+                              )}
                               <p className="break-all text-ui-sm text-foreground-subtle">
-                                {sr.trackingBranch?.name ?? "分支缺失"}{sr.trackingBranch?.status === "deleted" ? "（已清理，模拟）" : ""}
+                                {sr.trackingBranch?.name ?? "分支缺失"}
+                                {sr.trackingBranch?.status === "deleted" ? "（已清理，模拟）" : ""}
                               </p>
-                              {sr.trackingBranch?.error && <p className="text-ui-sm text-destructive">{sr.trackingBranch.error}</p>}
+                              {sr.trackingBranch?.error && (
+                                <p className="text-ui-sm text-destructive">
+                                  {sr.trackingBranch.error}
+                                </p>
+                              )}
                               {!sr.trackingBranch?.name?.trim() && (
                                 <p role="alert" className="mt-1 text-ui-sm text-destructive">
                                   开发分支缺失
@@ -510,7 +518,9 @@ function IssueCount({ issues }: { issues: { title: string }[] }) {
 
 // 人工验收问题与 AI 分析问题来自不同事实；未复测解决前必须在列表中可见。
 function TestIssueCount({ count }: { count: number }) {
-  return count > 0 ? <p className="mt-1 text-ui-sm text-destructive">未解决测试问题：{count} 项</p> : null;
+  return count > 0 ? (
+    <p className="mt-1 text-ui-sm text-destructive">未解决测试问题：{count} 项</p>
+  ) : null;
 }
 
 function PersonnelPlan({
@@ -530,9 +540,10 @@ function PersonnelPlan({
 }) {
   // 人员分行和重复未排期文案会撑高单元格；固定两行，完整事实仍由提示承载。
   const personnel = `开发：${developer} · 测试：${tester}`;
-  const plan = !start && !end
-    ? "计划：未排期"
-    : `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}`;
+  const plan =
+    !start && !end
+      ? "计划：未排期"
+      : `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}`;
   const planDetail = [
     `计划开始：${start?.replace("T", " ") || "未排期"}`,
     `计划结束：${end?.replace("T", " ") || "未排期"}`,
@@ -556,7 +567,10 @@ function PersonnelPlan({
         >
           {warnings.length > 0 && (
             <>
-              <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning-surface-foreground" />
+              <TriangleAlert
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-warning-surface-foreground"
+              />
               <span className="sr-only">排期冲突／需协调：</span>
             </>
           )}
@@ -619,13 +633,28 @@ function FormalActions({
           {sr && (
             <>
               <AIReqEditPlanning group={group} sr={sr} onDialogOpenChange={setDialogOpen} />
-              {sr.trackingBranch?.status === "failed" && !sr.trackingBranch.pushedAt && <Button
-                size="sm" variant="outline" disabled={aireq.pending}
-                onClick={() => void aireq.command({ type: "retrySrBranch", projectId: group.projectId, irId: group.id, srId: sr.id })}
-              >重试创建开发分支（模拟）</Button>}
-              {sr.trackingBranch?.name?.trim() && sr.trackingBranch.status !== "deleted" && (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) && (
-                <BranchCopy branch={sr.trackingBranch.name} onMessage={onMessage} />
+              {sr.trackingBranch?.status === "failed" && !sr.trackingBranch.pushedAt && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={aireq.pending}
+                  onClick={() =>
+                    void aireq.command({
+                      type: "retrySrBranch",
+                      projectId: group.projectId,
+                      irId: group.id,
+                      srId: sr.id,
+                    })
+                  }
+                >
+                  重试创建开发分支（模拟）
+                </Button>
               )}
+              {sr.trackingBranch?.name?.trim() &&
+                sr.trackingBranch.status !== "deleted" &&
+                (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) && (
+                  <BranchCopy branch={sr.trackingBranch.name} onMessage={onMessage} />
+                )}
             </>
           )}
           {!sr && (
@@ -644,12 +673,16 @@ const formalDetailPanels = ["formal-table", "formal-inspector"];
 
 export function AIReqFormalWorkspace() {
   const aireq = useAIReq()!;
-  const detail = aireq.selection.formalView !== "list" && Boolean(
-    aireq.view?.groups.some((group) =>
-      group.projectId === aireq.selection.projectId && group.id === aireq.selection.irId &&
-      (!aireq.releaseId || group.releaseId === aireq.releaseId),
-    ),
-  );
+  const detail =
+    aireq.selection.formalView !== "list" &&
+    Boolean(
+      aireq.view?.groups.some(
+        (group) =>
+          group.projectId === aireq.selection.projectId &&
+          group.id === aireq.selection.irId &&
+          (!aireq.releaseId || group.releaseId === aireq.releaseId),
+      ),
+    );
   return (
     <ResizablePanelGroup
       layoutId="aireq-formal-progress-layout-v4"

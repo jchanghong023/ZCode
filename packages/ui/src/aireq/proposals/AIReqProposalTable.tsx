@@ -190,7 +190,7 @@ export function AIReqProposalTable() {
         </div>
         {!ready && (
           <p className="text-ui-sm text-foreground-subtle">
-            新增与导入需在项目菜单选择具体 Release；全部 Release 仅用于读取。
+            新增与导入需通过页头 Release 选择指定具体版本；全部 Release 仅用于读取。
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -244,7 +244,10 @@ export function AIReqProposalTable() {
             <thead className="sticky top-0 bg-background">
               <tr>
                 {["提交人", "原始需求", "提交日期", "当前状态", "操作"].map((label, index) => (
-                  <th key={label} className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}>
+                  <th
+                    key={label}
+                    className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
+                  >
                     {label}
                   </th>
                 ))}
@@ -397,7 +400,7 @@ export function AIReqProposalTable() {
             {/* 遮罩会遮住页面上的条件提示，弹窗内需说明无法确认导入的原因。 */}
             {!ready && (
               <p className="text-ui-sm text-foreground-subtle">
-                请先关闭弹窗，在左下角项目菜单选择具体 Release 后再导入。
+                请先关闭弹窗，在页头 Release 选择中指定具体版本后再导入。
               </p>
             )}
             {ai.error && (
@@ -453,7 +456,7 @@ export function AIReqProposalTable() {
               />
               {!ready && (
                 <p className="text-ui-sm text-foreground-subtle">
-                  请先关闭弹窗，在左下角项目菜单选择具体 Release 后再保存。
+                  请先关闭弹窗，在页头 Release 选择中指定具体版本后再保存。
                 </p>
               )}
             </div>

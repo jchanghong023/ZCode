@@ -780,6 +780,8 @@ export interface AIReqDevelopmentIssue {
 }
 export interface AIReqTodo extends AIReqObjectRef {
   id: string;
+  requirementTitle: string;
+  releaseId: string;
   title: string;
   kind: "business-discussion" | "original-review" | "solution" | "full-review" | "alignment" | "publish" | "development" | "testing" | "fix" | "failure";
   employeeId?: string;

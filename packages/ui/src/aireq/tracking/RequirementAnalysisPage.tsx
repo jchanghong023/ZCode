@@ -4,11 +4,9 @@ import { Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
-import { Switch } from "@/components/ui/switch.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
-import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
@@ -30,61 +28,55 @@ import {
   shortTime,
 } from "./analysis/AnalysisPresentation.js";
 import { useSchedulerQuery } from "./analysis/useSchedulerQuery.js";
-import { AnalysisSettings } from "./analysis/AnalysisSettings.js";
 import { AnalysisTaskTable, AnalysisHistoryTable } from "./analysis/AnalysisTables.js";
 import { ReportPane } from "./analysis/ReportPane.js";
 
 export function AIReqRequirementAnalysisPage({
-  onOpenModelSettings,
+  onOpenAnalysisSettings,
 }: {
   onOpenModelSettings(): void;
+  onOpenAnalysisSettings(): void;
 }) {
   const source = useOptionalAIReqDataSource();
   const aireq = useAIReq()!;
   return (
     <main
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-      aria-label="进度分析"
+      aria-label="分析运行"
     >
-      <AutomationsMainBreadcrumbFrame
-        isDesktop={false}
-        ariaLabel="进度分析导航"
-        sectionLabel="进度分析"
-      >
-        {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
-        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-          <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
-            <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>进度分析</h1>
-                <p className="mt-2 text-ui-base text-foreground-subtle">
-                  跟踪正式需求的开发进度，查看代码依据与待处理问题。
-                </p>
-              </div>
-            </header>
-            {source?.progressScheduler ? (
-              <ConnectedProgressAnalysis
-                key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}`}
-                scheduler={source.progressScheduler}
-                onOpenModelSettings={onOpenModelSettings}
-              />
-            ) : (
-              <p role="status" className="text-ui-base text-foreground-subtle">
-                进度分析暂不可用，请稍后重试。
+      {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+        <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
+          <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>分析运行</h1>
+              <p className="mt-2 text-ui-base text-foreground-subtle">
+                查看当前项目与 Release 的分析任务、执行历史与失败原因。
               </p>
-            )}
-          </div>
+            </div>
+          </header>
+          {source?.progressScheduler ? (
+            <ConnectedProgressAnalysis
+              key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}`}
+              scheduler={source.progressScheduler}
+              onOpenAnalysisSettings={onOpenAnalysisSettings}
+            />
+          ) : (
+            <p role="status" className="text-ui-base text-foreground-subtle">
+              分析运行暂不可用，请稍后重试。
+            </p>
+          )}
         </div>
-      </AutomationsMainBreadcrumbFrame>
+      </div>
     </main>
   );
 }
 function ConnectedProgressAnalysis({
   scheduler,
-  onOpenModelSettings,
+  onOpenAnalysisSettings,
 }: {
   scheduler: AIReqProgressScheduler;
-  onOpenModelSettings(): void;
+  onOpenAnalysisSettings(): void;
 }) {
   const [revision, setRevision] = useState(0);
   const aireq = useAIReq()!;
@@ -94,9 +86,7 @@ function ConnectedProgressAnalysis({
   const loadSnapshot = useCallback(() => scheduler.read(), [scheduler]);
   const snapshotQuery = useSchedulerQuery(loadSnapshot, revision);
   const snapshot = snapshotQuery.value;
-  const [interval, setInterval] = useState("");
   const [irId, setIrId] = useState("all");
-  const [projectSearch, setProjectSearch] = useState("");
   const [srSearch, setSrSearch] = useState("");
   const [historyStatus, setHistoryStatus] = useState("all");
   const [since, setSince] = useState("");
@@ -109,7 +99,6 @@ function ConnectedProgressAnalysis({
   const [selectedRunId, setSelectedRunId] = useState<string>();
   const reportTrigger = useRef<HTMLButtonElement | null>(null);
   const [message, setMessage] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
   const [analysisRequest, setAnalysisRequest] = useState<{
     filter: AIReqAnalysisFilter;
@@ -131,10 +120,6 @@ function ConnectedProgressAnalysis({
       unsubscribe();
     };
   }, [scheduler, refresh]);
-  const intervalMinutes = snapshot?.intervalMinutes;
-  useEffect(() => {
-    if (intervalMinutes !== undefined) setInterval(String(intervalMinutes));
-  }, [intervalMinutes]);
   const mutate = async (action: () => void | Promise<void>, success: string) => {
     if (mutation.current) return;
     const scope = lifecycle.current;
@@ -157,7 +142,10 @@ function ConnectedProgressAnalysis({
       }
     }
   };
-  const irs = snapshot?.irs.filter((ir) => ir.projectId === projectId && (!releaseId || ir.releaseId === releaseId)) ?? [];
+  const irs =
+    snapshot?.irs.filter(
+      (ir) => ir.projectId === projectId && (!releaseId || ir.releaseId === releaseId),
+    ) ?? [];
   const dateError = Boolean(since && until && since > until);
   const filter: AIReqAnalysisFilter = useMemo(
     () => ({
@@ -297,46 +285,40 @@ function ConnectedProgressAnalysis({
     );
   const activeQuery = tab === "tasks" ? taskQuery : historyQuery;
   const refreshError = snapshotQuery.error ?? (activeQuery.value ? activeQuery.error : undefined);
-  const runningCount = snapshot.projects.reduce(
-    (total, project) => total + project.runningCount,
-    0,
-  );
+  const currentProject = snapshot.projects.find((project) => project.id === projectId);
   return (
     <section className="min-w-0 space-y-3" data-testid="aireq-requirement-analysis">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-1">
         <div className="flex flex-wrap items-center gap-3 text-ui-sm">
-          <Label htmlFor="analysis-enabled">自动分析</Label>
-          <Switch
-            id="analysis-enabled"
-            checked={snapshot.enabled}
-            disabled={pending}
-            onCheckedChange={(enabled) =>
-              mutate(
-                () => scheduler.configure(enabled, snapshot.intervalMinutes),
-                `全局自动分析已${enabled ? "开启" : "暂停"}。`,
-              )
-            }
-          />
           <span className="text-foreground-subtle">
-            {snapshot.enabled ? `每 ${snapshot.intervalMinutes} 分钟` : "已暂停"}
+            {!currentProject?.enabled
+              ? "当前项目分析已关闭"
+              : snapshot.enabled
+                ? `自动分析 · 每 ${snapshot.intervalMinutes} 分钟`
+                : "自动分析已暂停"}
           </span>
           <span className="tabular-nums text-foreground-subtle" title={time(snapshot.nextCheckAt)}>
             下次检查 {shortTime(snapshot.nextCheckAt)}
           </span>
-          <span className="tabular-nums text-foreground-subtle">全局 {runningCount} 个运行中</span>
+          <span className="tabular-nums text-foreground-subtle">
+            当前项目 {currentProject?.runningCount ?? 0} 个运行中
+          </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+        <Button variant="ghost" size="sm" onClick={onOpenAnalysisSettings}>
           <Settings2 aria-hidden="true" className="size-4" />
           分析设置
-          <span className="text-foreground-subtle">
-            {snapshot.projects.filter((project) => project.enabled).length}/
-            {snapshot.projects.length} 项目
-          </span>
         </Button>
-        <Button variant="outline" size="sm" disabled={pending} onClick={() => void mutate(
-          () => scheduler.advance(),
-          "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
-        )}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={() =>
+            void mutate(
+              () => scheduler.advance(),
+              "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
+            )
+          }
+        >
           模拟推进下一次调度检查
         </Button>
       </div>
@@ -359,20 +341,6 @@ function ConnectedProgressAnalysis({
             "已提交全部筛选结果的分析任务；运行中的 SR 不会重复提交。",
           );
         }}
-      />
-      <AnalysisSettings
-        snapshot={snapshot}
-        scheduler={scheduler}
-        settingsOpen={settingsOpen}
-        setSettingsOpen={setSettingsOpen}
-        onOpenModelSettings={onOpenModelSettings}
-        projectSearch={projectSearch}
-        setProjectSearch={setProjectSearch}
-        interval={interval}
-        setInterval={setInterval}
-        pending={pending}
-        message={message}
-        mutate={mutate}
       />
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
       <section aria-label="分析任务与执行历史" className="min-w-0">
@@ -405,32 +373,6 @@ function ConnectedProgressAnalysis({
               />
             </div>
             <FilterSelect
-              id="analysis-project"
-              label="项目"
-              triggerClassName="rounded-lg bg-surface"
-              value={projectId}
-              onChange={(value) => aireq.navigate(() => {
-                aireq.switchProject(value);
-                setIrId("all");
-                resetAnalysisPages();
-              })}
-            >
-              {!snapshot.projects.length && <SelectItem value="none" disabled>请在设置创建项目</SelectItem>}
-              {snapshot.projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </FilterSelect>
-            <FilterSelect id="analysis-release" label="Release" triggerClassName="rounded-lg bg-surface"
-              value={releaseId || "all"} onChange={(value) => aireq.navigate(() => {
-                aireq.setReleaseId(value === "all" ? "" : value);
-                setIrId("all"); resetAnalysisPages();
-              })}>
-              <SelectItem value="all">全部 Release</SelectItem>
-              {aireq.view?.releases.filter((release) => release.projectId === projectId).map((release) => <SelectItem key={release.id} value={release.id}>{release.title}</SelectItem>)}
-            </FilterSelect>
-            <FilterSelect
               id="analysis-ir"
               label="IR"
               triggerClassName="rounded-lg bg-surface"
@@ -462,7 +404,7 @@ function ConnectedProgressAnalysis({
             )}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-            <TabsList aria-label="进度分析列表">
+            <TabsList aria-label="分析运行列表">
               <TabsTrigger value="tasks" aria-label="SR 任务">
                 SR 任务{" "}
                 <span className="ml-1 tabular-nums text-foreground-subtle">
@@ -508,7 +450,10 @@ function ConnectedProgressAnalysis({
             />
           )}
           {tab === "tasks" && taskResult && (
-            <TabsContent value="tasks" className="m-0 min-w-0 flex-none rounded-xl border border-border bg-surface">
+            <TabsContent
+              value="tasks"
+              className="m-0 min-w-0 flex-none rounded-xl border border-border bg-surface"
+            >
               <AnalysisTaskTable
                 items={taskResult.items}
                 projects={snapshot.projects}

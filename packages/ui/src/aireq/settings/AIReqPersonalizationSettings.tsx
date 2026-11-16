@@ -25,7 +25,7 @@ export function AIReqPersonalizationSettings({
   if (!source.prompts || !source.models)
     return (
       <p role="alert" className="text-ui-sm text-destructive">
-        个性化配置服务不可用，请检查连接后重新进入设置。
+        Agent 指令服务不可用，请检查连接后重新进入设置。
       </p>
     );
   return <PersonalizationContent onDraftActionsChange={onDraftActionsChange} />;
@@ -104,8 +104,8 @@ function PersonalizationContent({
     <div className="space-y-5" data-testid="aireq-personalization-settings">
       <p className="text-ui-base leading-6 text-foreground-subtle">
         {zh
-          ? "为各 Agent 追加表达偏好和工作约定，不替换内置指令。"
-          : "Add preferences and working conventions for each Agent without replacing built-in instructions."}
+          ? "为各 Agent 追加团队共享的指令和工作约定，不替换内置指令。"
+          : "Add shared team instructions and working conventions for each Agent without replacing built-in instructions."}
       </p>
       <AIReqPersonalConfigScope />
       <div className="space-y-2">

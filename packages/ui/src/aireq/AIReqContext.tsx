@@ -46,7 +46,8 @@ interface AIReqContextValue {
   releaseId: string;
   setReleaseId(id: string): void;
   switchProject(projectId: string): void;
-  select(value: AIReqSelection): void;
+  openProject(projectId: string): void;
+  select(value: AIReqSelection, releaseId?: string): void;
   refresh(): Promise<void>;
   retryMaterial(path: string): Promise<boolean>;
   retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
@@ -102,14 +103,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [source],
   );
-  const setMainView = useCallback(
-    (mainView: WorkspaceMainView) => {
-      if (mainView !== navigationRef.current.mainView)
-        recordNavigation(selectionRef.current, mainView);
-    },
-    [recordNavigation],
-  );
-
   const [view, setView] = useState<AIReqWorkflowView>();
   const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
   const viewRef = useRef(view);
@@ -184,7 +177,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     };
   }, [source, refresh]);
   const select = useCallback(
-    (value: AIReqSelection, addHistory = true, mainView: WorkspaceMainView = "chat") => {
+    (
+      value: AIReqSelection,
+      addHistory = true,
+      mainView: WorkspaceMainView = "chat",
+      targetReleaseId?: string,
+    ) => {
       const projectChanged = selectionRef.current.projectId !== value.projectId;
       if (projectChanged) {
         releaseRef.current = "";
@@ -194,9 +192,11 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         ...(viewRef.current?.drafts ?? []),
         ...(viewRef.current?.groups ?? []),
       ].find((item) => item.projectId === value.projectId && item.id === value.irId);
-      if (selectedGroup && releaseRef.current && selectedGroup.releaseId !== releaseRef.current) {
-        releaseRef.current = selectedGroup.releaseId;
-        updateReleaseId(selectedGroup.releaseId);
+      // 待办可跨项目直达；目标归属与导航同次写入，避免页头保留另一 Release。
+      const detailRelease = targetReleaseId ?? selectedGroup?.releaseId;
+      if (mainView === "chat" && detailRelease && detailRelease !== releaseRef.current) {
+        releaseRef.current = detailRelease;
+        updateReleaseId(detailRelease);
       }
       if (
         addHistory &&
@@ -213,17 +213,36 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [source, load, recordNavigation],
   );
+  const setMainView = useCallback(
+    (mainView: WorkspaceMainView) => {
+      if (mainView === navigationRef.current.mainView) return;
+      select({ projectId: selectionRef.current.projectId }, true, mainView);
+    },
+    [select],
+  );
+  const openProject = useCallback(
+    (projectId: string) => {
+      releaseRef.current = "";
+      updateReleaseId("");
+      select({ projectId }, true, "projectOverview");
+    },
+    [select],
+  );
   const switchProject = useCallback(
     (projectId: string) => {
       const current = selectionRef.current;
       if (current.projectId === projectId) return;
-      // 项目切换只改变数据范围；不能复用打开需求时强制返回聊天页的导航行为。
-      updateReleaseId("");
-      select(
-        { projectId, ...(current.formalView ? { formalView: "list" as const } : {}) },
-        true,
-        navigationRef.current.mainView,
-      );
+      // 详情属于原 IR；切项目时返回同类需求列表，不能留下无对象的聊天页。
+      const mainView =
+        navigationRef.current.mainView === "chat"
+          ? current.formalView ||
+            viewRef.current?.groups.some(
+              (item) => item.projectId === current.projectId && item.id === current.irId,
+            )
+            ? "formal"
+            : "proposals"
+          : navigationRef.current.mainView;
+      select({ projectId }, true, mainView);
     },
     [select],
   );
@@ -271,6 +290,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const savedView = event.state.aiReqMainView;
       const mainView: WorkspaceMainView = [
         "projectProgress",
+        "projectOverview",
         "todos",
         "proposals",
         "formal",
@@ -304,6 +324,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const setReleaseId = useCallback(
     (id: string) => {
       const current = selectionRef.current;
+      if (id === releaseRef.current) return;
       if (
         id &&
         !viewRef.current?.releases.some(
@@ -317,8 +338,18 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         projectId: current.projectId,
         ...(current.formalView ? { formalView: "list" as const } : {}),
       };
-      recordNavigation(target, navigationRef.current.mainView);
-      select(target, false, navigationRef.current.mainView);
+      // Release 切换离开当前 IR，回到对应需求列表；详情不能脱离其所属范围。
+      const mainView =
+        navigationRef.current.mainView === "chat"
+          ? current.formalView ||
+            viewRef.current?.groups.some(
+              (item) => item.projectId === current.projectId && item.id === current.irId,
+            )
+            ? "formal"
+            : "proposals"
+          : navigationRef.current.mainView;
+      recordNavigation(target, mainView);
+      select(target, false, mainView);
     },
     [select, recordNavigation],
   );
@@ -393,7 +424,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
             proposalStep: undefined,
             proposalEditing: undefined,
           });
-        else if (value.type === "deleteRequirement") select({ projectId: target.projectId });
+        else if (value.type === "deleteRequirement")
+          select({ projectId: target.projectId }, true, target.formalView ? "formal" : "proposals");
         else await refresh();
         setError(undefined);
         return result;
@@ -431,7 +463,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         releaseId,
         setReleaseId,
         switchProject,
-        select: (value) => navigate(() => select(value)),
+        openProject: (projectId) => navigate(() => openProject(projectId)),
+        select: (value, targetReleaseId) =>
+          navigate(() => select(value, true, "chat", targetReleaseId)),
         refresh,
         retryMaterial,
         retrySession,

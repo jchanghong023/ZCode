@@ -1,24 +1,32 @@
 # AIReq UI
 
-当前产品规则以根 `.todo.md` 第 1–172 行已确认要求为准；其已完成任务与收口记录保留各自历史版本边界。
+当前产品规则以根 `.todo.md` 已确认要求及 `docs/specs/aireq-migration/project-space.md` 为准；其已完成任务与收口记录保留各自历史版本边界。
 
 公开入口为 AIReqApplication 与 AIReqApplicationProps；替代旧聊天产品，不并行挂载 Root/App。
 
 工作台与设置各呈现固定 68px 图标侧栏，切换时使用相同位置并释放正文空间；两者保持独立导航和既有未保存门禁。
 
+## 当前项目空间导航（2026-11-16）
+
+全局导航仅项目／待办，登录、刷新与更换工号默认全项目总览。项目空间使用概览／需求／分析运行文字页签，项目和 Release 常驻页头；需求下为提案／正式视图，详情保持项目 → 需求选中与同一 IR 的上下文。`projectProgress` 表示全局项目入口，`projectOverview` 表示项目内概览；其余既有 mainView 只决定内部表面，层级从同一导航状态派生，不新增平行页签／范围 owner。
+
+Context 的唯一导航路径在既有离开处理接纳后一次更新选择、范围与历史，再读取目标投影。项目切换清除旧 Release／IR；跨项目待办从投影的 `releaseId` 定位目标范围，`requirementTitle` 用于需求名称，均由同一 IR 派生，不增加项目读取缓存。待办的跨项目过滤与三视角独立事实不变。
+
+三方确认主体直接显示当前材料版本的三项状态、动作和剩余条件，材料区只读且可调整宽度。正式需求继续复用 IR／SR 同页报告／材料，首屏优先状态、关注问题和下一步；分支清理归入后续维护。设置为外观／项目配置／AI 配置；AI 配置的模型／Agent 指令／分析设置文字页签继续消费同一 section 与未保存处理，分析运行页仅提供其入口。以下旧五／六导航、混合项目页与四设置分区描述保留为历史，冲突时以上述当前合同为准。
+
 共享业务事实仅归 aireq-contract 所描述的服务端 owner。shell 仅持有可失效读取投影、导航和未发送草稿；每次调用显式 identity。元数据和选择读取用代际阻止晚响应覆盖，后台重读不卸载工作区。已有二进制连接按后端和工号建立，项目切换不创建连接；重连只重读，不重发操作。设置的未保存门禁先于导航和退出。基础控件、主题、Provider 和 v4 会话复用当前 UI。
 
 所有合法工号均可修改共享配置及执行满足现有门禁的业务动作；不以固定工号或负责人字段只读，backend.owner 仅为模拟来源。模型／提示词预期版本及脏草稿门禁继续保留。Skill 设计暂从首页主导航隐藏且不测试，不在设置导航或搜索中，旧 `skill` 设置偏好回到项目设置；保留其现有实现和数据。AIReq 自动化主导航和专属数据源裁撤，保留通用控件。
 
-当前可达接口收口以 `docs/specs/aireq-migration/contract-design.md` 的同名章节为准：五个可见导航、四个设置页面、原生 v4 会话／附件与隐藏 Skill 保留；旧 SettingsPage、迁移／数据同步、命令／Hook／Memory 管理、旧插件商店及本机 Host scope 消费链退出。未启用的桌面扩展与受管 worktree transport 接线随接口删除，不以空服务或假返回值维持旧入口；纯展示控件与基础布局／表单资产保留。
+当前可达接口收口以 `docs/specs/aireq-migration/contract-design.md` 的同名章节为准，页面归属以上述项目空间合同为准；原生 v4 会话／附件与隐藏 Skill 保留。旧 SettingsPage、迁移／数据同步、命令／Hook／Memory 管理、旧插件商店及本机 Host scope 消费链退出。未启用的桌面扩展与受管 worktree transport 接线随接口删除，不以空服务或假返回值维持旧入口；纯展示控件与基础布局／表单资产保留。
 
 Skill 草稿动作可向唯一离开门禁提供当前预览保存阻断原因；原因由 Skill 编辑器校验状态派生，门禁仅展示。
 
-Footer 业务桥仅为 `shell/AIReqWorkspaceFooter.tsx`，复用通用 `WorkspaceSidebarFooter` 的可选 presentation/menu ReactNode 端口；默认通用 footer 行为保持不变。自定义菜单隔离账户、用量及 entitlement 查询，不挂载旧 Coding／Office／登录菜单，也不伪造 UserInfo。业务桥只读既有 context 和 data-source 元数据（含 backend.owner／provenance），项目／Release 选择经 ai.navigate 进入唯一未保存门禁；不保存第二份选择。公开 props 为 onOpenSettings、onManageProjects、onLogout、onHelp 和可选 settingsButtonMode（settings／back）；管理明确打开项目设置，普通齿轮由 shell 恢复当前设置页，back 由 shell 执行受保护返回。主题复用当前 ZCode store 与原生主题菜单；设置 footer 仅保留身份、切换工号、帮助和主题，不导入设置页 section 类型。
+Footer 业务桥仅为 `shell/AIReqWorkspaceFooter.tsx`，复用通用 `WorkspaceSidebarFooter` 的可选 presentation/menu ReactNode 端口；默认通用 footer 行为保持不变。自定义菜单隔离账户、用量及 entitlement 查询，不挂载旧 Coding／Office／登录菜单，也不伪造 UserInfo。业务桥只读既有 context 和 data-source 元数据（含 backend.owner／provenance），只呈现身份、切换工号、帮助及主题等辅助工具；项目／Release 选择移至项目空间常驻页头并消费唯一未保存处理，不保留第二份选择。普通齿轮由 shell 恢复当前设置页，back 由 shell 执行受保护返回；主题复用当前 ZCode store 与原生菜单，不导入设置页 section 类型。
 
 onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自持触发 ref，不共享不稳定的工作区／设置 ref。`AIReqWorkflowHelp({open,onOpenChange,returnFocusRef?})` 只呈现当前业务说明并在关闭时恢复触发焦点，不持有业务状态或导航；不得沿用旧四阶段、IR/change 或旧完成门禁。
 
-## 第 3 组项目进度与导航
+## 历史第 3 组项目进度与导航
 
 六个真实导航依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；登录及刷新默认项目进度（Skill 当前隐藏规则见上文）。主页面共用宽于设置的居中内容列和标题起点；设置保持原生设置内容列。`AIReqMainView` 的 `projectProgress` 挂载真实项目页。项目页只读既有 `readWorkflow` 返回的可选 `view.projectProgress`，经本模块 `contract.ts` 转出 `AIReqProjectProgress`／`AIReqProgressSummary`；不增加 RPC、聚合写入或本地业务缓存。
 
@@ -26,7 +34,7 @@ onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自
 
 项目进入、Release 选择和报告导航消费既有未保存门禁与历史；前进／后退恢复项目及 Release，不把旧项目 Release 用于新项目。无项目／Release 提供项目设置入口，不自动创建、不选择其他项目兜底。项目页不持有第二业务筛选事实，报告和聚合随既有 owner 事件重读，同一读取代际规则继续生效。项目页与帮助按当前 locale 提供中英文，复用现有主题、字号及电脑布局控件。
 
-## 第 2 组交互合同
+## 第 2 组业务合同（导航布局已由项目空间取代）
 
 登录默认“项目进度”；第 2 组原有四页现已接入上述六导航，依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；历史默认待办／五导航／设置 Skill 仅描述当时版本，不是当前入口要求。正式／提案／分析共用项目及 Release，支持全部 Release 读取、具体 Release 创建；待办跨项目。项目／Release 与前进后退消费同一未保存门禁，不自动建项目或偷偷切其他项目。
 

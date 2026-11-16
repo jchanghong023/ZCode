@@ -1,5 +1,7 @@
 # 原生对话适配
 
+> 当前页面组织按 [项目空间规格](project-space.md)（2026-11-16）：需求讨论归项目 → 需求，提案／正式视图共用稳定 IR 上下文，项目与 Release 在页头持续可见。导航与范围仍归 AIReqContext，设置覆盖层往返不卸载原生 composer、不复制或重发草稿／附件。三方确认在阶段主体直接显示，材料区负责阅读；既有会话接纳、回调版本与消息所有者不变。本轮验收按该规格执行，以下历史通过记录不替代本轮证据。
+
 ## 边界与唯一所有者
 
 AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现有 V4PaneConversationProvider 的明确 scope。v4 不导入 AIReq；SessionPane 增加可选 `conversationExtension`、embedded、composerPlaceholder、composerAriaLabel、conversationEmptyState、externalTextInsertRequest、onExternalTextInsertApplied、composerInputPreview、onInputPreview、composerTools、composerTrailingTools。未传端口时保持当前原生行为。原生 Draft owner、附件上传/移交事务、临时模型与思考等级、命令 registry 和订阅水位继续是唯一事实源，不新增聊天存储。
