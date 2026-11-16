@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { SessionPane, type SessionPaneProps } from "../../v4/SessionPane.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqSketchButton } from "../tools/AIReqSketchButton.js";
-import { AIReqSpeechInputButton } from "../tools/AIReqSpeechInputButton.js";
 import {
   useAIReqWorkspaceActive,
   useOpenModelSettings,
@@ -46,12 +45,7 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
         props.composerTrailingTools ??
         ((port) => (
           <>
-            {/* 提案和 Skill 共用源操作顺序：模型之后依次为语音、画图、发送。 */}
-            <AIReqSpeechInputButton
-              disabled={port.disabled}
-              onInsertText={port.appendText}
-              onReturnToComposer={port.focusInput}
-            />
+            {/* 只保留真实生成附件的画图能力；未接入识别服务时不显示假录音入口。 */}
             <AIReqSketchButton
               disabled={port.disabled}
               onAddFiles={port.addFiles}

@@ -10,7 +10,7 @@ import type {
 } from "./remote-operations.js";
 import type { AIReqIdentity, AIReqSelection } from "./types.js";
 
-/** Shared mock owns accepted business state. Clients only retain projections and unsent drafts. */
+/** The service owns accepted business state; clients retain projections and unsent drafts. */
 export interface IAIReqService {
   /** Reads metadata without creating work; safe to repeat after reconnect. */
   bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap>;

@@ -1,6 +1,7 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Label } from "@/components/ui/label.js";
 import {
@@ -11,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
+import { AnalysisRunConfirmation } from "../AnalysisRunConfirmation.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReq } from "../../AIReqContext.js";
 import { useAIReqDataSource } from "../../data-source.js";
@@ -140,7 +142,7 @@ export function AIReqFormalTestControls({
                 });
                 setDialogOpen(false);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
+                setError(formatUserFacingError(cause, "测试验收记录失败，输入已保留，请重试。"));
               } finally {
                 setSaving(false);
               }
@@ -193,7 +195,8 @@ export function AIReqFormalTestControls({
   );
 }
 
-export function AIReqFormalSimulationControls({
+/** 手动分析是正常业务意图；不提供伪造合入事实、故障注入或调度时钟。 */
+export function AIReqFormalAnalysisAction({
   group,
   sr,
 }: {
@@ -201,157 +204,53 @@ export function AIReqFormalSimulationControls({
   sr: AIReqSystemRequirement;
 }) {
   const source = useAIReqDataSource();
-  const aireq = useAIReq()!;
+  const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  const exact = { projectId: group.projectId, irId: group.id, srId: sr.id };
-  const input = () => ({ operationId: createUuid(), expectedRevision: aireq.view!.revision });
-  const mutate = async (action: () => void | Promise<void>, success: string) => {
-    if (pending) return;
+  const submitting = useRef(false);
+  const scheduler = source.progressScheduler;
+  if (!scheduler) return null;
+  const analyse = async () => {
+    if (submitting.current || srProgress(sr) === 100) return;
+    submitting.current = true;
     setPending(true);
     setMessage("");
     try {
-      await action();
-      setMessage(success);
+      await scheduler.runNow({ projectId: group.projectId, irId: group.id, srId: sr.id });
+      setConfirm(false);
+      setMessage("分析请求已提交，可在分析运行中查看处理进度。");
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : String(cause));
+      setMessage(formatUserFacingError(cause, "分析请求未提交，请稍后重试。"));
     } finally {
+      submitting.current = false;
       setPending(false);
     }
   };
   return (
-    <details className="space-y-3 rounded-md border border-border p-3 text-ui-sm">
-      <summary className="cursor-pointer font-medium">模拟场景控制（无真实 Git／AI／测试）</summary>
-      <p className="pt-2 text-foreground-subtle">
-        只输入模拟外部事实，仍经过版本、幂等、问题复测及人工验收门禁。
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {source.prototype && (
-          <>
-            {/* 待复测仍是未解决问题：只允许修复合入，不改变人工测试入口。 */}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={
-                pending ||
-                srProgress(sr) === 100 ||
-                Boolean(sr.developmentIssues?.some((issue) => issue.status !== "resolved"))
-              }
-              onClick={() =>
-                void mutate(
-                  () =>
-                    source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, {
-                      ...input(),
-                      fix: false,
-                    }),
-                  "模拟代码合入已登记；业务进度固定 99%，等待人工测试。",
-                )
-              }
-            >
-              模拟代码合入
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={
-                pending || !sr.developmentIssues?.some((issue) => issue.status !== "resolved")
-              }
-              onClick={() =>
-                void mutate(
-                  () =>
-                    source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, {
-                      ...input(),
-                      fix: true,
-                    }),
-                  "模拟修复合入新版本；问题已处理，等待人工复测。",
-                )
-              }
-            >
-              模拟修复合入
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending || sr.trackingBranch?.status === "deleted"}
-              onClick={() =>
-                void mutate(
-                  () =>
-                    source.prototype!.failNextBranchCleanup(
-                      group.projectId,
-                      group.id,
-                      sr.id,
-                      input(),
-                    ),
-                  "已指定本 SR 分支下一次清理失败（模拟）。",
-                )
-              }
-            >
-              下一次清理失败
-            </Button>
-          </>
-        )}
-        {source.progressScheduler && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                void mutate(
-                  () => source.progressScheduler!.setScenario(exact, "fail-next"),
-                  "已设置下一次分析失败；请通过正常分析动作触发。",
-                )
-              }
-            >
-              下一次分析失败
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                void mutate(
-                  () => source.progressScheduler!.setScenario(exact, "hold-next"),
-                  "已暂缓本次或下一次分析结果；可改变模拟代码版本后显式释放。",
-                )
-              }
-            >
-              暂缓分析结果
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                void mutate(
-                  () => source.progressScheduler!.setScenario(exact, "release-held"),
-                  "已释放暂缓结果；owner 将核验版本，旧版本拒绝写回。",
-                )
-              }
-            >
-              释放暂缓结果
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending || srProgress(sr) === 100}
-              onClick={() =>
-                void mutate(
-                  () => source.progressScheduler!.runNow(exact),
-                  "已请求此 SR 的正常模拟分析；项目需在进度分析设置中开启。",
-                )
-              }
-            >
-              分析此 SR
-            </Button>
-          </>
-        )}
-      </div>
-      {sr.trackingBranch?.nextCleanupFailure && <p>已设置：此登记分支下一次清理失败。</p>}
-      <p role="status" className="break-words">
+    <section className="space-y-2 border-t border-border pt-5" aria-label="需求分析操作">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending || srProgress(sr) === 100}
+        onClick={() => setConfirm(true)}
+      >
+        分析此 SR
+      </Button>
+      <AnalysisRunConfirmation
+        open={confirm}
+        onOpenChange={(open) => {
+          if (!pending) setConfirm(open);
+        }}
+        scope={`${group.title} · ${sr.title}`}
+        count={1}
+        unit="SR"
+        disabled={pending}
+        onConfirm={() => void analyse()}
+      />
+      <p role="status" className="break-words text-ui-sm">
         {message}
       </p>
-    </details>
+    </section>
   );
 }
 
@@ -395,7 +294,7 @@ export function AIReqBranchCleanup({
             });
             setDialogOpen(true);
           } catch (cause) {
-            setMessage(cause instanceof Error ? cause.message : String(cause));
+            setMessage(formatUserFacingError(cause, "分支清理预览读取失败，请稍后重试。"));
           } finally {
             setPending(false);
           }
@@ -413,7 +312,7 @@ export function AIReqBranchCleanup({
           <li key={sr.id} className="break-all">
             {sr.id} · {sr.trackingBranch?.name ?? "分支缺失"} ·{" "}
             {sr.trackingBranch?.status === "deleted"
-              ? "已清理（模拟）"
+              ? "已清理"
               : sr.trackingBranch?.status === "failed"
                 ? "失败"
                 : "已登记"}
@@ -437,7 +336,8 @@ export function AIReqBranchCleanup({
           <DialogHeader>
             <DialogTitle>确认清理本 IR 登记开发分支</DialogTitle>
             <DialogDescription>
-              模拟删除；永不删除主分支、材料、报告或验收历史。已清理项不重复执行，只处理未成功项。
+              仅清理本 IR
+              登记的开发分支；保留主分支、材料、报告和验收历史。已清理项不重复执行，只处理未成功项。
             </DialogDescription>
           </DialogHeader>
           <ul className="max-h-72 space-y-2 overflow-auto text-ui-sm">
@@ -485,9 +385,9 @@ export function AIReqBranchCleanup({
                     branches: preview.items.map((item) => item.branch),
                   });
                   setDialogOpen(false);
-                  setMessage("模拟清理已逐项记录；失败项可重新预览后重试，进度和历史保持不变。");
+                  setMessage("清理结果已逐项记录；失败项可重新预览后重试，进度和历史保持不变。");
                 } catch (cause) {
-                  setMessage(cause instanceof Error ? cause.message : String(cause));
+                  setMessage(formatUserFacingError(cause, "分支清理未完成，请重新预览后重试。"));
                 } finally {
                   setPending(false);
                 }

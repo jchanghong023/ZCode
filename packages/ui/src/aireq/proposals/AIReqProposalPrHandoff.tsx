@@ -1,72 +1,38 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useState } from "react";
 import { useAIReqDataSource } from "../data-source.js";
-import type { AIReqPrHandoff, AIReqPrHandoffScenario } from "../contract.js";
-import { Label } from "@/components/ui/label.js";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
+import type { AIReqPrHandoff } from "../contract.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 
-const scenarios: { id: AIReqPrHandoffScenario; title: string }[] = [
-  { id: "current", title: "当前交接" },
-  { id: "wrong-repository", title: "目标仓库不匹配" },
-  { id: "change-conflict", title: "同名 change 冲突" },
-  { id: "stale-version", title: "方案对应旧需求版本" },
-];
-
-export function AIReqProposalPrHandoff({
-  group,
-  scenario,
-  onScenarioChange,
-}: {
-  group: AIReqRequirementGroup;
-  scenario: AIReqPrHandoffScenario;
-  onScenarioChange: (scenario: AIReqPrHandoffScenario) => void;
-}) {
+export function AIReqProposalPrHandoff({ group }: { group: AIReqRequirementGroup }) {
   const source = useAIReqDataSource();
-  const prototype = source.capabilities.requirementManagement ? source.prototype : undefined;
   const [result, setResult] = useState<{
-    prototype: typeof prototype;
     group: AIReqRequirementGroup;
-    scenario: AIReqPrHandoffScenario;
     handoff?: AIReqPrHandoff;
     error?: string;
   }>();
   useEffect(() => {
     let active = true;
     setResult(undefined);
+    if (!source.capabilities.requirementManagement) return;
     void (async () => {
       try {
-        const handoff = await (scenario !== "current" && prototype
-          ? prototype.readPrHandoff(group, scenario)
-          : source.readPrHandoff(group));
-        if (active) setResult({ prototype, group, scenario, handoff });
+        const handoff = await source.readPrHandoff({ projectId: group.projectId, irId: group.id });
+        if (active) setResult({ group, handoff });
       } catch (error) {
         if (active)
           setResult({
-            prototype,
             group,
-            scenario,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatUserFacingError(error, "交付信息读取失败，请稍后重试。"),
           });
       }
     })();
     return () => {
       active = false;
     };
-  }, [source, prototype, group, scenario]);
+  }, [source, group]);
   if (!source.capabilities.requirementManagement) return null;
-  const currentResult =
-    result &&
-    result.prototype === prototype &&
-    result.group === group &&
-    result.scenario === scenario
-      ? result
-      : undefined;
+  const currentResult = result?.group === group ? result : undefined;
   const handoff = currentResult?.handoff;
   return (
     <section
@@ -90,13 +56,13 @@ export function AIReqProposalPrHandoff({
         <>
           <dl className="space-y-2 text-ui-sm">
             <div>
-              <dt className="text-foreground-subtle">来源 · 服务端内存模拟</dt>
+              <dt className="text-foreground-subtle">材料来源</dt>
               <dd className="mt-0.5 break-all font-mono" data-testid="proposal-pr-source">
                 {handoff.sourceDirectory || "来源未确定"}
               </dd>
             </div>
             <div>
-              <dt className="text-foreground-subtle">目标 · 模拟 Git 仓库（不执行真实提交）</dt>
+              <dt className="text-foreground-subtle">目标仓库</dt>
               <dd className="mt-0.5 break-all font-mono" data-testid="proposal-pr-target">
                 {handoff.repositoryUrl ?? "尚未配置"}
               </dd>
@@ -133,34 +99,11 @@ export function AIReqProposalPrHandoff({
           </details>
         </>
       )}
-      {prototype && (
-        <div className="space-y-1">
-          <Label htmlFor="proposal-handoff-scenario">异常情景预览（仅原型）</Label>
-          <Select
-            value={scenario}
-            onValueChange={(value) => onScenarioChange(value as AIReqPrHandoffScenario)}
-          >
-            <SelectTrigger
-              id="proposal-handoff-scenario"
-              data-testid="proposal-pr-scenario"
-              className="w-full"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {scenarios.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
       {handoff &&
         (handoff.ready ? (
           <p className="text-ui-sm text-foreground-subtle" data-testid="proposal-pr-handoff-ready">
-            完整材料、审查及三方确认已就绪；模拟文档 PR 包含 IR 共享材料、全部 SR 独立 change 和测试方案。
+            完整材料、审查及三方确认已就绪；文档 PR 包含 IR 共享材料、全部 SR 独立 change
+            和测试方案。
           </p>
         ) : (
           <ul
@@ -174,8 +117,8 @@ export function AIReqProposalPrHandoff({
           </ul>
         ))}
       <p className="text-ui-sm text-foreground-subtle">
-        同名冲突不能直接覆盖，旧版本不能提交。只有 owner 核实同一完整候选合入才转正并创建各 SR 分支；
-        一个 IR 一个文档 PR，提交即冻结，关闭未合并 PR 后才能修改。
+        同名冲突不能直接覆盖，旧版本不能提交。只有核实同一完整候选合入才转正并创建各 SR 分支； 一个
+        IR 一个文档 PR，提交即冻结，关闭未合并 PR 后才能修改。
       </p>
     </section>
   );

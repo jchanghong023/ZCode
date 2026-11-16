@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
 
 export function AIReqWorkspaceFooter({
@@ -24,7 +23,6 @@ export function AIReqWorkspaceFooter({
 }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
-  const source = useAIReqDataSource();
   const theme = useZCodeStore((state) => state.theme);
   const setTheme = useZCodeStore((state) => state.setTheme);
   const employeeId = getEmployeeId();
@@ -53,10 +51,6 @@ export function AIReqWorkspaceFooter({
             <LogOut className="size-4" />
             {zh ? "切换工号" : "Switch employee"}
           </DropdownMenuItem>
-          <DropdownMenuLabel className="font-normal text-foreground">
-            Web {zh ? "所有者" : "owner"} {source.backend?.owner ?? (zh ? "未提供" : "unavailable")}
-            {source.provenance.kind === "sample" ? (zh ? " · 演示" : " · Demo") : ""}
-          </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => onHelp(menuTriggerRef.current)}

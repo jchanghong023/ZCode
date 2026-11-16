@@ -1,17 +1,10 @@
 import type { SkillSummary } from "@zcode/shared";
-import type {
-  AIReqBackendView,
-  AIReqDataSource,
-  AIReqDataProvenance,
-  AIReqDirectory,
-  AIReqEmployeeDirectory,
-} from "./data-source.js";
+import type { AIReqBackendView, AIReqDataSource, AIReqDataProvenance } from "./data-source.js";
 import type {
   AIReqAction,
   AIReqAgentModelBinding,
   AIReqAgentModelSettings,
   AIReqNativeSessionRef,
-  AIReqPeer,
   AIReqSelection,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
@@ -19,9 +12,7 @@ import type {
   AIReqWorkflowResult,
   AIReqWorkspace,
   AIReqSrPlanningInput,
-  AIReqProposalMergeScenario,
   AIReqPrHandoff,
-  AIReqPrHandoffScenario,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
 } from "./types.js";
@@ -38,18 +29,16 @@ import type {
   AIReqTestAcceptanceInput,
   AIReqBranchCleanupInput,
   AIReqBranchCleanupItem,
-  AIReqCodeMergeInput,
-  AIReqVersionedProgressInput,
 } from "./progress.js";
 
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 3;
+export const AIREQ_CONTRACT_VERSION = 4;
 export type AIReqRemoteErrorCode =
+  | "BUSINESS_RULE_VIOLATION"
   | "NOT_FOUND"
   | "METHOD_NOT_ALLOWED"
   | "INVALID_IDENTITY"
   | "INVALID_CLIENT"
-  | "INVALID_SCENARIO"
   | "FORBIDDEN"
   | "INVALID_UPGRADE"
   | "BACKEND_UNAVAILABLE"
@@ -79,7 +68,7 @@ interface Operation<A extends unknown[], R> {
 /** Explicit reachable operation allowlist. Absent top-level results are null. */
 export interface AIReqRemoteOperations {
   readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
-  readPrHandoff: Operation<[group: AIReqWorkflowView["groups"][number]], AIReqPrHandoff>;
+  readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
   command: Operation<
     [action: AIReqAction, selection: AIReqSelection, revision: number],
     AIReqWorkflowResult
@@ -90,10 +79,7 @@ export interface AIReqRemoteOperations {
     [projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput],
     null
   >;
-  "progress.cleanupPreview": Operation<
-    [projectId: string, irId: string],
-    AIReqBranchCleanupItem[]
-  >;
+  "progress.cleanupPreview": Operation<[projectId: string, irId: string], AIReqBranchCleanupItem[]>;
   "progress.cleanupBranches": Operation<
     [projectId: string, irId: string, input: AIReqBranchCleanupInput],
     null
@@ -105,7 +91,6 @@ export interface AIReqRemoteOperations {
   "projects.saveRepository": Operation<[input: AIReqRemoteRepositoryInput], null>;
   "models.read": Operation<[], AIReqAgentModelSettings>;
   "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
-  "models.samples": Operation<[], AIReqAgentModelSettings>;
   "models.revision": Operation<[], number>;
   "models.bindingChanged": Operation<[binding: AIReqAgentModelBinding], boolean>;
   "prompts.read": Operation<[], AIReqRemotePrompts>;
@@ -130,29 +115,6 @@ export interface AIReqRemoteOperations {
     ],
     AIReqSkillSaveReceipt
   >;
-  "collaboration.peers": Operation<[projectId?: string], AIReqPeer[]>;
-  "prototype.setProposalMergeScenario": Operation<
-    [projectId: string, irId: string, scenario: AIReqProposalMergeScenario],
-    null
-  >;
-  "prototype.setProposalReviewScenario": Operation<
-    [projectId: string, irId: string, kind: "original" | "full", scenario: "normal" | "blocked" | "failed" | "hold"],
-    null
-  >;
-  "prototype.releaseProposalReviewResults": Operation<[projectId: string, irId: string], null>;
-  "prototype.failNextBranchCreation": Operation<[projectId: string, irId: string, srId: string], null>;
-  "prototype.simulateCodeMerge": Operation<
-    [projectId: string, irId: string, srId: string, input: AIReqCodeMergeInput],
-    null
-  >;
-  "prototype.failNextBranchCleanup": Operation<
-    [projectId: string, irId: string, srId: string, input: AIReqVersionedProgressInput],
-    null
-  >;
-  "prototype.readPrHandoff": Operation<
-    [group: AIReqWorkflowView["groups"][number], scenario?: AIReqPrHandoffScenario],
-    AIReqPrHandoff
-  >;
   "progressScheduler.read": Operation<[], AIReqAnalysisSnapshot>;
   "progressScheduler.queryTasks": Operation<
     [filter: AIReqAnalysisFilter, page: number, pageSize: number],
@@ -166,11 +128,6 @@ export interface AIReqRemoteOperations {
   "progressScheduler.setProjectEnabled": Operation<[projectId: string, enabled: boolean], null>;
   "progressScheduler.configure": Operation<[enabled: boolean, intervalMinutes: number], null>;
   "progressScheduler.runNow": Operation<[filter: AIReqAnalysisFilter], null>;
-  "progressScheduler.advance": Operation<[], null>;
-  "progressScheduler.setScenario": Operation<
-    [filter: AIReqAnalysisFilter, scenario: "normal" | "fail-next" | "hold-next" | "release-held"],
-    null
-  >;
 }
 export type AIReqRemotePath = keyof AIReqRemoteOperations;
 export type AIReqRemoteArgs<P extends AIReqRemotePath> = AIReqRemoteOperations[P]["args"];
@@ -183,20 +140,15 @@ export interface AIReqRemoteBootstrap {
   provenance: AIReqDataProvenance;
   backend: AIReqBackendView;
   capabilities: AIReqDataSource["capabilities"];
-  serviceManifest: AIReqDataSource["serviceManifest"];
   initialSelection: AIReqSelection;
-  scenarioOperations?: boolean;
-  employeeDirectory?: AIReqEmployeeDirectory;
   models: {
     choices: readonly { id: string; name: string; provider: string }[];
     settings: AIReqAgentModelSettings;
-    samples?: AIReqAgentModelSettings;
     revision: number;
   };
   prompts: AIReqRemotePrompts;
-  projects: { directories: AIReqDirectory[]; developmentRoots: Record<string, string> };
-  peers: AIReqPeer[];
-  skillDesignSample?: AIReqSkillDesignDraft;
+  projects: { developmentRoots: Record<string, string> };
+  skillDesignStorage?: { workspacePath: string; sharedSkillsDirectory: string };
 }
 export type AIReqRemoteEvent = (
   | { type: "workflow" }

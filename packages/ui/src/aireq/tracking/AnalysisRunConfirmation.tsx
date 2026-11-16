@@ -33,8 +33,7 @@ export function AnalysisRunConfirmation({
         <AlertDialogHeader>
           <AlertDialogTitle>确认开始分析？</AlertDialogTitle>
           <AlertDialogDescription>
-            本原型仅模拟 AI 分析，不调用真实模型。实际使用 AI 时会消耗 Token
-            并需要等待；这里不代表真实用量或耗时。
+            分析将读取所选需求及代码依据并更新报告。提交后可在分析运行中查看处理进度。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-2 break-words text-ui-base">

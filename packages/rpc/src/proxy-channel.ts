@@ -35,6 +35,22 @@ import { IChannel, IServerChannel } from "./channels.js";
 // ============================================================================
 
 export namespace ProxyChannel {
+  /** 部署层显式声明公开方法和事件；不根据实例或 TS private 推断远程访问权限。 */
+  export interface ServiceExposurePolicy {
+    readonly methods: ReadonlySet<string>;
+    readonly events: ReadonlySet<string>;
+  }
+
+  function unavailableOperation(): Error {
+    return Object.assign(new Error("此操作暂不可用。"), {
+      code: "UNSUPPORTED_OPERATION",
+      publicMessage: true,
+    });
+  }
+
+  function isPrototypeMember(name: string): boolean {
+    return name === "__proto__" || name === "prototype" || name in Object.prototype;
+  }
   /**
    * 服务端：把一个 service 对象自动包装为 IServerChannel
    *
@@ -46,20 +62,35 @@ export namespace ProxyChannel {
   export function fromService<TContext>(
     service: unknown,
     _disposables?: DisposableStore,
+    exposure?: ServiceExposurePolicy,
   ): IServerChannel<TContext> {
     const handler = service as { [key: string]: unknown };
 
     // 预缓存所有事件并 buffer
     const eventMap = new Map<string, Event<unknown>>();
     for (const key in handler) {
-      if (isEvent(key) && !isDynamicEvent(key) && typeof handler[key] === "function") {
+      if (
+        (!exposure || exposure.events.has(key)) &&
+        !isPrototypeMember(key) &&
+        isEvent(key) &&
+        !isDynamicEvent(key) &&
+        typeof handler[key] === "function"
+      ) {
         // 把事件 buffer 化：即使没人订阅，事件也不会丢失
-        eventMap.set(key, bufferEvent(handler[key] as Event<unknown>));
+        eventMap.set(key, bufferEvent((handler[key] as Event<unknown>).bind(handler)));
       }
     }
 
     return {
       listen<T>(_ctx: TContext, event: string, arg?: any): Event<T> {
+        // 校验先于属性读取，不能经 getter、原型成员或 call/listen 混用绕过部署白名单。
+        if (
+          typeof event !== "string" ||
+          isPrototypeMember(event) ||
+          !isEvent(event) ||
+          (exposure && !exposure.events.has(event))
+        )
+          throw unavailableOperation();
         // 先查缓存
         const cached = eventMap.get(event);
         if (cached) {
@@ -74,15 +105,27 @@ export namespace ProxyChannel {
           }
           // 延迟发现的事件（Proxy 服务可能不会在 for-in 中出现）
           if (isEvent(event)) {
-            eventMap.set(event, bufferEvent(handler[event] as Event<unknown>));
+            eventMap.set(event, bufferEvent((handler[event] as Event<unknown>).bind(handler)));
             return eventMap.get(event) as Event<T>;
           }
         }
 
-        throw new Error(`Event not found: ${event}`);
+        throw unavailableOperation();
       },
 
       call<T>(_ctx: TContext, command: string, args?: any[]): Promise<T> {
+        if (
+          typeof command !== "string" ||
+          isPrototypeMember(command) ||
+          isEvent(command) ||
+          (exposure && !exposure.methods.has(command))
+        )
+          throw unavailableOperation();
+        if (args !== undefined && !Array.isArray(args))
+          throw Object.assign(new Error("请求参数格式无效。"), {
+            code: "INVALID_ARGUMENT",
+            publicMessage: true,
+          });
         const target = handler[command];
         if (typeof target === "function") {
           let result = target.apply(handler, args || []);
@@ -91,7 +134,7 @@ export namespace ProxyChannel {
           }
           return result;
         }
-        throw new Error(`Method not found: ${command}`);
+        throw unavailableOperation();
       },
     };
   }

@@ -19,7 +19,29 @@ import {
 } from "@zcode/rpc";
 import {
   ServiceCollection,
+  IAIReqService,
+  IBotsService,
+  IBroadcastService,
+  IClientConfigService,
+  IFileService,
+  IFileWatcherService,
+  IGenUiService,
+  IGitService,
+  IMcpSyncService,
+  IMediaPreviewService,
+  IModelSelectionService,
+  IProjectService,
+  IProviderSettingsService,
+  ISettingService,
+  ISkillsService,
+  ISubagentsService,
+  ISystemService,
+  IUsageStatsService,
   IZCodeAgentService,
+  IZCodeSessionService,
+  IZCodeTaskService,
+  type ServiceDescriptor,
+  type ServiceExposurePolicy,
   createZCodeAgentConnectionScope,
 } from "@zcode/services";
 import { formatLogPrefix } from "@zcode/shared";
@@ -78,7 +100,153 @@ function wrapWebSocket(ws: ServerWebSocket<ConnectionData>) {
 const log = (...args: unknown[]) =>
   console.log(formatLogPrefix("zcode-mock-server:http", process.pid), ...args);
 
-/** 为一条 WebSocket 连接装配 ChannelServer 并暴露全部 mock 服务。 */
+/** 成员名称在编译期对齐服务契约；部署列表不从实现类反射，避免公开 private 方法。 */
+function publicService<T>(
+  descriptor: ServiceDescriptor<T>,
+  methods: readonly (keyof T & string)[],
+  events: readonly (keyof T & string)[] = [],
+) {
+  return [
+    descriptor.channelName,
+    { methods: new Set<string>(methods), events: new Set<string>(events) },
+  ] as const;
+}
+
+// 这里只发布当前产品使用的契约成员；未列出的服务、写操作和宿主调试方法不可经 /ws 调用。
+const publicMembers = new Map([
+  publicService(IAIReqService, ["bootstrap", "call"], ["onDidChange"]),
+  publicService(
+    IZCodeAgentService,
+    [
+      "prepareStorage",
+      "getStorageStartupState",
+      "initialize",
+      "syncAppRuntimePreferences",
+      "getWorkspaceRuntimeIdentity",
+      "listSessionSubagents",
+      "supportsConversationQuoteComment",
+      "getSkillReferenceCatalog",
+      "closeSession",
+      "helloConversationV4",
+      "initializeConversationV4",
+      "subscribeConversationV4",
+      "resyncConversationV4",
+      "unsubscribeConversationV4",
+      "conversationRowsRangeV4",
+      "conversationPlansV4",
+      "conversationWorkflowRunEventsV4",
+      "conversationWorkflowRunsV4",
+      "conversationWorkflowRunArtifactsV4",
+      "conversationWorkflowRunArtifactDataV4",
+      "conversationWorkflowRunArtifactReadV4",
+      "conversationWorkflowRunWorkspaceV4",
+      "conversationWorkflowRunNodeResultV4",
+      "backgroundBashOutputV4",
+      "conversationFileChangesV4",
+      "conversationFileRewindPreviewV4",
+      "sendConversationCommandV4",
+      "queryConversationCommandsV4",
+      "attachmentBeginV4",
+      "attachmentChunkV4",
+      "attachmentCommitV4",
+      "attachmentAbortV4",
+      "attachmentPreviewSourceV4",
+      "attachmentReadV4",
+      "conversationAttachmentReadV4",
+      "conversationAttachmentStatV4",
+      "getSessionLifecycle",
+      "ensureSessionReady",
+      "stopSessionRuntime",
+      "restartSessionRuntime",
+      "reconcileSessionsIndexV4",
+      "subscribeSessionsIndexV4",
+      "resyncSessionsIndexV4",
+      "unsubscribeSessionsIndexV4",
+      "subscribeWorkspaceConfigV4",
+      "resyncWorkspaceConfigV4",
+      "unsubscribeWorkspaceConfigV4",
+    ],
+    [
+      "onDynamicStorageStartupState",
+      "onDynamicSessionLifecycle",
+      "onDynamicConversationFrame",
+      "onDynamicLocalTtftFacts",
+      "onDynamicConversationTelemetryFact",
+      "onDynamicSessionsIndexFrame",
+      "onDynamicWorkspaceConfigFrame",
+      "onAgentRuntimeRestarted",
+      "onAgentRuntimeLifecycle",
+      "onAgentRuntimeExited",
+    ],
+  ),
+  publicService(IFileService, [
+    "searchWorkspaceFiles",
+    "readdir",
+    "stat",
+    "checkFilesExist",
+    "readTextFile",
+    "readMediaPreview",
+    "readFileRange",
+    "readBinaryPreview",
+    "listWorkspaceFilesLength",
+    "listWorkspaceFilesRange",
+  ]),
+  publicService(IFileWatcherService, ["watch", "unwatch"], ["onDynamicChange"]),
+  publicService(IGitService, [
+    "getRepositorySummary",
+    "getWorkspaceRepositoryInfo",
+    "getLocalBranches",
+    "getCommitGraph",
+    "getChanges",
+    "getIgnoredPaths",
+    "getDiff",
+    "getBranchComparison",
+    "getIdentity",
+    "refresh",
+  ]),
+  publicService(ISystemService, ["info"]),
+  publicService(IProjectService, ["resolveSessionDirectories"]),
+  publicService(IMediaPreviewService, ["prepare", "refreshPlaybackUrl", "release"]),
+  publicService(
+    IBroadcastService,
+    ["send", "acquireClaim", "commitClaim", "releaseClaim", "tryClaim"],
+    ["onMessage"],
+  ),
+  publicService(ISettingService, ["get", "update"]),
+  publicService(
+    IZCodeTaskService,
+    ["getTaskMeta", "restartWorkspaceProcess"],
+    ["onDynamicWorkspaceEvent"],
+  ),
+  publicService(IZCodeSessionService, ["readWorkspacePresentation", "readSession"]),
+  publicService(IProviderSettingsService, ["getView", "refresh"], ["onDidChange"]),
+  publicService(IModelSelectionService, ["getView"], ["onDidChange"]),
+  publicService(IUsageStatsService, [
+    "getAppUsageSnapshot",
+    "getCodingPlanUsageSnapshot",
+    "getCodingPlanRegularTps",
+    "getCodingPlanResetStatus",
+    "getSnapshot",
+    "getEntitlementSnapshot",
+  ]),
+  publicService(IClientConfigService, ["getSnapshot"]),
+  publicService(ISkillsService, ["list"]),
+  publicService(ISubagentsService, ["list"]),
+  publicService(IMcpSyncService, ["loadMcpFromUserDirectory", "listWorkspaceMcpServerStatuses"]),
+  publicService(IGenUiService, ["readDocument", "getState", "listState"], ["onStateChanged"]),
+  publicService(IBotsService, [
+    "syncAppRuntimePreferences",
+    "getStatus",
+    "getConfig",
+    "listWorkspaceRefs",
+    "getUserConfigOptions",
+    "listBots",
+    "getBotStates",
+  ]),
+]);
+const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
+
+/** 为一条 WebSocket 连接装配 ChannelServer，只暴露产品公开成员。 */
 function setupChannelServer(
   socket: ISocket,
   services: ServiceCollection,
@@ -89,6 +257,10 @@ function setupChannelServer(
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
   const loggedServer = new LoggingChannelServer(rawServer, log);
   const overrides = getConnectionServices(services, identity);
+  // Web 产品不提供本机目录选择；保持读取契约但不下发真实主机 home 路径。
+  overrides.set(ISystemService.channelName, {
+    info: async () => ({ homedir: "", platform: process.platform }),
+  });
   const agentService = overrides.get(IZCodeAgentService.channelName) as
     | IZCodeAgentService
     | undefined;
@@ -102,7 +274,7 @@ function setupChannelServer(
   if (connectionScope) {
     overrides.set(IZCodeAgentService.channelName, connectionScope.service);
   }
-  services.exposeOnChannelServer(loggedServer, overrides);
+  services.exposeOnChannelServer(loggedServer, overrides, publicExposure);
   socket.onClose(() => {
     void connectionScope?.dispose();
     rawServer.dispose();
@@ -210,6 +382,8 @@ async function resolveStaticFile(
   const root = resolve(staticRoot);
   const normalizedPathname = pathname === "/" ? "/index.html" : pathname;
   const relativePath = decodeURIComponent(normalizedPathname).replace(/^\/+/, "");
+  // 发布目录可能残留开发产物；不能通过静态入口公开源码映射。
+  if (relativePath.toLowerCase().endsWith(".map")) return null;
   // 盘符路径必须在 resolve 之前拦截（含 %3A 解码后的形式），否则 Windows 上会解析到
   // 静态根所在盘之外的路径；直接 404，也不进入 SPA fallback。
   if (isPathDriveQualified(relativePath)) {
@@ -293,6 +467,13 @@ export function createMockHttpServer(
   options: MockHttpServerOptions = {},
 ) {
   const app = new Hono<{ Bindings: { server: Bun.Server<ConnectionData> } }>();
+  app.onError((error, c) => {
+    console.error("[http] request failed", error);
+    return c.json(
+      { error: { code: "INTERNAL_ERROR", message: "请求未能完成，请稍后重试。" } },
+      500,
+    );
+  });
 
   const authToken = options.authToken?.trim();
   if (authToken) {
@@ -307,17 +488,29 @@ export function createMockHttpServer(
   }
 
   // 纯 Web 形态下客户端配置由本机 mock 提供，避免浏览器直连外部 ZCode endpoint。
-  app.get("/api/v1/client/configs", (c) =>
-    c.json({ code: 0, data: { configs: { feedbackUrl: localAppConfig } } }),
-  );
+  app.get("/api/v1/client/configs", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json({ code: 0, data: { configs: { feedbackUrl: localAppConfig } } });
+  });
 
   app.get("/ws", (c) => {
     const query = new URL(c.req.url).searchParams;
-    const identity = validateAIReqIdentity({
-      employeeId: query.get("employeeId") ?? "",
-      clientId: query.get("clientId") ?? "",
-      ...(query.get("demo") ? { demo: query.get("demo")! } : {}),
-    });
+    const allowedQuery = new Set(["employeeId", "clientId", "token"]);
+    if ([...query.keys()].some((key) => !allowedQuery.has(key) || query.getAll(key).length !== 1)) {
+      return c.json({ error: { code: "INVALID_ARGUMENT", message: "连接参数无效。" } }, 400);
+    }
+    let identity: AIReqIdentity;
+    try {
+      identity = validateAIReqIdentity({
+        employeeId: query.get("employeeId") ?? "",
+        clientId: query.get("clientId") ?? "",
+      });
+    } catch {
+      return c.json(
+        { error: { code: "INVALID_IDENTITY", message: "工号或客户端身份无效。" } },
+        400,
+      );
+    }
     if (c.env.server.upgrade(c.req.raw, { data: { identity }, headers: c.res.headers })) {
       return new Response(null);
     }
@@ -339,7 +532,11 @@ export function createMockHttpServer(
       }
       c.header(
         "Cache-Control",
-        filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable",
+        filePath.endsWith("index.html")
+          ? "no-cache"
+          : /[/\\]assets[/\\][^/\\]+-[A-Za-z0-9_-]{8,}\.[^/\\]+$/.test(filePath)
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=0, must-revalidate",
       );
       c.header("Content-Type", staticContentType(filePath));
       if (encoding !== "identity") {

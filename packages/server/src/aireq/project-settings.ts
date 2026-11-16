@@ -1,3 +1,4 @@
+import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqProject } from "@zcode/services/aireq";
 
@@ -43,13 +44,13 @@ export function savePrototypeRepository(
   const existing = input.projectId
     ? settings.projects.find((item) => item.id === input.projectId)
     : undefined;
-  if (input.projectId && !existing) throw new Error("请选择已有项目。");
+  if (input.projectId && !existing) throw businessRule("请选择已有项目。");
   if (input.expectedRevision !== (existing?.revision ?? 0))
-    throw Object.assign(new Error("项目配置已变化，请重新读取。"), { code: "VERSION_CONFLICT" });
+    throw businessRule("项目配置已变化，请重新读取。");
   const name = input.name.trim();
   const repositoryUrl = input.repositoryUrl.trim();
   const defaultBranch = input.defaultBranch.trim();
-  if (!name) throw new Error("请输入项目名称。");
+  if (!name) throw businessRule("请输入项目名称。");
   let validRepository = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(repositoryUrl);
   if (!validRepository && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(repositoryUrl)) {
     try {
@@ -59,7 +60,7 @@ export function savePrototypeRepository(
     }
   }
   if (!validRepository)
-    throw new Error("请输入 Git 远程仓库地址（HTTP(S)、SSH 或 git@host:path）。");
+    throw businessRule("请输入 Git 远程仓库地址（HTTP(S)、SSH 或 git@host:path）。");
   if (
     !defaultBranch ||
     /[\s~^:?*[\\]/.test(defaultBranch) ||
@@ -74,7 +75,7 @@ export function savePrototypeRepository(
     defaultBranch === "@" ||
     defaultBranch.split("/").some((part) => part.startsWith("."))
   )
-    throw new Error("请输入有效的默认分支名称。");
+    throw businessRule("请输入有效的默认分支名称。");
   if (
     existing &&
     existing.name === name &&

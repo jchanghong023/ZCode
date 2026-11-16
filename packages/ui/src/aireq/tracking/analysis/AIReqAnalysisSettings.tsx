@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAIReqDataSource } from "../../data-source.js";
 import type { AIReqProgressScheduler, AIReqSettingsDraftActions } from "../../contract.js";
@@ -71,7 +72,7 @@ function ConnectedAnalysisSettings({
         return true;
       } catch (cause) {
         if (lifecycle.current === scope)
-          setMessage(cause instanceof Error ? cause.message : String(cause));
+          setMessage(formatUserFacingError(cause, "分析设置保存失败，请稍后重试。"));
         return false;
       } finally {
         if (lifecycle.current === scope) {

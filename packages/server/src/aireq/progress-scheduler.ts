@@ -1,3 +1,4 @@
+import { businessRule } from "./errors.js";
 import { createHash } from "node:crypto";
 import { readPrototypeAgentPrompts } from "./personalization.js";
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
@@ -13,8 +14,15 @@ import type {
 } from "@zcode/services/aireq";
 import type { AIReqProgressAnalysis, AIReqSystemRequirement } from "@zcode/services/aireq";
 import { srProgress } from "@zcode/services/aireq";
-import { acceptPrototypeProgressReport, initializePrototypeProgress, withPrototypeProgress } from "./progress.js";
-import { prototypeAnalysisReport, prototypeProgressFingerprint } from "./progress-scheduler-state.js";
+import {
+  acceptPrototypeProgressReport,
+  initializePrototypeProgress,
+  withPrototypeProgress,
+} from "./progress.js";
+import {
+  prototypeAnalysisReport,
+  prototypeProgressFingerprint,
+} from "./progress-scheduler-state.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { getPrototypeWorkflow, prototypeWorkflowChanges } from "./workflow.js";
 
@@ -66,7 +74,6 @@ export function createPrototypeProgressScheduler(
   initializePrototypeProgress();
   const scaleDemo = options.scaleDemo === true;
   let clock = Date.now();
-  let clockOffset = 0;
   let enabled = true;
   let intervalMinutes = 60;
   let nextCheck = clock + intervalMinutes * 60_000;
@@ -86,18 +93,21 @@ export function createPrototypeProgressScheduler(
   const at = () => new Date(clock).toISOString();
   const requireTime = (value: number) => {
     if (!Number.isFinite(new Date(value).getTime()))
-      throw new Error("分析间隔过大，请使用更小的正整数分钟数。");
+      throw businessRule("分析间隔过大，请使用更小的正整数分钟数。");
     return value;
   };
   const nextAt = () => new Date(clock + intervalMinutes * 60_000).toISOString();
   const active = (task: AIReqAnalysisTask) =>
-    projects.get(task.projectId) === true && inputs.has(task.id) && task.percent < 100 &&
-    Boolean(task.branch.trim()) && inputs.get(task.id)?.sr.trackingBranch?.status !== "failed";
+    projects.get(task.projectId) === true &&
+    inputs.has(task.id) &&
+    task.percent < 100 &&
+    Boolean(task.branch.trim()) &&
+    inputs.get(task.id)?.sr.trackingBranch?.status !== "failed";
   const emit = () => {
     for (const listener of listeners) listener();
   };
   const requireActive = () => {
-    if (disposed) throw new Error("需求分析服务已关闭，请刷新页面后重试。");
+    if (disposed) throw businessRule("需求分析服务已关闭，请刷新页面后重试。");
   };
   const matches = (
     row: { projectId: string; releaseId?: string; irId: string; srId: string; srTitle: string },
@@ -106,7 +116,10 @@ export function createPrototypeProgressScheduler(
     const search = filter.srSearch?.trim().toLowerCase();
     return (
       (!filter.projectId || row.projectId === filter.projectId) &&
-      (!filter.releaseId || (row.releaseId ?? inputs.get(JSON.stringify([row.projectId, row.irId, row.srId]))?.releaseId) === filter.releaseId) &&
+      (!filter.releaseId ||
+        (row.releaseId ??
+          inputs.get(JSON.stringify([row.projectId, row.irId, row.srId]))?.releaseId) ===
+          filter.releaseId) &&
       (!filter.irId || row.irId === filter.irId) &&
       (!filter.srId || row.srId === filter.srId) &&
       (!search ||
@@ -120,7 +133,7 @@ export function createPrototypeProgressScheduler(
       !Number.isSafeInteger(requestedPage) ||
       requestedPage < 1
     )
-      throw new Error("分页参数无效。");
+      throw businessRule("分页参数无效。");
     const pageSize = requestedSize;
     const page = Math.min(
       Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1),
@@ -181,7 +194,13 @@ export function createPrototypeProgressScheduler(
       };
       tasks.set(id, task);
     }
-    Object.assign(task, { irTitle, srTitle: sr.title, percent: srProgress(sr), branch, releaseId: input.releaseId });
+    Object.assign(task, {
+      irTitle,
+      srTitle: sr.title,
+      percent: srProgress(sr),
+      branch,
+      releaseId: input.releaseId,
+    });
     if (!branch || sr.trackingBranch?.status === "failed")
       task.error = sr.trackingBranch?.error ?? "开发分支缺失，不能分析。";
     else if (task.error) {
@@ -200,8 +219,15 @@ export function createPrototypeProgressScheduler(
           (item) => item.irId === group.id && group.srIds.includes(item.id),
         )) {
           const fingerprint = prototypeProgressFingerprint(view, group, sr);
-          candidates.push({ input: { sr, fingerprint, releaseId: group.releaseId,
-            defaultVersion: view.repositoryHeads?.[project.repositoryId] }, irTitle: group.title });
+          candidates.push({
+            input: {
+              sr,
+              fingerprint,
+              releaseId: group.releaseId,
+              defaultVersion: view.repositoryHeads?.[project.repositoryId],
+            },
+            irTitle: group.title,
+          });
         }
       }
     }
@@ -260,7 +286,7 @@ export function createPrototypeProgressScheduler(
         startedAt: at(),
         modelConfig: structuredClone(modelConfig),
         promptSnapshot: { ...prompt },
-        message: "模拟：正在分析 SR OpenSpec tasks、材料和代码／合并事实，不执行开发任务。",
+        message: "正在分析需求材料、任务及代码合入证据。",
         before: task.percent,
         after: task.percent,
       };
@@ -268,8 +294,10 @@ export function createPrototypeProgressScheduler(
       const scenario = scenarios.get(task.id);
       scenarios.delete(task.id);
       pending.set(task.id, {
-        run, input: structuredClone(inputs.get(task.id)!),
-        held: scenario === "hold-next", fail: scenario === "fail-next",
+        run,
+        input: structuredClone(inputs.get(task.id)!),
+        held: scenario === "hold-next",
+        fail: scenario === "fail-next",
       });
       task.state = "running";
       task.error = undefined;
@@ -304,10 +332,24 @@ export function createPrototypeProgressScheduler(
           sessions: [],
           approvals: [],
           materials: [],
-          ...(percent === 100 ? {
-            codeMerge: { commit: `memory-scale-code-${srId}`, branch: project.defaultBranch, checkedAt: at(), files: [] },
-            testAcceptance: { operationId: `memory-scale-test-${srId}`, outcome: "passed" as const, employeeId: "j00808874", at: at(), reason: "规模模拟样例人工测试通过", codeVersion: `memory-scale-code-${srId}` },
-          } : {}),
+          ...(percent === 100
+            ? {
+                codeMerge: {
+                  commit: `memory-scale-code-${srId}`,
+                  branch: project.defaultBranch,
+                  checkedAt: at(),
+                  files: [],
+                },
+                testAcceptance: {
+                  operationId: `memory-scale-test-${srId}`,
+                  outcome: "passed" as const,
+                  employeeId: "j00808874",
+                  at: at(),
+                  reason: "规模模拟样例人工测试通过",
+                  codeVersion: `memory-scale-code-${srId}`,
+                },
+              }
+            : {}),
           trackingBranch: {
             name: `sr/${srId}`,
             baseCommit: "memory-scale-base",
@@ -415,11 +457,27 @@ export function createPrototypeProgressScheduler(
           : status === "skipped"
             ? "需求与代码未发生变化，已跳过重复分析。"
             : failureMessage(failureSamples[2]!);
-      const fixtureReport = status === "succeeded" ? { ...report(input), analysedAt: timestamp } : undefined;
-      if (fixtureReport) acceptPrototypeProgressReport(task.projectId, task.irId, srId,
-        input.fingerprint, prototypeProgressFingerprint, fixtureReport);
-      if (status === "failed") acceptPrototypeProgressReport(task.projectId, task.irId, srId,
-        input.fingerprint, prototypeProgressFingerprint, undefined, `模拟：${message}`);
+      const fixtureReport =
+        status === "succeeded" ? { ...report(input), analysedAt: timestamp } : undefined;
+      if (fixtureReport)
+        acceptPrototypeProgressReport(
+          task.projectId,
+          task.irId,
+          srId,
+          input.fingerprint,
+          prototypeProgressFingerprint,
+          fixtureReport,
+        );
+      if (status === "failed")
+        acceptPrototypeProgressReport(
+          task.projectId,
+          task.irId,
+          srId,
+          input.fingerprint,
+          prototypeProgressFingerprint,
+          undefined,
+          message,
+        );
       runs.push({
         id: `memory-demo-fixture-${srId}`,
         batchId: "memory-demo-fixtures",
@@ -496,26 +554,43 @@ export function createPrototypeProgressScheduler(
       const current = inputs.get(id);
       if (!current || current.fingerprint !== input.fingerprint) {
         run.status = "skipped";
-        run.message = "模拟：输入对象或材料／代码／合并事实版本已变化，迟到结果已拒绝写回。";
+        run.message = "需求材料或代码版本已变化，本次结果未采用。";
       } else if (pendingRun.fail) {
         run.status = "failed";
         run.failure = failureSamples[1];
-        run.message = `模拟：${failureMessage(failureSamples[1]!)}`;
+        run.message = failureMessage(failureSamples[1]!);
         task.error = run.message;
         analysed.delete(id);
-        acceptPrototypeProgressReport(run.projectId, run.irId, run.srId, input.fingerprint,
-          prototypeProgressFingerprint, undefined, run.message);
+        acceptPrototypeProgressReport(
+          run.projectId,
+          run.irId,
+          run.srId,
+          input.fingerprint,
+          prototypeProgressFingerprint,
+          undefined,
+          run.message,
+        );
       } else if (analysed.get(id) === input.fingerprint) {
         run.status = "skipped";
         run.report = structuredClone(current.sr.progress);
-        run.message = "模拟：任务材料、代码与合并事实版本未变化，已跳过重复分析。";
+        run.message = "任务材料与代码版本未变化，已跳过重复分析。";
       } else {
         const detail = report(input);
         const scale = scaleInputs.get(id);
-        const accepted = scale ? true : acceptPrototypeProgressReport(
-          run.projectId, run.irId, run.srId, input.fingerprint, prototypeProgressFingerprint, detail);
+        const accepted = scale
+          ? true
+          : acceptPrototypeProgressReport(
+              run.projectId,
+              run.irId,
+              run.srId,
+              input.fingerprint,
+              prototypeProgressFingerprint,
+              detail,
+            );
         run.status = accepted ? "succeeded" : "skipped";
-        run.message = accepted ? "模拟分析完成；最新报告已统一写回正式 SR。" : "输入版本已变化，迟到结果已拒绝写回。";
+        run.message = accepted
+          ? "分析完成，最新报告已更新。"
+          : "输入版本已变化，迟到结果已拒绝写回。";
         if (accepted) {
           if (scale) scale.input.sr.progress = detail;
           run.report = detail;
@@ -523,8 +598,9 @@ export function createPrototypeProgressScheduler(
           task.error = undefined;
         }
       }
-      const latest = withPrototypeProgress(getPrototypeWorkflow({ projectId: run.projectId }))
-        .srs.find((sr) => sr.irId === run.irId && sr.id === run.srId);
+      const latest = withPrototypeProgress(
+        getPrototypeWorkflow({ projectId: run.projectId }),
+      ).srs.find((sr) => sr.irId === run.irId && sr.id === run.srId);
       run.after = latest ? srProgress(latest) : task.percent;
       if (run.report && latest?.progress) run.report = structuredClone(latest.progress);
       task.nextRunAt = nextAt();
@@ -551,7 +627,10 @@ export function createPrototypeProgressScheduler(
         lastStatus: undefined as AIReqAnalysisRunSummary["status"] | undefined,
       }));
       const byProject = new Map(projectSummaries.map((project) => [project.id, project]));
-      const irs = new Map<string, { projectId: string; releaseId?: string; id: string; title: string }>();
+      const irs = new Map<
+        string,
+        { projectId: string; releaseId?: string; id: string; title: string }
+      >();
       for (const task of tasks.values()) {
         const project = byProject.get(task.projectId);
         if (project) {
@@ -585,7 +664,6 @@ export function createPrototypeProgressScheduler(
         irs: [...irs.values()],
         tasksTotal: tasks.size,
         runsTotal: runs.length,
-        scaleDemo,
       };
     },
     queryTasks(filter, requestedPage, requestedSize) {
@@ -609,9 +687,9 @@ export function createPrototypeProgressScheduler(
         (since !== undefined && !Number.isFinite(since)) ||
         (until !== undefined && !Number.isFinite(until))
       )
-        throw new Error("历史查询日期无效。");
+        throw businessRule("历史查询日期无效。");
       if (since !== undefined && until !== undefined && since > until)
-        throw new Error("结束时间必须晚于开始时间。");
+        throw businessRule("结束时间必须晚于开始时间。");
       const matching = runs
         .filter(
           (run) =>
@@ -643,8 +721,8 @@ export function createPrototypeProgressScheduler(
     setProjectEnabled(projectId, value) {
       requireActive();
       if (!readPrototypeProjectSettings().projects.some((project) => project.id === projectId))
-        throw new Error("请选择已有项目。");
-      if (typeof value !== "boolean") throw new Error("项目分析开关无效。");
+        throw businessRule("请选择已有项目。");
+      if (typeof value !== "boolean") throw businessRule("项目分析开关无效。");
       reconcile();
       projects.set(projectId, value);
       reconcile();
@@ -652,9 +730,9 @@ export function createPrototypeProgressScheduler(
     },
     configure(value, minutes) {
       requireActive();
-      if (typeof value !== "boolean") throw new Error("全局分析开关无效。");
+      if (typeof value !== "boolean") throw businessRule("全局分析开关无效。");
       if (!Number.isSafeInteger(minutes) || minutes < 1)
-        throw new Error("全局检查间隔须为正整数分钟。");
+        throw businessRule("全局检查间隔须为正整数分钟。");
       const next = requireTime(clock + minutes * 60_000);
       reconcile();
       enabled = value;
@@ -670,41 +748,14 @@ export function createPrototypeProgressScheduler(
       admit(filter, "manual");
       emit();
     },
-    setScenario(filter, scenario) {
-      requireActive();
-      reconcile();
-      if (!filter.projectId || !filter.irId || !filter.srId ||
-          !["normal", "fail-next", "hold-next", "release-held"].includes(scenario))
-        throw new Error("模拟分析控制须指定已有项目、IR 和 SR。");
-      const task = [...tasks.values()].find((item) => matches(item, filter));
-      if (!task) throw new Error("指定正式 SR 不存在。");
-      const running = pending.get(task.id);
-      if (scenario === "release-held") {
-        if (!running?.held) throw new Error("此 SR 没有暂缓结果。");
-        running.held = false;
-      } else if (scenario === "normal") scenarios.delete(task.id);
-      else if (scenario === "hold-next" && running) running.held = true;
-      else scenarios.set(task.id, scenario);
-      emit();
-    },
     // 后台只按真实经过时间推进；不能因存在暂缓项而每五秒跳到下一小时。
     tick() {
       requireActive();
-      const now = Math.max(clock, Date.now() + clockOffset);
+      const now = Math.max(clock, Date.now());
       let runnable = false;
       for (const item of pending.values()) if (!item.held) runnable = true;
       if (runnable || (enabled && now >= nextCheck)) advanceTo(now);
       else clock = now;
-    },
-    advance() {
-      requireActive();
-      let runnable = false;
-      for (const item of pending.values()) if (!item.held) runnable = true;
-      const nextClock = requireTime(
-        runnable || !enabled ? clock + 1000 : Math.max(clock + 1000, nextCheck),
-      );
-      clockOffset = nextClock - Date.now();
-      advanceTo(nextClock);
     },
     // Resource cleanup is not a settings write: read-only visitors must also be able to unmount.
     dispose() {

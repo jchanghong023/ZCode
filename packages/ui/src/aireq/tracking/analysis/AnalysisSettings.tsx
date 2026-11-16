@@ -115,8 +115,8 @@ export function AnalysisSettings({
           </p>
           <p className="text-ui-sm text-foreground-subtle">
             {zh
-              ? "暂停不取消进行中的分析，已开启项目仍可手动分析。当前分析为模拟执行。"
-              : "Pausing keeps analyses in progress and allows manual analysis for enabled projects. Current analyses are simulated."}
+              ? "暂停不取消进行中的分析，已开启项目仍可手动分析。"
+              : "Pausing keeps analyses in progress and allows manual analysis for enabled projects."}
           </p>
         </div>
         <Switch

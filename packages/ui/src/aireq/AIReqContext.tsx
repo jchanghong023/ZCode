@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
@@ -201,7 +202,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     else next();
   }, []);
   const report = useCallback(
-    (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)),
+    (cause: unknown) => setError(formatUserFacingError(cause, "操作暂时未能完成，请重试。")),
     [],
   );
   const load = useCallback(
@@ -640,12 +641,15 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       try {
         const result = await source.command(value, target, viewRef.current?.revision ?? 0);
         if (result.status === "failed")
-          throw new Error(result.error ?? result.receipt.error ?? "操作失败。");
+          // 业务回执的错误字段由服务边界校验；保留版本、阶段等可操作原因，未知异常走统一回退。
+          throw Object.assign(new Error(result.error ?? result.receipt.error ?? "操作失败。"), {
+            code: "BUSINESS_RULE_VIOLATION",
+          });
         // An operation completing in the background must not navigate a different view.
         if (selectionRef.current !== target) return result;
         commandError.current = false;
         if (value.type === "createProposal" || value.type === "importProposals") await refresh();
-        else if (value.type === "runRequirementsReview" || value.type === "submitProposalReview")
+        else if (value.type === "runRequirementsReview")
           select({
             ...target,
             discussionPhase: "requirements",

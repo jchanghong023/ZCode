@@ -48,8 +48,8 @@ export function ProjectPageHelp({
           : "Review requirement progress in this scope and open IR or SR reports.";
   const calculation = analysis
     ? zh
-      ? "手动分析覆盖全部筛选分页，运行中的开发单元不会重复提交。模拟操作推进全局调度，不受页面筛选限制；当前仅模拟分析，不调用真实模型。"
-      : "Manual analysis includes all filtered pages and does not resubmit running units. Simulation advances the global scheduler regardless of page filters. Analysis is simulated; no real model is called."
+      ? "手动分析覆盖全部筛选分页，运行中的开发单元不会重复提交。自动分析的开关、周期和项目范围可在分析设置中调整。"
+      : "Manual analysis includes all filtered pages and does not resubmit running units. Configure automatic analysis, its interval and project scope in analysis settings."
     : formal
       ? zh
         ? "需求（IR）进度为下属开发单元（SR）的平均值；未分析按 0 计，代码合入为 99%，人工验收通过才为 100%。"
@@ -101,8 +101,8 @@ export function ProjectPageHelp({
           <p className="font-medium">
             {analysis
               ? zh
-                ? "分析范围与模拟规则"
-                : "Analysis scope and simulation"
+                ? "分析范围与调度规则"
+                : "Analysis scope and scheduling"
               : zh
                 ? "进度如何计算"
                 : "How progress is calculated"}

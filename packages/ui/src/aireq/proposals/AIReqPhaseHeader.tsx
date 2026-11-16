@@ -34,7 +34,7 @@ import {
   AIReqProposalDeliveryControls,
   AIReqProposalBackgroundStatus,
 } from "./AIReqProposalDeliveryControls.js";
-import { AIReqProposalSimulation } from "./AIReqProposalSimulation.js";
+import { AIReqProposalManagement } from "./AIReqProposalManagement.js";
 import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
 
 const labels = ["业务需求", "原始需求评审", "完整方案与审查", "三方确认与 PR"];
@@ -61,7 +61,7 @@ export function AIReqPhaseHeader({
   const ai = useAIReq()!;
   const [back, setBack] = useState(false);
   const [reason, setReason] = useState("");
-  const [panel, setPanel] = useState<"info" | "simulation" | "report">();
+  const [panel, setPanel] = useState<"info" | "management" | "report">();
   const group = ai.view?.drafts.find(
     (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
   );
@@ -91,7 +91,7 @@ export function AIReqPhaseHeader({
   );
   const review = selected === 1 ? group.originalReview : group.review;
   const visiblePanel =
-    (panel === "simulation" && history) || (panel === "report" && !review?.report)
+    (panel === "management" && history) || (panel === "report" && !review?.report)
       ? undefined
       : panel;
   const current = () =>
@@ -163,8 +163,8 @@ export function AIReqPhaseHeader({
             : frozen
               ? "文档 PR 已提交，材料冻结；修改前须关闭未合并 PR。"
               : running
-                ? "模拟 Agent 运行中"
-                : `当前：${labels[phase]} · 服务端共享内存模拟`}
+                ? "正在处理，请稍候…"
+                : `当前：${labels[phase]}`}
         </p>
       </header>
     );
@@ -279,15 +279,15 @@ export function AIReqPhaseHeader({
                 </DropdownMenuItem>
               )}
               {!history && (
-                <DropdownMenuItem onSelect={() => setPanel("simulation")}>
-                  分工与模拟控制
+                <DropdownMenuItem onSelect={() => setPanel("management")}>
+                  联系人与材料修改
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
-      {/* 修复：模拟控制需要在收起面板后保留草稿，隐藏现有实例而非卸载并重建。 */}
+      {/* 修复：联系人与材料修改面板收起后仍需保留草稿，隐藏现有实例而非卸载并重建。 */}
       <section
         hidden={!visiblePanel}
         aria-label="材料补充信息"
@@ -295,8 +295,8 @@ export function AIReqPhaseHeader({
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="font-medium">
-            {visiblePanel === "simulation"
-              ? "分工与模拟控制"
+            {visiblePanel === "management"
+              ? "联系人与材料修改"
               : visiblePanel === "report"
                 ? "评审报告"
                 : "材料状态与说明"}
@@ -359,8 +359,8 @@ export function AIReqPhaseHeader({
           </div>
         )}
         {!history && (
-          <div hidden={visiblePanel !== "simulation"}>
-            <AIReqProposalSimulation key={group.id} group={group} />
+          <div hidden={visiblePanel !== "management"}>
+            <AIReqProposalManagement key={group.id} group={group} />
           </div>
         )}
       </section>

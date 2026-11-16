@@ -43,8 +43,8 @@ function unavailableMessage(read: HistoryRead, zh: boolean): string {
       : "This conversation is unavailable. Refresh and try again.";
   if (read.reason === "missing")
     return zh
-      ? "该历史会话当前不在内存中，暂时无法读取。"
-      : "This historical conversation is not currently available in memory.";
+      ? "该历史会话暂不可读取，请稍后重试。"
+      : "This historical conversation is currently unavailable. Try again later.";
   if (read.reason === "empty")
     return zh
       ? "该会话没有已记录的消息；已保存评审报告可在上方查看。"
@@ -415,8 +415,8 @@ export function AIReqFormalHistory() {
                           : "History has changed. Reload to continue."
                         : read.olderError === "missing"
                           ? zh
-                            ? "该历史会话当前不在内存中，无法读取更早消息。"
-                            : "This conversation is no longer in memory; earlier messages are unavailable."
+                            ? "更早的历史消息暂不可读取，请稍后重试。"
+                            : "Earlier messages are currently unavailable. Try again later."
                           : zh
                             ? "更早消息读取失败。"
                             : "Failed to load earlier messages."}

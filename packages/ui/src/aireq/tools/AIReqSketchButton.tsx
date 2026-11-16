@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useRef, useState } from "react";
 import { PencilRuler } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -64,7 +65,10 @@ export function AIReqSketchButton({
         frame.postMessage(
           {
             type: "aireq-sketch-error",
-            message: error instanceof Error ? error.message : String(error),
+            message: formatUserFacingError(
+              error,
+              "画图结果无法添加为附件，请检查图片格式、附件数量和输入状态。",
+            ),
           },
           window.location.origin,
         );

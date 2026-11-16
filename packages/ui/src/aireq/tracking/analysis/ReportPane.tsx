@@ -126,8 +126,13 @@ export function ReportPane({
           <>
             <div className="space-y-2 border-t border-border pt-3 text-ui-sm">
               <h5 className="font-medium">代码依据</h5>
-              <p>模拟 AI 原始评分：{report.aiPercent ?? Math.min(99, report.percent)}% · 本次运行时有效进度：{report.percent}%</p>
-              {report.stale && <p className="text-warning">报告已过期；业务有效进度仍以合入及人工测试事实为准。</p>}
+              <p>
+                AI 原始评分：{report.aiPercent ?? Math.min(99, report.percent)}% ·
+                本次运行时有效进度：{report.percent}%
+              </p>
+              {report.stale && (
+                <p className="text-warning">报告已过期；业务有效进度仍以合入及人工测试事实为准。</p>
+              )}
               <p className="break-all">分支：{report.branch}</p>
               <p>
                 合入：{report.merged ? "已合入" : "未合入"} ·{" "}

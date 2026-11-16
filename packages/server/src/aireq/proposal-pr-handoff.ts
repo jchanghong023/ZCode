@@ -1,9 +1,6 @@
-import type {
-  AIReqPrHandoff,
-  AIReqPrHandoffInput,
-  AIReqPrHandoffScenario,
-  AIReqRequirementGroup,
-} from "@zcode/services/aireq";
+import type { AIReqPrHandoffInput, AIReqPrHandoffScenario } from "./internal-scenarios.js";
+
+import type { AIReqPrHandoff, AIReqRequirementGroup } from "@zcode/services/aireq";
 import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
 import { getEmployeeId } from "./identity.js";
 import { prototypeIrRoot } from "./proposal-storage.js";

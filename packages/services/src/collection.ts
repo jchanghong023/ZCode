@@ -3,6 +3,8 @@ import type { ServiceDescriptor } from "./descriptors.js";
 
 export interface ServiceExposurePolicy {
   readonly allowedChannels?: ReadonlySet<string>;
+  /** 设置后只有逐 channel 登记的方法／事件可以暴露；未登记的服务一律不发布。 */
+  readonly allowedMembers?: ReadonlyMap<string, ProxyChannel.ServiceExposurePolicy>;
 }
 
 /**
@@ -39,10 +41,12 @@ export class ServiceCollection {
     for (const [channelName, instance] of this._services) {
       if (exposurePolicy?.allowedChannels && !exposurePolicy.allowedChannels.has(channelName))
         continue;
+      const members = exposurePolicy?.allowedMembers?.get(channelName);
+      if (exposurePolicy?.allowedMembers && !members) continue;
       const selected = overrides.get(channelName) ?? instance;
       server.registerChannel(
         channelName,
-        ProxyChannel.fromService(selected as Record<string, unknown>),
+        ProxyChannel.fromService(selected as Record<string, unknown>, undefined, members),
       );
     }
   }

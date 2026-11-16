@@ -1,6 +1,17 @@
+import { digestValue } from "./content-digest.js";
+import { businessRule, businessFailureMessage } from "./errors.js";
+import type { InternalRequirementGroup, InternalProposalDelivery } from "./internal-scenarios.js";
+import type { AIReqProposalMergeScenario, AIReqReviewScenario } from "./internal-scenarios.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
-import { proposalVersion, completeProposalPaths, deriveAIReqTodos, fullReviewReadyBlocker,
-  fullReviewBlocker, requirementsReviewInputs, fileVersions } from "@zcode/services/aireq";
+import {
+  proposalVersion,
+  completeProposalPaths,
+  deriveAIReqTodos,
+  fullReviewReadyBlocker,
+  fullReviewBlocker,
+  requirementsReviewInputs,
+  fileVersions,
+} from "@zcode/services/aireq";
 import { proposalDependencyMaterialIssue } from "@zcode/services/aireq";
 import {
   ensurePrototypeProposalMr,
@@ -17,7 +28,10 @@ import {
   prototypeMaterialIssue,
   consumePrototypeOperationFailure,
 } from "./recovery.js";
-import { prototypeReviewModelBindings, createPrototypeRequirementsReview } from "./requirements-review.js";
+import {
+  prototypeReviewModelBindings,
+  createPrototypeRequirementsReview,
+} from "./requirements-review.js";
 import {
   requirementsReviewStartBlocker,
   requirementsReviewReadyBlocker,
@@ -33,9 +47,7 @@ import type {
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqRequirementGroup,
-  AIReqProposalMergeScenario,
   AIReqSelection,
-  AIReqReviewScenario,
   AIReqWorkflowResult,
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
@@ -81,7 +93,6 @@ for (const group of state.drafts.filter(
       createdAt,
       pushedAt: createdAt,
     },
-    mergeScenario: "unmerged",
     mergeCheck: { status: "waiting", message: "MR 已自动创建，等待人工评审合并与后台定时核验。" },
   };
   ensurePrototypeProposalMr(group);
@@ -98,37 +109,55 @@ export function mutatePrototypeWorkflow(update: (view: AIReqWorkflowView) => boo
 export function readPrototypeWorkflowState(): AIReqWorkflowView {
   return structuredClone(state);
 }
-export function setPrototypeProposalReviewScenario(projectId: string, irId: string,
-  kind: "original" | "full", scenario: AIReqReviewScenario): void {
-  if (!["original", "full"].includes(kind) || !(PROTOTYPE_REVIEW_SCENARIOS as readonly string[]).includes(scenario))
-    throw new Error("未知模拟评审场景。");
+export function setPrototypeProposalReviewScenario(
+  projectId: string,
+  irId: string,
+  kind: "original" | "full",
+  scenario: AIReqReviewScenario,
+): void {
+  if (
+    !["original", "full"].includes(kind) ||
+    !(PROTOTYPE_REVIEW_SCENARIOS as readonly string[]).includes(scenario)
+  )
+    throw businessRule("未知模拟评审场景。");
   mutatePrototypeWorkflow((view) => {
     const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId);
-    if (!proposal) throw new Error("需求提案不存在。");
-    proposal.reviewScenarios ??= {};
-    proposal.reviewScenarios[kind] = scenario;
+    if (!proposal) throw businessRule("需求提案不存在。");
+    const scenarios = ((proposal as InternalRequirementGroup).reviewScenarios ??= {});
+    scenarios[kind] = scenario;
   });
 }
 export function releasePrototypeProposalReviewResults(projectId: string, irId: string): void {
   mutatePrototypeWorkflow((view) => {
     const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId);
-    if (!proposal) throw new Error("需求提案不存在。");
+    if (!proposal) throw businessRule("需求提案不存在。");
     if (!proposal.heldReviews?.length) return false;
     for (const held of proposal.heldReviews) {
       const current = held.kind === "full" ? proposal.review : proposal.originalReview;
-      const digest = held.kind === "full" ? proposalVersion(proposal) :
-        fileVersions(requirementsReviewInputs(proposal) ?? []);
+      const digest =
+        held.kind === "full"
+          ? proposalVersion(proposal)
+          : fileVersions(requirementsReviewInputs(proposal) ?? []);
       // 旧回调必须同时匹配轮次身份和输入；仅匹配材料不能复活被替代的批准。
       if (current?.id !== held.id || held.snapshotDigest !== digest || current.invalidatedReason) {
         proposal.rejectedReviewResults ??= [];
-        proposal.rejectedReviewResults.push({ reviewId: held.id, at: new Date().toISOString(), reason: "迟到模拟结果的轮次或材料版本已过期，拒绝写回" });
+        proposal.rejectedReviewResults.push({
+          reviewId: held.id,
+          at: new Date().toISOString(),
+          reason: "该评审结果对应的轮次或材料版本已过期，未采用",
+        });
         continue;
       }
-      const completed = createPrototypeRequirementsReview(proposal, held.requestedBy ?? "platform", false, held.kind ?? "original");
+      const completed = createPrototypeRequirementsReview(
+        proposal,
+        held.requestedBy ?? "platform",
+        false,
+        held.kind ?? "original",
+      );
       for (const agent of current.agents ?? []) {
         const result = completed.agents?.find((item) => item.id === agent.id);
         agent.status = "completed";
-        agent.report = result?.report ?? "【模拟】当前快照评审完成。";
+        agent.report = result?.report ?? "以下为演示评审内容。当前材料评审完成。";
       }
       current.held = false;
       current.report = current.agents?.at(-1)?.report ?? "";
@@ -136,10 +165,16 @@ export function releasePrototypeProposalReviewResults(projectId: string, irId: s
     proposal.heldReviews = [];
   });
 }
-export function setPrototypeBranchCreationFailure(projectId: string, irId: string, srId: string): void {
+export function setPrototypeBranchCreationFailure(
+  projectId: string,
+  irId: string,
+  srId: string,
+): void {
   mutatePrototypeWorkflow((view) => {
-    const proposal = [...view.drafts, ...view.groups].find((item) => item.projectId === projectId && item.id === irId);
-    if (!proposal?.srIds.includes(srId)) throw new Error("SR 不属于当前需求。");
+    const proposal = [...view.drafts, ...view.groups].find(
+      (item) => item.projectId === projectId && item.id === irId,
+    );
+    if (!proposal?.srIds.includes(srId)) throw businessRule("SR 不属于当前需求。");
     proposal.branchCreationFailures ??= [];
     if (!proposal.branchCreationFailures.includes(srId)) proposal.branchCreationFailures.push(srId);
   });
@@ -177,9 +212,12 @@ function completePrototypeProposal(group: AIReqRequirementGroup, checkedAt: stri
     sr.testingEmployeeId ??= group.contacts?.testing;
     const failed = group.branchCreationFailures?.includes(sr.id);
     sr.trackingBranch = {
-      name: `sr/${sr.id}`, baseCommit: commit, createdAt: checkedAt,
-      pushedAt: failed ? "" : checkedAt, status: failed ? "failed" : "ready",
-      ...(failed ? { error: "【模拟】创建或推送开发分支失败，未产生可用分支。" } : {}),
+      name: `sr/${sr.id}`,
+      baseCommit: commit,
+      createdAt: checkedAt,
+      pushedAt: failed ? "" : checkedAt,
+      status: failed ? "failed" : "ready",
+      ...(failed ? { error: "创建或推送开发分支失败，请重试。" } : {}),
     };
   }
   group.branchCreationFailures = [];
@@ -192,10 +230,10 @@ export function setPrototypeProposalMergeScenario(
   scenario: AIReqProposalMergeScenario,
 ): void {
   const group = state.drafts.find((item) => item.projectId === projectId && item.id === irId);
-  if (!group?.proposalDelivery?.pushedAt) throw new Error("请先完成方案并推送提案分支。");
+  if (!group?.proposalDelivery?.pushedAt) throw businessRule("请先完成方案并推送提案分支。");
   if (!(PROTOTYPE_PROPOSAL_MERGE_SCENARIOS as readonly string[]).includes(scenario))
-    throw new Error("未知 MR 检查情景。");
-  group.proposalDelivery.mergeScenario = scenario;
+    throw businessRule("未知 MR 检查情景。");
+  (group.proposalDelivery as InternalProposalDelivery).mergeScenario = scenario;
   prototypeWorkflowChanges.fire();
 }
 
@@ -214,7 +252,7 @@ export function pollPrototypeProposalMerges(): void {
     checked = true;
     const at = new Date().toISOString();
     const nextCheckAt = new Date(Date.now() + 5000).toISOString();
-    const scenario = delivery.mergeScenario ?? "unmerged";
+    const scenario = (delivery as InternalProposalDelivery).mergeScenario ?? "unmerged";
     if (scenario === "failed") {
       delivery.mergeCheck = {
         status: "failed",
@@ -248,8 +286,12 @@ export function pollPrototypeProposalMerges(): void {
       continue;
     }
     if (scenario === "stale-version") {
-      delivery.mergeCheck = { status: "incomplete", checkedAt: at, nextCheckAt,
-        message: "【模拟】远端合入证据属于旧候选版本，不能转正。" };
+      delivery.mergeCheck = {
+        status: "incomplete",
+        checkedAt: at,
+        nextCheckAt,
+        message: "合入证据对应旧版本，当前需求不能转正。",
+      };
       continue;
     }
     if (scenario === "unmerged") {
@@ -287,7 +329,12 @@ export function pollPrototypeProposalMerges(): void {
               !material.error &&
               Boolean(material.content?.trim()) &&
               !prototypeMaterialIssue(path) &&
-              delivery.files.some((file) => file.path === path && file.sha256 === material.sha256 && file.size === material.size),
+              delivery.files.some(
+                (file) =>
+                  file.path === path &&
+                  file.sha256 === material.sha256 &&
+                  file.size === material.size,
+              ),
           ),
       );
     if (scenario === "incomplete" || !complete) {
@@ -355,7 +402,8 @@ export function getPrototypeWorkflow(
       (item) =>
         (!item.irId && !item.irIds?.length) ||
         [...state.groups, ...state.drafts].some(
-          (group) => group.projectId === projectId &&
+          (group) =>
+            group.projectId === projectId &&
             (group.id === item.irId || item.irIds?.includes(group.id)),
         ),
     ),
@@ -379,11 +427,20 @@ export function resolvePrototypeSession(
   );
   // 交付阶段不绑定方案会话；历史阶段仍按用户的显式选择读取。
   if (proposal && proposalViewedIndex(proposal, selection) === 3) return;
-  const selectedReview = proposal && (proposalViewedIndex(proposal, selection) === 1 ?
-    proposal.originalReview : selection.reviewAgent ? proposal.review : undefined);
+  const selectedReview =
+    proposal &&
+    (proposalViewedIndex(proposal, selection) === 1
+      ? proposal.originalReview
+      : selection.reviewAgent
+        ? proposal.review
+        : undefined);
   if (selectedReview) {
-    const reviewer = selectedReview.agents?.find((agent) => agent.id === (selection.reviewAgent ??
-      (selectedReview.kind === "full" ? "summary" : "a")))?.session ?? selectedReview.reviewer;
+    const reviewer =
+      selectedReview.agents?.find(
+        (agent) =>
+          agent.id ===
+          (selection.reviewAgent ?? (selectedReview.kind === "full" ? "summary" : "a")),
+      )?.session ?? selectedReview.reviewer;
     return reviewer && "projectId" in reviewer ? reviewer : undefined;
   }
   if (!proposal) return;
@@ -420,122 +477,214 @@ export function applyPrototypeAction(
   action: AIReqAction,
   selection: AIReqSelection,
   solutionDiscussion?: string,
+  request?: { operationId: string; commandDigest: string },
 ): AIReqWorkflowResult {
   if (consumePrototypeOperationFailure(action.type))
-    throw new Error("操作未完成（一次性故障样例）。内容和当前状态已保留，请明确重试。");
+    throw businessRule("操作未完成（一次性故障样例）。内容和当前状态已保留，请明确重试。");
   if (action.type === "createProposal" || action.type === "importProposals") {
     const projectId = action.projectId ?? selection.projectId;
-    if (!projectId || !readPrototypeProjectReleases(projectId).some((release) => release.id === action.releaseId))
-      throw new Error("请选择明确项目和有效 Release。");
-    if (action.type === "createProposal" && (typeof action.originalText !== "string" || !action.originalText.trim()))
-      throw new Error("请输入原始需求。");
-    if (action.type === "importProposals" && (!Array.isArray(action.originalTexts) ||
-      action.originalTexts.some((text) => typeof text !== "string") || !action.originalTexts.some((text) => text.trim())))
-      throw new Error("导入正文无效，本批未写入任何提案。");
-    if (action.type === "createProposal" && action.sourceIrId &&
-      !state.groups.some((item) => item.projectId === projectId && item.id === action.sourceIrId))
-      throw new Error("来源正式 IR 不存在或不属于当前项目。");
+    if (
+      !projectId ||
+      !readPrototypeProjectReleases(projectId).some((release) => release.id === action.releaseId)
+    )
+      throw businessRule("请选择明确项目和有效 Release。");
+    if (
+      action.type === "createProposal" &&
+      (typeof action.originalText !== "string" || !action.originalText.trim())
+    )
+      throw businessRule("请输入原始需求。");
+    if (
+      action.type === "importProposals" &&
+      (!Array.isArray(action.originalTexts) ||
+        action.originalTexts.some((text) => typeof text !== "string") ||
+        !action.originalTexts.some((text) => text.trim()))
+    )
+      throw businessRule("导入正文无效，本批未写入任何提案。");
+    if (
+      action.type === "createProposal" &&
+      action.sourceIrId &&
+      !state.groups.some((item) => item.projectId === projectId && item.id === action.sourceIrId)
+    )
+      throw businessRule("来源正式 IR 不存在或不属于当前项目。");
     if (action.type === "createProposal" && action.clientDraftId) {
-      const existing = state.drafts.find((item) => item.projectId === projectId && item.releaseId === action.releaseId &&
-        item.clientDraftId === action.clientDraftId && item.submittedBy === getEmployeeId());
-      if (existing && existing.originalText !== action.originalText.trim()) throw new Error("同一草稿操作身份不能提交不同原始需求。");
+      const existing = state.drafts.find(
+        (item) =>
+          item.projectId === projectId &&
+          item.releaseId === action.releaseId &&
+          item.clientDraftId === action.clientDraftId &&
+          item.submittedBy === getEmployeeId(),
+      );
+      if (existing && existing.originalText !== action.originalText.trim())
+        throw businessRule("同一草稿操作身份不能提交不同原始需求。");
     }
   }
   if (action.type === "createRelease") {
     const projectId = action.projectId ?? selection.projectId;
-    if (!state.projects.some((item) => item.id === projectId)) throw new Error("请选择已有项目。");
-    if (!action.title.trim()) throw new Error("请输入 Release 名称。");
+    if (!state.projects.some((item) => item.id === projectId))
+      throw businessRule("请选择已有项目。");
+    if (!action.title.trim()) throw businessRule("请输入 Release 名称。");
     if (
       readPrototypeProjectReleases(projectId).some(
         (item) => item.title.toLowerCase() === action.title.trim().toLowerCase(),
       )
     ) {
-      throw new Error("此项目中已存在同名 Release，请使用其他名称。");
+      throw businessRule("此项目中已存在同名 Release，请使用其他名称。");
     }
   }
   const targetProjectId = action.projectId ?? selection.projectId ?? DEFAULT_SELECTION.projectId;
   const targetProposal = state.drafts.find(
     (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
   );
-  const proposalAction = !["createRelease", "createProposal", "importProposals", "assignContacts", "retrySrBranch", "stop"].includes(action.type);
-  const targetGroup = targetProposal ?? state.groups.find((item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId));
+  const proposalAction = ![
+    "createRelease",
+    "createProposal",
+    "importProposals",
+    "assignContacts",
+    "retrySrBranch",
+    "stop",
+  ].includes(action.type);
+  const targetGroup =
+    targetProposal ??
+    state.groups.find(
+      (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
+    );
   if (action.type === "assignContacts") {
-    if (!targetGroup) throw new Error("IR 不存在。");
-    if (!action.contacts || Object.keys(action.contacts).some((key) => !["business", "development", "testing"].includes(key)) ||
-      Object.values(action.contacts).some((value) => value !== undefined && !isEmployeeId(value)))
-      throw new Error("联系人须为合法工号，空归属请清除该字段。");
+    if (!targetGroup) throw businessRule("IR 不存在。");
+    if (
+      !action.contacts ||
+      Object.keys(action.contacts).some(
+        (key) => !["business", "development", "testing"].includes(key),
+      ) ||
+      Object.values(action.contacts).some((value) => value !== undefined && !isEmployeeId(value))
+    )
+      throw businessRule("联系人须为合法工号，空归属请清除该字段。");
   }
   if (action.type === "retrySrBranch") {
-    const formal = state.groups.find((item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId));
-    const sr = state.srs.find((item) => item.projectId === targetProjectId && item.irId === formal?.id && item.id === action.srId);
-    if (!formal?.merge || !sr?.trackingBranch || !["failed", "ready"].includes(sr.trackingBranch.status ?? "ready"))
-      throw new Error("仅正式 IR 已登记的失败开发分支可重试创建。");
+    const formal = state.groups.find(
+      (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
+    );
+    const sr = state.srs.find(
+      (item) =>
+        item.projectId === targetProjectId && item.irId === formal?.id && item.id === action.srId,
+    );
+    if (
+      !formal?.merge ||
+      !sr?.trackingBranch ||
+      !["failed", "ready"].includes(sr.trackingBranch.status ?? "ready")
+    )
+      throw businessRule("仅正式 IR 已登记的失败开发分支可重试创建。");
   }
   if (proposalAction) {
-    if (!targetProposal) throw new Error("请选择需求提案，正式需求不能重新进入提案流程。");
-    if (!isEmployeeId(getEmployeeId())) throw new Error("请先输入有效工号。");
-    if (targetProposal.status === "requirements-pr" &&
-      !["closeProposalPr", "publishProposal", "markRequirementsMerged"].includes(action.type))
-      throw new Error("文档 PR 已提交，当前材料冻结；请先关闭未合并 PR。");
+    if (!targetProposal) throw businessRule("请选择需求提案，正式需求不能重新进入提案流程。");
+    if (!isEmployeeId(getEmployeeId())) throw businessRule("请先输入有效工号。");
+    if (
+      targetProposal.status === "requirements-pr" &&
+      !["closeProposalPr", "publishProposal", "markRequirementsMerged"].includes(action.type)
+    )
+      throw businessRule("文档 PR 已提交，当前材料冻结；请先关闭未合并 PR。");
   }
   if (action.type === "runRequirementsReview" || action.type === "submitProposalReview") {
-    const material = state.materials.find((item) => item.projectId === targetProjectId &&
-      item.irId === targetProposal!.id && item.path === targetProposal!.documentPath);
-    if (!material?.valid || !material.content?.trim() || material.error || prototypeMaterialIssue(material.path))
-      throw new Error("IR 原始需求材料缺失或不可读取，不能评审。");
+    const material = state.materials.find(
+      (item) =>
+        item.projectId === targetProjectId &&
+        item.irId === targetProposal!.id &&
+        item.path === targetProposal!.documentPath,
+    );
+    if (
+      !material?.valid ||
+      !material.content?.trim() ||
+      material.error ||
+      prototypeMaterialIssue(material.path)
+    )
+      throw businessRule("IR 原始需求材料缺失或不可读取，不能评审。");
     const issue = requirementsReviewStartBlocker(targetProposal!);
-    if (issue) throw new Error(issue);
-    if (targetProposal!.proposalStage !== "requirements") throw new Error("原始单评审仅在业务澄清阶段发起。");
+    if (issue) throw businessRule(issue);
+    if (targetProposal!.proposalStage !== "requirements")
+      throw businessRule("原始单评审仅在业务澄清阶段发起。");
   }
   if (action.type === "acceptProposal") {
     const issue = requirementsReviewReadyBlocker(targetProposal!);
-    if (issue) throw new Error(issue);
-    if (targetProposal!.proposalStage !== "requirements" ||
+    if (issue) throw businessRule(issue);
+    if (
+      targetProposal!.proposalStage !== "requirements" ||
       action.reviewId !== targetProposal!.originalReview?.id ||
-      action.snapshotDigest !== targetProposal!.originalReview?.snapshotDigest)
-      throw new Error("人工通过须绑定当前原始单评审及业务文档版本。");
+      action.snapshotDigest !== targetProposal!.originalReview?.snapshotDigest
+    )
+      throw businessRule("人工通过须绑定当前原始单评审及业务文档版本。");
   }
   if (action.type === "generateRequirements" || action.type === "supplementRequirements") {
     if (targetProposal!.proposalStage !== "requirements" || !action.note.trim())
-      throw new Error("请在业务澄清阶段提交明确内容。");
+      throw businessRule("请在业务澄清阶段提交明确内容。");
   }
   if (action.type === "generateProposalSolution" || action.type === "runFullReview") {
     const issue = requirementsReviewBlocker(targetProposal!);
-    if (issue) throw new Error(issue);
-    if (targetProposal!.proposalStage !== "solution") throw new Error("请先通过业务需求，再进入方案阶段。");
+    if (issue) throw businessRule(issue);
+    if (targetProposal!.proposalStage !== "solution")
+      throw businessRule("请先通过业务需求，再进入方案阶段。");
   }
   if (action.type === "runFullReview") {
-    if (!hasCurrentProposalSolution(targetProposal!)) throw new Error("完整材料未齐备，不能送三路审查。");
-    if (completeProposalPaths(targetProposal!).some((path) => !state.materials.some((material) =>
-      material.projectId === targetProjectId && material.irId === targetProposal!.id && material.path === path &&
-      material.valid && !material.error && Boolean(material.content?.trim()) &&
-      targetProposal!.files.some((file) => file.path === path && file.sha256 === material.sha256 && file.size === material.size))))
-      throw new Error("完整材料缺失、不可读取或版本不符。");
+    if (!hasCurrentProposalSolution(targetProposal!))
+      throw businessRule("完整材料未齐备，不能送三路审查。");
+    if (
+      completeProposalPaths(targetProposal!).some(
+        (path) =>
+          !state.materials.some(
+            (material) =>
+              material.projectId === targetProjectId &&
+              material.irId === targetProposal!.id &&
+              material.path === path &&
+              material.valid &&
+              !material.error &&
+              Boolean(material.content?.trim()) &&
+              targetProposal!.files.some(
+                (file) =>
+                  file.path === path &&
+                  file.sha256 === material.sha256 &&
+                  file.size === material.size,
+              ),
+          ),
+      )
+    )
+      throw businessRule("完整材料缺失、不可读取或版本不符。");
     prototypeReviewModelBindings();
   }
   if (action.type === "approveFullReview") {
     const issue = fullReviewReadyBlocker(targetProposal!);
-    if (issue) throw new Error(issue);
-    if (action.reviewId !== targetProposal!.review?.id || action.snapshotDigest !== targetProposal!.review?.snapshotDigest)
-      throw new Error("完整审查版本已变化，请刷新后重新判断。");
+    if (issue) throw businessRule(issue);
+    if (
+      action.reviewId !== targetProposal!.review?.id ||
+      action.snapshotDigest !== targetProposal!.review?.snapshotDigest
+    )
+      throw businessRule("完整审查版本已变化，请刷新后重新判断。");
   }
   if (action.type === "confirmAlignment") {
     const issue = fullReviewBlocker(targetProposal!);
-    if (issue) throw new Error(issue);
-    if (!["business", "development", "testing"].includes(action.perspective) || action.version !== proposalVersion(targetProposal!))
-      throw new Error("三方确认须绑定当前材料版本和明确视角。");
+    if (issue) throw businessRule(issue);
+    if (
+      !["business", "development", "testing"].includes(action.perspective) ||
+      action.version !== proposalVersion(targetProposal!)
+    )
+      throw businessRule("三方确认须绑定当前材料版本和明确视角。");
   }
   if (action.type === "reviseProposalMaterial") {
     if (!action.note.trim() || !["requirements", "solution", "test-plan"].includes(action.target))
-      throw new Error("请选择材料和明确修订内容。");
-    if (action.target !== "requirements" && (!targetProposal!.srIds.length || targetProposal!.proposalStage !== "solution"))
-      throw new Error("请先进入方案阶段并生成 SR 材料。");
+      throw businessRule("请选择材料和明确修订内容。");
+    if (
+      action.target !== "requirements" &&
+      (!targetProposal!.srIds.length || targetProposal!.proposalStage !== "solution")
+    )
+      throw businessRule("请先进入方案阶段并生成 SR 材料。");
   }
-  if (action.type === "returnProposal" && !action.reason.trim()) throw new Error("请填写业务需补充的原因。");
-  if (action.type === "closeProposalPr" && (targetProposal!.status !== "requirements-pr" ||
-    !targetProposal!.requirementsPr || targetProposal!.requirementsPr.status === "merged" ||
-    action.candidate !== targetProposal!.proposalDelivery?.candidate))
-    throw new Error("只能关闭当前候选的未合并文档 PR。");
+  if (action.type === "returnProposal" && !action.reason.trim())
+    throw businessRule("请填写业务需补充的原因。");
+  if (
+    action.type === "closeProposalPr" &&
+    (targetProposal!.status !== "requirements-pr" ||
+      !targetProposal!.requirementsPr ||
+      targetProposal!.requirementsPr.status === "merged" ||
+      action.candidate !== targetProposal!.proposalDelivery?.candidate)
+  )
+    throw businessRule("只能关闭当前候选的未合并文档 PR。");
   if (isPrototypeProposalDeliveryAction(action) && targetProposal)
     validatePrototypeProposalDeliveryAction(
       getPrototypeWorkflow({ projectId: targetProjectId }),
@@ -549,7 +698,7 @@ export function applyPrototypeAction(
       targetProposal.merge ||
       targetProposal.developmentStartedAt)
   )
-    throw new Error("正式提案的修订必须保留原入库记录，不能作为普通草稿删除。");
+    throw businessRule("正式提案的修订必须保留原入库记录，不能作为普通草稿删除。");
   if (
     action.type === "deleteRequirement" &&
     state.groups.some(
@@ -559,15 +708,22 @@ export function applyPrototypeAction(
         (item.merge || item.developmentStartedAt),
     )
   )
-    throw new Error("已入库的正式提案须保留 Git 记录与历史，不能通过删除需求释放仓库。");
+    throw businessRule("已入库的正式提案须保留 Git 记录与历史，不能通过删除需求释放仓库。");
   const previous = state;
   state = structuredClone(state);
   const projectId = action.projectId ?? selection.projectId ?? "demo-aurora";
   // 原子导入属于本批新 IR，不得把此前查看的 IR/SR 记录为创建来源。
   let irId = action.type === "importProposals" ? undefined : (action.irId ?? selection.irId);
-  const srId = proposalAction || action.type === "importProposals" ? undefined : (action.srId ?? selection.srId);
+  const srId =
+    proposalAction || action.type === "importProposals"
+      ? undefined
+      : (action.srId ?? selection.srId);
   const selectedProjectId = projectId;
   const operation = receipt(action.type, ++state.revision, irId, srId, new Date().toISOString());
+  // 请求回执元数据与状态在同一事务形成，不能发布事件后再覆盖导致返回投影和回执不一致。
+  if (request) operation.operationId = request.operationId;
+  operation.commandDigest =
+    request?.commandDigest ?? digestValue([action, selection, solutionDiscussion]);
   const identity = currentIdentity();
   if (identity) operation.identity = { ...identity };
   try {
@@ -579,7 +735,7 @@ export function applyPrototypeAction(
     }
     // 推送是已完成事实；创建 PR 失败不能抹去它，也不能静默冒充成功。
     operation.status = "failed";
-    operation.error = error instanceof Error ? error.message : String(error);
+    operation.error = businessFailureMessage(error);
   }
   state.operations.push(operation);
   prototypeWorkflowChanges.fire();
@@ -596,7 +752,6 @@ export function applyPrototypeAction(
     view: getPrototypeWorkflow({ projectId: selectedProjectId, irId, srId }),
   };
 }
-
 
 type AIReqAction = AIReqWorkflowCommand extends infer C
   ? C extends AIReqWorkflowCommand

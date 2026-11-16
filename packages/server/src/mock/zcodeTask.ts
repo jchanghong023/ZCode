@@ -44,7 +44,12 @@ export class MockZCodeTaskService implements IZCodeTaskService {
 
   async restartWorkspaceProcess(
     _params: P<IZCodeTaskService["restartWorkspaceProcess"]>,
-  ): Promise<void> {}
+  ): Promise<void> {
+    // 当前服务没有可重启的工作区进程，不能让恢复入口收到虚假的成功回执。
+    throw Object.assign(new Error("当前服务暂不支持重启工作区。"), {
+      code: "fault.command.capabilityUnsupported",
+    });
+  }
 
   onDynamicWorkspaceEvent(
     _params: P<IZCodeTaskService["onDynamicWorkspaceEvent"]>,
@@ -68,6 +73,8 @@ export class MockZCodeSessionService implements IZCodeSessionService {
   async readSession(
     _params: P<IZCodeSessionService["readSession"]>,
   ): Promise<AR<IZCodeSessionService["readSession"]>> {
-    throw new Error("mock: session readSession 由 v4 投影承担");
+    throw Object.assign(new Error("当前服务暂不支持此会话读取方式。"), {
+      code: "fault.command.capabilityUnsupported",
+    });
   }
 }

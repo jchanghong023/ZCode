@@ -1,10 +1,16 @@
+import type { AIReqAgentModelBinding } from "./model-types.js";
+export type {
+  AIReqAgentModel,
+  AIReqAgentModelSettings,
+  AIReqAgentRole,
+  AIReqAgentModelBinding,
+} from "./model-types.js";
 import type { AIReqProjectProgress } from "./progress-types.js";
 
 /** Caller identity records provenance and isolates private sessions; it is not authorization. */
 export interface AIReqIdentity {
   employeeId: string;
   clientId: string;
-  demo?: string;
 }
 
 /** Phase-one frontend presentation contracts. No OMP runtime dependency or execution authority. */
@@ -128,7 +134,8 @@ export interface AIReqRequirementSnapshot {
   digest: string;
 }
 export interface AIReqPrFact {
-  url: string;
+  /** Only returned when the code-hosting provider supplies an accessible URL. */
+  url?: string;
   sourceBranch: string;
   targetBranch: string;
   recordedAt: string;
@@ -154,7 +161,6 @@ export interface AIReqProposalDelivery {
   pushedAt?: string;
   prCandidate?: string;
   branch?: { name: string; baseCommit: string; createdAt: string; pushedAt: string };
-  mergeScenario?: AIReqProposalMergeScenario;
   mergeCheck?: {
     status: "waiting" | "unmerged" | "incomplete" | "failed" | "merged";
     checkedAt?: string;
@@ -162,13 +168,6 @@ export interface AIReqProposalDelivery {
     message: string;
   };
 }
-export type AIReqProposalMergeScenario =
-  | "unmerged"
-  | "merged"
-  | "incomplete"
-  | "failed"
-  | "mr-closed"
-  | "stale-version";
 export interface AIReqRequirementsDecision {
   reviewId: string;
   snapshotDigest: string;
@@ -244,7 +243,16 @@ export interface AIReqSystemRequirement {
   planning?: AIReqSrPlanning;
   solutionAnalysis?: AIReqSrSolutionAnalysis;
   progress?: AIReqProgressAnalysis;
-  trackingBranch?: { name: string; baseCommit: string; createdAt: string; pushedAt: string; status?: "ready" | "failed" | "deleted"; error?: string; deletedAt?: string; nextCleanupFailure?: boolean };
+  trackingBranch?: {
+    name: string;
+    baseCommit: string;
+    createdAt: string;
+    pushedAt: string;
+    status?: "ready" | "failed" | "deleted";
+    error?: string;
+    deletedAt?: string;
+    nextCleanupFailure?: boolean;
+  };
   ompWebId?: string;
   id: string;
   projectId: string;
@@ -336,13 +344,21 @@ export interface AIReqRequirementGroup {
   submittedBy: string;
   sourceIrId?: string;
   contacts?: { business?: string; development?: string; testing?: string };
-  contactHistory?: { employeeId: string; at: string; contacts: { business?: string; development?: string; testing?: string } }[];
+  contactHistory?: {
+    employeeId: string;
+    at: string;
+    contacts: { business?: string; development?: string; testing?: string };
+  }[];
   originalReview?: AIReqReview;
   originalReviewHistory?: AIReqReview[];
   alignment?: AIReqAlignment[];
   alignmentHistory?: AIReqAlignment[];
-  materialHistory?: { version: string; reason: string; changedAt: string; materials: AIReqMaterialView[] }[];
-  reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
+  materialHistory?: {
+    version: string;
+    reason: string;
+    changedAt: string;
+    materials: AIReqMaterialView[];
+  }[];
   heldReviews?: AIReqReview[];
   rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
   branchCreationFailures?: string[];
@@ -500,13 +516,24 @@ export type AIReqWorkflowCommand = AIReqCommandBase &
         releaseId: string;
       }
     | { type: "importProposals"; releaseId: string; originalTexts: string[] }
-    | { type: "assignContacts"; contacts: { business?: string; development?: string; testing?: string } }
+    | {
+        type: "assignContacts";
+        contacts: { business?: string; development?: string; testing?: string };
+      }
     | { type: "runFullReview" }
     | { type: "approveFullReview"; reviewId: string; snapshotDigest: string }
-    | { type: "confirmAlignment"; perspective: "business" | "development" | "testing"; version: string }
+    | {
+        type: "confirmAlignment";
+        perspective: "business" | "development" | "testing";
+        version: string;
+      }
     | { type: "closeProposalPr"; candidate: string }
     | { type: "retrySrBranch"; srId: string }
-    | { type: "reviseProposalMaterial"; target: "requirements" | "solution" | "test-plan"; note: string }
+    | {
+        type: "reviseProposalMaterial";
+        target: "requirements" | "solution" | "test-plan";
+        note: string;
+      }
     | { type: "deleteRequirement"; version: 1; projectId: string; irId: string }
     | { type: "submitProposalReview" }
     | { type: "acceptProposal"; reviewId?: string; snapshotDigest?: string }
@@ -538,7 +565,10 @@ type AIReqBrowserCommand = Exclude<
       | "supplementRequirements"
       | "generateProposalSolution"
       | "markRequirementsPrSubmitted"
-      | "markRequirementsMerged";
+      | "markRequirementsMerged"
+      | "submitProposalReview"
+      | "recordRequirementsDecision"
+      | "stop";
   }
 >;
 export type AIReqAction = AIReqBrowserCommand extends infer T
@@ -635,54 +665,6 @@ export type AIReqNativePredictionAction =
   | { type: "draft"; text: string }
   | { type: "shown"; generation: number }
   | { type: "accepted"; generation: number; rank: number };
-export interface AIReqPeer {
-  id: string;
-  name: string;
-  role: string;
-  status: string;
-  projectId: string;
-  materials: { title: string; path: string; content: string }[];
-  logs: { id: string; time: string; text: string }[];
-}
-
-export interface AIReqAgentModel {
-  id: string;
-  name: string;
-  nameEn: string;
-  description: string;
-  descriptionEn: string;
-  model: string;
-  reasoning: string;
-}
-
-export interface AIReqAgentModelSettings {
-  defaultModel: string;
-  agents: AIReqAgentModel[];
-}
-
-export type AIReqAgentRole =
-  | "requirements"
-  | "requirements-review-a"
-  | "requirements-review-b"
-  | "requirements-review-c"
-  | "requirements-review"
-  | "solution"
-  | "planning"
-  | "execution"
-  | "ir-acceptance"
-  | "skill-design"
-  | "progress-analysis";
-export interface AIReqAgentModelBinding {
-  role: AIReqAgentRole;
-  roleName: string;
-  modelKey: string;
-  modelName: string;
-  providerId: string;
-  modelId: string;
-  reasoning: string;
-  inherited: boolean;
-  configurationRevision: number;
-}
 
 export interface AIReqSkillDesignPreview {
   name: string;
@@ -703,13 +685,6 @@ export interface AIReqSkillDesignDraft {
   example: string;
   notes: string[];
 }
-
-export type AIReqPrHandoffScenario =
-  | "current"
-  | "missing-directory"
-  | "wrong-repository"
-  | "change-conflict"
-  | "stale-version";
 export interface AIReqPrHandoffFile {
   path: string;
   sourcePath: string;
@@ -729,14 +704,6 @@ export interface AIReqPrHandoff {
   changeRoot: string;
   files: AIReqPrHandoffFile[];
 }
-export interface AIReqPrHandoffInput {
-  group: AIReqRequirementGroup;
-  project?: AIReqProject;
-  developmentRoot?: string;
-  developmentDirectory?: { path: string; repositoryRoot?: string; git: boolean };
-  employeeId: string;
-  scenario?: AIReqPrHandoffScenario;
-}
 
 export interface AIReqWorkspace {
   path?: string;
@@ -753,7 +720,6 @@ export interface AIReqSkillSaveReceipt {
   target: "project" | "user";
   name: string;
 }
-export type AIReqReviewScenario = "normal" | "blocked" | "failed" | "hold";
 export interface AIReqAlignment {
   perspective: "business" | "development" | "testing";
   version: string;
@@ -785,7 +751,18 @@ export interface AIReqTodo extends AIReqObjectRef {
   assignmentPerspective: AIReqAlignment["perspective"];
   releaseId: string;
   title: string;
-  kind: "business-discussion" | "original-review" | "solution" | "full-review" | "alignment" | "publish" | "development" | "testing" | "fix" | "failure" | "analysis-failure";
+  kind:
+    | "business-discussion"
+    | "original-review"
+    | "solution"
+    | "full-review"
+    | "alignment"
+    | "publish"
+    | "development"
+    | "testing"
+    | "fix"
+    | "failure"
+    | "analysis-failure";
   employeeId?: string;
   perspective?: AIReqAlignment["perspective"];
   selection: AIReqSelection;

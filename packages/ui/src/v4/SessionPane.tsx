@@ -15,6 +15,7 @@ import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInherited
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
 import { reportSessionCreate } from "@/lib/sessionCreateTelemetry.js";
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { BotGroupDeliveryProvider } from "@/v4/BotGroupDeliveryAction.js";
 /* oxlint-disable eslint(max-lines) -- SessionPane 是单 pane 竖切的命令编排收口（订阅/发送/停止/fork/edit/retry/queue/slash 全集），与旧 ChatView 同粒度；HEAD 已超限（693 行计数），拆散命令组会打散 dispatchCommand/snapshotRef 的闭包纪律。 */
@@ -214,7 +215,7 @@ import {
   hasChatLoadingBlockingActiveWork,
   hasChatLoadingBlockingInteraction,
 } from "@/v4/chatLoadingVisibility.js";
-import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
+import { normalizeZCodeUiError, type ZCodeUiError } from "@/lib/zcodeUiError.js";
 import {
   isModelNotInRegistryError,
   type ChatErrorBannerModelConfigTarget,
@@ -2967,10 +2968,13 @@ export function SessionPane({
         setSendSubmissionError({
           code:
             getRemoteConnectionFailureCode(error) ??
-            (runtimeModelUnavailable ? "ZCODE_RUNTIME_MODEL_UNAVAILABLE" : "SEND_FAILED"),
-          message: runtimeModelUnavailable
-            ? detail
-            : intl.formatMessage({ id: "chat.error.sendFailed" }),
+            (runtimeModelUnavailable
+              ? "ZCODE_RUNTIME_MODEL_UNAVAILABLE"
+              : normalizeZCodeUiError(error, { fallbackCode: "SEND_FAILED" }).code),
+          message: formatUserFacingError(
+            error,
+            intl.formatMessage({ id: "chat.error.sendFailed" }),
+          ),
           detail,
           ...(sessionId ? { taskId: sessionId } : {}),
         });
@@ -3307,7 +3311,14 @@ export function SessionPane({
             }
           }
           const detail = error instanceof Error ? error.message : String(error);
-          setSendSubmissionError({ code: "SEND_FAILED", message: detail, detail });
+          setSendSubmissionError({
+            code: normalizeZCodeUiError(error, { fallbackCode: "SEND_FAILED" }).code,
+            message: formatUserFacingError(
+              error,
+              intl.formatMessage({ id: "chat.error.sendFailed" }),
+            ),
+            detail,
+          });
           throw error;
         }
       }
@@ -3323,6 +3334,7 @@ export function SessionPane({
     [
       sendComposerText,
       sessionId,
+      intl,
       submitComposerEdit,
       workspaceKey,
       conversationExtension,
@@ -4826,7 +4838,10 @@ export function SessionPane({
             data-testid="v4-subagent-readonly-error"
             className="mx-4 mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-ui-base text-[var(--color-danger)]"
           >
-            {controlLastError.message}
+            {formatUserFacingError(
+              controlLastError,
+              intl.formatMessage({ id: "chat.error.operationFailed" }),
+            )}
           </div>
         ) : null}
 
@@ -4850,94 +4865,92 @@ export function SessionPane({
             ) : null}
           </>
         ) : (
-            <BotGroupDeliveryProvider
-              taskId={sessionId}
-              workspacePath={workspacePath}
-              workspaceIdentity={workspaceIdentity}
-            >
-              <ConversationTimeline
-                contentWidthClassName={contentWidthClassName}
-                scrollToBottomActionRef={timelineScrollToBottomRef}
-                scrollToQueryActionRef={timelineScrollToQueryRef}
-                rows={timelineRows?.window ?? []}
-                pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
-                apiRetry={timelineSnapshot?.control.apiRetry ?? null}
-                totalCount={timelineRows?.totalCount ?? 0}
-                sessionKey={sessionId ?? "draft"}
-                scrollMemoryKey={timelineScrollMemoryKey}
-                rowContext={rowContext}
-                onFork={forkActionsEnabled ? handleFork : undefined}
-                onRetry={retryActionsEnabled ? handleRetry : undefined}
-                onFeedbackChange={
-                  !readOnly && !selectionSideChat && sessionId ? handleAssistantFeedback : undefined
-                }
-                onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
-                canLoadOlder={
-                  !state.editPresentation && timelineSnapshot
-                    ? hasOlderRows(timelineSnapshot)
-                    : false
-                }
-                loadingOlder={timelineSnapshot ? state.loadingOlder : false}
-                onLoadOlder={handleLoadOlder}
-                onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
-                turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
-                bottomDock={conversationBottomDock}
-                emptyState={
-                  !remoteAvailable ? (
-                    <div className="p-6 text-center text-ui-base text-foreground-subtle">
-                      {intl.formatMessage({ id: "remote.conversation.placeholder" })}
-                    </div>
-                  ) : conversationEmptyState ? (
-                    conversationEmptyState
-                  ) : isDraft && !embedded ? (
-                    <div data-testid={TID_CHAT_EMPTY} className="w-full">
-                      <ConversationDraftEmptyState />
-                    </div>
-                  ) : null
-                }
-                // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
-                centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
-                floatingComposerDock={isFloatingPresentation}
-                onComposerDockHeightChange={
-                  isFloatingPresentation && focused
-                    ? panePresentation.reportComposerDockHeight
-                    : undefined
-                }
-                onLatestTurnSummaryChange={
-                  isFloatingPresentation && focused
-                    ? handleFloatingLatestTurnSummaryChange
-                    : undefined
-                }
-                summaryPanelLayout={statusPanelLayout}
-                conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
-                conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}
-                conversationFindNavigationRequestId={
-                  !isDraft && focused ? conversationFindNavigationRequestId : 0
-                }
-                onConversationFindMatchStateChange={
-                  !isDraft && focused ? onConversationFindMatchStateChange : undefined
-                }
-                searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
-                onSearchResultHighlightDone={onSearchResultHighlightDone}
-                sessionPhase={isDraft ? undefined : snapshot?.control.phase}
-                selectionActions={
-                  !isDraft &&
-                  sessionId &&
-                  !readOnly &&
-                  !selectionSideChat &&
-                  !isMobileTextInputViewport
-                    ? {
-                        enabled: focused && !blockingInteractionId,
-                        sideActionDisabled: selectionSideActionBlocked,
-                        commentEnabled: selectionCommentSupported,
-                        annotationWorkspaceKey: workspaceKey,
-                        onAddToCurrentTask: handleAddSelectionToCurrentTask,
-                        onAskInSideChat: handleOpenSelectionSideConversation,
-                      }
-                    : undefined
-                }
-              />
-            </BotGroupDeliveryProvider>
+          <BotGroupDeliveryProvider
+            taskId={sessionId}
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+          >
+            <ConversationTimeline
+              contentWidthClassName={contentWidthClassName}
+              scrollToBottomActionRef={timelineScrollToBottomRef}
+              scrollToQueryActionRef={timelineScrollToQueryRef}
+              rows={timelineRows?.window ?? []}
+              pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
+              apiRetry={timelineSnapshot?.control.apiRetry ?? null}
+              totalCount={timelineRows?.totalCount ?? 0}
+              sessionKey={sessionId ?? "draft"}
+              scrollMemoryKey={timelineScrollMemoryKey}
+              rowContext={rowContext}
+              onFork={forkActionsEnabled ? handleFork : undefined}
+              onRetry={retryActionsEnabled ? handleRetry : undefined}
+              onFeedbackChange={
+                !readOnly && !selectionSideChat && sessionId ? handleAssistantFeedback : undefined
+              }
+              onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
+              canLoadOlder={
+                !state.editPresentation && timelineSnapshot ? hasOlderRows(timelineSnapshot) : false
+              }
+              loadingOlder={timelineSnapshot ? state.loadingOlder : false}
+              onLoadOlder={handleLoadOlder}
+              onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
+              turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
+              bottomDock={conversationBottomDock}
+              emptyState={
+                !remoteAvailable ? (
+                  <div className="p-6 text-center text-ui-base text-foreground-subtle">
+                    {intl.formatMessage({ id: "remote.conversation.placeholder" })}
+                  </div>
+                ) : conversationEmptyState ? (
+                  conversationEmptyState
+                ) : isDraft && !embedded ? (
+                  <div data-testid={TID_CHAT_EMPTY} className="w-full">
+                    <ConversationDraftEmptyState />
+                  </div>
+                ) : null
+              }
+              // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
+              centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
+              floatingComposerDock={isFloatingPresentation}
+              onComposerDockHeightChange={
+                isFloatingPresentation && focused
+                  ? panePresentation.reportComposerDockHeight
+                  : undefined
+              }
+              onLatestTurnSummaryChange={
+                isFloatingPresentation && focused
+                  ? handleFloatingLatestTurnSummaryChange
+                  : undefined
+              }
+              summaryPanelLayout={statusPanelLayout}
+              conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
+              conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}
+              conversationFindNavigationRequestId={
+                !isDraft && focused ? conversationFindNavigationRequestId : 0
+              }
+              onConversationFindMatchStateChange={
+                !isDraft && focused ? onConversationFindMatchStateChange : undefined
+              }
+              searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
+              onSearchResultHighlightDone={onSearchResultHighlightDone}
+              sessionPhase={isDraft ? undefined : snapshot?.control.phase}
+              selectionActions={
+                !isDraft &&
+                sessionId &&
+                !readOnly &&
+                !selectionSideChat &&
+                !isMobileTextInputViewport
+                  ? {
+                      enabled: focused && !blockingInteractionId,
+                      sideActionDisabled: selectionSideActionBlocked,
+                      commentEnabled: selectionCommentSupported,
+                      annotationWorkspaceKey: workspaceKey,
+                      onAddToCurrentTask: handleAddSelectionToCurrentTask,
+                      onAskInSideChat: handleOpenSelectionSideConversation,
+                    }
+                  : undefined
+              }
+            />
+          </BotGroupDeliveryProvider>
         )}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { createRequirementSnapshot } from "./content-digest.js";
 import type { AIReqWorkflowView, AIReqMaterialView } from "@zcode/services/aireq";
 import { proposalVersion } from "@zcode/services/aireq";
 import { readPrototypeProjectSettings } from "./project-settings.js";
@@ -275,13 +276,18 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
   // 业务澄清样例不预先拆 SR；只有历史上已通过前置评审的方案样例保留独立 SR。
   for (const proposal of drafts.filter((item) => item.proposalStage !== "solution")) {
     for (let index = srs.length - 1; index >= 0; index--)
-      if (srs[index]!.projectId === proposal.projectId && srs[index]!.irId === proposal.id) srs.splice(index, 1);
+      if (srs[index]!.projectId === proposal.projectId && srs[index]!.irId === proposal.id)
+        srs.splice(index, 1);
     proposal.srIds = [];
   }
   const materials: AIReqMaterialView[] = [];
   for (const item of [...groups, ...drafts]) {
     item.releaseId = readPrototypeProjectReleases(item.projectId)[0]?.id ?? "";
-    item.contacts = { business: item.submittedBy ?? "j00808874", development: "j00808874", testing: "j00808875" };
+    item.contacts = {
+      business: item.submittedBy ?? "j00808874",
+      development: "j00808874",
+      testing: "j00808875",
+    };
     const rows = srs.filter((sr) => sr.projectId === item.projectId && sr.irId === item.id);
     for (const sr of rows) {
       sr.developerEmployeeId = item.contacts.development;
@@ -294,18 +300,33 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       const summaryIndex = bundle.findIndex((material) => material.path === summary.path);
       if (summaryIndex >= 0) bundle.splice(summaryIndex, 1);
       bundle.push(summary, item.srDependencyFile);
-      item.proposalSolution = { path: summary.path, employeeId: "j00808874", generatedAt: createdAt,
-        round: item.proposalRound ?? 1, valid: true, requirementsDigest: `sample-digest:${item.projectId}:${item.id}` };
+      item.proposalSolution = {
+        path: summary.path,
+        employeeId: "j00808874",
+        generatedAt: createdAt,
+        round: item.proposalRound ?? 1,
+        valid: true,
+        requirementsDigest: "",
+      };
     }
     item.files = bundle.map(({ path, sha256, size }) => ({ path, sha256, size }));
-    item.snapshot = { version: 1, projectId: item.projectId, irId: item.id, title: item.title,
-      documentPath: item.documentPath, files: structuredClone(item.files),
+    item.snapshot = createRequirementSnapshot({
+      version: 1,
+      projectId: item.projectId,
+      irId: item.id,
+      title: item.title,
+      documentPath: item.documentPath,
+      files: structuredClone(item.files),
       srs: rows.map(({ id, title, documentPath }) => ({ id, title, documentPath })),
-      digest: `sample-digest:${item.projectId}:${item.id}` };
+    });
+    if (item.proposalSolution) item.proposalSolution.requirementsDigest = item.snapshot.digest;
     materials.push(...bundle);
     // review-chat 只初始化所选提案的真实单评审引用，不影响其他启动样例或恢复退役流程。
-    if (rows.length || item === reviewProposal ||
-      (prototypeRecoveryScenario === "review-chat" && item.id === "draft-automation")) {
+    if (
+      rows.length ||
+      item === reviewProposal ||
+      (prototypeRecoveryScenario === "review-chat" && item.id === "draft-automation")
+    ) {
       item.originalReview = createPrototypeRequirementsReview(item, "j00808874", rows.length > 0);
       item.sessions.push(...prototypeReviewSessions(item.originalReview));
     }
@@ -318,31 +339,59 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       item.sessions.push(...prototypeReviewSessions(item.review));
       if (groups.includes(item) || item === intakeProposal) {
         item.alignment = (["business", "development", "testing"] as const).map((perspective) => ({
-          perspective, version: proposalVersion(item), employeeId: "j00808874", confirmedAt: createdAt,
+          perspective,
+          version: proposalVersion(item),
+          employeeId: "j00808874",
+          confirmedAt: createdAt,
         }));
       }
     }
     if (groups.includes(item)) {
-      item.merge = { commit: `sample-merged-${item.id}`, branch: sharedSettings.projects.find((project) =>
-        project.id === item.projectId)!.defaultBranch, checkedAt: createdAt, files: structuredClone(item.files) };
+      item.merge = {
+        commit: `sample-merged-${item.id}`,
+        branch: sharedSettings.projects.find((project) => project.id === item.projectId)!
+          .defaultBranch,
+        checkedAt: createdAt,
+        files: structuredClone(item.files),
+      };
       freezePrototypeRequirement(item, "j00808874", createdAt);
     }
   }
   for (const sr of srs.filter((row) => row.status === "completed")) {
     const project = sharedSettings.projects.find((item) => item.id === sr.projectId)!;
-    sr.codeMerge = { commit: `${sr.id}-head`, branch: project.defaultBranch,
-      checkedAt: "2026-11-11T01:30:00.000Z", files: [] };
-    if (["sr-onboarding", "sr-notification-inbox", "sr-audit-retention", "sr-mobile-profile"].includes(sr.id)) {
-      sr.testAcceptance = { operationId: `sample-test-${sr.id}`, outcome: "passed", employeeId: "j00808874",
-        at: "2026-11-11T01:30:00.000Z", reason: "历史模拟样例测试通过", codeVersion: `${sr.id}-head` };
+    sr.codeMerge = {
+      commit: `${sr.id}-head`,
+      branch: project.defaultBranch,
+      checkedAt: "2026-11-11T01:30:00.000Z",
+      files: [],
+    };
+    if (
+      [
+        "sr-onboarding",
+        "sr-notification-inbox",
+        "sr-audit-retention",
+        "sr-mobile-profile",
+      ].includes(sr.id)
+    ) {
+      sr.testAcceptance = {
+        operationId: `sample-test-${sr.id}`,
+        outcome: "passed",
+        employeeId: "j00808874",
+        at: "2026-11-11T01:30:00.000Z",
+        reason: "历史演示记录：测试验收通过",
+        codeVersion: `${sr.id}-head`,
+      };
       sr.acceptanceHistory = [structuredClone(sr.testAcceptance)];
     } else sr.status = "developing";
   }
   if (prototypeRecoveryScenario === "proposal-feedback") {
     drafts[1]!.proposalStage = "requirements";
     drafts[1]!.status = "draft";
-    drafts[1]!.returnFeedback = { employeeId: "j00808875", returnedAt: createdAt,
-      reason: "【模拟】请补充通知失败后的业务恢复规则及验收依据。" };
+    drafts[1]!.returnFeedback = {
+      employeeId: "j00808875",
+      returnedAt: createdAt,
+      reason: "请补充通知失败后的业务恢复规则及验收依据。",
+    };
   }
   const result: AIReqWorkflowView = {
     version: 1,
@@ -361,15 +410,15 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       ]),
     ),
     operations: [
-      receipt("需求样例整理", 1, "ir-auth"),
-      receipt("提案方案已随需求合入（样例）", 2, "ir-auth"),
-      receipt("计划样例准备", 3, "ir-auth", "sr-session"),
+      receipt("需求整理", 1, "ir-auth"),
+      receipt("提案方案已随需求合入", 2, "ir-auth"),
+      receipt("计划准备", 3, "ir-auth", "sr-session"),
       receipt("验证报告展示", 4, "ir-auth", "sr-permissions"),
       receipt("交付信息展示", 5, "ir-auth", "sr-audit"),
       receipt("完成状态展示", 6, "ir-auth", "sr-onboarding"),
-      receipt("需求样例整理", 7, "ir-dashboard"),
-      receipt("草稿样例创建", 8, "draft-automation"),
-      receipt("移动工作台样例", 9, "ir-mobile", "sr-mobile-navigation"),
+      receipt("需求整理", 7, "ir-dashboard"),
+      receipt("草稿创建", 8, "draft-automation"),
+      receipt("移动工作台需求", 9, "ir-mobile", "sr-mobile-navigation"),
       receipt("离线体验草稿", 10, "ir-mobile-offline"),
     ],
     sessions: [...groups, ...drafts]
@@ -384,7 +433,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       projectId: item.projectId,
       irId: item.irId,
       srId: item.srId,
-      status: "M（样例）",
+      status: "M",
     })),
   };
   if (

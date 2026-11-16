@@ -74,8 +74,6 @@ function haveResetKeysChanged(
 }
 
 function ErrorFallback({
-  error,
-  componentStack,
   onReset,
   onReload,
   isDesktop,
@@ -90,8 +88,6 @@ function ErrorFallback({
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
 }) {
-  const errorSummary = error.message.trim() || formatBoundaryMessage("appError.unknown");
-
   return (
     <DesktopWindowFrame
       title={formatBoundaryMessage("appError.title")}
@@ -111,16 +107,12 @@ function ErrorFallback({
             <AlertTriangleIcon className="size-5" />
           </div>
 
-          <h1 className="mt-4 text-lg font-semibold text-foreground">
+          <h1 className="mt-4 text-ui-lg font-semibold text-foreground">
             {formatBoundaryMessage("appError.title")}
           </h1>
           <p className="mt-2 text-ui-base leading-6 text-on-surface-muted">
             {formatBoundaryMessage("appError.description")}
           </p>
-
-          <div className="mt-4 rounded-2xl border border-border bg-background px-3 py-2 font-mono text-ui-base leading-5 text-on-surface-muted">
-            {errorSummary}
-          </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
             <Button type="button" onClick={onReset}>
@@ -136,18 +128,7 @@ function ErrorFallback({
             {formatBoundaryMessage("appError.hint")}
           </p>
 
-          {componentStack ? (
-            <details className="mt-4 rounded-2xl border border-border bg-background px-3 py-2">
-              <summary className="cursor-pointer text-ui-base font-medium text-on-surface-muted">
-                {formatBoundaryMessage("appError.details")}
-              </summary>
-              <pre className="mt-2 max-h-[40vh] overflow-auto whitespace-pre-wrap break-words text-ui-base leading-5 text-on-surface-muted">
-                {/* 组件堆栈展开后会瞬间增高，限制 pre 高度并独立滚动，
-                    避免 details 撑满全屏导致主操作区被挤出可视区域。 */}
-                {componentStack.trim()}
-              </pre>
-            </details>
-          ) : null}
+          {/* 原始异常与组件堆栈只走诊断回调，不在普通用户错误页回显。 */}
         </div>
       </div>
     </DesktopWindowFrame>
@@ -155,8 +136,6 @@ function ErrorFallback({
 }
 
 function ScopedErrorFallback({
-  error,
-  componentStack,
   onReset,
   onReload,
   variant = "panel",
@@ -173,9 +152,7 @@ function ScopedErrorFallback({
     return null;
   }
 
-  const errorSummary = error.message.trim() || formatBoundaryMessage("appError.unknown");
   const isCompact = variant === "compact";
-  const showDetails = variant !== "compact";
 
   if (isCompact) {
     return (
@@ -191,7 +168,6 @@ function ScopedErrorFallback({
           <p className="truncate text-ui-base font-medium text-foreground">
             {formatBoundaryMessage("appError.sectionTitle")}
           </p>
-          <p className="truncate font-mono text-ui-base text-foreground-subtle">{errorSummary}</p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={onReset}>
           {formatBoundaryMessage("appError.sectionRetry")}
@@ -211,9 +187,6 @@ function ScopedErrorFallback({
       <p className="mt-1 text-ui-base leading-5 text-foreground-subtle">
         {formatBoundaryMessage("appError.sectionDescription")}
       </p>
-      <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 font-mono text-ui-base leading-5 text-foreground-subtle">
-        {errorSummary}
-      </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="button" size="sm" onClick={onReset}>
           {formatBoundaryMessage("appError.sectionRetry")}
@@ -226,16 +199,6 @@ function ScopedErrorFallback({
       <p className="mt-3 text-ui-base leading-5 text-foreground-subtle">
         {formatBoundaryMessage("appError.sectionHint")}
       </p>
-      {showDetails && componentStack ? (
-        <details className="mt-3 rounded-lg border border-border bg-background px-3 py-2">
-          <summary className="cursor-pointer text-ui-base font-medium text-foreground-subtle">
-            {formatBoundaryMessage("appError.details")}
-          </summary>
-          <pre className="mt-2 max-h-[32vh] overflow-auto whitespace-pre-wrap break-words text-ui-base leading-5 text-foreground-subtle">
-            {componentStack.trim()}
-          </pre>
-        </details>
-      ) : null}
     </>
   );
 

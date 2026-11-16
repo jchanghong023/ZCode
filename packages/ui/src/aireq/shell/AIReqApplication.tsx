@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useState } from "react";
 import { LucideProvider } from "lucide-react";
 import type { AIReqDataSource } from "../contract.js";
@@ -24,11 +25,9 @@ import { AIReqShell } from "./AIReqShell.js";
 export function AIReqApplication(props: AIReqApplicationProps) {
   const [identity] = useState(() => {
     setEmployeeId(props.operator.employeeNumber);
-    const demo = new URLSearchParams(window.location.search).get("demo");
     return {
       employeeId: props.operator.employeeNumber,
       clientId: getStreamClientId(),
-      ...(demo === null ? {} : { demo }),
     };
   });
   const [source, setSource] = useState<AIReqDataSource>();
@@ -48,7 +47,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
         } else void value.dispose();
       },
       (cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setError(formatUserFacingError(cause, "暂时无法加载工作区，请重试。"));
       },
     );
     return () => {

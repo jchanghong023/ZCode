@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { resolveRequestSecurityErrorMessageId } from "@/request-security-edition/errors.js";
 /**
@@ -119,7 +120,7 @@ export function resolveChatErrorBannerDisplayMessage(
   if (error.code === "CLAUDE_UNKNOWN_COMMAND") {
     const parsed = parseClaudeUnknownCommandMessage(error.message);
     if (!parsed) {
-      return error.message;
+      return formatUserFacingError(error, intl.formatMessage({ id: "chat.error.operationFailed" }));
     }
 
     // Bugfix: 服务层为了兼容历史快照仍持久化中文兜底文案，UI 需要按稳定 code
@@ -157,7 +158,7 @@ export function resolveChatErrorBannerDisplayMessage(
 
   return error.code && LOCALIZED_ERROR_CODES.has(error.code)
     ? intl.formatMessage({ id: `zcode.error.${error.code}` })
-    : error.message;
+    : formatUserFacingError(error, intl.formatMessage({ id: "chat.error.operationFailed" }));
 }
 
 export function shouldSuppressChatErrorBanner(
@@ -199,6 +200,8 @@ export function ChatErrorBanner({
     intl,
     modelConfigTarget,
   );
+  // 错误详情与复制内容使用同一公开边界；未知异常和服务端堆栈不能从详情入口泄漏。
+  const publicDetail = formatUserFacingError(error.detail, "");
   const modelConfigMissing = isModelConfigMissingError(error);
   const hookBlocked = error.code === "fault.runtime.hookBlocked";
   if (shouldSuppressChatErrorBanner(error)) {
@@ -219,19 +222,22 @@ export function ChatErrorBanner({
       await writeClipboardText(
         buildErrorCopyText({
           message: localizedErrorMessage,
-          detail: error.detail,
-          traceId: error.traceId,
+          detail: publicDetail,
+          traceId:
+            error.traceId && /^[a-zA-Z0-9_-]{1,128}$/.test(error.traceId)
+              ? error.traceId
+              : undefined,
           formatMessage: (id: string, values?: Record<string, string>) =>
             intl.formatMessage({ id }, values),
         }),
       );
       toast(intl.formatMessage({ id: "chat.error.copyFull.copied" }));
-    } catch (copyError) {
+    } catch {
       toast(
         intl.formatMessage(
           { id: "chat.error.copyFailed" },
           {
-            error: copyError instanceof Error ? copyError.message : String(copyError),
+            error: intl.formatMessage({ id: "chat.error.clipboardUnavailable" }),
           },
         ),
       );
@@ -289,7 +295,7 @@ export function ChatErrorBanner({
           </>
         ) : null}
 
-        {!modelConfigMissing && error.detail ? (
+        {!modelConfigMissing && publicDetail && publicDetail !== localizedErrorMessage ? (
           <>
             <Button
               type="button"
@@ -314,7 +320,7 @@ export function ChatErrorBanner({
                   </DialogDescription>
                 </DialogHeader>
                 <pre className="max-h-[60vh] overflow-auto rounded-xl border border-border bg-surface px-3 py-2 text-ui-base whitespace-pre-wrap text-foreground-subtle">
-                  {error.detail}
+                  {publicDetail}
                 </pre>
               </DialogContent>
             </Dialog>

@@ -1,5 +1,7 @@
 # 模拟后端（Mock Backend）规范
 
+当前对外部署面以 [产品发布边界](../specs/aireq-migration/release-surface.md) 为准。模拟场景仅属服务端内部实现，不能由浏览器 URL、身份参数或公开 RPC 控制；部署按服务／方法／事件显式白名单暴露，内部异常不下发堆栈。
+
 `packages/server` 是纯 Web 形态的模拟后端：内存态、确定性数据，经与真实服务端相同的 WebSocket RPC（`@zcode/rpc` ChannelServer + Protocol v4）向浏览器 UI 提供 `packages/services` 契约。本文记录模拟后端能力、状态所有者和协议约束，不建立独立的能力矩阵实现层。AIReq 当前业务范围及逐组验收纪律以根 `.todo.md` 的现行规则为最新权威，历史实测只证明其记录版本；本次文档同步不新增工程、浏览器、真实 AI 或 Git 验收声明。
 
 当前电脑 Web 只有项目进度、待办列表、正式需求、需求提案、进度分析五个主导航，设置只有外观、项目、模型、个性化。Skill 入口暂时隐藏，`skillDesign.*`、实现、数据与私有原生会话保留。接口清理的完整冻结删除／保留表见 [契约设计 §当前可达接口收口（2026-11-16）](../specs/aireq-migration/contract-design.md)；当前文档不以旧页面、惰性代理或通用控件的 DTO 存留扩大 RPC／HTTP 能力。

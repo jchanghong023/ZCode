@@ -1,5 +1,7 @@
 # 项目目标与 UI 保真策略
 
+公开产品界面和接口以 [发布边界](specs/aireq-migration/release-surface.md) 为准：业务操作保留，原型场景／调试控制退出浏览器契约；模拟后端事实与真实上线阻断项保持明确。
+
 本仓库源自上游 ZCode（开源 Agent 产品），当前产品目标为 **AIReq：以 AI 为中心的需求管理平台**。当前业务范围以根 `.todo.md` 为最新权威，旧 `oh-my-pi/packages/aireq-frontend` 仅为迁移来源，不以其存量功能扩大范围；以当前 ZCode 基座提供工号入口、需求管理、工具及设置入口。Issue 与 AIReq 自动化专属能力已按用户要求裁撤，不保留并行旧普通聊天产品，也不恢复停用的编码执行流水线。
 
 AIReq 不是架构、UI 或几何基准。架构、服务接入、布局、控件、配色、字体和全部显示效果均以**当前检出的 ZCode**及 `DESIGN.md` 为准；不复刻 AIReq 的坐标、间距或默认分栏比例，不复制旧前端工程／通用组件／主题，不拉取上游或与上游快照、`base` 做对照。本次迁移规格位于 [docs/specs/aireq-migration/](specs/aireq-migration/integration.md)，规格先于行为实现。

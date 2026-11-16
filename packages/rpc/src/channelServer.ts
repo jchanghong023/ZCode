@@ -10,6 +10,50 @@ import {
   ResponseType,
 } from "./channels.shared.js";
 
+type PublicRpcError = Extract<IRawResponse, { type: ResponseType.PromiseError }>["data"];
+
+/** 远程错误只包含明确公开的业务消息与稳定标识，服务端诊断留在服务端。 */
+function serializePublicError(error: unknown): PublicRpcError {
+  const record = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
+  const code =
+    typeof record.code === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,95}$/.test(record.code)
+      ? record.code
+      : error instanceof Error && /^(?:fault|proto)\.[A-Za-z0-9_.-]+$/.test(error.message)
+        ? error.message
+        : "INTERNAL_ERROR";
+  const publicMessage =
+    record.publicMessage === true &&
+    typeof record.message === "string" &&
+    record.message.length > 0 &&
+    record.message.length <= 1000;
+  if (!publicMessage) console.error("[rpc] request failed", error);
+  const payload: PublicRpcError = {
+    name: "Error",
+    message: publicMessage ? (record.message as string) : "请求未能完成，请稍后重试。",
+    stack: undefined,
+    code,
+  };
+  // 仅保留调用方判断重试所需的标量；data/detail/details 可能含本机路径或原始响应。
+  if (typeof record.retryable === "boolean") payload.retryable = record.retryable;
+  if (
+    typeof record.status === "number" &&
+    Number.isInteger(record.status) &&
+    record.status >= 100 &&
+    record.status <= 599
+  )
+    payload.status = record.status;
+  if (
+    typeof record.retryAfterMs === "number" &&
+    Number.isFinite(record.retryAfterMs) &&
+    record.retryAfterMs >= 0 &&
+    record.retryAfterMs <= 86_400_000
+  )
+    payload.retryAfterMs = record.retryAfterMs;
+  if (typeof record.traceId === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(record.traceId))
+    payload.traceId = record.traceId;
+  return payload;
+}
+
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
   private channels = new Map<string, IServerChannel<TContext>>();
   private activeRequests = new Map<number, IDisposable>();
@@ -134,61 +178,10 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
           });
         },
         (error) => {
-          if (error instanceof Error) {
-            const rpcErrorPayload: {
-              message: string;
-              name: string;
-              stack: string[] | undefined;
-              code?: unknown;
-              kind?: unknown;
-              status?: unknown;
-              retryAfterMs?: unknown;
-              data?: unknown;
-              detail?: unknown;
-              details?: unknown;
-              taskId?: unknown;
-              traceId?: unknown;
-              retryable?: unknown;
-              profileId?: unknown;
-            } = {
-              message: error.message,
-              name: error.name,
-              stack: error.stack ? error.stack.split("\n") : undefined,
-            };
-            const errorRecord = error as Error & Record<string, unknown>;
-            const passthroughKeys = [
-              "code",
-              "kind",
-              "status",
-              "retryAfterMs",
-              "data",
-              "detail",
-              "details",
-              "taskId",
-              "traceId",
-              "retryable",
-              // Bug 原因：Host 的远程等待点（需要安装/升级、补凭据）用 profileId 指明实际操作线路；
-              // 旧白名单丢掉它，侧栏项目只能把不含凭据的目标交给向导，确认安装后报“SSH 认证失败”。
-              "profileId",
-            ] as const;
-            for (const key of passthroughKeys) {
-              const value = errorRecord[key];
-              if (value !== undefined) {
-                rpcErrorPayload[key] = value;
-              }
-            }
-            this.sendResponse({
-              id: request.id,
-              data: rpcErrorPayload,
-              type: ResponseType.PromiseError,
-            });
-            return;
-          }
-
           this.sendResponse({
             id: request.id,
-            data: error,
-            type: ResponseType.PromiseErrorObj,
+            data: serializePublicError(error),
+            type: ResponseType.PromiseError,
           });
         },
       )
@@ -230,11 +223,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
       this.sendResponse({
         id: request.id,
         type: ResponseType.EventError,
-        data: {
-          name: error instanceof Error ? error.name : "Error",
-          message: error instanceof Error ? error.message : String(error),
-          ...(error instanceof Error && error.stack ? { stack: error.stack.split("\n") } : {}),
-        },
+        data: serializePublicError(error),
       });
     }
   }
@@ -256,19 +245,17 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
     const timer = setTimeout(() => {
       console.error(`Unknown channel: ${request.channelName}`);
-      if (request.type !== RequestType.Promise) {
-        return;
+      const data = {
+        name: "Error",
+        message: "此功能暂不可用，请刷新后重试。",
+        stack: undefined,
+        code: "SERVICE_UNAVAILABLE",
+      };
+      if (request.type === RequestType.EventListen) {
+        this.sendResponse({ id: request.id, type: ResponseType.EventError, data });
+      } else {
+        this.sendResponse({ id: request.id, type: ResponseType.PromiseError, data });
       }
-
-      this.sendResponse({
-        id: request.id,
-        data: {
-          name: "Unknown channel",
-          message: `Channel name '${request.channelName}' timed out after ${this.timeoutDelay}ms`,
-          stack: undefined,
-        },
-        type: ResponseType.PromiseError,
-      });
     }, this.timeoutDelay);
 
     pendingRequests.push({ request, timer });

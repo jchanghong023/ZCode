@@ -1,4 +1,5 @@
-import { initialSelectionForDemo } from "./fixture-builders.js";
+import { digestValue } from "./content-digest.js";
+import { businessRule, publicBusinessProjection } from "./errors.js";
 import { Emitter } from "@zcode/rpc";
 import { IZCodeAgentService, type ServiceCollection } from "@zcode/services";
 import { createServiceLogger } from "@zcode/services/logger";
@@ -16,7 +17,6 @@ import {
   type AIReqRemoteResult,
   type AIReqSelection,
   type AIReqAction,
-  type AIReqRequirementGroup,
 } from "@zcode/services/aireq";
 import { AIReqNativeBusiness } from "./native-business.js";
 import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./identity.js";
@@ -29,10 +29,6 @@ import {
   prototypeWorkflowChanges,
   pollPrototypeProposalMerges,
   notifyPrototypeProjectSettingsChanged,
-  setPrototypeProposalMergeScenario,
-  setPrototypeProposalReviewScenario,
-  releasePrototypeProposalReviewResults,
-  setPrototypeBranchCreationFailure,
 } from "./workflow.js";
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
@@ -44,14 +40,11 @@ import {
   recordPrototypeSrTest,
   previewPrototypeBranchCleanup,
   cleanupPrototypeBranches,
-  simulatePrototypeCodeMerge,
-  failNextPrototypeBranchCleanup,
 } from "./progress.js";
 import { withPrototypePlanning, updatePrototypeSrPlanning } from "./planning.js";
 import { createPrototypeProgressScheduler } from "./progress-scheduler.js";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { retryPrototypeMaterialRead, retryPrototypeSessionRead } from "./recovery.js";
-import { getPrototypePeers } from "./collaboration.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
 
@@ -77,16 +70,8 @@ const commands = [
 ] as const;
 const provenance = {
   kind: "sample" as const,
-  notice: "服务端共享内存模拟；不调用真实模型、Git、文件保存或认证。服务重启恢复初始样例。",
-};
-const employeeDirectory = {
-  kind: "sample" as const,
-  entries: [
-    { employeeId: "j00808874", name: "林晨", department: "平台研发部" },
-    { employeeId: "j00808875", name: "陈宁", department: "平台研发部" },
-    { employeeId: "j00808876", name: "陈宁", department: "芯片验证部" },
-    { employeeId: "j00808877", name: "周敏", department: "芯片验证部" },
-  ],
+  notice:
+    "演示环境：数据会在服务重启后重置；当前未连接真实 AI、代码托管或文件存储，工号用于记录操作者。",
 };
 
 /** One instance is registered by createMockServices; connection scopes never dispose it. */
@@ -127,7 +112,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           () => this.scheduler.tick(),
         );
       } catch (error) {
-        logger.error(undefined, "Background scheduler advancement failed", { error: String(error) });
+        logger.error(undefined, "Background scheduler advancement failed", {
+          error: String(error),
+        });
       }
     }, 5000);
     this.timer.unref();
@@ -137,34 +124,21 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("command", (action: AIReqAction, selection: AIReqSelection, revision: number) =>
       this.command(action, selection, revision),
     );
-    add("readPrHandoff", (group: AIReqRequirementGroup) =>
-      readPrototypeProposalPrHandoff(this.group(group)),
+    add("readPrHandoff", (target: { projectId: string; irId: string }) =>
+      readPrototypeProposalPrHandoff(this.group(target)),
     );
-    add(
-      "prototype.readPrHandoff",
-      (
-        group: AIReqRequirementGroup,
-        scenario?: Parameters<typeof readPrototypeProposalPrHandoff>[1],
-      ) => readPrototypeProposalPrHandoff(this.group(group), scenario),
-    );
-    add("prototype.setProposalMergeScenario", setPrototypeProposalMergeScenario);
-    add("prototype.setProposalReviewScenario", setPrototypeProposalReviewScenario);
-    add("prototype.releaseProposalReviewResults", releasePrototypeProposalReviewResults);
-    add("prototype.failNextBranchCreation", setPrototypeBranchCreationFailure);
-    add("prototype.simulateCodeMerge", simulatePrototypeCodeMerge);
-    add("prototype.failNextBranchCleanup", failNextPrototypeBranchCleanup);
     add("retryMaterial", (path: string, selection: AIReqSelection) => {
       if (
         !getPrototypeWorkflow(selection).materials.some(
           (item) => item.irId === selection.irId && item.path === path,
         )
       )
-        throw new Error("材料不属于当前对象。");
+        throw businessRule("材料不属于当前需求。");
       return retryPrototypeMaterialRead(path);
     });
     add("retrySession", (selection: AIReqSelection) => {
       const session = resolvePrototypeSession(getPrototypeWorkflow(selection), selection);
-      if (!session) throw new Error("会话不存在。");
+      if (!session) throw businessRule("会话不存在或已删除。");
       retryPrototypeSessionRead(session.sessionId);
     });
     add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) => {
@@ -172,7 +146,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     add("models.read", models.readPrototypeAgentModels);
     add("models.save", models.savePrototypeAgentModels);
-    add("models.samples", models.createPrototypeAgentModelSamples);
     add("models.revision", models.prototypeAgentModelConfigurationRevision);
     add("models.bindingChanged", models.prototypeAgentModelBindingChanged);
     add("prompts.read", prompts.readPrototypeAgentPrompts);
@@ -194,7 +167,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("skillDesign.readPreview", skills.readPrototypeSkillDesignPreview);
     add("skillDesign.listSkills", readPrototypeSkills);
     add("skillDesign.savePreview", skills.savePrototypeSkillDesignPreview);
-    add("collaboration.peers", getPrototypePeers);
     for (const name of [
       "read",
       "queryTasks",
@@ -203,8 +175,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       "setProjectEnabled",
       "configure",
       "runNow",
-      "advance",
-      "setScenario",
     ] as const)
       this.methods.set(`progressScheduler.${name}`, (...args) =>
         Reflect.apply(this.scheduler[name], this.scheduler, args),
@@ -219,12 +189,12 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   ): Promise<unknown> {
     const identity = currentIdentity();
     if (!identity || !operationId.trim() || operationId.length > 200)
-      throw new Error("操作身份无效。");
+      throw businessRule("操作身份无效，请重新进入工作区。");
     const key = `${identity.employeeId}:${identity.clientId}:${path}:${operationId}`;
-    const digest = JSON.stringify(payload);
+    const digest = digestValue(payload);
     const prior = this.pendingOperations.get(key);
     if (prior) {
-      if (prior.digest !== digest) throw new Error("操作编号不能复用于不同输入。");
+      if (prior.digest !== digest) throw businessRule("操作编号不能复用于不同输入，请重新操作。");
       if (prior.result) return prior.result;
     }
     const result = Promise.resolve().then(operation);
@@ -235,10 +205,12 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     return result;
   }
-  private group(input: AIReqRequirementGroup) {
-    const view = getPrototypeWorkflow({ projectId: input.projectId, irId: input.id });
-    const group = [...view.drafts, ...view.groups].find((item) => item.id === input.id);
-    if (!group) throw new Error("NOT_FOUND: 提案不存在。");
+  private group(input: { projectId: string; irId: string }) {
+    const view = getPrototypeWorkflow(input);
+    const group = [...view.drafts, ...view.groups].find(
+      (item) => item.id === input.irId && item.projectId === input.projectId,
+    );
+    if (!group) throw businessRule("需求不存在或已删除。");
     return group;
   }
   private workflow(selection: AIReqSelection) {
@@ -281,18 +253,18 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   }
   private command(action: AIReqAction, selection: AIReqSelection, revision: number) {
     if (!(commands as readonly string[]).includes(action.type))
-      throw new Error("INVALID_ACTION: 此业务动作已退役或仅允许原生对话完成回调。");
+      throw businessRule("此操作不可用，请刷新页面后重试。");
     const metadata = action as AIReqAction & { operationId?: string; expectedRevision?: number };
     if (typeof metadata.operationId !== "string" || !metadata.operationId.trim())
-      throw new Error("业务操作必须携带稳定操作编号。");
+      throw businessRule("操作参数无效，请刷新页面后重试。");
     const key = metadata.operationId
       ? `${currentIdentity()?.employeeId}:${currentIdentity()?.clientId}:${metadata.operationId}`
       : undefined;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
-    const digest = JSON.stringify([{ ...action, expectedRevision: undefined }, selection]);
+    const digest = digestValue([{ ...action, expectedRevision: undefined }, selection]);
     const prior = key ? this.operations.get(key) : undefined;
     if (prior) {
-      if (prior.digest !== digest) throw new Error("操作编号已被不同命令使用。");
+      if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");
       return structuredClone(prior.result);
     }
     const current = getPrototypeWorkflow(selection);
@@ -300,15 +272,11 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       revision !== current.revision ||
       (metadata.expectedRevision !== undefined && metadata.expectedRevision !== current.revision)
     )
-      throw Object.assign(new Error("需求版本已变化，请重新读取当前版本。"), {
-        code: "VERSION_CONFLICT",
-      });
-    const result = applyPrototypeAction(action, selection);
-    if (metadata.operationId) {
-      result.operationId = metadata.operationId;
-      result.receipt.operationId = metadata.operationId;
-      result.receipt.commandDigest = digest;
-    }
+      throw businessRule("需求版本已变化，请重新读取当前版本。");
+    const result = applyPrototypeAction(action, selection, undefined, {
+      operationId: metadata.operationId,
+      commandDigest: digest,
+    });
     if (key) this.operations.set(key, { digest, result: structuredClone(result) });
     return result;
   }
@@ -316,8 +284,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
       provenance,
-      backend: PROTOTYPE_BACKEND,
-      scenarioOperations: true,
+      backend: { id: PROTOTYPE_BACKEND.id },
       capabilities: {
         proposalDiscussion: true,
         codeDevelopment: false,
@@ -327,52 +294,26 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         nativeChat: true,
         nativeSurface: false,
       },
-      serviceManifest: {
-        zcodeAgentService: [
-          "helloConversationV4",
-          "initializeConversationV4",
-          "setConnectionFlowStateV4",
-          "subscribeConversationV4",
-          "resyncConversationV4",
-          "unsubscribeConversationV4",
-          "sendConversationCommandV4",
-          "queryConversationCommandsV4",
-          "conversationRowsRangeV4",
-          "onDynamicConversationFrame",
-          "subscribeSessionsIndexV4",
-          "resyncSessionsIndexV4",
-          "unsubscribeSessionsIndexV4",
-          "onDynamicSessionsIndexFrame",
-          "subscribeWorkspaceConfigV4",
-          "resyncWorkspaceConfigV4",
-          "unsubscribeWorkspaceConfigV4",
-          "onDynamicWorkspaceConfigFrame",
-          "attachmentBeginV4",
-          "attachmentChunkV4",
-          "attachmentCommitV4",
-          "attachmentAbortV4",
-          "attachmentReadV4",
-          "attachmentPreviewSourceV4",
-          "conversationAttachmentReadV4",
-          "conversationAttachmentStatV4",
-        ],
-      },
-      initialSelection: identity.demo ? initialSelectionForDemo(identity.demo) : DEFAULT_SELECTION,
-      employeeDirectory,
+      initialSelection: DEFAULT_SELECTION,
       models: {
-        choices: models.PROTOTYPE_AGENT_MODELS,
+        choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
+          id,
+          name,
+          provider,
+        })),
         settings: models.readPrototypeAgentModels(),
         revision: models.prototypeAgentModelConfigurationRevision(),
       },
       prompts: prompts.readPrototypeAgentPrompts(),
       projects: {
-        directories: [],
         developmentRoots: Object.fromEntries(
           getPrototypeWorkflow().projects.map((project) => [project.id, project.root]),
         ),
       },
-      peers: getPrototypePeers(),
-      skillDesignSample: skills.PROTOTYPE_SKILL_DESIGN_SAMPLE,
+      skillDesignStorage: {
+        workspacePath: PROTOTYPE_BACKEND.configDirectory,
+        sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
+      },
     }));
   }
   async call<P extends AIReqRemotePath>(
@@ -393,7 +334,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       )
         skills.assertSkillSession(String(args[0]));
       const method = this.methods.get(path);
-      if (!method) throw new Error("UNKNOWN_PATH");
+      if (!method) throw businessRule("此操作不可用，请刷新页面后重试。");
       const input = args[0];
       const operationId =
         input && typeof input === "object" && "operationId" in input
@@ -419,7 +360,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           at: new Date().toISOString(),
         });
       }
-      return structuredClone(result ?? null) as AIReqRemoteResult<P>;
+      return publicBusinessProjection(structuredClone(result ?? null)) as AIReqRemoteResult<P>;
     });
   }
 }
@@ -454,6 +395,20 @@ export function getConnectionServices(
     },
   });
   const overrides = modelCatalogOverrides(services);
+  // 普通业务与原生会话必须属于同一连接身份，不能仅相信每次RPC正文自报的操作者。
+  const connectionIdentity = (value: AIReqIdentity): AIReqIdentity => {
+    const incoming = validateAIReqIdentity(value);
+    if (incoming.employeeId !== fixed.employeeId || incoming.clientId !== fixed.clientId)
+      throw businessRule("连接身份已变化，请重新进入工作区。");
+    return fixed;
+  };
+  const scopedBusiness: IAIReqService = {
+    bootstrap: (value) => business.bootstrap(connectionIdentity(value)),
+    call: (value, path, args, selection) =>
+      business.call(connectionIdentity(value), path, args, selection),
+    onDidChange: business.onDidChange,
+  };
+  overrides.set(AIReqDescriptor.channelName, scopedBusiness);
   overrides.set(IZCodeAgentService.channelName, facade);
   return overrides;
 }

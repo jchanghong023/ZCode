@@ -5,15 +5,12 @@ import type {
   AIReqWorkflowView,
   AIReqWorkflowResult,
   AIReqNativeSessionRef,
-  AIReqPeer,
   AIReqAgentModelSettings,
   AIReqAgentModelBinding,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
   AIReqPrHandoff,
-  AIReqPrHandoffScenario,
   AIReqWorkspace,
-  AIReqProposalMergeScenario,
   AIReqSrPlanningInput,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
@@ -23,17 +20,11 @@ import type {
   AIReqTestAcceptanceInput,
   AIReqBranchCleanupInput,
   AIReqBranchCleanupItem,
-  AIReqCodeMergeInput,
-  AIReqVersionedProgressInput,
 } from "./progress.js";
 
 export interface AIReqBackendView {
+  /** Opaque backend identity used to isolate browser preferences. */
   id: string;
-  kind: "developer" | "team";
-  owner: string;
-  name: string;
-  configDirectory: string;
-  userSkillsDirectory: string;
 }
 
 /** Factual data origin only; supported workflows are selected by capabilities. */
@@ -53,11 +44,9 @@ export type AIReqDirectoryCheck =
   | { valid: false; error: string }
   | { valid: true; root: string; directory: AIReqDirectory };
 
-/** Registered service names and their exposed members, as reported by this backend. */
-export type AIReqServiceManifest = Readonly<Record<string, readonly string[]>>;
 export interface AIReqProjectServices {
   saveRepository?(input: AIReqRemoteRepositoryInput): Promise<void>;
-  readDevelopmentRoot(projectId: string, employeeId?: string): string | undefined;
+  readDevelopmentRoot(projectId: string): string | undefined;
 }
 export interface AIReqModelServices {
   choices: readonly { id: string; name: string; provider: string }[];
@@ -66,7 +55,6 @@ export interface AIReqModelServices {
   revision(): number;
   subscribe(listener: () => void): () => void;
   bindingChanged(binding: AIReqAgentModelBinding): boolean;
-  samples?: () => AIReqAgentModelSettings;
 }
 export interface AIReqPromptServices {
   read(): { saved: Record<string, string>; draft: Record<string, string>; revision: number };
@@ -74,6 +62,7 @@ export interface AIReqPromptServices {
   save(value: Record<string, string>, expectedRevision: number): void | Promise<void>;
 }
 export interface AIReqSkillDesignServices {
+  readonly storage: { workspacePath: string; sharedSkillsDirectory: string };
   session(projectId: string): string | Promise<string>;
   binding(sessionId: string): AIReqAgentModelBinding | Promise<AIReqAgentModelBinding>;
   workspaceIdentity(projectId: string): string | Promise<string>;
@@ -94,33 +83,8 @@ export interface AIReqSkillDesignServices {
     expectedPreviewRevision: number,
     operationId: string,
   ): Promise<AIReqSkillSaveReceipt>;
-  sample?: AIReqSkillDesignDraft;
-}
-export interface AIReqPrototypeScenarios {
-  setProposalMergeScenario(
-    projectId: string,
-    irId: string,
-    scenario: AIReqProposalMergeScenario,
-  ): void | Promise<void>;
-  readPrHandoff(
-    group: AIReqWorkflowView["groups"][number],
-    scenario?: AIReqPrHandoffScenario,
-  ): AIReqPrHandoff | Promise<AIReqPrHandoff>;
-  setProposalReviewScenario(
-    projectId: string, irId: string, kind: "original" | "full",
-    scenario: "normal" | "blocked" | "failed" | "hold",
-  ): void | Promise<void>;
-  releaseProposalReviewResults(projectId: string, irId: string): void | Promise<void>;
-  failNextBranchCreation(projectId: string, irId: string, srId: string): void | Promise<void>;
-  simulateCodeMerge(projectId: string, irId: string, srId: string, input: AIReqCodeMergeInput): Promise<void>;
-  failNextBranchCleanup(projectId: string, irId: string, srId: string, input: AIReqVersionedProgressInput): Promise<void>;
-}
-export interface AIReqEmployeeDirectory {
-  kind: "sample" | "live";
-  entries: readonly { employeeId: string; name: string; department: string }[];
 }
 export interface AIReqDataSource {
-  employeeDirectory?: AIReqEmployeeDirectory;
   planning?: {
     updateSr(
       projectId: string,
@@ -132,12 +96,13 @@ export interface AIReqDataSource {
   progressScheduler?: AIReqProgressScheduler;
   progress?: {
     recordTest(
-      projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput,
+      projectId: string,
+      irId: string,
+      srId: string,
+      input: AIReqTestAcceptanceInput,
     ): Promise<void>;
     cleanupPreview(projectId: string, irId: string): Promise<AIReqBranchCleanupItem[]>;
-    cleanupBranches(
-      projectId: string, irId: string, input: AIReqBranchCleanupInput,
-    ): Promise<void>;
+    cleanupBranches(projectId: string, irId: string, input: AIReqBranchCleanupInput): Promise<void>;
   };
   provenance: AIReqDataProvenance;
   clientId: string;
@@ -151,11 +116,10 @@ export interface AIReqDataSource {
     nativeChat: boolean;
     nativeSurface: boolean;
   };
-  serviceManifest: AIReqServiceManifest;
   initialSelection: AIReqSelection;
   refreshIdentity?(): Promise<void>;
   readWorkflow(selection: AIReqSelection): Promise<AIReqWorkflowView>;
-  readPrHandoff(group: AIReqWorkflowView["groups"][number]): Promise<AIReqPrHandoff>;
+  readPrHandoff(target: { projectId: string; irId: string }): Promise<AIReqPrHandoff>;
   subscribeWorkflow(listener: () => void): () => void;
   command(
     action: AIReqAction,
@@ -175,6 +139,4 @@ export interface AIReqDataSource {
   models?: AIReqModelServices;
   prompts?: AIReqPromptServices;
   skillDesign?: AIReqSkillDesignServices;
-  collaboration?: { peers(projectId?: string): AIReqPeer[] };
-  prototype?: AIReqPrototypeScenarios;
 }

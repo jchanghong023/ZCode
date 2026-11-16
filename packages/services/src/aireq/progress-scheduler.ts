@@ -87,7 +87,6 @@ export interface AIReqAnalysisSnapshot {
   irs: { projectId: string; releaseId?: string; id: string; title: string }[];
   tasksTotal: number;
   runsTotal: number;
-  scaleDemo: boolean;
 }
 /** Scheduler queries are paginated by the owning service. */
 export interface AIReqProgressScheduler {
@@ -109,10 +108,5 @@ export interface AIReqProgressScheduler {
   setProjectEnabled(projectId: string, enabled: boolean): void | Promise<void>;
   configure(enabled: boolean, intervalMinutes: number): void | Promise<void>;
   runNow(filter: AIReqAnalysisFilter): void | Promise<void>;
-  setScenario(
-    filter: AIReqAnalysisFilter,
-    scenario: "normal" | "fail-next" | "hold-next" | "release-held",
-  ): void | Promise<void>;
-  advance(): void | Promise<void>;
   dispose(): void;
 }

@@ -25,8 +25,7 @@ export function AIReqAgentModelSummary({ binding }: { binding?: AIReqAgentModelB
     >
       <p>
         {binding.roleName} · {binding.modelName} · {binding.providerId} · 思考：{reasoning}
-        {binding.inherited ? " · 跟随默认（创建时）" : ""} · 模拟配置 v
-        {binding.configurationRevision}
+        {binding.inherited ? " · 跟随默认（创建时）" : ""}
       </p>
       {source.models?.bindingChanged(binding) && (
         <p>平台设置已更新；此会话保留创建时模型快照，仅新建会话使用新配置。</p>

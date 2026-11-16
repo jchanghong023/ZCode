@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useEffect, useRef, useState } from "react";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
@@ -75,7 +76,13 @@ function PersonalizationContent({
       });
       return true;
     } catch (cause) {
-      setMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
+      setMessage({
+        kind: "error",
+        text: formatUserFacingError(
+          cause,
+          zh ? "指令保存失败，请重试。" : "Could not save instructions. Please retry.",
+        ),
+      });
       return false;
     } finally {
       savingRef.current = false;
@@ -112,8 +119,8 @@ function PersonalizationContent({
       <AIReqPersonalConfigScope />
       <p className="text-ui-sm leading-6 text-foreground-subtle">
         {zh
-          ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令；当前为模拟执行，未调用真实模型。"
-          : "Saving updates the shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions. Execution is simulated; no real model is called."}
+          ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令。"
+          : "Saving updates the shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
       </p>
       <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>

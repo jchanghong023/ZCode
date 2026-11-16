@@ -107,9 +107,7 @@ export function AIReqDeleteRequirement({
           <AlertDialogHeader>
             <AlertDialogTitle>移除需求“{group.title}”？</AlertDialogTitle>
             <AlertDialogDescription>
-              {source.provenance.kind === "sample"
-                ? "从后端内存样例中移除需求；刷新页面保留，后端重启后恢复原始样例。"
-                : "仅移除服务端内存中允许删除的草稿，不操作真实 Git。"}
+              删除后将无法继续处理这条需求，请确认后再操作。
             </AlertDialogDescription>
           </AlertDialogHeader>
           {aireq.error && (
@@ -130,7 +128,7 @@ export function AIReqDeleteRequirement({
                 void remove();
               }}
             >
-              {source.provenance.kind === "sample" ? "移除内存草稿" : "确认删除"}
+              确认删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -84,17 +84,7 @@ export async function createRemoteAIReqDataSource(
   const readBootstrap = async (): Promise<AIReqRemoteBootstrap> => {
     const incoming = await services.aiReqService.bootstrap(identity);
     if (incoming.contractVersion !== AIREQ_CONTRACT_VERSION)
-      throw new Error(`Unsupported AIReq backend contract version: ${incoming.contractVersion}`);
-    if (
-      !incoming.serviceManifest ||
-      typeof incoming.serviceManifest !== "object" ||
-      Array.isArray(incoming.serviceManifest) ||
-      Object.values(incoming.serviceManifest).some(
-        (members) =>
-          !Array.isArray(members) || members.some((name) => typeof name !== "string" || !name),
-      )
-    )
-      throw new Error("AIReq backend returned an invalid service capability manifest");
+      throw new Error(`当前服务版本不兼容，请刷新页面或联系管理员。`);
     return incoming;
   };
   let metadata: AIReqRemoteBootstrap;
@@ -182,27 +172,6 @@ export async function createRemoteAIReqDataSource(
     subscription.dispose();
     throw cause;
   }
-  const scenarios: NonNullable<AIReqDataSource["prototype"]> = {
-    setProposalMergeScenario: async (...args) => {
-      await call("prototype.setProposalMergeScenario", args);
-    },
-    readPrHandoff: (...args) => call("prototype.readPrHandoff", args),
-    setProposalReviewScenario: async (...args) => {
-      await call("prototype.setProposalReviewScenario", args);
-    },
-    releaseProposalReviewResults: async (...args) => {
-      await call("prototype.releaseProposalReviewResults", args);
-    },
-    failNextBranchCreation: async (...args) => {
-      await call("prototype.failNextBranchCreation", args);
-    },
-    simulateCodeMerge: async (...args) => {
-      await call("prototype.simulateCodeMerge", args);
-    },
-    failNextBranchCleanup: async (...args) => {
-      await call("prototype.failNextBranchCleanup", args);
-    },
-  };
   const source: AIReqDataSource = {
     clientId,
     get provenance() {
@@ -214,14 +183,8 @@ export async function createRemoteAIReqDataSource(
     get capabilities() {
       return metadata.capabilities;
     },
-    get serviceManifest() {
-      return metadata.serviceManifest;
-    },
     get initialSelection() {
       return metadata.initialSelection;
-    },
-    get employeeDirectory() {
-      return metadata.employeeDirectory;
     },
     async refreshIdentity() {
       await refreshMetadata();
@@ -284,7 +247,7 @@ export async function createRemoteAIReqDataSource(
     retrySession: async (target) => {
       await call("retrySession", [target], target);
     },
-    readPrHandoff: (group) => call("readPrHandoff", [group]),
+    readPrHandoff: (target) => call("readPrHandoff", [target]),
     selectProject(projectId) {
       selection = { ...selection, projectId };
     },
@@ -326,10 +289,6 @@ export async function createRemoteAIReqDataSource(
       revision: () => metadata.models.revision,
       subscribe: (listener) => subscribe(modelListeners, listener),
       bindingChanged: (binding) => binding.configurationRevision !== metadata.models.revision,
-      get samples() {
-        const samples = metadata.models.samples;
-        return samples ? () => structuredClone(samples) : undefined;
-      },
     },
     prompts: {
       read: () => ({
@@ -349,6 +308,10 @@ export async function createRemoteAIReqDataSource(
       },
     },
     skillDesign: {
+      get storage() {
+        if (!metadata.skillDesignStorage) throw new Error("技能存储信息暂不可用，请重试。");
+        return metadata.skillDesignStorage;
+      },
       session: (...args) => call("skillDesign.session", args),
       binding: (...args) => call("skillDesign.binding", args),
       workspaceIdentity: (...args) => call("skillDesign.workspaceIdentity", args),
@@ -369,16 +332,6 @@ export async function createRemoteAIReqDataSource(
           },
         };
       },
-      get sample() {
-        return metadata.skillDesignSample;
-      },
-    },
-    collaboration: {
-      peers: (projectId) =>
-        metadata.peers.filter((peer) => !projectId || peer.projectId === projectId),
-    },
-    get prototype(): AIReqDataSource["prototype"] {
-      return metadata.scenarioOperations ? scenarios : undefined;
     },
     progressScheduler: {
       read: () => call("progressScheduler.read", []),
@@ -394,12 +347,6 @@ export async function createRemoteAIReqDataSource(
       },
       runNow: async (...args) => {
         await call("progressScheduler.runNow", args);
-      },
-      advance: async () => {
-        await call("progressScheduler.advance", []);
-      },
-      setScenario: async (...args) => {
-        await call("progressScheduler.setScenario", args);
       },
       dispose() {
         schedulerListeners.clear();

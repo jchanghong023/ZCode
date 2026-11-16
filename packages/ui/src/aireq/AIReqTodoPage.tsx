@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { ClipboardList, MoreHorizontal, UserRound, UserRoundPlus } from "lucide-react";
@@ -97,13 +98,16 @@ export function AIReqTodoPage() {
           view.revision,
         );
         if (result.status === "failed")
-          throw new Error(result.error ?? result.receipt.error ?? "联系人分配失败。");
+          throw Object.assign(
+            new Error(result.error ?? result.receipt.error ?? "联系人分配失败。"),
+            { code: "BUSINESS_RULE_VIOLATION" },
+          );
         await ai.refresh();
       }
       return true;
     } catch (error) {
       ai.report(error);
-      setAssignmentError(error instanceof Error ? error.message : String(error));
+      setAssignmentError(formatUserFacingError(error, "分配未完成，请重试。"));
       return false;
     } finally {
       setPending(undefined);

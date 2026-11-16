@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useState } from "react";
 
 export function useSchedulerQuery<T>(load: () => T | Promise<T>, revision: number, enabled = true) {
@@ -28,7 +29,7 @@ export function useSchedulerQuery<T>(load: () => T | Promise<T>, revision: numbe
             load,
             revision,
             value: previous?.load === load ? previous.value : undefined,
-            error: cause instanceof Error ? cause.message : String(cause),
+            error: formatUserFacingError(cause, "分析数据读取失败，请稍后重试。"),
             loading: false,
           }));
       }

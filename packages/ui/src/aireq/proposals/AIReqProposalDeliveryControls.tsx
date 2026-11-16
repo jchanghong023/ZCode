@@ -1,15 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { formatUserFacingError } from "@/lib/errorMessage.js";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
 import {
   Dialog,
   DialogContent,
@@ -28,13 +22,7 @@ import {
   proposalVersion,
   requirementMaterialName,
 } from "../contract.js";
-import type {
-  AIReqFileVersion,
-  AIReqPrHandoff,
-  AIReqPrHandoffScenario,
-  AIReqProposalMergeScenario,
-  AIReqRequirementGroup,
-} from "../contract.js";
+import type { AIReqFileVersion, AIReqPrHandoff, AIReqRequirementGroup } from "../contract.js";
 
 type DeliveryStep = "confirm" | "push" | "pr";
 interface DeliveryDialog {
@@ -45,67 +33,26 @@ interface DeliveryDialog {
 }
 const stepTitles: Record<DeliveryStep, string> = {
   confirm: "确认完整包并创建文档 PR",
-  push: "模拟文档分支、提交与 PR",
-  pr: "文档 PR 与 owner 合入核验",
+  push: "文档分支、提交与 PR",
+  pr: "文档 PR 与合入核验",
 };
-const mergeScenarios: { id: AIReqProposalMergeScenario; title: string }[] = [
-  { id: "unmerged", title: "提案分支尚未合入" },
-  { id: "merged", title: "提案分支已合入，文档完整" },
-  { id: "incomplete", title: "提案分支已合入，文档不完整" },
-  { id: "failed", title: "查询 MR 或默认分支失败" },
-  { id: "mr-closed", title: "MR 已关闭且未合入" },
-  { id: "stale-version", title: "合入候选与当前材料版本不符" },
-];
 
-export function AIReqProposalBackgroundStatus({
-  group,
-  readOnly = false,
-}: {
-  group: AIReqRequirementGroup;
-  readOnly?: boolean;
-}) {
-  const source = useAIReqDataSource();
+function resolveMrLink(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    // .invalid 是保留占位域；演示数据不能把它展示成可访问的 MR 链接。
+    const hostname = url.hostname.replace(/\.$/, "");
+    if (hostname === "invalid" || hostname.endsWith(".invalid")) return undefined;
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
+export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequirementGroup }) {
   const delivery = group.proposalDelivery;
-  const [scenarioPending, setScenarioPending] = useState(false);
-  const [scenarioError, setScenarioError] = useState<string | null>(null);
-  const mutation = useRef({ generation: 0, pending: false });
-  useEffect(() => {
-    const owner = mutation.current;
-    owner.pending = false;
-    setScenarioPending(false);
-    setScenarioError(null);
-    return () => {
-      owner.generation++;
-    };
-  }, [source.prototype, group.projectId, group.id]);
-  const changeScenario = async (value: string) => {
-    if (
-      !source.prototype ||
-      readOnly ||
-      !source.capabilities.proposalDiscussion ||
-      mutation.current.pending
-    )
-      return;
-    const generation = mutation.current.generation;
-    mutation.current.pending = true;
-    setScenarioPending(true);
-    setScenarioError(null);
-    try {
-      await source.prototype.setProposalMergeScenario(
-        group.projectId,
-        group.id,
-        value as AIReqProposalMergeScenario,
-      );
-    } catch (error) {
-      if (generation === mutation.current.generation)
-        setScenarioError(error instanceof Error ? error.message : String(error));
-    } finally {
-      if (generation === mutation.current.generation) {
-        mutation.current.pending = false;
-        setScenarioPending(false);
-      }
-    }
-  };
   if (!delivery?.pushedAt)
     return (
       <p className="text-ui-sm leading-6 text-foreground-subtle">
@@ -115,7 +62,7 @@ export function AIReqProposalBackgroundStatus({
     );
   const check = delivery.mergeCheck;
   const mr = group.requirementsPr;
-  const editable = !readOnly && source.capabilities.proposalDiscussion === true;
+  const mrLink = resolveMrLink(mr?.url);
   const time = (value?: string) =>
     value
       ? new Date(value).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })
@@ -137,14 +84,18 @@ export function AIReqProposalBackgroundStatus({
                   ? "已关闭，未合入"
                   : "待人工评审、合并"}
             </span>
-            <a
-              className="text-brand underline-offset-4 hover:underline"
-              href={mr.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              查看 MR
-            </a>
+            {mrLink ? (
+              <a
+                className="text-brand underline-offset-4 hover:underline"
+                href={mrLink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                查看 MR
+              </a>
+            ) : (
+              <span className="text-foreground-subtle">暂无可访问链接</span>
+            )}
           </div>
         )}
         <dl className="space-y-2 text-ui-sm">
@@ -175,46 +126,6 @@ export function AIReqProposalBackgroundStatus({
           MR 地址由平台记录，无需手填、人工通知或点击“确认合并”。
         </p>
       </div>
-      {source.prototype && (
-        <details className="space-y-2 rounded-lg border border-border p-4">
-          <summary className="cursor-pointer text-ui-sm text-foreground-subtle">
-            模拟 Git 核验结果（不执行真实操作）
-          </summary>
-          <div className="mt-3 space-y-2">
-            <Label htmlFor={`merge-scenario-${group.id}`}>预置 Git 检查结果</Label>
-            <Select
-              value={delivery.mergeScenario ?? "unmerged"}
-              disabled={!editable || scenarioPending}
-              onValueChange={changeScenario}
-            >
-              <SelectTrigger id={`merge-scenario-${group.id}`} aria-label="预置 Git 检查结果">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {mergeScenarios.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {scenarioPending && (
-              <p role="status" className="text-ui-sm text-foreground-subtle">
-                正在更新后台检查场景…
-              </p>
-            )}
-            {scenarioError && (
-              <p role="alert" className="text-ui-sm text-destructive">
-                {scenarioError}
-              </p>
-            )}
-            <p className="text-ui-xs leading-5 text-foreground-subtle">
-              仅改变预置远端场景，下一轮演示时钟自动检查。原型后端每 5 秒检查内存场景，不访问真实
-              Git、MR API、模型或数据库；刷新或关页不停止服务端检查。
-            </p>
-          </div>
-        </details>
-      )}
     </section>
   );
 }
@@ -232,16 +143,11 @@ export function AIReqProposalDeliveryControls({
   const aireq = useAIReq()!;
   const [dialog, setDialog] = useState<DeliveryDialog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [scenario, setScenario] = useState<AIReqPrHandoffScenario>("current");
   const [checkedFiles, setCheckedFiles] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
-  const prototype = source.prototype;
   const [handoffResult, setHandoffResult] = useState<{
-    prototype: typeof prototype;
     group: AIReqRequirementGroup;
-    scenario: AIReqPrHandoffScenario;
     handoff?: AIReqPrHandoff;
-    launchHandoff?: AIReqPrHandoff;
     error?: string;
   } | null>(null);
   useEffect(() => {
@@ -250,27 +156,13 @@ export function AIReqProposalDeliveryControls({
     if (!source.capabilities.requirementManagement) return;
     const load = async () => {
       try {
-        const [handoff, launchHandoff] = await Promise.all([
-          scenario !== "current" && prototype
-            ? prototype.readPrHandoff(group, scenario)
-            : source.readPrHandoff(group),
-          scenario === "current" ? undefined : source.readPrHandoff(group),
-        ]);
-        if (active)
-          setHandoffResult({
-            prototype,
-            group,
-            scenario,
-            handoff,
-            launchHandoff: launchHandoff ?? handoff,
-          });
+        const handoff = await source.readPrHandoff({ projectId: group.projectId, irId: group.id });
+        if (active) setHandoffResult({ group, handoff });
       } catch (error) {
         if (active)
           setHandoffResult({
-            prototype,
             group,
-            scenario,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatUserFacingError(error, "提案交付信息读取失败，请稍后重试。"),
           });
       }
     };
@@ -278,7 +170,7 @@ export function AIReqProposalDeliveryControls({
     return () => {
       active = false;
     };
-  }, [source, prototype, group, scenario]);
+  }, [source, group]);
   if (!source.capabilities.requirementManagement) return null;
   const delivery = group.proposalDelivery;
   const current = proposalDeliveryCurrent(group);
@@ -291,14 +183,8 @@ export function AIReqProposalDeliveryControls({
   const ready =
     hasCurrentProposalSolution(group) &&
     ["solution-ready", "requirements-pr"].includes(group.status);
-  const result =
-    handoffResult?.prototype === prototype &&
-    handoffResult?.group === group &&
-    handoffResult?.scenario === scenario
-      ? handoffResult
-      : null;
+  const result = handoffResult?.group === group ? handoffResult : null;
   const handoff = result?.handoff;
-  const launchHandoff = result?.launchHandoff;
   const handoffLoading = !result;
   const boundCurrent =
     !!dialog &&
@@ -325,7 +211,6 @@ export function AIReqProposalDeliveryControls({
       files: structuredClone(current && delivery ? delivery.files : group.files),
     });
     setDialogOpen(true);
-    setScenario("current");
     setCheckedFiles([]);
     setAcknowledged(false);
   };
@@ -360,13 +245,13 @@ export function AIReqProposalDeliveryControls({
           aireq.pending ||
           handoffLoading ||
           !!result?.error ||
-          (!pushed && (!mine || !ready || !launchHandoff?.ready))
+          (!pushed && (!mine || !ready || !handoff?.ready))
         }
         title={
           !ready
             ? "请先完成当前需求的方案设计。"
-            : !launchHandoff?.ready
-              ? launchHandoff?.blockers.join("；")
+            : !handoff?.ready
+              ? handoff?.blockers.join("；")
               : undefined
         }
         onClick={openDialog}
@@ -391,11 +276,11 @@ export function AIReqProposalDeliveryControls({
           {result.error}
         </p>
       )}
-      {!compact && !handoffLoading && !pushed && launchHandoff && !launchHandoff.ready && (
+      {!compact && !handoffLoading && !pushed && handoff && !handoff.ready && (
         <div className="space-y-1 text-ui-sm text-foreground-subtle" role="status">
           <p>提交剩余条件</p>
           <ul className="list-disc space-y-1 pl-5">
-            {launchHandoff.blockers.map((blocker) => (
+            {handoff.blockers.map((blocker) => (
               <li key={blocker}>{blocker}</li>
             ))}
           </ul>
@@ -476,11 +361,7 @@ export function AIReqProposalDeliveryControls({
               )}
               {dialog.step !== "pr" ? (
                 <>
-                  <AIReqProposalPrHandoff
-                    group={group}
-                    scenario={scenario}
-                    onScenarioChange={setScenario}
-                  />
+                  <AIReqProposalPrHandoff group={group} />
                   <fieldset className="space-y-2">
                     <legend className="text-ui-sm font-medium">
                       确认 IR 业务材料、全部 SR 独立 change、测试方案及整体验收
@@ -564,11 +445,15 @@ export function AIReqProposalDeliveryControls({
                     <Input
                       id="proposal-pr-url"
                       data-testid="proposal-pr-url"
-                      value={group.requirementsPr?.url ?? "等待平台创建 MR"}
+                      value={
+                        group.requirementsPr
+                          ? (resolveMrLink(group.requirementsPr.url) ?? "暂无可访问链接")
+                          : "等待平台创建 MR"
+                      }
                       readOnly
                     />
                   </div>
-                  <AIReqProposalBackgroundStatus group={group} readOnly={readOnly} />
+                  <AIReqProposalBackgroundStatus group={group} />
                 </>
               )}
               {aireq.error && (

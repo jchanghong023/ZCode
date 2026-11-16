@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
@@ -47,7 +48,10 @@ export function BranchCopy({ branch, onMessage }: BranchCopyProps) {
               onMessage(message);
             } catch (cause) {
               setCopiedBranch(undefined);
-              const message = `复制分支失败：${cause instanceof Error ? cause.message : String(cause)}`;
+              const message = formatUserFacingError(
+                cause,
+                "复制分支失败，请手动选择并复制分支名。",
+              );
               setFeedback(message);
               onMessage(message);
             } finally {

@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -178,7 +179,7 @@ export function AIReqEditPlanning({
                 await source.planning!.updateSr(group.projectId, group.id, sr.id, input);
                 setOpen(false);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
+                setError(formatUserFacingError(cause, "分工与计划保存失败，输入已保留，请重试。"));
               } finally {
                 setSaving(false);
               }

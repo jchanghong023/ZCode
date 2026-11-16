@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +37,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqRequirementViews } from "../shell/AIReqRequirementNavigation.js";
 import { proposalPhaseLabel } from "../contract.js";
-import { downloadProposalCsv, parseProposalCsv } from "./proposal-csv.js";
+import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
@@ -85,7 +86,10 @@ export function AIReqProposalTable() {
     } catch (error) {
       return {
         preview: null,
-        error: error instanceof Error ? error.message : "无法读取 UTF-8 CSV。",
+        error:
+          error instanceof ProposalCsvError
+            ? error.message
+            : formatUserFacingError(error, "CSV 解析失败，请检查文件格式。"),
       };
     }
   }, [csvContent, groups]);
@@ -485,7 +489,12 @@ export function AIReqProposalTable() {
                   if (generation === fileGeneration.current) setCsvContent(content);
                 } catch (error) {
                   if (generation === fileGeneration.current)
-                    setFileError(error instanceof Error ? error.message : "无法读取 UTF-8 CSV。");
+                    setFileError(
+                      formatUserFacingError(
+                        error,
+                        "文件读取失败，请确认 CSV 为有效的 UTF-8 编码。",
+                      ),
+                    );
                 }
               }}
             />

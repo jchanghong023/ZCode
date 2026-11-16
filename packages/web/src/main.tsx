@@ -103,11 +103,12 @@ interface WebBootstrapResult {
 }
 
 function renderWebBootstrapFailure(error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
+  // 原始连接异常可能含内部地址或协议细节；产品界面只提供稳定的恢复提示。
+  logger.error("[web] Application bootstrap failed", error);
   document.title = "AIReq · 启动失败";
   renderEntry(
     <div role="alert" className="m-auto p-6 text-ui-base text-destructive">
-      启动失败：{message}
+      暂时无法启动工作台，请刷新页面重试。
     </div>,
   );
 }
@@ -155,7 +156,6 @@ async function bootstrapWebApp(generation: number) {
   }
   if (!isCurrentEntry()) return;
 
-  const demo = new URLSearchParams(window.location.search).get("demo");
   // 修复原因：断线只替换 accessor 并重读，不卸载未发送草稿与业务工作区。
   let hasConnected = false;
 
@@ -205,7 +205,7 @@ async function bootstrapWebApp(generation: number) {
       return;
     }
     if (reconnectAttempt >= WEB_RECONNECT_DELAYS_MS.length) {
-      renderWebDisconnected("server unreachable", () => {
+      renderWebDisconnected("服务暂时不可用，请检查网络后重试。", () => {
         reconnectAttempt = 0;
         void connect();
       });
@@ -213,7 +213,7 @@ async function bootstrapWebApp(generation: number) {
     }
     const delay = WEB_RECONNECT_DELAYS_MS[reconnectAttempt];
     reconnectAttempt += 1;
-    renderWebDisconnected("reconnecting");
+    renderWebDisconnected("网络或服务暂时不可用。");
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       void connect();
@@ -232,7 +232,6 @@ async function bootstrapWebApp(generation: number) {
       const nativeUrl = new URL(bootstrap.wsUrl);
       nativeUrl.searchParams.set("employeeId", employeeEntry.employeeNumber!);
       nativeUrl.searchParams.set("clientId", webClientId);
-      if (demo !== null) nativeUrl.searchParams.set("demo", demo);
       const services = await connectViaWebSocket(nativeUrl.toString(), {
         onOpenSocket: (ws) => {
           if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) {
@@ -271,7 +270,8 @@ async function bootstrapWebApp(generation: number) {
       closeActiveSocket();
       closed = true;
       if (!hasConnected) {
-        renderWebDisconnected(error instanceof Error ? error.message : String(error), () => {
+        logger.warn("[web] Initial connection failed", error);
+        renderWebDisconnected("暂时无法连接服务，请重试。", () => {
           reconnectAttempt = 0;
           void connect();
         });
@@ -304,6 +304,12 @@ if (
   new URLSearchParams(window.location.search).has("remote")
 ) {
   window.history.replaceState(null, "", "/");
+}
+// 旧场景参数不属于产品入口；保留业务定位参数并移除它，不让浏览器继续透传。
+const entryUrl = new URL(window.location.href);
+if (entryUrl.searchParams.has("demo")) {
+  entryUrl.searchParams.delete("demo");
+  window.history.replaceState(window.history.state, "", entryUrl);
 }
 function handleEntryChange() {
   entryGeneration += 1;

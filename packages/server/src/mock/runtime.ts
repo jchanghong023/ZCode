@@ -305,8 +305,8 @@ export function buildConversationSnapshot(session: MockSession): ConversationSna
       apiRetry: null,
     },
     availability: {
-      fork: { allowed: true },
-      compact: { allowed: true },
+      fork: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
+      compact: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
       switchModelConfig: { allowed: true },
       setFollowupMode: { allowed: true },
       queueEdit: { allowed: true },

@@ -1,5 +1,7 @@
 # AIReq 设置
 
+发布文案与能力边界以 `docs/specs/aireq-migration/release-surface.md` 为准；未接入的语音识别入口已撤下，Sketch 保留。
+
 AI 配置的共享范围、职责与生效说明、模型滚动提交区及间隔预设／自定义展示以 `docs/specs/aireq-migration/ai-configuration-usability.md` 为准；草稿与提交所有者及接口保持以下契约。
 
 当前导航和页面组织以 `docs/specs/aireq-migration/project-space.md` 为准，其余产品规则见根 `.todo.md`；旧 Skill 设置接线与验收记录仅描述当时版本。
@@ -16,4 +18,4 @@ guard 为 (navigate:()=>void)=>void；壳导航、历史、项目切换、退出
 
 模型保存显式提交进入编辑时的 models.revision()；追加指令保存提交 prompts.read().revision。脏草稿不因其他客户端事件推进基线，冲突保留输入。项目编辑捕获 project.revision，新建期望版本为 0；同一输入重试沿用 operationId，改动输入才生成新逻辑动作 ID。
 
-项目／Release 弹窗草稿唯一归 `AIReqProjectSettings`，通过 `onDraftActionsChange` 接入设置页同一个 guard；关闭、Esc、遮罩、取消、导航和保存快捷键共享最新保存／丢弃动作。字段基线在打开时捕获，后台投影不推进脏草稿基线；保存中禁止退出与重复提交，失败保留输入。项目卡以可选择的只读文本呈现仓库，公共共享／模拟说明集中一次，Release 统计展开 IR／SR 含义；具体布局及验收见导航可达性规格。
+项目／Release 弹窗草稿唯一归 `AIReqProjectSettings`，通过 `onDraftActionsChange` 接入设置页同一个 guard；关闭、Esc、遮罩、取消、导航和保存快捷键共享最新保存／丢弃动作。字段基线在打开时捕获，后台投影不推进脏草稿基线；保存中禁止退出与重复提交，失败保留输入。项目卡以可选择的只读文本呈现仓库，团队共享范围就地说明，演示环境限制集中到登录和帮助，不展示配置目录，Release 统计展开 IR／SR 含义；具体布局及验收见导航可达性规格。

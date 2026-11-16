@@ -10,13 +10,6 @@ export interface AIReqToolConversationProps {
   emptyState?: ReactNode;
 }
 
-/** 辅助输入仅回填调用它的编辑器，返回 false 时弹层保留原内容。 */
-export interface AIReqSpeechInputButtonProps {
-  disabled: boolean;
-  onInsertText: (text: string) => boolean;
-  onReturnToComposer: () => void;
-}
-
 export interface AIReqSketchButtonProps {
   disabled: boolean;
   onAddFiles: (files: File[]) => string[];

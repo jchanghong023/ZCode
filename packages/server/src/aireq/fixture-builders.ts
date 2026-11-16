@@ -1,3 +1,4 @@
+import { createRequirementSnapshot, digestValue } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type {
   AIReqWorkflowView,
@@ -100,7 +101,7 @@ export function receipt(
 ): AIReqOperationReceipt {
   return {
     operationId: `sample-operation-${revision}`,
-    commandDigest: `sample:${type}:${revision}`,
+    commandDigest: digestValue({ type, revision, irId, srId, at }),
     type,
     status: "completed",
     startedAt: at,
@@ -110,9 +111,9 @@ export function receipt(
     srId,
     steps: [
       {
-        name: "prototype",
+        name: "业务处理",
         at,
-        detail: `服务端内存模拟：${type}。不执行真实 Git、模型、测试或外部审批。`,
+        detail: "已接收当前操作。",
       },
     ],
   };
@@ -127,7 +128,20 @@ export function group(
 ): AIReqRequirementGroup {
   const materials = requirementMaterials(projectId, id, title, rows);
   const files = materials.map(({ path, sha256, size }) => ({ path, sha256, size }));
-  const digest = `sample-digest:${projectId}:${id}`;
+  const snapshot = createRequirementSnapshot({
+    version: 1,
+    projectId,
+    irId: id,
+    title,
+    srs: rows.map(({ id: srId, title: srTitle, documentPath }) => ({
+      id: srId,
+      title: srTitle,
+      documentPath,
+    })),
+    documentPath: `${prototypeIrRoot(id)}/requirements.md`,
+    files,
+  });
+  const digest = snapshot.digest;
   const requirementsSession = sessionRef(
     projectId,
     id,
@@ -177,20 +191,7 @@ export function group(
           },
         }
       : {}),
-    snapshot: {
-      version: 1,
-      projectId,
-      irId: id,
-      title,
-      srs: rows.map(({ id: srId, title: srTitle, documentPath }) => ({
-        id: srId,
-        title: srTitle,
-        documentPath,
-      })),
-      documentPath: `${prototypeIrRoot(id)}/requirements.md`,
-      files,
-      digest,
-    },
+    snapshot: snapshot,
     ...(!draft
       ? {
           confirmation: {

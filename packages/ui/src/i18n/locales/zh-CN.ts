@@ -1728,18 +1728,16 @@ const zhCN: Record<string, string> = {
   "directoryBrowser.errorReadDir": "无法读取目录：{error}",
 
   "appError.title": "应用界面出了点问题",
-  "appError.description":
-    "刚才的页面错误已经被拦住了，所以不会直接白屏。你可以先重试；如果问题持续，再刷新应用恢复界面。",
+  "appError.description": "暂时无法显示此页面。请重试；如果问题持续，请刷新页面。",
   "appError.retry": "重试",
   "appError.reload": "刷新应用",
-  "appError.hint": "错误详情已记录到诊断日志里，方便继续排查。",
-  "appError.details": "查看组件堆栈",
+  "appError.hint": "请先重试；如果问题仍然存在，请刷新页面。",
   "appError.unknown": "未知错误",
   "appError.sectionTitle": "这块界面出了点问题",
   "appError.sectionDescription":
-    "错误已经限制在当前区域，其它功能可以继续使用。你可以先重试这个区域；如果问题持续，再刷新应用。",
+    "暂时无法显示此区域，其它功能可以继续使用。请重试；如果问题持续，请刷新页面。",
   "appError.sectionRetry": "重试此区域",
-  "appError.sectionHint": "错误详情已记录到诊断日志里，方便继续排查。",
+  "appError.sectionHint": "可重试此区域；若仍无法恢复，请刷新页面。",
 
   // Workspace
   "workspace.openWorkspace": "打开工作区",
@@ -5679,10 +5677,10 @@ const zhCN: Record<string, string> = {
   "chat.attachments.upload.committing": "正在完成上传",
   "chat.attachments.upload.ready": "上传完成",
   "chat.attachments.upload.failed": "上传失败：{message}",
-  "chat.attachments.upload.runtimeRestarted": "运行时已重启，附件引用失效",
+  "chat.attachments.upload.runtimeRestarted": "会话连接已更新，请重新上传附件。",
   "chat.composer.draftRuntimeRebuilding": "会话正在重建，请稍候",
   "chat.attachments.upload.remoteMaterializationRequired":
-    "远端附件未完成物化，已阻止发送本地路径。",
+    "附件尚未上传完成，请重新添加文件后发送。",
   "chat.attachments.upload.retry": "重试上传",
   "chat.composer.actionMenu": "添加上下文",
   "chat.composer.insertMentionShortcut": "使用 @ 添加上下文",
@@ -5739,7 +5737,7 @@ const zhCN: Record<string, string> = {
   "chat.error.action.retryLater": "稍后重试",
   "chat.error.copyTraceId": "复制 TraceID",
   "chat.error.copyFull": "复制",
-  "chat.error.copyFull.copied": "已复制完整报错信息",
+  "chat.error.copyFull.copied": "已复制错误说明",
   "chat.error.copyFailed": "复制报错信息失败：{error}",
   "chat.error.expandDetails": "展开详情",
   "chat.error.collapseDetails": "收起详情",
@@ -5747,6 +5745,10 @@ const zhCN: Record<string, string> = {
   "chat.error.remoteNoAvailableModel":
     "此远程设备尚无可用模型，请先在本机配置模型，保存后会自动同步到远程设备",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
+  "chat.error.clipboardUnavailable": "浏览器未允许复制，请手动选择需要的内容。",
+  "chat.error.operationFailed": "操作未完成，请稍后重试。",
+  "chat.error.sessionUnavailable": "会话暂不可用，请重新连接。",
+  "chat.attachments.upload.unavailable": "附件上传未完成，请重试或重新添加文件。",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
 

@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { AIReqSkillFilePreview } from "./AIReqSkillFilePreview.js";
 import { createUuid } from "@zcode/shared";
@@ -54,12 +55,13 @@ export function AIReqSkillDesignPage({ active, onDraftActionsChange }: SkillDesi
   const source = useAIReqDataSource();
   const aireq = useAIReq();
   const project = aireq?.view?.projects.find((item) => item.id === aireq.selection.projectId);
-  const developmentRoot = project
-    ? source.projects?.readDevelopmentRoot(project.id, source.backend?.owner)
-    : undefined;
+  const developmentRoot = project ? source.projects?.readDevelopmentRoot(project.id) : undefined;
   return (
     <section
-      className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex min-h-0 flex-1 flex-col overflow-hidden bg-background pb-4 lg:pb-4")}
+      className={cn(
+        AIREQ_PAGE_CONTENT_CLASSNAME,
+        "flex min-h-0 flex-1 flex-col overflow-hidden bg-background pb-4 lg:pb-4",
+      )}
       aria-label="Skill 设计"
     >
       {source.skillDesign ? (
@@ -67,7 +69,7 @@ export function AIReqSkillDesignPage({ active, onDraftActionsChange }: SkillDesi
           key={`${source.backend?.id}:${project?.id ?? "personal"}`}
           projectId={project?.id ?? "personal"}
           projectName={project?.name ?? "未选择项目"}
-          workspacePath={developmentRoot ?? source.backend?.configDirectory ?? ""}
+          workspacePath={developmentRoot ?? source.skillDesign.storage.workspacePath}
           developmentRoot={developmentRoot}
           active={active}
           onDraftActionsChange={onDraftActionsChange}
@@ -109,7 +111,7 @@ function SkillDesignEditor({
         const identity = await design.workspaceIdentity(projectId);
         if (active) setSession({ id, identity });
       } catch (cause) {
-        if (active) setLoadError(cause instanceof Error ? cause.message : "加载技能设计会话失败。");
+        if (active) setLoadError(formatUserFacingError(cause, "加载技能设计会话失败，请重试。"));
       }
     })();
     return () => {
@@ -207,16 +209,14 @@ function ReadySkillDesignEditor({
   const targetDirectory = !preview
     ? undefined
     : saveTarget === "user"
-      ? source.backend?.userSkillsDirectory
-        ? `${source.backend.userSkillsDirectory}/${targetName}`
-        : undefined
+      ? `${design.storage.sharedSkillsDirectory}/${targetName}`
       : developmentRoot
         ? `${developmentRoot}/.omp/skills/${targetName}`
         : undefined;
   const collision = skills.some((skill) => skill.path === `${targetDirectory}/SKILL.md`);
   const file = preview?.files.find((item) => item.path === selectedFile) ?? preview?.files[0];
   const generationStatus = savedPath
-    ? `第 ${preview?.revision} 版已保存。`
+    ? `第 ${preview?.revision} 版已记录保存结果（演示环境）。`
     : preview
       ? `第 ${preview.revision} 版 · 待确认保存`
       : "";
@@ -245,7 +245,7 @@ function ReadySkillDesignEditor({
           if (version === draftVersion.current) {
             draftSaveError.current = cause;
             if (active.current)
-              setError(cause instanceof Error ? cause.message : "保存技能说明失败。");
+              setError(formatUserFacingError(cause, "保存技能说明失败，请重试。"));
           }
           return false;
         },
@@ -300,7 +300,7 @@ function ReadySkillDesignEditor({
         setLoading(false);
       } catch (cause) {
         if (disposed || request !== revision) return;
-        setError(cause instanceof Error ? cause.message : "加载技能设计数据失败。");
+        setError(formatUserFacingError(cause, "加载技能设计数据失败，请重试。"));
         setLoading(false);
       }
     };
@@ -346,8 +346,7 @@ function ReadySkillDesignEditor({
       pendingInsert.current = request;
       setInsertRequest(request);
     } catch (cause) {
-      if (active.current)
-        setFillError(cause instanceof Error ? cause.message : "生成聊天说明失败。");
+      if (active.current) setFillError(formatUserFacingError(cause, "生成聊天说明失败，请重试。"));
     } finally {
       if (active.current) setFilling(false);
     }
@@ -364,7 +363,8 @@ function ReadySkillDesignEditor({
     return () => window.clearTimeout(timer);
   }, [insertRequest]);
   const save = async () => {
-    if (!targetDirectory || !preview || !validName || collision || savedPath || saving) return false;
+    if (!targetDirectory || !preview || !validName || collision || savedPath || saving)
+      return false;
     const revision = preview.revision;
     const key = `${sessionId}:${revision}:${saveTarget}:${targetName}`;
     if (saveOperation.current?.key !== key) saveOperation.current = { key, id: createUuid() };
@@ -388,7 +388,7 @@ function ReadySkillDesignEditor({
       setFillError("");
       return true;
     } catch (cause) {
-      if (active.current) setError(cause instanceof Error ? cause.message : "保存失败。");
+      if (active.current) setError(formatUserFacingError(cause, "技能保存失败，请重试。"));
       return false;
     } finally {
       if (active.current) setSaving(false);
@@ -671,14 +671,12 @@ function ReadySkillDesignEditor({
                         <SelectItem value="project" disabled={!developmentRoot}>
                           项目技能 · 当前有效项目
                         </SelectItem>
-                        <SelectItem value="user">共享模拟 profile 技能</SelectItem>
+                        <SelectItem value="user">共享技能</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <p className="text-ui-sm text-foreground-subtle">
-                    {saveTarget === "project"
-                      ? `当前项目：${projectName}`
-                      : `共享技能归属：${source.backend?.owner ?? "Web 启动者"}`}
+                    {saveTarget === "project" ? `当前项目：${projectName}` : "团队共享技能"}
                   </p>
                   <p className="break-all font-mono text-ui-sm text-foreground-subtle">
                     {targetDirectory ??
@@ -702,7 +700,7 @@ function ReadySkillDesignEditor({
                   )}
                   {savedPath && (
                     <p role="status" className="break-all text-ui-sm text-foreground-subtle">
-                      演示已保存全部文件到 {savedPath}。
+                      已记录本次保存结果（演示环境）：{savedPath}。未写入实际文件。
                     </p>
                   )}
                   <div className="flex items-center justify-end gap-2">

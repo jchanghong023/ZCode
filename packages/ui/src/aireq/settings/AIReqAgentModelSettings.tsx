@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
@@ -75,7 +76,13 @@ function ModelSettingsContent({
       setMessage({ kind: "success", text: zh ? "模型配置已保存" : "Model configuration saved" });
       return true;
     } catch (cause) {
-      setMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
+      setMessage({
+        kind: "error",
+        text: formatUserFacingError(
+          cause,
+          zh ? "模型配置保存失败，请重试。" : "Could not save model settings. Please retry.",
+        ),
+      });
       return false;
     } finally {
       savingRef.current = false;
@@ -223,8 +230,8 @@ function ModelSettingsContent({
           </div>
           <p className="text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。当前运行均为模拟。"
-              : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset. All current runs are simulated."}
+              ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。"
+              : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset."}
           </p>
           <SettingsGroupCard>
             {draft.agents.map((agent) => {

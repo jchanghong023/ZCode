@@ -24,6 +24,7 @@ import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
 import type { IPromptAttachmentTransferService } from "@zcode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";
 import {
   exposeComposerAttachmentScopeKeyForE2E,
@@ -484,9 +485,10 @@ export function useComposerAttachments(
                     { id: "chat.attachments.missingInlinePdfContent" },
                     { filename: error.filename },
                   )
-                : error instanceof Error
-                  ? error.message
-                  : String(error);
+                : formatUserFacingError(
+                    error,
+                    intl.formatMessage({ id: "chat.attachments.upload.unavailable" }),
+                  );
         const transient = isTransientAttachmentUploadError(error);
         if (transient && current.autoRetryCount < 1) {
           updateItem(targetScopeKey, attachmentId, (item) => ({
@@ -513,7 +515,7 @@ export function useComposerAttachments(
           }));
           logger.warn("[v4-composer-attachments] 附件上传失败", {
             attachmentId,
-            error: message,
+            error: error instanceof Error ? error.message : String(error),
             scopeKey: targetScopeKey,
           });
         }

@@ -52,7 +52,10 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
   const aireq = useAIReq()!;
   const [panel, setPanel] = useState<"info" | "history">();
   // 原子导入共用一条批次收据，每个新 IR 都需要看到创建来源，而不是归到导入前的选择。
-  const operations = aireq.view?.operations.filter((item) => item.irId === group.id || item.irIds?.includes(group.id)) ?? [];
+  const operations =
+    aireq.view?.operations.filter(
+      (item) => item.irId === group.id || item.irIds?.includes(group.id),
+    ) ?? [];
   if (
     aireq.selection.projectId !== group.projectId ||
     aireq.selection.irId !== group.id ||
@@ -127,10 +130,6 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                   <p className="mt-2 whitespace-pre-wrap">{group.originalText}</p>
                   {group.sourceIrId && <p>关联来源 IR：{group.sourceIrId}</p>}
                 </div>
-                <div>
-                  <dt className="text-foreground-subtle">来源</dt>
-                  <dd>服务端共享内存模拟，不执行真实 Git 或模型。</dd>
-                </div>
               </dl>
               <AIReqAgentModelSummary
                 binding={aireq.session?.modelConfig ?? group.review?.modelConfig}
@@ -142,7 +141,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                 operations.map((item) => (
                   <section key={item.operationId} className="space-y-1 border-b border-border pb-3">
                     <p>
-                      {operationLabels[item.type] ?? item.type} ·{" "}
+                      {operationLabels[item.type] ?? "其他操作"} ·{" "}
                       {item.status === "completed"
                         ? "已完成"
                         : item.status === "running"
@@ -179,50 +178,67 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                   </p>
                 </details>
               ))}
-              {[...(group.originalReviewHistory ?? []), ...(group.reviewHistory ?? [])].map((review, index) => (
-                <details key={`${review.id}:${index}`}>
-                  <summary className="cursor-pointer">
-                    历史评审 · 第 {review.round ?? 1} 轮 · {review.id}
-                  </summary>
-                  <p className="my-2 break-all text-foreground-subtle">
-                    版本 {review.snapshotDigest} ·{" "}
-                    {review.invalidatedReason && <span className="block text-destructive">失效原因：{review.invalidatedReason}</span>}
-                    {review.humanDecision ? (
-                      <>
-                        人工通过 {review.humanDecision.employeeId} ·{" "}
-                        <time dateTime={review.humanDecision.decidedAt}>
-                          {recordTime(review.humanDecision.decidedAt)}
-                        </time>
-                      </>
+              {[...(group.originalReviewHistory ?? []), ...(group.reviewHistory ?? [])].map(
+                (review, index) => (
+                  <details key={`${review.id}:${index}`}>
+                    <summary className="cursor-pointer">
+                      历史评审 · 第 {review.round ?? 1} 轮 · {review.id}
+                    </summary>
+                    <p className="my-2 break-all text-foreground-subtle">
+                      版本 {review.snapshotDigest} ·{" "}
+                      {review.invalidatedReason && (
+                        <span className="block text-destructive">
+                          失效原因：{review.invalidatedReason}
+                        </span>
+                      )}
+                      {review.humanDecision ? (
+                        <>
+                          人工通过 {review.humanDecision.employeeId} ·{" "}
+                          <time dateTime={review.humanDecision.decidedAt}>
+                            {recordTime(review.humanDecision.decidedAt)}
+                          </time>
+                        </>
+                      ) : (
+                        "无当前批准"
+                      )}
+                    </p>
+                    {review.agents?.length ? (
+                      review.agents.map((agent) => (
+                        <details key={agent.id} className="my-2">
+                          <summary className="cursor-pointer">
+                            {agent.name} · {agent.status} · 会话 {agent.session.sessionId}
+                          </summary>
+                          {agent.report?.trim() ? (
+                            <AIReqMarkdownDocument>{agent.report}</AIReqMarkdownDocument>
+                          ) : (
+                            <p role="status">历史报告正文不可用。</p>
+                          )}
+                        </details>
+                      ))
                     ) : (
-                      "无当前批准"
+                      <AIReqMarkdownDocument>
+                        {review.report || "历史报告正文不可用。"}
+                      </AIReqMarkdownDocument>
                     )}
+                  </details>
+                ),
+              )}
+              {[...(group.alignmentHistory ?? []), ...(group.alignment ?? [])].map(
+                (entry, index) => (
+                  <p
+                    key={`${entry.perspective}:${entry.confirmedAt}:${index}`}
+                    className="break-all"
+                  >
+                    {entry.perspective === "business"
+                      ? "业务"
+                      : entry.perspective === "development"
+                        ? "开发"
+                        : "测试"}
+                    视角 · {entry.employeeId} · {recordTime(entry.confirmedAt)} · 版本{" "}
+                    {entry.version}（历史只读）
                   </p>
-                  {review.agents?.length ? (
-                    review.agents.map((agent) => (
-                      <details key={agent.id} className="my-2">
-                        <summary className="cursor-pointer">
-                          {agent.name} · {agent.status} · 会话 {agent.session.sessionId}
-                        </summary>
-                        {agent.report?.trim() ? (
-                          <AIReqMarkdownDocument>{agent.report}</AIReqMarkdownDocument>
-                        ) : (
-                          <p role="status">历史报告正文不可用。</p>
-                        )}
-                      </details>
-                    ))
-                  ) : (
-                    <AIReqMarkdownDocument>
-                      {review.report || "历史报告正文不可用。"}
-                    </AIReqMarkdownDocument>
-                  )}
-                </details>
-              ))}
-              {[...(group.alignmentHistory ?? []), ...(group.alignment ?? [])].map((entry, index) => (
-                <p key={`${entry.perspective}:${entry.confirmedAt}:${index}`} className="break-all">
-                  {entry.perspective === "business" ? "业务" : entry.perspective === "development" ? "开发" : "测试"}视角 · {entry.employeeId} · {recordTime(entry.confirmedAt)} · 版本 {entry.version}（历史只读）
-                </p>
-              ))}
+                ),
+              )}
             </div>
           )}
         </DialogContent>

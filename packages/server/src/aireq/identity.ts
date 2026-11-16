@@ -1,4 +1,4 @@
-import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
+import { businessRule } from "./errors.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 const requests = new AsyncLocalStorage<AIReqIdentity>();
@@ -6,34 +6,13 @@ export function isEmployeeId(value: unknown): value is string {
   return typeof value === "string" && /^[a-z][0-9]{8}$/.test(value);
 }
 export function validateAIReqIdentity(value: AIReqIdentity): AIReqIdentity {
-  if (!value || !isEmployeeId(value.employeeId))
-    throw Object.assign(new Error("请输入有效工号。"), { code: "INVALID_IDENTITY" });
+  if (!value || !isEmployeeId(value.employeeId)) throw businessRule("请输入有效工号。");
   if (typeof value.clientId !== "string" || !value.clientId.trim() || value.clientId.length > 200)
-    throw Object.assign(new Error("客户端身份无效。"), { code: "INVALID_CLIENT" });
-  if (
-    value.demo !== undefined &&
-    (typeof value.demo !== "string" ||
-      !(SUPPORTED_AIREQ_DEMOS as readonly string[]).includes(value.demo))
-  )
-    throw new Error("INVALID_SCENARIO");
-  const startupOnly = [
-    "analysis-scale",
-    "review-chat",
-    "proposal-feedback",
-    "proposal-intake",
-    "requirements-review",
-    "empty-projects",
-    "empty-releases",
-    "empty-requirements",
-    "missing-requirement",
-    "missing-sr",
-  ];
-  if (value.demo && startupOnly.includes(value.demo) && process.env.AIREQ_DEMO !== value.demo)
-    throw Object.assign(
-      new Error("此初始数据样例须通过服务端 AIREQ_DEMO 配置后启动，当前实例不会回退到其他样例。"),
-      { code: "INVALID_SCENARIO" },
-    );
-  return { ...value };
+    throw businessRule("连接身份无效，请重新进入工作区。");
+  // 身份只接受业务标识，旧场景参数不能经RPC偷偷恢复故障注入。
+  if (Object.keys(value).some((key) => !["employeeId", "clientId"].includes(key)))
+    throw businessRule("连接参数无效，请刷新页面后重试。");
+  return { employeeId: value.employeeId, clientId: value.clientId };
 }
 export function withAIReqIdentity<T>(identity: AIReqIdentity, operation: () => T): T {
   return requests.run(validateAIReqIdentity(identity), operation);

@@ -16,7 +16,7 @@ import { ProgressStatusBadge, ProgressValue } from "./ProgressDisplay.js";
 import { BranchCopy } from "../BranchCopy.js";
 import {
   AIReqBranchCleanup,
-  AIReqFormalSimulationControls,
+  AIReqFormalAnalysisAction,
   AIReqFormalTestControls,
 } from "./FormalOperations.js";
 
@@ -87,7 +87,7 @@ export function AIReqFormalReport() {
       ? selected.codeMerge
         ? "代码合入事实"
         : hasAnalysis
-          ? "AI 模拟分析"
+          ? "AI 分析"
           : "尚未分析"
       : undefined;
   return (
@@ -117,7 +117,7 @@ export function AIReqFormalReport() {
                 : selected.codeMerge
                   ? "代码已合入，有效进度固定 99%；原始 AI 评分仅作证据。"
                   : hasAnalysis
-                    ? "模拟进度分析根据需求、验收标准与代码证据估计，不执行开发任务。"
+                    ? "进度分析根据需求、验收标准与代码证据估计，不执行开发任务。"
                     : "尚未分析；0% 为新需求的初始进度，不代表已有代码分析结论。"
               : `${all.length} 个 SR 的进度算术平均值；全部 SR 完成后 IR 才完成。`}
           </p>
@@ -140,13 +140,20 @@ export function AIReqFormalReport() {
           const failure = sr.lastAnalysisFailure ?? sr.progress?.analysisFailure;
           return failure ? (
             <div key={sr.id} role="alert" className="text-ui-sm text-destructive">
-              <p>{sr.title}：最近分析失败，保留上次成功进度与报告 · {failure.message}</p>
+              <p>
+                {sr.title}：最近分析失败，保留上次成功进度与报告 · {failure.message}
+              </p>
               {/* 修复：只展示失败原因会迫使用户在分析页重新定位同一个 SR。 */}
               <Button
                 variant="link"
                 size="sm"
                 className="h-auto px-0"
-                onClick={() => aireq.openAnalysis({ projectId: group.projectId, irId: group.id, srId: sr.id }, group.releaseId)}
+                onClick={() =>
+                  aireq.openAnalysis(
+                    { projectId: group.projectId, irId: group.id, srId: sr.id },
+                    group.releaseId,
+                  )
+                }
               >
                 {locale === "zh-CN" ? "查看对应分析任务" : "View analysis task"}
               </Button>
@@ -179,7 +186,7 @@ export function AIReqFormalReport() {
               <AIReqFormalTestControls key={`test:${selected.id}`} group={group} sr={selected} />
               {selected.progress && (
                 <p className="text-ui-sm text-foreground-subtle">
-                  原始 AI 模拟评分：
+                  原始 AI 评分：
                   {selected.progress.aiPercent ?? Math.min(99, selected.progress.percent)}% ·
                   有效业务进度：{percent}%
                   {selected.progress.stale ? " · 报告已过期，等待当前版本分析" : ""}
@@ -250,9 +257,7 @@ export function AIReqFormalReport() {
                 <p className="font-medium">{sr.title}</p>
                 {sr.trackingBranch?.name?.trim() ? (
                   <div className="space-y-1" data-testid="sr-tracking-branch">
-                    <p className="break-all text-ui-sm text-foreground-subtle">
-                      平台模拟开发分支：
-                    </p>
+                    <p className="break-all text-ui-sm text-foreground-subtle">开发分支：</p>
                     {/* 复制控件已显示分支名；不可复制时仍保留历史名称。 */}
                     {sr.trackingBranch.status !== "deleted" &&
                     (sr.trackingBranch.status !== "failed" ||
@@ -263,9 +268,7 @@ export function AIReqFormalReport() {
                         {sr.trackingBranch.name}
                       </p>
                     )}
-                    {sr.trackingBranch.status === "deleted" && (
-                      <p>已清理（模拟）；分支名仅为历史登记。</p>
-                    )}
+                    {sr.trackingBranch.status === "deleted" && <p>已清理；分支名仅为历史登记。</p>}
                     {sr.trackingBranch.error && (
                       <p role="alert" className="text-destructive">
                         {sr.trackingBranch.error}
@@ -285,7 +288,7 @@ export function AIReqFormalReport() {
                           })
                         }
                       >
-                        重试创建开发分支（模拟）
+                        重试创建开发分支
                       </Button>
                     )}
                     <p className="break-all text-ui-sm text-foreground-subtle">
@@ -299,7 +302,7 @@ export function AIReqFormalReport() {
                 )}
                 {sr.codeMerge && (
                   <p className="break-all text-ui-sm">
-                    已核实代码合入（模拟）：{sr.codeMerge.commit} → {sr.codeMerge.branch}
+                    已核实代码合入：{sr.codeMerge.commit} → {sr.codeMerge.branch}
                   </p>
                 )}
                 <p className="text-ui-sm text-foreground-subtle">
@@ -315,7 +318,7 @@ export function AIReqFormalReport() {
                   <>
                     <p className="break-all font-mono text-ui-sm text-foreground-subtle">
                       {sr.progress.branch} → {project?.defaultBranch} ·{" "}
-                      {sr.codeMerge ? "已合入（模拟）" : "尚未确认合入，最高 99%"}
+                      {sr.codeMerge ? "已合入" : "尚未确认合入，最高 99%"}
                     </p>
                     <p className="break-all text-ui-sm text-foreground-subtle">
                       分析版本：{sr.progress.codeVersion} · 默认分支版本：
@@ -345,11 +348,7 @@ export function AIReqFormalReport() {
           </ul>
         </ReportSection>
         {selected ? (
-          <AIReqFormalSimulationControls
-            key={`simulation:${selected.id}`}
-            group={group}
-            sr={selected}
-          />
+          <AIReqFormalAnalysisAction key={`analysis:${selected.id}`} group={group} sr={selected} />
         ) : (
           <details className="space-y-3 border-t border-border pt-5">
             <summary className="cursor-pointer text-ui-base font-medium">
@@ -388,10 +387,7 @@ export function AIReqFormalReport() {
           <p className="break-all">
             仓库：{project?.repositoryUrl ?? "尚未配置"} · 默认分支：{project?.defaultBranch}
           </p>
-          <p>
-            未合入由 AI 估计 0%～99%；合入固定 99%，仅人工测试通过可到
-            100%。全部结果为服务端内存模拟。
-          </p>
+          <p>未合入由 AI 估计 0%～99%；合入固定 99%，仅人工测试通过可到 100%。</p>
         </div>
       </div>
     </main>

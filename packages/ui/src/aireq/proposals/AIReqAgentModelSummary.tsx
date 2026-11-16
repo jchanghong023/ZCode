@@ -27,7 +27,6 @@ export function AIReqAgentModelSummary({ binding }: { binding?: AIReqAgentModelB
       <p>
         {binding.roleName} · {binding.modelName} · 思考：{reasoning}
         {binding.inherited ? " · 跟随默认（创建时）" : ""}
-        {source.provenance.kind === "sample" ? " · 演示配置" : ""}
       </p>
       {source.models?.bindingChanged(binding) && (
         <p data-testid="agent-session-model-pending">

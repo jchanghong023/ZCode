@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { logger } from "@zcode/ui";
 import { Button } from "@zcode/ui/button";
 import { Input } from "@zcode/ui/input";
 import { Label } from "@zcode/ui/label";
@@ -137,7 +138,8 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
                   owner.enter(value);
                   setValue("");
                 } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : String(cause));
+                  logger.warn("[web] Employee entry failed", cause);
+                  setError("暂时无法进入工作台，请重试。");
                 } finally {
                   setSubmitting(false);
                 }
@@ -198,7 +200,10 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
           </section>
         </div>
         <footer className="flex shrink-0 flex-col items-center gap-2 text-center text-ui-xs text-foreground-subtle">
-          <p>工号仅用于操作标识，不验证员工身份；所有工号共享模拟项目与配置。</p>
+          <p>
+            演示环境：数据不会永久保存，尚未接入真实 AI
+            或代码托管服务。工号仅用于记录操作，不代表身份验证。
+          </p>
           <p>ZCode · AIReq</p>
         </footer>
       </div>

@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { createUuid } from "@zcode/shared";
 import { useEffect, useRef, useState } from "react";
 import { FolderGit2, GitBranch, Plus } from "lucide-react";
@@ -29,7 +30,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
 
 function validateRepository(name: string, remote: string, branch: string) {
-  if (!name.trim()) throw new Error("请输入项目名称。");
+  if (!name.trim()) return "请输入项目名称。";
   const url = remote.trim();
   let valid = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(url);
   if (!valid && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(url)) {
@@ -40,9 +41,7 @@ function validateRepository(name: string, remote: string, branch: string) {
     }
   }
   if (!valid)
-    throw new Error(
-      "请输入含主机的 HTTP(S)、SSH、git URL 或 user@host:path 远程仓库地址；不支持本地路径。",
-    );
+    return "请输入含主机的 HTTP(S)、SSH、git URL 或 user@host:path 远程仓库地址；不支持本地路径。";
   const value = branch.trim();
   if (
     !value ||
@@ -58,7 +57,7 @@ function validateRepository(name: string, remote: string, branch: string) {
     value === "@" ||
     value.split("/").some((part) => part.startsWith("."))
   )
-    throw new Error("请输入有效的默认分支名称。");
+    return "请输入有效的默认分支名称。";
 }
 
 export function AIReqProjectSettings({
@@ -112,7 +111,7 @@ export function AIReqProjectSettings({
         if (active) setProjectViews(views);
       })
       .catch((cause) => {
-        if (active) setLoadError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setLoadError(formatUserFacingError(cause, "读取项目配置失败，请重试。"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -142,11 +141,16 @@ export function AIReqProjectSettings({
         !aireq?.pending);
   const saveProject = async () => {
     if (!canSaveRepository || savingRef.current) return false;
+    // 输入校验直接产生业务提示，远程异常则交给统一安全错误格式化，避免下发实现细节。
+    const validationError = validateRepository(name, repositoryUrl, defaultBranch);
+    if (validationError) {
+      setProjectError(validationError);
+      return false;
+    }
     savingRef.current = true;
     setSaving(true);
     setProjectError("");
     try {
-      validateRepository(name, repositoryUrl, defaultBranch);
       const input = {
         projectId,
         name: name.trim(),
@@ -163,14 +167,10 @@ export function AIReqProjectSettings({
         operationId: repositoryOperation.current.operationId,
       });
       setProjectOpen(false);
-      setMessage(
-        source.provenance.kind === "sample"
-          ? `已将“${name.trim()}”的配置保存到后端内存；仓库连接与默认分支未检查，未执行 Git 操作。`
-          : `已保存“${name.trim()}”的项目配置；未执行 Git 操作。`,
-      );
+      setMessage(`已保存“${name.trim()}”的项目配置。`);
       return true;
     } catch (cause) {
-      setProjectError(cause instanceof Error ? cause.message : String(cause));
+      setProjectError(formatUserFacingError(cause, "保存项目配置失败，请重试。"));
       return false;
     } finally {
       savingRef.current = false;
@@ -211,7 +211,7 @@ export function AIReqProjectSettings({
       setMessage(`已添加 Release“${releaseTitle.trim()}”。`);
       return true;
     } catch (cause) {
-      setReleaseError(cause instanceof Error ? cause.message : String(cause));
+      setReleaseError(formatUserFacingError(cause, "添加 Release 失败，请重试。"));
       return false;
     } finally {
       savingRef.current = false;
@@ -322,20 +322,6 @@ export function AIReqProjectSettings({
             ? "Release 用于归集需求，不是 Git 分支；沿用项目的仓库与默认分支。"
             : "A release groups requirements, is not a Git branch, and inherits its project's repository and default branch."}
         </p>
-        {source.provenance.kind === "sample" && (
-          <details>
-            <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-ring">
-              {zh
-                ? "模拟配置 · 仓库连接与默认分支未检查"
-                : "Simulated configuration · Repository and default branch not checked"}
-            </summary>
-            <p className="mt-2">
-              {zh
-                ? "数据由共享模拟后端内存持有，刷新保留、服务重启恢复。仅校验输入格式，不连接 Git 或本机目录；保存不会拉取仓库、创建分支或推送。"
-                : "The shared mock backend keeps data in memory across refreshes and resets on restart. Only input format is validated; saving does not connect to Git or local directories, fetch repositories, create branches, or push."}
-            </p>
-          </details>
-        )}
       </div>
       {projectViews.map(({ project, view }) => (
         <SettingsGroupCard key={project.id}>
@@ -462,8 +448,8 @@ export function AIReqProjectSettings({
             </DialogTitle>
             <DialogDescription>
               {zh
-                ? "配置项目名称、远程 Git 仓库与默认分支。保存仅记录配置，不执行 Git 操作。"
-                : "Set the project name, remote Git repository, and default branch. Saving only records configuration and performs no Git operations."}
+                ? "配置项目名称、远程 Git 仓库与默认分支。"
+                : "Set the project name, remote Git repository, and default branch."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -517,13 +503,11 @@ export function AIReqProjectSettings({
                   disabled={saving || !canSaveRepository}
                 />
               </div>
-              {source.provenance.kind === "sample" && (
-                <p className="text-ui-sm leading-5 text-remote-foreground-muted">
-                  {zh
-                    ? "仅校验输入格式；仓库连接与默认分支未检查。"
-                    : "Only input format is validated; repository access and the default branch are not checked."}
-                </p>
-              )}
+              <p className="text-ui-sm leading-5 text-remote-foreground-muted">
+                {zh
+                  ? "保存仅记录项目配置，不检查仓库连接与默认分支。"
+                  : "Saving records project settings without checking repository access or the default branch."}
+              </p>
               {projectError && (
                 <p role="alert" className="text-ui-base text-destructive">
                   {projectError}

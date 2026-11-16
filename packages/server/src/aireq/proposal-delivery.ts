@@ -1,3 +1,4 @@
+import { businessRule } from "./errors.js";
 import { consumePrototypeMrCreationFailure } from "./recovery.js";
 import {
   proposalVersion,
@@ -36,20 +37,17 @@ export function isPrototypeProposalDeliveryAction(
 }
 
 let mrNumber = 100;
-/** Backend memory only. The URL and MR result are samples, never a Git API call. */
+/** 演示交付只记录编号与状态；没有代码托管服务提供的真实URL时不返回链接。 */
 export function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
   const delivery = group.proposalDelivery;
-  if (!delivery?.pushedAt) throw new Error("推送当前材料后才能创建 MR。");
+  if (!delivery?.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
   if (group.requirementsPr?.number && delivery.prCandidate === delivery.candidate) return;
   if (consumePrototypeMrCreationFailure(delivery.candidate))
-    throw new Error(
-      "分支已推送，但创建 MR 失败（一次性模拟故障）；推送事实已保留，请明确重试当前候选。",
-    );
+    throw businessRule("分支已推送，但创建 MR 失败，请重试当前版本。");
   const handoff = readPrototypeProposalPrHandoff(group);
   const number = ++mrNumber;
   group.requirementsPr = {
     number,
-    url: `https://git.example.invalid/mr/${number}`,
     status: "opened",
     title: `[需求] ${group.title}`,
     body: [
@@ -77,13 +75,13 @@ export function validatePrototypeProposalDeliveryAction(
   action: PrototypeProposalDeliveryAction,
 ): void {
   const blocker = alignmentBlocker(group);
-  if (blocker) throw new Error(blocker);
+  if (blocker) throw businessRule(blocker);
   const dependencyIssue = proposalDependencyMaterialIssue(group, view.materials);
-  if (dependencyIssue) throw new Error(dependencyIssue);
+  if (dependencyIssue) throw businessRule(dependencyIssue);
   if (group.proposalStage !== "solution" || !hasCurrentProposalSolution(group))
-    throw new Error("请先完成当前需求版本的方案。");
+    throw businessRule("请先完成当前需求版本的方案。");
   const handoff = readPrototypeProposalPrHandoff(group);
-  if (!handoff.ready) throw new Error(handoff.blockers.join("；"));
+  if (!handoff.ready) throw businessRule(handoff.blockers.join("；"));
   if (
     !group.files.every((file) =>
       view.materials.some(
@@ -99,24 +97,24 @@ export function validatePrototypeProposalDeliveryAction(
       ),
     )
   )
-    throw new Error("当前提案材料缺失、读取失败或版本不一致，不能确认、推送或核验合并。");
+    throw businessRule("当前提案材料缺失、读取失败或版本不一致，不能确认、推送或核验合并。");
   if (action.type === "confirmProposal") {
     if (group.status !== "solution-ready" || action.version !== proposalVersion(group))
-      throw new Error("确认页面对应旧版本，请重新查看当前 IR、全部 SR 与方案后确认。");
+      throw businessRule("确认页面对应旧版本，请重新查看当前 IR、全部 SR 与方案后确认。");
     return;
   }
   const delivery = group.proposalDelivery;
   if (!delivery || !proposalDeliveryCurrent(group) || action.candidate !== delivery.candidate)
-    throw new Error("提案版本已变化，旧确认、推送与 PR 已失效，请重新确认当前版本。");
+    throw businessRule("提案版本已变化，旧确认、推送与 PR 已失效，请重新确认当前版本。");
   if (action.type === "publishProposal") {
     if (!["solution-ready", "requirements-pr"].includes(group.status))
-      throw new Error("请先确认当前材料，再提交推送并自动创建 MR。");
+      throw businessRule("请先确认当前材料，再提交推送并自动创建 MR。");
     return;
   }
   if (action.type === "markRequirementsPrSubmitted")
-    throw new Error("MR 由平台自动创建并记录，不接受手工登记地址。");
+    throw businessRule("MR 由平台自动创建并记录，不接受手工登记地址。");
   if (delivery.pushedCandidate !== action.candidate)
-    throw new Error("请先提交推送并自动创建当前候选的 MR。");
+    throw businessRule("请先提交推送并自动创建当前候选的 MR。");
 
   if (
     group.status !== "requirements-pr" ||
@@ -124,7 +122,7 @@ export function validatePrototypeProposalDeliveryAction(
     delivery.prCandidate !== action.candidate ||
     !action.defaultBranchFilesConfirmed
   )
-    throw new Error("须按当前候选、MR 合入结果和完整文件版本定时核验，才能正式入库。");
+    throw businessRule("须按当前候选、MR 合入结果和完整文件版本定时核验，才能正式入库。");
 }
 
 type AIReqAction = AIReqWorkflowCommand extends infer C

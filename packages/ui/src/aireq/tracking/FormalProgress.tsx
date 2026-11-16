@@ -662,7 +662,7 @@ function FormalActions({
                     })
                   }
                 >
-                  重试创建开发分支（模拟）
+                  重试创建开发分支
                 </Button>
               )}
               {sr.trackingBranch?.name?.trim() &&

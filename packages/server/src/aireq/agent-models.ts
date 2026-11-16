@@ -1,3 +1,4 @@
+import { businessRule } from "./errors.js";
 import type {
   AIReqAgentModelSettings,
   AIReqAgentRole,
@@ -135,7 +136,7 @@ export function savePrototypeAgentModels(
   expectedRevision: number,
 ): void {
   if (expectedRevision !== configurationRevision)
-    throw Object.assign(new Error("模型配置已变化，请重新读取。"), { code: "VERSION_CONFLICT" });
+    throw businessRule("模型配置已变化，请重新读取。");
   const allowed = sampleSettings.agents.map((agent) => agent.id);
   const models = new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.id));
   if (
@@ -151,7 +152,7 @@ export function savePrototypeAgentModels(
         !["default", "low", "medium", "high"].includes(agent.reasoning),
     )
   )
-    throw new Error("模型或角色配置无效。");
+    throw businessRule("模型或角色配置无效。");
   if (JSON.stringify(settings) === JSON.stringify(readPrototypeAgentModels())) return;
   savedSettings = structuredClone(settings);
   configurationRevision += 1;
@@ -178,11 +179,11 @@ export function subscribePrototypeAgentModels(listener: () => void) {
 /** 角色会话创建时复制的演示配置，不调用或验证真实模型。 */
 export function readPrototypeAgentModelBinding(role: AIReqAgentRole): AIReqAgentModelBinding {
   const agent = savedSettings.agents.find((item) => item.id === role);
-  if (!agent) throw new Error("此 AIReq Agent 未配置。");
+  if (!agent) throw businessRule("此 AIReq Agent 未配置。");
   const inherited = agent.model === "inherit";
   const modelKey = inherited ? savedSettings.defaultModel : agent.model;
   const model = PROTOTYPE_AGENT_MODELS.find((item) => item.id === modelKey);
-  if (!model) throw new Error("请选择原型支持的演示模型。");
+  if (!model) throw businessRule("请选择当前可用的模型。");
   return {
     role,
     roleName: agent.name,

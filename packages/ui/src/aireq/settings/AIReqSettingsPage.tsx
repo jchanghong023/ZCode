@@ -1,3 +1,4 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bot, Folders, Palette, HelpCircle, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -170,7 +171,14 @@ export function AIReqSettingsPage({
             {
               id: "aireq.instructions.prompt",
               label: zh ? "追加指令" : "Additional instructions",
-              keywords: ["共享指令", "Agent 指令", "提示词", "系统提示词", "prompt", "instructions"],
+              keywords: [
+                "共享指令",
+                "Agent 指令",
+                "提示词",
+                "系统提示词",
+                "prompt",
+                "instructions",
+              ],
             },
           ],
         },
@@ -278,7 +286,7 @@ export function AIReqSettingsPage({
         setError("保存失败，请检查当前权限、大小限制或连接状态后重试。");
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(formatUserFacingError(cause, "保存失败，请检查输入或连接状态后重试。"));
     } finally {
       busyRef.current = false;
       setBusy(false);

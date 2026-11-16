@@ -1,5 +1,4 @@
 import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
-import { currentIdentity } from "./identity.js";
 
 /** Explicit in-memory failure fixtures, without filesystem or network probing. */
 export const PROTOTYPE_RECOVERY_SCENARIOS = SUPPORTED_AIREQ_DEMOS;
@@ -12,17 +11,12 @@ const defaultSession = "demo-aurora-draft-automation-ir-requirements";
 const recoveredMaterials = new Set<string>();
 const recoveredSessions = new Set<string>();
 const consumedOperations = new Set<string>();
-const scope = () =>
-  currentIdentity()?.demo
-    ? `${currentIdentity()!.demo}:${currentIdentity()!.employeeId}:${currentIdentity()!.clientId}`
-    : `process:${prototypeRecoveryScenario ?? ""}`;
-const scenario = () => currentIdentity()?.demo ?? prototypeRecoveryScenario;
+const scope = () => `process:${prototypeRecoveryScenario ?? ""}`;
+const scenario = () => prototypeRecoveryScenario;
 export function prototypeMaterialIssue(path: string): string | undefined {
   if (path !== defaultMaterial || recoveredMaterials.has(`${scope()}:${path}`)) return undefined;
-  if (scenario() === "missing-material")
-    return "当前材料缺失（模拟故障），不会以其他对象正文替代。";
-  if (scenario() === "material-read-failure")
-    return "当前材料读取失败（模拟故障），可明确重新读取原材料。";
+  if (scenario() === "missing-material") return "当前材料不存在，请核对需求及材料版本。";
+  if (scenario() === "material-read-failure") return "当前材料读取失败，请重试。";
   return undefined;
 }
 export function retryPrototypeMaterialRead(path: string): boolean {

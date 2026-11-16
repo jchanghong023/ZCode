@@ -711,7 +711,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       commandId: envelope.commandId,
       status: "rejected",
       reasonCode: "fault.command.capabilityUnsupported",
-      message: `mock: 命令 ${envelope.type} 未实现`,
+      message: "当前服务暂不支持此操作。",
       revisionAtDecision: session?.revision ?? 0,
     };
   }
@@ -1714,7 +1714,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   async restartSessionRuntime(
     _params: P<IZCodeAgentService["restartSessionRuntime"]>,
-  ): Promise<void> {}
+  ): Promise<void> {
+    // 当前服务不管理独立会话进程；明确拒绝，不能伪报重启完成。
+    throw Object.assign(new Error("当前服务不支持重启会话，请重新连接。"), {
+      code: "fault.sessionLifecycle.unsupported",
+    });
+  }
 
   onAgentRuntimeRestarted(listener: (event: { workspaceKey: string }) => void): IDisposable {
     return this.runtimeRestartedEmitter.event(listener);

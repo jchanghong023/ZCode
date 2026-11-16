@@ -1,19 +1,13 @@
+import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { AnalysisRunConfirmation } from "./AnalysisRunConfirmation.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search, Settings2 } from "lucide-react";
+import { Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
@@ -136,7 +130,7 @@ function ConnectedProgressAnalysis({
       }
     } catch (cause) {
       if (lifecycle.current === scope)
-        setMessage(cause instanceof Error ? cause.message : String(cause));
+        setMessage(formatUserFacingError(cause, "分析操作未完成，请稍后重试。"));
     } finally {
       if (lifecycle.current === scope) {
         mutation.current = false;
@@ -328,31 +322,6 @@ function ConnectedProgressAnalysis({
             <Settings2 aria-hidden="true" className="size-3.5" />
             分析设置
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" disabled={pending}>
-                模拟操作
-                <ChevronDown aria-hidden="true" className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-ui-sm font-normal text-foreground-subtle">
-                全局操作，不受页面筛选限制
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                disabled={pending}
-                aria-label="模拟推进下一次调度检查"
-                onSelect={() =>
-                  void mutate(
-                    () => scheduler.advance(),
-                    "模拟推进全局调度：已有任务先完成；否则检查已开启项目的到期 SR。非真实时钟或模型执行。",
-                  )
-                }
-              >
-                推进一次调度检查（模拟）
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
       {/* 退场动画期间保留提交快照，避免范围和数量闪为空值。 */}
