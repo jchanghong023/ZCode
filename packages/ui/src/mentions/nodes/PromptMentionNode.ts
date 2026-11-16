@@ -132,8 +132,7 @@ export class PromptMentionNode extends TextNode {
       prevNode.__data?.path !== this.__data?.path ||
       prevNode.__data?.relativePath !== this.__data?.relativePath ||
       prevNode.__data?.kind !== this.__data?.kind ||
-      prevNode.__data?.scope !== this.__data?.scope ||
-      prevNode.__data?.icon !== this.__data?.icon
+      prevNode.__data?.scope !== this.__data?.scope
     ) {
       decoratePromptMention(dom, this.__category, this.__value, this.__data);
     }

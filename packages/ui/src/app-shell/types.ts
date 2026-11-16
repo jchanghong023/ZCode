@@ -35,7 +35,6 @@ import type {
   ConversationFindMatchState,
 } from "@/v4/legacyChatViewTypes.js";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
-import type { TaskFindDialogProps } from "@/quickpick/TaskFindDialog.js";
 import type { AutomationsNavigationTab, OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import type { SidePaneFullViewController } from "@/side-pane-full-view/contract.js";
 
@@ -116,12 +115,11 @@ export interface GitChangeSummary {
   removed: number;
 }
 
-export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
+export type WorkspaceMainView = "chat" | "automations";
 
 export interface WorkspaceShellLayoutProps extends AppProps {
   workspaceReadOnlyReason?: string;
   workspaceMainView: WorkspaceMainView;
-  pluginStoreOpenVersion: number;
   openAutomationId: string | null;
   openAutomationTab: AutomationsNavigationTab | null;
   /**
@@ -132,7 +130,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   onWorkspaceMainViewChange: (view: WorkspaceMainView) => void;
   onOpenAutomationConsumed: () => void;
   handleOpenAutomations: OpenAutomationsMain;
-  handleOpenPluginStore: () => void;
   workspaceShellZCodeState: WorkspaceShellZCodeState;
   theme: Theme;
   isMacFullscreen: boolean;
@@ -186,18 +183,12 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   >;
   gitWorktreeReviewSourceId: GitChangeSourceId | null;
   gitWorktreeChangeSummary: GitChangeSummary;
-  activeGitSourceId: GitChangeSourceId;
-  gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
   conversationFindActiveIndex: number;
   conversationFindNavigationRequestId: number;
   conversationFindQuery: string;
   onConversationFindMatchStateChange: (state: ConversationFindMatchState) => void;
   searchResultHighlightRequest?: ChatSearchResultHighlightRequest | null;
   onSearchResultHighlightDone?: (requestId: number) => void;
-  fileChangeFindActiveIndex: number;
-  fileChangeFindNavigationRequestId: number;
-  fileChangeFindQuery: string;
-  onFileChangeFindMatchCountChange: (count: number) => void;
   appLogoUrl: string;
   platform: IPlatformService;
   reloadSessionDisabled: boolean;
@@ -220,15 +211,9 @@ export interface WorkspaceShellLayoutProps extends AppProps {
     targetWorkspacePurpose?: import("@zcode/shared").WorkspacePurpose,
     createSource?: SessionCreateSource,
   ) => void;
-  handleOpenCommandCenter: () => void;
-  handleRefreshGit: () => void;
   handleToggleSidebar: () => void;
-  handleOpenDeveloperTools: () => void;
   handleOpenFileManager: (target?: FileManagerTarget) => void;
   handleNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
-  handleOpenPluginMarket: () => void;
-  handleToggleGit: () => void;
-  handleOpenGitReview: (sourceId?: GitChangeSourceId) => void;
   handleToggleSidePane: () => void;
   handleOpenBrowserUrl: (url: string) => void;
   handleOpenCodeViewer: (source: CodeViewerSource) => void;
@@ -260,5 +245,4 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   handleCloseAllSidePaneTabs: () => void;
   handleReopenClosedSidePaneTab: (tabId: string) => void;
   setGitSelectedSourceId: (value: GitChangeSourceId) => void;
-  taskFindDialogProps: TaskFindDialogProps;
 }

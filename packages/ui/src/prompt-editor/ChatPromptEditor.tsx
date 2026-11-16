@@ -406,7 +406,7 @@ export function ChatPromptEditor({
         workspaceIdentity={workspaceIdentity}
         sessionId={taskId}
         container={resolvedTriggerPanelContainer}
-        showPlugins={enableMentionPanel !== false}
+        showContext={enableMentionPanel !== false}
       />
     </span>
   ) : null;

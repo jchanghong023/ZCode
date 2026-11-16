@@ -115,12 +115,6 @@ export const ServiceChannels = {
   Skills: "skills",
   /** SSH 远程 MCP 同步服务 */
   McpSync: "mcp-sync",
-  /** 设置页插件管理服务（UI 平台能力面收敛，不再直触 zcodeAgentService） */
-  PluginManagement: "plugin-management",
-  /** 插件 UI 沙箱桥：host 读取 ui:// 资源并向 main 登记、代理 UI 发起的工具调用 */
-  PluginUiBridge: "plugin-ui-bridge",
-  PluginUiSampling: "plugin-ui-sampling",
-  PluginUiAppTools: "plugin-ui-app-tools",
   /** Subagents 管理服务 */
   Subagents: "subagents",
   /** Bots 远程聊天控制服务 */

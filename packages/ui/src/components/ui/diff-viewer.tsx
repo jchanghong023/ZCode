@@ -3,11 +3,12 @@
 import type { CSSProperties, HTMLAttributes } from "react";
 import { memo, useMemo } from "react";
 import type { BundledTheme } from "shiki";
-import type { FileContents, FileDiffOptions } from "@pierre/diffs";
-import { MultiFileDiff, PatchDiff } from "@pierre/diffs/react";
+import { getFiletypeFromFileName, getSingularPatch, type FileContents, type FileDiffOptions } from "@pierre/diffs";
+import { FileDiff, MultiFileDiff } from "@pierre/diffs/react";
 
 import { cn } from "@/components/lib/utils.js";
 import { DIFFS_PREFERRED_HIGHLIGHTER } from "@/lib/diffsHighlighterEngine.js";
+import { resolveDocumentLanguage } from "@/document-highlighting/index.js";
 
 type DiffViewerStyle = CSSProperties & {
   "--diffs-bg"?: string;
@@ -50,12 +51,29 @@ export interface DiffViewerSelectedLineRange {
 }
 
 function DiffViewerComponent(props: DiffViewerProps) {
+  // 裁剪语法后必须显式指定语言；否则库会按 .ts/.py 等扩展名请求已删除语法。
+  const patch = props.patch;
+  const patchFile = useMemo(() => {
+    if (patch === undefined) return undefined;
+    const file = getSingularPatch(patch);
+    return { ...file, lang: resolveDocumentLanguage(file.lang ?? getFiletypeFromFileName(file.name) ?? "text") };
+  }, [patch]);
+  const oldFile = props.oldFile;
+  const newFile = props.newFile;
+  const documentOldFile = useMemo(
+    () => oldFile && { ...oldFile, lang: resolveDocumentLanguage(oldFile.lang ?? getFiletypeFromFileName(oldFile.name) ?? "text") },
+    [oldFile],
+  );
+  const documentNewFile = useMemo(
+    () => newFile && { ...newFile, lang: resolveDocumentLanguage(newFile.lang ?? getFiletypeFromFileName(newFile.name) ?? "text") },
+    [newFile],
+  );
   const rendersPatch = isPatchDiffProps(props);
   const {
     options: optionsOverride,
     disableWorkerPool = false,
-    lightTheme,
-    darkTheme,
+    lightTheme = "github-light",
+    darkTheme = "github-dark",
     themeType,
     diffClassName,
     fontSizePx = 12,
@@ -88,13 +106,7 @@ function DiffViewerComponent(props: DiffViewerProps) {
       unsafeCSS: DIFF_VIEWER_UNSAFE_CSS,
       // @pierre/diffs 的 code 节点在 Shadow DOM 内，外层 Tailwind class 无法命中；
       // 需要覆盖其内部样式时走 unsafeCSS 注入，且只做最小覆盖，不做大范围样式重写。
-      theme:
-        lightTheme && darkTheme
-          ? {
-              light: lightTheme,
-              dark: darkTheme,
-            }
-          : undefined,
+      theme: { light: lightTheme, dark: darkTheme },
       themeType,
       preferredHighlighter: DIFFS_PREFERRED_HIGHLIGHTER,
       ...optionsOverride,
@@ -102,26 +114,26 @@ function DiffViewerComponent(props: DiffViewerProps) {
     [darkTheme, lightTheme, optionsOverride, rendersPatch, themeType],
   );
 
-  const diffNode = rendersPatch ? (
-    <PatchDiff
-      patch={props.patch}
+  const diffNode = patchFile ? (
+    <FileDiff
+      fileDiff={patchFile}
       options={options}
       disableWorkerPool={disableWorkerPool}
       selectedLines={selectedLines}
       className={cn("min-h-full w-full", diffClassName)}
       style={viewerStyle}
     />
-  ) : (
+  ) : documentOldFile && documentNewFile ? (
     <MultiFileDiff
-      oldFile={props.oldFile}
-      newFile={props.newFile}
+      oldFile={documentOldFile}
+      newFile={documentNewFile}
       options={options}
       disableWorkerPool={disableWorkerPool}
       selectedLines={selectedLines}
       className={cn("min-h-full w-full", diffClassName)}
       style={viewerStyle}
     />
-  );
+  ) : null;
 
   const divProps = rendersPatch ? omitPatchDiffProps(props) : omitMultiFileDiffProps(props);
 

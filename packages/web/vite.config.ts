@@ -54,6 +54,11 @@ export default defineConfig(({ mode }) => {
     ],
     resolve: {
       alias: [
+        // 需求管理只分发文档语法；同时收口第三方 diff 库及 worker 的 Shiki 根入口。
+        {
+          find: /^shiki$/,
+          replacement: resolve(__dirname, "../ui/src/document-highlighting/bundle.ts"),
+        },
         // 修复 UI 组件库中的 @ 别名解析失败。
         // 问题原因：packages/ui 的源码直接被 web 应用交给 Vite 打包，但 web 自己没声明 @ -> packages/ui/src，
         // 所以像 "@/components/lib/utils" 这类导入会在运行时构建阶段报找不到模块。

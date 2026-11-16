@@ -1,5 +1,7 @@
 # 内置插件图标
 
+> 历史规格：2026-11-16 已删除产品插件功能及本页所列客户端插件图标资源，不再适用当前需求管理产品。现行范围见 [插件退役契约](specs/aireq-migration/contract-design.md#需求管理资源收敛与插件退役2026-11-16)；以下保留历史设计记录。
+
 内置插件的商店信息定义在
 `apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts`。每个
 `listing.icon` 使用官方插件资源 CDN：

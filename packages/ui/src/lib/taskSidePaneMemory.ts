@@ -12,8 +12,6 @@ export interface TaskSidePaneMemoryState {
   sidePaneCollapsedByOwner: Record<string, boolean>;
   /** 对话级完整视图状态（docs/ui/side-pane-full-view.md）；缺省表示普通视图。 */
   sidePaneFullViewByOwner: Record<string, SidePaneFullViewState>;
-  /** 工具调用的自动打开已消费记录；不随消息行卸载清空。 */
-  pluginUiAutoOpenKeys: ReadonlySet<string>;
   activeGitSourceId: GitChangeSourceId;
 }
 
@@ -22,7 +20,6 @@ const DEFAULT_TASK_SIDE_PANE_MEMORY_STATE: TaskSidePaneMemoryState = {
   isSidePaneCollapsed: true,
   sidePaneCollapsedByOwner: {},
   sidePaneFullViewByOwner: {},
-  pluginUiAutoOpenKeys: new Set(),
   activeGitSourceId: "unstaged",
 };
 
@@ -192,17 +189,3 @@ export function clearTaskSidePaneMemoryStateForTest(): void {
   taskSidePaneMemory.clear();
 }
 
-export function claimPluginUiSidePaneAutoOpen(
-  workspaceKey: string | null,
-  requestKey: string,
-): boolean {
-  if (!workspaceKey) return false;
-  const state = readTaskSidePaneMemoryState(workspaceKey);
-  if (state.pluginUiAutoOpenKeys.has(requestKey)) return false;
-  // 根因：行内 useRef 在会话切换/虚拟卸载后丢失，旧 fullscreen 结果会覆盖已保存的收起状态。
-  // 与侧栏偏好共用同一内存 owner；同步消费也保证同一调用的多个锚点只触发一次。
-  saveTaskSidePaneMemoryState(workspaceKey, {
-    pluginUiAutoOpenKeys: new Set([...state.pluginUiAutoOpenKeys, requestKey]),
-  });
-  return true;
-}

@@ -1,10 +1,5 @@
 /* eslint-disable max-lines -- Side pane tab 状态集中维护 Git/CodeViewer 的打开、复用、关闭和排序规则；拆分需要同步迁移现有内存恢复逻辑。 */
 import { createUuid } from "@zcode/shared";
-import type { PluginUiSidePaneTab } from "@/plugin-ui/contract.js";
-import type {
-  ExtensionLogsSidePaneTab,
-  ExtensionViewSidePaneTab,
-} from "@/extension-slots/contract.js";
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import { normalizeCodeViewerSource } from "@/lib/codeViewerSource.js";
 
@@ -48,14 +43,6 @@ export interface CodeViewerSidePaneTab {
   openedAt?: number;
   source: CodeViewerSource;
   sourceKey: string | null;
-}
-
-export interface PluginMarketSidePaneTab {
-  id: "plugin-market";
-  type: "plugin-market";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
 }
 
 export interface DeveloperToolsSidePaneTab {
@@ -474,15 +461,11 @@ export type WorkspaceSidePaneTab =
   | BackgroundBashSidePaneTab
   | GitSidePaneTab
   | CodeViewerSidePaneTab
-  | PluginMarketSidePaneTab
   | DeveloperToolsSidePaneTab
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
   | SelectionSideChatPaneTab
   | PlanDetailSidePaneTab
-  | PluginUiSidePaneTab
-  | ExtensionViewSidePaneTab
-  | ExtensionLogsSidePaneTab
   | WorkflowRunSidePaneTab
   | WorkflowRunDirectorySidePaneTab
   | WorkflowActorSessionSidePaneTab
@@ -936,8 +919,6 @@ export function sidePaneOwnerKey(taskId: string | null | undefined): string {
 export interface SidePaneVisibilityScope {
   workspaceKey: string | null;
   ownerTaskId: string | null;
-  pluginUiSessionId?: string | null;
-  pluginUiWorkspaceKey?: string | null;
 }
 
 function sidePaneTabMatchesWorkspace(
@@ -979,22 +960,10 @@ export function isSidePaneTabVisibleInScope(
   tab: WorkspaceSidePaneTab,
   scope: SidePaneVisibilityScope,
 ): boolean {
-  if (tab.type === "plugin-ui") {
-    return (
-      sidePaneTabMatchesWorkspace(tab, scope.pluginUiWorkspaceKey ?? scope.workspaceKey) &&
-      tab.parentSessionId ===
-        (scope.pluginUiSessionId === undefined ? scope.ownerTaskId : scope.pluginUiSessionId)
-    );
-  }
   if (!sidePaneTabMatchesWorkspace(tab, scope.workspaceKey)) return false;
   switch (tab.type) {
     case "git":
     case "developer-tools":
-    // 扩展视图是工作区级（docs/plugins/extension-host.md §8）：草稿首发、切换会话后保留。
-    case "extension-view":
-    // 扩展日志同样是工作区级（§16.8）。
-    case "extension-logs":
-    case "plugin-market":
       return true;
     case "subagent-session":
     case "subagent-directory":
@@ -1103,9 +1072,7 @@ export function resolveSidePaneScopeState(
         : state,
     // 草稿重新进入时默认收起；空 scope 的历史展开偏好不能生成新标签页。
     isSidePaneCollapsed:
-      activeTabId === null ||
-      (scope.ownerTaskId === null &&
-        !state?.tabs.some((tab) => tab.id === activeTabId && tab.type === "plugin-ui"))
+      activeTabId === null || scope.ownerTaskId === null
         ? true
         : (collapsedPreference ?? false),
   };
@@ -1241,66 +1208,10 @@ export function activateGitSidePane(
   return activateSidePaneTab(current, createGitSidePaneTab());
 }
 
-export function activatePluginMarketSidePane(
-  current: WorkspaceSidePaneState | null,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, { id: "plugin-market", type: "plugin-market" });
-}
-
 export function activateDeveloperToolsSidePane(
   current: WorkspaceSidePaneState | null,
 ): WorkspaceSidePaneState {
   return activateSidePaneTab(current, createDeveloperToolsSidePaneTab());
-}
-
-/** 打开或聚焦扩展日志标签（§16.8）：固定 id，每个侧栏一个。 */
-export function activateExtensionLogsSidePane(
-  current: WorkspaceSidePaneState | null,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, {
-    id: "extension-logs",
-    type: "extension-logs",
-    openedAt: Date.now(),
-  });
-}
-
-/** 打开或聚焦扩展视图标签：id 由视图全局 id 派生，同一视图只开一个。 */
-export function activateExtensionViewSidePane(
-  current: WorkspaceSidePaneState | null,
-  tab: ExtensionViewSidePaneTab,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, { ...tab, openedAt: tab.openedAt ?? Date.now() });
-}
-
-function isAppScopedExtensionViewTab(tab: WorkspaceSidePaneTab): tab is ExtensionViewSidePaneTab {
-  return tab.type === "extension-view" && tab.appScoped === true && !tab.input;
-}
-
-/**
- * 切换工作区时移动 app 作用域的扩展视图标签（docs/plugins/extension-host.md §18.1 H5）。
- * 这些标签任一时刻只在当前工作区的侧栏记录里：从旧记录移走（previous），接到新记录末尾并改记归属（next）。
- * 只移动不复制，所以在任一工作区关掉它就是关掉了，回到旧工作区不会再出现。
- * 标签对象与 id 不变，内容不卸载，实例 id 不变。新记录原来的当前标签不变；新记录为空时移来的第一个标签是当前标签。
- * 没有要移动的标签时返回 null。
- */
-export function moveAppScopedExtensionViewTabs(
-  previous: WorkspaceSidePaneState | null,
-  next: WorkspaceSidePaneState | null,
-  workspaceKey: string | null,
-): { previous: WorkspaceSidePaneState | null; next: WorkspaceSidePaneState | null } | null {
-  const moving = (previous?.tabs ?? []).filter(isAppScopedExtensionViewTab);
-  if (moving.length === 0) return null;
-  const remaining = moving.reduce<WorkspaceSidePaneState | null>(
-    (state, tab) => closeSidePaneTab(state, tab.id),
-    previous,
-  );
-  const existing = new Set((next?.tabs ?? []).map((tab) => tab.id));
-  const added = moving
-    .filter((tab) => !existing.has(tab.id))
-    .map((tab): WorkspaceSidePaneTab => ({ ...tab, workspaceKey }));
-  const tabs = [...(next?.tabs ?? []), ...added];
-  if (tabs.length === 0) return { previous: remaining, next: null };
-  return { previous: remaining, next: { tabs, activeTabId: next?.activeTabId || tabs[0]!.id } };
 }
 
 export function openSubagentSessionSidePane(

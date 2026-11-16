@@ -48,17 +48,6 @@ import type {
  */
 declare global {
   interface Window {
-    /** 插件 UI 沙箱 preload 命名空间；旧 preload 下为 undefined。 */
-    zcodePluginSandbox?: {
-      supportsRetainedMove?: boolean;
-      setExecutionActive?(sandboxId: string, initId: number, active: boolean): Promise<void>;
-      copyImage?(
-        input: import("@zcode/shared/mcp-apps").PluginSandboxCaptureRequest,
-      ): Promise<void>;
-      getOwnerWebContentsId(): Promise<number>;
-      disposeSandbox(sandboxId: string, initId?: number): Promise<void>;
-      consumeUserGesture(sandboxId: string): Promise<boolean>;
-    };
     zcode: {
       requestSourceSettingsAttachment?(sourceServerId: string): Promise<{ attachmentId: string }>;
       /**

@@ -5,14 +5,12 @@
 export const projectSidebarModule = {
   id: "project-sidebar",
   requires: [
-    "resource-manager",
     "services",
     "shared",
     "ui",
     "conversation-workspace-target",
     "managed-worktree-ui",
     "task-row-hover",
-    "extension-slots",
   ],
   provides: ["project-sidebar"],
   publicEntrypoints: ["index.tsx", "contract.ts", "WorkspaceDragOverlay.tsx"],

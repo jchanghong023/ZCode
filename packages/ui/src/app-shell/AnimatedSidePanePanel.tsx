@@ -1,8 +1,7 @@
-/* eslint-disable max-lines -- Side pane 当前集中承载 tabs、git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
-import { ServiceProvider, useComposerClientNamespace } from "@/hooks/useServices.js";
+/* eslint-disable max-lines -- Side pane 当前集中承载 tabs 与内容布局；完整拆分需按 pane 功能边界继续推进。 */
+import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
-import type { IServiceAccessor } from "@zcode/services";
 import {
   closestCenter,
   DndContext,
@@ -14,12 +13,10 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
-import { isRemoteWorkspaceIdentity, type GitChangeSourceId } from "@zcode/shared";
 import { FileManagerPane } from "@/WorkspaceFileTree.js";
 import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { composerScopeKey, resolveComposerScope } from "@/v4/composer/composerDraftStore.js";
-import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import {
   SIDE_PANE_FULL_VIEW_CONVERSATION_TAB_VALUE,
@@ -28,8 +25,6 @@ import {
   type SidePaneFullViewSurface,
 } from "@/side-pane-full-view/index.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
-import { GitPane } from "@/GitPane.js";
-import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 
@@ -45,14 +40,6 @@ import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
-import {
-  usePluginUiPaneTarget,
-  PluginUiLauncherItems,
-  PluginUiSidePane,
-  SidePaneLauncherRow,
-  useMarketPluginUi,
-  useOpenPluginUi,
-} from "@/plugin-ui/index.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
 import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
@@ -67,13 +54,11 @@ import { resolveSidePaneTabsOverflow } from "@/app-shell/sidePaneLayout.js";
 import {
   resolveAnimatedSidePanePanelLayout,
   resolveOpenTabLauncherItemIds,
-  SITES_PLUGIN_ID,
   shouldOfferSelectionSideConversation,
   shouldRenderPreviewPaneHeavyContent,
   type OpenTabLauncherItemId,
 } from "@/app-shell/animatedSidePanePanelModel.js";
 import type { RecentClosedSidePaneTab } from "@/lib/workspaceSidePane.js";
-import { useDeveloperToolsVisibility } from "@/hooks/useDeveloperToolsVisibility.js";
 import { useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import {
@@ -91,10 +76,7 @@ import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js"
 import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
-  BugIcon,
-  FileDiffIcon,
   FolderOpenIcon,
-  EarthIcon,
   MessageSquareTextIcon,
   PlusIcon,
   type LucideIcon,
@@ -242,7 +224,6 @@ function useWindowResizeSettling(enabled: boolean) {
 }
 
 export function AnimatedSidePanePanel({
-  services,
   isDesktop,
   isVisible,
   sidePaneState,
@@ -253,15 +234,8 @@ export function AnimatedSidePanePanel({
   workspaceRemoteSessionId,
   activeTaskId,
   sidePaneOwnerId,
-  gitState,
-  activeGitSourceId,
   panelRef,
   panelElementRef,
-  fileChangeFindActiveIndex,
-  fileChangeFindNavigationRequestId,
-  fileChangeFindQuery,
-  onFileChangeFindMatchCountChange,
-  onCloseGit,
   onActivateTab,
   onOpenNewTab,
   onReorderTab,
@@ -269,10 +243,8 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs,
   onCloseAllTabs,
   onReopenClosedTab,
-  onOpenDeveloperTools,
   onOpenFileManager,
   onNavigateFileManager,
-  onOpenReviewTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
@@ -284,8 +256,6 @@ export function AnimatedSidePanePanel({
   onOpenWorkflowArtifact,
   onOpenWorkflowRun,
   onOpenBackgroundBash,
-  onRefreshGit,
-  onSelectGitSource,
   frameClassName = "rounded-xl border border-border",
   captionControlsStyle,
   onCloseSidePane,
@@ -296,7 +266,6 @@ export function AnimatedSidePanePanel({
   mobileOverlay = false,
   mobileStacked = false,
 }: {
-  services: IServiceAccessor;
   frameClassName?: string;
   captionControlsStyle?: CSSProperties;
   showWindowControls?: boolean;
@@ -325,16 +294,9 @@ export function AnimatedSidePanePanel({
   workspaceRemoteSessionId?: string;
   activeTaskId: string | null;
   sidePaneOwnerId: string | null;
-  gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
-  activeGitSourceId: GitChangeSourceId;
   panelRef: RefObject<PanelImperativeHandle | null>;
   panelElementRef: RefObject<HTMLDivElement | null>;
-  fileChangeFindActiveIndex: number;
-  fileChangeFindNavigationRequestId: number;
-  fileChangeFindQuery: string;
-  onFileChangeFindMatchCountChange: (count: number) => void;
   onCloseCodeViewer: () => void;
-  onCloseGit: () => void;
   onActivateTab: (tabId: string) => void;
   onOpenNewTab: () => void;
   /** "插件"分组打开面板 tab；缺省不渲染分组（web / 无宿主）。 */
@@ -343,10 +305,8 @@ export function AnimatedSidePanePanel({
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   onReopenClosedTab: (tabId: string) => void;
-  onOpenDeveloperTools: () => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
-  onOpenReviewTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
@@ -362,23 +322,10 @@ export function AnimatedSidePanePanel({
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
   /** run 目录页里点一行 → 打开那个 run 的详情页 tab（目录 → 详情是这一页存在的理由）。 */
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
-  onRefreshGit: () => void;
-  onSelectGitSource: (value: GitChangeSourceId) => void;
   mobileOverlay?: boolean;
   mobileStacked?: boolean;
 }) {
-  const onOpenPluginUi = useOpenPluginUi();
-  const pluginUiTarget = usePluginUiPaneTarget({
-    workspacePath: workspaceAbsPath,
-    workspaceIdentity,
-    remoteSessionId: workspaceRemoteSessionId ?? undefined,
-    sessionId: activeTaskId,
-  });
-  const pluginUiWorkspaceKey =
-    pluginUiTarget.workspaceIdentity?.trim() || pluginUiTarget.workspacePath;
-  const { intl, locale } = useZCodeIntl();
-  const isOfficeMode = useIsOfficeMode();
-  const developerToolsEnabled = useDeveloperToolsVisibility();
+  const { intl } = useZCodeIntl();
   const isMobileTextInputViewport = useIsMobileTextInputViewport();
   const isDragCollapsible = !isVisible;
   const isResizeDisabled = !isVisible;
@@ -396,10 +343,8 @@ export function AnimatedSidePanePanel({
       getVisibleSidePaneTabs(tabs, {
         workspaceKey,
         ownerTaskId: sidePaneOwnerId,
-        pluginUiSessionId: pluginUiTarget.sessionId,
-        pluginUiWorkspaceKey,
       }),
-    [sidePaneOwnerId, tabs, workspaceKey, pluginUiTarget.sessionId, pluginUiWorkspaceKey],
+    [sidePaneOwnerId, tabs, workspaceKey],
   );
   const activeTabId = sidePaneState?.activeTabId ?? "";
   const visibleActiveTabId = visibleTabs.some((tab) => tab.id === activeTabId)
@@ -430,22 +375,10 @@ export function AnimatedSidePanePanel({
   );
   const isWindowResizeSettling = useWindowResizeSettling(hasRenderedSidePane);
   const panelLayout = resolveAnimatedSidePanePanelLayout({ mobileOverlay });
-  const hasReviewTab = visibleTabs.some((tab) => tab.type === "git");
   const canOpenSelectionSideConversation = shouldOfferSelectionSideConversation({
     activeTaskId,
     isMobileTextInputViewport,
     mobileOverlay,
-  });
-  // Sites 面板是会话级 UI 插件，和辅助对话同样需要正式会话；远端工作区不支持插件面板。
-  const canOpenSites =
-    canOpenSelectionSideConversation &&
-    !workspaceRemoteSessionId &&
-    !isRemoteWorkspaceIdentity(workspaceIdentity ?? "");
-  const sitesPluginUi = useMarketPluginUi({
-    workspacePath: workspaceAbsPath,
-    workspaceIdentity,
-    remoteSessionId: workspaceRemoteSessionId ?? null,
-    sessionId: activeTaskId,
   });
   const tabDragSensors = useSensors(
     useSensor(PointerSensor, {
@@ -475,7 +408,7 @@ export function AnimatedSidePanePanel({
 
   useEffect(() => {
     if (shouldMountContent) {
-      // 收起时不能卸载 Tabs/Git，否则再次打开会丢失内容状态并重复初始化。
+      // 收起时不能卸载 Tabs 内容，否则再次打开会丢失内容状态并重复初始化。
       // 尺寸过渡期间也保留实例，避免内容先消失、恢复后重复初始化。
       setHasRenderedSidePane(true);
     }
@@ -630,13 +563,6 @@ export function AnimatedSidePanePanel({
     </Button>
   );
   const openTabLauncherItemById: Record<OpenTabLauncherItemId, OpenTabLauncherItem> = {
-    sites: {
-      id: "sites",
-      label: intl.formatMessage({ id: "sidePane.sites" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.sites" }),
-      icon: EarthIcon,
-      onOpen: () => void sitesPluginUi.open(SITES_PLUGIN_ID),
-    },
     "selection-side-conversation": {
       id: "selection-side-conversation",
       label: intl.formatMessage({ id: "sidePane.selectionChat" }),
@@ -651,29 +577,10 @@ export function AnimatedSidePanePanel({
       icon: FolderOpenIcon,
       onOpen: () => onOpenFileManager(),
     },
-    review: {
-      id: "review",
-      label: intl.formatMessage({ id: "sidePane.review" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.review" }),
-      icon: FileDiffIcon,
-      onOpen: onOpenReviewTab,
-    },
-    "developer-tools": {
-      id: "developer-tools",
-      label: intl.formatMessage({ id: "developerTools.title" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.developer-tools" }),
-      icon: BugIcon,
-      onOpen: onOpenDeveloperTools,
-    },
   };
   const openTabLauncherItems: OpenTabLauncherItem[] = resolveOpenTabLauncherItemIds({
     canOpenSelectionSideConversation,
-    canOpenSites,
-    developerToolsEnabled,
-    hasReviewTab,
-  })
-    .filter((itemId) => !isOfficeMode || itemId !== "review")
-    .map((itemId) => openTabLauncherItemById[itemId]);
+  }).map((itemId) => openTabLauncherItemById[itemId]);
   const closeSidePaneButton =
     isVisible && !mobileOverlay && onCloseSidePane ? (
       <div className="flex shrink-0 items-center gap-0.5 [app-region:no-drag]">
@@ -693,7 +600,7 @@ export function AnimatedSidePanePanel({
     ) : null;
   const openTabLauncher = (
     <div className="side-pane-open-tab-shell @container/launcher flex h-full min-h-0 flex-col bg-background">
-      {/* 对齐原型：顶部对齐滚动、左对齐标题；内置应用与 UI 插件同为横向行，短分割线分区。 */}
+      {/* 内置工具沿用横向行布局。 */}
       <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
           <h2 className="pl-2 text-ui-xl font-semibold text-foreground">
@@ -701,41 +608,23 @@ export function AnimatedSidePanePanel({
           </h2>
           <div className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
             {openTabLauncherItems.map((item) => (
-              <SidePaneLauncherRow
+              <Button
                 key={item.id}
-                itemId={item.id}
-                icon={item.icon}
-                label={item.label}
-                description={item.description}
-                onOpen={item.onOpen}
-              />
+                variant="ghost"
+                className="h-auto min-w-0 justify-start gap-3 rounded-xl px-2 py-2.5 text-left"
+                data-side-pane-open-tab-item={item.id}
+                onClick={item.onOpen}
+              >
+                <item.icon className="size-6 shrink-0 text-foreground-subtle" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block truncate text-ui-base font-semibold">{item.label}</span>
+                  <span className="block truncate text-ui-sm text-foreground-subtle">
+                    {item.description}
+                  </span>
+                </span>
+              </Button>
             ))}
           </div>
-          {/* 草稿已有真实预热 session；按正式 task 判断会隐藏整个插件入口。 */}
-          {pluginUiTarget.sessionId ? (
-            <>
-              <div aria-hidden="true" className="my-4 h-px w-24 self-center bg-border" />
-              <section className="min-w-0" data-testid="side-pane-ui-recommendations">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-                  <h2 className="pl-2 text-ui-lg font-semibold text-foreground">
-                    {intl.formatMessage({ id: "settings.plugins.store.ui.title" })}
-                  </h2>
-                </div>
-                <div className="mt-2 grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
-                  {onOpenPluginUi ? (
-                    <PluginUiLauncherItems
-                      workspacePath={pluginUiTarget.workspacePath}
-                      workspaceIdentity={pluginUiTarget.workspaceIdentity}
-                      remoteSessionId={pluginUiTarget.remoteSessionId ?? undefined}
-                      sessionId={pluginUiTarget.sessionId}
-                      paneId={pluginUiTarget.paneId}
-                      onOpenPluginUi={onOpenPluginUi}
-                    />
-                  ) : null}
-                </div>
-              </section>
-            </>
-          ) : null}
         </div>
       </div>
     </div>
@@ -761,11 +650,9 @@ export function AnimatedSidePanePanel({
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
         newTabTitle: intl.formatMessage({ id: "sidePane.newTab" }),
-        pluginMarketTitle: intl.formatMessage({ id: "workspace.openPluginsSettings" }),
         developerToolsTitle: intl.formatMessage({
           id: "developerTools.title",
         }),
-        extensionLogsTitle: intl.formatMessage({ id: "extensions.logs.title" }),
         terminalTitle: intl.formatMessage({ id: "terminal.title" }),
         subagentTypeLabel: intl.formatMessage({ id: "sidePane.subagent" }),
         subagentDirectoryTitle: intl.formatMessage({
@@ -780,7 +667,6 @@ export function AnimatedSidePanePanel({
         workflowActorTitle: intl.formatMessage({ id: "sidePane.workflowActor" }),
         workflowScriptTitle: intl.formatMessage({ id: "sidePane.workflowScript" }),
         workflowArtifactTitle: intl.formatMessage({ id: "sidePane.workflowArtifact" }),
-        locale,
       }}
       onActivateTab={activateSidePaneTab}
       onCloseTab={onCloseTab}
@@ -897,7 +783,7 @@ export function AnimatedSidePanePanel({
                             strategy={horizontalListSortingStrategy}
                           >
                             {visibleTabs.map((tab) => {
-                              const title = getSidePaneTabTitle(tab, intl.formatMessage, locale);
+                              const title = getSidePaneTabTitle(tab, intl.formatMessage);
                               return (
                                 <SortableSidePaneTabTrigger
                                   key={tab.id}
@@ -936,7 +822,7 @@ export function AnimatedSidePanePanel({
                         {draggingTab ? (
                           <SidePaneTabDragOverlay
                             tab={draggingTab}
-                            title={getSidePaneTabTitle(draggingTab, intl.formatMessage, locale)}
+                            title={getSidePaneTabTitle(draggingTab, intl.formatMessage)}
                             diffBadgeLabel={intl.formatMessage({
                               id: "diff.title",
                             })}
@@ -1010,13 +896,6 @@ export function AnimatedSidePanePanel({
                             onOpenFileLink={onOpenFileLink}
                             onUnavailable={onCloseTab}
                           />
-                        ) : tab.type === "plugin-ui" ? (
-                          <PluginUiSidePane
-                            tab={tab}
-                            visible={isVisible && tab.id === contentActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onCloseTab={onCloseTab}
-                          />
                         ) : tab.type === "plan-detail" ? (
                           <PlanDetailSidePane
                             tab={tab}
@@ -1063,8 +942,7 @@ export function AnimatedSidePanePanel({
                             onOpenCodeViewer={onOpenCodeViewer}
                           />
                         ) : tab.type === "workflow-artifact" ? (
-                          // 「在工作区显示」复用 Git 面板那条文件树 reveal（同一个宿主回调），
-                          // 不新造第二条定位路径。
+                          // 「在工作区显示」复用宿主的文件树 reveal 回调。
                           <WorkflowArtifactSidePane
                             tab={tab}
                             {...(onRevealGitFileInTree === undefined
@@ -1114,34 +992,8 @@ export function AnimatedSidePanePanel({
                               visibleInlineSizePx: sidePaneVisibleInlineSizePx,
                             })}
                           />
-                        ) : tab.type === "git" ? (
-                          <GitPane
-                            workspacePath={taskCwd ?? workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            workspaceRemoteSessionId={workspaceRemoteSessionId}
-                            gitState={gitState}
-                            isDesktop={isDesktop}
-                            selectedSourceId={activeGitSourceId}
-                            fileChangeFindActiveIndex={fileChangeFindActiveIndex}
-                            fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
-                            fileChangeFindQuery={fileChangeFindQuery}
-                            onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
-                            onSelectSource={onSelectGitSource}
-                            onClose={onCloseGit}
-                            onRefresh={onRefreshGit}
-                            onRevealFileInTree={onRevealGitFileInTree}
-                          />
                         ) : tab.type === "new-tab" ? (
                           openTabLauncher
-                        ) : tab.type === "developer-tools" ? (
-                          <ServiceProvider services={services}>
-                            <DeveloperToolsPane
-                              workspacePath={workspaceAbsPath}
-                              workspaceIdentity={workspaceIdentity}
-                              taskId={activeTaskId}
-                              enabled={isVisible && tab.id === contentActiveTabId}
-                            />
-                          </ServiceProvider>
                         ) : null}
                       </TabsContent>
                     );

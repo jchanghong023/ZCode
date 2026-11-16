@@ -1,6 +1,6 @@
 import type { TaskChatMessage as ChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
-import type { IBotsService, IPluginManagementService } from "@zcode/services";
+import type { IBotsService } from "@zcode/services";
 import { useEffect } from "react";
 import type { Locale } from "@zcode/shared";
 
@@ -28,13 +28,6 @@ export interface TestActions {
   setChatMessages: (messages: ChatMessage[]) => void;
   /** 获取当前 mock 消息数量 */
   getChatMessageCount: () => number;
-  /** E2E 通过真实插件管理门面读取与修改插件。 */
-  getPluginsOverview: IPluginManagementService["getPluginsOverview"];
-  addPluginMarketplace: IPluginManagementService["addPluginMarketplace"];
-  updatePluginMarketplace: IPluginManagementService["updatePluginMarketplace"];
-  installPlugin: IPluginManagementService["installPlugin"];
-  listPlugins: IPluginManagementService["listPlugins"];
-  getPluginReferenceCatalog: IPluginManagementService["getPluginReferenceCatalog"];
 }
 
 declare global {

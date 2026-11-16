@@ -166,6 +166,8 @@ import {
 import {
   buildScopeKey as buildComposerAttachmentScopeKey,
   useComposerAttachments,
+  useContextImageAttachments,
+  type ContextImageAttachmentsOptions,
 } from "@/v4/composer/useComposerAttachments.js";
 import { isComposerEditScopeId } from "@/composer-edit-mode/contract.js";
 import {
@@ -184,13 +186,6 @@ import {
   webElementScreenshotFiles,
   type WebElementContextComposerAttachment,
 } from "@/lib/webElementContext.js";
-import { PluginUiModelContextChip } from "@/plugin-ui/adapters/PluginUiModelContextChip.js";
-import {
-  type ContextImageAttachmentsOptions,
-  useContextImageAttachments,
-  usePluginUiContextImages,
-} from "@/plugin-ui/adapters/usePluginUiContextImages.js";
-import { usePluginUiModelContexts } from "@/plugin-ui/adapters/pluginUiModelContextEvents.js";
 import { usePptxElementReferences } from "@/v4/composer/usePptxElementReferences.js";
 import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip.js";
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
@@ -320,7 +315,6 @@ export function applyExternalTextInsertRequestToComposer({
     | "prependMentionIfMissing"
     | "setMention"
     | "setText"
-    | "setTextWithPluginMentions"
   > | null;
   request: ExternalTextInsertRequest | null | undefined;
   requestFocus: () => void;
@@ -361,12 +355,7 @@ export function applyExternalTextInsertRequestToComposer({
     return request.requestId;
   }
   if (request.mention && request.text.startsWith(request.mention.markdown)) {
-    // 根因：商店试用以前只传 canonical 文本，Lexical 无法知道开头链接是结构化 Plugin mention。
-    // request 同时携带 display-only 节点数据；发送与草稿事实源仍使用 request.text 原文。
     inputApi.setMention(request.mention, request.text.slice(request.mention.markdown.length));
-  } else if (request.text.includes("](plugin://")) {
-    // 推荐任务可在正文中组合多个插件；按原位置构造成真实提及节点。
-    inputApi.setTextWithPluginMentions(request.text);
   } else {
     inputApi.setText(request.text);
   }
@@ -407,7 +396,6 @@ export interface ConversationComposerProps {
   sessionId?: string | null;
   /** Skill catalog authority；草稿预热完成后为 prewarmSessionId，不改变 task/draft 身份。 */
   skillCatalogSessionId?: string | null;
-  pluginUiSessionId?: string | null;
   /** draft 态无 snapshot，但仍可 createSession 首发。 */
   draftMode?: boolean;
   /** renderer 当前草稿配置意图；只在 draftMode 下覆盖迟到的 prewarm projection。 */
@@ -565,7 +553,7 @@ function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: s
 }
 
 const WEB_ELEMENT_CONTEXT_IMAGE_OPTIONS: ContextImageAttachmentsOptions<WebElementContextComposerAttachment> =
-  { toFiles: webElementScreenshotFiles, removeStrategy: "attached" };
+  { toFiles: webElementScreenshotFiles };
 
 function ConversationComposerImpl({
   snapshot,
@@ -573,7 +561,6 @@ function ConversationComposerImpl({
   lifecycle,
   sessionId = null,
   skillCatalogSessionId = sessionId,
-  pluginUiSessionId = sessionId,
   draftMode = false,
   draftConfig,
   composerDraft,
@@ -922,15 +909,6 @@ function ConversationComposerImpl({
       webElementScreenshotIds.has(attachment.id) && attachment.uploadStatus !== "failed",
     [webElementScreenshotIds],
   );
-  // 插件 UI 经 ui/update-model-context 附加的上下文；按 sessionId 接收，随发送清空。
-  const {
-    contexts: pluginUiContexts,
-    hasContexts: hasPluginUiContexts,
-    removeContext: removePluginUiContext,
-    clearContexts: clearPluginUiContexts,
-  } = usePluginUiModelContexts({ sessionId: pluginUiSessionId, workspacePath, workspaceIdentity });
-  // 上下文里的 image 块 → 本 composer 的图片附件，随下一回合发送。
-  usePluginUiContextImages(pluginUiContexts, attachmentsApi);
   const {
     references: pptxElementReferences,
     hasReferences: hasPptxElementReferences,
@@ -1428,16 +1406,14 @@ function ConversationComposerImpl({
     hasCodeCommentContexts ||
     hasWebElementContexts ||
     hasPptxElementReferences ||
-    hasConversationSelectionReferences ||
-    hasPluginUiContexts;
+    hasConversationSelectionReferences;
   const hasComposerDraftContent =
     textPresence.raw ||
     hasAttachments ||
     hasCodeCommentContexts ||
     hasWebElementContexts ||
     hasPptxElementReferences ||
-    hasConversationSelectionReferences ||
-    hasPluginUiContexts;
+    hasConversationSelectionReferences;
   useEffect(() => {
     onDraftStateChange?.({
       hasContent: hasComposerDraftContent,
@@ -1460,8 +1436,7 @@ function ConversationComposerImpl({
     !hasCodeCommentContexts &&
     !hasWebElementContexts &&
     !hasPptxElementReferences &&
-    !hasConversationSelectionReferences &&
-    !hasPluginUiContexts;
+    !hasConversationSelectionReferences;
   const connectionPendingRef = useRef(false);
   const [connectionPending, setConnectionPending] = useState(false);
   const handleConnectionPendingChange = useCallback((pending: boolean) => {
@@ -1503,8 +1478,6 @@ function ConversationComposerImpl({
       const hasPendingCodeCommentContexts = currentCodeCommentContexts.length > 0;
       const currentWebElementContexts = webElementContexts;
       const hasPendingWebElementContexts = currentWebElementContexts.length > 0;
-      const currentPluginUiContexts = pluginUiContexts;
-      const hasPendingPluginUiContexts = currentPluginUiContexts.length > 0;
       const currentPptxElementReferences = pptxElementReferences;
       const hasPendingPptxElementReferences = currentPptxElementReferences.length > 0;
       const currentConversationSelections = conversationSelectionReferences;
@@ -1556,8 +1529,7 @@ function ConversationComposerImpl({
           !hasPendingCodeCommentContexts &&
           !hasPendingWebElementContexts &&
           !hasPendingPptxElementReferences &&
-          !hasPendingConversationSelections &&
-          !hasPendingPluginUiContexts) ||
+          !hasPendingConversationSelections) ||
         pendingRef.current ||
         targetSelectionPendingRef.current ||
         !remoteAvailable ||
@@ -1693,7 +1665,6 @@ function ConversationComposerImpl({
         attachmentsApi.clearAttachments(submittedAttachmentIds, submittedAttachmentScopeKey);
         currentCodeCommentContexts.forEach(removeCodeCommentContext);
         removeSentWebElementContexts(currentWebElementContexts.map((context) => context.id));
-        currentPluginUiContexts.forEach((context) => removePluginUiContext(context.id));
         currentPptxElementReferences.forEach((reference) =>
           removePptxElementReference(reference.id),
         );
@@ -1776,14 +1747,12 @@ function ConversationComposerImpl({
           conversationSelections: [],
           webElements: currentWebElementContexts,
           pptxElements: currentPptxElementReferences,
-          pluginUiContexts: currentPluginUiContexts,
         });
         const contextAttachmentCount = countComposerPromptContexts({
           codeComments: currentCodeCommentContexts,
           conversationSelections: currentConversationSelections,
           webElements: currentWebElementContexts,
           pptxElements: currentPptxElementReferences,
-          pluginUiContexts: currentPluginUiContexts,
         });
         if (trimmed) {
           promptHistoryBeforeSend = readPromptHistoryEntries(workspacePath);
@@ -1920,8 +1889,6 @@ function ConversationComposerImpl({
       removeConversationSelectionReference,
       removePptxElementReference,
       removeSentWebElementContexts,
-      removePluginUiContext,
-      pluginUiContexts,
       sessionId,
       snapshotDraftOfEditor,
       updateText,
@@ -2210,8 +2177,7 @@ function ConversationComposerImpl({
       codeCommentContexts.length === 0 &&
       pillWebElementContexts.length === 0 &&
       pptxElementReferences.length === 0 &&
-      conversationSelectionReferences.length === 0 &&
-      pluginUiContexts.length === 0
+      conversationSelectionReferences.length === 0
     ) {
       return null;
     }
@@ -2485,8 +2451,7 @@ function ConversationComposerImpl({
         {codeCommentContexts.length > 0 ||
         pillWebElementContexts.length > 0 ||
         pptxElementReferences.length > 0 ||
-        conversationSelectionReferences.length > 0 ||
-        pluginUiContexts.length > 0 ? (
+        conversationSelectionReferences.length > 0 ? (
           <div
             className="flex max-w-full flex-wrap items-center gap-2"
             data-composer-context-attachments-row="true"
@@ -2500,11 +2465,6 @@ function ConversationComposerImpl({
               contexts={pillWebElementContexts}
               onRemove={removeWebElementContextByUser}
               onRemoveAll={clearWebElementContextsByUser}
-            />
-            <PluginUiModelContextChip
-              contexts={pluginUiContexts}
-              onRemove={removePluginUiContext}
-              onRemoveAll={clearPluginUiContexts}
             />
             <PptxElementReferenceChip
               references={pptxElementReferences}
@@ -2547,7 +2507,6 @@ function ConversationComposerImpl({
     clearCodeCommentContexts,
     clearConversationSelectionReferences,
     clearWebElementContextsByUser,
-    clearPluginUiContexts,
     clearPptxElementReferences,
     codeCommentContexts,
     composerAttachments,
@@ -2559,11 +2518,9 @@ function ConversationComposerImpl({
     removeCodeCommentContext,
     removeConversationSelectionReference,
     removeWebElementContextByUser,
-    removePluginUiContext,
     removePptxElementReference,
     conversationSelectionReferences,
     pillWebElementContexts,
-    pluginUiContexts,
     pptxElementReferences,
     onOpenCodeViewer,
     openPptxElementReference,
@@ -2969,14 +2926,13 @@ function ConversationComposerImpl({
               hasAttachments ||
               hasWebElementContexts ||
               hasPptxElementReferences ||
-              hasConversationSelectionReferences ||
-              hasPluginUiContexts
+              hasConversationSelectionReferences
             }
             enterSubmits={enterSubmits}
             onModifiedSubmit={modifiedEnterSubmits ? handleModifiedEditorSubmit : undefined}
             submitLabel={sendTooltipTitle}
             showSlashButton
-            // @ 是 Plugin / 文件 / 对话 / 画板主入口；# 会话与 $ / ¥ / ￥ Skills
+            // @ 是文件 / 对话 / 画板主入口；# 会话与 $ / ¥ / ￥ Skills
             // 仍由 MentionPlugin 保留兼容触发，但不在 + 菜单重复展示。
             showMentionButton
             topContent={topContentNode}

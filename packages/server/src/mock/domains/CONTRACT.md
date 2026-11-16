@@ -24,6 +24,11 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq prompts.read
 专属业务 owner、manifest、task/workpool RPC 及接线已裁撤；这不等于裁撤本目录的通用 `automations`
 领域、通用控件、原生会话设施或需求分析调度。通用服务继续按既有契约返回能力，不恢复 AIReq 自动化入口。
 
+产品插件功能已整体退役：不注册插件管理、插件 UI 桥、sampling 或 App tools，不保留空服务或
+假成功；客户端配置仅保留非插件公开字段，不再发布插件商店排序与面板推荐。
+原生 agent 不暴露插件启动降级或页面工具结果事件。会话仍消费的纯 DTO/schema、GenUI 和非插件
+Skill／子智能体／MCP 目录不因此删除，状态所有权与 v4 订阅顺序不变。
+
 当前后端的 `MockRuntime` 与项目服务是共享业务事实源，不按浏览器工号、连接或 subscriptionId 分区。
 工作区身份按服务器主机及绝对目录稳定派生，贯穿 prepare/resolve、任务和 v4 topic；
 identity 不是旧远程 Host 的连接开关。目录选择只读服务器目录，虚拟文件与 Git fixture 不改为真实 IO。
@@ -45,7 +50,7 @@ workspace-config 的订阅归属、帧过滤及断开清理均不得因共享业
 mock/index.ts
   ├─ MockRuntime（唯一权威状态）
   ├─ broadcast（跨窗口总线）
-  ├─ domains/settings → domains/models → domains/plugins
+  ├─ domains/settings → domains/models
   ├─ domains/assets → domains/sync → domains/projects → domains/automations
   ├─ domains/sharing → domains/compat-surfaces
   └─ zcodeAgent / zcodeTask / project / workspace（协议与文件、Git 面）
@@ -54,9 +59,9 @@ mock/index.ts
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。
 
 当前领域注册面：setting、client-config、provider-settings、model-selection、usage-stats、
-plugin-management、plugin-ui-bridge、plugin-ui-sampling、plugin-ui-app-tools、subagents、skills、mcp-sync、
+subagents、skills、mcp-sync、
 task-groups、bots、prompt-attachment-transfer、gen-ui。
-扩展、凭据、旧插件管理、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
+扩展、凭据、产品插件管理与插件 UI、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
 不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
 两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record
 及其独占推荐 fixtures 一并退役，不影响隐藏 Skill 会话或模型推荐。

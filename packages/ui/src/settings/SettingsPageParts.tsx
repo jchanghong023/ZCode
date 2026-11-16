@@ -96,7 +96,7 @@ export function ThemePreviewCard({
       <div className="p-2">
         <CodeBlock
           code={SETTINGS_PREVIEW_CODE}
-          language="typescript"
+          language="json"
           theme={theme}
           showLineNumbers={showLineNumbers}
           wrapLongLines={wrapLongLines}

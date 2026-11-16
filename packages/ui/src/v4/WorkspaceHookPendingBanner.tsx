@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   setPendingSettingsSectionIntent,
-  setPendingSettingsPluginIntent,
+  setPendingSettingsSection,
 } from "@/lib/settingsNavigation.js";
 import { logger } from "@/logger.js";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
@@ -281,8 +281,7 @@ export const WorkspaceMcpPendingIndicator = memo(function WorkspaceMcpPendingInd
             disabled={!openSettingsTab}
             onClick={() => {
               setOpen(false);
-              // 导航固定到当前工作区，不能沿用设置页上一次查看的其它目标。
-              setPendingSettingsPluginIntent("mcps", { scopeKey: workspaceKey });
+              setPendingSettingsSection("mcp");
               openSettingsTab?.();
               logger.info("[workspace-mcp-pending] open settings", { sessionId, workspaceKey });
             }}

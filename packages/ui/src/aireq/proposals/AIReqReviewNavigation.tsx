@@ -33,8 +33,9 @@ export function AIReqReviewNavigation() {
     <Tabs value={selected} onValueChange={choose}><TabsList aria-label="评审 Agent 会话" className="w-full flex-wrap justify-start gap-y-1 group-data-horizontal/tabs:h-auto">{agents.map((agent) => <TabsTrigger key={agent.id} value={agent.id} data-testid={`review-avatar-${agent.id}`} className="h-auto flex-none gap-2 text-ui-sm">{agent.name} · {agent.status === "completed" ? "已完成" : agent.status === "failed" ? "失败" : agent.status === "running" ? "运行中" : "等待"}</TabsTrigger>)}</TabsList></Tabs>
     {!original && <Button variant="ghost" size="sm" onClick={() => ai.select({ ...ai.selection, proposalStep: "solution", discussionPhase: "solution", reviewAgent: undefined })}>返回方案讨论</Button>}
     <details>
-      <summary className="cursor-pointer">只读审查材料与结论 · {current ? "当前版本" : "旧版本"} · {review.id}</summary>
-      <details className="mt-2"><summary className="cursor-pointer">完整材料版本标识</summary><p className="mt-2 whitespace-pre-wrap break-all">{review.snapshotDigest}</p></details>
+      {/* 内部标识过长会挤占聊天区；轮次足以帮助用户定位，技术标识按需展开。 */}
+      <summary className="cursor-pointer">只读审查材料与结论 · {current ? "当前版本" : "旧版本"}</summary>
+      <details className="mt-2"><summary className="cursor-pointer">评审与材料版本标识</summary><p className="mt-2 whitespace-pre-wrap break-all">{review.id}</p><p className="mt-2 whitespace-pre-wrap break-all">{review.snapshotDigest}</p></details>
       {/* 修复：摘要直出内部状态和 Markdown 源码，与同页评审标签及消息展示不一致。 */}
       {agents.map((agent) => <details key={agent.id} className="mt-2"><summary className="cursor-pointer">{agent.name} · {agent.status === "completed" ? "已完成" : agent.status === "failed" ? "失败" : agent.status === "running" ? "运行中" : "等待"}</summary><AIReqMarkdownDocument>{agent.report || "本路报告尚未完成，不能放行。"}</AIReqMarkdownDocument></details>)}
       {review.report && <AIReqMarkdownDocument>{review.report}</AIReqMarkdownDocument>}

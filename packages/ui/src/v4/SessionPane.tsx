@@ -137,7 +137,6 @@ import { SessionSubscriptionErrorPanel } from "@/v4/SessionSubscriptionErrorPane
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
 import type { ConversationLatestTurnSummary } from "@/v4/conversationTimelineLiveTail.js";
 import { ConversationBottomDockTransition } from "@/v4/ConversationBottomDockTransition.js";
-import { SessionPluginReferenceIconBoundary } from "@/v4/SessionPluginReferenceIconProvider.js";
 import {
   resolveConversationStatusPanelVariant,
   shouldUseConversationStatusPanelInlineLayout,
@@ -178,10 +177,6 @@ import {
   resolveLatestCompletedAssistantPreviewTurn,
   type AssistantPreviewPptxAutoOpenTarget,
 } from "@/v4/assistantPreviewPptxAutoOpen.js";
-import {
-  hasPluginReferenceRowsInPartition,
-  isSessionPluginCatalogReady,
-} from "@/v4/pluginReferenceIconProjection.js";
 import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { useSelectionCommentSupport } from "@/selection-comment/index.js";
@@ -282,6 +277,8 @@ export interface SessionPaneProps {
   composerTrailingTools?: ConversationComposerProps["composerTrailingTools"];
   onExternalTextInsertApplied?: ConversationComposerProps["onExternalTextInsertApplied"];
   onOpenModelSettings?: () => void;
+  /** 模型选择仅作用于下一次提交，不修改已绑定会话的默认配置。 */
+  submissionModelSelectionOnly?: boolean;
   /** 显式重连前由宿主恢复当前会话的可重读事实；失败不得继续原生重试。 */
   onBeforeReconnect?: () => Promise<void>;
   autoFocusEnabled?: boolean;
@@ -552,6 +549,7 @@ export function SessionPane({
   externalTextInsertRequest,
   onExternalTextInsertApplied,
   onOpenModelSettings,
+  submissionModelSelectionOnly = false,
   onBeforeReconnect,
   autoFocusEnabled = true,
   interactionEnabled = true,
@@ -746,10 +744,6 @@ export function SessionPane({
       timers.clear();
     };
   }, [lease, sessionId]);
-  const pluginReferenceIconsEnabled =
-    isSessionPluginCatalogReady(state.status, sessionId, snapshot?.sessionId) &&
-    rowsPartition !== null &&
-    hasPluginReferenceRowsInPartition(rowsPartition);
   // send_result 的落定信号：用户消息真正画进对话历史。z-code 没有乐观渲染，
   // 气泡必须等投影回流出 userInput row 才出现，所以 ACK accepted 不能算发送完成。
   // 取 useEffect 而非 store 订阅回调 —— effect 在 DOM commit 之后跑，此刻气泡已在屏幕上。
@@ -1068,6 +1062,7 @@ export function SessionPane({
     observeDraftPermissionGrant,
     promoteComposerDraft,
     captureAcceptedModelSelection,
+    captureAcceptedSubmissionReset,
     replaceComposerDraft,
     stageComposerContent,
     captureComposerContentLifecycleCommit,
@@ -2621,6 +2616,7 @@ export function SessionPane({
       options: ConversationComposerSendOptions | undefined,
       createSourceAtSend: SessionCreateSource,
       taskGroupIdAtSend?: string | null,
+      onAcceptedSubmission?: () => void,
     ) => {
       let onAcceptedSelection: (() => void) | undefined;
       const dispatchSubmissionCommand = async (...args: Parameters<typeof dispatchCommand>) => {
@@ -2653,6 +2649,7 @@ export function SessionPane({
         // 在原 accepted 边界写回推荐选择，早于新 Session 的草稿转移；失败不改用户意图。
         if (ack.status === "accepted" && submissionConfigFromCommand(args[0], args[1]))
           onAcceptedSelection?.();
+        if (ack.status === "accepted" && args[0] === "sendText") onAcceptedSubmission?.();
         return ack;
       };
       // 进入 barrier 前已经冻结；等待配置/附件期间不再回读 Composer 或 Session。
@@ -2717,7 +2714,9 @@ export function SessionPane({
         const chosen = await recommendStartPlan(original);
         if (!chosen) return "blocked" as const;
         if (chosen !== original) {
-          onAcceptedSelection = captureAcceptedModelSelection(chosen, original);
+          // 临时选择不能在回执时写成下一次草稿，否则会覆盖会话默认值的恢复。
+          if (!submissionModelSelectionOnly)
+            onAcceptedSelection = captureAcceptedModelSelection(chosen, original);
           submission = { ...submission, modelSelection: chosen };
         }
       }
@@ -2870,6 +2869,7 @@ export function SessionPane({
       handleOpenSelectionSideConversationWithPrompt,
       intl,
       sessionId,
+      submissionModelSelectionOnly,
       settleCurrentQueueInputs,
       waitForDraftSession,
       workspaceIdentity,
@@ -2892,6 +2892,10 @@ export function SessionPane({
           ? useZCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
               .draftTaskGroupId
           : undefined;
+      const resetAcceptedSubmission =
+        submissionModelSelectionOnly && submissionOptions.submission
+          ? captureAcceptedSubmissionReset(submissionOptions.submission)
+          : undefined;
       // followupMode 仍通过 Session CAS 同步；模型和模式已封装进 Submission，不再
       // 依赖“配置命令先到、sendText 后到”的跨命令时序。
       return configCommandBarrier.enqueue(async () => {
@@ -2901,6 +2905,7 @@ export function SessionPane({
             submissionOptions,
             createSource,
             taskGroupId,
+            resetAcceptedSubmission,
           );
         } catch (error) {
           if (sessionId === null && isProviderNotReadyError(error)) {
@@ -2915,10 +2920,12 @@ export function SessionPane({
     },
     [
       configCommandBarrier,
+      captureAcceptedSubmissionReset,
       createSubmissionFromComposer,
       dispatchSendTextAfterConfig,
       markDraftProviderNotReady,
       sessionId,
+      submissionModelSelectionOnly,
       workspacePath,
       workspaceIdentity,
     ],
@@ -3654,7 +3661,8 @@ export function SessionPane({
     ) => {
       const resolvedProvider =
         modelProvider || draftConfigRef.current.provider || sourceModel?.provider || "";
-      if (!sessionId) {
+      // 业务会话的模型是本次提交的草稿；发送配置命令会被服务端拒绝。
+      if (!sessionId || submissionModelSelectionOnly) {
         handleDraftSelectModel(resolvedProvider, model, reasoningLevel);
         return;
       }
@@ -3734,12 +3742,13 @@ export function SessionPane({
       modelSelectionOwnerKey,
       sessionId,
       showModelChangeNotice,
+      submissionModelSelectionOnly,
     ],
   );
 
   const handleSelectThought = useCallback(
     async (thought: string, modelContext: { provider: string; model: string }) => {
-      if (!sessionId) {
+      if (!sessionId || submissionModelSelectionOnly) {
         handleDraftSelectThought(thought);
         return;
       }
@@ -3747,7 +3756,7 @@ export function SessionPane({
       // ACK 成功才确认草稿；命令不改写运行轮或已接纳队列的冻结选择。
       await handleSelectModel(modelContext.provider, modelContext.model, modelContext, thought);
     },
-    [handleDraftSelectThought, handleSelectModel, sessionId],
+    [handleDraftSelectThought, handleSelectModel, sessionId, submissionModelSelectionOnly],
   );
 
   // Bug 根因：恢复回调曾遗漏模型目录依赖，目录更新后仍从旧 provider 列表选回退模型。
@@ -4483,7 +4492,6 @@ export function SessionPane({
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}
-      pluginUiSessionId={effectiveSessionId}
       draftMode={isDraft}
       draftConfig={draftConfig}
       composerDraft={composerDraft}
@@ -4842,13 +4850,6 @@ export function SessionPane({
             ) : null}
           </>
         ) : (
-          <SessionPluginReferenceIconBoundary
-            enabled={pluginReferenceIconsEnabled}
-            remoteSessionId={remoteSessionId}
-            sessionId={sessionId}
-            workspaceIdentity={workspaceIdentity}
-            workspacePath={workspacePath}
-          >
             <BotGroupDeliveryProvider
               taskId={sessionId}
               workspacePath={workspacePath}
@@ -4937,7 +4938,6 @@ export function SessionPane({
                 }
               />
             </BotGroupDeliveryProvider>
-          </SessionPluginReferenceIconBoundary>
         )}
       </div>
     </div>

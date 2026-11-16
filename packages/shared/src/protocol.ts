@@ -316,8 +316,6 @@ export interface AppSettings {
   zcodeInteractionBehavior?: ZCodeInteractionBehavior;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;
-  /** 默认关闭，控制对话中的插件发现和推荐；设置页手动安装保持可用。 */
-  pluginAutoRecommendationEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   modelIoFullRetentionEnabled?: boolean;
   /** 已启用的内置 Agent CLI；UI 对外仍展示为“Install”，底层语义保持为启用内置能力。 */

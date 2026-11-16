@@ -45,7 +45,7 @@
 | 文件／Git／文件监视／媒体预览       | 保留通用文件树、mention 与预览依赖；虚拟文件／Git 不等于真实磁盘／仓库；媒体写入或真实播放能力不因此开放                            |
 | 设置／系统／broadcast／客户端配置   | 保留共享设置与基础读取；工号不是后端账号；broadcast 的存在不证明 mock 已实现跨连接消息发送                                          |
 | Provider / 模型选择 / 用量          | 原生模型目录、`getView/onDidChange/refresh` 与 quota 依赖；不再提供旧个人 Provider CRUD／连通性测试 RPC                             |
-| 插件管理／插件 UI／GenUI            | 保留原生引用目录、推荐与通用工具控件所需服务；空目录、未启用操作及兼容空投影逐方法区分，不宣称完整安装／沙箱业务                    |
+| GenUI                               | 保留非插件生成视图契约；产品插件管理、UI 桥、sampling、App tools、目录推荐与安装能力已删除，不注册兼容空服务                        |
 | 子智能体／技能／MCP                 | 保留原生目录、Skill 引用及 MCP 加载依赖；不等于恢复旧命令、Hook、Memory 或配置同步管理服务                                          |
 | Bots                                | 保留原生群组投递与偏好同步依赖；不宣称真实 IM 注册／账号接入已实现；AIReq embedded 会话不挂载旧草稿推荐，Onboarding／场景服务已裁撤 |
 | 原生附件与附件转移                  | v4 begin/chunk/commit/read 持有实际内存字节、SHA-256 与采用授权；转移辅助服务按其方法的未开放边界处理，不写盘                       |
@@ -54,10 +54,9 @@
 保留辅助 mock 中的固定目录、空投影和未实现操作不构成真实 RPC 能力承诺；尤其不能把旧空成功实现
 登记成 `supported`。§4 的 v4 ACK 约束继续适用，不能据辅助实现放宽命令状态转换规则。
 
-当前集中装配共 27 个频道：`file`、`file-watcher`、`git`、`system`、`media-preview`、
+当前集中装配共 23 个频道：`file`、`file-watcher`、`git`、`system`、`media-preview`、
 `broadcast`、`aireq`、`zcode-agent`、`zcode-task`、`zcode-session`、`project`、`setting`、
-`client-config`、`provider-settings`、`model-selection`、`usage-stats`、`plugin-management`、
-`plugin-ui-bridge`、`plugin-ui-sampling`、`plugin-ui-app-tools`、`subagents`、`skills`、
+`client-config`、`provider-settings`、`model-selection`、`usage-stats`、`subagents`、`skills`、
 `mcp-sync`、`task-groups`、`bots`、`prompt-attachment-transfer`、`gen-ui`。
 
 ### 2.2 已裁撤服务与纯类型边界
@@ -70,6 +69,13 @@
 继续不提供 descriptor、代理或服务注册。受管 worktree、扩展、商业套餐等纯 DTO/schema 若仍供
 保留通用控件展示使用，不代表同名 RPC 存留，更不要求真实后端实现已裁撤能力。
 `components/ui`、已有 `mobile-ui`、布局、弹层、图标、表单及原生会话控件不随服务删除。
+
+产品插件退役同步删除 `pluginManagementService`、`pluginUiBridgeService`、
+`pluginUiSamplingService`、`pluginUiAppToolsService` 的接口、descriptor、accessor、客户端代理、
+mock 注册与实现；不保留可选 shim。`IZCodeAgentService` 不再暴露
+`onDynamicPluginStartupDegraded`、`onDynamicPluginUiToolResult`，App 设置不再发布插件自动推荐偏好，
+客户端配置不再发布 `pluginStoreOrder` 或 `uiPluginRecommendations`。
+仍被原生会话消费的 v4 DTO/schema 仅表达协议数据，不恢复插件执行或安装能力。
 
 保留服务中的方法级减面：
 
@@ -107,7 +113,7 @@ mock/index.ts（唯一集中装配）
   ├─ MockRuntime（权威内存状态 + topic 水位）
   ├─ workspace.ts / project.ts / zcodeTask.ts / zcodeAgent.ts（协议面）
   └─ domains/*（按领域注册服务，只写自己的私有状态）
-        settings ─ models ─ plugins ─ assets ─ sync
+        settings ─ models ─ assets ─ sync
         projects ─ automations（Bots）─ sharing ─ compat-surfaces
 ```
 
@@ -312,7 +318,7 @@ accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或�
 | 正文、输入、队列、权限、模型切换 | hello/initialize 与 conversation/sessions-index/workspace-config 订阅；命令 ACK、下行投影、分页查询及逐连接 ownership 见 §8.4                                      | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`                                             |
 | 原生模型选择／quota              | Provider 只保留 `getView/onDidChange/refresh`；model-selection 视图／事件及保留 quota 读取，不再有个人 Provider CRUD 或旧连通性测试 RPC                            | `model-provider/providerFacadeServices.ts`、`usage-stats/usageStats.ts`                             |
 | 共享设置与基础信息               | `setting.get/update`、system info、broadcast 与客户端配置；个性化指令走 AIReq `prompts.read/save`，不恢复旧用户指令或凭据存取 RPC，不把 broadcast 当第二份业务事实 | `setting/setting.ts`、`system/system.ts`、`broadcast/broadcast.ts`、`client-config/clientConfig.ts` |
-| 原生通用工具／目录               | 保留 plugin-management、plugin-ui bridge/sampling/app-tools、GenUI、skills/subagents、MCP 加载、Bots 偏好／群组投递的实际依赖；不包含旧 Onboarding／场景推荐服务   | 当前 accessor 对应公开契约；不含 §2.2 已裁撤服务                                                    |
+| 原生通用工具／目录               | 保留 GenUI、skills/subagents、MCP 加载、Bots 偏好／群组投递的非插件依赖；不提供插件管理／UI 桥／sampling／App tools 或旧 Onboarding／场景推荐服务              | 当前 accessor 对应公开契约；不含 §2.2 已裁撤服务                                                    |
 | 附件                             | v4 内存字节事务／采用授权及 `promptAttachmentTransferService.stage/adopt/cancel/cleanup/onDynamicProgress`，保持取消、释放与进度事件语义                           | `zcode-agent/zcodeAgent.ts`、`prompt-attachment-transfer/promptAttachmentTransfer.ts`               |
 
 保留控件使用的 worktree、扩展、命令、Hook、Memory、同步等 DTO/schema 不属于服务实现清单；

@@ -1,5 +1,4 @@
-import type { PluginUiToolResultNotification } from "@zcode/shared/mcp-apps";
-import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@zcode/shared";
+import type { BackgroundBashOutputResult } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
@@ -48,11 +47,17 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 
-export * from "./zcodeAgentPluginParams.js";
-import type {
-  ZCodeAgentSkillReferenceCatalogParams,
-  ZCodeAgentWorkspaceTarget,
-} from "./zcodeAgentPluginParams.js";
+export interface ZCodeAgentWorkspaceTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  /** 远程 workspace 的运行时会话身份；只用于隔离/路由，不能替代 workspacePath。 */
+  remoteSessionId?: string;
+}
+
+/** sessionId 指定原生会话的冻结 Skill 目录；省略时读取当前工作区目录。 */
+export interface ZCodeAgentSkillReferenceCatalogParams extends ZCodeAgentWorkspaceTarget {
+  sessionId?: string;
+}
 
 export interface ZCodeAgentSessionTarget extends ZCodeAgentWorkspaceTarget {
   sessionId: string;
@@ -315,7 +320,6 @@ export interface ZCodeAgentWorkspaceConfigSubscribeParams extends ZCodeAgentWork
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
   modelIoFullRetentionEnabled?: boolean;
-  pluginAutoRecommendationEnabled?: boolean;
 }
 
 export interface ZCodeAgentStorageStartupSnapshot {
@@ -348,7 +352,6 @@ export interface IZCodeAgentService {
    * renderer 据此决定是否提供选区“批注”入口；未实现（旧 Host / 远端）按不支持处理。
    */
   supportsConversationQuoteComment?(target: ZCodeAgentWorkspaceTarget): Promise<boolean>;
-  readSessionDebug(params: ZCodeAgentSessionTarget): Promise<SessionDebugSnapshot>;
   /** Composer Skill 引用 catalog；带 sessionId 时读取该 runtime 的冻结快照。 */
   getSkillReferenceCatalog(
     params: ZCodeAgentSkillReferenceCatalogParams,
@@ -356,8 +359,6 @@ export interface IZCodeAgentService {
   closeSession(
     params: ZCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },
   ): Promise<boolean>;
-  /** 插件启动超时的工作区提示；订阅时补投当前进程的降级事实。 */
-  onDynamicPluginStartupDegraded(params: ZCodeAgentWorkspaceTarget): Event<void>;
   // ── v4 conversation 通道（竖切）──
   /** RPC attachment 建立后先读取 host 可信 hello。 */
   helloConversationV4(): Promise<HelloMessage>;
@@ -457,10 +458,6 @@ export interface IZCodeAgentService {
   onDynamicConversationTelemetryFact(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<ConversationTelemetryFact>;
-  /** 本地桌面窗口创建插件页面，不依赖 conversation 订阅。 */
-  onDynamicPluginUiToolResult(): Event<
-    PluginUiToolResultNotification & { workspacePath: string; workspaceIdentity?: string }
-  >;
   /** 只读 CLI 持久事实；不恢复会话运行实例。旧远端可以不提供此能力。 */
   reconcileSessionsIndexV4?(
     params: ZCodeAgentWorkspaceTarget & { sessionIds: string[] },

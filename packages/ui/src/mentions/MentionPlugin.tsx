@@ -23,7 +23,6 @@ import {
   type ActivePromptInputTrigger,
 } from "../lib/promptInputTriggers.js";
 import { ContextMentionOptionContent } from "@/mentions/components/ContextMentionOptionContent.js";
-import { PluginMentionOptionContent } from "@/mentions/components/PluginMentionOptionContent.js";
 import {
   MentionPanel,
   type MentionPanelOption,
@@ -42,9 +41,7 @@ import {
   type MentionPanelGroupId,
 } from "./mentionPanelRouting.js";
 import { $createPromptMentionNode } from "./nodes/PromptMentionNode.js";
-import { ExtensionMentionOptionContent } from "@/extension-slots/components/ExtensionMentionOptionContent.js";
 import { useFileMentionProvider } from "./providers/fileMentionProvider.js";
-import { usePluginsMentionProvider } from "./providers/pluginsMentionProvider.js";
 import { useSessionsMentionProvider } from "./providers/sessionsMentionProvider.js";
 import { useSkillsMentionProvider } from "./providers/skillsMentionProvider.js";
 import type { MentionItem } from "./mentionTypes.js";
@@ -60,7 +57,7 @@ interface MentionPluginProps {
   container?: HTMLElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
-  /** 已有 Session 的 id；null/undefined = 新建草稿。决定 Plugins 分组的 catalog authority。 */
+  /** 已有 Session 的 id；null/undefined = 新建草稿。 */
   sessionId?: string | null;
   disabled?: boolean;
 }
@@ -80,7 +77,7 @@ export function getWrappedMentionIndex(
 }
 
 /**
- * 在循环导航的基础上跳过禁选项（V1 同名 Plugin 冲突项）。
+ * 在循环导航的基础上跳过禁选项。
  * 全部禁选时保持原地不动，Enter/Tab 的选择守卫会拒绝插入。
  */
 export function getNextEnabledMentionIndex(
@@ -103,8 +100,7 @@ export function getNextEnabledMentionIndex(
 
 /**
  * 候选首次出现或异步分组更新时，把选中项收敛到可选条目。
- * 根因：冲突 Plugin 保持可见后可能占据 flatItems[0]；若仍默认选中 0，
- * 第一次 Enter/Tab 会命中禁选项并回落编辑器默认行为，而不是继续键盘导航。
+ * 异步候选可能更新禁选状态，不能让默认选中项阻塞键盘导航。
  */
 export function coerceEnabledMentionIndex(
   currentIndex: number,
@@ -208,18 +204,6 @@ export function MentionPlugin({
     intl.formatMessage({ id: "chat.mention.sessions.title" }),
     intl.formatMessage({ id: "project.tasks" }),
   );
-  // Plugins 分组：新建草稿（sessionId=null）读 workspace
-  // 当前 catalog，已有 Session 读 session-owned 冻结 catalog；冲突项由 provider 标记禁选。
-  const pluginsResult = usePluginsMentionProvider(
-    workspacePath,
-    workspaceIdentity,
-    sessionId ?? null,
-    deferredActiveQuery,
-    isOpen && isContextTrigger,
-    intl.formatMessage({ id: "chat.mention.plugins.empty" }),
-    intl.formatMessage({ id: "chat.mention.plugins.title" }),
-  );
-
   const panelGroups = useMemo<MentionResultGroup<MentionItem>[]>(() => {
     if (activeTrigger?.trigger === "#" && sessionsResult.groups?.length) {
       return buildVisibleMentionGroups(
@@ -239,14 +223,6 @@ export function MentionPlugin({
         loading: fileResult.loading,
         errorText: fileResult.error?.message ?? null,
         emptyText: fileResult.emptyText,
-      },
-      plugins: {
-        id: "plugins",
-        title: pluginsResult.title,
-        items: pluginsResult.items,
-        loading: pluginsResult.loading,
-        errorText: pluginsResult.error?.message ?? null,
-        emptyText: pluginsResult.emptyText,
       },
       sessions: {
         id: "sessions",
@@ -277,11 +253,6 @@ export function MentionPlugin({
     fileResult.loading,
     fileResult.title,
     activeTrigger?.trigger,
-    pluginsResult.emptyText,
-    pluginsResult.error,
-    pluginsResult.items,
-    pluginsResult.loading,
-    pluginsResult.title,
     sessionsResult.emptyText,
     sessionsResult.error,
     sessionsResult.items,
@@ -307,7 +278,7 @@ export function MentionPlugin({
           id: item.id,
           label: item.displayLabel ?? item.label,
           description: item.description,
-          // 冲突 Plugin 等禁选项：面板可见但不可选择，行内展示原因（V1 fail closed）。
+          // 禁选项保持可见但不可选择。
           disabled: item.disabled,
           disabledReason: item.disabledReason,
           // @ 面板之前只用 label/description 自己拼文件行，导致图标、文件名和路径展示
@@ -329,10 +300,6 @@ export function MentionPlugin({
               </span>
             ) : item.category === "sessions" ? (
               <ContextMentionOptionContent item={item} workspacePath={workspacePath} />
-            ) : item.category === "plugins" ? (
-              <PluginMentionOptionContent item={item} />
-            ) : item.category === "extensions" ? (
-              <ExtensionMentionOptionContent item={item} />
             ) : undefined,
         })),
         loading: group.loading,

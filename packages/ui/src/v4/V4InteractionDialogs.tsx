@@ -42,7 +42,6 @@ import {
   pendingUserInputToViewModel,
 } from "@/v4/pendingInteractionAdapter.js";
 import { V4UserInputDialog } from "@/v4/V4UserInputDialog.js";
-import { PluginInstallCard } from "@/v4/PluginInstallCard.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 export interface V4InteractionDialogsProps {
@@ -116,8 +115,7 @@ export function V4InteractionDialogs({
     currentSnapshot?.pendingInteractions.find(
       (interaction) =>
         interaction.payload.kind === "permission" ||
-        interaction.payload.kind === "userInput" ||
-        interaction.payload.kind === "pluginInstall",
+        interaction.payload.kind === "userInput",
     ) ?? null;
   const workspaceHookReview = currentSnapshot?.pendingInteractions.find(
     (interaction) => interaction.payload.kind === "workspaceHookReview",
@@ -341,20 +339,9 @@ export function V4InteractionDialogs({
     return null;
   }
 
-  // workspaceHookReview 只能由 Settings/Hooks 行内 Trust 处理；绝不降级成通用 Dialog。
-  if (pending.payload.kind === "workspaceHookReview") {
+  // 本宿主只呈现原生授权与用户输入交互，其他协议载荷不进入通用 Dialog。
+  if (pending.payload.kind !== "permission" && pending.payload.kind !== "userInput") {
     return null;
-  }
-  if (pending.payload.kind === "pluginInstall") {
-    return (
-      <PluginInstallCard
-        key={pending.interactionId}
-        request={pending.payload}
-        onRespond={(optionId) =>
-          resolveInteraction(pending.interactionId, { optionId }).then(({ accepted }) => accepted)
-        }
-      />
-    );
   }
 
   if (pending.payload.kind === "permission") {

@@ -32,11 +32,10 @@ export interface MentionResultGroup<TItem = MentionItem> {
   loading: boolean;
   errorText: string | null;
   emptyText: string;
-  /** 只有这一组可见时也显示组名（插件 composer.mention 的分组靠组名说明来源）。 */
+  /** 只有这一组可见时也显示组名。 */
   showHeader?: boolean;
   /**
-   * 组内一行弱提示（插件分组的查询失败、扩展已停止）：不用错误行的红底，不影响别的组。
-   * DESIGN.md「Extension slots」：插件相关的状态只用文字说明，不用 destructive 填充。
+   * 组内一行弱提示，不影响别的组。
    */
   noticeText?: string | null;
 }
@@ -183,9 +182,7 @@ export function filterMentionItemsWithOptions(
       items,
       (item) => {
         const labelScore = scoreFuzzyMatch(item.label, normalizedQuery);
-        // 插件长描述仅展示，避免子序列匹配把无关候选带入搜索（plugin-reference-mention）。
-        const descriptionScore =
-          item.category === "plugins" ? null : scoreFuzzyMatch(item.description, normalizedQuery);
+        const descriptionScore = scoreFuzzyMatch(item.description, normalizedQuery);
         const valueScore = scoreFuzzyMatch(item.value, normalizedQuery);
         const keywordScore = Math.min(
           ...(item.keywords ?? []).map((keyword) => {

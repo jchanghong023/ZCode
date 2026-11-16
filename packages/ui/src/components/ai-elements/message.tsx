@@ -10,7 +10,6 @@ import { Button } from "../ui/button.js";
 import { ButtonGroup, ButtonGroupText } from "../ui/button-group.js";
 import { cn } from "../lib/utils.js";
 import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import type { OpenInEditorOptions } from "@zcode/shared";
@@ -431,7 +430,7 @@ const messageCjkPlugin: typeof cjk = {
   remarkPlugins: [...cjk.remarkPluginsBefore, ...messageCjkRemarkPluginsAfter],
   remarkPluginsAfter: messageCjkRemarkPluginsAfter,
 };
-const streamdownPlugins = { cjk: messageCjkPlugin, code, math: messageMathPlugin, mermaid };
+const streamdownPlugins = { cjk: messageCjkPlugin, math: messageMathPlugin, mermaid };
 const messageLinkSafety = { enabled: false } as const;
 // `decoration-dashed` 会把原有的细圆点下划线绘制成短线段；这里只改变下划线的
 // 出现时机，继续使用 `dotted` 保留原视觉形态。
@@ -1833,14 +1832,6 @@ export const MessageResponse = memo(
       () => resolveMessageCodeTheme(theme, codePreviewSettings),
       [codePreviewSettings, theme],
     );
-    const shikiTheme = useMemo(
-      () =>
-        [codePreviewSettings.lightTheme, codePreviewSettings.darkTheme] as [
-          BundledTheme,
-          BundledTheme,
-        ],
-      [codePreviewSettings.lightTheme, codePreviewSettings.darkTheme],
-    );
     const streamdownRenderKey = useMemo(() => {
       return (
         buildMessageStreamdownRenderKey({
@@ -2097,7 +2088,6 @@ export const MessageResponse = memo(
           // 这里先把 file URI 规整成本地路径 href，让后续 resolveMarkdownFileLink 统一走预览/文件树打开逻辑。
           rehypePlugins={messageRehypePluginsWithReveal}
           remarkPlugins={messageRemarkPlugins}
-          shikiTheme={shikiTheme}
           // markdown 正文流式淡入会在重渲染时让历史文本整段重新闪烁。
           // 这里保留 streaming 解析模式，但关闭 Streamdown 内置动画（它的样式表从未引入，且无封顶、
           // 不能自适应调速）。正文逐词浮现由上面的 messageRehypePluginsWithReveal 负责。

@@ -499,7 +499,6 @@ const appSettingsObjectSchema = z.object({
   messageStreamShowTodos: z.boolean().default(false),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
-  pluginAutoRecommendationEnabled: z.boolean().default(false),
   modelIoFullRetentionEnabled: z.boolean().default(false),
   enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.default([
     ...ZCODE_ENABLED_AGENT_PROVIDERS,
@@ -583,7 +582,6 @@ export const appSettingsPatchSchema = z.object({
   messageStreamShowTodos: z.boolean().optional(),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
-  pluginAutoRecommendationEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
   enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.optional(),
   startPlanRecommendationDismissed: z.boolean().optional(),

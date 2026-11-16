@@ -21,10 +21,6 @@ import {
   IClientConfigService,
   ISkillsService,
   IMcpSyncService,
-  IPluginUiAppToolsService,
-  IPluginUiSamplingService,
-  IPluginUiBridgeService,
-  IPluginManagementService,
   ISubagentsService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
@@ -57,10 +53,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly skillsService: ISkillsService;
   readonly mcpSyncService: IMcpSyncService;
   readonly genUiService: IGenUiService;
-  readonly pluginUiBridgeService: IPluginUiBridgeService;
-  readonly pluginUiSamplingService: IPluginUiSamplingService;
-  readonly pluginUiAppToolsService: IPluginUiAppToolsService;
-  readonly pluginManagementService: IPluginManagementService;
   readonly subagentsService: ISubagentsService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
@@ -129,18 +121,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.genUiService = ProxyChannel.toService<IGenUiService>(
       channelClient.getChannel(IGenUiService.channelName),
-    );
-    this.pluginUiBridgeService = ProxyChannel.toService<IPluginUiBridgeService>(
-      channelClient.getChannel(IPluginUiBridgeService.channelName),
-    );
-    this.pluginUiSamplingService = ProxyChannel.toService<IPluginUiSamplingService>(
-      channelClient.getChannel(IPluginUiSamplingService.channelName),
-    );
-    this.pluginUiAppToolsService = ProxyChannel.toService<IPluginUiAppToolsService>(
-      channelClient.getChannel(IPluginUiAppToolsService.channelName),
-    );
-    this.pluginManagementService = ProxyChannel.toService<IPluginManagementService>(
-      channelClient.getChannel(IPluginManagementService.channelName),
     );
     this.subagentsService = ProxyChannel.toService<ISubagentsService>(
       channelClient.getChannel(ISubagentsService.channelName),

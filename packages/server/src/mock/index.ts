@@ -19,7 +19,6 @@ import { registerAssetsMockServices } from "./domains/assets.js";
 import { registerAutomationsMockServices } from "./domains/automations.js";
 import { registerCompatSurfacesMockServices } from "./domains/compat-surfaces.js";
 import { registerModelsMockServices } from "./domains/models.js";
-import { registerPluginsMockServices } from "./domains/plugins.js";
 import { registerProjectsMockServices } from "./domains/projects.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
 import { registerSharingMockServices } from "./domains/sharing.js";
@@ -60,7 +59,6 @@ export function createMockServices(options: MockServicesOptions): {
   // 领域服务：每域只注册自己的服务，权威状态仍在 runtime。
   registerSettingsMockServices(services);
   registerModelsMockServices(services);
-  registerPluginsMockServices(services);
   registerAssetsMockServices(services);
   registerSyncMockServices(services);
   registerProjectsMockServices(services);

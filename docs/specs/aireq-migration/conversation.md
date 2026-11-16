@@ -16,6 +16,14 @@ AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现
 
 临时模型与模式属于本次 Submission，不是会话默认值。SessionPane 只为 followupMode 同步 Session 配置，显式发送将 Composer 冻结的 modelSelection／mode／planEnabled 随 sendText 原子提交；不通过 switchModelConfig 或业务提案提升改写共享 Session。mock 接纳后将该配置保留在原生 userInput 行，队列提升沿用队列项配置，模拟回复使用对应输入的模型；业务 session.modelConfig 仍保留角色创建快照。首次接纳后工具栏恢复会话默认值并不能证明本轮选模丢失，必须通过原生 conversationRowsRangeV4 读取对应 sourceCommandId 的 userInput.modelSelection（包括 reasoningLevel）和回复模型核对。拒绝重试仍保留原文、PNG、session 与命令身份，不另发消息；平台默认、新草稿和历史会话不得被本轮临时选择改写。
 
+已绑定业务会话的模型与思考等级选择通过可选端口仅更新原生 Composer 草稿，发送时再随本次消息提交；未启用端口的通用会话保持既有配置命令行为。验收须覆盖供应商及思考等级切换、设置往返保留草稿，并核对实际接纳的消息模型。
+
+业务会话的普通消息被接纳后，草稿中仍与该次提交一致的模型、模式与计划状态恢复会话默认；等待回执期间用户已更改的字段必须保留。拒绝、失败或切换到其他草稿不触发重置；不改变通用会话配置。
+
+2026-11-16 内置浏览器实测：从 OpenAI 切换到 Anthropic／Claude Opus 4.5、中等思考强度，模型设置往返后正文和计划模式保留；发送后原生 userInput 记录上述模型、medium 和 planEnabled，模拟回复模型一致，业务会话创建配置仍为 GPT-5.2／high。
+
+同日补测已绑定会话：提交临时 Claude Sonnet 4.5 后，原生消息与模拟回复保留该模型，输入框恢复 GPT-5.2／high；临时计划模式在消息接纳后消失。未注入延迟回执或发送失败，不能将此观察视为上述竞态场景的运行验证。
+
 新建提案的业务幂等 ID 由新增／导入操作生成，与项目／Release 输入槽、后续原生消息身份分离。同操作重试保持同 ID；第二次明确新建使用新 ID。原生讨论消息继续使用现有 commandId/clientId/issuedAt 去重，不能通过会话首发再次创建 IR。
 
 ## 输入辅助
@@ -23,6 +31,8 @@ AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现
 外部草稿使用既有 externalTextInsertRequest 与 requestId ACK，仅回填不发送。append 模式仅替换完整存在的 replaceText，否则追加；相同全文已存在时不重复插入。onInputPreview 提供完整 canonical text，不从摘要猜测匹配。composerInputPreview 仅在非空全文 trim 精确匹配时显示摘要，完整编辑器保持挂载。composerTools/composerTrailingTools 接收 appendText（实际插入成功布尔值）、addFiles（实际接纳 ID）、disabled、focusInput；扩展位置和展示服从当前 ZCode 原生输入器，不以 AIReq 的按钮坐标或顺序判定视觉保真。语音示例追加当前编辑器，Sketch 完整 PNG 走既有附件管线，不创建业务对象也不发送。取消和失败不改原输入。临时模型/思考选项、附件预览使用目标当前实现，不复制旧 v4。embedded 取消旧任务推荐及新草稿居中，不重建输入框；评审会话通过 autoFocusEnabled=false 不抢焦点。
 
 2026-11-16 在内置浏览器的提案聊天中验证 Sketch：绘制、撤销、取消后文字保留；重新绘制并添加附件后，图片预览保留完整笔迹，原文字仍在且未自动发送。随后移除样例附件并清空测试草稿。
+
+同日后续前端改动后复核：语音示例可预览并回填文字；Sketch 绘制后作为附件上传，预览保留笔迹和原有文字，均未自动发送。验证后移除样例附件并清空示例文字。
 
 ## 事件顺序与隔离
 

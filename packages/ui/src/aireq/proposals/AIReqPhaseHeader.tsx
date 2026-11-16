@@ -65,7 +65,8 @@ export function AIReqPhaseHeader({ details = null, placement = "header" }: { det
       {frozen && group.proposalDelivery && <Button variant="outline" onClick={() => void ai.command({ type: "closeProposalPr", ...target, candidate: group.proposalDelivery!.candidate })}>关闭未合并文档 PR 后修改</Button>}
       <AIReqProposalSimulation key={group.id} group={group} />
     </>}
-    {review?.report && <details><summary className="cursor-pointer">{selected === 1 ? "原始需求单评审" : "完整审查终审"}报告 · {review.id}</summary><p className="mt-2 whitespace-pre-wrap">{review.report}</p></details>}
+    {/* 长内部编号放在评审技术信息中，报告入口只需显示可理解的轮次。 */}
+    {review?.report && <details><summary className="cursor-pointer">{selected === 1 ? "原始需求单评审" : "完整审查终审"}报告 · 第 {review.round ?? 1} 轮</summary><p className="mt-2 whitespace-pre-wrap">{review.report}</p></details>}
     {/* 修复：默认弹窗铺满视口且输入区收缩，退回理由需要限宽的多行编辑空间。 */}
     <Dialog open={back} onOpenChange={setBack}><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>退回业务补充</DialogTitle><DialogDescription>保留旧材料和意见。业务原文修改后需要重做单评审；任何材料改变均使整包批准失效。</DialogDescription></DialogHeader><SettingsFormTextarea aria-label="退回原因" className="field-sizing-fixed min-h-32" rows={6} value={reason} onChange={(event) => setReason(event.target.value)} />
       {/* 失败由共享命令 owner 投影到当前弹框；不关闭弹框或丢弃退回理由。 */}

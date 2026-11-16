@@ -35,6 +35,7 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
       {...props}
       onBeforeReconnect={onBeforeReconnect}
       onOpenModelSettings={props.onOpenModelSettings ?? openModelSettings}
+      submissionModelSelectionOnly={!!businessSession}
       focused={workspaceActive && (props.focused ?? true)}
       telemetryVisible={workspaceActive && (props.telemetryVisible ?? true)}
       interactionEnabled={workspaceActive && (props.interactionEnabled ?? true)}

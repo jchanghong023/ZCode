@@ -38,11 +38,8 @@ export class MockSettingService implements ISettingService {
 export class MockClientConfigService implements IClientConfigService {
   async getSnapshot(_options?: ClientConfigReadOptions): Promise<ClientConfigSnapshot> {
     return {
-      revision: 1,
-      pluginStoreOrder: [],
-      vulnerabilityReportUrl: null,
-      helpAppConfig: null,
-    } as unknown as ClientConfigSnapshot;
+      zsrcUrl: null,
+    };
   }
 }
 

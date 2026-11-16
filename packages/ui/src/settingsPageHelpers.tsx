@@ -22,8 +22,6 @@ import { Button } from "@/components/ui/button.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useOptionalServices } from "@/hooks/useServices.js";
-import { PluginAutoRecommendationSetting } from "@/settings/PluginAutoRecommendationSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,
@@ -511,7 +509,6 @@ export function AgentBehaviorSectionContent({
   onModelIoFullRetentionEnabledChange?: (enabled: boolean) => Promise<void>;
 }) {
   const { intl } = useZCodeIntl();
-  const hasServices = Boolean(useOptionalServices());
 
   return (
     <div className="space-y-4">
@@ -626,8 +623,6 @@ export function AgentBehaviorSectionContent({
             />
           }
         />
-        {/* docs/dynamic-workflow/launch.md「The user's choice」：服务端未提供时整行不渲染。 */}
-        {hasServices ? <PluginAutoRecommendationSetting /> : null}
         <SettingsRow
           searchId="settings.modelIoFullRetention"
           label={intl.formatMessage({ id: "settings.modelIoFullRetention" })}

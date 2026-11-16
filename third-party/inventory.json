@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across the current Web workspace projects and copied source/assets; excludes retired Desktop, CLI and native-search release inputs; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "4c5fb45c189a1613c9e501251eff340424c45a2ee93f728fcd37ad1c09a2b245",
+  "noticesSha256": "78a40e8fd30af0f88db63ebea9b072e10b471de039d506cd13b400026d95ca52",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "e2c3b0f4a1dc1368dee821f03c000d818a48421d09f3872525dddffe73f2112b",
     ".agents/skills/agent-browser/references/commands.md": "17522fc56d742663f47231ff06c4811abc87e12c7f78e11f94d253ddd540a909",
@@ -220,7 +220,7 @@
     ".agents/skills/react-best-practices/rules/server-parallel-nested-fetching.md": "4d9c44e579e1286013acf5cb5f65b04297d2b68909f44f8163804656514a78ff",
     ".agents/skills/react-best-practices/rules/server-serialization.md": "4d025c42043c56e6355196a2e885d168cdb15248d0797146c9db838a57b34946",
     ".agents/skills/react-best-practices/SKILL.md": "8c841f73b4f158d617a58d442d55e347f0f8a3c8a58734ccfdf81ce08e169a58",
-    "package.json": "437684f0ddb28d93dd9602375657127b0cf40703aa81c690ec094b97d1e55bca",
+    "package.json": "79921b63b2081462a4e5fe0c795d41ecc5319900fb598ed03e1bea07db160028",
     "packages/client/package.json": "4063d85b84fd67d7f0039b6dc21cb13ece5d59b6d236ccba3909ac402791f791",
     "packages/design-runtime/package.json": "f7f61981aa7d72f0b610951b8d661a31fa3dbe9ba3f9b65050d48ffdda8859b8",
     "packages/model-option-map/package.json": "62a76bf12a234fb5e1b975f614edbb0907acdb9e8ad9183e94b2cb414b57354b",
@@ -228,7 +228,7 @@
     "packages/rpc/examples/01-basic-ipc.ts": "bb4423c1642918846010f9307262c379536ca9541d79df6ebba120b5cf792f3e",
     "packages/rpc/examples/02-proxy-channel.ts": "66dda9aec12cd46da8a56560cb765a3de590917bbc40f329185e6fd05a388fff",
     "packages/rpc/examples/03-ipc-server-client.ts": "9b873f565b4a3426ee3a5338a975cb6ab76e29af094cf6bbee4f7030f872f758",
-    "packages/rpc/examples/04-remote-connection.ts": "fe43a2d631ba54a1cf63a86e344b6e2e58d83c2e8c95f2f8b7371f63e6442541",
+    "packages/rpc/examples/04-remote-connection.ts": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c",
     "packages/rpc/package.json": "4d8239fe3b83b52d497f527891b97c4ccccb9529c3bbdb60567519427d91536d",
     "packages/rpc/src/buffer.ts": "6bc6a44e6abd088f72d57616d9556d78ce078b6f3813bf75402dde386781492c",
     "packages/rpc/src/channelClient.ts": "7a4609df381ca3b54b0b53f43aa700374eb3970f37e3ffdadb626e9603255d82",
@@ -236,22 +236,22 @@
     "packages/rpc/src/channels.ts": "afaba1724055a3d2e6b8b379553569489b71ac6eb252f636ab91649657485209",
     "packages/rpc/src/channelServer.ts": "327e33d11ce3276eae892e7050446287b9a25cc1948363d918da5b5df1ecf529",
     "packages/rpc/src/delayedChannel.ts": "e7607b7fe9f35c742db206df90852e2ccafb75abc088606cf1ddbae801574ecf",
-    "packages/rpc/src/foundation.ts": "b4874401965e7bad7e84245a2fc5960657a349b146f355ac7343562fa724da9f",
+    "packages/rpc/src/foundation.ts": "71a18b26f3f9a0109dd283f971b5b3eabc8f61bce140d81b3f7506ae49fde215",
     "packages/rpc/src/index.ts": "6a5adcfb0e6c7a7d385e10fede09c3e9c808e3555c27b938091868cdf0c3fbef",
-    "packages/rpc/src/ipc.ts": "2ec3dfe0654a68300dbed7afd5ac436b563abf983d6e0f59a2b028469fdf71ef",
+    "packages/rpc/src/ipc.ts": "53bcc9f09406515ee75b1bec8768d88f19351a05c33e66ed3a87f8c58f481d94",
     "packages/rpc/src/logging-middleware.ts": "20edfd8e5d054097186f2498ec4e9c08c61740ed003fc69eecea8176a15fe025",
     "packages/rpc/src/network-telemetry-middleware.ts": "18a7cde46e6c65e0138af0623d07bf883ce278acf44654bc5144ecaadd36a536",
     "packages/rpc/src/persistent-protocol.ts": "85d86f2c4923a2d7814052f176e8768baa3271fb0dbd40c3963a7aa8c95a9ab4",
     "packages/rpc/src/protocol.ts": "ebeeb3c044973d86568f6ab443a4273ba07bed747f55c669dec372677d341f15",
-    "packages/rpc/src/proxy-channel.ts": "ec5b43e6a3a622a88a8aaa6af9cb37dbfe517932ee7f4a337019ec138bb2d513",
+    "packages/rpc/src/proxy-channel.ts": "1f81da70701f1ae95856c3a94abca456fd8352e7860013609d19f567bfdc94fb",
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "fd41df3ba2c5e88a52c6b8045b9e0a663b8ee27b54c0f1e146f10d03f6f773bd",
     "packages/server/package.json": "9d23f10c90a3ed806da1214c7366f7039b87afe74542d69037cdeecb28cf3d4b",
-    "packages/services/package.json": "84462504a1135ac0a412e5f0c035a52f6b58fb019ca0997e3e4ee0f9f469f3b2",
+    "packages/services/package.json": "f60d4ec480924d919368936e59af7e677568419327347c6b1788830c711f9c60",
     "packages/session-control/package.json": "18c4fe69751d27654c87da4f8a6fd0bbc58c5a113e4b94b806d82dda68561c10",
     "packages/shared/package.json": "d65981c8b2bb22e81beaea0b0c159d60e2fd3f725f878fc6bedb62ba7d69162f",
     "packages/shared/src/zcode-protocol-v4/wire-codec.ts": "ac2494a3acc795c809c94ee9393f50271a9c2a0fd33813459e5ab93842ceef75",
-    "packages/ui/package.json": "204e3bb641f45c171135d165cee84d4b3b37c16a08ec10d7ae2aa09d4f4b8c13",
+    "packages/ui/package.json": "29f129e0e83c86eab37a688e3a7474661d7fcdbc17d4ed423e3518487cec30d0",
     "packages/ui/src/components/ai-elements/agent.tsx": "830e7ea9e927de1524851337f1d35bda0e5690e3e4fa307fff854b60006b16c7",
     "packages/ui/src/components/ai-elements/artifact.tsx": "7d73f08864d6280ac86c77d32e56d0e702f8aa6208e5910820139d0fb08ce64c",
     "packages/ui/src/components/ai-elements/attachments.tsx": "7a847ce6c8ac9dc630481a82dd20a5e9e00949bf710a41fea1d32a18123011d8",
@@ -281,7 +281,7 @@
     "packages/ui/src/components/ai-elements/markdown-list.tsx": "ecf50ad4f48cd460ddcf90db7b463671f915d8c22c7cb8e7760ff3b02282c7f1",
     "packages/ui/src/components/ai-elements/markdown-table.tsx": "310799f6b893c5033e736bd2944e162ac7439a0a09e58eeabda79359f1cab600",
     "packages/ui/src/components/ai-elements/mermaid-block.tsx": "0a68cb98554853a9b4bbdddc142456f91ad34cb10fa6cd611f37d335041e2537",
-    "packages/ui/src/components/ai-elements/message.tsx": "e4523d39ba5554da4d0df58aa540c1e0deec3ab10ac4366b6dd2eefae7893b7c",
+    "packages/ui/src/components/ai-elements/message.tsx": "2edc4b2ed1b8dfd13d0bd229cca068359fc8ab1eb13f34c5ff8db94f4b2f4358",
     "packages/ui/src/components/ai-elements/mic-selector.tsx": "4fbbf1818e99986fa18c8aff094576efbbccdf2fe00d402dba668bd5460fb9ab",
     "packages/ui/src/components/ai-elements/model-selector.tsx": "8f2cc2b786d93c6294893e7916a339275bfe7b5a0615ff71246996565ab9149e",
     "packages/ui/src/components/ai-elements/node.tsx": "d7b68c41717a509bd9063f0a9fc0c4525ceb2b23bae4028bcd49ec949fc6268f",
@@ -325,12 +325,12 @@
     "packages/ui/src/components/ui/carousel.tsx": "75966a0c51114fb00e21a1d9a481008306055f2811c8fd744c889b1fb7924677",
     "packages/ui/src/components/ui/chart.tsx": "272efec5aa60d34665104b45341d9f2b8cad4480070bca91e9d5409713b6fecd",
     "packages/ui/src/components/ui/checkbox.tsx": "5b3cb5612ed7654218e1cdd86fc41c7b490475721948d50a603996133245bace",
-    "packages/ui/src/components/ui/code-viewer.tsx": "dfccd2feaccc62af84f3e92dc5b8e25e7025b6c64cbd16f177586b1dc763affe",
+    "packages/ui/src/components/ui/code-viewer.tsx": "b3d5efdd5357051a6828940fdcdf16e82648612f62d8133ff50eaeeb57badcf7",
     "packages/ui/src/components/ui/collapsible.tsx": "fcb5125c2c0e824e8b75e3b9c164011bac7a4c602ff83cf0937b71620ee77d92",
     "packages/ui/src/components/ui/command.tsx": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb",
     "packages/ui/src/components/ui/context-menu.tsx": "3820461fd68ca7a345fc919ab356bdefbbead23abb3ac0f4e8d46898f7522a6f",
     "packages/ui/src/components/ui/dialog.tsx": "fb2decab75993205ec5670acbd5b8b7dfc9b1518d3acb457ddde7edd1984d44e",
-    "packages/ui/src/components/ui/diff-viewer.tsx": "f02208b316e6dc4043ed1794455422bc74cdd521285fcac5a2c0d589c2eb9af2",
+    "packages/ui/src/components/ui/diff-viewer.tsx": "60d07e65865dff8a989fb2775019b53764f28d480944801feaa8ae655f53dc66",
     "packages/ui/src/components/ui/dropdown-menu.tsx": "61fb51b98cf76207dfe5e86e6baf6e2d5ef0f77698377b2c332066a4b9e2da60",
     "packages/ui/src/components/ui/flip-metric-value.tsx": "ce2d6cf063003e1023191b0fa4e3eb9b365e04a14eb0d498b897326600bf4071",
     "packages/ui/src/components/ui/floating-particles.tsx": "88250e9104721c35f6119e9ffadac4c9795c798976cf06c0e4f4e584e8195fd2",
@@ -360,7 +360,7 @@
     "packages/ui/src/components/ui/tooltip.tsx": "b385da0f882ef4a44c101051107a670c42f7b347b86ef8ca0dba40369ed34d3b",
     "packages/ui/src/components/ui/ZCodeAboutLogo.tsx": "1e5b7c2e8a9dc98a3c597cbe34122521319eaeb89825e4c41641e77715d1407a",
     "packages/ui/src/lib/builtinSkillI18n.ts": "a7cf4c090c5de4735c70cb868e2a2bcb87994736e15ed558371c2996b081647a",
-    "packages/ui/src/styles.css": "ccd3d5d07f1bc16c12fe4ff6840e822d95cbd4cc8df06e8053853a92052f9a49",
+    "packages/ui/src/styles.css": "d208056fda4cf5cafd1868e298a04a75d6b2856780c29db75bf137ab0259b02e",
     "packages/web/package.json": "e1253dcca7cd2b6d31018eccc0538df2d4268ce8650d5e2800114ae6c02ad89e",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -1510,8 +1510,9 @@
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
     "patches/@radix-ui__react-collapsible@1.1.12.patch": "4b7b3781f603e111bb33aef9c4b1694ac9bacd3dff47692606de9876d4631164",
     "patches/@radix-ui__react-menu@2.1.16.patch": "4b05eae73074149ac453ee047d9f48707df7d5c9ddedeab8d514f9b9fa097a6c",
+    "patches/vite@8.0.8.patch": "b601470892c4a2dc66aca580e81c6a3a43b3d121d07ad6d808012459357bc5af",
     "patches/vitest@4.1.7.patch": "11fdb66aa985e1d77e68752deeb7c1130ae33c9a4e2968f23aae8adaf8bc9ba0",
-    "pnpm-lock.yaml": "d5bf88973e32efe2bc5a40dd0dd35d084a8bc34902d1bf16165878bc833465f3",
+    "pnpm-lock.yaml": "986f7c7df1315d12924232e6b0e47a5759e3edb85ab297befd7483e5b64f5f62",
     "pnpm-workspace.yaml": "ca246df899133c0183e8978cb0ff751d080e9056df84d187f7bbca45fb136791",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "third-party/copied-components.json": "7d3460d0bab55cda5f4f4c40ffb6cae48b62e3d1f08bf573344a32fc971b24fa",
@@ -2046,50 +2047,18 @@
       ]
     },
     {
-      "name": "@modelcontextprotocol/client",
-      "version": "2.0.0",
+      "name": "@noble/hashes",
+      "version": "2.2.0",
       "license": "MIT",
-      "repository": "git+https://github.com/modelcontextprotocol/typescript-sdk.git",
+      "repository": "git+https://github.com/paulmillr/noble-hashes.git",
       "notices": [
         {
           "member": "LICENSE",
-          "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
-        }
-      ]
-    },
-    {
-      "name": "@modelcontextprotocol/core",
-      "version": "2.0.0",
-      "license": "MIT",
-      "repository": "git+https://github.com/modelcontextprotocol/typescript-sdk.git",
-      "notices": [
+          "sha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+        },
         {
-          "member": "LICENSE",
-          "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
-        }
-      ]
-    },
-    {
-      "name": "@modelcontextprotocol/ext-apps",
-      "version": "2.0.0",
-      "license": "MIT",
-      "repository": "https://github.com/modelcontextprotocol/ext-apps",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
-        }
-      ]
-    },
-    {
-      "name": "@modelcontextprotocol/server",
-      "version": "2.0.0",
-      "license": "MIT",
-      "repository": "git+https://github.com/modelcontextprotocol/typescript-sdk.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+          "member": "README.md (license section)",
+          "sha256": "7b306feca513554815797ea7164cc1eb3657566b50a8d5ff38613dc8196336b3"
         }
       ]
     },
@@ -3059,18 +3028,6 @@
     {
       "name": "@streamdown/cjk",
       "version": "1.0.3",
-      "license": "Apache-2.0",
-      "repository": "git+https://github.com/vercel/streamdown.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529"
-        }
-      ]
-    },
-    {
-      "name": "@streamdown/code",
-      "version": "1.1.1",
       "license": "Apache-2.0",
       "repository": "git+https://github.com/vercel/streamdown.git",
       "notices": [
@@ -4217,38 +4174,6 @@
       ]
     },
     {
-      "name": "croner",
-      "version": "10.0.1",
-      "license": "MIT",
-      "repository": "https://github.com/hexagon/croner",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "d1c89d2de9ab5785f68c69473d5e10f1ff0e5dbacef88e2aecbd6eaf89b63003"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "617a73e3b4c3ecebeeb79c89359d5d1bca104a6446fb46af444b19a187b4ca54"
-        }
-      ]
-    },
-    {
-      "name": "cross-spawn",
-      "version": "7.0.6",
-      "license": "MIT",
-      "repository": "git@github.com:moxystudio/node-cross-spawn.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "aaa78451b6fecd1b9c4594c796c133c0e90cad100372ff8bc6de615e9ef9adf1"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "ae23bc497387d4df92901cf403625e16c228dc6ef366a5f74d9ba0117a3bfce0"
-        }
-      ]
-    },
-    {
       "name": "csstype",
       "version": "3.2.3",
       "license": "MIT",
@@ -5041,38 +4966,6 @@
       ]
     },
     {
-      "name": "eventsource-parser",
-      "version": "3.1.0",
-      "license": "MIT",
-      "repository": "git+ssh://git@github.com/rexxars/eventsource-parser.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "835eb611a23301b27115ca1be9f754c876e643ceb7fe63049c6b50609a1cafeb"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "f9393fc579597ec74f5bf505cb3b15a6ce8df99d879fe7429dbad0f988e36182"
-        }
-      ]
-    },
-    {
-      "name": "eventsource",
-      "version": "3.0.7",
-      "license": "MIT",
-      "repository": "git://git@github.com/EventSource/eventsource.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "f683a72ffe6a9675b5507af22fe0f448d8c8de3da1e14f139d370a7e6a54a23e"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "ee61f0ccd83bed6fbeeafa4d4b9341e43fd36b2199315c01ab150fa7666ed1f4"
-        }
-      ]
-    },
-    {
       "name": "extend",
       "version": "3.0.2",
       "license": "MIT",
@@ -5605,18 +5498,6 @@
       ]
     },
     {
-      "name": "isexe",
-      "version": "2.0.0",
-      "license": "ISC",
-      "repository": "git+https://github.com/isaacs/isexe.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
-        }
-      ]
-    },
-    {
       "name": "isomorphic.js",
       "version": "0.2.5",
       "license": "MIT",
@@ -5625,18 +5506,6 @@
         {
           "member": "LICENSE",
           "sha256": "dd6488c9c1a4ce2dc978ecee067e5b6a725b52e6057a450b24f1a23bc373b057"
-        }
-      ]
-    },
-    {
-      "name": "jose",
-      "version": "6.2.2",
-      "license": "MIT",
-      "repository": "panva/jose",
-      "notices": [
-        {
-          "member": "LICENSE.md",
-          "sha256": "8078b0829d6c3e9ecde2f003e1966e4cad3efc6e7a640efbab0313cc166b1af1"
         }
       ]
     },
@@ -6897,18 +6766,6 @@
       ]
     },
     {
-      "name": "path-key",
-      "version": "3.1.1",
-      "license": "MIT",
-      "repository": "sindresorhus/path-key",
-      "notices": [
-        {
-          "member": "license",
-          "sha256": "48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0"
-        }
-      ]
-    },
-    {
       "name": "pathe",
       "version": "2.0.3",
       "license": "MIT",
@@ -6933,18 +6790,6 @@
         {
           "member": "LICENSE",
           "sha256": "824f6069c5a59b0c1650d0fb9f8d091866c6019eb761c8e658dfc03f001eabd2"
-        }
-      ]
-    },
-    {
-      "name": "pkce-challenge",
-      "version": "5.0.1",
-      "license": "MIT",
-      "repository": "git+https://github.com/crouchcd/pkce-challenge.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "feb87a2e0c305de3464cc44077da5393c52d8ca6362d37427157d04ec6f4510d"
         }
       ]
     },
@@ -7593,34 +7438,6 @@
         {
           "member": "README.md (license section)",
           "sha256": "a0926e00c3e77e7a82b68b454bd35fb63ab965fd23ab646263cf27fd63c81200"
-        }
-      ]
-    },
-    {
-      "name": "shebang-command",
-      "version": "2.0.0",
-      "license": "MIT",
-      "repository": "kevva/shebang-command",
-      "notices": [
-        {
-          "member": "license",
-          "sha256": "69dee148a2cc470554dfa7142e830662062394d0fe67cddd379aba90dc60d6b3"
-        }
-      ]
-    },
-    {
-      "name": "shebang-regex",
-      "version": "3.0.0",
-      "license": "MIT",
-      "repository": "sindresorhus/shebang-regex",
-      "notices": [
-        {
-          "member": "license",
-          "sha256": "48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0"
-        },
-        {
-          "member": "readme.md (license section)",
-          "sha256": "0b8c7c0c5579b689ab841976b473ebe9269aa46347fc1295431e0fc3f2452d36"
         }
       ]
     },
@@ -8397,18 +8214,6 @@
       ]
     },
     {
-      "name": "which",
-      "version": "2.0.2",
-      "license": "ISC",
-      "repository": "git://github.com/isaacs/node-which.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
-        }
-      ]
-    },
-    {
       "name": "wrap-ansi",
       "version": "6.2.0",
       "license": "MIT",
@@ -8608,7 +8413,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/code-viewer.tsx",
-          "sha256": "dfccd2feaccc62af84f3e92dc5b8e25e7025b6c64cbd16f177586b1dc763affe"
+          "sha256": "b3d5efdd5357051a6828940fdcdf16e82648612f62d8133ff50eaeeb57badcf7"
         },
         {
           "file": "packages/ui/src/components/ui/collapsible.tsx",
@@ -8628,7 +8433,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/diff-viewer.tsx",
-          "sha256": "f02208b316e6dc4043ed1794455422bc74cdd521285fcac5a2c0d589c2eb9af2"
+          "sha256": "60d07e65865dff8a989fb2775019b53764f28d480944801feaa8ae655f53dc66"
         },
         {
           "file": "packages/ui/src/components/ui/dropdown-menu.tsx",
@@ -8732,7 +8537,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "ccd3d5d07f1bc16c12fe4ff6840e822d95cbd4cc8df06e8053853a92052f9a49"
+          "sha256": "d208056fda4cf5cafd1868e298a04a75d6b2856780c29db75bf137ab0259b02e"
         }
       ]
     },
@@ -9010,7 +8815,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/message.tsx",
-          "sha256": "e4523d39ba5554da4d0df58aa540c1e0deec3ab10ac4366b6dd2eefae7893b7c"
+          "sha256": "2edc4b2ed1b8dfd13d0bd229cca068359fc8ab1eb13f34c5ff8db94f4b2f4358"
         },
         {
           "file": "packages/ui/src/components/ai-elements/mic-selector.tsx",
@@ -14365,7 +14170,7 @@
         },
         {
           "file": "packages/rpc/src/foundation.ts",
-          "sha256": "b4874401965e7bad7e84245a2fc5960657a349b146f355ac7343562fa724da9f"
+          "sha256": "71a18b26f3f9a0109dd283f971b5b3eabc8f61bce140d81b3f7506ae49fde215"
         },
         {
           "file": "packages/rpc/src/index.ts",
@@ -14373,7 +14178,7 @@
         },
         {
           "file": "packages/rpc/src/ipc.ts",
-          "sha256": "2ec3dfe0654a68300dbed7afd5ac436b563abf983d6e0f59a2b028469fdf71ef"
+          "sha256": "53bcc9f09406515ee75b1bec8768d88f19351a05c33e66ed3a87f8c58f481d94"
         },
         {
           "file": "packages/rpc/src/logging-middleware.ts",
@@ -14393,7 +14198,7 @@
         },
         {
           "file": "packages/rpc/src/proxy-channel.ts",
-          "sha256": "ec5b43e6a3a622a88a8aaa6af9cb37dbfe517932ee7f4a337019ec138bb2d513"
+          "sha256": "1f81da70701f1ae95856c3a94abca456fd8352e7860013609d19f567bfdc94fb"
         },
         {
           "file": "packages/rpc/src/remote.ts",
@@ -14417,7 +14222,7 @@
         },
         {
           "file": "packages/rpc/examples/04-remote-connection.ts",
-          "sha256": "fe43a2d631ba54a1cf63a86e344b6e2e58d83c2e8c95f2f8b7371f63e6442541"
+          "sha256": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c"
         },
         {
           "file": "packages/shared/src/zcode-protocol-v4/wire-codec.ts",
@@ -14845,6 +14650,11 @@
       "package": "@radix-ui/react-menu@2.1.16",
       "file": "patches/@radix-ui__react-menu@2.1.16.patch",
       "sha256": "4b05eae73074149ac453ee047d9f48707df7d5c9ddedeab8d514f9b9fa097a6c"
+    },
+    {
+      "package": "vite@8.0.8",
+      "file": "patches/vite@8.0.8.patch",
+      "sha256": "b601470892c4a2dc66aca580e81c6a3a43b3d121d07ad6d808012459357bc5af"
     }
   ],
   "exceptions": [

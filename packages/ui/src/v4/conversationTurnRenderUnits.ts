@@ -1,7 +1,3 @@
-// Bugfix：本文件在分享只读时间线闭包里，从 `@/plugin-ui/index.js` 桶文件导入会把 plugin-ui
-// 全量组件拖进 web-share 构建，`@zcode/shared/mcp-apps` 等子路径无法解析，分享落地页镜像构建失败。
-// 所以直接引用纯函数模块。
-import { isPluginUiPinnedToolRow } from "@/plugin-ui/domain/pluginUiRowPolicy.js";
 import type {
   ConversationTurnRenderUnit,
   BuildConversationTurnRenderUnitsOptions,
@@ -293,7 +289,6 @@ function materializeDraftUnit(
     forceOpenHistory,
     timelineOnly,
     nowMs: options.nowMs,
-    ...(options.pluginUiPinResolver ? { pluginUiPinResolver: options.pluginUiPinResolver } : {}),
   });
   const orderedAssistantHistoryRows = workSegments.flatMap(
     (segment) => segment.assistantHistoryRows,
@@ -502,7 +497,6 @@ export function createConversationTurnRenderUnitsSelector() {
     isLast: boolean;
     phase: SessionPhase | undefined;
     clock: number | undefined;
-    pinnedRows: ConversationRow[];
     unit: ConversationTurnRenderUnit;
   };
   type HistoryCache = {
@@ -512,8 +506,6 @@ export function createConversationTurnRenderUnitsSelector() {
     phase: SessionPhase | undefined;
     clockDependent: boolean;
     clock: number;
-    pinDependent: boolean;
-    resolver: BuildConversationTurnRenderUnitsOptions["pluginUiPinResolver"];
     // 已过滤并按“后面还有尾轮”归一化，尚未收口 footer。
     units: ConversationTurnRenderUnit[];
     /**
@@ -541,24 +533,18 @@ export function createConversationTurnRenderUnitsSelector() {
     const isLast = index === total - 1;
     const phase = draft.header ? undefined : options.sessionPhase;
     const clock = resolveTurnRunning(draft, options) ? options.nowMs : undefined;
-    // resolver 随插件派生重建，但普通消息不会改变插件的实际折叠裁决。
-    const pinnedRows = draft.orderedRows.filter((row) =>
-      isPluginUiPinnedToolRow(row, options.pluginUiPinResolver),
-    );
     const unchanged =
       old &&
       old.draft.header === draft.header &&
       sameItems(old.draft.orderedRows, draft.orderedRows) &&
       old.isLast === isLast &&
       old.phase === phase &&
-      old.clock === clock &&
-      sameItems(old.pinnedRows, pinnedRows);
+      old.clock === clock;
     const entry: Entry = {
       draft,
       isLast,
       phase,
       clock,
-      pinnedRows,
       unit: unchanged ? old.unit : materializeDraftUnit(draft, index, total, options),
     };
     next.set(draft.key, entry);
@@ -574,8 +560,7 @@ export function createConversationTurnRenderUnitsSelector() {
     cache !== null &&
     cache.rows === rows &&
     (!cache.phaseDependent || cache.phase === options.sessionPhase) &&
-    (!cache.clockDependent || cache.clock === options.nowMs) &&
-    (!cache.pinDependent || cache.resolver === options.pluginUiPinResolver);
+    (!cache.clockDependent || cache.clock === options.nowMs);
 
   return (
     partition: ConversationRowsPartition,
@@ -617,11 +602,6 @@ export function createConversationTurnRenderUnitsSelector() {
         phase: currentOptions.sessionPhase,
         clockDependent,
         clock: currentOptions.nowMs,
-        // 不传 resolver 时，isPluginUiPinnedToolRow 恰好判定“该行是否受固定裁决影响”。
-        pinDependent: drafts.some((draft) =>
-          draft.orderedRows.some((row) => isPluginUiPinnedToolRow(row)),
-        ),
-        resolver: currentOptions.pluginUiPinResolver,
         units,
       };
     }

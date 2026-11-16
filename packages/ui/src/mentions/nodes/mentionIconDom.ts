@@ -1,6 +1,4 @@
-// PromptMentionNode.ts 承载 Lexical 节点行为 + 全部分类图标 DOM 数据，
-// 新增 plugin 图标后超出 max-lines(400) 门禁。图标数据/DOM 构建是纯展示常量，
-// 与节点行为解耦到本文件；PromptMentionNode 继续 re-export 保持既有导入面兼容。
+// PromptMentionNode 的分类图标数据与 SVG DOM 构建集中在本文件。
 //
 // PromptMentionNode 是 Lexical 自定义 DOM 节点，不能直接渲染 lucide-react 组件。
 // 这里保留 lucide 的 IconNode 数据形状，再用原生 SVG DOM 生成图标。
@@ -99,17 +97,6 @@ export const SESSION_MENTION_ICON_NODE = [
     },
   ],
   ["path", { d: "M18 9h2a2 2 0 0 1 2 2v10l-4-4h-6a2 2 0 0 1-2-2v-1" }],
-] as const satisfies MentionLucideIconNode;
-
-export const PLUGIN_MENTION_LUCIDE_ICON_NAME = "Cable";
-export const PLUGIN_MENTION_ICON_NODE = [
-  ["path", { d: "M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z" }],
-  ["path", { d: "M17 21v-2" }],
-  ["path", { d: "M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10" }],
-  ["path", { d: "M21 21v-2" }],
-  ["path", { d: "M3 5V3" }],
-  ["path", { d: "M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z" }],
-  ["path", { d: "M7 5V3" }],
 ] as const satisfies MentionLucideIconNode;
 
 export function createMentionSvgIcon(iconNode: MentionLucideIconNode): SVGSVGElement {

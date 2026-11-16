@@ -951,13 +951,6 @@ export function createZCodeAgentConnectionScope(
         withTrustedConnection(workspaceTarget(params), forwardedConnection(params)),
       );
     },
-    onDynamicPluginUiToolResult() {
-      assertOpen();
-      // 页面创建只属于本地桌面；手机回放和 relay 不拥有原生 guest。
-      if (role !== "terminal-client" || context.clientMode !== "desktop-continuous")
-        return RpcEvent.None;
-      return base.onDynamicPluginUiToolResult();
-    },
     async subscribeSessionsIndexV4(params) {
       assertReady();
       const forwarded = forwardedConnection(params);

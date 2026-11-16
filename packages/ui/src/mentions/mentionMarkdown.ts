@@ -87,7 +87,6 @@ export function buildSessionMentionMarkdown(sessionId: string, label?: string): 
   return `[${escapeMarkdownLabel(`#${trimmedLabel}`)}](#${escapeMarkdownDestination(sessionId)})`;
 }
 
-// Plugin 引用的 canonical 持久化载体：
 /**
  * 历史设计模式点选的页面元素：`[@名称](zcode-element://引用 id)`。
  * id 与消息末尾网页元素块里的 `Reference: zcode-element://…` 一致，模型据此把正文里的指代对到元素。
@@ -96,11 +95,6 @@ export const ELEMENT_MENTION_SCHEME = "zcode-element://";
 
 export function buildElementMentionMarkdown(label: string, referenceId: string): string {
   return `[${escapeMarkdownLabel(`@${label}`)}](${ELEMENT_MENTION_SCHEME}${escapeMarkdownDestination(referenceId)})`;
-}
-
-// `[@Label](plugin://stable-id)`。身份只在 destination；label 仅用于展示。
-export function buildPluginMentionMarkdown(label: string, pluginId: string): string {
-  return `[${escapeMarkdownLabel(`@${label}`)}](plugin://${escapeMarkdownDestination(pluginId)})`;
 }
 
 export function buildMentionMarkdown(
@@ -125,9 +119,6 @@ export function buildMentionMarkdown(
   if (item.category === "sessions") {
     return buildSessionMentionMarkdown(item.value, item.label);
   }
-  if (item.category === "plugins") {
-    return buildPluginMentionMarkdown(item.label, item.data?.pluginId ?? item.value);
-  }
 
   return `@${item.value}`;
 }
@@ -147,18 +138,7 @@ type MentionTextPart =
   | { type: "command"; label: string }
   | { type: "subagent"; label: string }
   | { type: "session"; label: string }
-  | { type: "plugin"; label: string; pluginId?: string }
   | { type: "element"; label: string };
-
-const PLUGIN_STABLE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-function parsePluginStableId(destination: string): string | undefined {
-  if (!destination.startsWith("plugin://")) return undefined;
-  const candidate = destination.slice("plugin://".length);
-  return candidate.length <= 256 && PLUGIN_STABLE_ID_PATTERN.test(candidate)
-    ? candidate
-    : undefined;
-}
 
 /**
  * 将技能 slug（如 code-review）格式化为聊天气泡中的可读标题（Code Review）。
@@ -242,16 +222,7 @@ export function parseMentionMarkdown(content: string): MentionTextPart[] {
     } else if (destination.startsWith(ELEMENT_MENTION_SCHEME)) {
       parts.push({ type: "element", label: label.startsWith("@") ? label.slice(1) : label });
     } else if (destination.startsWith("plugin://")) {
-      // Plugin 引用链接绝不能落入 file 分支或被当外链处理；
-      // 发送后曾只保留 label，消息层失去 stable ID，只能固定显示兜底图标。
-      // 这里原样保留合法 destination 身份供 UI 与 Session catalog 关联；非法目标仍保持
-      // display-only，不做 label 猜测、percent decode 或 canonical 改写。
-      const pluginId = parsePluginStableId(destination);
-      parts.push({
-        type: "plugin",
-        label: label.startsWith("@") ? label.slice(1) : label,
-        ...(pluginId ? { pluginId } : {}),
-      });
+      parts.push({ type: "text", text: fullMatch });
     } else if (label.startsWith("$")) {
       parts.push({ type: "skill", label: label.slice(1) });
     } else if (isDirectoryMentionDestination(destination)) {

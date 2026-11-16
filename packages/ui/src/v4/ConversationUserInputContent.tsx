@@ -1,9 +1,8 @@
 import { ConversationImageFileMention } from "@/v4/ConversationImageFileMention.js";
 import type { ImageFilePreviewContext } from "@/hooks/useImageFilePreview.js";
-import { memo, useState } from "react";
+import { memo } from "react";
 import {
   Bot,
-  Cable,
   GoalIcon,
   MessagesSquare,
   MousePointerClick,
@@ -13,8 +12,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { FileDisplayInline } from "@/lib/fileDisplay.js";
-import { isTrustedPluginIconSource } from "@/lib/pluginIconSource.js";
-import { usePluginReferenceIconProjection } from "@/v4/pluginReferenceIconContext.js";
 import {
   getPromptMentionVariantClassName,
   PROMPT_MENTION_BASE_CLASS_NAME,
@@ -78,12 +75,10 @@ function mentionClassName(category: Parameters<typeof getPromptMentionVariantCla
 function V4UserInputMention({
   part,
   authoritativeGoal,
-  pluginIcon,
   imagePreviewContext,
 }: {
   part: Exclude<V4UserInputMentionPart, { type: "text" }>;
   authoritativeGoal: boolean;
-  pluginIcon?: string;
   imagePreviewContext?: ImageFilePreviewContext;
 }) {
   if (part.type === "file" || part.type === "directory") {
@@ -130,15 +125,6 @@ function V4UserInputMention({
     );
   }
 
-  if (part.type === "plugin") {
-    // Plugin 引用在气泡里渲染为 chip：不进 file 分支、不可作外链打开。
-    return (
-      <span className={mentionClassName("plugins")} data-plugin-mention-id={part.pluginId}>
-        <PluginUserMessageIcon src={pluginIcon} />
-        {part.label}
-      </span>
-    );
-  }
 
   if (part.type === "element") {
     // 设计模式点选的页面元素：与输入框里的元素 token 同样式
@@ -185,26 +171,6 @@ function V4UserInputMention({
   );
 }
 
-function PluginUserMessageIcon({ src }: { src?: string }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const showImage = isTrustedPluginIconSource(src) && failedSrc !== src;
-
-  if (!showImage) {
-    return <Cable aria-hidden="true" className="size-4 shrink-0" />;
-  }
-
-  return (
-    <img
-      src={src}
-      alt=""
-      aria-hidden="true"
-      draggable={false}
-      data-plugin-mention-icon="true"
-      className="inline-block size-4 shrink-0 rounded-sm object-contain align-middle"
-      onError={() => setFailedSrc(src ?? null)}
-    />
-  );
-}
 
 export const ConversationUserInputContent = memo(function ConversationUserInputContent({
   text,
@@ -217,7 +183,6 @@ export const ConversationUserInputContent = memo(function ConversationUserInputC
   contextAttachmentCount?: number;
   imagePreviewContext?: ImageFilePreviewContext;
 }) {
-  const pluginIconProjection = usePluginReferenceIconProjection();
   const goalQuery = parseV4UserInputGoalQuery(text, attachments, contextAttachmentCount);
   const parts = parseMentionMarkdown(text);
   const authoritativeGoalPartIndex = goalQuery
@@ -241,11 +206,6 @@ export const ConversationUserInputContent = memo(function ConversationUserInputC
             part={part}
             imagePreviewContext={imagePreviewContext}
             authoritativeGoal={index === authoritativeGoalPartIndex}
-            pluginIcon={
-              part.type === "plugin" && part.pluginId
-                ? pluginIconProjection?.iconByPluginId.get(part.pluginId)
-                : undefined
-            }
           />
         );
       })}

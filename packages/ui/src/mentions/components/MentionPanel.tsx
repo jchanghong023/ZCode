@@ -23,7 +23,7 @@ export interface MentionPanelOption {
   description: string;
   content?: ReactNode;
   meta?: ReactNode;
-  /** 禁选态（如同名 Plugin 冲突 fail closed）：可见但不可点击，键盘导航由上层跳过。 */
+  /** 禁选态：可见但不可点击，键盘导航由上层跳过。 */
   disabled?: boolean;
   /** 禁选原因；无自定义 content 时展示在描述位。 */
   disabledReason?: string;
@@ -469,7 +469,7 @@ function OptionRow({
         )}
         onMouseDown={(event) => {
           event.preventDefault();
-          // 禁选项不触发选择：fail closed，冲突 Plugin 不能被插入。
+          // 禁选项不触发选择。
           if (isDisabled) {
             return;
           }

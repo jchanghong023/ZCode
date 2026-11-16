@@ -23,6 +23,7 @@ import {
   type CodingPlanQuotaResetAutoPlayedSlot,
 } from "@/store/codingPlanQuotaResetState.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
+import { resolveDocumentTheme } from "@/document-highlighting/index.js";
 import { readSafeLocalStorage, writeSafeLocalStorage } from "@/lib/browserEnvironment.js";
 import {
   applyUiFontSizePx,
@@ -93,6 +94,8 @@ function loadCodePreviewSettings(): CodePreviewSettings {
     return {
       ...DEFAULT_CODE_PREVIEW_SETTINGS,
       ...parsed,
+      lightTheme: resolveDocumentTheme(parsed.lightTheme, "light"),
+      darkTheme: resolveDocumentTheme(parsed.darkTheme, "dark"),
       fontSizePx:
         typeof parsed.fontSizePx === "number"
           ? Math.min(20, Math.max(12, Math.round(parsed.fontSizePx)))
@@ -267,6 +270,8 @@ export function createZCodeStore(
         const next = {
           ...state.codePreviewSettings,
           ...patch,
+          lightTheme: resolveDocumentTheme(patch.lightTheme ?? state.codePreviewSettings.lightTheme, "light"),
+          darkTheme: resolveDocumentTheme(patch.darkTheme ?? state.codePreviewSettings.darkTheme, "dark"),
           fontSizePx:
             typeof patch.fontSizePx === "number"
               ? Math.min(20, Math.max(12, Math.round(patch.fontSizePx)))

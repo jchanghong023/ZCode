@@ -1,5 +1,11 @@
-import type { BundledLanguage, BundledTheme, HighlighterGeneric, ThemedToken } from "shiki";
-import { bundledLanguages, bundledLanguagesInfo, createHighlighter } from "shiki";
+import type { BundledTheme, ThemedToken } from "shiki";
+import { createHighlighter } from "@/document-highlighting/bundle.js";
+import {
+  resolveDocumentLanguage,
+  resolveDocumentTheme,
+  type DocumentLanguage,
+  type DocumentTheme,
+} from "@/document-highlighting/index.js";
 import { logger } from "@/logger.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
@@ -9,54 +15,11 @@ export interface TokenizedCode {
   bg: string;
 }
 
-const bundledLanguageIds = new Set(Object.keys(bundledLanguages));
-const bundledLanguageAliases = new Map(
-  bundledLanguagesInfo.flatMap((info) =>
-    (info.aliases ?? []).map((alias) => [alias, info.id] as const),
-  ),
-);
-const FALLBACK_CODE_LANGUAGE: BundledLanguage = "log";
-const PLAIN_TEXT_CODE_LANGUAGES = new Set([
-  "",
-  "text",
-  "txt",
-  "plain",
-  "plaintext",
-  "log",
-  "output",
-]);
-
 export function shouldUseSyntaxHighlighting(language: string): boolean {
-  const candidate = language.trim().toLowerCase();
-  if (PLAIN_TEXT_CODE_LANGUAGES.has(candidate)) {
-    return false;
-  }
-
-  return bundledLanguageIds.has(candidate) || bundledLanguageAliases.has(candidate);
+  return resolveDocumentLanguage(language) !== "text";
 }
 
-function normalizeCodeLanguage(language: string): BundledLanguage {
-  const candidate = language.trim().toLowerCase();
-  if (!candidate) {
-    return FALLBACK_CODE_LANGUAGE;
-  }
-
-  const alias = bundledLanguageAliases.get(candidate);
-  if (alias && bundledLanguageIds.has(alias)) {
-    return alias as BundledLanguage;
-  }
-
-  if (bundledLanguageIds.has(candidate)) {
-    return candidate as BundledLanguage;
-  }
-
-  return FALLBACK_CODE_LANGUAGE;
-}
-
-const highlighterCache = new Map<
-  string,
-  Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->();
+const highlighterCache = new Map<string, ReturnType<typeof createHighlighter>>();
 const tokensCache = new Map<string, TokenizedCode>();
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
 // 内存诊断计数器：tokensCache 目前无淘汰，是审计里
@@ -66,27 +29,23 @@ uiMemoryDiagnosticsRegistry.register("shiki", () => ({
   highlighters: highlighterCache.size,
 }));
 
-const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
-  if (theme) {
-    return theme;
-  }
+const getResolvedCodeTheme = (theme?: BundledTheme): DocumentTheme =>
+  resolveDocumentTheme(
+    theme,
+    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light",
+  );
 
-  if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) {
-    return "github-dark";
-  }
-
-  return "github-light";
-};
-
-const getCodeTokensCacheKey = (code: string, language: BundledLanguage, theme: BundledTheme) => {
+const getCodeTokensCacheKey = (code: string, language: DocumentLanguage, theme: DocumentTheme) => {
   const start = code.slice(0, 100);
   const end = code.length > 100 ? code.slice(-100) : "";
   return `${theme}:${language}:${code.length}:${start}:${end}`;
 };
 const getHighlighter = (
-  language: BundledLanguage,
-  theme: BundledTheme,
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
+  language: DocumentLanguage,
+  theme: DocumentTheme,
+): ReturnType<typeof createHighlighter> => {
   const cacheKey = `${theme}:${language}`;
   const cached = highlighterCache.get(cacheKey);
   if (cached) {
@@ -125,7 +84,8 @@ export const highlightCode = (
   // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-callbacks)
   callback?: (result: TokenizedCode) => void,
 ): TokenizedCode | null => {
-  if (!shouldUseSyntaxHighlighting(language)) {
+  const resolvedLanguage = resolveDocumentLanguage(language);
+  if (resolvedLanguage === "text") {
     // 文本/日志代码块没有语法高亮收益，却会在聊天流式渲染和历史恢复时进入
     // Shiki 的异步状态机。之前修掉了 render 阶段 setState，但这条纯文本路径仍可能把
     // CodeViewer 拖进 React #185；这里直接返回 raw tokens，避免启动高亮副作用。
@@ -133,7 +93,6 @@ export const highlightCode = (
   }
 
   const resolvedTheme = getResolvedCodeTheme(theme);
-  const resolvedLanguage = normalizeCodeLanguage(language);
   const tokensCacheKey = getCodeTokensCacheKey(code, resolvedLanguage, resolvedTheme);
 
   const cached = tokensCache.get(tokensCacheKey);
@@ -160,7 +119,7 @@ export const highlightCode = (
       const availableLangs = highlighter.getLoadedLanguages();
       const langToUse = availableLangs.includes(resolvedLanguage)
         ? resolvedLanguage
-        : FALLBACK_CODE_LANGUAGE;
+        : "text";
 
       const result = highlighter.codeToTokens(code, {
         lang: langToUse,

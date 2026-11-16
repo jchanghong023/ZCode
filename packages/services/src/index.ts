@@ -127,8 +127,6 @@ export type { IStorageService, StorageRootSpec } from "./storage/contract.js";
 export { ISkillsService } from "./skills/skills.js";
 export type { IDataSyncCategoryService } from "./data-sync/index.js";
 export { IMcpSyncService } from "./mcp-sync/mcpSync.js";
-// 设置页插件管理薄服务（UI 平台能力面不再直触 zcodeAgentService）
-export { IPluginManagementService, withPluginTelemetry } from "./plugins/pluginManagement.js";
 
 // Subagents service — ISubagentsService is both a type (interface) and value (descriptor)
 export { ISubagentsService } from "./subagents/subagents.js";
@@ -160,38 +158,6 @@ export type {
 export { readProjectCatalog, projectSelectionId } from "#src/project-catalog/index.js";
 export type { ProjectCatalogPort, ProjectCatalogSnapshot } from "#src/project-catalog/contract.js";
 
-// 插件 UI 桥：描述符、参数类型与工厂；App-Provided Tools 另有独立描述符。
-export {
-  createPluginUiBridgeService,
-  createPluginUiAppToolsService,
-  createPluginUiSamplingService,
-  IPluginUiSamplingService,
-  type PluginUiSamplingParams,
-  type PluginUiCancelSamplingParams,
-  PluginUiBridgeError,
-  IPluginUiAppToolsService,
-  type PluginUiAppToolInstanceParams,
-  type PluginUiAppToolCallParams,
-  type PluginUiAppToolAcceptedResult,
-  type PluginUiRegisterAppToolsParams,
-  type PluginUiRegisterAppToolsResult,
-  type PluginUiResolveAppToolCallParams,
-} from "./plugin-ui-bridge/index.js";
-export {
-  IPluginUiBridgeService,
-  type PluginUiCallToolParams,
-  type PluginUiCallToolResult,
-  type PluginUiPrepareSandboxParams,
-  type PluginUiReadResourceParams,
-  type PluginUiReadResourceResult,
-  type PluginUiPluginScope,
-  type PluginUiListResourcesParams,
-  type PluginUiListResourcesResult,
-  type PluginUiListResourceTemplatesResult,
-  type PluginUiResourceSubscriptionParams,
-  type PluginUiSurfaceEntry,
-  type PluginUiWorkspaceTarget,
-} from "./plugin-ui-bridge/contract.js";
 export { IClientConfigService } from "./client-config/clientConfig.js";
 
 export { IGenUiService } from "./gen-ui/contract.js";

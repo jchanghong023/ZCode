@@ -1,5 +1,7 @@
 # Plugin 能力设置页
 
+> 历史规格：2026-11-16 已删除产品插件能力，不恢复本页的插件设置／商店入口。现行范围见 [插件退役契约](specs/aireq-migration/contract-design.md#需求管理资源收敛与插件退役2026-11-16)；非插件需求管理与隐藏 Skill 能力不变。
+
 ## 目标
 
 设置页只保留一个以 `plugin` 命名的入口，正式 section id 为 `plugin`，由 `PluginsSection.tsx` 集中管理已配置的 Plugins、MCPs 与 Skills；MCP、技能、命令、Hooks 是复用同一能力外壳的独立分区，详见「独立设置页收敛」。旧 `customize` id 完全移除，不参与类型、解析或迁移；历史 `plugins`、`mcp`、`skills` 导航值只用于兼容迁移。插件市场是与自动化同级的 Workspace 主页面，由 `PluginStorePage.tsx` 渲染，不属于设置页。

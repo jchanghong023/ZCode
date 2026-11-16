@@ -104,8 +104,6 @@ import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { logger } from "@/logger.js";
-import { PluginUiModelContextChip } from "@/plugin-ui/adapters/PluginUiModelContextChip.js";
-import { formatPluginDisplayName } from "@/plugin-ui/domain/pluginDisplayName.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
 import {
   FileDisplayIcon,
@@ -1014,15 +1012,13 @@ const SingleUserInputRowView = memo(function SingleUserInputRowView({
         !attachment.mime.startsWith("image/") && !attachment.mime.startsWith("video/"),
     ) ?? false;
   const hasVisibleText = visibleText.trim().length > 0;
-  const pluginUiContexts = parsedPrompt.pluginUiContexts;
   // nudge 轮整条都是引擎文本：正文为空但气泡仍要画，里面只有那一枚披露。
   const hasBubble = hasVisibleText || epilogue !== undefined;
   const hasContextReferences =
     codeCommentContexts.length > 0 ||
     webElementContexts.length > 0 ||
     pptxElementReferences.length > 0 ||
-    conversationSelections.length > 0 ||
-    pluginUiContexts.length > 0;
+    conversationSelections.length > 0;
   const hasAttachmentArea = hasAttachments || hasContextReferences;
   const hasAttachmentPills =
     hasFileAttachments ||
@@ -1126,7 +1122,6 @@ const SingleUserInputRowView = memo(function SingleUserInputRowView({
                   contentAlign="end"
                 />
               ) : null}
-              <PluginUiModelContextChip contexts={pluginUiContexts} contentAlign="end" />
             </div>
           ) : null}
         </div>
@@ -1154,20 +1149,6 @@ const SingleUserInputRowView = memo(function SingleUserInputRowView({
           {intl.formatMessage({ id: "genUi.from" }, { name: row.source.title || "Gen UI" })}
         </div>
       )}
-      {row.source?.kind === "pluginUi" || row.source?.kind === "extension" ? (
-        // 插件 UI 或扩展（docs/plugins/extension-host.md §17.8）代发：来源标记来自 CLI 持久化的 intent.source，
-        // 不由 renderer 推断。两者同一句文案；名字取插件 id 的名字部分，手机没有扩展静态表，桌面与手机一致。
-        <div
-          data-v4-user-input-source={row.source.pluginId}
-          data-v4-user-input-source-kind={row.source.kind}
-          className="mt-1 text-right text-ui-sm text-foreground-subtlest"
-        >
-          {intl.formatMessage(
-            { id: "pluginUi.fromPlugin" },
-            { name: formatPluginDisplayName(row.source.pluginId) },
-          )}
-        </div>
-      ) : null}
       {status ? (
         <div
           data-v4-user-input-status="true"

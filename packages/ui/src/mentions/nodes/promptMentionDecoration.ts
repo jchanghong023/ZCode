@@ -4,14 +4,12 @@ import {
   INLINE_FALLBACK_FILE_ICON_SRC,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
-import { resolvePluginIconSource } from "@/lib/pluginIconSource.js";
 import type { MentionCategory, MentionItemData } from "@/mentions/mentionTypes.js";
 import {
   COMMAND_MENTION_ICON_NODE,
   COMPACT_COMMAND_MENTION_ICON_NODE,
   createMentionSvgIcon,
   GOAL_COMMAND_MENTION_ICON_NODE,
-  PLUGIN_MENTION_ICON_NODE,
   SESSION_MENTION_ICON_NODE,
   SKILL_MENTION_ICON_NODE,
   SUBAGENT_MENTION_ICON_NODE,
@@ -64,18 +62,6 @@ export function decoratePromptMention(
   data?: MentionItemData,
 ) {
   pendingImages.delete(dom);
-  if (category === "plugins") {
-    const fallback = () => setMask(dom, PLUGIN_MENTION_ICON_NODE);
-    const icon = resolvePluginIconSource(value, data?.icon);
-    if (icon) setImage(dom, icon, fallback);
-    else fallback();
-    return;
-  }
-  // 插件 composer.mention 的候选项：统一用插件图标（候选项的图标只在 `@` 面板里渲染）。
-  if (category === "extensions") {
-    setMask(dom, PLUGIN_MENTION_ICON_NODE);
-    return;
-  }
   if (category === "files") {
     const descriptor = resolveFileDisplayDescriptor(data?.path ?? data?.relativePath ?? value);
     const url = data?.kind === "directory" ? FOLDER_FILE_ICON_SRC : descriptor.fileIconSrc;

@@ -8,7 +8,7 @@ import type {
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2Icon } from "lucide-react";
-import type { FileContents, LineAnnotation, SupportedLanguages } from "@pierre/diffs";
+import type { FileContents, LineAnnotation } from "@pierre/diffs";
 import { File, type FileOptions } from "@pierre/diffs/react";
 import type { BundledTheme } from "shiki";
 
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea.js";
 import type { CodeCommentPreview, CodeCommentRange } from "@/lib/codeCommentContext.js";
 import { isDarkCodePreviewTheme } from "@/lib/codePreviewPreferences.js";
 import { DIFFS_PREFERRED_HIGHLIGHTER } from "@/lib/diffsHighlighterEngine.js";
+import { resolveDocumentLanguage } from "@/document-highlighting/index.js";
 import {
   formatCommandShortcutLabel,
   isAppleKeyboardPlatform,
@@ -254,8 +255,8 @@ function createCodeViewerFile(params: {
   theme?: BundledTheme;
 }): FileContents {
   const lang = params.enableSyntaxHighlighting
-    ? (params.language as SupportedLanguages)
-    : ("text" as SupportedLanguages);
+    ? resolveDocumentLanguage(params.language)
+    : "text";
   const name = params.language ? `preview.${params.language}` : "preview.txt";
   const themeCacheKey = params.theme ?? "auto";
 
@@ -682,7 +683,7 @@ export function CodeViewer({
       disableFileHeader: true,
       disableLineNumbers: !showLineNumbers,
       overflow: wrapLongLines ? "wrap" : "scroll",
-      theme,
+      theme: theme ?? { light: "github-light", dark: "github-dark" },
       preferredHighlighter: DIFFS_PREFERRED_HIGHLIGHTER,
       enableLineSelection: canUseCommentLineSelection,
       enableGutterUtility: canUseCommentGutterUtility,

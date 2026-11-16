@@ -1,6 +1,3 @@
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useZCodeAgentService } from "@/hooks/useZCodeAgentService.js";
-import { toast } from "@/components/ui/toast.js";
 /* eslint-disable max-lines -- Composer 草稿 owner 同时收口选择、正文与提交生命周期，保持单一状态边界。 */
 // 当前编辑由 Composer 持有；进入已有 Session 从当前快照恢复权限/Plan，在线只响应新变化。
 // 菜单点击立即保存 Renderer 意图，Prewarm 与 Submission 只消费它，不反向覆盖。
@@ -42,6 +39,7 @@ import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { isComposerEditScopeId } from "@/composer-edit-mode/contract.js";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -124,6 +122,8 @@ export interface DraftConfigControl {
     selection: ModelSelection,
     expectedSelection?: ModelSelection,
   ) => () => void;
+  /** 仅在业务会话消息接纳后，恢复未被用户再次修改的提交配置。 */
+  captureAcceptedSubmissionReset: (submission: ComposerSubmissionConfig) => () => void;
   handleDraftSelectModel: (modelProvider: string, model: string, reasoningLevel?: string) => void;
   handleDraftSelectThought: (thought: string) => void;
   handleDraftSwitchMode: (mode: string) => void;
@@ -181,7 +181,6 @@ export function useDraftConfigControl(params: {
   /** composer 编辑态：草稿切到该 Session 的 edit scope，原草稿留在原 scope 不动。 */
   editScopeId?: string | null;
 }): DraftConfigControl {
-  const { intl } = useZCodeIntl();
   const {
     workspacePath,
     workspaceIdentity,
@@ -194,20 +193,6 @@ export function useDraftConfigControl(params: {
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-  const agentService = useZCodeAgentService(workspacePath, null, workspaceIdentity);
-  useEffect(() => {
-    const subscription = agentService.onDynamicPluginStartupDegraded({
-      workspacePath,
-      workspaceIdentity,
-    })(() => {
-      toast(intl.formatMessage({ id: "plugins.startupTimeout" }), {
-        variant: "warning",
-        durationMs: 10_000,
-        dedupeKey: `plugins-startup:${workspaceKey}`,
-      });
-    });
-    return () => subscription.dispose();
-  }, [agentService, intl, workspacePath, workspaceIdentity, workspaceKey]);
   const zcodeSessionService = useZCodeSessionService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
@@ -660,6 +645,54 @@ export function useDraftConfigControl(params: {
     },
     [scopeKey, updateComposerDraft],
   );
+  const modelIntentRevisionRef = useRef(0);
+  const modeIntentRevisionRef = useRef(0);
+  const planIntentRevisionRef = useRef(0);
+  const captureAcceptedSubmissionReset = useCallback(
+    (submission: ComposerSubmissionConfig): (() => void) => {
+      if (!sessionId || !sessionConfig?.modelSelection) return () => {};
+      const original = stateRef.current.draft;
+      const effective = draftConfigRef.current;
+      const selected = effective.modelSelection;
+      const sameModel =
+        selected?.providerId === submission.modelSelection.providerId &&
+        selected.modelId === submission.modelSelection.modelId &&
+        selected.options?.reasoningLevel === submission.modelSelection.options?.reasoningLevel;
+      const defaultMode = submissionModeSchema.safeParse(sessionConfig.mode);
+      const defaultPlan = resolveExecutionState(sessionConfig).planEnabled;
+      const defaultSelection = sessionConfig.modelSelection;
+      const modelRevision = modelIntentRevisionRef.current;
+      const modeRevision = modeIntentRevisionRef.current;
+      const planRevision = planIntentRevisionRef.current;
+      return () => {
+        // 旧回执不得覆盖另一草稿或用户等待期间重新选择的模型、模式和计划状态。
+        if (!isCurrentScope()) return;
+        const currentSelection = draftConfigRef.current.modelSelection;
+        updateComposerDraft((current) => ({
+          ...current,
+          ...(sameModel &&
+          modelIntentRevisionRef.current === modelRevision &&
+          currentSelection?.providerId === submission.modelSelection.providerId &&
+          currentSelection.modelId === submission.modelSelection.modelId &&
+          currentSelection.options?.reasoningLevel === submission.modelSelection.options?.reasoningLevel
+            ? { modelSelection: defaultSelection }
+            : {}),
+          ...(defaultMode.success &&
+          effective.mode === submission.mode &&
+          modeIntentRevisionRef.current === modeRevision &&
+          current.mode === original.mode
+            ? { mode: defaultMode.data === "plan" ? "build" : defaultMode.data }
+            : {}),
+          ...(effective.planEnabled === submission.planEnabled &&
+          planIntentRevisionRef.current === planRevision &&
+          current.planEnabled === original.planEnabled
+            ? { planEnabled: defaultPlan }
+            : {}),
+        }));
+      };
+    },
+    [isCurrentScope, sessionConfig, sessionId, updateComposerDraft],
+  );
   const resolveInitialDraftConfig = useCallback((): Partial<SessionConfigState> | undefined => {
     if (!draftConfigRef.current.mode) return undefined;
     const config = { ...draftConfigRef.current };
@@ -1004,6 +1037,7 @@ export function useDraftConfigControl(params: {
 
   const handleDraftSelectModel = useCallback(
     (modelProvider: string, model: string, reasoningLevel?: string) => {
+      modelIntentRevisionRef.current += 1;
       const modelId = modelProvider ? `${modelProvider}/${model}` : model;
       const parsedSelection = parseModelPickerValue(modelId);
       // 原因：调档后解析尚未返回时，菜单仍使用同 Host 的保留目录；只读 ready view
@@ -1038,6 +1072,7 @@ export function useDraftConfigControl(params: {
 
   const handleDraftSelectThought = useCallback(
     (thought: string) => {
+      modelIntentRevisionRef.current += 1;
       updateDraftConfig((current) => {
         const providerId = current.modelSelection?.providerId ?? current.provider?.trim();
         const modelId = current.modelSelection?.modelId ?? current.model?.trim();
@@ -1067,6 +1102,7 @@ export function useDraftConfigControl(params: {
   const handleDraftSwitchMode = useCallback(
     (mode: string) => {
       if (mode === "plan" || mode === "plan-off") {
+        planIntentRevisionRef.current += 1;
         updateComposerDraft((current) => ({
           ...current,
           mode: current.mode === "plan" ? "build" : (current.mode ?? "build"),
@@ -1076,11 +1112,13 @@ export function useDraftConfigControl(params: {
       }
       // 模式与模型同属当前 scope；不再写全局偏好，避免别的任务反向覆盖。
       const parsed = submissionModeSchema.safeParse(mode);
-      if (parsed.success)
+      if (parsed.success) {
+        modeIntentRevisionRef.current += 1;
         updateComposerDraft((current) => ({
           ...current,
           mode: parsed.data,
         }));
+      }
     },
     [updateComposerDraft],
   );
@@ -1109,6 +1147,7 @@ export function useDraftConfigControl(params: {
     replaceComposerDraft,
     promoteComposerDraft,
     captureAcceptedModelSelection,
+    captureAcceptedSubmissionReset,
     handleDraftSelectModel,
     handleDraftSelectThought,
     handleDraftSwitchMode,

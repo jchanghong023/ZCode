@@ -95,7 +95,6 @@ export interface LexicalChatInputHandle {
   setMention: (mention: ComposerMentionPrefill, trailingText?: string) => void;
   insertMention: (mention: ComposerMentionPrefill, selectionState?: EditorState) => void;
   setText: (text: string) => void;
-  setTextWithPluginMentions: (text: string) => void;
   setEditorStateJson: (editorStateJson: string) => void;
   setSkillMention: (skillName: string, markdown?: string, trailingText?: string) => void;
   setSlashCommandMention: (commandName: string, markdown?: string, trailingText?: string) => void;
@@ -216,46 +215,6 @@ function replaceEditorText(editor: LexicalEditor, text: string) {
   );
 }
 
-const INLINE_PLUGIN_MENTION_PATTERN =
-  /\[@((?:\\.|[^\]])+)\]\(plugin:\/\/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)\)/g;
-
-function replaceEditorTextWithPluginMentions(editor: LexicalEditor, text: string) {
-  editor.update(
-    () => {
-      const root = $getRoot();
-      root.clear();
-      for (const line of text.split("\n\n")) {
-        const paragraph = $createParagraphNode();
-        let cursor = 0;
-        for (const match of line.matchAll(INLINE_PLUGIN_MENTION_PATTERN)) {
-          const start = match.index ?? 0;
-          if (start > cursor) paragraph.append($createTextNode(line.slice(cursor, start)));
-          const markdown = match[0];
-          const label = match[1]?.replaceAll("\\]", "]").replaceAll("\\[", "[") ?? "";
-          const pluginId = match[2] ?? "";
-          paragraph.append(
-            $createPromptMentionNode({
-              id: `plugin:${pluginId}`,
-              category: "plugins",
-              label,
-              value: pluginId,
-              markdown,
-              data: { pluginId },
-            }),
-          );
-          cursor = start + markdown.length;
-        }
-        if (cursor < line.length || paragraph.getChildrenSize() === 0) {
-          paragraph.append($createTextNode(line.slice(cursor)));
-        }
-        root.append(paragraph);
-      }
-      root.getLastChild()?.selectEnd();
-    },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
-  );
-}
-
 export function replaceEditorWithMention(
   editor: LexicalEditor,
   mention: ComposerMentionPrefill,
@@ -280,7 +239,7 @@ export function replaceEditorWithMention(
  * 在草稿开头插入结构化 mention，同时保留已有 Lexical 节点和段落。
  *
  * 不能通过 getMarkdown → setMention 重建：setMention 是替换型预填，会把旧 mention
- * 序列化后作为普通 TextNode 放回编辑器，导致已有 Plugin / 文件 / Skill chip 降级。
+ * 序列化后作为普通 TextNode 放回编辑器，导致已有文件 / Skill chip 降级。
  */
 export function prependEditorMentionIfMissing(
   editor: LexicalEditor,
@@ -1038,8 +997,6 @@ function E2ELexicalInputBridgePlugin({ inputTestId }: { inputTestId?: string }) 
       getEditorState: () => editor.getEditorState(),
       getText: () => getEditorMarkdown(editor.getEditorState()),
       setText: (text: string) => replaceEditorText(editor, text),
-      setTextWithPluginMentions: (text: string) =>
-        replaceEditorTextWithPluginMentions(editor, text),
       setEditorStateJson: (editorStateJson: string) =>
         replaceEditorStateJson(editor, editorStateJson),
     };
@@ -1422,8 +1379,6 @@ function EditorApiPlugin({
       setMention: (mention, trailingText) =>
         replaceEditorWithMention(editor, mention, trailingText),
       setText: (text: string) => replaceEditorText(editor, text),
-      setTextWithPluginMentions: (text: string) =>
-        replaceEditorTextWithPluginMentions(editor, text),
       setEditorStateJson: (editorStateJson: string) =>
         replaceEditorStateJson(editor, editorStateJson),
       setSkillMention: (skillName: string, markdown = `$${skillName}`, trailingText = " ") =>

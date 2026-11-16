@@ -1996,12 +1996,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  async readSessionDebug(
-    _params: P<IZCodeAgentService["readSessionDebug"]>,
-  ): Promise<AR<IZCodeAgentService["readSessionDebug"]>> {
-    return { events: [], notes: [] } as unknown as AR<IZCodeAgentService["readSessionDebug"]>;
-  }
-
   async getSkillReferenceCatalog(
     _params: P<IZCodeAgentService["getSkillReferenceCatalog"]>,
   ): Promise<AR<IZCodeAgentService["getSkillReferenceCatalog"]>> {
@@ -2018,14 +2012,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return false as unknown as AR<IZCodeAgentService["closeSession"]>;
   }
 
-  onDynamicPluginStartupDegraded(
-    _params: P<IZCodeAgentService["onDynamicPluginStartupDegraded"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicPluginStartupDegraded"]> {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicPluginStartupDegraded"]
-    >;
-  }
-
   onDynamicLocalTtftFacts(
     _params: P<IZCodeAgentService["onDynamicLocalTtftFacts"]>,
   ): ReturnType<IZCodeAgentService["onDynamicLocalTtftFacts"]> {
@@ -2038,10 +2024,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return Event.None as unknown as ReturnType<
       IZCodeAgentService["onDynamicConversationTelemetryFact"]
     >;
-  }
-
-  onDynamicPluginUiToolResult(): ReturnType<IZCodeAgentService["onDynamicPluginUiToolResult"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicPluginUiToolResult"]>;
   }
 
   async conversationFileChangesV4(

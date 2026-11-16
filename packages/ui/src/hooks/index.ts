@@ -34,8 +34,6 @@ export { useAlertDialog } from "./useAlertDialog.js";
 
 export { useZCodeAgentService } from "./useZCodeAgentService.js";
 
-// Git pane
+// Git 自动刷新
 export { useGitAutoRefresh } from "./useGitAutoRefresh.js";
-export { useGitRepository } from "./useGitRepository.js";
-export { useGitActions } from "./useGitActions.js";
 export { useUsageStats } from "./useUsageStats.js";

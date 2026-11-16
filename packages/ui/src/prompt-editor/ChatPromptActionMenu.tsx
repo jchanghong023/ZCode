@@ -19,8 +19,6 @@ import { normalizeSlashCommandValue } from "@/slashCommandHelpers.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { MentionPanel, type MentionPanelSection } from "@/mentions/components/MentionPanel.js";
-import { PluginMentionOptionContent } from "@/mentions/components/PluginMentionOptionContent.js";
-import { usePluginsMentionProvider } from "@/mentions/providers/pluginsMentionProvider.js";
 
 /**
  * 「添加」分区里紧随附件之后的命令快捷项，选中即插入与 `/` 面板相同的命令标签。
@@ -42,7 +40,7 @@ export function ChatPromptActionMenu({
   workspaceIdentity,
   sessionId,
   container,
-  showPlugins,
+  showContext,
   excludedSlashCommandNames,
 }: {
   actionMenuTitle: string;
@@ -59,7 +57,7 @@ export function ChatPromptActionMenu({
   workspaceIdentity?: string;
   sessionId: string | null;
   container: HTMLElement | null;
-  showPlugins: boolean;
+  showContext: boolean;
   excludedSlashCommandNames?: readonly string[];
 }) {
   const { intl } = useZCodeIntl();
@@ -77,22 +75,13 @@ export function ChatPromptActionMenu({
     }),
     [container],
   );
-  const plugins = usePluginsMentionProvider(
-    workspacePath,
-    workspaceIdentity,
-    sessionId,
-    "",
-    open && !disabled && showPlugins,
-    intl.formatMessage({ id: "chat.mention.plugins.empty" }),
-    intl.formatMessage({ id: "chat.mention.plugins.title" }),
-  );
   const provider = useChatViewActiveTaskProvider(sessionId, workspacePath, workspaceIdentity);
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const files = useFileMentionProvider(
     workspacePath,
     workspaceIdentity,
     "",
-    open && !disabled && showPlugins,
+    open && !disabled && showContext,
     intl.formatMessage({ id: "chat.mention.files.empty" }),
     intl.formatMessage({ id: "chat.mention.files.title" }),
     MENTION_FILES_ONLY_DEFAULT_PREVIEW_LIMIT,
@@ -102,7 +91,7 @@ export function ChatPromptActionMenu({
     workspacePath,
     workspaceIdentity,
     "",
-    open && !disabled && showPlugins,
+    open && !disabled && showContext,
     getSessionMentionWorkspaceScope("@"),
     intl.formatMessage({ id: "chat.mention.sessions.empty" }),
     intl.formatMessage({ id: "chat.mention.sessions.title" }),
@@ -116,7 +105,7 @@ export function ChatPromptActionMenu({
       errorText: group.error?.message ?? null,
     })),
   );
-  const mentionItems = [...plugins.items, ...contextGroups.flatMap((group) => group.items)];
+  const mentionItems = contextGroups.flatMap((group) => group.items);
   const attachmentCount = attachmentAction ? 1 : 0;
   const options = [
     ...(attachmentAction ? [{ disabled: false }] : []),
@@ -166,19 +155,6 @@ export function ChatPromptActionMenu({
         }),
       ],
     },
-    {
-      id: "plugins",
-      title: plugins.title,
-      emptyText: plugins.emptyText,
-      loading: plugins.loading,
-      loadingText: intl.formatMessage({ id: "chat.mention.category.loading" }),
-      errorText: plugins.error?.message,
-      options: plugins.items.map((item) => ({
-        ...item,
-        label: item.displayLabel ?? item.label,
-        content: <PluginMentionOptionContent item={item} />,
-      })),
-    },
     ...contextGroups.map((group) => ({
       id: group.id,
       title: group.title,
@@ -223,7 +199,7 @@ export function ChatPromptActionMenu({
           // 打开瞬间快照，菜单打开期间候选不平移，键盘选择不会错位。
           // /goal 仍是消息开头命令且是会话级目标：仅新会话空草稿提供，避免在消息中间插入后被忽略。
           // /workflow 同样只在消息开头展开，但不绑定会话状态：任意会话空草稿都提供；
-          // 命令目录以 CLI catalog 为权威，catalog 缺 workflow（插件被禁用）时不提供，
+          // 命令目录以 CLI catalog 为权威，catalog 缺 workflow 时不提供，
           // 否则会把 CLI 不会展开的裸文本发给模型。
           const emptyDraft = inputApiRef.current?.getText() === "";
           const offered = (command: QuickCommand, available: boolean) =>

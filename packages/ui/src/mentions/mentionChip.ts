@@ -18,9 +18,6 @@ export function getPromptMentionVariantClassName(category: MentionCategory): str
   if (category === "sessions") {
     return "text-session-node-foreground";
   }
-  if (category === "plugins" || category === "extensions") {
-    return "text-plugin-node-foreground";
-  }
   if (category === "elements") {
     return "text-file-node-foreground";
   }

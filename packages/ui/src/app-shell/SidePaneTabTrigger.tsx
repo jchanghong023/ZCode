@@ -8,7 +8,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   FolderOpenIcon,
-  PuzzleIcon,
   BotMessageSquareIcon,
   BugIcon,
   FileIcon,
@@ -16,10 +15,8 @@ import {
   FileDiffIcon,
   MessageSquareTextIcon,
   ListTreeIcon,
-  PlugIcon,
   NotepadTextIcon,
   PackageIcon,
-  ScrollTextIcon,
   SquareTerminalIcon,
   TerminalIcon,
   Workflow as WorkflowIcon,
@@ -37,7 +34,6 @@ import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay
 import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { Button } from "@/components/ui/button.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
-import { resolveExtensionIcon, resolveLocalizedText } from "@/extension-slots/index.js";
 
 // tab 默认按 156px 等宽排列；空间不足时以相同 grow/shrink 参数平均收缩到 60px，
 // 之后由外层滚动容器承接溢出，避免标题长度改变每个 tab 的宽度。
@@ -274,15 +270,6 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "plan-detail") {
     return <NotepadTextIcon className="size-3.5" />;
   }
-  if (tab.type === "plugin-ui") {
-    return <PlugIcon className="size-3.5" />;
-  }
-  if (tab.type === "extension-view") {
-    // 只渲染白名单里的图标，其余为通用插件图标（DESIGN.md「Extension slots」）。
-    const Icon = resolveExtensionIcon(tab.icon);
-    return <Icon className="size-3.5" />;
-  }
-  if (tab.type === "extension-logs") return <ScrollTextIcon className="size-3.5" />;
   // 同一条约定：来源卡片（CreateWorkflow）用 lucide Workflow，tab 必须与它一致。
   if (tab.type === "workflow-run") {
     return <WorkflowIcon className="size-3.5" />;
@@ -322,7 +309,6 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   }
 
   if (tab.type === "new-tab") return <FileIcon className="size-3.5" />;
-  if (tab.type === "plugin-market") return <PuzzleIcon className="size-3.5" />;
 
   if (tab.type === "developer-tools") {
     return <BugIcon className="size-3.5" />;
@@ -465,8 +451,6 @@ export function getPatchFileDisplayTarget(source: {
 export function getSidePaneTabTitle(
   tab: WorkspaceSidePaneTab,
   formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string,
-  /** 扩展视图的标题按语言映射，渲染时按当前界面语言取。 */
-  locale = "en-US",
 ): string {
   if (tab.type === "plan-detail") {
     return formatMessage({ id: "planTool.panel.planTab" });
@@ -510,7 +494,6 @@ export function getSidePaneTabTitle(
   }
 
   if (tab.type === "new-tab") return formatMessage({ id: "sidePane.newTab" });
-  if (tab.type === "plugin-market") return formatMessage({ id: "workspace.openPluginsSettings" });
 
   if (tab.type === "developer-tools") {
     return formatMessage({ id: "developerTools.title" });
@@ -520,17 +503,6 @@ export function getSidePaneTabTitle(
     return tab.title || formatMessage({ id: "terminal.title" });
   }
 
-  if (tab.type === "plugin-ui") {
-    return tab.title.trim() || formatMessage({ id: "sidePane.pluginUi" });
-  }
-
-  if (tab.type === "extension-view") {
-    return (
-      resolveLocalizedText(tab.title, locale) || formatMessage({ id: "extensions.view.title" })
-    );
-  }
-
-  if (tab.type === "extension-logs") return formatMessage({ id: "extensions.logs.title" });
 
   if (tab.type === "file-manager")
     return tab.source?.title || formatMessage({ id: "fileManager.title" });

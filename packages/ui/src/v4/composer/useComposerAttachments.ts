@@ -1100,3 +1100,78 @@ export function useComposerAttachments(
     ],
   );
 }
+
+export interface ContextImageAttachmentsPort {
+  addAttachmentFiles(files: File[]): string[];
+  removeAttachment(id: string): void;
+}
+
+export interface ContextImageAttachmentsOptions<T> {
+  toFiles: (context: T) => File[];
+}
+
+interface MaterializedContext<T> {
+  context: T;
+  ids: string[];
+  /** 附加时的撤销函数；切会话后仍清理原 scope 的截图。 */
+  remove: (id: string) => void;
+}
+
+export function useContextImageAttachments<T extends { id: string }>(
+  contexts: readonly T[],
+  port: ContextImageAttachmentsPort,
+  options: ContextImageAttachmentsOptions<T>,
+): ReadonlySet<string> {
+  const materialized = useRef(new Map<string, MaterializedContext<T>>());
+  /** 这里管着的附件 id：调用方可以据此只在条目上展示（如网页元素引用不在附件行重复出缩略图） */
+  const [managedIds, setManagedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const portRef = useRef(port);
+  portRef.current = port;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  useEffect(() => {
+    const { toFiles } = optionsRef.current;
+    const release = (entry: MaterializedContext<T>) => {
+      const remove = entry.remove;
+      for (const id of entry.ids) {
+        remove(id);
+      }
+    };
+    const seen = new Set<string>();
+    for (const context of contexts) {
+      seen.add(context.id);
+      const existing = materialized.current.get(context.id);
+      if (existing?.context === context) continue;
+      if (existing) {
+        release(existing);
+        materialized.current.delete(context.id);
+      }
+      const files = toFiles(context);
+      if (files.length === 0) continue;
+      materialized.current.set(context.id, {
+        context,
+        ids: portRef.current.addAttachmentFiles(files),
+        remove: portRef.current.removeAttachment,
+      });
+    }
+    for (const [id, entry] of materialized.current) {
+      if (seen.has(id)) continue;
+      release(entry);
+      materialized.current.delete(id);
+    }
+    const ids = new Set([...materialized.current.values()].flatMap((entry) => entry.ids));
+    setManagedIds((current) =>
+      current.size === ids.size && [...ids].every((id) => current.has(id)) ? current : ids,
+    );
+  }, [contexts]);
+  useEffect(() => {
+    const entries = materialized.current;
+    return () => {
+      for (const entry of entries.values()) {
+        for (const id of entry.ids) entry.remove(id);
+      }
+      entries.clear();
+    };
+  }, []);
+  return managedIds;
+}

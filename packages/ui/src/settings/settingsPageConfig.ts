@@ -15,7 +15,6 @@ import {
   AlarmClock,
   Anchor,
   Brain,
-  Blocks,
   Cable,
   WandSparkles,
   Keyboard,
@@ -105,12 +104,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "subagents",
     icon: Bot,
     titleId: "settings.subagents.title",
-    groupId: "agentCapabilities",
-  },
-  {
-    id: "plugin",
-    icon: Blocks,
-    titleId: "settings.plugins.title",
     groupId: "agentCapabilities",
   },
   {

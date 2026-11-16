@@ -15,23 +15,16 @@ The default options intentionally follow the official docs more closely while fi
 
 `PatchDiff` inputs use `simple` hunk separators because patch-only previews do not contain full hidden context and cannot expand unmodified lines. `MultiFileDiff` inputs keep `line-info` separators so expandable unmodified lines remain available.
 
-Current `DiffViewer` integrations are the `PreviewPane` and Git pane. Change-summary `Review` actions open a `PreviewPane` diff source rather than mounting `DiffViewer` directly. Expanded edit tool inline previews use `HighlightedLightweightDiffPreview`, not `DiffViewer`.
+`PreviewPane` integrates `DiffViewer` for shared file and review previews; the retired Git workspace page is no longer a caller. Change-summary `Review` actions open a `PreviewPane` diff source rather than mounting `DiffViewer` directly. Expanded edit tool inline previews use `HighlightedLightweightDiffPreview`, not `DiffViewer`.
 
 ## Patch Input Safety Boundary
 
 `DiffViewer` is intentionally a rendering primitive. Patch safety belongs to the callers that decide whether mounting `PatchDiff` is valid:
 
 - `PreviewPane` patch sources go through `PatchFallbackContent`, which calls `getPlainTextPatchFallbackLines` before rendering `DiffViewer`.
-- Git pane patch responses go through `getGitPaneDiffPreviewPlan`, which selects a rich `MultiFileDiff`, a validated patch-only `PatchDiff`, or the lightweight fallback.
 - `getPlainTextPatchFallbackLines` classifies missing or multiple file diffs, parser rejection or file-boundary mis-splitting, metadata-only patches, oversized or deep hunks, create/delete inputs, and explicitly unstable file types as lightweight-fallback candidates.
 
-Git pane treats `beforeContent` and `afterContent` as one atomic full-content pair. It mounts
-`MultiFileDiff` only when both sides were read successfully for the requested Git comparison. If
-either side is unavailable, the original Git patch remains the source of truth and goes through the
-same validated `PatchDiff` or lightweight-fallback decision instead of guessing that the unreadable
-side is an empty file.
-
-Only a bounded patch that the preflight accepts as one renderable file reaches `PatchDiff` through these integrations. Fallback candidates render through `HighlightedLightweightDiffPreview` unless an entry point has complete files and deliberately selects `MultiFileDiff`. `MultiFileDiff` does not use the patch-parser fallback because it receives explicit `beforeContent` and `afterContent` files. Git pane normally prefers that full-content path; its patch-only path is reserved for inputs that pass the same preflight boundary.
+Only a bounded patch that the preflight accepts as one renderable file reaches `PatchDiff` through these integrations. Fallback candidates render through `HighlightedLightweightDiffPreview` unless an entry point has complete files and deliberately selects `MultiFileDiff`. `MultiFileDiff` does not use the patch-parser fallback because it receives explicit `beforeContent` and `afterContent` files.
 
 ## Change Summary Row Actions
 

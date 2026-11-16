@@ -1,5 +1,5 @@
 import { pluginInstallRequestPayloadSchema } from "./contract.js";
-/** 客户端只展示经过校验的官方 ID 和请求动作，不接收下载地址。 */
-export function readInstallCard(payload: unknown) {
+/** 只校验历史协议载荷，不构成安装入口或执行授权。 */
+export function readHistoricalInstallPayload(payload: unknown) {
   return pluginInstallRequestPayloadSchema.safeParse(payload);
 }

@@ -139,6 +139,11 @@ export function AnalysisTaskTable({
                   </DialogTrigger>
                   <DialogContent
                     className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-2xl"
+                    onOpenAutoFocus={(event) => {
+                      // 默认聚焦复制按钮会立即弹出提示，遮挡任务内容。
+                      event.preventDefault();
+                      (event.currentTarget as HTMLElement).focus();
+                    }}
                     onCloseAutoFocus={(event) => {
                       const openNextReport = reportAfterClose.current;
                       if (!openNextReport) return;
