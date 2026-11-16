@@ -423,16 +423,17 @@ export function AIReqSettingsPage({
           </div>
         }
         footer={
-          // 工作台被设置页替换后原齿轮不可见；在同一位置标识当前设置，不接入离开门禁或重置草稿。
+          // 齿轮原先仅标识当前位置、没有点击动作；与顶部返回共用门禁，避免离开时丢失草稿。
           <div className="flex shrink-0 justify-center px-2 pt-2 pb-4">
-            <ControlHintTooltip title={zh ? "设置" : "Settings"} side="right">
+            <ControlHintTooltip title={zh ? "返回工作区" : "Return to workspace"} side="right">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-lg"
-                aria-label={zh ? "设置" : "Settings"}
+                aria-label={zh ? "返回工作区" : "Return to workspace"}
                 aria-current="page"
                 className="bg-selected"
+                onClick={() => guard(onClose)}
               >
                 <Settings className="size-4" aria-hidden="true" />
               </Button>

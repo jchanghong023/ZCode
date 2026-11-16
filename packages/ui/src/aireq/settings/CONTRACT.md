@@ -10,7 +10,7 @@ AI 配置的共享范围、职责与生效说明、模型滚动提交区及间�
 
 AIReqSettingsPage({onClose, section, onSectionChange, onNavigationGuardChange?, skillActions}) 的 68px 图标栏只提供外观、项目配置、AI 配置三类；AI 配置以受控文字页签组织模型、Agent 指令、分析设置。`section` 保留 appearance/projects/models/personalization 并增加 analysis，唯一选择仍由 shell 传入，不增加平行分类或页签状态。模型与 Agent 指令沿用原设置搜索 ID，分析设置使用 agentBehavior ID，搜索和模型直达均落到同一 AI 配置页签。共享 Agent 指令不表示个人偏好。
 
-底部齿轮与工作台设置入口同位置、同尺寸，以选中样式和 `aria-current="page"` 表示当前设置，不持有新状态或绑定导航动作；重复点击保持分区、滚动和草稿。顶部返回仍走既有 guard。共用 frame 的 footer 在较窄电脑窗口同样可见。
+底部齿轮与工作台设置入口同位置、同尺寸，以选中样式和 `aria-current="page"` 表示当前设置；提示为“返回工作区”，点击与顶部返回共用 `guard(onClose)`，获准后返回来源主工作区。取消保留草稿和焦点，保存失败留页，不新增导航状态或绕过门禁。共用 frame 的 footer 在较窄电脑窗口同样可见。
 
 guard 为 (navigate:()=>void)=>void；壳导航、历史、项目切换、退出、AI 页签与快捷键必须经过 guard。模型、指令、分析间隔与 Skill 脏草稿使用最新动作引用执行保存并离开、丢弃或取消；保存失败留页。Ctrl/Cmd+S 与按钮共用草稿、保存忙态和 UTF-8 字节门禁，不按工号禁用。AI 页签栏保持挂载与键盘焦点，获准切换 section 后重置正文滚动；设置行搜索仍在挂载后定位目标。
 
