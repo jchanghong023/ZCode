@@ -29,14 +29,6 @@ interface SkillStoreState {
     workspaceIdentity?: string,
   ) => Promise<void>;
   refresh: (skillsService: ISkillsService, workspaceIdentity?: string) => Promise<void>;
-  setEnabled: (
-    skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
-    scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
-    enabledOrSkillsService?: boolean | ISkillsService,
-    maybeSkillsService?: ISkillsService,
-    workspaceIdentity?: string,
-  ) => Promise<void>;
 }
 
 const inFlightSkillLoads = new Map<string, ReturnType<ISkillsService["list"]>>();
@@ -230,49 +222,6 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
         loadedWorkspacePath: workspacePath,
         loadedWorkspaceIdentity: workspaceIdentityFromState ?? null,
         loadedProvider: provider,
-      });
-    }
-  },
-  async setEnabled(
-    skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
-    scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
-    enabledOrSkillsService?: boolean | ISkillsService,
-    maybeSkillsService?: ISkillsService,
-    workspaceIdentity?: string,
-  ) {
-    const workspacePath = get().workspacePath;
-    if (!workspacePath) {
-      return;
-    }
-    const workspaceIdentityFromState =
-      workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    const legacyCall = typeof providerOrEnabled === "boolean";
-    const provider = normalizeAgentProviderToZCodeAgent(
-      legacyCall ? get().provider : providerOrEnabled,
-    );
-    const scope = legacyCall ? undefined : (scopeOrSkillsService as SkillSummary["scope"]);
-    const enabled = legacyCall ? providerOrEnabled : (enabledOrSkillsService as boolean);
-    const skillsService = legacyCall
-      ? (scopeOrSkillsService as ISkillsService)
-      : maybeSkillsService;
-    if (!skillsService) {
-      set({ error: "skillsService is required" });
-      return;
-    }
-    try {
-      await skillsService.setEnabled({
-        workspacePath,
-        workspaceIdentity: workspaceIdentityFromState,
-        provider,
-        ...(scope ? { scope } : {}),
-        skillId,
-        enabled,
-      });
-      await get().refresh(skillsService, workspaceIdentityFromState);
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : String(error),
       });
     }
   },

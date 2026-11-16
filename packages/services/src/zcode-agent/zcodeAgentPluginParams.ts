@@ -1,11 +1,3 @@
-import type {
-  ModelSelection,
-  ZCodeAgentMcpServer,
-  ZCodeAutomationScheduleRule,
-  ZCodeMcpListMode,
-} from "@zcode/shared";
-import type { McpAppsAppToolCallResult, McpAppsAppToolDescriptor } from "@zcode/shared/mcp-apps";
-
 export interface ZCodeAgentWorkspaceTarget {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -30,11 +22,6 @@ export interface ZCodeAgentPluginMutationTarget extends ZCodeAgentWorkspaceTarge
 
 export interface ZCodeAgentPluginViewParams extends ZCodeAgentWorkspaceTarget {
   configScope?: "user" | "workspace";
-}
-
-export interface ZCodeAgentListMcpServerStatusesParams extends ZCodeAgentWorkspaceTarget {
-  mcpServers?: ZCodeAgentMcpServer[];
-  mode?: ZCodeMcpListMode;
 }
 
 export interface ZCodeAgentAddPluginMarketplaceParams extends ZCodeAgentPluginMutationTarget {
@@ -124,122 +111,9 @@ export interface ZCodeAgentSkillReferenceCatalogParams extends ZCodeAgentWorkspa
   sessionId?: string;
 }
 
-/** 插件 UI：UI 发起的 `ui://` 资源读取。 */
-export interface ZCodeAgentReadMcpResourceParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  uri: string;
-}
-
-/** 插件 UI 页面发起的 `resources/read`；参数与 readMcpResource 同形，结果受 8 MiB 与 mimeType 白名单约束。 */
-export type ZCodeAgentReadMcpResourceForUiParams = ZCodeAgentReadMcpResourceParams;
-
-/** 插件 UI：UI 回调本插件工具；不进审批流，归属由 agent 侧 catalog fail closed。 */
-export interface ZCodeAgentCallMcpToolForUiParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  toolName: string;
-  arguments?: Record<string, unknown>;
-  /** 宿主生成的调用 id，配合 cancelMcpToolCallForUi。 */
-  callId: string;
-}
-/** 插件 UI 页面发起的 resources/list、resources/templates/list、subscribe、unsubscribe。 */
-export interface ZCodeAgentListMcpResourcesForUiParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  cursor?: string;
-}
-/** App-Provided Tools：实例身份 = 会话 + 沙箱作用域 + 代际。 */
-export interface ZCodeAgentAppToolInstanceForUiParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  scopeId: string;
-  generation: number;
-}
-export interface ZCodeAgentRegisterAppToolsForUiParams extends ZCodeAgentAppToolInstanceForUiParams {
-  tools: McpAppsAppToolDescriptor[];
-}
-export interface ZCodeAgentAppToolCallForUiParams extends ZCodeAgentAppToolInstanceForUiParams {
-  callId: string;
-}
-export interface ZCodeAgentResolveAppToolCallForUiParams extends ZCodeAgentAppToolCallForUiParams {
-  result?: McpAppsAppToolCallResult;
-  error?: { message: string };
-}
-export interface ZCodeAgentMcpResourceSubscriptionForUiParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  scopeId: string;
-  generation: number;
-  uri: string;
-}
-export interface ZCodeAgentCancelMcpToolCallForUiParams extends ZCodeAgentWorkspaceTarget {
-  instance: import("@zcode/shared/mcp-apps").McpAppInstance;
-  sessionId: string;
-  pluginId: string;
-  serverName: string;
-  callId: string;
-}
 export interface ZCodeAgentResolveSuggestedPluginReferenceParams extends ZCodeAgentWorkspaceTarget {
   stableId: string;
   operationId: string;
   clientMode: "desktop-continuous" | "web-remote-replayable";
   deliveryKind: "desktop-continuous" | "web-remote-replayable";
-}
-
-// ---- 定时任务(automation)管理参数 ----
-
-export interface ZCodeAgentCreateAutomationParams extends ZCodeAgentWorkspaceTarget {
-  /** Stable across explicit retries of the same action; a different payload must be rejected. */
-  operationId?: string;
-  projectId?: string | null;
-  title: string;
-  cronExpr: string;
-  relativeDelayMinutes?: number;
-  prompt: string;
-  modelSelection?: ModelSelection;
-  mode?: string;
-  recurring?: boolean;
-  maxRuns?: number;
-  endAt?: number;
-  scheduleRule?: ZCodeAutomationScheduleRule;
-}
-
-export interface ZCodeAgentUpdateAutomationParams extends ZCodeAgentWorkspaceTarget {
-  automationId: string;
-  title?: string;
-  cronExpr?: string;
-  prompt?: string;
-  modelSelection?: ModelSelection | null;
-  mode?: string | null;
-  recurring?: boolean;
-  maxRuns?: number | null;
-  endAt?: number | null;
-  scheduleRule?: ZCodeAutomationScheduleRule | null;
-  scheduleEditedByUser?: boolean;
-}
-
-export interface ZCodeAgentAutomationIdParams extends ZCodeAgentWorkspaceTarget {
-  /** Omitted by legacy callers; explicit retries reuse the same ID. */
-  operationId?: string;
-  automationId: string;
-}
-
-export interface ZCodeAgentSetAutomationEnabledParams extends ZCodeAgentWorkspaceTarget {
-  automationId: string;
-  enabled: boolean;
-}
-
-export interface ZCodeAgentDeleteAutomationRunParams extends ZCodeAgentWorkspaceTarget {
-  runId: string;
 }

@@ -1,6 +1,6 @@
 # Mock 领域模块
 
-`packages/server/src/mock/domains` 是模拟后端的领域装配层：把原来按「簇」堆在一个大文件里的 mock 服务，按实际领域拆成插件、设置、模型、项目、自动化、分享、同步、扩展、工作区资产、兼容面十个目录级模块（每个 `.ts` 一个领域）。
+`packages/server/src/mock/domains` 是当前 Web 原型的领域装配层，只注册当前界面、原生会话及受保护通用控件仍消费的服务。
 
 ## 边界
 
@@ -13,27 +13,31 @@
 
 各服务直接按已有 wire 契约返回能力值：已实现操作必须有可观察的内存状态转换，未实现操作明确拒绝。这里只按领域拆分代码，不建立能力矩阵实现层；UI 不增加 mock 分支。
 
-产品账号 OAuth 服务不再注册：不返回固定账号、假授权 URL 或空登录成功。工号只由浏览器标签页保存，
-不需要后端账号会话契约；模型与工具凭据仍通过原 ICredentialService / Provider 服务访问，
-工号切换或退出不触发这些服务的删除、解绑或设置重置。
+工号只由浏览器标签页保存，不需要后端账号会话或凭据 RPC；Provider 目录只保留
+`getView`、`refresh` 和 `onDidChange`，AIReq 模型设置仍由 AIReq owner 管理。
+工号切换或退出不触发共享会话、项目或设置的删除、解绑或重置。
+setting 仅保留 get/update；当前个性化提示词通过 AIReq prompts.read/save 访问，
+不再保留旧 getUserInstructions/saveUserInstructions 及其模拟路径。
 
 终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
-不再注册兼容空壳。Provider 设置、模型目录、用量投影及当前 AIReq／自动化内存业务仍沿既有契约访问。
+不再注册兼容空壳。Provider 设置、模型目录与用量投影仍沿既有契约访问。Issue 与 AIReq 自动化页面、
+专属业务 owner、manifest、task/workpool RPC 及接线已裁撤；这不等于裁撤本目录的通用 `automations`
+领域、通用控件、原生会话设施或需求分析调度。通用服务继续按既有契约返回能力，不恢复 AIReq 自动化入口。
 
 当前后端的 `MockRuntime` 与项目服务是共享业务事实源，不按浏览器工号、连接或 subscriptionId 分区。
-工作区身份按服务器主机及绝对目录稳定派生，贯穿 HTTP 元信息、prepare/resolve、任务、controller 和 v4 topic；
+工作区身份按服务器主机及绝对目录稳定派生，贯穿 prepare/resolve、任务和 v4 topic；
 identity 不是旧远程 Host 的连接开关。目录选择只读服务器目录，虚拟文件与 Git fixture 不改为真实 IO。
-项目服务与窗口项目服务必须注册同一个项目实例，不能各持一张内存表；项目保存/删除/恢复先更新该表，
-再经既有 WindowProjectChanges 通知所有浏览器刷新。controller 任务投影覆盖当前后端的所有会话目录，
-不能只保留启动目录；工作区快照从默认目录与会话事实派生，不新增第二份工作区业务状态。
+项目只由一个 `MockProjectService` 实例维护；移除窗口项目注册、变化组、controller、Source Server
+与受管 worktree，不复制内部项目、任务或会话事实。项目服务仅保留 prepareSession、
+resolveSessionDirectories、readDirectory、readProjects、readTree；任务组仅保留原生 admit。
 路径型 v4 请求仍沿用既有 wire topic 键，mock 只在内部统一业务身份与水位，再按订阅的原请求键投递，
 避免旧请求和带身份请求变成两套会话，且不要求修改严格帧 schema 或逐连接 facade。
 
 每条 `/ws` 仍有独立 `createZCodeAgentConnectionScope`：握手、conversation / sessions-index /
 workspace-config 的订阅归属、帧过滤及断开清理均不得因共享业务数据而移除。取消 A 的订阅不影响 B。
-mock controller 仍使用服务实例级订阅表和事件流，未实现同等级的逐连接授权/断开回收；它是原型限制，
-不是可复用的生产安全设计。本轮不为此新建安全框架，也不扩大公开 RPC 服务/方法集合。
-命令去重、CAS 与命令结果查询亦保持原型简化；真实后端必须依已有 v4 契约实现，不能照搬 mock 的弱化行为。
+原生命令按现有操作者／客户端、sessionId、commandId 去重并提供结果查询；AIReq 业务 owner 另行校验
+配置／材料／候选版本、阶段和幂等。原型的结果只在进程内保留，不代表生产持久化或完整通用 CAS；
+真实后端必须依已有 v4 契约实现，不得以原型限制取消这些当前正确性门禁。
 
 ## 装配顺序
 
@@ -41,13 +45,27 @@ mock controller 仍使用服务实例级订阅表和事件流，未实现同等�
 mock/index.ts
   ├─ MockRuntime（唯一权威状态）
   ├─ broadcast（跨窗口总线）
-  ├─ domains/settings → domains/models → domains/plugins → domains/extensions
+  ├─ domains/settings → domains/models → domains/plugins
   ├─ domains/assets → domains/sync → domains/projects → domains/automations
   ├─ domains/sharing → domains/compat-surfaces
   └─ zcodeAgent / zcodeTask / project / workspace（协议与文件、Git 面）
 ```
 
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。
+
+当前领域注册面：setting、client-config、provider-settings、model-selection、usage-stats、
+plugin-management、plugin-ui-bridge、plugin-ui-sampling、plugin-ui-app-tools、subagents、skills、mcp-sync、
+task-groups、bots、prompt-attachment-transfer、gen-ui。
+扩展、凭据、旧插件管理、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
+不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
+两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record
+及其独占推荐 fixtures 一并退役，不影响隐藏 Skill 会话或模型推荐。
+skills/subagents 均仅保留原生目录 list；setEnabled、旧管理写面和目录定位接口不再暴露。
+skills 的 buildPromptContext/copyToCommon/removeFromCommon/deleteSkill 与 subagents 的
+createAgent/updateAgent/deleteAgent/setBuiltInModelOverride/setPluginAgentModelOverride/
+getPrimaryUserAgentsDirectory 均无当前调用；隐藏 Skill 设计仍由 AIReq owner 持有。
+/api/server-info 及重复配置 handler 退役；保留当前帮助配置 `/api/v1/client/configs`、
+身份鉴权 `/ws`、静态资源压缩与 SPA 宿主，不新增替代 REST 接口。
 
 ## 新增领域
 

@@ -167,9 +167,7 @@ export function AnalysisTaskTable({
                       )}
                       <section aria-label="开发分支" className="space-y-1">
                         <h4 className="font-medium">开发分支</h4>
-                        {task.branch?.trim() && (
-                          <p className="break-all font-mono text-ui-sm">{task.branch}</p>
-                        )}
+                        {/* 复制控件已展示分支名，额外文字会让同一名称重复出现。 */}
                         <BranchCopy branch={task.branch} onMessage={onMessage} />
                       </section>
                       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">

@@ -36,11 +36,9 @@ export {
   usePlatform,
   useReaddir,
   useSystemInfo,
-  useIntranetProbe,
   useSettings,
   useRecentProjects,
   useConfirmDialog,
-  useCredentials,
   useGitRepository,
   useGitActions,
 } from "./hooks/index.js";

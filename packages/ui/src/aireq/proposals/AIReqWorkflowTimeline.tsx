@@ -9,6 +9,7 @@ import type {
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
 import { Button } from "@/components/ui/button.js";
 import { WorkflowAgentFace } from "@/components/workflow-timeline/WorkflowAgentFace.js";
+import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 
 /** Only projects AIReq state into the native renderer; owns no workflow transitions. */
 export function AIReqWorkflowTimeline({
@@ -167,10 +168,11 @@ export function AIReqWorkflowTimeline({
   }, [proposal, selected, labels.length, returned]);
   // 修复：当前通用时间线按 192px 站距排版，放入讨论栏会把第四阶段挤出首屏。
   // 提案仍以同一模型驱动四个原生控件，不复制旧时间线的紧凑样式或另建阶段状态。
+  // 修复：原限宽流程区靠左，宽屏下偏离居中的输入框；复用会话内容列宽度并居中。
   if (proposal)
     return (
       <nav
-        className="grid w-full min-w-0 max-w-3xl grid-cols-4 gap-1"
+        className={`mx-auto grid min-w-0 grid-cols-4 gap-1 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
         data-testid="aireq-workflow-timeline"
         aria-label={`当前阶段：${labels[phase]}；查看：${labels[selected]}`}
       >

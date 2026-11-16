@@ -13,6 +13,7 @@ export function AIReqFormalTestControls({ group, sr }: { group: AIReqRequirement
   const aireq = useAIReq()!;
   const id = useId();
   const [request, setRequest] = useState<AIReqTestAcceptanceInput>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -23,6 +24,7 @@ export function AIReqFormalTestControls({ group, sr }: { group: AIReqRequirement
     setError("");
     setRequest({ operationId: crypto.randomUUID(), expectedRevision: aireq.view.revision,
       expectedCodeVersion: sr.codeMerge?.commit ?? "", outcome, reason: "" });
+    setDialogOpen(true);
   };
   const versionChanged = request && (request.expectedRevision !== aireq.view?.revision || request.expectedCodeVersion !== sr.codeMerge?.commit);
   return <section className="space-y-3" aria-label="人工测试验收">
@@ -41,7 +43,8 @@ export function AIReqFormalTestControls({ group, sr }: { group: AIReqRequirement
         {item.outcome === "passed" ? "通过" : "不通过"} · {item.employeeId} · {item.at}<br />{item.reason}<br /><span className="break-all">{item.codeVersion}</span>
       </li>)}</ul>
     </details> : null}
-    <Dialog open={Boolean(request)} onOpenChange={(value) => { if (!value && !saving) setRequest(undefined); }}>
+    {/* 关闭动画仍会渲染内容，保留本次请求避免标题和版本在退场时闪变。 */}
+    <Dialog open={dialogOpen} onOpenChange={(value) => { if (!value && !saving) setDialogOpen(false); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader><DialogTitle>{request?.outcome === "failed" ? "记录测试不通过" : "记录测试验收通过"}</DialogTitle>
           <DialogDescription>{sr.title} · 仅人工测试通过才达到 100%；不通过保持 99%，交开发修复。</DialogDescription></DialogHeader>
@@ -51,15 +54,15 @@ export function AIReqFormalTestControls({ group, sr }: { group: AIReqRequirement
           setSaving(true); setError("");
           try {
             await source.progress!.recordTest(group.projectId, group.id, sr.id, { ...request, reason });
-            setRequest(undefined);
+            setDialogOpen(false);
           } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
           finally { setSaving(false); }
         }}>
           <p className="break-all text-ui-sm">本次已合入代码版本：{request?.expectedCodeVersion}</p>
           <Label htmlFor={`${id}-basis`}>{request?.outcome === "failed" ? "测试依据与具体问题" : "测试通过依据"}</Label>
           <SettingsFormTextarea id={`${id}-basis`} required value={reason} onChange={(event) => setReason(event.target.value)} placeholder="记录平台外实际测试结果及依据；不会运行测试" />
-          {(versionChanged || error) && <p role="alert" className="text-ui-sm text-destructive">{versionChanged ? "业务或代码版本已变化；请关闭后基于新版本重新记录，当前输入已保留。" : error}</p>}
-          <DialogFooter><Button type="button" variant="outline" disabled={saving} onClick={() => setRequest(undefined)}>取消</Button>
+          {dialogOpen && !saving && (versionChanged || error) && <p role="alert" className="text-ui-sm text-destructive">{versionChanged ? "业务或代码版本已变化；请关闭后基于新版本重新记录，当前输入已保留。" : error}</p>}
+          <DialogFooter><Button type="button" variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>取消</Button>
             <Button type="submit" disabled={saving || Boolean(blocker) || Boolean(versionChanged) || !reason.trim()}>{saving ? "记录中…" : request?.outcome === "failed" ? "记录不通过并交开发" : "记录测试通过到 100%"}</Button></DialogFooter>
         </form>
       </DialogContent>
@@ -86,8 +89,9 @@ export function AIReqFormalSimulationControls({ group, sr }: { group: AIReqRequi
     <p className="pt-2 text-foreground-subtle">只输入模拟外部事实，仍经过版本、幂等、问题复测及人工验收门禁。</p>
     <div className="flex flex-wrap gap-2">
       {source.prototype && <>
-        <Button size="sm" variant="outline" disabled={pending || srProgress(sr) === 100} onClick={() => void mutate(() => source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, { ...input(), fix: false }), "模拟代码合入已登记；业务进度固定 99%，等待人工测试。")}>模拟代码合入</Button>
-        <Button size="sm" variant="outline" disabled={pending || !sr.developmentIssues?.some((issue) => issue.status === "open")} onClick={() => void mutate(() => source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, { ...input(), fix: true }), "模拟修复合入新版本；问题已处理，等待人工复测。")}>模拟修复合入</Button>
+        {/* 待复测仍是未解决问题：只允许修复合入，不改变人工测试入口。 */}
+        <Button size="sm" variant="outline" disabled={pending || srProgress(sr) === 100 || Boolean(sr.developmentIssues?.some((issue) => issue.status !== "resolved"))} onClick={() => void mutate(() => source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, { ...input(), fix: false }), "模拟代码合入已登记；业务进度固定 99%，等待人工测试。")}>模拟代码合入</Button>
+        <Button size="sm" variant="outline" disabled={pending || !sr.developmentIssues?.some((issue) => issue.status !== "resolved")} onClick={() => void mutate(() => source.prototype!.simulateCodeMerge(group.projectId, group.id, sr.id, { ...input(), fix: true }), "模拟修复合入新版本；问题已处理，等待人工复测。")}>模拟修复合入</Button>
         <Button size="sm" variant="outline" disabled={pending || sr.trackingBranch?.status === "deleted"} onClick={() => void mutate(() => source.prototype!.failNextBranchCleanup(group.projectId, group.id, sr.id, input()), "已指定本 SR 分支下一次清理失败（模拟）。")}>下一次清理失败</Button>
       </>}
       {source.progressScheduler && <>
@@ -106,6 +110,7 @@ export function AIReqBranchCleanup({ group, rows }: { group: AIReqRequirementGro
   const source = useAIReqDataSource();
   const aireq = useAIReq()!;
   const [preview, setPreview] = useState<{ items: AIReqBranchCleanupItem[]; expectedRevision: number; operationId: string }>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const complete = rows.length > 0 && rows.length === group.srIds.length && rows.every((sr) => srProgress(sr) === 100);
@@ -114,7 +119,7 @@ export function AIReqBranchCleanup({ group, rows }: { group: AIReqRequirementGro
     <Button variant="outline" size="sm" disabled={!source.progress || !complete || pending} onClick={async () => {
       const expectedRevision = aireq.view!.revision;
       setPending(true); setMessage("");
-      try { setPreview({ items: await source.progress!.cleanupPreview(group.projectId, group.id), expectedRevision, operationId: crypto.randomUUID() }); }
+      try { setPreview({ items: await source.progress!.cleanupPreview(group.projectId, group.id), expectedRevision, operationId: crypto.randomUUID() }); setDialogOpen(true); }
       catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
       finally { setPending(false); }
     }}>预览并清理本 IR 开发分支</Button>
@@ -124,18 +129,21 @@ export function AIReqBranchCleanup({ group, rows }: { group: AIReqRequirementGro
       {sr.trackingBranch?.error && <span className="text-destructive"> · {sr.trackingBranch.error}</span>}
     </li>)}</ul>
     <p role="status" className="text-ui-sm">{message}</p>
-    <Dialog open={Boolean(preview)} onOpenChange={(open) => { if (!open && !pending) setPreview(undefined); }}>
+    {/* 预览在退场动画中仍可见，成功提示只显示在弹窗外。 */}
+    <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && !pending) setDialogOpen(false); }}>
       <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>确认清理本 IR 登记开发分支</DialogTitle>
         <DialogDescription>模拟删除；永不删除主分支、材料、报告或验收历史。已清理项不重复执行，只处理未成功项。</DialogDescription></DialogHeader>
         <ul className="max-h-72 space-y-2 overflow-auto text-ui-sm">{preview?.items.map((item) => <li key={item.srId} className="break-all">{item.srId} · {item.branch || "分支缺失"} · {item.status === "deleted" ? "已清理，不重试" : item.status === "failed" ? "失败，待重试" : "待清理"}{item.error && ` · ${item.error}`}</li>)}</ul>
-        {changed && <p role="alert" className="text-ui-sm text-destructive">业务版本已变化，请关闭后重新预览。</p>}
-        <DialogFooter><Button variant="outline" disabled={pending} onClick={() => setPreview(undefined)}>取消</Button>
+        {dialogOpen && !pending && changed && <p role="alert" className="text-ui-sm text-destructive">业务版本已变化，请关闭后重新预览。</p>}
+        {/* RPC 拒绝时保留预览，并在遮罩内展示错误，供用户显式重试。 */}
+        {dialogOpen && !pending && message && <p role="alert" className="text-ui-sm text-destructive">{message}</p>}
+        <DialogFooter><Button variant="outline" disabled={pending} onClick={() => setDialogOpen(false)}>取消</Button>
           <Button disabled={pending || Boolean(changed) || !preview?.items.some((item) => item.status !== "deleted")} onClick={async () => {
             if (!preview || pending || changed) return;
             setPending(true); setMessage("");
             try {
               await source.progress!.cleanupBranches(group.projectId, group.id, { operationId: preview.operationId, expectedRevision: preview.expectedRevision, branches: preview.items.map((item) => item.branch) });
-              setPreview(undefined); setMessage("模拟清理已逐项记录；失败项可重新预览后重试，进度和历史保持不变。");
+              setDialogOpen(false); setMessage("模拟清理已逐项记录；失败项可重新预览后重试，进度和历史保持不变。");
             } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
             finally { setPending(false); }
           }}>{pending ? "清理中…" : "确认仅清理未成功项"}</Button></DialogFooter>

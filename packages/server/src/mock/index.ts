@@ -10,7 +10,6 @@ import {
   IMediaPreviewService,
   IProjectService,
   ISystemService,
-  IWindowProjectService,
   IZCodeAgentService,
   IZCodeSessionService,
   IZCodeTaskService,
@@ -19,7 +18,6 @@ import { MockBroadcastService } from "./broadcast.js";
 import { registerAssetsMockServices } from "./domains/assets.js";
 import { registerAutomationsMockServices } from "./domains/automations.js";
 import { registerCompatSurfacesMockServices } from "./domains/compat-surfaces.js";
-import { registerExtensionsMockServices } from "./domains/extensions.js";
 import { registerModelsMockServices } from "./domains/models.js";
 import { registerPluginsMockServices } from "./domains/plugins.js";
 import { registerProjectsMockServices } from "./domains/projects.js";
@@ -55,18 +53,17 @@ export function createMockServices(options: MockServicesOptions): {
   services.register(IFileService, new MockFileService(runtime));
   services.register(IFileWatcherService, new MockFileWatcherService(runtime));
   services.register(IGitService, new MockGitService(runtime));
-  services.register(ISystemService, new MockSystemService(runtime));
+  services.register(ISystemService, new MockSystemService());
   services.register(IMediaPreviewService, new MockMediaPreviewService());
   services.register(IBroadcastService, new MockBroadcastService());
 
   // 领域服务：每域只注册自己的服务，权威状态仍在 runtime。
-  registerSettingsMockServices(services, runtime);
+  registerSettingsMockServices(services);
   registerModelsMockServices(services);
   registerPluginsMockServices(services);
-  registerExtensionsMockServices(services);
   registerAssetsMockServices(services);
   registerSyncMockServices(services);
-  registerProjectsMockServices(services, runtime);
+  registerProjectsMockServices(services);
   registerAutomationsMockServices(services, runtime);
   registerSharingMockServices(services);
   registerCompatSurfacesMockServices(services);
@@ -77,10 +74,7 @@ export function createMockServices(options: MockServicesOptions): {
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
   services.register(IZCodeTaskService, new MockZCodeTaskService(runtime));
   services.register(IZCodeSessionService, new MockZCodeSessionService());
-  // 修复原因：两个 descriptor 各 new 一张项目表会让窗口目录与会话准备互相看不到项目。
-  const projectService = new MockProjectService(runtime);
-  services.register(IProjectService, projectService);
-  services.register(IWindowProjectService, projectService);
+  services.register(IProjectService, new MockProjectService(runtime));
 
   return { services, runtime };
 }

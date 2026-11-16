@@ -1,12 +1,13 @@
 # remote-input-prediction
 
-手机远控输入预测（ghost hint）：手机按草稿向桌面发起 `v4/conversation/inputPrediction` 只读查询，桌面 Host 转发给 CLI 旁路调用模型，返回最多 3 个续写候选。完整规格见 `docs/web-remote-control/mobile-input-prediction.md`。
+当前模块仅保留 `contract.ts` 中输入预测的 v4 线格式 schema、类型、限额常量与 `emptyInputPredictionResult` 纯函数；不执行 IO、模型调用或会话状态修改。
 
-本模块由四处组成：本目录 `contract.ts`（线格式 schema 与纯函数）、`packages/services/src/zcode-agent/inputPredictionSwitch.ts`（Host 侧开关）、CLI 的 `input-prediction-handler.ts`（协议处理）与 `input-prediction-sidecar.ts`（模型调用）。
+当前 Web 不提供输入预测 RPC，Host 不再宣告 `capabilities.inputPrediction`；服务侧环境变量开关、对应 mock 方法与开关测试已删除，不属于本模块入口。
 
-不变量：
+协议不变量：
 
-- 只读：预测不写会话、不进历史、不产生任务事件。
-- 失败静默：开关关闭、无模型、超时或报错一律回 `unavailable`，不向手机报错。
-- hello 里的 `capabilities.inputPrediction` 和请求是否真的转发由同一个开关决定，二者必须一致。
-- 同会话新请求会取消旧请求；`requestId` 原样回显，手机据此丢弃过期响应。
+- 请求与结果使用严格对象 schema；保留 `sessionId`、非负整数 `revision` 以及可选 `draft`／`requestId` 的既有格式和长度限制。
+- 结果最多 3 个候选；候选为非空白单行续写文本，最多 40 字符，置信度范围为 0–1。
+- `emptyInputPredictionResult` 仅为非 `show` 决策构造空候选、零置信度结果，提供 `requestId` 时原样携带。
+
+历史手机远控 ghost hint 的 Host 转发、CLI handler／sidecar、模型调用及取消时序见 `docs/web-remote-control/mobile-input-prediction.md`；这些是历史设计，不是当前实现或公开入口，也不构成恢复已删开关的要求。保留协议定义不表示当前支持预测请求。

@@ -20,13 +20,13 @@ import type {
 
 export type WorkspaceRef = { workspacePath: string; workspaceIdentity?: string };
 
-/** 稳定后端身份不含操作者或连接 ID；元信息、项目、会话和任务必须共用此规则。 */
+/** 稳定后端身份不含操作者或连接 ID；项目、会话和任务必须共用此规则。 */
 export function workspaceIdentityOf(workspacePath: string): string {
   return `workspace:${createHash("sha256").update(hostname()).update("\0").update(resolve(workspacePath)).digest("hex")}`;
 }
 
 export function workspaceKeyOf(ref: WorkspaceRef): string {
-  // 修复原因：只在 server-info 补身份会让路径型创建与带身份查询落到两套任务/topic。
+  // 路径型创建与带身份查询共用同一任务/topic，不依赖旧远程发现元信息。
   return ref.workspaceIdentity?.trim() || workspaceIdentityOf(ref.workspacePath);
 }
 
@@ -147,7 +147,7 @@ export interface MockRuntimeOptions {
   workspacePath: string;
 }
 
-/** 全局 mock 状态：会话、任务、虚拟 FS、git、设置。 */
+/** 全局 mock 状态：会话、任务、虚拟 FS 与 git。 */
 export class MockRuntime {
   readonly workspacePath: string;
   readonly startedAt = Date.now();
@@ -155,23 +155,15 @@ export class MockRuntime {
   readonly tasks = new Map<string, MockTaskRecord>();
   readonly virtualRoot: VirtualFileNode;
   readonly git: MockGitState;
-  readonly settings = new Map<string, unknown>();
-  /** sessions-index / workspace-config / controller topic 的唯一水位账本。 */
+  /** sessions-index / workspace-config topic 的唯一水位账本。 */
   readonly topics = new MockTopicLog();
   /** task 索引变更信号（IZCodeTaskService.onDynamicWorkspaceEvent）。 */
   readonly onWorkspaceTaskListChanged = new Emitter<{ workspacePath: string; type: string }>();
-  /** 项目表提交后的通知；窗口项目目录与普通项目读取共享同一个 owner。 */
-  readonly onProjectsChanged = new Emitter<void>();
 
   constructor(options: MockRuntimeOptions) {
     this.workspacePath = options.workspacePath;
     this.virtualRoot = buildFixtureWorkspace();
     this.git = buildFixtureGit();
-    this.seedFixtureTasks();
-  }
-
-  seedFixtureTasks(): void {
-    // 初始状态与真实服务一致：无历史任务（侧栏「暂无任务」），会话由用户创建后出现。
   }
 
   newSessionId(): string {

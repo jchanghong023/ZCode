@@ -1,5 +1,7 @@
 # AIReq mock
 
+当前产品规则以根 `.todo.md` 第 1–172 行已确认要求为准；其已完成任务与收口记录保留各自历史版本边界。
+
 单一进程生命周期内存 owner 持有共享项目、Release、提案、IR/SR、材料、两类评审、三方确认、联系人、报告、合并／验收问题、分支、配置、Skill 和调度任务。Issue 专属状态、调度、操作、事件及模型角色已裁撤。服务重启恢复样例；关闭连接不取消已接纳工作。每五秒核验文档 PR 的候选、版本与当前完整材料，待合并／关闭不转正。
 
 公开 `MockAIReqService` 实现 `@zcode/services/aireq` bootstrap/call/onDidChange；所有普通调用显式携带合法工号和 clientId，全部合法工号可操作，backend.owner 不授予权限。写操作保留对象归属、阶段、版本、幂等及参数校验。`getConnectionServices` 为原生会话逐连接绑定不可变身份并保留既有连接 scope；ALS 仅传递请求上下文，不保存全局当前操作者。
@@ -8,7 +10,7 @@
 
 配置保存、分析设置及负责人分配成功后，使用 `@zcode/services/logger` 的现有 `createServiceLogger` 记录实际工号、clientId、操作名和时间；不记录配置正文、提示词或材料。业务动作收据保留实际身份，原有人工决定／进度记录保留操作者，来源 owner 不代替实际操作者。
 
-原生 rows、附件字节、订阅、水位、帧唯一归现有 MockRuntime/MockZCodeAgentService；本模块仅提供 admission/completion/seed 业务回调，不建立另一套会话存储。只提供当前需求、评审、方案与设置内 Skill 原型；AIReq 自动化专属 owner、manifest 和 task/workpool RPC 裁撤，需求分析调度器与通用原生设施保留。拒绝退休自由聊天、开发执行及验收 Agent 动作。无真实 Git、模型、文件保存、数据库或外部 IO。
+原生 rows、附件字节、订阅、水位、帧唯一归现有 MockRuntime/MockZCodeAgentService；本模块仅提供 admission/completion/seed 业务回调，不建立另一套会话存储。只提供当前需求、评审、方案与主页面 Skill 原型；AIReq 自动化专属 owner、manifest 和 task/workpool RPC 裁撤，需求分析调度器与通用原生设施保留。拒绝退休自由聊天、开发执行及验收 Agent 动作。无真实 Git、模型、文件保存、数据库或外部 IO。
 
 ## 第 2 组业务所有权
 

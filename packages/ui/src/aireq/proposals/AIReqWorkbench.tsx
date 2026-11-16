@@ -43,7 +43,15 @@ export function AIReqMaterialsPane() {
   const [path, setPath] = useState("");
   const [readFeedback, setReadFeedback] = useState("");
   const [showPlanning, setShowPlanning] = useState(false);
-  const [historyVersion, setHistoryVersion] = useState("");
+  const [historySelection, setHistorySelection] = useState({
+    projectId: selection.projectId, irId: selection.irId, version: "",
+  });
+  // 历史查看是当前 IR 的临时输入，不能因另一 IR 恰有同名版本而串用。
+  const historyVersion = historySelection.projectId === selection.projectId &&
+    historySelection.irId === selection.irId ? historySelection.version : "";
+  useEffect(() => {
+    setHistorySelection({ projectId: selection.projectId, irId: selection.irId, version: "" });
+  }, [selection.projectId, selection.irId]);
   const sr = view?.srs.find(
     (item) =>
       item.id === selection.srId &&
@@ -75,17 +83,28 @@ export function AIReqMaterialsPane() {
     setPath(preferred?.path ?? "");
     setReadFeedback("");
     setShowPlanning(false);
+    // 版本即使只改了非首选文件，也须恢复路径，不能停留在切换时清空的状态。
   }, [
     selection.projectId,
     selection.irId,
     selection.srId,
-
+    selection.materialPath,
+    historyVersion,
+    proposalSolutionView,
     preferred?.path,
     preferred?.sha256,
   ]);
   const displayPath = (filePath: string) => filePath;
-  const materialLabel = (item: AIReqMaterialView) =>
-    requirementMaterialName(item.path, view?.srs) ?? MATERIAL_KIND_LABELS[item.kind];
+  const materialLabel = (item: AIReqMaterialView) => {
+    const label = requirementMaterialName(item.path, selection.srId ? view?.srs : undefined) ??
+      MATERIAL_KIND_LABELS[item.kind];
+    // IR 汇总列出多个 SR 的同类文件，必须同时给出所属 SR 和材料名。
+    const materialSr = view?.srs.find((sr) => sr.id === item.srId &&
+      sr.irId === item.irId && sr.projectId === item.projectId);
+    return !selection.srId && item.srId
+      ? `${item.srId}${materialSr ? ` · ${materialSr.title}` : ""} · ${label}`
+      : label;
+  };
   const solutionMaterial = materials.find((item) => item.path.endsWith("/design.md"));
   const dependencyMaterial = materials.find((item) => item.path.endsWith("/sr-dependencies.json"));
   const planningRows =
@@ -116,11 +135,12 @@ export function AIReqMaterialsPane() {
               <SelectTrigger aria-label="选择 IR 或独立 SR 材料"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="ir">IR 共享及全部材料</SelectItem>{view?.srs.filter((item) => item.irId === group.id && item.projectId === group.projectId).map((item) => <SelectItem key={item.id} value={item.id}>{item.id} · {item.title}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={historyVersion || "current"} onValueChange={(id) => { setHistoryVersion(id === "current" ? "" : id); setPath(""); }}>
+            <Select value={historyVersion || "current"} onValueChange={(id) => { setHistorySelection({ projectId: selection.projectId, irId: selection.irId, version: id === "current" ? "" : id }); setPath(""); }}>
               <SelectTrigger aria-label="选择材料历史版本"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="current">当前材料</SelectItem>{group.materialHistory?.map((item, index) => <SelectItem key={`${item.version}:${index}`} value={item.version}>历史只读 · {item.reason} · {new Date(item.changedAt).toLocaleString("zh-CN")}</SelectItem>)}</SelectContent>
             </Select>
-            {historical && <p className="text-ui-sm text-foreground-subtle">历史只读 · 失效原因：{historical.reason} · 版本 {historical.version}</p>}
+            {/* 完整版本标识可能是长快照；阅读区保留原因，技术标识收进已有折叠区。 */}
+            {historical && <p className="text-ui-sm text-foreground-subtle">历史只读 · 失效原因：{historical.reason}</p>}
           </div>}
           {proposalSolutionView && group && (
             <nav
@@ -220,7 +240,7 @@ export function AIReqMaterialsPane() {
         <div
           className={`mx-auto w-full min-w-0 ${!showPlanning && path.endsWith("/sr-dependencies.json") ? "max-w-4xl" : "max-w-[72ch]"}`}
         >
-          {!showPlanning && path && (
+          {!showPlanning && (path || historical) && (
             <Collapsible className="mb-4">
               <CollapsibleTrigger asChild>
                 <Button
@@ -233,12 +253,13 @@ export function AIReqMaterialsPane() {
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <p
+                {path && <p
                   className="pt-2 whitespace-pre-wrap break-all font-mono text-ui-sm text-foreground-subtle select-text"
                   data-testid="material-full-path"
                 >
                   {displayPath(path)}
-                </p>
+                </p>}
+                {historical && <p className="pt-2 break-all font-mono text-ui-sm text-foreground-subtle select-text">历史版本标识：{historical.version}</p>}
               </CollapsibleContent>
             </Collapsible>
           )}

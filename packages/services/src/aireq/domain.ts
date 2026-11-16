@@ -294,6 +294,11 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
   };
   for (const group of view.drafts) {
     const contact = group.contacts ?? {};
+    // 退回保留旧评审用于追溯，但未补充前的当前动作只能是业务讨论，不能再次判断旧报告。
+    if (group.returnFeedback && !group.returnFeedback.resumedAt) {
+      push(group, "business-discussion", "讨论和补充业务需求", contact.business);
+      continue;
+    }
     if (group.proposalDelivery?.pushedAt && !group.requirementsPr) {
       push(group, "failure", "文档已推送但创建 PR 失败，请重试当前候选", contact.development);
       continue;

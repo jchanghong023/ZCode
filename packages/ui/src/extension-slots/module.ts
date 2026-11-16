@@ -1,24 +1,10 @@
 /**
- * extension-slots 模块清单（architecture-governance managed 模块）。
- * Renderer：贡献表快照 store、composer.status 插槽、启动页「扩展」分区、扩展视图标签页、屏幕会话报告。
- * 层序 domain → app → adapters → components。
+ * extension-slots 保留纯展示 DTO、选择函数与候选行组件。
+ * 当前 Web 不启用桌面宿主 transport。
  */
 export const extensionSlotsModule = {
   id: "extension-slots",
-  requires: [
-    "ui",
-    "shared",
-    "services",
-    "plugin-ui",
-    "extension-host-protocol",
-    "mcp-apps-protocol",
-  ],
+  requires: ["ui", "shared", "plugin-ui", "extension-host-protocol"],
   provides: ["extension-slots-components"],
-  publicEntrypoints: [
-    "index.ts",
-    "contract.ts",
-    "components/ComposerStatusSlot.tsx",
-    "components/ExtensionMentionOptionContent.tsx",
-    "adapters/useExtensionMentionGroups.ts",
-  ],
+  publicEntrypoints: ["index.ts", "contract.ts", "components/ExtensionMentionOptionContent.tsx"],
 } as const;

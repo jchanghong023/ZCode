@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import * as nodePath from "node:path";
 
 import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
-import { createUuid, type FileEntry } from "@zcode/shared";
+import { type FileEntry } from "@zcode/shared";
 
 import { isListedSession, workspaceIdentityOf, type MockRuntime } from "./runtime.js";
 
@@ -136,67 +136,6 @@ export class MockProjectService implements IProjectService {
     return { projects, tasks };
   }
 
-  async saveProject(
-    input: P<IProjectService["saveProject"]>,
-  ): Promise<AR<IProjectService["saveProject"]>> {
-    const existing = input.id ? this.projects.get(input.id) : undefined;
-    const now = Date.now();
-    const requestedRoots = (input.roots ?? (input.primaryRoot ? [input.primaryRoot] : []))
-      .map((root) => root.trim())
-      .filter(Boolean);
-    const primaryRoot =
-      input.primaryRoot?.trim() || requestedRoots[0] || this.runtime.workspacePath;
-    const orderedRoots = [primaryRoot, ...requestedRoots.filter((root) => root !== primaryRoot)];
-    if (input.reuseExistingRoot) {
-      const reuse = this.projectForWorkspace(primaryRoot);
-      if (reuse) return reuse;
-    }
-    const project: VirtualProject = {
-      id: existing?.id ?? input.id ?? `project_${createUuid()}`,
-      hostId: "local",
-      name:
-        input.name?.trim() ||
-        input.defaultName?.trim() ||
-        nodePath.basename(primaryRoot) ||
-        "未命名项目",
-      nameOverridden: Boolean(input.name?.trim()),
-      roots: orderedRoots.map((rootPath, position) => ({
-        rootPath,
-        position,
-        isPrimary: rootPath === primaryRoot,
-      })),
-      position: existing?.position ?? this.projects.size,
-      pinned: input.pinned ?? existing?.pinned ?? false,
-      deleted: false,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
-    this.projects.set(project.id, project);
-    this.runtime.onProjectsChanged.fire();
-    return project;
-  }
-
-  async deleteProject(id: string): Promise<void> {
-    const project = this.projects.get(id);
-    if (project) {
-      this.projects.set(id, { ...project, deleted: true, updatedAt: Date.now() });
-      this.runtime.onProjectsChanged.fire();
-    }
-  }
-
-  async restoreProject(id: string): Promise<AR<IProjectService["restoreProject"]>> {
-    const project = this.projects.get(id);
-    if (!project) return this.demoProject();
-    const restored = { ...project, deleted: false, updatedAt: Date.now() };
-    this.projects.set(id, restored);
-    this.runtime.onProjectsChanged.fire();
-    return restored;
-  }
-
-  async moveTask(_input: P<IProjectService["moveTask"]>): Promise<void> {}
-
-  async reorderProjects(_ids: string[]): Promise<void> {}
-
   async prepareSession(
     params?: P<IProjectService["prepareSession"]>,
   ): Promise<AR<IProjectService["prepareSession"]>> {
@@ -215,14 +154,6 @@ export class MockProjectService implements IProjectService {
           : [],
       projectId: project && primaryRoot ? project.id : null,
     });
-  }
-
-  async measureProjectData(_ids: string[]): Promise<AR<IProjectService["measureProjectData"]>> {
-    return asResult({ projects: [] });
-  }
-
-  async deleteProjectData(_id: string): Promise<AR<IProjectService["deleteProjectData"]>> {
-    return asResult({ deletedBytes: 0 });
   }
 
   async resolveSessionDirectories(

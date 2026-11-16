@@ -3,7 +3,6 @@
 import { Emitter, type Event } from "@zcode/rpc";
 import {
   IPluginManagementService,
-  IPluginsService,
   IPluginUiAppToolsService,
   IPluginUiBridgeService,
   IPluginUiSamplingService,
@@ -14,34 +13,6 @@ type P<T extends (...args: never) => unknown> = Parameters<T>[0];
 type AR<T extends (...args: never) => unknown> = Awaited<ReturnType<T>>;
 
 // ── 插件 ──
-
-export class MockPluginsService implements IPluginsService {
-  async getOverview(
-    _params: P<IPluginsService["getOverview"]>,
-  ): Promise<AR<IPluginsService["getOverview"]>> {
-    return {
-      availablePlugins: [],
-      installedPlugins: [],
-      capability: { canInstall: false, canConfigure: false },
-    } as unknown as AR<IPluginsService["getOverview"]>;
-  }
-
-  async addMarketplace(_params: P<IPluginsService["addMarketplace"]>): Promise<void> {
-    throw new Error("mock: 插件市场未启用");
-  }
-
-  async removeMarketplace(_params: P<IPluginsService["removeMarketplace"]>): Promise<void> {}
-
-  async updateMarketplace(_params: P<IPluginsService["updateMarketplace"]>): Promise<void> {}
-
-  async installPlugin(_params: P<IPluginsService["installPlugin"]>): Promise<void> {
-    throw new Error("mock: 插件安装未启用");
-  }
-
-  async uninstallPlugin(_params: P<IPluginsService["uninstallPlugin"]>): Promise<void> {}
-
-  async setPluginEnabled(_params: P<IPluginsService["setPluginEnabled"]>): Promise<void> {}
-}
 
 export class MockPluginManagementService implements IPluginManagementService {
   private readonly progressEmitter = new Emitter<{
@@ -275,7 +246,6 @@ export class MockPluginUiAppToolsService implements IPluginUiAppToolsService {
 }
 
 export function registerPluginsMockServices(services: MockServiceRegistrar): void {
-  services.register(IPluginsService, new MockPluginsService());
   services.register(IPluginManagementService, new MockPluginManagementService());
   services.register(IPluginUiBridgeService, new MockPluginUiBridgeService());
   services.register(IPluginUiSamplingService, new MockPluginUiSamplingService());

@@ -266,6 +266,8 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     intakeProposal,
   ];
   drafts[1]!.proposalStage = "solution";
+  // 完整方案样例须与已生成材料一致，否则后续完整审查的版本及交付门禁无法闭环。
+  drafts[1]!.status = "solution-ready";
   readyProposal.proposalStage = "solution";
   intakeProposal.proposalStage = "solution";
   readyProposal.status = "solution-ready";
@@ -301,7 +303,9 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       srs: rows.map(({ id, title, documentPath }) => ({ id, title, documentPath })),
       digest: `sample-digest:${item.projectId}:${item.id}` };
     materials.push(...bundle);
-    if (rows.length || item === reviewProposal) {
+    // review-chat 只初始化所选提案的真实单评审引用，不影响其他启动样例或恢复退役流程。
+    if (rows.length || item === reviewProposal ||
+      (prototypeRecoveryScenario === "review-chat" && item.id === "draft-automation")) {
       item.originalReview = createPrototypeRequirementsReview(item, "j00808874", rows.length > 0);
       item.sessions.push(...prototypeReviewSessions(item.originalReview));
     }
@@ -336,6 +340,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
   }
   if (prototypeRecoveryScenario === "proposal-feedback") {
     drafts[1]!.proposalStage = "requirements";
+    drafts[1]!.status = "draft";
     drafts[1]!.returnFeedback = { employeeId: "j00808875", returnedAt: createdAt,
       reason: "【模拟】请补充通知失败后的业务恢复规则及验收依据。" };
   }

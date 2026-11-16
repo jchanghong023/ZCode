@@ -50,6 +50,7 @@ export function AIReqWorkspaceFooter({
 
   return (
     <WorkspaceSidebarFooter
+      compact
       theme={theme}
       onThemeChange={(value) => {
         if (value === "system" || value === "zai-dark" || value === "zai-light") setTheme(value);

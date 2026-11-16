@@ -1,7 +1,6 @@
 import type { TaskChatMessage as ChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
-import type { IBotsService, IZCodeAgentService, IZCodeTaskService } from "@zcode/services";
-import type { TaskListE2EActions } from "@/lib/taskListE2EActions.js";
+import type { IBotsService, IPluginManagementService } from "@zcode/services";
 import { useEffect } from "react";
 import type { Locale } from "@zcode/shared";
 
@@ -16,11 +15,9 @@ declare global {
  * E2E 测试可通过 window.__testActions 调用的操作集合。
  * 仅在非 production 环境下注册，避免泄露到生产。
  */
-export interface TestActions extends TaskListE2EActions {
+export interface TestActions {
   /** 受控 E2E 输入走真实 Host Bot 服务与 CLI admission，不伪造队列投影。 */
   sendBotMessage: IBotsService["handleInboundMessage"];
-  /** 受控材料夹具走真实任务服务、上传与 CLI 队列，不注入 UI row。 */
-  submitBotGroupInput: NonNullable<IZCodeTaskService["submitBotGroupInput"]>;
   /** 获取当前主题 */
   getTheme: () => string;
   /** 设置主题 */
@@ -31,18 +28,13 @@ export interface TestActions extends TaskListE2EActions {
   setChatMessages: (messages: ChatMessage[]) => void;
   /** 获取当前 mock 消息数量 */
   getChatMessageCount: () => number;
-  /** E2E 通过真实 zcodeAgentService 拉取插件 overview */
-  getPluginsOverview: IZCodeAgentService["getPluginsOverview"];
-  /** E2E 通过真实 zcodeAgentService 添加 marketplace */
-  addPluginMarketplace: IZCodeAgentService["addPluginMarketplace"];
-  /** E2E 通过真实 zcodeAgentService 刷新 marketplace */
-  updatePluginMarketplace: IZCodeAgentService["updatePluginMarketplace"];
-  /** E2E 通过真实 zcodeAgentService 安装 marketplace plugin */
-  installPlugin: IZCodeAgentService["installPlugin"];
-  /** E2E 通过真实 zcodeAgentService 触发插件 discover */
-  listPlugins: IZCodeAgentService["listPlugins"];
-  /** E2E 通过真实 zcodeAgentService 查询 Workspace/Session Plugin catalog */
-  getPluginReferenceCatalog: IZCodeAgentService["getPluginReferenceCatalog"];
+  /** E2E 通过真实插件管理门面读取与修改插件。 */
+  getPluginsOverview: IPluginManagementService["getPluginsOverview"];
+  addPluginMarketplace: IPluginManagementService["addPluginMarketplace"];
+  updatePluginMarketplace: IPluginManagementService["updatePluginMarketplace"];
+  installPlugin: IPluginManagementService["installPlugin"];
+  listPlugins: IPluginManagementService["listPlugins"];
+  getPluginReferenceCatalog: IPluginManagementService["getPluginReferenceCatalog"];
 }
 
 declare global {
@@ -61,7 +53,6 @@ export function useTestActions(actions: TestActions) {
     if (import.meta.env.PROD && !shouldExposeE2EStoreBridge()) return;
     window.__testActions = actions;
     return () => {
-      actions.releaseTaskMembershipRefreshHold();
       delete window.__testActions;
     };
   }, [actions]);

@@ -35,10 +35,6 @@ export type GroupTaskFact = GroupTaskRef &
     deleted?: boolean;
   };
 export interface ITaskGroupService {
-  read(): Promise<TaskGroupStructure>;
-  save(input: { id?: string; title?: string; color?: TaskGroupColor }): Promise<TaskGroup>;
-  ungroup(id: string): Promise<void>;
-  move(input: MoveGroupNode): Promise<void>;
   /** Host 验证存在性和类型后首次登记；读取结构本身不写数据。 */
   admit(input: {
     tasks: GroupTaskRef[];

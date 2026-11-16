@@ -422,6 +422,8 @@ export interface AIReqOperationReceipt {
   completedAt?: string;
   revision: number;
   irId?: string;
+  /** Atomic import associates every new IR without attributing the batch to the previous selection. */
+  irIds?: string[];
   srId?: string;
   steps: { name: string; at: string; detail: string }[];
   error?: string;

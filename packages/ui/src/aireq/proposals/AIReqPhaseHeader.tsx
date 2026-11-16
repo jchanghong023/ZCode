@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
+import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 import { proposalProgressIndex, proposalViewedIndex, requirementsReviewStartBlocker, requirementsReviewReadyBlocker, hasCurrentProposalSolution, fullReviewReadyBlocker, fullReviewCurrent, proposalVersion } from "../contract.js";
 import type { AIReqSelection } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -33,7 +34,7 @@ export function AIReqPhaseHeader({ details = null, placement = "header" }: { det
   const version = proposalVersion(group);
   const review = selected === 1 ? group.originalReview : group.review;
   const current = () => ai.select({ ...ai.selection, proposalStep: undefined, discussionPhase: undefined, reviewAgent: undefined, materialPath: undefined });
-  if (placement === "header") return <header className="shrink-0 space-y-2 border-b border-border px-4 py-2" data-testid="aireq-phase-header">
+  if (placement === "header") return <header className="@container/conversation shrink-0 space-y-2 overflow-y-auto border-b border-border py-2 [scrollbar-gutter:stable_both-edges]" data-testid="aireq-phase-header">
     {details}
     <AIReqWorkflowTimeline labels={labels} phase={phase} selected={selected} complete={false} running={running} proposal sr={false}
       rounds={[group.proposalRound ?? 1, group.originalReview?.round ?? 0, group.review?.round ?? 0, 0]}
@@ -65,12 +66,16 @@ export function AIReqPhaseHeader({ details = null, placement = "header" }: { det
       <AIReqProposalSimulation key={group.id} group={group} />
     </>}
     {review?.report && <details><summary className="cursor-pointer">{selected === 1 ? "原始需求单评审" : "完整审查终审"}报告 · {review.id}</summary><p className="mt-2 whitespace-pre-wrap">{review.report}</p></details>}
-    <Dialog open={back} onOpenChange={setBack}><DialogContent><DialogHeader><DialogTitle>退回业务补充</DialogTitle><DialogDescription>保留旧材料和意见。业务原文修改后需要重做单评审；任何材料改变均使整包批准失效。</DialogDescription></DialogHeader><SettingsFormTextarea aria-label="退回原因" rows={8} value={reason} onChange={(event) => setReason(event.target.value)} /><DialogFooter><Button variant="outline" onClick={() => setBack(false)}>取消</Button><Button disabled={!reason.trim() || ai.pending} onClick={async () => { const result = await ai.command({ type: "returnProposal", ...target, reason }); if (result?.status === "completed") { setBack(false); setReason(""); } }}>确认退回</Button></DialogFooter></DialogContent></Dialog>
+    {/* 修复：默认弹窗铺满视口且输入区收缩，退回理由需要限宽的多行编辑空间。 */}
+    <Dialog open={back} onOpenChange={setBack}><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>退回业务补充</DialogTitle><DialogDescription>保留旧材料和意见。业务原文修改后需要重做单评审；任何材料改变均使整包批准失效。</DialogDescription></DialogHeader><SettingsFormTextarea aria-label="退回原因" className="field-sizing-fixed min-h-32" rows={6} value={reason} onChange={(event) => setReason(event.target.value)} />
+      {/* 失败由共享命令 owner 投影到当前弹框；不关闭弹框或丢弃退回理由。 */}
+      {ai.error && <p role="alert" className="text-ui-sm text-destructive">{ai.error}</p>}
+      <DialogFooter><Button variant="outline" onClick={() => setBack(false)}>取消</Button><Button disabled={!reason.trim() || ai.pending} onClick={async () => { const result = await ai.command({ type: "returnProposal", ...target, reason }); if (result?.status === "completed") { setBack(false); setReason(""); } }}>确认退回</Button></DialogFooter></DialogContent></Dialog>
   </footer>;
 }
 export function AIReqDocumentPhaseActions() { return <AIReqPhaseHeader placement="document" />; }
-export function AIReqProposalStageBody() {
+export function AIReqProposalStageBody({ materialsOpen, onOpenMaterials }: { materialsOpen: boolean; onOpenMaterials: () => void }) {
   const ai = useAIReq()!;
   const group = ai.view?.drafts.find((item) => item.id === ai.selection.irId && item.projectId === ai.selection.projectId);
-  return <main className="min-h-0 flex-1 space-y-4 overflow-auto p-6 text-ui-base"><h2 className="font-medium">三方对齐与文档 PR · 服务端内存模拟</h2><p>原生讨论和材料历史保留。提交后冻结，等待 owner 核验同一完整候选合入，不根据 URL 或按钮推断转正。</p>{group?.proposalDelivery?.pushedAt && <AIReqProposalBackgroundStatus group={group} />}</main>;
+  return <main className="@container/conversation min-h-0 flex-1 overflow-auto py-6 text-ui-base [scrollbar-gutter:stable_both-edges]"><div className={`mx-auto min-w-0 space-y-4 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}><h2 className="font-medium">三方确认与文档 PR</h2><p>{group?.proposalDelivery?.pushedAt ? "材料已提交，等待合入核验。" : "请查看材料，完成业务、开发和测试视角确认后提交。"}</p>{!materialsOpen && <Button variant="outline" onClick={onOpenMaterials}>展开材料与确认操作</Button>}{group?.proposalDelivery?.pushedAt && <AIReqProposalBackgroundStatus group={group} />}</div></main>;
 }

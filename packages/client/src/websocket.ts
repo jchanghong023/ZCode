@@ -118,7 +118,7 @@ export function connectViaWebSocket(
 
 export function connectViaProtocol(
   protocol: IMessagePassingProtocol,
-  options: { windowProjectDirectory?: boolean; signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal } = {},
 ): IServiceAccessor {
   const client = new ChannelClient(protocol);
   // bridge 只释放传输时，旧 RPC 会永久等待，发送前已 claim 的草稿也无法进入失败恢复。
@@ -126,5 +126,5 @@ export function connectViaProtocol(
   const dispose = () => client.dispose();
   if (options.signal?.aborted) dispose();
   else options.signal?.addEventListener("abort", dispose, { once: true });
-  return new RemoteServiceAccess(client, options);
+  return new RemoteServiceAccess(client);
 }

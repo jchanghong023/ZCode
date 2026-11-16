@@ -1,6 +1,6 @@
 # 测试规格：纯 Web 证据体系
 
-更新日期：2026-11-15
+更新日期：2026-11-16
 
 本仓库是浏览器前端 + 内存模拟后端（见 [项目目标](../project-goal.md)）。测试只覆盖当前存在的工程：
 `packages/*` 的浏览器、契约与 mock 服务，以及 `scripts/` 下的工程门禁工具。仓库没有桌面 app、
@@ -57,11 +57,15 @@ pnpm 只负责包管理且由 Bun 执行。Vitest 的 `forks` worker 使用当�
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/web`             | `test/viteConfigLoad.test.ts`                                                                                                                                                             |
 | `packages/shared`          | `src/request-security-edition/contract.test.ts`、`src/zcode-protocol-v4/input-prediction/contract.test.ts`、`test/zcodeProtocolV4InputPrediction.test.ts`                                 |
-| `packages/services`        | `test/inputPredictionSwitch.test.ts`                                                                                                                                                      |
 | `packages/session-control` | `src/contract.test.ts`、`test/client-caller.test.ts`、`test/control.test.ts`、`test/isolation.test.ts`、`test/review-regressions.test.ts`、`test/session-id.test.ts`、`test/wait.test.ts` |
 
 `packages/ui/test/` 只保留测试夹具（如 `providerModelSmartDraftFixture.ts`），不是可执行测试。
 以清单文件为准；本表随清单同步。
+
+2026-11-16 当前调用接口收口删除了退役 Host 环境变量开关及其
+`packages/services/test/inputPredictionSwitch.test.ts`，同步撤销工程清单登记，不再宣称该开关有现行覆盖。
+shared 的输入预测 schema／协议测试继续保留；纯类型存留不代表服务侧开关或 RPC 能力仍开放。
+本段仅记录删除边界，不是本轮工程套件通过记录。
 
 ## 4. 浏览器验收
 

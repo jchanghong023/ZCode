@@ -23,7 +23,15 @@ import {
   resolveDraftSuggestedPromptText,
   type DraftSuggestedPromptItem,
 } from "@/v4/draftSuggestedPromptItems.js";
-import type { DraftSuggestedPluginActionPopoverState } from "@/v4/useDraftSuggestedPluginActionPopover.js";
+export type DraftSuggestedPluginActionPopoverState = {
+  anchorItemId: string;
+  operationId: string;
+  phase: "confirmation" | "progress" | "success" | "error";
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  onDismiss?: () => void;
+};
 
 export type { DraftSuggestedPromptItem } from "@/v4/draftSuggestedPromptItems.js";
 

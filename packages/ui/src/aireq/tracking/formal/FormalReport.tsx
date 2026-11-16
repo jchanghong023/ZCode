@@ -186,10 +186,14 @@ export function AIReqFormalReport() {
                 {sr.trackingBranch?.name?.trim() ? (
                   <div className="space-y-1" data-testid="sr-tracking-branch">
                     <p className="break-all text-ui-sm text-foreground-subtle">
-                      平台模拟开发分支：{sr.trackingBranch.name}
+                      平台模拟开发分支：
                     </p>
-                    {sr.trackingBranch.status !== "deleted" && (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) &&
-                      <BranchCopy branch={sr.trackingBranch.name} onMessage={setCopyMessage} />}
+                    {/* 复制控件已显示分支名；不可复制时仍保留历史名称。 */}
+                    {sr.trackingBranch.status !== "deleted" && (sr.trackingBranch.status !== "failed" || Boolean(sr.trackingBranch.pushedAt)) ? (
+                      <BranchCopy branch={sr.trackingBranch.name} onMessage={setCopyMessage} />
+                    ) : (
+                      <p className="break-all text-ui-sm text-foreground-subtle">{sr.trackingBranch.name}</p>
+                    )}
                     {sr.trackingBranch.status === "deleted" && <p>已清理（模拟）；分支名仅为历史登记。</p>}
                     {sr.trackingBranch.error && <p role="alert" className="text-destructive">{sr.trackingBranch.error}</p>}
                     {sr.trackingBranch.status === "failed" && !sr.trackingBranch.pushedAt && <Button

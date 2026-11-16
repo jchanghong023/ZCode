@@ -1,19 +1,13 @@
 # context-composition
 
-让 App 外的消费方（第一个是扩展进程）读到「当前模型请求里各部分占多少」：类别、条目名和大小，不给正文。完整规格见 `apps/zcode-cli/docs/design/v2/model/context-composition.md`。
+当前模块仅保留本目录 `contract.ts` 中 context 组成的 v4 线格式 schema、类型、限额常量与纯投影函数；不执行 IO、查询或订阅，也不持有会话状态。
 
-本模块由四处组成：
+唯一公开入口为 `contract.ts`。其内部复用 shared 的模型选择与 context usage 粗类别定义，因此模块依赖仅为 `shared`。服务侧 `contextCompositionClient.ts` 及无当前消费者的 `getContextComposition`／`onDynamicContextCompositionChanged` RPC 已删除，不是当前入口。
 
-- 本目录 `contract.ts`：线格式 schema 与纯函数（细类别 → 圆环粗类别的投影）。
-- CLI `core/src/runtime/context-composition/`：分类纯函数、请求组成状态、草稿预演。
-- CLI `bootstrap/src/zcode-protocol/context-composition/`：修订号 tracker 与 `v4/conversation/contextComposition` 处理。
-- `packages/services/src/zcode-agent/contextCompositionClient.ts`：App 侧查询、变更通知与模型请求指标通知。
+协议约束：
 
-不变量：
+- 组成只表达类别、条目名和大小，不提供正文；条目名最长 200 字符，每类最多 50 条。
+- 细类别通过 `contextCompositionUsageSource` 纯函数投影到既有圆环粗类别，不扩展 shared 的 7 值枚举。
+- 线格式保持 strict；本次收口不修改 schema，不通过保留协议定义恢复旧查询或通知。
 
-- 一份分解：圆环的 `contextUsageBreakdown` 与查询结果来自同一次分类，粗类别只由 `contextCompositionUsageSource` 投影得到；圆环的 7 值枚举不扩展。
-- 只给名字和大小：条目名最长 200 字符，每类最多 50 条，0 值类别不返回。
-- 修订号的唯一 owner 是 CLI 协议层 tracker；同一会话同一轮事件循环内的多次变更合并成一条通知，不用定时器。
-- 预演没有副作用：不落库、不写历史、不发请求、不让草稿变成持久会话。
-- existing-only：查询不为会话冷启动 CLI 或恢复会话；旧 CLI 的 method-not-found 在 App 侧当作 `null`。
-- 演进：线格式是 strict；新增字段或类别会让旧 App 解析失败，必须另起方法或能力位。
+CLI 分类、草稿预演、修订号 tracker、existing-only 查询及通知合并见历史设计 `apps/zcode-cli/docs/design/v2/model/context-composition.md`。这些描述不是当前仓库中的执行入口或实现承诺。

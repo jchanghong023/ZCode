@@ -92,67 +92,29 @@ export const ServiceChannels = {
   /** Git 服务 */
   Git: "git",
   Setting: "setting",
-  /** 凭据管理（从 main IPC 迁移到 host RPC） */
-  Credential: "credential",
-  /** Computer Use Helper macOS 权限服务 */
-  CuaPermission: "cua-permission",
-  /** producer-owned PiP session presentation client */
-  CuaPipSession: "cua-pip-session",
   /** 跨窗口广播 */
   Broadcast: "broadcast",
   /** ZCode task wrapper 服务 */
   ZCodeTask: "zcode-task",
-  /** 窗口 Host 聚合 workspace/task 投影与列表写路由 */
-  WindowController: "window-controller",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
   /** ZCode session 应用服务 */
   ZCodeSession: "zcode-session",
   Project: "project",
-  /** 受管 worktree 任务管理（列表、删除、起点、fork 到新 worktree），仅本地桌面 Host。 */
-  ManagedWorktrees: "managed-worktrees",
   TaskGroups: "task-groups",
-  /** 手机远端 attachment 的窗口目录；原 project 继续属于工作区。 */
-  WindowProject: "window-project",
-  WindowProjectChanges: "window-project-changes",
   /** 文件系统监视服务 */
   FileWatcher: "file-watcher",
   /** 新 Provider Config 的设置读写 Facade */
   ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
   ModelSelection: "model-selection",
-  /** Source Server 端 workspace 身份解析服务 */
-  SourceServerWorkspace: "source-server-workspace",
-  /** 桌面 Host 的 Source Server 目录与连接管理服务 */
-  SourceServerManagement: "source-server-management",
-  /** 桌面 Host 的数据同步设备状态（按 sourceServerId 记录上次同步结果，仅本机注册） */
-  DeviceSyncState: "device-sync-state",
-  /** 桌面 Host 的扩展门面（docs/plugins/extension-host.md）：贡献表、扩展进程状态、命令、重新加载（仅本机注册） */
-  Extensions: "extensions",
-  /** 桌面 Host 的扩展视图门面（docs/plugins/extension-host.md §8）：视图实例、页面请求与通知、views.open（仅本机注册） */
-  ExtensionViews: "extension-views",
-  /** 桌面 Host 的扩展授权门面（docs/plugins/extension-host.md §17.7）：授予、撤销、授权状态、启用确认、最近操作（仅本机注册） */
-  ExtensionGrants: "extension-grants",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
   ClientConfig: "client-config",
-  /** ZCode 客户端场景配置服务 */
-  ClientScenes: "client-scenes",
-  CloudContent: "cloud-content",
-  /** 桌面 Host 的语音输入：连接 zcode-server ASR（docs/chat/composer-voice-input.md，仅本机 base 连接） */
-  VoiceInput: "voice-input",
   /** Skills 管理服务 */
   Skills: "skills",
-  /** SSH 远程 skills 同步服务 */
-  SkillSync: "skill-sync",
   /** SSH 远程 MCP 同步服务 */
   McpSync: "mcp-sync",
-  /** SSH 远程 plugin 同步服务 */
-  PluginSync: "plugin-sync",
-  /** 数据同步：子智能体、命令、钩子共用的用户配置同步通道（按 category 区分，不进手机白名单） */
-  UserConfigSync: "user-config-sync",
-  /** 插件管理服务 */
-  Plugins: "plugins",
   /** 设置页插件管理服务（UI 平台能力面收敛，不再直触 zcodeAgentService） */
   PluginManagement: "plugin-management",
   /** 插件 UI 沙箱桥：host 读取 ui:// 资源并向 main 登记、代理 UI 发起的工具调用 */
@@ -161,26 +123,10 @@ export const ServiceChannels = {
   PluginUiAppTools: "plugin-ui-app-tools",
   /** Subagents 管理服务 */
   Subagents: "subagents",
-  /** Commands 管理服务 */
-  Commands: "commands",
-  /** Hooks 管理服务 */
-  Hooks: "hooks",
-  /** Memory 管理服务 */
-  Memory: "memory",
-  /** 首次启动设置同步服务 */
-  SettingsSync: "settings-sync",
   /** Bots 远程聊天控制服务 */
   Bots: "bots",
-  /** 用户反馈工单服务 */
-  Feedback: "feedback",
   /** Composer 附件在 host-local 与 remote runtime 之间的预传服务 */
   PromptAttachmentTransfer: "prompt-attachment-transfer",
-  /** 闲时任务管理服务（与 automation 服务面独立） */
-  OffPeakTask: "off-peak-task",
-  /** Highspeed 加速卡抽取与分享服务 */
-  HighspeedCard: "highspeed-card",
-  /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
-  OnboardingRecord: "onboarding-record",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

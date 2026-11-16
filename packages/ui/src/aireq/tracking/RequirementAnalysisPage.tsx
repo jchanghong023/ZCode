@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
 import type {
@@ -52,12 +52,11 @@ export function AIReqRequirementAnalysisPage({
         sectionLabel="进度分析"
       >
         {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
-        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0 pt-4 md:pt-6")}>
+        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+          <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
             <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
               <div>
-                {/* 修复：与自动化共用页面标题字阶，避免跨业务页切换时层级突变。 */}
-                <h1 className="text-ui-page-title font-medium tracking-[0.114px]">进度分析</h1>
+                <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>进度分析</h1>
                 <p className="mt-2 text-ui-base text-foreground-subtle">
                   跟踪正式需求的开发进度，查看代码依据与待处理问题。
                 </p>
@@ -111,6 +110,7 @@ function ConnectedProgressAnalysis({
   const reportTrigger = useRef<HTMLButtonElement | null>(null);
   const [message, setMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
   const [analysisRequest, setAnalysisRequest] = useState<{
     filter: AIReqAnalysisFilter;
     count: number;
@@ -340,10 +340,11 @@ function ConnectedProgressAnalysis({
           模拟推进下一次调度检查
         </Button>
       </div>
+      {/* 退场动画期间保留提交快照，避免范围和数量闪为空值。 */}
       <AnalysisRunConfirmation
-        open={Boolean(analysisRequest)}
+        open={analysisDialogOpen}
         onOpenChange={(open) => {
-          if (!open) setAnalysisRequest(undefined);
+          if (!open) setAnalysisDialogOpen(false);
         }}
         scope={analysisRequest?.scope ?? ""}
         count={analysisRequest?.count ?? 0}
@@ -352,7 +353,7 @@ function ConnectedProgressAnalysis({
         onConfirm={() => {
           if (!analysisRequest) return;
           const requestedFilter = analysisRequest.filter;
-          setAnalysisRequest(undefined);
+          setAnalysisDialogOpen(false);
           void mutate(
             () => scheduler.runNow(requestedFilter),
             "已提交全部筛选结果的分析任务；运行中的 SR 不会重复提交。",
@@ -484,13 +485,14 @@ function ConnectedProgressAnalysis({
                   Boolean(taskQuery.error) ||
                   !taskResult?.eligibleCount
                 }
-                onClick={() =>
+                onClick={() => {
                   setAnalysisRequest({
                     filter: { ...filter },
                     count: taskResult?.eligibleCount ?? 0,
                     scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${irId === "all" ? "全部 IR" : irId}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
-                  })
-                }
+                  });
+                  setAnalysisDialogOpen(true);
+                }}
                 aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
               >
                 分析 {taskResult?.eligibleCount ?? "…"} 个 SR

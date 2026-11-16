@@ -252,15 +252,16 @@ export async function simulatePrototypeCodeMerge(
     if (srProgress(sr) === 100) throw new Error("已完成 SR 不再接纳代码合入模拟。");
     if (!sr.trackingBranch?.name || sr.trackingBranch.status === "failed" || sr.trackingBranch.status === "deleted")
       throw new Error("开发分支尚不可用，不能模拟合入。");
-    const open = (sr.developmentIssues ?? []).filter((issue) => issue.status === "open");
-    if (input.fix && !open.length) throw new Error("没有待修复测试问题。");
-    if (!input.fix && open.length) throw new Error("存在测试失败问题，请使用模拟修复合入。");
+    // 待复测的旧问题也必须随下一次修复合入绑定新版本，否则多轮失败后永远无法通过。
+    const unresolved = (sr.developmentIssues ?? []).filter((issue) => issue.status !== "resolved");
+    if (input.fix && !unresolved.length) throw new Error("没有待修复测试问题。");
+    if (!input.fix && unresolved.length) throw new Error("存在未解决测试问题，请使用模拟修复合入。");
     const commit = `simulated-${input.fix ? "fix" : "code"}-${sr.id}-${state.revision + 1}`;
     const project = state.projects.find((item) => item.id === projectId)!;
     sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
     state.repositoryHeads ??= {};
     state.repositoryHeads[project.repositoryId] = commit;
-    for (const issue of open) {
+    for (const issue of unresolved) {
       issue.status = "awaiting-retest";
       issue.fixCodeVersion = commit;
     }

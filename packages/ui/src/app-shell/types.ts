@@ -13,7 +13,7 @@ import type {
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import type { SavedWorkflowHubTarget } from "@/v4/savedWorkflowHubContext.js";
-import type { RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
+import type { RecentClosedSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import type {
@@ -71,11 +71,6 @@ export interface CreateTaskOptions {
   initialPrompt?: string;
   /** 创建项目后的当前草稿交接，仅在 renderer 内存中传递。 */
   initialComposerDraft?: ComposerDraftHandoff;
-  /**
-   * 在新的受管 worktree 中准备草稿（docs/git/worktree.md §3.2）：Host 立即创建 worktree，
-   * 草稿迁入后由用户照常发送。仅本地项目；远程由 Host 拒绝。
-   */
-  worktree?: { startRef?: string };
   /** 与 initialPrompt canonical 前缀对应的结构化 mention；仅用于编辑器展示。 */
   initialPromptMention?: ComposerMentionPrefill;
   /** 新任务落在哪个 workspace；缺省取活动 workspace。 */
@@ -193,15 +188,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   gitWorktreeChangeSummary: GitChangeSummary;
   activeGitSourceId: GitChangeSourceId;
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
-  providerConfigFile: ReturnType<
-    typeof import("@/hooks/useWorkspaceProviderConfigFile.js").useWorkspaceProviderConfigFile
-  >;
-  taskNativeSessionLogFile: ReturnType<
-    typeof import("@/hooks/useTaskNativeSessionLogFile.js").useTaskNativeSessionLogFile
-  >;
-  taskSessionFile: ReturnType<
-    typeof import("@/hooks/useTaskSessionFilePath.js").useTaskSessionFilePath
-  >;
   conversationFindActiveIndex: number;
   conversationFindNavigationRequestId: number;
   conversationFindQuery: string;

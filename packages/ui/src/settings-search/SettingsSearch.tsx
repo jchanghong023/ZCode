@@ -1,6 +1,7 @@
 import { Search, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Command, CommandInput, CommandItem, CommandList } from "@/components/ui/command.js";
 import {
   Dialog,
@@ -27,12 +28,14 @@ import {
 export function SettingsSearch({
   sections,
   onSelect,
+  compact = false,
 }: {
   sections: readonly ({
     id: SettingsSectionId;
     includeSettings?: boolean;
   } & ({ titleId: string; label?: never } | { label: string; titleId?: never }))[];
   onSelect: (result: SettingsSearchResult) => void;
+  compact?: boolean;
 }) {
   const { intl } = useZCodeIntl();
   const visible: SettingsSearchAvailability = resolveSettingsSearchAvailability();
@@ -92,6 +95,21 @@ export function SettingsSearch({
     })
     .sort((left, right) => left.rank - right.rank);
 
+  const trigger = (
+    <DialogTrigger asChild>
+      <Button
+        type="button"
+        variant="outline"
+        aria-label={title}
+        data-testid="settings-search-open"
+        className={compact ? "size-9 justify-center px-0 text-foreground-subtle" : "w-full justify-start gap-2 text-foreground-subtle max-lg:size-9 max-lg:justify-center max-lg:px-0"}
+      >
+        <Search className="size-4 shrink-0" aria-hidden="true" />
+        <span className={compact ? "sr-only" : "truncate max-lg:sr-only"}>{title}</span>
+      </Button>
+    </DialogTrigger>
+  );
+
   return (
     <Dialog
       open={open}
@@ -103,18 +121,7 @@ export function SettingsSearch({
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          aria-label={title}
-          data-testid="settings-search-open"
-          className="w-full justify-start gap-2 text-foreground-subtle max-lg:size-9 max-lg:justify-center max-lg:px-0"
-        >
-          <Search className="size-4 shrink-0" aria-hidden="true" />
-          <span className="truncate max-lg:sr-only">{title}</span>
-        </Button>
-      </DialogTrigger>
+      {compact ? <ControlHintTooltip title={title} side="right">{trigger}</ControlHintTooltip> : trigger}
       <DialogContent
         data-testid="settings-search-dialog"
         showCloseButton={false}

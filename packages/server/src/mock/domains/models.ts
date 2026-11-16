@@ -2,10 +2,8 @@
 import { Emitter, type Event } from "@zcode/rpc";
 import {
   BIGMODEL_PROVIDER_ID,
-  createUuid,
   type AppUsageSnapshot,
   type CodingPlanUsageSnapshot,
-  type ModelConnectivityResult,
 } from "@zcode/shared";
 import {
   IModelSelectionService,
@@ -14,7 +12,6 @@ import {
   type ModelSelectionView,
   type ProviderSettingsView,
 } from "@zcode/services";
-import type { ProviderSettingsCreationResult } from "@zcode/provider";
 import type { MockServiceRegistrar } from "./contract.js";
 
 type P<T extends (...args: never) => unknown> = Parameters<T>[0];
@@ -127,79 +124,6 @@ export class MockProviderSettingsService implements IProviderSettingsService {
   async refresh(_reason: string): Promise<ProviderSettingsView> {
     this.revision += 1;
     return this.getView();
-  }
-
-  async createPersonalProvider(_input?: unknown): Promise<ProviderSettingsCreationResult> {
-    return { providerId: `personal_${createUuid()}`, view: await this.getView() };
-  }
-
-  async resolveModelConfig(input: { providerId: string; modelId: string }) {
-    return {
-      inheritedConfig: completeModelConfig(input.modelId),
-      effectiveConfig: completeModelConfig(input.modelId),
-      issues: [],
-    };
-  }
-
-  async savePersonalProviderOverlay(
-    _providerId: string,
-    _config: unknown,
-  ): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async deletePersonalProvider(_providerId: string): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async reorderPersonalProviders(_providerIds: readonly string[]): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async reorderPersonalModels(
-    _providerId: string,
-    _modelIds: readonly string[],
-  ): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async addPersonalModel(
-    _providerId: string,
-    _modelId: string,
-    _config: unknown,
-  ): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async renamePersonalModel(
-    _providerId: string,
-    _currentModelId: string,
-    _nextModelId: string,
-  ): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async deletePersonalModel(_providerId: string, _modelId: string): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async savePersonalModelDraft(_input: unknown): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async setPersonalModelEnabled(
-    _providerId: string,
-    _modelId: string,
-    _enabled: boolean,
-  ): Promise<ProviderSettingsView> {
-    return this.getView();
-  }
-
-  async testModelConnectivity(_input: {
-    providerId: string;
-    modelId: string;
-  }): Promise<ModelConnectivityResult> {
-    return { success: true };
   }
 }
 

@@ -98,6 +98,7 @@ interface WorkspaceSidebarFooterProps {
   profileDescription?: ReactNode;
   profileAriaLabel?: string;
   profileTriggerRef?: Ref<HTMLButtonElement>;
+  compact?: boolean;
 }
 
 function WorkspaceSidebarFooterThemeMenu({
@@ -331,6 +332,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   profileDescription,
   profileAriaLabel,
   profileTriggerRef,
+  compact = false,
 }: WorkspaceSidebarFooterProps) {
   const { intl } = useZCodeIntl();
   const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
@@ -344,7 +346,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           {user ? avatarFallbackText : <User className="size-4" />}
         </AvatarFallback>
       </Avatar>
-      <div className="min-w-0 flex-1 overflow-hidden text-left">
+      <div className={cn("min-w-0 flex-1 overflow-hidden text-left", compact && "sr-only")}>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 truncate text-ui-base font-semibold text-foreground">
             {profileLabel ?? profileBadge}
@@ -361,28 +363,32 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
       ? intl.formatMessage({ id: "workspace.backToWorkspace" })
       : intl.formatMessage({ id: "settings.title" });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileTrigger = (
+    <DropdownMenuTrigger asChild>
+      <Button
+        type="button"
+        variant="ghost"
+        size="lg"
+        className={cn("min-w-0 flex-1 justify-start gap-2 overflow-hidden rounded-tl-2xl rounded-bl-2xl border-0 pl-0", compact && "size-10 flex-none justify-center rounded-xl p-0")}
+        data-testid={TID_LOGIN_TRIGGER}
+        ref={profileTriggerRef}
+        aria-label={profileAriaLabel ?? profileBadge}
+      >
+        {profileContent}
+      </Button>
+    </DropdownMenuTrigger>
+  );
   return (
     // footer 被 Settings 复用，页面专属边距由调用方传入，避免修改共享默认样式。
-    <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", className)}>
-      <div className="flex min-w-0 gap-2">
+    <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", compact && "items-center px-2", className)}>
+      <div className={cn("flex min-w-0 gap-2", compact && "flex-col items-center gap-1")}>
         <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            {/* Bugfix: 头像和 Login 之前直接绑定到登录动作，导致用户无法从这里打开偏好设置。
-              现在把这一块改成统一的设置菜单入口，登录/退出留在菜单项里，交互职责更清晰。 */}
-            <Button
-              type="button"
-              variant="ghost"
-              size={"lg"}
-              className="min-w-0 flex-1 justify-start gap-2 overflow-hidden rounded-tl-2xl rounded-bl-2xl border-0 pl-0"
-              data-testid={TID_LOGIN_TRIGGER}
-              ref={profileTriggerRef}
-              aria-label={profileAriaLabel ?? profileBadge}
-            >
-              {/* Bugfix: Button 默认 shrink-0 且带 whitespace-nowrap，超长用户名会把 footer 撑出 sidebar。
-                这里让触发按钮和文本列都允许收缩，并只在用户名自身做单行截断。 */}
-              {profileContent}
-            </Button>
-          </DropdownMenuTrigger>
+          {/* 保留统一的账户菜单入口；紧凑侧栏还需在键盘聚焦时显示名称。 */}
+          {compact ? (
+            <ControlHintTooltip title={profileAriaLabel ?? profileBadge} side="right">
+              {profileTrigger}
+            </ControlHintTooltip>
+          ) : profileTrigger}
           {/* Bugfix: 菜单内容保持挂载，避免每次点击头像菜单都重建 footer 内部状态。 */}
           <DropdownMenuContent
             align="start"

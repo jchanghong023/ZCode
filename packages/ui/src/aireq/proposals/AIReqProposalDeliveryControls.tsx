@@ -231,6 +231,7 @@ export function AIReqProposalDeliveryControls({
   const source = useAIReqDataSource();
   const aireq = useAIReq()!;
   const [dialog, setDialog] = useState<DeliveryDialog | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [scenario, setScenario] = useState<AIReqPrHandoffScenario>("current");
   const [checkedFiles, setCheckedFiles] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -323,6 +324,7 @@ export function AIReqProposalDeliveryControls({
       candidate: current ? delivery?.candidate : undefined,
       files: structuredClone(current && delivery ? delivery.files : group.files),
     });
+    setDialogOpen(true);
     setScenario("current");
     setCheckedFiles([]);
     setAcknowledged(false);
@@ -396,9 +398,9 @@ export function AIReqProposalDeliveryControls({
         </p>
       )}
       <Dialog
-        open={dialog !== null}
+        open={dialogOpen}
         onOpenChange={(open) => {
-          if (!open) setDialog(null);
+          if (!open) setDialogOpen(false);
         }}
       >
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
@@ -426,24 +428,25 @@ export function AIReqProposalDeliveryControls({
                     (item) => item.projectId === group.projectId && item.id === group.id,
                   )?.proposalDelivery?.candidate;
                   if (!candidate) return;
-                  setDialog({ ...dialog, step: "push", candidate });
                   const pushedResult = await aireq.command({
                     type: "publishProposal",
                     ...target,
                     candidate,
                   });
-                  if (pushedResult?.status === "completed") setDialog(null);
+                  // 退场时保留确认内容；仅推送失败才展示可重试的推送步骤。
+                  if (pushedResult?.status === "completed") setDialogOpen(false);
+                  else setDialog({ ...dialog, step: "push", candidate });
                 } else {
                   const result = await aireq.command({
                     type: "publishProposal",
                     ...target,
                     candidate: dialog.candidate!,
                   });
-                  if (result?.status === "completed") setDialog(null);
+                  if (result?.status === "completed") setDialogOpen(false);
                 }
               }}
             >
-              {!boundCurrent && (
+              {dialogOpen && !aireq.pending && !boundCurrent && (
                 <p role="alert" className="text-ui-sm text-destructive">
                   需求或方案版本已变化，请关闭后重新确认当前文档。
                 </p>
@@ -561,7 +564,7 @@ export function AIReqProposalDeliveryControls({
                 </p>
               )}
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialog(null)}>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   关闭
                 </Button>
                 {!readOnly && dialog.step !== "pr" && (
@@ -570,7 +573,8 @@ export function AIReqProposalDeliveryControls({
                     data-testid={`proposal-delivery-${dialog.step}`}
                     disabled={!canSubmit}
                   >
-                    {dialog.step === "confirm" ? "确认、提交推送并创建 MR" : "提交推送并创建 MR"}
+                    {/* 修复：推送已成功时，重试只补建 MR，不能提示再次推送。 */}
+                    {dialog.step === "confirm" ? "确认、提交推送并创建 MR" : pushed ? "重试创建 MR" : "提交推送并创建 MR"}
                   </Button>
                 )}
               </DialogFooter>

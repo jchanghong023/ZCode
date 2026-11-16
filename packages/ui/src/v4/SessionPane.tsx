@@ -18,7 +18,6 @@ import { reportSessionCreate } from "@/lib/sessionCreateTelemetry.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { BotGroupDeliveryProvider } from "@/v4/BotGroupDeliveryAction.js";
 /* oxlint-disable eslint(max-lines) -- SessionPane 是单 pane 竖切的命令编排收口（订阅/发送/停止/fork/edit/retry/queue/slash 全集），与旧 ChatView 同粒度；HEAD 已超限（693 行计数），拆散命令组会打散 dispatchCommand/snapshotRef 的闭包纪律。 */
-import { useOptionalProjectDirectoryActions } from "@/project-sidebar/index.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import {
   useCallback,
@@ -127,7 +126,6 @@ import {
 import { ConversationFileRewindDialog } from "@/v4/ConversationFileRewindDialog.js";
 import { useConversationPanePresentation } from "@/side-pane-full-view/index.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
-import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
@@ -186,10 +184,7 @@ import {
 } from "@/v4/pluginReferenceIconProjection.js";
 import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
-import { ForkDestinationContext, useTaskWorktreePlacement } from "@/managed-worktrees/index.js";
-import { useWorktreeSupport } from "@/managed-worktrees/index.js";
 import { useSelectionCommentSupport } from "@/selection-comment/index.js";
-import { formatManagedWorktreeError } from "@/managed-worktrees/index.js";
 import { createConfigCommandBarrier } from "@/v4/configCommandBarrier.js";
 import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
@@ -275,6 +270,8 @@ import {
 
 export interface SessionPaneProps {
   embedded?: boolean;
+  /** 可选的会话正文与输入框共享列宽；未传时维持原生布局。 */
+  contentWidthClassName?: string;
   composerPlaceholder?: ConversationComposerProps["composerPlaceholder"];
   composerAriaLabel?: string;
   conversationEmptyState?: ReactNode;
@@ -544,6 +541,7 @@ function createAgentPresentationCapabilities(agents: ReturnType<typeof useSubage
 export function SessionPane({
   paneId,
   embedded = false,
+  contentWidthClassName,
   composerPlaceholder,
   composerAriaLabel,
   conversationEmptyState,
@@ -638,22 +636,9 @@ export function SessionPane({
   const composerProjectId = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).draftProjectId,
   );
-  const draftWorktreeEnabled = useZCodeSessionStore((store) =>
-    Boolean(store.getWorkspaceState(workspacePath, workspaceIdentity).draftWorktree),
-  );
-  const viewWorktreeCreation = useZCodeSessionStore((state) => state.viewWorktreeCreation);
-  // worktree 被删除后，任务按"工作区目录失效"规则只读（docs/git/worktree.md §3.12）。
-  const {
-    cwd: sessionCwd,
-    worktreeRoot: sessionWorktreeRoot,
-    worktreeAvailable,
-  } = useTaskWorktreePlacement({ workspacePath, workspaceIdentity, remoteSessionId, sessionId });
-  const readOnly = workspaceReadOnly || !worktreeAvailable;
-  const readOnlyReason =
-    workspaceReadOnlyReason ??
-    (worktreeAvailable
-      ? undefined
-      : intl.formatMessage({ id: "workspaceSidebar.unavailableLocalDirectory" }));
+  const sessionCwd = workspacePath;
+  const readOnly = workspaceReadOnly;
+  const readOnlyReason = workspaceReadOnlyReason;
   const newTaskComposerScope = useMemo(
     () => resolveComposerScope(composerProjectId, workspaceIdentity, composerClientNamespace),
     [composerProjectId, workspaceIdentity, composerClientNamespace],
@@ -1156,18 +1141,6 @@ export function SessionPane({
     [composerDraft.modelSelection, modelSelectionRead.state, sessionId],
   );
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
-  const projectDirectory = useOptionalProjectDirectoryActions();
-  const commitCreatedTask = projectDirectory?.commitCreatedTask;
-  const refreshTaskGroups = projectDirectory?.refreshTaskGroups;
-  const draftNavigation = useMemo(
-    () => ({ workspaceKey, sessionId, controller: new AbortController() }),
-    [workspaceKey, sessionId],
-  );
-  useEffect(() => {
-    // StrictMode 会重放 effect；旧 scope 的请求仍使用各自的取消信号。
-    draftNavigation.controller = new AbortController();
-    return () => draftNavigation.controller.abort();
-  }, [draftNavigation]);
   // 首发 commandId 在 accepted 时已存在，也是 completion 的 message_id；不必等回复完成。
   const reportDraftCreated = useCallback(
     (createdSessionId: string, source: SessionCreateSource, messageId: string) => {
@@ -1222,8 +1195,6 @@ export function SessionPane({
                       creationId: messageId ?? createdSessionId,
                     },
                   });
-                  // 分组结构是独立投影；重读迟滞不能延长已接受首发或组织写入的完成时间。
-                  void refreshTaskGroups?.();
                 } catch (cause) {
                   // 会话已创建；组织失败不能向发送层抛错，否则会诱导用户再发一次。
                   // 重试闭包只持有这次创建的地址和 placement，绝不调用 createSession。
@@ -1239,24 +1210,12 @@ export function SessionPane({
               await attempt();
             }
           : undefined;
-      if (commitCreatedTask) {
-        await commitCreatedTask(
-          { taskId: createdSessionId, workspacePath, workspaceIdentity },
-          commit,
-          draftNavigation.controller.signal,
-          organize,
-        );
-      } else {
-        void organize?.();
-        commit();
-      }
+      void organize?.();
+      commit();
     },
     [
-      commitCreatedTask,
       baseWorkspaceServices.taskGroupService,
-      refreshTaskGroups,
       intl,
-      draftNavigation,
       reportDraftCreated,
       onSessionCreated,
       promoteComposerDraft,
@@ -2352,9 +2311,7 @@ export function SessionPane({
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
   const { binding: prewarmBinding, waitForSession: waitForDraftSession } = useDraftSessionPrewarm({
-    // worktree 草稿不预热：会话要等 worktree 建好后由 Host 创建，cwd 一次确定（§3.2）。
-    enabled:
-      sessionId === null && draftAgentStartupAllowed && !recoveringDraft && !draftWorktreeEnabled,
+    enabled: sessionId === null && draftAgentStartupAllowed && !recoveringDraft,
     workspaceKey,
     paneId,
     invalidationVersion: draftRuntimeInvalidationVersion,
@@ -2764,51 +2721,6 @@ export function SessionPane({
           submission = { ...submission, modelSelection: chosen };
         }
       }
-      // worktree 草稿的首发由 Host 编排：先建 worktree，再在项目 workspace 下创建会话并发送首条消息
-      // （docs/git/worktree.md §8.1）。这里只交出命令，进度与结果都来自 Host 的创建记录。
-      const draftWorktree =
-        sessionId === null
-          ? useZCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
-              .draftWorktree
-          : null;
-      if (draftWorktree) {
-        const service = baseWorkspaceServices.managedWorktreeService;
-        const projectId = useZCodeSessionStore
-          .getState()
-          .getWorkspaceState(workspacePath, workspaceIdentity).draftProjectId;
-        if (!service || !projectId) return "blocked" as const;
-        if (slashCommand !== null) {
-          toast(intl.formatMessage({ id: "git.managedWorktree.error.slash-unsupported" }));
-          return "blocked" as const;
-        }
-        const envelope = createCommandEnvelope({
-          type: "createSession",
-          sessionId: null,
-          payload: {
-            workspaceId: workspaceKey,
-            firstInput: {
-              text,
-              ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
-              modelSelection: submission.modelSelection,
-              mode: submission.mode,
-              planEnabled: submission.planEnabled,
-            },
-          } as never,
-        });
-        const started = await service.startNewTask({
-          workspacePath,
-          projectId,
-          ref: draftWorktree.ref,
-          envelope,
-        });
-        if (!started.ok) {
-          toast(formatManagedWorktreeError(intl, started.error.code));
-          return "blocked" as const;
-        }
-        onAcceptedSelection?.();
-        viewWorktreeCreation(workspacePath, started.creationId, workspaceIdentity);
-        return "sent" as const;
-      }
       const prewarmTargetBeforeSend =
         sessionId === null ? prewarmBindingRef.current?.sessionId : null;
       if (prewarmTargetBeforeSend) {
@@ -2960,11 +2872,7 @@ export function SessionPane({
       sessionId,
       settleCurrentQueueInputs,
       waitForDraftSession,
-      // Bug 原因：pane 复用切换 workspace 时，createSession 的 workspaceId、目录与
-      // worktree 查看目标都由这些值决定；漏列会继续把新任务建到上一工作区。
-      viewWorktreeCreation,
       workspaceIdentity,
-      workspaceKey,
       workspacePath,
     ],
   );
@@ -3097,43 +3005,6 @@ export function SessionPane({
       });
     },
     [dispatchCommand, onSessionCreated, sessionId],
-  );
-  const handleForkToWorktree = useCallback(
-    (target: ConversationRowTarget) => {
-      const current = snapshotRef.current;
-      const service = baseWorkspaceServices.managedWorktreeService;
-      if (!sessionId || current === null || !service) return;
-      // 与原地分叉同一 CAS 语义；Host 建 worktree、预留子任务并注入 targetCwd 后转发给项目 CLI。
-      const envelope = createCommandEnvelope({
-        type: "forkAssistant",
-        sessionId,
-        payload: { target } as never,
-        baseRevision: current.revision,
-        ...(current.logEpoch ? { baseLogEpoch: current.logEpoch } : {}),
-      });
-      void service.forkToWorktree({ workspacePath, envelope }).then(
-        (result) => {
-          if (!result.ok) {
-            toast(formatManagedWorktreeError(intl, result.error.code));
-            return;
-          }
-          // 主区切到创建记录；子任务启动后由 Shell 的 settlement 处理打开（§3.6）。
-          viewWorktreeCreation(workspacePath, result.creationId, workspaceIdentity);
-        },
-        (error: unknown) => {
-          logger.warn("[v4-pane] fork 到 worktree 失败", { error });
-          toast(formatManagedWorktreeError(intl, error));
-        },
-      );
-    },
-    [
-      baseWorkspaceServices.managedWorktreeService,
-      intl,
-      sessionId,
-      viewWorktreeCreation,
-      workspaceIdentity,
-      workspacePath,
-    ],
   );
 
   const handleEdit = useCallback(
@@ -4226,29 +4097,10 @@ export function SessionPane({
     !selectionSideChat &&
     Boolean(sessionId) &&
     snapshot?.availability.fork.allowed !== false;
-  const forkToWorktreeSupport = useWorktreeSupport(
-    workspacePath,
-    workspaceIdentity,
-    forkActionsEnabled,
-  );
   const selectionCommentSupported = useSelectionCommentSupport(
     workspacePath,
     workspaceIdentity,
     Boolean(sessionId) && !readOnly && !selectionSideChat && !isMobileTextInputViewport,
-  );
-  // value 保持稳定引用，避免每次渲染让所有行组件的 memo 失效。
-  const forkDestinationValue = useMemo(
-    () => ({
-      forkToWorktree: forkToWorktreeSupport.visible ? handleForkToWorktree : null,
-      available: forkToWorktreeSupport.available,
-      inWorktree: Boolean(sessionWorktreeRoot),
-    }),
-    [
-      forkToWorktreeSupport.available,
-      forkToWorktreeSupport.visible,
-      handleForkToWorktree,
-      sessionWorktreeRoot,
-    ],
   );
   // editUserQuery 已由 command 层防御 latest real user query，并在 running
   // 提交时先 stop barrier 再 rewind/rerun；UI 不应再用 completed gate 把入口整轮隐藏。
@@ -4264,20 +4116,6 @@ export function SessionPane({
   const timelineRows = timelineSnapshot
     ? (state.editPresentation?.rows ?? timelineSnapshot.rows)
     : null;
-  // worktree 创建视图盖在本会话上，直到时间线出现内容或订阅出错（docs/git/worktree.md §3.3）。
-  const finishWorktreeHandoff = useZCodeSessionStore((store) => store.finishWorktreeHandoff);
-  const timelineHasRows = (timelineRows?.totalCount ?? 0) > 0;
-  useEffect(() => {
-    if (sessionId && (timelineHasRows || errored))
-      finishWorktreeHandoff(workspacePath, sessionId, workspaceIdentity);
-  }, [
-    errored,
-    finishWorktreeHandoff,
-    sessionId,
-    timelineHasRows,
-    workspaceIdentity,
-    workspacePath,
-  ]);
   const initialDraftConfigForDiagnostics = isDraft ? resolveInitialDraftConfig() : undefined;
   const telemetryDraftConfig = draftConfig;
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
@@ -4834,26 +4672,6 @@ export function SessionPane({
           onConversationOnly={handleComposerEditConflictConversationOnly}
         />
       ) : null}
-      {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
-      {/* 完整视图浮窗只露出输入框，草稿推荐提示不进入浮窗。 */}
-      {isDraft &&
-      !embedded &&
-      !isFloatingPresentation &&
-      (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
-        <ConversationDraftSuggestedPromptsContainer
-          className={isOfficeMode ? "mt-4" : "mt-6"}
-          proactive={isOfficeMode}
-          onOpenAutomations={
-            onOpenAutomationsMain
-              ? (automationTab) => onOpenAutomationsMain(undefined, automationTab)
-              : undefined
-          }
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          remoteSessionId={remoteSessionId ?? undefined}
-          isDesktop={isDesktop}
-        />
-      ) : null}
     </>
   );
   // 分享浮窗不再替换输入区，保持 Composer 与对话滚动位置稳定。
@@ -5036,93 +4854,88 @@ export function SessionPane({
               workspacePath={workspacePath}
               workspaceIdentity={workspaceIdentity}
             >
-              <ForkDestinationContext.Provider value={forkDestinationValue}>
-                <ConversationTimeline
-                  scrollToBottomActionRef={timelineScrollToBottomRef}
-                  scrollToQueryActionRef={timelineScrollToQueryRef}
-                  rows={timelineRows?.window ?? []}
-                  pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
-                  apiRetry={timelineSnapshot?.control.apiRetry ?? null}
-                  totalCount={timelineRows?.totalCount ?? 0}
-                  sessionKey={sessionId ?? "draft"}
-                  scrollMemoryKey={timelineScrollMemoryKey}
-                  rowContext={rowContext}
-                  onFork={forkActionsEnabled ? handleFork : undefined}
-                  onRetry={retryActionsEnabled ? handleRetry : undefined}
-                  onFeedbackChange={
-                    !readOnly && !selectionSideChat && sessionId
-                      ? handleAssistantFeedback
-                      : undefined
-                  }
-                  onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
-                  canLoadOlder={
-                    !state.editPresentation && timelineSnapshot
-                      ? hasOlderRows(timelineSnapshot)
-                      : false
-                  }
-                  loadingOlder={timelineSnapshot ? state.loadingOlder : false}
-                  onLoadOlder={handleLoadOlder}
-                  onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
-                  turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
-                  bottomDock={conversationBottomDock}
-                  emptyState={
-                    !remoteAvailable ? (
-                      <div className="p-6 text-center text-ui-base text-foreground-subtle">
-                        {intl.formatMessage({ id: "remote.conversation.placeholder" })}
-                      </div>
-                    ) : conversationEmptyState ? (
-                      conversationEmptyState
-                    ) : isDraft && !embedded ? (
-                      <div data-testid={TID_CHAT_EMPTY} className="w-full">
-                        <ConversationDraftEmptyState />
-                      </div>
-                    ) : null
-                  }
-                  // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
-                  centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
-                  floatingComposerDock={isFloatingPresentation}
-                  onComposerDockHeightChange={
-                    isFloatingPresentation && focused
-                      ? panePresentation.reportComposerDockHeight
-                      : undefined
-                  }
-                  onLatestTurnSummaryChange={
-                    isFloatingPresentation && focused
-                      ? handleFloatingLatestTurnSummaryChange
-                      : undefined
-                  }
-                  summaryPanelLayout={statusPanelLayout}
-                  conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
-                  conversationFindActiveIndex={
-                    !isDraft && focused ? conversationFindActiveIndex : -1
-                  }
-                  conversationFindNavigationRequestId={
-                    !isDraft && focused ? conversationFindNavigationRequestId : 0
-                  }
-                  onConversationFindMatchStateChange={
-                    !isDraft && focused ? onConversationFindMatchStateChange : undefined
-                  }
-                  searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
-                  onSearchResultHighlightDone={onSearchResultHighlightDone}
-                  sessionPhase={isDraft ? undefined : snapshot?.control.phase}
-                  selectionActions={
-                    !isDraft &&
-                    sessionId &&
-                    !readOnly &&
-                    !selectionSideChat &&
-                    !isMobileTextInputViewport
-                      ? {
-                          enabled: focused && !blockingInteractionId,
-                          sideActionDisabled: selectionSideActionBlocked,
-                          commentEnabled: selectionCommentSupported,
-                          annotationWorkspaceKey: workspaceKey,
-                          onAddToCurrentTask: handleAddSelectionToCurrentTask,
-                          onAskInSideChat: handleOpenSelectionSideConversation,
-                        }
-                      : undefined
-                  }
-                />
-              </ForkDestinationContext.Provider>
+              <ConversationTimeline
+                contentWidthClassName={contentWidthClassName}
+                scrollToBottomActionRef={timelineScrollToBottomRef}
+                scrollToQueryActionRef={timelineScrollToQueryRef}
+                rows={timelineRows?.window ?? []}
+                pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
+                apiRetry={timelineSnapshot?.control.apiRetry ?? null}
+                totalCount={timelineRows?.totalCount ?? 0}
+                sessionKey={sessionId ?? "draft"}
+                scrollMemoryKey={timelineScrollMemoryKey}
+                rowContext={rowContext}
+                onFork={forkActionsEnabled ? handleFork : undefined}
+                onRetry={retryActionsEnabled ? handleRetry : undefined}
+                onFeedbackChange={
+                  !readOnly && !selectionSideChat && sessionId ? handleAssistantFeedback : undefined
+                }
+                onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
+                canLoadOlder={
+                  !state.editPresentation && timelineSnapshot
+                    ? hasOlderRows(timelineSnapshot)
+                    : false
+                }
+                loadingOlder={timelineSnapshot ? state.loadingOlder : false}
+                onLoadOlder={handleLoadOlder}
+                onLoadAllOlder={state.editPresentation ? undefined : handleLoadAllOlder}
+                turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
+                bottomDock={conversationBottomDock}
+                emptyState={
+                  !remoteAvailable ? (
+                    <div className="p-6 text-center text-ui-base text-foreground-subtle">
+                      {intl.formatMessage({ id: "remote.conversation.placeholder" })}
+                    </div>
+                  ) : conversationEmptyState ? (
+                    conversationEmptyState
+                  ) : isDraft && !embedded ? (
+                    <div data-testid={TID_CHAT_EMPTY} className="w-full">
+                      <ConversationDraftEmptyState />
+                    </div>
+                  ) : null
+                }
+                // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
+                centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
+                floatingComposerDock={isFloatingPresentation}
+                onComposerDockHeightChange={
+                  isFloatingPresentation && focused
+                    ? panePresentation.reportComposerDockHeight
+                    : undefined
+                }
+                onLatestTurnSummaryChange={
+                  isFloatingPresentation && focused
+                    ? handleFloatingLatestTurnSummaryChange
+                    : undefined
+                }
+                summaryPanelLayout={statusPanelLayout}
+                conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
+                conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}
+                conversationFindNavigationRequestId={
+                  !isDraft && focused ? conversationFindNavigationRequestId : 0
+                }
+                onConversationFindMatchStateChange={
+                  !isDraft && focused ? onConversationFindMatchStateChange : undefined
+                }
+                searchResultHighlightRequest={isDraft ? null : searchResultHighlightRequest}
+                onSearchResultHighlightDone={onSearchResultHighlightDone}
+                sessionPhase={isDraft ? undefined : snapshot?.control.phase}
+                selectionActions={
+                  !isDraft &&
+                  sessionId &&
+                  !readOnly &&
+                  !selectionSideChat &&
+                  !isMobileTextInputViewport
+                    ? {
+                        enabled: focused && !blockingInteractionId,
+                        sideActionDisabled: selectionSideActionBlocked,
+                        commentEnabled: selectionCommentSupported,
+                        annotationWorkspaceKey: workspaceKey,
+                        onAddToCurrentTask: handleAddSelectionToCurrentTask,
+                        onAskInSideChat: handleOpenSelectionSideConversation,
+                      }
+                    : undefined
+                }
+              />
             </BotGroupDeliveryProvider>
           </SessionPluginReferenceIconBoundary>
         )}

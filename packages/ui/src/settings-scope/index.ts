@@ -19,7 +19,6 @@ export {
   resolveDefaultSettingsScopeKey,
   resolveSettingsScope,
 } from "@/settings-scope/domain/scope.js";
-export { useSettingsScope } from "@/settings-scope/app/useSettingsScope.js";
 export {
   useSettingsScopeForm,
   type SettingsScopeForm,

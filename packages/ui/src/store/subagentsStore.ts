@@ -5,7 +5,6 @@ import {
   type ZCodeProvider,
   type AgentSummary,
   type AgentsCapability,
-  type SubAgentConfig,
 } from "@zcode/shared";
 import type { ISubagentsService } from "@zcode/services";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
@@ -30,8 +29,6 @@ interface SubagentsStoreState {
   capability: AgentsCapability | null;
   loading: boolean;
   error: string | null;
-  /** 正在操作的 agent ID（用于 UI 状态指示） */
-  operatingAgentId: string | null;
   initialize: (
     workspacePath: string,
     providerOrSubagentsService: ZCodeProvider | ISubagentsService,
@@ -39,32 +36,6 @@ interface SubagentsStoreState {
     workspaceIdentity?: string,
   ) => Promise<void>;
   refresh: (subagentsService: ISubagentsService, workspaceIdentity?: string) => Promise<void>;
-  setEnabled: (
-    agentId: string,
-    enabled: boolean,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<void>;
-  createAgent: (
-    config: SubAgentConfig,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<AgentSummary | null>;
-  updateAgent: (
-    agentId: string,
-    config: SubAgentConfig,
-    oldFilePath: string | undefined,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<AgentSummary | null>;
-  deleteAgent: (
-    agentId: string,
-    filePath: string,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<boolean>;
 }
 
 let loadedSubagentsServiceAuthorityId: number | null = null;
@@ -80,7 +51,6 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   capability: null,
   loading: false,
   error: null,
-  operatingAgentId: null,
   async initialize(
     workspacePath: string,
     providerOrSubagentsService: ZCodeProvider | ISubagentsService,
@@ -215,124 +185,6 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
         loadedWorkspaceIdentity: workspaceIdentityFromState ?? null,
         loadedProvider: provider,
       });
-    }
-  },
-  async setEnabled(
-    agentId: string,
-    enabled: boolean,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) {
-    const workspacePath = get().workspacePath;
-    if (!workspacePath) {
-      return;
-    }
-    const workspaceIdentityFromState =
-      workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    set({ operatingAgentId: agentId });
-    try {
-      await subagentsService.setEnabled({
-        agentId,
-        enabled,
-      });
-      await get().refresh(subagentsService, workspaceIdentityFromState);
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      set({ operatingAgentId: null });
-    }
-  },
-  async createAgent(
-    config: SubAgentConfig,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) {
-    const workspacePath = get().workspacePath;
-    if (!workspacePath) {
-      return null;
-    }
-    const workspaceIdentityFromState =
-      workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    set({ operatingAgentId: `new:${config.name}` });
-    try {
-      const result = await subagentsService.createAgent({
-        config,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
-      });
-      await get().refresh(subagentsService, workspaceIdentityFromState);
-      return result.agent;
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    } finally {
-      set({ operatingAgentId: null });
-    }
-  },
-  async updateAgent(
-    agentId: string,
-    config: SubAgentConfig,
-    oldFilePath: string | undefined,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) {
-    const workspacePath = get().workspacePath;
-    if (!workspacePath) {
-      return null;
-    }
-    const workspaceIdentityFromState =
-      workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    set({ operatingAgentId: agentId });
-    try {
-      const result = await subagentsService.updateAgent({
-        agentId,
-        config,
-        oldFilePath,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
-      });
-      await get().refresh(subagentsService, workspaceIdentityFromState);
-      return result.agent;
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    } finally {
-      set({ operatingAgentId: null });
-    }
-  },
-  async deleteAgent(
-    agentId: string,
-    filePath: string,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) {
-    const workspacePath = get().workspacePath;
-    if (!workspacePath) {
-      return false;
-    }
-    const workspaceIdentityFromState =
-      workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    set({ operatingAgentId: agentId });
-    try {
-      await subagentsService.deleteAgent({
-        agentId,
-        filePath,
-      });
-      await get().refresh(subagentsService, workspaceIdentityFromState);
-      return true;
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return false;
-    } finally {
-      set({ operatingAgentId: null });
     }
   },
 }));

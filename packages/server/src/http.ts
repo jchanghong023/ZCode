@@ -1,11 +1,10 @@
-// HTTP + WebSocket 宿主：/api/server-info 元信息、/ws 上的二进制 RPC ChannelServer、
+// HTTP + WebSocket 宿主：当前帮助配置、/ws 上的二进制 RPC ChannelServer、
 // 生产模式静态资源托管。传输层与真实 server 完全同构（packages/rpc SocketProtocol），
 // 业务层全部来自 mock 服务集合。
-import { hostname } from "node:os";
 import { readFile, stat } from "node:fs/promises";
 import localAppConfig from "../../../config/default.json" with { type: "json" };
 import * as nodePath from "node:path";
-import { basename, extname, resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import { Hono, type Context } from "hono";
@@ -23,16 +22,7 @@ import {
   IZCodeAgentService,
   createZCodeAgentConnectionScope,
 } from "@zcode/services";
-import {
-  formatLogPrefix,
-  serverRemoteInfoOutputSchema,
-  SERVER_REMOTE_PROTOCOL_VERSION,
-  ZCODE_VERSION,
-  ZCODE_COMPATIBILITY_MANIFEST,
-  type ServerRemoteInfo,
-} from "@zcode/shared";
-import { resolveServerOsUser } from "@zcode/shared/node";
-import { workspaceIdentityOf } from "./mock/runtime.js";
+import { formatLogPrefix } from "@zcode/shared";
 import { getConnectionServices, validateAIReqIdentity } from "./aireq/contract.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 
@@ -120,43 +110,12 @@ function setupChannelServer(
 }
 
 export interface MockHttpServerOptions {
-  serverId?: string;
-  name?: string;
   host?: string;
   port?: number;
   authToken?: string;
   /** 生产模式：托管 packages/web 构建产物并开启 SPA fallback。 */
   staticRoot?: string;
   spaFallback?: boolean;
-}
-
-function createServerInfo(options: MockHttpServerOptions, workspacePath: string): ServerRemoteInfo {
-  return serverRemoteInfoOutputSchema.parse({
-    serverId: options.serverId?.trim() || hostname() || "zcode-mock-server",
-    ...(options.name?.trim() ? { name: options.name.trim() } : {}),
-    version: ZCODE_VERSION,
-    protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
-    authRequired: Boolean(options.authToken),
-    workspaces: [
-      {
-        path: workspacePath,
-        label: basename(workspacePath) || workspacePath,
-        workspaceIdentity: workspaceIdentityOf(workspacePath),
-      },
-    ],
-    compatibility: ZCODE_COMPATIBILITY_MANIFEST,
-    migration: { failedPathCount: 0 },
-    identity: { osUser: resolveServerOsUser(), hostname: hostname() },
-    // 能力位按 wire schema 是字面量合同（desktopContinuous/websocketRpc 必须为 true）；
-    // 模拟后端沿用同一合同以保持 UI 判定逻辑不变。
-    capabilities: {
-      desktopContinuous: true,
-      websocketRpc: true,
-      virtualProjects: true,
-      processResourceTelemetry: false,
-      remoteConversationTelemetry: false,
-    },
-  });
 }
 
 const zcodeLiteTokenCookieName = "zcode_lite_token";
@@ -331,7 +290,6 @@ function negotiateStaticEncoding(
 
 export function createMockHttpServer(
   services: ServiceCollection,
-  workspacePath: string,
   options: MockHttpServerOptions = {},
 ) {
   const app = new Hono<{ Bindings: { server: Bun.Server<ConnectionData> } }>();
@@ -348,26 +306,9 @@ export function createMockHttpServer(
     });
   }
 
-  app.get("/api/server-info", (c) => c.json(createServerInfo(options, workspacePath)));
-
   // 纯 Web 形态下客户端配置由本机 mock 提供，避免浏览器直连外部 ZCode endpoint。
   app.get("/api/v1/client/configs", (c) =>
     c.json({ code: 0, data: { configs: { feedbackUrl: localAppConfig } } }),
-  );
-
-  // Web 端启动期（canOpenCommunity/openFeedback）按同源 /api/v1/client/configs 读取
-  // help/community 配置。mock 是自洽站点：返回内存态配置，与 config/default.json 同形，
-  // HTTP/HTTPS 部署下浏览器都能直接消费，不再指向生产 endpoint。
-  app.get("/api/v1/client/configs", (c) =>
-    c.json({
-      community_urls: {
-        "zh-CN":
-          "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&qr_code=true",
-        "en-US": "https://discord.gg/z9aBcQXZQ3",
-      },
-      feedback_url: "https://zhipu-ai.feishu.cn/share/base/form/shrcnrXlh93cJIUFYBFndnnL7pe",
-      feedback_use_external_form: false,
-    }),
   );
 
   app.get("/ws", (c) => {

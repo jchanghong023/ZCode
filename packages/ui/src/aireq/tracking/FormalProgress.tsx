@@ -28,7 +28,7 @@ import {
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
-import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
@@ -90,17 +90,15 @@ export function AIReqFormalTable() {
     );
   });
   return (
+    // 修复：详情分栏打开时按表格面板而非整个工作区计算内容宽度。
     <main
-      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background [scrollbar-gutter:stable]"
+      className="@container/conversation h-full min-h-0 min-w-0 overflow-y-auto bg-background [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-formal-table"
     >
-      {/* 修复：AIReq 固定显示主导航，此处仅保留原版 48px 空白顶栏。 */}
-      <div className="h-12 shrink-0" />
-      {/* 与 base 表格式页面一致：外层纵向滚动，内层只负责限宽居中。 */}
-      <div className={cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0 pt-4 md:pt-6")}>
+      <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0")}>
         <header className="shrink-0 space-y-5">
           <div className="space-y-2">
-            <h1 className="text-ui-page-title font-medium tracking-[0.114px]">正式需求</h1>
+            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>正式需求</h1>
             <p className="text-ui-sm text-foreground-subtle">
               查看 IR 与 SR 的开发进度、问题和人员计划，选择需求阅读同页报告。
             </p>
@@ -237,6 +235,7 @@ export function AIReqFormalTable() {
                   ),
                 ];
                 const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
+                const testIssueCount = srs.reduce((count, sr) => count + (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0), 0);
                 const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
                 const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
                 // 主题行色含透明度：固定列在不透明底色上叠加同一行色，避免滚动透字和双层选中色。
@@ -313,6 +312,7 @@ export function AIReqFormalTable() {
                           status={irProgressStatus(srs)}
                         />
                         <IssueCount issues={issues} />
+                        <TestIssueCount count={testIssueCount} />
                         {missingBranches > 0 && (
                           <p className="mt-1 text-ui-sm text-destructive">
                             开发分支缺失：{missingBranches} 项
@@ -390,6 +390,7 @@ export function AIReqFormalTable() {
                                 status={srProgressStatus(sr)}
                               />
                               <IssueCount issues={sr.progress?.issues ?? []} />
+                              <TestIssueCount count={sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0} />
                               <p className="mt-1 line-clamp-2 text-ui-sm text-foreground-subtle">
                                 最新审查：{sr.progress ? sr.progress.issues[0]?.title ?? "当前报告无阻断问题" : "尚未分析"}
                               </p>
@@ -492,17 +493,22 @@ function IssueCount({ issues }: { issues: { title: string }[] }) {
               .slice(0, 3)
               .map((issue) => issue.title)
               .join("；")}${issues.length > 3 ? "；其余见详情" : ""}`
-          : "暂无问题记录，完整分析判断见详情"
+          : "暂无分析问题记录，完整判断见详情"
       }
     >
       <p
         tabIndex={0}
         className="mt-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        问题：{issues.length} 项
+        分析问题：{issues.length} 项
       </p>
     </ControlHintTooltip>
   );
+}
+
+// 人工验收问题与 AI 分析问题来自不同事实；未复测解决前必须在列表中可见。
+function TestIssueCount({ count }: { count: number }) {
+  return count > 0 ? <p className="mt-1 text-ui-sm text-destructive">未解决测试问题：{count} 项</p> : null;
 }
 
 function PlanRange({ start, end }: { start?: string; end?: string }) {

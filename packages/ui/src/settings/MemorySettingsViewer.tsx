@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ProjectMemoryWorkspaceSummary } from "@zcode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
@@ -26,6 +25,13 @@ import { formatMemoryUpdatedAt } from "@/settings/memoryUpdatedAt.js";
 
 export type MemoryViewerLoadingState = "idle" | "loading" | "ready" | "error";
 
+// 旧 Memory RPC 已裁撤；保留展示控件只依赖自身实际读取的输入，不恢复服务契约。
+interface MemoryViewerWorkspace {
+  id: string;
+  label: string;
+  files: { name: string; path: string; updatedAt: number }[];
+}
+
 export function MemorySettingsViewer({
   catalogError,
   catalogState,
@@ -36,8 +42,8 @@ export function MemorySettingsViewer({
 }: {
   catalogError: string | null;
   catalogState: MemoryViewerLoadingState;
-  selectedWorkspace: ProjectMemoryWorkspaceSummary | undefined;
-  workspaces: ProjectMemoryWorkspaceSummary[];
+  selectedWorkspace: MemoryViewerWorkspace | undefined;
+  workspaces: MemoryViewerWorkspace[];
   onRefresh: () => Promise<void>;
   onScopeKeyChange: (workspaceId: string) => void;
 }) {

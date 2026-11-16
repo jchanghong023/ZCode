@@ -13,13 +13,11 @@ async function main(): Promise<void> {
   const host = process.env["ZCODE_SERVER_HOST"]?.trim() || process.env["HOST"]?.trim() || undefined;
   const staticRoot = process.env["ZCODE_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["ZCODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;
-  const serverId = process.env["ZCODE_SERVER_ID"]?.trim() || undefined;
 
   const { services } = createMockServices({ workspacePath });
-  createMockHttpServer(services, workspacePath, {
+  createMockHttpServer(services, {
     port,
     ...(host ? { host } : {}),
-    ...(serverId ? { serverId } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),
     ...(authToken ? { authToken } : {}),
   });

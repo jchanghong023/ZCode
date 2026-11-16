@@ -41,13 +41,18 @@ export function parseProposalCsv(input: string, existing: readonly string[]): Pr
   }
   if (quoted) fail("引用单元格缺少结束双引号。");
   if (started || closed || value || columns !== 1) endRow();
-  if (rows[0]?.value !== "原始需求") throw new Error("第 1 行：表头必须为“原始需求”，且只能有一列。");
-  const seen = new Set(existing);
-  const result: ProposalCsvPreview = { texts: [], skipped: 0, duplicateRows: [] };
-  for (const row of rows.slice(1)) {
-    if (!row.value.trim()) { result.skipped++; continue; }
-    if (seen.has(row.value)) result.duplicateRows.push(row.line);
-    seen.add(row.value);
+  // 先解析完整 CSV 再跳过空行，保留引用内换行和原始物理行号。
+  const headerIndex = rows.findIndex((row) => row.value.trim());
+  const header = rows[headerIndex];
+  if (header?.value !== "原始需求") throw new Error(`第 ${header?.line ?? 1} 行：表头必须为“原始需求”，且只能有一列。`);
+  // 服务端保存 trim 后正文；只按此口径提示重复，仍保留原文及全部条目。
+  const seen = new Set(existing.map((text) => text.trim()));
+  const result: ProposalCsvPreview = { texts: [], skipped: headerIndex, duplicateRows: [] };
+  for (const row of rows.slice(headerIndex + 1)) {
+    const normalized = row.value.trim();
+    if (!normalized) { result.skipped++; continue; }
+    if (seen.has(normalized)) result.duplicateRows.push(row.line);
+    seen.add(normalized);
     result.texts.push(row.value);
   }
   return result;

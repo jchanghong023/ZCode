@@ -1,5 +1,4 @@
 /* eslint-disable max-lines -- Side pane 当前集中承载 tabs、git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
-import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { ServiceProvider, useComposerClientNamespace } from "@/hooks/useServices.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
@@ -30,7 +29,6 @@ import {
 } from "@/side-pane-full-view/index.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
-import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -55,11 +53,6 @@ import {
   useMarketPluginUi,
   useOpenPluginUi,
 } from "@/plugin-ui/index.js";
-import {
-  ExtensionLauncherSection,
-  ExtensionLogsPane,
-  ExtensionViewPane,
-} from "@/extension-slots/index.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
 import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
@@ -79,7 +72,7 @@ import {
   shouldRenderPreviewPaneHeavyContent,
   type OpenTabLauncherItemId,
 } from "@/app-shell/animatedSidePanePanelModel.js";
-import type { RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
+import type { RecentClosedSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useDeveloperToolsVisibility } from "@/hooks/useDeveloperToolsVisibility.js";
 import { useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
@@ -99,7 +92,6 @@ import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   BugIcon,
-  ChevronRightIcon,
   FileDiffIcon,
   FolderOpenIcon,
   EarthIcon,
@@ -252,8 +244,6 @@ function useWindowResizeSettling(enabled: boolean) {
 export function AnimatedSidePanePanel({
   services,
   isDesktop,
-  isWindowsDesktop,
-  isMacDesktop,
   isVisible,
   sidePaneState,
   recentClosedSidePaneTabs,
@@ -282,8 +272,6 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools,
   onOpenFileManager,
   onNavigateFileManager,
-  onOpenPluginMarket,
-  onCreateTask,
   onOpenReviewTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
@@ -327,8 +315,6 @@ export function AnimatedSidePanePanel({
   /** 面板内容区（tab 栏下方），完整视图的对话宿主按它定位。 */
   fullViewSlotRef?: (element: HTMLDivElement | null) => void;
   isDesktop?: boolean;
-  isWindowsDesktop?: boolean;
-  isMacDesktop?: boolean;
   isVisible: boolean;
   sidePaneState: WorkspaceSidePaneState | null;
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
@@ -360,8 +346,6 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools: () => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
-  onOpenPluginMarket?: () => void;
-  onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenReviewTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
@@ -429,16 +413,6 @@ export function AnimatedSidePanePanel({
     fullView?.onSelectSurface("side-pane");
     onActivateTab(tabId);
   };
-  const [marketReturnTarget, setMarketReturnTarget] = useState<{
-    workspaceKey: string;
-    ownerId: string | null;
-    tabId: string;
-  } | null>(null);
-  useEffect(() => {
-    if (!visibleTabs.some((tab) => tab.type === "plugin-market")) {
-      setMarketReturnTarget(null);
-    }
-  }, [visibleTabs]);
   const hasVisibleTabs = visibleTabs.length > 0;
   const tabsScrollViewportRef = useRef<HTMLDivElement | null>(null);
   const tabsScrollContentRef = useRef<HTMLDivElement | null>(null);
@@ -746,25 +720,6 @@ export function AnimatedSidePanePanel({
                   <h2 className="pl-2 text-ui-lg font-semibold text-foreground">
                     {intl.formatMessage({ id: "settings.plugins.store.ui.title" })}
                   </h2>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 text-foreground-subtle"
-                    data-testid="side-pane-plugin-market"
-                    onClick={() => {
-                      if (!onOpenPluginMarket) return;
-                      setMarketReturnTarget({
-                        workspaceKey,
-                        ownerId: sidePaneOwnerId ?? null,
-                        tabId: visibleActiveTabId,
-                      });
-                      onOpenPluginMarket();
-                    }}
-                  >
-                    {intl.formatMessage({ id: "sidePane.launcher.viewAllPlugins" })}
-                    <ChevronRightIcon className="size-3.5" aria-hidden="true" />
-                  </Button>
                 </div>
                 <div className="mt-2 grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
                   {onOpenPluginUi ? (
@@ -781,11 +736,6 @@ export function AnimatedSidePanePanel({
               </section>
             </>
           ) : null}
-          {/* 扩展分区不依赖会话（docs/plugins/extension-host.md §6）；没有要显示的行时不渲染。 */}
-          <ExtensionLauncherSection
-            workspacePath={pluginUiTarget.workspacePath}
-            workspaceIdentity={pluginUiTarget.workspaceIdentity}
-          />
         </div>
       </div>
     </div>
@@ -1067,16 +1017,6 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onCloseTab={onCloseTab}
                           />
-                        ) : tab.type === "extension-view" ? (
-                          // 实例作用域跟随侧栏当前目标（焦点窗格的会话，草稿为预热会话）。
-                          <ExtensionViewPane
-                            tab={tab}
-                            visible={isVisible && tab.id === contentActiveTabId}
-                            target={pluginUiTarget}
-                            onOpenExternal={onOpenBrowserUrl}
-                          />
-                        ) : tab.type === "extension-logs" ? (
-                          <ExtensionLogsPane visible={isVisible && tab.id === contentActiveTabId} />
                         ) : tab.type === "plan-detail" ? (
                           <PlanDetailSidePane
                             tab={tab}
@@ -1193,38 +1133,6 @@ export function AnimatedSidePanePanel({
                           />
                         ) : tab.type === "new-tab" ? (
                           openTabLauncher
-                        ) : tab.type === "plugin-market" ? (
-                          <ServiceProvider services={services}>
-                            <div className="h-full min-w-0 overflow-y-auto p-4">
-                              <PluginStorePage
-                                onBack={
-                                  marketReturnTarget?.workspaceKey === workspaceKey &&
-                                  marketReturnTarget.ownerId === (sidePaneOwnerId ?? null)
-                                    ? () => {
-                                        const targetId = marketReturnTarget.tabId;
-                                        setMarketReturnTarget(null);
-                                        onCloseTab(tab.id);
-                                        if (visibleTabs.some((item) => item.id === targetId)) {
-                                          onActivateTab(targetId);
-                                        } else {
-                                          onOpenNewTab();
-                                        }
-                                      }
-                                    : undefined
-                                }
-                                embedded
-                                onCreateTask={onCreateTask}
-                                workspacePath={pluginUiTarget.workspacePath}
-                                workspaceIdentity={pluginUiTarget.workspaceIdentity}
-                                remoteSessionId={pluginUiTarget.remoteSessionId ?? undefined}
-                                sessionId={pluginUiTarget.sessionId}
-                                paneId={pluginUiTarget.paneId}
-                                isDesktop={isDesktop}
-                                isWindowsDesktop={isWindowsDesktop}
-                                isMacDesktop={isMacDesktop}
-                              />
-                            </div>
-                          </ServiceProvider>
                         ) : tab.type === "developer-tools" ? (
                           <ServiceProvider services={services}>
                             <DeveloperToolsPane

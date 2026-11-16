@@ -259,6 +259,8 @@ function getUnitHeightCacheKey(unit: ConversationTurnRenderUnit | undefined): st
 
 export interface ConversationTimelineProps {
   rows: readonly ConversationRow[];
+  /** 宿主可为消息与输入框提供同一内容列宽，默认沿用原生布局。 */
+  contentWidthClassName?: string;
   /** 手机远控窄屏允许整条会话 flex 链按抽屉宽度收缩；桌面布局保持原样。 */
   compactForRemoteControl?: boolean;
   /** CLI 权威 queue 中等待 model-step 注入的 guide；只改变 renderer 落位。 */
@@ -362,6 +364,7 @@ export interface ConversationTimelineProps {
  */
 function ConversationTimelineImpl({
   rows,
+  contentWidthClassName: contentWidthOverride,
   compactForRemoteControl = false,
   pendingGuides = EMPTY_PENDING_GUIDES,
   apiRetry = null,
@@ -585,7 +588,7 @@ function ConversationTimelineImpl({
   // 否则面板会覆盖正文，而不是并排布局。
   const summaryPanelInlineOffsetClassName =
     getConversationStatusPanelOffsetClassName(summaryPanelLayout);
-  const contentWidthClassName = getConversationContentWidthClassName({
+  const contentWidthClassName = contentWidthOverride ?? getConversationContentWidthClassName({
     centeredEmptyLayout,
     statusPanelLayout: summaryPanelLayout,
   });

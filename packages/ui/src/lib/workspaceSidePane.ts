@@ -8,6 +8,11 @@ import type {
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import { normalizeCodeViewerSource } from "@/lib/codeViewerSource.js";
 
+export interface RecentClosedSidePaneTab {
+  tab: WorkspaceSidePaneTab;
+  closedAt: number;
+}
+
 export interface GitSidePaneTab {
   id: "git";
   type: "git";

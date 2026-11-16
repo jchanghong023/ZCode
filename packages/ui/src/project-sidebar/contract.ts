@@ -29,13 +29,6 @@ export type {
   ProjectTaskRef,
   VirtualProject,
   SaveProjectInput,
-  IProjectService,
-  IWindowControllerService,
-  IZCodeTaskService,
-  WindowHostControllerMutation,
-  WindowHostControllerFrame,
-  WindowHostTaskUnreadSignal,
-  IManagedWorktreeService,
   ManagedWorktreeGroup,
 } from "@zcode/services";
 export type {

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { Progress } from "@/components/ui/progress.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
 import { progressLabel, type AIReqSelection } from "../contract.js";
 
@@ -32,11 +32,10 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
     ai.select(target);
   };
   return (
-    <main className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable]" data-testid="aireq-project-progress">
-      <div className="h-12 shrink-0" />
-      <div className={`${SETTINGS_FRAME_CONTENT_CLASSNAME} min-w-0 space-y-6 pt-4 md:pt-6`}>
+    <main className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]" data-testid="aireq-project-progress">
+      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} min-w-0 space-y-6`}>
         <header className="space-y-2">
-          <h1 className="text-ui-page-title font-medium tracking-[0.114px]">{zh ? "项目进度" : "Project progress"}</h1>
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目进度" : "Project progress"}</h1>
           <p className="text-ui-sm text-foreground-subtle">
             {zh ? "各项目总览始终包含全部 Release；当前项目详情与正式需求、提案及进度分析共用范围。" : "Project totals always include every Release. Details share the current project and Release with formal requirements, proposals and progress analysis."}
           </p>

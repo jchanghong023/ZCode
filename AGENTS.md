@@ -34,7 +34,7 @@
 
 | 用途               | 命令                                                                |
 | ------------------ | ------------------------------------------------------------------- |
-| 开发（server+web） | `bun run dev`（mock server :3030 + vite :5173）                     |
+| 开发（server+web） | `bun run dev`（mock server :3031 + vite :5174）                     |
 | 仅模拟后端         | `bun run dev:server`                                                |
 | 仅前端             | `bun run dev:web`                                                   |
 | 构建               | `bun run build`（server 产物可托管 web dist 单进程部署）            |

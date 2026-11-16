@@ -1,12 +1,4 @@
-import { ServiceChannels } from "@zcode/shared";
-import { createServiceDescriptor } from "../descriptors.js";
-
-export interface ClientSceneResponseBody<T> {
-  code: number;
-  msg: string;
-  data: T;
-}
-
+/** Presentation data retained for generic template controls; no scene RPC service remains. */
 export interface ClientSceneConfig {
   namespace: string;
   scene: string;
@@ -45,7 +37,6 @@ export interface ClientSceneItem {
   on_finish?: string | null;
   /** Lucide canonical 图标名（kebab-case）。 */
   img?: string | null;
-  /** 兼容保留字段；当前首页与 Automations 图标不消费。 */
   imgs?: {
     cn?: string;
     en?: string;
@@ -53,13 +44,3 @@ export interface ClientSceneItem {
   share_urls?: Record<string, string>;
   defaults?: Record<string, string[]>;
 }
-
-export type ClientScenesResponse = ClientSceneResponseBody<ClientSceneConfig[]>;
-
-export interface IClientScenesService {
-  list(): Promise<ClientScenesResponse>;
-}
-
-export const IClientScenesService = createServiceDescriptor<IClientScenesService>(
-  ServiceChannels.ClientScenes,
-);

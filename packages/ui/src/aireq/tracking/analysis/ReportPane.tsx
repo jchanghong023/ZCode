@@ -47,7 +47,7 @@ export function ReportPane({
         </p>
         <section aria-label="开发分支" className="space-y-1">
           <h4 className="font-medium">开发分支</h4>
-          {run.branch?.trim() && <p className="break-all font-mono text-ui-sm">{run.branch}</p>}
+          {/* 复制控件已展示分支名，避免与静态文字重复。 */}
           <BranchCopy branch={run.branch} onMessage={onMessage} />
         </section>
         {run.status !== "failed" && <p className="break-words leading-relaxed">{run.message}</p>}

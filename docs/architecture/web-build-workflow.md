@@ -147,4 +147,4 @@ sequenceDiagram
 3. `bun run clean` 后 `node_modules` 仍在、`dist` 与 `*.tsbuildinfo` 消失，随后 `bun run build` 可重建。
 4. `bun run clean:deps` 后 `node_modules` 消失、源码与仓库外文件不受影响。
 5. `scripts/clean.mjs` 对未知参数、越权目标路径失败，而非静默跳过。
-6. base 使用 `5173` / `3030` 运行时，main 的 `bun run dev` 仍在 `5174` / `3031` 启动；访问 main 的 `/api/server-info` 与 `/ws` 均到达 main 后端，Vite 开发客户端继续可用。VS Code 任务、就绪匹配和调试 URL 使用同一组 main 端口。
+6. base 使用 `5173` / `3030` 运行时，main 的 `bun run dev` 仍在 `5174` / `3031` 启动；访问 main 的 `/api/v1/client/configs` 与 `/ws` 均到达 main 后端，Vite 开发客户端继续可用。VS Code 任务、就绪匹配和调试 URL 使用同一组 main 端口。

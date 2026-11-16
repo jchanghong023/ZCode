@@ -1,5 +1,5 @@
 import type { AIReqApplicationProps, AIReqMainView, AIReqProjectProgress } from "./contract.js";
-/** Host supplies its connected accessor and operator; Skill design opens within Settings. */
+/** Host supplies its connected accessor and operator; Skill design opens from the main navigation. */
 export function exampleAIReqApplication(props: AIReqApplicationProps): AIReqApplicationProps {
   return { services: props.services, platform: props.platform, operator: props.operator };
 }
@@ -11,6 +11,7 @@ export const exampleAIReqNavigation = [
   "formal",
   "proposals",
   "requirementAnalysis",
+  "skillDesign",
 ] as const satisfies readonly AIReqMainView[];
 
 export const exampleAIReqInitialView: AIReqMainView = "todos";

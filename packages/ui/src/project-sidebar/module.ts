@@ -11,16 +11,9 @@ export const projectSidebarModule = {
     "ui",
     "conversation-workspace-target",
     "managed-worktree-ui",
-    // 分组会话行复用同一张悬停卡片（docs/ui/task-row-hover-details.md）。
     "task-row-hover",
-    // 主导航挂 nav.primary 插槽组件（docs/plugins/extension-host.md §16.4）。
     "extension-slots",
   ],
   provides: ["project-sidebar"],
-  publicEntrypoints: [
-    "index.tsx",
-    "contract.ts",
-    "useSavedWorkflowProjectOptions.ts",
-    "WorkspaceDragOverlay.tsx",
-  ],
+  publicEntrypoints: ["index.tsx", "contract.ts", "WorkspaceDragOverlay.tsx"],
 } as const;

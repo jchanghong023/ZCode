@@ -4,13 +4,20 @@ import { Input } from "@/components/ui/input.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
-import type { AIReqRequirementGroup } from "../contract.js";
+import type { AIReqRequirementGroup, AIReqReviewScenario } from "../contract.js";
 
 export function AIReqProposalSimulation({ group }: { group: AIReqRequirementGroup }) {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const [kind, setKind] = useState<"original" | "full">("original");
-  const [scenario, setScenario] = useState<"normal" | "blocked" | "failed" | "hold">("normal");
+  const savedScenario = group.reviewScenarios?.[kind] ?? "normal";
+  const [scenarioDraft, setScenarioDraft] = useState<{
+    projectId: string; irId: string; kind: typeof kind; saved: AIReqReviewScenario; value: AIReqReviewScenario;
+  }>();
+  // 仅保留当前对象的未提交输入；服务端消费场景或切换 IR/种类时立即显示对应已保存值。
+  const scenario = scenarioDraft?.projectId === group.projectId && scenarioDraft.irId === group.id &&
+    scenarioDraft.kind === kind && scenarioDraft.saved === savedScenario ? scenarioDraft.value : savedScenario;
+  useEffect(() => setScenarioDraft(undefined), [group.projectId, group.id, kind, savedScenario]);
   const [target, setTarget] = useState<"requirements" | "solution" | "test-plan">("requirements");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,7 +47,8 @@ export function AIReqProposalSimulation({ group }: { group: AIReqRequirementGrou
   return <details className="space-y-2 rounded-lg border border-border p-3"><summary className="cursor-pointer">分工与模拟控制（共享服务内存，无真实模型／Git）</summary><div className="mt-3 space-y-3">
     <fieldset className="space-y-2">
       <legend>IR 联系人（空值为待认领，不限制代办）</legend>
-      {([["business", "业务"], ["development", "开发"], ["testing", "测试"]] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2"><span className="w-16">{label}联系人</span><Input aria-label={`${label}联系人`} value={contacts[key] ?? ""} placeholder="未分配" onChange={(event) => setContacts({ ...contacts, [key]: event.target.value })} /></label>)}
+      {/* 标签在弹性布局中被压缩会拆开末字，保持完整文字并让输入框使用剩余宽度。 */}
+      {([["business", "业务"], ["development", "开发"], ["testing", "测试"]] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2"><span className="shrink-0 whitespace-nowrap">{label}联系人</span><Input aria-label={`${label}联系人`} value={contacts[key] ?? ""} placeholder="未分配" onChange={(event) => setContacts({ ...contacts, [key]: event.target.value })} /></label>)}
       <Button variant="outline" disabled={busy || Object.values(contacts).some((value) => Boolean(value) && !/^[a-z][0-9]{8}$/.test(value!))} onClick={() => void perform(async () => {
         const result = await ai.command({ type: "assignContacts", projectId: group.projectId, irId: group.id, contacts: {
           business: contacts.business || undefined, development: contacts.development || undefined,
@@ -53,8 +61,11 @@ export function AIReqProposalSimulation({ group }: { group: AIReqRequirementGrou
     {source.prototype && <>
       <div className="flex flex-wrap gap-2">
         <select aria-label="模拟评审种类" className="rounded border border-border bg-background p-2" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}><option value="original">原始需求单评审</option><option value="full">完整材料三审终审</option></select>
-        <select aria-label="模拟下一次评审结果" className="rounded border border-border bg-background p-2" value={scenario} onChange={(event) => setScenario(event.target.value as typeof scenario)}><option value="normal">正常</option><option value="blocked">阻断</option><option value="failed">失败</option><option value="hold">暂缓结果（保留旧版本）</option></select>
-        <Button variant="outline" disabled={busy} onClick={() => void perform(() => source.prototype!.setProposalReviewScenario(group.projectId, group.id, kind, scenario))}>设置下一次模拟结果</Button>
+        <select aria-label="模拟下一次评审结果" className="rounded border border-border bg-background p-2" value={scenario} onChange={(event) => setScenarioDraft({ projectId: group.projectId, irId: group.id, kind, saved: savedScenario, value: event.target.value as AIReqReviewScenario })}><option value="normal">正常</option><option value="blocked">阻断</option><option value="failed">失败</option><option value="hold">暂缓结果（保留旧版本）</option></select>
+        <Button variant="outline" disabled={busy} onClick={() => void perform(async () => {
+          await source.prototype!.setProposalReviewScenario(group.projectId, group.id, kind, scenario);
+          setScenarioDraft(undefined);
+        })}>设置下一次模拟结果</Button>
         <Button variant="outline" disabled={busy} onClick={() => void perform(() => source.prototype!.releaseProposalReviewResults(group.projectId, group.id))}>释放暂缓旧结果</Button>
       </div>
       <p>先选择模拟输入，再通过正常评审按钮运行；旧结果释放仍经版本校验。</p>

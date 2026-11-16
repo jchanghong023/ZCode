@@ -39,8 +39,6 @@ import type {
   GitSwitchBranchRequest,
   GitWorkspaceRepositoryInfo,
   GitCreateBranchRequest,
-  IntranetProbeRequest,
-  IntranetProbeResult,
   SystemInfo,
   FileEntry,
   FileStat,
@@ -179,26 +177,6 @@ export class MockFileService implements IFileService {
     }));
   }
 
-  async resolvePath(params: { path: string }): Promise<string> {
-    return params.path || this.runtime.workspacePath;
-  }
-
-  async ensureConversationWorkspace() {
-    return {
-      path: this.runtime.workspacePath,
-      created: false,
-      workspacePurpose: "conversation" as const,
-    };
-  }
-
-  async createDefaultWorkspace() {
-    return { path: this.runtime.workspacePath };
-  }
-
-  async createScratchWorkspace(params: { name: string }) {
-    return { path: joinPath(this.runtime.workspacePath, [".zcode", "scratch", params.name]) };
-  }
-
   async readTextFile(params: {
     path: string;
     offset?: number;
@@ -252,22 +230,6 @@ export class MockFileService implements IFileService {
   }): Promise<string> {
     return "";
   }
-
-  async readWorkspaceFileSearchIgnore(_params: { rootPath: string }) {
-    return { content: "# 模拟工作区：无忽略规则\n", source: "template" as const };
-  }
-
-  async applyWorkspaceFileSearchIgnoreTransform(_params: {
-    rootPath: string;
-    transform: "sync-gitignore" | "reset-defaults";
-  }) {
-    return { content: "# 模拟工作区：无忽略规则\n" };
-  }
-
-  async writeWorkspaceFileSearchIgnore(_params: {
-    rootPath: string;
-    content: string;
-  }): Promise<void> {}
 }
 
 export class MockFileWatcherService implements IFileWatcherService {
@@ -519,23 +481,9 @@ export class MockGitService implements IGitService {
 }
 
 export class MockSystemService implements ISystemService {
-  constructor(private readonly runtime: MockRuntime) {}
-
   async info(): Promise<SystemInfo> {
     // 本地项目选目录需要真实 home；其余工作区状态仍是 MockRuntime 的内存投影。
     return { homedir: homedir(), platform: process.platform };
-  }
-
-  async probeIntranet(_request: IntranetProbeRequest): Promise<IntranetProbeResult> {
-    return {
-      isIntranet: false,
-      reachedTargetCount: 0,
-      requiredSuccessCount: 1,
-      totalTargets: 1,
-      checkedAt: Date.now(),
-      strategy: "tcp-connect",
-      results: [],
-    };
   }
 }
 

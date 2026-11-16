@@ -4,7 +4,7 @@
 
 - Web entry 是当前连接的唯一 owner。首次渲染前初始化 stream client ID，再读取 `getStreamClientId()` 的规范值并固定；每次 `/ws` 连接传 `employeeId`、同一 `clientId`，以及当前页面 URL 的可选 `demo`。
 - AIReqApplication 对同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 stream singleton，demo 来自当前页面 URL。原生与业务调用必须具有完全相同的 employee/client/demo scope。私有 Skill 不能退化为仅按工号授权。
-- 当前组 1 不设 owner／负责人权限：所有合法工号都能修改共享配置和执行满足现有条件的业务动作。backend.owner 仅为模拟来源；身份与 clientId 仍用于操作留痕、幂等及私有 Skill 会话绑定，换工号不得读取另一身份的设计会话。移入设置不改变 employee/client/demo scope、连接或订阅所有者。
+- 不设 owner／负责人权限：所有合法工号都能修改共享配置和执行满足业务条件的动作，联系人／负责人只用于分工与留痕。backend.owner 仅为模拟来源；合法身份／clientId、参数、对象与原生会话归属、版本、幂等及阶段校验仍须保留。私有 Skill 会话与未发送草稿不因无角色权限而开放跨 employee/client 读取。Skill 设计从主导航进入，不在设置导航或搜索中；与设置往返仍保留原生会话、草稿及唯一未保存离开门禁，不改变 employee/client/demo scope、连接或订阅所有者。
 - accessor 换代仅更换 attachment 和订阅；不得以连接代次作为 React key。退避、旧 attempt 失效和明确退出行为保持不变，正文、附件、当前选择及草稿 owner 不重挂。连接成功状态只需布尔值，不维护无用途的累计代次。
 - 局域网 HTTP（非 loopback）是受支持的访问方式；Firefox 中 `isSecureContext=false` 时
   `crypto.randomUUID` 和 `crypto.subtle` 不可用。浏览器会话、草稿、操作、遥测和预览的 UUID
@@ -15,7 +15,7 @@
   不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
   无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
 
-组 1 实测（2026-11-15）：两个合法非 owner 工号均可保存共享设置，配置成功日志与命令回执使用实际 employee/client。Skill 设置切模型分区及返回工作区后原生未发送正文和一个 ready 图片附件保留；公开服务跨 client 读取同一私有 Skill session 仍被拒绝。本组使用 Chromium／localhost 开发环境，不新增 Firefox／局域网或完整重连矩阵的通过声明；详见 tools-settings.md 的组 1 实际验收。
+组 1 历史实测（2026-11-15，当时 Skill 位于设置，现行入口已改为主页面）：两个合法非 owner 工号均可保存共享设置，配置成功日志与命令回执使用实际 employee/client。Skill 设置切模型分区及返回工作区后原生未发送正文和一个 ready 图片附件保留；公开服务跨 client 读取同一私有 Skill session 仍被拒绝。本组使用 Chromium／localhost 开发环境，不新增 Firefox／局域网或完整重连矩阵的通过声明；详见 tools-settings.md 的组 1 实际验收。该记录不改写为当前主页面入口已在当时通过。
 
 ## 时间与失效边界
 
@@ -30,11 +30,11 @@
 - 比较同一页面的业务 identity 与 native `/ws` query，包含规范化 clientId 和 `?demo=analysis-scale`，私有 Skill 会话仅对应精确 scope 可读写。
 - 在首个 bootstrap pending 及 resolve 周期触发变更，必须补读，不得遗漏；初始化 reject 后订阅已释放。
 - 并发配置失效和本地 prompt 编辑不丢新输入；切换项目与重连不恢复旧 selection，不卸载正文和附件。验证由集成 owner 统一执行。
-- Firefox 使用真实局域网 HTTP 打开登录、8 个工作区、5 个设置分区和可达子页；新建提案预热、
-  既有会话、材料与图像预览必须在原生 `randomUUID` 缺失时正常工作。
+- Firefox 使用真实局域网 HTTP 打开登录、当前六个主页面、保留的设置分区和可达子页；先保存提案再手动进入讨论、
+  既有会话、材料与图像预览必须在原生 `randomUUID` 缺失时正常工作。这是当前回归要求，不沿用历史八工作页／五设置分区或首发预热创建规则。
   记录控制台 warning/error、未处理异常、失败请求及实际页面清单；开发服务器与正式构建证据分开。
 
-主集成已核对bootstrap、actor与client/demo精确scope样例，并实测首发使用同owner/workspace的原生预热session：完整PNG及两次独立原生首发均自动打开canonical accepted会话。visitor会话读取失败后点击“重新连接”，通过重连前作用域化回调恢复同一会话编辑器，console零错误；刷新/关闭后服务任务状态延续及mock重启恢复初始样例也有观察。模型设置往返时工作页保持隐藏且inert，返回完整canonical未发送正文、PNG及临时GPT/medium均保留且不自动发送；Skill的完整PNG、四字段、手工追加与预览Tabs/折叠往返亦已实测。上述是具体场景证据，不等于每个bootstrap竞态、迟到响应或真实WS关闭场景均独立通过。
+第 2 组之前主集成的历史观察（旧首发创建已被先建提案、手动进入讨论取代）：已核对bootstrap、actor与client/demo精确scope样例，并实测首发使用同owner/workspace的原生预热session：完整PNG及两次独立原生首发均自动打开canonical accepted会话。visitor会话读取失败后点击“重新连接”，通过重连前作用域化回调恢复同一会话编辑器，console零错误；刷新/关闭后服务任务状态延续及mock重启恢复初始样例也有观察。模型设置往返时工作页保持隐藏且inert，返回完整canonical未发送正文、PNG及临时GPT/medium均保留且不自动发送；Skill的完整PNG、四字段、手工追加与预览Tabs/折叠往返亦已实测。上述只保留当时具体场景证据，不等于每个bootstrap竞态、迟到响应或真实WS关闭场景均独立通过，不赋予owner业务权限。
 
 临时模型/模式属于每次Submission，不是Session持久默认；发送后工具栏恢复Session默认不构成执行丢失证据，不引入promotion快照或永久override。mock沿userInput/queue/runTurn传递受支持Submission字段，并在await前捕获回复模型；该实现的运行核验及最终真实WS重连、工程门禁结果统一引用根 `todo.md` 主集成最终记录，不在本文维护中间待验清单。
 
@@ -42,9 +42,11 @@
 
 登录成功后的 entry 容器必须继续作为纵向 flex 容器传递确定的视口高度，工作页只在内部表格／正文区域滚动。真实 1440×1000 浏览器曾观察到中间 block 容器使工作页膨胀至 1360px、侧栏项目和退出入口落到视口外；验收要求工作页高度不超过 1000px，页脚始终可达，不以隐藏正文或禁用滚动掩盖问题。
 
-主集成在 Chrome（精确终验版本见根 `todo.md`） 的 1440×1000 与 1122×763 视口完成全部8工作页及5设置页渲染与截图；entry flex 和分支状态修正后，1440×1000 的 viewport／document／main 高度均为 1000px，页脚可达，正常页面console零warning/error。深色与visitor独立浅色已测，不以Chrome代称Firefox；最终系统主题与全页证据、精确命令和结果只以根 `todo.md` 主集成最终记录为准。本文同步不执行浏览器或工程检查。
+第 2 组之前主集成的历史观察：在 Chrome（精确终验版本见根 `todo.md`）的 1440×1000 与 1122×763 视口完成当时全部8工作页及5设置页渲染与截图；entry flex 和分支状态修正后，1440×1000 的 viewport／document／main 高度均为 1000px，页脚可达，正常页面console零warning/error。深色与visitor独立浅色已测，不以Chrome代称Firefox；当时最终系统主题与全页证据、精确命令和结果只以根 `todo.md` 主集成最终记录为准，不作为当前六导航或已裁撤页面的验收声明。文档同步不将这些历史浏览器或工程检查记录冒充本次结果，必要检查仍遵守当前请求与仓库规则。
 
-## 2026-11-15 Firefox 局域网复验
+## 2026-11-15 Firefox 局域网复验（历史版本）
+
+以下是当时八工作页／五设置分区、旧首发流程及 Issue／自动化仍在的历史记录，不是当前页面清单或恢复已裁撤能力的要求，也不证明当前六导航在当时已验收。当前规则以根 `.todo.md` 为准，本次同步不新增浏览器通过记录。
 
 - 环境：Windows、真实 Firefox 128.14 ESR、`http://192.168.31.171:5173`，正式构建由
   Bun 模拟后端单进程托管；未使用 localhost／127.0.0.1 或安全上下文特权。

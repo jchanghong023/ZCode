@@ -1,5 +1,5 @@
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { buildMarkdownTableText } from "@/components/ai-elements/markdown-table.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -112,6 +112,14 @@ export function AIReqEditPlanning({
   const [input, setInput] = useState<AIReqSrPlanningInput>({});
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const developerInput = useRef<HTMLInputElement>(null);
+  const updateDeveloper = (value: string) => {
+    // 手工输入和快捷认领共用校验清理，避免上次非法工号继续阻止提交。
+    developerInput.current?.setCustomValidity("");
+    setError("");
+    // 空字符串是服务端的显式清空指令；undefined 只表示不修改。
+    setInput((current) => ({ ...current, developerEmployeeId: value.trim() }));
+  };
   const proposal = aireq.view?.drafts.some(
     (item) => item.projectId === group.projectId && item.id === group.id,
   );
@@ -177,6 +185,7 @@ export function AIReqEditPlanning({
               <Label htmlFor={`${id}-developer`}>开发负责人工号</Label>
               <Input
                 id={`${id}-developer`}
+                ref={developerInput}
                 value={input.developerEmployeeId ?? ""}
                 pattern="[a-z][0-9]{8}"
                 title="一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。"
@@ -189,26 +198,19 @@ export function AIReqEditPlanning({
                     "工号格式错误：须为一个小写英文字母后接 8 位数字，例如 j00808874；留空表示未分配。",
                   );
                 }}
-                onChange={(event) => {
-                  event.target.setCustomValidity("");
-                  setError("");
-                  setInput((current) => ({
-                    ...current,
-                    developerEmployeeId: event.target.value.trim() || undefined,
-                  }));
-                }}
+                onChange={(event) => updateDeveloper(event.target.value)}
                 placeholder="留空表示未分配"
               />
               <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
                 一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
               </p>
-              <Button type="button" size="sm" variant="outline" onClick={() => setInput((current) => ({ ...current, developerEmployeeId: getEmployeeId() }))}>由我负责开发</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => updateDeveloper(getEmployeeId())}>由我负责开发</Button>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${id}-testing`}>测试负责人工号</Label>
               <Input id={`${id}-testing`} value={input.testingEmployeeId ?? ""} pattern="[a-z][0-9]{8}"
                 title="一个小写字母后接 8 位数字；可留空待认领。" placeholder="留空表示待认领"
-                onChange={(event) => setInput((current) => ({ ...current, testingEmployeeId: event.target.value.trim() || undefined }))} />
+                onChange={(event) => setInput((current) => ({ ...current, testingEmployeeId: event.target.value.trim() }))} />
               <Button type="button" size="sm" variant="outline" onClick={() => setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))}>由我负责测试</Button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -221,7 +223,7 @@ export function AIReqEditPlanning({
                   onChange={(event) =>
                     setInput((current) => ({
                       ...current,
-                      plannedStart: event.target.value || undefined,
+                      plannedStart: event.target.value,
                     }))
                   }
                 />
@@ -235,7 +237,7 @@ export function AIReqEditPlanning({
                   onChange={(event) =>
                     setInput((current) => ({
                       ...current,
-                      plannedEnd: event.target.value || undefined,
+                      plannedEnd: event.target.value,
                     }))
                   }
                 />

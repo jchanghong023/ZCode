@@ -207,7 +207,6 @@ import {
   V4ComposerModelControls,
   type ModelSelectionSource,
 } from "@/v4/composer/V4ComposerToolbar.js";
-import { ComposerStatusSlot } from "@/extension-slots/components/ComposerStatusSlot.js";
 import {
   resolveV4ComposerConfigPickerState,
   type V4ComposerConfigPicker,
@@ -2644,13 +2643,6 @@ function ConversationComposerImpl({
         ) : null}
         {remoteAvailable ? (
           <span className="flex min-w-0 shrink items-center gap-1 overflow-hidden empty:hidden">
-            {/* 扩展插槽 composer.status：紧挨用量圆环左边（docs/plugins/extension-host.md §6）。
-                作用域用有效会话：草稿取预热会话，与插件 UI 同一来源。 */}
-            <ComposerStatusSlot
-              workspacePath={workspacePath}
-              workspaceIdentity={workspaceIdentity}
-              sessionId={pluginUiSessionId ?? null}
-            />
             <V4ComposerModelControls
               workspacePath={workspacePath}
               workspaceIdentity={workspaceIdentity}
@@ -2757,7 +2749,6 @@ function ConversationComposerImpl({
       actionTooltipOpen,
       remoteAvailable,
       sessionId,
-      pluginUiSessionId,
       showStopControl,
       stopTooltipTitle,
       trailingToolsNode,

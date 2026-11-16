@@ -51,7 +51,8 @@ function recordTime(value: string) {
 export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }) {
   const aireq = useAIReq()!;
   const [panel, setPanel] = useState<"info" | "history">();
-  const operations = aireq.view?.operations.filter((item) => item.irId === group.id) ?? [];
+  // 原子导入共用一条批次收据，每个新 IR 都需要看到创建来源，而不是归到导入前的选择。
+  const operations = aireq.view?.operations.filter((item) => item.irId === group.id || item.irIds?.includes(group.id)) ?? [];
   if (
     aireq.selection.projectId !== group.projectId ||
     aireq.selection.irId !== group.id ||

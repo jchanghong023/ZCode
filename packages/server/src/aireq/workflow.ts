@@ -353,9 +353,10 @@ export function getPrototypeWorkflow(
     ),
     operations: state.operations.filter(
       (item) =>
-        !item.irId ||
+        (!item.irId && !item.irIds?.length) ||
         [...state.groups, ...state.drafts].some(
-          (group) => group.projectId === projectId && group.id === item.irId,
+          (group) => group.projectId === projectId &&
+            (group.id === item.irId || item.irIds?.includes(group.id)),
         ),
     ),
     changes: state.changes?.filter((item) => item.projectId === projectId),
@@ -376,6 +377,8 @@ export function resolvePrototypeSession(
   const proposal = view.drafts.find(
     (item) => item.projectId === projectId && item.id === selection.irId,
   );
+  // 交付阶段不绑定方案会话；历史阶段仍按用户的显式选择读取。
+  if (proposal && proposalViewedIndex(proposal, selection) === 3) return;
   const selectedReview = proposal && (proposalViewedIndex(proposal, selection) === 1 ?
     proposal.originalReview : selection.reviewAgent ? proposal.review : undefined);
   if (selectedReview) {
@@ -560,8 +563,9 @@ export function applyPrototypeAction(
   const previous = state;
   state = structuredClone(state);
   const projectId = action.projectId ?? selection.projectId ?? "demo-aurora";
-  let irId = action.irId ?? selection.irId;
-  const srId = proposalAction ? undefined : (action.srId ?? selection.srId);
+  // 原子导入属于本批新 IR，不得把此前查看的 IR/SR 记录为创建来源。
+  let irId = action.type === "importProposals" ? undefined : (action.irId ?? selection.irId);
+  const srId = proposalAction || action.type === "importProposals" ? undefined : (action.srId ?? selection.srId);
   const selectedProjectId = projectId;
   const operation = receipt(action.type, ++state.revision, irId, srId, new Date().toISOString());
   const identity = currentIdentity();

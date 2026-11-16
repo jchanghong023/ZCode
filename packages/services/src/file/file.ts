@@ -24,14 +24,6 @@ export interface IFileService {
   readdir(params: { path: string; includeHidden?: boolean }): Promise<FileEntry[]>;
   stat(params: { path: string }): Promise<FileStat>;
   checkFilesExist(params: { paths: string[] }): Promise<Array<{ path: string; exists: boolean }>>;
-  resolvePath(params: { path: string }): Promise<string>;
-  ensureConversationWorkspace(): Promise<{
-    path: string;
-    created: boolean;
-    workspacePurpose: "conversation";
-  }>;
-  createDefaultWorkspace(): Promise<{ path: string }>;
-  createScratchWorkspace(params: { name: string }): Promise<{ path: string }>;
   readTextFile(params: { path: string; offset?: number; length?: number }): Promise<FileTextSlice>;
   readMediaPreview(params: { path: string; maxBytes?: number }): Promise<FileMediaPreview>;
   /**
@@ -60,23 +52,6 @@ export interface IFileService {
     offset: number;
     length: number;
   }): Promise<string>;
-  /**
-   * workspace 搜索忽略规则（.zcodeignore）的读写，供设置页编辑使用。
-   * source: "file" 已存在文件内容；"template" 尚未创建时的初始内容预览（保存时才落盘）。
-   */
-  readWorkspaceFileSearchIgnore(params: {
-    rootPath: string;
-  }): Promise<{ content: string; source: "file" | "template" }>;
-  /**
-   * 设置页分区操作（返回新内容填充编辑框，保存才落盘）：
-   * "sync-gitignore" 只重写 gitignore 同步区（保留默认段与自定义区）；
-   * "reset-defaults" 只重置默认排除段（保留 gitignore 区与自定义区）。
-   */
-  applyWorkspaceFileSearchIgnoreTransform(params: {
-    rootPath: string;
-    transform: "sync-gitignore" | "reset-defaults";
-  }): Promise<{ content: string }>;
-  writeWorkspaceFileSearchIgnore(params: { rootPath: string; content: string }): Promise<void>;
 }
 
 export const IFileService = createServiceDescriptor<IFileService>(ServiceChannels.File);

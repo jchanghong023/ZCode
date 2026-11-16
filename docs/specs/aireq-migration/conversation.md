@@ -12,7 +12,7 @@ AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现
 
 已存在提案的精确会话引用由 canonical workflow 裁决共享读取，读取仍验证 session/workspace 归属；私有预热、未发送草稿和 Skill 会话不因此共享。附件字节唯一归原生 owner，跨 actor 读取还须 canonical userInput 已采用该 ref 及目标行／附件索引精确匹配；上传、abort 和新 Submission 仍核实当前 actor。不能因进入讨论而转移私有草稿或放宽附件归属。
 
-验收场景（待主集成执行）：新增后无 AI、无 SR，进入讨论后才有可操作澄清；历史／旧版本及 PR 冻结版只读，材料选择不发送消息；原生输入／PNG／临时模型失败保留，刷新重连不重放；双工号读取已发布讨论但不能读取私有 Skill／草稿，错误 workspace/ref/行索引拒绝；旧版本 AI 完成结果释放后不能覆盖当前材料或批准。
+第 2 组原实施验收场景：新增后无 AI、无 SR，进入讨论后才有可操作澄清；历史／旧版本及 PR 冻结版只读，材料选择不发送消息；原生输入／PNG／临时模型失败保留，刷新重连不重放；双工号读取已发布讨论但不能读取私有 Skill／草稿，错误 workspace/ref/行索引拒绝；旧版本 AI 完成结果释放后不能覆盖当前材料或批准。实际执行范围见下方本组观察及 proposals 的第 2 组收口记录，不是待后续集成补验的清单，也不表示本次文档同步重跑验收。
 
 临时模型与模式属于本次 Submission，不是会话默认值。SessionPane 只为 followupMode 同步 Session 配置，显式发送将 Composer 冻结的 modelSelection／mode／planEnabled 随 sendText 原子提交；不通过 switchModelConfig 或业务提案提升改写共享 Session。mock 接纳后将该配置保留在原生 userInput 行，队列提升沿用队列项配置，模拟回复使用对应输入的模型；业务 session.modelConfig 仍保留角色创建快照。首次接纳后工具栏恢复会话默认值并不能证明本轮选模丢失，必须通过原生 conversationRowsRangeV4 读取对应 sourceCommandId 的 userInput.modelSelection（包括 reasoningLevel）和回复模型核对。拒绝重试仍保留原文、PNG、session 与命令身份，不另发消息；平台默认、新草稿和历史会话不得被本轮临时选择改写。
 
@@ -54,7 +54,7 @@ sequenceDiagram
 
 下方首发创建／自动导航观察记录的是旧流程，不再授权通过聊天创建可见提案；其消息、附件、临时模型和隔离事实仅作为原生能力历史证据，不代表本组验收。原生输入扩展的通用约束继续适用。
 
-## 源端可达性裁决
+### 历史源端可达性裁决
 
 源 `AIReqNativeSurface.tsx:24–38` 明确两种数据源都没有 native-surface 传输，hook 永远不提供 target/snapshot，predictionAction 直接拒绝。因此源 AIReqNativePredictions 虽被 Composer 装配，实际上永远不显示，不是当前可达产品功能；tools-settings 的输入建议验收只适用于未来存在真实能力的情况。本次不制造预测样例、不添加第二传输，也不迁移 ANSI widget/header/footer 的不可达占位层。
 

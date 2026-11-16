@@ -100,9 +100,6 @@ import {
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { requestTaskNavigation } from "@/store/zcodeSessionStoreNavigation.js";
-import { useOptionalProjectDirectory } from "@/project-sidebar/ProjectDirectoryProvider.js";
-import type { ProjectTask } from "@/project-sidebar/contract.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
@@ -182,50 +179,12 @@ const ArtifactRowView = memo(function ArtifactRowView({ row }: { row: ArtifactRo
 
 type SessionSource = Extract<ConversationInputSource, { kind: "session" }>;
 
-// 目录树的 tasks 是数组，而来源只有 sessionId。每个提示每次渲染都遍历一遍会随任务规模线性变差，
-// 所以按数组引用缓存一份反查表：stabilizeProjectTree 只在内容真变化时换引用，缓存因此自动失效。
-const taskByIdCache = new WeakMap<object, Map<string, ProjectTask>>();
-function findTaskById(tasks: readonly ProjectTask[], taskId: string): ProjectTask | undefined {
-  let index = taskByIdCache.get(tasks);
-  if (!index) {
-    index = new Map<string, ProjectTask>();
-    for (const task of tasks) if (!index.has(task.taskId)) index.set(task.taskId, task);
-    taskByIdCache.set(tasks, index);
-  }
-  return index.get(taskId);
-}
-
-/**
- * 跨会话发送的来源提示（规格 0.13）。
- *
- * 标题按「当前事实 → 旧快照 → 身份」回落：持久化载荷只带 sessionId，标题在这里按 id 解析。
- * 旧数据里的 `source.title` 是发送那一刻的快照，多半停在 titleSource=default 档（= 首条提示词
- * 原文），所以只作为解析不到时的兜底，不优先于当前标题。
- *
- * 解析用项目目录树——侧栏与 App 控制工具的 OpenSession 用的是同一份跨项目权威列表，
- * 不另起一份任务索引。全量目录 Context 会随任务活动变化，但只有带会话来源的行才挂这个组件，
- * 重渲染面限于这几条提示本身。
- *
- * 解析不到来源会话（已删除、嵌入 pane 没有目录 owner）时保持可读但不可点击：
- * 跳转需要的 workspacePath 与标题同源，猜路径会把「打不开」变成「打开了别的会话」。
- */
+/** 嵌入式会话按来源载荷展示标题；不从已退出的旧侧栏猜测目标路径。 */
 const SessionSourceHint = memo(function SessionSourceHint({ source }: { source: SessionSource }) {
   const { intl } = useZCodeIntl();
-  const directory = useOptionalProjectDirectory();
-  const task = directory ? findTaskById(directory.tree.tasks, source.sessionId) : undefined;
-  const workspacePath = task?.workspacePath;
-  const workspaceIdentity = task?.workspaceIdentity;
-  const handleOpen = useCallback(() => {
-    if (!workspacePath) return;
-    requestTaskNavigation({
-      taskId: source.sessionId,
-      workspacePath,
-      ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    });
-  }, [source.sessionId, workspaceIdentity, workspacePath]);
   const label = intl.formatMessage(
     { id: "conversation.fromSession" },
-    { name: task?.title || source.title || source.sessionId },
+    { name: source.title || source.sessionId },
   );
   return (
     <div
@@ -233,19 +192,7 @@ const SessionSourceHint = memo(function SessionSourceHint({ source }: { source: 
       data-v4-user-input-source="session"
       data-source-session-id={source.sessionId}
     >
-      {workspacePath ? (
-        <button
-          type="button"
-          onClick={handleOpen}
-          title={intl.formatMessage({ id: "conversation.fromSession.open" })}
-          data-source-session-navigable="true"
-          className="rounded-sm underline-offset-2 hover:text-foreground-subtle hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        >
-          {label}
-        </button>
-      ) : (
-        label
-      )}
+      {label}
     </div>
   );
 });

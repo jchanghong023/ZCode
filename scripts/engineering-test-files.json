@@ -9,6 +9,5 @@
   "packages/session-control/test/isolation.test.ts",
   "packages/session-control/test/review-regressions.test.ts",
   "packages/session-control/test/session-id.test.ts",
-  "packages/session-control/test/wait.test.ts",
-  "packages/services/test/inputPredictionSwitch.test.ts"
+  "packages/session-control/test/wait.test.ts"
 ]

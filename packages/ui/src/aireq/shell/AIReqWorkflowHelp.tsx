@@ -113,8 +113,8 @@ export function AIReqWorkflowHelp({
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "Skill 设计仍在设置，模型、Agent、Skill、项目与外观均保留。切换设置和项目／Release 走未保存门禁，原生会话正文和附件归原 owner。AIReq 不提供独立自动化或编码执行；现有分析调度保留。所有合法工号都可代办，实际操作者独立留痕。"
-              : "Settings retain Skill design, models, agents, skills, projects and appearance. Unsaved changes gate navigation and project/Release switches; native session owners retain text and attachments. There is no standalone automation or coding execution. Analysis scheduling remains. Any valid employee may act on behalf of others, with actual operator provenance."}
+              ? "设置中保留模型、个性化、项目与外观。切换设置和项目／Release 走未保存门禁，原生会话正文和附件归原 owner。AIReq 不提供独立自动化或编码执行；现有分析调度保留。所有合法工号都可代办，实际操作者独立留痕。"
+              : "Settings retain models, personalization, projects and appearance. Unsaved changes gate navigation and project/Release switches; native session owners retain text and attachments. There is no standalone automation or coding execution. Analysis scheduling remains. Any valid employee may act on behalf of others, with actual operator provenance."}
           </p>
           <ol className="space-y-3">
             {steps.map((step, index) => (

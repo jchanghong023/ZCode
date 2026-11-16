@@ -22,7 +22,6 @@ import type {
   ZCodeAgentRuntimePolicy,
   ZCodeAgentWorkspaceTarget,
 } from "./zcodeAgent.js";
-import { isRemoteInputPredictionEnabled } from "./inputPredictionSwitch.js";
 
 export type ZCodeAgentV4ClientMode = "desktop-continuous" | "web-remote-replayable";
 
@@ -245,8 +244,6 @@ function createHello(context: ZCodeAgentV4ConnectionContext): HelloMessage {
       workflowRunDeltas: true,
       pluginDiscovery: true,
       historyFirst: true,
-      // 手机远控输入预测：受 Host 开关控制；缺席/false 时手机不得发起 inputPrediction。
-      inputPrediction: isRemoteInputPredictionEnabled(),
       // 手机任务列表预加载：rowsRange 支持 residency=resident-only（只读热会话）。
       residentRowsRange: true,
     },
@@ -960,45 +957,6 @@ export function createZCodeAgentConnectionScope(
       if (role !== "terminal-client" || context.clientMode !== "desktop-continuous")
         return RpcEvent.None;
       return base.onDynamicPluginUiToolResult();
-    },
-    onDynamicCuaPermissionObservation() {
-      assertOpen();
-      // 权限弹窗是本地桌面副作用；手机 replay attachment 只能消费可恢复对话事实。
-      if (role !== "terminal-client" || context.clientMode !== "desktop-continuous") {
-        return RpcEvent.None;
-      }
-      return base.onDynamicCuaPermissionObservation();
-    },
-    onDynamicProcessResourceSample() {
-      assertOpen();
-      // CLI 资源样本只供远端 Desktop Host relay 回传 main；renderer/mobile attachment
-      // 不消费该事件，也不能把它引入 continuous/replayable 消息面。
-      if (role !== "trusted-host-relay") {
-        return RpcEvent.None;
-      }
-      return base.onDynamicProcessResourceSample();
-    },
-    onDynamicToolExecResource() {
-      // 完成事实与会话交付无关，禁止进入 continuous/replayable attachment。
-      if (disposed || role !== "trusted-host-relay") return RpcEvent.None;
-      return base.onDynamicToolExecResource();
-    },
-    onDynamicMcpResourceSamples() {
-      // 资源事实不属于会话流，桌面 continuous 与手机 replayable attachment 均不能订阅。
-      if (disposed || role !== "trusted-host-relay") return RpcEvent.None;
-      return base.onDynamicMcpResourceSamples();
-    },
-    onDynamicRemoteConversationTelemetry() {
-      if (disposed || role !== "trusted-host-relay") return RpcEvent.None;
-      return base.onDynamicRemoteConversationTelemetry();
-    },
-    onDynamicMcpTelemetry() {
-      assertOpen();
-      // MCP 遥测与 CLI 资源样本共用可信 Host relay 边界，不进入 renderer/mobile 会话链路。
-      if (role !== "trusted-host-relay") {
-        return RpcEvent.None;
-      }
-      return base.onDynamicMcpTelemetry();
     },
     async subscribeSessionsIndexV4(params) {
       assertReady();

@@ -32,6 +32,7 @@ export type {
   AIReqRequirementGroup,
   AIReqReview,
   AIReqReviewAgentId,
+  AIReqReviewScenario,
   AIReqSelection,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
@@ -94,7 +95,7 @@ export interface AIReqApplicationProps {
   platform: IPlatformService;
   operator: { employeeNumber: string; leave(): void };
 }
-export type AIReqMainView = "chat" | "projectProgress" | "todos" | "proposals" | "formal" | "requirementAnalysis";
+export type AIReqMainView = "chat" | "projectProgress" | "todos" | "proposals" | "formal" | "requirementAnalysis" | "skillDesign";
 
 /** Shared draft commands; the Settings page remains the only pending-navigation owner. */
 export interface AIReqSettingsDraftActions {
@@ -102,4 +103,5 @@ export interface AIReqSettingsDraftActions {
   discard(): void;
   canSave?: boolean;
   canDiscard?: boolean;
+  saveBlockedReason?: string;
 }

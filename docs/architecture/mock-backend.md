@@ -1,27 +1,29 @@
 # 模拟后端（Mock Backend）规范
 
-`packages/server` 是纯 Web 形态的模拟后端：内存态、确定性数据，经与真实服务端相同的 WebSocket RPC（`@zcode/rpc` ChannelServer + Protocol v4）向浏览器 UI 提供 `packages/services` 契约。本文记录模拟后端能力、状态所有者和协议约束，不建立独立的能力矩阵实现层。
+`packages/server` 是纯 Web 形态的模拟后端：内存态、确定性数据，经与真实服务端相同的 WebSocket RPC（`@zcode/rpc` ChannelServer + Protocol v4）向浏览器 UI 提供 `packages/services` 契约。本文记录模拟后端能力、状态所有者和协议约束，不建立独立的能力矩阵实现层。AIReq 当前业务范围及逐组验收纪律以根 `.todo.md` 的现行规则为最新权威，历史实测只证明其记录版本；本次文档同步不新增工程、浏览器、真实 AI 或 Git 验收声明。
+
+当前电脑 Web 只有项目进度、待办列表、正式需求、需求提案、进度分析五个主导航，设置只有外观、项目、模型、个性化。Skill 入口暂时隐藏，`skillDesign.*`、实现、数据与私有原生会话保留。接口清理的完整冻结删除／保留表见 [契约设计 §当前可达接口收口（2026-11-16）](../specs/aireq-migration/contract-design.md)；当前文档不以旧页面、惰性代理或通用控件的 DTO 存留扩大 RPC／HTTP 能力。
 
 ## 1. 范围与非目标
 
 - 目标：协议语义保真，UI 不需要 mock 分支；未实现的能力必须**明确拒绝**，不能返回假成功。
 - 非目标：生产级持久化、真实网络/文件写入、与真实 Agent 运行时等价。模拟后端只有内存状态。
-- 唯一允许的本地读取：项目选目录/目录浏览读取本机真实目录名（`projectService.readDirectory`），不读写文件内容。
+- 唯一允许的本地读取：保留的底层目录浏览读取本机真实目录名（`projectService.readDirectory`），不读写文件内容；AIReq 项目不提供选本地目录入口。
 - 唯一传输层例外：`MockRuntime` 内的 topic 水位账本（`MockTopicLog`）是协议顺序的权威来源；不落盘。
 
 ### 1.1 Bun 运行时
 
 - 仓库唯一 JavaScript/TypeScript 执行运行时为 Bun，固定版本见 `mise.toml`；后端、前端开发/构建、测试与工程脚本均不得启动 Node.js。`node:*` 与 `@types/node` 仅作为 Bun 兼容 API/类型保留，不代表 Node.js 运行时依赖。
 - 包管理继续使用 pnpm，但由 Bun 执行；不保留 Node.js 后端或脚本回退入口。
-- `packages/server/src/http.ts` 只负责 Hono 路由、Bun HTTP/WebSocket 宿主与 `ISocket` 适配；业务状态所有者、`/api`/`/ws` 路径、鉴权、静态资源语义与 v4 二进制 RPC 不变。
+- `packages/server/src/http.ts` 只负责 Hono 路由、Bun HTTP/WebSocket 宿主与 `ISocket` 适配；保留 `/ws`、当前客户端配置 HTTP、鉴权、静态资源与 v4 二进制 RPC，不恢复无人消费的旧发现接口。
 - 每个 WebSocket 连接独占一套 `ISocket`、`SocketProtocol`、`ChannelServer` 与 agent connection scope。升级前完成鉴权/身份校验；open 时装配服务；二进制消息按原始字节视图传入协议；close 时仅触发一次关闭/结束并释放连接 scope 和 RPC 订阅。Bun 传输层不复制会话或 topic 状态，不新增重试/重放账本。
 - `createMockHttpServer()` 返回 Bun server，由调用者通过 `stop()` 停止；开发入口在仓库根目录使用 Bun watch，覆盖跨 workspace 源码，默认 `workspacePath` 为仓库根（`ZCODE_SERVER_WORKSPACE` 可覆盖）；构建使用 Bun bundler，生产入口为 `bun packages/server/dist/entry-http.js`。
 
-验收：Bun 下验证源码与构建产物启动、HTTP 元信息、鉴权拒绝/允许、静态文件与 SPA fallback、带身份的真实二进制 RPC 请求，以及断连后重新连接；工程门禁及前端构建也必须由 Bun 执行，不使用 Node.js 回退。
+涉及 Bun 运行时或部署边界改动时，按受影响范围验证源码与构建产物启动、当前 HTTP 配置、部署访问控制／身份拒绝与允许、静态文件与 SPA fallback、带身份的真实二进制 RPC 及断连重连；工程门禁及必要构建必须由 Bun 执行，不使用 Node.js 回退。纯 AIReq 业务改造按根 `.todo.md` 逐组最小充分验证，不因此默认增加 build、全量工程测试或独立协议冒烟。
 
 ## 2. 能力状态
 
-每个领域/接口在能力矩阵中只有一种状态：
+以下按具体方法／命令区分状态；一个频道可以同时包含支持的读取与未开放的写入，不能以频道存在推导整个领域已实现：
 
 | 状态          | 定义                                           | 可观察行为                                                   |
 | ------------- | ---------------------------------------------- | ------------------------------------------------------------ |
@@ -31,48 +33,72 @@
 
 `compatible` 不是"假装支持"：它只用于 UI 需要的**只读目录/空集合**，任何会改变用户数据期望的写操作都必须是 `unavailable` 并显式失败。
 
-### 2.1 矩阵
+### 2.1 当前装配面
 
-| 领域 / 接口                                         | 状态        | 说明                                                                |
-| --------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| conversation / sessions-index topic                 | supported   | 快照 + 增量、seq/logEpoch、workspace 隔离                           |
-| workspace-config topic                              | compatible  | 空配置目录（`configOptions: []`, `slashCommands: []`），只读快照    |
-| controller/workspaces、controller/tasks-index       | supported   | workspaces 单工作区快照；tasks-index 由 runtime 任务投影并增量下发  |
-| controller 任务/归档删除                            | unavailable | 不跨入会话生命周期执行删除，调用明确拒绝                            |
-| v4 会话命令（见 §4）                                | supported   | 真实内存状态转换                                                    |
-| 其它 v4 会话命令                                    | unavailable | ACK `rejected` + `fault.command.capabilityUnsupported`              |
-| 文件树 / 文件读取 / 搜索                            | supported   | 虚拟工作区 fixture；不读写真实文件                                  |
-| Git 面板                                            | supported   | 虚拟仓库状态；不发起真实 git/网络                                   |
-| 设置、凭据（内存）、客户端配置                      | supported   | 设置域内存态；凭据不落盘                                            |
-| 产品操作者                                          | supported   | 浏览器自报工号；不是服务端账号，不分区项目/会话，不提供旧产品 OAuth |
-| Provider / 模型选择 / 用量                          | compatible  | 确定性模型目录与空用量；不联网                                      |
-| 插件目录/安装/配置、扩展宿主、扩展视图/授权         | unavailable | 空目录 + `canInstall/canConfigure=false`；安装/配置/视图创建抛错    |
-| 工作区资产（子智能体/命令/钩子/记忆/技能/输出风格） | compatible  | 只读空集合；写操作抛错                                              |
-| 配置同步（MCP/插件/技能/用户配置/设备同步）         | compatible  | 只读空清单；写入返回不可写/空结果，不伪造远端成功                   |
-| 任务分组 / 受管 worktree / Source Server            | compatible  | 空分组/空快照；需要真实仓库或远端的写操作抛错                       |
-| 闲时任务 / Bots                                     | unavailable | 只读空投影，注册/保存/绑定抛错                                      |
-| 会话附件 begin/chunk/commit/read                    | supported   | 原生服务持有实际内存字节与 SHA-256，上传与采用授权，不写盘          |
-| Onboarding / 加速卡                                 | unavailable | 空快照；真实操作抛错                                                |
-| 反馈 / GenUI / 语音 / 云内容                        | unavailable | 空形状读取；真实操作抛错                                            |
+| 领域 / 接口                         | 实际边界                                                                                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| AIReq `bootstrap/call/onDidChange`  | 五导航、四设置、分析调度与隐藏 Skill 的共享内存业务；普通业务状态只归 AIReq owner                                                   |
+| conversation / sessions-index topic | 内存快照与增量、seq/logEpoch、workspace 隔离；不是旧任务侧栏或 controller RPC                                                       |
+| workspace-config topic              | 确定性空配置目录（`configOptions: []`, `slashCommands: []`）与只读快照                                                              |
+| v4 会话命令                         | §4 所列内存转换受支持；其它保留协议命令回 `rejected`，不能因 schema 存在记作已实现                                                  |
+| 原生会话／任务／项目与分组          | 保留实际会话生命周期、重启／元数据、目录准备与 mention 读取、`admit` 依赖；不提供旧窗口 controller 或目录组服务                     |
+| 文件／Git／文件监视／媒体预览       | 保留通用文件树、mention 与预览依赖；虚拟文件／Git 不等于真实磁盘／仓库；媒体写入或真实播放能力不因此开放                            |
+| 设置／系统／broadcast／客户端配置   | 保留共享设置与基础读取；工号不是后端账号；broadcast 的存在不证明 mock 已实现跨连接消息发送                                          |
+| Provider / 模型选择 / 用量          | 原生模型目录、`getView/onDidChange/refresh` 与 quota 依赖；不再提供旧个人 Provider CRUD／连通性测试 RPC                             |
+| 插件管理／插件 UI／GenUI            | 保留原生引用目录、推荐与通用工具控件所需服务；空目录、未启用操作及兼容空投影逐方法区分，不宣称完整安装／沙箱业务                    |
+| 子智能体／技能／MCP                 | 保留原生目录、Skill 引用及 MCP 加载依赖；不等于恢复旧命令、Hook、Memory 或配置同步管理服务                                          |
+| Bots                                | 保留原生群组投递与偏好同步依赖；不宣称真实 IM 注册／账号接入已实现；AIReq embedded 会话不挂载旧草稿推荐，Onboarding／场景服务已裁撤 |
+| 原生附件与附件转移                  | v4 begin/chunk/commit/read 持有实际内存字节、SHA-256 与采用授权；转移辅助服务按其方法的未开放边界处理，不写盘                       |
 
-终端、Git 检查点、营销触达、Desktop Provider Provisioning、会话分享与商业订阅交易已退役，
-不保留 descriptor、客户端代理或服务注册。当前需求／Skill／自动化使用的内存模拟业务与
-原生 v4 会话、附件及模型目录继续保留；商业套餐 DTO 若仍供保留控件展示使用，不代表交易能力。
+这张表记录装配及用途，不是逐方法“全部通过”或“所有写入明确拒绝”的实测声明。
+保留辅助 mock 中的固定目录、空投影和未实现操作不构成真实 RPC 能力承诺；尤其不能把旧空成功实现
+登记成 `supported`。§4 的 v4 ACK 约束继续适用，不能据辅助实现放宽命令状态转换规则。
+
+当前集中装配共 27 个频道：`file`、`file-watcher`、`git`、`system`、`media-preview`、
+`broadcast`、`aireq`、`zcode-agent`、`zcode-task`、`zcode-session`、`project`、`setting`、
+`client-config`、`provider-settings`、`model-selection`、`usage-stats`、`plugin-management`、
+`plugin-ui-bridge`、`plugin-ui-sampling`、`plugin-ui-app-tools`、`subagents`、`skills`、
+`mcp-sync`、`task-groups`、`bots`、`prompt-attachment-transfer`、`gen-ui`。
+
+### 2.2 已裁撤服务与纯类型边界
+
+本轮贯穿删除 25 个 accessor 字段及对应 descriptor、代理、mock、注册与旧专属消费者；
+完整冻结删除／保留清单唯一维护于 [契约设计 §当前可达接口收口（2026-11-16）](../specs/aireq-migration/contract-design.md#当前可达接口收口2026-11-16)。
+下表仅记录保留服务的方法级减面，不以历史调用面或纯类型恢复已删除接口。
+
+此前已退役的终端、Git 检查点、营销触达、Desktop Provider Provisioning、会话分享与商业交易
+继续不提供 descriptor、代理或服务注册。受管 worktree、扩展、商业套餐等纯 DTO/schema 若仍供
+保留通用控件展示使用，不代表同名 RPC 存留，更不要求真实后端实现已裁撤能力。
+`components/ui`、已有 `mobile-ui`、布局、弹层、图标、表单及原生会话控件不随服务删除。
+
+保留服务中的方法级减面：
+
+| 服务              | 本轮删除的方法                                                                                                                                                                                                                                                                                               | 保留边界                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Provider settings | `createPersonalProvider`、`resolveModelConfig`、`savePersonalProviderOverlay`、`deletePersonalProvider`、`reorderPersonalProviders`、`reorderPersonalModels`、`addPersonalModel`、`renamePersonalModel`、`deletePersonalModel`、`savePersonalModelDraft`、`setPersonalModelEnabled`、`testModelConnectivity` | 仅 `getView/onDidChange/refresh`；AIReq 模型保存仍走 `models.save`              |
+| File              | `resolvePath`、`ensureConversationWorkspace`、`createDefaultWorkspace`、`createScratchWorkspace`、`readWorkspaceFileSearchIgnore`、`applyWorkspaceFileSearchIgnoreTransform`、`writeWorkspaceFileSearchIgnore`                                                                                               | mention、文件树、分页列表及通用预览读取                                         |
+| Project           | `saveProject`、`deleteProject`、`restoreProject`、`moveTask`、`reorderProjects`、`measureProjectData`、`deleteProjectData`                                                                                                                                                                                   | `readDirectory/readProjects/readTree/prepareSession/resolveSessionDirectories`  |
+| Task groups       | `read/save/ungroup/move`                                                                                                                                                                                                                                                                                     | 原生 `admit`                                                                    |
+| System / Setting  | `probeIntranet` / `updateDataBaseDir/getUserInstructions/saveUserInstructions`                                                                                                                                                                                                                               | `system.info`、`setting.get/update`；当前个性化指令走 AIReq `prompts.read/save` |
+| Skills            | `buildPromptContext/copyToCommon/removeFromCommon/deleteSkill/setEnabled`                                                                                                                                                                                                                                    | 仅只读 `list`；不触碰 AIReq `skillDesign.*`                                     |
+| Subagents         | `createAgent/updateAgent/deleteAgent/setBuiltInModelOverride/setPluginAgentModelOverride/getPrimaryUserAgentsDirectory/setEnabled`                                                                                                                                                                           | 仅只读 `list`，保留原生子智能体目录                                             |
+
+原生 agent/task 的旧 prompt、snapshot、导入、重复插件／自动化／保存工作流包装方法随无消费者调用链删除；
+最终保留方法以当前 `zcodeAgent.ts`、`zcodeTaskService.ts` 和实际装配为准。
+这不删除 v4 命令 schema、只读工作流／产物投影、附件事务、生命周期、订阅水位或内部状态 owner。
 
 ## 3. 状态所有者
 
 一个状态只有一个所有者；其它模块只能通过公开契约读取，不得持有副本。
 
-| 状态                                                                      | 唯一所有者                                        | 写入者                                                                         |
-| ------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| 会话 rows/`seq`/`logEpoch`/revision/phase/config/queue/plan/usage/pending | `MockRuntime.sessions`（`MockSession`）           | `MockZCodeAgentService` 命令处理                                               |
-| 任务索引（title/pinned/archived/unread 等）                               | `MockRuntime.tasks`                               | `MockZCodeAgentService`、`MockZCodeTaskService`、`MockWindowControllerService` |
-| 虚拟文件系统 / 虚拟 Git                                                   | `MockRuntime.virtualRoot` / `MockRuntime.git`     | `Mock*FileService` / `MockGitService`                                          |
-| topic 水位（sessions-index / workspace-config / controller）              | `MockRuntime.topics`（`MockTopicLog`）            | 对应 topic 的唯一发布函数                                                      |
-| 应用设置                                                                  | `MockSettingService`（设置域）                    | `MockSettingService.update`                                                    |
-| 内存凭据                                                                  | `MockCredentialService`（设置域）                 | `MockCredentialService.save/delete`                                            |
-| v4 订阅表与 `subscriptionId` 归属                                         | `MockZCodeAgentService` + 每连接 connection scope | subscribe/unsubscribe                                                          |
-| controller 订阅表                                                         | `MockWindowControllerService`                     | subscribe/unsubscribe/resync                                                   |
+| 状态                                                                      | 唯一所有者                                        | 写入者                                                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 会话 rows/`seq`/`logEpoch`/revision/phase/config/queue/plan/usage/pending | `MockRuntime.sessions`（`MockSession`）           | `MockZCodeAgentService` 命令处理                                                            |
+| 任务索引（title/pinned/archived/unread 等）                               | `MockRuntime.tasks`                               | 保留的 `MockZCodeAgentService`／`MockZCodeTaskService` 原生入口；不再有窗口 controller 写者 |
+| 虚拟文件系统 / 虚拟 Git                                                   | `MockRuntime.virtualRoot` / `MockRuntime.git`     | `Mock*FileService` / `MockGitService`                                                       |
+| topic 水位（sessions-index / workspace-config）                           | `MockRuntime.topics`（`MockTopicLog`）            | 对应 topic 的唯一发布函数                                                                   |
+| 应用设置                                                                  | `MockSettingService`（设置域）                    | `MockSettingService.update`                                                                 |
+| v4 订阅表与 `subscriptionId` 归属                                         | `MockZCodeAgentService` + 每连接 connection scope | subscribe/unsubscribe                                                                       |
 
 装配图：
 
@@ -81,8 +107,8 @@ mock/index.ts（唯一集中装配）
   ├─ MockRuntime（权威内存状态 + topic 水位）
   ├─ workspace.ts / project.ts / zcodeTask.ts / zcodeAgent.ts（协议面）
   └─ domains/*（按领域注册服务，只写自己的私有状态）
-        settings ─ models ─ plugins ─ extensions ─ assets ─ sync
-        projects ─ automations ─ sharing ─ compat-surfaces
+        settings ─ models ─ plugins ─ assets ─ sync
+        projects ─ automations（Bots）─ sharing ─ compat-surfaces
 ```
 
 ## 4. ACK 语义（v4 会话命令）
@@ -111,7 +137,7 @@ mock/index.ts（唯一集中装配）
 3. **命令重放**：当前原生 owner 按操作者/客户端、sessionId、commandId 保留已接纳 ACK 与输入摘要；相同请求重放返回原决定，不重复追加消息，不同输入复用编号拒绝。query 同时返回当前 turn 事实。
 4. **CAS 边界**：通用原生命令仍按协议校验版本字段，不替代 AIReq 自身的材料版本、候选、配置 revision 与业务命令 CAS。AIReq 写入口在其唯一业务 owner 执行这些门禁。
 5. `noop` 不改变 revision，也不推进 topic 水位（除显式 `patchQueue` 的受支持命令外）。
-6. 会话从 `MockRuntime.sessions` 删除后，旧 turn 不得再次发布 sessions-index upsert 或启动队列下一项；controller 不直接删除会话。
+6. 会话从 `MockRuntime.sessions` 删除后，旧 turn 不得再次发布 sessions-index upsert 或启动队列下一项；通用展示控件不得越过原生 owner 删除会话。
 
 ### 4.1 受支持命令
 
@@ -147,7 +173,7 @@ mock/index.ts（唯一集中装配）
 - `seq` 单调递增；一条已发布记录 = `(fromSeq, toSeq]`，其中 `toSeq = fromSeq + 1`。
 - **快照帧**：`fromSeq = 0`、`toSeq = 当前水位`；快照本身不推高水位。
 - **增量帧**：发布时推进一次水位；同一批变更只发一个 `toSeq`，同一 topic 的所有订阅者拿到相同的 `(fromSeq, toSeq]`。
-- `sessions-index` / `workspace-config` / `controller/*` 由 `MockTopicLog` 记账：没有订阅者时不推进，避免无人观察的水位空洞。conversation 的 `seq` 是会话投影日志水位，随投影推进（即使暂无订阅者），快照用 `toSeq` 对齐。
+- `sessions-index` / `workspace-config` 由 `MockTopicLog` 记账：没有订阅者时不推进，避免无人观察的水位空洞。conversation 的 `seq` 是会话投影日志水位，随投影推进（即使暂无订阅者），快照用 `toSeq` 对齐。
 - `subscriptionId` 每次订阅新生成、绝不复用；帧只携带其所属订阅的 id。
 
 ### 5.2 各 topic
@@ -157,8 +183,6 @@ mock/index.ts（唯一集中装配）
 | `conversation/<sessionId>`       | `MockSession.seq/logEpoch`     | 每次 `patchState`、行追加/更新/增量、快照订阅（不推进）      |
 | `sessions-index/<workspaceId>`   | `MockTopicLog`（workspace 级） | v4 createSession / renameSession / deleteSession / turn 收口 |
 | `workspace-config/<workspaceId>` | `MockTopicLog`（workspace 级） | 订阅与 resync 快照；当前 mock 无配置变更，水位不推进         |
-| `controller/workspaces`          | `MockTopicLog`                 | 订阅/resync 快照                                             |
-| `controller/tasks-index`         | `MockTopicLog`                 | 订阅/resync 快照；任务增删改时一条 delta 帧（同批共享水位）  |
 
 ### 5.3 订阅与归属
 
@@ -174,7 +198,6 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 - conversation 订阅按 `sessionId` 匹配；session 属于另一个 workspace 时按 `fault.command.sessionNotFound` 处理，不读取跨工作区状态。
 - sessions-index 与 workspace-config 订阅按 `workspaceKey`（`workspaceIdentity ?? workspacePath`）匹配，跨工作区不串帧。
 - agent topic 的每个 WebSocket 连接由 `createZCodeAgentConnectionScope` 建立独立 ownership：帧只路由给拥有该 `subscriptionId` 的连接；跨连接 resync 报 `fault.subscription.notOwned`，非本连接的 unsubscribe 幂等忽略且不删除原连接订阅。
-- controller topic 仅由共享的 `MockWindowControllerService` 订阅表过滤，当前没有逐连接 ownership；这是原型限制，本次不新增 scope 机制。
 
 ## 6. 能力投影与前端
 
@@ -184,13 +207,14 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 
 ## 7. 验证
 
-本文件不新增测试或专用验证入口。模拟后端的验证只走既有手段：
+本文件不新建测试体系或专用验证入口；仅为具体验收缺口增加必要验证，沿用既有入口：
 
-- `pnpm dev`：启动真实 mock HTTP/WS 服务与 Web UI（回环），浏览器内走真实 RPC/帧渲染路径。
-- 根 `pnpm typecheck`：校验协议/服务装配与 wire 类型（含 `zcode-protocol-v4` 官方 schema 的类型面）。
-- 浏览器与协议行为按 §4、§5 的不变量人工验收：三类 topic 的快照/增量、`(fromSeq,toSeq]` 连续性、`logEpoch` 稳定、`workspaceKey` 隔离、`subscriptionId` 归属、unsubscribe/resync、受支持/未支持命令的 ACK 语义。
+- `bun run dev`：启动真实 mock HTTP/WS 服务与 Web UI（回环），浏览器内走真实 RPC/帧渲染路径，地址以实际日志为准（当前前端 :5174、后端 :3031）。
+- 根 `bun run typecheck`：校验协议/服务装配与 wire 类型（含 `zcode-protocol-v4` 官方 schema 的类型面）。
+- AIReq 每个代码变更组还运行 `bun run lint`、`bun run architecture:check --changed` 并完成本组真实浏览器验收和文档记录，全部通过后才进入下一组；不留到末尾统一首次验证。未变输入可复用前组证据，受影响路径在当前组复验；纯业务不默认跑 build、knip、全量工程测试或推送检查。
+- 浏览器与协议行为按 §4、§5 的不变量人工验收：conversation、sessions-index、workspace-config 的快照/增量、`(fromSeq,toSeq]` 连续性、`logEpoch` 稳定、`workspaceKey` 隔离、`subscriptionId` 归属、unsubscribe/resync、受支持/未支持命令的 ACK 语义。
 
-已观察到的真实协议结果（一次性协议冒烟，脚本已按用户要求删除、不作为仓库资产，也不保留任何根命令入口）：交付修复后该流程实际执行完成，耗时约 1.10s，全流程通过，原始输出末尾为「subscriptionId 归属、unsubscribe、resync 通过」与「全部协议冒烟通过」。该次运行真实启动 mock 服务并经 `@zcode/client` 建立真实 WebSocket 连接，实际覆盖并校验：
+以下是历史交付修复阶段已观察到的真实协议结果，不是本次文档同步的验收：一次性协议冒烟的脚本已按用户要求删除、不作为仓库资产，也不保留任何根命令入口。该阶段流程实际执行完成，耗时约 1.10s，全流程通过，原始输出末尾为「subscriptionId 归属、unsubscribe、resync 通过」与「全部协议冒烟通过」。该次运行真实启动 mock 服务并经 `@zcode/client` 建立真实 WebSocket 连接，实际覆盖并校验：
 
 - hello/initialize 握手（`protocolVersion=3`），两条独立连接均建立成功。
 - conversation / sessions-index / workspace-config 三类 topic 的快照与增量帧：快照 `fromSeq=0`、`logEpoch` 与订阅 ack 一致，增量 `(fromSeq,toSeq]` 连续、会话 `logEpoch` 稳定，resync 重发快照。
@@ -200,7 +224,7 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 - 未支持命令 `pauseGoal` / `compact` 回 `rejected` + `fault.command.capabilityUnsupported`，revision 不变。
 - 负例：信封本身合法、payload 非法的独立用例回 `fault.command.invalidEnvelope`，合法命令用例不受影响。
 
-上述结果为交付修复阶段的实测证据；临时脚本已删除，不重新创建、不重跑。第二阶段的 RPC adapter 不在这轮实测范围内，尚需按前文既有方式（`pnpm dev` / 根 `pnpm typecheck` / 浏览器）单独验收，不能记为已验证。
+上述结果仅为当时交付修复阶段的实测证据；临时脚本已删除，不重新创建、不因本次文档同步重跑。当时的第二阶段 RPC adapter 不在该次实测范围内，不能据此记为已验证；当前 AIReq 各组实际通过范围以相应领域规格的分组记录为准，不能把历史范围说明当作另一个末尾补首次验收任务。
 
 这些场景对应的行为契约（供人工/后续验证对照，不含新增脚本）：
 
@@ -212,7 +236,7 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 6. 未支持命令（`pauseGoal`、`compact`）ACK `rejected` + `fault.command.capabilityUnsupported`，且 revision 不变；合法信封 + 非法 payload 的独立负例回 `fault.command.invalidEnvelope`，合法命令用例不受影响。
 7. 受支持命令（`createSession`、`renameSession`、`setFollowupMode`、运行中 `sendText` 入队、`switchModelConfig`）产生可观察状态转换与合法帧；命令信封的 workspace 身份为完整 `ZCodeWorkspaceRef`（`workspaceKey = workspaceIdentity?.trim() || workspacePath`），`createSession` payload 带 `workspaceId = workspaceKey`。
 
-已知未覆盖：浏览器渲染、真实文件/Git 操作、controller topic（由 UI 运行时使用），以及 command 去重/CAS（见 §4 限制）。
+该次历史实测未覆盖：浏览器渲染、真实文件/Git 操作、当时存在而现已裁撤的 controller topic，以及 command 去重/CAS；这不表示当前无需遵守 §4 的命令去重与 AIReq 版本门禁，也不是当前各业务组的完整未验收清单。
 
 ## 8. 真实后端替换契约
 
@@ -224,14 +248,13 @@ resync    → 未知 subscriptionId 抛 fault.subscription.unknownSubscription
 
 ### 8.1 HTTP、资源与部署
 
-| 接入面         | 请求与响应                                                                          | 必须保持的行为                                                                                                                                          |
-| -------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 启动元信息     | `GET /api/server-info` → `ServerRemoteInfo`，用 `serverRemoteInfoOutputSchema` 校验 | 稳定 serverId、version/protocolVersion、compatibility、capabilities、workspaces 的 path/identity；目录均属于后端。identity 合法非空不触发另一条远程连接 |
-| 客户端配置     | `GET /api/v1/client/configs` → 当前 `code/data.configs` 配置响应                    | 平台 help/community 等消费者仍可读取；不得要求旧产品账号 Bearer token                                                                                   |
-| RPC            | 同源 `GET /ws` 升级 WebSocket，双向二进制帧                                         | 不是 JSON WebSocket、REST 或 SSE；正式部署的入口必须转发 Upgrade，不能只代理 `/api`                                                                     |
-| 站点           | `/`、构建 assets 与 SPA 路由                                                        | 提供相同的前端构建产物、正确 MIME；index 不缓存，带 hash 的构建资源可长期缓存                                                                           |
-| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL                                          | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src`                                                            |
-| 下载           | `IPlatformService` 浏览器实现 fetch URL 或下载字节                                  | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体                                                                            |
+| 接入面         | 请求与响应                                                                            | 必须保持的行为                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 客户端配置     | `GET /api/v1/client/configs` → `{code:0,data:{configs:{feedbackUrl:localAppConfig}}}` | 保留原首个 handler 的 envelope，平台 help/community 消费者仍可读取；无重复 handler，不要求旧产品账号 Bearer token |
+| RPC            | 同源 `GET /ws` 升级 WebSocket，双向二进制帧                                           | 不是 JSON WebSocket、REST 或 SSE；正式部署的入口必须转发 Upgrade，不能只代理 `/api`                               |
+| 站点           | `/`、构建 assets 与 SPA 路由                                                          | 提供相同的前端构建产物、正确 MIME；index 不缓存，带 hash 的构建资源可长期缓存                                     |
+| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL                                            | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src`                      |
+| 下载           | `IPlatformService` 浏览器实现 fetch URL 或下载字节                                    | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体                                      |
 
 旧产品账号授权、回调、轮询和 token 交换接口不属于替换合同。工号只由浏览器操作者模块
 保存和恢复，本轮没有后端登录接口；不能把工号塞进 `clientId`、`subscriptionId`、
@@ -263,9 +286,9 @@ Vite 的开发代理不是生产路由。
 - [`ProxyChannel`](../../packages/rpc/src/proxy-channel.ts) 把方法实参作为数组传输；
   `onXxx` 是 Event，`onDynamicXxx(arg)` 是参数化 Event。销毁监听器会退订，
   不能将事件当成返回 Promise 的普通方法。
-- [`ServiceCollection`](../../packages/services/src/collection.ts) 的公开边界与凭据恢复限制保留。
-  不做本人认证不等于放开网络端的 `recoverStore`，更不能把原来非公开的宿主方法全部开放。
-  客户端代理是惰性的，能创建代理不证明服务端存在频道；可选能力依能力协商开放。
+- [`ServiceCollection`](../../packages/services/src/collection.ts) 只公开当前保留并装配的 descriptor。
+  工号不是本人认证，更不意味着把非公开宿主方法或已裁撤频道重新开放。
+  客户端代理是惰性的，能创建代理不证明实际调用；纯 DTO/schema 不构成注册频道。
 
 断线终结旧 ChannelClient：所有 pending 请求失败、事件释放。浏览器按有限退避新建连接、
 accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或旧订阅继续修改新页面。
@@ -273,30 +296,29 @@ accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或�
 
 ### 8.3 业务调用面
 
-以下按实际页面消费者分组，而不是只给接口名。所有路径相对 `packages/services/src/`；
-接口参数/返回 DTO 中引用的 `@zcode/shared` 类型同属替换合同。
-完整客户端装配以 `packages/client/src/remoteServiceAccess.ts` 和 `IServiceAccessor` 为准，
-可选服务缺席时不得伪造可用能力。
+以下只描述清理后保留消费者所需的调用面，不恢复旧页面、管理 CRUD 或窗口专属服务。
+所有路径相对 `packages/services/src/`；方法签名以当前源码为准。当前完整装配来源为
+`IServiceAccessor`、`packages/client/src/remoteServiceAccess.ts`、
+`packages/server/src/mock/index.ts` 与 `mock/domains/*`，不能拿历史契约或类型 barrel 扩大替换面。
 
-| 保留消费者                           | 方法／事件与数据语义                                                                                                                                                                                                                                     | 精确契约                                                                                                                                                                                                                  |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 项目选择、侧栏、创建会话             | `readDirectory({path?,includeHidden?}) → {path,entries}` 浏览后端目录；`readProjects/readTree` 返回共享项目/roots/任务；`saveProject`、软删除/恢复/排序/移动需真实状态变化；`prepareSession/resolveSessionDirectories` 返回固化 cwd、附加目录与 identity | `project/contract.ts`、`project-storage/repository-contract.ts`；`broadcastService.onMessage` 的 `state:projects` 使其他连接刷新                                                                                          |
-| 文件树与目录刷新                     | `readdir({path,includeHidden?}) → FileEntry[]`、`stat → FileStat`；`watch/unwatch` 与 `onDynamicChange(id)`；搜索用 rootPath/query/limit，返回有界路径候选而不是整个磁盘                                                                                 | `file/file.ts`、`fileWatcher/fileWatcher.ts`；UI `useFileService`、`useFileWatcherService`                                                                                                                                |
-| 文件搜索/忽略配置                    | `searchWorkspaceFiles`；`listWorkspaceFilesLength` + `listWorkspaceFilesRange({rootPath,offset,length})` 返回列式打包裸字符串；忽略规则 read/transform/write 保持用户编辑语义                                                                            | `file/file.ts`、shared 的 workspaceFileEntriesCodec；未提供写能力时明确拒绝                                                                                                                                               |
-| 文本、代码、Markdown、SVG、HTML 预览 | `readTextFile({path,offset?,length?}) → FileTextSlice` 保持分页/截断；`readMediaPreview → {dataBase64,mediaType,...}` 支持图片及 SVG 原字节下载；服务器路径只作为 RPC 参数                                                                               | `file/file.ts`、UI `PreviewPane.tsx`、`components/ai-elements/markdown-image.tsx`                                                                                                                                         |
-| 音频／视频                           | `prepare({path,expectedKind}) → MediaPreviewPreparation`；inline 为 base64 + MIME，URL 分支必须浏览器可达；`host-range-url` 带 previewId/过期时间，`refreshPlaybackUrl` 续期，`release` 释放                                                             | `media-preview/mediaPreview.ts`；URL 服务需正确 Content-Type/Range/Content-Range 与过期行为；不恢复 PDF/Office/PPTX 预览                                                                                                  |
-| 文件字节                             | `readFileRange({path,offset,length}) → Uint8Array` EOF 可短读；`readBinaryPreview` 返回有界预览，不改变当前已裁剪的页面范围                                                                                                                              | `file/file.ts`；保持顶层二进制快速通道                                                                                                                                                                                    |
-| Git 面板与分支                       | `refresh({workspacePath,...})` 返回一致状态快照；summary/repositoryInfo/localBranches/changes/ignoredPaths/diff/branchComparison/identity 查询；stage/unstage/discard、switch/createBranch、commit/push 后应可重新读取变化                               | `git/git.ts` 与 shared Git DTO；UI `useGitRepository`、`useGitBranchSwitcher`、GitActions。结构化失败保留，不把冲突/不存在仓库当空成功                                                                                    |
-| 历史会话、时间线和组织态             | `zcodeTaskService` 的列表/任务查询与动态 workspace 事件；controller workspaces/tasks-index 快照增量及 unread/tasksRemoved 信号；标题、置顶、归档、未读、删除按唯一 owner 改写                                                                            | `session/zcodeTaskService.ts`、`window-controller/windowController.ts`、`task-groups/contract.ts`；不得按工号拆表或过滤                                                                                                   |
-| 会话正文、输入、队列、权限、模型切换 | 先 hello/initialize，再 conversation/sessions-index/workspace-config subscribe；命令 ACK 与下行投影分离，分页查询有界；具体见 §8.4                                                                                                                       | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`；UI `v4` 消费                                                                                                                                                     |
-| 模型设置与选择器                     | `providerSettingsService.getView/refresh`、个人 Provider/模型创建修改启停排序、`testModelConnectivity`；`modelSelectionService.getView` 与变更事件保持设置视图/执行目录分工                                                                              | `model-provider/providerFacadeServices.ts`；UI `useModelProviders`、Composer。工号切换不清理 API Key 或切换模型目录                                                                                                       |
-| 设置、凭据、系统与跨连接刷新         | setting get/update/变更事件；credential load/save/delete 及网络恢复限制；system info 返回后端信息/home；broadcast 消息用于失效刷新，不作为另一份业务事实                                                                                                 | `setting/setting.ts`、`credential/credential.ts`、`system/system.ts`、`broadcast/broadcast.ts`                                                                                                                            |
-| 保留设置页与辅助面                   | 插件/MCP/子智能体/命令/hooks/memory/output-style 的读配置与写操作；同步、用量、分享、附件、自动化等只在既有能力开放时执行，未实现写入明确失败                                                                                                            | `plugins/plugins.ts`、`plugins/pluginManagement.ts`、`mcp-sync/`、`subagents/`、`commands/`、`hooks/`、`memory/`、`output-style/` 等 `IServiceAccessor` 指向的契约；§2 能力表记录 mock 当前限制，不授权裁撤这些尚保留入口 |
+| 保留消费者                       | 必需边界                                                                                                                                                           | 精确契约                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| 五导航、四设置、隐藏 Skill       | `aiReqService.bootstrap/call/onDidChange`；包含保留的 `skillDesign.*` 与分析调度操作；业务版本、身份、幂等由唯一 owner 校验                                        | `aireq/contract.ts`、`aireq/remote-operations.ts`                                                   |
+| 原生目录准备与 mention           | `readProjects/readTree`、`resolveSessionDirectories` 及当前保留目录准备方法；保持 cwd、附加目录与 identity 语义，不恢复旧项目侧栏 CRUD                             | `project/contract.ts`                                                                               |
+| 通用文件树／搜索／预览           | `readdir/stat`、`searchWorkspaceFiles`、分页文件列表、文本／媒体／有界字节读取、watch/unwatch 与动态事件；不包含旧文件搜索忽略配置的 read/transform/write          | `file/file.ts`、`fileWatcher/fileWatcher.ts`                                                        |
+| 媒体预览／下载                   | `prepare` 及当前声明的播放 URL 生命周期；inline 字节或浏览器可达 URL，不把服务器路径当 URL；不恢复独立 Office/PDF/PPTX 产品入口                                    | `media-preview/mediaPreview.ts`                                                                     |
+| 通用 Git 控件                    | 当前 `gitService` 保留方法的查询、变更与结构化失败，不要求恢复旧 Git 页面；未开放写入不能宣称真实仓库成功                                                          | `git/git.ts`                                                                                        |
+| 原生会话与任务元数据             | 保留的 session 生命周期／presentation、task 重启与元数据、`taskGroupService.admit`；不包含旧 snapshot/import/prompt wrapper、窗口 controller 或窗口项目组 RPC      | `zcode-session/zcodeSession.ts`、`session/zcodeTaskService.ts`、`task-groups/contract.ts`           |
+| 正文、输入、队列、权限、模型切换 | hello/initialize 与 conversation/sessions-index/workspace-config 订阅；命令 ACK、下行投影、分页查询及逐连接 ownership 见 §8.4                                      | `zcode-agent/zcodeAgent.ts`、shared `zcode-protocol-v4`                                             |
+| 原生模型选择／quota              | Provider 只保留 `getView/onDidChange/refresh`；model-selection 视图／事件及保留 quota 读取，不再有个人 Provider CRUD 或旧连通性测试 RPC                            | `model-provider/providerFacadeServices.ts`、`usage-stats/usageStats.ts`                             |
+| 共享设置与基础信息               | `setting.get/update`、system info、broadcast 与客户端配置；个性化指令走 AIReq `prompts.read/save`，不恢复旧用户指令或凭据存取 RPC，不把 broadcast 当第二份业务事实 | `setting/setting.ts`、`system/system.ts`、`broadcast/broadcast.ts`、`client-config/clientConfig.ts` |
+| 原生通用工具／目录               | 保留 plugin-management、plugin-ui bridge/sampling/app-tools、GenUI、skills/subagents、MCP 加载、Bots 偏好／群组投递的实际依赖；不包含旧 Onboarding／场景推荐服务   | 当前 accessor 对应公开契约；不含 §2.2 已裁撤服务                                                    |
+| 附件                             | v4 内存字节事务／采用授权及 `promptAttachmentTransferService.stage/adopt/cancel/cleanup/onDynamicProgress`，保持取消、释放与进度事件语义                           | `zcode-agent/zcodeAgent.ts`、`prompt-attachment-transfer/promptAttachmentTransfer.ts`               |
 
-这里保留协议中已有但页面未使用的字段/方法，不意味着恢复其退役页面，例如 Git commit graph。
-模型/工具授权独立于产品登录；MCP OAuth 等调用凭据不得按关键字批量删除。
-真实后端须逐个实现保留消费者所需的公开方法和事件，或按现有能力语义明确关闭；
-不能靠前端按后端名称判断、假数据分支、缺方法空实现或吞掉业务错误通过验收。
+保留控件使用的 worktree、扩展、命令、Hook、Memory、同步等 DTO/schema 不属于服务实现清单；
+v4 中未开放命令的 schema 继续保留，按既有拒绝语义处理，不要求恢复旧 RPC wrapper。
+真实后端须实现保留的公开方法与事件，或按已有 wire 能力明确关闭；不得通过恢复已删除频道、
+缺方法空实现、假成功、吞错或前端按后端名称特判完成替换。
 
 ### 8.4 Protocol v4 与连接边界
 
@@ -332,10 +354,10 @@ sequenceDiagram
   不得用 clientHello 覆盖可信 mode。`auth.userId` 留位不等于工号认证。
 - 精确 wire 方法/通知词表见 shared `transport.ts` 的 `V4_METHODS/V4_NOTIFICATIONS`；
   RPC 公开包装方法见 `zcodeAgent.ts`，不能拿 wire 路径替换 Channel 方法名。
-- conversation、sessions-index、workspace-config 和 controller topic 都要实现
-  subscribe/resync/unsubscribe；subscribe/resync response 只含 ACK，首帧在响应之后作为
-  owned notification 发送，不能内嵌初始 snapshot 或在 ACK 前发出不可归属的帧。
-  `subscriptionId` 按连接拥有；重连必须取得新 id，不跨浏览器取消或复用他人订阅。
+- conversation、sessions-index 和 workspace-config 实现 subscribe/resync/unsubscribe；
+  subscribe/resync response 只含 ACK，首帧在响应之后作为 owned notification 发送，
+  不能内嵌初始 snapshot 或在 ACK 前发出不可归属的帧。
+  `subscriptionId` 按连接拥有；重连取得新 id，不跨浏览器取消或复用他人订阅。
 - `workspaceKey = workspaceIdentity?.trim() || workspacePath`。路径用于目录展示与执行，
   identity 用于工作区隔离；两者均不能包含工号。同路径稳定 identity 的项目仍由当前 backend 服务。
 - snapshot 对齐 logEpoch 与当前 toSeq；增量严格匹配 `(fromSeq,toSeq]`。丢帧/代际改变走
@@ -353,48 +375,83 @@ sequenceDiagram
   不代表生产持久化或完整通用 CAS。`conversationRowsRangeV4`、plans、workflow/artifact 查询
   与 attachment begin/chunk/commit 及字节查询的参数/返回值见 `transport.ts`、`snapshot.ts`、
   `command.ts`、`wire.ts` 及相应严格 schema，不重建第二套 DTO。
-- 共享的是项目/会话事实，不是连接和握手状态。Agent 的逐连接 ownership 已实现；
-  mock controller topic 的 ownership 简化仍为 §5.3 的原型限制，本轮不扩成生产安全框架。
-  真实后端应对所有逐连接订阅实施同等隔离。主题等浏览器偏好不自动升级为共享业务事实。
+- 共享的是项目/会话事实，不是连接和握手状态。所有保留 Agent topic 均由逐连接 scope
+  管理 ownership；真实后端保持同等隔离，不恢复已裁撤的 controller topic。
+  主题等浏览器偏好不自动升级为共享业务事实。
 
 ### 8.5 固定前端的替换验收
 
-完成裁剪与浏览器验收后，将同一次 `pnpm build:web` 的 `packages/web/dist` 整体作为
+仅在明确实施真实后端替换验收时，将完成前端各组验收后的同一次 `bun run build:web` 所生成的 `packages/web/dist` 整体作为
 替换验收对象，保存部署包与各文件 SHA-256 清单；mock 与真实后端必须使用完全同一份产物，
 不得为新后端重打带特判的前端包。清单跟随交付包，不提交构建产物到源码库。
 
-验收以电脑浏览器进行：工号进入/恢复/切换，两个独立上下文查看同一项目与 AIReq 业务事实；
-新入口只含提案、需求分析、正式需求、Issue、Skill 设计、自动化及 AIReq 设置，不恢复目录型业务项目、
-文件树、Git 面板、自由聊天或执行验收入口。一个连接退订/退出不影响另一个连接；
+验收以电脑浏览器进行：工号进入/恢复/切换，两个独立上下文查看同一项目与 AIReq 业务事实。
+主导航依次为项目进度、待办列表、正式需求、需求提案、进度分析，登录默认待办；
+设置只有外观、项目、模型、个性化。Skill 入口暂时隐藏，设置导航和搜索也不提供 Skill，
+旧 `skill` 偏好回项目设置；实现、数据、会话、预览、模拟保存与设置往返草稿全部保留，
+不将入口隐藏扩大为删除授权。离开仍共用唯一未保存门禁。
+不恢复 Issue、AIReq 自动化、旧侧栏提案列表、独立新建提案导航、目录型业务项目、文件树、
+Git 面板、自由聊天或开发／测试执行入口。
+共享事实不取消原生业务会话的身份／clientId／对象绑定与草稿隔离；一个连接退订/退出不影响另一个连接。
 连接失败/恢复后重读当前事实，不自动重发创建、发送、确认、保存或分析动作。
-同时检查 HTTPS 部署的 `/ws` Upgrade、HTTP 元信息和资源 URL 可达；localhost 开发成功只证明开发链路。
+同时检查 HTTPS 部署的 `/ws` Upgrade、保留的客户端配置 HTTP 和资源 URL 可达；不要求 `/api/server-info` 等已裁撤发现接口，localhost 开发成功只证明开发链路。
+此替换契约不授权本轮接入真实后端，也不另设 AIReq 各组之后的首次业务验收。
 
 ## 9. AIReq 共享内存业务
 
-`src/aireq/contract.ts` 是业务模块唯一公开接线面。`mock/index.ts` 保留原服务装配，
-另注册仅含 `bootstrap/call/onDidChange` 的 AIReq RPC 对象，并把原生 admission/completion/seed
-回调传给现有 `MockZCodeAgentService`。业务模块不持有第二套 rows、附件、订阅或 seq。
+`packages/server/src/aireq/contract.ts` 是服务端业务模块唯一公开接线面，浏览器安全契约位于
+`packages/services/src/aireq`。`mock/index.ts` 装配当前保留原生服务，另注册仅含
+`bootstrap/call/onDidChange` 的 AIReq RPC 对象，并把原生 admission/completion/seed
+回调传给现有 `MockZCodeAgentService`。业务事实只归 `MockAIReqService`；原生 rows、附件、
+订阅和 seq 只归 `MockRuntime/MockZCodeAgentService`，不建立第二套存储、RPC 或会话系统。
 
-- 普通方法通过原 `/ws` 二进制 Channel 调用，每次显式传工号与 clientId；白名单和参数检查先于领域执行。
+- 普通方法通过原 `/ws` 二进制 Channel 调用，每次显式传合法工号与 clientId，白名单、
+  参数、对象归属、预期版本、幂等及阶段检查先于领域执行。全部合法工号均可配置、认领和代办，
+  来源 owner、联系人及负责人不是权限，同一人可兼任业务／开发／测试。操作记录实际工号与客户端。
   `/ws?employeeId=…&clientId=…&demo=…` 固定逐连接原生身份，ALS 仅传递请求上下文；
-  随后仍由 `createZCodeAgentConnectionScope` 管理握手、订阅和关闭。工号不是认证。
-- 项目、Release、提案、IR/SR、Issue、材料、配置与已保存 Skill 共享。项目仅保存名称、远程仓库、
-  默认分支，服务分配明确模拟托管路径，不把 VirtualProject 当业务项目，不要求用户选本地目录。
-  Skill 设计会话与未发送表单按工号＋clientId＋项目独立；保存后技能目录仍共享。
-- 提案只允许当前公开动作；IR/SR 生成与方案更新只由已接纳原生消息完成回调调用。
-  源开发执行、自由聊天、人工登记 MR、手工宣称已合入、编码和验收动作不在 RPC 白名单。
-  首发草稿编号与操作编号去重；业务命令校验读取 revision，确认和发布额外绑定完整材料与候选版本。
-- 唯一五秒时钟检查 MR opened/closed/merged 与完整当前文件；未合入、不完整、读取失败或候选失效
-  都保留提案及原因。核验通过才转正并登记 SR 分支；新 SR 没有代码分析证据，保持 0%。
-  原生已接纳回合和分析 pending 不依赖页面存活；重连不重放，进程重启恢复样例。
-- 正式负责人、排期、99→100 人工门禁与 Issue 完成/重开由服务端复核；Issue 仅属于项目，
-  不属于 Release。分析任务按 SR 三元组唯一，25/50 分页只传摘要，报告按需读取；
-  启动现有后端前设置 `AIREQ_DEMO=analysis-scale`，再打开 `/?demo=analysis-scale`，可得到初始 300 任务、1000 历史的规模样例；不写入正式需求列表，所有连接仍共享唯一调度器，不按 URL 或工号复制任务。
-- 模型、追加指令及项目保存有版本门禁，平台配置仅 owner 写；九个当前角色与原生模型目录同形，
-  会话和分析历史保留创建时绑定。追加指令每角色限 102400 UTF-8 字节。Skill 显式保存绑定
-  产物 revision/操作编号、包含全部临时文件且拒绝同名覆盖。
-- 自动化复用原生服务方法，定义和 stopped 模拟运行记录都在内存；历史主/actor 会话只读，
-  task/workpool 输出按需读取，不创建真实调度或影响 IR/SR。所有模拟材料均为本仓库自含文本，
-  dev tsx 和 tsup 无源仓库、浏览器 `?raw` 或独立 worker 依赖。
+  `createZCodeAgentConnectionScope` 管理握手、订阅和关闭，工号不是认证，不写入严格 v4 帧。
+- 项目、Release、提案／正式 IR、SR、材料、评审、确认、报告、配置与已保存 Skill 共享，
+  不按工号、连接或 URL 复制业务。项目仅保存名称、远程仓库和默认分支，Release 继承仓库；
+  不把 VirtualProject 当业务项目，不要求选本地目录。需求／Skill 原生会话保持身份、clientId、
+  对象与版本绑定，未发送表单和草稿保留各自作用域，不能借无权限体系跨用私有会话。
+- 新增或导入只保存原始短需求并停留提案表，不启动 AI、生成 SR 或依赖首发聊天。只有主动讨论
+  才开始澄清；IR 原始需求单 Agent 评审无阻断且人工通过后，开发才拆 SR。短需求独立保留。
+  IR 共享材料路径为 `docs/requirements/<ir-id>/`；每个 SR 独立持有
+  `openspec/changes/<sr-id>/` 下 proposal、design、tasks、specs 与 test-plan，全为稳定 ID 的模拟路径。
+  不向本源码工作树写用户材料，不新增手工文档编辑器、SR 开发工作台或执行开发任务的操作。
+- 同一方案阶段逐步完善全部 SR 材料，再对同一完整快照三路审查、第四 Agent 综合终审、
+  人工放行及业务／开发／测试三视角分别确认；同人可分别确认，不设后置测试方案阶段或专用生成 Agent。
+  任一包材料变化使三路、终审、人工放行与三方确认全部失效；只有原始需求文档变化额外要求
+  重做前置单 Agent 评审及人工通过。旧记录只读，迟到结果不能覆盖新版本或恢复批准。
+- 一个 IR 一个含 IR 共享材料与全部 SR change 的完整文档 PR；提交后冻结候选，
+  需修改时先关闭未合并 PR 再修改并重新审查确认。唯一五秒时钟核验 PR opened/closed/merged、
+  同一候选版本与完整当前文件，未合入／关闭／不完整／读取失败／候选失效均不转正。
+  正确候选完整合入后保留同一 IR 身份转正，并逐 SR 从文档合入提交建分支；逐项保留错误，
+  重复核验不复制对象。无代码分析证据的新 SR 为 0%，不伪造分支或分析结果。
+- 分析任务按 SR 三元组唯一，保留过滤、25/50 分页摘要、按需报告、手动／定时及未变输入跳过。
+  指纹绑定材料、任务、代码／默认分支及合并事实版本；失败保留上次成功报告并标记失败／过期，
+  迟到结果只接纳匹配版本。未合入 AI 估计 0–99，可下降；合入后有效进度固定 99，
+  不依赖 AI 原始评分恰为 99；只有绑定已合入代码版本及依据的人工测试通过才变 100。
+  失败保持 99 并产生问题，不能直接再点通过；修复新版本合入后待复测，AI 不覆盖人工完成。
+- IR 直接平均全部所属 SR；项目／Release 直接平均范围内全部正式 SR，而非 IR 平均再平均。
+  提案不入分母、未分析为 0 并标记、无正式 SR 显示暂无正式需求，非全完成不四舍五入为 100。
+  整个 IR 全部 SR 100 后才可预览分支清单并确认清理；只删登记的开发分支，逐项记录失败、
+  幂等重试，保护主分支、材料、报告和验收历史，不改变进度。
+- 待办从工作流、联系人／负责人和失败事实派生，覆盖我的／待认领／全部及跨项目定位；
+  不保存另一份可手工勾选完成状态，不复用开发 tasks 或分析调度任务。业务动作后自动更新，
+  代办不暗改负责人，正常 AI 运行、等待文档合并或等待调度不产生空操作待办。
+- 模型、追加指令、项目与分析设置保留预期版本检查，不设 owner 专属配置权或固定工号门禁。
+  模型角色沿当前公开契约，与原生模型目录同形；会话和分析历史保留创建时绑定。
+  追加指令每角色限 102400 UTF-8 字节。Skill 显式模拟保存绑定产物 revision／操作编号，
+  包含全部临时文件且拒绝同名覆盖；保存目录共享，私有设计会话不因此共享。
+- Issue 和 AIReq 自动化页面、专属状态／owner／manifest／RPC 及接线已裁撤；
+  `domains/automations` 中保留的 Bots 依赖、原生会话、通用控件与需求分析调度继续保留；不保留闲时任务服务。规模样例仍可在启动前设置
+  `AIREQ_DEMO=analysis-scale` 并打开 `/?demo=analysis-scale`，初始 300 任务、1000 历史不写入正式需求列表，
+  所有连接共享唯一调度器。定时配置间隔与显式模拟推进分开标注，后台五秒检查不冒充业务时间流逝。
+- 明确标为模拟的评审、候选合入、代码／修复合入、失败及迟到结果控制，只提供外部输入，
+  仍走正常业务 owner 的版本、阶段、幂等和人工门禁，不直接设置批准或 100。
+  原生已接纳回合和分析 pending 不依赖页面存活，刷新重连只重读、不重放写操作，进程重启恢复样例。
+  材料为仓库自含模拟文本，开发与构建由 Bun 执行，无源仓库、浏览器 `?raw` 或独立 worker 依赖；
+  不调用真实模型、托管 Git、数据库、文件写入或开发／测试执行。
 
 本节描述实现边界，不是 gate、构建或浏览器验收通过记录。

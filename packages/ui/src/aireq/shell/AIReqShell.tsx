@@ -1,13 +1,16 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   PanelRightClose,
   PanelRightOpen,
   ListTodo,
   FileSearch,
   TableProperties,
+  Lightbulb,
   ChartNoAxesCombined,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   ResizablePanelGroup,
@@ -24,7 +27,7 @@ import {
 } from "@/lib/settingsNavigation.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
-import type { AIReqMainView } from "../contract.js";
+import type { AIReqMainView, AIReqSettingsDraftActions } from "../contract.js";
 import { conversationReadOnlyReason, proposalProgressIndex } from "../contract.js";
 import { AIReqStageHeader, AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
@@ -34,6 +37,8 @@ import { AIReqProjectProgressPage } from "../projects/AIReqProjectProgressPage.j
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/index.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
+import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
+import { AIREQ_CONTENT_WIDTH_CLASSNAME, AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import {
   WorkspaceSidebarToolbar,
@@ -52,7 +57,6 @@ const nativeSettingsSections = {
   projects: "general",
   models: "modelProvider",
   personalization: "personalization",
-  skillDesign: "skill",
 } satisfies Record<Section, SettingsSectionId>;
 
 function readSettingsSection(): Section {
@@ -64,8 +68,6 @@ function readSettingsSection(): Section {
       return "models";
     case "personalization":
       return "personalization";
-    case "skill":
-      return "skillDesign";
     default:
       return "projects";
   }
@@ -74,7 +76,8 @@ const pages = [
   { view: "projectProgress", label: "项目进度", labelEn: "Project progress", icon: ChartNoAxesCombined },
   { view: "todos", label: "待办列表", labelEn: "Todos", icon: ListTodo },
   { view: "formal", label: "正式需求", labelEn: "Formal requirements", icon: TableProperties },
-  { view: "proposals", label: "需求提案", labelEn: "Proposals", icon: TableProperties },
+  // 正式需求和提案原先共用表格图标，在单列导航中无法区分；灯泡表示待讨论的提案。
+  { view: "proposals", label: "需求提案", labelEn: "Proposals", icon: Lightbulb },
   { view: "requirementAnalysis", label: "进度分析", labelEn: "Progress analysis", icon: FileSearch },
 ] satisfies { view: AIReqMainView; label: string; labelEn: string; icon: typeof FileSearch }[];
 export function AIReqShell({ onLogout }: { onLogout(): void }) {
@@ -85,39 +88,25 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const source = useAIReqDataSource();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsMounted, setSettingsMounted] = useState(false);
+  const [skillMounted, setSkillMounted] = useState(false);
+  const [skillActions, setSkillActions] = useState<AIReqSettingsDraftActions | null>(null);
+  useEffect(() => {
+    if (ai.mainView === "skillDesign") {
+      setSkillMounted(true);
+      setSettingsMounted(true);
+    }
+  }, [ai.mainView]);
   const [settingsSection, setSettingsSection] = useState<Section>(readSettingsSection);
   const settings = settingsOpen ? settingsSection : null;
-  const [navigationWidth, setNavigationWidth] = useState(() => {
-    try {
-      const saved = Number(localStorage.getItem("zcode:workspace-shell:sidebar-width-px"));
-      return Number.isFinite(saved) && saved >= 264 ? Math.round(saved) : 264;
-    } catch {
-      return 264;
-    }
-  });
-  const shellRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const shell = shellRef.current;
-    if (!shell) return;
-    const clampWidth = () => {
-      const maximum = Math.max(264, shell.clientWidth / 2);
-      setNavigationWidth((width) => Math.min(width, maximum));
-    };
-    clampWidth();
-    const observer = new ResizeObserver(clampWidth);
-    observer.observe(shell);
-    return () => observer.disconnect();
-  }, []);
-  const navigationResize = useRef<{ startX: number; width: number } | null>(null);
   const [materialsOpen, setMaterialsOpen] = useState(true);
   const materialsPanel = useRef<PanelImperativeHandle>(null);
-  const lastMaterialsSize = useRef<number | null>(null);
   const appliedMaterialsOpen = useRef(true);
   useLayoutEffect(() => {
     if (appliedMaterialsOpen.current === materialsOpen) return;
     appliedMaterialsOpen.current = materialsOpen;
-    // 修复：先提交最小宽度约束再收起，否则原生 resize 会被 240px 下限夹回。
-    materialsPanel.current?.resize(materialsOpen ? `${lastMaterialsSize.current ?? 45}%` : "0px");
+    // 修复：动态修改最小宽度时面板仍按旧约束夹到 240px；使用原生折叠能力释放空间并恢复原宽度。
+    if (materialsOpen) materialsPanel.current?.expand();
+    else materialsPanel.current?.collapse();
   }, [materialsOpen]);
   const [help, setHelp] = useState(false);
   const helpReturnFocus = useRef<HTMLButtonElement | null>(null);
@@ -177,21 +166,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
     (proposalProgressIndex(proposal, ai.selection) === 3) &&
     (ai.selection.proposalStep === "intake" ||
       (!ai.selection.proposalStep && !ai.selection.discussionPhase));
-  const resizeNavigation = (width: number, remember = false) => {
-    const maximum = Math.max(264, (shellRef.current?.clientWidth ?? 528) / 2);
-    const nextWidth = Math.round(Math.max(264, Math.min(maximum, width)));
-    setNavigationWidth(nextWidth);
-    if (remember) {
-      try {
-        localStorage.setItem("zcode:workspace-shell:sidebar-width-px", String(nextWidth));
-      } catch {
-        // 修复：浏览器禁止存储时仍允许本次拖动，不把布局偏好失败当作业务错误。
-      }
-    }
-  };
   const toggleMaterials = () => {
-    if (materialsOpen)
-      lastMaterialsSize.current = materialsPanel.current?.getSize().asPercentage ?? null;
     setMaterialsOpen((open) => !open);
   };
   const formal =
@@ -222,6 +197,17 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
             className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
           >
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-4">
+              {proposal && (
+                <Button
+                  variant="ghost"
+                  size="icon-md"
+                  aria-label={zh ? "返回提案列表" : "Back to proposals"}
+                  title={zh ? "返回提案列表" : "Back to proposals"}
+                  onClick={() => navigate(() => ai.setMainView("proposals"))}
+                >
+                  <ArrowLeft className="size-4" />
+                </Button>
+              )}
               <span
                 className="min-w-0 flex-1 truncate text-ui-base font-medium"
                 title={proposal?.title}
@@ -263,9 +249,13 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   返回 IR 讨论
                 </Button>
               </div>
+            // 修复：交付阶段即使收到上一阶段会话投影，也不能继续渲染方案聊天。
+            ) : viewingIntake ? (
+              <AIReqProposalStageBody materialsOpen={materialsOpen} onOpenMaterials={() => setMaterialsOpen(true)} />
             ) : ai.session ? (
               <V4PaneConversationProvider scope={scope} sessionId={ai.session.sessionId}>
                 <AIReqSessionPane
+                  contentWidthClassName={AIREQ_CONTENT_WIDTH_CLASSNAME}
                   paneId="aireq-proposal"
                   sessionId={ai.session.sessionId}
                   {...scope}
@@ -276,8 +266,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   focused={!settings}
                 />
               </V4PaneConversationProvider>
-            ) : viewingIntake ? (
-              <AIReqProposalStageBody />
             ) : ai.selection.irId || !ai.view ? (
               <div className="m-auto space-y-3 p-6 text-ui-base text-foreground-subtle">
                 <p role={ai.error ? "alert" : "status"}>
@@ -321,9 +309,11 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           id="materials"
           panelRef={materialsPanel}
           defaultSize={materialsOpen ? "45%" : "0px"}
-          minSize={materialsOpen ? "240px" : "0px"}
+          collapsible
+          collapsedSize="0px"
+          minSize="240px"
           maxSize="65%"
-          disabled={!materialsOpen}
+          onResize={(size) => setMaterialsOpen(size.asPercentage > 0)}
           className={materialsOpen ? "" : "pointer-events-none invisible"}
         >
           <div
@@ -350,7 +340,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   // Zai Dark 的 sidebar 与内容背景同值；导航须沿用原生浏览器窗口底层，内容区另用 background。
   return (
     <div
-      ref={shellRef}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt"
     >
       {/* 仅隐藏内容会留下第二条侧栏；整个工作台保持挂载并隔离交互，保护原生草稿与附件。 */}
@@ -364,24 +353,24 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           id="aireq-navigation"
           aria-label="AIReq 工作台导航"
           data-testid="aireq-workflow-root"
-          style={{ width: navigationWidth, minWidth: 264, maxWidth: "50%" }}
-          className="flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
+          className="flex w-[68px] min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
         >
           <WorkspaceSidebarToolbar {...toolbar} />
           <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <div className="flex flex-col gap-1 px-2 py-3">
+            <div className="flex flex-col items-center gap-1 px-2 py-3">
               {pages.map((page) => (
+                <ControlHintTooltip key={page.view} title={zh ? page.label : page.labelEn} side="right">
                 <Button
-                  key={page.view}
                   variant="ghost"
-                  size="lg"
-                  className={`w-full justify-start gap-2 ${!settings && ai.mainView === page.view ? "bg-selected" : ""}`}
+                  size="icon-lg"
+                  className={!settings && ai.mainView === page.view ? "bg-selected" : ""}
+                  aria-label={zh ? page.label : page.labelEn}
                   aria-pressed={!settings && ai.mainView === page.view}
                   onClick={() => navigate(() => ai.setMainView(page.view))}
                 >
                   <page.icon className="size-4" />
-                  {zh ? page.label : page.labelEn}
                 </Button>
+                </ControlHintTooltip>
               ))}
             </div>
           </div>
@@ -392,46 +381,9 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
             onHelp={openHelp}
           />
         </nav>
-        <div
-          role="separator"
-          tabIndex={0}
-          aria-label="调整导航宽度"
-          aria-orientation="vertical"
-          aria-valuemin={264}
-          aria-valuenow={navigationWidth}
-          aria-controls="aireq-navigation"
-          className="relative z-10 h-full w-1 shrink-0 cursor-ew-resize touch-none hover:bg-border-hover focus-visible:bg-border-hover"
-          onPointerDown={(event) => {
-            navigationResize.current = { startX: event.clientX, width: navigationWidth };
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={(event) => {
-            const drag = navigationResize.current;
-            if (drag) resizeNavigation(drag.width + event.clientX - drag.startX);
-          }}
-          onPointerUp={(event) => {
-            const drag = navigationResize.current;
-            if (drag) resizeNavigation(drag.width + event.clientX - drag.startX, true);
-            navigationResize.current = null;
-          }}
-          onPointerCancel={() => {
-            navigationResize.current = null;
-          }}
-          onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            resizeNavigation(
-              event.key === "Home"
-                ? 264
-                : event.key === "End"
-                  ? (shellRef.current?.clientWidth ?? 528) / 2
-                  : navigationWidth + (event.key === "ArrowLeft" ? -16 : 16),
-              true,
-            );
-          }}
-        />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-          {ai.mainView !== "chat" && (
+        <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+          {/* 修复：转正后虽然仍在 chat 导航态，渲染的是正式表，必须保留主页面顶部留白。 */}
+          {(ai.mainView !== "chat" || formal) && (
             <div className="h-12 shrink-0 bg-background" />
           )}
           {ai.error && (
@@ -458,8 +410,26 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   <div role="status" className="m-auto">
                     正在读取项目…
                   </div>
-                ) : (
+                ) : ai.mainView !== "skillDesign" ? (
                   content
+                ) : null}
+                {skillMounted && (
+                  <div
+                    hidden={ai.mainView !== "skillDesign"}
+                    inert={ai.mainView !== "skillDesign" || Boolean(settings)}
+                    aria-hidden={ai.mainView !== "skillDesign"}
+                    className={ai.mainView === "skillDesign" ? "flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable_both-edges]" : "hidden"}
+                  >
+                    <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} shrink-0 pb-6 lg:pb-6`}>
+                      <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "Skill 设计" : "Skill design"}</h1>
+                    </div>
+                    <AIReqWorkspaceActiveContext.Provider value={ai.mainView === "skillDesign" && !settingsOpen}>
+                      <AIReqSkillDesignPage
+                        active={ai.mainView === "skillDesign" && !settingsOpen}
+                        onDraftActionsChange={setSkillActions}
+                      />
+                    </AIReqWorkspaceActiveContext.Provider>
+                  </div>
                 )}
               </div>
             </AIReqWorkspaceActiveContext.Provider>
@@ -475,14 +445,13 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
         >
           <ModelSettingsNavigationContext.Provider value={openModelSettings}>
             <AIReqSettingsPage
-              active={settingsOpen}
+              active={settingsOpen || ai.mainView === "skillDesign"}
               section={settingsSection}
               onSectionChange={commitSettingsSection}
               onClose={closeSettings}
-              onManageProjects={() => openSettings("projects")}
               onHelp={openHelp}
-              onLogout={logout}
               onNavigationGuardChange={guardChange}
+              skillActions={skillActions}
             />
           </ModelSettingsNavigationContext.Provider>
         </div>

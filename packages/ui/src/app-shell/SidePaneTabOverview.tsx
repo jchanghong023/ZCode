@@ -23,8 +23,7 @@ import {
   getSidePaneTabTypeLabel,
   type SidePaneTabPresentationLabels,
 } from "@/app-shell/sidePaneTabPresentation.js";
-import type { RecentClosedSidePaneTab } from "@/hooks/useAppPanels.js";
-import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
+import type { RecentClosedSidePaneTab, WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 
 export function SidePaneTabOverview({
   tabs,

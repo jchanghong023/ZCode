@@ -184,6 +184,11 @@ export function createPrototypeProgressScheduler(
     Object.assign(task, { irTitle, srTitle: sr.title, percent: srProgress(sr), branch, releaseId: input.releaseId });
     if (!branch || sr.trackingBranch?.status === "failed")
       task.error = sr.trackingBranch?.error ?? "开发分支缺失，不能分析。";
+    else if (task.error) {
+      // 分支错误来自当前分支事实；恢复后只保留最近分析运行自身的失败，不能沿用旧分支错误。
+      const lastRun = runs.find((run) => run.id === task.lastRunId);
+      task.error = lastRun?.status === "failed" ? lastRun.message : undefined;
+    }
   }
 
   function reconcile(): void {
@@ -470,6 +475,8 @@ export function createPrototypeProgressScheduler(
         }
       }
     }
+    // 初始化写回报告发生在订阅安装前；首次查询也必须从同一 owner 收敛任务进度。
+    reconcile();
   }
   const subscription = prototypeWorkflowChanges.event(() => {
     reconcile();

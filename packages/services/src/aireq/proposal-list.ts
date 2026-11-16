@@ -85,7 +85,7 @@ export function proposalUpdatedTime(
     include(revision.review?.createdAt);
   }
   for (const operation of operations) {
-    if (operation.irId !== group.id) continue;
+    if (operation.irId !== group.id && !operation.irIds?.includes(group.id)) continue;
     include(operation.startedAt);
     include(operation.completedAt);
     for (const step of operation.steps) include(step.at);

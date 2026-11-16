@@ -1,12 +1,11 @@
-/* eslint-disable max-lines -- IZCodeAgentService 是 150+ 方法的单一协议面：帧发射、命令分派
-   与旧会话兼容桩必须实现同一个类才能保证契约完整，拆文件会让「实现完整性」分散到多处。 */
+/* eslint-disable max-lines -- 原生 v4 会话、附件与订阅共享唯一模拟运行时。 */
 // 模拟 ZCode Agent 服务：实现 v4 conversation / sessions-index / workspace-config
 // 三个 topic 的订阅-帧流协议与命令面。所有帧在发射前经 shared 的 zod schema 校验，
 // 保证与真实执行端同一条协议契约（fail-closed，坏帧宁可抛错也不上线）。
 // 方法签名统一从 IZCodeAgentService 派生（Parameters/ReturnType），避免与契约漂移。
 import { createHash } from "node:crypto";
 import { Emitter, Event, type IDisposable } from "@zcode/rpc";
-import { createUuid, type SessionLifecycleSnapshot, type ZCodeSessionInfo } from "@zcode/shared";
+import { createUuid, type SessionLifecycleSnapshot } from "@zcode/shared";
 import {
   conversationTopicFrameSchema,
   conversationTopicWireFrameSchema,
@@ -1493,14 +1492,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  async conversationInputPredictionV4(
-    _params: P<IZCodeAgentService["conversationInputPredictionV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationInputPredictionV4"]>> {
-    return { kind: "unsupported" } as unknown as AR<
-      IZCodeAgentService["conversationInputPredictionV4"]
-    >;
-  }
-
   async sendConversationCommandV4(
     params: P<IZCodeAgentService["sendConversationCommandV4"]>,
   ): Promise<CommandAck> {
@@ -1997,22 +1988,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  async createSession(
-    _params: P<IZCodeAgentService["createSession"]>,
-  ): Promise<AR<IZCodeAgentService["createSession"]>> {
-    throw new Error("mock: legacy createSession 由 v4 createSession 命令承担");
-  }
-
-  async resumeSession(
-    _params: P<IZCodeAgentService["resumeSession"]>,
-  ): Promise<AR<IZCodeAgentService["resumeSession"]>> {
-    throw new Error("mock: legacy resumeSession 由 v4 订阅承担");
-  }
-
-  async listSessions(_params: P<IZCodeAgentService["listSessions"]>): Promise<ZCodeSessionInfo[]> {
-    return [];
-  }
-
   async listSessionSubagents(
     _params: P<IZCodeAgentService["listSessionSubagents"]>,
   ): Promise<AR<IZCodeAgentService["listSessionSubagents"]>> {
@@ -2021,114 +1996,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  async getAppUsageStats(
-    _params: P<IZCodeAgentService["getAppUsageStats"]>,
-  ): Promise<AR<IZCodeAgentService["getAppUsageStats"]>> {
-    return { generatedAt: Date.now(), ranges: [] } as unknown as AR<
-      IZCodeAgentService["getAppUsageStats"]
-    >;
-  }
-
-  async getTaskTokenUsage(
-    _params: P<IZCodeAgentService["getTaskTokenUsage"]>,
-  ): Promise<AR<IZCodeAgentService["getTaskTokenUsage"]>> {
-    return {
-      taskId: _params.sessionId,
-      totalTokens: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cacheCreationTokens: 0,
-      cacheReadTokens: 0,
-      modelRequestCount: 0,
-      modelErrorCount: 0,
-    } as unknown as AR<IZCodeAgentService["getTaskTokenUsage"]>;
-  }
-
-  async readSession(
-    _params: P<IZCodeAgentService["readSession"]>,
-  ): Promise<AR<IZCodeAgentService["readSession"]>> {
-    throw new Error("mock: legacy readSession 由 v4 投影承担");
-  }
-
-  async readSessionMessages(
-    _params: P<IZCodeAgentService["readSessionMessages"]>,
-  ): Promise<AR<IZCodeAgentService["readSessionMessages"]>> {
-    return { messages: [], nextBeforeMessageId: null } as unknown as AR<
-      IZCodeAgentService["readSessionMessages"]
-    >;
-  }
-
   async readSessionDebug(
     _params: P<IZCodeAgentService["readSessionDebug"]>,
   ): Promise<AR<IZCodeAgentService["readSessionDebug"]>> {
     return { events: [], notes: [] } as unknown as AR<IZCodeAgentService["readSessionDebug"]>;
-  }
-
-  async readSessionEvents(
-    _params: P<IZCodeAgentService["readSessionEvents"]>,
-  ): Promise<AR<IZCodeAgentService["readSessionEvents"]>> {
-    return [] as unknown as AR<IZCodeAgentService["readSessionEvents"]>;
-  }
-
-  async readWorkspacePresentation(
-    _params: P<IZCodeAgentService["readWorkspacePresentation"]>,
-  ): Promise<AR<IZCodeAgentService["readWorkspacePresentation"]>> {
-    return {
-      workspace: {
-        workspacePath: _params.workspacePath,
-        workspaceKey: workspaceKeyOf(_params),
-      },
-      mode: "build",
-      slashCommands: [],
-    } as unknown as AR<IZCodeAgentService["readWorkspacePresentation"]>;
-  }
-
-  async grantWorkspaceHookTrust(
-    _params: P<IZCodeAgentService["grantWorkspaceHookTrust"]>,
-  ): Promise<AR<IZCodeAgentService["grantWorkspaceHookTrust"]>> {
-    return { skills: [] } as unknown as AR<IZCodeAgentService["grantWorkspaceHookTrust"]>;
-  }
-
-  async setWorkspaceMcpTrust(
-    _params: P<IZCodeAgentService["setWorkspaceMcpTrust"]>,
-  ): Promise<AR<IZCodeAgentService["setWorkspaceMcpTrust"]>> {
-    return { applied: false } as unknown as AR<IZCodeAgentService["setWorkspaceMcpTrust"]>;
-  }
-
-  async listMcpServerStatuses(
-    _params: P<IZCodeAgentService["listMcpServerStatuses"]>,
-  ): Promise<AR<IZCodeAgentService["listMcpServerStatuses"]>> {
-    return { servers: [], mode: "all" } as unknown as AR<
-      IZCodeAgentService["listMcpServerStatuses"]
-    >;
-  }
-
-  async listPlugins(
-    _params: P<IZCodeAgentService["listPlugins"]>,
-  ): Promise<AR<IZCodeAgentService["listPlugins"]>> {
-    return { plugins: [], marketplaces: [] } as unknown as AR<IZCodeAgentService["listPlugins"]>;
-  }
-
-  async getPluginsOverview(
-    _params: P<IZCodeAgentService["getPluginsOverview"]>,
-  ): Promise<AR<IZCodeAgentService["getPluginsOverview"]>> {
-    return {
-      marketplaces: [],
-      availablePlugins: [],
-      installedPlugins: [],
-      restorableBuiltins: [],
-      diagnostics: [],
-      capability: { supported: false, reason: "mock" },
-    } as unknown as AR<IZCodeAgentService["getPluginsOverview"]>;
-  }
-
-  async getPluginReferenceCatalog(
-    _params: P<IZCodeAgentService["getPluginReferenceCatalog"]>,
-  ): Promise<AR<IZCodeAgentService["getPluginReferenceCatalog"]>> {
-    return { authority: "workspace" as const, plugins: [] } as unknown as AR<
-      IZCodeAgentService["getPluginReferenceCatalog"]
-    >;
   }
 
   async getSkillReferenceCatalog(
@@ -2139,112 +2010,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  async resolveSuggestedPluginReference(
-    _params: P<IZCodeAgentService["resolveSuggestedPluginReference"]>,
-  ): Promise<AR<IZCodeAgentService["resolveSuggestedPluginReference"]>> {
-    throw new Error("mock: 建议插件解析未启用");
-  }
-
-  async listSavedWorkflows(
-    _params: P<IZCodeAgentService["listSavedWorkflows"]>,
-  ): Promise<AR<IZCodeAgentService["listSavedWorkflows"]>> {
-    return { workflows: [] } as unknown as AR<IZCodeAgentService["listSavedWorkflows"]>;
-  }
-
-  async getSavedWorkflow(
-    _params: P<IZCodeAgentService["getSavedWorkflow"]>,
-  ): Promise<AR<IZCodeAgentService["getSavedWorkflow"]>> {
-    throw new Error("fault.workflow.notFound");
-  }
-
-  async updateSavedWorkflowMeta(
-    _params: P<IZCodeAgentService["updateSavedWorkflowMeta"]>,
-  ): Promise<AR<IZCodeAgentService["updateSavedWorkflowMeta"]>> {
-    throw new Error("fault.workflow.notFound");
-  }
-
-  async deleteSavedWorkflow(
-    _params: P<IZCodeAgentService["deleteSavedWorkflow"]>,
-  ): Promise<AR<IZCodeAgentService["deleteSavedWorkflow"]>> {
-    throw new Error("fault.workflow.notFound");
-  }
-
-  async listSavedWorkflowRuns(
-    _params: P<IZCodeAgentService["listSavedWorkflowRuns"]>,
-  ): Promise<AR<IZCodeAgentService["listSavedWorkflowRuns"]>> {
-    return { runs: [], hasMore: false } as unknown as AR<
-      IZCodeAgentService["listSavedWorkflowRuns"]
-    >;
-  }
-
-  async moveSavedWorkflow(
-    _params: P<IZCodeAgentService["moveSavedWorkflow"]>,
-  ): Promise<AR<IZCodeAgentService["moveSavedWorkflow"]>> {
-    throw new Error("fault.workflow.notFound");
-  }
-
-  async saveSavedWorkflowFromRun(
-    _params: P<IZCodeAgentService["saveSavedWorkflowFromRun"]>,
-  ): Promise<AR<IZCodeAgentService["saveSavedWorkflowFromRun"]>> {
-    throw new Error("fault.workflow.notFound");
-  }
-
-  async findSavedWorkflowForRun(
-    _params: P<IZCodeAgentService["findSavedWorkflowForRun"]>,
-  ): Promise<AR<IZCodeAgentService["findSavedWorkflowForRun"]>> {
-    return null as unknown as AR<IZCodeAgentService["findSavedWorkflowForRun"]>;
-  }
-
-  async listAutomations(
-    _params: P<IZCodeAgentService["listAutomations"]>,
-  ): Promise<AR<IZCodeAgentService["listAutomations"]>> {
-    return [];
-  }
-
-  async listAllAutomations(): Promise<AR<IZCodeAgentService["listAllAutomations"]>> {
-    return [];
-  }
-
-  async collectLocalRuntimeChildProcesses(
-    _params: P<IZCodeAgentService["collectLocalRuntimeChildProcesses"]>,
-  ): Promise<AR<IZCodeAgentService["collectLocalRuntimeChildProcesses"]>> {
-    return { children: [] } as unknown as AR<
-      IZCodeAgentService["collectLocalRuntimeChildProcesses"]
-    >;
-  }
-
-  async generateWorkspaceText(
-    _params: P<IZCodeAgentService["generateWorkspaceText"]>,
-  ): Promise<AR<IZCodeAgentService["generateWorkspaceText"]>> {
-    throw new Error("mock: generateWorkspaceText 未实现");
-  }
-
-  async testModelConnectivity(
-    _params: P<IZCodeAgentService["testModelConnectivity"]>,
-  ): Promise<AR<IZCodeAgentService["testModelConnectivity"]>> {
-    return { ok: true, latencyMs: 12 } as unknown as AR<
-      IZCodeAgentService["testModelConnectivity"]
-    >;
-  }
-
-  async sendPrompt(
-    _params: P<IZCodeAgentService["sendPrompt"]>,
-  ): Promise<AR<IZCodeAgentService["sendPrompt"]>> {
-    throw new Error("mock: legacy sendPrompt 已退役，请使用 v4 sendConversationCommandV4");
-  }
-
-  async compactSession(
-    _params: P<IZCodeAgentService["compactSession"]>,
-  ): Promise<AR<IZCodeAgentService["compactSession"]>> {
-    return { status: "noop" } as unknown as AR<IZCodeAgentService["compactSession"]>;
-  }
-
-  async goalSession(
-    _params: P<IZCodeAgentService["goalSession"]>,
-  ): Promise<AR<IZCodeAgentService["goalSession"]>> {
-    return { status: "noop" } as unknown as AR<IZCodeAgentService["goalSession"]>;
-  }
-
   async closeSession(
     params: P<IZCodeAgentService["closeSession"]>,
   ): Promise<AR<IZCodeAgentService["closeSession"]>> {
@@ -2253,104 +2018,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return false as unknown as AR<IZCodeAgentService["closeSession"]>;
   }
 
-  async setModel(
-    _params: P<IZCodeAgentService["setModel"]>,
-  ): Promise<AR<IZCodeAgentService["setModel"]>> {
-    throw new Error("mock: legacy setModel 由 v4 switchModelConfig 承担");
-  }
-
-  async setThoughtLevel(
-    _params: P<IZCodeAgentService["setThoughtLevel"]>,
-  ): Promise<AR<IZCodeAgentService["setThoughtLevel"]>> {
-    throw new Error("mock: legacy setThoughtLevel 由 v4 switchModelConfig 承担");
-  }
-
-  async setMode(
-    _params: P<IZCodeAgentService["setMode"]>,
-  ): Promise<AR<IZCodeAgentService["setMode"]>> {
-    throw new Error("mock: legacy setMode 由 v4 switchCollaborationMode 承担");
-  }
-
-  async respondProviderRuntimeHeaders(
-    _params: P<IZCodeAgentService["respondProviderRuntimeHeaders"]>,
-  ): Promise<void> {}
-
-  async respondSessionRuntimePreferences(
-    _params: P<IZCodeAgentService["respondSessionRuntimePreferences"]>,
-  ): Promise<void> {}
-
-  onDynamicProviderRuntimeHeadersRequest(): ReturnType<
-    IZCodeAgentService["onDynamicProviderRuntimeHeadersRequest"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicProviderRuntimeHeadersRequest"]
-    >;
-  }
-
-  onDynamicWorkspaceProviderRuntimeHeadersRequest(
-    _params: P<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]> {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersRequest"]
-    >;
-  }
-
-  onDynamicWorkspaceProviderRuntimeHeadersCancelled(
-    _params: P<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]> {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicWorkspaceProviderRuntimeHeadersCancelled"]
-    >;
-  }
-
-  onDynamicSessionRuntimePreferencesRequest(): ReturnType<
-    IZCodeAgentService["onDynamicSessionRuntimePreferencesRequest"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicSessionRuntimePreferencesRequest"]
-    >;
-  }
-
-  onDynamicProcessResourceSample(): ReturnType<
-    IZCodeAgentService["onDynamicProcessResourceSample"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicProcessResourceSample"]
-    >;
-  }
-
   onDynamicPluginStartupDegraded(
     _params: P<IZCodeAgentService["onDynamicPluginStartupDegraded"]>,
   ): ReturnType<IZCodeAgentService["onDynamicPluginStartupDegraded"]> {
     return Event.None as unknown as ReturnType<
       IZCodeAgentService["onDynamicPluginStartupDegraded"]
     >;
-  }
-
-  onDynamicRemoteConversationTelemetry(): ReturnType<
-    IZCodeAgentService["onDynamicRemoteConversationTelemetry"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicRemoteConversationTelemetry"]
-    >;
-  }
-
-  onDynamicMcpTelemetry(): ReturnType<IZCodeAgentService["onDynamicMcpTelemetry"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicMcpTelemetry"]>;
-  }
-
-  onDynamicMcpResourceSamples(): ReturnType<IZCodeAgentService["onDynamicMcpResourceSamples"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicMcpResourceSamples"]>;
-  }
-
-  onDynamicToolExecResource(): ReturnType<IZCodeAgentService["onDynamicToolExecResource"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicToolExecResource"]>;
-  }
-
-  onDynamicSessionEvent(
-    _params: P<IZCodeAgentService["onDynamicSessionEvent"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicSessionEvent"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicSessionEvent"]>;
   }
 
   onDynamicLocalTtftFacts(
@@ -2364,36 +2037,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   ): ReturnType<IZCodeAgentService["onDynamicConversationTelemetryFact"]> {
     return Event.None as unknown as ReturnType<
       IZCodeAgentService["onDynamicConversationTelemetryFact"]
-    >;
-  }
-
-  onDynamicModelRequestMetrics(
-    _params: NonNullable<P<IZCodeAgentService["onDynamicModelRequestMetrics"]>>,
-  ): ReturnType<NonNullable<IZCodeAgentService["onDynamicModelRequestMetrics"]>> {
-    return Event.None as unknown as ReturnType<
-      NonNullable<IZCodeAgentService["onDynamicModelRequestMetrics"]>
-    >;
-  }
-
-  onDynamicOffPeakLifecycle(
-    _params: P<IZCodeAgentService["onDynamicOffPeakLifecycle"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicOffPeakLifecycle"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicOffPeakLifecycle"]>;
-  }
-
-  async controlOffPeakExecutionV4(
-    _params: P<IZCodeAgentService["controlOffPeakExecutionV4"]>,
-  ): Promise<AR<IZCodeAgentService["controlOffPeakExecutionV4"]>> {
-    return { kind: "unsupported" } as unknown as AR<
-      IZCodeAgentService["controlOffPeakExecutionV4"]
-    >;
-  }
-
-  onDynamicCuaPermissionObservation(): ReturnType<
-    IZCodeAgentService["onDynamicCuaPermissionObservation"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicCuaPermissionObservation"]
     >;
   }
 
@@ -2480,56 +2123,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  async previewSessionDeletion(
-    _params: P<NonNullable<IZCodeAgentService["previewSessionDeletion"]>>,
-  ): Promise<AR<NonNullable<IZCodeAgentService["previewSessionDeletion"]>>> {
-    return { sessions: [], totalBytes: 0 } as unknown as AR<
-      NonNullable<IZCodeAgentService["previewSessionDeletion"]>
-    >;
-  }
-
-  async executeSessionDeletion(
-    _params: P<NonNullable<IZCodeAgentService["executeSessionDeletion"]>>,
-  ): Promise<AR<NonNullable<IZCodeAgentService["executeSessionDeletion"]>>> {
-    return { deletedSessionIds: [], failedSessionIds: [] } as unknown as AR<
-      NonNullable<IZCodeAgentService["executeSessionDeletion"]>
-    >;
-  }
-
-  async measureSessionData(
-    _params: P<NonNullable<IZCodeAgentService["measureSessionData"]>>,
-  ): Promise<AR<NonNullable<IZCodeAgentService["measureSessionData"]>>> {
-    return { totalBytes: 0, sessions: [] } as unknown as AR<
-      NonNullable<IZCodeAgentService["measureSessionData"]>
-    >;
-  }
-
-  async purgeSessionData(
-    _params: P<NonNullable<IZCodeAgentService["purgeSessionData"]>>,
-  ): Promise<AR<NonNullable<IZCodeAgentService["purgeSessionData"]>>> {
-    return { purgedBytes: 0 } as unknown as AR<NonNullable<IZCodeAgentService["purgeSessionData"]>>;
-  }
-
-  supportsWorktreeCwd(
-    _target: NonNullable<P<IZCodeAgentService["supportsWorktreeCwd"]>>,
-  ): Promise<boolean> {
-    return Promise.resolve(false);
-  }
-
-  supportsExtensionInputSource(
-    _target: NonNullable<P<IZCodeAgentService["supportsExtensionInputSource"]>>,
-  ): Promise<boolean> {
-    return Promise.resolve(false);
-  }
-
   supportsConversationQuoteComment(
     _target: NonNullable<P<IZCodeAgentService["supportsConversationQuoteComment"]>>,
   ): Promise<boolean> {
     return Promise.resolve(false);
-  }
-
-  hasActiveCuaOperationTurn(): boolean {
-    return false;
   }
 
   async disposeWorkspace(_params: P<IZCodeAgentService["disposeWorkspace"]>): Promise<void> {
@@ -2539,259 +2136,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         this.runtime.sessions.delete(sessionId);
       }
     }
-  }
-
-  async openMcpUiInstance(
-    _params: P<IZCodeAgentService["openMcpUiInstance"]>,
-  ): Promise<AR<IZCodeAgentService["openMcpUiInstance"]>> {
-    throw new Error("mock: openMcpUiInstance 未启用");
-  }
-
-  async readMcpResource(
-    _params: P<IZCodeAgentService["readMcpResource"]>,
-  ): Promise<AR<IZCodeAgentService["readMcpResource"]>> {
-    throw new Error("mock: readMcpResource 未启用");
-  }
-
-  async sampleMcpApp(
-    _params: P<IZCodeAgentService["sampleMcpApp"]>,
-  ): Promise<AR<IZCodeAgentService["sampleMcpApp"]>> {
-    throw new Error("mock: sampleMcpApp 未启用");
-  }
-
-  async callMcpToolForUi(
-    _params: P<IZCodeAgentService["callMcpToolForUi"]>,
-  ): Promise<AR<IZCodeAgentService["callMcpToolForUi"]>> {
-    throw new Error("mock: callMcpToolForUi 未启用");
-  }
-
-  async readMcpResourceForUi(
-    _params: P<IZCodeAgentService["readMcpResourceForUi"]>,
-  ): Promise<AR<IZCodeAgentService["readMcpResourceForUi"]>> {
-    throw new Error("mock: readMcpResourceForUi 未启用");
-  }
-
-  async claimAppToolCallForUi(
-    _params: P<IZCodeAgentService["claimAppToolCallForUi"]>,
-  ): Promise<AR<IZCodeAgentService["claimAppToolCallForUi"]>> {
-    throw new Error("mock: claimAppToolCallForUi 未启用");
-  }
-
-  async addPluginMarketplace(
-    _params: P<IZCodeAgentService["addPluginMarketplace"]>,
-  ): Promise<AR<IZCodeAgentService["addPluginMarketplace"]>> {
-    throw new Error("mock: addPluginMarketplace 未启用");
-  }
-
-  async installPlugin(
-    _params: P<IZCodeAgentService["installPlugin"]>,
-  ): Promise<AR<IZCodeAgentService["installPlugin"]>> {
-    throw new Error("mock: installPlugin 未启用");
-  }
-
-  async updatePlugin(
-    _params: P<IZCodeAgentService["updatePlugin"]>,
-  ): Promise<AR<IZCodeAgentService["updatePlugin"]>> {
-    throw new Error("mock: updatePlugin 未启用");
-  }
-
-  async restoreBuiltinPlugin(
-    _params: P<IZCodeAgentService["restoreBuiltinPlugin"]>,
-  ): Promise<AR<IZCodeAgentService["restoreBuiltinPlugin"]>> {
-    throw new Error("mock: restoreBuiltinPlugin 未启用");
-  }
-
-  async configurePlugin(
-    _params: P<IZCodeAgentService["configurePlugin"]>,
-  ): Promise<AR<IZCodeAgentService["configurePlugin"]>> {
-    throw new Error("mock: configurePlugin 未启用");
-  }
-
-  async resetPluginConfig(
-    _params: P<IZCodeAgentService["resetPluginConfig"]>,
-  ): Promise<AR<IZCodeAgentService["resetPluginConfig"]>> {
-    throw new Error("mock: resetPluginConfig 未启用");
-  }
-
-  async createAutomation(
-    _params: P<IZCodeAgentService["createAutomation"]>,
-  ): Promise<AR<IZCodeAgentService["createAutomation"]>> {
-    throw new Error("mock: createAutomation 未启用");
-  }
-
-  async updateAutomation(
-    _params: P<IZCodeAgentService["updateAutomation"]>,
-  ): Promise<AR<IZCodeAgentService["updateAutomation"]>> {
-    throw new Error("mock: updateAutomation 未启用");
-  }
-
-  async runAutomationNow(
-    _params: P<IZCodeAgentService["runAutomationNow"]>,
-  ): Promise<AR<IZCodeAgentService["runAutomationNow"]>> {
-    throw new Error("mock: runAutomationNow 未启用");
-  }
-
-  async validateMcpUiInstance(
-    _params: P<IZCodeAgentService["validateMcpUiInstance"]>,
-  ): Promise<AR<IZCodeAgentService["validateMcpUiInstance"]>> {
-    return null as unknown as AR<IZCodeAgentService["validateMcpUiInstance"]>;
-  }
-
-  async recycleMcpUiInstance(
-    _params: P<IZCodeAgentService["recycleMcpUiInstance"]>,
-  ): Promise<AR<IZCodeAgentService["recycleMcpUiInstance"]>> {
-    return null as unknown as AR<IZCodeAgentService["recycleMcpUiInstance"]>;
-  }
-
-  async closeMcpUiInstance(
-    _params: P<IZCodeAgentService["closeMcpUiInstance"]>,
-  ): Promise<AR<IZCodeAgentService["closeMcpUiInstance"]>> {
-    return null as unknown as AR<IZCodeAgentService["closeMcpUiInstance"]>;
-  }
-
-  async cancelMcpAppSampling(
-    _params: P<IZCodeAgentService["cancelMcpAppSampling"]>,
-  ): Promise<AR<IZCodeAgentService["cancelMcpAppSampling"]>> {
-    return null as unknown as AR<IZCodeAgentService["cancelMcpAppSampling"]>;
-  }
-
-  async cancelMcpToolCallForUi(
-    _params: P<IZCodeAgentService["cancelMcpToolCallForUi"]>,
-  ): Promise<AR<IZCodeAgentService["cancelMcpToolCallForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["cancelMcpToolCallForUi"]>;
-  }
-
-  async listMcpResourcesForUi(
-    _params: P<IZCodeAgentService["listMcpResourcesForUi"]>,
-  ): Promise<AR<IZCodeAgentService["listMcpResourcesForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["listMcpResourcesForUi"]>;
-  }
-
-  async listMcpResourceTemplatesForUi(
-    _params: P<IZCodeAgentService["listMcpResourceTemplatesForUi"]>,
-  ): Promise<AR<IZCodeAgentService["listMcpResourceTemplatesForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["listMcpResourceTemplatesForUi"]>;
-  }
-
-  async subscribeMcpResourceForUi(
-    _params: P<IZCodeAgentService["subscribeMcpResourceForUi"]>,
-  ): Promise<AR<IZCodeAgentService["subscribeMcpResourceForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["subscribeMcpResourceForUi"]>;
-  }
-
-  async unsubscribeMcpResourceForUi(
-    _params: P<IZCodeAgentService["unsubscribeMcpResourceForUi"]>,
-  ): Promise<AR<IZCodeAgentService["unsubscribeMcpResourceForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["unsubscribeMcpResourceForUi"]>;
-  }
-
-  async registerAppToolsForUi(
-    _params: P<IZCodeAgentService["registerAppToolsForUi"]>,
-  ): Promise<AR<IZCodeAgentService["registerAppToolsForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["registerAppToolsForUi"]>;
-  }
-
-  async unregisterAppToolsForUi(
-    _params: P<IZCodeAgentService["unregisterAppToolsForUi"]>,
-  ): Promise<AR<IZCodeAgentService["unregisterAppToolsForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["unregisterAppToolsForUi"]>;
-  }
-
-  async resolveAppToolCallForUi(
-    _params: P<IZCodeAgentService["resolveAppToolCallForUi"]>,
-  ): Promise<AR<IZCodeAgentService["resolveAppToolCallForUi"]>> {
-    return null as unknown as AR<IZCodeAgentService["resolveAppToolCallForUi"]>;
-  }
-
-  async removePluginMarketplace(
-    _params: P<IZCodeAgentService["removePluginMarketplace"]>,
-  ): Promise<AR<IZCodeAgentService["removePluginMarketplace"]>> {
-    return null as unknown as AR<IZCodeAgentService["removePluginMarketplace"]>;
-  }
-
-  async updatePluginMarketplace(
-    _params: P<IZCodeAgentService["updatePluginMarketplace"]>,
-  ): Promise<AR<IZCodeAgentService["updatePluginMarketplace"]>> {
-    return null as unknown as AR<IZCodeAgentService["updatePluginMarketplace"]>;
-  }
-
-  async cancelPluginOperation(
-    _params: P<IZCodeAgentService["cancelPluginOperation"]>,
-  ): Promise<AR<IZCodeAgentService["cancelPluginOperation"]>> {
-    return null as unknown as AR<IZCodeAgentService["cancelPluginOperation"]>;
-  }
-
-  async uninstallPlugin(
-    _params: P<IZCodeAgentService["uninstallPlugin"]>,
-  ): Promise<AR<IZCodeAgentService["uninstallPlugin"]>> {
-    return null as unknown as AR<IZCodeAgentService["uninstallPlugin"]>;
-  }
-
-  async deleteAutomation(
-    _params: P<IZCodeAgentService["deleteAutomation"]>,
-  ): Promise<AR<IZCodeAgentService["deleteAutomation"]>> {
-    return null as unknown as AR<IZCodeAgentService["deleteAutomation"]>;
-  }
-
-  async setAutomationEnabled(
-    _params: P<IZCodeAgentService["setAutomationEnabled"]>,
-  ): Promise<AR<IZCodeAgentService["setAutomationEnabled"]>> {
-    return null as unknown as AR<IZCodeAgentService["setAutomationEnabled"]>;
-  }
-
-  async restartAutomation(
-    _params: P<IZCodeAgentService["restartAutomation"]>,
-  ): Promise<AR<IZCodeAgentService["restartAutomation"]>> {
-    return null as unknown as AR<IZCodeAgentService["restartAutomation"]>;
-  }
-
-  async listAutomationRuns(
-    _params: P<IZCodeAgentService["listAutomationRuns"]>,
-  ): Promise<AR<IZCodeAgentService["listAutomationRuns"]>> {
-    return null as unknown as AR<IZCodeAgentService["listAutomationRuns"]>;
-  }
-
-  async deleteAutomationRun(
-    _params: P<IZCodeAgentService["deleteAutomationRun"]>,
-  ): Promise<AR<IZCodeAgentService["deleteAutomationRun"]>> {
-    return null as unknown as AR<IZCodeAgentService["deleteAutomationRun"]>;
-  }
-
-  async listPluginUiSurfaces(
-    _params: P<IZCodeAgentService["listPluginUiSurfaces"]>,
-  ): Promise<AR<IZCodeAgentService["listPluginUiSurfaces"]>> {
-    return [] as unknown as AR<IZCodeAgentService["listPluginUiSurfaces"]>;
-  }
-
-  async validatePlugin(
-    _params: P<IZCodeAgentService["validatePlugin"]>,
-  ): Promise<AR<IZCodeAgentService["validatePlugin"]>> {
-    return {
-      ok: true,
-      issues: [],
-      diagnostics: [],
-      compatibility: { runnable: [], diagnosticOnly: [], unsupported: [] },
-    } as unknown as AR<IZCodeAgentService["validatePlugin"]>;
-  }
-
-  async describePlugin(
-    _params: P<IZCodeAgentService["describePlugin"]>,
-  ): Promise<AR<IZCodeAgentService["describePlugin"]>> {
-    return null as unknown as AR<IZCodeAgentService["describePlugin"]>;
-  }
-
-  async setPluginEnabled(
-    _params: P<IZCodeAgentService["setPluginEnabled"]>,
-  ): Promise<AR<IZCodeAgentService["setPluginEnabled"]>> {
-    return {} as unknown as AR<IZCodeAgentService["setPluginEnabled"]>;
-  }
-
-  onDynamicPluginOperationProgress(): ReturnType<
-    IZCodeAgentService["onDynamicPluginOperationProgress"]
-  > {
-    return Event.None as unknown as ReturnType<
-      IZCodeAgentService["onDynamicPluginOperationProgress"]
-    >;
   }
 
   disposeAll(): void {

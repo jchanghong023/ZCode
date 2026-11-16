@@ -188,14 +188,6 @@ export interface ZCodeState {
   releaseCodingPlanQuotaResetAutoPlay: (
     reservation: CodingPlanQuotaResetAutoPlayReservation,
   ) => Promise<void>;
-
-  /** 手动请求打开 onboarding 弹窗 */
-  newUserOnboardingOpen: boolean;
-  setNewUserOnboardingOpen: (open: boolean) => void;
-  /** 请求打开迁移向导；所有入口都直接进入第一步「会话」。 */
-  onboardingDialogRequested: boolean;
-  requestOnboardingDialog: () => void;
-  clearOnboardingDialogRequest: () => void;
 }
 
 // ============================================================================
@@ -357,12 +349,6 @@ export function createZCodeStore(
       readState: get,
       writeState: (updater) => set((state) => updater(state)),
     }),
-
-    newUserOnboardingOpen: false,
-    setNewUserOnboardingOpen: (open) => set({ newUserOnboardingOpen: open }),
-    onboardingDialogRequested: false,
-    requestOnboardingDialog: () => set({ onboardingDialogRequested: true }),
-    clearOnboardingDialogRequest: () => set({ onboardingDialogRequested: false }),
   }));
 
   syncSystemThemeListener = (theme: Theme) => {

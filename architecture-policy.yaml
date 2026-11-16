@@ -70,7 +70,7 @@ modules:
   - id: mock-domains
     roots: [packages/server/src/mock/domains]
     managed: true
-    requires: [services, shared, rpc, provider, server]
+    requires: [services, shared, rpc, server]
     publicEntrypoints:
       - packages/server/src/mock/domains/contract.ts
     layers: { adapters: . }
@@ -160,10 +160,9 @@ modules:
     layers:
       adapters: .
     owner: conversation
-  # project-sidebar：由 architecture:adopt 登记
+  # project-sidebar：保留纯展示与派生资产；旧窗口目录和任务操作消费者已删除。
   - id: project-sidebar
-    roots:
-      - packages/ui/src/project-sidebar
+    roots: [packages/ui/src/project-sidebar]
     managed: true
     requires:
       - resource-manager
@@ -172,14 +171,11 @@ modules:
       - ui
       - conversation-workspace-target
       - managed-worktree-ui
-      # 分组会话行复用同一张悬停卡片（docs/ui/task-row-hover-details.md）。
       - task-row-hover
-      # 主导航挂 nav.primary 插槽组件（docs/plugins/extension-host.md §16.4）。
       - extension-slots
     publicEntrypoints:
       - packages/ui/src/project-sidebar/index.tsx
       - packages/ui/src/project-sidebar/contract.ts
-      - packages/ui/src/project-sidebar/useSavedWorkflowProjectOptions.ts
       - packages/ui/src/project-sidebar/WorkspaceDragOverlay.tsx
     layers:
       contract: contract.ts
@@ -315,55 +311,28 @@ modules:
 
   # 保留既有源码位置；精确登记源文件，不扩大到整个 CLI 或 handlers 目录。
 
-  # remote-input-prediction：回放型客户端输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。
+  # remote-input-prediction：仅保留 v4 输入预测 schema；无服务侧开关或当前 RPC 能力承诺。
   - id: remote-input-prediction
-    roots:
-      [
-        packages/shared/src/zcode-protocol-v4/input-prediction,
-        packages/services/src/zcode-agent/inputPredictionSwitch.ts,
-      ]
+    roots: [packages/shared/src/zcode-protocol-v4/input-prediction]
     managed: true
     requires: [shared]
-    publicEntrypoints:
-      [
-        packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts,
-        packages/services/src/zcode-agent/inputPredictionSwitch.ts,
-      ]
+    publicEntrypoints: [packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts]
     layers: { app: . }
     owner: remote
-  # context-composition：context 组成（扩展进程 P1）：v4 线格式、CLI 分类/预演/修订号/协议处理、App 侧查询与通知。
-  # 规格：apps/zcode-cli/docs/design/v2/model/context-composition.md。
+  # context-composition：保留 context 组成的纯 v4 线格式；旧查询／通知客户端已裁撤。
   - id: context-composition
-    roots:
-      [
-        packages/shared/src/zcode-protocol-v4/context-composition,
-        packages/services/src/zcode-agent/contextCompositionClient.ts,
-      ]
+    roots: [packages/shared/src/zcode-protocol-v4/context-composition]
     managed: true
-    requires: [rpc, services, shared]
-    publicEntrypoints:
-      [
-        packages/shared/src/zcode-protocol-v4/context-composition/contract.ts,
-        packages/services/src/zcode-agent/contextCompositionClient.ts,
-      ]
+    requires: [shared]
+    publicEntrypoints: [packages/shared/src/zcode-protocol-v4/context-composition/contract.ts]
     layers: { app: . }
     owner: agent
-  # plugin-host-queries：扩展进程 P2 的插件宿主查询——敏感选项私有存储、plugins/readUserOptions、
-  # plugins/mentionItems 的线格式、CLI 实现与 App 侧客户端。规格：apps/zcode-cli/docs/design/v2/plugin-compat.md
-  # 「Sensitive Option Storage」「Composer Mention Items」。
+  # plugin-host-queries：保留插件查询纯 schema；不登记已裁撤的 services 客户端。
   - id: plugin-host-queries
-    roots:
-      [
-        packages/shared/src/zcode-protocol/plugin-host-queries,
-        packages/services/src/zcode-agent/pluginHostQueriesClient.ts,
-      ]
+    roots: [packages/shared/src/zcode-protocol/plugin-host-queries]
     managed: true
-    requires: [services, shared]
-    publicEntrypoints:
-      [
-        packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts,
-        packages/services/src/zcode-agent/pluginHostQueriesClient.ts,
-      ]
+    requires: []
+    publicEntrypoints: [packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts]
     layers: { app: . }
     owner: plugin
   # remote-resident-rows-range：rowsRange 只读热会话（residency="resident-only"）的 Host 侧执行端能力确认，
@@ -418,19 +387,6 @@ modules:
       adapters: .
     owner: conversation
 
-  # window-project-directory：由 architecture:adopt 登记
-  - id: window-project-directory
-    roots:
-      - packages/services/src/window-project-directory
-    managed: true
-    requires: [project, rpc, services, shared]
-    publicEntrypoints:
-      - packages/services/src/window-project-directory/index.ts
-      - packages/services/src/window-project-directory/contract.ts
-    layers:
-      adapters: .
-    owner: conversation
-
   # workspace-plugin-preview：由 architecture:adopt 登记
   - id: workspace-plugin-preview
     roots:
@@ -448,7 +404,7 @@ modules:
 
   # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
 
-  # data-sync-service：数据同步分类服务形状与本机设备同步状态（docs/remote/data-sync.md）
+  # data-sync-service：仅保留 MCP 依赖的通用分类合同；无用户配置或设备状态 RPC。
   - id: data-sync-service
     roots:
       - packages/services/src/data-sync
@@ -460,40 +416,6 @@ modules:
       [packages/services/src/data-sync/index.ts, packages/services/src/data-sync/contract.ts]
     layers:
       app: .
-    owner: remote
-  # voice-input-service：Composer 语音输入的本机 Host ASR 连接（docs/chat/composer-voice-input.md）
-  - id: voice-input-service
-    roots:
-      - packages/services/src/voice-input
-    managed: true
-    requires:
-      - services
-      - shared
-      - rpc
-    publicEntrypoints:
-      [packages/services/src/voice-input/index.ts, packages/services/src/voice-input/contract.ts]
-    layers:
-      adapters: .
-    owner: desktop
-  # data-sync：设置页「数据同步」与同步弹窗（docs/remote/data-sync.md）
-  - id: data-sync
-    roots:
-      - packages/ui/src/data-sync
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-      - conversation-workspace-target
-    publicEntrypoints:
-      - packages/ui/src/data-sync/index.ts
-      - packages/ui/src/data-sync/contract.ts
-    layers:
-      contract: contract.ts
-      domain: domain
-      app: app
-      ui: .
-    layerOrder: [contract, domain, app, ui]
     owner: remote
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集（docs/chat/composer-voice-input.md）
   # settings-scope：设置页 Scope 菜单按设备分组（docs/remote/data-sync.md「Scope 菜单按设备分组」）
@@ -681,20 +603,13 @@ modules:
     layers:
       app: .
     owner: desktop
-  # managed-worktree-tasks：由 architecture:adopt 登记
+  # managed-worktree-tasks：只管理通用 worktree 展示所需 DTO，不提供服务或 descriptor。
   - id: managed-worktree-tasks
-    roots:
-      - packages/services/src/managed-worktree-tasks
+    roots: [packages/services/src/managed-worktree-tasks]
     managed: true
-    requires:
-      - managed-worktree-shared
-      - project-storage
-      - rpc
-      - services
-      - shared
+    requires: [shared]
     publicEntrypoints: [packages/services/src/managed-worktree-tasks/contract.ts]
-    layers:
-      app: .
+    layers: { app: . }
     owner: desktop
   # managed-worktree-ui：由 architecture:adopt 登记
   - id: managed-worktree-ui
@@ -736,50 +651,18 @@ modules:
     layers:
       domain: .
     owner: plugin
-  # extensions-service：Window Host 的扩展门面与能力网关（docs/plugins/extension-host.md §3.5）。
-  - id: extensions-service
-    roots:
-      - packages/services/src/extensions
-    managed: true
-    requires:
-      - extension-host-protocol
-      # 扩展视图复用 MCP App 的沙箱句柄与 HTML 挑选（§8）。
-      - mcp-apps-protocol
-      - plugin-ui-bridge
-      # settings 能力用 Window Host 进程内的 plugins/readUserOptions 读取器（§16.7）。
-      - plugin-host-queries
-      - session-control
-      # 插件项目（§17.4）：只经 IProjectService 的 readProjects / saveProject，不碰项目库。
-      - project
-      - rpc
-      - services
-      - shared
-    publicEntrypoints:
-      [packages/services/src/extensions/index.ts, packages/services/src/extensions/contract.ts]
-    layers:
-      app: .
-    owner: plugin
   # extension-host：全 App 唯一的扩展进程与 Main 侧监管器（docs/plugins/extension-host.md §12.1）。
   # extension-slots：Renderer 的贡献表快照、插槽组件（docs/plugins/extension-host.md §6）。
   - id: extension-slots
     roots:
       - packages/ui/src/extension-slots
     managed: true
-    requires:
-      - extension-host-protocol
-      # 扩展视图页面复用 MCP App 的沙箱句柄、握手常量与页面原语（docs/plugins/extension-host.md §8）。
-      - mcp-apps-protocol
-      - plugin-ui
-      - services
-      - shared
-      - ui
+    requires: [ui, shared, plugin-ui, extension-host-protocol]
     publicEntrypoints:
       - packages/ui/src/extension-slots/index.ts
       - packages/ui/src/extension-slots/contract.ts
       # 当前 Web 只消费无沙箱的状态、mention 投影，不经沙箱宿主 barrel。
-      - packages/ui/src/extension-slots/components/ComposerStatusSlot.tsx
       - packages/ui/src/extension-slots/components/ExtensionMentionOptionContent.tsx
-      - packages/ui/src/extension-slots/adapters/useExtensionMentionGroups.ts
     layers:
       domain: domain
       app: app
@@ -1000,10 +883,6 @@ exceptions:
     paths:
       - packages/ui/src/hooks/useStartPlanRecommendation.ts
     reason: 已准入的存量文件只把 TID 导入从 @zcode/shared 根入口改为 @zcode/shared/test-ids 子路径（根入口不再导出 test-ids，以收窄受影响单测范围）；行为与模块边界不变，接管 ui 目录不在本次范围内。
-  - id: settings-personalization-section-new-file
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/settings/PersonalizationSection.tsx]
-    reason: 个性化设置分区组件只编排 ISettingService 的 getUserInstructions/saveUserInstructions 与既有设置页 UI 原语（spec：docs/ui/settings-personalization.md）；读写唯一事实源在服务层，不新增平行状态，接管整个 ui 目录不在本次范围内。
   - id: settings-personalization-size-constant-new-file
     rule: unmanaged-new-file
     paths: [packages/shared/src/userInstructions.ts]
@@ -1042,21 +921,14 @@ exceptions:
   - id: hooks-lint-existing-ui-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/hooks/useOnboardingRecordService.ts
       - packages/ui/src/lib/workflowRunAckStore.ts
       - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
       - packages/ui/src/workspace-file-search/useWorkspaceFileSearchFilter.ts
-    reason: 已准入的四个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
+    reason: 已准入的三个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
   - id: onboarding-existing-module-edit
     rule: unmanaged-new-file
-    paths:
-      - packages/services/src/onboarding/
-      - packages/ui/src/onboarding/
-    reason: onboarding 目录（记录持久化服务与触发 hook）是已合入 staging 的存量功能模块，本轮修复在其既有边界内收紧老用户判定与兜底；模块 adopt 登记需单独的边界梳理，不在本缺陷修复内展开。
-  - id: settings-search-existing-row-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/settings/ProactiveSuggestionsSetting.tsx]
-    reason: 已有的主动任务推荐设置行只增加 SettingsRow 的稳定定位 id，不改变引导记录读写和模块依赖；搜索实现独立登记在 settings-search 模块，不把现有引导设置迁入搜索模块。
+    paths: [packages/ui/src/onboarding/]
+    reason: 保留既有 onboarding 通用视觉、网格、标题和选择控件的存量准入；服务端记录契约、旧流程与服务 hook 已裁撤，不恢复对应 RPC，也不扩大原 UI 目录准入范围。
   - id: workflow-share-unmanaged-new-files
     rule: unmanaged-new-file
     paths:
@@ -1127,11 +999,10 @@ exceptions:
   - id: ui-loader-circle-existing-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/DeleteAllArchivedTasksButton.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowRoll.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowRosterParts.tsx
       - packages/ui/src/v4/BotTopicPreparation.tsx
-    reason: 已准入的四个存量 UI 文件仅统一 Lucide 图标为 LoaderCircle（docs/design/loading-icons.md），不新增文件、不改变状态 owner、公共契约或模块依赖；本次不接管其所在业务模块。
+    reason: 已准入的三个存量 UI 文件仅统一 Lucide 图标为 LoaderCircle（docs/design/loading-icons.md），不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
   - id: ui-more-locales-existing-edit
     rule: unmanaged-new-file
     paths:
@@ -1155,18 +1026,10 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/shortcuts/bindings.ts
-      - packages/ui/src/settings/WorkspaceFileSearchSection.tsx
-    reason: 仅接纳两个已有文件的浏览器宿主端口清理：快捷键注释移除原生菜单通道描述，工作区搜索设置移除本机文件定位入口；不新增文件、不改变状态 owner，不豁免浏览器安全规则。
+    reason: 仅保留已有快捷键文件的浏览器宿主端口清理准入，注释移除原生菜单通道描述；旧工作区搜索设置已裁撤，不新增文件、不改变状态 owner，不豁免浏览器安全规则。
   - id: aireq-native-composer-existing-integration
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/v4/SessionPane.tsx
       - packages/ui/src/v4/ConversationComposer.tsx
     reason: AIReq通过现有v4会话和输入草稿所有者集成可选回填及首次发送端口；仅修改两个既有文件，不复制v4、不改变原生协议或新增并行状态，不接管整个ui模块。
-  - id: aireq-automation-existing-integration
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/settings/AutomationsSection.tsx
-      - packages/ui/src/settings/AutomationEditView.tsx
-      - packages/ui/src/hooks/useAutomationProjectOptions.ts
-    reason: AIReq自动化复用三个既有表单及查询入口，通过可选参数注入模拟项目范围并保持默认行为；不反向依赖aireq-ui、不新增状态所有者、不接管整个settings或hooks模块。

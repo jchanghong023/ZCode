@@ -38,6 +38,8 @@ import type {
 } from "../contract.js";
 import type { SkillSummary } from "@zcode/shared";
 import { AIReqSkillBriefForm } from "./AIReqSkillBriefForm.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { cn } from "@/components/lib/utils.js";
 
 type SkillDesignPageProps = {
   active: boolean;
@@ -57,7 +59,7 @@ export function AIReqSkillDesignPage({ active, onDraftActionsChange }: SkillDesi
     : undefined;
   return (
     <section
-      className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden bg-background px-4 pb-4 md:px-6"
+      className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex min-h-0 flex-1 flex-col overflow-hidden bg-background pb-4 lg:pb-4")}
       aria-label="Skill 设计"
     >
       {source.skillDesign ? (
@@ -176,6 +178,7 @@ function ReadySkillDesignEditor({
   const active = useRef(true);
   const draftVersion = useRef(0);
   const pendingDraftSaves = useRef(0);
+  const [pendingDraftSaveCount, setPendingDraftSaveCount] = useState(0);
   const draftSave = useRef<Promise<void>>(Promise.resolve());
   const draftSaveError = useRef<unknown>(undefined);
   const [draftUnsettled, setDraftUnsettled] = useState(false);
@@ -223,6 +226,7 @@ function ReadySkillDesignEditor({
     setNotice("");
     const version = ++draftVersion.current;
     pendingDraftSaves.current++;
+    setPendingDraftSaveCount(pendingDraftSaves.current);
     const save = draftSave.current.then(async () => {
       await design.saveDraft(sessionId, next);
     });
@@ -248,6 +252,7 @@ function ReadySkillDesignEditor({
       )
       .finally(() => {
         pendingDraftSaves.current--;
+        if (active.current) setPendingDraftSaveCount(pendingDraftSaves.current);
       });
   };
   const [refreshAttempt, setRefreshAttempt] = useState(0);
@@ -391,20 +396,33 @@ function ReadySkillDesignEditor({
   };
   const unsavedPreview = Boolean(preview && !savedPath && preview.revision !== discardedRevision);
   const dirty = draftUnsettled || unsavedPreview;
+  // 说明待结算不能绕过预览校验；失败与在途写入分开，失败后仍可显式丢弃离开。
   const canSave =
-    !saving &&
-    (draftUnsettled || !unsavedPreview || Boolean(targetDirectory && validName && !collision));
-  const canDiscard = !draftUnsettled && !saving;
+    !saving && (!unsavedPreview || Boolean(targetDirectory && validName && !collision));
+  const canDiscard = pendingDraftSaveCount === 0 && !saving;
+  // 禁用保存时在离开弹窗说明当前预览的具体阻断原因，避免用户面对无反馈的按钮。
+  const saveBlockedReason = !unsavedPreview
+    ? undefined
+    : !validName
+      ? "技能标识无效，请取消并返回对话调整标识。"
+      : collision
+        ? "所选目标已有同名技能，请取消并返回对话调整标识或选择其他保存目标。"
+        : !targetDirectory
+          ? "保存目标不可用，请取消并返回临时文件预览选择有效目标。"
+          : undefined;
   currentActions.current = {
     canSave,
     canDiscard,
     save: async () => {
+      if (!canSave) return false;
       await draftSave.current;
       if (draftSaveError.current && (!draft || !(await updateDraft(draft)))) return false;
       return unsavedPreview ? save() : true;
     },
     discard: () => {
-      if (pendingDraftSaves.current || draftSaveError.current) return;
+      if (pendingDraftSaves.current || saving) return;
+      // 丢弃仅接纳离开，不清除失败或草稿，也不伪造写入成功；返回后仍可明确重试。
+      setDraftUnsettled(false);
       setDiscardedRevision(preview?.revision);
     },
   };
@@ -414,13 +432,14 @@ function ReadySkillDesignEditor({
         ? {
             canSave,
             canDiscard,
+            saveBlockedReason,
             save: () => currentActions.current?.save() ?? false,
             discard: () => currentActions.current?.discard(),
           }
         : null,
     );
     return () => onDraftActionsChange(null);
-  }, [dirty, canSave, canDiscard, onDraftActionsChange]);
+  }, [dirty, canSave, canDiscard, saveBlockedReason, onDraftActionsChange]);
   if (loading)
     return (
       <p role="status" className="text-ui-sm text-foreground-subtle">
@@ -445,6 +464,15 @@ function ReadySkillDesignEditor({
           <p role="alert" className="text-ui-sm text-destructive">
             {error}
           </p>
+          {Boolean(draftSaveError.current) && (
+            <Button
+              variant="ghost"
+              disabled={pendingDraftSaveCount > 0 || saving}
+              onClick={() => void updateDraft(draft)}
+            >
+              重试保存说明
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => setRefreshAttempt((value) => value + 1)}>
             重新读取
           </Button>
@@ -633,7 +661,7 @@ function ReadySkillDesignEditor({
                       disabled={Boolean(savedPath) || saving}
                       onValueChange={(value) => {
                         setSaveTarget(value as "project" | "user");
-                        setError("");
+                        if (!draftSaveError.current) setError("");
                       }}
                     >
                       <SelectTrigger id="skill-save-scope" className="w-full">

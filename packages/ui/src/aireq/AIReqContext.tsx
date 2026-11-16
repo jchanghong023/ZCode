@@ -259,7 +259,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       }
       approvedHistory.current = false;
       const savedView = event.state.aiReqMainView;
-      const mainView: WorkspaceMainView = ["projectProgress", "todos", "proposals", "formal", "requirementAnalysis"].includes(savedView)
+      const mainView: WorkspaceMainView = ["projectProgress", "todos", "proposals", "formal", "requirementAnalysis", "skillDesign"].includes(savedView)
         ? savedView : "chat";
       const restoredRelease = typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const next = { index, extent: navigationRef.current.extent, mainView };

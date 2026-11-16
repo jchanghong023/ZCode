@@ -101,8 +101,11 @@ export function applyProposalMutation(
       break;
     }
     case "importProposals":
+      // 整批共用一个回执与幂等身份，新 IR 关联不借用导入前的查看目标。
+      operation.irIds = [];
       action.originalTexts.map((text) => text.trim()).filter(Boolean).forEach((text, index) => {
-        createProposal(state, projectId, action.releaseId, text, operation, `-${index + 1}`);
+        const item = createProposal(state, projectId, action.releaseId, text, operation, `-${index + 1}`);
+        operation.irIds!.push(item.id);
       });
       operation.type = "原子导入原始短需求（模拟），保留重复文本，不启动 AI";
       break;
@@ -153,6 +156,8 @@ export function applyProposalMutation(
       proposal!.revision += 1;
       const scenario = proposal!.reviewScenarios?.[kind] ?? "normal";
       const review = createPrototypeRequirementsReview(proposal!, getEmployeeId(), false, kind, scenario);
+      // “下一次”仅在本轮评审成功接纳的同一事务中消费；读取和旧结果释放不改变该输入。
+      if (proposal!.reviewScenarios) delete proposal!.reviewScenarios[kind];
       if (kind === "original") proposal!.originalReview = review;
       else {
         proposal!.review = review;
@@ -178,7 +183,8 @@ export function applyProposalMutation(
     }
     case "approveFullReview":
       proposal!.review!.passed = true;
-      proposal!.review!.humanDecision = { employeeId: getEmployeeId(), decidedAt: at, reviewId: proposal!.review!.id };
+      // 新操作编号也不能重写同一轮首次人工放行的来源；版本门禁仍由命令接纳入口执行。
+      proposal!.review!.humanDecision ??= { employeeId: getEmployeeId(), decidedAt: at, reviewId: proposal!.review!.id };
       break;
     case "confirmAlignment":
       proposal!.alignment ??= [];

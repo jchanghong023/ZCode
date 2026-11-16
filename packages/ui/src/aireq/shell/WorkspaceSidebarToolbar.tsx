@@ -18,7 +18,7 @@ export function WorkspaceSidebarToolbar({
 }: WorkspaceSidebarToolbarProps) {
   return (
     <div
-      className="flex h-12 shrink-0 items-center gap-1 px-3"
+      className="flex shrink-0 flex-col items-center gap-1 px-2 py-2"
       data-testid="workspace-sidebar-toolbar"
     >
       <ControlHintTooltip title="后退" side="bottom">

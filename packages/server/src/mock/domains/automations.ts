@@ -1,7 +1,6 @@
-// 模拟自动化领域：闲时任务与 Bots（IM 集成）。
-// 两者都依赖真实网络/账号能力，纯 Web 模拟后端只提供只读空投影与明确拒绝。
+// 原生群组投递与运行时偏好使用的 Bots 契约。
 import { type MockRuntime } from "../runtime.js";
-import { IBotsService, IOffPeakTaskService } from "@zcode/services";
+import { IBotsService } from "@zcode/services";
 import type { MockServiceRegistrar } from "./contract.js";
 
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
@@ -10,56 +9,6 @@ type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 /** 复杂 result 的空实现统一经 unknown 收敛；字段缺失由 UI 空集合兜底。 */
 function asResult<T>(value: unknown): T {
   return value as T;
-}
-
-// ── 闲时任务 / Bots ──
-
-export class MockOffPeakTaskService implements IOffPeakTaskService {
-  async getCodingPlanSupport(): Promise<AR<IOffPeakTaskService["getCodingPlanSupport"]>> {
-    return asResult({ supported: false, reasonCode: "mock" });
-  }
-
-  async getTakeNumberAvailability(): Promise<AR<IOffPeakTaskService["getTakeNumberAvailability"]>> {
-    return asResult({ available: false, remaining: 0 });
-  }
-
-  async createTask(
-    _params: P<IOffPeakTaskService["createTask"]>,
-  ): Promise<AR<IOffPeakTaskService["createTask"]>> {
-    throw new Error("mock: 闲时任务未启用");
-  }
-
-  async cancelTask(_offPeakTaskId: string): Promise<AR<IOffPeakTaskService["cancelTask"]>> {
-    return null;
-  }
-
-  async pauseTask(_offPeakTaskId: string): Promise<AR<IOffPeakTaskService["pauseTask"]>> {
-    return null;
-  }
-
-  async continueTask(_offPeakTaskId: string): Promise<AR<IOffPeakTaskService["continueTask"]>> {
-    return null;
-  }
-
-  async deleteTask(_offPeakTaskId: string): Promise<void> {}
-
-  async deleteHistory(_offPeakTaskId: string): Promise<AR<IOffPeakTaskService["deleteHistory"]>> {
-    return null;
-  }
-
-  async updateTask(
-    _params: P<IOffPeakTaskService["updateTask"]>,
-  ): Promise<AR<IOffPeakTaskService["updateTask"]>> {
-    return null;
-  }
-
-  async list(): Promise<AR<IOffPeakTaskService["list"]>> {
-    return [];
-  }
-
-  async get(_offPeakTaskId: string): Promise<AR<IOffPeakTaskService["get"]>> {
-    return null;
-  }
 }
 
 export class MockBotsService implements IBotsService {
@@ -173,6 +122,5 @@ export function registerAutomationsMockServices(
   services: MockServiceRegistrar,
   runtime: MockRuntime,
 ): void {
-  services.register(IOffPeakTaskService, new MockOffPeakTaskService());
   services.register(IBotsService, new MockBotsService(runtime));
 }

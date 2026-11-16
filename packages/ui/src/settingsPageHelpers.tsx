@@ -23,7 +23,6 @@ import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js"
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
-import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { PluginAutoRecommendationSetting } from "@/settings/PluginAutoRecommendationSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
@@ -171,7 +170,6 @@ export function GeneralSectionContent({
   onOpenOnboardingDialog: () => void;
 }) {
   const { intl } = useZCodeIntl();
-  const hasServices = Boolean(useOptionalServices());
   // 纯浏览器不展示 Chromium 宿主参数、保持唤醒和关闭驻留托盘等桌面设置。
   const canUseDesktopShell = false;
   const [localHttpProxy, setLocalHttpProxy] = useState(httpProxy);
@@ -248,7 +246,6 @@ export function GeneralSectionContent({
             </Select>
           }
         />
-        {hasServices ? <ProactiveSuggestionsSetting /> : null}
       </SettingsGroupCard>
 
       <SettingsGroupCard>

@@ -4,7 +4,7 @@
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 
-ZCode 的纯 Web 版本：电脑浏览器前端 + 模拟后端服务。仅支持电脑浏览器，不进行手机屏幕适配或测试。桌面应用与真实 Agent 运行时已移除；`packages/server` 按与真实服务端完全相同的 WebSocket RPC 协议（ZCode Protocol v4）提供内存态模拟实现，浏览器界面与原先一致。
+ZCode 的纯 Web 版本，当前产品为 AIReq：以 AI 为中心的需求管理与跟踪平台。电脑浏览器前端 + 内存模拟后端，不支持手机屏幕。桌面应用与真实 Agent 运行时已移除；`packages/server` 经与真实服务端相同的 WebSocket RPC 传输及 ZCode Protocol v4 提供模拟业务与原生会话能力，UI 复用当前 ZCode 基座。
 
 ## 环境要求
 
@@ -48,7 +48,7 @@ bun run dev    # 同时启动 Bun 模拟后端(:3031)与 Bun 执行的 Vite(:517
 
 仓库内置 VS Code 任务：`zcode: mock server (:3031)`、`zcode: web dev (:5174)`、`zcode: dev (mock server + web)`。启动配置 `ZCode Web: Chrome (:5174)` 只调试浏览器；`ZCode Server: Mock (:3031)` 使用 Bun 调试器，需要安装 [Oven 的 Bun 扩展 `oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode)，并让 VS Code 的 `PATH` 可找到固定版本 Bun。该配置字段已按[扩展 schema](https://github.com/oven-sh/bun/blob/main/packages/bun-vscode/package.json) 设置；[官方文档](https://bun.sh/guides/runtime/vscode-debugger) 提醒扩展存在稳定性问题，并推荐 Bun Web debugger。Chrome 调试器不能用于调试 Bun 后端。
 
-打开 <http://localhost:5174> 即可使用完整界面：会话/任务管理、流式对话、工具调用展示、文件树、Git 面板、设置页等。所有数据由模拟后端的内存状态驱动（虚拟工作区、确定性回复）。
+打开 <http://localhost:5174>，通过自报工号进入 AIReq。主导航依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计，登录默认待办；Skill 设计是主页面，不在设置中。所有合法工号均可配置、认领和代办，身份用于留痕与会话隔离，不设置 owner／负责人权限；参数、对象归属、版本、幂等和业务阶段门禁仍保留。普通聊天／任务列表、文件树、Git 面板、Issue 和 AIReq 自动化不是当前产品入口，通用控件与仍有用途的底层设施保留。当前需求以 [.todo.md](.todo.md) 为准，功能范围见 [项目目标](docs/project-goal.md)。业务数据、AI 回复、PR／分支与 Skill 保存均为明确标注的内存模拟，不执行真实开发、测试、Git 或文件保存。
 
 ## 构建
 
