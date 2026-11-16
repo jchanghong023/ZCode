@@ -321,16 +321,18 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
             className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border-[0.5px] border-border bg-background shadow-xs"
             inert={!materialsOpen}
           >
-            <div className="flex h-12 shrink-0 items-center border-b border-border/50 px-4 text-ui-base">
-              <span className="flex-1">需求材料</span>
-              <Button
-                variant="ghost"
-                size="icon-md"
-                aria-label="收起材料"
-                onClick={toggleMaterials}
-              >
-                <PanelRightClose className="size-4" />
-              </Button>
+            <div className="h-12 shrink-0 overflow-y-auto border-b border-border/50 px-2 text-ui-base [scrollbar-gutter:stable_both-edges]" style={{ scrollbarWidth: "thin" }}>
+              <div className="mx-auto flex h-full w-full max-w-4xl items-center">
+                <span className="flex-1">需求材料</span>
+                <Button
+                  variant="ghost"
+                  size="icon-md"
+                  aria-label="收起材料"
+                  onClick={toggleMaterials}
+                >
+                  <PanelRightClose className="size-4" />
+                </Button>
+              </div>
             </div>
             <AIReqMaterialsPane />
           </div>

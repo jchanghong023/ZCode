@@ -27,7 +27,9 @@ export function AIReqReviewNavigation() {
   });
   // 修复：评审区原先贴靠讨论栏左边，未跟随会话和输入框的居中内容列。
   return <section className="@container/conversation max-h-[30vh] shrink-0 overflow-y-auto border-b border-border py-2 text-ui-sm [scrollbar-gutter:stable_both-edges]" data-testid="aireq-review-navigation">
-    <div className={`mx-auto min-w-0 space-y-2 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+    <div className={`mx-auto min-w-0 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+    {/* 修复：评审信息原本占满滚动内容列，外边缘比输入框宽；卡片放进同一内边距以对齐输入框。 */}
+    <div className="min-w-0 space-y-2 rounded-xl border border-card-border bg-card p-3">
     <p>{original ? "原始需求 · 单 Agent" : "完整材料 · 三路审查 → 第四 Agent 终审 → 人工通过"} · {current ? "当前版本" : "旧版本只读，不能恢复批准"} · 第 {review.round ?? 1} 轮</p>
     {/* 修复：默认横向标签栏固定高度，换行后会遮住下方操作。 */}
     <Tabs value={selected} onValueChange={choose}><TabsList aria-label="评审 Agent 会话" className="w-full flex-wrap justify-start gap-y-1 group-data-horizontal/tabs:h-auto">{agents.map((agent) => <TabsTrigger key={agent.id} value={agent.id} data-testid={`review-avatar-${agent.id}`} className="h-auto flex-none gap-2 text-ui-sm">{agent.name} · {agent.status === "completed" ? "已完成" : agent.status === "failed" ? "失败" : agent.status === "running" ? "运行中" : "等待"}</TabsTrigger>)}</TabsList></Tabs>
@@ -41,6 +43,7 @@ export function AIReqReviewNavigation() {
       {review.report && <AIReqMarkdownDocument>{review.report}</AIReqMarkdownDocument>}
       {review.humanDecision && <p>人工决定：{review.humanDecision.employeeId} · {new Date(review.humanDecision.decidedAt).toLocaleString("zh-CN")}</p>}
     </details>
+    </div>
     </div>
   </section>;
 }

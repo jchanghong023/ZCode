@@ -348,7 +348,7 @@ export function AIReqProposalDeliveryControls({
         ].join("\n")
       : "");
   return (
-    <section className="space-y-2" data-testid="proposal-delivery-controls">
+    <section className={compact ? "flex shrink-0 items-center gap-2" : "space-y-2"} data-testid="proposal-delivery-controls">
       <Button
         size="sm"
         variant={compact ? "default" : "outline"}

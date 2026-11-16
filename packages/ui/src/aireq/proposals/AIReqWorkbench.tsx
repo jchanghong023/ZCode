@@ -124,10 +124,8 @@ export function AIReqMaterialsPane() {
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
       data-testid="materials-pane"
     >
-      <div className="shrink-0 px-4 pt-4 pb-3 md:px-6 md:pt-6">
-        <div
-          className={`mx-auto w-full min-w-0 space-y-2 ${!showPlanning && path.endsWith("/sr-dependencies.json") ? "max-w-4xl" : "max-w-[72ch]"}`}
-        >
+      <div className="shrink-0 overflow-y-auto px-2 pt-4 pb-3 [scrollbar-gutter:stable_both-edges]" style={{ scrollbarWidth: "thin" }}>
+        <div className="mx-auto w-full min-w-0 max-w-4xl space-y-2">
           {group && <div className="flex flex-wrap gap-2">
             <Select value={selection.srId ?? "ir"} onValueChange={(id) => aireq.select({
               ...selection, srId: id === "ir" ? undefined : id, materialPath: undefined,
@@ -232,14 +230,13 @@ export function AIReqMaterialsPane() {
       </div>
       <div
         key={`${selection.projectId}:${selection.irId}:${showPlanning ? "planning" : path}`}
-        className="min-h-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6"
+        className="min-h-0 flex-1 overflow-auto px-2 py-4 [scrollbar-gutter:stable_both-edges]"
+        style={{ scrollbarWidth: "thin" }}
         data-testid="material"
         data-material-path={showPlanning ? undefined : path}
         data-material-valid={showPlanning ? undefined : current?.valid}
       >
-        <div
-          className={`mx-auto w-full min-w-0 ${!showPlanning && path.endsWith("/sr-dependencies.json") ? "max-w-4xl" : "max-w-[72ch]"}`}
-        >
+        <div className="mx-auto w-full min-w-0 max-w-4xl">
           {!showPlanning && (path || historical) && (
             <Collapsible className="mb-4">
               <CollapsibleTrigger asChild>
@@ -329,7 +326,7 @@ export function AIReqMaterialsPane() {
                 />
               ) : (
                 <article
-                  className="mx-auto w-full min-w-0 max-w-[72ch]"
+                  className="w-full min-w-0"
                   data-testid="material-document"
                 >
                   <AIReqMarkdownDocument

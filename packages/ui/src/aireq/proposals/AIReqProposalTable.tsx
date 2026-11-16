@@ -1,5 +1,6 @@
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -232,11 +233,18 @@ export function AIReqProposalTable() {
           </span>
         </div>
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
-          <table className="w-full text-left text-ui-base">
+          <table className="w-full min-w-[680px] table-fixed text-left text-ui-base">
+            <colgroup>
+              <col className="w-[15%]" />
+              <col className="w-[38%]" />
+              <col className="w-[23%]" />
+              <col />
+              <col className="w-14" />
+            </colgroup>
             <thead className="sticky top-0 bg-background">
               <tr>
-                {["提交人", "原始需求", "提交日期", "当前状态", "操作"].map((label) => (
-                  <th key={label} className="border-b border-border px-4 py-3 font-medium">
+                {["提交人", "原始需求", "提交日期", "当前状态", "操作"].map((label, index) => (
+                  <th key={label} className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}>
                     {label}
                   </th>
                 ))}
@@ -244,7 +252,7 @@ export function AIReqProposalTable() {
             </thead>
             <tbody>
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
-                <tr key={item.id} className="border-b border-border/50">
+                <tr key={item.id} className="group/row border-b border-border/50 hover:bg-hover">
                   <td className="px-4 py-3">{item.submittedBy}</td>
                   <td className="max-w-xl whitespace-pre-wrap break-words px-4 py-3">
                     {/* 正文应和详情入口一样可直接打开讨论，同时保留键盘操作。 */}
@@ -266,12 +274,15 @@ export function AIReqProposalTable() {
                     <span className="block text-ui-sm text-foreground-subtle">北京时间</span>
                   </td>
                   <td className="px-4 py-3">{proposalPhaseLabel(item)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3 text-right align-middle">
                     <Button
-                      variant="outline"
+                      variant="ghost"
+                      size="icon"
+                      className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+                      aria-label={`查看 ${item.id} 提案详情／讨论`}
                       onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
                     >
-                      详情／讨论
+                      <MoreHorizontal aria-hidden="true" className="size-4" />
                     </Button>
                   </td>
                 </tr>

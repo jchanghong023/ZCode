@@ -6,6 +6,7 @@
 
 ## 第 2 组材料模型与验收
 
+- 材料阅读区的筛选头与 Markdown、依赖图、空态共用居中宽度和滚动条边距，减少右栏两侧留白；提案材料栏标题和单行底部操作也对齐该内容列，交互规则见 proposals“讨论页评审信息与材料操作”。
 - 原始短需求是提案表与单列 CSV 唯一正文，独立于 AI 生成的完整业务需求材料；不得将生成文档替换原文。CSV 的模板／导入预览／导出是提案业务操作，不受材料阅读器禁用复制下载的约束。
 - IR 共享材料为 `docs/requirements/<ir-id>/{requirements.md,sr-dependencies.json,acceptance.md}`；每 SR 选择读取 `openspec/changes/<sr-id>/{proposal.md,design.md,tasks.md,test-plan.md}` 及 `specs/`。这些是模拟仓库稳定引用，不读写本源码业务文档，不保留 IR/change 旧映射。
 - 一个 IR 详情中的 SR 选择只影响独立材料／报告；正式表沿用同页面板，不新增 SR 聊天、文档手工编辑器、执行开发按钮。依赖图只读投影依赖 JSON，不成为第二关系来源。
