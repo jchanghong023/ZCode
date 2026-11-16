@@ -1,3 +1,5 @@
+// HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
+import { createUuid } from "@zcode/shared";
 import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
 import {
   createContext,
@@ -60,7 +62,6 @@ function sourceScope(source: AIReqDataSource): string {
 }
 export const useAIReq = () => useContext(AIReqContext);
 
-
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
   const source = useAIReqDataSource();
@@ -117,7 +118,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(true);
   const [releaseId, updateReleaseId] = useState("");
   const requestRevision = useRef(0);
-  const [proposalDraft, setProposalDraft] = useState<{ id: string; sourceIrId?: string } | null>(null);
+  const [proposalDraft, setProposalDraft] = useState<{ id: string; sourceIrId?: string } | null>(
+    null,
+  );
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
   const guardRef = useRef<((navigate: () => void) => void) | null>(null);
   const historyReturn = useRef<{ delta: number } | null>(null);
@@ -153,9 +156,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
         if (!commandError.current) setError(next.error);
         const current = releaseRef.current;
-        if (current && !next.releases.some(
-          (item) => item.id === current && item.projectId === target.projectId,
-        )) {
+        if (
+          current &&
+          !next.releases.some((item) => item.id === current && item.projectId === target.projectId)
+        ) {
           releaseRef.current = "";
           updateReleaseId("");
         }
@@ -186,8 +190,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         releaseRef.current = "";
         updateReleaseId("");
       }
-      const selectedGroup = [...(viewRef.current?.drafts ?? []), ...(viewRef.current?.groups ?? [])]
-        .find((item) => item.projectId === value.projectId && item.id === value.irId);
+      const selectedGroup = [
+        ...(viewRef.current?.drafts ?? []),
+        ...(viewRef.current?.groups ?? []),
+      ].find((item) => item.projectId === value.projectId && item.id === value.irId);
       if (selectedGroup && releaseRef.current && selectedGroup.releaseId !== releaseRef.current) {
         releaseRef.current = selectedGroup.releaseId;
         updateReleaseId(selectedGroup.releaseId);
@@ -252,16 +258,29 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         else resume();
         return;
       }
-      if ((guardRef.current || draftGuardRef.current) && !approvedHistory.current && index !== navigationRef.current.index) {
+      if (
+        (guardRef.current || draftGuardRef.current) &&
+        !approvedHistory.current &&
+        index !== navigationRef.current.index
+      ) {
         historyReturn.current = { delta: index - navigationRef.current.index };
         window.history.go(navigationRef.current.index - index);
         return;
       }
       approvedHistory.current = false;
       const savedView = event.state.aiReqMainView;
-      const mainView: WorkspaceMainView = ["projectProgress", "todos", "proposals", "formal", "requirementAnalysis", "skillDesign"].includes(savedView)
-        ? savedView : "chat";
-      const restoredRelease = typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
+      const mainView: WorkspaceMainView = [
+        "projectProgress",
+        "todos",
+        "proposals",
+        "formal",
+        "requirementAnalysis",
+        "skillDesign",
+      ].includes(savedView)
+        ? savedView
+        : "chat";
+      const restoredRelease =
+        typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const next = { index, extent: navigationRef.current.extent, mainView };
       navigationRef.current = next;
       setNavigation(next);
@@ -273,23 +292,36 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, [source, select, navigate]);
-  const startProposalDraft = useCallback((sourceIrId?: string) => {
-    navigate(() => {
-      recordNavigation(selectionRef.current, "proposals");
-      setProposalDraft({ id: crypto.randomUUID(), sourceIrId });
-    });
-  }, [navigate, recordNavigation]);
-  const setReleaseId = useCallback((id: string) => {
-    const current = selectionRef.current;
-    if (id && !viewRef.current?.releases.some(
-      (item) => item.id === id && item.projectId === current.projectId,
-    )) return;
-    releaseRef.current = id;
-    updateReleaseId(id);
-    const target = { projectId: current.projectId, ...(current.formalView ? { formalView: "list" as const } : {}) };
-    recordNavigation(target, navigationRef.current.mainView);
-    select(target, false, navigationRef.current.mainView);
-  }, [select, recordNavigation]);
+  const startProposalDraft = useCallback(
+    (sourceIrId?: string) => {
+      navigate(() => {
+        recordNavigation(selectionRef.current, "proposals");
+        setProposalDraft({ id: createUuid(), sourceIrId });
+      });
+    },
+    [navigate, recordNavigation],
+  );
+  const setReleaseId = useCallback(
+    (id: string) => {
+      const current = selectionRef.current;
+      if (
+        id &&
+        !viewRef.current?.releases.some(
+          (item) => item.id === id && item.projectId === current.projectId,
+        )
+      )
+        return;
+      releaseRef.current = id;
+      updateReleaseId(id);
+      const target = {
+        projectId: current.projectId,
+        ...(current.formalView ? { formalView: "list" as const } : {}),
+      };
+      recordNavigation(target, navigationRef.current.mainView);
+      select(target, false, navigationRef.current.mainView);
+    },
+    [select, recordNavigation],
+  );
   const retryMaterial = useCallback(
     async (path: string) => {
       try {

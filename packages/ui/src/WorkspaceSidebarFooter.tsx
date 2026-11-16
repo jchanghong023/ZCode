@@ -191,6 +191,7 @@ function WorkspaceSidebarFooterNativeMenu({
   | "onLogin"
   | "onLogout"
 >) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
   const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
@@ -206,7 +207,7 @@ function WorkspaceSidebarFooterNativeMenu({
   const copyUserId = async () => {
     if (!user?.id) return;
     try {
-      await navigator.clipboard.writeText(user.id);
+      await writeClipboardText(user.id);
       toast(intl.formatMessage({ id: "sidebar.profile.userIdCopied" }));
     } catch {
       toast(intl.formatMessage({ id: "sidebar.profile.userIdCopyFailed" }));
@@ -369,7 +370,10 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         type="button"
         variant="ghost"
         size="lg"
-        className={cn("min-w-0 flex-1 justify-start gap-2 overflow-hidden rounded-tl-2xl rounded-bl-2xl border-0 pl-0", compact && "size-10 flex-none justify-center rounded-xl p-0")}
+        className={cn(
+          "min-w-0 flex-1 justify-start gap-2 overflow-hidden rounded-tl-2xl rounded-bl-2xl border-0 pl-0",
+          compact && "size-10 flex-none justify-center rounded-xl p-0",
+        )}
         data-testid={TID_LOGIN_TRIGGER}
         ref={profileTriggerRef}
         aria-label={profileAriaLabel ?? profileBadge}
@@ -380,7 +384,13 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   );
   return (
     // footer 被 Settings 复用，页面专属边距由调用方传入，避免修改共享默认样式。
-    <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", compact && "items-center px-2", className)}>
+    <footer
+      className={cn(
+        "flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4",
+        compact && "items-center px-2",
+        className,
+      )}
+    >
       <div className={cn("flex min-w-0 gap-2", compact && "flex-col items-center gap-1")}>
         <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
           {/* 保留统一的账户菜单入口；紧凑侧栏还需在键盘聚焦时显示名称。 */}
@@ -388,7 +398,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             <ControlHintTooltip title={profileAriaLabel ?? profileBadge} side="right">
               {profileTrigger}
             </ControlHintTooltip>
-          ) : profileTrigger}
+          ) : (
+            profileTrigger
+          )}
           {/* Bugfix: 菜单内容保持挂载，避免每次点击头像菜单都重建 footer 内部状态。 */}
           <DropdownMenuContent
             align="start"

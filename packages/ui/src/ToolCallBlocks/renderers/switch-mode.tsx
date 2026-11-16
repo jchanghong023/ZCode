@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ToolOutput } from "@/components/ai-elements/tool.js";
@@ -18,6 +19,7 @@ function isInteractiveDescendant(target: EventTarget | null, card: HTMLElement):
 }
 
 export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const { toolCall } = context.toolCallNode;
   const errorText = getToolCallErrorText(toolCall);
@@ -59,8 +61,8 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
   };
 
   const handleCopy = () => {
-    if (!markdown || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
-    void navigator.clipboard.writeText(markdown).then(
+    if (!markdown) return;
+    void writeClipboardText(markdown).then(
       () => setCopiedMarkdown(markdown),
       () => setCopiedMarkdown(null),
     );

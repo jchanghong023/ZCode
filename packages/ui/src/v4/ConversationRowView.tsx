@@ -100,7 +100,7 @@ import {
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import { usePlatform, useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { logger } from "@/logger.js";
@@ -238,19 +238,20 @@ const CopyRowAction = memo(function CopyRowAction({
   label: string;
   tooltip?: string;
 }) {
+  const { writeClipboardText } = usePlatform();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(() => {
-    if (!text || !navigator.clipboard) return;
+    if (!text) return;
     void runUserActionAsync({
       input: { featureId: "conversation.history.feedback", action: "copy", trigger: "button" },
-      operation: () => navigator.clipboard.writeText(text),
+      operation: () => writeClipboardText(text),
       completed: { resultSource: "platform_result" },
       failureStage: "clipboard_write",
     }).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     });
-  }, [text]);
+  }, [text, writeClipboardText]);
   return (
     <MessageAction
       aria-label={label}

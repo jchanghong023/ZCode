@@ -6,6 +6,8 @@
  */
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import { Button } from "../ui/button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { cn } from "../lib/utils.js";
@@ -489,6 +491,7 @@ export const CodeBlockCopyButton = ({
   className,
   ...props
 }: CodeBlockCopyButtonProps) => {
+  const { writeClipboardText } = usePlatform();
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { code, showExportActions } = useContext(CodeBlockContext);
@@ -497,14 +500,14 @@ export const CodeBlockCopyButton = ({
 
   const copyToClipboard = useCallback(async () => {
     if (!showExportActions) return;
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    if (typeof window === "undefined") {
       onError?.(new Error("Clipboard API not available"));
       return;
     }
 
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(code);
+        await writeClipboardText(code);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
@@ -512,7 +515,7 @@ export const CodeBlockCopyButton = ({
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [code, onCopy, onError, timeout, isCopied, showExportActions]);
+  }, [code, onCopy, onError, timeout, isCopied, showExportActions, writeClipboardText]);
 
   useEffect(
     () => () => {

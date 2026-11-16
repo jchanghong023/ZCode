@@ -750,6 +750,30 @@ global:
   nativePackages: ["@napi-rs/keyring"]
 
 exceptions:
+  - id: http-ip-platform-existing-edits
+    rule: unmanaged-new-file
+    paths:
+      - packages/server/src/entry-http.ts
+      - packages/shared/src/platform.ts
+      - packages/ui/src/ChatErrorBanner.tsx
+      - packages/ui/src/GitActionMenu.tsx
+      - packages/ui/src/WorkspaceSidebarFooter.tsx
+      - packages/ui/src/workspace-file-tree/WorkspaceFileTree.tsx
+      - packages/ui/src/v4/ConversationRowView.tsx
+      - packages/ui/src/hooks/useFileContextActions.ts
+      - packages/ui/src/components/ai-elements/code-block.tsx
+      - packages/ui/src/components/ai-elements/commit.tsx
+      - packages/ui/src/components/ai-elements/environment-variables.tsx
+      - packages/ui/src/components/ai-elements/markdown-table.tsx
+      - packages/ui/src/components/ai-elements/message.tsx
+      - packages/ui/src/components/ai-elements/snippet.tsx
+      - packages/ui/src/components/ai-elements/stack-trace.tsx
+      - packages/ui/src/components/ai-elements/terminal.tsx
+      - packages/ui/src/app-shell/WorkflowWorkspaceCardBody.tsx
+      - packages/ui/src/ToolCallBlocks/ToolLayout.tsx
+      - packages/ui/src/ToolCallBlocks/session/ToolDetailSection.tsx
+      - packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx
+    reason: 现有 HTTP 入口明确对外监听，平台契约增加文本复制端口，既有 UI 复制调用改走注入平台以支持普通 IP HTTP；不新增未受管源码，不改变业务状态或操作顺序。见 docs/architecture/web-build-workflow.md。
   - id: storage-startup-gate-browser-uuid-existing-edit
     rule: unmanaged-new-file
     paths: [packages/services/src/zcode-agent/zcodeStorageStartupGate.ts]

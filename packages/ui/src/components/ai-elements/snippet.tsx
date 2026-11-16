@@ -6,6 +6,8 @@
  */
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import {
   InputGroup,
   InputGroupAddon,
@@ -89,19 +91,20 @@ export const SnippetCopyButton = ({
   className,
   ...props
 }: SnippetCopyButtonProps) => {
+  const { writeClipboardText } = usePlatform();
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { code } = useContext(SnippetContext);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    if (typeof window === "undefined") {
       onError?.(new Error("Clipboard API not available"));
       return;
     }
 
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(code);
+        await writeClipboardText(code);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
@@ -109,7 +112,7 @@ export const SnippetCopyButton = ({
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [code, onCopy, onError, timeout, isCopied]);
+  }, [code, onCopy, onError, timeout, isCopied, writeClipboardText]);
 
   useEffect(
     () => () => {

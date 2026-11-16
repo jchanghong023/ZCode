@@ -6,6 +6,7 @@ import {
 } from "@zcode/shared";
 import { playTaskNotificationSound } from "@zcode/ui";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "#src/communityUrl.js";
+import { writeClipboardText } from "#src/platform/writeClipboardText.js";
 import { saveBrowserFile } from "#src/platform/saveBrowserFile.js";
 
 async function resolveFeedbackUrl(): Promise<string | undefined> {
@@ -101,6 +102,7 @@ function emitBrowserTelemetryEvent(kind: "ui" | "arms", payload: unknown): void 
 export function createWebPlatform(): IPlatformService {
   return {
     saveFile: saveBrowserFile,
+    writeClipboardText,
     changeInterfaceZoom: (command) => {
       const root = document.documentElement;
       // 浏览器版没有桌面缩放命令；CSS zoom 同时缩放布局和控件，不能用改字号代替。

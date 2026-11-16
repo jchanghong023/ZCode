@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { useCallback } from "react";
 import { logger } from "@/logger.js";
 
@@ -13,24 +14,28 @@ interface FileContextActionTarget {
  * 需要定位/打开本机文件的入口由调用方删除，不再提供点了没反应的菜单项。
  */
 export function useFileContextActions() {
-  const copyPathText = useCallback(async (path: string) => {
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-      logger.warn("[FileContextActions] 复制文件路径失败", {
-        path,
-        error: "clipboard-unavailable",
-      });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(path);
-      logger.info("[FileContextActions] 文件路径已复制", { path });
-    } catch (error) {
-      logger.warn("[FileContextActions] 复制文件路径失败", {
-        path,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, []);
+  const { writeClipboardText } = usePlatform();
+  const copyPathText = useCallback(
+    async (path: string) => {
+      if (typeof navigator === "undefined") {
+        logger.warn("[FileContextActions] 复制文件路径失败", {
+          path,
+          error: "clipboard-unavailable",
+        });
+        return;
+      }
+      try {
+        await writeClipboardText(path);
+        logger.info("[FileContextActions] 文件路径已复制", { path });
+      } catch (error) {
+        logger.warn("[FileContextActions] 复制文件路径失败", {
+          path,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [writeClipboardText],
+  );
   const copyPath = useCallback(
     (target: FileContextActionTarget) => copyPathText(target.path),
     [copyPathText],

@@ -1,5 +1,7 @@
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import { Badge } from "../ui/badge.js";
 import { Button } from "../ui/button.js";
 import { Switch } from "../ui/switch.js";
@@ -238,6 +240,7 @@ export const EnvironmentVariableCopyButton = ({
   className,
   ...props
 }: EnvironmentVariableCopyButtonProps) => {
+  const { writeClipboardText } = usePlatform();
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { name, value } = useContext(EnvironmentVariableContext);
@@ -252,20 +255,20 @@ export const EnvironmentVariableCopyButton = ({
   }, [name, value, copyFormat]);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    if (typeof window === "undefined") {
       onError?.(new Error("Clipboard API not available"));
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(getTextToCopy());
+      await writeClipboardText(getTextToCopy());
       setIsCopied(true);
       onCopy?.();
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [getTextToCopy, onCopy, onError, timeout]);
+  }, [getTextToCopy, onCopy, onError, timeout, writeClipboardText]);
 
   useEffect(
     () => () => {

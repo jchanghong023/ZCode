@@ -1,5 +1,7 @@
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { Button } from "../ui/button.js";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible.js";
@@ -300,25 +302,26 @@ export const StackTraceCopyButton = memo(
     children,
     ...props
   }: StackTraceCopyButtonProps) => {
+    const { writeClipboardText } = usePlatform();
     const [isCopied, setIsCopied] = useState(false);
     const timeoutRef = useRef<number>(0);
     const { raw } = useStackTrace();
 
     const copyToClipboard = useCallback(async () => {
-      if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+      if (typeof window === "undefined") {
         onError?.(new Error("Clipboard API not available"));
         return;
       }
 
       try {
-        await navigator.clipboard.writeText(raw);
+        await writeClipboardText(raw);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
       } catch (error) {
         onError?.(error as Error);
       }
-    }, [raw, onCopy, onError, timeout]);
+    }, [raw, onCopy, onError, timeout, writeClipboardText]);
 
     useEffect(
       () => () => {

@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -5,6 +6,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { BranchCopyProps } from "./contract.js";
 
 export function BranchCopy({ branch, onMessage }: BranchCopyProps) {
+  const { writeClipboardText } = usePlatform();
   const [copiedBranch, setCopiedBranch] = useState<string>();
   const [feedback, setFeedback] = useState("");
   const [pending, setPending] = useState(false);
@@ -38,7 +40,7 @@ export function BranchCopy({ branch, onMessage }: BranchCopyProps) {
             event.stopPropagation();
             setPending(true);
             try {
-              await navigator.clipboard.writeText(branch);
+              await writeClipboardText(branch);
               setCopiedBranch(branch);
               const message = `已复制分支：${branch}`;
               setFeedback(message);

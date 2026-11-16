@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 // ============================================================
 // 脚本 transcript 条目的展开面板
 // ============================================================
@@ -71,15 +72,16 @@ function DiffLines({ text }: { text: string }) {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const [copied, setCopied] = useState(false);
   const copy = useCallback(() => {
     if (text.length === 0) return;
-    void navigator.clipboard?.writeText(text).then(() => {
+    void writeClipboardText(text).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });
-  }, [text]);
+  }, [text, writeClipboardText]);
   return (
     <button
       className="inline-flex h-[22px] items-center gap-1.5 rounded-[5px] px-1.5 font-sans text-foreground-subtle transition-colors hover:bg-surface-hover hover:text-foreground"

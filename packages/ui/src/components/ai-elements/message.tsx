@@ -94,7 +94,7 @@ import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import { usePlatform, useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { FileSaveAsMenuItem } from "@/file-menu/index.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
@@ -1491,6 +1491,7 @@ function MessageExternalLink({
   onOpenExternalUrl,
   ...props
 }: MessageExternalLinkProps) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const platform = useOptionalPlatform();
   const handleOpen = useCallback(() => {
@@ -1517,10 +1518,7 @@ function MessageExternalLink({
   );
   const handleCopyLink = async () => {
     try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error("clipboard-unavailable");
-      }
-      await navigator.clipboard.writeText(href);
+      await writeClipboardText(href);
     } catch (error) {
       logger.warn("[MessageExternalLink] 复制链接失败", {
         error: error instanceof Error ? error.message : String(error),

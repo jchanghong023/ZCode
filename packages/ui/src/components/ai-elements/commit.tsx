@@ -6,6 +6,8 @@
  */
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import { Avatar, AvatarFallback } from "../ui/avatar.js";
 import { Button } from "../ui/button.js";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible.js";
@@ -163,18 +165,19 @@ export const CommitCopyButton = ({
   className,
   ...props
 }: CommitCopyButtonProps) => {
+  const { writeClipboardText } = usePlatform();
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    if (typeof window === "undefined") {
       onError?.(new Error("Clipboard API not available"));
       return;
     }
 
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(hash);
+        await writeClipboardText(hash);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
@@ -182,7 +185,7 @@ export const CommitCopyButton = ({
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [hash, onCopy, onError, timeout, isCopied]);
+  }, [hash, onCopy, onError, timeout, isCopied, writeClipboardText]);
 
   useEffect(
     () => () => {

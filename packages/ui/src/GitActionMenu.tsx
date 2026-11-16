@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 /* eslint-disable max-lines -- 顶部 Git 操作当前集中承载 trigger、commit dialog 和 push dialog；先按工作流边界收口，避免为了拆行数把状态机打散。 */
 import {
   useCallback,
@@ -601,6 +602,7 @@ function GitPushDialog({
   onOpenChange,
   onSubmit,
 }: GitPushDialogProps) {
+  const { writeClipboardText } = usePlatform();
   const { intl, locale } = useZCodeIntl();
   const numberFormatter = new Intl.NumberFormat(locale);
   const [errorCopied, setErrorCopied] = useState(false);
@@ -613,7 +615,7 @@ function GitPushDialog({
       return;
     }
 
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    if (typeof navigator === "undefined") {
       toast(
         intl.formatMessage(
           { id: "git.actionMenu.pushDialog.error.copyFailed" },
@@ -623,7 +625,7 @@ function GitPushDialog({
       return;
     }
 
-    void navigator.clipboard.writeText(error).then(
+    void writeClipboardText(error).then(
       () => {
         setErrorCopied(true);
         window.setTimeout(() => {
@@ -640,7 +642,7 @@ function GitPushDialog({
         );
       },
     );
-  }, [error, intl]);
+  }, [error, intl, writeClipboardText]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

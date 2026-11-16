@@ -6,6 +6,8 @@
  */
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import { Button } from "../ui/button.js";
 import { cn } from "../lib/utils.js";
 import RawAnsi from "ansi-to-react";
@@ -107,25 +109,26 @@ export const TerminalCopyButton = ({
   className,
   ...props
 }: TerminalCopyButtonProps) => {
+  const { writeClipboardText } = usePlatform();
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { output } = useContext(TerminalContext);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    if (typeof window === "undefined") {
       onError?.(new Error("Clipboard API not available"));
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(output);
+      await writeClipboardText(output);
       setIsCopied(true);
       onCopy?.();
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [output, onCopy, onError, timeout]);
+  }, [output, onCopy, onError, timeout, writeClipboardText]);
 
   useEffect(
     () => () => {

@@ -1,3 +1,5 @@
+// HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
+import { createUuid } from "@zcode/shared";
 import {
   isFormalSelection,
   AIREQ_CONTRACT_VERSION,
@@ -247,7 +249,7 @@ export async function createRemoteAIReqDataSource(
       // 普通业务按钮没有显式编号；在唯一远程入口补齐一次，避免被 owner 的幂等门禁拒绝。
       const command = {
         ...action,
-        operationId: action.operationId ?? crypto.randomUUID(),
+        operationId: action.operationId ?? createUuid(),
         expectedRevision: action.expectedRevision ?? revision,
       };
       const result = await call("command", [command, target, revision], target);

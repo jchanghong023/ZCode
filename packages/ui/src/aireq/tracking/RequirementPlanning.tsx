@@ -1,3 +1,5 @@
+// HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
+import { createUuid } from "@zcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useId, useRef, useState } from "react";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
@@ -146,7 +148,7 @@ export function AIReqEditPlanning({
           setInput({
             developerEmployeeId: sr.developerEmployeeId,
             testingEmployeeId: sr.testingEmployeeId,
-            operationId: crypto.randomUUID(),
+            operationId: createUuid(),
             expectedRevision: aireq.view!.revision,
             plannedStart: sr.planning?.plannedStart,
             plannedEnd: sr.planning?.plannedEnd,
@@ -162,7 +164,8 @@ export function AIReqEditPlanning({
           <DialogHeader>
             <DialogTitle>调整开发／测试分工与计划</DialogTitle>
             <DialogDescription>
-              {sr.title} · 初始继承 IR 联系人，可显式调整或留空待认领；负责人不是操作权限，代办留实际操作者。
+              {sr.title} · 初始继承 IR
+              联系人，可显式调整或留空待认领；负责人不是操作权限，代办留实际操作者。
             </DialogDescription>
           </DialogHeader>
           <form
@@ -204,14 +207,40 @@ export function AIReqEditPlanning({
               <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
                 一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
               </p>
-              <Button type="button" size="sm" variant="outline" onClick={() => updateDeveloper(getEmployeeId())}>由我负责开发</Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => updateDeveloper(getEmployeeId())}
+              >
+                由我负责开发
+              </Button>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${id}-testing`}>测试负责人工号</Label>
-              <Input id={`${id}-testing`} value={input.testingEmployeeId ?? ""} pattern="[a-z][0-9]{8}"
-                title="一个小写字母后接 8 位数字；可留空待认领。" placeholder="留空表示待认领"
-                onChange={(event) => setInput((current) => ({ ...current, testingEmployeeId: event.target.value.trim() }))} />
-              <Button type="button" size="sm" variant="outline" onClick={() => setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))}>由我负责测试</Button>
+              <Input
+                id={`${id}-testing`}
+                value={input.testingEmployeeId ?? ""}
+                pattern="[a-z][0-9]{8}"
+                title="一个小写字母后接 8 位数字；可留空待认领。"
+                placeholder="留空表示待认领"
+                onChange={(event) =>
+                  setInput((current) => ({
+                    ...current,
+                    testingEmployeeId: event.target.value.trim(),
+                  }))
+                }
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))
+                }
+              >
+                由我负责测试
+              </Button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -415,7 +444,10 @@ export function AIReqPlanningSummary({
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 text-ui-sm">
-              <span>开发负责人：{sr.developerEmployeeId ?? "待认领"} · 测试负责人：{sr.testingEmployeeId ?? "待认领"}</span>
+              <span>
+                开发负责人：{sr.developerEmployeeId ?? "待认领"} · 测试负责人：
+                {sr.testingEmployeeId ?? "待认领"}
+              </span>
               <Badge variant="outline">
                 {sr.planning?.source === "manual" ? "人工调整" : sr.planning ? "AI 建议" : "待分析"}
               </Badge>

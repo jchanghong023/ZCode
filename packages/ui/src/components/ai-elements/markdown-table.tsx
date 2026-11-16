@@ -1,5 +1,7 @@
 "use client";
 
+import { usePlatform } from "@/hooks/usePlatform.js";
+
 import type {
   ComponentProps,
   PointerEvent as ReactPointerEvent,
@@ -405,6 +407,7 @@ export function MarkdownTable({
   showExportActions = true,
   ...props
 }: MarkdownTableProps) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [expandedScrollEnabled, setExpandedScrollEnabled] = useState(false);
@@ -1083,7 +1086,7 @@ export function MarkdownTable({
 
   const handleCopyMarkdown = useCallback(async () => {
     if (!showExportActions) return;
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    if (typeof navigator === "undefined") {
       toast(
         intl.formatMessage({ id: "markdownTable.copyFailed" }, { error: "clipboard-unavailable" }),
       );
@@ -1091,7 +1094,7 @@ export function MarkdownTable({
     }
 
     try {
-      await navigator.clipboard.writeText(buildMarkdownTableText(getRows()));
+      await writeClipboardText(buildMarkdownTableText(getRows()));
       toast(intl.formatMessage({ id: "markdownTable.copySucceeded" }));
     } catch (error) {
       toast(
@@ -1101,7 +1104,7 @@ export function MarkdownTable({
         ),
       );
     }
-  }, [getRows, intl, showExportActions]);
+  }, [getRows, intl, showExportActions, writeClipboardText]);
 
   const handleDownloadCsv = useCallback(() => {
     if (!showExportActions) return;

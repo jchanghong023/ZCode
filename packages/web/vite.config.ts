@@ -73,7 +73,9 @@ export default defineConfig(({ mode }) => {
         },
       ],
     },
+    // 局域网机器必须能直接通过 HTTP IP 访问，不能只绑定 loopback。
     server: {
+      host: "0.0.0.0",
       port: 5174,
       proxy: {
         // main 使用独立后端端口，避免同时运行 base 时代理到另一套内存状态。

@@ -725,6 +725,9 @@ export interface IPlatformService {
   /** 浏览器下载端口：把字节或同源/HTTP(S)/data/blob URL 交给当前浏览器下载器。 */
   saveFile(payload: SaveFileRequest): Promise<SaveFileResult>;
 
+  /** 用户触发的文本复制；支持 HTTP IP，复制被拒绝时 reject，不报告虚假成功。 */
+  writeClipboardText(text: string): Promise<void>;
+
   /** 应用内整页缩放：每步 10%，范围 50%–200%；reset 恢复 100%，不修改根字号。 */
   changeInterfaceZoom(command: "in" | "out" | "reset"): void;
 

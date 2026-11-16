@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -12,6 +13,7 @@ export function ToolDetailSection({
   value?: string;
   children: ReactNode;
 }) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -34,7 +36,7 @@ export function ToolDetailSection({
             title={copyLabel}
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(value);
+                await writeClipboardText(value);
                 setCopiedValue(value);
                 setCopyFailed(false);
               } catch {

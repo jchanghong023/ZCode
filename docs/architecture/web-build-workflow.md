@@ -106,6 +106,20 @@ sequenceDiagram
 
 ### 生产静态托管
 
+- HTTP IP 访问是正式支持的部署方式，不要求域名、TLS 或浏览器安全上下文特权。
+  开发服务器默认监听 `0.0.0.0:5174`；模拟后端默认监听 `0.0.0.0:3031`，
+  `ZCODE_SERVER_HOST`／`HOST` 可显式收紧监听地址。生产通过 `PORT=80` 和静态根配置
+  提供不带端口的 `http://<服务器IP>/`，页面、`/api` 与 `/ws` 必须同源。
+  机器间访问还要求 IP 可路由且 TCP 80 已放行；应用配置不能代替网络连通性。
+- UUID 复用 shared `createUuid`，保持原有操作 ID 分配及重试时点；附件摘要继续使用已有
+  HTTP SHA-256 实现，不改写全局浏览器 API。文本复制经 `IPlatformService.writeClipboardText`，
+  有 Clipboard API 时使用原生接口，否则在用户点击内同步选取临时文本框并执行复制，
+  随后恢复焦点和选择；浏览器拒绝复制必须反馈失败，不能显示成功。
+- 验收使用本机非 loopback IP：分别访问开发服务及 80 端口的正式构建，确认
+  `isSecureContext=false` 且原生 `randomUUID`／Clipboard API 缺失；登录、主导航、设置、
+  新增并保存提案、讨论与文本复制正常，刷新和第二浏览器上下文可连接。
+  记录控制台 warning/error、未处理异常和失败请求，不屏蔽诊断或注入安全上下文特权。
+
 - 生产形态：从仓库根运行以下命令，`ZCODE_WEB_STATIC_ROOT` 指向前端构建目录的绝对路径，由一个 Bun 进程托管 HTTP + WebSocket + SPA fallback：
 
   ```bash
@@ -127,9 +141,10 @@ sequenceDiagram
   编码大小写、`q=0`、通配符、缺省/空头、显式原文、不可接受编码的 `406`、
   SPA fallback 的 HTML 类型与 `no-cache`，以及 HEAD 无响应体。不修改 `/api`、`/ws` 的编码行为。
 
-- 对外部署必须提供 HTTPS 安全上下文、同源 `/api` 与 `/ws` Upgrade，以及预览/下载返回的可达资源路径。
-  localStorage、sessionStorage、IndexedDB、Blob/object URL、WebSocket 与 `crypto.randomUUID` 必须可用；
-  不能将 localhost HTTP 的可用性当作任意服务器 HTTP 可部署的证据。
+- 对外部署支持 HTTP／HTTPS，必须提供同源 `/api` 与 `/ws` Upgrade，以及预览/下载返回的可达资源路径。
+  localStorage、sessionStorage、IndexedDB、Blob/object URL、WebSocket 与 `crypto.getRandomValues` 必须可用；
+  不能将 localhost HTTP 的可用性当作实际 IP HTTP 的验收证据。通知、语音输入等受浏览器安全上下文
+  限制的可选能力沿用明确的不可用提示，不阻断主业务。
 - 后端替换验收固定一份 `packages/web/dist`，将部署包与逐文件 SHA-256 清单一起保存；
   同一包先连 mock 再连真实后端，不因后端差异重建带特判的前端。完整接入面见
   [模拟后端规范 §8](mock-backend.md#8-真实后端替换契约)。本仓库仍只实现模拟后端。

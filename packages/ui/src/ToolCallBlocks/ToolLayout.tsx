@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { SummaryPreviewContext, SummaryIconOnlyContext } from "@/v4/conversationRowContext.js";
 import { memo, useContext, type ReactNode, useEffect, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible.js";
@@ -102,6 +103,7 @@ function ToolLayoutComponent({
   renderContent,
   summaryAction,
 }: ToolLayoutProps) {
+  const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
   const resolvedPersistOpenKey = persistOpenKey ?? toolId;
   const [isOpen, setIsOpen] = useState(
@@ -226,7 +228,7 @@ function ToolLayoutComponent({
       return;
     }
 
-    navigator.clipboard.writeText(statusTooltip).then(() => {
+    writeClipboardText(statusTooltip).then(() => {
       setIsFailureTooltipCopied(true);
       if (failureTooltipCopyResetRef.current !== null) {
         window.clearTimeout(failureTooltipCopyResetRef.current);

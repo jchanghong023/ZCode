@@ -5,6 +5,9 @@
 - 下载保存：`saveFile` 接收原始 ArrayBuffer 或 URL 读取结果，最多 50 MiB；URL 只接受
   HTTP、HTTPS、data、blob；异常停止读取。`success` 只表示交给浏览器下载器，不代表已落盘。
 - 外链入口：`openExternal` 只允许 http/https；反馈与社群地址由同源客户端配置解析。
+- 文本复制：`writeClipboardText(text)` 只在实际复制成功后 resolve；HTTP IP 缺少 Clipboard API 时，
+  在用户操作内使用临时文本框执行复制，始终移除临时节点并恢复原焦点／选择。复制被拒绝则 reject，
+  不覆盖全局 navigator，不缓存剪贴板内容，不把失败显示为成功。
 - 浏览器通知：任务通知与扩展通知使用 Notification API；点击回调由平台实例唯一持有，
   扩展通知按每插件 60 秒 1 条、每日 20 条限流。
 - 遥测：mock 后端没有接收端，平台只派发本地 `zcode:telemetry` 事件，不伪装成服务端上报。

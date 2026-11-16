@@ -65,6 +65,24 @@ ZCODE_WEB_STATIC_ROOT="$PWD/packages/web/dist" bun packages/server/dist/entry-ht
 
 `ZCODE_WEB_STATIC_ROOT` 必须指向前端静态产物目录，推荐绝对路径。PowerShell 先执行 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再执行 `bun packages/server/dist/entry-http.js`；`PORT` 可覆盖默认端口 3031。
 
+## HTTP IP 部署
+
+开发服务默认监听 `0.0.0.0:5174`，其他机器可访问 `http://<服务器IP>:5174`。
+正式环境需要不带端口的 `http://<服务器IP>/` 时，构建后从仓库根启动：
+
+```bash
+bun run build
+PORT=80 ZCODE_SERVER_HOST=0.0.0.0 ZCODE_WEB_STATIC_ROOT="$PWD/packages/web/dist" bun packages/server/dist/entry-http.js
+```
+
+PowerShell 分别设置 `$env:PORT = "80"`、`$env:ZCODE_SERVER_HOST = "0.0.0.0"` 和
+`$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再启动后端产物。
+运行账户须有绑定 80 端口的权限，且端口未被占用。服务器防火墙／安全组需放行 TCP 80；
+跨网访问还需要可路由 IP 或端口映射。页面、API 和 WebSocket 共用同一地址，无需客户端另配后端。
+
+普通 IP 的 HTTP 页面使用兼容 UUID、附件 SHA-256 和文本复制；浏览器拒绝复制时显示失败。
+通知、语音等可选浏览器能力仍遵循浏览器权限与安全上下文限制。
+
 ## 清理
 
 ```bash
