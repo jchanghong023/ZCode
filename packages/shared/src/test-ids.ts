@@ -691,8 +691,6 @@ export const TID_V4_QUEUE_ITEM_UP = "v4-queue-item-up";
 export const TID_V4_AUTODRAIN_TOGGLE = "v4-autodrain-toggle";
 /** v4 输入控制：followup 路由模式开关按钮（setFollowupMode 命令） */
 export const TID_V4_FOLLOWUP_TOGGLE = "v4-followup-toggle";
-/** v4 会话标题显示（meta.title，空则显示占位） */
-export const TID_V4_SESSION_TITLE = "v4-session-title";
 /** v4 会话重命名输入框（renameSession 命令） */
 export const TID_V4_RENAME_INPUT = "v4-rename-input";
 /** v4 会话重命名提交按钮（renameSession 命令） */
@@ -707,8 +705,6 @@ export const TID_V4_BACKGROUND_WORKS = "v4-background-works";
 export const TID_V4_BACKGROUND_WORK_ITEM = "v4-background-work-item";
 /** v4 后台工作取消按钮（cancelBackgroundWork 命令；动态后缀为 workId） */
 export const TID_V4_BACKGROUND_WORK_CANCEL = "v4-background-work-cancel";
-/** v4 模型配置显示（data-provider/data-model/data-thought，switchModelConfig 效果投影） */
-export const TID_V4_MODEL_CONFIG = "v4-model-config";
 // v4-model-provider-input / v4-model-model-input / v4-model-thought-input /
 // v4-model-apply（调试表单）已退役——模型切换由 composer 工具条的
 // TID_CHAT_MODEL_SELECT_* / TID_CHAT_THOUGHT_LEVEL_SELECT_* 承载。

@@ -202,7 +202,9 @@ function ReadySkillDesignEditor({
   const previewRevision = useRef<number | undefined>(undefined);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [savedPath, setSavedPath] = useState("");
+  const [savedReceipt, setSavedReceipt] = useState<AIReqSkillDesignPreview["savedReceipt"]>();
+  const savedPath = savedReceipt?.revision === preview?.revision ? (savedReceipt?.path ?? "") : "";
+  const [viewedFiles, setViewedFiles] = useState<{ revision: number; paths: Set<string> }>();
   const saveOperation = useRef<{ key: string; id: string } | undefined>(undefined);
   const targetName = preview?.name ?? "";
   const validName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetName) && targetName.length <= 64;
@@ -215,8 +217,27 @@ function ReadySkillDesignEditor({
         : undefined;
   const collision = skills.some((skill) => skill.path === `${targetDirectory}/SKILL.md`);
   const file = preview?.files.find((item) => item.path === selectedFile) ?? preview?.files[0];
+  const viewedCount =
+    viewedFiles?.revision === preview?.revision
+      ? (preview?.files.filter((item) => viewedFiles?.paths.has(item.path)).length ?? 0)
+      : 0;
+  const allFilesViewed = Boolean(preview?.files.length && viewedCount === preview.files.length);
+  // 预览页 forceMount 不代表用户看过；只登记当前可见文件，版本变化后旧记录不再有效。
+  useEffect(() => {
+    if (!editorActive || tab !== "preview" || !preview || !file) return;
+    setViewedFiles((current) => {
+      if (current?.revision === preview.revision && current.paths.has(file.path)) return current;
+      return {
+        revision: preview.revision,
+        paths: new Set([
+          ...(current?.revision === preview.revision ? current.paths : []),
+          file.path,
+        ]),
+      };
+    });
+  }, [editorActive, tab, preview, file]);
   const generationStatus = savedPath
-    ? `第 ${preview?.revision} 版已记录保存结果（演示环境）。`
+    ? `第 ${savedReceipt!.revision} 版已保存`
     : preview
       ? `第 ${preview.revision} 版 · 待确认保存`
       : "";
@@ -281,7 +302,7 @@ function ReadySkillDesignEditor({
               : current,
         );
         if (previewRevision.current !== next?.revision) {
-          setSavedPath("");
+          setSavedReceipt(undefined);
           setNotice("");
           setFillError("");
           pendingInsert.current = null;
@@ -289,8 +310,8 @@ function ReadySkillDesignEditor({
         }
         previewRevision.current = next?.revision;
         setPreview(next);
-        setSavedPath(
-          next?.savedReceipt?.revision === next?.revision ? (next?.savedReceipt?.path ?? "") : "",
+        setSavedReceipt(
+          next?.savedReceipt?.revision === next?.revision ? next?.savedReceipt : undefined,
         );
         if (next?.savedReceipt?.revision === next?.revision && next?.savedReceipt)
           setSaveTarget(next.savedReceipt.target);
@@ -363,7 +384,15 @@ function ReadySkillDesignEditor({
     return () => window.clearTimeout(timer);
   }, [insertRequest]);
   const save = async () => {
-    if (!targetDirectory || !preview || !validName || collision || savedPath || saving)
+    if (
+      !targetDirectory ||
+      !preview ||
+      !validName ||
+      !allFilesViewed ||
+      collision ||
+      savedPath ||
+      saving
+    )
       return false;
     const revision = preview.revision;
     const key = `${sessionId}:${revision}:${saveTarget}:${targetName}`;
@@ -382,7 +411,7 @@ function ReadySkillDesignEditor({
         operationId,
       );
       if (!active.current || previewRevision.current !== revision) return false;
-      setSavedPath(receipt.path);
+      setSavedReceipt(receipt);
       setError("");
       setNotice("");
       setFillError("");
@@ -398,18 +427,21 @@ function ReadySkillDesignEditor({
   const dirty = draftUnsettled || unsavedPreview;
   // 说明待结算不能绕过预览校验；失败与在途写入分开，失败后仍可显式丢弃离开。
   const canSave =
-    !saving && (!unsavedPreview || Boolean(targetDirectory && validName && !collision));
+    !saving &&
+    (!unsavedPreview || Boolean(targetDirectory && validName && allFilesViewed && !collision));
   const canDiscard = pendingDraftSaveCount === 0 && !saving;
   // 禁用保存时在离开弹窗说明当前预览的具体阻断原因，避免用户面对无反馈的按钮。
   const saveBlockedReason = !unsavedPreview
     ? undefined
-    : !validName
-      ? "技能标识无效，请取消并返回对话调整标识。"
-      : collision
-        ? "所选目标已有同名技能，请取消并返回对话调整标识或选择其他保存目标。"
-        : !targetDirectory
-          ? "保存目标不可用，请取消并返回临时文件预览选择有效目标。"
-          : undefined;
+    : !allFilesViewed
+      ? "请取消并返回临时文件预览，逐一核对当前版本的全部文件后保存。"
+      : !validName
+        ? "技能标识无效，请取消并返回对话调整标识。"
+        : collision
+          ? "所选目标已有同名技能，请取消并返回对话调整标识或选择其他保存目标。"
+          : !targetDirectory
+            ? "保存目标不可用，请取消并返回临时文件预览选择有效目标。"
+            : undefined;
   currentActions.current = {
     canSave,
     canDiscard,
@@ -622,6 +654,10 @@ function ReadySkillDesignEditor({
                         {preview.files.map((item) => (
                           <SelectItem key={item.path} value={item.path}>
                             {item.path}
+                            {viewedFiles?.revision === preview.revision &&
+                            viewedFiles.paths.has(item.path)
+                              ? " · 已预览"
+                              : " · 待预览"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -651,8 +687,8 @@ function ReadySkillDesignEditor({
                   data-testid="skill-design-save-target"
                 >
                   <p className="text-ui-sm">
-                    技能标识（模型推荐）：
-                    <span className="font-mono">{preview?.name ?? "发送后由模型推荐"}</span>
+                    候选技能标识：
+                    <span className="font-mono">{preview?.name ?? "发送后提供候选标识"}</span>
                   </p>
                   <div className="space-y-1.5">
                     <Label htmlFor="skill-save-scope">保存到</Label>
@@ -684,8 +720,8 @@ function ReadySkillDesignEditor({
                   </p>
                   {preview && (
                     <p className="text-ui-sm text-foreground-subtle">
-                      将保存第 {preview.revision} 版的全部 {preview.files.length}{" "}
-                      个文件，不覆盖同名技能。
+                      将保存第 {preview.revision} 版的全部 {preview.files.length} 个文件，已预览{" "}
+                      {viewedCount}/{preview.files.length}，不覆盖同名技能。
                     </p>
                   )}
                   {preview && !validName && (
@@ -695,12 +731,12 @@ function ReadySkillDesignEditor({
                   )}
                   {collision && !savedPath && (
                     <p role="alert" className="text-ui-sm text-destructive">
-                      所选目标已有同名技能，请返回对话让模型推荐其他标识，再预览保存。
+                      所选目标已有同名技能，请返回对话调整标识，或选择其他保存目标。
                     </p>
                   )}
                   {savedPath && (
                     <p role="status" className="break-all text-ui-sm text-foreground-subtle">
-                      已记录本次保存结果（演示环境）：{savedPath}。未写入实际文件。
+                      已保存第 {savedReceipt!.revision} 版：{savedReceipt!.path}
                     </p>
                   )}
                   <div className="flex items-center justify-end gap-2">
@@ -718,6 +754,7 @@ function ReadySkillDesignEditor({
                         !preview ||
                         collision ||
                         !validName ||
+                        !allFilesViewed ||
                         Boolean(savedPath) ||
                         saving
                       }

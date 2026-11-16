@@ -1549,13 +1549,6 @@ export function finalizePromptTelemetry(
   };
 }
 
-export function resetMessageTelemetryForTest(): void {
-  composerInputTimingByWorkspace.clear();
-  queuedPromptTelemetryByTask.clear();
-  activePromptTelemetryByTask.clear();
-  agentStepTelemetryByTask.clear();
-}
-
 /** workspace telemetry attachment 释放时只清自己的内部 task key，不影响其它 workspace。 */
 export function discardPromptTelemetry(taskId: string): void {
   queuedPromptTelemetryByTask.delete(taskId);

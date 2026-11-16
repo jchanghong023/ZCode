@@ -311,10 +311,7 @@ export function applyExternalTextInsertRequestToComposer({
   appliedRequestId: number | null;
   inputApi: Pick<
     LexicalChatInputHandle,
-    | "getMarkdown"
-    | "prependMentionIfMissing"
-    | "setMention"
-    | "setText"
+    "getMarkdown" | "prependMentionIfMissing" | "setMention" | "setText"
   > | null;
   request: ExternalTextInsertRequest | null | undefined;
   requestFocus: () => void;
@@ -2158,15 +2155,6 @@ function ConversationComposerImpl({
       ),
     [composerAttachments],
   );
-  // 隐藏的元素截图不进 DOM 附件行；在输入框根节点上留「文件名:上传状态」，E2E 据此判断截图是否就绪
-  const hiddenElementScreenshotsMarker = useMemo(
-    () =>
-      composerAttachments
-        .filter((item) => isHiddenWebElementScreenshot(item))
-        .map((item) => `${item.filename}:${item.uploadStatus ?? "ready"}`)
-        .join(" "),
-    [composerAttachments, isHiddenWebElementScreenshot],
-  );
   const attachmentsTopContentNode = useMemo(() => {
     // 元素 token 的截图是隐藏附件：只剩它们时整行不渲染，否则卡片的 gap 会在截图晚到时把输入框撑高一截
     const hasVisibleComposerAttachments = composerAttachments.some(
@@ -2855,7 +2843,6 @@ function ConversationComposerImpl({
         </div>
       ) : null}
       <div
-        data-composer-element-screenshots={hiddenElementScreenshotsMarker || undefined}
         className={cn(
           "chat-composer-input-surface relative w-full",
           contextHeader && "rounded-2xl bg-surface shadow-xl/5",

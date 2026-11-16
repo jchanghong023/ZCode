@@ -32,10 +32,6 @@ export function setReactErrorArmsReporter(reporter: ArmsReporter | null): void {
   armsReporter = reporter;
 }
 
-export function clearReactErrorArmsReporterForTest(): void {
-  armsReporter = null;
-}
-
 /**
  * 上报副本必须先脱敏：渲染层 stack 与 componentStack 在桌面端携带 `file:///Users/<用户名>/...`
  * 路径，error.message 也可能带工作区路径或用户内容。与 ARMS 自动采集 exception 事件共用

@@ -18,27 +18,14 @@ export const ZCODE_OFFICIAL_ENDPOINT_ENV_KEY = "ZCODE_OFFICIAL_ENDPOINT";
 export const ZCODE_OFFICIAL_ENDPOINT_TOKEN_ENV_KEY = "ZCODE_OFFICIAL_ENDPOINT_TOKEN";
 /** Shared node_repl host marker; unlike the broker bearer values it is not a secret. */
 export const ZCODE_CUA_NODE_REPL_HOST_ENV_KEY = "ZCODE_CUA_NODE_REPL_HOST";
-// One-knob local-development bundle. Setting ZCODE_CUA_DEV_MODE implies the internal feature
-// flag (below) plus the local-helper relaxations wired in packages/services (unsigned/
-// unauthenticated local helper, dev install variant, "Dev.app" naming). It exists so a developer
-// can launch the full local CUA loop with a single env var instead of the historical four-var
-// incantation. 这些开关只在未打包本地构建生效；正式 desktop/Helper bundle 会在编译期关闭并在
-// main→host 边界删除，不能用于 signed release 的 runtime override。
-export const ZCODE_CUA_DEV_MODE_ENV_KEY = "ZCODE_CUA_DEV_MODE";
 
 export type ZCodeRuntimeEnv = "development" | "production" | "test";
 
 type EnvRecord = Record<string, string | undefined>;
 
-export function isCuaDevModeRequested(env: EnvRecord = process.env): boolean {
-  const explicit = env[ZCODE_CUA_DEV_MODE_ENV_KEY]?.trim().toLowerCase();
-  return explicit === "1" || explicit === "true" || explicit === "on";
-}
-
 export function isZCodeCuaInternalFeatureEnabled(env: EnvRecord = process.env): boolean {
   // CUA 现已默认打包进正式版（plugin staged + Helper enabled），不再需要显式 env flag。
-  // DEV_MODE 仍然 implied（开发一键），PRODUCT_HELPER=0/off/false 可显式关闭。
-  if (isCuaDevModeRequested(env)) return true;
+  // PRODUCT_HELPER=0/off/false 可显式关闭。
   const explicit = env[ZCODE_CUA_PRODUCT_HELPER_ENV_KEY]?.trim().toLowerCase();
   if (explicit === "0" || explicit === "false" || explicit === "off") return false;
   return true;

@@ -11,7 +11,7 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import {
   generateMobileDeviceFingerprint,
-  getStreamClientId,
+  getV4ClientId,
   logger,
   setStreamClientId,
   type Theme,
@@ -94,9 +94,10 @@ function renderEntry(content: ReactNode = null): void {
     </div>,
   );
 }
-// 初始化 Web 端流式 clientId，确保所有 hook 在首次渲染前就使用稳定 ID
+// 设备标识仅供既有设备级消费者使用，不作为业务连接或原生命令身份。
 setStreamClientId(generateMobileDeviceFingerprint());
-const webClientId = getStreamClientId();
+// 连接与原生命令共用同一稳定 ID；设备指纹会使合法发送被可信连接校验拒绝。
+const webClientId = getV4ClientId();
 
 interface WebBootstrapResult {
   wsUrl: string;
@@ -304,12 +305,6 @@ if (
   new URLSearchParams(window.location.search).has("remote")
 ) {
   window.history.replaceState(null, "", "/");
-}
-// 旧场景参数不属于产品入口；保留业务定位参数并移除它，不让浏览器继续透传。
-const entryUrl = new URL(window.location.href);
-if (entryUrl.searchParams.has("demo")) {
-  entryUrl.searchParams.delete("demo");
-  window.history.replaceState(window.history.state, "", entryUrl);
 }
 function handleEntryChange() {
   entryGeneration += 1;

@@ -418,25 +418,13 @@ function upsertWorkflowRunEntries<T extends { siteId: string; ordinal: number }>
  *
  * 合并是**优化**，所以拒绝合并永远是安全的：两条 op 各自都在界内，逐条投递的终态一个字节都不差。
  */
-export function workflowRunUpdateWithinWireBounds(
-  delta: WorkflowRunUpdatedDelta,
-  limits: WorkflowRunWireBounds = WORKFLOW_RUNS_LIMITS,
-): boolean {
+export function workflowRunUpdateWithinWireBounds(delta: WorkflowRunUpdatedDelta): boolean {
   return (
-    (delta.actors?.length ?? 0) <= limits.maxActors &&
-    (delta.removedActors?.length ?? 0) <= limits.maxActors &&
-    (delta.nodes?.length ?? 0) <= limits.maxNodes &&
-    (delta.removedNodes?.length ?? 0) <= limits.maxNodes
+    (delta.actors?.length ?? 0) <= WORKFLOW_RUNS_LIMITS.maxActors &&
+    (delta.removedActors?.length ?? 0) <= WORKFLOW_RUNS_LIMITS.maxActors &&
+    (delta.nodes?.length ?? 0) <= WORKFLOW_RUNS_LIMITS.maxNodes &&
+    (delta.removedNodes?.length ?? 0) <= WORKFLOW_RUNS_LIMITS.maxNodes
   );
-}
-
-/**
- * 条目表的线上界。只为测试留的注入口（默认就是 {@link WORKFLOW_RUNS_LIMITS}）：真界是 1024，
- * 而「合并被拒」这条路径在小界下才走得到，property 测试需要它真的被走到。
- */
-export interface WorkflowRunWireBounds {
-  readonly maxActors: number;
-  readonly maxNodes: number;
 }
 
 /** 合并两条同 run 的 `workflowRun.updated`（coalesce 规则 6 的载荷部分，规则本身在 coalesce.ts）。 */

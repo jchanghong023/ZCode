@@ -203,8 +203,8 @@ export function group(
             id: `sample-review-${id}`,
             snapshotDigest: digest,
             passed: true,
-            report:
-              "前端审核展示样例：需求边界、拆分关系和交互资料齐全。此记录不是实际审核结论，真实审核留待后续 OMP 对接阶段。",
+            // 初始记录只陈述已有材料与状态，不宣称执行过外部审核。
+            report: `当前记录包含 ${files.length} 份材料，版本 ${digest}；未记录阻断项。`,
             reviewer: {
               sessionId: `sample-reviewer-${id}`,
               role: "reviewer" as const,

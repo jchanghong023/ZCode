@@ -350,7 +350,6 @@ modules:
       adapters: .
     owner: conversation
 
-
   # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
 
   # data-sync-service：仅保留 MCP 依赖的通用分类合同；无用户配置或设备状态 RPC。
@@ -855,6 +854,16 @@ exceptions:
       - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
       - packages/ui/src/workspace-file-search/useWorkspaceFileSearchFilter.ts
     reason: 已准入的三个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
+  - id: production-boundary-existing-session-open-telemetry
+    rule: unmanaged-new-file
+    paths: [packages/ui/src/lib/sessionOpenArmsTelemetry.ts]
+    reason: G6.9 仅从已入库的既有遥测模块删除四行 clearSessionOpenArmsReporterForTest；正式 reporter、payload、owner、生命周期和依赖不变。不为纯测试出口删除接管整个 lib，也不豁免其它规则；见 docs/specs/aireq-migration/release-surface.md。
+  - id: production-boundary-existing-workflow-canonical-limits
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/zcode-protocol-v4/workflow-runs-delta.ts
+      - packages/shared/src/zcode-protocol-v4/workflow-runs-eviction.ts
+    reason: G7.6 仅从两个既有协议算法移除测试 bounds／limits 及内部传参，唯一采用原有 WORKFLOW_RUNS_LIMITS；状态 owner、顺序、真实限额和依赖不变。不接管整个 shared 或 v4，不豁免其它规则；真实容量与顺序证明见 docs/specs/aireq-migration/release-surface.md。
   - id: onboarding-existing-module-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/onboarding/]

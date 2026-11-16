@@ -128,7 +128,9 @@ export function setPrototypeProposalReviewScenario(
 }
 export function releasePrototypeProposalReviewResults(projectId: string, irId: string): void {
   mutatePrototypeWorkflow((view) => {
-    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId) as InternalRequirementGroup | undefined;
+    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId) as
+      | InternalRequirementGroup
+      | undefined;
     if (!proposal) throw businessRule("需求提案不存在。");
     if (!proposal.heldReviews?.length) return false;
     for (const held of proposal.heldReviews) {
@@ -156,7 +158,8 @@ export function releasePrototypeProposalReviewResults(projectId: string, irId: s
       for (const agent of current.agents ?? []) {
         const result = completed.agents?.find((item) => item.id === agent.id);
         agent.status = "completed";
-        agent.report = result?.report ?? "以下为演示评审内容。当前材料评审完成。";
+        agent.report =
+          result?.report ?? `本轮材料版本 ${current.snapshotDigest} 的状态已完成，仍需人工判断。`;
       }
       current.report = current.agents?.at(-1)?.report ?? "";
     }
@@ -256,7 +259,7 @@ export function pollPrototypeProposalMerges(): void {
         status: "failed",
         checkedAt: at,
         nextCheckAt,
-        message: "查询 MR 或读取默认分支失败，保留最后结果，下一轮定时重试。",
+        message: "本轮合入检查失败，保留最后结果，下一轮定时重试。",
       };
       continue;
     }
@@ -266,7 +269,7 @@ export function pollPrototypeProposalMerges(): void {
         status: "failed",
         checkedAt: at,
         nextCheckAt,
-        message: "当前候选缺少平台创建的 MR 记录，保留提案，不转正。",
+        message: "当前候选缺少对应的 MR 记录，保留提案，不转正。",
       };
       continue;
     }
@@ -301,7 +304,7 @@ export function pollPrototypeProposalMerges(): void {
         status: "unmerged",
         checkedAt: at,
         nextCheckAt,
-        message: "MR 已创建，等待人工评审、合并；后台按计划核验合入与材料完整性。",
+        message: "当前 MR 状态为待合入，保留提案；后续继续检查候选状态与材料版本。",
       };
       continue;
     }
@@ -340,17 +343,17 @@ export function pollPrototypeProposalMerges(): void {
         status: "incomplete",
         checkedAt: at,
         nextCheckAt,
-        message: "已发现合入，但 IR、SR 或方案文档不完整（样例），保留提案，下一轮继续检查。",
+        message: "当前候选已登记合入，但 IR、SR 或方案文档不完整，保留提案，下一轮继续检查。",
       };
       continue;
     }
     delivery.mergeCheck = {
       status: "merged",
       checkedAt: at,
-      message: "提案分支已合入且需求文档完整（样例），自动入库并创建、推送各 SR 分支。",
+      message: "当前候选已登记合入且材料版本完整，提案转正；各 SR 分支结果分别记录。",
     };
     const operation = receipt(
-      "后台核验提案合入与文档完整性，自动入库并推送 SR 分支（内存演示）",
+      "提案合入登记与材料版本检查，转正并登记 SR 分支结果",
       ++state.revision,
       group.id,
     );
@@ -478,7 +481,7 @@ export function applyPrototypeAction(
   request?: { operationId: string; commandDigest: string },
 ): AIReqWorkflowResult {
   if (consumePrototypeOperationFailure(action.type))
-    throw businessRule("操作未完成（一次性故障样例）。内容和当前状态已保留，请明确重试。");
+    throw businessRule("操作未完成。内容和当前状态已保留，请明确重试。");
   if (action.type === "createProposal" || action.type === "importProposals") {
     const projectId = action.projectId ?? selection.projectId;
     if (

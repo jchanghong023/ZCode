@@ -137,8 +137,3 @@ export function rememberedOpen(key: string): boolean {
 export function setRememberedOpen(key: string, open: boolean): void {
   openState.set(key, open);
 }
-
-/** 测试用：清空展开态记忆。 */
-export function resetWorkspaceEntryOpenState(): void {
-  openState.clear();
-}

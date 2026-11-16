@@ -11,8 +11,6 @@ import type { AppSettings, Locale } from "./protocol.js";
 import type { StorageCleanRequest, StorageCleanResult, StorageUsageSnapshot } from "./storage.js";
 import type {
   ArmsCustomEventPayload,
-  ConfigureFinalArmsCustomEventE2ERequest,
-  FinalArmsCustomEventE2EEntry,
   RendererTelemetryEventPayload,
   TelemetryRendererContext,
 } from "./telemetry.js";
@@ -311,12 +309,6 @@ export const PlatformChannels = {
   /** Renderer → Main：主窗口 renderer 每 60 秒的 heap 读数，单向 send，不需要回执。 */
   ReportRendererHeapSample: "zcode:report-renderer-heap-sample",
   ReportLocalTtftBatch: "zcode:report-local-ttft-batch",
-  /** E2E preload → Main：读取 sendCustom 最终参数的内存 ring。 */
-  ReadFinalArmsCustomEventsE2E: "zcode:e2e:read-final-arms-custom-events",
-  /** E2E preload → Main：清空 sendCustom 最终参数的内存 ring。 */
-  ClearFinalArmsCustomEventsE2E: "zcode:e2e:clear-final-arms-custom-events",
-  /** E2E preload → Main：配置只针对目标 event name 的真实网络抑制。 */
-  ConfigureFinalArmsCustomEventsE2E: "zcode:e2e:configure-final-arms-custom-events",
   /** Renderer → Main：触发任务完成/失败的系统通知 */
   ShowTaskNotification: "zcode:show-task-notification",
   /** Main → Preload：通知 renderer 播放任务通知提示音 */
@@ -978,18 +970,6 @@ export interface PlatformChannelMap {
   // 单向 send（不是 invoke）：60 秒一条的旁路遥测样本，renderer 不等 main 回执。
   [PlatformChannels.ReportRendererHeapSample]: {
     request: RendererHeapSample;
-    response: void;
-  };
-  [PlatformChannels.ReadFinalArmsCustomEventsE2E]: {
-    request: void;
-    response: FinalArmsCustomEventE2EEntry[];
-  };
-  [PlatformChannels.ClearFinalArmsCustomEventsE2E]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.ConfigureFinalArmsCustomEventsE2E]: {
-    request: ConfigureFinalArmsCustomEventE2ERequest;
     response: void;
   };
   [PlatformChannels.ShowTaskNotification]: {

@@ -681,7 +681,6 @@ export const DesktopCommandIds = {
   OpenCommunity: "openCommunity",
   ExportLogs: "exportLogs",
   PullMobileLogs: "pullMobileLogs",
-  ToggleDevTools: "toggleDevTools",
   OpenResourceManager: "openResourceManager",
   ToggleZCodeStdioTapDevProxy: "toggleZCodeStdioTapDevProxy",
   SetZCodeEndpointProduction: "setZCodeEndpointProduction",

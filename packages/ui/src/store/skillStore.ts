@@ -7,7 +7,6 @@ import {
   type SkillsCapability,
 } from "@zcode/shared";
 import type { ISkillsService } from "@zcode/services";
-import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { logger } from "@/logger.js";
 import { getServiceAuthorityId } from "@/store/serviceAuthorityKey.js";
 
@@ -226,16 +225,3 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
     }
   },
 }));
-
-type SkillStoreE2EBridge = typeof useSkillStore;
-
-declare global {
-  interface Window {
-    __skillStoreE2E?: SkillStoreE2EBridge;
-  }
-}
-
-if (shouldExposeE2EStoreBridge()) {
-  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 ZCODE_ENV=test，避免产品测试环境暴露可变全局 store。
-  window.__skillStoreE2E = useSkillStore;
-}

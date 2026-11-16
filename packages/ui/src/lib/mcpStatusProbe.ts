@@ -72,27 +72,18 @@ async function testUrlServer(config: McpServerConfig, startTime: number): Promis
   }
 }
 
-function testStdioServer(config: McpServerConfig, startTime: number): McpTestResult {
-  if (!config.command?.trim()) {
-    return {
-      success: false,
-      error: "stdio 类型服务器缺少 command 配置",
-      response_time: Date.now() - startTime,
-    };
-  }
-
-  return {
-    success: true,
-    response_time: Date.now() - startTime,
-  };
-}
-
 export async function testMcpConnectivity(config: McpServerConfig): Promise<McpTestResult> {
   const startTime = Date.now();
   const normalizedConfig = normalizeMcpServerConfigForTest(config);
 
   if (normalizedConfig.type === "stdio") {
-    return testStdioServer(normalizedConfig, startTime);
+    return {
+      success: false,
+      error: normalizedConfig.command?.trim()
+        ? "浏览器无法检查 stdio MCP 服务器，请由工作区服务提供连接检查"
+        : "stdio 类型服务器缺少 command 配置",
+      response_time: Date.now() - startTime,
+    };
   }
 
   if (normalizedConfig.url) {

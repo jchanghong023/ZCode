@@ -182,7 +182,6 @@ import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { useSelectionCommentSupport } from "@/selection-comment/index.js";
 import { createConfigCommandBarrier } from "@/v4/configCommandBarrier.js";
-import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -1436,12 +1435,6 @@ export function SessionPane({
             // admission。unknown 查询只保留待确认状态，因此必须在此明确清除被拒绝的记录。
             pendingCommandRegistry.rejectCommand(envelope.sessionId, envelope.commandId);
           }
-          recordV4CommandAck({
-            type,
-            status: "transport-error",
-            reasonCode: String(error),
-            at: Date.now(),
-          });
           // 发送漏斗落定：telemetrySeed 只有真实用户发送才携带，两步式 createSession
           // 与后台任务无 seed，天然不会伪造 send_result。
           if (telemetrySeed) {
@@ -1517,14 +1510,6 @@ export function SessionPane({
             }
           }
         }
-        // 生产构建 renderer 日志关闭，ack 摘要写入有界调试缓冲供 e2e/现场 probe。
-        recordV4CommandAck({
-          type,
-          status: ack.status,
-          ...(ack.reasonCode ? { reasonCode: ack.reasonCode } : {}),
-          revisionAtDecision: ack.revisionAtDecision,
-          at: Date.now(),
-        });
         if (shouldResyncForStaleAuthority(ack)) {
           // epoch/entity authority 已变化时只清 optimistic overlay 仍会继续拿旧
           // target 发命令；统一 same-sub recovery 后才能基于同代 rowId/entityId 再裁决。
@@ -3537,12 +3522,6 @@ export function SessionPane({
         options?.targetSessionId ?? sessionId ?? prewarmBindingRef.current?.sessionId ?? null;
       const current = snapshotRef.current;
       if (!targetSessionId) {
-        recordV4CommandAck({
-          type: `ui:${type}`,
-          status: "skipped",
-          reasonCode: "no-session",
-          at: Date.now(),
-        });
         return null;
       }
       // draft 预热会话已经创建、snapshot 尚未投影时，旧逻辑直接跳过
@@ -3573,13 +3552,6 @@ export function SessionPane({
           // missing-ack，草稿页无法恢复成模型配置引导。确定性启动门禁必须原样上抛。
           throw error;
         }
-        // 生产 renderer 日志关闭，异常也进 ack 调试缓冲，避免静默丢失。
-        recordV4CommandAck({
-          type: `ui:${type}`,
-          status: "dispatch-error",
-          reasonCode: String(error),
-          at: Date.now(),
-        });
         logger.warn(`[v4-pane] ${type} 失败: ${String(error)}`);
         return null;
       }
@@ -4747,11 +4719,7 @@ export function SessionPane({
           </div>
         </div>
       ) : null}
-      <ConversationHeader
-        title={snapshot?.meta.title ?? ""}
-        onClosePane={onClosePane}
-        workspaceBadge={workspaceBadge}
-      />
+      <ConversationHeader onClosePane={onClosePane} workspaceBadge={workspaceBadge} />
 
       <div
         ref={conversationLayoutContainerRef}

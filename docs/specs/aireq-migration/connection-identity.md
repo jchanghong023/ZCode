@@ -5,8 +5,8 @@
 
 ## 身份与所有权
 
-- Web entry 是当前连接的唯一 owner。首次渲染前初始化 stream client ID，再读取 `getStreamClientId()` 的规范值并固定；每次 `/ws` 只传合法 `employeeId` 与同一 `clientId`，不携带 `demo` 或额外场景参数。
-- AIReqApplication 在同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 stream singleton，原生与业务调用 employee/client 必须完全一致。队列、执行和公开 `origin:"realUser"` 行保持可信接纳时 clientId，客户端不能事后覆盖来源。私有 Skill 不能退化为仅按工号授权。
+- Web entry 是当前连接的唯一 owner。首次连接前读取 `getV4ClientId()` 的持久稳定值并固定；每次 `/ws` 只传合法 `employeeId` 与同一 `clientId`，不携带额外场景参数。设备级 stream ID 保留原用途，不再作为原生命令身份。
+- AIReqApplication 在同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 v4 owner；原生握手、命令与业务 employee/client 必须完全一致。队列、执行和公开 `origin:"realUser"` 行保持可信接纳时 clientId，客户端不能事后覆盖来源。私有 Skill 不能退化为仅按工号授权。
 - 不设 owner／负责人权限：所有合法工号可修改共享配置及执行满足门禁的动作，联系人／负责人仅分工和留痕；合法身份、clientId、参数、对象与原生会话归属、版本、幂等及阶段校验仍保留。opaque backend.id／workspaceIdentity 的有效隔离用途不变，不公开来源或 sample/live 分支。Skill 主导航、设置及搜索入口继续隐藏，保留私有会话、草稿与唯一未保存门禁，允许隔离临时浏览器装配验证，不改变 employee/client、连接和订阅 owner。
 - accessor 换代仅更换 attachment 和订阅；不得以连接代次作为 React key。退避、旧 attempt 失效和明确退出行为保持不变，正文、附件、当前选择及草稿 owner 不重挂。连接成功状态只需布尔值，不维护无用途的累计代次。
 - 局域网 HTTP（非 loopback）是受支持的访问方式；Firefox 中 `isSecureContext=false` 时
@@ -17,6 +17,19 @@
   安全上下文继续使用 WebCrypto；局域网 HTTP 使用浏览器可用的标准 SHA-256 实现计算同一摘要，
   不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
   无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
+
+```mermaid
+sequenceDiagram
+  participant C as 既有v4 clientId owner
+  participant W as Web连接
+  participant A as AIReq与原生调用
+  participant S as 后端连接facade
+  W->>C: 读取稳定ID
+  W->>S: 建立employee/client固定连接
+  A->>C: 读取同一ID
+  A->>S: 业务identity／握手／命令
+  S->>S: 比对可信连接后接纳并写入来源行
+```
 
 组 1 历史实测（2026-11-15，当时 Skill 位于设置）：两个合法非 owner 工号均可保存共享设置，日志和回执使用实际 employee/client；Skill 设置往返后未发送正文和一个 ready 图片保留，跨 client 读取同一私有 Skill 会话被拒。当时为 Chromium／localhost 环境，详见 tools-settings.md 的组 1 记录；不证明当前隐藏实现或本轮整改通过，也不授权恢复设置／主导航入口。
 

@@ -12,7 +12,6 @@ import type { ConversationDelta, WorkflowRunUpdatedDelta } from "./delta.js";
 import {
   mergeWorkflowRunUpdates,
   workflowRunUpdateWithinWireBounds,
-  type WorkflowRunWireBounds,
 } from "./workflow-runs-delta.js";
 
 function isBarrier(delta: ConversationDelta): boolean {
@@ -53,7 +52,6 @@ function isWorkflowRunBarrier(delta: ConversationDelta, runId: string): boolean 
 function mergeWorkflowRunUpdate(
   result: ConversationDelta[],
   delta: WorkflowRunUpdatedDelta,
-  bounds: WorkflowRunWireBounds | undefined,
 ): boolean {
   let target = -1;
   for (let i = result.length - 1; i >= 0; i--) {
@@ -67,7 +65,7 @@ function mergeWorkflowRunUpdate(
   if (target < 0) return false;
   const merged = mergeWorkflowRunUpdates(result[target] as WorkflowRunUpdatedDelta, delta);
   // 被拒时**不再往更早那条试**：那正是上面说的跨过中间那条删除的走法。
-  if (!workflowRunUpdateWithinWireBounds(merged, bounds)) return false;
+  if (!workflowRunUpdateWithinWireBounds(merged)) return false;
   result[target] = merged;
   return true;
 }
@@ -75,13 +73,9 @@ function mergeWorkflowRunUpdate(
 /**
  * 对一个 flush 窗口内的 delta 序列做语义保持合并。
  * 输入输出均按权威日志序；纯函数，不修改入参。
- *
- * `bounds` 只为测试留的注入口（默认就是真界）：规则 6 拒绝合并那一支在 1024 的界下要几千条
- * 事件才走得到，而它恰好是**合并等于顺序施加**这条定律最容易破的地方。
  */
 export function coalesceConversationDeltas(
   deltas: readonly ConversationDelta[],
-  bounds?: WorkflowRunWireBounds,
 ): ConversationDelta[] {
   const result: ConversationDelta[] = [];
 
@@ -116,8 +110,7 @@ export function coalesceConversationDeltas(
       }
     }
 
-    if (delta.op === "workflowRun.updated" && mergeWorkflowRunUpdate(result, delta, bounds))
-      continue;
+    if (delta.op === "workflowRun.updated" && mergeWorkflowRunUpdate(result, delta)) continue;
 
     const last = result[result.length - 1];
 

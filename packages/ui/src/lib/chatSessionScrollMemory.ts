@@ -143,7 +143,3 @@ export function resolveChatSessionScrollRestoreTop(
   const maxScrollTop = Math.max(metrics.scrollHeight - metrics.clientHeight, 0);
   return Math.min(Math.max(state.scrollTop, 0), maxScrollTop);
 }
-
-export function clearChatSessionScrollMemoryForTest(): void {
-  chatSessionScrollMemory.clear();
-}

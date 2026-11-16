@@ -69,10 +69,6 @@ export function setSessionOpenArmsReporter(next: SessionOpenArmsReporter | null)
   reporter = next;
 }
 
-export function clearSessionOpenArmsReporterForTest(): void {
-  reporter = null;
-}
-
 function roundedNonNegative(value: number | undefined): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return Math.round(value);

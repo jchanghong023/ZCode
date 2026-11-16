@@ -73,7 +73,7 @@ export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowVie
             ? {
                 manual: {
                   employeeId: "j00808874",
-                  reason: "历史演示记录：代码已合入，人工测试验收通过。",
+                  reason: "代码已合入，人工测试验收通过。",
                   at: analysedAt,
                 },
               }

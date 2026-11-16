@@ -67,7 +67,6 @@ export {
   ProtocolMessage,
   MessagePortProtocol,
   type MessagePortLike,
-  createQueuePair,
 } from "./protocol.js";
 export { PersistentProtocol, type PersistentProtocolOptions } from "./persistent-protocol.js";
 

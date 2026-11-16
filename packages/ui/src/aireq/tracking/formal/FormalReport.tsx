@@ -187,8 +187,11 @@ export function AIReqFormalReport() {
               {selected.progress && (
                 <p className="text-ui-sm text-foreground-subtle">
                   原始 AI 评分：
-                  {selected.progress.aiPercent ?? Math.min(99, selected.progress.percent)}% ·
-                  有效业务进度：{percent}%
+                  {/* 人工验收进度不代表存在对应的 AI 原始评分。 */}
+                  {selected.progress.aiPercent === undefined
+                    ? "未提供"
+                    : `${selected.progress.aiPercent}%`}{" "}
+                  · 有效业务进度：{percent}%
                   {selected.progress.stale ? " · 报告已过期，等待当前版本分析" : ""}
                 </p>
               )}

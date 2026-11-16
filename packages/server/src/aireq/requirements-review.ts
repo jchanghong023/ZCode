@@ -65,19 +65,18 @@ export function createPrototypeRequirementsReview(
           : key === "summary" && scenario === "failed"
             ? "pending"
             : "completed",
+    // 报告仅描述本轮快照与状态，不把内部结果表述为模型或外部核验。
     report:
       scenario === "hold" || (scenario === "failed" && key === "summary")
         ? ""
-        : `# ${names[index]}\n\n演示文档，仅供预览。\n\n${
+        : `# ${names[index]}\n\n本轮输入：${inputFiles.length} 份材料，版本 ${digest}。\n\n${
             scenario === "failed" && index === 0
-              ? "评审失败，不能放行。"
+              ? "本轮评审失败，不能放行。"
               : scenario === "blocked"
-                ? "存在阻断：验收条件与材料需补充，不得人工绕过。"
-                : kind === "original"
-                  ? "已检查业务目标、范围、歧义和可验收性，无阻断问题。尚未拆分 SR。"
-                  : key === "summary"
-                    ? "已等待并汇总本轮 A、B、C 三份同版报告，保留各自来源，无阻断冲突；仍需人工判断。"
-                    : `已独立只读检查完整快照的${names[index]}，无阻断问题。`
+                ? "本轮记录了阻断项：验收条件与材料需补充，不得人工绕过。"
+                : key === "summary"
+                  ? "本轮 A、B、C 三份同版报告已登记，未记录阻断项；人工决定单独记录。"
+                  : "本轮状态已完成，未记录阻断项；人工决定单独记录。"
           }`,
     promptSnapshot: prompts[bindings[index]!.role],
     session: {

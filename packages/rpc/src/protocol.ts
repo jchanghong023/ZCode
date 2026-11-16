@@ -335,38 +335,6 @@ export class SocketProtocol implements IMessagePassingProtocol {
 }
 
 // ============================================================================
-// QueueProtocol —— 内存中的协议对，用于测试
-// ============================================================================
-
-/**
- * 创建一对通过内存队列连接的 protocol，
- * 一端 send 的消息会出现在另一端的 onMessage。
- * 非常适合单元测试，不需要真正的网络连接。
- */
-export function createQueuePair(): [IMessagePassingProtocol, IMessagePassingProtocol] {
-  const emitterA = new Emitter<VSBuffer>();
-  const emitterB = new Emitter<VSBuffer>();
-
-  const protocolA: IMessagePassingProtocol = {
-    send: (buffer: VSBuffer) => {
-      // A 发送的消息 → B 收到
-      setTimeout(() => emitterB.fire(buffer), 0);
-    },
-    onMessage: emitterA.event,
-  };
-
-  const protocolB: IMessagePassingProtocol = {
-    send: (buffer: VSBuffer) => {
-      // B 发送的消息 → A 收到
-      setTimeout(() => emitterA.fire(buffer), 0);
-    },
-    onMessage: emitterB.event,
-  };
-
-  return [protocolA, protocolB];
-}
-
-// ============================================================================
 // MessagePort Protocol —— 用于 Web Worker / Electron sandbox
 // ============================================================================
 

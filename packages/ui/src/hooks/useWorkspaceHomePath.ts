@@ -27,10 +27,6 @@ function normalizeHostHomePath(homePath: string): string | null {
   return trimmed && isAbsoluteFilePath(trimmed) ? trimmed : null;
 }
 
-export function resetWorkspaceHomePathCacheForTests(): void {
-  workspaceHomePathCache.clear();
-}
-
 export function useWorkspaceHomePath(params: WorkspaceHomePathParams): string | undefined {
   const { systemService } = useServices();
   const cacheKey = buildWorkspaceHomeCacheKey(params);

@@ -75,12 +75,7 @@ import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  FolderOpenIcon,
-  MessageSquareTextIcon,
-  PlusIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { FolderOpenIcon, MessageSquareTextIcon, PlusIcon, type LucideIcon } from "lucide-react";
 
 const PREVIEW_PANE_RESIZE_SETTLE_DELAY_MS = 220;
 type TabsScrollMaskEdges = {
@@ -650,9 +645,6 @@ export function AnimatedSidePanePanel({
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
         newTabTitle: intl.formatMessage({ id: "sidePane.newTab" }),
-        developerToolsTitle: intl.formatMessage({
-          id: "developerTools.title",
-        }),
         terminalTitle: intl.formatMessage({ id: "terminal.title" }),
         subagentTypeLabel: intl.formatMessage({ id: "sidePane.subagent" }),
         subagentDirectoryTitle: intl.formatMessage({

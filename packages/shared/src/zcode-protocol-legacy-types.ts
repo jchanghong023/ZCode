@@ -217,7 +217,7 @@ export const zcodeMessageSemanticsSchema = z
     ]),
     source: z.string().optional(),
     commandName: z.string().optional(),
-    uiVisibility: z.enum(["visible", "hidden", "debug"]),
+    uiVisibility: z.enum(["visible", "hidden"]),
     providerVisibility: z.enum(["visible", "hidden"]),
     transcriptVisibility: z.enum(["visible", "hidden"]),
   })

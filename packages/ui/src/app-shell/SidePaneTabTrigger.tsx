@@ -9,7 +9,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   FolderOpenIcon,
   BotMessageSquareIcon,
-  BugIcon,
   FileIcon,
   FileCode2Icon,
   FileDiffIcon,
@@ -310,10 +309,6 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
 
   if (tab.type === "new-tab") return <FileIcon className="size-3.5" />;
 
-  if (tab.type === "developer-tools") {
-    return <BugIcon className="size-3.5" />;
-  }
-
   if (tab.type === "bash-output") {
     return <SquareTerminalIcon className="size-3.5" />;
   }
@@ -495,14 +490,9 @@ export function getSidePaneTabTitle(
 
   if (tab.type === "new-tab") return formatMessage({ id: "sidePane.newTab" });
 
-  if (tab.type === "developer-tools") {
-    return formatMessage({ id: "developerTools.title" });
-  }
-
   if (tab.type === "bash-output") {
     return tab.title || formatMessage({ id: "terminal.title" });
   }
-
 
   if (tab.type === "file-manager")
     return tab.source?.title || formatMessage({ id: "fileManager.title" });

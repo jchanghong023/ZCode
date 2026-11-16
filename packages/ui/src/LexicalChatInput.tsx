@@ -984,93 +984,6 @@ function EditablePlugin({ editable }: { editable: boolean }) {
   return null;
 }
 
-function E2ELexicalInputBridgePlugin({ inputTestId }: { inputTestId?: string }) {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    if (!inputTestId || typeof document === "undefined") {
-      return;
-    }
-
-    const bridge = {
-      focus: () => editor.focus(),
-      getEditorState: () => editor.getEditorState(),
-      getText: () => getEditorMarkdown(editor.getEditorState()),
-      setText: (text: string) => replaceEditorText(editor, text),
-      setEditorStateJson: (editorStateJson: string) =>
-        replaceEditorStateJson(editor, editorStateJson),
-    };
-
-    let attachedInput: HTMLElement | null = null;
-    const detachBridge = (input: HTMLElement | null) => {
-      if (
-        input &&
-        (input as { __zcodeLexicalInputE2E?: typeof bridge }).__zcodeLexicalInputE2E === bridge
-      ) {
-        delete (input as { __zcodeLexicalInputE2E?: typeof bridge }).__zcodeLexicalInputE2E;
-      }
-      input?.removeAttribute("data-e2e-lexical-bridge");
-    };
-    const attachBridge = (input: HTMLElement | null) => {
-      if (attachedInput && attachedInput !== input) {
-        detachBridge(attachedInput);
-      }
-      attachedInput = input;
-      if (!input) {
-        return;
-      }
-
-      // E2E 需要驱动真实 Lexical state；只改 DOM contenteditable 会绕过 editor update，
-      // 容易把文本误打到主输入框，导致测试结论和产品行为脱节。
-      Object.defineProperty(input, "__zcodeLexicalInputE2E", {
-        configurable: true,
-        value: bridge,
-      });
-      input.setAttribute("data-e2e-lexical-bridge", "ready");
-    };
-
-    const resolveInput = (rootElement: HTMLElement | null) => {
-      if (rootElement?.getAttribute("data-testid") === inputTestId) {
-        return rootElement;
-      }
-      return document.querySelector<HTMLElement>(`[data-testid="${inputTestId}"]`);
-    };
-
-    let retryTimer: number | null = null;
-    const tryAttachBridge = () => {
-      const nextInput = resolveInput(editor.getRootElement());
-      attachBridge(nextInput);
-      if (nextInput && retryTimer !== null) {
-        window.clearInterval(retryTimer);
-        retryTimer = null;
-      }
-    };
-    const unregisterRoot = editor.registerRootListener((rootElement, previousRootElement) => {
-      if (previousRootElement !== rootElement) {
-        detachBridge(previousRootElement);
-      }
-      // E2E bridge 之前只在 effect 里查询一次 DOM。
-      // 编辑器 root 如果比插件晚挂载或被 Lexical 重挂载，bridge 会永久缺失。
-      attachBridge(resolveInput(rootElement));
-    });
-
-    tryAttachBridge();
-    // edit 场景里 ChatPromptEditor 的 initialValue 回填、Lexical root 注册、
-    // React DOM 提交顺序可能跨多个帧。短轮询只负责补挂测试 bridge，不参与产品行为。
-    retryTimer = window.setInterval(tryAttachBridge, 100);
-
-    return () => {
-      unregisterRoot();
-      if (retryTimer !== null) {
-        window.clearInterval(retryTimer);
-      }
-      detachBridge(attachedInput);
-    };
-  }, [editor, inputTestId]);
-
-  return null;
-}
-
 function PromptHistoryPlugin({
   entries,
   disabled,
@@ -1597,7 +1510,6 @@ export function LexicalChatInput({
           />
           <PromptHistoryPlugin entries={promptHistory} disabled={disabled} />
           <EditablePlugin editable={!disabled} />
-          <E2ELexicalInputBridgePlugin inputTestId={inputTestId} />
           <EditorApiPlugin editorApiRef={editorApiRef} />
           <LeadingChineseSlashAliasPlugin disabled={disabled} />
           <PasteCapturePlugin disabled={disabled} onPaste={onPaste} />

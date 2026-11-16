@@ -3,16 +3,9 @@
  *
  * 每个窗口独立挂载，tab 状态不跨窗口广播。
  */
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useRef, type ReactNode } from "react";
 import { useStore } from "zustand";
-import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { createTabStore, type TabStore, type TabStoreState } from "./tabStore.js";
-
-declare global {
-  interface Window {
-    __zcodeTabStoreE2E?: TabStore;
-  }
-}
 
 const TabStoreContext = createContext<TabStore | null>(null);
 const fallbackTabStore = createTabStore(null);
@@ -23,23 +16,6 @@ export function TabStoreProvider({ children }: { children: ReactNode }) {
   if (!storeRef.current) {
     storeRef.current = createTabStore();
   }
-
-  useEffect(() => {
-    if (!shouldExposeE2EStoreBridge() || !storeRef.current) {
-      return;
-    }
-
-    const store = storeRef.current;
-    // V4 draft 没有 taskId，E2E 若按 activeTaskId=null 反查 workspace，
-    // 多 workspace 会命中任意草稿桶。只在 E2E 构建暴露当前窗口导航 store，供 helper
-    // 按 workspaceIdentity?.trim() || workspacePath 精确读取当前草稿。
-    window.__zcodeTabStoreE2E = store;
-    return () => {
-      if (window.__zcodeTabStoreE2E === store) {
-        delete window.__zcodeTabStoreE2E;
-      }
-    };
-  }, []);
 
   return <TabStoreContext.Provider value={storeRef.current}>{children}</TabStoreContext.Provider>;
 }

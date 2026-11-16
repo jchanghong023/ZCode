@@ -14,7 +14,7 @@ import { AppErrorBoundary } from "@/ErrorBoundary.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { AlertDialogHost } from "@/AlertDialogHost.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
-import { getStreamClientId } from "@/lib/streamClientId.js";
+import { getV4ClientId } from "@/v4/commandFactory.js";
 import { setEmployeeId } from "../identity.js";
 import type { AIReqApplicationProps } from "../contract.js";
 import { AIReqDataSourceProvider } from "../data-source.js";
@@ -27,7 +27,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
     setEmployeeId(props.operator.employeeNumber);
     return {
       employeeId: props.operator.employeeNumber,
-      clientId: getStreamClientId(),
+      clientId: getV4ClientId(),
     };
   });
   const [source, setSource] = useState<AIReqDataSource>();

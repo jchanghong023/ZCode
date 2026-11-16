@@ -2,7 +2,7 @@
  * 示例 1: 基础 IPC —— 通过内存 Queue 演示完整的 RPC 调用
  *
  * 演示了最核心的流程：
- * 1. 创建内存传输对 (QueueProtocol)
+ * 1. 创建示例私有内存传输对
  * 2. 在服务端注册一个 channel
  * 3. 客户端获取 channel 并调用方法 / 监听事件
  *
@@ -18,14 +18,8 @@
  *   result = 3
  */
 
-import {
-  Emitter,
-  Event,
-  IServerChannel,
-  ChannelServer,
-  ChannelClient,
-  createQueuePair,
-} from "../src/index.js";
+import { Emitter, Event, IServerChannel, ChannelServer, ChannelClient } from "../src/index.js";
+import { createQueuePair } from "./fixtures/queue-pair.js";
 
 // ============================================================================
 // Step 1: 定义一个 service（普通 TypeScript 对象）

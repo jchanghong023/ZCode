@@ -1,5 +1,4 @@
 import type { SessionLifecycleSnapshot } from "@zcode/shared";
-import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { calibrateLocalTtftClock, createUuid, localTtftNow } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
@@ -470,9 +469,7 @@ export function createAgentConversationTransport(
       ) {
         throw new Error("proto.genUiContextUnsupported");
       }
-      return sendWithConversationDelayE2E(envelope, () =>
-        agentService.sendConversationCommandV4({ ...workspace, ...context, envelope }),
-      );
+      return agentService.sendConversationCommandV4({ ...workspace, ...context, envelope });
     },
     async queryCommands(params: CommandsQueryParams): Promise<CommandsQueryResult> {
       await ensureHandshake();

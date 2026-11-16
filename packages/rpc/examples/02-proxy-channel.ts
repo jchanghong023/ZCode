@@ -14,8 +14,8 @@ import {
   ChannelServer,
   ChannelClient,
   ProxyChannel,
-  createQueuePair,
 } from "../src/index.js";
+import { createQueuePair } from "./fixtures/queue-pair.js";
 
 // ============================================================================
 // 定义 service 接口和实现

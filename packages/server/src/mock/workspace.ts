@@ -47,6 +47,7 @@ import type {
   WorkspaceFileEntry,
 } from "@zcode/shared";
 import type { MockRuntime, VirtualFileNode } from "./runtime.js";
+import { readPrototypeSkillNode } from "../aireq/contract.js";
 
 // ── 虚拟文件系统工具 ──
 
@@ -101,9 +102,14 @@ export class MockFileService implements IFileService {
 
   /** 统一入口：绝对路径先收敛为工作区相对路径，相对路径按原样解析。 */
   private resolveVirtual(path: string): VirtualFileNode | null {
-    return resolveNode(
-      this.runtime.virtualRoot,
-      toWorkspaceRelativePath(this.runtime.workspacePath, path),
+    const relativePath = toWorkspaceRelativePath(this.runtime.workspacePath, path);
+    const absolutePath = nodePath.isAbsolute(path)
+      ? path
+      : joinPath(this.runtime.workspacePath, splitRelativePath(path));
+    // 保存与读取共用 Skill 文件 owner；目录叠加保留原虚拟树，不复制已接纳正文。
+    return (
+      readPrototypeSkillNode(absolutePath, resolveNode(this.runtime.virtualRoot, relativePath)) ??
+      null
     );
   }
 
@@ -164,7 +170,7 @@ export class MockFileService implements IFileService {
         });
       }
     };
-    walk(this.runtime.virtualRoot, []);
+    walk(this.requireNode(root, "directory"), []);
     return results.slice(0, params.limit ?? 50);
   }
 
@@ -402,7 +408,10 @@ export class MockGitService implements IGitService {
   }
 
   async getDiff(params: GitDiffQuery): Promise<GitDiffResult> {
-    const path = toWorkspaceRelativePath(this.runtime.workspacePath, params.path).replace(/\\/g, "/");
+    const path = toWorkspaceRelativePath(this.runtime.workspacePath, params.path).replace(
+      /\\/g,
+      "/",
+    );
     const sourceId = params.sourceId ?? (params.staged ? "staged" : "unstaged");
     const contents = this.runtime.git.diffs.find(
       (entry) => entry.path === path && entry.sourceId === sourceId,
@@ -430,13 +439,22 @@ export class MockGitService implements IGitService {
     const body = (text: string | null, values: string[], prefix: string) =>
       values.map((line) => `${prefix}${line}\n`).join("") +
       (text && !text.endsWith("\n") ? "\\ No newline at end of file\n" : "");
-    const patch = beforeContent === afterContent
-      ? ""
-      : `--- ${beforeContent === null ? "/dev/null" : `a/${path}`}\n` +
-        `+++ ${afterContent === null ? "/dev/null" : `b/${path}`}\n` +
-        `@@ -${before.length ? 1 : 0},${before.length} +${after.length ? 1 : 0},${after.length} @@\n` +
-        body(beforeContent, before, "-") + body(afterContent, after, "+");
-    return { path: params.path, availability: "patch", patch, beforeContent, afterContent, summary: null };
+    const patch =
+      beforeContent === afterContent
+        ? ""
+        : `--- ${beforeContent === null ? "/dev/null" : `a/${path}`}\n` +
+          `+++ ${afterContent === null ? "/dev/null" : `b/${path}`}\n` +
+          `@@ -${before.length ? 1 : 0},${before.length} +${after.length ? 1 : 0},${after.length} @@\n` +
+          body(beforeContent, before, "-") +
+          body(afterContent, after, "+");
+    return {
+      path: params.path,
+      availability: "patch",
+      patch,
+      beforeContent,
+      afterContent,
+      summary: null,
+    };
   }
 
   async getBranchComparison(_params: GitRepositoryRequest): Promise<GitBranchComparison> {

@@ -59,7 +59,6 @@ import type {
   SubagentRow,
   TimelineMarkerRow,
   ToolCallRow,
-  TurnHeaderRow,
   UnreadableConversationRow,
   UserInputRow,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -1618,17 +1617,6 @@ const ReasoningRowView = memo(function ReasoningRowView({
   );
 });
 
-const TurnHeaderRowView = memo(function TurnHeaderRowView({ row }: { row: TurnHeaderRow }) {
-  return (
-    <RowShell
-      rowId={row.rowId}
-      className="border-b border-[var(--color-border)] py-1 text-ui-sm text-[var(--color-foreground-subtle)]"
-    >
-      turn · {row.origin} · {row.state}
-    </RowShell>
-  );
-});
-
 /** timelineMarker 分隔线与分享只读页共用；这里只注入 App 宿主能力。 */
 const MARKER_ARCHIVE_ICON = (
   <ArchiveIcon
@@ -2215,7 +2203,7 @@ function ConversationRowViewImpl({
         <ReasoningRowView row={row} contentVariant={reasoningContentVariant} />
       ) : null;
     case "turnHeader":
-      return <TurnHeaderRowView row={row} />;
+      return null;
     case "timelineMarker":
       return <TimelineMarkerRowView row={row} context={context} />;
     case "toolCall":

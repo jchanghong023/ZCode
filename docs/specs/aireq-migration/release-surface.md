@@ -60,6 +60,7 @@ flowchart LR
 - bootstrap 和数据源只提供业务能力、配置和 opaque 隔离 ID，删除来源类型与 notice，不保留可选兼容字段。登录与流程帮助不按后端类型显示环境说明，也不新增真实认证或外部执行承诺。切换工号、导航、未保存设置门禁与按部署／操作者隔离的草稿行为保持。
 - 下一次清理／建分支失败、暂存评审结果与 hold 控制只归 workflow／progress 后端私有 owner，并按项目、IR、SR 与评审轮次隔离；公共评审以正常 pending／running agent 状态表达尚未完成。读取、事件后重读与历史回执嵌套均不得出现控制字段。一次故障正常消费后可重试，等待和迟到结果仍受版本及人工门禁约束，其他对象不受影响。
 - 原生真实用户行的 clientId 取已通过连接校验的接纳信封，并贯穿 accepted 队列、执行及历史；不得从后续浏览器字段覆盖或使用固定替代值。首发、排队、恢复／同请求重试均保留来源，跨连接冒名仍拒绝。验证同时观察两个客户端的队列、实时 userInput 与分页历史。
+- 浏览器连接、AIReq 请求身份、v4 握手和命令必须共用既有 `getV4ClientId` 的稳定 ID；设备指纹不是原生命令身份。真实浏览器发送若因两套 ID 被拒，修复调用方的单源接线，不能放宽服务端可信连接比对。刷新／重连保持 ID，其他连接冒名仍拒绝。
 
 ### G4 读取、广播与遥测接收
 
@@ -84,6 +85,15 @@ flowchart LR
 - 正式需求与分析报告仅在 `aiPercent` 存在时展示原始 AI 分，否则显示未提供；不得用有效业务进度倒推。合入有效值 99／人工通过 100 及失败待办职责保持。
 - 分享 URL 从明确业务定位参数构造，不复制当前 URL 未知参数；入口不保留 demo 场景专用分支，退役 remote 安全处理继续。项目／Release／IR／SR、前进后退与未保存取消仍由唯一导航 owner 接纳。
 - 逐项验收覆盖需求／方案／评审／附件／恢复后的公开行及历史、材料摘要、无建议与人工保存、合入失败门禁、两报告缺分矩阵、启动及运行后变更 URL 分享。隐藏 Skill 必须在独立临时浏览器装配验证 prompt、讨论、逐文件预览、有效保存、冲突／失败保留、设置往返与 Sketch PNG 发送，随后清理，不添加产品入口或开关。
+- 本轮实现按上述 G5 规则执行：原生回复在 owner 完成后读取本次材料路径／版本；Skill 保存成功需能按收据目标回读相同文件，失败不能仅改提示文案；无规划与缺 AI 分的空态不补造来源或分数。首次行为证据分别记录，不以最终构建替代。
+
+### G6 产品运行时测试面退出
+
+- Lexical 的正式 EditorApi、IME、mention、历史及受控回填保留；产品不再安装可写 E2E 节点、ready 属性或轮询。Zustand 与附件 scope 的唯一 owner 保留，不向 window 暴露测试 store，即使旧环境开关存在也不得激活。
+- 传输直接调用正式服务，不消费旧全局延迟计划；SessionDataLayer 引用计数与幂等 release 不变，默认保活固定 30 秒，调用方正常 keepWarmMs 构造选项保留。重连只读取，不重放写命令。
+- ACK 保留生产日志，不缓冲测试全局；正常标题、模型、用量与截图附件保留，不追加隐藏镜像。turnHeader 继续作为协议／分组事实，但公共行渲染器不输出内部调试文本，用户／助手／工具行不变。
+- TestActions、ARMS recorder、parity harness 和无消费者的测试复位／替换单例接口从产品实现与出口删除，不换名、不固定关闭、不建 shim；真实遥测 builder／supervisor、reporter 与正式 HTTP 接收保持。15 个出口逐一核对；真实独立工程消费者若存在，只在测试私域隔离实例。
+- 各局部删除先有直接引用／导入及必要浏览器或租约生命周期证据，再删除最后的共享开关、bootstrap 和包子路径。保留通用 UI、正常诊断和 replay 真实渲染器；旧开关不能恢复任何已删除通道。
 
 
 
@@ -301,3 +311,180 @@ flowchart LR
   四个命名隔离服务实例（工作流／广播／正常遥测／故障遥测宿主）和本组全部浏览器标签页关闭；
   脚本内 WebSocket／HTTP 实例 finally 关闭。未停止用户已有开发服务、未写共享业务配置或宿主业务文件。
 - 只完成第 4 组，不声明后续原型／测试清理、最终产物、真实后端替换、第三方遥测送达或系统上线通过。
+
+### G5.1 原生回复事实
+
+- `bun .tmp-g5/native-proof.ts` 退出 0：独立 MockRuntime／MockZCodeAgentService 的公开 create、subscribe、commands、两行分页历史观察 47 帧。需求初始仅 PNG 附件不生成材料；需求讨论、逻辑重订阅后继续、方案讨论的回复路径／SHA-256 与 owner 本次材料变化一致；需求及完整评审追问保持报告与人工决定不变；方案仅附件不改变材料版本。幂等重读不重复写入。
+- 回复不带演示前缀，不声称模型分析、扫描或外部 Git 已执行；Skill 分支仅附件也不生成方案。接纳／版本／安全失败链保持原路径。本次恢复证据是退订／重订阅，不冒充真实 HTTP/WebSocket 断线或浏览器验证。
+- 前置按用户授权先提交现有 G1—G4 改动并 pull；冲突来自共享索引残留旧 held 行，备份索引后仅消除该过期项，未回写产品正文。合入后 typecheck、Lint、architecture 全退出 0；freshness 最终 behind 0。后续组未据此声称完成。
+
+### G5.2 材料、评审、规划与回执
+
+- `bun .tmp-g5/material-proof.ts` 最终退出 0：公开 `MockAIReqService.call` 验证新增提案材料正文 SHA-256／UTF-8 size 与文件版本一致；连续评审当前／历史与原生讨论种子一致；failed／blocked／hold、释放等待及旧版本均不能绕过人工放行。完整评审失败、合入失败／旧版／缺材料不转正，同版完整合入才登记，分支失败保留，平台核验仍 false。
+- 无真实规划建议时 planning 为未提供；公开人工保存保留真实操作者、时间、负责人和排期，非法区间原子失败。电脑浏览器在正式 SR 的空规划表单填写开发／测试工号与 2026-11-20 09:00 至 2026-11-21 18:00，保存后读到“人工调整”、对应工号和日期，不再默认 AI 来源。
+- 独立 `AIREQ_DEMO=operation-failure bun -e ...` 退出 0：首次 returnProposal 返回正式可重试说明、读取事实完全不变；新操作编号显式重试成功。公开材料、评审／种子、合入检查／操作历史及两处历史验收理由不含演示说明或虚构外部核验。
+- 初次脚本断言已完成后错误调用不存在的 dispose 导致退出 1，删除错误收尾后重跑退出 0；浏览器日期输入使用真实 datetime-local 控件，最初定位／预期格式错误不计为产品失败或通过。
+
+### G5.3 隐藏 Skill 与实际内存文件
+
+- 独立 `bun .tmp-g5/skill-proof.ts` 最终退出 0，经真实 HTTP／WebSocket／SDK／Channel RPC 完成原生生成、项目及共享保存；收据路径／revision、catalog body／metadata.version、两个文件正文、UTF-8 stat／文本／字节分片、祖先目录／索引／搜索一致。幂等不重复写入，同名、无预览、旧版、错误项目及冒用身份拒绝且草稿／已存正文不变；项目 catalog 不串其他项目，共享技能可读取。首次脚本遗漏 v4 正式握手被拒，补齐后通过，不放宽产品入口。
+- Chromium 1440×1000，独立 Vite 配置仅在临时装配中替换 shell 引用，以真实 Provider／remote source／AIReqShell 挂载保留模块；未修改产品导航或增加 window／公开夹具。四字段填入真实 Lexical，明确发送后两文件按版预览：1/2 时禁止保存，2/2 保存第 1 版项目目标；设置外观往返保留收据及内容。继续讨论得到第 2 版，旧预览资格重置，同名冲突阻止保存，离开门禁取消保留；逐文件确认后选择共享目标保存第 2 版。
+- Sketch 通过真实鼠标画两段线，画布实际生成 PNG 并回填 ready 附件，明确发送后历史出现图片与仅确认接纳的回复，不生成分析／新预览。MIT／来源署名保留；未引用 prompt Markdown 删除。浅／深主题、键盘关闭、布局与保存／失败／草稿路径均观察，未恢复主导航、设置或搜索入口。
+- 浏览器首次真实发送发现 G3 既有接线缺口：HTTP／AIReq 使用设备指纹、v4 握手／命令使用持久 ID，可信连接正确拒绝合法发送。Web 与 AIReqApplication 改用既有 getV4ClientId，保留设备 singleton 的原用途；随后真实讨论、续聊与 PNG 发送通过。服务端身份校验未放宽，独立 RPC 冒名仍拒绝；连接规格与所有者顺序同步。旧 G3 手工 RPC 证据不再冒充真实浏览器覆盖。
+
+### G5.4 AI 原分与失败待办
+
+- 隔离后端以现有事务装配六种合法事实：业务 0／99／100 × AI 原分缺失／存在；真实 FormalReport 及真实 ReportPane 共十二次渲染均通过。缺分显示“未提供”，存在的 0／42 原分原样显示，人工 100 不补造 99。合入 99、同版人工验收 100 仍由原 domain 派生；报告浅／深表面可读。
+- 当前评审 agent failed 的真实工作流投影经待办页面显示“处理评审失败并重试”，正文、处理按钮及分工 aria-label 均为正式表达，职责及重试分类不变。临时矩阵首次含无报告行导致装配失败、首次失败待办选错历史评审，均修正隔离装配后验证；不计为产品通过。
+
+### G5.5 分享 URL、历史与未保存保护
+
+- 真实启动带旧 demo 与敏感未知参数，进入指定项目／Release／IR／SR 后复制链接只含四个明确业务定位字段；运行后 pushState 更改两种未知值再次复制，链接完全相同。入口不再有 demo 专用分支，仍保留退役 remote 安全处理。
+- 浏览器从该 SR 进入待办，后退恢复同一 SR，再前进恢复待办；设置追加指令未保存时返回触发唯一门禁，取消保留正文与设置，随后丢弃离开，未提交验证草稿。真实 `/ws` 的额外 demo／scenario 参数均 400 INVALID_ARGUMENT。复制状态改名、动画与选择器定位的自动化失败不作为产品结果。
+
+### G5.6 本组工程收口与限制
+
+- 本组 20 个实际源码文件统一格式化一次。首次 typecheck 发现原生回复误读可选 result.view、人工规划缺必填 assumptions，分离修复后，同 owner 回读的 47 帧原生证明与公开人工保存／非法区间原子拒绝定向复验退出 0；最终 `bun run typecheck` 退出 0。
+- 首次 Lint 扫入临时 Vite 预构建缓存，出现第三方生成文件诊断；停止临时宿主、删除全部 `.tmp-g5` 后，`bun run lint` 退出 0（1933 文件、0 warnings／0 errors），`bun run architecture:check --changed` 退出 0（0 violations／baseline／new）。未屏蔽规则或放宽架构。
+- 6 个受影响 React 文件两条 Hooks 规则定向扫描 diagnostics=[]、退出 0；UI detector 返回 []。受影响工程选择 0/11、退出 0，无用例执行不冒充全套通过。未改工程门禁、根公共配置或清单，未运行构建／架构全套。
+- 隔离浏览器、Vite 与后端已停止，所有本组临时脚本、装配、日志、配置及缓存目录已删除；未触碰用户已有开发服务。正式导航仍无 Skill 入口；保存只代表上述内存文件与收据一致，不代表宿主写盘／持久化、真实 AI 或生产后端替换。
+
+### G6.1—G6.4 输入、store、传输与观察面
+
+- Lexical 可写插件、节点方法、ready 属性和轮询删除；正式 EditorApi 与普通 selector 保留。Chromium 1440×1000 实际 CDP IME 组合输入“中文组合”成功；真实文件检索选择 README.md 后形成结构化 mention 并发送；会话切换返回后正文受控回填，附件仍归原 scope，重挂后无桥属性／ready 标记。
+- 五类 store 及附件 scope 的模块暴露全部删除。正常环境与旧 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 的真实应用挂载均无六个相关全局；不同工号进入同一需求无前者附件。隔离原生附件 commit 首次真实失败，既有重试 527ms 后成功，ready PNG 在另一会话不出现、返回原会话与未发送正文一同恢复，随后真实发送入历史。
+- 实际 SDK／二进制 WS 调用正常 Skills／Subagents 服务，两个 store initialize 均结束且无 error；实际后端为原生空 catalog 投影，Skills capability 正常接纳。最初误把 AIReq Skill 目录名称当作原生 catalog 预期而断言失败，按两者的真实独立 owner 修正验证，不声称原生 catalog 非空。
+- `bun --tsconfig-override packages/ui/tsconfig.json .tmp-g6/lifecycle-proof.ts` 退出 0，约 31 秒实际观察默认保活 30000ms；显式 40ms 场景共享 acquire、双 release 幂等、保活取消／到期退订、冷重取和 dispose 正确，断线替换仅重订阅／query、不重放发送。旧 10 秒全局计划未消费。恢复为隔离真实服务拒绝及既有 transport replacement，不冒充网络断网。
+- 另一个真实 transport 的缺失会话 pauseGoal 返回 rejected，旧延迟计划未消费且无 ACK 全局；真实浏览器成功发送也无 ACK 探针。三类 DOM 镜像／两专属 selector 常量退出，实际模型菜单切换到 Anthropic／Claude Sonnet 4.5、可见上下文用量、PNG 上传及历史标题正常。
+- 前置私有宿主 3331 被其他进程占用，未停止该进程，改用本组端口；原文件检索装配根与业务根不一致，改为隔离相同虚拟根后实际查询成功。空查询的退役 project.readTree／会话查询仍明确不可用，不恢复已裁撤接口；本项只证明有效文件 mention 与编辑器原子节点。多次初始 hydration／动画／空段落换行的自动化等待条件错误已区分，不作为产品失败或通过。
+
+### G6.5—G6.8 公共 renderer 与测试遥测退出
+
+- 精确 packages 依赖检索：TurnHeaderRowView、TestActions/useTestActions/__testActions、ACK helper、四个 parity 文件与 installer、ARMS recorder 及其根导出无产品引用；历史架构快照保留，不恢复退休测试消费者。四 parity 文件仅互相导入，无现行工程清单消费者，因此删除而非迁入新体系。
+- 临时 Vite 页面使用真实公开 ConversationRowView、真实 ConversationTurnRow、严格 schema 与浏览器平台，React 实际渲染两条消费路径的 header 均为空 DOM；userInput／assistantText／toolCall 内容仍渲染，render-unit header／轮次事实保留。初始临时 raw HTML 缺 Vite preamble，补齐标准开发装配后通过；不宣称主时间线此前出现可见 debug 故障。
+- 根 UI 与 AIReq 入口真实挂载成功，正常 Bots／ARMS builder／supervisor 未删除。独立浏览器调用现有 Web platform reportArmsCustomEvent，真实同源 POST 返回 202，Promise 完成且 recorder 全局不存在；不把独立接纳证明冒充第三方上传或持久化。
+
+### G6.9—G6.10 十五个复位／替换出口
+
+- 十个 lib 专用出口和五个跨模块出口逐项删除；精确源码引用检索仅剩最后 bootstrap 的三类 store 注册，不含这十五个符号或别名。`cache-proof.ts` 退出 0，实际模块出口无测试 reset，滚动任务→会话迁移／身份隔离／边界恢复、ACK 持久化／幂等订阅、provider 先订阅后读及注销正常。
+- 跨模块 Bun 导入／绑定断言退出 0：五个符号无出口，UI 明确重导出的生产 telemetry 值与 shared 原值相同；home-path／node-result／logbook／registry 正常导入。node-result 仍为严格可解码 UTF-8，两个既有 NUL 分隔符保留，未整文件重写。生产 reporter、缓存、正常实例构造与生命周期未删，独立工程无复位消费者。
+
+### G6.11 公共桥装配入口退出
+
+- 前十项完成独立证明后删除 E2E switch、bootstrap 和 UI 包 `./e2e-store-bridge`；精确 UI／web／client／server import 无残余，正式 `./replay` 保留。shared 另有门禁／endpoint 参数按 G7 独立清理，不把本项删除替代其迁移。
+- 删除后真实旧环境应用重新挂载，项目→需求→提案→原生编辑器可达且无可写桥／ACK／ready／镜像；正常环境另一工号完成登录／工作台挂载同样无桥。最终原生双栏截图已实际观察，正文、PNG 历史和材料保留；不把一次等待误停留在根项目页解释为挂载失败。
+
+### G6.12 工程收口
+
+- 32 个实际源码／包文件统一格式化一次，node-result 原编码文件不整文件格式化。首次 typecheck 暴露清桥后的正式 ImportMeta.env 类型缺口，改由既有 UI env.d.ts 明确拥有 DEV／BASE_URL；复验 `bun run typecheck` 退出 0，不恢复测试声明。
+- 首次架构报告既有 session-open telemetry 退出历史原样准入：删除其四行 reset 后须登记。按现有模式增加单文件、仅该删除范围的例外，未放开目录／managed 状态／其它规则；`architecture:check --changed` 退出 0，0 violations／baseline／new。对应现有治理／上游准入工程文件 25 pass、1 skip、0 fail。
+- `bun run lint` 退出 0，1923 文件、0 warnings／0 errors；10 个受影响 React 文件两条 Hooks 规则独立扫描 diagnostics=[]。本组 UI detector []，最终真实双栏截图已观察。
+- 完整本组源码／删除路径的受影响工程选择 0/11、退出 0；第一次跨调用 shell 数组未保留而路径不完整，已改显式完整路径，不把第一次结果作覆盖证明。未改根工程测试配置／清单，未运行构建或架构全套。
+- 已关闭全部本组浏览器与四个自有服务，删除临时脚本／HTML／宿主／日志／缓存／Hooks 配置。输入、store 隔离、会话租约、成功／拒绝、遥测、公开 renderer 与十五个出口均有以上直接证据；未触碰其他进程。
+
+### G7 契约与边界（实施前）
+
+- RPC 正式生产模块只提供真实传输；内存 queue pair 由 examples 私有 fixture 持有，三个示例改走该私域，正式 Socket／MessagePort 语义不变。验收三个示例实际双向通信及真实 WS 请求。
+- shared 不再声明 E2E 遥测门禁、三控制频道、录制／抑制请求 DTO；正式遥测信封及接纳语义不变。旧频道必须仍不在当前 RPC 白名单，未知控制不得成为可调用能力。
+- Rewards／Coding Plan／Official MCP／CUA 不提供 dev/e2e 放行参数或强开分支。保留既有正式可信 origin 与端点配置解析；MCP 只对匹配正式 HTTPS origin 的目的地发凭据，CUA 正式禁用值优先，环境净化继续剔除敏感材料。使用纯函数允许／拒绝矩阵验收，不恢复已裁撤页面或真实 helper。
+- Highspeed accelerated 必须包含完整 execution；无执行材料只允许既有 fallback，不保留公共模拟场景。不新增加速后端；以真实类型缺字段拒绝、完整结果及 fallback 证明契约，保留模型路由。
+- 旧 session/debug 方法、对应公共声明及消息 debug visibility 退出；仅 visible／hidden 参与公共解析与投影，正常脱敏 session-debug 诊断保留。以 schema／方法词表拒绝及普通投影证明，不恢复退休 handler。
+- 工作流容量／线上合帧界唯一归 WORKFLOW_RUNS_LIMITS 所有。公开函数及内部调用不接收第二套 bounds／limits；纯函数不修改入参，合帧与顺序施加终态等价。用真实生产容量临界前后、腾位与屏障顺序场景验收，不为缩小夹具再加测试注入口。
+
+### G7.1—G7.2 正式传输与遥测控制退出
+
+- queue helper 只在 RPC examples/fixtures 私域，三个示例真实运行均退出 0：01 得到 30／42 与公开除零拒绝，02 文件读取／列表／事件及缺失拒绝，03 两客户端共享设置、反向 title 与断开剩一连接；三者打印 Done，正常错误日志不是运行失败。正式 src 根／protocol 导入均无该出口。
+- shared 门禁、三频道／映射、E2E entry／抑制 DTO 与根出口删除；精确 packages 引用无残余。正式 arms HTTP schema 接纳普通 payload、拒绝 suppressedEventNames 控制。
+- Chromium 实际登录／导航／原生发送，出现用户正文、材料 SHA-256 和更新后的材料，草稿清空；无桥。初次等待写成半角冒号而正文为全角，实际发送已成功，未重复发送。
+- 同一真实浏览器用正式 SocketProtocol／ChannelClient 发二进制 WS：正常 system.info 成功，观察 6 个二进制帧；三旧频道均 SERVICE_UNAVAILABLE，旧 session/debug 方法 UNSUPPORTED_OPERATION。最初误把方法拒绝预期写成频道缺失码，按既有 ProxyChannel 合同纠正后通过；未改产品错误策略。
+
+### G7.3—G7.5 正式允许、拒绝与公共类型
+
+- 一次性 contracts-proof.ts 退出 0：Rewards 正式 origin／path／embedded 通过，localhost dev、loopback e2e、异源／userinfo／错路径拒绝；Coding Plan 保留正式域与既有 localhost:3000，旧 flag 不能放行其它 HTTP／HTTPS loopback，正式配置 origin 解析正常。
+- MCP 仅匹配 HTTPS origin 通过；HTTP 三类 loopback、异源、userinfo、非法输入、resolver 缺失／抛错全部拒绝，旧参数不能放行。CUA 正式 0／false／off（含空白大小写）不能被旧 DEV_MODE 覆盖，默认仍开启；两种净化入口保留业务变量，移除敏感材料，正式代理 passthrough 保持且不恢复 broker／endpoint／telemetry 秘密。
+- Highspeed 公共场景类型退出，accelerated.execution 必填。实际 TS compiler API 对完整 execution／fallback 无诊断，仅缺 execution 与已删场景类型各产生预期 2322／2305；模型家族与 draw 路由保持。无当前执行消费者／后端，不冒充实际加速执行或新实现了 fallback 服务。
+- 方法词表／派生联合不再包含 sessionDebug；消息 schema 的 visible／hidden 在用户／助手完整结构中均合法、debug 被拒绝，普通投影分别 visibleAssistant／hiddenSynthetic。实际原生浏览器消息正常，脱敏 session-debug 生产诊断未删。
+
+### G7.6 唯一正式工作流限额
+
+- 删除公开 bounds／limits 与两类型，reducer、eviction 私有调用链亦不传第二套容量，barrel 无遗留；全部使用 WORKFLOW_RUNS_LIMITS，未新增测试缩界替代口。
+- workflow-proof.ts 退出 0，真实 1024 边界生成 6151 个合法增量，合帧 2 条与顺序施加终态相同；容量临界前／等于／超限、合帧拒绝、删除／替换屏障、腾位优先级、live 保护、取位失败原子回退、phase 桶与冻结入参均通过。未修改限额或建立永久测试体系。
+
+### G7.7 工程收口
+
+- 20 个实际源码／示例统一格式化一次。`bun run typecheck`、`bun run lint` 均退出 0，Lint 1923 文件、0 warnings／0 errors；本组未改 React。完整实际路径受影响工程选择 0/11、退出 0，不声称执行了用例。
+- 首次架构仅报告两个历史准入 workflow 文件的修改；按既有模式登记精确两路径、仅删除测试限额／保持正式算法的例外，不放开 v4／shared 或其它规则。修正后 `architecture:check --changed` 退出 0，0 violations／baseline／new。
+- 临时类型／纯函数／真实容量证明均已删除，浏览器与两个自有服务停止，Vite 缓存清理。唯一新增长期文件为 examples 私有 queue fixture，不进入正式模块／出口。未运行构建或新增工程体系；以上编译／隔离／开发态浏览器证据不是部署验收。
+
+### G8 UI、文案与日志边界（实施前）
+
+- workspace side-pane 唯一状态 owner／正常 tabs、打开选择、关闭与恢复保持；开发者专用 tab 类型／构造／激活／可见性／图标／标题／搜索／label 及 ToggleDevTools 公共命令／菜单／locale 完整退出。不恢复 AIReq launcher；生产网络状态、用量、stdioTap、通用控件及插件商店的正常开发工具分类保留。
+- 七处 Git／Diff 原型话术无实际消费者则删除键；如存在正常消费者则仅保留真实不可用／身份缺失／输入提示，不描述未来研发接线或虚构提交成功。locale 正常加载，无缺词。
+- 无消费者假 CLI 安装／卸载 hook 与专属随机曲线／状态／导出退出，不触碰正常 provider 配置 helper。MCP 删除非空 command 即成功的 stdio 伪探测；保留正常配置归一化与真实 HTTP 可达检查，stdio 检查明确不可用，不新增宿主执行能力或 fake 成功。
+- renderer 日志只移除测试全局控制，保留 UI／client 各自现有正式生产判定、开发输出、生命周期与脱敏诊断策略。旧全局不能关闭既定日志；生产原本不输出的普通日志不能声称被本次关闭。真实／隔离浏览器与正式环境入口证明，不新建产品诊断接口。
+- 验收使用保留 side-pane 控件的临时隔离装配验证选择／搜索／关闭／恢复，主应用电脑浏览器检查导航与设置；不恢复裁撤导航，不把工程临时装配发布到产品。
+
+### G8.1—G8.4 直接证据
+
+- 专属 side-pane 类型／构造／激活／scope case／图标／标题／搜索／label、公开命令／菜单／完整专属 locale 已退出，精确 packages 引用为零；Overview 原本直接消费 presentation interface／函数，无独立专属字段，未无谓编辑。stdioTap、普通网络／用量与插件分类保留。
+- Chromium 1440×1000 临时装配真实 Overview／原生 Command／Popover 与既有状态函数：选择审查、README 搜索只剩目标、关闭后进入最近关闭、developer tools 搜索空、恢复后 README 激活且 closed 清空；实际主题截图与零运行错误已观察。该控件未恢复至 AIReq 导航，不声称渲染了已裁撤的完整工作区。
+- 一次性 Bun 导入确认七原型 key、专属 locale／command／menu 均不存在，普通 locale／provider helper 正常。原型七键均仅定义无产品消费者，删除而非换词掩盖假能力。真实主应用设置／模型／菜单／输入提示可见，无缺词；业务需求 Agent 思考强度由高保存为中，切换设置分区再回仍为中，浏览器无运行错误，实际截图已观察。
+- 无消费者 useBuiltinAgentCli 整个 hook 与随机模拟链删除，配置 helper 保留；MCP 有效隐式／显式 stdio 都明确失败并要求工作区服务检查，空 command 仍错误；正常归一化与 HTTP 检查保留。真实 SDK／WS 原生 MCP 目录为空，合法 upsert 保存得到 UNSUPPORTED_OPERATION，不冒称已安装或已连接。
+- UI／client 测试日志全局及专属说明退出。真实浏览器普通环境下旧 flag true／false 各 7 条预期 info／warn／error／debug／lifecycle／trace／memory 输出，guard 均开启、clientProduction=false；NODE_ENV=production 的独立 Vite 环境下两种 flag 均 guard 关闭／clientProduction=true、调用完成且无 G8 console 输出。保留 Vite 自身开发连接日志，未把普通 Vite server 说成最终生产 bundle；未做额外构建，最终产物集成由 G9 负责。
+
+### G8.5 工程收口
+
+- 10 个实际源码文件统一格式化一次；typecheck／Lint／architecture:check --changed 均退出 0。Lint 1922 文件、0 warnings／0 errors；架构 0 violations／baseline／new，无需新增例外。
+- 三个受影响／实际消费 React 文件两条 Hooks 规则 diagnostics=[]，UI detector []；实际主应用与隔离控件截图已观察。完整实际路径受影响工程选择 0/11、退出 0，无用例执行不冒充全套通过。
+- 四个浏览器与三个自有服务已关闭，临时装配／日志页面／脚本／缓存／Hooks 配置删除。未修改根工程测试配置、未运行构建；保留普通配置、诊断、控件和正常业务测试用语。
+
+### G9.1 最终构建与同次产物集成
+
+- 按本文件 G1—G8 指定项完成一次静态清单核对，覆盖全部 11 包 manifest、barrel／传递引用、不可达 src、raw HTML 和 locale：无指定残余。后端私有场景、三个 RPC example 私有 fixture、session-control 独立 testing、生产 session-debug／stdioTap、PPTX“演示文稿”、插件分类及正常配置归一化不误删；不将静态核对当运行证明。
+- 仅运行一次 `ZCODE_ENV=production bun run build`，退出 0：Bun 打包 495 模块生成 entry-http.js，Vite production 转换 6518 模块成功。保留未调低的 500kB 分块告警，主 JS 4153.93kB／gzip 1293.04kB；未借本轮做分包优化。1289 个实际前端文件无 .map，指定移除项的最终 HTML／JS／CSS／JSON／文本扫描零命中。
+- 从同次 `packages/server/dist/entry-http.js` 启动真实本地部署入口，staticRoot 指向同次 web dist，启用临时部署访问 token。HTTP 根页／hash asset 与磁盘 SHA-256 相同，MIME／immutable／index no-cache 正确；SPA 回退、API 不回退、map 404、未授权配置／WS／遥测 401、授权配置 no-store、缺 Upgrade／额外查询 400、遥测 202／严格额外键 400 均实际通过。
+- SDK 经该实际部署的二进制 Channel 读取：wire protocol=3，安全 system.info，实际 README 237 UTF-8 字节与 stat／文本／顶层 Uint8Array 一致，缺失文件明确拒绝而非空成功；两连接广播发送方 0、对方 1，伪造 sourceWindowId 被可信源覆盖。首轮固定绝对路径返回不存在拒绝，HTTP 断言此前已全部通过；改用正式相对路径，仅复验剩余 RPC／读取／广播，未改产品放宽路径。服务端在错误诊断时另有 InvalidSourceMap 警告，未对外返回堆栈；前端无映射且 HTTP 拒绝 map 不受影响。
+- Chromium 1440×1000 通过真实部署登录、默认全项目总览、跨项目待办、原生输入／材料 SHA-256、99% 等待人工验收的正式报告、AI 模型强度保存及分区回读（中）；最终截图已观察。材料容器稳定读取含本次正文，未把首个 article 的即时读数当材料结果。无桥／ACK 全局，观察 6 个真实遥测 202，浏览器无未捕获运行错误。
+- 停止并以完全相同产物／配置重启自有后端，实际新连接重新 hello／initialize／subscribe 后恢复编辑器与当前材料。内存进程重启清除旧输入，旧正文未被重发、草稿为空；初次仅等现有编辑器时读到旧缓存，不作恢复证据，以新连接／权威快照及最终 DOM 为准。此为本地构建产物恢复证明，不是持久化、真实生产替换或 HTTPS 反向代理验收。
+
+最终词命中分类（不是全仓关键词零命中要求）：
+
+| 命中 | 次数 | 合法依据 |
+| --- | ---: | --- |
+| prototype | 1105 | Object／Array 等 JavaScript 原型操作，非原型产品实现 |
+| debug | 383 | Mermaid 等库的解析诊断及保留生产诊断，非应用调试面板 |
+| React devtools hook | 8 | React 19.2.7 生产运行时自身检测，非已裁撤应用入口 |
+| 测试 | 70 | 业务人工测试验收／连接检查与保留普通词条，不是测试桥 |
+| turnHeader | 10 | 保留的协议／轮次分组事实，专用 debug renderer 已删除并直接验证 |
+| placeholder | 162 | 表单／ARIA／DOM 控件语义，七处原型话术均已删除 |
+| mock／demo 单词 | 0 | 最终前端文本扫描观察值，不据此取代源码与行为核对 |
+
+### G9.2 交付指纹、问题映射与停止边界
+
+版本：产品 3.18.2，production 构建，Protocol v4 wire=3、projection snapshot=1。逐文件清单为 [release-artifacts.sha256](./release-artifacts.sha256)，绑定本次工作区而非假称所有输入已提交。清单 2043 条实际逐项重算，失败 0；清单文件自身 SHA-256 为 `9f0973db554d07b5bcd9b3ff27c02fb8d4919495a70ed389b5477db9446a8a9b`。
+
+| 指纹范围 | 文件数 | 按路径排序的 SHA-256 行清单指纹 |
+| --- | ---: | --- |
+| 同次前端构建全部文件 | 1289 | `04e49393f46b683835e70ecb937a7219e4ab07614b77027aebaae03ea1b05026` |
+| 公共契约／SDK／传输源码及公开包入口 | 490 | `94f65f2821b6549fc9f453dd07021172fd3024b5543f1c2ec3dbe0b085d7c446` |
+| server dist 实际目录快照 | 264 | `7dcd79ed9f4fd414ed717b4c4b06e604aaa796b3194c80009330f8f3d9b7fb88` |
+
+实际部署只执行同次 Bun bundle `entry-http.js`，其 SHA-256 为 `90b82818682ffad0a77a6c9cbf1692ead17db6fb9a31c5bc2c44d8575d153c1a`。server dist 其它存量类型检查编译文件虽一同取证，不冒称全部由本次单入口打包生成，也不因此公开到静态根。契约清单包括 shared/services/rpc/client/provider/model-option-map/session-control 的生产源码与包／UI 公开 barrel，排除独立工程测试／example／fixture；完整范围见清单头。
+
+| 已确认问题归组 | 本轮直接证据出处 |
+| --- | --- |
+| G1 规则、单一 owner、先提交后事件、保留边界 | G1.1 |
+| G2 两项 P1：未知异常正文与 MR 布尔事实；机器码 fallback、严格 v4／设置入参 | G2.1—G2.6；真实入口拒绝及消费者证据保留 |
+| G3 sample/live、三个私有故障／hold、真实 clientId／队列／历史／伪造拒绝 | G3.1—G3.4；G5 补齐 Web／AIReq／v4 同一客户端身份并复验 |
+| G4 文件／Git／工作流假空、可信多连接广播、正式遥测 | G4.1—G4.6；G9.1 同次产物集成 |
+| G5 业务内容与规划事实、两处 AI 原始评分、URL、隐藏 Skill 文件／保存与 Sketch 资产 | G5.1—G5.6 |
+| G6 输入桥、五 store／附件 scope、ACK／延迟／保活／三个镜像／turnHeader、TestActions／ARMS／parity／bootstrap、十五复位 | G6.1—G6.12 |
+| G7 queue、shared E2E、四类开发控制、highspeed、旧 debug、唯一工作流限额 | G7.1—G7.7 |
+| G8 开发者 UI／七词条、假安装／stdio、日志全局 | G8.1—G8.5 |
+| 保留原生草稿／隔离／人工门禁、当前导航、隐藏 Skill 与通用控件 | G2—G8 各自直接证据；G9.1 未恢复裁撤入口 |
+
+按文件顺序核对 G1—G8 共 47 项均已勾选、各有 Execution 与对应直接记录；分组标题覆盖的区间按实际范围匹配，不把最初仅查字面 G6.2 的脚本误报当成缺证。受影响的身份、类型、传输与公开入口已在所属组修复／复验，未改变的场景复用有效证据，不在最后重跑全矩阵。
+
+后端替换登记见 `docs/architecture/mock-backend.md` §8：当前 HTTP／资源／遥测、21 个公开频道的方法／事件、二进制 Channel、v4 与错误／身份／版本／幂等均以现行源码定型；未来后端实现同一契约，前端产物／SDK／传输／接口不改。当前仍为内存后端，真实认证、持久化、AI、Git 平台与生产 HTTPS 入口未独立验收；本轮只通过确认范围的前端及契约发布边界，不宣称系统上线或真实后端替换完成。
+
+所有自有验证浏览器／服务已关闭，G5—G9 临时装配、脚本、缓存及配置清理，未留下产品 shim 或公开夹具。保留唯一必要的交付 SHA 数据文件，不新增测试体系或汇报文档。dist 未提交；本轮后续不自动提交、推送、部署或追加审查。

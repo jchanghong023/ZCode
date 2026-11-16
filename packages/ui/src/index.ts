@@ -9,8 +9,6 @@ export {
 export { ConfirmDialogHost } from "./ConfirmDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
-export { useTestActions } from "./test-actions.js";
-export type { TestActions } from "./test-actions.js";
 export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
 export type { ZCodeState } from "./store/index.js";
 export {
@@ -71,12 +69,12 @@ export {
   USER_ACTION_CATALOG,
 } from "./lib/userActionTraceCatalog.js";
 export { setReactErrorArmsReporter } from "./lib/reactErrorArmsTelemetry.js";
-export { recordArmsCustomEventForE2E } from "./lib/armsCustomEventObservability.js";
 export {
   generateMobileDeviceFingerprint,
   getStreamClientId,
   setStreamClientId,
 } from "./lib/streamClientId.js";
+export { getV4ClientId } from "./v4/commandFactory.js";
 export { logger } from "./logger.js";
 
 export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";

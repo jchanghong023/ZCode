@@ -27,7 +27,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";
 import {
-  exposeComposerAttachmentScopeKeyForE2E,
   readComposerAttachmentScope,
   updateComposerAttachmentScope,
   useComposerAttachmentUploadStore,
@@ -262,7 +261,6 @@ export function useComposerAttachments(
   const { promptAttachmentTransferService } = useServices();
   const { intl } = useZCodeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
-  exposeComposerAttachmentScopeKeyForE2E(scopeKey);
 
   const targetsRef = useRef(new Map<string, UploadTarget>());
   const uploadQueueRef = useRef<UploadQueueEntry[]>([]);

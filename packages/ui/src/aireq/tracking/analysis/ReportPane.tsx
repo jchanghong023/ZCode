@@ -127,7 +127,10 @@ export function ReportPane({
             <div className="space-y-2 border-t border-border pt-3 text-ui-sm">
               <h5 className="font-medium">代码依据</h5>
               <p>
-                AI 原始评分：{report.aiPercent ?? Math.min(99, report.percent)}% ·
+                {/* 缺少原始评分时不能从业务进度反推 AI 结论。 */}
+                AI 原始评分：{report.aiPercent === undefined
+                  ? "未提供"
+                  : `${report.aiPercent}%`} ·
                 本次运行时有效进度：{report.percent}%
               </p>
               {report.stale && (

@@ -20,7 +20,6 @@
     "./bottom-sheet": "./src/components/mobile-ui/bottom-sheet.tsx",
     "./device-platform-icon": "./src/components/mobile-ui/DevicePlatformIcon.tsx",
     "./message": "./src/components/ai-elements/message.tsx",
-    "./e2e-store-bridge": "./src/lib/e2eStoreBridgeBootstrap.ts",
     "./remote-workspace-session-store": "./src/store/remoteWorkspaceSessionStore.ts",
     "./styles.css": "./src/styles.css",
     "./replay": "./src/replay.ts"

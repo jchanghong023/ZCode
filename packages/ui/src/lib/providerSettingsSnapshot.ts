@@ -79,13 +79,6 @@ export function connectProviderSettingsSnapshot(
   };
 }
 
-export function resetProviderSettingsSnapshotForTest(): void {
-  connectionGeneration += 1;
-  snapshot = { status: "loading" };
-  activeReload = null;
-  listeners.clear();
-}
-
 function publish(): void {
   for (const listener of listeners) listener();
 }

@@ -13,19 +13,11 @@ export const rewardsContextSchema = z.object({
 });
 export type RewardsContext = z.infer<typeof rewardsContextSchema>;
 
-export function isTrustedRewardsUrl(
-  value: string,
-  options: { dev?: boolean; e2e?: boolean } = {},
-): boolean {
+export function isTrustedRewardsUrl(value: string): boolean {
   try {
     const url = new URL(value);
     if (url.username || url.password) return false;
-    const trusted =
-      ["https://zcode.z.ai", "https://zcode.z.ai"].includes(url.origin) ||
-      (options.dev === true && url.origin === "http://localhost:3000") ||
-      (options.e2e === true &&
-        url.protocol === "http:" &&
-        ["127.0.0.1", "localhost"].includes(url.hostname));
+    const trusted = ["https://zcode.z.ai", "https://zcode.z.ai"].includes(url.origin);
     return (
       trusted &&
       /^\/(cn|en)\/rewards\/?$/.test(url.pathname) &&
@@ -38,14 +30,12 @@ export function isTrustedRewardsUrl(
 
 export function resolveRewardsOrigin(options: {
   env: "test" | "production";
-  dev?: boolean;
   override?: string;
-  e2e?: boolean;
 }): string {
   try {
     if (
       options.override &&
-      isTrustedRewardsUrl(buildRewardsUrl(options.override, "en-US", "zai-dark"), options)
+      isTrustedRewardsUrl(buildRewardsUrl(options.override, "en-US", "zai-dark"))
     )
       return new URL(options.override).origin;
   } catch {

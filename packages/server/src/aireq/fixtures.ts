@@ -378,7 +378,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
         outcome: "passed",
         employeeId: "j00808874",
         at: "2026-11-11T01:30:00.000Z",
-        reason: "历史演示记录：测试验收通过",
+        reason: "测试验收通过。",
         codeVersion: `${sr.id}-head`,
       };
       sr.acceptanceHistory = [structuredClone(sr.testAcceptance)];

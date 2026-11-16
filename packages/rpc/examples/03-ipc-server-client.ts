@@ -17,9 +17,9 @@ import {
   IPCClient,
   StaticRouter,
   ProxyChannel,
-  createQueuePair,
   ClientConnectionEvent,
 } from "../src/index.js";
+import { createQueuePair } from "./fixtures/queue-pair.js";
 
 // ============================================================================
 // 定义服务

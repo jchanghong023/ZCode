@@ -7,7 +7,6 @@ import {
   type AgentsCapability,
 } from "@zcode/shared";
 import type { ISubagentsService } from "@zcode/services";
-import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { logger } from "@/logger.js";
 import { getRemoteWorkspaceServicesForIdentity } from "@/store/remoteWorkspaceSessionStore.js";
 import { getSubagentsContextKey, useSubagentsContextStore } from "@/store/subagentsContextStore.js";
@@ -188,19 +187,6 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     }
   },
 }));
-
-type SubagentsStoreE2EBridge = typeof useSubagentsStore;
-
-declare global {
-  interface Window {
-    __subagentsStoreE2E?: SubagentsStoreE2EBridge;
-  }
-}
-
-if (shouldExposeE2EStoreBridge()) {
-  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 ZCODE_ENV=test，避免产品测试环境暴露可变全局 store。
-  window.__subagentsStoreE2E = useSubagentsStore;
-}
 
 export async function refreshLoadedSubagentsStoreForWorkspace(params: {
   scope?: "user" | "workspace";

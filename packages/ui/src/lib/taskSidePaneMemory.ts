@@ -184,8 +184,3 @@ export function adoptDraftTaskSidePaneFullView(key: string | null, sessionId: st
   saveTaskSidePaneFullView(key, sessionId, draft);
   saveTaskSidePaneFullView(key, null, null);
 }
-
-export function clearTaskSidePaneMemoryStateForTest(): void {
-  taskSidePaneMemory.clear();
-}
-

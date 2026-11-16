@@ -5,7 +5,6 @@
 // Map<workspaceKey, SessionDataLayer>，本层不感知 workspace。
 import { ConversationProjectionStore } from "@/v4/conversationProjectionStore.js";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
-import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import type { SessionOpenKind } from "@/lib/sessionOpenArmsTelemetry.js";
 import { conversationTopic, type ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
@@ -29,15 +28,6 @@ export interface SessionDataLayerOptions {
 }
 
 export const SESSION_DATA_LAYER_KEEP_WARM_MS = 30_000;
-export const E2E_SESSION_DATA_LAYER_KEEP_WARM_MS = 1_000;
-
-export function resolveSessionDataLayerKeepWarmMs(
-  e2eStoreBridgeEnabled = shouldExposeE2EStoreBridge(),
-): number {
-  return e2eStoreBridgeEnabled
-    ? E2E_SESSION_DATA_LAYER_KEEP_WARM_MS
-    : SESSION_DATA_LAYER_KEEP_WARM_MS;
-}
 
 interface SessionEntry {
   store: ConversationProjectionStore;
@@ -61,7 +51,7 @@ export class SessionDataLayer {
 
   constructor(options: SessionDataLayerOptions) {
     this.transport = options.transport;
-    this.keepWarmMs = options.keepWarmMs ?? resolveSessionDataLayerKeepWarmMs();
+    this.keepWarmMs = options.keepWarmMs ?? SESSION_DATA_LAYER_KEEP_WARM_MS;
     // 连接级单监听：按 topic 扇入到各 store（pane 间共享的正是这一条连接）。
     this.offFrame = this.transport.onFrame((frame, context) => {
       this.entries.get(frame.topic)?.store.handleFrame(frame, context);
@@ -121,7 +111,7 @@ export class SessionDataLayer {
     };
   }
 
-  /** 当前活跃（含 keep-warm 中）的 session 数，测试与调试观测点。 */
+  /** 当前活跃（含 keep-warm 中）的 session 数。 */
   get size(): number {
     return this.entries.size;
   }

@@ -34,16 +34,6 @@ import {
 } from "./workflow-runs.js";
 import { addToUnlistedBucket, withUnlistedBuckets } from "./workflow-runs-unlisted.js";
 
-/**
- * 归约要用到的三条条目界。本包的默认值就是 {@link WORKFLOW_RUNS_LIMITS}；单独定义成接口是为了
- * 让测试能注入小界——1024 条要三千多条事件才撞得到，而这里的规则与界的**大小**无关。
- */
-export interface WorkflowRunEntryLimits {
-  readonly maxActors: number;
-  readonly maxNodes: number;
-  readonly maxPhases: number;
-}
-
 interface InstanceRef {
   siteId: string;
   ordinal: number;
@@ -119,15 +109,11 @@ export function admitsNewEntry(run: WorkflowRunState, live: boolean): boolean {
  * 出生只挤得动**已完成**的：一个还排着队的新人凭什么把另一个还排着队的挤掉——两个都没开工，
  * 换谁上表都是同一条没有信息量的记录。空闲组只在 activation（真的开工了）面前让位。
  */
-export function withRoomForActor(
-  run: WorkflowRunState,
-  ref: InstanceRef,
-  limits: WorkflowRunEntryLimits = WORKFLOW_RUNS_LIMITS,
-): WorkflowRunState {
-  if (run.actors.length < limits.maxActors) return run;
+export function withRoomForActor(run: WorkflowRunState, ref: InstanceRef): WorkflowRunState {
+  if (run.actors.length < WORKFLOW_RUNS_LIMITS.maxActors) return run;
   if (run.actors.some((actor) => sameInstance(actor, ref))) return run;
   const victim = pickVictim(listedGroups(run).filter((group) => group.finished));
-  return victim === undefined ? run : evictGroup(run, victim, limits);
+  return victim === undefined ? run : evictGroup(run, victim);
 }
 
 /**
@@ -148,13 +134,12 @@ export function seatWorkflowNode(
     born: boolean;
     advancesWaterMark: boolean;
   },
-  limits: WorkflowRunEntryLimits = WORKFLOW_RUNS_LIMITS,
 ): WorkflowNodeSeating {
   const byBirth = admitsNewEntry(run, seat.born && seat.advancesWaterMark);
   if (!seat.advancesWaterMark) return { run, admitNew: byBirth, activated: false };
   // 重放的事件既不腾位也不入座：下面两支都以「抬过水位」为前提。
   if (seat.eventType === "node-dispatched" && seat.actor !== null && run.truncated === true) {
-    return activateInstance(run, seat.ref, seat.actor, limits);
+    return activateInstance(run, seat.ref, seat.actor);
   }
   // B2：溢出过的 run 里，一条认不出主人的**出生**连位子都不该占——它画不出徽章（pill 按
   // run.actors 过滤），而后面被派下去的活正需要那个位子。两条出生都算：`node-queued`，以及
@@ -171,7 +156,7 @@ export function seatWorkflowNode(
   // 出生即结算的缓存命中从不腾位（它没跑过，没有要展示的进行态）；腾位只给活的新人。
   if (seat.eventType !== "node-queued") return { run, admitNew: byBirth, activated: false };
   return {
-    run: withRoomForNode(run, seat.ref, seat.actorRef, limits),
+    run: withRoomForNode(run, seat.ref, seat.actorRef),
     admitNew: byBirth,
     activated: false,
   };
@@ -190,14 +175,13 @@ function withRoomForNode(
   run: WorkflowRunState,
   ref: InstanceRef,
   owner: InstanceRef | null,
-  limits: WorkflowRunEntryLimits,
 ): WorkflowRunState {
-  if (run.nodes.length < limits.maxNodes) return run;
+  if (run.nodes.length < WORKFLOW_RUNS_LIMITS.maxNodes) return run;
   if (run.nodes.some((node) => sameInstance(node, ref))) return run;
   const loose = pickVictim(looseSettledNodes(run));
-  if (loose !== undefined) return evictSingleNode(run, loose, limits);
+  if (loose !== undefined) return evictSingleNode(run, loose);
   const victim = pickVictim(spareGroups(run, owner).filter((group) => group.finished));
-  return victim === undefined ? run : evictGroup(run, victim, limits);
+  return victim === undefined ? run : evictGroup(run, victim);
 }
 
 /**
@@ -214,32 +198,31 @@ function activateInstance(
   run: WorkflowRunState,
   ref: InstanceRef,
   actor: WorkflowRunActor,
-  limits: WorkflowRunEntryLimits,
 ): WorkflowNodeSeating {
   const nodeListed = run.nodes.some((node) => sameInstance(node, ref));
   const actorListed = run.actors.some((listed) => sameInstance(listed, actor));
   if (nodeListed && actorListed) return { run, admitNew: true, activated: false };
   let next = run;
-  if (!actorListed && next.actors.length >= limits.maxActors) {
+  if (!actorListed && next.actors.length >= WORKFLOW_RUNS_LIMITS.maxActors) {
     const victim = pickGroupVictim(next, null, true);
     if (victim === undefined) return { run, admitNew: false, activated: false };
-    next = evictGroup(next, victim, limits);
+    next = evictGroup(next, victim);
   }
-  if (!nodeListed && next.nodes.length >= limits.maxNodes) {
+  if (!nodeListed && next.nodes.length >= WORKFLOW_RUNS_LIMITS.maxNodes) {
     // 顺位：自己名下最老的那条已结算节点 > 已结算的游离节点 > 别人的组。先丢自己的历史，
     // 是因为丢它只少一行、而且 actor 还在表上（徽章不动）——一个子代理在拿走别人那一行之前
     // 先交出自己的。少了这一条，一个连做 k 次 ask 的子代理会被**自己**已经跑完的那些活挡在
     // 表外：它们既不是可淘汰的组（自己那个组不当受害者），又占着位子。
     const own = ownSettledNodes(next, actor)[0];
-    if (own !== undefined) next = evictSingleNode(next, own, limits);
+    if (own !== undefined) next = evictSingleNode(next, own);
     else {
       const loose = pickVictim(looseSettledNodes(next));
-      if (loose !== undefined) next = evictSingleNode(next, loose, limits);
+      if (loose !== undefined) next = evictSingleNode(next, loose);
       else {
         // 零节点 actor 在这里帮不上忙（它腾的是 actor 位，不是节点位），所以不许它当受害者。
         const victim = pickGroupVictim(next, actor, false);
         if (victim === undefined) return { run, admitNew: false, activated: false };
-        next = evictGroup(next, victim, limits);
+        next = evictGroup(next, victim);
       }
     }
   }
@@ -247,7 +230,12 @@ function activateInstance(
     // 回到表上的子代理从它那一格里减回去（workflow-runs-unlisted.ts）：它不再是表外的一个。
     next = withUnlistedBuckets(
       { ...next, actors: [...next.actors, actor] },
-      addToUnlistedBucket(next.unlistedByPhase, actor.phaseName, { actors: -1 }, limits.maxPhases),
+      addToUnlistedBucket(
+        next.unlistedByPhase,
+        actor.phaseName,
+        { actors: -1 },
+        WORKFLOW_RUNS_LIMITS.maxPhases,
+      ),
     );
   }
   return { run: next, admitNew: true, activated: !nodeListed };
@@ -260,11 +248,15 @@ function activateInstance(
 export function absorbRefusedActor(
   run: WorkflowRunState,
   phaseName: string | undefined,
-  limits: WorkflowRunEntryLimits = WORKFLOW_RUNS_LIMITS,
 ): WorkflowRunState {
   return withUnlistedBuckets(
     run,
-    addToUnlistedBucket(run.unlistedByPhase, phaseName, { actors: 1 }, limits.maxPhases),
+    addToUnlistedBucket(
+      run.unlistedByPhase,
+      phaseName,
+      { actors: 1 },
+      WORKFLOW_RUNS_LIMITS.maxPhases,
+    ),
   );
 }
 
@@ -280,13 +272,12 @@ export function absorbRefusedActor(
 export function absorbRefusedSettledNode(
   run: WorkflowRunState,
   node: WorkflowRunNode,
-  limits: WorkflowRunEntryLimits = WORKFLOW_RUNS_LIMITS,
 ): WorkflowRunState {
   let buckets = addToUnlistedBucket(
     run.unlistedByPhase,
     node.phaseName,
     { settled: 1 },
-    limits.maxPhases,
+    WORKFLOW_RUNS_LIMITS.maxPhases,
   );
   const owner =
     node.actorSiteId === undefined || node.actorOrdinal === undefined
@@ -301,7 +292,7 @@ export function absorbRefusedSettledNode(
       buckets,
       actor.phaseName,
       { actors: 1, actorsSettled: 1, actorsFailed: isFailed(node) ? 1 : 0 },
-      limits.maxPhases,
+      WORKFLOW_RUNS_LIMITS.maxPhases,
     );
   }
   return withUnlistedBuckets(
@@ -464,27 +455,18 @@ function instanceKey(ref: InstanceRef): string {
 }
 
 /** 整组离场：actor 与它全部节点在**同一次**归约里从两张表上消失，其余条目保序。 */
-function evictGroup(
-  run: WorkflowRunState,
-  group: Group,
-  limits: WorkflowRunEntryLimits,
-): WorkflowRunState {
+function evictGroup(run: WorkflowRunState, group: Group): WorkflowRunState {
   const actor = run.actors[group.index]!;
   const dropped = new Set(group.nodeIndexes);
   const evicted = group.nodeIndexes.map((index) => run.nodes[index]!);
   // 已完成组走的时候带着「这个子代理已经结束了」；空闲组只是让位，它的活还没开始，往后还会
   // 在自己被派活的那一刻回到表上（activation），所以不记 actorsSettled。
   return {
-    ...withUnlistedEvictions(
-      run,
-      evicted,
-      {
-        phaseName: actor.phaseName,
-        actors: 1,
-        ...(group.finished ? { actorsSettled: 1, actorsFailed: group.failed ? 1 : 0 } : {}),
-      },
-      limits,
-    ),
+    ...withUnlistedEvictions(run, evicted, {
+      phaseName: actor.phaseName,
+      actors: 1,
+      ...(group.finished ? { actorsSettled: 1, actorsFailed: group.failed ? 1 : 0 } : {}),
+    }),
     actors: run.actors.filter((_, index) => index !== group.index),
     nodes: run.nodes.filter((_, index) => !dropped.has(index)),
     truncated: true,
@@ -497,14 +479,10 @@ function evictGroup(
  * 两处用同一条记账，因为它们对**人**的账毫无影响：没有 actor 离场，所以只有节点那三笔
  * （run 级两个计数器 + 这条节点出生阶段那一格的 `settled`）。
  */
-function evictSingleNode(
-  run: WorkflowRunState,
-  candidate: Candidate,
-  limits: WorkflowRunEntryLimits,
-): WorkflowRunState {
+function evictSingleNode(run: WorkflowRunState, candidate: Candidate): WorkflowRunState {
   const node = run.nodes[candidate.index]!;
   return {
-    ...withUnlistedEvictions(run, [node], undefined, limits),
+    ...withUnlistedEvictions(run, [node], undefined),
     nodes: run.nodes.filter((_, index) => index !== candidate.index),
     truncated: true,
   };
@@ -520,18 +498,22 @@ function withUnlistedEvictions(
   run: WorkflowRunState,
   nodes: readonly WorkflowRunNode[],
   agent: EvictedAgent | undefined,
-  limits: WorkflowRunEntryLimits,
 ): WorkflowRunState {
   let buckets = run.unlistedByPhase;
   if (agent !== undefined) {
     const { phaseName, ...delta } = agent;
-    buckets = addToUnlistedBucket(buckets, phaseName, delta, limits.maxPhases);
+    buckets = addToUnlistedBucket(buckets, phaseName, delta, WORKFLOW_RUNS_LIMITS.maxPhases);
   }
   let settledCount = 0;
   for (const node of nodes) {
     if (node.phase !== "settled") continue;
     settledCount += 1;
-    buckets = addToUnlistedBucket(buckets, node.phaseName, { settled: 1 }, limits.maxPhases);
+    buckets = addToUnlistedBucket(
+      buckets,
+      node.phaseName,
+      { settled: 1 },
+      WORKFLOW_RUNS_LIMITS.maxPhases,
+    );
   }
   const settledTotal = (run.usage.nodesUnlistedSettled ?? 0) + settledCount;
   return withUnlistedBuckets(

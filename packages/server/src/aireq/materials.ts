@@ -5,15 +5,8 @@ import type { AIReqMaterialView } from "@zcode/services/aireq";
 export function prototypeMaterial(
   input: Omit<AIReqMaterialView, "sha256" | "size" | "valid">,
 ): AIReqMaterialView {
-  const rawContent = input.content ?? "";
-  // 每份完整预览文档只标注一次演示性质；正文保留业务结构，不重复解释后端实现。
-  const notice = "演示文档，仅供预览。";
-  const content =
-    input.path.endsWith(".md") && rawContent && !rawContent.includes(notice)
-      ? rawContent.startsWith("# ")
-        ? rawContent.replace(/^(# [^\n]+)(?:\n+|$)/, `$1\n\n> ${notice}\n\n`)
-        : `> ${notice}\n\n${rawContent}`
-      : rawContent;
+  // 摘要与字节数只取实际正文，不能为材料注入与业务无关的说明。
+  const content = input.content ?? "";
   return {
     ...input,
     ...(input.content === undefined ? {} : { content }),

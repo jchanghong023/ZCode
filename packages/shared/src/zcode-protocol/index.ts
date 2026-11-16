@@ -4330,7 +4330,6 @@ export const zcodeProtocolMethods = {
   sessionRead: "session/read",
   sessionMessages: "session/messages",
   sessionEvents: "session/events",
-  sessionDebug: "session/debug",
   sessionSubscribe: "session/subscribe",
   // @deprecated（部分）：send 主路径已收敛 v4 sendText；仅剩 adapter 附件
   // 回退分支消费（v4 attachmentRef 上传/寄存命令面未建模），待附件命令面落地后移除。

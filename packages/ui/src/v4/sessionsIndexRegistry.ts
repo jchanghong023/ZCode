@@ -75,10 +75,6 @@ function reportScopeEndpointMismatch(
   });
 }
 
-export function resetSessionsIndexScopeEndpointMismatchReportsForTest(): void {
-  reportedScopeEndpointMismatches.clear();
-}
-
 function createSessionsIndexTransport(
   scope: SessionsIndexScope,
   agentService: SessionsIndexAgentService,

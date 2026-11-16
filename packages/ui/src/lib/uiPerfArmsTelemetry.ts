@@ -38,11 +38,6 @@ export function setUiPerfArmsReporter(reporter: ArmsReporter | null): void {
   armsReporter = reporter;
 }
 
-export function clearUiPerfArmsReporterForTest(): void {
-  armsReporter = null;
-  lastChunkAtByTask.clear();
-}
-
 /**
  * `model` 在本组事件里来自 `detail.model_name`，自定义 provider 下是用户命名的编码值。
  * 在唯一出口统一归一，避免每个 report 函数各自处理后漏掉新增事件；归一只影响上报值，

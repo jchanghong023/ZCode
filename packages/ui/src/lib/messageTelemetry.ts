@@ -1,1 +1,31 @@
-export * from "@zcode/shared/conversation-telemetry/messageTelemetry";
+export {
+  activateDetachedAgentStepTelemetry,
+  activatePromptTelemetry,
+  buildCompactionTelemetryExtraDetail,
+  buildPromptTelemetryExtraDetail,
+  composeAgentComposition,
+  consumeComposerInputTiming,
+  discardPromptTelemetry,
+  discardQueuedPromptTelemetry,
+  finalizePromptTelemetry,
+  getActivePromptMessageId,
+  getActivePromptModelName,
+  queuePromptTelemetry,
+  recordAgentStepTelemetryEvent,
+  recordComposerFocus,
+  recordComposerInputStart,
+  recordComposerTextChange,
+  recordPromptFirstToken,
+  recordPromptModelRequestStarted,
+  recordPromptPermissionRequest,
+  recordPromptPermissionResponse,
+  recordPromptTokenUsageDelta,
+  recordSubagentToolAttribution,
+  rekeyQueuedPromptTelemetry,
+  resetComposerInputStart,
+} from "@zcode/shared/conversation-telemetry/messageTelemetry";
+export type {
+  AgentStepRole,
+  ComposerInputTimingSnapshot,
+  PromptMessageSource,
+} from "@zcode/shared/conversation-telemetry/messageTelemetry";

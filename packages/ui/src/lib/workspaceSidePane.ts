@@ -45,14 +45,6 @@ export interface CodeViewerSidePaneTab {
   sourceKey: string | null;
 }
 
-export interface DeveloperToolsSidePaneTab {
-  id: "developer-tools";
-  type: "developer-tools";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-}
-
 export interface OpenBackgroundBashSideTabRequest {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -461,7 +453,6 @@ export type WorkspaceSidePaneTab =
   | BackgroundBashSidePaneTab
   | GitSidePaneTab
   | CodeViewerSidePaneTab
-  | DeveloperToolsSidePaneTab
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
   | SelectionSideChatPaneTab
@@ -562,14 +553,6 @@ export function normalizeWorkspaceSidePaneState(
 
 function createGitSidePaneTab(): GitSidePaneTab {
   return { id: "git", type: "git", openedAt: Date.now() };
-}
-
-function createDeveloperToolsSidePaneTab(): DeveloperToolsSidePaneTab {
-  return {
-    id: "developer-tools",
-    type: "developer-tools",
-    openedAt: Date.now(),
-  };
 }
 
 export function encodeSidePaneTabIdPart(value: string): string {
@@ -963,7 +946,6 @@ export function isSidePaneTabVisibleInScope(
   if (!sidePaneTabMatchesWorkspace(tab, scope.workspaceKey)) return false;
   switch (tab.type) {
     case "git":
-    case "developer-tools":
       return true;
     case "subagent-session":
     case "subagent-directory":
@@ -1072,9 +1054,7 @@ export function resolveSidePaneScopeState(
         : state,
     // 草稿重新进入时默认收起；空 scope 的历史展开偏好不能生成新标签页。
     isSidePaneCollapsed:
-      activeTabId === null || scope.ownerTaskId === null
-        ? true
-        : (collapsedPreference ?? false),
+      activeTabId === null || scope.ownerTaskId === null ? true : (collapsedPreference ?? false),
   };
 }
 
@@ -1206,12 +1186,6 @@ export function activateGitSidePane(
   current: WorkspaceSidePaneState | null,
 ): WorkspaceSidePaneState {
   return activateSidePaneTab(current, createGitSidePaneTab());
-}
-
-export function activateDeveloperToolsSidePane(
-  current: WorkspaceSidePaneState | null,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createDeveloperToolsSidePaneTab());
 }
 
 export function openSubagentSessionSidePane(

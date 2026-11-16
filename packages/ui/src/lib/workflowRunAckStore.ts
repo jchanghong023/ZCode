@@ -92,11 +92,6 @@ export function getWorkflowRunAckStore(): WorkflowRunAckStore {
   return defaultStore;
 }
 
-/** 测试用：换掉单例（含 `null` 复位）。 */
-export function setWorkflowRunAckStoreForTesting(store: WorkflowRunAckStore | null): void {
-  defaultStore = store;
-}
-
 /** 订阅确认集合的版本；返回的谓词随版本变化换引用，调用方据此重算行选择。 */
 export function useWorkflowRunAcknowledged(): (runId: string) => boolean {
   const store = getWorkflowRunAckStore();

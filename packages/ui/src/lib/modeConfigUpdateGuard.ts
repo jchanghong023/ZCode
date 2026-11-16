@@ -125,7 +125,3 @@ export function shouldPreserveModeAgainstConfigUpdate(params: {
 
   return Boolean(normalizedIncomingModeId && normalizedIncomingModeId !== normalizedCurrentModeId);
 }
-
-export function resetPendingModeSwitchGuardForTest(): void {
-  pendingModeSwitchGuardByWorkspaceKey.clear();
-}

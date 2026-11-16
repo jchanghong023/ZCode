@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
-import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import type { ChatComposerAttachment } from "@/lib/chatAttachments.js";
 
 export type ComposerAttachmentUploadStatus =
@@ -46,24 +45,6 @@ interface ComposerAttachmentUploadStoreState {
 export const useComposerAttachmentUploadStore = create<ComposerAttachmentUploadStoreState>()(
   () => ({ scopes: {} }),
 );
-
-declare global {
-  interface Window {
-    __zcodeComposerAttachmentUploadStoreE2E?: typeof useComposerAttachmentUploadStore;
-    __zcodeCurrentComposerAttachmentScopeKeyE2E?: string;
-  }
-}
-
-if (shouldExposeE2EStoreBridge()) {
-  // E2E 只暴露当前唯一附件 owner，供 scope 切换用例准备状态；不再把附件塞回旧 Session Store。
-  window.__zcodeComposerAttachmentUploadStoreE2E = useComposerAttachmentUploadStore;
-}
-
-export function exposeComposerAttachmentScopeKeyForE2E(scopeKey: string): void {
-  if (window.__zcodeComposerAttachmentUploadStoreE2E) {
-    window.__zcodeCurrentComposerAttachmentScopeKeyE2E = scopeKey;
-  }
-}
 
 export function readComposerAttachmentScope(scopeKey: string): ComposerAttachmentUploadItem[] {
   return useComposerAttachmentUploadStore.getState().scopes[scopeKey] ?? [];

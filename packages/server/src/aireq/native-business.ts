@@ -135,7 +135,9 @@ export class AIReqNativeBusiness {
     let reply: string;
     if (sessionId.startsWith("prototype-skill-design:")) {
       assertSkillSession(sessionId);
-      reply = `以下为演示内容。\n\n${prototypeSkillDesignReply(sessionId, text)}`;
+      reply = text.trim()
+        ? prototypeSkillDesignReply(sessionId, text)
+        : "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
     } else {
       const target = locate(sessionId);
       if (!target) throw businessRule("业务会话不存在。");
@@ -144,28 +146,42 @@ export class AIReqNativeBusiness {
       const selection = { projectId: ref.projectId, irId: ref.irId };
       if (!proposal || this.admittedVersions.get(key) !== proposalVersion(proposal))
         throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
-      if (ref.role === "reviewer")
-        reply =
-          "以下为演示内容。\n\n当前意见与综合报告依据本轮需求及各开发单元。追问已记录，不修改需求、报告版本或人工决定。请结合材料核对范围、异常路径与可验收性。";
-      else if (ref.phase === "solution" && text.trim()) {
-        applyPrototypeAction({ type: "generateProposalSolution", ...selection }, selection, text);
-        reply =
-          "以下为演示内容。\n\n已按讨论拆分稳定 SR，并完善每个独立 change 的 proposal、design、tasks、specs、test-plan；同步 IR 依赖 JSON 与整体验收。整包旧审查和三方确认失效。";
-      } else if (proposal && text.trim()) {
+      if (!text.trim()) reply = "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
+      else if (ref.role === "reviewer")
+        reply = "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。";
+      else {
         const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
-        applyPrototypeAction(
-          {
-            type: initial ? "generateRequirements" : "supplementRequirements",
-            note: text,
-            ...selection,
-          },
-          selection,
+        if (ref.phase === "solution")
+          applyPrototypeAction(
+            { type: "generateProposalSolution", ...selection },
+            selection,
+            text,
+          );
+        else
+          applyPrototypeAction(
+            {
+              type: initial ? "generateRequirements" : "supplementRequirements",
+              note: text,
+              ...selection,
+            },
+            selection,
+          );
+        // 完成回复只引用 owner 提交后的材料版本，不能把固定产物描述为专属分析。
+        const changed = getPrototypeWorkflow(selection).materials.filter(
+          (material) =>
+            material.irId === ref.irId &&
+            !proposal.files.some(
+              (file) => file.path === material.path && file.sha256 === material.sha256,
+            ),
         );
-        reply = initial
-          ? "以下为演示内容。\n\n已整理 IR 原始业务需求文档，尚未创建 SR。请完善目标、范围和验收标准，再由单个业务需求 Agent 评审并人工通过。"
-          : "以下为演示内容。\n\n已更新 IR 业务需求，原始短需求与历史保留；前置单评审及下游整包批准已失效，请重新评审。";
-      } else
-        reply = "附件已在当前会话接纳；尚无可用文字材料，需求文档尚未生成。请明确补充业务目标。";
+        reply = `已接纳本次${ref.phase === "solution" ? "方案" : "需求"}讨论。${
+          changed.length
+            ? `本次更新材料：\n${changed
+                .map((material) => `- ${material.path}（SHA-256：${material.sha256}）`)
+                .join("\n")}`
+            : "本次未改变材料内容。"
+        }`;
+      }
     }
     this.results.set(key, { text, reply });
     return reply;

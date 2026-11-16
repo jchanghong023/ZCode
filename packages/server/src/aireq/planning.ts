@@ -4,31 +4,6 @@ import { getEmployeeId, isEmployeeId } from "./identity.js";
 import { operatePrototypeProgress } from "./progress.js";
 import { prototypeSrSolutionAnalysis } from "./proposal-flow.js";
 
-const samples: Record<string, AIReqSrPlanningInput> = {
-  "sr-auth": {
-    developerEmployeeId: "j00808875",
-    plannedStart: "2026-11-11T09:00",
-    plannedEnd: "2026-11-13T18:00",
-  },
-  "sr-session": {
-    developerEmployeeId: "j00808876",
-    plannedStart: "2026-11-11T09:00",
-    plannedEnd: "2026-11-12T18:00",
-  },
-  "sr-permissions": {
-    developerEmployeeId: "j00808875",
-    plannedStart: "2026-11-16T09:00",
-    plannedEnd: "2026-11-17T18:00",
-  },
-  "sr-audit": { plannedStart: "2026-11-18T09:00", plannedEnd: "2026-11-20T18:00" },
-  "sr-onboarding": {
-    developerEmployeeId: "j00808877",
-    plannedStart: "2026-11-09T09:00",
-    plannedEnd: "2026-11-10T18:00",
-  },
-};
-
-/** 固定建议夹具，不调用 AI 或接入人员日历。人员与时间不写入需求文档。 */
 export function withPrototypePlanning(view: AIReqWorkflowView): AIReqWorkflowView {
   const eligible = view.groups;
   return {
@@ -39,10 +14,10 @@ export function withPrototypePlanning(view: AIReqWorkflowView): AIReqWorkflowVie
           item.id === sr.irId && item.projectId === sr.projectId && item.srIds.includes(sr.id),
       );
       if (!group) return { ...sr, planning: undefined };
-      const suggestion = sr.projectId === "demo-aurora" ? (samples[sr.id] ?? {}) : {};
+      // 没有实际建议时不生成规划；现有分工与联系人回退不构成 AI 建议。
       const developerEmployeeId = sr.planning
         ? sr.developerEmployeeId
-        : (sr.developerEmployeeId ?? group.contacts?.development ?? suggestion.developerEmployeeId);
+        : (sr.developerEmployeeId ?? group.contacts?.development);
       const testingEmployeeId = sr.planning
         ? sr.testingEmployeeId
         : (sr.testingEmployeeId ?? group.contacts?.testing);
@@ -51,17 +26,9 @@ export function withPrototypePlanning(view: AIReqWorkflowView): AIReqWorkflowVie
         developerEmployeeId,
         testingEmployeeId,
         solutionAnalysis: prototypeSrSolutionAnalysis(group, sr.id),
-        planning: {
-          ...(sr.planning ?? {
-            ...suggestion,
-            suggestion,
-            source: "ai",
-            assumptions:
-              "AI 建议样例：项目时区 Asia/Shanghai；计划不代表人员可用性或实际开发活动，需人工协调。",
-          }),
-          developerEmployeeId,
-          testingEmployeeId,
-        },
+        planning: sr.planning
+          ? { ...sr.planning, developerEmployeeId, testingEmployeeId }
+          : undefined,
       };
     }),
   };
@@ -116,7 +83,8 @@ export async function updatePrototypeSrPlanning(
         ? input.testingEmployeeId || undefined
         : projected.testingEmployeeId;
       sr.planning = {
-        ...projected.planning!,
+        ...projected.planning,
+        assumptions: projected.planning?.assumptions ?? "",
         developerEmployeeId: undefined,
         testingEmployeeId: undefined,
         plannedStart: Object.hasOwn(input, "plannedStart")

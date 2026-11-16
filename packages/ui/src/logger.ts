@@ -13,20 +13,9 @@ type DesktopLogBridgeWindow = Window & {
 function isRendererProductionBuild(): boolean {
   const viteProduction =
     ((import.meta as ImportMeta & { env?: { readonly PROD?: boolean } }).env ?? {}).PROD === true;
-  // Vitest 的 import.meta.env.PROD 在 transform 阶段固化，NODE_ENV fallback 让生产分支
-  // 可被单测验证；实际 renderer build 仍以 Vite 的 PROD 标记为准。
+  // 非 Vite 入口沿用 NODE_ENV 生产策略；浏览器构建以 Vite 的 PROD 标记为准。
   return (
     viteProduction || (typeof process !== "undefined" && process.env.NODE_ENV === "production")
-  );
-}
-
-function isRendererLoggingDisabled(): boolean {
-  return (
-    (
-      globalThis as typeof globalThis & {
-        __ZCODE_RENDERER_DISABLE_LOGGING__?: boolean;
-      }
-    ).__ZCODE_RENDERER_DISABLE_LOGGING__ === true
   );
 }
 
@@ -39,7 +28,7 @@ const consoleFns: Record<LogLevel, (...args: unknown[]) => void> = {
 
 export function isLoggerLevelEnabled(_level: LogLevel): boolean {
   // 生产构建下 renderer 所有日志级别都禁用；暴露 guard 让调用方在构造重 payload 前退出。
-  return !isRendererProductionBuild() && !isRendererLoggingDisabled();
+  return !isRendererProductionBuild();
 }
 
 function log(level: LogLevel, ...args: unknown[]) {
@@ -61,10 +50,6 @@ function log(level: LogLevel, ...args: unknown[]) {
 
 function lifecycleLog(level: DesktopLogLevel, ...args: unknown[]) {
   // 生产包默认只保留经过筛选的生命周期诊断，避免把消息流日志重新打开。
-  // 测试和故障注入仍可通过显式全局开关关闭全部 renderer 日志。
-  if (isRendererLoggingDisabled()) {
-    return;
-  }
   if (isRendererProductionBuild()) {
     if (typeof window !== "undefined") {
       (window as DesktopLogBridgeWindow).zcode?.log?.(level, args);
@@ -96,9 +81,6 @@ export const logger = {
  * 有变化才写），Web 端无桥时 no-op。业务模块不得借用它绕过生产门控。
  */
 export function logMemoryDiagnostics(line: string): void {
-  if (isRendererLoggingDisabled()) {
-    return;
-  }
   if (typeof window !== "undefined") {
     const bridge = (window as DesktopLogBridgeWindow).zcode?.log;
     if (bridge) {

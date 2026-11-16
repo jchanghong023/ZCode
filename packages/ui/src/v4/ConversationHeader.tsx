@@ -1,9 +1,5 @@
 import { memo } from "react";
-import {
-  TID_V4_PANE_WORKSPACE_BADGE,
-  TID_V4_SESSION_TITLE,
-  TID_V4_SPLIT_CLOSE,
-} from "@zcode/shared/test-ids";
+import { TID_V4_PANE_WORKSPACE_BADGE, TID_V4_SPLIT_CLOSE } from "@zcode/shared/test-ids";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -20,8 +16,6 @@ export interface PaneWorkspaceBadge {
 }
 
 export interface ConversationHeaderProps {
-  /** meta.title；仅作为测试/可观测投影，不渲染占位 header。 */
-  title: string;
   /** 关闭本窗格（仅非 primary pane 下发；关 pane ≠ 停 session）。 */
   onClosePane?: () => void;
   /** 跨 workspace pane 的归属徽标（pane workspace ≠ shell 当前 workspace 时下发）。 */
@@ -30,15 +24,13 @@ export interface ConversationHeaderProps {
 
 /**
  * pane chrome：不占布局高度，只悬浮 workspace 徽标与关闭入口（拆分入口已下线）。
- * 保留 title data 节点，供 E2E 读取投影但不恢复旧横条。
  */
-function ConversationHeaderImpl({ title, onClosePane, workspaceBadge }: ConversationHeaderProps) {
+function ConversationHeaderImpl({ onClosePane, workspaceBadge }: ConversationHeaderProps) {
   const { intl } = useZCodeIntl();
   const hasFloatingActions = Boolean(workspaceBadge) || Boolean(onClosePane);
 
   return (
     <>
-      <span data-testid={TID_V4_SESSION_TITLE} data-title={title} className="sr-only" />
       {hasFloatingActions ? (
         <div
           data-v4-pane-actions="floating"

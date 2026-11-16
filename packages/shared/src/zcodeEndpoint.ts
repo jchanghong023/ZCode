@@ -96,16 +96,7 @@ export function normalizeZCodeEndpointOrigin(value: string): string {
   return parsed.origin;
 }
 
-function isLoopbackHostname(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-}
-
-export function isTrustedCodingPlanWebviewOrigin(
-  value: string | null | undefined,
-  options?: {
-    e2eStoreBridgeEnabled?: boolean;
-  },
-): boolean {
+export function isTrustedCodingPlanWebviewOrigin(value: string | null | undefined): boolean {
   if (!value) return false;
   try {
     const origin = normalizeZCodeEndpointOrigin(value);
@@ -116,8 +107,7 @@ export function isTrustedCodingPlanWebviewOrigin(
     ) {
       return true;
     }
-    const parsed = new URL(origin);
-    return options?.e2eStoreBridgeEnabled === true && isLoopbackHostname(parsed.hostname);
+    return false;
   } catch {
     return false;
   }

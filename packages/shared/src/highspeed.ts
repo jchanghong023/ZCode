@@ -211,8 +211,8 @@ export type HighspeedPrepareTurnResult =
       kind: "accelerated";
       card: HighspeedCardSnapshot;
       nextDrawAt: number;
-      /** Mock 只保留加速业务语义，省略该字段即可继续使用 session 普通推理路由。 */
-      execution?: HighspeedTurnExecution;
+      /** 加速成功必须携带本轮执行材料；不可执行时返回 fallback。 */
+      execution: HighspeedTurnExecution;
     }
   | {
       kind: "fallback";
@@ -226,12 +226,3 @@ export interface HighspeedServiceSnapshot {
   nextDrawAt: number | null;
   drawing: boolean;
 }
-
-export type HighspeedMockScenario =
-  | "hit-fast"
-  | "miss"
-  | "hit-after-timeout"
-  | "hit-invalid-model"
-  | "hit-queue-edit"
-  | "existing-foreign-task-card"
-  | "expired-card";

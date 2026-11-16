@@ -131,20 +131,6 @@ function normalizeHttpsOrigin(candidate: string): string | undefined {
   }
 }
 
-function normalizeLoopbackOrigin(candidate: string): string | undefined {
-  try {
-    const url = new URL(candidate);
-    if (url.username !== "" || url.password !== "") return undefined;
-    const loopback =
-      url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
-    return url.protocol === "http:" && loopback ? url.origin : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export const OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV = "ZCODE_OFFICIAL_MCP_DEV_TRUSTED_ORIGINS";
-
 /** Host 在 spawn 时注入的真实 workspace identity；只用于隔离/审计，不用于文件执行。 */
 export const ZCODE_WORKSPACE_IDENTITY_ENV = "ZCODE_WORKSPACE_IDENTITY";
 
@@ -175,8 +161,6 @@ export interface OfficialMcpTrustResult {
 }
 
 export interface IsOfficialMcpOriginTrustedInput {
-  /** 本地自测开关的原始值（通常来自 env），只放开 http loopback。 */
-  devTrustedOriginsRaw?: string | undefined;
   origin: string;
   /**
    * 声明该 MCP 的插件 id。**不参与信任判定**，仅用于日志与凭证解析的
@@ -189,7 +173,7 @@ export interface IsOfficialMcpOriginTrustedInput {
 
 /**
  * 校验官方 MCP 的凭据目标：要求 HTTPS origin 与运行时 ZCode API origin 相等，
- * 且 URL 不携带 username/password。开发配置只允许显式列出的 HTTP loopback origin。
+ * 且 URL 不携带 username/password。
  *
  * pluginId 用于归属和日志，不是授权过滤条件；任何已加载插件都可以请求官方鉴权。
  * 目的地校验不能替代逐接口的用户权限、套餐和配额校验，也不提供逐插件授权确认。
@@ -203,38 +187,12 @@ export function isOfficialMcpOriginTrusted(
     return { detail: "invalid_input", trusted: false };
   }
 
-  // 本地自测开关：只接受 http loopback，因此无法把凭证导向远端。
-  // 必须先确认**目标 origin 本身是 loopback**：否则两侧 normalize 都得到 undefined，
-  // `undefined === undefined` 会让该开关放开任意 origin（含 https 远端站点）。
-  const loopbackOrigin = normalizeLoopbackOrigin(origin);
-  if (loopbackOrigin) {
-    for (const candidate of parseDevTrustedOrigins(input.devTrustedOriginsRaw)) {
-      if (normalizeLoopbackOrigin(candidate) === loopbackOrigin) {
-        return { detail: "ok", trusted: true };
-      }
-    }
-  }
-
   const expected = input.zcodeApiOrigin ? normalizeHttpsOrigin(input.zcodeApiOrigin) : undefined;
   if (!expected) return { detail: "zcode_origin_unresolved", trusted: false };
   if (normalizeHttpsOrigin(origin) !== expected) {
     return { detail: "origin_mismatch", trusted: false };
   }
   return { detail: "ok", trusted: true };
-}
-
-/**
- * 本地自测开关，值为逗号分隔的 loopback origin，例如 `http://127.0.0.1:3999`。
- * 只对 http loopback 生效：最坏情况是把自己的 JWT 发给本机进程，而本机任意程序本来就能
- * 读到同一份凭证，不构成新的信任面扩张。不设置时行为与未实现该开关时完全一致。
- */
-function parseDevTrustedOrigins(raw: string | undefined): string[] {
-  const value = raw?.trim();
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 /**
@@ -251,8 +209,6 @@ export interface OfficialMcpTrustedOriginRegistry {
 }
 
 export interface CreateOfficialMcpTrustedOriginRegistryOptions {
-  /** 本地自测开关原始值（逗号分隔的 loopback origin），通常来自 env。 */
-  devTrustedOriginsRaw?: string | undefined;
   /** 当前 ZCode API origin 的解析器；两侧必须用等价口径，否则会一侧放行一侧拒绝。 */
   resolveZCodeApiOrigin: () => string | undefined | Promise<string | undefined>;
 }
@@ -270,7 +226,6 @@ export function createOfficialMcpTrustedOriginRegistry(
         return { detail: "zcode_origin_unresolved", trusted: false };
       }
       return isOfficialMcpOriginTrusted({
-        devTrustedOriginsRaw: options.devTrustedOriginsRaw,
         origin,
         pluginId,
         zcodeApiOrigin,

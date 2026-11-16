@@ -30,7 +30,7 @@ import {
   type ZCodeConfigOption,
   type ZCodeProvider,
 } from "@zcode/shared";
-import { TID_V4_MODEL_CONFIG, TID_V4_COMPOSER_INPUT } from "@zcode/shared/test-ids";
+import { TID_V4_COMPOSER_INPUT } from "@zcode/shared/test-ids";
 import type {
   SessionConfigState,
   SessionPhase,
@@ -1147,33 +1147,6 @@ function V4ComposerModelControlsImpl({
 
   return (
     <>
-      {/*
-        e2e 契约（TID_V4_MODEL_CONFIG）：Composer/usage 状态的 data-* 属性锚点。
-        Bug 原因：跨模型切换会主动清除源模型的显式 thought；此时可见控件已按目标模型
-        Option Spec 展示默认档位，但旧锚点仍暴露空的原始投影。data-thought 必须与用户
-        实际看到的受控值一致，不能重新引入一份草稿状态。
-      */}
-      <span
-        data-testid={TID_V4_MODEL_CONFIG}
-        data-source={effectiveConfig || draftConfig?.mode ? "composer" : ""}
-        data-provider={effectiveConfig?.provider ?? ""}
-        data-model={effectiveConfig?.model ?? ""}
-        data-thought={
-          thoughtOption?.type === "select"
-            ? String(thoughtOption.currentValue ?? "")
-            : (effectiveConfig?.thought ?? "")
-        }
-        data-thought-levels={
-          thoughtOption?.type === "select"
-            ? (thoughtOption.options ?? []).map((option) => option.value).join(",")
-            : ""
-        }
-        data-mode={draftConfig?.mode ?? ""}
-        data-plan-enabled={draftConfig?.planEnabled ?? false}
-        data-usage-used={usage?.contextWindow?.usedTokens ?? ""}
-        data-usage-max={usage?.contextWindow?.maxTokens ?? ""}
-        className="hidden"
-      />
       {/* 模型锁定时隐藏 usage 圈，避免切换过程中闪现。 */}
       {!modelLocked ? (
         <ChatContextUsage

@@ -53,7 +53,6 @@ import {
   admitsNewEntry,
   seatWorkflowNode,
   withRoomForActor,
-  type WorkflowRunEntryLimits,
 } from "./workflow-runs-eviction.js";
 import {
   reduceConcurrencyChanged,
@@ -114,13 +113,11 @@ export interface WorkflowRunProgressEnvelope {
  * 内容逐字节相同。调用方据此决定不发 `state.updated` / 不刷 UI——revision 因此只在真有
  * 变化时抬升（幂等重放不抬 revision）。
  *
- * `previous` 缺席等价于空态 `{ revision: 0, runs: [] }`。`limits` 只为测试留的注入口，默认就是
- * {@link WORKFLOW_RUNS_LIMITS}（生产上没有第二套界）。
+ * `previous` 缺席等价于空态 `{ revision: 0, runs: [] }`。
  */
 export function reduceWorkflowRunsState(
   previous: WorkflowRunsState | undefined,
   envelope: WorkflowRunProgressEnvelope,
-  limits: WorkflowRunEntryLimits = WORKFLOW_RUNS_LIMITS,
 ): WorkflowRunsState | null {
   const runId = envelope.runId;
   if (!runId || typeof envelope.eventType !== "string") return null;
@@ -151,7 +148,6 @@ export function reduceWorkflowRunsState(
       // 被拒实例的计数器是**加出来**的，没有可去重的身份，所以只认抬过水位的事件
       // （见 workflow-runs-caps.ts）。水位取的是**本条事件之前**的值。
       advancesWaterMark: sequence > base.lastEventSequence,
-      limits,
     }),
   );
 
@@ -164,8 +160,6 @@ export function reduceWorkflowRunsState(
     ? prior.runs.map((run) => (run.runId === runId ? next : run))
     : [...prior.runs, next];
   // 最近 ~8 个，按最旧淘汰。终态 run 的完整事实仍在 journal（详情页经事件日志 query 可取）。
-  // 这两条**跨 run** 的界用的是真常量，不走 `limits` 注入口：后者只为把单条 run 的表压小，
-  // 而 run 条数与条目预算跟被注入的那些规则无关。
   const bounded =
     runs.length > WORKFLOW_RUNS_LIMITS.maxRuns
       ? runs.slice(runs.length - WORKFLOW_RUNS_LIMITS.maxRuns)
@@ -183,7 +177,6 @@ function applyWorkflowRunEvent(
     toolCallId?: string;
     sequence: number;
     advancesWaterMark: boolean;
-    limits: WorkflowRunEntryLimits;
   },
 ): WorkflowRunState {
   const run: WorkflowRunState = {
@@ -209,14 +202,19 @@ function applyWorkflowRunEvent(
       const actor = workflowActorEntry(ref, payload.name, phaseName, actorSessionId, payload.model);
       // 表满时给这个活的新人腾位（workflow-runs-eviction.ts）；腾不出位就照旧拒新。
       // 重放的事件既不腾位也不入座（后者只在**溢出过的** run 上收紧，见 admitsNewEntry）。
-      const seated = derived.advancesWaterMark ? withRoomForActor(run, ref, derived.limits) : run;
-      const upserted = upsertBoundedByInstance(seated.actors, actor, derived.limits.maxActors, {
-        admitNew: admitsNewEntry(run, derived.advancesWaterMark),
-      });
+      const seated = derived.advancesWaterMark ? withRoomForActor(run, ref) : run;
+      const upserted = upsertBoundedByInstance(
+        seated.actors,
+        actor,
+        WORKFLOW_RUNS_LIMITS.maxActors,
+        {
+          admitNew: admitsNewEntry(run, derived.advancesWaterMark),
+        },
+      );
       // 被拒的子代理也要可数：run 级没有 actor 计数器，它唯一的痕迹是自己出生阶段那一格。
       const absorbed =
         upserted.truncated && derived.advancesWaterMark
-          ? absorbRefusedActor(seated, phaseName, derived.limits)
+          ? absorbRefusedActor(seated, phaseName)
           : seated;
       return withDerivedWorkflowActorStatuses({
         ...absorbed,
@@ -256,18 +254,14 @@ function applyWorkflowRunEvent(
             )
           : null;
       // 腾位、B2 的拒绝与 activation 三件事的唯一入口（workflow-runs-eviction.ts）。
-      const seating = seatWorkflowNode(
-        run,
-        {
-          eventType,
-          ref,
-          actorRef,
-          actor: dispatchActor,
-          born,
-          advancesWaterMark: derived.advancesWaterMark,
-        },
-        derived.limits,
-      );
+      const seating = seatWorkflowNode(run, {
+        eventType,
+        ref,
+        actorRef,
+        actor: dispatchActor,
+        born,
+        advancesWaterMark: derived.advancesWaterMark,
+      });
       const seated = seating.run;
       const previousNode = seated.nodes.find(
         (node) => node.siteId === ref.siteId && node.ordinal === ref.ordinal,
@@ -300,9 +294,14 @@ function applyWorkflowRunEvent(
         // 规则在同族的 workflow-runs-node-progress.ts（那里也讲了为什么必须显式携带）。
         ...carryNodeProgress(eventType, payload, previousNode),
       };
-      const upsertedNodes = upsertBoundedByInstance(seated.nodes, node, derived.limits.maxNodes, {
-        admitNew: seating.admitNew,
-      });
+      const upsertedNodes = upsertBoundedByInstance(
+        seated.nodes,
+        node,
+        WORKFLOW_RUNS_LIMITS.maxNodes,
+        {
+          admitNew: seating.admitNew,
+        },
+      );
       // 步数：一个实例**首次**派发计一步。重放同一条 node-dispatched 时 previousNode 已在
       // dispatched 之后的相位，不再计数——归约必须幂等（顶层靠结构比对判「无变化」）。
       // 触界被拒的实例查不到 previousNode，会照常计数：步数是 run 级事实，不受展示界约束。
@@ -330,7 +329,7 @@ function applyWorkflowRunEvent(
       // 摘掉那个带不进自己节点的 actor（workflow-runs-eviction.ts）。
       const absorbed =
         upsertedNodes.truncated && derived.advancesWaterMark && born && phase === "settled"
-          ? absorbRefusedSettledNode(seated, node, derived.limits)
+          ? absorbRefusedSettledNode(seated, node)
           : seated;
       return withDerivedWorkflowActorStatuses({
         ...absorbed,

@@ -31,10 +31,6 @@ export function setSendFunnelArmsReporter(reporter: ArmsReporter | null): void {
   armsReporter = reporter;
 }
 
-export function clearSendFunnelArmsReporterForTest(): void {
-  armsReporter = null;
-}
-
 // 原因:ARMS 属观测链路,发送主链路不得因埋点失败而中断。
 function emit(payload: ArmsCustomEventPayload): void {
   if (!armsReporter) {

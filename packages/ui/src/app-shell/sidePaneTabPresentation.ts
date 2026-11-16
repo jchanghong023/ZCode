@@ -5,7 +5,6 @@ export interface SidePaneTabPresentationLabels {
   fileManagerTitle?: string;
   reviewTitle: string;
   codeViewerTitle: string;
-  developerToolsTitle: string;
   newTabTitle?: string;
   terminalTitle: string;
   subagentTypeLabel: string;
@@ -51,9 +50,6 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "new-tab") return "new tab launcher";
   if (tab.type === "git") return "git diff";
-  if (tab.type === "developer-tools") {
-    return "developer tools token debug network status request response headers";
-  }
   if (tab.type === "bash-output") return `${tab.title} terminal shell command`;
   if (tab.type === "file-manager") return `${tab.target.workspacePath} ${tab.source?.path ?? ""}`;
   return tab.source.path ?? tab.source.title;
@@ -63,28 +59,24 @@ export function getLocalizedSidePaneTabTitle(
   tab: WorkspaceSidePaneTab,
   labels: SidePaneTabPresentationLabels,
 ): string {
-  return getSidePaneTabTitle(
-    tab,
-    (descriptor) => {
-      const titleByMessageId: Record<string, string> = {
-        "sidePane.newTab": labels.newTabTitle ?? "New tab",
-        "fileManager.title": labels.fileManagerTitle ?? labels.codeViewerTitle,
-        "sidePane.review": labels.reviewTitle,
-        "codeViewer.title": labels.codeViewerTitle,
-        "developerTools.title": labels.developerToolsTitle,
-        "terminal.title": labels.terminalTitle,
-        "sidePane.subagent": labels.subagentTypeLabel,
-        "sidePane.subagentDirectory": labels.subagentDirectoryTitle,
-        "sidePane.selectionChat": labels.selectionChatTitle,
-        "planTool.panel.planTab": labels.planTitle,
-        "sidePane.workflowRun": labels.workflowRunTitle,
-        "sidePane.workflowActor": labels.workflowActorTitle,
-        "sidePane.workflowScript": labels.workflowScriptTitle,
-        "sidePane.workflowArtifact": labels.workflowArtifactTitle,
-      };
-      return titleByMessageId[descriptor.id] ?? descriptor.id;
-    },
-  );
+  return getSidePaneTabTitle(tab, (descriptor) => {
+    const titleByMessageId: Record<string, string> = {
+      "sidePane.newTab": labels.newTabTitle ?? "New tab",
+      "fileManager.title": labels.fileManagerTitle ?? labels.codeViewerTitle,
+      "sidePane.review": labels.reviewTitle,
+      "codeViewer.title": labels.codeViewerTitle,
+      "terminal.title": labels.terminalTitle,
+      "sidePane.subagent": labels.subagentTypeLabel,
+      "sidePane.subagentDirectory": labels.subagentDirectoryTitle,
+      "sidePane.selectionChat": labels.selectionChatTitle,
+      "planTool.panel.planTab": labels.planTitle,
+      "sidePane.workflowRun": labels.workflowRunTitle,
+      "sidePane.workflowActor": labels.workflowActorTitle,
+      "sidePane.workflowScript": labels.workflowScriptTitle,
+      "sidePane.workflowArtifact": labels.workflowArtifactTitle,
+    };
+    return titleByMessageId[descriptor.id] ?? descriptor.id;
+  });
 }
 
 export function getSidePaneTabTypeLabel(
@@ -105,7 +97,6 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "subagent-directory") return labels.subagentDirectoryTitle;
   if (tab.type === "file-manager") return labels.fileManagerTitle ?? labels.codeViewerTitle;
   if (tab.type === "git") return labels.reviewTitle;
-  if (tab.type === "developer-tools") return labels.developerToolsTitle;
   if (tab.type === "bash-output") return labels.terminalTitle;
   return labels.codeViewerTitle;
 }

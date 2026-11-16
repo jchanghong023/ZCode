@@ -587,10 +587,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     url.username = "";
     url.password = "";
     url.hash = "";
-    // 修复：未知查询参数的值可能是敏感数据，仅保留产品已知的非敏感 demo 参数。
-    for (const key of Array.from(url.searchParams.keys())) {
-      if (key !== "demo") url.searchParams.delete(key);
-    }
+    // 未知查询值可能包含敏感信息，分享链接只从当前业务定位事实构造。
+    url.search = "";
     url.searchParams.set("aireqProject", target.projectId);
     url.searchParams.set("aireqRelease", group.releaseId);
     url.searchParams.set("aireqIr", target.irId);
