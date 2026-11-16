@@ -104,15 +104,18 @@ export function AIReqFormalTable() {
   return (
     // 修复：详情分栏打开时按表格面板而非整个工作区计算内容宽度。
     <main
-      className="@container/conversation h-full min-h-0 min-w-0 overflow-hidden bg-background"
+      className="@container/conversation h-full min-h-0 min-w-0 overflow-hidden bg-background [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-formal-table"
       aria-label={zh ? "正式需求" : "Formal requirements"}
     >
       <div
         className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
       >
-        <header className="shrink-0 space-y-3">
-          <AIReqRequirementViews />
+        {/* 修复：与提案共用导航行高、顶部间距和滚动槽，切换视图时不移动页签及表格。 */}
+        <header className="shrink-0 space-y-4 pt-4">
+          <div className="flex h-8 items-center">
+            <AIReqRequirementViews />
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />

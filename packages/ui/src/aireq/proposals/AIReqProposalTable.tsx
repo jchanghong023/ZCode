@@ -240,11 +240,13 @@ export function AIReqProposalTable() {
   return (
     <main
       aria-label={zh ? "需求提案" : "Proposals"}
-      className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]"
+      className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
     >
-      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-4`}>
+      <div
+        className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex h-full min-h-0 flex-col gap-4 pb-2 lg:pb-2`}
+      >
         {/* 页签已标明提案视图；操作与视图同排，避免重复标题和分散的操作行。 */}
-        <header className="flex flex-wrap items-center justify-between gap-3 pt-4">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 pt-4">
           <AIReqRequirementViews />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
@@ -288,7 +290,7 @@ export function AIReqProposalTable() {
             </Button>
           </div>
         </header>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <div className="relative min-w-60 flex-1">
             <Search
               aria-hidden="true"
@@ -423,7 +425,7 @@ export function AIReqProposalTable() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-2">
           <Button
             variant="outline"
             disabled={!currentPage}
