@@ -221,7 +221,7 @@ export function AnalysisHistoryTable({
     <TrackingTableScroll label="执行历史表格">
       <table data-testid="analysis-history-table" className={`${tableClass} min-w-[640px]`}>
         <colgroup>
-          <col className="w-[44%]" />
+          <col className="w-[36%]" />
           <col className="w-36" />
           <col />
           <col className="w-14" />
@@ -262,14 +262,28 @@ export function AnalysisHistoryTable({
                 </ControlHintTooltip>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
-                <Status value={run.status}>{runLabels[run.status]}</Status>
-                {!run.branch?.trim() && (
-                  <p className="mt-1 text-ui-sm text-destructive">开发分支缺失</p>
-                )}
-                <p className="mt-2 text-ui-sm text-foreground-subtle">进度（执行前 → 后）</p>
-                <p className="tabular-nums">
-                  {run.before}% → {run.after}%
-                </p>
+                {/* 分离的进度标签和分支提示会撑高结果列；状态与异常同排，进度合并为第二行。 */}
+                <div className="flex min-w-0 items-center gap-2">
+                  <Status value={run.status}>{runLabels[run.status]}</Status>
+                  {!run.branch?.trim() && (
+                    <ControlHintTooltip title="开发分支缺失">
+                      <p
+                        tabIndex={0}
+                        className="min-w-0 truncate rounded-sm text-ui-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                      >
+                        开发分支缺失
+                      </p>
+                    </ControlHintTooltip>
+                  )}
+                </div>
+                <ControlHintTooltip title={`进度（执行前 → 后）：${run.before}% → ${run.after}%`}>
+                  <p
+                    tabIndex={0}
+                    className="mt-1 truncate rounded-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                  >
+                    进度：{run.before}% → {run.after}%
+                  </p>
+                </ControlHintTooltip>
               </MarkdownTableCell>
               <MarkdownTableCell className="px-2 py-3 text-right align-middle">
                 <Button

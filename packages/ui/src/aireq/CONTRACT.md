@@ -20,7 +20,7 @@ onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自
 
 ## 第 3 组项目进度与导航
 
-六个真实导航依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；登录及刷新仍默认待办。主页面共用宽于设置的居中内容列和标题起点；设置保持原生设置内容列。`AIReqMainView` 的 `projectProgress` 挂载真实项目页。项目页只读既有 `readWorkflow` 返回的可选 `view.projectProgress`，经本模块 `contract.ts` 转出 `AIReqProjectProgress`／`AIReqProgressSummary`；不增加 RPC、聚合写入或本地业务缓存。
+六个真实导航依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；登录及刷新默认项目进度（Skill 当前隐藏规则见上文）。主页面共用宽于设置的居中内容列和标题起点；设置保持原生设置内容列。`AIReqMainView` 的 `projectProgress` 挂载真实项目页。项目页只读既有 `readWorkflow` 返回的可选 `view.projectProgress`，经本模块 `contract.ts` 转出 `AIReqProjectProgress`／`AIReqProgressSummary`；不增加 RPC、聚合写入或本地业务缓存。
 
 全项目表始终读取各项目的 `total`，展示项目名称、提案数、正式 IR 数及总进度。下方当前项目详情只使用 Context 唯一项目／Release 选择：全部 Release 读 `total`，具体 Release 读同项目 `releases` 的对应汇总；详情列出全部正式 IR 原文、Release、SR 数、未分析数与进度，并复用正式 IR/SR 同页报告入口。无正式 SR 的 `percent: null` 是空态，不是 0%；缺少投影、读取中及错误也不得伪造 0。
 
@@ -28,7 +28,7 @@ onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自
 
 ## 第 2 组交互合同
 
-登录默认“待办列表”；第 2 组原有四页现已接入上述六导航，依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；历史五导航／设置 Skill 仅描述当时版本，不是当前入口要求。正式／提案／分析共用项目及 Release，支持全部 Release 读取、具体 Release 创建；待办跨项目。项目／Release 与前进后退消费同一未保存门禁，不自动建项目或偷偷切其他项目。
+登录默认“项目进度”；第 2 组原有四页现已接入上述六导航，依次为项目进度、待办列表、正式需求、需求提案、进度分析、Skill 设计；历史默认待办／五导航／设置 Skill 仅描述当时版本，不是当前入口要求。正式／提案／分析共用项目及 Release，支持全部 Release 读取、具体 Release 创建；待办跨项目。项目／Release 与前进后退消费同一未保存门禁，不自动建项目或偷偷切其他项目。
 
 提案工具栏为新增、导入、导出，表格为提交人／原始需求／提交日期／状态加讨论操作；不挂旧侧栏提案列表或独立新建导航。保存短需求后刷新并留表，不生成 SR 或 AI，失败保留输入；主动讨论才绑定阶段会话。UTF-8 单列 CSV 模板、预览、整批校验、重复提示及全匹配原文导出均走业务 owner；材料阅读器仍只读无导出按钮，二者不能混为同一导出规则。
 

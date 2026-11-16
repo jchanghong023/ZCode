@@ -65,7 +65,7 @@ export const useAIReq = () => useContext(AIReqContext);
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
   const source = useAIReqDataSource();
-  // 登录默认待办；不恢复上一工号的会话或未发送提案。
+  // 登录默认项目进度；不恢复上一工号的会话或未发送提案。
   const [selection, setSelection] = useState<AIReqSelection>(() => ({
     projectId: source.initialSelection.projectId,
   }));
@@ -77,7 +77,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }>(() => ({
     index: 0,
     extent: 0,
-    mainView: "todos",
+    mainView: "projectProgress",
   }));
   const navigationRef = useRef(navigation);
   const releaseRef = useRef("");

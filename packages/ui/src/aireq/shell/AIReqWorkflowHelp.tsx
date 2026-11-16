@@ -23,8 +23,8 @@ const steps = [
   {
     section: "待办与提案", sectionEn: "Todos and proposals",
     title: "保存原始短需求", titleEn: "Save the original request",
-    description: "登录默认待办列表，支持我的、待认领、全部和跨项目筛选。提案表工具栏依次为新增、导入、导出；新增只保存原文并停留表格，不运行 AI。CSV 是 UTF-8 单列“原始需求”，预览后原子导入；空行跳过，重复提示但不去重，导出包含全部筛选原文。新增与导入必须选择具体 Release。",
-    descriptionEn: "Sign-in opens service-derived todos across projects, with Mine, Unassigned and All filters. The proposal toolbar offers New, Import and Export. Saving stays in the table and never starts AI. UTF-8 single-column CSV is previewed and imported atomically; blank rows are skipped and duplicates retained. Export includes every filtered original text. Creation requires a specific Release.",
+    description: "登录默认项目进度；待办列表支持我的、待认领、全部和跨项目筛选。提案表工具栏依次为新增、导入、导出；新增只保存原文并停留表格，不运行 AI。CSV 是 UTF-8 单列“原始需求”，预览后原子导入；空行跳过，重复提示但不去重，导出包含全部筛选原文。新增与导入必须选择具体 Release。",
+    descriptionEn: "Sign-in opens Project progress. Service-derived todos support Mine, Unassigned and All filters across projects. The proposal toolbar offers New, Import and Export. Saving stays in the table and never starts AI. UTF-8 single-column CSV is previewed and imported atomically; blank rows are skipped and duplicates retained. Export includes every filtered original text. Creation requires a specific Release.",
   },
   {
     title: "澄清与单 Agent 评审", titleEn: "Clarification and single-agent review",
@@ -104,8 +104,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "主导航依次为项目进度、待办列表、正式需求、需求提案、进度分析；登录默认待办。提案表详情复用原生 AI 讨论与右侧只读材料；历史只读。待办由服务端业务事实派生，实际操作后自动消失，不提供任意新建或勾选完成。"
-              : "Navigate through Project progress, Todos, Formal requirements, Proposals and Progress analysis; sign-in still opens Todos. Proposal details reuse native AI discussion and read-only materials, including history. Todos are derived by the service and disappear after actual business actions; there are no manually created or checked-off tasks."}
+              ? "主导航依次为项目进度、待办列表、正式需求、需求提案、进度分析；登录默认项目进度。提案表详情复用原生 AI 讨论与右侧只读材料；历史只读。待办由服务端业务事实派生，实际操作后自动消失，不提供任意新建或勾选完成。"
+              : "Navigate through Project progress, Todos, Formal requirements, Proposals and Progress analysis; sign-in opens Project progress. Proposal details reuse native AI discussion and read-only materials, including history. Todos are derived by the service and disappear after actual business actions; there are no manually created or checked-off tasks."}
             {source.provenance.kind === "sample" &&
               (zh
                 ? "所有演示操作保存于共享后端内存，刷新保留、后端重启恢复样例。"

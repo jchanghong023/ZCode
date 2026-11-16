@@ -1,5 +1,12 @@
-import { FolderGit2 } from "lucide-react";
+import { FolderGit2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { Progress } from "@/components/ui/progress.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -112,14 +119,21 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                 <OverviewProgress percent={summary.percent} label={project.name} zh={zh} />
               </div>
               <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-                <table className="w-full min-w-[680px] text-left">
-                  <thead className="text-ui-sm text-foreground-subtle"><tr>{(zh ? ["正式需求原文／编号", "Release", "SR 数／未分析", "IR 进度", "同页报告"] : ["Original request / IR", "Release", "SRs / Unanalyzed", "IR progress", "Same-page report"]).map((label) => <th key={label} className="border-b border-border px-4 py-3 font-medium">{label}</th>)}</tr></thead>
+                <table className="w-full min-w-[680px] table-fixed text-left" aria-label={zh ? "项目正式需求进度表" : "Project formal requirement progress"}>
+                  <colgroup>
+                    <col className="w-[32%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[16%]" />
+                    <col />
+                    <col className="w-14" />
+                  </colgroup>
+                  <thead className="text-ui-sm text-foreground-subtle"><tr>{(zh ? ["正式需求原文／编号", "Release", "SR 数／未分析", "IR 进度", "操作"] : ["Original request / IR", "Release", "SRs / Unanalyzed", "IR progress", "Actions"]).map((label, index) => <th key={label} className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}>{label}</th>)}</tr></thead>
                   <tbody>
                     {summary.requirements.map((item) => {
                       const srs = view?.srs.filter((sr) => sr.projectId === project.id && sr.irId === item.irId) ?? [];
                       const itemRelease = releases.find((entry) => entry.id === item.releaseId);
-                      return <tr key={item.irId} className="border-b border-border/50 last:border-0 hover:bg-surface-hover">
-                        <td className="max-w-80 px-4 py-3">
+                      return <tr key={item.irId} className="group/row border-b border-border/50 last:border-0 hover:bg-surface-hover">
+                        <td className="px-4 py-3">
                           <Button variant="ghost" className="h-auto w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => openReport(item.irId)}>{item.originalText}</Button>
                           <span className="block text-ui-sm text-foreground-subtle">{item.irId}</span>
                         </td>
@@ -129,10 +143,34 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                           {item.unanalyzedCount > 0 && <span className="block text-foreground-subtle">{zh ? `${item.unanalyzedCount} 未分析（按 0 计）` : `${item.unanalyzedCount} unanalyzed (zero)`}</span>}
                         </td>
                         <td className="px-4 py-3"><OverviewProgress percent={item.percent} label={item.irId} zh={zh} /></td>
-                        <td className="px-4 py-3"><div className="flex max-w-56 flex-wrap gap-1">
-                          <Button variant="outline" size="sm" onClick={() => openReport(item.irId)} aria-label={zh ? `查看 ${item.irId} 报告` : `View ${item.irId} report`}>IR</Button>
-                          {srs.map((sr) => <Button key={sr.id} variant="ghost" size="sm" title={sr.title} onClick={() => openReport(item.irId, sr.id)} aria-label={zh ? `查看 ${sr.id} 报告` : `View ${sr.id} report`}>{sr.id}</Button>)}
-                        </div></td>
+                        <td className="px-2 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                                aria-label={zh ? `${item.irId} 的报告操作` : `Report actions for ${item.irId}`}
+                              >
+                                <MoreHorizontal aria-hidden="true" className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="max-w-80">
+                              <DropdownMenuItem onSelect={() => openReport(item.irId)}>
+                                {zh ? "查看 IR 报告" : "View IR report"}
+                              </DropdownMenuItem>
+                              {srs.length > 0 && <DropdownMenuSeparator />}
+                              {srs.map((sr) => (
+                                <DropdownMenuItem key={sr.id} onSelect={() => openReport(item.irId, sr.id)} aria-label={zh ? `查看 ${sr.id} 报告` : `View ${sr.id} report`}>
+                                  <span className="min-w-0 whitespace-normal break-words">
+                                    <span className="block">{sr.title}</span>
+                                    <span className="block text-ui-sm text-foreground-subtle">{sr.id}</span>
+                                  </span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
                       </tr>;
                     })}
                     {!summary.requirements.length && <tr><td colSpan={5} className="px-4 py-6 text-foreground-subtle">{zh ? "此范围暂无正式需求。提案不参与进度计算。" : "No formal requirements in this scope. Proposals do not contribute to progress."}</td></tr>}
