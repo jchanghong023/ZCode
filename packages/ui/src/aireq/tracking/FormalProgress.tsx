@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   PanelRightClose,
   Search,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -188,7 +189,7 @@ export function AIReqFormalTable() {
                   <MarkdownTableHead
                     key={title}
                     scope="col"
-                    className={`h-10 min-w-0 whitespace-nowrap px-4 font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
+                    className={`h-10 min-w-0 whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "sticky left-0 z-30 bg-background" : ""}`}
                     // surface 含透明度：固定首列需一次性合成不透明底色，不能透出横滚后的内容。
                     style={
                       index === 0
@@ -231,6 +232,13 @@ export function AIReqFormalTable() {
                   ...new Set(
                     srs.flatMap((sr) =>
                       sr.developerEmployeeId ? [sr.developerEmployeeId] : [],
+                    ),
+                  ),
+                ];
+                const testers = [
+                  ...new Set(
+                    srs.flatMap((sr) =>
+                      sr.testingEmployeeId ? [sr.testingEmployeeId] : [],
                     ),
                   ),
                 ];
@@ -320,21 +328,16 @@ export function AIReqFormalTable() {
                         )}
                       </MarkdownTableCell>
                       <MarkdownTableCell className="px-4 py-3 align-middle">
-                        <ControlHintTooltip title={developers.join("、") || "暂无开发人员"}>
-                          <p
-                            tabIndex={0}
-                            className="line-clamp-2 rounded-sm text-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                          >
-                            开发：{developers.join("、") || "未分配"}
-                          </p>
-                        </ControlHintTooltip>
-                        <PlanRange start={plan.plannedStart} end={plan.plannedEnd} />
-                        {plan.incomplete && (
-                          <p className="text-ui-sm text-foreground-subtle">部分未排期</p>
-                        )}
-                        <PlanningAlert warnings={warnings} />
+                        <PersonnelPlan
+                          developer={developers.join("、") || "未分配"}
+                          tester={testers.join("、") || "未分配"}
+                          start={plan.plannedStart}
+                          end={plan.plannedEnd}
+                          incomplete={plan.incomplete}
+                          warnings={warnings}
+                        />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="min-w-0 px-4 py-3 align-middle">
+                      <MarkdownTableCell className="min-w-0 px-2 py-3 align-middle">
                         <FormalActions
                           group={group}
                           onDetail={() => open(group)}
@@ -407,16 +410,15 @@ export function AIReqFormalTable() {
                               )}
                             </MarkdownTableCell>
                             <MarkdownTableCell className="px-4 py-3 align-middle">
-                              <p className="break-words text-ui-sm">
-                                开发：{sr.developerEmployeeId ?? "待认领"} · 测试：{sr.testingEmployeeId ?? "待认领"}
-                              </p>
-                              <PlanRange
+                              <PersonnelPlan
+                                developer={sr.developerEmployeeId ?? "待认领"}
+                                tester={sr.testingEmployeeId ?? "待认领"}
                                 start={sr.planning?.plannedStart}
                                 end={sr.planning?.plannedEnd}
+                                warnings={warnings}
                               />
-                              <PlanningAlert warnings={warnings} />
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="min-w-0 px-4 py-3 align-middle">
+                            <MarkdownTableCell className="min-w-0 px-2 py-3 align-middle">
                               <FormalActions
                                 group={group}
                                 sr={sr}
@@ -511,34 +513,55 @@ function TestIssueCount({ count }: { count: number }) {
   return count > 0 ? <p className="mt-1 text-ui-sm text-destructive">未解决测试问题：{count} 项</p> : null;
 }
 
-function PlanRange({ start, end }: { start?: string; end?: string }) {
+function PersonnelPlan({
+  developer,
+  tester,
+  start,
+  end,
+  incomplete,
+  warnings,
+}: {
+  developer: string;
+  tester: string;
+  start?: string;
+  end?: string;
+  incomplete?: boolean;
+  warnings: string[];
+}) {
+  const plan = `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}${incomplete ? "（部分未排期）" : ""}`;
+  const planDetail = [
+    `计划开始：${start?.replace("T", " ") || "未排期"}`,
+    `计划结束：${end?.replace("T", " ") || "未排期"}`,
+    ...(incomplete ? ["部分未排期"] : []),
+    ...warnings,
+  ].join("\n");
   return (
-    <ControlHintTooltip
-      title={`计划开始：${start?.replace("T", " ") || "未排期"}\n计划结束：${end?.replace("T", " ") || "未排期"}`}
-    >
-      <p
-        tabIndex={0}
-        className="mt-1 rounded-sm text-ui-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        计划：{planningDate(start).split(" ")[0]} → {planningDate(end).split(" ")[0]}
-      </p>
-    </ControlHintTooltip>
-  );
-}
-
-function PlanningAlert({ warnings }: { warnings: string[] }) {
-  if (!warnings.length) return null;
-  return (
-    <ControlHintTooltip
-      title={`${warnings[0]}${warnings.length > 1 ? `（另 ${warnings.length - 1} 项，见详情）` : ""}`}
-    >
-      <p
-        tabIndex={0}
-        className="mt-1 rounded-sm text-ui-sm text-warning-surface-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        排期冲突／需协调
-      </p>
-    </ControlHintTooltip>
+    <div className="min-w-0 space-y-1 text-ui-sm">
+      {[`开发：${developer}`, `测试：${tester}`].map((text) => (
+        <ControlHintTooltip key={text} title={text}>
+          <p
+            tabIndex={0}
+            className="truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {text}
+          </p>
+        </ControlHintTooltip>
+      ))}
+      <ControlHintTooltip title={planDetail}>
+        <p
+          tabIndex={0}
+          className="flex min-w-0 items-center gap-1 rounded-sm text-foreground-subtle tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {warnings.length > 0 && (
+            <>
+              <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning-surface-foreground" />
+              <span className="sr-only">排期冲突／需协调：</span>
+            </>
+          )}
+          <span className="min-w-0 truncate">{plan}</span>
+        </p>
+      </ControlHintTooltip>
+    </div>
   );
 }
 
@@ -567,9 +590,9 @@ function FormalActions({
       >
         <PopoverTrigger asChild>
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
-            className="pointer-events-none shrink-0 rounded-md text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-hover focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+            className="pointer-events-none size-8 shrink-0 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-hover focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
             aria-label={`${sr?.title ?? group.title}的更多操作`}
           >
             <MoreHorizontal className="size-4" />
