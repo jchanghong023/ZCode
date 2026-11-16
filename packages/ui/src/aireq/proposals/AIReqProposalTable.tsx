@@ -1,7 +1,6 @@
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { MoreHorizontal } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
@@ -16,6 +15,13 @@ import {
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,31 +30,73 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { proposalPhaseLabel } from "../contract.js";
-import { downloadProposalCsv, parseProposalCsv, type ProposalCsvPreview } from "./proposal-csv.js";
+import { downloadProposalCsv, parseProposalCsv } from "./proposal-csv.js";
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const [query, setQuery] = useState("");
   const [submitter, setSubmitter] = useState("");
   const [phase, setPhase] = useState("");
   const [page, setPage] = useState(0);
   const [text, setText] = useState("");
-  const [importOpen, setImportOpen] = useState(false);
+  const importOpen = ai.proposalImportOpen;
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
-  const [preview, setPreview] = useState<ProposalCsvPreview | null>(null);
+  const [csvContent, setCsvContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
-  const [csvError, setCsvError] = useState("");
+  const [fileError, setFileError] = useState("");
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [operationId, setOperationId] = useState(() => createUuid());
   const [baseline, setBaseline] = useState<number>();
   const fileGeneration = useRef(0);
   const { setDraftNavigationGuard } = ai;
+  const groups = useMemo(
+    () =>
+      (ai.view?.drafts ?? []).filter(
+        (item) =>
+          item.projectId === ai.selection.projectId &&
+          (!ai.releaseId || item.releaseId === ai.releaseId),
+      ),
+    [ai.view?.drafts, ai.selection.projectId, ai.releaseId],
+  );
+  const releases = (ai.view?.releases ?? []).filter(
+    (item) => item.projectId === ai.selection.projectId,
+  );
+  // 修复：预览可以先于 Release 选择；保留 CSV 原文并按当前范围重算重复行，避免沿用旧版本提示。
+  const parsedCsv = useMemo(() => {
+    if (csvContent === null) return { preview: null, error: "" };
+    try {
+      return {
+        preview: parseProposalCsv(
+          csvContent,
+          groups.map((item) => item.originalText),
+        ),
+        error: "",
+      };
+    } catch (error) {
+      return {
+        preview: null,
+        error: error instanceof Error ? error.message : "无法读取 UTF-8 CSV。",
+      };
+    }
+  }, [csvContent, groups]);
+  const preview = parsedCsv.preview;
+  const csvError = fileError || parsedCsv.error;
   const dirty = Boolean(text || (importOpen && preview));
+  // 修复：列表保持挂载以恢复筛选，切换项目时不能沿用上一个项目的筛选条件。
+  useEffect(() => {
+    setQuery("");
+    setSubmitter("");
+    setPhase("");
+    setPage(0);
+  }, [ai.selection.projectId]);
   useEffect(() => {
     if (!dirty) return;
     // 原生确认框与应用交互不一致；暂存一次导航，待应用内确认后再执行。
@@ -73,26 +121,63 @@ export function AIReqProposalTable() {
     },
     [],
   );
-  const groups = (ai.view?.drafts ?? []).filter(
-    (item) =>
-      item.projectId === ai.selection.projectId &&
-      (!ai.releaseId || item.releaseId === ai.releaseId),
-  );
+  useEffect(() => {
+    if (!importOpen) return;
+    // 修复：浏览器后退关闭导入后，迟到的文件读取不能污染下次打开的预览。
+    const generation = fileGeneration;
+    return () => {
+      generation.current++;
+    };
+  }, [importOpen]);
   const filtered = groups.filter(
     (item) =>
-      (!query || item.originalText.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
+      (!query ||
+        item.originalText.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
+        item.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
       (!submitter || item.submittedBy.includes(submitter)) &&
       (!phase || proposalPhaseLabel(item) === phase),
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
-  const ready = Boolean(ai.selection.projectId && ai.releaseId);
+  const ready = releases.some((release) => release.id === ai.releaseId);
+  const releaseSelector = (
+    <div className="space-y-2">
+      <Label>{zh ? "所属 Release" : "Release"}</Label>
+      <Select
+        value={ai.releaseId || undefined}
+        disabled={busy || !releases.length}
+        onValueChange={(id) => {
+          // 修复：弹窗内切换范围是同一表单的选择，不应触发离开门禁或丢弃输入。
+          ai.setReleaseId(id, { inProposalDialog: true });
+          setBaseline(undefined);
+          setOperationId(createUuid());
+        }}
+      >
+        <SelectTrigger aria-label={zh ? "选择所属 Release" : "Choose a Release"}>
+          <SelectValue placeholder={zh ? "选择具体 Release" : "Choose a Release"} />
+        </SelectTrigger>
+        <SelectContent>
+          {releases.map((release) => (
+            <SelectItem key={release.id} value={release.id}>
+              {release.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!releases.length && (
+        <p className="text-ui-sm text-foreground-subtle">
+          {zh
+            ? "当前项目尚无 Release，请关闭弹窗并在项目配置中添加。"
+            : "This project has no Releases. Close this dialog and add one in project settings."}
+        </p>
+      )}
+    </div>
+  );
   // 关闭时保留预览供退场动画使用；重新打开导入时再清空，关闭后不算草稿。
   const close = () =>
     ai.navigate(() => {
       fileGeneration.current++;
       ai.closeProposalDraft();
-      setImportOpen(false);
     });
   const rebase = async () => {
     if (submitting.current) return;
@@ -137,7 +222,10 @@ export function AIReqProposalTable() {
       if (result?.status === "completed") {
         setDraftNavigationGuard(null);
         setText("");
-        setImportOpen(false);
+        fileGeneration.current++;
+        setCsvContent(null);
+        setFileName("");
+        setFileError("");
         ai.closeProposalDraft();
         setOperationId(createUuid());
         setBaseline(undefined);
@@ -166,12 +254,13 @@ export function AIReqProposalTable() {
             variant="outline"
             disabled={busy}
             onClick={() => {
-              setPreview(null);
+              fileGeneration.current++;
+              setCsvContent(null);
               setFileName("");
-              setCsvError("");
+              setFileError("");
               setOperationId(createUuid());
               setBaseline(undefined);
-              setImportOpen(true);
+              ai.startProposalImport();
             }}
           >
             导入
@@ -190,13 +279,15 @@ export function AIReqProposalTable() {
         </div>
         {!ready && (
           <p className="text-ui-sm text-foreground-subtle">
-            新增与导入需通过页头 Release 选择指定具体版本；全部 Release 仅用于读取。
+            {zh
+              ? "新增与导入需要选择具体 Release；可在弹窗内选择。"
+              : "Choose a specific Release in the dialog when adding or importing proposals."}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            aria-label="筛选原始需求"
-            placeholder="筛选原始需求"
+            aria-label={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
+            placeholder={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
@@ -239,11 +330,17 @@ export function AIReqProposalTable() {
               <col className="w-[38%]" />
               <col className="w-[23%]" />
               <col />
-              <col className="w-14" />
+              <col className="w-28" />
             </colgroup>
             <thead className="sticky top-0 bg-background">
               <tr>
-                {["提交人", "原始需求", "提交日期", "当前状态", "操作"].map((label, index) => (
+                {[
+                  "提交人",
+                  zh ? "原始需求／编号" : "Requirement / ID",
+                  "提交日期",
+                  "当前状态",
+                  "操作",
+                ].map((label, index) => (
                   <th
                     key={label}
                     className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
@@ -255,17 +352,20 @@ export function AIReqProposalTable() {
             </thead>
             <tbody>
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
-                <tr key={item.id} className="group/row border-b border-border/50 hover:bg-hover">
+                <tr key={item.id} className="border-b border-border/50 hover:bg-hover">
                   <td className="px-4 py-3">{item.submittedBy}</td>
                   <td className="max-w-xl whitespace-pre-wrap break-words px-4 py-3">
                     {/* 正文应和详情入口一样可直接打开讨论，同时保留键盘操作。 */}
-                    <Button
-                      variant="link"
-                      className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground"
-                      onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
-                    >
-                      {item.originalText}
-                    </Button>
+                    <div className="flex flex-col items-start gap-1">
+                      <Button
+                        variant="link"
+                        className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground"
+                        onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
+                      >
+                        {item.originalText}
+                      </Button>
+                      <span className="break-all text-ui-sm text-foreground-subtle">{item.id}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <time dateTime={item.createdAt}>
@@ -280,12 +380,14 @@ export function AIReqProposalTable() {
                   <td className="px-2 py-3 text-right align-middle">
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
-                      aria-label={`查看 ${item.id} 提案详情／讨论`}
+                      size="sm"
+                      className="whitespace-nowrap"
+                      aria-label={
+                        zh ? `查看 ${item.id} 提案详情／讨论` : `Open discussion for ${item.id}`
+                      }
                       onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
                     >
-                      <MoreHorizontal aria-hidden="true" className="size-4" />
+                      {zh ? "进入讨论" : "Discuss"}
                     </Button>
                   </td>
                 </tr>
@@ -334,6 +436,7 @@ export function AIReqProposalTable() {
                 UTF-8 单列“原始需求”。确认前不写入，格式错误整批拒绝，重复正文保留。
               </DialogDescription>
             </DialogHeader>
+            {releaseSelector}
             <Button variant="outline" onClick={() => downloadProposalCsv([], "需求提案模板.csv")}>
               下载模板
             </Button>
@@ -342,15 +445,15 @@ export function AIReqProposalTable() {
               accept=".csv,text/csv"
               aria-label="选择 UTF-8 CSV 文件"
               className="text-transparent file:text-foreground"
-              disabled={busy}
+              disabled={busy || !releases.length}
               onChange={async (event) => {
                 const generation = ++fileGeneration.current;
                 const file = event.target.files?.[0];
                 // 先保留 File 引用再清空选择器，读取失败后仍能重选同一文件触发 change。
                 event.target.value = "";
-                setPreview(null);
+                setCsvContent(null);
                 setFileName(file?.name ?? "");
-                setCsvError("");
+                setFileError("");
                 setBaseline(undefined);
                 setOperationId(createUuid());
                 if (!file) return;
@@ -358,14 +461,10 @@ export function AIReqProposalTable() {
                   const content = new TextDecoder("utf-8", { fatal: true }).decode(
                     await file.arrayBuffer(),
                   );
-                  const next = parseProposalCsv(
-                    content,
-                    groups.map((item) => item.originalText),
-                  );
-                  if (generation === fileGeneration.current) setPreview(next);
+                  if (generation === fileGeneration.current) setCsvContent(content);
                 } catch (error) {
                   if (generation === fileGeneration.current)
-                    setCsvError(error instanceof Error ? error.message : "无法读取 UTF-8 CSV。");
+                    setFileError(error instanceof Error ? error.message : "无法读取 UTF-8 CSV。");
                 }
               }}
             />
@@ -397,10 +496,9 @@ export function AIReqProposalTable() {
                 </ol>
               </>
             )}
-            {/* 遮罩会遮住页面上的条件提示，弹窗内需说明无法确认导入的原因。 */}
-            {!ready && (
+            {!ready && releases.length > 0 && (
               <p className="text-ui-sm text-foreground-subtle">
-                请先关闭弹窗，在页头 Release 选择中指定具体版本后再导入。
+                {zh ? "请选择所属 Release 后导入。" : "Choose a Release before importing."}
               </p>
             )}
             {ai.error && (
@@ -441,6 +539,7 @@ export function AIReqProposalTable() {
                 {ai.proposalDraft?.sourceIrId ? `来源 IR：${ai.proposalDraft.sourceIrId}` : ""}
               </DialogDescription>
             </DialogHeader>
+            {releaseSelector}
             <div className="space-y-2">
               <Label htmlFor="new-proposal-text">原始需求</Label>
               <SettingsFormTextarea
@@ -448,15 +547,16 @@ export function AIReqProposalTable() {
                 className="field-sizing-fixed min-h-32"
                 rows={6}
                 value={text}
+                disabled={busy || !releases.length}
                 onChange={(event) => {
                   setText(event.target.value);
                   setBaseline(undefined);
                   setOperationId(createUuid());
                 }}
               />
-              {!ready && (
+              {!ready && releases.length > 0 && (
                 <p className="text-ui-sm text-foreground-subtle">
-                  请先关闭弹窗，在页头 Release 选择中指定具体版本后再保存。
+                  {zh ? "请选择所属 Release 后保存。" : "Choose a Release before saving."}
                 </p>
               )}
             </div>
@@ -506,8 +606,11 @@ export function AIReqProposalTable() {
                   pendingNavigation.current = null;
                   setDraftNavigationGuard(null);
                   setText("");
-                  setImportOpen(false);
-                  ai.closeProposalDraft();
+                  fileGeneration.current++;
+                  setCsvContent(null);
+                  setFileName("");
+                  setFileError("");
+                  // 修复：暂存的导航已包含关闭弹窗或恢复历史，重复关闭会多退一页。
                   next?.();
                 }}
               >

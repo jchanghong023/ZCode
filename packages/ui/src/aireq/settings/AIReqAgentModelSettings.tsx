@@ -12,6 +12,7 @@ import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js"
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqPersonalConfigScope } from "./AIReqPersonalConfigScope.js";
+import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
 
 export interface AIReqModelDraftActions {
   save(): boolean | Promise<boolean>;
@@ -48,6 +49,17 @@ function ModelSettingsContent({
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const defaultChanged = draft.defaultModel !== saved.defaultModel;
+  const changedAgentCount = draft.agents.filter((agent) => {
+    const original = saved.agents.find((item) => item.id === agent.id);
+    return agent.model !== original?.model || agent.reasoning !== original?.reasoning;
+  }).length;
+  const changeSummary = [
+    defaultChanged ? (zh ? "默认模型" : "default model") : "",
+    changedAgentCount ? (zh ? `${changedAgentCount} 个 Agent` : `${changedAgentCount} Agents`) : "",
+  ]
+    .filter(Boolean)
+    .join(zh ? "、" : ", ");
   const [saving, setSaving] = useState(false);
   const currentActions = useRef<AIReqModelDraftActions | null>(null);
   const savingRef = useRef(false);
@@ -121,12 +133,56 @@ function ModelSettingsContent({
           ? "保存后对新建会话生效，已有会话保留原配置。"
           : "Saved settings apply to new sessions. Existing sessions keep their original configuration."}
       </p>
+      {/* 长表的提交区随正文滚动吸顶，摘要只从现有草稿派生，避免另存修改状态。 */}
+      <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-background py-3">
+        <SettingsFormActions
+          leadingAction={
+            <div className="space-y-1 text-ui-sm text-foreground-subtle">
+              <p role="status">
+                {dirty
+                  ? zh
+                    ? `未保存：${changeSummary}`
+                    : `Unsaved: ${changeSummary}`
+                  : zh
+                    ? "暂无未保存更改"
+                    : "No unsaved changes"}
+              </p>
+              <p>{zh ? "Ctrl / Cmd + S 保存" : "Ctrl / Cmd + S to save"}</p>
+            </div>
+          }
+        >
+          <Button size="lg" disabled={!dirty || saving} onClick={() => void save()}>
+            {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存配置" : "Save configuration"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="lg"
+            disabled={!dirty || saving}
+            onClick={() => {
+              setDraft(structuredClone(saved));
+              setMessage(null);
+            }}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+        </SettingsFormActions>
+        {message && (
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+          >
+            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+            {message.text}
+          </p>
+        )}
+      </div>
       <section className="space-y-3" aria-labelledby="agent-default-model-title">
         <h3 id="agent-default-model-title" className="text-ui-base font-medium">
           {zh ? "默认模型" : "Default model"}
         </h3>
         <SettingsGroupCard>
           <SettingsRow
+            searchId="aireq.model.default"
             label={zh ? "工作流默认模型" : "Workflow default model"}
             description={
               zh
@@ -155,108 +211,86 @@ function ModelSettingsContent({
           />
         </SettingsGroupCard>
       </section>
-      <section className="space-y-3" aria-labelledby="agent-model-overrides-title">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id="agent-model-overrides-title" className="text-ui-base font-medium">
-            {zh ? "Agent 模型配置" : "Agent models"}
-          </h3>
-          <span className="text-ui-sm text-foreground-subtle">
-            {zh ? `${draft.agents.length} 个 Agent` : `${draft.agents.length} Agents`}
-          </span>
-        </div>
-        <SettingsGroupCard>
-          {draft.agents.map((agent) => {
-            const name = zh ? agent.name : agent.nameEn;
-            return (
-              <SettingsRow
-                key={agent.id}
-                label={name}
-                description={zh ? agent.description : agent.descriptionEn}
-                controlLayout="wide"
-                control={
-                  <div className="w-full min-w-0 space-y-2">
-                    <Select
-                      value={agent.model}
-                      onValueChange={(model) => updateAgent(agent.id, { model })}
-                    >
-                      <SelectTrigger
-                        size="lg"
-                        className="w-full min-w-0"
-                        aria-label={`${name} ${zh ? "模型" : "model"}`}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="inherit">
-                          {zh ? "跟随默认" : "Follow default"} · {modelName(draft.defaultModel)}
-                        </SelectItem>
-                        {modelOptions}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="shrink-0 text-ui-sm text-foreground-subtle">
-                        {zh ? "思考强度" : "Reasoning"}
-                      </span>
+      <section aria-labelledby="agent-model-overrides-title">
+        <AIReqSettingsTarget id="aireq.model.agents" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 id="agent-model-overrides-title" className="text-ui-base font-medium">
+              {zh ? "Agent 模型配置" : "Agent models"}
+            </h3>
+            <span className="text-ui-sm text-foreground-subtle">
+              {zh ? `${draft.agents.length} 个 Agent` : `${draft.agents.length} Agents`}
+            </span>
+          </div>
+          <p className="text-ui-sm leading-6 text-foreground-subtle">
+            {zh
+              ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。当前运行均为模拟。"
+              : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset. All current runs are simulated."}
+          </p>
+          <SettingsGroupCard>
+            {draft.agents.map((agent) => {
+              const name = zh ? agent.name : agent.nameEn;
+              return (
+                <SettingsRow
+                  key={agent.id}
+                  searchId={
+                    agent.id === "progress-analysis" ? "aireq.model.progressAnalysis" : undefined
+                  }
+                  label={name}
+                  description={zh ? agent.description : agent.descriptionEn}
+                  controlLayout="wide"
+                  control={
+                    <div className="w-full min-w-0 space-y-2">
                       <Select
-                        value={agent.reasoning}
-                        onValueChange={(reasoning) => updateAgent(agent.id, { reasoning })}
+                        value={agent.model}
+                        onValueChange={(model) => updateAgent(agent.id, { model })}
                       >
                         <SelectTrigger
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`${name} ${zh ? "思考强度" : "reasoning"}`}
+                          size="lg"
+                          className="w-full min-w-0"
+                          aria-label={`${name} ${zh ? "模型" : "model"}`}
                         >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="default">
-                            {zh ? "模型默认" : "Model default"}
+                          <SelectItem value="inherit">
+                            {zh ? "跟随默认" : "Follow default"} · {modelName(draft.defaultModel)}
                           </SelectItem>
-                          <SelectItem value="low">{zh ? "低" : "Low"}</SelectItem>
-                          <SelectItem value="medium">{zh ? "中" : "Medium"}</SelectItem>
-                          <SelectItem value="high">{zh ? "高" : "High"}</SelectItem>
+                          {modelOptions}
                         </SelectContent>
                       </Select>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="shrink-0 text-ui-sm text-foreground-subtle">
+                          {zh ? "思考强度" : "Reasoning"}
+                        </span>
+                        <Select
+                          value={agent.reasoning}
+                          onValueChange={(reasoning) => updateAgent(agent.id, { reasoning })}
+                        >
+                          <SelectTrigger
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`${name} ${zh ? "思考强度" : "reasoning"}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">
+                              {zh ? "模型默认" : "Model default"}
+                            </SelectItem>
+                            <SelectItem value="low">{zh ? "低" : "Low"}</SelectItem>
+                            <SelectItem value="medium">{zh ? "中" : "Medium"}</SelectItem>
+                            <SelectItem value="high">{zh ? "高" : "High"}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                }
-              />
-            );
-          })}
-        </SettingsGroupCard>
+                  }
+                />
+              );
+            })}
+          </SettingsGroupCard>
+        </AIReqSettingsTarget>
       </section>
-      {/* 与原生个性化表单统一主次操作顺序、样式及尺寸。 */}
-      <SettingsFormActions>
-        <Button
-          size="lg"
-          disabled={!dirty || saving}
-          onClick={() => {
-            void save();
-          }}
-        >
-          {zh ? "保存配置" : "Save configuration"}
-        </Button>
-        <Button
-          variant="ghost"
-          size="lg"
-          disabled={!dirty || saving}
-          onClick={() => {
-            setDraft(structuredClone(saved));
-            setMessage(null);
-          }}
-        >
-          {zh ? "取消" : "Cancel"}
-        </Button>
-      </SettingsFormActions>
-      {message && (
-        <p
-          role={message.kind === "error" ? "alert" : "status"}
-          className={`text-ui-base ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
-        >
-          {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
-          {message.text}
-        </p>
-      )}
     </div>
   );
 }

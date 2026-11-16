@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   irProgress,
   irProgressStatus,
@@ -31,6 +32,7 @@ function ReportSection({ title, children }: { title: string; children: ReactNode
 
 export function AIReqFormalReport() {
   const aireq = useAIReq()!;
+  const { locale } = useZCodeIntl();
   const [copyMessage, setCopyMessage] = useState("");
   const view = aireq.view;
   const group = view?.groups.find(
@@ -134,14 +136,23 @@ export function AIReqFormalReport() {
               : `业务：${group.contacts?.business ?? "待认领"} · 开发：${group.contacts?.development ?? "待认领"} · 测试：${group.contacts?.testing ?? "待认领"}`}
           </p>
         </header>
-        {rows.map(
-          (sr) =>
-            sr.lastAnalysisFailure && (
-              <p key={sr.id} role="alert" className="text-ui-sm text-destructive">
-                {sr.title}：最近分析失败，保留上次成功进度与报告 · {sr.lastAnalysisFailure.message}
-              </p>
-            ),
-        )}
+        {rows.map((sr) => {
+          const failure = sr.lastAnalysisFailure ?? sr.progress?.analysisFailure;
+          return failure ? (
+            <div key={sr.id} role="alert" className="text-ui-sm text-destructive">
+              <p>{sr.title}：最近分析失败，保留上次成功进度与报告 · {failure.message}</p>
+              {/* 修复：只展示失败原因会迫使用户在分析页重新定位同一个 SR。 */}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto px-0"
+                onClick={() => aireq.openAnalysis({ projectId: group.projectId, irId: group.id, srId: sr.id }, group.releaseId)}
+              >
+                {locale === "zh-CN" ? "查看对应分析任务" : "View analysis task"}
+              </Button>
+            </div>
+          ) : null;
+        })}
         {/* 报告首屏先呈现当前问题与动作；分支维护后置，避免未完成需求先看到清理入口。 */}
         <ReportSection title={manual ? "此前 AI 报告的问题与不确定项" : "值得关注的问题与不确定项"}>
           {issues.length ? (

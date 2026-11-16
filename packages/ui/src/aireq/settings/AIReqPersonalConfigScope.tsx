@@ -17,26 +17,26 @@ export function AIReqPersonalConfigScope() {
       </p>
       <details>
         <summary className="cursor-pointer">
-          {zh ? "模拟配置与生效范围" : "Mock configuration and scope"}
+          {zh ? "共享范围与模拟目录" : "Shared scope and mock directories"}
         </summary>
         <div className="mt-2 space-y-1">
           <p>
             {zh
-              ? "切换工号不切换后端账号、凭据、配置根或项目。"
-              : "Switching employee IDs does not change the backend account, credentials, configuration root, or project."}
+              ? "切换工号不会创建个人配置；所有工号仍共享项目、模型和指令。"
+              : "Switching employee IDs does not create personal settings. All employee IDs still share projects, models and instructions."}
           </p>
           <p className="break-all">
             {zh ? "模拟配置路径：" : "Mock configuration path: "}
             {source.backend?.configDirectory}
           </p>
           <p className="break-all">
-            {zh ? "共享 profile 技能：" : "Shared profile skills: "}
+            {zh ? "共享技能目录：" : "Shared skills directory: "}
             {source.backend?.userSkillsDirectory}
           </p>
           <p>
             {zh
-              ? "上述路径仅为模拟归属标签，不访问本机或 OMP。外观仅保存在当前浏览器。"
-              : "These paths are mock ownership labels only; they do not access the local machine or OMP. Appearance is saved only in this browser."}
+              ? "以上目录仅用于模拟展示，不访问本机文件或外部服务。外观仅保存在当前浏览器。"
+              : "These directories are display-only mock locations; no local files or external services are accessed. Appearance is saved only in this browser."}
           </p>
         </div>
       </details>

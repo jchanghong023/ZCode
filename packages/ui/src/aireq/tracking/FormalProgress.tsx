@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,
   SelectContent,
@@ -46,6 +47,7 @@ import type { AIReqRequirementGroup, AIReqSystemRequirement } from "../contract.
 import { BranchCopy } from "./BranchCopy.js";
 import { TrackingTableScroll } from "./TrackingTableScroll.js";
 import { AIReqFormalReport } from "./formal/FormalReport.js";
+import { AIReqFormalHistory } from "./formal/FormalHistory.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
 
 // 表格始终由工作区固定挂载；筛选、展开和复制反馈留在本 owner，切行仅更新右侧报告。
@@ -673,6 +675,7 @@ const formalDetailPanels = ["formal-table", "formal-inspector"];
 
 export function AIReqFormalWorkspace() {
   const aireq = useAIReq()!;
+  const { locale } = useZCodeIntl();
   const detail =
     aireq.selection.formalView !== "list" &&
     Boolean(
@@ -706,6 +709,9 @@ export function AIReqFormalWorkspace() {
                   <TabsTrigger value="materials">
                     <FileText className="size-3.5" />
                     需求材料
+                  </TabsTrigger>
+                  <TabsTrigger value="history" aria-label={locale === "zh-CN" ? "讨论与评审历史" : "Discussion and review history"}>
+                    {locale === "zh-CN" ? "讨论／评审" : "History"}
                   </TabsTrigger>
                 </TabsList>
                 <Button
@@ -745,6 +751,13 @@ export function AIReqFormalWorkspace() {
               <TabsContent value="materials" className="min-h-0 flex-1 overflow-hidden">
                 {aireq.selectionReady ? (
                   <AIReqMaterialsPane />
+                ) : (
+                  <FormalDetailLoading failed={Boolean(aireq.error)} />
+                )}
+              </TabsContent>
+              <TabsContent value="history" className="min-h-0 flex-1 overflow-hidden">
+                {aireq.selectionReady ? (
+                  <AIReqFormalHistory key={`${aireq.selection.projectId}:${aireq.selection.irId}`} />
                 ) : (
                   <FormalDetailLoading failed={Boolean(aireq.error)} />
                 )}

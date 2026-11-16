@@ -26,6 +26,10 @@ import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./shel
 import { useAIReqDataSource } from "./data-source.js";
 
 const perspectiveLabels = { business: "业务", development: "开发", testing: "测试" } as const;
+const assignmentLabel = (item: AIReqTodo) =>
+  `${perspectiveLabels[item.assignmentPerspective]}${item.srId ? "负责人" : "联系人"}`;
+const todoObjectLabel = (item: AIReqTodo) =>
+  `${item.requirementTitle}${item.srId ? ` · ${item.srTitle ?? item.srId}（${item.srId}）` : `（${item.irId}）`}`;
 export function AIReqTodoPage() {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
@@ -45,6 +49,19 @@ export function AIReqTodoPage() {
     (item) =>
       filter === "all" || (filter === "mine" ? item.employeeId === employeeId : !item.employeeId),
   );
+  const projectName = (id: string) =>
+    ai.view?.projects.find((project) => project.id === id)?.name ?? id;
+  const scopeLabel = projectId ? "当前项目" : "当前所有项目";
+  const emptyTitle = !scopedTodos.length
+    ? `${scopeLabel}暂无待处理事项`
+    : filter === "mine"
+      ? `${scopeLabel}没有分配给你的待办`
+      : `${scopeLabel}没有待认领事项`;
+  const emptyDescription = !scopedTodos.length
+    ? "需要人工处理时，事项会自动出现在这里。"
+    : filter === "mine"
+      ? "可查看待认领事项，或在全部待办中了解其他人的分工。"
+      : "当前范围内的待办均已分配负责人。";
   const assign = async (item: AIReqTodo, employee: string) => {
     if (pending) return false;
     setPending(item.id);
@@ -52,7 +69,7 @@ export function AIReqTodoPage() {
       if (item.srId) {
         if (!source.planning) throw new Error("当前数据源不支持负责人分工。");
         await source.planning.updateSr(item.projectId, item.irId, item.srId, {
-          ...(item.kind === "testing"
+          ...(item.assignmentPerspective === "testing"
             ? { testingEmployeeId: employee }
             : { developerEmployeeId: employee }),
           operationId: createUuid(),
@@ -67,11 +84,8 @@ export function AIReqTodoPage() {
           (group) => group.projectId === item.projectId && group.id === item.irId,
         );
         if (!group) throw new Error("待办所属 IR 已不存在，请刷新后重试。");
-        const perspective =
-          item.perspective ??
-          (group.proposalStage === "solution" || group.status === "requirements-pr"
-            ? "development"
-            : "business");
+        // 弹窗展示与实际写入使用同一职责，不能从流程阶段猜测待办的分工类型。
+        const perspective = item.assignmentPerspective;
         const result = await source.command(
           {
             type: "assignContacts",
@@ -182,10 +196,15 @@ export function AIReqTodoPage() {
                   className="group/row border-b border-border/50 last:border-0 hover:bg-surface-hover"
                 >
                   <td className="break-words px-4 py-3">
-                    <span className="font-medium">{item.requirementTitle}</span>
+                    {/* 同一 IR 下的多个 SR 必须可读区分，编号保留用于追溯。 */}
+                    <span className="font-medium">{item.srTitle ?? item.requirementTitle}</span>
+                    {item.srId && (
+                      <span className="block text-ui-sm text-foreground-subtle">
+                        {item.requirementTitle}
+                      </span>
+                    )}
                     <span className="block text-ui-sm text-foreground-subtle">
-                      {ai.view?.projects.find((project) => project.id === item.projectId)?.name ??
-                        item.projectId}
+                      {projectName(item.projectId)}
                     </span>
                     <span className="block text-ui-sm text-foreground-subtle">
                       {item.irId}
@@ -196,8 +215,13 @@ export function AIReqTodoPage() {
                     <Button
                       variant="ghost"
                       className="h-auto justify-start whitespace-normal break-words px-0 text-left hover:underline"
-                      onClick={() => ai.select(item.selection, item.releaseId)}
-                      aria-label={`处理 ${item.requirementTitle} · ${item.title}`}
+                      onClick={() => {
+                        // 分析失败的待办需要到对应单 SR 重试位置，而非只显示失败报告。
+                        if (item.kind === "analysis-failure")
+                          ai.openAnalysis(item.selection, item.releaseId);
+                        else ai.select(item.selection, item.releaseId);
+                      }}
+                      aria-label={`处理 ${todoObjectLabel(item)} · ${item.title}`}
                     >
                       {item.title}
                     </Button>
@@ -214,8 +238,8 @@ export function AIReqTodoPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
-                          aria-label={`${item.irId}${item.srId ? ` / ${item.srId}` : ""} · ${item.title} 的操作`}
+                          className="size-8 rounded-lg text-foreground-subtle hover:text-foreground focus-visible:text-foreground"
+                          aria-label={`${todoObjectLabel(item)} · ${item.title} 的分工操作`}
                         >
                           <MoreHorizontal aria-hidden="true" className="size-4" />
                         </Button>
@@ -244,7 +268,13 @@ export function AIReqTodoPage() {
               {!todos.length && (
                 <tr>
                   <td colSpan={4} className="p-6 text-foreground-subtle">
-                    当前筛选暂无待办；等待 AI 或文档 PR 合入不会制造空操作待办。
+                    <p className="font-medium text-foreground">{emptyTitle}</p>
+                    <p className="mt-1 text-ui-sm">{emptyDescription}</p>
+                    {projectId && (
+                      <Button variant="outline" className="mt-3" onClick={() => setProjectId("")}>
+                        查看全部项目
+                      </Button>
+                    )}
                   </td>
                 </tr>
               )}
@@ -261,27 +291,51 @@ export function AIReqTodoPage() {
             <DialogHeader>
               <DialogTitle>分配负责人</DialogTitle>
               <DialogDescription>
-                {assigningTodo?.title} · {assigningTodo?.irId}
-                {assigningTodo?.srId ? ` / ${assigningTodo.srId}` : ""}
+                分配会更新对应联系人或负责人。仅代办无需调整分工。
               </DialogDescription>
             </DialogHeader>
             {assigningTodo && (
-              <div className="space-y-2">
-                <label htmlFor="todo-assignee" className="text-ui-sm font-medium">
-                  负责人工号
-                </label>
-                <Input
-                  id="todo-assignee"
-                  placeholder="例如 j00808874"
-                  value={assignees[assigningTodo.id] ?? ""}
-                  onChange={(event) =>
-                    setAssignees((previous) => ({
-                      ...previous,
-                      [assigningTodo.id]: event.target.value,
-                    }))
-                  }
-                />
-                <p className="text-ui-sm text-foreground-subtle">小写字母开头，后接 8 位数字。</p>
+              <div className="space-y-4">
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-ui-sm">
+                  <dt className="text-foreground-subtle">需求</dt>
+                  <dd className="break-words">{assigningTodo.requirementTitle}</dd>
+                  {assigningTodo.srId && (
+                    <>
+                      <dt className="text-foreground-subtle">开发单元</dt>
+                      <dd className="break-words">{assigningTodo.srTitle ?? assigningTodo.srId}</dd>
+                    </>
+                  )}
+                  <dt className="text-foreground-subtle">项目</dt>
+                  <dd className="break-words">{projectName(assigningTodo.projectId)}</dd>
+                  <dt className="text-foreground-subtle">编号</dt>
+                  <dd className="break-words font-mono">
+                    {assigningTodo.irId}
+                    {assigningTodo.srId ? ` / ${assigningTodo.srId}` : ""}
+                  </dd>
+                  <dt className="text-foreground-subtle">调整分工</dt>
+                  <dd>{assignmentLabel(assigningTodo)}</dd>
+                  <dt className="text-foreground-subtle">当前工号</dt>
+                  <dd className={assigningTodo.employeeId ? "font-mono" : undefined}>
+                    {assigningTodo.employeeId ?? "未分配"}
+                  </dd>
+                </dl>
+                <div className="space-y-2">
+                  <label htmlFor="todo-assignee" className="text-ui-sm font-medium">
+                    新{assignmentLabel(assigningTodo)}工号
+                  </label>
+                  <Input
+                    id="todo-assignee"
+                    placeholder="例如 j00808874"
+                    value={assignees[assigningTodo.id] ?? ""}
+                    onChange={(event) =>
+                      setAssignees((previous) => ({
+                        ...previous,
+                        [assigningTodo.id]: event.target.value,
+                      }))
+                    }
+                  />
+                  <p className="text-ui-sm text-foreground-subtle">小写字母开头，后接 8 位数字。</p>
+                </div>
               </div>
             )}
             {assignmentError && (

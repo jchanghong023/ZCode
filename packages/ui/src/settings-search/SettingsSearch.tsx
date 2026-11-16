@@ -12,9 +12,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { SettingsSearchResult } from "@/settings-search/contract.js";
+import type { SettingsSearchResult, SettingsSearchSection } from "@/settings-search/contract.js";
 import { isSettingsSectionAvailable } from "@/settings/settingsPageConfig.js";
-import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import {
   resolveSettingsSearchAvailability,
   SETTINGS_SEARCH_ITEMS,
@@ -30,10 +29,7 @@ export function SettingsSearch({
   onSelect,
   compact = false,
 }: {
-  sections: readonly ({
-    id: SettingsSectionId;
-    includeSettings?: boolean;
-  } & ({ titleId: string; label?: never } | { label: string; titleId?: never }))[];
+  sections: readonly SettingsSearchSection[];
   onSelect: (result: SettingsSearchResult) => void;
   compact?: boolean;
 }) {
@@ -59,6 +55,16 @@ export function SettingsSearch({
           descriptionKeys: [intl.formatMessage({ id: item.description })],
           visibility: item.visibility,
         }));
+        // 自有页面的条目由调用方提供，避免启用原生分区时一并暴露已裁撤设置。
+        const extraItems = (section.items ?? []).map((item) => ({
+          section: section.id,
+          setting: item.id,
+          label: item.label,
+          sectionLabel,
+          keys: settingsNavigationSearchKeys([item.label, ...(item.keywords ?? [])]),
+          descriptionKeys: [],
+          visibility: "all" as const,
+        }));
         return [
           {
             section: section.id,
@@ -70,6 +76,7 @@ export function SettingsSearch({
             visibility: "all" as const,
           },
           ...items,
+          ...extraItems,
         ];
       }),
     [sections, intl],
@@ -102,7 +109,11 @@ export function SettingsSearch({
         variant="outline"
         aria-label={title}
         data-testid="settings-search-open"
-        className={compact ? "size-9 justify-center px-0 text-foreground-subtle" : "w-full justify-start gap-2 text-foreground-subtle max-lg:size-9 max-lg:justify-center max-lg:px-0"}
+        className={
+          compact
+            ? "size-9 justify-center px-0 text-foreground-subtle"
+            : "w-full justify-start gap-2 text-foreground-subtle max-lg:size-9 max-lg:justify-center max-lg:px-0"
+        }
       >
         <Search className="size-4 shrink-0" aria-hidden="true" />
         <span className={compact ? "sr-only" : "truncate max-lg:sr-only"}>{title}</span>
@@ -121,7 +132,13 @@ export function SettingsSearch({
         }
       }}
     >
-      {compact ? <ControlHintTooltip title={title} side="right">{trigger}</ControlHintTooltip> : trigger}
+      {compact ? (
+        <ControlHintTooltip title={title} side="right">
+          {trigger}
+        </ControlHintTooltip>
+      ) : (
+        trigger
+      )}
       <DialogContent
         data-testid="settings-search-dialog"
         showCloseButton={false}

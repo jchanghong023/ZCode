@@ -48,6 +48,14 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-overview"
     >
+      {/* 后台重读曾反复撑高标题区；状态移出内容流，保留读屏提示和原有详情位置。 */}
+      <p role="status" className="sr-only">
+        {ai.pending && view
+          ? zh
+            ? "正在更新；已有数值为上次读取结果。"
+            : "Updating; existing values are the last read snapshot."
+          : ""}
+      </p>
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6 pt-6"}>
         <header className="space-y-2">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目概览" : "Project overview"}</h1>
@@ -66,13 +74,6 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                 : "Progress averages formal SRs in scope, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%."}
             </p>
           </details>
-          {ai.pending && view && (
-            <p role="status" className="text-ui-sm text-foreground-subtle">
-              {zh
-                ? "正在更新；已有数值为上次读取结果。"
-                : "Updating; existing values are the last read snapshot."}
-            </p>
-          )}
           {ai.error && view && (
             <p className="text-ui-sm text-foreground-subtle">
               {zh
@@ -118,7 +119,7 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 rounded-xl border border-card-border bg-card p-4 md:grid-cols-5">
+                  <div className="grid gap-4 rounded-xl border border-card-border bg-card p-4 md:grid-cols-6">
                     <div className="space-y-2 md:col-span-2">
                       <div className="text-ui-sm text-foreground">
                         {zh ? "范围进度" : "Scope progress"} ·{" "}
@@ -138,11 +139,21 @@ export function AIReqProjectOverviewPage({ onManageProjects }: { onManageProject
                       <div className="mt-1 text-ui-xl font-medium tabular-nums">
                         {summary.formalCount}
                       </div>
-                      <div className="text-ui-sm text-foreground-subtle">
-                        {zh
-                          ? `提案 ${summary.proposalCount}`
-                          : `${summary.proposalCount} proposals`}
+                    </div>
+                    <div>
+                      <div className="text-ui-sm text-foreground">{zh ? "提案" : "Proposals"}</div>
+                      <div className="mt-1 text-ui-xl font-medium tabular-nums">
+                        {summary.proposalCount}
                       </div>
+                      {/* 修复：提案入口只在需求子页时，从全项目总览处理提案需额外切换视图。 */}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-ui-sm"
+                        onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+                      >
+                        {zh ? "查看提案" : "View proposals"}
+                      </Button>
                     </div>
                     <div>
                       <div className="text-ui-sm text-foreground">SR</div>

@@ -286,11 +286,13 @@ export function conversationReadOnlyReason(
 export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
   const result: AIReqTodo[] = [];
   const push = (group: AIReqRequirementGroup, kind: AIReqTodo["kind"], title: string,
-    employeeId?: string, extra: Partial<AIReqTodo> = {}) => {
+    assignmentPerspective: AIReqTodo["assignmentPerspective"], employeeId?: string, extra: Partial<AIReqTodo> = {}) => {
+    // 同 IR 的独立 SR 不能只靠编号区分；名称与分工视角必须来自产生待办的同一快照。
+    const sr = extra.srId ? view.srs.find((row) => row.projectId === group.projectId && row.irId === group.id && row.id === extra.srId) : undefined;
     result.push({ id: `${group.projectId}:${group.id}:${kind}:${extra.srId ?? extra.perspective ?? ""}`,
       // 跨项目待办不能从当前项目投影补名字或 Release；由同一 IR 事实一次派生。
       projectId: group.projectId, irId: group.id, requirementTitle: group.title,
-      releaseId: group.releaseId, kind, title, employeeId,
+      releaseId: group.releaseId, srTitle: sr?.title, assignmentPerspective, kind, title, employeeId,
       selection: { projectId: group.projectId, irId: group.id,
         ...(extra.srId ? { srId: extra.srId, formalView: "detail" as const } : {}) }, ...extra });
   };
@@ -298,52 +300,53 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
     const contact = group.contacts ?? {};
     // 退回保留旧评审用于追溯，但未补充前的当前动作只能是业务讨论，不能再次判断旧报告。
     if (group.returnFeedback && !group.returnFeedback.resumedAt) {
-      push(group, "business-discussion", "讨论和补充业务需求", contact.business);
+      push(group, "business-discussion", "讨论和补充业务需求", "business", contact.business);
       continue;
     }
     if (group.proposalDelivery?.pushedAt && !group.requirementsPr) {
-      push(group, "failure", "文档已推送但创建 PR 失败，请重试当前候选", contact.development);
+      push(group, "failure", "文档已推送但创建 PR 失败，请重试当前候选", "development", contact.development);
       continue;
     }
     if (group.status === "requirements-pr") {
       if (["failed", "incomplete"].includes(group.proposalDelivery?.mergeCheck?.status ?? ""))
-        push(group, "failure", "处理文档 PR 核验失败或材料不完整", contact.development);
+        push(group, "failure", "处理文档 PR 核验失败或材料不完整", "development", contact.development);
       continue;
     }
     const review = group.proposalStage === "solution" ? group.review : group.originalReview;
     if (review?.agents?.some((agent) => agent.status === "failed")) {
-      push(group, "failure", "处理模拟评审失败并重试", group.proposalStage === "solution" ? contact.development : contact.business);
+      push(group, "failure", "处理模拟评审失败并重试", group.proposalStage === "solution" ? "development" : "business", group.proposalStage === "solution" ? contact.development : contact.business);
       continue;
     }
     if (review?.held || review?.agents?.some((agent) => agent.status === "running" || agent.status === "pending")) continue;
     if (group.proposalStage !== "solution") {
       push(group, requirementsReviewCurrent(group) ? "original-review" : "business-discussion",
-        requirementsReviewCurrent(group) ? "判断原始需求评审意见" : "讨论和补充业务需求", contact.business);
+        requirementsReviewCurrent(group) ? "判断原始需求评审意见" : "讨论和补充业务需求", "business", contact.business);
     } else if (fullReviewBlocker(group)) {
       push(group, fullReviewCurrent(group) ? "full-review" : "solution",
-        fullReviewCurrent(group) ? "处理完整审查并人工放行" : "拆分 SR 并完善完整材料", contact.development);
+        fullReviewCurrent(group) ? "处理完整审查并人工放行" : "拆分 SR 并完善完整材料", "development", contact.development);
     } else {
       const version = proposalVersion(group);
       for (const perspective of ["business", "development", "testing"] as const)
         if (!group.alignment?.some((entry) => entry.perspective === perspective && entry.version === version))
-          push(group, "alignment", `${{ business: "业务", development: "开发", testing: "测试" }[perspective]}视角确认`, contact[perspective], { perspective });
-      if (!alignmentBlocker(group)) push(group, "publish", "提交整包文档 PR", contact.development);
+          push(group, "alignment", `${{ business: "业务", development: "开发", testing: "测试" }[perspective]}视角确认`, perspective, contact[perspective], { perspective });
+      if (!alignmentBlocker(group)) push(group, "publish", "提交整包文档 PR", "development", contact.development);
     }
   }
   for (const group of view.groups) {
     for (const sr of view.srs.filter((row) => row.projectId === group.projectId && row.irId === group.id)) {
       if (sr.testAcceptance?.outcome === "passed" && sr.testAcceptance.codeVersion === sr.codeMerge?.commit) continue;
       if (sr.lastAnalysisFailure || sr.progress?.analysisFailure) {
-        push(group, "failure", "查看进度分析失败并通过正常入口重试", sr.developerEmployeeId, { srId: sr.id });
+        // 修复：通用 failure 同时代表分支和评审失败，单列分析失败才能稳定直达对应 SR 的重试入口。
+        push(group, "analysis-failure", "查看进度分析失败并通过正常入口重试", "development", sr.developerEmployeeId, { srId: sr.id });
         continue;
       }
       if (sr.trackingBranch?.status === "failed") {
-        push(group, "failure", "处理 SR 开发分支创建失败", sr.developerEmployeeId, { srId: sr.id });
+        push(group, "failure", "处理 SR 开发分支创建失败", "development", sr.developerEmployeeId, { srId: sr.id });
       } else if (sr.developmentIssues?.some((issue) => issue.status === "open")) {
-        push(group, "fix", "处理测试失败问题并等待修复合入", sr.developerEmployeeId, { srId: sr.id });
+        push(group, "fix", "处理测试失败问题并等待修复合入", "development", sr.developerEmployeeId, { srId: sr.id });
       } else if (sr.codeMerge) {
-        push(group, "testing", "记录当前合入版本测试验收", sr.testingEmployeeId, { srId: sr.id });
-      } else push(group, "development", "在平台外开发并查看审查意见", sr.developerEmployeeId, { srId: sr.id });
+        push(group, "testing", "记录当前合入版本测试验收", "testing", sr.testingEmployeeId, { srId: sr.id });
+      } else push(group, "development", "在平台外开发并查看审查意见", "development", sr.developerEmployeeId, { srId: sr.id });
     }
   }
   return result;

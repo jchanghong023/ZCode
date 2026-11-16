@@ -14,6 +14,7 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqPersonalConfigScope } from "./AIReqPersonalConfigScope.js";
+import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
 import type { AIReqModelDraftActions } from "./AIReqAgentModelSettings.js";
 
 export function AIReqPersonalizationSettings({
@@ -44,6 +45,7 @@ function PersonalizationContent({
   const [draft, setDraft] = useState(() => ({ ...source.prompts!.read().saved }));
   const [savedRevision, setSavedRevision] = useState(() => source.prompts!.read().revision);
   const [selected, setSelected] = useState("requirements");
+  const selectedAgent = agents.find((agent) => agent.id === selected);
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const dirtyAgents = agents.filter((agent) => draft[agent.id] !== saved[agent.id]);
@@ -69,7 +71,7 @@ function PersonalizationContent({
       setSavedRevision(source.prompts!.read().revision);
       setMessage({
         kind: "success",
-        text: zh ? "追加提示词已保存。" : "Appended instructions saved.",
+        text: zh ? "追加指令已保存。" : "Appended instructions saved.",
       });
       return true;
     } catch (cause) {
@@ -108,7 +110,12 @@ function PersonalizationContent({
           : "Add shared team instructions and working conventions for each Agent without replacing built-in instructions."}
       </p>
       <AIReqPersonalConfigScope />
-      <div className="space-y-2">
+      <p className="text-ui-sm leading-6 text-foreground-subtle">
+        {zh
+          ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令；当前为模拟执行，未调用真实模型。"
+          : "Saving updates the shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions. Execution is simulated; no real model is called."}
+      </p>
+      <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select
           value={selected}
@@ -117,7 +124,12 @@ function PersonalizationContent({
             setMessage(null);
           }}
         >
-          <SelectTrigger id="personalization-agent" size="lg" className="w-full sm:w-72">
+          <SelectTrigger
+            id="personalization-agent"
+            size="lg"
+            className="w-full sm:w-72"
+            aria-describedby="personalization-agent-description"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -129,6 +141,12 @@ function PersonalizationContent({
             ))}
           </SelectContent>
         </Select>
+        <p
+          id="personalization-agent-description"
+          className="text-ui-sm leading-6 text-foreground-subtle"
+        >
+          {zh ? selectedAgent?.description : selectedAgent?.descriptionEn}
+        </p>
         {/* 草稿属于全部 Agent，切换当前编辑项不能隐藏其他 Agent 的未保存状态。 */}
         {dirty && (
           <p role="status" className="text-ui-base leading-6 text-foreground-subtle">
@@ -137,10 +155,10 @@ function PersonalizationContent({
             {zh ? "。保存或取消将应用于全部草稿。" : ". Save or cancel applies to all drafts."}
           </p>
         )}
-      </div>
-      <div className="space-y-2">
+      </AIReqSettingsTarget>
+      <AIReqSettingsTarget id="aireq.instructions.prompt" className="space-y-2">
         <Label htmlFor="agent-system-prompt-append">
-          {zh ? "追加系统提示词" : "Append system instructions"}
+          {zh ? "追加指令" : "Additional instructions"}
         </Label>
         <SettingsFormTextarea
           id="agent-system-prompt-append"
@@ -168,11 +186,11 @@ function PersonalizationContent({
             {(currentBytes / 1024).toFixed(1)} / {USER_INSTRUCTIONS_MAX_BYTES / 1024} KB
           </span>
         </div>
-      </div>
+      </AIReqSettingsTarget>
       {oversized.length > 0 && (
         <p role="alert" className="text-ui-base text-destructive">
           {zh
-            ? "以下 Agent 的追加提示词超过大小限制，请缩短后保存："
+            ? "以下 Agent 的追加指令超过大小限制，请缩短后保存："
             : "Shorten these Agents' appended instructions before saving: "}
           {oversized.map((agent) => (zh ? agent.name : agent.nameEn)).join("、")}
         </p>

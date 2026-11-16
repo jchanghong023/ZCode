@@ -25,6 +25,14 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-progress"
     >
+      {/* 后台重读曾反复撑高标题区；状态移出内容流，保留读屏提示和原有卡片位置。 */}
+      <p role="status" className="sr-only">
+        {ai.pending && view
+          ? zh
+            ? "正在更新；已有数值为上次读取结果。"
+            : "Updating; existing values are the last read snapshot."
+          : ""}
+      </p>
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6"}>
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
@@ -34,13 +42,6 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                 ? "查看全部项目，进入项目空间处理需求与进度。"
                 : "Explore all projects and open a project space to work with requirements and progress."}
             </p>
-            {ai.pending && view && (
-              <p role="status" className="text-ui-sm text-foreground-subtle">
-                {zh
-                  ? "正在更新；已有数值为上次读取结果。"
-                  : "Updating; existing values are the last read snapshot."}
-              </p>
-            )}
             {ai.error && view && (
               <p className="text-ui-sm text-foreground-subtle">
                 {zh

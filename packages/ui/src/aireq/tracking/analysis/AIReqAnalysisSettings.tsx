@@ -8,6 +8,7 @@ import { useSchedulerQuery } from "./useSchedulerQuery.js";
 interface AnalysisSettingsProps {
   onOpenModelSettings(): void;
   onDraftActionsChange?: (actions: AIReqSettingsDraftActions | null) => void;
+  focusProjectId?: string;
 }
 
 export function AIReqAnalysisSettings(props: AnalysisSettingsProps) {
@@ -25,6 +26,7 @@ function ConnectedAnalysisSettings({
   scheduler,
   onOpenModelSettings,
   onDraftActionsChange,
+  focusProjectId,
 }: AnalysisSettingsProps & { scheduler: AIReqProgressScheduler }) {
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
@@ -38,6 +40,10 @@ function ConnectedAnalysisSettings({
   const mutation = useRef(false);
   const lifecycle = useRef<object | undefined>(undefined);
   const actions = useRef<AIReqSettingsDraftActions | null>(null);
+  useEffect(() => {
+    // 从项目运行页进入时清除旧的本地筛选，避免目标项目被上次查询隐藏。
+    if (focusProjectId) setProjectSearch("");
+  }, [focusProjectId]);
   useEffect(() => {
     const scope = {};
     lifecycle.current = scope;
@@ -122,6 +128,7 @@ function ConnectedAnalysisSettings({
         onOpenModelSettings={onOpenModelSettings}
         projectSearch={projectSearch}
         setProjectSearch={setProjectSearch}
+        focusProjectId={focusProjectId}
         interval={currentInterval}
         setInterval={setInterval}
         pending={pending}

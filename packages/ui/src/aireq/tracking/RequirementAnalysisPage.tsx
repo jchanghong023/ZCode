@@ -57,7 +57,7 @@ export function AIReqRequirementAnalysisPage({
           </header>
           {source?.progressScheduler ? (
             <ConnectedProgressAnalysis
-              key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}`}
+              key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}:${aireq.selection.irId ?? ""}:${aireq.selection.srId ?? ""}`}
               scheduler={source.progressScheduler}
               onOpenAnalysisSettings={onOpenAnalysisSettings}
             />
@@ -86,8 +86,10 @@ function ConnectedProgressAnalysis({
   const loadSnapshot = useCallback(() => scheduler.read(), [scheduler]);
   const snapshotQuery = useSchedulerQuery(loadSnapshot, revision);
   const snapshot = snapshotQuery.value;
-  const [irId, setIrId] = useState("all");
-  const [srSearch, setSrSearch] = useState("");
+  // 修复：待办直达时保留目标 IR/SR，并以 SR 编号精确筛选，不能让相似名称指向其他任务。
+  const [irId, setIrId] = useState(() => aireq.selection.irId ?? "all");
+  const [srSearch, setSrSearch] = useState(() => aireq.selection.srId ?? "");
+  const [targetSrId, setTargetSrId] = useState(() => aireq.selection.srId ?? "");
   const [historyStatus, setHistoryStatus] = useState("all");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
@@ -152,9 +154,10 @@ function ConnectedProgressAnalysis({
       projectId: projectId || "__no_project__",
       releaseId: releaseId || undefined,
       irId: irId === "all" ? undefined : irId,
+      srId: targetSrId || undefined,
       srSearch,
     }),
-    [projectId, releaseId, irId, srSearch],
+    [projectId, releaseId, irId, targetSrId, srSearch],
   );
   const loadTasks = useCallback(
     () => scheduler.queryTasks(filter, taskPage, taskPageSize),
@@ -217,17 +220,31 @@ function ConnectedProgressAnalysis({
     reportTrigger.current = trigger;
     setSelectedRunId(id);
   };
+  const openRequirement = (target: {
+    projectId: string;
+    releaseId?: string;
+    irId: string;
+    srId: string;
+  }) => {
+    // 修复：分析任务与需求原先只能靠编号人工往返，导航必须携带同一对象归属。
+    aireq.select(
+      { projectId: target.projectId, irId: target.irId, srId: target.srId, formalView: "detail" },
+      target.releaseId,
+    );
+  };
   const taskActions = (task: AIReqAnalysisTask, onOpenReport: () => void) =>
-    task.error && task.lastRunId ? (
+    task.error || task.state === "failed" ? (
       <div className="flex items-center justify-end gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`查看 ${task.srId} 失败原因`}
-          onClick={onOpenReport}
-        >
-          原因
-        </Button>
+        {task.lastRunId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`查看 ${task.srId} 失败原因`}
+            onClick={onOpenReport}
+          >
+            原因
+          </Button>
+        )}
         <ControlHintTooltip title={retryBlocker(task) ?? "仅重试当前 SR"}>
           <span tabIndex={retryBlocker(task) ? 0 : undefined}>
             <Button
@@ -367,6 +384,7 @@ function ConnectedProgressAnalysis({
                 placeholder="搜索 SR 名称或编号"
                 value={srSearch}
                 onChange={(event) => {
+                  setTargetSrId("");
                   setSrSearch(event.target.value);
                   resetAnalysisPages();
                 }}
@@ -378,6 +396,7 @@ function ConnectedProgressAnalysis({
               triggerClassName="rounded-lg bg-surface"
               value={irId}
               onChange={(value) => {
+                setTargetSrId("");
                 setIrId(value);
                 resetAnalysisPages();
               }}
@@ -396,6 +415,7 @@ function ConnectedProgressAnalysis({
                 onClick={() => {
                   setIrId("all");
                   setSrSearch("");
+                  setTargetSrId("");
                   resetAnalysisPages();
                 }}
               >
@@ -460,6 +480,12 @@ function ConnectedProgressAnalysis({
                 onMessage={setMessage}
                 taskActions={taskActions}
                 openReport={openReport}
+                openRequirement={openRequirement}
+                initialTaskId={
+                  targetSrId
+                    ? taskResult.items.find((task) => task.irId === irId && task.srId === targetSrId)?.id
+                    : undefined
+                }
               />
               {!taskResult.total && (
                 <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
@@ -566,6 +592,7 @@ function ConnectedProgressAnalysis({
                       projects={snapshot.projects}
                       selectedRunId={selectedRunId}
                       openReport={openReport}
+                      openRequirement={openRequirement}
                     />
                     {!historyResult.total && (
                       <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
@@ -603,6 +630,7 @@ function ConnectedProgressAnalysis({
         {selectedRun ? (
           <ReportPane
             run={selectedRun}
+            onOpenRequirement={() => openRequirement(selectedRun)}
             onMessage={setMessage}
             feedback={
               <UpdateFeedback

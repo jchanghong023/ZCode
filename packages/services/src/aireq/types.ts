@@ -781,9 +781,11 @@ export interface AIReqDevelopmentIssue {
 export interface AIReqTodo extends AIReqObjectRef {
   id: string;
   requirementTitle: string;
+  srTitle?: string;
+  assignmentPerspective: AIReqAlignment["perspective"];
   releaseId: string;
   title: string;
-  kind: "business-discussion" | "original-review" | "solution" | "full-review" | "alignment" | "publish" | "development" | "testing" | "fix" | "failure";
+  kind: "business-discussion" | "original-review" | "solution" | "full-review" | "alignment" | "publish" | "development" | "testing" | "fix" | "failure" | "analysis-failure";
   employeeId?: string;
   perspective?: AIReqAlignment["perspective"];
   selection: AIReqSelection;

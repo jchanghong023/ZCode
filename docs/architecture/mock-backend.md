@@ -381,6 +381,13 @@ sequenceDiagram
   不代表生产持久化或完整通用 CAS。`conversationRowsRangeV4`、plans、workflow/artifact 查询
   与 attachment begin/chunk/commit 及字节查询的参数/返回值见 `transport.ts`、`snapshot.ts`、
   `command.ts`、`wire.ts` 及相应严格 schema，不重建第二套 DTO。
+- `conversationRowsRangeV4` 指定 `residency: "resident-only"` 时只读取 `MockRuntime` 中已存在
+  的会话；不存在返回 `proto.sessionNotResident`，工作区路径、身份或私有草稿操作者不匹配沿用
+  `fault.command.sessionNotFound`。此查询不创建会话、不补入模拟消息，也不修改配置或水位；未指定
+  `residency` 的既有读取行为不变。预检和后续请求之间会话仍可能被移除，调用方须处理不可用结果。
+- 附件预览、字节和元数据查询只检查现有会话；会话已移除时返回 `fault.command.sessionNotFound`，
+  不因读取重建会话，仍执行工作区、操作者与已采用附件的原有校验。`attachmentBeginV4` 继续沿用
+  既有合法业务会话预热语义。
 - 共享的是项目/会话事实，不是连接和握手状态。所有保留 Agent topic 均由逐连接 scope
   管理 ownership；真实后端保持同等隔离，不恢复已裁撤的 controller topic。
   主题等浏览器偏好不自动升级为共享业务事实。

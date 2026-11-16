@@ -347,7 +347,7 @@ export function SettingsPageFrame({
               {navigation}
             </nav>
 
-            <div className="max-lg:hidden">{footer}</div>
+            <div>{footer}</div>
           </div>
         </aside>
 

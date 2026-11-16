@@ -21,10 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
-import type { AIReqProject, AIReqWorkflowView } from "../contract.js";
+import type { AIReqProject, AIReqSettingsDraftActions, AIReqWorkflowView } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
 
 function validateRepository(name: string, remote: string, branch: string) {
   if (!name.trim()) throw new Error("请输入项目名称。");
@@ -59,13 +61,25 @@ function validateRepository(name: string, remote: string, branch: string) {
     throw new Error("请输入有效的默认分支名称。");
 }
 
-export function AIReqProjectSettings() {
+export function AIReqProjectSettings({
+  guard,
+  onDraftActionsChange,
+}: {
+  guard: (navigate: () => void) => void;
+  onDraftActionsChange: (actions: AIReqSettingsDraftActions | null) => void;
+}) {
   const source = useAIReqDataSource();
   const aireq = useAIReq();
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const employeeId = getEmployeeId();
   const [projectOpen, setProjectOpen] = useState(false);
   const [projectId, setProjectId] = useState<string>();
   const [projectRevision, setProjectRevision] = useState(0);
+  const initialProject = useRef({ name: "", repositoryUrl: "", defaultBranch: "" });
+  const initialReleaseProject = useRef("");
+  const savingRef = useRef(false);
+  const currentActions = useRef<AIReqSettingsDraftActions | null>(null);
   const repositoryOperation = useRef<{ payload: string; operationId: string } | null>(null);
   const [name, setName] = useState("");
   const [repositoryUrl, setRepositoryUrl] = useState("");
@@ -107,11 +121,127 @@ export function AIReqProjectSettings() {
       active = false;
     };
   }, [source, aireq?.view, refreshKey]);
-  if (!aireq) return null;
-  const projects = aireq.view?.projects ?? [];
+  const projects = aireq?.view?.projects ?? [];
   const releaseCount = projectViews.reduce((count, item) => count + item.view.releases.length, 0);
   const canSaveRepository = Boolean(source.projects?.saveRepository);
   const canCreateRelease = source.capabilities.workflowCommands.includes("createRelease");
+  const dirty =
+    (projectOpen &&
+      (name !== initialProject.current.name ||
+        repositoryUrl !== initialProject.current.repositoryUrl ||
+        defaultBranch !== initialProject.current.defaultBranch)) ||
+    (releaseOpen && (releaseTitle !== "" || releaseProjectId !== initialReleaseProject.current));
+  const busy = saving || releaseSaving;
+  const canSave =
+    !busy &&
+    (projectOpen
+      ? canSaveRepository && Boolean(name.trim() && repositoryUrl.trim() && defaultBranch.trim())
+      : releaseOpen &&
+        canCreateRelease &&
+        Boolean(releaseProjectId && releaseTitle.trim()) &&
+        !aireq?.pending);
+  const saveProject = async () => {
+    if (!canSaveRepository || savingRef.current) return false;
+    savingRef.current = true;
+    setSaving(true);
+    setProjectError("");
+    try {
+      validateRepository(name, repositoryUrl, defaultBranch);
+      const input = {
+        projectId,
+        name: name.trim(),
+        repositoryUrl: repositoryUrl.trim(),
+        defaultBranch: defaultBranch.trim(),
+        expectedRevision: projectRevision,
+      };
+      const payload = JSON.stringify(input);
+      // 同一输入重试沿用逻辑动作 ID；断线后不能意外创建第二个项目。
+      if (repositoryOperation.current?.payload !== payload)
+        repositoryOperation.current = { payload, operationId: createUuid() };
+      await source.projects!.saveRepository!({
+        ...input,
+        operationId: repositoryOperation.current.operationId,
+      });
+      setProjectOpen(false);
+      setMessage(
+        source.provenance.kind === "sample"
+          ? `已将“${name.trim()}”的配置保存到后端内存；仓库连接与默认分支未检查，未执行 Git 操作。`
+          : `已保存“${name.trim()}”的项目配置；未执行 Git 操作。`,
+      );
+      return true;
+    } catch (cause) {
+      setProjectError(cause instanceof Error ? cause.message : String(cause));
+      return false;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+  const saveRelease = async () => {
+    if (
+      !canCreateRelease ||
+      savingRef.current ||
+      !releaseProjectId ||
+      !releaseTitle.trim() ||
+      !aireq
+    )
+      return false;
+    savingRef.current = true;
+    setReleaseSaving(true);
+    setReleaseError("");
+    try {
+      if (
+        (await source.readWorkflow({ projectId: releaseProjectId })).releases.some(
+          (release) => release.title.toLowerCase() === releaseTitle.trim().toLowerCase(),
+        )
+      ) {
+        setReleaseError("此项目中已存在同名 Release，请使用其他名称。");
+        return false;
+      }
+      const result = await aireq.command({
+        type: "createRelease",
+        projectId: releaseProjectId,
+        title: releaseTitle,
+      });
+      if (result?.status !== "completed") {
+        setReleaseError("未能添加 Release，请检查名称和所属项目。");
+        return false;
+      }
+      setReleaseOpen(false);
+      setMessage(`已添加 Release“${releaseTitle.trim()}”。`);
+      return true;
+    } catch (cause) {
+      setReleaseError(cause instanceof Error ? cause.message : String(cause));
+      return false;
+    } finally {
+      savingRef.current = false;
+      setReleaseSaving(false);
+    }
+  };
+  // 原弹窗关闭绕过设置门禁，Esc 会静默丢稿；所有离开入口复用同一 owner 和最新保存动作。
+  currentActions.current = {
+    canSave,
+    canDiscard: !busy,
+    save: projectOpen ? saveProject : saveRelease,
+    discard: () => {
+      setProjectOpen(false);
+      setReleaseOpen(false);
+    },
+  };
+  useEffect(() => {
+    onDraftActionsChange(
+      dirty || busy
+        ? {
+            canSave,
+            canDiscard: !busy,
+            save: () => currentActions.current?.save() ?? false,
+            discard: () => currentActions.current?.discard(),
+          }
+        : null,
+    );
+  }, [dirty, busy, canSave, onDraftActionsChange]);
+  useEffect(() => () => onDraftActionsChange(null), [onDraftActionsChange]);
+  if (!aireq) return null;
   const openProject = (project?: AIReqProject) => {
     setProjectRevision(project?.revision ?? 0);
     repositoryOperation.current = null;
@@ -119,11 +249,17 @@ export function AIReqProjectSettings() {
     setName(project?.name ?? "");
     setRepositoryUrl(project?.repositoryUrl ?? "");
     setDefaultBranch(project?.defaultBranch ?? "");
+    initialProject.current = {
+      name: project?.name ?? "",
+      repositoryUrl: project?.repositoryUrl ?? "",
+      defaultBranch: project?.defaultBranch ?? "",
+    };
     setProjectError("");
     setMessage("");
     setProjectOpen(true);
   };
   const openRelease = (id: string) => {
+    initialReleaseProject.current = id;
     setReleaseProjectId(id);
     setReleaseTitle("");
     setReleaseError("");
@@ -131,11 +267,8 @@ export function AIReqProjectSettings() {
   };
   return (
     <section className="space-y-6" data-testid="aireq-project-settings">
-      <p className="text-ui-sm leading-6 text-foreground-subtle">
-        项目只配置 Git
-        仓库和默认分支。当前只模拟保存，不拉取仓库，不配置本机目录。保存设置不触发拉取、创建分支或推送。
-      </p>
-      {loading && (
+      {/* 已有配置时重读只播报状态，避免周期性插入加载行挤动列表；首次读取仍可见。 */}
+      {loading && !projectViews.length && projects.length > 0 && (
         <p role="status" className="text-ui-sm text-foreground-subtle">
           正在读取项目与 Release…
         </p>
@@ -148,72 +281,106 @@ export function AIReqProjectSettings() {
           </Button>
         </div>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-ui-base text-foreground-subtle">
-            所有人查看同一份项目与 Release。当前工号：{employeeId}。
+      <AIReqSettingsTarget
+        id="aireq.projects"
+        className="flex flex-wrap items-start justify-between gap-3"
+      >
+        <div className="min-w-0 space-y-1">
+          <p className="text-ui-base font-medium">
+            {zh
+              ? `${projects.length} 个项目 · ${releaseCount} 个 Release`
+              : `${projects.length} projects · ${releaseCount} releases`}
+            <span role="status" className="sr-only">
+              {loading && projectViews.length > 0
+                ? zh
+                  ? "正在读取项目与 Release…"
+                  : "Loading projects and Releases…"
+                : ""}
+            </span>
           </p>
           <p className="text-ui-sm text-foreground-subtle">
-            {projects.length} 个项目 · {releaseCount} 个 Release
+            {zh
+              ? "在项目卡片中编辑配置，或添加用于归集需求的 Release。"
+              : "Edit a project below or add a release to organize its requirements."}
           </p>
         </div>
         {canSaveRepository && (
           <Button onClick={() => openProject()}>
             <Plus className="size-4" />
-            添加项目
+            {zh ? "添加项目" : "Add project"}
           </Button>
+        )}
+      </AIReqSettingsTarget>
+      <div className="space-y-2 text-ui-sm leading-5 text-remote-foreground-muted">
+        <p>
+          {zh
+            ? `共享配置 · 当前工号 ${employeeId} · 所有合法工号均可修改。`
+            : `Shared configuration · Employee ${employeeId} · All valid employee IDs can edit.`}
+        </p>
+        <p>
+          {zh
+            ? "Release 用于归集需求，不是 Git 分支；沿用项目的仓库与默认分支。"
+            : "A release groups requirements, is not a Git branch, and inherits its project's repository and default branch."}
+        </p>
+        {source.provenance.kind === "sample" && (
+          <details>
+            <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-ring">
+              {zh
+                ? "模拟配置 · 仓库连接与默认分支未检查"
+                : "Simulated configuration · Repository and default branch not checked"}
+            </summary>
+            <p className="mt-2">
+              {zh
+                ? "数据由共享模拟后端内存持有，刷新保留、服务重启恢复。仅校验输入格式，不连接 Git 或本机目录；保存不会拉取仓库、创建分支或推送。"
+                : "The shared mock backend keeps data in memory across refreshes and resets on restart. Only input format is validated; saving does not connect to Git or local directories, fetch repositories, create branches, or push."}
+            </p>
+          </details>
         )}
       </div>
       {projectViews.map(({ project, view }) => (
         <SettingsGroupCard key={project.id}>
           <article data-project-id={project.id}>
-            <header className="space-y-4 border-b border-border px-4 py-4">
+            <header className="space-y-3 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
-                  <h3 className="text-ui-base font-medium">{project.name}</h3>
-                  <Badge variant="outline">Git 项目</Badge>
+                  <h3 className="min-w-0 break-words text-ui-base font-medium">{project.name}</h3>
                   {aireq.selection.projectId === project.id && (
-                    <Badge variant="secondary">当前项目</Badge>
+                    <Badge variant="secondary">{zh ? "当前项目" : "Current project"}</Badge>
                   )}
                 </div>
                 <Button
                   variant="outline"
+                  className="shrink-0"
                   disabled={!canSaveRepository}
                   onClick={() => openProject(project)}
-                  aria-label={`修改${project.name}仓库配置`}
+                  aria-label={zh ? `编辑项目 ${project.name}` : `Edit project ${project.name}`}
                 >
-                  修改仓库配置
+                  {zh ? "编辑项目" : "Edit project"}
                 </Button>
               </div>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label htmlFor={`repository-${project.id}`}>Git 仓库地址</Label>
-                  <Input
-                    id={`repository-${project.id}`}
-                    value={project.repositoryUrl ?? "尚未配置"}
-                    readOnly
-                    className="font-mono text-ui-sm"
-                  />
+                  <p className="text-ui-sm text-remote-foreground-muted">
+                    {zh ? "Git 仓库" : "Git repository"}
+                  </p>
+                  <p className="select-text break-all font-mono text-ui-sm leading-5">
+                    {project.repositoryUrl ?? (zh ? "尚未配置" : "Not configured")}
+                  </p>
                 </div>
                 <p className="flex flex-wrap items-center gap-2 text-ui-sm text-foreground-subtle">
                   <GitBranch className="size-3.5" />
-                  <span>默认分支：{project.defaultBranch}</span>
-                  <span>· {view.releases.length} 个 Release</span>
-                </p>
-                {source.provenance.kind === "sample" && (
-                  <p
-                    className="text-ui-sm text-foreground-subtle"
-                    data-testid={`repository-check-${project.id}`}
-                  >
-                    仓库连接：未检查 · 默认分支：未检查（原型未接入 Git
-                    检查，配置已记录不等于检查通过）。
-                  </p>
-                )}
-                <p className="text-ui-sm text-foreground-subtle">
-                  所有合法工号均可修改共享项目与 Release 设置。
+                  <span>
+                    {zh ? "默认分支：" : "Default branch: "}
+                    {project.defaultBranch}
+                  </span>
                 </p>
               </div>
+            </header>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+              <h4 className="text-ui-sm font-medium">
+                {zh ? `Release · ${view.releases.length} 个` : `Releases · ${view.releases.length}`}
+              </h4>
               <Button
                 variant="outline"
                 disabled={!canCreateRelease}
@@ -221,11 +388,11 @@ export function AIReqProjectSettings() {
                 aria-label={`为${project.name}添加 Release`}
               >
                 <Plus className="size-3.5" />
-                添加 Release
+                {zh ? "添加 Release" : "Add release"}
               </Button>
-            </header>
+            </div>
             {view.releases.length ? (
-              <ul className="divide-y divide-border">
+              <ul className="divide-y divide-border border-t border-border">
                 {view.releases.map((release) => {
                   const groups = view.groups.filter((group) => group.releaseId === release.id);
                   const draftCount = view.drafts.filter(
@@ -237,38 +404,43 @@ export function AIReqProjectSettings() {
                       key={release.id}
                       className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                     >
-                      <div className="min-w-0 space-y-1">
+                      <div className="min-w-0 flex-1 space-y-1">
                         <p className="break-words text-ui-base font-medium">{release.title}</p>
-                        {/* 修复原因：源版仅在存在提案时显示计数，避免零值占据 Release 摘要行。 */}
+                        {/* 计数展开领域术语；仅有提案时补充，避免重复的零值干扰扫描。 */}
                         <p className="text-ui-sm text-foreground-subtle">
-                          {groups.length} 个 IR · {srCount} 个 SR
-                          {draftCount > 0 && ` · ${draftCount} 个需求提案`}
-                        </p>
-                        <p className="text-ui-sm text-foreground-subtle">
-                          沿用项目 Git 仓库 · 默认分支 {project.defaultBranch}
+                          {zh
+                            ? `正式需求（IR）${groups.length} · 开发单元（SR）${srCount}`
+                            : `Formal requirements (IR) ${groups.length} · Development units (SR) ${srCount}`}
+                          {draftCount > 0 &&
+                            (zh ? ` · 需求提案 ${draftCount}` : ` · Proposals ${draftCount}`)}
                         </p>
                       </div>
-                      <Badge variant="outline">{groups.length ? "已有需求" : "待规划"}</Badge>
+                      <Badge variant="outline">
+                        {groups.length
+                          ? zh
+                            ? "已有需求"
+                            : "Has requirements"
+                          : zh
+                            ? "待规划"
+                            : "To plan"}
+                      </Badge>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <div className="space-y-2 px-4 py-6 text-ui-base text-foreground-subtle">
-                <p>尚未添加 Release。创建第一个 Release，开始整理本项目的需求。</p>
-                <Button
-                  variant="outline"
-                  disabled={!canCreateRelease}
-                  onClick={() => openRelease(project.id)}
-                >
-                  添加第一个 Release
-                </Button>
+              <div className="border-t border-border px-4 py-4 text-ui-sm text-remote-foreground-muted">
+                <p>
+                  {zh
+                    ? "尚无 Release，点击“添加 Release”开始整理本项目的需求。"
+                    : "No releases yet. Choose “Add release” to organize this project's requirements."}
+                </p>
               </div>
             )}
           </article>
         </SettingsGroupCard>
       ))}
-      {!loading && !loadError && !projects.length && (
+      {aireq.view && !loadError && !projects.length && (
         <p className="text-ui-base text-foreground-subtle">
           还没有项目。配置 Git 仓库与默认分支后，即可创建 Release。
         </p>
@@ -276,67 +448,34 @@ export function AIReqProjectSettings() {
       <p role="status" className="text-ui-base text-foreground-subtle">
         {message}
       </p>
-      {source.provenance.kind === "sample" && (
-        <p className="text-ui-sm leading-6 text-foreground-subtle">
-          项目、仓库配置与 Release
-          由共享模拟后端内存持有，刷新保留、服务重启恢复。只检查输入格式，不连接 Git 或文件系统。
-        </p>
-      )}
       <Dialog
         open={projectOpen}
         onOpenChange={(open) => {
-          if (!saving) setProjectOpen(open);
+          if (!open && !savingRef.current) guard(() => setProjectOpen(false));
         }}
       >
         {/* 矮窗口中表单曾超出视口；限定弹窗高度，仅正文滚动，保留标题、关闭和底部动作。 */}
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
           <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle>{projectId ? "修改仓库配置" : "添加项目"}</DialogTitle>
+            <DialogTitle>
+              {projectId ? (zh ? "编辑项目" : "Edit project") : zh ? "添加项目" : "Add project"}
+            </DialogTitle>
             <DialogDescription>
-              配置远程 Git 仓库与默认分支，Release 沿用所属项目配置。保存仅记录配置，不执行 Git
-              操作。
+              {zh
+                ? "配置项目名称、远程 Git 仓库与默认分支。保存仅记录配置，不执行 Git 操作。"
+                : "Set the project name, remote Git repository, and default branch. Saving only records configuration and performs no Git operations."}
             </DialogDescription>
           </DialogHeader>
           <form
             className="flex min-h-0 flex-col gap-4"
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault();
-              if (!canSaveRepository || saving) return;
-              setSaving(true);
-              setProjectError("");
-              try {
-                validateRepository(name, repositoryUrl, defaultBranch);
-                const input = {
-                  projectId,
-                  name: name.trim(),
-                  repositoryUrl: repositoryUrl.trim(),
-                  defaultBranch: defaultBranch.trim(),
-                  expectedRevision: projectRevision,
-                };
-                const payload = JSON.stringify(input);
-                // 同一输入重试沿用逻辑动作 ID；断线后不能意外创建第二个项目。
-                if (repositoryOperation.current?.payload !== payload)
-                  repositoryOperation.current = { payload, operationId: createUuid() };
-                await source.projects!.saveRepository!({
-                  ...input,
-                  operationId: repositoryOperation.current.operationId,
-                });
-                setProjectOpen(false);
-                setMessage(
-                  source.provenance.kind === "sample"
-                    ? `已将“${name.trim()}”的配置保存到后端内存；仓库连接与默认分支未检查，未执行 Git 操作。`
-                    : `已保存“${name.trim()}”的仓库配置；未执行 Git 操作。`,
-                );
-              } catch (cause) {
-                setProjectError(cause instanceof Error ? cause.message : String(cause));
-              } finally {
-                setSaving(false);
-              }
+              void saveProject();
             }}
           >
             <div className="min-h-0 space-y-4 overflow-y-auto">
               <div className="space-y-2">
-                <Label htmlFor="project-name">项目名称</Label>
+                <Label htmlFor="project-name">{zh ? "项目名称" : "Project name"}</Label>
                 <Input
                   id="project-name"
                   value={name}
@@ -346,7 +485,9 @@ export function AIReqProjectSettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="project-repository">Git 仓库地址</Label>
+                <Label htmlFor="project-repository">
+                  {zh ? "Git 仓库地址" : "Git repository URL"}
+                </Label>
                 <Input
                   id="project-repository"
                   value={repositoryUrl}
@@ -356,24 +497,31 @@ export function AIReqProjectSettings() {
                   disabled={saving || !canSaveRepository}
                   aria-describedby="project-repository-help"
                 />
-                <p id="project-repository-help" className="text-ui-sm text-foreground-subtle">
-                  填写 HTTP(S)、SSH 或 git@host:path 格式的远程地址，不填写本地路径。
+                <p
+                  id="project-repository-help"
+                  className="text-ui-sm leading-5 text-remote-foreground-muted"
+                >
+                  {zh
+                    ? "填写 HTTP(S)、SSH 或 git@host:path 格式的远程地址，不填写本地路径。"
+                    : "Enter an HTTP(S), SSH, or git@host:path remote URL, not a local path."}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="project-default-branch">默认分支</Label>
+                <Label htmlFor="project-default-branch">{zh ? "默认分支" : "Default branch"}</Label>
                 <Input
                   id="project-default-branch"
                   value={defaultBranch}
                   onChange={(event) => setDefaultBranch(event.target.value)}
-                  placeholder="例如 main 或 master"
+                  placeholder={zh ? "例如 main 或 master" : "For example, main or master"}
                   required
                   disabled={saving || !canSaveRepository}
                 />
               </div>
               {source.provenance.kind === "sample" && (
-                <p className="text-ui-sm text-foreground-subtle">
-                  仅校验输入格式；保存不会检查仓库连接或默认分支。原型不提供真实连接检查。
+                <p className="text-ui-sm leading-5 text-remote-foreground-muted">
+                  {zh
+                    ? "仅校验输入格式；仓库连接与默认分支未检查。"
+                    : "Only input format is validated; repository access and the default branch are not checked."}
                 </p>
               )}
               {projectError && (
@@ -387,21 +535,22 @@ export function AIReqProjectSettings() {
                 type="button"
                 variant="outline"
                 disabled={saving}
-                onClick={() => setProjectOpen(false)}
+                onClick={() => guard(() => setProjectOpen(false))}
               >
-                取消
+                {zh ? "取消" : "Cancel"}
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  !canSaveRepository ||
-                  saving ||
-                  !name.trim() ||
-                  !repositoryUrl.trim() ||
-                  !defaultBranch.trim()
-                }
-              >
-                {saving ? "保存中…" : projectId ? "保存配置" : "添加项目"}
+              <Button type="submit" disabled={!canSave}>
+                {saving
+                  ? zh
+                    ? "保存中…"
+                    : "Saving…"
+                  : projectId
+                    ? zh
+                      ? "保存配置"
+                      : "Save configuration"
+                    : zh
+                      ? "添加项目"
+                      : "Add project"}
               </Button>
             </DialogFooter>
           </form>
@@ -410,55 +559,32 @@ export function AIReqProjectSettings() {
       <Dialog
         open={releaseOpen}
         onOpenChange={(open) => {
-          if (!releaseSaving) setReleaseOpen(open);
+          if (!open && !savingRef.current) guard(() => setReleaseOpen(false));
         }}
       >
         {/* Release 同样将正文约束在视口内，避免大字号时主要动作被裁切。 */}
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
           <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle>添加 Release</DialogTitle>
+            <DialogTitle>{zh ? "添加 Release" : "Add release"}</DialogTitle>
             <DialogDescription>
-              Release 属于所选项目，沿用其 Git 仓库和默认分支，不单独配置目录或仓库。
+              {zh
+                ? "用于归集同一版本的需求，不是 Git 分支。沿用所选项目的 Git 仓库与默认分支。"
+                : "Group requirements for a version, not a Git branch. The release inherits the selected project's repository and default branch."}
             </DialogDescription>
           </DialogHeader>
           <form
             className="flex min-h-0 flex-col gap-4"
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault();
-              if (!canCreateRelease || releaseSaving || !releaseProjectId || !releaseTitle.trim())
-                return;
-              setReleaseSaving(true);
-              setReleaseError("");
-              try {
-                if (
-                  (await source.readWorkflow({ projectId: releaseProjectId })).releases.some(
-                    (release) => release.title.toLowerCase() === releaseTitle.trim().toLowerCase(),
-                  )
-                ) {
-                  setReleaseError("此项目中已存在同名 Release，请使用其他名称。");
-                  return;
-                }
-                const result = await aireq.command({
-                  type: "createRelease",
-                  projectId: releaseProjectId,
-                  title: releaseTitle,
-                });
-                if (result?.status === "completed") {
-                  setReleaseOpen(false);
-                  setMessage(`已添加 Release“${releaseTitle.trim()}”。`);
-                } else setReleaseError("未能添加 Release，请检查名称和所属项目。");
-              } catch (cause) {
-                setReleaseError(cause instanceof Error ? cause.message : String(cause));
-              } finally {
-                setReleaseSaving(false);
-              }
+              void saveRelease();
             }}
           >
             <div className="min-h-0 space-y-4 overflow-y-auto">
               <div className="space-y-2">
-                <Label htmlFor="release-project">所属项目</Label>
+                <Label htmlFor="release-project">{zh ? "所属项目" : "Project"}</Label>
                 <Select
                   value={releaseProjectId}
+                  disabled={releaseSaving}
                   onValueChange={(value) => {
                     setReleaseProjectId(value);
                     setReleaseError("");
@@ -478,21 +604,26 @@ export function AIReqProjectSettings() {
               </div>
               <div className="space-y-2 text-ui-sm text-foreground-subtle">
                 <p className="break-all">
-                  Git 仓库：
+                  {zh ? "Git 仓库：" : "Git repository: "}
                   {projects.find((project) => project.id === releaseProjectId)?.repositoryUrl ??
-                    "尚未配置"}
+                    (zh ? "尚未配置" : "Not configured")}
                 </p>
                 <p>
-                  默认分支：
+                  {zh ? "默认分支：" : "Default branch: "}
                   {projects.find((project) => project.id === releaseProjectId)?.defaultBranch}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="release-name">Release 名称</Label>
+                <Label htmlFor="release-name">{zh ? "Release 名称" : "Release name"}</Label>
                 <Input
                   id="release-name"
-                  placeholder="例如：2027.01 · 支付体验优化"
+                  placeholder={
+                    zh
+                      ? "例如：2027.01 · 支付体验优化"
+                      : "For example, 2027.01 · Payment improvements"
+                  }
                   value={releaseTitle}
+                  disabled={releaseSaving}
                   onChange={(event) => {
                     setReleaseTitle(event.target.value);
                     setReleaseError("");
@@ -511,21 +642,12 @@ export function AIReqProjectSettings() {
                 type="button"
                 variant="outline"
                 disabled={releaseSaving}
-                onClick={() => setReleaseOpen(false)}
+                onClick={() => guard(() => setReleaseOpen(false))}
               >
-                取消
+                {zh ? "取消" : "Cancel"}
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  !canCreateRelease ||
-                  releaseSaving ||
-                  !releaseTitle.trim() ||
-                  !releaseProjectId ||
-                  aireq.pending
-                }
-              >
-                {releaseSaving ? "保存中…" : "添加 Release"}
+              <Button type="submit" disabled={!canSave}>
+                {releaseSaving ? (zh ? "保存中…" : "Saving…") : zh ? "添加 Release" : "Add release"}
               </Button>
             </DialogFooter>
           </form>

@@ -6,6 +6,7 @@ import type {
   AIReqAnalysisRunSummary,
 } from "../../contract.js";
 import { Button } from "@/components/ui/button.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
 
 const cellClass = "px-4 py-3 text-left align-middle";
 const headerClass = "h-10 px-4 text-left text-ui-sm font-normal text-foreground-subtle";
+type AnalysisTarget = Pick<AIReqAnalysisTask, "projectId" | "releaseId" | "irId" | "srId">;
 
 export function AnalysisTaskTable({
   items,
@@ -43,14 +45,19 @@ export function AnalysisTaskTable({
   onMessage,
   taskActions,
   openReport,
+  openRequirement,
+  initialTaskId,
 }: {
   items: AIReqAnalysisTask[];
   projects: AIReqAnalysisSnapshot["projects"];
   onMessage: (value: string) => void;
   taskActions: (task: AIReqAnalysisTask, onOpenReport: () => void) => ReactNode;
   openReport: (id: string, trigger: HTMLButtonElement) => void;
+  openRequirement: (target: AnalysisTarget) => void;
+  initialTaskId?: string;
 }) {
-  const [detailTaskId, setDetailTaskId] = useState<string>();
+  const { locale } = useZCodeIntl();
+  const [detailTaskId, setDetailTaskId] = useState<string | undefined>(initialTaskId);
   const detailTrigger = useRef<HTMLButtonElement | null>(null);
   const reportAfterClose = useRef<(() => void) | undefined>(undefined);
   return (
@@ -87,6 +94,14 @@ export function AnalysisTaskTable({
                   title={task.srTitle}
                   subtitle={`${projects.find((project) => project.id === task.projectId)?.name ?? task.projectId} · ${task.irId} · ${task.srId}`}
                 />
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="ml-7 h-auto px-0"
+                  onClick={() => openRequirement(task)}
+                >
+                  {locale === "zh-CN" ? "打开需求" : "Open requirement"}
+                </Button>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
                 <Status value={task.state}>{taskLabels[task.state]}</Status>
@@ -130,6 +145,10 @@ export function AnalysisTaskTable({
                       className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                       aria-haspopup="dialog"
                       aria-label={`查看 ${task.srId} 任务详情`}
+                      ref={(node) => {
+                        // 待办直达会先打开弹窗，没有点击事件；仍需保留报告回焦的表格入口。
+                        if (node && task.id === detailTaskId) detailTrigger.current = node;
+                      }}
                       onClick={(event) => {
                         detailTrigger.current = event.currentTarget;
                       }}
@@ -182,17 +201,22 @@ export function AnalysisTaskTable({
                         <dd>{time(task.lastRunAt)}</dd>
                       </dl>
                       <div className="border-t border-border pt-3">
-                        {task.lastRunId ? (
-                          taskActions(task, () => {
-                            const trigger = detailTrigger.current;
-                            if (!trigger || !task.lastRunId) return;
-                            // 先卸载任务弹窗，再打开报告；回焦目标始终是表格入口。
-                            reportAfterClose.current = () => openReport(task.lastRunId!, trigger);
-                            setDetailTaskId(undefined);
-                          })
-                        ) : (
-                          <p className="text-foreground-subtle">尚无分析报告。</p>
-                        )}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => openRequirement(task)}>
+                            {locale === "zh-CN" ? "打开对应需求" : "Open requirement"}
+                          </Button>
+                          {task.lastRunId || task.error || task.state === "failed" ? (
+                            taskActions(task, () => {
+                              const trigger = detailTrigger.current;
+                              if (!trigger || !task.lastRunId) return;
+                              // 先卸载任务弹窗，再打开报告；回焦目标始终是表格入口。
+                              reportAfterClose.current = () => openReport(task.lastRunId!, trigger);
+                              setDetailTaskId(undefined);
+                            })
+                          ) : (
+                            <p className="text-foreground-subtle">尚无分析报告。</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </DialogContent>
@@ -211,12 +235,15 @@ export function AnalysisHistoryTable({
   projects,
   selectedRunId,
   openReport,
+  openRequirement,
 }: {
   items: AIReqAnalysisRunSummary[];
   projects: AIReqAnalysisSnapshot["projects"];
   selectedRunId?: string;
   openReport: (id: string, trigger: HTMLButtonElement) => void;
+  openRequirement: (target: AnalysisTarget) => void;
 }) {
+  const { locale } = useZCodeIntl();
   return (
     <TrackingTableScroll label="执行历史表格">
       <table data-testid="analysis-history-table" className={`${tableClass} min-w-[640px]`}>
@@ -250,6 +277,14 @@ export function AnalysisHistoryTable({
                   title={run.srTitle}
                   subtitle={`${projects.find((project) => project.id === run.projectId)?.name ?? run.projectId} · ${run.irId} · ${run.srId}`}
                 />
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="ml-7 h-auto px-0"
+                  onClick={() => openRequirement(run)}
+                >
+                  {locale === "zh-CN" ? "打开需求" : "Open requirement"}
+                </Button>
               </MarkdownTableCell>
               <MarkdownTableCell className={cellClass}>
                 <ControlHintTooltip title={time(run.startedAt)}>

@@ -214,4 +214,5 @@ export const SETTINGS_SEARCH_ITEMS = [
   visibility: "all" | keyof SettingsSearchAvailability;
 }[];
 
-export type SettingsSearchId = (typeof SETTINGS_SEARCH_ITEMS)[number]["id"];
+// 业务页面可提供自己的固定定位标识，但不会把其条目混入原生设置索引。
+export type SettingsSearchId = (typeof SETTINGS_SEARCH_ITEMS)[number]["id"] | `aireq.${string}`;

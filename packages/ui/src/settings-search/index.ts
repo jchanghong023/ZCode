@@ -3,4 +3,9 @@ export {
   SettingsSearchTargetContext,
   useSettingsSearchTarget,
 } from "@/settings-search/SettingsSearchTarget.js";
-export type { SettingsSearchId, SettingsSearchResult } from "@/settings-search/contract.js";
+export type {
+  SettingsSearchId,
+  SettingsSearchItem,
+  SettingsSearchResult,
+  SettingsSearchSection,
+} from "@/settings-search/contract.js";

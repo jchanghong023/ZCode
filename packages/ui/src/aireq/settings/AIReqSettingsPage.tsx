@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bot, Folders, Palette, HelpCircle } from "lucide-react";
+import { ArrowLeft, Bot, Folders, Palette, HelpCircle, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import {
@@ -13,7 +13,7 @@ import {
 import { AppearanceSectionContent } from "@/settingsCodePreview.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { SettingsPageFrame, SettingsSidebarButton } from "@/settings/SettingsPageParts.js";
+import { SettingsPageFrame } from "@/settings/SettingsPageParts.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   SettingsSearch,
@@ -90,6 +90,7 @@ export function AIReqSettingsPage({
   onHelp,
   onNavigationGuardChange,
   skillActions,
+  analysisProjectId,
 }: {
   active: boolean;
   onClose: () => void;
@@ -98,6 +99,7 @@ export function AIReqSettingsPage({
   onHelp: (returnFocusTo?: HTMLButtonElement | null) => void;
   onNavigationGuardChange?: (guard: AIReqNavigationGuard | null) => void;
   skillActions: AIReqSettingsDraftActions | null;
+  analysisProjectId?: string;
 }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -109,16 +111,93 @@ export function AIReqSettingsPage({
     () =>
       [
         { id: "appearance", label: titles.appearance },
-        { id: "general", label: titles.projects, includeSettings: false },
-        { id: "modelProvider", label: `${aiTitle} · ${titles.models}`, includeSettings: false },
+        {
+          id: "general",
+          label: titles.projects,
+          includeSettings: false,
+          items: [
+            {
+              id: "aireq.projects",
+              label: zh
+                ? "项目、仓库与 Release（先选择项目）"
+                : "Projects, repositories and releases (select a project)",
+              keywords: [
+                "项目名称",
+                "仓库",
+                "远程仓库",
+                "默认分支",
+                "版本",
+                "Release",
+                "project",
+                "repository",
+                "branch",
+              ],
+            },
+          ],
+        },
+        {
+          id: "modelProvider",
+          label: `${aiTitle} · ${titles.models}`,
+          includeSettings: false,
+          items: [
+            {
+              id: "aireq.model.default",
+              label: zh ? "工作流默认模型" : "Workflow default model",
+              keywords: ["默认模型", "default model", "workflow model"],
+            },
+            {
+              id: "aireq.model.agents",
+              label: zh ? "Agent 模型与思考强度" : "Agent models and reasoning",
+              keywords: ["模型配置", "思考强度", "推理", "agent model", "reasoning"],
+            },
+            {
+              id: "aireq.model.progressAnalysis",
+              label: zh ? "需求分析 Agent 模型" : "Requirement Analysis Agent model",
+              keywords: ["进度分析", "分析模型", "progress analysis", "analysis model"],
+            },
+          ],
+        },
         {
           id: "personalization",
           label: `${aiTitle} · ${titles.personalization}`,
           includeSettings: false,
+          items: [
+            {
+              id: "aireq.instructions.agent",
+              label: zh ? "选择 Agent" : "Select Agent",
+              keywords: ["角色", "选择智能体", "agent", "role"],
+            },
+            {
+              id: "aireq.instructions.prompt",
+              label: zh ? "追加指令" : "Additional instructions",
+              keywords: ["共享指令", "Agent 指令", "提示词", "系统提示词", "prompt", "instructions"],
+            },
+          ],
         },
-        { id: "agentBehavior", label: `${aiTitle} · ${titles.analysis}`, includeSettings: false },
+        {
+          id: "agentBehavior",
+          label: `${aiTitle} · ${titles.analysis}`,
+          includeSettings: false,
+          items: [
+            {
+              id: "aireq.analysis.enabled",
+              label: zh ? "全局自动分析" : "Global automatic analysis",
+              keywords: ["分析开关", "自动调度", "global analysis", "scheduler"],
+            },
+            {
+              id: "aireq.analysis.projects",
+              label: zh ? "项目分析范围" : "Project analysis scope",
+              keywords: ["项目分析", "启用项目", "project analysis", "project scope"],
+            },
+            {
+              id: "aireq.analysis.interval",
+              label: zh ? "统一分析间隔" : "Analysis interval",
+              keywords: ["间隔", "周期", "调度", "interval", "schedule"],
+            },
+          ],
+        },
       ] as const,
-    [titles, aiTitle],
+    [titles, aiTitle, zh],
   );
   useLayoutEffect(() => {
     // AI 子页共用稳定的页签栏；仅重置正文滚动，保留键盘切换后的页签焦点。
@@ -129,6 +208,7 @@ export function AIReqSettingsPage({
     skill: AIReqSettingsDraftActions | null;
   }>({ form: null, skill: null });
   const pending = useRef<(() => void) | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -157,6 +237,8 @@ export function AIReqSettingsPage({
       return;
     }
     pending.current = navigate;
+    returnFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setError("");
     setConfirm(true);
   }, []);
@@ -242,17 +324,32 @@ export function AIReqSettingsPage({
           style: { gridTemplateColumns: "68px minmax(0, 1fr)" },
         }}
         backButton={
-          <ControlHintTooltip title="返回工作区" side="right" align="center">
+          <ControlHintTooltip
+            title={zh ? "返回工作区" : "Return to workspace"}
+            side="right"
+            align="center"
+          >
             <Button
               type="button"
               variant="ghost"
               size="lg"
-              aria-label="返回工作区"
-              className="m-1 size-10 justify-center rounded-xl bg-surface p-0 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground"
+              aria-label={zh ? "返回工作区" : "Return to workspace"}
+              className="mx-auto flex h-auto min-h-14 w-full flex-col justify-center gap-1 rounded-xl bg-surface p-1 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground"
               onClick={() => guard(onClose)}
             >
               <ArrowLeft className="size-4" />
-              <span className="sr-only">返回工作区</span>
+              {/* 固定侧栏需容纳更长的英文和放大字号，按词义换行以保留完整标签。 */}
+              <span className="max-w-full whitespace-normal break-words text-ui-xs leading-tight">
+                {zh ? (
+                  "工作区"
+                ) : (
+                  <>
+                    Work
+                    <wbr />
+                    space
+                  </>
+                )}
+              </span>
             </Button>
           </ControlHintTooltip>
         }
@@ -280,35 +377,68 @@ export function AIReqSettingsPage({
                   id: "appearance",
                   icon: Palette,
                   label: titles.appearance,
+                  shortLabel: zh ? "外观" : "Look",
                   active: section === "appearance",
                 },
                 {
                   id: "projects",
                   icon: Folders,
                   label: titles.projects,
+                  shortLabel: zh ? "项目" : "Projects",
                   active: section === "projects",
                 },
                 {
                   id: aiSection ? section : "models",
                   icon: Bot,
                   label: aiTitle,
+                  shortLabel: "AI",
                   active: aiSection,
                 },
               ] as const
-            ).map((entry) => (
-              <SettingsSidebarButton
-                key={entry.label}
-                icon={entry.icon}
-                label={entry.label}
-                className="mx-auto size-10 justify-center px-0 [&>span:last-child]:sr-only"
-                active={entry.active}
-                aria-current={entry.active ? "page" : undefined}
-                onClick={() => navigate(entry.id)}
-              />
-            ))}
+            ).map((entry) => {
+              const Icon = entry.icon;
+              return (
+                <ControlHintTooltip
+                  key={entry.label}
+                  title={entry.label}
+                  side="right"
+                  align="center"
+                >
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-label={entry.label}
+                    aria-current={entry.active ? "page" : undefined}
+                    className={`mx-auto flex h-auto min-h-14 w-full flex-col justify-center gap-1 rounded-xl p-1 ${entry.active ? "bg-surface-hover text-foreground" : "text-remote-foreground-muted"}`}
+                    onClick={() => navigate(entry.id)}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    <span className="max-w-full whitespace-normal break-words text-ui-xs leading-tight">
+                      {entry.shortLabel}
+                    </span>
+                  </Button>
+                </ControlHintTooltip>
+              );
+            })}
           </div>
         }
-        footer={null}
+        footer={
+          // 工作台被设置页替换后原齿轮不可见；在同一位置标识当前设置，不接入离开门禁或重置草稿。
+          <div className="flex shrink-0 justify-center px-2 pt-2 pb-4">
+            <ControlHintTooltip title={zh ? "设置" : "Settings"} side="right">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-lg"
+                aria-label={zh ? "设置" : "Settings"}
+                aria-current="page"
+                className="bg-selected"
+              >
+                <Settings className="size-4" aria-hidden="true" />
+              </Button>
+            </ControlHintTooltip>
+          </div>
+        }
         help={
           <Button
             variant="ghost"
@@ -346,15 +476,26 @@ export function AIReqSettingsPage({
                     <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
                   ) : (
                     <AIReqAnalysisSettings
-                      onOpenModelSettings={() => navigate("models")}
+                      onOpenModelSettings={() =>
+                        guard(() => {
+                          // 分析设置指向对应 Agent，避免进入模型页后再次搜索目标。
+                          onSectionChange("models");
+                          setSearchTarget({ id: "aireq.model.progressAnalysis" });
+                        })
+                      }
                       onDraftActionsChange={onDraftActionsChange}
+                      focusProjectId={analysisProjectId}
                     />
                   )}
                 </TabsContent>
               </Tabs>
             ) : (
               <div key={section} className="space-y-8">
-                {section === "appearance" ? <Appearance /> : <AIReqProjectSettings />}
+                {section === "appearance" ? (
+                  <Appearance />
+                ) : (
+                  <AIReqProjectSettings guard={guard} onDraftActionsChange={onDraftActionsChange} />
+                )}
               </div>
             )}
           </div>
@@ -369,7 +510,18 @@ export function AIReqSettingsPage({
           }
         }}
       >
-        <DialogContent className="max-w-md" showCloseButton={!busy}>
+        <DialogContent
+          className="max-w-md"
+          showCloseButton={!busy}
+          onCloseAutoFocus={(event) => {
+            // 项目编辑是嵌套弹窗；取消确认后恢复原输入，避免焦点落到被遮罩的工作区。
+            if (returnFocus.current?.isConnected) {
+              event.preventDefault();
+              returnFocus.current.focus({ preventScroll: true });
+            }
+            returnFocus.current = null;
+          }}
+        >
           <DialogHeader>
             <DialogTitle>保存更改？</DialogTitle>
             <DialogDescription>

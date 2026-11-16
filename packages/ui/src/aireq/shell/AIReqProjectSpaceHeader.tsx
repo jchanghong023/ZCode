@@ -1,4 +1,5 @@
-import { ArrowLeft, Settings2 } from "lucide-react";
+import { ArrowLeft, Copy, Settings2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -10,12 +11,16 @@ import {
 } from "@/components/ui/select.js";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
 
 export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
+  const { writeClipboardText } = usePlatform();
+  const [copiedLink, setCopiedLink] = useState("");
+  const [copyError, setCopyError] = useState("");
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
@@ -27,6 +32,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
     (item) => item.projectId === project?.id && item.id === ai.selection.irId,
   );
   const group = formalGroup ?? proposal;
+  const groupRelease = releases.find((item) => item.id === group?.releaseId);
   const sr = ai.view?.srs.find(
     (item) =>
       item.projectId === project?.id &&
@@ -37,7 +43,12 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
   const proposalView =
     ai.mainView === "proposals" ||
     (ai.mainView === "chat" && !ai.selection.formalView && !formalGroup);
-  const requirementView = proposalView ? "proposals" : "formal";
+  const requirementView =
+    ai.mainView === "proposals" || ai.mainView === "formal" || ai.mainView === "chat"
+      ? proposalView
+        ? "proposals"
+        : "formal"
+      : ai.requirementView;
   const section =
     ai.mainView === "projectOverview"
       ? "overview"
@@ -56,7 +67,8 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
   return (
     <header className="shrink-0 border-b border-border/50" data-testid="aireq-project-space-header">
       <div className={`mx-auto min-w-0 space-y-3 px-2 pt-3 pb-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 较窄窗口为固定历史按钮让位，宽窗口仍与居中正文对齐。 */}
+        <div className="flex flex-wrap items-center gap-2 [padding-left:max(0px,calc(4.75rem_-_(100cqw_-_100%)_/_2))]">
           <Button
             variant="ghost"
             size="sm"
@@ -133,7 +145,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
             </Button>
           </div>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Tabs
             value={section}
             onValueChange={(value) =>
@@ -183,9 +195,42 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
             <span className="min-w-0 flex-1 truncate font-medium" title={sr?.title ?? group?.title}>
               {sr?.title ?? group?.title ?? ai.selection.irId}
             </span>
+            {groupRelease && <span className="text-foreground-subtle">{groupRelease.title}</span>}
             <span className="shrink-0 font-mono text-foreground-subtle">
               {ai.selection.srId ?? ai.selection.irId}
             </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!ai.objectLink()}
+              onClick={async () => {
+                const link = ai.objectLink();
+                if (!link) return;
+                try {
+                  await writeClipboardText(link);
+                  setCopiedLink(link);
+                  setCopyError("");
+                } catch (cause) {
+                  setCopiedLink("");
+                  setCopyError(cause instanceof Error ? cause.message : String(cause));
+                }
+              }}
+            >
+              <Copy className="size-3.5" aria-hidden="true" />
+              {copiedLink && copiedLink === ai.objectLink()
+                ? zh
+                  ? "已复制"
+                  : "Copied"
+                : zh
+                  ? "复制链接"
+                  : "Copy link"}
+            </Button>
+            {copyError && (
+              <span role="alert" className="text-destructive">
+                {zh ? "复制失败：" : "Copy failed: "}
+                {copyError}
+              </span>
+            )}
             <Button
               variant="ghost"
               size="sm"

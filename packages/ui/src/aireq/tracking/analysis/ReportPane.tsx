@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { AIReqAnalysisRun } from "../../contract.js";
 import { Button } from "@/components/ui/button.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { RunModelFacts } from "../RunModelFacts.js";
 import { BranchCopy } from "../BranchCopy.js";
@@ -8,6 +9,7 @@ import { duration, runLabels, Status, time } from "./AnalysisPresentation.js";
 
 export function ReportPane({
   run,
+  onOpenRequirement,
   onRetry,
   retryDisabledReason,
   onRestoreFocus,
@@ -15,12 +17,14 @@ export function ReportPane({
   onMessage,
 }: {
   run: AIReqAnalysisRun;
+  onOpenRequirement: () => void;
   onRetry: () => void;
   retryDisabledReason?: string;
   onRestoreFocus: () => void;
   feedback: ReactNode;
   onMessage: (value: string) => void;
 }) {
+  const { locale } = useZCodeIntl();
   const report = run.report;
   return (
     <DialogContent
@@ -50,6 +54,10 @@ export function ReportPane({
         <p className="break-words text-ui-sm text-foreground-subtle">
           项目：{run.projectId} · {run.irId} · {run.srId}
         </p>
+        {/* 修复：报告只显示编号时，用户需离开分析页后再次手工查找同一 SR。 */}
+        <Button variant="outline" size="sm" onClick={onOpenRequirement}>
+          {locale === "zh-CN" ? "打开对应需求" : "Open requirement"}
+        </Button>
         <section aria-label="开发分支" className="space-y-1">
           <h4 className="font-medium">开发分支</h4>
           {/* 复制控件已展示分支名，避免与静态文字重复。 */}

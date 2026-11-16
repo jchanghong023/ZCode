@@ -12,6 +12,7 @@ import {
 } from "react";
 import { getEmployeeId } from "./identity.js";
 import { useAIReqDataSource } from "./data-source.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   AIReqAction,
   AIReqDataSource,
@@ -27,27 +28,65 @@ export function aiReqQuery(selection: AIReqSelection): string {
     if (selection[key]) query.set(key, selection[key]!);
   return query.toString();
 }
+
+type ProposalDraft = { id: string; sourceIrId?: string };
+type NavigationOverlay =
+  | { kind: "settings" }
+  | { kind: "proposal"; draft: ProposalDraft }
+  | { kind: "proposal-import" }
+  | null;
+type RequirementView = "proposals" | "formal";
+type ObjectLink = { projectId: string; releaseId: string; irId: string; srId?: string };
+const objectLinkKeys = ["aireqProject", "aireqRelease", "aireqIr", "aireqSr"] as const;
+
+function readObjectLink(): ObjectLink | "invalid" | null {
+  const query = new URLSearchParams(window.location.search);
+  if (!objectLinkKeys.some((key) => query.has(key))) return null;
+  const [projectId, releaseId, irId, srId] = objectLinkKeys.map((key) => query.get(key)?.trim());
+  if (!projectId || !releaseId || !irId || (query.has("aireqSr") && !srId)) return "invalid";
+  return { projectId, releaseId, irId, ...(srId ? { srId } : {}) };
+}
+
+function withoutObjectLink(url: URL) {
+  objectLinkKeys.forEach((key) => url.searchParams.delete(key));
+  return url;
+}
+
+export function clearAIReqObjectLink() {
+  const url = withoutObjectLink(new URL(window.location.href));
+  window.history.replaceState(window.history.state, "", url);
+}
 interface AIReqContextValue {
   view?: AIReqWorkflowView;
   selection: AIReqSelection;
   session?: AIReqNativeSessionRef;
   mainView: WorkspaceMainView;
+  requirementView: RequirementView;
+  settingsOpen: boolean;
+  openSettings(): void;
+  closeSettings(): void;
   setMainView(value: WorkspaceMainView): void;
   canGoBack: boolean;
   canGoForward: boolean;
   goBack(): void;
   goForward(): void;
   startProposalDraft(sourceIrId?: string): void;
-  proposalDraft: { id: string; sourceIrId?: string } | null;
+  startProposalImport(): void;
+  proposalDraft: ProposalDraft | null;
+  proposalImportOpen: boolean;
   closeProposalDraft(): void;
   pending: boolean;
   selectionReady: boolean;
   error?: string;
+  linkError?: string;
+  clearLinkError(): void;
   releaseId: string;
-  setReleaseId(id: string): void;
+  setReleaseId(id: string, options?: { inProposalDialog?: boolean }): void;
   switchProject(projectId: string): void;
   openProject(projectId: string): void;
   select(value: AIReqSelection, releaseId?: string): void;
+  openAnalysis(value: AIReqSelection, releaseId?: string): void;
+  objectLink(): string | undefined;
   refresh(): Promise<void>;
   retryMaterial(path: string): Promise<boolean>;
   retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
@@ -66,58 +105,85 @@ export const useAIReq = () => useContext(AIReqContext);
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
   const source = useAIReqDataSource();
-  // 登录默认项目进度；不恢复上一工号的会话或未发送提案。
+  const { locale } = useZCodeIntl();
+  const [navigationOwner] = useState(() => createUuid());
+  const initialLink = useRef(readObjectLink());
+  const initialLinkUrl = useRef(window.location.href);
+  const pendingObjectLink = useRef(initialLink.current);
+  // 修复：仅显式分享链接可越过默认总览，普通登录不恢复前一工号的页面。
   const [selection, setSelection] = useState<AIReqSelection>(() => ({
-    projectId: source.initialSelection.projectId,
+    projectId:
+      initialLink.current && initialLink.current !== "invalid"
+        ? initialLink.current.projectId
+        : source.initialSelection.projectId,
   }));
   const selectionRef = useRef(selection);
   const [navigation, setNavigation] = useState<{
     index: number;
     extent: number;
     mainView: WorkspaceMainView;
+    requirementView: RequirementView;
+    overlay: NavigationOverlay;
   }>(() => ({
     index: 0,
     extent: 0,
     mainView: "projectProgress",
+    requirementView: "formal",
+    overlay: null,
   }));
   const navigationRef = useRef(navigation);
+  const historyInitialized = useRef(false);
   const releaseRef = useRef("");
   const recordNavigation = useCallback(
-    (target: AIReqSelection, mainView: WorkspaceMainView) => {
+    (
+      target: AIReqSelection,
+      mainView: WorkspaceMainView,
+      overlay: NavigationOverlay = null,
+      requirementView: RequirementView = navigationRef.current.requirementView,
+    ) => {
       const previous = navigationRef.current;
-      const next = { index: previous.index + 1, extent: previous.index + 1, mainView };
+      const next = {
+        index: previous.index + 1,
+        extent: previous.index + 1,
+        mainView,
+        requirementView,
+        overlay,
+      };
       window.history.pushState(
         {
           ...window.history.state,
           aiReqSelection: target,
           aiReqBackendId: sourceScope(source),
+          aiReqNavigationOwner: navigationOwner,
           aiReqNavigationIndex: next.index,
           aiReqNavigationExtent: next.extent,
           aiReqMainView: mainView,
           aiReqReleaseId: releaseRef.current,
+          aiReqRequirementView: requirementView,
+          aiReqOverlay: overlay,
         },
         "",
+        withoutObjectLink(new URL(window.location.href)),
       );
       navigationRef.current = next;
       setNavigation(next);
     },
-    [source],
+    [source, navigationOwner],
   );
   const [view, setView] = useState<AIReqWorkflowView>();
   const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
   const viewRef = useRef(view);
   const [error, setError] = useState<string>();
+  const [linkError, setLinkError] = useState<"incomplete" | "not-found">();
   const commandError = useRef(false);
   const [pending, setPending] = useState(true);
   const [releaseId, updateReleaseId] = useState("");
   const requestRevision = useRef(0);
-  const [proposalDraft, setProposalDraft] = useState<{ id: string; sourceIrId?: string } | null>(
-    null,
-  );
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
   const guardRef = useRef<((navigate: () => void) => void) | null>(null);
   const historyReturn = useRef<{ delta: number } | null>(null);
   const approvedHistory = useRef(false);
+  const closingOverlay = useRef(false);
   const setNavigationGuard = useCallback((guard: ((navigate: () => void) => void) | null) => {
     guardRef.current = guard;
   }, []);
@@ -125,6 +191,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     draftGuardRef.current = guard;
   }, []);
   const navigate = useCallback((action: () => void) => {
+    // 用户已主动导航时，不能让迟到的链接解析再覆盖其选择。
+    pendingObjectLink.current = null;
     const next = () => {
       if (draftGuardRef.current) draftGuardRef.current(action);
       else action();
@@ -192,23 +260,41 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         ...(viewRef.current?.drafts ?? []),
         ...(viewRef.current?.groups ?? []),
       ].find((item) => item.projectId === value.projectId && item.id === value.irId);
-      // 待办可跨项目直达；目标归属与导航同次写入，避免页头保留另一 Release。
+      // 全部 Release 已包含同项目详情；只有跨项目或不同具体版本才收窄范围。
       const detailRelease = targetReleaseId ?? selectedGroup?.releaseId;
-      if (mainView === "chat" && detailRelease && detailRelease !== releaseRef.current) {
+      if (
+        (mainView === "chat" || mainView === "requirementAnalysis") &&
+        detailRelease &&
+        (projectChanged || Boolean(releaseRef.current && detailRelease !== releaseRef.current))
+      ) {
         releaseRef.current = detailRelease;
         updateReleaseId(detailRelease);
       }
+      const requirementView: RequirementView =
+        mainView === "proposals"
+          ? "proposals"
+          : mainView === "formal"
+            ? "formal"
+            : mainView === "chat"
+              ? value.formalView ||
+                viewRef.current?.groups.some(
+                  (item) => item.projectId === value.projectId && item.id === value.irId,
+                )
+                ? "formal"
+                : "proposals"
+              : navigationRef.current.requirementView;
       if (
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
           navigationRef.current.mainView !== mainView)
       )
-        recordNavigation(value, mainView);
+        recordNavigation(value, mainView, null, requirementView);
       source.selectProject(value.projectId);
       selectionRef.current = value;
       setSelection(value);
       commandError.current = false;
       setError(undefined);
+      setLinkError(undefined);
       void load(value, projectChanged);
     },
     [source, load, recordNavigation],
@@ -247,21 +333,95 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [select],
   );
   useEffect(() => {
-    window.history.replaceState(
-      {
-        ...window.history.state,
-        aiReqSelection: selectionRef.current,
-        aiReqBackendId: sourceScope(source),
-        aiReqNavigationIndex: navigationRef.current.index,
-        aiReqNavigationExtent: navigationRef.current.extent,
-        aiReqMainView: navigationRef.current.mainView,
-        aiReqReleaseId: releaseRef.current,
-      },
-      "",
+    const link = pendingObjectLink.current;
+    if (!link || !view || !loadedSelection) return;
+    pendingObjectLink.current = null;
+    if (link === "invalid") {
+      // 链接归属错误不是数据读取失败，不能让总览误报已有快照过期。
+      setLinkError("incomplete");
+      return;
+    }
+    if (loadedSelection.projectId !== link.projectId) return;
+    const project = view.projects.find((item) => item.id === link.projectId);
+    const release = view.releases.find(
+      (item) => item.projectId === link.projectId && item.id === link.releaseId,
     );
+    const group = [...view.drafts, ...view.groups].find(
+      (item) => item.projectId === link.projectId && item.id === link.irId,
+    );
+    const sr = link.srId
+      ? view.srs.find(
+          (item) =>
+            item.projectId === link.projectId && item.irId === link.irId && item.id === link.srId,
+        )
+      : undefined;
+    if (!project || !release || !group || group.releaseId !== release.id || (link.srId && !sr)) {
+      setLinkError("not-found");
+      return;
+    }
+    // 修复：先按同一项目快照核对归属，再由唯一导航路径定位对象。
+    releaseRef.current = link.releaseId;
+    updateReleaseId(link.releaseId);
+    select(
+      { projectId: link.projectId, irId: link.irId, ...(link.srId ? { srId: link.srId } : {}) },
+      true,
+      "chat",
+      link.releaseId,
+    );
+    window.history.replaceState(window.history.state, "", initialLinkUrl.current);
+  }, [view, loadedSelection, select]);
+  useEffect(() => {
+    if (!historyInitialized.current) {
+      // 重连会更换 source；不能再次初始化历史并抹掉当前覆盖层或对象 URL。
+      window.history.replaceState(
+        {
+          ...window.history.state,
+          aiReqSelection: selectionRef.current,
+          aiReqBackendId: sourceScope(source),
+          aiReqNavigationOwner: navigationOwner,
+          aiReqNavigationIndex: navigationRef.current.index,
+          aiReqNavigationExtent: navigationRef.current.extent,
+          aiReqMainView: navigationRef.current.mainView,
+          aiReqReleaseId: releaseRef.current,
+          aiReqRequirementView: navigationRef.current.requirementView,
+          aiReqOverlay: navigationRef.current.overlay,
+        },
+        "",
+        initialLink.current ? withoutObjectLink(new URL(window.location.href)) : undefined,
+      );
+      historyInitialized.current = true;
+    }
     const restore = (event: PopStateEvent) => {
-      if (event.state?.aiReqBackendId !== sourceScope(source) || !event.state?.aiReqSelection)
+      closingOverlay.current = false;
+      if (
+        event.state?.aiReqBackendId !== sourceScope(source) ||
+        event.state?.aiReqNavigationOwner !== navigationOwner
+      ) {
+        if (typeof event.state?.aiReqBackendId === "string") {
+          // 修复：旧身份历史槽仅清 URL 会让当前身份的后退落入无效槽；以当前视图重建基点。
+          const current = { ...navigationRef.current, index: 0, extent: 0 };
+          navigationRef.current = current;
+          setNavigation(current);
+          window.history.replaceState(
+            {
+              ...event.state,
+              aiReqSelection: selectionRef.current,
+              aiReqBackendId: sourceScope(source),
+              aiReqNavigationOwner: navigationOwner,
+              aiReqNavigationIndex: 0,
+              aiReqNavigationExtent: 0,
+              aiReqMainView: current.mainView,
+              aiReqReleaseId: releaseRef.current,
+              aiReqRequirementView: current.requirementView,
+              aiReqOverlay: current.overlay,
+            },
+            "",
+            withoutObjectLink(new URL(window.location.href)),
+          );
+        }
         return;
+      }
+      if (!event.state?.aiReqSelection) return;
       const index = Number.isSafeInteger(event.state.aiReqNavigationIndex)
         ? event.state.aiReqNavigationIndex
         : 0;
@@ -301,28 +461,85 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         : "chat";
       const restoredRelease =
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
-      const next = { index, extent: navigationRef.current.extent, mainView };
+      const savedOverlay = event.state.aiReqOverlay as NavigationOverlay;
+      const overlay: NavigationOverlay =
+        savedOverlay?.kind === "settings" ||
+        savedOverlay?.kind === "proposal-import" ||
+        (savedOverlay?.kind === "proposal" && typeof savedOverlay.draft?.id === "string")
+          ? savedOverlay
+          : null;
+      const requirementView: RequirementView =
+        event.state.aiReqRequirementView === "proposals" ? "proposals" : "formal";
+      const previous = navigationRef.current;
+      // 弹窗内更换版本属于当前表单，不得因关闭弹窗恢复旧的全部 Release。
+      const nextRelease =
+        (previous.overlay?.kind === "proposal" || previous.overlay?.kind === "proposal-import") &&
+        !overlay &&
+        mainView === previous.mainView &&
+        JSON.stringify(event.state.aiReqSelection) === JSON.stringify(selectionRef.current)
+          ? releaseRef.current
+          : restoredRelease;
+      const next = { index, extent: previous.extent, mainView, requirementView, overlay };
       navigationRef.current = next;
       setNavigation(next);
-      window.history.replaceState({ ...event.state, aiReqNavigationExtent: next.extent }, "");
-      select(event.state.aiReqSelection as AIReqSelection, false, mainView);
-      releaseRef.current = restoredRelease;
-      updateReleaseId(restoredRelease);
+      window.history.replaceState(
+        { ...event.state, aiReqNavigationExtent: next.extent, aiReqReleaseId: nextRelease },
+        "",
+      );
+      if (
+        mainView !== previous.mainView ||
+        JSON.stringify(event.state.aiReqSelection) !== JSON.stringify(selectionRef.current)
+      )
+        select(event.state.aiReqSelection as AIReqSelection, false, mainView);
+      releaseRef.current = nextRelease;
+      updateReleaseId(nextRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [source, select, navigate]);
+  }, [source, select, navigate, navigationOwner]);
   const startProposalDraft = useCallback(
     (sourceIrId?: string) => {
       navigate(() => {
-        recordNavigation(selectionRef.current, "proposals");
-        setProposalDraft({ id: createUuid(), sourceIrId });
+        const draft = { id: createUuid(), sourceIrId };
+        // 新增弹窗此前只入栈页面而未记录弹窗，浏览器后退会留在原遮罩中。
+        recordNavigation(
+          selectionRef.current,
+          "proposals",
+          { kind: "proposal", draft },
+          "proposals",
+        );
       });
     },
     [navigate, recordNavigation],
   );
+  const startProposalImport = useCallback(() => {
+    navigate(() => {
+      // 导入弹窗同样进入历史，后退不能仅移动被弹窗遮住的列表。
+      recordNavigation(selectionRef.current, "proposals", { kind: "proposal-import" }, "proposals");
+    });
+  }, [navigate, recordNavigation]);
+  const openSettings = useCallback(() => {
+    if (navigationRef.current.overlay?.kind === "settings") return;
+    // 设置覆盖层参与同一历史，避免后退时在不可见工作区导航。
+    recordNavigation(selectionRef.current, navigationRef.current.mainView, { kind: "settings" });
+  }, [recordNavigation]);
+  const closeOverlay = useCallback(() => {
+    if (!navigationRef.current.overlay || closingOverlay.current) return;
+    if (navigationRef.current.index === 0) {
+      // 历史跨身份重置后覆盖层可能成为当前基点；关闭只替换该槽，不访问旧身份历史。
+      const current = { ...navigationRef.current, overlay: null };
+      navigationRef.current = current;
+      setNavigation(current);
+      window.history.replaceState({ ...window.history.state, aiReqOverlay: null }, "");
+      return;
+    }
+    // 调用方已经通过原有离开门禁，避免关闭时二次提示或成功保存后误报未保存。
+    approvedHistory.current = true;
+    closingOverlay.current = true;
+    window.history.back();
+  }, []);
   const setReleaseId = useCallback(
-    (id: string) => {
+    (id: string, options?: { inProposalDialog?: boolean }) => {
       const current = selectionRef.current;
       if (id === releaseRef.current) return;
       if (
@@ -334,6 +551,11 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         return;
       releaseRef.current = id;
       updateReleaseId(id);
+      if (options?.inProposalDialog) {
+        // 新增和导入共享此分支；选择版本不离开表单，也不重置输入或预览。
+        window.history.replaceState({ ...window.history.state, aiReqReleaseId: id }, "");
+        return;
+      }
       const target = {
         projectId: current.projectId,
         ...(current.formalView ? { formalView: "list" as const } : {}),
@@ -353,6 +575,27 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [select, recordNavigation],
   );
+  const objectLink = useCallback(() => {
+    const target = selectionRef.current;
+    if (!target.projectId || !target.irId) return undefined;
+    const group = [...(viewRef.current?.drafts ?? []), ...(viewRef.current?.groups ?? [])].find(
+      (item) => item.projectId === target.projectId && item.id === target.irId,
+    );
+    if (!group) return undefined;
+    const url = withoutObjectLink(new URL(window.location.href));
+    url.username = "";
+    url.password = "";
+    url.hash = "";
+    // 修复：未知查询参数的值可能是敏感数据，仅保留产品已知的非敏感 demo 参数。
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (key !== "demo") url.searchParams.delete(key);
+    }
+    url.searchParams.set("aireqProject", target.projectId);
+    url.searchParams.set("aireqRelease", group.releaseId);
+    url.searchParams.set("aireqIr", target.irId);
+    if (target.srId) url.searchParams.set("aireqSr", target.srId);
+    return url.toString();
+  }, []);
   const retryMaterial = useCallback(
     async (path: string) => {
       try {
@@ -450,6 +693,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           view && loadedSelection && JSON.stringify(loadedSelection) === JSON.stringify(selection),
         ),
         mainView: navigation.mainView,
+        requirementView: navigation.requirementView,
+        settingsOpen: navigation.overlay?.kind === "settings",
+        openSettings,
+        closeSettings: closeOverlay,
         setMainView,
         canGoBack: navigation.index > 0,
         canGoForward: navigation.index < navigation.extent,
@@ -460,20 +707,35 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           if (navigationRef.current.index < navigationRef.current.extent) window.history.forward();
         },
         error,
+        linkError: linkError
+          ? linkError === "incomplete"
+            ? locale === "zh-CN"
+              ? "需求链接无效：缺少项目、Release 或需求标识。"
+              : "Invalid requirement link: the project, Release, or requirement identifier is missing."
+            : locale === "zh-CN"
+              ? "需求链接无效或目标已不存在，请核对项目、Release 和需求归属。"
+              : "The requirement link is invalid or the target no longer exists. Check the project, Release, and requirement."
+          : undefined,
+        clearLinkError: () => setLinkError(undefined),
         releaseId,
         setReleaseId,
         switchProject,
         openProject: (projectId) => navigate(() => openProject(projectId)),
         select: (value, targetReleaseId) =>
           navigate(() => select(value, true, "chat", targetReleaseId)),
+        openAnalysis: (value, targetReleaseId) =>
+          navigate(() => select(value, true, "requirementAnalysis", targetReleaseId)),
+        objectLink,
         refresh,
         retryMaterial,
         retrySession,
         command,
         report,
         startProposalDraft,
-        proposalDraft,
-        closeProposalDraft: () => setProposalDraft(null),
+        startProposalImport,
+        proposalDraft: navigation.overlay?.kind === "proposal" ? navigation.overlay.draft : null,
+        proposalImportOpen: navigation.overlay?.kind === "proposal-import",
+        closeProposalDraft: closeOverlay,
         setDraftNavigationGuard,
         setNavigationGuard,
         navigate,

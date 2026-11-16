@@ -1466,6 +1466,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async conversationRowsRangeV4(params: P<IZCodeAgentService["conversationRowsRangeV4"]>) {
+    // 原因：ensureSession 会补建有业务引用的缺失会话；只读驻留查询必须先拒绝，不能产生历史。
+    if (params.residency === "resident-only" && !this.runtime.sessions.has(params.sessionId)) {
+      throw new Error("proto.sessionNotResident");
+    }
     const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     const rows = session?.rows ?? [];
     const beforeRowId = params.beforeRowId ?? Number.MAX_SAFE_INTEGER;
@@ -1880,6 +1884,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }) {
     const value = this.attachments.get(params.ref);
     if (!value) throw new Error("附件不存在。");
+    // 原因：历史附件可能在会话移除后才读取，不能通过 ensureSession 重建空会话。
+    if (!this.runtime.sessions.has(params.sessionId)) {
+      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+    }
     const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     const own = value.actor === (this.business?.actorKey() ?? "mock");
     if (value.sessionId !== session.sessionId || value.workspaceKey !== session.workspaceKey)
