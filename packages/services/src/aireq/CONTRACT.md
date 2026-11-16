@@ -1,5 +1,7 @@
 # AIReq shared contract
 
+分区导航和想法池的当前业务契约见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`。全局想法及可分派版本随工作流同源读取；createIdea / updateIdea / transferIdea 复用现有 command、身份、版本、幂等和广播。转入原子创建各目标版本提案并消费想法，原文和提交信息保留，不建立跨项目父需求或进度。
+
 Current remediation scope and group order follow the current root `.todo.md`; ongoing behavior follows `docs/specs/aireq-migration/release-surface.md` and nonconflicting domain specifications. Replaced task contents and historical evidence never authorize restoring scenario controls or retired entrypoints, and do not prove this remediation passed.
 
 Browser-safe public entry: `@zcode/services/aireq`. No React, Node, transport implementation or mutable business store lives here. Domain functions inspect supplied snapshots only. Product behavior is requirement discussion, material delivery, progress analysis and human test acceptance; business-code execution and AI acceptance remain forbidden.

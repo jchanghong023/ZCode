@@ -19,9 +19,9 @@ const steps = [
     title: "从项目总览进入工作",
     titleEn: "Start with a project",
     description:
-      "登录后先看所有项目的进度、提案数和正式需求数。进入项目后，在“概览、需求、分析运行”之间切换；页头始终显示当前项目与 Release。需求中可切换提案与正式视图，范围保持一致。用“全部项目”返回总览；没有项目或 Release 时，可从设置中添加。",
+      "登录后先看全部项目。点击项目总览中的项目或版本卡片进入对应范围，“需求规划”包含项目总览、想法池和需求共创，“研发交付”包含开发任务和进度分析。项目总览、想法池与我的待办始终跨项目，项目页面通过页头筛选版本；项目与版本仍在原有设置中配置。",
     descriptionEn:
-      "Sign-in opens all projects with their progress, proposal counts and formal requirement counts. Open a project and switch between Overview, Requirements and Analysis runs. The header always shows the current project and Release, shared by proposal and formal views. Use All projects to return to the overview. Add missing projects or Releases in settings.",
+      "Sign-in opens all projects. Open a project or release from its card in Projects. Requirements contains Projects, Ideas and Co-creation; Development & delivery contains Development tasks and Progress analysis. Projects, Ideas and My todos always span all projects. Project pages share the release filter. Manage projects and releases in the existing settings.",
   },
   {
     section: "待办与提案",
@@ -29,9 +29,9 @@ const steps = [
     title: "保存原始短需求",
     titleEn: "Save the original request",
     description:
-      "待办支持我的、待认领、全部及跨项目筛选，显示需求名称和当前事项，点击事项直接进入对应需求。新需求从项目的“需求 → 提案”新增或导入；先选择具体 Release，只保存原始短需求，成功后留在表格。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。只有主动进入讨论才开始 AI 澄清。",
+      "待办支持我的、待认领、全部及跨项目筛选，显示需求名称和当前事项，点击事项直接进入对应需求。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入；先选择具体 Release，只保存原始短需求，成功后留在表格。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。只有主动进入讨论才开始 AI 澄清。",
     descriptionEn:
-      "Todos show requirement names and pending actions across projects, with Mine, Unassigned and All filters. Open an action to reach its requirement directly. Add or import requests under a project's Requirements → Proposals after selecting a specific Release. Saving preserves the original short request and stays in the table. UTF-8 single-column CSV is previewed and imported as a complete batch; blanks are skipped and duplicates retained. Export includes every filtered original request. AI clarification starts only when you open a discussion.",
+      "Todos show requirement names and pending actions across projects, with Mine, Unassigned and All filters. Open an action to reach its requirement directly. Save unplanned requests in the global Ideas pool. Moving one to one or more project releases consumes the idea and creates independent proposals. Add or import requests directly in Co-creation when their release is already known. Saving preserves the original short request and stays in the table. UTF-8 single-column CSV is previewed and imported as a complete batch; blanks are skipped and duplicates retained. Export includes every filtered original request. AI clarification starts only when you open a discussion.",
   },
   {
     title: "澄清与单 Agent 评审",
@@ -71,9 +71,9 @@ const steps = [
     title: "分工与统一分析",
     titleEn: "Ownership and unified analysis",
     description:
-      "需求转正后保留原有身份、讨论与材料。在“需求 → 正式”中，以 IR 为主行、SR 为子行，同页查看当前状态、问题、材料和报告。人员可指定、认领和代办；待办仍跨项目。项目内“分析运行”查看当前范围的任务、执行历史与失败重试，自动分析周期和项目配置在“设置 → AI 配置 → 分析设置”中调整。分析失败保留上次成功结果，旧版本结果不能覆盖新事实。",
+      "需求转正后保留原有身份、讨论与材料。在“开发任务”中，以 IR 为主行、SR 为子行，同页查看当前状态、问题、材料和报告。人员可指定、认领和代办；待办仍跨项目。项目内“进度分析”查看当前范围的任务、执行历史与失败重试，自动分析周期和项目配置在“设置 → AI 配置 → 分析设置”中调整。分析失败保留上次成功结果，旧版本结果不能覆盖新事实。",
     descriptionEn:
-      "Formal requirements retain their original identity, discussions and materials. Requirements → Formal shows IR parent rows and SR children, with same-page status, issues, materials and reports. Assign, claim or act on behalf of others; todos remain cross-project. Analysis runs shows tasks, execution history and retries in the current project scope. Adjust scheduling and project analysis configuration in Settings → AI configuration → Analysis settings. Failed analyses retain the last success and stale results cannot replace newer facts.",
+      "Formal requirements retain their original identity, discussions and materials. Development tasks shows IR parent rows and SR children, with same-page status, issues, materials and reports. Assign, claim or act on behalf of others; todos remain cross-project. Progress analysis shows tasks, execution history and retries in the current project scope. Adjust scheduling and project analysis configuration in Settings → AI configuration → Analysis settings. Failed analyses retain the last success and stale results cannot replace newer facts.",
   },
   {
     title: "合入 99%、人工验收 100%",
@@ -132,8 +132,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "全局入口是项目和待办。先选项目，再在概览、需求、分析运行中工作；需求分为提案与正式视图。项目与 Release 常驻页头，同一需求从澄清到验收持续保留讨论、材料与记录。待办跨项目汇总，完成实际事项后自动消失，无需手工勾选完成。"
-              : "Use Projects and Todos as global entry points. Open a project to work in Overview, Requirements and Analysis runs; Requirements has proposal and formal views. The header keeps project and Release visible. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos span projects and disappear when their actual work is complete; there is no manual mark-done action."}
+              ? "项目总览、想法池和我的待办跨项目。返回项目总览，点击项目或版本卡片进入目标，在需求共创、开发任务和进度分析中工作；页头选择版本。同一需求从澄清到验收持续保留讨论、材料与记录。待办跨项目汇总，完成实际事项后自动消失，无需手工勾选完成。"
+              : "Projects, Ideas and My todos span all projects. Open a project or release from Projects, then use Co-creation, Development tasks and Progress analysis. Choose the release in the page header. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos span projects and disappear when their actual work is complete; there is no manual mark-done action."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh

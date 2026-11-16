@@ -15,6 +15,8 @@ import {
   prototypeDefaultCommit,
 } from "./fixture-builders.js";
 import { getEmployeeId } from "./identity.js";
+import { businessRule } from "./errors.js";
+import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases, addPrototypeRelease } from "./project-releases.js";
 import { prototypeProposalDependencies, prototypeProposalSolution } from "./proposal-flow.js";
 import { requirementMaterials } from "./materials.js";
@@ -154,6 +156,68 @@ export function applyProposalMutation(
   );
   const at = new Date().toISOString();
   switch (action.type) {
+    case "createIdea": {
+      if (!action.originalText.trim()) throw businessRule("请输入原始需求。");
+      state.ideas.push({
+        id: `idea-${state.revision}`,
+        originalText: action.originalText.trim(),
+        submittedBy: getEmployeeId(),
+        createdAt: operation.startedAt,
+        updatedAt: operation.startedAt,
+        revision: 1,
+      });
+      operation.type = "新增想法";
+      break;
+    }
+    case "updateIdea":
+    case "transferIdea": {
+      const idea = state.ideas.find((item) => item.id === action.ideaId);
+      if (!idea) throw businessRule("想法已转入版本或不存在，请刷新想法池。");
+      if (idea.revision !== action.ideaRevision)
+        throw businessRule("想法内容已变化，请关闭表单并重新打开最新内容。");
+      if (action.type === "updateIdea") {
+        if (!action.originalText.trim()) throw businessRule("请输入原始需求。");
+        idea.originalText = action.originalText.trim();
+        idea.revision += 1;
+        idea.updatedAt = operation.startedAt;
+        operation.type = "修改想法";
+        break;
+      }
+      const projects = readPrototypeProjectSettings().projects;
+      const targets = new Set<string>();
+      if (!action.targets.length) throw businessRule("请至少选择一个项目和版本。");
+      for (const target of action.targets) {
+        if (
+          !projects.some((item) => item.id === target.projectId) ||
+          !readPrototypeProjectReleases(target.projectId).some(
+            (item) => item.id === target.releaseId,
+          )
+        )
+          throw businessRule("目标项目或版本不存在，请重新选择。");
+        const key = JSON.stringify([target.projectId, target.releaseId]);
+        if (targets.has(key)) throw businessRule("不能重复选择同一项目和版本。");
+        targets.add(key);
+      }
+      // 全部目标先验证，再在 workflow 的同一克隆事务内创建和消费；失败不可留下部分提案。
+      operation.irIds = action.targets.map((target, index) => {
+        const item = createProposal(
+          state,
+          target.projectId,
+          target.releaseId,
+          idea.originalText,
+          operation,
+          `-idea-${index + 1}`,
+        );
+        item.submittedBy = idea.submittedBy;
+        item.createdAt = idea.createdAt;
+        item.contacts = { business: idea.submittedBy };
+        item.origin = "browser";
+        return item.id;
+      });
+      state.ideas = state.ideas.filter((item) => item.id !== idea.id);
+      operation.type = "想法转入版本";
+      break;
+    }
     case "createRelease":
       addPrototypeRelease({
         id: `demo-release-${state.revision}`,

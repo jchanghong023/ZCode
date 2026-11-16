@@ -1,5 +1,7 @@
 # AIReq mock
 
+想法池与转入版本按 `docs/specs/aireq-migration/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
+
 本轮整改与组序以根 `.todo.md` 现行任务为准，持续规则见 `docs/specs/aireq-migration/release-surface.md` 和不冲突的领域规格；被覆盖的旧任务不授权恢复场景按钮／接口，历史证据不等于本轮通过。
 
 单一进程生命周期内存 owner 持有共享项目、Release、提案、IR/SR、材料、两类评审、三方确认、联系人、报告、合并／验收问题、分支、配置、Skill 和调度任务。Issue 专属状态、调度、操作、事件及模型角色已裁撤。服务重启恢复样例；关闭连接不取消已接纳工作。每五秒核验文档 PR 的候选、版本与当前完整材料，待合并／关闭不转正。

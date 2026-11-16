@@ -72,7 +72,16 @@ export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProject
               : "Values reflect the last successful read; use Retry above."}
           </p>
         )}
-        {!project ? (
+        {!ai.selectionReady ? (
+          <div role="status" className="space-y-3 text-foreground-subtle">
+            <p>{unavailable}</p>
+            {!ai.pending && (
+              <Button variant="outline" onClick={() => void ai.refresh()}>
+                {zh ? "重试" : "Retry"}
+              </Button>
+            )}
+          </div>
+        ) : !project ? (
           <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
             <p>
               {zh
@@ -152,10 +161,16 @@ export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProject
                     ))}
                     <div className="min-w-0 space-y-2 px-4">
                       <dt className="text-ui-sm text-foreground-subtle">
-                        {zh ? "需求想法" : "Requirement ideas"}
+                        {zh ? "想法池 · 全部项目" : "Ideas · All projects"}
                       </dt>
                       <dd className="flex min-h-9 items-center text-ui-sm text-foreground-subtle">
-                        {zh ? "暂不可用" : "Not yet available"}
+                        <Button
+                          variant="link"
+                          className="h-auto p-0 text-ui-page-title font-semibold tabular-nums"
+                          onClick={() => ai.navigate(() => ai.setMainView("ideas"))}
+                        >
+                          {ai.view?.ideas.length}
+                        </Button>
                       </dd>
                     </div>
                   </dl>

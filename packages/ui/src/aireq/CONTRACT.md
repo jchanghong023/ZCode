@@ -1,5 +1,7 @@
 # AIReq UI
 
+2026-11-16 用户确认后的工作台分区导航与想法池以 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 为准，覆盖下文旧 68px 工作台及顶部项目页签。设置页面不改，footer 复用原有展开呈现及菜单。Context 增加 ideas 页面，仍唯一持有项目、版本、对象、历史和草稿门禁；表单只能发送业务命令、读取服务端同源事实。
+
 产品页面与公开接口遵守 `docs/specs/aireq-migration/release-surface.md`：联系人、材料、评审、交付、分析及维护仍属正常业务；场景控制、故障注入、模拟合入与调试时钟不在浏览器契约中。环境限制只记部署／交付说明，不在登录、帮助、提示词或用户材料显示；未知异常使用稳定业务提示。
 
 原生工具失败仅展示非空安全 message／output.text；error.code 保留机器分类，不作为用户正文。两者为空时复用现有 renderer 的本地化失败状态（含 fallback 详情），不吞掉已有说明。私有草稿跨操作者仍被拒绝，并显示可理解的不可访问说明而非内部 fault／身份码。

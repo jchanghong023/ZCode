@@ -136,7 +136,8 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
   const listed = materials.find((item) => item.path === path);
   const material = listed;
   const error = listed?.error;
-  const current = material ?? listed;
+  // 新投影已到而路径 effect 尚未同步时，先显示该投影的首选材料，避免误报清单缺失。
+  const current = material ?? listed ?? preferred;
   const awaitingRequirements =
     !path &&
     !selection.srId &&
@@ -144,6 +145,29 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
     !group.snapshot &&
     !group.files.length &&
     !materials.length;
+  // 切换需求时投影仍属于旧选择；不能将暂缺材料当作空清单或读取失败。
+  if (!aireq.selectionReady) {
+    return (
+      <aside
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+        data-testid="materials-pane"
+      >
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-2">
+          <span>{zh ? "需求材料" : "Requirement materials"}</span>
+          {headerAction}
+        </div>
+        <p role="status" className="px-4 py-4 text-ui-sm text-foreground-subtle">
+          {aireq.pending
+            ? zh
+              ? "正在读取材料…"
+              : "Loading materials…"
+            : zh
+              ? "材料尚未读取，请重新读取。"
+              : "Materials are not loaded. Reload to continue."}
+        </p>
+      </aside>
+    );
+  }
   return (
     <aside
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"

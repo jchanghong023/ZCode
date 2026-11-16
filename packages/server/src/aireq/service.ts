@@ -51,6 +51,9 @@ import { modelCatalogOverrides } from "./model-catalog.js";
 const logger = createServiceLogger("aireq");
 const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
 const commands = [
+  "createIdea",
+  "updateIdea",
+  "transferIdea",
   "createRelease",
   "createProposal",
   "importProposals",
@@ -378,7 +381,8 @@ export function getConnectionServices(
           // 握手由客户端自报；原生命令还须匹配 HTTP 连接固定身份，避免换握手冒用另一 clientId。
           if (
             key === "sendConversationCommandV4" &&
-            (request as { envelope?: { clientId?: string } } | undefined)?.envelope?.clientId !== fixed.clientId
+            (request as { envelope?: { clientId?: string } } | undefined)?.envelope?.clientId !==
+              fixed.clientId
           )
             throw businessRule("连接身份已变化，请重新进入工作区。");
           if (request && typeof request === "object") {

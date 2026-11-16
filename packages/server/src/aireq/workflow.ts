@@ -386,6 +386,9 @@ export function getPrototypeWorkflow(
       ]),
     ),
     releases: readPrototypeProjectReleases(projectId),
+    availableReleases: readPrototypeProjectReleases().filter((release) =>
+      sharedSettings.projects.some((project) => project.id === release.projectId),
+    ),
     groups: state.groups.filter((item) => item.projectId === projectId),
     drafts: state.drafts.filter((item) => item.projectId === projectId),
     srs: state.srs.filter((item) => item.projectId === projectId),
@@ -537,6 +540,9 @@ export function applyPrototypeAction(
     (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
   );
   const proposalAction = ![
+    "createIdea",
+    "updateIdea",
+    "transferIdea",
     "createRelease",
     "createProposal",
     "importProposals",
@@ -714,9 +720,13 @@ export function applyPrototypeAction(
   state = structuredClone(state);
   const projectId = action.projectId ?? selection.projectId ?? "demo-aurora";
   // 原子导入属于本批新 IR，不得把此前查看的 IR/SR 记录为创建来源。
-  let irId = action.type === "importProposals" ? undefined : (action.irId ?? selection.irId);
+  const globalIdeaAction = ["createIdea", "updateIdea", "transferIdea"].includes(action.type);
+  let irId =
+    action.type === "importProposals" || globalIdeaAction
+      ? undefined
+      : (action.irId ?? selection.irId);
   const srId =
-    proposalAction || action.type === "importProposals"
+    proposalAction || action.type === "importProposals" || globalIdeaAction
       ? undefined
       : (action.srId ?? selection.srId);
   const selectedProjectId = projectId;
@@ -750,6 +760,11 @@ export function applyPrototypeAction(
     error: operation.error,
     receipt: operation,
     deletion: operation.deletion,
+    ideaId: action.type === "createIdea" ? `idea-${state.revision}` : undefined,
+    transferredRequirements:
+      action.type === "transferIdea"
+        ? action.targets.map((target, index) => ({ ...target, irId: operation.irIds![index]! }))
+        : undefined,
     view: getPrototypeWorkflow({ projectId: selectedProjectId, irId, srId }),
   };
 }

@@ -74,6 +74,22 @@ export interface AIReqRelease {
   title: string;
   createdAt: string;
 }
+/** A global unplanned need; it is consumed when admitted to one or more releases. */
+export interface AIReqIdea {
+  id: string;
+  originalText: string;
+  submittedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+}
+export interface AIReqIdeaTarget {
+  projectId: string;
+  releaseId: string;
+}
+export interface AIReqIdeaTransfer extends AIReqIdeaTarget {
+  irId: string;
+}
 export interface AIReqWorktree {
   path: string;
   branch: string;
@@ -477,6 +493,9 @@ export interface AIReqRepositoryAIReqelopment {
   owners: (AIReqObjectRef & { title: string })[];
 }
 export interface AIReqWorkflowView {
+  ideas: AIReqIdea[];
+  /** Same-owner global release directory for cross-project planning; releases remains project-scoped. */
+  availableReleases: AIReqRelease[];
   todos?: AIReqTodo[];
   projectProgress?: AIReqProjectProgress[];
   ompWebId?: string;
@@ -508,6 +527,9 @@ export interface AIReqCommandBase {
 }
 export type AIReqWorkflowCommand = AIReqCommandBase &
   (
+    | { type: "createIdea"; originalText: string }
+    | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
+    | { type: "transferIdea"; ideaId: string; ideaRevision: number; targets: AIReqIdeaTarget[] }
     | { type: "createRelease"; title: string }
     | {
         type: "createProposal";
@@ -579,6 +601,8 @@ export type AIReqAction = AIReqBrowserCommand extends infer T
     : never
   : never;
 export interface AIReqWorkflowResult {
+  ideaId?: string;
+  transferredRequirements?: AIReqIdeaTransfer[];
   operationId: string;
   projectId: string;
   revision: number;

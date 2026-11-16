@@ -64,9 +64,14 @@ export function AIReqProjectProgressPage({
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目" : "Projects"}</h1>
+              <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目总览" : "Projects"}</h1>
               <ProjectPageHelp scope="all-projects" />
             </div>
+            <p className="text-ui-sm text-foreground-subtle">
+              {zh
+                ? "快捷入口查看项目的全部版本；选择版本卡片可进入对应概览。"
+                : "Quick links show all releases; select a release card to open its overview."}
+            </p>
             {ai.error && view && (
               <p className="text-ui-sm text-foreground-subtle">
                 {zh
@@ -75,21 +80,23 @@ export function AIReqProjectProgressPage({
               </p>
             )}
           </div>
-          <div className="relative shrink-0">
-            <Button
-              variant="outline"
-              onClick={onAddProject}
-              disabled={!source.projects?.saveRepository}
-            >
-              <Plus className="size-4" />
-              {zh ? "添加项目" : "Add project"}
-            </Button>
-            <p
-              role="status"
-              className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-xs text-foreground-subtle"
-            >
-              {ai.pending && view ? (zh ? "正在更新…" : "Updating…") : ""}
-            </p>
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+            <div className="relative shrink-0">
+              <Button
+                variant="outline"
+                onClick={onAddProject}
+                disabled={!source.projects?.saveRepository}
+              >
+                <Plus className="size-4" />
+                {zh ? "添加项目" : "Add project"}
+              </Button>
+              <p
+                role="status"
+                className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-xs text-foreground-subtle"
+              >
+                {ai.pending && view ? (zh ? "正在更新…" : "Updating…") : ""}
+              </p>
+            </div>
           </div>
         </header>
         <section className="space-y-4" aria-label={zh ? "全部项目总览" : "All projects"}>
@@ -122,6 +129,28 @@ export function AIReqProjectProgressPage({
                       {zh ? `${releases.length} 个 Release` : `${releases.length} releases`}
                     </span>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => ai.openProject(project.id, "proposals")}
+                    aria-label={
+                      zh ? `进入${project.name}的需求共创` : `Open co-creation in ${project.name}`
+                    }
+                  >
+                    {zh ? "需求共创" : "Co-creation"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => ai.openProject(project.id, "formal")}
+                    aria-label={
+                      zh
+                        ? `进入${project.name}的开发任务`
+                        : `Open development tasks in ${project.name}`
+                    }
+                  >
+                    {zh ? "开发任务" : "Development tasks"}
+                  </Button>
                   <Button
                     variant="ghost"
                     className="ml-auto shrink-0 text-foreground-subtle"

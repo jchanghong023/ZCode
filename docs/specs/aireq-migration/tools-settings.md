@@ -129,7 +129,7 @@ Skill 设计空会话沿用 `base` 的空态字阶与语义色，文案读取既
 
 ### 2.1 设置框架与离开所有权
 
-设置页复用当前 ZCode 的 `SettingsPageParts.SettingsPageFrame/SettingsSidebarButton`，原生 SettingsPage 与 AIReq 共用侧栏宽度、窄屏图标栏、返回按钮区域、底部菜单、右侧面板及标题基线；保留原生平台条件、测试标识、帮助和面包屑。AIReq 浏览器关闭桌面窗控，仅提供外观、项目与 Release、模型设置、个性化四个分区。主工作台页脚使用原生共享页脚扩展，项目与 Release 通过菜单选择，不使用常驻 HTML select 或模拟账号工具条。
+设置页复用 `SettingsPageParts.SettingsPageFrame/SettingsSidebarButton` 的 base 分支侧栏样式，返回按钮、搜索和分区导航保留原有布局；设置侧栏与主工作台同宽（256px），底部设置按钮与主工作台按钮位置对齐。AIReq 浏览器关闭桌面窗控，保留现有业务分区及离开门禁。验收：电脑浏览器进入设置前后侧栏右边界及底部设置按钮对齐，切换分区及返回工作台仍可用。
 
 Shell 唯一持有设置开关及当前分区：首次项目，普通齿轮记住最后接纳分区，项目管理强制项目，输入框模型入口强制模型。子页仅提供脏草稿动作，统一门禁持有 pending 导航，不另存最近分区或用 key 重建绕过门禁。返回经同一门禁关闭设置，显露仍挂载的原业务页，不改 AIReqContext 的 mainView／范围／对象／history，不发送或创建会话。设置覆盖视口，工作台和 composer provider 隐藏且 inert，保留正文、PNG、临时选模及 lease。正式需求、提案和进度分析共用当前项目／Release；全部 Release 可读，创建／导入必须具体 Release，不能另持全局分析 scope。
 

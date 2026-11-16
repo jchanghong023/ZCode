@@ -44,6 +44,13 @@ const actionBase = {
 const action = (type: string, fields: z.ZodRawShape = {}) =>
   z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
 const actionSchema = z.union([
+  action("createIdea", { originalText: text }),
+  action("updateIdea", { ideaId: id, ideaRevision: revision, originalText: text }),
+  action("transferIdea", {
+    ideaId: id,
+    ideaRevision: revision,
+    targets: z.array(z.object({ projectId: id, releaseId: id }).strict()).min(1),
+  }),
   action("createRelease", { title: text }),
   action("createProposal", {
     originalText: text,

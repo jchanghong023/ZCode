@@ -472,6 +472,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       approvedHistory.current = false;
       const savedView = event.state.aiReqMainView;
       const mainView: WorkspaceMainView = [
+        "ideas",
         "projectProgress",
         "projectOverview",
         "todos",

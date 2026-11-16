@@ -15,11 +15,13 @@ export function AIReqWorkspaceFooter({
   onLogout,
   onHelp,
   settingsButtonMode = "settings",
+  compact = true,
 }: {
   onOpenSettings: () => void;
   onLogout: () => void;
   onHelp: (returnFocusTo?: HTMLButtonElement | null) => void;
   settingsButtonMode?: "settings" | "back";
+  compact?: boolean;
 }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -30,7 +32,7 @@ export function AIReqWorkspaceFooter({
 
   return (
     <WorkspaceSidebarFooter
-      compact
+      compact={compact}
       theme={theme}
       onThemeChange={(value) => {
         if (value === "system" || value === "zai-dark" || value === "zai-light") setTheme(value);

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Folders, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   readLastSettingsSectionPreference,
@@ -24,6 +22,8 @@ import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./page
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
 import { AIReqProjectSpaceHeader } from "./AIReqProjectSpaceHeader.js";
+import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
+import { AIReqIdeaPool } from "../ideas/AIReqIdeaPool.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
 import {
   AIReqWorkspaceActiveContext,
@@ -53,11 +53,6 @@ function readSettingsSection(): Section {
       return "projects";
   }
 }
-
-const pages = [
-  { view: "projectProgress", label: "项目", labelEn: "Projects", icon: Folders },
-  { view: "todos", label: "待办", labelEn: "Todos", icon: ListTodo },
-] as const;
 
 export function AIReqShell({ onLogout }: { onLogout(): void }) {
   const ai = useAIReq()!;
@@ -126,7 +121,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       setHelp(true);
     });
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
-  const projectSpace = !["projectProgress", "todos", "skillDesign"].includes(ai.mainView);
+  const projectSpace = !["projectProgress", "ideas", "todos", "skillDesign"].includes(ai.mainView);
   const formal =
     ai.mainView === "formal" ||
     (ai.mainView === "chat" &&
@@ -136,6 +131,28 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
         ),
       ));
+  // 切项目后的旧投影不包含目标列表，不能先展示零条和空态。
+  const listLoading =
+    !ai.selectionReady &&
+    (ai.mainView === "proposals" || (ai.mainView === "formal" && !ai.selection.irId));
+  const listFeedback = (
+    <div role="status" className="m-auto space-y-3 p-6 text-foreground-subtle">
+      <p>
+        {ai.pending
+          ? zh
+            ? "正在读取需求…"
+            : "Loading requirements…"
+          : zh
+            ? "需求尚未读取，请重试。"
+            : "Requirements are not loaded. Retry to continue."}
+      </p>
+      {!ai.pending && (
+        <Button variant="outline" onClick={() => void ai.refresh()}>
+          {zh ? "重试" : "Retry"}
+        </Button>
+      )}
+    </div>
+  );
   let content;
   if (ai.mainView === "projectProgress")
     content = (
@@ -145,13 +162,14 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       />
     );
   else if (ai.mainView === "todos") content = null;
+  else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
   else if (ai.mainView === "projectOverview")
     content = (
       <AIReqProjectOverviewPage
         onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
       />
     );
-  else if (!project && ai.view)
+  else if (!project && ai.view && ai.selectionReady)
     content = (
       <div className="m-auto space-y-3 p-6 text-foreground-subtle">
         <p>
@@ -172,7 +190,20 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       />
     );
   else if (ai.mainView === "proposals") content = null;
-  else if (formal) content = <AIReqFormalWorkspace />;
+  else if (formal)
+    content = (
+      <>
+        {listLoading && listFeedback}
+        <div
+          hidden={listLoading}
+          inert={listLoading}
+          aria-hidden={listLoading}
+          className={listLoading ? "hidden" : "flex min-h-0 flex-1 flex-col"}
+        >
+          <AIReqFormalWorkspace />
+        </div>
+      </>
+    );
   else if (ai.mainView === "chat") content = <AIReqProposalWorkspace active={!settingsOpen} />;
 
   return (
@@ -188,39 +219,11 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
           id="aireq-navigation"
           aria-label={zh ? "AIReq 工作台导航" : "AIReq workspace navigation"}
           data-testid="aireq-workflow-root"
-          className="flex w-[68px] min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
+          className="flex w-64 min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
         >
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <div className="flex flex-col items-center gap-1 px-2 py-3">
-              {pages.map((page) => {
-                // 需求详情同属项目空间，不能因内部 chat 视图丢失主导航选中。
-                const selected =
-                  page.view === "todos" ? ai.mainView === "todos" : ai.mainView !== "todos";
-                return (
-                  <ControlHintTooltip
-                    key={page.view}
-                    title={zh ? page.label : page.labelEn}
-                    side="right"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      className={`h-auto min-h-12 w-12 flex-col gap-1 px-0 py-1 ${selected ? "bg-selected" : ""}`}
-                      aria-label={zh ? page.label : page.labelEn}
-                      aria-pressed={selected}
-                      onClick={() => navigate(() => ai.setMainView(page.view))}
-                    >
-                      <page.icon className="size-4" />
-                      <span className="w-full truncate text-center text-ui-xs leading-tight">
-                        {zh ? page.label : page.labelEn}
-                      </span>
-                    </Button>
-                  </ControlHintTooltip>
-                );
-              })}
-            </div>
-          </div>
+          <AIReqSidebarNavigation />
           <AIReqWorkspaceFooter
+            compact={false}
             onOpenSettings={() => openSettings()}
             onLogout={() =>
               ai.navigate(() => {
@@ -286,18 +289,21 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                   </div>
                 )}
                 {(proposalsMounted || ai.mainView === "proposals") && (
-                  <div
-                    hidden={ai.mainView !== "proposals" || !project}
-                    inert={ai.mainView !== "proposals" || !project || settingsOpen}
-                    aria-hidden={ai.mainView !== "proposals" || !project}
-                    className={
-                      ai.mainView === "proposals" && project
-                        ? "flex min-h-0 flex-1 flex-col"
-                        : "hidden"
-                    }
-                  >
-                    <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
-                  </div>
+                  <>
+                    {ai.mainView === "proposals" && listLoading && listFeedback}
+                    <div
+                      hidden={ai.mainView !== "proposals" || !project || listLoading}
+                      inert={ai.mainView !== "proposals" || !project || listLoading || settingsOpen}
+                      aria-hidden={ai.mainView !== "proposals" || !project || listLoading}
+                      className={
+                        ai.mainView === "proposals" && project && !listLoading
+                          ? "flex min-h-0 flex-1 flex-col"
+                          : "hidden"
+                      }
+                    >
+                      <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
+                    </div>
+                  </>
                 )}
                 {skillMounted && (
                   <div

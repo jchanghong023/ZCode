@@ -14,7 +14,7 @@ import {
 import { AppearanceSectionContent } from "@/settingsCodePreview.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { SettingsPageFrame } from "@/settings/SettingsPageParts.js";
+import { SettingsPageFrame, SettingsSidebarButton } from "@/settings/SettingsPageParts.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   SettingsSearch,
@@ -325,6 +325,7 @@ export function AIReqSettingsPage({
   };
   return (
     <SettingsSearchTargetContext.Provider value={searchTarget}>
+      {/* 固定窄栏和纵向按钮导致设置导航偏离 base；复用共享框架与导航控件恢复原有布局。 */}
       <SettingsPageFrame
         title={zh ? "设置" : "Settings"}
         isDesktop={false}
@@ -333,7 +334,8 @@ export function AIReqSettingsPage({
         rootProps={{
           "data-testid": "aireq-settings",
           "data-active-section": section,
-          style: { gridTemplateColumns: "68px minmax(0, 1fr)" },
+          // 共享框架默认宽度与工作台不同，使用工作台的 w-64 保持切换前后对齐。
+          style: { gridTemplateColumns: "256px minmax(0, 1fr)" },
         }}
         backButton={
           <ControlHintTooltip
@@ -346,28 +348,18 @@ export function AIReqSettingsPage({
               variant="ghost"
               size="lg"
               aria-label={zh ? "返回工作区" : "Return to workspace"}
-              className="mx-auto flex h-auto min-h-14 w-full flex-col justify-center gap-1 rounded-xl bg-surface p-1 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground"
+              className="m-1 w-[calc(100%-0.5rem)] justify-start gap-2 rounded-xl bg-surface px-1.5 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground max-lg:m-1 max-lg:size-10 max-lg:justify-center max-lg:px-0"
               onClick={() => guard(onClose)}
             >
               <ArrowLeft className="size-4" />
-              {/* 固定侧栏需容纳更长的英文和放大字号，按词义换行以保留完整标签。 */}
-              <span className="max-w-full whitespace-normal break-words text-ui-xs leading-tight">
-                {zh ? (
-                  "工作区"
-                ) : (
-                  <>
-                    Work
-                    <wbr />
-                    space
-                  </>
-                )}
+              <span className="max-lg:sr-only">
+                {zh ? "返回工作区" : "Return to workspace"}
               </span>
             </Button>
           </ControlHintTooltip>
         }
         search={
           <SettingsSearch
-            compact
             sections={searchSections}
             onSelect={({ section: targetSection, setting }) => {
               const next = searchSectionTargets[targetSection];
@@ -389,54 +381,40 @@ export function AIReqSettingsPage({
                   id: "appearance",
                   icon: Palette,
                   label: titles.appearance,
-                  shortLabel: zh ? "外观" : "Look",
                   active: section === "appearance",
                 },
                 {
                   id: "projects",
                   icon: Folders,
                   label: titles.projects,
-                  shortLabel: zh ? "项目" : "Projects",
                   active: section === "projects",
                 },
                 {
                   id: aiSection ? section : "models",
                   icon: Bot,
                   label: aiTitle,
-                  shortLabel: "AI",
                   active: aiSection,
                 },
               ] as const
             ).map((entry) => {
-              const Icon = entry.icon;
               return (
-                <ControlHintTooltip
+                <SettingsSidebarButton
                   key={entry.label}
-                  title={entry.label}
-                  side="right"
-                  align="center"
+                  icon={entry.icon}
+                  label={entry.label}
+                  active={entry.active}
+                  aria-current={entry.active ? "page" : undefined}
+                  onClick={() => navigate(entry.id)}
                 >
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    aria-label={entry.label}
-                    aria-current={entry.active ? "page" : undefined}
-                    className={`mx-auto flex h-auto min-h-14 w-full flex-col justify-center gap-1 rounded-xl p-1 ${entry.active ? "bg-surface-hover text-foreground" : "text-remote-foreground-muted"}`}
-                    onClick={() => navigate(entry.id)}
-                  >
-                    <Icon className="size-4" aria-hidden="true" />
-                    <span className="max-w-full whitespace-normal break-words text-ui-xs leading-tight">
-                      {entry.shortLabel}
-                    </span>
-                  </Button>
-                </ControlHintTooltip>
+                  <span className="truncate text-ui-base text-foreground">{entry.label}</span>
+                </SettingsSidebarButton>
               );
             })}
           </div>
         }
         footer={
           // 齿轮原先仅标识当前位置、没有点击动作；与顶部返回共用门禁，避免离开时丢失草稿。
-          <div className="flex shrink-0 justify-center px-2 pt-2 pb-4">
+          <div className="flex shrink-0 justify-end px-4 pt-2 pb-4">
             <ControlHintTooltip title={zh ? "返回工作区" : "Return to workspace"} side="right">
               <Button
                 type="button"
@@ -444,7 +422,6 @@ export function AIReqSettingsPage({
                 size="icon-lg"
                 aria-label={zh ? "返回工作区" : "Return to workspace"}
                 aria-current="page"
-                className="bg-selected"
                 onClick={() => guard(onClose)}
               >
                 <Settings className="size-4" aria-hidden="true" />

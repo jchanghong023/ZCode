@@ -1,42 +1,11 @@
 import { ArrowLeft, Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
-
-/** 二级视图归需求内容区；选中仍从唯一导航派生，不另存页签状态。 */
-export function AIReqRequirementViews() {
-  const ai = useAIReq()!;
-  const { locale } = useZCodeIntl();
-  const zh = locale === "zh-CN";
-  const formal =
-    ai.mainView === "formal" ||
-    (ai.mainView === "chat" &&
-      Boolean(
-        ai.selection.formalView ||
-        ai.view?.groups.some(
-          (group) => group.projectId === ai.selection.projectId && group.id === ai.selection.irId,
-        ),
-      ));
-  return (
-    <Tabs
-      value={formal ? "formal" : "proposals"}
-      onValueChange={(value) =>
-        ai.navigate(() => ai.setMainView(value === "formal" ? "formal" : "proposals"))
-      }
-      className="shrink-0"
-    >
-      <TabsList aria-label={zh ? "需求视图" : "Requirement views"}>
-        <TabsTrigger value="proposals">{zh ? "提案" : "Proposals"}</TabsTrigger>
-        <TabsTrigger value="formal">{zh ? "正式" : "Formal"}</TabsTrigger>
-      </TabsList>
-    </Tabs>
-  );
-}
 
 /** 详情身份和返回动作随实际面板展示，避免全宽页头与右侧对象脱节。 */
 export function AIReqRequirementContext({ discussion = false }: { discussion?: boolean }) {

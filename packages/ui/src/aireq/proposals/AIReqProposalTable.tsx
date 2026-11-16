@@ -4,6 +4,7 @@ import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Badge } from "@/components/ui/badge.js";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +36,6 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
-import { AIReqRequirementViews } from "../shell/AIReqRequirementNavigation.js";
 import { proposalPhaseLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 
@@ -251,7 +251,7 @@ export function AIReqProposalTable() {
       >
         {/* 页签已标明提案视图；操作与视图同排，避免重复标题和分散的操作行。 */}
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 pt-4">
-          <AIReqRequirementViews />
+          <span className="text-ui-sm text-foreground-subtle">{zh ? "需求提案" : "Proposals"}</span>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
               data-testid="new-requirement"
@@ -389,7 +389,21 @@ export function AIReqProposalTable() {
                       >
                         {item.originalText}
                       </Button>
-                      <span className="break-all text-ui-sm text-foreground-subtle">{item.id}</span>
+                      <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="break-all text-ui-sm text-foreground-subtle">
+                          {item.id}
+                        </span>
+                        {/* 全部版本范围的页头不再标明逐条归属，需按当前项目版本匹配，避免提案来源被隐藏或误标。 */}
+                        {!ai.releaseId && (
+                          <Badge
+                            variant="secondary"
+                            className="h-auto min-w-0 max-w-full whitespace-normal break-words text-ui-xs"
+                          >
+                            {releases.find((release) => release.id === item.releaseId)?.title ??
+                              (zh ? "版本不可用" : "Release unavailable")}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">

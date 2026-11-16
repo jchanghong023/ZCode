@@ -5,6 +5,9 @@ import type { IPlatformService } from "@zcode/shared";
 export type { IServiceAccessor } from "@zcode/services";
 export type {
   AIReqAction,
+  AIReqIdea,
+  AIReqIdeaTarget,
+  AIReqIdeaTransfer,
   AIReqAgentModelBinding,
   AIReqAnalysisFilter,
   AIReqAnalysisRun,
@@ -92,6 +95,7 @@ export interface AIReqApplicationProps {
   operator: { employeeNumber: string; leave(): void };
 }
 export type AIReqMainView =
+  | "ideas"
   | "chat"
   | "projectProgress"
   | "projectOverview"

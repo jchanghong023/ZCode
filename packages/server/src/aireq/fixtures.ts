@@ -25,6 +25,8 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     return {
       version: 1,
       revision: 0,
+      ideas: [],
+      availableReleases: [],
       projects: [],
       releases: [],
       groups: [],
@@ -396,6 +398,8 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
   const result: AIReqWorkflowView = {
     version: 1,
     revision: 12,
+    ideas: [],
+    availableReleases: readPrototypeProjectReleases(),
     ...sharedSettings,
     releases: readPrototypeProjectReleases(),
     currentProjectId: DEFAULT_SELECTION.projectId,

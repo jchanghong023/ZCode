@@ -31,10 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.j
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
-import {
-  AIReqRequirementContext,
-  AIReqRequirementViews,
-} from "../shell/AIReqRequirementNavigation.js";
+import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
@@ -111,11 +108,8 @@ export function AIReqFormalTable() {
       <div
         className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
       >
-        {/* 修复：与提案共用导航行高、顶部间距和滚动槽，切换视图时不移动页签及表格。 */}
+        {/* 分区导航承接页面切换，移除旧页签占位，筛选栏直接接在页头下方。 */}
         <header className="shrink-0 space-y-4 pt-4">
-          <div className="flex h-8 items-center">
-            <AIReqRequirementViews />
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
