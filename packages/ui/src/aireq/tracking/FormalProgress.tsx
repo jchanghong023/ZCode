@@ -178,7 +178,7 @@ export function AIReqFormalTable() {
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
-              <col className="w-[40%]" />
+              <col className="w-[36%]" />
               <col className="w-[24%]" />
               <col />
               <col className="w-14" />
@@ -528,25 +528,27 @@ function PersonnelPlan({
   incomplete?: boolean;
   warnings: string[];
 }) {
-  const plan = `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}${incomplete ? "（部分未排期）" : ""}`;
+  // 人员分行和重复未排期文案会撑高单元格；固定两行，完整事实仍由提示承载。
+  const personnel = `开发：${developer} · 测试：${tester}`;
+  const plan = !start && !end
+    ? "计划：未排期"
+    : `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}`;
   const planDetail = [
     `计划开始：${start?.replace("T", " ") || "未排期"}`,
     `计划结束：${end?.replace("T", " ") || "未排期"}`,
-    ...(incomplete ? ["部分未排期"] : []),
+    ...(incomplete && (start || end) ? ["部分未排期"] : []),
     ...warnings,
   ].join("\n");
   return (
     <div className="min-w-0 space-y-1 text-ui-sm">
-      {[`开发：${developer}`, `测试：${tester}`].map((text) => (
-        <ControlHintTooltip key={text} title={text}>
-          <p
-            tabIndex={0}
-            className="truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {text}
-          </p>
-        </ControlHintTooltip>
-      ))}
+      <ControlHintTooltip title={personnel}>
+        <p
+          tabIndex={0}
+          className="truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {personnel}
+        </p>
+      </ControlHintTooltip>
       <ControlHintTooltip title={planDetail}>
         <p
           tabIndex={0}
