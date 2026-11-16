@@ -1,0 +1,25 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -21,8 +21,8 @@
+       "require": "./lib/common.js"
+     },
+     "./nohighlight": {
++      "types": "./esm/nohighlight.d.mts",
+       "import": "./esm/nohighlight.js",
+-      "types": "./lib/nohighlight.d.ts",
+       "require": "./lib/nohighlight.js"
+     }
+   },
+diff --git a/esm/nohighlight.d.mts b/esm/nohighlight.d.mts
+new file mode 100644
+--- /dev/null
++++ b/esm/nohighlight.d.mts
+@@ -0,0 +1,7 @@
++import type { ForwardRefExoticComponent, RefAttributes } from 'react';
++import type { MarkdownPreviewProps, MarkdownPreviewRef } from './Props.js';
++export type { MarkdownPreviewProps, MarkdownPreviewRef } from './Props.js';
++// 修复发布包缺失 ESM 类型标记：NodeNext 不应把默认 React 控件识别成 CommonJS 模块对象。
++declare const MarkdownPreview: ForwardRefExoticComponent<
++  MarkdownPreviewProps & RefAttributes<MarkdownPreviewRef>>;
++export default MarkdownPreview;

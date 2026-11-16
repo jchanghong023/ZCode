@@ -2413,3 +2413,54 @@ body {
   + :is(.summary-hover-text, :has(.summary-hover-text)):not([data-consecutive-summary-group]) {
   padding-top: 0;
 }
+
+/* 静态材料采用 UIW 文档排版；仅在此作用域映射主题，不能影响聊天或应用表单。 */
+.wmde-markdown.zcode-markdown-document[data-color-mode] {
+  --color-fg-default: var(--color-foreground);
+  --color-fg-muted: var(--color-foreground-subtle);
+  --color-fg-subtle: var(--color-foreground-subtlest);
+  --color-canvas-default: var(--color-background);
+  --color-canvas-subtle: var(--color-surface);
+  --color-border-default: var(--color-border);
+  --color-border-muted: var(--color-border);
+  --color-neutral-muted: var(--color-markdown-inline-code);
+  --color-accent-fg: var(--color-icon-blue);
+  --color-accent-emphasis: var(--color-icon-blue);
+  --color-attention-fg: var(--color-warning);
+  --color-attention-emphasis: var(--color-warning);
+  --color-attention-subtle: var(--color-warning-surface);
+  --color-danger-fg: var(--color-destructive);
+  --color-danger-emphasis: var(--color-destructive);
+  --color-done-fg: var(--color-icon-purple);
+  --color-done-emphasis: var(--color-icon-purple);
+  --color-success-fg: var(--color-success);
+  --color-success-emphasis: var(--color-success);
+  font-family: inherit;
+  font-size: var(--text-ui-lg);
+  line-height: 1.75;
+  background: transparent;
+}
+
+/* UIW 将表格设为 block；复用的表格控件仍需要原生 table 布局与独立横向滚动。 */
+.wmde-markdown.zcode-markdown-document [data-streamdown="table"] {
+  display: table;
+  margin: 0;
+}
+
+/* Tailwind preflight 清除了浏览器默认列表标记，UIW 假定它们仍存在。 */
+.wmde-markdown.zcode-markdown-document ul {
+  list-style-type: disc;
+}
+.wmde-markdown.zcode-markdown-document ol {
+  list-style-type: decimal;
+}
+.wmde-markdown.zcode-markdown-document .contains-task-list {
+  list-style-type: none;
+}
+
+/* 仅有 viewBox 的 SVG 在 fit-content 按钮 + 百分比 max-width 下会塌缩为 0。
+ * 单图按钮以文档列宽计算，图片仍按原比例且不超过半列；画廊保持原有缩略图布局。 */
+.wmde-markdown.zcode-markdown-document
+  [data-markdown-image-trigger]:not([data-markdown-image-gallery] *) {
+  width: 50%;
+}

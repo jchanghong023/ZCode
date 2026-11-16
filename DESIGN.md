@@ -22,7 +22,7 @@ The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for ap
 - Top-level business page headings (Automations, requirement analysis, formal requirements, and Issue pages) use `text-ui-page-title`.
 - Do not introduce Tailwind's built-in `text-base`, `text-sm`, or `text-xs` for application UI.
 - Do not introduce arbitrary UI font sizes such as `text-[13px]` or inline `font-size` values.
-- The only content-level exceptions are code, Diff, and terminal rendering that consume their independent numeric font-size settings. Their surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
+- Content-level exceptions: code, Diff, and terminal rendering consume independent numeric font-size settings. The UIW read-only Markdown document surface uses `text-ui-lg` for its body and the library's relative `em` heading scale, so long-form reading remains distinct from compact chat typography while following UI font scaling. Surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
 - The retained `text-mobile-input-safe` compatibility token (16px) documents legacy usage, not a mobile/iOS requirement. Do not use it as a general UI hierarchy token.
 - Never implement interface font scaling by changing `html` or `document.documentElement.style.fontSize`; update only `--ui-font-size`.
 

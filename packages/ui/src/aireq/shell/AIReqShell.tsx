@@ -192,7 +192,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   else
     content = (
       <ResizablePanelGroup orientation="horizontal" layoutId="aireq-proposal-workspace-v2">
-        <ResizablePanel id="discussion" defaultSize={materialsOpen ? "52%" : "100%"} minSize="35%">
+        <ResizablePanel id="discussion" defaultSize="52%" minSize="35%">
           <div
             className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
           >
@@ -308,7 +308,8 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
         <ResizablePanel
           id="materials"
           panelRef={materialsPanel}
-          defaultSize={materialsOpen ? "45%" : "0px"}
+          // 折叠时改变 defaultSize 会让面板重新注册并丢失库保存的展开宽度。
+          defaultSize="45%"
           collapsible
           collapsedSize="0px"
           minSize="240px"

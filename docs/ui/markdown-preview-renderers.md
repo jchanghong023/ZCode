@@ -1,12 +1,61 @@
 # Markdown Preview Renderers
 
-Markdown messages are rendered through `MessageResponse` in
-`packages/ui/src/components/ai-elements/message.tsx`.
+Chat messages continue to use `MessageResponse` / Streamdown in
+`packages/ui/src/components/ai-elements/message.tsx`; chat typography and interaction
+are unchanged by the document-reader replacement.
 
-The shared chat and file-preview type scale is compact and explicit: body text,
-paragraphs, lists, links, tables, and H3-H6 use `text-ui-base`; H1 uses `text-lg`;
-H2 uses `text-ui-lg`; inline code uses `text-ui-sm`. Fenced code blocks continue to
-use the independent code font-size preference.
+## Read-only document preview
+
+File `.md` / `.markdown` previews, Markdown text previews, AIReq requirement / solution /
+review materials, and Skill Markdown bodies use the shared `MarkdownDocument` in
+`packages/ui/src/previewPaneMarkdownContent.tsx`, backed by
+`@uiw/react-markdown-preview/nohighlight`. UIW owns static parsing and GitHub-style
+headings, paragraphs, lists, inline code, alerts, footnotes, and anchor navigation.
+Do not route these document bodies through the chat renderer.
+
+- Body uses the scalable `text-ui-lg` role (16px with the default 14px UI setting),
+  line-height 1.75, and UIW's relative heading hierarchy. File previews are centered,
+  limited to 900px, and padded 24px; embedded materials keep their existing container.
+- Colors follow application semantic tokens in light, dark, and system modes.
+- Reuse existing `CodeBlock` (including Mermaid), math plugins, image preview, and
+  `MarkdownTable` interactions. Code font, line numbers, theme and wrapping continue
+  to consume the existing code-preview preferences; no new settings owner.
+- AIReq materials remain read-only with no copy/download actions and no file/external
+  navigation. File previews retain optional external-link routing; unsupported links
+  remain inert. Heading / footnote anchors navigate within the current document.
+- File selection references retain their existing owner and invalidation scope.
+- Raw HTML stays disabled; sanitize UIW's comment-derived attributes and reject unsafe
+  URL schemes. Only established image and link renderers may resolve workspace paths.
+
+Acceptance: save before/after screenshots of the same real requirement material at
+1440×1000 in both application themes; inspect heading hierarchy, body rhythm, wrapping,
+and unchanged surrounding UI. Exercise tables, task lists, alerts, footnotes, inline /
+block math, Mermaid, code settings, image preview, anchor navigation, and read-only
+actions in a repeatable browser scenario. Run typecheck, lint and changed architecture
+checks. Screenshots prove layout, not subjective absence of eye strain.
+
+Verified 2026-11-16: identical `ir-auth` requirement material, 1440×1000 CSS pixels,
+1.25 device scale and the same 912px split position, captured before and after in
+both themes. Body changed from 14px / 21px line-height to 16px / 28px; H1 from 18px
+to 32px, H2 now 24px. The actual material page had no browser runtime errors.
+The temporary real-component browser scenario verified GFM task lists / alerts,
+tables (including full preview and export-action toggling), two KaTeX formulas,
+Mermaid SVG rendering, 18px code content, image-modal opening, external-link routing,
+heading / footnote round trips without changing the route, and selected file text
+entering the existing draft scope with its path. Raw scripts / unsafe links were
+not rendered. The temporary scenario is removed after verification.
+
+Integration notes: use UIW's nohighlight entry to retain the existing restricted
+Shiki language/theme set. The package patch only corrects that entry's ESM type
+metadata for NodeNext; runtime code is unchanged. Scoped adapters normalize UIW
+anchor classes for sanitization, restore lists cleared by Tailwind preflight, and
+avoid invalid paragraph/image loading markup and widthless SVG thumbnail collapse.
+
+## Chat rendering
+
+The chat type scale stays compact and explicit: body text, paragraphs, lists, links,
+tables, and H3-H6 use `text-ui-base`; H1 uses `text-ui-xl`; H2 uses `text-ui-lg`;
+inline code uses `text-ui-sm`. Fenced code uses the independent code font preference.
 
 Strikethrough follows the GFM specification rather than GitHub's permissive
 single-tilde extension: only `~~text~~` renders as strikethrough. A paired single

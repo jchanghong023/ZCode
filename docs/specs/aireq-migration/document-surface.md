@@ -2,7 +2,7 @@
 
 ## 范围与所有权
 
-需求、方案、报告和 Skill 材料复用当前 ZCode `MessageResponse`、`MarkdownTable`、`CodeBlock`，不复制源通用控件、排版实现或 CSS。源 `AIReqMarkdownDocument` 仅作为业务包装语义参考。业务材料版本/正文仍归 AIReq 服务所有；表格预览、滚动及代码换行仍归现有组件实例所有。
+需求、方案、报告和 Skill Markdown 正文统一使用当前 ZCode `MarkdownDocument`（`@uiw/react-markdown-preview` 静态文档阅读器），不再复用聊天 `MessageResponse` 排版。表格、代码、Mermaid 与图片预览继续复用现有基础控件，不复制源控件或引入第二份业务状态。`AIReqMarkdownDocument` 是材料只读策略包装；业务版本/正文仍归 AIReq 服务所有，阅读器仅消费正文、主题与代码设置。视觉与验收合同见 `docs/ui/markdown-preview-renderers.md`。
 
 ## 第 2 组材料模型与验收
 
@@ -17,17 +17,17 @@
 
 ## 可选公开参数
 
-- `MessageResponse.showExportActions?: boolean`，默认 `true`，既有聊天和其他消费者保持当前行为。
-- `MarkdownTable.showExportActions?: boolean`、`CodeBlock.showExportActions?: boolean` 同样默认 `true`。MessageResponse 向实际 table renderer 和 CodeBlock 透传；CodeBlock 通过自身 context 控制真实 CopyButton，包括自定义 Header 使用的 CopyButton。
-- `false` 时不渲染材料内表格复制 Markdown、下载 CSV 和代码复制按钮，且不启用 Streamdown 内置导出控件。不通过 CSS 遮挡，不禁用正文选择或浏览器原生复制，不改变聊天级操作或其他通用基础控件。
-- 表格全屏预览、关闭、内部横滚和增强滚动模式保持可用；代码高亮、换行及 Mermaid 阅读/预览保持现状。不新增下载、带入讨论或其他材料动作。
-- 材料调用方传 `showExportActions={false}`，且不传 `onOpenFileLink`、`onOpenCodeViewer`、`onOpenExternalUrl`、工作区路径或文件 citation 开关。当前链接 renderer 在无打开回调时只显示文本与目标提示，不启动旧文件/Git/外部产品入口。该约束独立于导出开关，开关本身不改变既有聊天链接语义。
+- `MarkdownDocument.showExportActions?: boolean` 默认 `true`；AIReq 包装固定 `false`。聊天的 `MessageResponse.showExportActions` 合同不变。
+- `MarkdownTable.showExportActions`、`CodeBlock.showExportActions` 继续控制实际复制/下载动作；UIW 内建代码复制关闭，避免重复工具栏。
+- `false` 不渲染表格复制 Markdown、下载 CSV 和代码复制按钮，不禁用正文选择或浏览器原生复制。
+- 表格全屏预览、关闭、内部横滚及代码高亮、换行、Mermaid 阅读/预览保留。
+- 材料不传外链回调或工作区路径。普通链接保留目标提示但不启动外部产品入口；文档内标题和脚注锚点正常定位。
 
 历史阶段与旧评审会话必须由同一领域阶段判断设为原生 `SessionPane.readOnly`，不挂载可写输入框和输入辅助；“历史只读”的文案不能代替编辑门禁。返回当前阶段才恢复当前会话输入，不改变旧消息或旧报告。
 
 ## 更新与验收
 
-导出开关参与 MessageResponse memo 比较、renderer memo 依赖及 Streamdown 重挂载 key，保证相同正文从可导出切至只读时旧按钮不会缓存残留。表格 toolbar 和 CodeBlock context/copy callback 的 memo 依赖包含开关；组件不得在条件分支之后新增 hooks 或泄漏布尔 prop 到 DOM。
+文档阅读器通过当前 props 向表格与代码 renderer 传递导出开关，切换为只读时不残留旧按钮；不把 UIW 的节点参数或布尔控制参数泄漏到 DOM。组件不得在条件分支之后新增 hooks。聊天 renderer 的既有 memo 合同不变。
 
 AIReq 依赖图的第三方署名继续可见、可访问，背景与链接文字使用目标语义 token；只在业务图实例内覆盖 React Flow 默认半透明白底，避免深色主题下灰字与灰底近乎同色，不修改通用 Canvas 或隐藏署名。
 

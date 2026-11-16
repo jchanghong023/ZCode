@@ -341,7 +341,6 @@ export function AIReqPlanningSummary({
             className="min-w-0 break-words"
             theme={theme}
             codePreviewSettings={codePreviewSettings}
-            showExportActions={false}
           >
             {table}
           </AIReqMarkdownDocument>

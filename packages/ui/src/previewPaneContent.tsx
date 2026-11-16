@@ -326,6 +326,8 @@ export function PreviewPaneContent({
         sourcePath={source.path}
         content={filePreview.content}
         workspacePath={workspacePath}
+        theme={theme}
+        codePreviewSettings={codePreviewSettings}
         onOpenBrowserUrl={onOpenBrowserUrl}
       />
     );

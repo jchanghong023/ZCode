@@ -1,5 +1,5 @@
 import { parseAgentFrontmatter, splitMarkdownFrontmatter } from "@zcode/shared";
-import { MessageResponse } from "@/components/ai-elements/message.js";
+import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -81,13 +81,9 @@ export function AIReqSkillFilePreview({
           </Collapsible>
         </div>
       )}
-      <MessageResponse
-        theme={theme}
-        codePreviewSettings={codePreviewSettings}
-        showExportActions={false}
-      >
+      <AIReqMarkdownDocument theme={theme} codePreviewSettings={codePreviewSettings}>
         {body}
-      </MessageResponse>
+      </AIReqMarkdownDocument>
     </div>
   );
 }

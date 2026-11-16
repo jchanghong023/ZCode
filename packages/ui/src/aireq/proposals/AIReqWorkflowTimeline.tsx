@@ -172,56 +172,67 @@ export function AIReqWorkflowTimeline({
   if (proposal)
     return (
       <nav
-        className={`mx-auto grid min-w-0 grid-cols-4 gap-1 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+        className={`mx-auto grid min-w-0 grid-cols-4 grid-rows-[auto_auto_auto] gap-1 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
         data-testid="aireq-workflow-timeline"
         aria-label={`当前阶段：${labels[phase]}；查看：${labels[selected]}`}
       >
         {model.stations.map((station, index) => (
-          <div key={station.id} className="flex min-w-0 flex-col items-center gap-1">
+          <div
+            key={station.id}
+            className="row-span-3 grid min-w-0 grid-rows-subgrid justify-items-center"
+          >
             <Button
               variant={index === selected ? "secondary" : "ghost"}
               size="sm"
-              className="h-auto min-h-8 w-full min-w-0 whitespace-normal px-1 text-ui-sm"
+              className="row-start-1 h-auto min-h-8 w-full min-w-0 flex-wrap gap-x-1 gap-y-0 whitespace-normal px-1 py-1 text-ui-sm"
               disabled={!canNavigate || !entered[index]}
               aria-current={index === phase ? "step" : undefined}
               aria-pressed={index === selected}
               onClick={() => onSelect(index)}
             >
-              {labels[index]}
+              {/* 窄讨论栏中阶段名称可换行，但当前标记必须作为整体换行，不能逐字挤成竖排。 */}
+              <span className="min-w-0">{labels[index]}</span>
               {/* 查看历史只切换选中态，当前业务阶段必须仍有独立的可见标记。 */}
               {index === phase && (
-                <span className="rounded-sm bg-surface px-1 text-ui-xs text-foreground-subtle">
+                <span className="shrink-0 rounded-sm bg-surface px-1 text-ui-xs whitespace-nowrap text-foreground-subtle">
                   当前
                 </span>
               )}
             </Button>
-            {station.pills.map((pill) => (
-              <Button
-                key={pill.key}
-                variant="ghost"
-                size="sm"
-                className="h-8 min-w-0 max-w-full gap-1 px-1 text-ui-sm"
-                disabled={
-                  pill.key.startsWith("review:") ? !canOpenReview : !canNavigate || !entered[index]
-                }
-                aria-label={pill.lane.name ?? pill.runtimeName}
-                onClick={() => {
-                  if (pill.key.startsWith("review:"))
-                    onSelectReview(pill.key.slice(7) as AIReqReviewAgentId);
-                  else onSelect(index);
-                }}
-              >
-                <WorkflowAgentFace
-                  name={pill.lane.name ?? ""}
-                  avatarIndex={pill.avatarIndex ?? 0}
-                  status={pill.status}
-                  className="size-5 shrink-0"
-                />
-                <span className="truncate">{pill.runtimeName}</span>
-              </Button>
-            ))}
+            {/* 子网格共用阶段行高，某个标题换行时各 Agent 仍横向对齐。 */}
+            <div className="row-start-2 flex min-w-0 max-w-full flex-wrap justify-center gap-1">
+              {station.pills.map((pill) => (
+                <Button
+                  key={pill.key}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 min-w-0 max-w-full gap-1 px-1 text-ui-sm"
+                  disabled={
+                    pill.key.startsWith("review:")
+                      ? !canOpenReview
+                      : !canNavigate || !entered[index]
+                  }
+                  aria-label={pill.lane.name ?? pill.runtimeName}
+                  onClick={() => {
+                    if (pill.key.startsWith("review:"))
+                      onSelectReview(pill.key.slice(7) as AIReqReviewAgentId);
+                    else onSelect(index);
+                  }}
+                >
+                  <WorkflowAgentFace
+                    name={pill.lane.name ?? ""}
+                    avatarIndex={pill.avatarIndex ?? 0}
+                    status={pill.status}
+                    className="size-5 shrink-0"
+                  />
+                  <span className="truncate">{pill.runtimeName}</span>
+                </Button>
+              ))}
+            </div>
             {returned && index < 3 && station.rounds > 0 && (
-              <span className="text-ui-xs text-foreground-subtle">↻ {station.rounds}</span>
+              <span className="row-start-3 text-ui-xs text-foreground-subtle">
+                ↻ {station.rounds}
+              </span>
             )}
           </div>
         ))}

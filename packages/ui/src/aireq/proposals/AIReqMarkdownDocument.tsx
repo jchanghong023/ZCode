@@ -1,13 +1,20 @@
-import { MessageResponse, type MessageResponseProps } from "@/components/ai-elements/message.js";
-import { cn } from "@/components/lib/utils.js";
+import { MarkdownDocument, type MarkdownDocumentProps } from "@/previewPaneMarkdownContent.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
 
-/** 材料只读，沿用当前 Markdown 排版与主题，不引入旧主题。 */
-export function AIReqMarkdownDocument({ className, ...props }: MessageResponseProps) {
+/** 材料使用独立文档阅读器；只读策略不影响聊天消息或正文原生选择。 */
+export function AIReqMarkdownDocument({
+  theme,
+  codePreviewSettings,
+  ...props
+}: Omit<MarkdownDocumentProps, "workspacePath" | "showExportActions" | "onOpenExternalUrl">) {
+  const storeTheme = useZCodeStore((state) => state.theme);
+  const storeCodeSettings = useZCodeStore((state) => state.codePreviewSettings);
   return (
-    <MessageResponse
+    <MarkdownDocument
       {...props}
+      theme={theme ?? storeTheme}
+      codePreviewSettings={codePreviewSettings ?? storeCodeSettings}
       showExportActions={false}
-      className={cn("min-w-0 break-words text-ui-base", className)}
     />
   );
 }
