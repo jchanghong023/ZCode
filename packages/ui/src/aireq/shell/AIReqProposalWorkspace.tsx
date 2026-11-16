@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -66,38 +66,19 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         <div
           className={`@container/conversation flex h-full min-h-0 flex-col overflow-hidden bg-background ${materialsOpen ? "rounded-xl border-[0.5px] border-border shadow-xs" : ""}`}
         >
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mr-auto gap-1 text-foreground-subtle"
-              onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
-            >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              {zh ? "返回提案列表" : "Back to proposals"}
-            </Button>
+          <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/50 px-3 py-2">
             {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
-            <Button
-              variant="ghost"
-              size="icon-md"
-              aria-label={
-                zh
-                  ? materialsOpen
-                    ? "收起材料"
-                    : "展开材料"
-                  : materialsOpen
-                    ? "Hide materials"
-                    : "Show materials"
-              }
-              aria-expanded={materialsOpen}
-              onClick={toggleMaterials}
-            >
-              {materialsOpen ? (
-                <PanelRightClose aria-hidden="true" className="size-4" />
-              ) : (
+            {!materialsOpen && (
+              <Button
+                variant="ghost"
+                size="icon-md"
+                aria-label={zh ? "展开材料" : "Show materials"}
+                aria-expanded={false}
+                onClick={toggleMaterials}
+              >
                 <PanelRightOpen aria-hidden="true" className="size-4" />
-              )}
-            </Button>
+              </Button>
+            )}
           </div>
           {/* 修复：身份区与原生 composer 共用面板容器、滚动槽和内容列，不再贴边。 */}
           <AIReqRequirementContext discussion />
@@ -206,23 +187,19 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border-[0.5px] border-border bg-background shadow-xs"
           inert={!materialsOpen}
         >
-          <div
-            className="h-12 shrink-0 overflow-y-auto border-b border-border/50 px-2 text-ui-base [scrollbar-gutter:stable_both-edges]"
-            style={{ scrollbarWidth: "thin" }}
-          >
-            <div className="mx-auto flex h-full w-full max-w-4xl items-center">
-              <span className="flex-1">{zh ? "需求材料" : "Requirement materials"}</span>
+          <AIReqMaterialsPane
+            headerAction={
               <Button
                 variant="ghost"
                 size="icon-md"
+                className="shrink-0"
                 aria-label={zh ? "收起材料" : "Hide materials"}
                 onClick={toggleMaterials}
               >
                 <PanelRightClose aria-hidden="true" className="size-4" />
               </Button>
-            </div>
-          </div>
-          <AIReqMaterialsPane />
+            }
+          />
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>

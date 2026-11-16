@@ -1,15 +1,24 @@
-import { FolderGit2, ArrowRight, Settings2 } from "lucide-react";
+import { FolderGit2, ArrowRight, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Card } from "@/components/ui/card.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useAIReqDataSource } from "../data-source.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
 import { OverviewProgress } from "./OverviewProgress.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
-export function AIReqProjectProgressPage({ onManageProjects }: { onManageProjects(): void }) {
+export function AIReqProjectProgressPage({
+  onAddProject,
+  onConfigureProject,
+}: {
+  onAddProject(): void;
+  onConfigureProject(projectId: string): void;
+}) {
   const ai = useAIReq()!;
+  const source = useAIReqDataSource();
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const view = ai.view;
@@ -42,9 +51,13 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
             )}
           </div>
           <div className="relative shrink-0">
-            <Button variant="outline" onClick={onManageProjects}>
-              <Settings2 className="size-4" />
-              {zh ? "项目配置" : "Project settings"}
+            <Button
+              variant="outline"
+              onClick={onAddProject}
+              disabled={!source.projects?.saveRepository}
+            >
+              <Plus className="size-4" />
+              {zh ? "添加项目" : "Add project"}
             </Button>
             {/* 修复：后台读取的可见反馈脱离文档流，不再推移已有项目卡片。 */}
             <p
@@ -65,7 +78,7 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
               return (
                 <Card
                   key={item.id}
-                  className={`gap-0 py-0 transition-colors hover:border-border-hover ${selected ? "border-foreground-subtle bg-card-selected" : ""}`}
+                  className={`relative gap-0 py-0 transition-colors hover:border-border-hover ${selected ? "border-foreground-subtle bg-card-selected" : ""}`}
                 >
                   <button
                     type="button"
@@ -73,7 +86,7 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                     onClick={() => ai.openProject(item.id)}
                     aria-label={zh ? "进入" + item.name : "Open " + item.name}
                   >
-                    <span className="flex w-full items-start justify-between gap-2">
+                    <span className="flex w-full items-start justify-between gap-2 pr-9">
                       <span className="flex min-w-0 items-center gap-2 font-medium">
                         <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
                         <span className="break-words">{item.name}</span>
@@ -99,6 +112,17 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
                       <ArrowRight className="size-3.5" aria-hidden="true" />
                     </span>
                   </button>
+                  <ControlHintTooltip title={zh ? "配置此项目" : "Configure project"}>
+                    <Button
+                      variant="ghost"
+                      size="icon-md"
+                      className="absolute top-2 right-2"
+                      aria-label={zh ? `配置项目 ${item.name}` : `Configure project ${item.name}`}
+                      onClick={() => onConfigureProject(item.id)}
+                    >
+                      <Settings2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </ControlHintTooltip>
                   {total && (
                     // 修复：全项目计数独立可聚焦；沿用 Context 原子切项目并清空 Release，避免范围错配及多条历史。
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 px-4 py-3">
@@ -138,9 +162,9 @@ export function AIReqProjectProgressPage({ onManageProjects }: { onManageProject
             <div className="rounded-xl border border-border bg-surface px-4 py-6 text-foreground-subtle">
               {view ? (zh ? "尚无项目。" : "No projects yet.") : unavailable}
               {view && (
-                <Button variant="outline" className="ml-3" onClick={onManageProjects}>
-                  {zh ? "项目设置" : "Project settings"}
-                </Button>
+                <span className="ml-2">
+                  {zh ? "请使用上方“添加项目”。" : "Use Add project above to get started."}
+                </span>
               )}
             </div>
           )}

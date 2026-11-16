@@ -1,6 +1,5 @@
-import { ArrowLeft, ChevronRight, Settings2 } from "lucide-react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   Select,
   SelectContent,
@@ -13,7 +12,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
 
-export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects(): void }) {
+export function AIReqProjectSpaceHeader({ onReturnProjects }: { onReturnProjects(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -51,8 +50,17 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
         <div className={`mx-auto min-w-0 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
           <nav
             aria-label={zh ? "需求讨论导航" : "Requirement discussion navigation"}
-            className="flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-ui-sm"
+            className="flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-3 pb-2 text-ui-sm"
           >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 gap-1 text-foreground-subtle"
+              onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              {zh ? "返回提案列表" : "Back to proposals"}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -65,14 +73,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
               className="size-3.5 shrink-0 text-foreground-subtlest"
               aria-hidden="true"
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-foreground-subtle"
-              onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
-            >
-              {zh ? "需求提案" : "Proposals"}
-            </Button>
+            <span className="text-foreground-subtle">{zh ? "需求提案" : "Proposals"}</span>
             <ChevronRight
               className="size-3.5 shrink-0 text-foreground-subtlest"
               aria-hidden="true"
@@ -104,7 +105,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
             className="shrink-0 gap-1 text-foreground-subtle"
             onClick={() => ai.navigate(() => ai.setMainView("projectProgress"))}
           >
-            <ArrowLeft className="size-3.5" />
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
             {zh ? "全部项目" : "All projects"}
           </Button>
           <Select
@@ -146,31 +147,20 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
               ))}
             </SelectContent>
           </Select>
-          <ControlHintTooltip title={zh ? "项目配置" : "Project settings"}>
-            <Button
-              variant="ghost"
-              size="icon-md"
-              className="ml-auto shrink-0"
-              aria-label={zh ? "项目配置" : "Project settings"}
-              onClick={onManageProjects}
-            >
-              <Settings2 className="size-4" />
-            </Button>
-          </ControlHintTooltip>
         </div>
         {(!project || !releases.length) && (
           <div className="flex flex-wrap items-center gap-2 text-ui-sm text-foreground-subtle">
             <span>
               {!project
                 ? zh
-                  ? "请选择项目，或添加项目配置。"
-                  : "Choose a project or add project settings."
+                  ? "请选择项目，或返回项目列表添加项目。"
+                  : "Choose a project or return to the project list to add one."
                 : zh
                   ? "当前项目尚无 Release。"
                   : "This project has no Releases."}
             </span>
-            <Button variant="link" size="sm" className="h-auto p-0" onClick={onManageProjects}>
-              {zh ? "管理项目与 Release" : "Manage projects and Releases"}
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={onReturnProjects}>
+              {zh ? "返回项目列表" : "Back to projects"}
             </Button>
           </div>
         )}
