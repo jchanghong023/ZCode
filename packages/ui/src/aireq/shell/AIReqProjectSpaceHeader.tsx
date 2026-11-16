@@ -51,7 +51,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
         <div className={`mx-auto min-w-0 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
           <nav
             aria-label={zh ? "需求讨论导航" : "Requirement discussion navigation"}
-            className="flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-ui-sm [padding-left:max(0px,calc(4.75rem_-_(100cqw_-_100%)_/_2))]"
+            className="flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-ui-sm"
           >
             <Button
               variant="ghost"
@@ -97,8 +97,7 @@ export function AIReqProjectSpaceHeader({ onManageProjects }: { onManageProjects
   return (
     <header className="shrink-0 border-b border-border/50" data-testid="aireq-project-space-header">
       <div className={`mx-auto min-w-0 space-y-3 px-2 pt-3 pb-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-        {/* 较窄窗口为固定历史按钮让位，宽窗口仍与居中正文对齐。 */}
-        <div className="flex flex-wrap items-center gap-2 [padding-left:max(0px,calc(4.75rem_-_(100cqw_-_100%)_/_2))]">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             size="sm"

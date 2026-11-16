@@ -67,10 +67,6 @@ interface AIReqContextValue {
   openSettings(): void;
   closeSettings(): void;
   setMainView(value: WorkspaceMainView): void;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  goBack(): void;
-  goForward(): void;
   startProposalDraft(sourceIrId?: string): void;
   startProposalImport(): void;
   proposalDraft: ProposalDraft | null;
@@ -706,14 +702,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         openSettings,
         closeSettings: closeOverlay,
         setMainView,
-        canGoBack: navigation.index > 0,
-        canGoForward: navigation.index < navigation.extent,
-        goBack: () => {
-          if (navigationRef.current.index > 0) window.history.back();
-        },
-        goForward: () => {
-          if (navigationRef.current.index < navigationRef.current.extent) window.history.forward();
-        },
         error,
         linkError: linkError
           ? linkError === "incomplete"

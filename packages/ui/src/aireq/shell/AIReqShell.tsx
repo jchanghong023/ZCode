@@ -21,7 +21,6 @@ import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqS
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
-import { WorkspaceSidebarToolbar } from "./WorkspaceSidebarToolbar.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
 import { AIReqProjectSpaceHeader } from "./AIReqProjectSpaceHeader.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
@@ -211,12 +210,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
         </nav>
         <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <div className="relative shrink-0">
-            <WorkspaceSidebarToolbar
-              canGoBack={ai.canGoBack}
-              canGoForward={ai.canGoForward}
-              onGoBack={() => navigate(ai.goBack)}
-              onGoForward={() => navigate(ai.goForward)}
-            />
             {projectSpace ? (
               <AIReqProjectSpaceHeader onManageProjects={() => openSettings("projects")} />
             ) : (
