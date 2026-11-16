@@ -1,47 +1,128 @@
 # 产品前端与公开接口的发布边界
 
-2026-11-16 用户要求并行全面审查原型、debug、模拟控制等对用户和接口的暴露，前端与接口按上线标准实现。本规格覆盖当前全部可达 AIReq 页面、保留原生会话和同源 HTTP／RPC；取代历史文档中要求公开模拟控制及故障场景参数的条款。
+2026-11-16 用户确认整改全部已确认问题。本文固定本轮产品规则、所有者、失败语义与验收场景；根 `.todo.md` 跟踪第 1—9 组执行，现行业务规格继续提供不冲突的领域细节。下方历史审查与通过记录仅证明当时版本，不是本轮整改结果，也不授权恢复场景按钮或接口。
 
 ## 产品规则
+
+### 持续生效的上线标准（2026-11-16 补充）
+
+- 前端代码、文案和协议接口必须按正式上线标准交付，不因当前使用原型后端而降级。范围包括 `packages/web`、`packages/ui`、浏览器连接与传输代码，以及 `packages/services`、`packages/shared` 的公开契约。
+- 产品前端和公开接口不得包含原型、演示、mock、测试专用或 debug 的文案、入口、场景参数、控制命令、假数据、固定回复、占位成功和后端类型特判；源码中不可达、隐藏按钮、环境开关及仅在开发模式启用均不构成保留理由。禁止把这些实现改名成业务代码继续保留。
+- “测试”作为真实需求验收业务概念、模型连接检查、正常业务代码展示、生产诊断日志、正常占位输入提示、稳定 DOM selector、通用 UI 控件及独立工程测试不属于上述禁令；测试夹具与调试工具不得进入产品前端运行时代码、发布产物或公共契约。模拟数据、执行和故障场景只允许归属 `packages/server` 内部实现，不得改变公开字段的业务语义。
+- 切换生产服务只替换原型后端服务及必要的部署路由／配置。前端源码、文案、构建产物、连接 SDK、传输实现、接口、descriptor、DTO 和协议 schema 一行都不改；禁止以切后端为由新增字段、兼容分支、适配层或重打专用前端包。后端必须实现既定契约，语义差异在后端解决。
+- 原型后端的能力限制与上线阻断项记录在部署／交付文档，不作为前端常驻演示说明或后端身份字段。不得通过去掉说明掩盖假成功或宣称已有真实认证、持久化、AI／Git 能力；未开放能力按正式业务契约返回不可用。
+- 这是后续变更与上线验收的强制边界，不是现存实现已全部达标的声明。本节优先于下文历史审查记录中允许前端保留演示说明、示例回复的条款。
+- 保留完整内存业务流程、材料与版本、幂等、对象归属、人工门禁、合入有效进度 99／人工验收 100、未保存保护及原生会话／附件。内存中确实完成的操作可以成功；不能把它陈述为真实外部 AI、代码扫描、平台核验或宿主文件落盘。
+- 产品保持全局项目／待办、默认全项目总览；项目内概览／需求／分析运行，需求分提案／正式；设置为外观／项目配置／AI 配置。Skill 入口继续从主导航、设置和搜索隐藏，但其保留实现全部在整改与验证范围；Sketch 真实画布及 PNG 附件保留。
+- 当前授权必要电脑浏览器、协议、错误路径和多连接广播验证，也允许隔离临时装配现有隐藏 Skill 模块。不恢复产品入口、不增加测试开关，不新建 E2E harness 或恢复 App 业务单测、桌面／CLI／手机工程。
+
+
+### 业务发布规则
 
 - 普通业务页面只展示用户任务、业务事实与可操作错误。删除原型控制、故障注入、强制推进调度、预设评审／合入结果、伪造录音等入口，不把未实现能力改个名字继续呈现为成功。
 - 联系人分配、材料修改、正常评审／交付、人工验收、分析和重试、分支清理继续通过原业务命令、版本与幂等门禁执行。业务入口与内部故障场景解耦；不允许由浏览器伪造代码合入或评审事实。
 - 前端与公共契约不再持有 prototype 场景服务、调试时钟、样例配置读取或场景 URL／身份字段。服务端删除对应参数验证和分派，直接构造旧 RPC 也必须失败；不通过隐藏按钮、环境开关或空实现保留接口。
 - bootstrap 只返回当前产品实际消费的业务能力与元数据，不公开服务注册清单、后端 owner、整个配置目录或无消费者的员工／协作／样例数据。隐藏 Skill 的必要工作区和共享技能目录属于该业务的存储目标元数据，不作为后端身份信息展示；不恢复隐藏入口。
-- 登录及帮助集中、清楚地说明演示环境的真实能力限制，业务页面不反复讲述内存、mock、owner 或协议实现。内存数据、自报工号与未连接真实 AI／Git 的事实不能通过清文案掩盖，也不能宣称已经具备正式身份认证、持久化或真实执行能力。
-- 尚未实现的语音识别撤下入口；Sketch 等能真正生成用户文件的功能保留。原生示例回复明确其演示性质，移除服务端类名、内部调试前缀和实现说明，不冒充真实模型结果。
+- 原型后端限制集中记录在部署／交付文档，登录、帮助及普通业务页面不携带原型、演示或内部实现说明；不能将自报工号伪装为可信认证，也不能把模拟执行展示为已核验的真实 AI／Git 结果。
+- 尚未实现的语音识别撤下入口；Sketch 等能真正生成用户文件的功能保留。前端不内置示例回复或演示前缀，只按业务契约渲染服务端内容；服务端也不得把未执行的能力报告为成功。
 - 公开边界验证输入结构、身份和对象归属，拒绝未知操作及额外调试参数。保留有用且安全的业务错误；未知异常仅在服务端记完整日志，对客户端返回稳定、可理解的失败信息，不下发内部堆栈。内部 fault code 可供协议和日志使用，不直接替代用户文案。
 - 即使数据来自演示实现，公开字段也须符合其业务语义：材料的 `sha256` 和 `size` 按实际 UTF-8 内容计算摘要与字节数，修改后重算；不能用 `sample:` 字符串冒充内容摘要。没有实际可访问的 MR 地址时不返回占位 URL，前端只在存在有效 HTTP(S) 地址时呈现外链；保留 MR 编号及状态，不把演示记录伪装成真实仓库已核验。
 - 提交 SHA、IR／SR 编号、材料版本、业务报告中的代码与正常诊断日志不是原型入口，继续保留。基础 UI 控件不因本次清理被删除。
 
 ## 所有者与边界
 
-服务端仍唯一持有业务与会话状态，前端只发业务意图并读取投影；重连不重放 mutation。故障场景只允许作为服务端内部实现或隔离验证夹具，不属于可替换后端的公共契约。
+`MockAIReqService/workflow` 唯一持有业务事实；`MockRuntime/MockZCodeAgentService` 唯一持有原生会话行、附件、队列、订阅和水位。`AIReqContext` 仅持导航与读取投影，局部未发送草稿归现有 UI／composer；不建立第二份权威业务状态。故障场景只能是后端私有状态或隔离验证输入，公共对象及嵌套历史回执均不得泄漏。
 
 ```mermaid
 flowchart LR
   U[产品页面与业务意图] --> C[生产形态业务契约]
   C --> V[身份／参数／对象／版本校验]
   V --> S[服务端唯一业务 owner]
-  S --> R[业务结果或安全错误]
+  S --> R[先提交真实内存事实，再发事件／会话帧]
   R --> U
   D[旧 prototype／场景 RPC] --> X[未知操作：拒绝]
 ```
+写入先校验输入、连接身份、对象归属、阶段、版本与幂等，再由既有 owner 接纳并提交，最后发布事件。迟到结果按对象／材料或代码版本拒绝，迟到读取按读取代际丢弃；订阅先于 bootstrap，读取失效按既有路径补读。重连只重读，不重放 mutation。opaque `backend.id`／`workspaceIdentity` 的有效隔离用途保留，不能据其值增加 sample/live 或后端类型分支。
+
+广播发送源绑定连接 facade，不信任请求自报 `sourceWindowId`；先更新／路由事实，再仅通知其他连接，发送方不回声，断线注销。遥测接纳只表示接收，不承诺第三方上传或持久化，不为此引入重试队列、调度器或通用采集框架。
+
+### G2 安全失败、核验事实与封闭输入
+
+- 原生输入的 accepted ACK 只证明接纳。完成阶段失败时，消息与失败正文留在同一会话，assistant 行为 `failed`、轮次为 `failed`，会话以可继续输入的中断状态收口；不以 complete／成功轮次代替失败。只有显式安全业务错误可显示原文；未知错误使用稳定重试说明，详细异常只经既有服务端诊断记录。验证须同时读取 ACK、实时帧和历史，并证明随后正常发送可恢复。
+- 未发布草稿对其他操作者仍等价于不可访问；身份缺失和对象不可达以安全、可理解文案失败，不输出机器码。工具错误 `code` 仅供分类，空 message／output.text 时走现有本地化失败提示；已有非空安全说明保留。
+- 提案、SR 和整体验收共用的 MR `platformVerified` 是布尔平台核验事实，true／false 均合法，其他类型拒绝。UI 不把 false 显示为真实核验成功，内存生产者仍只能写 false。
+- v4 信封与封闭命令 payload（包括 firstInput、交互 answer、空暂停／恢复／删除）、订阅 base 和历史分页拒绝未知键，且必须在 owner 创建、接纳、订阅或读恢复副作用之前失败；真实调用入口复用 shared schema。业务扩展 args／content 字典及已声明可信连接字段不机械 strict。正常创建、发送、交互、订阅与分页和未知操作拒绝均须验证。
+- 设置 owner 仅在严格 patch 的已声明键与正式值规则全部通过后原子合并。partial 不填入缺省值，不要求完整设置；未知键、类型错误、越界及合法／非法混合请求全部失败且不改变原设置。通过真实 RPC 保存主题、语言、字号并回读验证。
+  语言沿用正式 `locale`／`localePreference`，不新增 language 别名；主题 `theme`（现有 light／dark／zai-light／zai-dark／system）与字号 `uiFontSizePx`（现有整数 12—20px）纳入 AppSettings 正式可选偏好及同源完整／patch 校验。内存初值由正式完整 schema 生成，不再用断言伪装未声明默认字段；这不把本机 UI store 改为服务端状态或新增广播 owner。
+
+### G3 公共投影与输入来源
+
+- bootstrap 和数据源只提供业务能力、配置和 opaque 隔离 ID，删除来源类型与 notice，不保留可选兼容字段。登录与流程帮助不按后端类型显示环境说明，也不新增真实认证或外部执行承诺。切换工号、导航、未保存设置门禁与按部署／操作者隔离的草稿行为保持。
+- 下一次清理／建分支失败、暂存评审结果与 hold 控制只归 workflow／progress 后端私有 owner，并按项目、IR、SR 与评审轮次隔离；公共评审以正常 pending／running agent 状态表达尚未完成。读取、事件后重读与历史回执嵌套均不得出现控制字段。一次故障正常消费后可重试，等待和迟到结果仍受版本及人工门禁约束，其他对象不受影响。
+- 原生真实用户行的 clientId 取已通过连接校验的接纳信封，并贯穿 accepted 队列、执行及历史；不得从后续浏览器字段覆盖或使用固定替代值。首发、排队、恢复／同请求重试均保留来源，跨连接冒名仍拒绝。验证同时观察两个客户端的队列、实时 userInput 与分页历史。
+
+### G4 读取、广播与遥测接收
+
+- 文件读取／stat／索引来自同一虚拟树；缺失与错类型失败，空文件成功。文件偏移／size 按原始 UTF-8 字节，
+  列式 packed 索引保留现行字符长度及半开分页。Git 仅返回已有 source/path 的真实前后内容及配置身份；
+  无内容 unavailable，无身份 null，refresh 与单独读取一致，不补固定 patch／身份。
+- 原生 workflow runs 只枚举已有会话事实；具体 run／artifact／node 未实现时明确不可用，不以空文件、
+  正文或指定 run 的伪空清单成功。读取先校验参数与会话／工作区／草稿归属，不补建会话。
+- 广播复用单一 owner 总线与 claims，HTTP 连接 facade 覆盖自报 source、过滤本源、关闭注销；
+  现有 store 应用外部主题时不回发，不引入第二业务状态或重放队列。
+- 同源 `POST /api/v1/telemetry/events` 严格区分 ui／arms 声明 payload；前后端共用副本脱敏，
+  原始业务对象不变。复用 `/api/` 部署 token，工号不是认证；400 非法、401 未授权、500 接收失败，
+  服务诊断接纳后 202 空响应。report 等待 202，否则拒绝；现有业务遥测调用方隔离失败。
+  不公开测试读取／抑制接口，不宣称第三方送达／持久化，不加重试。真实后端实现此固定合同，不再补前端接线。
+
+### G5 业务内容、隐藏 Skill 与事实展示
+
+- 原生回复仅确认本次接纳输入、实际材料路径／版本变化或当前阶段结果；方案生成不把固定内容归因为用户专属分析，评审追问不宣称重新执行模型／扫描。仅附件不生成文字分析；重连恢复继续使用同一材料与会话 owner，错误脱敏和迟到结果拒绝不变。
+- 材料正文不注入实现身份，摘要与 UTF-8 size 从实际正文重算。评审报告仅表述当前输入快照、阻断项及本轮状态，不陈述未执行的外部核验。合入检查与历史回执按当前内存候选、版本、材料及分支状态记录，不宣称托管平台核验。
+- 未取得真实规划建议时 `planning` 保持未提供，不补造 `source:"ai"` 或改称人工；正式人工保存记录当前操作者、时间和实际填写的分工／排期，门禁与原子更新不变。
+- 隐藏 Skill 的讨论、预览和保存使用现有私有会话与唯一草稿门禁；保存先校验归属、预览版本、路径、目标与同名冲突，再原子登记文件／目录内容，返回 `AIReqSkillSaveReceipt`。收据路径、版本与随后 list/read 的内容一致；失败不产生收据、不清草稿。产品仅确认该保存事实，不宣称宿主磁盘或永久存储，限制见上线限制章节。主导航、设置和搜索入口仍隐藏。
+- 正式需求与分析报告仅在 `aiPercent` 存在时展示原始 AI 分，否则显示未提供；不得用有效业务进度倒推。合入有效值 99／人工通过 100 及失败待办职责保持。
+- 分享 URL 从明确业务定位参数构造，不复制当前 URL 未知参数；入口不保留 demo 场景专用分支，退役 remote 安全处理继续。项目／Release／IR／SR、前进后退与未保存取消仍由唯一导航 owner 接纳。
+- 逐项验收覆盖需求／方案／评审／附件／恢复后的公开行及历史、材料摘要、无建议与人工保存、合入失败门禁、两报告缺分矩阵、启动及运行后变更 URL 分享。隐藏 Skill 必须在独立临时浏览器装配验证 prompt、讨论、逐文件预览、有效保存、冲突／失败保留、设置往返与 Sketch PNG 发送，随后清理，不添加产品入口或开关。
+
+
+
 
 ## 检查与证据
 
-1. 全量静态盘点用户可见原型／debug字串、可达入口、公开路径和客户端场景参数；记录审查覆盖及不可达保留代码。
-2. 浏览器源码没有调用被删除的场景能力；公开操作类型、参数白名单、服务分派与客户端代理同时收口。直接调用旧接口、额外场景参数及畸形对象失败，不返回堆栈。
-3. 类型、Lint（含相关 Hooks）、变更架构检查与必要构建通过。测试只使用现存工程体系，不恢复退役 App 单测或新建业务 E2E 框架。
-4. 按用户此前要求不进行浏览器验收；运行时未验证项如实记录，不把源码检查等同于全页、全状态验收。
+1. 逐组先更新对应规格与验收场景，再同批迁移实现、公开契约、SDK、schema、导出和全部消费者；不留兼容别名、双轨接口或后组补接线。任务文件的源码行号只作定位线索，不重复 31 份全量审查。
+2. 每项使用其自身的真实公开调用、现存工程测试、必要电脑浏览器或一次性隔离内存断言证明行为；无消费者的删除项可用精确引用／导入证明。静态关键词扫描不能代替错误、归属、状态和时序验证。临时装配与数据验证后清理，不向产品注册公开夹具、调试命令或 window 全局。
+3. 按第 1→9 组串行收口。实施前运行 freshness 与变更前架构检查并读取受影响模块 context；代码组收口一次 typecheck、Lint、`architecture:check --changed`，复核相关 Hooks，根 Lint 忽略的受影响 React 文件按 [Hooks 检查规则](../../testing/react-hooks-lint.md) 定向扫描。纯规则第 1 组不运行类型／Lint。Bun 版本以根 `mise.toml` 为准。
+4. 当前已获必要浏览器及隐藏 Skill 验证授权；旧“不进行浏览器验收”只描述历史审查，不再限制本轮。只验证受影响电脑路径和具体验收缺口，不进行手机／上游／base 对照；未验证项如实记录。
+5. 工程测试仅从根 `scripts/engineering-test-files.json` 现行清单按实际影响选择；触及根 package.json、公共 Vitest 配置或清单才执行规定全量。不默认跑架构测试全套，不扩测试体系。最终构建仅第 9 组运行一次 `bun run build`，不得代替前组首次行为验证；后组改变证据输入时复验受影响路径，输入未变的证据复用。
+6. 每组实际命令、对象／条件／预期／观察和未验限制写本文件本轮记录；协议细节回写既有 CONTRACT／架构文档。单项、组收口与最终发布边界分别声明，历史通过不得冒充当前结果，不自动提交、推送或部署。
+
+### 本轮验收场景与结果归属
+
+以下是待实施组的验收要求，不是通过声明；每项具体条件以根 `.todo.md` 原项为准。
+
+| 分组 | 必须独立提供的直接证据 |
+| --- | --- |
+| G2 错误／类型／严格输入 | 安全业务错误保留、未知异常在响应／帧／历史均脱敏；工具 fallback 不直出机器码；MR 核验布尔 true／false 合法且内存记录不冒充 true；封闭信封／嵌套 payload／订阅／分页未知键在真实入口拒绝且无副作用；设置 patch 非法原子失败 |
+| G3 公开投影／来源身份 | 登录／帮助及 bootstrap 无 provenance、sample/live；公共和嵌套历史无私有故障字段，失败重试／等待评审／迟到门禁保留；两个客户端排队、流式用户行及历史 clientId 与真实接纳一致 |
+| G4 读取／广播／遥测 | 虚拟文件存在性、类型与 UTF-8 字节一致；Git diff／身份取真实虚拟内容或明确不可用；工作流读取校验目标／归属、无假空成功；真实多连接发送无回声且退订释放；正式遥测两种 payload 接纳、脱敏、拒绝及部署 token 边界 |
+| G5 内容／隐藏 Skill | 原生回复、材料、评审、规划与合入回执只陈述实际事实；缺 AI 原分不补造；Skill 隔离临时浏览器装配验证讨论、逐文件预览、保存、冲突和失败保留，收据 path/revision 与 list/read 一致；Sketch PNG 发送、草稿门禁、分享定位及主题可用且入口仍隐藏 |
+| G6 产品测试桥清理 | 输入、五类 store／附件 scope、延迟／保活、ACK／三镜像、turnHeader 调试行、TestActions、parity／ARMS、15 个复位及 bootstrap／包子路径逐项删除证明；正常输入、附件、订阅、遥测与记忆行为保留 |
+| G7 共享／RPC 清理 | queue 示例私域隔离；E2E 遥测与四类开发控制退出；highspeed 必需 execution、旧 debug 拒绝、正式工作流限额与容量边界不变；全部实际消费者同项迁移 |
+| G8 UI／语言收尾 | 开发者 tab／命令／词条与七处原型文案退出；假安装、假 stdio 探测、日志测试控制无消费者残留；正常设置／侧栏、错误／输入提示与生产诊断保留 |
+| G9 最终交付 | 前组逐项有效证据齐全后，以同一次 server/web 构建产物做最小电脑浏览器集成验收；保存该产物与公开契约源码版本及 SHA-256，不提交 dist，不冒充真实后端替换或系统上线 |
 
 ## 上线限制
 
-本次清理前端和契约，不把内存模拟后端替换为真实产品后端。可信身份认证、持久化、真实 AI、代码托管以及实际文件保存仍须真实服务实现并独立验证；这些是上线阻断项。审查和改动完成不等于整个系统已可上线。
+本轮保留当前服务端完整内存模拟业务，不建设真实 AI、Git 托管、业务数据库、身份认证、权限体系或宿主业务文件写入。可信认证、持久化、真实 AI／代码扫描、Git／MR 平台核验和宿主文件保存仍须真实服务实现并独立验收，是实际生产上线阻断项。Skill 保存与虚拟文件只证明当前内存内容／版本／收据一致，工号只证明自报操作者格式与连接绑定，不是本人认证。限制只在部署／交付说明记录，不塞入产品页面、提示词、用户材料或公开 provenance。删除说明不允许掩盖假成功；未支持能力按正式契约明确不可用／不存在。
 
-## 本次并行审查范围与修复
+正式切换生产服务时，以同一份前端构建产物及其文件 SHA-256 清单、同一套接口与协议契约完成替换前后验收；只更换后端及部署配置。若需要修改任意前端或契约代码才能对接，则不满足替换要求。当前规则更新本身不执行后端替换或声明上线验证通过。
+
+## 历史并行审查范围与修复（本轮整改前）
 
 五个子代理分别审查提案／正式需求／分析页面，Web 入口／壳／设置／项目／工具，公开 AIReq 契约与服务分派，原生会话／附件／错误展示，以及 HTTP／RPC／发布边界；主代理复核跨层接线、后端材料产物、文档和集成结果。保留的基础控件不因没有当前产品入口被删除。
+本节表格描述历史修复意图及当时允许范围；其中“完整演示文档标注用途”等旧放行条款已由上方持续上线标准取代，不能据此保留公开演示身份。后续本轮逐组记录另列，不修改历史观察为当前通过。
+
 
 | 已确认问题                                                           | 修复边界                                                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -59,7 +140,7 @@ flowchart LR
 
 详细部署成员清单的事实来源为 `packages/server/src/http.ts` 的 `publicMembers`，由服务 descriptor 和 `keyof` 在编译期核对；公开 API 版本为 4，不提供旧调试入口兼容别名。
 
-## 本次验证记录（2026-11-16）
+## 历史验证记录（2026-11-16，本轮整改前）
 
 - 全仓类型检查、Lint（0 告警／0 错误）、变更架构检查及改动源码格式检查通过；工程套件 11 个文件、119 个用例通过。
 - 前后端生产构建通过。构建器仍提示既有大于 500 kB 的 chunk；未通过提高告警阈值或关闭告警隐藏该事实，本次未进行首屏性能基准。
@@ -68,3 +149,155 @@ flowchart LR
 - 正常模型读取／保存、项目保存、提案业务命令均可执行；同操作 ID 重试的回执及返回视图持有一致摘要。验证 96 份有正文材料的 SHA-256 与 UTF-8 字节数；长不透明版本／候选 token 继续通过合法结构校验，不混同于摘要字段。
 - 静态站点的 HTML、hash 资源、普通资源、配置与源码映射发布策略经真实 HTTP 检查。只在隔离内存实例中产生验证数据，未接触外部 Git、模型或真实业务文件。
 - 本次没有进行浏览器逐页、主题、焦点和业务全状态验收；此前浏览器记录不作为本次通过证据。服务端与客户端须配套更新到本次 v4 契约。
+
+## 本轮生产标准整改记录（2026-11-16）
+
+### G1.1 前置基线与规格收敛
+
+- 输入／范围：完整读取根 `.todo.md` 240 行，仅实施第 1 组规则和文档收敛；保留其他组及已有工作区修改。先更新本文规则与验收场景，再同步 project-goal、mock-backend、根 AGENTS、auth／UI／services／server AIReq CONTRACT，以及显式引用的契约、身份、导航、项目空间和集成规格；未修改产品代码或公共类型。
+- 工具链与 freshness：`bun --version` 为 `1.4.4`，与 `mise.toml` 一致；`bun scripts/check-workspace-freshness.mjs` 退出 0，观察为 main 与 origin/main 同步、ahead 0／behind 0，阈值 50。
+- 变更前架构基线：`bun run architecture:check --changed` 退出 0，`architecture: OK`，violations 0／baseline 0／new 0，比较基线为 merge-base upstream origin/main。该结果只证明检查配置覆盖的变更范围，不代表业务语义或所有模块已验证；未更新架构 baseline。
+- 受控上下文：逐一运行 `bun run architecture:context aireq-contract`、`aireq-mock`、`aireq-ui`、`web`、`server`，全部退出 0。前三者为 managed，owner requirements，依赖与 app／adapters／contract+ui 层保持不变；`web`、`server` 返回 managed false、owner unassigned、module.ts missing，不能据此声称这两个总模块受门禁完整覆盖，也不为纯文档组新增平行模块。已读取对应 auth 与 AIReq 合同。
+- 直接核对：以任务文件的术语和不变量对照 13 份本次修改文档，确认完整内存流程与正式前端／契约边界、未支持失败、未来同包替换、隐藏 Skill 验证授权、当前导航、单一业务／会话 owner、先校验提交后事件、版本／幂等／读取代际及重连不重放一致。当前规则不再要求登录／帮助演示提示、公开 provenance、demo scope、场景推进或 Skill 不测试；原历史观察保留并明确版本边界，不作为本轮通过。G2—G9 场景表仅是验收要求。
+- 引用验证：一次性 `bun -` 只读断言退出 0，13 文档内 49 个本地 Markdown 链接、9 个标题锚点及 12 个显式执行／契约目标均存在，failures `[]`；未创建临时文件。核对包含本轮任务、Bun 配置、freshness 脚本、现行工程清单、Hooks 规则及现有服务／UI／server 契约入口。
+- 失败与限制：上述本轮命令未观察到失败；历史类型／Lint／构建／浏览器记录未改写为本轮结果。按纯规则第 1 组边界，未运行 typecheck、Lint、工程测试、构建或浏览器，也未实施真实后端替换。只完成实施规则与验收意图，不声称产品代码已整改、发布验收已通过或整个系统可上线。
+
+### G2.1 会话正文错误边界
+
+- 本组前置：Bun 1.4.4；freshness 退出 0（ahead／behind 均 0）；变更前架构检查退出 0（violations／baseline／new 均 0）。读取 aireq-mock／aireq-contract／aireq-ui／mock-domains 的 managed context，以及 shared／ui／rpc／services／server 的 unmanaged context，未扩大覆盖声明。
+- 先增加 G2 规则及验收条件，再复用 `businessFailureMessage` 修复原生完成回调旁路；失败 assistant／turnHeader 均为 failed，会话 completedInterrupted 允许继续发送，accepted ACK 未改成完成凭证。
+- 一次性 `bun .tmp-g2/turn-errors.ts` 最终退出 0：隔离 MockRuntime＋真实 MockZCodeAgentService 公开 create／subscribe／send／rowsRange；安全版本错误在帧与历史保留说明，含 `SECRET_INTERNAL`／服务器路径的未知异常在 ACK、实时帧、历史均不可见，仅捕获到一条真实 aireq-errors 服务端诊断含 message／stack；随后正常发送得到 complete／completedSuccess。未新增产品故障开关。
+- 验证装配最初三次退出 1，分别为临时信封遗漏必需 issuedAt／workspace.workspaceKey（首次同时遗漏 create payload.workspaceId）；真实 schema 正确拒绝，补齐正式字段后通过，未修改产品校验来迁就脚本。临时文件在本组收口前删除；未连接外部服务或用户仓库。
+
+### G2.2 可读业务错误与工具 fallback
+
+- 原生身份缺失及私有草稿不可访问改用安全说明，服务端原生读取／创建冲突／附件的同类拒绝一并复用安全业务错误；原身份、工作区和发布归属条件不变。工具 adapter 不再把 error.code 提升为正文，raw.error.code 保留；实际 fallback 原有本地化失败兜底无需新增分支。
+- `bun --tsconfig-override=packages/ui/tsconfig.json .tmp-g2/tool-errors.tsx` 最终退出 0：真实 AIReqNativeBusiness＋原生公开命令创建 A 草稿，B 订阅读取仍拒绝并含“无法访问”而非 fault；缺失身份 actor／admission 均为重新进入提示。四个实际 toolCallRow schema 对象（空／空白 message+output、非空安全 message、wrapped output 说明）经真实 adapter、错误提取和 FallbackToolCallBlock React 渲染；正文无 INTERNAL_MACHINE_CODE，raw 分类仍保留，两条安全说明完整。
+- agent-browser 命名隔离会话打开上述真实 React SSR 输出并 snapshot，观察空／空白均显示“工具调用失败／失败”，另外两项显示原安全说明，机器码不可见；浏览器已关闭。此为 fallback 真实组件渲染证据，不冒充主应用全页／主题或交互验收。
+- 临时验证首次用了错误 Bun 参数与非现行 react-dom 路径（各退出 1），更正后揭示实际订阅的先行草稿拒绝仍走原始 fault，已将同类原生拒绝出口安全化并复验通过；未弱化拒绝或更改规则来跳过该路径。临时装配、HTML 本组收口前删除。
+
+### G2.3 MR 平台核验事实
+
+- 将单一 AIReqPrFact 从 false 字面量改为公共 `aiReqPrFactSchema` 推导的布尔事实；现有 index 的 types 重导出同步暴露 schema，UI 受控 contract 明确转出。提案／修订历史、SR 当前／历史与整体验收 PR 全部复用同一类型，无第二个 false-only DTO 或关联旧 schema；原先并无该 DTO 的运行时 schema，本次建立同源校验并接入现行生产者和实际 MR 消费者。
+- `bun --tsconfig-override=packages/ui/tsconfig.json .tmp-g2/pr-facts.tsx` 退出 0：现有后端 1 条 MR 记录及重新调用实际 MR 生产者均为 false；合法 true／false 经公共 schema、提案／SR 当前与历史／整体验收类型容器及实际 AIReqProposalBackgroundStatus React 渲染成功。undefined／null／0／1／字符串／对象／数组共 7 类非法值在 schema 和实际 UI 均拒绝，UI 显示安全读取错误而非核验成功。
+- agent-browser 隔离桌面会话 snapshot 观察真实组件 SSR：false 显示“平台未核验”，true 显示“平台已核验”，两者无异常；浏览器已关闭。现有内存产物未改成 true，未进行真实 Git 平台核验。历史规格的 false-only 记录保留并补明确现行覆盖说明；其他演示内容由后续组处理，不将其标为已解决。
+
+### G2.4 v4 严格输入与真实入口
+
+- command 信封、所有本地封闭 payload、firstInput／answer 及 create config 改为严格对象；原来已 strict 的 imported 命令保持，args／content 字典不收窄。订阅 base 和 wire rowsRange 严格化；原生 owner 三类订阅／历史分页入口直接对原始 Channel 请求使用 shared schema 的 omit／extend 形状，合法扁平工作区、remoteSessionId、runtimePolicy／subscriberScope 和连接可信 carrier 不误拒。
+- `bun .tmp-g2/strict-inputs.ts` 退出 0。隔离 createMockServices 装配原生 owner、端口 0 的真实 HTTP/WebSocket、现有 connectViaWebSocket SDK、二进制 Channel、真实 connection scope 与业务 facade，全链验证 8 次正常操作（首发创建、发送、交互、三种订阅、历史分页、删除）成功；19 次额外键／未知操作拒绝，前后会话、任务与三类订阅登记完全相同。
+- 拒绝位置包含信封、create payload、firstInput、config、sendText、pause／resume／delete 空 payload、resolve 顶层与 answer、三种订阅顶层与 base、缺失会话的恶意预热订阅以及 rowsRange 顶层。交互 content 和 workflow args 扩展保留，未知旧操作仍拒绝；正常 pause／resume 仍为原 capabilityUnsupported，不假称已实现。wire 独立 schema 同样拒绝额外键；订阅／分页证据不是孤立 schema。
+- 真实服务日志观察到 Zod unrecognized_keys 在 owner 操作前拒绝；正常订阅的可信注入通过。临时连接／服务 finally 关闭；未写宿主业务文件或添加产品开关，临时脚本收口时清理。
+
+### G2.5 原子严格设置 patch
+
+- 原设置默认对象通过强制断言伪装 AppSettings，包含未声明 language／外观等字段；本项先明确正式外观字段及 canonical locale 规则，再将初值改为 `appSettingsSchema.parse({})`，去除非法初值，不保留 language 别名。theme／uiFontSizePx 已同批进入公开 AppSettings、完整 schema 和 patch；现有 SDK 的 Partial<AppSettings> 无专用替代类型。UI 本机 store 所有权未迁移。
+- update 复用严格 appSettingsPatchSchema，整份验证通过后仅合并解析的 patch，不重读完整 schema 或补默认。endpoint patch 不再复用历史读取的“坏值变 undefined”容错，而按原 normalize 规则明确拒绝；历史读取逻辑不变。
+- `bun .tmp-g2/settings-patch.ts` 退出 0：真实隔离 HTTP/WebSocket＋现行 SDK＋二进制 RPC 的 setting.update/get 验证五种主题、locale／localePreference、字号 12／20／16 与合法 endpoint 归一化保存回读；合法已有 messageStreamShowTodos=true／terminalInheritSystemProfile=false 保留。单主题 partial schema 只返回传入字段，无缺省填充。
+- 17 类非法请求（debug、非法主题类型／枚举、语言类型／枚举、字号类型／上下界／非整数、合法与未知或越界混合、布尔类型、endpoint 类型／非法 URL、旧 language 键、null／数组）全部拒绝，每次随后 get 与拒绝前完整状态深等，debug 从未进入回读；连接及端口在 finally 关闭。只证明内存原子保存，不承诺磁盘持久化、UI 多语言切换或 G4 广播。
+
+### G2.6 工程收口与证据边界
+
+- 首轮收口真实发现两项失败：typecheck 退出 2，既有 patch 接受 providerFamilyDomain 空串清空但 AppSettings 只能存正式枚举／undefined；已在同一 patch schema 将合法清空输入归一为 undefined，不写入非法空串。architecture 退出 1，直接修改既存 create-session-config.ts 被识别为 unmanaged-new-file；仅撤回本次该文件一行改动，将相同 `.strict()` 放在已受管 command 的 config 消费处，保留既有文件和其全部原内容，不改架构 baseline、不新增平行模块或放行规则。
+- 修正后的 `bun .tmp-g2/closure-fixes.ts` 退出 0：再次经真实 HTTP/WebSocket／SDK／Channel／scope 调用，正常 config 创建成功、额外 config 键拒绝且无会话副作用；provider family 先设 zai、再清空后 get 为 undefined，其他主题／语言／字号完全保留。此前未受修改影响的 G2.1—G2.5 证据继续有效，不重复全部场景。
+- 最终 `bun run typecheck` 退出 0；`bun run lint` 退出 0（1941 文件，0 warnings／0 errors）；`bun run architecture:check --changed` 退出 0（violations／baseline／new 均 0）。初轮 lint 亦为 0；最终仅针对已发现错误修正后重跑收口，不把初轮失败删成一次性通过。
+- Hooks 定向临时配置只启用 react/exhaustive-deps 与 react/rules-of-hooks，按现行规则使用 `--no-ignore --disable-nested-config --format json` 扫描实际变更的 AIReqProposalDeliveryControls.tsx 和 toolCallRowAdapter.ts：2 文件／2 规则，diagnostics `[]`、退出 0；未改既有依赖数组或增加 Hook，静态扫描不冒充运行时性能证明。Impeccable 对这两个目标的最终机械 detector 退出 0、结果 `[]`；本次按既有界面做窄错误／事实修复，无重新设计或新增视觉体系。
+- `bun run test:engineering:affected --files <本组实际源码路径>` 退出 0，现有官方选择为 0/11，无选中测试，故未执行工程用例；未修改根 package.json、公共 Vitest 配置或测试清单，不触发规定全量，不声称工程套件通过。没有运行 build、test:architecture 全套或新增 App 单测／E2E harness。
+- 全部 10 份临时脚本、React 输出 HTML、Hooks 配置／JSON 经文件删除工具移除，空 `.tmp-g2` 目录删除退出 0；两个浏览器会话及所有隔离 WebSocket／HTTP 实例已关闭。只完成 G2 安全、事实类型、输入与设置边界；G3—G9 的演示来源、私有故障投影、其他测试残留、真实部署替换与最终产物仍未验证，不声明产品已上线。
+
+### G3.1 公开来源与产品身份
+
+- 前置 freshness 与变更前 architecture:check --changed 均退出 0（ahead／behind 0，架构 violations／baseline／new 0）；读取 aireq-contract／aireq-mock／aireq-ui／mock-domains 及 web／client context，后两者 unmanaged，不扩大门禁覆盖声明。先增加本组所有者、接口与验收规则，再删除 provenance 类型、bootstrap 字段／生产者、adapter getter、帮助条件和登录演示页脚；现有 wildcard 导出随源声明删除，不保留可选字段或类型别名。设置 CONTRACT 的旧登录／帮助限制同步移到交付文档。
+- `bun --tsconfig-override=packages/ui/tsconfig.json .tmp-g3/bootstrap.ts` 退出 0：真实 MockAIReqService.bootstrap 与实际 createRemoteAIReqDataSource 均无 provenance／notice；两个不透明部署 ID 均保持能力、读取与各自实例草稿隔离，不按 ID 类型分支。精确源断言覆盖公共声明、adapter、帮助和登录；其他后续组的 Skill 内容不包含在本项删除声明内。
+- 真实电脑浏览器 1440×1000：登录页与帮助均无演示说明，页脚仅 ZCode · AIReq；帮助保留业务步骤、返回焦点及设置说明。项目／待办可切换，追加指令未保存时离开出现保存／丢弃／取消；取消后原输入保留，丢弃后为空。切换 j00808874→k12345678 回到默认项目总览，后者无前者未保存指令；未向共享业务保存任何验证数据。观察登录和帮助截图无裁切／布局回归，不增加认证或真实 AI 承诺。
+- 工具实况：agent-browser CLI 首次报 daemon EOF，改用已授权 browser Chromium 工具完成真实交互；一次等待使用了默认总览不存在的“全部项目”文案而超时，改读实际项目总览；一次取消后即时值断言先于 React 更新失败，等待实际 textarea 后观察原值完整，未修改产品来绕过门禁。浏览器工具 ariaSnapshot 参数接口报错后改用 observe；这些工具／同步失败不记为业务通过。
+
+### G3.2 私有故障与等待评审
+
+- 先补 server CONTRACT：复用既有 internal-scenarios 服务端类型扩展及 workflow／progress 事务 owner，不新增前端控制或第二状态库。公共 SR／IR 不再声明 nextCleanupFailure／branchCreationFailures／heldReviews；AIReqReview 完全移除 held，正常 agent pending／running 维持等待和人工门禁。场景只按原项目／IR／SR／评审 ID 与轮次持有；递归 publicBusinessProjection 同时清理当前返回与历史幂等回执嵌套视图。
+- `bun .tmp-g3/projections.ts` 最终退出 0：真实 MockAIReqService 的普通 read、command 返回、旧操作重试的完整嵌套 view、48 次事件和事件后重读均无控制字段；私有原始 owner 中仍实际持有相应场景，证明不是删掉故障行为。原始评审 hold 的 agent 为 running，公开人工通过被拒；释放后报告完成但 passed 仍 false，只有正常人工动作能通过。
+- 真实清理先失败、下一次正常重试 deleted；建分支 retry 先失败、下一次 ready；文档 PR 正常转正路径消费一次建分支失败，之后正常 retry ready。其他 SR 完整投影未变，跨项目错误归属拒绝。完整评审等待仍阻止放行；相同材料的新轮次经正常人工批准后，旧 hold 释放不改变新评审或批准，记录 rejectedReviewResults。材料修订后的旧结果同样拒绝，不恢复批准，旧 running 报告留在正常历史中。
+- 脚本首次因临时目录无 workspace 包别名解析失败，更正为实际相对公共入口；第二次错误选择仅 99% 的 ir-export 清理，业务正常拒绝，改用原本人工验收 100% 的 ir-notifications 后通过，未修改产品门禁或人为抬高进度。仅隔离进程内存，无外部模型／仓库／用户文件。
+
+### G3.3 真实客户端来源
+
+- 按接纳信封→QueueItem→startTurn→runTurn→runtime.rows 单一路径显式传递 clientId；首发与立即执行取 envelope，自动续跑、运行中提升与空闲提升都取原队列项，删除固定 mock-client。输入的已接纳来源不由后续提升者覆盖，流式与历史共用同一行事实。
+- 发现直接相关的连接缺口：v4 scope 只比较客户端自报握手 clientId，未再比 HTTP 连接固定身份。已在既有 getConnectionServices facade 对 command 校验 envelope.clientId===fixed.clientId；保持 scope 拒绝、身份／归属和幂等，不默默改写信封。先更新 mock-backend／server 及 mock-domains CONTRACT 的接纳与恢复语义；没有新增 DTO／schema、别名或第二队列。
+- `bun .tmp-g3/client-identity.ts` 最终退出 0：隔离 createMockServices＋真实 HTTP/WebSocket＋现有 SDK／二进制 Channel／connection scope，两个真实客户端同一业务会话观察 7 个 realUser 行、101 个实际帧，A/B 排队项和全部流式／恢复帧、每页两行的完整历史均保留各自 clientId。createSession.firstInput、sendText、关闭 B 再连接、query／原信封重试、A 提升 B 的运行中及空闲队列项均通过；首发重试无重复用户行。
+- A 信封冒用 B 被原 scope 的 clientMismatch 拒绝；第三连接即使自报 B 的握手，仍被 HTTP 固定身份校验拒绝，前后用户行和队列不增加。脚本最初遗漏 setAutoDrain 必需 baseRevision，正确收到 invalidEnvelope；随后断言误用机器码匹配已脱敏的正文、以及用了不存在的帧事件导致等待超时，分别改为实际 code 与正式 onDynamicConversationFrame(target) 后通过，未修改正式协议或放宽校验。所有临时连接与端口 finally 关闭。
+
+### G3.4 工程收口与证据边界
+
+- G3.1—G3.3 均已独立完成自身运行证据、公开消费者迁移及对应规格／CONTRACT；不依赖第 4 组的公开读取或广播能力。bootstrap／adapter 已无 provenance，公共正常／幂等嵌套历史／事件无私有控制字段，真实 clientId 已由多连接端到端观察，不以类型检查替代运行事实。
+- 首轮 `bun run typecheck` 退出 0，`bun run architecture:check --changed` 退出 0（violations／baseline／new 0）；Lint 退出 0 但有一条本组导致的未使用 AIReqRequirementGroup import 警告，已删除该死导入，不以退出 0 忽略。投影过滤沿用原比较链，避免为每个属性构造临时 key 数组；定向重验 G3.2 仍为 48 次事件、全部断言退出 0。
+- 最终 `bun run typecheck && bun run lint && bun run architecture:check --changed` 全部退出 0：Lint 检查 1938 文件，0 warnings／0 errors；架构 violations／baseline／new 均 0。未新增模块、架构 baseline、共享 DTO 兼容层或生产控制入口；managed 与 unmanaged 覆盖限制沿本组前置记录。
+- 受影响 React 两文件 AIReqWorkflowHelp.tsx／EmployeeEntry.tsx 按现行临时专项配置运行 `bun --bun run oxlint -c .tmp-g3/hooks.json --no-ignore --disable-nested-config --format json ...`，退出 0，2 文件／2 规则、diagnostics `[]`；只删除无消费者 Hook，不新增依赖数组或订阅 owner。Impeccable 最终 detector 对两文件退出 0、结果 `[]`；遵照既有视觉实现与明确删除要求做窄文案修复，无新增／重设计表面或视觉体系。
+- `bun run test:engineering:affected --files <本组 15 个实际源码路径>` 退出 0，官方选择 0/11，无选中测试，未执行工程用例，不声称全套通过。未修改根 package.json、公共 Vitest 配置或工程清单；未运行 build、架构测试全套、App 单测或新 E2E harness。
+- 6 份临时脚本／日志／Hooks 配置及 JSON 全部删除，空 `.tmp-g3` 目录删除退出 0；隔离 HTTP/WebSocket 已在脚本 finally 关闭，managed Chromium 标签页关闭，用户原有开发服务未停止。浏览器只修改临时身份／未保存草稿，没有向共享配置保存验证内容。只完成第 3 组；不声明后续整改、最终产物、真实后端替换、认证或系统上线通过。
+
+### G4.1 虚拟文件事实
+
+- 前置 Bun 1.4.4 freshness／变更前 architecture:check --changed 均退出 0，ahead／behind 与架构违例均 0；读取 mock-domains、web-platform managed context 及 server／shared unmanaged context，未扩大门禁覆盖。
+- 先明确 mock-backend 读取规格，再让缺失／错类型拒绝、空文件成功、UTF-8 原始分片计数和列式索引共用虚拟树。索引保留既有字符区间，不把 UTF-8 文件字节与 packed 字符长度混为新协议。
+- `bun .tmp-g4/files.ts` 退出 0：真实隔离 HTTP/WebSocket＋现行 SDK／二进制 RPC 覆盖目录、空文件、17 字节中文／emoji 文件，缺失、目录误读、文件误列目录均拒绝；六类完整／有效／跨字符／EOF／越界 EOF／零长分片与原始字节一致。12 个文件／目录索引按每块 7 字符重组，长度与全部 stat 类型一致；缺失根拒绝。连接和端口 finally 关闭，仅隔离内存，无宿主文件读取。
+
+### G4.2 Git 内容与身份事实
+
+- 原 runtime 没有任何 before／after 或身份配置，仅硬编码 patch／身份。将实际内容与可选身份归既有 runtime.git owner；默认没有记录，返回 unavailable／null，不把虚拟当前文件冒充历史内容。按 source/path 读取已持有的前后文本并生成全文件 unified hunk，保持末行换行事实；refresh 复用 getIdentity。
+- `bun --tsconfig-override=packages/ui/tsconfig.json .tmp-g4/git.tsx` 最终退出 0：真实隔离 WebSocket＋SDK／Git RPC 比较中文前后内容和精确 patch（含无末行换行）；相同内容为空 patch，缺失／错误 source 不可用，真实空 after 与不存在可区分；未配置身份为 null，配置身份与两种 refresh/includeIdentity 一致。最初脚本使用不存在的子包 react-dom 路径退出 1，改用真实根安装后通过。
+- 精确 `.getDiff(` 产品引用为 0，未恢复 Git 页面或编造现行 Git diff UI 调用。仍实际使用的 PreviewPaneContent 真实 React 渲染后经 1440×1000 电脑 Chromium 观察，空文件显示“文件为空”、缺失显示“文件或目录不存在。”；这是保留预览组件的错误／空态证明，不冒充退役 Git 页验收。浏览器、连接、端口已关闭。
+
+### G4.3 工作流具体读取明确不可用
+
+- 核实当前 runtime 没有 run／artifact／node 内容实现，未为成功场景新建引擎。七个读取入口复用现行 wire 输入 schema 派生 Channel 目标，先拒绝非法参数，再校验已驻留会话、工作区与草稿归属；只保留合法 runs 枚举为空。其余具体 run 读取明确 capabilityUnsupported，不再固定空文件／正文／清单，不触发预热。
+- `bun .tmp-g4/workflow.ts` 最终退出 0：真实 HTTP/WebSocket＋SDK／连接 facade 对六种指定 run 方法完成 36 个不支持／缺失／错工作区／错误 identity／非法 runId／他人私有草稿拒绝，合法 runs=[]；会话数、rows 不变，不重建 missing-session。没有真实产物，未虚构空产物成功用例。
+- 首次断言发现公开 RPC 脱敏使未标公开的固定说明变成一般错误；已对明确的稳定 unsupported 错误标记 publicMessage 并复验，机器 code 与可读说明均完整，未放宽未知异常脱敏。
+- 隔离 Vite 装配现有 V4ConversationContext、useWorkflowRunNodeResult 与 WorkspaceCardBody，通过真实 SDK 请求后，1440×1000 电脑 Chromium 实际显示“结果读取失败：当前服务不支持读取工作流产物或节点结果。”；未修改主导航、无产品测试端点或全局注入，标签页已关闭，临时宿主在组收口清理。
+
+### G4.4 单总线逐连接广播
+
+- MockBroadcastService.send 实际投递；HTTP 每连接 facade 分配可信数字 sourceWindowId，覆盖客户端字段并过滤本源。建立先订总线再暴露 Channel，关闭注销监听／本地 emitter，再释放 scope／Channel；claims 原样委托单一 owner，不加身份权限或队列。真实 store 原 applyingBroadcast 防环继续使用，仅改过时 Web no-op 注释。
+- `bun .tmp-g4/broadcast.ts` 退出 0：三个真实 WebSocket／SDK 连接，A 发送 B/C 各收一次且 A 零回声，B 冒用 A 源也不改变路由；第三连接退出后无新事件，三轮重连各只收一次。隔离诊断包装实际 owner Event 的登记／dispose 计数为 3→2，每轮 2→3→2，最终 0，无监听累积。claims acquire/busy、错误 token、release、commit 和 tryClaim 首次／重复语义保持。
+- 两个 1440×1000 电脑 Chromium 标签页临时装配真正 createZCodeStore 与真实广播 SDK：A 点浅色，两页为 zai-light，计数 A 发送1接收0、B 发送0接收1；B 点深色，两页为 zai-dark 且 html 为 dark/theme-zai-dark，计数均发送1接收1。接收没有产生回发、无回声／回环；未恢复退役页面或改主导航，标签页已关闭。
+
+### G4.5 正式遥测 HTTP 接收
+
+- 先更新 HTTP 替换规格、platform 端口／CONTRACT 与示例；shared 新增同源严格判别信封及两 payload/schema，
+  未知信封／payload／context 字段拒绝，detail／properties 仍是原声明扩展字典。前端发送和后端接收共用
+  sanitizeTelemetryEventDetail／redactTelemetryText，敏感凭据键整值抹除，保留 total_tokens 等正常指标；
+  HTTP owner 将清洗事件交实际服务诊断 telemetry:accepted 后返回 202，无公开读取、持久队列或第三方集成。
+- `bun --tsconfig-override=packages/ui/tsconfig.json .tmp-g4/telemetry.ts` 退出 0：真实隔离 HTTP 两类接纳共 6 次，
+  12 类畸形 JSON／信封／payload／context／嵌套值均 400 且未接收；敏感路径、邮箱、完整 URL query、
+  凭据与原错误不在诊断副本，调用者原对象不变，数字／布尔和正常 token 数量指标保留。部署 token
+  无授权 401、Bearer／Cookie 正常 202；临时诊断接收失败产生安全 500，两种真实平台 report 均 reject，
+  reportAppTelemetryEvent 隔离失败。仅在临时 Bun 适配相对 URL 到同一真实 HTTP，不伪造响应或抑制网络。
+- 隔离 1440×1000 电脑 Chromium 挂载现有 ConversationAssistantTextActions＋真实 createWebPlatform，
+  已驻留 assistant 行的赞／踩走真正 setAssistantFeedback 命令、ACK 与历史回读；对应
+  assistant_message_feedback 两次 POST 均 202，服务端诊断实际包含 reaction、talkId／messageId 及 context。
+  现有 ARMS payload 经同一正式端口亦 202，页面显示已接纳，不表述外部上传成功。
+- 换为仅临时装配的诊断失败宿主后，反馈和 ARMS 两次真实 POST 均 500；赞仍保持 aria-pressed=true，
+  实际历史回读为 like，ARMS report 显示未接纳，遥测失败未回滚或掩盖已提交业务结果。
+  临时装配初次遗漏 TooltipProvider、以及过宽按钮 selector 误点“踩”导致等待超时；补齐真实 Provider、
+  使用观察到的 ARMS 控件后通过，未修改产品来迁就脚本。浏览器已关闭，宿主及临时文件组收口清理。
+- 产品精确检索 `zcode:telemetry`／“mock 无接收可丢弃”约定无残留。本项只证明当前 HTTP 接收边界，
+  不声称第三方 ARMS 上传、持久化或可信工号认证。
+
+### G4.6 工程收口与部署合同
+
+- G4.1—G4.5 分别完成真实公开读取／错误、Git 内容与身份、工作流不可用、逐连接广播和正式遥测接纳的
+  直接证据；文件／Git／工作流说明、广播建立与关闭顺序、遥测 HTTP 方法／严格字段／部署 token／
+  错误／202 语义均已回写 mock-backend、受影响 server／mock-domains／web-platform CONTRACT 及正式示例。
+- 本组收口一次 `bun run typecheck` 退出 0；`bun run lint` 退出 0（1935 文件，0 warnings／0 errors）；
+  `bun run architecture:check --changed` 退出 0（violations／baseline／new 均 0）。未新增包、模块、
+  baseline、公开测试控制或兼容接口。架构 managed／unmanaged 覆盖限制沿本组前置说明，不夸大检查覆盖。
+- UI 源码仅两处过时接口注释同步，未改 Hook 或依赖数组；专项
+  `bun --bun run oxlint -c .tmp-g4/hooks.json --no-ignore --disable-nested-config --format json`
+  对 store/index.ts、lib/appTelemetry.ts 检查两条 Hooks 规则，2 文件，diagnostics=[]、退出 0。
+  浏览器验收是已有真实组件／store／平台端口临时装配，不是重新设计产品视觉或恢复退役页面。
+- `bun run test:engineering:affected --files <本组12个实际源码路径>` 退出 0，官方选择 0/11；
+  未执行工程用例，不冒充全套通过。未改根 package.json、公共 Vitest 配置／清单，不触发规定全量，
+  未运行 build、架构全套、App 单测或新 E2E harness。
+- 14 份临时脚本、HTML、日志及 Hooks 配置已删除，空 `.tmp-g4` 目录删除退出 0。
+  四个命名隔离服务实例（工作流／广播／正常遥测／故障遥测宿主）和本组全部浏览器标签页关闭；
+  脚本内 WebSocket／HTTP 实例 finally 关闭。未停止用户已有开发服务、未写共享业务配置或宿主业务文件。
+- 只完成第 4 组，不声明后续原型／测试清理、最终产物、真实后端替换、第三方遥测送达或系统上线通过。

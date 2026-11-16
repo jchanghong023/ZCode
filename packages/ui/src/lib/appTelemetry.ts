@@ -66,8 +66,8 @@ export async function reportAppTelemetryEvent(
 
     await platform.reportTelemetryEvent(reportPayload);
   } catch {
-    // 最终失败由 Desktop Main 的 TelemetryCore 统一记录脱敏告警；UI 只维持业务隔离，
-    // 避免同一失败重复记录，或把 IPC 原始错误带入生产日志。
+    // 平台端口拒绝表示未获接纳；观测失败必须与主业务结果隔离，
+    // 不把原始网络错误或遥测 payload 再复制到 UI 日志。
   }
 }
 

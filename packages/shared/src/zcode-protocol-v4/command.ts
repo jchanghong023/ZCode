@@ -85,9 +85,10 @@ function requireModelSelectionForExecution(
 }
 
 // ── §6.4 命令 payload 全集 ──
+// 封闭命令拒绝额外键，不能先剥离再执行业务；args/content 明确声明的字典仍可扩展。
 export const commandPayloadSchemas = {
   // firstInput 缺省 → phase=draft 空会话；携带 → 直接 turnHeader+userInput rows。
-  createSession: z.object({
+  createSession: z.strictObject({
     // Host 预留归属使用稳定 ID；CLI 仍负责拒绝覆盖既有会话。
     sessionId: z.string().min(1).optional(),
     additionalDirectories: z.array(z.string().min(1)).max(256).optional(),
@@ -100,7 +101,7 @@ export const commandPayloadSchemas = {
     worktreeCreation: worktreeCreationRecordSchema.optional(),
     permissionScope: z.literal("session").optional(),
     firstInput: z
-      .object({
+      .strictObject({
         text: z.string(),
         attachments: z.array(attachmentRefSchema).optional(),
         modelSelection: modelSelectionSchema.optional(),
@@ -112,7 +113,7 @@ export const commandPayloadSchemas = {
         source: conversationInputSourceSchema.optional(),
       })
       .optional(),
-    config: createSessionRequestedConfigSchema.optional(),
+    config: createSessionRequestedConfigSchema.strict().optional(),
     // MCP 是 runtime 启动期配置，必须随 create 一次性进入 record，不能在首发后补写。
     mcpServers: z.array(zcodeProtocolMcpServerSchema).optional(),
     // Off-Peak 工具面 flag，与 legacy session/create 等价——V4 createSession 是桌面
@@ -122,9 +123,9 @@ export const commandPayloadSchemas = {
   }),
   // 父会话由 envelope.sessionId 指定；服务端从父 record 派生完整运行配置。
   // firstInput 存在时，child 创建完成后立即启动首条普通输入；缺省则保持空副屏。
-  createSelectionSideSession: z.object({
+  createSelectionSideSession: z.strictObject({
     firstInput: z
-      .object({
+      .strictObject({
         text: z.string().trim().min(1),
         // 提交推荐只覆盖新 child 的完整选择，缺省保留父 runtime 继承。
         modelSelection: modelSelectionSchema.optional(),
@@ -135,7 +136,7 @@ export const commandPayloadSchemas = {
   // heldQueueDisposition：held 状态（inputRouting.mode=choice）下必带；
   // clear→清空 queue 后 startNow，keep→保留 queue 立即 startNow。
   sendText: z
-    .object({
+    .strictObject({
       text: z.string(),
       attachments: z.array(attachmentRefSchema).optional(),
       // Desktop Cmd/Ctrl+Enter 只覆盖本次 busy input，不改 session followupMode。
@@ -194,7 +195,7 @@ export const commandPayloadSchemas = {
       }
       requireModelSelectionForExecution(payload, context);
     }),
-  sendGoalCommand: z.object({
+  sendGoalCommand: z.strictObject({
     text: z.string(),
     displayText: z.string().optional(),
     modelSelection: modelSelectionSchema.optional(),
@@ -203,7 +204,7 @@ export const commandPayloadSchemas = {
     heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
     expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
   }),
-  stop: z.object({
+  stop: z.strictObject({
     // 来自 activeWorks；CLI 用它拒绝会误杀后续无关执行的迟到 Stop。
     expectedForegroundExecutionId: z.string().min(1).optional(),
   }),
@@ -215,9 +216,9 @@ export const commandPayloadSchemas = {
     .strict(),
   // compact 是输入型维护命令：idle 时立即执行，busy/held 时进入 FIFO。
   // 因为 admission 与当前 revision 无关，不走 CAS；sourceCommandId 提供幂等边界。
-  compact: z.object({ modelSelection: modelSelectionSchema.optional() }),
+  compact: z.strictObject({ modelSelection: modelSelectionSchema.optional() }),
   // running 时对稳定 assistant row 可用。
-  forkAssistant: z.object({
+  forkAssistant: z.strictObject({
     target: conversationRowTargetSchema,
     // 子会话留在同一 workspace，cwd 换成新的受管 worktree（docs/git/worktree.md §8.2）。
     // 缺省 = 父会话 cwd，行为不变。旧 CLI 会静默丢弃该字段并 fork 到父目录，
@@ -225,9 +226,9 @@ export const commandPayloadSchemas = {
     // 附加目录不在这里下发：由 Host 在子会话 create/resume/subscribe 时统一下发（I16）。
     targetCwd: forkTargetCwdSchema.optional(),
   }),
-  applyFileRewind: z.object({ target: conversationRowTargetSchema }),
+  applyFileRewind: z.strictObject({ target: conversationRowTargetSchema }),
   editUserQuery: z
-    .object({
+    .strictObject({
       target: conversationRowTargetSchema,
       newText: z.string(),
       conversationQuotes: conversationQuotesSchema.optional(),
@@ -244,14 +245,14 @@ export const commandPayloadSchemas = {
       planEnabled: z.boolean().optional(),
     })
     .superRefine(requireModelSelectionForExecution),
-  retryTurn: z.object({ target: conversationRowTargetSchema }),
+  retryTurn: z.strictObject({ target: conversationRowTargetSchema }),
   // （2026-09-12）：原 setToolWidgetState / setSessionPluginUiState 已删除——插件 UI widgetState
   // 回退为宿主 renderer 内存保存，不再写 CLI 会话存储；模型可见信息改走 ui/update-model-context。
-  setAssistantFeedback: z.object({
+  setAssistantFeedback: z.strictObject({
     target: conversationRowTargetSchema,
     feedback: z.enum(["like", "dislike"]).nullable(),
   }),
-  setHighspeedMetrics: z.object({
+  setHighspeedMetrics: z.strictObject({
     target: conversationRowTargetSchema,
     regularTps: z.number().positive(),
     outputTokens: z.number().int().nonnegative(),
@@ -263,7 +264,7 @@ export const commandPayloadSchemas = {
     otherDurationMs: z.number().nonnegative().optional(),
   }),
   sendQueuedNow: z
-    .object({
+    .strictObject({
       queueItemId: z.string(),
       // 手动提升允许 Renderer 为原队列项补充同卡执行材料；凭据不入队列持久化面。
       modelSelection: modelSelectionSchema.optional(),
@@ -274,9 +275,9 @@ export const commandPayloadSchemas = {
   // 冻结编辑（docs/ui/composer-edit-mode.md）：lock 只对 queued 且无锁的项成功；
   // editQueueItem 携带 editorId 时必须持有锁，原地替换后同一命令释放锁。
   // attachments/modelSelection/mode/planEnabled 缺省 = 保留原值；attachments=[] 表示清空。
-  lockQueueItemEdit: z.object({ queueItemId: z.string(), editorId: z.string().min(1) }),
-  releaseQueueItemEdit: z.object({ queueItemId: z.string() }),
-  editQueueItem: z.object({
+  lockQueueItemEdit: z.strictObject({ queueItemId: z.string(), editorId: z.string().min(1) }),
+  releaseQueueItemEdit: z.strictObject({ queueItemId: z.string() }),
+  editQueueItem: z.strictObject({
     queueItemId: z.string(),
     newText: z.string(),
     editorId: z.string().min(1).optional(),
@@ -289,7 +290,7 @@ export const commandPayloadSchemas = {
   // 编辑提交后把新模型/mode 应用到其他排队项（docs/ui/composer-edit-mode.md）：正文与 Plan 不变；
   // 不存在、非 queued、compact、有编辑锁的项跳过，全部跳过 = noop。不走 CAS，理由同 editQueueItem。
   applyQueueItemsConfig: z
-    .object({
+    .strictObject({
       queueItemIds: z.array(z.string()).min(1),
       modelSelection: modelSelectionSchema.optional(),
       mode: submissionModeSchema.optional(),
@@ -298,16 +299,16 @@ export const commandPayloadSchemas = {
       message: "applyQueueItemsConfig requires modelSelection or mode",
     }),
   // beforeQueueItemId = null → 移到队尾。
-  reorderQueueItem: z.object({
+  reorderQueueItem: z.strictObject({
     queueItemId: z.string(),
     beforeQueueItemId: z.string().nullable(),
   }),
-  deleteQueueItem: z.object({ queueItemId: z.string() }),
-  setAutoDrain: z.object({ autoDrain: z.boolean() }),
+  deleteQueueItem: z.strictObject({ queueItemId: z.string() }),
+  setAutoDrain: z.strictObject({ autoDrain: z.boolean() }),
   // 先到先得，晚到 noop（reasonCode=proto.alreadyResolved）。
-  resolveInteraction: z.object({
+  resolveInteraction: z.strictObject({
     interactionId: z.string(),
-    answer: z.object({
+    answer: z.strictObject({
       optionId: z.string().optional(),
       freeText: z.string().optional(),
       // （elicitation 回执收敛）：AskUserQuestion/plan-approval 的
@@ -334,30 +335,30 @@ export const commandPayloadSchemas = {
   // 软门禁：按需开审核 flow,克隆 revoke non-flow target 但不带 hookDeclarationDigests。
   requestWorkspaceHookReview: requestWorkspaceHookReviewTargetSchema,
   // AskUserQuestion 首次有效操作永久暂停本次自动结束；重复/迟到调用为幂等 noop。
-  snoozeInteractionAutoResolution: z.object({
+  snoozeInteractionAutoResolution: z.strictObject({
     interactionId: z.string(),
   }),
-  switchModelConfig: z.object({
+  switchModelConfig: z.strictObject({
     provider: z.string(),
     model: z.string(),
     thought: z.string(),
   }),
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
   // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
-  switchCollaborationMode: z.object({
+  switchCollaborationMode: z.strictObject({
     mode: z.enum(["build", "edit", "plan", "yolo", "guarded"]),
   }),
-  setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
-  pauseGoal: z.object({}),
-  resumeGoal: z.object({}),
-  cancelBackgroundWork: z.object({ workId: z.string() }),
+  setFollowupMode: z.strictObject({ mode: z.enum(["queue", "guide"]) }),
+  pauseGoal: z.strictObject({}),
+  resumeGoal: z.strictObject({}),
+  cancelBackgroundWork: z.strictObject({ workId: z.string() }),
   // cancel & resume：恢复一个已取消 / 被进程死亡
   // 打断的 dwf run。workId ≡ runId（与 cancelBackgroundWork 同一个身份等式）；`name` 可选，
   // 喂恢复后完成通知的主题（重启后原 CreateWorkflow 工具 input 不可得）。刻意不携
   // baseRevision：与 cancelBackgroundWork 同类（workflowRuns 面免 revision，假 CAS 失败
   // 只会误伤）。门在 CLI 侧（可恢复集 = cancelled ∪ failed+Interrupted），拒绝以
   // fault.command.workflowRunResumeRejected.<reason> 回 ACK。
-  resumeWorkflowRun: z.object({ workId: z.string(), name: z.string().optional() }),
+  resumeWorkflowRun: z.strictObject({ workId: z.string(), name: z.string().optional() }),
   // startSavedWorkflow：中枢「运行」不再合成
   // 对话文案，直接请 agent 在新会话里启动已保存工作流。与 cancelBackgroundWork / resumeWorkflowRun
   // 同类：不携 baseRevision（workflowRuns 面免 revision，假 CAS 失败只会误伤）。name 由 agent 从
@@ -365,7 +366,7 @@ export const commandPayloadSchemas = {
   // 拒绝以 fault.command.savedWorkflowStartRejected.<reason> 回 ACK（词表见下方
   // workflow-command-rejections.ts 的 savedWorkflowStartRejectionReasonSchema）；能力缺席（无 dwf 端口）→ V4CapabilityUnsupportedError
   // （与 resumeWorkflowRun 同一条错误）。
-  startSavedWorkflow: z.object({
+  startSavedWorkflow: z.strictObject({
     name: z.string().min(1),
     scope: z.enum(["project", "global"]).optional(),
     args: z.record(z.string(), z.unknown()).optional(),
@@ -373,8 +374,8 @@ export const commandPayloadSchemas = {
   // amendWorkflowRunSettings：run 卡 / 详情页的「配置」直接请 agent 以新设置修订 run，不经模型轮。载荷、结果与拒绝
   // 词表见 workflow-run-settings-command.ts；能力缺席 → V4CapabilityUnsupportedError。
   amendWorkflowRunSettings: amendWorkflowRunSettingsPayloadSchema,
-  renameSession: z.object({ title: z.string() }),
-  deleteSession: z.object({}),
+  renameSession: z.strictObject({ title: z.string() }),
+  deleteSession: z.strictObject({}),
   discardSharedContext: z.object({ contextId: z.string().trim().min(1) }).strict(),
 } as const;
 
@@ -427,7 +428,7 @@ export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
 ]);
 
 // ── 信封 ──
-export const commandEnvelopeSchema = z.object({
+export const commandEnvelopeSchema = z.strictObject({
   workspace: v4ColdResumeWorkspaceSchema,
   /** 仅 Host 根据当前附件握手注入；未知 CLI 不发送。 */
   pluginDiscoveryUi: z.literal(true).optional(),

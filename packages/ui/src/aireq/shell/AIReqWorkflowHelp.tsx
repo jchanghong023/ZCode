@@ -10,7 +10,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useAIReqDataSource } from "../data-source.js";
 
 // 迁移保留完整业务流程，但不能把源个人 OMP、真实 Git 与数据库描述当成本产品能力。
 const steps = [
@@ -104,7 +103,6 @@ export function AIReqWorkflowHelp({
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const { locale } = useZCodeIntl();
-  const source = useAIReqDataSource();
   const zh = locale === "zh-CN";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -137,13 +135,6 @@ export function AIReqWorkflowHelp({
               ? "全局入口是项目和待办。先选项目，再在概览、需求、分析运行中工作；需求分为提案与正式视图。项目与 Release 常驻页头，同一需求从澄清到验收持续保留讨论、材料与记录。待办跨项目汇总，完成实际事项后自动消失，无需手工勾选完成。"
               : "Use Projects and Todos as global entry points. Open a project to work in Overview, Requirements and Analysis runs; Requirements has proposal and formal views. The header keeps project and Release visible. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos span projects and disappear when their actual work is complete; there is no manual mark-done action."}
           </p>
-          {source.provenance.kind === "sample" && (
-            <p className="mb-4 text-ui-sm leading-6 text-foreground">
-              {zh
-                ? "演示环境：数据不会永久保存，尚未接入真实 AI 或代码托管服务。工号仅用于记录操作，不代表身份验证。"
-                : "Demo environment: data is not permanently saved, and real AI and code hosting services are not connected. Employee IDs label actions and do not verify identity."}
-            </p>
-          )}
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
               ? "设置分为外观、项目配置、AI 配置；AI 配置包含模型、共享 Agent 指令和分析设置。离开未保存表单时可保存、丢弃或取消，取消保留当前输入；往返设置保留未发送的讨论与附件。所有合法工号都可认领或代办，记录实际操作者。"

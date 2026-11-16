@@ -226,7 +226,7 @@ const STATE_CHANNEL_PREFIX = "state:";
 /**
  * 创建 Zustand store，连接广播服务实现跨窗口状态同步
  *
- * @param broadcastService - 广播服务。Desktop 走 RPC，Web 可传 no-op 实现
+ * @param broadcastService - 当前连接的正式广播服务；Desktop／Web 均经各自宿主转发到其他连接。
  */
 export function createZCodeStore(
   broadcastService: IBroadcastService,

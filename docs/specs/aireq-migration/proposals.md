@@ -223,6 +223,8 @@ flowchart LR
 - `AIReqRequirementSnapshot`（IR/SR文件与digest）、`AIReqFileVersion {path,sha256,size}`、`AIReqMaterialView`（project/IR/SR、kind、round、valid、content/error）和 `AIReqReview/AIReqReviewAgent`（a/b/c/summary、pending/running/completed/failed、会话引用、report、inputFiles、snapshotDigest、round、humanDecision）。源 `sha256` 和 digest 的 `sample:` 值只是内存版本，不声称真实内容hash/Git证据。
 - `AIReqNativeSessionRef` 保留对象、sessionId、业务role/phase、round、modelConfig快照；`sessionFile`/proposalLocation.directory仅为明确模拟来源，不复制源宿主路径或要求用户提供目录。通过目标业务项目→会话scope映射接入现有会话能力，不将AIReq项目当旧目录型VirtualProject。
 - `AIReqProposalDelivery {candidate,version,files,confirmedBy,confirmedAt,pushedCandidate,pushedAt,prCandidate,branch,mergeScenario,mergeCheck}`；`AIReqPrFact` 的编号/URL/标题/正文/来源目标/状态和 platformVerified:false；`AIReqMergeFact` 的版本/文件事实；`AIReqOperationReceipt/AIReqWorkflowResult` 保留running/completed/failed和步骤、错误。
+
+现行发布边界覆盖本段旧 `platformVerified:false` 字面量限制：`AIReqPrFact` 由公共 `aiReqPrFactSchema` 推导，核验字段为严格布尔值；提案／历史、SR 当前／历史代码 PR、整体验收 PR 同批共享这一契约。当前内存记录仍为 false；UI 明确区分已核验／未核验，非法值拒绝，不能从合入状态或链接补造平台核验事实。
 - `AIReqSrDependencyDocument` 的 JSON 正文是依赖与预估唯一来源；可派生映射但不可持久化第二份可编辑依赖。`dependencySrIds`仅可作样例初次生成输入，之后所有读者必须读JSON。正式排期元数据独立归Tracking领域。
 - `AIReqSelection`仅保留本范围的projectId/irId/srId/materialPath/reviewAgent/proposalStep/discussionPhase/proposalDraftId/proposalDraftReleaseId及必要历史round，不把旧执行stage/freeSession等变成产品入口。
 

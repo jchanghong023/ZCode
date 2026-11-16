@@ -76,7 +76,8 @@ function resolveV4ToolErrorText(row: ToolCallRow): string | undefined {
     return normalizeWrappedErrorText(outputText);
   }
 
-  return readNonEmptyString(row.error?.code);
+  // 机器码只保留在 raw.error 供分类；缺少说明时由 renderer 使用现有本地化失败提示。
+  return undefined;
 }
 
 export function toolCallRowToLegacyNode(row: ToolCallRow): TaskChatToolCallTreeNode {

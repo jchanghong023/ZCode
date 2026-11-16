@@ -43,6 +43,7 @@ export type {
   AIReqBranchCleanupItem,
 } from "@zcode/services/aireq";
 export {
+  aiReqPrFactSchema,
   AIREQ_CONTRACT_VERSION,
   MATERIAL_KIND_LABELS,
   PROGRESS_STATUSES,

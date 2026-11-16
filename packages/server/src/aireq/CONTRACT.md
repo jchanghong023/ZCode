@@ -1,16 +1,29 @@
 # AIReq mock
 
-当前产品规则以根 `.todo.md` 第 1–172 行已确认要求为准；其已完成任务与收口记录保留各自历史版本边界。
+本轮整改与组序以根 `.todo.md` 现行任务为准，持续规则见 `docs/specs/aireq-migration/release-surface.md` 和不冲突的领域规格；被覆盖的旧任务不授权恢复场景按钮／接口，历史证据不等于本轮通过。
 
 单一进程生命周期内存 owner 持有共享项目、Release、提案、IR/SR、材料、两类评审、三方确认、联系人、报告、合并／验收问题、分支、配置、Skill 和调度任务。Issue 专属状态、调度、操作、事件及模型角色已裁撤。服务重启恢复样例；关闭连接不取消已接纳工作。每五秒核验文档 PR 的候选、版本与当前完整材料，待合并／关闭不转正。
 
 公开 `MockAIReqService` 实现 `@zcode/services/aireq` bootstrap/call/onDidChange；所有普通调用显式携带合法工号和 clientId，全部合法工号可操作，backend.owner 不授予权限。写操作保留对象归属、阶段、版本、幂等及参数校验。`getConnectionServices` 为原生会话逐连接绑定不可变身份并保留既有连接 scope；ALS 仅传递请求上下文，不保存全局当前操作者。
+原生命令的 envelope.clientId 除了匹配 v4 握手，还必须匹配 HTTP 连接固定的 clientId；握手自报值不构成覆盖连接身份的授权。接纳后的队列与用户行沿原来源传递，查询、恢复、重试和其他客户端的提升动作不得改写该来源。
 
 业务 `command` 在首次接纳前校验 revision；幂等摘要只比较目标与业务参数，排除 `expectedRevision`／RPC revision。同操作重读版本后优先返回已接纳回执，业务参数变化仍拒绝，不能因 ACK 丢失重复创建 IR。UI 显式重读保留输入及操作 ID，不自动重新发送。
 
 配置保存、分析设置及负责人分配成功后，使用 `@zcode/services/logger` 的现有 `createServiceLogger` 记录实际工号、clientId、操作名和时间；不记录配置正文、提示词或材料。业务动作收据保留实际身份，原有人工决定／进度记录保留操作者，来源 owner 不代替实际操作者。
 
-原生 rows、附件字节、订阅、水位、帧唯一归现有 MockRuntime/MockZCodeAgentService；本模块仅提供 admission/completion/seed 业务回调，不建立另一套会话存储。只提供当前需求、评审、方案与主页面 Skill 原型；AIReq 自动化专属 owner、manifest 和 task/workpool RPC 裁撤，需求分析调度器与通用原生设施保留。拒绝退休自由聊天、开发执行及验收 Agent 动作。无真实 Git、模型、文件保存、数据库或外部 IO。
+原生 rows、附件字节、队列、订阅、水位、帧唯一归现有 `MockRuntime/MockZCodeAgentService`；本模块仅提供 admission/completion/seed 业务回调，不建立另一套会话存储。保留需求、评审、方案及隐藏 Skill 的完整内存流程，Skill 允许隔离临时浏览器装配验证但不恢复导航／设置／搜索入口。AIReq 自动化专属 owner、manifest 和 task/workpool RPC 裁撤，分析调度与通用设施保留。拒绝退休自由聊天、开发执行及验收 Agent 动作。真实能力和上线限制只记部署／交付文档，公开回复和材料仅陈述实际接纳的输入、材料、状态与版本，不宣称未发生的外部执行。
+
+原生完成回调失败不会撤销 accepted 输入或假报完成：assistant 与轮次分别记录 `failed`，会话以可再次输入的 `completedInterrupted` 收口。复用 `businessFailureMessage`：显式安全领域错误保留可操作原文，未知异常仅服务端诊断保存详情；实时帧与历史使用同一安全正文，不包含任意异常 message／stack。输入 ACK 仅表示接纳，随后新消息仍可正常完成。
+
+缺失原生身份返回重新进入工作区的安全业务说明；他人未发布草稿返回不可访问说明，身份／草稿归属判断与已发布共享读取规则不变，不把 fault／INVALID_IDENTITY 字符串当正文。
+
+MR 生产者通过同一公共 `aiReqPrFactSchema` 生成正式布尔核验事实；本后端记录保留 `platformVerified:false`，不得因 DTO 支持 true 而虚构外部核验。提案历史、SR 与整体验收共用同一事实类型。
+
+v4 信封与封闭 payload／firstInput／answer／create config 拒绝未知键；args／content 仍为显式扩展字典。原生 owner 的 conversation／sessions-index／workspace-config 订阅和 rowsRange 从 shared 严格 schema 派生扁平目标校验，先验证原始请求，再预热、登记订阅或读取恢复；保留连接 scope 注入的可信 carrier，不剥离非法客户端键后执行。
+
+工作流查询只读取已驻留且归属匹配的原生会话，不触发草稿预热。当前原生 runtime 无工作流引擎、
+run／artifact／node 内容；runs 枚举为空，指定 run 的读取返回正式 capabilityUnsupported 和可读说明，
+不忽略标识返回固定空文件／正文／清单。此限制不影响本领域需求工作流 owner 的已有完整内存流程。
 
 ## 第 2 组业务所有权
 
@@ -22,13 +35,15 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 
 报告仅由此 owner 统一写回。分析指纹绑定 SR 材料、任务、代码／默认分支和合并事实，未变可跳过；失败保留上次成功并标记失败／过期，迟到结果不覆盖新事实。合入固定有效 99，AI 原始评分作为证据保留；人工 `progress.recordTest` 绑定预期 revision、代码版本、实际操作者及非空依据。失败保持 99 并开问题，修复新版本合入转待复测，人工通过才 100。全部 SR 100 后才能预览并确认清理登记分支；逐项错误、CAS 与操作幂等，主分支和历史受保护、不改进度。
 
-定时接纳使用唯一调度 owner 的本地服务时钟 `tick()` 与真实配置 `intervalMinutes`，没有运行项也检查到期任务；后台检查频率不等于业务时间推进，不得每五秒静默跳过模拟一小时。既有 `progressScheduler.advance` 仅由用户显式“模拟推进下一次调度检查”推进模拟时间，仍消费同一去重、指纹及版本接纳路径，不增 RPC。模拟记录可标 `schedule`，但不可冒充真实等待配置间隔的证据。
+定时接纳使用唯一调度 owner 的真实服务时钟 `tick()` 与配置 `intervalMinutes`，没有运行项也检查到期任务；后台五秒检查不等于业务时间推进。退役的 `progressScheduler.advance` 及场景调度不可公开调用，不接受浏览器推进模拟时钟；隔离后端内部验证输入也必须消费同一去重、指纹与版本路径，不冒充真实等待间隔的验收证据。
 
 文档 PR 的 checkedAt／nextCheckAt 及重复状态消息只更新观测投影并发失效事件，不增加业务 revision；仅 MR 实际状态或转正等业务事实增加 revision，避免无关轮询让验收／清理弹窗永久失效。真实业务 CAS 与代码版本门禁仍执行。
 
 联系人／负责人可指定或领取、可同人兼任，代办不暗改归属，操作留实际工号。待办由第一手事实派生，不保存独立完成状态；未分配待认领，AI 正常运行／等合并／等调度不制造待办。共享业务更新提交后发事件，客户端重读，重连不重放。
 
-`prototype.*` 及分析场景只改变明确模拟外部输入：评审 normal/blocked/failed/hold 与释放、PR 待合并／关闭／正确合入／不完整／错候选、代码合入／新修复、下一次分析或指定分支失败。正常业务入口仍执行全部材料、阶段、版本、幂等与人工门禁；不允许直接设置批准或 100。规格和示例不声称已验收。
+`prototype.*`、故障控制和场景时钟不属于公共接口。评审阻断／失败／hold、候选／代码合入及分支失败等内部输入只能留在后端私域，仍受正常业务 owner 的材料、阶段、版本、幂等及人工门禁约束，不直接设批准或 100。公共工作流及嵌套历史回执不得泄漏私有故障字段；迟到结果按对象／轮次／版本拒绝。先提交再发事件，重连不重放写入；未知异常仅服务端记录详情，响应、帧与历史均返回稳定安全提示。规格要求不代表待实施代码已通过。
+
+场景字段只使用现有 `internal-scenarios.ts` 服务端类型扩展，由 workflow／progress 同一事务 owner 持有，随项目／IR／SR 和评审 ID／轮次保存与消费。`branchCreationFailures`、`heldReviews`、`trackingBranch.nextCleanupFailure` 不属于公开 DTO；对外 `publicBusinessProjection` 递归移除私有字段，包括幂等回执内的历史视图。评审不再具有公开 `held` 标志，等待由 agent 的 pending／running 表达，人工放行只认当前轮次完整报告。
 
 ## 第 3 组只读项目进度
 

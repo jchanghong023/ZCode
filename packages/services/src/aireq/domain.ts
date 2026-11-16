@@ -83,7 +83,7 @@ export function requirementsDecisionCurrent(
 function reviewReadyIssue(review: AIReqReview | undefined, current: boolean, ids: string[]): string | undefined {
   if (!review) return "尚未发起当前版本评审。";
   if (!current) return "材料版本已变化，旧评审已失效，请重新评审。";
-  if (review.held || ids.some((id) => !review.agents?.some((agent) =>
+  if (ids.some((id) => !review.agents?.some((agent) =>
     agent.id === id && agent.status === "completed" && Boolean(agent.report.trim()))))
     return "评审失败、暂缓或未完成，不能人工放行。";
   if (review.findings?.some((finding) => finding.level === "blocking")) return "存在阻断问题，请修改材料后重新评审。";
@@ -317,7 +317,7 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
       push(group, "failure", "处理模拟评审失败并重试", group.proposalStage === "solution" ? "development" : "business", group.proposalStage === "solution" ? contact.development : contact.business);
       continue;
     }
-    if (review?.held || review?.agents?.some((agent) => agent.status === "running" || agent.status === "pending")) continue;
+    if (review?.agents?.some((agent) => agent.status === "running" || agent.status === "pending")) continue;
     if (group.proposalStage !== "solution") {
       push(group, requirementsReviewCurrent(group) ? "original-review" : "business-discussion",
         requirementsReviewCurrent(group) ? "判断原始需求评审意见" : "讨论和补充业务需求", "business", contact.business);

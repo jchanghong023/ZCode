@@ -49,7 +49,7 @@ export class AIReqNativeBusiness {
   }
   actorKey(): string {
     const actor = currentIdentity();
-    if (!actor) throw businessRule("INVALID_IDENTITY");
+    if (!actor) throw businessRule("连接身份无效，请重新进入工作区。");
     return `${actor.employeeId}:${actor.clientId}`;
   }
   isPublishedNativeSession(sessionId: string): boolean {
@@ -64,7 +64,7 @@ export class AIReqNativeBusiness {
     const draft = this.nativeDrafts.get(sessionId);
     // 草稿登记和收据要保留供重试，但其私有生命周期不能覆盖已接纳会话的共享读取。
     if (draft && draft.actor !== this.actorKey() && !this.isPublishedNativeSession(sessionId))
-      throw businessRule("fault.command.sessionNotFound");
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     if (prototypeSessionReadIssue(sessionId)) throw businessRule("会话读取失败，请重试。");
     if (sessionId.startsWith("prototype-skill-design:"))
       return prototypeSkillDesignBinding(sessionId);
@@ -72,7 +72,7 @@ export class AIReqNativeBusiness {
   }
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
-    if (!identity) throw businessRule("INVALID_IDENTITY");
+    if (!identity) throw businessRule("连接身份无效，请重新进入工作区。");
     this.actors.set(`${sessionId}:${commandId}`, { ...identity });
     const result = this.results.get(`${sessionId}:${commandId}`);
     if (result && result.text !== text) throw businessRule("相同消息编号不能用于不同正文。");

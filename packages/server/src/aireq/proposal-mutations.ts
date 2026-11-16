@@ -222,8 +222,9 @@ export function applyProposalMutation(
         (item) => item.projectId === projectId && item.irId === irId && item.id === action.srId,
       )!;
       if (sr.trackingBranch?.status === "ready") break;
-      const nextFailure = proposal!.branchCreationFailures?.includes(sr.id);
-      proposal!.branchCreationFailures = proposal!.branchCreationFailures?.filter(
+      const internal = proposal! as InternalRequirementGroup;
+      const nextFailure = internal.branchCreationFailures?.includes(sr.id);
+      internal.branchCreationFailures = internal.branchCreationFailures?.filter(
         (id) => id !== sr.id,
       );
       sr.trackingBranch = {
@@ -317,8 +318,9 @@ export function applyProposalMutation(
         proposal!.proposalDelivery = undefined;
       }
       if (scenario === "hold") {
-        proposal!.heldReviews ??= [];
-        proposal!.heldReviews.push(structuredClone(review));
+        const internal = proposal! as InternalRequirementGroup;
+        internal.heldReviews ??= [];
+        internal.heldReviews.push(structuredClone(review));
       }
       const sessions = prototypeReviewSessions(review);
       proposal!.sessions.push(...sessions);

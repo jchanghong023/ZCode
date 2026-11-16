@@ -68,11 +68,6 @@ const commands = [
   "confirmProposal",
   "publishProposal",
 ] as const;
-const provenance = {
-  kind: "sample" as const,
-  notice:
-    "演示环境：数据会在服务重启后重置；当前未连接真实 AI、代码托管或文件存储，工号用于记录操作者。",
-};
 
 /** One instance is registered by createMockServices; connection scopes never dispose it. */
 export class MockAIReqService extends AIReqNativeBusiness implements IAIReqService {
@@ -283,7 +278,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
-      provenance,
       backend: { id: PROTOTYPE_BACKEND.id },
       capabilities: {
         proposalDiscussion: true,
@@ -381,6 +375,12 @@ export function getConnectionServices(
       return (...args: unknown[]) =>
         withAIReqIdentity(fixed, () => {
           const request = args[0];
+          // 握手由客户端自报；原生命令还须匹配 HTTP 连接固定身份，避免换握手冒用另一 clientId。
+          if (
+            key === "sendConversationCommandV4" &&
+            (request as { envelope?: { clientId?: string } } | undefined)?.envelope?.clientId !== fixed.clientId
+          )
+            throw businessRule("连接身份已变化，请重新进入工作区。");
           if (request && typeof request === "object") {
             const input = request as {
               sessionId?: string;

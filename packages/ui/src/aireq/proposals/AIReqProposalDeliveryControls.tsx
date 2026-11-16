@@ -17,6 +17,7 @@ import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqProposalPrHandoff } from "./AIReqProposalPrHandoff.js";
 import {
+  aiReqPrFactSchema,
   hasCurrentProposalSolution,
   proposalDeliveryCurrent,
   proposalVersion,
@@ -61,7 +62,13 @@ export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequireme
       </p>
     );
   const check = delivery.mergeCheck;
-  const mr = group.requirementsPr;
+  const parsedMr = group.requirementsPr
+    ? aiReqPrFactSchema.safeParse(group.requirementsPr)
+    : undefined;
+  // 外部核验事实只能是布尔值，坏投影不得被当作已核验或继续展示。
+  if (parsedMr && !parsedMr.success)
+    return <p role="alert">MR 信息无效，请刷新后重试。</p>;
+  const mr = parsedMr?.data;
   const mrLink = resolveMrLink(mr?.url);
   const time = (value?: string) =>
     value
@@ -83,6 +90,9 @@ export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequireme
                 : mr.status === "closed"
                   ? "已关闭，未合入"
                   : "待人工评审、合并"}
+            </span>
+            <span className="text-foreground-subtle">
+              {mr.platformVerified ? "平台已核验" : "平台未核验"}
             </span>
             {mrLink ? (
               <a

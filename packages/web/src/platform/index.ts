@@ -1,6 +1,9 @@
 import {
   resolveLocaleFromLanguageTag,
   toZhOrEnLocale,
+  sanitizeTelemetryEventRequest,
+  telemetryEventRequestSchema,
+  type TelemetryEventRequest,
   type IPlatformService,
   type TaskNotificationPayload,
 } from "@zcode/shared";
@@ -93,10 +96,16 @@ function consumeExtensionNotificationQuota(pluginId: string, now: number): boole
   return true;
 }
 
-function emitBrowserTelemetryEvent(kind: "ui" | "arms", payload: unknown): void {
-  // 模拟后端没有遥测接收端。浏览器端口不冒充服务端上报，只把清洗后的副本交给本机订阅方
-  // （例如开发者控制台或未来接线的本地诊断），调用方语义保持 fire-and-forget。
-  window.dispatchEvent(new CustomEvent("zcode:telemetry", { detail: { kind, payload } }));
+async function reportBrowserTelemetryEvent(event: TelemetryEventRequest): Promise<void> {
+  const payload = sanitizeTelemetryEventRequest(telemetryEventRequestSchema.parse(event));
+  const response = await fetch("/api/v1/telemetry/events", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  // 202 仅表示接收边界已接纳，不代表第三方上传；错误不能被本地派发伪装成成功。
+  if (response.status !== 202) throw new Error("遥测事件未被接收，请稍后重试。");
 }
 
 export function createWebPlatform(): IPlatformService {
@@ -183,12 +192,8 @@ export function createWebPlatform(): IPlatformService {
         extensionNotificationClickHandlers.delete(handler);
       };
     },
-    reportTelemetryEvent: async (payload) => {
-      emitBrowserTelemetryEvent("ui", payload);
-    },
-    reportArmsCustomEvent: async (payload) => {
-      emitBrowserTelemetryEvent("arms", payload);
-    },
+    reportTelemetryEvent: (payload) => reportBrowserTelemetryEvent({ kind: "ui", payload }),
+    reportArmsCustomEvent: (payload) => reportBrowserTelemetryEvent({ kind: "arms", payload }),
     getDeviceId: () => {
       const nav = globalThis.navigator as Navigator & { platform?: string };
       const platform = nav?.platform ?? "";

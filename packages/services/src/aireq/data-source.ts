@@ -27,12 +27,6 @@ export interface AIReqBackendView {
   id: string;
 }
 
-/** Factual data origin only; supported workflows are selected by capabilities. */
-export interface AIReqDataProvenance {
-  kind: "sample" | "live";
-  notice?: string;
-}
-
 export interface AIReqDirectory {
   path: string;
   name: string;
@@ -104,7 +98,6 @@ export interface AIReqDataSource {
     cleanupPreview(projectId: string, irId: string): Promise<AIReqBranchCleanupItem[]>;
     cleanupBranches(projectId: string, irId: string, input: AIReqBranchCleanupInput): Promise<void>;
   };
-  provenance: AIReqDataProvenance;
   clientId: string;
   backend?: AIReqBackendView;
   capabilities: {

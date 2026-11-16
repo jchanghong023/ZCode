@@ -174,6 +174,7 @@ export type {
   TelemetryEventPayload,
   TelemetryRendererContext,
   TelemetryUiMode,
+  TelemetryEventRequest,
 } from "./telemetry.js";
 export {
   PLUGIN_TELEMETRY_EVENTS,
@@ -186,6 +187,10 @@ export {
   sanitizeTelemetryErrorMessage,
   sanitizeTelemetrySkillName,
   sanitizeTelemetryEventDetail,
+  rendererTelemetryEventPayloadSchema,
+  armsCustomEventPayloadSchema,
+  telemetryEventRequestSchema,
+  sanitizeTelemetryEventRequest,
 } from "./telemetry.js";
 export type {
   RedactTelemetryTextOptions,

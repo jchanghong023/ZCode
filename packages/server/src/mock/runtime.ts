@@ -6,6 +6,7 @@ import { hostname } from "node:os";
 import { resolve } from "node:path";
 import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
+import type { GitChangeSourceId, GitIdentity } from "@zcode/shared";
 import type {
   ConversationSnapshot,
   PlanState,
@@ -134,6 +135,14 @@ export interface VirtualFileNode {
 
 export interface MockGitState {
   branch: string;
+  /** 已实际持有的前后内容；没有记录表示无法提供该来源的差异。 */
+  diffs: Array<{
+    path: string;
+    sourceId: GitChangeSourceId;
+    beforeContent: string | null;
+    afterContent: string | null;
+  }>;
+  identity: GitIdentity | null;
   statusEntries: Array<{
     path: string;
     staged: "added" | "modified" | "deleted" | "renamed" | null;
@@ -256,6 +265,8 @@ export function buildFixtureWorkspace(): VirtualFileNode {
 export function buildFixtureGit(): MockGitState {
   return {
     branch: "main",
+    diffs: [],
+    identity: null,
     statusEntries: [
       { path: "src/main.ts", staged: null, unstaged: "modified" },
       { path: "docs/design.md", staged: "added", unstaged: null },

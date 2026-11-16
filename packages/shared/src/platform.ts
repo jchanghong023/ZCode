@@ -760,10 +760,10 @@ export interface IPlatformService {
   /** 用户点了扩展通知：浏览器聚焦窗口后回调，带要打开的视图。返回 disposer。 */
   onExtensionNotificationClick?(handler: (click: ExtensionNotificationClick) => void): () => void;
 
-  /** 通过宿主环境统一上报 UI 侧 telemetry 事件；mock 后端没有接收端时由实现方本地丢弃。 */
+  /** 上报 UI 遥测并等待接收端接纳；失败 reject，仅表示接收，不承诺外部送达或持久化。 */
   reportTelemetryEvent(payload: RendererTelemetryEventPayload): Promise<void>;
 
-  /** 通过宿主环境上报 ARMS 自定义事件；mock 后端没有接收端时由实现方本地丢弃。 */
+  /** 上报 ARMS 自定义事件并等待接收端接纳；失败 reject，不等同于第三方上传成功。 */
   reportArmsCustomEvent(payload: ArmsCustomEventPayload): Promise<void>;
 
   /** 获取当前浏览器实例的稳定标识符（物理属性指纹，抗语言/时区变化）。 */

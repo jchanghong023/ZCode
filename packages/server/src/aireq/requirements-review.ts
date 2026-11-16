@@ -97,7 +97,6 @@ export function createPrototypeRequirementsReview(
     snapshotDigest: digest,
     inputFiles: structuredClone(inputFiles),
     passed: seedPassed && scenario === "normal",
-    held: scenario === "hold",
     agents,
     ...(seedPassed && scenario === "normal"
       ? {

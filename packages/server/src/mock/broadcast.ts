@@ -1,4 +1,4 @@
-// 模拟广播服务：跨窗口主题消息总线（内存回环）。
+// 跨连接广播总线与 claims 的唯一内存 owner；发送源隔离由 HTTP 连接 facade 执行。
 import { Emitter, type Event } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
 import type {
@@ -18,10 +18,8 @@ export class MockBroadcastService implements IBroadcastService {
     return this.messageEmitter.event;
   }
 
-  async send(_message: BroadcastMessage): Promise<void> {
-    // 真实实现是跨窗口 IPC 且由 BroadcastHub 跳过发送源窗口。模拟后端只有一个
-    // renderer，回声会让 UI 把自己的状态同步当外部变更消费（重挂循环），因此不投递。
-    void _message;
+  async send(message: BroadcastMessage): Promise<void> {
+    this.messageEmitter.fire(message);
   }
 
   async acquireClaim(key: string): Promise<BroadcastClaimAcquireResult> {

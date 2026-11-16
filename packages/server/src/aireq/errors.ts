@@ -41,7 +41,13 @@ export function publicBusinessProjection<T>(value: T): T {
   return Object.fromEntries(
     Object.entries(value)
       .filter(
-        ([key]) => key !== "reviewScenarios" && key !== "mergeScenario" && key !== "scaleDemo",
+        ([key]) =>
+          key !== "reviewScenarios" &&
+          key !== "mergeScenario" &&
+          key !== "scaleDemo" &&
+          key !== "nextCleanupFailure" &&
+          key !== "branchCreationFailures" &&
+          key !== "heldReviews",
       )
       .map(([key, nested]) => [key, publicBusinessProjection(nested)]),
   ) as T;

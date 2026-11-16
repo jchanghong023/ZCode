@@ -46,7 +46,6 @@ import type {
   AIReqWorkflowCommand,
   AIReqMaterialView,
   AIReqNativeSessionRef,
-  AIReqRequirementGroup,
   AIReqSelection,
   AIReqWorkflowResult,
   AIReqWorkflowView,
@@ -129,7 +128,7 @@ export function setPrototypeProposalReviewScenario(
 }
 export function releasePrototypeProposalReviewResults(projectId: string, irId: string): void {
   mutatePrototypeWorkflow((view) => {
-    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId);
+    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId) as InternalRequirementGroup | undefined;
     if (!proposal) throw businessRule("需求提案不存在。");
     if (!proposal.heldReviews?.length) return false;
     for (const held of proposal.heldReviews) {
@@ -159,7 +158,6 @@ export function releasePrototypeProposalReviewResults(projectId: string, irId: s
         agent.status = "completed";
         agent.report = result?.report ?? "以下为演示评审内容。当前材料评审完成。";
       }
-      current.held = false;
       current.report = current.agents?.at(-1)?.report ?? "";
     }
     proposal.heldReviews = [];
@@ -173,7 +171,7 @@ export function setPrototypeBranchCreationFailure(
   mutatePrototypeWorkflow((view) => {
     const proposal = [...view.drafts, ...view.groups].find(
       (item) => item.projectId === projectId && item.id === irId,
-    );
+    ) as InternalRequirementGroup | undefined;
     if (!proposal?.srIds.includes(srId)) throw businessRule("SR 不属于当前需求。");
     proposal.branchCreationFailures ??= [];
     if (!proposal.branchCreationFailures.includes(srId)) proposal.branchCreationFailures.push(srId);
@@ -185,7 +183,7 @@ export function notifyPrototypeProjectSettingsChanged(): void {
   prototypeWorkflowChanges.fire();
 }
 /** 仅写入内存样例；合入证据与文档完整性是自动入库的两项条件。 */
-function completePrototypeProposal(group: AIReqRequirementGroup, checkedAt: string): void {
+function completePrototypeProposal(group: InternalRequirementGroup, checkedAt: string): void {
   const project = state.projects.find((item) => item.id === group.projectId)!;
   const commit = `sample-proposal-merged-${state.revision}`;
   group.status = "formal";

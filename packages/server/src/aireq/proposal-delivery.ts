@@ -1,6 +1,7 @@
 import { businessRule } from "./errors.js";
 import { consumePrototypeMrCreationFailure } from "./recovery.js";
 import {
+  aiReqPrFactSchema,
   proposalVersion,
   proposalDeliveryCurrent,
   hasCurrentProposalSolution,
@@ -46,7 +47,7 @@ export function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
     throw businessRule("分支已推送，但创建 MR 失败，请重试当前版本。");
   const handoff = readPrototypeProposalPrHandoff(group);
   const number = ++mrNumber;
-  group.requirementsPr = {
+  group.requirementsPr = aiReqPrFactSchema.parse({
     number,
     status: "opened",
     title: `[需求] ${group.title}`,
@@ -66,7 +67,7 @@ export function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
     targetBranch: handoff.targetBranch,
     recordedAt: delivery.pushedAt,
     platformVerified: false,
-  };
+  });
   delivery.prCandidate = delivery.candidate;
 }
 export function validatePrototypeProposalDeliveryAction(

@@ -19,6 +19,8 @@
 setting 仅保留 get/update；当前个性化提示词通过 AIReq prompts.read/save 访问，
 不再保留旧 getUserInstructions/saveUserInstructions 及其模拟路径。
 
+公开设置 patch 使用 shared 的严格 `appSettingsPatchSchema`，只对声明字段按正式值规则解析，整份成功后一次合并到唯一内存 settings；失败不改变任何字段，partial 不填默认。初值由 `appSettingsSchema` 生成；theme／uiFontSizePx 使用既有主题枚举和 12—20px 整数字号规则，语言使用 locale，不新增 language 别名。不改变浏览器本机 store 的偏好所有权。
+
 终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
 不再注册兼容空壳。Provider 设置、模型目录与用量投影仍沿既有契约访问。Issue 与 AIReq 自动化页面、
 专属业务 owner、manifest、task/workpool RPC 及接线已裁撤；这不等于裁撤本目录的通用 `automations`
@@ -43,6 +45,13 @@ workspace-config 的订阅归属、帧过滤及断开清理均不得因共享业
 原生命令按现有操作者／客户端、sessionId、commandId 去重并提供结果查询；AIReq 业务 owner 另行校验
 配置／材料／候选版本、阶段和幂等。原型的结果只在进程内保留，不代表生产持久化或完整通用 CAS；
 真实后端必须依已有 v4 契约实现，不得以原型限制取消这些当前正确性门禁。
+
+`MockZCodeAgentService` 仅从接纳信封取得真实 clientId；排队项保留原来源，立即发送、提升与恢复续跑均沿同一 startTurn／runTurn 参数链写入 userInput，不能用后续操作者或固定值替代。实时行和历史分页共用 runtime.rows，连接校验及幂等边界不变。
+
+文件、Git 与广播仍由基础服务装配：文件来自同一虚拟树，缺失／错类型明确拒绝，字节按 UTF-8；
+索引保留现行列式字符串字符区间。Git 前后内容与身份仅取 runtime.git 实际记录，无记录不可用／未配置，
+不补假 patch 或身份。广播总线归唯一 MockBroadcastService，每连接 HTTP facade 绑定可信数字来源，
+过滤本源、关闭注销；claims 继续由同一 owner 原子管理，浏览器不持有第二份业务事实。
 
 ## 装配顺序
 
@@ -69,8 +78,9 @@ skills/subagents 均仅保留原生目录 list；setEnabled、旧管理写面和
 skills 的 buildPromptContext/copyToCommon/removeFromCommon/deleteSkill 与 subagents 的
 createAgent/updateAgent/deleteAgent/setBuiltInModelOverride/setPluginAgentModelOverride/
 getPrimaryUserAgentsDirectory 均无当前调用；隐藏 Skill 设计仍由 AIReq owner 持有。
-/api/server-info 及重复配置 handler 退役；保留当前帮助配置 `/api/v1/client/configs`、
-身份鉴权 `/ws`、静态资源压缩与 SPA 宿主，不新增替代 REST 接口。
+/api/server-info 及重复配置 handler 退役；保留帮助配置 `/api/v1/client/configs`、
+身份校验 `/ws`、同源 `POST /api/v1/telemetry/events`、静态资源压缩与 SPA 宿主。
+遥测复用 `/api/` 部署 token，严格校验／清洗后交服务诊断再返回 202，仅表示接收，不声明外部上传。
 
 ## 新增领域
 

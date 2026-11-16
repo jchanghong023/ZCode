@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AIReqAgentModelBinding } from "./model-types.js";
 export type {
   AIReqAgentModel,
@@ -96,7 +97,6 @@ export interface AIReqReviewAgent {
 export interface AIReqReview {
   kind?: "original" | "full";
   invalidatedReason?: string;
-  held?: boolean;
   agents?: AIReqReviewAgent[];
   humanDecision?: { employeeId: string; decidedAt: string; reviewId: string };
   id: string;
@@ -133,18 +133,22 @@ export interface AIReqRequirementSnapshot {
   files: AIReqFileVersion[];
   digest: string;
 }
-export interface AIReqPrFact {
-  /** Only returned when the code-hosting provider supplies an accessible URL. */
-  url?: string;
-  sourceBranch: string;
-  targetBranch: string;
-  recordedAt: string;
-  platformVerified: false;
-  number?: number;
-  title?: string;
-  body?: string;
-  status?: "opened" | "merged" | "closed";
-}
+/** 平台核验是正式布尔事实；内存记录不代表外部平台核验成功。 */
+export const aiReqPrFactSchema = z
+  .object({
+    /** Only returned when the code-hosting provider supplies an accessible URL. */
+    url: z.string().optional(),
+    sourceBranch: z.string(),
+    targetBranch: z.string(),
+    recordedAt: z.string(),
+    platformVerified: z.boolean(),
+    number: z.number().optional(),
+    title: z.string().optional(),
+    body: z.string().optional(),
+    status: z.enum(["opened", "merged", "closed"]).optional(),
+  })
+  .strict();
+export type AIReqPrFact = z.infer<typeof aiReqPrFactSchema>;
 export interface AIReqMergeFact {
   commit: string;
   branch: string;
@@ -251,7 +255,6 @@ export interface AIReqSystemRequirement {
     status?: "ready" | "failed" | "deleted";
     error?: string;
     deletedAt?: string;
-    nextCleanupFailure?: boolean;
   };
   ompWebId?: string;
   id: string;
@@ -359,9 +362,7 @@ export interface AIReqRequirementGroup {
     changedAt: string;
     materials: AIReqMaterialView[];
   }[];
-  heldReviews?: AIReqReview[];
   rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
-  branchCreationFailures?: string[];
   ownerEmployeeId?: string;
   clientDraftId?: string;
   ompWebId?: string;

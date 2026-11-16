@@ -43,6 +43,8 @@ export const localeSchema = z.enum(SUPPORTED_LOCALES);
 export const localePreferenceSchema = z.enum(["system", ...SUPPORTED_LOCALES]);
 const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
+const appThemeSchema = z.enum(["light", "dark", "zai-light", "zai-dark", "system"]);
+const appUiFontSizeSchema = z.number().int().min(12).max(20);
 const desktopWindowSizeSchema = z.object({
   width: z.number().int().min(480),
   height: z.number().int().min(640),
@@ -144,6 +146,16 @@ const zcodeEndpointOriginSchema = z.preprocess((value) => {
     return undefined;
   }
 }, z.string().optional());
+
+// 历史读取可丢弃坏 endpoint；公开写入必须失败，不能把非法值归一成 undefined 后覆盖旧设置。
+const zcodeEndpointOriginPatchSchema = z.string().trim().min(1).transform((value, context) => {
+  try {
+    return normalizeZCodeEndpointOrigin(value);
+  } catch {
+    context.addIssue({ code: "custom", message: "Invalid endpoint origin" });
+    return z.NEVER;
+  }
+});
 
 function sanitizeZCodeEndpointOrigin(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -469,6 +481,8 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
+  theme: appThemeSchema.default("dark"),
+  uiFontSizePx: appUiFontSizeSchema.default(14),
   recentProjects: z.array(z.string()).default([]),
   locale: localeSchema.default("zh-CN"),
   // 快捷键用户覆盖（语义校验在 ui/src/shortcuts 生效表阶段容错，schema 只管形状）
@@ -556,7 +570,9 @@ export const appSettingsSchema = z.preprocess(
   appSettingsObjectSchema,
 );
 
-export const appSettingsPatchSchema = z.object({
+export const appSettingsPatchSchema = z.strictObject({
+  theme: appThemeSchema.optional(),
+  uiFontSizePx: appUiFontSizeSchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   locale: localeSchema.optional(),
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
@@ -586,7 +602,11 @@ export const appSettingsPatchSchema = z.object({
   enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.optional(),
   startPlanRecommendationDismissed: z.boolean().optional(),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.optional(),
-  providerFamilyDomain: z.union([providerFamilyDomainSchema, z.literal("")]).optional(),
+  // 清空选择的既有空串输入归一为正式可选值，不能把空串写进 AppSettings。
+  providerFamilyDomain: z
+    .union([providerFamilyDomainSchema, z.literal("")])
+    .transform((value) => value || undefined)
+    .optional(),
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),
   providerFamilyDomainMigrated: z.boolean().optional(),
   nativeSearchEnhancementsEnabled: z.boolean().optional(),
@@ -627,5 +647,5 @@ export const appSettingsPatchSchema = z.object({
   lastActiveTaskByWorkspace: z.record(z.string(), z.string()).optional(),
   dataBaseDir: z.string().trim().min(1).optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
-  zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  zcodeEndpointOrigin: zcodeEndpointOriginPatchSchema.optional(),
 });

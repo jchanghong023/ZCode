@@ -5,9 +5,9 @@
 
 ## 身份与所有权
 
-- Web entry 是当前连接的唯一 owner。首次渲染前初始化 stream client ID，再读取 `getStreamClientId()` 的规范值并固定；每次 `/ws` 连接传 `employeeId`、同一 `clientId`，以及当前页面 URL 的可选 `demo`。
-- AIReqApplication 对同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 stream singleton，demo 来自当前页面 URL。原生与业务调用必须具有完全相同的 employee/client/demo scope。私有 Skill 不能退化为仅按工号授权。
-- 不设 owner／负责人权限：所有合法工号都能修改共享配置和执行满足业务条件的动作，联系人／负责人只用于分工与留痕。backend.owner 仅为模拟来源；合法身份／clientId、参数、对象与原生会话归属、版本、幂等及阶段校验仍须保留。私有 Skill 会话与未发送草稿不因无角色权限而开放跨 employee/client 读取。Skill 设计从主导航进入，不在设置导航或搜索中；与设置往返仍保留原生会话、草稿及唯一未保存离开门禁，不改变 employee/client/demo scope、连接或订阅所有者。
+- Web entry 是当前连接的唯一 owner。首次渲染前初始化 stream client ID，再读取 `getStreamClientId()` 的规范值并固定；每次 `/ws` 只传合法 `employeeId` 与同一 `clientId`，不携带 `demo` 或额外场景参数。
+- AIReqApplication 在同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 stream singleton，原生与业务调用 employee/client 必须完全一致。队列、执行和公开 `origin:"realUser"` 行保持可信接纳时 clientId，客户端不能事后覆盖来源。私有 Skill 不能退化为仅按工号授权。
+- 不设 owner／负责人权限：所有合法工号可修改共享配置及执行满足门禁的动作，联系人／负责人仅分工和留痕；合法身份、clientId、参数、对象与原生会话归属、版本、幂等及阶段校验仍保留。opaque backend.id／workspaceIdentity 的有效隔离用途不变，不公开来源或 sample/live 分支。Skill 主导航、设置及搜索入口继续隐藏，保留私有会话、草稿与唯一未保存门禁，允许隔离临时浏览器装配验证，不改变 employee/client、连接和订阅 owner。
 - accessor 换代仅更换 attachment 和订阅；不得以连接代次作为 React key。退避、旧 attempt 失效和明确退出行为保持不变，正文、附件、当前选择及草稿 owner 不重挂。连接成功状态只需布尔值，不维护无用途的累计代次。
 - 局域网 HTTP（非 loopback）是受支持的访问方式；Firefox 中 `isSecureContext=false` 时
   `crypto.randomUUID` 和 `crypto.subtle` 不可用。浏览器会话、草稿、操作、遥测和预览的 UUID
@@ -18,7 +18,7 @@
   不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
   无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
 
-组 1 历史实测（2026-11-15，当时 Skill 位于设置，现行入口已改为主页面）：两个合法非 owner 工号均可保存共享设置，配置成功日志与命令回执使用实际 employee/client。Skill 设置切模型分区及返回工作区后原生未发送正文和一个 ready 图片附件保留；公开服务跨 client 读取同一私有 Skill session 仍被拒绝。本组使用 Chromium／localhost 开发环境，不新增 Firefox／局域网或完整重连矩阵的通过声明；详见 tools-settings.md 的组 1 实际验收。该记录不改写为当前主页面入口已在当时通过。
+组 1 历史实测（2026-11-15，当时 Skill 位于设置）：两个合法非 owner 工号均可保存共享设置，日志和回执使用实际 employee/client；Skill 设置往返后未发送正文和一个 ready 图片保留，跨 client 读取同一私有 Skill 会话被拒。当时为 Chromium／localhost 环境，详见 tools-settings.md 的组 1 记录；不证明当前隐藏实现或本轮整改通过，也不授权恢复设置／主导航入口。
 
 ## 时间与失效边界
 
@@ -30,12 +30,11 @@
 
 ## 回归证据要求
 
-- 比较同一页面的业务 identity 与 native `/ws` query，包含规范化 clientId 和 `?demo=analysis-scale`，私有 Skill 会话仅对应精确 scope 可读写。
+- 比较同页业务 identity 与 native `/ws` query 的合法工号和规范 clientId；额外 `demo`／场景字段拒绝，私有 Skill 仅精确 employee/client scope 可读写。通过真实两个客户端验证排队、流式用户行与历史分页来源一致，跨连接伪造拒绝。
 - 在首个 bootstrap pending 及 resolve 周期触发变更，必须补读，不得遗漏；初始化 reject 后订阅已释放。
 - 并发配置失效和本地 prompt 编辑不丢新输入；切换项目与重连不恢复旧 selection，不卸载正文和附件。验证由集成 owner 统一执行。
-- Firefox 使用真实局域网 HTTP 打开登录、当前六个主页面、保留的设置分区和可达子页；先保存提案再手动进入讨论、
-  既有会话、材料与图像预览必须在原生 `randomUUID` 缺失时正常工作。这是当前回归要求，不沿用历史八工作页／五设置分区或首发预热创建规则。
-  记录控制台 warning/error、未处理异常、失败请求及实际页面清单；开发服务器与正式构建证据分开。
+- 当前受影响电脑浏览器路径按[发布边界](release-surface.md)与根 `.todo.md` 逐项验证，不沿用历史八工作页／五设置或当前已被取代的六并列导航。保留原 UUID／附件摘要规则，必要时覆盖缺失原生 `randomUUID` 的浏览器环境；不因此重跑无关全页矩阵。
+  记录实际浏览器、页面清单、失败请求和控制台观察，开发环境与正式产物证据分开；隐藏 Skill 用隔离临时装配，不恢复产品入口。
 
 第 2 组之前主集成的历史观察（旧首发创建已被先建提案、手动进入讨论取代）：已核对bootstrap、actor与client/demo精确scope样例，并实测首发使用同owner/workspace的原生预热session：完整PNG及两次独立原生首发均自动打开canonical accepted会话。visitor会话读取失败后点击“重新连接”，通过重连前作用域化回调恢复同一会话编辑器，console零错误；刷新/关闭后服务任务状态延续及mock重启恢复初始样例也有观察。模型设置往返时工作页保持隐藏且inert，返回完整canonical未发送正文、PNG及临时GPT/medium均保留且不自动发送；Skill的完整PNG、四字段、手工追加与预览Tabs/折叠往返亦已实测。上述只保留当时具体场景证据，不等于每个bootstrap竞态、迟到响应或真实WS关闭场景均独立通过，不赋予owner业务权限。
 

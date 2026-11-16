@@ -149,6 +149,95 @@ export interface ArmsCustomEventPayload {
   properties?: Record<string, string | number | boolean | undefined>;
 }
 
+export const rendererTelemetryEventPayloadSchema = z.object({
+  elementName: z.string(),
+  eventRegion: z.string(),
+  eventType: z.string(),
+  eventText: z.string().optional(),
+  eventExtraDetail: z.record(z.string(), z.string()),
+  userId: z.string().optional(),
+  talkId: z.string().optional(),
+  messageId: z.string().optional(),
+  context: z.object({
+    uiMode: telemetryUiModeSchema.optional(),
+    clientTimezone: z.string(),
+    clientLanguage: z.string(),
+    screenResolution: z.string(),
+  }).strict(),
+}).strict() satisfies z.ZodType<RendererTelemetryEventPayload>;
+
+export const armsCustomEventPayloadSchema = z.object({
+  name: z.string(),
+  group: z.string(),
+  value: z.number().optional(),
+  properties: z.record(z.string(), z.union([
+    z.string(), z.number(), z.boolean(), z.undefined(),
+  ])).optional(),
+}).strict() satisfies z.ZodType<ArmsCustomEventPayload>;
+
+/** 正式同源 HTTP 接收信封；未知字段必须拒绝，不能先剥离再接纳。 */
+export const telemetryEventRequestSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("ui"), payload: rendererTelemetryEventPayloadSchema }).strict(),
+  z.object({ kind: z.literal("arms"), payload: armsCustomEventPayloadSchema }).strict(),
+]);
+export type TelemetryEventRequest = z.infer<typeof telemetryEventRequestSchema>;
+
+const sensitiveTelemetryField = /^(?:token|access[_-]?token|refresh[_-]?token|password|passwd|secret|client[_-]?secret|authorization|cookie|set-cookie|api[_-]?key)$/i;
+
+function sanitizeTelemetryField(key: string, value: string): string {
+  // 凭据可能是不带格式的任意值，命中敏感字段时整值抹除，不靠正则猜测秘密内容。
+  return sensitiveTelemetryField.test(key)
+    ? "[redacted]"
+    : redactTelemetryText(value);
+}
+
+/** 浏览器发送与服务接收共用，只生成脱敏副本，不修改业务对象。 */
+export function sanitizeTelemetryEventRequest(input: TelemetryEventRequest): TelemetryEventRequest {
+  if (input.kind === "arms") {
+    const { payload } = input;
+    return {
+      kind: "arms",
+      payload: {
+        ...payload,
+        name: redactTelemetryText(payload.name),
+        group: redactTelemetryText(payload.group),
+        properties: payload.properties && Object.fromEntries(
+          Object.entries(payload.properties).map(([key, value]) => [
+            redactTelemetryText(key),
+            typeof value === "string" || sensitiveTelemetryField.test(key)
+              ? sanitizeTelemetryField(key, String(value))
+              : value,
+          ]),
+        ),
+      },
+    };
+  }
+  const { payload } = input;
+  const detail = sanitizeTelemetryEventDetail(payload.elementName, payload.eventExtraDetail);
+  return {
+    kind: "ui",
+    payload: {
+      ...payload,
+      elementName: redactTelemetryText(payload.elementName),
+      eventRegion: redactTelemetryText(payload.eventRegion),
+      eventType: redactTelemetryText(payload.eventType),
+      eventText: payload.eventText === undefined ? undefined : redactTelemetryText(payload.eventText),
+      userId: payload.userId === undefined ? undefined : redactTelemetryText(payload.userId),
+      talkId: payload.talkId === undefined ? undefined : redactTelemetryText(payload.talkId),
+      messageId: payload.messageId === undefined ? undefined : redactTelemetryText(payload.messageId),
+      eventExtraDetail: Object.fromEntries(Object.entries(detail).map(([key, value]) => [
+        redactTelemetryText(key), sanitizeTelemetryField(key, value),
+      ])),
+      context: {
+        ...payload.context,
+        clientTimezone: redactTelemetryText(payload.context.clientTimezone),
+        clientLanguage: redactTelemetryText(payload.context.clientLanguage),
+        screenResolution: redactTelemetryText(payload.context.screenResolution),
+      },
+    },
+  };
+}
+
 /** desktop main 实际传给 armsRum.sendCustom 的最终参数。 */
 export interface FinalArmsCustomEventPayload {
   name: string;

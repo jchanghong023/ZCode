@@ -174,9 +174,6 @@ export async function createRemoteAIReqDataSource(
   }
   const source: AIReqDataSource = {
     clientId,
-    get provenance() {
-      return metadata.provenance;
-    },
     get backend() {
       return metadata.backend;
     },

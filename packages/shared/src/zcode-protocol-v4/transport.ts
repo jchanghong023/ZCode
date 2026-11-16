@@ -124,7 +124,7 @@ export const subscribeParamsSchema = z
     // "conversation/<sessionId>" | "sessions-index/<workspaceId>" | ...
     topic: z.string(),
     // 水位不变量：仅当客户端真持有该时刻一致状态才允许带。
-    base: z.object({ logEpoch: z.string(), seq: z.number() }).optional(),
+    base: z.strictObject({ logEpoch: z.string(), seq: z.number() }).optional(),
     // 手动重试仅消费当前 failed attempt；普通重连不重跑 hook。
     retryInitialization: z.string().min(1).optional(),
     // QoS hint，只影响调度，不影响语义。
@@ -552,7 +552,7 @@ export type V4ConversationUnsubscribeParams = z.infer<typeof v4ConversationUnsub
 
 // ── rows/range（游标制行分页，loadOlder）──
 // 无 index 语义：全序 = rowId 升序；客户端按 rowId 键控合并。
-export const v4ConversationRowsRangeParamsSchema = z.object({
+export const v4ConversationRowsRangeParamsSchema = z.strictObject({
   workspace: v4ColdResumeWorkspaceSchema,
   sessionId: z.string(),
   /** Host attachment injects this trusted value; renderer callers omit it. */

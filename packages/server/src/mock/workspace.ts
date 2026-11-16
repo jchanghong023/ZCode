@@ -5,6 +5,7 @@ import * as nodePath from "node:path";
 
 import { Emitter, type Event } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
+import { packWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCodec";
 import type {
   IGitService,
   IFileService,
@@ -106,6 +107,35 @@ export class MockFileService implements IFileService {
     );
   }
 
+  private requireNode(path: string, kind?: VirtualFileNode["kind"]): VirtualFileNode {
+    const node = this.resolveVirtual(path);
+    // 缺失和类型错误不能伪装成空内容；空文件只由真实 file 节点表达。
+    if (!node) throw new Error("文件或目录不存在。");
+    if (kind && node.kind !== kind) {
+      throw new Error(kind === "file" ? "该路径是目录，不能作为文件读取。" : "该路径不是目录。");
+    }
+    return node;
+  }
+
+  private workspaceEntries(rootPath: string): WorkspaceFileEntry[] {
+    const root = rootPath || this.runtime.workspacePath;
+    const entries: WorkspaceFileEntry[] = [];
+    const walk = (node: VirtualFileNode, segments: string[]) => {
+      for (const child of node.children?.values() ?? []) {
+        const relativeSegments = [...segments, child.name];
+        entries.push({
+          name: child.name,
+          path: joinPath(root, relativeSegments),
+          relativePath: relativeSegments.join("/"),
+          type: child.kind,
+        });
+        if (child.kind === "directory") walk(child, relativeSegments);
+      }
+    };
+    walk(this.requireNode(root, "directory"), []);
+    return entries;
+  }
+
   async searchWorkspaceFiles(params: {
     rootPath: string;
     workspaceIdentity?: string;
@@ -140,10 +170,9 @@ export class MockFileService implements IFileService {
 
   async readdir(params: { path: string; includeHidden?: boolean }): Promise<FileEntry[]> {
     const base = params.path || this.runtime.workspacePath;
-    const node = this.resolveVirtual(base) ?? this.runtime.virtualRoot;
-    if (node.kind !== "directory" || !node.children) return [];
+    const node = this.requireNode(base, "directory");
     const entries: FileEntry[] = [];
-    for (const child of node.children.values()) {
+    for (const child of node.children?.values() ?? []) {
       if (!params.includeHidden && child.name.startsWith(".")) continue;
       entries.push({
         name: child.name,
@@ -158,14 +187,11 @@ export class MockFileService implements IFileService {
   }
 
   async stat(params: { path: string }): Promise<FileStat> {
-    const node = this.resolveVirtual(params.path);
-    if (!node) {
-      throw new Error(`mock: ENOENT ${params.path}`);
-    }
+    const node = this.requireNode(params.path);
     return {
       path: params.path,
       type: node.kind,
-      ...(node.kind === "file" ? { size: node.content?.length ?? 0 } : {}),
+      ...(node.kind === "file" ? { size: Buffer.byteLength(node.content ?? "", "utf8") } : {}),
       mtimeMs: node.mtimeMs,
     };
   }
@@ -182,21 +208,20 @@ export class MockFileService implements IFileService {
     offset?: number;
     length?: number;
   }): Promise<FileTextSlice> {
-    const node = this.resolveVirtual(params.path);
-    const content = node?.kind === "file" ? (node.content ?? "") : "";
-    const bytes = Buffer.byteLength(content, "utf8");
+    const node = this.requireNode(params.path, "file");
+    const buffer = Buffer.from(node.content ?? "", "utf8");
+    const bytes = buffer.length;
     const offset = params.offset ?? 0;
     const length = params.length ?? bytes;
-    const sliced = Buffer.from(content, "utf8")
-      .subarray(offset, offset + length)
-      .toString("utf8");
+    const slice = buffer.subarray(offset, offset + length);
+    const sliced = slice.toString("utf8");
     return {
       path: params.path,
       content: sliced,
       offset,
-      bytesRead: Buffer.byteLength(sliced, "utf8"),
+      bytesRead: slice.length,
       totalBytes: bytes,
-      truncated: offset + Buffer.byteLength(sliced, "utf8") < bytes,
+      truncated: offset + slice.length < bytes,
       isBinary: false,
     };
   }
@@ -210,25 +235,30 @@ export class MockFileService implements IFileService {
     offset: number;
     length: number;
   }): Promise<Uint8Array> {
-    const node = this.resolveVirtual(params.path);
-    const content = node?.kind === "file" ? (node.content ?? "") : "";
-    return Buffer.from(content, "utf8").subarray(params.offset, params.offset + params.length);
+    const node = this.requireNode(params.path, "file");
+    return Buffer.from(node.content ?? "", "utf8").subarray(
+      params.offset,
+      params.offset + params.length,
+    );
   }
 
   async readBinaryPreview(_params: { path: string; maxBytes?: number }): Promise<never> {
     throw new Error("mock: 二进制预览未启用");
   }
 
-  async listWorkspaceFilesLength(_params: { rootPath: string }): Promise<number> {
-    return 0;
+  async listWorkspaceFilesLength(params: { rootPath: string }): Promise<number> {
+    return packWorkspaceFileEntries(this.workspaceEntries(params.rootPath)).length;
   }
 
-  async listWorkspaceFilesRange(_params: {
+  async listWorkspaceFilesRange(params: {
     rootPath: string;
     offset: number;
     length: number;
   }): Promise<string> {
-    return "";
+    return packWorkspaceFileEntries(this.workspaceEntries(params.rootPath)).slice(
+      params.offset,
+      params.offset + params.length,
+    );
   }
 }
 
@@ -372,14 +402,41 @@ export class MockGitService implements IGitService {
   }
 
   async getDiff(params: GitDiffQuery): Promise<GitDiffResult> {
-    return {
-      path: params.path,
-      availability: "patch" as const,
-      patch: `--- a/${params.path}\n+++ b/${params.path}\n@@ -1,3 +1,4 @@\n 模拟差异上下文\n+新增行\n`,
-      beforeContent: null,
-      afterContent: null,
-      summary: null,
+    const path = toWorkspaceRelativePath(this.runtime.workspacePath, params.path).replace(/\\/g, "/");
+    const sourceId = params.sourceId ?? (params.staged ? "staged" : "unstaged");
+    const contents = this.runtime.git.diffs.find(
+      (entry) => entry.path === path && entry.sourceId === sourceId,
+    );
+    if (!contents || (contents.beforeContent === null && contents.afterContent === null)) {
+      return {
+        path: params.path,
+        availability: "unavailable",
+        patch: null,
+        beforeContent: null,
+        afterContent: null,
+        summary: "没有可读取的差异内容。",
+      };
+    }
+    const { beforeContent, afterContent } = contents;
+    // 全文件 hunk 只表达真实前后内容；末行换行事实不能在生成 patch 时补造。
+    const lines = (text: string | null) => {
+      if (!text) return [];
+      const result = text.split("\n");
+      if (text.endsWith("\n")) result.pop();
+      return result;
     };
+    const before = lines(beforeContent);
+    const after = lines(afterContent);
+    const body = (text: string | null, values: string[], prefix: string) =>
+      values.map((line) => `${prefix}${line}\n`).join("") +
+      (text && !text.endsWith("\n") ? "\\ No newline at end of file\n" : "");
+    const patch = beforeContent === afterContent
+      ? ""
+      : `--- ${beforeContent === null ? "/dev/null" : `a/${path}`}\n` +
+        `+++ ${afterContent === null ? "/dev/null" : `b/${path}`}\n` +
+        `@@ -${before.length ? 1 : 0},${before.length} +${after.length ? 1 : 0},${after.length} @@\n` +
+        body(beforeContent, before, "-") + body(afterContent, after, "+");
+    return { path: params.path, availability: "patch", patch, beforeContent, afterContent, summary: null };
   }
 
   async getBranchComparison(_params: GitRepositoryRequest): Promise<GitBranchComparison> {
@@ -446,26 +503,15 @@ export class MockGitService implements IGitService {
   }
 
   async getIdentity(_params: GitRepositoryRequest): Promise<GitIdentity> {
-    return {
-      userName: "ZCode Mock",
-      userEmail: "mock@zcode.local",
-      nameSource: "mock",
-      emailSource: "mock",
-      scopeLabel: null,
-    };
+    return this.runtime.git.identity
+      ? { ...this.runtime.git.identity }
+      : { userName: null, userEmail: null, nameSource: null, emailSource: null, scopeLabel: null };
   }
 
   async refresh(params: GitRefreshRequest): Promise<GitRefreshResult> {
     return {
       summary: this.summary(params),
-      identity: params.includeIdentity
-        ? {
-            userName: "ZCode Mock",
-            userEmail: "mock@zcode.local",
-            nameSource: "mock",
-            emailSource: "mock",
-          }
-        : null,
+      identity: params.includeIdentity ? await this.getIdentity(params) : null,
       unstagedChanges: this.fileChanges().filter((change) => change.section === "unstaged"),
       stagedChanges: this.fileChanges().filter((change) => change.section === "staged"),
       branchComparison: params.includeBranchComparison

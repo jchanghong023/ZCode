@@ -200,10 +200,6 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
           </section>
         </div>
         <footer className="flex shrink-0 flex-col items-center gap-2 text-center text-ui-xs text-foreground-subtle">
-          <p>
-            演示环境：数据不会永久保存，尚未接入真实 AI
-            或代码托管服务。工号仅用于记录操作，不代表身份验证。
-          </p>
           <p>ZCode · AIReq</p>
         </footer>
       </div>

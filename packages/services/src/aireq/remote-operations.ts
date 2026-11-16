@@ -1,5 +1,5 @@
 import type { SkillSummary } from "@zcode/shared";
-import type { AIReqBackendView, AIReqDataSource, AIReqDataProvenance } from "./data-source.js";
+import type { AIReqBackendView, AIReqDataSource } from "./data-source.js";
 import type {
   AIReqAction,
   AIReqAgentModelBinding,
@@ -137,7 +137,6 @@ export type AIReqRemoteCall = {
 }[AIReqRemotePath];
 export interface AIReqRemoteBootstrap {
   contractVersion: typeof AIREQ_CONTRACT_VERSION;
-  provenance: AIReqDataProvenance;
   backend: AIReqBackendView;
   capabilities: AIReqDataSource["capabilities"];
   initialSelection: AIReqSelection;

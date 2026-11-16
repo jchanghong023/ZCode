@@ -4,6 +4,7 @@
 // 保证与真实执行端同一条协议契约（fail-closed，坏帧宁可抛错也不上线）。
 // 方法签名统一从 IZCodeAgentService 派生（Parameters/ReturnType），避免与契约漂移。
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { Emitter, Event, type IDisposable } from "@zcode/rpc";
 import { createUuid, type SessionLifecycleSnapshot } from "@zcode/shared";
 import {
@@ -13,6 +14,15 @@ import {
   queueItemSchema,
   sessionsIndexTopicFrameSchema,
   sessionsIndexTopicWireFrameSchema,
+  subscribeParamsSchema,
+  v4ConversationRowsRangeParamsSchema,
+  v4ConversationWorkflowRunsParamsSchema,
+  v4ConversationWorkflowRunEventsParamsSchema,
+  v4ConversationWorkflowRunArtifactsParamsSchema,
+  v4ConversationWorkflowRunArtifactDataParamsSchema,
+  v4ConversationWorkflowRunArtifactReadParamsSchema,
+  v4ConversationWorkflowRunWorkspaceParamsSchema,
+  v4ConversationWorkflowRunNodeResultParamsSchema,
   workspaceConfigTopicFrameSchema,
   workspaceConfigTopicWireFrameSchema,
   type ClientHello,
@@ -30,6 +40,7 @@ import {
   type WorkspaceConfigTopicWireFrame,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IZCodeAgentService } from "@zcode/services";
+import { businessFailureMessage, businessRule } from "../aireq/errors.js";
 import {
   buildConversationSnapshot,
   buildSessionSummary,
@@ -43,6 +54,37 @@ import {
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 type MockSubmission = Pick<QueueItem, "modelSelection" | "mode" | "planEnabled">;
+
+// Channel 的扁平工作区目标复用 wire 的实际输入规则；仅保留连接 facade 注入的可信载体。
+const workspaceTargetShape = {
+  workspacePath: z.string(),
+  workspaceIdentity: z.string().optional(),
+  remoteSessionId: z.string().optional(),
+  __zcodeTrustedV4Connection: z.unknown().optional(),
+};
+const conversationSubscribeInputSchema = subscribeParamsSchema.omit({ topic: true }).extend({
+  ...workspaceTargetShape,
+  sessionId: z.string(),
+});
+const workspaceSubscribeInputSchema = subscribeParamsSchema
+  .omit({ topic: true, retryInitialization: true })
+  .extend({
+    ...workspaceTargetShape,
+    subscriberScope: z.string().optional(),
+    runtimePolicy: z.enum(["start-if-needed", "existing-only"]).optional(),
+  });
+const conversationRowsRangeInputSchema = v4ConversationRowsRangeParamsSchema
+  .omit({ workspace: true, clientMode: true })
+  .extend(workspaceTargetShape);
+const workflowReadInputSchemas = {
+  runs: v4ConversationWorkflowRunsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  events: v4ConversationWorkflowRunEventsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  artifacts: v4ConversationWorkflowRunArtifactsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  data: v4ConversationWorkflowRunArtifactDataParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  read: v4ConversationWorkflowRunArtifactReadParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  workspace: v4ConversationWorkflowRunWorkspaceParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  node: v4ConversationWorkflowRunNodeResultParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+};
 
 interface ConversationSubscription {
   sessionId: string;
@@ -362,6 +404,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private async runTurn(
     session: MockSession,
     commandId: string,
+    clientId: string,
     text: string,
     submission: MockSubmission,
   ): Promise<void> {
@@ -410,7 +453,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       text,
       origin: "realUser",
       sourceCommandId: commandId,
-      clientId: "mock-client",
+      clientId,
       inputOrigin: "desktop",
       attachments: this.turnAttachments.get(commandId),
       modelSelection,
@@ -444,6 +487,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         });
         this.finalizeTurn(session, turnHeader, startedAt, reply);
       } catch (error) {
+        // 已接纳不等于完成：只透出显式安全业务错误，未知详情由既有服务端诊断记录。
+        const message = businessFailureMessage(error, "业务处理失败，请稍后重试。");
         this.appendRow(session, {
           kind: "assistantText",
           rowId: this.nextRowId(session),
@@ -452,11 +497,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           createdAt: Date.now(),
           createdAtSeq: session.seq,
           assistantResponseId: responseId,
-          text: `业务产物未完成：${error instanceof Error ? error.message : String(error)}。消息已保留，请重新读取当前材料；不会假报成功。`,
-          state: "complete",
+          text: `${message}\n\n消息已保留，请重新读取当前材料后重试。`,
+          state: "failed",
           model,
         });
-        this.finalizeInterruptedTurn(session, turnHeader);
+        this.finalizeInterruptedTurn(session, turnHeader, "failed");
       }
       return;
     }
@@ -545,7 +590,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.finalizeTurn(session, turnHeader, startedAt, reply);
   }
 
-  private finalizeInterruptedTurn(session: MockSession, turnHeader: WireConversationRow): void {
+  private finalizeInterruptedTurn(
+    session: MockSession,
+    turnHeader: WireConversationRow,
+    state: "completedInterrupted" | "failed" = "completedInterrupted",
+  ): void {
     // turn 已收口：清掉运行句柄，后续 sendText 才会开始新 turn，队列才允许续跑。
     session.activeTurn = null;
     session.phase = "completedInterrupted";
@@ -553,7 +602,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (turnHeader.kind === "turnHeader") {
       this.upsertRow(session, {
         ...turnHeader,
-        state: "completedInterrupted",
+        state,
         endedAt: Date.now(),
         activeMs: Date.now() - turnHeader.startedAt,
       });
@@ -663,21 +712,21 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         { ...params.workspace, sessionId: params.sessionId },
         workspaceKeyOf(params.workspace),
       );
-    if (!session) throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+    if (!session) throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     if (
       params.workspace &&
       (session.workspaceKey !== workspaceKeyOf(params.workspace) ||
         session.workspaceRef.workspacePath !== params.workspace.workspacePath)
     ) {
       // 会话按工作区隔离：不属于调用方工作区的会话对外等价于不存在。
-      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     }
     if (
       session.draftCreatorActor &&
       session.draftCreatorActor !== this.business?.actorKey() &&
       !this.business?.isPublishedNativeSession(session.sessionId)
     )
-      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     return session;
   }
 
@@ -767,18 +816,19 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private startTurn(
     session: MockSession,
     commandId: string,
+    clientId: string,
     text: string,
     attachments?: QueueItem["attachments"],
     submission: MockSubmission = {},
   ): void {
-    // 队列编辑后的附件以队列项为准，沿用原命令身份进入同一 turn 管线。
+    // 接纳来源沿信封／队列项传递，不能被后续提升、恢复或编辑命令的操作者覆盖。
     if (attachments !== undefined) this.turnAttachments.set(commandId, attachments);
     session.activeTurn = {
       abort: () => {
         session.activeTurn = null;
       },
     };
-    void this.runTurn(session, commandId, text, submission);
+    void this.runTurn(session, commandId, clientId, text, submission);
   }
 
   /** turn 结束后处理 sendQueuedNow 提升项或 autoDrain 队列；运行中不并发开新 turn。 */
@@ -788,14 +838,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (session.pendingStartInput !== null) {
       const input = session.pendingStartInput;
       session.pendingStartInput = null;
-      this.startTurn(session, input.sourceCommandId, input.text, input.attachments, input);
+      this.startTurn(session, input.sourceCommandId, input.clientId, input.text, input.attachments, input);
       return;
     }
     if (!session.autoDrain) return;
     const next = session.queuedInputs.shift();
     if (!next) return;
     this.patchQueue(session);
-    this.startTurn(session, next.sourceCommandId, next.text, next.attachments, next);
+    this.startTurn(session, next.sourceCommandId, next.clientId, next.text, next.attachments, next);
   }
 
   private createSessionInternal(envelope: CommandEnvelope): CommandAck {
@@ -819,7 +869,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         existing.workspaceRef.workspacePath !== sessionRef.workspacePath ||
         (existing.draftCreatorActor && existing.draftCreatorActor !== this.business?.actorKey())
       )
-        throw new Error("fault.command.sessionNotFound");
+        throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
       if (payload.firstInput)
         throw new Error("此会话已存在，请通过原消息编号查询接纳结果或使用 sendText。");
       return this.ackAccepted(envelope, { type: "createSession", sessionId });
@@ -976,7 +1026,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         inputId: item.queueItemId,
       });
     }
-    this.startTurn(session, envelope.commandId, payload.text, undefined, payload);
+    this.startTurn(session, envelope.commandId, envelope.clientId, payload.text, undefined, payload);
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",
@@ -1032,7 +1082,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           session.activeTurn.abort();
           session.activeTurn = null;
         } else {
-          this.startTurn(session, item.sourceCommandId, item.text, item.attachments, item);
+          this.startTurn(session, item.sourceCommandId, item.clientId, item.text, item.attachments, item);
         }
         this.patchQueue(session);
         return this.ackAccepted(envelope);
@@ -1340,6 +1390,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   ): Promise<void> {}
 
   async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
+    // 必须先验证原始入参，不能在预热／订阅之前只挑已知字段导致额外键被吞掉。
+    conversationSubscribeInputSchema.parse(params);
     const workspaceKey = workspaceKeyOf(params);
     const session = this.ensureOrSeedDraftSession(params, workspaceKey);
     const binding = this.business?.getNativeBinding(session.sessionId);
@@ -1394,12 +1446,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           !this.business?.isPublishedNativeSession(existing.sessionId))
       ) {
         // 会话 id 属于另一个工作区时等价于不存在，避免跨工作区读取会话状态。
-        throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+        throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
       }
       return existing;
     }
     if (this.business && !this.business.getNativeBinding(params.sessionId))
-      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     const now = Date.now();
     const session: MockSession = {
       sessionId: params.sessionId,
@@ -1466,6 +1518,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async conversationRowsRangeV4(params: P<IZCodeAgentService["conversationRowsRangeV4"]>) {
+    conversationRowsRangeInputSchema.parse(params);
     // 原因：ensureSession 会补建有业务引用的缺失会话；只读驻留查询必须先拒绝，不能产生历史。
     if (params.residency === "resident-only" && !this.runtime.sessions.has(params.sessionId)) {
       throw new Error("proto.sessionNotResident");
@@ -1559,6 +1612,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async subscribeSessionsIndexV4(params: P<IZCodeAgentService["subscribeSessionsIndexV4"]>) {
+    workspaceSubscribeInputSchema.parse(params);
     const workspaceKey = workspaceKeyOf(params);
     const subscriptionId = `sub-${createUuid()}`;
     this.sessionsIndexSubs.set(subscriptionId, {
@@ -1629,6 +1683,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async subscribeWorkspaceConfigV4(params: P<IZCodeAgentService["subscribeWorkspaceConfigV4"]>) {
+    workspaceSubscribeInputSchema.parse(params);
     const workspaceKey = workspaceKeyOf(params);
     const subscriptionId = `sub-${createUuid()}`;
     this.workspaceConfigSubs.set(subscriptionId, {
@@ -1891,7 +1946,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (!value) throw new Error("附件不存在。");
     // 原因：历史附件可能在会话移除后才读取，不能通过 ensureSession 重建空会话。
     if (!this.runtime.sessions.has(params.sessionId)) {
-      throw new Error(`fault.command.sessionNotFound: ${params.sessionId}`);
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
     }
     const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     const own = value.actor === (this.business?.actorKey() ?? "mock");
@@ -2061,61 +2116,72 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return { kind: "unsupported" } as unknown as AR<IZCodeAgentService["backgroundBashOutputV4"]>;
   }
 
+  private workflowReadSession(params: {
+    sessionId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): void {
+    // 查询不能通过 ensureSession 预热已移除会话，也不能绕过原生草稿归属。
+    if (!this.runtime.sessions.has(params.sessionId)) {
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
+    }
+    this.ensureSession({ sessionId: params.sessionId, workspace: params });
+  }
+
+  private unsupportedWorkflowRead(): never {
+    throw Object.assign(new Error("当前服务不支持读取工作流产物或节点结果。"), {
+      code: "fault.command.capabilityUnsupported",
+      publicMessage: true,
+    });
+  }
+
   async conversationWorkflowRunEventsV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunEventsV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunEventsV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunEventsV4"]>> {
-    return { events: [], hasMore: false } as unknown as AR<
-      IZCodeAgentService["conversationWorkflowRunEventsV4"]
-    >;
+    this.workflowReadSession(workflowReadInputSchemas.events.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   async conversationWorkflowRunsV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunsV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunsV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunsV4"]>> {
-    return { runs: [] } as unknown as AR<IZCodeAgentService["conversationWorkflowRunsV4"]>;
+    this.workflowReadSession(workflowReadInputSchemas.runs.parse(params));
+    return { runs: [] };
   }
 
   async conversationWorkflowRunArtifactsV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>> {
-    return { artifacts: [], hasMore: false } as unknown as AR<
-      IZCodeAgentService["conversationWorkflowRunArtifactsV4"]
-    >;
+    this.workflowReadSession(workflowReadInputSchemas.artifacts.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   async conversationWorkflowRunArtifactDataV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>> {
-    return { items: [], hasMore: false } as unknown as AR<
-      IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]
-    >;
+    this.workflowReadSession(workflowReadInputSchemas.data.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   async conversationWorkflowRunArtifactReadV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>> {
-    return {
-      dataBase64: "",
-      mediaType: "text/plain",
-      totalBytes: 0,
-      nextOffset: null,
-    } as unknown as AR<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>;
+    this.workflowReadSession(workflowReadInputSchemas.read.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   async conversationWorkflowRunWorkspaceV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>> {
-    return { rows: [], hasMore: false } as unknown as AR<
-      IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]
-    >;
+    this.workflowReadSession(workflowReadInputSchemas.workspace.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   async conversationWorkflowRunNodeResultV4(
-    _params: P<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>,
+    params: P<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>,
   ): Promise<AR<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>> {
-    return { content: "", truncated: false } as unknown as AR<
-      IZCodeAgentService["conversationWorkflowRunNodeResultV4"]
-    >;
+    this.workflowReadSession(workflowReadInputSchemas.node.parse(params));
+    return this.unsupportedWorkflowRead();
   }
 
   supportsConversationQuoteComment(

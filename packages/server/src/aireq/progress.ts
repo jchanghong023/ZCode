@@ -1,4 +1,5 @@
 import { businessRule } from "./errors.js";
+import type { InternalSystemRequirement } from "./internal-scenarios.js";
 import { digestValue } from "./content-digest.js";
 import { srCompletionBlocker, srProgress } from "@zcode/services/aireq";
 import type {
@@ -364,7 +365,7 @@ export async function failNextPrototypeBranchCleanup(
     "failNextBranchCleanup",
     input,
     (_state, _group, target) => {
-      const sr = target!;
+      const sr = target! as InternalSystemRequirement;
       if (!sr.trackingBranch?.name || sr.trackingBranch.status === "deleted")
         throw businessRule("没有可清理的登记开发分支。");
       sr.trackingBranch.nextCleanupFailure = true;
@@ -396,7 +397,7 @@ export async function cleanupPrototypeBranches(
       for (const item of items) {
         const sr = state.srs.find(
           (row) => row.projectId === projectId && row.irId === irId && row.id === item.srId,
-        )!;
+        )! as InternalSystemRequirement;
         const branch = sr.trackingBranch;
         if (!branch || branch.status === "deleted") continue;
         if (

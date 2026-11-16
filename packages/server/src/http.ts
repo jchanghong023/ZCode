@@ -44,7 +44,11 @@ import {
   type ServiceExposurePolicy,
   createZCodeAgentConnectionScope,
 } from "@zcode/services";
-import { formatLogPrefix } from "@zcode/shared";
+import {
+  formatLogPrefix,
+  sanitizeTelemetryEventRequest,
+  telemetryEventRequestSchema,
+} from "@zcode/shared";
 import { getConnectionServices, validateAIReqIdentity } from "./aireq/contract.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 
@@ -246,6 +250,8 @@ const publicMembers = new Map([
 ]);
 const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
 
+let nextBroadcastSourceId = 0;
+
 /** 为一条 WebSocket 连接装配 ChannelServer，只暴露产品公开成员。 */
 function setupChannelServer(
   socket: ISocket,
@@ -274,8 +280,31 @@ function setupChannelServer(
   if (connectionScope) {
     overrides.set(IZCodeAgentService.channelName, connectionScope.service);
   }
+  const broadcast = services.get(IBroadcastService);
+  const sourceWindowId = ++nextBroadcastSourceId;
+  const incoming = new Emitter<Parameters<IBroadcastService["send"]>[0]>();
+  let closed = false;
+  // 来源归连接而非客户端正文；同 clientId 的两个标签页也必须互相收到。
+  const broadcastListener = broadcast.onMessage((message) => {
+    if (!closed && message.sourceWindowId !== sourceWindowId) incoming.fire(message);
+  });
+  const connectionBroadcast: IBroadcastService = {
+    send: (message) => {
+      if (closed) return Promise.reject(new Error("广播连接已关闭。"));
+      return broadcast.send({ channel: message.channel, payload: message.payload, sourceWindowId });
+    },
+    onMessage: incoming.event,
+    acquireClaim: (key) => broadcast.acquireClaim(key),
+    commitClaim: (lease) => broadcast.commitClaim(lease),
+    releaseClaim: (lease) => broadcast.releaseClaim(lease),
+    tryClaim: (key) => broadcast.tryClaim(key),
+  };
+  overrides.set(IBroadcastService.channelName, connectionBroadcast);
   services.exposeOnChannelServer(loggedServer, overrides, publicExposure);
   socket.onClose(() => {
+    closed = true;
+    broadcastListener.dispose();
+    incoming.dispose();
     void connectionScope?.dispose();
     rawServer.dispose();
   });
@@ -491,6 +520,22 @@ export function createMockHttpServer(
   app.get("/api/v1/client/configs", (c) => {
     c.header("Cache-Control", "no-store");
     return c.json({ code: 0, data: { configs: { feedbackUrl: localAppConfig } } });
+  });
+
+  app.post("/api/v1/telemetry/events", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: { code: "INVALID_ARGUMENT", message: "遥测事件格式无效。" } }, 400);
+    }
+    const parsed = telemetryEventRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: { code: "INVALID_ARGUMENT", message: "遥测事件格式无效。" } }, 400);
+    }
+    // 接收 owner 在 202 前交给真实服务诊断；只记录清洗副本，不公开读取或持久化承诺。
+    log("telemetry:accepted", sanitizeTelemetryEventRequest(parsed.data));
+    return c.body(null, 202);
   });
 
   app.get("/ws", (c) => {

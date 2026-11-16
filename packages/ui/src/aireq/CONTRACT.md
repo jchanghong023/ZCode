@@ -1,8 +1,12 @@
 # AIReq UI
 
-产品页面与公开接口遵守 `docs/specs/aireq-migration/release-surface.md`：联系人、材料、评审、交付、分析及维护仍属正常业务；场景控制、故障注入、模拟合入与调试时钟不在浏览器契约中。环境限制集中到登录及帮助，未知异常使用稳定业务提示。
+产品页面与公开接口遵守 `docs/specs/aireq-migration/release-surface.md`：联系人、材料、评审、交付、分析及维护仍属正常业务；场景控制、故障注入、模拟合入与调试时钟不在浏览器契约中。环境限制只记部署／交付说明，不在登录、帮助、提示词或用户材料显示；未知异常使用稳定业务提示。
 
-当前产品规则以根 `.todo.md` 已确认要求及 `docs/specs/aireq-migration/project-space.md` 为准；其已完成任务与收口记录保留各自历史版本边界。
+原生工具失败仅展示非空安全 message／output.text；error.code 保留机器分类，不作为用户正文。两者为空时复用现有 renderer 的本地化失败状态（含 fallback 详情），不吞掉已有说明。私有草稿跨操作者仍被拒绝，并显示可理解的不可访问说明而非内部 fault／身份码。
+
+MR 核验使用 services 公共 `aiReqPrFactSchema`：true／false 均为合法生产事实，分别显示“平台已核验／平台未核验”，非法值显示安全读取错误。MR 状态、编号或可访问链接不代表平台已核验；现有内存生产者仍为 false。
+
+本轮整改与验收顺序以根 `.todo.md` 现行任务为准，现行业务规格继续作为不冲突的真相源；被覆盖的旧任务与历史记录不授权恢复场景按钮、Skill 入口或裁撤能力，历史通过不等于本轮通过。
 
 导航审查后的入口、覆盖层历史、列表上下文、显式对象链接、只读需求历史和分析互通以 `docs/specs/aireq-migration/navigation-usability.md` 为准。`AIReqContext` 继续是项目、Release、目标需求与浏览器历史的唯一导航 owner；Shell 持有设置分区和面板挂载展示，不建立平行目标或业务事实。列表 UI 状态和设置定位意图只服务于展示，服务端仍是业务与会话事实的唯一 owner。
 
@@ -26,13 +30,13 @@ Context 的唯一导航路径在既有离开处理接纳后一次更新选择、
 
 共享业务事实仅归 aireq-contract 所描述的服务端 owner。shell 仅持有可失效读取投影、导航和未发送草稿；每次调用显式 identity。元数据和选择读取用代际阻止晚响应覆盖，后台重读不卸载工作区。已有二进制连接按后端和工号建立，项目切换不创建连接；重连只重读，不重发操作。设置的未保存门禁先于导航和退出。基础控件、主题、Provider 和 v4 会话复用当前 UI。
 
-所有合法工号均可修改共享配置及执行满足现有门禁的业务动作；不以固定工号或负责人字段只读，后端内部所有者信息不向业务页面展示。模型／提示词预期版本及脏草稿门禁继续保留。Skill 设计暂从首页主导航隐藏且不测试，不在设置导航或搜索中，旧 `skill` 设置偏好回到项目设置；保留其现有实现和数据。AIReq 自动化主导航和专属数据源裁撤，保留通用控件。
+所有合法工号均可修改共享配置及执行满足现有门禁的业务动作；不以固定工号或负责人字段只读，后端内部所有者信息不向业务页面展示。模型／提示词预期版本及脏草稿门禁继续保留。Skill 入口继续隐藏，不在主导航、设置导航或搜索中，旧 `skill` 偏好回项目设置；实现、私有会话、附件、预览、内存保存和设置往返草稿全部保留并纳入整改，允许隔离临时浏览器装配验证，不增加产品入口／测试开关。AIReq 自动化主导航和专属数据源裁撤，通用控件与 Sketch 真实画布／PNG 附件保留。
 
 当前可达接口收口以 `docs/specs/aireq-migration/contract-design.md` 的同名章节为准，页面归属以上述项目空间合同为准；原生 v4 会话／附件与隐藏 Skill 保留。旧 SettingsPage、迁移／数据同步、命令／Hook／Memory 管理、旧插件商店及本机 Host scope 消费链退出。未启用的桌面扩展与受管 worktree transport 接线随接口删除，不以空服务或假返回值维持旧入口；纯展示控件与基础布局／表单资产保留。
 
 Skill 草稿动作可向唯一离开门禁提供当前预览保存阻断原因；原因由 Skill 编辑器校验状态派生，门禁仅展示。
 
-Footer 业务桥仅为 `shell/AIReqWorkspaceFooter.tsx`，复用通用 `WorkspaceSidebarFooter` 的可选 presentation/menu ReactNode 端口；默认通用 footer 行为保持不变。自定义菜单隔离账户、用量及 entitlement 查询，不挂载旧 Coding／Office／登录菜单，也不伪造 UserInfo。业务桥只读既有 context 和 data-source 元数据（含 backend.owner／provenance），只呈现身份、切换工号、帮助及主题等辅助工具；项目／Release 选择移至项目空间常驻页头并消费唯一未保存处理，不保留第二份选择。普通齿轮由 shell 恢复当前设置页，back 由 shell 执行受保护返回；主题复用当前 ZCode store 与原生菜单，不导入设置页 section 类型。
+Footer 业务桥仅为 `shell/AIReqWorkspaceFooter.tsx`，复用通用 `WorkspaceSidebarFooter` 的可选 presentation/menu ReactNode 端口；默认通用 footer 行为保持不变。自定义菜单隔离账户、用量及 entitlement 查询，不挂载旧 Coding／Office／登录菜单，也不伪造 UserInfo。业务桥只读既有 context 与正式业务元数据，不消费 backend.owner、provenance 或 sample/live 后端类型；仅呈现身份、切换工号、业务帮助及主题等辅助工具。opaque 隔离键的有效用途保留，不据其值分支。项目／Release 选择在项目空间常驻页头并消费唯一未保存处理，不保留第二份选择。普通齿轮由 shell 恢复当前设置页，back 由 shell 执行受保护返回；主题复用当前 ZCode store 与原生菜单，不导入设置页 section 类型。
 
 onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自持触发 ref，不共享不稳定的工作区／设置 ref。`AIReqWorkflowHelp({open,onOpenChange,returnFocusRef?})` 只呈现当前业务说明并在关闭时恢复触发焦点，不持有业务状态或导航；不得沿用旧四阶段、IR/change 或旧完成门禁。
 
