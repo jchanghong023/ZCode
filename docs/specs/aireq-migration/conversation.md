@@ -22,6 +22,8 @@ AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现
 
 外部草稿使用既有 externalTextInsertRequest 与 requestId ACK，仅回填不发送。append 模式仅替换完整存在的 replaceText，否则追加；相同全文已存在时不重复插入。onInputPreview 提供完整 canonical text，不从摘要猜测匹配。composerInputPreview 仅在非空全文 trim 精确匹配时显示摘要，完整编辑器保持挂载。composerTools/composerTrailingTools 接收 appendText（实际插入成功布尔值）、addFiles（实际接纳 ID）、disabled、focusInput；扩展位置和展示服从当前 ZCode 原生输入器，不以 AIReq 的按钮坐标或顺序判定视觉保真。语音示例追加当前编辑器，Sketch 完整 PNG 走既有附件管线，不创建业务对象也不发送。取消和失败不改原输入。临时模型/思考选项、附件预览使用目标当前实现，不复制旧 v4。embedded 取消旧任务推荐及新草稿居中，不重建输入框；评审会话通过 autoFocusEnabled=false 不抢焦点。
 
+2026-11-16 在内置浏览器的提案聊天中验证 Sketch：绘制、撤销、取消后文字保留；重新绘制并添加附件后，图片预览保留完整笔迹，原文字仍在且未自动发送。随后移除样例附件并清空测试草稿。
+
 ## 事件顺序与隔离
 
 第 2 组事件顺序为：显式保存短需求 → 业务 owner 校验并创建可见 IR → onDidChange 重读表格并保持表格 → 用户主动打开讨论 → 读取／绑定已有原生阶段会话 → 显式发送由 Composer 冻结正文、附件和临时模型 → 原生接纳及原事务结算 → 版本绑定业务完成回调 → 提交材料后业务事件重读。业务工作区使用服务端项目 root 与 `aireq-mock:<projectId>`；私有草稿按 client/employee/project/release 隔离。读取按代际、回调按对象及版本拒绝迟到结果；不得为补偿导航重发消息。
