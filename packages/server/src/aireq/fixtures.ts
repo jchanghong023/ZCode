@@ -20,6 +20,10 @@ import {
   prototypeReviewSessions,
 } from "./requirements-review.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
+import {
+  createPrototypeReleaseRequirements,
+  initializePrototypeReleaseProgress,
+} from "./fixture-release.js";
 export function createPrototypeWorkflow(): AIReqWorkflowView {
   const sharedSettings = readPrototypeProjectSettings();
   if (!sharedSettings.projects.length)
@@ -39,7 +43,9 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       running: [],
       changes: [],
     };
+  const releaseRequirements = createPrototypeReleaseRequirements();
   const srs = [
+    ...releaseRequirements.srs,
     systemRequirement(
       "demo-aurora",
       "ir-auth",
@@ -188,6 +194,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       files: [],
     };
   const groups = [
+    ...releaseRequirements.groups,
     group(
       "demo-aurora",
       "ir-auth",
@@ -551,6 +558,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       reason: "请补充通知失败后的业务恢复规则及验收依据。",
     };
   }
+  initializePrototypeReleaseProgress(srs);
   const result: AIReqWorkflowView = {
     version: 1,
     revision: 12,

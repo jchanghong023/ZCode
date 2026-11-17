@@ -336,6 +336,8 @@ export function pollPrototypeDevelopment(): void {
           !group.srIds.includes(sr.id)
         )
           continue;
+        // 预置的多状态样例需保持可见；正常新建 SR 仍按真实服务时钟推进。
+        if ((sr as InternalSystemRequirement).automaticCodeMerge === false) continue;
         const branch = sr.trackingBranch;
         if (!branch?.name || branch.status !== "ready" || srProgress(sr) === 100) continue;
         // 分支成功推送才允许首次开发合入；失败后修复等待真实问题产生，不反写人工通过。

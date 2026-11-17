@@ -46,6 +46,7 @@ export function publicBusinessProjection<T>(value: T): T {
           key !== "mergeScenario" &&
           key !== "simulatedMr" &&
           key !== "scaleDemo" &&
+          key !== "automaticCodeMerge" &&
           key !== "nextCleanupFailure" &&
           key !== "branchCreationFailures" &&
           key !== "branchCreationAttempts" &&

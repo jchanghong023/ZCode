@@ -66,4 +66,4 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 
 聚合只存在于返回投影，不回写 state、不缓存、不增 RPC 或事件通道。正常业务提交事实后仍通过既有 workflow／scheduler 事件使客户端重读，读取本身不改变业务事实、revision 或接纳动作。
 
-项目／具体 Release 与历史由 UI Context 唯一持有；全局总览只读，当前项目统计、待办与近期动态使用同一范围。SR 可选 `statusChange` 由 workflow 成功事务比较实际有效状态后记录 `{from?, to, at}`，读取和初始化不制造变化，失败不发布。
+项目／具体 Release 与历史由 UI Context 唯一持有；全局总览只读，当前项目统计、待办与近期动态使用同一范围。SR 可选 `statusChange` 由 workflow 成功事务比较实际有效状态后记录 `{from?, to, at}`，读取和初始化不制造变化，失败不发布。原型预置的既存历史按集成规格保留固定时间，不从当前状态反推或按启动时间刷新。静态 SR 的 `automaticCodeMerge:false` 属于 `InternalSystemRequirement`，后台模拟合入跳过，公共投影递归剥离；正常业务操作仍复用原事务路径。
