@@ -76,6 +76,31 @@ function serviceDouble() {
 }
 
 describe("AIReq frontend data source", () => {
+  it("delivers presence without invalidating workflow or metadata and unsubscribes on disposal", async () => {
+    const remote = serviceDouble();
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    const workflowChanged = vi.fn();
+    const presenceChanged = vi.fn();
+    source.subscribeWorkflow(workflowChanged);
+    const stop = source.presence!.subscribe(presenceChanged);
+    const baselineReads = remote.readBootstrap.mock.calls.length;
+    const snapshot = {
+      revision: 1,
+      employeeCount: 1,
+      rows: [{ employeeId: identity.employeeId, ip: "192.0.2.1" }],
+    };
+    remote.emit({ type: "presence", snapshot });
+    expect(presenceChanged).toHaveBeenCalledWith(snapshot);
+    expect(workflowChanged).not.toHaveBeenCalled();
+    expect(remote.readBootstrap).toHaveBeenCalledTimes(baselineReads);
+    stop();
+    remote.emit({ type: "presence", snapshot: { ...snapshot, revision: 2 } });
+    expect(presenceChanged).toHaveBeenCalledTimes(1);
+    source.presence!.subscribe(presenceChanged);
+    await source.dispose();
+    expect(remote.listenerCount()).toBe(0);
+  });
+
   it("discards bootstrap invalidated during initialization and exposes fresh metadata and workspace", async () => {
     const remote = serviceDouble();
     const oldRead = deferred<AIReqRemoteBootstrap>();

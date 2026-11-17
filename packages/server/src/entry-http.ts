@@ -17,6 +17,10 @@ async function main(): Promise<void> {
   const { services } = createMockServices({ workspacePath });
   createMockHttpServer(services, {
     port,
+    trustedProxyIPs: (process.env["ZCODE_TRUSTED_PROXY_IPS"] ?? "")
+      .split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean),
     ...(host ? { host } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),
     ...(authToken ? { authToken } : {}),

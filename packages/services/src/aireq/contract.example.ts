@@ -10,7 +10,7 @@ export async function readAIReqProject(service: IAIReqService, identity: AIReqId
 
 export function subscribeAIReqProjection(service: IAIReqService, invalidate: () => void) {
   return service.onDidChange((event) => {
-    if (event.type !== "error") invalidate();
+    if (event.type !== "error" && event.type !== "presence") invalidate();
   });
 }
 

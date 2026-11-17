@@ -1,5 +1,7 @@
 # AIReq shared contract
 
+在线人员遵循 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
+
 想法 CSV 导入使用正式 `importIdeas(originalTexts)` 命令，在全局 workflow 中原子创建全部想法；提交身份与时间由服务端登记，沿用 command 的严格校验、版本、幂等与提交后广播。导出只读取当前搜索匹配原文并下载单列 CSV，不增加导出 RPC。格式、草稿门禁与验收见分区导航和想法池规格。
 
 分区导航和想法池的当前业务契约见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`。全局想法及可分派版本随工作流同源读取；createIdea / updateIdea / transferIdea 复用现有 command、身份、版本、幂等和广播。转入原子创建各目标版本提案并消费想法，原文和提交信息保留，不建立跨项目父需求或进度。

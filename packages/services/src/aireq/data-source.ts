@@ -1,3 +1,4 @@
+import type { AIReqPresenceSnapshot } from "./presence.js";
 import type { SkillSummary } from "@zcode/shared";
 import type {
   AIReqAction,
@@ -78,6 +79,10 @@ export interface AIReqSkillDesignServices {
   ): Promise<AIReqSkillSaveReceipt>;
 }
 export interface AIReqDataSource {
+  presence?: {
+    read(): Promise<AIReqPresenceSnapshot>;
+    subscribe(listener: (snapshot: AIReqPresenceSnapshot) => void): () => void;
+  };
   planning?: {
     updateSr(
       projectId: string,

@@ -1,3 +1,4 @@
+import type { AIReqPresenceSnapshot } from "./presence.js";
 import type { SkillSummary } from "@zcode/shared";
 import type { AIReqBackendView, AIReqDataSource } from "./data-source.js";
 import type {
@@ -66,6 +67,7 @@ interface Operation<A extends unknown[], R> {
 
 /** 仅保留实际 RPC；模型／提示词读取由 bootstrap 提供，本地读取端口不是远程操作。 */
 export interface AIReqRemoteOperations {
+  readPresence: Operation<[], AIReqPresenceSnapshot>;
   readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
   command: Operation<
@@ -144,6 +146,7 @@ export interface AIReqRemoteBootstrap {
   skillDesignStorage?: { workspacePath: string; sharedSkillsDirectory: string };
 }
 export type AIReqRemoteEvent = (
+  | { type: "presence"; snapshot: AIReqPresenceSnapshot }
   | { type: "workflow" }
   | { type: "models" }
   | { type: "prompts" }

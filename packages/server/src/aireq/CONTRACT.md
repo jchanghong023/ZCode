@@ -1,5 +1,7 @@
 # AIReq mock
 
+在线人员遵循 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
+
 正常文档 MR 的内部模拟事实与交付候选同属 workflow owner。publish 只登记 opened 及真实服务时钟的最早合入时点；既有五秒轮询推进模拟外部状态，再复用当前候选、完整材料与版本核验转正。opened 至少保留十秒，幂等发布不重置，关闭交付后迟到结果无效。platformVerified 保持 false；simulatedMr 与既有故障场景字段一样由 publicBusinessProjection 递归剥离，不增加 RPC 或测试 setter。
 
 分支创建的内部依赖对新 IR 首个 SR 的首次推送保留一次暂时失败，显式内部故障输入优先；公开 retrySrBranch 复用原合入基点进行下一次尝试。branchCreationAttempts 同属内部 owner 并递归剥离。会话与项目热查询使用 workflow-queries 的无缓存只读投影，当前 state 由 workflow 即时传入；不建立第二份可写状态，也不派生全局待办或进度报表。
@@ -17,7 +19,7 @@
 
 业务 `command` 在首次接纳前校验 revision；幂等摘要只比较目标与业务参数，排除 `expectedRevision`／RPC revision。同操作重读版本后优先返回已接纳回执，业务参数变化仍拒绝，不能因 ACK 丢失重复创建 IR。UI 显式重读保留输入及操作 ID，不自动重新发送。
 
-远程白名单为 28 项。bootstrap 调用后端内部模型／提示词读取与 revision 函数，内部绑定比较也保留；前端本地读取端口及 `models.save`／`prompts.save` 的 expectedRevision CAS 不变。
+远程白名单为 29 项。bootstrap 调用后端内部模型／提示词读取与 revision 函数，内部绑定比较也保留；前端本地读取端口及 `models.save`／`prompts.save` 的 expectedRevision CAS 不变。
 
 `models.save`／`prompts.save` 没有 operationId；`skillDesign.saveDraft` 及 scheduler 的 `setProjectEnabled`／`configure`／`runNow` 没有请求版本或 operationId，维持当前覆盖保存／调度去重语义。其他操作只按已有签名提供相应版本及回执保证；内存回执不保证跨重启 exactly-once。所有 mutation 均不自动重放，不为理论持久保障扩展接口。
 

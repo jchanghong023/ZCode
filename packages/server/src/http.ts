@@ -40,6 +40,8 @@ import {
 } from "@zcode/shared";
 import {
   getConnectionServices,
+  registerAIReqConnection,
+  presenceIP,
   validateAIReqIdentity,
   withAIReqIdentity,
 } from "./aireq/contract.js";
@@ -47,6 +49,8 @@ import type { AIReqIdentity } from "@zcode/services/aireq";
 
 interface ConnectionData {
   identity: AIReqIdentity;
+  ip: string | null;
+  leavePresence?: () => void;
   transport?: ReturnType<typeof wrapWebSocket>;
 }
 
@@ -228,6 +232,8 @@ export interface MockHttpServerOptions {
   host?: string;
   port?: number;
   authToken?: string;
+  /** Exact proxy IPs allowed to supply X-Forwarded-For; empty means direct peers only. */
+  trustedProxyIPs?: readonly string[];
   /** 生产模式：托管 packages/web 构建产物并开启 SPA fallback。 */
   staticRoot?: string;
   spaFallback?: boolean;
@@ -469,7 +475,12 @@ export function createMockHttpServer(
         400,
       );
     }
-    if (c.env.server.upgrade(c.req.raw, { data: { identity }, headers: c.res.headers })) {
+    const ip = presenceIP(
+      c.env.server.requestIP(c.req.raw)?.address,
+      c.req.header("x-forwarded-for"),
+      options.trustedProxyIPs ?? [],
+    );
+    if (c.env.server.upgrade(c.req.raw, { data: { identity, ip }, headers: c.res.headers })) {
       return new Response(null);
     }
     return c.text("WebSocket upgrade required", 400);
@@ -523,13 +534,21 @@ export function createMockHttpServer(
       return app.fetch(request, { server });
     },
     websocket: {
-      // 保持原长连接语义：不能用 Bun 默认空闲超时中断无人发言的 RPC 订阅。
-      idleTimeout: 0,
+      // ping/pong 保持无人操作的订阅，同时清理断网后没有 close 帧的失联连接。
+      idleTimeout: 60,
+      sendPings: true,
       open(ws) {
         ws.binaryType = "uint8array";
         const transport = wrapWebSocket(ws);
         ws.data.transport = transport;
-        setupChannelServer(transport.socket, services, ws.data.identity);
+        ws.data.leavePresence = registerAIReqConnection(services, ws.data.identity, ws.data.ip);
+        try {
+          setupChannelServer(transport.socket, services, ws.data.identity);
+        } catch (error) {
+          ws.data.leavePresence();
+          ws.close(1011, "Connection setup failed");
+          throw error;
+        }
       },
       message(ws, message) {
         if (typeof message === "string") {
@@ -539,7 +558,12 @@ export function createMockHttpServer(
         ws.data.transport?.receive(message);
       },
       close(ws) {
-        ws.data.transport?.close();
+        // 先释放该连接的 RPC 订阅，再广播离线，避免向已经关闭的 socket 写自身离线事件。
+        try {
+          ws.data.transport?.close();
+        } finally {
+          ws.data.leavePresence?.();
+        }
       },
     },
   });

@@ -1,5 +1,7 @@
 # AIReq UI
 
+在线人员遵循 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
+
 公开入口为 `AIReqApplication` 与 `AIReqApplicationProps`。前端只消费 `@zcode/services/aireq` 的正式数据源与现有原生 v4 会话，不保存第二份业务事实。
 
 ## 导航与范围

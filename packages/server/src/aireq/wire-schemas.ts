@@ -151,6 +151,7 @@ const pageSize = z.union([z.literal(25), z.literal(50)]);
 
 /** 精确白名单拒绝退役路径；配置读取统一经 bootstrap，不为本地读取端口保留 RPC。 */
 export const argumentSchemas = {
+  readPresence: z.tuple([]),
   readWorkflow: z.tuple([selectionSchema]),
   readPrHandoff: z.tuple([target]),
   command: z.tuple([actionSchema, selectionSchema, revision]),

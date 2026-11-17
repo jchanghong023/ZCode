@@ -5,6 +5,7 @@ import type { IPlatformService } from "@zcode/shared";
 export type { IServiceAccessor } from "@zcode/services";
 export type {
   AIReqAction,
+  AIReqPresenceSnapshot,
   AIReqIdea,
   AIReqIdeaTarget,
   AIReqIdeaTransfer,

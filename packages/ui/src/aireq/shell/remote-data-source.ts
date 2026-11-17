@@ -4,6 +4,7 @@ import {
   isFormalSelection,
   AIREQ_CONTRACT_VERSION,
   type AIReqDataSource,
+  type AIReqPresenceSnapshot,
   type AIReqIdentity,
   type AIReqRemoteBootstrap,
   type AIReqRemoteWorkflow,
@@ -25,6 +26,7 @@ export async function createRemoteAIReqDataSource(
   identity: AIReqIdentity,
 ): Promise<AIReqDataSource> {
   const clientId = identity.clientId;
+  const presenceListeners = new Set<(snapshot: AIReqPresenceSnapshot) => void>();
   const workflowListeners = new Set<() => void>();
   const modelListeners = new Set<() => void>();
   const schedulerListeners = new Set<() => void>();
@@ -128,6 +130,10 @@ export async function createRemoteAIReqDataSource(
   // 先订阅再读；初始化期间的事件只推进失效代次，不访问尚未就绪的配置。
   const subscription = services.aiReqService.onDidChange((frame) => {
     if (disposed) return;
+    if (frame.type === "presence") {
+      for (const listener of presenceListeners) listener(frame.snapshot);
+      return;
+    }
     if (frame.type === "error") {
       eventError = new Error(frame.error.message);
       if (!initializing) emit(workflowListeners);
@@ -173,6 +179,15 @@ export async function createRemoteAIReqDataSource(
     throw cause;
   }
   const source: AIReqDataSource = {
+    presence: {
+      read: () => call("readPresence", []),
+      subscribe(listener) {
+        presenceListeners.add(listener);
+        return () => {
+          presenceListeners.delete(listener);
+        };
+      },
+    },
     clientId,
     get backend() {
       return metadata.backend;
@@ -249,6 +264,7 @@ export async function createRemoteAIReqDataSource(
       selection = { projectId };
     },
     dispose() {
+      presenceListeners.clear();
       disposed = true;
       subscription.dispose();
     },

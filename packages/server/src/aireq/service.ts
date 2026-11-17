@@ -1,3 +1,4 @@
+import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
 import { businessRule, publicBusinessProjection } from "./errors.js";
 import { Emitter } from "@zcode/rpc";
@@ -80,6 +81,9 @@ const commands = [
 export class MockAIReqService extends AIReqNativeBusiness implements IAIReqService {
   private readonly changed = new Emitter<AIReqRemoteEvent>();
   readonly onDidChange = this.changed.event;
+  readonly presence = new AIReqPresence((snapshot) =>
+    this.changed.fire({ type: "presence", snapshot }),
+  );
   readonly remote: IAIReqService = {
     bootstrap: (identity) => this.bootstrap(identity),
     call: (identity, path, args, selection) => this.call(identity, path, args, selection),
@@ -123,6 +127,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     this.timer.unref();
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
+    add("readPresence", () => this.presence.read());
     add("readWorkflow", (selection: AIReqSelection) => this.workflow(selection));
     add("command", (action: AIReqAction, selection: AIReqSelection, revision: number) =>
       this.command(action, selection, revision),
@@ -433,4 +438,16 @@ export function getConnectionServices(
   overrides.set(AIReqDescriptor.channelName, scopedBusiness);
   overrides.set(IZCodeAgentService.channelName, facade);
   return overrides;
+}
+
+/** HTTP is the only writer of observed connection identities and source IPs. */
+export function registerAIReqConnection(
+  services: ServiceCollection,
+  identity: AIReqIdentity,
+  ip: string | null,
+): () => void {
+  const fixed = validateAIReqIdentity(identity);
+  const owner = remoteOwners.get(services.get(AIReqDescriptor));
+  if (!owner) throw new Error("AIReq连接owner尚未装配。");
+  return owner.presence.connect(fixed.employeeId, ip);
 }
