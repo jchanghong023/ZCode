@@ -36,7 +36,7 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
-import { proposalPhaseLabel } from "../contract.js";
+import { PROPOSAL_STATE_OPTIONS, proposalState, proposalStateLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
@@ -155,7 +155,7 @@ export function AIReqProposalTable() {
         item.originalText.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
         item.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
       (!submitter || item.submittedBy.includes(submitter)) &&
-      (!phase || proposalPhaseLabel(item) === phase),
+      (!phase || proposalState(item) === phase),
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
@@ -340,14 +340,17 @@ export function AIReqProposalTable() {
               setPage(0);
             }}
           >
-            <SelectTrigger aria-label="筛选当前状态" className="h-9 w-44 rounded-lg bg-surface">
+            <SelectTrigger
+              aria-label={zh ? "筛选当前状态" : "Filter current status"}
+              className="h-9 w-44 rounded-lg bg-surface"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部状态</SelectItem>
-              {[...new Set(groups.map((item) => proposalPhaseLabel(item)))].map((label) => (
-                <SelectItem key={label} value={label}>
-                  {label}
+              <SelectItem value="all">{zh ? "全部状态" : "All statuses"}</SelectItem>
+              {PROPOSAL_STATE_OPTIONS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {zh ? option.title : option.titleEn}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -426,7 +429,7 @@ export function AIReqProposalTable() {
                       })}
                     </time>
                   </td>
-                  <td className="px-4 py-4">{proposalPhaseLabel(item)}</td>
+                  <td className="px-4 py-4">{proposalStateLabel(item, zh ? "zh-CN" : "en-US")}</td>
                   <td className="px-2 py-4 text-right align-middle">
                     <ControlHintTooltip title={zh ? "进入讨论" : "Open discussion"}>
                       <Button

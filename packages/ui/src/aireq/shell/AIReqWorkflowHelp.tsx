@@ -38,9 +38,9 @@ const steps = [
     title: "澄清与单 Agent 评审",
     titleEn: "Clarification and single-agent review",
     description:
-      "从提案表手动进入同一 IR 的原生讨论。业务阶段只整理业务需求文档；单 Agent 检查目标、范围、歧义和可验收性，无阻断且人工通过后才进入 SR 拆分。原始短需求始终独立保留。",
+      "从提案表手动进入同一 IR 的原生讨论。业务阶段只整理业务需求文档；单 Agent 检查目标、范围、歧义和可验收性，无阻断且人工通过后才进入 SR 拆分。原始短需求始终独立保留。提案状态按当前有效材料、评审和确认依次分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态。转正后移入正式需求，不保留“已转正”提案状态。",
     descriptionEn:
-      "Open an IR discussion explicitly from the proposal table. The business stage produces only business requirements. One agent reviews goals, scope, ambiguity and acceptance. A person must approve a non-blocking review before SR splitting. The short original request is preserved separately.",
+      "Open an IR discussion explicitly from the proposal table. The business stage produces only business requirements. One agent reviews goals, scope, ambiguity and acceptance. A person must approve a non-blocking review before SR splitting. The short original request is preserved separately. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. Merged and verified proposals move to formal requirements.",
   },
   {
     title: "每 SR 独立完整包",

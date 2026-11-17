@@ -59,7 +59,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     if (!ready || !proposalId || !proposalTitle || !releaseId) return;
     const key = JSON.stringify([releaseId, selection]);
     if (openedTarget.current === key) return;
-    // 刷新与面板收起不能重新激活或复活材料；仅新进入的对象／历史阶段确保一次。
+    // 刷新与面板收起不能重新激活或复活材料；仅新进入的对象／历史环节确保一次。
     openedTarget.current = key;
     open({ kind: "materials", selection, releaseId, title: proposalTitle }, { ifAbsent: true });
   }, [ready, proposalId, proposalTitle, releaseId, selection, open]);
@@ -179,7 +179,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                       ? "所选 SR 不存在或已被删除。"
                       : "The selected SR is unavailable or has been deleted."
                     : zh
-                      ? "当前阶段会话不可用，请重新读取或返回项目。"
+                      ? "当前操作环节会话不可用，请重新读取或返回项目。"
                       : "This stage's session is unavailable. Reload or return to the project."}
           </p>
           <div className="flex flex-wrap gap-2">

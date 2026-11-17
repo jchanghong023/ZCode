@@ -16,7 +16,8 @@ import {
   quickPickMetadataClassName,
 } from "@/quickpick/quickPickStyles.js";
 import { HighlightedMatchText } from "@/quickpick/HighlightedMatchText.js";
-import { proposalPhaseLabel } from "../contract.js";
+import { proposalStateLabel } from "../contract.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 
 /** 与 WebGUI 命令中心共用弹层、输入、键盘选择及动效，仅替换需求数据。 */
@@ -36,6 +37,8 @@ export function AIReqRequirementSearch({
   onNavigate?: () => void;
 }) {
   const aireq = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const groups = (
     scope === "proposals" ? (aireq.view?.drafts ?? []) : (aireq.view?.groups ?? [])
   ).filter(
@@ -111,7 +114,7 @@ export function AIReqRequirementSearch({
                     </span>
                     <CommandShortcut className={quickPickMetadataClassName}>
                       {scope === "proposals"
-                        ? `${proposalPhaseLabel(group)} · 需求讨论`
+                        ? `${proposalStateLabel(group, zh ? "zh-CN" : "en-US")} · ${zh ? "需求讨论" : "Discussion"}`
                         : "进度报告"}
                     </CommandShortcut>
                   </CommandItem>

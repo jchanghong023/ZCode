@@ -21,6 +21,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   MATERIAL_KIND_LABELS,
   requirementMaterialName,
+  proposalViewedIndex,
   type AIReqMaterialView,
 } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -90,8 +91,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
   const materials = (historical?.materials ?? view?.materials ?? []).filter(
     (item) => item.projectId === selection.projectId && item.irId === selection.irId,
   );
-  const proposalSolutionView =
-    proposal && (selection.discussionPhase ?? group?.proposalStage) === "solution";
+  const proposalSolutionView = proposal && group && proposalViewedIndex(group, selection) >= 2;
   const preferred =
     materials.find((item) => item.path === selection.materialPath) ??
     (selection.srId

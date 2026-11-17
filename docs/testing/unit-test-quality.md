@@ -21,18 +21,19 @@
 
 断言依据现行产品与协议规则，测试现有导出函数和类的公开方法，不导出或直接调用私有辅助函数，不把实现输出当作业务预期。发现实现与规则冲突时保留有效失败断言并报告，不弱化预期或擅自修产品行为。
 
-| 测试文件（相对 `test/ut/`）         | 被测前端行为                                         | 规则依据                                                                                                              |
-| ----------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `csv.test.ts`                       | CSV 原文、引用换行、重复提示、非法输入与物理行号     | [想法与导入](../specs/aireq-migration/section-navigation-and-ideas.md)                                                |
-| `settings-search.test.ts`           | 中文、拼音、大小写／全角归一化和顺序模糊匹配         | [工具与设置](../specs/aireq-migration/tools-settings.md)                                                              |
-| `pane-tabs.test.ts`                 | 打开复用、关闭邻项、选择、拖动与输入状态保留         | [统一右侧工作区](../specs/aireq-migration/unified-side-pane.md)                                                       |
-| `attachment-upload.test.ts`         | 上传字节、分片、摘要、续传、取消及失败清理           | [原生讨论与附件](../specs/aireq-migration/conversation.md)、现行 Protocol v4 附件契约                                 |
-| `composer-interaction.test.ts`      | 输入可用性、只读优先级及排队／补充路由投影           | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
-| `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败             | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
-| `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期       | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
-| `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本                   | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
-| `requirement-return.test.ts`        | 详情来源保留、历史字段校验、无来源回退及显式对象链接 | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
-| `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放     | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
+| 测试文件（相对 `test/ut/`）         | 被测前端行为                                                                    | 规则依据                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `csv.test.ts`                       | CSV 原文、引用换行、重复提示、非法输入与物理行号                                | [想法与导入](../specs/aireq-migration/section-navigation-and-ideas.md)                                                |
+| `settings-search.test.ts`           | 中文、拼音、大小写／全角归一化和顺序模糊匹配                                    | [工具与设置](../specs/aireq-migration/tools-settings.md)                                                              |
+| `pane-tabs.test.ts`                 | 打开复用、关闭邻项、选择、拖动与输入状态保留                                    | [统一右侧工作区](../specs/aireq-migration/unified-side-pane.md)                                                       |
+| `attachment-upload.test.ts`         | 上传字节、分片、摘要、续传、取消及失败清理                                      | [原生讨论与附件](../specs/aireq-migration/conversation.md)、现行 Protocol v4 附件契约                                 |
+| `composer-interaction.test.ts`      | 输入可用性、只读优先级及排队／补充路由投影                                      | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
+| `proposal-state.test.ts`            | 提案八态、材料与评审版本匹配、人工及三方确认、交付候选与 PR、失效回退和历史只读 | [需求提案](../specs/aireq-migration/proposals.md#提案业务状态)                                                        |
+| `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败                                        | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
+| `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期                                  | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
+| `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本                                              | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
+| `requirement-return.test.ts`        | 详情来源保留、历史字段校验、无来源回退及显式对象链接                            | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
+| `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放                                | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
 
 异步场景通过可控 Promise 和公开事件端口安排时序，不用固定 sleep 猜测完成。存储替身只提供浏览器存储语义；服务替身只提供当前被调用的正式端口，不实现另一份业务后端。每例恢复自身替换的全局对象、计时和监听，不修改宿主业务数据。
 

@@ -47,7 +47,7 @@ export function AIReqWorkflowTimeline({
   onSelect(index: number): void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  // The proposal timeline has four stages; depend on their values, not caller-created arrays.
+  // 四个节点只负责材料、评审、方案和交付工作区导航；业务八态由共享契约另外推导。
   const [businessLabel, reviewLabel, solutionLabel, deliveryLabel] = labels;
   const [businessEntered, reviewEntered, solutionEntered, deliveryEntered] = entered;
   const [businessRound, reviewRound, solutionRound, deliveryRound] = rounds;
@@ -104,7 +104,7 @@ export function AIReqWorkflowTimeline({
             ),
         );
       }
-      const stateLabel = [index === phase ? "当前阶段" : "", index === selected ? "查看中" : ""]
+      const stateLabel = [index === phase ? "当前操作环节" : "", index === selected ? "查看中" : ""]
         .filter(Boolean)
         .join(" · ");
       return {
@@ -166,15 +166,15 @@ export function AIReqWorkflowTimeline({
         behavior: "instant",
       });
   }, [proposal, selected, labels.length, returned]);
-  // 修复：当前通用时间线按 192px 站距排版，放入讨论栏会把第四阶段挤出首屏。
-  // 提案仍以同一模型驱动四个原生控件，不复制旧时间线的紧凑样式或另建阶段状态。
+  // 修复：当前通用时间线按 192px 站距排版，放入讨论栏会把第四操作环节挤出首屏。
+  // 提案仍以同一模型驱动四个操作环节的原生控件，不复制旧时间线的紧凑样式或另建阶段状态。
   // 修复：原限宽流程区靠左，宽屏下偏离居中的输入框；复用会话内容列宽度并居中。
   if (proposal)
     return (
       <nav
         className={`mx-auto grid min-w-0 grid-cols-4 grid-rows-[auto_auto_auto] gap-1 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
         data-testid="aireq-workflow-timeline"
-        aria-label={`当前阶段：${labels[phase]}；查看：${labels[selected]}`}
+        aria-label={`当前操作环节：${labels[phase]}；查看：${labels[selected]}`}
       >
         {model.stations.map((station, index) => (
           <div
@@ -192,7 +192,7 @@ export function AIReqWorkflowTimeline({
             >
               {/* 窄讨论栏中阶段名称可换行，但当前标记必须作为整体换行，不能逐字挤成竖排。 */}
               <span className="min-w-0">{labels[index]}</span>
-              {/* 查看历史只切换选中态，当前业务阶段必须仍有独立的可见标记。 */}
+              {/* 查看历史只切换选中态，当前操作环节必须仍有独立的可见标记。 */}
               {index === phase && (
                 <span className="shrink-0 rounded-sm bg-surface px-1 text-ui-xs whitespace-nowrap text-foreground-subtle">
                   当前
@@ -243,7 +243,7 @@ export function AIReqWorkflowTimeline({
       ref={root}
       className="w-full min-w-0 max-w-3xl"
       data-testid="aireq-workflow-timeline"
-      aria-label={`当前阶段：${labels[phase]}；查看：${labels[selected]}`}
+      aria-label={`当前操作环节：${labels[phase]}；查看：${labels[selected]}`}
     >
       <WorkflowTimeline
         className={

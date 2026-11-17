@@ -1,3 +1,4 @@
+import { createPrototypeReleaseProposals } from "./fixture-release-proposals.js";
 import { createRequirementSnapshot } from "./content-digest.js";
 import type { AIReqWorkflowView, AIReqMaterialView } from "@zcode/services/aireq";
 import { proposalVersion } from "@zcode/services/aireq";
@@ -559,6 +560,10 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     };
   }
   initializePrototypeReleaseProgress(srs);
+  const releaseProposals = createPrototypeReleaseProposals();
+  drafts.push(...releaseProposals.drafts);
+  srs.push(...releaseProposals.srs);
+  materials.push(...releaseProposals.materials);
   const result: AIReqWorkflowView = {
     version: 1,
     revision: 12,

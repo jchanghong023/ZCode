@@ -8,5 +8,6 @@
   "test/ut/remote-data-source.test.ts",
   "test/ut/settings-search.test.ts",
   "test/ut/requirement-return.test.ts",
-  "test/ut/composer-interaction.test.ts"
+  "test/ut/composer-interaction.test.ts",
+  "test/ut/proposal-state.test.ts"
 ]

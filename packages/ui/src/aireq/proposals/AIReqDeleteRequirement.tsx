@@ -56,7 +56,7 @@ export function AIReqDeleteRequirement({
     group.merge || group.proposalRevisions?.length || group.status === "frozen" || started
       ? "已入库的正式提案、修订及开发历史保留展示；只能移除允许删除的草稿。"
       : history
-        ? "正在查看历史阶段，仅供只读查看；请返回当前阶段。"
+        ? "正在查看历史环节，仅供只读查看；请返回当前操作环节。"
         : undefined;
   const targetMatches = target?.projectId === group.projectId && target.irId === group.id;
   const openDelete = () => {

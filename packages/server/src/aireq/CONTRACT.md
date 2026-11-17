@@ -40,6 +40,8 @@ v4 信封与封闭 payload／firstInput／answer／create config 拒绝未知键
 
 ## 业务所有权
 
+提案八态由 `@zcode/services/aireq` 的 `proposalState` 统一按当前有效材料、评审、人工／三方确认和候选 PR 事实派生，服务端不保存第二份八态字段。接纳原始需求与方案动作时使用同一事实分类，同时保留报告、材料读取、版本、幂等和已发布 PR 冻结门禁；原 `status`、`proposalStage` 仅保留生命周期与讨论路由职责。转正移出 `drafts`，不生成“已转正”提案状态。
+
 原始短需求 `originalText` 独立保存，新增／CSV 只创建可见提案，不启动 AI 或生成 SR，不等待首发聊天。导入先校验完整批次、当前项目及具体 Release，提交人和时间取服务端实际请求。进入讨论后才使用已有原生业务完成回调生成材料；回调绑定对象、阶段、轮次和版本，不接纳旧结果。
 
 IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 SR 独立 `openspec/changes/<sr-id>/`，包含 proposal、design、tasks、specs、test-plan。路径是内存模拟仓库引用，不写用户业务文件。前置 `originalReview` 单 Agent 加人工通过后才拆 SR；同一方案阶段完善全材料，再三路审查与第四终审、人工放行、三个视角 `alignment`，最后一个 IR 一个完整文档 PR。无后置测试 Agent、不执行 tasks 或编码。

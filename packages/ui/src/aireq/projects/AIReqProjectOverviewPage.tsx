@@ -9,8 +9,7 @@ import {
   fullReviewReadyBlocker,
   requirementsReviewReadyBlocker,
   proposalUpdatedTime,
-  proposalPhaseLabel,
-  proposalProgressIndex,
+  proposalStateLabel,
   progressLabel,
   srProgress,
   srProgressStatus,
@@ -28,13 +27,6 @@ const statusEn: Record<AIReqProgressStatus, string> = {
   待验收: "Awaiting acceptance",
   已完成: "Completed",
 };
-const phaseEn = [
-  "Business requirements",
-  "Requirements review",
-  "Solution & review",
-  "Alignment & document PR",
-];
-
 export function AIReqProjectOverviewPage({
   active,
   onReturnProjects,
@@ -415,9 +407,7 @@ export function AIReqProjectOverviewPage({
                           <span className="min-w-0 flex-1 space-y-1.5">
                             <span className="block truncate font-medium">{proposal.title}</span>
                             <span className="block text-ui-sm text-foreground-subtle">
-                              {zh
-                                ? proposalPhaseLabel(proposal)
-                                : phaseEn[proposalProgressIndex(proposal)]}
+                              {proposalStateLabel(proposal, zh ? "zh-CN" : "en-US")}
                             </span>
                             <time
                               className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"

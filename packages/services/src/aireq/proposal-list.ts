@@ -1,38 +1,68 @@
-import { proposalProgressIndex } from "./domain.js";
-import type { AIReqOperationReceipt, AIReqRequirementGroup } from "./types.js";
+import {
+  fullReviewCurrent,
+  fullReviewReadyBlocker,
+  proposalDeliveryCurrent,
+  proposalState,
+  requirementsReviewCurrent,
+  requirementsReviewReadyBlocker,
+} from "./domain.js";
+import type { AIReqOperationReceipt, AIReqProposalState, AIReqRequirementGroup } from "./types.js";
 
-export const PROPOSAL_PHASE_OPTIONS = [
-  { id: "all", title: "全部阶段" },
-  { id: "0", title: "业务需求" },
-  { id: "1", title: "原始需求评审" },
-  { id: "2", title: "完整方案与审查" },
-  { id: "3", title: "三方对齐与文档 PR" },
-];
+export const PROPOSAL_STATE_OPTIONS = [
+  { id: "not-started", title: "未启动", titleEn: "Not started" },
+  { id: "ir-review-pending", title: "IR 待评审", titleEn: "IR review pending" },
+  { id: "ir-confirmation-pending", title: "IR 待确认", titleEn: "IR confirmation pending" },
+  { id: "solution-incomplete", title: "方案待完善", titleEn: "Solution incomplete" },
+  { id: "solution-review-pending", title: "方案待评审", titleEn: "Solution review pending" },
+  {
+    id: "solution-confirmation-pending",
+    title: "方案待确认",
+    titleEn: "Solution confirmation pending",
+  },
+  { id: "submission-pending", title: "待提交", titleEn: "Submission pending" },
+  { id: "merge-pending", title: "待合入", titleEn: "Merge pending" },
+] as const satisfies readonly { id: AIReqProposalState; title: string; titleEn: string }[];
 
-/** Only actual intake failures need attention; waiting/unpushed proposals are not errors. */
+/** 顺序只用于展示，不是持久化状态，也不把正式需求当作第九态。 */
+export function proposalStateIndex(group: AIReqRequirementGroup): number {
+  const state = proposalState(group);
+  return PROPOSAL_STATE_OPTIONS.findIndex((option) => option.id === state);
+}
+
+export function proposalStateLabel(
+  group: AIReqRequirementGroup,
+  locale: "zh-CN" | "en-US" = "zh-CN",
+): string {
+  const option = PROPOSAL_STATE_OPTIONS.find((item) => item.id === proposalState(group));
+  return option ? (locale === "en-US" ? option.titleEn : option.title) : "";
+}
+
+/** 等待并非错误；只有当前交付的失败事实需要额外提示。 */
 export function proposalNeedsAttention(group: AIReqRequirementGroup): boolean {
-  if (proposalProgressIndex(group) !== 3 || !group.proposalDelivery?.pushedAt) return false;
+  if (!proposalDeliveryCurrent(group) || !group.proposalDelivery?.pushedAt) return false;
+  if (!proposalState(group)) return false;
   const status = group.proposalDelivery.mergeCheck?.status;
-  return status === "failed" || status === "incomplete";
+  return !group.requirementsPr || status === "failed" || status === "incomplete";
 }
 
-/** Current presentation phase, independent of the selected historical discussion. */
-export function proposalPhaseLabel(group: AIReqRequirementGroup): string {
-  return PROPOSAL_PHASE_OPTIONS[proposalProgressIndex(group) + 1]!.title;
-}
-
+/** 状态以外的执行或阻断提示，不另建业务阶段，也不沿用失效评审。 */
 export function proposalProcessingHint(group: AIReqRequirementGroup): string {
-  const phase = proposalProgressIndex(group);
-  if (phase === 3)
-    return proposalNeedsAttention(group)
-      ? "需要处理"
-      : group.proposalDelivery?.pushedAt
-        ? "等待合入"
-        : "待提交";
-  if (phase === 1) return group.originalReview?.humanDecision ? "已人工通过" : "待人工判断";
-  if (group.returnFeedback && !group.returnFeedback.resumedAt) return "待业务补充";
-  if (phase === 2) return group.review ? "待完整审查人工决定" : "完善方案与测试材料";
-  return "业务需求";
+  const state = proposalState(group);
+  if (!state || state === "not-started") return "";
+  if (group.returnFeedback && !group.returnFeedback.resumedAt) return "待业务补充退回意见";
+  if (proposalNeedsAttention(group)) return "交付失败或材料不完整，需要处理";
+  const original = state === "ir-review-pending" || state === "ir-confirmation-pending";
+  const review = original ? group.originalReview : group.review;
+  const current = original ? requirementsReviewCurrent(group) : fullReviewCurrent(group);
+  if (current && review?.agents?.some((agent) => agent.status === "failed"))
+    return "评审执行失败，请处理后重试";
+  if (current && review?.agents?.some((agent) => ["running", "pending"].includes(agent.status)))
+    return "评审执行中";
+  if (state === "ir-review-pending" && group.originalReview)
+    return requirementsReviewReadyBlocker(group) ?? "";
+  if (state === "solution-review-pending" && group.review)
+    return fullReviewReadyBlocker(group) ?? "";
+  return "";
 }
 
 export function proposalCreatedTime(group: AIReqRequirementGroup): number {

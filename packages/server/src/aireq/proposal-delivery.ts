@@ -3,6 +3,7 @@ import { consumePrototypeMrCreationFailure } from "./recovery.js";
 import {
   aiReqPrFactSchema,
   proposalVersion,
+  proposalState,
   proposalDeliveryCurrent,
   hasCurrentProposalSolution,
   alignmentBlocker,
@@ -115,8 +116,7 @@ export function validatePrototypeProposalDeliveryAction(
   if (blocker) throw businessRule(blocker);
   const dependencyIssue = proposalDependencyMaterialIssue(group, view.materials);
   if (dependencyIssue) throw businessRule(dependencyIssue);
-  if (group.proposalStage !== "solution" || !hasCurrentProposalSolution(group))
-    throw businessRule("请先完成当前需求版本的方案。");
+  if (!hasCurrentProposalSolution(group)) throw businessRule("请先完成当前需求版本的方案。");
   const handoff = readPrototypeProposalPrHandoff(group);
   if (!handoff.ready) throw businessRule(handoff.blockers.join("；"));
   if (
@@ -135,8 +135,9 @@ export function validatePrototypeProposalDeliveryAction(
     )
   )
     throw businessRule("当前提案材料缺失、读取失败或版本不一致，不能确认、推送或核验合并。");
+  const state = proposalState(group);
   if (action.type === "confirmProposal") {
-    if (group.status !== "solution-ready" || action.version !== proposalVersion(group))
+    if (state !== "submission-pending" || action.version !== proposalVersion(group))
       throw businessRule("确认页面对应旧版本，请重新查看当前 IR、全部 SR 与方案后确认。");
     return;
   }
@@ -144,7 +145,7 @@ export function validatePrototypeProposalDeliveryAction(
   if (!delivery || !proposalDeliveryCurrent(group) || action.candidate !== delivery.candidate)
     throw businessRule("提案版本已变化，旧确认、推送与 PR 已失效，请重新确认当前版本。");
   if (action.type === "publishProposal") {
-    if (!["solution-ready", "requirements-pr"].includes(group.status))
+    if (state !== "submission-pending" && state !== "merge-pending")
       throw businessRule("请先确认当前材料，再提交推送并自动创建 MR。");
     return;
   }

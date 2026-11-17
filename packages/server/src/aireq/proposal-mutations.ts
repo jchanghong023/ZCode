@@ -395,8 +395,12 @@ export function applyProposalMutation(
       );
       // “下一次”仅在本轮评审成功接纳的同一事务中消费；读取和旧结果释放不改变该输入。
       delete (proposal! as InternalRequirementGroup).reviewScenarios?.[kind];
-      if (kind === "original") proposal!.originalReview = review;
-      else {
+      if (kind === "original") {
+        // 重审接纳依据当前材料事实；路由同时回到业务评审，不能继续绑定旧方案讨论。
+        proposal!.proposalStage = "requirements";
+        proposal!.originalReview = review;
+      } else {
+        proposal!.proposalStage = "solution";
         proposal!.review = review;
         proposal!.alignmentHistory ??= [];
         proposal!.alignmentHistory.push(...(proposal!.alignment ?? []));
@@ -481,6 +485,8 @@ export function applyProposalMutation(
       break;
     }
     case "generateProposalSolution": {
+      // 原始评审已人工通过才可接纳方案；写回讨论路由，不把路由字段当业务状态。
+      proposal!.proposalStage = "solution";
       invalidate(
         state,
         proposal!,
@@ -606,6 +612,8 @@ export function applyProposalMutation(
         proposal!.requirementsPr?.number &&
         delivery.prCandidate === action.candidate
       ) {
+        // 初始已有 PR 可能尚无内部观测；显式发布启动原候选，已有窗口由 owner 幂等保留。
+        beginPrototypeProposalMrLifecycle(proposal!);
         operation.type = "复用当前版本的文档 PR，不重复推送或创建";
         break;
       }
