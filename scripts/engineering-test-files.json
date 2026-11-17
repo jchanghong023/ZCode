@@ -6,5 +6,6 @@
   "test/ut/pending-command.test.ts",
   "test/ut/pending-command-workspace.test.ts",
   "test/ut/remote-data-source.test.ts",
-  "test/ut/settings-search.test.ts"
+  "test/ut/settings-search.test.ts",
+  "test/ut/requirement-return.test.ts"
 ]

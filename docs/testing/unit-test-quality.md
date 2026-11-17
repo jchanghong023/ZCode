@@ -28,6 +28,7 @@
 | `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败         | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期   | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本               | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
+| `requirement-return.test.ts`        | 详情来源保留、历史字段校验与无来源回退           | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
 | `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放 | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
 
 异步场景通过可控 Promise 和公开事件端口安排时序，不用固定 sleep 猜测完成。存储替身只提供浏览器存储语义；服务替身只提供当前被调用的正式端口，不实现另一份业务后端。每例恢复自身替换的全局对象、计时和监听，不修改宿主业务数据。

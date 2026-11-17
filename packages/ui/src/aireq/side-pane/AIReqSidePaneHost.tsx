@@ -157,11 +157,14 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const pane = useAIReqSidePane();
   const ai = useAIReq()!;
   const scopes = useContext(AIReqSidePaneMemoryContext);
-  const available = ai.mainView !== "projectProgress" && ai.mainView !== "ideas";
+  const available =
+    ai.mainView !== "projectProgress" &&
+    ai.mainView !== "ideas" &&
+    ai.mainView !== "projectOverview";
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
-  // 复用原生同步 hook，收起必须归还实际宽度，进入全局页面仅隐藏而不清空 Tab。
+  // 复用原生同步 hook，收起必须归还实际宽度，进入概览或全局页面仅隐藏而不清空 Tab。
   const { panelRef: panel } = useAnimatedResizablePanel({ open: isOpen });
   const currentScope = JSON.stringify([ai.selection.projectId ?? "", ai.releaseId]);
   const { locale } = useZCodeIntl();

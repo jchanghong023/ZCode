@@ -37,13 +37,19 @@ export function AIReqRequirementContext({
   );
   const link = ai.objectLink();
   const isFormal = Boolean(formal || ai.selection.formalView);
-  const returnLabel = isFormal
-    ? zh
-      ? "返回正式需求列表"
-      : "Back to formal requirements"
-    : zh
-      ? "返回提案列表"
-      : "Back to proposals";
+  const returnView = ai.requirementReturnView ?? (isFormal ? "formal" : "proposals");
+  const returnLabel =
+    returnView === "projectOverview"
+      ? zh
+        ? "返回当前项目"
+        : "Back to current project"
+      : returnView === "formal"
+        ? zh
+          ? "返回正式需求列表"
+          : "Back to formal requirements"
+        : zh
+          ? "返回提案列表"
+          : "Back to proposals";
   const copyLabel =
     copiedLink && copiedLink === link ? (zh ? "已复制" : "Copied") : zh ? "复制链接" : "Copy link";
   return (
@@ -68,7 +74,7 @@ export function AIReqRequirementContext({
                 size="icon-sm"
                 className="shrink-0 focus-visible:border-remote-foreground-muted"
                 aria-label={returnLabel}
-                onClick={() => ai.navigate(() => ai.setMainView(isFormal ? "formal" : "proposals"))}
+                onClick={() => ai.navigate(() => ai.setMainView(returnView))}
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
               </Button>

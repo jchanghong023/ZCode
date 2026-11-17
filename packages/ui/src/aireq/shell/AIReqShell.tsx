@@ -72,6 +72,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const settingsOpen = ai.settingsOpen;
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [todosMounted, setTodosMounted] = useState(false);
+  const [projectOverviewMounted, setProjectOverviewMounted] = useState(false);
   const [proposalsMounted, setProposalsMounted] = useState(false);
   const [analysisProjectId, setAnalysisProjectId] = useState<string>();
   const [projectSettingsRequest, setProjectSettingsRequest] =
@@ -89,6 +90,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   }, [ai.mainView]);
   useEffect(() => {
     if (ai.mainView === "todos") setTodosMounted(true);
+    if (ai.mainView === "projectOverview") setProjectOverviewMounted(true);
     if (ai.mainView === "proposals") setProposalsMounted(true);
   }, [ai.mainView]);
   const guardChange = useCallback(
@@ -169,15 +171,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
-  else if (ai.mainView === "projectOverview")
-    content = (
-      <AIReqProjectOverviewPage
-        onConfigureProject={() =>
-          openProjectSettings({ kind: "project", projectId: ai.selection.projectId! })
-        }
-        onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
-      />
-    );
+  else if (ai.mainView === "projectOverview") content = null;
   else if (!project && ai.view && ai.selectionReady)
     content = (
       <div className="m-auto space-y-3 p-6 text-foreground-subtle">
@@ -289,6 +283,30 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                   ) : ai.mainView !== "skillDesign" ? (
                     content
                   ) : null}
+                  {(projectOverviewMounted || ai.mainView === "projectOverview") && (
+                    <div
+                      hidden={ai.mainView !== "projectOverview"}
+                      inert={ai.mainView !== "projectOverview" || settingsOpen}
+                      aria-hidden={ai.mainView !== "projectOverview"}
+                      className={
+                        ai.mainView === "projectOverview"
+                          ? "flex min-h-0 flex-1 flex-col"
+                          : "hidden"
+                      }
+                    >
+                      <AIReqProjectOverviewPage
+                        key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`}
+                        active={ai.mainView === "projectOverview" && !settingsOpen}
+                        onConfigureProject={() =>
+                          openProjectSettings({
+                            kind: "project",
+                            projectId: ai.selection.projectId!,
+                          })
+                        }
+                        onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
+                      />
+                    </div>
+                  )}
                   {(todosMounted || ai.mainView === "todos") && (
                     <div
                       hidden={ai.mainView !== "todos"}

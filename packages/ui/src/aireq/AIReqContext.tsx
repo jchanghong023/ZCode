@@ -23,6 +23,18 @@ import type {
   AIReqWorkflowView,
 } from "./contract.js";
 
+import {
+  captureRequirementReturnView,
+  restoreRequirementReturnView,
+  restoreNavigationOverlay,
+  restoreMainView,
+  type AIReqNavigationState,
+  type ProposalDraft,
+  type NavigationOverlay,
+  type RequirementView,
+  type RequirementReturnView,
+} from "./navigationState.js";
+
 export function aiReqQuery(selection: AIReqSelection): string {
   const query = new URLSearchParams();
   for (const key of ["projectId", "irId", "srId"] as const)
@@ -30,13 +42,6 @@ export function aiReqQuery(selection: AIReqSelection): string {
   return query.toString();
 }
 
-type ProposalDraft = { id: string; sourceIrId?: string };
-type NavigationOverlay =
-  | { kind: "settings" }
-  | { kind: "proposal"; draft: ProposalDraft }
-  | { kind: "proposal-import" }
-  | null;
-type RequirementView = "proposals" | "formal";
 type ObjectLink = { projectId: string; releaseId: string; irId: string; srId?: string };
 const objectLinkKeys = ["aireqProject", "aireqRelease", "aireqIr", "aireqSr"] as const;
 
@@ -63,6 +68,7 @@ export interface AIReqContextValue {
   session?: AIReqNativeSessionRef;
   mainView: WorkspaceMainView;
   requirementView: RequirementView;
+  requirementReturnView: RequirementReturnView;
   settingsOpen: boolean;
   openSettings(): void;
   closeSettings(): void;
@@ -130,17 +136,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         : source.initialSelection.projectId,
   }));
   const selectionRef = useRef(selection);
-  const [navigation, setNavigation] = useState<{
-    index: number;
-    extent: number;
-    mainView: WorkspaceMainView;
-    requirementView: RequirementView;
-    overlay: NavigationOverlay;
-  }>(() => ({
+  const [navigation, setNavigation] = useState<AIReqNavigationState>(() => ({
     index: 0,
     extent: 0,
     mainView: "projectProgress",
     requirementView: "formal",
+    requirementReturnView: null,
     overlay: null,
   }));
   const navigationRef = useRef(navigation);
@@ -170,11 +171,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       requirementView: RequirementView = navigationRef.current.requirementView,
     ) => {
       const previous = navigationRef.current;
+      // 返回来源属于同一导航 owner；详情内切阶段／设置不能覆盖首次进入来源。
+      const requirementReturnView = captureRequirementReturnView(previous, mainView);
       const next = {
         index: previous.index + 1,
         extent: previous.index + 1,
         mainView,
         requirementView,
+        requirementReturnView,
         overlay,
       };
       window.history.pushState(
@@ -188,6 +192,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqMainView: mainView,
           aiReqReleaseId: releaseRef.current,
           aiReqRequirementView: requirementView,
+          aiReqRequirementReturnView: requirementReturnView,
           aiReqOverlay: overlay,
         },
         "",
@@ -437,6 +442,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqMainView: navigationRef.current.mainView,
           aiReqReleaseId: releaseRef.current,
           aiReqRequirementView: navigationRef.current.requirementView,
+          aiReqRequirementReturnView: navigationRef.current.requirementReturnView,
           aiReqOverlay: navigationRef.current.overlay,
         },
         "",
@@ -466,6 +472,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqMainView: current.mainView,
               aiReqReleaseId: releaseRef.current,
               aiReqRequirementView: current.requirementView,
+              aiReqRequirementReturnView: current.requirementReturnView,
               aiReqOverlay: current.overlay,
             },
             "",
@@ -500,28 +507,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         return;
       }
       approvedHistory.current = false;
-      const savedView = event.state.aiReqMainView;
-      const mainView: WorkspaceMainView = [
-        "ideas",
-        "projectProgress",
-        "projectOverview",
-        "todos",
-        "proposals",
-        "formal",
-        "requirementAnalysis",
-        "skillDesign",
-      ].includes(savedView)
-        ? savedView
-        : "chat";
+      const mainView = restoreMainView(event.state.aiReqMainView);
       const restoredRelease =
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
-      const savedOverlay = event.state.aiReqOverlay as NavigationOverlay;
-      const overlay: NavigationOverlay =
-        savedOverlay?.kind === "settings" ||
-        savedOverlay?.kind === "proposal-import" ||
-        (savedOverlay?.kind === "proposal" && typeof savedOverlay.draft?.id === "string")
-          ? savedOverlay
-          : null;
+      const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
       const requirementView: RequirementView =
         event.state.aiReqRequirementView === "proposals" ? "proposals" : "formal";
       const previous = navigationRef.current;
@@ -533,7 +522,18 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         JSON.stringify(event.state.aiReqSelection) === JSON.stringify(selectionRef.current)
           ? releaseRef.current
           : restoredRelease;
-      const next = { index, extent: previous.extent, mainView, requirementView, overlay };
+      const requirementReturnView = restoreRequirementReturnView(
+        mainView,
+        event.state.aiReqRequirementReturnView,
+      );
+      const next = {
+        index,
+        extent: previous.extent,
+        mainView,
+        requirementView,
+        requirementReturnView,
+        overlay,
+      };
       navigationRef.current = next;
       setNavigation(next);
       window.history.replaceState(
@@ -746,6 +746,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         ),
         mainView: navigation.mainView,
         requirementView: navigation.requirementView,
+        requirementReturnView: navigation.requirementReturnView,
         settingsOpen: navigation.overlay?.kind === "settings",
         openSettings,
         closeSettings: closeOverlay,
