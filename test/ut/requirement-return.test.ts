@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  requirementObjectLink,
   captureRequirementReturnView,
   restoreRequirementReturnView,
   restoreMainView,
@@ -61,5 +62,24 @@ describe("requirement detail return navigation", () => {
     ).toEqual({ kind: "proposal", draft: { id: "draft", sourceIrId: "ir" } });
     expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: 7 } })).toBeNull();
     expect(restoreNavigationOverlay({ kind: "unknown" })).toBeNull();
+  });
+});
+
+describe("requirement object links", () => {
+  it("copies the explicit tab target and strips unrelated URL data", () => {
+    const link = requirementObjectLink(
+      "https://user:pass@example.test/app?old=secret#section",
+      { projectId: "project-b", irId: "ir-b", srId: "sr-b" },
+      "release-b",
+    );
+    expect(link).toBe(
+      "https://example.test/app?aireqProject=project-b&aireqRelease=release-b&aireqIr=ir-b&aireqSr=sr-b",
+    );
+  });
+  it("does not create a link for an incomplete target", () => {
+    expect(requirementObjectLink("https://example.test", { projectId: "p" }, "r")).toBeUndefined();
+    expect(
+      requirementObjectLink("https://example.test", { projectId: "p", irId: "ir" }, ""),
+    ).toBeUndefined();
   });
 });

@@ -253,7 +253,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background"
           >
             {/* 返回占用已有留白，不挪动列表标题；普通讨论仍不保留空白导航栏。 */}
-            {(ai.mainView !== "chat" || formal || ai.canReturnToProjectOverview) && (
+            {(ai.mainView !== "chat" || formal) && (
               <div className="h-12 shrink-0 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
                 {ai.canReturnToProjectOverview && (
                   <div

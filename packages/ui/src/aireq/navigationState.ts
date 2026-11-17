@@ -1,4 +1,4 @@
-import type { AIReqMainView } from "./contract.js";
+import type { AIReqMainView, AIReqSelection } from "./contract.js";
 
 export type ProposalDraft = { id: string; sourceIrId?: string };
 export type NavigationOverlay =
@@ -70,4 +70,23 @@ export function restoreMainView(saved: unknown): AIReqMainView {
       ] as const
     ).find((view) => view === saved) ?? "chat"
   );
+}
+
+/** 共享链接仅投影显式对象；不携带页面查询、凭据或锚点。 */
+export function requirementObjectLink(
+  base: string,
+  target: AIReqSelection,
+  releaseId: string,
+): string | undefined {
+  if (!target.projectId || !target.irId || !releaseId) return undefined;
+  const url = new URL(base);
+  url.username = "";
+  url.password = "";
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("aireqProject", target.projectId);
+  url.searchParams.set("aireqRelease", releaseId);
+  url.searchParams.set("aireqIr", target.irId);
+  if (target.srId) url.searchParams.set("aireqSr", target.srId);
+  return url.toString();
 }

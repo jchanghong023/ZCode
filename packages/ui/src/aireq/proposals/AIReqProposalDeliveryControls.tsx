@@ -15,7 +15,6 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
-import { AIReqProposalPrHandoff } from "./AIReqProposalPrHandoff.js";
 import {
   aiReqPrFactSchema,
   hasCurrentProposalSolution,
@@ -33,7 +32,7 @@ interface DeliveryDialog {
   files: AIReqFileVersion[];
 }
 const stepTitles: Record<DeliveryStep, string> = {
-  confirm: "确认完整包并创建文档 PR",
+  confirm: "确认方案并提交推送",
   push: "文档分支、提交与 PR",
   pr: "文档 PR 与合入核验",
 };
@@ -203,6 +202,8 @@ export function AIReqProposalDeliveryControls({
     (dialog.step === "confirm" || (current && dialog.candidate === delivery?.candidate));
   const allFilesChecked =
     !!dialog?.files.length && dialog.files.every((file) => checkedFiles.includes(file.path));
+  const selectedFileCount =
+    dialog?.files.filter((file) => checkedFiles.includes(file.path)).length ?? 0;
   const editable =
     !readOnly && ready && mine && !aireq.pending && handoff?.ready === true && boundCurrent;
   const canSubmit =
@@ -313,16 +314,16 @@ export function AIReqProposalDeliveryControls({
           if (!open && !submitting.current) setDialogOpen(false);
         }}
       >
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="shrink-0 border-b border-border/50 px-6 py-5">
             <DialogTitle>{dialog ? stepTitles[dialog.step] : "需求交付"}</DialogTitle>
             <DialogDescription>
-              确认材料 → 创建分支并提交推送 → 自动创建 MR → 人工评审、合并 → 后台定时核验并转正。
+              核对本次提交的方案文件。提交后自动创建 MR，供人工评审合并。
             </DialogDescription>
           </DialogHeader>
           {dialog && (
             <form
-              className="space-y-4"
+              className="flex min-h-0 flex-1 flex-col"
               onSubmit={async (event) => {
                 event.preventDefault();
                 if (!canSubmit || submitting.current) return;
@@ -364,131 +365,229 @@ export function AIReqProposalDeliveryControls({
                 }
               }}
             >
-              {dialogOpen && !aireq.pending && !boundCurrent && (
-                <p role="alert" className="text-ui-sm text-destructive">
-                  需求或方案版本已变化，请关闭后重新确认当前文档。
-                </p>
-              )}
-              {handoffLoading && (
-                <p role="status" className="text-ui-sm text-foreground-subtle">
-                  正在读取提案交付信息…
-                </p>
-              )}
-              {result?.error && (
-                <p role="alert" className="text-ui-sm text-destructive">
-                  {result.error}
-                </p>
-              )}
-              {dialog.step !== "pr" ? (
-                <>
-                  <AIReqProposalPrHandoff group={group} />
-                  <fieldset className="space-y-2">
-                    <legend className="text-ui-sm font-medium">
-                      确认 IR 业务材料、全部 SR 独立 change、测试方案及整体验收
-                    </legend>
-                    <ul className="max-h-64 space-y-2 overflow-auto">
-                      {dialog.files.map((file) => (
-                        <li key={file.path}>
-                          <label className="flex items-start gap-2 text-ui-sm">
-                            {dialog.step === "confirm" && (
-                              <Checkbox
-                                data-testid="proposal-delivery-file-check"
-                                // 未勾选框也是必需操作入口，局部增强边界而不改变通用 Checkbox。
-                                className="data-[state=unchecked]:border-foreground/60"
-                                aria-label={`确认 ${file.path}`}
-                                checked={checkedFiles.includes(file.path)}
-                                disabled={!editable}
-                                onCheckedChange={(checked) =>
-                                  setCheckedFiles((previous) =>
-                                    checked === true
-                                      ? [
-                                          ...previous.filter((path) => path !== file.path),
-                                          file.path,
-                                        ]
-                                      : previous.filter((path) => path !== file.path),
-                                  )
-                                }
-                              />
-                            )}
-                            <span className="min-w-0">
-                              <span className="block">
-                                {requirementMaterialName(file.path, aireq.view?.srs) ?? "需求材料"}
-                              </span>
-                              <span className="block break-all font-mono text-ui-base text-foreground">
-                                {file.path}
-                              </span>
-                            </span>
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  </fieldset>
-                  {dialog.step === "confirm" && (
-                    <label className="flex items-start gap-2 text-ui-sm">
-                      <Checkbox
-                        data-testid="proposal-delivery-confirm-all"
-                        className="data-[state=unchecked]:border-foreground/60"
-                        checked={acknowledged}
-                        disabled={!editable}
-                        onCheckedChange={(checked) => setAcknowledged(checked === true)}
-                      />
-                      我已确认当前需求与方案，可以创建提案分支、提交推送并自动创建 MR。
-                    </label>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="proposal-pr-title">MR 标题</Label>
-                    <Input
-                      id="proposal-pr-title"
-                      data-testid="proposal-pr-title"
-                      value={prTitle}
-                      readOnly
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="proposal-pr-body">MR 正文</Label>
-                    <SettingsFormTextarea
-                      id="proposal-pr-body"
-                      data-testid="proposal-pr-body"
-                      value={prBody}
-                      readOnly
-                      rows={8}
-                    />
-                  </div>
-                  <p className="text-ui-sm text-foreground-subtle">
-                    MR 由平台自动创建；请在企业 Git 平台人工评审并合并，后台定时核验后转正。
+              <div
+                className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5"
+                data-testid="proposal-delivery-body"
+              >
+                {dialogOpen && !aireq.pending && !boundCurrent && (
+                  <p role="alert" className="text-ui-sm text-destructive">
+                    需求或方案版本已变化，请关闭后重新确认当前文档。
                   </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="proposal-pr-url">MR 地址</Label>
-                    <Input
-                      id="proposal-pr-url"
-                      data-testid="proposal-pr-url"
-                      value={
-                        group.requirementsPr
-                          ? (resolveMrLink(group.requirementsPr.url) ?? "暂无可访问链接")
-                          : "等待平台创建 MR"
-                      }
-                      readOnly
-                    />
-                  </div>
-                  <AIReqProposalBackgroundStatus group={group} />
-                </>
-              )}
-              {aireq.error && (
-                <p role="alert" className="text-ui-sm text-destructive">
-                  {aireq.error}
+                )}
+                {handoffLoading && (
+                  <p role="status" className="text-ui-sm text-foreground-subtle">
+                    正在读取提案交付信息…
+                  </p>
+                )}
+                {result?.error && (
+                  <p role="alert" className="text-ui-sm text-destructive">
+                    {result.error}
+                  </p>
+                )}
+                {dialog.step !== "pr" ? (
+                  <>
+                    <section className="space-y-3" aria-label="提交目标">
+                      <div className="flex min-w-0 items-baseline justify-between gap-3">
+                        <h3 className="min-w-0 break-words text-ui-base font-medium">
+                          {group.title}
+                        </h3>
+                        <span className="shrink-0 text-ui-sm text-foreground-subtle">
+                          {dialog.files.length} 份文件
+                        </span>
+                      </div>
+                      <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 rounded-lg bg-surface px-4 py-3 text-ui-sm">
+                        <div className="col-span-2 min-w-0">
+                          <dt className="text-foreground-subtle">目标仓库</dt>
+                          <dd className="mt-1 break-all">{handoff?.repositoryUrl ?? "尚未配置"}</dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-foreground-subtle">提案分支</dt>
+                          <dd className="mt-1 break-all font-mono">
+                            {handoff?.branch ?? "读取中…"}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-foreground-subtle">合入分支</dt>
+                          <dd className="mt-1 break-all font-mono">
+                            {handoff?.targetBranch ?? "读取中…"}
+                          </dd>
+                        </div>
+                      </dl>
+                      <details className="text-ui-sm text-foreground-subtle">
+                        <summary className="w-fit cursor-pointer">提交详情</summary>
+                        <dl className="mt-3 space-y-3">
+                          {handoff?.sourceDirectory && (
+                            <div>
+                              <dt>材料来源</dt>
+                              <dd className="mt-1 break-all font-mono">
+                                {handoff.sourceDirectory}
+                              </dd>
+                            </div>
+                          )}
+                          <div>
+                            <dt>材料版本</dt>
+                            <dd className="mt-1 break-all font-mono">{dialog.version}</dd>
+                          </div>
+                          {dialog.candidate && (
+                            <div>
+                              <dt>提交候选</dt>
+                              <dd className="mt-1 break-all font-mono">{dialog.candidate}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </details>
+                    </section>
+                    <fieldset className="min-w-0 space-y-3">
+                      <legend className="text-ui-base font-medium">提交文件</legend>
+                      <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3">
+                        {dialog.step === "confirm" ? (
+                          <label className="flex cursor-pointer items-center gap-2 text-ui-sm">
+                            <Checkbox
+                              aria-label="全选文件"
+                              data-testid="proposal-delivery-select-all"
+                              checked={
+                                allFilesChecked
+                                  ? true
+                                  : selectedFileCount > 0
+                                    ? "indeterminate"
+                                    : false
+                              }
+                              disabled={!editable || !dialog.files.length}
+                              onCheckedChange={(checked) =>
+                                setCheckedFiles(
+                                  checked === true ? dialog.files.map((file) => file.path) : [],
+                                )
+                              }
+                            />
+                            全选文件
+                          </label>
+                        ) : (
+                          <span className="text-ui-sm text-foreground-subtle">
+                            已确认的完整文件包
+                          </span>
+                        )}
+                        <span
+                          className="text-ui-sm tabular-nums text-foreground-subtle"
+                          role="status"
+                          data-testid="proposal-delivery-selection-count"
+                        >
+                          {dialog.step === "confirm"
+                            ? `已选 ${selectedFileCount} / ${dialog.files.length}`
+                            : `${dialog.files.length} 份文件`}
+                        </span>
+                      </div>
+                      <ul className="divide-y divide-border/40">
+                        {dialog.files.map((file) => (
+                          <li key={file.path}>
+                            <label className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-3 text-ui-sm hover:bg-surface-hover">
+                              {dialog.step === "confirm" && (
+                                <Checkbox
+                                  data-testid="proposal-delivery-file-check"
+                                  // 未勾选框也是必需操作入口，局部增强边界而不改变通用 Checkbox。
+                                  className="data-[state=unchecked]:border-foreground/60"
+                                  aria-label={`确认 ${file.path}`}
+                                  checked={checkedFiles.includes(file.path)}
+                                  disabled={!editable}
+                                  onCheckedChange={(checked) =>
+                                    setCheckedFiles((previous) =>
+                                      checked === true
+                                        ? [
+                                            ...previous.filter((path) => path !== file.path),
+                                            file.path,
+                                          ]
+                                        : previous.filter((path) => path !== file.path),
+                                    )
+                                  }
+                                />
+                              )}
+                              <span className="min-w-0">
+                                <span className="block">
+                                  {requirementMaterialName(file.path, aireq.view?.srs) ??
+                                    "需求材料"}
+                                </span>
+                                <span className="mt-1 block break-all font-mono text-ui-sm text-foreground-subtle">
+                                  {file.path}
+                                </span>
+                              </span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </fieldset>
+                    {dialog.step === "confirm" && (
+                      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-surface p-4 text-ui-sm">
+                        <Checkbox
+                          data-testid="proposal-delivery-confirm-all"
+                          className="data-[state=unchecked]:border-foreground/60"
+                          checked={acknowledged}
+                          disabled={!editable}
+                          onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                        />
+                        <span>我已核对以上文件，确认方案并授权提交推送。</span>
+                      </label>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="proposal-pr-title">MR 标题</Label>
+                      <Input
+                        id="proposal-pr-title"
+                        data-testid="proposal-pr-title"
+                        value={prTitle}
+                        readOnly
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="proposal-pr-body">MR 正文</Label>
+                      <SettingsFormTextarea
+                        id="proposal-pr-body"
+                        data-testid="proposal-pr-body"
+                        value={prBody}
+                        readOnly
+                        rows={8}
+                      />
+                    </div>
+                    <p className="text-ui-sm text-foreground-subtle">
+                      MR 由平台自动创建；请在企业 Git 平台人工评审并合并，后台定时核验后转正。
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="proposal-pr-url">MR 地址</Label>
+                      <Input
+                        id="proposal-pr-url"
+                        data-testid="proposal-pr-url"
+                        value={
+                          group.requirementsPr
+                            ? (resolveMrLink(group.requirementsPr.url) ?? "暂无可访问链接")
+                            : "等待平台创建 MR"
+                        }
+                        readOnly
+                      />
+                    </div>
+                    <AIReqProposalBackgroundStatus group={group} />
+                  </>
+                )}
+                {aireq.error && (
+                  <p role="alert" className="text-ui-sm text-destructive">
+                    {aireq.error}
+                  </p>
+                )}
+              </div>
+              <DialogFooter className="shrink-0 items-center gap-3 border-t border-border/50 px-6 py-4">
+                <p className="mr-auto text-ui-sm text-foreground-subtle">
+                  {dialog.step === "confirm"
+                    ? "全部文件勾选并确认后可提交"
+                    : dialog.step === "pr"
+                      ? "等待人工合并，后台自动核验"
+                      : "继续提交当前已确认的文件包"}
                 </p>
-              )}
-              <DialogFooter>
                 <Button
                   type="button"
                   variant="outline"
                   disabled={submittingDelivery}
                   onClick={() => setDialogOpen(false)}
                 >
-                  关闭
+                  {dialog.step === "pr" ? "关闭" : "取消"}
                 </Button>
                 {!readOnly && dialog.step !== "pr" && (
                   <Button
@@ -498,7 +597,9 @@ export function AIReqProposalDeliveryControls({
                   >
                     {/* 修复：推送已成功时，重试只补建 MR，不能提示再次推送。 */}
                     {dialog.step === "confirm"
-                      ? "确认、提交推送并创建 MR"
+                      ? submittingDelivery
+                        ? "正在提交…"
+                        : "确认并提交推送"
                       : pushed
                         ? "重试创建 MR"
                         : "提交推送并创建 MR"}

@@ -52,7 +52,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
       onSelect={select}
       onGuardChange={guard}
     >
-      <AIReqRequirementContext showReturn={false} />
+      {tab.kind !== "materials" && <AIReqRequirementContext showReturn={false} />}
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab.kind === "materials" ? (
           <AIReqMaterialsPane />
@@ -160,12 +160,19 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const available =
     ai.mainView !== "projectProgress" &&
     ai.mainView !== "ideas" &&
-    ai.mainView !== "projectOverview";
+    ai.mainView !== "projectOverview" &&
+    ai.mainView !== "proposals" &&
+    // 分析页的通用展开只会打开空启动页；有实际内容后才提供工作区入口。
+    (ai.mainView !== "requirementAnalysis" || pane.tabs.some((tab) => tab.kind !== "launcher"));
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
-  // 复用原生同步 hook，收起必须归还实际宽度，进入概览或全局页面仅隐藏而不清空 Tab。
-  const { panelRef: panel } = useAnimatedResizablePanel({ open: isOpen });
+  // 复用原生同步 hook，收起必须归还实际宽度，进入概览、全局页面或提案列表仅隐藏而不清空 Tab。
+  const { panelRef: panel } = useAnimatedResizablePanel({
+    open: isOpen,
+    expandedSize: "45%",
+    rememberExpandedSize: true,
+  });
   const currentScope = JSON.stringify([ai.selection.projectId ?? "", ai.releaseId]);
   const { locale } = useZCodeIntl();
   return (
@@ -176,7 +183,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       data-testid="aireq-side-pane-workspace"
     >
-      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="65%">
+      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="55%">
         <div
           className="relative flex h-full min-h-0 min-w-0 flex-col"
           inert={fullView}
@@ -203,8 +210,8 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       <ResizablePanel
         id="aireq-side-pane"
         panelRef={panel}
-        defaultSize="35%"
-        minSize="320px"
+        defaultSize="45%"
+        minSize="400px"
         maxSize="80%"
         // 与原生宿主一致：只有显式收起时允许折叠，拖动不能绕过门禁。
         collapsible={!isOpen}

@@ -28,6 +28,7 @@ import type {
 } from "./contract.js";
 
 import {
+  requirementObjectLink,
   captureRequirementReturnView,
   restoreRequirementReturnView,
   restoreNavigationOverlay,
@@ -601,17 +602,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       (item) => item.projectId === target.projectId && item.id === target.irId,
     );
     if (!group) return undefined;
-    const url = withoutObjectLink(new URL(window.location.href));
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-    // 未知查询值可能包含敏感信息，分享链接只从当前业务定位事实构造。
-    url.search = "";
-    url.searchParams.set("aireqProject", target.projectId);
-    url.searchParams.set("aireqRelease", group.releaseId);
-    url.searchParams.set("aireqIr", target.irId);
-    if (target.srId) url.searchParams.set("aireqSr", target.srId);
-    return url.toString();
+    return requirementObjectLink(window.location.href, target, group.releaseId);
   }, []);
   const retryMaterial = useCallback(
     async (path: string) => {

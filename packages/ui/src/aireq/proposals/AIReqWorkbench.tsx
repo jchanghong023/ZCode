@@ -1,6 +1,6 @@
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ListTree } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Collapsible,
@@ -10,6 +10,8 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
+  SelectLabel,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -28,11 +30,20 @@ import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 import { AIReqPhaseHeader, AIReqDocumentPhaseActions } from "./AIReqPhaseHeader.js";
 import { AIReqReviewNavigation } from "./AIReqReviewNavigation.js";
 import { AIReqProposalFeedback } from "./AIReqProposalFeedback.js";
-export function AIReqStageHeader() {
+export function AIReqStageHeader({
+  reviewDetailsOpen,
+  onReviewDetailsChange,
+}: {
+  reviewDetailsOpen: boolean;
+  onReviewDetailsChange(open: boolean): void;
+}) {
   return (
     <>
       <AIReqPhaseHeader />
-      <AIReqReviewNavigation />
+      <AIReqReviewNavigation
+        detailsOpen={reviewDetailsOpen}
+        onDetailsChange={onReviewDetailsChange}
+      />
       <AIReqProposalFeedback />
     </>
   );
@@ -77,10 +88,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
     : group?.materialHistory?.find((item) => item.version === historyVersion);
   // 同一 IR 包内切换各 SR；历史快照只读，永不回写当前材料。
   const materials = (historical?.materials ?? view?.materials ?? []).filter(
-    (item) =>
-      item.projectId === selection.projectId &&
-      item.irId === selection.irId &&
-      (compact || !selection.srId || item.srId === selection.srId),
+    (item) => item.projectId === selection.projectId && item.irId === selection.irId,
   );
   const proposalSolutionView =
     proposal && (selection.discussionPhase ?? group?.proposalStage) === "solution";
@@ -109,9 +117,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
   ]);
   const displayPath = (filePath: string) => filePath;
   const materialLabel = (item: AIReqMaterialView) => {
-    const label =
-      requirementMaterialName(item.path, selection.srId && !compact ? view?.srs : undefined) ??
-      MATERIAL_KIND_LABELS[item.kind];
+    const label = requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind];
     // IR 汇总列出多个 SR 的同类文件，必须同时给出所属 SR 和材料名。
     const materialSr = view?.srs.find(
       (sr) => sr.id === item.srId && sr.irId === item.irId && sr.projectId === item.projectId,
@@ -125,11 +131,15 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
         ? `${title} · ${item.srId}${materialSr ? ` · ${materialSr.title}` : ""}`
         : title;
     }
-    return !selection.srId && item.srId
+    return item.srId
       ? `${item.srId}${materialSr ? ` · ${materialSr.title}` : ""} · ${label}`
       : label;
   };
-  const solutionMaterial = materials.find((item) => item.path.endsWith("/design.md"));
+  const selectedMaterialSrId = materials.find((item) => item.path === path)?.srId ?? selection.srId;
+  const solutionMaterial =
+    materials.find(
+      (item) => item.srId === selectedMaterialSrId && item.path.endsWith("/design.md"),
+    ) ?? materials.find((item) => item.path.endsWith("/design.md"));
   const dependencyMaterial = materials.find((item) => item.path.endsWith("/sr-dependencies.json"));
   const planningRows =
     view?.srs.filter((item) => item.irId === group?.id && item.projectId === group?.projectId) ??
@@ -138,6 +148,26 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
   // 投影更新后旧路径可能已消失；所有展示统一消费同一个首选材料，而不是只替换标题。
   const current = listed ?? preferred;
   const displayedPath = current?.path ?? "";
+  const materialGroups = [
+    undefined,
+    ...new Set(materials.map((item) => item.srId).filter((id): id is string => Boolean(id))),
+  ]
+    .map((srId) => {
+      const owner = planningRows.find((item) => item.id === srId);
+      return {
+        id: srId ?? "ir",
+        label: srId
+          ? `${owner?.title ?? srId}${owner ? ` · ${srId}` : ""}`
+          : zh
+            ? "IR 共享材料"
+            : "Shared IR materials",
+        items: materials.filter((item) => item.srId === srId),
+      };
+    })
+    .filter((section) => section.items.length);
+  const hasHistoryChoices = Boolean(group?.materialHistory?.length);
+  const materialTabClassName =
+    "h-9 min-w-0 flex-1 rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 text-foreground-subtle hover:bg-transparent hover:text-foreground aria-pressed:border-foreground aria-pressed:text-foreground";
   const error = current?.error;
   const feedbackScope = `${selection.projectId}:${selection.irId}:${historyVersion}:${displayedPath}`;
   const awaitingRequirements =
@@ -187,7 +217,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
             }}
           >
             <SelectTrigger
-              className="min-w-0 flex-1"
+              className={materialTabClassName}
               data-testid="material-menu"
               aria-label={zh ? "选择需求材料" : "Choose requirement material"}
             >
@@ -249,61 +279,47 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
           className="shrink-0 overflow-y-auto pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
           style={{ scrollbarWidth: "thin" }}
         >
-          <div className={`mx-auto min-w-0 space-y-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-            {group && (
-              <div className="flex flex-wrap gap-2">
-                <Select
-                  value={selection.srId ?? "ir"}
-                  onValueChange={(id) =>
-                    aireq.navigate(() =>
-                      aireq.select({
-                        ...selection,
-                        srId: id === "ir" ? undefined : id,
-                        materialPath: undefined,
-                      }),
-                    )
-                  }
-                >
-                  <SelectTrigger aria-label="选择 IR 或独立 SR 材料">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ir">IR 共享及全部材料</SelectItem>
-                    {view?.srs
-                      .filter(
-                        (item) => item.irId === group.id && item.projectId === group.projectId,
-                      )
-                      .map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.id} · {item.title}
+          <div className={`mx-auto min-w-0 space-y-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+            {group && hasHistoryChoices && (
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                {hasHistoryChoices && (
+                  <Select
+                    value={historyVersion || "current"}
+                    onValueChange={(id) => {
+                      setHistorySelection({
+                        projectId: selection.projectId,
+                        irId: selection.irId,
+                        version: id === "current" ? "" : id,
+                      });
+                      setPath("");
+                    }}
+                  >
+                    <SelectTrigger
+                      variant="ghost"
+                      className="ml-auto max-w-full min-w-0 text-ui-sm text-foreground-subtle"
+                      aria-label="选择材料历史版本"
+                    >
+                      <SelectValue>
+                        {historical
+                          ? zh
+                            ? "历史只读"
+                            : "Read-only history"
+                          : zh
+                            ? "版本历史"
+                            : "Version history"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="current">当前材料</SelectItem>
+                      {group.materialHistory?.map((item, index) => (
+                        <SelectItem key={`${item.version}:${index}`} value={item.version}>
+                          历史只读 · {item.reason} ·{" "}
+                          {new Date(item.changedAt).toLocaleString("zh-CN")}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={historyVersion || "current"}
-                  onValueChange={(id) => {
-                    setHistorySelection({
-                      projectId: selection.projectId,
-                      irId: selection.irId,
-                      version: id === "current" ? "" : id,
-                    });
-                    setPath("");
-                  }}
-                >
-                  <SelectTrigger aria-label="选择材料历史版本">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">当前材料</SelectItem>
-                    {group.materialHistory?.map((item, index) => (
-                      <SelectItem key={`${item.version}:${index}`} value={item.version}>
-                        历史只读 · {item.reason} ·{" "}
-                        {new Date(item.changedAt).toLocaleString("zh-CN")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                )}
                 {/* 完整版本标识可能是长快照；阅读区保留原因，技术标识收进已有折叠区。 */}
                 {historical && (
                   <p className="text-ui-sm text-foreground-subtle">
@@ -315,13 +331,13 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
             {proposalSolutionView && group && (
               <nav
                 aria-label="方案材料定位"
-                className="flex gap-1"
+                className="flex gap-3 border-b border-border/50"
                 data-testid="proposal-material-navigation"
               >
                 <Button
                   size="sm"
-                  variant={!showPlanning && path === solutionMaterial?.path ? "secondary" : "ghost"}
-                  className="min-w-0 flex-1"
+                  variant="ghost"
+                  className={materialTabClassName}
                   disabled={!solutionMaterial}
                   aria-pressed={!showPlanning && path === solutionMaterial?.path}
                   onClick={() => {
@@ -333,10 +349,8 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 </Button>
                 <Button
                   size="sm"
-                  variant={
-                    !showPlanning && path === dependencyMaterial?.path ? "secondary" : "ghost"
-                  }
-                  className="min-w-0 flex-1"
+                  variant="ghost"
+                  className={materialTabClassName}
                   disabled={!dependencyMaterial}
                   aria-pressed={!showPlanning && path === dependencyMaterial?.path}
                   onClick={() => {
@@ -348,8 +362,8 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 </Button>
                 <Button
                   size="sm"
-                  variant={showPlanning ? "secondary" : "ghost"}
-                  className="min-w-0 flex-1"
+                  variant="ghost"
+                  className={materialTabClassName}
                   aria-pressed={showPlanning}
                   onClick={() => setShowPlanning(true)}
                 >
@@ -357,7 +371,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 </Button>
               </nav>
             )}
-            {!showPlanning && (
+            {!showPlanning && materials.length > 1 && (
               <Select
                 value={displayedPath || "none"}
                 onValueChange={(value) => {
@@ -366,36 +380,26 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 }}
               >
                 <SelectTrigger
-                  className="h-auto min-h-8 w-full min-w-0 py-1.5"
+                  variant="ghost"
+                  className="max-w-full gap-2 px-1 text-ui-sm text-foreground-subtle"
                   data-testid="material-menu"
-                  aria-label="选择材料类型"
+                  aria-label={zh ? "文档目录" : "Document directory"}
                 >
-                  <SelectValue>
-                    <span className="block min-w-0 whitespace-normal break-all text-left text-ui-sm">
-                      {current
-                        ? materialLabel(current)
-                        : awaitingRequirements
-                          ? "等待生成需求材料"
-                          : "选择材料类型"}
-                    </span>
-                  </SelectValue>
+                  <ListTree className="size-3.5 shrink-0" aria-hidden="true" />
+                  <SelectValue>{zh ? "文档目录" : "Document directory"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent position="popper" align="start">
-                  {!materials.length && (
-                    <SelectItem value="none">
-                      {selection.irId
-                        ? awaitingRequirements
-                          ? "等待生成需求材料"
-                          : selection.srId
-                            ? "当前 SR 材料清单不可用"
-                            : "IR 需求材料清单不可用"
-                        : "选择需求后查看材料"}
-                    </SelectItem>
-                  )}
-                  {materials.map((item) => (
-                    <SelectItem key={item.path} value={item.path}>
-                      {materialLabel(item)}
-                    </SelectItem>
+                  {materialGroups.map((section) => (
+                    <SelectGroup key={section.id}>
+                      <SelectLabel className="max-w-full whitespace-normal break-words">
+                        {section.label}
+                      </SelectLabel>
+                      {section.items.map((item) => (
+                        <SelectItem key={item.path} value={item.path}>
+                          {requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
