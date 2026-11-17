@@ -110,14 +110,20 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                     />
                     <h2 className="min-w-0 wrap-anywhere font-semibold">{project.name}</h2>
                     {ai.selection.projectId === project.id && (
-                      <Badge variant="secondary">{zh ? "当前项目" : "Current"}</Badge>
+                      <Badge variant="secondary" className="text-ui-sm">
+                        {zh ? "当前项目" : "Current"}
+                      </Badge>
                     )}
                   </div>
                   <span className="text-ui-sm text-foreground-subtle">
                     {releases
-                      ? zh
-                        ? `${releases.length} 个版本`
-                        : `${releases.length} releases`
+                      ? !expanded && releases.length > VISIBLE_RELEASES
+                        ? zh
+                          ? `最近 ${VISIBLE_RELEASES} 个 · 共 ${releases.length} 个版本`
+                          : `Latest ${VISIBLE_RELEASES} · ${releases.length} releases`
+                        : zh
+                          ? `${releases.length} 个版本`
+                          : `${releases.length} releases`
                       : zh
                         ? "正在读取…"
                         : "Loading…"}
@@ -164,12 +170,14 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                               />
                             </div>
                             <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle tabular-nums">
-                              <span className="whitespace-nowrap">
-                                {zh ? "正式需求" : "Formal"}{" "}
-                                <strong className="font-medium text-foreground">
-                                  {release.formalCount}
-                                </strong>
-                              </span>
+                              {release.formalCount > 0 && (
+                                <span className="whitespace-nowrap">
+                                  {zh ? "正式需求" : "Formal"}{" "}
+                                  <strong className="font-medium text-foreground">
+                                    {release.formalCount}
+                                  </strong>
+                                </span>
+                              )}
                               <span className="whitespace-nowrap">
                                 {zh ? "提案" : "Proposals"}{" "}
                                 <strong className="font-medium text-foreground">
@@ -178,7 +186,7 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                               </span>
                               {release.unanalyzedCount > 0 && (
                                 <span className="whitespace-nowrap">
-                                  {zh ? "未分析 SR" : "Unanalyzed SRs"}{" "}
+                                  {zh ? "未分析开发任务" : "Unanalyzed tasks"}{" "}
                                   <strong className="font-medium text-foreground">
                                     {release.unanalyzedCount}
                                   </strong>

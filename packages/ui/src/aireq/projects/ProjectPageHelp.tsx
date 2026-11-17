@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
@@ -10,7 +9,6 @@ export function ProjectPageHelp({
 }: {
   scope: "all-projects" | "project-overview" | "formal-requirements" | "analysis-runs";
 }) {
-  const [open, setOpen] = useState(false);
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const allProjects = scope === "all-projects";
@@ -41,8 +39,8 @@ export function ProjectPageHelp({
         : "Expand a requirement to see its development units (SRs), then select a requirement or unit to read its progress report."
       : allProjects
         ? zh
-          ? "按项目比较各版本的需求与进展。使用左侧项目与 Release 选择器切换工作范围；当前项目提供统计、待确认事项及最近动态。"
-          : "Compare requirements and progress across projects and releases. Use the sidebar to select a project and Release; Current project shows statistics, pending confirmations and recent activity."
+          ? "比较各项目与版本的需求及进展。一条正式需求（IR）可拆分为多个开发任务（SR）。"
+          : "Compare requirements and progress across projects and releases. A formal requirement (IR) can be split into multiple development tasks (SRs)."
         : zh
           ? "查看当前范围的需求进度，进入 IR 或 SR 阅读报告。"
           : "Review requirement progress in this scope and open IR or SR reports.";
@@ -56,14 +54,15 @@ export function ProjectPageHelp({
         : "Requirement (IR) progress averages its development units (SRs). Unanalyzed units count as zero; code merge means 99%, and human test acceptance means 100%."
       : allProjects
         ? zh
-          ? "每个版本的进度按该范围内正式 SR 等权平均，提案不计入；未分析按 0 计并显示数量，代码合入为 99%，人工验收通过才为 100%。没有正式需求或尚无开发单元时不显示百分比。"
-          : "Each release averages its formal SRs, excluding proposals. Unanalyzed SRs count as zero and their count is shown; code merge means 99%, and human test acceptance means 100%. No percentage is shown without formal requirements or development units."
+          ? "版本进度为所有正式开发任务（SR）的等权平均，提案不参与计算。未分析任务按 0 计，代码合入为 99%，人工验收通过才为 100%。没有正式需求或开发任务时不显示百分比。"
+          : "Release progress is the equally weighted average of its formal development tasks (SRs); proposals are excluded. Unanalyzed tasks count as zero, code merge means 99%, and human test acceptance means 100%. No percentage is shown without formal requirements or development tasks."
         : zh
           ? "进度按范围内正式 SR 等权平均，提案不计入；未分析按 0 并标注，代码合入为 99%，人工验收通过才为 100%。"
           : "Progress averages formal SRs in scope, excluding proposals. Unanalyzed SRs count as zero; code merge means 99%, and human test acceptance means 100%.";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // 长说明需稳定阅读；开合与焦点交还原生 Popover，避免离开问号就消失。
+    <Popover>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -71,29 +70,14 @@ export function ProjectPageHelp({
           size="icon-sm"
           className="size-6 shrink-0 text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
           aria-label={label}
-          onPointerEnter={(event) => {
-            if (event.pointerType === "mouse") setOpen(true);
-          }}
-          onPointerLeave={(event) => {
-            if (event.pointerType === "mouse") setOpen(false);
-          }}
-          onFocus={() => setOpen(true)}
-          onClick={(event) => {
-            // 复用原生帮助的打开语义：focus／hover 已打开时，点击不能反向关闭。
-            event.preventDefault();
-            setOpen(true);
-          }}
         >
           <CircleHelp className="size-3.5" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        role="tooltip"
         aria-label={label}
         align="start"
         collisionPadding={12}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => event.preventDefault()}
         className="max-h-[min(28rem,calc(100vh-2rem))] w-80 max-w-[calc(100vw-1.5rem)] gap-3 overflow-y-auto p-3 text-ui-sm leading-relaxed"
       >
         <p>{description}</p>
