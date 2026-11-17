@@ -143,6 +143,13 @@ export function AIReqProjectSettings({
   }, [source, aireq?.view, refreshKey]);
   const projects = aireq?.view?.projects ?? [];
   const releaseCount = projectViews.reduce((count, item) => count + item.view.releases.length, 0);
+  // 空投影也是首次读取的初值，只有当前快照读取成功后才能把它解释为真实的零。
+  const releaseCountReady =
+    !loading &&
+    !loadError &&
+    loadedSnapshot.current?.source === source &&
+    loadedSnapshot.current.view === aireq?.view &&
+    loadedSnapshot.current.refreshKey === refreshKey;
   const canSaveRepository = Boolean(source.projects?.saveRepository);
   const canCreateRelease = source.capabilities.workflowCommands.includes("createRelease");
   const dirty =
@@ -354,8 +361,20 @@ export function AIReqProjectSettings({
         <div className="min-w-0 space-y-1">
           <p className="text-ui-base font-medium">
             {zh
-              ? `${projects.length} 个项目 · ${releaseCount} 个 Release`
-              : `${projects.length} projects · ${releaseCount} releases`}
+              ? `${projects.length} 个项目 · ${
+                  releaseCountReady
+                    ? `${releaseCount} 个 Release`
+                    : loadError
+                      ? "Release 数量不可用"
+                      : "Release 数量读取中…"
+                }`
+              : `${projects.length} projects · ${
+                  releaseCountReady
+                    ? `${releaseCount} releases`
+                    : loadError
+                      ? "Release count unavailable"
+                      : "Loading Release count…"
+                }`}
             <span role="status" className="sr-only">
               {loading && projectViews.length > 0
                 ? zh
@@ -536,12 +555,14 @@ export function AIReqProjectSettings({
             <div className="min-h-0 space-y-4 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="project-name">{zh ? "项目名称" : "Project name"}</Label>
+                {/* 禁用文本框会丢失 Enter 提交前的焦点；只读即可阻止并发编辑。 */}
                 <Input
                   id="project-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   required
-                  disabled={saving || !canSaveRepository}
+                  readOnly={saving}
+                  disabled={!canSaveRepository}
                 />
               </div>
               <div className="space-y-2">
@@ -554,7 +575,8 @@ export function AIReqProjectSettings({
                   onChange={(event) => setRepositoryUrl(event.target.value)}
                   placeholder="ssh://git@git.example.internal/team/project.git"
                   required
-                  disabled={saving || !canSaveRepository}
+                  readOnly={saving}
+                  disabled={!canSaveRepository}
                   aria-describedby="project-repository-help"
                 />
                 <p
@@ -574,7 +596,8 @@ export function AIReqProjectSettings({
                   onChange={(event) => setDefaultBranch(event.target.value)}
                   placeholder={zh ? "例如 main 或 master" : "For example, main or master"}
                   required
-                  disabled={saving || !canSaveRepository}
+                  readOnly={saving}
+                  disabled={!canSaveRepository}
                 />
               </div>
               <p className="text-ui-sm leading-5 text-remote-foreground-muted">
@@ -681,7 +704,7 @@ export function AIReqProjectSettings({
                       : "For example, 2027.01 · Payment improvements"
                   }
                   value={releaseTitle}
-                  disabled={releaseSaving}
+                  readOnly={releaseSaving}
                   onChange={(event) => {
                     setReleaseTitle(event.target.value);
                     setReleaseError("");

@@ -114,8 +114,7 @@ export function V4InteractionDialogs({
   const pending =
     currentSnapshot?.pendingInteractions.find(
       (interaction) =>
-        interaction.payload.kind === "permission" ||
-        interaction.payload.kind === "userInput",
+        interaction.payload.kind === "permission" || interaction.payload.kind === "userInput",
     ) ?? null;
   const workspaceHookReview = currentSnapshot?.pendingInteractions.find(
     (interaction) => interaction.payload.kind === "workspaceHookReview",

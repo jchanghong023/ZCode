@@ -1,10 +1,27 @@
 import type {
+  AIReqAction,
+  AIReqCommandBase,
   AIReqProject,
   AIReqRequirementGroup,
   AIReqProposalDelivery,
   AIReqReview,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
+import type { AIReqVersionedProgressInput } from "@zcode/services/aireq";
+
+export interface AIReqCodeMergeInput extends AIReqVersionedProgressInput {
+  fix: boolean;
+}
+
+// 生成材料只由原生讨论完成回调驱动，不能出现在浏览器安全的公共命令类型中。
+export type InternalWorkflowAction =
+  | AIReqAction
+  | (Omit<AIReqCommandBase, "operationId" | "expectedRevision"> &
+      (
+        | { type: "generateRequirements"; note: string }
+        | { type: "supplementRequirements"; note: string }
+        | { type: "generateProposalSolution" }
+      ));
 
 /** 服务端夹具专属类型；不属于可替换后端的公开协议。 */
 export type AIReqProposalMergeScenario =

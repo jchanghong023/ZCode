@@ -78,10 +78,7 @@ export function AIReqSkillBriefForm({
               placeholder={field.placeholder}
               onChange={(event) => updateDraft({ ...draft, [field.id]: event.target.value })}
             />
-            <p
-              id={`skill-design-${field.id}-hint`}
-              className="text-ui-sm text-foreground-subtle"
-            >
+            <p id={`skill-design-${field.id}-hint`} className="text-ui-sm text-foreground-subtle">
               {field.hint}
             </p>
           </div>

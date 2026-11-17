@@ -123,8 +123,10 @@ export function AIReqRequirementList({
     .sort((a, b) => b.time - a.time || a.group.id.localeCompare(b.group.id))
     .map((item) => item.group);
   const choose = (irId: string) => {
-    aireq.select({ projectId: aireq.selection.projectId, irId });
-    onNavigate?.();
+    aireq.navigate(() => {
+      aireq.select({ projectId: aireq.selection.projectId, irId });
+      onNavigate?.();
+    });
   };
   return (
     <div className="relative [&_[data-purpose-section-drag-trigger]]:pl-8">

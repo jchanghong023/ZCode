@@ -29,13 +29,15 @@ export const SETTINGS_FRAME_CONTENT_CLASSNAME =
 export function ThemeSelect({
   value,
   onValueChange,
+  ariaLabel,
 }: {
   value: BundledTheme;
   onValueChange: (value: BundledTheme) => void;
+  ariaLabel?: string;
 }) {
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as BundledTheme)}>
-      <SelectTrigger size="lg" className="w-64 min-w-0 justify-between">
+      <SelectTrigger size="lg" className="w-64 min-w-0 justify-between" aria-label={ariaLabel}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

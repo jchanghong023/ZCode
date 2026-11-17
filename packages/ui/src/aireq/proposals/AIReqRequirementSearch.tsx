@@ -45,9 +45,11 @@ export function AIReqRequirementSearch({
   );
   const normalized = query.trim().toLocaleLowerCase();
   const choose = (irId: string, srId?: string) => {
-    aireq.select({ projectId: aireq.selection.projectId, irId, srId });
     onOpenChange(false);
-    onNavigate?.();
+    aireq.navigate(() => {
+      aireq.select({ projectId: aireq.selection.projectId, irId, srId });
+      onNavigate?.();
+    });
   };
   return (
     <CommandDialog

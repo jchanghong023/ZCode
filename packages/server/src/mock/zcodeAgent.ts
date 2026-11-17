@@ -77,13 +77,27 @@ const conversationRowsRangeInputSchema = v4ConversationRowsRangeParamsSchema
   .omit({ workspace: true, clientMode: true })
   .extend(workspaceTargetShape);
 const workflowReadInputSchemas = {
-  runs: v4ConversationWorkflowRunsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  events: v4ConversationWorkflowRunEventsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  artifacts: v4ConversationWorkflowRunArtifactsParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  data: v4ConversationWorkflowRunArtifactDataParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  read: v4ConversationWorkflowRunArtifactReadParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  workspace: v4ConversationWorkflowRunWorkspaceParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
-  node: v4ConversationWorkflowRunNodeResultParamsSchema.omit({ workspace: true }).extend(workspaceTargetShape),
+  runs: v4ConversationWorkflowRunsParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  events: v4ConversationWorkflowRunEventsParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  artifacts: v4ConversationWorkflowRunArtifactsParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  data: v4ConversationWorkflowRunArtifactDataParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  read: v4ConversationWorkflowRunArtifactReadParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  workspace: v4ConversationWorkflowRunWorkspaceParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
+  node: v4ConversationWorkflowRunNodeResultParamsSchema
+    .omit({ workspace: true })
+    .extend(workspaceTargetShape),
 };
 
 interface ConversationSubscription {
@@ -163,6 +177,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     private readonly business?: {
       admitNative(sessionId: string, commandId: string, text: string): void;
       completeNative(sessionId: string, commandId: string, text: string): string;
+      discardNative(sessionId: string, commandId: string): void;
       seedNative(sessionId: string): string | undefined;
       getNativeBinding(
         sessionId: string,
@@ -407,6 +422,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     clientId: string,
     text: string,
     submission: MockSubmission,
+    owner: AbortController,
   ): Promise<void> {
     const modelSelection = submission.modelSelection ?? session.config.modelSelection;
     const model = modelSelection?.modelId ?? session.config.model;
@@ -442,6 +458,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       startedAt,
     };
     this.appendRow(session, turnHeader);
+    // 停止先同步收口本轮；旧 await 恢复时不能把替代轮当作自己的运行句柄。
+    owner.signal.onabort = () => {
+      this.business?.discardNative(session.sessionId, commandId);
+      this.finalizeInterruptedTurn(session, turnHeader, owner);
+    };
 
     const userInputRow: WireConversationRow = {
       kind: "userInput",
@@ -470,7 +491,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
     if (this.business) {
       await this.sleep(80);
-      if (session.activeTurn === null) return this.finalizeInterruptedTurn(session, turnHeader);
+      if (owner.signal.aborted || session.activeTurn !== owner)
+        return this.finalizeInterruptedTurn(session, turnHeader, owner);
       try {
         const reply = this.business.completeNative(session.sessionId, commandId, text);
         this.appendRow(session, {
@@ -485,8 +507,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           state: "complete",
           model,
         });
-        this.finalizeTurn(session, turnHeader, startedAt, reply);
+        this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
       } catch (error) {
+        if (owner.signal.aborted || session.activeTurn !== owner)
+          return this.finalizeInterruptedTurn(session, turnHeader, owner);
         // 已接纳不等于完成：只透出显式安全业务错误，未知详情由既有服务端诊断记录。
         const message = businessFailureMessage(error, "业务处理失败，请稍后重试。");
         this.appendRow(session, {
@@ -501,7 +525,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           state: "failed",
           model,
         });
-        this.finalizeInterruptedTurn(session, turnHeader, "failed");
+        this.finalizeInterruptedTurn(session, turnHeader, owner, "failed");
       }
       return;
     }
@@ -524,8 +548,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
     this.appendRow(session, toolCallRow);
     await this.sleep(60);
-    if (session.activeTurn === null) {
-      return this.finalizeInterruptedTurn(session, turnHeader);
+    if (owner.signal.aborted || session.activeTurn !== owner) {
+      return this.finalizeInterruptedTurn(session, turnHeader, owner);
     }
 
     const succeededTool: WireConversationRow = {
@@ -566,13 +590,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const reply = this.buildReplyText(text);
     const chunkSize = 24;
     for (let offset = 0; offset < reply.length; offset += chunkSize) {
-      if (session.activeTurn === null) {
+      if (owner.signal.aborted || session.activeTurn !== owner) {
         this.upsertRow(session, {
           ...streamingRow,
           text: reply.slice(0, offset),
           state: "interrupted",
         });
-        return this.finalizeInterruptedTurn(session, turnHeader);
+        return this.finalizeInterruptedTurn(session, turnHeader, owner);
       }
       const chunk = reply.slice(offset, offset + chunkSize);
       this.emitConversationFrame(
@@ -586,19 +610,22 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       await this.sleep(45);
     }
 
+    if (owner.signal.aborted || session.activeTurn !== owner) {
+      this.upsertRow(session, { ...streamingRow, text: reply, state: "interrupted" });
+      return this.finalizeInterruptedTurn(session, turnHeader, owner);
+    }
+
     this.upsertRow(session, { ...streamingRow, text: reply, state: "complete" });
-    this.finalizeTurn(session, turnHeader, startedAt, reply);
+    this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
   }
 
   private finalizeInterruptedTurn(
     session: MockSession,
     turnHeader: WireConversationRow,
+    owner: AbortController,
     state: "completedInterrupted" | "failed" = "completedInterrupted",
   ): void {
-    // turn 已收口：清掉运行句柄，后续 sendText 才会开始新 turn，队列才允许续跑。
-    session.activeTurn = null;
-    session.phase = "completedInterrupted";
-    session.lastActivityAt = Date.now();
+    owner.signal.onabort = null;
     if (turnHeader.kind === "turnHeader") {
       this.upsertRow(session, {
         ...turnHeader,
@@ -607,6 +634,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         activeMs: Date.now() - turnHeader.startedAt,
       });
     }
+    // 迟到中断只更新自己的行；替代轮即使已结束，也不能被旧轮重新收口。
+    if (session.activeTurn !== owner) return;
+    session.activeTurn = null;
+    session.phase = "completedInterrupted";
+    session.lastActivityAt = Date.now();
     this.patchState(session, {
       control: {
         phase: "completedInterrupted",
@@ -630,10 +662,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private finalizeTurn(
     session: MockSession,
     turnHeader: WireConversationRow,
+    owner: AbortController,
     startedAt: number,
     reply: string,
   ): void {
-    // turn 已收口：清掉运行句柄，后续 sendText 才会开始新 turn，队列才允许续跑。
+    if (owner.signal.aborted || session.activeTurn !== owner)
+      return this.finalizeInterruptedTurn(session, turnHeader, owner);
+    owner.signal.onabort = null;
     session.activeTurn = null;
     session.phase = "completedSuccess";
     session.lastActivityAt = Date.now();
@@ -823,12 +858,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   ): void {
     // 接纳来源沿信封／队列项传递，不能被后续提升、恢复或编辑命令的操作者覆盖。
     if (attachments !== undefined) this.turnAttachments.set(commandId, attachments);
-    session.activeTurn = {
-      abort: () => {
-        session.activeTurn = null;
-      },
-    };
-    void this.runTurn(session, commandId, clientId, text, submission);
+    const owner = new AbortController();
+    session.activeTurn = owner;
+    void this.runTurn(session, commandId, clientId, text, submission, owner);
   }
 
   /** turn 结束后处理 sendQueuedNow 提升项或 autoDrain 队列；运行中不并发开新 turn。 */
@@ -838,7 +870,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (session.pendingStartInput !== null) {
       const input = session.pendingStartInput;
       session.pendingStartInput = null;
-      this.startTurn(session, input.sourceCommandId, input.clientId, input.text, input.attachments, input);
+      this.startTurn(
+        session,
+        input.sourceCommandId,
+        input.clientId,
+        input.text,
+        input.attachments,
+        input,
+      );
       return;
     }
     if (!session.autoDrain) return;
@@ -1026,7 +1065,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         inputId: item.queueItemId,
       });
     }
-    this.startTurn(session, envelope.commandId, envelope.clientId, payload.text, undefined, payload);
+    this.startTurn(
+      session,
+      envelope.commandId,
+      envelope.clientId,
+      payload.text,
+      undefined,
+      payload,
+    );
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",
@@ -1055,7 +1101,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           session.autoDrain = false;
           session.pauseReason = "stopped";
           session.activeTurn.abort();
-          session.activeTurn = null;
           this.patchQueue(session);
           return this.ackAccepted(envelope);
         }
@@ -1080,9 +1125,15 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           // 立即发送 = 中断当前 turn；队列项在中断收口后开始，不并发写会话状态。
           session.pendingStartInput = item;
           session.activeTurn.abort();
-          session.activeTurn = null;
         } else {
-          this.startTurn(session, item.sourceCommandId, item.clientId, item.text, item.attachments, item);
+          this.startTurn(
+            session,
+            item.sourceCommandId,
+            item.clientId,
+            item.text,
+            item.attachments,
+            item,
+          );
         }
         this.patchQueue(session);
         return this.ackAccepted(envelope);
@@ -2193,17 +2244,18 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async disposeWorkspace(_params: P<IZCodeAgentService["disposeWorkspace"]>): Promise<void> {
     for (const [sessionId, session] of this.runtime.sessions) {
       if (session.workspaceKey === workspaceKeyOf(_params)) {
-        session.activeTurn?.abort();
+        // 先撤销会话归属，避免同步取消收口重新启动待发队列。
         this.runtime.sessions.delete(sessionId);
+        session.activeTurn?.abort();
       }
     }
   }
 
   disposeAll(): void {
     for (const session of this.runtime.sessions.values()) {
+      this.runtime.sessions.delete(session.sessionId);
       session.activeTurn?.abort();
     }
-    this.runtime.sessions.clear();
     this.conversationSubs.clear();
     this.sessionsIndexSubs.clear();
     this.workspaceConfigSubs.clear();

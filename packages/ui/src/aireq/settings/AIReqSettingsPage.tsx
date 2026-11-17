@@ -352,9 +352,7 @@ export function AIReqSettingsPage({
               onClick={() => guard(onClose)}
             >
               <ArrowLeft className="size-4" />
-              <span className="max-lg:sr-only">
-                {zh ? "返回工作区" : "Return to workspace"}
-              </span>
+              <span className="max-lg:sr-only">{zh ? "返回工作区" : "Return to workspace"}</span>
             </Button>
           </ControlHintTooltip>
         }

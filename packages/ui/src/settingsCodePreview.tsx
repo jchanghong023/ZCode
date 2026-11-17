@@ -117,6 +117,7 @@ export function AppearanceSectionContent({
         </div>
         <Card className="border border-border bg-card py-0 shadow-none">
           <CardContent className="space-y-0 px-0">
+            {/* 设置行的可见标题不会自动命名内部控件，显式复用同一翻译供辅助技术读取。 */}
             <SettingsRow
               searchId="settings.themeMode"
               label={intl.formatMessage({ id: "settings.themeMode" })}
@@ -125,7 +126,11 @@ export function AppearanceSectionContent({
               })}
               control={
                 <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-                  <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
+                  <SelectTrigger
+                    size="lg"
+                    className="w-[260px] min-w-0 justify-between"
+                    aria-label={intl.formatMessage({ id: "settings.themeMode" })}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -202,6 +207,7 @@ export function AppearanceSectionContent({
                 control={
                   <ThemeSelect
                     value={codePreviewSettings.lightTheme}
+                    ariaLabel={intl.formatMessage({ id: "settings.lightTheme" })}
                     onValueChange={(value) => setCodePreviewSettings({ lightTheme: value })}
                   />
                 }
@@ -215,6 +221,7 @@ export function AppearanceSectionContent({
                 control={
                   <ThemeSelect
                     value={codePreviewSettings.darkTheme}
+                    ariaLabel={intl.formatMessage({ id: "settings.darkTheme" })}
                     onValueChange={(value) => setCodePreviewSettings({ darkTheme: value })}
                   />
                 }
@@ -227,6 +234,7 @@ export function AppearanceSectionContent({
                 })}
                 control={
                   <Switch
+                    aria-label={intl.formatMessage({ id: "settings.showLineNumbers" })}
                     checked={codePreviewSettings.showLineNumbers}
                     onCheckedChange={(checked) =>
                       setCodePreviewSettings({ showLineNumbers: checked })
@@ -242,6 +250,7 @@ export function AppearanceSectionContent({
                 })}
                 control={
                   <Switch
+                    aria-label={intl.formatMessage({ id: "settings.wrapLongLines" })}
                     checked={codePreviewSettings.wrapLongLines}
                     onCheckedChange={(checked) =>
                       setCodePreviewSettings({ wrapLongLines: checked })

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -36,6 +36,7 @@ import {
 } from "./AIReqProposalDeliveryControls.js";
 import { AIReqProposalManagement } from "./AIReqProposalManagement.js";
 import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
+import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 
 const labels = ["业务需求", "原始需求评审", "完整方案与审查", "三方确认与 PR"];
 const steps: NonNullable<AIReqSelection["proposalStep"]>[] = [
@@ -59,7 +60,10 @@ export function AIReqPhaseHeader({
   placement?: "header" | "document";
 }) {
   const ai = useAIReq()!;
-  const [back, setBack] = useState(false);
+  const [returnOpen, setBack] = useState(false);
+  const [returnScope, setReturnScope] = useState("");
+  const [returning, setReturning] = useState(false);
+  const returnInFlight = useRef(false);
   const [reason, setReason] = useState("");
   const [panel, setPanel] = useState<"info" | "management" | "report">();
   const group = ai.view?.drafts.find(
@@ -67,9 +71,12 @@ export function AIReqPhaseHeader({
   );
   if (!group || !ai.view || ai.selection.srId)
     return placement === "header" ? <>{details}</> : null;
+  const scope = `${group.projectId}:${group.id}`;
+  const returnScopeMatches = returnScope === scope;
   const phase = proposalProgressIndex(group, ai.selection);
   const selected = proposalViewedIndex(group, ai.selection);
   const history = phase !== selected;
+  const back = returnOpen && returnScopeMatches && !history;
   const frozen = group.status === "requirements-pr";
   const running = ai.view.running.some(
     (item) => item.projectId === group.projectId && item.irId === group.id,
@@ -95,13 +102,15 @@ export function AIReqPhaseHeader({
       ? undefined
       : panel;
   const current = () =>
-    ai.select({
-      ...ai.selection,
-      proposalStep: undefined,
-      discussionPhase: undefined,
-      reviewAgent: undefined,
-      materialPath: undefined,
-    });
+    ai.navigate(() =>
+      ai.select({
+        ...ai.selection,
+        proposalStep: undefined,
+        discussionPhase: undefined,
+        reviewAgent: undefined,
+        materialPath: undefined,
+      }),
+    );
   if (placement === "header")
     return (
       <header
@@ -134,24 +143,28 @@ export function AIReqPhaseHeader({
               (index === 3 && Boolean(group.proposalDelivery)),
           )}
           onSelect={(index) =>
-            ai.select({
-              ...ai.selection,
-              proposalStep: steps[index],
-              discussionPhase: index >= 2 ? "solution" : "requirements",
-              reviewAgent: undefined,
-              materialPath: undefined,
-            })
+            ai.navigate(() =>
+              ai.select({
+                ...ai.selection,
+                proposalStep: steps[index],
+                discussionPhase: index >= 2 ? "solution" : "requirements",
+                reviewAgent: undefined,
+                materialPath: undefined,
+              }),
+            )
           }
           review={selected === 1 ? group.originalReview : undefined}
           reviewAgent={ai.selection.reviewAgent ?? (selected === 1 ? "a" : undefined)}
           canOpenReview={selected === 1}
           onSelectReview={(id) =>
-            ai.select({
-              ...ai.selection,
-              proposalStep: "requirements-review",
-              discussionPhase: "requirements",
-              reviewAgent: id,
-            })
+            ai.navigate(() =>
+              ai.select({
+                ...ai.selection,
+                proposalStep: "requirements-review",
+                discussionPhase: "requirements",
+                reviewAgent: id,
+              }),
+            )
           }
         />
         <p
@@ -255,7 +268,14 @@ export function AIReqPhaseHeader({
                 </DropdownMenuItem>
               )}
               {!history && (phase === 1 || phase === 2) && (
-                <DropdownMenuItem disabled={running} onSelect={() => setBack(true)}>
+                <DropdownMenuItem
+                  disabled={running || returning || ai.pending}
+                  onSelect={() => {
+                    if (!returnScopeMatches) setReason("");
+                    setReturnScope(scope);
+                    setBack(true);
+                  }}
+                >
                   退回业务补充
                 </DropdownMenuItem>
               )}
@@ -355,17 +375,34 @@ export function AIReqPhaseHeader({
             <p>
               {selected === 1 ? "原始需求单评审" : "完整审查终审"}报告 · 第 {review.round ?? 1} 轮
             </p>
-            <p className="whitespace-pre-wrap">{review.report}</p>
+            {/* 同一报告在更多面板也走文档阅读器，避免标题、列表和表格变成原始标记。 */}
+            <AIReqMarkdownDocument>{review.report}</AIReqMarkdownDocument>
           </div>
         )}
         {!history && (
           <div hidden={visiblePanel !== "management"}>
-            <AIReqProposalManagement key={group.id} group={group} />
+            <AIReqProposalManagement
+              key={`${group.projectId}:${group.id}`}
+              group={group}
+              returnDraft={{
+                dirty: returnScopeMatches && Boolean(reason),
+                busy: returning,
+                discard: () => {
+                  setReason("");
+                  setBack(false);
+                },
+              }}
+            />
           </div>
         )}
       </section>
       {/* 修复：默认弹窗铺满视口且输入区收缩，退回理由需要限宽的多行编辑空间。 */}
-      <Dialog open={back} onOpenChange={setBack}>
+      <Dialog
+        open={back}
+        onOpenChange={(open) => {
+          if (!returnInFlight.current) setBack(open);
+        }}
+      >
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>退回业务补充</DialogTitle>
@@ -378,6 +415,7 @@ export function AIReqPhaseHeader({
             className="field-sizing-fixed min-h-32"
             rows={6}
             value={reason}
+            disabled={returning}
             onChange={(event) => setReason(event.target.value)}
           />
           {/* 失败由共享命令 owner 投影到当前弹框；不关闭弹框或丢弃退回理由。 */}
@@ -387,16 +425,25 @@ export function AIReqPhaseHeader({
             </p>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBack(false)}>
+            <Button variant="outline" disabled={returning} onClick={() => setBack(false)}>
               取消
             </Button>
             <Button
-              disabled={!reason.trim() || ai.pending}
+              disabled={!reason.trim() || ai.pending || returning}
               onClick={async () => {
-                const result = await ai.command({ type: "returnProposal", ...target, reason });
-                if (result?.status === "completed") {
-                  setBack(false);
-                  setReason("");
+                if (returnInFlight.current) return;
+                // 独立锁覆盖命令接纳前的连续点击，提交期间原因不能被编辑或关闭。
+                returnInFlight.current = true;
+                setReturning(true);
+                try {
+                  const result = await ai.command({ type: "returnProposal", ...target, reason });
+                  if (result?.status === "completed") {
+                    setBack(false);
+                    setReason("");
+                  }
+                } finally {
+                  returnInFlight.current = false;
+                  setReturning(false);
                 }
               }}
             >

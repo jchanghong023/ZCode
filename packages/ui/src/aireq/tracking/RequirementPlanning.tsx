@@ -2,7 +2,7 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { buildMarkdownTableText } from "@/components/ai-elements/markdown-table.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -18,6 +18,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
@@ -115,6 +125,41 @@ export function AIReqEditPlanning({
   const [input, setInput] = useState<AIReqSrPlanningInput>({});
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
+  const form = useRef<HTMLFormElement>(null);
+  const initialInput = useRef<AIReqSrPlanningInput>({});
+  const [discard, setDiscard] = useState(false);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const { setDraftNavigationGuard } = aireq;
+  const dirty =
+    open &&
+    (["developerEmployeeId", "testingEmployeeId", "plannedStart", "plannedEnd"] as const).some(
+      (key) => (input[key] ?? "") !== (initialInput.current[key] ?? ""),
+    );
+  // 原弹窗绕过导航门禁，Esc／切项目会直接丢草稿；所有离开共用现有导航 owner。
+  useEffect(() => {
+    if (!open || (!dirty && !saving)) return;
+    setDraftNavigationGuard((next) => {
+      if (submitting.current || pendingNavigation.current) return;
+      pendingNavigation.current = next;
+      returnFocus.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setDiscard(true);
+    });
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      setDraftNavigationGuard(null);
+      window.removeEventListener("beforeunload", beforeUnload);
+    };
+  }, [open, dirty, saving, setDraftNavigationGuard]);
+  const requestClose = () => {
+    if (!submitting.current) aireq.navigate(() => setOpen(false));
+  };
   const developerInput = useRef<HTMLInputElement>(null);
   const updateDeveloper = (value: string) => {
     // 手工输入和快捷认领共用校验清理，避免上次非法工号继续阻止提交。
@@ -146,21 +191,28 @@ export function AIReqEditPlanning({
         }
         aria-label={`调整${sr.title}开发测试分工与计划`}
         onClick={() => {
-          setInput({
+          const nextInput: AIReqSrPlanningInput = {
             developerEmployeeId: sr.developerEmployeeId,
             testingEmployeeId: sr.testingEmployeeId,
             operationId: createUuid(),
             expectedRevision: aireq.view!.revision,
             plannedStart: sr.planning?.plannedStart,
             plannedEnd: sr.planning?.plannedEnd,
-          });
+          };
+          initialInput.current = nextInput;
+          setInput(nextInput);
           setError("");
           setOpen(true);
         }}
       >
         {compact ? (sr.developerEmployeeId ?? "分配开发／测试负责人") : "调整分工与计划"}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(value) => {
+          if (!value) requestClose();
+        }}
+      >
         <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>调整开发／测试分工与计划</DialogTitle>
@@ -170,148 +222,224 @@ export function AIReqEditPlanning({
             </DialogDescription>
           </DialogHeader>
           <form
+            ref={form}
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
+              if (submitting.current) return;
+              submitting.current = true;
               setSaving(true);
               setError("");
               try {
                 await source.planning!.updateSr(group.projectId, group.id, sr.id, input);
+                const next = pendingNavigation.current;
+                pendingNavigation.current = null;
+                returnFocus.current = null;
+                setDraftNavigationGuard(null);
+                setDiscard(false);
                 setOpen(false);
+                next?.();
               } catch (cause) {
                 setError(formatUserFacingError(cause, "分工与计划保存失败，输入已保留，请重试。"));
               } finally {
+                submitting.current = false;
                 setSaving(false);
               }
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor={`${id}-developer`}>开发负责人工号</Label>
-              <Input
-                id={`${id}-developer`}
-                ref={developerInput}
-                value={input.developerEmployeeId ?? ""}
-                pattern="[a-z][0-9]{8}"
-                title="一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。"
-                aria-describedby={`${id}-developer-hint`}
-                onInvalid={(event) => {
-                  event.currentTarget.setCustomValidity(
-                    "工号格式错误：须为一个小写英文字母后接 8 位数字，例如 j00808874。",
-                  );
-                  setError(
-                    "工号格式错误：须为一个小写英文字母后接 8 位数字，例如 j00808874；留空表示未分配。",
-                  );
-                }}
-                onChange={(event) => updateDeveloper(event.target.value)}
-                placeholder="留空表示未分配"
-              />
-              <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
-                一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => updateDeveloper(getEmployeeId())}
-              >
-                由我负责开发
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${id}-testing`}>测试负责人工号</Label>
-              <Input
-                id={`${id}-testing`}
-                value={input.testingEmployeeId ?? ""}
-                pattern="[a-z][0-9]{8}"
-                title="一个小写字母后接 8 位数字；可留空待认领。"
-                placeholder="留空表示待认领"
-                onChange={(event) =>
-                  setInput((current) => ({
-                    ...current,
-                    testingEmployeeId: event.target.value.trim(),
-                  }))
-                }
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))
-                }
-              >
-                由我负责测试
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <fieldset disabled={saving} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor={`${id}-start`}>计划开始时间</Label>
+                <Label htmlFor={`${id}-developer`}>开发负责人工号</Label>
                 <Input
-                  id={`${id}-start`}
-                  type="datetime-local"
-                  value={input.plannedStart ?? ""}
-                  onChange={(event) =>
-                    setInput((current) => ({
-                      ...current,
-                      plannedStart: event.target.value,
-                    }))
-                  }
+                  id={`${id}-developer`}
+                  ref={developerInput}
+                  value={input.developerEmployeeId ?? ""}
+                  pattern="[a-z][0-9]{8}"
+                  title="一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。"
+                  aria-describedby={`${id}-developer-hint`}
+                  onInvalid={(event) => {
+                    event.currentTarget.setCustomValidity(
+                      "工号格式错误：须为一个小写英文字母后接 8 位数字，例如 j00808874。",
+                    );
+                    setError(
+                      "工号格式错误：须为一个小写英文字母后接 8 位数字，例如 j00808874；留空表示未分配。",
+                    );
+                  }}
+                  onChange={(event) => updateDeveloper(event.target.value)}
+                  placeholder="留空表示未分配"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${id}-end`}>计划结束时间</Label>
-                <Input
-                  id={`${id}-end`}
-                  type="datetime-local"
-                  value={input.plannedEnd ?? ""}
-                  onChange={(event) =>
-                    setInput((current) => ({
-                      ...current,
-                      plannedEnd: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <p className="text-ui-sm text-foreground-subtle">
-              项目时区：Asia/Shanghai。开始和结束同时留空可取消排期；不单独维护工时。
-            </p>
-            {sr.planning?.suggestion && (
-              <p className="text-ui-sm leading-5 text-foreground-subtle">
-                原 AI 建议：{planningDate(sr.planning.suggestion.plannedStart)} →{" "}
-                {planningDate(sr.planning.suggestion.plannedEnd)}
-                。人工调整后保留建议，后台不得直接覆盖。
-              </p>
-            )}
-            {warnings.length > 0 && (
-              <div role="status" className="rounded-md border border-border p-3 text-ui-sm">
-                <p className="mb-1 font-medium">排期提醒</p>
-                <ul className="list-disc space-y-1 pl-4">
-                  {warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-ui-sm text-foreground-subtle">
-                  可保存人工安排；提醒持续保留，不自动移动其他 SR。
+                <p id={`${id}-developer-hint`} className="text-ui-sm text-foreground-subtle">
+                  一个小写英文字母后接 8 位数字，例如 j00808874；可留空表示未分配。
                 </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateDeveloper(getEmployeeId())}
+                >
+                  由我负责开发
+                </Button>
               </div>
-            )}
-            {error && (
-              <p role="alert" className="text-ui-sm text-destructive">
-                {error}
+              <div className="space-y-2">
+                <Label htmlFor={`${id}-testing`}>测试负责人工号</Label>
+                <Input
+                  id={`${id}-testing`}
+                  value={input.testingEmployeeId ?? ""}
+                  pattern="[a-z][0-9]{8}"
+                  title="一个小写字母后接 8 位数字；可留空待认领。"
+                  placeholder="留空表示待认领"
+                  onChange={(event) =>
+                    setInput((current) => ({
+                      ...current,
+                      testingEmployeeId: event.target.value.trim(),
+                    }))
+                  }
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setInput((current) => ({ ...current, testingEmployeeId: getEmployeeId() }))
+                  }
+                >
+                  由我负责测试
+                </Button>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor={`${id}-start`}>计划开始时间</Label>
+                  <Input
+                    id={`${id}-start`}
+                    type="datetime-local"
+                    value={input.plannedStart ?? ""}
+                    onChange={(event) =>
+                      setInput((current) => ({
+                        ...current,
+                        plannedStart: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`${id}-end`}>计划结束时间</Label>
+                  <Input
+                    id={`${id}-end`}
+                    type="datetime-local"
+                    value={input.plannedEnd ?? ""}
+                    onChange={(event) =>
+                      setInput((current) => ({
+                        ...current,
+                        plannedEnd: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-ui-sm text-foreground-subtle">
+                项目时区：Asia/Shanghai。开始和结束同时留空可取消排期；不单独维护工时。
               </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                取消
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "保存中…" : "保存开发安排"}
-              </Button>
-            </DialogFooter>
+              {sr.planning?.suggestion && (
+                <p className="text-ui-sm leading-5 text-foreground-subtle">
+                  原 AI 建议：{planningDate(sr.planning.suggestion.plannedStart)} →{" "}
+                  {planningDate(sr.planning.suggestion.plannedEnd)}
+                  。人工调整后保留建议，后台不得直接覆盖。
+                </p>
+              )}
+              {warnings.length > 0 && (
+                <div role="status" className="rounded-md border border-border p-3 text-ui-sm">
+                  <p className="mb-1 font-medium">排期提醒</p>
+                  <ul className="list-disc space-y-1 pl-4">
+                    {warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-ui-sm text-foreground-subtle">
+                    可保存人工安排；提醒持续保留，不自动移动其他 SR。
+                  </p>
+                </div>
+              )}
+              {error && (
+                <p role="alert" className="text-ui-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "保存中…" : "保存开发安排"}
+                </Button>
+              </DialogFooter>
+            </fieldset>
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={discard}
+        onOpenChange={(value) => {
+          if (!saving) {
+            setDiscard(value);
+            if (!value) pendingNavigation.current = null;
+          }
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            // 受控确认没有 Trigger；继续编辑或校验失败时由原表单明确恢复焦点。
+            if (returnFocus.current?.isConnected) {
+              event.preventDefault();
+              returnFocus.current.focus({ preventScroll: true });
+            }
+            returnFocus.current = null;
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>保存分工与计划后离开？</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前修改尚未保存；保存失败会保留输入，不会离开。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && (
+            <p role="alert" className="text-ui-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>继续编辑</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={() => {
+                const next = pendingNavigation.current;
+                pendingNavigation.current = null;
+                returnFocus.current = null;
+                setDraftNavigationGuard(null);
+                setDiscard(false);
+                setOpen(false);
+                next?.();
+              }}
+            >
+              丢弃修改
+            </AlertDialogAction>
+            <Button
+              disabled={saving}
+              onClick={() => {
+                // 原生表单校验失败时回到输入，不能让确认层遮住无效字段。
+                if (form.current?.reportValidity()) form.current.requestSubmit();
+                else {
+                  returnFocus.current =
+                    form.current?.querySelector<HTMLElement>(":invalid") ?? null;
+                  setDiscard(false);
+                  pendingNavigation.current = null;
+                }
+              }}
+            >
+              {saving ? "保存中…" : "保存并离开"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </span>
   );
 }

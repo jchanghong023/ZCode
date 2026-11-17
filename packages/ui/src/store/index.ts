@@ -270,8 +270,14 @@ export function createZCodeStore(
         const next = {
           ...state.codePreviewSettings,
           ...patch,
-          lightTheme: resolveDocumentTheme(patch.lightTheme ?? state.codePreviewSettings.lightTheme, "light"),
-          darkTheme: resolveDocumentTheme(patch.darkTheme ?? state.codePreviewSettings.darkTheme, "dark"),
+          lightTheme: resolveDocumentTheme(
+            patch.lightTheme ?? state.codePreviewSettings.lightTheme,
+            "light",
+          ),
+          darkTheme: resolveDocumentTheme(
+            patch.darkTheme ?? state.codePreviewSettings.darkTheme,
+            "dark",
+          ),
           fontSizePx:
             typeof patch.fontSizePx === "number"
               ? Math.min(20, Math.max(12, Math.round(patch.fontSizePx)))

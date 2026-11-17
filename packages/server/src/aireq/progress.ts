@@ -1,11 +1,10 @@
 import { businessRule } from "./errors.js";
-import type { InternalSystemRequirement } from "./internal-scenarios.js";
+import type { InternalSystemRequirement, AIReqCodeMergeInput } from "./internal-scenarios.js";
 import { digestValue } from "./content-digest.js";
 import { srCompletionBlocker, srProgress } from "@zcode/services/aireq";
 import type {
   AIReqBranchCleanupInput,
   AIReqBranchCleanupItem,
-  AIReqCodeMergeInput,
   AIReqProgressAnalysis,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
@@ -164,9 +163,17 @@ export function operatePrototypeProgress(
   )
     throw businessRule("操作标识或预期版本无效。");
   const identity = currentIdentity();
-  const digest = digestValue([type, projectId, irId, srId, input, payload, identity]);
+  // CAS 版本只约束首次接纳，不能让重读后的同一请求变成不同业务内容。
+  const businessPayload =
+    payload && typeof payload === "object" ? { ...payload, expectedRevision: undefined } : payload;
+  const digest = digestValue([type, projectId, irId, srId, businessPayload, identity]);
   mutatePrototypeWorkflow((state) => {
-    const previous = state.operations.find((item) => item.operationId === input.operationId);
+    const previous = state.operations.find(
+      (item) =>
+        item.operationId === input.operationId &&
+        item.identity?.employeeId === identity?.employeeId &&
+        item.identity?.clientId === identity?.clientId,
+    );
     if (previous) {
       if (previous.commandDigest !== digest) throw businessRule("同一操作标识不能提交不同内容。");
       return false;

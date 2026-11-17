@@ -367,8 +367,6 @@ export const PlatformChannels = {
   GetDesktopZoomLevel: "zcode:get-desktop-zoom-level",
   /** Main → Renderer：当前窗口页面缩放档位变化 */
   DesktopZoomLevelChanged: "zcode:desktop-zoom-level-changed",
-  /** Renderer → Main：读取开发态 stdio tap proxy 开关状态 */
-  GetZCodeStdioTapDevState: "zcode:get-zcode-stdio-tap-dev-state",
   /** Main → Renderer：本地 setting.json 已由 main 进程更新 */
   SettingsChanged: "zcode:settings-changed",
   /** Main → Renderer：应用语言已切换 */

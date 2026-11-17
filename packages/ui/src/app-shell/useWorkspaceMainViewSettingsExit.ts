@@ -23,7 +23,6 @@ export function useWorkspaceMainViewSettingsExit({
     }
 
     if (!wasWorkspaceVisible && isWorkspaceVisible) {
-
       if (workspaceMainView === settingsEntryMainViewRef.current) {
         // Settings 只是覆盖 workspace，底层 App 不卸载，进入前的
         // automations 主视图会一直保留。设置层退出时统一回到对话，
@@ -32,5 +31,4 @@ export function useWorkspaceMainViewSettingsExit({
       }
     }
   }, [isWorkspaceVisible, onExitSettings, workspaceMainView]);
-
 }

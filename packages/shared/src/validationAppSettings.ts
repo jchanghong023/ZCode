@@ -148,14 +148,18 @@ const zcodeEndpointOriginSchema = z.preprocess((value) => {
 }, z.string().optional());
 
 // 历史读取可丢弃坏 endpoint；公开写入必须失败，不能把非法值归一成 undefined 后覆盖旧设置。
-const zcodeEndpointOriginPatchSchema = z.string().trim().min(1).transform((value, context) => {
-  try {
-    return normalizeZCodeEndpointOrigin(value);
-  } catch {
-    context.addIssue({ code: "custom", message: "Invalid endpoint origin" });
-    return z.NEVER;
-  }
-});
+const zcodeEndpointOriginPatchSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value, context) => {
+    try {
+      return normalizeZCodeEndpointOrigin(value);
+    } catch {
+      context.addIssue({ code: "custom", message: "Invalid endpoint origin" });
+      return z.NEVER;
+    }
+  });
 
 function sanitizeZCodeEndpointOrigin(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

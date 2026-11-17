@@ -73,10 +73,7 @@ export function AnalysisTaskTable({
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求与项目", "状态与进度", "下次分析", "操作"].map((title) => (
-              <MarkdownTableHead
-                key={title}
-                className={headerClass}
-              >
+              <MarkdownTableHead key={title} className={headerClass}>
                 {title}
               </MarkdownTableHead>
             ))}
@@ -256,10 +253,7 @@ export function AnalysisHistoryTable({
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求与项目", "开始时间", "结果与进度", "操作"].map((title) => (
-              <MarkdownTableHead
-                key={title}
-                className={headerClass}
-              >
+              <MarkdownTableHead key={title} className={headerClass}>
                 {title}
               </MarkdownTableHead>
             ))}

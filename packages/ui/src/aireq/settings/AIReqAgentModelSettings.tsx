@@ -19,6 +19,7 @@ export interface AIReqModelDraftActions {
   save(): boolean | Promise<boolean>;
   discard(): void;
   canSave?: boolean;
+  canDiscard?: boolean;
 }
 
 export function AIReqAgentModelSettings({
@@ -92,6 +93,7 @@ function ModelSettingsContent({
   // 离开确认与快捷键始终调用最新草稿，避免 Dialog 打开后保存旧闭包。
   currentActions.current = {
     canSave: dirty && !saving,
+    canDiscard: !saving,
     save,
     discard: () => {
       setDraft(structuredClone(saved));
@@ -100,9 +102,11 @@ function ModelSettingsContent({
   };
   useEffect(() => {
     onDraftActionsChange?.(
-      dirty
+      // 请求尚未结算时不能丢弃并卸载表单，否则后台写入仍会在离开后生效。
+      dirty || saving
         ? {
             canSave: !saving,
+            canDiscard: !saving,
             save: () => currentActions.current?.save() ?? false,
             discard: () => currentActions.current?.discard(),
           }
@@ -200,6 +204,7 @@ function ModelSettingsContent({
             control={
               <Select
                 value={draft.defaultModel}
+                disabled={saving}
                 onValueChange={(defaultModel) => {
                   setDraft((current) => ({ ...current, defaultModel }));
                   setMessage(null);
@@ -249,6 +254,7 @@ function ModelSettingsContent({
                     <div className="w-full min-w-0 space-y-2">
                       <Select
                         value={agent.model}
+                        disabled={saving}
                         onValueChange={(model) => updateAgent(agent.id, { model })}
                       >
                         <SelectTrigger
@@ -271,6 +277,7 @@ function ModelSettingsContent({
                         </span>
                         <Select
                           value={agent.reasoning}
+                          disabled={saving}
                           onValueChange={(reasoning) => updateAgent(agent.id, { reasoning })}
                         >
                           <SelectTrigger

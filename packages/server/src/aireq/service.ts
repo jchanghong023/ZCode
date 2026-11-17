@@ -339,7 +339,18 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           : undefined;
       const result =
         typeof operationId === "string" && path === "projects.saveRepository"
-          ? await this.invokeOnce(path, operationId, args, () => method(...args))
+          ? await this.invokeOnce(
+              path,
+              operationId,
+              // 项目配置 CAS 只用于首次接纳；丢失回执后重读不能使同一次保存变成冲突。
+              [
+                {
+                  ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
+                  expectedRevision: undefined,
+                },
+              ],
+              () => method(...args),
+            )
           : await method(...args);
       if (
         path === "projects.saveRepository" ||

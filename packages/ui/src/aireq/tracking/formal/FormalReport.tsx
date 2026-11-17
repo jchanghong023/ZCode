@@ -78,9 +78,18 @@ export function AIReqFormalReport() {
         </li>
       )),
     );
+  // 旧验收记录不能冒充当前版本完成；有效进度仍只读取同源业务计算。
   const manual =
-    selected?.testAcceptance?.outcome === "passed" ? selected.testAcceptance : undefined;
+    selected?.testAcceptance?.outcome === "passed" &&
+    selected.testAcceptance.codeVersion === selected.codeMerge?.commit &&
+    percent === 100
+      ? selected.testAcceptance
+      : undefined;
   const hasAnalysis = rows.some((sr) => sr.progress);
+  const unanalysed = rows.filter((sr) => !sr.progress).length;
+  const stale = rows.filter((sr) => sr.progress?.stale).length;
+  const failed = rows.filter((sr) => sr.lastAnalysisFailure ?? sr.progress?.analysisFailure).length;
+  const incompleteEvidence = unanalysed > 0 || stale > 0 || failed > 0;
   const progressSource = manual
     ? "人工确认"
     : selected
@@ -132,16 +141,28 @@ export function AIReqFormalReport() {
           )}
           <p className="text-ui-sm text-foreground-subtle">
             {selected
-              ? `开发：${selected.developerEmployeeId ?? group.contacts?.development ?? "待认领"} · 测试：${selected.testingEmployeeId ?? group.contacts?.testing ?? "待认领"}`
+              ? `开发：${selected.developerEmployeeId ?? "待认领"} · 测试：${selected.testingEmployeeId ?? "待认领"}`
               : `业务：${group.contacts?.business ?? "待认领"} · 开发：${group.contacts?.development ?? "待认领"} · 测试：${group.contacts?.testing ?? "待认领"}`}
           </p>
         </header>
+        {/* 部分成功报告不能掩盖其余 SR 未分析或旧版证据。 */}
+        {(unanalysed > 0 || stale > 0) && (
+          <p role="status" className="text-ui-sm text-warning-surface-foreground">
+            {[
+              unanalysed > 0 ? `${unanalysed} 个 SR 尚未分析` : "",
+              stale > 0 ? `${stale} 个 SR 报告已过期，等待当前版本分析` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
         {rows.map((sr) => {
           const failure = sr.lastAnalysisFailure ?? sr.progress?.analysisFailure;
           return failure ? (
             <div key={sr.id} role="alert" className="text-ui-sm text-destructive">
               <p>
-                {sr.title}：最近分析失败，保留上次成功进度与报告 · {failure.message}
+                {sr.title}：最近分析失败，{sr.progress ? "保留上次成功进度与报告" : "暂无成功报告"}{" "}
+                · {failure.message}
               </p>
               {/* 修复：只展示失败原因会迫使用户在分析页重新定位同一个 SR。 */}
               <Button
@@ -176,7 +197,11 @@ export function AIReqFormalReport() {
             </ul>
           ) : (
             <p className="text-ui-sm text-foreground-subtle">
-              {hasAnalysis ? "当前报告未发现需关注的遗留问题。" : "尚未分析，暂无问题判断。"}
+              {hasAnalysis
+                ? incompleteEvidence
+                  ? "已有报告未列出遗留问题；仍有未分析、过期或失败项，当前范围尚无完整结论。"
+                  : "当前报告未发现需关注的遗留问题。"
+                : "尚未分析，暂无问题判断。"}
             </p>
           )}
         </ReportSection>
@@ -220,8 +245,8 @@ export function AIReqFormalReport() {
                       {srCompletionBlocker(sr) ?? "代码已合入，等待人工测试验收。"}
                     </p>
                     <p className="text-ui-sm text-foreground-subtle">
-                      开发：{sr.developerEmployeeId ?? group.contacts?.development ?? "待认领"} ·
-                      测试：{sr.testingEmployeeId ?? group.contacts?.testing ?? "待认领"}
+                      开发：{sr.developerEmployeeId ?? "待认领"} · 测试：
+                      {sr.testingEmployeeId ?? "待认领"}
                     </p>
                   </li>
                 ))}

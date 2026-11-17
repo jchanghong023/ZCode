@@ -9,32 +9,18 @@ import {
 } from "@zcode/services/aireq";
 import { proposalDependencyMaterialIssue } from "@zcode/services/aireq";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
-import type {
-  AIReqWorkflowCommand,
-  AIReqRequirementGroup,
-  AIReqWorkflowView,
-} from "@zcode/services/aireq";
+import type { AIReqAction, AIReqRequirementGroup, AIReqWorkflowView } from "@zcode/services/aireq";
+import type { InternalWorkflowAction } from "./internal-scenarios.js";
 
 export type PrototypeProposalDeliveryAction = Extract<
   AIReqAction,
-  {
-    type:
-      | "confirmProposal"
-      | "publishProposal"
-      | "markRequirementsPrSubmitted"
-      | "markRequirementsMerged";
-  }
+  { type: "confirmProposal" | "publishProposal" }
 >;
 
 export function isPrototypeProposalDeliveryAction(
-  action: AIReqAction,
+  action: InternalWorkflowAction,
 ): action is PrototypeProposalDeliveryAction {
-  return [
-    "confirmProposal",
-    "publishProposal",
-    "markRequirementsPrSubmitted",
-    "markRequirementsMerged",
-  ].includes(action.type);
+  return ["confirmProposal", "publishProposal"].includes(action.type);
 }
 
 let mrNumber = 100;
@@ -112,22 +98,4 @@ export function validatePrototypeProposalDeliveryAction(
       throw businessRule("请先确认当前材料，再提交推送并自动创建 MR。");
     return;
   }
-  if (action.type === "markRequirementsPrSubmitted")
-    throw businessRule("MR 由平台自动创建并记录，不接受手工登记地址。");
-  if (delivery.pushedCandidate !== action.candidate)
-    throw businessRule("请先提交推送并自动创建当前候选的 MR。");
-
-  if (
-    group.status !== "requirements-pr" ||
-    !group.requirementsPr ||
-    delivery.prCandidate !== action.candidate ||
-    !action.defaultBranchFilesConfirmed
-  )
-    throw businessRule("须按当前候选、MR 合入结果和完整文件版本定时核验，才能正式入库。");
 }
-
-type AIReqAction = AIReqWorkflowCommand extends infer C
-  ? C extends AIReqWorkflowCommand
-    ? Omit<C, "operationId" | "expectedRevision">
-    : never
-  : never;

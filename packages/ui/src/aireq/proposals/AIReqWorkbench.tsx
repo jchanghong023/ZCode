@@ -45,7 +45,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
   const { selection, view } = aireq;
   const [path, setPath] = useState("");
-  const [readFeedback, setReadFeedback] = useState("");
+  const [readFeedback, setReadFeedback] = useState<{ scope: string; message: string }>();
   const [showPlanning, setShowPlanning] = useState(false);
   const [historySelection, setHistorySelection] = useState({
     projectId: selection.projectId,
@@ -93,7 +93,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
     materials[0];
   useEffect(() => {
     setPath(preferred?.path ?? "");
-    setReadFeedback("");
+    setReadFeedback(undefined);
     setShowPlanning(false);
     // 版本即使只改了非首选文件，也须恢复路径，不能停留在切换时清空的状态。
   }, [
@@ -134,10 +134,11 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
     view?.srs.filter((item) => item.irId === group?.id && item.projectId === group?.projectId) ??
     [];
   const listed = materials.find((item) => item.path === path);
-  const material = listed;
-  const error = listed?.error;
-  // 新投影已到而路径 effect 尚未同步时，先显示该投影的首选材料，避免误报清单缺失。
-  const current = material ?? listed ?? preferred;
+  // 投影更新后旧路径可能已消失；所有展示统一消费同一个首选材料，而不是只替换标题。
+  const current = listed ?? preferred;
+  const displayedPath = current?.path ?? "";
+  const error = current?.error;
+  const feedbackScope = `${selection.projectId}:${selection.irId}:${historyVersion}:${displayedPath}`;
   const awaitingRequirements =
     !path &&
     !selection.srId &&
@@ -177,9 +178,9 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-2">
           <span className="shrink-0 text-ui-base">{zh ? "需求材料" : "Requirement materials"}</span>
           <Select
-            value={showPlanning ? "planning" : path ? `file:${path}` : "none"}
+            value={showPlanning ? "planning" : displayedPath ? `file:${displayedPath}` : "none"}
             onValueChange={(value) => {
-              setReadFeedback("");
+              setReadFeedback(undefined);
               setShowPlanning(value === "planning");
               if (value.startsWith("file:")) setPath(value.slice(5));
             }}
@@ -253,11 +254,13 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 <Select
                   value={selection.srId ?? "ir"}
                   onValueChange={(id) =>
-                    aireq.select({
-                      ...selection,
-                      srId: id === "ir" ? undefined : id,
-                      materialPath: undefined,
-                    })
+                    aireq.navigate(() =>
+                      aireq.select({
+                        ...selection,
+                        srId: id === "ir" ? undefined : id,
+                        materialPath: undefined,
+                      }),
+                    )
                   }
                 >
                   <SelectTrigger aria-label="选择 IR 或独立 SR 材料">
@@ -355,7 +358,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
             )}
             {!showPlanning && (
               <Select
-                value={path || "none"}
+                value={displayedPath || "none"}
                 onValueChange={(value) => {
                   setShowPlanning(false);
                   setPath(value === "none" ? "" : value);
@@ -400,15 +403,15 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
         </div>
       )}
       <div
-        key={`${selection.projectId}:${selection.irId}:${showPlanning ? "planning" : path}`}
+        key={`${selection.projectId}:${selection.irId}:${historyVersion}:${showPlanning ? "planning" : displayedPath}`}
         className="min-h-0 flex-1 overflow-auto px-2 py-4 [scrollbar-gutter:stable_both-edges]"
         style={{ scrollbarWidth: "thin" }}
         data-testid="material"
-        data-material-path={showPlanning ? undefined : path}
+        data-material-path={showPlanning ? undefined : displayedPath}
         data-material-valid={showPlanning ? undefined : current?.valid}
       >
         <div className="mx-auto w-full min-w-0 max-w-4xl">
-          {!showPlanning && (path || historical) && (
+          {!showPlanning && (displayedPath || historical) && (
             <Collapsible className="mb-4">
               <CollapsibleTrigger asChild>
                 <Button
@@ -421,12 +424,12 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                {path && (
+                {displayedPath && (
                   <p
                     className="pt-2 whitespace-pre-wrap break-all font-mono text-ui-sm text-foreground-subtle select-text"
                     data-testid="material-full-path"
                   >
-                    {displayPath(path)}
+                    {displayPath(displayedPath)}
                   </p>
                 )}
                 {historical && (
@@ -439,29 +442,34 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
           )}
           {showPlanning && proposalSolutionView && group ? (
             <AIReqPlanningSummary group={group} rows={planningRows} />
-          ) : error || current?.error ? (
+          ) : error ? (
             <div className="space-y-3">
               <p role="alert" className="text-ui-base text-destructive">
-                {error ?? current?.error}
+                {error}
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                data-testid="material-retry"
-                onClick={async () => {
-                  const recovered = await aireq.retryMaterial(path);
-                  setReadFeedback(
-                    recovered
-                      ? "材料已重新读取。"
-                      : "仍无法读取；重读不会生成材料或推进阶段，请在当前需求对话中补充。",
-                  );
-                }}
-              >
-                重新读取材料
-              </Button>
-              {readFeedback && (
+              {/* 历史快照无独立恢复命令；调用 retryMaterial 只会改当前材料，不能冒充历史恢复。 */}
+              {!historical && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="material-retry"
+                  onClick={async () => {
+                    const recovered = await aireq.retryMaterial(displayedPath);
+                    // 迟到重读的反馈只属于发起时的材料，不能串到后来选择的文件或历史版本。
+                    setReadFeedback({
+                      scope: feedbackScope,
+                      message: recovered
+                        ? "材料已重新读取。"
+                        : "仍无法读取；重读不会生成材料或推进阶段，请在当前需求对话中补充。",
+                    });
+                  }}
+                >
+                  重新读取材料
+                </Button>
+              )}
+              {readFeedback?.scope === feedbackScope && (
                 <p role="status" className="text-ui-sm text-foreground-subtle">
-                  {readFeedback}
+                  {readFeedback.message}
                 </p>
               )}
             </div>
@@ -498,7 +506,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
             </p>
           ) : (
             <>
-              {path.endsWith("/sr-dependencies.json") && group && current ? (
+              {displayedPath.endsWith("/sr-dependencies.json") && group && current ? (
                 <AIReqSrDependencyGraph
                   group={group}
                   material={current}
@@ -515,7 +523,7 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
                     theme={theme}
                     codePreviewSettings={codePreviewSettings}
                   >
-                    {material?.content ?? "材料没有正文。"}
+                    {current.content}
                   </AIReqMarkdownDocument>
                 </article>
               )}

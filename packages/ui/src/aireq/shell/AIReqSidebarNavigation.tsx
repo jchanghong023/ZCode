@@ -13,6 +13,22 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqMainView } from "../contract.js";
 
+type SidebarPage = {
+  view: AIReqMainView;
+  label: string;
+  labelEn: string;
+  icon: typeof Folders;
+  global: boolean;
+};
+
+const todos: SidebarPage = {
+  view: "todos",
+  label: "我的待办",
+  labelEn: "My todos",
+  icon: Inbox,
+  global: true,
+};
+
 const sections = [
   {
     title: "需求规划",
@@ -58,13 +74,7 @@ const sections = [
 ] satisfies {
   title: string;
   titleEn: string;
-  pages: {
-    view: AIReqMainView;
-    label: string;
-    labelEn: string;
-    icon: typeof Folders;
-    global: boolean;
-  }[];
+  pages: SidebarPage[];
 }[];
 
 export function AIReqSidebarNavigation() {
@@ -79,9 +89,31 @@ export function AIReqSidebarNavigation() {
     ),
   );
   const selected = ai.mainView === "chat" ? (formal ? "formal" : "proposals") : ai.mainView;
+  const renderPage = ({ view, label, labelEn, icon: Icon, global }: SidebarPage) => (
+    <Button
+      key={view}
+      variant="ghost"
+      size="lg"
+      // 全局焦点样式会清除 outline 和阴影；复用按钮已有边框标出键盘焦点，行宽不变。
+      className="h-auto min-h-9 w-full justify-start gap-3 py-2 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
+      aria-current={selected === view ? "page" : undefined}
+      onClick={() => ai.navigate(() => ai.setMainView(view))}
+    >
+      <Icon
+        className={`size-4 ${selected === view ? "text-foreground" : "text-remote-foreground-muted"}`}
+        aria-hidden="true"
+      />
+      <span className="min-w-0 flex-1 truncate text-left">{zh ? label : labelEn}</span>
+      {global && (
+        <span className="shrink-0 text-ui-sm font-normal text-remote-foreground-muted">
+          {zh ? "全部项目" : "All"}
+        </span>
+      )}
+    </Button>
+  );
   return (
     <>
-      <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
+      <div className="flex h-16 shrink-0 items-center gap-3 px-5">
         <img
           src={appLogoUrl}
           alt=""
@@ -91,14 +123,19 @@ export function AIReqSidebarNavigation() {
         />
         <span className="text-ui-lg font-semibold text-foreground">AIReq</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3">
-        <div className="mb-5 min-w-0 border-b border-border px-2 pb-4">
-          <div className="mb-2 text-ui-sm text-remote-foreground-muted">
-            {zh ? "当前项目" : "Current project"}
-          </div>
-          <div className="flex min-w-0 items-center gap-2 text-ui-base font-medium text-foreground">
-            <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" aria-hidden="true" />
-            <span className="truncate" title={project?.name}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
+        <div className="mb-4 flex items-center gap-2 border-b border-border px-1 pb-4">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface text-remote-foreground-muted">
+            <FolderGit2 className="size-4" aria-hidden="true" />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <span className="text-ui-sm text-remote-foreground-muted">
+              {zh ? "当前项目" : "Current project"}
+            </span>
+            <span
+              className="truncate text-ui-base font-medium text-foreground"
+              title={project?.name}
+            >
               {project?.name ?? (zh ? "未选择项目" : "No project selected")}
             </span>
           </div>
@@ -106,48 +143,18 @@ export function AIReqSidebarNavigation() {
         {sections.map((section, index) => (
           <section
             key={section.title}
-            className={index ? "mt-5 border-t border-border pt-5" : ""}
+            className={index ? "mt-4 border-t border-border pt-4" : ""}
             aria-label={zh ? section.title : section.titleEn}
           >
-            <div className="mb-2 px-2 text-ui-sm text-remote-foreground-muted">
+            <div className="mb-1 px-3 text-ui-sm font-medium text-remote-foreground-muted">
               {zh ? section.title : section.titleEn}
             </div>
-            <div className="flex flex-col gap-1">
-              {section.pages.map((page) => (
-                <Button
-                  key={page.view}
-                  variant="ghost"
-                  size="lg"
-                  className={`h-auto min-h-9 w-full justify-start gap-2 py-2 ${selected === page.view ? "bg-selected" : ""}`}
-                  aria-current={selected === page.view ? "page" : undefined}
-                  onClick={() => ai.navigate(() => ai.setMainView(page.view))}
-                >
-                  <page.icon className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate text-left">
-                    {zh ? page.label : page.labelEn}
-                  </span>
-                  {page.global && (
-                    <span className="shrink-0 text-ui-sm font-normal text-remote-foreground-muted">
-                      {zh ? "全部项目" : "All"}
-                    </span>
-                  )}
-                </Button>
-              ))}
-            </div>
+            <div className="flex flex-col gap-1">{section.pages.map(renderPage)}</div>
           </section>
         ))}
       </div>
       <div className="shrink-0 px-3 pb-3">
-        <Button
-          variant="ghost"
-          size="lg"
-          className={`w-full justify-start gap-2 ${selected === "todos" ? "bg-selected" : ""}`}
-          aria-current={selected === "todos" ? "page" : undefined}
-          onClick={() => ai.navigate(() => ai.setMainView("todos"))}
-        >
-          <Inbox className="size-4" aria-hidden="true" />
-          {zh ? "我的待办" : "My todos"}
-        </Button>
+        <div className="border-t border-border pt-3">{renderPage(todos)}</div>
       </div>
     </>
   );

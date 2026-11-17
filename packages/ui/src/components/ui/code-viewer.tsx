@@ -254,9 +254,7 @@ function createCodeViewerFile(params: {
   language: string;
   theme?: BundledTheme;
 }): FileContents {
-  const lang = params.enableSyntaxHighlighting
-    ? resolveDocumentLanguage(params.language)
-    : "text";
+  const lang = params.enableSyntaxHighlighting ? resolveDocumentLanguage(params.language) : "text";
   const name = params.language ? `preview.${params.language}` : "preview.txt";
   const themeCacheKey = params.theme ?? "auto";
 

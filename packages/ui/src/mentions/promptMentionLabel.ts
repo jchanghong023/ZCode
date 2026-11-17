@@ -33,10 +33,7 @@ export function normalizePromptMentionDisplayLabel(
     displayLabel = displayLabel.slice(1);
   } else if (category === "sessions" && displayLabel.startsWith("#")) {
     displayLabel = displayLabel.slice(1);
-  } else if (
-    (category === "files" || category === "subagents") &&
-    displayLabel.startsWith("@")
-  ) {
+  } else if ((category === "files" || category === "subagents") && displayLabel.startsWith("@")) {
     displayLabel = displayLabel.slice(1);
   }
 

@@ -674,7 +674,8 @@ export function useDraftConfigControl(params: {
           modelIntentRevisionRef.current === modelRevision &&
           currentSelection?.providerId === submission.modelSelection.providerId &&
           currentSelection.modelId === submission.modelSelection.modelId &&
-          currentSelection.options?.reasoningLevel === submission.modelSelection.options?.reasoningLevel
+          currentSelection.options?.reasoningLevel ===
+            submission.modelSelection.options?.reasoningLevel
             ? { modelSelection: defaultSelection }
             : {}),
           ...(defaultMode.success &&

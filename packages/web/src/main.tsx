@@ -14,50 +14,17 @@ import {
   getV4ClientId,
   logger,
   setStreamClientId,
-  type Theme,
 } from "@zcode/ui";
+import { applyTheme, readThemePreference } from "@zcode/ui/useTheme";
 import "./styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 
 import { EmployeeEntry, createEmployeeEntry } from "./auth/index.js";
 import { AIReqApplication as AIReqWebApplication } from "@zcode/ui/aireq";
 
-function resolveWebThemePreference(): Theme {
-  const stored = localStorage.getItem("zcode-theme");
-  // 语义沿用既有主题偏好：dark/light 归一为 zai-*，
-  // 合法值原样保留（含 system），缺省或非法值回 zai-dark。
-  if (stored === "dark") return "zai-dark";
-  if (stored === "light") return "zai-light";
-  if (stored === "zai-dark" || stored === "zai-light" || stored === "system") return stored;
-  return "zai-dark";
-}
-
-// 初始化主题：默认 Zai dark，工作台挂载后由 StoreProvider 的 ZCode store 接管。
-// system 模式下需要查询系统偏好；非 system 模式直接用存储值
-{
-  const saved = resolveWebThemePreference();
-  const resolved =
-    saved === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : saved === "dark" || saved === "zai-dark"
-        ? "dark"
-        : "light";
-  const appliedTheme =
-    saved === "system"
-      ? resolved === "dark"
-        ? "zai-dark"
-        : "zai-light"
-      : saved === "dark"
-        ? "zai-dark"
-        : saved === "light"
-          ? "zai-light"
-          : saved;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
-}
+// 初始化与工号页 hook 共用主题 owner，避免入口安全读取后 hook 再次访问存储导致白屏。
+// 默认 Zai dark；system 由 hook 继续监听，工作台挂载后由 StoreProvider 接管。
+applyTheme(readThemePreference());
 
 const root = createRoot(document.getElementById("root")!);
 const employeeEntry = createEmployeeEntry();

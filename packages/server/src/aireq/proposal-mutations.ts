@@ -1,8 +1,11 @@
 import { contentVersion, createRequirementSnapshot } from "./content-digest.js";
-import type { InternalRequirementGroup, InternalProposalDelivery } from "./internal-scenarios.js";
+import type {
+  InternalRequirementGroup,
+  InternalProposalDelivery,
+  InternalWorkflowAction,
+} from "./internal-scenarios.js";
 import type {
   AIReqWorkflowView,
-  AIReqWorkflowCommand,
   AIReqOperationReceipt,
   AIReqRequirementGroup,
   AIReqMaterialView,
@@ -26,11 +29,6 @@ import {
 } from "./requirements-review.js";
 import { ensurePrototypeProposalMr } from "./proposal-delivery.js";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
-type AIReqAction = AIReqWorkflowCommand extends infer C
-  ? C extends AIReqWorkflowCommand
-    ? Omit<C, "operationId" | "expectedRevision">
-    : never
-  : never;
 
 function materialsFor(
   state: AIReqWorkflowView,
@@ -145,7 +143,7 @@ function createProposal(
 /** Mutates only the transaction supplied by the unique workflow owner. */
 export function applyProposalMutation(
   state: AIReqWorkflowView,
-  action: AIReqAction,
+  action: InternalWorkflowAction,
   projectId: string,
   irId: string | undefined,
   operation: AIReqOperationReceipt,

@@ -3,33 +3,61 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 
-export function AIReqProposalManagement({ group }: { group: AIReqRequirementGroup }) {
+export function AIReqProposalManagement({
+  group,
+  returnDraft,
+}: {
+  group: AIReqRequirementGroup;
+  returnDraft: { dirty: boolean; busy: boolean; discard: () => void };
+}) {
   const ai = useAIReq()!;
   const [target, setTarget] = useState<"requirements" | "solution" | "test-plan">("requirements");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const submitting = useRef(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const [contactDraft, setContacts] = useState<typeof group.contacts>();
+  const [contactRevision, setContactRevision] = useState<number>();
   const contacts = contactDraft ?? group.contacts ?? {};
   const { setDraftNavigationGuard } = ai;
   const contactsChanged =
     contactDraft !== undefined && JSON.stringify(contacts) !== JSON.stringify(group.contacts ?? {});
   useEffect(() => {
-    if (!note && !contactsChanged) return;
+    if (!note && !contactsChanged && !busy && !returnDraft.dirty && !returnDraft.busy) return;
     setDraftNavigationGuard((navigate) => {
-      if (submitting.current) return;
-      if (!window.confirm("有未保存的联系人或材料修改说明，丢弃并离开？")) return;
-      setNote("");
-      setContacts(undefined);
-      setDraftNavigationGuard(null);
-      navigate();
+      if (submitting.current || returnDraft.busy || pendingNavigation.current) return;
+      // 浏览器 confirm 不参与应用覆盖层焦点管理；沿用应用内确认并只接纳一次原导航。
+      pendingNavigation.current = navigate;
+      returnFocus.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setDiscardOpen(true);
     });
-    return () => setDraftNavigationGuard(null);
-  }, [note, contactsChanged, group.contacts, setDraftNavigationGuard]);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      setDraftNavigationGuard(null);
+      window.removeEventListener("beforeunload", beforeUnload);
+    };
+  }, [note, contactsChanged, busy, group.contacts, setDraftNavigationGuard, returnDraft]);
   const perform = async (action: () => unknown | Promise<unknown>, success: string) => {
     if (submitting.current) return;
     submitting.current = true;
@@ -64,7 +92,11 @@ export function AIReqProposalManagement({ group }: { group: AIReqRequirementGrou
               disabled={busy}
               value={contacts[key] ?? ""}
               placeholder="未分配"
-              onChange={(event) => setContacts({ ...contacts, [key]: event.target.value })}
+              onChange={(event) => {
+                // command 默认使用最新投影版本；旧联系人副本必须携带原编辑基线，防止覆盖并发更新。
+                if (contactDraft === undefined) setContactRevision(ai.view?.revision);
+                setContacts({ ...contacts, [key]: event.target.value });
+              }}
             />
           </label>
         ))}
@@ -82,6 +114,7 @@ export function AIReqProposalManagement({ group }: { group: AIReqRequirementGrou
                 type: "assignContacts",
                 projectId: group.projectId,
                 irId: group.id,
+                expectedRevision: contactRevision ?? ai.view?.revision,
                 contacts: {
                   business: contacts.business || undefined,
                   development: contacts.development || undefined,
@@ -90,11 +123,25 @@ export function AIReqProposalManagement({ group }: { group: AIReqRequirementGrou
               });
               if (!result) throw new Error("分工保存失败；请查看上方业务错误，输入已保留。");
               setContacts(undefined);
+              setContactRevision(undefined);
             }, "联系人已保存。")
           }
         >
           保存联系人
         </Button>
+        {contactDraft !== undefined && (
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              setContacts(undefined);
+              setContactRevision(undefined);
+              setFeedback("");
+            }}
+          >
+            放弃联系人修改
+          </Button>
+        )}
       </fieldset>
       <div className="space-y-2">
         <label className="flex items-center gap-2">
@@ -176,6 +223,50 @@ export function AIReqProposalManagement({ group }: { group: AIReqRequirementGrou
           {feedback}
         </p>
       )}
+      <AlertDialog
+        open={discardOpen}
+        onOpenChange={(open) => {
+          setDiscardOpen(open);
+          if (!open) pendingNavigation.current = null;
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            // 受控确认没有 Trigger；取消导航后必须由草稿 owner 归还原控件焦点。
+            if (returnFocus.current?.isConnected) {
+              event.preventDefault();
+              returnFocus.current.focus({ preventScroll: true });
+            }
+            returnFocus.current = null;
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>丢弃未保存的修改？</AlertDialogTitle>
+            <AlertDialogDescription>
+              联系人、材料修改说明或退回原因尚未保存。继续编辑将保留输入。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const navigate = pendingNavigation.current;
+                pendingNavigation.current = null;
+                returnFocus.current = null;
+                setNote("");
+                setContacts(undefined);
+                setContactRevision(undefined);
+                returnDraft.discard();
+                setDraftNavigationGuard(null);
+                navigate?.();
+              }}
+            >
+              丢弃并离开
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

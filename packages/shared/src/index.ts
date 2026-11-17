@@ -277,7 +277,6 @@ export type {
   RemoteServiceSession,
   TaskNotificationPayload,
   WindowControlsOverlayReadyPayload,
-  ZCodeStdioTapDevState,
 } from "./platform.js";
 export type {
   CuaAccessibilitySettingsResult,

@@ -27,11 +27,11 @@
 
 以下按具体方法／命令区分状态；一个频道可以同时包含支持的读取与未开放的写入，不能以频道存在推导整个领域已实现：
 
-| 状态          | 定义                                           | 可观察行为                                                   |
-| ------------- | ---------------------------------------------- | ------------------------------------------------------------ |
-| `supported`   | 已实际实现的内存状态转换或读取 | 结果与实际内存内容一致；命令发生转换才可 ACK `accepted` |
-| `compatible`  | 契约允许的只读快照或真实空集合 | 仅表示对象确实存在且集合为空，不表示缺失资源或未实现读取成功 |
-| `unavailable` | 当前未实现的能力 | 通过既有正式错误明确不可用／不存在；v4 命令回 `rejected`，不返回空文件或空对象伪装成功 |
+| 状态          | 定义                           | 可观察行为                                                                             |
+| ------------- | ------------------------------ | -------------------------------------------------------------------------------------- |
+| `supported`   | 已实际实现的内存状态转换或读取 | 结果与实际内存内容一致；命令发生转换才可 ACK `accepted`                                |
+| `compatible`  | 契约允许的只读快照或真实空集合 | 仅表示对象确实存在且集合为空，不表示缺失资源或未实现读取成功                           |
+| `unavailable` | 当前未实现的能力               | 通过既有正式错误明确不可用／不存在；v4 命令回 `rejected`，不返回空文件或空对象伪装成功 |
 
 方法实际行为仍须在所属任务独立验证；上表是整改要求，不表示现有保留实现已全部符合。内存操作可按实际事实成功，但不能宣称真实 AI、代码扫描、Git 平台核验、宿主写盘或永久保存。
 
@@ -39,13 +39,13 @@
 
 | 领域 / 接口                         | 实际边界                                                                                                                            |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| AIReq `bootstrap/call/onDidChange`  | 当前项目空间、三类设置、分析调度与隐藏 Skill 的共享内存业务；普通业务状态只归 AIReq owner |
+| AIReq `bootstrap/call/onDidChange`  | 当前项目空间、三类设置、分析调度与隐藏 Skill 的共享内存业务；普通业务状态只归 AIReq owner                                           |
 | conversation / sessions-index topic | 内存快照与增量、seq/logEpoch、workspace 隔离；不是旧任务侧栏或 controller RPC                                                       |
 | workspace-config topic              | 确定性空配置目录（`configOptions: []`, `slashCommands: []`）与只读快照                                                              |
 | v4 会话命令                         | §4 所列内存转换受支持；其它保留协议命令回 `rejected`，不能因 schema 存在记作已实现                                                  |
 | 原生会话／任务／项目与分组          | 保留实际会话生命周期、重启／元数据、目录准备与 mention 读取、`admit` 依赖；不提供旧窗口 controller 或目录组服务                     |
 | 文件／Git／文件监视／媒体预览       | 保留通用文件树、mention 与预览依赖；虚拟文件／Git 不等于真实磁盘／仓库；媒体写入或真实播放能力不因此开放                            |
-| 设置／系统／broadcast／客户端配置   | 保留共享设置与基础读取；工号不是后端账号；broadcast 由共享总线和逐连接 facade 实现跨连接发送、过滤本源与断线释放，见 §8.3 |
+| 设置／系统／broadcast／客户端配置   | 保留共享设置与基础读取；工号不是后端账号；broadcast 由共享总线和逐连接 facade 实现跨连接发送、过滤本源与断线释放，见 §8.3           |
 | Provider / 模型选择 / 用量          | 原生模型目录、`getView/onDidChange/refresh` 与 quota 依赖；不再提供旧个人 Provider CRUD／连通性测试 RPC                             |
 | GenUI                               | 保留非插件生成视图契约；产品插件管理、UI 桥、sampling、App tools、目录推荐与安装能力已删除，不注册兼容空服务                        |
 | 子智能体／技能／MCP                 | 保留原生目录、Skill 引用及 MCP 加载依赖；不等于恢复旧命令、Hook、Memory 或配置同步管理服务                                          |
@@ -102,18 +102,17 @@ mock 注册与实现；不保留可选 shim。`IZCodeAgentService` 不再暴露
 
 一个状态只有一个所有者；其它模块只能通过公开契约读取，不得持有副本。
 
-| 状态                                                                      | 唯一所有者                                        | 写入者                                                                                      |
-| ------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 会话 rows/`seq`/`logEpoch`/revision/phase/config/queue/plan/usage/pending | `MockRuntime.sessions`（`MockSession`）           | `MockZCodeAgentService` 命令处理                                                            |
-| 任务索引（title/pinned/archived/unread 等）                               | `MockRuntime.tasks`                               | 保留的 `MockZCodeAgentService`／`MockZCodeTaskService` 原生入口；不再有窗口 controller 写者 |
-| 虚拟文件系统 / 虚拟 Git                                                   | `MockRuntime.virtualRoot` / `MockRuntime.git`     | `Mock*FileService` / `MockGitService`                                                       |
-| topic 水位（sessions-index / workspace-config）                           | `MockRuntime.topics`（`MockTopicLog`）            | 对应 topic 的唯一发布函数                                                                   |
-| 应用设置                                                                  | `MockSettingService`（设置域）                    | `MockSettingService.update`                                                                 |
-| v4 订阅表与 `subscriptionId` 归属                                         | `MockZCodeAgentService` + 每连接 connection scope | subscribe/unsubscribe                                                                       |
-| 共享 AIReq 项目／Release／IR／SR／材料／评审／报告／分支／Skill／调度事实及私有故障状态 | `MockAIReqService/workflow` 及既有领域 owner | 类型化业务命令与后端内部输入；不由公共 DTO 暂存故障控制 |
+| 状态                                                                                    | 唯一所有者                                        | 写入者                                                                                      |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 会话 rows/`seq`/`logEpoch`/revision/phase/config/queue/plan/usage/pending               | `MockRuntime.sessions`（`MockSession`）           | `MockZCodeAgentService` 命令处理                                                            |
+| 任务索引（title/pinned/archived/unread 等）                                             | `MockRuntime.tasks`                               | 保留的 `MockZCodeAgentService`／`MockZCodeTaskService` 原生入口；不再有窗口 controller 写者 |
+| 虚拟文件系统 / 虚拟 Git                                                                 | `MockRuntime.virtualRoot` / `MockRuntime.git`     | `Mock*FileService` / `MockGitService`                                                       |
+| topic 水位（sessions-index / workspace-config）                                         | `MockRuntime.topics`（`MockTopicLog`）            | 对应 topic 的唯一发布函数                                                                   |
+| 应用设置                                                                                | `MockSettingService`（设置域）                    | `MockSettingService.update`                                                                 |
+| v4 订阅表与 `subscriptionId` 归属                                                       | `MockZCodeAgentService` + 每连接 connection scope | subscribe/unsubscribe                                                                       |
+| 共享 AIReq 项目／Release／IR／SR／材料／评审／报告／分支／Skill／调度事实及私有故障状态 | `MockAIReqService/workflow` 及既有领域 owner      | 类型化业务命令与后端内部输入；不由公共 DTO 暂存故障控制                                     |
 
 UI 的 `AIReqContext` 只拥有导航与可失效读取投影，未发送正文／附件草稿沿用原 composer owner。写入先做输入、可信连接身份、对象、阶段、版本及幂等校验，再提交真实内存事实，最后发事件／会话帧；迟到结果按对象和版本拒绝，重连只重读、不重放 mutation。公开投影及嵌套历史回执均不得泄漏后端私有失败／hold 状态。
-
 
 装配图：
 
@@ -271,14 +270,14 @@ Skill 文件内容只归既有 skills 内存 owner。保存预先验证路径、
 
 ### 8.1 HTTP、资源与部署
 
-| 接入面         | 请求与响应                                                                            | 必须保持的行为                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 客户端配置     | `GET /api/v1/client/configs` → `{code:0,data:{configs:{feedbackUrl:localAppConfig}}}` | 单一 handler、`Cache-Control: no-store`；平台 help/community 消费者仍可读取，不要求旧产品账号 Bearer token；配置部署 token 时仍受统一访问控制 |
-| RPC            | 同源 `GET /ws?employeeId=…&clientId=…` 升级 WebSocket，双向二进制帧；可附部署 `token` | 不是 JSON WebSocket、REST 或 SSE；正式入口必须转发 Upgrade，不能只代理 `/api`；文本消息以 1003 关闭，连接不因空闲自动超时 |
-| 站点           | 配置 `staticRoot` 后托管 `/`、构建 assets 与 SPA 路由，`spaFallback` 默认开启 | 提供同一前端构建产物及正确 MIME；index 为 `no-cache`，仅匹配 hash 命名的 assets 长期 immutable，其余资源重新验证；详见下文 |
-| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL                                            | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src`                      |
-| 下载           | `IPlatformService` 浏览器实现 fetch URL 或下载字节                                    | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体                                      |
-| 遥测 | 同源 `POST /api/v1/telemetry/events`，严格 `{kind:"ui",payload:RendererTelemetryEventPayload}` 或 `{kind:"arms",payload:ArmsCustomEventPayload}` | 复用 `/api/` 部署访问控制；shared schema 拒绝未知信封／payload／context 字段，清洗副本交服务诊断后返回 HTTP 202、空响应；非法 JSON／形状 400，未授权 401，接收失败安全 500。report 等待 202，其他状态／网络错误拒绝，不承诺第三方上传／持久化，无重试队列 |
+| 接入面         | 请求与响应                                                                                                                                       | 必须保持的行为                                                                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 客户端配置     | `GET /api/v1/client/configs` → `{code:0,data:{configs:{feedbackUrl:localAppConfig}}}`                                                            | 单一 handler、`Cache-Control: no-store`；平台 help/community 消费者仍可读取，不要求旧产品账号 Bearer token；配置部署 token 时仍受统一访问控制                                                                                                             |
+| RPC            | 同源 `GET /ws?employeeId=…&clientId=…` 升级 WebSocket，双向二进制帧；可附部署 `token`                                                            | 不是 JSON WebSocket、REST 或 SSE；正式入口必须转发 Upgrade，不能只代理 `/api`；文本消息以 1003 关闭，连接不因空闲自动超时                                                                                                                                 |
+| 站点           | 配置 `staticRoot` 后托管 `/`、构建 assets 与 SPA 路由，`spaFallback` 默认开启                                                                    | 提供同一前端构建产物及正确 MIME；index 为 `no-cache`，仅匹配 hash 命名的 assets 长期 immutable，其余资源重新验证；详见下文                                                                                                                                |
+| 文件与媒体资源 | RPC 返回 `inline` 字节或浏览器可访问的 URL                                                                                                       | `C:\...`、服务器 `/home/...`、`file://` 不是浏览器可达资源；不要将后端本机路径直接放进 `src`                                                                                                                                                              |
+| 下载           | `IPlatformService` 浏览器实现 fetch URL 或下载字节                                                                                               | URL 必须能由浏览器访问；跨源资源需对应 CORS，同 HTTPS 页面不能混用 HTTP 媒体                                                                                                                                                                              |
+| 遥测           | 同源 `POST /api/v1/telemetry/events`，严格 `{kind:"ui",payload:RendererTelemetryEventPayload}` 或 `{kind:"arms",payload:ArmsCustomEventPayload}` | 复用 `/api/` 部署访问控制；shared schema 拒绝未知信封／payload／context 字段，清洗副本交服务诊断后返回 HTTP 202、空响应；非法 JSON／形状 400，未授权 401，接收失败安全 500。report 等待 202，其他状态／网络错误拒绝，不承诺第三方上传／持久化，无重试队列 |
 
 旧产品账号授权、回调、轮询和 token 交换接口不属于替换合同。工号只由浏览器操作者模块
 保存和恢复，本轮没有后端登录接口；不能把工号塞进 `clientId`、`subscriptionId`、
@@ -344,29 +343,29 @@ accessor 与 Root，重新握手/订阅，不让旧连接迟到关闭事件或�
 不能反向扩大 Web 替换面。下表逐项登记当前 **21 个公开频道**；`—` 表示无公开事件，
 不是要求为未开放能力返回空成功。契约路径相对 `packages/services/src/`。
 
-| 公开频道 | 公开方法 | 公开事件 | 精确契约 |
-| --- | --- | --- | --- |
-| `aireq` | `bootstrap`、`call` | `onDidChange` | `aireq/contract.ts`、`aireq/remote-operations.ts` |
-| `zcode-agent` | 下列原生方法清单 | 下列原生事件清单 | `zcode-agent/zcodeAgent.ts`，shared `zcode-protocol-v4` |
-| `file` | `searchWorkspaceFiles`、`readdir`、`stat`、`checkFilesExist`、`readTextFile`、`readMediaPreview`、`readFileRange`、`readBinaryPreview`、`listWorkspaceFilesLength`、`listWorkspaceFilesRange` | — | `file/file.ts` |
-| `file-watcher` | `watch`、`unwatch` | `onDynamicChange` | `fileWatcher/fileWatcher.ts` |
-| `git` | `getRepositorySummary`、`getWorkspaceRepositoryInfo`、`getLocalBranches`、`getCommitGraph`、`getChanges`、`getIgnoredPaths`、`getDiff`、`getBranchComparison`、`getIdentity`、`refresh` | — | `git/git.ts` |
-| `system` | `info` | — | `system/system.ts` |
-| `project` | `resolveSessionDirectories` | — | `project/contract.ts` |
-| `media-preview` | `prepare`、`refreshPlaybackUrl`、`release` | — | `media-preview/mediaPreview.ts` |
-| `broadcast` | `send`、`acquireClaim`、`commitClaim`、`releaseClaim`、`tryClaim` | `onMessage` | `broadcast/broadcast.ts` |
-| `setting` | `get`、`update` | — | `setting/setting.ts` |
-| `zcode-task` | `getTaskMeta`、`restartWorkspaceProcess` | `onDynamicWorkspaceEvent` | `session/zcodeTaskService.ts` |
-| `zcode-session` | `readWorkspacePresentation`、`readSession` | — | `zcode-session/zcodeSession.ts` |
-| `provider-settings` | `getView`、`refresh` | `onDidChange` | `model-provider/providerFacadeServices.ts` |
-| `model-selection` | `getView` | `onDidChange` | `model-provider/providerFacadeServices.ts` |
-| `usage-stats` | `getAppUsageSnapshot`、`getCodingPlanUsageSnapshot`、`getCodingPlanRegularTps`、`getCodingPlanResetStatus`、`getSnapshot`、`getEntitlementSnapshot` | — | `usage-stats/usageStats.ts` |
-| `client-config` | `getSnapshot` | — | `client-config/clientConfig.ts` |
-| `skills` | `list` | — | `skills/skills.ts` |
-| `subagents` | `list` | — | `subagents/subagents.ts` |
-| `mcp-sync` | `loadMcpFromUserDirectory`、`listWorkspaceMcpServerStatuses` | — | `mcp-sync/mcpSync.ts` |
-| `gen-ui` | `readDocument`、`getState`、`listState` | `onStateChanged` | `gen-ui/contract.ts` |
-| `bots` | `syncAppRuntimePreferences`、`getStatus`、`getConfig`、`listWorkspaceRefs`、`getUserConfigOptions`、`listBots`、`getBotStates` | — | `bots/bots.ts` |
+| 公开频道            | 公开方法                                                                                                                                                                                      | 公开事件                  | 精确契约                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------- |
+| `aireq`             | `bootstrap`、`call`                                                                                                                                                                           | `onDidChange`             | `aireq/contract.ts`、`aireq/remote-operations.ts`       |
+| `zcode-agent`       | 下列原生方法清单                                                                                                                                                                              | 下列原生事件清单          | `zcode-agent/zcodeAgent.ts`，shared `zcode-protocol-v4` |
+| `file`              | `searchWorkspaceFiles`、`readdir`、`stat`、`checkFilesExist`、`readTextFile`、`readMediaPreview`、`readFileRange`、`readBinaryPreview`、`listWorkspaceFilesLength`、`listWorkspaceFilesRange` | —                         | `file/file.ts`                                          |
+| `file-watcher`      | `watch`、`unwatch`                                                                                                                                                                            | `onDynamicChange`         | `fileWatcher/fileWatcher.ts`                            |
+| `git`               | `getRepositorySummary`、`getWorkspaceRepositoryInfo`、`getLocalBranches`、`getCommitGraph`、`getChanges`、`getIgnoredPaths`、`getDiff`、`getBranchComparison`、`getIdentity`、`refresh`       | —                         | `git/git.ts`                                            |
+| `system`            | `info`                                                                                                                                                                                        | —                         | `system/system.ts`                                      |
+| `project`           | `resolveSessionDirectories`                                                                                                                                                                   | —                         | `project/contract.ts`                                   |
+| `media-preview`     | `prepare`、`refreshPlaybackUrl`、`release`                                                                                                                                                    | —                         | `media-preview/mediaPreview.ts`                         |
+| `broadcast`         | `send`、`acquireClaim`、`commitClaim`、`releaseClaim`、`tryClaim`                                                                                                                             | `onMessage`               | `broadcast/broadcast.ts`                                |
+| `setting`           | `get`、`update`                                                                                                                                                                               | —                         | `setting/setting.ts`                                    |
+| `zcode-task`        | `getTaskMeta`、`restartWorkspaceProcess`                                                                                                                                                      | `onDynamicWorkspaceEvent` | `session/zcodeTaskService.ts`                           |
+| `zcode-session`     | `readWorkspacePresentation`、`readSession`                                                                                                                                                    | —                         | `zcode-session/zcodeSession.ts`                         |
+| `provider-settings` | `getView`、`refresh`                                                                                                                                                                          | `onDidChange`             | `model-provider/providerFacadeServices.ts`              |
+| `model-selection`   | `getView`                                                                                                                                                                                     | `onDidChange`             | `model-provider/providerFacadeServices.ts`              |
+| `usage-stats`       | `getAppUsageSnapshot`、`getCodingPlanUsageSnapshot`、`getCodingPlanRegularTps`、`getCodingPlanResetStatus`、`getSnapshot`、`getEntitlementSnapshot`                                           | —                         | `usage-stats/usageStats.ts`                             |
+| `client-config`     | `getSnapshot`                                                                                                                                                                                 | —                         | `client-config/clientConfig.ts`                         |
+| `skills`            | `list`                                                                                                                                                                                        | —                         | `skills/skills.ts`                                      |
+| `subagents`         | `list`                                                                                                                                                                                        | —                         | `subagents/subagents.ts`                                |
+| `mcp-sync`          | `loadMcpFromUserDirectory`、`listWorkspaceMcpServerStatuses`                                                                                                                                  | —                         | `mcp-sync/mcpSync.ts`                                   |
+| `gen-ui`            | `readDocument`、`getState`、`listState`                                                                                                                                                       | `onStateChanged`          | `gen-ui/contract.ts`                                    |
+| `bots`              | `syncAppRuntimePreferences`、`getStatus`、`getConfig`、`listWorkspaceRefs`、`getUserConfigOptions`、`listBots`、`getBotStates`                                                                | —                         | `bots/bots.ts`                                          |
 
 `zcode-agent` 公开方法按用途分组，名称均为 Channel 包装方法而非 wire 路径：
 

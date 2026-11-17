@@ -29,12 +29,15 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
       await retrySession(selection, sessionId);
     };
   }, [businessSession, selection, retrySession, sessionId, callerBeforeReconnect]);
+  // 根因：私有 Skill 不命中当前业务 selection，却同样保留 Agent 创建绑定；
+  // 仅按 businessSession 开端口会误发被服务端拒绝的 switchModelConfig。
+  // AIReq 的选模统一归本次 Submission，businessSession 只裁决业务重连归属。
   return (
     <SessionPane
       {...props}
       onBeforeReconnect={onBeforeReconnect}
       onOpenModelSettings={props.onOpenModelSettings ?? openModelSettings}
-      submissionModelSelectionOnly={!!businessSession}
+      submissionModelSelectionOnly
       focused={workspaceActive && (props.focused ?? true)}
       telemetryVisible={workspaceActive && (props.telemetryVisible ?? true)}
       interactionEnabled={workspaceActive && (props.interactionEnabled ?? true)}

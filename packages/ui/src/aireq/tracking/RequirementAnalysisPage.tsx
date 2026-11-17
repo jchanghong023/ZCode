@@ -328,20 +328,21 @@ function ConnectedProgressAnalysis({
       <AnalysisRunConfirmation
         open={analysisDialogOpen}
         onOpenChange={(open) => {
-          if (!open) setAnalysisDialogOpen(false);
+          if (!pending && !open) setAnalysisDialogOpen(false);
         }}
         scope={analysisRequest?.scope ?? ""}
         count={analysisRequest?.count ?? 0}
         unit="SR"
         disabled={pending}
+        error={message}
         onConfirm={() => {
           if (!analysisRequest) return;
           const requestedFilter = analysisRequest.filter;
-          setAnalysisDialogOpen(false);
-          void mutate(
-            () => scheduler.runNow(requestedFilter),
-            "已提交全部筛选结果的分析任务；运行中的 SR 不会重复提交。",
-          );
+          setMessage("");
+          void mutate(async () => {
+            await scheduler.runNow(requestedFilter);
+            setAnalysisDialogOpen(false);
+          }, "已提交全部筛选结果的分析任务；运行中的 SR 不会重复提交。");
         }}
       />
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
@@ -381,6 +382,7 @@ function ConnectedProgressAnalysis({
                   !taskResult?.eligibleCount
                 }
                 onClick={() => {
+                  setMessage("");
                   setAnalysisRequest({
                     filter: { ...filter },
                     count: taskResult?.eligibleCount ?? 0,

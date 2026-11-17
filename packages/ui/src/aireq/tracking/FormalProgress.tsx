@@ -464,7 +464,7 @@ function AnalysisSummary({
 }) {
   // 修复：零问题不代表已分析；折叠 IR 也必须直接呈现子 SR 的证据缺口。
   const unanalysed = srs.filter((sr) => !sr.progress).length;
-  const failed = srs.filter((sr) => sr.lastAnalysisFailure).length;
+  const failed = srs.filter((sr) => sr.lastAnalysisFailure ?? sr.progress?.analysisFailure).length;
   const stale = srs.filter((sr) => sr.progress?.stale).length;
   const health = [
     unanalysed ? (aggregate ? `${unanalysed} 个 SR 未分析` : "尚未分析") : "",

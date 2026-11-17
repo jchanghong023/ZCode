@@ -407,13 +407,6 @@ export function createOpenInEditorRemoteTarget(
   }
 }
 
-export interface ZCodeStdioTapDevState {
-  enabled: boolean;
-  visible: boolean;
-  logDir: string;
-  statePath: string;
-}
-
 export type DesktopTitleBarTheme = "light" | "dark" | "system";
 
 export interface WindowScreenshotResult {
@@ -682,11 +675,6 @@ export const DesktopCommandIds = {
   ExportLogs: "exportLogs",
   PullMobileLogs: "pullMobileLogs",
   OpenResourceManager: "openResourceManager",
-  ToggleZCodeStdioTapDevProxy: "toggleZCodeStdioTapDevProxy",
-  SetZCodeEndpointProduction: "setZCodeEndpointProduction",
-  SetZCodeEndpointTest: "setZCodeEndpointTest",
-  SetZCodeEndpointCustom: "setZCodeEndpointCustom",
-  ResetZCodeEndpoint: "resetZCodeEndpoint",
   ClearAllData: "clearAllData",
   ClearCodingPlanWebviewStorage: "clearCodingPlanWebviewStorage",
   GetCuaOsSupport: "getCuaOsSupport",

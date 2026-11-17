@@ -3,7 +3,12 @@
 import type { CSSProperties, HTMLAttributes } from "react";
 import { memo, useMemo } from "react";
 import type { BundledTheme } from "shiki";
-import { getFiletypeFromFileName, getSingularPatch, type FileContents, type FileDiffOptions } from "@pierre/diffs";
+import {
+  getFiletypeFromFileName,
+  getSingularPatch,
+  type FileContents,
+  type FileDiffOptions,
+} from "@pierre/diffs";
 import { FileDiff, MultiFileDiff } from "@pierre/diffs/react";
 
 import { cn } from "@/components/lib/utils.js";
@@ -56,16 +61,31 @@ function DiffViewerComponent(props: DiffViewerProps) {
   const patchFile = useMemo(() => {
     if (patch === undefined) return undefined;
     const file = getSingularPatch(patch);
-    return { ...file, lang: resolveDocumentLanguage(file.lang ?? getFiletypeFromFileName(file.name) ?? "text") };
+    return {
+      ...file,
+      lang: resolveDocumentLanguage(file.lang ?? getFiletypeFromFileName(file.name) ?? "text"),
+    };
   }, [patch]);
   const oldFile = props.oldFile;
   const newFile = props.newFile;
   const documentOldFile = useMemo(
-    () => oldFile && { ...oldFile, lang: resolveDocumentLanguage(oldFile.lang ?? getFiletypeFromFileName(oldFile.name) ?? "text") },
+    () =>
+      oldFile && {
+        ...oldFile,
+        lang: resolveDocumentLanguage(
+          oldFile.lang ?? getFiletypeFromFileName(oldFile.name) ?? "text",
+        ),
+      },
     [oldFile],
   );
   const documentNewFile = useMemo(
-    () => newFile && { ...newFile, lang: resolveDocumentLanguage(newFile.lang ?? getFiletypeFromFileName(newFile.name) ?? "text") },
+    () =>
+      newFile && {
+        ...newFile,
+        lang: resolveDocumentLanguage(
+          newFile.lang ?? getFiletypeFromFileName(newFile.name) ?? "text",
+        ),
+      },
     [newFile],
   );
   const rendersPatch = isPatchDiffProps(props);

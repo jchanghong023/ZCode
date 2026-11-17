@@ -104,7 +104,7 @@ import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragSta
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
-import { useOptionalServices } from "@/hooks/useServices.js";
+import { useComposerClientNamespace, useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
@@ -657,6 +657,10 @@ function ConversationComposerImpl({
     sessionId ??
     (rootDraftScopeKey ? `${V4_DRAFT_SCOPE_ROOT}:${rootDraftScopeKey}` : V4_DRAFT_SCOPE_ROOT);
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const composerClientNamespace = useComposerClientNamespace();
+  // 根因：仅以执行目录持久化历史会让切换工号后通过方向键读到上一身份的正文。
+  // 复用草稿的身份 namespace 与 workspace owner，不回读缺少身份的旧目录键。
+  const promptHistoryScopeKey = JSON.stringify([composerClientNamespace, workspaceKey]);
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
   const [reloadText, setReloadText] = useState(false);
   const reloadTextRef = useRef(false);
@@ -1382,13 +1386,13 @@ function ConversationComposerImpl({
     snapshotDraftOfEditor,
   ]);
 
-  // ── prompt history（per-workspace localStorage，↑/↓ 导航由 PromptHistoryPlugin 消费）──
+  // ── prompt history（与草稿同身份隔离，↑/↓ 导航由 PromptHistoryPlugin 消费）──
   const [promptHistory, setPromptHistory] = useState<readonly string[]>(() =>
-    readPromptHistoryEntries(workspacePath),
+    readPromptHistoryEntries(promptHistoryScopeKey),
   );
   useEffect(() => {
-    setPromptHistory(readPromptHistoryEntries(workspacePath));
-  }, [workspacePath]);
+    setPromptHistory(readPromptHistoryEntries(promptHistoryScopeKey));
+  }, [promptHistoryScopeKey]);
 
   const mode = snapshot?.inputRouting.mode ?? "startNow";
   const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
@@ -1708,9 +1712,9 @@ function ConversationComposerImpl({
         if (!promptHistoryWasPersisted || !promptHistoryBeforeSend || !promptHistoryAfterAppend) {
           return;
         }
-        const currentPromptHistory = readPromptHistoryEntries(workspacePath);
+        const currentPromptHistory = readPromptHistoryEntries(promptHistoryScopeKey);
         if (arePromptHistoryEntriesEqual(currentPromptHistory, promptHistoryAfterAppend)) {
-          persistPromptHistoryEntries(workspacePath, promptHistoryBeforeSend);
+          persistPromptHistoryEntries(promptHistoryScopeKey, promptHistoryBeforeSend);
           setPromptHistory(promptHistoryBeforeSend);
           return;
         }
@@ -1752,14 +1756,14 @@ function ConversationComposerImpl({
           pptxElements: currentPptxElementReferences,
         });
         if (trimmed) {
-          promptHistoryBeforeSend = readPromptHistoryEntries(workspacePath);
+          promptHistoryBeforeSend = readPromptHistoryEntries(promptHistoryScopeKey);
           promptHistoryAfterAppend = appendPromptHistoryEntry(promptHistoryBeforeSend, trimmed);
           if (!arePromptHistoryEntriesEqual(promptHistoryBeforeSend, promptHistoryAfterAppend)) {
             // 预热首发 accepted 后，SessionPane 会立即 promote 到新 session，
             // draft composer 可能在 await 恢复前卸载；不能把写盘藏在 React state updater 里。
             // 这里继续沿用旧 UI 的 localStorage history，不接 input_history 数据库：
             // 发起真实发送前先同步写盘，若发送失败再恢复到发送前快照。
-            persistPromptHistoryEntries(workspacePath, promptHistoryAfterAppend);
+            persistPromptHistoryEntries(promptHistoryScopeKey, promptHistoryAfterAppend);
             promptHistoryWasPersisted = true;
             setPromptHistory(promptHistoryAfterAppend);
           }
@@ -1893,6 +1897,7 @@ function ConversationComposerImpl({
       pptxElementReferences,
       workspaceIdentity,
       workspaceKey,
+      promptHistoryScopeKey,
       workspacePath,
       onSubmissionSettled,
     ],

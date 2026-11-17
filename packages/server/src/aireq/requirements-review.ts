@@ -65,11 +65,11 @@ export function createPrototypeRequirementsReview(
           : key === "summary" && scenario === "failed"
             ? "pending"
             : "completed",
-    // 报告仅描述本轮快照与状态，不把内部结果表述为模型或外部核验。
+    // 文件版本摘要可能是完整 JSON；正文只呈现轮次，精确版本仍由 DTO 和只读技术信息保留。
     report:
       scenario === "hold" || (scenario === "failed" && key === "summary")
         ? ""
-        : `# ${names[index]}\n\n本轮输入：${inputFiles.length} 份材料，版本 ${digest}。\n\n${
+        : `# ${names[index]}\n\n第 ${round} 轮评审，输入 ${inputFiles.length} 份材料。\n\n${
             scenario === "failed" && index === 0
               ? "本轮评审失败，不能放行。"
               : scenario === "blocked"

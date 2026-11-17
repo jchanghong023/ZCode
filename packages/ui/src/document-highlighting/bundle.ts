@@ -30,4 +30,5 @@ export const createHighlighter = createBundledHighlighter({
   engine: () => createOnigurumaEngine(import("shiki/wasm")),
 });
 
-export const { codeToTokens, codeToHast, codeToHtml } = createSingletonShorthands(createHighlighter);
+export const { codeToTokens, codeToHast, codeToHtml } =
+  createSingletonShorthands(createHighlighter);

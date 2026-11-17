@@ -6,30 +6,31 @@ import type {
 } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
 
+// 目录与角色快照共用正式供应商标识，避免私有运行环境名称泄漏为业务模型身份。
 export const PROTOTYPE_AGENT_MODELS = [
   {
     id: "anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
-    providerId: "prototype-anthropic",
+    providerId: "anthropic",
     provider: "Anthropic",
   },
   {
     id: "anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
-    providerId: "prototype-anthropic",
+    providerId: "anthropic",
     provider: "Anthropic",
   },
-  { id: "openai/gpt-5.2", name: "GPT-5.2", providerId: "prototype-openai", provider: "OpenAI" },
+  { id: "openai/gpt-5.2", name: "GPT-5.2", providerId: "openai", provider: "OpenAI" },
   {
     id: "deepseek/deepseek-v3.2",
     name: "DeepSeek V3.2",
-    providerId: "prototype-deepseek",
+    providerId: "deepseek",
     provider: "DeepSeek",
   },
   {
     id: "opencode/beam-free",
     name: "Beam Free",
-    providerId: "prototype-opencode-go",
+    providerId: "opencode-go",
     provider: "OpenCode Go",
   },
 ];

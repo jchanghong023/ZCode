@@ -206,6 +206,7 @@ function ReadySkillDesignEditor({
   const savedPath = savedReceipt?.revision === preview?.revision ? (savedReceipt?.path ?? "") : "";
   const [viewedFiles, setViewedFiles] = useState<{ revision: number; paths: Set<string> }>();
   const saveOperation = useRef<{ key: string; id: string } | undefined>(undefined);
+  const saveInFlight = useRef(false);
   const targetName = preview?.name ?? "";
   const validName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetName) && targetName.length <= 64;
   const targetDirectory = !preview
@@ -391,13 +392,15 @@ function ReadySkillDesignEditor({
       !allFilesViewed ||
       collision ||
       savedPath ||
-      saving
+      saveInFlight.current
     )
       return false;
     const revision = preview.revision;
     const key = `${sessionId}:${revision}:${saveTarget}:${targetName}`;
     if (saveOperation.current?.key !== key) saveOperation.current = { key, id: createUuid() };
     const operationId = saveOperation.current.id;
+    // React saving 投影尚未刷新时也须拒绝第二次保存；操作 ID 仍由原 owner 幂等裁决。
+    saveInFlight.current = true;
     setSaving(true);
     try {
       await draftSave.current;
@@ -420,6 +423,7 @@ function ReadySkillDesignEditor({
       if (active.current) setError(formatUserFacingError(cause, "技能保存失败，请重试。"));
       return false;
     } finally {
+      saveInFlight.current = false;
       if (active.current) setSaving(false);
     }
   };

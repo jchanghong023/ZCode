@@ -2,6 +2,16 @@
 
 > 当前产品前端与公开接口以 [发布边界](release-surface.md) 为准：原型／调试控制和场景身份参数已退出产品契约；下文相关模拟入口与浏览器故障注入记录仅属于历史版本，不构成恢复入口或接口的要求。
 
+## 静态审查回归约束（2026-11-17）
+
+- 新增／导入命令未结算时，唯一提案草稿门禁拒绝关闭、历史及切页请求；文件正在读取或解析失败时仍保护已选文件，取消离开保留本次预览。成功回执后才清理输入和关闭。
+- 联系人与材料修改沿用应用内“继续编辑／丢弃并离开”确认，不调用浏览器确认框；在途命令不可丢弃或离开，失败保留原输入。
+- 联系人编辑冻结开始编辑时的工作流 revision；后台重读不提升编辑基线。旧基线保存被拒绝并保留输入，可明确放弃联系人修改后从最新投影重新编辑，避免覆盖他人更新。
+- 文档交付以组件同步单飞锁覆盖确认及后续推送两个命令，等待期间不可重复提交或关闭；版本仍由现有服务门禁裁决。
+- 退回原因与联系人／材料说明共用唯一提案修改离开门禁；关闭退回弹窗不丢原因，再次打开恢复同一 IR 输入。命令进行时禁止离开、关闭和编辑原因；失败保留原因，成功才清理。不把旧对象弹窗或迟到回执应用到另一个 IR。
+- 用户点击阶段、评审会话或 IR／SR 材料范围切换时必须先经过现有 `navigate` 草稿门禁，再执行 `select`；业务命令成功后的内部选择仍保持原有直接路径，不能被自身保存锁阻断。
+- 材料补充信息的评审报告复用只读 Markdown 阅读器，与评审导航中的同一报告一致，不把 Markdown 标记直接作为普通段落展示。
+
 ## 提案需求材料单行选择（2026-11-16）
 
 - 提案讨论的材料面板顶部固定一行，依次为“需求材料”、唯一内容下拉框和收起按钮；不显示 IR／SR 范围选择、材料版本选择或单独的方案导航行。默认读取当前材料，不在该面板切换历史版本；保留已存历史和其他历史入口。正式需求详情复用同一阅读器但保留其原有范围、版本和材料选择行为。
@@ -233,6 +243,7 @@ flowchart LR
 - `AIReqProposalDelivery {candidate,version,files,confirmedBy,confirmedAt,pushedCandidate,pushedAt,prCandidate,branch,mergeScenario,mergeCheck}`；`AIReqPrFact` 的编号/URL/标题/正文/来源目标/状态和 platformVerified:false；`AIReqMergeFact` 的版本/文件事实；`AIReqOperationReceipt/AIReqWorkflowResult` 保留running/completed/failed和步骤、错误。
 
 现行发布边界覆盖本段旧 `platformVerified:false` 字面量限制：`AIReqPrFact` 由公共 `aiReqPrFactSchema` 推导，核验字段为严格布尔值；提案／历史、SR 当前／历史代码 PR、整体验收 PR 同批共享这一契约。当前内存记录仍为 false；UI 明确区分已核验／未核验，非法值拒绝，不能从合入状态或链接补造平台核验事实。
+
 - `AIReqSrDependencyDocument` 的 JSON 正文是依赖与预估唯一来源；可派生映射但不可持久化第二份可编辑依赖。`dependencySrIds`仅可作样例初次生成输入，之后所有读者必须读JSON。正式排期元数据独立归Tracking领域。
 - `AIReqSelection`仅保留本范围的projectId/irId/srId/materialPath/reviewAgent/proposalStep/discussionPhase/proposalDraftId/proposalDraftReleaseId及必要历史round，不把旧执行stage/freeSession等变成产品入口。
 

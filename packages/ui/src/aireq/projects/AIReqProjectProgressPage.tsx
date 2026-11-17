@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, FolderGit2, Plus, Settings2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FolderGit2, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Card } from "@/components/ui/card.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
@@ -14,6 +15,9 @@ import { ProjectPageHelp } from "./ProjectPageHelp.js";
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
 
 const VISIBLE_RELEASES = 4;
+// 首列含两侧 p-4 和边框，后续每列只增加一张 w-72 卡片与一个 gap-3。
+const FIRST_COLUMN = "calc(18rem + 2rem + 2px)";
+const COLUMN_STEP = "calc(18rem + 0.75rem)";
 type ReleaseSummary = AIReqProjectProgress["releases"][number];
 
 function sortReleases(releases: ReleaseSummary[]): ReleaseSummary[] {
@@ -50,14 +54,14 @@ export function AIReqProjectProgressPage({
   };
   const unavailable = ai.pending
     ? zh
-      ? "正在读取 Release…"
-      : "Loading Releases…"
+      ? "正在读取项目进度…"
+      : "Loading project progress…"
     : zh
-      ? "Release 数据不可用，请重试。"
-      : "Release data is unavailable. Retry the read.";
+      ? "项目进度不可用，请重试。"
+      : "Project progress is unavailable. Retry the read.";
   return (
     <main
-      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
+      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-project-progress"
     >
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-6"}>
@@ -67,13 +71,13 @@ export function AIReqProjectProgressPage({
               <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目总览" : "Projects"}</h1>
               <ProjectPageHelp scope="all-projects" />
             </div>
-            <p className="text-ui-sm text-foreground-subtle">
+            <p className="text-ui-sm text-remote-foreground-muted">
               {zh
-                ? "快捷入口查看项目的全部版本；选择版本卡片可进入对应概览。"
-                : "Quick links show all releases; select a release card to open its overview."}
+                ? "按项目查看各版本的需求与进展，选择版本查看详情。"
+                : "Review requirements and progress by project and release, then select a release for details."}
             </p>
             {ai.error && view && (
-              <p className="text-ui-sm text-foreground-subtle">
+              <p className="text-ui-sm text-remote-foreground-muted">
                 {zh
                   ? "已有数值仅代表上次成功读取；请使用上方重试入口。"
                   : "Values reflect the last successful read; use Retry above."}
@@ -92,7 +96,7 @@ export function AIReqProjectProgressPage({
               </Button>
               <p
                 role="status"
-                className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-xs text-foreground-subtle"
+                className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-sm text-remote-foreground-muted"
               >
                 {ai.pending && view ? (zh ? "正在更新…" : "Updating…") : ""}
               </p>
@@ -105,71 +109,111 @@ export function AIReqProjectProgressPage({
             const releases = summary ? sortReleases(summary.releases) : undefined;
             const expanded = expandedProjects.has(project.id);
             const visible = expanded ? releases : releases?.slice(0, VISIBLE_RELEASES);
+            const visibleCount = visible?.length ?? 0;
             const regionId = `project-releases-${encodeURIComponent(project.id)}`;
             return (
-              <Card key={project.id} className="gap-0 py-0" data-testid="project-release-group">
-                <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                  <Button
-                    variant="ghost"
-                    className="min-w-0 max-w-full justify-start gap-2 px-0 font-medium"
-                    onClick={() => ai.openProject(project.id)}
-                    aria-label={zh ? `进入${project.name}` : `Open ${project.name}`}
+              <Card
+                key={project.id}
+                className="w-full gap-0 py-0"
+                // 换行时整列以外的余宽曾留在项目框内；按可容纳的完整列数收边。
+                style={{
+                  width: `min(100%, calc(${FIRST_COLUMN} + round(down, max(0px, 100% - ${FIRST_COLUMN}), ${COLUMN_STEP})))`,
+                  maxWidth: `calc(${FIRST_COLUMN} + ${Math.max(0, visibleCount - 1)} * ${COLUMN_STEP})`,
+                }}
+                data-testid="project-release-group"
+              >
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 border-b border-border px-4 py-3">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                    <div className="flex min-w-0 max-w-full items-center gap-2">
+                      <h2 className="min-w-0">
+                        <Button
+                          variant="ghost"
+                          className="h-auto min-h-7 max-w-full justify-start gap-2 px-0 text-left font-semibold"
+                          onClick={() => ai.openProject(project.id)}
+                          aria-label={
+                            zh
+                              ? `进入${project.name}的全部版本概览`
+                              : `Open the all-releases overview for ${project.name}`
+                          }
+                        >
+                          <FolderGit2
+                            className="size-4 shrink-0 text-foreground-subtle"
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 wrap-anywhere whitespace-normal">
+                            {project.name}
+                          </span>
+                          <ChevronRight
+                            className="size-3.5 text-remote-foreground-muted"
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      </h2>
+                      {ai.selection.projectId === project.id && (
+                        <Badge variant="secondary">{zh ? "当前项目" : "Current"}</Badge>
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+                      <span className="mr-1 text-ui-sm text-remote-foreground-muted">
+                        {releases
+                          ? zh
+                            ? `全部 ${releases.length} 个版本`
+                            : `All ${releases.length} releases`
+                          : zh
+                            ? "全部版本"
+                            : "All releases"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-ui-caption"
+                        onClick={() => ai.openProject(project.id, "proposals")}
+                        aria-label={
+                          zh
+                            ? `进入${project.name}全部版本的需求共创`
+                            : `Open co-creation across all releases in ${project.name}`
+                        }
+                      >
+                        {zh ? "需求共创" : "Co-creation"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-ui-caption"
+                        onClick={() => ai.openProject(project.id, "formal")}
+                        aria-label={
+                          zh
+                            ? `进入${project.name}全部版本的开发任务`
+                            : `Open development tasks across all releases in ${project.name}`
+                        }
+                      >
+                        {zh ? "开发任务" : "Development tasks"}
+                      </Button>
+                    </div>
+                  </div>
+                  <ControlHintTooltip
+                    title={zh ? `配置项目 ${project.name}` : `Configure project ${project.name}`}
                   >
-                    <FolderGit2
-                      className="size-4 shrink-0 text-foreground-subtle"
-                      aria-hidden="true"
-                    />
-                    <span className="truncate">{project.name}</span>
-                  </Button>
-                  {ai.selection.projectId === project.id && (
-                    <Badge variant="secondary">{zh ? "当前项目" : "Current"}</Badge>
-                  )}
-                  {releases && (
-                    <span className="text-ui-sm text-foreground-subtle">
-                      {zh ? `${releases.length} 个 Release` : `${releases.length} releases`}
-                    </span>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => ai.openProject(project.id, "proposals")}
-                    aria-label={
-                      zh ? `进入${project.name}的需求共创` : `Open co-creation in ${project.name}`
-                    }
-                  >
-                    {zh ? "需求共创" : "Co-creation"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => ai.openProject(project.id, "formal")}
-                    aria-label={
-                      zh
-                        ? `进入${project.name}的开发任务`
-                        : `Open development tasks in ${project.name}`
-                    }
-                  >
-                    {zh ? "开发任务" : "Development tasks"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="ml-auto shrink-0 text-foreground-subtle"
-                    aria-label={
-                      zh ? `配置项目 ${project.name}` : `Configure project ${project.name}`
-                    }
-                    onClick={() => onConfigureProject(project.id)}
-                  >
-                    <Settings2 className="size-4" aria-hidden="true" />
-                    {zh ? "项目配置" : "Project settings"}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-remote-foreground-muted"
+                      aria-label={
+                        zh ? `配置项目 ${project.name}` : `Configure project ${project.name}`
+                      }
+                      onClick={() => onConfigureProject(project.id)}
+                    >
+                      <Settings2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </ControlHintTooltip>
                 </div>
                 {!releases ? (
-                  <p role="status" className="px-4 py-5 text-ui-sm text-foreground-subtle">
+                  <p role="status" className="px-4 py-5 text-ui-sm text-remote-foreground-muted">
                     {unavailable}
                   </p>
                 ) : releases.length === 0 ? (
-                  <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-foreground-subtle">
-                    <span>{zh ? "暂无 Release" : "No releases yet"}</span>
+                  <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-remote-foreground-muted">
+                    <span>{zh ? "暂无版本" : "No releases yet"}</span>
                     <Button
                       variant="link"
                       size="sm"
@@ -181,39 +225,70 @@ export function AIReqProjectProgressPage({
                   </div>
                 ) : (
                   <div className="space-y-3 p-4">
-                    <div
-                      id={regionId}
-                      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-                    >
-                      {visible?.map((release) => (
+                    <div id={regionId} className="flex min-w-0 flex-wrap gap-3">
+                      {visible?.map((release, index) => (
                         <button
                           key={release.releaseId}
                           type="button"
-                          className="flex min-w-0 flex-col gap-3 rounded-xl border border-card-border bg-surface p-4 text-left transition-colors hover:border-border-hover hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          className={
+                            "group/release flex min-h-36 w-72 min-w-0 max-w-full flex-col gap-3 rounded-lg border border-card-border bg-surface p-4 text-left transition-colors duration-150 ease-out hover:border-border-hover hover:bg-surface-hover focus-visible:bg-surface-hover motion-reduce:duration-100" +
+                            (index >= VISIBLE_RELEASES
+                              ? " motion-safe:animate-in motion-safe:fade-in-0 motion-safe:[animation-duration:200ms]"
+                              : "")
+                          }
                           aria-label={
                             zh
                               ? `进入${project.name}的 ${release.title}`
                               : `Open ${release.title} in ${project.name}`
                           }
+                          aria-describedby={`${regionId}-details-${encodeURIComponent(release.releaseId)}`}
                           onClick={() =>
                             ai.openProject(project.id, "projectOverview", release.releaseId)
                           }
                         >
-                          <span className="min-w-0 w-full break-words font-medium">
-                            {release.title}
-                          </span>
-                          <div className="w-full">
-                            <OverviewProgress
-                              percent={release.percent}
-                              label={`${project.name} · ${release.title}`}
-                              zh={zh}
+                          <span className="flex w-full items-start justify-between gap-2 font-medium">
+                            <span className="min-w-0 wrap-anywhere">{release.title}</span>
+                            <ChevronRight
+                              aria-hidden="true"
+                              className="mt-1 size-3.5 shrink-0 text-remote-foreground-muted opacity-0 group-hover/release:opacity-100 group-focus-visible/release:opacity-100"
                             />
-                          </div>
-                          <span className="text-ui-sm text-foreground-subtle tabular-nums">
-                            {zh
-                              ? `正式需求 ${release.formalCount} · 提案 ${release.proposalCount}`
-                              : `Formal ${release.formalCount} · Proposals ${release.proposalCount}`}
                           </span>
+                          <div
+                            id={`${regionId}-details-${encodeURIComponent(release.releaseId)}`}
+                            className="flex w-full flex-1 flex-col justify-end gap-3"
+                          >
+                            <div className="my-auto">
+                              <OverviewProgress
+                                percent={release.percent}
+                                formalCount={release.formalCount}
+                                label={`${project.name} · ${release.title}`}
+                                zh={zh}
+                                prominent
+                              />
+                            </div>
+                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-remote-foreground-muted tabular-nums">
+                              <span className="whitespace-nowrap">
+                                {zh ? "正式需求" : "Formal"}{" "}
+                                <strong className="font-medium text-foreground">
+                                  {release.formalCount}
+                                </strong>
+                              </span>
+                              <span className="whitespace-nowrap">
+                                {zh ? "提案" : "Proposals"}{" "}
+                                <strong className="font-medium text-foreground">
+                                  {release.proposalCount}
+                                </strong>
+                              </span>
+                              {release.unanalyzedCount > 0 && (
+                                <span className="whitespace-nowrap">
+                                  {zh ? "未分析 SR" : "Unanalyzed SRs"}{" "}
+                                  <strong className="font-medium text-foreground">
+                                    {release.unanalyzedCount}
+                                  </strong>
+                                </span>
+                              )}
+                            </span>
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -231,13 +306,17 @@ export function AIReqProjectProgressPage({
                               ? "收起"
                               : "Show less"
                             : zh
-                              ? `查看全部 ${releases.length} 个 Release`
+                              ? `查看全部 ${releases.length} 个版本`
                               : `View all ${releases.length} releases`}
-                          {expanded ? (
-                            <ChevronUp className="size-3.5" aria-hidden="true" />
-                          ) : (
-                            <ChevronDown className="size-3.5" aria-hidden="true" />
-                          )}
+                          <span
+                            aria-hidden="true"
+                            className={
+                              "transition-transform duration-180 ease-out motion-reduce:transition-none" +
+                              (expanded ? " rotate-180" : "")
+                            }
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </span>
                         </Button>
                       </div>
                     )}
@@ -247,7 +326,7 @@ export function AIReqProjectProgressPage({
             );
           })}
           {!view?.projects.length && (
-            <div className="rounded-xl border border-border bg-surface px-4 py-6 text-foreground-subtle">
+            <div className="rounded-xl border border-border bg-surface px-4 py-6 text-remote-foreground-muted">
               {view
                 ? zh
                   ? "尚无项目。请使用上方“添加项目”。"

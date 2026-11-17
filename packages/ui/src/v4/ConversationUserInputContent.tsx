@@ -125,7 +125,6 @@ function V4UserInputMention({
     );
   }
 
-
   if (part.type === "element") {
     // 设计模式点选的页面元素：与输入框里的元素 token 同样式
     return (
@@ -170,7 +169,6 @@ function V4UserInputMention({
     </span>
   );
 }
-
 
 export const ConversationUserInputContent = memo(function ConversationUserInputContent({
   text,

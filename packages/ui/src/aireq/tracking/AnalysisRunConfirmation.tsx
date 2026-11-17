@@ -17,6 +17,7 @@ export function AnalysisRunConfirmation({
   count,
   unit,
   disabled,
+  error,
   onConfirm,
 }: {
   open: boolean;
@@ -25,6 +26,7 @@ export function AnalysisRunConfirmation({
   count: number;
   unit: "SR";
   disabled: boolean;
+  error?: string;
   onConfirm(): void;
 }) {
   return (
@@ -42,9 +44,21 @@ export function AnalysisRunConfirmation({
             本次提交 {count} 个 {unit}，以提交时的可分析状态为准。
           </p>
         </div>
+        {error && (
+          <p role="alert" className="text-ui-sm text-destructive">
+            {error}
+          </p>
+        )}
         <AlertDialogFooter>
-          <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction disabled={disabled || count < 1} onClick={onConfirm}>
+          <AlertDialogCancel disabled={disabled}>取消</AlertDialogCancel>
+          {/* 默认 Action 会在异步接纳前关闭，失败被遮罩外提示掩盖；仅成功回执关闭。 */}
+          <AlertDialogAction
+            disabled={disabled || count < 1}
+            onClick={(event) => {
+              event.preventDefault();
+              onConfirm();
+            }}
+          >
             开始分析
           </AlertDialogAction>
         </AlertDialogFooter>

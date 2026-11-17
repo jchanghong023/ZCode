@@ -51,6 +51,7 @@ export function AIReqProposalTable() {
   const importOpen = ai.proposalImportOpen;
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const [csvContent, setCsvContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
@@ -95,7 +96,8 @@ export function AIReqProposalTable() {
   }, [csvContent, groups]);
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
-  const dirty = Boolean(text || (importOpen && preview));
+  // 文件读取及格式错误也属于用户输入；仅以成功预览判断会让这些状态无提示丢失。
+  const dirty = Boolean(text || (importOpen && fileName));
   // 修复：列表保持挂载以恢复筛选，切换项目时不能沿用上一个项目的筛选条件。
   useEffect(() => {
     setQuery("");
@@ -104,11 +106,15 @@ export function AIReqProposalTable() {
     setPage(0);
   }, [ai.selection.projectId]);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !busy) return;
     // 原生确认框与应用交互不一致；暂存一次导航，待应用内确认后再执行。
     setDraftNavigationGuard((navigate) => {
+      // 保存锁必须覆盖所有导航入口，不能仅禁用弹窗按钮而让历史后退绕过在途写入。
+      if (submitting.current) return;
       if (pendingNavigation.current) return;
       pendingNavigation.current = navigate;
+      returnFocus.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setDiscardOpen(true);
     });
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -120,7 +126,7 @@ export function AIReqProposalTable() {
       setDraftNavigationGuard(null);
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [dirty, setDraftNavigationGuard, ai]);
+  }, [dirty, busy, setDraftNavigationGuard, ai]);
   useEffect(
     () => () => {
       fileGeneration.current++;
@@ -634,7 +640,16 @@ export function AIReqProposalTable() {
             if (!open) pendingNavigation.current = null;
           }}
         >
-          <AlertDialogContent>
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              // 受控确认没有 Trigger；历史后退取消也须恢复表单原控件，而非落到 body。
+              if (returnFocus.current?.isConnected) {
+                event.preventDefault();
+                returnFocus.current.focus({ preventScroll: true });
+              }
+              returnFocus.current = null;
+            }}
+          >
             <AlertDialogHeader>
               <AlertDialogTitle>丢弃未保存的内容？</AlertDialogTitle>
               <AlertDialogDescription>
@@ -648,6 +663,7 @@ export function AIReqProposalTable() {
                 onClick={() => {
                   const next = pendingNavigation.current;
                   pendingNavigation.current = null;
+                  returnFocus.current = null;
                   setDraftNavigationGuard(null);
                   setText("");
                   fileGeneration.current++;

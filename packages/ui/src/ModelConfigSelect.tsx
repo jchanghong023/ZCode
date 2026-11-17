@@ -526,7 +526,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
 
   const renderedFooterActions = useMemo<ModelSelectFooterAction[]>(() => {
     const actions = [...footerActions];
-    if (!composerOptions && showManageModelsAction && manageModelsLabel) {
+    // 组合选模只替换模型内容，不应吞掉宿主提供的设置导航与草稿往返入口。
+    if (showManageModelsAction && manageModelsLabel) {
       actions.push({
         key: "manage-models",
         label: manageModelsLabel,
@@ -534,7 +535,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       });
     }
     return actions;
-  }, [composerOptions, footerActions, manageModelsLabel, onManageModels, showManageModelsAction]);
+  }, [footerActions, manageModelsLabel, onManageModels, showManageModelsAction]);
 
   const highspeed = isGlmHighspeedModel(
     modelGroups.flatMap((group) => group.items).find((item) => item.value === normalizedValue)

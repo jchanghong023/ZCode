@@ -91,6 +91,7 @@ function PersonalizationContent({
   };
   draftActions.current = {
     canSave: canSave && !saving,
+    canDiscard: !saving,
     save,
     discard: () => {
       setDraft({ ...saved });
@@ -99,9 +100,11 @@ function PersonalizationContent({
   };
   useEffect(() => {
     onDraftActionsChange?.(
-      dirty
+      // 保存中的旧快照不能与继续编辑、丢弃离开并发，否则会丢失未接纳输入。
+      dirty || saving
         ? {
             canSave: canSave && !saving,
+            canDiscard: !saving,
             save: () => draftActions.current?.save() ?? false,
             discard: () => draftActions.current?.discard(),
           }
@@ -126,6 +129,7 @@ function PersonalizationContent({
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select
           value={selected}
+          disabled={saving}
           onValueChange={(value) => {
             setSelected(value);
             setMessage(null);
@@ -172,6 +176,7 @@ function PersonalizationContent({
           className="min-h-64 w-full text-ui-base"
           spellCheck={false}
           value={draft[selected] ?? ""}
+          readOnly={saving}
           placeholder={
             zh
               ? "输入你希望追加给该 Agent 的指令。留空则仅使用原有指令。"

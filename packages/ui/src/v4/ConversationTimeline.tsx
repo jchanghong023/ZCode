@@ -588,10 +588,12 @@ function ConversationTimelineImpl({
   // 否则面板会覆盖正文，而不是并排布局。
   const summaryPanelInlineOffsetClassName =
     getConversationStatusPanelOffsetClassName(summaryPanelLayout);
-  const contentWidthClassName = contentWidthOverride ?? getConversationContentWidthClassName({
-    centeredEmptyLayout,
-    statusPanelLayout: summaryPanelLayout,
-  });
+  const contentWidthClassName =
+    contentWidthOverride ??
+    getConversationContentWidthClassName({
+      centeredEmptyLayout,
+      statusPanelLayout: summaryPanelLayout,
+    });
 
   const hasBottomDock = Boolean(bottomDock);
   useLayoutEffect(() => {

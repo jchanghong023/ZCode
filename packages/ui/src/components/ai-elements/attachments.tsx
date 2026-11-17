@@ -246,7 +246,8 @@ export const Attachment = ({
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(event);
-      if (event.defaultPrevented || !onOpen) {
+      // 根因：移除按钮的按键会冒泡；父卡片 preventDefault 会吞掉原生按钮激活并误开预览。
+      if (event.defaultPrevented || event.target !== event.currentTarget || !onOpen) {
         return;
       }
       if (event.key === "Enter" || event.key === " ") {

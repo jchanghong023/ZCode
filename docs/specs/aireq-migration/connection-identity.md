@@ -2,7 +2,6 @@
 
 > 当前产品前端与公开接口以 [发布边界](release-surface.md) 为准：原型／调试控制和场景身份参数已退出产品契约；下文相关模拟入口与浏览器故障注入记录仅属于历史版本，不构成恢复入口或接口的要求。
 
-
 ## 身份与所有权
 
 - Web entry 是当前连接的唯一 owner。首次连接前读取 `getV4ClientId()` 的持久稳定值并固定；每次 `/ws` 只传合法 `employeeId` 与同一 `clientId`，不携带额外场景参数。设备级 stream ID 保留原用途，不再作为原生命令身份。
@@ -17,6 +16,18 @@
   安全上下文继续使用 WebCrypto；局域网 HTTP 使用浏览器可用的标准 SHA-256 实现计算同一摘要，
   不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
   无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
+- 输入历史与未发送草稿使用同一客户端／操作者 namespace，并按 opaque workspace identity
+  隔离；不能只按执行目录读写 prompt history。切换工号、另一个 client 或同目录不同
+  workspace 不得通过输入器上／下键读回上一身份的正文；不回读或迁移缺少身份的旧目录键。
+- 公开 platform 合同不保留无产品消费者的 stdio tap 开发代理状态／开关、端点生产／测试／
+  自定义环境切换命令及其类型出口、IPC channel。正常生产诊断日志不受影响，部署端点仍由
+  正式部署配置决定，不增加替代开关或兼容别名。
+- 入口装配与工号页 hook 统一通过 UI theme owner 读取、校验并归一浏览器主题偏好；
+  缺省、非法值或存储读取被拒绝时采用既有 Zai dark，合法 `system` 继续跟随系统偏好。
+  主题写入被拒绝只影响偏好持久化，当前页主题仍生效；不吞工号的业务存储失败，
+  不改变其当前页继续使用与刷新不能恢复的提示。真实 CSP `sandbox allow-scripts`
+  未授予 `allow-same-origin` 时，存储属性访问抛出 `SecurityError` 也必须能渲染
+  工号页及已有存储失败提示，不能由入口初始化或 hook 再次读取造成白屏。
 
 ```mermaid
 sequenceDiagram

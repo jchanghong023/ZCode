@@ -1,6 +1,10 @@
 import { digestValue } from "./content-digest.js";
 import { businessRule, businessFailureMessage } from "./errors.js";
-import type { InternalRequirementGroup, InternalProposalDelivery } from "./internal-scenarios.js";
+import type {
+  InternalRequirementGroup,
+  InternalProposalDelivery,
+  InternalWorkflowAction,
+} from "./internal-scenarios.js";
 import type { AIReqProposalMergeScenario, AIReqReviewScenario } from "./internal-scenarios.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
@@ -43,7 +47,6 @@ import { hasCurrentProposalSolution } from "@zcode/services/aireq";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
 import type {
-  AIReqWorkflowCommand,
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqSelection,
@@ -478,7 +481,7 @@ export function getPrototypeMaterial(
 }
 /** Small UI-only transitions, not backend workflow approvals or an execution engine. */
 export function applyPrototypeAction(
-  action: AIReqAction,
+  action: InternalWorkflowAction,
   selection: AIReqSelection,
   solutionDiscussion?: string,
   request?: { operationId: string; commandDigest: string },
@@ -548,7 +551,6 @@ export function applyPrototypeAction(
     "importProposals",
     "assignContacts",
     "retrySrBranch",
-    "stop",
   ].includes(action.type);
   const targetGroup =
     targetProposal ??
@@ -586,11 +588,11 @@ export function applyPrototypeAction(
     if (!isEmployeeId(getEmployeeId())) throw businessRule("请先输入有效工号。");
     if (
       targetProposal.status === "requirements-pr" &&
-      !["closeProposalPr", "publishProposal", "markRequirementsMerged"].includes(action.type)
+      !["closeProposalPr", "publishProposal"].includes(action.type)
     )
       throw businessRule("文档 PR 已提交，当前材料冻结；请先关闭未合并 PR。");
   }
-  if (action.type === "runRequirementsReview" || action.type === "submitProposalReview") {
+  if (action.type === "runRequirementsReview") {
     const material = state.materials.find(
       (item) =>
         item.projectId === targetProjectId &&
@@ -681,6 +683,17 @@ export function applyPrototypeAction(
       (!targetProposal!.srIds.length || targetProposal!.proposalStage !== "solution")
     )
       throw businessRule("请先进入方案阶段并生成 SR 材料。");
+    // 尚无方案材料时不能把修订记成成功，也不能无故清空已存在的评审批准。
+    if (
+      action.target !== "requirements" &&
+      !state.materials.some(
+        (material) =>
+          material.projectId === targetProjectId &&
+          material.irId === targetProposal!.id &&
+          material.path.endsWith(action.target === "test-plan" ? "/test-plan.md" : "/design.md"),
+      )
+    )
+      throw businessRule("对应方案材料尚未生成，请先完成方案讨论。");
   }
   if (action.type === "returnProposal" && !action.reason.trim())
     throw businessRule("请填写业务需补充的原因。");
@@ -768,9 +781,3 @@ export function applyPrototypeAction(
     view: getPrototypeWorkflow({ projectId: selectedProjectId, irId, srId }),
   };
 }
-
-type AIReqAction = AIReqWorkflowCommand extends infer C
-  ? C extends AIReqWorkflowCommand
-    ? Omit<C, "operationId" | "expectedRevision">
-    : never
-  : never;

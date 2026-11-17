@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -51,6 +51,7 @@ function recordTime(value: string) {
 export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }) {
   const aireq = useAIReq()!;
   const [panel, setPanel] = useState<"info" | "history">();
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   // 原子导入共用一条批次收据，每个新 IR 都需要看到创建来源，而不是归到导入前的选择。
   const operations =
     aireq.view?.operations.filter(
@@ -69,7 +70,13 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
         renderTrigger={(openDelete, prohibition) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="shrink-0" aria-label="更多提案选项">
+              <Button
+                ref={menuTrigger}
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0"
+                aria-label="更多提案选项"
+              >
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -106,7 +113,14 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
           if (!open) setPanel(undefined);
         }}
       >
-        <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-xl">
+        <DialogContent
+          className="max-h-[85dvh] overflow-auto sm:max-w-xl"
+          onCloseAutoFocus={(event) => {
+            // 菜单项在弹窗打开后已卸载，返回稳定触发器而不是丢到正文根节点。
+            event.preventDefault();
+            menuTrigger.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{panel === "info" ? "提案信息" : "操作记录"}</DialogTitle>
             <DialogDescription>

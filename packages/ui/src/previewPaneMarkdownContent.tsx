@@ -1,5 +1,7 @@
 import { Children, isValidElement, useMemo, useRef, type ComponentProps } from "react";
-import MarkdownPreview, { type MarkdownPreviewProps } from "@uiw/react-markdown-preview/nohighlight";
+import MarkdownPreview, {
+  type MarkdownPreviewProps,
+} from "@uiw/react-markdown-preview/nohighlight";
 import { createMathPlugin } from "@streamdown/math";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { PluggableList } from "unified";
@@ -126,19 +128,22 @@ export function MarkdownDocument({
       },
       img: (props) => <MarkdownImage {...props} workspacePath={workspacePath} />,
       p: ({ node, ...props }) => {
-        const meaningfulNodes = node?.children.filter(
-          (child) => child.type !== "text" || child.value.trim().length > 0,
-        ) ?? [];
+        const meaningfulNodes =
+          node?.children.filter(
+            (child) => child.type !== "text" || child.value.trim().length > 0,
+          ) ?? [];
         const hasImage = meaningfulNodes.some(
           (child) => child.type === "element" && child.tagName === "img",
         );
-        const isGallery = meaningfulNodes.length >= 2 && meaningfulNodes.every(
-          (child) => child.type === "element" && child.tagName === "img",
-        );
+        const isGallery =
+          meaningfulNodes.length >= 2 &&
+          meaningfulNodes.every((child) => child.type === "element" && child.tagName === "img");
         // 图片加载/失败态是块级元素；单图或图文混排不能嵌在 p 中，画廊仍交给已有控件。
-        return hasImage && !isGallery
-          ? <div {...props} className={cn("mb-4", props.className)} />
-          : <MarkdownImageParagraph {...props} node={node} />;
+        return hasImage && !isGallery ? (
+          <div {...props} className={cn("mb-4", props.className)} />
+        ) : (
+          <MarkdownImageParagraph {...props} node={node} />
+        );
       },
       pre: ({ children: codeChildren }) => {
         const codeElement = Children.toArray(codeChildren).find(
@@ -146,9 +151,8 @@ export function MarkdownDocument({
         );
         if (!isValidElement<ComponentProps<"code">>(codeElement)) return null;
         const code = String(codeElement.props.children ?? "").replace(/\n$/, "");
-        const language = /(?:^|\s)language-([^\s]+)/.exec(
-          codeElement.props.className ?? "",
-        )?.[1] ?? "text";
+        const language =
+          /(?:^|\s)language-([^\s]+)/.exec(codeElement.props.className ?? "")?.[1] ?? "text";
         return (
           <CodeBlock
             code={code}

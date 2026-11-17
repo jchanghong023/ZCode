@@ -7,4 +7,3 @@
 修复原因：原解析文件落在未受管的 ui 模块，阻塞 pre-push。现在用独立 app 层承载端口编排，契约采用最小只读 tab 视图，避免反向依赖 Root / Zustand。
 
 此模块不改变桌面 continuous、手机 replayable/shared-host、连接重用或持久化边界；具体打开行为与重试语义继续由注入端口负责。
-

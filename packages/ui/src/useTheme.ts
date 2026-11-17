@@ -79,16 +79,27 @@ function isTheme(value: string | null): value is Theme {
   );
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
+export function readThemePreference(): Theme {
+  try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    // 默认主题统一收敛到 Zai dark，避免旧 hook 兜底值和 Zustand store 默认值分叉。
     return isTheme(saved) ? normalizeThemePreference(saved) : "zai-dark";
-  });
+  } catch {
+    // 根因：opaque-origin 等环境连存储属性访问都会抛错；入口和 hook 必须共用安全读取，
+    // 否则入口已回退深色，工号页挂载时仍会白屏，遮住业务存储失败提示。
+    return "zai-dark";
+  }
+}
+
+export function useTheme() {
+  const [theme, setThemeState] = useState<Theme>(readThemePreference);
 
   const setTheme = useCallback((t: Theme) => {
     const normalizedTheme = normalizeThemePreference(t);
-    localStorage.setItem(STORAGE_KEY, normalizedTheme);
+    try {
+      localStorage.setItem(STORAGE_KEY, normalizedTheme);
+    } catch {
+      // 主题持久化被拒绝不应阻断当前页切换；工号保存及失败提示仍由入口 owner 负责。
+    }
     setThemeState(normalizedTheme);
     applyTheme(normalizedTheme);
   }, []);

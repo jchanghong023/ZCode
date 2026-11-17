@@ -525,7 +525,8 @@ export interface AIReqCommandBase {
   irId?: string;
   srId?: string;
 }
-export type AIReqWorkflowCommand = AIReqCommandBase &
+export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevision"> &
+  Partial<Pick<AIReqCommandBase, "operationId" | "expectedRevision">> &
   (
     | { type: "createIdea"; originalText: string }
     | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
@@ -558,48 +559,12 @@ export type AIReqWorkflowCommand = AIReqCommandBase &
         note: string;
       }
     | { type: "deleteRequirement"; version: 1; projectId: string; irId: string }
-    | { type: "submitProposalReview" }
     | { type: "acceptProposal"; reviewId?: string; snapshotDigest?: string }
     | { type: "runRequirementsReview" }
-    | { type: "generateRequirements"; note: string }
-    | { type: "supplementRequirements"; note: string }
-    | { type: "generateProposalSolution" }
     | { type: "returnProposal"; reason: string }
     | { type: "confirmProposal"; version: string }
     | { type: "publishProposal"; candidate: string }
-    | { type: "markRequirementsPrSubmitted"; url: string; candidate: string }
-    | { type: "markRequirementsMerged"; candidate: string; defaultBranchFilesConfirmed: boolean }
-    | {
-        type: "recordRequirementsDecision";
-        reviewId: string;
-        snapshotDigest: string;
-        opinion: string;
-        outcome: AIReqRequirementsDecision["outcome"];
-        result: string;
-      }
-    | { type: "stop" }
   );
-/** Internal generation/merge completion is server-only; browser actions cannot bypass discussion or MR checks. */
-type AIReqBrowserCommand = Exclude<
-  AIReqWorkflowCommand,
-  {
-    type:
-      | "generateRequirements"
-      | "supplementRequirements"
-      | "generateProposalSolution"
-      | "markRequirementsPrSubmitted"
-      | "markRequirementsMerged"
-      | "submitProposalReview"
-      | "recordRequirementsDecision"
-      | "stop";
-  }
->;
-export type AIReqAction = AIReqBrowserCommand extends infer T
-  ? T extends AIReqBrowserCommand
-    ? Omit<T, "operationId" | "expectedRevision"> &
-        Partial<Pick<AIReqCommandBase, "operationId" | "expectedRevision">>
-    : never
-  : never;
 export interface AIReqWorkflowResult {
   ideaId?: string;
   transferredRequirements?: AIReqIdeaTransfer[];

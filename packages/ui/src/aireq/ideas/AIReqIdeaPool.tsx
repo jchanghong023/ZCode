@@ -56,6 +56,8 @@ export function AIReqIdeaPool() {
   const [failed, setFailed] = useState(false);
   const [discard, setDiscard] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
+  const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
+  const addIdeaButton = useRef<HTMLButtonElement | null>(null);
   const [transferred, setTransferred] = useState<AIReqIdeaTransfer[]>([]);
   const { setDraftNavigationGuard } = ai;
   const dirty = Boolean(
@@ -81,7 +83,8 @@ export function AIReqIdeaPool() {
       window.removeEventListener("beforeunload", beforeUnload);
     };
   }, [dirty, busy, setDraftNavigationGuard]);
-  const open = (mode: Draft["mode"], idea?: AIReqIdea) => {
+  const open = (mode: Draft["mode"], trigger: HTMLButtonElement, idea?: AIReqIdea) => {
+    dialogReturnFocus.current = trigger;
     setFailed(false);
     setDraft({
       mode,
@@ -162,6 +165,8 @@ export function AIReqIdeaPool() {
         setFailed(true);
         return;
       }
+      // 转入回执已消费原想法；旧行可能在关闭后才卸载，不能按关闭瞬间的 DOM 存活判断返回目标。
+      if (draft.mode === "transfer") dialogReturnFocus.current = addIdeaButton.current;
       setTransferred(result.transferredRequirements ?? []);
       setDraft(null);
     } finally {
@@ -189,7 +194,11 @@ export function AIReqIdeaPool() {
                 : "All projects · Original requirements awaiting a release"}
             </p>
           </div>
-          <Button disabled={!ai.view || ai.pending} onClick={() => open("edit")}>
+          <Button
+            ref={addIdeaButton}
+            disabled={!ai.view || ai.pending}
+            onClick={(event) => open("edit", event.currentTarget)}
+          >
             <Plus className="size-4" aria-hidden="true" />
             {zh ? "新增想法" : "Add idea"}
           </Button>
@@ -269,7 +278,7 @@ export function AIReqIdeaPool() {
                       <Button
                         variant="link"
                         className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left"
-                        onClick={() => open("edit", idea)}
+                        onClick={(event) => open("edit", event.currentTarget, idea)}
                       >
                         {idea.originalText}
                       </Button>
@@ -282,7 +291,11 @@ export function AIReqIdeaPool() {
                       {new Date(idea.createdAt).toLocaleString(locale)}
                     </td>
                     <td className="px-4 py-4">
-                      <Button variant="outline" size="sm" onClick={() => open("transfer", idea)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => open("transfer", event.currentTarget, idea)}
+                      >
                         {zh ? "转入版本" : "Move to release"}
                       </Button>
                     </td>
@@ -328,6 +341,13 @@ export function AIReqIdeaPool() {
         >
           <DialogContent
             className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-2xl"
+            onCloseAutoFocus={(event) => {
+              // 受控弹窗没有 DialogTrigger；转入成功还会移除原行，需回到仍在页内的新增入口。
+              event.preventDefault();
+              const trigger = dialogReturnFocus.current;
+              if (trigger?.isConnected) trigger.focus();
+              else addIdeaButton.current?.focus();
+            }}
             onEscapeKeyDown={(event) => {
               if (busy) event.preventDefault();
             }}
@@ -413,7 +433,8 @@ export function AIReqIdeaPool() {
                       </div>
                       <div className="min-w-0 space-y-2">
                         <Label htmlFor={`idea-release-${target.key}`}>
-                          {zh ? "目标版本" : "Release"}
+                          {/* 多目标必须与项目共用编号，否则读屏中的版本控件名称完全相同。 */}
+                          {zh ? `目标版本 ${index + 1}` : `Release ${index + 1}`}
                         </Label>
                         <Select
                           value={target.releaseId}

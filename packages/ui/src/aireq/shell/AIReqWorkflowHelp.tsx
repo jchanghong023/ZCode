@@ -28,10 +28,11 @@ const steps = [
     sectionEn: "Todos and proposals",
     title: "保存原始短需求",
     titleEn: "Save the original request",
+    // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办支持我的、待认领、全部及跨项目筛选，显示需求名称和当前事项，点击事项直接进入对应需求。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入；先选择具体 Release，只保存原始短需求，成功后留在表格。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。只有主动进入讨论才开始 AI 澄清。",
+      "待办支持我的、待认领、全部及跨项目筛选，显示需求名称和当前事项，点击事项直接进入对应需求。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入；先选择具体 Release，只保存原始短需求，成功后留在表格。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。打开讨论后，只有显式发送消息才开始本次 AI 澄清。",
     descriptionEn:
-      "Todos show requirement names and pending actions across projects, with Mine, Unassigned and All filters. Open an action to reach its requirement directly. Save unplanned requests in the global Ideas pool. Moving one to one or more project releases consumes the idea and creates independent proposals. Add or import requests directly in Co-creation when their release is already known. Saving preserves the original short request and stays in the table. UTF-8 single-column CSV is previewed and imported as a complete batch; blanks are skipped and duplicates retained. Export includes every filtered original request. AI clarification starts only when you open a discussion.",
+      "Todos show requirement names and pending actions across projects, with Mine, Unassigned and All filters. Open an action to reach its requirement directly. Save unplanned requests in the global Ideas pool. Moving one to one or more project releases consumes the idea and creates independent proposals. Add or import requests directly in Co-creation when their release is already known. Saving preserves the original short request and stays in the table. UTF-8 single-column CSV is previewed and imported as a complete batch; blanks are skipped and duplicates retained. Export includes every filtered original request. Opening a discussion only reads its existing content; AI clarification starts only after you explicitly send a message.",
   },
   {
     title: "澄清与单 Agent 评审",

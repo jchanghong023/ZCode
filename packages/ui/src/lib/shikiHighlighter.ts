@@ -117,9 +117,7 @@ export const highlightCode = (
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
     .then((highlighter) => {
       const availableLangs = highlighter.getLoadedLanguages();
-      const langToUse = availableLangs.includes(resolvedLanguage)
-        ? resolvedLanguage
-        : "text";
+      const langToUse = availableLangs.includes(resolvedLanguage) ? resolvedLanguage : "text";
 
       const result = highlighter.codeToTokens(code, {
         lang: langToUse,

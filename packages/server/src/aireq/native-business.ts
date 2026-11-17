@@ -27,6 +27,7 @@ export class AIReqNativeBusiness {
   private readonly results = new Map<string, { text: string; reply: string }>();
   private readonly failures = new Set<string>();
   private readonly actors = new Map<string, import("@zcode/services/aireq").AIReqIdentity>();
+  private readonly admittedTexts = new Map<string, string>();
   private readonly admittedVersions = new Map<string, string>();
   private readonly nativeDrafts = new Map<
     string,
@@ -73,9 +74,16 @@ export class AIReqNativeBusiness {
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
     if (!identity) throw businessRule("连接身份无效，请重新进入工作区。");
-    this.actors.set(`${sessionId}:${commandId}`, { ...identity });
-    const result = this.results.get(`${sessionId}:${commandId}`);
-    if (result && result.text !== text) throw businessRule("相同消息编号不能用于不同正文。");
+    const key = `${sessionId}:${commandId}`;
+    const admittedActor = this.actors.get(key);
+    // 接纳记录是消息的不可变身份；失败重试不能抢占原操作者或替换已接纳正文。
+    if (
+      admittedActor &&
+      (admittedActor.employeeId !== identity.employeeId ||
+        admittedActor.clientId !== identity.clientId ||
+        this.admittedTexts.get(key) !== text)
+    )
+      throw businessRule("相同消息编号不能用于不同正文或操作者。");
     if (
       consumePrototypeSendFailure() ||
       (prototypeRecoveryScenario === "send-failure" && !this.failures.has(identity.clientId))
@@ -85,6 +93,8 @@ export class AIReqNativeBusiness {
     }
     if (sessionId.startsWith("prototype-skill-design:")) {
       prototypeSkillDesignBinding(sessionId);
+      this.actors.set(key, { ...identity });
+      this.admittedTexts.set(key, text);
       return;
     }
     const target = locate(sessionId);
@@ -114,15 +124,28 @@ export class AIReqNativeBusiness {
         throw businessRule("历史评审仅供只读查看。");
     } else if (
       !proposal ||
-      (ref.phase === "solution" && ref.round !== (proposal.proposalRound ?? 1)) ||
+      ref.round !== (proposal.proposalRound ?? 1) ||
       proposal.status === "requirements-pr"
     )
       throw businessRule("当前或历史会话只读，请回到有效讨论阶段。");
-    this.admittedVersions.set(`${sessionId}:${commandId}`, proposalVersion(proposal!));
+    // 重复接纳不刷新材料绑定，否则重试能把旧消息漂白成新版本完成结果。
+    if (!this.admittedVersions.has(key)) this.admittedVersions.set(key, proposalVersion(proposal!));
+    this.actors.set(key, { ...identity });
+    this.admittedTexts.set(key, text);
+  }
+  discardNative(sessionId: string, commandId: string): void {
+    const key = `${sessionId}:${commandId}`;
+    // 取消只撤销未完成的私有接纳，已完成收据仍用于同一命令的幂等读取。
+    if (this.results.has(key)) return;
+    this.actors.delete(key);
+    this.admittedTexts.delete(key);
+    this.admittedVersions.delete(key);
   }
   completeNative(sessionId: string, commandId: string, text: string): string {
     const actor = this.actors.get(`${sessionId}:${commandId}`);
     if (!actor) throw businessRule("消息未接纳。");
+    if (this.admittedTexts.get(`${sessionId}:${commandId}`) !== text)
+      throw businessRule("完成消息正文与接纳正文不一致。");
     return withAIReqIdentity(actor, () => this.completeForActor(sessionId, commandId, text));
   }
   private completeForActor(sessionId: string, commandId: string, text: string): string {
@@ -146,17 +169,30 @@ export class AIReqNativeBusiness {
       const selection = { projectId: ref.projectId, irId: ref.irId };
       if (!proposal || this.admittedVersions.get(key) !== proposalVersion(proposal))
         throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
+      // 退回只新增讨论轮次，材料摘要可能不变；旧接纳不能跨轮次或阶段重新取得写权限。
+      const readOnly = conversationReadOnlyReason(
+        view,
+        {
+          ...selection,
+          discussionPhase: ref.phase === "solution" ? "solution" : "requirements",
+        },
+        { proposalDiscussion: true, codeDevelopment: false },
+      );
+      const review = ref.phase === "solution" ? proposal.review : proposal.originalReview;
+      if (
+        readOnly ||
+        (ref.role !== "reviewer" && ref.round !== (proposal.proposalRound ?? 1)) ||
+        (ref.role === "reviewer" &&
+          !review?.agents?.some((agent) => agent.session.sessionId === sessionId))
+      )
+        throw businessRule("当前会话阶段或轮次已变化，拒绝迟到的原生业务完成结果。");
       if (!text.trim()) reply = "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
       else if (ref.role === "reviewer")
         reply = "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。";
       else {
         const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
         if (ref.phase === "solution")
-          applyPrototypeAction(
-            { type: "generateProposalSolution", ...selection },
-            selection,
-            text,
-          );
+          applyPrototypeAction({ type: "generateProposalSolution", ...selection }, selection, text);
         else
           applyPrototypeAction(
             {

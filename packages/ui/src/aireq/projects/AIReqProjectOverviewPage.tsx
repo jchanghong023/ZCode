@@ -167,6 +167,12 @@ export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProject
                         <Button
                           variant="link"
                           className="h-auto p-0 text-ui-page-title font-semibold tabular-nums"
+                          // 数字本身不表达动作与全局范围，读屏名称需和相邻正式需求入口一样完整。
+                          aria-label={
+                            zh
+                              ? `查看想法池（全部项目）：${ai.view?.ideas.length ?? 0}`
+                              : `View ideas (all projects): ${ai.view?.ideas.length ?? 0}`
+                          }
                           onClick={() => ai.navigate(() => ai.setMainView("ideas"))}
                         >
                           {ai.view?.ideas.length}

@@ -1,5 +1,7 @@
 // 纯展示词表：工作流分享页不可经工具栏组件引入 Desktop 状态和服务。
 const THOUGHT_LEVEL_LABEL_IDS: Record<string, string> = {
+  // 原生工具栏与执行详情共用展示词表，避免 default 作为英文原值漏到中文界面。
+  default: "mode.default",
   disabled: "chat.toolbar.thoughtLevel.value.off",
   false: "chat.toolbar.thoughtLevel.value.off",
   no: "chat.toolbar.thoughtLevel.value.off",

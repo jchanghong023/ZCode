@@ -39,6 +39,7 @@ export function AIReqFormalTestControls({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
   const blocker = !source.progress ? "测试验收服务暂不可用。" : srCompletionBlocker(sr);
   const open = (outcome: "passed" | "failed") => {
     if (!aireq.view) return;
@@ -89,7 +90,14 @@ export function AIReqFormalTestControls({
             ：{issue.detail}
           </p>
           <p className="break-all text-foreground-subtle">
-            失败版本 {issue.failedCodeVersion} · {issue.reportedBy} · {issue.reportedAt}
+            失败版本 {issue.failedCodeVersion} · {issue.reportedBy} ·{" "}
+            {/* 原始 ISO 曾与同页报告时区不一致；只格式化展示，机器可读值仍保留原回执。 */}
+            <time dateTime={issue.reportedAt}>
+              {new Date(issue.reportedAt).toLocaleString("zh-CN", {
+                timeZone: "Asia/Shanghai",
+                hour12: false,
+              })}
+            </time>
           </p>
           {issue.fixCodeVersion && (
             <p className="break-all text-foreground-subtle">修复版本 {issue.fixCodeVersion}</p>
@@ -102,7 +110,13 @@ export function AIReqFormalTestControls({
           <ul className="space-y-2 pt-2">
             {sr.acceptanceHistory.map((item) => (
               <li key={item.operationId} className="break-words">
-                {item.outcome === "passed" ? "通过" : "不通过"} · {item.employeeId} · {item.at}
+                {item.outcome === "passed" ? "通过" : "不通过"} · {item.employeeId} ·{" "}
+                <time dateTime={item.at}>
+                  {new Date(item.at).toLocaleString("zh-CN", {
+                    timeZone: "Asia/Shanghai",
+                    hour12: false,
+                  })}
+                </time>
                 <br />
                 {item.reason}
                 <br />
@@ -116,7 +130,7 @@ export function AIReqFormalTestControls({
       <Dialog
         open={dialogOpen}
         onOpenChange={(value) => {
-          if (!value && !saving) setDialogOpen(false);
+          if (!value && !submitting.current) setDialogOpen(false);
         }}
       >
         <DialogContent className="sm:max-w-lg">
@@ -132,7 +146,10 @@ export function AIReqFormalTestControls({
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (saving || !request || !reason.trim() || versionChanged || blocker) return;
+              if (submitting.current || !request || !reason.trim() || versionChanged || blocker)
+                return;
+              // React 忙碌态提交后才渲染；同步锁防止同一验收被连续按键重复提交。
+              submitting.current = true;
               setSaving(true);
               setError("");
               try {
@@ -144,6 +161,7 @@ export function AIReqFormalTestControls({
               } catch (cause) {
                 setError(formatUserFacingError(cause, "测试验收记录失败，输入已保留，请重试。"));
               } finally {
+                submitting.current = false;
                 setSaving(false);
               }
             }}
@@ -157,6 +175,7 @@ export function AIReqFormalTestControls({
             <SettingsFormTextarea
               id={`${id}-basis`}
               required
+              disabled={saving}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="记录平台外实际测试结果及依据；不会运行测试"
@@ -232,7 +251,10 @@ export function AIReqFormalAnalysisAction({
         size="sm"
         variant="outline"
         disabled={pending || srProgress(sr) === 100}
-        onClick={() => setConfirm(true)}
+        onClick={() => {
+          setMessage("");
+          setConfirm(true);
+        }}
       >
         分析此 SR
       </Button>
@@ -245,6 +267,7 @@ export function AIReqFormalAnalysisAction({
         count={1}
         unit="SR"
         disabled={pending}
+        error={message}
         onConfirm={() => void analyse()}
       />
       <p role="status" className="break-words text-ui-sm">

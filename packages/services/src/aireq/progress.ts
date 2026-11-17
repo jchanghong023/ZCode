@@ -10,9 +10,6 @@ export interface AIReqTestAcceptanceInput extends AIReqVersionedProgressInput {
   outcome: "passed" | "failed";
   reason: string;
 }
-export interface AIReqCodeMergeInput extends AIReqVersionedProgressInput {
-  fix: boolean;
-}
 export interface AIReqBranchCleanupInput extends AIReqVersionedProgressInput {
   branches: string[];
 }

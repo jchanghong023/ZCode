@@ -1,5 +1,5 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { Input } from "@/components/ui/input.js";
@@ -66,8 +66,7 @@ export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequireme
     ? aiReqPrFactSchema.safeParse(group.requirementsPr)
     : undefined;
   // 外部核验事实只能是布尔值，坏投影不得被当作已核验或继续展示。
-  if (parsedMr && !parsedMr.success)
-    return <p role="alert">MR 信息无效，请刷新后重试。</p>;
+  if (parsedMr && !parsedMr.success) return <p role="alert">MR 信息无效，请刷新后重试。</p>;
   const mr = parsedMr?.data;
   const mrLink = resolveMrLink(mr?.url);
   const time = (value?: string) =>
@@ -155,6 +154,8 @@ export function AIReqProposalDeliveryControls({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [checkedFiles, setCheckedFiles] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
+  const submitting = useRef(false);
+  const [submittingDelivery, setSubmittingDelivery] = useState(false);
   const [handoffResult, setHandoffResult] = useState<{
     group: AIReqRequirementGroup;
     handoff?: AIReqPrHandoff;
@@ -206,6 +207,7 @@ export function AIReqProposalDeliveryControls({
     !readOnly && ready && mine && !aireq.pending && handoff?.ready === true && boundCurrent;
   const canSubmit =
     editable &&
+    !submittingDelivery &&
     !!dialog &&
     (dialog.step === "confirm"
       ? !current && allFilesChecked && acknowledged
@@ -308,7 +310,7 @@ export function AIReqProposalDeliveryControls({
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          if (!open) setDialogOpen(false);
+          if (!open && !submitting.current) setDialogOpen(false);
         }}
       >
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
@@ -323,34 +325,42 @@ export function AIReqProposalDeliveryControls({
               className="space-y-4"
               onSubmit={async (event) => {
                 event.preventDefault();
-                if (!canSubmit) return;
-                const target = { projectId: group.projectId, irId: group.id };
-                if (dialog.step === "confirm") {
-                  const confirmed = await aireq.command({
-                    type: "confirmProposal",
-                    ...target,
-                    version: dialog.version,
-                  });
-                  if (confirmed?.status !== "completed") return;
-                  const candidate = confirmed.view?.drafts.find(
-                    (item) => item.projectId === group.projectId && item.id === group.id,
-                  )?.proposalDelivery?.candidate;
-                  if (!candidate) return;
-                  const pushedResult = await aireq.command({
-                    type: "publishProposal",
-                    ...target,
-                    candidate,
-                  });
-                  // 退场时保留确认内容；仅推送失败才展示可重试的推送步骤。
-                  if (pushedResult?.status === "completed") setDialogOpen(false);
-                  else setDialog({ ...dialog, step: "push", candidate });
-                } else {
-                  const result = await aireq.command({
-                    type: "publishProposal",
-                    ...target,
-                    candidate: dialog.candidate!,
-                  });
-                  if (result?.status === "completed") setDialogOpen(false);
+                if (!canSubmit || submitting.current) return;
+                // pending 依赖异步投影，无法封住连续提交及 confirm→publish 之间的空隙。
+                submitting.current = true;
+                setSubmittingDelivery(true);
+                try {
+                  const target = { projectId: group.projectId, irId: group.id };
+                  if (dialog.step === "confirm") {
+                    const confirmed = await aireq.command({
+                      type: "confirmProposal",
+                      ...target,
+                      version: dialog.version,
+                    });
+                    if (confirmed?.status !== "completed") return;
+                    const candidate = confirmed.view?.drafts.find(
+                      (item) => item.projectId === group.projectId && item.id === group.id,
+                    )?.proposalDelivery?.candidate;
+                    if (!candidate) return;
+                    const pushedResult = await aireq.command({
+                      type: "publishProposal",
+                      ...target,
+                      candidate,
+                    });
+                    // 退场时保留确认内容；仅推送失败才展示可重试的推送步骤。
+                    if (pushedResult?.status === "completed") setDialogOpen(false);
+                    else setDialog({ ...dialog, step: "push", candidate });
+                  } else {
+                    const result = await aireq.command({
+                      type: "publishProposal",
+                      ...target,
+                      candidate: dialog.candidate!,
+                    });
+                    if (result?.status === "completed") setDialogOpen(false);
+                  }
+                } finally {
+                  submitting.current = false;
+                  setSubmittingDelivery(false);
                 }
               }}
             >
@@ -472,7 +482,12 @@ export function AIReqProposalDeliveryControls({
                 </p>
               )}
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submittingDelivery}
+                  onClick={() => setDialogOpen(false)}
+                >
                   关闭
                 </Button>
                 {!readOnly && dialog.step !== "pr" && (

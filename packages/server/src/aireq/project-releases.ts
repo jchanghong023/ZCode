@@ -27,6 +27,24 @@ const releasesByProject = new Map<string, AIReqRelease[]>([
         title: "2026.12 · 离线体验",
         createdAt,
       },
+      {
+        id: "mobile-release-2027-01",
+        projectId: "demo-mobile",
+        title: "2027.01 · 消息协同",
+        createdAt,
+      },
+      {
+        id: "mobile-release-2027-02",
+        projectId: "demo-mobile",
+        title: "2027.02 · 工作台优化",
+        createdAt,
+      },
+      {
+        id: "mobile-release-2027-03",
+        projectId: "demo-mobile",
+        title: "2027.03 · 协作体验",
+        createdAt,
+      },
     ],
   ],
 ]);
