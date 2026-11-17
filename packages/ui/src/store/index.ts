@@ -213,11 +213,12 @@ export function createZCodeStore(
       writeSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY, interfaceMode);
       set({ interfaceMode });
     },
-    // 入口与 store 共用默认值和安全读取；已有浅／深／system 偏好不迁移到动效主题。
+    // 入口与 store 共用固定动效默认值，暂时不读取或改写主题记忆。
     theme: readThemePreference(),
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
-      writeSafeLocalStorage("zcode-theme", normalizedTheme);
+      // 暂停主题持久化；恢复时需同时启用入口／hook 的读取和写入。
+      // writeSafeLocalStorage("zcode-theme", normalizedTheme);
       syncSystemThemeListener(normalizedTheme);
       applyTheme(normalizedTheme);
 

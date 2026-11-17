@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
 export type ResolvedTheme = "light" | "dark";
 
-const STORAGE_KEY = "zcode-theme";
+// 暂停主题记忆；恢复时连同下方读取和写入一起启用。
+// const STORAGE_KEY = "zcode-theme";
 const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-zcode-browser-theme-surface";
 
 function getSystemTheme(): ResolvedTheme {
@@ -73,6 +74,7 @@ export function applyTheme(theme: Theme) {
   syncBrowserThemeSurface(resolved);
 }
 
+/* 主题本地记忆暂时停用，保留校验及安全读取实现供恢复。
 function isTheme(value: string | null): value is Theme {
   return (
     value === "light" ||
@@ -83,8 +85,10 @@ function isTheme(value: string | null): value is Theme {
     value === "system"
   );
 }
+*/
 
 export function readThemePreference(): Theme {
+  /*
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     return isTheme(saved) ? normalizeThemePreference(saved) : "zai-motion";
@@ -93,6 +97,8 @@ export function readThemePreference(): Theme {
     // 否则入口已回退深色，工号页挂载时仍会白屏，遮住业务存储失败提示。
     return "zai-motion";
   }
+  */
+  return "zai-motion";
 }
 
 export function useTheme() {
@@ -100,11 +106,14 @@ export function useTheme() {
 
   const setTheme = useCallback((t: Theme) => {
     const normalizedTheme = normalizeThemePreference(t);
+    // 暂停写入主题偏好，切换仅在当前会话及既有广播内生效。
+    /*
     try {
       localStorage.setItem(STORAGE_KEY, normalizedTheme);
     } catch {
       // 主题持久化被拒绝不应阻断当前页切换；工号保存及失败提示仍由入口 owner 负责。
     }
+    */
     setThemeState(normalizedTheme);
     applyTheme(normalizedTheme);
   }, []);

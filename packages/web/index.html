@@ -15,9 +15,9 @@
     <title>AIReq</title>
     <script>
       (() => {
-        // JS bundle 执行前按当前本地主题偏好绘制启动壳，避免首屏闪烁。
-        const STORAGE_KEY = "zcode-theme";
-        const DEFAULT_THEME = "zai-dark";
+        // JS bundle 前固定使用动效主题的深色启动壳，与入口／store 保持一致。
+        // const STORAGE_KEY = "zcode-theme";
+        const DEFAULT_THEME = "zai-motion";
         const BROWSER_THEME_COLORS = {
           dark: "#161616",
           light: "#f8f8f8",
@@ -26,7 +26,7 @@
         const normalizeResolvedTheme = (theme) => {
           if (theme === "dark") return "dark";
           if (theme === "light") return "light";
-          if (theme === "zai-dark") return "dark";
+          if (theme === "zai-dark" || theme === "zai-motion") return "dark";
           if (theme === "zai-light") return "light";
           return theme;
         };
@@ -41,7 +41,9 @@
         };
 
         try {
-          const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          // 暂停读取主题记忆；保留旧值，每次启动均使用动效主题。
+          // const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          const saved = DEFAULT_THEME;
           const resolved =
             saved === "system"
               ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches

@@ -20,7 +20,7 @@
 
 ## 身份与展示
 
-`zai-motion` 默认动效主题与既有主题共用 store／偏好读取／广播路径；保留已保存的原浅／深／系统偏好。`AIReqMotion` 仅持有有界装饰节点与一次性动画，不保存坐标或导航事实；原主题、减少动态效果与性能模式无新增指针监听。视觉与性能边界见 `docs/specs/aireq-migration/motion-theme.md`。
+`zai-motion` 默认动效主题与既有主题共用 store／广播路径；暂时注释主题本地记忆的读取与写入，每次启动使用动效主题，当前会话仍可切换，既有存储值不删除。`AIReqMotion` 仅持有有界装饰节点与一次性动画，不保存坐标或导航事实；原主题、减少动态效果与性能模式无新增指针监听。视觉与性能边界见 `docs/specs/aireq-migration/motion-theme.md`。
 
 Web 连接、AIReq identity、v4 握手和命令信封使用同一 clientId。全部合法工号可执行满足对象、版本、幂等及阶段门禁的操作；负责人不是权限。私有草稿仍按员工与客户端隔离。
 
