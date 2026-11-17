@@ -49,7 +49,7 @@ export default defineConfig({
     hookTimeout: 30_000,
     maxWorkers: 4,
     testTimeout: 30_000,
-    // 工程测试使用明确清单；不再发现 App 业务单测。真实子进程测试串行运行。
+    // 现有 engineering 项目按明确清单运行，包含 test/ut 的前端公共函数测试。
     projects: [
       {
         extends: true,

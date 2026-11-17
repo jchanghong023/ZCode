@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["../../packages/ui/src/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["*.test.ts"],
+  "references": [
+    {
+      "path": "../../packages/ui"
+    },
+    {
+      "path": "../../packages/services"
+    },
+    {
+      "path": "../../packages/shared"
+    },
+    {
+      "path": "../../packages/rpc"
+    }
+  ]
+}

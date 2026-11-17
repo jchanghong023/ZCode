@@ -1,1 +1,10 @@
-[]
+[
+  "test/ut/attachment-upload.test.ts",
+  "test/ut/composer-draft.test.ts",
+  "test/ut/csv.test.ts",
+  "test/ut/pane-tabs.test.ts",
+  "test/ut/pending-command.test.ts",
+  "test/ut/pending-command-workspace.test.ts",
+  "test/ut/remote-data-source.test.ts",
+  "test/ut/settings-search.test.ts"
+]
