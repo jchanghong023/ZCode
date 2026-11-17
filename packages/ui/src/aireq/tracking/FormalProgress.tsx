@@ -154,12 +154,12 @@ export function AIReqFormalTable() {
         </header>
         <TrackingTableScroll
           label="正式需求表格滚动区域"
-          className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface"
+          className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground"
           viewportClassName="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
           viewportTestId="formal-table-scroll"
         >
           <table
-            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 bg-background text-ui-base"
+            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 bg-card text-ui-base"
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
@@ -168,7 +168,7 @@ export function AIReqFormalTable() {
               <col />
               <col className="w-14" />
             </colgroup>
-            <MarkdownTableHeader className="bg-surface">
+            <MarkdownTableHeader className="bg-card">
               <MarkdownTableRow className="hover:bg-transparent">
                 {["需求／开发任务", "状态、进度与关注项", "负责人及计划", "操作"].map(
                   (title, index) => (
@@ -176,12 +176,7 @@ export function AIReqFormalTable() {
                       key={title}
                       scope="col"
                       // 修复：列头和固定首列共用真实的双向滚动容器，避免仅 top-0 仍随页面滚走。
-                      className={`sticky top-0 h-10 min-w-0 bg-background whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-normal text-ui-sm text-foreground-subtle ${index === 0 ? "left-0 z-30" : "z-20"}`}
-                      // surface 含透明度：所有列头统一在不透明底色上合成，避免固定首列与其余表头色块分裂。
-                      style={{
-                        backgroundImage:
-                          "linear-gradient(var(--color-surface), var(--color-surface))",
-                      }}
+                      className={`sticky top-0 h-10 min-w-0 bg-card whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-medium text-ui-sm text-foreground ${index === 0 ? "left-0 z-30" : "z-20"}`}
                     >
                       {title}
                     </MarkdownTableHead>
@@ -226,17 +221,17 @@ export function AIReqFormalTable() {
                   ),
                 ];
                 const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
-                // 主题行色含透明度：固定列在不透明底色上叠加同一行色，避免滚动透字和双层选中色。
+                // 表头和固定列共用外观卡片底色；只叠一次悬停／选中行色，避免滚动透字和色块分裂。
                 return (
                   <Fragment key={group.id}>
                     <MarkdownTableRow
                       data-ir-id={group.id}
                       aria-selected={selected}
-                      className={`group/row cursor-pointer ${selected ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                      className={`group/row cursor-pointer hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selected ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-transparent hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
                       onClick={() => open(group)}
                     >
                       <MarkdownTableCell
-                        className="sticky left-0 z-10 bg-background px-4 py-4 align-middle"
+                        className="sticky left-0 z-10 bg-card px-4 py-4 align-middle"
                         style={{
                           backgroundImage:
                             "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
@@ -330,11 +325,11 @@ export function AIReqFormalTable() {
                               selectedTarget.irId === group.id &&
                               selectedTarget?.srId === sr.id
                             }
-                            className={`group/row cursor-pointer ${selectedTarget?.projectId === group.projectId && selectedTarget.irId === group.id && selectedTarget?.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                            className={`group/row cursor-pointer hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedTarget?.projectId === group.projectId && selectedTarget.irId === group.id && selectedTarget?.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-transparent hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
                             onClick={() => open(group, sr)}
                           >
                             <MarkdownTableCell
-                              className="sticky left-0 z-10 bg-background pr-4 pl-12 py-3 align-middle"
+                              className="sticky left-0 z-10 bg-card pr-4 pl-12 py-3 align-middle"
                               style={{
                                 backgroundImage:
                                   "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",

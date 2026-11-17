@@ -16,7 +16,7 @@ export function OverviewProgress({
 }) {
   if (percent === null)
     return (
-      <span className="text-ui-sm text-remote-foreground-muted">
+      <span className="text-ui-sm text-foreground-subtle">
         {/* null 表示没有可统计的 SR；不能与未分析的 0% 或读取失败混为一谈。 */}
         {formalCount === 0
           ? zh

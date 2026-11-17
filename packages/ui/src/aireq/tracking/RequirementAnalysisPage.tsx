@@ -499,7 +499,8 @@ function ConnectedProgressAnalysis({
           {tab === "tasks" && taskResult && (
             <TabsContent
               value="tasks"
-              className="m-0 min-w-0 flex-none rounded-xl border border-border bg-surface"
+              // 分析任务与历史沿用外观卡片底色；不再以半透明 surface 合成不同的正文背景。
+              className="m-0 min-w-0 flex-none rounded-xl border border-card-border bg-card text-foreground"
             >
               <AnalysisTaskTable
                 items={taskResult.items}
@@ -613,7 +614,7 @@ function ConnectedProgressAnalysis({
               />
               {historyResult && (
                 <>
-                  <div className="min-w-0 rounded-xl border border-border bg-surface">
+                  <div className="min-w-0 rounded-xl border border-card-border bg-card text-foreground">
                     <AnalysisHistoryTable
                       items={historyResult.items}
                       projects={snapshot.projects}

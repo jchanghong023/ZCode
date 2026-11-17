@@ -36,7 +36,7 @@ import {
 } from "./AnalysisPresentation.js";
 
 const cellClass = "px-4 py-4 text-left align-middle";
-const headerClass = "h-10 px-4 text-left text-ui-sm font-normal text-foreground-subtle";
+const headerClass = "h-10 px-4 text-left text-ui-sm font-medium text-foreground";
 type AnalysisTarget = Pick<AIReqAnalysisTask, "projectId" | "releaseId" | "irId" | "srId">;
 
 export function AnalysisTaskTable({
@@ -70,7 +70,7 @@ export function AnalysisTaskTable({
           <col className="w-36" />
           <col className="w-14" />
         </colgroup>
-        <MarkdownTableHeader className="bg-surface text-foreground-subtle">
+        <MarkdownTableHeader className="bg-card text-foreground">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求／开发任务", "状态与进度", "下次分析", "操作"].map((title) => (
               <MarkdownTableHead key={title} className={headerClass}>
@@ -84,7 +84,7 @@ export function AnalysisTaskTable({
             <MarkdownTableRow
               key={task.id}
               data-task-id={task.id}
-              className="group/row border-b border-border last:border-0 hover:bg-hover"
+              className="group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
             >
               <MarkdownTableCell className={cellClass}>
                 <RowLabel title={task.srTitle} subtitle={`${task.irId} · ${task.srId}`} />
@@ -246,7 +246,7 @@ export function AnalysisHistoryTable({
           <col />
           <col className="w-14" />
         </colgroup>
-        <MarkdownTableHeader className="bg-surface text-foreground-subtle">
+        <MarkdownTableHeader className="bg-card text-foreground">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
             {["需求／开发任务", "开始时间", "结果与进度", "操作"].map((title) => (
               <MarkdownTableHead key={title} className={headerClass}>
@@ -260,7 +260,7 @@ export function AnalysisHistoryTable({
             <MarkdownTableRow
               key={run.id}
               data-run-id={run.id}
-              className={`group/row border-b border-border last:border-0 hover:bg-hover ${selectedRunId === run.id ? "bg-selected" : ""}`}
+              className={`group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
               <MarkdownTableCell className={cellClass}>
                 <RowLabel title={run.srTitle} subtitle={`${run.irId} · ${run.srId}`} />

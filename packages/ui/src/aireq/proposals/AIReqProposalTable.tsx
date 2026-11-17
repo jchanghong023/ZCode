@@ -360,7 +360,8 @@ export function AIReqProposalTable() {
             {zh ? "条" : "items"}
           </span>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
+        {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
           <table className="w-full min-w-3xl table-fixed text-left text-ui-base">
             {/* 限宽正文中百分比列曾挤碎状态文字；为编号、短日期与状态保留列宽，窄面板只横滚表格。 */}
             <colgroup>
@@ -370,7 +371,7 @@ export function AIReqProposalTable() {
               <col className="w-40" />
               <col className="w-24" />
             </colgroup>
-            <thead className="sticky top-0 bg-background">
+            <thead className="sticky top-0 bg-card">
               <tr>
                 {[
                   "提交人",
@@ -399,7 +400,7 @@ export function AIReqProposalTable() {
                       <ControlHintTooltip title={item.originalText}>
                         <Button
                           variant="link"
-                          className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground"
+                          className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground-subtle hover:text-foreground"
                           onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
                         >
                           <span className="line-clamp-3 text-left">{item.originalText}</span>
@@ -412,7 +413,7 @@ export function AIReqProposalTable() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-4 text-foreground-subtle">
                     <time
                       dateTime={item.createdAt}
                       title={`${new Date(item.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })} 北京时间`}

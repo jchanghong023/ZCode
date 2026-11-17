@@ -14,9 +14,6 @@ import { OverviewProgress } from "./OverviewProgress.js";
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
 
 const VISIBLE_RELEASES = 2;
-// 首列含两侧 p-4 和边框，后续每列只增加一张 w-72 卡片与一个 gap-3。
-const FIRST_COLUMN = "calc(18rem + 2rem + 2px)";
-const COLUMN_STEP = "calc(18rem + 0.75rem)";
 type ReleaseSummary = AIReqProjectProgress["releases"][number];
 
 function sortReleases(releases: ReleaseSummary[]): ReleaseSummary[] {
@@ -58,14 +55,14 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
       data-testid="aireq-project-progress"
     >
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-8"}>
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
+        <header className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "项目总览" : "Projects"}</h1>
               <ProjectPageHelp scope="all-projects" />
             </div>
             {ai.error && view && (
-              <p className="text-ui-sm text-remote-foreground-muted">
+              <p className="text-ui-sm text-foreground-subtle">
                 {zh
                   ? "已有数值仅代表上次成功读取；请使用上方重试入口。"
                   : "Values reflect the last successful read; use Retry above."}
@@ -84,7 +81,7 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
               </Button>
               <p
                 role="status"
-                className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-sm text-remote-foreground-muted"
+                className="absolute top-full right-0 mt-1 whitespace-nowrap text-ui-sm text-foreground-subtle"
               >
                 {ai.pending && view ? (zh ? "正在更新…" : "Updating…") : ""}
               </p>
@@ -97,23 +94,18 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
             const releases = summary ? sortReleases(summary.releases) : undefined;
             const expanded = expandedProjects.has(project.id);
             const visible = expanded ? releases : releases?.slice(0, VISIBLE_RELEASES);
-            const visibleCount = visible?.length ?? 0;
             const regionId = `project-releases-${encodeURIComponent(project.id)}`;
             return (
               <Card
                 key={project.id}
                 className="w-full gap-0 py-0"
-                // 换行时整列以外的余宽曾留在项目框内；按可容纳的完整列数收边。
-                style={{
-                  width: `min(100%, calc(${FIRST_COLUMN} + round(down, max(0px, 100% - ${FIRST_COLUMN}), ${COLUMN_STEP})))`,
-                  maxWidth: `calc(${FIRST_COLUMN} + ${Math.max(0, visibleCount - 1)} * ${COLUMN_STEP})`,
-                }}
+                // 固定卡宽和版本数量曾把正文截短；分组铺满阅读列，内部网格按面板宽度分栏。
                 data-testid="project-release-group"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <FolderGit2
-                      className="size-4 shrink-0 text-remote-foreground-muted"
+                      className="size-4 shrink-0 text-foreground-subtle"
                       aria-hidden="true"
                     />
                     <h2 className="min-w-0 wrap-anywhere font-semibold">{project.name}</h2>
@@ -121,7 +113,7 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                       <Badge variant="secondary">{zh ? "当前项目" : "Current"}</Badge>
                     )}
                   </div>
-                  <span className="text-ui-sm text-remote-foreground-muted">
+                  <span className="text-ui-sm text-foreground-subtle">
                     {releases
                       ? zh
                         ? `${releases.length} 个版本`
@@ -132,21 +124,25 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                   </span>
                 </div>
                 {!releases ? (
-                  <p role="status" className="px-4 py-5 text-ui-sm text-remote-foreground-muted">
+                  <p role="status" className="px-4 py-5 text-ui-sm text-foreground-subtle">
                     {unavailable}
                   </p>
                 ) : releases.length === 0 ? (
-                  <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-remote-foreground-muted">
+                  <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-foreground-subtle">
                     <span>{zh ? "暂无版本" : "No releases yet"}</span>
                   </div>
                 ) : (
                   <div className="space-y-3 p-4">
-                    <div id={regionId} className="flex min-w-0 flex-wrap gap-3">
+                    <div
+                      id={regionId}
+                      className="grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2"
+                    >
                       {visible?.map((release, index) => (
+                        // Release 与外观设置行共用卡片底色，避免半透明 surface 在父卡片上再次叠色。
                         <article
                           key={release.releaseId}
                           className={
-                            "flex min-h-36 w-72 min-w-0 max-w-full flex-col gap-3 rounded-lg border border-card-border bg-surface p-4" +
+                            "flex min-h-36 min-w-0 flex-col gap-3 rounded-lg border border-card-border bg-card p-4" +
                             (index >= VISIBLE_RELEASES
                               ? " motion-safe:animate-in motion-safe:fade-in-0 motion-safe:[animation-duration:200ms]"
                               : "")
@@ -167,7 +163,7 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                                 prominent
                               />
                             </div>
-                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-remote-foreground-muted tabular-nums">
+                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle tabular-nums">
                               <span className="whitespace-nowrap">
                                 {zh ? "正式需求" : "Formal"}{" "}
                                 <strong className="font-medium text-foreground">
@@ -227,7 +223,7 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
             );
           })}
           {!view?.projects.length && (
-            <div className="rounded-xl border border-border bg-surface px-4 py-6 text-remote-foreground-muted">
+            <div className="rounded-xl border border-card-border bg-card px-4 py-6 text-foreground-subtle">
               {view
                 ? zh
                   ? "尚无项目。请使用上方“添加项目”。"

@@ -788,7 +788,8 @@ body {
   --color-progress-surface: rgba(70, 130, 240, 0.16);
   --color-progress-surface-foreground: var(--color-blue-300);
   --color-foreground: var(--color-neutral-100);
-  --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-300) 60%, transparent);
+  /* 外观页与业务正文共用此色；原 60% 在 card 上不足 4.5:1，微调透明度保持同一层级。 */
+  --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-300) 62%, transparent);
   --color-remote-foreground-muted: #b3b3b3;
   --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-300) 30%, transparent);
   --lucide-subtlest-opacity: 0.3;
