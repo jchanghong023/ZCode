@@ -3,7 +3,7 @@
  * Tab Store —— 多标签页状态管理
  *
  * 每个窗口拥有独立的 tab store（不跨窗口广播）。
- * 标签页状态通过 settingService 持久化（见 useTabPersistence）。
+ * 标签页状态由当前 store 持有。
  */
 import { create } from "zustand";
 import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";

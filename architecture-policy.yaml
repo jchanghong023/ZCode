@@ -808,9 +808,7 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/components/ui/kbd.tsx
-      - packages/ui/src/settings/ShortcutSearchBar.tsx
-      - packages/ui/src/settings/ShortcutSettingsSection.tsx
-    reason: Existing upstream shortcut components and keycap primitive edited for shared controls, responsive layout and save admission; adopting the entire settings directory requires a separate boundary refactor.
+    reason: Existing upstream keycap primitive retained as a shared control; adopting the entire controls directory requires a separate boundary refactor.
   - id: sidebar-workflow-tooltip-existing-ui-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/components/workflow-run-line/WorkflowRunRail.tsx]
