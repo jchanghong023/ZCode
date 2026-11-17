@@ -29,7 +29,7 @@ const perspectiveLabels = { business: "业务", development: "开发", testing: 
 const assignmentLabel = (item: AIReqTodo) =>
   `${perspectiveLabels[item.assignmentPerspective]}${item.srId ? "负责人" : "联系人"}`;
 const todoObjectLabel = (item: AIReqTodo) =>
-  `${item.requirementTitle}${item.srId ? ` · ${item.srTitle ?? item.srId}（${item.srId}）` : `（${item.irId}）`}`;
+  `${item.requirementTitle}${item.srId && item.srTitle ? ` · ${item.srTitle}` : ""}`;
 export function AIReqTodoPage() {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
@@ -205,19 +205,15 @@ export function AIReqTodoPage() {
                   className="group/row border-b border-border/50 last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
                 >
                   <td data-aireq-motion-cell="" className="break-words px-4 py-3">
-                    {/* 复用共享行反馈；块容器让标题和编号一起移动，内联标题不能单独 transform。 */}
+                    {/* 复用共享行反馈；标题与所属需求一起移动，元数据和操作列保持原位。 */}
                     <div>
-                      {/* 同一 IR 下的多个 SR 必须可读区分，编号保留用于追溯。 */}
+                      {/* 用 SR 名称与父需求区分工作对象，避免内部 ID 挤占业务信息。 */}
                       <span className="font-medium">{item.srTitle ?? item.requirementTitle}</span>
                       {item.srId && (
                         <span className="block text-ui-sm text-foreground-subtle">
                           {item.requirementTitle}
                         </span>
                       )}
-                      <span className="block text-ui-sm text-foreground-subtle">
-                        {item.irId}
-                        {item.srId ? ` / ${item.srId}` : ""}
-                      </span>
                     </div>
                   </td>
                   <td className="break-words px-4 py-3">

@@ -1,5 +1,10 @@
 import { useMemo } from "react";
 import { SessionPane, type SessionPaneProps } from "../../v4/SessionPane.js";
+import {
+  conversationReadOnlyReason,
+  fullReviewCurrent,
+  requirementsReviewCurrent,
+} from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqSketchButton } from "../tools/AIReqSketchButton.js";
 import {
@@ -19,6 +24,25 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
   const sessionId = props.sessionId;
   const businessSession =
     aireq?.selectionReady && sessionId !== null && aireq.session?.sessionId === sessionId;
+  const proposal = aireq?.view?.drafts.find(
+    (item) => item.projectId === selection?.projectId && item.id === selection?.irId,
+  );
+  const review = aireq?.session?.phase === "solution" ? proposal?.review : proposal?.originalReview;
+  // 失效评审可能仍属于当前方案阶段；同步服务端的版本与会话归属校验，不能仅按阶段放开输入。
+  const staleReview =
+    businessSession &&
+    aireq?.session?.role === "reviewer" &&
+    proposal &&
+    (!(aireq.session.phase === "solution"
+      ? fullReviewCurrent(proposal)
+      : requirementsReviewCurrent(proposal)) ||
+      !review?.agents?.some((agent) => agent.session.sessionId === sessionId));
+  const readOnlyReason =
+    props.readOnlyReason ??
+    (businessSession && aireq
+      ? (conversationReadOnlyReason(aireq.view, aireq.selection) ??
+        (staleReview ? "该评审已失效，仅供只读查看。" : undefined))
+      : undefined);
   const callerBeforeReconnect = props.onBeforeReconnect;
   const onBeforeReconnect = useMemo<SessionPaneProps["onBeforeReconnect"]>(() => {
     // 私有 Skill 不属于当前业务会话，不能用当前选择恢复其他 session。
@@ -35,6 +59,9 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
   return (
     <SessionPane
       {...props}
+      retainReadOnlyComposer
+      readOnly={props.readOnly || Boolean(readOnlyReason)}
+      readOnlyReason={readOnlyReason}
       onBeforeReconnect={onBeforeReconnect}
       onOpenModelSettings={props.onOpenModelSettings ?? openModelSettings}
       submissionModelSelectionOnly

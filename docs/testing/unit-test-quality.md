@@ -27,6 +27,7 @@
 | `settings-search.test.ts`           | 中文、拼音、大小写／全角归一化和顺序模糊匹配         | [工具与设置](../specs/aireq-migration/tools-settings.md)                                                              |
 | `pane-tabs.test.ts`                 | 打开复用、关闭邻项、选择、拖动与输入状态保留         | [统一右侧工作区](../specs/aireq-migration/unified-side-pane.md)                                                       |
 | `attachment-upload.test.ts`         | 上传字节、分片、摘要、续传、取消及失败清理           | [原生讨论与附件](../specs/aireq-migration/conversation.md)、现行 Protocol v4 附件契约                                 |
+| `composer-interaction.test.ts`      | 输入可用性、只读优先级及排队／补充路由投影           | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败             | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期       | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本                   | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |

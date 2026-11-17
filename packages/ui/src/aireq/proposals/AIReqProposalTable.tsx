@@ -313,8 +313,8 @@ export function AIReqProposalTable() {
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
             />
             <Input
-              aria-label={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
-              placeholder={zh ? "筛选原始需求或 IR 编号" : "Filter by requirement or IR ID"}
+              aria-label={zh ? "搜索原始需求" : "Search requirements"}
+              placeholder={zh ? "搜索原始需求" : "Search requirements"}
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -363,7 +363,7 @@ export function AIReqProposalTable() {
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
           <table className="w-full min-w-3xl table-fixed text-left text-ui-base">
-            {/* 限宽正文中百分比列曾挤碎状态文字；为编号、短日期与状态保留列宽，窄面板只横滚表格。 */}
+            {/* 限宽正文中百分比列曾挤碎状态文字；为正文、短日期与状态保留列宽，窄面板只横滚表格。 */}
             <colgroup>
               <col className="w-28" />
               <col />
@@ -373,21 +373,17 @@ export function AIReqProposalTable() {
             </colgroup>
             <thead className="sticky top-0 bg-card">
               <tr>
-                {[
-                  "提交人",
-                  zh ? "原始需求／编号" : "Requirement / ID",
-                  "提交日期",
-                  "当前状态",
-                  "操作",
-                ].map((label, index) => (
-                  <th
-                    key={label}
-                    title={index === 2 ? "北京时间" : undefined}
-                    className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
-                  >
-                    {label}
-                  </th>
-                ))}
+                {["提交人", zh ? "原始需求" : "Requirement", "提交日期", "当前状态", "操作"].map(
+                  (label, index) => (
+                    <th
+                      key={label}
+                      title={index === 2 ? "北京时间" : undefined}
+                      className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
+                    >
+                      {label}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -413,11 +409,6 @@ export function AIReqProposalTable() {
                           <span className="line-clamp-3 text-left">{item.originalText}</span>
                         </Button>
                       </ControlHintTooltip>
-                      <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="break-all text-ui-sm text-foreground-subtle">
-                          {item.id}
-                        </span>
-                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-4 text-foreground-subtle">
@@ -443,7 +434,7 @@ export function AIReqProposalTable() {
                         size="icon"
                         className="size-8 text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
                         aria-label={
-                          zh ? `查看 ${item.id} 提案详情／讨论` : `Open discussion for ${item.id}`
+                          zh ? `进入 ${item.title} 的讨论` : `Open discussion for ${item.title}`
                         }
                         onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
                       >
