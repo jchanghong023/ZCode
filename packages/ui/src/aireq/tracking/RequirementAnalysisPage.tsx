@@ -1,16 +1,18 @@
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { AnalysisRunConfirmation } from "./AnalysisRunConfirmation.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Settings2 } from "lucide-react";
+import { Clock3, Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -27,7 +29,6 @@ import {
   UpdateFeedback,
   runLabels,
   time,
-  shortTime,
 } from "./analysis/AnalysisPresentation.js";
 import { useSchedulerQuery } from "./analysis/useSchedulerQuery.js";
 import { AnalysisTaskTable, AnalysisHistoryTable } from "./analysis/AnalysisTables.js";
@@ -40,15 +41,19 @@ export function AIReqRequirementAnalysisPage({
   onOpenAnalysisSettings(): void;
 }) {
   const source = useOptionalAIReqDataSource();
+  const { locale } = useZCodeIntl();
   const aireq = useAIReq()!;
   return (
     <main
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-      aria-label="分析运行"
+      aria-label={locale === "zh-CN" ? "进度分析" : "Progress analysis"}
     >
       {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0 pt-4")}>
+        <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0 space-y-4")}>
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
+            {locale === "zh-CN" ? "进度分析" : "Progress analysis"}
+          </h1>
           {source?.progressScheduler ? (
             <ConnectedProgressAnalysis
               key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}:${aireq.selection.irId ?? ""}:${aireq.selection.srId ?? ""}`}
@@ -139,9 +144,7 @@ function ConnectedProgressAnalysis({
     }
   };
   const irs =
-    snapshot?.irs.filter(
-      (ir) => ir.projectId === projectId && (!releaseId || ir.releaseId === releaseId),
-    ) ?? [];
+    snapshot?.irs.filter((ir) => ir.projectId === projectId && ir.releaseId === releaseId) ?? [];
   const dateError = Boolean(since && until && since > until);
   const filter: AIReqAnalysisFilter = useMemo(
     () => ({
@@ -298,8 +301,8 @@ function ConnectedProgressAnalysis({
   const refreshError = snapshotQuery.error ?? (activeQuery.value ? activeQuery.error : undefined);
   const currentProject = snapshot.projects.find((project) => project.id === projectId);
   return (
-    <section className="min-w-0 space-y-3" data-testid="aireq-requirement-analysis">
-      {/* 页签已标明页面；状态紧邻排列，辅助操作集中，避免重复标题与均分空白。 */}
+    <section className="min-w-0 space-y-6" data-testid="aireq-requirement-analysis">
+      {/* 页面标题由外层持有，调度状态与辅助操作在下一行集中呈现。 */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm">
           <span className="text-foreground-subtle">
@@ -309,12 +312,27 @@ function ConnectedProgressAnalysis({
                 ? `自动分析 · 每 ${snapshot.intervalMinutes} 分钟`
                 : "自动分析已暂停"}
           </span>
-          <span className="tabular-nums text-foreground-subtle" title={time(snapshot.nextCheckAt)}>
-            下次检查 {shortTime(snapshot.nextCheckAt)}
-          </span>
-          <span className="tabular-nums text-foreground-subtle">
-            项目运行中 {currentProject?.runningCount ?? 0}
-          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-foreground-subtle focus-visible:border-remote-foreground-muted"
+              >
+                <Clock3 className="size-3.5" aria-hidden="true" />
+                调度详情
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 space-y-3 p-4">
+              <h3 className="text-ui-base font-medium">调度详情</h3>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-ui-sm">
+                <dt className="text-foreground-subtle">下次检查</dt>
+                <dd className="text-right tabular-nums">{time(snapshot.nextCheckAt)}</dd>
+                <dt className="text-foreground-subtle">项目运行中</dt>
+                <dd className="text-right tabular-nums">{currentProject?.runningCount ?? 0}</dd>
+              </dl>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <ProjectPageHelp scope="analysis-runs" />

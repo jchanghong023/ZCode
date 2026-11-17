@@ -334,7 +334,7 @@ export function AIReqProjectSettings({
     setReleaseOpen(true);
   };
   return (
-    <section className="space-y-6" data-testid="aireq-project-settings">
+    <section className="space-y-8" data-testid="aireq-project-settings">
       {/* 已有配置时重读只播报状态，避免周期性插入加载行挤动列表；首次读取仍可见。 */}
       {loading && !projectViews.length && projects.length > 0 && (
         <p role="status" className="text-ui-sm text-foreground-subtle">
@@ -383,11 +383,6 @@ export function AIReqProjectSettings({
                 : ""}
             </span>
           </p>
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh
-              ? "在项目卡片中编辑配置，或添加用于归集需求的 Release。"
-              : "Edit a project below or add a release to organize its requirements."}
-          </p>
         </div>
         {canSaveRepository && (
           <Button onClick={() => openProject()}>
@@ -396,18 +391,23 @@ export function AIReqProjectSettings({
           </Button>
         )}
       </AIReqSettingsTarget>
-      <div className="space-y-2 text-ui-sm leading-5 text-remote-foreground-muted">
-        <p>
-          {zh
-            ? `共享配置 · 当前工号 ${employeeId} · 所有合法工号均可修改。`
-            : `Shared configuration · Employee ${employeeId} · All valid employee IDs can edit.`}
-        </p>
-        <p>
-          {zh
-            ? "Release 用于归集需求，不是 Git 分支；沿用项目的仓库与默认分支。"
-            : "A release groups requirements, is not a Git branch, and inherits its project's repository and default branch."}
-        </p>
-      </div>
+      <details className="text-ui-sm leading-6 text-remote-foreground-muted">
+        <summary className="w-fit cursor-pointer rounded-sm border border-transparent hover:text-foreground focus-visible:border-remote-foreground-muted">
+          {zh ? "项目与 Release 说明" : "About projects and releases"}
+        </summary>
+        <div className="space-y-2 pt-3">
+          <p>
+            {zh
+              ? `共享配置 · 当前工号 ${employeeId} · 所有合法工号均可修改。`
+              : `Shared configuration · Employee ${employeeId} · All valid employee IDs can edit.`}
+          </p>
+          <p>
+            {zh
+              ? "Release 用于归集需求，不是 Git 分支；沿用项目的仓库与默认分支。"
+              : "A release groups requirements, is not a Git branch, and inherits its project's repository and default branch."}
+          </p>
+        </div>
+      </details>
       {projectViews.map(({ project, view }) => (
         <SettingsGroupCard key={project.id}>
           <article
@@ -471,42 +471,47 @@ export function AIReqProjectSettings({
               </Button>
             </div>
             {view.releases.length ? (
-              <ul className="divide-y divide-border border-t border-border">
-                {view.releases.map((release) => {
-                  const groups = view.groups.filter((group) => group.releaseId === release.id);
-                  const draftCount = view.drafts.filter(
-                    (group) => group.releaseId === release.id,
-                  ).length;
-                  const srCount = groups.reduce((count, group) => count + group.srIds.length, 0);
-                  return (
-                    <li
-                      key={release.id}
-                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                    >
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="break-words text-ui-base font-medium">{release.title}</p>
-                        {/* 计数展开领域术语；仅有提案时补充，避免重复的零值干扰扫描。 */}
-                        <p className="text-ui-sm text-foreground-subtle">
-                          {zh
-                            ? `正式需求（IR）${groups.length} · 开发单元（SR）${srCount}`
-                            : `Formal requirements (IR) ${groups.length} · Development units (SR) ${srCount}`}
-                          {draftCount > 0 &&
-                            (zh ? ` · 需求提案 ${draftCount}` : ` · Proposals ${draftCount}`)}
-                        </p>
-                      </div>
-                      <Badge variant="outline">
-                        {groups.length
-                          ? zh
-                            ? "已有需求"
-                            : "Has requirements"
-                          : zh
-                            ? "待规划"
-                            : "To plan"}
-                      </Badge>
-                    </li>
-                  );
-                })}
-              </ul>
+              <details className="border-t border-border">
+                <summary className="cursor-pointer px-4 py-3 text-ui-sm text-remote-foreground-muted hover:text-foreground focus-visible:bg-surface-hover">
+                  {zh ? "查看 Release 明细" : "View release details"}
+                </summary>
+                <ul className="divide-y divide-border border-t border-border">
+                  {view.releases.map((release) => {
+                    const groups = view.groups.filter((group) => group.releaseId === release.id);
+                    const draftCount = view.drafts.filter(
+                      (group) => group.releaseId === release.id,
+                    ).length;
+                    const srCount = groups.reduce((count, group) => count + group.srIds.length, 0);
+                    return (
+                      <li
+                        key={release.id}
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="break-words text-ui-base font-medium">{release.title}</p>
+                          {/* 计数展开领域术语；仅有提案时补充，避免重复的零值干扰扫描。 */}
+                          <p className="text-ui-sm text-foreground-subtle">
+                            {zh
+                              ? `正式需求（IR）${groups.length} · 开发单元（SR）${srCount}`
+                              : `Formal requirements (IR) ${groups.length} · Development units (SR) ${srCount}`}
+                            {draftCount > 0 &&
+                              (zh ? ` · 需求提案 ${draftCount}` : ` · Proposals ${draftCount}`)}
+                          </p>
+                        </div>
+                        <Badge variant="outline">
+                          {groups.length
+                            ? zh
+                              ? "已有需求"
+                              : "Has requirements"
+                            : zh
+                              ? "待规划"
+                              : "To plan"}
+                        </Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
             ) : (
               <div className="border-t border-border px-4 py-4 text-ui-sm text-remote-foreground-muted">
                 <p>

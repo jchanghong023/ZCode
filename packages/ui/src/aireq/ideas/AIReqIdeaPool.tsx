@@ -191,16 +191,14 @@ export function AIReqIdeaPool() {
       idea.id.toLocaleLowerCase().includes(normalized),
   );
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto py-6" aria-label={zh ? "想法池" : "Ideas"}>
-      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-5`}>
+    <div
+      className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
+      aria-label={zh ? "想法池" : "Ideas"}
+    >
+      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-8`}>
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "想法池" : "Ideas"}</h1>
-            <p className="mt-2 text-ui-sm text-foreground-subtle">
-              {zh
-                ? "全部项目 · 尚未纳入版本的原始需求"
-                : "All projects · Original requirements awaiting a release"}
-            </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <AIReqIdeaImportExport ideas={visible} />

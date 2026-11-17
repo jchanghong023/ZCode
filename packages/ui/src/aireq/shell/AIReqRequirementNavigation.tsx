@@ -29,9 +29,6 @@ export function AIReqRequirementContext({ discussion = false }: { discussion?: b
       item.irId === ai.selection.irId &&
       item.id === ai.selection.srId,
   );
-  const release = ai.view?.releases.find(
-    (item) => item.projectId === ai.selection.projectId && item.id === group?.releaseId,
-  );
   const link = ai.objectLink();
   const isFormal = Boolean(formal || ai.selection.formalView);
   const returnLabel = isFormal
@@ -54,23 +51,21 @@ export function AIReqRequirementContext({ discussion = false }: { discussion?: b
     >
       <div
         className={
-          discussion ? `mx-auto min-w-0 space-y-1 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}` : undefined
+          discussion ? `mx-auto min-w-0 space-y-1 ${AIREQ_CONTENT_WIDTH_CLASSNAME}` : undefined
         }
       >
         <div className="flex min-w-0 items-center gap-2">
-          {!discussion && (
-            <ControlHintTooltip title={returnLabel}>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-label={returnLabel}
-                onClick={() => ai.navigate(() => ai.setMainView(isFormal ? "formal" : "proposals"))}
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-              </Button>
-            </ControlHintTooltip>
-          )}
+          <ControlHintTooltip title={returnLabel}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 focus-visible:border-remote-foreground-muted"
+              aria-label={returnLabel}
+              onClick={() => ai.navigate(() => ai.setMainView(isFormal ? "formal" : "proposals"))}
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Button>
+          </ControlHintTooltip>
           <span
             className="min-w-0 flex-1 truncate text-ui-base font-medium"
             title={sr?.title ?? group?.title}
@@ -112,11 +107,6 @@ export function AIReqRequirementContext({ discussion = false }: { discussion?: b
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-foreground-subtle">
           <span className="shrink-0 font-mono">{ai.selection.srId ?? ai.selection.irId}</span>
-          {release && (
-            <span className="min-w-0 truncate" title={release.title}>
-              {release.title}
-            </span>
-          )}
         </div>
         {copyError && copyError.link === link && (
           <p role="alert" className="break-words text-destructive">

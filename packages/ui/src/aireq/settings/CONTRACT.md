@@ -19,3 +19,7 @@ guard 为 (navigate:()=>void)=>void；壳导航、历史、项目切换、退出
 模型保存显式提交进入编辑时的 models.revision()；追加指令保存提交 prompts.read().revision。脏草稿不因其他客户端事件推进基线，冲突保留输入。项目编辑捕获 project.revision，新建期望版本为 0；同一输入重试沿用 operationId，改动输入才生成新逻辑动作 ID。
 
 项目／Release 弹窗草稿唯一归 `AIReqProjectSettings`，通过 `onDraftActionsChange` 接入设置页同一个 guard；关闭、Esc、遮罩、取消、导航和保存快捷键共享最新保存／丢弃动作。字段基线在打开时捕获，后台投影不推进脏草稿基线；保存中禁止退出与重复提交，失败保留输入。项目卡以可选择的只读文本呈现仓库，团队共享范围就地说明，环境限制只记部署／交付文档，不展示配置目录，Release 统计展开 IR／SR 含义；具体布局及验收见导航可达性规格。
+
+## 正文比例与说明减负（2026-11-17）
+
+遵循 `docs/specs/aireq-migration/settings-polish.md`：复用原生 SETTINGS_FRAME_CONTENT_CLASSNAME 的4xl居中正文，与主页共享外观标题role及h1语义。静态范围／职责／规则说明及项目Release明细使用原生details收拢，实际控件、数量、错误、草稿摘要与提交／导航门禁不变，不引入业务缓存或第二条写入路径。

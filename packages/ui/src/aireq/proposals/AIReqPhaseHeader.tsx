@@ -187,10 +187,12 @@ export function AIReqPhaseHeader({
       data-testid="aireq-document-actions"
     >
       <div
-        className="overflow-y-auto px-2 py-2 [scrollbar-gutter:stable_both-edges]"
+        className="overflow-y-auto py-2 [scrollbar-gutter:stable_both-edges]"
         style={{ scrollbarWidth: "thin" }}
       >
-        <div className="mx-auto flex w-full max-w-4xl items-center gap-2 overflow-x-auto whitespace-nowrap">
+        <div
+          className={`mx-auto flex items-center gap-2 overflow-x-auto whitespace-nowrap ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+        >
           {history ? (
             <Button variant="outline" onClick={current}>
               返回当前阶段
@@ -471,7 +473,7 @@ export function AIReqProposalStageBody({
   );
   return (
     <main className="@container/conversation min-h-0 flex-1 overflow-auto py-6 text-ui-base [scrollbar-gutter:stable_both-edges]">
-      <div className={`mx-auto min-w-0 space-y-6 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+      <div className={`mx-auto min-w-0 space-y-6 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
         <h2 className="font-medium">三方确认与文档 PR</h2>
         <p className="text-ui-sm text-foreground-subtle">
           {group?.proposalDelivery?.pushedAt

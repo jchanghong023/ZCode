@@ -6,6 +6,7 @@ export type {
   AIReqAgentRole,
   AIReqAgentModelBinding,
 } from "./model-types.js";
+import type { AIReqProgressStatus } from "./progress-types.js";
 import type { AIReqProjectProgress } from "./progress-types.js";
 
 /** Caller identity records provenance and isolates private sessions; it is not authorization. */
@@ -255,6 +256,8 @@ export interface AIReqSrDelivery {
   humanResolution?: { note: string; employeeId: string; resolvedAt: string };
 }
 export interface AIReqSystemRequirement {
+  /** Latest effective status transition committed by the workflow owner; absent on legacy records. */
+  statusChange?: { from?: AIReqProgressStatus; to: AIReqProgressStatus; at: string };
   testingEmployeeId?: string;
   lastAnalysisFailure?: { message: string; at: string };
   testAcceptance?: AIReqTestAcceptance;

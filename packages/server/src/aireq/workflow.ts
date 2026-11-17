@@ -1,3 +1,4 @@
+import { recordSrStatusChanges, type WorkflowUpdate } from "./sr-status-changes.js";
 import { digestValue } from "./content-digest.js";
 import { businessRule, businessFailureMessage } from "./errors.js";
 import type {
@@ -101,9 +102,10 @@ for (const group of state.drafts.filter(
 }
 export const prototypeWorkflowChanges = createPrototypeEvent<void>();
 /** 同一个业务 owner 的事务入口：callback 失败或返回 false 时不发布任何修改。 */
-export function mutatePrototypeWorkflow(update: (view: AIReqWorkflowView) => boolean | void): void {
+export function mutatePrototypeWorkflow(update: WorkflowUpdate, recordStatusChanges = true): void {
   const next = structuredClone(state);
   if (update(next) === false) return;
+  if (recordStatusChanges) recordSrStatusChanges(state, next);
   next.revision += 1;
   state = next;
   prototypeWorkflowChanges.fire();

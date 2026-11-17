@@ -29,7 +29,7 @@ import {
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
@@ -74,9 +74,7 @@ export function AIReqFormalTable() {
       </div>
     );
   const groups = view.groups.filter(
-    (group) =>
-      group.projectId === aireq.selection.projectId &&
-      (!aireq.releaseId || group.releaseId === aireq.releaseId),
+    (group) => group.projectId === aireq.selection.projectId && group.releaseId === aireq.releaseId,
   );
   const normalized = query.trim().toLocaleLowerCase();
   const open = (group: AIReqRequirementGroup, sr?: AIReqSystemRequirement) =>
@@ -108,8 +106,8 @@ export function AIReqFormalTable() {
       <div
         className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
       >
-        {/* 分区导航承接页面切换，移除旧页签占位，筛选栏直接接在页头下方。 */}
-        <header className="shrink-0 space-y-4 pt-4">
+        <header className="shrink-0 space-y-4">
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "开发任务" : "Development tasks"}</h1>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
@@ -168,7 +166,7 @@ export function AIReqFormalTable() {
             </colgroup>
             <MarkdownTableHeader className="bg-surface">
               <MarkdownTableRow className="hover:bg-transparent">
-                {["原始需求／SR 与 Release", "状态、进度与关注项", "负责人及计划", "操作"].map(
+                {["需求／开发任务", "状态、进度与关注项", "负责人及计划", "操作"].map(
                   (title, index) => (
                     <MarkdownTableHead
                       key={title}
@@ -231,7 +229,7 @@ export function AIReqFormalTable() {
                       onClick={() => open(group)}
                     >
                       <MarkdownTableCell
-                        className="sticky left-0 z-10 bg-background px-4 py-3 align-middle"
+                        className="sticky left-0 z-10 bg-background px-4 py-4 align-middle"
                         style={{
                           backgroundImage:
                             "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
@@ -277,22 +275,17 @@ export function AIReqFormalTable() {
                                   open(group);
                                 }}
                               >
-                                <span className="line-clamp-2">
-                                  {group.originalText ?? group.title}
-                                </span>
+                                <span className="line-clamp-2">{group.title}</span>
                               </Button>
                             </ControlHintTooltip>
                             <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
                               IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
                               {srs.length} SR 完成
-                              {" · "}
-                              {view.releases.find((release) => release.id === group.releaseId)
-                                ?.title ?? group.releaseId}
                             </p>
                           </div>
                         </div>
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-4 py-3 align-middle">
+                      <MarkdownTableCell className="px-4 py-4 align-middle">
                         <ProgressValue
                           value={irProgress(srs)}
                           label={group.title}
@@ -300,7 +293,7 @@ export function AIReqFormalTable() {
                         />
                         <AnalysisSummary srs={srs} aggregate />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-4 py-3 align-middle">
+                      <MarkdownTableCell className="px-4 py-4 align-middle">
                         <PersonnelPlan
                           developer={developers.join("、") || "未分配"}
                           tester={testers.join("、") || "未分配"}
@@ -310,7 +303,7 @@ export function AIReqFormalTable() {
                           warnings={warnings}
                         />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="min-w-0 px-2 py-3 align-middle">
+                      <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
                         <FormalActions
                           group={group}
                           onDetail={() => open(group)}
@@ -359,7 +352,7 @@ export function AIReqFormalTable() {
                                 </div>
                               </div>
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-4 py-3 align-middle">
+                            <MarkdownTableCell className="px-4 py-4 align-middle">
                               <ProgressValue
                                 value={srProgress(sr)}
                                 label={sr.title}
@@ -367,7 +360,7 @@ export function AIReqFormalTable() {
                               />
                               <AnalysisSummary srs={[sr]} />
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-4 py-3 align-middle">
+                            <MarkdownTableCell className="px-4 py-4 align-middle">
                               <PersonnelPlan
                                 developer={sr.developerEmployeeId ?? "待认领"}
                                 tester={sr.testingEmployeeId ?? "待认领"}
@@ -376,7 +369,7 @@ export function AIReqFormalTable() {
                                 warnings={warnings}
                               />
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="min-w-0 px-2 py-3 align-middle">
+                            <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
                               <FormalActions
                                 group={group}
                                 sr={sr}
@@ -495,14 +488,13 @@ function AnalysisSummary({
         ? "开发分支异常，查看详情"
         : issues.length
           ? `分析问题 ${issues.length} 项 · ${issues[0]?.title}`
-          : health.length
-            ? ""
-            : srs.length
-              ? "当前报告无阻断问题"
-              : "暂无 SR，尚无分析报告";
+          : !srs.length
+            ? "暂无 SR，尚无分析报告"
+            : "";
   const detail = [...health, primary, ...branchErrors, ...issues.map((issue) => issue.title)]
     .filter(Boolean)
     .join("；");
+  if (!detail) return null;
   return (
     <ControlHintTooltip title={detail}>
       <div
@@ -690,7 +682,7 @@ export function AIReqFormalWorkspace() {
         (group) =>
           group.projectId === aireq.selection.projectId &&
           group.id === aireq.selection.irId &&
-          (!aireq.releaseId || group.releaseId === aireq.releaseId),
+          group.releaseId === aireq.releaseId,
       ),
     );
   return (

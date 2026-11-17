@@ -172,7 +172,7 @@ export function AIReqWorkflowTimeline({
   if (proposal)
     return (
       <nav
-        className={`mx-auto grid min-w-0 grid-cols-4 grid-rows-[auto_auto_auto] gap-1 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+        className={`mx-auto grid min-w-0 grid-cols-4 grid-rows-[auto_auto_auto] gap-1 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
         data-testid="aireq-workflow-timeline"
         aria-label={`当前阶段：${labels[phase]}；查看：${labels[selected]}`}
       >

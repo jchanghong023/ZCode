@@ -1,11 +1,9 @@
 import { cn } from "@/components/lib/utils.js";
+import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 
-/** 主工作页与提案会话共用较宽的列，避免进入讨论后内容左右跳动。 */
-export const AIREQ_CONTENT_WIDTH_CLASSNAME = "w-full px-6";
-export const AIREQ_PAGE_CONTENT_CLASSNAME = cn(
-  "mx-auto min-w-0 px-2 pb-8 lg:pb-10",
-  AIREQ_CONTENT_WIDTH_CLASSNAME,
-);
+/** 沿用原生外观页比例；按所属面板居中，右侧栏展开时正文与输入区共同收窄。 */
+export const AIREQ_CONTENT_WIDTH_CLASSNAME = "w-full max-w-4xl px-4 lg:px-8";
+export const AIREQ_PAGE_CONTENT_CLASSNAME = cn(SETTINGS_FRAME_CONTENT_CLASSNAME, "min-w-0");
 
 export const AIREQ_PAGE_TITLE_CLASSNAME =
-  "text-ui-page-title font-semibold tracking-tight text-foreground";
+  "text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg";

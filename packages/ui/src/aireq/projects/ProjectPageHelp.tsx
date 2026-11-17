@@ -41,8 +41,8 @@ export function ProjectPageHelp({
         : "Expand a requirement to see its development units (SRs), then select a requirement or unit to read its progress report."
       : allProjects
         ? zh
-          ? "按项目查看各版本的需求与进展，点击版本卡片进入对应概览。项目标题进入全部版本概览，快捷入口查看全部版本的需求共创或开发任务。"
-          : "Review requirements and progress by project and release, then open a release card for details. Project titles open all-release overviews; shortcuts open co-creation or development tasks across all releases."
+          ? "按项目比较各版本的需求与进展。使用左侧项目与 Release 选择器切换工作范围；当前项目提供统计、待确认事项及最近动态。"
+          : "Compare requirements and progress across projects and releases. Use the sidebar to select a project and Release; Current project shows statistics, pending confirmations and recent activity."
         : zh
           ? "查看当前范围的需求进度，进入 IR 或 SR 阅读报告。"
           : "Review requirement progress in this scope and open IR or SR reports.";
@@ -69,7 +69,7 @@ export function ProjectPageHelp({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="size-6 shrink-0 text-foreground-subtle hover:text-foreground"
+          className="size-6 shrink-0 text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
           aria-label={label}
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") setOpen(true);
@@ -109,6 +109,13 @@ export function ProjectPageHelp({
           </p>
           <p>{calculation}</p>
         </div>
+        {scope === "project-overview" && (
+          <p>
+            {zh
+              ? "待人工处理按提案去重；同一提案可同时等待业务、开发和测试确认，分类数量不能直接相加。"
+              : "Pending proposals are counted once. A proposal may await business, development and testing confirmation, so category counts may overlap."}
+          </p>
+        )}
         {formal && (
           <p>
             {zh

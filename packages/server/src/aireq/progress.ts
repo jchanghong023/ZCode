@@ -44,7 +44,7 @@ export function initializePrototypeProgress(): void {
       }
     }
     return changed;
-  });
+  }, false);
 }
 
 /** 固定的代码证据样例；不调用模型，不查询远程仓库，不推断真实开发结果。 */

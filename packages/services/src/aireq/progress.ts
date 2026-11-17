@@ -20,8 +20,9 @@ export interface AIReqBranchCleanupItem {
   error?: string;
 }
 
-export const PROGRESS_STATUSES = ["待开发", "开发中", "待合入", "待验收", "已完成"] as const;
-export type AIReqProgressStatus = (typeof PROGRESS_STATUSES)[number];
+export { PROGRESS_STATUSES } from "./progress-types.js";
+export type { AIReqProgressStatus } from "./progress-types.js";
+import type { AIReqProgressStatus } from "./progress-types.js";
 
 export function srProgress(sr: AIReqSystemRequirement): number {
   if (

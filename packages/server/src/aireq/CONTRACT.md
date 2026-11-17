@@ -67,3 +67,7 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 每次读取从同一 workflow owner 按项目获取当前事实，并复用 `withPrototypeProgress`／`withPrototypePlanning` 后调用公共纯函数 `projectProgress`。项目及 Release 直接累计所有正式 SR 的 `srProgress` 后除以 SR 数，不先平均 IR；提案及其 SR 不入进度。未分析且无合入／有效验收事实的 SR 按 0 并标记；合入 99、匹配版本的人工通过 100，事实优先。无正式 SR 为 `null`，零 SR 正式 IR 保留摘要，未全部完成的显示不得舍入为 100。
 
 聚合只存在于返回投影，不回写 state、不缓存、不增 RPC 或事件通道。正常业务提交事实后仍通过既有 workflow／scheduler 事件使客户端重读，读取本身不改变业务事实、revision 或接纳动作。示例只演示真实接口调用，浏览器验证由主集成记录。
+
+## 当前项目概览与单版本范围（2026-11-17）
+
+以 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的“当前项目与具体 Release 导航”为最新契约。Context 唯一持有项目／具体 Release 与历史，侧栏统一切换，无全部版本选项；全局总览只读，当前项目显示同范围统计、人工处理与近期动态。SR 可选 `statusChange` 由 workflow 事务比较实际有效状态后记录 `{from?, to, at}`，读取不制造动态、初始化不伪造变化、失败不发布；经既有 readWorkflow 返回，UI 不保存第二份状态。

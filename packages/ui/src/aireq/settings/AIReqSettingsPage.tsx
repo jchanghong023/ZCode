@@ -14,7 +14,11 @@ import {
 import { AppearanceSectionContent } from "@/settingsCodePreview.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { SettingsPageFrame, SettingsSidebarButton } from "@/settings/SettingsPageParts.js";
+import {
+  SETTINGS_FRAME_CONTENT_CLASSNAME,
+  SettingsPageFrame,
+  SettingsSidebarButton,
+} from "@/settings/SettingsPageParts.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   SettingsSearch,
@@ -22,6 +26,7 @@ import {
   type SettingsSearchId,
 } from "@/settings-search/index.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
+import { AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings, type AIReqProjectSettingsRequest } from "./AIReqProjectSettings.js";
@@ -438,11 +443,12 @@ export function AIReqSettingsPage({
           </Button>
         }
       >
-        <main ref={contentRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 pb-8 lg:px-8 lg:pb-10">
-            <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
-              {aiSection ? aiTitle : titles[section]}
-            </h2>
+        <main
+          ref={contentRef}
+          className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
+        >
+          <div className={`${SETTINGS_FRAME_CONTENT_CLASSNAME} flex min-w-0 flex-col gap-8`}>
+            <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{aiSection ? aiTitle : titles[section]}</h1>
             {aiSection ? (
               <Tabs
                 value={section}

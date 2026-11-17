@@ -1,79 +1,167 @@
-import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, CheckCheck, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Badge } from "@/components/ui/badge.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { srProgressStatus } from "../contract.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import {
+  deriveAIReqTodos,
+  fullReviewReadyBlocker,
+  requirementsReviewReadyBlocker,
+  proposalUpdatedTime,
+  proposalPhaseLabel,
+  proposalProgressIndex,
+  progressLabel,
+  srProgress,
+  srProgressStatus,
+} from "../contract.js";
+import type { AIReqRequirementGroup, AIReqProgressStatus } from "../contract.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { ProjectPageHelp } from "./ProjectPageHelp.js";
+import { OverviewProgress } from "./OverviewProgress.js";
 
-export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProjects(): void }) {
+type ConfirmationFilter = "all" | "review" | "business" | "development" | "testing";
+const statusEn: Record<AIReqProgressStatus, string> = {
+  待开发: "Not started",
+  开发中: "In development",
+  待合入: "Awaiting merge",
+  待验收: "Awaiting acceptance",
+  已完成: "Completed",
+};
+const phaseEn = [
+  "Business requirements",
+  "Requirements review",
+  "Solution & review",
+  "Alignment & document PR",
+];
+
+export function AIReqProjectOverviewPage({
+  onReturnProjects,
+  onConfigureProject,
+}: {
+  onReturnProjects(): void;
+  onConfigureProject(): void;
+}) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const [confirmationFilter, setConfirmationFilter] = useState<ConfirmationFilter>("all");
+  const [showAllPending, setShowAllPending] = useState(false);
   const view = ai.view;
   const project = view?.projects.find((item) => item.id === ai.selection.projectId);
-  const releases = view?.releases.filter((item) => item.projectId === project?.id) ?? [];
-  const release = releases.find((item) => item.id === ai.releaseId);
-  const projection = view?.projectProgress?.find((item) => item.projectId === project?.id);
+  const release = view?.releases.find(
+    (item) => item.projectId === project?.id && item.id === ai.releaseId,
+  );
   const summary =
-    ai.selectionReady && projection
-      ? ai.releaseId
-        ? release && projection.releases.find((item) => item.releaseId === release.id)
-        : projection.total
+    ai.selectionReady && release
+      ? view?.projectProgress
+          ?.find((item) => item.projectId === project?.id)
+          ?.releases.find((item) => item.releaseId === release.id)
       : undefined;
-
-  // SR 只统计同一快照内所选项目及 Release 的正式需求，不能混入提案或其他项目。
+  const proposals =
+    view?.drafts.filter(
+      (item) => item.projectId === project?.id && item.releaseId === release?.id,
+    ) ?? [];
   const formalIds = new Set(summary?.requirements.map((item) => item.irId) ?? []);
-  const tasks = { pending: 0, active: 0, completed: 0 };
-  if (summary && project && view) {
-    for (const sr of view.srs) {
-      if (sr.projectId !== project.id || !formalIds.has(sr.irId)) continue;
-      const status = srProgressStatus(sr);
-      if (status === "待开发") tasks.pending++;
-      else if (status === "已完成") tasks.completed++;
-      else tasks.active++;
-    }
-  }
-  const taskTotal = tasks.pending + tasks.active + tasks.completed;
-  const taskStates = [
-    {
-      label: zh ? "进行中" : "In progress",
-      count: tasks.active,
-      color: "bg-progress-surface-foreground",
-    },
-    { label: zh ? "待处理" : "Pending", count: tasks.pending, color: "bg-warning" },
-    { label: zh ? "已完成" : "Completed", count: tasks.completed, color: "bg-success" },
+  const srs =
+    view?.srs.filter((sr) => sr.projectId === project?.id && formalIds.has(sr.irId)) ?? [];
+  const completed = srs.filter((sr) => srProgress(sr) === 100).length;
+  const proposalsById = new Map(proposals.map((proposal) => [proposal.id, proposal]));
+  const todos = view
+    ? deriveAIReqTodos(view).filter((todo) => {
+        if (todo.projectId !== project?.id || todo.releaseId !== release?.id) return false;
+        const proposal = proposalsById.get(todo.irId);
+        if (!proposal) return false;
+        if (todo.kind === "original-review")
+          return (
+            !requirementsReviewReadyBlocker(proposal) &&
+            proposal.originalReview?.humanDecision?.reviewId !== proposal.originalReview?.id
+          );
+        if (todo.kind === "full-review")
+          return (
+            !fullReviewReadyBlocker(proposal) &&
+            proposal.review?.humanDecision?.reviewId !== proposal.review?.id
+          );
+        return todo.kind === "alignment";
+      })
+    : [];
+  const matches = (kind: ConfirmationFilter) =>
+    todos.filter(
+      (todo) =>
+        kind === "all" ||
+        (kind === "review"
+          ? todo.kind !== "alignment"
+          : todo.kind === "alignment" && todo.perspective === kind),
+    );
+  const filters: { id: ConfirmationFilter; label: string }[] = [
+    { id: "all", label: zh ? "待人工处理提案" : "Proposals awaiting people" },
+    { id: "review", label: zh ? "人工判断／放行" : "Review decisions" },
+    { id: "business", label: zh ? "业务确认" : "Business confirmation" },
+    { id: "development", label: zh ? "开发确认" : "Development confirmation" },
+    { id: "testing", label: zh ? "测试视角确认" : "Testing confirmation" },
   ];
+  const pendingIds = new Set(matches(confirmationFilter).map((todo) => todo.irId));
+  const pending = proposals.filter((item) => pendingIds.has(item.id));
+  const recent = [...proposals]
+    .sort(
+      (a, b) =>
+        proposalUpdatedTime(b, view?.operations ?? []) -
+          proposalUpdatedTime(a, view?.operations ?? []) || a.id.localeCompare(b.id),
+    )
+    .slice(0, 5);
+  const recentSrs = srs
+    .filter((sr) => sr.statusChange)
+    .sort(
+      (a, b) => b.statusChange!.at.localeCompare(a.statusChange!.at) || a.id.localeCompare(b.id),
+    )
+    .slice(0, 5);
+  const time = (value: number | string) =>
+    new Intl.DateTimeFormat(locale, {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  const openProposal = (proposal: AIReqRequirementGroup) =>
+    ai.select({ projectId: proposal.projectId, irId: proposal.id }, proposal.releaseId);
   const unavailable = ai.pending
     ? zh
-      ? "正在读取项目概览…"
-      : "Loading project overview…"
+      ? "正在读取当前项目…"
+      : "Loading current project…"
     : zh
-      ? "项目概览数据不可用，请重试。"
-      : "Project overview data is unavailable. Retry the read.";
+      ? "当前项目数据不可用，请重试。"
+      : "Project data is unavailable. Retry to continue.";
+  const empty = (text: string) => (
+    <p className="py-8 text-ui-sm text-remote-foreground-muted">{text}</p>
+  );
 
   return (
     <main
-      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
+      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-project-overview"
-      aria-label={zh ? "项目概览" : "Project overview"}
+      aria-label={zh ? "当前项目" : "Current project"}
     >
-      <p role="status" className="sr-only">
-        {ai.pending && view
-          ? zh
-            ? "正在更新；已有数值为上次读取结果。"
-            : "Updating; existing values are the last read snapshot."
-          : ""}
-      </p>
-      <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-5 pt-5"}>
-        {ai.error && view && (
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh
-              ? "已有数值仅代表上次成功读取；请使用上方重试入口。"
-              : "Values reflect the last successful read; use Retry above."}
-          </p>
-        )}
+      <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-8"}>
+        <header className="flex items-center gap-2">
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "当前项目" : "Current project"}</h1>
+          <ProjectPageHelp scope="project-overview" />
+        </header>
+        <p
+          role="status"
+          className={ai.error && view ? "text-ui-sm text-remote-foreground-muted" : "sr-only"}
+        >
+          {ai.error && view
+            ? zh
+              ? "显示上次成功读取结果，请使用上方重试入口。"
+              : "Showing the last successful read. Use Retry above."
+            : ai.pending
+              ? zh
+                ? "正在更新…"
+                : "Updating…"
+              : ""}
+        </p>
         {!ai.selectionReady ? (
-          <div role="status" className="space-y-3 text-foreground-subtle">
+          <div role="status" className="space-y-3 text-remote-foreground-muted">
             <p>{unavailable}</p>
             {!ai.pending && (
               <Button variant="outline" onClick={() => void ai.refresh()}>
@@ -82,162 +170,322 @@ export function AIReqProjectOverviewPage({ onReturnProjects }: { onReturnProject
             )}
           </div>
         ) : !project ? (
-          <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
+          <div className="space-y-3">
             <p>
               {zh
-                ? "请选择项目，或返回项目列表添加项目。"
-                : "Choose a project, or return to the project list to add one."}
+                ? "请在左侧选择项目，或添加第一个项目。"
+                : "Choose a project in the sidebar, or add your first project."}
             </p>
             <Button variant="outline" onClick={onReturnProjects}>
-              {zh ? "返回项目列表" : "Back to projects"}
+              {zh ? "项目总览" : "Projects"}
             </Button>
+          </div>
+        ) : !release ? (
+          <div className="space-y-3">
+            <h2 className="text-ui-xl font-semibold">
+              {zh ? "当前项目尚无 Release" : "No releases in this project"}
+            </h2>
+            <p className="text-remote-foreground-muted">
+              {zh
+                ? "添加 Release 后，即可查看需求、确认事项和开发进展。"
+                : "Add a release to see requirements, confirmations and delivery progress."}
+            </p>
+            <Button variant="outline" onClick={onConfigureProject}>
+              {zh ? "配置项目" : "Configure project"}
+            </Button>
+          </div>
+        ) : !summary ? (
+          <div role="status" className="space-y-3">
+            <p>{unavailable}</p>
+            {!ai.pending && (
+              <Button variant="outline" onClick={() => void ai.refresh()}>
+                {zh ? "重试" : "Retry"}
+              </Button>
+            )}
           </div>
         ) : (
           <>
-            {!releases.length && (
-              <div className="flex flex-wrap items-center gap-3 text-foreground-subtle">
-                <p>
-                  {zh
-                    ? "当前项目尚无 Release，请返回项目列表配置。"
-                    : "This project has no Releases. Return to the project list to configure it."}
-                </p>
-                <Button variant="outline" onClick={onReturnProjects}>
-                  {zh ? "返回项目列表" : "Back to projects"}
-                </Button>
+            <section
+              aria-labelledby="overview-delivery"
+              className="space-y-6 border-b border-border pb-8"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="overview-delivery" className="text-ui-xl font-semibold">
+                  {zh ? "需求与交付" : "Requirements & delivery"}
+                </h2>
               </div>
-            )}
-            {!summary ? (
-              <div role="status" className="space-y-3 text-foreground-subtle">
-                <p>{unavailable}</p>
-                {!ai.pending && (
-                  <Button variant="outline" onClick={() => void ai.refresh()}>
-                    {zh ? "重试" : "Retry"}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                <section
-                  aria-labelledby="overview-requirements-heading"
-                  className="space-y-5 border-b border-border pb-6"
-                >
-                  <h2 id="overview-requirements-heading" className="text-ui-xl font-semibold">
-                    {zh ? "需求概览" : "Requirements overview"}
-                  </h2>
-                  <dl className="grid grid-cols-3 divide-x divide-border">
-                    {[
-                      {
-                        label: zh ? "正式需求" : "Formal requirements",
-                        count: summary.formalCount,
-                        target: "formal" as const,
-                      },
-                      {
-                        label: zh ? "需求提案" : "Proposals",
-                        count: summary.proposalCount,
-                        target: "proposals" as const,
-                      },
-                    ].map((item) => (
-                      <div key={item.target} className="min-w-0 space-y-2 px-4 first:pl-0">
-                        <dt className="text-ui-sm text-foreground-subtle">{item.label}</dt>
-                        <dd>
-                          <Button
-                            variant="link"
-                            className="h-auto gap-1 p-0 text-ui-page-title font-semibold tabular-nums"
-                            aria-label={
-                              zh
-                                ? `查看${item.label}：${item.count}`
-                                : `View ${item.label}: ${item.count}`
-                            }
-                            onClick={() => ai.navigate(() => ai.setMainView(item.target))}
-                          >
-                            {item.count}
-                            <ChevronRight
-                              className="size-4 text-foreground-subtle"
-                              aria-hidden="true"
-                            />
-                          </Button>
-                        </dd>
-                      </div>
-                    ))}
-                    <div className="min-w-0 space-y-2 px-4">
-                      <dt className="text-ui-sm text-foreground-subtle">
-                        {zh ? "想法池 · 全部项目" : "Ideas · All projects"}
-                      </dt>
-                      <dd className="flex min-h-9 items-center text-ui-sm text-foreground-subtle">
-                        <Button
-                          variant="link"
-                          className="h-auto p-0 text-ui-page-title font-semibold tabular-nums"
-                          // 数字本身不表达动作与全局范围，读屏名称需和相邻正式需求入口一样完整。
-                          aria-label={
-                            zh
-                              ? `查看想法池（全部项目）：${ai.view?.ideas.length ?? 0}`
-                              : `View ideas (all projects): ${ai.view?.ideas.length ?? 0}`
-                          }
-                          onClick={() => ai.navigate(() => ai.setMainView("ideas"))}
-                        >
-                          {ai.view?.ideas.length}
-                        </Button>
-                      </dd>
-                    </div>
-                  </dl>
-                </section>
-                <section aria-labelledby="overview-tasks-heading" className="space-y-5">
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <h2 id="overview-tasks-heading" className="text-ui-xl font-semibold">
-                      {zh ? "任务概览" : "Tasks overview"}
-                    </h2>
-                    <p className="text-ui-sm text-foreground-subtle">
-                      {zh
-                        ? "按正式需求的开发单元（SR）统计"
-                        : "Development units (SR) in formal requirements"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-12 gap-y-5">
-                    <dl className="grid min-w-0 flex-1 grid-cols-4 divide-x divide-border">
-                      {[{ label: zh ? "总任务" : "Total", count: taskTotal }, ...taskStates].map(
-                        (item) => (
-                          <div key={item.label} className="min-w-0 space-y-2 px-4 first:pl-0">
-                            <dt className="text-ui-sm text-foreground-subtle">{item.label}</dt>
-                            <dd className="text-ui-page-title font-semibold tabular-nums">
-                              {item.count}
-                            </dd>
-                          </div>
-                        ),
-                      )}
-                    </dl>
-                    <div
-                      className="min-w-64 flex-1 space-y-3"
-                      aria-label={zh ? "任务状态分布" : "Task status distribution"}
-                    >
-                      <div
-                        className="flex h-2 overflow-hidden rounded-full bg-surface-hover"
-                        aria-hidden="true"
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+                {[
+                  {
+                    label: zh ? "正式需求 IR" : "Formal requirements · IR",
+                    count: summary.formalCount,
+                    target: "formal" as const,
+                  },
+                  {
+                    label: zh ? "需求提案" : "Proposals",
+                    count: summary.proposalCount,
+                    target: "proposals" as const,
+                  },
+                  {
+                    label: zh ? "开发任务 SR" : "Development tasks · SR",
+                    count: summary.srCount,
+                    target: "formal" as const,
+                  },
+                  {
+                    label: zh ? "已完成 SR" : "Completed SRs",
+                    count: completed,
+                    target: "formal" as const,
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="space-y-1">
+                    <dt className="text-ui-sm text-remote-foreground-muted">{item.label}</dt>
+                    <dd>
+                      <Button
+                        variant="link"
+                        className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums"
+                        aria-label={`${item.label}: ${item.count}`}
+                        onClick={() => ai.navigate(() => ai.setMainView(item.target))}
                       >
-                        {taskTotal > 0 &&
-                          taskStates.map((item) => (
-                            <div
-                              key={item.label}
-                              className={item.color}
-                              style={{ width: `${(item.count / taskTotal) * 100}%` }}
-                            />
-                          ))}
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-ui-sm text-foreground-subtle">
-                        {taskStates.map((item) => (
-                          <span key={item.label} className="inline-flex items-center gap-1.5">
-                            <span
-                              className={`size-2 rounded-sm ${item.color}`}
+                        {item.count}
+                        <ArrowRight
+                          className="size-3.5 text-remote-foreground-muted"
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-lg bg-surface px-4 py-3">
+                <div className="flex min-w-56 flex-1 items-center gap-4">
+                  <span className="shrink-0 text-ui-sm">
+                    {zh ? "整体进度" : "Overall progress"}
+                  </span>
+                  <div className="flex-1">
+                    <OverviewProgress
+                      percent={summary.percent}
+                      formalCount={summary.formalCount}
+                      label={release.title}
+                      zh={zh}
+                    />
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-2 text-ui-sm text-remote-foreground-muted">
+                  <CheckCheck className="size-4" aria-hidden="true" />
+                  {zh
+                    ? `人工验收完成 ${completed} / ${srs.length}`
+                    : `Accepted ${completed} / ${srs.length}`}
+                  {srs.length > 0 ? ` · ${progressLabel((completed / srs.length) * 100)}` : ""}
+                </span>
+              </div>
+              {summary.unanalyzedCount > 0 && (
+                <p className="text-ui-sm text-remote-foreground-muted">
+                  {zh
+                    ? `未分析 SR ${summary.unanalyzedCount}`
+                    : `Unanalyzed SRs ${summary.unanalyzedCount}`}
+                </p>
+              )}
+            </section>
+            <section aria-labelledby="overview-confirmations" className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="overview-confirmations" className="text-ui-xl font-semibold">
+                  {zh ? "待人工处理" : "Awaiting people"}
+                </h2>
+              </div>
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label={zh ? "确认事项筛选" : "Filter confirmations"}
+              >
+                {filters.map((filter) => (
+                  <Button
+                    key={filter.id}
+                    variant={confirmationFilter === filter.id ? "secondary" : "outline"}
+                    className="h-auto min-h-9 gap-3 py-2"
+                    aria-pressed={confirmationFilter === filter.id}
+                    onClick={() => {
+                      setConfirmationFilter(filter.id);
+                      setShowAllPending(false);
+                    }}
+                  >
+                    {filter.label}
+                    <span className="font-semibold tabular-nums">
+                      {new Set(matches(filter.id).map((todo) => todo.irId)).size}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              <div className="divide-y divide-border border-y border-border">
+                {pending.length === 0
+                  ? empty(
+                      zh
+                        ? "当前范围暂无此类待确认事项。"
+                        : "No pending confirmations in this scope.",
+                    )
+                  : (showAllPending ? pending : pending.slice(0, 5)).map((proposal) => (
+                      <button
+                        key={proposal.id}
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                        onClick={() => openProposal(proposal)}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{proposal.title}</span>
+                          <span className="mt-1 block text-ui-sm text-remote-foreground-muted">
+                            {proposal.id} ·{" "}
+                            {zh
+                              ? todos
+                                  .filter((todo) => todo.irId === proposal.id)
+                                  .map((todo) => todo.title)
+                                  .join("、")
+                              : "Open co-creation to confirm"}
+                          </span>
+                        </span>
+                        <ArrowRight
+                          className="size-4 shrink-0 text-remote-foreground-muted"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    ))}
+              </div>
+              {pending.length > 5 && (
+                <Button variant="ghost" onClick={() => setShowAllPending(!showAllPending)}>
+                  {showAllPending
+                    ? zh
+                      ? "收起"
+                      : "Show less"
+                    : zh
+                      ? `查看全部 ${pending.length} 条`
+                      : `View all ${pending.length}`}
+                </Button>
+              )}
+            </section>
+            <div className="grid gap-8 @min-[60rem]/conversation:grid-cols-2">
+              <section aria-labelledby="overview-recent-proposals" className="min-w-0 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 id="overview-recent-proposals" className="text-ui-xl font-semibold">
+                    {zh ? "最近更新的提案" : "Recently updated proposals"}
+                  </h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+                  >
+                    {zh ? "查看全部" : "View all"}
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="divide-y divide-border border-y border-border">
+                  {recent.length === 0
+                    ? empty(zh ? "当前 Release 暂无需求提案。" : "No proposals in this release.")
+                    : recent.map((proposal) => (
+                        <button
+                          key={proposal.id}
+                          type="button"
+                          className="flex w-full items-start gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                          onClick={() => openProposal(proposal)}
+                        >
+                          <span className="min-w-0 flex-1 space-y-1.5">
+                            <span className="block truncate font-medium">{proposal.title}</span>
+                            <span className="block text-ui-sm text-remote-foreground-muted">
+                              {proposal.id} ·{" "}
+                              {zh
+                                ? proposalPhaseLabel(proposal)
+                                : phaseEn[proposalProgressIndex(proposal)]}
+                            </span>
+                            <time
+                              className="flex items-center gap-1.5 text-ui-sm text-remote-foreground-muted"
+                              dateTime={new Date(
+                                proposalUpdatedTime(proposal, view?.operations ?? []),
+                              ).toISOString()}
+                            >
+                              <Clock3 className="size-3.5" aria-hidden="true" />
+                              {time(proposalUpdatedTime(proposal, view?.operations ?? []))}
+                            </time>
+                          </span>
+                          <ArrowRight
+                            className="mt-1 size-4 shrink-0 text-remote-foreground-muted"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ))}
+                </div>
+              </section>
+              <section aria-labelledby="overview-recent-srs" className="min-w-0 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 id="overview-recent-srs" className="text-ui-xl font-semibold">
+                    {zh ? "最近状态变化的 SR" : "Recent SR status changes"}
+                  </h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => ai.navigate(() => ai.setMainView("formal"))}
+                  >
+                    {zh ? "查看全部" : "View all"}
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="divide-y divide-border border-y border-border">
+                  {recentSrs.length === 0
+                    ? empty(
+                        zh
+                          ? "当前 Release 暂无已记录的状态变化。"
+                          : "No recorded status changes in this release.",
+                      )
+                    : recentSrs.map((sr) => {
+                        const change = sr.statusChange!;
+                        const parent = view?.groups.find(
+                          (item) => item.projectId === sr.projectId && item.id === sr.irId,
+                        );
+                        return (
+                          <button
+                            key={sr.id}
+                            type="button"
+                            className="flex w-full items-start gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                            onClick={() =>
+                              ai.select(
+                                {
+                                  projectId: sr.projectId,
+                                  irId: sr.irId,
+                                  srId: sr.id,
+                                  formalView: "detail",
+                                },
+                                release.id,
+                              )
+                            }
+                          >
+                            <span className="min-w-0 flex-1 space-y-1.5">
+                              <span className="block truncate font-medium">{sr.title}</span>
+                              <span className="block truncate text-ui-sm text-remote-foreground-muted">
+                                {sr.id} · {parent?.title ?? sr.irId}
+                              </span>
+                              <span className="flex flex-wrap items-center gap-2 text-ui-sm">
+                                {change.from && (
+                                  <>
+                                    <span className="text-remote-foreground-muted">
+                                      {zh ? change.from : statusEn[change.from]}
+                                    </span>
+                                    <ArrowRight className="size-3" aria-hidden="true" />
+                                  </>
+                                )}
+                                <Badge variant="secondary">
+                                  {zh ? srProgressStatus(sr) : statusEn[srProgressStatus(sr)]}
+                                </Badge>
+                                <time className="text-remote-foreground-muted" dateTime={change.at}>
+                                  {time(change.at)}
+                                </time>
+                              </span>
+                            </span>
+                            <ArrowRight
+                              className="mt-1 size-4 shrink-0 text-remote-foreground-muted"
                               aria-hidden="true"
                             />
-                            {item.label} {item.count}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              </>
-            )}
+                          </button>
+                        );
+                      })}
+                </div>
+              </section>
+            </div>
           </>
         )}
       </div>
