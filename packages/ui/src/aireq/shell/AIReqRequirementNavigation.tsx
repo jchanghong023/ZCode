@@ -30,7 +30,7 @@ export function AIReqRequirementReturnButton() {
     <ControlHintTooltip title={label}>
       <Button
         variant="ghost"
-        size="icon-md"
+        size="sm"
         className="shrink-0 focus-visible:border-remote-foreground-muted"
         aria-label={label}
         onClick={() =>
@@ -40,6 +40,7 @@ export function AIReqRequirementReturnButton() {
         }
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
+        {label}
       </Button>
     </ControlHintTooltip>
   );

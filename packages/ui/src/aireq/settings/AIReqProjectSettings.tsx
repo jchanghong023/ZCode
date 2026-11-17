@@ -423,7 +423,7 @@ export function AIReqProjectSettings({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
-                  <h3 className="min-w-0 break-words text-ui-base font-medium">{project.name}</h3>
+                  <h2 className="min-w-0 break-words text-ui-base font-medium">{project.name}</h2>
                   {aireq.selection.projectId === project.id && (
                     <Badge variant="secondary">{zh ? "当前项目" : "Current project"}</Badge>
                   )}
@@ -457,9 +457,9 @@ export function AIReqProjectSettings({
               </div>
             </header>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
-              <h4 className="text-ui-sm font-medium">
+              <h3 className="text-ui-sm font-medium">
                 {zh ? `Release · ${view.releases.length} 个` : `Releases · ${view.releases.length}`}
-              </h4>
+              </h3>
               <Button
                 variant="outline"
                 disabled={!canCreateRelease}

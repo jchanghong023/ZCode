@@ -71,7 +71,12 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
   // 同对象多 Tab 只靠图标区分时用户必须回忆图标含义；可见短前缀让种类先于对象名被读到。
   const kindPrefixes = zh
     ? { report: "进度｜", materials: "材料｜", history: "历史｜", analysis: "分析｜" }
-    : { report: "Report · ", materials: "Materials · ", history: "History · ", analysis: "Analysis · " };
+    : {
+        report: "Report · ",
+        materials: "Materials · ",
+        history: "History · ",
+        analysis: "Analysis · ",
+      };
   const moveTab = (id: string, direction: -1 | 1) => {
     const index = pane.tabs.findIndex((tab) => tab.id === id);
     const neighbor = pane.tabs[index + direction];
@@ -88,10 +93,18 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
       : "Full view";
 
   useEffect(() => {
-    const selected = [
-      ...(viewport.current?.querySelectorAll<HTMLElement>("[data-side-pane-tab-id]") ?? []),
-    ].find((element) => element.dataset.sidePaneTabId === activeId);
-    selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const element = viewport.current;
+    const revealActive = () => {
+      const selected = [
+        ...(element?.querySelectorAll<HTMLElement>("[data-side-pane-tab-id]") ?? []),
+      ].find((item) => item.dataset.sidePaneTabId === activeId);
+      selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    revealActive();
+    // 调整窗口或面板宽度不改变 activeId，仍须把当前标签保持在横向可视区。
+    const observer = new ResizeObserver(revealActive);
+    if (element) observer.observe(element);
+    return () => observer.disconnect();
   }, [activeId, tabCount]);
 
   const tool = (label: string, Icon: typeof Plus, action: () => void, pressed?: boolean) => (
@@ -140,7 +153,11 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
             data-side-pane-tabs-viewport=""
             className="!scrollbar-hide h-12 min-w-0 flex-1 overflow-x-auto"
           >
-            <div data-side-pane-tabs-content="" className="flex w-full gap-1 py-2.5">
+            {/* 共享 Tab 可缩至 60px；业务对象需要保留阅读宽度，溢出交由标签条横滚。 */}
+            <div
+              data-side-pane-tabs-content=""
+              className="flex w-full gap-1 py-2.5 [&_[data-side-pane-tab-id]]:min-w-52 [&_[data-side-pane-tab-id]]:shrink-0 [&_[data-side-pane-tab-id]]:max-w-64"
+            >
               <SortableContext
                 items={pane.tabs.map((tab) => tab.id)}
                 strategy={horizontalListSortingStrategy}
@@ -197,17 +214,41 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
             )}
           </DragOverlay>
         </DndContext>
-        <div className="ml-auto flex h-full shrink-0 items-center gap-1 px-2">
+      </TabsList>
+      <div className="flex min-w-0 items-center gap-2 border-b border-border/50 px-3 py-2">
+        <p
+          className="min-w-0 flex-1 break-words text-ui-sm [overflow-wrap:anywhere]"
+          data-testid="aireq-side-pane-active-title"
+        >
+          {pane.activeTab &&
+            (pane.activeTab.kind === "launcher"
+              ? pane.activeTab.title
+              : `${accessibleKinds[pane.activeTab.kind]} · ${pane.activeTab.title}`)}
+        </p>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
           {tool(zh ? "新建标签页" : "New tab", Plus, pane.newTab)}
-          {tool(
-            fullViewLabel,
-            pane.fullView ? Minimize2 : Maximize2,
-            pane.toggleFullView,
-            pane.fullView,
+          {pane.fullView ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={pane.toggleFullView}
+              data-testid="aireq-exit-full-view"
+            >
+              <Minimize2 className="size-4" aria-hidden="true" />
+              {zh ? "退出完整视图" : "Exit full view"}
+              <kbd className="text-ui-sm text-foreground-subtle">Esc</kbd>
+            </Button>
+          ) : (
+            tool(
+              fullViewLabel,
+              pane.fullView ? Minimize2 : Maximize2,
+              pane.toggleFullView,
+              pane.fullView,
+            )
           )}
           {tool(zh ? "收起右侧栏" : "Collapse side pane", PanelRightClose, pane.collapse)}
         </div>
-      </TabsList>
+      </div>
     </Tabs>
   );
 }
@@ -265,7 +306,9 @@ function AIReqTabOverview({ pane }: { pane: AIReqSidePaneController }) {
               onSelect={() => choose(tab, restoring)}
             >
               <Icon className="size-3.5 shrink-0 text-foreground-subtle" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+              <span className="min-w-0 flex-1 whitespace-normal break-words [overflow-wrap:anywhere]">
+                {tab.title}
+              </span>
               <span className="shrink-0 text-ui-xs text-foreground-subtle">{kinds[tab.kind]}</span>
               {!restoring && (
                 <Button
@@ -312,7 +355,7 @@ function AIReqTabOverview({ pane }: { pane: AIReqSidePaneController }) {
           <ChevronsDown className="size-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 gap-0 bg-menu p-0">
+      <PopoverContent align="start" className="w-96 max-w-[calc(100vw-2rem)] gap-0 bg-menu p-0">
         <Command shouldFilter={false} className="bg-transparent p-0 text-foreground">
           <CommandInput
             value={query}

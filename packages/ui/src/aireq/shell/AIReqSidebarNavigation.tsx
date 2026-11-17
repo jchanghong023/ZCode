@@ -119,7 +119,7 @@ export function AIReqSidebarNavigation() {
       variant="ghost"
       size="lg"
       // 全局焦点样式会清除 outline 和阴影；复用按钮已有边框标出键盘焦点，行宽不变。
-      className="h-auto min-h-9 w-full justify-start gap-3 py-2 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
+      className="h-auto min-h-9 w-full justify-start gap-3 py-2 [@media(max-height:740px)]:py-1 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
       data-aireq-motion-nav=""
       onClick={() => ai.navigate(() => ai.setMainView(view, { fromSidebar: true }))}
@@ -133,7 +133,21 @@ export function AIReqSidebarNavigation() {
       </span>
       {(global || view === "todos") && (
         <span className="shrink-0 text-ui-sm font-normal text-remote-foreground-muted">
-          {view === "todos" ? (zh ? "当前 Release" : "This release") : zh ? "全部项目" : "All"}
+          {view === "todos"
+            ? !ai.selectionReady
+              ? zh
+                ? "读取中…"
+                : "Loading…"
+              : !releases.length
+                ? zh
+                  ? "暂无 Release"
+                  : "No releases"
+                : zh
+                  ? "当前 Release"
+                  : "This release"
+            : zh
+              ? "全部项目"
+              : "All"}
         </span>
       )}
     </Button>
@@ -254,7 +268,12 @@ export function AIReqSidebarNavigation() {
         {sections.map((section, index) => (
           <section
             key={section.title}
-            className={index ? "mt-4 border-t border-border pt-4" : ""}
+            // 短屏被分组留白挤掉末项；仅收紧节奏，保留字体、范围区与滚动能力。
+            className={
+              index
+                ? "mt-4 border-t border-border pt-4 [@media(max-height:740px)]:mt-2 [@media(max-height:740px)]:pt-2"
+                : ""
+            }
             aria-label={zh ? section.title : section.titleEn}
           >
             <div className="mb-1 px-3 text-ui-sm font-medium text-remote-foreground-muted">

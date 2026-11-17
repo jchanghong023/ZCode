@@ -117,6 +117,11 @@ export function AIReqSettingsPage({
   const aiTitle = zh ? "AI 配置" : "AI configuration";
   const aiSection = section === "models" || section === "personalization" || section === "analysis";
   const contentRef = useRef<HTMLElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  // 覆盖层打开会隐藏旧焦点；给键盘用户一个可见且可直接退出的位置。
+  useLayoutEffect(() => {
+    if (active) backButtonRef.current?.focus({ preventScroll: true });
+  }, [active]);
   const searchSections = useMemo(
     () =>
       [
@@ -349,6 +354,7 @@ export function AIReqSettingsPage({
             align="center"
           >
             <Button
+              ref={backButtonRef}
               type="button"
               variant="ghost"
               size="lg"
@@ -424,7 +430,6 @@ export function AIReqSettingsPage({
                 variant="ghost"
                 size="icon-lg"
                 aria-label={zh ? "返回工作区" : "Return to workspace"}
-                aria-current="page"
                 onClick={() => guard(onClose)}
               >
                 <Settings className="size-4" aria-hidden="true" />

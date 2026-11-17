@@ -237,11 +237,13 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           <ControlHintTooltip title={backLabel}>
             <Button
               variant="ghost"
-              size="icon-md"
+              size="sm"
+              className="shrink-0"
               aria-label={backLabel}
               onClick={() => ai.openProposalTask(parent)}
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
+              {backLabel}
             </Button>
           </ControlHintTooltip>
         )}

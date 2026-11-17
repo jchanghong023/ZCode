@@ -187,7 +187,8 @@ export function AIReqTodoPage() {
         </div>
         {/* 表格原先借用弱表面色；与外观页统一卡片和主次文字，交互时提升辅助文字对比度。 */}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          <table className="w-full min-w-[480px] table-fixed text-left @min-[640px]/conversation:min-w-[680px]">
+          {/* 主面板最窄可到 360px；480px 下限会把分工挤出，紧凑态改为单元格换行。 */}
+          <table className="w-full table-fixed text-left @min-[640px]/conversation:min-w-[680px]">
             <colgroup>
               <col className="w-[30%]" />
               <col />

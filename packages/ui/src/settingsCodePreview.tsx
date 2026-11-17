@@ -106,9 +106,9 @@ export function AppearanceSectionContent({
     <>
       <div className="min-w-0 space-y-3">
         <div>
-          <h3 className="text-ui-lg font-semibold text-foreground">
+          <h2 className="text-ui-lg font-semibold text-foreground">
             {intl.formatMessage({ id: "settings.appearance.interfaceTitle" })}
-          </h3>
+          </h2>
           <p className="mt-1 text-ui-base leading-6 text-foreground-subtle">
             {intl.formatMessage({
               id: "settings.appearance.interfaceDescription",
@@ -187,9 +187,9 @@ export function AppearanceSectionContent({
       <div className="space-y-6">
         <div className="min-w-0 space-y-3">
           <div>
-            <h3 className="text-ui-lg font-semibold text-foreground">
+            <h2 className="text-ui-lg font-semibold text-foreground">
               {intl.formatMessage({ id: "settings.appearance.codeTitle" })}
-            </h3>
+            </h2>
             <p className="mt-1 text-ui-base leading-6 text-foreground-subtle">
               {intl.formatMessage({
                 id: "settings.appearance.codeDescription",

@@ -1,6 +1,6 @@
 import { AIReqSidePaneProvider } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqSidePaneHost } from "../side-pane/AIReqSidePaneHost.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -75,6 +75,20 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const zh = locale === "zh-CN";
   const { setNavigationGuard } = ai;
   const settingsOpen = ai.settingsOpen;
+  const settingsReturnFocus = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (settingsOpen || !settingsReturnFocus.current) return;
+    // 覆盖层隐藏入口后浏览器会丢失焦点；先解除 inert，再回到实际入口。
+    const target = settingsReturnFocus.current;
+    settingsReturnFocus.current = null;
+    if (target.isConnected && !target.closest("[hidden], [inert]")) target.focus();
+    else
+      motionRoot.current
+        ?.querySelector<HTMLButtonElement>(
+          "#aireq-navigation button[aria-label='设置'], #aireq-navigation button[aria-label='Settings']",
+        )
+        ?.focus();
+  }, [settingsOpen]);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [todosMounted, setTodosMounted] = useState(false);
   const [projectOverviewMounted, setProjectOverviewMounted] = useState(false);
@@ -110,18 +124,23 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     writeLastSettingsSectionPreference(nativeSettingsSections[section]);
   }, []);
   const openSettings = useCallback(
-    (section?: Section, projectId?: string) =>
+    (section?: Section, projectId?: string) => {
+      settingsReturnFocus.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
       ai.navigate(() => {
         if (section) commitSettingsSection(section);
         setProjectSettingsRequest(null);
         setAnalysisProjectId(projectId);
         ai.openSettings();
         setSettingsMounted(true);
-      }),
+      });
+    },
     [ai, commitSettingsSection],
   );
   const openModelSettings = useCallback(() => openSettings("models"), [openSettings]);
-  const openProjectSettings = (request: AIReqProjectSettingsRequest) =>
+  const openProjectSettings = (request: AIReqProjectSettingsRequest) => {
+    settingsReturnFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     ai.navigate(() => {
       commitSettingsSection("projects");
       setAnalysisProjectId(undefined);
@@ -129,6 +148,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       ai.openSettings();
       setSettingsMounted(true);
     });
+  };
   const projectSettingsRequestHandled = useCallback((request: AIReqProjectSettingsRequest) => {
     setProjectSettingsRequest((current) => (current === request ? null : current));
   }, []);
@@ -138,6 +158,13 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       setHelp(true);
     });
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
+  // 空版本是范围事实；在 Shell 统一阻止进入无法保存的提案弹窗，并复用项目配置请求。
+  const missingRelease = Boolean(
+    ai.selectionReady &&
+    project &&
+    !ai.view?.availableReleases.some((item) => item.projectId === project.id) &&
+    ["todos", "formal", "proposals"].includes(ai.mainView),
+  );
   const formal =
     ai.mainView === "formal" ||
     (ai.mainView === "chat" &&
@@ -213,6 +240,38 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       </>
     );
   else if (ai.mainView === "chat") content = <AIReqProposalWorkspace active={!settingsOpen} />;
+
+  if (missingRelease)
+    content = (
+      <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+        <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-4`}>
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
+            {ai.mainView === "todos"
+              ? zh
+                ? "我的待办"
+                : "My todos"
+              : ai.mainView === "formal"
+                ? zh
+                  ? "开发任务"
+                  : "Development tasks"
+                : zh
+                  ? "需求共创"
+                  : "Co-creation"}
+          </h1>
+          <p role="status" className="text-foreground-subtle">
+            {zh
+              ? `${project!.name} 尚无 Release，请先添加版本。`
+              : `${project!.name} has no releases. Add a release to continue.`}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => openProjectSettings({ kind: "project", projectId: project!.id })}
+          >
+            {zh ? "配置 Release" : "Configure releases"}
+          </Button>
+        </div>
+      </main>
+    );
 
   return (
     <div
@@ -342,7 +401,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                       />
                     </div>
                   )}
-                  {(todosMounted || ai.mainView === "todos") && (
+                  {!missingRelease && (todosMounted || ai.mainView === "todos") && (
                     <div
                       hidden={ai.mainView !== "todos"}
                       inert={ai.mainView !== "todos" || settingsOpen}
@@ -355,7 +414,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                       <AIReqTodoPage key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`} />
                     </div>
                   )}
-                  {(proposalsMounted || ai.mainView === "proposals") && (
+                  {!missingRelease && (proposalsMounted || ai.mainView === "proposals") && (
                     <>
                       {ai.mainView === "proposals" && listLoading && listFeedback}
                       <div

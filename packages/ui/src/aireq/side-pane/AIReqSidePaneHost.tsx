@@ -1,4 +1,4 @@
-import { useCallback, useContext, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { FileText, ChartNoAxesCombined, History } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -169,6 +169,37 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     (ai.mainView !== "requirementAnalysis" || pane.tabs.some((tab) => tab.kind !== "launcher"));
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
+  const asideRef = useRef<HTMLElement>(null);
+  const wasFullView = useRef(false);
+  const { toggleFullView } = pane;
+  useLayoutEffect(() => {
+    if (ai.settingsOpen) return;
+    // 进入完整视图会替换原图标按钮；退出也需要把焦点交还同一操作。
+    if (fullView)
+      asideRef.current
+        ?.querySelector<HTMLButtonElement>("[data-testid='aireq-exit-full-view']")
+        ?.focus();
+    else if (wasFullView.current && isOpen)
+      asideRef.current?.querySelector<HTMLButtonElement>("button[aria-pressed='false']")?.focus();
+    wasFullView.current = fullView;
+  }, [fullView, isOpen, ai.settingsOpen]);
+  useEffect(() => {
+    if (!fullView || ai.settingsOpen) return;
+    const exit = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // Esc 优先交给上层交互浮层；不能关闭菜单的同时退出完整视图。
+      const overlay = [
+        ...document.querySelectorAll<HTMLElement>(
+          "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox'], [data-slot='popover-content']",
+        ),
+      ].some((element) => element.getClientRects().length && !element.closest("[hidden], [inert]"));
+      if (overlay) return;
+      event.preventDefault();
+      toggleFullView();
+    };
+    window.addEventListener("keydown", exit);
+    return () => window.removeEventListener("keydown", exit);
+  }, [fullView, ai.settingsOpen, toggleFullView]);
   // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
   // 复用原生同步 hook，收起必须归还实际宽度，进入概览、全局页面或提案列表仅隐藏而不清空 Tab。
   const { panelRef: panel } = useAnimatedResizablePanel({
@@ -225,6 +256,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
         style={fullView ? { overflow: "visible" } : undefined}
       >
         <aside
+          ref={asideRef}
           aria-label={locale === "zh-CN" ? "右侧工作区" : "Side workspace"}
           aria-hidden={!isOpen || ai.settingsOpen}
           inert={!isOpen || ai.settingsOpen}
