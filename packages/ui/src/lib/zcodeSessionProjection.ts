@@ -238,21 +238,6 @@ export function zcodeSessionSettingsToConfigOptions(
   return configOptions;
 }
 
-export function zcodeWorkspacePresentationToConfigOptions(
-  mode: ZCodeSessionMode,
-): ZCodeConfigOption[] {
-  return [
-    {
-      id: MODE_CONFIG_ID,
-      name: "Mode",
-      category: "mode",
-      type: "select",
-      currentValue: normalizeAvailableZCodeMode(mode),
-      options: getZCodeAgentModeSelectOptions(),
-    },
-  ];
-}
-
 function resolveSettingsThoughtLevelCurrentValue(
   thoughtLevel: ZCodeSessionSettingsState["thoughtLevel"],
 ): string | undefined {

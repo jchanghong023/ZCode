@@ -27,8 +27,6 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/sa
 产品插件与旧宿主服务整体退役：不注册 Git、文件监听、媒体会话、MCP 同步、client-config、
 skills、task-groups、prompt-attachment-transfer；HTTP 帮助配置不受影响。
 原生 Skill catalog、AIReq 隐藏 Skill、子智能体目录及纯 DTO/schema 保留。
-zcode-task 仅保留 restartWorkspaceProcess，zcode-session 仅保留 readWorkspacePresentation；
-当前无进程或配置展示 owner，两者正式返回 capabilityUnsupported，不再发送旧伪造展示对象。
 旧 task-list 事件及其专用 emitter／发射接线随 `onDynamicWorkspaceEvent` 一并退役。
 原生 tasks 的置顶／归档组织态保留。
 
@@ -59,8 +57,8 @@ mock/index.ts
   ├─ MockRuntime（唯一权威状态）
   ├─ broadcast（跨窗口总线）
   ├─ domains/settings → domains/models
-  ├─ domains/assets → domains/automations → domains/compat-surfaces
-  └─ zcodeAgent / zcodeTask / project / workspace（协议与文件面）
+  ├─ domains/assets
+  └─ zcodeAgent / project / workspace（协议与文件面）
 ```
 
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。

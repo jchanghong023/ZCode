@@ -8,8 +8,7 @@
  * effect 链 / 旧协议写路径：
  * - 当前模型/档位来自 Composer；已运行会话的用量来自 snapshot.usage.contextWindow
  * - 模型、思考深度和模式只更新下一次 Submission 的 Composer 意图
- * - 模型静态事实来自目标 Host ModelSelectionView；workspace configOptions 只提供
- *   mode 等非模型 presentation
+ * - 模型静态事实来自目标 Host ModelSelectionView；模式使用独立原生目录
  *
  * 新任务和已有会话采用相同的 Composer 显示事实；prewarm 不补模型或档位。
  * 提交时由宿主（SessionPane）把冻结选择随 Submission 一起发送。
@@ -60,7 +59,6 @@ import {
   chooseConnectionModel,
 } from "@/lib/composerPlanGroups.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { useToolbarConfigOptions } from "@/hooks/useZCodeConfig.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
@@ -125,11 +123,6 @@ export interface V4ComposerToolbarProps {
   /** 选中思考深度；modelContext 固定本次用户操作的目标模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
-  /** prepare/configOptions 失败时，custom provider 选择走 workspace recovery 链。 */
-  onRecoverCustomModelSelection?: (
-    value: string,
-    sourceModel: ModelSelectionSource | null,
-  ) => Promise<void> | void;
   onSendCompressionCommand?: (command: string) => void;
 }
 
@@ -156,16 +149,9 @@ function V4ComposerModelControlsImpl({
   onSelectModel,
   onSelectThought,
   onSendCompressionCommand,
-  onRecoverCustomModelSelection,
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-  // 配置面读取：workspace 缺省目录（taskId=null），不读旧会话态。
-  const { error: configOptionsError } = useToolbarConfigOptions(
-    workspacePath,
-    null,
-    workspaceIdentity,
-  );
   const providerSettingsRead = useProviderSettingsView();
   const providerSettingsView =
     providerSettingsRead.state.status === "ready" ? providerSettingsRead.state.view : null;
@@ -178,7 +164,6 @@ function V4ComposerModelControlsImpl({
   const thoughtTriggerRef = useRef<HTMLSpanElement | null>(null);
   // Ctrl+M 热键：递增 openRequestKey 请求 ModelConfigSelect 打开菜单（旧 handleOpenModelMenuShortcut 语义）。
   const [modelMenuOpenRequestKey, setModelMenuOpenRequestKey] = useState(0);
-  const [recoveryPending, setRecoveryPending] = useState(false);
   // 独立档位下拉沿用选中关闭；合并模型面板不能因 ACK 等待收起，否则选模和滑杆都会中断。
   useEffect(() => {
     if (modelSelectionPending) {
@@ -352,31 +337,6 @@ function V4ComposerModelControlsImpl({
         decodedModelName: decoded?.modelName ?? null,
         draftMode,
       });
-      const selectedRegistryProvider = decoded?.providerId
-        ? modelSelectionView?.providers.find(
-            (candidate) => candidate.providerId === decoded.providerId,
-          )
-        : undefined;
-      const customRecoveryEligible = isApiKeyAccess(selectedRegistryProvider?.config.access);
-      if (
-        configOptionsError &&
-        decoded?.providerId &&
-        customRecoveryEligible &&
-        onRecoverCustomModelSelection
-      ) {
-        setRecoveryPending(true);
-        void Promise.resolve(onRecoverCustomModelSelection(value, sourceModel))
-          .catch((error) => {
-            logger.warn("[v4-toolbar] custom provider recovery failed", {
-              error: error instanceof Error ? error.message : String(error),
-              providerId: decoded.providerId,
-            });
-          })
-          .finally(() => {
-            setRecoveryPending(false);
-          });
-        return;
-      }
       if (decoded) {
         if (reasoningLevel !== undefined)
           return onSelectModel(
@@ -394,16 +354,7 @@ function V4ComposerModelControlsImpl({
       // 裸 model id：provider 沿用当前（宿主从最新投影补齐）。
       return onSelectModel("", value, sourceModel);
     },
-    [
-      configOptionsError,
-      draftMode,
-      effectiveConfig?.model,
-      effectiveConfig?.provider,
-      onRecoverCustomModelSelection,
-      onSelectModel,
-      modelLocked,
-      modelSelectionView,
-    ],
+    [draftMode, effectiveConfig?.model, effectiveConfig?.provider, onSelectModel, modelLocked],
   );
 
   const planGroups = useMemo(
@@ -613,11 +564,9 @@ function V4ComposerModelControlsImpl({
   const sessionConfigPending = sessionId !== null && draftConfig?.mode === undefined;
   useToolbarShortcutBindings({
     hasAnyOption: Boolean(modelOption) || Boolean(thoughtOption),
-    toolbarDisabled:
-      disabled || recoveryPending || connectionSwitch.pending || modelSelectionPending,
+    toolbarDisabled: disabled || connectionSwitch.pending || modelSelectionPending,
     modelMenuDisabled:
       disabled ||
-      recoveryPending ||
       modelLocked ||
       connectionSwitch.pending ||
       modelSelectionPending ||
@@ -639,7 +588,7 @@ function V4ComposerModelControlsImpl({
           intl={intl}
           locale={locale}
           onSendCompressionCommand={onSendCompressionCommand}
-          compressionDisabled={disabled || recoveryPending}
+          compressionDisabled={disabled}
         />
       ) : null}
       {modelSelectionState.status === "error" && modelSelectionReload ? (
@@ -702,7 +651,6 @@ function V4ComposerModelControlsImpl({
           disabled={
             disabled ||
             modelSelectionPending ||
-            recoveryPending ||
             modelLocked ||
             (modelSelectionState.status !== "ready" &&
               !(modelSelectionState.status === "loading" && modelSelectionState.catalog))
@@ -728,7 +676,7 @@ function V4ComposerModelControlsImpl({
           indicatorClassName="block"
           option={thoughtOption}
           onValueChange={handleThoughtValueChange}
-          disabled={disabled || recoveryPending || modelSelectionPending}
+          disabled={disabled || modelSelectionPending}
           intl={intl}
           provider={displayProvider}
           shortcutLabel={thoughtShortcutLabel}
@@ -743,4 +691,3 @@ function V4ComposerModelControlsImpl({
 }
 
 export const V4ComposerModelControls = memo(V4ComposerModelControlsImpl);
-import { isApiKeyAccess } from "@zcode/provider";

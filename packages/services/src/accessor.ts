@@ -4,9 +4,7 @@ import type { IFileService } from "./file/file.js";
 import type { ISystemService } from "./system/system.js";
 import type { ISettingService } from "./setting/setting.js";
 import type { IBroadcastService } from "./broadcast/broadcast.js";
-import type { IZCodeTaskService } from "./session/zcodeTaskService.js";
 import type { IZCodeAgentService } from "./zcode-agent/zcodeAgent.js";
-import type { IZCodeSessionService } from "./zcode-session/zcodeSession.js";
 import type {
   IModelSelectionService,
   IProviderSettingsService,
@@ -21,9 +19,7 @@ export interface IServiceAccessor {
   readonly systemService: ISystemService;
   readonly settingService: ISettingService;
   readonly broadcastService: IBroadcastService;
-  readonly zcodeTaskService: IZCodeTaskService;
   readonly zcodeAgentService: IZCodeAgentService;
-  readonly zcodeSessionService: IZCodeSessionService;
   /** 当前 Environment 的 Provider 配置与设置视图。 */
   readonly providerSettingsService: IProviderSettingsService;
   /** 当前 Environment Registry 发布的唯一模型选择 View。 */

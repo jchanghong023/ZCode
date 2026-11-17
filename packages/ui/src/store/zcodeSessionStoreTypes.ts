@@ -16,7 +16,6 @@ import {
   type ZCodeTaskMeta,
   type ZCodeContextCacheUsage,
   type ZCodeConfigOption,
-  type ZCodeSlashCommand,
   type ZCodePermissionRequest,
   type ZCodeElicitationRequest,
   type ZCodeBackgroundTaskControlItem,
@@ -204,8 +203,6 @@ export interface WorkspaceZCodeUIState {
   configOptions: ZCodeConfigOption[] | null;
   /** configOptions 加载状态 */
   configOptionsStatus: ConfigOptionsStatus;
-  /** 可用的 slash commands */
-  slashCommands: ZCodeSlashCommand[];
   /** 任务列表版本号，每次创建/删除任务时自增，驱动 TaskList 刷新 */
   taskListVersion: number;
   /** 缓存已拉取的任务列表，避免组件 remount 时闪烁 */
@@ -421,11 +418,6 @@ export interface ZCodeSessionStoreState {
     status: "idle" | "loading" | "ready" | "error",
     workspaceIdentity?: string,
   ) => void;
-  setSlashCommands: (
-    workspacePath: string,
-    commands: ZCodeSlashCommand[],
-    workspaceIdentity?: string,
-  ) => void;
   setCurrentModeId: (
     workspacePath: string,
     modeId: string | null,
@@ -531,7 +523,6 @@ export function createDefaultWorkspaceState(
     supplierMismatchReason: null,
     configOptions: null,
     configOptionsStatus: "idle",
-    slashCommands: [],
     taskListVersion: 0,
     taskListCache: null,
     draftFocusVersion: 0,

@@ -50,13 +50,16 @@
 
 ### 动效主题的验证边界
 
+总览卡片的 CSS 悬停反馈已在真实 Edge 开发入口检查画面：版本卡片进入后边框与底色渐亮，移出恢复；展开／收起仍正常，展开版本沿用相同规则。读取样式确认进入 200ms、退出 120ms，卡片无 transform、无手形光标；减少动态效果模拟下动效 marker 移除，卡片恢复原底色／边框且无过渡，模拟随后清除。本次仅修改样式与规格，Lint、变更架构及格式／差异检查通过；本次根类型检查受 `packages/ui/src/SlashCommandPlugin.tsx:454` 的 `commands` 未定义错误阻塞，该文件未由本次改动修改。
+
 `zai-motion` 的当前源码按[动效主题规格](motion-theme.md)在真实 Edge 开发入口验证：首次偏好、原浅／深主题切回、新主题双客户端同步与刷新保留、背景柔光、导航悬停、筛选底板、减少动态效果及宽窄电脑窗口可用。原深色与新主题的代表性标题／卡片边界和页面底色一致；原浅／深主题及减少动态效果下不保留新增装饰节点。筛选底板随实际选中属性和容器尺寸变化，原生鼠标点击不改变页面滚动位置。
 
 性能验证使用六倍 CPU 节流观察整个页面，静止采样未发生布局或样式重算；该结果包含既有后台工作，不能归因为仅动效耗时，也不等于纯 CPU／软件合成测试。浏览器策略阻止访问 GPU 诊断页，未绕过该限制，软件渲染模式及目标机器实际流畅度仍未确认。实现不依赖 GPU 特效，指针更新限定于局部节点，空闲不运行循环动画。
 
-类型检查、根 Lint、变更架构及本次文件格式／差异检查通过。被根 Lint 忽略的两个阅读组件补做 Hooks 检查，保留 Mermaid 配置中以 `themeKey` 触发主题失效的原有依赖告警；本次仅补充动效主题的深色解析。当前没有受影响的现存自动化用例，不声称自动化测试覆盖。以上为开发源码验证，不构成同次生产产物、真实后端或上线证明。
+表格悬停扩展已在 Edge 1440×1000 开发入口截图检查需求共创、开发任务（含展开 SR）、进度分析任务；运行样式确认需求内容向右平移 4px，鼠标移出复位，表头及其他列保持原位。模拟减少动态效果后动效标记移除、内容复位。执行历史当前范围无记录，仅核验空态画面，未验证有数据行的运行效果。该扩展的根 Lint 无错误（其他文件有两条冗余展开警告），变更架构检查通过；类型检查被同时工作区中的 `SlashCommandPlugin.tsx` 未定义 `commands` 阻塞，不能认定整库类型检查通过。
+
+被根 Lint 忽略的两个阅读组件补做 Hooks 检查，保留 Mermaid 配置中以 `themeKey` 触发主题失效的原有依赖告警；阅读组件仅补充动效主题的深色解析。当前没有受影响的现存自动化用例，不声称自动化测试覆盖。以上为开发源码验证，不构成同次生产产物、真实后端或上线证明。
 
 ## 7. 源码依据
-
 
 `packages/server/src/http.ts` 的 publicMembers/HTTP handlers；`packages/server/src/mock/index.ts` 的 createMockServices；`packages/server/src/aireq/service.ts` 的 registry/bootstrap/connection facade；`packages/services/src/aireq/{contract,remote-operations}.ts`；`packages/client/src/{websocket,remoteServiceAccess}.ts`；`packages/shared/src/zcode-protocol-v4/`；`packages/web/src/main.tsx`。

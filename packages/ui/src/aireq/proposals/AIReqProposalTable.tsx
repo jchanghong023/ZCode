@@ -392,9 +392,16 @@ export function AIReqProposalTable() {
             </thead>
             <tbody>
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
-                <tr key={item.id} className="border-b border-border/50 hover:bg-hover">
+                <tr
+                  key={item.id}
+                  data-aireq-motion-row=""
+                  className="border-b border-border/50 hover:bg-hover"
+                >
                   <td className="px-4 py-4">{item.submittedBy}</td>
-                  <td className="max-w-xl whitespace-pre-wrap break-words px-4 py-4">
+                  <td
+                    data-aireq-motion-cell=""
+                    className="max-w-xl whitespace-pre-wrap break-words px-4 py-4"
+                  >
                     {/* 正文应和详情入口一样可直接打开讨论，同时保留键盘操作。 */}
                     <div className="flex flex-col items-start gap-2">
                       <ControlHintTooltip title={item.originalText}>

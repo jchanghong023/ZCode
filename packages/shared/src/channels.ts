@@ -89,12 +89,8 @@ export const ServiceChannels = {
   Setting: "setting",
   /** 跨窗口广播 */
   Broadcast: "broadcast",
-  /** ZCode task wrapper 服务 */
-  ZCodeTask: "zcode-task",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
-  /** ZCode session 应用服务 */
-  ZCodeSession: "zcode-session",
   Project: "project",
   /** 新 Provider Config 的设置读写 Facade */
   ProviderSettings: "provider-settings",

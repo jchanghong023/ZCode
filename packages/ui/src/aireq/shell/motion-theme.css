@@ -3,6 +3,28 @@
   --aireq-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 总览的 article 会被空白柔光主动避开；只读卡片用局部颜色反馈聚焦阅读，
+ * 不改进度、不加位移或手形，避免将信息卡误表达为导航入口。 */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"],
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article {
+    transition:
+      border-color 120ms var(--aireq-motion-ease),
+      background-color 120ms var(--aireq-motion-ease);
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"]:hover {
+    border-color: color-mix(in srgb, var(--color-foreground) 18%, var(--color-card-border));
+    transition-duration: 200ms;
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover {
+    border-color: color-mix(in srgb, var(--color-foreground) 35%, var(--color-card-border));
+    background-color: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
+    transition-duration: 200ms;
+  }
+}
+
 .theme-zai-motion .aireq-motion-surface,
 .theme-zai-motion .aireq-motion-navigation,
 .theme-zai-motion .aireq-motion-filter-group {
@@ -62,13 +84,20 @@
 
 .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row],
 .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row] > span,
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-cell] > *,
 .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row] > svg {
   transition:
     background-color 180ms var(--aireq-motion-ease),
     transform 200ms var(--aireq-motion-ease);
 }
 
-.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row]:hover > span {
+/* 表格只平移需求内容，固定列底色与操作列留在原位，避免整行移动破坏对齐。 */
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row]:hover > span,
+.theme-zai-motion
+  [data-aireq-motion-active]
+  [data-aireq-motion-row]:hover
+  > [data-aireq-motion-cell]
+  > * {
   transform: translateX(4px);
 }
 

@@ -191,12 +191,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   onSearchResultHighlightDone?: (requestId: number) => void;
   appLogoUrl: string;
   platform: IPlatformService;
-  reloadSessionDisabled: boolean;
-  reloadSessionPending: boolean;
-  handleReloadSession: (options?: {
-    resumeTaskId?: string | null;
-    provider?: ZCodeProvider | null;
-  }) => Promise<void>;
   handleSelectTask: (
     targetWorkspacePath: string,
     taskId: string,

@@ -33,8 +33,6 @@ export { IBroadcastService } from "./broadcast/broadcast.js";
 
 export type { BroadcastMessage } from "./broadcast/broadcast.js";
 
-// 当前会话只保留工作区恢复入口，不发布旧任务元数据或事件。
-export { IZCodeTaskService } from "./session/zcodeTaskService.js";
 export type {
   ZCodeTaskListKind,
   ZCodeTaskListQuery,
@@ -67,10 +65,6 @@ export type {
   ZCodeAgentSessionTarget,
   ZCodeAgentWorkspaceTarget,
 } from "./zcode-agent/zcodeAgent.js";
-
-// ZCode session service — app-facing session facade without ZCode Agent naming.
-export { IZCodeSessionService } from "./zcode-session/zcodeSession.js";
-export type { ZCodeSessionWorkspaceTarget } from "./zcode-session/zcodeSession.js";
 
 export type {
   ClientSceneConfig,

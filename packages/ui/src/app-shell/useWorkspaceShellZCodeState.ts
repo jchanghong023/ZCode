@@ -5,8 +5,6 @@ import {
   useZCodeSessionStore,
   type WorkspaceZCodeUIState,
 } from "@/store/zcodeSessionStore.js";
-import { resolveWorkspaceModelConfigSyncScope } from "@/lib/modelConfigSync.js";
-import { hasBusyTaskInWorkspaceProvider } from "@/lib/workspaceBusyTaskLock.js";
 
 type WorkspaceShellZCodeState = Pick<
   WorkspaceZCodeUIState,
@@ -46,17 +44,5 @@ export function useWorkspaceShellZCodeState(workspaceAbsPath: string, workspaceI
     }),
   );
 
-  const reloadSessionDisabled = useZCodeSessionStore((state) => {
-    const workspaceState = selectWorkspaceZCodeState(state, workspaceAbsPath, workspaceIdentity);
-    const actionScope = resolveWorkspaceModelConfigSyncScope(workspaceState);
-    return hasBusyTaskInWorkspaceProvider(
-      actionScope.provider,
-      workspaceState.taskRuntimeByTaskId,
-      workspaceState.optimisticTaskListByTaskId,
-      workspaceState.taskListCache,
-      workspaceState.activeTaskId,
-    );
-  });
-
-  return { workspaceShellZCodeState, reloadSessionDisabled };
+  return { workspaceShellZCodeState };
 }

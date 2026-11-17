@@ -79,7 +79,6 @@ function createIdentityWorkspaceStateSeed(
     supplierMismatchReason: baseState.supplierMismatchReason,
     configOptions: baseState.configOptions,
     configOptionsStatus: baseState.configOptionsStatus,
-    slashCommands: baseState.slashCommands,
     ...(migratedTaskIds.size > 0
       ? {
           activeTaskId:
@@ -167,7 +166,7 @@ export function updateWorkspaceState(
       ...state.workspaces,
       // 远程 workspace 的 workspace 级状态必须只写 identity key。
       // 不能为了兼容未透传 identity 的调用同时写 path key：同一路径的另一个远程窗口会从 path fallback
-      // 读到这份状态，造成 slashCommands、模型切换与初始化状态串台。相关调用链已补齐 identity，
+      // 读到这份状态，造成模型切换与初始化状态串台。相关调用链已补齐 identity，
       // 这里不再污染 path 桶。
       [workspaceKey]: nextWorkspaceState,
     },

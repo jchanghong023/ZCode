@@ -8,7 +8,7 @@
 - `remote-operations.ts` 定义 correlated path/args/result；`AIReqRemotePath` 是 operation map 的键，不接受任意字符串或万能 unknown[] 代理。
 - `packages/server/src/aireq/wire-schemas.ts`、`validation.ts` 做运行时校验，静态类型不代替 wire 校验。
 - `packages/server/src/http.ts` 的 `publicMembers` 是部署白名单。只公开指定方法／事件；overrides 不绕过白名单，不能反射实现类私有方法。
-- `IServiceAccessor`、`RemoteServiceAccess` 和 `createMockServices` 对应同一服务面。当前白名单逐项为下列 12 个频道。
+- `IServiceAccessor`、`RemoteServiceAccess` 和 `createMockServices` 对应同一服务面。当前白名单逐项为下列 10 个频道。
 
 | 频道              | 方法                                                                         | 事件        |
 | ----------------- | ---------------------------------------------------------------------------- | ----------- |
@@ -19,8 +19,6 @@
 | project           | resolveSessionDirectories、readTree                                          | 无          |
 | broadcast         | send                                                                         | onMessage   |
 | setting           | get、update                                                                  | 无          |
-| zcode-task        | restartWorkspaceProcess                                                      | 无          |
-| zcode-session     | readWorkspacePresentation                                                    | 无          |
 | provider-settings | getView、refresh                                                             | 无          |
 | model-selection   | getView                                                                      | onDidChange |
 | subagents         | list                                                                         | 无          |

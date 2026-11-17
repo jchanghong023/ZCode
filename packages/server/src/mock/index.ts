@@ -8,8 +8,6 @@ import {
   IProjectService,
   ISystemService,
   IZCodeAgentService,
-  IZCodeSessionService,
-  IZCodeTaskService,
 } from "@zcode/services";
 import { MockBroadcastService } from "./broadcast.js";
 import { registerAssetsMockServices } from "./domains/assets.js";
@@ -19,7 +17,6 @@ import { MockProjectService } from "./project.js";
 import { MockRuntime } from "./runtime.js";
 import { MockFileService, MockSystemService } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
-import { MockZCodeSessionService, MockZCodeTaskService } from "./zcodeTask.js";
 import { IAIReqService } from "@zcode/services/aireq";
 import { MockAIReqService } from "../aireq/contract.js";
 
@@ -44,12 +41,10 @@ export function createMockServices(options: MockServicesOptions): {
   registerModelsMockServices(services);
   registerAssetsMockServices(services);
 
-  // 协议面与任务索引：v4 会话、会话列表、任务门面、项目目录。
+  // 协议面与项目目录：AIReq、v4 会话、项目目录。
   const aiReqService = new MockAIReqService();
   services.register(IAIReqService, aiReqService.remote);
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
-  services.register(IZCodeTaskService, new MockZCodeTaskService());
-  services.register(IZCodeSessionService, new MockZCodeSessionService());
   services.register(IProjectService, new MockProjectService(runtime, aiReqService));
 
   return { services, runtime };

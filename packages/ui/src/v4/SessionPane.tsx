@@ -1,7 +1,6 @@
 import { completeNewModelSelection } from "@zcode/provider";
 import { useSubagents } from "@/hooks/useSubagents.js";
 import { ToolPresentationCapabilitiesProvider } from "@/ToolCallBlocks/presentationCapabilities.js";
-import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { isRequestVerificationConfigNetworkError } from "@/request-security-edition/errors.js";
 import { useShallow } from "zustand/react/shallow";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
@@ -26,11 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { Hand } from "lucide-react";
-import {
-  buildCustomSupplierKey,
-  isRemoteWorkspaceIdentity,
-  ZCODE_AGENT_PROVIDER,
-} from "@zcode/shared";
+import { isRemoteWorkspaceIdentity, ZCODE_AGENT_PROVIDER } from "@zcode/shared";
 import { TID_CHAT_EMPTY, TID_V4_SESSION_PANE, testId } from "@zcode/shared/test-ids";
 import type {
   GitChangeSourceId,
@@ -64,9 +59,6 @@ import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import type { SessionOpenTrigger } from "@/lib/sessionOpenArmsTelemetry.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceHomePath } from "@/hooks/useWorkspaceHomePath.js";
-import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
-import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 import { prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import {
@@ -178,7 +170,6 @@ import {
   parseSelectionSideSlashCommand,
   type V4VisibleSlashCommand,
 } from "@/v4/slashCommands.js";
-import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import { usePendingCommandRecovery } from "@/v4/usePendingCommandRecovery.js";
@@ -224,11 +215,7 @@ import {
   setSelectionSideChatBlocked,
   subscribeSelectionSideChatRuntime,
 } from "@/lib/selectionSideChatRuntime.js";
-import {
-  normalizeSlashCommandValue,
-  shouldOfferSideSlashCommand,
-  type AppSlashCommand,
-} from "@/slashCommandHelpers.js";
+import { shouldOfferSideSlashCommand, type AppSlashCommand } from "@/slashCommandHelpers.js";
 import {
   dispatchConversationSelectionAdd,
   type ConversationSelectionReference,
@@ -584,9 +571,8 @@ export function SessionPane({
     onRuntimeLifecycle,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
-  const { modelSelectionService, zcodeSessionService, zcodeTaskService } = useServices();
+  const { modelSelectionService } = useServices();
   const { intl } = useZCodeIntl();
-  const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const baseWorkspaceServices = useBaseWorkspaceServices();
   const composerClientNamespace = useComposerClientNamespace();
   const composerProjectId = useZCodeSessionStore(
@@ -627,7 +613,6 @@ export function SessionPane({
   // 「冻结历史 + 尾轮」分区：
   // 下面随 snapshot 每帧执行的行扫描都按 history 引用缓存历史段，只扫尾轮。
   const rowsPartition = snapshot ? getConversationRowsPartition(snapshot.rows.window) : null;
-  const confirmLifecycleRecovery = useConfirmDialog();
   const runtimeReady =
     sessionId === null ||
     (state.status === "live" &&
@@ -972,10 +957,8 @@ export function SessionPane({
   } = useDraftConfigControl({
     workspacePath,
     workspaceIdentity,
-    provider,
     sessionId,
     sessionConfig: runtimeReady && snapshot?.sessionId === sessionId ? snapshot.config : null,
-    agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,
     editScopeId: composerEditScopeId ?? null,
   });
@@ -1631,20 +1614,6 @@ export function SessionPane({
     sessionId,
   ]);
 
-  const cliSlashCommandNames = useMemo(
-    () =>
-      new Set(
-        (slashCommands ?? []).map((command) =>
-          normalizeSlashCommandValue(command.name).toLowerCase(),
-        ),
-      ),
-    [slashCommands],
-  );
-  const availableSelectionSideSlashCommandNames = useMemo(
-    () => ["side", "btw"].filter((name) => !cliSlashCommandNames.has(name)),
-    [cliSlashCommandNames],
-  );
-
   // Plan 选中即开启标准 Composer 开关，不能等发送时解析文本；与 /side 共用本地操作入口。
   const appSlashCommands = useMemo<AppSlashCommand[] | undefined>(() => {
     if (readOnly) return undefined;
@@ -1675,13 +1644,10 @@ export function SessionPane({
     const description = intl.formatMessage({ id: "chat.slash.app.side.description" });
     return [
       planAction,
-      ...[
-        { value: "side", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
-        { value: "btw", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
-      ].filter((command) => !cliSlashCommandNames.has(command.value)),
+      { value: "side", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
+      { value: "btw", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
     ];
   }, [
-    cliSlashCommandNames,
     handleDraftSwitchMode,
     handleOpenSelectionSideConversation,
     intl,
@@ -2206,7 +2172,6 @@ export function SessionPane({
         appSlashCommands?.some((command) => command.value === "side" || command.value === "btw")
           ? parseSelectionSideSlashCommand(text, readyAttachments, {
               contextAttachmentCount,
-              enabledCommandNames: availableSelectionSideSlashCommandNames,
             })
           : null;
       if (sessionId && selectionSideSlashCommand) {
@@ -2369,7 +2334,6 @@ export function SessionPane({
       dispatchSlashCommand,
       draftProjectReady,
       ensureDraftModelReadyForSend,
-      availableSelectionSideSlashCommandNames,
       appSlashCommands,
       handleDraftSessionCreated,
       reportDraftCreated,
@@ -3255,100 +3219,6 @@ export function SessionPane({
     [handleDraftSelectThought, handleSelectModel, sessionId, submissionModelSelectionOnly],
   );
 
-  // Bug 根因：恢复回调曾遗漏模型目录依赖，目录更新后仍从旧 provider 列表选回退模型。
-  const handleRecoverCustomModelSelection = useCallback(
-    async (value: string, sourceModel: ModelSelectionSource | null) => {
-      const decoded = decodeCustomModelValue(value);
-      if (!decoded?.providerId) {
-        return;
-      }
-      const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-      let modelValue = value;
-      if (!decoded.modelName) {
-        const fallbackModel = modelSelectionView?.providers.find(
-          (candidate) => candidate.providerId === decoded.providerId,
-        )?.models[0]?.modelId;
-        if (!fallbackModel) {
-          logger.warn("[v4-pane] custom provider 恢复跳过：provider 没有可用模型", {
-            customProviderId: decoded.providerId,
-            workspacePath,
-          });
-          return;
-        }
-        modelValue = encodeCustomModelValue(decoded.providerId, fallbackModel);
-      }
-      const modelSelection = parseModelPickerValue(modelValue);
-      // Bug 原因：configOptions error 的 custom provider 选择绕过普通 onSelectModel；
-      // 已绑定任务仍复用同一提示入口，草稿态由入口统一静默。
-      showModelChangeNotice(sourceModel, {
-        provider: modelSelection.providerId,
-        model: modelSelection.modelId,
-      });
-      const store = useZCodeSessionStore.getState();
-      store.setModelSelectionResolution(
-        workspacePath,
-        {
-          selectedSupplierKey: buildCustomSupplierKey(decoded.providerId),
-          isGhostSupplier: false,
-          supplierMismatchReason: null,
-        },
-        workspaceIdentity,
-      );
-      store.setConfigOptionsStatus(workspacePath, "loading", workspaceIdentity);
-      logger.info("[v4-pane] configOptions error custom provider recovery start", {
-        modelId: modelSelection.modelId,
-        providerId: modelSelection.providerId,
-        workspaceIdentity: workspaceIdentity ?? null,
-        workspacePath,
-      });
-
-      try {
-        await zcodeTaskService.restartWorkspaceProcess({
-          workspacePath,
-          workspaceIdentity,
-          provider: displayProvider,
-          bumpRuntimeEpoch: true,
-        });
-
-        const prepareResult = await prepareWorkspaceWithZCodeSessionService({
-          workspacePath,
-          workspaceIdentity,
-          provider: displayProvider,
-          zcodeSessionService,
-        });
-        handleDraftSelectModel(modelSelection.providerId, modelSelection.modelId);
-        store.setConfigOptions(workspacePath, prepareResult.configOptions ?? [], workspaceIdentity);
-        store.setConfigOptionsStatus(workspacePath, "ready", workspaceIdentity);
-        store.setSlashCommands(workspacePath, prepareResult.slashCommands ?? [], workspaceIdentity);
-        logger.info("[v4-pane] configOptions error custom provider recovery done", {
-          configOptionsCount: prepareResult.configOptions?.length ?? 0,
-          modelId: modelSelection.modelId,
-          providerId: modelSelection.providerId,
-          workspacePath,
-        });
-      } catch (error) {
-        store.setConfigOptionsStatus(workspacePath, "error", workspaceIdentity);
-        logger.warn("[v4-pane] configOptions error custom provider recovery failed", {
-          error: error instanceof Error ? error.message : String(error),
-          modelId: modelSelection.modelId,
-          providerId: modelSelection.providerId,
-          workspacePath,
-        });
-        throw error;
-      }
-    },
-    [
-      provider,
-      handleDraftSelectModel,
-      modelSelectionView?.providers,
-      showModelChangeNotice,
-      workspaceIdentity,
-      workspacePath,
-      zcodeSessionService,
-      zcodeTaskService,
-    ],
-  );
-
   // 模式与模型一样属于下一次 Submission；选择时只更新 Composer。
   const handleSwitchMode = useCallback(
     (mode: string) => {
@@ -3485,30 +3355,12 @@ export function SessionPane({
     const isCurrentTarget = () => target.active && reconnectTargetRef.current === target;
     if (!isCurrentTarget() || reconnectFlightRef.current === target) return;
     reconnectFlightRef.current = target;
-    // Bug 根因：只重试原生订阅不会清除宿主故障；跨 await 只认本次绑定，
-    // 连续点击只恢复一次，A → B → A 或卸载后也不能把迟到恢复用在新目标上。
+    // 重连只重建当前绑定的订阅；业务准备完成后仍须核验代际，
+    // 防止 A → B → A 或卸载后的迟到回调重试新目标。
     void (async () => {
       try {
-        if (state.lifecycle?.state === "faulted") {
-          // faulted 恢复扩大到工作区，宿主恢复也必须等用户明确同意之后。
-          const confirmed = await confirmLifecycleRecovery({
-            title: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
-            description: intl.formatMessage({ id: "taskList.recoverWorkspaceDescription" }),
-            confirmLabel: intl.formatMessage({ id: "taskList.recoverWorkspace" }),
-          });
-          if (!confirmed || !isCurrentTarget()) return;
-        }
         if (onBeforeReconnect) {
           await onBeforeReconnect();
-          if (!isCurrentTarget()) return;
-        }
-        if (state.lifecycle?.state === "faulted") {
-          await zcodeTaskService.restartWorkspaceProcess({
-            workspacePath: target.workspacePath,
-            workspaceIdentity: target.workspaceIdentity,
-            provider: target.provider ?? ZCODE_AGENT_PROVIDER,
-            bumpRuntimeEpoch: true,
-          });
           if (!isCurrentTarget()) return;
         }
         await target.lease?.store.retry();
@@ -3518,19 +3370,15 @@ export function SessionPane({
           sessionId: target.sessionId,
           error,
         });
-        if (isCurrentTarget()) toast(intl.formatMessage({ id: "taskList.restartFailed" }));
+        if (isCurrentTarget())
+          toast(
+            formatUserFacingError(error, intl.formatMessage({ id: "chat.error.connectionLost" })),
+          );
       } finally {
         if (reconnectFlightRef.current === target) reconnectFlightRef.current = null;
       }
     })();
-  }, [
-    reconnectTarget,
-    onBeforeReconnect,
-    state.lifecycle?.state,
-    confirmLifecycleRecovery,
-    intl,
-    zcodeTaskService,
-  ]);
+  }, [reconnectTarget, onBeforeReconnect, intl]);
 
   // loadOlder 触发（接近顶部自动预取）。store 内部单飞防重入。
   const handleLoadOlder = useCallback(() => {
@@ -4048,7 +3896,6 @@ export function SessionPane({
       // backgroundWorks；Composer 若直接读目录会提前隐藏 Agent 入口。这里复用状态面板按
       // childSessionId 精确回退后的计数，让两个入口共享同一份运行态真值。
       runningSubagentCount={runningAgentCount}
-      onRecoverCustomModelSelection={handleRecoverCustomModelSelection}
       onSendCompressionCommand={handleSendCompressionCommand}
       error={composerError}
       onDismissError={handleDismissComposerError}
@@ -4289,11 +4136,6 @@ export function SessionPane({
               sessionId={sessionId}
               workspacePath={workspacePath}
               onReconnect={handleRetrySubscribe}
-              reconnectLabel={
-                state.lifecycle?.state === "faulted"
-                  ? intl.formatMessage({ id: "taskList.recoverWorkspace" })
-                  : undefined
-              }
             />
           </>
         ) : (

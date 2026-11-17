@@ -6,7 +6,6 @@ import {
   type ZCodeConfigOption,
   type ModelSelectionResolution,
   type ZCodeProvider,
-  type ZCodeSlashCommand,
   type ZCodeTaskMeta,
   type ZCodeTaskRuntimeStatus,
   type ZCodeWorkspaceInitStatus,
@@ -455,8 +454,6 @@ export function createWorkspaceSlice(set: SetFn) {
             );
             const shouldResetSupplierForDraftProvider =
               Boolean(normalizedProvider) && nextSelectedProvider !== current.selectedProvider;
-            const shouldClearSlashCommands =
-              current.activeTaskId !== null || shouldResetSupplierForDraftProvider;
             const shouldInheritActiveTaskConfig =
               current.activeTaskId !== null && !shouldResetSupplierForDraftProvider;
             const activeTaskIdForInheritance = shouldInheritActiveTaskConfig
@@ -513,10 +510,6 @@ export function createWorkspaceSlice(set: SetFn) {
               // 新建任务态（taskId=null）现在也有自己的未发送草稿。
               // 这里切到草稿态时只重置“本次创建任务的瞬时状态”，不主动清空 null 作用域草稿，
               // 这样用户从 taskA/B/C 切回“新建任务”时，才能继续编辑刚才没发出去的内容。
-              // 新建草稿如果继续沿用上一条会话的 slashCommands，输入 `/` 时会看到旧任务遗留的命令。
-              // 但以前这里每次“新建任务”都无条件清空，草稿态重复点击会把命令列表清空且不会触发回填。
-              // 仅在“从 task 切到 draft”或“provider 真正切换”时清空，避免同草稿态重复点击误伤。
-              ...(shouldClearSlashCommands ? { slashCommands: [] } : {}),
               ...(normalizedProvider ? { selectedProvider: nextSelectedProvider } : {}),
               ...(shouldResetSupplierForDraftProvider
                 ? {
@@ -774,24 +767,6 @@ export function createWorkspaceSlice(set: SetFn) {
           (current) => ({
             ...current,
             configOptionsStatus: status,
-          }),
-          workspaceIdentity,
-        ),
-      );
-    },
-
-    setSlashCommands: (
-      workspacePath: string,
-      commands: ZCodeSlashCommand[],
-      workspaceIdentity?: string,
-    ) => {
-      set((state) =>
-        updateWorkspaceState(
-          state,
-          workspacePath,
-          (current) => ({
-            ...current,
-            slashCommands: commands,
           }),
           workspaceIdentity,
         ),

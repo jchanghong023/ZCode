@@ -35,9 +35,9 @@ export function resolveModelSelectionReadinessStatus(
 /**
  * V4 草稿的 provider/model admission。
  *
- * V4 迁移删除了旧 useWorkspacePrepare 的 renderer readiness 门禁，草稿首发
- * 会先登记 pending command，再由 Host 以 provider_not_ready 拒绝。这个确定性拒绝随后会
- * 被恢复账本误判成 unknown。这里恢复 UI 前置门禁；Host 门禁继续负责进程级竞态兜底。
+ * 草稿首发先校验当前模型目录，避免先登记 pending command 再被 Host 以
+ * provider_not_ready 确定性拒绝后，恢复账本将其误判为 unknown。
+ * Host 门禁继续负责接纳时的竞态校验。
  */
 export function useDraftModelReadinessGate(params: {
   workspacePath: string;

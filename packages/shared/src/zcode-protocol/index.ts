@@ -2491,17 +2491,6 @@ export const zcodeSessionReleaseUnderDirectoryResultSchema = z
 export type ZCodeSessionReleaseUnderDirectoryResult = z.infer<
   typeof zcodeSessionReleaseUnderDirectoryResultSchema
 >;
-export const zcodeWorkspaceReadPresentationParamsSchema = z
-  .object({ workspace: zcodeWorkspaceRefSchema })
-  .strict();
-export const zcodeWorkspacePresentationSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    mode: zcodeSessionModeSchema,
-    slashCommands: z.array(zcodeSlashCommandSchema),
-  })
-  .strict();
-export type ZCodeWorkspacePresentation = z.infer<typeof zcodeWorkspacePresentationSchema>;
 const workspaceHookSha256DigestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 export const zcodeWorkspaceHookTrustGrantParamsSchema = z
   .object({
@@ -4348,15 +4337,9 @@ export const zcodeProtocolMethods = {
   sessionGoal: "session/goal",
   sessionClose: "session/close",
   sessionReleaseUnderDirectory: "session/releaseUnderDirectory",
-  // setModel 仍被 zcodeSessionService 的 desktop 旧链路消费；replayable
-  // switchModelConfig 已直接由目标 Environment Registry 解析 Selection。
   sessionSetModel: "session/setModel",
-  // replayable facade 的思考深度/模式已收敛 v4 switchModelConfig/
-  // switchCollaborationMode；剩余消费 = zcodeSessionService（desktop 旧链路，随
-  // 桌面 v4 UI 收口清零）与 setMode 的 auto 值残留（v4 值域刻意排除 auto）。
   sessionSetThoughtLevel: "session/setThoughtLevel",
   sessionSetMode: "session/setMode",
-  workspaceReadPresentation: "workspace/readPresentation",
   workspaceHookTrustGrant: "workspace/hooks/trustGrant",
   // 进程级 Account Provider Config 与 workspace 运行目录分离。
   providerUpdateAccountConfig: "provider/updateAccountConfig",

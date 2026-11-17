@@ -84,9 +84,10 @@ export function AnalysisTaskTable({
             <MarkdownTableRow
               key={task.id}
               data-task-id={task.id}
+              data-aireq-motion-row=""
               className="group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
             >
-              <MarkdownTableCell className={cellClass}>
+              <MarkdownTableCell data-aireq-motion-cell="" className={cellClass}>
                 <RowLabel title={task.srTitle} subtitle={`${task.irId} · ${task.srId}`} />
                 <Button
                   variant="link"
@@ -260,9 +261,10 @@ export function AnalysisHistoryTable({
             <MarkdownTableRow
               key={run.id}
               data-run-id={run.id}
+              data-aireq-motion-row=""
               className={`group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
-              <MarkdownTableCell className={cellClass}>
+              <MarkdownTableCell data-aireq-motion-cell="" className={cellClass}>
                 <RowLabel title={run.srTitle} subtitle={`${run.irId} · ${run.srId}`} />
                 <Button
                   variant="link"

@@ -2,16 +2,11 @@
 // 当前编辑由 Composer 持有；进入已有 Session 从当前快照恢复权限/Plan，在线只响应新变化。
 // 菜单点击立即保存 Renderer 意图，Prewarm 与 Submission 只消费它，不反向覆盖。
 //
-// Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
-// 统一来自目标 Host ModelSelectionView。
+// 模型候选、能力和首选值统一来自目标 Host ModelSelectionView；
+// 模式由独立的原生模式目录与 Composer 意图控制。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ZCODE_AGENT_PROVIDER, resolveExecutionState } from "@zcode/shared";
-import type {
-  ZCodeConfigOption,
-  ModelSelection,
-  ZCodeProvider,
-  ZCodeSlashCommand,
-} from "@zcode/shared";
+import { resolveExecutionState } from "@zcode/shared";
+import type { ModelSelection } from "@zcode/shared";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
 import type { IModelSelectionService } from "@zcode/services";
 import { completeNewModelSelection } from "@zcode/provider";
@@ -20,8 +15,6 @@ import {
   type ModelSelectionRead,
 } from "@/hooks/useModelSelectionView.js";
 import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
-import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 import { resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
@@ -41,9 +34,6 @@ import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 
-/** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
-const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
-
 export function applyDraftModelSelection(
   current: Partial<SessionConfigState>,
   model: ModelSelection,
@@ -62,19 +52,6 @@ export function applyDraftModelSelection(
   // 在目标模型已切成功后把它当成“同模型显式切 thought”再次写入，必须先清除。
   delete next.thought;
   return next;
-}
-
-export function shouldHydrateWorkspaceCatalog(params: {
-  configOptions: readonly ZCodeConfigOption[];
-  sessionId: string | null;
-  slashCommands: readonly ZCodeSlashCommand[];
-}): boolean {
-  const hasModePresentation = params.configOptions.some(
-    (option) => option.category === "mode" && option.type === "select",
-  );
-  // slashCommands 属于 workspace identity，不会随已有 session projection 恢复。
-  // 因此已有 session 只要目录为空也必须独立水合；mode 目录也不再借模型目录间接提供。
-  return params.slashCommands.length === 0 || !hasModePresentation;
 }
 
 export type ComposerDraftContent = Pick<V4ComposerDraft, "text" | "editorStateJson" | "mention">;
@@ -170,13 +147,10 @@ function hasSameComposerDraftContent(left: V4ComposerDraft, right: V4ComposerDra
 export function useDraftConfigControl(params: {
   workspacePath: string;
   workspaceIdentity?: string;
-  provider?: ZCodeProvider;
   /** 会话切换恢复文字/模型，权限和 Plan 使用当前快照。 */
   sessionId: string | null;
   /** 仅匹配当前 Session 的首份投影可用作初始化；null 表示还没恢复完成。 */
   sessionConfig?: Partial<SessionConfigState> | null;
-  /** provider registry 已通过 renderer readiness 门禁后才允许拉起 Agent。 */
-  agentStartupAllowed?: boolean;
   modelSelectionService: IModelSelectionService | null;
   /** composer 编辑态：草稿切到该 Session 的 edit scope，原草稿留在原 scope 不动。 */
   editScopeId?: string | null;
@@ -184,16 +158,12 @@ export function useDraftConfigControl(params: {
   const {
     workspacePath,
     workspaceIdentity,
-    provider,
     sessionId,
     sessionConfig,
-    agentStartupAllowed = true,
     modelSelectionService,
     editScopeId = null,
   } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-  const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-  const zcodeSessionService = useZCodeSessionService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = sessionId === null ? V4_DRAFT_SCOPE_ROOT : (editScopeId ?? sessionId);
@@ -948,93 +918,6 @@ export function useDraftConfigControl(params: {
       rootScope,
     ],
   );
-
-  // ── workspace 目录水合（见文件头说明）──
-  // 目录已 ready（reload/广播/上次水合写过）则跳过；否则读取最小 workspace presentation。
-  useEffect(() => {
-    const isDraft = sessionId === null;
-    const store = useZCodeSessionStore.getState();
-    const workspaceState = store.getWorkspaceState(workspacePath, workspaceIdentity);
-    if (!agentStartupAllowed) {
-      // V4 目录水合曾在无模型时直接进入 RPC，虽然 Host 不会启动 CLI，
-      // renderer 仍会把正常等待态记成 hydration error。readiness 未通过时保持 idle；
-      // registry 就绪后依赖变化会自动重新进入本 effect。
-      store.setConfigOptionsStatus(workspacePath, "idle", workspaceIdentity);
-      return;
-    }
-    const configOptions = workspaceState.configOptions ?? [];
-    const hasModePresentation = configOptions.some(
-      (option) => option.category === "mode" && option.type === "select",
-    );
-    const hasSlashCommandCatalog = workspaceState.slashCommands.length > 0;
-    const shouldHydrateCatalog = shouldHydrateWorkspaceCatalog({
-      configOptions,
-      sessionId,
-      slashCommands: workspaceState.slashCommands,
-    });
-    logger.debug("[v4-workspace-catalog] hydration check", {
-      catalogScope: isDraft ? "draft" : "known-session",
-      hasModePresentation,
-      hasSlashCommandCatalog,
-      flightInProgress: workspaceCatalogHydrationFlights.has(workspaceKey),
-      configOptionsStatus: workspaceState.configOptionsStatus,
-      workspaceKey,
-    });
-    const existingFlight = workspaceCatalogHydrationFlights.get(workspaceKey);
-    if (existingFlight) {
-      return;
-    }
-    if (!shouldHydrateCatalog) {
-      return;
-    }
-
-    store.setConfigOptionsStatus(workspacePath, "loading", workspaceIdentity);
-    const flight = prepareWorkspaceWithZCodeSessionService({
-      workspacePath,
-      workspaceIdentity,
-      provider: displayProvider,
-      zcodeSessionService,
-    })
-      .then((prepareResult) => {
-        const baseOptions = prepareResult.configOptions ?? [];
-        logger.debug("[v4-workspace-catalog] hydration done", {
-          catalogScope: isDraft ? "draft" : "known-session",
-          optionCount: baseOptions.length,
-          slashCommandCount: prepareResult.slashCommands?.length ?? 0,
-          modeCurrentValue: String(
-            baseOptions.find((option) => option.category === "mode" && option.type === "select")
-              ?.currentValue ?? "",
-          ),
-          workspaceKey,
-        });
-        const latest = useZCodeSessionStore.getState();
-        latest.setConfigOptions(workspacePath, baseOptions, workspaceIdentity);
-        latest.setConfigOptionsStatus(workspacePath, "ready", workspaceIdentity);
-        latest.setSlashCommands(
-          workspacePath,
-          prepareResult.slashCommands ?? [],
-          workspaceIdentity,
-        );
-      })
-      .catch((error) => {
-        useZCodeSessionStore
-          .getState()
-          .setConfigOptionsStatus(workspacePath, "error", workspaceIdentity);
-        logger.warn(`[v4-workspace-catalog] workspace 目录水合失败: ${String(error)}`);
-      })
-      .finally(() => {
-        workspaceCatalogHydrationFlights.delete(workspaceKey);
-      });
-    workspaceCatalogHydrationFlights.set(workspaceKey, flight);
-  }, [
-    agentStartupAllowed,
-    displayProvider,
-    sessionId,
-    workspaceIdentity,
-    workspaceKey,
-    workspacePath,
-    zcodeSessionService,
-  ]);
 
   const handleDraftSelectModel = useCallback(
     (modelProvider: string, model: string, reasoningLevel?: string) => {

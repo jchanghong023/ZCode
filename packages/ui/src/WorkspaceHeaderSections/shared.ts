@@ -14,11 +14,6 @@ export interface WorkspaceHeaderState {
 
 export type WorkspaceHeaderVariant = "task" | "draft";
 
-export interface WorkspaceHeaderReloadSessionOptions {
-  resumeTaskId?: string | null;
-  provider?: ZCodeProvider | null;
-}
-
 export interface WorkspaceHeaderTitleSectionProps {
   variant?: WorkspaceHeaderVariant;
   readOnlyReason?: string;
@@ -45,9 +40,6 @@ export interface WorkspaceHeaderTitleSectionProps {
   providerWorkspaceConfigPath: string | null;
   providerWorkspaceConfigExists: boolean;
   providerWorkspaceConfigLoading: boolean;
-  onReloadSession?: (options?: WorkspaceHeaderReloadSessionOptions) => void | Promise<void>;
-  reloadSessionDisabled?: boolean;
-  reloadSessionPending?: boolean;
   onRefreshGit: () => void;
   workspaceHeaderState: WorkspaceHeaderState;
   isMacDesktop?: boolean;

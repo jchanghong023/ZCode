@@ -1,10 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- ZCode task 投影类型当前集中在单文件维护，新增 workspace 事件先保持就近声明。 */
-// ── 旧协议兼容面（过渡期）──────────────────────────────
-// 剩余 29 个导出：workspace 预热/workspace 事件、turn steer 结果、session binding/import、
-// trace/input/query id 工厂函数、ZCodeError、ZCodeTaskCreateResult 等。
-// 消费者：services 旧栈（zcodeAgentService/zcodeTaskServiceAdapter/zcodeTaskService）、
-// UI 旧 store/投影。明星承重类型（ZCodeTaskMeta/ZCodeStreamEvent/ZCodeTaskSnapshot 等）
-// 已迁 zcode-task-types-core.ts（幸存面）。本文件与旧 task service 组同生命周期。
+// 会话组织态、兼容投影与 trace/input/query 标识工具，由 UI store 和投影消费者使用。
 import { createUuid } from "./uuid.js";
 import type {
   TaskRealtimeReason,
@@ -71,18 +66,6 @@ export type ZCodeTaskTarget = ZCodeTaskGoal;
 
 /** workspace 级 ZCode 初始化状态 */
 export type ZCodeWorkspaceInitStatus = "idle" | "initializing" | "ready" | "failed";
-
-/** 预热 workspace 时返回的结果 */
-export interface ZCodeWorkspacePrepareResult {
-  workspacePath: string;
-  preparedSessionId: string;
-  version?: string;
-  provider: ZCodeProvider;
-  /** session/new 返回的初始 configOptions，预热阶段就推到 UI 让用户提前选择模型 */
-  configOptions?: ZCodeConfigOption[];
-  /** 预热 session 已经广播出来的 slash commands，草稿态也可以直接拿来展示 */
-  slashCommands?: ZCodeSlashCommand[];
-}
 
 /** Codex 预热前的网络连通性检查结果 */
 export interface ZCodeCodexConnectivityCheckResult {

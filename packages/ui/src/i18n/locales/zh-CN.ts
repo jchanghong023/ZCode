@@ -1843,9 +1843,6 @@ const zhCN: Record<string, string> = {
   "taskList.renameFailed": "重命名任务失败",
   "taskList.pinFailed": "更新置顶状态失败",
   "taskList.restartUnsupported": "当前 Agent 版本不支持重启任务，请先更新。",
-  "taskList.recoverWorkspace": "重启 Agent 进程",
-  "taskList.recoverWorkspaceDescription":
-    "任务资源未能安全释放。继续会中断所有共用此 Agent 进程的任务，包括其他工作区的任务。会话历史会保留。",
   "taskList.restart": "重启任务",
   "taskList.restarting": "正在重启任务…",
   "taskList.restartFailed": "重启失败，请查看任务状态后重试",
@@ -1994,7 +1991,8 @@ const zhCN: Record<string, string> = {
   "chat.contextOptimization.failed": "优化对话失败",
   "chat.contextOptimization.completed": "已优化对话",
   "settings.themeMode": "界面主题",
-  "settings.themeModeDescription": "选择浅色、深色或跟随系统主题。",
+  // 动效主题与原主题共用选择器，说明同步列全实际可选项。
+  "settings.themeModeDescription": "选择动效、浅色、深色主题，或跟随系统。",
   "settings.themeMode.light": "浅色",
   "settings.themeMode.dark": "深色",
   "settings.themeMode.zai-light": "浅色",

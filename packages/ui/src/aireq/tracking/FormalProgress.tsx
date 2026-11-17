@@ -226,11 +226,13 @@ export function AIReqFormalTable() {
                   <Fragment key={group.id}>
                     <MarkdownTableRow
                       data-ir-id={group.id}
+                      data-aireq-motion-row=""
                       aria-selected={selected}
                       className={`group/row cursor-pointer hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selected ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-transparent hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
                       onClick={() => open(group)}
                     >
                       <MarkdownTableCell
+                        data-aireq-motion-cell=""
                         className="sticky left-0 z-10 bg-card px-4 py-4 align-middle"
                         style={{
                           backgroundImage:
@@ -320,6 +322,7 @@ export function AIReqFormalTable() {
                           <MarkdownTableRow
                             key={sr.id}
                             data-sr-id={sr.id}
+                            data-aireq-motion-row=""
                             aria-selected={
                               selectedTarget?.projectId === group.projectId &&
                               selectedTarget.irId === group.id &&
@@ -329,6 +332,7 @@ export function AIReqFormalTable() {
                             onClick={() => open(group, sr)}
                           >
                             <MarkdownTableCell
+                              data-aireq-motion-cell=""
                               className="sticky left-0 z-10 bg-card pr-4 pl-12 py-3 align-middle"
                               style={{
                                 backgroundImage:

@@ -37,7 +37,6 @@ import { useSkills } from "@/hooks/useSkills.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
-import { useSlashCommands } from "./hooks/useSlashCommands.js";
 import { $createPromptMentionNode } from "./mentions/nodes/PromptMentionNode.js";
 import {
   extractActivePromptInputTrigger,
@@ -53,7 +52,6 @@ import {
   buildAppSlashCommandSuggestions,
   buildSkillSuggestions,
   buildSubagentSuggestions,
-  buildSlashSuggestions,
   getTextAroundCursor,
   isAppSlashCommandSuggestion,
   normalizeSlashCommandValue,
@@ -162,9 +160,6 @@ export function SlashCommandPlugin({
   const [editor] = useLexicalComposerContext();
   const { intl, locale } = useZCodeIntl();
   const [activeTrigger, setActiveTrigger] = useState<ActivePromptInputTrigger | null>(null);
-  // 远程 workspace 的 slashCommands 写在 workspaceIdentity 桶。
-  // 这里只按 workspacePath 读取会落到 path 桶，表现为 ZCode Agent 已收到 available_commands_update 但 / 面板为空。
-  const commands = useSlashCommands(workspacePath, workspaceIdentity);
   const {
     agents,
     loading: subagentsLoading,
@@ -186,19 +181,11 @@ export function SlashCommandPlugin({
   const activeTokenRef = useRef<ActivePromptInputTokenSnapshot | null>(null);
   const commandSuggestions = useMemo(() => {
     const excluded = new Set((excludedCommandNames ?? []).map(normalizeSlashCommandValue));
-    const recoveryNames = new Set(
-      appCommands?.filter((command) => command.recovery).map((command) => command.value),
+    // App 命令由当前 Composer 注册；子代理与 Skill 仍各自读取原生目录。
+    return buildAppSlashCommandSuggestions(appCommands ?? []).filter(
+      (item) => !excluded.has(item.value),
     );
-    const cliSuggestions = buildSlashSuggestions(commands).filter(
-      (item) => !excluded.has(item.value) && !recoveryNames.has(item.value),
-    );
-    // App 层命令追加在 CLI catalog 之后展示；CLI 已提供同名命令时以 CLI 为准，避免遮蔽。
-    const cliValues = new Set(cliSuggestions.map((item) => item.value));
-    const appSuggestions = buildAppSlashCommandSuggestions(appCommands ?? []).filter(
-      (item) => !cliValues.has(item.value) && !excluded.has(item.value),
-    );
-    return [...cliSuggestions, ...appSuggestions];
-  }, [appCommands, commands, excludedCommandNames]);
+  }, [appCommands, excludedCommandNames]);
   const subagentSuggestions = useMemo(() => buildSubagentSuggestions(agents), [agents]);
   const skillSuggestions = useMemo(
     () =>
@@ -462,9 +449,10 @@ export function SlashCommandPlugin({
     ? ""
     : intl.formatMessage({ id: "chat.slash.searchHint" });
 
+  // 空状态按未过滤查询的应用命令计数，区分“无可用命令”和“无匹配结果”。
   const panelSections = useSlashCommandMentionPanelSections(
     intl,
-    commands.length,
+    commandSuggestions.length,
     filteredCommandSuggestions,
     filteredSkillSuggestions,
     skillsLoading,
