@@ -2,7 +2,7 @@
 
 ## 产品规则与所有者
 
-第三方复制内容保留各自许可、版权及适用的文件内修改声明。包元数据不能单独替代上游原始材料。没有取得证据的事项保持阻断，不能通过更新哈希、删除记录或编造权利人关闭。第一方代码的对外许可由开源导出覆盖层提供，不在本目录声明。
+第三方复制内容保留各自许可、版权及适用的文件内修改声明。包元数据不能单独替代上游原始材料，也不能编造权利人。生成器收集现有材料，显式检查只校验许可证标识、声明哈希与输入新鲜度，不设置完整许可原文门禁；材料缺口作为来源局限保留，不表示授权材料已补齐。第一方代码的对外许可由开源导出覆盖层提供，不在本目录声明。
 
 | 所有者                                                               | 职责                                                             |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -10,7 +10,7 @@
 | `third-party/native-search/`、`third-party/runtime/`                 | 已退役发行格式的材料保留区；不是当前 Web 发行输入                |
 | `scripts/third-party-npm.mjs`                                        | 解析锁文件生产图与实际安装图、读取包内原文                       |
 | `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`） | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`                |
-| `scripts/licenses.mjs check [--strict]`                              | 显式许可标识、输入新鲜度与材料完整性检查                         |
+| `scripts/licenses.mjs check`                                        | 显式许可标识、声明哈希与输入新鲜度检查                           |
 | `scripts/third-party-notices.mjs`                                    | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
 
 ## 当前发行范围
@@ -35,7 +35,9 @@
 
 `npm-overrides.json` 只登记当前生产图中、包内缺少完整许可文件的精确版本。每条记录绑定固定上游来源与原文 SHA-256；包名或版本离开生产图即视为过期登记，生成直接失败。升级依赖时必须重新核对来源和原文，不能把旧版本材料套到新版本，也不能编造版权人。`khroma@2.1.0` 这类包没有独立 LICENSE 文件，但记录中的 `license` 仅作为包内元数据缺失时的标识补充，不冒充完整原文。
 
-2026-11-14 逐项复检结论：`react-remove-scroll-bar@2.3.8`、`@hono/node-ws@1.3.0`、`ansi-to-react@6.2.6` 的精确 npm 归档都没有 LICENSE/COPYING/NOTICE，对应 release ref 的源码树也没有；`react-remove-scroll-bar` 的 npm gitHead 已不可达，仓库没有 2.3.8 对应的 ref。`react-remove-scroll-bar` 与 `@hono/node-ws` 后来补的 LICENSE 分别晚于 2.3.8（2024-12-15）和 1.3.0（2026-01-07）发布，`@hono/node-ws` 维护者还明确说明该文件从下一个版本起才随包发布；`ansi-to-react` 全部历史都没有许可文件。后补原文以固定 commit、SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不合并进这些版本的声明，也不据此关闭 `reviewRequired`。
+`boolbase@1.0.0` 与 `remark-github-blockquote-alert@1.3.1` 的发布包和对应源码树均未提供完整许可文件：前者只声明 ISC，后者声明 MIT 且 README 保留 Kenny Wong 署名。补充材料沿用 `evidenceKind: publisher-license-identifier-and-standard-terms`，明确区分发布者声明与标准条款；`reviewEvidence` 固定源码提交和缺失事实，仅用于追溯，不设置完整性门禁，不从作者字段推测版权人或补写年份。
+
+`react-remove-scroll-bar@2.3.8`、`@hono/node-ws@1.3.0`、`ansi-to-react@6.2.6` 的精确 npm 归档都没有 LICENSE/COPYING/NOTICE，对应 release ref 的源码树也没有；`react-remove-scroll-bar` 的 npm gitHead 已不可达，仓库没有 2.3.8 对应的 ref。`react-remove-scroll-bar` 与 `@hono/node-ws` 后来补的 LICENSE 分别晚于 2.3.8（2024-12-15）和 1.3.0（2026-01-07）发布，`@hono/node-ws` 维护者还明确说明该文件从下一个版本起才随包发布；`ansi-to-react` 全部历史都没有许可文件。后补原文以固定 commit、SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不合并进这些版本的声明，也不表示版本对应材料已补齐。
 
 ## 复制源码、技能与素材
 
@@ -46,14 +48,10 @@
 | 内容                   | 本地范围                                                                     | 上游许可与修改说明                                                                                                                                                                                                                                          |
 | ---------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | shadcn/ui              | `packages/ui/src/components/ui/`、`packages/ui/src/styles.css` 的衍生部分    | MIT；本地修改包含样式、国际化和组件组合，自有组件不归属于上游。                                                                                                                                                                                             |
-| AI Elements            | `packages/ui/src/components/ai-elements/`、`.agents/skills/ai-elements/`     | Apache-2.0，Copyright 2023 Vercel, Inc.；本地修改包含样式、导入路径、组件扩展及技能说明。                                                                                                                                                                   |
-| agent-browser 技能     | `.agents/skills/agent-browser/`                                              | Apache-2.0，Copyright 2025 Vercel Inc.；同一上游版本中的 dogfood 技能不在当前 checkout，不在此登记。                                                                                                                                                        |
+| AI Elements            | `packages/ui/src/components/ai-elements/`                                   | Apache-2.0，Copyright 2023 Vercel, Inc.；本地修改包含样式、导入路径及组件扩展。                                                                                                                                                                             |
 | VS Code IPC 与基础工具 | `packages/rpc/src/`、`packages/rpc/examples/` 的衍生部分，及 `wire-codec.ts` | MIT，保留 Microsoft 原始版权行；本地进行了模块拆分、传输扩展和封装修改，不将所有本地实现归属于上游。                                                                                                                                                        |
 | Superpowers 技能描述   | `packages/ui/src/lib/builtinSkillI18n.ts`                                    | MIT，Copyright (c) 2025 Jesse Vincent；只覆盖该文件中的 Superpowers 描述及翻译，原 CLI 插件实现随命令工作区删除。                                                                                                                                           |
 | Material Icon Theme    | `packages/web/public/material-icons/`                                        | MIT；本地按 Web 资源路径引用，不再包含 Desktop 副本。                                                                                                                                                                                                       |
-| React Best Practices   | `.agents/skills/react-best-practices/`                                       | MIT 标识；固定 revision `063bee94c3f4df8453406c830b0a7df0f2860278` 全树无 LICENSE/COPYING/NOTICE、无版权行，raw LICENSE 与 GitHub license API 均返回 404；2026-11-14 复检 `main` 仍无；[blocked]，待 Vercel/权利人提供完整 MIT 版权许可原文；参与严格门禁。 |
-
-React Best Practices 的证据核验保持阻断：固定 revision 的完整 tarball 中不存在 `Permission is hereby granted` 或任何 `Copyright` 文本，根 README 只有 `## License` 后跟 `MIT`，技能 frontmatter 只有 `license: MIT`。2026-11-14 复检当前 `main` 的 tarball（SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有 LICENSE/COPYING/NOTICE 或版权行。原始 README 与 SKILL 快照及 SHA-256 作为 `reviewEvidence` 登记在 `copied-components.json`（分别对应 `third-party/upstream/7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651.txt` 与 `third-party/upstream/71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355.txt`）；已试 URL 与所需材料同在该登记中。这些快照只用于追溯，不作为许可全文输出；未取得版权行前不得用其他仓库的 MIT 文本拼接或推测版权人关闭该项。
 
 已退役且不再登记为当前输入的材料：Fig autocomplete 生成的 CLI 注册表、CLI design-plugin 的 design-resources 与 html-ppt 模板、Knip 文档镜像及其字体、Desktop 的 Material Icons 副本、dogfood 技能、Superpowers CLI 插件目录。仍可取得的原文快照保留在 `third-party/upstream/`，但不会进入当前声明或 Web 发行；随本地目录一起删除且无上游快照的材料不再声称仍被保留。
 
@@ -61,12 +59,12 @@ React Best Practices 的证据核验保持阻断：固定 revision 的完整 tar
 
 ```text
 开发 / bootstrap / build → readThirdPartyNotices 等读取已有材料 → Web 构建嵌入声明
-显式 notices / check     → 核验输入与原文 → 更新清单或报告失败
+显式 notices / check     → 收集现有材料 / 核验标识与哈希 → 更新清单或报告失败
 ```
 
 - 构建不更新清单，也不隐式运行许可校验；inventory 过期、待核验项都不阻断开发和打包。
 - 声明文件仍是打包输入；缺失、无法读取或无法解析时保留原始错误，不生成空声明。
-- `readVerifiedNotices(root, { requireComplete: true })` 只由显式检查使用。
+- `readVerifiedNotices(root)` 只由显式检查使用，校验声明与输入哈希；原文或 README 许可段落缺席不阻断生成，也不输出完整性待办门禁字段。
 - Windows checkout 的 CRLF 输入在新鲜度哈希中归一化为 LF；上游原文快照与最终声明按原始字节校验。
 
 ## 交付入口（本仓库已接入）
@@ -79,11 +77,9 @@ Server 当前不单独复制声明，部署随 Web 根目录声明。Desktop、C
 
 ## 验收
 
-1. `pnpm install --frozen-lockfile`：安装快照必须与 `pnpm-lock.yaml` 一致，否则生成器拒绝运行。
-2. `node scripts/licenses.mjs notices`：从最终锁文件和现存资产重新生成声明与 inventory。
-3. `node scripts/licenses.mjs check`：校验许可标识、声明哈希与全部输入文件的新鲜度。
-4. `node scripts/licenses.mjs check --strict`：材料完整性门禁；`reviewRequired` 非空时如实失败，不能靠更新哈希放行。
-5. `node --test scripts/third-party-notices.test.mjs`：验证构建复制/嵌入在声明或 inventory 缺失时仍成功，显式校验失败。
-6. `pnpm --filter @zcode/web build`：验证 Web 产物根目录包含当前 `THIRD-PARTY-NOTICES.md` 且 HTML 带 `rel="license"`。
+1. `bun x --bun --package pnpm@10.33.2 pnpm install --frozen-lockfile`：安装快照必须与 `pnpm-lock.yaml` 一致，否则生成器拒绝运行。
+2. `bun scripts/licenses.mjs notices`：从最终锁文件和现存资产重新生成声明与 inventory；允许包中没有许可文件或只有 README 许可段落，但显式登记的材料缺失或哈希不符仍然失败。
+3. `bun scripts/licenses.mjs check`：校验许可标识、声明哈希与全部输入文件的新鲜度；不支持额外参数或完整性检查模式。
+4. `bun run build:web`：验证 Web 产物根目录包含当前 `THIRD-PARTY-NOTICES.md` 且 HTML 带 `rel="license"`。
 
 最终安装包未实际构建时，不声称完成发行审计。

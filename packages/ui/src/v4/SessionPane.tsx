@@ -480,7 +480,7 @@ function createAgentPresentationCapabilities(agents: ReturnType<typeof useSubage
 /**
  * 单 pane 竖切：订阅 → 渲染 rows → composer 发送 / stop（06-ui §SessionPane）。
  *
- * React 性能（vercel-react-best-practices）：
+ * React 性能：
  * - 叶子组件（Header/Timeline/QueuePanel/InputControls/Composer/GoalBanner）均 memo；
  * - 长期回调通过独立工厂或 useCallback 复用，且不依赖高频 snapshot——snapshot/composer 文本经 ref 读取，
  *   使回调在流式增量期间保持稳定引用，避免把新函数灌进 memo 子组件触发无谓重渲染；

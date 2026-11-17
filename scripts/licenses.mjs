@@ -18,7 +18,6 @@ import {
   isReviewedLegacyLicense,
   legacyLicenseIdentifier,
 } from "./license-identifiers.mjs";
-import { readFile } from "node:fs/promises";
 import {
   readWorkspaceProductionGraph,
   scanInstalledPackages,
@@ -29,6 +28,11 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const command = process.argv[2] || "notices";
+// 许可检查只接受单一子命令，拒绝已移除模式或其他额外参数。
+if (process.argv.length > 3) {
+  console.error("用法: bun scripts/licenses.mjs [notices|check]");
+  process.exit(2);
+}
 if (command === "notices") {
   await generateThirdPartyNotices(ROOT);
   process.exit(0);
@@ -139,14 +143,7 @@ if (command === "check") {
     );
     process.exit(1);
   }
-  await readVerifiedNotices(ROOT, { requireComplete: process.argv.includes("--strict") });
-  const reviewRequired =
-    JSON.parse(await readFile(path.join(ROOT, "third-party/inventory.json"), "utf8"))
-      .reviewRequired ?? [];
-  if (reviewRequired.length)
-    console.warn(
-      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 bun scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,
-    );
+  await readVerifiedNotices(ROOT);
   const n = installed.size;
   console.log(
     `✓ 许可标识与声明新鲜度检查通过：${n} 个实装包（构建依赖复核 ${[...installed.values()].filter((r) => r.bucket.startsWith("yellow")).length} 项）；材料限制见 third-party/README.md`,

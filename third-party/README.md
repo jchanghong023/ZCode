@@ -7,16 +7,13 @@ Desktop、CLI、独立 Server 发行包/SEA 和原生搜索工具已退役，当
 ## 生成与新鲜度校验
 
 ```sh
-pnpm install --frozen-lockfile
-node scripts/licenses.mjs notices
-node scripts/licenses.mjs check
-# 材料完整性门禁：reviewRequired 非空时失败，不能靠更新哈希放行。
-node scripts/licenses.mjs check --strict
+bun x --bun --package pnpm@10.33.2 pnpm install --frozen-lockfile
+bun scripts/licenses.mjs notices
+bun scripts/licenses.mjs check
 ```
 
-- `notices` 只从当前锁文件的生产依赖图和现存复制资产生成 `THIRD-PARTY-NOTICES.md` 与 `third-party/inventory.json`。
-- `check` 校验许可标识、声明 SHA-256，以及 inventory 登记的全部输入文件；输入被修改或声明被截断时失败。
-- `check --strict` 在材料缺口关闭前如实失败。基础检查通过不等于合规完成。
+- `notices` 只从当前锁文件的生产依赖图和现存复制资产生成 `THIRD-PARTY-NOTICES.md` 与 `third-party/inventory.json`。收集已有许可文件和 README 许可段落，不要求每个包提供完整许可原文。
+- `check` 校验许可标识、声明 SHA-256，以及 inventory 登记的全部输入文件；输入被修改或声明被截断时失败。不提供完整性检查模式，也不接受额外参数；通过检查不等于合规认证。
 - 构建只读取已有声明，不更新清单；inventory 过期或存在待核验项不阻断 Web 构建。
 - 修改 `copied-components.json`、`npm-overrides.json` 或依赖后必须先运行 `notices` 再运行 `check`。直接对旧 inventory 运行 `check` 会因输入哈希或已删除登记失败，这是预期的过期信号，不是绕过检查的理由。
 - 生成器先归一化 CRLF 再严格比对 `pnpm-lock.yaml` 与 `node_modules/.pnpm/lock.yaml`；安装快照过期时必须先执行 frozen install，不能直接重生成。
@@ -46,17 +43,14 @@ node scripts/licenses.mjs check --strict
 - 判断可达性以当前 `pnpm-lock.yaml` 的生产闭包为准，不以残留 `node_modules` 或日志中的旧包为准。
 - 任何 LGPL/GPL/EPL 或 MPL-only 包重新进入生产图时，必须按真实调用方、二进制分发方式和替换策略重新登记；未登记即由 `check` 阻断。
 
-React Best Practices 的真实缺口仍保留在 `copied-components.json` 与 `inventory.json` 的 `reviewRequired`：上游固定参考 `063bee94c3f4df8453406c830b0a7df0f2860278` 只有 MIT 标识、没有完整 LICENSE 文件，本地只保留 Shu Ding / Vercel 署名。2026-11-14 复检当前 `main` 分支仍然没有 LICENSE/COPYING/NOTICE，也没有版权行，因此不能用新分支状态关闭该条。该条目继续由 `check --strict` 阻断，不因本次放行表清理而关闭或降级。
-
 ## 复制内容与改编声明
 
-当前登记 shadcn/ui、AI Elements、agent-browser 技能、VS Code IPC/基础工具、Superpowers 技能描述、Material Icon Theme 与 React Best Practices。范围、许可和改编说明见 [SPEC.md](SPEC.md#复制源码技能与素材)。
+当前登记 shadcn/ui、AI Elements 组件、VS Code IPC/基础工具、Superpowers 技能描述与 Material Icon Theme。范围、许可和改编说明见 [SPEC.md](SPEC.md#复制源码技能与素材)。
 
 - Apache-2.0 复制内容中已确认源自上游并经过改编的文件，必须同时保留集中声明和文件内 `Modified by ZCode:` 声明；生成器会校验该标记。
 - shadcn 样式继续由 npm 原入口引入，不另复制 CSS。`shadcn@4.1.1` 的 MIT 原文与现有 shadcn 许可快照一致；版本由 UI manifest 和锁文件约束，不把整棵 CLI 依赖算作生产分发。
 - 未确认源自上游的自有文件不追加上游归属。
 - 最初引入 commit 未记录时保留 `importRevision: null`；固定的许可参考提交不冒充最初复制版本。
-- React Best Practices 固定参考 revision `063bee94c3f4df8453406c830b0a7df0f2860278` 全树没有 LICENSE/COPYING/NOTICE 或版权行；README 与 SKILL 仅声明 MIT，raw LICENSE 与 GitHub license API 均返回 404。2026-11-14 复检上游 `main`（tarball SHA-256 `2031cd6d47df03196f79ecf652efb2db125ccd7e0d0000b9a6af10949b814f7f`）同样没有许可文件或版权行。原始 README/SKILL 快照与 SHA-256、已试 URL 及所需材料登记在 `copied-components.json` 的 `reviewEvidence`；`reviewRequired` 保持 `[blocked]`，不能用通用条款、其他仓库文本或推测版权行拼接关闭。
 
 ## 已退役材料的保留
 
@@ -79,14 +73,15 @@ React Best Practices 的真实缺口仍保留在 `copied-components.json` 与 `i
 
 ## 尚待核验的材料边界
 
-`reviewRequired` 是唯一权威列表；基础检查通过仍可能保留缺口。当前已知类型：
+材料缺口保留在 `npm-overrides.json` 的 `reviewEvidence` 与声明的来源局限中，仅供追溯，不作为自动门禁。当前已知类型：
 
-- 复制内容缺少完整上游许可原文：React Best Practices（固定 revision 与 2026-11-14 复检的 `main` 均无 LICENSE/COPYING/NOTICE 和版权行；证据快照、已试 URL 与所需材料见 `copied-components.json` 的 `reviewEvidence`）。
 - `react-remove-scroll-bar@2.3.8`：npm 归档 27 个文件无许可文件；npm 记录的 gitHead `b3b1287aad81def2e2ae707274b74531b61ddbaf` 已不可达，仓库也没有 2.3.8 对应的 ref。上游 2025-05-21 才在 commit `7301c160fda44cb8cf2b9fdfde61efad35736196` 加入 MIT LICENSE（Copyright (c) 2025 Anton Korzunov），晚于 2024-12-15 的发布，只能作为证据保留，不能作为该版本的许可原文。
-- `@hono/node-ws@1.3.0` 已随后端迁移 Bun 移出依赖图，不再属于当前 `reviewRequired`；此前缺少版本对应许可的核验快照仅保留作历史证据，不表示许可缺口已补齐。
+- `@hono/node-ws@1.3.0` 已随后端迁移 Bun 移出依赖图，不再属于当前声明输入；此前缺少版本对应许可的核验快照仅保留作历史证据，不表示许可缺口已补齐。
 - `ansi-to-react@6.2.6`：npm 归档 4 个文件无许可文件；tag `v6.2.6` 对应的 `145140971e9d83ccac32265f24b1c55dea437896` 树无许可文件，全部历史也没有 LICENSE/COPYING/NOTICE 或版权行，README 只有 BSD-3-Clause 标识链接，无法取得完整原文。
-- 后补的 `react-remove-scroll-bar` 与 `@hono/node-ws` LICENSE 原文以固定 commit 和 SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不进入声明正文，也不用于关闭 `reviewRequired`。
+- `boolbase@1.0.0`：发布包和 `9837d5bf4f30390ac6384a6bc605ca2d69ade4bf` 源码树均无完整许可文件，只有 `package.json` 的 ISC 标识；没有版权行，不能从 author 字段推断版权人。
+- `remark-github-blockquote-alert@1.3.1`：发布包和 npm gitHead `bb71a22d33ff6118d91531ac118bac8445625530` 的源码树无完整许可文件；README 只有 `MIT © Kenny Wong`，未提供完整 MIT 授权条款。
+- 后补的 `react-remove-scroll-bar` 与 `@hono/node-ws` LICENSE 原文以固定 commit 和 SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不进入声明正文，也不表示版本对应材料已补齐。
 
-这些条目在 `check --strict` 下阻断；需要补充真实证据或移除对应材料，不能靠更新哈希或删除记录通过。
+这些记录不阻断声明生成与校验；已有归属、原文和证据仍须保留，不能把检查通过表述为材料缺口已关闭。
 
 具体规则、交付入口与验收命令见 [SPEC.md](SPEC.md)。

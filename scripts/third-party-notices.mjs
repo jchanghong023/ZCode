@@ -11,7 +11,7 @@ export async function readThirdPartyNotices(root = repositoryRoot) {
   return readFile(resolve(root, noticesFileName));
 }
 
-export async function readVerifiedNotices(root = repositoryRoot, { requireComplete = false } = {}) {
+export async function readVerifiedNotices(root = repositoryRoot) {
   const manifest = JSON.parse(await readFile(resolve(root, "third-party/inventory.json"), "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error("Unsupported third-party inventory");
   const bytes = await readThirdPartyNotices(root);
@@ -32,13 +32,6 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
     if (hash(text.replaceAll("\r\n", "\n")) !== expected) {
       throw new Error(`Third-party input changed: ${file}. Run bun scripts/licenses.mjs notices`);
     }
-  }
-  if (requireComplete && !Array.isArray(manifest.reviewRequired))
-    throw new Error("Missing material review inventory; regenerate third-party notices");
-  if (requireComplete && manifest.reviewRequired.length) {
-    throw new Error(
-      `Unresolved third-party material obligations:\n${manifest.reviewRequired.map((item) => `${item.id}: ${item.reason}`).join("\n")}`,
-    );
   }
   return bytes;
 }

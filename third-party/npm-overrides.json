@@ -1,5 +1,46 @@
 [
   {
+    "package": "boolbase@1.0.0",
+    "file": "third-party/upstream/1f9c62a3b5b45394403a9e2d8a7af2690a2b852f742342d13dbd29bfe4586ba0.txt",
+    "sha256": "1f9c62a3b5b45394403a9e2d8a7af2690a2b852f742342d13dbd29bfe4586ba0",
+    "source": "https://registry.npmjs.org/boolbase/1.0.0",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "ISC",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-17",
+      "status": "blocked",
+      "result": "The exact 1.0.0 npm archive contains only package.json, README.md and index.js, with no complete license or copyright notice. The matching initial source tree declares version 1.0.0 and only the ISC identifier. Standard terms are supplied separately and do not establish a complete version-specific upstream license; no copyright holder is inferred from the npm author field.",
+      "npmArchiveSha256": "69628ff8092c5ff940ea4a0f29da98d520615bae138755c9e059033606c6caa8",
+      "npmArchiveFileCount": 3,
+      "npmArchiveLicenseFiles": [],
+      "sourceRevision": "9837d5bf4f30390ac6384a6bc605ca2d69ade4bf",
+      "sourceTreeUrl": "https://api.github.com/repos/fb55/boolbase/git/trees/9837d5bf4f30390ac6384a6bc605ca2d69ade4bf",
+      "upstreamLicenseFiles": [],
+      "requiredMaterial": "A complete ISC license naming the copyright holder for boolbase 1.0.0, or an authoritative rightsholder statement covering that release."
+    }
+  },
+  {
+    "package": "remark-github-blockquote-alert@1.3.1",
+    "file": "third-party/upstream/b38794eafbd802fc448f71756e26404e94fd1750748fa36e20f2f5d301209ab6.txt",
+    "sha256": "b38794eafbd802fc448f71756e26404e94fd1750748fa36e20f2f5d301209ab6",
+    "source": "https://registry.npmjs.org/remark-github-blockquote-alert/1.3.1",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MIT",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-17",
+      "status": "blocked",
+      "result": "The exact 1.3.1 npm archive contains seven files and no complete license. Its README license section states only MIT © Kenny Wong. The source tree at the npm gitHead also has no LICENSE, COPYING or NOTICE. The README attribution is preserved verbatim, but standard MIT terms do not close the missing complete upstream license and no copyright year is inferred.",
+      "npmArchiveSha256": "508e88ff0cdd0f52c20d893a63ec1e75b2c0b1ec7f903109cd8b59945f9b236c",
+      "npmArchiveFileCount": 7,
+      "npmArchiveLicenseFiles": [],
+      "packumentGitHead": "bb71a22d33ff6118d91531ac118bac8445625530",
+      "sourceRevision": "bb71a22d33ff6118d91531ac118bac8445625530",
+      "sourceTreeUrl": "https://api.github.com/repos/jaywcjlove/remark-github-blockquote-alert/git/trees/bb71a22d33ff6118d91531ac118bac8445625530",
+      "upstreamLicenseFiles": [],
+      "requiredMaterial": "A complete MIT license from Kenny Wong or the rightsholder covering remark-github-blockquote-alert 1.3.1."
+    }
+  },
+  {
     "package": "victory-vendor@37.3.6",
     "file": "third-party/upstream/34dee5fd5e5cc756efb5ad4d64652bce719bdf5e900ca5d7538253e737930bc4.txt",
     "sha256": "34dee5fd5e5cc756efb5ad4d64652bce719bdf5e900ca5d7538253e737930bc4",

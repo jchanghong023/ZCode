@@ -8,6 +8,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @antfu/install-pkg@1.1.0 — MIT
 
+- @babel/runtime@7.29.14 — MIT
+
 - @braintree/sanitize-url@7.1.2 — MIT
 
 - @chevrotain/cst-dts-gen@12.0.0 — Apache-2.0
@@ -338,6 +340,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @types/ms@2.1.0 — MIT
 
+- @types/prismjs@1.26.6 — MIT
+
 - @types/prop-types@15.7.15 — MIT
 
 - @types/react-dom@18.3.7 — MIT
@@ -355,6 +359,10 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - @types/unist@3.0.3 — MIT
 
 - @types/use-sync-external-store@0.0.6 — MIT
+
+- @uiw/copy-to-clipboard@1.0.21 — MIT
+
+- @uiw/react-markdown-preview@5.2.1 — MIT
 
 - @ungap/structured-clone@1.3.0 — ISC
 
@@ -379,6 +387,10 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - aria-hidden@1.2.6 — MIT
 
 - bail@2.0.2 — MIT
+
+- bcp-47-match@2.0.3 — MIT
+
+- boolbase@1.0.0 — ISC
 
 - camelcase@5.3.1 — MIT
 
@@ -425,6 +437,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - cose-base@1.0.3 — MIT
 
 - cose-base@2.2.0 — MIT
+
+- css-selector-parser@3.3.0 — MIT
 
 - csstype@3.2.3 — MIT
 
@@ -528,6 +542,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - dijkstrajs@1.0.3 — MIT
 
+- direction@2.0.1 — MIT
+
 - dompurify@3.3.3 — (MPL-2.0 OR Apache-2.0)
 
 - embla-carousel-react@8.6.0 — MIT
@@ -562,6 +578,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - get-nonce@1.0.1 — MIT
 
+- github-slugger@2.0.0 — ISC
+
 - hachure-fill@0.5.2 — MIT
 
 - hast-util-from-dom@5.0.1 — ISC
@@ -572,6 +590,10 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - hast-util-from-parse5@8.0.3 — MIT
 
+- hast-util-has-property@3.0.0 — MIT
+
+- hast-util-heading-rank@3.0.0 — MIT
+
 - hast-util-is-element@3.0.0 — MIT
 
 - hast-util-parse-selector@4.0.0 — MIT
@@ -580,11 +602,15 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - hast-util-sanitize@5.0.2 — MIT
 
+- hast-util-select@6.0.4 — MIT
+
 - hast-util-to-html@9.0.5 — MIT
 
 - hast-util-to-jsx-runtime@2.3.6 — MIT
 
 - hast-util-to-parse5@8.0.1 — MIT
+
+- hast-util-to-string@3.0.1 — MIT
 
 - hast-util-to-text@4.0.2 — MIT
 
@@ -770,6 +796,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - nanoid@5.1.7 — MIT
 
+- nth-check@2.1.1 — BSD-2-Clause
+
 - oniguruma-parser@0.12.1 — MIT
 
 - oniguruma-to-es@4.3.5 — MIT
@@ -783,6 +811,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - package-manager-detector@1.6.0 — MIT
 
 - parse-entities@4.0.2 — MIT
+
+- parse-numeric-range@1.3.0 — ISC
 
 - parse5@7.3.0 — MIT
 
@@ -816,6 +846,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - react-jsx-parser@2.4.1 — MIT
 
+- react-markdown@10.1.0 — MIT
+
 - react-redux@9.3.0 — MIT
 
 - react-remove-scroll-bar@2.3.8 — MIT
@@ -834,25 +866,43 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - redux@5.0.1 — MIT
 
+- refractor@5.0.0 — MIT
+
 - regex-recursion@6.0.2 — MIT
 
 - regex-utilities@2.3.0 — MIT
 
 - regex@6.1.0 — MIT
 
+- rehype-attr@4.0.2 — MIT
+
+- rehype-autolink-headings@7.1.0 — MIT
+
 - rehype-harden@1.1.8 — MIT
+
+- rehype-ignore@2.0.3 — MIT
 
 - rehype-katex@7.0.1 — MIT
 
+- rehype-parse@9.0.1 — MIT
+
+- rehype-prism-plus@2.0.2 — MIT
+
 - rehype-raw@7.0.0 — MIT
 
+- rehype-rewrite@4.0.4 — MIT
+
 - rehype-sanitize@6.0.0 — MIT
+
+- rehype-slug@6.0.0 — MIT
 
 - remark-cjk-friendly-gfm-strikethrough@2.0.1 — MIT
 
 - remark-cjk-friendly@2.0.1 — MIT
 
 - remark-gfm@4.0.1 — MIT
+
+- remark-github-blockquote-alert@1.3.1 — MIT
 
 - remark-math@6.0.0 — MIT
 
@@ -932,6 +982,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - unified@11.0.5 — MIT
 
+- unist-util-filter@5.0.1 — MIT
+
 - unist-util-find-after@5.0.0 — MIT
 
 - unist-util-is@6.0.1 — MIT
@@ -943,6 +995,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - unist-util-stringify-position@4.0.0 — MIT
 
 - unist-util-visit-parents@6.0.2 — MIT
+
+- unist-util-visit@5.0.0 — MIT
 
 - unist-util-visit@5.1.0 — MIT
 
@@ -1002,6 +1056,10 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 Some publishers provide only a license identifier or a short README license section instead of a complete LICENSE file. For the following packages the supplied material explicitly identifies publisher metadata and standard terms; it is not represented as an original upstream LICENSE file. Any available README copyright notice is retained:
 
+- boolbase@1.0.0: https://registry.npmjs.org/boolbase/1.0.0
+
+- remark-github-blockquote-alert@1.3.1: https://registry.npmjs.org/remark-github-blockquote-alert/1.3.1
+
 - react-remove-scroll-bar@2.3.8: https://registry.npmjs.org/react-remove-scroll-bar/2.3.8
 
 - ansi-to-react@6.2.6: https://registry.npmjs.org/ansi-to-react/6.2.6
@@ -1012,17 +1070,13 @@ The original import revisions of copied components are not recorded in the curre
 
 - shadcn (MIT): packages/ui/src/components/ui, packages/ui/src/styles.css. License reference: https://raw.githubusercontent.com/shadcn-ui/ui/a87a63b2ca25143d26c8bd0903e4e9bc77b3f824/LICENSE.md. Original import revision: not recorded.
 
-- ai-elements (Apache-2.0): packages/ui/src/components/ai-elements, .agents/skills/ai-elements. License reference: https://raw.githubusercontent.com/vercel/ai-elements/6a9d5b1822ffb10bba4bd97175f01edd7d8651cd/LICENSE. Original import revision: not recorded.
+- ai-elements (Apache-2.0): packages/ui/src/components/ai-elements. License reference: https://raw.githubusercontent.com/vercel/ai-elements/6a9d5b1822ffb10bba4bd97175f01edd7d8651cd/LICENSE. Original import revision: not recorded.
 
 - Material Icon Theme (MIT): packages/web/public/material-icons. License reference: https://raw.githubusercontent.com/material-extensions/vscode-material-icon-theme/cb1dfb6d9cb73b15681a93939983d75dbba7bf5b/LICENSE. Original import revision: not recorded.
-
-- agent-browser skill (Apache-2.0): .agents/skills/agent-browser. License reference: https://raw.githubusercontent.com/vercel-labs/agent-browser/99c732c18810494593ead9dd96ab6f5f0c78b729/LICENSE. Original import revision: not recorded.
 
 - Visual Studio Code IPC and common utilities (MIT): packages/rpc/src, packages/rpc/examples, packages/shared/src/zcode-protocol-v4/wire-codec.ts. License reference: https://raw.githubusercontent.com/microsoft/vscode/44825207bf4389c3bd17c92d3ec28cf784c324cc/LICENSE.txt. Original import revision: not recorded.
 
 - Superpowers skill description adaptations (MIT): packages/ui/src/lib/builtinSkillI18n.ts. License reference: https://raw.githubusercontent.com/obra/superpowers/f2cbfbefebbfef77321e4c9abc9e949826bea9d7/LICENSE. Original import revision: not recorded.
-
-- React Best Practices skill (MIT): .agents/skills/react-best-practices. License reference: https://github.com/vercel-labs/agent-skills/tree/063bee94c3f4df8453406c830b0a7df0f2860278. Original import revision: not recorded. Review required: [blocked] The pinned revision 063bee94c3f4df8453406c830b0a7df0f2860278 has no LICENSE, COPYING or NOTICE file anywhere in its tree, and its full snapshot contains neither an MIT grant nor a copyright line. README.md declares only "MIT" (lines 237-239) and SKILL.md frontmatter declares only "license: MIT". The raw LICENSE URL and GitHub's license endpoint both return 404. Complete MIT copyright/license text from Vercel or the rightsholder covering this revision is still required.
 
 ## Modified npm packages
 
@@ -1031,6 +1085,8 @@ The original import revisions of copied components are not recorded in the curre
 - vitest@4.1.7: modified by ZCode; the changes are recorded in patches/vitest@4.1.7.patch in the source repository.
 
 - @radix-ui/react-menu@2.1.16: modified by ZCode; the changes are recorded in patches/@radix-ui__react-menu@2.1.16.patch in the source repository.
+
+- @uiw/react-markdown-preview@5.2.1: modified by ZCode; the changes are recorded in patches/@uiw__react-markdown-preview@5.2.1.patch in the source repository.
 
 - vite@8.0.8: modified by ZCode; the changes are recorded in patches/vite@8.0.8.patch in the source repository.
 
@@ -1077,6 +1133,38 @@ SOFTWARE.
 ## License
 
 [MIT](./LICENSE) License © 2021 [Anthony Fu](https://github.com/antfu)
+
+````
+
+### Notice 117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76
+
+- @babel/runtime@7.29.14: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2014-present Sebastian McKenzie and other contributors
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
@@ -2341,6 +2429,8 @@ SOFTWARE.
 
 - @shikijs/types@3.23.0: README.md (license section)
 
+- css-selector-parser@3.3.0: README.md (license section)
+
 - ts-dedent@2.2.0: README.md (license section)
 
 
@@ -2594,6 +2684,8 @@ SOFTWARE.
 
 - @types/ms@2.1.0: LICENSE
 
+- @types/prismjs@1.26.6: LICENSE
+
 - @types/prop-types@15.7.15: LICENSE
 
 - @types/react-dom@18.3.7: LICENSE
@@ -2636,6 +2728,94 @@ SOFTWARE.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE
+
+````
+
+### Notice 2634b338383dfd41c88e9bcaaa2e96d6dc3f1e5cea6c2cc58d21f735403d3c14
+
+- @uiw/copy-to-clipboard@1.0.21: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2023 uiw
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 64c22837f705abe665327fbb86a1c78bb12a626da5427679dfd68c59ed964b74
+
+- @uiw/copy-to-clipboard@1.0.21: README.md (license section)
+
+
+
+````text
+### License
+
+Licensed under the MIT License.
+
+````
+
+### Notice af76feac8280b1cdf8e69644f9da883cc00a84a2babf2e0de7ee4aa56e8e3873
+
+- @uiw/react-markdown-preview@5.2.1: dist/markdown.min.js.LICENSE.txt
+
+
+
+````text
+/**
+ * @license React
+ * react-jsx-runtime.production.min.js
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**! 
+ * @uiw/copy-to-clipboard v1.0.20 
+ * Copy to clipboard. 
+ * 
+ * Copyright (c) 2026 Kenny Wang 
+ * https://github.com/uiwjs/copy-to-clipboard.git 
+ * 
+ * @website: https://uiwjs.github.io/copy-to-clipboard
+ 
+ * Licensed under the MIT license 
+ */
+
+````
+
+### Notice 0847120f78cb0007771e8248e405c08bd43c3bd3e5fc43734401c7a66199eaec
+
+- @uiw/react-markdown-preview@5.2.1: README.md (license section)
+
+
+
+````text
+## License
+
+Licensed under the MIT License.
 
 ````
 
@@ -3034,6 +3214,8 @@ MIT
 
 - unist-util-position@5.0.0: license
 
+- unist-util-visit@5.0.0: license
+
 - unist-util-visit@5.1.0: license
 
 
@@ -3112,6 +3294,114 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 [noop2]: https://www.npmjs.com/package/noop2
 
 [noop3]: https://www.npmjs.com/package/noop3
+
+````
+
+### Notice 3deefaee9d13b2f578671d459a89f2fc3dbe3a12cddf88984517a858e4ee6f76
+
+- bcp-47-match@2.0.3: license
+
+
+
+````text
+(The MIT License)
+
+Copyright (c) 2018 Titus Wormer <tituswormer@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+````
+
+### Notice 68930086abd9171b60f7505fe2e6c5e56567291d37a03fc672968c0216cb8da1
+
+- bcp-47-match@2.0.3: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/wooorm/bcp-47-match/workflows/main/badge.svg
+
+[build]: https://github.com/wooorm/bcp-47-match/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/wooorm/bcp-47-match.svg
+
+[coverage]: https://codecov.io/github/wooorm/bcp-47-match
+
+[downloads-badge]: https://img.shields.io/npm/dm/bcp-47-match.svg
+
+[downloads]: https://www.npmjs.com/package/bcp-47-match
+
+[size-badge]: https://img.shields.io/bundlephobia/minzip/bcp-47-match.svg
+
+[size]: https://bundlephobia.com/result?p=bcp-47-match
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esmsh]: https://esm.sh
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[typescript]: https://www.typescriptlang.org
+
+[contribute]: https://opensource.guide/how-to-contribute/
+
+[spec]: https://tools.ietf.org/html/bcp47
+
+[match]: https://tools.ietf.org/html/rfc4647
+
+[basic-range]: https://tools.ietf.org/html/rfc4647#section-2.1
+
+[extended-range]: https://tools.ietf.org/html/rfc4647#section-2.2
+
+````
+
+### Notice 1f9c62a3b5b45394403a9e2d8a7af2690a2b852f742342d13dbd29bfe4586ba0
+
+- boolbase@1.0.0: https://registry.npmjs.org/boolbase/1.0.0
+
+
+
+````text
+boolbase@1.0.0
+Publisher-declared license: ISC
+Evidence: https://registry.npmjs.org/boolbase/1.0.0
+Source: https://raw.githubusercontent.com/fb55/boolbase/9837d5bf4f30390ac6384a6bc605ca2d69ade4bf/package.json
+The published package and the matching source tree supply no complete license or copyright notice.
+No copyright holder or year has been inferred from the npm author field.
+The following is the standard license text without a supplied copyright notice, not a claim that an upstream LICENSE file was published.
+
+ISC License
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ````
 
@@ -3837,6 +4127,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 - comma-separated-tokens@2.0.3: license
 
+- hast-util-has-property@3.0.0: license
+
 - hast-util-is-element@3.0.0: license
 
 - hast-util-parse-selector@4.0.0: license
@@ -3855,9 +4147,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 - mdast-util-to-hast@13.2.1: license
 
+- rehype-autolink-headings@7.1.0: license
+
 - rehype-raw@7.0.0: license
 
 - rehype-sanitize@6.0.0: license
+
+- rehype-slug@6.0.0: license
 
 - space-separated-tokens@2.0.2: license
 
@@ -4203,6 +4499,34 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+````
+
+### Notice f8bcf3c7ea910a266c97007a3b93a11a4a9d735c2d1a86b71132a4dffd7cf8e8
+
+- css-selector-parser@3.3.0: LICENSE
+
+
+
+````text
+Copyright (c) 2013 Dulin Marat
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ````
 
 ### Notice 11d55bd4541c75ee7879547ac49089c489163dae49551389713c3d026cab383e
@@ -5113,6 +5437,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 - hast-util-sanitize@5.0.2: license
 
+- hast-util-select@6.0.4: license
+
 - hast-util-to-html@9.0.5: license
 
 - hast-util-to-jsx-runtime@2.3.6: license
@@ -5524,6 +5850,83 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+````
+
+### Notice 9966260ba3ea9d6a5f839297dca80ddc99735a34b4ae82811cac7b956d2e3afd
+
+- direction@2.0.1: license
+
+
+
+````text
+(The MIT License)
+
+Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+````
+
+### Notice 24428b323c73e952bdd2039fd8a27bc969fba684e0dddf8837cf951790a52cd4
+
+- direction@2.0.1: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/wooorm/direction/workflows/main/badge.svg
+
+[build]: https://github.com/wooorm/direction/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/wooorm/direction.svg
+
+[coverage]: https://codecov.io/github/wooorm/direction
+
+[downloads-badge]: https://img.shields.io/npm/dm/direction.svg
+
+[downloads]: https://www.npmjs.com/package/direction
+
+[size-badge]: https://img.shields.io/bundlephobia/minzip/direction.svg
+
+[size]: https://bundlephobia.com/result?p=direction
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[skypack]: https://www.skypack.dev
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[typescript]: https://www.typescriptlang.org
+
+[contribute]: https://opensource.guide/how-to-contribute/
 
 ````
 
@@ -6189,6 +6592,8 @@ _emoji-regex_ is available under the [MIT](https://mths.be/mit) license.
 
 - entities@6.0.1: LICENSE
 
+- nth-check@2.1.1: LICENSE
+
 
 
 ````text
@@ -6318,6 +6723,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ### Notice 536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61
 
 - estree-util-is-identifier-name@3.0.0: license
+
+- hast-util-heading-rank@3.0.0: license
 
 - mdast-util-gfm-autolink-literal@2.0.1: license
 
@@ -6611,6 +7018,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+````
+
+### Notice 542aefa99456832996da0cc63b14d8b89f04a30ba403e241dbe3e5aaf49fa372
+
+- github-slugger@2.0.0: LICENSE
+
+
+
+````text
+Copyright (c) 2015, Dan Flettre <fletd01@yahoo.com>
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+````
+
+### Notice c4642b6b7dd6b400e1bf4d1630da5c3a66e61c0d5217acf03bd4772ab94d45d1
+
+- github-slugger@2.0.0: README.md (license section)
+
+
+
+````text
+## License
+
+[ISC](LICENSE)
 
 ````
 
@@ -7072,6 +7507,146 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
+### Notice 4283b210f027589e829bcb4bb34e8254484e39a91d35a813854376c8070295f6
+
+- hast-util-has-property@3.0.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definition -->
+
+[build-badge]: https://github.com/syntax-tree/hast-util-has-property/workflows/main/badge.svg
+
+[build]: https://github.com/syntax-tree/hast-util-has-property/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/syntax-tree/hast-util-has-property.svg
+
+[coverage]: https://codecov.io/github/syntax-tree/hast-util-has-property
+
+[downloads-badge]: https://img.shields.io/npm/dm/hast-util-has-property.svg
+
+[downloads]: https://www.npmjs.com/package/hast-util-has-property
+
+[size-badge]: https://img.shields.io/badge/dynamic/json?label=minzipped%20size&query=$.size.compressedSize&url=https://deno.bundlejs.com/?q=hast-util-has-property
+
+[size]: https://bundlejs.com/?q=hast-util-has-property
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/syntax-tree/unist/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[typescript]: https://www.typescriptlang.org
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[health]: https://github.com/syntax-tree/.github
+
+[contributing]: https://github.com/syntax-tree/.github/blob/main/contributing.md
+
+[support]: https://github.com/syntax-tree/.github/blob/main/support.md
+
+[coc]: https://github.com/syntax-tree/.github/blob/main/code-of-conduct.md
+
+[hast]: https://github.com/syntax-tree/hast
+
+[element]: https://github.com/syntax-tree/hast#element
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[api-has-property]: #haspropertynode-field
+
+````
+
+### Notice 84df504ea4f6ee7b1d5e63654027ac8966c66b832b2c7b9a2db10c232b1632cf
+
+- hast-util-heading-rank@3.0.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definition -->
+
+[build-badge]: https://github.com/syntax-tree/hast-util-heading-rank/workflows/main/badge.svg
+
+[build]: https://github.com/syntax-tree/hast-util-heading-rank/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/syntax-tree/hast-util-heading-rank.svg
+
+[coverage]: https://codecov.io/github/syntax-tree/hast-util-heading-rank
+
+[downloads-badge]: https://img.shields.io/npm/dm/hast-util-heading-rank.svg
+
+[downloads]: https://www.npmjs.com/package/hast-util-heading-rank
+
+[size-badge]: https://img.shields.io/badge/dynamic/json?label=minzipped%20size&query=$.size.compressedSize&url=https://deno.bundlejs.com/?q=hast-util-heading-rank
+
+[size]: https://bundlejs.com/?q=hast-util-heading-rank
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/syntax-tree/unist/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[typescript]: https://www.typescriptlang.org
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[health]: https://github.com/syntax-tree/.github
+
+[contributing]: https://github.com/syntax-tree/.github/blob/main/contributing.md
+
+[support]: https://github.com/syntax-tree/.github/blob/main/support.md
+
+[coc]: https://github.com/syntax-tree/.github/blob/main/code-of-conduct.md
+
+[hast]: https://github.com/syntax-tree/hast
+
+[node]: https://github.com/syntax-tree/hast#nodes
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[hast-util-shift-heading]: https://github.com/syntax-tree/hast-util-shift-heading
+
+[api-heading-rank]: #headingranknode
+
+````
+
 ### Notice 22f957c88cbf227933af5a10780b2c618fc9a941c057bb9536ee6e6d21186ba5
 
 - hast-util-is-element@3.0.0: readme.md (license section)
@@ -7386,6 +7961,77 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
+### Notice b7024192469269b3e7a1a289f7068b14ed4cf88a5ead71e10ef3a3aec85e3bd5
+
+- hast-util-select@6.0.4: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][file-license] © [Titus Wormer][wooorm]
+
+<!-- Definitions -->
+
+[api-matches]: #matchesselector-node-space
+
+[api-select]: #selectselector-tree-space
+
+[api-select-all]: #selectallselector-tree-space
+
+[api-space]: #space
+
+[badge-build-image]: https://github.com/syntax-tree/hast-util-select/workflows/main/badge.svg
+
+[badge-build-url]: https://github.com/syntax-tree/hast-util-select/actions
+
+[badge-coverage-image]: https://img.shields.io/codecov/c/github/syntax-tree/hast-util-select.svg
+
+[badge-coverage-url]: https://codecov.io/github/syntax-tree/hast-util-select
+
+[badge-downloads-image]: https://img.shields.io/npm/dm/hast-util-select.svg
+
+[badge-downloads-url]: https://www.npmjs.com/package/hast-util-select
+
+[badge-size-image]: https://img.shields.io/bundlejs/size/hast-util-select
+
+[badge-size-url]: https://bundlejs.com/?q=hast-util-select
+
+[esmsh]: https://esm.sh
+
+[file-license]: license
+
+[github-gist-esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[github-hast]: https://github.com/syntax-tree/hast
+
+[github-hast-nodes]: https://github.com/syntax-tree/hast#nodes
+
+[github-unist-preorder]: https://github.com/syntax-tree/unist#preorder
+
+[github-unist-util-select]: https://github.com/syntax-tree/unist-util-select
+
+[github-unist-util-visit]: https://github.com/syntax-tree/unist-util-visit
+
+[health]: https://github.com/syntax-tree/.github
+
+[health-coc]: https://github.com/syntax-tree/.github/blob/main/code-of-conduct.md
+
+[health-contributing]: https://github.com/syntax-tree/.github/blob/main/contributing.md
+
+[health-support]: https://github.com/syntax-tree/.github/blob/main/support.md
+
+[npmjs-install]: https://docs.npmjs.com/cli/install
+
+[typescript]: https://www.typescriptlang.org
+
+[wikipedia-xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[wooorm]: https://wooorm.com
+
+````
+
 ### Notice 4000251cdc2021539fd259c124604bedf4e8a07b459b9cdd38564eb459e03282
 
 - hast-util-to-html@9.0.5: readme.md (license section)
@@ -7630,6 +8276,106 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 [api-options]: #options
 
 [api-space]: #space
+
+````
+
+### Notice e18cf5173e928f808f0cd208097fee8fbec9d28fc0255213938e4c559e29ff58
+
+- hast-util-to-string@3.0.1: license
+
+- html-url-attributes@3.0.1: license
+
+- rehype-parse@9.0.1: license
+
+
+
+````text
+(The MIT License)
+
+Copyright (c) Titus Wormer
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+````
+
+### Notice 77be5ef5c02202172b5e8dc0671f92e846337dac1f3a29960d1203eb407ca87a
+
+- hast-util-to-string@3.0.1: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+[author]: https://wooorm.com
+
+[build]: https://github.com/rehypejs/rehype-minify/actions
+
+[build-badge]: https://github.com/rehypejs/rehype-minify/workflows/main/badge.svg
+
+[chat]: https://github.com/rehypejs/rehype/discussions
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[coc]: https://github.com/rehypejs/.github/blob/main/code-of-conduct.md
+
+[contributing]: https://github.com/rehypejs/.github/blob/main/contributing.md
+
+[coverage]: https://codecov.io/github/rehypejs/rehype-minify
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/rehypejs/rehype-minify.svg
+
+[downloads]: https://www.npmjs.com/package/hast-util-to-string
+
+[downloads-badge]: https://img.shields.io/npm/dm/hast-util-to-string.svg
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esm-sh]: https://esm.sh
+
+[funding]: https://opencollective.com/unified
+
+[funding-backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[funding-sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[hast]: https://github.com/syntax-tree/hast
+
+[health]: https://github.com/rehypejs/.github
+
+[license]: https://github.com/rehypejs/rehype-minify/blob/main/license
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[rehype-sanitize]: https://github.com/rehypejs/rehype-sanitize
+
+[size]: https://bundlejs.com/?q=hast-util-to-string
+
+[size-badge]: https://img.shields.io/bundlejs/size/hast-util-to-string
+
+[support]: https://github.com/rehypejs/.github/blob/main/support.md
+
+[typescript]: https://www.typescriptlang.org
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
 
 ````
 
@@ -7947,37 +8693,6 @@ SOFTWARE.
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
-
-````
-
-### Notice e18cf5173e928f808f0cd208097fee8fbec9d28fc0255213938e4c559e29ff58
-
-- html-url-attributes@3.0.1: license
-
-
-
-````text
-(The MIT License)
-
-Copyright (c) Titus Wormer
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
 
 ````
 
@@ -13550,6 +14265,29 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
+### Notice 53a3985388c606d77e38e5bd225a8a433fd0e206c5287004fb1c2cb673affb3c
+
+- parse-numeric-range@1.3.0: LICENSE
+
+
+
+````text
+Copyright (c) 2014, Euank <euank@euank.com>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+````
+
 ### Notice 8c535800331e1e4439835555b3f9edc7fe9dee2fab0d8bbbd5a982e8b8343d4d
 
 - parse5@7.3.0: LICENSE
@@ -14173,6 +14911,168 @@ SOFTWARE.
 
 ````
 
+### Notice f6196c64e144f9a6fa9154c3a80bc8b89615a9567934b83a8951879f06ba2aef
+
+- react-markdown@10.1.0: license
+
+
+
+````text
+The MIT License (MIT)
+
+Copyright (c) Espen Hovlandsdal
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 00377dfb6487a82f02e9af9c4b44fa69a94eee76188c681cdfe0ad3f660f2645
+
+- react-markdown@10.1.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][file-license] © [Espen Hovlandsdal][author]
+
+[api-allow-element]: #allowelement
+
+[api-components]: #components
+
+[api-default-url-transform]: #defaulturltransformurl
+
+[api-extra-props]: #extraprops
+
+[api-hooks-options]: #hooksoptions
+
+[api-markdown]: #markdown
+
+[api-markdown-async]: #markdownasync
+
+[api-markdown-hooks]: #markdownhooks
+
+[api-options]: #options
+
+[api-url-transform]: #urltransform
+
+[author]: https://espen.codes/
+
+[badge-build-image]: https://github.com/remarkjs/react-markdown/workflows/main/badge.svg
+
+[badge-build-url]: https://github.com/remarkjs/react-markdown/actions
+
+[badge-coverage-image]: https://img.shields.io/codecov/c/github/remarkjs/react-markdown.svg
+
+[badge-coverage-url]: https://codecov.io/github/remarkjs/react-markdown
+
+[badge-downloads-image]: https://img.shields.io/npm/dm/react-markdown.svg
+
+[badge-downloads-url]: https://www.npmjs.com/package/react-markdown
+
+[badge-size-image]: https://img.shields.io/bundlejs/size/react-markdown
+
+[badge-size-url]: https://bundlejs.com/?q=react-markdown
+
+[commonmark-help]: https://commonmark.org/help/
+
+[commonmark-html]: https://spec.commonmark.org/0.31.2/#html-blocks
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[file-license]: license
+
+[github-awesome-rehype]: https://github.com/rehypejs/awesome-rehype
+
+[github-awesome-remark]: https://github.com/remarkjs/awesome-remark
+
+[github-conorhastings]: https://github.com/conorhastings
+
+[github-hast-element]: https://github.com/syntax-tree/hast#element
+
+[github-hast-nodes]: https://github.com/syntax-tree/hast#nodes
+
+[github-io-react-markdown]: https://remarkjs.github.io/react-markdown/
+
+[github-mdx]: https://github.com/mdx-js/mdx/
+
+[github-micromark]: https://github.com/micromark/micromark
+
+[github-react-remark]: https://github.com/remarkjs/react-remark
+
+[github-react-syntax-highlighter]: https://github.com/react-syntax-highlighter/react-syntax-highlighter
+
+[github-rehype]: https://github.com/rehypejs/rehype
+
+[github-rehype-katex]: https://github.com/remarkjs/remark-math/tree/main/packages/rehype-katex
+
+[github-rehype-plugins]: https://github.com/rehypejs/rehype/blob/main/doc/plugins.md#list-of-plugins
+
+[github-rehype-raw]: https://github.com/rehypejs/rehype-raw
+
+[github-rehype-react]: https://github.com/rehypejs/rehype-react
+
+[github-rehype-sanitize]: https://github.com/rehypejs/rehype-sanitize
+
+[github-remark]: https://github.com/remarkjs/remark
+
+[github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+
+[github-remark-math]: https://github.com/remarkjs/remark-math
+
+[github-remark-plugins]: https://github.com/remarkjs/remark/blob/main/doc/plugins.md#list-of-plugins
+
+[github-remark-rehype-options]: https://github.com/remarkjs/remark-rehype#options
+
+[github-topic-rehype-plugin]: https://github.com/topics/rehype-plugin
+
+[github-topic-remark-plugin]: https://github.com/topics/remark-plugin
+
+[github-unified]: https://github.com/unifiedjs/unified
+
+[health]: https://github.com/remarkjs/.github
+
+[health-coc]: https://github.com/remarkjs/.github/blob/main/code-of-conduct.md
+
+[health-contributing]: https://github.com/remarkjs/.github/blob/main/contributing.md
+
+[health-support]: https://github.com/remarkjs/.github/blob/main/support.md
+
+[npm-install]: https://docs.npmjs.com/cli/install
+
+[react]: http://reactjs.org
+
+[section-components]: #appendix-b-components
+
+[section-plugins]: #plugins
+
+[section-security]: #security
+
+[section-syntax]: #syntax
+
+[typescript]: https://www.typescriptlang.org
+
+````
+
 ### Notice f2da73c752c6b87624755edacf927cbd915fa76555d383e74494bad4a5155ab3
 
 - react-redux@9.3.0: LICENSE.md
@@ -14431,6 +15331,104 @@ MIT
 
 ````
 
+### Notice 4b74d4b7b5ec11a254b1482d85a23dd944c873dc73c2ec3a86eaee43c13bdb53
+
+- refractor@5.0.0: license
+
+
+
+````text
+(The MIT License)
+
+Copyright (c) Titus Wormer <tituswormer@gmail.com>
+Copyright (c) Lea Verou
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+````
+
+### Notice 85c065b1a1369f53fb97aa5d64bd4035e44edd25d7275871172aeb7f0be02091
+
+- refractor@5.0.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][file-license] © [Titus Wormer][wooorm]
+
+<!-- Definitions -->
+
+[api-syntax]: #syntax
+
+[badge-build-image]: https://github.com/wooorm/refractor/workflows/main/badge.svg
+
+[badge-build-url]: https://github.com/wooorm/refractor/actions
+
+[badge-coverage-image]: https://img.shields.io/codecov/c/github/wooorm/refractor.svg
+
+[badge-coverage-url]: https://codecov.io/github/wooorm/refractor
+
+[badge-downloads-image]: https://img.shields.io/npm/dm/refractor.svg
+
+[badge-downloads-url]: https://www.npmjs.com/package/refractor
+
+[badge-size-image]: https://img.shields.io/bundlejs/size/refractor
+
+[badge-size-url]: https://bundlejs.com/?q=refractor
+
+[esmsh]: https://esm.sh
+
+[file-license]: license
+
+[github-gist-esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[github-hast-root]: https://github.com/syntax-tree/hast#root
+
+[github-hast-util-to-html]: https://github.com/syntax-tree/hast-util-to-html
+
+[github-hast-util-to-jsx-runtime]: https://github.com/syntax-tree/hast-util-to-jsx-runtime
+
+[github-highlightjs]: https://github.com/highlightjs/highlight.js
+
+[github-lowlight]: https://github.com/wooorm/lowlight
+
+[github-prism]: https://github.com/PrismJS/prism
+
+[github-rehype]: https://github.com/rehypejs/rehype
+
+[github-starry-night]: https://github.com/wooorm/starry-night
+
+[npmjs-install]: https://docs.npmjs.com/cli/install
+
+[opensource-guide]: https://opensource.guide/how-to-contribute/
+
+[prismjs-languages]: https://prismjs.com/#languages-list
+
+[react]: https://react.dev
+
+[wooorm]: https://wooorm.com
+
+````
+
 ### Notice 8ca7af4f6c753e5ab8388e1078d94ce4650723bba4b0d4dfe562fbd45fb4a4e6
 
 - regex-utilities@2.3.0: LICENSE
@@ -14459,6 +15457,153 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+````
+
+### Notice 90218e696cd198da671e4cc19c7ed59c14e45ff3e74b9e279c1241c95ccc13ec
+
+- rehype-attr@4.0.2: LICENSE
+
+- rehype-rewrite@4.0.4: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2021 小弟调调™
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice fabc4ccf52f69e61e118564615f3c0f6a98672db939e7bb45e872787769ad6ce
+
+- rehype-attr@4.0.2: README.md (license section)
+
+- rehype-ignore@2.0.3: README.md (license section)
+
+- rehype-rewrite@4.0.4: README.md (license section)
+
+- remark-github-blockquote-alert@1.3.1: README.md (license section)
+
+
+
+````text
+## License
+
+MIT © [Kenny Wong](https://github.com/jaywcjlove)
+
+````
+
+### Notice 645eabf5cd958bb8607d2b42bfa9e5730763f0e7399e8524299b11eb811b4cd6
+
+- rehype-autolink-headings@7.1.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/rehypejs/rehype-autolink-headings/workflows/main/badge.svg
+
+[build]: https://github.com/rehypejs/rehype-autolink-headings/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/rehypejs/rehype-autolink-headings.svg
+
+[coverage]: https://codecov.io/github/rehypejs/rehype-autolink-headings
+
+[downloads-badge]: https://img.shields.io/npm/dm/rehype-autolink-headings.svg
+
+[downloads]: https://www.npmjs.com/package/rehype-autolink-headings
+
+[size-badge]: https://img.shields.io/bundlejs/size/rehype-autolink-headings
+
+[size]: https://bundlejs.com/?q=rehype-autolink-headings
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/rehypejs/rehype/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[health]: https://github.com/rehypejs/.github
+
+[contributing]: https://github.com/rehypejs/.github/blob/main/contributing.md
+
+[support]: https://github.com/rehypejs/.github/blob/main/support.md
+
+[coc]: https://github.com/rehypejs/.github/blob/main/code-of-conduct.md
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[hast-element]: https://github.com/syntax-tree/hast#element
+
+[hast-node]: https://github.com/syntax-tree/hast#nodes
+
+[hast-util-is-element-test]: https://github.com/syntax-tree/hast-util-is-element#test
+
+[hast-properties]: https://github.com/syntax-tree/hast#properties
+
+[hastscript]: https://github.com/syntax-tree/hastscript
+
+[hast-util-from-html-isomorphic]: https://github.com/syntax-tree/hast-util-from-html-isomorphic
+
+[rehype]: https://github.com/rehypejs/rehype
+
+[rehype-sanitize]: https://github.com/rehypejs/rehype-sanitize
+
+[typescript]: https://www.typescriptlang.org
+
+[unified]: https://github.com/unifiedjs/unified
+
+[unified-transformer]: https://github.com/unifiedjs/unified#transformer
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[rehype-slug]: https://github.com/rehypejs/rehype-slug
+
+[api-behavior]: #behavior
+
+[api-build]: #build
+
+[api-build-properties]: #buildproperties
+
+[api-options]: #options
+
+[api-rehype-autolink-headings]: #unifieduserehypeautolinkheadings-options
 
 ````
 
@@ -14503,6 +15648,37 @@ SOFTWARE.
 ## License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
+
+````
+
+### Notice 16a9b4dc4ed94e6755bbe313fa5b5bb471b1ccb53c0c507e08f924ed4a354c2c
+
+- rehype-ignore@2.0.3: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2022 Kenny Wang(小弟调调™) <kennyiseeyou@gmail.com> (https://github.com/jaywcjlove)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ````
 
@@ -14603,6 +15779,134 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 (The MIT License)
 
 Copyright (c) 2017 Junyoung Choi <fluke8259@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 6e422dbf2f5c4b88625535ef4f11df0ff3fd0b9fa043b54d8a94db887a8ffc1a
+
+- rehype-parse@9.0.1: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/rehypejs/rehype/workflows/main/badge.svg
+
+[build]: https://github.com/rehypejs/rehype/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/rehypejs/rehype.svg
+
+[coverage]: https://codecov.io/github/rehypejs/rehype
+
+[downloads-badge]: https://img.shields.io/npm/dm/rehype-parse.svg
+
+[downloads]: https://www.npmjs.com/package/rehype-parse
+
+[size-badge]: https://img.shields.io/bundlejs/size/rehype-parse
+
+[size]: https://bundlejs.com/?q=rehype-parse
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/rehypejs/rehype/discussions
+
+[security]: https://github.com/rehypejs/.github/blob/main/security.md
+
+[health]: https://github.com/rehypejs/.github
+
+[contributing]: https://github.com/rehypejs/.github/blob/main/contributing.md
+
+[support]: https://github.com/rehypejs/.github/blob/main/support.md
+
+[coc]: https://github.com/rehypejs/.github/blob/main/code-of-conduct.md
+
+[license]: https://github.com/rehypejs/rehype/blob/main/license
+
+[author]: https://wooorm.com
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esmsh]: https://esm.sh
+
+[unified]: https://github.com/unifiedjs/unified
+
+[rehype]: https://github.com/rehypejs/rehype
+
+[hast]: https://github.com/syntax-tree/hast
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[typescript]: https://www.typescriptlang.org
+
+[hast-util-from-html]: https://github.com/syntax-tree/hast-util-from-html
+
+[hast-util-from-html-errors]: https://github.com/syntax-tree/hast-util-from-html#optionskey-in-errorcode
+
+[xast-util-from-xml]: https://github.com/syntax-tree/xast-util-from-xml
+
+[rehype-dom-parse]: https://github.com/rehypejs/rehype-dom/tree/main/packages/rehype-dom-parse
+
+[rehype-format]: https://github.com/rehypejs/rehype-format
+
+[rehype-sanitize]: https://github.com/rehypejs/rehype-sanitize
+
+[parse-errors]: https://html.spec.whatwg.org/multipage/parsing.html#parse-errors
+
+[rehype-core]: ../rehype/
+
+[rehype-stringify]: ../rehype-stringify/
+
+[api-error-code]: #errorcode
+
+[api-error-severity]: #errorseverity
+
+[api-options]: #options
+
+[api-rehype-parse]: #unifieduserehypeparse-options
+
+````
+
+### Notice 14125ed4d9663de7960c632a5c5db1f74cc9a5bf623160e1ae27dc5652236ca9
+
+- rehype-prism-plus@2.0.2: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2021 Timothy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -14790,6 +16094,87 @@ SOFTWARE.
 
 ````
 
+### Notice 12fefc0044f0ebb389b60822fe4b51b6275141f90461e3b1b094c898c30a4bb6
+
+- rehype-slug@6.0.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/rehypejs/rehype-slug/workflows/main/badge.svg
+
+[build]: https://github.com/rehypejs/rehype-slug/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/rehypejs/rehype-slug.svg
+
+[coverage]: https://codecov.io/github/rehypejs/rehype-slug
+
+[downloads-badge]: https://img.shields.io/npm/dm/rehype-slug.svg
+
+[downloads]: https://www.npmjs.com/package/rehype-slug
+
+[size-badge]: https://img.shields.io/bundlejs/size/rehype-slug
+
+[size]: https://bundlejs.com/?q=rehype-slug
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/rehypejs/rehype/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[health]: https://github.com/rehypejs/.github
+
+[contributing]: https://github.com/rehypejs/.github/blob/main/contributing.md
+
+[support]: https://github.com/rehypejs/.github/blob/main/support.md
+
+[coc]: https://github.com/rehypejs/.github/blob/main/code-of-conduct.md
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[github-slugger]: https://github.com/Flet/github-slugger
+
+[rehype]: https://github.com/rehypejs/rehype
+
+[rehype-autolink-headings]: https://github.com/rehypejs/rehype-autolink-headings
+
+[rehype-sanitize]: https://github.com/rehypejs/rehype-sanitize
+
+[rehype-sanitize-example]: https://github.com/rehypejs/rehype-sanitize#example-headings-dom-clobbering
+
+[typescript]: https://www.typescriptlang.org
+
+[unified]: https://github.com/unifiedjs/unified
+
+[unified-transformer]: https://github.com/unifiedjs/unified#transformer
+
+[xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+[api-options]: #options
+
+[api-rehype-slug]: #unifieduserehypeslug-options
+
+````
+
 ### Notice f202c602f804953b80ed3f924096375aa79aac536090b7ca319027faf79ae24f
 
 - remark-cjk-friendly-gfm-strikethrough@2.0.1: LICENSE
@@ -14924,6 +16309,49 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 [unified]: https://github.com/unifiedjs/unified
 
 [wiki-xss]: https://en.wikipedia.org/wiki/Cross-site_scripting
+
+````
+
+### Notice b38794eafbd802fc448f71756e26404e94fd1750748fa36e20f2f5d301209ab6
+
+- remark-github-blockquote-alert@1.3.1: https://registry.npmjs.org/remark-github-blockquote-alert/1.3.1
+
+
+
+````text
+remark-github-blockquote-alert@1.3.1
+Publisher-declared license: MIT
+Evidence: https://registry.npmjs.org/remark-github-blockquote-alert/1.3.1
+Source: https://raw.githubusercontent.com/jaywcjlove/remark-github-blockquote-alert/bb71a22d33ff6118d91531ac118bac8445625530/README.md
+The published README license section states:
+
+## License
+
+MIT © [Kenny Wong](https://github.com/jaywcjlove)
+
+The published package and the matching source tree supply no complete MIT license text.
+The attribution above is preserved verbatim from the README; no copyright year has been inferred.
+The following is the standard license text, not a claim that an upstream LICENSE file was published.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ````
 
@@ -16460,6 +17888,114 @@ example.md: no issues found
 ```markdown
 ````
 
+### Notice c6e4778fe285e5a54aa939d43b40c995cac1285e4c940c872dca5dd80b062e50
+
+- unist-util-filter@5.0.1: license
+
+
+
+````text
+The MIT License (MIT)
+
+Copyright (c) 2016 Eugene Sharygin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 4faca3070949cd18caa8b52e116ad49f4f5cae9c54c8e77133975af433f88b90
+
+- unist-util-filter@5.0.1: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © Eugene Sharygin
+
+<!-- Definitions -->
+
+[build-badge]: https://github.com/syntax-tree/unist-util-filter/workflows/main/badge.svg
+
+[build]: https://github.com/syntax-tree/unist-util-filter/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/syntax-tree/unist-util-filter.svg
+
+[coverage]: https://codecov.io/github/syntax-tree/unist-util-filter
+
+[downloads-badge]: https://img.shields.io/npm/dm/unist-util-filter.svg
+
+[downloads]: https://www.npmjs.com/package/unist-util-filter
+
+[size-badge]: https://img.shields.io/badge/dynamic/json?label=minzipped%20size&query=$.size.compressedSize&url=https://deno.bundlejs.com/?q=unist-util-filter
+
+[size]: https://bundlejs.com/?q=unist-util-filter
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/syntax-tree/unist/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[typescript]: https://www.typescriptlang.org
+
+[license]: license
+
+[health]: https://github.com/syntax-tree/.github
+
+[contributing]: https://github.com/syntax-tree/.github/blob/HEAD/contributing.md
+
+[support]: https://github.com/syntax-tree/.github/blob/HEAD/support.md
+
+[coc]: https://github.com/syntax-tree/.github/blob/HEAD/code-of-conduct.md
+
+[unist]: https://github.com/syntax-tree/unist
+
+[node]: https://github.com/syntax-tree/unist#node
+
+[preorder]: https://www.geeksforgeeks.org/tree-traversals-inorder-preorder-and-postorder/
+
+[unist-util-remove]: https://github.com/syntax-tree/unist-util-remove
+
+[unist-util-visit]: https://github.com/syntax-tree/unist-util-visit
+
+[unist-builder]: https://github.com/syntax-tree/unist-builder
+
+[test]: https://github.com/syntax-tree/unist-util-is#test
+
+[filter]: #filtertree-options-test
+
+[options]: #options
+
+````
+
 ### Notice bbc1e6e13387d73e112b1b27da21a812403429c5cd02e014edb33b0cee950fb4
 
 - unist-util-find-after@5.0.0: readme.md (license section)
@@ -16957,6 +18493,107 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 [api-visitor]: #visitor
 
 [api-visitorresult]: #visitorresult
+
+````
+
+### Notice 80f8b2ec7a4f9dc77d69193c2ada77c7c21d0bc1d6b2f8375e1f01354a1b789e
+
+- unist-util-visit@5.0.0: readme.md (license section)
+
+
+
+````text
+## License
+
+[MIT][license] © [Titus Wormer][author]
+
+<!-- Definition -->
+
+[build-badge]: https://github.com/syntax-tree/unist-util-visit/workflows/main/badge.svg
+
+[build]: https://github.com/syntax-tree/unist-util-visit/actions
+
+[coverage-badge]: https://img.shields.io/codecov/c/github/syntax-tree/unist-util-visit.svg
+
+[coverage]: https://codecov.io/github/syntax-tree/unist-util-visit
+
+[downloads-badge]: https://img.shields.io/npm/dm/unist-util-visit.svg
+
+[downloads]: https://www.npmjs.com/package/unist-util-visit
+
+[size-badge]: https://img.shields.io/badge/dynamic/json?label=minzipped%20size&query=$.size.compressedSize&url=https://deno.bundlejs.com/?q=unist-util-visit
+
+[size]: https://bundlejs.com/?q=unist-util-visit
+
+[sponsors-badge]: https://opencollective.com/unified/sponsors/badge.svg
+
+[backers-badge]: https://opencollective.com/unified/backers/badge.svg
+
+[collective]: https://opencollective.com/unified
+
+[chat-badge]: https://img.shields.io/badge/chat-discussions-success.svg
+
+[chat]: https://github.com/syntax-tree/unist/discussions
+
+[npm]: https://docs.npmjs.com/cli/install
+
+[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+
+[esmsh]: https://esm.sh
+
+[typescript]: https://www.typescriptlang.org
+
+[license]: license
+
+[author]: https://wooorm.com
+
+[health]: https://github.com/syntax-tree/.github
+
+[contributing]: https://github.com/syntax-tree/.github/blob/main/contributing.md
+
+[support]: https://github.com/syntax-tree/.github/blob/main/support.md
+
+[coc]: https://github.com/syntax-tree/.github/blob/main/code-of-conduct.md
+
+[unist]: https://github.com/syntax-tree/unist
+
+[node]: https://github.com/syntax-tree/unist#nodes
+
+[unist-util-is]: https://github.com/syntax-tree/unist-util-is
+
+[vp]: https://github.com/syntax-tree/unist-util-visit-parents
+
+[vp-action]: https://github.com/syntax-tree/unist-util-visit-parents#action
+
+[vp-action-tuple]: https://github.com/syntax-tree/unist-util-visit-parents#actiontuple
+
+[vp-build-visitor]: https://github.com/syntax-tree/unist-util-visit-parents#buildvisitor
+
+[vp-index]: https://github.com/syntax-tree/unist-util-visit-parents#index
+
+[vp-visitor-result]: https://github.com/syntax-tree/unist-util-visit-parents#visitorresult
+
+[api-visit]: #visittree-test-visitor-reverse
+
+[api-continue]: #continue
+
+[api-exit]: #exit
+
+[api-skip]: #skip
+
+[api-action]: #action
+
+[api-action-tuple]: #actiontuple
+
+[api-build-visitor]: #buildvisitor
+
+[api-index]: #index
+
+[api-test]: #test
+
+[api-visitor]: #visitor
+
+[api-visitor-result]: #visitorresult
 
 ````
 
@@ -17951,217 +19588,6 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-````
-
-### Notice 014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff
-
-- agent-browser skill: https://raw.githubusercontent.com/vercel-labs/agent-browser/99c732c18810494593ead9dd96ab6f5f0c78b729/LICENSE
-
-
-
-````text
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-1.  Definitions.
-
-    "License" shall mean the terms and conditions for use, reproduction,
-    and distribution as defined by Sections 1 through 9 of this document.
-
-    "Licensor" shall mean the copyright owner or entity authorized by
-    the copyright owner that is granting the License.
-
-    "Legal Entity" shall mean the union of the acting entity and all
-    other entities that control, are controlled by, or are under common
-    control with that entity. For the purposes of this definition,
-    "control" means (i) the power, direct or indirect, to cause the
-    direction or management of such entity, whether by contract or
-    otherwise, or (ii) ownership of fifty percent (50%) or more of the
-    outstanding shares, or (iii) beneficial ownership of such entity.
-
-    "You" (or "Your") shall mean an individual or Legal Entity
-    exercising permissions granted by this License.
-
-    "Source" form shall mean the preferred form for making modifications,
-    including but not limited to software source code, documentation
-    source, and configuration files.
-
-    "Object" form shall mean any form resulting from mechanical
-    transformation or translation of a Source form, including but
-    not limited to compiled object code, generated documentation,
-    and conversions to other media types.
-
-    "Work" shall mean the work of authorship, whether in Source or
-    Object form, made available under the License, as indicated by a
-    copyright notice that is included in or attached to the work
-    (an example is provided in the Appendix below).
-
-    "Derivative Works" shall mean any work, whether in Source or Object
-    form, that is based on (or derived from) the Work and for which the
-    editorial revisions, annotations, elaborations, or other modifications
-    represent, as a whole, an original work of authorship. For the purposes
-    of this License, Derivative Works shall not include works that remain
-    separable from, or merely link (or bind by name) to the interfaces of,
-    the Work and Derivative Works thereof.
-
-    "Contribution" shall mean any work of authorship, including
-    the original version of the Work and any modifications or additions
-    to that Work or Derivative Works thereof, that is intentionally
-    submitted to Licensor for inclusion in the Work by the copyright owner
-    or by an individual or Legal Entity authorized to submit on behalf of
-    the copyright owner. For the purposes of this definition, "submitted"
-    means any form of electronic, verbal, or written communication sent
-    to the Licensor or its representatives, including but not limited to
-    communication on electronic mailing lists, source code control systems,
-    and issue tracking systems that are managed by, or on behalf of, the
-    Licensor for the purpose of discussing and improving the Work, but
-    excluding communication that is conspicuously marked or otherwise
-    designated in writing by the copyright owner as "Not a Contribution."
-
-    "Contributor" shall mean Licensor and any individual or Legal Entity
-    on behalf of whom a Contribution has been received by Licensor and
-    subsequently incorporated within the Work.
-
-2.  Grant of Copyright License. Subject to the terms and conditions of
-    this License, each Contributor hereby grants to You a perpetual,
-    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-    copyright license to reproduce, prepare Derivative Works of,
-    publicly display, publicly perform, sublicense, and distribute the
-    Work and such Derivative Works in Source or Object form.
-
-3.  Grant of Patent License. Subject to the terms and conditions of
-    this License, each Contributor hereby grants to You a perpetual,
-    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-    (except as stated in this section) patent license to make, have made,
-    use, offer to sell, sell, import, and otherwise transfer the Work,
-    where such license applies only to those patent claims licensable
-    by such Contributor that are necessarily infringed by their
-    Contribution(s) alone or by combination of their Contribution(s)
-    with the Work to which such Contribution(s) was submitted. If You
-    institute patent litigation against any entity (including a
-    cross-claim or counterclaim in a lawsuit) alleging that the Work
-    or a Contribution incorporated within the Work constitutes direct
-    or contributory patent infringement, then any patent licenses
-    granted to You under this License for that Work shall terminate
-    as of the date such litigation is filed.
-
-4.  Redistribution. You may reproduce and distribute copies of the
-    Work or Derivative Works thereof in any medium, with or without
-    modifications, and in Source or Object form, provided that You
-    meet the following conditions:
-
-    (a) You must give any other recipients of the Work or
-    Derivative Works a copy of this License; and
-
-    (b) You must cause any modified files to carry prominent notices
-    stating that You changed the files; and
-
-    (c) You must retain, in the Source form of any Derivative Works
-    that You distribute, all copyright, patent, trademark, and
-    attribution notices from the Source form of the Work,
-    excluding those notices that do not pertain to any part of
-    the Derivative Works; and
-
-    (d) If the Work includes a "NOTICE" text file as part of its
-    distribution, then any Derivative Works that You distribute must
-    include a readable copy of the attribution notices contained
-    within such NOTICE file, excluding those notices that do not
-    pertain to any part of the Derivative Works, in at least one
-    of the following places: within a NOTICE text file distributed
-    as part of the Derivative Works; within the Source form or
-    documentation, if provided along with the Derivative Works; or,
-    within a display generated by the Derivative Works, if and
-    wherever such third-party notices normally appear. The contents
-    of the NOTICE file are for informational purposes only and
-    do not modify the License. You may add Your own attribution
-    notices within Derivative Works that You distribute, alongside
-    or as an addendum to the NOTICE text from the Work, provided
-    that such additional attribution notices cannot be construed
-    as modifying the License.
-
-    You may add Your own copyright statement to Your modifications and
-    may provide additional or different license terms and conditions
-    for use, reproduction, or distribution of Your modifications, or
-    for any such Derivative Works as a whole, provided Your use,
-    reproduction, and distribution of the Work otherwise complies with
-    the conditions stated in this License.
-
-5.  Submission of Contributions. Unless You explicitly state otherwise,
-    any Contribution intentionally submitted for inclusion in the Work
-    by You to the Licensor shall be under the terms and conditions of
-    this License, without any additional terms or conditions.
-    Notwithstanding the above, nothing herein shall supersede or modify
-    the terms of any separate license agreement you may have executed
-    with Licensor regarding such Contributions.
-
-6.  Trademarks. This License does not grant permission to use the trade
-    names, trademarks, service marks, or product names of the Licensor,
-    except as required for reasonable and customary use in describing the
-    origin of the Work and reproducing the content of the NOTICE file.
-
-7.  Disclaimer of Warranty. Unless required by applicable law or
-    agreed to in writing, Licensor provides the Work (and each
-    Contributor provides its Contributions) on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-    implied, including, without limitation, any warranties or conditions
-    of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-    PARTICULAR PURPOSE. You are solely responsible for determining the
-    appropriateness of using or redistributing the Work and assume any
-    risks associated with Your exercise of permissions under this License.
-
-8.  Limitation of Liability. In no event and under no legal theory,
-    whether in tort (including negligence), contract, or otherwise,
-    unless required by applicable law (such as deliberate and grossly
-    negligent acts) or agreed to in writing, shall any Contributor be
-    liable to You for damages, including any direct, indirect, special,
-    incidental, or consequential damages of any character arising as a
-    result of this License or out of the use or inability to use the
-    Work (including but not limited to damages for loss of goodwill,
-    work stoppage, computer failure or malfunction, or any and all
-    other commercial damages or losses), even if such Contributor
-    has been advised of the possibility of such damages.
-
-9.  Accepting Warranty or Additional Liability. While redistributing
-    the Work or Derivative Works thereof, You may choose to offer,
-    and charge a fee for, acceptance of support, warranty, indemnity,
-    or other liability obligations and/or rights consistent with this
-    License. However, in accepting such obligations, You may act only
-    on Your own behalf and on Your sole responsibility, not on behalf
-    of any other Contributor, and only if You agree to indemnify,
-    defend, and hold each Contributor harmless for any liability
-    incurred by, or claims asserted against, such Contributor by reason
-    of your accepting any such warranty or additional liability.
-
-END OF TERMS AND CONDITIONS
-
-APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-Copyright 2025 Vercel Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 
 ````
 

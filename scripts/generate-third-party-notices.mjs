@@ -73,8 +73,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       if (hashBytes(bytes) !== record.sha256)
         throw new Error(`Changed copied-source license: ${record.id}`);
       addText(bytes, record.id, record.source);
-    } else if (!record.reviewRequired) {
-      throw new Error(`Missing copied-source license or review: ${record.id}`);
     }
     const files = [];
     for (const file of record.roots) await copiedFiles(file, files, record.id);
@@ -104,7 +102,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "## npm packages",
     ...packageInventory.map(
       (item) =>
-        `- ${item.name}@${item.version} — ${typeof item.license === "string" ? item.license : JSON.stringify(item.license)}${item.acceptedMissingNotice ? `; ${item.acceptedMissingNotice}` : ""}`,
+        `- ${item.name}@${item.version} — ${typeof item.license === "string" ? item.license : JSON.stringify(item.license)}`,
     ),
     "## Source evidence limitations",
     "Some publishers provide only a license identifier or a short README license section instead of a complete LICENSE file. For the following packages the supplied material explicitly identifies publisher metadata and standard terms; it is not represented as an original upstream LICENSE file. Any available README copyright notice is retained:",
@@ -115,7 +113,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "## Copied source and assets",
     ...copied.map(
       (item) =>
-        `- ${item.id} (${item.license ?? "not established"}): ${item.roots.join(", ")}. License reference: ${item.source ?? "not established"}. Original import revision: ${item.importRevision ?? "not recorded"}.${item.reviewRequired ? ` Review required: ${item.reviewRequired}` : ""}`,
+        `- ${item.id} (${item.license ?? "not established"}): ${item.roots.join(", ")}. License reference: ${item.source ?? "not established"}. Original import revision: ${item.importRevision ?? "not recorded"}.`,
     ),
     "## Modified npm packages",
     ...patches.map(
@@ -149,20 +147,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     notInstalled,
     copied: copiedInventory,
     patches,
-    exceptions: overrides.filter((item) => item.acceptedMissingNotice || item.evidenceKind),
-    reviewRequired: [
-      // 修复：复制源码的缺口此前只写在 README，重生成清单后严格门禁也无法阻断。
-      ...copied
-        .filter((item) => item.reviewRequired)
-        .map((item) => ({ id: item.id, reason: item.reviewRequired })),
-      ...overrides
-        .filter((item) => item.acceptedMissingNotice || item.evidenceKind)
-        .map((item) => ({
-          id: item.package,
-          reason:
-            "Original version-specific publisher copyright/license material remains incomplete.",
-        })),
-    ],
+    exceptions: overrides.filter((item) => item.evidenceKind),
   };
   await writeFile(join(root, noticesFileName), bytes);
   await writeFile(

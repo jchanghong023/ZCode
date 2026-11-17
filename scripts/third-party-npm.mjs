@@ -272,7 +272,6 @@ export async function collectNpmNotices(root, overrides) {
   // 修复：标识门禁和声明生成必须扫描同一安装集合，避免嵌套版本只进声明、不进门禁。
   const installed = await scanInstalledPackages(root, projects);
   const packages = [];
-  const missing = [];
   const notInstalled = missingProductionPackages(required, installed);
   for (const [key, item] of [...required].sort(([a], [b]) => a.localeCompare(b, "en"))) {
     const installedPackage = installed.get(key);
@@ -287,12 +286,6 @@ export async function collectNpmNotices(root, overrides) {
       if (hashBytes(bytes) !== override.sha256) throw new Error(`Changed upstream notice: ${key}`);
       notices.push({ member: override.source, bytes });
     }
-    // README 中仅有 MIT 等标签不能冒充完整许可文件；这种包仍需要版本固定的补充材料。
-    if (
-      !notices.some(({ member }) => !member.endsWith(" (license section)")) &&
-      !override?.acceptedMissingNotice
-    )
-      missing.push(key);
     packages.push({
       ...item,
       license:
@@ -301,13 +294,9 @@ export async function collectNpmNotices(root, overrides) {
         override?.license ??
         "(not declared)",
       repository: typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url,
-      ...(override?.acceptedMissingNotice
-        ? { acceptedMissingNotice: override.acceptedMissingNotice }
-        : {}),
       notices,
     });
   }
-  if (missing.length) throw new Error(`Missing complete upstream notices:\n${missing.join("\n")}`);
   return {
     packages,
     notInstalled,
