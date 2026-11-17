@@ -56,6 +56,8 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 | 静态托管                        | 配置 staticRoot 后启用；HTML `no-cache`，带内容哈希 assets 一年 immutable，其他资源重新校验；支持 HEAD、br/gzip/identity 与 `Vary: Accept-Encoding` |
 | SPA fallback                    | 不覆盖 `/api/` 或 `/ws`；拒绝目录穿越、盘符路径及 `.map`；没有可接受编码返回 406                                                                    |
 
+浏览器标签页图标由 `packages/web/index.html` 内嵌 PNG 提供，静态发布目录不提供根路径的 `favicon.ico` 文件。
+
 遥测 202 仅表示本服务诊断接纳，不表示第三方上传或持久化；无公开读取和重试队列。文件媒体返回字节或浏览器可达 URL，不能把服务器磁盘路径／`file://` 放入浏览器资源地址；跨源资源需 CORS，HTTPS 页面不能混用 HTTP 媒体。
 
 | 入口变量                    | 含义                                              |
