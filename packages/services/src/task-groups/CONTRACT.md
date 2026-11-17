@@ -1,5 +1,6 @@
 # 任务分组
 
-Current reachable boundary (2026-11-16): retain only `ITaskGroupService.admit`, used by native conversation creation. Retire the old sidebar's `read`, `save`, `ungroup` and `move` RPC methods and their consumers. Pure group DTOs remain for presentation; there is no replacement group store or compatibility service.
+当前电脑 Web 不装配任务分组；`ITaskGroupService.admit` 与同名 descriptor、accessor、频道、
+代理和内部注册全部退出。原因：原生会话的当前入口没有分组消费者，不能为旧侧栏保留空成功服务。
 
-The owning backend validates task existence and canonical workspace identity before first admission. Admission does not copy conversation facts or overwrite existing organization. Cancelling a browser subscription never clears shared owner state.
+只保留通用展示仍可使用的 group DTO；这些类型不持有分组状态，不复制会话事实，不构成公开 RPC。

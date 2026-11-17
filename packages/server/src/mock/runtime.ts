@@ -1,12 +1,8 @@
-// 模拟后端运行时：所有 mock 服务的内存状态中心。
-// 只保留内存态，不落盘、不发起真实网络请求；唯一例外是本地目录浏览
-// （projectService.readDirectory 读取本机真实目录名），文件内容不读写。
+// 模拟后端运行时：所有 mock 服务共用的内存事实，不冒充真实 AI、Git 或数据库。
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import { resolve } from "node:path";
-import { Emitter } from "@zcode/rpc";
 import { createUuid } from "@zcode/shared";
-import type { GitChangeSourceId, GitIdentity } from "@zcode/shared";
 import type {
   ConversationSnapshot,
   PlanState,
@@ -133,46 +129,23 @@ export interface VirtualFileNode {
   mtimeMs: number;
 }
 
-export interface MockGitState {
-  branch: string;
-  /** 已实际持有的前后内容；没有记录表示无法提供该来源的差异。 */
-  diffs: Array<{
-    path: string;
-    sourceId: GitChangeSourceId;
-    beforeContent: string | null;
-    afterContent: string | null;
-  }>;
-  identity: GitIdentity | null;
-  statusEntries: Array<{
-    path: string;
-    staged: "added" | "modified" | "deleted" | "renamed" | null;
-    unstaged: "modified" | "deleted" | null;
-  }>;
-  branches: Array<{ name: string; current: boolean; upstream?: string }>;
-  log: Array<{ sha: string; message: string; author: string; date: string }>;
-}
-
 export interface MockRuntimeOptions {
   workspacePath: string;
 }
 
-/** 全局 mock 状态：会话、任务、虚拟 FS 与 git。 */
+/** 全局 mock 状态：会话、任务、虚拟 FS 与 topic 水位。 */
 export class MockRuntime {
   readonly workspacePath: string;
   readonly startedAt = Date.now();
   readonly sessions = new Map<string, MockSession>();
   readonly tasks = new Map<string, MockTaskRecord>();
   readonly virtualRoot: VirtualFileNode;
-  readonly git: MockGitState;
-  /** sessions-index / workspace-config topic 的唯一水位账本。 */
+  /** sessions-index topic 的唯一水位账本；不依赖已退役的 task-list 事件。 */
   readonly topics = new MockTopicLog();
-  /** task 索引变更信号（IZCodeTaskService.onDynamicWorkspaceEvent）。 */
-  readonly onWorkspaceTaskListChanged = new Emitter<{ workspacePath: string; type: string }>();
 
   constructor(options: MockRuntimeOptions) {
     this.workspacePath = options.workspacePath;
     this.virtualRoot = buildFixtureWorkspace();
-    this.git = buildFixtureGit();
   }
 
   newSessionId(): string {
@@ -262,42 +235,15 @@ export function buildFixtureWorkspace(): VirtualFileNode {
   ]);
 }
 
-export function buildFixtureGit(): MockGitState {
-  return {
-    branch: "main",
-    diffs: [],
-    identity: null,
-    statusEntries: [
-      { path: "src/main.ts", staged: null, unstaged: "modified" },
-      { path: "docs/design.md", staged: "added", unstaged: null },
-    ],
-    branches: [
-      { name: "main", current: true, upstream: "origin/main" },
-      { name: "feature/web-demo", current: false },
-    ],
-    log: [
-      {
-        sha: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-        message: "feat: 初始化模拟工作区",
-        author: "ZCode Mock",
-        date: new Date(Date.now() - 86_400_000).toISOString(),
-      },
-      {
-        sha: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0a1",
-        message: "chore: 添加组件示例",
-        author: "ZCode Mock",
-        date: new Date(Date.now() - 2 * 86_400_000).toISOString(),
-      },
-    ],
-  };
-}
-
 // ── 会话快照构造 ──
 
 const SNAPSHOT_TAIL_WINDOW_ROWS = 60;
 
 /** 由权威会话状态构造 conversation snapshot（尾窗 60 行）。 */
-export function buildConversationSnapshot(session: MockSession): ConversationSnapshot {
+export function buildConversationSnapshot(
+  session: MockSession,
+  switchModelConfigAllowed = true,
+): ConversationSnapshot {
   const ended = session.phase === "completedSuccess" || session.phase === "completedInterrupted";
   return {
     protocolVersion: 1,
@@ -318,7 +264,9 @@ export function buildConversationSnapshot(session: MockSession): ConversationSna
     availability: {
       fork: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
       compact: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
-      switchModelConfig: { allowed: true },
+      switchModelConfig: switchModelConfigAllowed
+        ? { allowed: true }
+        : { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
       setFollowupMode: { allowed: true },
       queueEdit: { allowed: true },
       sendQueuedNow: { allowed: true },

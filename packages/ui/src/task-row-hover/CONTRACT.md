@@ -10,11 +10,11 @@
 不变量：
 
 - 本地和远程会话都挂载卡片；远程任务显示设备徽标，但不显示地址、连接类型、连接状态详情或设置入口。项目身份详情仍只由项目入口和会话头部承载。
-- 本地任务固定使用 `useBaseWorkspaceServices()` 读取本机 home 和 Git；不能因为同路径远程标签页处于活动状态而继承 remote session。远程任务才使用 `useWorkspaceServicesResolution`。
-- 路径和 Git 查询使用任务的 `cwd ?? workspacePath`；worktree 任务的 `workspacePath` 是项目主目录，不能用于显示或 Git 查询。
+- 本地任务固定使用 `useBaseWorkspaceServices()` 读取本机 home；不能因为同路径远程标签页处于活动状态而继承 remote session。远程任务才使用 `useWorkspaceServicesResolution`。
+- 路径使用任务的 `cwd ?? workspacePath`；worktree 任务的 `workspacePath` 是项目主目录，不能用于显示工作目录。
 - 标签与 worktree 名来自任务的 `worktreeRoot`，与头部胶囊、行内图标同源。
-- Git 快照只在卡片打开后查询一次；关闭即丢弃，不轮询。
-- 远程未连接（`rpcReady=false`）时不发 `system.info` 或 Git 请求，显示原始远程路径并隐藏分支；卡片本身仍然显示。
+- 当前 HEAD 标签由调用方传入真实投影；Git 服务已退出，卡片不发起 Git 查询、不构造兼容服务。
+- 远程未连接（`rpcReady=false`）时不发 `system.info`，显示原始远程路径；卡片本身仍然显示，已有分支标签仍属于调用方事实。
 - `hoverEnabled=false`（手机远控 / Web remote）时项目、置顶、时间线行不挂载；分组行由 `disabled` 显式禁用；分组拖拽期间不挂载。
 
 与其他模块的交集：

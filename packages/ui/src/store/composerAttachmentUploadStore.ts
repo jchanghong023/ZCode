@@ -21,15 +21,12 @@ export interface ComposerAttachmentUploadItem extends ChatComposerAttachment {
   uploadError?: string;
   uploadErrorKind?: "transient" | "permanent" | "runtimeRestarted";
   attachmentRef?: AttachmentRef;
-  operationId: string;
   autoRetryCount: number;
   /**
    * 因 runtime 换代触发的重传次数，与上传失败重试分开计。
    * 换代不是「上传失败」，共用计数器会让一次换代就烧掉用户可见的重试配额。
    */
   runtimeRebuildRetryCount: number;
-  staged: boolean;
-  adopted: boolean;
   showComplete: boolean;
   localZeroCopy: boolean;
 }

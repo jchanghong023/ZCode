@@ -22,23 +22,15 @@ export function BotGroupDeliveryProvider({
   children: ReactNode;
 }) {
   // 同一任务只订阅一次群状态，历史回复不各自请求全量 Bot 状态。
-  const { context, provider, busyId, retry, reconcile, retryPreparation } = useBotGroupTask(
-    taskId,
-    workspacePath,
-    workspaceIdentity,
-  );
+  const { context, provider } = useBotGroupTask(taskId, workspacePath, workspaceIdentity);
   const memberNames = useBotGroupMemberNames(context);
   const value = useMemo(
     () => ({
       context,
       provider,
-      busyId,
-      retry,
-      reconcile,
-      retryPreparation,
       taskId,
     }),
-    [context, provider, busyId, retry, reconcile, retryPreparation, taskId],
+    [context, provider, taskId],
   );
   return (
     <DeliveryContext.Provider value={value}>
@@ -52,22 +44,14 @@ export function BotGroupDeliveryProvider({
 export function BotGroupDeliveryAction({
   turnId,
   sourceCommandIds,
-  syncing,
   results,
-  busyId,
-  onRetry,
-  onReconcile,
 }: {
   turnId: string;
   sourceCommandIds: readonly string[];
-  syncing: boolean;
   results: BotGroupDelivery[];
-  busyId?: string | null;
-  onRetry: (id: string) => void;
-  onReconcile: (id: string, received: boolean) => void;
 }) {
   const { intl } = useZCodeIntl();
-  // Bug 原因：任务级恢复面板与队列浮层重叠，还重复展示正文；只在已关联轮次的操作栏展示。
+  // 当前仅展示真实群投递状态；没有正式动作 owner，不提供重发或协调按钮。
   const unresolved = results.filter(
     (result) =>
       result.sourceCommandId &&
@@ -110,39 +94,6 @@ export function BotGroupDeliveryAction({
               })}
               {unresolved.length > 1 ? ` (${index + 1}/${unresolved.length})` : null}
             </span>
-            {syncing ? (
-              <div className="flex flex-wrap gap-1">
-                {result.status === "unknown" ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      disabled={busyId === result.id}
-                      onClick={() => onReconcile(result.id, true)}
-                    >
-                      {intl.formatMessage({ id: "bots.group.confirmReceived" })}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      disabled={busyId === result.id}
-                      onClick={() => onReconcile(result.id, false)}
-                    >
-                      {intl.formatMessage({ id: "bots.group.confirmNotReceived" })}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    disabled={busyId === result.id}
-                    onClick={() => onRetry(result.id)}
-                  >
-                    {intl.formatMessage({ id: "bots.group.resend" })}
-                  </Button>
-                )}
-              </div>
-            ) : null}
           </div>
         ))}
       </PopoverContent>
@@ -164,17 +115,9 @@ export function ConnectedBotGroupDeliveryAction({
     <BotGroupDeliveryAction
       turnId={turnId}
       sourceCommandIds={sourceCommandIds}
-      syncing={context.group.enabled && context.activeTaskId === value.taskId}
       results={Object.values(context.group.deliveries ?? {}).filter(
         (result) => result.taskId === value.taskId,
       )}
-      busyId={value.busyId}
-      onRetry={(id) => {
-        void value.retry(id);
-      }}
-      onReconcile={(id, received) => {
-        void value.reconcile(id, received);
-      }}
     />
   );
 }

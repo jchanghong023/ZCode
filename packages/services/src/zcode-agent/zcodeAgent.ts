@@ -3,7 +3,6 @@ import type { BackgroundBashOutputResult } from "@zcode/shared";
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
 import type {
-  ZCodeStorageStartupState,
   ZCodeSkillsReferenceCatalogResult,
   ZCodeSessionSubagentsResult,
   ZCodeTaskClientMode,
@@ -15,18 +14,13 @@ import type {
   CommandKey,
   CommandsQueryResult,
   ConversationTopicWireCandidate,
-  ConversationTelemetryFact,
   ConversationRowTarget,
   HelloMessage,
   SessionsIndexTopicWireCandidate,
-  SessionsIndexReconcileResult,
   V4AttachmentBeginResult,
   V4AttachmentChunkResult,
   V4AttachmentCommitResult,
-  V4AttachmentPreviewSourceResult,
   V4AttachmentReadResult,
-  V4ConversationAttachmentReadResult,
-  V4ConversationAttachmentStatResult,
   V4ConnectionFlowState,
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewResult,
@@ -42,8 +36,6 @@ import type {
   V4ConversationResyncResult,
   V4ConversationSubscribeResult,
   V4SessionsIndexSubscribeResult,
-  V4WorkspaceConfigSubscribeResult,
-  WorkspaceConfigTopicWireCandidate,
 } from "@zcode/shared/zcode-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -61,16 +53,6 @@ export interface ZCodeAgentSkillReferenceCatalogParams extends ZCodeAgentWorkspa
 
 export interface ZCodeAgentSessionTarget extends ZCodeAgentWorkspaceTarget {
   sessionId: string;
-}
-
-export interface ZCodeAgentInitializeResult {
-  available: boolean;
-  workspaceKey: string;
-  protocolName?: string;
-  protocolVersion?: number;
-  transportKind?: "stdio" | "websocket";
-  reason?: string;
-  reasonCode?: "provider_not_ready";
 }
 
 export interface ZCodeAgentWorkspaceRuntimeIdentity {
@@ -267,26 +249,6 @@ export interface ZCodeAgentAttachmentReadParams extends ZCodeAgentSessionTarget 
   limit: number;
 }
 
-export interface ZCodeAgentConversationAttachmentReadParams extends ZCodeAgentSessionTarget {
-  ref: string;
-  target: ConversationRowTarget;
-  attachmentIndex: number;
-  offset: number;
-  limit: number;
-}
-
-export interface ZCodeAgentConversationAttachmentStatParams extends ZCodeAgentSessionTarget {
-  ref: string;
-  target: ConversationRowTarget;
-  attachmentIndex: number;
-}
-
-export interface ZCodeAgentAttachmentPreviewSourceParams extends ZCodeAgentSessionTarget {
-  ref: string;
-  target?: ConversationRowTarget;
-  attachmentIndex?: number;
-}
-
 /** host scope 内部 transport 控制面；connectionId 只能经 trusted carrier 注入。 */
 export interface ZCodeAgentConnectionFlowParams extends ZCodeAgentWorkspaceTarget {
   state: V4ConnectionFlowState;
@@ -309,41 +271,16 @@ export interface ZCodeAgentSessionsIndexSubscribeParams extends ZCodeAgentWorksp
   runtimePolicy?: ZCodeAgentRuntimePolicy;
 }
 
-/** workspace-config：workspace 级配置目录订阅（config options + slash 目录）。 */
-export interface ZCodeAgentWorkspaceConfigSubscribeParams extends ZCodeAgentWorkspaceTarget {
-  base?: { logEpoch: string; seq: number };
-  visibility?: "foreground" | "background";
-  subscriberScope?: string;
-  runtimePolicy?: ZCodeAgentRuntimePolicy;
-}
-
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
   modelIoFullRetentionEnabled?: boolean;
 }
 
-export interface ZCodeAgentStorageStartupSnapshot {
-  generation: number;
-  state: ZCodeStorageStartupState | null;
-}
-
 export interface IZCodeAgentService {
-  /** 控制面不需要账号或模型，且不发送普通协议请求。 */
-  prepareStorage(params: ZCodeAgentWorkspaceTarget): Promise<void>;
-  getStorageStartupState(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Promise<ZCodeAgentStorageStartupSnapshot | null>;
-  onDynamicStorageStartupState(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Event<ZCodeAgentStorageStartupSnapshot>;
-  initialize(params: ZCodeAgentWorkspaceTarget): Promise<ZCodeAgentInitializeResult>;
   /**
    * 同步 App 全局运行时偏好到所有已活动 workspace；不得为此启动空闲 Agent。
    */
   syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
-  getWorkspaceRuntimeIdentity(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Promise<ZCodeAgentWorkspaceRuntimeIdentity>;
   listSessionSubagents(
     params: ZCodeAgentListSessionSubagentsParams,
   ): Promise<ZCodeSessionSubagentsResult>;
@@ -356,9 +293,6 @@ export interface IZCodeAgentService {
   getSkillReferenceCatalog(
     params: ZCodeAgentSkillReferenceCatalogParams,
   ): Promise<ZCodeSkillsReferenceCatalogResult>;
-  closeSession(
-    params: ZCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },
-  ): Promise<boolean>;
   // ── v4 conversation 通道（竖切）──
   /** RPC attachment 建立后先读取 host 可信 hello。 */
   helloConversationV4(): Promise<HelloMessage>;
@@ -423,25 +357,11 @@ export interface IZCodeAgentService {
   attachmentChunkV4(params: ZCodeAgentAttachmentChunkParams): Promise<V4AttachmentChunkResult>;
   attachmentCommitV4(params: ZCodeAgentAttachmentTerminalParams): Promise<V4AttachmentCommitResult>;
   attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void>;
-  /** Desktop local 已发送视频 source query；远端与 Web 返回 chunked。 */
-  attachmentPreviewSourceV4(
-    params: ZCodeAgentAttachmentPreviewSourceParams,
-  ): Promise<V4AttachmentPreviewSourceResult>;
   /** 已发送 image/video 只读分块查询；connection scope 注入可信 workspace 连接。 */
   attachmentReadV4(params: ZCodeAgentAttachmentReadParams): Promise<V4AttachmentReadResult>;
-  /** Share 读取 userInput 附件，允许 text/plain 等非媒体类型。 */
-  conversationAttachmentReadV4(
-    params: ZCodeAgentConversationAttachmentReadParams,
-  ): Promise<V4ConversationAttachmentReadResult>;
-  /** Share 选择阶段只读 userInput 附件元数据，不读取完整内容。 */
-  conversationAttachmentStatV4(
-    params: ZCodeAgentConversationAttachmentStatParams,
-  ): Promise<V4ConversationAttachmentStatResult>;
   getSessionLifecycle(
     params: ZCodeAgentSessionTarget,
   ): Promise<import("@zcode/shared").SessionLifecycleSnapshot | null>;
-  ensureSessionReady(params: ZCodeAgentSessionTarget): Promise<void>;
-  stopSessionRuntime(params: ZCodeAgentSessionTarget): Promise<void>;
   restartSessionRuntime(params: ZCodeAgentSessionTarget): Promise<void>;
   /** 独立于可被释放的 conversation publisher 的生命周期事实。 */
   onDynamicSessionLifecycle(
@@ -455,13 +375,6 @@ export interface IZCodeAgentService {
   onDynamicLocalTtftFacts(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<import("@zcode/shared").LocalTtftFacts>;
-  onDynamicConversationTelemetryFact(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Event<ConversationTelemetryFact>;
-  /** 只读 CLI 持久事实；不恢复会话运行实例。旧远端可以不提供此能力。 */
-  reconcileSessionsIndexV4?(
-    params: ZCodeAgentWorkspaceTarget & { sessionIds: string[] },
-  ): Promise<SessionsIndexReconcileResult>;
   // ── M5 sessions-index 通道（列表活性）──
   subscribeSessionsIndexV4(
     params: ZCodeAgentSessionsIndexSubscribeParams,
@@ -474,18 +387,6 @@ export interface IZCodeAgentService {
   onDynamicSessionsIndexFrame(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<SessionsIndexTopicWireCandidate>;
-  // ── workspace-config 通道（配置目录活性；task-index syncer 消费）──
-  subscribeWorkspaceConfigV4(
-    params: ZCodeAgentWorkspaceConfigSubscribeParams,
-  ): Promise<V4WorkspaceConfigSubscribeResult>;
-  resyncWorkspaceConfigV4(
-    params: ZCodeAgentConversationResyncParams,
-  ): Promise<V4ConversationResyncResult>;
-  unsubscribeWorkspaceConfigV4(params: ZCodeAgentConversationUnsubscribeParams): Promise<void>;
-  /** workspace 级 workspace-config 下行帧流（与 conversation 同一通知，按 topic 前缀分流）。 */
-  onDynamicWorkspaceConfigFrame(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Event<WorkspaceConfigTopicWireCandidate>;
   /**
    * （CLI 重连重订）：agent 进程换代通知（超时回收/崩溃后重新拉起）。
    * v4 订阅活在 CLI 进程内存，进程换代即失效；订阅方（task-index syncer 等）

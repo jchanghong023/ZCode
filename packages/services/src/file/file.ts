@@ -1,11 +1,4 @@
-import type {
-  FileBinaryPreview,
-  FileEntry,
-  FileMediaPreview,
-  FileStat,
-  WorkspaceFileEntry,
-  FileTextSlice,
-} from "@zcode/shared";
+import type { FileMediaPreview, FileStat, WorkspaceFileEntry } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -18,13 +11,12 @@ export interface WorkspaceFileSearchParams {
   refresh?: boolean;
 }
 
+// 只发布当前 mention、消息预览和下载读取；隐藏 Skill 文件事实由后端内部 owner 合并。
 export interface IFileService {
   /** Host 匹配并返回有界候选，避免 Renderer 下载完整文件索引。 */
   searchWorkspaceFiles(params: WorkspaceFileSearchParams): Promise<WorkspaceFileEntry[]>;
-  readdir(params: { path: string; includeHidden?: boolean }): Promise<FileEntry[]>;
   stat(params: { path: string }): Promise<FileStat>;
   checkFilesExist(params: { paths: string[] }): Promise<Array<{ path: string; exists: boolean }>>;
-  readTextFile(params: { path: string; offset?: number; length?: number }): Promise<FileTextSlice>;
   readMediaPreview(params: { path: string; maxBytes?: number }): Promise<FileMediaPreview>;
   /**
    * 按偏移读取文件的一段原始字节，供大二进制文件（如 PDF）按需分段加载。
@@ -32,26 +24,6 @@ export interface IFileService {
    * 嵌套在对象字段里会退化成 JSON+base64。EOF 时返回短数组。
    */
   readFileRange(params: { path: string; offset: number; length: number }): Promise<Uint8Array>;
-  readBinaryPreview(params: { path: string; maxBytes?: number }): Promise<FileBinaryPreview>;
-  /**
-   * workspace 文件索引的列式打包长度（字符数）。与 listWorkspaceFilesRange 配对，
-   * 调用方按长度分块拉取（见 fetchWorkspaceFileEntriesPacked）。
-   * 返回 number：RPC Int 快速路径。
-   */
-  listWorkspaceFilesLength(params: { rootPath: string }): Promise<number>;
-  /**
-   * 分块返回列式打包字符串（workspaceFileEntriesCodec 格式，[offset, offset+length)）。
-   * 必须是裸 string 顶层返回：RPC String 快速路径（长度前缀+原始字节）；Object 会
-   * JSON 转义大字符串（实测 6-9s 主线程长任务）。单块不超过 ~4MB：大消息在
-   * renderer 接收端的分帧重组是秒级长任务（实测 4.6-6.3s），分块 + 块间让出后
-   * 主线程每次只处理一小块（~50ms），输入永不冻结。
-   * Host 侧有 60s TTL + .zcodeignore 指纹签名的整包缓存，分块只是切片。
-   */
-  listWorkspaceFilesRange(params: {
-    rootPath: string;
-    offset: number;
-    length: number;
-  }): Promise<string>;
 }
 
 export const IFileService = createServiceDescriptor<IFileService>(ServiceChannels.File);

@@ -71,7 +71,8 @@ export function createHelpAppConfigReader(options: {
       const response = await options.fetchImpl(url, {
         method: "GET",
         cache: "no-store",
-        credentials: "omit",
+        // 同源配置受部署 Cookie 保护；只携带同源凭据，避免跨源请求泄漏身份。
+        credentials: "same-origin",
         redirect: "error",
         headers,
         signal: AbortSignal.timeout(10_000),

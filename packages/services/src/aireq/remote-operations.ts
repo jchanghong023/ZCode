@@ -65,7 +65,7 @@ interface Operation<A extends unknown[], R> {
   result: R;
 }
 
-/** Explicit reachable operation allowlist. Absent top-level results are null. */
+/** 仅保留实际 RPC；模型／提示词读取由 bootstrap 提供，本地读取端口不是远程操作。 */
 export interface AIReqRemoteOperations {
   readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
@@ -89,11 +89,7 @@ export interface AIReqRemoteOperations {
     null
   >;
   "projects.saveRepository": Operation<[input: AIReqRemoteRepositoryInput], null>;
-  "models.read": Operation<[], AIReqAgentModelSettings>;
   "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
-  "models.revision": Operation<[], number>;
-  "models.bindingChanged": Operation<[binding: AIReqAgentModelBinding], boolean>;
-  "prompts.read": Operation<[], AIReqRemotePrompts>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
   "skillDesign.session": Operation<[projectId: string], string>;
   "skillDesign.binding": Operation<[sessionId: string], AIReqAgentModelBinding>;

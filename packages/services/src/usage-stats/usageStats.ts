@@ -1,36 +1,17 @@
 import type {
-  AppUsageRequest,
-  AppUsageSnapshot,
-  CodingPlanUsageRequest,
-  CodingPlanUsageSnapshot,
-  CodingPlanRegularTpsRequest,
-  CodingPlanResetOpportunityRequest,
-  CodingPlanResetOpportunityResult,
   CodingPlanResetScopeRequest,
   CodingPlanResetStatusSnapshot,
-  CodingPlanResetUseRequest,
-  CodingPlanResetUseResult,
   UsageEntitlementRequest,
   UsageEntitlementSnapshot,
-  UsageStatsRequest,
-  UsageStatsSnapshot,
 } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
+// 当前产品只消费重置状态与权益投影；旧统计页和写操作不再形成 RPC。
 export interface IUsageStatsService {
-  getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot>;
-  getCodingPlanUsageSnapshot(request: CodingPlanUsageRequest): Promise<CodingPlanUsageSnapshot>;
-  getCodingPlanRegularTps?(request: CodingPlanRegularTpsRequest): Promise<number | undefined>;
   getCodingPlanResetStatus(
     request: CodingPlanResetScopeRequest,
   ): Promise<CodingPlanResetStatusSnapshot>;
-  requestCodingPlanResetOpportunity(
-    request: CodingPlanResetOpportunityRequest,
-  ): Promise<CodingPlanResetOpportunityResult>;
-  useCodingPlanReset(request: CodingPlanResetUseRequest): Promise<CodingPlanResetUseResult>;
-  markCodingPlanResetHistoryRead(request: CodingPlanResetScopeRequest): Promise<void>;
-  getSnapshot(request: UsageStatsRequest): Promise<UsageStatsSnapshot>;
   getEntitlementSnapshot(request?: UsageEntitlementRequest): Promise<UsageEntitlementSnapshot>;
 }
 

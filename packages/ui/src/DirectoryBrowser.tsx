@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useEffectEvent } from "react";
-import type { IServiceAccessor } from "@zcode/services";
 import type { FileEntry } from "@zcode/shared";
 import { FolderIcon, FolderSymlinkIcon, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -41,13 +40,9 @@ export function createDirectoryBrowserRequestGuard(): {
   };
 }
 
-/**
- * 服务端目录浏览对话框。
- * 通过 fileService.readdir 浏览远程/本地服务器的目录结构，
- * 适用于 web 端无法调用系统原生文件选择器的场景。
- */
+/** 真实目录投影驱动的通用浏览控件，不依赖服务器目录枚举 RPC。 */
 export function DirectoryBrowser({
-  services,
+  directory,
   onSelect,
   onCancel,
   onPathChange,
@@ -60,9 +55,9 @@ export function DirectoryBrowser({
   selecting,
   formatError,
 }: {
-  services: {
-    fileService: Pick<IServiceAccessor["fileService"], "readdir">;
-    systemService: { info(): Promise<{ homedir: string }> };
+  directory: {
+    homeDirectory: string;
+    readEntries: (params: { path: string; includeHidden?: boolean }) => Promise<FileEntry[]>;
   };
   onSelect: (path: string) => void;
   onCancel: () => void;
@@ -91,30 +86,10 @@ export function DirectoryBrowser({
 
   // 同一向导收起后会重建浏览器实例；卸载必须撤销旧请求，不能让迟到结果改写恢复后的目录。
   useEffect(() => {
-    let disposed = false;
     // 清理必须使本次挂载的请求守卫失效，而非卸载时可能已替换的 ref。
     const requestGuard = requestGuardRef.current;
-    const homeRequestId = requestGuard.begin();
-    if (initialPath) {
-      void navigateTo(initialPath);
-    } else {
-      void services.systemService
-        .info()
-        .then((info) => {
-          if (!disposed && requestGuardRef.current.isCurrent(homeRequestId))
-            void navigateTo(info.homedir);
-        })
-        .catch((err) => {
-          if (disposed || !requestGuardRef.current.isCurrent(homeRequestId)) return;
-          logger.error("[DirectoryBrowser] 获取系统信息失败:", err);
-          setError(
-            formatError?.(err) ?? intl.formatMessage({ id: "directoryBrowser.errorSystem" }),
-          );
-          setLoading(false);
-        });
-    }
+    void navigateTo(initialPath ?? directory.homeDirectory);
     return () => {
-      disposed = true;
       requestGuard.begin();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +105,7 @@ export function DirectoryBrowser({
     setLoading(true);
     setError("");
     try {
-      const result = await services.fileService.readdir(
+      const result = await directory.readEntries(
         createDirectoryBrowserReadParams(path, nextShowHiddenDirectories),
       );
       if (!requestGuardRef.current.isCurrent(requestId)) {

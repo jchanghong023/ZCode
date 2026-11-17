@@ -85,10 +85,7 @@ export const ServiceChannels = {
   /** AIReq 共享内存业务，经现有二进制 Channel RPC 提供。 */
   AIReq: "aireq",
   File: "file",
-  MediaPreview: "media-preview",
   System: "system",
-  /** Git 服务 */
-  Git: "git",
   Setting: "setting",
   /** 跨窗口广播 */
   Broadcast: "broadcast",
@@ -99,26 +96,16 @@ export const ServiceChannels = {
   /** ZCode session 应用服务 */
   ZCodeSession: "zcode-session",
   Project: "project",
-  TaskGroups: "task-groups",
-  /** 文件系统监视服务 */
-  FileWatcher: "file-watcher",
   /** 新 Provider Config 的设置读写 Facade */
   ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
   ModelSelection: "model-selection",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
-  ClientConfig: "client-config",
-  /** Skills 管理服务 */
-  Skills: "skills",
-  /** SSH 远程 MCP 同步服务 */
-  McpSync: "mcp-sync",
   /** Subagents 管理服务 */
   Subagents: "subagents",
   /** Bots 远程聊天控制服务 */
   Bots: "bots",
-  /** Composer 附件在 host-local 与 remote runtime 之间的预传服务 */
-  PromptAttachmentTransfer: "prompt-attachment-transfer",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

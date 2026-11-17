@@ -43,8 +43,6 @@ export interface IBroadcastService {
   commitClaim(lease: BroadcastClaimLease): Promise<void>;
   /** 按 token 释放尚未 commit 的 reservation；迟到 token 不影响后来 winner。 */
   releaseClaim(lease: BroadcastClaimLease): Promise<void>;
-  /** 在当前应用进程内原子占用 opaque key；同一 key 仅首次返回 true。 */
-  tryClaim(key: string): Promise<boolean>;
   /** 接收来自其他窗口的广播 */
   onMessage: Event<BroadcastMessage>;
 }

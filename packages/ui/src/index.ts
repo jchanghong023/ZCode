@@ -32,7 +32,6 @@ export {
   useWorkspaceServices,
   PlatformProvider,
   usePlatform,
-  useReaddir,
   useSystemInfo,
   useSettings,
   useRecentProjects,

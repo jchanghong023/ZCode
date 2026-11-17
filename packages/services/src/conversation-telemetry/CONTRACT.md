@@ -1,13 +1,12 @@
-# 对话埋点服务面
+# 对话埋点服务退场边界
 
-当前治理范围（纯 Web）：本模块只保留 workspace 级只读服务面 `contract.ts`，经 `@zcode/services`
-根入口导出。桌面 Host 与 CLI 实现已随裁撤移除，mock 后端不注册该通道；契约约束后续实现者。
+当前纯 Web 产品删除本目录的服务包装、factory、示例与模块清单，不保留只读空服务面。
+原 workspace fact 订阅只服务 desktop-continuous supervisor；Web/mobile 从未启用：
+WorkspaceAttachment 没有根挂载者，PaneAttachment 仅在父 attachment 非空时启用，
+默认 context 为 null。不能为不可达桌面装配恢复已裁撤的动态遥测 RPC。
 
-- 一个执行服务 workspace 持有一份归集器，寿命不绑定手机 attachment 或桌面 pane；归集算法在
-  shared 的 `conversation-telemetry-engine`，本模块只包装已完成 clientMode 鉴权的 connection-scoped
-  agent service，不另开 RPC channel。
-- 输入为 CLI live facts，只有可信 command 来源为 mobile 的执行及其子任务被接管；返回的接管标记
-  用于阻止 renderer 再次计数。PC 续聊按新 command 单独判定。
-- 带 workspace 参数的 RPC Event 必须走 `onDynamic*` 命名，否则 ProxyChannel 会把 target 误当 listener。
-- snapshot/replay 不补报，dispose 清理统计状态；不改变业务命令、任务和队列。
-- 远端 Source 的订阅必须先检查能力声明；手机与桌面复用同一 owner，不复制订阅状态。
+- 删除 UI workspace/pane attachment、旧 supervisor 和其专属 composer/context 接线。
+- 不改变原生 Web 输入、附件、反馈、发送事务及其 user-action 发送漏斗。
+- 保留 shared 遥测 builder/归集算法、Web report 工具、local TTFT、会话打开诊断，
+  以及正式 HTTP telemetry 接收；通用 wire DTO 不代表公开订阅能力。
+- 本次只删除不可达桌面事实流，不新增空 hook、可选代理或替代后端。

@@ -22,18 +22,12 @@ import {
   IAIReqService,
   IBotsService,
   IBroadcastService,
-  IClientConfigService,
   IFileService,
-  IFileWatcherService,
   IGenUiService,
-  IGitService,
-  IMcpSyncService,
-  IMediaPreviewService,
   IModelSelectionService,
   IProjectService,
   IProviderSettingsService,
   ISettingService,
-  ISkillsService,
   ISubagentsService,
   ISystemService,
   IUsageStatsService,
@@ -49,7 +43,11 @@ import {
   sanitizeTelemetryEventRequest,
   telemetryEventRequestSchema,
 } from "@zcode/shared";
-import { getConnectionServices, validateAIReqIdentity } from "./aireq/contract.js";
+import {
+  getConnectionServices,
+  validateAIReqIdentity,
+  withAIReqIdentity,
+} from "./aireq/contract.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 
 interface ConnectionData {
@@ -116,21 +114,16 @@ function publicService<T>(
   ] as const;
 }
 
-// 这里只发布当前产品使用的契约成员；未列出的服务、写操作和宿主调试方法不可经 /ws 调用。
+// 收口原因：白名单与当前契约逐项对齐；退役能力不能仅从 SDK 隐藏后仍可手写 RPC 调用。
 const publicMembers = new Map([
   publicService(IAIReqService, ["bootstrap", "call"], ["onDidChange"]),
   publicService(
     IZCodeAgentService,
     [
-      "prepareStorage",
-      "getStorageStartupState",
-      "initialize",
       "syncAppRuntimePreferences",
-      "getWorkspaceRuntimeIdentity",
       "listSessionSubagents",
       "supportsConversationQuoteComment",
       "getSkillReferenceCatalog",
-      "closeSession",
       "helloConversationV4",
       "initializeConversationV4",
       "subscribeConversationV4",
@@ -154,30 +147,18 @@ const publicMembers = new Map([
       "attachmentChunkV4",
       "attachmentCommitV4",
       "attachmentAbortV4",
-      "attachmentPreviewSourceV4",
       "attachmentReadV4",
-      "conversationAttachmentReadV4",
-      "conversationAttachmentStatV4",
       "getSessionLifecycle",
-      "ensureSessionReady",
-      "stopSessionRuntime",
       "restartSessionRuntime",
-      "reconcileSessionsIndexV4",
       "subscribeSessionsIndexV4",
       "resyncSessionsIndexV4",
       "unsubscribeSessionsIndexV4",
-      "subscribeWorkspaceConfigV4",
-      "resyncWorkspaceConfigV4",
-      "unsubscribeWorkspaceConfigV4",
     ],
     [
-      "onDynamicStorageStartupState",
       "onDynamicSessionLifecycle",
       "onDynamicConversationFrame",
       "onDynamicLocalTtftFacts",
-      "onDynamicConversationTelemetryFact",
       "onDynamicSessionsIndexFrame",
-      "onDynamicWorkspaceConfigFrame",
       "onAgentRuntimeRestarted",
       "onAgentRuntimeLifecycle",
       "onAgentRuntimeExited",
@@ -185,68 +166,27 @@ const publicMembers = new Map([
   ),
   publicService(IFileService, [
     "searchWorkspaceFiles",
-    "readdir",
     "stat",
     "checkFilesExist",
-    "readTextFile",
     "readMediaPreview",
     "readFileRange",
-    "readBinaryPreview",
-    "listWorkspaceFilesLength",
-    "listWorkspaceFilesRange",
-  ]),
-  publicService(IFileWatcherService, ["watch", "unwatch"], ["onDynamicChange"]),
-  publicService(IGitService, [
-    "getRepositorySummary",
-    "getWorkspaceRepositoryInfo",
-    "getLocalBranches",
-    "getCommitGraph",
-    "getChanges",
-    "getIgnoredPaths",
-    "getDiff",
-    "getBranchComparison",
-    "getIdentity",
-    "refresh",
   ]),
   publicService(ISystemService, ["info"]),
-  publicService(IProjectService, ["resolveSessionDirectories"]),
-  publicService(IMediaPreviewService, ["prepare", "refreshPlaybackUrl", "release"]),
+  publicService(IProjectService, ["resolveSessionDirectories", "readTree"]),
   publicService(
     IBroadcastService,
-    ["send", "acquireClaim", "commitClaim", "releaseClaim", "tryClaim"],
+    ["send", "acquireClaim", "commitClaim", "releaseClaim"],
     ["onMessage"],
   ),
   publicService(ISettingService, ["get", "update"]),
-  publicService(
-    IZCodeTaskService,
-    ["getTaskMeta", "restartWorkspaceProcess"],
-    ["onDynamicWorkspaceEvent"],
-  ),
-  publicService(IZCodeSessionService, ["readWorkspacePresentation", "readSession"]),
+  publicService(IZCodeTaskService, ["restartWorkspaceProcess"]),
+  publicService(IZCodeSessionService, ["readWorkspacePresentation"]),
   publicService(IProviderSettingsService, ["getView", "refresh"], ["onDidChange"]),
   publicService(IModelSelectionService, ["getView"], ["onDidChange"]),
-  publicService(IUsageStatsService, [
-    "getAppUsageSnapshot",
-    "getCodingPlanUsageSnapshot",
-    "getCodingPlanRegularTps",
-    "getCodingPlanResetStatus",
-    "getSnapshot",
-    "getEntitlementSnapshot",
-  ]),
-  publicService(IClientConfigService, ["getSnapshot"]),
-  publicService(ISkillsService, ["list"]),
+  publicService(IUsageStatsService, ["getCodingPlanResetStatus", "getEntitlementSnapshot"]),
   publicService(ISubagentsService, ["list"]),
-  publicService(IMcpSyncService, ["loadMcpFromUserDirectory", "listWorkspaceMcpServerStatuses"]),
-  publicService(IGenUiService, ["readDocument", "getState", "listState"], ["onStateChanged"]),
-  publicService(IBotsService, [
-    "syncAppRuntimePreferences",
-    "getStatus",
-    "getConfig",
-    "listWorkspaceRefs",
-    "getUserConfigOptions",
-    "listBots",
-    "getBotStates",
-  ]),
+  publicService(IGenUiService, ["listState"]),
+  publicService(IBotsService, ["syncAppRuntimePreferences", "getConfig", "getBotStates"]),
 ]);
 const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
 
@@ -263,6 +203,15 @@ function setupChannelServer(
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
   const loggedServer = new LoggingChannelServer(rawServer, log);
   const overrides = getConnectionServices(services, identity);
+  // 项目读取复用 AIReq 的可信连接身份，防止 mention 投影越权读取他人的私有会话。
+  const project = services.get(IProjectService);
+  const connectionIdentity = Object.freeze(validateAIReqIdentity(identity));
+  const connectionProject: IProjectService = {
+    resolveSessionDirectories: (request) =>
+      withAIReqIdentity(connectionIdentity, () => project.resolveSessionDirectories(request)),
+    readTree: (request) => withAIReqIdentity(connectionIdentity, () => project.readTree(request)),
+  };
+  overrides.set(IProjectService.channelName, connectionProject);
   // Web 产品不提供本机目录选择；保持读取契约但不下发真实主机 home 路径。
   overrides.set(ISystemService.channelName, {
     info: async () => ({ homedir: "", platform: process.platform }),
@@ -297,7 +246,6 @@ function setupChannelServer(
     acquireClaim: (key) => broadcast.acquireClaim(key),
     commitClaim: (lease) => broadcast.commitClaim(lease),
     releaseClaim: (lease) => broadcast.releaseClaim(lease),
-    tryClaim: (key) => broadcast.tryClaim(key),
   };
   overrides.set(IBroadcastService.channelName, connectionBroadcast);
   services.exposeOnChannelServer(loggedServer, overrides, publicExposure);

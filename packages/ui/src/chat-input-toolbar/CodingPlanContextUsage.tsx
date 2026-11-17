@@ -1,5 +1,3 @@
-/* eslint-disable max-lines -- Composer 用量入口集中维护多来源状态、弹层和重置交互；本阶段只迁移 Account Access，不拆分既有 UI 结构。 */
-import { type CodingPlanResetType } from "@zcode/shared";
 import { LoaderCircle } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -8,11 +6,8 @@ import {
   resolveCodingPlanUsageRemainingState,
 } from "@/CodingPlanUsageRemainingPanel.js";
 import { cn } from "@/components/lib/utils.js";
-import { LocalizedCodingPlanQuotaResetAction } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetAction.js";
 import { CodingPlanUsageHeaderAction } from "@/chat-input-toolbar/CodingPlanUsageHeaderAction.js";
 import { CodingPlanUsageNotice } from "@/chat-input-toolbar/CodingPlanUsageNotice.js";
-import { CodingPlanQuotaResetOpportunity } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetOpportunity.js";
-import { buildCodingPlanQuotaResetDialogConfig } from "@/components/coding-plan-quota-reset/buildCodingPlanQuotaResetDialogConfig.js";
 import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -22,12 +17,7 @@ import {
   getQuotaRemainingPercentage,
   resolveMcpQuotaLimit,
 } from "@/lib/codingPlanQuotaPresentation.js";
-import {
-  resolveCodingPlanQuotaResetActionCompletedAt,
-  resolveCodingPlanQuotaResetLimit,
-} from "@/lib/codingPlanQuotaResetUi.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
-import { resolveChatCodingPlanResetOpportunityBadge } from "@/chat-input-toolbar/codingPlanResetOpportunityBadge.js";
 import { ChatCodingPlanMcpUsageMeter } from "@/chat-input-toolbar/ChatCodingPlanMcpUsageMeter.js";
 import type { SidebarUsageCodingPlanSourceId } from "@/lib/sidebarUsageCodingPlanProviderPreference.js";
 
@@ -42,10 +32,6 @@ export type ChatCodingPlanUsageRemainingConfig = {
   onUsageClick?: () => void;
   selectedProviderId?: SidebarUsageCodingPlanSourceId;
 };
-
-/** Composer 触发器 hover 展开面板后要求补播撒花的自动完成 used_at,按重置类型定位到对应额度条。
- *  五小时与周额度可能各自 arm,因此按类型分别记录,互不覆盖。 */
-export type CodingPlanQuotaResetAutoConfettiArms = Record<CodingPlanResetType, number | null>;
 
 export function hasChatCodingPlanUsageRemaining(
   config: ChatCodingPlanUsageRemainingConfig,
@@ -175,35 +161,20 @@ export function ChatCodingPlanUsageRemainingPanel({
   config,
   intl,
   locale,
-  quotaResetDialogOpen,
   separated = false,
-  autoCelebrateArm,
-  onAutoCelebrated,
-  onQuotaResetDialogOpenChange,
 }: {
   config: ChatCodingPlanUsageRemainingConfig;
   intl: ReturnType<typeof useZCodeIntl>["intl"];
   locale: string;
-  quotaResetDialogOpen?: boolean;
   separated?: boolean;
-  /** 自动/运营完成后,由 Composer 触发器在 hover 展开面板时要求补播撒花的自动完成 used_at(按类型)。 */
-  autoCelebrateArm?: CodingPlanQuotaResetAutoConfettiArms | null;
-  onAutoCelebrated?: (completedAt: number) => void;
-  onQuotaResetDialogOpenChange?: (open: boolean) => void;
 }) {
   const state = useMemo(() => resolveCodingPlanUsageRemainingState(config), [config]);
   const actionRefreshing = state?.loading || config.refreshing === true;
   const cachedUpdateError =
     Boolean(state?.visibleSnapshot) && Boolean(state?.displayedEntitlement?.error);
-  const [uncontrolledQuotaResetDialogOpen, setUncontrolledQuotaResetDialogOpen] = useState(false);
-  const resolvedQuotaResetDialogOpen = quotaResetDialogOpen ?? uncontrolledQuotaResetDialogOpen;
-  const setQuotaResetDialogOpen =
-    onQuotaResetDialogOpenChange ?? setUncontrolledQuotaResetDialogOpen;
   const resetUi = useCodingPlanQuotaResetUi({
-    sourceKey: state?.displayedProviderId,
     preferredProviderId: state?.displayedEntitlement?.providerId,
     accountAccess: state?.displayedEntitlement?.accountAccess,
-    onEntitlementRefresh: config.onEntitlementRefresh,
   });
   if (!state) {
     return null;
@@ -213,18 +184,11 @@ export function ChatCodingPlanUsageRemainingPanel({
   const remaining = state.visibleSnapshot?.remaining;
   const unavailableReason = state.visibleSnapshot?.unavailableReason;
   const limits = state.visibleSnapshot?.quota?.limits ?? [];
-  const fiveHourTokenLimit = resolveCodingPlanQuotaResetLimit(
-    findCodingPlanQuotaLimit(limits, "TOKENS_LIMIT", 3, 5),
-    resetUi.entry,
-  );
-  const weeklyTokenLimit = resolveCodingPlanQuotaResetLimit(
-    findCodingPlanQuotaLimit(limits, "TOKENS_LIMIT", 6),
-    resetUi.week.entry,
-  );
+  // 额度值只取服务端权益快照，不因重置历史推算为 100%。
+  const fiveHourTokenLimit = findCodingPlanQuotaLimit(limits, "TOKENS_LIMIT", 3, 5);
+  const weeklyTokenLimit = findCodingPlanQuotaLimit(limits, "TOKENS_LIMIT", 6);
   const monthlyToolLimit = findCodingPlanQuotaLimit(limits, "TIME_LIMIT", 5, 1);
   const mcpQuotaLimit = resolveMcpQuotaLimit(state.visibleSnapshot);
-  // 五小时与周机会合并为一个徽标,次数累加,倒计时取最早到期的一档。
-  const opportunityBadge = resolveChatCodingPlanResetOpportunityBadge(state, resetUi);
   const fiveHourResetTime = fiveHourTokenLimit?.nextResetTime
     ? formatContextFiveHourResetTime({
         locale,
@@ -304,19 +268,6 @@ export function ChatCodingPlanUsageRemainingPanel({
   const primaryQuotaMeters = quotaMeters.filter((meter) => meter.key !== "mcp");
   const mcpQuotaMeter = quotaMeters.find((meter) => meter.key === "mcp");
   const quotaGridCount = Math.min(primaryQuotaMeters.length + (mcpQuotaMeter ? 1 : 0), 3);
-  const quotaResetDialog = buildCodingPlanQuotaResetDialogConfig({
-    fiveHourEnabled: Boolean(fiveHourTokenLimit),
-    resetUi,
-    usageItems: quotaMeters.map((meter) => ({
-      color: meter.color,
-      id: meter.key,
-      label: meter.label,
-      percentage: getQuotaRemainingPercentage(meter.limit),
-      resetTime: meter.resetTime,
-      value: formatQuotaRemainingPercentage(locale, meter.limit),
-    })),
-    weekEnabled: Boolean(weeklyTokenLimit),
-  });
 
   return (
     <div className={separated ? "border-t border-border pt-2" : undefined}>
@@ -325,17 +276,28 @@ export function ChatCodingPlanUsageRemainingPanel({
           <span className="min-w-0 truncate text-ui-base font-medium text-foreground">
             {intl.formatMessage({ id: "sidebar.usage.plan.title" })}
           </span>
-          {(fiveHourTokenLimit && resetUi.entry) || (weeklyTokenLimit && resetUi.week.entry) ? (
-            <CodingPlanQuotaResetOpportunity
-              count={opportunityBadge.count}
-              dialog={quotaResetDialog}
-              dialogOpen={resolvedQuotaResetDialogOpen}
-              expiresAt={opportunityBadge.expiresAt}
-              placement="tooltip"
-              visible={opportunityBadge.visible}
-              onDialogOpenChange={setQuotaResetDialogOpen}
-            />
-          ) : null}
+          {(
+            [
+              ["sidebar.usage.plan.fiveHour", resetUi.snapshot?.latestFiveHourResetHistory?.usedAt],
+              ["sidebar.usage.plan.weekly", resetUi.snapshot?.latestWeekResetHistory?.usedAt],
+            ] as const
+          ).map(([labelId, usedAt]) =>
+            usedAt != null ? (
+              <span key={labelId} className="text-ui-xs text-foreground-subtle">
+                {intl.formatMessage({ id: labelId })}
+                {": "}
+                {intl.formatMessage(
+                  { id: "codingPlan.quotaReset.completedAt" },
+                  {
+                    time: new Intl.DateTimeFormat(locale, {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(usedAt),
+                  },
+                )}
+              </span>
+            ) : null,
+          )}
         </div>
         <CodingPlanUsageHeaderAction
           error={state.displayedEntitlement?.error}
@@ -385,35 +347,6 @@ export function ChatCodingPlanUsageRemainingPanel({
               key={meter.key}
               color={meter.color}
               label={meter.label}
-              action={
-                // 额度标题旁入口只打开统一弹窗；真正核销由弹窗内对应类型按钮触发。
-                meter.key === "fiveHour" &&
-                resetUi.entry &&
-                (resetUi.opportunityVisible ||
-                  resetUi.processing ||
-                  resetUi.entry.status === "completed") ? (
-                  <LocalizedCodingPlanQuotaResetAction
-                    autoCelebrateCompletedAt={autoCelebrateArm?.FIVE_HOUR ?? null}
-                    completedAt={resolveCodingPlanQuotaResetActionCompletedAt(resetUi)}
-                    processing={resetUi.processing}
-                    onAutoCelebrated={onAutoCelebrated}
-                    onOpenDialog={() => setQuotaResetDialogOpen(true)}
-                  />
-                ) : meter.key === "weekly" &&
-                  resetUi.week.entry &&
-                  (resetUi.week.opportunityVisible ||
-                    resetUi.week.processing ||
-                    resetUi.week.entry.status === "completed") ? (
-                  <LocalizedCodingPlanQuotaResetAction
-                    autoCelebrateCompletedAt={autoCelebrateArm?.WEEK ?? null}
-                    completedAt={resolveCodingPlanQuotaResetActionCompletedAt(resetUi.week)}
-                    processing={resetUi.week.processing}
-                    resetType="WEEK"
-                    onAutoCelebrated={onAutoCelebrated}
-                    onOpenDialog={() => setQuotaResetDialogOpen(true)}
-                  />
-                ) : undefined
-              }
               percentage={getQuotaRemainingPercentage(meter.limit)}
               resetTime={meter.resetTime}
               value={formatQuotaRemainingPercentage(locale, meter.limit)}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { isFeishuBotProvider, type BotContextState, type FeishuBotProvider } from "@zcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
@@ -11,7 +11,6 @@ export function useBotGroupTask(
   const { botsService, broadcastService } = useServices();
   const [context, setContext] = useState<BotContextState | null>(null);
   const [provider, setProvider] = useState<FeishuBotProvider>();
-  const [busyId, setBusyId] = useState<string | null>(null);
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   useEffect(() => {
     let disposed = false;
@@ -58,94 +57,6 @@ export function useBotGroupTask(
       subscription.dispose();
     };
   }, [botsService, broadcastService, taskId, workspaceKey]);
-  const retry = useCallback(
-    async (deliveryId: string) => {
-      if (!context?.group || !botsService.resendGroupResult) return;
-      setBusyId(deliveryId);
-      try {
-        const result = await botsService.resendGroupResult({
-          botId: context.botId,
-          chatId: context.group.chatId,
-          threadId: context.group.threadId,
-          deliveryId,
-        });
-        setContext((current) =>
-          current?.group &&
-          current.botId === context.botId &&
-          current.group.chatId === context.group!.chatId &&
-          current.group.threadId === context.group!.threadId
-            ? {
-                ...current,
-                group: {
-                  ...current.group,
-                  deliveries: { ...current.group.deliveries, [result.id]: result },
-                },
-              }
-            : current,
-        );
-      } catch (error) {
-        logger.warn("重发群结果失败", { error: String(error) });
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [botsService, context],
-  );
-  const reconcile = useCallback(
-    async (deliveryId: string, received: boolean) => {
-      if (!context?.group || !botsService.reconcileGroupResult) return;
-      setBusyId(deliveryId);
-      try {
-        const result = await botsService.reconcileGroupResult({
-          botId: context.botId,
-          chatId: context.group.chatId,
-          threadId: context.group.threadId,
-          deliveryId,
-          received,
-        });
-        setContext((current) =>
-          current?.group &&
-          current.botId === context.botId &&
-          current.group.chatId === context.group!.chatId &&
-          current.group.threadId === context.group!.threadId
-            ? {
-                ...current,
-                group: {
-                  ...current.group,
-                  deliveries: { ...current.group.deliveries, [result.id]: result },
-                },
-              }
-            : current,
-        );
-      } catch (error) {
-        logger.warn("核对群结果失败", { error: String(error) });
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [botsService, context],
-  );
-  const retryPreparation = useCallback(
-    async (messageId: string) => {
-      if (!context?.group?.threadId || !taskId || !botsService.retryTopicPreparation) return;
-      setBusyId(messageId);
-      try {
-        await botsService.retryTopicPreparation({
-          botId: context.botId,
-          chatId: context.group.chatId,
-          threadId: context.group.threadId,
-          taskId,
-          workspacePath,
-          workspaceIdentity,
-          messageId,
-        });
-      } catch (error) {
-        logger.warn("重试话题材料失败", { error: String(error) });
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [botsService, context, taskId, workspacePath, workspaceIdentity],
-  );
-  return { context, provider, busyId, retry, reconcile, retryPreparation };
+  // 当前公开合同只提供群状态读取，不在展示 hook 中伪造重发、协调或预热动作。
+  return { context, provider };
 }

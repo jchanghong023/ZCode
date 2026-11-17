@@ -11,17 +11,9 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { logger } from "@/logger.js";
-import { LocalizedCodingPlanQuotaResetAction } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetAction.js";
-import { CodingPlanQuotaResetOpportunity } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetOpportunity.js";
-import { buildCodingPlanQuotaResetDialogConfig } from "@/components/coding-plan-quota-reset/buildCodingPlanQuotaResetDialogConfig.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import { formatQuotaResetTime, isSameLimitCategory } from "@/lib/codingPlanQuotaPresentation.js";
-import {
-  mergeCodingPlanQuotaResetOpportunityBadges,
-  resolveCodingPlanQuotaResetActionCompletedAt,
-  resolveCodingPlanQuotaResetLimit,
-} from "@/lib/codingPlanQuotaResetUi.js";
 import {
   type CodingPlanStatus,
   type CodingPlanProviderId,
@@ -131,7 +123,6 @@ export function CodingPlanStatusPanel({
   statusLabelId,
   statusMessage,
   teamPlanAvailabilityReason,
-  quotaResetSourceKey,
   quotaResetAccountAccess,
   onQuotaResetEntitlementRefresh,
 }: {
@@ -154,8 +145,6 @@ export function CodingPlanStatusPanel({
   statusLabelId?: string;
   statusMessage?: string | null;
   teamPlanAvailabilityReason?: TeamPlanAvailabilityReason;
-  /** Team Plan 必须传完整连接 key，避免与同 provider 的个人套餐共享重置状态。 */
-  quotaResetSourceKey?: string;
   quotaResetAccountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
   onQuotaResetEntitlementRefresh?: () => void | Promise<void>;
 }) {
@@ -375,10 +364,8 @@ export function CodingPlanStatusPanel({
                   <CodingPlanUsageSummaryCards
                     limits={quotaLimits}
                     mcpQuotaLimit={mcpQuotaLimit}
-                    sourceKey={quotaResetSourceKey ?? providerId}
                     preferredProviderId={providerId}
                     accountAccess={quotaResetAccountAccess}
-                    onEntitlementRefresh={onQuotaResetEntitlementRefresh}
                   />
                 )
               ) : undefined
@@ -446,34 +433,22 @@ function isStartPlanEntitlementName(planLevel: string): boolean {
 function CodingPlanUsageSummaryCards({
   limits,
   mcpQuotaLimit,
-  sourceKey,
   preferredProviderId,
   accountAccess,
-  onEntitlementRefresh,
 }: {
   limits: UsageQuotaLimit[];
   mcpQuotaLimit: UsageQuotaLimit | null;
-  sourceKey: string;
   preferredProviderId: string;
   accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
-  onEntitlementRefresh?: () => void | Promise<void>;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const [quotaResetDialogOpen, setQuotaResetDialogOpen] = useState(false);
   const resetUi = useCodingPlanQuotaResetUi({
-    sourceKey,
     preferredProviderId,
     accountAccess,
-    onEntitlementRefresh,
   });
-  const fiveHourLimit = resolveCodingPlanQuotaResetLimit(
-    findUsageLimit(limits, "TOKENS_LIMIT", 3, 5),
-    resetUi.entry,
-  );
-  const weeklyLimit = resolveCodingPlanQuotaResetLimit(
-    findUsageLimit(limits, "TOKENS_LIMIT", 6),
-    resetUi.week.entry,
-  );
+  // 配额与权益以服务端读数为准，历史重置不代表当前剩余必然为 100%。
+  const fiveHourLimit = findUsageLimit(limits, "TOKENS_LIMIT", 3, 5);
+  const weeklyLimit = findUsageLimit(limits, "TOKENS_LIMIT", 6);
   const standardCards = [
     createCodingPlanUsageSummaryCard({
       key: "fiveHour",
@@ -529,95 +504,45 @@ function CodingPlanUsageSummaryCards({
             resetTimeFormat: "date" as const,
           }));
 
-  const fiveHourCardVisible = cards.some((card) => card.key === "fiveHour");
-  const weeklyCardVisible = cards.some((card) => card.key === "weekly");
-  // 五小时与周机会合并为一个徽标,次数累加,倒计时取最早到期的一档。
-  // Bugfix：曾用「剩余 100% 则重置无收益」隐藏徽标与按钮。核销会把剩余改写成 100%，
-  // 同类型余下的机会随即被藏掉，用户以为卡丢了。只要额度卡在且有可用机会就展示。
-  const opportunityBadge = mergeCodingPlanQuotaResetOpportunityBadges([
-    {
-      count: resetUi.entry?.opportunityCount ?? 0,
-      expiresAt: resetUi.entry?.opportunityExpiresAt ?? null,
-      visible: fiveHourCardVisible && resetUi.opportunityVisible,
-    },
-    {
-      count: resetUi.week.entry?.opportunityCount ?? 0,
-      expiresAt: resetUi.week.entry?.opportunityExpiresAt ?? null,
-      visible: weeklyCardVisible && resetUi.week.opportunityVisible,
-    },
-  ]);
-  const quotaResetDialog = buildCodingPlanQuotaResetDialogConfig({
-    fiveHourEnabled: Boolean(fiveHourLimit),
-    resetUi,
-    usageItems: cards.map((card) => {
-      const percentage = resolveLimitRemainingPercentage(card.limit);
-      return {
-        color: card.progressColor,
-        id: card.key,
-        label: card.label,
-        percentage,
-        resetTime: formatQuotaResetTime({
-          locale,
-          value: card.limit.nextResetTime,
-          format: card.resetTimeFormat,
-          compactToday: card.resetTimeFormat === "dateTime",
-        }),
-        value: formatRemainingPercentage(locale, percentage),
-      };
-    }),
-    weekEnabled: Boolean(weeklyLimit),
-  });
-
   return (
     <div className="space-y-2">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <h4 className="text-ui-base font-medium text-foreground">
           {intl.formatMessage({ id: "settings.usage.quotaTitle" })}
         </h4>
-        {(fiveHourCardVisible && resetUi.entry) || (weeklyCardVisible && resetUi.week.entry) ? (
-          <CodingPlanQuotaResetOpportunity
-            count={opportunityBadge.count}
-            dialog={quotaResetDialog}
-            dialogOpen={quotaResetDialogOpen}
-            expiresAt={opportunityBadge.expiresAt}
-            placement="inline"
-            visible={opportunityBadge.visible}
-            onDialogOpenChange={setQuotaResetDialogOpen}
-          />
-        ) : null}
+        {(
+          [
+            [
+              "settings.usage.entitlementFiveHourUsage",
+              resetUi.snapshot?.latestFiveHourResetHistory?.usedAt,
+            ],
+            [
+              "settings.usage.entitlementWeeklyUsage",
+              resetUi.snapshot?.latestWeekResetHistory?.usedAt,
+            ],
+          ] as const
+        ).map(([labelId, usedAt]) =>
+          usedAt != null ? (
+            <span key={labelId} className="text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: labelId })}
+              {": "}
+              {intl.formatMessage(
+                { id: "codingPlan.quotaReset.completedAt" },
+                {
+                  time: new Intl.DateTimeFormat(locale, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  }).format(usedAt),
+                },
+              )}
+            </span>
+          ) : null,
+        )}
       </div>
       <div className="flex w-full gap-2 max-sm:flex-col">
         {cards.map((card) => (
           <PlanUsageMetricCard
             key={card.key}
-            action={
-              // 额度标题旁入口只打开统一弹窗；真正核销由弹窗内对应类型按钮触发。
-              // Bugfix：这里曾额外要求 opportunityBadge.count <= 1，多张机会时反而把
-              // 卡上的重置入口藏掉（Usage 页已修，此处遗漏）。与 Usage 页口径对齐：
-              // 有可用机会就展示，不因满额或多张隐藏。
-              card.key === "fiveHour" &&
-              resetUi.entry &&
-              (resetUi.opportunityVisible ||
-                resetUi.processing ||
-                resetUi.entry.status === "completed") ? (
-                <LocalizedCodingPlanQuotaResetAction
-                  completedAt={resolveCodingPlanQuotaResetActionCompletedAt(resetUi)}
-                  processing={resetUi.processing}
-                  onOpenDialog={() => setQuotaResetDialogOpen(true)}
-                />
-              ) : card.key === "weekly" &&
-                resetUi.week.entry &&
-                (resetUi.week.opportunityVisible ||
-                  resetUi.week.processing ||
-                  resetUi.week.entry.status === "completed") ? (
-                <LocalizedCodingPlanQuotaResetAction
-                  completedAt={resolveCodingPlanQuotaResetActionCompletedAt(resetUi.week)}
-                  processing={resetUi.week.processing}
-                  resetType="WEEK"
-                  onOpenDialog={() => setQuotaResetDialogOpen(true)}
-                />
-              ) : undefined
-            }
             label={card.label}
             limit={card.limit}
             infoDescription={

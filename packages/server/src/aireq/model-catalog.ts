@@ -1,3 +1,4 @@
+import { Event } from "@zcode/rpc";
 import {
   IModelSelectionService,
   IProviderSettingsService,
@@ -61,38 +62,42 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
       };
     },
   });
+  // 返回值与事件共用同一投影，防止刷新后把底座目录覆盖到当前 AIReq 目录。
+  const mapSettingsView = (original: Awaited<ReturnType<typeof settings.getView>>) => {
+    const template = original.providers[0];
+    if (!template) throw new Error("模拟供应商目录缺失。");
+    const modelTemplate = template.models[0];
+    if (!modelTemplate) throw new Error("模拟模型配置缺失。");
+    return {
+      ...original,
+      providerOrder: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))],
+      providers: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))].map(
+        (providerId) => ({
+          ...template,
+          providerId,
+          providerName: PROTOTYPE_AGENT_MODELS.find((model) => model.providerId === providerId)!
+            .provider,
+          templateId: undefined,
+          effectiveConfig: { ...template.effectiveConfig, access: undefined, logo: undefined },
+          models: PROTOTYPE_AGENT_MODELS.filter((model) => model.providerId === providerId).map(
+            (model) => ({ ...modelTemplate, modelId: model.name }),
+          ),
+        }),
+      ),
+    };
+  };
+  const settingsChanged = Event.map(settings.onDidChange, mapSettingsView);
   const settingsFacade = new Proxy(settings, {
     get(target, key) {
-      if (key !== "getView" && key !== "refresh") {
-        const value = Reflect.get(target, key, target);
-        return typeof value === "function" && !String(key).startsWith("on")
-          ? value.bind(target)
-          : value;
-      }
-      return async () => {
-        const original = await settings.getView();
-        const template = original.providers[0];
-        if (!template) throw new Error("模拟供应商目录缺失。");
-        const modelTemplate = template.models[0];
-        if (!modelTemplate) throw new Error("模拟模型配置缺失。");
-        return {
-          ...original,
-          providerOrder: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))],
-          providers: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))].map(
-            (providerId) => ({
-              ...template,
-              providerId,
-              providerName: PROTOTYPE_AGENT_MODELS.find((model) => model.providerId === providerId)!
-                .provider,
-              templateId: undefined,
-              effectiveConfig: { ...template.effectiveConfig, access: undefined, logo: undefined },
-              models: PROTOTYPE_AGENT_MODELS.filter((model) => model.providerId === providerId).map(
-                (model) => ({ ...modelTemplate, modelId: model.name }),
-              ),
-            }),
-          ),
-        };
-      };
+      if (key === "onDidChange") return settingsChanged;
+      if (key === "getView") return async () => mapSettingsView(await settings.getView());
+      // 刷新仍由目录 owner 处理并保留 reason；无事实变化时不能制造版本或事件。
+      if (key === "refresh")
+        return async (reason: string) => mapSettingsView(await settings.refresh(reason));
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" && !String(key).startsWith("on")
+        ? value.bind(target)
+        : value;
     },
   });
   return new Map<string, unknown>([

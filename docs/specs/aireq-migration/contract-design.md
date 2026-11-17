@@ -93,10 +93,13 @@
 
 - 继续使用 `aireq-contract`、`aireq-mock`、`aireq-ui`，公开 seam 仍为 `IAIReqService.call` 的类型化 operation 白名单、既有 data source 与 UI `contract.ts`。不建平行 RPC、存储、会话或执行系统；所有合法工号均可配置、代办、指定和认领，身份用于留痕、联系人与个人会话隔离，不做角色授权、管理员特权或负责人独占。owner 只表示数据／配置来源与状态所有权，不是操作者权限。
 - `MockAIReqService/workflow` 唯一持有项目、Release、IR/SR、原始短需求、版本材料、两类评审历史、三方确认、PR 候选、分工、报告、合并、问题、验收及分支事实。待办是这些事实的只读派生，不持久化独立完成状态。现有 v4 owner 保留消息、附件、订阅、水位；业务仅保存引用及版本绑定完成回调。
-- 每个写操作携带合法工号／clientId、稳定操作 ID、目标及预期版本，经参数、对象及原生会话归属、阶段、版本、幂等及材料门禁后提交，再发 `onDidChange`。同操作同参数复用回执，同 ID 改参数拒绝；迟到读取按 UI 代际丢弃，迟到 AI 结果按对象和材料／代码版本拒绝。刷新重连只重读，不重放已接纳写操作。
+- 所有远程调用携带合法工号／clientId，写操作按现有签名执行对应的对象归属、参数、阶段及材料门禁，提交后再发 `onDidChange`，不泛称每个写入都有 CAS／operationId。业务 `command`、项目保存、排期、测试验收、清理及 Skill 预览保存保留各自已有版本与操作标识；`models.save`／`prompts.save` 仅有 `expectedRevision`，没有 operationId；`skillDesign.saveDraft` 和 scheduler 的 `setProjectEnabled`／`configure`／`runNow` 没有请求版本或 operationId，按当前覆盖保存／调度语义执行。已有回执只在当前进程生命周期内按对应签名复用，同 ID 改业务参数拒绝；不承诺跨重启 exactly-once，不为理论保障扩接口。迟到读取按 UI 代际丢弃，迟到 AI 结果按对象和材料／代码版本拒绝；刷新重连只重读，不自动重放任何 mutation。
 - 业务 `command` 的幂等比较包含目标和业务参数，不包含首次接纳用的 `expectedRevision`／RPC `revision`。同一操作重读版本后先返回已有回执，不能重复创建；不同业务内容仍拒绝。新增／导入冲突时允许显式重新读取版本并保留输入及操作 ID，不自动重发；未知回执若已接纳，下次显式提交复用原结果。
 - 文档 PR 轮询的检查时间／相同状态消息是观测元数据，只发失效通知，不推进业务 CAS revision；MR 实际状态或转正等业务事实改变才推进 revision。否则无关 PR 每五秒重读会让测试／清理弹窗永久过期。真实业务变化仍使旧表单失效。
 - 项目配置、正式 SR 分工、测试验收、分支清理与后端私有合入的幂等记录都按实际 employee/client 和 operationId 隔离；比较目标、动作和业务内容，不比较首次接纳的 expectedRevision。回执丢失后重读再显式提交同一操作仍复用原结果，不重复创建项目、验收或制造问题。
+- 远程 operation 白名单收敛为 29 项：删除 `models.read`／`models.revision`／`models.bindingChanged`／`prompts.read` 的类型、wire schema 和 server 分派，不保留兼容别名。当前前端从 bootstrap 元数据读取配置并在本地比较模型 revision，提示词草稿仍是本地读取端口；后端内部模型／提示词读取、修订号及绑定比较函数保留，`models.save`／`prompts.save` 的既有 CAS 不变。隐藏 Skill 十项操作全部保留；私有材料生成及已退出的场景控制不能因历史说明重新公开。
+- 模型目录 facade 的 `getView`、`refresh(reason)` 返回和 `onDidChange` 事件必须使用同一 AIReq 目录投影，保留 Anthropic／OpenAI 等现有目录与选择，不向前端透传仅含底座供应商的原始目录。`refresh` 必须调用既有目录 owner 的刷新并保留 reason；当前刷新只读取当前内存目录，不声称外部连通性或外部供应商刷新。只有 owner 的目录事实实际变更时才推进目录 revision，并在事实提交后发布同一 owner view 的投影；无配置或目录事实变更的刷新保持版本稳定，不制造事件。当前 owner 无可变目录事实，不因刷新次数制造 revision；目录 revision 与模型业务配置 revision 相互独立，也不代表真实模型执行。
+
 - 原生讨论完成回调除材料版本外还必须匹配当前阶段、轮次及会话；退回后即使材料未变，旧轮次未完成的发送也不能写入新轮次。历史会话不能因旧接纳而重新取得写权限。
 - 公开 DTO 不包含后端私有代码合入输入，亦不保留已退出白名单的手工 PR 地址、手工确认合入和旧评审决定命令；`generateRequirements`／`supplementRequirements`／`generateProposalSolution` 仅由 server 私有动作类型定义，公共类型直接定义正式 `AIReqAction`，不导出内部命令全集或过滤别名。内部材料生成仍只能沿原生讨论完成回调进入唯一业务 owner。
 - 修改方案／测试方案必须实际命中已有对应材料后才能使批准失效并提交；不存在材料时明确失败，不产生“已修改”的空操作回执。

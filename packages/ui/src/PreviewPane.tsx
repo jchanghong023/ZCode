@@ -21,7 +21,6 @@ import { TID_PREVIEW_PANE } from "@zcode/shared/test-ids";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
-  FILE_VIEWER_MAX_TEXT_BYTES,
   createDiffSourceFilePreviewSource,
   inferImageMediaType,
   inferMediaPreview,
@@ -178,15 +177,6 @@ export function resolvePreviewPaneTextFileResult(result: FileTextSlice): {
 
 function isSvgFilePath(path?: string): boolean {
   return path?.toLowerCase().endsWith(".svg") ?? false;
-}
-
-function decodeBase64ToArrayBuffer(dataBase64: string): ArrayBuffer {
-  const binary = atob(dataBase64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes.buffer;
 }
 
 function getFileImageMediaType(path?: string): string | null {
@@ -409,6 +399,8 @@ export function PreviewPane({
   renderHeavyContent = true,
   headerContainer,
   markdownSelectionTarget,
+  readTextPreview,
+  mediaPreviewUrl = null,
 }: {
   source: CodeViewerSource | null;
   onClose: () => void;
@@ -419,6 +411,10 @@ export function PreviewPane({
   /** 文件管理器将面包屑与目录开关放在同一工具栏，仍由预览维护文件操作。 */
   headerContainer?: HTMLElement | null;
   markdownSelectionTarget?: MarkdownSelectionTarget;
+  /** 通用预览由调用方提供真实文本，不再读取旧文件 RPC。 */
+  readTextPreview?: (path: string) => Promise<FileTextSlice>;
+  /** 由调用方持有和释放的真实媒体 URL。 */
+  mediaPreviewUrl?: string | null;
 }) {
   const { intl } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
@@ -437,7 +433,7 @@ export function PreviewPane({
       ),
     [source, workspacePath, markdownSelectionTarget?.workspaceKey],
   );
-  const { fileService, mediaPreviewService } = useWorkspaceServices(
+  const { fileService } = useWorkspaceServices(
     sourceWorkspacePath,
     source?.workspaceRemoteSessionId,
     source?.workspaceIdentity,
@@ -454,19 +450,7 @@ export function PreviewPane({
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingImagePreview, setLoadingImagePreview] = useState(false);
   const [imagePreview, setImagePreview] = useState<FileMediaPreview | null>(null);
-  const [loadingMediaPreview, setLoadingMediaPreview] = useState(false);
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
-  const [mediaPreviewId, setMediaPreviewId] = useState<string | null>(null);
-  const mediaPreviewGenerationRef = useRef(0);
-  const mediaRefreshAttemptedRef = useRef(false);
-  const mediaRefreshInFlightRef = useRef(false);
-  const mediaRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mediaPlaybackRestoreRef = useRef<{
-    currentTime: number;
-    paused: boolean;
-    volume: number;
-    muted: boolean;
-  } | null>(null);
+  const loadingMediaPreview = false;
   const [error, setError] = useState<string | null>(null);
   const [markdownViewMode, setMarkdownViewMode] = useState<"preview" | "code">("preview");
   const [svgViewMode, setSvgViewMode] = useState<"preview" | "code">("preview");
@@ -756,15 +740,13 @@ export function PreviewPane({
       };
     }
 
-    // 把传输分块直接当成多个文档解码和渲染，会在 UTF-8 字符中间产生乱码，
-    // 同时让每块行号从 1 重置。文本预览现在只读取 service 允许的完整上限；
-    // 非二进制结果返回 truncated 时丢弃局部文本并提示文件过大，不再拼接分块。
-    void fileService
-      .readTextFile({
-        path: fileSource.path,
-        offset: 0,
-        length: FILE_VIEWER_MAX_TEXT_BYTES,
-      })
+    // 无读取端口就明确不可用，不为保留控件恢复旧服务。
+    if (!readTextPreview) {
+      setLoadingInitial(false);
+      setError(intl.formatMessage({ id: "codeViewer.mediaUnavailable" }));
+      return;
+    }
+    void readTextPreview(fileSource.path)
       .then((result) => {
         if (disposed) {
           return;
@@ -797,7 +779,7 @@ export function PreviewPane({
     return () => {
       disposed = true;
     };
-  }, [fileService, fileSource, intl]);
+  }, [readTextPreview, fileSource, intl]);
 
   useEffect(() => {
     let disposed = false;
@@ -848,160 +830,16 @@ export function PreviewPane({
     };
   }, [fileService, imageSource, intl]);
 
-  useEffect(() => {
-    let disposed = false;
-    let objectUrl: string | null = null;
-    let preparedPreviewId: string | null = null;
-    const generation = ++mediaPreviewGenerationRef.current;
-
-    if (!mediaSource) {
-      setLoadingMediaPreview(false);
-      setMediaPreviewUrl(null);
-      setMediaPreviewId(null);
-      mediaRefreshAttemptedRef.current = false;
-      if (mediaRefreshTimerRef.current) clearTimeout(mediaRefreshTimerRef.current);
-      mediaRefreshTimerRef.current = null;
-      mediaPlaybackRestoreRef.current = null;
-      return () => {
-        disposed = true;
-      };
-    }
-
-    setLoadingMediaPreview(true);
-    setMediaPreviewUrl(null);
-    setMediaPreviewId(null);
-    setError(null);
-    mediaRefreshAttemptedRef.current = false;
-    mediaRefreshInFlightRef.current = false;
-    if (mediaRefreshTimerRef.current) clearTimeout(mediaRefreshTimerRef.current);
-    mediaRefreshTimerRef.current = null;
-    mediaPlaybackRestoreRef.current = null;
-    if (!mediaPreviewService) {
-      setLoadingMediaPreview(false);
-      setError(intl.formatMessage({ id: "codeViewer.mediaUnavailable" }));
-      return () => {
-        disposed = true;
-      };
-    }
-
-    void mediaPreviewService
-      .prepare({
-        path: mediaSource.path,
-        expectedKind: mediaSource.kind,
-      })
-      .then((preview) => {
-        const previewId = "previewId" in preview ? preview.previewId : null;
-        if (previewId) preparedPreviewId = previewId;
-        if (disposed || generation !== mediaPreviewGenerationRef.current) {
-          if (previewId && mediaPreviewService?.release) {
-            void mediaPreviewService.release({ previewId }).catch(() => undefined);
-          }
-          return;
-        }
-        if ("url" in preview) {
-          if (previewId) setMediaPreviewId(previewId);
-          setMediaPreviewUrl(preview.url);
-        } else {
-          objectUrl = URL.createObjectURL(
-            new Blob([decodeBase64ToArrayBuffer(preview.dataBase64)], {
-              type: preview.mediaType,
-            }),
-          );
-          setMediaPreviewUrl(objectUrl);
-        }
-      })
-      .catch((previewError: unknown) => {
-        if (disposed || generation !== mediaPreviewGenerationRef.current) return;
-        logger.error("[PreviewPane] 读取媒体预览失败", {
-          path: mediaSource.path,
-          error: previewError instanceof Error ? previewError.message : String(previewError),
-        });
-        setError(
-          isPreviewPaneMissingFileError(previewError)
-            ? intl.formatMessage({ id: "codeViewer.fileMissing" })
-            : previewError instanceof Error
-              ? previewError.message
-              : String(previewError),
-        );
-      })
-      .finally(() => {
-        if (!disposed && generation === mediaPreviewGenerationRef.current) {
-          setLoadingMediaPreview(false);
-        }
-      });
-
-    return () => {
-      disposed = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      if (mediaRefreshTimerRef.current) clearTimeout(mediaRefreshTimerRef.current);
-      mediaRefreshTimerRef.current = null;
-      if (preparedPreviewId && mediaPreviewService?.release) {
-        void mediaPreviewService.release({ previewId: preparedPreviewId }).catch(() => undefined);
-      }
-    };
-  }, [intl, mediaPreviewService, mediaSource]);
-
   const handleMediaError = useCallback(
     (event: SyntheticEvent<HTMLMediaElement>) => {
-      const mediaElement = event.currentTarget;
-      const refreshPlaybackUrl = mediaPreviewService?.refreshPlaybackUrl;
-      if (!mediaPreviewId || !refreshPlaybackUrl) {
-        setError(
-          intl.formatMessage({
-            id: resolveMediaPlaybackErrorMessageId(mediaElement.error?.code),
-          }),
-        );
-        return;
-      }
-      if (mediaRefreshAttemptedRef.current || mediaRefreshInFlightRef.current) {
-        setError(intl.formatMessage({ id: "codeViewer.mediaLoadFailed" }));
-        return;
-      }
-
-      mediaRefreshAttemptedRef.current = true;
-      const generation = mediaPreviewGenerationRef.current;
-      mediaPlaybackRestoreRef.current = {
-        currentTime: Number.isFinite(mediaElement.currentTime) ? mediaElement.currentTime : 0,
-        paused: mediaElement.paused,
-        volume: mediaElement.volume,
-        muted: mediaElement.muted,
-      };
-      setError(null);
-      mediaRefreshTimerRef.current = setTimeout(() => {
-        mediaRefreshTimerRef.current = null;
-        if (generation !== mediaPreviewGenerationRef.current) return;
-        mediaRefreshInFlightRef.current = true;
-        void refreshPlaybackUrl({ previewId: mediaPreviewId })
-          .then(({ url }) => {
-            if (generation === mediaPreviewGenerationRef.current) setMediaPreviewUrl(url);
-          })
-          .catch(() => {
-            if (generation === mediaPreviewGenerationRef.current) {
-              setError(intl.formatMessage({ id: "codeViewer.mediaLoadFailed" }));
-            }
-          })
-          .finally(() => {
-            mediaRefreshInFlightRef.current = false;
-          });
-      }, 500);
+      setError(
+        intl.formatMessage({
+          id: resolveMediaPlaybackErrorMessageId(event.currentTarget.error?.code),
+        }),
+      );
     },
-    [intl, mediaPreviewId, mediaPreviewService],
+    [intl],
   );
-
-  const handleMediaLoadedMetadata = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
-    const restore = mediaPlaybackRestoreRef.current;
-    if (!restore) return;
-    const mediaElement = event.currentTarget;
-    mediaElement.volume = restore.volume;
-    mediaElement.muted = restore.muted;
-    try {
-      mediaElement.currentTime = restore.currentTime;
-    } catch {
-      // 媒体元数据尚未完全就绪时由浏览器稍后继续处理，不阻断播放器加载。
-    }
-    if (!restore.paused) void mediaElement.play().catch(() => undefined);
-    mediaPlaybackRestoreRef.current = null;
-  }, []);
 
   const handlePreviewContentScroll = useCallback(() => {
     rememberScrollMetrics();
@@ -1259,8 +1097,12 @@ export function PreviewPane({
             loadingMediaPreview={loadingMediaPreview}
             mediaPreviewUrl={mediaPreviewUrl}
             onMediaError={handleMediaError}
-            onMediaLoadedMetadata={handleMediaLoadedMetadata}
-            error={error}
+            error={
+              error ??
+              (mediaSource && !mediaPreviewUrl
+                ? intl.formatMessage({ id: "codeViewer.mediaUnavailable" })
+                : null)
+            }
             codePreviewSettings={codePreviewSettings}
             codeTheme={codeTheme}
             resolvedTheme={resolvedTheme}

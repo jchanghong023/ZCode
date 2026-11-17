@@ -39,7 +39,6 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
       onOpenModelSettings={props.onOpenModelSettings ?? openModelSettings}
       submissionModelSelectionOnly
       focused={workspaceActive && (props.focused ?? true)}
-      telemetryVisible={workspaceActive && (props.telemetryVisible ?? true)}
       interactionEnabled={workspaceActive && (props.interactionEnabled ?? true)}
       autoFocusEnabled={
         workspaceActive && (props.autoFocusEnabled ?? aireq?.session?.role !== "reviewer")

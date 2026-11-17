@@ -3,10 +3,8 @@ import type {
   ProjectDirectories,
   ProjectTaskRef,
   ProjectTree,
-  VirtualProject,
 } from "#src/project-storage/repository-contract.js";
 import { ServiceChannels } from "@zcode/shared";
-import type { FileEntry } from "@zcode/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
 export type {
   ProjectDataDeleteResult,
@@ -25,30 +23,15 @@ export type {
   ProjectRoot,
 } from "#src/project-storage/repository-contract.js";
 
-/** 当前浏览器连接的后端拥有共享项目；identity 不选择旧远程 Host，工号不参与项目分区。 */
+/** 只读投影 AIReq 业务与当前连接可访问的原生会话，不提供宿主目录浏览或第二项目 owner。 */
 export interface IProjectService {
-  /** 项目选目录只访问当前后端服务器文件服务，不是浏览器设备；不建立 workspace 或启动 Agent。 */
-  readDirectory(params?: {
-    hostId?: string;
-    path?: string;
-    includeHidden?: boolean;
-  }): Promise<{ path: string; entries: FileEntry[] }>;
-  /** 配置目录与项目选择；所属 Host 派生主目录状态，不加载任务。 */
-  readProjects(params?: { includeDeleted?: boolean; hostId?: string }): Promise<VirtualProject[]>;
-  /** SQLite 快照与所属 Host 主目录状态的只读投影；不为查询启动 Agent，也不触发自动归档。 */
+  /** 当前 @/# mention 使用；includeDeleted 不放宽工号、客户端或 workspace 隔离。 */
   readTree(params?: {
     includeDeleted?: boolean;
     includeDeletedTasks?: boolean;
     hostId?: string;
   }): Promise<ProjectTree>;
-  /** 固化本次创建 cwd 并复检主目录；已配置目录失效时拒绝，空项目或全局任务才创建默认目录。 */
-  prepareSession(params?: {
-    projectId?: string;
-    hostId?: string;
-    draftId?: string;
-    reuseDraft?: boolean;
-  }): Promise<ProjectDirectories>;
-  /** 缺 task = []，缺 project / DB 错误必须拒绝。软删项目仍可恢复历史任务。 */
+  /** 只解析已有业务/会话归属；复检 cwd 与稳定 identity，缺失或不可访问目标拒绝。 */
   resolveSessionDirectories(task: ProjectTaskRef, hostId?: string): Promise<ProjectDirectories>;
 }
 export const IProjectService = createServiceDescriptor<IProjectService>(ServiceChannels.Project);

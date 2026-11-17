@@ -21,8 +21,6 @@ import {
   type ChatComposerAttachment,
 } from "@/lib/chatAttachments.js";
 import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
-import type { IPromptAttachmentTransferService } from "@zcode/services";
-import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";
@@ -56,7 +54,6 @@ interface UploadTarget {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   attachmentPut: AttachmentPutFn;
-  transferService: IPromptAttachmentTransferService;
 }
 
 interface UploadQueueEntry {
@@ -89,15 +86,10 @@ export interface ComposerAttachmentsApi {
   clearAttachments: (attachmentIds?: readonly string[], targetScopeKey?: string) => void;
   /** 草稿跨工作区时重新准备附件，不能继承旧 session 的上传引用。 */
   restoreDraftAttachments: (attachments: readonly ChatComposerAttachment[]) => void;
-  /** 把已由 session 接管的 queue refs 原样恢复为 ready chips；不触发 upload/adopt。 */
+  /** 把已由 session 接管的 queue refs 原样恢复为 ready chips；不重复上传。 */
   restoreSessionOwnedAttachments: (attachments: readonly AttachmentRef[]) => boolean;
   /** 只返回已 ready ref；任一附件未就绪时返回 null 作 submit 二次门禁。 */
   prepareForSend: () => Promise<AttachmentRef[] | null>;
-  /** sendText accepted 后才移交远端暂存内容，发送失败时仍由草稿持有。 */
-  adoptSentAttachments: (
-    attachmentIds: readonly string[],
-    targetScopeKey?: string,
-  ) => Promise<void>;
   /** 当前附件 scope 的 key；提交时冻结，供结算时传回。 */
   scopeKey: string;
   setAttachmentError: (message: string | null) => void;
@@ -134,7 +126,7 @@ export function buildScopeKey(
   return `${workspaceIdentity?.trim() || workspacePath}\u0000${scopeId}`;
 }
 
-/** queue / 已发送消息中的 AttachmentRef 已由 session 接管：恢复为 ready chip，不再 upload/adopt。 */
+/** queue / 已发送消息中的 AttachmentRef 已由 session 接管：恢复为 ready chip，不重复上传。 */
 function createSessionOwnedAttachmentItems(
   attachmentRefs: readonly AttachmentRef[],
 ): ComposerAttachmentUploadItem[] {
@@ -152,11 +144,8 @@ function createSessionOwnedAttachmentItems(
       uploadStatus: "ready",
       uploadProgress: 100,
       attachmentRef: { ...attachmentRef },
-      operationId: `session-owned-${id}`,
       autoRetryCount: 0,
       runtimeRebuildRetryCount: 0,
-      staged: false,
-      adopted: true,
       showComplete: false,
       localZeroCopy: false,
     };
@@ -258,7 +247,6 @@ export function useComposerAttachments(
     disabled = false,
     listenAddToChatEvents = true,
   } = options;
-  const { promptAttachmentTransferService } = useServices();
   const { intl } = useZCodeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
 
@@ -289,7 +277,6 @@ export function useComposerAttachments(
     workspaceIdentity,
     remoteSessionId,
     attachmentPut,
-    transferService: promptAttachmentTransferService,
   });
 
   const commitScope = useCallback(
@@ -324,7 +311,7 @@ export function useComposerAttachments(
   }, []);
 
   const finishWithReady = useCallback(
-    (targetScopeKey: string, attachmentId: string, ref: AttachmentRef, staged: boolean) => {
+    (targetScopeKey: string, attachmentId: string, ref: AttachmentRef) => {
       updateItem(targetScopeKey, attachmentId, (item) => ({
         ...item,
         uploadStatus: "ready",
@@ -332,7 +319,6 @@ export function useComposerAttachments(
         uploadError: undefined,
         uploadErrorKind: undefined,
         attachmentRef: ref,
-        staged,
         showComplete: !item.localZeroCopy,
       }));
       const timerKey = `${targetScopeKey}\u0000${attachmentId}`;
@@ -362,69 +348,16 @@ export function useComposerAttachments(
         uploadError: undefined,
         uploadErrorKind: undefined,
       }));
-      let progressSubscription: { dispose(): void } | null = null;
       try {
         const item = readComposerAttachmentScope(targetScopeKey).find(
           (candidate) => candidate.id === attachmentId,
         );
         if (!item || !target.sessionId) return;
+        // Web 只上传浏览器持有的字节；宿主路径不能冒充可跨主机转移的附件。
         if (item.localPath && isRemoteAttachmentTarget(target)) {
-          if (!target.remoteSessionId) {
-            updateItem(targetScopeKey, attachmentId, (current) => ({
-              ...current,
-              uploadStatus: "waitingSession",
-            }));
-            return;
-          }
-          progressSubscription = target.transferService.onDynamicProgress(item.operationId)(
-            (progress) => {
-              if (controllersRef.current.get(controllerKey) !== controller) return;
-              updateItem(targetScopeKey, attachmentId, (current) => ({
-                ...current,
-                uploadStatus: progress.phase === "committing" ? "committing" : current.uploadStatus,
-                uploadProgress: Math.max(
-                  current.uploadProgress,
-                  progressPercent(progress.uploadedBytes, progress.totalBytes),
-                ),
-              }));
-            },
+          throw new RemoteAttachmentNotStagedError(
+            intl.formatMessage({ id: "chat.attachments.upload.remoteMaterializationRequired" }),
           );
-          const result = await target.transferService.stage({
-            operationId: item.operationId,
-            sessionId: target.sessionId,
-            workspacePath: target.workspacePath,
-            ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
-            remoteSessionId: target.remoteSessionId,
-            localPath: item.localPath,
-            fileName: item.filename,
-            mime: item.mimeType,
-            sizeBytes: item.sizeBytes,
-          });
-          if (controllersRef.current.get(controllerKey) !== controller) return;
-          // 远端 ServiceAccessor 曾错误注入本地 transfer service，并返回
-          // staged:false + host localPath。远端 Agent 无法读取该路径，因此必须阻止发送。
-          if (!result.staged) {
-            throw new RemoteAttachmentNotStagedError(
-              intl.formatMessage({
-                id: "chat.attachments.upload.remoteMaterializationRequired",
-              }),
-            );
-          }
-          finishWithReady(
-            targetScopeKey,
-            attachmentId,
-            {
-              ref: result.ref,
-              fileName: item.filename,
-              mime: item.mimeType,
-              bytes: result.bytes,
-              ...(item.sourceKind
-                ? { sourceKind: item.sourceKind, messageCount: item.messageCount }
-                : {}),
-            },
-            result.staged,
-          );
-          return;
         }
 
         const serialized = await serializeChatComposerAttachment(item);
@@ -449,7 +382,7 @@ export function useComposerAttachments(
         );
         if (!ref) throw new Error("附件缺少可读取内容");
         if (controllersRef.current.get(controllerKey) !== controller) return;
-        finishWithReady(targetScopeKey, attachmentId, ref, false);
+        finishWithReady(targetScopeKey, attachmentId, ref);
       } catch (error) {
         if (controllersRef.current.get(controllerKey) !== controller || controller.signal.aborted) {
           return;
@@ -518,7 +451,6 @@ export function useComposerAttachments(
           });
         }
       } finally {
-        progressSubscription?.dispose();
         if (controllersRef.current.get(controllerKey) === controller) {
           controllersRef.current.delete(controllerKey);
         }
@@ -607,7 +539,6 @@ export function useComposerAttachments(
           const key = `${targetScopeKey}\u0000${item.id}`;
           controllersRef.current.get(key)?.abort();
           controllersRef.current.delete(key);
-          if (item.staged) void target?.transferService.cleanup(item.operationId).catch(() => {});
           if (item.runtimeRebuildRetryCount >= COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT) {
             // 重传配额用尽是真失败，无论静默与否都必须让用户看见。
             updateItem(targetScopeKey, item.id, (current) => ({
@@ -619,8 +550,6 @@ export function useComposerAttachments(
               }),
               uploadErrorKind: "runtimeRestarted",
               attachmentRef: undefined,
-              staged: false,
-              adopted: false,
               showComplete: false,
             }));
             continue;
@@ -641,8 +570,6 @@ export function useComposerAttachments(
                   uploadErrorKind: "runtimeRestarted" as const,
                 }),
             attachmentRef: undefined,
-            staged: false,
-            adopted: false,
             showComplete: false,
             runtimeRebuildRetryCount: current.runtimeRebuildRetryCount + 1,
           }));
@@ -706,7 +633,6 @@ export function useComposerAttachments(
         return {
           ...attachment,
           referenceOwnership: "composer",
-          operationId: `prompt-attachment-${attachment.id}`,
           uploadStatus: localZeroCopy ? "ready" : target?.sessionId ? "queued" : "waitingSession",
           uploadProgress: localZeroCopy ? 100 : 0,
           ...(localZeroCopy && attachment.localPath
@@ -721,8 +647,6 @@ export function useComposerAttachments(
             : {}),
           autoRetryCount: 0,
           runtimeRebuildRetryCount: 0,
-          staged: false,
-          adopted: false,
           showComplete: false,
           localZeroCopy,
         };
@@ -907,12 +831,6 @@ export function useComposerAttachments(
       completeTimersRef.current.delete(key);
       retryTimersRef.current.delete(key);
       revokeChatComposerAttachment(item);
-      const target = targetsRef.current.get(scopeKey);
-      if (item.staged || item.uploadStatus === "uploading" || item.uploadStatus === "committing") {
-        void target?.transferService.cancel(item.operationId).catch((error) => {
-          logger.warn("[v4-composer-attachments] 取消远程附件失败", error);
-        });
-      }
       commitScope(scopeKey, (items) => items.filter((candidate) => candidate.id !== id));
       setAttachmentError(null);
     },
@@ -926,7 +844,6 @@ export function useComposerAttachments(
       );
       if (!current || current.uploadStatus !== "failed") return;
       const target = targetsRef.current.get(scopeKey);
-      void target?.transferService.cleanup(current.operationId).catch(() => {});
       updateItem(scopeKey, id, (item) => ({
         ...item,
         uploadStatus: target?.sessionId ? "queued" : "waitingSession",
@@ -936,8 +853,6 @@ export function useComposerAttachments(
         attachmentRef: undefined,
         autoRetryCount: 0,
         runtimeRebuildRetryCount: 0,
-        staged: false,
-        adopted: false,
         showComplete: false,
       }));
       if (target?.sessionId) enqueueUpload(scopeKey, id);
@@ -951,7 +866,6 @@ export function useComposerAttachments(
       const current = readComposerAttachmentScope(targetScopeKey).filter(
         (item) => !ids || ids.has(item.id),
       );
-      const target = targetsRef.current.get(targetScopeKey);
       for (const item of current) {
         const key = `${targetScopeKey}\u0000${item.id}`;
         controllersRef.current.get(key)?.abort();
@@ -963,14 +877,6 @@ export function useComposerAttachments(
         completeTimersRef.current.delete(key);
         retryTimersRef.current.delete(key);
         revokeChatComposerAttachment(item);
-        if (
-          !item.adopted &&
-          (item.staged || item.uploadStatus === "uploading" || item.uploadStatus === "committing")
-        ) {
-          void target?.transferService.cleanup(item.operationId).catch((error) => {
-            logger.warn("[v4-composer-attachments] 清理未发送附件失败", error);
-          });
-        }
       }
       // ACK 到达后清空整个 scope，会顺手删除等待期间新加入的附件。
       uploadQueueRef.current = uploadQueueRef.current.filter(
@@ -1009,7 +915,7 @@ export function useComposerAttachments(
       if (readComposerAttachmentScope(scopeKey).length > 0) return false;
       const restored = createSessionOwnedAttachmentItems(attachmentRefs);
       // queue 中的 AttachmentRef 已在首次发送时由 session 接管；若按普通
-      // composer 文件重建，会在撤回后重复 upload/adopt，并在 runtime restart 时误清引用。
+      // composer 文件重建会在撤回后重复上传，并在 runtime restart 时误清引用。
       commitScope(scopeKey, () => restored);
       setAttachmentError(null);
       return true;
@@ -1024,32 +930,6 @@ export function useComposerAttachments(
     }
     return current.flatMap((item) => (item.attachmentRef ? [item.attachmentRef] : []));
   }, [scopeKey]);
-
-  const adoptSentAttachments = useCallback(
-    async (attachmentIds: readonly string[], targetScopeKey: string = scopeKey): Promise<void> => {
-      const ids = new Set(attachmentIds);
-      // 移交边界必须与本次 Submission 一致，不把下一条消息的附件提前交给 Session。
-      const current = readComposerAttachmentScope(targetScopeKey).filter((item) =>
-        ids.has(item.id),
-      );
-      const target = targetsRef.current.get(targetScopeKey);
-      for (const item of current) {
-        if (item.staged && !item.adopted) {
-          try {
-            await target?.transferService.adopt(item.operationId);
-          } catch (error) {
-            // sendText 已成功，不能因 adopt 回执失败把同一条消息重新留在 composer。
-            logger.warn("[v4-composer-attachments] 附件发送后 adopt 失败", error);
-          }
-          updateItem(targetScopeKey, item.id, (candidate) => ({
-            ...candidate,
-            adopted: true,
-          }));
-        }
-      }
-    },
-    [scopeKey, updateItem],
-  );
 
   return useMemo(
     () => ({
@@ -1074,13 +954,11 @@ export function useComposerAttachments(
       restoreDraftAttachments,
       restoreSessionOwnedAttachments,
       prepareForSend,
-      adoptSentAttachments,
       setAttachmentError,
     }),
     [
       addAttachmentFiles,
       attachmentError,
-      adoptSentAttachments,
       scopeKey,
       attachments,
       composerDragKind,

@@ -10,10 +10,16 @@
 
 单一进程生命周期内存 owner 持有共享项目、Release、提案、IR/SR、材料、两类评审、三方确认、联系人、报告、合并／验收问题、分支、配置、Skill 和调度任务。Issue 专属状态、调度、操作、事件及模型角色已裁撤。服务重启恢复样例；关闭连接不取消已接纳工作。每五秒核验文档 PR 的候选、版本与当前完整材料，待合并／关闭不转正。
 
-公开 `MockAIReqService` 实现 `@zcode/services/aireq` bootstrap/call/onDidChange；所有普通调用显式携带合法工号和 clientId，全部合法工号可操作，backend.owner 不授予权限。写操作保留对象归属、阶段、版本、幂等及参数校验。`getConnectionServices` 为原生会话逐连接绑定不可变身份并保留既有连接 scope；ALS 仅传递请求上下文，不保存全局当前操作者。
+公开 `MockAIReqService` 实现 `@zcode/services/aireq` bootstrap/call/onDidChange；所有普通调用显式携带合法工号和 clientId，全部合法工号可操作，backend.owner 不授予权限。写操作按各自实际签名保留对象归属、阶段、版本、幂等及参数校验，不承诺所有写入都有 CAS／operationId。`getConnectionServices` 为原生会话逐连接绑定不可变身份并保留既有连接 scope；ALS 仅传递请求上下文，不保存全局当前操作者。
 原生命令的 envelope.clientId 除了匹配 v4 握手，还必须匹配 HTTP 连接固定的 clientId；握手自报值不构成覆盖连接身份的授权。接纳后的队列与用户行沿原来源传递，查询、恢复、重试和其他客户端的提升动作不得改写该来源。
 
 业务 `command` 在首次接纳前校验 revision；幂等摘要只比较目标与业务参数，排除 `expectedRevision`／RPC revision。同操作重读版本后优先返回已接纳回执，业务参数变化仍拒绝，不能因 ACK 丢失重复创建 IR。UI 显式重读保留输入及操作 ID，不自动重新发送。
+
+远程白名单严格保留 29 项：移除 `models.read`／`models.revision`／`models.bindingChanged`／`prompts.read` 的 wire schema 与分派，旧路径返回 UNKNOWN_PATH，不保留兼容别名。bootstrap 继续调用后端内部模型／提示词读取与 revision 函数，内部绑定比较也保留；前端本地读取端口及 `models.save`／`prompts.save` 的 expectedRevision CAS 不变。十项隐藏 Skill 操作、私有原生材料生成链保留，退役场景控制不恢复。
+
+`models.save`／`prompts.save` 没有 operationId；`skillDesign.saveDraft` 及 scheduler 的 `setProjectEnabled`／`configure`／`runNow` 没有请求版本或 operationId，维持当前覆盖保存／调度去重语义。其他操作只按已有签名提供相应版本及回执保证；内存回执不保证跨重启 exactly-once。所有 mutation 均不自动重放，不为理论持久保障扩展接口。
+
+模型目录 facade 将底层 `getView`、`refresh(reason)` 的返回与 `onDidChange` 事件统一映射为同一 AIReq 供应商／模型目录；刷新实际调用底层 refresh 并传递 reason，不能退化为 getView 或透传底座目录事件。目录 revision 仅表示本进程刷新观测，不推进模型配置业务 revision，也不声称刷新真实供应商。
 
 配置保存、分析设置及负责人分配成功后，使用 `@zcode/services/logger` 的现有 `createServiceLogger` 记录实际工号、clientId、操作名和时间；不记录配置正文、提示词或材料。业务动作收据保留实际身份，原有人工决定／进度记录保留操作者，来源 owner 不代替实际操作者。
 

@@ -1,5 +1,4 @@
-import { ServiceChannels, type ZCodeTaskMeta } from "@zcode/shared";
-import { createServiceDescriptor } from "#src/descriptors.js";
+import type { ZCodeTaskMeta } from "@zcode/shared";
 
 export type TaskGroupColor = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple";
 export interface TaskGroup {
@@ -34,13 +33,3 @@ export type GroupTaskFact = GroupTaskRef &
     archived?: boolean;
     deleted?: boolean;
   };
-export interface ITaskGroupService {
-  /** Host 验证存在性和类型后首次登记；读取结构本身不写数据。 */
-  admit(input: {
-    tasks: GroupTaskRef[];
-    placement?: { task: GroupTaskRef; groupId: string | null; creationId: string };
-  }): Promise<void>;
-}
-export const ITaskGroupService = createServiceDescriptor<ITaskGroupService>(
-  ServiceChannels.TaskGroups,
-);

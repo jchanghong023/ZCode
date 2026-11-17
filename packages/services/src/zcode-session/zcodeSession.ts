@@ -1,9 +1,5 @@
 import { ServiceChannels } from "@zcode/shared";
-import type {
-  ZCodeDeliveryKind,
-  ZCodeSessionStateSnapshot,
-  ZCodeWorkspacePresentation,
-} from "@zcode/shared";
+import type { ZCodeWorkspacePresentation } from "@zcode/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
 
 export interface ZCodeSessionWorkspaceTarget {
@@ -14,21 +10,11 @@ export interface ZCodeSessionWorkspaceTarget {
 
 export type ZCodeSessionReadWorkspacePresentationParams = ZCodeSessionWorkspaceTarget;
 
-export interface ZCodeTaskTarget extends ZCodeSessionWorkspaceTarget {
-  sessionId: string;
-}
-
-export interface ZCodeSessionReadParams extends ZCodeTaskTarget {
-  deliveryKind?: ZCodeDeliveryKind;
-  messageLimit?: number;
-  afterSeq?: number;
-}
-
 export interface IZCodeSessionService {
   readWorkspacePresentation(
     params: ZCodeSessionReadWorkspacePresentationParams,
   ): Promise<ZCodeWorkspacePresentation>;
-  readSession(params: ZCodeSessionReadParams): Promise<ZCodeSessionStateSnapshot>;
+  // 历史侧聊读取已退出；当前准备/恢复只读取工作区展示投影。
 }
 
 export const IZCodeSessionService = createServiceDescriptor<IZCodeSessionService>(

@@ -8,12 +8,10 @@ import {
   clientSupportsWorkflowRunDeltas,
   conversationTopic,
   sessionsIndexTopic,
-  workspaceConfigTopic,
   type ConversationTopicWireCandidate,
   type HelloMessage,
   type SessionsIndexTopicWireCandidate,
   type V4ConnectionFlowState,
-  type WorkspaceConfigTopicWireCandidate,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   IZCodeAgentService,
@@ -151,7 +149,7 @@ function workspaceTarget(target: ZCodeAgentWorkspaceTarget): ZCodeAgentWorkspace
   };
 }
 
-type SubscriptionKind = "conversation" | "sessions-index" | "workspace-config";
+type SubscriptionKind = "conversation" | "sessions-index";
 
 interface OwnedSubscription {
   kind: SubscriptionKind;
@@ -169,10 +167,7 @@ interface ConnectionFlowRoute {
   connection: ZCodeAgentV4ConnectionContext;
 }
 
-type RoutedTopicFrame =
-  | ConversationTopicWireCandidate
-  | SessionsIndexTopicWireCandidate
-  | WorkspaceConfigTopicWireCandidate;
+type RoutedTopicFrame = ConversationTopicWireCandidate | SessionsIndexTopicWireCandidate;
 
 interface PendingOwnership {
   kind: SubscriptionKind;
@@ -557,8 +552,6 @@ export function createZCodeAgentConnectionScope(
         return base.unsubscribeConversationV4(forwarded);
       case "sessions-index":
         return base.unsubscribeSessionsIndexV4(forwarded);
-      case "workspace-config":
-        return base.unsubscribeWorkspaceConfigV4(forwarded);
     }
   };
   const unsubscribeOwnedEntry = async (
@@ -584,8 +577,6 @@ export function createZCodeAgentConnectionScope(
         return base.resyncConversationV4(forwarded);
       case "sessions-index":
         return base.resyncSessionsIndexV4(forwarded);
-      case "workspace-config":
-        return base.resyncWorkspaceConfigV4(forwarded);
     }
   };
   const resyncOwned = (kind: SubscriptionKind, params: ZCodeAgentConversationResyncParams) => {
@@ -841,24 +832,6 @@ export function createZCodeAgentConnectionScope(
       assertReady();
       return base.attachmentReadV4(withTrustedConnection(params, forwardedConnection(params)));
     },
-    async conversationAttachmentReadV4(params) {
-      assertReady();
-      return base.conversationAttachmentReadV4(
-        withTrustedConnection(params, forwardedConnection(params)),
-      );
-    },
-    async conversationAttachmentStatV4(params) {
-      assertReady();
-      return base.conversationAttachmentStatV4(
-        withTrustedConnection(params, forwardedConnection(params)),
-      );
-    },
-    async attachmentPreviewSourceV4(params) {
-      assertReady();
-      return base.attachmentPreviewSourceV4(
-        withTrustedConnection(params, forwardedConnection(params)),
-      );
-    },
     async attachmentChunkV4(params) {
       assertReady();
       return base.attachmentChunkV4(withTrustedConnection(params, forwardedConnection(params)));
@@ -929,28 +902,6 @@ export function createZCodeAgentConnectionScope(
         return RpcEvent.None;
       return base.onDynamicLocalTtftFacts(workspaceTarget(params));
     },
-    onDynamicConversationTelemetryFact(params) {
-      assertOpen();
-      // 可信 clientMode 来自 host attachment；Web/mobile/relay 即使能读权威对话态，
-      // 也不能借共享 workspace emitter 安装生产 telemetry reporter。
-      const downstream = readTrustedZCodeAgentV4Connection(params);
-      const relayDesktopDownstream =
-        role === "trusted-host-relay" && downstream?.clientMode === "desktop-continuous";
-      if (
-        context.clientMode !== "desktop-continuous" ||
-        (role !== "terminal-client" && !relayDesktopDownstream)
-      ) {
-        return RpcEvent.None;
-      }
-      // renderer 的 workspace supervisor 会先于 V4 hello/initialize 挂载。
-      // telemetry emitter 本身不发起协议请求，允许可信 desktop 提前监听，避免动态
-      // Event 在 handshake 前抛错并让 host channel 退出；live fact 仍只会在 ingest 后产生。
-      // 远程 workspace 还会经过 trusted host relay；这里沿用已有 trusted carrier 传递
-      // 下游 clientMode/namespace connectionId，relay 自身没有可信下游时仍保持拒绝。
-      return base.onDynamicConversationTelemetryFact(
-        withTrustedConnection(workspaceTarget(params), forwardedConnection(params)),
-      );
-    },
     async subscribeSessionsIndexV4(params) {
       assertReady();
       const forwarded = forwardedConnection(params);
@@ -996,53 +947,6 @@ export function createZCodeAgentConnectionScope(
         "sessions-index",
         params,
         base.onDynamicSessionsIndexFrame(params),
-      );
-    },
-    async subscribeWorkspaceConfigV4(params) {
-      assertReady();
-      const forwarded = forwardedConnection(params);
-      const topic = workspaceConfigTopic(workspaceKey(params));
-      const pending = beginPendingOwnership("workspace-config", params, topic);
-      try {
-        const result = await base.subscribeWorkspaceConfigV4(
-          withTrustedConnection(params, forwarded),
-        );
-        await rememberAfterSubscribe(
-          result.ack.subscriptionId,
-          {
-            kind: "workspace-config",
-            ownershipKey: `workspace-config\0${topic}\0${forwarded.connectionId}`,
-            topic,
-            connectionId: forwarded.connectionId,
-            clientMode: forwarded.clientMode,
-            target: workspaceTarget(params),
-          },
-          pending,
-        );
-        return result;
-      } catch (error) {
-        discardPendingOwnership(pending);
-        throw error;
-      }
-    },
-    async unsubscribeWorkspaceConfigV4(params) {
-      const entry = findBySubscription(
-        "workspace-config",
-        params,
-        params.subscriptionId,
-        forwardedUnsubscribeRoute(params),
-      );
-      if (!entry) return;
-      await unsubscribeOwnedEntry(entry, params.runtimePolicy);
-    },
-    async resyncWorkspaceConfigV4(params) {
-      return resyncOwned("workspace-config", params);
-    },
-    onDynamicWorkspaceConfigFrame(params) {
-      return routedEvent<WorkspaceConfigTopicWireCandidate>(
-        "workspace-config",
-        params,
-        base.onDynamicWorkspaceConfigFrame(params),
       );
     },
   };

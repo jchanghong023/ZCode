@@ -64,7 +64,6 @@
     "packages/services": {
       "entry": [
         "src/storage/contract.ts",
-        "src/conversation-telemetry/contract.ts",
         "src/project-storage/contract.ts",
         "src/project-storage/repository-contract.ts",
         "src/project/contract.ts",

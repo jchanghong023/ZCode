@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent } from "react";
-import type { GitRepositorySummary } from "@zcode/shared";
+import type { GitLocalBranchListResult, GitRepositorySummary } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Command,
@@ -15,7 +15,6 @@ import {
   GitBranchCreateDialog,
   GitBranchSwitchAssistDialog,
 } from "@/git-branch-switcher/GitBranchDialogs.js";
-import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   matchesGitBranchSearch,
@@ -26,12 +25,38 @@ import {
   shouldRestoreChatInputFocusAfterPickerClose,
 } from "@/lib/pickerFocus.js";
 import { ChevronDownIcon, GitBranchIcon, LoaderCircle, PlusIcon } from "lucide-react";
+import type {
+  GitBranchSwitchAssistDialogStep,
+  GitBranchSwitchAssistState,
+} from "@/git-branch-switcher/switchAssist.js";
+
+// 分支控件只消费调用方的真实投影与动作，不自行建立已退出的 Git RPC。
+export interface GitBranchSwitcherState {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  createDialogOpen: boolean;
+  setCreateDialogOpen: (open: boolean) => void;
+  createBranchName: string;
+  setCreateBranchName: (name: string) => void;
+  commitMessage: string;
+  setCommitMessage: (message: string) => void;
+  commitError: string | null;
+  switchAssistStep: GitBranchSwitchAssistDialogStep | null;
+  switchAssistState: GitBranchSwitchAssistState | null;
+  branchesResult: GitLocalBranchListResult | null;
+  loadingBranches: boolean;
+  mutationPending: boolean;
+  switchBranch: (name: string) => void | Promise<void>;
+  createBranchAndSwitch: () => void | Promise<void>;
+  openSwitchCommitDialog: () => void;
+  closeSwitchAssistDialog: () => void;
+  commitAndSwitchBranch: () => void | Promise<void>;
+}
 
 interface GitBranchSwitcherProps {
-  workspacePath: string;
+  state: GitBranchSwitcherState;
   gitSummary: GitRepositorySummary;
   dirtyFileCount: number;
-  onRefreshGit: () => void;
   className?: string;
   triggerClassName?: string;
   popoverClassName?: string;
@@ -44,10 +69,9 @@ interface GitBranchSwitcherProps {
 }
 
 export function GitBranchSwitcher({
-  workspacePath,
+  state,
   gitSummary,
   dirtyFileCount,
-  onRefreshGit,
   className,
   triggerClassName,
   popoverClassName,
@@ -81,12 +105,7 @@ export function GitBranchSwitcher({
     openSwitchCommitDialog,
     closeSwitchAssistDialog,
     commitAndSwitchBranch,
-  } = useGitBranchSwitcher({
-    workspacePath,
-    currentBranchName: gitSummary.branchName,
-    headRefType: gitSummary.headRefType,
-    onRefreshGit,
-  });
+  } = state;
 
   const isVisible = gitSummary.isGitAvailable && gitSummary.isRepository;
   const displayedCurrentBranchName = branchesResult?.currentBranchName ?? gitSummary.branchName;

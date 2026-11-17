@@ -73,7 +73,6 @@ type ConversationV4AgentService = Pick<
   | "attachmentChunkV4"
   | "attachmentCommitV4"
   | "attachmentAbortV4"
-  | "attachmentPreviewSourceV4"
   | "attachmentReadV4"
   | "getSessionLifecycle"
   | "onDynamicSessionLifecycle"

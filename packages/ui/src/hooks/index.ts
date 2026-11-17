@@ -12,12 +12,6 @@ export { useBaseWorkspaceServices, useWorkspaceServices } from "./useWorkspaceSe
 // 平台操作上下文
 export { PlatformProvider, usePlatform } from "./usePlatform.js";
 
-// 文件服务
-export { useReaddir } from "./useFileService.js";
-
-// 文件监视服务
-export { useWatchedReaddir } from "./useFileWatcherService.js";
-
 // 系统服务
 export { useSystemInfo } from "./useSystemService.js";
 export { useWorkspaceHomePath } from "./useWorkspaceHomePath.js";
@@ -33,7 +27,3 @@ export { useConfirmDialog } from "./useConfirmDialog.js";
 export { useAlertDialog } from "./useAlertDialog.js";
 
 export { useZCodeAgentService } from "./useZCodeAgentService.js";
-
-// Git 自动刷新
-export { useGitAutoRefresh } from "./useGitAutoRefresh.js";
-export { useUsageStats } from "./useUsageStats.js";

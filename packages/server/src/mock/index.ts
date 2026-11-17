@@ -5,9 +5,6 @@ import { ServiceCollection } from "@zcode/services";
 import {
   IBroadcastService,
   IFileService,
-  IFileWatcherService,
-  IGitService,
-  IMediaPreviewService,
   IProjectService,
   ISystemService,
   IZCodeAgentService,
@@ -19,19 +16,10 @@ import { registerAssetsMockServices } from "./domains/assets.js";
 import { registerAutomationsMockServices } from "./domains/automations.js";
 import { registerCompatSurfacesMockServices } from "./domains/compat-surfaces.js";
 import { registerModelsMockServices } from "./domains/models.js";
-import { registerProjectsMockServices } from "./domains/projects.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
-import { registerSharingMockServices } from "./domains/sharing.js";
-import { registerSyncMockServices } from "./domains/sync.js";
 import { MockProjectService } from "./project.js";
 import { MockRuntime } from "./runtime.js";
-import {
-  MockFileService,
-  MockFileWatcherService,
-  MockGitService,
-  MockMediaPreviewService,
-  MockSystemService,
-} from "./workspace.js";
+import { MockFileService, MockSystemService } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
 import { MockZCodeSessionService, MockZCodeTaskService } from "./zcodeTask.js";
 import { IAIReqService } from "@zcode/services/aireq";
@@ -48,31 +36,25 @@ export function createMockServices(options: MockServicesOptions): {
   const runtime = new MockRuntime({ workspacePath: options.workspacePath });
   const services = new ServiceCollection();
 
-  // 工作区/传输基础服务：虚拟文件系统、git、系统信息。
+  // 收口原因：当前 Web 不提供 Git、文件监听或媒体会话，不能注册旧能力空壳。
   services.register(IFileService, new MockFileService(runtime));
-  services.register(IFileWatcherService, new MockFileWatcherService(runtime));
-  services.register(IGitService, new MockGitService(runtime));
   services.register(ISystemService, new MockSystemService());
-  services.register(IMediaPreviewService, new MockMediaPreviewService());
   services.register(IBroadcastService, new MockBroadcastService());
 
   // 领域服务：每域只注册自己的服务，权威状态仍在 runtime。
   registerSettingsMockServices(services);
   registerModelsMockServices(services);
   registerAssetsMockServices(services);
-  registerSyncMockServices(services);
-  registerProjectsMockServices(services);
-  registerAutomationsMockServices(services, runtime);
-  registerSharingMockServices(services);
+  registerAutomationsMockServices(services);
   registerCompatSurfacesMockServices(services);
 
   // 协议面与任务索引：v4 会话、会话列表、任务门面、项目目录。
   const aiReqService = new MockAIReqService();
   services.register(IAIReqService, aiReqService.remote);
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
-  services.register(IZCodeTaskService, new MockZCodeTaskService(runtime));
+  services.register(IZCodeTaskService, new MockZCodeTaskService());
   services.register(IZCodeSessionService, new MockZCodeSessionService());
-  services.register(IProjectService, new MockProjectService(runtime));
+  services.register(IProjectService, new MockProjectService(runtime, aiReqService));
 
   return { services, runtime };
 }

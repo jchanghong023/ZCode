@@ -42,12 +42,8 @@ import {
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
 import { WORKSPACE_FILE_TREE_VIRTUAL_ROW_HEIGHT_PX } from "@/workspace-file-tree/constants.js";
-import { useWorkspaceFileTreeData } from "@/workspace-file-tree/useWorkspaceFileTreeData.js";
 import { useWorkspaceFileTreeStickyFolders } from "@/workspace-file-tree/useWorkspaceFileTreeStickyFolders.js";
-import {
-  useWorkspaceFileSearchIndex,
-  useWorkspaceFileSearchResults,
-} from "@/workspace-file-tree/useWorkspaceFileSearchIndex.js";
+import { useWorkspaceFileSearchResults } from "@/workspace-file-tree/useWorkspaceFileSearchIndex.js";
 import {
   WORKSPACE_FILE_TREE_MASK_OFFSET_PROPERTY,
   WorkspaceFileTreeList,
@@ -75,10 +71,11 @@ export function WorkspaceFileTree({
   workspaceIdentity,
   workspaceRemoteSessionId,
   revealPath,
-  temporaryExternalDirectory = false,
   activePreviewPath,
   onClose,
   onOpenPreview,
+  data: treeData,
+  searchIndex,
 }: WorkspaceFileTreeProps) {
   const { writeClipboardText } = usePlatform();
   const { intl } = useZCodeIntl();
@@ -100,19 +97,8 @@ export function WorkspaceFileTree({
       );
     }
   }, []);
-  const treeData = useWorkspaceFileTreeData({
-    workspacePath,
-    workspaceIdentity,
-    workspaceRemoteSessionId,
-    enableWorkspaceFeatures: !temporaryExternalDirectory,
-  });
+  // 目录、Git 与搜索事实由调用方提供；保留树控件，不恢复旧工作台 RPC。
   const hasFileSearchQuery = fileSearchQuery.trim().length > 0;
-  const searchIndex = useWorkspaceFileSearchIndex({
-    workspacePath,
-    workspaceIdentity,
-    workspaceRemoteSessionId,
-    enabled: hasFileSearchQuery,
-  });
   const {
     entries: searchIndexEntries,
     error: searchIndexError,

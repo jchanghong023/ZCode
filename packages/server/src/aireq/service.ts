@@ -143,11 +143,8 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) => {
       if (savePrototypeRepository(input)) notifyPrototypeProjectSettingsChanged();
     });
-    add("models.read", models.readPrototypeAgentModels);
+    // 配置读取统一经 bootstrap；仅保留保存 RPC，内部读取／绑定比较仍服务原生业务。
     add("models.save", models.savePrototypeAgentModels);
-    add("models.revision", models.prototypeAgentModelConfigurationRevision);
-    add("models.bindingChanged", models.prototypeAgentModelBindingChanged);
-    add("prompts.read", prompts.readPrototypeAgentPrompts);
     add("prompts.save", (value: prompts.PrototypeAgentPrompts, revision: number) => {
       prompts.savePrototypeAgentPrompts(value, revision);
       this.changed.fire({ type: "prompts" });

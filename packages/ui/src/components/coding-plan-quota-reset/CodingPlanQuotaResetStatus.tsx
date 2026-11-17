@@ -1,7 +1,6 @@
 import { CheckIcon, LoaderCircle } from "lucide-react";
 import type { CodingPlanResetType } from "@zcode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { CodingPlanQuotaResetUiStatus } from "@/lib/codingPlanQuotaResetUi.js";
 
 /**
  * 自动重置提示内容（纯展示），供 composer 额度入口的受控 tooltip 使用：
@@ -13,7 +12,7 @@ export function CodingPlanQuotaResetStatusContent({
   status,
   resetType = "FIVE_HOUR",
 }: {
-  status: CodingPlanQuotaResetUiStatus;
+  status: "processing" | "completed";
   resetType?: CodingPlanResetType;
 }) {
   const { intl } = useZCodeIntl();

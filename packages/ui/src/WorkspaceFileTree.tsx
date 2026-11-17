@@ -26,6 +26,7 @@ type FileManagerPaneProps = Omit<ComponentProps<typeof PreviewPane>, "source"> &
   target: FileManagerTarget;
   mobileOverlay: boolean;
   onNavigate: (source: CodeViewerSource) => void;
+  treeData?: Pick<ComponentProps<typeof WorkspaceFileTree>, "data" | "searchIndex">;
 };
 
 export function FileManagerPane({
@@ -33,6 +34,7 @@ export function FileManagerPane({
   target,
   mobileOverlay,
   onNavigate,
+  treeData,
   ...previewProps
 }: FileManagerPaneProps) {
   const { intl } = useZCodeIntl();
@@ -81,7 +83,7 @@ export function FileManagerPane({
       storedNavigationPreferenceOpen ??
       (!mobileOverlay || !source))
     : (initialNavigationOpenOverride ?? storedNavigationPreferenceOpen ?? true);
-  const canNavigate = Boolean(target.workspacePath && (!source || source.path));
+  const canNavigate = Boolean(treeData && target.workspacePath && (!source || source.path));
   const showNavigation = canNavigate && navigationOpen;
   const navigationOnly = showNavigation && (isNarrow || mobileOverlay);
   useLayoutEffect(() => {
@@ -165,9 +167,10 @@ export function FileManagerPane({
           className="h-full min-w-0"
           onResize={(size) => logger.debug("[FileManager] 目录面板尺寸", size)}
         >
-          {canNavigate ? (
+          {canNavigate && treeData ? (
             <WorkspaceFileTree
               {...target}
+              {...treeData}
               activePreviewPath={source?.path}
               onOpenPreview={navigate}
             />

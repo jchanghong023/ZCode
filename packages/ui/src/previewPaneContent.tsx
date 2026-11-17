@@ -33,7 +33,7 @@ interface PreviewPaneContentProps {
   loadingMediaPreview: boolean;
   mediaPreviewUrl: string | null;
   onMediaError: (event: SyntheticEvent<HTMLMediaElement>) => void;
-  onMediaLoadedMetadata: (event: SyntheticEvent<HTMLMediaElement>) => void;
+  onMediaLoadedMetadata?: (event: SyntheticEvent<HTMLMediaElement>) => void;
   error: string | null;
   codePreviewSettings: CodePreviewSettings;
   codeTheme: BundledTheme;

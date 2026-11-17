@@ -78,8 +78,6 @@ import {
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatBackgroundTaskElapsedLabel } from "@/BackgroundTaskElapsedLabel.js";
-import { GitActionMenu } from "@/GitActionMenu.js";
-import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   OpenPlanDetailSideTabRequest,
@@ -373,16 +371,12 @@ function StatusSection({
 }
 
 function GitStatusSection({
-  activeTaskChangeSummary,
   gitSummary,
   gitWorktreeReviewSourceId,
   model,
   onOpenGitReview,
   onRefreshGit,
   separated,
-  workspaceIdentity,
-  workspacePath,
-  useVerticalFloatingPanels,
 }: {
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
   gitSummary: GitRepositorySummary | null | undefined;
@@ -446,27 +440,6 @@ function GitStatusSection({
             <span className="text-[var(--color-diff-removed)]">-{git.removed}</span>
           </span>
         </button>
-        <GitBranchSwitcher
-          workspacePath={workspacePath}
-          gitSummary={gitSummary}
-          dirtyFileCount={git.dirtyFileCount}
-          onRefreshGit={onRefreshGit}
-          className="w-full px-0 pt-0"
-          triggerClassName="flex h-8 w-full min-w-0 justify-start gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] [&>span]:max-w-[calc(100%-3.5rem)] [&_svg:first-child]:text-[var(--color-foreground)]"
-          popoverClassName="w-72 max-w-[calc(100vw-2rem)]"
-          branchListClassName="max-h-56"
-          popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
-          showFooterActions
-        />
-        <GitActionMenu
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          gitSummary={gitSummary}
-          activeTaskChangeSummary={activeTaskChangeSummary ?? null}
-          onRefreshGit={onRefreshGit}
-          triggerLayout="status-row"
-          className="w-full"
-        />
       </div>
     </StatusSection>
   );

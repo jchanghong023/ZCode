@@ -1,10 +1,6 @@
 // 模拟模型领域：Provider 设置视图、模型选择与用量统计。
 import { Emitter, type Event } from "@zcode/rpc";
-import {
-  BIGMODEL_PROVIDER_ID,
-  type AppUsageSnapshot,
-  type CodingPlanUsageSnapshot,
-} from "@zcode/shared";
+import { BIGMODEL_PROVIDER_ID } from "@zcode/shared";
 import {
   IModelSelectionService,
   IProviderSettingsService,
@@ -52,9 +48,9 @@ function completeModelConfig(modelId: string) {
 
 const MOCK_MODEL_IDS = ["GLM-5.3-Flash", "GLM-5.3"];
 
-function buildProviderSettingsView(revision = 1): ProviderSettingsView {
+function buildProviderSettingsView(): ProviderSettingsView {
   return {
-    revision,
+    revision: 1,
     providerTemplates: [
       {
         templateId: "zai-api",
@@ -115,14 +111,13 @@ function buildProviderSettingsView(revision = 1): ProviderSettingsView {
 export class MockProviderSettingsService implements IProviderSettingsService {
   private readonly changeEmitter = new Emitter<ProviderSettingsView>();
   readonly onDidChange: Event<ProviderSettingsView> = this.changeEmitter.event;
-  private revision = 1;
 
   async getView(): Promise<ProviderSettingsView> {
-    return buildProviderSettingsView(this.revision);
+    return buildProviderSettingsView();
   }
 
   async refresh(_reason: string): Promise<ProviderSettingsView> {
-    this.revision += 1;
+    // 当前目录没有可变事实；刷新只读取内存，不能伪造新版本、变更事件或外部连通性。
     return this.getView();
   }
 }
@@ -174,155 +169,32 @@ export class MockModelSelectionService implements IModelSelectionService {
   }
 }
 
-// ── 用量与套餐 ──
-
-function createEmptyAppUsageSnapshot(range: AppUsageSnapshot["range"]): AppUsageSnapshot {
-  return {
-    range,
-    generatedAt: Date.now(),
-    timeZone: "UTC",
-    source: "agent-db",
-    summary: {
-      totalTokens: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cacheCreationTokens: 0,
-      cacheReadTokens: 0,
-      cacheHitRate: 0,
-      totalSessions: 0,
-      totalTurns: 0,
-      toolCallCount: 0,
-      toolErrorRate: 0,
-      modelErrorRate: 0,
-      avgTimeToFirstTokenMs: null,
-      avgTurnDurationMs: null,
-      activeDays: 0,
-      currentStreakDays: 0,
-      longestSessionMs: 0,
-      longestStreakDays: 0,
-      peakDayTokens: 0,
-      favoriteModel: null,
-    },
-    heatmap: { startDate: null, endDate: null, maxTokens: 0, weeks: [] },
-    dailyModelUsage: [],
-    models: [],
-    tools: [],
-  };
-}
-
-const EMPTY_USAGE_DETAIL_SUMMARY: CodingPlanUsageSnapshot["detail"]["model"] = {
-  cacheHitRate: null,
-  cacheHitRateTrend: null,
-  totalCredits: 0,
-  totalCreditsTrend: null,
-  averageDailyCredits: 0,
-  averageDailyCreditsTrend: null,
-};
-
-function createEmptyCodingPlanUsageSnapshot(
-  request: P<IUsageStatsService["getCodingPlanUsageSnapshot"]>,
-): CodingPlanUsageSnapshot {
-  return {
-    range: request.range,
-    rangeStartDate: "",
-    rangeEndDate: "",
-    generatedAt: Date.now(),
-    sourceProvider: { id: request.preferredProviderId, name: request.preferredProviderId },
-    quota: null,
-    activity: {
-      summary: {
-        totalTokens: 0,
-        peakDailyTokens: 0,
-        peakDailyTokensDate: null,
-        totalUsageDurationMs: 0,
-        currentStreakDays: 0,
-        longestStreakDays: 0,
-        favoriteModelName: null,
-      },
-      heatmap: { startDate: null, endDate: null, maxTokens: 0, weeks: [] },
-    },
-    detail: { model: EMPTY_USAGE_DETAIL_SUMMARY, tool: EMPTY_USAGE_DETAIL_SUMMARY },
-    modelUsage: {
-      xTime: [],
-      granularity: "day",
-      totalModelCallCount: 0,
-      totalTokensUsage: 0,
-      modelDataList: [],
-      modelSummaryList: [],
-    },
-    toolUsage: {
-      xTime: [],
-      granularity: "day",
-      toolDataList: [],
-      toolSummaryList: [],
-    },
-    health: { xTime: [], proMaxDecodeSpeed: [], liteDecodeSpeed: [] },
-  };
-}
-
+// 收口原因：没有套餐后端，只提供当前消费者所需的真实无权益投影，不制造统计或写入成功。
 export class MockUsageStatsService implements IUsageStatsService {
-  async getAppUsageSnapshot(
-    request: P<IUsageStatsService["getAppUsageSnapshot"]>,
-  ): Promise<AR<IUsageStatsService["getAppUsageSnapshot"]>> {
-    return createEmptyAppUsageSnapshot(request.range);
-  }
-
-  async getCodingPlanUsageSnapshot(
-    request: P<IUsageStatsService["getCodingPlanUsageSnapshot"]>,
-  ): Promise<AR<IUsageStatsService["getCodingPlanUsageSnapshot"]>> {
-    return createEmptyCodingPlanUsageSnapshot(request);
-  }
-
-  async getCodingPlanRegularTps(
-    _request: P<NonNullable<IUsageStatsService["getCodingPlanRegularTps"]>>,
-  ): Promise<number | undefined> {
-    return undefined;
-  }
-
   async getCodingPlanResetStatus(
     _request: P<IUsageStatsService["getCodingPlanResetStatus"]>,
   ): Promise<AR<IUsageStatsService["getCodingPlanResetStatus"]>> {
-    return { available: false } as unknown as AR<IUsageStatsService["getCodingPlanResetStatus"]>;
-  }
-
-  async requestCodingPlanResetOpportunity(
-    _request: P<IUsageStatsService["requestCodingPlanResetOpportunity"]>,
-  ): Promise<AR<IUsageStatsService["requestCodingPlanResetOpportunity"]>> {
-    return { available: false } as unknown as AR<
-      IUsageStatsService["requestCodingPlanResetOpportunity"]
-    >;
-  }
-
-  async useCodingPlanReset(
-    _request: P<IUsageStatsService["useCodingPlanReset"]>,
-  ): Promise<AR<IUsageStatsService["useCodingPlanReset"]>> {
-    return { ok: false, reason: "not-available" } as unknown as AR<
-      IUsageStatsService["useCodingPlanReset"]
-    >;
-  }
-
-  async markCodingPlanResetHistoryRead(
-    _request: P<IUsageStatsService["markCodingPlanResetHistoryRead"]>,
-  ): Promise<void> {}
-
-  async getSnapshot(
-    _request: P<IUsageStatsService["getSnapshot"]>,
-  ): Promise<AR<IUsageStatsService["getSnapshot"]>> {
-    return { generatedAt: Date.now(), items: [] } as unknown as AR<
-      IUsageStatsService["getSnapshot"]
-    >;
+    return {
+      availableFiveHourResets: [],
+      availableWeekResets: [],
+      latestFiveHourResetHistory: null,
+      latestWeekResetHistory: null,
+      hasUnreadHistory: false,
+    };
   }
 
   async getEntitlementSnapshot(
     _request?: P<IUsageStatsService["getEntitlementSnapshot"]>,
   ): Promise<AR<IUsageStatsService["getEntitlementSnapshot"]>> {
     return {
-      entitled: true,
-      scope: "personal",
-      providerId: "bigmodel",
-      sources: [],
-    } as unknown as AR<IUsageStatsService["getEntitlementSnapshot"]>;
+      generatedAt: Date.now(),
+      authenticated: false,
+      unavailableReason: "not_configured",
+      provider: null,
+      remaining: null,
+      subscription: null,
+      quota: null,
+    };
   }
 }
 

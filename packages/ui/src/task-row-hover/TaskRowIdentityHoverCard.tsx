@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Cloud, Folder, FolderGit2, GitBranch } from "lucide-react";
-import type { GitRepositorySummary, ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@zcode/shared";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
 import { cn } from "@/components/lib/utils.js";
-import { resolveGitBranchTriggerLabel } from "@/git-branch-switcher/display.js";
 import {
   useBaseWorkspaceServices,
   useWorkspaceServicesResolution,
@@ -22,15 +21,13 @@ const CHANGE_PARTS_EMPTY: string[] = [];
 type WorkspaceServiceAccessor = ReturnType<typeof useBaseWorkspaceServices>;
 
 /**
- * 会话行悬停卡片：本地和远程任务都显示任务自己的目录、最近活动和 HEAD。
- *
- * 打开后才挂载内容，Git/远程 home 查询因此只在用户真实停留时发生；关闭即丢弃快照，
- * 不把行的悬停状态写进任务或 workspace store。
+ * 路径与活动来自会话事实，分支标签只消费调用方投影，不查询已退出的 Git 服务。
  */
 export function TaskRowIdentityHoverCard({
   task,
   workspaceLabel,
   remoteSessionId,
+  branchLabel,
   disabled = false,
   children,
 }: TaskRowIdentityHoverCardProps) {
@@ -123,6 +120,7 @@ export function TaskRowIdentityHoverCard({
             task={task}
             workspaceLabel={workspaceLabel}
             remoteSessionId={remoteSessionId}
+            branchLabel={branchLabel}
           />
         </HoverCardContent>
       ) : null}
@@ -138,31 +136,39 @@ function TaskRowIdentityDetails({
   task,
   workspaceLabel,
   remoteSessionId,
+  branchLabel,
 }: {
   task: ZCodeTaskMeta;
   workspaceLabel: string;
   remoteSessionId?: string;
+  branchLabel?: string | null;
 }) {
   return task.workspaceIdentity?.trim() ? (
     <RemoteTaskRowIdentityDetails
       task={task}
       workspaceLabel={workspaceLabel}
       remoteSessionId={remoteSessionId}
+      branchLabel={branchLabel}
     />
   ) : (
-    <LocalTaskRowIdentityDetails task={task} workspaceLabel={workspaceLabel} />
+    <LocalTaskRowIdentityDetails
+      task={task}
+      workspaceLabel={workspaceLabel}
+      branchLabel={branchLabel}
+    />
   );
 }
 
 function LocalTaskRowIdentityDetails({
   task,
   workspaceLabel,
+  branchLabel,
 }: {
   task: ZCodeTaskMeta;
   workspaceLabel: string;
+  branchLabel?: string | null;
 }) {
   const services = useBaseWorkspaceServices();
-  const branchLabel = useGitBranchLabel(task, services, true);
   const taskCwd = task.cwd ?? task.workspacePath;
   return (
     <TaskRowIdentityDetailsBody
@@ -178,17 +184,18 @@ function RemoteTaskRowIdentityDetails({
   task,
   workspaceLabel,
   remoteSessionId,
+  branchLabel,
 }: {
   task: ZCodeTaskMeta;
   workspaceLabel: string;
   remoteSessionId?: string;
+  branchLabel?: string | null;
 }) {
-  const { services, rpcReady } = useWorkspaceServicesResolution(
+  const { rpcReady } = useWorkspaceServicesResolution(
     task.workspacePath,
     remoteSessionId,
     task.workspaceIdentity,
   );
-  const branchLabel = useGitBranchLabel(task, services, rpcReady);
   const taskCwd = task.cwd ?? task.workspacePath;
   return (
     <TaskRowIdentityDetailsBody
@@ -221,7 +228,7 @@ function TaskRowIdentityDetailsBody({
   task: ZCodeTaskMeta;
   workspaceLabel: string;
   pathNode: ReactNode;
-  branchLabel: string | null;
+  branchLabel?: string | null;
 }) {
   const { intl } = useZCodeIntl();
   const changeSummary = getTaskChangeSummary(task);
@@ -298,41 +305,6 @@ function RawWorkspaceContextPath({ path }: { path: string }) {
       {path}
     </span>
   );
-}
-
-function useGitBranchLabel(
-  task: ZCodeTaskMeta,
-  services: WorkspaceServiceAccessor,
-  enabled: boolean,
-): string | null {
-  const { intl } = useZCodeIntl();
-  const [summary, setSummary] = useState<GitRepositorySummary | null>(null);
-  const gitWorkspacePath = task.cwd ?? task.workspacePath;
-  useEffect(() => {
-    setSummary(null);
-    // 远程未连接时不查询 Git，也不主动建立连接；卡片保留已知的标签、路径和活动时间。
-    if (!enabled) return;
-    let disposed = false;
-    void services.gitService.getRepositorySummary({ workspacePath: gitWorkspacePath }).then(
-      (next) => {
-        if (!disposed) setSummary(next);
-      },
-      () => {
-        // Git 不可用、目录已删除或远程断开都走空态；悬停提示不能把只读查询失败放大成报错。
-      },
-    );
-    return () => {
-      disposed = true;
-    };
-  }, [enabled, gitWorkspacePath, services]);
-
-  if (!summary?.isGitAvailable || !summary.isRepository) return null;
-  return resolveGitBranchTriggerLabel({
-    headRefType: summary.headRefType,
-    currentBranchName: summary.branchName,
-    detachedLabel: intl.formatMessage({ id: "git.head.detached" }),
-    fallbackLabel: intl.formatMessage({ id: "git.branchSwitcher.label" }),
-  });
 }
 
 function TaskRowIdentityIcon({ task }: { task: ZCodeTaskMeta }) {

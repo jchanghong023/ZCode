@@ -6,7 +6,7 @@
 
 - 每个领域文件只导出本域服务类与一个 `register<Domain>MockServices(services, runtime)` 装配函数（`contract.ts` 的 `MockDomainRegistrar`）。
 - 集中装配仍在 `packages/server/src/mock/index.ts`：它按固定顺序调用各域装配函数，不反向依赖领域内部实现。
-- 领域模块不得读取或改写其它领域的私有字段。跨领域权威状态只有 `MockRuntime`（会话、任务、虚拟文件系统、git、设置、topic 水位）。
+- 领域模块不得读取或改写其它领域的私有字段。跨领域权威状态只有 `MockRuntime`（会话、任务、虚拟文件系统、topic 水位）；已退役 Git 服务不再持有仓库、分支、身份或差异 fixture。
 - `@zcode/services` 只作为契约输入：领域模块导入服务接口与 descriptor，不导入真实实现。
 
 ## 能力语义
@@ -16,7 +16,7 @@
 工号只由浏览器标签页保存，不需要后端账号会话或凭据 RPC；Provider 目录只保留
 `getView`、`refresh` 和 `onDidChange`，AIReq 模型设置仍由 AIReq owner 管理。
 工号切换或退出不触发共享会话、项目或设置的删除、解绑或重置。
-setting 仅保留 get/update；当前个性化提示词通过 AIReq prompts.read/save 访问，
+setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/save 访问，
 不再保留旧 getUserInstructions/saveUserInstructions 及其模拟路径。
 
 公开设置 patch 使用 shared 的严格 `appSettingsPatchSchema`，只对声明字段按正式值规则解析，整份成功后一次合并到唯一内存 settings；失败不改变任何字段，partial 不填默认。初值由 `appSettingsSchema` 生成；theme／uiFontSizePx 使用既有主题枚举和 12—20px 整数字号规则，语言使用 locale，不新增 language 别名。不改变浏览器本机 store 的偏好所有权。
@@ -26,32 +26,37 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq prompts.read
 专属业务 owner、manifest、task/workpool RPC 及接线已裁撤；这不等于裁撤本目录的通用 `automations`
 领域、通用控件、原生会话设施或需求分析调度。通用服务继续按既有契约返回能力，不恢复 AIReq 自动化入口。
 
-产品插件功能已整体退役：不注册插件管理、插件 UI 桥、sampling 或 App tools，不保留空服务或
-假成功；客户端配置仅保留非插件公开字段，不再发布插件商店排序与面板推荐。
-原生 agent 不暴露插件启动降级或页面工具结果事件。会话仍消费的纯 DTO/schema、GenUI 和非插件
-Skill／子智能体／MCP 目录不因此删除，状态所有权与 v4 订阅顺序不变。
+产品插件与旧宿主服务整体退役：不注册 Git、文件监听、媒体会话、MCP 同步、client-config、
+skills、task-groups、prompt-attachment-transfer；HTTP 帮助配置不受影响。
+原生 Skill catalog、AIReq 隐藏 Skill、子智能体目录及纯 DTO/schema 保留。
+GenUI 只保留 listState；Bots 只保留偏好同步、getConfig/getBotStates，
+无外部 Bot 时返回真实空配置，偏好同步明确不可用，不能空成功。
+用量只保留 getCodingPlanResetStatus/getEntitlementSnapshot，无套餐时明确不可用／无权益。
+zcode-task 仅保留 restartWorkspaceProcess，zcode-session 仅保留 readWorkspacePresentation；
+当前无进程或配置展示 owner，两者正式返回 capabilityUnsupported，不再发送旧伪造展示对象。
+旧 task-list 事件及其专用 emitter／发射接线随 `onDynamicWorkspaceEvent` 一并退役。
+原生 tasks 的置顶／归档组织态保留；sessions-index 仍由 agent 独立发布 snapshot／delta，
+使用自身订阅 emitter 与 `MockRuntime.topics` 水位，不依赖旧 task-list 信号。
 
-当前后端的 `MockRuntime` 与项目服务是共享业务事实源，不按浏览器工号、连接或 subscriptionId 分区。
-工作区身份按服务器主机及绝对目录稳定派生，贯穿 prepare/resolve、任务和 v4 topic；
-identity 不是旧远程 Host 的连接开关。目录选择只读服务器目录，虚拟文件与 Git fixture 不改为真实 IO。
-项目只由一个 `MockProjectService` 实例维护；移除窗口项目注册、变化组、controller、Source Server
-与受管 worktree，不复制内部项目、任务或会话事实。项目服务仅保留 prepareSession、
-resolveSessionDirectories、readDirectory、readProjects、readTree；任务组仅保留原生 admit。
+会话事实由 MockRuntime 与 agent owner 持有，AIReq 业务权限由 AIReq owner 裁决；
+project resolveSessionDirectories/readTree 由连接 facade 绑定可信身份。
+readTree 仅投影当前身份可见的原生会话，不发布示例目录项目或私有草稿。
 路径型 v4 请求仍沿用既有 wire topic 键，mock 只在内部统一业务身份与水位，再按订阅的原请求键投递，
 避免旧请求和带身份请求变成两套会话，且不要求修改严格帧 schema 或逐连接 facade。
 
-每条 `/ws` 仍有独立 `createZCodeAgentConnectionScope`：握手、conversation / sessions-index /
-workspace-config 的订阅归属、帧过滤及断开清理均不得因共享业务数据而移除。取消 A 的订阅不影响 B。
+每条 `/ws` 仍有独立 `createZCodeAgentConnectionScope`：握手、conversation / sessions-index
+的订阅归属、帧过滤及断开清理均不得因共享业务数据而移除。取消 A 的订阅不影响 B。
 原生命令按现有操作者／客户端、sessionId、commandId 去重并提供结果查询；AIReq 业务 owner 另行校验
 配置／材料／候选版本、阶段和幂等。原型的结果只在进程内保留，不代表生产持久化或完整通用 CAS；
 真实后端必须依已有 v4 契约实现，不得以原型限制取消这些当前正确性门禁。
 
 `MockZCodeAgentService` 仅从接纳信封取得真实 clientId；排队项保留原来源，立即发送、提升与恢复续跑均沿同一 startTurn／runTurn 参数链写入 userInput，不能用后续操作者或固定值替代。实时行和历史分页共用 runtime.rows，连接校验及幂等边界不变。
 
-文件、Git 与广播仍由基础服务装配：文件来自同一虚拟树，缺失／错类型明确拒绝，字节按 UTF-8；
-索引保留现行列式字符串字符区间。Git 前后内容与身份仅取 runtime.git 实际记录，无记录不可用／未配置，
-不补假 patch 或身份。广播总线归唯一 MockBroadcastService，每连接 HTTP facade 绑定可信数字来源，
-过滤本源、关闭注销；claims 继续由同一 owner 原子管理，浏览器不持有第二份业务事实。
+文件来自同一虚拟树与 Skill owner 私有文件事实，缺失／错类型明确拒绝，字节按 UTF-8。
+公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange；
+Skill 私有文件 helper 仍保留，不因移除公开正文／目录／索引 RPC 而删除。
+广播总线归唯一 MockBroadcastService，每连接 HTTP facade 绑定可信数字来源，
+过滤本源、关闭注销；acquire/commit/release claims 由同一 owner 原子管理，不保留 tryClaim。
 
 ## 装配顺序
 
@@ -60,24 +65,20 @@ mock/index.ts
   ├─ MockRuntime（唯一权威状态）
   ├─ broadcast（跨窗口总线）
   ├─ domains/settings → domains/models
-  ├─ domains/assets → domains/sync → domains/projects → domains/automations
-  ├─ domains/sharing → domains/compat-surfaces
-  └─ zcodeAgent / zcodeTask / project / workspace（协议与文件、Git 面）
+  ├─ domains/assets → domains/automations → domains/compat-surfaces
+  └─ zcodeAgent / zcodeTask / project / workspace（协议与文件面）
 ```
 
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。
 
-当前领域注册面：setting、client-config、provider-settings、model-selection、usage-stats、
-subagents、skills、mcp-sync、
-task-groups、bots、prompt-attachment-transfer、gen-ui。
+当前领域注册面：setting、provider-settings、model-selection、usage-stats、
+subagents、bots、gen-ui。
 扩展、凭据、产品插件管理与插件 UI、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
 不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
 两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record
 及其独占推荐 fixtures 一并退役，不影响隐藏 Skill 会话或模型推荐。
-skills/subagents 均仅保留原生目录 list；setEnabled、旧管理写面和目录定位接口不再暴露。
-skills 的 buildPromptContext/copyToCommon/removeFromCommon/deleteSkill 与 subagents 的
-createAgent/updateAgent/deleteAgent/setBuiltInModelOverride/setPluginAgentModelOverride/
-getPrimaryUserAgentsDirectory 均无当前调用；隐藏 Skill 设计仍由 AIReq owner 持有。
+subagents 仅保留原生目录 list；Skill 引用只走原生 agent catalog，
+隐藏 Skill 设计仍由 AIReq owner 持有，不保留独立 skills descriptor 或旧管理写面。
 /api/server-info 及重复配置 handler 退役；保留帮助配置 `/api/v1/client/configs`、
 身份校验 `/ws`、同源 `POST /api/v1/telemetry/events`、静态资源压缩与 SPA 宿主。
 遥测复用 `/api/` 部署 token，严格校验／清洗后交服务诊断再返回 202，仅表示接收，不声明外部上传。

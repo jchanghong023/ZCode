@@ -1,174 +1,186 @@
-// 当前后端项目服务：草稿、只读服务器目录浏览与共享内存项目表；local 不是浏览器电脑。
-// 文件/Git 仍使用虚拟 fixture，不扩展真实文件写入。
-import { readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import * as nodePath from "node:path";
-
+// 修复原因：mention 只读同源业务/会话事实，不能恢复 demo 项目或枚举宿主文件系统。
 import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
-import { type FileEntry } from "@zcode/shared";
+import type { IAIReqService } from "@zcode/services/aireq";
+import { businessRule } from "../aireq/errors.js";
+import { currentIdentity } from "../aireq/identity.js";
+import { isListedSession, type MockRuntime, type MockSession } from "./runtime.js";
 
-import { isListedSession, workspaceIdentityOf, type MockRuntime } from "./runtime.js";
-
-type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
-type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
-
-/** 复杂 result 的空实现统一经 unknown 收敛；字段缺失由 UI 空集合兜底。 */
-function asResult<T>(value: unknown): T {
-  return value as T;
-}
+type Workspace = { workspacePath: string; workspaceIdentity: string; projectId: string | null };
+type Projection = {
+  actor: string;
+  projects: VirtualProject[];
+  workspaces: Workspace[];
+  published: Map<string, Workspace>;
+  skillWorkspaces: Workspace[];
+};
 
 export class MockProjectService implements IProjectService {
-  private readonly projects = new Map<string, VirtualProject>();
+  constructor(
+    private readonly runtime: MockRuntime,
+    private readonly business: IAIReqService,
+  ) {}
 
-  constructor(private readonly runtime: MockRuntime) {
-    const demo = this.demoProject();
-    this.projects.set(demo.id, demo);
-  }
-
-  private demoProject(): VirtualProject {
-    return {
-      id: "project_demo",
-      hostId: "local",
-      name: "ZCode Web Demo",
-      nameOverridden: false,
-      roots: [{ rootPath: this.runtime.workspacePath, position: 0, isPrimary: true }],
-      position: 0,
-      pinned: false,
-      deleted: false,
-      createdAt: this.runtime.startedAt,
-      updatedAt: this.runtime.startedAt,
+  private async projection(hostId?: string): Promise<Projection> {
+    const identity = currentIdentity();
+    if (!identity || (hostId && hostId !== "local"))
+      throw businessRule("连接身份或工作区无效，请重新进入工作区。");
+    const bootstrap = await this.business.bootstrap(identity);
+    const result: Projection = {
+      actor: `${identity.employeeId}:${identity.clientId}`,
+      projects: [],
+      workspaces: [],
+      published: new Map(),
+      skillWorkspaces: bootstrap.skillDesignStorage
+        ? [
+            {
+              workspacePath: bootstrap.skillDesignStorage.workspacePath,
+              // Skill 原生 scope 复用业务身份接口，不在投影层硬编码后端前缀。
+              workspaceIdentity: `${await this.business.call(identity, "skillDesign.workspaceIdentity", ["personal"])}:skill-design`,
+              projectId: null,
+            },
+          ]
+        : [],
     };
-  }
-
-  private projectForWorkspace(workspacePath: string): VirtualProject | undefined {
-    return [...this.projects.values()].find(
-      (project) =>
-        !project.deleted && project.roots.some((root) => root.rootPath === workspacePath),
-    );
-  }
-
-  async readDirectory(
-    params?: P<IProjectService["readDirectory"]>,
-  ): Promise<AR<IProjectService["readDirectory"]>> {
-    const hostId = params?.hostId;
-    if (hostId && hostId !== "local") {
-      throw new Error("mock: 远程目录浏览未启用");
-    }
-    const requested = params?.path?.trim();
-    const home = homedir();
-    const expanded =
-      !requested || requested === "~"
-        ? home
-        : requested === "~/" || requested === "~\\"
-          ? home
-          : requested.startsWith("~/") || requested.startsWith("~\\")
-            ? nodePath.join(home, requested.slice(2))
-            : requested;
-    const resolved = nodePath.resolve(expanded);
-    // 本地项目选择需要真实路径：只读取目录名/类型，不读写文件内容。
-    const dirents = await readdir(resolved, { withFileTypes: true });
-    const includeHidden = params?.includeHidden === true;
-    const entries: FileEntry[] = [];
-    for (const dirent of dirents) {
-      if (!includeHidden && dirent.name.startsWith(".")) continue;
-      const entryPath = nodePath.join(resolved, dirent.name);
-      let type: FileEntry["type"] = dirent.isDirectory() ? "directory" : "file";
-      const isSymbolicLink = dirent.isSymbolicLink();
-      if (isSymbolicLink) {
-        try {
-          type = (await stat(entryPath)).isDirectory() ? "directory" : "file";
-        } catch {
-          // 断链保留为文件条目，让 UI 跳过而不是整页失败。
-        }
+    for (const [projectId, root] of Object.entries(bootstrap.projects.developmentRoots)) {
+      const { view, workspace } = await this.business.call(identity, "readWorkflow", [
+        { projectId },
+      ]);
+      const project = view.projects.find((item) => item.id === projectId);
+      if (!project || project.root !== root || workspace.path !== root || !workspace.identity)
+        throw businessRule("项目工作区已变化，请刷新页面后重试。");
+      const scope: Workspace = {
+        workspacePath: root,
+        workspaceIdentity: workspace.identity,
+        projectId,
+      };
+      result.workspaces.push(scope);
+      result.skillWorkspaces.push({
+        ...scope,
+        workspaceIdentity: `${await this.business.call(identity, "skillDesign.workspaceIdentity", [projectId])}:skill-design`,
+      });
+      result.projects.push({
+        id: projectId,
+        hostId: "local",
+        name: project.name,
+        nameOverridden: false,
+        roots: [{ rootPath: root, position: 0, isPrimary: true }],
+        position: result.projects.length,
+        pinned: false,
+        deleted: false,
+        createdAt: Date.parse(project.createdAt),
+        updatedAt: Date.parse(project.updatedAt),
+      });
+      // 共享资格只来自业务 owner 的 canonical ref，不把未知/私有会话读取失败当成共享。
+      for (const ref of view.sessions) {
+        if (
+          ref.projectId === projectId &&
+          [...view.groups, ...view.drafts].some(
+            (item) => item.projectId === projectId && item.id === ref.irId,
+          )
+        )
+          result.published.set(ref.sessionId, scope);
       }
-      entries.push({
-        name: dirent.name,
-        path: entryPath,
-        type,
-        ...(isSymbolicLink ? { isSymbolicLink: true } : {}),
+    }
+    return result;
+  }
+
+  private accessibleWorkspace(session: MockSession, projection: Projection): Workspace | undefined {
+    const published = projection.published.get(session.sessionId);
+    if (!published && session.draftCreatorActor !== projection.actor) return undefined;
+    const workspace =
+      published ??
+      [...projection.workspaces, ...projection.skillWorkspaces].find(
+        (item) =>
+          item.workspacePath === session.workspaceRef.workspacePath &&
+          item.workspaceIdentity === session.workspaceRef.workspaceIdentity,
+      );
+    if (
+      !workspace ||
+      workspace.workspacePath !== session.workspaceRef.workspacePath ||
+      workspace.workspaceIdentity !== session.workspaceRef.workspaceIdentity ||
+      workspace.workspaceIdentity !== session.workspaceKey
+    )
+      return undefined;
+    return workspace;
+  }
+
+  async readTree(params?: Parameters<IProjectService["readTree"]>[0]) {
+    const projection = await this.projection(params?.hostId);
+    const tasks: ProjectTask[] = [];
+    // 正常业务订阅和发送只创建原生会话；task 镜像缺失不能让合法会话从 mention 消失。
+    for (const session of this.runtime.sessions.values()) {
+      if (!isListedSession(session)) continue;
+      const workspace = this.accessibleWorkspace(session, projection);
+      if (!workspace) continue;
+      const record = this.runtime.tasks.get(session.sessionId);
+      // 镜像仅补组织态，且不能把旧工作区的 pinned/archived 带入当前会话。
+      const organization =
+        record?.workspacePath === workspace.workspacePath &&
+        record.workspaceIdentity === workspace.workspaceIdentity
+          ? record
+          : undefined;
+      tasks.push({
+        taskId: session.sessionId,
+        traceId: `trace_${session.sessionId}`,
+        title: session.meta.title || "新任务",
+        workspacePath: workspace.workspacePath,
+        workspaceIdentity: workspace.workspaceIdentity,
+        createdAt: session.createdAt,
+        updatedAt: session.lastActivityAt,
+        mode: "build",
+        provider: "glm",
+        projectId: workspace.projectId,
+        hostId: "local",
+        pinned: organization?.pinned ?? false,
+        archived: organization?.archived ?? false,
       });
     }
-    entries.sort((left, right) =>
-      left.type === right.type
-        ? left.name.localeCompare(right.name)
-        : left.type === "directory"
-          ? -1
-          : 1,
-    );
-    return asResult({ path: resolved, entries });
-  }
-
-  async readProjects(
-    params?: P<IProjectService["readProjects"]>,
-  ): Promise<AR<IProjectService["readProjects"]>> {
-    return [...this.projects.values()].filter(
-      (project) => params?.includeDeleted || !project.deleted,
-    );
-  }
-
-  async readTree(
-    params?: P<IProjectService["readTree"]>,
-  ): Promise<AR<IProjectService["readTree"]>> {
-    // 树投影：项目 + 任务；任务行镜像会话运行时的 task 记录。
-    const projects = [...this.projects.values()].filter(
-      (project) => params?.includeDeleted || !project.deleted,
-    );
-    const tasks: ProjectTask[] = [...this.runtime.tasks.values()]
-      .filter((record) => {
-        const session = this.runtime.sessions.get(record.sessionId);
-        return !session || isListedSession(session);
-      })
-      .map((record) => ({
-        taskId: record.sessionId,
-        traceId: `trace_${record.sessionId}`,
-        title: record.title || "新任务",
-        workspacePath: record.workspacePath,
-        workspaceIdentity: record.workspaceIdentity,
-        createdAt: record.createdAt,
-        updatedAt: record.lastActivityAt,
-        mode: "build" as const,
-        provider: "glm" as const,
-        projectId: this.projectForWorkspace(record.workspacePath)?.id ?? null,
-        hostId: "local",
-        pinned: record.pinned,
-        archived: record.archived,
-      }));
-    return { projects, tasks };
-  }
-
-  async prepareSession(
-    params?: P<IProjectService["prepareSession"]>,
-  ): Promise<AR<IProjectService["prepareSession"]>> {
-    const project = params?.projectId ? this.projects.get(params.projectId) : undefined;
-    const primaryRoot = project?.deleted
-      ? undefined
-      : project?.roots.find((root) => root.isPrimary)?.rootPath;
-    return asResult({
-      workspacePath: primaryRoot ?? this.runtime.workspacePath,
-      workspaceIdentity: workspaceIdentityOf(primaryRoot ?? this.runtime.workspacePath),
-      additionalDirectories:
-        project && primaryRoot
-          ? project.roots
-              .filter((root) => root.rootPath !== primaryRoot)
-              .map((root) => root.rootPath)
-          : [],
-      projectId: project && primaryRoot ? project.id : null,
-    });
+    return { projects: projection.projects, tasks };
   }
 
   async resolveSessionDirectories(
-    task: P<IProjectService["resolveSessionDirectories"]>,
-  ): Promise<AR<IProjectService["resolveSessionDirectories"]>> {
-    const project = this.projectForWorkspace(task.workspacePath);
-    return asResult({
-      workspacePath: task.workspacePath,
-      workspaceIdentity: workspaceIdentityOf(task.workspacePath),
-      additionalDirectories: project
-        ? project.roots
-            .filter((root) => root.rootPath !== task.workspacePath)
-            .map((root) => root.rootPath)
-        : [],
-      projectId: project?.id ?? null,
-    });
+    task: Parameters<IProjectService["resolveSessionDirectories"]>[0],
+    hostId?: string,
+  ) {
+    const projection = await this.projection(hostId);
+    const session = this.runtime.sessions.get(task.taskId);
+    let workspace = session
+      ? this.accessibleWorkspace(session, projection)
+      : projection.published.get(task.taskId);
+    // 隐藏 Skill 仍由原业务 owner 校验私有身份；不能从会话 ID 或异常推导共享资格。
+    if (
+      !workspace &&
+      task.taskId.startsWith("prototype-skill-design:") &&
+      projection.skillWorkspaces.some((item) => item.workspacePath === task.workspacePath)
+    ) {
+      const identity = currentIdentity()!;
+      await this.business.call(identity, "skillDesign.binding", [task.taskId]);
+      const stableIdentity = session?.workspaceRef.workspaceIdentity ?? task.workspaceIdentity;
+      const skillWorkspace = projection.skillWorkspaces.find(
+        (item) =>
+          item.workspacePath === task.workspacePath && item.workspaceIdentity === stableIdentity,
+      );
+      if (
+        skillWorkspace &&
+        (!session ||
+          (session.workspaceRef.workspacePath === task.workspacePath &&
+            session.workspaceKey === stableIdentity))
+      )
+        workspace = skillWorkspace;
+    }
+    if (
+      !workspace ||
+      task.workspacePath !== workspace.workspacePath ||
+      (task.workspaceIdentity !== undefined &&
+        task.workspaceIdentity !== workspace.workspaceIdentity)
+    )
+      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
+    return {
+      workspacePath: workspace.workspacePath,
+      // cwd/identity 创建后保持稳定；禁止重新按宿主路径哈希覆盖 AIReq 已登记身份。
+      workspaceIdentity: task.workspaceIdentity ?? workspace.workspaceIdentity,
+      additionalDirectories: [],
+      projectId: workspace.projectId,
+    };
   }
 }

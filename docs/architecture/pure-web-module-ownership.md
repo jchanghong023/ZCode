@@ -2,6 +2,10 @@
 
 可执行模块边界以 `architecture-policy.yaml` 和各模块 `module.ts` 为唯一依据，不在本文复制模块目录或引入登记流程框架。
 
+2026-11-17 接口收口：未挂载的桌面对话遥测服务包装及 UI attachment 已删除，`conversation-telemetry-service` 撤销登记；当前 Web 遥测仍使用 `conversation-telemetry-engine` 与正式 HTTP 接收。`task-groups` 仅保留纯 DTO，GenUI 服务仅保留发送链 `listState`。当前职责及删保清单以发布规格和可执行策略为准，下方补齐产物表是重构时的历史记录，不构成恢复旧服务的要求。
+
+本轮配额消费者仅读取 reset status／entitlement，不再提供旧配额重置写面；Bots 消费者只通过 getConfig／getBotStates 和已接收来源展示群任务、成员姓名及投递状态，不恢复成员目录、重发、协调或预热接口。三个既有 UI 消费者按精确路径登记 existing-edit 例外，仅处理本次只读迁移的准入，不放宽浏览器安全、依赖或大小规则。
+
 - web 提供浏览器平台操作；ui 通过 hooks 使用服务与平台接口。
 - `browser-employee-entry` 复用 `packages/web/src/auth` 登记根，替代原 `web-auth`；该模块只拥有当前标签页的自报工号、浏览器保存与入口展示。Root 只接收只读操作者投影和退出命令，不再存在产品 OAuth RPC、后端账号 mock 或 token 恢复 owner。模型/工具凭据不属于此模块。
 - services 保留现有接口、descriptor 与装配方式；rpc/client 保留真实传输实现。
@@ -13,10 +17,10 @@
 - 将来新增源码仍必须落在 managed 模块内；新目录先 `pnpm architecture:adopt` 登记并写真实产物。本文表格只是
   现状记录，不是登记流程，也不能当作绕过 `unmanaged-new-file` 的依据。
 
-## 保留并补齐产物的模块（14 个，29 条基线）
+## 历史：纯 Web 重构补齐产物的模块（14 个，29 条基线）
 
-这些模块在纯 Web 树中仍有真实契约文件与真实消费者，`managed: true` 不变；缺的 `module.ts` /
-`contract.example.ts` 按现有公开契约补齐，`contract.example.ts` 只表达消费者已有的调用语义，不复制业务状态、
+这些模块在当时的纯 Web 树中具有契约文件与消费者；表内路径和服务职责仅描述该次基线。
+当时缺的 `module.ts` / `contract.example.ts` 按已有公开契约补齐，只表达调用语义，不复制业务状态、
 不引入运行逻辑。`CONTRACT.md` 同时改写为当前治理范围（入口、消费者、仍成立的不变量），删掉已随裁撤移除的
 实现文件名与失效的文档链。
 

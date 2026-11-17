@@ -1,5 +1,5 @@
 import { FolderOpen, LoaderCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { isDataBaseDirForbiddenWindowsInstallDirError } from "@zcode/shared";
 import {
   TID_SETTINGS_DATA_BASE_DIR_BROWSE,
@@ -11,38 +11,20 @@ import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
-import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 export function DataBaseDirControl({
   dataBaseDir,
   defaultHomeDir,
   onDataBaseDirChange,
+  directoryBrowser,
 }: {
   dataBaseDir: string;
   defaultHomeDir: string;
   onDataBaseDirChange: (dir: string) => Promise<void>;
+  directoryBrowser?: ComponentProps<typeof DirectoryBrowser>["directory"];
 }) {
   const { intl } = useZCodeIntl();
-  const services = useBaseWorkspaceServices();
-  const projectService = services.projectService;
-  const directoryBrowserServices = useMemo(
-    () =>
-      projectService
-        ? {
-            systemService: {
-              info: async () => ({
-                homedir: (await projectService.readDirectory()).path,
-              }),
-            },
-            fileService: {
-              readdir: async (params: { path: string; includeHidden?: boolean }) =>
-                (await projectService.readDirectory(params)).entries,
-            },
-          }
-        : null,
-    [projectService],
-  );
   const [browserOpen, setBrowserOpen] = useState(false);
   const effectiveDir = dataBaseDir || defaultHomeDir;
   const [localDataBaseDir, setLocalDataBaseDir] = useState(effectiveDir);
@@ -59,9 +41,9 @@ export function DataBaseDirControl({
   const isSaving = saveState === "saving";
 
   const handleBrowseDataBaseDir = useCallback(() => {
-    // 浏览器不暴露系统绝对路径：唯一入口是服务端真实目录浏览（Chrome/Firefox 同一 RPC）。
-    if (directoryBrowserServices) setBrowserOpen(true);
-  }, [directoryBrowserServices]);
+    // 仅调用方提供真实目录数据时允许浏览，不重新建立旧项目目录 RPC。
+    if (directoryBrowser) setBrowserOpen(true);
+  }, [directoryBrowser]);
 
   const handleSave = useCallback(async () => {
     const trimmed = localDataBaseDir.trim();
@@ -101,7 +83,7 @@ export function DataBaseDirControl({
             variant="outline"
             size="sm"
             data-testid={TID_SETTINGS_DATA_BASE_DIR_BROWSE}
-            disabled={isSaving}
+            disabled={isSaving || !directoryBrowser}
             onClick={handleBrowseDataBaseDir}
           >
             {intl.formatMessage({ id: "settings.dataBaseDirBrowse" })}
@@ -146,7 +128,7 @@ export function DataBaseDirControl({
           </p>
         ) : null}
       </div>
-      {directoryBrowserServices ? (
+      {directoryBrowser ? (
         <Dialog open={browserOpen} onOpenChange={setBrowserOpen}>
           <DialogContent className="max-w-xl">
             <DialogHeader>
@@ -157,7 +139,7 @@ export function DataBaseDirControl({
                 embedded
                 showSelectionActions
                 selectLabel={intl.formatMessage({ id: "directoryBrowser.selectDir" })}
-                services={directoryBrowserServices}
+                directory={directoryBrowser}
                 onSelect={(path) => {
                   setLocalDataBaseDir(path);
                   if (saveState !== "idle") setSaveState("idle");

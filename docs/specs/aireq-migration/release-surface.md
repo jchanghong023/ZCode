@@ -1,5 +1,151 @@
 # 产品前端与公开接口的发布边界
 
+## 当前授权：前置检查问题修复与接口减面（2026-11-17）
+
+本节是用户本次授权的正式修复合同，优先于下方历史分组、21 频道清单与冻结接口记录；不改写历史通过，也不把四份静态审查或本节规格视为当前验证结果。本轮仅当前电脑 Web 产品及内存模拟后端，先修已确认问题并删除不需要的接口；不接入真实 AI、Git、数据库、认证、权限系统或宿主文件存储，不提交、推送、同步上游或修改 `base`。删面在本轮一次性完成契约、descriptor、accessor、SDK、公开白名单、注册、实现及所有消费者迁移；定型后真实后端仍只能实现同一份保留契约，不能要求再改前端。
+
+### 精确删除与保留
+
+删除理由是当前业务没有消费者或存在假成功／越权出口，不是服务名、隐藏入口或未使用报告；保留基础控件不等于保留旧 RPC。`components/ui` 全部、`mobile-ui`、布局、表单、弹层、图标、共享 diff、分支选择控件、文件预览控件与搜索算法保留为真实 props／数据驱动资产，不留旧服务 hook、不可达旧壳、可选代理、空函数、改名别名或 shim。隐藏 Skill 全流程、原生 Skill catalog、Sketch 画布及 PNG／附件必须保留。
+
+| 服务                                        | 本轮保留                                                                                                                                                                                                       | 本轮删除                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AIReq                                       | `bootstrap/call/onDidChange`，配置读取由 bootstrap 提供，其他现行业务及隐藏 Skill 操作保留                                                                                                                     | `models.read/models.revision/models.bindingChanged/prompts.read` 的操作类型、schema 与分派                                                                                                                                                                                                                                                                                                                                               |
+| File                                        | `searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange`                                                                                                                                     | `readBinaryPreview`；`readTextFile/readdir/listWorkspaceFilesLength/listWorkspaceFilesRange` 只有隐藏 Skill／当前产品真实直接消费者才保留，否则连旧消费者一起删 RPC；服务端 Skill 私有文件 helper 不构成公开调用理由                                                                                                                                                                                                                     |
+| Project                                     | `resolveSessionDirectories`；正式公开安全 `readTree`，修复当前 `@/#` sessions mention 的白名单缺口                                                                                                             | `readDirectory/readProjects/prepareSession` 旧服务面与不可达接线                                                                                                                                                                                                                                                                                                                                                                         |
+| System／Setting                             | `info`；`get/update`                                                                                                                                                                                           | 不增加其他能力                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ProviderSettings／ModelSelection／Subagents | `getView/refresh/onDidChange`；`getView/onDidChange`；`list`                                                                                                                                                   | 不增加模型引擎或子代理引擎                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Broadcast                                   | `send/onMessage/acquireClaim/commitClaim/releaseClaim`                                                                                                                                                         | `tryClaim`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| UsageStats                                  | `getCodingPlanResetStatus/getEntitlementSnapshot`                                                                                                                                                              | `getAppUsageSnapshot/getCodingPlanUsageSnapshot/getCodingPlanRegularTps/getSnapshot` 及未公开旧写面                                                                                                                                                                                                                                                                                                                                      |
+| GenUI                                       | 当前发送链使用的 `listState`                                                                                                                                                                                   | `readDocument/getState/onStateChanged/prepareSandbox/setState` 等无消费者接口                                                                                                                                                                                                                                                                                                                                                            |
+| Bots                                        | `syncAppRuntimePreferences/getConfig/getBotStates`                                                                                                                                                             | `getStatus/listWorkspaceRefs/getUserConfigOptions/listBots` 与注册、管理、测试、发送等未公开旧面                                                                                                                                                                                                                                                                                                                                         |
+| ZCodeTask／ZCodeSession                     | `restartWorkspaceProcess`；`readWorkspacePresentation`                                                                                                                                                         | `getTaskMeta/onDynamicWorkspaceEvent` 及无消费者旧接口；`readSession`                                                                                                                                                                                                                                                                                                                                                                    |
+| ZCodeAgent                                  | 当前会话握手、命令、订阅恢复、分页、附件事务／`attachmentReadV4`、必要 lifecycle、原生 Skill catalog、quote-comment 支持查询、`syncAppRuntimePreferences`；实际被受保护通用投影使用的 workflow／sessions-index | `prepareStorage/getStorageStartupState/initialize/getWorkspaceRuntimeIdentity/closeSession`；`attachmentPreviewSourceV4/conversationAttachmentReadV4/conversationAttachmentStatV4`；`ensureSessionReady/stopSessionRuntime/reconcileSessionsIndexV4`；`onDynamicStorageStartupState/onDynamicConversationTelemetryFact`；`subscribeWorkspaceConfigV4/resyncWorkspaceConfigV4/unsubscribeWorkspaceConfigV4/onDynamicWorkspaceConfigFrame` |
+
+`listSessionSubagents` 与 workflow 产物包装仅在保留的通用控件真实依赖时保留，不为旧壳补建业务系统；其余保留但未实现的能力按既有契约明确 unavailable。无关联 Bots、无 Skill／子代理等可以返回真实空集合，不能造能力。纯 wire DTO/schema 可以保留，但不代表 RPC capability。若发现与本表不同的当前消费者证据，先明确合同决策，不机械删除。
+
+整服务退出：`IGitService/IFileWatcherService/IMediaPreviewService/IMcpSyncService/IClientConfigService/ISkillsService/ITaskGroupService/IPromptAttachmentTransferService`，同时清理 descriptor、accessor、SDK、注册、公开成员和旧独占消费者。HTTP config 不随 ClientConfig RPC 删除；原生 agent Skill catalog 与 AIReq Skill 不随 Skills RPC 删除。媒体及普通浏览器附件继续走真实字节读取／v4 事务，不恢复宿主路径转移服务。
+
+### 单 owner、版本与安全投影
+
+业务事实唯一 owner 为 `MockAIReqService/workflow`；会话行、附件、队列及水位唯一 owner 为 `MockRuntime/MockZCodeAgentService`。保留同源二进制 SocketProtocol＋Channel RPC、Protocol v4（wire=3、snapshot=1），不扩协议或建立流式引擎。
+
+- `baseRevision` 不只做结构存在校验：要求 CAS 的命令必须与当前 owner revision 比较；行命令必须比较 `baseLogEpoch`、`rowId` 与稳定 `entityId`。陈旧版本、旧 epoch、错误实体或越权均拒绝，不能改行、队列、订阅、水位或业务事实。
+- 相同 `commandId` 和相同输入重试复用原决定，不因第一次成功后的 revision 变化变成冲突；复用 ID 但改变输入拒绝。先做必要结构与身份检查，再识别已有决定；新命令才对当前状态做 CAS／归属裁决。坏输入没有副作用。
+- 删除无消费者的 `reconcileSessionsIndexV4` 直接关闭已确认的跨工作区／私有草稿标题查询出口，不另建兼容查询。其余会话读取继续做工作区、当前操作者、clientId 和对象归属检查。
+- `readTree` 由 HTTP facade 绑定现有 AIReq 连接身份，只投影当前业务及该身份可访问的原生会话，不枚举 demo 目录型项目、其他工作区或他人的私有草稿。`includeDeleted` 不放宽身份边界；缺失身份安全拒绝。`resolveSessionDirectories` 与同一身份／会话事实保持一致。
+- 业务绑定会话 `switchModelConfig` 的 unavailable 裁决与快照能力投影必须一致。删除未装配的无 business 演示回复／字符串切块分支，不将其修成流式引擎；当前完整回复按实际 owner 事实呈现。保留 lifecycle 只反映实际内存事实，不冒充进程就绪、停止或重启。
+- AIReq 版本与幂等按现行签名承诺：`models.save/prompts.save` 有 expectedRevision、没有 operationId；`skillDesign.saveDraft` 与 scheduler 设置／执行没有请求 CAS／operationId，不新增字段，也不宣称跨重启 exactly-once。事件只是失效通知，不是持久日志；重连只订阅、重读，不自动重放 mutation。
+
+```mermaid
+sequenceDiagram
+  participant UI as 浏览器／连接 facade
+  participant O as 对应唯一 owner
+  participant R as 只读投影／其他连接
+  UI->>O: 结构与身份校验后的命令
+  O->>O: 相同 ID／输入复用原决定；新命令校验 CAS、epoch、实体与归属
+  alt 拒绝
+    O-->>UI: 稳定安全错误／原拒绝决定
+    Note over O,R: 不修改事实或水位，不发布成功事件
+  else 接纳
+    O->>O: 提交事实与决定／回执
+    O-->>UI: ACK／结果（accepted 不等于执行完成）
+    O-->>R: 提交后事件／会话帧
+    R->>O: 失效后重读同一权威事实
+  end
+  Note over UI,R: 异步完成也先提交再通知；帧可早于 RPC 返回，保留既有暂存／路由
+```
+
+### Cookie 与认证非目标
+
+帮助 config fetch 从 `credentials:"omit"` 改为 `"same-origin"`，保留 `redirect:"error"`：同源携带已有 Cookie，跨源不带 Cookie，不新增 token 输入或跨域凭据。保留 HTTP configs、telemetry 接纳后 202、静态托管及 `/ws`。可选部署 token 是访问控制，不是工号认证；工号仍自报，clientId 不是身份／租户／标签页隔离凭据。部署须预置服务可接受的 Cookie 或由可信反代注入凭据；`/?token=…` 不自动转发给 WebSocket，也不兑换 Cookie。本轮不新增登录、SSO、IdP 登出或工号自动映射；未来可信认证／主体绑定仍须独立实现验收，不宣称当前已支持。
+
+### 本轮直接验收与结果登记
+
+以下是本轮验收合同；实际结果与限制登记于下方“本轮完成记录”，不沿用历史勾选或构建指纹。实现 owner 未运行检查、格式、构建、测试或浏览器；由主代理统一执行。
+
+1. 通过真实公开 RPC 发送当前／陈旧 revision、陈旧 epoch、相同 rowId 不同 entityId；后者全部拒绝且行、队列、业务与水位不变。相同 ID／相同输入重试和 query 得到原决定，改变输入拒绝；正常命令可继续。
+2. 两工作区／两工号的会话和私有 Skill 草稿构造 `readTree`／目录解析：当前合法会话可用于 `@/#` mention，越权／未知身份不可见；`includeDeleted` 不泄漏。旧 reconcile 方法不可调用，不能再查询其他会话标题。
+3. 对业务绑定会话读取快照、请求切模型并重连：能力与拒绝一致；输入、排队、交互、停止、附件 SHA-256／字节、分页、订阅及恢复保持，重连没有重复业务写入。演示字符串分块分支退出；不把完整回复验证写成真实流式通过。
+4. 逐项核对本表删面在契约、SDK、注册、白名单及消费者均退出，直接请求旧服务／成员失败；纯 DTO 保留不使旧 RPC 可达。正常设置、模型／Skill catalog、发送前 GenUI、Bots／usage 条件读取、广播 claims 与恢复调用仍按事实成功或明确不可用。
+5. 同源 Cookie 配置请求携带凭据、无 Cookie 的受保护请求拒绝；跨源不发送 Cookie，重定向仍拒绝。HTTP config envelope、telemetry 202、静态路径安全与二进制 WS 不变；不以工号／clientId 或根 URL token 证明认证。
+6. 当前电脑 Web 与隔离隐藏 Skill 验证输入／mention／材料、预览／内存保存／冲突保留、Sketch PNG、附件、设置往返、草稿及多连接／重连；不恢复隐藏入口，不删通用控件，不新增永久 harness 或测试开关。受影响工程门禁与最终同次 server/web 产物验证由主代理统一选择执行；指纹仅代表本轮同次构建，不代表真实后端替换或生产上线。
+
+### 本轮完成记录（2026-11-17）
+
+本节对应根 `.todo.md` R01—R22，仅证明本轮删面与前置问题修复完成；不是已经替换真实后端或生产上线。公开频道从 21 收敛为 15，AIReq 操作从 33 收敛为 29；此前内部 TaskGroup／宿主附件转移服务亦退出。最终保留成员以 [模拟后端替换合同](../../architecture/mock-backend.md) 的当前清单为准，不再以历史 21 频道表实施。
+
+| 任务     | 当前直接证据／结果                                                                                                                                                                                                                                                                                                                                    |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R01、R19 | 四份审查的确定问题纳入本节合同和 R01—R22；认证、持久化、完整流式、真实 AI／Git 均明确为未实现能力，不把 clientId、工号或可选 token 当可信主体。未新增认证接口、请求字段或跨重启 exactly-once 保证。                                                                                                                                                   |
+| R02—R04  | 真实二进制 Channel RPC 验证当前／陈旧 revision、旧 epoch、错误 entityId、正确目标、重复 commandId、改变输入复用及决定查询；拒绝前后事实／行／队列／水位不变，成功后版本变化不破坏原决定重试。                                                                                                                                                         |
+| R05—R08  | 已删 reconcile／ensure／stop 直接 RPC 拒绝；合法原生发送、历史和重连可读。补充 7 项能力裁决检查通过：业务绑定切模型能力为 false、命令拒绝且无副作用，错误工作区 lifecycle 拒绝。未装配的演示切块退出，不宣称真实流式。                                                                                                                                |
+| R09—R10  | 真实 readTree／目录解析和浏览器 `#` 候选成功；不同工号／clientId 的私有 Skill 会话不可见。首次运行发现只遍历 task 镜像会遗漏正常订阅发送的会话，已改从 runtime.sessions 投影，再运行 90 项全部通过。项目不再投影目录演示数据，File 精确保留 5 项读取。                                                                                                |
+| R11—R16  | 四个旧 AIReq 操作、整服务与旧成员直接调用拒绝；模型／提示词实际变更及 CAS、设置和当前辅助读取可用。接口、SDK、注册、白名单和生产包旧接口符号定向查询零引用；纯 DTO 不构成 RPC。provider refresh 与 AIReq 同一投影，无事实变化时不伪造 revision 或事件；未实现的保留能力明确 unavailable。                                                             |
+| R17      | 旧 UI 服务接线退出；Bots／套餐只读，不保留无公开接口的写操作。桌面专属 telemetry 接线退出，普通 Web telemetry、反馈与本地指标保留；同次产物实际点赞 POST 获得 202。受保护通用控件、隐藏 Skill、Sketch 及 PNG 字节链保留。                                                                                                                             |
+| R18      | 浏览器实际帮助配置请求携带同源既有 Cookie 获 200，无 Cookie 获 401；实际实现记录 credentials=same-origin、redirect=error。另用独立跨源探针验证同一 fetch 选项不发 Cookie，include 对照能发 Cookie；重定向拒绝且目标未被访问。探针未进入产品。                                                                                                         |
+| R20      | 真实连接验证权限投影、接纳后的会话事实／附件及断线重连；重连只读已有行。最终产物浏览器刷新后回到同一讨论，正文出现数由 2 保持 2（消息和材料各一），没有重复发送。owner 与 wire=3／snapshot=1 未改变。                                                                                                                                                 |
+| R21      | 临时脚本通过实际 HTTP、SDK 和 SocketProtocol／Channel RPC 完成 90 项断言，补充能力检查 7 项，共 97 项；不是永久工程测试。浏览器实际发送、材料、会话提及、设置往返未发草稿、Sketch 绘制并发送 1440×868 PNG 均完成。隔离隐藏 Skill 完成提示词、原生发送、2/2 文件逐项预览、内存保存；再次同名保存显示冲突，离开门禁取消后保留预览，未恢复任何导航入口。 |
+| R22      | 同次 production server/web 构建和部署入口集成通过，前端 1289 文件、契约 480 文件及服务端 bundled entry 的 SHA-256 已保存于 [本轮指纹](backend-preflight-artifacts.sha256)；不是旧 release-artifacts.sha256，也不提交 dist。                                                                                                                           |
+
+工程检查：98 文件定向格式完成；`bun run typecheck` 通过；`bun run lint` 检查 1880 文件，0 warnings／0 errors；`bun run architecture:check --changed` 为 0 违例。37 个受影响 Hooks 文件专项双规则扫描无诊断，UI 检测器返回 `[]`。受影响工程测试选择 0/11，未执行用例，不记作全套测试通过。初次类型／架构检查发现 Bots、套餐、桌面专属 telemetry、project catalog 的旧消费者和已删路径治理登记，均按最终只读／删面合同修复后通过，没有降低门禁。
+
+最终 `ZCODE_ENV=production bun run build` 通过（server 483 模块，web 6481 模块）；保留既有 >500 kB 分块警告。主包 `index-uA2FESVp.js` 为 4016.92 kB／gzip 1257.98 kB。实际 bundled server 托管该次 web：HTML 200／no-cache、主 JS 200／immutable，HTTP 返回字节 SHA-256 与磁盘一致；无前端 map，直接请求 map 为 404。电脑浏览器完成登录、讨论发送、材料、点赞 202 和刷新恢复，正常交互阶段 error 记录为空。未运行生产 HTTPS／真实认证／真实服务替换。
+
+浏览器证据：1440×1000 深色最终产物 `F:/Temp/User/omp-sshots-15d12181a597194c.webp`；1100×800 浅色原生讨论 `F:/Temp/User/omp-sshots-15d12012934570e6.webp`（document.scrollWidth=1100）；Sketch `F:/Temp/User/omp-sshots-15d11f75784570e5.webp`；隐藏 Skill `F:/Temp/User/omp-sshots-15d11f35ed2af684.webp`。协议日志与 Hooks 结果保存于 `F:/Temp/User/backend-preflight-evidence-20261117-101835/`，证据不进入产品运行时依赖图。
+
+验证中的观察与修正：临时脚本最初的根包导入、未变更配置却期待 revision 增长、附件摘要缺少 `sha256:` 前缀均已修正，不算产品缺陷或最终失败。源开发服务曾出现中止模块请求，首次临时挂载记录过一次 React removeChild NotFoundError；当时尚未定位根因，后续预览／保存／冲突门禁完成也不抵消该失败。追加追查已确认临时宿主双 URL 实例化及重复 createRoot 的因果链，见下方“临时挂载异常追查与修复合同”；不能将其泛归因于第三方 HMR，也不能据此推定生产根节点缺陷。跨源探针的重定向拒绝是预期失败，与正常产物 error 记录分开。
+
+本轮指纹文件 SHA-256 为 `b5a8646021b105edf01a2cb6b9659de204909de18ee7594549892f09efeec3a7`。所有自有临时脚本、隐藏装配、缓存及检查配置已删除，浏览器标签页和临时服务已关闭；保留外部证据。未实现真实后端，未提交、推送、同步远端或对照上游／base。
+
+### 临时挂载异常追查与修复合同（2026-11-17）
+
+用户追加要求查清并修复上次临时挂载异常。以下是恢复原始三文件隔离宿主后已观测的根因证据，不是修复后的验收结果：
+
+- 模块身份：HTML 入口为 `/__backend-preflight/hidden-skill.tsx`，React Refresh 变换注入 `import * as __vite_react_currentExports from '/@fs/F:/code2026/ZCode/.tmp-skill-mount/hidden-skill.tsx'`。浏览器 performance 同时记录两个 URL；同一源文件因不同 URL 实例化两次，控制台明确记录对同一 `#root` 重复调用 createRoot 的警告。
+- DOM 因果链：第一棵 root 向 container 追加 P2；第二棵 root 首次提交以 textContent 清空 container，再追加 P3。第一棵 root 随后尝试删除已脱离的 P2，此时其 parent 为 null，抛出 removeChild NotFoundError；不是仅凭 React 堆栈或 HMR 时间接近推断。
+- 时间与排除项：原始 pageerror 为 02:09:33.754，早于 02:09:49 的“打开 Skill 设计”和 02:10:05 的输入回填。该失败发生在进入 Skill 前，不由 Skill editor 或输入回填触发；已确认的是临时宿主的模块身份冲突，不是普通产品根节点 bug，也不泛称为第三方 HMR 故障。产品没有该虚拟宿主别名，不为修复临时宿主而修改产品。
+
+修复机制与边界：仅收敛临时验收宿主的模块身份和生命周期，不修改无关产品组件、协议、后端或通用控件来掩盖宿主错误。HTML 与 Refresh 自导入必须使用同一规范文件 URL，删除旧虚拟入口别名；每代宿主模块仅创建一个 React root，根渲染、卸载及异步接纳由同一 owner 管理。卸载先终止旧代接纳并 unmount，再关闭其连接；AIReqDataSource 仍由原 effect 唯一释放。不得捕获吞掉 DOM 异常、修改 React 删除语义、检测已有 root 后复用旧根，或给产品增加 debug／导航入口。此处描述修复合同，不把实现要求当作已通过的行为证据。
+
+```mermaid
+sequenceDiagram
+  participant H as 隔离HTML／规范模块URL
+  participant M as 当前宿主模块
+  participant R as 唯一React root
+  participant S as 连接／原AIReq effect
+  H->>M: 同一URL实例化
+  M->>R: createRoot一次，后续只render
+  R->>S: 挂载并建立／读取事实
+  Note over M,S: StrictMode重放与子树重挂载仍由原effect清理
+  M->>M: 页面退出／HMR终止旧代异步接纳
+  M->>R: unmount
+  R->>S: 原effect释放source
+  M->>S: 关闭本代连接
+  Note over H,S: 新模块代次在旧代清理后创建新root
+```
+
+追加修复与直接验收已完成：
+
+- 修复后重启隔离宿主，首次页面只加载规范 `/@fs/…/hidden-skill.tsx`，HTML 与 Refresh 自导入为同一模块；原虚拟模块路径实际返回 404。每代只创建一棵 root，不缓存或复用旧根，也未抑制 React／DOM 错误。
+- 主代理通过真实控件卸载、挂载、再次挂载应用，并启用 StrictMode 后进入 Skill。表单四项回填进入真实原生输入，显式发送后服务端生成第 1 版预览；保存按钮在只预览主文件时禁用，逐项查看 2/2 文件后实际保存，显示 `/demo/aurora-console/.omp/skills/review-api-changes/SKILL.md` 收据。
+- 设置往返后，未发送正文“挂载修复后设置往返保留的未发送正文”逐字保留，保存收据仍可见。实际将临时模块标签 A 改为 B 触发 HMR，观察到旧根合法删除自己的子树、随后 dispose 关闭本代连接，再由新根接管；不存在删除脱离节点的操作。HMR 后同一私有 Skill 会话恢复该未发送正文、保存收据和仅一次接纳的原提示词，没有自动重发。
+- 修复后的 bootstrap、卸载／重挂载、StrictMode、Skill 交互及 HMR 全程 pageerror 与 console error 均为空；通过真实链接退出临时页面、进入正常产品工号页后，二者仍为空。根节点与 socket 的临时诊断只观察并调用原生操作，没有改写成功结果或吞掉异常；不将诊断注入产品。
+- 根因、修复后浏览器、正常退出、指纹核验及三份已验收临时源码存证在 `F:/Temp/User/skill-mount-evidence-20261117/`；截图为 `F:/Temp/User/omp-sshots-15d12b18e554e787.webp`。首次 3042 端口被占用，未触碰占用者，实际隔离后端／前端使用 16421／16422。全部本轮临时装配、缓存、标签页和服务已清理，不留下产品调试入口或永久 harness。
+- 本次仅修临时宿主及文档，产品源码、协议和构建输入未改；逐项核验原指纹中的 1289 个前端文件、480 个契约文件及 bundled server entry，零不符，原清单 SHA-256 仍为 `b5a8646021b105edf01a2cb6b9659de204909de18ee7594549892f09efeec3a7`。未为文档重新构建，未实现真实后端、提交、推送或同步远端。
+- 本次最终 `bun run typecheck`、`bun run lint`（1880 文件，0 warnings／0 errors）、`bun run architecture:check --changed`（0 违例）通过；受影响工程测试选择 0/11，未执行用例，不冒充全套通过。临时源码与规格已统一格式，最终仅 `.todo.md` 与本记录留在仓库；无需为临时宿主错误修改产品代码或刷新仍有效的构建指纹。
+
+## 主题广播重连与想法 CSV 导入导出验证（2026-11-17）
+
+- 主题异常根因：Web 重建 accessor 时保留 StoreProvider，原 Store 的发送闭包及入站监听仍绑定首次广播代理，且未消费 `send()` 的拒绝。现保留同一 Zustand store，挂载／连接替换时释放旧绑定并连接当前服务，卸载释放广播和系统主题监听；StrictMode 丢弃的渲染不登记广播监听。本地偏好继续更新 DOM，广播失败记录 warn，不冒充同步成功。
+- Edge 隔离 React 场景使用实际 StoreProvider／store：StrictMode 下只有一个入站监听，A→B 后 store 身份和主题保留、A 监听为 0、后续只向 B 发送一次；B 入站不回发，A 不能再写状态。主动拒绝 `ChannelClient is disposed` 时无 unhandledrejection，本地主题保持；卸载后两者监听均为 0。临时页面已删除，不进入发布依赖图。
+- 想法池新增导入／导出和模板下载，复用现有单列 CSV 解析／下载。正式 `importIdeas(originalTexts)` 经 workflow 单事务创建独立想法，提交人／时间来自实际连接和服务时钟，沿用严格 schema、版本、幂等及提交后广播，不要求项目版本、不生成提案／会话／SR。UI 只持有预览与操作基线，导出当前搜索结果原文；文件读取代次、脏文件门禁、失败保留输入和显式重读重试齐全。
+- Bun 隔离进程通过正式 MockAIReqService 验证 3 条批次及重复正文、独立编号和元数据、全局读取、仅一次提交广播；空批／空正文／非字符串／旧版本全部拒绝且快照不变，同操作重试不重复，不同内容拒绝复用，没有新增提案、会话或 SR。
+- Edge 在隔离 3032 后端和 5175 前端实际验证：错误表头阻止确认，Esc 弹出放弃确认，继续编辑保留文件；有效文件预览 3 条、跳过 1 空行、提示第 6 行重复，并保留逗号、双引号和单元格换行。确认后另一工号连接从 8 条同步为 11 条，关闭焦点回到导入入口。模板及搜索导出实际下载到本机；导出只有 1 条匹配原文，重新选择该文件正确预览并提示重复。download 事件等待未返回，改以实际下载文件及回读核验，没有把等待超时误报为下载失败。
+- 仅重启本轮隔离后端验证真实重连：文件／原文预览和搜索保留，旧接纳版本拒绝且输入不丢；显式重读时另一连接仍为 8 条，不自动写入，再确认才为 9 条。随后切浅／深主题，两连接主题 class 同步，主题相关 error 记录为空。共享 3031 后端未重启，原工作台业务数据未用于本轮写入。
+- 1699×828 深浅主题与 1100×760 浅色电脑窗口实际截图检查工具栏、预览、错误、放弃确认及表格，窄窗 document.scrollWidth=1100；已恢复深色主题和窗口尺寸。临时进程、脚本、页面和缓存已清理，不新增永久 E2E harness 或产品调试入口。
+- 最终类型检查通过；Lint 为 0 warnings / 0 errors，变更架构检查为 0 违例；受影响工程测试选择 0/11，无适用条目。定向格式与差异空白检查通过。本次未构建、部署或验证真实生产服务。
+
 ## 业务初始数据与 IR 业务文档导入导出验证（2026-11-17）
 
 - 默认数据覆盖 3 个项目、7 个 Release、7 个正式 IR、9 个提案、15 个正式 SR，并保留 8 条全局想法。两个业务项目跨版本分布，Atlas 保留无版本空态；包括未讨论、澄清、两类评审、退回补充、方案、三方确认、可发布、PR 待合入，及待认领／人工排期、测试失败待修复、修复待复测、分支创建失败。待办和概览不单独造数，开发分支基点对应本 IR 的文档合入提交。

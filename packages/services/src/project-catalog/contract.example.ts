@@ -5,8 +5,8 @@ import {
 } from "./index.js";
 
 /**
- * 配置目录（workspace-config-catalog）的真实调用：只经项目服务只读端口取当前 Host 的未删除项目，
- * 不拥有缓存、tab、连接或任务。
+ * 配置目录（workspace-config-catalog）的真实调用：经 readTree 复用当前身份的安全项目投影，
+ * 过滤软删除项目，不拥有缓存、tab、连接或任务。
  */
 export async function exampleProjectCatalog(
   port: ProjectCatalogPort,

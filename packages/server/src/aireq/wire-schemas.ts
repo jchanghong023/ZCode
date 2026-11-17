@@ -127,19 +127,6 @@ const modelSettings = z
     ),
   })
   .strict();
-const modelBinding = z
-  .object({
-    role: id,
-    roleName: text,
-    modelKey: id,
-    modelName: text,
-    providerId: id,
-    modelId: id,
-    reasoning: id,
-    inherited: z.boolean(),
-    configurationRevision: revision,
-  })
-  .strict();
 const draft = z
   .object({
     goal: text,
@@ -155,7 +142,7 @@ const draft = z
 const page = z.number().int().min(1);
 const pageSize = z.union([z.literal(25), z.literal(50)]);
 
-/** 每个可调用业务操作都有精确的传输形状；额外调试字段和畸形嵌套值在领域执行前拒绝。 */
+/** 精确白名单拒绝退役路径；配置读取统一经 bootstrap，不为本地读取端口保留 RPC。 */
 export const argumentSchemas = {
   readWorkflow: z.tuple([selectionSchema]),
   readPrHandoff: z.tuple([target]),
@@ -206,11 +193,7 @@ export const argumentSchemas = {
       })
       .strict(),
   ]),
-  "models.read": z.tuple([]),
   "models.save": z.tuple([modelSettings, revision]),
-  "models.revision": z.tuple([]),
-  "models.bindingChanged": z.tuple([modelBinding]),
-  "prompts.read": z.tuple([]),
   "prompts.save": z.tuple([z.record(z.string(), text), revision]),
   "skillDesign.session": z.tuple([id]),
   "skillDesign.binding": z.tuple([id]),

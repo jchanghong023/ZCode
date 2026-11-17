@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TID_WORKSPACE_HELP_MENU_TRIGGER } from "@zcode/shared/test-ids";
-import { BookOpenIcon, CircleHelpIcon, UsersIcon, ShieldAlertIcon } from "lucide-react";
+import { BookOpenIcon, CircleHelpIcon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useVulnerabilityReportUrl } from "@/hooks/useVulnerabilityReportUrl.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { createHelpMenuActionHandlers } from "@/lib/helpMenuActions.js";
 
@@ -19,8 +18,6 @@ export function WorkspaceHelpMenuButton({ className }: { className?: string }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
   const [open, setOpen] = useState(false);
-  const { url: vulnerabilityReportUrl, loading: vulnerabilityReportLoading } =
-    useVulnerabilityReportUrl(open);
   const helpMenuLabel = intl.formatMessage({ id: "workspaceHeader.help.menu" });
   const helpMenuActions = createHelpMenuActionHandlers({ platform });
   const handleOpenCommunity = () => {
@@ -60,20 +57,6 @@ export function WorkspaceHelpMenuButton({ className }: { className?: string }) {
           <UsersIcon className="size-4" />
           {intl.formatMessage({ id: "workspaceHeader.help.community" })}
         </DropdownMenuItem>
-        {vulnerabilityReportLoading || vulnerabilityReportUrl ? (
-          <DropdownMenuItem
-            disabled={vulnerabilityReportLoading}
-            aria-busy={vulnerabilityReportLoading}
-            onSelect={
-              vulnerabilityReportUrl
-                ? () => platform.openExternal(vulnerabilityReportUrl)
-                : undefined
-            }
-          >
-            <ShieldAlertIcon className="size-4" />
-            {intl.formatMessage({ id: "workspaceHeader.help.reportVulnerability" })}
-          </DropdownMenuItem>
-        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

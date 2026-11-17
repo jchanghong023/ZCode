@@ -6,6 +6,16 @@
 
 AIReq 页面只导入 `aireq/conversation/AIReqSessionPane`；调用者维持现有 V4PaneConversationProvider 的明确 scope。v4 不导入 AIReq；SessionPane 增加可选 `conversationExtension`、embedded、composerPlaceholder、composerAriaLabel、conversationEmptyState、externalTextInsertRequest、onExternalTextInsertApplied、composerInputPreview、onInputPreview、composerTools、composerTrailingTools。未传端口时保持当前原生行为。原生 Draft owner、附件上传/移交事务、临时模型与思考等级、命令 registry 和订阅水位继续是唯一事实源，不新增聊天存储。
 
+### 2026-11-17 命令裁决与生产减面
+
+原生命令唯一裁决者为 MockZCodeAgentService。先按操作者、会话、commandId 查询原决定并校验同输入，再对首次命令执行实际 baseRevision 比较；ROW_TARGETING 同时比较 baseLogEpoch 与 rowId/entityId。过期版本、epoch 或错误实体返回稳定 fault，不修改行、配置、队列或水位；拒绝同样记录为原决定，重试不重新裁决。普通 sendText、编辑锁命令保持已有非 CAS 语义。
+
+业务绑定会话的 switchModelConfig 可用性与拒绝结果一致；临时模型继续属于消息 Submission。恢复快照、分页和实时帧均来源于同一权威行集合，模型边界行也必须先写权威行。当前装配只保留 AIReq business 回复，不保留未装配的演示工具、虚构 plan 或切字符串伪流；缺少业务执行者明确拒绝发送，不建设真实流引擎。
+
+删除无消费者的 storage prepare/state/initialize、workspace runtime identity 查询、closeSession、ensure/stop runtime、reconcileSessionsIndexV4、重复附件读与 preview-source、workspace-config 包装及未消费 telemetry/storage 事件；未装配的旧 ZCodeProtocolClient 与其专属 storage gate 同步退出。保留真实附件事务与 attachmentReadV4、当前会话生命周期、Skill catalog、通用控件仍消费的 workflow/sessions-index 和底层纯 wire DTO/schema/transport。内存会话 ready 仅表示可接纳命令，不宣称外部进程已运行或停止。
+
+运行验收输入：同 commandId/同输入重试复用 ACK；改变输入拒绝；首次 stale revision/epoch/wrong entity 不改变 rows/config/revision/seq；新鲜版本反馈与队列命令正常执行；业务会话恢复显示模型切换不可用；正常业务消息、PNG 事务与重连恢复仍保持同一权威事实。本段是本轮规格，不代表已执行检查。
+
 ## 第 2 组：先建提案、后进入分阶段讨论
 
 新增／导入先由业务 owner 保存原始短需求、生成可见 IR，成功停留提案表；不预热会话作为创建前提、不启动 AI、不生成 SR。提案可见不再依赖 `pendingFirstMessage` 或首发 ACK。仅用户主动进入该 IR 讨论时绑定现有原生会话，显式发送仍走原 Composer、命令 registry、附件事务及原生接纳语义；不重建消息 store、不重发创建或已接纳消息。

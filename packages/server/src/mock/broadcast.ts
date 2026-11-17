@@ -45,10 +45,4 @@ export class MockBroadcastService implements IBroadcastService {
       this.tokens.delete(lease.key);
     }
   }
-
-  async tryClaim(key: string): Promise<boolean> {
-    if (this.committed.has(key) || this.tokens.has(key)) return false;
-    this.tokens.set(key, `claim_${createUuid()}`);
-    return true;
-  }
 }

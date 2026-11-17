@@ -72,7 +72,6 @@ import {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   ChatErrorBanner,
-  resolveChatErrorBannerDisplayMessage,
   shouldSuppressChatErrorBanner,
   type ChatErrorBannerModelConfigTarget,
 } from "@/ChatErrorBanner.js";
@@ -210,8 +209,7 @@ import { WebElementContextAttachmentChip } from "@/v4/composer/WebElementContext
 import { ElementMentionSyncPlugin } from "@/v4/composer/ElementMentionSyncPlugin.js";
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
 import type { AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
-import { useScopedConversationTelemetrySupervisor } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
-import type { ConversationPromptTelemetrySeed } from "@/v4/telemetry/conversationTelemetrySupervisor.js";
+import type { ConversationPromptTelemetrySeed } from "@zcode/shared/conversation-telemetry";
 import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
@@ -462,8 +460,6 @@ export interface ConversationComposerProps {
   /** 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。 */
   onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
   provider?: ZCodeProvider;
-  /** 宿主 pane 与 workspace 遮罩共同裁决的真实可见性，仅用于 visible-only telemetry。 */
-  telemetryVisible?: boolean;
   /** 点击发送时读取套餐身份；二次确认会继续复用同一份冻结 seed。 */
   readPlanIdentitySnapshot?: () => PlanIdentitySnapshot;
   onSendText: (
@@ -600,7 +596,6 @@ function ConversationComposerImpl({
   onRuntimeRestart,
   onRuntimeLifecycle,
   provider,
-  telemetryVisible = true,
   readPlanIdentitySnapshot,
   onSendText,
   onTextChange,
@@ -647,11 +642,6 @@ function ConversationComposerImpl({
   );
   const { intl, locale } = useZCodeIntl();
   const services = useOptionalServices();
-  const conversationTelemetry = useScopedConversationTelemetrySupervisor({
-    workspacePath,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    ...(remoteSessionId ? { remoteSessionId } : {}),
-  });
   const draftScopeId =
     draftScopeIdProp ??
     sessionId ??
@@ -718,7 +708,6 @@ function ConversationComposerImpl({
   snapshotRef.current = snapshot;
   const inputApiRef = useRef<LexicalChatInputHandle | null>(null);
   const commandResolutionCleanupsRef = useRef(new Set<() => void>());
-  const reportedErrorKeysRef = useRef(new Set<string>());
   const isMobileTextInputViewport = useIsMobileTextInputViewport();
   const primaryModifierPressed = usePrimaryFollowupModifier();
   const appleKeyboardPlatform = isAppleKeyboardPlatform();
@@ -1036,8 +1025,6 @@ function ConversationComposerImpl({
     if (attachments) restoreDraftAttachments(attachments);
   }, [draftFocusVersion, draftScopeId, workspaceKey, restoreDraftAttachments]);
   const pendingFocusRef = useRef(false);
-  // 本次 focus 是否由程序触发（见 flushPendingFocus），供 send_input_focus 过滤非用户动作。
-  const programmaticFocusRef = useRef(false);
   // 发送键与 Enter 共用同一个 form submit；按钮 onClick 早于 submit 触发，
   // 借此区分 send_click 的 send_trigger，读取后立刻复位回默认的 shortcut。
   const sendTriggerRef = useRef<"button" | "shortcut">("shortcut");
@@ -1074,9 +1061,6 @@ function ConversationComposerImpl({
     if (resolveComposerAutoFocus(focusOptsRef.current) !== "focus-now") return;
     if (!inputApiRef.current) return;
     pendingFocusRef.current = false;
-    // 程序性聚焦与用户点击输入框会触发同一个 DOM focus 事件；置位后由 handleEditorFocus
-    // 消费，避免把「切会话 / 挂载回焦 / 上下文块移除后回焦」误报成 send_input_focus。
-    programmaticFocusRef.current = true;
     // Lexical root 可能晚一帧就绪，聚焦排到下一帧（与草稿回填同款时序）。
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(() => inputApiRef.current?.focus());
@@ -1554,13 +1538,12 @@ function ConversationComposerImpl({
       const telemetryConfig = telemetryDraftConfig ?? snapshotRef.current?.config ?? draftConfig;
       let telemetrySeed: ConversationPromptTelemetrySeed;
       if (existingTelemetrySeed) {
-        // 队列二次确认复用首次点击的 seed：不重报 send_click，也不重置发送触发来源，
-        // 保证 send_click 与 send_result 严格 1:1。
+        // 队列二次确认复用首次发送的种子和本地 TTFT 起点。
         telemetrySeed = existingTelemetrySeed;
         if (telemetrySeed.localTtft)
           getLocalTtftObserver()?.confirmation(telemetrySeed.localTtft, false);
       } else {
-        const freshSeed: ConversationPromptTelemetrySeed = {
+        telemetrySeed = {
           sendTime: Date.now(),
           localTtft: !workspaceIdentity?.trim()
             ? getLocalTtftObserver()?.start(
@@ -1583,16 +1566,7 @@ function ConversationComposerImpl({
             planIdentitySnapshot: readPlanIdentitySnapshot?.(),
           }),
         };
-        const sendTrigger = sendTriggerRef.current;
         sendTriggerRef.current = "shortcut";
-        // recordSendClick 回填 sendClickId，必须用它的返回值作为后续 seed，
-        // 否则落定时拿不到关联键，send_result 会被当成后台任务跳过。
-        telemetrySeed =
-          conversationTelemetry?.recordSendClick({
-            sessionId: sessionId ?? null,
-            seed: freshSeed,
-            trigger: sendTrigger,
-          }) ?? freshSeed;
       }
       let promptHistoryBeforeSend: readonly string[] | null = null;
       let promptHistoryAfterAppend: readonly string[] | null = null;
@@ -1657,12 +1631,7 @@ function ConversationComposerImpl({
           inputApiRef.current?.clear();
           updateText("");
         }
-        // 正文先按事务结算；附件交接失败或发送 Promise 迟到异常，都不能复活已接纳的正文。
-        // 按提交时的附件 scope 结算：等待期间 scope 可能已切走（composer 编辑态结束）。
-        await attachmentsApi.adoptSentAttachments(
-          submittedAttachmentIds,
-          submittedAttachmentScopeKey,
-        );
+        // v4 字节附件由发送命令接纳；只结算提交时冻结的 scope，不再调用宿主路径转移服务。
         attachmentsApi.clearAttachments(submittedAttachmentIds, submittedAttachmentScopeKey);
         currentCodeCommentContexts.forEach(removeCodeCommentContext);
         removeSentWebElementContexts(currentWebElementContexts.map((context) => context.id));
@@ -1726,13 +1695,6 @@ function ConversationComposerImpl({
         if (readyAttachmentRefs === null) {
           if (telemetrySeed.localTtft)
             getLocalTtftObserver()?.exclude(telemetrySeed.localTtft, "rejected");
-          // send_click 已上报，此处不落定会留下无配对的悬空样本，污染成功率分母。
-          conversationTelemetry?.settleSendResult({
-            seed: telemetrySeed,
-            sessionId: sessionId ?? null,
-            status: "fail",
-            reasonCode: "attachment_not_ready",
-          });
           sendAction.fail({ failureStage: "attachment_not_ready" });
           return;
         }
@@ -1812,12 +1774,6 @@ function ConversationComposerImpl({
           // 同时不 clear editor/draft/附件，让用户切换模式后可以直接重试。
           rollbackPromptHistory();
           restoreSubmittedDraft();
-          conversationTelemetry?.settleSendResult({
-            seed: telemetrySeed,
-            sessionId: sessionId ?? null,
-            status: "fail",
-            reasonCode: "blocked",
-          });
           sendAction.reject({ resultSource: "authority_ack", admissionResult: "rejected" });
           return;
         }
@@ -1852,13 +1808,6 @@ function ConversationComposerImpl({
           getLocalTtftObserver()?.exclude(telemetrySeed.localTtft, "failed");
         // 发送失败草稿保留在输入框（不清空），仅记录原因。
         logger.warn(`[v4-composer] 发送失败: ${String(error)}`);
-        // ACK 侧失败已由 SessionPane 落定；能走到这里的是 composer 自身链路异常。
-        conversationTelemetry?.settleSendResult({
-          seed: telemetrySeed,
-          sessionId: sessionId ?? null,
-          status: "fail",
-          reasonCode: "composer_error",
-        });
         sendAction.fail({ failureStage: "composer_send" });
       } finally {
         pendingRef.current = false;
@@ -1872,7 +1821,6 @@ function ConversationComposerImpl({
       attachmentsApi,
       captureComposerSubmissionDraftTransaction,
       conversationSelectionReferences,
-      conversationTelemetry,
       draftConfig,
       draftScopeIdProp,
       createSubmissionFromComposer,
@@ -1911,10 +1859,6 @@ function ConversationComposerImpl({
     void submit();
   }, [editSubmitRequest, submit]);
 
-  const handleUserInputClear = useCallback(() => {
-    conversationTelemetry?.resetComposerInputStart();
-  }, [conversationTelemetry]);
-
   const handleUserInputPresenceChange = useCallback(
     (presence: { raw: boolean; trimmed: boolean }) => {
       const currentPresence = textPresenceRef.current;
@@ -1927,10 +1871,6 @@ function ConversationComposerImpl({
     [],
   );
 
-  const handleUserInputStart = useCallback(() => {
-    conversationTelemetry?.recordComposerInputStart();
-  }, [conversationTelemetry]);
-
   // Lexical onChange（首字符也稳定回传，见 LexicalChatInput.TextContentPlugin）。
   const handleEditorChange = useCallback(
     (value: string) => {
@@ -1939,18 +1879,6 @@ function ConversationComposerImpl({
     },
     [scheduleDraftPersist, updateText],
   );
-
-  const handleEditorFocus = useCallback(() => {
-    conversationTelemetry?.recordComposerFocus();
-    // 程序性聚焦不算「点击输入框」；标记一次性消费，之后的手动 focus 照常上报。
-    if (programmaticFocusRef.current) {
-      programmaticFocusRef.current = false;
-      return;
-    }
-    conversationTelemetry?.recordComposerFocusClick({
-      sessionId: sessionId ?? null,
-    });
-  }, [conversationTelemetry, sessionId]);
 
   // 编辑器提交（Enter / 发送键 form submit 同路径）。返回 false：编辑器不自行 reset，
   // 由 submit 成功后经 inputApiRef.clear() 清空——失败时草稿留在输入框。
@@ -2094,24 +2022,6 @@ function ConversationComposerImpl({
   const resolvedSendTooltipShortcut = modifierTooltip?.shortcut ?? sendShortcut;
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
-
-  useEffect(() => {
-    if (!visibleError || !conversationTelemetry || !telemetryVisible) return;
-    const telemetryKey = [
-      visibleError.taskId ?? sessionId ?? "",
-      visibleError.code ?? "",
-      visibleError.traceId ?? "",
-      visibleError.message,
-    ].join(":");
-    if (reportedErrorKeysRef.current.has(telemetryKey)) return;
-    reportedErrorKeysRef.current.add(telemetryKey);
-    // 错误只有经过 suppression 后真实进入 render 才曝光；同一 composer mount 相同 key 一次。
-    conversationTelemetry.reportVisibleChatError({
-      errorKey: telemetryKey,
-      displayMessage: resolveChatErrorBannerDisplayMessage(visibleError, intl),
-      error: visibleError,
-    });
-  }, [conversationTelemetry, intl, sessionId, telemetryVisible, visibleError]);
 
   const attachmentAction = useMemo(
     () => ({
@@ -2949,10 +2859,7 @@ function ConversationComposerImpl({
             layout={layout}
             className="p-0"
             onChange={handleEditorChange}
-            onUserInputClear={handleUserInputClear}
             onUserInputPresenceChange={handleUserInputPresenceChange}
-            onUserInputStart={handleUserInputStart}
-            onFocus={handleEditorFocus}
             onSubmit={handleEditorSubmit}
             onPaste={attachmentsApi.handlePaste}
           />

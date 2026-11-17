@@ -116,13 +116,8 @@ export function useFileMentionProvider(
             workspaceIdentity,
           })
         ).additionalDirectories;
-      if (projectId) {
-        const project = (await projectService!.readProjects()).find(
-          (project) => project.id === projectId,
-        );
-        if (!project) throw new Error("project.not-found");
-        return project.roots.map((root) => root.rootPath);
-      }
+      // 当前目录来源只有已绑定会话；项目旧目录枚举不属于 Web 公开能力。
+      if (projectId) throw new Error("project.session-required");
       return [];
     };
     const read = async (refresh = false): Promise<ProjectFileEntry[]> => {

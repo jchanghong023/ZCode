@@ -124,13 +124,6 @@ modules:
       - packages/shared/src/conversation-telemetry/remoteTelemetryEvent.ts
     layers: { app: "." }
     owner: conversation
-  - id: conversation-telemetry-service
-    roots: [packages/services/src/conversation-telemetry]
-    managed: true
-    requires: [shared, services, rpc, conversation-telemetry-engine]
-    publicEntrypoints: [packages/services/src/conversation-telemetry/contract.ts]
-    layers: { app: "." }
-    owner: conversation
   - id: sqlite-migrations
     roots:
       - packages/shared/src/sqlite-migrations
@@ -245,7 +238,7 @@ modules:
   - id: gen-ui-service
     roots: [packages/services/src/gen-ui]
     managed: true
-    requires: [services, shared, rpc, gen-ui-protocol, mcp-apps-protocol]
+    requires: [services, shared, gen-ui-protocol]
     publicEntrypoints: [packages/services/src/gen-ui/contract.ts]
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
@@ -342,8 +335,6 @@ modules:
       - packages/services/src/task-groups
     managed: true
     requires:
-      - services
-      - session
       - shared
     publicEntrypoints: [packages/services/src/task-groups/contract.ts]
     layers:
@@ -755,7 +746,6 @@ exceptions:
       - packages/server/src/entry-http.ts
       - packages/shared/src/platform.ts
       - packages/ui/src/ChatErrorBanner.tsx
-      - packages/ui/src/GitActionMenu.tsx
       - packages/ui/src/WorkspaceSidebarFooter.tsx
       - packages/ui/src/workspace-file-tree/WorkspaceFileTree.tsx
       - packages/ui/src/v4/ConversationRowView.tsx
@@ -773,10 +763,13 @@ exceptions:
       - packages/ui/src/ToolCallBlocks/session/ToolDetailSection.tsx
       - packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx
     reason: 现有 HTTP 入口明确对外监听，平台契约增加文本复制端口，既有 UI 复制调用改走注入平台以支持普通 IP HTTP；不新增未受管源码，不改变业务状态或操作顺序。见 docs/architecture/web-build-workflow.md。
-  - id: storage-startup-gate-browser-uuid-existing-edit
+  - id: bots-readonly-consumers-existing-edits
     rule: unmanaged-new-file
-    paths: [packages/services/src/zcode-agent/zcodeStorageStartupGate.ts]
-    reason: 既有协议启动门禁只将 Node randomUUID 替换为 shared 跨端 UUID 工具，移除浏览器契约的传递 Node 依赖；不新增文件，不改变状态 owner、订阅或超时顺序。整个 services 目录接管不在本次 P0 范围，此精确准入不豁免浏览器安全规则。
+    paths:
+      - packages/ui/src/hooks/useBotGroupMemberNames.ts
+      - packages/ui/src/hooks/useBotGroupTask.ts
+      - packages/ui/src/v4/BotGroupDeliveryAction.tsx
+    reason: 三个既有消费者随本轮已授权的 Bots 接口收口改为只读：任务状态仅用 getBotStates/getConfig，成员姓名派生自已接收来源，投递控件仅展示真实状态；删除重发、协调与预热写面，不新增源码、不接管整个 ui、不建立第二份业务状态。此精确准入仅针对 unmanaged-new-file，不豁免浏览器安全、依赖方向或文件大小规则。
   - id: mock-project-service-split
     rule: unmanaged-new-file
     paths: [packages/server/src/mock/project.ts]
