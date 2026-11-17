@@ -1,3 +1,9 @@
+import type { AIReqContextValue } from "./context-types.js";
+export type { AIReqContextValue } from "./context-types.js";
+import {
+  useAIReqNavigationActions,
+  type ProjectOverviewOrigin,
+} from "./shell/useAIReqNavigationActions.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
@@ -17,9 +23,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   AIReqAction,
   AIReqDataSource,
-  AIReqNativeSessionRef,
   AIReqSelection,
-  AIReqWorkflowResult,
   AIReqWorkflowView,
 } from "./contract.js";
 
@@ -29,10 +33,8 @@ import {
   restoreNavigationOverlay,
   restoreMainView,
   type AIReqNavigationState,
-  type ProposalDraft,
   type NavigationOverlay,
   type RequirementView,
-  type RequirementReturnView,
 } from "./navigationState.js";
 
 export function aiReqQuery(selection: AIReqSelection): string {
@@ -61,47 +63,6 @@ function withoutObjectLink(url: URL) {
 export function clearAIReqObjectLink() {
   const url = withoutObjectLink(new URL(window.location.href));
   window.history.replaceState(window.history.state, "", url);
-}
-export interface AIReqContextValue {
-  view?: AIReqWorkflowView;
-  selection: AIReqSelection;
-  session?: AIReqNativeSessionRef;
-  mainView: WorkspaceMainView;
-  requirementView: RequirementView;
-  requirementReturnView: RequirementReturnView;
-  settingsOpen: boolean;
-  openSettings(): void;
-  closeSettings(): void;
-  setMainView(value: WorkspaceMainView): void;
-  startProposalDraft(sourceIrId?: string): void;
-  startProposalImport(): void;
-  proposalDraft: ProposalDraft | null;
-  proposalImportOpen: boolean;
-  closeProposalDraft(): void;
-  pending: boolean;
-  selectionReady: boolean;
-  error?: string;
-  linkError?: string;
-  clearLinkError(): void;
-  releaseId: string;
-  setReleaseId(id: string, options?: { inProposalDialog?: boolean }): void;
-  switchProject(projectId: string): void;
-  openProject(
-    projectId: string,
-    mainView?: "projectOverview" | "proposals" | "formal",
-    releaseId?: string,
-  ): void;
-  select(value: AIReqSelection, releaseId?: string): void;
-  openAnalysis(value: AIReqSelection, releaseId?: string): void;
-  objectLink(): string | undefined;
-  refresh(): Promise<void>;
-  retryMaterial(path: string): Promise<boolean>;
-  retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
-  command(value: AIReqAction): Promise<AIReqWorkflowResult | undefined>;
-  setDraftNavigationGuard(guard: ((navigate: () => void) => void) | null, ownerId?: string): void;
-  setNavigationGuard(guard: ((navigate: () => void) => void) | null): void;
-  navigate(action: () => void): void;
-  report(error: unknown): void;
 }
 const AIReqContext = createContext<AIReqContextValue | null>(null);
 function sourceScope(source: AIReqDataSource): string {
@@ -169,10 +130,19 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       mainView: WorkspaceMainView,
       overlay: NavigationOverlay = null,
       requirementView: RequirementView = navigationRef.current.requirementView,
+      overviewOrigin?: ProjectOverviewOrigin | null,
     ) => {
       const previous = navigationRef.current;
       // 返回来源属于同一导航 owner；详情内切阶段／设置不能覆盖首次进入来源。
       const requirementReturnView = captureRequirementReturnView(previous, mainView);
+      const candidate = overviewOrigin === undefined ? previous.overviewOrigin : overviewOrigin;
+      // 来源只描述当前范围的浏览路径；切范围或回到概览后不能沿用旧来源。
+      const origin =
+        mainView !== "projectOverview" &&
+        candidate?.projectId === target.projectId &&
+        candidate?.releaseId === releaseRef.current
+          ? (candidate ?? undefined)
+          : undefined;
       const next = {
         index: previous.index + 1,
         extent: previous.index + 1,
@@ -180,6 +150,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         requirementView,
         requirementReturnView,
         overlay,
+        overviewOrigin: origin,
       };
       window.history.pushState(
         {
@@ -194,6 +165,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqRequirementView: requirementView,
           aiReqRequirementReturnView: requirementReturnView,
           aiReqOverlay: overlay,
+          aiReqOverviewOrigin: origin ?? null,
         },
         "",
         withoutObjectLink(new URL(window.location.href)),
@@ -298,6 +270,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       addHistory = true,
       mainView: WorkspaceMainView = "chat",
       targetReleaseId?: string,
+      overviewOrigin?: ProjectOverviewOrigin | null,
     ) => {
       const previousReleaseId = releaseRef.current;
       const projectChanged = selectionRef.current.projectId !== value.projectId;
@@ -333,9 +306,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
           navigationRef.current.mainView !== mainView ||
-          previousReleaseId !== releaseRef.current)
+          previousReleaseId !== releaseRef.current ||
+          overviewOrigin !== undefined)
       )
-        recordNavigation(value, mainView, null, requirementView);
+        recordNavigation(value, mainView, null, requirementView, overviewOrigin);
       source.selectProject(value.projectId);
       selectionRef.current = value;
       setSelection(value);
@@ -346,50 +320,20 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [source, load, recordNavigation, resolveRelease],
   );
-  const setMainView = useCallback(
-    (mainView: WorkspaceMainView) => {
-      if (mainView === navigationRef.current.mainView) return;
-      select({ projectId: selectionRef.current.projectId }, true, mainView);
-    },
-    [select],
-  );
-  const openProject = useCallback(
-    (
-      projectId: string,
-      mainView: "projectOverview" | "proposals" | "formal" = "projectOverview",
-      releaseId?: string,
-    ) => {
-      if (
-        releaseId &&
-        !viewRef.current?.projectProgress?.some(
-          (project) =>
-            project.projectId === projectId &&
-            project.releases.some((release) => release.releaseId === releaseId),
-        )
-      )
-        return;
-      select({ projectId }, true, mainView, releaseId);
-    },
-    [select],
-  );
-  const switchProject = useCallback(
-    (projectId: string) => {
-      const current = selectionRef.current;
-      if (current.projectId === projectId) return;
-      // 详情属于原 IR；切项目时返回同类需求列表，不能留下无对象的聊天页。
-      const mainView =
-        navigationRef.current.mainView === "chat"
-          ? current.formalView ||
-            viewRef.current?.groups.some(
-              (item) => item.projectId === current.projectId && item.id === current.irId,
-            )
-            ? "formal"
-            : "proposals"
-          : navigationRef.current.mainView;
-      select({ projectId }, true, mainView);
-    },
-    [select],
-  );
+  const {
+    setMainView,
+    openFromProjectOverview,
+    returnToProjectOverview,
+    openProject,
+    switchProject,
+  } = useAIReqNavigationActions({
+    navigationRef,
+    selectionRef,
+    releaseRef,
+    viewRef,
+    navigate,
+    select,
+  });
   useEffect(() => {
     const link = pendingObjectLink.current;
     if (!link || !view || !loadedSelection) return;
@@ -444,6 +388,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqRequirementView: navigationRef.current.requirementView,
           aiReqRequirementReturnView: navigationRef.current.requirementReturnView,
           aiReqOverlay: navigationRef.current.overlay,
+          aiReqOverviewOrigin: navigationRef.current.overviewOrigin ?? null,
         },
         "",
         initialLink.current ? withoutObjectLink(new URL(window.location.href)) : undefined,
@@ -458,7 +403,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       ) {
         if (typeof event.state?.aiReqBackendId === "string") {
           // 修复：旧身份历史槽仅清 URL 会让当前身份的后退落入无效槽；以当前视图重建基点。
-          const current = { ...navigationRef.current, index: 0, extent: 0 };
+          const current = {
+            ...navigationRef.current,
+            index: 0,
+            extent: 0,
+            overviewOrigin: undefined,
+          };
           navigationRef.current = current;
           setNavigation(current);
           window.history.replaceState(
@@ -474,6 +424,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqRequirementView: current.requirementView,
               aiReqRequirementReturnView: current.requirementReturnView,
               aiReqOverlay: current.overlay,
+              aiReqOverviewOrigin: null,
             },
             "",
             withoutObjectLink(new URL(window.location.href)),
@@ -526,6 +477,16 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         mainView,
         event.state.aiReqRequirementReturnView,
       );
+      const savedOrigin = event.state.aiReqOverviewOrigin;
+      const overviewOrigin: ProjectOverviewOrigin | undefined =
+        mainView !== "projectOverview" &&
+        savedOrigin &&
+        typeof savedOrigin.projectId === "string" &&
+        typeof savedOrigin.releaseId === "string" &&
+        savedOrigin.projectId === event.state.aiReqSelection.projectId &&
+        savedOrigin.releaseId === nextRelease
+          ? { projectId: savedOrigin.projectId, releaseId: savedOrigin.releaseId }
+          : undefined;
       const next = {
         index,
         extent: previous.extent,
@@ -533,6 +494,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         requirementView,
         requirementReturnView,
         overlay,
+        overviewOrigin,
       };
       navigationRef.current = next;
       setNavigation(next);
@@ -604,7 +566,13 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       if (current.projectId) projectReleasesRef.current.set(current.projectId, id);
       if (options?.inProposalDialog) {
         // 新增和导入共享此分支；选择版本不离开表单，也不重置输入或预览。
-        window.history.replaceState({ ...window.history.state, aiReqReleaseId: id }, "");
+        const next = { ...navigationRef.current, overviewOrigin: undefined };
+        navigationRef.current = next;
+        setNavigation(next);
+        window.history.replaceState(
+          { ...window.history.state, aiReqReleaseId: id, aiReqOverviewOrigin: null },
+          "",
+        );
         return;
       }
       const target = {
@@ -751,6 +719,17 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         openSettings,
         closeSettings: closeOverlay,
         setMainView,
+        openFromProjectOverview,
+        returnToProjectOverview,
+        canReturnToProjectOverview: Boolean(
+          navigation.overviewOrigin &&
+          navigation.mainView !== "projectOverview" &&
+          navigation.overviewOrigin.projectId === selection.projectId &&
+          navigation.overviewOrigin.releaseId === releaseId &&
+          view?.availableReleases.some(
+            (release) => release.projectId === selection.projectId && release.id === releaseId,
+          ),
+        ),
         error,
         linkError: linkError
           ? linkError === "incomplete"

@@ -7,7 +7,7 @@ export type NavigationOverlay =
   | { kind: "proposal-import" }
   | null;
 export type RequirementView = "proposals" | "formal";
-export type RequirementReturnView = RequirementView | "projectOverview" | null;
+export type RequirementReturnView = RequirementView | null;
 export interface AIReqNavigationState {
   index: number;
   extent: number;
@@ -15,6 +15,7 @@ export interface AIReqNavigationState {
   requirementView: RequirementView;
   requirementReturnView: RequirementReturnView;
   overlay: NavigationOverlay;
+  overviewOrigin?: { projectId: string; releaseId: string };
 }
 
 /** 纯导航投影；状态接纳、历史写入及离开门禁仍只归 AIReqContext。 */
@@ -31,10 +32,7 @@ export function restoreRequirementReturnView(
   mainView: AIReqMainView,
   saved: unknown,
 ): RequirementReturnView {
-  return mainView === "chat" &&
-    (saved === "projectOverview" || saved === "proposals" || saved === "formal")
-    ? saved
-    : null;
+  return mainView === "chat" && (saved === "proposals" || saved === "formal") ? saved : null;
 }
 
 export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {

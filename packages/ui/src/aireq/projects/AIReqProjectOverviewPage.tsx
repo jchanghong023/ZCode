@@ -132,7 +132,11 @@ export function AIReqProjectOverviewPage({
       minute: "2-digit",
     }).format(new Date(value));
   const openProposal = (proposal: AIReqRequirementGroup) =>
-    ai.select({ projectId: proposal.projectId, irId: proposal.id }, proposal.releaseId);
+    ai.openFromProjectOverview(
+      "chat",
+      { projectId: proposal.projectId, irId: proposal.id },
+      proposal.releaseId,
+    );
   const unavailable = ai.pending
     ? zh
       ? "正在读取当前项目…"
@@ -261,7 +265,7 @@ export function AIReqProjectOverviewPage({
                         variant="link"
                         className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
                         aria-label={`${item.label}: ${item.count}`}
-                        onClick={() => ai.navigate(() => ai.setMainView(item.target))}
+                        onClick={() => ai.openFromProjectOverview(item.target)}
                       >
                         {item.count}
                         <ArrowRight
@@ -392,7 +396,7 @@ export function AIReqProjectOverviewPage({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+                    onClick={() => ai.openFromProjectOverview("proposals")}
                   >
                     {zh ? "查看全部" : "View all"}
                     <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -443,7 +447,7 @@ export function AIReqProjectOverviewPage({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => ai.navigate(() => ai.setMainView("formal"))}
+                    onClick={() => ai.openFromProjectOverview("formal")}
                   >
                     {zh ? "查看全部" : "View all"}
                     <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -468,7 +472,8 @@ export function AIReqProjectOverviewPage({
                             data-aireq-motion-row=""
                             className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                             onClick={() =>
-                              ai.select(
+                              ai.openFromProjectOverview(
+                                "chat",
                                 {
                                   projectId: sr.projectId,
                                   irId: sr.irId,

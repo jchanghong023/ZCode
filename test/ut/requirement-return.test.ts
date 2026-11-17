@@ -7,19 +7,16 @@ import {
 } from "../../packages/ui/src/aireq/navigationState.js";
 
 describe("requirement detail return navigation", () => {
-  it.each(["projectOverview", "proposals", "formal"] as const)(
-    "returns to its %s entry page",
-    (mainView) => {
-      expect(captureRequirementReturnView({ mainView, requirementReturnView: null }, "chat")).toBe(
-        mainView,
-      );
-    },
-  );
+  it.each(["proposals", "formal"] as const)("returns to its %s entry page", (mainView) => {
+    expect(captureRequirementReturnView({ mainView, requirementReturnView: null }, "chat")).toBe(
+      mainView,
+    );
+  });
 
   it("keeps the entry page through detail phases and settings on the detail page", () => {
-    const previous = { mainView: "chat", requirementReturnView: "projectOverview" } as const;
-    expect(captureRequirementReturnView(previous, "chat")).toBe("projectOverview");
-    expect(previous.requirementReturnView).toBe("projectOverview");
+    const previous = { mainView: "chat", requirementReturnView: "proposals" } as const;
+    expect(captureRequirementReturnView(previous, "chat")).toBe("proposals");
+    expect(previous.requirementReturnView).toBe("proposals");
   });
 
   it("has no entry source for a direct link resolved from the initial overview", () => {
@@ -35,14 +32,14 @@ describe("requirement detail return navigation", () => {
   it("clears the old source when leaving a detail page", () => {
     expect(
       captureRequirementReturnView(
-        { mainView: "chat", requirementReturnView: "projectOverview" },
+        { mainView: "chat", requirementReturnView: "proposals" },
         "proposals",
       ),
     ).toBeNull();
   });
 
   it("restores only supported return pages on detail history entries", () => {
-    expect(restoreRequirementReturnView("chat", "projectOverview")).toBe("projectOverview");
+    expect(restoreRequirementReturnView("chat", "projectOverview")).toBeNull();
     expect(restoreRequirementReturnView("chat", "proposals")).toBe("proposals");
     expect(restoreRequirementReturnView("chat", "formal")).toBe("formal");
     for (const saved of ["projectProgress", "chat", "settings", {}, 1, null])

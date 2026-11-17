@@ -39,17 +39,13 @@ export function AIReqRequirementContext({
   const isFormal = Boolean(formal || ai.selection.formalView);
   const returnView = ai.requirementReturnView ?? (isFormal ? "formal" : "proposals");
   const returnLabel =
-    returnView === "projectOverview"
+    returnView === "formal"
       ? zh
-        ? "返回当前项目"
-        : "Back to current project"
-      : returnView === "formal"
-        ? zh
-          ? "返回正式需求列表"
-          : "Back to formal requirements"
-        : zh
-          ? "返回提案列表"
-          : "Back to proposals";
+        ? "返回正式需求列表"
+        : "Back to formal requirements"
+      : zh
+        ? "返回提案列表"
+        : "Back to proposals";
   const copyLabel =
     copiedLink && copiedLink === link ? (zh ? "已复制" : "Copied") : zh ? "复制链接" : "Copy link";
   return (
@@ -67,7 +63,7 @@ export function AIReqRequirementContext({
         }
       >
         <div className="flex min-w-0 items-center gap-2">
-          {showReturn && (
+          {showReturn && !ai.canReturnToProjectOverview && (
             <ControlHintTooltip title={returnLabel}>
               <Button
                 variant="ghost"
