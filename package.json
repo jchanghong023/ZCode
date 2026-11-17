@@ -27,7 +27,6 @@
     "test:architecture": "bun test --timeout 0 ./scripts/test",
     "test:engineering": "bun --bun run vitest run --project engineering",
     "test:engineering:affected": "bun scripts/run-affected-engineering-tests.mjs",
-    "verify:pre-push": "bun scripts/check-push-worktree.mjs && bun run lint && bun run test:architecture && bun run architecture:check --changed && bun run test:engineering:affected --scope push",
     "architecture:check": "bun scripts/architecture/architecture-check.mjs check",
     "architecture:report": "bun scripts/architecture/architecture-check.mjs report",
     "architecture:baseline:update": "bun scripts/architecture/architecture-check.mjs baseline:update",

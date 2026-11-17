@@ -35,22 +35,21 @@
 
 以下命令从仓库根目录执行：
 
-| 用途               | 命令                                                                |
-| ------------------ | ------------------------------------------------------------------- |
-| 开发（server+web） | `bun run dev`（mock server :3031 + vite :5174）                     |
-| 仅模拟后端         | `bun run dev:server`                                                |
-| 仅前端             | `bun run dev:web`                                                   |
-| 构建               | `bun run build`（server 产物可托管 web dist 单进程部署）            |
-| 类型检查           | `bun run typecheck`                                                 |
-| Lint               | `bun run lint` / `bun run lint:fix`                                 |
-| 格式检查           | `bun run fmt:check`                                                 |
-| 推送前检查         | `bun run verify:pre-push`（工作区、Lint、架构检查与受影响工程测试） |
-| 架构检查           | `bun run architecture:check --changed`                              |
-| 模块阅读包         | `bun run architecture:context <module-id>`                          |
-| 未使用依赖与导出   | `bun run knip`                                                      |
-| 导出引用查询       | `bun run dep:refs --list-exports <file>`                            |
+| 用途               | 命令                                                     |
+| ------------------ | -------------------------------------------------------- |
+| 开发（server+web） | `bun run dev`（mock server :3031 + vite :5174）          |
+| 仅模拟后端         | `bun run dev:server`                                     |
+| 仅前端             | `bun run dev:web`                                        |
+| 构建               | `bun run build`（server 产物可托管 web dist 单进程部署） |
+| 类型检查           | `bun run typecheck`                                      |
+| Lint               | `bun run lint` / `bun run lint:fix`                      |
+| 格式检查           | `bun run fmt:check`                                      |
+| 架构检查           | `bun run architecture:check --changed`                   |
+| 模块阅读包         | `bun run architecture:context <module-id>`               |
+| 未使用依赖与导出   | `bun run knip`                                           |
+| 导出引用查询       | `bun run dep:refs --list-exports <file>`                 |
 
-工程 Vitest 使用 `bun run test:engineering <文件>`；工程门禁测试使用 `bun run test:architecture`（Bun 执行 `node:test` 兼容 API）。范围见 [测试规格](docs/testing/unit-test-quality.md)。`.husky/pre-push` 钩子已移除，推送检查需手动运行 `bun run verify:pre-push`；移除前的钩子机制见 [pre-push 说明](docs/testing/pre-push-hook.md)。
+工程 Vitest 使用 `bun run test:engineering <文件>`；工程门禁测试使用 `bun run test:architecture`（Bun 执行 `node:test` 兼容 API）。范围见 [测试规格](docs/testing/unit-test-quality.md)。不保留 pre-push 钩子或聚合检查脚本，不要求推送前手动执行聚合检查；必要验证按任务及独立检查命令执行。旧机制仅作为 [历史记录](docs/testing/pre-push-hook.md) 保留。
 
 - `packages/web`：浏览器前端入口（Vite）。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。

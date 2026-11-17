@@ -1,6 +1,6 @@
-# Pre-push Hook
+# Pre-push 机制（已移除，历史记录）
 
-> **状态**：`.husky/pre-push` 钩子已在 `da4c177a`（"chore: 移除 pre-push 钩子"）删除，推送检查不再被自动强制执行。本文档保留为移除前的机制记录；`pnpm verify:pre-push` 现需手动运行。
+> **当前状态**：不保留 pre-push 钩子或 `verify:pre-push` 聚合脚本，也不要求推送前手动运行该入口。项目依赖、测试框架及类型／Lint／架构等独立检查命令保留；检查按任务需要执行，不由 Git push 触发。下文仅记录旧机制和旧命令，不是当前执行要求。
 
 Husky 的 `.husky/pre-push` 使用当前 PATH 中的 Node / pnpm，执行 `pnpm verify:pre-push`。
 不强制依赖 mise，也不自动安装工具、stash 工作区或跳过失败检查。

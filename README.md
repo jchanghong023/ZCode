@@ -111,18 +111,17 @@ bun run clean:deps   # 额外删除根与各包的 node_modules，用于重置�
 
 ## 常用命令
 
-| 用途       | 命令                                   |
-| ---------- | -------------------------------------- |
-| 初始化     | `bun run bootstrap`                    |
-| 开发       | `bun run dev`                          |
-| 构建       | `bun run build`                        |
-| 清理产物   | `bun run clean`                        |
-| 重置依赖   | `bun run clean:deps`                   |
-| 类型检查   | `bun run typecheck`                    |
-| Lint       | `bun run lint`                         |
-| 格式检查   | `bun run fmt:check`                    |
-| 架构检查   | `bun run architecture:check --changed` |
-| 提交前检查 | `bun run verify:pre-push`              |
+| 用途     | 命令                                   |
+| -------- | -------------------------------------- |
+| 初始化   | `bun run bootstrap`                    |
+| 开发     | `bun run dev`                          |
+| 构建     | `bun run build`                        |
+| 清理产物 | `bun run clean`                        |
+| 重置依赖 | `bun run clean:deps`                   |
+| 类型检查 | `bun run typecheck`                    |
+| Lint     | `bun run lint`                         |
+| 格式检查 | `bun run fmt:check`                    |
+| 架构检查 | `bun run architecture:check --changed` |
 
 ## License
 
