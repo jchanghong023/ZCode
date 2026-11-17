@@ -146,10 +146,10 @@ export function AIReqSidebarNavigation() {
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="size-7 shrink-0 select-none object-contain"
+          className="size-8 shrink-0 select-none object-contain"
         />
         <div className="flex min-w-0 flex-col">
-          <span lang="zh-CN" className="text-ui-base leading-tight font-semibold text-foreground">
+          <span lang="zh-CN" className="text-ui-lg leading-tight font-semibold text-foreground">
             AI 需求协作
           </span>
           <span lang="en" className="text-ui-sm leading-tight text-remote-foreground-muted">
