@@ -37,7 +37,7 @@ JavaScript／TypeScript 只用 `mise.toml` 固定的 Bun。`node:*` 与 `@types/
 | 依赖诊断／导出查询   | `bun run knip` / `bun run dep:refs --list-exports <file>`                           |
 | 清理产物／依赖       | `bun run clean` / `bun run clean:deps`                                              |
 
-前端公共函数 UT 位于 `test/ut/`，运行 `bun run test:ut` 和 `bun run test:ut:typecheck`；现有 engineering 项目按精确清单登记，见[测试现状](docs/testing/unit-test-quality.md)。不保留 pre-push 钩子或聚合脚本，不要求推送前手动执行聚合检查。
+前端公共函数 UT 位于 `test/ut/`，运行 `bun run test:ut` 和 `bun run test:ut:typecheck`；ST 位于 `test/st/`，显式运行 `bun run test:st` 和 `bun run test:st:typecheck`，连接已有真实服务；现有 engineering 项目按精确清单登记，见[测试现状](docs/testing/unit-test-quality.md)。不保留 pre-push 钩子或聚合脚本，不要求推送前手动执行聚合检查。
 
 ## 模块与接入
 

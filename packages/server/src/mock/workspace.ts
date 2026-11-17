@@ -3,7 +3,7 @@
 import * as nodePath from "node:path";
 
 import type { IFileService, ISystemService } from "@zcode/services";
-import type { SystemInfo, FileStat, WorkspaceFileEntry } from "@zcode/shared";
+import type { SystemInfo, FileStat, FileMediaPreview, WorkspaceFileEntry } from "@zcode/shared";
 import type { MockRuntime, VirtualFileNode } from "./runtime.js";
 import { readPrototypeSkillNode } from "../aireq/contract.js";
 
@@ -29,6 +29,59 @@ function resolveNode(root: VirtualFileNode, path: string): VirtualFileNode | nul
     node = next;
   }
   return node;
+}
+
+/** 所有读取入口消费同一文件事实，二进制不能经过字符串重编码。 */
+function fileBytes(node: VirtualFileNode): Buffer {
+  return node.bytes ? Buffer.from(node.bytes) : Buffer.from(node.content ?? "", "utf8");
+}
+
+/** MIME 取实际容器签名，不用扩展名将普通文本伪装成图片或媒体。 */
+function mediaTypeOf(bytes: Buffer): string | undefined {
+  const starts = (signature: readonly number[]) =>
+    bytes.length >= signature.length && signature.every((byte, index) => bytes[index] === byte);
+  const ascii = (offset: number, length: number) =>
+    bytes.toString("latin1", offset, offset + length);
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (["GIF87a", "GIF89a"].includes(ascii(0, 6))) return "image/gif";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") return "image/webp";
+  if (bytes.length >= 14 && ascii(0, 2) === "BM") return "image/bmp";
+  if (starts([0x49, 0x49, 0x2a, 0]) || starts([0x4d, 0x4d, 0, 0x2a])) return "image/tiff";
+  if (ascii(0, 5) === "%PDF-") return "application/pdf";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WAVE") return "audio/wav";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "AVI ") return "video/x-msvideo";
+  if (ascii(0, 4) === "fLaC") return "audio/flac";
+  if (ascii(0, 4) === "OggS") return "audio/ogg";
+  if (
+    ascii(0, 3) === "ID3" ||
+    (bytes.length >= 3 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0 && (bytes[1]! & 6) !== 0)
+  )
+    return "audio/mpeg";
+  if (starts([0x1a, 0x45, 0xdf, 0xa3]) && bytes.subarray(0, 4096).includes(Buffer.from("webm")))
+    return "video/webm";
+  if (bytes.length >= 12 && ascii(4, 4) === "ftyp") {
+    const brand = ascii(8, 4);
+    if (["avif", "avis"].includes(brand)) return "image/avif";
+    if (["heic", "heix"].includes(brand)) return "image/heic";
+    if (["M4A ", "M4B "].includes(brand)) return "audio/mp4";
+    if (brand === "M4V ") return "video/x-m4v";
+    if (brand === "qt  ") return "video/quicktime";
+    if (["isom", "iso2", "mp41", "mp42", "avc1", "dash", "MSNV"].includes(brand))
+      return "video/mp4";
+  }
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (
+      /^\s*(?:<\?xml[^?]*\?>\s*)?<svg\b[^>]*\sxmlns\s*=\s*["']http:\/\/www\.w3\.org\/2000\/svg["'][^>]*>[\s\S]*<\/svg>\s*$/i.test(
+        text,
+      )
+    )
+      return "image/svg+xml";
+  } catch {
+    // 未识别的二进制不是 SVG；不要用 UTF-8 replacement 字符返回损坏的媒体。
+  }
+  return undefined;
 }
 
 /** RPC 绝对路径统一映射到虚拟工作区根；Skill 私有文件事实仍走同一解析入口。 */
@@ -112,7 +165,7 @@ export class MockFileService implements IFileService {
     return {
       path: params.path,
       type: node.kind,
-      ...(node.kind === "file" ? { size: Buffer.byteLength(node.content ?? "", "utf8") } : {}),
+      ...(node.kind === "file" ? { size: fileBytes(node).byteLength } : {}),
       mtimeMs: node.mtimeMs,
     };
   }
@@ -124,8 +177,26 @@ export class MockFileService implements IFileService {
     }));
   }
 
-  async readMediaPreview(_params: { path: string; maxBytes?: number }): Promise<never> {
-    throw new Error("mock: 媒体预览未启用");
+  async readMediaPreview(params: { path: string; maxBytes?: number }): Promise<FileMediaPreview> {
+    const node = this.requireNode(params.path, "file");
+    const bytes = fileBytes(node);
+    if (
+      params.maxBytes !== undefined &&
+      (!Number.isSafeInteger(params.maxBytes) ||
+        params.maxBytes < 0 ||
+        bytes.length > params.maxBytes)
+    ) {
+      throw new Error("媒体文件超过读取预算，或读取预算无效。");
+    }
+    const mediaType = mediaTypeOf(bytes);
+    if (!mediaType) throw new Error("文件内容不是当前可预览的媒体格式。");
+    // 与 stat/range 共用已保存的原始事实；不能用假图片或占位成功代替实际媒体。
+    return {
+      path: params.path,
+      mediaType,
+      dataBase64: bytes.toString("base64"),
+      totalBytes: bytes.length,
+    };
   }
 
   async readFileRange(params: {
@@ -133,11 +204,17 @@ export class MockFileService implements IFileService {
     offset: number;
     length: number;
   }): Promise<Uint8Array> {
+    // Buffer.subarray 会隐式解释负数并截断小数；文件 RPC 的范围必须是明确的非负字节整数。
+    if (
+      !Number.isSafeInteger(params.offset) ||
+      params.offset < 0 ||
+      !Number.isSafeInteger(params.length) ||
+      params.length < 0
+    ) {
+      throw new Error("文件读取偏移和长度必须是非负安全整数。");
+    }
     const node = this.requireNode(params.path, "file");
-    return Buffer.from(node.content ?? "", "utf8").subarray(
-      params.offset,
-      params.offset + params.length,
-    );
+    return fileBytes(node).subarray(params.offset, params.offset + params.length);
   }
 }
 

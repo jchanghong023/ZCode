@@ -101,7 +101,14 @@ const filter = z
     srSearch: text.optional(),
   })
   .strict();
-const timestamp = text.refine((value) => Number.isFinite(Date.parse(value)));
+const calendarDate = z.iso.date();
+const timestamp = text.refine((value) => {
+  if (!Number.isFinite(Date.parse(value))) return false;
+  // Date.parse 会把二月三十日等归一化为下月；ISO 日期必须先核验真实日历，不能悄悄改变查询范围。
+  // 仅补充 ISO 年月日校验，保留原有合法时间表达和时区解析语义。
+  const isoDate = /^\d{4}-\d{2}-\d{2}(?=T|\s|$)/.exec(value)?.[0];
+  return isoDate === undefined || calendarDate.safeParse(isoDate).success;
+});
 const historyFilter = filter
   .extend({
     status: z.enum(["running", "succeeded", "failed", "skipped"]).optional(),

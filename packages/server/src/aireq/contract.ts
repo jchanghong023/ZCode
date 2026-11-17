@@ -2,8 +2,10 @@ import type { AIReqAgentModelBinding, IAIReqService } from "@zcode/services/aire
 
 /** Business callbacks only; rows, attachments, topics and subscriptions remain with native mock owner. */
 export interface AIReqNativeBridge {
-  /** Reject invalid actor/version/history before native rows or accepted ACK. */
+  /** Validate immutable input actor and current scope before ACK; queueing does not freeze execution. */
   admitNative(sessionId: string, commandId: string, text: string): void;
+  /** Freeze actual execution input and current business version once, after queue dispatch. */
+  beginNative(sessionId: string, commandId: string, text: string): void;
   /** Commit once after successful native completion; explicit simulated output. */
   completeNative(sessionId: string, commandId: string, text: string): string;
   /** Read existing business report, without creating work. */
@@ -20,3 +22,8 @@ export { MockAIReqService, getConnectionServices } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
 export { assertSkillSession } from "./skill-design.js";
+export {
+  readPrototypeNativeContext,
+  readPrototypeProjectDirectory,
+  readPrototypeProjectWorkspace,
+} from "./workflow.js";

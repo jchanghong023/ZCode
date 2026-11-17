@@ -22,11 +22,18 @@ import {
   ensurePrototypeProposalMr,
   isPrototypeProposalDeliveryAction,
   validatePrototypeProposalDeliveryAction,
+  observePrototypeProposalMr,
+  completePrototypeProposal,
 } from "./proposal-delivery.js";
 import { createPrototypeEvent } from "./events.js";
 import { PROTOTYPE_REVIEW_SCENARIOS, PROTOTYPE_PROPOSAL_MERGE_SCENARIOS } from "./scenarios.js";
 
-import { freezePrototypeRequirement } from "./requirement-freeze.js";
+import {
+  projectNativeContext,
+  projectDirectory,
+  projectProgressInputs,
+  readProjectWorkspace,
+} from "./workflow-queries.js";
 
 import {
   prototypeSessionReadIssue,
@@ -113,6 +120,20 @@ export function mutatePrototypeWorkflow(update: WorkflowUpdate, recordStatusChan
 export function readPrototypeWorkflowState(): AIReqWorkflowView {
   return structuredClone(state);
 }
+
+/** 即时读取唯一 owner，不派生或缓存完整业务报表。 */
+export function readPrototypeNativeContext(sessionId: string, includeRequirement = false) {
+  return projectNativeContext(state, sessionId, includeRequirement);
+}
+export function readPrototypeProjectDirectory() {
+  return projectDirectory(state);
+}
+export function readPrototypeProjectProgressInputs() {
+  return projectProgressInputs(state);
+}
+export function readPrototypeProjectWorkspace(projectId?: string) {
+  return readProjectWorkspace(projectId);
+}
 export function setPrototypeProposalReviewScenario(
   projectId: string,
   irId: string,
@@ -190,45 +211,6 @@ export function notifyPrototypeProjectSettingsChanged(): void {
   state.revision += 1;
   prototypeWorkflowChanges.fire();
 }
-/** 仅写入内存样例；合入证据与文档完整性是自动入库的两项条件。 */
-function completePrototypeProposal(group: InternalRequirementGroup, checkedAt: string): void {
-  const project = state.projects.find((item) => item.id === group.projectId)!;
-  const commit = `sample-proposal-merged-${state.revision}`;
-  group.status = "formal";
-  group.merge = {
-    commit,
-    branch: project.defaultBranch,
-    checkedAt,
-    files: structuredClone(group.files),
-  };
-  state.drafts = state.drafts.filter(
-    (item) => item.id !== group.id || item.projectId !== group.projectId,
-  );
-  if (!state.groups.some((item) => item.id === group.id && item.projectId === group.projectId))
-    state.groups.push(group);
-  group.revising = false;
-  const revision = group.proposalRevisions?.at(-1);
-  if (revision && !revision.completedAt) revision.completedAt = checkedAt;
-  state.repositoryHeads ??= {};
-  state.repositoryHeads[project.repositoryId] = commit;
-  for (const sr of state.srs.filter(
-    (item) => item.projectId === group.projectId && item.irId === group.id,
-  )) {
-    sr.developerEmployeeId ??= group.contacts?.development;
-    sr.testingEmployeeId ??= group.contacts?.testing;
-    const failed = group.branchCreationFailures?.includes(sr.id);
-    sr.trackingBranch = {
-      name: `sr/${sr.id}`,
-      baseCommit: commit,
-      createdAt: checkedAt,
-      pushedAt: failed ? "" : checkedAt,
-      status: failed ? "failed" : "ready",
-      ...(failed ? { error: "创建或推送开发分支失败，请重试。" } : {}),
-    };
-  }
-  group.branchCreationFailures = [];
-  freezePrototypeRequirement(group, "platform", checkedAt);
-}
 
 export function setPrototypeProposalMergeScenario(
   projectId: string,
@@ -243,7 +225,7 @@ export function setPrototypeProposalMergeScenario(
   prototypeWorkflowChanges.fire();
 }
 
-/** 原型五秒时钟只读取显式预置的 Git 结果，不连接 Git、PR API 或模型。 */
+/** 原型五秒轮询消费内部 MR 生命周期与显式外部场景，不连接真实 Git、PR API 或模型。 */
 export function pollPrototypeProposalMerges(): void {
   let checked = false;
   // 转正替换 state.drafts 引用，不修改当前遍历的数组，因此无需复制快照。
@@ -258,7 +240,7 @@ export function pollPrototypeProposalMerges(): void {
     checked = true;
     const at = new Date().toISOString();
     const nextCheckAt = new Date(Date.now() + 5000).toISOString();
-    const scenario = (delivery as InternalProposalDelivery).mergeScenario ?? "unmerged";
+    const scenario = observePrototypeProposalMr(group, Date.now());
     if (scenario === "failed") {
       delivery.mergeCheck = {
         status: "failed",
@@ -364,7 +346,7 @@ export function pollPrototypeProposalMerges(): void {
     );
     operation.startedAt = at;
     operation.completedAt = at;
-    completePrototypeProposal(group, at);
+    completePrototypeProposal(state, group, at);
     state.operations.push(operation);
   }
   if (checked) {

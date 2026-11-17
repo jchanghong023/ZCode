@@ -311,7 +311,7 @@ export function proposalActorLabel(group: AIReqRequirementGroup): string {
 
 /** Formal views never mount retired development conversations. */
 export function conversationReadOnlyReason(
-  view: AIReqWorkflowView | undefined,
+  view: Pick<AIReqWorkflowView, "drafts"> | undefined,
   selection: AIReqSelection,
   access?: { proposalDiscussion?: boolean; codeDevelopment?: boolean },
 ): string | undefined {

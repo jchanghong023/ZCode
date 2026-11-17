@@ -6,7 +6,11 @@ import {
   fullReviewCurrent,
   proposalVersion,
 } from "@zcode/services/aireq";
-import { getPrototypeWorkflow, applyPrototypeAction } from "./workflow.js";
+import {
+  getPrototypeWorkflow,
+  applyPrototypeAction,
+  readPrototypeNativeContext,
+} from "./workflow.js";
 import {
   prototypeSkillDesignReply,
   prototypeSkillDesignBinding,
@@ -15,20 +19,12 @@ import {
 import { currentIdentity, withAIReqIdentity } from "./identity.js";
 import { consumePrototypeSendFailure, prototypeSessionReadIssue } from "./recovery.js";
 
-function locate(sessionId: string) {
-  for (const project of getPrototypeWorkflow().projects) {
-    const index = getPrototypeWorkflow({ projectId: project.id });
-    const ref = index.sessions.find((item) => item.sessionId === sessionId);
-    if (ref) return { ref, view: getPrototypeWorkflow({ projectId: project.id, irId: ref.irId }) };
-  }
-  return undefined;
-}
 export class AIReqNativeBusiness {
   private readonly results = new Map<string, { text: string; reply: string }>();
   private readonly failures = new Set<string>();
   private readonly actors = new Map<string, import("@zcode/services/aireq").AIReqIdentity>();
   private readonly admittedTexts = new Map<string, string>();
-  private readonly admittedVersions = new Map<string, string>();
+  private readonly executionSnapshots = new Map<string, { text: string; version?: string }>();
   private readonly nativeDrafts = new Map<
     string,
     {
@@ -54,12 +50,8 @@ export class AIReqNativeBusiness {
     return `${actor.employeeId}:${actor.clientId}`;
   }
   isPublishedNativeSession(sessionId: string): boolean {
-    const target = locate(sessionId);
-    if (!target) return false;
-    // 共享读取只来自业务服务 登记的精确 canonical ref，不依赖首条聊天发布。
-    return [...target.view.groups, ...target.view.drafts].some(
-      (item) => item.projectId === target.ref.projectId && item.id === target.ref.irId,
-    );
+    // 资格只取同 owner 当前 canonical 引用；热路径不应按每个项目重复派生全局待办和进度。
+    return readPrototypeNativeContext(sessionId)?.published === true;
   }
   getNativeBinding(sessionId: string) {
     const draft = this.nativeDrafts.get(sessionId);
@@ -69,7 +61,7 @@ export class AIReqNativeBusiness {
     if (prototypeSessionReadIssue(sessionId)) throw businessRule("会话读取失败，请重试。");
     if (sessionId.startsWith("prototype-skill-design:"))
       return prototypeSkillDesignBinding(sessionId);
-    return locate(sessionId)?.ref.modelConfig;
+    return readPrototypeNativeContext(sessionId)?.ref.modelConfig;
   }
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
@@ -97,12 +89,37 @@ export class AIReqNativeBusiness {
       this.admittedTexts.set(key, text);
       return;
     }
-    const target = locate(sessionId);
+    this.currentProposal(sessionId);
+    this.actors.set(key, { ...identity });
+    this.admittedTexts.set(key, text);
+  }
+  /** Admission is immutable; an explicit queue edit changes only the input frozen at execution. */
+  beginNative(sessionId: string, commandId: string, text: string): void {
+    const key = `${sessionId}:${commandId}`;
+    const actor = this.actors.get(key);
+    if (!actor) throw businessRule("消息未接纳。");
+    withAIReqIdentity(actor, () => {
+      const prior = this.executionSnapshots.get(key);
+      if (prior) {
+        if (prior.text !== text) throw businessRule("已开始执行的消息正文不能替换。");
+        return;
+      }
+      if (sessionId.startsWith("prototype-skill-design:")) {
+        assertSkillSession(sessionId);
+        this.executionSnapshots.set(key, { text });
+        return;
+      }
+      // 前项可在此项等待期间更新材料；开始时冻结一次，完成或重试不能把旧执行漂白到新版本。
+      const proposal = this.currentProposal(sessionId);
+      this.executionSnapshots.set(key, { text, version: proposalVersion(proposal) });
+    });
+  }
+  private currentProposal(sessionId: string) {
+    const target = readPrototypeNativeContext(sessionId, true);
     if (!target) throw businessRule("会话不属于当前可达 AIReq 业务。");
-    const { ref, view } = target;
-    const proposal = view.drafts.find((item) => item.id === ref.irId);
+    const { ref, draft: proposal } = target;
     const reason = conversationReadOnlyReason(
-      view,
+      { drafts: proposal ? [proposal] : [] },
       {
         projectId: ref.projectId,
         irId: ref.irId,
@@ -128,10 +145,7 @@ export class AIReqNativeBusiness {
       proposal.status === "requirements-pr"
     )
       throw businessRule("当前或历史会话只读，请回到有效讨论阶段。");
-    // 重复接纳不刷新材料绑定，否则重试能把旧消息漂白成新版本完成结果。
-    if (!this.admittedVersions.has(key)) this.admittedVersions.set(key, proposalVersion(proposal!));
-    this.actors.set(key, { ...identity });
-    this.admittedTexts.set(key, text);
+    return proposal!;
   }
   discardNative(sessionId: string, commandId: string): void {
     const key = `${sessionId}:${commandId}`;
@@ -139,13 +153,13 @@ export class AIReqNativeBusiness {
     if (this.results.has(key)) return;
     this.actors.delete(key);
     this.admittedTexts.delete(key);
-    this.admittedVersions.delete(key);
+    this.executionSnapshots.delete(key);
   }
   completeNative(sessionId: string, commandId: string, text: string): string {
     const actor = this.actors.get(`${sessionId}:${commandId}`);
     if (!actor) throw businessRule("消息未接纳。");
-    if (this.admittedTexts.get(`${sessionId}:${commandId}`) !== text)
-      throw businessRule("完成消息正文与接纳正文不一致。");
+    if (this.executionSnapshots.get(`${sessionId}:${commandId}`)?.text !== text)
+      throw businessRule("完成消息正文与执行快照不一致。");
     return withAIReqIdentity(actor, () => this.completeForActor(sessionId, commandId, text));
   }
   private completeForActor(sessionId: string, commandId: string, text: string): string {
@@ -162,16 +176,15 @@ export class AIReqNativeBusiness {
         ? prototypeSkillDesignReply(sessionId, text)
         : "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
     } else {
-      const target = locate(sessionId);
+      const target = readPrototypeNativeContext(sessionId, true);
       if (!target) throw businessRule("业务会话不存在。");
-      const { ref, view } = target;
-      const proposal = view.drafts.find((item) => item.id === ref.irId);
+      const { ref, draft: proposal } = target;
       const selection = { projectId: ref.projectId, irId: ref.irId };
-      if (!proposal || this.admittedVersions.get(key) !== proposalVersion(proposal))
+      if (!proposal || this.executionSnapshots.get(key)?.version !== proposalVersion(proposal))
         throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
       // 退回只新增讨论轮次，材料摘要可能不变；旧接纳不能跨轮次或阶段重新取得写权限。
       const readOnly = conversationReadOnlyReason(
-        view,
+        { drafts: proposal ? [proposal] : [] },
         {
           ...selection,
           discussionPhase: ref.phase === "solution" ? "solution" : "requirements",
@@ -223,11 +236,9 @@ export class AIReqNativeBusiness {
     return reply;
   }
   seedNative(sessionId: string): string | undefined {
-    const target = locate(sessionId);
+    const target = readPrototypeNativeContext(sessionId, true);
     if (!target) return undefined;
-    const proposal = [...target.view.groups, ...target.view.drafts].find(
-      (item) => item.id === target.ref.irId,
-    );
+    const proposal = target.formal ?? target.draft;
     const review = [
       proposal?.originalReview,
       ...(proposal?.originalReviewHistory ?? []),

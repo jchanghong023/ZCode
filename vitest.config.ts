@@ -1,4 +1,6 @@
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+process.env.ST_RUN_ID = randomUUID();
 import { configDefaults, defineConfig } from "vitest/config";
 
 import engineeringTestFiles from "./scripts/engineering-test-files.json";
@@ -11,10 +13,22 @@ export default defineConfig({
     __ZCODE_TELEMETRY_REPORT_ENDPOINT__: JSON.stringify("https://zcode.z.ai/api/v1/event/report"),
   },
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "packages/ui/src"),
-      "@web": resolve(__dirname, "packages/web/src"),
-    },
+    alias: [
+      ...Object.entries({
+        "@zcode/client": "packages/client/src/index.ts",
+        "@zcode/services/aireq": "packages/services/src/aireq/index.ts",
+        "@zcode/shared/zcode-protocol-v4": "packages/shared/src/zcode-protocol-v4/index.ts",
+        "@zcode/services": "packages/services/src/index.ts",
+        "@zcode/shared": "packages/shared/src/index.ts",
+        "@zcode/rpc": "packages/rpc/src/index.ts",
+        "@zcode/provider": "packages/provider/src/index.ts",
+      }).map(([name, path]) => ({
+        find: new RegExp(`^${name}$`),
+        replacement: resolve(__dirname, path),
+      })),
+      { find: "@", replacement: resolve(__dirname, "packages/ui/src") },
+      { find: "@web", replacement: resolve(__dirname, "packages/web/src") },
+    ],
   },
   test: {
     setupFiles: ["./vitest.setup.ts"],
@@ -51,6 +65,19 @@ export default defineConfig({
     testTimeout: 30_000,
     // 现有 engineering 项目按明确清单运行，包含 test/ut 的前端公共函数测试。
     projects: [
+      {
+        extends: true,
+        test: {
+          name: "st",
+          include: ["test/st/*.test.ts"],
+          pool: "forks",
+          execArgv: process.execArgv,
+          fileParallelism: false,
+          maxWorkers: 1,
+          testTimeout: Number(process.env.ST_TIMEOUT_MS) || 120_000,
+          hookTimeout: Number(process.env.ST_TIMEOUT_MS) || 120_000,
+        },
+      },
       {
         extends: true,
         test: {

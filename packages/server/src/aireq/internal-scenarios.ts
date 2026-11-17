@@ -54,9 +54,18 @@ export type InternalRequirementGroup = AIReqRequirementGroup & {
   reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
   heldReviews?: AIReqReview[];
   branchCreationFailures?: string[];
+  branchCreationAttempts?: Record<string, number>;
 };
 export type InternalProposalDelivery = AIReqProposalDelivery & {
   mergeScenario?: AIReqProposalMergeScenario;
+  simulatedMr?: {
+    candidate: string;
+    number: number;
+    openedAt: string;
+    mergeEligibleAt: string;
+    status: "opened" | "merged";
+    commit?: string;
+  };
 };
 
 // 故障输入仅留在服务端 owner；公开 SR 只投影本次操作已产生的分支事实。

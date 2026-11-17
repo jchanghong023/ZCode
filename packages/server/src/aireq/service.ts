@@ -24,6 +24,8 @@ import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
   getPrototypeWorkflow,
+  readPrototypeProjectWorkspace,
+  readPrototypeProjectProgressInputs,
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
@@ -34,12 +36,13 @@ import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
 import { readPrototypeSkills } from "./skills.js";
-import { savePrototypeRepository } from "./project-settings.js";
+import { readPrototypeProjectSettings, savePrototypeRepository } from "./project-settings.js";
 import {
   withPrototypeProgress,
   recordPrototypeSrTest,
   previewPrototypeBranchCleanup,
   cleanupPrototypeBranches,
+  pollPrototypeDevelopment,
 } from "./progress.js";
 import { withPrototypePlanning, updatePrototypeSrPlanning } from "./planning.js";
 import { createPrototypeProgressScheduler } from "./progress-scheduler.js";
@@ -104,6 +107,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     );
     this.timer = setInterval(() => {
       pollPrototypeProposalMerges();
+      pollPrototypeDevelopment();
       // 已接纳分析由服务生命周期继续；浏览器关闭不取消 pending 或要求重新发送。
       try {
         withAIReqIdentity(
@@ -209,17 +213,27 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return group;
   }
   private workflow(selection: AIReqSelection) {
-    const view = withPrototypePlanning(withPrototypeProgress(getPrototypeWorkflow(selection)));
-    view.projectProgress = view.projects.map((project) => {
-      const projectView =
-        project.id === view.currentProjectId
-          ? view
-          : withPrototypePlanning(
-              withPrototypeProgress(getPrototypeWorkflow({ projectId: project.id })),
-            );
-      return projectProgress(projectView, project.id);
+    const selected = getPrototypeWorkflow(selection);
+    // 全局统计一次读取并派生，再按项目分桶；不能每项目重跑含全局待办/操作的 workflow。
+    const progress = withPrototypeProgress(readPrototypeProjectProgressInputs());
+    const view = withPrototypePlanning({
+      ...selected,
+      srs: progress.srs.filter((sr) => sr.projectId === selected.currentProjectId),
     });
-    const project = view.projects.find((item) => item.id === selection.projectId);
+    const byProject = new Map<string, Parameters<typeof projectProgress>[0]>(
+      view.projects.map((project) => [
+        project.id,
+        { groups: [], drafts: [], srs: [], releases: [] },
+      ]),
+    );
+    for (const group of progress.groups) byProject.get(group.projectId)?.groups.push(group);
+    for (const draft of progress.drafts) byProject.get(draft.projectId)?.drafts.push(draft);
+    for (const sr of progress.srs) byProject.get(sr.projectId)?.srs.push(sr);
+    for (const release of progress.releases)
+      byProject.get(release.projectId)?.releases.push(release);
+    view.projectProgress = view.projects.map((project) =>
+      projectProgress(byProject.get(project.id)!, project.id),
+    );
     const proposal = view.drafts.find(
       (item) => item.projectId === selection.projectId && item.id === selection.irId,
     );
@@ -239,11 +253,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         intake
           ? undefined
           : resolvePrototypeSession(view, selection),
-      workspace: {
-        path: project?.root,
-        identity: `aireq-mock:${project?.id ?? "personal"}`,
-        kind: project ? ("proposal" as const) : ("unavailable" as const),
-      },
+      workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
   private command(action: AIReqAction, selection: AIReqSelection, revision: number) {
@@ -301,7 +311,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       prompts: prompts.readPrototypeAgentPrompts(),
       projects: {
         developmentRoots: Object.fromEntries(
-          getPrototypeWorkflow().projects.map((project) => [project.id, project.root]),
+          readPrototypeProjectSettings().projects.map((project) => [project.id, project.root]),
         ),
       },
       skillDesignStorage: {

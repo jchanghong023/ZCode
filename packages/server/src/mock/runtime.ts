@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import { resolve } from "node:path";
-import { createUuid } from "@zcode/shared";
+import { createUuid, type ZCodeSkillReferenceCatalogEntry } from "@zcode/shared";
 import type {
   ConversationSnapshot,
   PlanState,
@@ -37,6 +37,8 @@ export interface MockSession {
   workspaceRef: WorkspaceRef;
   /** 原生草稿创建者不可由订阅或附件请求改写，防止猜测 ID 后认领他人草稿。 */
   draftCreatorActor?: string;
+  /** 首次初始化时冻结的可引用技能；目录更新不能泄漏进既有会话。 */
+  skillReferenceCatalog: ZCodeSkillReferenceCatalogEntry[];
   logEpoch: string;
   /** topic 帧水位；(fromSeq, toSeq] 记账。 */
   seq: number;
@@ -95,6 +97,8 @@ export interface VirtualFileNode {
   name: string;
   /** 文件内容（目录为空）。 */
   content?: string;
+  /** 二进制文件的原始事实；存在时读取不经过 UTF-8 编解码。 */
+  bytes?: Uint8Array;
   children?: Map<string, VirtualFileNode>;
   mtimeMs: number;
 }

@@ -59,7 +59,10 @@ function emptyProgressSummary(): AIReqProgressSummary {
 }
 
 /** Pure projection; callers supply the same progress facts used by formal requirement rows. */
-export function projectProgress(view: AIReqWorkflowView, projectId: string): AIReqProjectProgress {
+export function projectProgress(
+  view: Pick<AIReqWorkflowView, "releases" | "drafts" | "groups" | "srs">,
+  projectId: string,
+): AIReqProjectProgress {
   const total = emptyProgressSummary();
   const releases = view.releases
     .filter((release) => release.projectId === projectId)

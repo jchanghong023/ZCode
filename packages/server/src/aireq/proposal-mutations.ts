@@ -1,9 +1,5 @@
 import { contentVersion, createRequirementSnapshot } from "./content-digest.js";
-import type {
-  InternalRequirementGroup,
-  InternalProposalDelivery,
-  InternalWorkflowAction,
-} from "./internal-scenarios.js";
+import type { InternalRequirementGroup, InternalWorkflowAction } from "./internal-scenarios.js";
 import type {
   AIReqWorkflowView,
   AIReqOperationReceipt,
@@ -27,7 +23,10 @@ import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
 } from "./requirements-review.js";
-import { ensurePrototypeProposalMr } from "./proposal-delivery.js";
+import {
+  beginPrototypeProposalMrLifecycle,
+  ensurePrototypeProposalMr,
+} from "./proposal-delivery.js";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 
 function materialsFor(
@@ -313,6 +312,8 @@ export function applyProposalMutation(
       )!;
       if (sr.trackingBranch?.status === "ready") break;
       const internal = proposal! as InternalRequirementGroup;
+      internal.branchCreationAttempts ??= {};
+      internal.branchCreationAttempts[sr.id] = (internal.branchCreationAttempts[sr.id] ?? 0) + 1;
       const nextFailure = internal.branchCreationFailures?.includes(sr.id);
       internal.branchCreationFailures = internal.branchCreationFailures?.filter(
         (id) => id !== sr.id,
@@ -617,7 +618,7 @@ export function applyProposalMutation(
       delivery.pushedCandidate = action.candidate;
       delivery.pushedAt = at;
       ensurePrototypeProposalMr(proposal!);
-      (delivery as InternalProposalDelivery).mergeScenario = "unmerged";
+      beginPrototypeProposalMrLifecycle(proposal!);
       delivery.mergeCheck = {
         status: "waiting",
         message: "文档 PR 等待合并，核验当前版本材料后转正。",

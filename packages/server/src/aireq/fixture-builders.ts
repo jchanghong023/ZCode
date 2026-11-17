@@ -42,7 +42,10 @@ export const DEFAULT_SELECTION: AIReqSelection = initialSelectionForDemo(prototy
 export const PROTOTYPE_WORKSPACE_IDENTITY = "aireq-mock";
 export const PROTOTYPE_RELEASE_ID = "release-2026-11";
 export const createdAt = "2026-11-10T09:00:00.000Z";
-export function prototypeDefaultCommit(view: AIReqWorkflowView, projectId: string): string {
+export function prototypeDefaultCommit(
+  view: Pick<AIReqWorkflowView, "repositoryHeads">,
+  projectId: string,
+): string {
   const project = readPrototypeProjectSettings().projects.find((item) => item.id === projectId);
   if (!project) throw new Error("项目不存在。");
   return view.repositoryHeads?.[project.repositoryId] ?? `sample-default-${project.repositoryId}`;

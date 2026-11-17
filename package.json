@@ -34,7 +34,9 @@
     "architecture:adopt": "bun scripts/architecture/architecture-check.mjs adopt",
     "docs:stale-phrases:check": "bun scripts/check-stale-doc-phrases.mjs",
     "test:ut": "bun --bun ./node_modules/vitest/vitest.mjs run --project engineering test/ut",
-    "test:ut:typecheck": "bun --bun ./node_modules/typescript/bin/tsc --project test/ut/tsconfig.json"
+    "test:ut:typecheck": "bun --bun ./node_modules/typescript/bin/tsc --project test/ut/tsconfig.json",
+    "test:st": "bun --bun ./node_modules/vitest/vitest.mjs run --project st",
+    "test:st:typecheck": "bun --bun ./node_modules/typescript/bin/tsc --project test/st/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
