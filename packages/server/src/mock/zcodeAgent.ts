@@ -28,6 +28,7 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IZCodeAgentService } from "@zcode/services";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
+import { readPrototypeSkills } from "../aireq/skills.js";
 import {
   buildConversationSnapshot,
   workspaceKeyOf,
@@ -107,6 +108,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     private readonly runtime: MockRuntime,
     private readonly business?: {
       admitNative(sessionId: string, commandId: string, text: string): void;
+      beginNative(sessionId: string, commandId: string, text: string): void;
       completeNative(sessionId: string, commandId: string, text: string): string;
       discardNative(sessionId: string, commandId: string): void;
       seedNative(sessionId: string): string | undefined;
@@ -279,10 +281,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.appendRow(session, userInputRow);
 
     if (this.business) {
-      await this.sleep(80);
-      if (owner.signal.aborted || session.activeTurn !== owner)
-        return this.finalizeInterruptedTurn(session, turnHeader, owner);
       try {
+        // 排队接纳时前项尚未提交；每个实际 turn 开始时才冻结本轮业务版本，完成仍核对该快照。
+        this.business.beginNative(session.sessionId, commandId, text);
+        await this.sleep(80);
+        if (owner.signal.aborted || session.activeTurn !== owner)
+          return this.finalizeInterruptedTurn(session, turnHeader, owner);
         const reply = this.business.completeNative(session.sessionId, commandId, text);
         this.appendRow(session, {
           kind: "assistantText",
@@ -607,6 +611,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           : {}),
       },
       ...(this.business ? { draftCreatorActor: this.business.actorKey() } : {}),
+      skillReferenceCatalog: this.readWorkspaceSkillCatalog(sessionRef.workspacePath),
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -867,6 +872,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         const payload = envelope.payload as { queueItemId: string };
         const item = this.findQueueItem(session, payload.queueItemId);
         if (!item?.editLock) return this.ackNoop(envelope, session);
+        // 释放协议不带 editorId，仍须核对可信命令的 clientId，不能让其他客户端取消持有者的冻结。
+        if (item.editLock.clientId !== envelope.clientId)
+          return this.ackNoop(envelope, session, "guard.queueEditLockLost");
         delete item.editLock;
         this.patchQueue(session);
         return this.ackAccepted(envelope);
@@ -884,7 +892,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         };
         const item = this.findQueueItem(session, payload.queueItemId);
         if (!item) return this.ackNoop(envelope, session);
-        if (payload.editorId && item.editLock?.editorId !== payload.editorId) {
+        // editorId 可从共享快照读取，不能单独作为持锁凭据；省略它也不能绕过已有冻结。
+        const ownsEdit = item.editLock
+          ? item.editLock.clientId === envelope.clientId &&
+            item.editLock.editorId === payload.editorId
+          : payload.editorId === undefined;
+        if (!ownsEdit) {
           return this.ackNoop(envelope, session, "guard.queueEditLockLost");
         }
         if (payload.attachments !== undefined)
@@ -1198,6 +1211,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       sessionId: params.sessionId,
       workspaceKey,
       workspaceRef: workspaceRefOf(params),
+      skillReferenceCatalog: this.readWorkspaceSkillCatalog(params.workspacePath),
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -1623,12 +1637,39 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
+  private readWorkspaceSkillCatalog(
+    workspacePath: string,
+  ): AR<IZCodeAgentService["getSkillReferenceCatalog"]>["skills"] {
+    return readPrototypeSkills(workspacePath)
+      .filter((skill) => skill.enabled)
+      .map(({ id, name, description, path, scope, pluginName }) => ({
+        id,
+        name,
+        description,
+        path,
+        scope,
+        enabled: true,
+        ...(pluginName ? { pluginName } : {}),
+      }));
+  }
+
   async getSkillReferenceCatalog(
-    _params: P<IZCodeAgentService["getSkillReferenceCatalog"]>,
+    params: P<IZCodeAgentService["getSkillReferenceCatalog"]>,
   ): Promise<AR<IZCodeAgentService["getSkillReferenceCatalog"]>> {
-    return { authority: "workspace" as const, skills: [] } as unknown as unknown as AR<
-      IZCodeAgentService["getSkillReferenceCatalog"]
-    >;
+    if (params.sessionId === undefined)
+      return {
+        authority: "workspace",
+        skills: this.readWorkspaceSkillCatalog(params.workspacePath),
+      };
+    // 目录必须属于已驻留且可访问的会话；补建或回退 workspace 会让新技能进入旧对话。
+    const session = this.ensureSession({
+      sessionId: params.sessionId,
+      workspace: params,
+      allowSeed: false,
+    });
+    // Skill 设计等私有业务会话的归属仍由业务 owner 校验，不能只核对 workspace。
+    this.business?.getNativeBinding(session.sessionId);
+    return { authority: "session", skills: structuredClone(session.skillReferenceCatalog) };
   }
 
   supportsConversationQuoteComment(

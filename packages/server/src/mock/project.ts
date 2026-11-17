@@ -1,7 +1,7 @@
 // 修复原因：mention 只读同源业务/会话事实，不能恢复 demo 项目或枚举宿主文件系统。
 import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
 import type { IAIReqService } from "@zcode/services/aireq";
-import { assertSkillSession } from "../aireq/contract.js";
+import { assertSkillSession, readPrototypeProjectDirectory } from "../aireq/contract.js";
 import { businessRule } from "../aireq/errors.js";
 import { currentIdentity } from "../aireq/identity.js";
 import { isListedSession, type MockRuntime, type MockSession } from "./runtime.js";
@@ -25,16 +25,18 @@ export class MockProjectService implements IProjectService {
     const identity = currentIdentity();
     if (!identity || (hostId && hostId !== "local"))
       throw businessRule("连接身份或工作区无效，请重新进入工作区。");
-    const bootstrap = await this.business.bootstrap(identity);
+    // 目录只需项目和 canonical 引用；逐项目走公开 readWorkflow 会嵌套重算全局进度与待办。
+    // owner 一次复制目录事实，权限仍由下方 actor、私有 Skill 和精确 workspace 校验承担。
+    const directory = readPrototypeProjectDirectory();
     const result: Projection = {
       actor: `${identity.employeeId}:${identity.clientId}`,
       projects: [],
       workspaces: [],
       published: new Map(),
-      skillWorkspaces: bootstrap.skillDesignStorage
+      skillWorkspaces: directory.skillDesignStorage
         ? [
             {
-              workspacePath: bootstrap.skillDesignStorage.workspacePath,
+              workspacePath: directory.skillDesignStorage.workspacePath,
               // Skill 原生 scope 复用业务身份接口，不在投影层硬编码后端前缀。
               workspaceIdentity: `${await this.business.call(identity, "skillDesign.workspaceIdentity", ["personal"])}:skill-design`,
               projectId: null,
@@ -42,22 +44,23 @@ export class MockProjectService implements IProjectService {
           ]
         : [],
     };
-    for (const [projectId, root] of Object.entries(bootstrap.projects.developmentRoots)) {
-      const { view, workspace } = await this.business.call(identity, "readWorkflow", [
-        { projectId },
-      ]);
-      const project = view.projects.find((item) => item.id === projectId);
-      if (!project || project.root !== root || workspace.path !== root || !workspace.identity)
+    const scopes = new Map<string, Workspace>();
+    for (const project of directory.projects) {
+      const projectId = project.id;
+      const root = project.root;
+      const workspace = directory.workspaces[projectId];
+      if (!workspace || workspace.path !== root || !workspace.identity)
         throw businessRule("项目工作区已变化，请刷新页面后重试。");
       const scope: Workspace = {
         workspacePath: root,
         workspaceIdentity: workspace.identity,
         projectId,
       };
+      scopes.set(projectId, scope);
       result.workspaces.push(scope);
       result.skillWorkspaces.push({
         ...scope,
-        workspaceIdentity: `${await this.business.call(identity, "skillDesign.workspaceIdentity", [projectId])}:skill-design`,
+        workspaceIdentity: `${directory.skillWorkspaceIdentities[projectId]}:skill-design`,
       });
       result.projects.push({
         id: projectId,
@@ -71,16 +74,11 @@ export class MockProjectService implements IProjectService {
         createdAt: Date.parse(project.createdAt),
         updatedAt: Date.parse(project.updatedAt),
       });
-      // 共享资格只来自业务 owner 的 canonical ref，不把未知/私有会话读取失败当成共享。
-      for (const ref of view.sessions) {
-        if (
-          ref.projectId === projectId &&
-          [...view.groups, ...view.drafts].some(
-            (item) => item.projectId === projectId && item.id === ref.irId,
-          )
-        )
-          result.published.set(ref.sessionId, scope);
-      }
+    }
+    // canonical 资格由 owner 以当前项目、IR 和故障过滤一次裁决，不接纳私有/未知引用。
+    for (const ref of directory.sessions) {
+      const scope = scopes.get(ref.projectId);
+      if (scope) result.published.set(ref.sessionId, scope);
     }
     return result;
   }

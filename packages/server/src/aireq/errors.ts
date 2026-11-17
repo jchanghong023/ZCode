@@ -44,9 +44,11 @@ export function publicBusinessProjection<T>(value: T): T {
         ([key]) =>
           key !== "reviewScenarios" &&
           key !== "mergeScenario" &&
+          key !== "simulatedMr" &&
           key !== "scaleDemo" &&
           key !== "nextCleanupFailure" &&
           key !== "branchCreationFailures" &&
+          key !== "branchCreationAttempts" &&
           key !== "heldReviews",
       )
       .map(([key, nested]) => [key, publicBusinessProjection(nested)]),

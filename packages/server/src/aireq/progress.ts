@@ -48,7 +48,13 @@ export function initializePrototypeProgress(): void {
 }
 
 /** 固定的代码证据样例；不调用模型，不查询远程仓库，不推断真实开发结果。 */
-export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowView {
+export function withPrototypeProgress(view: AIReqWorkflowView): AIReqWorkflowView;
+export function withPrototypeProgress(
+  view: Pick<AIReqWorkflowView, "groups" | "drafts" | "srs" | "releases" | "repositoryHeads">,
+): Pick<AIReqWorkflowView, "groups" | "drafts" | "srs" | "releases" | "repositoryHeads">;
+export function withPrototypeProgress(
+  view: Pick<AIReqWorkflowView, "groups" | "drafts" | "srs" | "releases" | "repositoryHeads">,
+): Pick<AIReqWorkflowView, "groups" | "drafts" | "srs" | "releases" | "repositoryHeads"> {
   const formal = view.groups;
   return {
     ...view,
@@ -286,6 +292,69 @@ export async function recordPrototypeSrTest(
   );
 }
 
+/** 内存 Git 依赖与既有内部输入共用写入路径，不替代人工验收或制造 AI 报告。 */
+function applyPrototypeCodeMergeFact(
+  state: AIReqWorkflowView,
+  sr: AIReqSystemRequirement,
+  fix: boolean,
+  at: string,
+): void {
+  if (srProgress(sr) === 100) throw businessRule("已完成 SR 不再接纳代码合入模拟。");
+  if (
+    !sr.trackingBranch?.name ||
+    sr.trackingBranch.status === "failed" ||
+    sr.trackingBranch.status === "deleted"
+  )
+    throw businessRule("开发分支尚不可用，不能模拟合入。");
+  const unresolved = (sr.developmentIssues ?? []).filter((issue) => issue.status !== "resolved");
+  if (fix && !unresolved.length) throw businessRule("没有待修复测试问题。");
+  if (!fix && unresolved.length) throw businessRule("存在未解决测试问题，请使用模拟修复合入。");
+  const commit = `simulated-${fix ? "fix" : "code"}-${sr.id}-${state.revision + 1}`;
+  const project = state.projects.find((item) => item.id === sr.projectId)!;
+  sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
+  state.repositoryHeads ??= {};
+  state.repositoryHeads[project.repositoryId] = commit;
+  for (const issue of unresolved) {
+    issue.status = "awaiting-retest";
+    issue.fixCodeVersion = commit;
+  }
+  if (sr.progress) sr.progress = { ...sr.progress, percent: 99, merged: true, stale: true };
+  sr.status = "developing";
+}
+
+/** 真实服务时钟观测内存 Git 事实；不以读取次数、请求身份或测试标识驱动。 */
+export function pollPrototypeDevelopment(): void {
+  const now = Date.now();
+  const at = new Date(now).toISOString();
+  mutatePrototypeWorkflow((state) => {
+    let changed = false;
+    for (const group of state.groups) {
+      for (const sr of state.srs) {
+        if (
+          sr.projectId !== group.projectId ||
+          sr.irId !== group.id ||
+          !group.srIds.includes(sr.id)
+        )
+          continue;
+        const branch = sr.trackingBranch;
+        if (!branch?.name || branch.status !== "ready" || srProgress(sr) === 100) continue;
+        // 分支成功推送才允许首次开发合入；失败后修复等待真实问题产生，不反写人工通过。
+        const openIssues = (sr.developmentIssues ?? []).filter((issue) => issue.status === "open");
+        const since = sr.codeMerge
+          ? openIssues.length
+            ? Math.max(...openIssues.map((issue) => Date.parse(issue.reportedAt)))
+            : NaN
+          : Date.parse(branch.pushedAt);
+        if (!Number.isFinite(since) || now - since < 10_000) continue;
+        applyPrototypeCodeMergeFact(state, sr, Boolean(sr.codeMerge), at);
+        changed = true;
+      }
+    }
+    // 没有新事实时不发布 revision，避免轮询破坏界面的 CAS 编辑。
+    return changed;
+  });
+}
+
 /** 明确的外部模拟输入；不运行 Git、不修改业务代码，也不直接完成测试。 */
 export async function simulatePrototypeCodeMerge(
   projectId: string,
@@ -303,32 +372,7 @@ export async function simulatePrototypeCodeMerge(
     (state, _group, target, _employeeId, at) => {
       const sr = target!;
       if (typeof input.fix !== "boolean") throw businessRule("模拟合入类型无效。");
-      if (srProgress(sr) === 100) throw businessRule("已完成 SR 不再接纳代码合入模拟。");
-      if (
-        !sr.trackingBranch?.name ||
-        sr.trackingBranch.status === "failed" ||
-        sr.trackingBranch.status === "deleted"
-      )
-        throw businessRule("开发分支尚不可用，不能模拟合入。");
-      // 待复测的旧问题也必须随下一次修复合入绑定新版本，否则多轮失败后永远无法通过。
-      const unresolved = (sr.developmentIssues ?? []).filter(
-        (issue) => issue.status !== "resolved",
-      );
-      if (input.fix && !unresolved.length) throw businessRule("没有待修复测试问题。");
-      if (!input.fix && unresolved.length)
-        throw businessRule("存在未解决测试问题，请使用模拟修复合入。");
-      const commit = `simulated-${input.fix ? "fix" : "code"}-${sr.id}-${state.revision + 1}`;
-      const project = state.projects.find((item) => item.id === projectId)!;
-      sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
-      state.repositoryHeads ??= {};
-      state.repositoryHeads[project.repositoryId] = commit;
-      for (const issue of unresolved) {
-        issue.status = "awaiting-retest";
-        issue.fixCodeVersion = commit;
-      }
-      // 合入只改变外部代码事实和业务值；不能伪造新 AI 报告或改写旧分析的代码版本。
-      if (sr.progress) sr.progress = { ...sr.progress, percent: 99, merged: true, stale: true };
-      sr.status = "developing";
+      applyPrototypeCodeMergeFact(state, sr, input.fix, at);
     },
   );
 }

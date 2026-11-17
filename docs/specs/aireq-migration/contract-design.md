@@ -99,7 +99,7 @@ onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error�
 - planning 输入含 operationId/expectedRevision、可选 developerEmployeeId/testingEmployeeId/plannedStart/plannedEnd。
 - repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
-- 分析筛选为 projectId/releaseId/irId/srId/srSearch；历史另含 status/since/until。页码从 1 开始，pageSize 仅 25/50；读取历史不启动分析。
+- 分析筛选为 projectId/releaseId/irId/srId/srSearch；历史另含 status/since/until。ISO 格式的日期须为真实日历日期（包括月末与闰年），不得将不存在的日期自动归一化；开始晚于结束时拒绝，同一时刻允许。既有合法时间表达的解析语义不变。页码从 1 开始，pageSize 仅 25/50；读取历史不启动分析。
 
 ## 5. command 动作与领域门禁
 
@@ -117,7 +117,7 @@ onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error�
 
 未知 path/action、额外封闭字段、非法 tuple／身份／归属／版本／阶段在 owner 执行前拒绝；不返回占位成功。普通 RPC 保持现有 Promise error 语义，不新增统一结果 envelope，也不依赖 Error 自定义属性必定跨 RPC 保留。只有显式安全业务说明对用户保留，未知异常留服务端诊断，不下发内部堆栈。类型化事件错误使用 AIReqRemoteError。
 
-文件 stat.size、分片 offset 按实际 UTF-8 原始字节；目录误读与缺失失败，零字节文件成功，EOF 与 next offset 按原契约。没有公开目录全量索引下载或宿主写盘。
+文件 stat.size、分片 offset 按实际 UTF-8 原始字节；readFileRange 的 offset、length 必须是非负安全整数，非法范围在读取前拒绝，不取整、不把负偏移解释为从文件尾部计数。length=0 返回空字节；到达或超过 EOF 返回短数组或空数组。目录误读与缺失失败，零字节文件成功，next offset 按原契约。没有公开目录全量索引下载或宿主写盘。
 
 setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。
 

@@ -22,6 +22,8 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 命令入口核对外层请求与 envelope 工作区；分页、会话、附件及订阅继续检查业务绑定与 workspace。Project 树仅投影当前业务及该身份可访问的会话，includeDeleted 不扩大权限，不枚举宿主目录或他人私有草稿。
 
+原生会话绑定与项目目录从 workflow owner 的即时只读查询取得最小事实；绑定查询不派生待办／进度或逐项目重读完整 workflow，目录一次取得项目工作区及 canonical 会话映射。查询只复制所需结果，不缓存另一份目录、不改变 revision、状态或事件。公开资格仍由当前项目及 IR 的 canonical 引用裁决，故障会话过滤、私有草稿 actor 与 Skill 私有归属、workspace 精确匹配继续在原边界执行；轻投影不能替代这些校验。
+
 `origin:"realUser"` 行使用接纳时已校验的 clientId；排队、提升及续跑保存原 QueueItem.clientId，后续请求不能覆盖。实时帧、快照与分页读取同一行事实。
 
 未发送正文、附件与输入历史由既有 composer owner 按 employee/client/opaque workspace namespace 隔离，不回读缺少身份的旧目录键。临时模型／模式属于单次 Submission，不改变 Session 默认。

@@ -1,5 +1,9 @@
 # AIReq mock
 
+正常文档 MR 的内部模拟事实与交付候选同属 workflow owner。publish 只登记 opened 及真实服务时钟的最早合入时点；既有五秒轮询推进模拟外部状态，再复用当前候选、完整材料与版本核验转正。opened 至少保留十秒，幂等发布不重置，关闭交付后迟到结果无效。platformVerified 保持 false；simulatedMr 与既有故障场景字段一样由 publicBusinessProjection 递归剥离，不增加 RPC 或测试 setter。
+
+分支创建的内部依赖对新 IR 首个 SR 的首次推送保留一次暂时失败，显式内部故障输入优先；公开 retrySrBranch 复用原合入基点进行下一次尝试。branchCreationAttempts 同属内部 owner 并递归剥离。会话与项目热查询使用 workflow-queries 的无缓存只读投影，当前 state 由 workflow 即时传入；不建立第二份可写状态，也不派生全局待办或进度报表。
+
 想法批量导入 `importIdeas(originalTexts)` 由现有 workflow 克隆事务唯一持有：全批非空校验、按批次 revision 和行序分配独立编号、使用实际操作者及服务时间、同一收据提交后广播。任一无效全批回滚，同操作重试返回原回执；不要求项目版本，不创建会话／提案或运行 AI。
 
 想法池与转入版本按 `docs/specs/aireq-migration/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
@@ -58,7 +62,7 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 
 既有 `readWorkflow` 返回的 `view.projectProgress` 覆盖所有项目，每项为 `{projectId, total, releases}`；`releases` 含该项目全部 Release（包括空 Release），每项的 `releaseId`、`title`、`createdAt` 与汇总来自同一项目快照。`total` 与逐 Release 项复用 `AIReqProgressSummary`：提案数、正式 IR 数、正式 SR 数、未分析 SR 数、`percent` 及全部正式 IR 摘要。现有 `view.groups/drafts/srs/materials` 等仍只含当前项目，不能为汇总而跨项目混入。
 
-每次读取从同一 workflow owner 按项目获取当前事实，并复用 `withPrototypeProgress`／`withPrototypePlanning` 后调用公共纯函数 `projectProgress`。项目及 Release 直接累计所有正式 SR 的 `srProgress` 后除以 SR 数，不先平均 IR；提案及其 SR 不入进度。未分析且无合入／有效验收事实的 SR 按 0 并标记；合入 99、匹配版本的人工通过 100，事实优先。无正式 SR 为 `null`，零 SR 正式 IR 保留摘要，未全部完成的显示不得舍入为 100。
+每次读取从同一 workflow owner 一次取得当前所有项目的进度输入，仅包含正式／提案 IR、SR、Release 和仓库水位，不复制完整材料、操作或会话，也不为每个项目重复派生全局待办。统一经一次 `withPrototypeProgress` 后按项目分组，再调用原公共纯函数 `projectProgress`；当前选择的 SR 行复用这批进度事实并继续经 `withPrototypePlanning`，不扩大其项目范围。项目及 Release 直接累计所有正式 SR 的 `srProgress` 后除以 SR 数，不先平均 IR；提案及其 SR 不入进度。未分析且无合入／有效验收事实的 SR 按 0 并标记；合入 99、匹配版本的人工通过 100，事实优先。无正式 SR 为 `null`，零 SR 正式 IR 保留摘要，未全部完成的显示不得舍入为 100。
 
 聚合只存在于返回投影，不回写 state、不缓存、不增 RPC 或事件通道。正常业务提交事实后仍通过既有 workflow／scheduler 事件使客户端重读，读取本身不改变业务事实、revision 或接纳动作。
 

@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["../../packages/ui/src/*"],
+      "@zcode/client": ["../../packages/client/src/index.ts"],
+      "@zcode/services": ["../../packages/services/src/index.ts"],
+      "@zcode/services/aireq": ["../../packages/services/src/aireq/index.ts"],
+      "@zcode/shared": ["../../packages/shared/src/index.ts"],
+      "@zcode/shared/zcode-protocol-v4": ["../../packages/shared/src/zcode-protocol-v4/index.ts"],
+      "@zcode/rpc": ["../../packages/rpc/src/index.ts"],
+      "@zcode/provider": ["../../packages/provider/src/index.ts"]
+    },
+    "types": ["node"]
+  },
+  "include": ["*.ts"],
+  "references": [
+    {
+      "path": "../../packages/ui"
+    },
+    {
+      "path": "../../packages/services"
+    },
+    {
+      "path": "../../packages/shared"
+    },
+    {
+      "path": "../../packages/rpc"
+    },
+    {
+      "path": "../../packages/client"
+    },
+    {
+      "path": "../../packages/provider"
+    }
+  ]
+}

@@ -14,11 +14,32 @@ const generatedSample =
   "---\nname: review-api-changes\ndescription: 用户请求评审 API 变更、接口 PR 或检查向后兼容性时使用。\n---\n\n# 接口变更评审\n\n## 工作方式\n先读取项目接口规范、当前 diff、接口定义及相关测试，再核对受影响调用方。不要假定没有提供的客户端行为；缺少关键材料时先向用户索取。\n\n1. 确认变更涉及接口契约；纯排版修改说明不适用。\n2. 按 references/checklist.md 检查请求、响应和错误处理的兼容性。\n3. 对每项问题列出文件位置、影响、证据与兼容过渡建议。\n4. 将已确认问题和待核实项分开；不修改代码，不宣称未运行的测试通过。\n\n## 输出\n按严重程度报告问题；没有足够证据时明确说明缺口，不编造调用方或测试结果。\n";
 const checklistSample =
   "# 接口兼容性检查清单\n\n- 删除或收紧响应字段时，是否有受影响调用方的证据？\n- 请求字段、默认值、错误码及分页语义是否改变？\n- 相关测试是否覆盖旧客户端行为？没有执行时明确标为未验证。\n- 缺少输入时先列缺口；不要编造兼容结论。\n";
+// 配套流程说明仍是服务端内部模拟产物；仅含静态文字和几何形状，不嵌脚本、外链或用户输入。
+const reviewFlowSample = `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="180" viewBox="0 0 760 180" role="img" aria-labelledby="title description">
+  <title id="title">接口变更评审流程</title>
+  <desc id="description">读取项目材料，核对接口兼容性，再整理问题、依据和待核实项。</desc>
+  <rect width="760" height="180" rx="16" fill="#f8fafc"/>
+  <g fill="#e2e8f0" stroke="#475569" stroke-width="2">
+    <rect x="24" y="50" width="200" height="80" rx="12"/>
+    <rect x="280" y="50" width="200" height="80" rx="12"/>
+    <rect x="536" y="50" width="200" height="80" rx="12"/>
+  </g>
+  <g fill="#475569">
+    <path d="M236 86h20v-8l14 12-14 12v-8h-20z"/>
+    <path d="M492 86h20v-8l14 12-14 12v-8h-20z"/>
+  </g>
+  <g fill="#0f172a" font-family="sans-serif" font-size="18" text-anchor="middle">
+    <text x="124" y="96">读取项目与接口材料</text>
+    <text x="380" y="96">核对兼容性与调用方</text>
+    <text x="636" y="96">整理问题与证据</text>
+  </g>
+</svg>
+`;
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import { readPrototypeDevelopmentRoot } from "./project-settings.js";
 import { savePrototypeDesignedSkill } from "./skills.js";
 const chatTemplate =
-  "已接纳本次技能说明。当前候选技能标识：`{{name}}`，待确认文件：\n\n- `{{directory}}/SKILL.md`\n- `{{directory}}/references/checklist.md`\n\n请在“临时文件预览”中逐个核对；这些候选内容不代表已完成针对本次要求的分析或检查。需要调整时可继续补充要求；确认当前内容后，选择项目或共享技能目录保存，以保存收据确认结果。\n";
+  "已接纳本次技能说明。当前候选技能标识：`{{name}}`，待确认文件：\n\n- `{{directory}}/SKILL.md`\n- `{{directory}}/references/checklist.md`\n- `{{directory}}/references/review-flow.svg`\n\n请在“临时文件预览”中逐个核对；这些候选内容不代表已完成针对本次要求的分析或检查。需要调整时可继续补充要求；确认当前内容后，选择项目或共享技能目录保存，以保存收据确认结果。\n";
 const discussionTemplate =
   "我们先明确技能要解决的任务、使用场景、输入及期望结果。\n\n你可以直接补充这些信息，也可以在左侧填写后点击“填入聊天输入框”，核对内容并发送。\n";
 import { createPrototypeEvent } from "./events.js";
@@ -156,9 +177,10 @@ export function prototypeSkillDesignReply(sessionId: string, message: string): s
     files: [
       {
         path: "SKILL.md",
-        content: generatedSample.replace("name: review-api-changes", `name: ${name}`),
+        content: `${generatedSample.replace("name: review-api-changes", `name: ${name}`)}\n## 流程说明\n\n![接口变更评审流程](references/review-flow.svg)\n`,
       },
       { path: "references/checklist.md", content: checklistSample },
+      { path: "references/review-flow.svg", content: reviewFlowSample },
     ],
   });
   supplements.fire(sessionId);
