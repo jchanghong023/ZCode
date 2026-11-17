@@ -14,10 +14,6 @@
   "scripts": {
     "build": "bun --bun run tsc",
     "typecheck": "bun --bun run tsc -p tsconfig.json --noEmit --composite false",
-    "demo:basic": "bun examples/01-basic-ipc.ts",
-    "demo:proxy": "bun examples/02-proxy-channel.ts",
-    "demo:messageport": "bun examples/03-messageport-ipc.ts",
-    "demo:remote": "bun examples/04-remote-connection.ts",
     "lint": "bun --bun run oxlint",
     "lint:fix": "bun --bun run oxlint --fix"
   },

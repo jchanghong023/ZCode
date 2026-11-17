@@ -78,11 +78,7 @@
     "sha256": "9480271317925265e806a9a196aaa33410a962fa9d4d1e248a4a5187bc8c9df9",
     "importRevision": null,
     "provenance": "Original import revision is not recorded. This pinned upstream license/source reference is not asserted to be the original import version.",
-    "roots": [
-      "packages/rpc/src",
-      "packages/rpc/examples",
-      "packages/shared/src/zcode-protocol-v4/wire-codec.ts"
-    ],
+    "roots": ["packages/rpc/src", "packages/shared/src/zcode-protocol-v4/wire-codec.ts"],
     "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are ZCode adaptations; inclusion does not attribute all local code to Microsoft.",
     "license": "MIT"
   },

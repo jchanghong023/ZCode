@@ -35,14 +35,6 @@ import {
 } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
 import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
-import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
-import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
-import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
-import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
-import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
-import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
-import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
-import { WorkflowArtifactSidePane } from "@/app-shell/WorkflowArtifactSidePane.js";
 import {
   getSidePaneTabTitle,
   SidePaneTabDragOverlay,
@@ -51,29 +43,19 @@ import {
 import { resolveSidePaneTabsOverflow } from "@/app-shell/sidePaneLayout.js";
 import {
   resolveAnimatedSidePanePanelLayout,
-  resolveOpenTabLauncherItemIds,
-  shouldOfferSelectionSideConversation,
   shouldRenderPreviewPaneHeavyContent,
   type OpenTabLauncherItemId,
 } from "@/app-shell/animatedSidePanePanelModel.js";
 import type { RecentClosedSidePaneTab } from "@/lib/workspaceSidePane.js";
-import { useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import {
   shouldMountSidePaneContent,
-  type OpenScopedSubagentSideTabRequest,
-  type OpenScopedWorkflowActorSessionSideTabRequest,
-  type OpenScopedWorkflowWorkspaceSideTabRequest,
-  type OpenScopedWorkflowArtifactSideTabRequest,
-  type OpenScopedWorkflowRunSideTabRequest,
-  type OpenBackgroundBashSideTabRequest,
   type WorkspaceSidePaneState,
 } from "@/lib/workspaceSidePane.js";
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
-import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { FolderOpenIcon, MessageSquareTextIcon, PlusIcon, type LucideIcon } from "lucide-react";
+import { FolderOpenIcon, PlusIcon, type LucideIcon } from "lucide-react";
 
 const PREVIEW_PANE_RESIZE_SETTLE_DELAY_MS = 220;
 type TabsScrollMaskEdges = {
@@ -238,17 +220,8 @@ export function AnimatedSidePanePanel({
   onReopenClosedTab,
   onOpenFileManager,
   onNavigateFileManager,
-  onOpenSelectionSideConversation,
-  onRevealGitFileInTree,
   onOpenBrowserUrl,
   onOpenCodeViewer,
-  onOpenFileLink,
-  onOpenSubagentSession,
-  onOpenWorkflowActorSession,
-  onOpenWorkflowWorkspace,
-  onOpenWorkflowArtifact,
-  onOpenWorkflowRun,
-  onOpenBackgroundBash,
   frameClassName = "rounded-xl border border-border",
   captionControlsStyle,
   onCloseSidePane,
@@ -300,26 +273,12 @@ export function AnimatedSidePanePanel({
   onReopenClosedTab: (tabId: string) => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
-  onOpenSelectionSideConversation: () => void;
-  onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
-  onOpenFileLink?: (target: MessageFileLinkTarget) => void;
-  onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
-  onOpenSubagentSession: (request: OpenScopedSubagentSideTabRequest) => void;
-  /** run 详情页里点 ask 节点 → 打开那个 actor 实例的 transcript tab。 */
-  onOpenWorkflowActorSession?: (request: OpenScopedWorkflowActorSessionSideTabRequest) => void;
-  /** run 详情页里点脚本行 → 打开该 run 的脚本 transcript tab，落到那一站。 */
-  onOpenWorkflowWorkspace?: (request: OpenScopedWorkflowWorkspaceSideTabRequest) => void;
-  /** run 详情页里点一张产物卡 → 打开那个产物的全尺寸查看 tab。 */
-  onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
-  /** run 目录页里点一行 → 打开那个 run 的详情页 tab（目录 → 详情是这一页存在的理由）。 */
-  onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   mobileOverlay?: boolean;
   mobileStacked?: boolean;
 }) {
   const { intl } = useZCodeIntl();
-  const isMobileTextInputViewport = useIsMobileTextInputViewport();
   const isDragCollapsible = !isVisible;
   const isResizeDisabled = !isVisible;
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
@@ -368,11 +327,6 @@ export function AnimatedSidePanePanel({
   );
   const isWindowResizeSettling = useWindowResizeSettling(hasRenderedSidePane);
   const panelLayout = resolveAnimatedSidePanePanelLayout({ mobileOverlay });
-  const canOpenSelectionSideConversation = shouldOfferSelectionSideConversation({
-    activeTaskId,
-    isMobileTextInputViewport,
-    mobileOverlay,
-  });
   const tabDragSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -555,25 +509,15 @@ export function AnimatedSidePanePanel({
       <PlusIcon className="size-4" />
     </Button>
   );
-  const openTabLauncherItemById: Record<OpenTabLauncherItemId, OpenTabLauncherItem> = {
-    "selection-side-conversation": {
-      id: "selection-side-conversation",
-      label: intl.formatMessage({ id: "sidePane.selectionChat" }),
-      description: intl.formatMessage({ id: "sidePane.launcher.selection-side-conversation" }),
-      icon: MessageSquareTextIcon,
-      onOpen: onOpenSelectionSideConversation,
-    },
-    files: {
+  const openTabLauncherItems: OpenTabLauncherItem[] = [
+    {
       id: "files",
       label: intl.formatMessage({ id: "fileManager.title" }),
       description: intl.formatMessage({ id: "fileManager.empty" }),
       icon: FolderOpenIcon,
       onOpen: () => onOpenFileManager(),
     },
-  };
-  const openTabLauncherItems: OpenTabLauncherItem[] = resolveOpenTabLauncherItemIds({
-    canOpenSelectionSideConversation,
-  }).map((itemId) => openTabLauncherItemById[itemId]);
+  ];
   const closeSidePaneButton =
     isVisible && !mobileOverlay && onCloseSidePane ? (
       <div className="flex shrink-0 items-center gap-0.5 [app-region:no-drag]">
@@ -856,78 +800,7 @@ export function AnimatedSidePanePanel({
                           mobileOverlay && "min-w-0",
                         )}
                       >
-                        {tab.type === "subagent-session" ? (
-                          <SubagentSessionSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === contentActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                            onOpenSubagentSession={onOpenSubagentSession}
-                            onOpenBackgroundBash={onOpenBackgroundBash}
-                          />
-                        ) : tab.type === "subagent-directory" ? (
-                          <SubagentDirectorySidePane
-                            tab={tab}
-                            onOpenSubagentSession={onOpenSubagentSession}
-                          />
-                        ) : tab.type === "selection-side-chat" ? (
-                          <SelectionSideChatPane
-                            tab={tab}
-                            focused={isVisible && tab.id === contentActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                            onUnavailable={onCloseTab}
-                          />
-                        ) : tab.type === "plan-detail" ? (
-                          <PlanDetailSidePane
-                            tab={tab}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                          />
-                        ) : tab.type === "workflow-run" ? (
-                          <WorkflowRunSidePane
-                            tab={tab}
-                            {...(onOpenWorkflowActorSession === undefined
-                              ? {}
-                              : { onOpenWorkflowActorSession })}
-                            {...(onOpenWorkflowArtifact === undefined
-                              ? {}
-                              : { onOpenWorkflowArtifact })}
-                            {...(onOpenWorkflowRun === undefined ? {} : { onOpenWorkflowRun })}
-                            {...(onOpenWorkflowWorkspace === undefined
-                              ? {}
-                              : { onOpenWorkflowWorkspace })}
-                          />
-                        ) : tab.type === "workflow-directory" ? (
-                          // 类型分支必须先收窄，回调缺席在**分支内部**处理：把
-                          // `&& onOpenWorkflowRun` 写进条件会让这个 tab 类型继续留在后面
-                          // 那些分支的联合里，后续分支会读到不属于它的字段。
-                          onOpenWorkflowRun ? (
-                            <WorkflowRunDirectorySidePane
-                              tab={tab}
-                              onOpenWorkflowRun={onOpenWorkflowRun}
-                            />
-                          ) : null
-                        ) : tab.type === "workflow-actor-session" ? (
-                          <WorkflowActorSessionSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === contentActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                          />
-                        ) : tab.type === "workflow-artifact" ? (
-                          // 「在工作区显示」复用宿主的文件树 reveal 回调。
-                          <WorkflowArtifactSidePane
-                            tab={tab}
-                            {...(onRevealGitFileInTree === undefined
-                              ? {}
-                              : { onRevealFileInTree: onRevealGitFileInTree })}
-                          />
-                        ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
+                        {tab.type === "code-viewer" || tab.type === "file-manager" ? (
                           <FileManagerPane
                             markdownSelectionTarget={{
                               sessionId: activeTaskId,

@@ -6,7 +6,7 @@
 
 | 包                        | 公共入口                                                         |
 | ------------------------- | ---------------------------------------------------------------- |
-| `@zcode/client`           | `.` → `src/index.ts`；`./globals` → `src/globals.d.ts`           |
+| `@zcode/client`           | `.` → `src/index.ts`                                             |
 | `@zcode/design-runtime`   | `.` → `src/index.ts`                                             |
 | `@zcode/model-option-map` | `.` → `src/index.ts`                                             |
 | `@zcode/provider`         | `.` → `src/index.ts`                                             |
@@ -19,6 +19,8 @@
 | `@zcode/web`              | 无 `exports`，由 Vite 的 `index.html` 启动                       |
 
 `services`、`shared`、`web` 的 `#src/*` 与 `session-control` 的 `#session-control/*` 是包内 `imports` 别名，不是公共 API。导出路径的名称不代表当前产品存在同名功能入口。
+
+RPC 的现行传输层是 `SocketProtocol`、`ChannelClient` / `ChannelServer`、`ProxyChannel` 与 `LoggingChannelServer`；浏览器经同源 `/ws` 连接服务端。连接初始化与事件顺序见 [协议接线](../specs/aireq-migration/integration.md#4-二进制与协议接线)。
 
 ## 消费与产物
 
@@ -41,3 +43,5 @@
 - `imports` 的外部目标仅接受 Node builtin 或现存 workspace 公共导出；不接受悬空或循环映射。
 
 修改入口时保持类型与运行时同源，并同步实际消费者。公共包导出与模块公开入口是两层约束；后者见 [模块所有权](pure-web-module-ownership.md)。Node 专用子入口不得进入浏览器依赖图。
+
+现存 Node 专用子入口包括 `@zcode/shared/sqlite-migrations`、`@zcode/shared/workspace-hook-discovery` 和 `@zcode/shared/workspace-hook-mutation`；具体限制以 `architecture-policy.yaml` 的 `nodeEntrypoints` 为准。未列为 Node 专用不等于已有浏览器消费者。

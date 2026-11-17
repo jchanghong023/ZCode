@@ -36,7 +36,7 @@ import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
  * runtime，在途 subscribe 被 rejectAll 打断。若把这次瞬态失败定格成 status="error"，
  * 懒启动的 agent 在 dispose 后可能无人拉起，onRuntimeRestart 就不会到达，面板只能靠用户
  * 手点「重新连接」。subscribeConversationV4 走 start-if-needed，重订阅自身会拉起 runtime，
- * 所以这里按 sessionsIndexStore 的既定模式做有界退避。
+ * 所以这里对 runtime 回收导致的订阅中断做有界退避。
  */
 const RUNTIME_RECYCLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
 
@@ -486,7 +486,7 @@ export class ConversationProjectionStore {
         this.handleAssemblyFault(fault.subscriptionId, fault.deliveryKind, fault.reasonCode);
       }
     });
-    // runtime 换代（CLI 进程换代）按 sessionsIndexStore 的约定优先走 lifecycle：dispose
+    // runtime 换代（CLI 进程换代）优先走 lifecycle：dispose
     // 当场只有 unavailable 可观测，onRuntimeRestart 要等新进程 spawn——懒启动下可能永不到达。
     if (transport.onRuntimeLifecycle) {
       this.offRuntimeLifecycle = transport.onRuntimeLifecycle((state) => {

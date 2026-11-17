@@ -21,7 +21,7 @@ bun run dep:refs --list-exports <file>
 
 - pnpm workspace 为 `packages/*`。Knip 从包 manifest、脚本及工具插件识别默认入口；`workspaces` 配置是覆盖项，不是包白名单。
 - 根 `entry` 保留工程测试发现 glob 和显式脚本入口；测试 glob 不代表当前存在用例，工程测试清单为 `[]`。
-- RPC 示例、server 的 `src/entry-http.ts`、各模块契约和非导出公共资产按配置显式作为入口。
+- server 的 `src/entry-http.ts`、现存模块契约和非导出公共资产按配置显式作为入口。
 - UI 保留基础控件、存量 mobile-ui 兼容控件、AI 展示控件、图标与部分通用组件；保留兼容控件不代表手机产品入口。
 - 受管模块的 `module.ts` / `contract.example.ts` 是静态分析根和磁盘治理资产，不是运行时入口。
 - 全局 `ignore` 当前只有 `.agents/**`；`tags: ["-lintignore"]` 排除对应标记。完整精确路径以配置为准。

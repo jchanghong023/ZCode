@@ -2,7 +2,7 @@
 // Workflow 图标 + 迷你轨道灯 + 当前 phase 名。一眼看懂「这个会话在跑工作流、跑到哪一站」，
 // 别的都不画：没有光晕、没有行进虚线、没有问题 chip（升级问答由主代理作答，不是用户）、
 // 没有子代理数、没有箭头——那些进 hover tooltip。结束的 run 只剩一个中性词，颜色只留给灯。
-import { useEffect, useMemo, type MouseEvent } from "react";
+import { useEffect, useMemo } from "react";
 import { Workflow } from "lucide-react";
 import type {
   SessionWorkflowActivity,
@@ -25,7 +25,6 @@ import {
   type WorkflowRunRail,
 } from "@/lib/workflowRunLine.js";
 import { WorkflowRunRail as RunRail } from "@/components/workflow-run-line/WorkflowRunRail.js";
-import { useWorkflowRunOpen } from "@/v4/workflowRunOpenContext.js";
 
 export interface TaskWorkflowRunLinesIntl {
   formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -36,8 +35,6 @@ interface TaskWorkflowRunLinesProps {
   /** 会话是否正被打开：为真时确认它所有已结束的 run（结束的行随即折叠）。 */
   isActive: boolean;
   intl: TaskWorkflowRunLinesIntl;
-  /** 点击打开 run pane 所需的会话地址；缺席（手机首页）时运行行不是按钮。 */
-  session?: { workspacePath: string; workspaceIdentity?: string; sessionId: string };
   /** compact = 手机远控行（24px、更小字号）。 */
   density?: "default" | "compact";
   className?: string;
@@ -109,12 +106,10 @@ export function TaskWorkflowRunLines({
   activity,
   isActive,
   intl,
-  session,
   density = "default",
   className,
 }: TaskWorkflowRunLinesProps) {
   const isAcknowledged = useWorkflowRunAcknowledged();
-  const openRun = useWorkflowRunOpen();
   const settledKey = settledWorkflowRunIds(activity).join(" ");
   // 打开会话 = 确认它此刻所有已结束的 run；会话保持打开时 run 结束也立即确认（在读者眼前折叠）。
   useEffect(() => {
@@ -126,7 +121,6 @@ export function TaskWorkflowRunLines({
     [activity, isAcknowledged],
   );
   if (selection.lines.length === 0) return null;
-  const interactive = openRun !== null && session !== undefined;
   const compact = density === "compact";
 
   return (
@@ -153,7 +147,6 @@ export function TaskWorkflowRunLines({
         const lineClassName = cn(
           "flex min-w-0 max-w-full items-center gap-1.5 rounded-md text-foreground-subtle",
           compact ? "h-6 text-ui-sm" : "h-5 text-ui-sm",
-          interactive && "-ml-1 px-1 hover:bg-surface-hover hover:text-foreground",
         );
         const lineProps = {
           "data-workflow-run-line": "true",
@@ -161,33 +154,11 @@ export function TaskWorkflowRunLines({
           "data-run-status": run.status,
           className: lineClassName,
         };
-        const line =
-          interactive && session !== undefined && openRun !== null ? (
-            <button
-              type="button"
-              {...lineProps}
-              aria-label={ariaLabel}
-              onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                // 行本身也可点（选中会话）；运行行是更具体的落点，不让点击再冒泡成一次普通选中。
-                event.preventDefault();
-                event.stopPropagation();
-                openRun({
-                  workspacePath: session.workspacePath,
-                  ...(session.workspaceIdentity
-                    ? { workspaceIdentity: session.workspaceIdentity }
-                    : {}),
-                  sessionId: session.sessionId,
-                  run,
-                });
-              }}
-            >
-              {content}
-            </button>
-          ) : (
-            <span {...lineProps} aria-label={ariaLabel}>
-              {content}
-            </span>
-          );
+        const line = (
+          <span {...lineProps} aria-label={ariaLabel}>
+            {content}
+          </span>
+        );
         const description = runTooltipDescription(run, intl);
         return (
           <ControlHintTooltip

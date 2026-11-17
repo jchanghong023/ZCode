@@ -2,39 +2,29 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across the current Web workspace projects and copied source/assets; excludes retired Desktop, CLI and native-search release inputs; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "4b57853617134c9b2d9d0b17d8c6a56c18e03b6b42c4c5e8c38185e6fa712567",
+  "noticesSha256": "02e029aeee3ec671d5b1ea2c2d5c46099335a1edb2114611564fb395e646c402",
   "inputs": {
-    "package.json": "75029b155a8151e81a393f59595baeb0cbdad8f706864d602396b26edc3c87bc",
-    "packages/client/package.json": "4063d85b84fd67d7f0039b6dc21cb13ece5d59b6d236ccba3909ac402791f791",
+    "package.json": "63358d4bffda2f49e998bf802dcd4f824d9f92e95e4d3d7d0f8e3a2188cdcee6",
+    "packages/client/package.json": "8709a21b144b30ffd209cd05fd9adb42cc2be2623d8f13a6ca14f2fc978d43b3",
     "packages/design-runtime/package.json": "f7f61981aa7d72f0b610951b8d661a31fa3dbe9ba3f9b65050d48ffdda8859b8",
     "packages/model-option-map/package.json": "62a76bf12a234fb5e1b975f614edbb0907acdb9e8ad9183e94b2cb414b57354b",
     "packages/provider/package.json": "f1bce76f146e9b39ad7ae507fa7c31a6f133d0797d2650c59c030c6686ce9e1e",
-    "packages/rpc/examples/01-basic-ipc.ts": "ee2c49160bf8b0f73f9768f35004b60adaae906f5ca21d4ed52ca5ec9fb7546c",
-    "packages/rpc/examples/02-proxy-channel.ts": "ba01b60d3aa841746e29beb8154565d065d13df6b87720b0ad8ce698e445d599",
-    "packages/rpc/examples/03-ipc-server-client.ts": "4191323e6a36de877b6d363745567ad40a0b359825e69823c6b24e2721fce90d",
-    "packages/rpc/examples/04-remote-connection.ts": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c",
-    "packages/rpc/examples/fixtures/queue-pair.ts": "b6705a784bdf7fc6028fe600d70c3b2272d06977938e2cb81f43c8c0757f9d16",
-    "packages/rpc/package.json": "4d8239fe3b83b52d497f527891b97c4ccccb9529c3bbdb60567519427d91536d",
+    "packages/rpc/package.json": "023aa2739464bc39f6b166c05ff75848904161248f44409a131e00ce9b8ef1c5",
     "packages/rpc/src/buffer.ts": "6bc6a44e6abd088f72d57616d9556d78ce078b6f3813bf75402dde386781492c",
     "packages/rpc/src/channelClient.ts": "7a4609df381ca3b54b0b53f43aa700374eb3970f37e3ffdadb626e9603255d82",
     "packages/rpc/src/channels.shared.ts": "b258b76cf9bd792b117b0dc4c1ef7a4ee1e7245ab878c5c7ffe07b33a07c3bf6",
-    "packages/rpc/src/channels.ts": "afaba1724055a3d2e6b8b379553569489b71ac6eb252f636ab91649657485209",
+    "packages/rpc/src/channels.ts": "3e1b89bb725b9863141cab5b33e6ea5bde7fc0cf32fa4a551d5fc1848c13cb75",
     "packages/rpc/src/channelServer.ts": "845fb372c6de79e9b590283397d937a1d78da580f8f9cfac47bdb2cbf7dd16ad",
-    "packages/rpc/src/delayedChannel.ts": "e7607b7fe9f35c742db206df90852e2ccafb75abc088606cf1ddbae801574ecf",
-    "packages/rpc/src/foundation.ts": "71a18b26f3f9a0109dd283f971b5b3eabc8f61bce140d81b3f7506ae49fde215",
-    "packages/rpc/src/index.ts": "1f1f0f6681c531dcd0e754ef5070bca2eecf23c79122e793b27f1701dd26e571",
-    "packages/rpc/src/ipc.ts": "53bcc9f09406515ee75b1bec8768d88f19351a05c33e66ed3a87f8c58f481d94",
+    "packages/rpc/src/foundation.ts": "6a39f8bbed8eed2526a5e43a0ee435221826ee4fa0dad820ef3ea5d6cc3ef507",
+    "packages/rpc/src/index.ts": "b12052513ad46f5030b3e8baf96348de77e4d4eac6a5b7fb6c1027e545b22339",
     "packages/rpc/src/logging-middleware.ts": "20edfd8e5d054097186f2498ec4e9c08c61740ed003fc69eecea8176a15fe025",
-    "packages/rpc/src/network-telemetry-middleware.ts": "18a7cde46e6c65e0138af0623d07bf883ce278acf44654bc5144ecaadd36a536",
-    "packages/rpc/src/persistent-protocol.ts": "85d86f2c4923a2d7814052f176e8768baa3271fb0dbd40c3963a7aa8c95a9ab4",
-    "packages/rpc/src/protocol.ts": "0b9e472b38adf563a1061ce9b97d03d4918734a073b8b6c8a42de2459e873317",
+    "packages/rpc/src/protocol.ts": "d1054cd0b21cd5093cae687483b90504b78f1f27cae52c5fdc886dc1f6c275df",
     "packages/rpc/src/proxy-channel.ts": "eb5d92416cfbc8c469c01c105ff514e5e1dcc84d2d409bcb4d8bf47d572735cb",
-    "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "fd41df3ba2c5e88a52c6b8045b9e0a663b8ee27b54c0f1e146f10d03f6f773bd",
     "packages/server/package.json": "9d23f10c90a3ed806da1214c7366f7039b87afe74542d69037cdeecb28cf3d4b",
     "packages/services/package.json": "f60d4ec480924d919368936e59af7e677568419327347c6b1788830c711f9c60",
     "packages/session-control/package.json": "18c4fe69751d27654c87da4f8a6fd0bbc58c5a113e4b94b806d82dda68561c10",
-    "packages/shared/package.json": "d65981c8b2bb22e81beaea0b0c159d60e2fd3f725f878fc6bedb62ba7d69162f",
+    "packages/shared/package.json": "496d459325f2c93253ead06d3bd9d81933676307642b5baf39ae4115d180045b",
     "packages/shared/src/zcode-protocol-v4/wire-codec.ts": "ac2494a3acc795c809c94ee9393f50271a9c2a0fd33813459e5ab93842ceef75",
     "packages/ui/package.json": "13c1e30e5df2c204888e7e9714be89d4a78fb8eb25fd8313c8e7960e19565af4",
     "packages/ui/src/components/ai-elements/agent.tsx": "830e7ea9e927de1524851337f1d35bda0e5690e3e4fa307fff854b60006b16c7",
@@ -105,14 +95,14 @@
     "packages/ui/src/components/ui/avatar.tsx": "5d87a3860936de1795099bc995ca64b2d5a9179caa74385b4e5de5fd3ee59725",
     "packages/ui/src/components/ui/badge.tsx": "d4966b2604bc7acf38bd3aecc899b08a6aec8b62552f680d4e1fd4616d2198b9",
     "packages/ui/src/components/ui/button-group.tsx": "3c455ad047c87097070c4e107bc0e58dd087531e85b1c60f28f1f526dd9a0061",
-    "packages/ui/src/components/ui/button.tsx": "3bf0b1573c940999f875a1dd5e67a32e7d9bcb3e320774fa8277f5c00748b32b",
+    "packages/ui/src/components/ui/button.tsx": "d5ffe80914d0d34b472edfca0f60030b66432ffc8ad3ceb472481d5d070e9310",
     "packages/ui/src/components/ui/card.tsx": "cdfb5121c2647a4b496a377609acb05d14513f7975858482b911a3873c3695b3",
     "packages/ui/src/components/ui/carousel.tsx": "75966a0c51114fb00e21a1d9a481008306055f2811c8fd744c889b1fb7924677",
     "packages/ui/src/components/ui/chart.tsx": "272efec5aa60d34665104b45341d9f2b8cad4480070bca91e9d5409713b6fecd",
     "packages/ui/src/components/ui/checkbox.tsx": "5b3cb5612ed7654218e1cdd86fc41c7b490475721948d50a603996133245bace",
-    "packages/ui/src/components/ui/code-viewer.tsx": "37dd94935b8c81c96b87f5349cb5b1d2727e5d1c929567463dd857905d6af79b",
+    "packages/ui/src/components/ui/code-viewer.tsx": "6a38afd3abe4d49d949c841099b3bbf938bc1f401314134af8513f6fcaeb9f60",
     "packages/ui/src/components/ui/collapsible.tsx": "fcb5125c2c0e824e8b75e3b9c164011bac7a4c602ff83cf0937b71620ee77d92",
-    "packages/ui/src/components/ui/command.tsx": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb",
+    "packages/ui/src/components/ui/command.tsx": "d1bd4f5a58da8069df46c0c7b06bbfd5c7a64c7369d43be03d8bb7c88f637eeb",
     "packages/ui/src/components/ui/context-menu.tsx": "3820461fd68ca7a345fc919ab356bdefbbead23abb3ac0f4e8d46898f7522a6f",
     "packages/ui/src/components/ui/dialog.tsx": "fb2decab75993205ec5670acbd5b8b7dfc9b1518d3acb457ddde7edd1984d44e",
     "packages/ui/src/components/ui/diff-viewer.tsx": "69d8570aed6fae6640a33da5ed85cd590b94577770b4bdd01760bae42ef91200",
@@ -123,7 +113,7 @@
     "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "c04bb6009683ab74cb72ff8f1e1157ffbdd06be4a46dc3c725c63e0bc43fea72",
     "packages/ui/src/components/ui/hover-card.tsx": "d202699fb339c78ba96d4ca1816ba8e46d6b27dc1963f441cdafa0155ce5e804",
     "packages/ui/src/components/ui/input-group.tsx": "72e8c0775e55525efe49dfa42ecba7b9244836a78c31be0dd576d52640d4c3c9",
-    "packages/ui/src/components/ui/input.tsx": "946d37bdf07c81e70ad13242b904c27618d5d09f7c17a74f6b6c8cb613fa93dc",
+    "packages/ui/src/components/ui/input.tsx": "019fa802a9bac349994acb27805c3d0144f6f88219c9b24a544708515600913e",
     "packages/ui/src/components/ui/kbd.tsx": "f8bd1d5a51f991d60781f62a8bd7f1db06a237f2a7a7bb39f0127bd1ba067066",
     "packages/ui/src/components/ui/label.tsx": "717bd1167a7c8c136abfe0b3e23e8cfcb38abbe51b04c74d6d01ba1ea0b53fa5",
     "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "7d1ff2a02815d988f5ffd2d6549848920c98488a4dba43f67ba9d81a3da49d01",
@@ -134,18 +124,18 @@
     "packages/ui/src/components/ui/resizable.tsx": "2a9f1a616d57095a6375ae002315151227d34c26074950519d3b0ddc537a72a1",
     "packages/ui/src/components/ui/scroll-area.tsx": "83999d597a4a417aea402e833884826539b9aa1bd1ec966aa2f6dab9a97afb3c",
     "packages/ui/src/components/ui/scroll-fade-viewport.tsx": "50e5984232b6a7d59e872aab4ebb36ae837e2865e3a770adbc234b61c2531da1",
-    "packages/ui/src/components/ui/select.tsx": "718c222c5acdfa149f4a61da3d6756a4ca5ef1ba14b2ebafb7a5306c3a616beb",
+    "packages/ui/src/components/ui/select.tsx": "b1122ab8112c3a02deb0c3ed1cd78cee759a47b57bad40141041bf22f017a7cf",
     "packages/ui/src/components/ui/separator.tsx": "31ade0b9a0eca6689226c94d479352416ef076859980a976422a8af17879dee2",
     "packages/ui/src/components/ui/smooth-metric-value.tsx": "18c8eadc83730ad689831defab47fd5a5e74a18092d45848395cc9f720186b16",
     "packages/ui/src/components/ui/spinner.tsx": "b892cc1e7ce3e760a0d3fcec89c46c01c54c98363dcc4eb02eb7ca2d698a1c21",
     "packages/ui/src/components/ui/switch.tsx": "1a6490eb3c47b3a86b76c8469e5702608ea57da7853df5de00fffa9a4a472adf",
     "packages/ui/src/components/ui/tabs.tsx": "adc59a0469c80118e9d60c08bf0222d55664ef95e6c522496b5c201011b347f0",
-    "packages/ui/src/components/ui/textarea.tsx": "a839574ce1301fbaa9ba917fdb980900eb9118bffa7c6c4e469f3293b122ed30",
+    "packages/ui/src/components/ui/textarea.tsx": "0fce71e9b50d7287932cc16fada863f3d2c44325d1a0f0cc5c35aacaa563f0cc",
     "packages/ui/src/components/ui/toast.tsx": "9c6e0837d4e54ad05b98dc4c4b110255783822c2ab3a9dc3c57ca167ea0c7ed0",
     "packages/ui/src/components/ui/tooltip.tsx": "b385da0f882ef4a44c101051107a670c42f7b347b86ef8ca0dba40369ed34d3b",
     "packages/ui/src/components/ui/ZCodeAboutLogo.tsx": "1e5b7c2e8a9dc98a3c597cbe34122521319eaeb89825e4c41641e77715d1407a",
     "packages/ui/src/lib/builtinSkillI18n.ts": "a7cf4c090c5de4735c70cb868e2a2bcb87994736e15ed558371c2996b081647a",
-    "packages/ui/src/styles.css": "8840362d5697f8542d264abf0c34a81dd235f9f7fac71737acd0c853ea607a0e",
+    "packages/ui/src/styles.css": "75eee2212cceae290cf0761f4ae986c0ed47380dfdf67a3431f36316ecfbd331",
     "packages/web/package.json": "e1253dcca7cd2b6d31018eccc0538df2d4268ce8650d5e2800114ae6c02ad89e",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -1301,7 +1291,7 @@
     "pnpm-lock.yaml": "d2b3369bfce1aa4ed289e575c15c561f8ad1df30dfcf6139e2330a773b8bc31d",
     "pnpm-workspace.yaml": "ca246df899133c0183e8978cb0ff751d080e9056df84d187f7bbca45fb136791",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-    "third-party/copied-components.json": "5f8df6983dde72722e23ae9654841610906616cb44ede2a8ea5883209a7f55ed",
+    "third-party/copied-components.json": "52462ee0d44590580dc8716ae54c6e78cc5285dfd7ede9c835941ab323272a51",
     "third-party/npm-overrides.json": "5f628e45d33ac668ff4646e32aa9f568188ef1c4927a4d09440192ada907caf7",
     "third-party/upstream/0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a.txt": "0a7cda7d15aca7baaa3035e1f90466dde9ecc980c103cd230382d6675714bf2a",
     "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
@@ -8588,7 +8578,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/button.tsx",
-          "sha256": "3bf0b1573c940999f875a1dd5e67a32e7d9bcb3e320774fa8277f5c00748b32b"
+          "sha256": "d5ffe80914d0d34b472edfca0f60030b66432ffc8ad3ceb472481d5d070e9310"
         },
         {
           "file": "packages/ui/src/components/ui/card.tsx",
@@ -8608,7 +8598,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/code-viewer.tsx",
-          "sha256": "37dd94935b8c81c96b87f5349cb5b1d2727e5d1c929567463dd857905d6af79b"
+          "sha256": "6a38afd3abe4d49d949c841099b3bbf938bc1f401314134af8513f6fcaeb9f60"
         },
         {
           "file": "packages/ui/src/components/ui/collapsible.tsx",
@@ -8616,7 +8606,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/command.tsx",
-          "sha256": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb"
+          "sha256": "d1bd4f5a58da8069df46c0c7b06bbfd5c7a64c7369d43be03d8bb7c88f637eeb"
         },
         {
           "file": "packages/ui/src/components/ui/context-menu.tsx",
@@ -8656,7 +8646,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/input.tsx",
-          "sha256": "946d37bdf07c81e70ad13242b904c27618d5d09f7c17a74f6b6c8cb613fa93dc"
+          "sha256": "019fa802a9bac349994acb27805c3d0144f6f88219c9b24a544708515600913e"
         },
         {
           "file": "packages/ui/src/components/ui/kbd.tsx",
@@ -8696,7 +8686,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/select.tsx",
-          "sha256": "718c222c5acdfa149f4a61da3d6756a4ca5ef1ba14b2ebafb7a5306c3a616beb"
+          "sha256": "b1122ab8112c3a02deb0c3ed1cd78cee759a47b57bad40141041bf22f017a7cf"
         },
         {
           "file": "packages/ui/src/components/ui/separator.tsx",
@@ -8720,7 +8710,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/textarea.tsx",
-          "sha256": "a839574ce1301fbaa9ba917fdb980900eb9118bffa7c6c4e469f3293b122ed30"
+          "sha256": "0fce71e9b50d7287932cc16fada863f3d2c44325d1a0f0cc5c35aacaa563f0cc"
         },
         {
           "file": "packages/ui/src/components/ui/toast.tsx",
@@ -8732,7 +8722,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "8840362d5697f8542d264abf0c34a81dd235f9f7fac71737acd0c853ea607a0e"
+          "sha256": "75eee2212cceae290cf0761f4ae986c0ed47380dfdf67a3431f36316ecfbd331"
         }
       ]
     },
@@ -13645,7 +13635,6 @@
       "provenance": "Original import revision is not recorded. This pinned upstream license/source reference is not asserted to be the original import version.",
       "roots": [
         "packages/rpc/src",
-        "packages/rpc/examples",
         "packages/shared/src/zcode-protocol-v4/wire-codec.ts"
       ],
       "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are ZCode adaptations; inclusion does not attribute all local code to Microsoft.",
@@ -13669,71 +13658,31 @@
         },
         {
           "file": "packages/rpc/src/channels.ts",
-          "sha256": "afaba1724055a3d2e6b8b379553569489b71ac6eb252f636ab91649657485209"
-        },
-        {
-          "file": "packages/rpc/src/delayedChannel.ts",
-          "sha256": "e7607b7fe9f35c742db206df90852e2ccafb75abc088606cf1ddbae801574ecf"
+          "sha256": "3e1b89bb725b9863141cab5b33e6ea5bde7fc0cf32fa4a551d5fc1848c13cb75"
         },
         {
           "file": "packages/rpc/src/foundation.ts",
-          "sha256": "71a18b26f3f9a0109dd283f971b5b3eabc8f61bce140d81b3f7506ae49fde215"
+          "sha256": "6a39f8bbed8eed2526a5e43a0ee435221826ee4fa0dad820ef3ea5d6cc3ef507"
         },
         {
           "file": "packages/rpc/src/index.ts",
-          "sha256": "1f1f0f6681c531dcd0e754ef5070bca2eecf23c79122e793b27f1701dd26e571"
-        },
-        {
-          "file": "packages/rpc/src/ipc.ts",
-          "sha256": "53bcc9f09406515ee75b1bec8768d88f19351a05c33e66ed3a87f8c58f481d94"
+          "sha256": "b12052513ad46f5030b3e8baf96348de77e4d4eac6a5b7fb6c1027e545b22339"
         },
         {
           "file": "packages/rpc/src/logging-middleware.ts",
           "sha256": "20edfd8e5d054097186f2498ec4e9c08c61740ed003fc69eecea8176a15fe025"
         },
         {
-          "file": "packages/rpc/src/network-telemetry-middleware.ts",
-          "sha256": "18a7cde46e6c65e0138af0623d07bf883ce278acf44654bc5144ecaadd36a536"
-        },
-        {
-          "file": "packages/rpc/src/persistent-protocol.ts",
-          "sha256": "85d86f2c4923a2d7814052f176e8768baa3271fb0dbd40c3963a7aa8c95a9ab4"
-        },
-        {
           "file": "packages/rpc/src/protocol.ts",
-          "sha256": "0b9e472b38adf563a1061ce9b97d03d4918734a073b8b6c8a42de2459e873317"
+          "sha256": "d1054cd0b21cd5093cae687483b90504b78f1f27cae52c5fdc886dc1f6c275df"
         },
         {
           "file": "packages/rpc/src/proxy-channel.ts",
           "sha256": "eb5d92416cfbc8c469c01c105ff514e5e1dcc84d2d409bcb4d8bf47d572735cb"
         },
         {
-          "file": "packages/rpc/src/remote.ts",
-          "sha256": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957"
-        },
-        {
           "file": "packages/rpc/src/serialization.ts",
           "sha256": "fd41df3ba2c5e88a52c6b8045b9e0a663b8ee27b54c0f1e146f10d03f6f773bd"
-        },
-        {
-          "file": "packages/rpc/examples/01-basic-ipc.ts",
-          "sha256": "ee2c49160bf8b0f73f9768f35004b60adaae906f5ca21d4ed52ca5ec9fb7546c"
-        },
-        {
-          "file": "packages/rpc/examples/02-proxy-channel.ts",
-          "sha256": "ba01b60d3aa841746e29beb8154565d065d13df6b87720b0ad8ce698e445d599"
-        },
-        {
-          "file": "packages/rpc/examples/03-ipc-server-client.ts",
-          "sha256": "4191323e6a36de877b6d363745567ad40a0b359825e69823c6b24e2721fce90d"
-        },
-        {
-          "file": "packages/rpc/examples/04-remote-connection.ts",
-          "sha256": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c"
-        },
-        {
-          "file": "packages/rpc/examples/fixtures/queue-pair.ts",
-          "sha256": "b6705a784bdf7fc6028fe600d70c3b2272d06977938e2cb81f43c8c0757f9d16"
         },
         {
           "file": "packages/shared/src/zcode-protocol-v4/wire-codec.ts",

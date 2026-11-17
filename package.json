@@ -32,7 +32,6 @@
     "architecture:baseline:update": "bun scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "bun scripts/architecture/architecture-check.mjs context",
     "architecture:adopt": "bun scripts/architecture/architecture-check.mjs adopt",
-    "docs:stale-phrases:check": "bun scripts/check-stale-doc-phrases.mjs",
     "test:ut": "bun --bun ./node_modules/vitest/vitest.mjs run --project engineering test/ut",
     "test:ut:typecheck": "bun --bun ./node_modules/typescript/bin/tsc --project test/ut/tsconfig.json",
     "test:st": "bun --bun ./node_modules/vitest/vitest.mjs run --project st",

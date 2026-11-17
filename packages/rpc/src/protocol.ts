@@ -26,7 +26,7 @@ export interface IMessagePassingProtocol {
   readonly onMessage: Event<VSBuffer>;
   /**
    * 传输终结通知：socket 关闭/错误、协议级 Disconnect 或本地 dispose 都触发，至多一次。
-   * 有连接语义的实现（SocketProtocol/PersistentProtocol）必须提供；
+   * 有连接语义的实现（SocketProtocol）必须提供；
    * 内存队列等无连接语义的实现可缺省，上层按“永不关闭”处理。
    */
   readonly onClose?: Event<void>;
@@ -238,7 +238,7 @@ export function writeProtocolMessage(msg: ProtocolMessage): VSBuffer {
 
 /**
  * 基础 Protocol: 在 ISocket 上加消息帧，实现 IMessagePassingProtocol。
- * 只做消息分帧，不做 ACK/重连（那是 PersistentProtocol 的事）。
+ * 只做消息分帧，不做 ACK/重连。
  */
 export class SocketProtocol implements IMessagePassingProtocol {
   private readonly _onMessage = new Emitter<VSBuffer>();

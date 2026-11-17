@@ -4,23 +4,13 @@
   "ignore": [".agents/**"],
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/*.test.mjs",
-        "scripts/test/*.test.mjs",
-        "scripts/licenses.mjs",
-        "scripts/mise-run.mjs"
-      ]
-    },
-    "packages/rpc": {
-      "entry": ["examples/*.ts"]
+      "entry": ["scripts/*.test.mjs", "scripts/test/*.test.mjs", "scripts/licenses.mjs"]
     },
     "packages/shared": {
       "entry": [
         "src/app-control/index.ts",
         "src/app-control/contract.ts",
         "src/workspace-hooks/contract.ts",
-        "src/agent-crash-diagnostic/index.ts",
-        "src/agent-crash-diagnostic/contract.ts",
         "src/conversation-telemetry/index.ts",
         "src/conversation-telemetry/contract.ts",
         "src/conversation-telemetry/messageTelemetry.ts",
@@ -36,7 +26,6 @@
         "src/zcode-protocol-v4/input-prediction/contract.ts",
         "src/zcode-protocol-v4/context-composition/contract.ts",
         "src/zcode-protocol/plugin-host-queries/contract.ts",
-        "src/plugin-discovery/contract.ts",
         "src/plugin-store-visibility.ts",
         "src/zcode-protocol-v4/pluginInstall.ts",
         "src/request-security-edition/index.ts",
@@ -46,11 +35,8 @@
         "src/local-ttft/contract.ts",
         "src/zcode-protocol-v4/session-data/index.ts",
         "src/zcode-protocol-v4/session-data/contract.ts",
-        "src/managed-worktree/index.ts",
-        "src/managed-worktree/contract.ts",
         "src/extension-host/index.ts",
         "src/extension-host/contract.ts",
-        "src/credential-security/contract.ts",
         "src/**/module.ts",
         "src/**/contract.example.ts"
       ]
@@ -63,7 +49,6 @@
     },
     "packages/services": {
       "entry": [
-        "src/storage/contract.ts",
         "src/project-storage/contract.ts",
         "src/project-storage/repository-contract.ts",
         "src/project/contract.ts",
@@ -76,8 +61,6 @@
         "src/task-groups/contract.ts",
         "src/window-project-directory/index.ts",
         "src/window-project-directory/contract.ts",
-        "src/data-sync/index.ts",
-        "src/data-sync/contract.ts",
         "src/voice-input/index.ts",
         "src/voice-input/contract.ts",
         "src/provider-provisioning-status/index.ts",

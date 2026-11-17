@@ -10,7 +10,7 @@
 | `third-party/native-search/`、`third-party/runtime/`                 | 已退役发行格式的材料保留区；不是当前 Web 发行输入                |
 | `scripts/third-party-npm.mjs`                                        | 解析锁文件生产图与实际安装图、读取包内原文                       |
 | `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`） | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`                |
-| `scripts/licenses.mjs check`                                        | 显式许可标识、声明哈希与输入新鲜度检查                           |
+| `scripts/licenses.mjs check`                                         | 显式许可标识、声明哈希与输入新鲜度检查                           |
 | `scripts/third-party-notices.mjs`                                    | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
 
 ## 当前发行范围
@@ -45,13 +45,13 @@
 
 当前登记项：
 
-| 内容                   | 本地范围                                                                     | 上游许可与修改说明                                                                                                                                                                                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| shadcn/ui              | `packages/ui/src/components/ui/`、`packages/ui/src/styles.css` 的衍生部分    | MIT；本地修改包含样式、国际化和组件组合，自有组件不归属于上游。                                                                                                                                                                                             |
-| AI Elements            | `packages/ui/src/components/ai-elements/`                                   | Apache-2.0，Copyright 2023 Vercel, Inc.；本地修改包含样式、导入路径及组件扩展。                                                                                                                                                                             |
-| VS Code IPC 与基础工具 | `packages/rpc/src/`、`packages/rpc/examples/` 的衍生部分，及 `wire-codec.ts` | MIT，保留 Microsoft 原始版权行；本地进行了模块拆分、传输扩展和封装修改，不将所有本地实现归属于上游。                                                                                                                                                        |
-| Superpowers 技能描述   | `packages/ui/src/lib/builtinSkillI18n.ts`                                    | MIT，Copyright (c) 2025 Jesse Vincent；只覆盖该文件中的 Superpowers 描述及翻译，原 CLI 插件实现随命令工作区删除。                                                                                                                                           |
-| Material Icon Theme    | `packages/web/public/material-icons/`                                        | MIT；本地按 Web 资源路径引用，不再包含 Desktop 副本。                                                                                                                                                                                                       |
+| 内容                   | 本地范围                                                                  | 上游许可与修改说明                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| shadcn/ui              | `packages/ui/src/components/ui/`、`packages/ui/src/styles.css` 的衍生部分 | MIT；本地修改包含样式、国际化和组件组合，自有组件不归属于上游。                                                   |
+| AI Elements            | `packages/ui/src/components/ai-elements/`                                 | Apache-2.0，Copyright 2023 Vercel, Inc.；本地修改包含样式、导入路径及组件扩展。                                   |
+| VS Code IPC 与基础工具 | `packages/rpc/src/` 的现存衍生部分，及 `wire-codec.ts`                    | MIT，保留 Microsoft 原始版权行；本地进行了模块拆分、传输扩展和封装修改，不将所有本地实现归属于上游。              |
+| Superpowers 技能描述   | `packages/ui/src/lib/builtinSkillI18n.ts`                                 | MIT，Copyright (c) 2025 Jesse Vincent；只覆盖该文件中的 Superpowers 描述及翻译，原 CLI 插件实现随命令工作区删除。 |
+| Material Icon Theme    | `packages/web/public/material-icons/`                                     | MIT；本地按 Web 资源路径引用，不再包含 Desktop 副本。                                                             |
 
 已退役且不再登记为当前输入的材料：Fig autocomplete 生成的 CLI 注册表、CLI design-plugin 的 design-resources 与 html-ppt 模板、Knip 文档镜像及其字体、Desktop 的 Material Icons 副本、dogfood 技能、Superpowers CLI 插件目录。仍可取得的原文快照保留在 `third-party/upstream/`，但不会进入当前声明或 Web 发行；随本地目录一起删除且无上游快照的材料不再声称仍被保留。
 

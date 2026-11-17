@@ -122,9 +122,8 @@ export interface ProjectRepositoryContract {
   /** 任务行记录的 cwd（`root_path`）；没有这一行时返回 null，不回退为 workspace 路径。 */
   readTaskCwd(task: ProjectTaskRef): string | null;
   /**
-   * 撤销一条尚无 CLI 事实的创建预留及其创建回执（worktree 创建失败后"放弃"或"不使用 worktree"，
-   * packages/shared/src/managed-worktree/CONTRACT.md §3.5）。released = 已撤销；absent = 没有这一行；kept = 行已有 CLI 事实
-   * （会话已存在），不删除。
+   * 撤销一条尚无 CLI 事实的创建预留及其创建回执（worktree 创建失败后"放弃"或"不使用 worktree"）。
+   * released = 已撤销；absent = 没有这一行；kept = 行已有 CLI 事实（会话已存在），不删除。
    */
   releaseReservedTask(input: { task: ProjectTaskRef }): "released" | "absent" | "kept";
   /**

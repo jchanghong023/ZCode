@@ -45,7 +45,7 @@ AIReqApplication 的 Provider 链为 AppErrorBoundary → Intl → Lucide → To
 
 - 帧头固定 13 字节：type:u8、id:u32BE、ack:u32BE、payloadLength:u32BE，普通消息 type=1；跨 message 半帧与粘包按 `rpc/src/protocol.ts`，不增加透明重放。
 - payload 的 header/body 序列化、类型标签、VQL 长度、UTF-8 与二进制 marker 按 `serialization.ts`，不能替换成自定义 JSON。
-- ChannelServer 发 Initialize 后客户端才调用；当前 Web 直接装配 ChannelServer，不添加 IPCServer 的首条 ctx 消息。
+- 当前 Web 直接装配 ChannelServer；ChannelServer 发 Initialize 后客户端才调用。
 - 请求 ID 对应当前连接，Promise success/error、取消、事件 listen/fire/dispose 按 channels.shared/channelClient/channelServer。
 - ProxyChannel 方法实参为数组；onXxx 为 Event，onDynamicXxx(arg) 为参数化 Event，释放监听即退订，不作为普通 Promise 方法。
 

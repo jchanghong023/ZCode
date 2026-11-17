@@ -12,7 +12,6 @@ import type {
   UserInfo,
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
-import type { SavedWorkflowHubTarget } from "@/v4/savedWorkflowHubContext.js";
 import type { RecentClosedSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
@@ -122,11 +121,6 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   workspaceMainView: WorkspaceMainView;
   openAutomationId: string | null;
   openAutomationTab: AutomationsNavigationTab | null;
-  /**
-   * 完成卡「已保存」芯片 → 中枢那一页（相邻实现
-   * 「Saving the run, and running it again」）：切到自动化主视图的「工作流」标签并设深链。
-   */
-  onOpenSavedWorkflowInHub: (target: SavedWorkflowHubTarget) => void;
   onWorkspaceMainViewChange: (view: WorkspaceMainView) => void;
   onOpenAutomationConsumed: () => void;
   handleOpenAutomations: OpenAutomationsMain;

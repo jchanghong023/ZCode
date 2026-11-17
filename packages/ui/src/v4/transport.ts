@@ -24,9 +24,9 @@ import type {
 import type { AttachmentUploadOptions } from "@/v4/attachmentUploadTransaction.js";
 
 /**
- * 一条 host 连接上的 v4 conversation 传输面。
- * 跨 workspace 分屏 = UI shell 持 Map<workspaceKey, ConversationTransport>，
- * 每条连接各配一个 SessionDataLayer。
+ * 一条连接上的 v4 conversation 传输面，每条连接各配一个 SessionDataLayer。
+ * 工作区身份与位置分别由 workspaceIdentity 与 workspacePath 表达，不能用 cwd 替代身份；
+ * 见 docs/specs/aireq-migration/connection-identity.md「工作区与会话」。
  */
 export interface ConversationTransport {
   getSessionLifecycle?(sessionId: string): Promise<SessionLifecycleSnapshot | null>;
@@ -94,7 +94,7 @@ export interface ConversationTransport {
    * 触发 dispose 后没人拉起 agent，换代通知因此永不到达，草稿预热会话不重建、附件卡在
    * waitingSession，直到用户手动点一次发送才被踹活。dispose 当场可观测的只有本事件。
    *
-   * 消费方按 sessionsIndexStore 的既定模式二选一订阅（有本方法就不订阅 onRuntimeRestart），
+   * 消费方二选一订阅 runtime 换代（有本方法就不订阅 onRuntimeRestart），
    * 避免同一次换代被两条通道各处理一次。承载方未暴露 runtime lifecycle 时本方法不存在。
    */
   onRuntimeLifecycle?(listener: (state: "available" | "unavailable") => void): () => void;

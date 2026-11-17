@@ -74,12 +74,6 @@ export type {
 
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
 
-// Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
-// StorageRootSpec 随契约再导出：desktop 的 Worker 协议按 contract.ts 的口径只从 services 入口取类型。
-export type { IStorageService, StorageRootSpec } from "./storage/contract.js";
-
-export type { IDataSyncCategoryService } from "./data-sync/index.js";
-
 // Subagents service — ISubagentsService is both a type (interface) and value (descriptor)
 export { ISubagentsService } from "./subagents/subagents.js";
 

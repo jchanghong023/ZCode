@@ -52,14 +52,6 @@ modules:
     requires: [shared]
     publicEntrypoints: []
     owner: conversation
-  - id: storage
-    roots: [packages/services/src/storage]
-    managed: true
-    requires: [shared, rpc, services]
-    publicEntrypoints: [packages/services/src/storage/contract.ts]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
-    owner: desktop-settings
   - id: client
     roots: [packages/client/src]
     managed: false
@@ -102,16 +94,6 @@ modules:
     layers: { app: "." }
     owner: conversation
   # sqlite-migrations：由 architecture:adopt 登记
-  # Agent runtime 退出诊断：desktop 稳定性上报与 Host 退出提示共用的纯函数判定。
-  - id: agent-crash-diagnostic
-    roots: [packages/shared/src/agent-crash-diagnostic]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/shared/src/agent-crash-diagnostic/index.ts
-      - packages/shared/src/agent-crash-diagnostic/contract.ts
-    layers: { app: "." }
-    owner: desktop
   - id: conversation-telemetry-engine
     roots: [packages/shared/src/conversation-telemetry]
     managed: true
@@ -281,24 +263,16 @@ modules:
     publicEntrypoints: [packages/shared/src/zcode-protocol-v4/context-composition/contract.ts]
     layers: { app: . }
     owner: agent
-  # plugin-host-queries：保留插件查询纯 schema；不登记已裁撤的 services 客户端。
+  # plugin-host-queries：保留插件查询、可见性与原生 v4 历史载荷 schema，不提供安装交互或插件运行能力。
   - id: plugin-host-queries
-    roots: [packages/shared/src/zcode-protocol/plugin-host-queries]
-    managed: true
-    requires: []
-    publicEntrypoints: [packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts]
-    layers: { app: . }
-    owner: plugin
-  # 仅保留原生 v4 历史载荷的插件 schema，不提供安装交互或插件运行能力。
-  - id: plugin-install-interaction
     roots:
-      - packages/shared/src/plugin-discovery
+      - packages/shared/src/zcode-protocol/plugin-host-queries
       - packages/shared/src/plugin-store-visibility.ts
       - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
     managed: true
     requires: [shared]
     publicEntrypoints:
-      - packages/shared/src/plugin-discovery/contract.ts
+      - packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts
       - packages/shared/src/plugin-store-visibility.ts
       - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
     layers: { app: . }
@@ -334,19 +308,6 @@ modules:
 
   # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
 
-  # data-sync-service：仅保留 MCP 依赖的通用分类合同；无用户配置或设备状态 RPC。
-  - id: data-sync-service
-    roots:
-      - packages/services/src/data-sync
-    managed: true
-    requires:
-      - services
-      - shared
-    publicEntrypoints:
-      [packages/services/src/data-sync/index.ts, packages/services/src/data-sync/contract.ts]
-    layers:
-      app: .
-    owner: remote
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集
   # settings-scope：设置页 Scope 菜单按设备分组
   - id: settings-scope
@@ -521,18 +482,6 @@ modules:
     owner: conversation
   # desktop-microphone-access：由 architecture:adopt 登记
   # web-share-manage：由 architecture:adopt 登记
-  # managed-worktree-shared：由 architecture:adopt 登记
-  - id: managed-worktree-shared
-    roots:
-      - packages/shared/src/managed-worktree
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/shared/src/managed-worktree/index.ts
-      - packages/shared/src/managed-worktree/contract.ts
-    layers:
-      app: .
-    owner: desktop
   # managed-worktree-tasks：只管理通用 worktree 展示所需 DTO，不提供服务或 descriptor。
   - id: managed-worktree-tasks
     roots: [packages/services/src/managed-worktree-tasks]
@@ -608,18 +557,6 @@ modules:
     layers:
       app: .
     owner: identity
-
-  - id: credential-security
-    roots:
-      - packages/shared/src/credential-security
-    managed: true
-    requires: [shared]
-    publicEntrypoints:
-      - packages/shared/src/credential-security/module.ts
-      - packages/shared/src/credential-security/contract.ts
-    layers:
-      adapters: .
-    owner: authentication
 
   # settings-search：由 architecture:adopt 登记
   - id: settings-search
@@ -722,10 +659,7 @@ global:
     - "@zcode/session-control"
     - "@zcode/design-runtime"
   nodeEntrypoints:
-    - "@zcode/shared/node"
-    - "@zcode/shared/agent-crash-diagnostic"
     - "@zcode/shared/sqlite-migrations"
-    - "@zcode/shared/managed-worktree"
     - "@zcode/shared/workspace-hook-discovery"
     - "@zcode/shared/workspace-hook-mutation"
   nativePackages: ["@napi-rs/keyring"]
@@ -749,7 +683,6 @@ exceptions:
       - packages/ui/src/components/ai-elements/snippet.tsx
       - packages/ui/src/components/ai-elements/stack-trace.tsx
       - packages/ui/src/components/ai-elements/terminal.tsx
-      - packages/ui/src/app-shell/WorkflowWorkspaceCardBody.tsx
       - packages/ui/src/ToolCallBlocks/ToolLayout.tsx
       - packages/ui/src/ToolCallBlocks/session/ToolDetailSection.tsx
       - packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx
@@ -913,7 +846,6 @@ exceptions:
     paths:
       [
         packages/ui/src/app-shell/WorkflowRunHoleParts.tsx,
-        packages/ui/src/app-shell/WorkflowRunProvenance.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
       ]
@@ -929,3 +861,8 @@ exceptions:
       - packages/ui/src/v4/SessionPane.tsx
       - packages/ui/src/v4/ConversationComposer.tsx
     reason: AIReq通过现有v4会话和输入草稿所有者集成可选回填及首次发送端口；仅修改两个既有文件，不复制v4、不改变原生协议或新增并行状态，不接管整个ui模块。
+  - id: workflow-run-line-retired-navigation-existing-ui-edit
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/components/workflow-run-line/TaskWorkflowRunLines.tsx
+    reason: 按 docs/specs/aireq-migration/release-surface.md 的退役边界，仅从既有运行行组件移除旧工作流导航及退役 context 依赖，保留通用运行行展示；不新增源码或状态 owner，不放开所在目录，不改变协议与其他架构规则。

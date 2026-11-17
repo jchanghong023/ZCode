@@ -443,8 +443,8 @@ export const v4ConversationSubscribeParamsSchema = subscribeParamsSchema.extend(
   /** host 从当前 remote workspace 的 tasks-index 精确读取的旧任务归属 allowlist。 */
   legacyTaskIds: z.array(z.string().min(1)).max(MAX_LEGACY_TASK_IDS_PER_SUBSCRIBE).optional(),
   /**
-   * 本地 workspace 下 cwd 与 workspace 目录不同的会话（受管 worktree 任务，packages/shared/src/managed-worktree/CONTRACT.md
-   * §6.6.2）。CLI 本地冷列表只按 directory 扫描，看不到它们；host 从 tasks-index 精确提供 id，
+   * 本地 workspace 下 cwd 与 workspace 目录不同的会话（受管 worktree 任务）。
+   * CLI 本地冷列表只按 directory 扫描，看不到它们；host 从 tasks-index 精确提供 id，
    * CLI 只为这些 id 补读摘要，不改写任何存储字段。
    */
   worktreeSessionIds: z.array(z.string().min(1)).max(MAX_LEGACY_TASK_IDS_PER_SUBSCRIBE).optional(),
