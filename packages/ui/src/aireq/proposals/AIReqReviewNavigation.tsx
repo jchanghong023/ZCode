@@ -39,7 +39,7 @@ export function AIReqReviewNavigation() {
       className="@container/conversation max-h-[30vh] shrink-0 overflow-y-auto border-b border-border py-2 text-ui-sm [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-review-navigation"
     >
-      <div className={`mx-auto min-w-0 px-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+      <div className={`mx-auto min-w-0 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
         {/* 修复：评审信息原本占满滚动内容列，外边缘比输入框宽；卡片放进同一内边距以对齐输入框。 */}
         <div className="min-w-0 space-y-2 rounded-xl border border-card-border bg-card p-3">
           <p>

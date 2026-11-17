@@ -113,18 +113,19 @@ function PersonalizationContent({
   }, [dirty, canSave, saving, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange?.(null), [onDraftActionsChange]);
   return (
-    <div className="space-y-5" data-testid="aireq-personalization-settings">
-      <p className="text-ui-base leading-6 text-foreground-subtle">
-        {zh
-          ? "为各 Agent 追加团队共享的指令和工作约定，不替换内置指令。"
-          : "Add shared team instructions and working conventions for each Agent without replacing built-in instructions."}
-      </p>
-      <AIReqPersonalConfigScope />
-      <p className="text-ui-sm leading-6 text-foreground-subtle">
-        {zh
-          ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令。"
-          : "Saving updates the shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
-      </p>
+    <div className="space-y-8" data-testid="aireq-personalization-settings">
+      <AIReqPersonalConfigScope>
+        <p>
+          {zh
+            ? "为各 Agent 追加团队共享的指令和工作约定，不替换内置指令。"
+            : "Add shared team instructions and working conventions for each Agent without replacing built-in instructions."}
+        </p>
+        <p>
+          {zh
+            ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令。"
+            : "Saving updates shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
+        </p>
+      </AIReqPersonalConfigScope>
       <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select

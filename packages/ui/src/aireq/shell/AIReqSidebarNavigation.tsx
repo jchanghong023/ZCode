@@ -5,9 +5,16 @@ import {
   ListChecks,
   MessagesSquare,
   ChartNoAxesCombined,
-  FolderGit2,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import appLogoUrl from "@/assets/provider-icons/logo-zai.svg";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -26,13 +33,13 @@ const todos: SidebarPage = {
   label: "我的待办",
   labelEn: "My todos",
   icon: Inbox,
-  global: true,
+  global: false,
 };
 
 const sections = [
   {
-    title: "需求规划",
-    titleEn: "Requirements",
+    title: "全局",
+    titleEn: "Global",
     pages: [
       {
         view: "projectProgress",
@@ -42,6 +49,19 @@ const sections = [
         global: true,
       },
       { view: "ideas", label: "想法池", labelEn: "Ideas", icon: Lightbulb, global: true },
+    ],
+  },
+  {
+    title: "需求规划",
+    titleEn: "Requirements",
+    pages: [
+      {
+        view: "projectOverview",
+        label: "当前项目",
+        labelEn: "Current project",
+        icon: LayoutDashboard,
+        global: false,
+      },
       {
         view: "proposals",
         label: "需求共创",
@@ -82,6 +102,8 @@ export function AIReqSidebarNavigation() {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
+  const releases =
+    ai.view?.availableReleases.filter((item) => item.projectId === project?.id) ?? [];
   const formal = Boolean(
     ai.selection.formalView ||
     ai.view?.groups.some(
@@ -104,9 +126,9 @@ export function AIReqSidebarNavigation() {
         aria-hidden="true"
       />
       <span className="min-w-0 flex-1 truncate text-left">{zh ? label : labelEn}</span>
-      {global && (
+      {(global || view === "todos") && (
         <span className="shrink-0 text-ui-sm font-normal text-remote-foreground-muted">
-          {zh ? "全部项目" : "All"}
+          {view === "todos" ? (zh ? "当前 Release" : "This release") : zh ? "全部项目" : "All"}
         </span>
       )}
     </Button>
@@ -131,20 +153,66 @@ export function AIReqSidebarNavigation() {
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-        <div className="mb-4 flex items-center gap-2 border-b border-border px-1 pb-4">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface text-remote-foreground-muted">
-            <FolderGit2 className="size-4" aria-hidden="true" />
-          </span>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-ui-sm text-remote-foreground-muted">
-              {zh ? "当前项目" : "Current project"}
-            </span>
-            <span
-              className="truncate text-ui-base font-medium text-foreground"
-              title={project?.name}
+        <div className="mb-4 space-y-3 border-b border-border px-1 pb-4">
+          <div className="space-y-1.5">
+            <label id="sidebar-project-label" className="text-ui-sm text-remote-foreground-muted">
+              {zh ? "项目" : "Project"}
+            </label>
+            <Select
+              value={project?.id ?? ""}
+              onValueChange={(id) => ai.navigate(() => ai.switchProject(id))}
+              disabled={!ai.view?.projects.length}
             >
-              {project?.name ?? (zh ? "未选择项目" : "No project selected")}
-            </span>
+              <SelectTrigger
+                className="w-full min-w-0"
+                aria-labelledby="sidebar-project-label"
+                title={project?.name}
+              >
+                <SelectValue placeholder={zh ? "未选择项目" : "Choose project"} />
+              </SelectTrigger>
+              <SelectContent>
+                {ai.view?.projects.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label id="sidebar-release-label" className="text-ui-sm text-remote-foreground-muted">
+              Release
+            </label>
+            <Select
+              value={releases.some((item) => item.id === ai.releaseId) ? ai.releaseId : ""}
+              onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id))}
+              disabled={!ai.selectionReady || !releases.length}
+            >
+              <SelectTrigger
+                className="w-full min-w-0"
+                aria-labelledby="sidebar-release-label"
+                title={releases.find((item) => item.id === ai.releaseId)?.title}
+              >
+                <SelectValue
+                  placeholder={
+                    !ai.selectionReady
+                      ? zh
+                        ? "正在读取…"
+                        : "Loading…"
+                      : zh
+                        ? "暂无 Release"
+                        : "No releases"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {releases.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         {sections.map((section, index) => (

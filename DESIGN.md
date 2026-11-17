@@ -676,3 +676,22 @@ their semantic structure. Fix unstable layout before adding breakpoint overrides
 `--color-progress-surface` / `--color-progress-surface-foreground` express work in progress, such as updating and syncing. Use `bg-progress-surface` with `text-progress-surface-foreground`; the foreground can also color progress indicators and borders. Four themes define the pair and all parent backgrounds must retain a 4.5:1 text contrast.
 
 远程可读辅助文字：`--color-remote-foreground-muted` / `text-remote-foreground-muted` 用于设置导航与辅助说明文字；侧栏共享的任务/项目视图切换、分组操作及搜索快捷键也沿用此可读辅助文字等级，浅色 `#595959`、深色 `#b3b3b3`，在 sidebar / popover / surface / card / selected / background 上保持至少 4.5:1。
+
+## AIReq centered reading columns (2026-11-17)
+
+AIReq home and settings pages share the native Appearance page proportions from
+`SETTINGS_FRAME_CONTENT_CLASSNAME`: `mx-auto w-full max-w-4xl px-4 lg:px-8`,
+with the existing bottom spacing. The content column is centered inside its actual
+remaining panel, including when a report or material pane is expanded. Keep outer
+scrolling independent of the limited content width; tables may scroll locally.
+
+AIReq top-level h1 headings share the Appearance role:
+`text-ui-settings-title lg:text-ui-settings-title-lg font-semibold tracking-tight`.
+Use one consistent top inset and content-column start across lists and settings.
+These AIReq roles supersede earlier full-width content and page-title guidance;
+retained unrelated upstream components keep their existing roles.
+
+Keep primary actions and abnormal states visible. Reduce repeated scope, ordinary
+success commentary, and instructional paragraphs; preserve full rules in existing
+help or native disclosure controls. A shorter initial view must not remove business
+facts, confirmation safeguards, or paths to a complete task.

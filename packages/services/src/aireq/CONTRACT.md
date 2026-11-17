@@ -77,3 +77,7 @@ File versions describe the actual UTF-8 material content held by this service: `
 `AIReqPrFact.url` is optional and is returned only for an actual accessible code-hosting URL. Demonstration MR records contain number/status metadata without an invented external link.
 
 `aiReqPrFactSchema` is the runtime source for `AIReqPrFact`, re-exported by the existing public entry. `platformVerified` accepts only boolean true/false; proposal/current and historical requirement PRs, SR current/history code PRs and whole-IR acceptance PRs all retain that same type. The server validates its record with this schema and keeps false; the current MR consumer rejects malformed facts and distinguishes platform verified/unverified without inferring verification from status, URL or record existence.
+
+## 当前项目概览与单版本范围（2026-11-17）
+
+以 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的“当前项目与具体 Release 导航”为最新契约。Context 唯一持有项目／具体 Release 与历史，侧栏统一切换，无全部版本选项；全局总览只读，当前项目显示同范围统计、人工处理与近期动态。SR 可选 `statusChange` 由 workflow 事务比较实际有效状态后记录 `{from?, to, at}`，读取不制造动态、初始化不伪造变化、失败不发布；经既有 readWorkflow 返回，UI 不保存第二份状态。

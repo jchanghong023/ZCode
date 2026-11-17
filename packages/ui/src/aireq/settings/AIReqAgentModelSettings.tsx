@@ -129,36 +129,40 @@ function ModelSettingsContent({
     </SelectItem>
   ));
   return (
-    <div className="space-y-6" data-testid="agent-model-settings">
-      <p className="text-ui-base leading-6 text-foreground-subtle">
-        {zh
-          ? "为各 Agent 设置模型与思考强度，选择“跟随默认”时使用默认模型。"
-          : "Set a model and reasoning level for each Agent. Choose “Follow default” to use the default model."}
-      </p>
-      <AIReqPersonalConfigScope />
-      <p
-        className="text-ui-sm leading-6 text-foreground-subtle"
-        data-testid="agent-model-effective-scope"
-      >
-        {zh
-          ? "保存后对新建会话生效，已有会话保留原配置。"
-          : "Saved settings apply to new sessions. Existing sessions keep their original configuration."}
-      </p>
+    <div className="space-y-8" data-testid="agent-model-settings">
+      <AIReqPersonalConfigScope>
+        <p>
+          {zh
+            ? "为各 Agent 设置模型与思考强度，选择“跟随默认”时使用默认模型。"
+            : "Set a model and reasoning level for each Agent. Choose “Follow default” to use the default model."}
+        </p>
+        <p data-testid="agent-model-effective-scope">
+          {zh
+            ? "保存后对新建会话生效，已有会话保留原配置。"
+            : "Saved settings apply to new sessions. Existing sessions keep their original configuration."}
+        </p>
+        <p>
+          {zh
+            ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。"
+            : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset."}
+        </p>
+        <dl className="space-y-3">
+          {draft.agents.map((agent) => (
+            <div key={agent.id}>
+              <dt className="font-medium text-foreground">{zh ? agent.name : agent.nameEn}</dt>
+              <dd>{zh ? agent.description : agent.descriptionEn}</dd>
+            </div>
+          ))}
+        </dl>
+      </AIReqPersonalConfigScope>
       {/* 长表的提交区随正文滚动吸顶，摘要只从现有草稿派生，避免另存修改状态。 */}
       <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-background py-3">
         <SettingsFormActions
           leadingAction={
             <div className="space-y-1 text-ui-sm text-foreground-subtle">
               <p role="status">
-                {dirty
-                  ? zh
-                    ? `未保存：${changeSummary}`
-                    : `Unsaved: ${changeSummary}`
-                  : zh
-                    ? "暂无未保存更改"
-                    : "No unsaved changes"}
+                {dirty ? (zh ? `未保存：${changeSummary}` : `Unsaved: ${changeSummary}`) : ""}
               </p>
-              <p>{zh ? "Ctrl / Cmd + S 保存" : "Ctrl / Cmd + S to save"}</p>
             </div>
           }
         >
@@ -233,11 +237,6 @@ function ModelSettingsContent({
               {zh ? `${draft.agents.length} 个 Agent` : `${draft.agents.length} Agents`}
             </span>
           </div>
-          <p className="text-ui-sm leading-6 text-foreground-subtle">
-            {zh
-              ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。"
-              : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset."}
-          </p>
           <SettingsGroupCard>
             {draft.agents.map((agent) => {
               const name = zh ? agent.name : agent.nameEn;
@@ -248,7 +247,6 @@ function ModelSettingsContent({
                     agent.id === "progress-analysis" ? "aireq.model.progressAnalysis" : undefined
                   }
                   label={name}
-                  description={zh ? agent.description : agent.descriptionEn}
                   controlLayout="wide"
                   control={
                     <div className="w-full min-w-0 space-y-2">

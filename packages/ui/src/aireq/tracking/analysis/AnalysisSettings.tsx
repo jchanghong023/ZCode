@@ -99,7 +99,7 @@ export function AnalysisSettings({
     );
   }
   return (
-    <div className="min-w-0 space-y-6" data-testid="aireq-analysis-settings">
+    <div className="min-w-0 space-y-8" data-testid="aireq-analysis-settings">
       <AIReqSettingsTarget
         id="aireq.analysis.enabled"
         className="flex flex-wrap items-center justify-between gap-3"
@@ -110,13 +110,8 @@ export function AnalysisSettings({
           </Label>
           <p className="text-ui-sm text-foreground-subtle">
             {zh
-              ? "所有工号共享此分析配置。全局及项目开关立即保存，统一间隔需手动保存。"
-              : "All employee IDs share these analysis settings. Global and project switches save immediately; the interval is saved manually."}
-          </p>
-          <p className="text-ui-sm text-foreground-subtle">
-            {zh
-              ? "暂停不取消进行中的分析，已开启项目仍可手动分析。"
-              : "Pausing keeps analyses in progress and allows manual analysis for enabled projects."}
+              ? "团队共享 · 开关即时保存，间隔需手动保存。"
+              : "Shared by the team · Switches save immediately; save the interval manually."}
           </p>
         </div>
         <Switch
@@ -131,6 +126,16 @@ export function AnalysisSettings({
           }
         />
       </AIReqSettingsTarget>
+      <details className="text-ui-sm leading-6 text-remote-foreground-muted">
+        <summary className="w-fit cursor-pointer rounded-sm border border-transparent hover:text-foreground focus-visible:border-remote-foreground-muted">
+          {zh ? "自动分析说明" : "About automatic analysis"}
+        </summary>
+        <p className="pt-3">
+          {zh
+            ? "所有工号共享此分析配置。全局及项目开关立即保存，统一间隔需手动保存。暂停不取消进行中的分析，已开启项目仍可手动分析。"
+            : "All employee IDs share these analysis settings. Global and project switches save immediately; the interval is saved manually. Pausing keeps analyses in progress and allows manual analysis for enabled projects."}
+        </p>
+      </details>
       <AIReqSettingsTarget id="aireq.analysis.projects">
         <Collapsible
           open={projectsOpen}

@@ -1,3 +1,6 @@
+export const PROGRESS_STATUSES = ["待开发", "开发中", "待合入", "待验收", "已完成"] as const;
+export type AIReqProgressStatus = (typeof PROGRESS_STATUSES)[number];
+
 /** Read-only progress projections; no accepted business state lives here. */
 export interface AIReqProgressSummary {
   proposalCount: number;

@@ -2121,7 +2121,8 @@ function ConversationTimelineImpl({
                   "pointer-events-auto relative z-10 w-full shrink-0",
                   contentWidthClassName,
                   // 浮窗形态下输入框外壳就是浮窗最外层，不留内边距。
-                  !centeredEmptyLayout && !floatingComposerDock && "px-2",
+                  // 显式内容列已拥有左右留白，不能让 composer 再用默认 px-2 覆盖它。
+                  !centeredEmptyLayout && !floatingComposerDock && !contentWidthOverride && "px-2",
                   !centeredEmptyLayout && summaryPanelInlineOffsetClassName,
                 )}
               >

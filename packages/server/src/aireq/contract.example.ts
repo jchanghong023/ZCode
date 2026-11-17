@@ -8,6 +8,9 @@ export async function readSharedProject(service: MockAIReqOwner) {
   const workflow = await service.call(identity, "readWorkflow", [bootstrap.initialSelection]);
   return {
     workflow,
+    statusChanges: workflow.view.srs.flatMap((sr) =>
+      sr.statusChange ? [{ srId: sr.id, ...sr.statusChange }] : [],
+    ),
     projects: workflow.view.projectProgress,
     currentProject: workflow.view.projectProgress?.find(
       (project) => project.projectId === workflow.view.currentProjectId,

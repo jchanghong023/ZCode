@@ -21,7 +21,6 @@ import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
-import { AIReqProjectSpaceHeader } from "./AIReqProjectSpaceHeader.js";
 import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
 import { AIReqIdeaPool } from "../ideas/AIReqIdeaPool.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
@@ -121,7 +120,6 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
       setHelp(true);
     });
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
-  const projectSpace = !["projectProgress", "ideas", "todos", "skillDesign"].includes(ai.mainView);
   const formal =
     ai.mainView === "formal" ||
     (ai.mainView === "chat" &&
@@ -156,16 +154,16 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
   let content;
   if (ai.mainView === "projectProgress")
     content = (
-      <AIReqProjectProgressPage
-        onAddProject={() => openProjectSettings({ kind: "create" })}
-        onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
-      />
+      <AIReqProjectProgressPage onAddProject={() => openProjectSettings({ kind: "create" })} />
     );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
   else if (ai.mainView === "projectOverview")
     content = (
       <AIReqProjectOverviewPage
+        onConfigureProject={() =>
+          openProjectSettings({ kind: "project", projectId: ai.selection.projectId! })
+        }
         onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
       />
     );
@@ -235,16 +233,11 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
             onHelp={openHelp}
           />
         </nav>
-        <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-          <div className="relative shrink-0">
-            {projectSpace ? (
-              <AIReqProjectSpaceHeader
-                onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
-              />
-            ) : (
-              <div className="h-12" />
-            )}
-          </div>
+        <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background">
+          {/* 讨论页已移除页头，原48px占位也应归还聊天与材料面板；业务列表仍保留标题基线。 */}
+          {(ai.mainView !== "chat" || formal) && (
+            <div className="h-12 shrink-0" aria-hidden="true" />
+          )}
           {ai.linkError && (
             <div
               role="alert"
@@ -285,7 +278,7 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
                     className={ai.mainView === "todos" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
                   >
                     {/* 保留来源列表挂载，详情返回时筛选与滚动位置不再重置。 */}
-                    <AIReqTodoPage />
+                    <AIReqTodoPage key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`} />
                   </div>
                 )}
                 {(proposalsMounted || ai.mainView === "proposals") && (

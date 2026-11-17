@@ -35,7 +35,7 @@ import {
   taskLabels,
 } from "./AnalysisPresentation.js";
 
-const cellClass = "px-4 py-3 text-left align-middle";
+const cellClass = "px-4 py-4 text-left align-middle";
 const headerClass = "h-10 px-4 text-left text-ui-sm font-normal text-foreground-subtle";
 type AnalysisTarget = Pick<AIReqAnalysisTask, "projectId" | "releaseId" | "irId" | "srId">;
 
@@ -72,7 +72,7 @@ export function AnalysisTaskTable({
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
-            {["需求与项目", "状态与进度", "下次分析", "操作"].map((title) => (
+            {["需求／开发任务", "状态与进度", "下次分析", "操作"].map((title) => (
               <MarkdownTableHead key={title} className={headerClass}>
                 {title}
               </MarkdownTableHead>
@@ -87,10 +87,7 @@ export function AnalysisTaskTable({
               className="group/row border-b border-border last:border-0 hover:bg-hover"
             >
               <MarkdownTableCell className={cellClass}>
-                <RowLabel
-                  title={task.srTitle}
-                  subtitle={`${projects.find((project) => project.id === task.projectId)?.name ?? task.projectId} · ${task.irId} · ${task.srId}`}
-                />
+                <RowLabel title={task.srTitle} subtitle={`${task.irId} · ${task.srId}`} />
                 <Button
                   variant="link"
                   size="sm"
@@ -130,7 +127,7 @@ export function AnalysisTaskTable({
                   </span>
                 </ControlHintTooltip>
               </MarkdownTableCell>
-              <MarkdownTableCell className="px-2 py-3 text-right align-middle">
+              <MarkdownTableCell className="px-2 py-4 text-right align-middle">
                 <Dialog
                   open={detailTaskId === task.id}
                   onOpenChange={(open) => setDetailTaskId(open ? task.id : undefined)}
@@ -229,7 +226,6 @@ export function AnalysisTaskTable({
 
 export function AnalysisHistoryTable({
   items,
-  projects,
   selectedRunId,
   openReport,
   openRequirement,
@@ -252,7 +248,7 @@ export function AnalysisHistoryTable({
         </colgroup>
         <MarkdownTableHeader className="bg-surface text-foreground-subtle">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
-            {["需求与项目", "开始时间", "结果与进度", "操作"].map((title) => (
+            {["需求／开发任务", "开始时间", "结果与进度", "操作"].map((title) => (
               <MarkdownTableHead key={title} className={headerClass}>
                 {title}
               </MarkdownTableHead>
@@ -267,10 +263,7 @@ export function AnalysisHistoryTable({
               className={`group/row border-b border-border last:border-0 hover:bg-hover ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
               <MarkdownTableCell className={cellClass}>
-                <RowLabel
-                  title={run.srTitle}
-                  subtitle={`${projects.find((project) => project.id === run.projectId)?.name ?? run.projectId} · ${run.irId} · ${run.srId}`}
-                />
+                <RowLabel title={run.srTitle} subtitle={`${run.irId} · ${run.srId}`} />
                 <Button
                   variant="link"
                   size="sm"
@@ -314,7 +307,7 @@ export function AnalysisHistoryTable({
                   </p>
                 </ControlHintTooltip>
               </MarkdownTableCell>
-              <MarkdownTableCell className="px-2 py-3 text-right align-middle">
+              <MarkdownTableCell className="px-2 py-4 text-right align-middle">
                 <Button
                   variant="ghost"
                   size="icon"

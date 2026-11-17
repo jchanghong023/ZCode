@@ -4,7 +4,7 @@ import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Badge } from "@/components/ui/badge.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +35,7 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { proposalPhaseLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
@@ -69,9 +69,7 @@ export function AIReqProposalTable() {
   const groups = useMemo(
     () =>
       (ai.view?.drafts ?? []).filter(
-        (item) =>
-          item.projectId === ai.selection.projectId &&
-          (!ai.releaseId || item.releaseId === ai.releaseId),
+        (item) => item.projectId === ai.selection.projectId && item.releaseId === ai.releaseId,
       ),
     [ai.view?.drafts, ai.selection.projectId, ai.releaseId],
   );
@@ -271,9 +269,8 @@ export function AIReqProposalTable() {
       <div
         className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex h-full min-h-0 flex-col gap-4 pb-2 lg:pb-2`}
       >
-        {/* 页签已标明提案视图；操作与视图同排，避免重复标题和分散的操作行。 */}
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 pt-4">
-          <span className="text-ui-sm text-foreground-subtle">{zh ? "需求提案" : "Proposals"}</span>
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "需求共创" : "Co-creation"}</h1>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
               data-testid="new-requirement"
@@ -364,13 +361,14 @@ export function AIReqProposalTable() {
           </span>
         </div>
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
-          <table className="w-full min-w-[680px] table-fixed text-left text-ui-base">
+          <table className="w-full min-w-3xl table-fixed text-left text-ui-base">
+            {/* 限宽正文中百分比列曾挤碎状态文字；为编号、短日期与状态保留列宽，窄面板只横滚表格。 */}
             <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[38%]" />
-              <col className="w-[23%]" />
-              <col />
               <col className="w-28" />
+              <col />
+              <col className="w-32" />
+              <col className="w-40" />
+              <col className="w-24" />
             </colgroup>
             <thead className="sticky top-0 bg-background">
               <tr>
@@ -383,6 +381,7 @@ export function AIReqProposalTable() {
                 ].map((label, index) => (
                   <th
                     key={label}
+                    title={index === 2 ? "北京时间" : undefined}
                     className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
                   >
                     {label}
@@ -393,45 +392,43 @@ export function AIReqProposalTable() {
             <tbody>
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
                 <tr key={item.id} className="border-b border-border/50 hover:bg-hover">
-                  <td className="px-4 py-3">{item.submittedBy}</td>
-                  <td className="max-w-xl whitespace-pre-wrap break-words px-4 py-3">
+                  <td className="px-4 py-4">{item.submittedBy}</td>
+                  <td className="max-w-xl whitespace-pre-wrap break-words px-4 py-4">
                     {/* 正文应和详情入口一样可直接打开讨论，同时保留键盘操作。 */}
-                    <div className="flex flex-col items-start gap-1">
-                      <Button
-                        variant="link"
-                        className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground"
-                        onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
-                      >
-                        {item.originalText}
-                      </Button>
+                    <div className="flex flex-col items-start gap-2">
+                      <ControlHintTooltip title={item.originalText}>
+                        <Button
+                          variant="link"
+                          className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground"
+                          onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
+                        >
+                          <span className="line-clamp-3 text-left">{item.originalText}</span>
+                        </Button>
+                      </ControlHintTooltip>
                       <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="break-all text-ui-sm text-foreground-subtle">
                           {item.id}
                         </span>
-                        {/* 全部版本范围的页头不再标明逐条归属，需按当前项目版本匹配，避免提案来源被隐藏或误标。 */}
-                        {!ai.releaseId && (
-                          <Badge
-                            variant="secondary"
-                            className="h-auto min-w-0 max-w-full whitespace-normal break-words text-ui-xs"
-                          >
-                            {releases.find((release) => release.id === item.releaseId)?.title ??
-                              (zh ? "版本不可用" : "Release unavailable")}
-                          </Badge>
-                        )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <time dateTime={item.createdAt}>
+                  <td className="px-4 py-4">
+                    <time
+                      dateTime={item.createdAt}
+                      title={`${new Date(item.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })} 北京时间`}
+                    >
                       {new Date(item.createdAt).toLocaleString("zh-CN", {
                         timeZone: "Asia/Shanghai",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
                         hour12: false,
                       })}
                     </time>
-                    <span className="block text-ui-sm text-foreground-subtle">北京时间</span>
                   </td>
-                  <td className="px-4 py-3">{proposalPhaseLabel(item)}</td>
-                  <td className="px-2 py-3 text-right align-middle">
+                  <td className="px-4 py-4">{proposalPhaseLabel(item)}</td>
+                  <td className="px-2 py-4 text-right align-middle">
                     <Button
                       variant="ghost"
                       size="sm"

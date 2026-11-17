@@ -135,6 +135,22 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const navigationRef = useRef(navigation);
   const historyInitialized = useRef(false);
   const releaseRef = useRef("");
+  const projectReleasesRef = useRef(new Map<string, string>());
+  const resolveRelease = useCallback(
+    (projectId: string | undefined, snapshot: AIReqWorkflowView, preferred?: string) => {
+      const releases = snapshot.availableReleases.filter((item) => item.projectId === projectId);
+      const saved =
+        preferred || (projectId ? projectReleasesRef.current.get(projectId) : undefined);
+      return (
+        releases.find((item) => item.id === saved)?.id ??
+        [...releases].sort(
+          (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
+        )[0]?.id ??
+        ""
+      );
+    },
+    [],
+  );
   const recordNavigation = useCallback(
     (
       target: AIReqSelection,
@@ -217,14 +233,13 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         setLoadedSelection({ ...target });
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
         if (!commandError.current) setError(next.error);
-        const current = releaseRef.current;
-        if (
-          current &&
-          !next.releases.some((item) => item.id === current && item.projectId === target.projectId)
-        ) {
-          releaseRef.current = "";
-          updateReleaseId("");
-        }
+        // 旧历史与首次读取也必须落到具体版本；只在当前读取代际接纳后规范范围。
+        const resolved = resolveRelease(target.projectId, next, releaseRef.current);
+        releaseRef.current = resolved;
+        updateReleaseId(resolved);
+        if (target.projectId && resolved)
+          projectReleasesRef.current.set(target.projectId, resolved);
+        window.history.replaceState({ ...window.history.state, aiReqReleaseId: resolved }, "");
       } catch (cause) {
         if (revision === requestRevision.current) report(cause);
         if (throwOnError) throw cause;
@@ -232,7 +247,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         if (revision === requestRevision.current) setPending(false);
       }
     },
-    [source, report],
+    [source, report, resolveRelease],
   );
   const refresh = useCallback(() => load(selectionRef.current), [load]);
   useEffect(() => {
@@ -254,33 +269,21 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     ) => {
       const previousReleaseId = releaseRef.current;
       const projectChanged = selectionRef.current.projectId !== value.projectId;
-      if (projectChanged) {
-        releaseRef.current = "";
-        updateReleaseId("");
-      }
-      const selectedGroup = [
-        ...(viewRef.current?.drafts ?? []),
-        ...(viewRef.current?.groups ?? []),
-      ].find((item) => item.projectId === value.projectId && item.id === value.irId);
-      // 全部 Release 已包含同项目详情；只有跨项目或不同具体版本才收窄范围。
-      const detailRelease = targetReleaseId ?? selectedGroup?.releaseId;
-      // 项目页的 Release 卡片必须先设置范围，再记录唯一历史；空字符串明确表示全部 Release。
-      if (
-        targetReleaseId !== undefined &&
-        mainView !== "chat" &&
-        mainView !== "requirementAnalysis"
-      ) {
-        releaseRef.current = targetReleaseId;
-        updateReleaseId(targetReleaseId);
-      }
-      if (
-        (mainView === "chat" || mainView === "requirementAnalysis") &&
-        detailRelease &&
-        (projectChanged || Boolean(releaseRef.current && detailRelease !== releaseRef.current))
-      ) {
-        releaseRef.current = detailRelease;
-        updateReleaseId(detailRelease);
-      }
+      const snapshot = viewRef.current;
+      const selectedGroup = [...(snapshot?.drafts ?? []), ...(snapshot?.groups ?? [])].find(
+        (item) => item.projectId === value.projectId && item.id === value.irId,
+      );
+      // 对象所属版本优先；普通切项目恢复该项目选择，不携带旧项目的范围。
+      const preferred =
+        targetReleaseId ||
+        selectedGroup?.releaseId ||
+        (!projectChanged ? releaseRef.current : undefined);
+      const resolved = snapshot
+        ? resolveRelease(value.projectId, snapshot, preferred)
+        : (preferred ?? "");
+      releaseRef.current = resolved;
+      updateReleaseId(resolved);
+      if (value.projectId && resolved) projectReleasesRef.current.set(value.projectId, resolved);
       const requirementView: RequirementView =
         mainView === "proposals"
           ? "proposals"
@@ -309,7 +312,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       setLinkError(undefined);
       void load(value, projectChanged);
     },
-    [source, load, recordNavigation],
+    [source, load, recordNavigation, resolveRelease],
   );
   const setMainView = useCallback(
     (mainView: WorkspaceMainView) => {
@@ -333,7 +336,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         )
       )
         return;
-      select({ projectId }, true, mainView, releaseId ?? "");
+      select({ projectId }, true, mainView, releaseId);
     },
     [select],
   );
@@ -510,13 +513,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         { ...event.state, aiReqNavigationExtent: next.extent, aiReqReleaseId: nextRelease },
         "",
       );
-      if (
-        mainView !== previous.mainView ||
-        JSON.stringify(event.state.aiReqSelection) !== JSON.stringify(selectionRef.current)
-      )
-        select(event.state.aiReqSelection as AIReqSelection, false, mainView);
       releaseRef.current = nextRelease;
       updateReleaseId(nextRelease);
+      select(event.state.aiReqSelection as AIReqSelection, false, mainView, nextRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
@@ -567,7 +566,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const current = selectionRef.current;
       if (id === releaseRef.current) return;
       if (
-        id &&
+        !id ||
         !viewRef.current?.releases.some(
           (item) => item.id === id && item.projectId === current.projectId,
         )
@@ -575,6 +574,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         return;
       releaseRef.current = id;
       updateReleaseId(id);
+      if (current.projectId) projectReleasesRef.current.set(current.projectId, id);
       if (options?.inProposalDialog) {
         // 新增和导入共享此分支；选择版本不离开表单，也不重置输入或预览。
         window.history.replaceState({ ...window.history.state, aiReqReleaseId: id }, "");

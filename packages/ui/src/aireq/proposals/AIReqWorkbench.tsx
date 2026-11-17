@@ -1,3 +1,4 @@
+import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -245,10 +246,10 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
         </div>
       ) : (
         <div
-          className="shrink-0 overflow-y-auto px-2 pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
+          className="shrink-0 overflow-y-auto pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
           style={{ scrollbarWidth: "thin" }}
         >
-          <div className="mx-auto w-full min-w-0 max-w-4xl space-y-2">
+          <div className={`mx-auto min-w-0 space-y-2 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
             {group && (
               <div className="flex flex-wrap gap-2">
                 <Select
@@ -404,13 +405,13 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
       )}
       <div
         key={`${selection.projectId}:${selection.irId}:${historyVersion}:${showPlanning ? "planning" : displayedPath}`}
-        className="min-h-0 flex-1 overflow-auto px-2 py-4 [scrollbar-gutter:stable_both-edges]"
+        className="min-h-0 flex-1 overflow-auto py-4 [scrollbar-gutter:stable_both-edges]"
         style={{ scrollbarWidth: "thin" }}
         data-testid="material"
         data-material-path={showPlanning ? undefined : displayedPath}
         data-material-valid={showPlanning ? undefined : current?.valid}
       >
-        <div className="mx-auto w-full min-w-0 max-w-4xl">
+        <div className={`mx-auto min-w-0 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
           {!showPlanning && (displayedPath || historical) && (
             <Collapsible className="mb-4">
               <CollapsibleTrigger asChild>

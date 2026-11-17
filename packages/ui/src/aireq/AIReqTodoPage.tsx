@@ -1,10 +1,9 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { ClipboardList, MoreHorizontal, UserRound, UserRoundPlus } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button.js";
-import { Card } from "@/components/ui/card.js";
 import {
   Dialog,
   DialogContent,
@@ -35,15 +34,22 @@ export function AIReqTodoPage() {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const [filter, setFilter] = useState<"mine" | "unassigned" | "all">("mine");
-  const [projectId, setProjectId] = useState("");
   const [assignees, setAssignees] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<string>();
   const [assigningTodo, setAssigningTodo] = useState<AIReqTodo>();
   const [assignmentError, setAssignmentError] = useState<string>();
   const employeeId = getEmployeeId();
-  const scopedTodos = (ai.view?.todos ?? []).filter(
-    (item) => !projectId || item.projectId === projectId,
+  const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
+  const release = ai.view?.releases.find(
+    (item) => item.projectId === project?.id && item.id === ai.releaseId,
   );
+  // 范围与工号是两层筛选；统计、认领和全部列表均不得混入其他项目或版本。
+  const scopedTodos =
+    ai.selectionReady && release
+      ? (ai.view?.todos ?? []).filter(
+          (item) => item.projectId === project?.id && item.releaseId === release.id,
+        )
+      : [];
   const mineCount = scopedTodos.filter((item) => item.employeeId === employeeId).length;
   const unassignedCount = scopedTodos.filter((item) => !item.employeeId).length;
   const todos = scopedTodos.filter(
@@ -52,7 +58,7 @@ export function AIReqTodoPage() {
   );
   const projectName = (id: string) =>
     ai.view?.projects.find((project) => project.id === id)?.name ?? id;
-  const scopeLabel = projectId ? "当前项目" : "当前所有项目";
+  const scopeLabel = "当前版本";
   const emptyTitle = !scopedTodos.length
     ? `${scopeLabel}暂无待处理事项`
     : filter === "mine"
@@ -61,7 +67,7 @@ export function AIReqTodoPage() {
   const emptyDescription = !scopedTodos.length
     ? "需要人工处理时，事项会自动出现在这里。"
     : filter === "mine"
-      ? "可查看待认领事项，或在全部待办中了解其他人的分工。"
+      ? "可切换到待认领或全部待办。"
       : "当前范围内的待办均已分配负责人。";
   const assign = async (item: AIReqTodo, employee: string) => {
     if (pending) return false;
@@ -78,7 +84,7 @@ export function AIReqTodoPage() {
         });
         await ai.refresh();
       } else {
-        // 待办跨项目，当前页面投影不含其他项目联系人；以目标最新快照和同一版本完整提交。
+        // 分配读取目标最新快照，按同一业务版本提交，避免覆盖刚更新的其他联系人。
         const target = { projectId: item.projectId, irId: item.irId };
         const view = await source.readWorkflow(target);
         const group = [...view.drafts, ...view.groups].find(
@@ -113,65 +119,60 @@ export function AIReqTodoPage() {
       setPending(undefined);
     }
   };
+  if (!ai.selectionReady || !project || !release)
+    return (
+      <main className="min-h-0 flex-1 overflow-auto text-ui-base">
+        <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-3`}>
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
+          <p role="status" className="text-remote-foreground-muted">
+            {!ai.selectionReady
+              ? ai.pending
+                ? "正在读取当前范围的待办…"
+                : "当前范围待办读取失败，请重试。"
+              : !project
+                ? "请在左侧选择项目。"
+                : "当前项目尚无 Release，请先在项目配置中添加。"}
+          </p>
+          {!ai.selectionReady && !ai.pending && (
+            <Button
+              variant="outline"
+              className="focus-visible:border-remote-foreground-muted"
+              onClick={() => void ai.refresh()}
+            >
+              重试
+            </Button>
+          )}
+        </div>
+      </main>
+    );
   return (
-    <main className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]">
-      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-4`}>
-        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>待办列表</h1>
-        <p className="text-ui-sm text-foreground-subtle">
-          查看跨项目待处理事项，完成业务操作后自动更新。
-        </p>
-        <div className="grid gap-3 md:grid-cols-3" aria-label="待办概览">
+    <main
+      className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
+      data-testid="aireq-todos"
+    >
+      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-8`}>
+        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="待办筛选">
           {(
             [
-              ["mine", "我的待办", mineCount, UserRound],
-              ["unassigned", "待认领", unassignedCount, UserRoundPlus],
-              ["all", "全部待办", scopedTodos.length, ClipboardList],
+              ["mine", "我的待办", mineCount],
+              ["unassigned", "待认领", unassignedCount],
+              ["all", "全部待办", scopedTodos.length],
             ] as const
-          ).map(([value, label, count, Icon]) => (
-            <Card
+          ).map(([value, label, count]) => (
+            <Button
               key={value}
-              className={`gap-0 py-0 transition-colors hover:border-border-hover ${filter === value ? "border-foreground-subtle bg-card-selected" : ""}`}
+              variant={filter === value ? "secondary" : "ghost"}
+              className="h-8 gap-3 px-3"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
             >
-              <button
-                type="button"
-                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-transparent p-4 text-left hover:bg-surface-hover focus-visible:border-foreground"
-                aria-pressed={filter === value}
-                onClick={() => setFilter(value)}
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-foreground-subtle">
-                  <Icon className="size-4" aria-hidden="true" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-ui-sm text-foreground">{label}</span>
-                  <span className="text-ui-xl font-medium tabular-nums">
-                    {ai.view ? count : "—"}
-                  </span>
-                </span>
-                {filter === value && (
-                  <span className="text-ui-sm text-foreground-subtle">当前</span>
-                )}
-              </button>
-            </Card>
+              {label}
+              <span className="text-ui-sm font-normal text-remote-foreground-muted tabular-nums">
+                {count}
+              </span>
+            </Button>
           ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-ui-lg font-medium">
-            {filter === "mine" ? "我的待办" : filter === "unassigned" ? "待认领" : "全部待办"}{" "}
-            <span className="text-ui-sm font-normal text-foreground-subtle">{todos.length} 项</span>
-          </h2>
-          <select
-            className="rounded-md border border-border bg-background px-3 py-2 text-ui-sm"
-            aria-label="待办项目筛选"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-          >
-            <option value="">全部项目</option>
-            {ai.view?.projects.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
         </div>
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[680px] table-fixed text-left">
@@ -183,7 +184,7 @@ export function AIReqTodoPage() {
             </colgroup>
             <thead className="text-ui-sm text-foreground-subtle">
               <tr>
-                {["需求／项目", "待处理事项", "归属", "分工"].map((label, index) => (
+                {["需求／开发任务", "待处理事项", "归属", "分工"].map((label, index) => (
                   <th
                     className={`border-b border-border py-3 font-medium ${index === 3 ? "px-2 text-right" : "px-4"}`}
                     key={label}
@@ -207,9 +208,6 @@ export function AIReqTodoPage() {
                         {item.requirementTitle}
                       </span>
                     )}
-                    <span className="block text-ui-sm text-foreground-subtle">
-                      {projectName(item.projectId)}
-                    </span>
                     <span className="block text-ui-sm text-foreground-subtle">
                       {item.irId}
                       {item.srId ? ` / ${item.srId}` : ""}
@@ -275,11 +273,6 @@ export function AIReqTodoPage() {
                   <td colSpan={4} className="p-6 text-foreground-subtle">
                     <p className="font-medium text-foreground">{emptyTitle}</p>
                     <p className="mt-1 text-ui-sm">{emptyDescription}</p>
-                    {projectId && (
-                      <Button variant="outline" className="mt-3" onClick={() => setProjectId("")}>
-                        查看全部项目
-                      </Button>
-                    )}
                   </td>
                 </tr>
               )}

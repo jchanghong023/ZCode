@@ -76,3 +76,15 @@ onHelp 可接收当前 footer 的 HTMLButtonElement（或 null）；各实例自
 待办显示我的／待认领／全部，点击定位 IR/SR 及阶段；联系人可指定／领取，代办只留实际操作人、不改负责人、不引入权限。待办是服务端投影，不增加本地勾选完成状态。浏览器不提供模拟控制或直接修改进度的入口；正常分工与业务动作仍经既有 data source 校验，刷新重连不重放写操作。
 
 当前场景和证据边界见 `docs/specs/aireq-migration/integration.md` 当前组；本合同／示例不表示真实浏览器或工程检查已经执行。
+
+## 当前项目概览与单版本范围（2026-11-17）
+
+以 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的“当前项目与具体 Release 导航”为最新契约。Context 唯一持有项目／具体 Release 与历史，侧栏统一切换，无全部版本选项；全局总览只读，当前项目显示同范围统计、人工处理与近期动态。SR 可选 `statusChange` 由 workflow 事务比较实际有效状态后记录 `{from?, to, at}`，读取不制造动态、初始化不伪造变化、失败不发布；经既有 readWorkflow 返回，UI 不保存第二份状态。
+
+## 全局想法池与项目版本待办（2026-11-17 追加）
+
+以 section-navigation-and-ideas.md 同名章节覆盖旧跨项目待办规则。全局分区为项目总览／想法池；待办消费 Context 当前项目与具体 Release，先过滤范围再统计和筛选工号，保留同范围认领／分配与业务动作，不改变全局投影或业务 owner。局部 UI 随范围挂载，不缓存第二份待办事实；概览仍统计全体人员。
+
+## 外观比例统一（2026-11-17 polish）
+
+主页与设置复用原生 Settings 的 max-w-4xl 居中内容列及外观标题角色；当前项目补正文 h1，一级列表不再挂载重复项目页头。各页内容相对所属面板居中，不按整窗计算位移。讨论身份／材料／阶段与 composer 共用同一列；原生 ConversationTimeline 在收到显式内容列时不再额外覆盖默认 composer px-2，未传入覆盖值的原生调用方保持原样。业务 owner、范围、历史和未保存门禁不变；分工细节及完整规则通过可访问帮助／折叠仍可读取。

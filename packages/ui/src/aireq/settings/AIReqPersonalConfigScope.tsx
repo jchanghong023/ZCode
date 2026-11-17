@@ -1,23 +1,33 @@
+import type { ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
-export function AIReqPersonalConfigScope() {
+export function AIReqPersonalConfigScope({ children }: { children?: ReactNode }) {
   const { locale } = useZCodeIntl();
   const zh = locale.startsWith("zh");
   return (
     <div
-      className="space-y-1 text-ui-sm text-foreground-subtle"
+      className="space-y-2 text-ui-sm text-foreground-subtle"
       data-testid="aireq-personal-config-scope"
     >
       <p>
         {zh
-          ? "模型与 Agent 指令为团队共享配置，修改后用于新建的评审和分析。"
-          : "Model and Agent instructions are shared by the team and apply to new reviews and analyses."}
+          ? "团队共享配置 · 保存后用于新建评审和分析。"
+          : "Shared team settings · Used by new reviews and analyses after saving."}
       </p>
-      <p>
-        {zh
-          ? "切换工号不会创建独立配置；外观设置仅保存在当前浏览器。"
-          : "Switching employee IDs does not create separate settings. Appearance is saved only in this browser."}
-      </p>
+      <details>
+        <summary className="w-fit cursor-pointer rounded-sm border border-transparent text-remote-foreground-muted hover:text-foreground focus-visible:border-remote-foreground-muted">
+          {zh ? "配置说明" : "About these settings"}
+        </summary>
+        <div className="space-y-2 pt-3 leading-6">
+          {children}
+          <p>
+            {zh
+              ? "切换工号不会创建独立配置；已有会话保留原配置。"
+              : "Switching employee IDs does not create separate settings. Existing sessions retain their original configuration."}
+          </p>
+          <p>{zh ? "外观设置仅保存在当前浏览器。" : "Appearance is saved only in this browser."}</p>
+        </div>
+      </details>
     </div>
   );
 }
