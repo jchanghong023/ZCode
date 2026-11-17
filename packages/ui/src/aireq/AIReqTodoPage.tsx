@@ -201,20 +201,24 @@ export function AIReqTodoPage() {
               {todos.map((item) => (
                 <tr
                   key={item.id}
+                  data-aireq-motion-row=""
                   className="group/row border-b border-border/50 last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
                 >
-                  <td className="break-words px-4 py-3">
-                    {/* 同一 IR 下的多个 SR 必须可读区分，编号保留用于追溯。 */}
-                    <span className="font-medium">{item.srTitle ?? item.requirementTitle}</span>
-                    {item.srId && (
+                  <td data-aireq-motion-cell="" className="break-words px-4 py-3">
+                    {/* 复用共享行反馈；块容器让标题和编号一起移动，内联标题不能单独 transform。 */}
+                    <div>
+                      {/* 同一 IR 下的多个 SR 必须可读区分，编号保留用于追溯。 */}
+                      <span className="font-medium">{item.srTitle ?? item.requirementTitle}</span>
+                      {item.srId && (
+                        <span className="block text-ui-sm text-foreground-subtle">
+                          {item.requirementTitle}
+                        </span>
+                      )}
                       <span className="block text-ui-sm text-foreground-subtle">
-                        {item.requirementTitle}
+                        {item.irId}
+                        {item.srId ? ` / ${item.srId}` : ""}
                       </span>
-                    )}
-                    <span className="block text-ui-sm text-foreground-subtle">
-                      {item.irId}
-                      {item.srId ? ` / ${item.srId}` : ""}
-                    </span>
+                    </div>
                   </td>
                   <td className="break-words px-4 py-3">
                     <Button

@@ -285,8 +285,13 @@ export function AIReqIdeaPool() {
               </thead>
               <tbody>
                 {visible.map((idea) => (
-                  <tr key={idea.id} className="group/row border-t border-border">
-                    <td className="max-w-lg px-4 py-4">
+                  <tr
+                    key={idea.id}
+                    data-aireq-motion-row=""
+                    className="group/row border-t border-border"
+                  >
+                    {/* 想法池此前漏接共享行标记；只平移需求与编号，元数据和操作列保持原位。 */}
+                    <td data-aireq-motion-cell="" className="max-w-lg px-4 py-4">
                       <Button
                         variant="link"
                         className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-foreground-subtle hover:text-foreground"

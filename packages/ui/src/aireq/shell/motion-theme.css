@@ -4,10 +4,11 @@
 }
 
 /* 总览的 article 会被空白柔光主动避开；只读卡片用局部颜色反馈聚焦阅读，
- * 不改进度、不加位移或手形，避免将信息卡误表达为导航入口。 */
+ * 当前项目的信息卡复用颜色反馈；不改进度、不加卡片位移或手形。 */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"],
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article {
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article,
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-card] {
     transition:
       border-color 120ms var(--aireq-motion-ease),
       background-color 120ms var(--aireq-motion-ease);
@@ -18,10 +19,33 @@
     transition-duration: 200ms;
   }
 
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover {
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover,
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-card]:hover {
     border-color: color-mix(in srgb, var(--color-foreground) 35%, var(--color-card-border));
     background-color: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
     transition-duration: 200ms;
+  }
+
+  /* 统计仅平移已有数字入口及箭头，不把整块只读区域变成导航。 */
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat] {
+    transition: background-color 120ms var(--aireq-motion-ease);
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat] button > svg {
+    transition: transform 200ms var(--aireq-motion-ease);
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover {
+    background-color: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+    transition-duration: 200ms;
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover button {
+    transform: translateX(4px);
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover button > svg {
+    transform: translateX(2px);
   }
 }
 

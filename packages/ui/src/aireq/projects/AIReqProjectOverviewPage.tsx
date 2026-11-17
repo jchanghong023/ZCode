@@ -215,7 +215,10 @@ export function AIReqProjectOverviewPage({
                 </h2>
               </div>
               {/* 数据区原先透出页面底色、辅助文字混用侧栏灰；按外观页卡片与文字角色呈现。 */}
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-4">
+              <dl
+                data-aireq-motion-card=""
+                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-4"
+              >
                 {[
                   {
                     label: zh ? "正式需求 IR" : "Formal requirements · IR",
@@ -238,7 +241,7 @@ export function AIReqProjectOverviewPage({
                     target: "formal" as const,
                   },
                 ].map((item) => (
-                  <div key={item.label} className="space-y-1">
+                  <div key={item.label} data-aireq-motion-stat="" className="space-y-1 rounded-lg">
                     <dt className="text-ui-sm text-foreground">{item.label}</dt>
                     <dd>
                       <Button
@@ -257,7 +260,11 @@ export function AIReqProjectOverviewPage({
                   </div>
                 ))}
               </dl>
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-card-border bg-card px-4 py-3 text-foreground">
+              {/* 上方信息卡同样需要局部反馈；整体进度保持原位，不重播真实进度。 */}
+              <div
+                data-aireq-motion-card=""
+                className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-card-border bg-card px-4 py-3 text-foreground"
+              >
                 <div className="flex min-w-56 flex-1 items-center gap-4">
                   <span className="shrink-0 text-ui-sm">
                     {zh ? "整体进度" : "Overall progress"}
