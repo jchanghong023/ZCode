@@ -5,7 +5,7 @@ import type { AIReqProject } from "@zcode/services/aireq";
 interface PrototypeProjectSettings {
   projects: AIReqProject[];
 }
-const createdAt = "2026-11-10T09:00:00.000Z";
+const createdAt = "2026-10-15T09:00:00.000Z";
 
 function project(id: string, name: string, root: string): AIReqProject {
   return {
@@ -27,6 +27,7 @@ function project(id: string, name: string, root: string): AIReqProject {
 const projects = [
   project("demo-aurora", "Aurora 协作控制台", "/demo/aurora-console"),
   project("demo-mobile", "Mobile 移动工作台", "/demo/mobile-console"),
+  project("demo-atlas", "Atlas 客户需求门户", "/demo/atlas-portal"),
 ];
 // 共享数据库项目表的内存投影；不访问真实 SQLite 或项目目录。
 let settings: PrototypeProjectSettings = {

@@ -45,6 +45,7 @@ const action = (type: string, fields: z.ZodRawShape = {}) =>
   z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
 const actionSchema = z.union([
   action("createIdea", { originalText: text }),
+  action("importIdeas", { originalTexts: z.array(text).min(1) }),
   action("updateIdea", { ideaId: id, ideaRevision: revision, originalText: text }),
   action("transferIdea", {
     ideaId: id,
@@ -58,7 +59,19 @@ const actionSchema = z.union([
     clientDraftId: id.optional(),
     releaseId: id,
   }),
-  action("importProposals", { releaseId: id, originalTexts: z.array(text) }),
+  action("importProposals", {
+    releaseId: id,
+    proposals: z
+      .array(
+        z
+          .object({
+            originalText: text,
+            businessDocument: z.string().min(1).max(1_048_576).optional(),
+          })
+          .strict(),
+      )
+      .min(1),
+  }),
   action("assignContacts", { contacts }),
   action("runFullReview"),
   action("approveFullReview", { reviewId: id, snapshotDigest: id }),

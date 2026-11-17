@@ -22,10 +22,11 @@ const samples: Record<string, { percent: number; merged?: boolean; certain?: boo
   "sr-permissions": { percent: 35 },
   "sr-onboarding": { percent: 100, merged: true, certain: true },
   "sr-export": { percent: 99, merged: true, certain: true },
+  "sr-export-download": { percent: 99, merged: true, certain: true },
   "sr-notification-inbox": { percent: 100, merged: true, certain: true },
   "sr-audit-retention": { percent: 100, merged: true, certain: true },
   "sr-mobile-navigation": { percent: 60 },
-  "sr-mobile-notifications": { percent: 40 },
+  "sr-mobile-notifications": { percent: 99, merged: true, certain: true },
   "sr-mobile-profile": { percent: 100, merged: true, certain: true },
 };
 

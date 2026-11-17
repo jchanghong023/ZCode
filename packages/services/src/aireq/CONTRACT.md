@@ -1,5 +1,7 @@
 # AIReq shared contract
 
+想法 CSV 导入使用正式 `importIdeas(originalTexts)` 命令，在全局 workflow 中原子创建全部想法；提交身份与时间由服务端登记，沿用 command 的严格校验、版本、幂等与提交后广播。导出只读取当前搜索匹配原文并下载单列 CSV，不增加导出 RPC。格式、草稿门禁与验收见分区导航和想法池规格。
+
 分区导航和想法池的当前业务契约见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`。全局想法及可分派版本随工作流同源读取；createIdea / updateIdea / transferIdea 复用现有 command、身份、版本、幂等和广播。转入原子创建各目标版本提案并消费想法，原文和提交信息保留，不建立跨项目父需求或进度。
 
 Current remediation scope and group order follow the current root `.todo.md`; ongoing behavior follows `docs/specs/aireq-migration/release-surface.md` and nonconflicting domain specifications. Replaced task contents and historical evidence never authorize restoring scenario controls or retired entrypoints, and do not prove this remediation passed.
@@ -30,7 +32,7 @@ There is no `settingsWrite` permission capability or employee-role projection. C
 
 ## Group 2 workflow and version contract
 
-- `AIReqRequirementGroup.originalText` is immutable intake text for proposal rows and one-column UTF-8 CSV, separate from generated IR requirements. `createProposal` immediately creates a visible proposal without AI, SRs or a first-message prerequisite; `importProposals` validates a concrete Release and the complete batch before writes. A proposal and its formal IR retain the same stable identity; `sourceIrId` only traces a new-scope proposal.
+- `AIReqRequirementGroup.originalText` is immutable intake text for proposal rows and one-column UTF-8 CSV, separate from IR business requirements. `createProposal` immediately creates a visible proposal without AI or SRs. `importProposals` accepts `proposals: {originalText, businessDocument?}[]` against a concrete Release: the complete batch is validated before writes; optional nonempty UTF-8 Markdown (at most 1 MiB) becomes only that new IR's canonical requirements.md with content-derived digest and snapshot. Import grants no review, approval, SR or execution. The UI may export original requests as CSV and only current valid IR business documents as Markdown; no other material import/export is supported. See proposals.md's 2026-11-17 contract. A proposal and its formal IR retain the same stable identity; `sourceIrId` only traces a new-scope proposal.
 - Workflow `command` idempotency compares the target and business payload, excluding admission-only `expectedRevision`/RPC `revision`. A repeated operation returns its admitted receipt before CAS; changed business content is rejected. Explicit version refresh retains intake text/CSV and the operation ID without replaying a write, so a lost acknowledgement cannot create a second IR.
 - IR materials live under `docs/requirements/<ir-id>/`; every SR owns a separate `openspec/changes/<sr-id>/` with proposal/design/tasks/specs/test-plan. These are simulated repository references, not paths to write in the ZCode tree. The dependency JSON remains the only dependency source.
 - `originalReview` and its history hold the single business review; `review` and its history hold the complete-package three-review-plus-summary round. Original human approval precedes SR splitting. Full human approval precedes separate version-bound business/development/testing `alignment` records. No later test-generation phase or dedicated test-plan agent exists.

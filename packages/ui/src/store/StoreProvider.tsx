@@ -7,6 +7,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useRef,
   useSyncExternalStore,
   type ReactNode,
@@ -28,15 +29,17 @@ export function StoreProvider({
   initialUser?: UserInfo | null;
   children: ReactNode;
 }) {
-  // 只在首次渲染时创建 store，避免 HMR 重复订阅
+  // Store 保持稳定；连接重建只替换广播绑定，避免继续调用已释放的 ChannelClient。
   const storeRef = useRef<ZCodeStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createZCodeStore(broadcastService, {
       initialUser,
     });
   }
+  const store = storeRef.current;
+  useLayoutEffect(() => store.connectBroadcastService(broadcastService), [store, broadcastService]);
 
-  return <StoreContext.Provider value={storeRef.current}>{children}</StoreContext.Provider>;
+  return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
 
 /**

@@ -38,6 +38,9 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { proposalPhaseLabel } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
+import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
+import { businessDocumentRequest } from "./proposal-markdown.js";
+import { AIReqProposalExport } from "./AIReqProposalExport.js";
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
@@ -52,7 +55,9 @@ export function AIReqProposalTable() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const [csvContent, setCsvContent] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [importFormat, setImportFormat] = useState<"csv" | "markdown">("csv");
+  const [documentRequest, setDocumentRequest] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,11 +80,11 @@ export function AIReqProposalTable() {
   );
   // 修复：预览可以先于 Release 选择；保留 CSV 原文并按当前范围重算重复行，避免沿用旧版本提示。
   const parsedCsv = useMemo(() => {
-    if (csvContent === null) return { preview: null, error: "" };
+    if (fileContent === null || importFormat !== "csv") return { preview: null, error: "" };
     try {
       return {
         preview: parseProposalCsv(
-          csvContent,
+          fileContent,
           groups.map((item) => item.originalText),
         ),
         error: "",
@@ -93,9 +98,14 @@ export function AIReqProposalTable() {
             : formatUserFacingError(error, "CSV 解析失败，请检查文件格式。"),
       };
     }
-  }, [csvContent, groups]);
+  }, [fileContent, importFormat, groups]);
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
+  const businessDocument = importFormat === "markdown" ? fileContent : null;
+  const proposals =
+    businessDocument !== null
+      ? [{ originalText: documentRequest, businessDocument }]
+      : (preview?.texts.map((originalText) => ({ originalText })) ?? []);
   // 文件读取及格式错误也属于用户输入；仅以成功预览判断会让这些状态无提示丢失。
   const dirty = Boolean(text || (importOpen && fileName));
   // 修复：列表保持挂载以恢复筛选，切换项目时不能沿用上一个项目的筛选条件。
@@ -206,6 +216,11 @@ export function AIReqProposalTable() {
   };
   const submit = async (kind: "create" | "import") => {
     if (submitting.current || !ready) return;
+    if (
+      kind === "import" &&
+      (!proposals.length || proposals.some((entry) => !entry.originalText.trim()))
+    )
+      return;
     submitting.current = true;
     setBusy(true);
     const expectedRevision = baseline ?? ai.view?.revision ?? 0;
@@ -226,7 +241,7 @@ export function AIReqProposalTable() {
               type: "importProposals",
               projectId: ai.selection.projectId,
               releaseId: ai.releaseId,
-              originalTexts: preview!.texts,
+              proposals,
               operationId,
               expectedRevision,
             },
@@ -235,7 +250,8 @@ export function AIReqProposalTable() {
         setDraftNavigationGuard(null);
         setText("");
         fileGeneration.current++;
-        setCsvContent(null);
+        setFileContent(null);
+        setDocumentRequest("");
         setFileName("");
         setFileError("");
         ai.closeProposalDraft();
@@ -274,7 +290,9 @@ export function AIReqProposalTable() {
               disabled={busy}
               onClick={() => {
                 fileGeneration.current++;
-                setCsvContent(null);
+                setFileContent(null);
+                setDocumentRequest("");
+                setImportFormat("csv");
                 setFileName("");
                 setFileError("");
                 setOperationId(createUuid());
@@ -284,20 +302,11 @@ export function AIReqProposalTable() {
             >
               导入
             </Button>
-            <Button
-              variant="outline"
-              title={
-                zh ? "导出全部筛选结果，不限当前页" : "Export all filtered results across all pages"
-              }
-              onClick={() =>
-                downloadProposalCsv(
-                  filtered.map((item) => item.originalText),
-                  "需求提案.csv",
-                )
-              }
-            >
-              导出
-            </Button>
+            <AIReqProposalExport
+              groups={filtered}
+              materials={ai.view?.materials ?? []}
+              disabled={busy}
+            />
           </div>
         </header>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -476,19 +485,23 @@ export function AIReqProposalTable() {
         >
           <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>CSV 导入预览</DialogTitle>
+              <DialogTitle>{zh ? "导入需求预览" : "Preview requirement import"}</DialogTitle>
               <DialogDescription>
-                UTF-8 单列“原始需求”。确认前不写入，格式错误整批拒绝，重复正文保留。
+                {zh
+                  ? "原始短需求使用 UTF-8 单列 CSV；IR 业务需求文档使用 Markdown（不超过 1 MiB）。确认前不写入，不导入其他材料。"
+                  : "Use a UTF-8 single-column CSV for original requests, or Markdown (up to 1 MiB) for an IR business document. Nothing is saved before confirmation. Other materials are not imported."}
               </DialogDescription>
             </DialogHeader>
             {releaseSelector}
             <Button variant="outline" onClick={() => downloadProposalCsv([], "需求提案模板.csv")}>
-              下载模板
+              {zh ? "下载原始需求 CSV 模板" : "Download original request CSV template"}
             </Button>
             <Input
               type="file"
-              accept=".csv,text/csv"
-              aria-label="选择 UTF-8 CSV 文件"
+              accept=".csv,.md,.markdown,text/csv,text/markdown"
+              aria-label={
+                zh ? "选择 UTF-8 CSV 或 Markdown 文件" : "Choose a UTF-8 CSV or Markdown file"
+              }
               className="text-transparent file:text-foreground"
               disabled={busy || !releases.length}
               onChange={async (event) => {
@@ -496,23 +509,52 @@ export function AIReqProposalTable() {
                 const file = event.target.files?.[0];
                 // 先保留 File 引用再清空选择器，读取失败后仍能重选同一文件触发 change。
                 event.target.value = "";
-                setCsvContent(null);
+                setFileContent(null);
+                setDocumentRequest("");
                 setFileName(file?.name ?? "");
                 setFileError("");
                 setBaseline(undefined);
                 setOperationId(createUuid());
                 if (!file) return;
+                const markdown = /\.(md|markdown)$/i.test(file.name);
+                setImportFormat(markdown ? "markdown" : "csv");
+                if (!markdown && !/\.csv$/i.test(file.name)) {
+                  setFileError(
+                    zh
+                      ? "只支持 CSV 原始需求或 Markdown 业务需求文档。"
+                      : "Only CSV requests or Markdown business documents are supported.",
+                  );
+                  return;
+                }
+                if (markdown && file.size > 1_048_576) {
+                  setFileError(
+                    zh
+                      ? "业务需求文档不能超过 1 MiB。"
+                      : "The business document must not exceed 1 MiB.",
+                  );
+                  return;
+                }
                 try {
-                  const content = new TextDecoder("utf-8", { fatal: true }).decode(
+                  const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
                     await file.arrayBuffer(),
                   );
-                  if (generation === fileGeneration.current) setCsvContent(content);
+                  if (generation !== fileGeneration.current) return;
+                  if (markdown && !content.trim()) {
+                    setFileError(
+                      zh ? "业务需求文档不能为空。" : "The business document must not be empty.",
+                    );
+                    return;
+                  }
+                  setFileContent(content);
+                  if (markdown) setDocumentRequest(businessDocumentRequest(file.name, content));
                 } catch (error) {
                   if (generation === fileGeneration.current)
                     setFileError(
                       formatUserFacingError(
                         error,
-                        "文件读取失败，请确认 CSV 为有效的 UTF-8 编码。",
+                        zh
+                          ? "文件读取失败，请确认文件为有效的 UTF-8 编码。"
+                          : "Could not read the file. Check that it uses valid UTF-8 encoding.",
                       ),
                     );
                 }
@@ -525,6 +567,37 @@ export function AIReqProposalTable() {
               <p role="alert" className="text-ui-sm text-destructive">
                 {csvError}
               </p>
+            )}
+            {businessDocument !== null && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="import-document-request">
+                    {zh ? "原始短需求" : "Original short request"}
+                  </Label>
+                  <SettingsFormTextarea
+                    id="import-document-request"
+                    value={documentRequest}
+                    disabled={busy}
+                    rows={3}
+                    onChange={(event) => {
+                      setDocumentRequest(event.target.value);
+                      setBaseline(undefined);
+                      setOperationId(createUuid());
+                    }}
+                  />
+                  <p className="text-ui-sm text-foreground-subtle">
+                    {zh
+                      ? "短需求独立保存；下方业务文档保留原始正文，仍须评审后才能进入方案拆分。"
+                      : "The short request is stored separately. The document below is preserved and still requires review before solution planning."}
+                  </p>
+                </div>
+                <div
+                  className="max-h-64 overflow-auto rounded-lg border border-border p-3"
+                  aria-label={zh ? "IR 业务需求文档预览" : "IR business document preview"}
+                >
+                  <AIReqMarkdownDocument>{businessDocument}</AIReqMarkdownDocument>
+                </div>
+              </>
             )}
             {preview && (
               <>
@@ -566,7 +639,13 @@ export function AIReqProposalTable() {
                 取消
               </Button>
               <Button
-                disabled={!ready || !preview?.texts.length || busy || Boolean(csvError)}
+                disabled={
+                  !ready ||
+                  !proposals.length ||
+                  proposals.some((entry) => !entry.originalText.trim()) ||
+                  busy ||
+                  Boolean(csvError)
+                }
                 onClick={() => void submit("import")}
               >
                 确认原子导入
@@ -667,7 +746,8 @@ export function AIReqProposalTable() {
                   setDraftNavigationGuard(null);
                   setText("");
                   fileGeneration.current++;
-                  setCsvContent(null);
+                  setFileContent(null);
+                  setDocumentRequest("");
                   setFileName("");
                   setFileError("");
                   // 修复：暂存的导航已包含关闭弹窗或恢复历史，重复关闭会多退一页。

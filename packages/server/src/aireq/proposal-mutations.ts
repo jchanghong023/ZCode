@@ -22,7 +22,7 @@ import { businessRule } from "./errors.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases, addPrototypeRelease } from "./project-releases.js";
 import { prototypeProposalDependencies, prototypeProposalSolution } from "./proposal-flow.js";
-import { requirementMaterials } from "./materials.js";
+import { prototypeMaterial, requirementMaterials } from "./materials.js";
 import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
@@ -154,6 +154,23 @@ export function applyProposalMutation(
   );
   const at = new Date().toISOString();
   switch (action.type) {
+    case "importIdeas": {
+      if (!action.originalTexts.length || action.originalTexts.some((text) => !text.trim()))
+        throw businessRule("导入正文无效，本批未写入任何想法。");
+      // 先校验整批，再由 workflow 同一克隆事务写入；不借用项目或生成提案会话。
+      state.ideas.push(
+        ...action.originalTexts.map((text, index) => ({
+          id: `idea-${state.revision}-${index + 1}`,
+          originalText: text.trim(),
+          submittedBy: getEmployeeId(),
+          createdAt: operation.startedAt,
+          updatedAt: operation.startedAt,
+          revision: 1,
+        })),
+      );
+      operation.type = "批量导入想法";
+      break;
+    }
     case "createIdea": {
       if (!action.originalText.trim()) throw businessRule("请输入原始需求。");
       state.ideas.push({
@@ -254,20 +271,31 @@ export function applyProposalMutation(
     case "importProposals":
       // 整批共用一个回执与幂等身份，新 IR 关联不借用导入前的查看目标。
       operation.irIds = [];
-      action.originalTexts
-        .map((text) => text.trim())
-        .filter(Boolean)
-        .forEach((text, index) => {
-          const item = createProposal(
-            state,
-            projectId,
-            action.releaseId,
-            text,
-            operation,
-            `-${index + 1}`,
+      action.proposals.forEach((entry, index) => {
+        const item = createProposal(
+          state,
+          projectId,
+          action.releaseId,
+          entry.originalText.trim(),
+          operation,
+          `-${index + 1}`,
+        );
+        operation.irIds!.push(item.id);
+        if (entry.businessDocument !== undefined) {
+          // 导入只接纳本 IR 业务正文，不调用生成流程或提前建立 SR／评审批准。
+          state.materials.push(
+            prototypeMaterial({
+              projectId,
+              irId: item.id,
+              path: item.documentPath,
+              kind: "ir",
+              round: item.proposalRound ?? 1,
+              content: entry.businessDocument,
+            }),
           );
-          operation.irIds!.push(item.id);
-        });
+          snapshot(state, item);
+        }
+      });
       operation.type = "批量导入需求";
       break;
     case "assignContacts":

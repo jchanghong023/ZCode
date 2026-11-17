@@ -529,6 +529,7 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
   Partial<Pick<AIReqCommandBase, "operationId" | "expectedRevision">> &
   (
     | { type: "createIdea"; originalText: string }
+    | { type: "importIdeas"; originalTexts: string[] }
     | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
     | { type: "transferIdea"; ideaId: string; ideaRevision: number; targets: AIReqIdeaTarget[] }
     | { type: "createRelease"; title: string }
@@ -539,7 +540,11 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
         clientDraftId?: string;
         releaseId: string;
       }
-    | { type: "importProposals"; releaseId: string; originalTexts: string[] }
+    | {
+        type: "importProposals";
+        releaseId: string;
+        proposals: { originalText: string; businessDocument?: string }[];
+      }
     | {
         type: "assignContacts";
         contacts: { business?: string; development?: string; testing?: string };

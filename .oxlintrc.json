@@ -192,6 +192,8 @@
   },
   "globals": {},
   "ignorePatterns": [
+    // 隔离验证的 Vite 依赖是生成缓存；只排除缓存，保留旁边的手写验证脚本检查。
+    ".tmp-*/vite-cache/**",
     "packages/ui/src/components/ui",
     "packages/ui/src/components/ai-elements",
     ".agents/skills"

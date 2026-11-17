@@ -52,6 +52,7 @@ const logger = createServiceLogger("aireq");
 const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
 const commands = [
   "createIdea",
+  "importIdeas",
   "updateIdea",
   "transferIdea",
   "createRelease",

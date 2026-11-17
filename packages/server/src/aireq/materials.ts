@@ -19,6 +19,7 @@ export function requirementMaterials(
   irId: string,
   title: string,
   rows: { id: string; title: string; dependencySrIds?: string[] }[],
+  originalText = title,
 ): AIReqMaterialView[] {
   const shared = { projectId, irId };
   return [
@@ -26,7 +27,7 @@ export function requirementMaterials(
       ...shared,
       kind: "ir",
       path: `${prototypeIrRoot(irId)}/requirements.md`,
-      content: `# ${title}\n\n## 目标与范围\n${title}\n\n## 业务验收标准\n- AC-1：业务正常操作具有明确、可观察的成功结果。\n- AC-2：失败和重复请求不丢失输入，明确说明恢复路径。\n\n## 范围外\n不由本平台执行开发、修改代码或运行测试。`,
+      content: `# ${title}\n\n## 目标与范围\n${originalText}\n\n## 业务验收标准\n- AC-1：业务正常操作具有明确、可观察的成功结果。\n- AC-2：失败和重复请求不丢失输入，明确说明恢复路径。\n\n## 范围外\n不由本平台执行开发、修改代码或运行测试。`,
     }),
     ...(rows.length
       ? [

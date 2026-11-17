@@ -440,13 +440,15 @@ export function createPrototypeProgressScheduler(
     reconcile();
   } else {
     // Compact historical simulations use the same report admission path as later runs.
-    for (const [srId, status] of [
-      ["sr-auth", "succeeded"],
-      ["sr-session", "skipped"],
-      ["sr-permissions", "failed"],
+    for (const [projectId, srId, status] of [
+      ["demo-aurora", "sr-auth", "succeeded"],
+      ["demo-aurora", "sr-session", "skipped"],
+      ["demo-aurora", "sr-permissions", "failed"],
+      ["demo-mobile", "sr-mobile-navigation", "succeeded"],
+      ["demo-mobile", "sr-mobile-notifications", "skipped"],
     ] as const) {
       const task = [...tasks.values()].find(
-        (item) => item.projectId === "demo-aurora" && item.srId === srId,
+        (item) => item.projectId === projectId && item.srId === srId,
       );
       if (!task || task.percent >= 100) continue;
       const input = inputs.get(task.id)!;
@@ -483,6 +485,7 @@ export function createPrototypeProgressScheduler(
         batchId: "memory-demo-fixtures",
         taskId: task.id,
         projectId: task.projectId,
+        releaseId: task.releaseId,
         irId: task.irId,
         srId,
         srTitle: task.srTitle,
@@ -515,6 +518,7 @@ export function createPrototypeProgressScheduler(
             batchId: "memory-demo-fixtures",
             taskId: task.id,
             projectId: task.projectId,
+            releaseId: task.releaseId,
             irId: task.irId,
             srId,
             srTitle: task.srTitle,

@@ -224,7 +224,7 @@ const STATE_CHANNEL_PREFIX = "state:";
 // ============================================================================
 
 /**
- * 创建 Zustand store，连接广播服务实现跨窗口状态同步
+ * 创建 Zustand store；由 Provider 在挂载后连接广播并在卸载时释放。
  *
  * @param broadcastService - 当前连接的正式广播服务；Desktop／Web 均经各自宿主转发到其他连接。
  */
@@ -400,25 +400,31 @@ export function createZCodeStore(
   // Zustand v5 的 setState 在 replace=true/false 上使用了不同重载，
   // 之前直接包一层并透传 replace，会在严格类型下落到互不兼容的签名分支。
   // 这里改成订阅状态变化后再广播，只比较真正需要跨窗口同步的字段，逻辑更直观，也避免重载冲突。
-  useStore.subscribe((state, prevState) => {
-    if (applyingBroadcast) {
-      return;
-    }
-
-    for (const field of BROADCAST_FIELDS as Set<BroadcastField>) {
-      if (state[field] === prevState[field]) {
-        continue;
+  const subscribeStateChanges = () =>
+    useStore.subscribe((state, prevState) => {
+      if (applyingBroadcast) {
+        return;
       }
 
-      broadcastService.send({
-        channel: `${STATE_CHANNEL_PREFIX}${field}`,
-        payload: state[field],
-      });
-    }
-  });
+      for (const field of BROADCAST_FIELDS as Set<BroadcastField>) {
+        if (state[field] === prevState[field]) {
+          continue;
+        }
+
+        // 断线中的本地偏好仍有效；RPC 拒绝必须被消费，不能让主题菜单触发未处理异常。
+        void broadcastService
+          .send({
+            channel: `${STATE_CHANNEL_PREFIX}${field}`,
+            payload: state[field],
+          })
+          .catch((error: unknown) => {
+            logger.warn("[Store] 外观广播未发送，保留本地设置", { field, error });
+          });
+      }
+    });
 
   // 监听来自其他窗口的广播
-  broadcastService.onMessage((msg: BroadcastMessage) => {
+  const receiveBroadcast = (msg: BroadcastMessage) => {
     // 自动完成"多窗口只播一次"。其他窗口广播已播 used_at 后，本窗口合并
     // played 记录并收起正在播放的同 used_at 提示；本地回声已在解析阶段被忽略。
     const autoPlayed = parseCodingPlanQuotaResetAutoPlayedBroadcastMessage(msg);
@@ -455,9 +461,33 @@ export function createZCodeStore(
     } finally {
       applyingBroadcast = false;
     }
-  });
+  };
 
-  syncSystemThemeListener(useStore.getState().theme);
+  let disconnectBroadcast = () => {};
+  const connectBroadcastService = (service: IBroadcastService) => {
+    // Web 重连保留 Provider 和 Store；必须释放旧代理的订阅并替换发送目标，不能重置草稿。
+    disconnectBroadcast();
+    if (service !== broadcastService) {
+      broadcastService = service;
+      useStore.setState(
+        createCodingPlanQuotaResetStoreActions({
+          broadcastService,
+          readState: useStore.getState,
+          writeState: (updater) => useStore.setState((state) => updater(state)),
+        }),
+      );
+    }
+    const unsubscribe = subscribeStateChanges();
+    const subscription = service.onMessage(receiveBroadcast);
+    syncSystemThemeListener(useStore.getState().theme);
+    disconnectBroadcast = () => {
+      unsubscribe();
+      subscription.dispose();
+      cleanupSystemThemeListener?.();
+      cleanupSystemThemeListener = null;
+    };
+    return disconnectBroadcast;
+  };
   applyTheme(useStore.getState().theme);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
   applyFontSmoothing(useStore.getState().fontSmoothingEnabled);
@@ -466,7 +496,7 @@ export function createZCodeStore(
     resolveTheme(useStore.getState().theme) === "dark",
   );
 
-  return useStore;
+  return Object.assign(useStore, { connectBroadcastService });
 }
 
 export type ZCodeStore = ReturnType<typeof createZCodeStore>;

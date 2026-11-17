@@ -1,6 +1,10 @@
 # AIReq mock
 
+想法批量导入 `importIdeas(originalTexts)` 由现有 workflow 克隆事务唯一持有：全批非空校验、按批次 revision 和行序分配独立编号、使用实际操作者及服务时间、同一收据提交后广播。任一无效全批回滚，同操作重试返回原回执；不要求项目版本，不创建会话／提案或运行 AI。
+
 想法池与转入版本按 `docs/specs/aireq-migration/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
+
+初始业务数据按 `docs/specs/aireq-migration/integration.md` 的“原型后端业务初始数据”组织，数量与待办只从各 owner 的事实派生。提案导入导出按 `proposals.md` 的 2026-11-17 规格：`importProposals.proposals` 原子接纳短需求及可选 IR 业务 Markdown，正文仅落在新 IR 的标准 requirements.md，计算真实摘要，不导入其他材料、SR 或批准；沿用版本、幂等与提交后广播。
 
 本轮整改与组序以根 `.todo.md` 现行任务为准，持续规则见 `docs/specs/aireq-migration/release-surface.md` 和不冲突的领域规格；被覆盖的旧任务不授权恢复场景按钮／接口，历史证据不等于本轮通过。
 

@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createUuid } from "@zcode/shared";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import {
   Select,
   SelectContent,
@@ -34,6 +40,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqIdea, AIReqIdeaTransfer, AIReqIdeaTarget } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIReqIdeaImportExport } from "./AIReqIdeaImportExport.js";
 
 type Target = AIReqIdeaTarget & { key: string };
 type Draft = {
@@ -57,6 +64,7 @@ export function AIReqIdeaPool() {
   const [discard, setDiscard] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
+  const ideaMenuTriggers = useRef(new Map<string, HTMLButtonElement>());
   const addIdeaButton = useRef<HTMLButtonElement | null>(null);
   const [transferred, setTransferred] = useState<AIReqIdeaTransfer[]>([]);
   const { setDraftNavigationGuard } = ai;
@@ -194,14 +202,17 @@ export function AIReqIdeaPool() {
                 : "All projects · Original requirements awaiting a release"}
             </p>
           </div>
-          <Button
-            ref={addIdeaButton}
-            disabled={!ai.view || ai.pending}
-            onClick={(event) => open("edit", event.currentTarget)}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            {zh ? "新增想法" : "Add idea"}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <AIReqIdeaImportExport ideas={visible} />
+            <Button
+              ref={addIdeaButton}
+              disabled={!ai.view || ai.pending}
+              onClick={(event) => open("edit", event.currentTarget)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              {zh ? "新增想法" : "Add idea"}
+            </Button>
+          </div>
         </div>
         {transferred.length > 0 && (
           <section
@@ -268,12 +279,14 @@ export function AIReqIdeaPool() {
                   </th>
                   <th className="px-4 py-3 font-medium">{zh ? "提交人" : "Submitted by"}</th>
                   <th className="px-4 py-3 font-medium">{zh ? "提交时间" : "Submitted"}</th>
-                  <th className="px-4 py-3 font-medium">{zh ? "操作" : "Actions"}</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-medium">
+                    {zh ? "操作" : "Actions"}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {visible.map((idea) => (
-                  <tr key={idea.id} className="border-t border-border">
+                  <tr key={idea.id} className="group/row border-t border-border">
                     <td className="max-w-lg px-4 py-4">
                       <Button
                         variant="link"
@@ -290,14 +303,41 @@ export function AIReqIdeaPool() {
                     <td className="whitespace-nowrap px-4 py-4 text-ui-sm text-foreground-subtle">
                       {new Date(idea.createdAt).toLocaleString(locale)}
                     </td>
-                    <td className="px-4 py-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(event) => open("transfer", event.currentTarget, idea)}
-                      >
-                        {zh ? "转入版本" : "Move to release"}
-                      </Button>
+                    <td className="px-2 py-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            ref={(node) => {
+                              if (node) ideaMenuTriggers.current.set(idea.id, node);
+                              else ideaMenuTriggers.current.delete(idea.id);
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:text-foreground focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                            aria-label={
+                              zh ? `${idea.id} 的更多操作` : `More actions for ${idea.id}`
+                            }
+                          >
+                            <MoreHorizontal aria-hidden="true" className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          onCloseAutoFocus={(event) => {
+                            // 菜单项打开转入弹窗后已卸载，不能让菜单关闭回焦抢走表单焦点。
+                            if (draft?.idea?.id === idea.id) event.preventDefault();
+                          }}
+                        >
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              const trigger = ideaMenuTriggers.current.get(idea.id);
+                              if (trigger) open("transfer", trigger, idea);
+                            }}
+                          >
+                            {zh ? "转入版本" : "Move to release"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}

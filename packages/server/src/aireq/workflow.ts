@@ -502,9 +502,18 @@ export function applyPrototypeAction(
       throw businessRule("请输入原始需求。");
     if (
       action.type === "importProposals" &&
-      (!Array.isArray(action.originalTexts) ||
-        action.originalTexts.some((text) => typeof text !== "string") ||
-        !action.originalTexts.some((text) => text.trim()))
+      (!Array.isArray(action.proposals) ||
+        !action.proposals.length ||
+        action.proposals.some(
+          (entry) =>
+            !entry ||
+            typeof entry.originalText !== "string" ||
+            !entry.originalText.trim() ||
+            (entry.businessDocument !== undefined &&
+              (typeof entry.businessDocument !== "string" ||
+                !entry.businessDocument.trim() ||
+                new TextEncoder().encode(entry.businessDocument).length > 1_048_576)),
+        ))
     )
       throw businessRule("导入正文无效，本批未写入任何提案。");
     if (
@@ -544,6 +553,7 @@ export function applyPrototypeAction(
   );
   const proposalAction = ![
     "createIdea",
+    "importIdeas",
     "updateIdea",
     "transferIdea",
     "createRelease",
@@ -733,7 +743,9 @@ export function applyPrototypeAction(
   state = structuredClone(state);
   const projectId = action.projectId ?? selection.projectId ?? "demo-aurora";
   // 原子导入属于本批新 IR，不得把此前查看的 IR/SR 记录为创建来源。
-  const globalIdeaAction = ["createIdea", "updateIdea", "transferIdea"].includes(action.type);
+  const globalIdeaAction = ["createIdea", "importIdeas", "updateIdea", "transferIdea"].includes(
+    action.type,
+  );
   let irId =
     action.type === "importProposals" || globalIdeaAction
       ? undefined
