@@ -43,7 +43,7 @@ let cachedEditorId: string | null = null;
 
 /**
  * 本窗口（Web 每个标签页）的编辑器实例 id，作为队列编辑锁的归属
- * （docs/ui/composer-edit-mode.md）。sessionStorage 让刷新后不变、不同窗口不同；
+ * 。sessionStorage 让刷新后不变、不同窗口不同；
  * clientId 存在 localStorage，同设备多窗口共享，不能单独区分锁的持有者。
  */
 export function getV4EditorId(): string {

@@ -831,16 +831,16 @@ export const TID_START_PLAN_RECOMMENDATION_DIALOG = "start-plan-recommendation-d
 /** 用户反馈的诊断日志授权开关 */
 export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";
 
-/** 扩展插槽（docs/plugins/extension-host.md §6）：输入框 composer.status 条目与启动页「扩展」分区。 */
+/** 扩展插槽：输入框 composer.status 条目与启动页「扩展」分区。 */
 export const TID_EXTENSION_COMPOSER_STATUS = "extension-composer-status";
 export const TID_SIDE_PANE_EXTENSIONS = "side-pane-extensions";
 export const TID_SIDE_PANE_EXTENSIONS_STOPPED = "side-pane-extensions-stopped";
 export const TID_SIDE_PANE_EXTENSION_PROBLEM = "side-pane-extension-problem";
-/** 扩展视图（docs/plugins/extension-host.md §8）：启动页的视图条目与 extension-view 标签页。 */
+/** 扩展视图：启动页的视图条目与 extension-view 标签页。 */
 export const TID_SIDE_PANE_EXTENSION_VIEW_ITEM = "side-pane-extension-view-item";
 export const TID_EXTENSION_VIEW = "extension-view";
 /**
- * 扩展日志控制台（docs/plugins/extension-host.md §16.8）：启动页「扩展日志」一行与 extension-logs 标签页。
+ * 扩展日志控制台：启动页「扩展日志」一行与 extension-logs 标签页。
  * 每行带 `data-seq`、`data-level`、`data-gen`、`data-plugin-id`（扩展进程与监管器的行没有）。
  */
 export const TID_SIDE_PANE_EXTENSION_LOGS_ITEM = "side-pane-extension-logs-item";
@@ -852,7 +852,7 @@ export const TID_EXTENSION_LOGS_AUTO_SCROLL = "extension-logs-auto-scroll";
 export const TID_EXTENSION_LOGS_COPY = "extension-logs-copy";
 export const TID_EXTENSION_LOGS_CLEAR = "extension-logs-clear";
 /**
- * 扩展授权（docs/plugins/extension-host.md §17.7）：启动页「需要授权」一行（`data-side-pane-open-tab-item`
+ * 扩展授权：启动页「需要授权」一行（`data-side-pane-open-tab-item`
  * 为 `extension-grant:<pluginId>`）、授权对话框与启用确认（复用 ConfirmDialog，确认按钮为
  * TID_CONFIRM_DIALOG_CONFIRM）、插件详情页的「权限」区块（带 `data-plugin-id`、`data-grant-status`）。
  */
@@ -872,5 +872,5 @@ export const TID_EXTENSION_PERMISSIONS_REVOKE = "extension-permissions-revoke";
 export const TID_EXTENSION_PERMISSIONS_NOTIFICATIONS = "extension-permissions-notifications";
 /** 「最近操作」的一行：`data-capability`、`data-grant`。 */
 export const TID_EXTENSION_PERMISSIONS_ACTION = "extension-permissions-action";
-/** 左侧主导航的 nav.primary 插槽条目（docs/plugins/extension-host.md §16.4）；`data-extension-item` 是条目全局 id。 */
+/** 左侧主导航的 nav.primary 插槽条目；`data-extension-item` 是条目全局 id。 */
 export const TID_NAV_PRIMARY_ITEM = "nav-primary-slot-item";

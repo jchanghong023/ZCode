@@ -119,13 +119,16 @@ export function AIReqSidebarNavigation() {
       // 全局焦点样式会清除 outline 和阴影；复用按钮已有边框标出键盘焦点，行宽不变。
       className="h-auto min-h-9 w-full justify-start gap-3 py-2 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
+      data-aireq-motion-nav=""
       onClick={() => ai.navigate(() => ai.setMainView(view))}
     >
       <Icon
         className={`size-4 ${selected === view ? "text-foreground" : "text-remote-foreground-muted"}`}
         aria-hidden="true"
       />
-      <span className="min-w-0 flex-1 truncate text-left">{zh ? label : labelEn}</span>
+      <span data-aireq-motion-label="" className="min-w-0 flex-1 truncate text-left">
+        {zh ? label : labelEn}
+      </span>
       {(global || view === "todos") && (
         <span className="shrink-0 text-ui-sm font-normal text-remote-foreground-muted">
           {view === "todos" ? (zh ? "当前 Release" : "This release") : zh ? "全部项目" : "All"}

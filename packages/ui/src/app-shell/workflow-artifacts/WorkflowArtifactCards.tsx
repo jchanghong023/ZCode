@@ -25,7 +25,7 @@ export function ArtifactMetadataCard({
   testId,
 }: {
   artifact: WorkflowRunArtifactView;
-  bytes: number;
+  bytes?: number;
   /** 卡片下方那句解释（为什么不内联渲染 / 打开的到底是什么）。 */
   note?: string;
   action?: { label: string; onActivate: () => void; testId?: string };
@@ -43,7 +43,7 @@ export function ArtifactMetadataCard({
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-ui-sm text-foreground-subtle">
             {artifact.contentType === undefined ? null : <span>{artifact.contentType}</span>}
-            <span>{formatArtifactBytes(bytes)}</span>
+            {bytes === undefined ? null : <span>{formatArtifactBytes(bytes)}</span>}
           </div>
           {artifact.sourcePath === undefined ? null : (
             <div

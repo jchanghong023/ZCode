@@ -1,4 +1,4 @@
-// 受管 worktree 目录布局（docs/git/worktree.md §5.3）。
+// 受管 worktree 目录布局。
 // 只做纯路径计算；"是否真的是受管 worktree"还要叠加 git worktree list 与 .git 反向链接校验，
 // 由调用方（Git 服务 / Trust identity resolver）完成。
 import { basename, isAbsolute, join, relative, sep } from "node:path";
@@ -75,7 +75,7 @@ export function managedWorktreeDirectoryName(sourceRoot: string): string {
 }
 
 /**
- * worktree 任务的附加目录候选（docs/git/worktree.md §2.1）：位于源仓库内的 root 映射为 worktree 中
+ * worktree 任务的附加目录候选：位于源仓库内的 root 映射为 worktree 中
  * 对应的路径，其他 root 原样保留，并去掉 cwd 本身。是否存在由调用方检查。
  * Bug 防护：附加目录缺省规则是"roots 减 cwd"，对 worktree 任务会把源仓库本身交给 Agent，
  * 破坏隔离；因此 worktree 任务必须用这份列表显式固化。

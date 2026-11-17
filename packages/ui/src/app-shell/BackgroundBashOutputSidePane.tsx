@@ -3,7 +3,7 @@ import { ArrowDownIcon, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useBackgroundBashOutput } from "@/hooks/useBackgroundBashOutput.js";
+import type { BackgroundBashOutput } from "@zcode/shared";
 import { logger } from "@/logger.js";
 import type { BackgroundBashSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -12,13 +12,22 @@ export const BackgroundBashOutputSidePane = memo(function BackgroundBashOutputSi
   tab,
   visible,
   onOpenCodeViewer,
+  preview,
 }: {
   tab: BackgroundBashSidePaneTab;
   visible: boolean;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
+  preview: {
+    latest: BackgroundBashOutput | null;
+    display: BackgroundBashOutput | null;
+    following: boolean;
+    error: string | null;
+    refresh(): void;
+    pause(): void;
+    resume(): void;
+  };
 }) {
   const { intl } = useZCodeIntl();
-  const preview = useBackgroundBashOutput(tab, visible);
   const { latest, display, following } = preview;
   const scroll = useRef<HTMLDivElement>(null);
   const previousTop = useRef(0);

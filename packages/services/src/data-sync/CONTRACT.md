@@ -1,3 +1,5 @@
-# data-sync-service
+# 数据同步分类契约
 
-Current reachable boundary (2026-11-16): retain only `IDataSyncCategoryService<TPayload>` as the generic category shape used by the preserved MCP service. Retire `IUserConfigSyncService`, `IDeviceSyncStateService`, their descriptors, proxies, registrations and old synchronization UI. This generic shape owns no mutable state and does not publish a user-config or device-state channel.
+`contract.ts` 仅定义通用 `IDataSyncCategoryService<TPayload>` 形状：列出条目、计算内容哈希、检查写权限、导出及导入。需要路径改写的分类通过显式 targetHomeDir/workspace 参数表达目标。
+
+契约不持有状态、不注册频道，不表示当前产品提供用户配置、MCP 或设备同步执行服务。

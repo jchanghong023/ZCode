@@ -1,5 +1,5 @@
-# local-ttft-renderer
+# Renderer 首输出观测
 
-Renderer 是一次发送观测的唯一 owner。首输出必须来自 online 实际内容；检查点、ACK 和历史快照不能抢占。DOM 与绘制估计只匹配同一会话、轮次和正文行；日志失败不影响投影。
+Renderer 持有一次发送观测。首输出仅来自 online 实际内容，ACK、检查点和历史快照不计入。DOM 与绘制估计匹配同一会话、轮次和正文行；日志失败不影响会话投影。
 
-完整时序、字段和验证口径见 `docs/monitoring/ttft-stage-telemetry.md`。
+共享字段与限额由 `packages/shared/src/local-ttft/CONTRACT.md` 及其 `contract.ts` 定义，写入通过现有 adapter 注入，不建立另一份会话状态。

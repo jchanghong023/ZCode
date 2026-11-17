@@ -3,7 +3,7 @@ import { appClientSessionModeSchema } from "@zcode/session-control/contracts";
 import { commandPayloadSchemas } from "#src/zcode-protocol-v4/command.js";
 import { pendingInteractionSchema } from "#src/zcode-protocol-v4/snapshot.js";
 
-// 插件回答审批、提问与切换权限模式（docs/plugins/extension-host.md §17.12，P3e）。
+// 插件回答审批、提问与切换权限模式。
 // 只对插件项目里的会话开放；只投影工具审批（permission）与 AskUserQuestion（userInput）两种交互，
 // 工作区 Hook 信任审查与插件安装确认不给插件看、也不能由插件回答。
 // 交互与权限模式的唯一事实源是 CLI 的会话快照（pendingInteractions、config.mode）。

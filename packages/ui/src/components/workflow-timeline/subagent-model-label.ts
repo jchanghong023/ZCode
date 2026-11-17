@@ -128,7 +128,7 @@ export function workflowSubagentModelCardLabel(
 }
 
 /**
- * 脊线上子代理行要的模型词（docs/dynamic-workflow/presentation.md「The spine」）：persona 点名了
+ * 脊线上子代理行要的模型词：persona 点名了
  * 模型的子代理，行尾计数后面跟上模型名，行的 tooltip 多一行规范串。按实例键 `siteId@ordinal`
  * 索引一次，行只查不算。跑在 run 模型上的子代理不进表——摘要行已经说过那个模型。
  */

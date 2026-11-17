@@ -1,4 +1,4 @@
-// Composer 编辑态状态条（docs/ui/composer-edit-mode.md）：渲染在输入框卡片内顶部，
+// Composer 编辑态状态条：渲染在输入框卡片内顶部，
 // 说明正在编辑哪条消息，并提供「对话 + 文件重置」（仅编辑最后一条消息）与「取消」。
 // 发送按钮、Enter 与工具栏都保持原样，不在这里重复。
 import { FileClockIcon, PencilIcon } from "lucide-react";

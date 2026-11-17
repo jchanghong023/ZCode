@@ -169,7 +169,7 @@ export function WorkflowRunDigest({
         {questionsLabel}
       </button>
     );
-  // 「{n} 处留白待补全」（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：笔芯片，落在问题
+  // 「{n} 处留白待补全」：笔芯片，落在问题
   // 芯片的槽位上，两枚可以同时在；点它开整个 run。
   const holesWaiting = (run?.holes ?? []).filter((hole) => hole.state === "waiting").length;
   const leading =

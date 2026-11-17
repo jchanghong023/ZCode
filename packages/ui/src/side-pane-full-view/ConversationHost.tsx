@@ -1,4 +1,4 @@
-// Side Pane 完整视图的对话宿主（spec：docs/ui/side-pane-full-view.md）。
+// Side Pane 完整视图的对话宿主。
 // 它包住 conversation-column 里唯一的 SessionPane 实例，只改变定位方式，不移动 DOM、不重挂载：
 // - normal：静态布局，与原三栏一致；
 // - conversation：fixed 铺满面板内容区（slot），对话全宽；

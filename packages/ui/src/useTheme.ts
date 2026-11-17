@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "system";
+export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
 export type ResolvedTheme = "light" | "dark";
 
 const STORAGE_KEY = "zcode-theme";
@@ -15,7 +15,7 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return getSystemTheme();
   }
 
-  return theme === "dark" || theme === "zai-dark" ? "dark" : "light";
+  return theme === "dark" || theme === "zai-dark" || theme === "zai-motion" ? "dark" : "light";
 }
 
 export function normalizeThemePreference(theme: Theme): Theme {
@@ -65,7 +65,11 @@ export function applyTheme(theme: Theme) {
       : normalizeThemePreference(theme);
   document.documentElement.classList.toggle("dark", resolved === "dark");
   document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
+  document.documentElement.classList.toggle(
+    "theme-zai-dark",
+    appliedTheme === "zai-dark" || appliedTheme === "zai-motion",
+  );
+  document.documentElement.classList.toggle("theme-zai-motion", appliedTheme === "zai-motion");
   syncBrowserThemeSurface(resolved);
 }
 
@@ -75,6 +79,7 @@ function isTheme(value: string | null): value is Theme {
     value === "dark" ||
     value === "zai-light" ||
     value === "zai-dark" ||
+    value === "zai-motion" ||
     value === "system"
   );
 }
@@ -82,11 +87,11 @@ function isTheme(value: string | null): value is Theme {
 export function readThemePreference(): Theme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return isTheme(saved) ? normalizeThemePreference(saved) : "zai-dark";
+    return isTheme(saved) ? normalizeThemePreference(saved) : "zai-motion";
   } catch {
     // 根因：opaque-origin 等环境连存储属性访问都会抛错；入口和 hook 必须共用安全读取，
     // 否则入口已回退深色，工号页挂载时仍会白屏，遮住业务存储失败提示。
-    return "zai-dark";
+    return "zai-motion";
   }
 }
 

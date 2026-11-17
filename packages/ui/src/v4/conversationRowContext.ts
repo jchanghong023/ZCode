@@ -23,18 +23,7 @@ import type {
   OpenWorkflowWorkspaceSideTabRequest,
   OpenSubagentSideTabRequest,
 } from "@/lib/workspaceSidePane.js";
-import type {
-  CommandAck,
-  ConversationRowTarget,
-  TurnHeaderRow,
-  V4ConversationFileChangesResult,
-  V4ConversationFileRewindPreviewResult,
-} from "@zcode/shared/zcode-protocol-v4";
-
-export type ConversationFileChangesState = Exclude<
-  NonNullable<TurnHeaderRow["fileChanges"]>["state"],
-  undefined
->;
+import type { CommandAck } from "@zcode/shared/zcode-protocol-v4";
 
 export interface ConversationRowRenderContext {
   logEpoch?: string;
@@ -121,7 +110,7 @@ export interface ConversationRowRenderContext {
     change: WorkflowRunSettingsChange,
   ) => Promise<CommandAck>;
   /**
-   * 完成卡的「保存」/「再次运行」（docs/dynamic-workflow/transcript-and-notifications.md
+   * 完成卡的「保存」/「再次运行」（相邻实现
    * 「Saving the run, and running it again」）：把 GUI 写好的那条用户消息发进本会话，交给 ZCode
    * 去提炼保存。与 Resume 同两道门（只读、灰度）且**同一个供给点**——写文件与起引擎都属于
    * 「Resume 被收走的地方一并收走」。缺席即卡上只剩「已保存」芯片那条事实。
@@ -177,7 +166,7 @@ export interface ConversationRowRenderContext {
   workflowGraphByToolCallId?: ReadonlyMap<string, WorkflowCausalityGraphData>;
   /**
    * runId → 最新一次成功补全的有效脚本图（`workflowRunCardJoin.buildWorkflowFillGraphByRunId`）：补全之后
-   * run 卡与侧板取它，而不是发起行的图（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。
+   * run 卡与侧板取它，而不是发起行的图。
    */
   workflowFillGraphByRunId?: ReadonlyMap<string, WorkflowFillGraph>;
   /**
@@ -186,19 +175,6 @@ export interface ConversationRowRenderContext {
    * 颜色；缺席时卡片不编号。
    */
   workflowDraftByToolCallId?: ReadonlyMap<string, WorkflowDraftPosition>;
-  fetchFileChanges?: (
-    target: ConversationRowTarget,
-    options: ConversationFileChangesRequestOptions,
-  ) => Promise<V4ConversationFileChangesResult>;
-  previewFileRewind?: (
-    target: ConversationRowTarget,
-  ) => Promise<V4ConversationFileRewindPreviewResult>;
-  applyFileRewind?: (target: ConversationRowTarget) => Promise<CommandAck>;
-  /**
-   * 文件撤销被 session 锁住（availability.rewindFiles 拒绝），且锁一解除就能撤销。锁住时 pane
-   * 不下发上面两个回调；只读 pane、运行时未就绪时为 false，禁用按钮不显示锁定提示。
-   */
-  fileRewindLocked?: boolean;
   /** 已发送 image/video 预览；由 pane 绑定的 workspace transport 注入。 */
   readAttachment?: (
     params: ConversationAttachmentReadParams,
@@ -206,16 +182,6 @@ export interface ConversationRowRenderContext {
   readAttachmentRange?: (
     params: Parameters<ConversationTransport["attachmentReadRange"]>[0],
   ) => ReturnType<ConversationTransport["attachmentReadRange"]>;
-}
-
-export interface ConversationFileChangesRequestOptions {
-  /**
-   * 运行中 turn 的结果仍会随 projection revision 增长，只能复用进行中的请求；
-   * 终态 turn 才允许在虚拟行复挂载后继续复用成功结果。
-   */
-  cachePolicy: "in-flight" | "terminal";
-  /** rewind 会在同一 logEpoch 内切换 active/reverted，终态缓存必须按该语义状态隔离。 */
-  fileChangesState?: ConversationFileChangesState;
 }
 
 export type ConversationReasoningVisibility = Pick<

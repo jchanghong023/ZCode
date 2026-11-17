@@ -1,3 +1,3 @@
-# 扩展门面（Window Host）
+# 扩展服务边界
 
-Retired on 2026-11-16: the current Web UI does not consume extension, extension-view or extension-grant RPC capabilities. Remove descriptors, proxies, mock registration and obsolete transport adapters; generic presentation controls remain. This directory retains only this retirement record.
+当前目录没有扩展、扩展视图或授权 RPC 实现、descriptor、代理或注册。通用展示控件与 shared 协议类型不构成插件运行能力。

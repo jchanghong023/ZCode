@@ -8,7 +8,6 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { CodingPlanUsageHeaderAction } from "@/chat-input-toolbar/CodingPlanUsageHeaderAction.js";
 import { CodingPlanUsageNotice } from "@/chat-input-toolbar/CodingPlanUsageNotice.js";
-import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   findCodingPlanQuotaLimit,
@@ -172,10 +171,6 @@ export function ChatCodingPlanUsageRemainingPanel({
   const actionRefreshing = state?.loading || config.refreshing === true;
   const cachedUpdateError =
     Boolean(state?.visibleSnapshot) && Boolean(state?.displayedEntitlement?.error);
-  const resetUi = useCodingPlanQuotaResetUi({
-    preferredProviderId: state?.displayedEntitlement?.providerId,
-    accountAccess: state?.displayedEntitlement?.accountAccess,
-  });
   if (!state) {
     return null;
   }
@@ -276,28 +271,6 @@ export function ChatCodingPlanUsageRemainingPanel({
           <span className="min-w-0 truncate text-ui-base font-medium text-foreground">
             {intl.formatMessage({ id: "sidebar.usage.plan.title" })}
           </span>
-          {(
-            [
-              ["sidebar.usage.plan.fiveHour", resetUi.snapshot?.latestFiveHourResetHistory?.usedAt],
-              ["sidebar.usage.plan.weekly", resetUi.snapshot?.latestWeekResetHistory?.usedAt],
-            ] as const
-          ).map(([labelId, usedAt]) =>
-            usedAt != null ? (
-              <span key={labelId} className="text-ui-xs text-foreground-subtle">
-                {intl.formatMessage({ id: labelId })}
-                {": "}
-                {intl.formatMessage(
-                  { id: "codingPlan.quotaReset.completedAt" },
-                  {
-                    time: new Intl.DateTimeFormat(locale, {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    }).format(usedAt),
-                  },
-                )}
-              </span>
-            ) : null,
-          )}
         </div>
         <CodingPlanUsageHeaderAction
           error={state.displayedEntitlement?.error}

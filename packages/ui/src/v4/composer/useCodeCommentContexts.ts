@@ -29,7 +29,7 @@ export interface UseCodeCommentContextsResult {
 }
 
 // 按 composer 草稿 scope 缓存未发送的代码评论：切任务或进入/退出 composer 编辑态后切回，
-// 原草稿的评论 chip 原样恢复（docs/ui/task-scoped-composer-drafts.md、composer-edit-mode.md）。
+// 原草稿的评论 chip 原样恢复。
 const scopedCodeCommentContexts = new Map<string, readonly CodeCommentComposerAttachment[]>();
 
 /** 进入编辑态前为 edit scope 预置待编辑消息的代码评论；scope 切换时载入。 */

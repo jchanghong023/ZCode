@@ -1,15 +1,5 @@
-> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
-
 # windows-runtime-host
 
-Windows CLI 的内核进程归属边界。Host 负责路由，原生 helper 独占 Job 句柄。
+本目录仅保留模块边界说明，没有实现、消费者或当前公开服务，不登记为受管运行模块。不得将本文作为已有能力或可调用接口的声明。
 
-不变量：
-
-- CLI 创建时通过 Job 属性归组，保持 suspended，Host 安装监听后才 start；无法托管就拒绝启动。
-- stdio 原样传递，独立命名管道只传生命周期控制。真实 CLI PID 与 helper PID 分开。
-- EOF → 1800ms 正常收尾 → TerminateJobObject → 内核 ActiveProcesses=0 → helper 退出。
-- close 超时不销毁控制连接、不释放归属。后续 close 重新观察同一 Job，不重置原生宽限。
-- helper 或 Host 崩溃由 KILL_ON_JOB_CLOSE / 父进程句柄与控制连接断开触发清理。
-- 未收到 empty 时先确认 helper 退出，再按唯一 Job 名只读核验；Job 不存在或活动成员为零才释放。核验失败保留归属，下次主动请求重试。
-- 不持久化、不迁移 session，也不通过 PID/PPID 查询补认归属。
+模块登记与当前所有权见 `docs/architecture/pure-web-module-ownership.md`。

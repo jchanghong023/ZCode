@@ -1,5 +1,5 @@
 /**
- * dwf run 详情页的自适应并发观察面（docs/dynamic-workflow/concurrency.md「Protocol and UI」）：
+ * dwf run 详情页的自适应并发观察面：
  * run 头的并发/冷却读数，以及事件日志里 `node-waiting` / `node-executing` / `concurrency-changed` /
  * `run-caps-changed` 四条事件的行。子代理徽标**不在**这里：它只有三态一个词（决策 39），直接由协议
  * actor 状态渲染。
@@ -55,7 +55,7 @@ function stamp<T extends object>(registry: WeakMap<T, number>, subject: T, now: 
 
 interface WorkflowRunConcurrencyView {
   /**
-   * 芯片上那个数：生效的**界** `min(cap, limit ?? D)`（docs/dynamic-workflow/concurrency.md
+   * 芯片上那个数：生效的**界** `min(cap, limit ?? D)`（相邻实现
    * 「Two bounds on a run」）——共享桶的 cap 与本 run 自己的界取小。它是上限，不是此刻在飞
    * 的个数（所以芯片的字是「最大并发数」）；两条界里哪一条在起作用不是读数要回答的问题。
    */
@@ -66,7 +66,7 @@ interface WorkflowRunConcurrencyView {
 }
 
 /**
- * run 头的并发读数（docs/dynamic-workflow/concurrency.md「What the user sees」）。`ceiling` 是默认
+ * run 头的并发读数。`ceiling` 是默认
  * 并发 D，是参照线不是上限：本 run 的界 `bound = limit ?? D`，读数 `min(cap, bound)`。在场条件二选一：
  * 共享桶把 run 压在自己的界之下（`effective < bound`），或 run 有自己的界（`bound ≠ D`，高于低于
  * 都算——调到默认之上的 run 也要让人看见它的界）。跑在默认上、共享 cap 不低于 D 的 run
@@ -90,7 +90,7 @@ export function workflowRunConcurrencyView(
 }
 
 /**
- * run 头的并发芯片：读数在场，**且** run 能配置（docs/dynamic-workflow/concurrency.md「What the
+ * run 头的并发芯片：读数在场，**且** run 能配置（相邻实现「What the
  * user sees」）。芯片说的是一条界，改这条界的控件是 Configure，所以两者同进同退。
  *
  * 修复原因：旧芯片只看读数，完成的 run 上 `cap` / `limit` 在归约里原样留着（终态只摘冷却），

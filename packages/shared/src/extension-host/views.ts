@@ -6,7 +6,7 @@ import {
   type ResolvedScope,
 } from "#src/extension-host/slots.js";
 
-// 扩展视图（docs/plugins/extension-host.md §8）：页面是 MCP App 页面，后端是扩展进程里的 MCP server。
+// 扩展视图：页面是 MCP App 页面，后端是扩展进程里的 MCP server。
 // 两种写法（宿主帮手 / 插件自己的 McpServer）都经进程内 transport 连一个 MCP Client，之后走同一条路径。
 
 /** 页面资源 URI 固定为 `ui://<pluginId>/<viewId>`，清单不写。 */

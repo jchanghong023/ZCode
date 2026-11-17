@@ -91,7 +91,7 @@ export const WORKFLOW_RUNS_LIMITS = {
   /** 阶段名的线上上界，与 display 的 `CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS` 同值（UI 按名字关联两边）。 */
   maxPhaseNameLength: 128,
   /**
-   * 一条 run 记得的留白条数（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。与 display
+   * 一条 run 记得的留白条数。与 display
    * 载荷的 `holes` 同界：时间线上画不出的留白，投影里也不必记。一个留白就是一个阶段，所以它天然
    * 不会多过 `maxPhases`。
    */
@@ -133,7 +133,7 @@ export const WORKFLOW_RUNS_LEGACY_LIMITS = {
 } as const;
 
 /**
- * 一个被控制流进入过的阶段（`phase("…")` 标记；docs/dynamic-workflow/presentation.md
+ * 一个被控制流进入过的阶段（`phase("…")` 标记；相邻实现
  * 2026-09-05）。`name` 是作者原词（时间线按它关联 display 的 `phases[].name`）；`rounds` 是进入
  * 次数——单调（reducer 取 max），所以 resume 重放的前缀不会把它加倍。
  */
@@ -144,7 +144,7 @@ export const workflowRunPhaseSchema = z.object({
 export type WorkflowRunPhase = z.infer<typeof workflowRunPhaseSchema>;
 
 /**
- * 界在某个**出生阶段**上花掉了多少（docs/dynamic-workflow/presentation.md「Reduction」）。
+ * 界在某个**出生阶段**上花掉了多少。
  *
  * 两个计数器（{@link workflowRunUsageSchema} 的 `nodesUnlisted` / `nodesUnlistedSettled`）说得出
  * 一条 run 总共少列了多少，说不出少在**哪一站**——而读面是按站画的：一个站点的花名册、计数环和
@@ -166,7 +166,7 @@ export const workflowRunUnlistedPhaseSchema = z.object({
 export type WorkflowRunUnlistedPhase = z.infer<typeof workflowRunUnlistedPhaseSchema>;
 
 /**
- * run 级用量：观察面，不是控制面（docs/dynamic-workflow/authoring.md）。`spentTokens` 直接取
+ * run 级用量：观察面，不是控制面。`spentTokens` 直接取
  * 引擎 `usage-updated` 事件携带的已花总量（与 `dwf_run.spent_tokens` 同一同步步骤写入，
  * 二者永远相等）；`nodesUsed` 是本 run 已派发（dispatched）的节点数，由节点事件计数——
  * 没有任何上限可以拿来反算，也不需要。
@@ -176,7 +176,7 @@ export const workflowRunUsageSchema = z.object({
   nodesUsed: z.number().int().nonnegative(),
   /**
    * 撞上 {@link WORKFLOW_RUNS_LIMITS.maxNodes} 被**拒之表外**的实例数，以及其中已结算的条数
-   * （docs/dynamic-workflow/presentation.md）。`truncated` 只说得出「有东西没进来」，说不出
+   * 。`truncated` 只说得出「有东西没进来」，说不出
    * 有多少——于是一个 3000 路 fan-out 的 run 在读面上会显示成「1024 步」，那是一句假话。
    *
    * 两条都是**加出来**的计数（被拒实例根本不在表里，没有可去重的身份），所以归约只在事件
@@ -199,7 +199,7 @@ export type WorkflowRunUsage = z.infer<typeof workflowRunUsageSchema>;
  * 不存在可观察的 actor 级 failed：某次 ask 失败仍是「它的活干完了」，结果在节点上。
  *
  * `sessionId` 是**持有这个子代理转录的那条会话**（transcript 下钻直接读它，
- * docs/dynamic-workflow/presentation.md「Subagent transcripts」）。通常是 run service 按
+ * 相邻实现「Subagent transcripts」）。通常是 run service 按
  * `(runId, actorRef)` 确定性铸造的本 run 会话；修订 run 里一个到目前为止全部答案都来自导入
  * 命中的子代理没有自己的会话（命中不建会话），这时它是前驱里被读取的那条会话，由缓存结算的
  * `sourceSessionId` 带来，第一次 live 派发之后换回本 run 的会话（种子已抄入前缀）。
@@ -220,7 +220,7 @@ export const workflowRunActorSchema = z.object({
   phaseName: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxPhaseNameLength).optional(),
   /**
    * 这个子代理的模型：persona 点名了模型时，宿主按本 run 的绑定表解析出的规范串
-   * `providerId/modelId[$level]`（docs/dynamic-workflow/presentation.md「Reduction」）。缺席即它跑在
+   * `providerId/modelId[$level]`。缺席即它跑在
    * run 的子代理模型上（或发事件的是不带这个键的旧 CLI）。与 `subagentModel` 同界。
    */
   model: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxSubagentModelLength).optional(),
@@ -317,7 +317,7 @@ export type WorkflowRunNode = z.infer<typeof workflowRunNodeSchema>;
  * - `cooldownMs`：带 Retry-After 的限流冻结新派发的时长，**相对量**（同 `retryInMs` 的理由）；
  *   `idle_reset` 与 run 终态清掉它。
  *
- * UI 的读数规则见 workflowRunConcurrencyView（docs/dynamic-workflow/concurrency.md「What the user sees」）。
+ * UI 的读数规则见 workflowRunConcurrencyView。
  */
 export const workflowRunConcurrencySchema = z.object({
   key: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxConcurrencyKeyLength).optional(),
@@ -392,7 +392,7 @@ export const workflowRunPendingQuestionSchema = z.object({
 export type WorkflowRunPendingQuestion = z.infer<typeof workflowRunPendingQuestionSchema>;
 
 /**
- * 一个留白（docs/dynamic-workflow/authoring.md「Holes」；投影侧见 docs/dynamic-workflow/presentation.md
+ * 一个留白（相邻实现「Holes」；投影侧见 相邻实现
  * 「Holes on the timeline」）：脚本里一处 `hole<T>("名字")`，run 走到它就停驻那条分支、等主代理用
  * `FillWorkflowHole` 补上代码。身份是**站点 id**（名字键 `hole#<8 位十六进制>`）：同一站点在循环里可以停驻多个 ordinal，
  * 表里只留最新的那一个——补全是按站点一次性的，读面要说的也只是「这个留白等着 / 补上了」。
@@ -479,7 +479,7 @@ export const workflowRunSchema = z.object({
    * 默认并发 D（`run-started` 载荷的 `concurrencyCeiling`，CLI 铸载荷时拼进去的进程事实；键名早于
    * 「默认并发」这个概念，为兼容旧端保留）。它是起点不是上限。与 `concurrency` 不同，它**只要读得到
    * 就在**，不论本 run 有没有自己的界——「配置」弹层据它写「默认 N」、判「等于默认 = 不设自己的界」
-   * （docs/dynamic-workflow/concurrency.md「Protocol state」）。optional 的理由与 `concurrency` 同：
+   * 。optional 的理由与 `concurrency` 同：
    * 老 CLI 不发，少一个键是退化。
    */
   concurrencyCeiling: z
@@ -545,7 +545,7 @@ export const workflowRunSchema = z.object({
     .optional(),
   /**
    * `phaseNames` 里哪几站是**还开着的留白**（下标表，`run-launched.holes` / `hole-filled.holes`；
-   * docs/dynamic-workflow/presentation.md「Holes on the timeline」的「The model」）。侧栏只从 `phaseNames`
+   * 相邻实现「Holes on the timeline」的「The model」）。侧栏只从 `phaseNames`
    * 画迷你轨道，没有 display 载荷可查，所以这张表是它把留白画成虚线灯的唯一依据。补全之后那一站
    * 不再是留白，表随 `hole-filled` 整张换新。依附 `phaseNames`：后者不在场时它一定不在场；一个都没有
    * 时同样缺席。

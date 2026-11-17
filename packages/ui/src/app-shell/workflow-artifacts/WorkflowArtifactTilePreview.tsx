@@ -6,14 +6,12 @@ import {
   isArtifactPresetKind,
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { ArtifactPresetBody } from "@/app-shell/workflow-artifacts/ArtifactPresetBody.js";
-import { artifactPresetFieldPaths } from "@/app-shell/workflow-artifacts/presets/spec.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   ArtifactSheetGlyph,
   type WorkflowCompletionArtifact,
 } from "@/components/workflow-timeline/WorkflowArtifactTile.js";
-import { useWorkflowRunArtifactBytes } from "@/hooks/useWorkflowRunArtifactBytes.js";
-import { useWorkflowRunArtifactData } from "@/hooks/useWorkflowRunArtifactData.js";
+import type { ArtifactItem } from "@/app-shell/workflow-artifacts/presets/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { Theme } from "@/useTheme.js";
 
@@ -30,9 +28,6 @@ import type { Theme } from "@/useTheme.js";
  * 两处框同一档、同一画法：交付物行的框（160 × 100）与侧板画廊的瓦片框（130–180px 一列）。没有更小
  * 的档——预览要么读得清，要么不画。
  *
- * 字节还没到时整块留空白（不闪骨架屏，也不先画一张字形再换掉）。字节走与产物 tab 同一条
- * 分块读取（journal-backed，冷恢复也在）；上限之外不读——卡是转录的一部分，不该为一份 20 MiB
- * 的产物拉整条链路。
  */
 const TEXT_PREVIEW_MAX_BYTES = 256 * 1024;
 const IMAGE_PREVIEW_MAX_BYTES = 4 * 1024 * 1024;
@@ -99,11 +94,6 @@ function decodeHead(bytes: Uint8Array): string {
     .slice(0, TEXT_PREVIEW_CHARS);
 }
 
-/** 空白占位：字节在路上。测试与调用方据它区分「还没到」与「画不了」。 */
-function Pending() {
-  return <span className="absolute inset-0" data-testid="workflow-artifact-preview-pending" />;
-}
-
 /** 文档缩略底部渐隐到面板色：截断的文档看起来是「还有」，不是「断了」。看板与图片不要它。 */
 function Fade() {
   return (
@@ -117,51 +107,30 @@ function Fade() {
 
 export function WorkflowArtifactTilePreview({
   artifact,
-  runId,
-  sessionId,
   theme,
+  bytes,
+  imageUrl,
+  items,
 }: {
   artifact: WorkflowCompletionArtifact;
-  sessionId: string;
-  runId: string;
   theme: Theme;
+  bytes?: Uint8Array;
+  imageUrl?: string;
+  items?: readonly ArtifactItem[];
 }) {
   const { intl } = useZCodeIntl();
   const preset = isArtifactPresetKind(artifact.kind);
   const mode = preset ? undefined : previewModeFor(artifact);
-  const bytesState = useWorkflowRunArtifactBytes({
-    sessionId,
-    runId,
-    artifactId: artifact.id,
-    version: artifact.version ?? 1,
-    enabled: mode !== undefined,
-  });
-  // 看板只让 CLI 取 spec 点名的字段；spec 还没到或画不了时不取数——预览此时本来也画不出图。
-  const fields = useMemo(
-    () =>
-      isArtifactPresetKind(artifact.kind)
-        ? artifactPresetFieldPaths(artifact.kind, artifact.spec)
-        : undefined,
-    [artifact.kind, artifact.spec],
-  );
-  const dataState = useWorkflowRunArtifactData({
-    sessionId,
-    runId,
-    artifactId: artifact.id,
-    ...(artifact.itemCount === undefined ? {} : { itemCount: artifact.itemCount }),
-    enabled: fields !== undefined,
-    ...(fields === undefined ? {} : { fields }),
-  });
   const labels = useMemo(
     () => buildPresetLabels((descriptor, values) => intl.formatMessage(descriptor, values)),
     [intl],
   );
   const text = useMemo(
     () =>
-      bytesState.bytes !== null && (mode === "markdown" || mode === "csv" || mode === "text")
-        ? decodeHead(bytesState.bytes)
+      bytes !== undefined && (mode === "markdown" || mode === "csv" || mode === "text")
+        ? decodeHead(bytes)
         : undefined,
-    [bytesState.bytes, mode],
+    [bytes, mode],
   );
   const rows = useMemo(
     () => (mode === "csv" && text !== undefined ? csvPreviewRows(text) : []),
@@ -172,8 +141,7 @@ export function WorkflowArtifactTilePreview({
   const glyph = <ArtifactSheetGlyph {...(badge === undefined ? {} : { badge })} />;
 
   if (preset) {
-    // spec 只有 journal 带得回来；还没到时安静留白，不闪一句「无法渲染」。到了但坏了才说。
-    if (artifact.spec === undefined) return <Pending />;
+    if (artifact.spec === undefined || items === undefined) return glyph;
     return (
       <div
         className="absolute inset-0 flex flex-col overflow-hidden p-2.5 [justify-content:safe_center]"
@@ -186,21 +154,17 @@ export function WorkflowArtifactTilePreview({
           invalidLabel={intl.formatMessage({
             id: "chat.toolCall.workflow.run.artifacts.presetInvalid",
           })}
-          items={dataState.items}
+          items={items}
           labels={labels}
         />
       </div>
     );
   }
 
-  if (mode === undefined) return glyph;
-  if (bytesState.loading || (bytesState.bytes === null && bytesState.error === null)) {
-    return <Pending />;
-  }
-  if (bytesState.error !== null) return glyph;
+  if (mode === undefined || (bytes === undefined && imageUrl === undefined)) return glyph;
 
   if (mode === "image") {
-    return bytesState.objectUrl === null ? (
+    return imageUrl === undefined ? (
       glyph
     ) : (
       <img
@@ -208,7 +172,7 @@ export function WorkflowArtifactTilePreview({
         className="absolute inset-0 h-full w-full object-cover"
         data-preview-mode="image"
         data-testid="workflow-artifact-preview-body"
-        src={bytesState.objectUrl}
+        src={imageUrl}
       />
     );
   }

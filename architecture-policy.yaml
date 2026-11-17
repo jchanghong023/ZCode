@@ -235,15 +235,6 @@ modules:
     publicEntrypoints: [packages/shared/src/gen-ui/index.ts, packages/shared/src/gen-ui/contract.ts]
     layers: { domain: "." }
     owner: conversation
-  - id: gen-ui-service
-    roots: [packages/services/src/gen-ui]
-    managed: true
-    requires: [services, shared, gen-ui-protocol]
-    publicEntrypoints: [packages/services/src/gen-ui/contract.ts]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
-    owner: conversation
-
   - id: gen-ui
     roots: [packages/ui/src/gen-ui]
     managed: true
@@ -312,7 +303,7 @@ modules:
       - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
     layers: { app: . }
     owner: plugin
-  # node-repl-call-ledger：node_repl 结果里可信事实的唯一来源（apps/zcode-cli/docs/design/v2/tool/20-node-repl-call-ledger.md）
+  # node-repl-call-ledger：node_repl 结果里可信事实的唯一来源
   # topic-resource-tool：ReadSessionContext(topic, attachment) 拆出的话题资源工具（会话工具设计 0.8）。
   # composer-toolbar-layout：登记既有 DOM 布局入口，不改调用路径。
   - id: composer-toolbar-layout
@@ -356,8 +347,8 @@ modules:
     layers:
       app: .
     owner: remote
-  # voice-input：Composer 语音输入按钮、状态机与麦克风采集（docs/chat/composer-voice-input.md）
-  # settings-scope：设置页 Scope 菜单按设备分组（docs/remote/data-sync.md「Scope 菜单按设备分组」）
+  # voice-input：Composer 语音输入按钮、状态机与麦克风采集
+  # settings-scope：设置页 Scope 菜单按设备分组
   - id: settings-scope
     roots:
       - packages/ui/src/settings-scope
@@ -575,12 +566,12 @@ modules:
     publicEntrypoints: [packages/ui/src/ToolCallBlocks/session/contract.ts]
     layers: { ui: "." }
     owner: conversation
-  # extension-host-protocol：扩展进程三方共用的纯 schema、类型与纯函数（docs/plugins/extension-host.md §4）。
+  # extension-host-protocol：扩展进程三方共用的纯 schema、类型与纯函数。
   - id: extension-host-protocol
     roots:
       - packages/shared/src/extension-host
     managed: true
-    # 能力表引用 context 组成的线格式与模型选择 schema（docs/plugins/extension-host.md §7.2、§9）；
+    # 能力表引用 context 组成的线格式与模型选择 schema；
     # composer.mention 的候选项与 CLI plugins/mentionItems 共用一份 schema（§16.6）；
     # 会话能力的入参与返回直接用 session-control 的端口 schema（§17.3）。
     requires: [context-composition, plugin-host-queries, session-control, shared]
@@ -643,7 +634,7 @@ modules:
     layers:
       ui: .
     owner: settings
-  # task-row-hover：会话行悬停卡片（docs/ui/task-row-hover-details.md）
+  # task-row-hover：会话行悬停卡片
   - id: task-row-hover
     roots:
       - packages/ui/src/task-row-hover
@@ -763,13 +754,6 @@ exceptions:
       - packages/ui/src/ToolCallBlocks/session/ToolDetailSection.tsx
       - packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx
     reason: 现有 HTTP 入口明确对外监听，平台契约增加文本复制端口，既有 UI 复制调用改走注入平台以支持普通 IP HTTP；不新增未受管源码，不改变业务状态或操作顺序。见 docs/architecture/web-build-workflow.md。
-  - id: bots-readonly-consumers-existing-edits
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/hooks/useBotGroupMemberNames.ts
-      - packages/ui/src/hooks/useBotGroupTask.ts
-      - packages/ui/src/v4/BotGroupDeliveryAction.tsx
-    reason: 三个既有消费者随本轮已授权的 Bots 接口收口改为只读：任务状态仅用 getBotStates/getConfig，成员姓名派生自已接收来源，投递控件仅展示真实状态；删除重发、协调与预热写面，不新增源码、不接管整个 ui、不建立第二份业务状态。此精确准入仅针对 unmanaged-new-file，不豁免浏览器安全、依赖方向或文件大小规则。
   - id: mock-project-service-split
     rule: unmanaged-new-file
     paths: [packages/server/src/mock/project.ts]
@@ -781,11 +765,11 @@ exceptions:
   - id: conversation-selection-comment-quote-schema-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/conversationSelection.ts]
-    reason: 已准入的对话引用 schema 只追加可选 comment 与 agent 字段（选区批注，docs/ui/conversation-selection-side-chat.md「选区批注」）；仍是 conversationQuotes 的唯一 schema，长度上限与模块边界不变，接管整个 shared 包不在本次范围内。
+    reason: 已准入的对话引用 schema 只追加可选 comment 与 agent 字段（选区批注，见 packages/ui/src/selection-comment/CONTRACT.md）；仍是 conversationQuotes 的唯一 schema，长度上限与模块边界不变，接管整个 shared 包不在本次范围内。
   - id: side-pane-full-view-shortcut-command-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/shortcutCommands.ts]
-    reason: 已准入的快捷键命令表只追加一条 toggleSidePaneFullView 命令（Side Pane 完整视图，docs/ui/side-pane-full-view.md）；命令表仍是唯一数据源，签名与模块边界不变，接管整个 shared 包不在本次范围内。
+    reason: 已准入的快捷键命令表只追加一条 toggleSidePaneFullView 命令（Side Pane 完整视图，见 packages/ui/src/side-pane-full-view/CONTRACT.md）；命令表仍是唯一数据源，签名与模块边界不变，接管整个 shared 包不在本次范围内。
   - id: project-location-cache-recovery-existing-edit
     rule: unmanaged-new-file
     paths:
@@ -800,15 +784,10 @@ exceptions:
       - packages/shared/src/subagent-profile.ts
       - packages/shared/src/subagent-profile-parser.ts
     reason: 已准入的存量文件为插件 agent 的 permissionMode 只能收紧（ZP-20261028-13）增加进程内 profile 标记字段并更新注释；跨进程 schema 与解析行为不变，接管 shared 目录不在本次范围内。
-  - id: test-ids-subpath-import-unmanaged-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/hooks/useStartPlanRecommendation.ts
-    reason: 已准入的存量文件只把 TID 导入从 @zcode/shared 根入口改为 @zcode/shared/test-ids 子路径（根入口不再导出 test-ids，以收窄受影响单测范围）；行为与模块边界不变，接管 ui 目录不在本次范围内。
   - id: settings-personalization-size-constant-new-file
     rule: unmanaged-new-file
     paths: [packages/shared/src/userInstructions.ts]
-    reason: 用户自定义指令字节上限共享常量（与 CLI 读取截断对齐，spec：docs/ui/settings-personalization.md），服务层校验与 UI 计数共用同一数值；仅两个常量导出，接管整个 shared 目录不在本次范围内。
+    reason: 用户自定义指令字节上限共享常量（与读取截断对齐，数值见 packages/shared/src/userInstructions.ts），服务层校验与 UI 计数共用同一数值；仅两个常量导出，接管整个 shared 目录不在本次范围内。
   - id: connection-log-secret-token-unmanaged-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/source-server/connectionLog.ts]
@@ -923,14 +902,14 @@ exceptions:
   - id: ui-more-locales-new-files
     rule: unmanaged-new-file
     paths: [packages/shared/src/locale.ts, packages/ui/src/i18n/localeMessages.ts]
-    reason: 新增日/俄/韩界面语言（docs/i18n/ui-locales.md）。locale.ts 是语言解析与回退的唯一事实源；Main 冷启动只读 setting.json 取界面语言；localeMessages 只装配各语言文案表；三份文案表与 en-US/zh-CN 同构，单文件远超 800 行上限，登记 managed 模块也须另加行数例外。接管整个 ui/shared/desktop 目录不在本次范围内。
+    reason: 新增日/俄/韩界面语言。locale.ts 是语言解析与回退的唯一事实源；Main 冷启动只读 setting.json 取界面语言；localeMessages 只装配各语言文案表；三份文案表与 en-US/zh-CN 同构，单文件远超 800 行上限，登记 managed 模块也须另加行数例外。接管整个 ui/shared/desktop 目录不在本次范围内。
   - id: ui-loader-circle-existing-edit
     rule: unmanaged-new-file
     paths:
       - packages/ui/src/components/workflow-timeline/WorkflowRoll.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowRosterParts.tsx
       - packages/ui/src/v4/BotTopicPreparation.tsx
-    reason: 已准入的三个存量 UI 文件仅统一 Lucide 图标为 LoaderCircle（docs/design/loading-icons.md），不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
+    reason: 已准入的三个存量 UI 文件仅统一 Lucide 图标为 LoaderCircle，不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
   - id: ui-more-locales-existing-edit
     rule: unmanaged-new-file
     paths:
@@ -941,10 +920,6 @@ exceptions:
         packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
       ]
     reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 workflow-timeline 目录不在本次范围内。
-  - id: agent-runtime-exit-banner
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/v4/AgentRuntimeExitBanner.tsx]
-    reason: 后台 runtime 意外退出时会话底部的说明横幅与订阅 hook（docs/ui/agent-runtime-exit-notice.md），与 PendingCommandRecoveryBanner 同级；只读 services 的 onAgentRuntimeExited，不持有会话状态，不接管整个 ui 未受管模块。
   - id: browser-host-ports-existing-edits
     rule: unmanaged-new-file
     paths:

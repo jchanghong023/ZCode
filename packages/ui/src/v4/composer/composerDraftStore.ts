@@ -322,7 +322,7 @@ function writeDraftFile(key: string, file: V4DraftFile) {
   }
 }
 
-// composer 编辑态的 edit scope 只留在 renderer 内存（docs/ui/composer-edit-mode.md）：
+// composer 编辑态的 edit scope 只留在 renderer 内存：
 // 编辑内容不写 localStorage，刷新后原 scope 的草稿原样恢复，edit scope 自然消失。
 const editScopeDrafts = new Map<string, V4ComposerDraft>();
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// 插件设置（docs/plugins/extension-host.md §16.7）：能力 settings.get / settings.onDidChange 的形状。
+// 插件设置：能力 settings.get / settings.onDidChange 的形状。
 // 值是本插件 user 层的有效值（清单默认值 ⊕ user 层选项，含敏感值），owner 是 CLI。
 // 只给调用方自己的插件：网关注入插件 id，入参里没有插件 id。
 

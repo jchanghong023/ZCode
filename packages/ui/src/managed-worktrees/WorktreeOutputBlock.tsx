@@ -1,4 +1,4 @@
-// worktree 创建的 git 输出与"已创建 worktree"历史项共用的展示块（docs/git/worktree.md §3.3）。
+// worktree 创建的 git 输出与"已创建 worktree"历史项共用的展示块。
 import { ChevronRightIcon, FolderGit2Icon, LoaderCircle, TriangleAlertIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/components/lib/utils.js";

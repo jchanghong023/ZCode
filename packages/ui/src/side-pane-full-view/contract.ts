@@ -1,4 +1,4 @@
-// side-pane-full-view 模块契约（spec：docs/ui/side-pane-full-view.md）。
+// side-pane-full-view 模块契约。
 // 只放类型；运行时实现经 index.ts 暴露。
 
 export type SidePaneFullViewSurface = "conversation" | "side-pane";

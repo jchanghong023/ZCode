@@ -44,7 +44,6 @@ export const SubagentSessionSidePane = memo(function SubagentSessionSidePane({
         openTrigger="subagent"
         rootSessionId={tab.rootSessionId}
         readOnly
-        allowWorkspaceFileRewind
         focused={focused}
         workspacePath={tab.workspacePath}
         workspaceIdentity={tab.workspaceIdentity}

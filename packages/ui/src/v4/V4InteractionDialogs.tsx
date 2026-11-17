@@ -384,7 +384,7 @@ export function V4InteractionDialogs({
             failed: false,
             committedMode: response?.committedMode,
           });
-          // content：工作流确认窗里改过的设置，只在放行应答上（docs/dynamic-workflow/launch.md
+          // content：工作流确认窗里改过的设置，只在放行应答上（相邻实现
           // 「Adjusting the settings in the window」）。
           void resolveInteraction(interactionId, {
             optionId: option.optionId,

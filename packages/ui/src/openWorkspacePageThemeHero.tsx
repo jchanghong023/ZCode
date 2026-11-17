@@ -38,6 +38,7 @@ function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
         heading: "text-[#0D0D0D]",
         description: "text-[#5C5C5C]",
       };
+    case "zai-motion":
     case "zai-dark":
       return {
         meshBase: "#001d3d",

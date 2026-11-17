@@ -108,7 +108,7 @@ function WorkflowSavedSourceBadge({ saved }: { saved: WorkflowSavedSource }) {
 }
 
 /**
- * CreateWorkflow / AmendWorkflow 的运行确认块（docs/dynamic-workflow/presentation.md「The confirmation window」）：表头（问句 +
+ * CreateWorkflow / AmendWorkflow 的运行确认块：表头（问句 +
  * 名字，右侧只有 `N phases`——2026-09-09 起没有「compiled」灯，也不再数子代理与步）+ lineage（只有修订有）+ 两项 run
  * 设置（模型在上、上界在下；agent 回填了 `adjustable_settings` 时句中的值可改）+ saved 徽标 + **时间线** + 折叠脚本。
  * Deny / Refine / Run 仍由 PermissionDialog 给；改过的设置经 `onSettingsChange` 交回给它，随 Allow 应答发出。
@@ -151,7 +151,7 @@ export function WorkflowPermissionBlock({
   const saved = readWorkflowSaved(request.raw);
   // 修订按工具名判（kind / title 是 v4 ask 挂上的工具名）；lineage 只对修订成立。
   const amend = isAmendWorkflowToolCall(request);
-  // 留白补全的确认窗（docs/dynamic-workflow/launch.md「Approval」）：问句换成「补全此留白？」，时间线画补全的
+  // 留白补全的确认窗：问句换成「补全此留白？」，时间线画补全的
   // 草稿阶段线（新的站在两侧 ghost 的邻站之间）。名字与类型由工具回填在入参的 `hole` 块里。
   const fill = isFillWorkflowHoleToolCall(request);
   const holeTarget = fill ? readWorkflowHoleTarget(request.raw) : undefined;
@@ -168,7 +168,7 @@ export function WorkflowPermissionBlock({
   // 而且比它更该说出口——批准的是「让这些子代理跑在另一个模型上」。入参到这里已被 resolveInput
   // 解析成规范串，所以窗上这个 id 就是真会被用上的那个。主代理不受影响，文案因此只说子代理。
   const subagentModel = readWorkflowSubagentModel(request.raw);
-  // agent 说这台宿主能应用哪些调整（docs/dynamic-workflow/launch.md「Adjusting the settings in the
+  // agent 说这台宿主能应用哪些调整（相邻实现「Adjusting the settings in the
   // window」）；缺席（旧 agent）即只画调用设了的字段，纯文本——agent 会丢掉的改动，窗里就不提供。
   const adjustable = readWorkflowAdjustableSettings(request.raw);
   // 模型清单要有作用域才读得到；读不到时模型那一行退成一句话，上界照样可调。
@@ -246,7 +246,7 @@ export function WorkflowPermissionBlock({
         name={fill ? (holeName ?? holeId ?? fallbackName) : (workflowName ?? fallbackName)}
       />
 
-      {/* 留白行（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：还开着的留白与它们的类型，
+      {/* 留白行：还开着的留白与它们的类型，
           外加一句「运行到留白处会暂停」。 */}
       <WorkflowPermissionHoles holes={causalityGraph?.holes} />
 

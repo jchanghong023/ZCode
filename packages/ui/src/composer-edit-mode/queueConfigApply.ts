@@ -1,4 +1,4 @@
-// 编辑提交后把新模型/mode 应用到其他排队消息（docs/ui/composer-edit-mode.md「提交后应用到其他排队消息」）。
+// 编辑提交后把新模型/mode 应用到其他排队消息。
 // 候选项与要带的字段只从当前投影派生；弹窗确认时按当时投影重算，不缓存弹窗打开时的列表。
 import { useCallback, useEffect, useRef } from "react";
 import { isHighspeedProviderId, ZCODE_AGENT_PROVIDER, type ModelSelection } from "@zcode/shared";

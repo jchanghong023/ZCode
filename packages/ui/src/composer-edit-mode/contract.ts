@@ -1,4 +1,4 @@
-// composer-edit-mode 契约（docs/ui/composer-edit-mode.md）：编辑态的目标、失效原因与 edit scope 规则。
+// composer-edit-mode 契约：编辑态的目标、失效原因与 edit scope 规则。
 // 编辑最后一条消息与排队消息都复用底部 composer：编辑内容放在独立的 edit scope，原草稿留在原
 // scope 不动，所以取消、提交成功或失效后只需切回原 scope 就能完整恢复，无需另存快照。
 import type { V4ConversationFileRewindPreviewResult } from "@zcode/shared/zcode-protocol-v4";

@@ -297,6 +297,7 @@ export function AIReqProjectOverviewPage({
                 className="flex flex-wrap gap-2"
                 role="group"
                 aria-label={zh ? "确认事项筛选" : "Filter confirmations"}
+                data-aireq-motion-filters=""
               >
                 {filters.map((filter) => (
                   <Button
@@ -327,6 +328,7 @@ export function AIReqProjectOverviewPage({
                       <button
                         key={proposal.id}
                         type="button"
+                        data-aireq-motion-row=""
                         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                         onClick={() => openProposal(proposal)}
                       >
@@ -383,6 +385,7 @@ export function AIReqProjectOverviewPage({
                         <button
                           key={proposal.id}
                           type="button"
+                          data-aireq-motion-row=""
                           className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                           onClick={() => openProposal(proposal)}
                         >
@@ -442,6 +445,7 @@ export function AIReqProjectOverviewPage({
                           <button
                             key={sr.id}
                             type="button"
+                            data-aireq-motion-row=""
                             className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                             onClick={() =>
                               ai.select(

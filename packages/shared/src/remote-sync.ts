@@ -12,7 +12,7 @@ export interface RemoteSyncWriteAccessResult {
 }
 
 /**
- * 数据同步（docs/remote/data-sync.md）各分类共用的服务形状。
+ * 数据同步各分类共用的服务形状。
  * 两端实现同一组方法，Renderer 按分类分派；比较逻辑在 Renderer 纯函数中完成。
  */
 
@@ -79,7 +79,7 @@ export interface DataSyncListItem {
   overwriteBlockedReason?: DataSyncBlockedReason;
   /** 子智能体分类：引用的 MCP 服务器与技能（只用于行内提示，不影响行状态与勾选）。 */
   dependencies?: DataSyncItemDependencies;
-  /** 子智能体分类：内置智能体的模型覆盖行，弹窗据此显示说明行（docs/remote/data-sync.md「子智能体」）。 */
+  /** 子智能体分类：内置智能体的模型覆盖行，弹窗据此显示说明行。 */
   builtInModelOverride?: DataSyncModelOverrideSummary;
   /**
    * 技能分类：同一端内、目录包含本条目目录的最近一个技能的 key。

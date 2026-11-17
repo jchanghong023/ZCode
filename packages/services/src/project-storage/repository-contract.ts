@@ -56,7 +56,7 @@ export interface SaveProjectInput {
 export interface ProjectDirectories {
   /** 任务所属 workspace；worktree 任务是项目主目录，不是 cwd。 */
   workspacePath: string;
-  /** 任务 cwd；只在与 workspacePath 不同时出现（受管 worktree 任务，docs/git/worktree.md §6.6.1）。 */
+  /** 任务 cwd；只在与 workspacePath 不同时出现。 */
   cwd?: string;
   /** 当前后端登记的稳定工作区身份，不是远程连接开关；执行仍使用 workspacePath/cwd。 */
   workspaceIdentity?: string;
@@ -106,14 +106,14 @@ export interface ProjectRepositoryContract {
           /** Host 已固化的执行目录；首次预留持久化，重试不改。undefined 为普通新建。 */
           additionalDirectories?: string[];
           /**
-           * worktree 任务的 cwd 与 worktree 根目录（docs/git/worktree.md §6.6.1），必须同时出现；
+           * worktree 任务的 cwd 与 worktree 根目录，必须同时出现；
            * task.workspacePath 仍是项目 workspace。只在首次预留时写入，之后不变。
            */
           cwd?: string;
           worktreeRoot?: string;
           /**
            * 同目录 fork 的父任务 ID（App Control 分叉预留）。父任务在受管 worktree 中时，子任务行在同一
-           * 事务中继承父行的 cwd、worktree 根与附加目录（docs/git/worktree.md §3.6）。
+           * 事务中继承父行的 cwd、worktree 根与附加目录。
            */
           forkedFromTaskId?: string;
         }
@@ -123,13 +123,13 @@ export interface ProjectRepositoryContract {
   readTaskCwd(task: ProjectTaskRef): string | null;
   /**
    * 撤销一条尚无 CLI 事实的创建预留及其创建回执（worktree 创建失败后"放弃"或"不使用 worktree"，
-   * docs/git/worktree.md §3.5）。released = 已撤销；absent = 没有这一行；kept = 行已有 CLI 事实
+   * packages/shared/src/managed-worktree/CONTRACT.md §3.5）。released = 已撤销；absent = 没有这一行；kept = 行已有 CLI 事实
    * （会话已存在），不删除。
    */
   releaseReservedTask(input: { task: ProjectTaskRef }): "released" | "absent" | "kept";
   /**
    * 只读：本 Host 上运行在指定受管 worktree 中的未删除任务（按 worktree_root 精确匹配），
-   * 用于管理弹窗的"使用它的任务"与删除前占用检查（docs/git/worktree.md §6.6.1）。
+   * 用于管理弹窗的"使用它的任务"与删除前占用检查。
    */
   listTasksByWorktree(input: {
     worktreeRoot: string;

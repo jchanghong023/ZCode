@@ -29,7 +29,7 @@ import type { TimelineViewport } from "./use-timeline-viewport.js";
 export function stationLampClass(
   status: StepRunStatus | undefined,
   /**
-   * 留白灯（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：开着 / 等着的留白是一枚
+   * 留白灯：开着 / 等着的留白是一枚
    * 1.5px 虚线、无填充的灯；等待时描边换警示色、外加 3px 常亮的光晕——**不搏动**，那里没有东西在跑。
    * 补全后就是普通的灯。三处画灯的地方（轨道行、带的灯层、边檐）都经这里，留白在哪都长一样。
    */

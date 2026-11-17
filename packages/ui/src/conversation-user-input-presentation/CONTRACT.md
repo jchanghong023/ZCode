@@ -9,4 +9,4 @@
 依赖 `ui` 的既有正文组件、`shared` 的渠道消息类型和图片预览模块公开的上下文类型。
 不改变桌面 continuous 或手机 replayable 链路，也不访问 runtime 或持久化。
 
-行为依据：[共享图片预览规格](../../../../docs/ui/shared-image-preview-dialog.md)。
+图片预览边界见 `packages/ui/src/image-preview-editor/CONTRACT.md`。

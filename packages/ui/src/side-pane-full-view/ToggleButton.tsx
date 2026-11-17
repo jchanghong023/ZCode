@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
-/** Side Pane 右上角「进入 / 退出完整视图」按钮（spec：docs/ui/side-pane-full-view.md）。 */
+/** Side Pane 右上角「进入 / 退出完整视图」按钮。 */
 export function SidePaneFullViewToggleButton({
   active,
   onToggle,

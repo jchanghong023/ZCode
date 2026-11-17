@@ -1,136 +1,58 @@
-# 项目目标与 UI 保真策略
+# 当前系统范围
 
-公开产品界面和接口以 [发布边界](specs/aireq-migration/release-surface.md) 为准：前端代码、文案与协议接口必须按正式上线标准交付，不含原型／测试专用／debug 实现；生产服务切换只替换原型后端及必要部署配置，前端与接口一行不改。模拟后端事实与真实上线阻断项在部署／交付文档中保持明确。
+AIReq 是面向电脑浏览器的需求协作平台。运行形态为浏览器前端加单进程内存模拟后端；文档中的能力以当前检出的源码与公开契约为准。
 
-本仓库源自上游 ZCode（开源 Agent 产品），当前产品目标为 **AIReq：以 AI 为中心的需求管理平台**。本轮整改范围及执行顺序以根 `.todo.md` 的现行任务为准，持续产品边界以[发布边界](specs/aireq-migration/release-surface.md)及不冲突的现行业务规格为真相源；被覆盖的旧任务内容不授权恢复场景按钮或裁撤能力。旧 `oh-my-pi/packages/aireq-frontend` 仅为迁移来源，不以其存量功能扩大范围。当前 ZCode 基座提供工号入口、需求管理及设置；Issue 与 AIReq 自动化专属能力已裁撤，不保留并行旧普通聊天产品，也不恢复停用的编码执行流水线。
+## 产品入口
 
-AIReq 不是架构、UI 或几何基准。架构、服务接入、布局、控件、配色、字体和全部显示效果均以**当前检出的 ZCode**及 `DESIGN.md` 为准；不复刻 AIReq 的坐标、间距或默认分栏比例，不复制旧前端工程／通用组件／主题，不拉取上游或与上游快照、`base` 做对照。本次迁移规格位于 [docs/specs/aireq-migration/](specs/aireq-migration/integration.md)，规格先于行为实现。
+| 范围                   | 当前页面                                         |
+| ---------------------- | ------------------------------------------------ |
+| 全局                   | 项目总览、想法池                                 |
+| 当前项目与具体 Release | 当前项目、需求共创、开发任务、进度分析、我的待办 |
+| 设置                   | 外观、项目配置、AI 配置                          |
+| 右侧工作区             | 多对象的报告、材料、历史与分析执行报告标签       |
 
-## 范围与形态
+默认进入项目总览，显式对象链接按对象归属定位。项目和具体 Release 由侧栏统一选择；想法池不随项目过滤，待办使用当前项目／Release。项目没有 Release 时显示真实空态，不制造“全部版本”业务事实。
 
-当前页面组织（2026-11-16）以用户确认的[项目空间规格](specs/aireq-migration/project-space.md)及[导航可达性规格](specs/aireq-migration/navigation-usability.md)为准：全局为项目、待办，无显式需求对象链接时登录及刷新进入全项目总览；项目空间为概览、需求、分析运行，页头常驻项目／Release，需求包含提案／正式视图及同一 IR 工作区。设置为外观、项目配置、AI 配置，AI 配置分模型／共享 Agent 指令／分析设置。工作台与设置保留固定 68px 导航栏；不恢复历史五／六并列导航或四设置分区。
+需求从原始输入进入提案，经过原生澄清、评审、材料编写与人工门禁后转正为 IR／SR；正式需求保留材料、分工、分析、测试验收和进度记录。项目及 Release 进度由正式 SR 派生，不另建可写进度来源。完整规则见[产品规格索引](README.md#产品与交互)。
 
-只保留电脑浏览器端。当前产品包含原始短需求／CSV 提案、原生澄清与单 Agent 业务评审、每 SR 独立 OpenSpec 完整材料、三路完整审查及综合终审、人工放行与三方确认、文档 PR 转正、正式需求分工、统一分析、测试验收与分支清理的内存流程。项目／Release 进度直接按正式 SR 等权派生，不保存独立可写进度。**Skill 入口继续隐藏，不在主导航、设置导航或搜索中；保留实现、数据、原生私有会话、逐文件预览、内存保存、设置往返草稿及唯一未保存门禁，全部纳入本轮整改，允许隔离临时装配到真实浏览器验证，不恢复产品入口。** 旧 `skill` 设置偏好回项目设置。AIReq 自动化和 Issue 专属能力已裁撤，现有分析调度保留。桌面 app、真实 Agent／模型运行时、OMP CLI/TUI、Host/relay、内嵌浏览器、Computer Use、终端、远程主机、商业化／计费／营销、旧产品账号入口、普通任务／自由聊天列表、文件树、Git 审查、通用白板、Office/PDF/PPTX 预览等不作为可见产品入口。提案／隐藏 Skill 的业务对话复用当前会话能力；Sketch 保留真实画布和 PNG 附件，不等于恢复通用白板。通用组件资产必须保留。
+Sketch 提供真实绘图与 PNG 附件。Skill 设计实现及其私有会话、草稿、预览和内存保存保留，但不在主导航、设置或搜索中公开。
 
-**产品仅面向电脑浏览器。** 手机及其他移动屏幕不在支持范围内，不进行相应的布局适配、交互优化或屏幕测试。已有移动端样式和通用控件仅作为存量资产保留，不构成手机支持承诺。
+## 运行拓扑与状态所有者
 
-当前交付形态仍为浏览器前端＋服务端内存模拟后端；当前授权实施与验收纪律以根 `.todo.md` 现行规则为准，不继承旧任务的冲突要求或通过记录。AIReq 普通业务通过 `packages/services/src/aireq` 浏览器安全类型／descriptor，经同源 `/ws` 二进制 Channel RPC 接入；业务对话继续使用当前 Protocol v4 帧与渲染链，普通领域方法不冒充会话帧。业务事实只归 `MockAIReqService/workflow`，会话行、附件、队列、订阅和水位只归 `MockRuntime/MockZCodeAgentService`；UI 仅持导航、可失效读取投影和未发送草稿。先校验身份／归属／版本／幂等并提交，再发事件；迟到结果按对象及版本拒绝，重连只重读、不重放写操作。部署能力限制集中见下方“后端替换路径”，不在登录、帮助或业务材料常驻告知。AIReq 项目只配置名称、远程仓库和默认分支，Release 继承仓库，不要求用户选择服务器目录或个人开发目录。
-
-2026-11-16 资源收敛：产品插件功能（商店／安装管理／推荐／插件面板与运行桥）全部退役，专属资源与服务随之删除；隐藏的 Skill 设计不变。文档语法高亮仅保留 Markdown、JSON、YAML 和 GitHub Light / Dark，其他语言按纯文本显示，不再分发全量开发语言和主题。范围与验收见 [插件退役契约](specs/aireq-migration/contract-design.md#需求管理资源收敛与插件退役2026-11-16)。
-
-当前接口减面以 [发布边界 §当前授权：前置检查问题修复与接口减面（2026-11-17）](specs/aireq-migration/release-surface.md) 为本轮优先合同，覆盖旧 21 频道及 2026-11-16 冻结表；根 `.todo.md` 末尾 R01—R22 为当前待验清单。整服务退出 Git、FileWatcher、MediaPreview、McpSync、ClientConfig RPC、旧 Skills、TaskGroup 和 PromptAttachmentTransfer；同步收窄 File、Project、UsageStats、GenUI、Bots、ZCodeTask、ZCodeSession 与 ZCodeAgent，删除 AIReq 四个 bootstrap 已覆盖的冗余读取操作。旧专属消费者、accessor、descriptor、SDK、mock、注册及公开白名单同批收口，不用可选代理、空实现、unavailable 代理或改名 shim 保留已裁撤 RPC。保留 HTTP config、原生 Skill catalog、原生会话／附件和当前实际读取／恢复链；正式公开安全身份投影 `project.readTree` 以支持当前会话 mention。通用控件转为真实 props／数据驱动，纯 DTO/schema 可保留但不构成对应真实 RPC 或 HTTP 的替换承诺；仅通用控件保留不等于旧 RPC 保留，也不得因页面退役删除基础控件。
-
-已确认无当前入口的旧资源管理器、数据库迁移／失败恢复页、Git 工作台、开发者工具页和全局命令／任务搜索面板按[契约设计 §无当前入口的旧功能页清理（2026-11-16）](specs/aireq-migration/contract-design.md)移除，专属实现与旧接线同步裁撤；这些页面不属于当前提供范围。原生会话的分支选择、共享差异展示和搜索算法、通用基础控件与隐藏 Skill 保持保留，不恢复对应旧页面或接口。
-
-## 当前 Web 拓扑与运行入口
-
-仓库里只有一个可运行拓扑：浏览器前端直连内存模拟后端，不存在桌面 shell、Agent CLI、Host/relay 或远程主机进程。
-
-唯一登录入口为本地自报工号：一个小写 a–z 字母加八位数字，保留前导零，无密码且不验证本人；浏览器标签页持有当前标识。普通业务 RPC 每次显式携带不可变身份；原生 v4 服务通过逐连接固定身份 facade 保持请求隔离，禁止全局可变操作者。工号不是可信认证、服务路由或多租户隔离键；所有合法工号可配置、认领或代办，不设置 owner／访客／负责人权限。身份、版本、对象归属、幂等及业务门禁仍保留。
-
-所有工号共享同一 mock 进程内的项目、Release、IR／SR、材料和报告；未发送草稿按用户／客户端／项目／Release 或会话隔离，原生业务会话仍校验绑定的身份、clientId 和对象归属，不能因共享业务或无角色权限而复用他人的私有会话。浏览选择、连接和外观保留各自作用域。切工号不切后台账号、凭据、模拟配置归属或共享数据。刷新／关闭／断线不重置已接纳业务或服务任务，重连只重读、不自动重发；mock 进程重启才恢复初始样例。模拟 workspace 标识只是现有会话接线所需的内部资源身份，不是让用户配置真实目录或创建另一条 Host 连接。
-
-2026-11-17 本轮明确修复原生命令 CAS、行命令 epoch／稳定实体校验和同 commandId 决定复用；删除无消费者的越权 reconcile 查询与空成功生命周期方法，模型切换能力投影须与裁决一致。读取会话树及目录必须绑定现有业务连接身份，禁止暴露他人的私有草稿或 demo 目录型项目。删除未装配的演示回复／切字符串分块分支，不建设流式执行引擎。业务与会话仍各自单 owner，事实先提交再通知；事件为失效通知，非持久事件日志。AIReq 各写操作只按现行签名承诺 CAS／幂等：未带请求版本或操作 ID 的设置／调度不声称具备跨重启 exactly-once，不借本轮新增字段。
-
-```text
-浏览器
-  packages/web（Vite 入口 main.tsx、浏览器平台实现 src/platform）
-  packages/ui（React 组件、Zustand store、V4 会话界面 src/v4）
-        |
-        | /ws WebSocket（开发期由 Vite 代理到模拟后端）
-        v
-  packages/client（浏览器连接 SDK：connectViaWebSocket）
-        |
-        v
-  packages/rpc（SocketProtocol 二进制帧 + Channel RPC，ChannelServer 在服务端）
-        |
-        | 服务接口 / descriptor：packages/services
-        | 会话 wire 契约：packages/shared/src/zcode-protocol-v4
-        v
-  packages/server（Hono HTTP + WebSocket；src/mock/index.ts 集中装配 mock 服务）
-        └─ MockRuntime：内存权威状态 + MockTopicLog（logEpoch/seq 水位）
+```mermaid
+flowchart TD
+    UI["电脑浏览器：web + ui"] --> SDK["client：连接与服务访问"]
+    SDK --> RPC["rpc：/ws 二进制 SocketProtocol + Channel RPC"]
+    RPC --> Business["MockAIReqService / workflow：业务事实"]
+    RPC --> Native["MockRuntime / MockZCodeAgentService：会话事实"]
+    Contract["services / shared：descriptor、DTO、Protocol v4 schema"] -.契约.-> SDK
+    Contract -.契约.-> Business
+    Contract -.契约.-> Native
 ```
 
-| 入口           | 命令 / 文件                                                                                            |
-| -------------- | ------------------------------------------------------------------------------------------------------ |
-| 同时启动前后端 | `bun run dev`（模拟后端 :3031，Vite 前端 :5174，`/api`、`/ws` 代理到 :3031）                           |
-| 仅模拟后端     | `bun run dev:server` → `packages/server/src/entry-http.ts`（`PORT` 可覆盖）                            |
-| 仅前端         | `bun run dev:web` → `packages/web/src/main.tsx`                                                        |
-| 构建           | `bun run build`（`build:server` + `build:web`；`ZCODE_WEB_STATIC_ROOT=<web dist>` 单进程托管静态资源） |
-| 初始化         | `bun run bootstrap`（工具链校验、patch 依赖刷新、install、build；包管理使用 Bun 驱动的 pnpm）          |
-| 浏览器验收     | 打开 <http://localhost:5174>，在真实浏览器中按页面实际操作验证                                         |
+- 业务状态、材料与分析记录归服务端 owner。原生会话行、附件、队列、订阅与水位归原生运行时 owner。
+- UI 只持导航、可失效读取投影、界面标签和未发送草稿；不能复制服务端接受事实。
+- 写操作按现行签名进行身份、对象、版本与幂等校验；成功提交后再通知。事件用于失效重读，不是持久事件日志。
+- 连接恢复重建订阅、重读事实，不自动重发业务写入。迟到结果不得覆盖其他对象或更新版本。
 
-协议与装配的事实来源是代码与 [模拟后端规范](architecture/mock-backend.md)、[Web 构建与清理工作流](architecture/web-build-workflow.md)；本文只固定形态与边界。
+详细传输与公开服务面见[前后端接线](specs/aireq-migration/integration.md)及[服务端说明](architecture/mock-backend.md)。
 
-## 四条约束
+## 身份和当前能力限制
 
-| 约束       | 内容                                                                                                                                                                                                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| UI 保真    | **当前检出的 ZCode 架构、布局、基础组件与视觉**是唯一设计依据；所有新 AIReq 页面、弹窗、材料和输入框采用当前 token、`text-ui-*`、图标及交互状态。AIReq 仅提供功能，不将其页面几何或旧视觉当作验收约束；不恢复原普通聊天产品。禁止与上游快照或 `base` 做源码／截图对照；仅本次用户另行要求时例外。             |
-| 模块化接入 | AIReq 领域类型／纯派生放 `packages/services/src/aireq`，浏览器安全公开入口为 `@zcode/services/aireq`；UI 放新增 `packages/ui/src/aireq`；server 实现在单进程内存 owner 下接入集中装配。先登记 managed 模块、合同及依赖边；只做必要主壳接线，不整体搬源 Root/App，不恢复旧产品入口，不留下兼容别名或双轨实现。 |
-| 控件保留   | **现有上游基础控件一律保留**：`packages/ui/src/components/ui` 全部内容、已有 `mobile-ui` 兼容控件，以及布局、弹层、图标、表单等通用控件；保留资产不代表支持手机屏幕。即使当前无引用也**不得删除**，`knip` / 未使用导出报告不构成删除理由。只允许删除与已裁撤功能强绑定的页面级组件，不确定是否通用时保留。    |
-| 契约优先   | 前端代码与协议按正式上线标准实现与验证，不含原型／测试专用／debug 实现；仅模拟后端允许原型实现，必须保持正式业务语义。切换生产服务只换后端及必要部署配置，前端源码、构建产物与接口契约不改。                                                                                                                  |
+工号为一个小写英文字母加八位数字，保留前导零，自报且不验证本人。所有合法工号共享进程内业务数据，可以配置、认领和代办；不设置 owner／访客角色。身份、对象归属、业务门禁和原生私有会话隔离仍执行。
 
-## 基线与验收
+当前后端只完成内存中的操作，不提供真实模型执行、代码开发、Git 托管操作、数据库持久化或可信认证。服务进程重启会重新初始化数据；内存保存和验收记录不表示宿主文件已写入或外部构建测试已执行。部署 token 与 Cookie 接线不等于工号认证，详见[身份与连接](specs/aireq-migration/connection-identity.md)。
 
-- **不跟随上游更新**：上游代码停在最后一次上游同步提交 `fec97590`（≈ 上游 v3.18.2）；不合并上游后续提交。**除用户明确要求，禁止以该快照作为改动、评审或验收的比对基准**。
-- `base` 基线尚未评审完毕，允许在其上提交基线修复（只修基线自身缺陷与失真，不引入自有功能、不做重构），评审完成后转为冻结；`main` 合并基线修复。
-- `base` 检出于工作树 `F:\code2026\zcode-baseline`（详见 AGENTS.md「老代码对比基准」），基线修复在该工作树提交，不要在主工作树切换分支。
-- 涉及 UI 的改动，验收须满足：
-  1. 新业务以新增 AIReq 模块接入，使用当前组件；只清理本次确实淘汰的专属入口、调用和死分支，不删除通用底层资产或无关本地修改。
-  2. 不执行上游快照／`base` 对照，当前主题和本次规格就是视觉验收依据。
-  3. 仅在真实电脑浏览器验证浅色／深色／系统主题、普通／较窄窗口、父面板排版、拖拽、滚动、键盘／焦点、复制反馈和草稿保留；业务布局变化及旧入口消失是预期，不执行手机屏幕验收。
-  4. 本轮按根 `.todo.md` 末尾 R01—R22 收口，上方第 1—9 组及已通过记录保留历史、不得替代本轮证据。先更新规格再同批迁移全部契约与消费者；各实现 owner 只编辑，不运行检查／测试／格式／构建／浏览器，由主代理统一验证受影响路径并登记实际结果，未验不勾选。仅必要电脑 Web、隔离隐藏 Skill、协议／错误／多连接及重连检查，不新增永久 harness、产品测试入口或手机／上游／base 对照。最终指纹与集成证据只绑定本轮同次 server/web 产物，不冒充真实生产替换。
+不提供桌面应用、手机支持、真实 Agent／CLI 运行时、普通自由聊天产品、目录型项目管理、Git 工作台、终端、远程主机或插件商店入口。保留的共享类型、算法和通用组件不扩大产品范围。
 
-## 后端替换路径
+## 界面与模块边界
 
-替换边界包含当前仍被消费的同源 HTTP 配置、静态站点和浏览器可访问的资源 URL，以及
-`packages/services` 当前 accessor／descriptor 的服务面、`packages/rpc` 的二进制 Channel 传输与
-`packages/shared` 的 Protocol v4 契约；不能只实现 TypeScript 接口或只替换 WebSocket。
-完整对接要求见 [模拟后端规范 §8](architecture/mock-backend.md#8-真实后端替换契约)。
-真实后端只需实现清理后保留的装配契约，不恢复已裁撤 RPC、HTTP 发现接口或旧产品页面；通用控件的 DTO 存留不扩大替换面。切换生产服务只替换 `packages/server` 的服务实现及必要部署配置；浏览器源码、文案、构建产物、SDK、传输实现、接口、descriptor、DTO 与协议 schema 一行不改，不得新增 UI 特判、适配层或重打后端专用前端包。
+以当前实现和 [DESIGN.md](../DESIGN.md) 为界面基准，复用 `packages/ui/src/components/ui`。现有通用控件、已有 `mobile-ui`、布局、表单、弹层和图标资产保留；没有引用不是删除理由。只支持电脑浏览器，不以保留兼容资产承诺手机支持。
 
-本轮不建设真实 AI、Git 托管、数据库、身份认证、权限体系或宿主业务文件写入。当前内存 owner 保留完整流程，真实完成的内存操作可以按正式契约成功；未实现能力明确不可用／不存在，不能空成功或虚构外部执行。Skill 保存只证明内存文件内容、版本及收据一致，不代表写宿主磁盘或永久存储。真实认证、持久化、AI／代码扫描、Git／MR 平台核验和宿主文件保存仍是实际上线阻断项，须未来独立验收；本轮只能证明前端与契约发布边界，不能宣称真实后端替换或系统上线。
+业务模块通过浏览器安全服务契约接入，平台操作通过注入的 `IPlatformService`。业务 owner、导航 owner、局部草稿与标签状态分离；跨包依赖通过公开入口，遵守[模块所有权](architecture/pure-web-module-ownership.md)。
 
-帮助 config 请求本轮修为 `credentials:"same-origin"`，保留 `redirect:"error"`，仅携带同源既有 Cookie、跨源不携带；HTTP config／telemetry 202／静态资源与 `/ws` 的原有合同保留。部署 token 是可选访问控制而非工号认证，浏览器须由部署预置可用 Cookie 或可信反代注入凭据；仅打开 `/?token=…` 不会把 token 自动传至 WebSocket 或兑换 Cookie。本轮不新增真实认证、SSO 登录／登出、自动工号映射、token 输入／刷新或权限系统；不能把可部署 Cookie 接线、工号格式或 clientId 当可信认证通过。
+## 后端替换边界
 
-```text
-现在:  AIReq UI ── 同源 WS Channel RPC（会话用 Protocol v4）── server 内存模拟后端
-目标:  浏览器 UI ── 同一套契约 ────────── 自有后端（真实数据）
-```
+后端实现必须遵循当前同源 HTTP／资源、WebSocket 二进制 RPC、服务 descriptor 与 Protocol v4 的形状和语义。后端替换不改变前端源码、构建产物、文案、SDK、传输或公开接口，也不要求增加后端专用 UI 分支或适配包。
 
-替换面按层次固定为：
-
-| 层                     | 内容                                                                                         | 替换时是否必须保持         |
-| ---------------------- | -------------------------------------------------------------------------------------------- | -------------------------- |
-| 浏览器 UI              | `packages/web`、`packages/ui`（含 `packages/ui/src/v4`）                                     | 不改                       |
-| 连接与传输             | `packages/client`（浏览器连接 SDK）、`packages/rpc`（SocketProtocol + Channel RPC）          | 不改；自有后端实现同一传输 |
-| 服务契约               | 当前 `IServiceAccessor`、接口与 descriptor（`ServiceCollection` 实际注册形状），不含仅存 DTO | 不改；自有后端实现既定契约 |
-| 会话 wire 契约         | `packages/shared/src/zcode-protocol-v4`（zod schema、帧、命令、fault 词表）                  | 不改；帧与字段语义保持一致 |
-| 模拟实现（唯一替换点） | `packages/server`：`src/mock/index.ts` 装配、`MockRuntime`/`MockTopicLog` 状态与 topic 水位  | 整体替换为真实实现         |
-
-因此现阶段对模拟后端的要求是协议与业务事实保真：产帧自校验、记账字段不可伪造、内存结果可观察、未知异常脱敏、未支持能力明确失败，不给 UI 加 mock 分支。确定性流程不等于真实外部 AI、Git 或持久化。
-
-## 历史 Desktop/CLI 实施记录
-
-本仓库的协议、会话投影和 UI 规格来自上游桌面产品与 Agent CLI 的实现。纯 Web 重构（`3f2287ac`）删除了 Electron 桌面 shell、真实 Agent 运行时、Host/relay 与 `apps/zcode-cli` 代码，但保留了它们的文档与验收证据：
-
-- `docs/v4-refactor/`：V4 重构的协议规格与实施轨迹，包含 CLI/Host/relay/desktop main 的原始拓扑；
-- `docs/testing/`：桌面 E2E、CLI/CUA 与覆盖矩阵的历史记录；
-- `docs/git/`：发布链路（release-it/CI）与桌面阶段验收的历史记录。
-
-这些文档里的进程名、路径、命令与行数描述的是**重构前产品或当时基线**，不是本仓库当前可执行入口；其中仍适用的协议字段、reason code、投影语义与产品结论保持原文，不因进程名已删除而删改。当前拓扑与命令以上文「当前 Web 拓扑与运行入口」、代码和 [docs/architecture/](architecture/) 为准。
-
-## 纯 Web 架构边界与门禁
-
-- `architecture-policy.yaml` 只登记当前存在的模块、公开入口和例外路径；删除模块时同步移除其依赖边及 baseline 记录。现存模块的治理状态不因清理失效路径而降级，既有缺产物记录不扩展为新的豁免。
-- 架构路径预检不受 `--changed` 限制：精确路径必须存在，通配例外必须仍匹配实际文件。失效登记直接阻断门禁，不能由 baseline 接受。
-- 浏览器安全边界由浏览器源码范围和明确声明的公共入口定义；检查运行时传递依赖，覆盖相对路径、workspace exports、`#src/*`、TypeScript paths、动态导入和字面量 `require`。类型专用引用不视为运行时 IO，但浏览器契约不得借类型导入依赖 Node 专用实现；需要的 DTO/schema 放在浏览器安全契约中。
-- Node 内置模块、原生依赖和 Node 专用公共入口不得进入浏览器运行时依赖图。Node 专用工具可以保留，但必须明确归属且不通过浏览器安全入口公开；无当前消费者的已裁撤桌面凭据实现不迁入 mock 后端。
-- workspace 包的 exports/imports 声明必须有有效目标：源码、资源目标直接存在，构建目标由对应源码及 TypeScript 输出配置支持；通配目标必须匹配文件。此检查不要求预先生成 dist，不改变现行源码与 project-reference 消费方式。
-- 验收：失效 root、公开入口、精确/通配例外、包导出及包内别名均使检查失败；浏览器经根入口、子入口或别名间接引入 Node 依赖必须失败，类型安全契约及合法 Node 入口通过。定向工程回归在临时目录构造场景，不修改真实仓库制造违规。
-
-## 未决事项
-
-- 本次可见功能范围、领域模型、页面结构与验收时序由根 `.todo.md` 的现行规则固定；[AIReq 迁移规格](specs/aireq-migration/integration.md) 提供不冲突的细化说明，实际通过证据按组及当时版本记录，模拟能力不等于真实外部能力。本次文档同步不新增工程或浏览器验收声明。
-- 自有后端的技术选型未定。
+真实后端替换尚未实施；发布验收须绑定实际部署的同次产物与契约，约束见[发布边界](specs/aireq-migration/release-surface.md)，不以文档描述代替运行验证。

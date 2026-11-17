@@ -6,15 +6,18 @@
 // 与 actor transcript 面板同一逻辑层级：run 详情页保留它唯一的那条时间线，这里**不是第二条
 // 时间线**——没有轨道、没有灯。
 //
-// 数据两条路：清单（轻行，`lastEventSequence` 抬升即重查）+ 正文（滚进视口 / 展开时才取，
-// 按 tab 缓存）。状态以 journal 为准，活投影只叠 `cached`。
+// 清单、正文与投影由调用方提供；本面板仅负责展示。
 
 import { Fragment, memo, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { HourglassIcon, Repeat2Icon, TerminalIcon, TriangleAlertIcon } from "lucide-react";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";
 import { WorkflowRunStatus } from "@/components/workflow-timeline/WorkflowCardChrome.js";
 import { useRunningBackgroundTaskElapsedClock } from "@/hooks/useRunningBackgroundTaskElapsedClock.js";
-import { useWorkflowRunWorkspace } from "@/hooks/useWorkflowRunWorkspace.js";
+import type {
+  ConversationSnapshot,
+  V4ConversationWorkflowRunNodeResultResult,
+  WorkflowRunWorkspaceNode,
+} from "@zcode/shared/zcode-protocol-v4";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { WorkflowWorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
@@ -34,9 +37,6 @@ import {
   firstCardIndexOfPhase,
   formatWorkspaceDuration,
 } from "@/app-shell/workflowWorkspaceTranscript.js";
-import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
-import { useConversationProjection } from "@/v4/useConversationProjection.js";
-import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 
 /** 条目到场的错位：每个 24 ms，封顶 360 ms——第 16 个之后一起落地，长清单不该等半秒。 */
 const CARD_STAGGER_MS = 24;
@@ -46,6 +46,22 @@ interface WorkflowWorkspaceSidePaneProps {
   tab: WorkflowWorkspaceSidePaneTab;
   focused: boolean;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
+  snapshot: ConversationSnapshot | null;
+  workspace: {
+    nodes: readonly WorkflowRunWorkspaceNode[];
+    loaded: boolean;
+    truncated: boolean;
+    unavailable: boolean;
+    error: string | null;
+  };
+  nodeResults: ReadonlyMap<
+    string,
+    {
+      result: V4ConversationWorkflowRunNodeResultResult | null;
+      loading: boolean;
+      error: string | null;
+    }
+  >;
 }
 
 /** 整个 run 还没碰过工作区：占位（与 actor 的「尚未启动」同一形态，措辞换成工作区的）。 */
@@ -123,24 +139,21 @@ function ChapterHeader({ chapter }: { chapter: WorkspaceChapter }) {
   );
 }
 
-const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
+export const WorkflowWorkspaceSidePane = memo(function WorkflowWorkspaceSidePane({
   tab,
   onOpenCodeViewer,
+  snapshot,
+  workspace,
+  nodeResults,
 }: WorkflowWorkspaceSidePaneProps) {
   const { intl } = useZCodeIntl();
   const format = intl.formatMessage.bind(intl);
-  const { layer } = useV4Conversation();
-
-  // 父会话租约走渲染期同步建连（同 actor 面板）：首帧就要有投影，落点与状态叠加都读它。
-  const lease = useMemo(() => layer.acquire(tab.parentSessionId), [layer, tab.parentSessionId]);
-  useEffect(() => () => lease.release(), [lease]);
-  const snapshot = useConversationProjection(lease).snapshot;
 
   const run = useMemo(
     () => snapshot?.workflowRuns?.runs.find((candidate) => candidate.runId === tab.runId),
     [snapshot?.workflowRuns, tab.runId],
   );
-  // 补全过的 run 取最新补全行的有效脚本图（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：
+  // 补全过的 run 取最新补全行的有效脚本图：
   // 脚本 transcript 的落点按站，站必须是补全之后的那一张表。
   const graph = useMemo(
     () =>
@@ -149,11 +162,6 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
     [snapshot?.rows.window, tab.runId, tab.toolCallId],
   );
 
-  const workspace = useWorkflowRunWorkspace({
-    sessionId: tab.parentSessionId,
-    runId: tab.runId,
-    ...(run === undefined ? {} : { refreshSignal: run.lastEventSequence }),
-  });
   const cards = useMemo(
     () => buildWorkspaceCards(workspace.nodes, graph),
     [graph, workspace.nodes],
@@ -253,6 +261,7 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
                   onOpenCodeViewer={onOpenCodeViewer}
                   origin={origin}
                   run={run}
+                  nodeResult={nodeResults.get(`${card.node.siteId}:${card.node.ordinal}`)}
                   runId={tab.runId}
                   sessionId={tab.parentSessionId}
                   workspacePath={tab.workspacePath}
@@ -340,29 +349,5 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
       </div>
       {body}
     </div>
-  );
-});
-
-/**
- * 一个 workflow run 的脚本 transcript tab。组合方式照 `WorkflowActorSessionSidePane`：pane scope
- * + 内容；内容自己取数（两条 journal 查询），不嵌 SessionPane——工作区没有会话。
- */
-export const WorkflowWorkspaceSidePane = memo(function WorkflowWorkspaceSidePane({
-  tab,
-  focused,
-  onOpenCodeViewer,
-}: WorkflowWorkspaceSidePaneProps) {
-  const scope = useMemo<PaneWorkspaceScope>(
-    () => ({
-      workspacePath: tab.workspacePath,
-      ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
-      ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
-    }),
-    [tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
-  );
-  return (
-    <V4PaneConversationProvider scope={scope}>
-      <WorkflowWorkspaceContent tab={tab} focused={focused} onOpenCodeViewer={onOpenCodeViewer} />
-    </V4PaneConversationProvider>
   );
 });

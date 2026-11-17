@@ -337,7 +337,7 @@ export const conversationTelemetryFactSchema = conversationTelemetryFactRuntimeS
 
 /**
  * 模型请求指标：一次成功完成的模型请求的耗时与服务商 usage，供扩展进程算生成速率。
- * 规格：docs/monitoring/conversation-telemetry-v4.md「模型请求指标」。
+ * 规格：相邻实现「模型请求指标」。
  *
  * 兼容性：不进 `ConversationTelemetryFact` union，也不加到 `model.request.status`。
  * 上面每个分支都是 strict，旧 App 解析到未知字段会丢掉整条事实；它走独立通知

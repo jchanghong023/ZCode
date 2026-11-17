@@ -101,7 +101,7 @@ export const PROTOCOL_V4_LIMITS = {
 } as const;
 
 /**
- * 会触发冷恢复的 V4 查询与命令信封上的可选 `workspace`（docs/git/worktree.md §9.3）。
+ * 会触发冷恢复的 V4 查询与命令信封上的可选 `workspace`。
  * 只由 Host 按当前 attachment 可信注入，renderer 不传；CLI 冷恢复只用它确定会话身份。
  * 缺席时 CLI 按存储的 cwd 重建身份：受管 worktree 会话的 key 会变成 worktree 路径，
  * 之后的反向请求被 Host 以"不属于本 CLI"拒绝，任务无法打开或发送。

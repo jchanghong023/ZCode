@@ -5,7 +5,7 @@ import {
 } from "#src/zcode-protocol/plugin-host-queries/contract.js";
 import { resolvedScopeSchema } from "#src/extension-host/slots.js";
 
-// composer.mention 的候选项查询（docs/plugins/extension-host.md §16.6）：Renderer → Window Host。
+// composer.mention 的候选项查询：Renderer → Window Host。
 // command 条目由扩展命令提供候选项，tool 条目由 CLI 在会话里调插件工具（plugins/mentionItems）。
 // 不设计取消：Renderer 每次查询带递增的 seq，结果原样带回，只采用最新一次。
 

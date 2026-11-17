@@ -1,16 +1,14 @@
-/* eslint-disable max-lines -- 三类 V4 topic 的同构 connection ownership 生命周期集中在单一 facade。 */
+/* eslint-disable max-lines -- V4 conversation 的 connection ownership 生命周期集中在单一 facade。 */
 // V4 connection-scoped service facade：每个 RPC attachment 独立持有 subscription
 // ownership；base service 仍只转发 CLI 事实，不在 host/main/relay 复制业务状态。
-import { Emitter, Event as RpcEvent, type Event, type IDisposable } from "@zcode/rpc";
+import { Emitter, type Event, type IDisposable } from "@zcode/rpc";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   clientHelloSchema,
   clientSupportsWorkflowRunDeltas,
   conversationTopic,
-  sessionsIndexTopic,
   type ConversationTopicWireCandidate,
   type HelloMessage,
-  type SessionsIndexTopicWireCandidate,
   type V4ConnectionFlowState,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
@@ -149,7 +147,7 @@ function workspaceTarget(target: ZCodeAgentWorkspaceTarget): ZCodeAgentWorkspace
   };
 }
 
-type SubscriptionKind = "conversation" | "sessions-index";
+type SubscriptionKind = "conversation";
 
 interface OwnedSubscription {
   kind: SubscriptionKind;
@@ -167,7 +165,7 @@ interface ConnectionFlowRoute {
   connection: ZCodeAgentV4ConnectionContext;
 }
 
-type RoutedTopicFrame = ConversationTopicWireCandidate | SessionsIndexTopicWireCandidate;
+type RoutedTopicFrame = ConversationTopicWireCandidate;
 
 interface PendingOwnership {
   kind: SubscriptionKind;
@@ -547,12 +545,7 @@ export function createZCodeAgentConnectionScope(
       topic: entry.topic,
       connectionId: entry.connectionId,
     });
-    switch (entry.kind) {
-      case "conversation":
-        return base.unsubscribeConversationV4(forwarded);
-      case "sessions-index":
-        return base.unsubscribeSessionsIndexV4(forwarded);
-    }
+    return base.unsubscribeConversationV4(forwarded);
   };
   const unsubscribeOwnedEntry = async (
     entry: OwnedSubscription,
@@ -572,12 +565,7 @@ export function createZCodeAgentConnectionScope(
       topic: entry.topic,
       connectionId: entry.connectionId,
     });
-    switch (entry.kind) {
-      case "conversation":
-        return base.resyncConversationV4(forwarded);
-      case "sessions-index":
-        return base.resyncSessionsIndexV4(forwarded);
-    }
+    return base.resyncConversationV4(forwarded);
   };
   const resyncOwned = (kind: SubscriptionKind, params: ZCodeAgentConversationResyncParams) => {
     assertReady();
@@ -695,7 +683,7 @@ export function createZCodeAgentConnectionScope(
           if (snapshot.state === "stopping") {
             const topic = conversationTopic(snapshot.sessionId);
             const key = workspaceKey(params);
-            // 只清当前 session 的 owner；不能使其他任务或 sessions-index 的订阅失效。
+            // 只清当前 session 的 owner；不能使其他任务的订阅失效。
             for (const entry of owned.values()) {
               if (workspaceKey(entry.target) === key && entry.topic === topic) forget(entry);
             }
@@ -751,7 +739,7 @@ export function createZCodeAgentConnectionScope(
     },
     async sendConversationCommandV4(params) {
       assertOpen();
-      // extension 来源只由扩展网关经 app-control 注入（docs/plugins/extension-host.md §17.8）；app-control 直接调
+      // extension 来源只由扩展网关经 app-control 注入；app-control 直接调
       // 基础 agent 服务，不经任何连接作用域。渲染进程、手机与 relay 的命令都从这里进入，带这个来源就是伪造。
       if (carriesExtensionInputSource(params.envelope)) {
         throw new Error("fault.command.extensionSourceUntrusted");
@@ -784,12 +772,6 @@ export function createZCodeAgentConnectionScope(
       }
       commandQueryWorkspaceKey = requestedWorkspaceKey;
       return base.queryConversationCommandsV4(
-        withTrustedConnection(params, forwardedConnection(params)),
-      );
-    },
-    async backgroundBashOutputV4(params) {
-      assertReady();
-      return base.backgroundBashOutputV4(
         withTrustedConnection(params, forwardedConnection(params)),
       );
     },
@@ -889,64 +871,6 @@ export function createZCodeAgentConnectionScope(
         "conversation",
         params,
         base.onDynamicConversationFrame(params),
-      );
-    },
-    onDynamicLocalTtftFacts(params) {
-      assertOpen();
-      if (
-        role !== "terminal-client" ||
-        context.clientMode !== "desktop-continuous" ||
-        params.workspaceIdentity?.trim() ||
-        params.remoteSessionId
-      )
-        return RpcEvent.None;
-      return base.onDynamicLocalTtftFacts(workspaceTarget(params));
-    },
-    async subscribeSessionsIndexV4(params) {
-      assertReady();
-      const forwarded = forwardedConnection(params);
-      const topic = sessionsIndexTopic(workspaceKey(params));
-      const pending = beginPendingOwnership("sessions-index", params, topic);
-      try {
-        const result = await base.subscribeSessionsIndexV4(
-          withTrustedConnection(params, forwarded),
-        );
-        await rememberAfterSubscribe(
-          result.ack.subscriptionId,
-          {
-            kind: "sessions-index",
-            ownershipKey: `sessions-index\0${topic}\0${forwarded.connectionId}`,
-            topic,
-            connectionId: forwarded.connectionId,
-            clientMode: forwarded.clientMode,
-            target: workspaceTarget(params),
-          },
-          pending,
-        );
-        return result;
-      } catch (error) {
-        discardPendingOwnership(pending);
-        throw error;
-      }
-    },
-    async unsubscribeSessionsIndexV4(params) {
-      const entry = findBySubscription(
-        "sessions-index",
-        params,
-        params.subscriptionId,
-        forwardedUnsubscribeRoute(params),
-      );
-      if (!entry) return;
-      await unsubscribeOwnedEntry(entry, params.runtimePolicy);
-    },
-    async resyncSessionsIndexV4(params) {
-      return resyncOwned("sessions-index", params);
-    },
-    onDynamicSessionsIndexFrame(params) {
-      return routedEvent<SessionsIndexTopicWireCandidate>(
-        "sessions-index",
-        params,
-        base.onDynamicSessionsIndexFrame(params),
       );
     },
   };

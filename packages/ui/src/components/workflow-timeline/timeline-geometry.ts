@@ -44,7 +44,7 @@ export const TAIL = 4;
 export const STUB = 6;
 
 /**
- * 补全的头那一行（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：只在有补全的时间线上
+ * 补全的头那一行：只在有补全的时间线上
  * 存在，24px，压在弧道之上——笔 12px 对准第一枚新灯的 x，名字与 `· T` 跟在后面，没有底也没有线。
  */
 export const HEAD_ROW = 24;

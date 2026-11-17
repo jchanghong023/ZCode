@@ -1,6 +1,6 @@
 # side-pane-full-view
 
-Side Pane 完整视图：面板占满窗口，对话成为第一个 tab，并在面板 tab 上方提供浮动输入窗口。行为合同见 `docs/ui/side-pane-full-view.md`。
+通用 Side Pane 完整视图保留面板与浮动输入的布局计算和展示上下文，不持有 AIReq Tab 或业务选择。当前 AIReq 统一多 Tab 由 `docs/specs/aireq-migration/unified-side-pane.md` 及 `packages/ui/src/aireq/CONTRACT.md` 描述；本模块资产不等于当前装配了旧桌面 WorkspaceShell。
 
 不变量：
 

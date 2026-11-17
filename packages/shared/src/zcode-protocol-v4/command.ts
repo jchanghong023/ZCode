@@ -39,7 +39,7 @@ export type { SharedContextRef } from "./shared-context-ref.js";
 export * from "./workflow-command-rejections.js";
 
 /**
- * 受管 worktree 的创建结果（docs/git/worktree.md §6.6.4）。CLI 把它写成会话历史中的
+ * 受管 worktree 的创建结果。CLI 把它写成会话历史中的
  * timeline part（timelineType = "worktree_creation"），V4 投影为 worktreeCreated 标记。
  */
 export const worktreeCreationRecordSchema = z
@@ -93,7 +93,7 @@ export const commandPayloadSchemas = {
     sessionId: z.string().min(1).optional(),
     additionalDirectories: z.array(z.string().min(1)).max(256).optional(),
     workspaceId: z.string(),
-    // 会话 cwd 与 workspace 不同（受管 worktree，docs/git/worktree.md §1.1）。只允许本地
+    // 会话 cwd 与 workspace 不同。只允许本地
     // workspace；只有 Host 的 worktree 服务能设置，renderer 发出的 createSession 带此字段时
     // Host 拒绝。旧 CLI 的 z.object 会静默丢弃，所以 Host 必须先确认 capabilities.worktreeCwd。
     cwd: z.string().trim().min(1).optional(),
@@ -165,7 +165,7 @@ export const commandPayloadSchemas = {
       modelExecution: modelExecutionSchema.optional(),
       // Highspeed 卡快照随输入事实进入 message.data；不包含 runtime 凭据或 header。
       // 加速本轮的模型与凭据走上面的 modelSelection + modelExecution，见
-      // docs/highspeed/highspeed-access-mode-migration.md。
+      // 相邻实现。
       highspeedMeta: highspeedMessageMetaSchema.optional(),
       automationId: z.string().min(1).optional(),
       offPeakTaskId: z.string().min(1).optional(),
@@ -220,7 +220,7 @@ export const commandPayloadSchemas = {
   // running 时对稳定 assistant row 可用。
   forkAssistant: z.strictObject({
     target: conversationRowTargetSchema,
-    // 子会话留在同一 workspace，cwd 换成新的受管 worktree（docs/git/worktree.md §8.2）。
+    // 子会话留在同一 workspace，cwd 换成新的受管 worktree。
     // 缺省 = 父会话 cwd，行为不变。旧 CLI 会静默丢弃该字段并 fork 到父目录，
     // 所以 Host 必须先确认 runtime/capabilities.worktreeCwd 再发送。
     // 附加目录不在这里下发：由 Host 在子会话 create/resume/subscribe 时统一下发（I16）。
@@ -272,7 +272,7 @@ export const commandPayloadSchemas = {
       highspeedMeta: highspeedMessageMetaSchema.optional(),
     })
     .superRefine(requireModelSelectionForExecution),
-  // 冻结编辑（docs/ui/composer-edit-mode.md）：lock 只对 queued 且无锁的项成功；
+  // 冻结编辑：lock 只对 queued 且无锁的项成功；
   // editQueueItem 携带 editorId 时必须持有锁，原地替换后同一命令释放锁。
   // attachments/modelSelection/mode/planEnabled 缺省 = 保留原值；attachments=[] 表示清空。
   lockQueueItemEdit: z.strictObject({ queueItemId: z.string(), editorId: z.string().min(1) }),
@@ -287,7 +287,7 @@ export const commandPayloadSchemas = {
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
   }),
-  // 编辑提交后把新模型/mode 应用到其他排队项（docs/ui/composer-edit-mode.md）：正文与 Plan 不变；
+  // 编辑提交后把新模型/mode 应用到其他排队项：正文与 Plan 不变；
   // 不存在、非 queued、compact、有编辑锁的项跳过，全部跳过 = noop。不走 CAS，理由同 editQueueItem。
   applyQueueItemsConfig: z
     .strictObject({
@@ -570,7 +570,7 @@ export type CommandAck = z.infer<typeof commandAckSchema>;
 // ── commands/query ──
 /**
  * commands/query 读取命令记录失败时的 reasonCode（status 为 failed）。它表示"无法确认命令是否执行"，
- * 不表示命令执行失败；调用方不能据此做破坏性清理（docs/git/worktree.md §3.5）。
+ * 不表示命令执行失败；调用方不能据此做破坏性清理。
  */
 export const COMMAND_QUERY_UNAVAILABLE_REASON = "fault.command.queryUnavailable" as const;
 export const commandKeySchema = z

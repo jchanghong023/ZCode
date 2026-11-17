@@ -134,7 +134,7 @@ export interface WorkflowNotificationToolRowProps {
   /** 测试/宿主强制展开（透传 ToolLayout.forceOpen）；产品默认折叠。 */
   forceOpen?: boolean;
   /**
-   * 留白行的在场性联查（docs/dynamic-workflow/transcript-and-notifications.md「The hole row's live state」）：
+   * 留白行的在场性联查：
    * run 投影里的 `holes`；undefined = run 不在活投影（中性词）。
    */
   holes?: readonly WorkflowRunHole[];

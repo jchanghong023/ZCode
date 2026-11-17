@@ -297,7 +297,7 @@ export interface ZCodeTaskMeta {
    */
   workspaceIdentity?: string;
   /**
-   * 任务运行所在的受管 worktree 根目录（tasks-index `worktree_root`，docs/git/worktree.md §6.6.1）。
+   * 任务运行所在的受管 worktree 根目录。
    * 只在 worktree 任务上出现；此时 `cwd` 位于该 worktree 内，不是 workspacePath（§2.1）。
    */
   worktreeRoot?: string;

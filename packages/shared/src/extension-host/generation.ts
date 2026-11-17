@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { workspaceRefSchema } from "#src/extension-host/slots.js";
 
-// 生成速率（docs/plugins/extension-host.md §10）。唯一聚合点是 Window Host：
+// 生成速率。唯一聚合点是 Window Host：
 // 流式阶段按 stream.chunk 字符数估算，请求结束后按服务商 usage 给准确值。只统计主轮请求。
 
 /** 流式估算每个请求最多每 500ms 推一次。 */

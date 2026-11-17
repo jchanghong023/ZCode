@@ -10,7 +10,7 @@ import { memo, useCallback, useState, type ReactNode } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useWorkflowRunNodeResult } from "@/hooks/useWorkflowRunNodeResult.js";
+import type { V4ConversationWorkflowRunNodeResultResult } from "@zcode/shared/zcode-protocol-v4";
 import {
   formatWorkspaceBytes,
   formatWorkspaceDuration,
@@ -121,23 +121,18 @@ function Footer({ parts, note, copy }: { parts: ReactNode[]; note?: string; copy
 
 export const WorkspaceCardBody = memo(function WorkspaceCardBody({
   card,
-  runId,
-  sessionId,
+  result,
+  loading,
+  error,
 }: {
   card: WorkspaceCardModel;
-  runId: string;
-  sessionId: string;
+  result: V4ConversationWorkflowRunNodeResultResult | null;
+  loading: boolean;
+  error: string | null;
 }) {
   const { intl } = useZCodeIntl();
   const format = intl.formatMessage.bind(intl);
   const { node } = card;
-  const { result, loading, error } = useWorkflowRunNodeResult({
-    sessionId,
-    runId,
-    siteId: node.siteId,
-    ordinal: node.ordinal,
-    enabled: node.status === "completed",
-  });
   const durationMs = Math.max(0, node.updatedAt - node.createdAt);
   const truncatedNote = (shown: string, total: string) =>
     format({ id: "chat.toolCall.workflow.script.result.truncated" }, { shown, total });

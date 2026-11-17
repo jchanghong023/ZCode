@@ -1,7 +1,7 @@
 /**
  * Agent runtime 进程异常退出的诊断：从退出码与 stderr 尾部提取 error 名称、错误码、摘要和指纹。
  * 纯函数、无 IO，供 desktop 稳定性上报和 Host 侧的退出提示共用；行为契约见
- * docs/monitoring/agent-process-crash-arms.md「perf_agent_crash」。
+ * 相邻实现「perf_agent_crash」。
  */
 import { createHash } from "node:crypto";
 

@@ -1,4 +1,4 @@
-// 项目数据彻底删除（docs/superpowers/specs/2026-10-24-project-management.md「彻底删除数据」）。
+// 项目数据彻底删除。
 // CLI 不感知项目：Host 传会话 ID 与目录，CLI 只处理自己写的数据库行与 cli/* 文件。
 // 大小只统计磁盘上真实删除的文件；数据库行删除后文件不收缩，不计入。
 import { z } from "zod";

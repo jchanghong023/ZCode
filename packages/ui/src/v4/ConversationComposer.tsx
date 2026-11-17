@@ -40,7 +40,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@/components/lib/utils.js";
-import { type PlanIdentitySnapshot, type ZCodeProvider } from "@zcode/shared";
+import { type ZCodeProvider } from "@zcode/shared";
 import {
   TID_CHAT_ATTACHMENT_BUTTON,
   TID_CHAT_ATTACHMENT_MENU_ITEM,
@@ -460,8 +460,6 @@ export interface ConversationComposerProps {
   /** 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。 */
   onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
   provider?: ZCodeProvider;
-  /** 点击发送时读取套餐身份；二次确认会继续复用同一份冻结 seed。 */
-  readPlanIdentitySnapshot?: () => PlanIdentitySnapshot;
   onSendText: (
     text: string,
     options?: ConversationComposerSendOptions,
@@ -515,7 +513,7 @@ export interface ConversationComposerProps {
   externalTextInsertRequest?: ExternalTextInsertRequest | null;
   onExternalTextInsertApplied?: (requestId: number) => void;
   /**
-   * composer 编辑态（docs/ui/composer-edit-mode.md）：草稿切到 edit scope，原草稿留在原 scope；
+   * composer 编辑态：草稿切到 edit scope，原草稿留在原 scope；
    * 退出编辑态只需切回，即可完整恢复原草稿。缺省 = sessionId 对应的普通 scope。
    */
   draftScopeId?: string;
@@ -596,7 +594,6 @@ function ConversationComposerImpl({
   onRuntimeRestart,
   onRuntimeLifecycle,
   provider,
-  readPlanIdentitySnapshot,
   onSendText,
   onTextChange,
   onDraftStateChange,
@@ -1563,7 +1560,6 @@ function ConversationComposerImpl({
             configProvider: telemetryConfig?.provider,
             agentProvider: provider,
             providerBaseURL: resolveProviderBaseURL(telemetryConfig?.provider, modelSelectionView),
-            planIdentitySnapshot: readPlanIdentitySnapshot?.(),
           }),
         };
         sendTriggerRef.current = "shortcut";
@@ -1833,7 +1829,6 @@ function ConversationComposerImpl({
       onSendText,
       persistDraftNow,
       provider,
-      readPlanIdentitySnapshot,
       removeCodeCommentContext,
       removeConversationSelectionReference,
       removePptxElementReference,

@@ -1,4 +1,4 @@
-// worktree 显示名 `<仓库名> · <bucket>`（docs/git/worktree.md §3.7），只由任务的 worktree 根目录
+// worktree 显示名 `<仓库名> · <bucket>`，只由任务的 worktree 根目录
 // （tasks-index worktree_root）推导：受管布局为 <受管根>/<bucket>/<仓库名>。
 import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
 

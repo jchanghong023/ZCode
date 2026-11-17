@@ -2,7 +2,7 @@ import { z } from "zod";
 import { modelSelectionSchema } from "#src/model-selection.js";
 import { workspaceRefSchema } from "#src/extension-host/slots.js";
 
-// 屏幕上的会话（docs/plugins/extension-host.md §3.4、§7.1、§9）。唯一 owner 是 Renderer：
+// 屏幕上的会话。唯一 owner 是 Renderer：
 // Renderer 在窗格、草稿、焦点或草稿所选模型变化时报告，Window Host 只持最近一份报告。
 
 const sessionIdSchema = z.string().min(1).max(200);

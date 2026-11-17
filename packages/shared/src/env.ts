@@ -44,7 +44,7 @@ export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 /**
  * Desktop 启动 Agent 子进程时写入的当前界面语言（BCP-47），供 Agent 模型请求的 X-Client-Language。
  * Agent 进程 Intl 只代表系统语言（Dock 启动无 LANG 时回退 en-US），所以由 Host 在 spawn 时显式下发；
- * 规则见 apps/zcode-cli/docs/design/v2/model/README.md。
+ * 规则见 相邻实现。
  */
 export const ZCODE_CLIENT_LANGUAGE_ENV = "ZCODE_CLIENT_LANGUAGE" as const;
 
@@ -53,7 +53,7 @@ export const ZCODE_CLIENT_LANGUAGE_ENV = "ZCODE_CLIENT_LANGUAGE" as const;
 export const RUNTIME_ZCODE_DEBUG =
   typeof process !== "undefined" ? process.env.ZCODE_DEBUG : undefined;
 
-// ── 构建期可选能力（见 docs/desktop/build-time-optional-capabilities.md），未注入时一律关闭 ──
+// ── 构建期可选能力，未注入时一律关闭 ──
 /** ARMS RUM 上报地址；为空时 SDK 以 enable=false 初始化，不产生上报。 */
 export const ZCODE_ARMS_RUM_ENDPOINT: string =
   typeof __ZCODE_ARMS_RUM_ENDPOINT__ !== "undefined" ? __ZCODE_ARMS_RUM_ENDPOINT__ : "";

@@ -474,7 +474,7 @@ function buildRenderUnits(
   return normalizedUnits;
 }
 
-/** 与 rows 分区对应的 render unit（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。 */
+/** 与 rows 分区对应的 render unit。 */
 export interface ConversationTurnRenderUnitsPartition {
   /** 历史段的 unit；只在历史派生结果变化时更换引用。 */
   readonly history: readonly ConversationTurnRenderUnit[];

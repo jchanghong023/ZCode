@@ -8,7 +8,7 @@ import type {
 } from "@zcode/shared";
 
 /**
- * 数据同步分类服务的统一形状（docs/remote/data-sync.md「统一的同步服务形状」）。
+ * 数据同步分类服务的统一形状。
  * 两端注册同一实现：本机作为 source，远端作为 target；方向由调用方决定，服务不写死。
  */
 export interface IDataSyncCategoryService<TPayload> {

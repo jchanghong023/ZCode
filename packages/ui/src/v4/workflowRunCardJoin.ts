@@ -15,7 +15,7 @@ import {
 } from "@/lib/workflowToolNames.js";
 
 /**
- * 工具卡 → dwf run 的联接（docs/dynamic-workflow/presentation.md「The tool row」）。
+ * 工具卡 → dwf run 的联接。
  *
  * 权威来源是 `workflowRuns` 投影里每条 run 的 `toolCallId`（schema 注释就写着它是
  * 「工具卡 → 详情页的关联键」）；工具行自己的 output 在 v4 下只剩
@@ -169,7 +169,7 @@ export function buildWorkflowGraphByToolCallId(
 }
 
 /**
- * runId → 最新一次成功补全的 display（docs/dynamic-workflow/presentation.md「Holes on the timeline」的
+ * runId → 最新一次成功补全的 display（相邻实现「Holes on the timeline」的
  * 「The model」）：`FillWorkflowHole` 行的输出是 `CreateWorkflowOutput`，它的 `causalityGraph` 是**有效脚本**
  * 的图——留白的体已经站在留白的位置上。卡与侧板取「run id 是自己的、最新的那份 display」：补全之后是
  * 补全行的，之前是发起行的。行窗口按序一遍，后来的覆盖先来的；只认成功且编过的行（编不过的补全什么
@@ -228,7 +228,7 @@ export function resolveWorkflowRunGraphForRun(
   return toolCallId === undefined ? undefined : resolveWorkflowRunGraph(graphs, toolCallId, runs);
 }
 
-/** 「配置」修订出来的 run 的发起 toolCallId 前缀（agent 铸 `settings-<uuid>`，docs/dynamic-workflow/launch.md）。 */
+/** 「配置」修订出来的 run 的发起 toolCallId 前缀。 */
 export const WORKFLOW_SETTINGS_TOOL_CALL_PREFIX = "settings-";
 
 /**
@@ -263,7 +263,7 @@ export function resolveWorkflowRunGraph(
 }
 
 /**
- * 「模型把这次 run 存成了哪个工作流」的转写（docs/dynamic-workflow/transcript-and-notifications.md
+ * 「模型把这次 run 存成了哪个工作流」的转写（相邻实现
  * 「Which workflow a run is saved as」）：行窗口里成功的 `SaveWorkflow` 行，按它入参认领的
  * `run_id` 归到那条 run 名下。
  *

@@ -142,7 +142,7 @@ export function SettingsRow({
     >
       {/* 手机窄屏下固定 192px 控件列会把文字压到约 60px 宽。compact-web 下改为可换行 flex：
           文字列至少 10rem 且优先占满；控件放不下时整体换到文字下方。桌面与宽屏 Web 仍用原 grid。
-          spec：docs/settings-narrow-layout.md */}
+          spec：相邻实现 */}
       <div
         className={cn(
           "grid items-center gap-4",
@@ -327,7 +327,7 @@ export function SettingsPageFrame({
         {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
 
         {/* 手机窄屏 Web 下 68px 图标栏会挤占内容宽度，compact-web 下改成顶部横向滚动导航条。
-              spec：docs/settings-narrow-layout.md */}
+              spec：相邻实现 */}
         <aside className="min-w-0">
           <div className="flex h-full flex-col compact-web:flex-row compact-web:items-center">
             <div className="h-12 [app-region:drag] compact-web:hidden"></div>

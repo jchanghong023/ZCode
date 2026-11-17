@@ -7,7 +7,6 @@ import {
   readWorkflowRunStopReason,
   workflowRunStopReasonMessageId,
 } from "@/components/workflow-graph/run-status-presentation.js";
-import { useWorkflowRunJournalSummaries } from "@/hooks/useWorkflowRunJournalSummaries.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   OpenScopedWorkflowRunSideTabRequest,
@@ -21,7 +20,6 @@ import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import {
   WORKFLOW_RUN_DIRECTORY_LIMIT,
   buildWorkflowRunDirectory,
-  workflowRunDirectoryRefreshKey,
   type WorkflowRunDirectoryRow,
 } from "@/v4/workflowRunDirectoryModel.js";
 
@@ -163,19 +161,14 @@ const WorkflowRunDirectoryContents = memo(function WorkflowRunDirectoryContents(
     setLease(nextLease);
     return () => nextLease.release();
   }, [layer, tab.parentSessionId]);
-  // pane 是从一条活着的对话里点开的，所以 `live: true` 是实话；`limit` 与任务列表计数共用
-  // 同一个常量，两处深度一旦不同就等于两套口径。
-  //
-  // `refreshKey` 是这一页会不会自己更新的**全部**依据（实测 bug：跑完的 run 不会挪到
-  // 「已结束」，因为这里当初一个信号都没接）。投影在这里只是触发器，不是信源：行仍然只渲染
-  // journal 摘要，活 run 的步数与时长仍然只在任务列表和详情页。键的形状（run 数 + 已结算数）
-  // 让「多一个 run / 跑完一个 run」重取一次，而节点级进度不重取——见模型里那段注释。
-  const summaries = useWorkflowRunJournalSummaries({
-    sessionId: tab.parentSessionId,
-    live: true,
-    limit: WORKFLOW_RUN_DIRECTORY_LIMIT,
-    refreshKey: workflowRunDirectoryRefreshKey(projection.snapshot?.workflowRuns?.runs),
-  });
+  const summaries = useMemo(
+    () =>
+      projection.snapshot?.workflowRuns?.runs.map((run) => ({
+        ...run,
+        resumable: run.resumable === true,
+      })) ?? null,
+    [projection.snapshot?.workflowRuns],
+  );
   const directory = useMemo(() => buildWorkflowRunDirectory(summaries), [summaries]);
   const handleOpen = (row: WorkflowRunDirectoryRow) => {
     onOpenWorkflowRun(buildWorkflowRunDirectoryOpenRequest(tab, row));

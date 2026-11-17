@@ -1,4 +1,4 @@
-// worktree 相关的 SessionPane → 行组件通道（docs/git/worktree.md §3.6）。
+// worktree 相关的 SessionPane → 行组件通道。
 // 用 context 而非逐层透传 props：fork 目的地只在桌面主工作区存在，手机与旧壳缺省为不可用。
 import { createContext, useContext } from "react";
 import type { ConversationRowTarget } from "@zcode/shared/zcode-protocol-v4";

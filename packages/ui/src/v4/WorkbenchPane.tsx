@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- WorkbenchLeafPane 集中承载 pane focus、per-pane provider 与恢复守卫；拆散会让 focus/session 绑定链路跨文件跳转。 */
 // 分屏叶子 pane：Focus 层外壳 + per-pane 数据面接线 + 恢复守卫。宿主 = V4WorkspaceChatArea。
-import { memo, useCallback, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+import { memo, useCallback, useMemo, type CSSProperties, type ReactNode } from "react";
 import { TID_V4_PANE_SHELL, testId } from "@zcode/shared/test-ids";
 import type {
   GitChangeSourceId,
@@ -9,7 +9,6 @@ import type {
   ZCodeTaskChangeSummary,
 } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { useServices } from "@/hooks/useServices.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
@@ -32,17 +31,12 @@ import type { PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { type RegisterConversationDropTarget } from "@/v4/composer/conversationDropTarget.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 import {
-  paneWorkspaceKey,
   V4_PRIMARY_PANE_ID,
+  paneWorkspaceKey,
   type PaneBinding,
   type PaneWorkspaceScope,
 } from "@/v4/paneLayoutStore.js";
 import type { WorkbenchSessionBinding } from "@/v4/workbenchGroupStore.js";
-import {
-  acquireSessionsIndex,
-  releaseSessionsIndex,
-  type SessionsIndexScope,
-} from "@/v4/sessionsIndexRegistry.js";
 import { rectStyle, type RectExpr } from "@/v4/workbenchLayout.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -114,83 +108,6 @@ const ChatPaneShell = memo(function ChatPaneShell({
   );
 });
 
-interface PaneRestoredGuardProps {
-  paneId: string;
-  scope: PaneWorkspaceScope;
-  sessionId: string;
-  onConfirmed: (paneId: string) => void;
-  onMissing: (paneId: string) => void;
-}
-
-/**
- * 持久化恢复守卫（per-pane 泛化）：localStorage 恢复的绑定可能指向已删 session
- * （删除发生在上次运行/其他窗口）。用 pane 自己 scope 的 sessions-index（按
- * endpoint + workspaceKey 隔离）等首个真 snapshot（workspaceId 就绪）后做一次
- * 存在性验证：在场 → 清 restoredUnvalidated；已删 → closePane 优雅塌缩。
- * 不用 useWorkspaceSessionsIndexItems——其聚合 memo 在
- * 订阅 effect 之前按空 store 集计算会误判「已加载且不在」；直连 registry store，
- * 订阅错误/远程 endpoint 不在场（断连代理 reject）时不判定，pane 保留为
- * error/等待连接态，交由 pane 自身 retry 兜底，不误关。
- * 必须挂在 V4PaneConversationProvider 内：useServices 取的是 pane 自己的 accessor
- * （远程 pane 走对应远程连接的 sessions-index，不误查本机 host）。
- */
-function PaneRestoredGuard({
-  paneId,
-  scope,
-  sessionId,
-  onConfirmed,
-  onMissing,
-}: PaneRestoredGuardProps) {
-  const services = useServices();
-  const agentService = services.zcodeAgentService;
-  const { workspacePath, workspaceIdentity, remoteSessionId } = scope;
-
-  useEffect(() => {
-    if (!agentService) {
-      return;
-    }
-    const indexScope: SessionsIndexScope = {
-      workspaceKey: paneWorkspaceKey({ workspacePath, workspaceIdentity }),
-      workspacePath,
-      ...(workspaceIdentity ? { workspaceIdentity } : {}),
-      ...(remoteSessionId ? { endpointKey: remoteSessionId } : {}),
-    };
-    const store = acquireSessionsIndex(indexScope, agentService);
-    let disposed = false;
-    let settled = false;
-    const evaluate = () => {
-      if (disposed || settled || store.getState().workspaceId === null) {
-        return;
-      }
-      settled = true;
-      const exists = store.getSessions().some((summary) => summary.sessionId === sessionId);
-      if (exists) {
-        onConfirmed(paneId);
-      } else {
-        onMissing(paneId);
-      }
-    };
-    const unsubscribe = store.subscribe(evaluate);
-    evaluate();
-    return () => {
-      disposed = true;
-      unsubscribe();
-      releaseSessionsIndex(indexScope, store);
-    };
-  }, [
-    agentService,
-    paneId,
-    sessionId,
-    workspacePath,
-    workspaceIdentity,
-    remoteSessionId,
-    onConfirmed,
-    onMissing,
-  ]);
-
-  return null;
-}
-
 /** primary pane 的 shell 侧绑定（activeTaskId 选择态 + 回调，不进 paneLayoutStore）。 */
 export interface WorkbenchShellBinding {
   workspacePath: string;
@@ -259,7 +176,6 @@ export interface WorkbenchLeafPaneProps {
   shell: WorkbenchShellBinding;
   onFocusRequest: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
-  onConfirmRestoredSession: (paneId: string) => void;
   onBindSession: (paneId: string, sessionId: string) => boolean | void;
   onPaneActiveSessionChange?: (
     scope: PaneWorkspaceScope,
@@ -289,7 +205,6 @@ export function WorkbenchLeafPane({
   shell,
   onFocusRequest,
   onClosePane,
-  onConfirmRestoredSession,
   onBindSession,
   onPaneActiveSessionChange,
 }: WorkbenchLeafPaneProps) {
@@ -390,15 +305,6 @@ export function WorkbenchLeafPane({
       restoredUnvalidated={Boolean((isPrimary ? primaryBinding : binding)?.restoredUnvalidated)}
     >
       <V4PaneConversationProvider scope={scope} sessionId={sessionId}>
-        {(isPrimary ? primaryBinding : binding)?.restoredUnvalidated && sessionId ? (
-          <PaneRestoredGuard
-            paneId={paneId}
-            scope={scope}
-            sessionId={sessionId}
-            onConfirmed={onConfirmRestoredSession}
-            onMissing={onClosePane}
-          />
-        ) : null}
         <SessionPane
           paneId={paneId}
           readOnly={readOnly}

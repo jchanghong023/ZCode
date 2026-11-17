@@ -195,7 +195,7 @@ function WorkflowArgsTable({ args }: { args: readonly WorkflowArgDeclaration[] }
  * 刻意**不**接 Refine：Refine 的语义是「拒绝这次运行并告诉模型怎么改工作流」，
  * 而保存是一次写盘，改法是模型换一组元数据重新调用，不需要第三个选项。
  *
- * 长内容（docs/dynamic-workflow/launch.md「`SaveWorkflow`」第 4 步）：说明、实参、脚本都是模型写的，
+ * 长内容：说明、实参、脚本都是模型写的，
  * 长度没有上限。整个块放在 PermissionDialog 唯一的滚动区里，块内**不再有任何滚动容器**。
  * Bugfix：上一版给元数据框、实参表、脚本各自限高滚动，外面再套一层滚动段，一次滚轮手势会先被
  * 指针下的内框吃掉、到底后再交给外层，内框还比外层可视区高，读起来乱成一团。现在长的部分靠折叠

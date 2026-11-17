@@ -10,7 +10,7 @@ export interface TaskSidePaneMemoryState {
   isSidePaneCollapsed: boolean;
   /** 对话级展开/收起偏好；tabs 本身仍按 workspace 复用。 */
   sidePaneCollapsedByOwner: Record<string, boolean>;
-  /** 对话级完整视图状态（docs/ui/side-pane-full-view.md）；缺省表示普通视图。 */
+  /** 对话级完整视图状态；缺省表示普通视图。 */
   sidePaneFullViewByOwner: Record<string, SidePaneFullViewState>;
   activeGitSourceId: GitChangeSourceId;
 }

@@ -1,4 +1,4 @@
-// assistant 行的"分叉"目的地菜单（docs/git/worktree.md §3.6）：在当前目录（或当前 worktree）分叉 /
+// assistant 行的"分叉"目的地菜单：在当前目录（或当前 worktree）分叉 /
 // 在新 worktree 中分叉（带上未提交的改动）。
 import { FolderGit2Icon, TrendingUpDownIcon } from "lucide-react";
 import {

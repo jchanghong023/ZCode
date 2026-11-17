@@ -43,7 +43,7 @@ export function useProjectFileTree(props: ProjectSidebarProps) {
             session.workspaceIdentity !== identity))
       )
         throw new Error("project.connection-unavailable");
-      // worktree 任务的文件在它自己的 cwd 中，不在项目主目录（docs/git/worktree.md §3.7）。
+      // worktree 任务的文件在它自己的 cwd 中，不在项目主目录。
       const filesPath = task.cwd ?? task.workspacePath;
       onOpenFileManager?.({
         workspacePath: filesPath,

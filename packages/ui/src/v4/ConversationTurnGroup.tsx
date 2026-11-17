@@ -2,9 +2,7 @@ import { buildEditCodeViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
 import { CollapsedChangeSummary } from "@/ToolCallBlocks/renderers.js";
 import { SummaryGroupBoundaryContext } from "@/v4/conversationRowContext.js";
 import { ConsecutiveSummaryGroup } from "@/ToolCallBlocks/ToolSummaryRow.js";
-import { BotTopicPreparation } from "@/v4/BotTopicPreparation.js";
-import { useBotTopicInterruption } from "@/v4/botGroupDeliveryContext.js";
-import { ConnectedBotGroupDeliveryAction } from "@/v4/BotGroupDeliveryAction.js";
+import { BotTopicPreparationList } from "@/v4/BotTopicPreparation.js";
 /* eslint-disable max-lines -- turn group 需要在同一处维护普通 assistant 与后台结果的严格行序，拆分会重复 actions/preview/tail 协议。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { Fragment, memo, useContext, useEffect, useMemo, useState } from "react";
@@ -75,10 +73,7 @@ import {
   type UserInputEditHandler,
 } from "@/v4/ConversationRowView.js";
 import { readAssistantFeedback } from "@/v4/ConversationRowView.js";
-import type {
-  AssistantFeedbackHandler,
-  EditWorkspaceRewindAvailability,
-} from "@/v4/ConversationRowView.js";
+import type { AssistantFeedbackHandler } from "@/v4/ConversationRowView.js";
 import { type ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type {
   AssistantWorkRow,
@@ -462,16 +457,13 @@ function OffPeakTurnCards({
 function AssistantHistoryStatus({
   segment,
   open,
-  sourceCommandIds,
   collapsible = true,
 }: {
   segment: ConversationTurnWorkSegment;
   open: boolean;
-  sourceCommandIds: readonly string[];
   collapsible?: boolean;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const topicInterrupted = useBotTopicInterruption(sourceCommandIds);
   const durationLabel = formatConversationWorkDuration(
     segment.workStatus?.durationMs,
     intl,
@@ -480,7 +472,7 @@ function AssistantHistoryStatus({
   const label =
     segment.workStatus?.state === "interrupted"
       ? intl.formatMessage({
-          id: topicInterrupted ? "chat.history.topicInterrupted" : "chat.history.stopped",
+          id: "chat.history.stopped",
         })
       : segment.workStatus?.state === "running"
         ? intl.formatMessage({ id: "chat.history.workingFor" }, { duration: durationLabel ?? "" })
@@ -559,12 +551,10 @@ function useContinuousGroupKeys<T>(
 function ConversationWorkSegmentFlow({
   segment,
   turnRunning,
-  sourceCommandIds,
   context,
   onFork,
   onRetry,
   onEdit,
-  editWorkspaceRewindAvailability,
   assistantCopyText,
   assistantPreviewCards,
   assistantPreviewCardsAutoOpenKey,
@@ -575,12 +565,10 @@ function ConversationWorkSegmentFlow({
 }: {
   segment: ConversationTurnWorkSegment;
   turnRunning: boolean;
-  sourceCommandIds: readonly string[];
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
-  editWorkspaceRewindAvailability: EditWorkspaceRewindAvailability;
   assistantCopyText?: string;
   assistantPreviewCards: AssistantPreviewCard[];
   assistantPreviewCardsAutoOpenKey?: string;
@@ -629,7 +617,6 @@ function ConversationWorkSegmentFlow({
               row={item.row}
               context={context}
               onEdit={item.row.actions?.canEdit === true ? onEdit : undefined}
-              editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
             />
           );
           content = userRow;
@@ -675,19 +662,13 @@ function ConversationWorkSegmentFlow({
 
         return (
           <Fragment key={flowItemKeys[index]}>
-            {showHistoryStatus ? (
-              <AssistantHistoryStatus
-                segment={segment}
-                open={open}
-                sourceCommandIds={sourceCommandIds}
-              />
-            ) : null}
+            {showHistoryStatus ? <AssistantHistoryStatus segment={segment} open={open} /> : null}
             {content}
           </Fragment>
         );
       })}
       {shouldShowHistoryStatus && firstAssistantFlowItemIndex < 0 ? (
-        <AssistantHistoryStatus segment={segment} sourceCommandIds={sourceCommandIds} open={open} />
+        <AssistantHistoryStatus segment={segment} open={open} />
       ) : null}
     </Collapsible>
   );
@@ -700,7 +681,6 @@ function ConversationTurnFlow({
   onFork,
   onRetry,
   onEdit,
-  editWorkspaceRewindAvailability,
   assistantCopyText,
   assistantCodeCommentCards,
   assistantCodeCommentProjectionEnabled,
@@ -712,7 +692,6 @@ function ConversationTurnFlow({
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
-  editWorkspaceRewindAvailability: EditWorkspaceRewindAvailability;
   assistantCopyText?: string;
   assistantCodeCommentCards: AssistantCodeCommentCard[];
   assistantCodeCommentProjectionEnabled: boolean;
@@ -734,11 +713,6 @@ function ConversationTurnFlow({
     workspacePath: context.workspacePath,
     workspaceHomePath: context.workspaceHomePath,
     compactForRemoteControl: context.compactForRemoteControl,
-    fileChangesTarget: unit.header?.entityId
-      ? { rowId: unit.header.rowId, entityId: unit.header.entityId }
-      : null,
-    fileChangesState: unit.header?.fileChanges?.state,
-    fetchFileChanges: context.fetchFileChanges,
   });
 
   if (unit.timelineOnly) {
@@ -803,21 +777,10 @@ function ConversationTurnFlow({
           key={segment.key}
           segment={segment}
           turnRunning={unit.isRunning}
-          sourceCommandIds={[
-            ...segment.flowItems.flatMap((item) =>
-              item.kind === "userInput" && item.row.sourceCommandId
-                ? [item.row.sourceCommandId]
-                : [],
-            ),
-            ...(segment === workSegments[0] && unit.header?.sourceCommandId
-              ? [unit.header.sourceCommandId]
-              : []),
-          ]}
           context={context}
           onFork={onFork}
           onRetry={onRetry}
           onEdit={onEdit}
-          editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
           assistantCopyText={assistantCopyText}
           assistantPreviewCards={assistantPreviewCards}
           assistantPreviewCardsAutoOpenKey={assistantPreviewCardsAutoOpenKey}
@@ -937,11 +900,6 @@ function ConversationBackgroundResultWork({
     workspacePath: context.workspacePath,
     workspaceHomePath: context.workspaceHomePath,
     compactForRemoteControl: context.compactForRemoteControl,
-    fileChangesTarget: unit.header?.entityId
-      ? { rowId: unit.header.rowId, entityId: unit.header.entityId }
-      : null,
-    fileChangesState: unit.header?.fileChanges?.state,
-    fetchFileChanges: context.fetchFileChanges,
   });
 
   // 后台唤醒轮与普通回复使用相同的完成态折叠；耗时只统计本次唤醒轮。
@@ -1005,12 +963,7 @@ function ConversationBackgroundResultWork({
       className="history-message flex flex-col [&>*+*:not([data-slot='collapsible-content'])]:mt-5 [&>[data-zcode-chat-loading-slot]:not(:first-child)]:mt-3"
     >
       {!unit.isRunning && unit.workStatus ? (
-        <AssistantHistoryStatus
-          segment={historySegment}
-          collapsible={hasHistory}
-          open={open}
-          sourceCommandIds={unit.header?.sourceCommandId ? [unit.header.sourceCommandId] : []}
-        />
+        <AssistantHistoryStatus segment={historySegment} collapsible={hasHistory} open={open} />
       ) : null}
       {workflowNotification ? (
         <WorkflowNotificationToolRow
@@ -1021,7 +974,7 @@ function ConversationBackgroundResultWork({
           onOpenRun={openWorkflowRun}
           onOpenArtifact={openWorkflowArtifact}
           pendingQids={workflowPendingQids}
-          // 留白行的三态（docs/dynamic-workflow/transcript-and-notifications.md「The hole row's live state」）：
+          // 留白行的三态：
           // run 在活投影里就递它的留白表（可能为空 = 已补全 / 没记录），不在场即 undefined → 中性词。
           holes={
             workflowRunSummary?.run === undefined ? undefined : (workflowRunSummary.run.holes ?? [])
@@ -1208,11 +1161,6 @@ function ConversationTurnGroupImpl({
     !unit.timelineOnly &&
     latestAssistantTextRow?.state === "complete" &&
     assistantCopyText !== undefined;
-  // runtime turnId 与产品轮次 ID 不同；用 CLI 行上的命令归因关联投递，包含被裁剪输入的 header。
-  const deliverySourceCommandIds = [
-    ...(unit.header?.sourceCommandId ? [unit.header.sourceCommandId] : []),
-    ...unit.visibleUserInputs.flatMap((row) => (row.sourceCommandId ? [row.sourceCommandId] : [])),
-  ];
   const hasHookActions =
     // Hook action 与 copy/feedback/fork 共用 turn eligibility；
     // timelineOnly 维护 turn（compact/modelChange marker 轮）即使带历史遗留的
@@ -1235,28 +1183,11 @@ function ConversationTurnGroupImpl({
     canRenderAssistantActions ||
     hasHookActions ||
     workflowTurnDigests.length > 0;
-  const editWorkspaceRewindAvailability = useMemo<EditWorkspaceRewindAvailability>(() => {
-    const fileChanges = unit.header?.fileChanges;
-    if (!fileChanges || fileChanges.files <= 0) return { enabled: false, reason: "noFiles" };
-    if (fileChanges.state === "reverted") return { enabled: false, reason: "reverted" };
-    if (unit.isRunning) return { enabled: false, reason: "running" };
-    // 行级 canRewindFiles 不含 session 锁；锁关闭时 pane 才下发文件撤销回调（SessionPane
-    // workspaceFileRewindEnabled），编辑并撤销文件与文件摘要的撤销按钮共用这道门。
-    if (unit.header?.actions?.canRewindFiles !== true || !context.applyFileRewind) {
-      return { enabled: false, reason: "unavailable" };
-    }
-    return { enabled: true, reason: "available" };
-  }, [
-    context.applyFileRewind,
-    unit.header?.actions?.canRewindFiles,
-    unit.header?.fileChanges,
-    unit.isRunning,
-  ]);
 
   // workflow 通知卡开头的轮去掉轮顶 padding：卡片只贴上一轮 pb-5 的常规流内间距。
   const startsWithWorkflowNotificationCard =
     backgroundResultTitle !== undefined && resolveWorkflowNotification(unit) !== undefined;
-  // 同一条规则的另外两个来源：中枢直接启动轮与「配置」的设置轮（docs/dynamic-workflow/presentation.md
+  // 同一条规则的另外两个来源：中枢直接启动轮与「配置」的设置轮（相邻实现
   // 「The run card」）。它们的用户行是写给模型的规范句，conversationTurnRenderUnits 会裁掉，
   // 卡 / 「已调整设置」那一行于是成了轮内第一个节点。
   //
@@ -1308,7 +1239,6 @@ function ConversationTurnGroupImpl({
                     row={row}
                     context={context}
                     onEdit={row.actions?.canEdit === true ? onEdit : undefined}
-                    editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
                   />
                 ))}
                 <ConversationBackgroundResultWork
@@ -1336,7 +1266,6 @@ function ConversationTurnGroupImpl({
                 onFork={canForkLatestAssistant ? onFork : undefined}
                 onRetry={onRetry}
                 onEdit={onEdit}
-                editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
                 assistantCopyText={assistantCopyText}
                 assistantCodeCommentCards={assistantCodeCommentCards}
                 assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
@@ -1397,12 +1326,11 @@ function ConversationTurnGroupImpl({
                 onFeedbackChange={onFeedbackChange}
                 hookInvocations={unit.hookInvocations}
                 turnId={unit.turnId}
-                sourceCommandIds={deliverySourceCommandIds}
                 className={cn(
                   "flex items-center gap-1",
                   context.compactForRemoteControl
                     ? "opacity-100"
-                    : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 has-[[data-bot-group-delivery]]:opacity-100",
+                    : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100",
                 )}
               />
             ) : (hasHookActions || !unit.isRunning) && !canRenderAssistantActions ? (
@@ -1410,16 +1338,12 @@ function ConversationTurnGroupImpl({
                 className={cn(
                   context.compactForRemoteControl
                     ? "opacity-100"
-                    : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 has-[[data-bot-group-delivery]]:opacity-100",
+                    : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100",
                 )}
               >
                 {hasHookActions ? (
                   <ConversationHookDetailsAction rows={unit.hookInvocations} turnId={unit.turnId} />
                 ) : null}
-                <ConnectedBotGroupDeliveryAction
-                  turnId={unit.turnId}
-                  sourceCommandIds={deliverySourceCommandIds}
-                />
               </MessageActions>
             ) : null}
             {unit.assistantTailRows.length > 0 ? (
@@ -1439,14 +1363,13 @@ function ConversationTurnGroupImpl({
             apiRetry={apiRetry}
             context={assistantRowContext}
             onEdit={onEdit}
-            editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
             assistantCopyText={assistantCopyText}
             assistantCodeCommentCards={assistantCodeCommentCards}
             assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
           />
         )}
         {unit.topicPreparations?.length ? (
-          <BotTopicPreparation items={unit.topicPreparations} />
+          <BotTopicPreparationList items={unit.topicPreparations} />
         ) : null}
       </section>
     </SummaryGroupBoundaryContext.Provider>

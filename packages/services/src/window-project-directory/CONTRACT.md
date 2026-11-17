@@ -1,3 +1,3 @@
-# 窗口项目目录
+# 窗口项目目录边界
 
-Retired on 2026-11-16: the current Web UI does not consume the window project directory. Remove both RPC descriptors, proxy/accessor capability, mock registration and obsolete consumers; project reads needed by native conversation preparation remain owned by `projectService`. This directory retains only this retirement record.
+当前目录没有窗口项目目录 RPC、descriptor、代理或注册。会话目录解析与 mention 读取归 `packages/services/src/project/CONTRACT.md`，不得另建项目目录 owner。

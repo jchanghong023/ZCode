@@ -63,7 +63,7 @@ import {
   workbenchStartDraftInputSchema,
 } from "#src/extension-host/workbench.js";
 
-// 能力表（docs/plugins/extension-host.md §7.2）：能力的唯一定义。表里没有的能力就不存在。
+// 能力表：能力的唯一定义。表里没有的能力就不存在。
 // 新增一个能力只改两处：这里加一行，Window Host 的能力网关加一个处理函数。
 
 export interface CapabilityDef {

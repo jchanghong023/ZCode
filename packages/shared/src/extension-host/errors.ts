@@ -1,4 +1,4 @@
-// 扩展错误码（docs/plugins/extension-host.md §7.1）。判断一律用 code，不依赖错误文本。
+// 扩展错误码。判断一律用 code，不依赖错误文本。
 
 export const EXTENSION_ERROR_CODES = [
   "not-declared",

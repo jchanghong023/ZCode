@@ -1,57 +1,42 @@
-# AIReq 只读材料渲染合同
+# 只读材料阅读
 
-> 当前需求工作区按 [项目空间规格](project-space.md)（2026-11-16）：同一 IR 在提案／正式生命周期内保留上下文，材料区只承担只读阅读与定位，三方确认等当前阶段主动作移入阶段主体。保留现有可拖拽、收起／展开面板及材料／历史选择；正式报告优先状态、关注问题和下一步，再展示证据与维护信息。不增加手工编辑、SR 开发工作台或新的文档状态来源。本轮实际截图与检查另行记录，不复用下文历史结论冒充通过。
+## 阅读器与所有权
 
-## 静态审查回归约束（2026-11-17）
+需求、方案、报告及保留的 Skill Markdown 使用 `MarkdownDocument`，底层为 `@uiw/react-markdown-preview`，不复用聊天 `MessageResponse` 排版。`AIReqMarkdownDocument` 仅包装材料只读策略，正文、版本和有效性由 AIReq 服务投影提供；主题及代码设置来自现有 ZCode store，不建立第二份业务状态。
 
-- 历史快照读取失败只展示该快照错误，不调用仅支持当前材料的重读命令，不能把当前材料恢复结果冒充历史恢复成功。
-- 材料路径切换后的标题、技术路径与正文使用同一已选材料；投影更新使旧路径失效时，先派生同一首选路径再同步局部选择，不出现新标题搭配空正文或旧路径。
-- 隐藏 Skill 的正式保存仍以当前 revision 的逐文件预览资格和原有 owner 收据为准；组件同步单飞接纳保存，重复激活不能在 React 状态刷新前启动第二次请求。不恢复任何产品入口。
+材料位于 [统一右侧工作区](unified-side-pane.md) 的 materials Tab，可与其他对象的报告、历史和分析并存。材料筛选、技术信息和正文共用所属面板内的居中阅读列，独立滚动；面板拖宽、折叠及完整视图由统一框架负责。
 
-## 范围与所有权
+## 材料与选择
 
-需求、方案、报告和 Skill Markdown 正文统一使用当前 ZCode `MarkdownDocument`（`@uiw/react-markdown-preview` 静态文档阅读器），不再复用聊天 `MessageResponse` 排版。表格、代码、Mermaid 与图片预览继续复用现有基础控件，不复制源控件或引入第二份业务状态。`AIReqMarkdownDocument` 是材料只读策略包装；业务版本/正文仍归 AIReq 服务所有，阅读器仅消费正文、主题与代码设置。视觉与验收合同见 `docs/ui/markdown-preview-renderers.md`。
+- 原始短需求独立保存，不能被生成的完整业务需求替换；提案表与单列 CSV 操作处理原文。专门的提案业务文档导入／导出属于提案操作，不因阅读器禁用导出而被删除。
+- IR 共享材料引用 `docs/requirements/<ir-id>/{requirements.md,sr-dependencies.json,acceptance.md}`；SR 独立材料引用 `openspec/changes/<sr-id>/{proposal.md,design.md,tasks.md,test-plan.md}` 及 `specs/`。读取投影中的路径，不读写本源码仓库业务文档。
+- 同一 IR 可选择各 SR 的材料；汇总清单对同类文件同时显示 SR 编号、名称及材料名。材料路径、标题、技术信息和正文始终消费同一派生选中项；旧路径消失时统一回到当前首选材料，不出现新标题配旧正文。
+- 首选顺序考虑显式 materialPath、SR 文档、方案阶段 design、IR 文档及首份材料。方案材料菜单可显示只读工期预估，依赖 JSON 使用只读依赖图。
+- 历史材料选择绑定项目与 IR，不能因另一 IR 同名版本而复用。当前统一材料 Tab 使用完整材料阅读形态，保留对象及历史版本选择；技术路径与完整历史版本标识收进“文件路径与技术信息”。
 
-## 第 2 组材料模型与验收
+## 状态与门禁
 
-- 材料阅读区的筛选头与 Markdown、依赖图、空态共用居中宽度和滚动条边距，减少右栏两侧留白；提案材料栏标题和单行底部操作也对齐该内容列，交互规则见 proposals“讨论页评审信息与材料操作”。
-- 原始短需求是提案表与单列 CSV 唯一正文，独立于 AI 生成的完整业务需求材料；不得将生成文档替换原文。CSV 的模板／导入预览／导出是提案业务操作，不受材料阅读器禁用复制下载的约束。
-- IR 共享材料为 `docs/requirements/<ir-id>/{requirements.md,sr-dependencies.json,acceptance.md}`；每 SR 选择读取 `openspec/changes/<sr-id>/{proposal.md,design.md,tasks.md,test-plan.md}` 及 `specs/`。这些是模拟仓库稳定引用，不读写本源码业务文档，不保留 IR/change 旧映射。
-- 一个 IR 详情中的 SR 选择只影响独立材料／报告；正式表沿用同页面板，不新增 SR 聊天、文档手工编辑器、执行开发按钮。依赖图只读投影依赖 JSON，不成为第二关系来源。
-- 完整包版本及失效原因可见，任何材料变化均失效三路、终审、人工与三方；仅业务需求额外重做前置单评审。历史／旧版本及文档 PR 冻结版只读，无输入器；需修改须关闭未合并 PR 后走正常业务 mutation，不允许在阅读器中绕过冻结。
-- 历史材料默认显示只读状态和失效原因；完整版本标识放入可展开的“文件路径与技术信息”，避免内部快照占用正文空间。桌面浏览器截图检查历史版本切换、技术信息展开与返回当前材料。
-- 第 2 组原实施验收场景：原文与生成文档并存；至少两 SR 可切独立全材料和测试方案；未生成、缺失、读取失败、失效、冻结和历史各自明确；切对象／版本拒绝迟到读取；正式表、报告及分析页材料版本一致。实际执行范围见下方本组观察及 proposals 的第 2 组收口记录，不是待后续集成补验的清单。下方原生渲染可选端口不变，旧首发／自动化观察仅属第 2 组前历史，不代表本组通过或本次重新验收。
+目标投影未就绪显示读取中或重新读取提示，不把旧目标快照解释为空清单。未生成、清单缺失、正文为空、读取失败、过期和历史版本各自明确。过期材料保留只读正文，但不能成为本轮批准依据。
 
-本组实际观察（2026-11-15）：`ir-demo-25` 原文与生成业务文档分开；两个 SR 材料选择均列出独立 proposal／spec／design／tasks／test-plan，测试方案引用 IR 路径及 AC-1／AC-2。PR 确认清单为 13 份完整材料，正式同页面板继续读取相同包。未生成提示、旧阶段只读、三种材料变更后的整包失效、冻结只读和 owner 的迟到结果拒绝均已通过真实浏览器；不新增材料编辑、导出或开发执行入口。通用渲染组件及其忽略目录本组未修改，不重复运行旧通用控件专项扫描。
+当前材料读取失败可显式重试，反馈绑定发起时的项目、IR、版本及路径。历史快照失败仅显示历史错误，不调用只支持当前材料的恢复命令冒充历史修复。迟到读取和重试反馈不覆盖其他对象或材料。
 
-## 可选公开参数
+材料区不提供手工编辑器、SR 聊天、开发执行或独立确认状态。阶段主动作和确认属于原工作流主体；材料变化对评审、人工放行和三方确认的失效规则由工作流 owner 决定。文档 PR 冻结包和历史版本只读，阅读器不能绕过冻结修改内容。
 
-- `MarkdownDocument.showExportActions?: boolean` 默认 `true`；AIReq 包装固定 `false`。聊天的 `MessageResponse.showExportActions` 合同不变。
-- `MarkdownTable.showExportActions`、`CodeBlock.showExportActions` 继续控制实际复制/下载动作；UIW 内建代码复制关闭，避免重复工具栏。
-- `false` 不渲染表格复制 Markdown、下载 CSV 和代码复制按钮，不禁用正文选择或浏览器原生复制。
-- 表格全屏预览、关闭、内部横滚及代码高亮、换行、Mermaid 阅读/预览保留。
-- 材料不传外链回调或工作区路径。普通链接保留目标提示但不启动外部产品入口；文档内标题和脚注锚点正常定位。
+历史讨论与旧评审会话使用原生 `SessionPane.readOnly`，不挂载可写输入器和输入辅助；返回当前阶段才恢复当前会话输入，不改旧消息或旧报告。
 
-历史阶段与旧评审会话必须由同一领域阶段判断设为原生 `SessionPane.readOnly`，不挂载可写输入框和输入辅助；“历史只读”的文案不能代替编辑门禁。返回当前阶段才恢复当前会话输入，不改变旧消息或旧报告。
+## 渲染与操作
 
-## 更新与验收
+`MarkdownDocument.showExportActions` 默认 `true`，AIReq 包装固定为 `false`。表格、代码 renderer 消费该开关：材料不渲染复制 Markdown、下载 CSV 和代码复制按钮，UIW 内建复制亦关闭；正文选择与浏览器原生复制不受影响。切 props 后操作同步变化，不保留旧按钮，也不向 DOM 泄漏 renderer 控制参数。
 
-文档阅读器通过当前 props 向表格与代码 renderer 传递导出开关，切换为只读时不残留旧按钮；不把 UIW 的节点参数或布尔控制参数泄漏到 DOM。组件不得在条件分支之后新增 hooks。聊天 renderer 的既有 memo 合同不变。
+表格全屏预览、关闭、内部横滚、代码高亮及换行、Mermaid 和图片预览保留。材料包装不传外链回调或工作区路径；普通链接保留目标提示但不启动外部产品入口，标题及脚注锚点正常定位。
 
-AIReq 依赖图的第三方署名继续可见、可访问，背景与链接文字使用目标语义 token；只在业务图实例内覆盖 React Flow 默认半透明白底，避免深色主题下灰字与灰底近乎同色，不修改通用 Canvas 或隐藏署名。
+SR 依赖图只投影依赖 JSON，不成为第二关系来源；保留选边原因、缩放、平移、适应视图及可访问第三方署名。业务图实例使用语义背景和文字色，不全局修改通用 Canvas 或隐藏署名。
 
-原生渲染验收要求：默认消费者操作不变；材料 `false` 时表格与代码均无复制/下载，表格仍可预览/关闭/横滚；切换开关不残留旧操作；材料链接/路径不可启动旧入口。实现变更若涉及以下 ignored 源文件，须按仓库规则补专项 hooks 扫描；本次仅同步文档，不执行扫描：
+保留的隐藏 Skill 文件预览分离 frontmatter 与正文，非 Markdown 和原始元数据复用同一代码阅读设置；保存资格属于工具 owner，不属于阅读器，见 [工具与设置](tools-settings.md)。
 
-- `packages/ui/src/components/ai-elements/message.tsx`
-- `packages/ui/src/components/ai-elements/markdown-table.tsx`
-- `packages/ui/src/components/ai-elements/code-block.tsx`
+## 实现依据
 
-## 第 2 组之前的原生渲染历史观察
-
-以下旧首发、owner 与自动化记录只保留当时场景及证据边界；旧首发创建已被先建提案后手动讨论取代，AIReq 自动化专属能力已裁撤，owner 不是当前业务权限，不据此恢复旧入口或新增通过声明。
-
-主集成实际观察：PNG 首发自动进入 canonical v4 回复／材料；Skill 两文件预览的 Frontmatter 与正文分离，references/checklist、完整路径及只读详情可见。owner 的完整 1440×889 PNG 经左栏折叠、预览 Tabs 和重开仍保留，四字段与 canonical 正文准确且未发送时预览仍为“尚未生成”；改表单后再次准备保留人工补文及 PNG。
-
-需求历史阶段原生没有 contenteditable，返回当前不改变阶段；自动化 Run 仅留下 stopped 演示记录，More“跳到会话”打开无编辑器的只读历史弹窗，task/workpool 及 actor 只读。自动化 JSON／text 输出已通过实际 CodeViewer 截图观察，不以 DOM 文本替代阅读器验收。正式需求同页报告／材料 Tabs、展开、横滚 300 与分栏切行保留；实际 SDK 后台 interval 45 更新时报告事实保持，Escape 恢复焦点，报告适配视口，不外推非零纵滚保持。
-
-依赖图真实选边原因、缩放、指针平移及适应视图已观察；署名对比度 token 修正是实现记录，不从编译推导最终主题截图通过。上述子集不替代导出按钮、链接、memo 切换及专项 hooks 的完整合同，也不代表所有只读／失败场景均已逐一测试。源研究仅作历史依据，材料和静态资源不在运行时读取源绝对路径；无真实文件／Skill 写入或模型执行。最终检查命令、全页主题和连接精确证据统一以根 `todo.md` 为准，工具与设置观察见 `tools-settings.md`。
+- `packages/ui/src/aireq/proposals/AIReqWorkbench.tsx`
+- `packages/ui/src/aireq/proposals/AIReqMarkdownDocument.tsx`、`AIReqSrDependencyGraph.tsx`
+- `packages/ui/src/aireq/tools/AIReqSkillFilePreview.tsx`
+- `packages/ui/src/components/ai-elements/` 中共享 Markdown、表格及代码阅读组件

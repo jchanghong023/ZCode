@@ -35,7 +35,13 @@ export function AIReqWorkspaceFooter({
       compact={compact}
       theme={theme}
       onThemeChange={(value) => {
-        if (value === "system" || value === "zai-dark" || value === "zai-light") setTheme(value);
+        if (
+          value === "system" ||
+          value === "zai-dark" ||
+          value === "zai-light" ||
+          value === "zai-motion"
+        )
+          setTheme(value);
       }}
       onSettingsButtonClick={onOpenSettings}
       settingsButtonMode={settingsButtonMode}

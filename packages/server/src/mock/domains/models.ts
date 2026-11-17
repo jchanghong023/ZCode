@@ -1,17 +1,13 @@
-// 模拟模型领域：Provider 设置视图、模型选择与用量统计。
+// 模拟模型领域：Provider 设置视图与模型选择。
 import { Emitter, type Event } from "@zcode/rpc";
 import { BIGMODEL_PROVIDER_ID } from "@zcode/shared";
 import {
   IModelSelectionService,
   IProviderSettingsService,
-  IUsageStatsService,
   type ModelSelectionView,
   type ProviderSettingsView,
 } from "@zcode/services";
 import type { MockServiceRegistrar } from "./contract.js";
-
-type P<T extends (...args: never) => unknown> = Parameters<T>[0];
-type AR<T extends (...args: never) => unknown> = Awaited<ReturnType<T>>;
 
 // ── Provider / 模型选择视图 ──
 
@@ -109,9 +105,6 @@ function buildProviderSettingsView(): ProviderSettingsView {
 }
 
 export class MockProviderSettingsService implements IProviderSettingsService {
-  private readonly changeEmitter = new Emitter<ProviderSettingsView>();
-  readonly onDidChange: Event<ProviderSettingsView> = this.changeEmitter.event;
-
   async getView(): Promise<ProviderSettingsView> {
     return buildProviderSettingsView();
   }
@@ -169,37 +162,7 @@ export class MockModelSelectionService implements IModelSelectionService {
   }
 }
 
-// 收口原因：没有套餐后端，只提供当前消费者所需的真实无权益投影，不制造统计或写入成功。
-export class MockUsageStatsService implements IUsageStatsService {
-  async getCodingPlanResetStatus(
-    _request: P<IUsageStatsService["getCodingPlanResetStatus"]>,
-  ): Promise<AR<IUsageStatsService["getCodingPlanResetStatus"]>> {
-    return {
-      availableFiveHourResets: [],
-      availableWeekResets: [],
-      latestFiveHourResetHistory: null,
-      latestWeekResetHistory: null,
-      hasUnreadHistory: false,
-    };
-  }
-
-  async getEntitlementSnapshot(
-    _request?: P<IUsageStatsService["getEntitlementSnapshot"]>,
-  ): Promise<AR<IUsageStatsService["getEntitlementSnapshot"]>> {
-    return {
-      generatedAt: Date.now(),
-      authenticated: false,
-      unavailableReason: "not_configured",
-      provider: null,
-      remaining: null,
-      subscription: null,
-      quota: null,
-    };
-  }
-}
-
 export function registerModelsMockServices(services: MockServiceRegistrar): void {
   services.register(IProviderSettingsService, new MockProviderSettingsService());
   services.register(IModelSelectionService, new MockModelSelectionService());
-  services.register(IUsageStatsService, new MockUsageStatsService());
 }

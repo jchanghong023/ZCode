@@ -254,7 +254,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
         const pending = status === "pending";
         const section = spine.sections[index] ?? { rails: [] };
         const roster = stationRosterOf(station, ROSTER_PINS_PANE);
-        // 留白（docs/dynamic-workflow/presentation.md「Holes on the timeline」的「The pane」）：节头换虚线灯；
+        // 留白：节头换虚线灯；
         // 等待时节体说等了多久。有阶段的补全在它写下的第一节前多一行标题；那几节不缩进（嵌套由框说出）。
         const hole = station.hole;
         // 同起于这一节的补全各有一行标题，外层在前（模型的次序）：内层的框从它自己的标题量起。

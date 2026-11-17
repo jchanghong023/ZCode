@@ -1,4 +1,4 @@
-// Side Pane 完整视图的纯模型：状态类型与浮窗几何。spec：docs/ui/side-pane-full-view.md
+// Side Pane 完整视图的纯模型：状态类型与浮窗几何。spec：packages/ui/src/side-pane-full-view/CONTRACT.md
 // 只做纯计算，不读写 DOM / 存储；宿主组件负责测量 slot 并把结果写成 CSS 变量。
 import type {
   ConversationPaneFloatingStatus,

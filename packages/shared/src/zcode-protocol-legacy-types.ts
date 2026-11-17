@@ -369,7 +369,7 @@ export const zcodeTimelinePartSchema = partBaseSchema
         label: nonEmptyString,
       })
       .optional(),
-    // timelineType = worktree_creation：受管 worktree 的创建结果（docs/git/worktree.md §6.6.4）。
+    // timelineType = worktree_creation：受管 worktree 的创建结果。
     worktreeCreation: z
       .object({
         path: nonEmptyString,

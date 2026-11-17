@@ -209,7 +209,7 @@ function createMermaidConfig(resolvedTheme: "light" | "dark"): MermaidConfig {
 
 function resolveBrowserTheme(theme: Theme): "light" | "dark" {
   if (typeof window === "undefined") {
-    return theme === "dark" || theme === "zai-dark" ? "dark" : "light";
+    return theme === "dark" || theme === "zai-dark" || theme === "zai-motion" ? "dark" : "light";
   }
 
   return resolveTheme(theme);

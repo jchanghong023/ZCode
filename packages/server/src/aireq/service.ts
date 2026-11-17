@@ -154,7 +154,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("progress.cleanupBranches", cleanupPrototypeBranches);
     add("planning.updateSr", updatePrototypeSrPlanning);
     add("skillDesign.session", skills.prototypeSkillDesignSession);
-    add("skillDesign.binding", skills.prototypeSkillDesignBinding);
     add("skillDesign.workspaceIdentity", (projectId: string) => `aireq-mock:${projectId}`);
     add("skillDesign.read", skills.readPrototypeSkillDesign);
     add("skillDesign.saveDraft", skills.savePrototypeSkillDesignDraft);

@@ -206,7 +206,7 @@ export function buildWorkflowTimeline(
   input: WorkflowCausalityGraphData,
   run: WorkflowRunState | undefined,
   /**
-   * 补全过的留白的名与类型（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：没有 run 的
+   * 补全过的留白的名与类型：没有 run 的
    * 静态图（确认窗、补全行）从工具入参递进来。给了它就不走共享缓存——那张表是按 (graph, run) 键的。
    */
   holeLabels?: HoleLabels,

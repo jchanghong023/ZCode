@@ -2,7 +2,6 @@ import type { SkillSummary } from "@zcode/shared";
 import type { AIReqBackendView, AIReqDataSource } from "./data-source.js";
 import type {
   AIReqAction,
-  AIReqAgentModelBinding,
   AIReqAgentModelSettings,
   AIReqNativeSessionRef,
   AIReqSelection,
@@ -92,7 +91,6 @@ export interface AIReqRemoteOperations {
   "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
   "skillDesign.session": Operation<[projectId: string], string>;
-  "skillDesign.binding": Operation<[sessionId: string], AIReqAgentModelBinding>;
   "skillDesign.workspaceIdentity": Operation<[projectId: string], string>;
   "skillDesign.read": Operation<[sessionId: string], AIReqSkillDesignDraft>;
   "skillDesign.saveDraft": Operation<[sessionId: string, value: AIReqSkillDesignDraft], null>;

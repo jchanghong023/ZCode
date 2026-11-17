@@ -1,7 +1,7 @@
 import { BotChannelMessageContent } from "@/v4/ChannelMentionContent.js";
 import { parsePromptConversationSelections } from "@/lib/conversationSelectionReference.js";
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
-import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
+import { BotGroupSourceLabel } from "@/v4/BotTopicPreparation.js";
 import {
   closestCenter,
   DndContext,
@@ -63,7 +63,7 @@ export interface ConversationQueuePanelProps {
 type QueueItem = QueueState["items"][number];
 
 /**
- * 编辑锁归属（docs/ui/composer-edit-mode.md「锁的释放」）：本端锁 = editorId 相同且本地编辑态正在编辑该项。
+ * 编辑锁归属：本端锁 = editorId 相同且本地编辑态正在编辑该项。
  * Bug 根因：
  * - lock ACK 可能早于 editLock 投影；只看投影时，该行会先回到普通行再变成占位。投影确认前以本端编辑态为准。
  * - 曾只按 editorId 判定本端，刷新后遗留锁的自动释放失败时，该行只有聚焦按钮、没有「解除」，队首一直冻结。

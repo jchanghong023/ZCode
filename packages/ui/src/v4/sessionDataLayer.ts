@@ -44,7 +44,7 @@ export class SessionDataLayer {
   private readonly keepWarmMs: number;
   private readonly entries = new Map<string, SessionEntry>();
   // 行结构共享池跨 store 生命周期：keep-warm 过期冷打开的新 store 仍能复用被留住的旧行
-  // （docs/performance/conversation-row-structural-sharing.md）。
+  // 。
   private readonly rowPool = new ConversationRowPool();
   private readonly offFrame: () => void;
   private disposed = false;

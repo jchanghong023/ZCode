@@ -82,7 +82,7 @@ export function splitConversationTimelineLiveTail(
 }
 
 /**
- * 时间线最后一个回合的摘要（spec：docs/ui/side-pane-full-view.md）。
+ * 时间线最后一个回合的摘要。
  * 运行状态、运行时长和最终回答取自同一个 render unit，供完整视图浮窗一次性使用，
  * 避免运行状态与回答来自两个数据源时先后不一致。
  */

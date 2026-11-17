@@ -283,7 +283,7 @@ export interface CreateTempTextAttachmentResult {
 
 /**
  * dwf 产物「作为文件打开」：把某一版产物的字节落成宿主本机上的一份副本
- * （docs/dynamic-workflow/authoring.md「How the user sees them」）。
+ * 。
  *
  * ⚠ 术语：artifact = 脚本经 `artifact.*` 发布给用户看的产出，不是引擎的 `RunSettlement.artifact`。
  */
@@ -331,7 +331,7 @@ export interface PrintPageToPdfResult {
 }
 
 /**
- * 系统麦克风权限检查结果（docs/chat/composer-voice-input.md「麦克风权限」）。
+ * 系统麦克风权限检查结果。
  * - granted：可以调用 getUserMedia
  * - denied：系统拒绝，需要用户到系统设置开启
  * - unsupported：系统没有权限接口（Linux），由 getUserMedia 的错误决定
@@ -339,7 +339,7 @@ export interface PrintPageToPdfResult {
 export type MicrophoneAccessResult = "granted" | "denied" | "unsupported";
 
 /**
- * macOS「重新授权」结果（docs/chat/composer-voice-input.md「权限引导浮层」）。
+ * macOS「重新授权」结果。
  * - granted：已获得权限
  * - denied：重置后系统弹框中用户仍选择拒绝
  * - restart-required：重置后当前进程仍读到 denied，重启 ZCode 后才会弹框
@@ -479,7 +479,7 @@ export interface DesktopZoomState {
 }
 
 /**
- * 桌面端"关闭驻留托盘"能力（spec：docs/desktop/linux-close-to-tray.md）。
+ * 桌面端"关闭驻留托盘"能力。
  * Linux 上取决于 session DBus 是否有 StatusNotifierWatcher（KDE/XFCE 原生有，
  * GNOME 需 AppIndicator 扩展）；Windows 固定 supported=true；macOS/Web 不查询。
  */
@@ -737,7 +737,7 @@ export interface IPlatformService {
   onTaskNotificationClick(handler: (taskId: string) => void): () => void;
 
   /**
-   * 扩展系统通知（docs/plugins/extension-host.md §18.1 H8）：宿主判断窗口焦点与平台支持后弹出，
+   * 扩展系统通知：宿主判断窗口焦点与平台支持后弹出，
    * 返回是否弹出与原因。Web 端由浏览器 Notification API 实现。
    */
   showExtensionNotification?(

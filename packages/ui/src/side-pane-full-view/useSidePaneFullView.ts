@@ -13,7 +13,7 @@ import {
 } from "@/lib/taskSidePaneMemory.js";
 
 /**
- * 完整视图状态的唯一 owner（spec：docs/ui/side-pane-full-view.md）。
+ * 完整视图状态的唯一 owner。
  * 记录按 workspace + 对话 owner 存在 taskSidePaneMemory；这里只镜像当前 owner 的值，
  * 侧栏/Header 显隐等都从返回值只读派生，不回写原有状态。
  */

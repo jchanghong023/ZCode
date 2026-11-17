@@ -35,7 +35,7 @@ import {
   workflowRunResultView,
   type WorkflowActorInstance,
 } from "@/app-shell/workflowRunPanel.js";
-import { useWorkflowRunArtifacts } from "@/hooks/useWorkflowRunArtifacts.js";
+import { artifactViewsFromSummaries } from "@/hooks/useWorkflowRunArtifacts.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import {
   buildWorkflowFillGraphByRunId,
@@ -121,7 +121,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   // 脚本 transcript 同一张表——CreateWorkflow 工具行或直接启动轮的元数据，谁挂着图都一样。行窗口是
   // 有界的，老对话里翻不到发起行是正常情况，不是错误——此时没有图可给。
   // 「配置」修订出来的 run 在设置轮落地之前借前驱的图（规则与理由见 resolveWorkflowRunGraph）。
-  // 补全过的 run 取最新补全行的有效脚本图（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。
+  // 补全过的 run 取最新补全行的有效脚本图。
   const { graph, holeLabels } = useMemo(() => {
     const fills = buildWorkflowFillGraphByRunId(snapshot?.rows.window);
     const graphs = buildWorkflowGraphByToolCallId(snapshot?.rows.window);
@@ -265,14 +265,10 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
     [tab.focusPhaseId, tab.openedAt],
   );
 
-  // 产物。活投影只带最新版的元数据，spec 与版本历史在
-  // journal 里，所以 hook 两边都读——`run` 不在投影里（冷恢复 / 被 8-run 上限淘汰）时
-  // `live` 缺席，整份清单走 journal。
-  const { artifacts } = useWorkflowRunArtifacts({
-    sessionId: tab.parentSessionId,
-    runId: tab.runId,
-    ...(run === undefined ? {} : { live: run.artifacts ?? EMPTY_ARTIFACTS }),
-  });
+  const artifacts = useMemo(
+    () => artifactViewsFromSummaries(run?.artifacts ?? EMPTY_ARTIFACTS),
+    [run?.artifacts],
+  );
   const handleOpenArtifact = useCallback(
     (artifactId: string) => {
       // 卡片只发意图（哪个产物），会话与 workspace 身份由这里补齐——与 actor transcript
@@ -365,8 +361,6 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
       {artifacts.length === 0 ? null : (
         <WorkflowRunArtifactsSection
           artifacts={artifacts}
-          runId={tab.runId}
-          sessionId={tab.parentSessionId}
           {...(onOpenWorkflowArtifact === undefined ? {} : { onOpenArtifact: handleOpenArtifact })}
         />
       )}
@@ -379,7 +373,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
  *
  * 详情页承担用量、控制与交付物；图本身回到了聊天区的工具卡上，这里画的是同一个时间线模型的
  * 纵向清单。它**不复刻**卡片的有界 display——图之外的一切都读 `workflowRuns` 的权威投影，
- * 产物清单则直接读 journal。
+ * 产物清单也读取同一权威投影。
  *
  * 面板只呈现**用户**要看的东西。`report` 条目、事件日志与脚本原文
  * 三节已经撤走——它们是技术细节，读者是模型与 CLI，不是坐在这块面板前的人。

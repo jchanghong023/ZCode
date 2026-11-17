@@ -342,7 +342,7 @@ interface RunIndex {
 }
 
 /**
- * 一次视图建一遍的两张索引（docs/dynamic-workflow/presentation.md「The timeline model」的
+ * 一次视图建一遍的两张索引（相邻实现「The timeline model」的
  * Cost 段）。没有它们，每张实例卡都要重扫一遍 `run.nodes` 才能收自己的状态——表界是 1024
  * 个实例 × 1024 个节点，也就是每帧一百万次比较（实测 14ms/次，而卡与详情页各建一遍）。
  * 索引之后建模按 actors + nodes 线性。

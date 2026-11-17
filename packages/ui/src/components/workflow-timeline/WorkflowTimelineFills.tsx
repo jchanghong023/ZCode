@@ -16,7 +16,7 @@ import type { TimelineFill } from "./timeline-holes.js";
 import { framePath, legendGaps, type TimelineFrame } from "./timeline-frames.js";
 import { HEAD_ROW, MARK_X, stationX } from "./timeline-geometry.js";
 
-/** 补全接进 run 之后框自己画一遍、头染警示色的时长（docs/dynamic-workflow/presentation.md「The stroke」）。 */
+/** 补全接进 run 之后框自己画一遍、头染警示色的时长。 */
 export const FILL_FRESH_MS = 2_000;
 
 /**
@@ -139,7 +139,7 @@ function useRowWidths(key: string): {
 }
 
 /**
- * 补全的头与框（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。
+ * 补全的头与框。
  *
  * 头：只在有补全的时间线上存在的 24px 一行，笔（12px）对准第一枚新灯的 x，留白的名字（caption、
  * medium、subtle、300px 截断）。没有底、没有线。点它开侧板、落到补全的标题。它（与无阶段补全的笔标）

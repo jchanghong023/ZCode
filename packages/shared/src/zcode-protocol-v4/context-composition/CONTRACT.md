@@ -8,6 +8,4 @@
 
 - 组成只表达类别、条目名和大小，不提供正文；条目名最长 200 字符，每类最多 50 条。
 - 细类别通过 `contextCompositionUsageSource` 纯函数投影到既有圆环粗类别，不扩展 shared 的 7 值枚举。
-- 线格式保持 strict；本次收口不修改 schema，不通过保留协议定义恢复旧查询或通知。
-
-CLI 分类、草稿预演、修订号 tracker、existing-only 查询及通知合并见历史设计 `apps/zcode-cli/docs/design/v2/model/context-composition.md`。这些描述不是当前仓库中的执行入口或实现承诺。
+- 线格式保持 strict；不通过保留协议定义恢复旧查询或通知。

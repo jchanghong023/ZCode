@@ -24,6 +24,7 @@ import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./page
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
 import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
+import { AIReqMotion } from "./AIReqMotion.js";
 import { AIReqIdeaPool } from "../ideas/AIReqIdeaPool.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
 import {
@@ -63,6 +64,7 @@ export function AIReqShell(props: { onLogout(): void }) {
   );
 }
 function AIReqShellContent({ onLogout }: { onLogout(): void }) {
+  const motionRoot = useRef<HTMLDivElement>(null);
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -214,7 +216,11 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   else if (ai.mainView === "chat") content = <AIReqProposalWorkspace active={!settingsOpen} />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt">
+    <div
+      ref={motionRoot}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt"
+    >
+      <AIReqMotion rootRef={motionRoot} />
       {/* 设置只隐藏工作台，保留会话、附件与面板；导航仍只有 Context 一个所有者。 */}
       <div
         hidden={settingsOpen}
@@ -243,7 +249,10 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
           />
         </nav>
         <AIReqSidePaneHost>
-          <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background">
+          <div
+            data-aireq-motion-main=""
+            className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background"
+          >
             {/* 讨论页已移除页头，原48px占位也应归还聊天与材料面板；业务列表仍保留标题基线。 */}
             {(ai.mainView !== "chat" || formal) && (
               <div className="h-12 shrink-0" aria-hidden="true" />

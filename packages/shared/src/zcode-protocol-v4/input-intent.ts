@@ -14,7 +14,7 @@ import { sharedContextRefSchema } from "./shared-context-ref.js";
 /**
  * 输入的结构化来源：插件、交互视图、会话或扩展代发时带上，落库后由卡片显示来源。
  * 缺省即用户亲自输入；会话与扩展来源由 Host 注入，不从正文推断，模型与工具不能设置。
- * 契约：apps/zcode-cli/docs/design/v2/conversation-input-source.md。
+ * 契约：相邻实现。
  */
 const pluginUiInputSourceSchema = z
   .object({
@@ -24,7 +24,7 @@ const pluginUiInputSourceSchema = z
   })
   .strict();
 /**
- * 扩展经 ctx.sessions.* 代发（docs/plugins/extension-host.md §17.8）。只由 Window Host 的扩展网关注入；
+ * 扩展经 ctx.sessions.* 代发。只由 Window Host 的扩展网关注入；
  * 旧 CLI 不认识它（sendText 整条拒绝、createSession.firstInput 静默剥掉），所以 Host 发送前必须确认
  * runtime/capabilities.extensionInputSource。pluginId 是扩展进程自报，只用于展示与归因。
  */

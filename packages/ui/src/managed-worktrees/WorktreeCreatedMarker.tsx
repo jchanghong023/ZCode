@@ -1,4 +1,4 @@
-// 会话历史中的"已创建 worktree"（docs/git/worktree.md §6.6.4）：由 CLI 写入历史，
+// 会话历史中的"已创建 worktree"：由 CLI 写入历史，
 // 桌面、手机与重启后看到的是同一项；默认收起，可展开查看 git 与拷贝输出。
 import { TID_WORKTREE_CREATED_MARKER } from "@zcode/shared/test-ids";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

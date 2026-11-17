@@ -292,7 +292,7 @@ export function mergeOlderRows(
 
 /**
  * rows.window 的「冻结历史 + 尾轮」分区缓存（类型见 ConversationRowsPartition，
- * spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。
+ * spec：相邻实现「每帧派生成本」）。
  *
  * 为什么需要它：流式帧只改最后一轮，但 rows 每帧都是新数组，消费方只能逐行比较才知道历史没变，
  * 每帧成本随历史长度线性增长。分区让历史段在只改尾轮的帧之间保持同一个数组引用，
@@ -316,7 +316,7 @@ export function getConversationRowsPartition(
 }
 
 /**
- * 按行扫描的派生在分区上的通用缓存（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。
+ * 按行扫描的派生在分区上的通用缓存。
  *
  * 为什么需要它：按行扫描的派生要做到流式帧常数开销，都要把历史段结果按 history 数组引用缓存、
  * 每帧只算尾段，再由消费方合并两段。这里只收拢“按行数组缓存”的 get/compute/set 样板；
@@ -473,7 +473,7 @@ export class ConversationProjectionStore {
   constructor(
     readonly topic: string,
     private readonly transport: ConversationTransport,
-    // 行结构共享池（docs/performance/conversation-row-structural-sharing.md）；
+    // 行结构共享池；
     // SessionDataLayer 注入跨 store 共享的池，独立构造时退化为 store 内共享。
     private readonly rowPool: ConversationRowPool = new ConversationRowPool(),
   ) {

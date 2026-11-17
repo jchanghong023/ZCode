@@ -1,5 +1,5 @@
 /**
- * settings-scope 合同：设置页 Scope 菜单按设备分组（docs/remote/data-sync.md「Scope 菜单按设备分组」）。
+ * settings-scope 合同：设置页 Scope 菜单按设备分组。
  * Scope key：`"user"` = 本机「用户」；`source-user:<sourceServerId>` = 远端设备「用户」；其余为项目 key。
  */
 import type { IServiceAccessor } from "@zcode/services";

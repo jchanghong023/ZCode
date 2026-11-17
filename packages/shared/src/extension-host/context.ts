@@ -7,7 +7,7 @@ import type {
 import type { ResolvedScope, ScopeInput, SlotItemPatch } from "#src/extension-host/slots.js";
 import type { ViewDefinition, ViewServerFactory } from "#src/extension-host/views.js";
 
-// ExtensionContext（docs/plugins/extension-host.md §7.1、§7.4）是唯一定义：
+// ExtensionContext是唯一定义：
 // 扩展进程运行时用 `satisfies ExtensionContext` 钉住；P3 的类型包从这里导出。
 
 export type Disposable = CapabilityDisposable;

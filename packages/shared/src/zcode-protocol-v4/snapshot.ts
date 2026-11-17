@@ -234,7 +234,7 @@ export const queueItemSchema = conversationInputIntentSchema.extend({
   automationId: z.string().min(1).optional(),
   toolDisallowlist: z.array(z.string().min(1)).optional(),
   /**
-   * 底部 composer 正在编辑该项（docs/ui/composer-edit-mode.md）：CLI 内存权威，冻结期间
+   * 底部 composer 正在编辑该项：CLI 内存权威，冻结期间
    * 自动续跑停在该项前，且不能删除、重排或立即发送。缺省 = 未锁。
    */
   editLock: queueItemEditLockSchema.optional(),

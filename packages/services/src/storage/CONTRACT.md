@@ -3,7 +3,7 @@
 当前治理范围（纯 Web）：仅保留 `contract.ts` 中的类型契约
 （`IStorageService extends StorageManagementApi`）及共享存储类型再导出。
 扫描／清理实现与桌面装配已移除；无当前挂载入口的
-`packages/ui/src/resource-manager` 页面及其独占存储 UI 在本轮退役。
+`packages/ui/src/resource-manager` 页面及其独占存储 UI 不再挂载。
 当前没有此契约的运行时 UI 消费者或扫描／清理实现，不表示 Web 设置页或 Host 已提供存储管理。
 
 以下为保留接口的语义约束，不是当前运行能力或已通过验收的声明：

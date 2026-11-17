@@ -1,4 +1,3 @@
-import { IGenUiService } from "@zcode/services";
 import { ProxyChannel, type IChannelClient } from "@zcode/rpc";
 import {
   IAIReqService,
@@ -10,10 +9,8 @@ import {
   IZCodeAgentService,
   IZCodeSessionService,
   IProjectService,
-  IBotsService,
   IModelSelectionService,
   IProviderSettingsService,
-  IUsageStatsService,
   ISubagentsService,
   type IServiceAccessor,
 } from "@zcode/services";
@@ -33,11 +30,8 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly zcodeAgentService: IZCodeAgentService;
   readonly zcodeSessionService: IZCodeSessionService;
   readonly projectService: IProjectService;
-  readonly botsService: IBotsService;
   readonly providerSettingsService: IProviderSettingsService;
   readonly modelSelectionService: IModelSelectionService;
-  readonly usageStatsService: IUsageStatsService;
-  readonly genUiService: IGenUiService;
   readonly subagentsService: ISubagentsService;
 
   constructor(channelClient: IChannelClient) {
@@ -68,20 +62,11 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.zcodeSessionService = ProxyChannel.toService<IZCodeSessionService>(
       channelClient.getChannel(IZCodeSessionService.channelName),
     );
-    this.botsService = ProxyChannel.toService<IBotsService>(
-      channelClient.getChannel(IBotsService.channelName),
-    );
     this.providerSettingsService = ProxyChannel.toService<IProviderSettingsService>(
       channelClient.getChannel(IProviderSettingsService.channelName),
     );
     this.modelSelectionService = ProxyChannel.toService<IModelSelectionService>(
       channelClient.getChannel(IModelSelectionService.channelName),
-    );
-    this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(
-      channelClient.getChannel(IUsageStatsService.channelName),
-    );
-    this.genUiService = ProxyChannel.toService<IGenUiService>(
-      channelClient.getChannel(IGenUiService.channelName),
     );
     this.subagentsService = ProxyChannel.toService<ISubagentsService>(
       channelClient.getChannel(ISubagentsService.channelName),

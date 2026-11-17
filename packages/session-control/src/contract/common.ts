@@ -64,7 +64,7 @@ export type Scope = CliScope | AppScope;
 // 模型可只传会话 ID；可信一侧解析为完整引用后，才进入原有授权与 owner 校验。
 // 会话 ID 有两种历史格式，都必须接受：当前的 `sess_<UUID v4>`，以及 3.16 Host 持久化的
 // `session_<32hex>` / `session_<UUID>`。读取必须按原身份精确查找，不能改写前缀后查另一个会话
-// （docs/session-context-tool.md「Session identity compatibility」）。
+// 。
 // 校验格式的目的不只是挡住错值：模型曾传入 "dummy" 这类占位值，无格式约束时一路走到授权才被拒，
 // 错误信息只说越权，看不出是 ID 本身不对。
 const SESSION_ID_PATTERN = /^(?:sess|session)_[A-Za-z0-9._-]+$/;
@@ -100,7 +100,7 @@ function toolShape<T extends z.ZodRawShape>(shape: T) {
  * 不指向已有会话、但需要幂等身份的写操作（当前只有 `CreateSession`）的两份 schema。
  * 与 withSessionTarget 同一套规则：端口收 `requestId`，工具面只给 `retryOf`。
  * `portOnly` 只进端口、不进工具面（同 withSessionTarget）：扩展新建会话时的权限模式
- * （docs/plugins/extension-host.md §17.12），模型看到的工具 schema 不变。
+ * ，模型看到的工具 schema 不变。
  */
 export function withRequestIdentity<
   T extends z.ZodRawShape,
@@ -118,7 +118,7 @@ export function withRequestIdentity<
  * 规格 0.11：模型把两个字段都当必填，用 "dummy" 之类占位值补齐 `session`，一整轮调用全部失败。
  * 它无法可靠构造这个嵌套引用，所以不再让它看见；strictObject 会直接拒绝多传的 `session`，不静默忽略。
  *
- * `portOnly` 只进端口、不进工具面：给可信的非会话客户端用的字段（docs/plugins/extension-host.md §18.1 H10，
+ * `portOnly` 只进端口、不进工具面：给可信的非会话客户端用的字段（packages/shared/src/extension-host/CONTRACT.md §18.1 H10，
  * 扩展的 sendToSession 可带 model），模型看到的工具 schema 不变。
  */
 export function withSessionTarget<
@@ -180,7 +180,7 @@ interface TrustedContextBase<S extends Scope> {
 }
 /**
  * 会话类调用方：模型的会话控制工具。根会话是调用者自己的会话，self_wait 按它检查。
- * `caller` 缺省即会话类：CLI 与既有构造方不写这个字段，行为不变（docs/plugins/extension-host.md §17.2）。
+ * `caller` 缺省即会话类：CLI 与既有构造方不写这个字段，行为不变。
  */
 export interface SessionCallerContext<
   R extends SessionRef,

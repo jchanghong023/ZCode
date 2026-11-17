@@ -84,7 +84,7 @@ function collectRealUserQueryRowIds(units: readonly ConversationTurnRenderUnit[]
 
 /**
  * 目录成员未变时保持身份；正文 token/时钟不能让 DOM 锚点登记跟着全量重建。
- * 输入按「历史 + 尾轮」分区（docs/ui/chat-virtual-scroll.md「每帧派生成本」）：历史段引用不变且
+ * 输入按「历史 + 尾轮」分区：历史段引用不变且
  * 尾轮成员不变时直接复用，流式帧只收集尾轮；历史段变化时才整窗比较成员。
  */
 export function createConversationTurnNavigatorQueryRowIdsSelector() {

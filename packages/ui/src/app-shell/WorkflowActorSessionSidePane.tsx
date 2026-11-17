@@ -95,7 +95,6 @@ const WorkflowActorSessionContent = memo(function WorkflowActorSessionContent({
       paneId={tab.id}
       sessionId={gate.sessionId}
       readOnly
-      allowWorkspaceFileRewind
       focused={focused}
       workspacePath={tab.workspacePath}
       workspaceIdentity={tab.workspaceIdentity}

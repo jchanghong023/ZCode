@@ -177,7 +177,7 @@ function DeviceScopeMenu({
                 ) : null}
                 {projects.length > 0 ? (
                   // 项目一多（实测 40+），平铺会把后面的设备挤到很远；第一层只留每台设备的入口
-                  // （docs/issues/data-sync/19-scope-menu-project-submenu.md）。
+                  // 。
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger
                       data-scope-projects-trigger="true"

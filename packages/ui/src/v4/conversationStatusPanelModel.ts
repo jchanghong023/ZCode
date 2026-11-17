@@ -288,7 +288,7 @@ function buildRunningWorkflowRuns(
 }
 
 /**
- * 一条 run「此刻在做什么」的词（docs/dynamic-workflow/presentation.md「Other places a run appears」），
+ * 一条 run「此刻在做什么」的词，
  * run 行第二行与胶囊共用这一条规则：
  * - pending → 状态词；
  * - 没声明阶段 → 步数（这是步数唯一还露面的地方）；

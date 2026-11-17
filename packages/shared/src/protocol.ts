@@ -73,7 +73,7 @@ export interface SystemInfo {
 
 /**
  * 支持的界面语言（BCP-47）。顺序即设置页下拉的展示顺序。
- * 新增语言的步骤见 docs/i18n/ui-locales.md。
+ * 新增语言的步骤见 相邻实现。
  */
 export const SUPPORTED_LOCALES = ["zh-CN", "en-US", "ja-JP", "ru-RU", "ko-KR"] as const;
 
@@ -248,7 +248,7 @@ export interface ResourceUsageSnapshot {
 
 export interface AppSettings {
   /** 浏览器外观偏好；不改变会话执行配置。 */
-  theme?: "light" | "dark" | "zai-light" | "zai-dark" | "system";
+  theme?: "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
   /** 界面字号基准 px，整数 12—20，不改变根 rem。 */
   uiFontSizePx?: number;
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
@@ -287,7 +287,7 @@ export interface AppSettings {
   taskAutoArchiveResetVersion?: 1;
   /** 自动归档阈值；当任务最后更新时间早于该天数时允许被归档 */
   taskAutoArchiveOlderThanDays?: number;
-  /** 桌面端关闭窗口时隐藏到托盘驻留（Windows/Linux；spec：docs/desktop/linux-close-to-tray.md） */
+  /** 桌面端关闭窗口时隐藏到托盘驻留 */
   closeToTrayOnWindows?: boolean;
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;

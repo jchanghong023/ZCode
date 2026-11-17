@@ -1020,7 +1020,7 @@ export const hostAgentRunningTaskCountChangedResponseSchema = z.object({
 });
 
 /**
- * 关闭窗口或退出应用会中断、且无法恢复的 Host 事项（docs/git/worktree.md §6.4）。
+ * 关闭窗口或退出应用会中断、且无法恢复的 Host 事项。
  * 第一版只有"正在新 worktree 中启动的任务"；以后可加入其他会被关闭中断的 Host 任务。
  */
 export const hostQuitBlockerSchema = z.object({
@@ -1197,7 +1197,7 @@ export const hostPluginSandboxRegisterRequestResponseSchema = z
     workspacePath: z.string().optional(),
     workspaceIdentity: z.string().optional(),
     ownerWebContentsId: z.number().int().nonnegative(),
-    // 只有扩展视图不属于会话（docs/plugins/extension-host.md §8），见下方 refine。
+    // 只有扩展视图不属于会话，见下方 refine。
     sessionId: nonEmptyStringSchema.optional(),
     contentKind: z.enum(["gen-ui", "extension"]).optional(),
     pluginId: nonEmptyStringSchema.optional(),

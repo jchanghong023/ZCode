@@ -1,4 +1,4 @@
-// Hook Trust identity 唯一 resolver（docs/specs/workspace-hook-trust.md D23）。
+// Hook Trust identity 唯一 resolver。
 // CLI snapshot builder 与 Host hooksService 必须调用同一实现，保证两侧 digest/identity parity。
 // 只覆盖本地 ZCode 受管 worktree：严格校验通过才归一到源仓库，任何一步失败都退回自身路径，
 // 即"不继承"，不会产生额外授权。

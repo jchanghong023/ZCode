@@ -12,7 +12,7 @@ export interface SettingsScopeForm<T> {
 }
 
 /**
- * 表单归属打开它的设备（docs/remote/data-sync.md「Scope 菜单按设备分组」实现约定），子智能体、钩子页共用。
+ * 表单归属打开它的设备，子智能体、钩子页共用。
  *
  * Bug 根因：子智能体页的 showForm / editingAgent、钩子页的 viewMode / editingHook 原是两份不带设备归属的状态。
  * 设备离线或连接中时表单只是隐藏（rpcReady=false），状态仍在；用户在列表页把 Scope 切到另一台设备后旧表单重现，

@@ -251,7 +251,7 @@ export function CodingPlanQuotaResetDialog({
       }, SUCCESS_DISPLAY_MS);
       timersRef.current.push(settleTimer);
     } catch {
-      // 失败原因与 toast 由 useCodingPlanQuotaResetUi 统一处理；弹框只恢复可点击状态。
+      // 调用方负责报告失败；弹框只恢复可点击状态。
       setResettingType(null);
     }
   };

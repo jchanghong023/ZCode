@@ -3,7 +3,7 @@ import { appSessionRefSchema, sessionSummarySchema } from "@zcode/session-contro
 import { displayConversationRowSchema } from "#src/zcode-protocol-v4/rows.js";
 import { sessionPhaseSchema } from "#src/zcode-protocol-v4/snapshot.js";
 
-// 会话读连接的投影（docs/plugins/extension-host.md §17.3、§17.5、§17.6，P3b）：
+// 会话读连接的投影：
 // 列表行 v1、会话状态、完整行与 readRows。只加字段不升版；删字段或改含义才升版（§17.6）。
 
 /** 每个插件同时订阅的不同会话数（会话状态与行合计，§17.5）。 */

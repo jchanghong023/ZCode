@@ -13,17 +13,8 @@ import {
   conversationTopicWireFrameSchema,
   parseCommandEnvelope,
   queueItemSchema,
-  sessionsIndexTopicFrameSchema,
-  sessionsIndexTopicWireFrameSchema,
   subscribeParamsSchema,
   v4ConversationRowsRangeParamsSchema,
-  v4ConversationWorkflowRunsParamsSchema,
-  v4ConversationWorkflowRunEventsParamsSchema,
-  v4ConversationWorkflowRunArtifactsParamsSchema,
-  v4ConversationWorkflowRunArtifactDataParamsSchema,
-  v4ConversationWorkflowRunArtifactReadParamsSchema,
-  v4ConversationWorkflowRunWorkspaceParamsSchema,
-  v4ConversationWorkflowRunNodeResultParamsSchema,
   type ClientHello,
   type CommandAck,
   type CommandEnvelope,
@@ -32,7 +23,6 @@ import {
   type ConversationTopicWireFrame,
   type HelloMessage,
   type QueueItem,
-  type SessionsIndexTopicWireFrame,
   type StatePatch,
   type WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -40,8 +30,6 @@ import type { IZCodeAgentService } from "@zcode/services";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
 import {
   buildConversationSnapshot,
-  buildSessionSummary,
-  isListedSession,
   workspaceKeyOf,
   workspaceRefOf,
   type MockRuntime,
@@ -63,49 +51,12 @@ const conversationSubscribeInputSchema = subscribeParamsSchema.omit({ topic: tru
   ...workspaceTargetShape,
   sessionId: z.string(),
 });
-const workspaceSubscribeInputSchema = subscribeParamsSchema
-  .omit({ topic: true, retryInitialization: true })
-  .extend({
-    ...workspaceTargetShape,
-    subscriberScope: z.string().optional(),
-    runtimePolicy: z.enum(["start-if-needed", "existing-only"]).optional(),
-  });
 const conversationRowsRangeInputSchema = v4ConversationRowsRangeParamsSchema
   .omit({ workspace: true, clientMode: true })
   .extend(workspaceTargetShape);
-const workflowReadInputSchemas = {
-  runs: v4ConversationWorkflowRunsParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  events: v4ConversationWorkflowRunEventsParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  artifacts: v4ConversationWorkflowRunArtifactsParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  data: v4ConversationWorkflowRunArtifactDataParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  read: v4ConversationWorkflowRunArtifactReadParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  workspace: v4ConversationWorkflowRunWorkspaceParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-  node: v4ConversationWorkflowRunNodeResultParamsSchema
-    .omit({ workspace: true })
-    .extend(workspaceTargetShape),
-};
 
 interface ConversationSubscription {
   sessionId: string;
-  ordinal: number;
-}
-
-interface SessionsIndexSubscription {
-  workspaceKey: string;
-  /** wire topic 沿用请求键；业务/水位仍按规范身份归一，兼容无 identity 的既有请求。 */
-  wireWorkspaceKey: string;
   ordinal: number;
 }
 
@@ -115,11 +66,9 @@ function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown
 
 export class MockZCodeAgentService implements IZCodeAgentService {
   private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
-  private readonly sessionsIndexFrameEmitter = new Emitter<SessionsIndexTopicWireFrame>();
   private readonly sessionLifecycleEmitter = new Emitter<SessionLifecycleSnapshot>();
   private readonly runtimeRestartedEmitter = new Emitter<{ workspaceKey: string }>();
   private readonly conversationSubs = new Map<string, ConversationSubscription>();
-  private readonly sessionsIndexSubs = new Map<string, SessionsIndexSubscription>();
   private sessionGeneration = 1;
 
   private readonly boundSessions = new Set<string>();
@@ -217,79 +166,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     for (const wire of wireFrames) this.conversationFrameEmitter.fire(wire);
   }
 
-  private emitSessionsIndex(
-    workspaceKey: string,
-    payload:
-      | { kind: "snapshot"; snapshot: { sessions: ReturnType<typeof buildSessionSummary>[] } }
-      | {
-          kind: "deltas";
-          deltas: Array<
-            | { op: "session.upserted"; session: ReturnType<typeof buildSessionSummary> }
-            | { op: "session.removed"; sessionId: string }
-          >;
-        },
-    deliveryKind: "initial" | "online" | "recovery",
-  ): void {
-    const canonicalTopic = `sessions-index/${workspaceKey}`;
-    const subscribers = [...this.sessionsIndexSubs].filter(
-      ([, sub]) => sub.workspaceKey === workspaceKey,
-    );
-    if (subscribers.length === 0) return;
-    // topic 水位是工作区级唯一顺序：同一 workspace 的所有订阅者共享 (fromSeq, toSeq]。
-    // 没有订阅者时不推进，避免产生无人观察的水位空洞。
-    const current = this.runtime.topics.position(canonicalTopic);
-    let logEpoch = current.logEpoch;
-    let fromSeq = 0;
-    let toSeq = current.seq;
-    if (payload.kind === "deltas") {
-      const advanced = this.runtime.topics.advance(canonicalTopic);
-      logEpoch = advanced.logEpoch;
-      fromSeq = advanced.fromSeq;
-      toSeq = advanced.toSeq;
-    }
-    for (const [subscriptionId, sub] of subscribers) {
-      const topic = `sessions-index/${sub.wireWorkspaceKey}`;
-      sub.ordinal += 1;
-      const inner =
-        payload.kind === "snapshot"
-          ? assertFrame(sessionsIndexTopicFrameSchema, {
-              topic,
-              subscriptionId,
-              fromSeq,
-              toSeq,
-              sentAt: Date.now(),
-              payload: {
-                kind: "snapshot",
-                snapshot: {
-                  protocolVersion: 1,
-                  workspaceId: sub.wireWorkspaceKey,
-                  logEpoch,
-                  sessions: payload.snapshot.sessions,
-                },
-              },
-            })
-          : assertFrame(sessionsIndexTopicFrameSchema, {
-              topic,
-              subscriptionId,
-              fromSeq,
-              toSeq,
-              sentAt: Date.now(),
-              payload: { kind: "deltas", deltas: payload.deltas },
-            });
-      const wire = assertFrame(sessionsIndexTopicWireFrameSchema, {
-        wireVersion: 3,
-        kind: "complete",
-        deliveryKind,
-        logicalFrameId: createUuid(),
-        logicalFrameOrdinal: sub.ordinal,
-        topic,
-        subscriptionId,
-        frame: inner,
-      }) as SessionsIndexTopicWireFrame;
-      this.sessionsIndexFrameEmitter.fire(wire);
-    }
-  }
-
   /** 应用一个 state patch 并以 deltas 帧下发（control/usage/plan 等 A 区键）。 */
   private patchState(
     session: MockSession,
@@ -320,26 +196,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.emitConversationFrame(
       session,
       { kind: "deltas", deltas: [{ op: "row.upserted", row }] },
-      "online",
-    );
-  }
-
-  private publishSessionsIndexUpsert(session: MockSession): void {
-    if (!this.runtime.sessions.has(session.sessionId) || !isListedSession(session)) return;
-    this.emitSessionsIndex(
-      session.workspaceKey,
-      {
-        kind: "deltas",
-        deltas: [{ op: "session.upserted", session: buildSessionSummary(session) }],
-      },
-      "online",
-    );
-  }
-
-  private publishSessionsIndexRemoved(workspaceKey: string, sessionId: string): void {
-    this.emitSessionsIndex(
-      workspaceKey,
-      { kind: "deltas", deltas: [{ op: "session.removed", sessionId }] },
       "online",
     );
   }
@@ -421,7 +277,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       ...(submission.planEnabled !== undefined ? { planEnabled: submission.planEnabled } : {}),
     };
     this.appendRow(session, userInputRow);
-    this.publishSessionsIndexUpsert(session);
 
     if (this.business) {
       await this.sleep(80);
@@ -497,7 +352,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         apiRetry: null,
       },
     });
-    this.publishSessionsIndexUpsert(session);
     this.maybeStartNextInput(session);
   }
 
@@ -553,7 +407,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       usage: session.usage,
       meta: session.meta,
     });
-    this.publishSessionsIndexUpsert(session);
     this.maybeStartNextInput(session);
   }
 
@@ -818,7 +671,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         createdAt: now,
         lastActivityAt: now,
       });
-      this.publishSessionsIndexUpsert(session);
     }
 
     if (payload.firstInput) {
@@ -1050,7 +902,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           ...(payload.mode !== undefined ? { mode: payload.mode } : {}),
           ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
         });
-        // 同一命令释放编辑锁（docs/ui/composer-edit-mode.md）。
+        // 同一命令释放编辑锁。
         delete updated.editLock;
         Object.assign(item, updated);
         delete item.editLock;
@@ -1167,13 +1019,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           task.titleSource = "custom";
         }
         this.patchState(session, { meta: session.meta });
-        this.publishSessionsIndexUpsert(session);
         return this.ackAccepted(envelope);
       }
       case "deleteSession": {
         this.runtime.sessions.delete(session.sessionId);
         this.runtime.tasks.delete(session.sessionId);
-        this.publishSessionsIndexRemoved(session.workspaceKey, session.sessionId);
         return this.ackAccepted(envelope);
       }
       case "switchModelConfig": {
@@ -1505,63 +1355,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     } as unknown as CommandsQueryResult;
   }
 
-  async subscribeSessionsIndexV4(params: P<IZCodeAgentService["subscribeSessionsIndexV4"]>) {
-    workspaceSubscribeInputSchema.parse(params);
-    const workspaceKey = workspaceKeyOf(params);
-    const subscriptionId = `sub-${createUuid()}`;
-    this.sessionsIndexSubs.set(subscriptionId, {
-      workspaceKey,
-      wireWorkspaceKey: params.workspaceIdentity?.trim() || params.workspacePath,
-      ordinal: 0,
-    });
-    const sessions = [...this.runtime.sessions.values()]
-      .filter((session) => session.workspaceKey === workspaceKey && isListedSession(session))
-      .map((session) => buildSessionSummary(session));
-    this.emitSessionsIndex(workspaceKey, { kind: "snapshot", snapshot: { sessions } }, "initial");
-    const position = this.runtime.topics.position(`sessions-index/${workspaceKey}`);
-    return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: position.logEpoch } };
-  }
-
-  async resyncSessionsIndexV4(params: P<IZCodeAgentService["resyncSessionsIndexV4"]>) {
-    const sub = this.sessionsIndexSubs.get(params.subscriptionId);
-    if (!sub) throw new Error("fault.subscription.unknownSubscription");
-    const sessions = [...this.runtime.sessions.values()]
-      .filter((session) => session.workspaceKey === sub.workspaceKey && isListedSession(session))
-      .map((session) => buildSessionSummary(session));
-    this.emitSessionsIndex(
-      sub.workspaceKey,
-      { kind: "snapshot", snapshot: { sessions } },
-      "recovery",
-    );
-    const position = this.runtime.topics.position(`sessions-index/${sub.workspaceKey}`);
-    return {
-      ack: {
-        subscriptionId: params.subscriptionId,
-        mode: "snapshot" as const,
-        logEpoch: position.logEpoch,
-      },
-    };
-  }
-
-  async unsubscribeSessionsIndexV4(
-    params: P<IZCodeAgentService["unsubscribeSessionsIndexV4"]>,
-  ): Promise<void> {
-    this.sessionsIndexSubs.delete(params.subscriptionId);
-  }
-
   onDynamicConversationFrame(
     _params: P<IZCodeAgentService["onDynamicConversationFrame"]>,
   ): ReturnType<IZCodeAgentService["onDynamicConversationFrame"]> {
     return this.conversationFrameEmitter.event as unknown as ReturnType<
       IZCodeAgentService["onDynamicConversationFrame"]
-    >;
-  }
-
-  onDynamicSessionsIndexFrame(
-    _params: P<IZCodeAgentService["onDynamicSessionsIndexFrame"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicSessionsIndexFrame"]> {
-    return this.sessionsIndexFrameEmitter.event as unknown as ReturnType<
-      IZCodeAgentService["onDynamicSessionsIndexFrame"]
     >;
   }
 
@@ -1588,15 +1386,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  async restartSessionRuntime(
-    _params: P<IZCodeAgentService["restartSessionRuntime"]>,
-  ): Promise<void> {
-    // 当前服务不管理独立会话进程；明确拒绝，不能伪报重启完成。
-    throw Object.assign(new Error("当前服务不支持重启会话，请重新连接。"), {
-      code: "fault.sessionLifecycle.unsupported",
-    });
-  }
-
   onAgentRuntimeRestarted(listener: (event: { workspaceKey: string }) => void): IDisposable {
     return this.runtimeRestartedEmitter.event(listener);
   }
@@ -1604,8 +1393,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   /** 可选 runtime 事件：mock 无进程换代，恒为空事件。 */
   readonly onAgentRuntimeLifecycle: NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]> =
     Event.None as unknown as NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]>;
-  readonly onAgentRuntimeExited: NonNullable<IZCodeAgentService["onAgentRuntimeExited"]> =
-    Event.None as unknown as NonNullable<IZCodeAgentService["onAgentRuntimeExited"]>;
 
   // ── 附件 ──
 
@@ -1844,102 +1631,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  onDynamicLocalTtftFacts(
-    _params: P<IZCodeAgentService["onDynamicLocalTtftFacts"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicLocalTtftFacts"]> {
-    return Event.None as unknown as ReturnType<IZCodeAgentService["onDynamicLocalTtftFacts"]>;
-  }
-
-  async conversationFileChangesV4(
-    _params: P<IZCodeAgentService["conversationFileChangesV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationFileChangesV4"]>> {
-    return { files: 0, additions: 0, deletions: 0, items: [] } as unknown as AR<
-      IZCodeAgentService["conversationFileChangesV4"]
-    >;
-  }
-
-  async conversationFileRewindPreviewV4(
-    _params: P<IZCodeAgentService["conversationFileRewindPreviewV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationFileRewindPreviewV4"]>> {
-    return { canApply: false, ignoredFiles: [], safeFiles: [], unsafeFiles: [] } as unknown as AR<
-      IZCodeAgentService["conversationFileRewindPreviewV4"]
-    >;
-  }
-
-  async backgroundBashOutputV4(
-    _params: P<IZCodeAgentService["backgroundBashOutputV4"]>,
-  ): Promise<AR<IZCodeAgentService["backgroundBashOutputV4"]>> {
-    return { kind: "unsupported" } as unknown as AR<IZCodeAgentService["backgroundBashOutputV4"]>;
-  }
-
-  private workflowReadSession(params: {
-    sessionId: string;
-    workspacePath: string;
-    workspaceIdentity?: string;
-  }): void {
-    // 查询不能通过 ensureSession 预热已移除会话，也不能绕过原生草稿归属。
-    if (!this.runtime.sessions.has(params.sessionId)) {
-      throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
-    }
-    this.ensureSession({ sessionId: params.sessionId, workspace: params });
-  }
-
-  private unsupportedWorkflowRead(): never {
-    throw Object.assign(new Error("当前服务不支持读取工作流产物或节点结果。"), {
-      code: "fault.command.capabilityUnsupported",
-      publicMessage: true,
-    });
-  }
-
-  async conversationWorkflowRunEventsV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunEventsV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunEventsV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.events.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
-  async conversationWorkflowRunsV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunsV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunsV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.runs.parse(params));
-    return { runs: [] };
-  }
-
-  async conversationWorkflowRunArtifactsV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactsV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.artifacts.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
-  async conversationWorkflowRunArtifactDataV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactDataV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.data.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
-  async conversationWorkflowRunArtifactReadV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunArtifactReadV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.read.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
-  async conversationWorkflowRunWorkspaceV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunWorkspaceV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.workspace.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
-  async conversationWorkflowRunNodeResultV4(
-    params: P<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>,
-  ): Promise<AR<IZCodeAgentService["conversationWorkflowRunNodeResultV4"]>> {
-    this.workflowReadSession(workflowReadInputSchemas.node.parse(params));
-    return this.unsupportedWorkflowRead();
-  }
-
   supportsConversationQuoteComment(
     _target: NonNullable<P<IZCodeAgentService["supportsConversationQuoteComment"]>>,
   ): Promise<boolean> {
@@ -1962,7 +1653,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       session.activeTurn?.abort();
     }
     this.conversationSubs.clear();
-    this.sessionsIndexSubs.clear();
   }
 }
 

@@ -4,4 +4,3 @@
 
 本模块仅保留 reference/source-file 的纯投影资产：Unicode JSON marker、`::visualize{path="..." title="..." mode="wide"}` 与 JSON directive 使用原 schema、Markdown 代码排除及完成态判定。`collectGenUiSourcePaths` 和 `matchesGenUiSourcePath` 仍供现有文件摘要与预览投影使用，不授权读取文件，不改变消息或 v4 wire。
 
-桌面页面 owner、AppBridge、tweak 宿主、卡片和 `host.ts` 入口已退役。共享协议与服务端 Gen UI 数据不在本次裁撤范围。

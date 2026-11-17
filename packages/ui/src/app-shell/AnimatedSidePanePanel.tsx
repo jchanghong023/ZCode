@@ -38,12 +38,10 @@ import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
-import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
 import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
-import { WorkflowWorkspaceSidePane } from "@/app-shell/WorkflowWorkspaceSidePane.js";
 import { WorkflowArtifactSidePane } from "@/app-shell/WorkflowArtifactSidePane.js";
 import {
   getSidePaneTabTitle,
@@ -268,7 +266,7 @@ export function AnimatedSidePanePanel({
   toggleSidePaneShortcutLabel?: string;
   /** 桌面端「进入 / 退出完整视图」按钮；缺省不渲染（Web、手机远控）。 */
   fullViewToggle?: { active: boolean; onToggle: () => void; shortcutLabel?: string };
-  /** 完整视图生效时的 tab 栏状态（spec：docs/ui/side-pane-full-view.md）。 */
+  /** 完整视图生效时的 tab 栏状态。 */
   fullView?: {
     surface: SidePaneFullViewSurface;
     conversationTitle: string;
@@ -283,7 +281,7 @@ export function AnimatedSidePanePanel({
   sidePaneState: WorkspaceSidePaneState | null;
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
   workspaceAbsPath: string;
-  /** 当前任务的 cwd；worktree 任务不是 workspace 目录（docs/git/worktree.md §3.7）。 */
+  /** 当前任务的 cwd；worktree 任务不是 workspace 目录。 */
   taskCwd?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -858,13 +856,7 @@ export function AnimatedSidePanePanel({
                           mobileOverlay && "min-w-0",
                         )}
                       >
-                        {tab.type === "bash-output" ? (
-                          <BackgroundBashOutputSidePane
-                            tab={tab}
-                            visible={isVisible && tab.id === contentActiveTabId}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                          />
-                        ) : tab.type === "subagent-session" ? (
+                        {tab.type === "subagent-session" ? (
                           <SubagentSessionSidePane
                             tab={tab}
                             focused={isVisible && tab.id === contentActiveTabId}
@@ -926,12 +918,6 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
                             onOpenFileLink={onOpenFileLink}
-                          />
-                        ) : tab.type === "workflow-workspace" ? (
-                          <WorkflowWorkspaceSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === contentActiveTabId}
-                            onOpenCodeViewer={onOpenCodeViewer}
                           />
                         ) : tab.type === "workflow-artifact" ? (
                           // 「在工作区显示」复用宿主的文件树 reveal 回调。

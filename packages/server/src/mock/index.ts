@@ -13,8 +13,6 @@ import {
 } from "@zcode/services";
 import { MockBroadcastService } from "./broadcast.js";
 import { registerAssetsMockServices } from "./domains/assets.js";
-import { registerAutomationsMockServices } from "./domains/automations.js";
-import { registerCompatSurfacesMockServices } from "./domains/compat-surfaces.js";
 import { registerModelsMockServices } from "./domains/models.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
 import { MockProjectService } from "./project.js";
@@ -45,8 +43,6 @@ export function createMockServices(options: MockServicesOptions): {
   registerSettingsMockServices(services);
   registerModelsMockServices(services);
   registerAssetsMockServices(services);
-  registerAutomationsMockServices(services);
-  registerCompatSurfacesMockServices(services);
 
   // 协议面与任务索引：v4 会话、会话列表、任务门面、项目目录。
   const aiReqService = new MockAIReqService();

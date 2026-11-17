@@ -1,25 +1,15 @@
 # AIReq 设置
 
-发布文案与能力边界以 `docs/specs/aireq-migration/release-surface.md` 为准；未接入的语音识别入口已撤下，Sketch 保留。
+`AIReqSettingsPage` 由 shell 受控传入 active、section、返回动作与定位请求。侧栏仅外观、项目配置、AI 配置；AI 配置页签为模型、Agent 指令和分析设置。section 为 appearance/projects/models/personalization/analysis，不另建页面选择 owner。
 
-AI 配置的共享范围、职责与生效说明、模型滚动提交区及间隔预设／自定义展示以 `docs/specs/aireq-migration/ai-configuration-usability.md` 为准；草稿与提交所有者及接口保持以下契约。
+本模块拥有未保存模型、逐 Agent 指令与项目／Release 编辑草稿；共享业务归 AIReq 数据源。外观使用浏览器偏好。设置搜索仅注入当前可达字段，命中先消费导航门禁，再对挂载行滚动、聚焦和高亮，不恢复其他产品分区。
 
-当前导航和页面组织以 `docs/specs/aireq-migration/project-space.md` 为准，其余产品规则见根 `.todo.md`；旧 Skill 设置接线与验收记录仅描述当时版本。
+唯一 guard 管理保存并离开、丢弃或取消；壳导航、返回、历史、项目切换、退出、页签与快捷键共用它。Ctrl/Cmd+S 与按钮共享当前草稿、忙态和 UTF-8 字节门禁。保存失败留页保留输入，后台重读不推进脏草稿基线。
 
-当前产品设置搜索、项目／分析 Agent 定位及固定侧栏可见标签以 `docs/specs/aireq-migration/navigation-usability.md` 为准。搜索仅注入 AIReq 可达字段，不恢复已裁撤设置；目标选择先经现有未保存门禁，定位意图不持有第二份项目或配置事实。
+模型和指令提交 bootstrap 捕获的 expectedRevision；项目编辑使用打开时 project.revision，新建为 0，同输入重试沿用 operationId。全部合法工号可保存，负责人或后端 owner 不构成写权限。
 
-仅本模块拥有未保存模型与逐 Agent 追加指令草稿；共享业务由 AIReqDataSource/mock 拥有。外观复用当前浏览器偏好。所有合法工号均可修改项目、Release、模型与指令，不投影 owner 写权限。Skill 设计暂从主导航隐藏，不在设置导航或搜索中，旧 `skill` 设置偏好回到项目设置；保留现有实现，不恢复 Skill 目录管理页；模拟路径不触发文件或 Git 操作。
+项目弹窗草稿归 `AIReqProjectSettings`，以 `onDraftActionsChange` 接入同一 guard；关闭、Esc、遮罩、取消和快捷键使用最新动作，保存中不能退出或重复提交。仓库为可选择只读文本，不展示后端配置目录。
 
-AIReqSettingsPage({onClose, section, onSectionChange, onNavigationGuardChange?, skillActions}) 的 68px 图标栏只提供外观、项目配置、AI 配置三类；AI 配置以受控文字页签组织模型、Agent 指令、分析设置。`section` 保留 appearance/projects/models/personalization 并增加 analysis，唯一选择仍由 shell 传入，不增加平行分类或页签状态。模型与 Agent 指令沿用原设置搜索 ID，分析设置使用 agentBehavior ID，搜索和模型直达均落到同一 AI 配置页签。共享 Agent 指令不表示个人偏好。
+Skill 无设置／搜索入口，但保留草稿动作接入门禁；保存提示只依据正式收据。正文复用原生 SettingsFrame 内容列，补充说明与明细通过原生 details 收拢，控件与提交规则不受影响。
 
-底部齿轮与工作台设置入口同位置、同尺寸，以选中样式和 `aria-current="page"` 表示当前设置；提示为“返回工作区”，点击与顶部返回共用 `guard(onClose)`，获准后返回来源主工作区。取消保留草稿和焦点，保存失败留页，不新增导航状态或绕过门禁。共用 frame 的 footer 在较窄电脑窗口同样可见。
-
-guard 为 (navigate:()=>void)=>void；壳导航、历史、项目切换、退出、AI 页签与快捷键必须经过 guard。模型、指令、分析间隔与 Skill 脏草稿使用最新动作引用执行保存并离开、丢弃或取消；保存失败留页。Ctrl/Cmd+S 与按钮共用草稿、保存忙态和 UTF-8 字节门禁，不按工号禁用。AI 页签栏保持挂载与键盘焦点，获准切换 section 后重置正文滚动；设置行搜索仍在挂载后定位目标。
-
-模型保存显式提交进入编辑时的 models.revision()；追加指令保存提交 prompts.read().revision。脏草稿不因其他客户端事件推进基线，冲突保留输入。项目编辑捕获 project.revision，新建期望版本为 0；同一输入重试沿用 operationId，改动输入才生成新逻辑动作 ID。
-
-项目／Release 弹窗草稿唯一归 `AIReqProjectSettings`，通过 `onDraftActionsChange` 接入设置页同一个 guard；关闭、Esc、遮罩、取消、导航和保存快捷键共享最新保存／丢弃动作。字段基线在打开时捕获，后台投影不推进脏草稿基线；保存中禁止退出与重复提交，失败保留输入。项目卡以可选择的只读文本呈现仓库，团队共享范围就地说明，环境限制只记部署／交付文档，不展示配置目录，Release 统计展开 IR／SR 含义；具体布局及验收见导航可达性规格。
-
-## 正文比例与说明减负（2026-11-17）
-
-遵循 `docs/specs/aireq-migration/settings-polish.md`：复用原生 SETTINGS_FRAME_CONTENT_CLASSNAME 的4xl居中正文，与主页共享外观标题role及h1语义。静态范围／职责／规则说明及项目Release明细使用原生details收拢，实际控件、数量、错误、草稿摘要与提交／导航门禁不变，不引入业务缓存或第二条写入路径。
+完整规则见 `docs/specs/aireq-migration/tools-settings.md`；公开契约及部署边界见 `contract-design.md` 与 `release-surface.md`。

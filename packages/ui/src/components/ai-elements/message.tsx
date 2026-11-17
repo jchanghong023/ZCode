@@ -834,7 +834,7 @@ const messageRehypePlugins: PluggableList = [
   ...Object.values(defaultRehypePlugins),
 ];
 
-/* 逐字 / 逐词浮现。设计与历史教训见 docs/streaming-markdown-reveal.md。
+/* 逐字 / 逐词浮现。设计与历史教训见 相邻实现。
    核心约束：不生成第二份正文——DOM 里的文本从第一帧起就是完整的，只有透明度在变。
    历史上三代实现都维护了随时间变长的 visibleText，元素高度逐帧增长，
    持续撞进虚拟滚动测高与底部跟随，最终全部撤回。 */
@@ -1358,7 +1358,7 @@ function resolveMessageCodeTheme(
       : codePreviewSettings.lightTheme;
   }
 
-  return theme === "dark" || theme === "zai-dark"
+  return theme === "dark" || theme === "zai-dark" || theme === "zai-motion"
     ? codePreviewSettings.darkTheme
     : codePreviewSettings.lightTheme;
 }

@@ -16,7 +16,7 @@ import type { WorkflowKindVocabulary } from "@/ToolCallBlocks/renderers/createWo
 import { isFillWorkflowHoleToolCall } from "@/lib/workflowToolNames.js";
 
 /**
- * 留白补全行在 create-workflow 渲染器里的那几样（docs/dynamic-workflow/presentation.md「The fill row」）。
+ * 留白补全行在 create-workflow 渲染器里的那几样。
  * 从 create-workflow.tsx 拆出（max-lines 门）：同一个渲染器换留白词汇；主文本是留白的名字（来自 display
  * 的 `fill` 块——行的入参没有名字）；草稿阶段线是父轨道上补全所在的那一截（新的站全墨、两侧邻站 ghost）。
  */

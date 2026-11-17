@@ -481,7 +481,7 @@ export function PermissionDialog({
   modeSwitch?: "choose" | "fullAccessOnly";
   responseError?: string;
   /**
-   * `content` 只在工作流确认窗的放行应答上出现：用户在窗里改过的设置（docs/dynamic-workflow/launch.md
+   * `content` 只在工作流确认窗的放行应答上出现：用户在窗里改过的设置（相邻实现
    * 「Adjusting the settings in the window」）。没改过即不传。
    */
   onRespond: (
@@ -856,7 +856,7 @@ export function PermissionDialog({
   const shouldUseWorkflowBlock = isWorkflowAsk;
   // 保存确认窗同理，但问句、内容与选项都不同：没有图、没有 Refine，主体是落点 + 元数据 + 脚本。
   const shouldUseSaveWorkflowBlock = blockKind === "saveWorkflow";
-  // 限高布局目前只给保存确认窗（docs/dynamic-workflow/launch.md「`SaveWorkflow`」第 4 步）：窗口上限与
+  // 限高布局目前只给保存确认窗：窗口上限与
   // 问答窗（ElicitationDialog）相同；选项以上全部内容是**唯一**的纵向滚动区，选项、反馈行与确认
   // 隔一条细线钉在下面。滚动区用负外边距铺满窗宽，滚动条贴窗口边缘、细线横贯整窗。
   // Bugfix：上一版问句钉顶、中段滚动、段内三块各自滚动、窗口再兜底滚动，最多五层滚动容器叠在
@@ -957,7 +957,7 @@ export function PermissionDialog({
                     ? "chat.permission.allowCommand.description"
                     : (nameMessageIds?.description ??
                       getOptionDescriptionMessageId(option.kind, preview.scope));
-                // 工作流确认窗改过设置：放行的两项改口说「按调整后的设置」（docs/dynamic-workflow/launch.md
+                // 工作流确认窗改过设置：放行的两项改口说「按调整后的设置」（相邻实现
                 // 「The options」）。
                 const descriptionMessageId =
                   workflowSettingsContent === undefined

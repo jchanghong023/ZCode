@@ -22,21 +22,15 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/sa
 公开设置 patch 使用 shared 的严格 `appSettingsPatchSchema`，只对声明字段按正式值规则解析，整份成功后一次合并到唯一内存 settings；失败不改变任何字段，partial 不填默认。初值由 `appSettingsSchema` 生成；theme／uiFontSizePx 使用既有主题枚举和 12—20px 整数字号规则，语言使用 locale，不新增 language 别名。不改变浏览器本机 store 的偏好所有权。
 
 终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
-不再注册兼容空壳。Provider 设置、模型目录与用量投影仍沿既有契约访问。Issue 与 AIReq 自动化页面、
-专属业务 owner、manifest、task/workpool RPC 及接线已裁撤；这不等于裁撤本目录的通用 `automations`
-领域、通用控件、原生会话设施或需求分析调度。通用服务继续按既有契约返回能力，不恢复 AIReq 自动化入口。
+不再注册兼容空壳。Provider 设置与模型目录仍沿既有契约访问。
 
 产品插件与旧宿主服务整体退役：不注册 Git、文件监听、媒体会话、MCP 同步、client-config、
 skills、task-groups、prompt-attachment-transfer；HTTP 帮助配置不受影响。
 原生 Skill catalog、AIReq 隐藏 Skill、子智能体目录及纯 DTO/schema 保留。
-GenUI 只保留 listState；Bots 只保留偏好同步、getConfig/getBotStates，
-无外部 Bot 时返回真实空配置，偏好同步明确不可用，不能空成功。
-用量只保留 getCodingPlanResetStatus/getEntitlementSnapshot，无套餐时明确不可用／无权益。
 zcode-task 仅保留 restartWorkspaceProcess，zcode-session 仅保留 readWorkspacePresentation；
 当前无进程或配置展示 owner，两者正式返回 capabilityUnsupported，不再发送旧伪造展示对象。
 旧 task-list 事件及其专用 emitter／发射接线随 `onDynamicWorkspaceEvent` 一并退役。
-原生 tasks 的置顶／归档组织态保留；sessions-index 仍由 agent 独立发布 snapshot／delta，
-使用自身订阅 emitter 与 `MockRuntime.topics` 水位，不依赖旧 task-list 信号。
+原生 tasks 的置顶／归档组织态保留。
 
 会话事实由 MockRuntime 与 agent owner 持有，AIReq 业务权限由 AIReq owner 裁决；
 project resolveSessionDirectories/readTree 由连接 facade 绑定可信身份。
@@ -44,7 +38,7 @@ readTree 仅投影当前身份可见的原生会话，不发布示例目录项�
 路径型 v4 请求仍沿用既有 wire topic 键，mock 只在内部统一业务身份与水位，再按订阅的原请求键投递，
 避免旧请求和带身份请求变成两套会话，且不要求修改严格帧 schema 或逐连接 facade。
 
-每条 `/ws` 仍有独立 `createZCodeAgentConnectionScope`：握手、conversation / sessions-index
+每条 `/ws` 仍有独立 `createZCodeAgentConnectionScope`：握手、conversation
 的订阅归属、帧过滤及断开清理均不得因共享业务数据而移除。取消 A 的订阅不影响 B。
 原生命令按现有操作者／客户端、sessionId、commandId 去重并提供结果查询；AIReq 业务 owner 另行校验
 配置／材料／候选版本、阶段和幂等。原型的结果只在进程内保留，不代表生产持久化或完整通用 CAS；
@@ -56,7 +50,7 @@ readTree 仅投影当前身份可见的原生会话，不发布示例目录项�
 公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange；
 Skill 私有文件 helper 仍保留，不因移除公开正文／目录／索引 RPC 而删除。
 广播总线归唯一 MockBroadcastService，每连接 HTTP facade 绑定可信数字来源，
-过滤本源、关闭注销；acquire/commit/release claims 由同一 owner 原子管理，不保留 tryClaim。
+过滤本源、关闭注销。
 
 ## 装配顺序
 

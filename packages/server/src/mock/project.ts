@@ -1,6 +1,7 @@
 // 修复原因：mention 只读同源业务/会话事实，不能恢复 demo 项目或枚举宿主文件系统。
 import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
 import type { IAIReqService } from "@zcode/services/aireq";
+import { assertSkillSession } from "../aireq/contract.js";
 import { businessRule } from "../aireq/errors.js";
 import { currentIdentity } from "../aireq/identity.js";
 import { isListedSession, type MockRuntime, type MockSession } from "./runtime.js";
@@ -147,14 +148,13 @@ export class MockProjectService implements IProjectService {
     let workspace = session
       ? this.accessibleWorkspace(session, projection)
       : projection.published.get(task.taskId);
-    // 隐藏 Skill 仍由原业务 owner 校验私有身份；不能从会话 ID 或异常推导共享资格。
+    // 私有归属直接由 Skill owner 校验，不再经公开模型绑定 RPC；身份隔离保持不变。
     if (
       !workspace &&
       task.taskId.startsWith("prototype-skill-design:") &&
       projection.skillWorkspaces.some((item) => item.workspacePath === task.workspacePath)
     ) {
-      const identity = currentIdentity()!;
-      await this.business.call(identity, "skillDesign.binding", [task.taskId]);
+      assertSkillSession(task.taskId);
       const stableIdentity = session?.workspaceRef.workspaceIdentity ?? task.workspaceIdentity;
       const skillWorkspace = projection.skillWorkspaces.find(
         (item) =>

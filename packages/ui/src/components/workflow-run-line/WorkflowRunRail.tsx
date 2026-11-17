@@ -1,5 +1,5 @@
 import { SidebarNativeTooltip } from "@/ControlHintTooltip.js";
-// 工作流运行的迷你轨道（docs/dynamic-workflow/presentation.md「The sidebar run line」）：6px 灯按
+// 工作流运行的迷你轨道：6px 灯按
 // 声明序排开，之间是 6×1px 的轨段——控制流走过的段用强色，并行的两站之间画双线段；超过六站时折到
 // 运行站 ±2 并带「+n」尾。侧栏运行行与任务岛的 run 行共用这一个组件：一条 run 在两处长得一样。
 import { cn } from "@/components/lib/utils.js";
@@ -73,7 +73,7 @@ export function WorkflowRunRail({
               />
             </SidebarNativeTooltip>
           ) : (
-            // 留白（docs/dynamic-workflow/presentation.md「Holes on the timeline」的「The sidebar」）：
+            // 留白：
             // 虚线 6px 灯，等待时警示色。补全后它就是普通站，这一支不再走。
             <SidebarNativeTooltip>
               <span

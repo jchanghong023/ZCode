@@ -15,7 +15,7 @@ export function InteractionRequestOriginBadge({
   }
 
   // description 点名是哪个子代理在问（动态工作流子代理为 `<名字> (<siteId>@<ordinal>)`，
-  // docs/dynamic-workflow/launch.md「Permissions inside a run」）；来源描述完整换行显示。
+  // 相邻实现「Permissions inside a run」）；来源描述完整换行显示。
   const description = origin.description?.trim();
   const label = description
     ? intl.formatMessage({ id: "chat.interactionOrigin.subagent.named" }, { description })

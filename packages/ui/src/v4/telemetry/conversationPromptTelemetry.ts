@@ -2,7 +2,6 @@ import {
   normalizeTelemetryUiMode,
   ZCODE_AGENT_PROVIDER,
   type TelemetryUiMode,
-  type PlanIdentitySnapshot,
   type ZCodeProvider,
 } from "@zcode/shared";
 import { buildPromptTelemetryExtraDetail } from "@/lib/messageTelemetry.js";
@@ -33,7 +32,6 @@ export function buildV4ConversationPromptTelemetryExtraDetail(params: {
   modelName?: string | null;
   askMode?: string | null;
   providerBaseURL?: string | null;
-  planIdentitySnapshot?: PlanIdentitySnapshot | null;
 }): Record<string, string> {
   const agentProvider = params.agentProvider ?? ZCODE_AGENT_PROVIDER;
   const base = buildPromptTelemetryExtraDetail({
@@ -41,7 +39,6 @@ export function buildV4ConversationPromptTelemetryExtraDetail(params: {
     modelName: resolveLegacyConversationModelValue(params),
     provider: agentProvider,
     providerBaseURL: params.providerBaseURL,
-    planIdentitySnapshot: params.planIdentitySnapshot,
   });
   return {
     ...base,

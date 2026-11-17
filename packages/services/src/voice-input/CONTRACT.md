@@ -1,3 +1,3 @@
-# voice-input-service
+# 原生语音服务边界
 
-Retired on 2026-11-16: the current Web UI does not consume the native Host voice-input RPC contract. Remove descriptor, proxy/accessor capability and mock registration. AIReq's existing browser speech-input button is independent and unchanged. This directory retains only this retirement record.
+当前目录没有原生 Host 语音 RPC、descriptor、代理或注册。浏览器语音控件是独立展示能力，是否挂载由当前页面决定，不代表存在原生采集后端。

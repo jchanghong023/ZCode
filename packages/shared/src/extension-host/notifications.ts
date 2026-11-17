@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { extensionLocalIdSchema } from "#src/extension-host/manifest.js";
 
-// 能力 notifications.show（docs/plugins/extension-host.md §18.1 H8）：插件请宿主弹系统通知。
+// 能力 notifications.show：插件请宿主弹系统通知。
 // 不弹不是错误：返回 shown: false 与原因。标题由宿主加插件名前缀；不允许自定义图标、声音、按钮或回复框。
 
 export const NOTIFICATION_TITLE_MAX_LENGTH = 64;

@@ -107,7 +107,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
   // Bug 原因：SettingsPage 可在远端 workspace 的 ServiceProvider 下渲染；若继续隐式取当前
   // context，“记住 Source 选择”会写入远端 setting，Controller 本地快照随后把选择重置为本机。
   const settingsServices = options.services ?? contextualServices;
-  const { botsService, broadcastService, settingService, zcodeAgentService } = settingsServices;
+  const { broadcastService, settingService, zcodeAgentService } = settingsServices;
   const cacheKey = resolveSettingsCacheKey(options.cacheKey, settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(() => getSettingsSnapshot(cacheKey));
 
@@ -161,7 +161,6 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         };
         const syncResults = await Promise.allSettled([
           zcodeAgentService.syncAppRuntimePreferences(preferences),
-          botsService.syncAppRuntimePreferences(preferences),
         ]);
         const syncError = syncResults.find(
           (result): result is PromiseRejectedResult => result.status === "rejected",
@@ -175,7 +174,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         }
       }
     },
-    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, refresh],
+    [broadcastService, cacheKey, settingService, zcodeAgentService, refresh],
   );
 
   return {

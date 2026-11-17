@@ -315,7 +315,6 @@ export async function createRemoteAIReqDataSource(
         return metadata.skillDesignStorage;
       },
       session: (...args) => call("skillDesign.session", args),
-      binding: (...args) => call("skillDesign.binding", args),
       workspaceIdentity: (...args) => call("skillDesign.workspaceIdentity", args),
       read: (...args) => call("skillDesign.read", args),
       saveDraft: async (...args) => {

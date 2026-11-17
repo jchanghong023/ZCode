@@ -14,4 +14,4 @@
 - 入口能力由 `useSelectionCommentSupport` 决定：只有当前 workspace 的 CLI 在 `runtime/capabilities` 声明 `conversationQuoteComment` 才显示“注释”与编辑入口；查询失败、旧 Host 或远端未实现一律隐藏。
 - 不持有引用作用域或草稿；去重、条数上限、rewind 剪枝、撤销恢复与已发送记录归 `lib/conversationSelectionReference.ts`。
 
-依赖 `ui` 的按钮、toast、i18n 与选区浮层定位 hook。行为依据：[选区注释](../../../../docs/ui/conversation-selection-side-chat.md)。
+依赖 `ui` 的按钮、toast、i18n 与选区浮层定位 hook。

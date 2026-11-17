@@ -91,7 +91,7 @@ export interface ConversationPromptTelemetrySeed {
   queueConfirmed?: boolean;
 }
 
-/** 发送落定的失败原因，取值口径见 docs/monitoring/composer-send-funnel-telemetry.md。 */
+/** 发送落定的失败原因，取值口径见 相邻实现。 */
 export type ConversationSendFailureReason = SendFunnelReasonCode;
 
 export interface AcceptedConversationPromptTelemetrySeed extends ConversationPromptTelemetrySeed {

@@ -23,7 +23,7 @@ import { EmployeeEntry, createEmployeeEntry } from "./auth/index.js";
 import { AIReqApplication as AIReqWebApplication } from "@zcode/ui/aireq";
 
 // 初始化与工号页 hook 共用主题 owner，避免入口安全读取后 hook 再次访问存储导致白屏。
-// 默认 Zai dark；system 由 hook 继续监听，工作台挂载后由 StoreProvider 接管。
+// 默认动效深色；已有偏好保留，system 由 hook 继续监听，工作台挂载后由 StoreProvider 接管。
 applyTheme(readThemePreference());
 
 const root = createRoot(document.getElementById("root")!);

@@ -1,24 +1,9 @@
-# task-row-hover
+# 会话行悬停卡片
 
-会话行悬停卡片的展示模块。侧栏的按项目、置顶、时间线、按分组四种会话行共用同一份卡片，避免字段和触发逻辑各写一套。
+`TaskRowIdentityHoverCard` 是通用只读展示控件，输入为调用方提供的任务、workspace 标签、remoteSessionId 和分支标签。当前 AIReq 不挂载旧项目／任务侧栏；保留控件不恢复导航或 Git 服务。
 
-意图：
+路径取任务的 cwd，否则取 workspacePath；worktree 标签来自 worktreeRoot。分支只消费传入投影，不查询 Git、不维护跨行缓存，不改变会话、workspace 或 store。
 
-- 悬停时给出任务真正的工作目录、最近活动和当前 HEAD，而不是让用户从 worktree 图标或行内元信息猜测。
-- 卡片只读：不修改任务、workspace、Git 状态，也不写任何 store。
+卡片持有本行打开状态与 300ms 打开计时器；鼠标／触控板进入或键盘可见焦点可打开，触屏合成 pointerenter 不打开。禁用、目标替换和卸载清理旧计时器与浮层。焦点和指针均离开时关闭；浮层内选择复制不触发行菜单。
 
-不变量：
-
-- 本地和远程会话都挂载卡片；远程任务显示设备徽标，但不显示地址、连接类型、连接状态详情或设置入口。项目身份详情仍只由项目入口和会话头部承载。
-- 本地任务固定使用 `useBaseWorkspaceServices()` 读取本机 home；不能因为同路径远程标签页处于活动状态而继承 remote session。远程任务才使用 `useWorkspaceServicesResolution`。
-- 路径使用任务的 `cwd ?? workspacePath`；worktree 任务的 `workspacePath` 是项目主目录，不能用于显示工作目录。
-- 标签与 worktree 名来自任务的 `worktreeRoot`，与头部胶囊、行内图标同源。
-- 当前 HEAD 标签由调用方传入真实投影；Git 服务已退出，卡片不发起 Git 查询、不构造兼容服务。
-- 远程未连接（`rpcReady=false`）时不发 `system.info`，显示原始远程路径；卡片本身仍然显示，已有分支标签仍属于调用方事实。
-- `hoverEnabled=false`（手机远控 / Web remote）时项目、置顶、时间线行不挂载；分组行由 `disabled` 显式禁用；分组拖拽期间不挂载。
-
-与其他模块的交集：
-
-- 行组件（`TaskListItem`、`ProjectTaskSidebar` 的 grouped row）只负责把任务事实和行元素传进来；触发、定位和关闭都在本模块内完成。
-- `WorkspaceHeaderSections` 的头部卡片是另一处展示面，字段口径应保持一致；不要在行组件里复制字段推导。
-- 行为规格见 `docs/ui/task-row-hover-details.md`，worktree 命名规则见 `docs/git/worktree.md` §3.7。
+本地展示固定使用 base services，远程输入才使用对应 workspace 解析；路径相同不能继承另一连接。远程未就绪时不请求 system.info，使用原始路径。控件没有业务状态或写命令。

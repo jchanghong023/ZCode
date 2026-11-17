@@ -119,7 +119,7 @@ export function projectHasUnread(
  *
  * 角标语义是「本次 app 运行新增的未读」：启动时已有的历史未读不点亮，基线用任务身份
  * （key）而不是时间比较——身份比较全程同源（同一棵树的两次读取），无时钟偏差。
- * spec 见 docs/desktop/windows-taskbar-unread-badge.md。
+ * spec 见 相邻实现。
  */
 
 /** 启动基线：任务身份 → 首次成功读取时的 unreadAt。进程内存，不落盘、不回写。 */

@@ -1,4 +1,3 @@
-import { useBotTopicPreparations } from "@/v4/BotTopicPreparation.js";
 /* oxlint-disable eslint(max-lines) -- ConversationTimeline 集中承载虚拟滚动、滚动锚定、loadOlder 与 find 高亮协调；拆散会让同一滚动状态跨文件传递。 */
 import {
   Component,
@@ -40,7 +39,6 @@ import {
   isSameConversationLatestTurnSummary,
   resolveConversationLatestTurnSummary,
   splitConversationTimelineLiveTail,
-  withTopicPreparationUnits,
   type ConversationLatestTurnSummary,
 } from "@/v4/conversationTimelineLiveTail.js";
 import { getConversationRowsPartition } from "@/v4/conversationProjectionStore.js";
@@ -429,22 +427,17 @@ function ConversationTimelineImpl({
     return () => observer.disconnect();
   }, [hasHeaderSlot]);
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
-  // 「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）：
+  // 「冻结历史 + 尾轮」分区：
   // 下面的派生都按 history 引用缓存历史段，流式帧只计算尾轮。
   const rowsPartition = getConversationRowsPartition(rows);
   const selectRenderUnits = useMemo(() => createConversationTurnRenderUnitsSelector(), []);
-  const topicPreparations = useBotTopicPreparations();
   const renderUnits = useMemo(
     () =>
-      withTopicPreparationUnits(
-        selectRenderUnits(rowsPartition, {
-          nowMs: liveNowMs,
-          sessionPhase,
-        }),
-        rows,
-        topicPreparations,
-      ),
-    [liveNowMs, rows, rowsPartition, sessionPhase, topicPreparations, selectRenderUnits],
+      selectRenderUnits(rowsPartition, {
+        nowMs: liveNowMs,
+        sessionPhase,
+      }),
+    [liveNowMs, rowsPartition, sessionPhase, selectRenderUnits],
   );
   const renderUnitCount = renderUnits.history.length + renderUnits.tail.length;
   const { virtualizedUnits, liveUnit, liveUnitIndex } = useMemo(

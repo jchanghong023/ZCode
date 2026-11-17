@@ -19,3 +19,4 @@ export type MockAIReqOwner = IAIReqService & AIReqNativeBridge;
 export { MockAIReqService, getConnectionServices } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
+export { assertSkillSession } from "./skill-design.js";

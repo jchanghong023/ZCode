@@ -63,7 +63,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
   run: WorkflowRunState | undefined;
   /**
    * 这次 run 的子代理模型：`name` 是屏幕上的词，`title` 里是强度与规范串
-   * （docs/dynamic-workflow/presentation.md「The run pane」）。状态头第一行不再摆模型芯片——
+   * 。状态头第一行不再摆模型芯片——
    * 模型是第二行的第一个词，摘要行与退化的用量行都由它开头。缺席即没有可说的。
    */
   subagentModel?: { name: string; title: string };
@@ -74,13 +74,13 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
 }) {
   const { intl, locale } = useZCodeIntl();
   const cancelLabel = intl.formatMessage({ id: "chat.toolCall.workflow.run.cancel" });
-  // 并发芯片（docs/dynamic-workflow/concurrency.md「What the user sees」）：生效的界（共享 cap 与
+  // 并发芯片：生效的界（共享 cap 与
   // 本 run 的界取小）被压在界之下、或 run 有自己的界，且 run 能配置时在场；冷却是一个 deadline，
   // 所以有冷却时走秒针，让它自己过期。
   const cooldownActive = run?.concurrency?.cooldownMs !== undefined;
   const now = useNowTicker(cooldownActive);
   const concurrency = workflowRunConcurrencyChip(run, now);
-  // lineage 行（docs/dynamic-workflow/presentation.md「The run pane」状态头）：修订出来的 run 说它改自谁，
+  // lineage 行：修订出来的 run 说它改自谁，
   // 被替代的 run 指向后继。两者互斥不成立（一个修订 run 也可能再被替代），所以各自一行。
   const resumedFrom = run?.resumedFrom;
   const supersededBy = run?.supersededBy;
@@ -125,7 +125,7 @@ export const WorkflowRunStatusHeader = memo(function WorkflowRunStatusHeader({
           data-testid="workflow-run-status-row"
         >
           {run ? <WorkflowRunStatus run={run} testId="workflow-run-status" /> : null}
-          {/* 「{n} 处留白待补全」（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：与卡上同一枚芯片。 */}
+          {/* 「{n} 处留白待补全」：与卡上同一枚芯片。 */}
           <RunHolesWaitingChip run={run} testId="workflow-run-holes" />
           {/* 「最大并发数 4」：这次 run 最多能有几个子代理同时在飞——治理器把共享桶压到了本 run 的界
             之下，或者用户给这次 run 定了自己的上限（高于或低于默认）。run 快慢的原因就在这里，一眼可见。
@@ -343,8 +343,8 @@ export const WorkflowRunResultSections = memo(function WorkflowRunResultSections
             「run 已取消」「typed ask 结束时未提交结果」「节点数超过上限 100」。所以这里按
             正文排版而不是等宽代码块（DESIGN.md 把 font-mono 留给路径/命令/代码/标识符/
             终端数据）。保留 pre-wrap 是为了万一 message 带换行不被折叠掉。
-            这里给不出 `code`，面板上也不再有第二个落点：事件日志区已经撤走（2026-09-04
-            用户指令，见 docs/dynamic-workflow/presentation.md），结构化载荷只留在 journal 里
+            面板仅展示安全错误正文；结构化载荷留在 journal 中，
+            不在此处增加第二份事件日志。
             ——它的读者是模型与 CLI，不是坐在这块面板前的人。
           */}
           <p

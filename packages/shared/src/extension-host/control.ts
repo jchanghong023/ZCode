@@ -5,7 +5,7 @@ import {
   getExtensionLogsInputSchema,
 } from "#src/extension-host/logs.js";
 
-// L0 控制面（docs/plugins/extension-host.md §3.2、§12.1）：Main ⇄ 扩展进程、Main ⇄ Window Host
+// L0 控制面：Main ⇄ 扩展进程、Main ⇄ Window Host
 // 走 parentPort 普通消息，只管生命周期。业务数据走 L1（channels.ts），不经 Main。
 
 const genSchema = z.number().int().positive();

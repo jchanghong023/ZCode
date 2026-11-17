@@ -26,4 +26,4 @@
 调用方改用后端 workspace 服务或浏览器原生能力。内嵌浏览器、原生窗口、桌面命令、
 应用内购买、deep link OAuth、日志导出等 Desktop 能力已从契约移除。
 
-浏览器本机能力与服务端工作区能力的边界见 `docs/ui/browser-capabilities.md`。
+浏览器与后端边界见 `docs/architecture/mock-backend.md`；本机能力受浏览器权限约束，不等于宿主能力。

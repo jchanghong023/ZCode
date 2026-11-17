@@ -136,7 +136,7 @@ export interface GitWorkspaceRepositoryInfo {
   isGitAvailable: boolean;
 }
 
-// ── 受管 worktree（docs/git/worktree.md）──
+// ── 受管 worktree──
 // 唯一事实源是 `git worktree list` + 受管目录布局；这里只描述读出的结果，不保存副本。
 
 export type ManagedWorktreeState = "ok" | "missing";
@@ -158,7 +158,7 @@ export interface ManagedWorktreeInfo {
   dirty: boolean | null;
 }
 
-/** 管理弹窗中一行 worktree：git 事实 + 使用它的任务（docs/git/worktree.md §3.10）。 */
+/** 管理弹窗中一行 worktree：git 事实 + 使用它的任务。 */
 export interface ManagedWorktreeEntry extends ManagedWorktreeInfo {
   /** 正在被一条创建记录占用；此时不显示删除按钮。 */
   creating: boolean;
@@ -213,7 +213,7 @@ export interface CreateManagedWorktreeRequest {
   startRef?: string;
   /**
    * 带入 sourcePath 所在 checkout 的未提交改动（已暂存、未暂存、未被忽略的未跟踪文件），
-   * 只用于 fork（docs/git/worktree.md §3.6）；与 startRef 互斥，起点固定为当前 HEAD。
+   * 只用于 fork；与 startRef 互斥，起点固定为当前 HEAD。
    */
   carryChanges?: boolean;
 }
@@ -243,7 +243,7 @@ export type ManagedWorktreeCreationKind = "new-task" | "fork";
 export type ManagedWorktreeCreationPhase = "creating" | "starting-session" | "failed";
 
 /**
- * 一次正在进行的 worktree 创建（docs/git/worktree.md §6.2）。只存在于 Host 内存，
+ * 一次正在进行的 worktree 创建。只存在于 Host 内存，
  * 是创建阶段的唯一数据源；会话创建成功、放弃或"不使用 worktree"完成后删除。
  */
 export interface ManagedWorktreeCreation {
@@ -274,7 +274,7 @@ export type ManagedWorktreeCreationSettlement =
 
 export const MANAGED_WORKTREE_OUTPUT_LIMIT = 32 * 1024;
 
-/** 新 worktree 起点候选（docs/git/worktree.md §3.2）；不执行 fetch，远端分支来自本地 remote-tracking ref。 */
+/** 新 worktree 起点候选；不执行 fetch，远端分支来自本地 remote-tracking ref。 */
 export interface ManagedWorktreeStartRefs {
   /** 当前 HEAD；detached 时 branchName 为 null。仓库无提交时为 null。 */
   head: { sha: string; branchName: string | null } | null;

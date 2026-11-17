@@ -5,7 +5,7 @@ import { workflowRunQuestionWaitedLabel } from "@/app-shell/workflowRunQuestions
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
- * 侧板脊线上的留白零件（docs/dynamic-workflow/presentation.md「Holes on the timeline」的「The pane」）。
+ * 侧板脊线上的留白零件。
  * 从 WorkflowRunPhaseList.tsx 拆出（max-lines 门）。
  *
  * - 留白的节头：虚线灯（等待时警示色描边 + 3px 常亮光晕）落在主轨上；补全后名字后面是笔标。
@@ -40,7 +40,7 @@ export function SpineHoleLamp({
   );
 }
 
-/** 等待中的留白的节体（docs/dynamic-workflow/presentation.md「The pane」）：等了多久 + 「等待主代理补全」+ 主代理收到的提示语。 */
+/** 等待中的留白的节体：等了多久 + 「等待主代理补全」+ 主代理收到的提示语。 */
 export function HoleWaitingBody({ hole, now }: { hole: TimelineHole; now: number }) {
   const { intl } = useZCodeIntl();
   const waited = workflowRunQuestionWaitedLabel(hole.since, now, (descriptor, values) =>

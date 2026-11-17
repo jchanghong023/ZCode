@@ -1,5 +1,5 @@
 // 扩展进程 P2 的 App → CLI 插件只读查询。规格：
-// apps/zcode-cli/docs/design/v2/plugin-compat.md「App 读取扩展设置」「Composer Mention Items」。
+// 相邻实现「App 读取扩展设置」「Composer Mention Items」。
 // App（services）与 CLI（bootstrap）共用这里的严格 schema；index.ts 统一导出。
 import { z } from "zod";
 

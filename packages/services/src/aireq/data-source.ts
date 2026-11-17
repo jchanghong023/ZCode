@@ -58,7 +58,6 @@ export interface AIReqPromptServices {
 export interface AIReqSkillDesignServices {
   readonly storage: { workspacePath: string; sharedSkillsDirectory: string };
   session(projectId: string): string | Promise<string>;
-  binding(sessionId: string): AIReqAgentModelBinding | Promise<AIReqAgentModelBinding>;
   workspaceIdentity(projectId: string): string | Promise<string>;
   read(sessionId: string): AIReqSkillDesignDraft | Promise<AIReqSkillDesignDraft>;
   saveDraft(sessionId: string, value: AIReqSkillDesignDraft): void | Promise<void>;

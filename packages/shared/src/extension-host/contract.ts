@@ -1,5 +1,5 @@
 // extension-host-protocol 的公开契约：清单 schema、插槽目录、静态表、贡献表、能力表、ExtensionContext、
-// 跨进程接口、控制消息、错误码。只放 schema、类型与纯函数（docs/plugins/extension-host.md §4）。
+// 跨进程接口、控制消息、错误码。只放 schema、类型与纯函数。
 export * from "#src/extension-host/grants.js";
 export * from "#src/extension-host/manifest.js";
 export * from "#src/extension-host/manifestSlots.js";

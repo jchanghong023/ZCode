@@ -1,4 +1,3 @@
-import { Event } from "@zcode/rpc";
 import {
   IModelSelectionService,
   IProviderSettingsService,
@@ -62,7 +61,7 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
       };
     },
   });
-  // 返回值与事件共用同一投影，防止刷新后把底座目录覆盖到当前 AIReq 目录。
+  // 读取与刷新共用同一投影，防止刷新后把底座目录覆盖到当前 AIReq 目录。
   const mapSettingsView = (original: Awaited<ReturnType<typeof settings.getView>>) => {
     const template = original.providers[0];
     if (!template) throw new Error("模拟供应商目录缺失。");
@@ -86,10 +85,8 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
       ),
     };
   };
-  const settingsChanged = Event.map(settings.onDidChange, mapSettingsView);
   const settingsFacade = new Proxy(settings, {
     get(target, key) {
-      if (key === "onDidChange") return settingsChanged;
       if (key === "getView") return async () => mapSettingsView(await settings.getView());
       // 刷新仍由目录 owner 处理并保留 reason；无事实变化时不能制造版本或事件。
       if (key === "refresh")

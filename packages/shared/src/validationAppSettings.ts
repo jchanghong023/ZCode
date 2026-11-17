@@ -43,7 +43,7 @@ export const localeSchema = z.enum(SUPPORTED_LOCALES);
 export const localePreferenceSchema = z.enum(["system", ...SUPPORTED_LOCALES]);
 const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
-const appThemeSchema = z.enum(["light", "dark", "zai-light", "zai-dark", "system"]);
+const appThemeSchema = z.enum(["light", "dark", "zai-light", "zai-dark", "zai-motion", "system"]);
 const appUiFontSizeSchema = z.number().int().min(12).max(20);
 const desktopWindowSizeSchema = z.object({
   width: z.number().int().min(480),
@@ -485,7 +485,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
-  theme: appThemeSchema.default("dark"),
+  theme: appThemeSchema.default("zai-motion"),
   uiFontSizePx: appUiFontSizeSchema.default(14),
   recentProjects: z.array(z.string()).default([]),
   locale: localeSchema.default("zh-CN"),

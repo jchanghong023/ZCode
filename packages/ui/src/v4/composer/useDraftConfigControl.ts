@@ -261,7 +261,7 @@ export function useDraftConfigControl(params: {
   // 回落到重新初始化。
   const suspendedStateRef = useRef<ComposerState | null>(null);
   const suspended = suspendedStateRef.current;
-  // 提交已结算的 edit scope key（docs/ui/composer-edit-mode.md「退出编辑态的工具栏配置」）。
+  // 提交已结算的 edit scope key。
   // Bug 根因：退出编辑态只恢复进入前的草稿，编辑态改的模型在提交后被换回旧模型，下一条消息
   // 悄悄用回旧模型。提交成功时在退出的同一次渲染里换入模型与 mode，不在退出后再改，避免闪回一帧；
   // 取消不标记，全部恢复。每次编辑的 scope 带新 nonce，旧标记不会命中下一次编辑。
@@ -373,7 +373,7 @@ export function useDraftConfigControl(params: {
   // 原因：按 revision 清草稿会把短暂不可用永久写成空选择。这里只派生当前结果，
   // 正文/模式自动保存继续保存 draft 中的原意图；读取未就绪时保留展示，提交由 View 门禁阻断。
   // 已有会话首份配置未恢复时，null selection 的 View 只是新任务默认值，不能显示到此会话。
-  // edit scope 的配置在进入编辑态时已显式预置，不等待 Session 快照（docs/ui/composer-edit-mode.md）。
+  // edit scope 的配置在进入编辑态时已显式预置，不等待 Session 快照。
   const sessionConfigPending =
     sessionId !== null && currentState.initialization !== "edit" && !currentState.observedConfig;
   const effectiveSelection =

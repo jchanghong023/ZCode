@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { slotValueSchema } from "#src/extension-host/slots.js";
 
-// 贡献表（docs/plugins/extension-host.md §3.4、§6、§16.1）。唯一 owner 是扩展进程；
+// 贡献表。唯一 owner 是扩展进程；
 // Window Host 与 Renderer 只持最近一份快照，用增量更新它，不维护第二份。
 // P2a 起贡献表只有运行状态与插槽动态值；命令、视图、插槽条目这些静态声明在 Window Host 的静态表
 // （staticTable.ts），Renderer 合并两者。

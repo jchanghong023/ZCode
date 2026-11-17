@@ -10,7 +10,7 @@ import { fileSaveSuccessMessageId, MAX_FILE_COPY_BYTES } from "@/file-menu/fileC
 import { logger } from "@/logger.js";
 
 /**
- * 产物 tab 头部的「保存副本」按钮（docs/dynamic-workflow/authoring.md）。
+ * 产物 tab 头部的「保存副本」按钮。
  *
  * 浏览器没有本机应用打开能力，也不再物化宿主副本；这里只把调用方已核对版本的原字节
  * 交给浏览器下载。「在工作区显示」由调用方单独渲染，不依赖本按钮的宿主能力。

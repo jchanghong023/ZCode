@@ -250,7 +250,7 @@ interface PluginSandboxRegisterRequestBase {
 
 /**
  * host → main 登记沙箱内容的消息载荷（模式同 LocalMediaPreviewPathAuthorize*）。
- * 只有扩展视图（docs/plugins/extension-host.md §8）不属于会话：它不填 sessionId，也不伪造会话 id；
+ * 只有扩展视图不属于会话：它不填 sessionId，也不伪造会话 id；
  * MCP App 与 Gen UI 仍必须带会话。运行时校验见 validation.ts 的登记 schema 与 Main 注册表。
  */
 export type PluginSandboxRegisterRequestPayload = PluginSandboxRegisterRequestBase &

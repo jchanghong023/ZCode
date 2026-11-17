@@ -2,7 +2,6 @@ import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
 import { expandTopicInputMessages } from "@/v4/topicInputMessages.js";
-import { ConnectedBotGroupDeliveryAction } from "@/v4/BotGroupDeliveryAction.js";
 /* oxlint-disable eslint(max-lines) -- v4 逐行 row 渲染分发集中收口（每种 row 一个 memo 叶子 + timelineMarker 分隔线），拆分会打散行类型对照。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import {
@@ -128,7 +127,7 @@ import { WebElementContextAttachmentChip } from "@/v4/composer/WebElementContext
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
 import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip.js";
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
-import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
+import { BotGroupSourceLabel } from "@/v4/BotTopicPreparation.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
@@ -265,7 +264,7 @@ const CopyRowAction = memo(function CopyRowAction({
   );
 });
 
-/** 请求在底部 composer 编辑该 user 行（docs/ui/composer-edit-mode.md）；提交由 composer 完成。 */
+/** 请求在底部 composer 编辑该 user 行；提交由 composer 完成。 */
 export type UserInputEditHandler = (target: ConversationRowTarget) => Promise<void> | void;
 
 type AssistantMessageFeedback = "like" | "dislike";
@@ -1219,9 +1218,6 @@ const UserInputRowView = memo(function UserInputRowView(
   );
 });
 
-// memo 组件的数组默认值必须是模块级常量：内联 [] 每次渲染都是新引用，会让 memo 比较失效。
-const EMPTY_SOURCE_COMMAND_IDS: readonly string[] = [];
-
 export const ConversationAssistantTextActions = memo(function ConversationAssistantTextActions({
   rowId,
   entityId,
@@ -1232,7 +1228,6 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   hookInvocations,
   sessionId,
   turnId,
-  sourceCommandIds = EMPTY_SOURCE_COMMAND_IDS,
   onFork,
   onFeedbackChange,
   className,
@@ -1246,7 +1241,6 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   hookInvocations?: readonly HookInvocationRow[];
   sessionId?: string | null;
   turnId?: string;
-  sourceCommandIds?: readonly string[];
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
@@ -1329,7 +1323,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
     if (entityId && forkToWorktree) forkToWorktree({ rowId, entityId });
   }, [entityId, forkToWorktree, rowId]);
   return (
-    <MessageActions className={cn(className, "has-[[data-bot-group-delivery]]:opacity-100")}>
+    <MessageActions className={className}>
       <CopyRowAction
         text={text}
         rowId={rowId}
@@ -1406,9 +1400,6 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
           时间是 row.createdAt 的只读派生展示，不新增 renderer 状态。 */}
       {timeLabel ? (
         <span className="select-none text-ui-sm text-foreground-subtlest">{timeLabel}</span>
-      ) : null}
-      {turnId ? (
-        <ConnectedBotGroupDeliveryAction turnId={turnId} sourceCommandIds={sourceCommandIds} />
       ) : null}
     </MessageActions>
   );
@@ -1888,7 +1879,7 @@ const TimelineMarkerRowView = memo(function TimelineMarkerRowView({
   context: ConversationRowRenderContext;
 }) {
   const isOfficeMode = useIsOfficeMode();
-  // "已创建 worktree"是可展开的输出块，不是分隔线（docs/git/worktree.md §3.3）。
+  // "已创建 worktree"是可展开的输出块，不是分隔线。
   // 它依赖 App 侧 managed-worktrees 能力，留在宿主这里，不进分享只读页共用的分隔线组件。
   if (row.marker.type === "worktreeCreated") {
     return <WorktreeCreatedMarker rowId={row.rowId} output={row.marker.output} />;
@@ -1924,7 +1915,7 @@ const ToolCallRowView = memo(function ToolCallRowView({
     (row.display?.kind === "resume_workflow_run"
       ? context.workflowRunByRunId?.get(row.display.runId)
       : undefined);
-  // 已接进 run 的补全行（docs/dynamic-workflow/presentation.md「The fill row」）：「留白已补全 · {name} ·
+  // 已接进 run 的补全行：「留白已补全 · {name} ·
   // {k} 个阶段 · {m} 个子代理 ↗」。按入参的 `run_id` 联接投影（补全行的 toolCallId 不是发起行的），只认成功
   // 且编过的行——编不过的补全走下面的编译反馈行，什么都没接进 run。卡下方随之长出新的站（轮尾摘要
   // 取的是这一行的图）。
@@ -2000,7 +1991,7 @@ const ToolCallRowView = memo(function ToolCallRowView({
       </RowShell>
     );
   }
-  // 就地生效的修订（docs/dynamic-workflow/concurrency.md）：只改并发上限、run 又在飞时这次调用
+  // 就地生效的修订：只改并发上限、run 又在飞时这次调用
   // 不编译、不铸新 run，结果只有一句话。判据全在已经上线的字段上——入参的形状、**没有** display、
   // 成功且非错误；工具的结构化输出不过 v4，而三处 create_workflow display schema 都是冻结字段集
   // 的 `.strict()`，多一个键会让旧端把整条工具结果丢掉，所以这条路不新增任何协议字段。

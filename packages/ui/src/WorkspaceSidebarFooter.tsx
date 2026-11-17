@@ -44,11 +44,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
 import type { Theme } from "@/useTheme.js";
-import {
-  WorkspaceSidebarFooterPlanBadge,
-  WorkspaceSidebarFooterUsageSummaryContent,
-  useWorkspaceSidebarFooterUsageSummaryState,
-} from "@/WorkspaceSidebarFooterUsageSummary.js";
+import { WorkspaceSidebarFooterUsageSummaryContent } from "@/WorkspaceSidebarFooterUsageSummary.js";
 
 function getSidebarProfileName(user?: UserInfo | null): string {
   const displayName = user?.displayName?.trim();
@@ -117,6 +113,9 @@ function WorkspaceSidebarFooterThemeMenu({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-48">
         <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
+          <DropdownMenuRadioItem value="zai-motion">
+            {intl.formatMessage({ id: "sidebar.settings.theme.zai-motion" })}
+          </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system">
             {intl.formatMessage({
               id: "sidebar.settings.systemDefault",
@@ -173,8 +172,6 @@ function WorkspaceSidebarFooterNativeMenu({
   theme,
   onThemeChange,
   user,
-  workspaceIdentity,
-  workspacePath,
   onUsageClick,
   onSettingsButtonClick,
   onLogin,
@@ -199,11 +196,6 @@ function WorkspaceSidebarFooterNativeMenu({
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useSetInterfaceModeWithTelemetry(platform, "app.profile");
-  const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
-    enabled: true,
-    workspaceIdentity,
-    workspacePath,
-  });
   const copyUserId = async () => {
     if (!user?.id) return;
     try {
@@ -232,12 +224,6 @@ function WorkspaceSidebarFooterNativeMenu({
               <div className="flex min-w-0 items-center gap-1.5">
                 <span data-testid="profile-menu-name" className="truncate text-ui-base font-medium">
                   {profileBadge}
-                </span>
-                <span
-                  data-testid="profile-menu-plan"
-                  className="flex shrink-0 [&>span]:border-border/50 [&>span]:bg-transparent [&>span]:font-normal"
-                >
-                  <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} />
                 </span>
               </div>
               {user.id ? (

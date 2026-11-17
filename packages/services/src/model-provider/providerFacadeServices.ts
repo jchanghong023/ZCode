@@ -15,7 +15,6 @@ export type {
 } from "@zcode/provider";
 
 export interface IProviderSettingsService {
-  readonly onDidChange: Event<ProviderSettingsView>;
   getView(): Promise<ProviderSettingsView>;
   refresh(reason: string): Promise<ProviderSettingsView>;
 }

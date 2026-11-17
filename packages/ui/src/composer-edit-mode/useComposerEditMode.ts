@@ -1,4 +1,4 @@
-// Composer 编辑态编排（docs/ui/composer-edit-mode.md）：进入/取消/结束编辑、队列项冻结锁、
+// Composer 编辑态编排：进入/取消/结束编辑、队列项冻结锁、
 // 失效判定与刷新后的锁自愈。编辑内容放在独立 edit scope；原草稿留在原 scope，切回即恢复。
 // 失效只看 CLI 投影（row.actions.canEdit、queue item 与 editLock），不使用计时器。
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -63,7 +63,7 @@ interface EditContent {
 const lockRequestsInFlight = new Set<string>();
 
 /**
- * 编辑一条消息时工具栏载入它提交时的配置（最后一条消息与排队项同一规则，docs/ui/composer-edit-mode.md）；
+ * 编辑一条消息时工具栏载入它提交时的配置；
  * 旧消息/旧队列项缺少的字段保留当前草稿配置。旧版本曾把单轮 Highspeed Provider 持久化进输入，
  * 载入工具栏会污染后续 fallback，因此不载入 Highspeed 模型。
  */

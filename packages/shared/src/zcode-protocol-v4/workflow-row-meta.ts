@@ -64,7 +64,7 @@ export const workflowNotificationMetaSchema = z.discriminatedUnion("kind", [
     context: z.string().max(4000).optional(),
     askedAt: z.number().optional(),
   }),
-  // 留白（docs/dynamic-workflow/transcript-and-notifications.md「The payload」的 `hole` 种类）：run 走到一个
+  // 留白：run 走到一个
   // 开着的 `hole<T>()`，那条分支停驻、主代理欠一段代码。`type` 是作者写的类型原文（`Plan`）；`before` /
   // `after` 是留白两侧的阶段名；`draftPath` / `line` 指向草稿文件里留白所在的那一行。prompt 与升级问题
   // 同一条 4000 上界，发射侧先截。与契约同名（apps/zcode-cli contracts 侧手工镜像）。
@@ -91,7 +91,7 @@ export const workflowNotificationMetaSchema = z.discriminatedUnion("kind", [
 ]);
 export type WorkflowNotificationMeta = z.infer<typeof workflowNotificationMetaSchema>;
 
-// 主代理闲着、run 还欠着决定时的提醒（docs/dynamic-workflow/transcript-and-notifications.md
+// 主代理闲着、run 还欠着决定时的提醒（相邻实现
 // 「Reminding an idle main agent」）：每个 run 一条，只带发出那一刻的计数与最久的等待——每个决定的
 // 原文在它自己那条 escalation / hole 行上，这一行不重复，也不随后续状态翻转。
 //
@@ -148,7 +148,7 @@ const workflowSubagentModelTextSchema = z
 // （模型 = 会话模型，上限 = 默认并发）。`ceiling` 是默认并发 D（键名早于「默认并发」，为兼容旧端保留），
 // 供「默认 13 → 4」这种读法。
 export const workflowSettingsAmendMetaSchema = z.object({
-  // 修订自哪个 run。**缺席 = 就地生效**（docs/dynamic-workflow/concurrency.md）：只改并发上限、run
+  // 修订自哪个 run。**缺席 = 就地生效**：只改并发上限、run
   // 又在飞时，那次「配置」不停这次 run、也不另起一次，于是没有前驱可指——`runId` 指的就是被调整的
   // 那一个。渲染端据此只出那一行、不再出卡（同一条 run 画两张卡会读成两次运行）。
   // 记录在案的偏斜（与下方 scope / path 同一档）：旧桌面上它是必填，就地生效的设置轮在那里 parse

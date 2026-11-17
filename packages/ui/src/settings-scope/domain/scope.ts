@@ -12,7 +12,7 @@ import type {
 } from "@/settings-scope/contract.js";
 
 /**
- * 设置页 Scope 的纯模型：按设备分组、默认选中与选中项解析（docs/remote/data-sync.md「Scope 菜单按设备分组」）。
+ * 设置页 Scope 的纯模型：按设备分组、默认选中与选中项解析。
  *
  * Scope key 是页面级的全局 key：
  * - `"user"`：本机「用户」（沿用旧值，E2E 与插件商店返回都依赖它）；

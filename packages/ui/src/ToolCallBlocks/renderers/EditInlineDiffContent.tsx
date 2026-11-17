@@ -30,7 +30,7 @@ function resolveInlineDiffHighlightTheme(
     return codePreviewSettings.lightTheme;
   }
 
-  return theme === "dark" || theme === "zai-dark"
+  return theme === "dark" || theme === "zai-dark" || theme === "zai-motion"
     ? codePreviewSettings.darkTheme
     : codePreviewSettings.lightTheme;
 }

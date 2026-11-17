@@ -190,9 +190,6 @@ export function V4WorkspaceChatArea({
   const paneFocusedPaneId = usePaneLayoutStore((state) => effectiveFocusedPaneId(state));
   // zustand action 引用稳定。
   const closePaneAction = usePaneLayoutStore((state) => state.closePane);
-  const confirmRestoredPaneSessionAction = usePaneLayoutStore(
-    (state) => state.confirmRestoredPaneSession,
-  );
   const focusPaneAction = usePaneLayoutStore((state) => state.focusPane);
   const bindPaneSessionAction = usePaneLayoutStore((state) => state.bindPaneSession);
   const setSplitRatioAction = usePaneLayoutStore((state) => state.setSplitRatio);
@@ -204,9 +201,6 @@ export function V4WorkspaceChatArea({
   );
   const focusGroupPaneAction = useWorkbenchGroupStore((state) => state.focusPane);
   const closeGroupPaneAction = useWorkbenchGroupStore((state) => state.closePane);
-  const confirmRestoredGroupPaneSessionAction = useWorkbenchGroupStore(
-    (state) => state.confirmRestoredPaneSession,
-  );
   const bindGroupPaneSessionAction = useWorkbenchGroupStore((state) => state.bindPaneSession);
   const setGroupSplitRatioAction = useWorkbenchGroupStore((state) => state.setSplitRatio);
   const promotePaneLayoutToGroupAction = useWorkbenchGroupStore(
@@ -453,17 +447,6 @@ export function V4WorkspaceChatArea({
     ],
   );
 
-  const handleConfirmRestoredSession = useMemo(
-    () => (paneId: string) => {
-      if (activeGroup) {
-        confirmRestoredGroupPaneSessionAction(activeGroup.id, paneId);
-      } else {
-        confirmRestoredPaneSessionAction(paneId);
-      }
-    },
-    [activeGroup, confirmRestoredGroupPaneSessionAction, confirmRestoredPaneSessionAction],
-  );
-
   const handleCommitSplitRatio = useMemo(
     () => (splitId: string, ratio: number) => {
       if (activeGroup) {
@@ -553,7 +536,6 @@ export function V4WorkspaceChatArea({
           shell={shell}
           onFocusRequest={handleFocusRequest}
           onClosePane={handleClosePane}
-          onConfirmRestoredSession={handleConfirmRestoredSession}
           onBindSession={handleBindSession}
           onPaneActiveSessionChange={onPaneActiveSessionChange}
         />

@@ -19,26 +19,9 @@ export {
 // ── sessions-index 读路径（列表活性/detail 数据源；持久行来自 tasks-index）──
 export {
   applySessionsIndexFrame,
-  SessionsIndexStore,
   EMPTY_SESSIONS_INDEX_STATE,
   type SessionsIndexState,
-  type SessionsIndexStoreStatus,
 } from "@/v4/sessionsIndexStore.js";
-export {
-  createAgentSessionsIndexTransport,
-  type AgentSessionsIndexTransportTarget,
-  type SessionsIndexTransport,
-} from "@/v4/agentSessionsIndexTransport.js";
-export { useSessionsIndex, type UseSessionsIndexResult } from "@/v4/useSessionsIndex.js";
-export {
-  LOCAL_SESSIONS_INDEX_ENDPOINT,
-  acquireSessionsIndex,
-  buildSessionsIndexEntryKey,
-  releaseSessionsIndex,
-  sessionsIndexRegistrySize,
-  type SessionsIndexAgentService,
-  type SessionsIndexScope,
-} from "@/v4/sessionsIndexRegistry.js";
 export { createCommandEnvelope, getV4ClientId, uuidv7 } from "@/v4/commandFactory.js";
 export {
   V4ConversationProvider,

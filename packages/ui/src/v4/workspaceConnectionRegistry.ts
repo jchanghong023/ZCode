@@ -2,7 +2,7 @@
 // ——分屏多 pane 跨 workspace 的连接层。
 // 同一 endpoint 同一 workspace 的多个 pane 共享一条 transport + 一个 SessionDataLayer
 // （同 session 多 pane 由 layer 内 per-topic refCount 单订阅收口，不触发 CLI
-// (connectionId, topic) 重订阅替换）。与 sessionsIndexRegistry 同构，多两点：
+// (connectionId, topic) 重订阅替换）。连接层还负责：
 // - 30s keep-warm：refCount 归零不立即 dispose（防 pane 关/开、布局调整抖动）；
 // - agentService 换代：远程条目保持 layer/transport 身份并单向切换最新 proxy；
 //   本地 __base__ 用新 service 重建条目。
@@ -26,15 +26,6 @@ export type WorkspaceConnectionAgentService = Pick<
   | "queryConversationCommandsV4"
   | "conversationRowsRangeV4"
   | "conversationPlansV4"
-  | "conversationWorkflowRunEventsV4"
-  | "conversationWorkflowRunsV4"
-  | "conversationWorkflowRunArtifactsV4"
-  | "conversationWorkflowRunArtifactDataV4"
-  | "conversationWorkflowRunArtifactReadV4"
-  | "conversationWorkflowRunWorkspaceV4"
-  | "conversationWorkflowRunNodeResultV4"
-  | "conversationFileChangesV4"
-  | "conversationFileRewindPreviewV4"
   | "attachmentBeginV4"
   | "attachmentChunkV4"
   | "attachmentCommitV4"
@@ -43,7 +34,6 @@ export type WorkspaceConnectionAgentService = Pick<
   | "getSessionLifecycle"
   | "onDynamicSessionLifecycle"
   | "onDynamicConversationFrame"
-  | "onDynamicLocalTtftFacts"
   | "onAgentRuntimeRestarted"
 >;
 
@@ -83,7 +73,7 @@ interface RegistryEntry {
 
 const registry = new Map<string, RegistryEntry>();
 
-/** 本机 endpoint 的保留键（与 sessionsIndexRegistry / task list shardKey 口径一致）。 */
+/** 本机 endpoint 的保留键。 */
 export const LOCAL_WORKSPACE_CONNECTION_ENDPOINT = "__base__";
 
 /** 引用归零后延迟释放窗口（ms）；与 SessionDataLayer keep-warm 同标度。 */

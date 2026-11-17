@@ -24,7 +24,10 @@ import {
   SquareTerminalIcon,
   TerminalIcon,
 } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  WorkflowRunState,
+  V4ConversationWorkflowRunNodeResultResult,
+} from "@zcode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -61,6 +64,13 @@ interface WorkflowWorkspaceCardProps {
   sessionId: string;
   runId: string;
   run: WorkflowRunState | undefined;
+  nodeResult:
+    | {
+        result: V4ConversationWorkflowRunNodeResultResult | null;
+        loading: boolean;
+        error: string | null;
+      }
+    | undefined;
   /** 时间标尺的零点（第一张卡的准入时刻）；缺席即不画时刻。 */
   origin: number | undefined;
   /** 当前时刻（运行中的卡每秒推进）。 */
@@ -114,6 +124,7 @@ export const WorkflowWorkspaceCard = memo(function WorkflowWorkspaceCard({
   onOpenCodeViewer,
   origin,
   run,
+  nodeResult,
   runId,
   sessionId,
   workspacePath,
@@ -362,10 +373,10 @@ export const WorkflowWorkspaceCard = memo(function WorkflowWorkspaceCard({
           {joined(resultParts)}
         </div>
         {kind === "terminal" && !open && status === "completed" ? (
-          <WorkspacePeek node={node} runId={runId} sessionId={sessionId} />
+          <WorkspacePeek result={nodeResult?.result ?? null} />
         ) : null}
-        {expandable && open ? (
-          <WorkspaceCardBody card={card} runId={runId} sessionId={sessionId} />
+        {expandable && open && nodeResult ? (
+          <WorkspaceCardBody card={card} {...nodeResult} />
         ) : null}
       </div>
       <span

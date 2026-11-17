@@ -149,14 +149,14 @@ export const zcodeRuntimeCapabilitiesSchema = z.object({
   residentRowsRange: z.boolean().optional(),
   /**
    * CLI 支持"会话 cwd 与 workspace 不同"：createSession.cwd / worktreeCreation、
-   * forkAssistant.targetCwd、按 Host 请求的 workspace key 冷恢复（docs/git/worktree.md §9.3）。
+   * forkAssistant.targetCwd、按 Host 请求的 workspace key 冷恢复。
    * 旧 CLI 会静默丢弃这些字段，Host 据此决定是否开放 worktree 入口。
    */
   worktreeCwd: z.boolean().optional(),
   /**
    * CLI 认识 `{kind:"extension"}` 输入来源（sendText.source、createSession.firstInput.source）。
    * 旧 CLI 对 sendText 整条拒绝、对 firstInput 静默剥掉来源，Host 据此决定能否代扩展发消息
-   * （apps/zcode-cli/docs/design/v2/conversation-input-source.md §7）。
+   * 。
    */
   extensionInputSource: z.boolean().optional(),
   /**
@@ -166,7 +166,7 @@ export const zcodeRuntimeCapabilitiesSchema = z.object({
   conversationQuoteComment: z.boolean().optional(),
   /**
    * CLI 认识 plugins/overview 的 includeExtensionSummary 参数，并按它在商店信息里带 extensionSummary
-   * （docs/plugins/plugin-publishing.md §4.3）。参数与结果的 schema 都是 strict：旧 CLI 拒绝新参数，
+   * 。参数与结果的 schema 都是 strict：旧 CLI 拒绝新参数，
    * 旧 services 拒绝新字段，所以 services 只在看到这一位时才要这个字段。
    */
   pluginExtensionSummary: z.boolean().optional(),
@@ -247,7 +247,7 @@ const zcodeCreateWorkflowCausalityGraphDisplaySchema = z
         z
           .object({
             id: z.string().min(1).max(64),
-            // `hole`：开着的留白自己的站点（docs/dynamic-workflow/presentation.md「Holes on the timeline」）；镜像 v4。
+            // `hole`：开着的留白自己的站点；镜像 v4。
             kind: z.enum(["ask", "world-read", "hole"]),
             label: z.string().min(1).max(128),
             // 内联 `agent()` receiver 让 label 落到兜底串时，那个名字的静态形状。
@@ -331,13 +331,13 @@ const zcodeCreateWorkflowCausalityGraphDisplaySchema = z
       .max(32)
       .optional(),
     phaseEdges: z.array(zcodeWorkflowEdgeSchema).max(128).optional(),
-    // 阶段流（docs/dynamic-workflow/presentation.md「Streams」）：两端互为 alongside 的 data 边，
+    // 阶段流：两端互为 alongside 的 data 边，
     // 只有 {from, to}——不是 runs after，不进 phaseEdges、不带 back。与词汇表同进同退。
     phaseStreams: z
       .array(z.object({ from: z.string().min(1).max(64), to: z.string().min(1).max(64) }).strict())
       .max(128)
       .optional(),
-    // 还开着的留白，源码序（docs/dynamic-workflow/authoring.md「Holes」）；镜像 v4。
+    // 还开着的留白，源码序；镜像 v4。
     holes: z
       .array(
         z
@@ -378,7 +378,7 @@ export const zcodeCreateWorkflowToolResultDisplaySchema = z
       .max(100),
     causalityGraph: zcodeCreateWorkflowCausalityGraphDisplaySchema.optional(),
     truncated: z.boolean().optional(),
-    // FillWorkflowHole 行补的是哪处留白（docs/dynamic-workflow/presentation.md「The fill row」）；镜像 v4。
+    // FillWorkflowHole 行补的是哪处留白；镜像 v4。
     // 修复原因：dwf-recursive 只给 contracts 与 v4 加了留白字段，v3 的 .strict() 拒掉整条 tool.updated，
     // 桌面端 v3 订阅于是把含留白的 CreateWorkflow / FillWorkflowHole 结果当无效事件丢掉。
     fill: z
@@ -1277,7 +1277,7 @@ export const zcodeProviderAccountAccessSchema = z
     type: z.literal("zhipu-account"),
     accountType: z.enum(["zai", "bigmodel"]),
     // `highspeed` 指加速卡这一账号访问类别（隐藏 Provider + 免签网关），与模型名
-    // GLM-5.1-Highspeed 无关，仅字面重合。见 docs/highspeed/highspeed-access-mode-migration.md。
+    // GLM-5.1-Highspeed 无关，仅字面重合。见 相邻实现。
     mode: z.enum([
       "start-plan",
       "individual-coding-plan",
@@ -2476,7 +2476,7 @@ export const zcodeSessionCloseResultSchema = z
   .strict();
 export type ZCodeSessionCloseResult = z.infer<typeof zcodeSessionCloseResultSchema>;
 /**
- * 卸载 cwd 位于 directory 内的全部驻留会话；任一会话忙时全部不卸载（docs/git/worktree.md §8.3）。
+ * 卸载 cwd 位于 directory 内的全部驻留会话；任一会话忙时全部不卸载。
  * 随 worktreeCwd 能力提供。
  */
 export const zcodeSessionReleaseUnderDirectoryParamsSchema = z
@@ -3160,7 +3160,7 @@ export type ZCodePluginsListUiSurfacesResult = z.infer<
   typeof zcodePluginsListUiSurfacesResultSchema
 >;
 
-// ── Plugin 对话引用 catalog（docs/plugin-reference-mention.md）──
+// ── Plugin 对话引用 catalog──
 // Session-scoped 只读投影：带 sessionId → 该 Session 创建时冻结的身份 catalog；
 // 不带 → workspace 当前 catalog（新建草稿 Picker）。身份与能力字段保持
 // identifiers-only，不携带 rootPath/配置等；可选 icon/displayName(I18n)/description(I18n)
@@ -3507,7 +3507,7 @@ export const zcodeWorkflowsMoveResultSchema = z.union([
 ]);
 export type ZCodeWorkflowsMoveResult = z.infer<typeof zcodeWorkflowsMoveResultSchema>;
 
-// ── 从一次 run 保存工作流（docs/dynamic-workflow/transcript-and-notifications.md「Saving the
+// ── 从一次 run 保存工作流（相邻实现「Saving the
 // run, and running it again」）──
 // 完成卡的「直接保存」走这条：**不收脚本，只收 runId**——要写的那份正文是这次 run 实际执行的
 // 脚本，agent 从 journal 记录（`scriptText`）里读。脚本不经 GUI 走一圈有两个后果值得写下来：
@@ -3661,7 +3661,7 @@ export const zcodePluginsSetEnabledResultSchema = z
 export type ZCodePluginsSetEnabledResult = z.infer<typeof zcodePluginsSetEnabledResultSchema>;
 
 /**
- * 目录条目的扩展摘要（docs/plugins/plugin-publishing.md §4.2–4.3）：插件要求的插件 API 版本范围与
+ * 目录条目的扩展摘要：插件要求的插件 API 版本范围与
  * 扩展申请的权限档位。CLI 只透传、只留这两个键；App 用 isExtensionEngineCompatible 判断。
  * grants 是开放的字符串数组：以后新增的档位不能让旧 App 整页解析失败。
  */
@@ -4404,7 +4404,7 @@ export const zcodeProtocolMethods = {
   workflowsRuns: "workflows/runs",
   // 在项目档 / 全局档之间移动同名文件。
   workflowsMove: "workflows/move",
-  // 完成卡的「直接保存」与「已保存」判定（docs/dynamic-workflow/transcript-and-notifications.md）：
+  // 完成卡的「直接保存」与「已保存」判定：
   // 前者按 runId 从 journal 取脚本落盘，后者回答「这次 run 对应哪个已保存工作流」。
   workflowsSave: "workflows/save",
   workflowsForRun: "workflows/forRun",

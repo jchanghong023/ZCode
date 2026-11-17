@@ -1,0 +1,151 @@
+/* 原浅／深主题没有此 marker，不修改其颜色、几何、焦点或已有动效。 */
+.theme-zai-motion [data-aireq-motion-active] {
+  --aireq-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.theme-zai-motion .aireq-motion-surface,
+.theme-zai-motion .aireq-motion-navigation,
+.theme-zai-motion .aireq-motion-filter-group {
+  position: relative;
+  isolation: isolate;
+}
+
+.theme-zai-motion .aireq-motion-aura {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 240px;
+  height: 240px;
+  max-width: 100%;
+  max-height: 100%;
+  contain: strict;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-foreground) 32%, transparent) 0%,
+    color-mix(in srgb, var(--color-foreground) 20%, transparent) 24%,
+    color-mix(in srgb, var(--color-foreground) 8%, transparent) 49%,
+    transparent 72%
+  );
+  transition:
+    opacity 180ms linear,
+    transform 90ms linear;
+}
+
+.theme-zai-motion .aireq-motion-nav-highlight,
+.theme-zai-motion .aireq-motion-filter-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  contain: strict;
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-menu-hover);
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.theme-zai-motion .aireq-motion-filter-highlight {
+  background: var(--color-secondary);
+  opacity: 1;
+}
+
+.theme-zai-motion
+  [data-aireq-motion-active]
+  .aireq-motion-filter-group
+  button[aria-pressed="true"] {
+  background: transparent;
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row],
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row] > span,
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row] > svg {
+  transition:
+    background-color 180ms var(--aireq-motion-ease),
+    transform 200ms var(--aireq-motion-ease);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row]:hover > span {
+  transform: translateX(4px);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row]:hover > svg {
+  transform: translateX(6px);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-nav] {
+  transition: transform 100ms var(--aireq-motion-ease);
+}
+
+.theme-zai-motion
+  [data-aireq-motion-active]
+  [data-aireq-motion-nav]:not([aria-current="page"]):hover {
+  background: transparent;
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-label],
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-nav] > svg {
+  transition:
+    transform 200ms var(--aireq-motion-ease),
+    color 160ms linear;
+}
+
+.theme-zai-motion
+  [data-aireq-motion-active]
+  [data-aireq-motion-nav]:hover
+  [data-aireq-motion-label] {
+  transform: translateX(5px);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-nav]:hover > svg {
+  transform: translateX(2px);
+  color: var(--color-foreground);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-slot="button"]:not([data-aireq-motion-nav]) {
+  transition:
+    background-color 180ms var(--aireq-motion-ease),
+    color 180ms var(--aireq-motion-ease),
+    border-color 180ms var(--aireq-motion-ease),
+    transform 100ms var(--aireq-motion-ease);
+}
+
+.theme-zai-motion [data-aireq-motion-active] [data-slot="button"]:active:not(:disabled) {
+  transform: translateY(1px) scale(0.97);
+}
+
+.theme-zai-motion [data-aireq-motion-active] .aireq-motion-press-host {
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-zai-motion .aireq-motion-press {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
+  margin-top: -48px;
+  border-radius: 50%;
+  background: var(--color-foreground);
+  pointer-events: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-zai-motion .aireq-motion-aura,
+  .theme-zai-motion .aireq-motion-nav-highlight,
+  .theme-zai-motion .aireq-motion-filter-highlight,
+  .theme-zai-motion .aireq-motion-press {
+    display: none;
+  }
+
+  .theme-zai-motion [data-aireq-motion-active] [data-slot="button"],
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-label],
+  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-nav] > svg {
+    transition: none;
+    transform: none;
+  }
+}

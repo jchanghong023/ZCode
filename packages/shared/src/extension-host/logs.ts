@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// 扩展日志控制台（docs/plugins/extension-host.md §16.8）。缓冲的唯一 owner 是 Main 的监管器：
+// 扩展日志控制台。缓冲的唯一 owner 是 Main 的监管器：
 // Main 把追加的条目按事件循环成批推给 Window Host，Window Host 只转发给 Renderer；
 // 快照由 Window Host 向 Main 请求（控制消息见 control.ts）。
 

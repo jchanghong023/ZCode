@@ -107,7 +107,7 @@ import {
 
 export interface ConversationStatusPanelProps {
   workspacePath: string;
-  /** Git 操作所在目录；worktree 任务是会话 cwd，缺省为 workspacePath（docs/git/worktree.md §3.7）。 */
+  /** Git 操作所在目录；worktree 任务是会话 cwd，缺省为 workspacePath。 */
   gitCwd?: string;
   workspaceIdentity?: string;
   gitSummary?: GitRepositorySummary | null;
@@ -1145,7 +1145,7 @@ function WorkflowRunLamp({ status }: { status: "pending" | "running" }) {
 }
 
 /**
- * run 行的 Stop（docs/dynamic-workflow/presentation.md「Other places a run appears」）：沿用今天的
+ * run 行的 Stop：沿用今天的
  * 幽灵按钮（方块 + 「停止」），但**叠在时长上**——悬停或键盘焦点落进这一行时出现、时长淡出；
  * 平时不占位，整列行因此只剩名字和时长。没有悬停的触屏（`hover: none`）上常驻，换成第三列的 32px
  * 图标按钮。隐藏时同时关掉指针事件：一个看不见却点得中的 Stop 会在用户点时长时停掉 run。
@@ -1791,7 +1791,7 @@ function StatusSummaryRow({
         ? SquareTerminalIcon
         : SubagentCollectionIcon;
   const firstLiveRun = model.runningWorkflowRuns[0];
-  // 在跑的工作流排在胶囊最前（docs/dynamic-workflow/presentation.md「Other places a run appears」）：
+  // 在跑的工作流排在胶囊最前：
   // 它在跑时就是会话在做的事，而主代理那一轮多半早已结束、todo 只是上一轮的余迹。过去它排在
   // 最后，理由是「与输入框的后台计数重复」——名字加 phase 并不重复什么。
   const summaryMetric = firstLiveRun ? (

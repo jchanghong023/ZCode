@@ -1,22 +1,18 @@
 import { pendingTopicPreparations } from "@/v4/topicPreparationRenderUnits.js";
-import { useContext, useMemo } from "react";
+import { useMemo } from "react";
 import { LoaderCircle } from "lucide-react";
-import type { BotTopicPreparation as Preparation, FeishuBotProvider } from "@zcode/shared";
+import type {
+  BotGroupInputSource,
+  BotTopicPreparation as Preparation,
+  FeishuBotProvider,
+} from "@zcode/shared";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { DeliveryContext } from "@/v4/botGroupDeliveryContext.js";
 import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
 
 const EMPTY_ROWS: readonly ConversationRow[] = [];
-const EMPTY_PREPARATIONS: readonly Preparation[] = [];
-
-export function useBotTopicPreparations(): readonly Preparation[] {
-  const value = useContext(DeliveryContext);
-  if (!value?.context?.group?.threadId || value.context.activeTaskId !== value.taskId)
-    return EMPTY_PREPARATIONS;
-  return value.context.group.preparation ?? EMPTY_PREPARATIONS;
-}
 
 export function BotTopicPreparationList({
   items,
@@ -84,8 +80,35 @@ export function BotTopicPreparationList({
   );
 }
 
-export function BotTopicPreparation({ items }: { items: readonly Preparation[] }) {
-  const value = useContext(DeliveryContext);
-  if (!value?.context?.group?.threadId || value.context.activeTaskId !== value.taskId) return null;
-  return <BotTopicPreparationList items={items} provider={value.provider} />;
+export function BotGroupSourceLabel({ source }: { source?: BotGroupInputSource }) {
+  const { intl } = useZCodeIntl();
+  if (!source) return null;
+  const provider =
+    source.provider === "lark" ? "Lark" : intl.formatMessage({ id: "bots.group.provider.feishu" });
+  const savedName = source.senderName.trim();
+  const name = (savedName !== source.senderId ? savedName : "") || source.senderId.slice(-6);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-bot-group-source="true"
+          title={source.senderId}
+          className="min-w-0 max-w-full truncate rounded-sm text-ui-sm text-foreground-subtle hover:text-foreground focus-visible:outline focus-visible:outline-ring"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {provider} · {name}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="max-w-[calc(100vw-2rem)] gap-1 text-ui-sm"
+        data-bot-group-member-details="true"
+      >
+        <span className="break-words">{name}</span>
+        <span className="select-text break-all text-foreground-subtle">{source.senderId}</span>
+      </PopoverContent>
+    </Popover>
+  );
 }

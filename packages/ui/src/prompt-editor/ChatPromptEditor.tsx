@@ -142,7 +142,7 @@ export function ChatPromptEditor({
   compactPlaceholder?: boolean;
   /**
    * stacked：输入区在上、工具栏在下；inline：[+] 输入区 [控件][发送] 排成一行，控件只显示图标
-   * （Side Pane 完整视图浮窗，docs/ui/side-pane-full-view.md）。两种布局共用同一棵 DOM 树，
+   * 。两种布局共用同一棵 DOM 树，
    * 切换时编辑器不重新挂载。
    */
   layout?: "stacked" | "inline";

@@ -123,7 +123,7 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   openAutomationId: string | null;
   openAutomationTab: AutomationsNavigationTab | null;
   /**
-   * 完成卡「已保存」芯片 → 中枢那一页（docs/dynamic-workflow/transcript-and-notifications.md
+   * 完成卡「已保存」芯片 → 中枢那一页（相邻实现
    * 「Saving the run, and running it again」）：切到自动化主视图的「工作流」标签并设深链。
    */
   onOpenSavedWorkflowInHub: (target: SavedWorkflowHubTarget) => void;
@@ -151,7 +151,7 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   isSidebarVisible: boolean;
   isGitOpen: boolean;
   isSidePaneOpen: boolean;
-  /** Side Pane 完整视图控制器（仅桌面；spec：docs/ui/side-pane-full-view.md）。 */
+  /** Side Pane 完整视图控制器。 */
   sidePaneFullView?: SidePaneFullViewController;
   summaryPanelVariantOverride: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange: (variant: ChatViewSummaryPanelVariant | null) => void;

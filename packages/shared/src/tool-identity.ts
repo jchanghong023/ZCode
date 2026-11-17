@@ -31,7 +31,7 @@ export const ZCODE_KNOWN_TOOL_NAMES = [
   // 修订入口：登记进 workflow family 让确认窗
   // 按 family 选中运行确认块；工具行侧则按名先分流（resolveRenderer.ts），family 兜底不会吞掉它。
   "AmendWorkflow",
-  // 留白补全（docs/dynamic-workflow/launch.md「The `FillWorkflowHole` tool」）：同 AmendWorkflow 登记进
+  // 留白补全：同 AmendWorkflow 登记进
   // workflow family——确认窗按 family 选运行确认块；工具行侧按名先分流到 CreateWorkflow 渲染器换留白词汇。
   "FillWorkflowHole",
   // wire 名就是 snake_case 的 submit_result（仓库里唯一一个），下划线必须字面在场：

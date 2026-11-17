@@ -781,7 +781,7 @@ const zhCN: Record<string, string> = {
   "extensions.view.unavailable": "该扩展视图当前不可用。",
   "extensions.view.unsupported": "当前环境不支持扩展视图。",
   "extensions.view.failed": "扩展视图加载失败：{reason}",
-  // 扩展授权（docs/plugins/extension-host.md §17.7）。对话框正文是 spec 的原文。
+  // 扩展授权。对话框正文是 spec 的原文。
   "extensions.grants.needsConsent": "需要授权",
   "extensions.grants.grant": "授权",
   "extensions.grants.tier.sessions.read": "读取会话",
@@ -1999,6 +1999,7 @@ const zhCN: Record<string, string> = {
   "settings.themeMode.dark": "深色",
   "settings.themeMode.zai-light": "浅色",
   "settings.themeMode.zai-dark": "深色",
+  "settings.themeMode.zai-motion": "动效主题",
   "settings.themeMode.system": "系统",
   "settings.appearanceTitle": "外观",
   "settings.shortcuts.saveFailed": "快捷键保存失败，请重试。",
@@ -2243,6 +2244,7 @@ const zhCN: Record<string, string> = {
   "sidebar.settings.theme.light": "浅色主题",
   "sidebar.settings.theme.zai-light": "浅色主题",
   "sidebar.settings.theme.zai-dark": "深色主题",
+  "sidebar.settings.theme.zai-motion": "动效主题",
   "sidebar.settings.theme.dark": "深色主题",
   "settings.migration.title": "迁移",
   "settings.migration.sectionTitle": "Claude 历史迁移",
@@ -3781,7 +3783,7 @@ const zhCN: Record<string, string> = {
   "settings.plugins.store.viewMoreFew": "查看 {names}",
   "settings.plugins.store.showLess": "收起",
   "settings.plugins.store.install": "安装",
-  // 带扩展的插件（docs/plugins/plugin-publishing.md §4.3–4.4）。档位名与完全访问原文复用 extensions.grants.*。
+  // 带扩展的插件。档位名与完全访问原文复用 extensions.grants.*。
   "settings.plugins.store.extension.requiresUpdate": "需要更新 ZCode",
   "settings.plugins.store.extension.incompatibleHint":
     "这个插件需要更新版本的 ZCode。更新 ZCode 后再安装。",
@@ -4893,7 +4895,7 @@ const zhCN: Record<string, string> = {
   // 种类词、状态词与计数复用上面的 run 卡词汇表；这里只有芯片与 chevron 的文案。
   "chat.toolCall.workflow.digest.question": "{count} 个待答问题",
   "chat.toolCall.workflow.digest.questions": "{count} 个待答问题",
-  // ── 留白（docs/dynamic-workflow/presentation.md「Holes on the timeline」、transcript-and-notifications.md「The hole row's live state」）──
+  // ── 留白──
   "chat.toolCall.workflow.digest.hole": "{count} 处留白待补全",
   "chat.toolCall.workflow.digest.holes": "{count} 处留白待补全",
   "chat.toolCall.workflow.card.hole": "{count} 处留白",
@@ -4953,7 +4955,7 @@ const zhCN: Record<string, string> = {
   "chat.workflowLaunch.settings.sessionModel": "会话模型",
   "chat.workflowLaunch.settings.defaultLimit": "默认",
   "chat.workflowLaunch.settings.defaultLimitValue": "默认 {n}",
-  // ── 可复用工作流（docs/dynamic-workflow/launch.md）：SaveWorkflow / ListSavedWorkflows
+  // ── 可复用工作流：SaveWorkflow / ListSavedWorkflows
   // 的聊天卡。「覆盖」这个词由保存确认窗共用——同一次保存在两个面上必须同名，
   // 照 run 卡复用 chat.toolCall.workflow.run.status.* 词汇表的同一条先例。
   "chat.toolCall.workflow.save.saving": "正在保存工作流",
@@ -5250,7 +5252,7 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.run.usage.tokens": "{tokens} tokens",
   "chat.toolCall.workflow.run.usage.value": "{tokens} tokens · {steps} 步",
   // 实例表撞界后卡与详情页各有的那一句：停的是每一步的**详情**，不是 run，
-  // 它上面那些计数已经把表外的实例算进来了（docs/dynamic-workflow/presentation.md）。
+  // 它上面那些计数已经把表外的实例算进来了。
   "chat.toolCall.workflow.run.truncated": "仅展示 {shown}/{total} 步的详情",
   "chat.toolCall.workflow.run.cancel": "停止运行",
   "chat.toolCall.workflow.run.cancelling": "正在停止…",
@@ -5279,9 +5281,9 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.run.resume": "恢复运行",
   "chat.toolCall.workflow.run.resumeHint":
     "从停下的地方继续：已完成的步骤直接复用，被打断的步骤重新执行。",
-  // 「配置」弹层（docs/dynamic-workflow/presentation.md「The settings popover」）：改子代理模型与最大并发数，
+  // 「配置」弹层：改子代理模型与最大并发数，
   // 应用即一次 GUI 修订（新 run 接着跑，旧 run 停下，已完成的步骤作缓存带过去）。
-  // 完成卡与 run 侧板上的「保存 / 再次运行」（docs/dynamic-workflow/transcript-and-notifications.md
+  // 完成卡与 run 侧板上的「保存 / 再次运行」（相邻实现
   // 「Saving the run, and running it again」）。两条路：交给 ZCode 提炼，或按原样直接写下去。
   "chat.toolCall.workflow.saveRun.action": "保存",
   "chat.toolCall.workflow.saveRun.runAgain": "再次运行",
@@ -5341,7 +5343,7 @@ const zhCN: Record<string, string> = {
     "将以新设置另起一次运行接着跑，已完成的步骤会保留。",
   "chat.toolCall.workflow.run.settings.consequence.errored":
     "将以新设置另起一次运行重试，已完成的步骤会保留。",
-  // 只改并发上限、而且运行正在跑：就地生效（docs/dynamic-workflow/concurrency.md）。
+  // 只改并发上限、而且运行正在跑：就地生效。
   "chat.toolCall.workflow.run.settings.consequence.concurrencyLive":
     "立即应用到当前运行，不会新起一次运行。",
   "chat.toolCall.workflow.run.settings.apply": "应用",
@@ -5773,10 +5775,10 @@ const zhCN: Record<string, string> = {
   // 所以这一行也是用户自己提的条件。只说子代理——主代理无论如何都留在会话模型上。
   // `{model}` 是解析过的模型名（必要时带思考强度），不是规范串；规范串在这一行的 tooltip 里。
   "chat.permission.workflow.subagentModel": "子代理运行在 {model}",
-  // 脚本给某些子代理点名了模型时（docs/dynamic-workflow/launch.md「Models the script names」）：那些
+  // 脚本给某些子代理点名了模型时：那些
   // 名字不列（作者模型的选择），这一句只改口「默认」——它不再替每一个子代理说话。
   "chat.permission.workflow.subagentModelDefault": "子代理默认运行在 {model}",
-  // 确认窗里可调的两句（docs/dynamic-workflow/presentation.md「The confirmation window」）：句中的值
+  // 确认窗里可调的两句：句中的值
   // 就是控件，所以句子被拆成控件前后的两截；改过的那一行句尾多一截「· 原为 X ↺」。
   "chat.permission.workflow.settings.model.lead": "子代理运行在",
   "chat.permission.workflow.settings.model.noCatalog": "子代理沿用会话模型",
@@ -5788,12 +5790,12 @@ const zhCN: Record<string, string> = {
   "chat.permission.workflow.settings.limit.none": "不设上限",
   "chat.permission.workflow.settings.was": "原为 {value}",
   "chat.permission.workflow.settings.reset": "恢复原值",
-  // 改过设置后前两个选项换描述（docs/dynamic-workflow/launch.md「The options」）：会话免确认只管
+  // 改过设置后前两个选项换描述：会话免确认只管
   // 「以后不再问」，调整只随这一次应答走。
   "chat.permission.workflow.allowOnce.adjusted": "按调整后的设置运行一次",
   "chat.permission.workflow.allowForSession.adjusted":
     "本次按调整后的设置运行；之后的工作流不再询问，各用各的设置",
-  // ── 可复用工作流（docs/dynamic-workflow/launch.md）──
+  // ── 可复用工作流──
   // saved 来源徽标（运行确认窗）：只说明脚本来自哪个文件、带了什么实参。
   // 它不表达任何信任——保存不产生信任，已保存的工作流照样过完整的运行确认。
   "chat.permission.workflow.saved.badge": "已保存的工作流",

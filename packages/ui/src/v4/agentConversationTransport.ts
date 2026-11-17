@@ -22,10 +22,6 @@ import {
   type TopicFrameDeliveryKind,
   type V4AttachmentPutParams,
   type V4AttachmentPutResult,
-  type V4ConversationFileChangesParams,
-  type V4ConversationFileChangesResult,
-  type V4ConversationFileRewindPreviewParams,
-  type V4ConversationFileRewindPreviewResult,
   type V4ConversationPlansParams,
   type V4ConversationPlansResult,
   type V4ConversationRowsRangeParams,
@@ -35,7 +31,6 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
-import { createWorkflowRunTransportMethods } from "@/v4/agentConversationTransportWorkflowRuns.js";
 import { createAckActivationBarrier } from "@/v4/ackActivationBarrier.js";
 import { createTopicWireDecoder } from "@/v4/topicWireDecoder.js";
 import { logger } from "@/logger.js";
@@ -60,15 +55,6 @@ type ConversationV4AgentService = Pick<
   | "queryConversationCommandsV4"
   | "conversationRowsRangeV4"
   | "conversationPlansV4"
-  | "conversationWorkflowRunEventsV4"
-  | "conversationWorkflowRunsV4"
-  | "conversationWorkflowRunArtifactsV4"
-  | "conversationWorkflowRunArtifactDataV4"
-  | "conversationWorkflowRunArtifactReadV4"
-  | "conversationWorkflowRunWorkspaceV4"
-  | "conversationWorkflowRunNodeResultV4"
-  | "conversationFileChangesV4"
-  | "conversationFileRewindPreviewV4"
   | "attachmentBeginV4"
   | "attachmentChunkV4"
   | "attachmentCommitV4"
@@ -77,7 +63,6 @@ type ConversationV4AgentService = Pick<
   | "getSessionLifecycle"
   | "onDynamicSessionLifecycle"
   | "onDynamicConversationFrame"
-  | "onDynamicLocalTtftFacts"
   | "onAgentRuntimeRestarted"
 > &
   Partial<Pick<IZCodeAgentService, "onAgentRuntimeLifecycle">>;
@@ -162,7 +147,6 @@ export function createAgentConversationTransport(
     decoder.accept(wire);
   });
   const topicBySubscriptionId = new Map<string, string>();
-  let ttftUpstream: { dispose(): void } | undefined;
   let upstream: { dispose(): void } | null = null;
   let runtimeRestartUpstream: { dispose(): void } | null = null;
   let runtimeLifecycleUpstream: { dispose(): void } | null = null;
@@ -196,17 +180,6 @@ export function createAgentConversationTransport(
   };
   const attachFrameUpstream = () => {
     if (!upstream) {
-      if (!target.workspaceIdentity?.trim())
-        ttftUpstream = agentService.onDynamicLocalTtftFacts?.(workspace)((facts) => {
-          try {
-            getLocalTtftObserver()?.checkpoint(target.workspacePath, facts);
-            // CLI 在 admitted/execution/各准备阶段都会发检查点：排队输入开始执行时
-            // 就能在首输出前拿到 60 秒内的新校准，不需要额外定时器或协议。
-            calibrate();
-          } catch (error) {
-            logger.debug("[local-ttft] checkpoint failed", { error });
-          }
-        });
       upstream = agentService.onDynamicConversationFrame(workspace)((frame) =>
         barrier.accept(frame),
       );
@@ -493,32 +466,6 @@ export function createAgentConversationTransport(
         sessionId: params.sessionId,
       });
     },
-    // dwf journal 的两个只读查询拆在 agentConversationTransportWorkflowRuns.ts（max-lines 边界）。
-    ...createWorkflowRunTransportMethods({ agentService, ensureHandshake, workspace }),
-    async fileChanges(
-      params: V4ConversationFileChangesParams,
-    ): Promise<V4ConversationFileChangesResult> {
-      await ensureHandshake();
-      return agentService.conversationFileChangesV4({
-        ...workspace,
-        sessionId: params.sessionId,
-        target: params.target,
-        baseRevision: params.baseRevision,
-        baseLogEpoch: params.baseLogEpoch,
-      });
-    },
-    async fileRewindPreview(
-      params: V4ConversationFileRewindPreviewParams,
-    ): Promise<V4ConversationFileRewindPreviewResult> {
-      await ensureHandshake();
-      return agentService.conversationFileRewindPreviewV4({
-        ...workspace,
-        sessionId: params.sessionId,
-        target: params.target,
-        baseRevision: params.baseRevision,
-        baseLogEpoch: params.baseLogEpoch,
-      });
-    },
     async attachmentPut(
       params: V4AttachmentPutParams,
       options?: AttachmentUploadOptions,
@@ -623,8 +570,6 @@ export function createAgentConversationTransport(
         listeners.delete(listener);
         if (listeners.size === 0) {
           upstream?.dispose();
-          ttftUpstream?.dispose();
-          ttftUpstream = undefined;
           upstream = null;
           logger.lifecycle.info("v4 conversation frame upstream detached", {
             ...lifecycleContext,

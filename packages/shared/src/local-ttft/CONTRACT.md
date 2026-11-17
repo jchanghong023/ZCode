@@ -1,5 +1,5 @@
-# local-ttft-contract
+# 首输出观测契约
 
-协议和本地异步日志队列的公共合同。无文件或网络 I/O；写入由 adapter 注入。关联、容量与时钟误差均有界，localOnly 决定在发送开始时冻结。
+公开协议、时钟校准纯函数与有界异步日志队列；无文件或网络 IO，写入由 adapter 注入。localOnly 在发送开始时冻结，关联只能使用同一会话和轮次。
 
-完整时序、字段和验证口径见 `docs/monitoring/ttft-stage-telemetry.md`。
+`contract.ts` 定义阶段、分桶与 schema；队列最多 128 项、关联 TTL 为 300000ms，时钟校准最大误差 10ms、TTL 为 60000ms。队列与校准状态归各自实例，不构成业务 owner。

@@ -31,11 +31,7 @@ export { ISettingService } from "./setting/setting.js";
 // Broadcast service — IBroadcastService is both a type (interface) and value (descriptor)
 export { IBroadcastService } from "./broadcast/broadcast.js";
 
-export type {
-  BroadcastClaimAcquireResult,
-  BroadcastClaimLease,
-  BroadcastMessage,
-} from "./broadcast/broadcast.js";
+export type { BroadcastMessage } from "./broadcast/broadcast.js";
 
 // 当前会话只保留工作区恢复入口，不发布旧任务元数据或事件。
 export { IZCodeTaskService } from "./session/zcodeTaskService.js";
@@ -66,7 +62,6 @@ export type {
   ZCodeAgentAttachmentBeginParams,
   ZCodeAgentAttachmentChunkParams,
   ZCodeAgentAttachmentTerminalParams,
-  ZCodeAgentRuntimeExitedEvent,
   ZCodeAgentRuntimeLifecycleEvent,
   ZCodeAgentRuntimePolicy,
   ZCodeAgentSessionTarget,
@@ -83,13 +78,7 @@ export type {
   ClientSceneOption,
 } from "./client-scenes/clientScenes.js";
 
-// Bots service — IBotsService is both a type (interface) and value (descriptor).
-export { IBotsService } from "./bots/bots.js";
-
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
-
-// UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
-export { IUsageStatsService } from "./usage-stats/usageStats.js";
 
 // Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
 // StorageRootSpec 随契约再导出：desktop 的 Worker 协议按 contract.ts 的口径只从 services 入口取类型。
@@ -118,8 +107,6 @@ export type {
 
 export { readProjectCatalog, projectSelectionId } from "#src/project-catalog/index.js";
 export type { ProjectCatalogPort, ProjectCatalogSnapshot } from "#src/project-catalog/contract.js";
-
-export { IGenUiService } from "./gen-ui/contract.js";
 
 export type {
   TaskGroup,

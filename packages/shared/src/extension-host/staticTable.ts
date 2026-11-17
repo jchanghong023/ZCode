@@ -24,7 +24,7 @@ import {
   normalizeGrants,
 } from "#src/extension-host/grants.js";
 
-// 静态表（docs/plugins/extension-host.md §16.1）：清单里的静态声明，唯一 owner 是 Window Host 的
+// 静态表：清单里的静态声明，唯一 owner 是 Window Host 的
 // extensions-service。Window Host 读每个插件的 plugin.json，用这里的纯函数校验并生成：
 // - 静态表：整份推给 Renderer（带 rev）。所有插件都在表里，也包括没有 extension 键的插件。
 // - 扩展声明：只含合法、兼容的 extension，推给扩展进程。扩展进程不再读 plugin.json。

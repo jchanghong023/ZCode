@@ -94,7 +94,7 @@ interface SavedWorkflowLaunchDialogProps {
  * 不滚动的块里；DialogContent 垂直居中，于是几十个实参把标题/关闭顶出视口上沿、把「取消/运行」
  * 顶出下沿，页面本身不滚，整个窗口没法用。实参个数由声明决定、没有上界，所以修在布局上：窗口
  * 限高（随内容长到视口减边距为止），分成三段，只有中段（「运行于」+ 实参）自己滚，头部和底部
- * （说明、错误区、按钮）钉住。见 docs/dynamic-workflow/launch.md「The launch dialog」。
+ * （说明、错误区、按钮）钉住。见 相邻实现「The launch dialog」。
  */
 export function SavedWorkflowLaunchDialog({
   entry,

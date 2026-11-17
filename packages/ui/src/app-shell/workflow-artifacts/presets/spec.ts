@@ -226,7 +226,7 @@ export function artifactFieldLabel(field: ArtifactField): string {
 
 /**
  * 一张看板会读到的全部字段路径（去重、按 spec 里出现的顺序）：看板取数只让 CLI 取这些字段，
- * 而不是整条 item（docs/execution-engine.md「Reading the journal」）。`applyArtifactItems` 读的
+ * 而不是整条 item。`applyArtifactItems` 读的
  * 每一个路径都必须在这里——漏一个，那一列 / 那条序列就永远是空的。spec 画不了时回 `undefined`
  * （调用方退回取整条 item，渲染层自会显示「无法渲染」）。
  */

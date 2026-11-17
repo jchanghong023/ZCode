@@ -1,91 +1,77 @@
-# AIReq 连接身份与订阅收敛
+# 连接身份、版本与顺序
 
-> 当前产品前端与公开接口以 [发布边界](release-surface.md) 为准：原型／调试控制和场景身份参数已退出产品契约；下文相关模拟入口与浏览器故障注入记录仅属于历史版本，不构成恢复入口或接口的要求。
+服务清单见[契约设计](contract-design.md)，部署访问控制与内存限制见[后端拓扑](../../architecture/mock-backend.md)。
 
-## 身份与所有权
+## 1. 身份来源
 
-- Web entry 是当前连接的唯一 owner。首次连接前读取 `getV4ClientId()` 的持久稳定值并固定；每次 `/ws` 只传合法 `employeeId` 与同一 `clientId`，不携带额外场景参数。设备级 stream ID 保留原用途，不再作为原生命令身份。
-- AIReqApplication 在同一登录生命周期固定业务 identity：工号来自 entry，clientId 来自同一 v4 owner；原生握手、命令与业务 employee/client 必须完全一致。队列、执行和公开 `origin:"realUser"` 行保持可信接纳时 clientId，客户端不能事后覆盖来源。私有 Skill 不能退化为仅按工号授权。
-- 不设 owner／负责人权限：所有合法工号可修改共享配置及执行满足门禁的动作，联系人／负责人仅分工和留痕；合法身份、clientId、参数、对象与原生会话归属、版本、幂等及阶段校验仍保留。opaque backend.id／workspaceIdentity 的有效隔离用途不变，不公开来源或 sample/live 分支。Skill 主导航、设置及搜索入口继续隐藏，保留私有会话、草稿与唯一未保存门禁，允许隔离临时浏览器装配验证，不改变 employee/client、连接和订阅 owner。
-- accessor 换代仅更换 attachment 和订阅；不得以连接代次作为 React key。退避、旧 attempt 失效和明确退出行为保持不变，正文、附件、当前选择及草稿 owner 不重挂。连接成功状态只需布尔值，不维护无用途的累计代次。
-- 局域网 HTTP（非 loopback）是受支持的访问方式；Firefox 中 `isSecureContext=false` 时
-  `crypto.randomUUID` 和 `crypto.subtle` 不可用。浏览器会话、草稿、操作、遥测和预览的 UUID
-  统一复用 shared 的 `createUuid`，以 `getRandomValues` 生成同形 UUID v4；不改写全局 crypto，
-  不把 ID 当凭据，不改变命令 UUID v7 或幂等键的分配与重试时点。
-- 附件仍按完整字节计算并提交 `sha256:<hex>`，不省略摘要或降低提交校验。
-  安全上下文继续使用 WebCrypto；局域网 HTTP 使用浏览器可用的标准 SHA-256 实现计算同一摘要，
-  不改分块、abort、重试或提交所有权。验收：Sketch 生成 PNG 后上传成功，预览与标注可用，
-  无 `fault.attachment.checksumUnavailable`，未明确发送前不产生新消息。
-- 输入历史与未发送草稿使用同一客户端／操作者 namespace，并按 opaque workspace identity
-  隔离；不能只按执行目录读写 prompt history。切换工号、另一个 client 或同目录不同
-  workspace 不得通过输入器上／下键读回上一身份的正文；不回读或迁移缺少身份的旧目录键。
-- 公开 platform 合同不保留无产品消费者的 stdio tap 开发代理状态／开关、端点生产／测试／
-  自定义环境切换命令及其类型出口、IPC channel。正常生产诊断日志不受影响，部署端点仍由
-  正式部署配置决定，不增加替代开关或兼容别名。
-- 入口装配与工号页 hook 统一通过 UI theme owner 读取、校验并归一浏览器主题偏好；
-  缺省、非法值或存储读取被拒绝时采用既有 Zai dark，合法 `system` 继续跟随系统偏好。
-  主题写入被拒绝只影响偏好持久化，当前页主题仍生效；不吞工号的业务存储失败，
-  不改变其当前页继续使用与刷新不能恢复的提示。真实 CSP `sandbox allow-scripts`
-  未授予 `allow-same-origin` 时，存储属性访问抛出 `SecurityError` 也必须能渲染
-  工号页及已有存储失败提示，不能由入口初始化或 hook 再次读取造成白屏。
+Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。
 
-```mermaid
-sequenceDiagram
-  participant C as 既有v4 clientId owner
-  participant W as Web连接
-  participant A as AIReq与原生调用
-  participant S as 后端连接facade
-  W->>C: 读取稳定ID
-  W->>S: 建立employee/client固定连接
-  A->>C: 读取同一ID
-  A->>S: 业务identity／握手／命令
-  S->>S: 比对可信连接后接纳并写入来源行
-```
+`AIReqIdentity` 仅含 employeeId/clientId：
 
-组 1 历史实测（2026-11-15，当时 Skill 位于设置）：两个合法非 owner 工号均可保存共享设置，日志和回执使用实际 employee/client；Skill 设置往返后未发送正文和一个 ready 图片保留，跨 client 读取同一私有 Skill 会话被拒。当时为 Chromium／localhost 环境，详见 tools-settings.md 的组 1 记录；不证明当前隐藏实现或本轮整改通过，也不授权恢复设置／主导航入口。
+- employeeId 匹配 `/^[a-z][0-9]{8}$/`。
+- clientId 为非空白字符串，长度不超过 200；不额外假定必须为 UUID。
+- 额外身份字段拒绝。`/ws` 查询仅接受各出现一次的 employeeId/clientId/可选部署 token，场景参数拒绝。
 
-## 时间与失效边界
+服务端在升级前验证自报身份；`getConnectionServices` 冻结连接身份，后续 bootstrap/call 的 employee/client 精确匹配，原生命令 envelope.clientId 也匹配。项目树与目录解析通过同一身份读取。请求局部上下文使用 `AsyncLocalStorage`，不用全局可变工号。
 
-1. 创建 remote data source 时先安装 `onDidChange`，然后才读取 bootstrap。
-2. 初始化期间每个变更推进本地失效代次；读取捕获其起始代次，期间发生变更则丢弃该次 bootstrap 并补读，直到一次读取完整覆盖已观察的失效。现有 bootstrap 不暴露全局 epoch/revision 水位，不能把事件可选 revision 伪装成快照水位或持久重放能力。
-3. 初始化失败立即释放订阅，不返回半初始化 source。事件错误保留为可见错误；后续读取可以修复，不重放写请求。
-4. 后续 metadata 读取共用单一 flight；读取期间收到 metadata 失效则补读收敛。dispose 使迟到结果失效。配置读取不修改本地 selection；dirty prompt 不被异步配置刷新覆盖，保存完成也不能清掉保存期间的新编辑。
-5. 事件只负责失效；新 attachment 重新读取当前选择和服务端状态。重连不执行 create/send/save/confirm 等写请求，不另建全量业务缓存或通用重试框架。
+这是一致性和作用域校验，不是本人认证。全部合法工号可修改共享配置及执行满足业务门禁的动作；owner、联系人或负责人不是独占权限。共享对象仍校验项目／Release／IR/SR／会话、阶段与版本。Skill 私有会话按精确 employee/client 隔离，不能只凭工号访问；clientId 不是租户、标签页或安全主体凭据。
 
-## 回归证据要求
+## 2. 工作区与会话
 
-- 比较同页业务 identity 与 native `/ws` query 的合法工号和规范 clientId；额外 `demo`／场景字段拒绝，私有 Skill 仅精确 employee/client scope 可读写。通过真实两个客户端验证排队、流式用户行与历史分页来源一致，跨连接伪造拒绝。
-- 在首个 bootstrap pending 及 resolve 周期触发变更，必须补读，不得遗漏；初始化 reject 后订阅已释放。
-- 并发配置失效和本地 prompt 编辑不丢新输入；切换项目与重连不恢复旧 selection，不卸载正文和附件。验证由集成 owner 统一执行。
-- 当前受影响电脑浏览器路径按[发布边界](release-surface.md)与根 `.todo.md` 逐项验证，不沿用历史八工作页／五设置或当前已被取代的六并列导航。保留原 UUID／附件摘要规则，必要时覆盖缺失原生 `randomUUID` 的浏览器环境；不因此重跑无关全页矩阵。
-  记录实际浏览器、页面清单、失败请求和控制台观察，开发环境与正式产物证据分开；隐藏 Skill 用隔离临时装配，不恢复产品入口。
+opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产品模式分支。`MockRuntime.workspaceKeyOf` 优先使用非空 workspaceIdentity，否则由主机及规范工作路径生成稳定身份；wire 完整 workspace 引用同时含 workspacePath/workspaceKey。调用方不得另造与实际请求不一致的 key。
 
-第 2 组之前主集成的历史观察（旧首发创建已被先建提案、手动进入讨论取代）：已核对bootstrap、actor与client/demo精确scope样例，并实测首发使用同owner/workspace的原生预热session：完整PNG及两次独立原生首发均自动打开canonical accepted会话。visitor会话读取失败后点击“重新连接”，通过重连前作用域化回调恢复同一会话编辑器，console零错误；刷新/关闭后服务任务状态延续及mock重启恢复初始样例也有观察。模型设置往返时工作页保持隐藏且inert，返回完整canonical未发送正文、PNG及临时GPT/medium均保留且不自动发送；Skill的完整PNG、四字段、手工追加与预览Tabs/折叠往返亦已实测。上述只保留当时具体场景证据，不等于每个bootstrap竞态、迟到响应或真实WS关闭场景均独立通过，不赋予owner业务权限。
+命令入口核对外层请求与 envelope 工作区；分页、会话、附件及订阅继续检查业务绑定与 workspace。Project 树仅投影当前业务及该身份可访问的会话，includeDeleted 不扩大权限，不枚举宿主目录或他人私有草稿。
 
-临时模型/模式属于每次Submission，不是Session持久默认；发送后工具栏恢复Session默认不构成执行丢失证据，不引入promotion快照或永久override。mock沿userInput/queue/runTurn传递受支持Submission字段，并在await前捕获回复模型；该实现的运行核验及最终真实WS重连、工程门禁结果统一引用根 `todo.md` 主集成最终记录，不在本文维护中间待验清单。
+`origin:"realUser"` 行使用接纳时已校验的 clientId；排队、提升及续跑保存原 QueueItem.clientId，后续请求不能覆盖。实时帧、快照与分页读取同一行事实。
 
-## 入口高度边界
+未发送正文、附件与输入历史由既有 composer owner 按 employee/client/opaque workspace namespace 隔离，不回读缺少身份的旧目录键。临时模型／模式属于单次 Submission，不改变 Session 默认。
 
-登录成功后的 entry 容器必须继续作为纵向 flex 容器传递确定的视口高度，工作页只在内部表格／正文区域滚动。真实 1440×1000 浏览器曾观察到中间 block 容器使工作页膨胀至 1360px、侧栏项目和退出入口落到视口外；验收要求工作页高度不超过 1000px，页脚始终可达，不以隐藏正文或禁用滚动掩盖问题。
+## 3. 相互独立的版本
 
-第 2 组之前主集成的历史观察：在 Chrome（精确终验版本见根 `todo.md`）的 1440×1000 与 1122×763 视口完成当时全部8工作页及5设置页渲染与截图；entry flex 和分支状态修正后，1440×1000 的 viewport／document／main 高度均为 1000px，页脚可达，正常页面console零warning/error。深色与visitor独立浅色已测，不以Chrome代称Firefox；当时最终系统主题与全页证据、精确命令和结果只以根 `todo.md` 主集成最终记录为准，不作为当前六导航或已裁撤页面的验收声明。文档同步不将这些历史浏览器或工程检查记录冒充本次结果，必要检查仍遵守当前请求与仓库规则。
+| 版本                                    | 含义                                          |
+| --------------------------------------- | --------------------------------------------- |
+| `AIREQ_CONTRACT_VERSION=4`              | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| Protocol v4 wire `3`                    | hello/clientHello 与二进制 wire 版本          |
+| snapshot `protocolVersion=1`            | 会话投影格式，不是 wire 版本                  |
+| workflow revision、材料／候选／代码版本 | 对应业务 CAS、批准、分析及验收绑定            |
+| 模型配置、提示词、目录 revision         | 分别属于各 owner，不互相替代                  |
+| session revision                        | 原生命令 CAS                                  |
+| topic logEpoch/seq                      | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
 
-## 2026-11-15 Firefox 局域网复验（历史版本）
+AIReq 事件的 backendEpoch/revision/对象/operationId 字段可选，bootstrap 没有全局事件水位，不承诺持久重放或跨重启 exactly-once。
 
-以下是当时八工作页／五设置分区、旧首发流程及 Issue／自动化仍在的历史记录，不是当前页面清单或恢复已裁撤能力的要求，也不证明当前六导航在当时已验收。当前规则以根 `.todo.md` 为准，本次同步不新增浏览器通过记录。
+## 4. CAS 与幂等
 
-- 环境：Windows、真实 Firefox 128.14 ESR、`http://192.168.31.171:5173`，正式构建由
-  Bun 模拟后端单进程托管；未使用 localhost／127.0.0.1 或安全上下文特权。
-- 实际逐页覆盖登录、8 个工作区、5 个设置分区，以及提案各阶段、四路评审、依赖图与工期、
-  IR／SR 报告和材料、分析设置和报告、Issue 详情与完成弹窗、自动化编辑／历史／只读会话、
-  Skill 两个生成文件预览、项目／Release 表单、帮助、搜索、Sketch 和图片标注，共 70 个页面／子页场景。
-- 修复前已复现提案预热 `crypto.randomUUID is not a function`，以及 PNG 附件
-  `fault.attachment.checksumUnavailable`；修复后在 `isSecureContext=false`、
-  `randomUUID`／`subtle` 均为 undefined 的原生环境中，PNG 上传状态为 ready、失败附件为 0，
-  实际拖动画出 1 个矩形标注；未通过改写浏览器 API 或绕过校验通过验收。
-- 正式构建累计控制台 warning/error 为 0、未处理 JS 异常为 0、HTTP 4xx／5xx 为 0。
-  另记录 4 次页面切换／刷新取消请求（Firefox `NS_BINDING_ABORTED`），不计为服务失败。
-  当时开发模式另观察到刷新／热更新期间 Vite 客户端的 `send was called before connect`，
-  现已按[开发客户端生命周期](../../architecture/web-build-workflow.md#firefox-开发客户端生命周期)
-  修复并单独完成真实 Firefox 开发模式刷新／热更新复验，不以正式构建结果替代。
-- 证据仅覆盖上述页面访问与明确执行的交互，不代表全部业务状态组合、真实模型或真实 Git 操作已验收。
+- `command` 按 employee/client/operationId 保存回执，摘要包含目标与业务参数，不包含首次 expectedRevision／外层 revision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
+- 项目保存、排期、测试验收、清理与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
+- `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
+- `skillDesign.saveDraft` 和 scheduler 的 setProjectEnabled/configure/runNow 没有请求 CAS／operationId，按当前覆盖保存／调度规则执行。
+
+原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`；行命令还比较 baseLogEpoch、rowId/entityId。陈旧请求不改变事实、队列或水位。query 返回已知决定与当前 turn 事实。
+
+accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
+
+## 5. 失效通知与重连
+
+`createRemoteAIReqDataSource` 先订阅 onDidChange，再读 bootstrap 和项目 workspace。读取捕获失效代次，期间有事件则丢弃并补读；初始化失败释放订阅。后续 metadata 刷新单 flight，读取期间再失效则继续补读。
+
+事件只失效投影；错误可见，后续读取可修复。刷新不抢占导航、不覆盖 dirty prompt，保存不能清掉保存期间的新编辑。dispose 与读取代次使迟到响应失效。
+
+重连只替换 accessor、attachment 和订阅，不用连接代次作为 React key，不卸载工作区／正文／附件草稿。旧 pending RPC fail-closed，有限退避后可显式重连；退出身份生命周期终止旧 attempt。重连只订阅与重读，不自动重放 create/send/save/confirm/分析 mutation。
+
+## 6. 原生 topic
+
+- conversation 的 seq/logEpoch 属于 MockSession。
+- 快照 fromSeq=0、toSeq=当前水位，不推进；增量 `(fromSeq,toSeq]` 每条发布推进一次，同 topic 订阅者使用相同区间。
+- conversation 随投影推进，即使暂无订阅者。
+- 每次订阅生成新 subscriptionId；`createZCodeAgentConnectionScope` 只路由本连接所属帧。重连重新订阅，不复用旧 ID。
+- 跨连接 resync 为 `fault.subscription.notOwned`，未知订阅为 `fault.subscription.unknownSubscription`；非本连接 unsubscribe 幂等忽略，不删除他人订阅。
+- conversation 按会话及 workspace 隔离。会话删除后迟到 turn 不重新创建会话或启动下一队列项。
+
+## 7. 浏览器 ID 与附件摘要
+
+局域网非 loopback HTTP 不能依赖 crypto.randomUUID/subtle。普通浏览器 UUID 使用 shared createUuid 的 getRandomValues 路径，不改写全局 crypto，不改变命令／操作 ID 分配和显式重试时点。附件仍提交完整字节 `sha256:<hex>`：安全上下文用 WebCrypto，其他支持环境用浏览器 SHA-256 实现，不放宽服务端校验。
+
+## 8. 源码依据
+
+`packages/server/src/aireq/identity.ts` 的 validateAIReqIdentity/withAIReqIdentity；`service.ts` 的 getConnectionServices 与回执分派；`packages/web/src/main.tsx` 的连接 owner；`packages/ui/src/aireq/shell/remote-data-source.ts` 的失效代次；`packages/server/src/mock/{runtime,zcodeAgent}.ts` 的 CAS／topic；`packages/shared/src/zcode-protocol-v4/{core,snapshot,sessions-index}.ts` 的版本。

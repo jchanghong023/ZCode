@@ -1,4 +1,4 @@
-// side-pane-full-view 模块公开入口（spec：docs/ui/side-pane-full-view.md）。
+// side-pane-full-view 模块公开入口。
 export type * from "@/side-pane-full-view/contract.js";
 export { SidePaneFullViewConversationHost } from "@/side-pane-full-view/ConversationHost.js";
 export {

@@ -1,4 +1,4 @@
-// 编辑器身份（docs/ui/composer-edit-mode.md「锁归属」）：editorId 存在 sessionStorage，刷新后沿用；
+// 编辑器身份：editorId 存在 sessionStorage，刷新后沿用；
 // 浏览器「复制标签页」会连同 sessionStorage 复制，两个在线页面可能共用同一 id，复制出的页面会把
 // 原页面正在编辑的锁当成自己的遗留锁释放掉。每个页面在生命周期内持有同名 Web Lock：申请不到即说明
 // 另一在线页面正在使用，换新 id 再申请。锁随页面卸载自动释放，不需要超时。

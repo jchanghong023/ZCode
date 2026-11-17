@@ -360,26 +360,7 @@ export const V4_METHODS = {
   conversationInputPrediction: "v4/conversation/inputPrediction",
   // 当前有效分支的终态 ExitPlanMode 目录；只读、无状态、超时重发安全。
   conversationPlans: "v4/conversation/plans",
-  conversationFileChanges: "v4/conversation/fileChanges",
-  backgroundBashOutput: "v4/conversation/backgroundBashOutput",
   offPeakControl: "v4/conversation/offPeakControl",
-  conversationFileRewindPreview: "v4/conversation/fileRewindPreview",
-  // workflow run 的事件日志分页（详情页审计面）：只读、无状态、超时重发安全。
-  // 新方法天然偏斜安全——旧桌面根本不会调用它。
-  conversationWorkflowRunEvents: "v4/conversation/workflowRunEvents",
-  conversationWorkflowRuns: "v4/conversation/workflowRuns",
-  // workflow run 的用户面产物。三条同族：
-  // 只读、无状态、超时重发安全；schema 在 workflow-artifacts.ts（那边还有术语消歧）。
-  //   Artifacts    产物清单（冷恢复与中枢详情的 durable 读法）
-  //   ArtifactData 预置看板的条目分页（cursor = journal sequence）
-  //   ArtifactRead 内容产物的字节，≤ 512 KiB 一块，形状逐字照 attachmentRead
-  conversationWorkflowRunArtifacts: "v4/conversation/workflowRunArtifacts",
-  conversationWorkflowRunArtifactData: "v4/conversation/workflowRunArtifactData",
-  conversationWorkflowRunArtifactRead: "v4/conversation/workflowRunArtifactRead",
-  // workflow run 的工作区 transcript。两条同族，
-  // 照产物的 ①/③ 拆法：Workspace 是轻行清单（不带正文），NodeResult 是一个节点的有界正文。
-  conversationWorkflowRunWorkspace: "v4/conversation/workflowRunWorkspace",
-  conversationWorkflowRunNodeResult: "v4/conversation/workflowRunNodeResult",
   // usage query（模式同 rows/range：只读、无状态、超时重发安全）。
   // usage 事实源在 CLI 的 session 库（model_usage/turn_usage 聚合），host 侧无副本，
   // 故收敛为 v4 query 而非 host 直连；旧词 usage/stats、session/usage 就此消费清零。
@@ -439,7 +420,6 @@ export const V4_NOTIFICATIONS = {
   conversationFrame: "v4/conversation/frame",
   // 仅 live ingest 的无正文事实；不进入 topic snapshot/recovery。
   conversationTelemetryFact: "v4/telemetry/event",
-  localTtftFacts: "v4/telemetry/local-ttft",
   // 仅当前进程 live ToolCallResult 产生；历史与 replayable 链路不得补造。
   cuaPermissionObservation: "v4/cua/permission-observation",
   pluginUiToolResult: "v4/plugin-ui/tool-result",
@@ -463,7 +443,7 @@ export const v4ConversationSubscribeParamsSchema = subscribeParamsSchema.extend(
   /** host 从当前 remote workspace 的 tasks-index 精确读取的旧任务归属 allowlist。 */
   legacyTaskIds: z.array(z.string().min(1)).max(MAX_LEGACY_TASK_IDS_PER_SUBSCRIBE).optional(),
   /**
-   * 本地 workspace 下 cwd 与 workspace 目录不同的会话（受管 worktree 任务，docs/git/worktree.md
+   * 本地 workspace 下 cwd 与 workspace 目录不同的会话（受管 worktree 任务，packages/shared/src/managed-worktree/CONTRACT.md
    * §6.6.2）。CLI 本地冷列表只按 directory 扫描，看不到它们；host 从 tasks-index 精确提供 id，
    * CLI 只为这些 id 补读摘要，不改写任何存储字段。
    */
@@ -651,7 +631,7 @@ export type V4ConversationFileChangesResult = z.infer<typeof v4ConversationFileC
 // 判别联合，把一页只读事件塞进去等于把读放进写的词汇表，还要白背 baseRevision/幂等那套机制。
 
 /**
- * 事件日志一页的两道界，网关按它们取数（apps/zcode-cli/packages/dynamic-workflow/docs/execution-engine.md
+ * 事件日志一页的两道界，网关按它们取数（apps/zcode-cli/packages/dynamic-workflow/相邻实现
  * 「Reading the journal」）。字节按存储里的序列化字节计、取协议单帧上限的四分之一：条数单独
  * 管不住字节，500 条带着大 report item 的事件足以顶到单帧上限。
  */

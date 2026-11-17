@@ -1,9 +1,5 @@
-> 治理状态（2026-11-14）：纯 Web 裁撤后本目录已无源码与消费者，managed 登记已撤销，3 条缺产物基线随之移除（见 docs/architecture/pure-web-module-ownership.md）。本文保留为设计记录；恢复实现前必须先用 pnpm architecture:adopt 重新登记，不能凭本文建空壳产物。
-
 # bot-topic-history-attachment
 
-`topicHistoryAttachment.ts` 把飞书话题增量写成一个 `text/plain` 附件，随用户消息交给模型；服务端归档用于权限与检查点，不生成模型隐藏消息。
+本目录仅保留模块边界说明，没有实现、消费者或当前公开服务，不登记为受管运行模块。不得将本文作为已有能力或可调用接口的声明。
 
-- 公开面：`../topicHistoryAttachment.ts` 的 `createTopicHistoryAttachment`，签名见 `contract.ts`。
-- 附件包含快照 ID、覆盖范围与消息正文；文件和图片只列资源索引（A1、A2…），内容不展开。每个索引项是 `{ inputId, messageId, index }`，即 `ReadTopicResource` 的输入（[会话工具设计](../../../../../docs/architecture/zcode-app-control-design.md) 0.8）。
-- 超过协议附件上限时抛错，不截断正文。
+模块登记与当前所有权见 `docs/architecture/pure-web-module-ownership.md`。

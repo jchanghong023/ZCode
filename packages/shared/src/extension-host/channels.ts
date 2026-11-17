@@ -16,7 +16,7 @@ import type {
   ViewRequestInput,
 } from "#src/extension-host/views.js";
 
-// L1 业务面（docs/plugins/extension-host.md §3.2）：Window Host 与扩展进程经 Main 牵线的
+// L1 业务面：Window Host 与扩展进程经 Main 牵线的
 // MessageChannelMain 直连，端口上跑双向 @zcode/rpc。两端都用 ProxyChannel 暴露/代理这两个接口。
 
 export const EXTENSION_HOST_CHANNEL = "extension-host";

@@ -1,705 +1,113 @@
 # ZCode Design System
 
-Portable design system for AI-assisted UI work in this repository.
+## Overview
 
-This document is the single source of truth for design rules and token intent.
-Theme values are defined in [styles.css](packages/ui/src/styles.css), including the
-fallback themes and active Zai Light / Zai Dark overrides; do not maintain a separate
-copy of their numeric color values in documentation.
+AIReq 使用当前 ZCode 界面体系：安静、紧凑、可长时间操作的电脑浏览器工作台。优先保证表格、阅读、会话及多面板操作一致，不采用营销式留白或整页品牌填色；动效仅在所选主题的明确边界内启用。手机布局、触摸专用适配及原生窗口控制不属于当前产品界面。
 
-This file is meant for coding agents. When generating or editing UI in this repo, follow this file before inventing new visual rules.
+实际 token 由 `packages/ui/src/styles.css` 定义，基础控件由 `packages/ui/src/components/ui/` 提供；本文说明角色与用法，不复制另一份颜色值。当前源码是几何和控件行为依据，不依赖旧上游截图或已删除补丁规格。
 
-Product scope is desktop browsers only. Phone/mobile layouts, touch-specific adaptation,
-and phone-screen testing are out of scope. Retained compatibility styles and controls
-do not establish mobile support; mobile clauses in historical specs are not current requirements.
+## Colors
 
-## Highest-priority UI constraint
+主题选择为系统、浅色、深色和动效；浅／深使用 Zai Light／Zai Dark，动效使用 `zai-motion`。基础 light／dark 变量保留作底层定义。业务界面复用语义 token，不引入独立主题状态或页面专属灰色。
 
-The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for application interface typography:
+动效主题复用 Zai Dark 的全部配色、布局与文字，未保存主题偏好时默认启用；已有主题偏好不覆盖，系统跟随仍使用原浅／深主题。仅该主题提供 240px 局部柔光（指针更新最多 20Hz）、导航滑动高亮和有限次按下反馈；不加空闲循环、全屏渐变重绘、模糊、Canvas 或 WebGL。减少动态效果与性能模式停用这些效果。具体边界见 [默认动效主题](docs/specs/aireq-migration/motion-theme.md)。
 
-- UI components must use `text-ui-xl`, `text-ui-lg`, `text-ui-base`, `text-ui-caption`, `text-ui-sm`, or `text-ui-xs`.
-- The shared Settings section heading may use the dedicated `text-ui-settings-title` / `lg:text-ui-settings-title-lg` role defined below.
-- Top-level business page headings (Automations, requirement analysis, formal requirements, and Issue pages) use `text-ui-page-title`.
-- Do not introduce Tailwind's built-in `text-base`, `text-sm`, or `text-xs` for application UI.
-- Do not introduce arbitrary UI font sizes such as `text-[13px]` or inline `font-size` values.
-- Content-level exceptions: code, Diff, and terminal rendering consume independent numeric font-size settings. The UIW read-only Markdown document surface uses `text-ui-lg` for its body and the library's relative `em` heading scale, so long-form reading remains distinct from compact chat typography while following UI font scaling. Surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
-- The retained `text-mobile-input-safe` compatibility token (16px) documents legacy usage, not a mobile/iOS requirement. Do not use it as a general UI hierarchy token.
-- Never implement interface font scaling by changing `html` or `document.documentElement.style.fontSize`; update only `--ui-font-size`.
+| 角色           | token                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------- |
+| 页面与结构     | `background`、`background-alt`、`background-win-alt`、`header`、`panel`、`sidebar`     |
+| 卡片与普通表面 | `card`、`card-selected`、`card-border`、`surface`、`surface-hover`                     |
+| 菜单与浮层     | `menu`、`menu-hover`、`popover`、`popover-border`、`tooltip`、`tooltip-foreground`     |
+| 输入           | `input`、`input-focused`、`input-border`、`input-border-hover`、`input-border-focused` |
+| 文字           | `foreground`、`foreground-subtle`、`foreground-subtlest`、`foreground-inverse`         |
+| 操作与选择     | `primary`／`primary-foreground`、`secondary`、`hover`、`selected`、`brand`、`accent`   |
+| 状态           | `success`、`warning`、`destructive` 及各自 foreground／surface                         |
+| 更新中         | `progress-surface`／`progress-surface-foreground`                                      |
+| Diff           | `diff-added`／`diff-added-foreground`、`diff-removed`／`diff-removed-foreground`       |
 
-Treat violations of this section as design-system defects, not stylistic preferences.
+业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题和主要数值用主文字，原文、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。
 
-## Product Character
+状态色只表达真实状态，不作装饰；surface 与对应 foreground 配对。等待确认使用 interaction-confirmation，不借 success 表示等待。Git 文件状态使用 `git-*`，不借 Diff 或 warning。文件、Skill、命令 mention 使用各自 node 的背景、hover 和前景；Markdown 行内代码使用 `markdown-inline-code`。
 
-ZCode is a desktop-browser-only AI workspace, not a native desktop application. The interface should feel calm, dense, and operational rather than decorative.
-
-Design for:
-
-- long sessions
-- high information density
-- readable chat and tool output
-- keyboard-driven workflows
-- consistent desktop browser behavior
-- macOS, Windows, and Linux compatibility
-- internationalization and variable text length
-- light and dark themes, plus Zai variants already supported by the codebase
-
-Avoid:
-
-- oversized marketing-style spacing
-- playful gradients as the default UI language
-- bright full-surface brand fills
-- ambiguous hierarchy between background, card, and popover surfaces
-
-## Theme Modes
-
-### Full-page browser overlays
-
-All product surfaces run in desktop browsers. Do not render native minimize,
-maximize/restore, traffic-light, or close-window controls. Closing an in-app overlay
-returns to the previous application view; it must not close the browser window.
-Verify overlays in both themes at desktop browser window sizes.
-
-User-facing theme choices are:
-
-- System
-- Light Theme, backed by Zai Light
-- Dark Theme, backed by Zai Dark
-
-Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
-
-## Color Palette
-
-### Core semantic colors
-
-- **Brand**: `--color-brand`
-  Use for key emphasis, important links, active indicators, and brand-accented actions. Never use as a full-page background.
-- **Icon Blue**: `--color-icon-blue`
-  Use for browser-style links and blue icon emphasis that follows the Figma `icon/blue` role. Keep file-type icons on their own descriptor colors.
-- **Icon Purple**: `--color-icon-purple`
-  Use for Highspeed duration emphasis and other UI explicitly mapped to the Figma `icon/purple` role. Do not reuse idle-task or terminal colors directly.
-- **Highspeed Composer Material**: `--color-highspeed-composer-border-idle` with `--color-highspeed-glow-*`
-  Use only for an active Highspeed composer shell. Its stable surface and particle layer are defined by the dedicated Highspeed activation stylesheet and must not leak into ordinary inputs.
-- **Accent Surface**: `--color-accent`
-  Use for weak emphasis blocks, selected highlights, and low-intensity branded surfaces.
-- **Background**: `--color-background`
-  Default page and app workspace background.
-- **Background Alt**: `--color-background-alt`
-  Alternate page region background when the layout needs a soft separation.
-- **Header / Panel / Sidebar**: `--color-header`, `--color-panel`, `--color-sidebar`
-  Structural layout surfaces only. Do not reuse as generic card colors.
-- **Surface**: `--color-surface`
-  Low-elevation container surface.
-- **Surface Hover**: `--color-surface-hover`
-  Hover state for low-elevation surfaces.
-- **Remote Continuity Panel**: `--color-remote-continuity-panel`, `--color-remote-continuity-panel-surface`, `--color-remote-continuity-panel-foreground`, `--color-remote-continuity-panel-subtle`
-  Reserved for the first-connect local-offline / remote-running comparison. It stays dark in both themes so the handoff remains visually stable; do not reuse it as a generic dark card.
-- **Card**: `--color-card`
-  Standard content card background.
-- **Card Selected**: `--color-card-selected`
-  Selected or active card background.
-- **Popover**: `--color-popover`
-  Dialog, popover, and floating panel background.
-- **Menu**: `--color-menu`
-  Dropdown and menu surface.
-- **Menu Hover**: `--color-menu-hover`
-  Hover state for menu items.
-- **Input**: `--color-input`
-  Default editable field background.
-- **Input Focused**: `--color-input-focused`
-  Focused editable field background.
-
-### Text colors
-
-- **Text Primary**: `--color-foreground`
-  Main reading text.
-- **Text Secondary**: `--color-foreground-subtle`
-  Metadata, descriptions, supporting labels. Preserve at least 4.5:1 contrast on
-  content cards as well as the page background; Appearance and business reading
-  surfaces share this role.
-- **Text Tertiary**: `--color-foreground-subtlest`
-  Placeholders, weak hints, disabled-adjacent copy.
-- **Text Inverse**: `--color-foreground-inverse`
-  Text on dark, branded, or state-colored fills.
-
-### Border colors
-
-- **Desktop Resize Handle**: `--color-resize-handle` uses sky-500 in light themes and sky-400 in dark themes. Use only for desktop workspace resize indicators; retain the existing geometry and interaction states.
-
-- **Voice Input Recording**: `--color-voice-input-surface` (sky-100 `#e0f2fe` in light themes, sky-950 `#082f49` in dark themes) and `--color-voice-input-wave` (sky-600 `#0284c7` light, sky-300 `#7dd3fc` dark). The tokens hold these hex values directly, because Tailwind 4's oklch sky palette renders slightly different colors. Use only for the composer voice input recording pill: the surface fills the pill, the wave colors the level bars and the stop square.
-
-- **Border**: `--color-border`
-  Default border and separator.
-- **Border Hover**: `--color-border-hover`
-  Hovered border state.
-- **Card Border**: `--color-card-border`
-- **Popover Border**: `--color-popover-border`
-- **Input Border**: `--color-input-border`
-- **Input Border Hover**: `--color-input-border-hover`
-- **Input Border Focused**: `--color-input-border-focused`
-
-### Semantic feedback colors
-
-- **Success**: `--color-success` with `--color-success-foreground`
-- **Warning**: `--color-warning` with `--color-warning-foreground`
-- **Destructive**: `--color-destructive` with `--color-destructive-foreground`
-- **Success surface**: `--color-success-surface` with `--color-success-surface-foreground`
-- **Warning surface**: `--color-warning-surface` with `--color-warning-surface-foreground`
-- **Destructive surface**: `--color-destructive-surface` with `--color-destructive-surface-foreground`
-- **Idle-time task**: `--color-idle-task` with `--color-idle-task-surface`
-  Use only for idle-time queue and paused tags so they remain visually distinct
-  from the green scheduled-task treatment.
-- **Diff Added**: `--color-diff-added` with `--color-diff-added-foreground`
-- **Diff Removed**: `--color-diff-removed` with `--color-diff-removed-foreground`
-
-Use semantic colors only for actual semantic states. Do not borrow success, warning, or destructive colors just to make a block feel louder.
-Use `*-surface` for translucent state chips and banners; pair it with the matching `*-surface-foreground` and never add ad-hoc alpha in a component. Surface foreground values must preserve at least 4.5:1 contrast across shipped themes.
-
-### Blocking interaction colors
-
-- **Ask Interaction**: `--color-interaction-ask-surface`, `--color-interaction-ask-foreground`, `--color-interaction-ask-fill`
-  Legacy compatibility surface/foreground tokens for `AskUserQuestion`; waiting badges no longer use a separate blue treatment. The ask fill is reserved for countdown progress.
-- **Confirmation Interaction**: `--color-interaction-confirmation-surface`, `--color-interaction-confirmation-foreground`
-  Use for all waiting badges, including `AskUserQuestion`, permission, and `ExitPlanMode`.
-
-Waiting badges use one green confirmation treatment so identical waiting copy does not appear as different states. Do not substitute `--color-success` for a waiting confirmation.
-
-### Workflow timeline colors
-
-The dynamic-workflow timeline (spec: `docs/dynamic-workflow/presentation.md`) draws with a
-feature-scoped token family:
-
-- **Rule**: `--color-workflow-rule`
-  Sub-hairline for repeated furniture. Weaker than `--color-border`; do not use it as a
-  general separator.
-- **Trace / Trace Strong**: `--color-workflow-trace`, `--color-workflow-trace-strong`
-  Rail and arc stroke ramp: not yet taken vs control has passed. The marching segment
-  overlays `--color-warning` dashes; there is no third stroke colour.
-- **Fill frame**: a filled hole's frame is drawn in `--color-workflow-trace` (1px), and in
-  `--color-warning` (1.5px) only for the two seconds after the fill joins; never a tinted
-  surface (spec: `docs/dynamic-workflow/presentation.md`, "Holes on the timeline").
-- Station lamps and agent pills use the semantic status colours (`--color-success`,
-  `--color-warning` for running, `--color-destructive`); agent avatars use the fixed nine-color HEX palette defined in the workflow spec,
-  assigned by instance index (name hash fallback), and never encode status.
-- A compile-feedback row (a script that did not compile, so nothing ran) uses a hollow lamp:
-  `--color-warning` while it is the latest draft, `--color-foreground-subtlest` once a newer
-  draft exists. Never `--color-destructive`, which on this feature belongs to a run that errored
-  (spec: `docs/dynamic-workflow/presentation.md`, "Compiler feedback").
-
-### Overlay and utility colors
-
-- **Toast**: `--color-toast`
-  The shared toast uses `bg-toast/60` with background blur and a `rounded-2xl` shell.
-  Keep stack positioning in the shared toast component; do not add per-call offsets.
-- **Tooltip**: `--color-tooltip`
-- **Tooltip Text**: `--color-tooltip-foreground`
-- **Tooltip Tag**: `--color-tooltip-tag`
-- **Tooltip Tag Text**: `--color-tooltip-tag-foreground`
-- **Tag**: `--color-tag`
-- **Find Highlight**: `--color-find-highlight`, `--color-find-highlight-active`
-  Use only for in-page/text search result highlights. The base token marks all matches; the active token marks the currently selected match.
-- **Hover**: `--color-hover`
-- **Selected**: `--color-selected`
-- **Primary**: `--color-primary`
-- **Primary Foreground**: `--color-primary-foreground`
-- **Secondary**: `--color-secondary`
-
-### Specialized color tokens
-
-| Token                             | Purpose                                                    |
-| --------------------------------- | ---------------------------------------------------------- |
-| `--color-markdown-inline-code`    | Markdown 行内代码背景，沿用 tag / label 胶囊层级           |
-| `--color-popover-header`          | Popover header                                             |
-| `--color-tab`                     | Tab 默认背景                                               |
-| `--color-tab-active`              | 当前激活 tab                                               |
-| `--color-tab-border`              | Tab 分隔线                                                 |
-| `--color-feedback-privacy-hint`   | 反馈截图隐私提醒文字及叹号图标；独立一行，使用辅助说明字号 |
-| `--color-git-none`                | Git 无变更状态，沿用普通文件名颜色                         |
-| `--color-git-modified`            | Git modified，表示已跟踪文件有未提交修改                   |
-| `--color-git-added`               | Git added，表示新增文件已进入工作树 / 暂存区               |
-| `--color-git-deleted`             | Git deleted，表示已跟踪文件被删除                          |
-| `--color-git-renamed`             | Git renamed，表示已跟踪文件移动或重命名                    |
-| `--color-git-untracked`           | Git untracked，表示 Git 尚未跟踪的新文件                   |
-| `--color-git-ignored`             | Git ignored，继承弱化文本层级                              |
-| `--color-git-descendant`          | Git descendant，表示目录后代包含变更                       |
-| `--color-file-node`               | 文件 mention node 背景                                     |
-| `--color-file-node-hover`         | 文件 mention node hover 背景                               |
-| `--color-file-node-foreground`    | 文件 mention node 文字 / 图标                              |
-| `--color-skill-node`              | Skill mention node 背景                                    |
-| `--color-skill-node-hover`        | Skill mention node hover 背景                              |
-| `--color-skill-node-foreground`   | Skill mention node 文字 / 图标                             |
-| `--color-command-node`            | Command mention node 背景                                  |
-| `--color-command-node-hover`      | Command mention node hover 背景                            |
-| `--color-command-node-foreground` | Command mention node 文字 / 图标                           |
-
-Git file statuses must use `text-git-*` / `bg-git-*`, rather than borrowing diff or warning tokens.
-Mention tokens belong to prompt-editor and UserPrompt mention nodes; their background, hover,
-and foreground roles must stay together. Markdown inline code uses its own background token,
-currently mapped to `--color-tag`.
-
-## Color Usage Rules
-
-- Use semantic tokens, not raw one-off color values.
-- Prefer `bg-background + text-foreground` for page roots.
-- Prefer `bg-card` or `bg-surface` for normal content containers.
-- Prefer `bg-popover` or `bg-menu` for overlays; pair with `border-popover-border` or `border-border`.
-- Prefer `bg-hover` for generic hover and `bg-selected` for selection.
-- Prefer `bg-primary text-primary-foreground` for the default primary button.
-- Prefer text hierarchy to create information density before adding more borders or colors.
-- Keep brand color usage sparse and intentional.
-- Never mix `bg-background`, `bg-card`, and `bg-surface` without a clear layering reason.
-- Never replace semantic tokens with ad hoc values like `text-white/60`, `border-white/10`, or arbitrary neutral alpha fills.
-
-- The current desktop browser uses `DesktopWindowFrame` with `bg-background-win-alt`; child surface colors remain independent.
-- Native shell radii and compositor clipping are historical compatibility details, not current browser design or acceptance requirements.
-
-### Lucide 前景透明度
-
-- Lucide 的次级、三级前景使用不透明描边绘制完整图标，再整体与背景混合，避免多条路径交点加深。次级为 60%，三级浅色为 40%、深色为 30%。
-- 保留现有 `text-foreground-subtle` / `text-foreground-subtlest` 调用；同时支持颜色类直接位于图标和从父元素继承。文字继续使用原有半透明颜色。
-- 颜色 utility 的 hover、group-hover、focus、disabled 和 data 状态应同步图标层级；子元素显式使用其他颜色时清除继承的弱化层级。已有 `opacity-*` 继续独立叠加，`opacity-0` 仍隐藏图标。
-- 本次适配范围为 Tailwind 颜色 utility；自定义 CSS / inline 的颜色与滤镜不作为层级入口，不全局改写非 Lucide SVG。标准 Lucide 的 `stroke="currentColor"` 是适配入口。
-- 支持普通百分比颜色修饰符（如 `/50`）以及 `fill-current` 的实心图标。不支持相对颜色语法的浏览器保留原始绘制方式。
-- 验收：390px / 1200px、Zai Light / Zai Dark，分别检查页面、面板和彩色背景上的直接/继承颜色、交点与非交点像素一致、文字颜色不变、交互颜色覆盖和额外透明度。
+Lucide 次级／三级前景沿既有颜色适配整体混合，避免路径交叉变深；不全局改写其他 SVG。交互颜色、显式子颜色和额外 opacity 保持现有覆盖关系。
 
 ## Typography
 
-### Font families
+普通 UI 使用默认 `font-sans`；路径、命令、标识符、快捷键和代码使用 `font-mono`。应用 UI 使用 `text-ui-*`，不增加 Tailwind 内建 `text-base/sm/xs`、任意字号或内联 UI 字号。
 
-- **UI Sans**: use the app's default `font-sans` stack for almost all interface text.
-- **UI Mono**: use `font-mono` for paths, commands, code, identifiers, shortcuts, commit hashes, model IDs, and terminal-like data.
+`--ui-font-size` 默认 14px，界面字号设置只更新该变量，不改变 html 字号；图标、间距、圆角等 rem 几何不随字体缩放。
 
-### UI font tokens
+| token             | 相对界面字号 | 默认 | 用途                           |
+| ----------------- | ------------ | ---- | ------------------------------ |
+| `text-ui-xl`      | +4px         | 18px | 一级阅读标题                   |
+| `text-ui-lg`      | +2px         | 16px | 二级阅读标题、独立文档正文     |
+| `text-ui-base`    | 不变         | 14px | 普通 UI、按钮、正文            |
+| `text-ui-caption` | -1px         | 13px | 明确的紧凑辅助说明             |
+| `text-ui-sm`      | -2px         | 12px | 次级说明、Tooltip、行内代码    |
+| `text-ui-xs`      | -4px         | 10px | 徽标、数量和弱元信息           |
+| `text-ui-2xs`     | -5px         | 9px  | 保留图表刻度／单位，不用于正文 |
 
-Each `text-ui-*` utility maps to the corresponding `--text-ui-*` CSS token.
+AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-title-lg font-semibold tracking-tight`，界面字号 +10px／+16px，默认 24px／30px。`text-ui-page-title` 保留为其他组件独立角色，不替代 AIReq 当前标题常量。
 
-All interface typography must use the dedicated `text-ui-*` scale. The Appearance setting controls `--ui-font-size`, whose default is `14px`:
+聊天正文使用 base；Markdown h1／h2 使用 xl／lg，h3–h6 使用 base 并以字重分层。独立 UIW 只读文档正文使用 lg 与库的相对标题比例。代码、Diff 和终端内容使用独立阅读字号，外侧控制仍使用 UI token。
 
-| Token             | Formula                | Default |
-| ----------------- | ---------------------- | ------: |
-| `text-ui-xl`      | `--ui-font-size + 4px` |    18px |
-| `text-ui-lg`      | `--ui-font-size + 2px` |    16px |
-| `text-ui-base`    | `--ui-font-size`       |    14px |
-| `text-ui-caption` | `--ui-font-size - 1px` |    13px |
-| `text-ui-sm`      | `--ui-font-size - 2px` |    12px |
-| `text-ui-xs`      | `--ui-font-size - 4px` |    10px |
-| `text-ui-2xs`     | `--ui-font-size - 5px` |     9px |
+标题和标签通常使用 medium／semibold；Tooltip 普通文字用 sm，快捷键用 xs。长翻译和技术值可换行或在明确区域截断，不依赖只适配短英文的固定布局。
 
-`text-ui-page-title` is the shared top-level business page heading role:
-`--ui-font-size + 16px` (30px by default), with a line-height ratio of `34 / 30`.
-Use `font-medium tracking-[0.114px]` to preserve the existing Automations heading
-hierarchy at all desktop window widths; section headings retain the standard scale.
+## Layout
 
-`text-ui-2xs` is a restricted exception below the `text-ui-xs` floor: it is permitted
-only for graph **axis furniture** — timebase tick labels, channel codes, and unit
-suffixes in the workflow timeline — never for content, labels, or metadata.
-Treat any other use as a design-system defect.
+工作台采用 256px 展开侧栏、主区及唯一右侧可调宽工作区。设置使用同宽侧栏和浏览器全页覆盖层，不叠加第二套导航或原生标题栏。右侧多对象、多种类 Tab 的行为见 [统一右侧工作区](docs/specs/aireq-migration/unified-side-pane.md)。
 
-The shared Settings section heading uses `text-ui-settings-title` with
-`lg:text-ui-settings-title-lg`: `--ui-font-size + 10px` / `+ 16px` (24px / 30px
-at the default setting), with line-height ratios of `4 / 3` / `1.2` (32px / 36px
-by default). These tokens preserve the larger responsive heading while following
-the interface font setting. They are reserved for this page heading; ordinary
-section titles and controls retain the standard scale.
+主页与设置正文复用 `SETTINGS_FRAME_CONTENT_CLASSNAME`，在实际剩余面板内居中，`max-w-4xl px-4 lg:px-8`。正文限宽与外层滚动分离，使用稳定双侧滚动槽。右侧展开后聊天、输入器、身份和阶段区域随主区收窄，不按整个浏览器计算偏移。列表与设置共享顶部基线，提案讨论详情不保留列表顶部占位。
 
-`text-mobile-input-safe` is a retained fixed 16px compatibility token and does not
-scale with `--ui-font-size`. Existing usage does not establish mobile browser support
-or a phone-screen acceptance requirement.
+项目分组铺满阅读列，版本摘要按所属面板宽度由一列变为两列，展开不改变分组外宽。按钮组可换行，表格局部横滚，不撑开整个页面。
 
-- Changing the interface font size updates only `--ui-font-size`; never mutate the root `html` font size.
-- Icons, spacing, radii, and other `rem`-based geometry must not scale with the interface font setting.
-- Code, Diff, and terminal content retain their independent font-size settings; only their surrounding interface controls use `text-ui-*`.
-- Preserve existing compatibility-token usage; do not add mobile-specific inputs or iOS zoom checks.
+常用间距基于 4px 节奏：4px 图标间隙、8px 紧凑控件、12px 列表、16px 卡片内边距、20–24px 较大分组。组间距大于组内距。嵌套 flex／滚动区域按需使用 `min-w-0`、`min-h-0`。优先流体宽度和 max-width，固定宽度用于菜单、对话框及稳定侧栏，不新增业务页面几何体系。
 
-### Type roles
+电脑窗口缩放时保持组件语义和主操作可达，以 grid、flex、宽度和可见性调整密度。保留的 compact-web 或 mobile-input-safe 兼容样式不构成手机交付要求。
 
-The `text-ui-*` scale expresses stable semantic roles. Choose a token by content role rather than by isolated visual preference:
+## Elevation & Depth
 
-| Token             | Primary roles                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| `text-ui-xl`      | Markdown `h1` and equivalent first-level reading headings                                                    |
-| `text-ui-lg`      | Markdown `h2` and equivalent second-level reading headings                                                   |
-| `text-ui-base`    | Markdown `h3`-`h6`, body copy, common buttons, workspace and section titles, and other primary UI text       |
-| `text-ui-caption` | Compact supporting copy that must remain one step below body text, such as the New Task feature announcement |
-| `text-ui-sm`      | Secondary copy, supporting information, helper text, Tooltip copy, and Markdown inline code                  |
-| `text-ui-xs`      | Tooltip keyboard shortcuts, badges, compact labels, counters, and very weak metadata                         |
+层次主要由背景、边框和留白表达，普通布局不依赖大柔影。卡片低于浮层，菜单使用 menu，对话框使用 popover，不将菜单画成堆叠卡片。菜单保留原有 shadow，键盘聚焦不能清除其阴影。
 
-- Markdown `h3`-`h6` share `text-ui-base`; distinguish their hierarchy through weight: `h3`-`h4` use `font-semibold`, `h5` uses `font-medium`, and `h6` uses `font-normal`.
-- Body copy and common controls normally use `text-ui-base font-normal`; titles and labels may strengthen weight without changing their semantic size role.
-- Pair secondary copy with an appropriate semantic color, usually `text-foreground-subtle`. Pair weak metadata with `text-foreground-subtlest`. Font size and color hierarchy are independent decisions.
-- **Tooltip**: titles, plain descriptions, and log content use `text-ui-sm`; keyboard shortcut labels use `text-ui-xs`. Rich content such as Markdown release notes keeps its content typography hierarchy instead of flattening headings and links to the Tooltip copy size.
-- **Code / Command / Path**: use `font-mono`, usually with `text-ui-base`; Markdown inline code uses `text-ui-sm`.
-- When migrating a legacy explicit `13px` UI size without a deliberate compact-caption role, use `text-ui-base`. Use `text-ui-caption` only where the product explicitly requires a stable one-step-below-body caption treatment. Do not collapse either into `text-ui-xs`; `text-ui-xs` is reserved for badge-scale and very weak metadata roles.
+交互浮层高于被动 Tooltip，Tooltip 不遮挡已打开菜单选项。Toast 使用共享定位、`bg-toast/60`、背景模糊及现有圆角外壳，调用方不添加独立偏移。
 
-### Markdown type scale
+动效快速、克制，仅解释状态变化。总览新增版本淡入、展开箭头旋转及进度条过渡沿现有实现；数字和可访问状态即时更新，不制造初始进度。不用浮起、缩放或滚动数字模拟活跃；减少动态效果时直接呈现最终状态。
 
-Markdown rendered through the shared assistant response uses a reading-oriented hierarchy while the surrounding operational UI remains compact:
+## Shapes
 
-- **User and assistant message containers**: `text-ui-base`
-- **Body**: `text-ui-base`
-- **Links**: `text-ui-base`
-- **Inline code**: `font-mono text-ui-sm`
-- **Code block body**: default `14px`, configurable through code preview settings
-- **Code block header**: `text-ui-base`
-- **Tables**: `text-ui-base`
-- **h1**: `text-ui-xl`
-- **h2**: `text-ui-lg`
-- **h3**: `text-ui-base`
-- **h4**: `text-ui-base`
-- **h5**: `text-ui-base`
-- **h6**: `text-ui-base`
+复用当前组件及容器圆角，不以重要性发明新半径。业务外层卡片常用 `rounded-xl`，内层版本卡片用 `rounded-lg`；布局包装本身不建立新圆角层级。
 
-### Typography rules
+共享 Button 当前默认 `rounded-md`，xs／icon-xs 使用 `rounded-sm`，lg／icon-md／icon-lg 使用 `rounded-lg`。保留实际 variant，不以文档全局更改控件几何。对话框、菜单、输入器及预览外壳使用各自现有基础组件；普通卡片不借聊天输入器或 Toast 的大圆角。
 
-- Keep UI text compact and readable.
-- Prefer `font-medium` for headings and labels; avoid heavy weights unless there is a strong reason.
-- Use monospace only where the content is inherently technical.
-- Use `text-ui-base` as the default compact app text size. Keep `text-ui-base` for workspace titles and stronger title treatments.
-- Respect i18n expansion. Do not hard-code layouts that only work for short English labels.
-- Do not depend on tight truncation as the only way a component survives translation.
-
-## Spacing
-
-Base spacing unit is `4px`.
-
-Recommended rhythm:
-
-- `4px`: tight icon/text spacing
-- `8px`: compact control padding and inline gaps
-- `12px`: dense list items and menu rows
-- `16px`: standard card and panel padding
-- `20px` to `24px`: larger sections or dialog interiors
-
-Spacing rules:
-
-- Keep dense operational UI compact by default.
-- Prefer a small set of repeated gaps and paddings instead of arbitrary values.
-- In flex layouts with text, add `min-w-0` where truncation or shrink is required.
-- In nested scroll or split-panel layouts, add `min-h-0` where scrolling must be allowed.
-- Prefer `w-full + max-w-*` over hard-coded widths when possible.
-
-## Radius
-
-Radius follows the nesting of visible rounded containers, not component importance or layout depth. These rules are the target specification; existing component defaults may still need migration.
-
-### Container hierarchy
-
-- Layout regions, ordinary wrappers, groups, and separators do not count as radius levels.
-- The first rounded container starts at `rounded-xl`, whether inside or outside a layout region.
-- Nested rounded containers step down through `rounded-lg` → `rounded-md` → `rounded-sm`; `rounded-sm` is the minimum.
-- Count the nearest actual rounded container, not intermediate DOM wrappers. Peer containers at the same level use the same radius.
-- Cards, chat bubbles, tool blocks, and ordinary composite input shells follow this hierarchy; size or importance alone does not justify `rounded-2xl`.
-
-### Approved 2xl exceptions
-
-The following explicit exceptions may retain `rounded-2xl`; do not extend them to other components based only on size or importance:
-
-- **Main chat input shell**: the actual `ChatPromptEditor` input shell may use `rounded-2xl`. Its drag overlay matches the shell because it covers the same surface, rather than introducing a nested container.
-- **Conversation status floating panel**: the shared shell may retain `rounded-2xl` across collapsed and expanded presentations.
-- **Side Pane full-view floating composer**: in Side Pane full view the main chat input shell floats on its own (no outer frame); the drawer that slides out from behind it and the answer bubble shown above it use `rounded-2xl` to match the shell; the minimized state and the answer bubble's close button are deliberate circles (`rounded-full`).
-- **Toast**: the independent notification shell may retain `rounded-2xl`.
-- **Brand icon backplates**: welcome-screen brand art and plugin-detail icons may retain `rounded-2xl` as part of their icon shape. This is not a general exception for icon buttons or content cards.
-
-The main composer region, including its context-header layout wrapper, is layout and does not count as a radius level. Its existing decorative radius does not force the actual input shell down a level. This classification alone does not prescribe changing the layout wrapper's decorative radius.
-
-These exceptions do not automatically grant `2xl` to nested controls or content containers. Basic controls still use the table below. Dialog shells follow their separate rules.
-
-### Basic controls
-
-Buttons, menu trigger buttons, ordinary Input, Textarea, and Select triggers default to `rounded-lg`. Adjust them according to the nearest rounded parent container:
-
-| Nearest rounded parent          | Control radius |
-| ------------------------------- | -------------- |
-| None, or `rounded-xl` and above | `rounded-lg`   |
-| `rounded-lg`                    | `rounded-md`   |
-| `rounded-md` / `rounded-sm`     | `rounded-sm`   |
-
-Control size and primary/secondary action emphasis do not independently change radius.
-
-### Dialogs
-
-- Dialog shells, including alert and confirmation dialogs, use `rounded-2xl`.
-- Only chat attachment preview, feedback screenshot preview, and CUA screenshot preview dialogs keep `rounded-xl` shells.
-- The dialog shell does not count toward its content hierarchy. The first rounded content container starts again at `rounded-xl`, followed by `rounded-lg` → `rounded-md` → `rounded-sm`.
-- Basic controls inside dialogs follow the control table; a layout wrapper does not introduce an extra level.
-
-### Menus and selection overlays
-
-- Dropdown menus, context menus, Select expanded panels, and similar option/action overlays use `rounded-lg` shells. This includes the main input's `@` / `/` suggestion panel; it does not inherit the main-input exception.
-- Menu items and option hover/selected backgrounds use `rounded-md`.
-- Rounded containers or controls nested inside an option use `rounded-sm`.
-- Each submenu is an independent overlay: its shell restarts at `rounded-lg`, and its options use `rounded-md`.
-- Overlay radius does not inherit the trigger's parent hierarchy. Triggers themselves follow the basic-control table.
-- Other standalone popover containers follow the ordinary container hierarchy, starting at `rounded-xl`.
-
-### Shape exceptions and consistency
-
-- `rounded-full` is reserved exclusively for deliberate pill shapes or circles.
-- Buttons, tags, counters, and icon buttons do not qualify for `rounded-full` merely because of their component type.
-- Do not introduce arbitrary radius values or use the ambiguous bare `rounded` utility.
-- Use `rounded-none` or side-specific radius removal only where joined surfaces must form a continuous shape.
-- Apply the same rules across supported desktop browsers, platforms, and themes.
-
-## Sizing
-
-### Common size baselines
-
-- **Icon sizes**: `size-3`, `size-3.5`, `size-4`, `size-5`, `size-6`
-- **Control heights**: `h-6`, `h-7`, `h-8`, `h-9`
-- **Square icon buttons**: `size-6`, `size-7`, `size-8`, `size-9`
-
-### Sizing rules
-
-- `size-4` is the default UI icon baseline.
-- Reuse existing button sizes instead of creating new height systems.
-- Prefer fluid widths for content containers.
-- Fixed widths are acceptable for menus, popovers, dialogs, and stable side panels.
-- Avoid arbitrary `w-[...]` and `h-[...]` for ordinary business UI.
-- Prefer the shared Button `size` variants, including `icon*`, over separate width/height overrides. The current variants are `default(h-7)`, `xs(h-5)`, `sm(h-6)`, and `lg(h-8)`; generic control baselines do not replace those component contracts.
-- Regular inputs prefer `h-9`; compact filters and inline inputs may use `h-7` or `h-8`.
-- Use `w-full`, `w-fit`, `max-w-full`, and `min-w-0` for content widths. Fixed overlays may use `w-52`, `w-64`, `w-80`, or `max-w-sm/md/lg/xl` when a stable width is required.
-- Page roots use `h-full` or `min-h-screen`. Nested scroll and preview containers need `min-h-0` and `min-w-0` as appropriate; `overflow-auto` alone does not establish a shrinkable flex region.
-- Prefer `max-h-*` to a fixed height for scrollable content. Do not combine `size-*` with conflicting `w-*` / `h-*` unless a non-square shape is deliberate.
+`rounded-full` 仅用于明确的圆或胶囊，不因是图标按钮、计数或标签便自动使用。连接表面按现有样式移除相邻圆角，不添加任意像素半径。
 
 ## Components
 
-### Buttons
+### Buttons and inputs
 
-Preferred button system matches `packages/ui/src/components/ui/button.tsx`.
+复用 Button variants：default、outline、secondary、ghost、destructive、warning、link。default 使用 primary 配对色；危险和警告只用于对应业务动作。尺寸为 default h-7、xs h-5、sm h-6、lg h-8，图标按钮使用现有 icon variants，不另设宽高体系。图标通常 size-4，细节按组件 variant 缩放。
 
-- **Primary**: `bg-primary text-primary-foreground`
-- **Outline**: border-based, neutral surface, subtle hover
-- **Secondary**: `bg-secondary text-foreground`
-- **Ghost**: transparent until hover
-- **Destructive**: semantic destructive fill
-- **Link**: text-only with underline on hover
+输入使用 input 背景及边框，hover／focus 使用对应 token，不默认发光。标签、错误和辅助信息与控件关联；保存中保留文本控件挂载且只读，不因 disabled 移走输入焦点。错误使用真实错误语义，不将普通说明标红。
 
-Preferred sizes:
+### Navigation and tabs
 
-- `xs`: very compact controls
-- `default`: most action buttons
-- `sm`: compact buttons in dense lists
-- `lg`: higher-emphasis buttons
-- `icon-*`: icon-only actions
+导航行共用图标、名称及可选右对齐范围提示，选中使用 selected 和较强字重，键盘焦点独立可见，悬停不转移当前位置。品牌中英文两行始终存在，Logo 为装饰图像。
 
-Button rules:
+Tab 使用紧凑外观及 active／inactive 对比，不用品牌整块填色；Tab 与 panel 保持语义关联。关闭、排序、折叠及完整视图复用统一框架，不为业务详情创建第二套壳。
 
-- Use existing button variants first.
-- Keep icon-only buttons square.
-- Do not promote every action to primary.
-- Preserve a clear action hierarchy within each panel.
+### Menus and overlays
 
-### Inputs
+菜单使用紧凑 action rows、menu-hover 及共享 option-stack 的 2px 间距，保留禁用项位置。相同动作集在三点菜单与右键入口复用，选中使用现有勾选／radio，不给每行增加按钮外壳或边框。Popover 与 Dialog 复用基础组件。
 
-- Default to `bg-input border-input-border text-foreground`
-- Hover with `border-input-border-hover`
-- Focus with `border-input-border-focused` and `bg-input-focused`
-- Normal form fields default to `rounded-lg`, stepping down according to the nearest rounded parent in the Radius rules.
-- Ordinary composite input shells follow the container hierarchy, starting at `rounded-xl`; the main chat input shell is an approved `rounded-2xl` exception.
+主操作＋下拉触发器使用现有分段结构，Select trigger 保留输入语义，展开项沿菜单样式。浮层根据触发器及可用边界定位，保持紧凑偏移和稳定焦点返回。
 
-Input rules:
+### Reading and status
 
-- Inputs should feel calm and integrated, not glowing by default.
-- Use semantic error state styling only for real validation problems.
-- Do not style ordinary inputs like cards.
+Markdown 表格、代码、Mermaid、图片与依赖图复用共享阅读器，材料导出策略见 [只读材料](docs/specs/aireq-migration/document-surface.md)。状态同时有可读文字，不只靠颜色；loading、失败、真正空数据及过期不能互相替代。
 
-### Cards and Panels
+## Do's and Don'ts
 
-- Standard cards use `bg-card border-card-border`; radius follows the container hierarchy, starting at `rounded-xl`.
-- Low-emphasis containers use `bg-surface`
-- Selected cards may use `bg-card-selected`
-- Main content cards usually use `16px` horizontal padding and compact text
-
-Card rules:
-
-- Cards should clearly sit above the page background but below overlays.
-- Keep card surfaces quieter than overlays.
-- Avoid mixing multiple card background styles in the same view unless they encode real hierarchy.
-
-### Menus, Popovers, Dialogs
-
-- Menus use `bg-menu`, compact rows, `rounded-lg`, and `shadow-md`
-- Menus use `border border-popover-border` and typically `p-1`
-- Dropdown menus, context menus, and select popovers should share the same menu surface language
-- Adjacent option rows in dropdown menus, context menus, and select popovers use a fixed `2px` vertical gap (`gap-0.5`) at the shared option-stack layer
-- Popovers and dialogs use `bg-popover` and `border-popover-border`. Ordinary standalone popovers start at `rounded-xl`; dialogs use `rounded-2xl` except the three preview exceptions in the Radius rules.
-- Toasts use `bg-toast`, compact padding, and stronger shadow
-
-Overlay rules:
-
-- Floating UI should feel precise and compact.
-- Interactive overlays such as dropdown menus, context menus, selects, and popovers must render above passive tooltips when both are open. Tooltips must never cover options or controls in an active interactive overlay.
-- Dropdown menu surfaces must keep their overlay shadow from the first open frame through keyboard focus and pointer hover. Global focus-reset rules must not clear the menu shadow while the content root owns focus.
-- Keep menu rows dense and highly scannable.
-- Avoid giant popovers with loose spacing unless the task genuinely needs it.
-- Do not style menus like cards or reuse `bg-card` / `bg-surface` for ordinary menu content.
-- Menu items should read as compact action rows, not miniature buttons.
-- Prefer stable item baselines such as compact height, `rounded-md`, `px-2`, `gap-2`, and `text-ui-base`.
-- Use subtle hover states such as `bg-menu-hover`; avoid strong fills or per-row borders for normal menu items.
-- Disabled items should keep their layout and hierarchy, and usually only drop to a weaker text color.
-- Prefer weak separators and ordering to group actions; avoid building menus as stacked sub-cards.
-- Reuse the same action-list content across dropdown and context-menu entry points when the action set is the same.
-- For selected items, prefer checkmarks, radio indicators, or trailing state markers over strong full-row selection fills.
-- Composite triggers with a primary action and a chevron should use a segmented shell: main action on the left, menu reveal on the right.
-- Select triggers should continue to follow input-style semantics even when their expanded surface matches menu styling.
-- Standard dropdown menus should usually align to the trigger's leading edge unless the trigger sits on the trailing side of a layout.
-- Use end alignment when it helps menus open back toward the main content area or prevents edge crowding.
-- Context menus should prioritize pointer context and appear near the interaction point rather than mimicking button anchoring.
-- Select popovers should preserve a stable relationship with the trigger width and edges whenever practical.
-- Keep menu offset small and consistent so the menu feels attached to its trigger while leaving enough room for border and shadow separation.
-- Increase offset only when needed to avoid border collision, shadow merging, or layout crowding.
-
-### Tabs and Selection States
-
-- Default inactive tabs remain neutral
-- Active tabs use a stronger surface contrast, not brand-fill blocks
-- Use `bg-selected` for selected list rows or tabs when appropriate
-
-### Chat, Tooling, and Developer UI
-
-- Chat bubbles follow the container hierarchy, starting at `rounded-xl`. Main chat input shells may retain `rounded-2xl` under the approved exception.
-- Tool output, terminal-like blocks, paths, hashes, and commands should bias toward monospace
-- Diff UI must use diff-specific semantic colors, not generic success/destructive colors
-- Dense operational panels are preferred over marketing-card styling
-
-### Extension slots
-
-Extension slots are shell-owned positions where extensions supply data only (spec: `docs/plugins/extension-host.md` §6, §16). The shell component owns all styling; a plugin never provides HTML, SVG, or CSS for a slot. Slot ids come only from `EXTENSION_SLOTS` in the extension host protocol. Slot items are static manifest declarations (top-level `slots`) and stay visible while the extension host is stopped.
-
-- **`composer.status`**: sits directly left of the context-usage ring in the composer toolbar. Ghost `Button` at `size="default"` (`h-7`), `rounded-lg`, `px-1.5`, `gap-1`; a `size-3.5` icon plus text in `text-ui-sm text-foreground-subtle tabular-nums`, capped at `max-w-40` with truncation. The hover description uses `ControlHintTooltip`. It renders only when the extension has set `text`. It is the first item to collapse: collapse tier `extension` hides the text and leaves a `size-7` icon button.
-- **Side pane launcher "Extensions" section**: follows the built-in apps and UI plugins in the new-tab launcher, after the same short divider, with a `text-ui-lg font-semibold` heading. Rows reuse `SidePaneLauncherRow`. Problem rows (`failed`, `invalid`, `incompatible`, and a plugin with an unusable slot item, labelled `invalid`) are static rows without a button or capsule, one per plugin: `CircleAlertIcon`, the plugin name, a `bg-tag` state label, and the reason in the hover title (with the field path when there is one). The "Extensions stopped" row uses `OctagonXIcon` and the secondary "Reload" capsule. Rows do not use destructive or warning fills; the state label carries the meaning as text.
-- **Launcher view items**: `sidePane.launcher` items are ordinary `SidePaneLauncherRow` rows in the same section (whitelisted icon, localized view title, the plugin name as the description, the default "Open" capsule). While the extension host is stopped they stay visible: a `bg-tag` "Extensions stopped" label precedes the plugin name and the capsule becomes "Reload". No disabled or destructive styling.
-- **Extension view tabs**: an `extension-view` side pane tab uses the standard tab trigger with the view's whitelisted icon and its localized title. The body is the plugin's MCP App page in the shared sandbox; the shell only draws the loading, "not running" and error states as centered `text-ui-sm text-foreground-subtle` text. Theme and locale reach the page through the MCP Apps host context (style variables), not through shell CSS.
-- **Extension logs tab**: one `extension-logs` side pane tab per pane (`ScrollTextIcon`, title "Extension logs"), opened from an "Extension logs" `SidePaneLauncherRow` in the launcher "Extensions" section (shown only when a plugin declares `extension` or the host is stopped) and from the command center. A single `border-b` toolbar row (`px-3 py-2`, wraps when narrow): two input-style `Select` filters (source: all, extension host, each plugin id in `font-mono`; level: all, warnings and errors, errors only) on the left; `icon-md` ghost buttons with `ControlHintTooltip` on the right for auto-scroll (`secondary` + `aria-pressed` while on), copy and clear view. Rows are terminal-style `font-mono text-ui-sm` lines: time (`text-foreground-subtlest tabular-nums`), the level word padded to five characters, the source (`text-foreground-subtle`, plugin id or "Extension host gen=N"), then the message, all as one wrapping run (`whitespace-pre-wrap break-words`) with a hanging indent (`pl-9 -indent-6`) so continuation lines use the full width. Warning and error rows use `bg-warning-surface` / `bg-destructive-surface` with the matching `*-surface-foreground` level word; info rows have no fill. Empty, loading and "no match" states are centered `text-ui-sm text-foreground-subtle` text.
-- **`nav.primary`**: rows in the left primary navigation, directly after "Plugin store", one per plugin, sorted by the localized title. Each row is the same ghost `Button` as the built-in rows (`size="lg"`, `w-full justify-start gap-2`) with a `size-4` whitelisted icon and the title truncated in one line. Rows have no selected state (no `aria-pressed`, no `bg-selected`): a click opens the target in the right Side Pane and the main view stays the conversation. A view-target row while the extension host is stopped keeps its title and adds a short `bg-tag` "Stopped" label plus a trailing `text-ui-sm text-foreground-subtle` "Reload"; the hover hint and accessible name carry the full "Extensions stopped · Reload"; the click reloads. The row is narrow, so it uses the short label to keep the title readable. Surface-target (MCP App) rows never show the stopped state. An extension can set an unread badge (spec §18.1 H11): a count renders after the title as the same `bg-tag` label (`text-ui-xs tabular-nums`, `99+` above 99), and `"dot"` renders the task list unread dot (`size-[7px] rounded-full bg-icon-blue`); the accessible name appends "N unread" or "New activity". Hidden in phone remote control, like "Automations" and "Plugin store".
-- **File viewer tabs**: a `file.viewer` view opens as a regular `extension-view` tab per file; the tab title is the file name and the icon is the view's whitelisted icon. A `file.viewer` surface opens as a regular `plugin-ui` tab per file. No extra chrome; the page draws the file.
-- **`composer.mention`**: one group per entry in the composer `@` panel, after the built-in groups. The group header (the entry title) is always shown, even when it is the only visible group. Candidate rows use the skills row density: a `size-3.5` whitelisted icon, the label in `text-ui-base font-medium` (truncated at half the row), the description in `text-ui-xs text-foreground-subtlest`. Loading reuses the panel's skeleton rows; a denied or failed query and "Extensions stopped" reuse the panel's error status row, one line inside the group, so other groups stay usable. A chosen candidate becomes a mention chip in the plugin colour (`text-plugin-node-foreground`) with the generic plugin icon; it serializes to the candidate's `insertText`.
-- **Extension permissions** (spec §17.7): the launcher "Extensions" section shows one "Needs permission" row per plugin whose declared session tiers are not granted yet, right after the "Extensions stopped" row: a `SidePaneLauncherRow` with `KeyRoundIcon`, the plugin name, a `bg-tag` "Needs permission" label, the requested tiers as the description, and a "Grant" capsule that opens the consent dialog. The consent dialog and the enable confirmation reuse the shared `ConfirmDialog` (title names the plugin, the spec text is the description, default confirm button, no keyboard hints); no custom dialog chrome. The plugin details page shows a "Permissions" section after "Information" when the plugin declares or holds tiers: the same `border-b` heading as "Information", a `bg-tag` status label with the tiers, a primary "Grant" or an outline "Revoke" button at `size="sm"`, a one-line `text-ui-sm text-foreground-subtle` note, a "System notifications" row when the notifications tier is granted (spec §18.1 H8: `text-ui-base` label, `text-ui-sm text-foreground-subtle` note under it, the shared default-size `Switch` at the row end, on by default), and "Recent actions" rows in the information grid (`grid-cols-[8rem_minmax(0,1fr)]`, time in `tabular-nums text-foreground-subtle`). No destructive or warning fills. Desktop only.
-- **Icons**: only Lucide names in the extension icon whitelist render (`packages/ui/src/extension-slots/components/extensionIcons.ts`); any other name falls back to `PuzzleIcon`. The whitelist: `activity`, `bell`, `bot`, `chart-bar`, `chart-pie` (alias `pie-chart`), `clock`, `cpu`, `database`, `eye`, `file-text`, `gauge`, `git-branch`, `git-merge`, `git-pull-request`, `globe`, `info`, `layers`, `list`, `log-in`, `log-out`, `message-square`, `puzzle`, `sparkles`, `terminal`, `timer`, `zap`. Add a name in both places; a whitelisted icon uses the same size and `currentColor` as the built-in icons of that slot.
-- **Scope**: retained extension-host integration notes. The current Web mock supplies no real extension host or slot contributions; these notes do not define additional current acceptance pages.
-
-## Elevation and Depth
-
-ZCode should use restrained depth. Layer primarily through background contrast, borders, and radius before relying on heavy shadows.
-
-Recommended elevation levels:
-
-- **Base**: no shadow, structure comes from background contrast
-- **Surface**: very subtle border-led separation
-- **Overlay**: `shadow-md` for menus, popovers, dialogs
-- **Attention**: `shadow-lg` only for toast, important floating cards, or rare emphasized panels
-
-Depth rules:
-
-- Do not rely on large soft shadows for ordinary layout.
-- Menus and dialogs can feel elevated, but still compact and controlled.
-- Background layering is usually more important than shadow strength.
-
-## Motion
-
-- Keep transitions fast and low-drama.
-- Favor subtle fade, zoom, and directional slide for overlays.
-- Motion should clarify state change, not decorate the screen.
-- Avoid long, springy, or playful animations in the main workspace.
-
-## Workspace layout
-
-Desktop browser workspace content uses independent conversation and Side Pane frames. The conversation frame contains WorkspaceHeader and conversation, and Side Pane owns its tab bar. Frames use their own background and border, with 4px resizable gaps matching the existing outer inset. Resize handles keep a transparent 4px hit area and show a 2px tertiary foreground (`foreground-subtlest/50`) line on hover, focus or drag. The indicator extends along the panel edge, inset by the panel radius at both ends, with rounded ends and no mask. Layout frames do not count toward content radius levels. See [workspace independent panels](docs/design/workspace-independent-panels.md) for platform chrome and persistence boundaries.
-
-## Desktop Browser Resizing
-
-The product supports computer browser windows only. Preserve usable layouts when
-those windows resize; do not add phone layouts or phone-screen acceptance checks.
-
-Rules:
-
-- Start with a stable base layout, then enhance with breakpoints.
-- Use breakpoints mainly for layout, width, visibility, and density changes.
-- Do not change the semantic meaning of components across breakpoints.
-- Prefer changing `max-width`, `grid`, `flex`, and visibility over changing component identity.
-- Preserve primary actions in supported desktop browser windows.
-
-### Breakpoint roles
-
-| Breakpoint     | Preferred use                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sm:`          | Dialog width and button arrangement within desktop browser windows                                                                             |
-| `md:`          | Grid columns and form layout expansion                                                                                                         |
-| `lg:`          | Desktop toolbar visibility and secondary information density                                                                                   |
-| `xl:`          | Chat and complex content arrangements                                                                                                          |
-| `2xl:`         | Wide-screen reading-width caps, not ordinary page behavior                                                                                     |
-| `compact-web:` | Retained legacy phone-layout CSS variant (`< 40rem` without a desktop platform class); not a current product target or acceptance requirement. |
-
-Start with the unprefixed layout, then add the fewest breakpoints needed. Prefer changing
-layout, `max-width`, and visibility to repeatedly switching fixed dimensions or semantic
-colors, borders, and radii. Keep essential actions available in desktop browser windows.
-Dialogs should reuse patterns such as `sm:max-w-*`; flexible grids should preserve
-their semantic structure. Fix unstable layout before adding breakpoint overrides.
-
-## Accessibility and Internationalization
-
-- Support keyboard navigation as a first-class interaction path.
-- Preserve the repo's established component focus styling. Do not add a shared `!important` outline to dialog descendants, remote controls, or settings navigation. Composite inputs use their existing outer border or ring without an additional inner outline. This also applies in forced-colors mode; test IDs are not styling contracts.
-- Ensure contrast remains safe in light, dark, and Zai modes.
-- Write layouts that tolerate longer translations.
-- Avoid icon-only meaning when a text label is practical.
-- Use semantic status colors together with readable text, never by color alone.
-
-## Implementation Guidance
-
-- Reuse existing semantic Tailwind utilities before adding new tokens.
-- Reuse component primitives in `packages/ui/src/components/ui/` before inventing one-off variants.
-- Match current density and component proportions already established in the repo.
-- If a new UI need appears, first decide whether it belongs to structure, surface, interaction, or state. Then choose tokens accordingly.
-- When in doubt, prefer quieter UI and stronger information hierarchy.
-
-## Do
-
-- use semantic color tokens consistently
-- preserve the distinction between page background, card, and overlay surfaces
-- keep controls compact and operational
-- use text hierarchy to express density
-- use monospace for technical values and command-like content
-- support all shipped themes
-- design for desktop browser and cross-platform rendering constraints
-- account for localization and long labels
-
-## Don't
-
-- use raw one-off colors in ordinary UI work
-- fill large surfaces with brand color
-- add arbitrary radii, shadows, widths, or heights without a stable system reason
-- make menus and dialogs airy when they should be dense
-- use semantic error or success colors for non-semantic decoration
-- create components that only look correct in one theme
-- trade clarity for visual novelty in tool-heavy screens
-
-## Progress and auxiliary-muted text (RDUX-03)
-
-`--color-progress-surface` / `--color-progress-surface-foreground` express work in progress, such as updating and syncing. Use `bg-progress-surface` with `text-progress-surface-foreground`; the foreground can also color progress indicators and borders. Four themes define the pair and all parent backgrounds must retain a 4.5:1 text contrast.
-
-远程可读辅助文字：`--color-remote-foreground-muted` / `text-remote-foreground-muted` 用于设置导航与辅助说明文字；侧栏共享的任务/项目视图切换、分组操作及搜索快捷键也沿用此可读辅助文字等级，浅色 `#595959`、深色 `#b3b3b3`，在 sidebar / popover / surface / card / selected / background 上保持至少 4.5:1。
-
-## AIReq centered reading columns (2026-11-17)
-
-AIReq home and settings pages share the native Appearance page proportions from
-`SETTINGS_FRAME_CONTENT_CLASSNAME`: `mx-auto w-full max-w-4xl px-4 lg:px-8`,
-with the existing bottom spacing. The content column is centered inside its actual
-remaining panel, including when a report or material pane is expanded. Keep outer
-scrolling independent of the limited content width; tables may scroll locally.
-
-AIReq top-level h1 headings share the Appearance role:
-`text-ui-settings-title lg:text-ui-settings-title-lg font-semibold tracking-tight`.
-Use one consistent top inset and content-column start across lists and settings.
-These AIReq roles supersede earlier full-width content and page-title guidance;
-retained unrelated upstream components keep their existing roles.
-
-Business tables and project data use `bg-card` / `border-card-border`, with primary
-field headings and secondary descriptive text matching Appearance. Project overview
-groups fill the available reading column; release summaries use equal-width columns
-that collapse within narrower desktop panels. Keep Add project beside the page title,
-and keep group widths stable when expanding or collapsing release summaries.
-
-Keep primary actions and abnormal states visible. Reduce repeated scope, ordinary
-success commentary, and instructional paragraphs; preserve full rules in existing
-help or native disclosure controls. A shorter initial view must not remove business
-facts, confirmation safeguards, or paths to a complete task.
+- 复用语义 token、共享组件、现有焦点样式及国际化文本，不添加全局强制 outline 改写组件。
+- 保持深浅主题的卡片、文字和浮层层次一致，容纳长名称和翻译。
+- 将重复说明放入现有帮助或 disclosure，保留异常、门禁及完成任务必需的操作。
+- 不新增手机或原生桌面交付规则，不恢复隐藏 Skill、插件或其他裁撤产品入口。
+- 不从保留模块、兼容 CSS 或通用组件推断当前可见能力。

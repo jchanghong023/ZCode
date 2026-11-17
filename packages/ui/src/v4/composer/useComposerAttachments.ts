@@ -153,7 +153,7 @@ function createSessionOwnedAttachmentItems(
 }
 
 /**
- * composer 编辑态（docs/ui/composer-edit-mode.md）：进入前把待编辑消息的附件预置到 edit scope，
+ * composer 编辑态：进入前把待编辑消息的附件预置到 edit scope，
  * 退出后清空该 scope。附件 store 按 scope 隔离，原草稿的附件留在原 scope 不受影响。
  */
 export function replaceComposerAttachmentsForScope(

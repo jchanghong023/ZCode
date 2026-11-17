@@ -60,7 +60,7 @@ export function toZhOrEnLocale(locale: Locale | null | undefined): "zh-CN" | "en
  * - 新字段 `uiLocale` / `uiLocalePreference` 保存真实选择（旧版本 z.object 默认 strip，会忽略它们）。
  * 读取时新字段优先，缺失或与旧字段对不上时才回落旧字段。内存里的 AppSettings.locale /
  * localePreference 始终是真实语言，所以 X-Client-Language 等消费方不需要感知这层转换。
- * 详见 docs/i18n/ui-locales.md「setting.json 存储格式与降级兼容」。
+ * 详见 相邻实现「setting.json 存储格式与降级兼容」。
  */
 
 /** 旧版本（v3.17.x 及更早）设置 schema 能识别的 locale 值。 */

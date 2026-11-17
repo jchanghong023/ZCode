@@ -35,7 +35,7 @@ export function formatSavedWorkflowArgValue(
 
 /**
  * 声明 → 可编辑字段。`initialArgs` 在场时逐个字段**优先**用它的值（完成卡「再次运行」把这次
- * run 跑过的那一份实参预填进来，docs/dynamic-workflow/transcript-and-notifications.md「Run again」）：
+ * run 跑过的那一份实参预填进来，相邻实现「Run again」）：
  * 上一次跑成了什么，下一次多半还要跑什么。声明里没有的键不进表单——表单的形状由声明决定，
  * 一份旧实参不该凭空长出字段。
  */

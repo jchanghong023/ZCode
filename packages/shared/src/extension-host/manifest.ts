@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { extensionGrantSchema, extensionProtocolsSchema } from "#src/extension-host/grants.js";
 
-// 插件清单 `extension` 键（docs/plugins/extension-host.md §5）。插槽条目在清单顶层 `slots`（§16.2），
+// 插件清单 `extension` 键。插槽条目在清单顶层 `slots`（§16.2），
 // 见 manifestSlots.ts；两者都由 Window Host 读清单时校验（§16.1）。
 
 /**

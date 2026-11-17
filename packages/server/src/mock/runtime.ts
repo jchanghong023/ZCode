@@ -11,7 +11,6 @@ import type {
   SessionMetaState,
   SessionPhase,
   SessionUsageState,
-  SessionSummary,
   WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
 
@@ -29,35 +28,6 @@ export function workspaceKeyOf(ref: WorkspaceRef): string {
 
 export function workspaceRefOf(ref: WorkspaceRef): WorkspaceRef {
   return { workspacePath: ref.workspacePath, workspaceIdentity: workspaceKeyOf(ref) };
-}
-
-/**
- * topic 级水位：`logEpoch` + `seq` 是 topic 的唯一权威顺序。
- * 同一 topic 的所有订阅者看到同一对 (fromSeq, toSeq]；不按订阅者各算一份序号。
- */
-export class MockTopicLog {
-  private readonly positions = new Map<string, { logEpoch: string; seq: number }>();
-
-  /** 读取（必要时创建）topic 当前水位；快照帧用它作为 toSeq。 */
-  position(topic: string): { logEpoch: string; seq: number } {
-    return { ...this.current(topic) };
-  }
-
-  /** 追加一条 topic 顺序记录；返回本条记录的 (fromSeq, toSeq]。 */
-  advance(topic: string): { logEpoch: string; fromSeq: number; toSeq: number } {
-    const current = this.current(topic);
-    const fromSeq = current.seq;
-    current.seq += 1;
-    return { logEpoch: current.logEpoch, fromSeq, toSeq: current.seq };
-  }
-
-  private current(topic: string): { logEpoch: string; seq: number } {
-    const existing = this.positions.get(topic);
-    if (existing) return existing;
-    const created = { logEpoch: `epoch-${createUuid()}`, seq: 0 };
-    this.positions.set(topic, created);
-    return created;
-  }
 }
 
 /** 一个模拟会话：v4 conversation topic 的权威状态。 */
@@ -133,15 +103,13 @@ export interface MockRuntimeOptions {
   workspacePath: string;
 }
 
-/** 全局 mock 状态：会话、任务、虚拟 FS 与 topic 水位。 */
+/** 全局 mock 状态：会话、任务与虚拟 FS。 */
 export class MockRuntime {
   readonly workspacePath: string;
   readonly startedAt = Date.now();
   readonly sessions = new Map<string, MockSession>();
   readonly tasks = new Map<string, MockTaskRecord>();
   readonly virtualRoot: VirtualFileNode;
-  /** sessions-index topic 的唯一水位账本；不依赖已退役的 task-list 事件。 */
-  readonly topics = new MockTopicLog();
 
   constructor(options: MockRuntimeOptions) {
     this.workspacePath = options.workspacePath;
@@ -301,29 +269,4 @@ export function buildConversationSnapshot(
 /** draft 会话不进入任务列表（真实 CLI：draft 为纯内存态，不落 tasks-index）。 */
 export function isListedSession(session: MockSession): boolean {
   return session.phase !== "draft";
-}
-
-/** 由权威会话状态构造 sessions-index 摘要。 */
-export function buildSessionSummary(session: MockSession): SessionSummary {
-  const ended = session.phase === "completedSuccess" || session.phase === "completedInterrupted";
-  const lastAssistant = [...session.rows].reverse().find((row) => row.kind === "assistantText");
-  return {
-    sessionId: session.sessionId,
-    workspaceId: session.workspaceKey,
-    title: session.meta.title,
-    ...(session.meta.titleSource === "default" ? {} : { titleSource: session.meta.titleSource }),
-    lastOutcome: ended
-      ? session.phase === "completedSuccess"
-        ? "completed"
-        : "interrupted"
-      : undefined,
-    phase: session.phase,
-    sessionEnded: ended,
-    hasBackgroundWork: false,
-    lastActivityAt: session.lastActivityAt,
-    ...(lastAssistant?.kind === "assistantText" && lastAssistant.text
-      ? { lastAssistantPreview: lastAssistant.text.slice(0, 120) }
-      : {}),
-    createdAt: session.createdAt,
-  };
 }

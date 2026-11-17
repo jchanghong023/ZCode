@@ -1,5 +1,5 @@
 // Context 组成的 v4 线格式（扩展进程 P1）。
-// 规格：apps/zcode-cli/docs/design/v2/model/context-composition.md。
+// 规格：相邻实现。
 //
 // 本文件是线格式的唯一定义：CLI 产出前校验，App 收到后校验，用的是同一组 schema。
 // 本包纪律：只放 schema 与纯函数，不做 IO。

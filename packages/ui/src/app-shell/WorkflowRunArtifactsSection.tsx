@@ -45,14 +45,10 @@ import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
  */
 export const WorkflowRunArtifactsSection = memo(function WorkflowRunArtifactsSection({
   artifacts,
-  sessionId,
-  runId,
   onOpenArtifact,
 }: {
   /** 已确认非空；零件时调用方整区不渲染（「无则缺席」惯例，不留空壳）。 */
   artifacts: readonly WorkflowRunArtifactView[];
-  sessionId: string;
-  runId: string;
   /** 缺席即瓦片禁用（宿主没注入打开 tab 的能力）。 */
   onOpenArtifact?: (artifactId: string) => void;
 }) {
@@ -72,8 +68,6 @@ export const WorkflowRunArtifactsSection = memo(function WorkflowRunArtifactsSec
     <WorkflowArtifactTilePreview
       artifact={artifact}
       key={`${artifact.id}:${artifact.version}`}
-      runId={runId}
-      sessionId={sessionId}
       theme={theme}
     />
   );

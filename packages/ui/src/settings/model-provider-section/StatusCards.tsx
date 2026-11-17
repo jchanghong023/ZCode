@@ -3,8 +3,6 @@ import {
   isStartPlanModelProviderId,
   type UsageEntitlementSubscriptionDetail,
   type UsageQuotaLimit,
-  type ZCodeAccountAccess,
-  type ZCodeProviderAccountAccess,
 } from "@zcode/shared";
 import { InfoIcon, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -12,7 +10,6 @@ import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { logger } from "@/logger.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import { formatQuotaResetTime, isSameLimitCategory } from "@/lib/codingPlanQuotaPresentation.js";
 import {
   type CodingPlanStatus,
@@ -123,7 +120,6 @@ export function CodingPlanStatusPanel({
   statusLabelId,
   statusMessage,
   teamPlanAvailabilityReason,
-  quotaResetAccountAccess,
   onQuotaResetEntitlementRefresh,
 }: {
   providerId: CodingPlanProviderId;
@@ -145,7 +141,6 @@ export function CodingPlanStatusPanel({
   statusLabelId?: string;
   statusMessage?: string | null;
   teamPlanAvailabilityReason?: TeamPlanAvailabilityReason;
-  quotaResetAccountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
   onQuotaResetEntitlementRefresh?: () => void | Promise<void>;
 }) {
   const { intl } = useZCodeIntl();
@@ -361,12 +356,7 @@ export function CodingPlanStatusPanel({
                     />
                   ) : undefined
                 ) : (
-                  <CodingPlanUsageSummaryCards
-                    limits={quotaLimits}
-                    mcpQuotaLimit={mcpQuotaLimit}
-                    preferredProviderId={providerId}
-                    accountAccess={quotaResetAccountAccess}
-                  />
+                  <CodingPlanUsageSummaryCards limits={quotaLimits} mcpQuotaLimit={mcpQuotaLimit} />
                 )
               ) : undefined
             }
@@ -433,19 +423,11 @@ function isStartPlanEntitlementName(planLevel: string): boolean {
 function CodingPlanUsageSummaryCards({
   limits,
   mcpQuotaLimit,
-  preferredProviderId,
-  accountAccess,
 }: {
   limits: UsageQuotaLimit[];
   mcpQuotaLimit: UsageQuotaLimit | null;
-  preferredProviderId: string;
-  accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
 }) {
-  const { intl, locale } = useZCodeIntl();
-  const resetUi = useCodingPlanQuotaResetUi({
-    preferredProviderId,
-    accountAccess,
-  });
+  const { intl } = useZCodeIntl();
   // 配额与权益以服务端读数为准，历史重置不代表当前剩余必然为 100%。
   const fiveHourLimit = findUsageLimit(limits, "TOKENS_LIMIT", 3, 5);
   const weeklyLimit = findUsageLimit(limits, "TOKENS_LIMIT", 6);
@@ -510,34 +492,6 @@ function CodingPlanUsageSummaryCards({
         <h4 className="text-ui-base font-medium text-foreground">
           {intl.formatMessage({ id: "settings.usage.quotaTitle" })}
         </h4>
-        {(
-          [
-            [
-              "settings.usage.entitlementFiveHourUsage",
-              resetUi.snapshot?.latestFiveHourResetHistory?.usedAt,
-            ],
-            [
-              "settings.usage.entitlementWeeklyUsage",
-              resetUi.snapshot?.latestWeekResetHistory?.usedAt,
-            ],
-          ] as const
-        ).map(([labelId, usedAt]) =>
-          usedAt != null ? (
-            <span key={labelId} className="text-ui-xs text-foreground-subtle">
-              {intl.formatMessage({ id: labelId })}
-              {": "}
-              {intl.formatMessage(
-                { id: "codingPlan.quotaReset.completedAt" },
-                {
-                  time: new Intl.DateTimeFormat(locale, {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  }).format(usedAt),
-                },
-              )}
-            </span>
-          ) : null,
-        )}
       </div>
       <div className="flex w-full gap-2 max-sm:flex-col">
         {cards.map((card) => (

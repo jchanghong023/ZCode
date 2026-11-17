@@ -196,7 +196,6 @@ export const argumentSchemas = {
   "models.save": z.tuple([modelSettings, revision]),
   "prompts.save": z.tuple([z.record(z.string(), text), revision]),
   "skillDesign.session": z.tuple([id]),
-  "skillDesign.binding": z.tuple([id]),
   "skillDesign.workspaceIdentity": z.tuple([id]),
   "skillDesign.read": z.tuple([id]),
   "skillDesign.saveDraft": z.tuple([id, draft]),

@@ -33,6 +33,7 @@ export const THEME_MODES: Array<{
   mode: Theme;
   icon: typeof Sun;
 }> = [
+  { mode: "zai-motion", icon: WandSparkles },
   { mode: "system", icon: Monitor },
   { mode: "zai-dark", icon: Moon },
   { mode: "zai-light", icon: Sun },
@@ -81,7 +82,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     groupId: "basics",
   },
   // 个性化（用户自定义指令）是 Agent 能力组的第一项：编辑 ~/.zcode/AGENTS.md，
-  // 对所有会话生效（spec：docs/ui/settings-personalization.md）。
+  // 对所有会话生效。
   {
     id: "personalization",
     icon: User,
@@ -150,7 +151,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.workspaceFileSearch.title",
     groupId: "basics",
   },
-  // 数据同步是「数据与统计」的第一项（docs/remote/data-sync.md），仅桌面端显示。
+  // 数据同步是「数据与统计」的第一项，仅桌面端显示。
   {
     id: "dataSync",
     icon: RefreshCw,
@@ -164,7 +165,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.usageTitle",
     groupId: "dataAndStats",
   },
-  // 项目管理排在归档管理之前（docs/superpowers/specs/2026-10-24-project-management.md）。
+  // 项目管理排在归档管理之前。
   {
     id: "projects",
     icon: Folders,

@@ -1,6 +1,6 @@
 # Composer 编辑态
 
-编辑最后一条消息与排队消息都复用底部 composer（产品规则见 [composer-edit-mode.md](../../../../docs/ui/composer-edit-mode.md)）。
+编辑最后一条消息与排队消息都复用底部 composer。
 本模块只拥有发起端 renderer 的编辑态：编辑目标、edit scope 与状态条；不新增权威数据源。
 
 - **单一 owner**：失效只读 CLI 投影（`row.actions.canEdit`、queue item、`queueItem.editLock`）；队列冻结锁由 CLI 裁决，

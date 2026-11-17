@@ -123,7 +123,7 @@ export const userInputRowSchema = z.object({
   botGroupSource: botGroupInputSourceSchema.optional(),
   conversationQuotes: conversationQuotesSchema.optional(),
   // 该输入提交时的执行配置（canonical intent 原样投影）：编辑最后一条消息时载入工具栏，
-  // 与排队项编辑一致（docs/ui/composer-edit-mode.md）。旧输入缺省，客户端沿用当前配置。
+  // 与排队项编辑一致。旧输入缺省，客户端沿用当前配置。
   modelSelection: modelSelectionSchema.optional(),
   mode: submissionModeSchema.optional(),
   planEnabled: z.boolean().optional(),
@@ -391,7 +391,7 @@ export const timelineMarkerPayloadSchema = z.union([
     toModel: z.string(),
     toThought: z.string(),
   }),
-  // 受管 worktree 的创建结果，出现在 worktree 任务第一轮（docs/git/worktree.md §6.6.4）。
+  // 受管 worktree 的创建结果，出现在 worktree 任务第一轮。
   z.object({
     type: z.literal("worktreeCreated"),
     path: z.string(),
@@ -531,7 +531,7 @@ export function isWireConversationRow(row: ConversationRow): row is WireConversa
 }
 
 /**
- * rows.window 的「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。
+ * rows.window 的「冻结历史 + 尾轮」分区。
  *
  * 只是行数组的视图类型，不上 wire，没有 schema；构造与缓存在 renderer 的 conversationProjectionStore。
  * 放在这里是为了让插件 UI 等 domain 层只依赖协议类型，不依赖 v4 store。

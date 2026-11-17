@@ -66,7 +66,7 @@ export class ProjectAccessTokenError extends Error {
 
 /**
  * I/O adapter 确认的请求失败类别；只保留类别与 HTTP 状态码，不携带原始响应、URL、Token 或 cause。
- * 失败码映射见 docs/model-provider-project-access-token.md「换证失败错误码」。
+ * 失败码映射见 相邻实现「换证失败错误码」。
  */
 export type ProjectAccessTokenRequestFailure =
   | { readonly kind: "network" }

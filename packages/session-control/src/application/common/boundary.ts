@@ -75,7 +75,7 @@ export async function authorize<R extends SessionRef, S extends Scope>(
 ): Promise<AccessGrant<S>> {
   assertActive(ctx);
   // 调用方所在的 facade 由判别字段决定：客户端类只存在于 App 上下文，它没有根会话；
-  // 会话类看根会话的 kind（docs/plugins/extension-host.md §17.2）。
+  // 会话类看根会话的 kind。
   const surface = ctx.caller === "client" ? "app" : ctx.rootSession.kind;
   // 列表发现曾误用操作权限而漏掉其他项目。仅此两种意图选择 discovery，owner 仍接收原 ctx。
   const discoveryScopes =

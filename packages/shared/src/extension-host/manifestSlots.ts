@@ -14,7 +14,7 @@ import {
   type SlotTargetKind,
 } from "#src/extension-host/slots.js";
 
-// 清单顶层 `slots`（docs/plugins/extension-host.md §16.2）：按插槽 id 分组的入口条目，
+// 清单顶层 `slots`：按插槽 id 分组的入口条目，
 // 带扩展的插件与只有 MCP App 的插件写法相同。容错规则：
 // - 未知插槽 id：忽略并记一条诊断（向前兼容），不影响插件的其他部分。
 // - 条目内的未知字段、超出每插件上限、target 不被插槽接受：只有该条目不可用，带字段路径。

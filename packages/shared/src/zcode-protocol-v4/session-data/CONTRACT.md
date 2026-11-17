@@ -1,6 +1,6 @@
 # protocol-session-data
 
-`v4/storage/sessionData/measure` 与 `v4/storage/sessionData/purge` 的载荷 schema：Host 为「设置 → 项目」的彻底删除数据向 CLI 测量、删除会话与目录记忆。规格见 `docs/superpowers/specs/2026-10-24-project-management.md`「彻底删除数据」。
+`v4/storage/sessionData/measure` 与 `v4/storage/sessionData/purge` 的载荷 schema：Host 为「设置 → 项目」的彻底删除数据向 CLI 测量、删除会话与目录记忆。仅保留协议定义，当前浏览器项目设置不提供此宿主删除能力。
 
 不变量：
 

@@ -80,11 +80,11 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
   const { toolCall } = context.toolCallNode;
   const amend = isAmendWorkflowToolCall(toolCall);
   const amendTarget = amend ? readWorkflowAmendTarget(toolCall.input) : undefined;
-  // 留白补全行（docs/dynamic-workflow/presentation.md「The fill row」）：同一个渲染器换留白词汇（workflow-fill-row.tsx）。
+  // 留白补全行：同一个渲染器换留白词汇（workflow-fill-row.tsx）。
   const { fill, holeTarget, vocabulary } = useWorkflowHoleRow(toolCall, amend);
 
   const display = useMemo(() => readWorkflowDisplay(toolCall.raw), [toolCall.raw]);
-  // 在途的词（docs/dynamic-workflow/concurrency.md）：只改并发上限的调用不写脚本、也不编译，
+  // 在途的词：只改并发上限的调用不写脚本、也不编译，
   // 「正在校验工作流」对它不成立。整行退成设置行是**结算之后**的事，由接线层按同一个入参形状裁
   // （ConversationRowView），这里只管在途这几个词。
   const retuning = amend && readWorkflowRetuneCall(toolCall.input) !== undefined;

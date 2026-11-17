@@ -46,7 +46,7 @@ export interface WorkflowTurnDigest {
   settings?: { amend: WorkflowSettingsAmendMeta; at?: number };
   /**
    * **只出那一行、不出卡**：就地生效的设置轮（只改并发上限、run 又在飞，`amend` 不带
-   * `predecessorRunId`；docs/dynamic-workflow/concurrency.md）。它点名的 run 没有被替代、身份没变，
+   * `predecessorRunId`；相邻实现）。它点名的 run 没有被替代、身份没变，
    * 卡已经在它启动的那一轮里——这里再画一张会读成第二次运行。恒与 `settings` 同在。
    */
   rowOnly?: true;
@@ -73,7 +73,7 @@ export function resolveWorkflowTurnDigests(
 ): WorkflowTurnDigest[] {
   const digests: WorkflowTurnDigest[] = [];
   const seen = new Set<string>();
-  // 图是 run 的属性（docs/dynamic-workflow/presentation.md「Holes on the timeline」的「The model」）：
+  // 图是 run 的属性：
   // 补全过的 run 取最新补全行的图，否则按发起 toolCallId。
   const graphOf = (originToolCallId: string | undefined, runId: string) =>
     join.fillGraphByRunId?.get(runId)?.graph ??

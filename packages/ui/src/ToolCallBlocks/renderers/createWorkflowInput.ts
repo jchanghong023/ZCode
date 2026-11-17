@@ -35,7 +35,7 @@ export function readWorkflowKindMessageId(
   amend: WorkflowKindVocabulary = false,
   /**
    * 这次调用只在调并发上限（`isWorkflowRetuneInput`）：不写脚本、也不编译，所以在途期一个字都不
-   * 能提「校验」（docs/dynamic-workflow/concurrency.md）。修订词表的 `writing`「正在调整工作流」
+   * 能提「校验」。修订词表的 `writing`「正在调整工作流」
    * 对它恒真——无论最后是就地生效还是（run 已结算时）退回一次真修订——所以整个在途期都用它，
    * 不为一个只活几百毫秒的相位新造一个词。待确认另说：那一相在场时它自己的词更有信息量。
    */
@@ -104,7 +104,7 @@ const AMEND_KIND_IDS: WorkflowKindIds = {
   draft: "chat.toolCall.workflow.amend.draft",
 };
 
-/** 留白补全词汇（docs/dynamic-workflow/presentation.md「The fill row」）；校验中同样沿用创建的词。 */
+/** 留白补全词汇；校验中同样沿用创建的词。 */
 const HOLE_KIND_IDS: WorkflowKindIds = {
   writing: "chat.toolCall.workflow.hole.writing",
   revising: "chat.toolCall.workflow.hole.revising",
@@ -192,7 +192,7 @@ export function readWorkflowMaxConcurrency(input: unknown): number | undefined {
 
 /**
  * 这次 `AmendWorkflow` 调用**只在调并发上限**：`run_id` + `max_concurrency`，没有任何脚本来源、
- * 也不改模型、不改名字。run 还在飞时这样的调用就地生效（docs/dynamic-workflow/concurrency.md）：
+ * 也不改模型、不改名字。run 还在飞时这样的调用就地生效：
  * 不停这次 run、不铸新 run、不编译，结果只有一句话，连 display 都没有。
  *
  * **入参是这条事实在线上的唯一落点**：工具的结构化输出不过 v4（只有 `text` 与 `display`），而
@@ -231,7 +231,7 @@ export function readWorkflowRetuneCall(input: unknown): WorkflowRetuneCall | und
 }
 
 /**
- * `subagent_model`：这次 run 的**子代理**跑在哪个模型上（docs/dynamic-workflow/launch.md）。
+ * `subagent_model`：这次 run 的**子代理**跑在哪个模型上。
  * 与 `max_concurrency` 同一条纪律：Create 与 Amend 是同一个字段名，读取规则也只有一份。
  *
  * 只认非空字符串：Amend 的 `null`（退回会话模型）与缺席在确认窗里是同一件事——子代理跟随
@@ -268,7 +268,7 @@ export interface WorkflowAdjustableSettings {
 }
 
 /**
- * 确认窗可调的两项设置（docs/dynamic-workflow/launch.md「Adjusting the settings in the window」）。
+ * 确认窗可调的两项设置。
  * 走入参而不是 display：display 的字段集冻结，多一个键旧端会整块丢掉。块缺席即旧 agent——它不会
  * 应用窗里改的值，确认窗就照旧只画纯文本条件行。
  */

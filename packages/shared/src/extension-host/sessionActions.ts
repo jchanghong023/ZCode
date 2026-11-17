@@ -5,7 +5,7 @@ import type {
   ExtensionCapabilityTable,
 } from "#src/extension-host/capabilities.js";
 
-// ctx.sessions 上 call 动作的入参与返回（docs/plugins/extension-host.md §17.9，类型包 /sessions 入口）。
+// ctx.sessions 上 call 动作的入参与返回。
 // 由能力表推导，与 ctx 成员同一份类型；新增会话动作时这里不用改。
 // 会话引用直接用 session-control 的类型：读出来的引用原样传给写动作（§17.6）。
 export type {

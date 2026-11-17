@@ -10,7 +10,7 @@ import {
 } from "@/components/workflow-timeline/WorkflowCompletionArtifacts.js";
 import type { WorkflowCompletionArtifact } from "@/components/workflow-timeline/WorkflowArtifactTile.js";
 import {
-  useWorkflowRunArtifacts,
+  artifactViewsFromSummaries,
   type WorkflowRunArtifactView,
 } from "@/hooks/useWorkflowRunArtifacts.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
@@ -102,7 +102,6 @@ export function ConversationWorkflowCompletion({
     <WorkflowCompletionWithData
       completion={completion}
       live={run?.artifacts}
-      sessionId={sessionId}
       shared={shared}
       theme={context.theme}
       {...(openArtifactFrom === undefined ? {} : { openArtifactFrom })}
@@ -158,7 +157,6 @@ function WorkflowCompletionWithData({
   completion,
   live,
   openArtifactFrom,
-  sessionId,
   shared,
   theme,
 }: {
@@ -168,30 +166,19 @@ function WorkflowCompletionWithData({
   openArtifactFrom?: (
     artifacts: readonly WorkflowCompletionArtifact[],
   ) => (artifactId: string) => void;
-  sessionId: string;
   shared: Omit<Parameters<typeof WorkflowCompletionCard>[0], "artifacts" | "renderPreview">;
   theme: ConversationRowRenderContext["theme"];
 }) {
-  const state = useWorkflowRunArtifacts({
-    sessionId,
-    runId: completion.runId,
-    ...(live === undefined ? {} : { live }),
-  });
+  const views = useMemo(() => artifactViewsFromSummaries(live ?? []), [live]);
   const artifacts = useMemo(
-    () => mergeCompletionArtifacts(completion.artifacts, state.artifacts),
-    [completion.artifacts, state.artifacts],
+    () => mergeCompletionArtifacts(completion.artifacts, views),
+    [completion.artifacts, views],
   );
-  // `artifactsTruncated` 说的是**通知载荷**被砍在 8 件，而这里画的清单已经由活投影 /
-  // journal 补齐（产物多的 run 是常态），`+N` 与「还有 N 个」却仍按载荷的旗子写成省略号——用户看到的
-  // 是「还有 … 个」，而数字明明已经知道。清单完整时旗子作废；只有老 CLI（查不到 journal）或还没
-  // 答上来时才仍是省略号，那时数字确实不可知。
-  const artifactsTruncated = shared.artifactsTruncated === true && !state.complete;
+  const artifactsTruncated = shared.artifactsTruncated === true && live === undefined;
   const renderPreview = (artifact: WorkflowCompletionArtifact) => (
     <WorkflowArtifactTilePreview
       artifact={artifact}
       key={`${artifact.id}:${artifact.version ?? 1}`}
-      runId={completion.runId}
-      sessionId={sessionId}
       theme={theme}
     />
   );

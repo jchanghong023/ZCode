@@ -92,7 +92,7 @@ export function timelineHeight(model: WorkflowTimelineModel): number {
   return rows.pillsTop + Math.max(0, ...model.stations.map(stationHeight)) + 8;
 }
 
-/** 有补全的时间线才有头那一行（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。 */
+/** 有补全的时间线才有头那一行。 */
 function hasFillHeads(model: Pick<WorkflowTimelineModel, "fills">): boolean {
   return (model.fills?.length ?? 0) > 0;
 }
@@ -123,7 +123,7 @@ export interface WorkflowTimelineProps {
    */
   onOpenWorkspace?: (pill: TimelinePill) => void;
   /**
-   * 点一次补全的头（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：开侧板、落到补全的
+   * 点一次补全的头：开侧板、落到补全的
    * 标题（它写下的第一站）。缺席即头不是控件。
    */
   onOpenFill?: (fill: TimelineFill) => void;
@@ -162,7 +162,7 @@ export const WorkflowTimeline = memo(function WorkflowTimeline({
   // 行的排布：有带时主线落在最下面
   // 一行、分支叠在它上面、站头搬到站台行；没有带时整套式子逐像素退回从前的「弧道 + 轨道行」，
   // DOM 也走原来那一支。
-  // 补全（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：有头时最上面多一行 24px；尾巴
+  // 补全：有头时最上面多一行 24px；尾巴
   // 留白在末站之后多 40px；指针或键盘焦点落在哪个**头**上（`data-fill-head`，无阶段补全的笔标也是）由根节点
   // 委托得出，那一个框据此画出。站与药丸不点亮任何东西——修复原因见 timeline-frames.ts。
   const fills = (model.fills ?? []).filter((fill) => fill.to < n);
@@ -344,7 +344,7 @@ export const WorkflowTimeline = memo(function WorkflowTimeline({
           style={mask}
         >
           <div className="relative" style={{ height, width }}>
-            {/* 补全的框（在一切之下）与头（在头那一行）：docs/dynamic-workflow/presentation.md「Holes on the timeline」。 */}
+            {/* 补全的框（在一切之下）与头（在头那一行）：相邻实现「Holes on the timeline」。 */}
             <WorkflowTimelineFills
               active={fillTarget.active}
               fills={fills}

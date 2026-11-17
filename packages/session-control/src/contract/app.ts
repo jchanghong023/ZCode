@@ -70,7 +70,7 @@ export const appCreateSessionInputSchema = withRequestIdentity(
     model: modelSchema.optional(),
     requestId: requestIdSchema,
   },
-  // mode 只给客户端（扩展，docs/plugins/extension-host.md §17.12）：只进端口，不进工具面；会话类带它由 App owner 拒绝。
+  // mode 只给客户端：只进端口，不进工具面；会话类带它由 App owner 拒绝。
   { mode: appClientSessionModeSchema.optional() },
 );
 export const appForkSessionInputSchema = withSessionTarget(appSessionRefSchema, {
