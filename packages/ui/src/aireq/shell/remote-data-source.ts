@@ -194,7 +194,7 @@ export async function createRemoteAIReqDataSource(
         await refreshMetadata();
         eventError = undefined;
       }
-      selection = { ...target };
+      // 只读详情查询不能夺取主区默认选择；并行Tab始终使用显式目标。
       const result = await call("readWorkflow", [target], target);
       snapshots.set(result.view, {
         key: JSON.stringify(target),
@@ -244,9 +244,9 @@ export async function createRemoteAIReqDataSource(
     retrySession: async (target) => {
       await call("retrySession", [target], target);
     },
-    readPrHandoff: (target) => call("readPrHandoff", [target]),
+    readPrHandoff: (target) => call("readPrHandoff", [target], target),
     selectProject(projectId) {
-      selection = { ...selection, projectId };
+      selection = { projectId };
     },
     dispose() {
       disposed = true;
@@ -254,16 +254,21 @@ export async function createRemoteAIReqDataSource(
     },
     progress: {
       recordTest: async (...args) => {
-        await call("progress.recordTest", args);
+        await call("progress.recordTest", args, {
+          projectId: args[0],
+          irId: args[1],
+          srId: args[2],
+        });
       },
-      cleanupPreview: (...args) => call("progress.cleanupPreview", args),
+      cleanupPreview: (...args) =>
+        call("progress.cleanupPreview", args, { projectId: args[0], irId: args[1] }),
       cleanupBranches: async (...args) => {
-        await call("progress.cleanupBranches", args);
+        await call("progress.cleanupBranches", args, { projectId: args[0], irId: args[1] });
       },
     },
     planning: {
       updateSr: async (...args) => {
-        await call("planning.updateSr", args);
+        await call("planning.updateSr", args, { projectId: args[0], irId: args[1], srId: args[2] });
       },
     },
     projects: {

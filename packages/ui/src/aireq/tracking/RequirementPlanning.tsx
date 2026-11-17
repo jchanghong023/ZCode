@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.js";
 import { useAIReq } from "../AIReqContext.js";
+import { useAIReqWorkspaceActive } from "../shell/ModelSettingsNavigationContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
 import { hasCurrentProposalSolution } from "../contract.js";
@@ -115,6 +116,7 @@ export function AIReqEditPlanning({
   onDialogOpenChange?: (open: boolean) => void;
 }) {
   const source = useAIReqDataSource();
+  const active = useAIReqWorkspaceActive();
   const aireq = useAIReq()!;
   const id = useId();
   const [open, setDialogOpen] = useState(false);
@@ -207,13 +209,19 @@ export function AIReqEditPlanning({
       >
         {compact ? (sr.developerEmployeeId ?? "分配开发／测试负责人") : "调整分工与计划"}
       </Button>
+      {/* 隐藏 Tab 仍持有草稿；Portal 可见性独立于本地开关，避免跨 Tab 弹窗。 */}
       <Dialog
-        open={open}
+        open={active && open}
         onOpenChange={(value) => {
-          if (!value) requestClose();
+          if (active && !value) requestClose();
         }}
       >
-        <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-lg">
+        <DialogContent
+          className="max-h-[85dvh] overflow-auto sm:max-w-lg"
+          onCloseAutoFocus={(event) => {
+            if (!active) event.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>调整开发／测试分工与计划</DialogTitle>
             <DialogDescription>
@@ -377,9 +385,9 @@ export function AIReqEditPlanning({
         </DialogContent>
       </Dialog>
       <AlertDialog
-        open={discard}
+        open={active && discard}
         onOpenChange={(value) => {
-          if (!saving) {
+          if (active && !saving) {
             setDiscard(value);
             if (!value) pendingNavigation.current = null;
           }
@@ -387,6 +395,10 @@ export function AIReqEditPlanning({
       >
         <AlertDialogContent
           onCloseAutoFocus={(event) => {
+            if (!active) {
+              event.preventDefault();
+              return;
+            }
             // 受控确认没有 Trigger；继续编辑或校验失败时由原表单明确恢复焦点。
             if (returnFocus.current?.isConnected) {
               event.preventDefault();

@@ -1,3 +1,5 @@
+import { AIReqSidePaneProvider } from "../side-pane/AIReqSidePaneContext.js";
+import { AIReqSidePaneHost } from "../side-pane/AIReqSidePaneHost.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -53,7 +55,14 @@ function readSettingsSection(): Section {
   }
 }
 
-export function AIReqShell({ onLogout }: { onLogout(): void }) {
+export function AIReqShell(props: { onLogout(): void }) {
+  return (
+    <AIReqSidePaneProvider>
+      <AIReqShellContent {...props} />
+    </AIReqSidePaneProvider>
+  );
+}
+function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -233,101 +242,107 @@ export function AIReqShell({ onLogout }: { onLogout(): void }) {
             onHelp={openHelp}
           />
         </nav>
-        <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background">
-          {/* 讨论页已移除页头，原48px占位也应归还聊天与材料面板；业务列表仍保留标题基线。 */}
-          {(ai.mainView !== "chat" || formal) && (
-            <div className="h-12 shrink-0" aria-hidden="true" />
-          )}
-          {ai.linkError && (
-            <div
-              role="alert"
-              className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-            >
-              {ai.linkError}
-              <Button variant="ghost" onClick={ai.clearLinkError}>
-                {zh ? "关闭" : "Dismiss"}
-              </Button>
-            </div>
-          )}
-          {ai.error && (
-            <div
-              role="alert"
-              className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-            >
-              {ai.error}
-              <Button variant="ghost" onClick={() => void ai.refresh()}>
-                {zh ? "重试" : "Retry"}
-              </Button>
-            </div>
-          )}
-          <ModelSettingsNavigationContext.Provider value={openModelSettings}>
-            <AIReqWorkspaceActiveContext.Provider value={!settingsOpen}>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {!ai.view && ai.pending ? (
-                  <div role="status" className="m-auto">
-                    {zh ? "正在读取项目…" : "Loading projects…"}
-                  </div>
-                ) : ai.mainView !== "skillDesign" ? (
-                  content
-                ) : null}
-                {(todosMounted || ai.mainView === "todos") && (
-                  <div
-                    hidden={ai.mainView !== "todos"}
-                    inert={ai.mainView !== "todos" || settingsOpen}
-                    aria-hidden={ai.mainView !== "todos"}
-                    className={ai.mainView === "todos" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
-                  >
-                    {/* 保留来源列表挂载，详情返回时筛选与滚动位置不再重置。 */}
-                    <AIReqTodoPage key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`} />
-                  </div>
-                )}
-                {(proposalsMounted || ai.mainView === "proposals") && (
-                  <>
-                    {ai.mainView === "proposals" && listLoading && listFeedback}
+        <AIReqSidePaneHost>
+          <div className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background">
+            {/* 讨论页已移除页头，原48px占位也应归还聊天与材料面板；业务列表仍保留标题基线。 */}
+            {(ai.mainView !== "chat" || formal) && (
+              <div className="h-12 shrink-0" aria-hidden="true" />
+            )}
+            {ai.linkError && (
+              <div
+                role="alert"
+                className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+              >
+                {ai.linkError}
+                <Button variant="ghost" onClick={ai.clearLinkError}>
+                  {zh ? "关闭" : "Dismiss"}
+                </Button>
+              </div>
+            )}
+            {ai.error && (
+              <div
+                role="alert"
+                className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+              >
+                {ai.error}
+                <Button variant="ghost" onClick={() => void ai.refresh()}>
+                  {zh ? "重试" : "Retry"}
+                </Button>
+              </div>
+            )}
+            <ModelSettingsNavigationContext.Provider value={openModelSettings}>
+              <AIReqWorkspaceActiveContext.Provider value={!settingsOpen}>
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  {!ai.view && ai.pending ? (
+                    <div role="status" className="m-auto">
+                      {zh ? "正在读取项目…" : "Loading projects…"}
+                    </div>
+                  ) : ai.mainView !== "skillDesign" ? (
+                    content
+                  ) : null}
+                  {(todosMounted || ai.mainView === "todos") && (
                     <div
-                      hidden={ai.mainView !== "proposals" || !project || listLoading}
-                      inert={ai.mainView !== "proposals" || !project || listLoading || settingsOpen}
-                      aria-hidden={ai.mainView !== "proposals" || !project || listLoading}
+                      hidden={ai.mainView !== "todos"}
+                      inert={ai.mainView !== "todos" || settingsOpen}
+                      aria-hidden={ai.mainView !== "todos"}
                       className={
-                        ai.mainView === "proposals" && project && !listLoading
-                          ? "flex min-h-0 flex-1 flex-col"
+                        ai.mainView === "todos" ? "flex min-h-0 flex-1 flex-col" : "hidden"
+                      }
+                    >
+                      {/* 保留来源列表挂载，详情返回时筛选与滚动位置不再重置。 */}
+                      <AIReqTodoPage key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`} />
+                    </div>
+                  )}
+                  {(proposalsMounted || ai.mainView === "proposals") && (
+                    <>
+                      {ai.mainView === "proposals" && listLoading && listFeedback}
+                      <div
+                        hidden={ai.mainView !== "proposals" || !project || listLoading}
+                        inert={
+                          ai.mainView !== "proposals" || !project || listLoading || settingsOpen
+                        }
+                        aria-hidden={ai.mainView !== "proposals" || !project || listLoading}
+                        className={
+                          ai.mainView === "proposals" && project && !listLoading
+                            ? "flex min-h-0 flex-1 flex-col"
+                            : "hidden"
+                        }
+                      >
+                        <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
+                      </div>
+                    </>
+                  )}
+                  {skillMounted && (
+                    <div
+                      hidden={ai.mainView !== "skillDesign"}
+                      inert={ai.mainView !== "skillDesign" || settingsOpen}
+                      aria-hidden={ai.mainView !== "skillDesign"}
+                      className={
+                        ai.mainView === "skillDesign"
+                          ? "flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable_both-edges]"
                           : "hidden"
                       }
                     >
-                      <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
+                      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} shrink-0 pb-6 lg:pb-6`}>
+                        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
+                          {zh ? "Skill 设计" : "Skill design"}
+                        </h1>
+                      </div>
+                      <AIReqWorkspaceActiveContext.Provider
+                        value={ai.mainView === "skillDesign" && !settingsOpen}
+                      >
+                        <AIReqSkillDesignPage
+                          active={ai.mainView === "skillDesign" && !settingsOpen}
+                          onDraftActionsChange={setSkillActions}
+                        />
+                      </AIReqWorkspaceActiveContext.Provider>
                     </div>
-                  </>
-                )}
-                {skillMounted && (
-                  <div
-                    hidden={ai.mainView !== "skillDesign"}
-                    inert={ai.mainView !== "skillDesign" || settingsOpen}
-                    aria-hidden={ai.mainView !== "skillDesign"}
-                    className={
-                      ai.mainView === "skillDesign"
-                        ? "flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable_both-edges]"
-                        : "hidden"
-                    }
-                  >
-                    <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} shrink-0 pb-6 lg:pb-6`}>
-                      <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
-                        {zh ? "Skill 设计" : "Skill design"}
-                      </h1>
-                    </div>
-                    <AIReqWorkspaceActiveContext.Provider
-                      value={ai.mainView === "skillDesign" && !settingsOpen}
-                    >
-                      <AIReqSkillDesignPage
-                        active={ai.mainView === "skillDesign" && !settingsOpen}
-                        onDraftActionsChange={setSkillActions}
-                      />
-                    </AIReqWorkspaceActiveContext.Provider>
-                  </div>
-                )}
-              </div>
-            </AIReqWorkspaceActiveContext.Provider>
-          </ModelSettingsNavigationContext.Provider>
-        </div>
+                  )}
+                </div>
+              </AIReqWorkspaceActiveContext.Provider>
+            </ModelSettingsNavigationContext.Provider>
+          </div>
+        </AIReqSidePaneHost>
       </div>
       {settingsMounted && (
         <div

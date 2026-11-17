@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -26,14 +26,12 @@ import {
   MarkdownTableHeader,
   MarkdownTableRow,
 } from "@/components/ai-elements/markdown-table.js";
-import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
-import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
-import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { useAIReq } from "../AIReqContext.js";
+import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
+import type { AIReqSidePaneKind } from "../side-pane/contract.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
 import { irPlanning, planningDate, planningWarnings } from "../contract.js";
 import {
@@ -47,13 +45,12 @@ import {
 import type { AIReqRequirementGroup, AIReqSystemRequirement } from "../contract.js";
 import { BranchCopy } from "./BranchCopy.js";
 import { TrackingTableScroll } from "./TrackingTableScroll.js";
-import { AIReqFormalReport } from "./formal/FormalReport.js";
-import { AIReqFormalHistory } from "./formal/FormalHistory.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
 
-// 表格始终由工作区固定挂载；筛选、展开和复制反馈留在本 owner，切行仅更新右侧报告。
+// 表格与主区选择保持独立；点击对象只打开统一侧栏的目标 Tab，不重置筛选或浏览器历史。
 export function AIReqFormalTable() {
   const aireq = useAIReq()!;
+  const sidePane = useAIReqSidePane();
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const [query, setQuery] = useState("");
@@ -77,12 +74,19 @@ export function AIReqFormalTable() {
     (group) => group.projectId === aireq.selection.projectId && group.releaseId === aireq.releaseId,
   );
   const normalized = query.trim().toLocaleLowerCase();
+  const selectedTarget =
+    sidePane.activeTab?.releaseId === aireq.releaseId ? sidePane.activeTab.selection : undefined;
   const open = (group: AIReqRequirementGroup, sr?: AIReqSystemRequirement) =>
-    aireq.select({
-      projectId: group.projectId,
-      irId: group.id,
-      srId: sr?.id,
-      formalView: "detail",
+    sidePane.open({
+      kind: "report",
+      selection: {
+        projectId: group.projectId,
+        irId: group.id,
+        srId: sr?.id,
+        formalView: "detail",
+      },
+      releaseId: group.releaseId,
+      title: sr?.title ?? group.title,
     });
   const matches = (id: string, title: string) =>
     !normalized || `${id} ${title}`.toLocaleLowerCase().includes(normalized);
@@ -206,7 +210,10 @@ export function AIReqFormalTable() {
                 const showChildren = filteringChildren
                   ? (filteredExpansion[expansionKey] ?? true)
                   : expanded.has(group.id);
-                const selected = aireq.selection.irId === group.id && !aireq.selection.srId;
+                const selected =
+                  selectedTarget?.projectId === group.projectId &&
+                  selectedTarget.irId === group.id &&
+                  !selectedTarget?.srId;
                 const plan = irPlanning(srs);
                 const developers = [
                   ...new Set(
@@ -319,9 +326,11 @@ export function AIReqFormalTable() {
                             key={sr.id}
                             data-sr-id={sr.id}
                             aria-selected={
-                              aireq.selection.irId === group.id && aireq.selection.srId === sr.id
+                              selectedTarget?.projectId === group.projectId &&
+                              selectedTarget.irId === group.id &&
+                              selectedTarget?.srId === sr.id
                             }
-                            className={`group/row cursor-pointer ${aireq.selection.irId === group.id && aireq.selection.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                            className={`group/row cursor-pointer ${selectedTarget?.projectId === group.projectId && selectedTarget.irId === group.id && selectedTarget?.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-surface hover:bg-hover [--formal-row-fill:var(--color-surface)] hover:[--formal-row-fill:var(--color-hover)]"}`}
                             onClick={() => open(group, sr)}
                           >
                             <MarkdownTableCell
@@ -595,6 +604,17 @@ function FormalActions({
 }) {
   const [open, setOpen] = useState(false);
   const aireq = useAIReq()!;
+  const sidePane = useAIReqSidePane();
+  const { locale } = useZCodeIntl();
+  const openDetailTab = (kind: AIReqSidePaneKind) => {
+    setOpen(false);
+    sidePane.open({
+      kind,
+      selection: { projectId: group.projectId, irId: group.id, srId: sr?.id, formalView: "detail" },
+      releaseId: group.releaseId,
+      title: sr?.title ?? group.title,
+    });
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
@@ -623,13 +643,29 @@ function FormalActions({
           <Button
             size="sm"
             variant="ghost"
-            className="w-full justify-start"
+            className="w-full justify-start focus-visible:border-remote-foreground-muted"
             onClick={() => {
               setOpen(false);
               onDetail();
             }}
           >
             查看详情
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full justify-start focus-visible:border-remote-foreground-muted"
+            onClick={() => openDetailTab("materials")}
+          >
+            {locale === "zh-CN" ? "查看需求材料" : "View materials"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full justify-start focus-visible:border-remote-foreground-muted"
+            onClick={() => openDetailTab("history")}
+          >
+            {locale === "zh-CN" ? "查看讨论／评审历史" : "View discussion and review history"}
           </Button>
           {sr && (
             <>
@@ -669,108 +705,42 @@ function FormalActions({
   );
 }
 
-const formalTablePanels = ["formal-table"];
-const formalDetailPanels = ["formal-table", "formal-inspector"];
-
+/** 显式对象链接只接纳一次报告目标；普通行点击由表格直接打开 Tab。 */
 export function AIReqFormalWorkspace() {
   const aireq = useAIReq()!;
-  const { locale } = useZCodeIntl();
-  const detail =
-    aireq.selection.formalView !== "list" &&
-    Boolean(
-      aireq.view?.groups.some(
-        (group) =>
-          group.projectId === aireq.selection.projectId &&
-          group.id === aireq.selection.irId &&
-          group.releaseId === aireq.releaseId,
-      ),
+  const { open } = useAIReqSidePane();
+  const routedTarget = useRef<string | undefined>(undefined);
+  const { projectId, irId, srId, formalView } = aireq.selection;
+  const selectedGroup = aireq.view?.groups.find(
+    (group) =>
+      group.projectId === projectId && group.id === irId && group.releaseId === aireq.releaseId,
+  );
+  const releaseId = selectedGroup?.releaseId;
+  const title =
+    (srId
+      ? aireq.view?.srs.find(
+          (sr) => sr.projectId === projectId && sr.irId === irId && sr.id === srId,
+        )?.title
+      : undefined) ?? selectedGroup?.title;
+  const ready = aireq.selectionReady;
+  useEffect(() => {
+    if (!irId || formalView === "list") {
+      routedTarget.current = undefined;
+      return;
+    }
+    if (!ready || !projectId || !releaseId || !title) return;
+    const key = JSON.stringify([projectId, releaseId, irId, srId]);
+    if (routedTarget.current === key) return;
+    routedTarget.current = key;
+    open(
+      {
+        kind: "report",
+        selection: { projectId, irId, srId, formalView: "detail" },
+        releaseId,
+        title,
+      },
+      { ifAbsent: true },
     );
-  return (
-    <ResizablePanelGroup
-      layoutId="aireq-formal-progress-layout-v4"
-      panelIds={detail ? formalDetailPanels : formalTablePanels}
-      className="min-h-0 flex-1"
-    >
-      <ResizablePanel id="formal-table" minSize="400px" defaultSize={detail ? undefined : "100%"}>
-        <AIReqFormalTable />
-      </ResizablePanel>
-      {detail && (
-        <>
-          <ResizableHandle />
-          <ResizablePanel id="formal-inspector" minSize="320px" maxSize="45%" defaultSize="30%">
-            <Tabs
-              defaultValue="report"
-              className="h-full min-h-0 gap-0 overflow-hidden rounded-xl border border-border bg-background"
-            >
-              <AIReqRequirementContext />
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-                <TabsList variant="line" aria-label="需求详情">
-                  <TabsTrigger value="report">进度报告</TabsTrigger>
-                  <TabsTrigger value="materials">
-                    <FileText className="size-3.5" />
-                    需求材料
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="history"
-                    aria-label={
-                      locale === "zh-CN" ? "讨论与评审历史" : "Discussion and review history"
-                    }
-                  >
-                    {locale === "zh-CN" ? "讨论／评审" : "History"}
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              {aireq.error && (
-                <div
-                  role="alert"
-                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 text-ui-sm text-destructive"
-                >
-                  <span className="min-w-0 flex-1 break-words">{aireq.error}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={aireq.pending}
-                    onClick={() => void aireq.refresh()}
-                  >
-                    重试
-                  </Button>
-                </div>
-              )}
-              <TabsContent value="report" className="min-h-0 flex-1 overflow-hidden">
-                {aireq.selectionReady ? (
-                  <AIReqFormalReport />
-                ) : (
-                  <FormalDetailLoading failed={Boolean(aireq.error)} />
-                )}
-              </TabsContent>
-              <TabsContent value="materials" className="min-h-0 flex-1 overflow-hidden">
-                {aireq.selectionReady ? (
-                  <AIReqMaterialsPane />
-                ) : (
-                  <FormalDetailLoading failed={Boolean(aireq.error)} />
-                )}
-              </TabsContent>
-              <TabsContent value="history" className="min-h-0 flex-1 overflow-hidden">
-                {aireq.selectionReady ? (
-                  <AIReqFormalHistory
-                    key={`${aireq.selection.projectId}:${aireq.selection.irId}`}
-                  />
-                ) : (
-                  <FormalDetailLoading failed={Boolean(aireq.error)} />
-                )}
-              </TabsContent>
-            </Tabs>
-          </ResizablePanel>
-        </>
-      )}
-    </ResizablePanelGroup>
-  );
-}
-
-function FormalDetailLoading({ failed }: { failed: boolean }) {
-  return (
-    <p role="status" className="p-6 text-ui-sm text-foreground-subtle">
-      {failed ? "所选需求读取失败，可重试或在表格选择其他需求。" : "正在读取所选需求…"}
-    </p>
-  );
+  }, [projectId, irId, srId, formalView, ready, releaseId, title, open]);
+  return <AIReqFormalTable />;
 }

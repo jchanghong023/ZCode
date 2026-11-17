@@ -312,7 +312,6 @@ export function AnalysisHistoryTable({
                   variant="ghost"
                   size="icon"
                   className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
-                  aria-haspopup="dialog"
                   aria-label={`查看 ${run.srId} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}
                 >

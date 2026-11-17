@@ -861,27 +861,7 @@ export function activateSidePaneTab(
   current: WorkspaceSidePaneState | null,
   tab: WorkspaceSidePaneTab,
 ): WorkspaceSidePaneState {
-  if (!current) {
-    return {
-      tabs: [tab],
-      activeTabId: tab.id,
-    };
-  }
-
-  const existingIndex = findTabIndexById(current.tabs, tab.id);
-  if (existingIndex >= 0) {
-    const nextTabs = [...current.tabs];
-    nextTabs[existingIndex] = tab;
-    return {
-      tabs: nextTabs,
-      activeTabId: tab.id,
-    };
-  }
-
-  return {
-    tabs: [...current.tabs, tab],
-    activeTabId: tab.id,
-  };
+  return activatePaneTab(current, tab);
 }
 
 export function getActiveSidePaneTab(
@@ -1550,32 +1530,7 @@ export function closeSidePaneTab(
   current: WorkspaceSidePaneState | null,
   tabId: string,
 ): WorkspaceSidePaneState | null {
-  if (!current) {
-    return null;
-  }
-
-  const closingIndex = findTabIndexById(current.tabs, tabId);
-  if (closingIndex < 0) {
-    return current;
-  }
-
-  const nextTabs = current.tabs.filter((tab) => tab.id !== tabId);
-  if (nextTabs.length === 0) {
-    return null;
-  }
-
-  if (current.activeTabId !== tabId) {
-    return {
-      tabs: nextTabs,
-      activeTabId: current.activeTabId,
-    };
-  }
-
-  const fallbackIndex = Math.min(closingIndex, nextTabs.length - 1);
-  return {
-    tabs: nextTabs,
-    activeTabId: nextTabs[fallbackIndex]!.id,
-  };
+  return closePaneTab(current, tabId);
 }
 
 export function closeOtherSidePaneTabs(
@@ -1607,14 +1562,7 @@ export function setActiveSidePaneTab(
   current: WorkspaceSidePaneState | null,
   tabId: string,
 ): WorkspaceSidePaneState | null {
-  if (!current || !current.tabs.some((tab) => tab.id === tabId)) {
-    return current;
-  }
-
-  return {
-    ...current,
-    activeTabId: tabId,
-  };
+  return selectPaneTab(current, tabId);
 }
 
 export function reorderSidePaneTab(
@@ -1622,27 +1570,7 @@ export function reorderSidePaneTab(
   activeTabId: string,
   overTabId: string,
 ): WorkspaceSidePaneState | null {
-  if (!current || activeTabId === overTabId) {
-    return current;
-  }
-
-  const activeIndex = findTabIndexById(current.tabs, activeTabId);
-  const overIndex = findTabIndexById(current.tabs, overTabId);
-  if (activeIndex < 0 || overIndex < 0) {
-    return current;
-  }
-
-  const nextTabs = [...current.tabs];
-  const [movedTab] = nextTabs.splice(activeIndex, 1);
-  if (!movedTab) {
-    return current;
-  }
-
-  nextTabs.splice(overIndex, 0, movedTab);
-  return {
-    ...current,
-    tabs: nextTabs,
-  };
+  return reorderPaneTab(current, activeTabId, overTabId);
 }
 
 export function toggleGitSidePane(
@@ -1717,4 +1645,57 @@ export function ensureSidePaneTab(
     openedAt: Date.now(),
     ...scope,
   });
+}
+
+/** 原生与业务 Side Pane 共用标签集合算法，展示目标与业务数据由各自 owner 持有。 */
+export interface PaneTabsState<T extends { id: string }> {
+  tabs: T[];
+  activeTabId: string;
+}
+export function activatePaneTab<T extends { id: string }>(
+  state: PaneTabsState<T> | null,
+  tab: T,
+): PaneTabsState<T> {
+  if (!state) return { tabs: [tab], activeTabId: tab.id };
+  const index = state.tabs.findIndex((item) => item.id === tab.id);
+  const tabs = [...state.tabs];
+  if (index < 0) tabs.push(tab);
+  else tabs[index] = tab;
+  return { tabs, activeTabId: tab.id };
+}
+export function closePaneTab<T extends { id: string }>(
+  state: PaneTabsState<T> | null,
+  id: string,
+): PaneTabsState<T> | null {
+  if (!state) return state;
+  const index = state.tabs.findIndex((tab) => tab.id === id);
+  if (index < 0) return state;
+  const tabs = state.tabs.filter((tab) => tab.id !== id);
+  if (!tabs.length) return null;
+  return {
+    tabs,
+    activeTabId:
+      state.activeTabId === id ? tabs[Math.min(index, tabs.length - 1)]!.id : state.activeTabId,
+  };
+}
+export function selectPaneTab<T extends { id: string }>(
+  state: PaneTabsState<T> | null,
+  id: string,
+): PaneTabsState<T> | null {
+  return state?.tabs.some((tab) => tab.id === id) ? { ...state, activeTabId: id } : state;
+}
+export function reorderPaneTab<T extends { id: string }>(
+  state: PaneTabsState<T> | null,
+  from: string,
+  to: string,
+): PaneTabsState<T> | null {
+  if (!state || from === to) return state;
+  const start = state.tabs.findIndex((tab) => tab.id === from),
+    end = state.tabs.findIndex((tab) => tab.id === to);
+  if (start < 0 || end < 0) return state;
+  const tabs = [...state.tabs];
+  const [moved] = tabs.splice(start, 1);
+  if (!moved) return state;
+  tabs.splice(end, 0, moved);
+  return { ...state, tabs };
 }
