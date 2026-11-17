@@ -1,13 +1,1 @@
-[
-  "packages/web/test/viteConfigLoad.test.ts",
-  "packages/shared/src/request-security-edition/contract.test.ts",
-  "packages/shared/src/zcode-protocol-v4/input-prediction/contract.test.ts",
-  "packages/shared/test/zcodeProtocolV4InputPrediction.test.ts",
-  "packages/session-control/src/contract.test.ts",
-  "packages/session-control/test/client-caller.test.ts",
-  "packages/session-control/test/control.test.ts",
-  "packages/session-control/test/isolation.test.ts",
-  "packages/session-control/test/review-regressions.test.ts",
-  "packages/session-control/test/session-id.test.ts",
-  "packages/session-control/test/wait.test.ts"
-]
+[]
