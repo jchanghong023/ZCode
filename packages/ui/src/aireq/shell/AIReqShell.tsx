@@ -1,6 +1,7 @@
 import { AIReqSidePaneProvider } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqSidePaneHost } from "../side-pane/AIReqSidePaneHost.js";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -20,7 +21,11 @@ import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
 import type { AIReqProjectSettingsRequest } from "../settings/AIReqProjectSettings.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
+import {
+  AIREQ_CONTENT_WIDTH_CLASSNAME,
+  AIREQ_PAGE_CONTENT_CLASSNAME,
+  AIREQ_PAGE_TITLE_CLASSNAME,
+} from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
 import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
@@ -72,6 +77,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const settingsOpen = ai.settingsOpen;
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [todosMounted, setTodosMounted] = useState(false);
+  const [projectOverviewMounted, setProjectOverviewMounted] = useState(false);
   const [proposalsMounted, setProposalsMounted] = useState(false);
   const [analysisProjectId, setAnalysisProjectId] = useState<string>();
   const [projectSettingsRequest, setProjectSettingsRequest] =
@@ -89,6 +95,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   }, [ai.mainView]);
   useEffect(() => {
     if (ai.mainView === "todos") setTodosMounted(true);
+    if (ai.mainView === "projectOverview") setProjectOverviewMounted(true);
     if (ai.mainView === "proposals") setProposalsMounted(true);
   }, [ai.mainView]);
   const guardChange = useCallback(
@@ -169,15 +176,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
-  else if (ai.mainView === "projectOverview")
-    content = (
-      <AIReqProjectOverviewPage
-        onConfigureProject={() =>
-          openProjectSettings({ kind: "project", projectId: ai.selection.projectId! })
-        }
-        onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
-      />
-    );
+  else if (ai.mainView === "projectOverview") content = null;
   else if (!project && ai.view && ai.selectionReady)
     content = (
       <div className="m-auto space-y-3 p-6 text-foreground-subtle">
@@ -253,9 +252,24 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             data-aireq-motion-main=""
             className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background"
           >
-            {/* 讨论页已移除页头，原48px占位也应归还聊天与材料面板；业务列表仍保留标题基线。 */}
+            {/* 返回占用已有留白，不挪动列表标题；普通讨论仍不保留空白导航栏。 */}
             {(ai.mainView !== "chat" || formal) && (
-              <div className="h-12 shrink-0" aria-hidden="true" />
+              <div className="h-12 shrink-0 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+                {ai.canReturnToProjectOverview && (
+                  <div
+                    className={`${AIREQ_CONTENT_WIDTH_CLASSNAME} mx-auto flex h-full items-center`}
+                  >
+                    <Button
+                      variant="ghost"
+                      onClick={ai.returnToProjectOverview}
+                      className="-ml-2 text-ui-sm text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
+                    >
+                      <ArrowLeft aria-hidden="true" className="size-3.5" />
+                      {zh ? "返回当前项目" : "Back to current project"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
             {ai.linkError && (
               <div
@@ -289,6 +303,30 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                   ) : ai.mainView !== "skillDesign" ? (
                     content
                   ) : null}
+                  {(projectOverviewMounted || ai.mainView === "projectOverview") && (
+                    <div
+                      hidden={ai.mainView !== "projectOverview"}
+                      inert={ai.mainView !== "projectOverview" || settingsOpen}
+                      aria-hidden={ai.mainView !== "projectOverview"}
+                      className={
+                        ai.mainView === "projectOverview"
+                          ? "flex min-h-0 flex-1 flex-col"
+                          : "hidden"
+                      }
+                    >
+                      <AIReqProjectOverviewPage
+                        key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`}
+                        active={ai.mainView === "projectOverview" && !settingsOpen}
+                        onConfigureProject={() =>
+                          openProjectSettings({
+                            kind: "project",
+                            projectId: ai.selection.projectId!,
+                          })
+                        }
+                        onReturnProjects={() => navigate(() => ai.setMainView("projectProgress"))}
+                      />
+                    </div>
+                  )}
                   {(todosMounted || ai.mainView === "todos") && (
                     <div
                       hidden={ai.mainView !== "todos"}

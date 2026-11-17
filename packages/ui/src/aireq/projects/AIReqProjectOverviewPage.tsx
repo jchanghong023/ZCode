@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, CheckCheck, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Badge } from "@/components/ui/badge.js";
@@ -36,13 +36,22 @@ const phaseEn = [
 ];
 
 export function AIReqProjectOverviewPage({
+  active,
   onReturnProjects,
   onConfigureProject,
 }: {
+  active: boolean;
   onReturnProjects(): void;
   onConfigureProject(): void;
 }) {
   const ai = useAIReq()!;
+  const scrollRoot = useRef<HTMLElement>(null);
+  const scrollPosition = useRef(0);
+  // 页面保留挂载；中间加载态会收短内容，不能把它造成的滚动归零当成用户滚动。
+  useLayoutEffect(() => {
+    if (active && ai.selectionReady && scrollRoot.current)
+      scrollRoot.current.scrollTop = scrollPosition.current;
+  }, [active, ai.selectionReady]);
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const [confirmationFilter, setConfirmationFilter] = useState<ConfirmationFilter>("all");
@@ -123,7 +132,11 @@ export function AIReqProjectOverviewPage({
       minute: "2-digit",
     }).format(new Date(value));
   const openProposal = (proposal: AIReqRequirementGroup) =>
-    ai.select({ projectId: proposal.projectId, irId: proposal.id }, proposal.releaseId);
+    ai.openFromProjectOverview(
+      "chat",
+      { projectId: proposal.projectId, irId: proposal.id },
+      proposal.releaseId,
+    );
   const unavailable = ai.pending
     ? zh
       ? "正在读取当前项目…"
@@ -137,6 +150,10 @@ export function AIReqProjectOverviewPage({
 
   return (
     <main
+      ref={scrollRoot}
+      onScroll={(event) => {
+        if (active && ai.selectionReady) scrollPosition.current = event.currentTarget.scrollTop;
+      }}
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-project-overview"
       aria-label={zh ? "当前项目" : "Current project"}
@@ -144,7 +161,7 @@ export function AIReqProjectOverviewPage({
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-8"}>
         <header className="flex items-center gap-2">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "当前项目" : "Current project"}</h1>
-          <ProjectPageHelp scope="project-overview" />
+          {active && <ProjectPageHelp scope="project-overview" />}
         </header>
         <p
           role="status"
@@ -248,7 +265,7 @@ export function AIReqProjectOverviewPage({
                         variant="link"
                         className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
                         aria-label={`${item.label}: ${item.count}`}
-                        onClick={() => ai.navigate(() => ai.setMainView(item.target))}
+                        onClick={() => ai.openFromProjectOverview(item.target)}
                       >
                         {item.count}
                         <ArrowRight
@@ -379,7 +396,7 @@ export function AIReqProjectOverviewPage({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+                    onClick={() => ai.openFromProjectOverview("proposals")}
                   >
                     {zh ? "查看全部" : "View all"}
                     <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -430,7 +447,7 @@ export function AIReqProjectOverviewPage({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => ai.navigate(() => ai.setMainView("formal"))}
+                    onClick={() => ai.openFromProjectOverview("formal")}
                   >
                     {zh ? "查看全部" : "View all"}
                     <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -455,7 +472,8 @@ export function AIReqProjectOverviewPage({
                             data-aireq-motion-row=""
                             className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                             onClick={() =>
-                              ai.select(
+                              ai.openFromProjectOverview(
+                                "chat",
                                 {
                                   projectId: sr.projectId,
                                   irId: sr.irId,

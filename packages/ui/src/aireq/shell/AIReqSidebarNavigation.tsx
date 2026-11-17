@@ -122,7 +122,7 @@ export function AIReqSidebarNavigation() {
       className="h-auto min-h-9 w-full justify-start gap-3 py-2 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
       data-aireq-motion-nav=""
-      onClick={() => ai.navigate(() => ai.setMainView(view))}
+      onClick={() => ai.navigate(() => ai.setMainView(view, { fromSidebar: true }))}
     >
       <Icon
         className={`size-4 ${selected === view ? "text-foreground" : "text-remote-foreground-muted"}`}
@@ -146,10 +146,10 @@ export function AIReqSidebarNavigation() {
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="size-7 shrink-0 select-none object-contain"
+          className="size-8 shrink-0 select-none object-contain"
         />
         <div className="flex min-w-0 flex-col">
-          <span lang="zh-CN" className="text-ui-base leading-tight font-semibold text-foreground">
+          <span lang="zh-CN" className="text-ui-lg leading-tight font-semibold text-foreground">
             AI 需求协作
           </span>
           <span lang="en" className="text-ui-sm leading-tight text-remote-foreground-muted">

@@ -1,5 +1,4 @@
-import { useCallback, useContext, useLayoutEffect, useRef, type ReactNode } from "react";
-import type { PanelImperativeHandle } from "react-resizable-panels";
+import { useCallback, useContext, type ReactNode } from "react";
 import { FileText, ChartNoAxesCombined, History } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -8,6 +7,7 @@ import {
   ResizablePanelGroup,
   WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
 } from "@/components/ui/resizable.js";
+import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -52,7 +52,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
       onSelect={select}
       onGuardChange={guard}
     >
-      <AIReqRequirementContext showReturn={false} />
+      {tab.kind !== "materials" && <AIReqRequirementContext showReturn={false} />}
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab.kind === "materials" ? (
           <AIReqMaterialsPane />
@@ -157,13 +157,24 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const pane = useAIReqSidePane();
   const ai = useAIReq()!;
   const scopes = useContext(AIReqSidePaneMemoryContext);
-  const panel = useRef<PanelImperativeHandle>(null);
+  const available =
+    ai.mainView !== "projectProgress" &&
+    ai.mainView !== "ideas" &&
+    ai.mainView !== "projectOverview" &&
+    ai.mainView !== "proposals" &&
+    // 分析页的通用展开只会打开空启动页；有实际内容后才提供工作区入口。
+    (ai.mainView !== "requirementAnalysis" || pane.tabs.some((tab) => tab.kind !== "launcher"));
+  const isOpen = available && pane.isOpen;
+  const fullView = isOpen && pane.fullView;
+  // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
+  // 复用原生同步 hook，收起必须归还实际宽度，进入概览、全局页面或提案列表仅隐藏而不清空 Tab。
+  const { panelRef: panel } = useAnimatedResizablePanel({
+    open: isOpen,
+    expandedSize: "45%",
+    rememberExpandedSize: true,
+  });
   const currentScope = JSON.stringify([ai.selection.projectId ?? "", ai.releaseId]);
   const { locale } = useZCodeIntl();
-  useLayoutEffect(() => {
-    if (pane.isOpen) panel.current?.expand();
-    else panel.current?.collapse();
-  }, [pane.isOpen]);
   return (
     <ResizablePanelGroup
       orientation="horizontal"
@@ -172,13 +183,13 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       data-testid="aireq-side-pane-workspace"
     >
-      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="65%">
+      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="55%">
         <div
           className="relative flex h-full min-h-0 min-w-0 flex-col"
-          inert={pane.fullView}
-          aria-hidden={pane.fullView || undefined}
+          inert={fullView}
+          aria-hidden={fullView || undefined}
         >
-          {!pane.isOpen && (
+          {available && !isOpen && (
             <div className="absolute top-2 right-2 z-20">
               <WorkspaceSidePaneToggleButton
                 isSidePaneOpen={false}
@@ -191,7 +202,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       </ResizablePanel>
       <ResizableHandle
         className={
-          pane.isOpen && !pane.fullView
+          isOpen && !fullView
             ? WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME + " aria-[orientation=vertical]:w-[3px]"
             : "hidden"
         }
@@ -199,26 +210,26 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       <ResizablePanel
         id="aireq-side-pane"
         panelRef={panel}
-        defaultSize="35%"
-        minSize="320px"
+        defaultSize="45%"
+        minSize="400px"
         maxSize="80%"
         // 与原生宿主一致：只有显式收起时允许折叠，拖动不能绕过门禁。
-        collapsible={!pane.isOpen}
-        disabled={!pane.isOpen || pane.fullView}
+        collapsible={!isOpen}
+        disabled={!isOpen || fullView}
         collapsedSize="0px"
-        style={pane.fullView ? { overflow: "visible" } : undefined}
+        style={fullView ? { overflow: "visible" } : undefined}
       >
         <aside
           aria-label={locale === "zh-CN" ? "右侧工作区" : "Side workspace"}
-          aria-hidden={!pane.isOpen || ai.settingsOpen}
-          inert={!pane.isOpen || ai.settingsOpen}
+          aria-hidden={!isOpen || ai.settingsOpen}
+          inert={!isOpen || ai.settingsOpen}
           className={
-            pane.fullView
+            fullView
               ? "absolute inset-0 z-30 flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background"
               : "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background"
           }
           data-testid="aireq-side-pane"
-          data-open={pane.isOpen ? "true" : "false"}
+          data-open={isOpen ? "true" : "false"}
         >
           <AIReqSidePaneTabs pane={pane} />
           <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -227,7 +238,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
                 const active =
                   key === currentScope &&
                   pane.activeTab?.id === tab.id &&
-                  pane.isOpen &&
+                  isOpen &&
                   !ai.settingsOpen;
                 return (
                   <div

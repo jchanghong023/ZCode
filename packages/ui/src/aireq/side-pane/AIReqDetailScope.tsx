@@ -1,3 +1,4 @@
+import { requirementObjectLink } from "../navigationState.js";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -287,16 +288,7 @@ export function AIReqDetailScope({
     const request = current.current;
     if (!viewRef.current || !targetAvailable(viewRef.current, request.target, request.releaseId))
       return undefined;
-    const url = new URL(window.location.href);
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-    url.search = "";
-    url.searchParams.set("aireqProject", request.target.projectId!);
-    url.searchParams.set("aireqRelease", request.releaseId);
-    url.searchParams.set("aireqIr", request.target.irId!);
-    if (request.target.srId) url.searchParams.set("aireqSr", request.target.srId);
-    return url.toString();
+    return requirementObjectLink(window.location.href, request.target, request.releaseId);
   }, []);
   const value: AIReqContextValue = {
     ...main,

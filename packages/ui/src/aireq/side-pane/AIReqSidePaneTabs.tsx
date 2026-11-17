@@ -141,7 +141,7 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
                   const accessibleTitle =
                     tab.kind === "launcher"
                       ? tab.title
-                      : `${tab.title} · ${accessibleKinds[tab.kind]}`;
+                      : `${tab.title} · ${accessibleKinds[tab.kind]} · ${[tab.selection.irId, tab.selection.srId].filter(Boolean).join(" / ")}`;
                   return (
                     <SortableSidePaneTabPresentation
                       key={tab.id}

@@ -338,7 +338,7 @@ export function AIReqIdeaPool() {
                               if (trigger) open("transfer", trigger, idea);
                             }}
                           >
-                            {zh ? "转入版本" : "Move to release"}
+                            {zh ? "转入项目版本" : "Move to project releases"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -400,11 +400,12 @@ export function AIReqIdeaPool() {
             }}
           >
             <DialogHeader>
+              {/* 转入支持同项目多版本，生成的是独立提案；避免旧文案暗示必须跨项目或直接形成正式需求。 */}
               <DialogTitle>
                 {draft?.mode === "transfer"
                   ? zh
-                    ? "转入版本"
-                    : "Move to release"
+                    ? "转入项目版本"
+                    : "Move to project releases"
                   : draft?.idea
                     ? zh
                       ? "编辑想法"
@@ -416,8 +417,8 @@ export function AIReqIdeaPool() {
               <DialogDescription>
                 {draft?.mode === "transfer"
                   ? zh
-                    ? "可选择不同项目的多个版本。全部成功后原想法消失，各版本独立管理需求。"
-                    : "Choose releases in one or more projects. After all succeed, the idea leaves the pool and each release owns its requirement."
+                    ? "可选择同一项目或不同项目的多个版本。全部转入成功后，原想法将移出想法池，每个目标版本生成一条独立提案。"
+                    : "Choose multiple releases within the same project or across projects. Once all transfers succeed, the idea leaves the pool and each target release gets an independent proposal."
                   : zh
                     ? "记录原始需求，暂时不需要确定项目、版本或实施时间。"
                     : "Capture the original requirement without choosing a project, release or date."}
