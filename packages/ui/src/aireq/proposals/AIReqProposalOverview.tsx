@@ -50,12 +50,13 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
       data-testid="proposal-workbench"
     >
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-8`}>
-        <header className="space-y-3">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>需求工作台</h1>
-
-          <p className="max-w-prose whitespace-pre-wrap break-words text-ui-sm leading-relaxed text-foreground-subtle">
-            {group.originalText || "尚未记录原始需求。"}
-          </p>
+        <header>
+          <h1
+            className={`${AIREQ_PAGE_TITLE_CLASSNAME} line-clamp-2 break-words`}
+            title={group.title}
+          >
+            {group.title || "需求工作台"}
+          </h1>
         </header>
         <section className="space-y-3 border-y border-border/50 py-5" aria-label="当前待处理事项">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -121,6 +122,23 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             ))}
           </ol>
         </section>
+        {/* 原文长度不可决定主要操作的位置；折叠阅读区保留完整文本与键盘滚动。 */}
+        <details
+          key={`${group.projectId}:${group.id}`}
+          className="text-ui-sm text-foreground-subtle"
+        >
+          <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+            查看原始需求
+          </summary>
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label="原始需求正文"
+            className="mt-3 max-h-64 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words rounded-sm pr-3 leading-relaxed focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {group.originalText || "尚未记录原始需求。"}
+          </div>
+        </details>
         {decisions.length > 0 && (
           <section className="space-y-3" aria-label="确认记录">
             <h2 className="text-ui-base font-medium">确认记录</h2>

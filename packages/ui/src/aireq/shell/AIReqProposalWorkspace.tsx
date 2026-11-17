@@ -246,7 +246,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           </ControlHintTooltip>
         )}
         <span className="min-w-0 flex-1 truncate text-ui-sm font-medium" title={proposal?.title}>
-          {proposal?.title ?? "需求工作台"}
+          {task === "overview" ? "需求工作台" : (proposal?.title ?? "需求工作台")}
         </span>
         {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
         {task !== "overview" && (
