@@ -85,7 +85,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             data-testid="proposal-state-track"
           >
             <ol
-              className="flex w-max min-w-full items-center gap-1 whitespace-nowrap px-1"
+              className="flex w-max min-w-full items-center justify-between gap-1 whitespace-nowrap pr-1"
               aria-label="提案八态"
             >
               {PROPOSAL_STATE_OPTIONS.map((option) => (
