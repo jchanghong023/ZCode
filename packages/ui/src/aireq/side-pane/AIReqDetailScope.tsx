@@ -1,0 +1,380 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { formatUserFacingError } from "@/lib/errorMessage.js";
+import { AIReqContextProjection, useAIReq, type AIReqContextValue } from "../AIReqContext.js";
+import { useAIReqDataSource } from "../data-source.js";
+import { AIReqWorkspaceActiveContext } from "../shell/ModelSettingsNavigationContext.js";
+import type { AIReqAction, AIReqSelection, AIReqWorkflowView } from "../contract.js";
+import type { AIReqSidePaneGuard } from "./contract.js";
+
+type ReadProjection = {
+  key: string;
+  pending: boolean;
+  view?: AIReqWorkflowView;
+  error?: string;
+};
+type ScopedError = { key: string; message: string };
+export interface AIReqDetailScopeProps {
+  target: AIReqSelection;
+  releaseId: string;
+  tabId: string;
+  active?: boolean;
+  onSelect(selection: AIReqSelection, releaseId?: string): void;
+  onGuardChange?(guard: AIReqSidePaneGuard): void;
+  children: ReactNode;
+}
+
+function targetKey(target: AIReqSelection, releaseId: string): string {
+  return JSON.stringify([target, releaseId]);
+}
+
+function targetAvailable(
+  view: AIReqWorkflowView,
+  target: AIReqSelection,
+  releaseId: string,
+): boolean {
+  const group = [...view.groups, ...view.drafts].find(
+    (item) =>
+      item.projectId === target.projectId &&
+      item.id === target.irId &&
+      item.releaseId === releaseId,
+  );
+  return Boolean(
+    group &&
+    (!target.srId ||
+      view.srs.some(
+        (sr) => sr.projectId === group.projectId && sr.irId === group.id && sr.id === target.srId,
+      )),
+  );
+}
+
+/** Tab 仅保存可失效的查询投影；命令始终发给既有服务 owner 的显式对象与版本。 */
+export function AIReqDetailScope({
+  target,
+  releaseId,
+  tabId,
+  active = true,
+  onSelect,
+  onGuardChange,
+  children,
+}: AIReqDetailScopeProps) {
+  const main = useAIReq()!;
+  const source = useAIReqDataSource();
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
+  const key = targetKey(target, releaseId);
+  const current = useRef({ target, releaseId, key, onSelect, onGuardChange, main });
+  current.current = { target, releaseId, key, onSelect, onGuardChange, main };
+  const [read, setRead] = useState<ReadProjection>({ key: "", pending: true });
+  const [operationError, setOperationError] = useState<ScopedError>();
+  const [busyKey, setBusyKey] = useState<string>();
+  const generation = useRef(0);
+  const alive = useRef(false);
+  const view = read.key === key ? read.view : undefined;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const draftGuard = useRef<AIReqSidePaneGuard>(null);
+  const navigationGuard = useRef<AIReqSidePaneGuard>(null);
+  const combinedGuard = useRef<AIReqSidePaneGuard>(null);
+  const owner = `side-pane:${tabId}`;
+  const setMainDraftGuard = main.setDraftNavigationGuard;
+  const publishGuard = useCallback(() => {
+    const guards = [navigationGuard.current, draftGuard.current].filter(
+      (guard): guard is NonNullable<AIReqSidePaneGuard> => Boolean(guard),
+    );
+    const combined: AIReqSidePaneGuard = guards.length
+      ? (action) => {
+          const run = (index: number) => {
+            if (index === guards.length) action();
+            else guards[index]!(() => run(index + 1));
+          };
+          run(0);
+        }
+      : null;
+    combinedGuard.current = combined;
+    setMainDraftGuard(combined, owner);
+    current.current.onGuardChange?.(combined);
+  }, [owner, setMainDraftGuard]);
+  const setDraftNavigationGuard = useCallback(
+    (guard: AIReqSidePaneGuard) => {
+      draftGuard.current = guard;
+      publishGuard();
+    },
+    [publishGuard],
+  );
+  const setNavigationGuard = useCallback(
+    (guard: AIReqSidePaneGuard) => {
+      navigationGuard.current = guard;
+      publishGuard();
+    },
+    [publishGuard],
+  );
+  const navigate = useCallback((action: () => void) => {
+    // 右侧局部切换只检查自己的表单，不改主区目标或干扰主区草稿。
+    if (combinedGuard.current) combinedGuard.current(action);
+    else action();
+  }, []);
+  useEffect(() => {
+    onGuardChange?.(combinedGuard.current);
+    return () => onGuardChange?.(null);
+  }, [onGuardChange]);
+  useEffect(
+    () => () => {
+      setMainDraftGuard(null, owner);
+    },
+    [owner, setMainDraftGuard],
+  );
+
+  const report = useCallback((cause: unknown) => {
+    setOperationError({
+      key: current.current.key,
+      message: formatUserFacingError(cause, "操作暂时未能完成，请重试。"),
+    });
+  }, []);
+  const refresh = useCallback(async () => {
+    const request = current.current;
+    const revision = ++generation.current;
+    setRead((previous) => ({
+      key: request.key,
+      pending: true,
+      view: previous.key === request.key ? previous.view : undefined,
+    }));
+    try {
+      const next = await source.readWorkflow({ ...request.target });
+      if (!alive.current || revision !== generation.current || current.current.key !== request.key)
+        return;
+      if (!targetAvailable(next, request.target, request.releaseId)) {
+        // owner 已确认目标缺失时清除旧投影；网络失败才允许保留同目标上次内容。
+        viewRef.current = undefined;
+        setRead({
+          key: request.key,
+          pending: false,
+          error: "所选需求或版本已不可用，请关闭此标签或重新选择。",
+        });
+        return;
+      }
+      viewRef.current = next;
+      setRead({ key: request.key, pending: false, view: next, error: next.error });
+    } catch (cause) {
+      if (!alive.current || revision !== generation.current || current.current.key !== request.key)
+        return;
+      const message = formatUserFacingError(cause, "详情读取失败，请重试。");
+      setRead((previous) => ({
+        key: request.key,
+        pending: false,
+        view: previous.key === request.key ? previous.view : undefined,
+        error: message,
+      }));
+    }
+  }, [source]);
+  useEffect(() => {
+    alive.current = true;
+    void refresh();
+    const unsubscribe = source.subscribeWorkflow(() => void refresh());
+    return () => {
+      alive.current = false;
+      generation.current += 1;
+      unsubscribe();
+    };
+  }, [key, source, refresh]);
+
+  const select = useCallback(
+    (selection: AIReqSelection, selectedRelease?: string) => {
+      navigate(() =>
+        current.current.onSelect(selection, selectedRelease ?? current.current.releaseId),
+      );
+    },
+    [navigate],
+  );
+  const command = useCallback(
+    async (action: AIReqAction) => {
+      const request = current.current;
+      const snapshot = viewRef.current;
+      if (!snapshot) {
+        report(new Error("详情尚未读取，请重试后操作。"));
+        return undefined;
+      }
+      setBusyKey(request.key);
+      setOperationError(undefined);
+      try {
+        const result = await source.command(action, { ...request.target }, snapshot.revision);
+        if (result.status === "failed")
+          throw new Error(result.error ?? result.receipt.error ?? "操作失败。");
+        if (!alive.current || current.current.key !== request.key) return result;
+        if (action.type === "runRequirementsReview")
+          request.onSelect(
+            {
+              ...request.target,
+              discussionPhase: "requirements",
+              proposalStep: "requirements-review",
+              reviewAgent: undefined,
+              proposalEditing: undefined,
+            },
+            request.releaseId,
+          );
+        else if (action.type === "runFullReview")
+          request.onSelect(
+            {
+              ...request.target,
+              discussionPhase: "solution",
+              proposalStep: "solution",
+              reviewAgent: "summary",
+              materialPath: undefined,
+              proposalEditing: undefined,
+            },
+            request.releaseId,
+          );
+        else if (action.type === "acceptProposal" || action.type === "returnProposal")
+          request.onSelect(
+            {
+              ...request.target,
+              materialPath: undefined,
+              discussionPhase: undefined,
+              proposalStep: undefined,
+              proposalEditing: undefined,
+            },
+            request.releaseId,
+          );
+        else await refresh();
+        return result;
+      } catch (cause) {
+        if (alive.current && current.current.key === request.key) report(cause);
+        return undefined;
+      } finally {
+        if (alive.current) setBusyKey((value) => (value === request.key ? undefined : value));
+      }
+    },
+    [source, refresh, report],
+  );
+  const retryMaterial = useCallback(
+    async (path: string) => {
+      const request = current.current;
+      try {
+        const result = await source.retryMaterial(path, { ...request.target });
+        if (current.current.key === request.key) await refresh();
+        return result;
+      } catch (cause) {
+        if (alive.current && current.current.key === request.key) report(cause);
+        return false;
+      }
+    },
+    [source, refresh, report],
+  );
+  const retrySession = useCallback(
+    async (selection: AIReqSelection, sessionId: string) => {
+      const request = current.current;
+      const snapshot = viewRef.current;
+      if (
+        JSON.stringify(selection) !== JSON.stringify(request.target) ||
+        !snapshot ||
+        source.resolveSession(snapshot, selection)?.sessionId !== sessionId
+      )
+        throw new Error("会话已切换，请在当前标签中重试。");
+      try {
+        await source.retrySession({ ...request.target });
+        if (!alive.current || current.current.key !== request.key)
+          throw new Error("会话已切换，请在当前标签中重试。");
+        await refresh();
+      } catch (cause) {
+        if (alive.current && current.current.key === request.key) report(cause);
+        throw cause;
+      }
+    },
+    [source, refresh, report],
+  );
+  const objectLink = useCallback(() => {
+    const request = current.current;
+    if (!viewRef.current || !targetAvailable(viewRef.current, request.target, request.releaseId))
+      return undefined;
+    const url = new URL(window.location.href);
+    url.username = "";
+    url.password = "";
+    url.hash = "";
+    url.search = "";
+    url.searchParams.set("aireqProject", request.target.projectId!);
+    url.searchParams.set("aireqRelease", request.releaseId);
+    url.searchParams.set("aireqIr", request.target.irId!);
+    if (request.target.srId) url.searchParams.set("aireqSr", request.target.srId);
+    return url.toString();
+  }, []);
+  const value: AIReqContextValue = {
+    ...main,
+    selection: target,
+    releaseId,
+    view,
+    session: view && source.resolveSession(view, target),
+    pending: read.key !== key || read.pending || busyKey === key,
+    selectionReady: Boolean(view),
+    error:
+      operationError?.key === key
+        ? operationError.message
+        : read.key === key
+          ? read.error
+          : undefined,
+    linkError: undefined,
+    clearLinkError: () => setOperationError(undefined),
+    refresh,
+    retryMaterial,
+    retrySession,
+    command,
+    select,
+    objectLink,
+    navigate,
+    report,
+    setDraftNavigationGuard,
+    setNavigationGuard,
+  };
+  return (
+    <AIReqWorkspaceActiveContext.Provider value={active && !main.settingsOpen}>
+      <AIReqContextProjection value={value}>
+        {!view ? (
+          <div
+            role={value.error ? "alert" : "status"}
+            className="space-y-3 p-6 text-ui-sm text-remote-foreground-muted"
+          >
+            <p>
+              {value.pending
+                ? zh
+                  ? "正在读取详情…"
+                  : "Loading details…"
+                : (value.error ?? (zh ? "详情暂不可用。" : "Details are unavailable."))}
+            </p>
+            {!value.pending && (
+              <Button
+                variant="outline"
+                className="focus-visible:border-remote-foreground-muted"
+                onClick={() => void refresh()}
+              >
+                {zh ? "重试" : "Retry"}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {value.error && (
+              <div
+                role="alert"
+                className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+              >
+                <span className="min-w-0 flex-1 break-words">{value.error}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="focus-visible:border-remote-foreground-muted"
+                  onClick={() => {
+                    setOperationError(undefined);
+                    void refresh();
+                  }}
+                >
+                  {zh ? "重试" : "Retry"}
+                </Button>
+              </div>
+            )}
+            {children}
+          </>
+        )}
+      </AIReqContextProjection>
+    </AIReqWorkspaceActiveContext.Provider>
+  );
+}

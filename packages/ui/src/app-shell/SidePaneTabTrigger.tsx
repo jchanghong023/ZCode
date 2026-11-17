@@ -3,7 +3,7 @@ import { useSubagents } from "@/hooks/useSubagents.js";
 import { SUBAGENT_WORKFLOW_COLOR } from "@/lib/subagentColors.js";
 import { WorkflowAgentFace } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 /* oxlint-disable eslint(max-lines) -- 侧栏 Tab trigger 集中维护拖拽、上下文菜单与各类图标，不为行数拆散既有交互。 */
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -39,36 +39,65 @@ import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js"
 // 标题没有独立上限时，长网页标题会持续撑宽 tab；主 tab 与拖拽浮层都只钳制标题本体，避免挤占图标、徽标和关闭按钮。
 export function SortableSidePaneTabTrigger({
   tab,
-  title,
-  closeTabLabel,
-  closeTabMenuLabel,
-  closeOtherTabsLabel,
-  closeAllTabsLabel,
   diffBadgeLabel,
-  isActive,
-  onActivateTab,
-  onCloseTab,
-  onCloseOtherTabs,
-  onCloseAllTabs,
-  canCloseOtherTabs,
-}: {
+  ...props
+}: Omit<SidePaneTabPresentationProps, "id" | "icon" | "badge"> & {
   tab: WorkspaceSidePaneTab;
+  diffBadgeLabel: string;
+}) {
+  return (
+    <SortableSidePaneTabPresentation
+      {...props}
+      id={tab.id}
+      icon={<SidePaneTabIcon tab={tab} />}
+      badge={isDiffPreviewTab(tab) ? <SidePaneTabDiffBadge label={diffBadgeLabel} /> : undefined}
+    />
+  );
+}
+
+export interface SidePaneTabPresentationProps {
+  id: string;
+  triggerId?: string;
+  panelId?: string;
   title: string;
+  accessibleTitle?: string;
+  icon: ReactNode;
+  badge?: ReactNode;
   closeTabLabel: string;
   closeTabMenuLabel: string;
   closeOtherTabsLabel: string;
   closeAllTabsLabel: string;
-  diffBadgeLabel: string;
   isActive: boolean;
   onActivateTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   canCloseOtherTabs: boolean;
-}) {
+}
+
+/** 原生与业务 Tab 共用拖拽、关闭和上下文菜单，不绑定业务载荷。 */
+export function SortableSidePaneTabPresentation({
+  id,
+  triggerId,
+  panelId,
+  title,
+  accessibleTitle,
+  icon,
+  badge,
+  closeTabLabel,
+  closeTabMenuLabel,
+  closeOtherTabsLabel,
+  closeAllTabsLabel,
+  isActive,
+  onActivateTab,
+  onCloseTab,
+  onCloseOtherTabs,
+  onCloseAllTabs,
+  canCloseOtherTabs,
+}: SidePaneTabPresentationProps) {
   const wasDraggingRef = useRef(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: tab.id,
+    id,
   });
   const normalizedTransform = transform
     ? {
@@ -91,15 +120,34 @@ export function SortableSidePaneTabTrigger({
   }
 
   const tabTrigger = (
-    <TabsTrigger value={tab.id} asChild>
+    <TabsTrigger value={id} asChild>
       <div
         ref={setNodeRef}
-        data-side-pane-tab-id={tab.id}
+        data-side-pane-tab-id={id}
         data-active={isActive ? "" : undefined}
         data-state={isActive ? "active" : "inactive"}
         style={style}
-        {...attributes}
         {...listeners}
+        // 只接入拖拽提示；role/tabIndex 留给 Radix，避免覆盖 Tab 语义与游走焦点。
+        role="tab"
+        {...(triggerId ? { id: triggerId } : {})}
+        {...(panelId ? { "aria-controls": panelId } : {})}
+        aria-selected={isActive}
+        aria-label={accessibleTitle ?? title}
+        aria-describedby={attributes["aria-describedby"]}
+        aria-roledescription={attributes["aria-roledescription"]}
+        aria-disabled={attributes["aria-disabled"]}
+        onMouseDown={(event) => {
+          // 只由显式激活回调接纳点击；避免 Radix 在 mousedown 提前触发第二次门禁。
+          event.preventDefault();
+        }}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onActivateTab(id);
+        }}
         onPointerDown={(event) => {
           listeners?.onPointerDown?.(event);
           // side pane tab 里有独立关闭按钮，外层不能再渲染成 button。
@@ -122,7 +170,7 @@ export function SortableSidePaneTabTrigger({
             return;
           }
 
-          onActivateTab(tab.id);
+          onActivateTab(id);
         }}
         onAuxClick={(event) => {
           if (event.button !== 1) return;
@@ -132,13 +180,13 @@ export function SortableSidePaneTabTrigger({
           // 取消默认行为并关闭目标 tab，保持原 active tab 不变。
           event.preventDefault();
           event.stopPropagation();
-          onCloseTab(tab.id);
+          onCloseTab(id);
         }}
         className={cn(
           "group relative inline-flex items-center gap-1 [corner-shape:superellipse(1.5)]",
           "flex-[1_1_9.75rem] !h-7 min-w-15 max-w-39 justify-start overflow-hidden rounded-md border px-1.5 pr-2 text-ui-base font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
           "!border-transparent !bg-transparent text-foreground-subtle !rounded-lg",
-          "hover:text-foreground",
+          "hover:text-foreground focus-visible:!border-remote-foreground-muted",
           !isActive && "hover:!bg-hover",
           // TabsTrigger asChild 经过 ContextMenuTrigger 再包一层后，Radix 的 active 标记不会稳定落到真实 tab div。
           // 这里用受控的 isActive 同步补齐 data-active / data-state，保证 Tailwind 的 active variant 能命中。
@@ -147,10 +195,10 @@ export function SortableSidePaneTabTrigger({
           isDragging && "cursor-grabbing shadow-md",
         )}
       >
-        <SidePaneTabItemContent
-          tab={tab}
+        <SidePaneTabPresentationContent
+          icon={icon}
+          badge={badge}
           title={title}
-          diffBadgeLabel={diffBadgeLabel}
           closeVisible={isActive}
           revealCloseOnHover
         />
@@ -167,10 +215,14 @@ export function SortableSidePaneTabTrigger({
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
+          onKeyDown={(event) => {
+            // 关闭按钮的 Enter/Space 不能冒泡成父 Tab 的激活动作。
+            event.stopPropagation();
+          }}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            onCloseTab(tab.id);
+            onCloseTab(id);
           }}
         >
           <XIcon className="size-3" />
@@ -181,12 +233,12 @@ export function SortableSidePaneTabTrigger({
 
   return (
     <ContextMenu>
-      <SidePaneTabTitleTooltip isDragging={isDragging} title={title}>
+      <SidePaneTabTitleTooltip isDragging={isDragging} title={accessibleTitle ?? title}>
         <ContextMenuTrigger asChild>{tabTrigger}</ContextMenuTrigger>
       </SidePaneTabTitleTooltip>
       <ContextMenuContent className="w-44">
-        <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{closeTabMenuLabel}</ContextMenuItem>
-        <ContextMenuItem disabled={!canCloseOtherTabs} onSelect={() => onCloseOtherTabs(tab.id)}>
+        <ContextMenuItem onSelect={() => onCloseTab(id)}>{closeTabMenuLabel}</ContextMenuItem>
+        <ContextMenuItem disabled={!canCloseOtherTabs} onSelect={() => onCloseOtherTabs(id)}>
           {closeOtherTabsLabel}
         </ContextMenuItem>
         <ContextMenuItem onSelect={onCloseAllTabs}>{closeAllTabsLabel}</ContextMenuItem>
@@ -205,27 +257,53 @@ export function SidePaneTabDragOverlay({
   diffBadgeLabel: string;
 }) {
   return (
+    <SidePaneTabPresentationDragOverlay
+      title={title}
+      icon={<SidePaneTabIcon tab={tab} />}
+      badge={isDiffPreviewTab(tab) ? <SidePaneTabDiffBadge label={diffBadgeLabel} /> : undefined}
+    />
+  );
+}
+
+export function SidePaneTabPresentationDragOverlay({
+  title,
+  icon,
+  badge,
+}: {
+  title: string;
+  icon: ReactNode;
+  badge?: ReactNode;
+}) {
+  return (
     <div
       className={cn(
         "inline-flex !h-7 w-39 min-w-15 max-w-39 items-center justify-start gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-selected px-1.5 pr-1 text-ui-base font-medium text-foreground shadow-md",
         "cursor-grabbing [corner-shape:superellipse(1.5)]",
       )}
     >
-      <SidePaneTabItemContent tab={tab} title={title} diffBadgeLabel={diffBadgeLabel} />
+      <SidePaneTabPresentationContent icon={icon} badge={badge} title={title} />
     </div>
   );
 }
 
-function SidePaneTabItemContent({
-  tab,
+function SidePaneTabDiffBadge({ label }: { label: string }) {
+  return (
+    <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
+      {label}
+    </span>
+  );
+}
+
+function SidePaneTabPresentationContent({
+  icon,
+  badge,
   title,
-  diffBadgeLabel,
   closeVisible = false,
   revealCloseOnHover = false,
 }: {
-  tab: WorkspaceSidePaneTab;
+  icon: ReactNode;
+  badge?: ReactNode;
   title: string;
-  diffBadgeLabel: string;
   closeVisible?: boolean;
   revealCloseOnHover?: boolean;
 }) {
@@ -239,17 +317,11 @@ function SidePaneTabItemContent({
           "group-hover:[--tab-fade-offset:1.25rem] group-focus-within:[--tab-fade-offset:1.25rem]",
       )}
     >
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        <SidePaneTabIcon tab={tab} />
-      </span>
+      <span className="flex size-4 shrink-0 items-center justify-center">{icon}</span>
       <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
         {title}
       </span>
-      {isDiffPreviewTab(tab) ? (
-        <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
-          {diffBadgeLabel}
-        </span>
-      ) : null}
+      {badge}
     </span>
   );
 }

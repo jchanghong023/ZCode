@@ -57,7 +57,7 @@ export function clearAIReqObjectLink() {
   const url = withoutObjectLink(new URL(window.location.href));
   window.history.replaceState(window.history.state, "", url);
 }
-interface AIReqContextValue {
+export interface AIReqContextValue {
   view?: AIReqWorkflowView;
   selection: AIReqSelection;
   session?: AIReqNativeSessionRef;
@@ -92,7 +92,7 @@ interface AIReqContextValue {
   retryMaterial(path: string): Promise<boolean>;
   retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
   command(value: AIReqAction): Promise<AIReqWorkflowResult | undefined>;
-  setDraftNavigationGuard(guard: ((navigate: () => void) => void) | null): void;
+  setDraftNavigationGuard(guard: ((navigate: () => void) => void) | null, ownerId?: string): void;
   setNavigationGuard(guard: ((navigate: () => void) => void) | null): void;
   navigate(action: () => void): void;
   report(error: unknown): void;
@@ -102,6 +102,17 @@ function sourceScope(source: AIReqDataSource): string {
   return JSON.stringify([source.backend?.id ?? "aireq", source.clientId, getEmployeeId()]);
 }
 export const useAIReq = () => useContext(AIReqContext);
+
+/** 详情消费显式目标的读取投影，不创建第二个主区导航或业务 owner。 */
+export function AIReqContextProjection({
+  value,
+  children,
+}: {
+  value: AIReqContextValue;
+  children: ReactNode;
+}) {
+  return <AIReqContext.Provider value={value}>{children}</AIReqContext.Provider>;
+}
 
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
@@ -197,6 +208,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const [releaseId, updateReleaseId] = useState("");
   const requestRevision = useRef(0);
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
+  const draftGuards = useRef(new Map<string, (navigate: () => void) => void>());
   const guardRef = useRef<((navigate: () => void) => void) | null>(null);
   const historyReturn = useRef<{ delta: number } | null>(null);
   const approvedHistory = useRef(false);
@@ -204,9 +216,24 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const setNavigationGuard = useCallback((guard: ((navigate: () => void) => void) | null) => {
     guardRef.current = guard;
   }, []);
-  const setDraftNavigationGuard = useCallback((guard: ((navigate: () => void) => void) | null) => {
-    draftGuardRef.current = guard;
-  }, []);
+  const setDraftNavigationGuard = useCallback(
+    (guard: ((navigate: () => void) => void) | null, ownerId = "primary") => {
+      if (guard) draftGuards.current.set(ownerId, guard);
+      else draftGuards.current.delete(ownerId);
+      const guards = [...draftGuards.current.values()];
+      // 主区与各详情 Tab 独立注册；一个表单卸载不能清除其他表单的未保存门禁。
+      draftGuardRef.current = guards.length
+        ? (action) => {
+            const run = (index: number) => {
+              if (index === guards.length) action();
+              else guards[index]!(() => run(index + 1));
+            };
+            run(0);
+          }
+        : null;
+    },
+    [],
+  );
   const navigate = useCallback((action: () => void) => {
     // 用户已主动导航时，不能让迟到的链接解析再覆盖其选择。
     pendingObjectLink.current = null;

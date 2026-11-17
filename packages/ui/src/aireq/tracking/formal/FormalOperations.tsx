@@ -15,6 +15,7 @@ import {
 import { AnalysisRunConfirmation } from "../AnalysisRunConfirmation.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReq } from "../../AIReqContext.js";
+import { useAIReqWorkspaceActive } from "../../shell/ModelSettingsNavigationContext.js";
 import { useAIReqDataSource } from "../../data-source.js";
 import { srCompletionBlocker, srProgress } from "../../contract.js";
 import type {
@@ -32,6 +33,7 @@ export function AIReqFormalTestControls({
   sr: AIReqSystemRequirement;
 }) {
   const source = useAIReqDataSource();
+  const active = useAIReqWorkspaceActive();
   const aireq = useAIReq()!;
   const id = useId();
   const [request, setRequest] = useState<AIReqTestAcceptanceInput>();
@@ -128,12 +130,17 @@ export function AIReqFormalTestControls({
       ) : null}
       {/* 关闭动画仍会渲染内容，保留本次请求避免标题和版本在退场时闪变。 */}
       <Dialog
-        open={dialogOpen}
+        open={active && dialogOpen}
         onOpenChange={(value) => {
-          if (!value && !submitting.current) setDialogOpen(false);
+          if (active && !value && !submitting.current) setDialogOpen(false);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent
+          className="sm:max-w-lg"
+          onCloseAutoFocus={(event) => {
+            if (!active) event.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {request?.outcome === "failed" ? "记录测试不通过" : "记录测试验收通过"}
@@ -223,6 +230,7 @@ export function AIReqFormalAnalysisAction({
   sr: AIReqSystemRequirement;
 }) {
   const source = useAIReqDataSource();
+  const active = useAIReqWorkspaceActive();
   const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
@@ -259,9 +267,9 @@ export function AIReqFormalAnalysisAction({
         分析此 SR
       </Button>
       <AnalysisRunConfirmation
-        open={confirm}
+        open={active && confirm}
         onOpenChange={(open) => {
-          if (!pending) setConfirm(open);
+          if (active && !pending) setConfirm(open);
         }}
         scope={`${group.title} · ${sr.title}`}
         count={1}
@@ -285,6 +293,7 @@ export function AIReqBranchCleanup({
   rows: AIReqSystemRequirement[];
 }) {
   const source = useAIReqDataSource();
+  const active = useAIReqWorkspaceActive();
   const aireq = useAIReq()!;
   const [preview, setPreview] = useState<{
     items: AIReqBranchCleanupItem[];
@@ -348,14 +357,19 @@ export function AIReqBranchCleanup({
       <p role="status" className="text-ui-sm">
         {message}
       </p>
-      {/* 预览在退场动画中仍可见，成功提示只显示在弹窗外。 */}
+      {/* 迟到预览保留在原 Tab；隐藏时不显示 Portal 或恢复焦点到隐藏控件。 */}
       <Dialog
-        open={dialogOpen}
+        open={active && dialogOpen}
         onOpenChange={(open) => {
-          if (!open && !pending) setDialogOpen(false);
+          if (active && !open && !pending) setDialogOpen(false);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent
+          className="sm:max-w-lg"
+          onCloseAutoFocus={(event) => {
+            if (!active) event.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>确认清理本 IR 登记开发分支</DialogTitle>
             <DialogDescription>

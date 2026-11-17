@@ -55,7 +55,7 @@ export function TrackingTableScroll({
   return (
     <div className={cn("min-w-0", className)}>
       {overflowing && (
-        <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background px-2 py-1 text-ui-sm text-foreground-subtle">
+        <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-2 py-1 text-ui-sm text-foreground-subtle">
           <p id={`${id}-hint`}>
             左右滚动查看其余列
             <span className="sr-only">，聚焦表格后可用左右方向键、Home 和 End 横向滚动。</span>

@@ -132,7 +132,7 @@ export function AIReqProjectOverviewPage({
       ? "当前项目数据不可用，请重试。"
       : "Project data is unavailable. Retry to continue.";
   const empty = (text: string) => (
-    <p className="py-8 text-ui-sm text-remote-foreground-muted">{text}</p>
+    <p className="px-4 py-8 text-ui-sm text-foreground-subtle">{text}</p>
   );
 
   return (
@@ -148,7 +148,7 @@ export function AIReqProjectOverviewPage({
         </header>
         <p
           role="status"
-          className={ai.error && view ? "text-ui-sm text-remote-foreground-muted" : "sr-only"}
+          className={ai.error && view ? "text-ui-sm text-foreground-subtle" : "sr-only"}
         >
           {ai.error && view
             ? zh
@@ -161,7 +161,7 @@ export function AIReqProjectOverviewPage({
               : ""}
         </p>
         {!ai.selectionReady ? (
-          <div role="status" className="space-y-3 text-remote-foreground-muted">
+          <div role="status" className="space-y-3 text-foreground-subtle">
             <p>{unavailable}</p>
             {!ai.pending && (
               <Button variant="outline" onClick={() => void ai.refresh()}>
@@ -185,7 +185,7 @@ export function AIReqProjectOverviewPage({
             <h2 className="text-ui-xl font-semibold">
               {zh ? "当前项目尚无 Release" : "No releases in this project"}
             </h2>
-            <p className="text-remote-foreground-muted">
+            <p className="text-foreground-subtle">
               {zh
                 ? "添加 Release 后，即可查看需求、确认事项和开发进展。"
                 : "Add a release to see requirements, confirmations and delivery progress."}
@@ -214,7 +214,8 @@ export function AIReqProjectOverviewPage({
                   {zh ? "需求与交付" : "Requirements & delivery"}
                 </h2>
               </div>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+              {/* 数据区原先透出页面底色、辅助文字混用侧栏灰；按外观页卡片与文字角色呈现。 */}
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-4">
                 {[
                   {
                     label: zh ? "正式需求 IR" : "Formal requirements · IR",
@@ -238,17 +239,17 @@ export function AIReqProjectOverviewPage({
                   },
                 ].map((item) => (
                   <div key={item.label} className="space-y-1">
-                    <dt className="text-ui-sm text-remote-foreground-muted">{item.label}</dt>
+                    <dt className="text-ui-sm text-foreground">{item.label}</dt>
                     <dd>
                       <Button
                         variant="link"
-                        className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums"
+                        className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
                         aria-label={`${item.label}: ${item.count}`}
                         onClick={() => ai.navigate(() => ai.setMainView(item.target))}
                       >
                         {item.count}
                         <ArrowRight
-                          className="size-3.5 text-remote-foreground-muted"
+                          className="size-3.5 text-foreground-subtle"
                           aria-hidden="true"
                         />
                       </Button>
@@ -256,7 +257,7 @@ export function AIReqProjectOverviewPage({
                   </div>
                 ))}
               </dl>
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-lg bg-surface px-4 py-3">
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-card-border bg-card px-4 py-3 text-foreground">
                 <div className="flex min-w-56 flex-1 items-center gap-4">
                   <span className="shrink-0 text-ui-sm">
                     {zh ? "整体进度" : "Overall progress"}
@@ -270,7 +271,7 @@ export function AIReqProjectOverviewPage({
                     />
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-2 text-ui-sm text-remote-foreground-muted">
+                <span className="inline-flex items-center gap-2 text-ui-sm text-foreground-subtle">
                   <CheckCheck className="size-4" aria-hidden="true" />
                   {zh
                     ? `人工验收完成 ${completed} / ${srs.length}`
@@ -279,7 +280,7 @@ export function AIReqProjectOverviewPage({
                 </span>
               </div>
               {summary.unanalyzedCount > 0 && (
-                <p className="text-ui-sm text-remote-foreground-muted">
+                <p className="text-ui-sm text-foreground-subtle">
                   {zh
                     ? `未分析 SR ${summary.unanalyzedCount}`
                     : `Unanalyzed SRs ${summary.unanalyzedCount}`}
@@ -315,7 +316,7 @@ export function AIReqProjectOverviewPage({
                   </Button>
                 ))}
               </div>
-              <div className="divide-y divide-border border-y border-border">
+              <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
                 {pending.length === 0
                   ? empty(
                       zh
@@ -326,12 +327,12 @@ export function AIReqProjectOverviewPage({
                       <button
                         key={proposal.id}
                         type="button"
-                        className="flex w-full items-center gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                         onClick={() => openProposal(proposal)}
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{proposal.title}</span>
-                          <span className="mt-1 block text-ui-sm text-remote-foreground-muted">
+                          <span className="mt-1 block text-ui-sm text-foreground-subtle">
                             {proposal.id} ·{" "}
                             {zh
                               ? todos
@@ -342,7 +343,7 @@ export function AIReqProjectOverviewPage({
                           </span>
                         </span>
                         <ArrowRight
-                          className="size-4 shrink-0 text-remote-foreground-muted"
+                          className="size-4 shrink-0 text-foreground-subtle"
                           aria-hidden="true"
                         />
                       </button>
@@ -375,26 +376,26 @@ export function AIReqProjectOverviewPage({
                     <ArrowRight className="size-3.5" aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="divide-y divide-border border-y border-border">
+                <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
                   {recent.length === 0
                     ? empty(zh ? "当前 Release 暂无需求提案。" : "No proposals in this release.")
                     : recent.map((proposal) => (
                         <button
                           key={proposal.id}
                           type="button"
-                          className="flex w-full items-start gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                          className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                           onClick={() => openProposal(proposal)}
                         >
                           <span className="min-w-0 flex-1 space-y-1.5">
                             <span className="block truncate font-medium">{proposal.title}</span>
-                            <span className="block text-ui-sm text-remote-foreground-muted">
+                            <span className="block text-ui-sm text-foreground-subtle">
                               {proposal.id} ·{" "}
                               {zh
                                 ? proposalPhaseLabel(proposal)
                                 : phaseEn[proposalProgressIndex(proposal)]}
                             </span>
                             <time
-                              className="flex items-center gap-1.5 text-ui-sm text-remote-foreground-muted"
+                              className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"
                               dateTime={new Date(
                                 proposalUpdatedTime(proposal, view?.operations ?? []),
                               ).toISOString()}
@@ -404,7 +405,7 @@ export function AIReqProjectOverviewPage({
                             </time>
                           </span>
                           <ArrowRight
-                            className="mt-1 size-4 shrink-0 text-remote-foreground-muted"
+                            className="mt-1 size-4 shrink-0 text-foreground-subtle"
                             aria-hidden="true"
                           />
                         </button>
@@ -425,7 +426,7 @@ export function AIReqProjectOverviewPage({
                     <ArrowRight className="size-3.5" aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="divide-y divide-border border-y border-border">
+                <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
                   {recentSrs.length === 0
                     ? empty(
                         zh
@@ -441,7 +442,7 @@ export function AIReqProjectOverviewPage({
                           <button
                             key={sr.id}
                             type="button"
-                            className="flex w-full items-start gap-3 rounded-md px-2 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover"
+                            className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
                             onClick={() =>
                               ai.select(
                                 {
@@ -456,13 +457,13 @@ export function AIReqProjectOverviewPage({
                           >
                             <span className="min-w-0 flex-1 space-y-1.5">
                               <span className="block truncate font-medium">{sr.title}</span>
-                              <span className="block truncate text-ui-sm text-remote-foreground-muted">
+                              <span className="block truncate text-ui-sm text-foreground-subtle">
                                 {sr.id} · {parent?.title ?? sr.irId}
                               </span>
                               <span className="flex flex-wrap items-center gap-2 text-ui-sm">
                                 {change.from && (
                                   <>
-                                    <span className="text-remote-foreground-muted">
+                                    <span className="text-foreground-subtle">
                                       {zh ? change.from : statusEn[change.from]}
                                     </span>
                                     <ArrowRight className="size-3" aria-hidden="true" />
@@ -471,13 +472,13 @@ export function AIReqProjectOverviewPage({
                                 <Badge variant="secondary">
                                   {zh ? srProgressStatus(sr) : statusEn[srProgressStatus(sr)]}
                                 </Badge>
-                                <time className="text-remote-foreground-muted" dateTime={change.at}>
+                                <time className="text-foreground-subtle" dateTime={change.at}>
                                   {time(change.at)}
                                 </time>
                               </span>
                             </span>
                             <ArrowRight
-                              className="mt-1 size-4 shrink-0 text-remote-foreground-muted"
+                              className="mt-1 size-4 shrink-0 text-foreground-subtle"
                               aria-hidden="true"
                             />
                           </button>

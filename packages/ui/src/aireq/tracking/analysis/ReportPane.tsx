@@ -7,31 +7,25 @@ import { RunModelFacts } from "../RunModelFacts.js";
 import { BranchCopy } from "../BranchCopy.js";
 import { duration, runLabels, Status, time } from "./AnalysisPresentation.js";
 
-export function ReportPane({
-  run,
-  onOpenRequirement,
-  onRetry,
-  retryDisabledReason,
-  onRestoreFocus,
-  feedback,
-  onMessage,
-}: {
+interface AnalysisReportProps {
   run: AIReqAnalysisRun;
   onOpenRequirement: () => void;
   onRetry: () => void;
   retryDisabledReason?: string;
-  onRestoreFocus: () => void;
   feedback: ReactNode;
   onMessage: (value: string) => void;
-}) {
-  const { locale } = useZCodeIntl();
-  const report = run.report;
+}
+
+/** 兼容已有 Dialog 调用；报告正文与侧栏使用同一实现。 */
+export function ReportPane({
+  onRestoreFocus,
+  ...props
+}: AnalysisReportProps & { onRestoreFocus(): void }) {
   return (
     <DialogContent
       data-testid="analysis-report-dialog"
       className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-2xl"
       onOpenAutoFocus={(event) => {
-        // 默认聚焦复制按钮会立即弹出提示，遮挡报告内容。
         event.preventDefault();
         (event.currentTarget as HTMLElement).focus();
       }}
@@ -40,10 +34,32 @@ export function ReportPane({
         onRestoreFocus();
       }}
     >
+      <DialogTitle className="sr-only">分析执行详情</DialogTitle>
+      <DialogDescription className="sr-only">{props.run.srId}</DialogDescription>
+      <AnalysisReportContent {...props} />
+    </DialogContent>
+  );
+}
+
+export function AnalysisReportContent({
+  run,
+  onOpenRequirement,
+  onRetry,
+  retryDisabledReason,
+  feedback,
+  onMessage,
+}: AnalysisReportProps) {
+  const { locale } = useZCodeIntl();
+  const report = run.report;
+  return (
+    <section
+      data-testid="analysis-report-content"
+      className="flex h-full min-h-0 min-w-0 flex-col gap-4 [&_button:focus-visible]:border-remote-foreground-muted"
+    >
       <div className="flex shrink-0 items-start justify-between gap-2 pr-6">
         <div className="min-w-0">
-          <DialogTitle>分析执行详情</DialogTitle>
-          <DialogDescription className="mt-1 break-all">{run.srId}</DialogDescription>
+          <h2 className="text-ui-lg font-medium">分析执行详情</h2>
+          <p className="mt-1 break-all text-ui-sm text-foreground-subtle">{run.srId}</p>
         </div>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-ui-base text-foreground">
@@ -165,7 +181,7 @@ export function ReportPane({
         )}
       </div>
       {feedback}
-    </DialogContent>
+    </section>
   );
 }
 function ReportList({ title, items }: { title: string; items: string[] }) {

@@ -113,7 +113,9 @@ Default light and dark CSS variables still exist as fallback foundations, but ne
 - **Text Primary**: `--color-foreground`
   Main reading text.
 - **Text Secondary**: `--color-foreground-subtle`
-  Metadata, descriptions, supporting labels.
+  Metadata, descriptions, supporting labels. Preserve at least 4.5:1 contrast on
+  content cards as well as the page background; Appearance and business reading
+  surfaces share this role.
 - **Text Tertiary**: `--color-foreground-subtlest`
   Placeholders, weak hints, disabled-adjacent copy.
 - **Text Inverse**: `--color-foreground-inverse`
@@ -690,6 +692,12 @@ AIReq top-level h1 headings share the Appearance role:
 Use one consistent top inset and content-column start across lists and settings.
 These AIReq roles supersede earlier full-width content and page-title guidance;
 retained unrelated upstream components keep their existing roles.
+
+Business tables and project data use `bg-card` / `border-card-border`, with primary
+field headings and secondary descriptive text matching Appearance. Project overview
+groups fill the available reading column; release summaries use equal-width columns
+that collapse within narrower desktop panels. Keep Add project beside the page title,
+and keep group widths stable when expanding or collapsing release summaries.
 
 Keep primary actions and abnormal states visible. Reduce repeated scope, ordinary
 success commentary, and instructional paragraphs; preserve full rules in existing

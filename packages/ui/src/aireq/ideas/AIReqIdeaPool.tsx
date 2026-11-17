@@ -268,9 +268,10 @@ export function AIReqIdeaPool() {
           />
         </div>
         {ai.view && (
-          <div className="overflow-x-auto rounded-xl border border-border">
+          // 原表格透出页面底色且正文沿用链接主色；与外观页统一卡片底色和主次文字角色。
+          <div className="overflow-x-auto rounded-xl border border-card-border bg-card text-foreground">
             <table className="w-full text-left text-ui-base">
-              <thead className="bg-surface text-ui-sm text-foreground-subtle">
+              <thead className="bg-card text-ui-sm text-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">
                     {zh ? "原始需求／编号" : "Original requirement / ID"}
@@ -288,7 +289,7 @@ export function AIReqIdeaPool() {
                     <td className="max-w-lg px-4 py-4">
                       <Button
                         variant="link"
-                        className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left"
+                        className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-foreground-subtle hover:text-foreground"
                         onClick={(event) => open("edit", event.currentTarget, idea)}
                       >
                         {idea.originalText}

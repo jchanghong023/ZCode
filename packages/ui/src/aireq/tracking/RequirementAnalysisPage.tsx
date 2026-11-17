@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
@@ -32,7 +31,7 @@ import {
 } from "./analysis/AnalysisPresentation.js";
 import { useSchedulerQuery } from "./analysis/useSchedulerQuery.js";
 import { AnalysisTaskTable, AnalysisHistoryTable } from "./analysis/AnalysisTables.js";
-import { ReportPane } from "./analysis/ReportPane.js";
+import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 
 export function AIReqRequirementAnalysisPage({
   onOpenAnalysisSettings,
@@ -97,8 +96,9 @@ function ConnectedProgressAnalysis({
   const [taskPageSize, setTaskPageSize] = useState(25);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(25);
-  const [selectedRunId, setSelectedRunId] = useState<string>();
-  const reportTrigger = useRef<HTMLButtonElement | null>(null);
+  const sidePane = useAIReqSidePane();
+  const selectedRunId =
+    sidePane.activeTab?.kind === "analysis" ? sidePane.activeTab.runId : undefined;
   const [message, setMessage] = useState("");
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
   const [analysisRequest, setAnalysisRequest] = useState<{
@@ -181,19 +181,6 @@ function ConnectedProgressAnalysis({
   );
   const historyQuery = useSchedulerQuery(loadHistory, revision, tab === "history" && !dateError);
   const historyResult = historyQuery.value;
-  const loadReport = useCallback(async () => {
-    const run = selectedRunId ? await scheduler.readRun(selectedRunId) : undefined;
-    if (!run) throw new Error("未找到此执行报告。");
-    const tasks = await scheduler.queryTasks(
-      { projectId: run.projectId, irId: run.irId, srId: run.srId },
-      1,
-      25,
-    );
-    return { run, task: tasks.items[0] };
-  }, [scheduler, selectedRunId]);
-  const reportQuery = useSchedulerQuery(loadReport, revision, Boolean(selectedRunId));
-  const selectedRun = reportQuery.value?.run;
-  const selectedTask = reportQuery.value?.task;
   const retryBlocker = (task?: AIReqAnalysisTask) =>
     !task
       ? "此 SR 已不在当前任务范围，无法重试。"
@@ -213,9 +200,25 @@ function ConnectedProgressAnalysis({
       await scheduler.runNow(exact);
     }, `仅已请求 ${task.srId} 的单 SR 重试；未派发其他 SR，运行中不会重复接纳。`);
   };
-  const openReport = (id: string, trigger: HTMLButtonElement) => {
-    reportTrigger.current = trigger;
-    setSelectedRunId(id);
+  const openReport = (id: string) => {
+    const target =
+      historyResult?.items.find((run) => run.id === id) ??
+      taskResult?.items.find((task) => task.lastRunId === id);
+    const release =
+      target?.releaseId ??
+      snapshot?.irs.find((ir) => ir.projectId === target?.projectId && ir.id === target?.irId)
+        ?.releaseId;
+    if (!target || !release) {
+      setMessage("执行报告的项目或版本归属不可用，请刷新后重试。");
+      return;
+    }
+    sidePane.open({
+      kind: "analysis",
+      selection: { projectId: target.projectId, irId: target.irId, srId: target.srId },
+      releaseId: release,
+      title: target.srTitle,
+      runId: id,
+    });
   };
   const openRequirement = (target: {
     projectId: string;
@@ -223,11 +226,32 @@ function ConnectedProgressAnalysis({
     irId: string;
     srId: string;
   }) => {
-    // 修复：分析任务与需求原先只能靠编号人工往返，导航必须携带同一对象归属。
-    aireq.select(
-      { projectId: target.projectId, irId: target.irId, srId: target.srId, formalView: "detail" },
-      target.releaseId,
-    );
+    const release =
+      target.releaseId ??
+      snapshot?.irs.find((ir) => ir.projectId === target.projectId && ir.id === target.irId)
+        ?.releaseId;
+    if (!release) {
+      setMessage("需求的版本归属不可用，请刷新后重试。");
+      return;
+    }
+    const title =
+      taskResult?.items.find(
+        (task) =>
+          task.projectId === target.projectId &&
+          task.irId === target.irId &&
+          task.srId === target.srId,
+      )?.srTitle ?? target.srId;
+    sidePane.open({
+      kind: "report",
+      selection: {
+        projectId: target.projectId,
+        irId: target.irId,
+        srId: target.srId,
+        formalView: "detail",
+      },
+      releaseId: release,
+      title,
+    });
   };
   const taskActions = (task: AIReqAnalysisTask, onOpenReport: () => void) =>
     task.error || task.state === "failed" ? (
@@ -271,21 +295,17 @@ function ConnectedProgressAnalysis({
   useEffect(() => {
     if (taskResult && taskResult.page !== taskPage) {
       setTaskPage(taskResult.page);
-      setSelectedRunId(undefined);
     }
     if (historyResult && historyResult.page !== historyPage) {
       setHistoryPage(historyResult.page);
-      setSelectedRunId(undefined);
     }
-  }, [taskResult, taskPage, historyResult, historyPage, selectedRunId, tab]);
+  }, [taskResult, taskPage, historyResult, historyPage]);
   const resetAnalysisPages = () => {
     setTaskPage(1);
     setHistoryPage(1);
-    setSelectedRunId(undefined);
   };
   const resetHistoryPage = () => {
     setHistoryPage(1);
-    setSelectedRunId(undefined);
   };
   if (!snapshot)
     return (
@@ -369,7 +389,6 @@ function ConnectedProgressAnalysis({
           value={tab}
           onValueChange={(value) => {
             setTab(value);
-            setSelectedRunId(undefined);
           }}
           className="min-w-0 gap-3"
         >
@@ -480,7 +499,8 @@ function ConnectedProgressAnalysis({
           {tab === "tasks" && taskResult && (
             <TabsContent
               value="tasks"
-              className="m-0 min-w-0 flex-none rounded-xl border border-border bg-surface"
+              // 分析任务与历史沿用外观卡片底色；不再以半透明 surface 合成不同的正文背景。
+              className="m-0 min-w-0 flex-none rounded-xl border border-card-border bg-card text-foreground"
             >
               <AnalysisTaskTable
                 items={taskResult.items}
@@ -509,12 +529,10 @@ function ConnectedProgressAnalysis({
                 total={taskResult.total}
                 onPage={(page) => {
                   setTaskPage(page);
-                  setSelectedRunId(undefined);
                 }}
                 onPageSize={(size) => {
                   setTaskPageSize(size);
                   setTaskPage(1);
-                  setSelectedRunId(undefined);
                 }}
               />
             </TabsContent>
@@ -596,7 +614,7 @@ function ConnectedProgressAnalysis({
               />
               {historyResult && (
                 <>
-                  <div className="min-w-0 rounded-xl border border-border bg-surface">
+                  <div className="min-w-0 rounded-xl border border-card-border bg-card text-foreground">
                     <AnalysisHistoryTable
                       items={historyResult.items}
                       projects={snapshot.projects}
@@ -616,12 +634,10 @@ function ConnectedProgressAnalysis({
                       total={historyResult.total}
                       onPage={(page) => {
                         setHistoryPage(page);
-                        setSelectedRunId(undefined);
                       }}
                       onPageSize={(size) => {
                         setHistoryPageSize(size);
                         setHistoryPage(1);
-                        setSelectedRunId(undefined);
                       }}
                     />
                   </div>
@@ -631,60 +647,6 @@ function ConnectedProgressAnalysis({
           )}
         </Tabs>
       </section>
-      <Dialog
-        open={Boolean(selectedRunId)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedRunId(undefined);
-        }}
-      >
-        {selectedRun ? (
-          <ReportPane
-            run={selectedRun}
-            onOpenRequirement={() => openRequirement(selectedRun)}
-            onMessage={setMessage}
-            feedback={
-              <UpdateFeedback
-                error={reportQuery.error}
-                pending={pending}
-                message={message}
-                onRetry={refresh}
-              />
-            }
-            retryDisabledReason={
-              pending
-                ? "正在提交，请稍候。"
-                : reportQuery.loading
-                  ? "正在刷新报告，请稍候。"
-                  : reportQuery.error
-                    ? "报告刷新失败，请重试加载。"
-                    : selectedRun.failure?.retryable === false
-                      ? "此失败不可直接重试，请先按下一步处理。"
-                      : retryBlocker(selectedTask)
-            }
-            onRetry={() => {
-              if (selectedTask) retry(selectedTask);
-            }}
-            onRestoreFocus={() =>
-              reportTrigger.current?.isConnected && reportTrigger.current.focus()
-            }
-          />
-        ) : (
-          <DialogContent
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              if (reportTrigger.current?.isConnected) reportTrigger.current.focus();
-            }}
-          >
-            <DialogTitle>分析执行详情</DialogTitle>
-            <DialogDescription>正在读取所选执行信息与报告。</DialogDescription>
-            <QueryFeedback
-              loading={reportQuery.loading}
-              error={reportQuery.error}
-              onRetry={refresh}
-            />
-          </DialogContent>
-        )}
-      </Dialog>
       <UpdateFeedback error={refreshError} pending={pending} message={message} onRetry={refresh} />
     </section>
   );

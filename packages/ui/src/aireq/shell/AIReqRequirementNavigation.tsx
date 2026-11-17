@@ -8,7 +8,13 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
 
 /** 详情身份和返回动作随实际面板展示，避免全宽页头与右侧对象脱节。 */
-export function AIReqRequirementContext({ discussion = false }: { discussion?: boolean }) {
+export function AIReqRequirementContext({
+  discussion = false,
+  showReturn = true,
+}: {
+  discussion?: boolean;
+  showReturn?: boolean;
+}) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const { writeClipboardText } = usePlatform();
@@ -55,17 +61,19 @@ export function AIReqRequirementContext({ discussion = false }: { discussion?: b
         }
       >
         <div className="flex min-w-0 items-center gap-2">
-          <ControlHintTooltip title={returnLabel}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 focus-visible:border-remote-foreground-muted"
-              aria-label={returnLabel}
-              onClick={() => ai.navigate(() => ai.setMainView(isFormal ? "formal" : "proposals"))}
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-            </Button>
-          </ControlHintTooltip>
+          {showReturn && (
+            <ControlHintTooltip title={returnLabel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 focus-visible:border-remote-foreground-muted"
+                aria-label={returnLabel}
+                onClick={() => ai.navigate(() => ai.setMainView(isFormal ? "formal" : "proposals"))}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </Button>
+            </ControlHintTooltip>
+          )}
           <span
             className="min-w-0 flex-1 truncate text-ui-base font-medium"
             title={sr?.title ?? group?.title}

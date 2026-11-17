@@ -124,7 +124,7 @@ export function AIReqTodoPage() {
       <main className="min-h-0 flex-1 overflow-auto text-ui-base">
         <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-3`}>
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
-          <p role="status" className="text-remote-foreground-muted">
+          <p role="status" className="text-foreground-subtle">
             {!ai.selectionReady
               ? ai.pending
                 ? "正在读取当前范围的待办…"
@@ -168,13 +168,16 @@ export function AIReqTodoPage() {
               onClick={() => setFilter(value)}
             >
               {label}
-              <span className="text-ui-sm font-normal text-remote-foreground-muted tabular-nums">
+              <span
+                className={`text-ui-sm font-normal tabular-nums group-hover/button:text-foreground group-focus-visible/button:text-foreground ${filter === value ? "text-foreground" : "text-foreground-subtle"}`}
+              >
                 {count}
               </span>
             </Button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-surface">
+        {/* 表格原先借用弱表面色；与外观页统一卡片和主次文字，交互时提升辅助文字对比度。 */}
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
           <table className="w-full min-w-[680px] table-fixed text-left">
             <colgroup>
               <col className="w-[30%]" />
@@ -182,7 +185,7 @@ export function AIReqTodoPage() {
               <col className="w-[20%]" />
               <col className="w-14" />
             </colgroup>
-            <thead className="text-ui-sm text-foreground-subtle">
+            <thead className="bg-card text-ui-sm text-foreground">
               <tr>
                 {["需求／开发任务", "待处理事项", "归属", "分工"].map((label, index) => (
                   <th
@@ -198,7 +201,7 @@ export function AIReqTodoPage() {
               {todos.map((item) => (
                 <tr
                   key={item.id}
-                  className="group/row border-b border-border/50 last:border-0 hover:bg-surface-hover"
+                  className="group/row border-b border-border/50 last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
                 >
                   <td className="break-words px-4 py-3">
                     {/* 同一 IR 下的多个 SR 必须可读区分，编号保留用于追溯。 */}
