@@ -119,9 +119,16 @@ export function AIReqSidebarNavigation() {
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="size-5 shrink-0 select-none object-contain"
+          className="size-7 shrink-0 select-none object-contain"
         />
-        <span className="text-ui-lg font-semibold text-foreground">AIReq</span>
+        <div className="flex min-w-0 flex-col">
+          <span lang="zh-CN" className="text-ui-lg leading-tight font-semibold text-foreground">
+            AI 需求协作
+          </span>
+          <span lang="en" className="text-ui-sm leading-tight text-remote-foreground-muted">
+            AI Requirements
+          </span>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
         <div className="mb-4 flex items-center gap-2 border-b border-border px-1 pb-4">
