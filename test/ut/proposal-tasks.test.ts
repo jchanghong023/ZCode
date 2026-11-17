@@ -77,6 +77,17 @@ describe("independent proposal task navigation", () => {
     expect(proposalNextTask({ ...group(), files: [] })).toBe("requirements");
     expect(proposalNextTask(group())).toBe("requirementsReview");
   });
+  it("does not promote future delivery or legacy PR fields over current material facts", () => {
+    const value = {
+      ...group(),
+      status: "requirements-pr" as const,
+      proposalStage: "solution" as const,
+    };
+    expect(proposalNextTask(value)).toBe("requirementsReview");
+    expect(proposalTaskStatus(value, "delivery")).toBe("未开始");
+    value.files = [];
+    expect(proposalNextTask(value)).toBe("requirements");
+  });
   it.each(proposalTasks)("restores the %s page without business changes", (task) => {
     expect(restoreProposalTask(task)).toBe(task);
   });

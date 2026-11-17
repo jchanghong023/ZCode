@@ -156,7 +156,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   else
     content = (
       <>
-        <div className="shrink-0 overflow-y-auto py-5 [scrollbar-gutter:stable_both-edges]">
+        <div className="shrink-0 overflow-y-auto pb-5 [scrollbar-gutter:stable_both-edges]">
           <div
             className={`mx-auto flex min-w-0 flex-wrap items-center justify-between gap-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
           >

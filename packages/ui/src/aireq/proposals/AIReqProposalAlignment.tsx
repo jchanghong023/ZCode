@@ -25,6 +25,9 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const version = proposalVersion(group);
+  const confirmedCount = perspectives.filter(([perspective]) =>
+    group.alignment?.some((item) => item.perspective === perspective && item.version === version),
+  ).length;
   const history =
     proposalProgressIndex(group, ai.selection) !== 3 ||
     proposalViewedIndex(group, ai.selection) !== 3;
@@ -48,7 +51,9 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
     >
       <div className="space-y-1">
         <h3 className="text-ui-base font-medium">
-          {zh ? "当前材料确认" : "Confirm current materials"}
+          {zh
+            ? `当前材料确认 · ${confirmedCount} / 3`
+            : `Confirm current materials · ${confirmedCount} / 3`}
         </h3>
         <p className="text-ui-sm text-foreground-subtle">
           {zh
@@ -84,35 +89,30 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={
-                  history ||
-                  frozen ||
-                  Boolean(pending) ||
-                  Boolean(confirmation) ||
-                  Boolean(reviewBlocker) ||
-                  !source.capabilities.proposalDiscussion
-                }
-                onClick={() =>
-                  void ai.command({
-                    type: "confirmAlignment",
-                    projectId: group.projectId,
-                    irId: group.id,
-                    perspective,
-                    version,
-                  })
-                }
-              >
-                {confirmation
-                  ? zh
-                    ? "已确认"
-                    : "Confirmed"
-                  : zh
-                    ? `确认${label}视角`
-                    : `Confirm ${labelEn.toLowerCase()}`}
-              </Button>
+              {!confirmation && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    history ||
+                    frozen ||
+                    Boolean(pending) ||
+                    Boolean(reviewBlocker) ||
+                    !source.capabilities.proposalDiscussion
+                  }
+                  onClick={() =>
+                    void ai.command({
+                      type: "confirmAlignment",
+                      projectId: group.projectId,
+                      irId: group.id,
+                      perspective,
+                      version,
+                    })
+                  }
+                >
+                  {zh ? `确认${label}视角` : `Confirm ${labelEn.toLowerCase()}`}
+                </Button>
+              )}
             </li>
           );
         })}

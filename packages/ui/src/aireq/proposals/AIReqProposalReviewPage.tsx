@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   fullReviewCurrent,
+  fullReviewReadyBlocker,
+  requirementsReviewReadyBlocker,
   requirementsReviewCurrent,
   type AIReqRequirementGroup,
 } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { AIReqProposalTaskActions } from "./AIReqProposalTaskActions.js";
-import { proposalTaskStatus } from "./proposalTasks.js";
+import { proposalTaskStatus, proposalNextTask, proposalTaskTitles } from "./proposalTasks.js";
 
 export function AIReqProposalReviewPage({
   group,
@@ -25,6 +27,11 @@ export function AIReqProposalReviewPage({
     current && review?.passed && review.humanDecision?.reviewId === review.id
       ? review.humanDecision
       : undefined;
+  const readyForConfirmation =
+    review &&
+    current &&
+    !(full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group));
+  const next = proposalNextTask(group);
   const findings = review?.findings ?? [];
   const title = full ? "方案审查" : "需求评审";
   const status = proposalTaskStatus(group, full ? "solutionReview" : "requirementsReview");
@@ -38,6 +45,13 @@ export function AIReqProposalReviewPage({
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{title}</h1>
           <span className="text-ui-sm text-foreground-subtle">{status}</span>
         </header>
+        {readyForConfirmation && !confirmation && (
+          <p className="text-ui-sm text-foreground-subtle">
+            {full
+              ? "完整审查已完成。请查看各路审查意见，再确认当前方案。"
+              : "业务评审已完成。请查看评审意见，再确认当前需求。"}
+          </p>
+        )}
         {confirmation ? (
           <section className="space-y-3 border-y border-border/50 py-5" aria-label="人工确认结果">
             <p className="flex items-start gap-2 text-ui-base">
@@ -45,7 +59,9 @@ export function AIReqProposalReviewPage({
               <span>
                 {confirmation.employeeId} 于{" "}
                 <time dateTime={confirmation.decidedAt}>
-                  {new Date(confirmation.decidedAt).toLocaleString("zh-CN")}
+                  {new Date(confirmation.decidedAt).toLocaleString("zh-CN", {
+                    timeZone: "Asia/Shanghai",
+                  })}
                 </time>{" "}
                 确认了{full ? "完整方案" : "业务需求"}
               </span>
@@ -81,7 +97,10 @@ export function AIReqProposalReviewPage({
           <>
             {!current && (
               <p role="status" className="text-ui-sm text-foreground-subtle">
-                材料已更新，以下意见仅供追溯，需要重新评审并确认。
+                材料已更新，以下意见仅供追溯，不能用于确认当前版本。
+                <Button variant="link" onClick={() => ai.openProposalTask(next)}>
+                  前往{proposalTaskTitles[next]}
+                </Button>
               </p>
             )}
             {findings.length > 0 && (

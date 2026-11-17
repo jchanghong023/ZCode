@@ -1,3 +1,4 @@
+import { proposalNextTask, proposalTaskTitles } from "./proposalTasks.js";
 import { useRef, useState, type ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { MoreHorizontal, X } from "lucide-react";
@@ -17,7 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
-import { AIREQ_CONTENT_WIDTH_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import {
+  AIREQ_CONTENT_WIDTH_CLASSNAME,
+  AIREQ_PAGE_CONTENT_CLASSNAME,
+  AIREQ_PAGE_TITLE_CLASSNAME,
+} from "../shell/pageLayout.js";
 import {
   proposalProgressIndex,
   proposalState,
@@ -506,27 +511,53 @@ export function AIReqProposalStageBody({
   const group = ai.view?.drafts.find(
     (item) => item.id === ai.selection.irId && item.projectId === ai.selection.projectId,
   );
+  const mergePending = group && proposalState(group) === "merge-pending";
+  const deliveryReady = group && proposalProgressIndex(group) === 3;
+  const next = group ? proposalNextTask(group) : "overview";
   return (
-    <main className="@container/conversation min-h-0 flex-1 overflow-auto py-6 text-ui-base [scrollbar-gutter:stable_both-edges]">
-      <div className={`mx-auto min-w-0 space-y-6 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+    <main className="@container/conversation min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]">
+      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-6`}>
         <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>交付确认</h1>
         <p className="text-ui-sm text-foreground-subtle">
-          {group?.proposalDelivery?.pushedAt
-            ? "材料已提交，等待合入核验。"
-            : "先查看当前材料，再完成三个视角的确认并提交文档 PR。"}
+          {mergePending
+            ? "文档已提交，等待 MR 合入与后台核验。"
+            : deliveryReady
+              ? "确认当前材料，核对文件后提交文档 MR。"
+              : "当前版本尚未完成审查。先处理以下前置任务，再进行交付确认。"}
         </p>
         {!materialsOpen && (
           <Button variant="outline" onClick={onOpenMaterials}>
             展开需求材料
           </Button>
         )}
-        {group && (
-          <>
-            <AIReqProposalAlignment group={group} />
-            <AIReqProposalDeliveryControls group={group} />
-            {group.proposalDelivery?.pushedAt && <AIReqProposalBackgroundStatus group={group} />}
-          </>
-        )}
+        {group &&
+          (deliveryReady ? (
+            <>
+              {mergePending ? (
+                <>
+                  <AIReqProposalBackgroundStatus group={group} />
+                  <AIReqProposalDeliveryControls group={group} />
+                  <details className="text-ui-sm text-foreground-subtle">
+                    <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+                      查看三方确认记录
+                    </summary>
+                    <div className="mt-4">
+                      <AIReqProposalAlignment group={group} />
+                    </div>
+                  </details>
+                </>
+              ) : (
+                <>
+                  <AIReqProposalAlignment group={group} />
+                  <AIReqProposalDeliveryControls group={group} />
+                </>
+              )}
+            </>
+          ) : (
+            <Button onClick={() => ai.openProposalTask(next)}>
+              前往{proposalTaskTitles[next]}
+            </Button>
+          ))}
       </div>
     </main>
   );

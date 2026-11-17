@@ -123,7 +123,8 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
         ? "待完善"
         : "未开始";
   if (task === "delivery") {
-    if (group.requirementsPr?.status === "merged") return "已合入";
+    if (proposalState(group) === "merge-pending") return "待合入";
+    if (fullReviewBlocker(group)) return "未开始";
     if (group.proposalDelivery && !proposalDeliveryCurrent(group)) return "需要重新确认";
     if (group.proposalDelivery?.pushedAt) return "已提交";
     const version = proposalVersion(group);
@@ -150,4 +151,67 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
   )
     ? "待人工确认"
     : "评审中";
+}
+
+/** 文案只解释公共八态及剩余动作，不保存业务状态或分派责任。 */
+export function proposalTaskGuidance(group: AIReqRequirementGroup) {
+  const state = proposalState(group);
+  const returned = group.returnFeedback && !group.returnFeedback.resumedAt;
+  const messages = {
+    "not-started": {
+      role: "业务",
+      description: "先与业务 Agent 明确目标、范围和验收标准，形成需求文档。",
+      action: "开始需求澄清",
+    },
+    "ir-review-pending": returned
+      ? {
+          role: "业务",
+          description: "需求已退回。先在需求澄清中补充意见，再重新评审。",
+          action: "处理退回意见",
+        }
+      : {
+          role: "业务",
+          description: "当前需求尚未通过有效评审，请发起评审或处理已有问题。",
+          action: "查看需求评审",
+        },
+    "ir-confirmation-pending": {
+      role: "人工确认",
+      description: "业务评审已完成，请阅读意见并确认当前版本的需求。",
+      action: "查看并确认需求",
+    },
+    "solution-incomplete": {
+      role: "方案开发",
+      description: "业务需求已确认，继续完善技术方案、开发任务和测试材料。",
+      action: "继续完善方案",
+    },
+    "solution-review-pending": {
+      role: "方案开发",
+      description: "当前方案尚未通过完整审查，请发起审查或处理已有问题。",
+      action: "查看方案审查",
+    },
+    "solution-confirmation-pending": fullReviewBlocker(group)
+      ? {
+          role: "人工确认",
+          description: "完整审查已完成，请阅读独立审查意见并放行当前方案。",
+          action: "查看并确认方案",
+        }
+      : {
+          role: "业务、开发、测试",
+          description: "完整方案已放行，还需三个视角分别确认当前材料。",
+          action: "完成三方确认",
+        },
+    "submission-pending": {
+      role: "提交人",
+      description: "当前版本的审查与三方确认已完成，核对文件后提交文档 MR。",
+      action: "核对文件并提交",
+    },
+    "merge-pending": {
+      role: "MR 评审人／后台核验",
+      description: "文档已提交。MR 合入并通过材料核验后，将自动转为正式需求。",
+      action: "查看合入进展",
+    },
+  };
+  return state
+    ? messages[state]
+    : { role: "只读", description: "提案已结束，请查看正式需求或历史记录。", action: "查看记录" };
 }

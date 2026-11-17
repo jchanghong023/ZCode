@@ -8,7 +8,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -43,6 +43,7 @@ export function AIReqProposalTaskActions({
 }) {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
+  const hintId = useId();
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [returnOpen, setReturnOpen] = useState(false);
@@ -79,6 +80,12 @@ export function AIReqProposalTaskActions({
       : "请先完善方案、任务与测试材料。"
     : requirementsReviewStartBlocker(group);
   const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
+  const approveReady = Boolean(review && !approveIssue);
+  const hint = running
+    ? "正在评审当前材料，完成后可查看意见并人工确认。"
+    : discussion
+      ? startIssue
+      : approveIssue;
   const target = { projectId: group.projectId, irId: group.id };
   const run = async (command: AIReqAction) => {
     if (inFlight.current) return;
@@ -95,9 +102,28 @@ export function AIReqProposalTaskActions({
   return (
     <div className="space-y-3" data-testid="proposal-task-actions">
       <div className="flex flex-wrap items-center gap-3">
+        {!discussion && review && (
+          <Button
+            variant={approveReady ? "default" : "outline"}
+            disabled={Boolean(unavailable || approveIssue)}
+            aria-describedby={hint ? hintId : undefined}
+            title={approveIssue}
+            onClick={() =>
+              void run({
+                type: full ? "approveFullReview" : "acceptProposal",
+                ...target,
+                reviewId: review.id,
+                snapshotDigest: review.snapshotDigest,
+              })
+            }
+          >
+            {full ? "确认完整方案" : "确认业务需求"}
+          </Button>
+        )}
         <Button
-          variant={discussion || !review ? "default" : "outline"}
+          variant={discussion || !approveReady ? "default" : "outline"}
           disabled={Boolean(unavailable || startIssue)}
+          aria-describedby={hint ? hintId : undefined}
           title={startIssue}
           onClick={() =>
             void run({ type: full ? "runFullReview" : "runRequirementsReview", ...target })
@@ -115,22 +141,6 @@ export function AIReqProposalTaskActions({
         </Button>
         {!discussion && review && (
           <Button
-            disabled={Boolean(unavailable || approveIssue)}
-            title={approveIssue}
-            onClick={() =>
-              void run({
-                type: full ? "approveFullReview" : "acceptProposal",
-                ...target,
-                reviewId: review.id,
-                snapshotDigest: review.snapshotDigest,
-              })
-            }
-          >
-            {full ? "确认完整方案" : "确认业务需求"}
-          </Button>
-        )}
-        {!discussion && review && (
-          <Button
             variant="ghost"
             disabled={Boolean(unavailable)}
             onClick={() => setReturnOpen(true)}
@@ -139,9 +149,9 @@ export function AIReqProposalTaskActions({
           </Button>
         )}
       </div>
-      {(discussion ? startIssue : approveIssue) && (
-        <p className="text-ui-sm text-foreground-subtle">
-          {discussion ? startIssue : approveIssue}
+      {hint && (
+        <p id={hintId} role="status" className="text-ui-sm text-foreground-subtle">
+          {hint}
         </p>
       )}
       <Dialog

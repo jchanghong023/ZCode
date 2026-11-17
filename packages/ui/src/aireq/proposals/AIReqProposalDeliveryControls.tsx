@@ -81,7 +81,7 @@ export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequireme
   return (
     <section className="space-y-4" data-testid="proposal-background-status">
       <div className="space-y-2 rounded-lg border border-border p-4">
-        <h3 className="text-ui-base font-medium">后台定时核验合入状态</h3>
+        <h3 className="text-ui-base font-medium">合入进展</h3>
         <p className="text-ui-sm leading-6" role="status" data-testid="proposal-background-result">
           {check?.message ?? "等待后台检查提案分支与默认分支。"}
         </p>
@@ -112,32 +112,41 @@ export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequireme
             )}
           </div>
         )}
-        <dl className="space-y-2 text-ui-sm">
-          <div>
-            <dt className="text-foreground-subtle">已创建并推送的提案分支</dt>
-            <dd className="break-all font-mono">
-              {delivery.branch?.name ?? "分支映射缺失（数据异常）"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-foreground-subtle">创建基点</dt>
-            <dd className="break-all font-mono">{delivery.branch?.baseCommit ?? "基点未记录"}</dd>
-          </div>
-          <div>
-            <dt className="text-foreground-subtle">最近检查／下一轮检查</dt>
-            <dd>
-              {time(check?.checkedAt)}
-              {check?.nextCheckAt ? ` ／ ${time(check.nextCheckAt)}` : ""}
-            </dd>
-          </div>
-        </dl>
-        <p className="text-ui-sm leading-6 text-foreground-subtle">
-          平台自动创建 MR，人工在企业 Git 平台评审并合并；后台定时查询
-          MR、核验提案分支实际合入默认分支且 IR、全部 SR、方案文档完整后，自动转正并创建、推送各 SR
-          分支。
-        </p>
         <p className="text-ui-sm text-foreground-subtle">
-          MR 地址由平台记录，无需手填、人工通知或点击“确认合并”。
+          最近检查：{time(check?.checkedAt)}
+          {check?.nextCheckAt ? ` · 下次检查：${time(check.nextCheckAt)}` : ""}
+        </p>
+        <details className="text-ui-sm text-foreground-subtle">
+          <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+            查看分支与核验详情
+          </summary>
+          <div className="mt-3">
+            {" "}
+            <dl className="space-y-2 text-ui-sm">
+              <div>
+                <dt className="text-foreground-subtle">已创建并推送的提案分支</dt>
+                <dd className="break-all font-mono">
+                  {delivery.branch?.name ?? "分支映射缺失（数据异常）"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-foreground-subtle">创建基点</dt>
+                <dd className="break-all font-mono">
+                  {delivery.branch?.baseCommit ?? "基点未记录"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-foreground-subtle">最近检查／下一轮检查</dt>
+                <dd>
+                  {time(check?.checkedAt)}
+                  {check?.nextCheckAt ? ` ／ ${time(check.nextCheckAt)}` : ""}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <p className="text-ui-sm leading-6 text-foreground-subtle">
+          MR 合入后，后台核验材料完整性，通过后自动转为正式需求。无需再次确认合并。
         </p>
       </div>
     </section>
@@ -255,7 +264,7 @@ export function AIReqProposalDeliveryControls({
     >
       <Button
         size="sm"
-        variant={compact ? "default" : "outline"}
+        variant={ready && !mrReady ? "default" : "outline"}
         data-testid="proposal-delivery-open"
         disabled={
           aireq.pending ||
@@ -265,7 +274,7 @@ export function AIReqProposalDeliveryControls({
         }
         title={
           !ready
-            ? "请先完成当前需求的方案设计。"
+            ? "请先完成当前版本的审查与三方确认。"
             : !handoff?.ready
               ? handoff?.blockers.join("；")
               : undefined
@@ -273,11 +282,11 @@ export function AIReqProposalDeliveryControls({
         onClick={openDialog}
       >
         {pushed && mrReady
-          ? "查看 MR 信息与定时核验"
+          ? "查看提交记录"
           : pushed
             ? "重试创建 MR"
             : !ready
-              ? "等待方案完成"
+              ? "等待审查与三方确认"
               : !current
                 ? "确认方案并提交推送"
                 : "创建提案分支并提交推送"}
@@ -302,7 +311,7 @@ export function AIReqProposalDeliveryControls({
           </ul>
         </div>
       )}
-      {!compact && (
+      {!compact && !mrReady && (
         <p className="text-ui-sm text-foreground-subtle">
           {pushed && mrReady
             ? "提案分支已推送并自动创建 MR，等待人工评审合并；后台按计划核验。"

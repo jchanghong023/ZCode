@@ -5,6 +5,7 @@ import {
   proposalProgressIndex,
   proposalState,
   proposalStateLabel,
+  PROPOSAL_STATE_OPTIONS,
   fullReviewCurrent,
   requirementsReviewCurrent,
   type AIReqRequirementGroup,
@@ -12,6 +13,7 @@ import {
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import {
   proposalNextTask,
+  proposalTaskGuidance,
   proposalTaskStatus,
   proposalTaskTitles,
   type ProposalTask,
@@ -28,7 +30,8 @@ const stages: ProposalTask[] = [
 export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup }) {
   const ai = useAIReq()!;
   const next = proposalNextTask(group);
-  const mergePending = proposalState(group) === "merge-pending";
+  const state = proposalState(group);
+  const guidance = proposalTaskGuidance(group);
   const phase = proposalProgressIndex(group, {});
   const notes: Partial<Record<ProposalTask, string>> = {
     requirements: "明确目标、范围与验收标准",
@@ -57,25 +60,36 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
         <section className="space-y-3 border-y border-border/50 py-5" aria-label="当前待处理事项">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-ui-sm text-foreground-subtle">
-                当前状态 · {proposalStateLabel(group, "zh-CN")}
-              </p>
-              <h2 className="text-ui-base font-medium">
-                {mergePending ? "已提交，等待合入" : `下一项待办：${proposalTaskTitles[next]}`}
+              <h2 className="text-ui-lg font-semibold" aria-live="polite">
+                {proposalStateLabel(group, "zh-CN")}
               </h2>
-              <p className="text-ui-sm text-foreground-subtle">
-                {group.returnFeedback && !group.returnFeedback.resumedAt
-                  ? "有退回意见需要业务补充。"
-                  : mergePending
-                    ? "合入结果由后台核验，可查看交付记录。"
-                    : notes[next]}
+              <p className="max-w-prose text-ui-sm leading-relaxed text-foreground-subtle">
+                {guidance.description}
               </p>
+              <p className="text-ui-sm text-foreground-subtle">处理方：{guidance.role}</p>
             </div>
             <Button onClick={() => ai.openProposalTask(next)}>
-              {mergePending ? "查看交付状态" : `进入${proposalTaskTitles[next]}`}
+              {guidance.action}
               <ArrowRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
+          <details className="pt-2 text-ui-sm text-foreground-subtle">
+            <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+              查看完整流程
+            </summary>
+            <ol className="mt-3 flex flex-wrap gap-x-4 gap-y-2" aria-label="提案八态">
+              {PROPOSAL_STATE_OPTIONS.map((option) => (
+                <li
+                  key={option.id}
+                  aria-current={state === option.id ? "step" : undefined}
+                  className={state === option.id ? "font-medium text-foreground" : undefined}
+                >
+                  {option.title}
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3">材料变化或退回时，状态会回退；合入核验通过后转为正式需求。</p>
+          </details>
         </section>
         <section aria-label="需求任务" className="space-y-2">
           <h2 className="text-ui-base font-medium">任务</h2>
@@ -85,7 +99,8 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
                 <button
                   type="button"
                   onClick={() => ai.openProposalTask(task)}
-                  className="group flex w-full items-center gap-4 rounded-md px-2 py-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring"
+                  aria-current={task === next ? "step" : undefined}
+                  className={`group flex w-full items-center gap-4 rounded-md px-2 py-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring ${task === next ? "bg-surface" : ""}`}
                   data-testid={`proposal-task-${task}`}
                 >
                   <div className="min-w-0 flex-1 space-y-1">
@@ -112,7 +127,10 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             {decisions.map(({ key, label, review }) => (
               <p key={key} className="break-words text-ui-sm text-foreground-subtle">
                 {review!.humanDecision!.employeeId} ·{" "}
-                {new Date(review!.humanDecision!.decidedAt).toLocaleString("zh-CN")} · {label}
+                {new Date(review!.humanDecision!.decidedAt).toLocaleString("zh-CN", {
+                  timeZone: "Asia/Shanghai",
+                })}{" "}
+                · {label}
                 {!(key === "requirements"
                   ? requirementsReviewCurrent(group)
                   : fullReviewCurrent(group)) && "（材料已更新，原确认已失效）"}
