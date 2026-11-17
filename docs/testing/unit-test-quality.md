@@ -21,17 +21,17 @@
 
 断言依据现行产品与协议规则，测试现有导出函数和类的公开方法，不导出或直接调用私有辅助函数，不把实现输出当作业务预期。发现实现与规则冲突时保留有效失败断言并报告，不弱化预期或擅自修产品行为。
 
-| 测试文件（相对 `test/ut/`）         | 被测前端行为                                     | 规则依据                                                                                                              |
-| ----------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `csv.test.ts`                       | CSV 原文、引用换行、重复提示、非法输入与物理行号 | [想法与导入](../specs/aireq-migration/section-navigation-and-ideas.md)                                                |
-| `settings-search.test.ts`           | 中文、拼音、大小写／全角归一化和顺序模糊匹配     | [工具与设置](../specs/aireq-migration/tools-settings.md)                                                              |
-| `pane-tabs.test.ts`                 | 打开复用、关闭邻项、选择、拖动与输入状态保留     | [统一右侧工作区](../specs/aireq-migration/unified-side-pane.md)                                                       |
-| `attachment-upload.test.ts`         | 上传字节、分片、摘要、续传、取消及失败清理       | [原生讨论与附件](../specs/aireq-migration/conversation.md)、现行 Protocol v4 附件契约                                 |
-| `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败         | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
-| `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期   | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
-| `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本               | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
-| `requirement-return.test.ts`        | 详情来源保留、历史字段校验、无来源回退及显式对象链接           | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
-| `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放 | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
+| 测试文件（相对 `test/ut/`）         | 被测前端行为                                         | 规则依据                                                                                                              |
+| ----------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `csv.test.ts`                       | CSV 原文、引用换行、重复提示、非法输入与物理行号     | [想法与导入](../specs/aireq-migration/section-navigation-and-ideas.md)                                                |
+| `settings-search.test.ts`           | 中文、拼音、大小写／全角归一化和顺序模糊匹配         | [工具与设置](../specs/aireq-migration/tools-settings.md)                                                              |
+| `pane-tabs.test.ts`                 | 打开复用、关闭邻项、选择、拖动与输入状态保留         | [统一右侧工作区](../specs/aireq-migration/unified-side-pane.md)                                                       |
+| `attachment-upload.test.ts`         | 上传字节、分片、摘要、续传、取消及失败清理           | [原生讨论与附件](../specs/aireq-migration/conversation.md)、现行 Protocol v4 附件契约                                 |
+| `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败             | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
+| `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期       | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
+| `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本                   | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
+| `requirement-return.test.ts`        | 详情来源保留、历史字段校验、无来源回退及显式对象链接 | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
+| `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放     | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
 
 异步场景通过可控 Promise 和公开事件端口安排时序，不用固定 sleep 猜测完成。存储替身只提供浏览器存储语义；服务替身只提供当前被调用的正式端口，不实现另一份业务后端。每例恢复自身替换的全局对象、计时和监听，不修改宿主业务数据。
 
@@ -53,19 +53,20 @@
 
 ST 位于 `test/st/`，仅从独立 `st` project 发现；`test:ut` 和 engineering 不加载网络用例。用例依据现行业务规范与正式 services/shared 契约编写，不导入后端实现、原型数据或前端控制器。套件覆盖 HTTP 接入、身份、广播、辅助读取、原生会话／队列／附件、想法／配置、提案、统计、正式 SR 与分析调度。源码存在不代表这些场景已经通过；以实际运行结果为准。
 
-测试连接已运行的服务，不启动或停止它；默认 `http://localhost:5174`，路径与前端入口相同。全部被测请求走真实 HTTP 或 `/ws` 二进制 Channel RPC，使用现有 `@zcode/client`。串行运行单实例，多个连接只用于同一 case 的身份／事件隔离。服务拒绝或结果违背规则时保留失败，不调整预期迎合原型实现。
+测试连接已运行的服务，不启动或停止它；默认 `http://localhost:5174`，路径与前端入口相同。全部被测请求走真实 HTTP 或 `/ws` 二进制 Channel RPC，使用现有 `@zcode/client`。单实例、单 worker、文件与业务断言串行；正式 SR 和调度长流程优先启动，默认最多两份独立前置的服务端等待重叠。准备中的读版本与写入阶段、显式前置领取和整个断言阶段共用串行锁，全局配置测试独占，不重试失败写入。仅为实际选中的用例准备数据，准备失败计入对应 case；JSON 报告 metadata 的 `stPreparation` 记录准备起止时间。服务拒绝或结果违背规则时保留失败，不调整预期迎合原型实现。
 
-| 配置                                     | 含义                                                                                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `ST_BASE_URL`                            | 服务 origin，默认 `http://localhost:5174`；不自动回退端口                                                                               |
-| `ST_EMPLOYEE_ID`／`ST_OTHER_EMPLOYEE_ID` | 默认由 ST 构造合法测试工号 `s00000001`／`s00000002`；正式环境可提供有效测试账号                                                         |
-| `ST_REPOSITORY_URL`                      | 用户指定的专用仓库，默认 `https://github.com/jchanghong023/test.git`                                                                    |
-| `ST_REPOSITORY_BRANCH`                   | 默认 `main`，须为环境中的真实可用分支                                                                                                   |
-| `ST_TOKEN`                               | 可选部署 token，通过正式 HTTP Bearer／WS 查询契约传入；不输出凭据                                                                       |
-| `ST_TIMEOUT_MS`                          | 测试、网络调用与有界等待时限，默认 120000 毫秒，覆盖公开多阶段准备及真实服务时钟推进；长流程可配置更长时限                              |
+| 配置                                     | 含义                                                                                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ST_BASE_URL`                            | 服务 origin，默认 `http://localhost:5174`；不自动回退端口                                                                                    |
+| `ST_EMPLOYEE_ID`／`ST_OTHER_EMPLOYEE_ID` | 默认由 ST 构造合法测试工号 `s00000001`／`s00000002`；正式环境可提供有效测试账号                                                              |
+| `ST_REPOSITORY_URL`                      | 用户指定的专用仓库，默认 `https://github.com/jchanghong023/test.git`                                                                         |
+| `ST_REPOSITORY_BRANCH`                   | 默认 `main`，须为环境中的真实可用分支                                                                                                        |
+| `ST_TOKEN`                               | 可选部署 token，通过正式 HTTP Bearer／WS 查询契约传入；不输出凭据                                                                            |
+| `ST_TIMEOUT_MS`                          | 测试、网络调用与有界等待时限，默认 120000 毫秒，覆盖公开多阶段准备及真实服务时钟推进；长流程可配置更长时限                                   |
+| `ST_PREPARE_CONCURRENCY`                 | 正式 SR 前置并发数，默认 `2`；只支持 `1` 或 `2`，`1` 用于串行准备对照；不增加后端实例或并发断言                                              |
 | `ST_FILE_JSON`                           | 可选文件前置：`workspacePath`、可选 `workspaceIdentity`、`path`、`directoryPath`、`missingPath`、`bytesBase64`；未配置时通过公开保存流程创建 |
-| `ST_FIXTURES_FILE`                       | JSON 对象，各用途为专用前置对象数组，不得使用无关业务数据                                                                               |
-| `ST_ALLOCATION_LOG`                      | 可选消费型前置分配日志路径；默认系统临时目录中按服务／前置清单区分的 JSONL，跨套件及重复执行防止复用                                    |
+| `ST_FIXTURES_FILE`                       | JSON 对象，各用途为专用前置对象数组，不得使用无关业务数据                                                                                    |
+| `ST_ALLOCATION_LOG`                      | 可选消费型前置分配日志路径；默认系统临时目录中按服务／前置清单区分的 JSONL，跨套件及重复执行防止复用                                         |
 
 设置、系统信息、子代理能力与模型目录的组合读取用例通过本例公开创建的提案取得工作区，不依赖 `ST_FILE_JSON`；该配置只用于文件字节／范围读取场景。
 文件读取用例未提供 `ST_FILE_JSON` 时，通过本例独立创建项目、Skill 讨论、预览确认和项目保存准备 UTF-8 文件；预期字节取已确认预览，保存后通过文件 RPC 验证，不直接写盘或读取服务端内部数据。若讨论、预览或保存不可用，明确失败；也可提供专用文件配置跳过该准备流程。生成文件随项目保留，不删除环境已有数据。

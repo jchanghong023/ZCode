@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import { serialSTStep } from "./execution.js";
 import type { AIReqRemoteWorkflow, AIReqSystemRequirement } from "@zcode/services/aireq";
 import type { STFixture } from "./config.js";
 import { config, requireConfig } from "./config.js";
@@ -16,28 +17,31 @@ function members(
 
 /** Only the published business flow creates documents, decisions, registered branches and acceptance. */
 export async function createFormalFixture(c: STClient, purpose: string): Promise<FormalFixture> {
-  const target = await prepareApprovedProposal(c);
-  for (const perspective of ["business", "development", "testing"] as const)
-    await commandAndRead(
+  const { target, delivery } = await serialSTStep(async () => {
+    const target = await prepareApprovedProposal(c);
+    for (const perspective of ["business", "development", "testing"] as const)
+      await commandAndRead(
+        c,
+        { type: "confirmAlignment", perspective, version: target.version },
+        target,
+      );
+    const confirmed = await commandAndRead(
       c,
-      { type: "confirmAlignment", perspective, version: target.version },
+      { type: "confirmProposal", version: target.version },
       target,
     );
-  const confirmed = await commandAndRead(
-    c,
-    { type: "confirmProposal", version: target.version },
-    target,
-  );
-  const delivery = getProposal(confirmed, target).proposalDelivery!;
-  expect(delivery?.candidate.trim()).toBeTruthy();
-  const published = await commandAndRead(
-    c,
-    { type: "publishProposal", candidate: delivery.candidate },
-    target,
-  );
-  expect(getProposal(published, target).proposalDelivery?.candidate).toBe(delivery.candidate);
-  expect(getProposal(published, target).requirementsPr).toBeDefined();
-  expect(getProposal(published, target).proposalDelivery).not.toHaveProperty("simulatedMr");
+    const delivery = getProposal(confirmed, target).proposalDelivery!;
+    expect(delivery?.candidate.trim()).toBeTruthy();
+    const published = await commandAndRead(
+      c,
+      { type: "publishProposal", candidate: delivery.candidate },
+      target,
+    );
+    expect(getProposal(published, target).proposalDelivery?.candidate).toBe(delivery.candidate);
+    expect(getProposal(published, target).requirementsPr).toBeDefined();
+    expect(getProposal(published, target).proposalDelivery).not.toHaveProperty("simulatedMr");
+    return { target, delivery };
+  });
   // 只等待读回实际合入事实；不固定等待时长，不调用场景、推进时钟或伪造 Git/PR 结果。
   let remote = await waitUntil(
     `${purpose}: the published candidate becomes a formal IR with registered SR branches`,
@@ -87,9 +91,14 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
       expectedBaseCommit: group.merge!.commit,
     };
   }
-  // 分支失败是业务事实，普通用途也必须走现有公开重试，而非改写前置状态。
-  for (const sr of all.filter((item) => item.trackingBranch?.status === "failed"))
-    await commandAndRead(c, { type: "retrySrBranch", srId: sr.id }, target);
+  // 活跃阶段重读版本并串行重试；长时间等待不占用写入锁。
+  await serialSTStep(async () => {
+    const current = await c.read(target.selection);
+    for (const sr of members(current, target).filter(
+      (item) => item.trackingBranch?.status === "failed",
+    ))
+      await commandAndRead(c, { type: "retrySrBranch", srId: sr.id }, target);
+  });
   remote = await waitUntil(
     `${purpose}: registered branches become usable after any explicit retry`,
     () => c.read(target.selection),
@@ -116,24 +125,28 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
     config.timeoutMs,
   );
   if (purpose === "formalRetest") {
-    const sr = members(remote, ref).find((item) => item.id === ref.srId)!;
-    const failedVersion = sr.codeMerge!.commit;
-    await c.call(
-      "progress.recordTest",
-      [
-        ref.projectId,
-        ref.irId,
-        sr.id,
-        {
-          operationId: unique("failed-acceptance"),
-          expectedRevision: remote.view.revision,
-          expectedCodeVersion: failedVersion,
-          outcome: "failed",
-          reason: "首次验收发现边界行为不符合验收标准，需要修复后复测。",
-        },
-      ],
-      target.selection,
-    );
+    const failedVersion = await serialSTStep(async () => {
+      const current = await c.read(target.selection);
+      const sr = members(current, ref).find((item) => item.id === ref.srId)!;
+      const failedVersion = sr.codeMerge!.commit;
+      await c.call(
+        "progress.recordTest",
+        [
+          ref.projectId,
+          ref.irId,
+          sr.id,
+          {
+            operationId: unique("failed-acceptance"),
+            expectedRevision: current.view.revision,
+            expectedCodeVersion: failedVersion,
+            outcome: "failed",
+            reason: "首次验收发现边界行为不符合验收标准，需要修复后复测。",
+          },
+        ],
+        target.selection,
+      );
+      return failedVersion;
+    });
     await waitUntil(
       "a new merged repair version makes the recorded issue ready for retest",
       () => c.read(target.selection),
@@ -154,26 +167,28 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
     );
   }
   if (purpose === "formalCleanup") {
-    for (const member of members(remote, ref)) {
-      const latest = await c.read(target.selection);
-      const sr = members(latest, ref).find((item) => item.id === member.id)!;
-      await c.call(
-        "progress.recordTest",
-        [
-          ref.projectId,
-          ref.irId,
-          sr.id,
-          {
-            operationId: unique("passed-acceptance"),
-            expectedRevision: latest.view.revision,
-            expectedCodeVersion: sr.codeMerge!.commit,
-            outcome: "passed",
-            reason: "本版本各项验收标准已人工核对，通过验收。",
-          },
-        ],
-        target.selection,
-      );
-    }
+    await serialSTStep(async () => {
+      for (const member of members(remote, ref)) {
+        const latest = await c.read(target.selection);
+        const sr = members(latest, ref).find((item) => item.id === member.id)!;
+        await c.call(
+          "progress.recordTest",
+          [
+            ref.projectId,
+            ref.irId,
+            sr.id,
+            {
+              operationId: unique("passed-acceptance"),
+              expectedRevision: latest.view.revision,
+              expectedCodeVersion: sr.codeMerge!.commit,
+              outcome: "passed",
+              reason: "本版本各项验收标准已人工核对，通过验收。",
+            },
+          ],
+          target.selection,
+        );
+      }
+    });
   }
   return ref;
 }

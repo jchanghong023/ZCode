@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import type {
   AIReqSelection,
   AIReqSystemRequirement,
@@ -6,9 +6,9 @@ import type {
 } from "@zcode/services/aireq";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config } from "./config.js";
-import { claimFixture } from "./fixtures.js";
+import { useFormalPreparations } from "./preparations.js";
 import { requireCreatedThisRun } from "./resources.js";
-import { createFormalFixture } from "./formal-fixtures.js";
+let preparations: ReturnType<typeof useFormalPreparations>;
 
 type FormalRef = {
   projectId: string;
@@ -44,16 +44,12 @@ function srIn(view: AIReqWorkflowView, ref: FormalRef): AIReqSystemRequirement {
   return sr;
 }
 async function formalCase(
-  kind: string,
+  id: string,
   run: (c: STClient, ref: FormalRef, view: AIReqWorkflowView) => Promise<void>,
 ) {
   const c = await connectST();
   try {
-    // 各用例通过公开流程创建自身前置；显式配置的独立对象仍按原分配契约消费。
-    const ref =
-      config.fixtures[kind] === undefined
-        ? await createFormalFixture(c, kind)
-        : await claimFixture(c, kind);
+    const ref = await preparations.ready(id);
     const { view } = await c.read(selection(ref));
     await run(c, ref, view);
   } finally {
@@ -89,295 +85,12 @@ function preservedFacts(sr: AIReqSystemRequirement) {
 
 // tracking.md: planning is an atomic versioned edit; assignment is not exclusive authorization.
 describe("formal SR contracts over the public backend", () => {
-  it(
-    "saves assignment and dates atomically, rejects stale edits, and honors explicit clearing",
-    async () => {
-      await formalCase("formalPlanning", async (c, ref, initial) => {
-        const before = srIn(initial, ref);
-        const start = "2030-05-06T09:00",
-          end = "2030-05-07T18:00";
-        const op = unique("planning");
-        await c.call(
-          "planning.updateSr",
-          [
-            ref.projectId,
-            ref.irId,
-            before.id,
-            {
-              operationId: op,
-              expectedRevision: initial.revision,
-              developerEmployeeId: c.identity.employeeId,
-              testingEmployeeId: c.identity.employeeId,
-              plannedStart: start,
-              plannedEnd: end,
-            },
-          ],
-          selection(ref),
-        );
-        const saved = (await c.read(selection(ref))).view;
-        const sr = srIn(saved, ref);
-        expect(sr).toMatchObject({
-          developerEmployeeId: c.identity.employeeId,
-          testingEmployeeId: c.identity.employeeId,
-        });
-        expect(sr.planning).toMatchObject({
-          plannedStart: start,
-          plannedEnd: end,
-          source: "manual",
-          updatedBy: c.identity.employeeId,
-        });
-        expect(Number.isFinite(Date.parse(sr.planning!.updatedAt!))).toBe(true);
-        expect(sr.planning?.suggestion).toEqual(before.planning?.suggestion);
-        expect(sr.planning?.assumptions).toBe(before.planning?.assumptions ?? "");
-        await expect(
-          c.call(
-            "planning.updateSr",
-            [
-              ref.projectId,
-              ref.irId,
-              sr.id,
-              {
-                operationId: unique("stale-planning"),
-                expectedRevision: initial.revision,
-                developerEmployeeId: "",
-                plannedStart: "2030-05-08T09:00",
-                plannedEnd: "2030-05-09T18:00",
-              },
-            ],
-            selection(ref),
-          ),
-        ).rejects.toThrow();
-        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-          preservedFacts(sr),
-        );
-        const latest = (await c.read(selection(ref))).view;
-        await c.call(
-          "planning.updateSr",
-          [
-            ref.projectId,
-            ref.irId,
-            sr.id,
-            {
-              operationId: unique("clear-planning"),
-              expectedRevision: latest.revision,
-              developerEmployeeId: "",
-              testingEmployeeId: "",
-              plannedStart: "",
-              plannedEnd: "",
-            },
-          ],
-          selection(ref),
-        );
-        const cleared = srIn((await c.read(selection(ref))).view, ref);
-        expect(cleared.developerEmployeeId ?? "").toBe("");
-        expect(cleared.testingEmployeeId ?? "").toBe("");
-        expect(cleared.planning?.plannedStart ?? "").toBe("");
-        expect(cleared.planning?.plannedEnd ?? "").toBe("");
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "rejects invalid employee IDs, impossible dates and incomplete/reversed intervals without partial writes",
-    async () => {
-      await formalCase("formalPlanning", async (c, ref, initial) => {
-        const before = srIn(initial, ref);
-        const invalid = [
-          {
-            developerEmployeeId: "not-an-employee",
-            plannedStart: "2030-05-06T09:00",
-            plannedEnd: "2030-05-07T18:00",
-          },
-          { plannedStart: "2030-02-30T09:00", plannedEnd: "2030-03-03T18:00" },
-          { plannedStart: "2030-05-06T09:00" },
-          { plannedStart: "2030-05-06T09:00", plannedEnd: "2030-05-06T09:00" },
-          { plannedStart: "2030-05-07T09:00", plannedEnd: "2030-05-06T18:00" },
-        ];
-        for (const patch of invalid) {
-          const latest = (await c.read(selection(ref))).view;
-          await expect(
-            c.call(
-              "planning.updateSr",
-              [
-                ref.projectId,
-                ref.irId,
-                before.id,
-                {
-                  operationId: unique("invalid-plan"),
-                  expectedRevision: latest.revision,
-                  ...patch,
-                },
-              ],
-              selection(ref),
-            ),
-          ).rejects.toThrow();
-          expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-            preservedFacts(before),
-          );
-        }
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "binds a passing acceptance to the current merged version and keeps its receipt idempotent",
-    async () => {
-      await formalCase("formalAcceptance", async (c, ref, initial) => {
-        const before = srIn(initial, ref),
-          version = acceptancePrerequisite(before);
-        const operationId = unique("acceptance"),
-          reason = "ST: acceptance evidence for the configured current code version";
-        const input = {
-          operationId,
-          expectedRevision: initial.revision,
-          expectedCodeVersion: version,
-          outcome: "passed" as const,
-          reason,
-        };
-        await c.call(
-          "progress.recordTest",
-          [ref.projectId, ref.irId, before.id, input],
-          selection(ref),
-        );
-        const accepted = srIn((await c.read(selection(ref))).view, ref);
-        expect(accepted.testAcceptance).toMatchObject({
-          operationId,
-          outcome: "passed",
-          employeeId: c.identity.employeeId,
-          codeVersion: version,
-          reason,
-        });
-        expect(accepted.status).toBe("completed");
-        // A prior AI report is not an acceptance precondition; optional report projections must agree when supplied.
-        if (accepted.progress) expect(accepted.progress.percent).toBe(100);
-        expect(accepted.acceptanceHistory).toHaveLength(
-          (before.acceptanceHistory?.length ?? 0) + 1,
-        );
-        await c.call(
-          "progress.recordTest",
-          [ref.projectId, ref.irId, before.id, input],
-          selection(ref),
-        );
-        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-          preservedFacts(accepted),
-        );
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "rejects stale code versions and empty evidence without changing acceptance or issue history",
-    async () => {
-      await formalCase("formalAcceptance", async (c, ref, initial) => {
-        const before = srIn(initial, ref),
-          version = acceptancePrerequisite(before);
-        for (const patch of [
-          { expectedCodeVersion: unique("wrong-code"), reason: "ST valid evidence" },
-          { expectedCodeVersion: version, reason: " \n " },
-        ]) {
-          const latest = (await c.read(selection(ref))).view;
-          await expect(
-            c.call(
-              "progress.recordTest",
-              [
-                ref.projectId,
-                ref.irId,
-                before.id,
-                {
-                  operationId: unique("invalid-acceptance"),
-                  expectedRevision: latest.revision,
-                  outcome: "passed",
-                  ...patch,
-                },
-              ],
-              selection(ref),
-            ),
-          ).rejects.toThrow();
-          expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-            preservedFacts(before),
-          );
-        }
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "a failed acceptance records a development issue and cannot be immediately changed to passed",
-    async () => {
-      await formalCase("formalAcceptanceFailure", async (c, ref, initial) => {
-        const before = srIn(initial, ref),
-          version = acceptancePrerequisite(before),
-          reason = unique("ST-observed-failure");
-        await c.call(
-          "progress.recordTest",
-          [
-            ref.projectId,
-            ref.irId,
-            before.id,
-            {
-              operationId: unique("failed-acceptance"),
-              expectedRevision: initial.revision,
-              expectedCodeVersion: version,
-              outcome: "failed",
-              reason,
-            },
-          ],
-          selection(ref),
-        );
-        const failedView = (await c.read(selection(ref))).view,
-          failed = srIn(failedView, ref);
-        if (failed.progress) expect(failed.progress.percent).toBe(99);
-        expect(failed.testAcceptance).toMatchObject({
-          outcome: "failed",
-          codeVersion: version,
-          reason,
-          employeeId: c.identity.employeeId,
-        });
-        expect(failed.developmentIssues).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              detail: reason,
-              failedCodeVersion: version,
-              status: "open",
-              reportedBy: c.identity.employeeId,
-            }),
-          ]),
-        );
-        expect(failed.acceptanceHistory).toHaveLength((before.acceptanceHistory?.length ?? 0) + 1);
-        await expect(
-          c.call(
-            "progress.recordTest",
-            [
-              ref.projectId,
-              ref.irId,
-              before.id,
-              {
-                operationId: unique("premature-pass"),
-                expectedRevision: failedView.revision,
-                expectedCodeVersion: version,
-                outcome: "passed",
-                reason: "Cannot bypass the missing repair merge",
-              },
-            ],
-            selection(ref),
-          ),
-        ).rejects.toThrow();
-        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-          preservedFacts(failed),
-        );
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
+  preparations = useFormalPreparations();
+  preparations.test(
     "accepting the configured repair version resolves awaiting-retest issues and retains history",
-    async () => {
-      await formalCase("formalRetest", async (c, ref, initial) => {
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalRetest", stPriority: 0 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
         const before = srIn(initial, ref),
           version = acceptancePrerequisite(before);
         const issues =
@@ -426,13 +139,13 @@ describe("formal SR contracts over the public backend", () => {
         );
       });
     },
-    config.timeoutMs,
   );
 
-  it(
+  preparations.test(
     "cleans only registered branches of a completed IR while preserving evidence and idempotent receipts",
-    async () => {
-      await formalCase("formalCleanup", async (c, ref, initial) => {
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalCleanup", stPriority: 1 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
         requireCreatedThisRun(ref.projectId, ref.irId);
         const members = initial.srs.filter(
           (sr) => sr.projectId === ref.projectId && sr.irId === ref.irId,
@@ -523,13 +236,301 @@ describe("formal SR contracts over the public backend", () => {
         ).toBe(true);
       });
     },
-    config.timeoutMs,
   );
 
-  it(
+  preparations.test(
+    "binds a passing acceptance to the current merged version and keeps its receipt idempotent",
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalAcceptance", stPriority: 2 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
+        const before = srIn(initial, ref),
+          version = acceptancePrerequisite(before);
+        const operationId = unique("acceptance"),
+          reason = "ST: acceptance evidence for the configured current code version";
+        const input = {
+          operationId,
+          expectedRevision: initial.revision,
+          expectedCodeVersion: version,
+          outcome: "passed" as const,
+          reason,
+        };
+        await c.call(
+          "progress.recordTest",
+          [ref.projectId, ref.irId, before.id, input],
+          selection(ref),
+        );
+        const accepted = srIn((await c.read(selection(ref))).view, ref);
+        expect(accepted.testAcceptance).toMatchObject({
+          operationId,
+          outcome: "passed",
+          employeeId: c.identity.employeeId,
+          codeVersion: version,
+          reason,
+        });
+        expect(accepted.status).toBe("completed");
+        // A prior AI report is not an acceptance precondition; optional report projections must agree when supplied.
+        if (accepted.progress) expect(accepted.progress.percent).toBe(100);
+        expect(accepted.acceptanceHistory).toHaveLength(
+          (before.acceptanceHistory?.length ?? 0) + 1,
+        );
+        await c.call(
+          "progress.recordTest",
+          [ref.projectId, ref.irId, before.id, input],
+          selection(ref),
+        );
+        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
+          preservedFacts(accepted),
+        );
+      });
+    },
+  );
+
+  preparations.test(
+    "rejects stale code versions and empty evidence without changing acceptance or issue history",
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalAcceptance", stPriority: 2 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
+        const before = srIn(initial, ref),
+          version = acceptancePrerequisite(before);
+        for (const patch of [
+          { expectedCodeVersion: unique("wrong-code"), reason: "ST valid evidence" },
+          { expectedCodeVersion: version, reason: " \n " },
+        ]) {
+          const latest = (await c.read(selection(ref))).view;
+          await expect(
+            c.call(
+              "progress.recordTest",
+              [
+                ref.projectId,
+                ref.irId,
+                before.id,
+                {
+                  operationId: unique("invalid-acceptance"),
+                  expectedRevision: latest.revision,
+                  outcome: "passed",
+                  ...patch,
+                },
+              ],
+              selection(ref),
+            ),
+          ).rejects.toThrow();
+          expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
+            preservedFacts(before),
+          );
+        }
+      });
+    },
+  );
+
+  preparations.test(
+    "a failed acceptance records a development issue and cannot be immediately changed to passed",
+    {
+      timeout: config.timeoutMs,
+      meta: { stFormalPurpose: "formalAcceptanceFailure", stPriority: 3 },
+    },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
+        const before = srIn(initial, ref),
+          version = acceptancePrerequisite(before),
+          reason = unique("ST-observed-failure");
+        await c.call(
+          "progress.recordTest",
+          [
+            ref.projectId,
+            ref.irId,
+            before.id,
+            {
+              operationId: unique("failed-acceptance"),
+              expectedRevision: initial.revision,
+              expectedCodeVersion: version,
+              outcome: "failed",
+              reason,
+            },
+          ],
+          selection(ref),
+        );
+        const failedView = (await c.read(selection(ref))).view,
+          failed = srIn(failedView, ref);
+        if (failed.progress) expect(failed.progress.percent).toBe(99);
+        expect(failed.testAcceptance).toMatchObject({
+          outcome: "failed",
+          codeVersion: version,
+          reason,
+          employeeId: c.identity.employeeId,
+        });
+        expect(failed.developmentIssues).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              detail: reason,
+              failedCodeVersion: version,
+              status: "open",
+              reportedBy: c.identity.employeeId,
+            }),
+          ]),
+        );
+        expect(failed.acceptanceHistory).toHaveLength((before.acceptanceHistory?.length ?? 0) + 1);
+        await expect(
+          c.call(
+            "progress.recordTest",
+            [
+              ref.projectId,
+              ref.irId,
+              before.id,
+              {
+                operationId: unique("premature-pass"),
+                expectedRevision: failedView.revision,
+                expectedCodeVersion: version,
+                outcome: "passed",
+                reason: "Cannot bypass the missing repair merge",
+              },
+            ],
+            selection(ref),
+          ),
+        ).rejects.toThrow();
+        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
+          preservedFacts(failed),
+        );
+      });
+    },
+  );
+
+  preparations.test(
+    "saves assignment and dates atomically, rejects stale edits, and honors explicit clearing",
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalPlanning", stPriority: 4 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
+        const before = srIn(initial, ref);
+        const start = "2030-05-06T09:00",
+          end = "2030-05-07T18:00";
+        const op = unique("planning");
+        await c.call(
+          "planning.updateSr",
+          [
+            ref.projectId,
+            ref.irId,
+            before.id,
+            {
+              operationId: op,
+              expectedRevision: initial.revision,
+              developerEmployeeId: c.identity.employeeId,
+              testingEmployeeId: c.identity.employeeId,
+              plannedStart: start,
+              plannedEnd: end,
+            },
+          ],
+          selection(ref),
+        );
+        const saved = (await c.read(selection(ref))).view;
+        const sr = srIn(saved, ref);
+        expect(sr).toMatchObject({
+          developerEmployeeId: c.identity.employeeId,
+          testingEmployeeId: c.identity.employeeId,
+        });
+        expect(sr.planning).toMatchObject({
+          plannedStart: start,
+          plannedEnd: end,
+          source: "manual",
+          updatedBy: c.identity.employeeId,
+        });
+        expect(Number.isFinite(Date.parse(sr.planning!.updatedAt!))).toBe(true);
+        expect(sr.planning?.suggestion).toEqual(before.planning?.suggestion);
+        expect(sr.planning?.assumptions).toBe(before.planning?.assumptions ?? "");
+        await expect(
+          c.call(
+            "planning.updateSr",
+            [
+              ref.projectId,
+              ref.irId,
+              sr.id,
+              {
+                operationId: unique("stale-planning"),
+                expectedRevision: initial.revision,
+                developerEmployeeId: "",
+                plannedStart: "2030-05-08T09:00",
+                plannedEnd: "2030-05-09T18:00",
+              },
+            ],
+            selection(ref),
+          ),
+        ).rejects.toThrow();
+        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
+          preservedFacts(sr),
+        );
+        const latest = (await c.read(selection(ref))).view;
+        await c.call(
+          "planning.updateSr",
+          [
+            ref.projectId,
+            ref.irId,
+            sr.id,
+            {
+              operationId: unique("clear-planning"),
+              expectedRevision: latest.revision,
+              developerEmployeeId: "",
+              testingEmployeeId: "",
+              plannedStart: "",
+              plannedEnd: "",
+            },
+          ],
+          selection(ref),
+        );
+        const cleared = srIn((await c.read(selection(ref))).view, ref);
+        expect(cleared.developerEmployeeId ?? "").toBe("");
+        expect(cleared.testingEmployeeId ?? "").toBe("");
+        expect(cleared.planning?.plannedStart ?? "").toBe("");
+        expect(cleared.planning?.plannedEnd ?? "").toBe("");
+      });
+    },
+  );
+
+  preparations.test(
+    "rejects invalid employee IDs, impossible dates and incomplete/reversed intervals without partial writes",
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalPlanning", stPriority: 4 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
+        const before = srIn(initial, ref);
+        const invalid = [
+          {
+            developerEmployeeId: "not-an-employee",
+            plannedStart: "2030-05-06T09:00",
+            plannedEnd: "2030-05-07T18:00",
+          },
+          { plannedStart: "2030-02-30T09:00", plannedEnd: "2030-03-03T18:00" },
+          { plannedStart: "2030-05-06T09:00" },
+          { plannedStart: "2030-05-06T09:00", plannedEnd: "2030-05-06T09:00" },
+          { plannedStart: "2030-05-07T09:00", plannedEnd: "2030-05-06T18:00" },
+        ];
+        for (const patch of invalid) {
+          const latest = (await c.read(selection(ref))).view;
+          await expect(
+            c.call(
+              "planning.updateSr",
+              [
+                ref.projectId,
+                ref.irId,
+                before.id,
+                {
+                  operationId: unique("invalid-plan"),
+                  expectedRevision: latest.revision,
+                  ...patch,
+                },
+              ],
+              selection(ref),
+            ),
+          ).rejects.toThrow();
+          expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
+            preservedFacts(before),
+          );
+        }
+      });
+    },
+  );
+
+  preparations.test(
     "rejects branch cleanup before every SR is accepted without removing registered branches",
-    async () => {
-      await formalCase("formalCleanupBlocked", async (c, ref, initial) => {
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalCleanupBlocked", stPriority: 5 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
         requireCreatedThisRun(ref.projectId, ref.irId);
         const members = initial.srs.filter(
           (sr) => sr.projectId === ref.projectId && sr.irId === ref.irId,
@@ -583,13 +584,13 @@ describe("formal SR contracts over the public backend", () => {
         );
       });
     },
-    config.timeoutMs,
   );
 
-  it(
+  preparations.test(
     "retries a failed SR branch from the formal documentation merge base",
-    async () => {
-      await formalCase("formalBranchFailure", async (c, ref, initial) => {
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalBranchFailure", stPriority: 6 } },
+    async ({ task }) => {
+      await formalCase(task.id, async (c, ref, initial) => {
         const sr = srIn(initial, ref);
         const group = initial.groups.find(
           (item) => item.projectId === ref.projectId && item.id === ref.irId,
@@ -614,6 +615,5 @@ describe("formal SR contracts over the public backend", () => {
         expect(restored.acceptanceHistory).toEqual(sr.acceptanceHistory);
       });
     },
-    config.timeoutMs,
   );
 });
