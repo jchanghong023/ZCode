@@ -150,6 +150,7 @@ import type {
 } from "@/v4/composer/useDraftConfigControl.js";
 import { V4_DRAFT_SCOPE_ROOT, type V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
 import {
+  composerInteractionState,
   resolveOppositeFollowupDelivery,
   resolveFollowupModifierTooltip,
   shouldEnableModifiedEnterSubmit,
@@ -435,6 +436,9 @@ export interface ConversationComposerProps {
    */
   blockingRequestId?: string | null;
   disabled?: boolean;
+  readOnly?: boolean;
+  readOnlyReason?: string;
+  showInteractionStatus?: boolean;
   modelSelectionPending?: boolean;
   onRetryInitialization?: () => void;
   onRetryError?: () => void;
@@ -573,6 +577,9 @@ function ConversationComposerImpl({
   workingDurationMs,
   blockingRequestId = null,
   disabled: disabledProp = false,
+  readOnly = false,
+  readOnlyReason,
+  showInteractionStatus = false,
   modelSelectionPending = false,
   onRetryInitialization,
   onRetryError,
@@ -625,7 +632,7 @@ function ConversationComposerImpl({
     targetSelectionPendingRef.current = pending;
     setTargetSelectionPending(pending);
   }, []);
-  const disabled = disabledProp || !remoteAvailable || targetSelectionPending;
+  const disabled = readOnly || disabledProp || !remoteAvailable || targetSelectionPending;
   const [previewText, setPreviewText] = useState("");
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const previewMatches = Boolean(
@@ -1373,7 +1380,7 @@ function ConversationComposerImpl({
   const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
     inputRoutingMode: mode,
   });
-  const canStop = Boolean(snapshot?.control.canStop);
+  const canStop = !readOnly && Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = textPresence.trimmed;
   const hasDraftToSubmit =
@@ -1405,7 +1412,7 @@ function ConversationComposerImpl({
     (command) => command.recovery && command.value === "reload",
   );
   // 面板选择是 AppSlashCommand 操作，草稿不是参数；只有文本提交才要求独立命令。
-  const recoveryAvailable = Boolean(recoveryCommand) && remoteAvailable;
+  const recoveryAvailable = !readOnly && Boolean(recoveryCommand) && remoteAvailable;
   const recoveryAllowed =
     recoveryAvailable &&
     !hasAttachments &&
@@ -1995,9 +2002,45 @@ function ConversationComposerImpl({
               compactNewTask: layout === "inline",
             }),
           });
-  const sendTooltipTitle = intl.formatMessage({
-    id: mode === "enqueue" ? "chat.queue.enqueue" : "chat.send",
+  const interactionState = composerInteractionState({
+    readOnly,
+    offline: !remoteAvailable,
+    waiting: disabledProp || targetSelectionPending || (!draftMode && snapshot === null),
+    blocked: runtimeBlocked,
+    mode,
   });
+  const zh = locale === "zh-CN";
+  const interactionHints = {
+    readOnly:
+      readOnlyReason || (zh ? "当前会话只读，不能发送消息。" : "This conversation is read-only."),
+    offline: zh
+      ? "连接不可用，恢复连接后可继续。"
+      : "Connection unavailable. Reconnect to continue.",
+    waiting: zh ? "输入暂不可用，请稍候。" : "Input is temporarily unavailable. Please wait.",
+    blocked: zh
+      ? "当前暂不接收消息，请先处理待办交互或恢复会话。"
+      : "Messages are unavailable. Resolve the pending interaction or recover the session.",
+    queued: zh
+      ? "处理中，可输入下一条消息，发送后排队。"
+      : "Working. Your next message will be queued.",
+    guide: zh ? "处理中，可继续补充指令。" : "Working. You can add further instructions.",
+    choice: zh
+      ? "有待发送消息，发送时可选择保留或清空队列。"
+      : "Messages are queued. Choose whether to keep or clear them when sending.",
+    ready: "",
+  };
+  const interactionHint = showInteractionStatus ? interactionHints[interactionState] : "";
+  const inputUnavailable =
+    disabled ||
+    (mode === "reject" && !recoveryAvailable) ||
+    (showInteractionStatus && runtimeBlocked && !recoveryAvailable);
+
+  const sendTooltipTitle =
+    showInteractionStatus && mode === "guide"
+      ? zh
+        ? "补充指令"
+        : "Add instructions"
+      : intl.formatMessage({ id: mode === "enqueue" ? "chat.queue.enqueue" : "chat.send" });
   const modifierTooltip = resolveFollowupModifierTooltip({
     enabled: modifiedEnterReversesDelivery,
     canSend,
@@ -2691,6 +2734,7 @@ function ConversationComposerImpl({
       role={composerAriaLabel ? "group" : undefined}
       aria-label={composerAriaLabel}
       data-input-routing={mode}
+      data-interaction-state={showInteractionStatus ? interactionState : undefined}
       aria-hidden={isBlockedByInteraction ? true : undefined}
       style={isBlockedByInteraction ? { display: "none" } : undefined}
       className={cn(
@@ -2698,6 +2742,15 @@ function ConversationComposerImpl({
         centered && "max-w-2xl",
       )}
     >
+      {interactionHint && (
+        <p
+          role="status"
+          className="mb-2 break-words px-1 text-ui-sm text-foreground-subtle"
+          data-testid="composer-interaction-status"
+        >
+          {interactionHint}
+        </p>
+      )}
       {/* 旧 ChatViewComposer 同款隐藏 file input（web/无 native picker 平台回退）。 */}
       <input
         ref={attachmentsApi.attachmentInputRef}
@@ -2748,6 +2801,9 @@ function ConversationComposerImpl({
         className={cn(
           "chat-composer-input-surface relative w-full",
           contextHeader && "rounded-2xl bg-surface shadow-xl/5",
+          showInteractionStatus &&
+            ["readOnly", "offline", "waiting", "blocked"].includes(interactionState) &&
+            "rounded-2xl bg-surface text-foreground-subtle",
         )}
       >
         {contextHeader ? (
@@ -2796,11 +2852,21 @@ function ConversationComposerImpl({
             taskId={sessionId}
             skillCatalogSessionId={skillCatalogSessionId}
             placeholder={
-              remoteAvailable
-                ? (composerPlaceholder ?? normalPlaceholder)
-                : intl.formatMessage({ id: "remote.conversation.sendUnavailable" })
+              readOnly
+                ? zh
+                  ? "只读会话"
+                  : "Read-only conversation"
+                : remoteAvailable
+                  ? (composerPlaceholder ?? normalPlaceholder)
+                  : intl.formatMessage({ id: "remote.conversation.sendUnavailable" })
             }
-            disabled={disabled || (mode === "reject" && !recoveryAvailable)}
+            disabled={inputUnavailable}
+            shellClassName={
+              showInteractionStatus && inputUnavailable
+                ? "bg-surface shadow-none border-border text-foreground-subtle hover:border-border focus-within:!border-border focus-within:bg-surface"
+                : undefined
+            }
+            disabledReason={interactionHint || undefined}
             submitting={pending}
             submitDisabled={
               pending ||

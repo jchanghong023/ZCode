@@ -81,3 +81,27 @@ export function resolveFollowupModifierTooltip({
     titleId: delivery === "startNow" ? "chat.followup.sendNow" : "chat.followup.addToQueue",
   };
 }
+
+/** 仅投影展示状态，发送接纳和草稿仍归原生会话 owner。 */
+export function composerInteractionState({
+  readOnly,
+  offline,
+  waiting,
+  blocked,
+  mode,
+}: {
+  readOnly: boolean;
+  offline: boolean;
+  waiting: boolean;
+  blocked: boolean;
+  mode: InputRouting["mode"];
+}) {
+  if (readOnly) return "readOnly";
+  if (offline) return "offline";
+  if (waiting) return "waiting";
+  if (blocked || mode === "reject") return "blocked";
+  if (mode === "enqueue") return "queued";
+  if (mode === "guide") return "guide";
+  if (mode === "choice") return "choice";
+  return "ready";
+}
