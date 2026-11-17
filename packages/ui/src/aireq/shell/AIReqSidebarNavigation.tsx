@@ -1,5 +1,7 @@
 import {
   Folders,
+  FolderGit2,
+  Tag,
   Inbox,
   Lightbulb,
   ListChecks,
@@ -147,7 +149,7 @@ export function AIReqSidebarNavigation() {
           className="size-7 shrink-0 select-none object-contain"
         />
         <div className="flex min-w-0 flex-col">
-          <span lang="zh-CN" className="text-ui-lg leading-tight font-semibold text-foreground">
+          <span lang="zh-CN" className="text-ui-base leading-tight font-semibold text-foreground">
             AI 需求协作
           </span>
           <span lang="en" className="text-ui-sm leading-tight text-remote-foreground-muted">
@@ -156,47 +158,70 @@ export function AIReqSidebarNavigation() {
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-        <div className="mb-4 space-y-3 border-b border-border px-1 pb-4">
-          <div className="space-y-1.5">
-            <label id="sidebar-project-label" className="text-ui-sm text-remote-foreground-muted">
-              {zh ? "项目" : "Project"}
-            </label>
-            <Select
-              value={project?.id ?? ""}
-              onValueChange={(id) => ai.navigate(() => ai.switchProject(id))}
-              disabled={!ai.view?.projects.length}
+        <section
+          aria-label={zh ? "当前工作范围" : "Current workspace"}
+          className="mb-4 space-y-0.5 rounded-xl border border-border/70 p-1"
+        >
+          <Select
+            value={project?.id ?? ""}
+            onValueChange={(id) => ai.navigate(() => ai.switchProject(id))}
+            disabled={!ai.view?.projects.length}
+          >
+            <SelectTrigger
+              variant="ghost"
+              className="h-auto min-h-12 w-full min-w-0 justify-start gap-3 rounded-lg px-2.5 py-2 text-left focus-visible:border-remote-foreground-muted data-[state=open]:bg-selected"
+              aria-labelledby="sidebar-project-label"
+              title={project?.name}
             >
-              <SelectTrigger
-                className="w-full min-w-0"
-                aria-labelledby="sidebar-project-label"
-                title={project?.name}
-              >
-                <SelectValue placeholder={zh ? "未选择项目" : "Choose project"} />
-              </SelectTrigger>
-              <SelectContent>
-                {ai.view?.projects.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label id="sidebar-release-label" className="text-ui-sm text-remote-foreground-muted">
-              Release
-            </label>
-            <Select
-              value={releases.some((item) => item.id === ai.releaseId) ? ai.releaseId : ""}
-              onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id))}
-              disabled={!ai.selectionReady || !releases.length}
-            >
-              <SelectTrigger
-                className="w-full min-w-0"
-                aria-labelledby="sidebar-release-label"
-                title={releases.find((item) => item.id === ai.releaseId)?.title}
-              >
+              <FolderGit2 className="size-4 text-foreground-subtle" aria-hidden="true" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span
+                  id="sidebar-project-label"
+                  className="text-ui-sm leading-4 text-remote-foreground-muted"
+                >
+                  {zh ? "项目" : "Project"}
+                </span>
                 <SelectValue
+                  className="block truncate text-ui-base leading-5 font-semibold text-foreground"
+                  placeholder={zh ? "未选择项目" : "Choose project"}
+                />
+              </span>
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              align="start"
+              sideOffset={6}
+              className="w-(--radix-select-trigger-width) [&_[data-position=popper]]:min-w-0"
+            >
+              {ai.view?.projects.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="mx-2.5 border-t border-border/50" aria-hidden="true" />
+          <Select
+            value={releases.some((item) => item.id === ai.releaseId) ? ai.releaseId : ""}
+            onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id))}
+            disabled={!ai.selectionReady || !releases.length}
+          >
+            <SelectTrigger
+              variant="ghost"
+              className="h-auto min-h-12 w-full min-w-0 justify-start gap-3 rounded-lg px-2.5 py-2 text-left focus-visible:border-remote-foreground-muted data-[state=open]:bg-selected"
+              aria-labelledby="sidebar-release-label"
+              title={releases.find((item) => item.id === ai.releaseId)?.title}
+            >
+              <Tag className="size-4 text-foreground-subtle" aria-hidden="true" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span
+                  id="sidebar-release-label"
+                  className="text-ui-sm leading-4 text-remote-foreground-muted"
+                >
+                  Release
+                </span>
+                <SelectValue
+                  className="block truncate text-ui-base leading-5 font-medium text-foreground"
                   placeholder={
                     !ai.selectionReady
                       ? zh
@@ -207,17 +232,22 @@ export function AIReqSidebarNavigation() {
                         : "No releases"
                   }
                 />
-              </SelectTrigger>
-              <SelectContent>
-                {releases.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              </span>
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              align="start"
+              sideOffset={6}
+              className="w-(--radix-select-trigger-width) [&_[data-position=popper]]:min-w-0"
+            >
+              {releases.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </section>
         {sections.map((section, index) => (
           <section
             key={section.title}
