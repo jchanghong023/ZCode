@@ -29,6 +29,7 @@ import {
   requirementsReviewStartBlocker,
   type AIReqAction,
   type AIReqRequirementGroup,
+  type AIReqReview,
 } from "../contract.js";
 
 /** 任务的显式业务动作复用原命令入口，接纳与阶段转换由 Context／服务端裁决。 */
@@ -49,6 +50,13 @@ export function AIReqProposalTaskActions({
   const [returnOpen, setReturnOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [approval, setApproval] = useState<{
+    projectId: string;
+    irId: string;
+    full: boolean;
+    review: Pick<AIReqReview, "id" | "snapshotDigest" | "round">;
+  } | null>(null);
+  const approveTrigger = useRef<HTMLButtonElement>(null);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const { setDraftNavigationGuard } = ai;
   const guardOwner = `proposal-review-return:${group.projectId}:${group.id}:${full}`;
@@ -81,6 +89,15 @@ export function AIReqProposalTaskActions({
     : requirementsReviewStartBlocker(group);
   const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
   const approveReady = Boolean(review && !approveIssue);
+  // 弹窗确认的是打开时读过的版本；协作者重审后的新投影不能静默替换确认对象。
+  const approvalChanged = Boolean(
+    approval &&
+    (approval.projectId !== group.projectId ||
+      approval.irId !== group.id ||
+      approval.full !== full ||
+      approval.review.id !== review?.id ||
+      approval.review.snapshotDigest !== review?.snapshotDigest),
+  );
   const hint = running
     ? "正在评审当前材料，完成后可查看意见并人工确认。"
     : discussion
@@ -104,16 +121,22 @@ export function AIReqProposalTaskActions({
       <div className="flex flex-wrap items-center gap-3">
         {!discussion && review && (
           <Button
+            ref={approveTrigger}
             variant={approveReady ? "default" : "outline"}
             disabled={Boolean(unavailable || approveIssue)}
             aria-describedby={hint ? hintId : undefined}
             title={approveIssue}
+            // 修复原因：人工放行／需求通过是不可逆业务决定，原先单击即执行，
+            // 比丢弃草稿（有确认弹窗）更轻；按 proposals spec 增加确认弹窗，取消为默认焦点。
             onClick={() =>
-              void run({
-                type: full ? "approveFullReview" : "acceptProposal",
+              setApproval({
                 ...target,
-                reviewId: review.id,
-                snapshotDigest: review.snapshotDigest,
+                full,
+                review: {
+                  id: review.id,
+                  snapshotDigest: review.snapshotDigest,
+                  round: review.round,
+                },
               })
             }
           >
@@ -154,6 +177,65 @@ export function AIReqProposalTaskActions({
           {hint}
         </p>
       )}
+      <AlertDialog
+        open={approval !== null}
+        onOpenChange={(open) => {
+          if (!open && !busy) setApproval(null);
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            // 入口通过受控状态打开而非 Radix Trigger；关闭后显式恢复实际入口焦点。
+            event.preventDefault();
+            approveTrigger.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{full ? "确认完整方案？" : "确认业务需求？"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {full
+                ? "将人工放行当前版本的完整审查，随后进入业务、开发、测试三方确认。确认后如需变更，须退回或更新材料并重新审查。"
+                : "将人工通过当前版本的原始评审，随后进入方案完善。确认后如需变更，须退回或更新材料并重新评审。"}
+              {approval?.review.round ? `本次确认对象为第 ${approval.review.round} 轮评审。` : ""}
+              {approvalChanged
+                ? "评审对象或材料版本已变化，请关闭弹窗并重新阅读评审后再确认。"
+                : unavailable || approveIssue
+                  ? "当前暂不能确认，请关闭弹窗查看最新评审状态。"
+                  : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(unavailable || approveIssue || approvalChanged || !approval)}
+              onClick={() => {
+                if (!approval || approvalChanged || unavailable || approveIssue) return;
+                setApproval(null);
+                // 命令联合按 type 判别，三元 type 无法收窄；分支构造各自字面量命令。
+                void run(
+                  approval.full
+                    ? {
+                        type: "approveFullReview",
+                        projectId: approval.projectId,
+                        irId: approval.irId,
+                        reviewId: approval.review.id,
+                        snapshotDigest: approval.review.snapshotDigest,
+                      }
+                    : {
+                        type: "acceptProposal",
+                        projectId: approval.projectId,
+                        irId: approval.irId,
+                        reviewId: approval.review.id,
+                        snapshotDigest: approval.review.snapshotDigest,
+                      },
+                );
+              }}
+            >
+              {full ? "确认放行" : "确认通过"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog
         open={returnOpen}
         onOpenChange={(open) => {

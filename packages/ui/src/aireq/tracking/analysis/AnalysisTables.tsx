@@ -137,6 +137,7 @@ export function AnalysisTaskTable({
                     <Button
                       variant="ghost"
                       size="icon"
+                      // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／弹窗展开时显现。
                       className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                       aria-haspopup="dialog"
                       aria-label={`查看 ${task.srTitle} 任务详情`}
@@ -313,6 +314,7 @@ export function AnalysisHistoryTable({
                 <Button
                   variant="ghost"
                   size="icon"
+                  // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦时显现。
                   className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
                   aria-label={`查看 ${run.srTitle} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}

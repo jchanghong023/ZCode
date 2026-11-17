@@ -2,9 +2,8 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +19,9 @@ import { Label } from "@/components/ui/label.js";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
@@ -36,11 +37,12 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
-import { PROPOSAL_STATE_OPTIONS, proposalState, proposalStateLabel } from "../contract.js";
+import { PROPOSAL_STATE_GROUPS, PROPOSAL_STATE_OPTIONS, proposalState } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
 import { AIReqProposalExport } from "./AIReqProposalExport.js";
+import { AIReqProposalRow } from "./AIReqProposalRow.js";
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
@@ -348,10 +350,21 @@ export function AIReqProposalTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{zh ? "全部状态" : "All statuses"}</SelectItem>
-              {PROPOSAL_STATE_OPTIONS.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {zh ? option.title : option.titleEn}
-                </SelectItem>
+              {/* 修复原因：八态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
+              {PROPOSAL_STATE_GROUPS.map((group) => (
+                <SelectGroup key={group.title}>
+                  <SelectLabel className="text-ui-sm">
+                    {zh ? group.title : group.titleEn}
+                  </SelectLabel>
+                  {group.ids.map((id) => {
+                    const option = PROPOSAL_STATE_OPTIONS.find((item) => item.id === id);
+                    return option ? (
+                      <SelectItem key={option.id} value={option.id}>
+                        {zh ? option.title : option.titleEn}
+                      </SelectItem>
+                    ) : null;
+                  })}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -391,79 +404,7 @@ export function AIReqProposalTable() {
             </thead>
             <tbody>
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
-                <tr
-                  key={item.id}
-                  data-aireq-motion-row=""
-                  className="border-b border-border/50 hover:bg-hover"
-                >
-                  <td className="hidden px-4 py-4 @min-[640px]/conversation:table-cell">
-                    {item.submittedBy}
-                  </td>
-                  <td
-                    data-aireq-motion-cell=""
-                    className="max-w-xl whitespace-pre-wrap break-words px-4 py-4"
-                  >
-                    {/* 正文应和详情入口一样可直接打开讨论，同时保留键盘操作。 */}
-                    <div className="flex flex-col items-start gap-2">
-                      <ControlHintTooltip title={item.originalText}>
-                        <Button
-                          variant="link"
-                          className="h-auto max-w-full whitespace-pre-wrap break-words p-0 text-left text-foreground-subtle hover:text-foreground"
-                          onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
-                        >
-                          <span className="line-clamp-3 text-left">{item.originalText}</span>
-                        </Button>
-                      </ControlHintTooltip>
-                      {/* 窄分栏隐藏提交人／日期列时并入正文单元格，筛选判断不必横滚。 */}
-                      <p className="text-ui-sm text-foreground-subtle @min-[640px]/conversation:hidden">
-                        {item.submittedBy} ·{" "}
-                        {new Date(item.createdAt).toLocaleString("zh-CN", {
-                          timeZone: "Asia/Shanghai",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="hidden px-4 py-4 text-foreground-subtle @min-[640px]/conversation:table-cell">
-                    <time
-                      dateTime={item.createdAt}
-                      title={`${new Date(item.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })} 北京时间`}
-                    >
-                      {new Date(item.createdAt).toLocaleString("zh-CN", {
-                        timeZone: "Asia/Shanghai",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                    </time>
-                  </td>
-                  <td className="px-4 py-4">{proposalStateLabel(item, zh ? "zh-CN" : "en-US")}</td>
-                  <td className="px-2 py-4 text-right align-middle">
-                    <ControlHintTooltip
-                      title={zh ? "打开需求工作台" : "Open requirement workspace"}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
-                        aria-label={
-                          zh
-                            ? `查看 ${item.title} 需求工作台`
-                            : `Open requirement workspace for ${item.title}`
-                        }
-                        onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
-                      >
-                        <ArrowUpRight className="size-4" aria-hidden="true" />
-                      </Button>
-                    </ControlHintTooltip>
-                  </td>
-                </tr>
+                <AIReqProposalRow key={item.id} item={item} zh={zh} />
               ))}
               {!filtered.length && (
                 <tr>

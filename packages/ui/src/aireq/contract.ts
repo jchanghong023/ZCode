@@ -53,6 +53,7 @@ export {
   MATERIAL_KIND_LABELS,
   PROGRESS_STATUSES,
   PROPOSAL_STATE_OPTIONS,
+  PROPOSAL_STATE_GROUPS,
   proposalState,
   proposalStateIndex,
   proposalStateLabel,

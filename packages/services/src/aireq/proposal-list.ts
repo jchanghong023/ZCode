@@ -23,6 +23,25 @@ export const PROPOSAL_STATE_OPTIONS = [
   { id: "merge-pending", title: "待合入", titleEn: "Merge pending" },
 ] as const satisfies readonly { id: AIReqProposalState; title: string; titleEn: string }[];
 
+/** 筛选菜单按推进阶段分组（proposals spec）；组标题是展示标签，不是可筛选值，组内沿用状态定义顺序。 */
+export const PROPOSAL_STATE_GROUPS = [
+  {
+    title: "需求确认",
+    titleEn: "Requirement confirmation",
+    ids: ["not-started", "ir-review-pending", "ir-confirmation-pending"],
+  },
+  {
+    title: "方案确认",
+    titleEn: "Solution confirmation",
+    ids: ["solution-incomplete", "solution-review-pending", "solution-confirmation-pending"],
+  },
+  { title: "交付", titleEn: "Delivery", ids: ["submission-pending", "merge-pending"] },
+] as const satisfies readonly {
+  title: string;
+  titleEn: string;
+  ids: readonly AIReqProposalState[];
+}[];
+
 /** 顺序只用于展示，不是持久化状态，也不把正式需求当作第九态。 */
 export function proposalStateIndex(group: AIReqRequirementGroup): number {
   const state = proposalState(group);

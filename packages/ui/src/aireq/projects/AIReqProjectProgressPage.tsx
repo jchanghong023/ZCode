@@ -169,7 +169,8 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                                 prominent
                               />
                             </div>
-                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle tabular-nums">
+                            {/* 修复原因：内层版本卡抬升底色上 12px foreground-subtle 实测 4.28:1（<4.5）；统计标签升为主文字。 */}
+                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-foreground tabular-nums">
                               {release.formalCount > 0 && (
                                 <span className="whitespace-nowrap">
                                   {zh ? "正式需求" : "Formal"}{" "}

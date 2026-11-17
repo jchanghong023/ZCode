@@ -24,7 +24,7 @@ AIReq 使用当前 ZCode 界面体系：安静、紧凑、可长时间操作的�
 | 更新中         | `progress-surface`／`progress-surface-foreground`                                      |
 | Diff           | `diff-added`／`diff-added-foreground`、`diff-removed`／`diff-removed-foreground`       |
 
-业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题和主要数值用主文字，原文、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。
+业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题和主要数值用主文字，原文、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。抬升表面（卡片内层面板、行悬停底色）会吃掉对比余量：其上的次级文字按实际合成底色核验 ≥4.5:1，不足时升为主文字或调整表面，不沿用外层卡片的通过结论。
 
 状态色只表达真实状态，不作装饰；surface 与对应 foreground 配对。等待确认使用 interaction-confirmation，不借 success 表示等待。Git 文件状态使用 `git-*`，不借 Diff 或 warning。文件、Skill、命令 mention 使用各自 node 的背景、hover 和前景；Markdown 行内代码使用 `markdown-inline-code`。
 
@@ -51,6 +51,8 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 聊天正文使用 base；Markdown h1／h2 使用 xl／lg，h3–h6 使用 base 并以字重分层。独立 UIW 只读文档正文使用 lg 与库的相对标题比例。代码、Diff 和终端内容使用独立阅读字号，外侧控制仍使用 UI token。
 
 标题和标签通常使用 medium／semibold；Tooltip 普通文字用 sm，快捷键用 xs。长翻译和技术值可换行或在明确区域截断，不依赖只适配短英文的固定布局。
+
+`text-ui-xs`／`text-ui-2xs` 的徽标、数量与弱元信息是设计许可的小字号角色；设计检测器按 11px 通用下限对这类命中报警时，按本表角色豁免，不据此放大正文或徽标，也不把豁免扩展到承载说明或操作的小字。
 
 ## Layout
 
@@ -84,6 +86,8 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 
 `rounded-full` 仅用于明确的圆或胶囊，不因是图标按钮、计数或标签便自动使用。连接表面按现有样式移除相邻圆角，不添加任意像素半径。
 
+外层 `rounded-xl` 卡片内嵌 `rounded-lg` 版本卡片是总览的许可模式，检测器 nested-cards 命中按此豁免；豁免仅限该既有嵌套，不作为新增嵌套卡片的依据。内层抬升表面的文字对比仍按 Colors 一节核验。
+
 ## Components
 
 ### Buttons and inputs
@@ -91,6 +95,8 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 复用 Button variants：default、outline、secondary、ghost、destructive、warning、link。default 使用 primary 配对色；危险和警告只用于对应业务动作。尺寸为 default h-7、xs h-5、sm h-6、lg h-8，图标按钮使用现有 icon variants，不另设宽高体系。图标通常 size-4，细节按组件 variant 缩放。
 
 输入使用 input 背景及边框，hover／focus 使用对应 token，不默认发光。占位符与 Select 未选值使用 `foreground-subtle`，在输入表面保持 ≥4.5:1；`foreground-subtlest` 只用于弱元信息，不承载字段说明。标签、错误和辅助信息与控件关联；保存中保留文本控件挂载且只读，不因 disabled 移走输入焦点。错误使用真实错误语义，不将普通说明标红。
+
+键盘焦点必须可见：全局仅清除系统默认 outline 与 focus ring 阴影，不整体禁用组件焦点样式；焦点表达由组件自有 border／ring token 承担。Button 各 variant 在 focus-visible 提供可见焦点边框（危险／警告沿各自状态色），输入与选择器沿 input-border-focused；强制颜色模式保留系统 Highlight outline。新增控件不得依赖被全局清除的默认描边，也不在组合输入上叠加第二套全局 outline。
 
 ### Navigation and tabs
 
@@ -110,7 +116,7 @@ Markdown 表格、代码、Mermaid、图片与依赖图复用共享阅读器，�
 
 ## Do's and Don'ts
 
-- 复用语义 token、共享组件、现有焦点样式及国际化文本，不添加全局强制 outline 改写组件。
+- 复用语义 token、共享组件、既有组件级焦点样式及国际化文本；全局层只清系统默认 outline／ring 阴影，不添加全局强制 outline，也不整体禁用组件焦点样式。
 - 保持深浅主题的卡片、文字和浮层层次一致，容纳长名称和翻译。
 - 将重复说明放入现有帮助或 disclosure，保留异常、门禁及完成任务必需的操作。
 - 不新增手机或原生桌面交付规则，不恢复隐藏 Skill、插件或其他裁撤产品入口。

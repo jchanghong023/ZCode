@@ -631,6 +631,7 @@ function FormalActions({
           <Button
             size="icon"
             variant="ghost"
+            // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／菜单展开时显现，保持表格安静。
             className="pointer-events-none size-8 shrink-0 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-hover focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
             aria-label={`${sr?.title ?? group.title}的更多操作`}
           >

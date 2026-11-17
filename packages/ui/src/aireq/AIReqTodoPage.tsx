@@ -255,7 +255,7 @@ export function AIReqTodoPage() {
                   <td className="px-2 py-3 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        {/* 分工是行内次操作，沿用其他表格的悬停／聚焦／展开显隐，避免每行常驻省略号。 */}
+                        {/* 分工是行内次操作，统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／菜单展开时显现。 */}
                         <Button
                           variant="ghost"
                           size="icon"
