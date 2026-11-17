@@ -1,4 +1,4 @@
-import { UsersRound } from "lucide-react";
+import { ChevronRight, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -28,18 +28,26 @@ export function AIReqOnlinePresence() {
         <DialogTrigger asChild>
           <Button
             variant="ghost"
-            className="h-9 w-full justify-start gap-3 px-3 font-normal text-foreground-subtle hover:text-foreground"
+            size="lg"
+            // 在线入口是可操作的辅助信息；复用侧栏对比度和焦点边框，避免弱文字看似禁用且键盘焦点不可见。
+            className="w-full min-w-0 justify-start gap-3 font-normal text-remote-foreground-muted hover:text-foreground focus-visible:border-remote-foreground-muted data-[state=open]:bg-hover data-[state=open]:text-foreground"
           >
             <UsersRound aria-hidden="true" className="size-4 shrink-0" />
-            <span className="truncate tabular-nums">
+            <span className="min-w-0 flex-1 truncate text-left">
               {error
                 ? unavailable
                 : count
-                  ? `${zh ? "在线" : "Online"} ${count}`
+                  ? zh
+                    ? "在线人数"
+                    : "Online people"
                   : zh
                     ? "在线人数…"
                     : "Online people…"}
             </span>
+            {!error && count && (
+              <span className="shrink-0 font-medium text-foreground tabular-nums">{count}</span>
+            )}
+            <ChevronRight aria-hidden="true" className="size-3.5 text-remote-foreground-muted" />
           </Button>
         </DialogTrigger>
       </div>
