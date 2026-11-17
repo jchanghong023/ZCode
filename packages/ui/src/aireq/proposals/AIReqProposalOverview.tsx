@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   proposalProgressIndex,
+  proposalState,
+  proposalStateLabel,
   fullReviewCurrent,
   requirementsReviewCurrent,
   type AIReqRequirementGroup,
@@ -26,6 +28,7 @@ const stages: ProposalTask[] = [
 export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup }) {
   const ai = useAIReq()!;
   const next = proposalNextTask(group);
+  const mergePending = proposalState(group) === "merge-pending";
   const phase = proposalProgressIndex(group, {});
   const notes: Partial<Record<ProposalTask, string>> = {
     requirements: "明确目标、范围与验收标准",
@@ -54,23 +57,22 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
         <section className="space-y-3 border-y border-border/50 py-5" aria-label="当前待处理事项">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
+              <p className="text-ui-sm text-foreground-subtle">
+                当前状态 · {proposalStateLabel(group, "zh-CN")}
+              </p>
               <h2 className="text-ui-base font-medium">
-                {group.status === "requirements-pr"
-                  ? "已提交，等待合入"
-                  : `下一项待办：${proposalTaskTitles[next]}`}
+                {mergePending ? "已提交，等待合入" : `下一项待办：${proposalTaskTitles[next]}`}
               </h2>
               <p className="text-ui-sm text-foreground-subtle">
                 {group.returnFeedback && !group.returnFeedback.resumedAt
                   ? "有退回意见需要业务补充。"
-                  : group.status === "requirements-pr"
+                  : mergePending
                     ? "合入结果由后台核验，可查看交付记录。"
                     : notes[next]}
               </p>
             </div>
             <Button onClick={() => ai.openProposalTask(next)}>
-              {group.status === "requirements-pr"
-                ? "查看交付状态"
-                : `进入${proposalTaskTitles[next]}`}
+              {mergePending ? "查看交付状态" : `进入${proposalTaskTitles[next]}`}
               <ArrowRight className="size-4" aria-hidden="true" />
             </Button>
           </div>

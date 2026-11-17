@@ -38,9 +38,9 @@ const steps = [
     title: "从需求工作台进入任务",
     titleEn: "Open tasks from the requirement workspace",
     description:
-      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。汇总页没有聊天框；点击具体审查进入独立详情和专属会话，返回仍回到汇总。评审完成仍需人工确认，原始短需求始终独立保留。",
+      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。汇总页没有聊天框；点击具体审查进入独立详情和专属会话，返回仍回到汇总。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后移入正式需求。",
     descriptionEn:
-      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Summaries have no chat input; each reviewer opens an independent detail page and conversation, returning to its summary. Completed reviews still require human confirmation. The original request remains separate.",
+      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Summaries have no chat input; each reviewer opens an independent detail page and conversation, returning to its summary. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. Verified merged proposals move to formal requirements.",
   },
   {
     title: "每 SR 独立完整包",

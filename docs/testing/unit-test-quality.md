@@ -31,6 +31,7 @@
 | `composer-draft.test.ts`            | 草稿恢复、命名空间隔离、窄清除与存储失败             | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command.test.ts`           | 回执不明、查询对账、迟到回执与恢复线索生命周期       | [原生讨论与附件](../specs/aireq-migration/conversation.md)                                                            |
 | `pending-command-workspace.test.ts` | 命令恢复记录的工作区隔离及输入副本                   | [连接身份](../specs/aireq-migration/connection-identity.md)                                                           |
+| `proposal-state.test.ts` | 提案八态、材料与评审版本匹配、人工及三方确认、交付候选与 PR、失效回退和历史只读 | [需求提案](../specs/aireq-migration/proposals.md#提案业务状态) |
 | `proposal-tasks.test.ts`            | 工作台与独立任务、审查 URL、返回层级和旧确认失效     | [提案流程](../specs/aireq-migration/proposals.md)                                                                     |
 | `requirement-return.test.ts`        | 详情来源保留、历史字段校验、无来源回退及显式对象链接 | [分区导航](../specs/aireq-migration/section-navigation-and-ideas.md)                                                  |
 | `remote-data-source.test.ts`        | 前端数据源初始化、失效重读、目标与命令身份及释放     | [连接身份](../specs/aireq-migration/connection-identity.md)、[AIReq UI 契约](../../packages/ui/src/aireq/CONTRACT.md) |
@@ -55,7 +56,7 @@
 
 ST 位于 `test/st/`，仅从独立 `st` project 发现；`test:ut` 和 engineering 不加载网络用例。用例依据现行业务规范与正式 services/shared 契约编写，不导入后端实现、原型数据或前端控制器。套件覆盖 HTTP 接入、身份、广播、辅助读取、原生会话／队列／附件、想法／配置、提案、统计、正式 SR 与分析调度。源码存在不代表这些场景已经通过；以实际运行结果为准。
 
-测试连接已运行的服务，不启动或停止它；默认 `http://localhost:5174`，路径与前端入口相同。全部被测请求走真实 HTTP 或 `/ws` 二进制 Channel RPC，使用现有 `@zcode/client`。串行运行单实例，多个连接只用于同一 case 的身份／事件隔离。服务拒绝或结果违背规则时保留失败，不调整预期迎合原型实现。
+测试连接已运行的服务，不启动或停止它；默认 `http://localhost:5174`，路径与前端入口相同。全部被测请求走真实 HTTP 或 `/ws` 二进制 Channel RPC，使用现有 `@zcode/client`。单实例、单 worker、文件与业务断言串行；正式 SR 和调度长流程优先启动，默认最多两份独立前置的服务端等待重叠。准备中的读版本与写入阶段、显式前置领取和整个断言阶段共用串行锁，全局配置测试独占，不重试失败写入。仅为实际选中的用例准备数据，准备失败计入对应 case；JSON 报告 metadata 的 `stPreparation` 记录准备起止时间。服务拒绝或结果违背规则时保留失败，不调整预期迎合原型实现。
 
 | 配置                                     | 含义                                                                                                                                         |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,6 +66,7 @@ ST 位于 `test/st/`，仅从独立 `st` project 发现；`test:ut` 和 engineer
 | `ST_REPOSITORY_BRANCH`                   | 默认 `main`，须为环境中的真实可用分支                                                                                                        |
 | `ST_TOKEN`                               | 可选部署 token，通过正式 HTTP Bearer／WS 查询契约传入；不输出凭据                                                                            |
 | `ST_TIMEOUT_MS`                          | 测试、网络调用与有界等待时限，默认 120000 毫秒，覆盖公开多阶段准备及真实服务时钟推进；长流程可配置更长时限                                   |
+| `ST_PREPARE_CONCURRENCY` | 正式 SR 前置并发数，默认 `2`；只支持 `1` 或 `2`，`1` 用于串行准备对照；不增加后端实例或并发断言 |
 | `ST_FILE_JSON`                           | 可选文件前置：`workspacePath`、可选 `workspaceIdentity`、`path`、`directoryPath`、`missingPath`、`bytesBase64`；未配置时通过公开保存流程创建 |
 | `ST_FIXTURES_FILE`                       | JSON 对象，各用途为专用前置对象数组，不得使用无关业务数据                                                                                    |
 | `ST_ALLOCATION_LOG`                      | 可选消费型前置分配日志路径；默认系统临时目录中按服务／前置清单区分的 JSONL，跨套件及重复执行防止复用                                         |

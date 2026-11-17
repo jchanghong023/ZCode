@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   ArrowDownWideNarrow,
   FilePenLine,
@@ -22,14 +23,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { proposalProgressIndex } from "../contract.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
 import {
-  PROPOSAL_PHASE_OPTIONS,
+  PROPOSAL_STATE_OPTIONS,
+  proposalState,
   proposalCreatedTime,
   proposalNeedsAttention,
-  proposalPhaseLabel,
+  proposalStateLabel,
   proposalProcessingHint,
   proposalUpdatedTime,
 } from "../contract.js";
@@ -55,6 +56,8 @@ export function AIReqRequirementList({
   workspaceInactive?: boolean;
 }) {
   const aireq = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const source = useOptionalAIReqDataSource();
   const preferenceScope = `${source?.backend?.id ?? source?.clientId}:${aireq.selection.projectId}:${aireq.releaseId}`;
   const [proposalPreferences, setProposalPreferences] = useState(() =>
@@ -69,6 +72,10 @@ export function AIReqRequirementList({
     updateProposalPreferences(preferenceScope, next);
     setProposalPreferences(next);
   };
+  const stateOptions = [
+    { id: "all", title: "全部状态", titleEn: "All statuses" },
+    ...PROPOSAL_STATE_OPTIONS,
+  ];
   const setPhase = (phase: string) => updatePreferences({ phase });
   const setProposer = (proposer: string) => updatePreferences({ proposer });
   const setIntake = (intake: "all" | "attention") => updatePreferences({ intake });
@@ -97,7 +104,7 @@ export function AIReqRequirementList({
   const clearFilters = () => updatePreferences({ phase: "all", proposer: "all", intake: "all" });
   const summary = [
     phase !== "all"
-      ? `阶段：${PROPOSAL_PHASE_OPTIONS.find((option) => option.id === phase)?.title}`
+      ? `${zh ? "状态" : "Status"}：${zh ? stateOptions.find((option) => option.id === phase)?.title : stateOptions.find((option) => option.id === phase)?.titleEn}`
       : "",
     proposer !== "all"
       ? `提交人：${proposerOptions.find((option) => option.id === proposer)?.title ?? proposer.slice(9)}`
@@ -107,7 +114,7 @@ export function AIReqRequirementList({
     .filter(Boolean)
     .join(" · ");
   const matchesProposalContext = (group: AIReqRequirementGroup) =>
-    (phase === "all" || String(proposalProgressIndex(group)) === phase) &&
+    (phase === "all" || proposalState(group) === phase) &&
     personMatches(proposer, group.proposalLocation?.employeeId);
   const matchingGroups = groups.filter(
     (group) => matchesProposalContext(group) && (intake === "all" || proposalNeedsAttention(group)),
@@ -191,11 +198,11 @@ export function AIReqRequirementList({
               </ControlHintTooltip>
               <DropdownMenuContent align="end">
                 <>
-                  <DropdownMenuLabel>当前阶段</DropdownMenuLabel>
+                  <DropdownMenuLabel>{zh ? "当前状态" : "Current status"}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={phase} onValueChange={setPhase}>
-                    {PROPOSAL_PHASE_OPTIONS.map((option) => (
+                    {stateOptions.map((option) => (
                       <DropdownMenuRadioItem key={option.id} value={option.id}>
-                        {option.title}
+                        {zh ? option.title : option.titleEn}
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
@@ -254,9 +261,13 @@ export function AIReqRequirementList({
               !workspaceInactive && aireq.selection.irId === group.id && !aireq.selection.srId;
             const intakeIssue = proposalNeedsAttention(group);
             const processingHint = proposalProcessingHint(group);
-            const processingLabel = intakeIssue
-              ? `${processingHint} · ${proposalPhaseLabel(group)}`
-              : `${proposalPhaseLabel(group)} · ${processingHint}`;
+            const processingLabel = (
+              intakeIssue
+                ? [processingHint, proposalStateLabel(group, zh ? "zh-CN" : "en-US")]
+                : [proposalStateLabel(group, zh ? "zh-CN" : "en-US"), processingHint]
+            )
+              .filter(Boolean)
+              .join(" · ");
             const processingDescription =
               intakeIssue && group.proposalDelivery?.mergeCheck?.message
                 ? `${processingLabel}：${group.proposalDelivery.mergeCheck.message}`

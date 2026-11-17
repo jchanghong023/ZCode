@@ -61,6 +61,18 @@ File 与媒体由正式只读 RPC 返回字节或浏览器可达资源，缺失�
 
 首次读取有加载、空、失败区别；同目标后台重读保留已读内容和草稿。尚未生成、生成中、缺失、读取失败和版本过期不能互相伪装。异步确认等真实提交完成才结算，失败不关闭表单、不吞错、不替换其他对象数据。设置、导航、history 和返回共用原未保存门禁，业务 mutation 不由挂载或重连自动触发。
 
-## 6. 事实来源
+## 6. 原型后端业务初始数据
+
+默认项目 Aurora 协作控制台（`demo-aurora`）的 `release-2026-11`（2026.11 · 体验优化）包含 7 条正式 IR、21 条正式 SR。其中新增团队成员管理、消息偏好设置、附件管理、工作台快捷入口 4 条 IR、12 条 SR；各 IR 保留完整材料、冻结快照、文档合入和独立开发分支，联系人与开发／测试分工可用于查看待办。
+
+开发任务必须覆盖待开发（含未分析与已分析 0%）、开发中、待合入、待验收、已完成。状态由既有公共进度函数从报告、代码合入与同版人工验收派生，不直接写展示状态；待合入必须有明确分析结论且尚未合入，待验收为合入 99%，已完成必须有匹配代码版本的人工通过记录及验收历史。
+
+新增 SR 中保留六条 2026-11-16 至 2026-11-17 的既存历史变化，分别覆盖回到待开发、进入开发中、待合入、待验收和已完成；历史 `to` 必须与当前有效状态一致。它们是服务端预置的历史业务数据，加载不触发状态变化事务；不得按启动／读取时间补造或刷新，其他没有历史的 SR 继续缺失 `statusChange`。随后真实提交仍由 workflow 事务比较有效状态并更新记录。
+
+这批静态 SR 的 `automaticCodeMerge:false` 只保存在 workflow 内部类型，公共投影递归剥离（包括嵌套回执）。后台模拟代码合入跳过它们，避免启动数秒后五种状态全部被推进为待验收；公开分析、分工和人工验收仍沿正常业务门禁，新创建需求的模拟推进保持原规则。
+
+验收：同一 Release 的正式 IR／SR 计数为 7／21，五种状态均非空；最近动态按固定历史时间排序展示五个不同 SR，重复读取时间不变。检查所有新增 SR 的材料归属、分支基点、验收代码版本，以及后台轮询后仍保留五种状态；公共返回不得包含内部控制字段，其他项目／Release 的数据不变。
+
+## 7. 事实来源
 
 `packages/web/src/main.tsx`；`packages/client/src/{websocket,remoteServiceAccess}.ts`；`packages/rpc/src/{protocol,serialization,proxy-channel,channelClient,channelServer}.ts`；`packages/server/src/{http,mock/index,aireq/service}.ts`；`packages/ui/src/aireq/shell/AIReqApplication.tsx`、`shell/remote-data-source.ts`；`packages/ui/src/aireq/conversation/AIReqSessionPane.tsx`。领域页面规则由本目录各领域规格维护，不以帮助文案代替导航与数据代码事实。

@@ -17,7 +17,7 @@ import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   aiReqPrFactSchema,
-  hasCurrentProposalSolution,
+  proposalState,
   proposalDeliveryCurrent,
   proposalVersion,
   requirementMaterialName,
@@ -53,6 +53,12 @@ function resolveMrLink(value: string | undefined): string | undefined {
 
 export function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequirementGroup }) {
   const delivery = group.proposalDelivery;
+  if (delivery && !proposalDeliveryCurrent(group))
+    return (
+      <p className="text-ui-sm text-foreground-subtle">
+        当前材料版本已变化，旧交付不再有效；请重新评审并确认当前版本。
+      </p>
+    );
   if (!delivery?.pushedAt)
     return (
       <p className="text-ui-sm leading-6 text-foreground-subtle">
@@ -186,13 +192,10 @@ export function AIReqProposalDeliveryControls({
   const current = proposalDeliveryCurrent(group);
   const version = proposalVersion(group);
   const pushed = !!delivery && current && delivery.pushedCandidate === delivery.candidate;
-  const mrReady = Boolean(
-    group.requirementsPr?.number && delivery?.prCandidate === delivery?.candidate,
-  );
+  const mrReady = proposalState(group) === "merge-pending";
   const mine = source.capabilities.proposalDiscussion === true;
-  const ready =
-    hasCurrentProposalSolution(group) &&
-    ["solution-ready", "requirements-pr"].includes(group.status);
+  const state = proposalState(group);
+  const ready = state === "submission-pending" || state === "merge-pending";
   const result = handoffResult?.group === group ? handoffResult : null;
   const handoff = result?.handoff;
   const handoffLoading = !result;

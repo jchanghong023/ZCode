@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { MoreHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -19,6 +20,10 @@ import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import {
   proposalProgressIndex,
+  proposalState,
+  proposalStateIndex,
+  proposalStateLabel,
+  PROPOSAL_STATE_OPTIONS,
   proposalViewedIndex,
   requirementsReviewStartBlocker,
   requirementsReviewReadyBlocker,
@@ -60,6 +65,8 @@ export function AIReqPhaseHeader({
   placement?: "header" | "document";
 }) {
   const ai = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
   const [returnOpen, setBack] = useState(false);
   const [returnScope, setReturnScope] = useState("");
   const [returning, setReturning] = useState(false);
@@ -73,6 +80,7 @@ export function AIReqPhaseHeader({
     return placement === "header" ? <>{details}</> : null;
   const scope = `${group.projectId}:${group.id}`;
   const returnScopeMatches = returnScope === scope;
+  const stateIndex = proposalStateIndex(group);
   const phase = proposalProgressIndex(group, ai.selection);
   const selected = proposalViewedIndex(group, ai.selection);
   const history = phase !== selected;
@@ -93,9 +101,7 @@ export function AIReqPhaseHeader({
   const pushed = Boolean(
     delivery && proposalDeliveryCurrent(group) && delivery.pushedCandidate === delivery.candidate,
   );
-  const mrReady = Boolean(
-    group.requirementsPr?.number && delivery?.prCandidate === delivery?.candidate,
-  );
+  const mrReady = proposalState(group) === "merge-pending";
   const review = selected === 1 ? group.originalReview : group.review;
   const visiblePanel =
     (panel === "management" && history) || (panel === "report" && !review?.report)
@@ -119,6 +125,33 @@ export function AIReqPhaseHeader({
         data-testid="aireq-phase-header"
       >
         {details}
+        <section
+          className={`mx-auto space-y-1 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+          aria-label={zh ? "提案业务状态" : "Proposal status"}
+          data-testid="aireq-proposal-state"
+        >
+          <p className="text-center text-ui-sm font-medium" role="status">
+            {zh ? "当前状态：" : "Current status: "}
+            {proposalStateLabel(group, zh ? "zh-CN" : "en-US")}
+          </p>
+          {/* 状态取自材料与确认事实；列表只用于定位当前状态，不把点击变成工作流推进。 */}
+          <ol className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-ui-xs">
+            {PROPOSAL_STATE_OPTIONS.map((option, index) => (
+              <li
+                key={option.id}
+                aria-current={index === stateIndex ? "step" : undefined}
+                className={
+                  index === stateIndex ? "font-medium text-foreground" : "text-foreground-subtle"
+                }
+              >
+                {zh ? option.title : option.titleEn}
+              </li>
+            ))}
+          </ol>
+        </section>
+        <p className="text-center text-ui-xs text-foreground-subtle">
+          {zh ? "操作环节" : "Work areas"}
+        </p>
         <AIReqWorkflowTimeline
           labels={labels}
           phase={phase}
@@ -172,12 +205,12 @@ export function AIReqPhaseHeader({
           data-testid="aireq-phase-agent"
         >
           {history
-            ? "历史阶段只读；查看不会运行或恢复批准。"
+            ? "历史环节只读；查看不会运行或恢复批准。"
             : frozen
               ? "文档 PR 已提交，材料冻结；修改前须关闭未合并 PR。"
               : running
                 ? "正在处理，请稍候…"
-                : `当前：${labels[phase]}`}
+                : `当前操作环节：${labels[phase]}`}
         </p>
       </header>
     );
@@ -195,7 +228,7 @@ export function AIReqPhaseHeader({
         >
           {history ? (
             <Button variant="outline" onClick={current}>
-              返回当前阶段
+              返回当前操作环节
             </Button>
           ) : (
             <>
@@ -234,7 +267,9 @@ export function AIReqPhaseHeader({
                 </Button>
               )}
               {phase === 3 && (
-                <span className="text-foreground-subtle">确认与提交请在当前阶段工作区完成。</span>
+                <span className="text-foreground-subtle">
+                  确认与提交请在当前操作环节工作区完成。
+                </span>
               )}
             </>
           )}
@@ -335,7 +370,7 @@ export function AIReqPhaseHeader({
         {visiblePanel === "info" && (
           <div className="space-y-2">
             {history ? (
-              <p>历史阶段只读；返回当前阶段后可继续操作。</p>
+              <p>历史环节只读；返回当前操作环节后可继续操作。</p>
             ) : phase === 0 ? (
               <p>{originalIssue ?? "业务材料就绪后先进行单 Agent 评审；通过前不会生成 SR。"}</p>
             ) : phase === 1 ? (

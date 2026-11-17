@@ -28,6 +28,16 @@ export type AIReqRequirementStatus =
   | "deleted"
   | "reviewing"
   | "confirmed";
+/** 由当前有效材料和确认事实推导，不作为可写生命周期字段。 */
+export type AIReqProposalState =
+  | "not-started"
+  | "ir-review-pending"
+  | "ir-confirmation-pending"
+  | "solution-incomplete"
+  | "solution-review-pending"
+  | "solution-confirmation-pending"
+  | "submission-pending"
+  | "merge-pending";
 export interface AIReqObjectRef {
   projectId: string;
   irId: string;

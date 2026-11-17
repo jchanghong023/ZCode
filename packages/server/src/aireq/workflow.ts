@@ -10,6 +10,7 @@ import type { AIReqProposalMergeScenario, AIReqReviewScenario } from "./internal
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   proposalVersion,
+  proposalState,
   completeProposalPaths,
   deriveAIReqTodos,
   fullReviewReadyBlocker,
@@ -577,6 +578,11 @@ export function applyPrototypeAction(
     )
       throw businessRule("仅正式 IR 已登记的失败开发分支可重试创建。");
   }
+  const currentProposalState = targetProposal ? proposalState(targetProposal) : undefined;
+  // 业务状态取当前材料和批准事实；底层讨论路由标记不能阻挡材料失效后的合法重审。
+  const inRequirements = ["not-started", "ir-review-pending", "ir-confirmation-pending"].includes(
+    currentProposalState ?? "",
+  );
   if (proposalAction) {
     if (!targetProposal) throw businessRule("请选择需求提案，正式需求不能重新进入提案流程。");
     if (!isEmployeeId(getEmployeeId())) throw businessRule("请先输入有效工号。");
@@ -602,27 +608,26 @@ export function applyPrototypeAction(
       throw businessRule("IR 原始需求材料缺失或不可读取，不能评审。");
     const issue = requirementsReviewStartBlocker(targetProposal!);
     if (issue) throw businessRule(issue);
-    if (targetProposal!.proposalStage !== "requirements")
-      throw businessRule("原始单评审仅在业务澄清阶段发起。");
+    if (!inRequirements) throw businessRule("原始单评审仅在业务澄清阶段发起。");
   }
   if (action.type === "acceptProposal") {
     const issue = requirementsReviewReadyBlocker(targetProposal!);
     if (issue) throw businessRule(issue);
     if (
-      targetProposal!.proposalStage !== "requirements" ||
+      currentProposalState !== "ir-confirmation-pending" ||
       action.reviewId !== targetProposal!.originalReview?.id ||
       action.snapshotDigest !== targetProposal!.originalReview?.snapshotDigest
     )
       throw businessRule("人工通过须绑定当前原始单评审及业务文档版本。");
   }
   if (action.type === "generateRequirements" || action.type === "supplementRequirements") {
-    if (targetProposal!.proposalStage !== "requirements" || !action.note.trim())
+    if (!inRequirements || !action.note.trim())
       throw businessRule("请在业务澄清阶段提交明确内容。");
   }
   if (action.type === "generateProposalSolution" || action.type === "runFullReview") {
     const issue = requirementsReviewBlocker(targetProposal!);
     if (issue) throw businessRule(issue);
-    if (targetProposal!.proposalStage !== "solution")
+    if (!currentProposalState || inRequirements)
       throw businessRule("请先通过业务需求，再进入方案阶段。");
   }
   if (action.type === "runFullReview") {
@@ -674,7 +679,7 @@ export function applyPrototypeAction(
       throw businessRule("请选择材料和明确修订内容。");
     if (
       action.target !== "requirements" &&
-      (!targetProposal!.srIds.length || targetProposal!.proposalStage !== "solution")
+      (!targetProposal!.srIds.length || !currentProposalState || inRequirements)
     )
       throw businessRule("请先进入方案阶段并生成 SR 材料。");
     // 尚无方案材料时不能把修订记成成功，也不能无故清空已存在的评审批准。

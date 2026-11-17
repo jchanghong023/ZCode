@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AIReqAction, AIReqRequirementGroup } from "@zcode/services/aireq";
-import { connectST, unique, type STClient } from "./client.js";
+import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config } from "./config.js";
 import { createProject, createProposal } from "./business.js";
 import {
@@ -10,7 +10,6 @@ import {
   completeSolutionMaterial,
   expectBusinessRejection,
   getProposal,
-  prepareApprovedProposal,
 } from "./proposal-flow.js";
 
 // ST oracle: proposals.md, document-surface.md and connection-identity.md.
@@ -164,7 +163,100 @@ describe("proposal business lifecycle through the deployed public API", () => {
     "should bind approval and three separate perspectives to one version, freeze the published candidate and allow revision only after its PR is closed",
     async () => {
       await withClient(async (client) => {
-        const prepared = await prepareApprovedProposal(client);
+        // 八态的前进依据是实际材料和确认，不以内部粗 status 或前端派生函数代替 HTTP 事实。
+        const target = await createProposal(client);
+        const notStarted = getProposal(await client.read(target.selection), target);
+        expect(notStarted.files).toEqual([]);
+        expect(notStarted.snapshot).toBeUndefined();
+        expect(notStarted.originalReview).toBeUndefined();
+        expect(notStarted.review).toBeUndefined();
+        const business = getProposal(await completeBusinessMaterial(client, target), target);
+        const irFile = business.files.find((row) => row.path === business.documentPath)!;
+        expect(irFile.size).toBeGreaterThan(0);
+        expect(business.snapshot?.files).toContainEqual(irFile);
+        expect(business.originalReview).toBeUndefined();
+        expect(business.srIds).toEqual([]);
+        await commandAndRead(client, { type: "runRequirementsReview" }, target);
+        const originalReviewed = await waitUntil(
+          "current original review completes before its separate human confirmation",
+          () => client.read(target.selection),
+          (remote) => {
+            const review = getProposal(remote, target).originalReview;
+            return Boolean(
+              review?.agents?.length &&
+              review.agents.every((agent) => agent.status === "completed"),
+            );
+          },
+        );
+        const originalReport = getProposal(originalReviewed, target).originalReview!;
+        expect(originalReport.report.trim()).toBeTruthy();
+        expect(originalReport.inputFiles).toEqual([irFile]);
+        expect(originalReport.humanDecision).toBeUndefined();
+        expect(
+          originalReport.findings?.filter((finding) => finding.level === "blocking") ?? [],
+        ).toEqual([]);
+        const originalApproved = getProposal(
+          await commandAndRead(
+            client,
+            {
+              type: "acceptProposal",
+              reviewId: originalReport.id,
+              snapshotDigest: originalReport.snapshotDigest,
+            },
+            target,
+          ),
+          target,
+        );
+        expect(originalApproved.originalReview?.humanDecision).toMatchObject({
+          reviewId: originalReport.id,
+          employeeId: client.identity.employeeId,
+        });
+        expect(originalApproved.srIds).toEqual([]);
+        expect(originalApproved.review).toBeUndefined();
+        const solution = getProposal(await completeSolutionMaterial(client, target), target);
+        expect(solution.srIds.length).toBeGreaterThan(0);
+        expect(solution.snapshot?.files).toEqual(expect.arrayContaining(solution.files));
+        expect(solution.review).toBeUndefined();
+        expect(solution.alignment ?? []).toEqual([]);
+        await commandAndRead(client, { type: "runFullReview" }, target);
+        const fullReviewed = await waitUntil(
+          "current full review completes before human approval and three independent perspectives",
+          () => client.read(target.selection),
+          (remote) => {
+            const review = getProposal(remote, target).review;
+            return Boolean(
+              review?.agents?.length === 4 &&
+              review.agents.every((agent) => agent.status === "completed"),
+            );
+          },
+        );
+        const fullReport = getProposal(fullReviewed, target).review!;
+        expect(fullReport.agents?.map((agent) => agent.id).sort()).toEqual([
+          "a",
+          "b",
+          "c",
+          "summary",
+        ]);
+        expect(fullReport.report.trim()).toBeTruthy();
+        expect(fullReport.humanDecision).toBeUndefined();
+        expect(
+          fullReport.findings?.filter((finding) => finding.level === "blocking") ?? [],
+        ).toEqual([]);
+        expect(
+          fullReport.inputFiles
+            ?.map(({ path, sha256, size }) => ({ path, sha256, size }))
+            .sort((a, b) => a.path.localeCompare(b.path)),
+        ).toEqual(materialVersions(solution));
+        const remote = await commandAndRead(
+          client,
+          {
+            type: "approveFullReview",
+            reviewId: fullReport.id,
+            snapshotDigest: fullReport.snapshotDigest,
+          },
+          target,
+        );
+        const prepared = { ...target, remote, version: fullReport.snapshotDigest };
         const initial = getProposal(prepared.remote, prepared);
         const fullReviewId = initial.review!.id;
         const originalReviewId = initial.originalReview!.id;
@@ -208,6 +300,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
             );
         }
         const aligned = getProposal(await client.read(prepared.selection), prepared);
+        expect(aligned.requirementsPr).toBeUndefined();
         const confirmations = aligned.alignment!.filter((entry) => entry.version === version);
         expect(confirmations.map((entry) => entry.perspective).sort()).toEqual([
           "business",

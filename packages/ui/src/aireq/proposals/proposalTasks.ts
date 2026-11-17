@@ -1,10 +1,11 @@
 import type { AIReqSelection, AIReqReviewAgentId, AIReqRequirementGroup } from "../contract.js";
 import {
-  proposalProgressIndex,
+  proposalState,
+  fullReviewBlocker,
+  requirementsReviewInputs,
   hasCurrentProposalSolution,
   fullReviewCurrent,
   requirementsReviewCurrent,
-  requirementsReviewStartBlocker,
   proposalVersion,
   proposalDeliveryCurrent,
 } from "../contract.js";
@@ -86,20 +87,39 @@ export function proposalTaskParent(task: ProposalTask): ProposalTask {
   return "overview";
 }
 export function proposalNextTask(group: AIReqRequirementGroup): ProposalTask {
-  const phase = proposalProgressIndex(group, {});
-  if (phase === 3) return "delivery";
-  if (phase === 2) return hasCurrentProposalSolution(group) ? "solutionReview" : "solution";
-  return phase === 1 || !requirementsReviewStartBlocker(group)
-    ? "requirementsReview"
-    : "requirements";
+  // 八态是业务事实，任务是操作入口；不能用旧阶段字段决定下一步。
+  switch (proposalState(group)) {
+    case "ir-review-pending":
+      return group.returnFeedback && !group.returnFeedback.resumedAt
+        ? "requirements"
+        : "requirementsReview";
+    case "ir-confirmation-pending":
+      return "requirementsReview";
+    case "solution-incomplete":
+      return "solution";
+    case "solution-review-pending":
+      return "solutionReview";
+    case "solution-confirmation-pending":
+      return fullReviewBlocker(group) ? "solutionReview" : "delivery";
+    case "submission-pending":
+    case "merge-pending":
+      return "delivery";
+    default:
+      return "requirements";
+  }
 }
 export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalTask): string {
-  if (task === "requirements")
-    return group.files.some((file) => file.path === group.documentPath) ? "已整理" : "待整理";
+  if (task === "requirements") return requirementsReviewInputs(group) ? "已整理" : "待整理";
   if (task === "solution")
     return hasCurrentProposalSolution(group)
       ? "已完成"
-      : group.proposalStage === "solution"
+      : [
+            "solution-incomplete",
+            "solution-review-pending",
+            "solution-confirmation-pending",
+            "submission-pending",
+            "merge-pending",
+          ].includes(proposalState(group) ?? "")
         ? "待完善"
         : "未开始";
   if (task === "delivery") {

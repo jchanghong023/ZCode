@@ -262,7 +262,7 @@ export function AIReqIdeaPool() {
           <Input
             className="pl-9"
             aria-label={zh ? "搜索想法" : "Search ideas"}
-            placeholder={zh ? "搜索原始需求或编号…" : "Search requirements or IDs…"}
+            placeholder={zh ? "搜索原始需求…" : "Search requirements…"}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -274,7 +274,7 @@ export function AIReqIdeaPool() {
               <thead className="bg-card text-ui-sm text-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">
-                    {zh ? "原始需求／编号" : "Original requirement / ID"}
+                    {zh ? "原始需求" : "Original requirement"}
                   </th>
                   <th className="px-4 py-3 font-medium">{zh ? "提交人" : "Submitted by"}</th>
                   <th className="px-4 py-3 font-medium">{zh ? "提交时间" : "Submitted"}</th>
@@ -290,7 +290,7 @@ export function AIReqIdeaPool() {
                     data-aireq-motion-row=""
                     className="group/row border-t border-border"
                   >
-                    {/* 想法池此前漏接共享行标记；只平移需求与编号，元数据和操作列保持原位。 */}
+                    {/* 想法池此前漏接共享行标记；只平移需求正文，元数据和操作列保持原位。 */}
                     <td data-aireq-motion-cell="" className="max-w-lg px-4 py-4">
                       <Button
                         variant="link"
@@ -299,9 +299,6 @@ export function AIReqIdeaPool() {
                       >
                         {idea.originalText}
                       </Button>
-                      <div className="mt-1 font-mono text-ui-sm text-foreground-subtle">
-                        {idea.id}
-                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-4">{idea.submittedBy}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-ui-sm text-foreground-subtle">
@@ -319,7 +316,9 @@ export function AIReqIdeaPool() {
                             size="icon"
                             className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:text-foreground focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                             aria-label={
-                              zh ? `${idea.id} 的更多操作` : `More actions for ${idea.id}`
+                              zh
+                                ? `${idea.originalText} 的更多操作`
+                                : `More actions for ${idea.originalText}`
                             }
                           >
                             <MoreHorizontal aria-hidden="true" className="size-4" />

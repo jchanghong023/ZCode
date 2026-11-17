@@ -31,8 +31,8 @@ export function ProjectPageHelp({
           : "Project overview help";
   const description = analysis
     ? zh
-      ? "查看当前项目与 Release 的分析任务、执行历史与失败原因。可按需求（IR）筛选，或搜索开发单元（SR）的名称与编号。"
-      : "Review analysis tasks, history and failures for the selected project and Release. Filter by requirement (IR) or search development units (SRs) by name or ID."
+      ? "查看当前项目与 Release 的分析任务、执行历史与失败原因。可按需求（IR）筛选，或搜索开发单元（SR）的名称。"
+      : "Review analysis tasks, history and failures for the selected project and Release. Filter by requirement (IR) or search development units (SRs) by name."
     : formal
       ? zh
         ? "展开需求查看开发单元（SR），选择需求或开发单元阅读进度报告。"

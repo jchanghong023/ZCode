@@ -9,18 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
+import { proposalState } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
 
 /** 原文只读；页面内独立滚动，全屏阅读不切换阶段或改变聊天位置。 */
 export function AIReqProposalFeedback() {
   const aireq = useAIReq()!;
   const [expanded, setExpanded] = useState(false);
-  const group = aireq.view?.drafts.find((item) => item.id === aireq.selection.irId);
+  const group = aireq.view?.drafts.find(
+    (item) => item.projectId === aireq.selection.projectId && item.id === aireq.selection.irId,
+  );
   const feedback = group?.returnFeedback;
   if (
     !group ||
     aireq.selection.srId ||
-    group.proposalStage !== "requirements" ||
+    !["not-started", "ir-review-pending"].includes(proposalState(group) ?? "") ||
     !feedback ||
     feedback.resumedAt
   )

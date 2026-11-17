@@ -31,6 +31,16 @@ const group = (): AIReqRequirementGroup => ({
   revision: 1,
   srIds: [],
   files: [{ ...file }],
+  snapshot: {
+    version: 1,
+    projectId: "p",
+    irId: "ir",
+    title: "需求",
+    documentPath: file.path,
+    srs: [],
+    files: [{ ...file }],
+    digest: "v1",
+  },
   sessions: [],
   createdAt: "2026-11-17T00:00:00Z",
 });

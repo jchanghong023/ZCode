@@ -70,6 +70,8 @@ export type InternalProposalDelivery = AIReqProposalDelivery & {
 
 // 故障输入仅留在服务端 owner；公开 SR 只投影本次操作已产生的分支事实。
 export type InternalSystemRequirement = Omit<AIReqSystemRequirement, "trackingBranch"> & {
+  /** 静态业务样例不自动推进代码合入；不属于公开契约。 */
+  automaticCodeMerge?: boolean;
   trackingBranch?: NonNullable<AIReqSystemRequirement["trackingBranch"]> & {
     nextCleanupFailure?: boolean;
   };

@@ -1,18 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import type { AIReqAnalysisFilter } from "@zcode/services/aireq";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config } from "./config.js";
-import { claimFixture } from "./fixtures.js";
+import { useFormalPreparations } from "./preparations.js";
 import { createProject } from "./business.js";
-import { createFormalFixture } from "./formal-fixtures.js";
+let preparations: ReturnType<typeof useFormalPreparations>;
 
-async function schedulerResource(c: STClient, purpose: "query" | "run") {
-  // 没有环境专用前置时，完整走公开发布／合入核验流程；不能拿提案中的 SR 或样例任务替代。
-  // 显式提供的前置仍按分配规则消费，失效或耗尽时不能悄悄换对象。
-  const ref =
-    config.fixtures.scheduler !== undefined
-      ? await claimFixture(c, "scheduler")
-      : await createFormalFixture(c, "scheduler");
+async function schedulerResource(c: STClient, purpose: "query" | "run", id: string) {
+  const ref = await preparations.ready(id);
   if (!ref.srId) throw new Error("[ST_BLOCKED] scheduler fixture requires a dedicated formal SR");
   const remote = await c.read({
     projectId: ref.projectId,
@@ -67,161 +62,16 @@ function projectSetting(
 // tracking.md: pagination is server-owned; global off only stops automatic admission.
 // No simulated clock, internal scheduler or model stub participates in these tests.
 describe("progress scheduler over the public backend", () => {
-  it(
-    "queries task/history pages and filters exact project, Release, IR and SR without starting work",
-    async () => {
-      const c = await connectST();
-      try {
-        const { ref, sr, filter } = await schedulerResource(c, "query");
-        const before = await c.call("progressScheduler.read", []);
-        for (const pageSize of [25, 50]) {
-          const page = await c.call("progressScheduler.queryTasks", [filter, 1, pageSize]);
-          expect(page.page).toBe(1);
-          expect(page.pageSize).toBe(pageSize);
-          expect(page.total).toBe(1);
-          expect(page.items).toHaveLength(1);
-          expect(page.items[0]).toMatchObject({
-            projectId: ref.projectId,
-            irId: ref.irId,
-            srId: sr.id,
-            branch: sr.trackingBranch?.name ?? "",
-          });
-          expect(page.items[0]!.releaseId).toBe(ref.releaseId);
-          const converged = await c.call("progressScheduler.queryTasks", [
-            filter,
-            1_000_000,
-            pageSize,
-          ]);
-          expect(converged.page).toBe(1);
-          expect(converged.items.map((item) => item.id)).toEqual(page.items.map((item) => item.id));
-          const history = await c.call("progressScheduler.queryRuns", [filter, 1, pageSize]);
-          expect(history.pageSize).toBe(pageSize);
-          expect(history.items.length).toBeLessThanOrEqual(pageSize);
-          for (const run of history.items) {
-            expect(run).toMatchObject({ projectId: ref.projectId, irId: ref.irId, srId: sr.id });
-            expect(run.releaseId).toBe(ref.releaseId);
-          }
-        }
-        const matches = await c.call("progressScheduler.queryTasks", [
-          { ...filter, srSearch: sr.title },
-          1,
-          25,
-        ]);
-        expect(matches.items.map((item) => item.srId)).toEqual([sr.id]);
-        const absent = await c.call("progressScheduler.queryTasks", [
-          { ...filter, srSearch: unique("no-matching-requirement") },
-          1,
-          25,
-        ]);
-        expect(absent.items).toEqual([]);
-        expect(absent.total).toBe(0);
-        expect(await c.call("progressScheduler.readRun", [unique("missing-run")])).toBeNull();
-        const after = await c.call("progressScheduler.read", []);
-        // Querying is read-only. Do not assert global totals, which may change through legitimate background work.
-        expect(after.enabled).toBe(before.enabled);
-        expect(after.intervalMinutes).toBe(before.intervalMinutes);
-        expect(projectSetting(after, ref.projectId)).toBe(projectSetting(before, ref.projectId));
-      } finally {
-        await c.close();
-      }
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "rejects invalid page/date/config values and leaves scheduler settings unchanged",
-    async () => {
-      const c = await connectST();
-      try {
-        const before = await c.call("progressScheduler.read", []);
-        for (const [page, size] of [
-          [0, 25],
-          [-1, 25],
-          [1, 10],
-          [1, 0],
-          [1.5, 25],
-        ]) {
-          await expect(
-            c.call("progressScheduler.queryTasks", [{}, page!, size!]),
-          ).rejects.toThrow();
-          await expect(c.call("progressScheduler.queryRuns", [{}, page!, size!])).rejects.toThrow();
-        }
-        for (const range of [
-          { since: "not-a-date" },
-          { until: "2030-02-30" },
-          { since: "2030-02-29" },
-          { until: "1900-02-29" },
-          { until: "2030-04-31" },
-          { until: "2030-02-30T00:00:00Z" },
-          { since: "2030-05-08", until: "2030-05-07" },
-        ]) {
-          await expect(c.call("progressScheduler.queryRuns", [range, 1, 25])).rejects.toThrow();
-        }
-        // 非法日期须拒绝，但普通月末、闰日、世纪闰年及等值时区表达仍是合法查询。
-        for (const range of [
-          { since: "2030-02-28", until: "2030-02-28" },
-          { since: "2032-02-29", until: "2032-02-29" },
-          { since: "2000-02-29T00:00:00Z", until: "2000-02-29T08:00:00+08:00" },
-        ]) {
-          const page = await c.call("progressScheduler.queryRuns", [range, 1, 25]);
-          expect(page).toMatchObject({ page: 1, pageSize: 25, items: expect.any(Array) });
-          for (const run of page.items) {
-            expect(Date.parse(run.startedAt)).toBeGreaterThanOrEqual(Date.parse(range.since));
-            expect(Date.parse(run.startedAt)).toBeLessThanOrEqual(Date.parse(range.until));
-          }
-        }
-        for (const minutes of [0, -1, 1.5])
-          await expect(
-            c.call("progressScheduler.configure", [before.enabled, minutes]),
-          ).rejects.toThrow();
-        const after = await c.call("progressScheduler.read", []);
-        expect({
-          enabled: after.enabled,
-          intervalMinutes: after.intervalMinutes,
-          projects: after.projects.map(({ id, enabled }) => ({ id, enabled })),
-        }).toEqual({
-          enabled: before.enabled,
-          intervalMinutes: before.intervalMinutes,
-          projects: before.projects.map(({ id, enabled }) => ({ id, enabled })),
-        });
-      } finally {
-        await c.close();
-      }
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "new projects start disabled and their manual requests do not produce analysis runs",
-    async () => {
-      const c = await connectST();
-      try {
-        const project = await createProject(c);
-        const snapshot = await c.call("progressScheduler.read", []);
-        expect(projectSetting(snapshot, project.projectId)).toBe(false);
-        await c.call("progressScheduler.runNow", [{ projectId: project.projectId }]);
-        const history = await c.call("progressScheduler.queryRuns", [
-          { projectId: project.projectId },
-          1,
-          25,
-        ]);
-        expect(history.items).toEqual([]);
-        expect(history.total).toBe(0);
-      } finally {
-        await c.close();
-      }
-    },
-    config.timeoutMs,
-  );
-
-  it(
+  preparations = useFormalPreparations();
+  preparations.test(
     "manual admission ignores global automatic-off, deduplicates concurrent SR execution and preserves completion snapshots",
-    async () => {
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "scheduler", stPriority: 0 } },
+    async ({ task }) => {
       const c = await connectST();
       let restore: (() => Promise<void>) | undefined;
       let failure: unknown;
       try {
-        const { ref, filter } = await schedulerResource(c, "run");
+        const { ref, filter } = await schedulerResource(c, "run", task.id);
         const baseline = await c.call("progressScheduler.read", []);
         const wasProjectEnabled = projectSetting(baseline, ref.projectId);
         const bootstrap = await c.bootstrap();
@@ -368,6 +218,152 @@ describe("progress scheduler over the public backend", () => {
       }
       if (failure !== undefined) throw failure;
     },
-    config.timeoutMs,
+  );
+
+  preparations.test(
+    "queries task/history pages and filters exact project, Release, IR and SR without starting work",
+    { timeout: config.timeoutMs, meta: { stFormalPurpose: "scheduler", stPriority: 1 } },
+    async ({ task }) => {
+      const c = await connectST();
+      try {
+        const { ref, sr, filter } = await schedulerResource(c, "query", task.id);
+        const before = await c.call("progressScheduler.read", []);
+        for (const pageSize of [25, 50]) {
+          const page = await c.call("progressScheduler.queryTasks", [filter, 1, pageSize]);
+          expect(page.page).toBe(1);
+          expect(page.pageSize).toBe(pageSize);
+          expect(page.total).toBe(1);
+          expect(page.items).toHaveLength(1);
+          expect(page.items[0]).toMatchObject({
+            projectId: ref.projectId,
+            irId: ref.irId,
+            srId: sr.id,
+            branch: sr.trackingBranch?.name ?? "",
+          });
+          expect(page.items[0]!.releaseId).toBe(ref.releaseId);
+          const converged = await c.call("progressScheduler.queryTasks", [
+            filter,
+            1_000_000,
+            pageSize,
+          ]);
+          expect(converged.page).toBe(1);
+          expect(converged.items.map((item) => item.id)).toEqual(page.items.map((item) => item.id));
+          const history = await c.call("progressScheduler.queryRuns", [filter, 1, pageSize]);
+          expect(history.pageSize).toBe(pageSize);
+          expect(history.items.length).toBeLessThanOrEqual(pageSize);
+          for (const run of history.items) {
+            expect(run).toMatchObject({ projectId: ref.projectId, irId: ref.irId, srId: sr.id });
+            expect(run.releaseId).toBe(ref.releaseId);
+          }
+        }
+        const matches = await c.call("progressScheduler.queryTasks", [
+          { ...filter, srSearch: sr.title },
+          1,
+          25,
+        ]);
+        expect(matches.items.map((item) => item.srId)).toEqual([sr.id]);
+        const absent = await c.call("progressScheduler.queryTasks", [
+          { ...filter, srSearch: unique("no-matching-requirement") },
+          1,
+          25,
+        ]);
+        expect(absent.items).toEqual([]);
+        expect(absent.total).toBe(0);
+        expect(await c.call("progressScheduler.readRun", [unique("missing-run")])).toBeNull();
+        const after = await c.call("progressScheduler.read", []);
+        // Querying is read-only. Do not assert global totals, which may change through legitimate background work.
+        expect(after.enabled).toBe(before.enabled);
+        expect(after.intervalMinutes).toBe(before.intervalMinutes);
+        expect(projectSetting(after, ref.projectId)).toBe(projectSetting(before, ref.projectId));
+      } finally {
+        await c.close();
+      }
+    },
+  );
+
+  preparations.test(
+    "rejects invalid page/date/config values and leaves scheduler settings unchanged",
+    { timeout: config.timeoutMs },
+    async () => {
+      const c = await connectST();
+      try {
+        const before = await c.call("progressScheduler.read", []);
+        for (const [page, size] of [
+          [0, 25],
+          [-1, 25],
+          [1, 10],
+          [1, 0],
+          [1.5, 25],
+        ]) {
+          await expect(
+            c.call("progressScheduler.queryTasks", [{}, page!, size!]),
+          ).rejects.toThrow();
+          await expect(c.call("progressScheduler.queryRuns", [{}, page!, size!])).rejects.toThrow();
+        }
+        for (const range of [
+          { since: "not-a-date" },
+          { until: "2030-02-30" },
+          { since: "2030-02-29" },
+          { until: "1900-02-29" },
+          { until: "2030-04-31" },
+          { until: "2030-02-30T00:00:00Z" },
+          { since: "2030-05-08", until: "2030-05-07" },
+        ]) {
+          await expect(c.call("progressScheduler.queryRuns", [range, 1, 25])).rejects.toThrow();
+        }
+        // 非法日期须拒绝，但普通月末、闰日、世纪闰年及等值时区表达仍是合法查询。
+        for (const range of [
+          { since: "2030-02-28", until: "2030-02-28" },
+          { since: "2032-02-29", until: "2032-02-29" },
+          { since: "2000-02-29T00:00:00Z", until: "2000-02-29T08:00:00+08:00" },
+        ]) {
+          const page = await c.call("progressScheduler.queryRuns", [range, 1, 25]);
+          expect(page).toMatchObject({ page: 1, pageSize: 25, items: expect.any(Array) });
+          for (const run of page.items) {
+            expect(Date.parse(run.startedAt)).toBeGreaterThanOrEqual(Date.parse(range.since));
+            expect(Date.parse(run.startedAt)).toBeLessThanOrEqual(Date.parse(range.until));
+          }
+        }
+        for (const minutes of [0, -1, 1.5])
+          await expect(
+            c.call("progressScheduler.configure", [before.enabled, minutes]),
+          ).rejects.toThrow();
+        const after = await c.call("progressScheduler.read", []);
+        expect({
+          enabled: after.enabled,
+          intervalMinutes: after.intervalMinutes,
+          projects: after.projects.map(({ id, enabled }) => ({ id, enabled })),
+        }).toEqual({
+          enabled: before.enabled,
+          intervalMinutes: before.intervalMinutes,
+          projects: before.projects.map(({ id, enabled }) => ({ id, enabled })),
+        });
+      } finally {
+        await c.close();
+      }
+    },
+  );
+
+  preparations.test(
+    "new projects start disabled and their manual requests do not produce analysis runs",
+    { timeout: config.timeoutMs },
+    async () => {
+      const c = await connectST();
+      try {
+        const project = await createProject(c);
+        const snapshot = await c.call("progressScheduler.read", []);
+        expect(projectSetting(snapshot, project.projectId)).toBe(false);
+        await c.call("progressScheduler.runNow", [{ projectId: project.projectId }]);
+        const history = await c.call("progressScheduler.queryRuns", [
+          { projectId: project.projectId },
+          1,
+          25,
+        ]);
+        expect(history.items).toEqual([]);
+        expect(history.total).toBe(0);
+      } finally {
+        await c.close();
+      }
+    },
   );
 });

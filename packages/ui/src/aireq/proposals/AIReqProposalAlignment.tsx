@@ -120,7 +120,7 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
       <p className="text-ui-sm text-foreground-subtle" role="status">
         {history
           ? zh
-            ? "历史阶段只读，请返回当前阶段继续处理。"
+            ? "历史环节只读，请返回当前操作环节继续处理。"
             : "This historical stage is read-only. Return to the current stage to continue."
           : frozen
             ? zh
