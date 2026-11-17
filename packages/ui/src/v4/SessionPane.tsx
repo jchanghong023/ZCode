@@ -257,6 +257,8 @@ export interface SessionPaneProps {
   rootSessionId?: string;
   /** subagent 右侧详情等观察视图：不显示 composer/input，也不发送行内编辑类命令。 */
   readOnly?: boolean;
+  /** 业务讨论保留禁用的原生输入框；其他观察视图仍隐藏。 */
+  retainReadOnlyComposer?: boolean;
   /** 工作区只读原因；普通 subagent 观察视图不传，避免误报目录失效。 */
   readOnlyReason?: string;
   /** 框选副屏：保留普通 composer/tools，但隐藏并禁止 edit/retry/fork/goal。 */
@@ -507,6 +509,7 @@ export function SessionPane({
   openTrigger,
   rootSessionId,
   readOnly: workspaceReadOnly = false,
+  retainReadOnlyComposer = false,
   readOnlyReason: workspaceReadOnlyReason,
   selectionSideChat = false,
   activeSelectionSideChatSessionId = null,
@@ -3785,10 +3788,14 @@ export function SessionPane({
   }, [dispatchCommand, handleDraftSessionCreated, recoverableCommand, workspaceKey]);
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
-  // 若仍创建 composer，会让用户误以为可以直接向 child session 继续输入。
-  const composerNode = readOnly ? null : (
+  // 普通观察视图隐藏输入；业务讨论显式保留禁用输入，沿原草稿 owner 显示只读原因。
+  const showComposer = !readOnly || retainReadOnlyComposer;
+  const composerNode = !showComposer ? null : (
     <ConversationComposer
       key="conversation-composer"
+      readOnly={readOnly}
+      readOnlyReason={readOnlyReason}
+      showInteractionStatus={retainReadOnlyComposer}
       composerPlaceholder={composerPlaceholder}
       composerAriaLabel={composerAriaLabel}
       composerInputPreview={composerInputPreview}
@@ -3899,8 +3906,8 @@ export function SessionPane({
       onSendCompressionCommand={handleSendCompressionCommand}
       error={composerError}
       onDismissError={handleDismissComposerError}
-      onRetryInitialization={handleRetrySubscribe}
-      onRetryError={retryConfigReadEnabled ? handleRetryConfigRead : undefined}
+      onRetryInitialization={readOnly ? undefined : handleRetrySubscribe}
+      onRetryError={!readOnly && retryConfigReadEnabled ? handleRetryConfigRead : undefined}
       onOpenModelSettings={handleOpenModelSettings}
       modelConfigTarget={modelConfigTarget}
       onOpenCodeViewer={onOpenCodeViewer}
@@ -3910,7 +3917,8 @@ export function SessionPane({
     />
   );
   // 目录失效仍禁止输入；将宿主已有原因放回原输入区，不在 pane 内探测或恢复目录。
-  const conversationBottomDockContent = readOnly ? (
+  const showReadOnlyNotice = readOnly && !retainReadOnlyComposer;
+  const conversationBottomDockContent = showReadOnlyNotice ? (
     readOnlyReason ? (
       <div
         role="status"
@@ -3922,7 +3930,7 @@ export function SessionPane({
     ) : null
   ) : (
     <>
-      {recoverableCommand ? (
+      {!readOnly && recoverableCommand ? (
         <PendingCommandRecoveryBanner
           entry={recoverableCommand}
           onResend={
@@ -3931,7 +3939,7 @@ export function SessionPane({
           onDismiss={handleDismissPendingRecovery}
         />
       ) : null}
-      {sessionId && snapshot ? (
+      {!readOnly && sessionId && snapshot ? (
         <ConversationQueuePanel
           key="conversation-queue"
           queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
@@ -3954,7 +3962,7 @@ export function SessionPane({
       ) : null}
       {/* Bugfix: v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer
           共享 timeline bottom dock；渲染在 SessionPane 外层会脱离主列宽度并挤占下半屏。 */}
-      {effectiveSessionId && snapshot?.sessionId === effectiveSessionId ? (
+      {!readOnly && effectiveSessionId && snapshot?.sessionId === effectiveSessionId ? (
         <V4InteractionDialogs
           key="conversation-interactions"
           resolveRecentScope={resolveRecentScope}
