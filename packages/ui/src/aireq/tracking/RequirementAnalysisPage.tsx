@@ -445,7 +445,7 @@ function ConnectedProgressAnalysis({
               <Input
                 id="analysis-sr-search"
                 className="h-9 rounded-lg bg-surface pl-9"
-                placeholder="搜索开发单元名称或编号"
+                placeholder="搜索开发单元名称"
                 value={srSearch}
                 onChange={(event) => {
                   setTargetSrId("");

@@ -88,7 +88,7 @@ export function AnalysisTaskTable({
               className="group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
             >
               <MarkdownTableCell data-aireq-motion-cell="" className={cellClass}>
-                <RowLabel title={task.srTitle} subtitle={`${task.irId} · ${task.srId}`} />
+                <RowLabel title={task.srTitle} subtitle={task.irTitle} />
                 <Button
                   variant="link"
                   size="sm"
@@ -139,7 +139,7 @@ export function AnalysisTaskTable({
                       size="icon"
                       className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                       aria-haspopup="dialog"
-                      aria-label={`查看 ${task.srId} 任务详情`}
+                      aria-label={`查看 ${task.srTitle} 任务详情`}
                       ref={(node) => {
                         // 待办直达会先打开弹窗，没有点击事件；仍需保留报告回焦的表格入口。
                         if (node && task.id === detailTaskId) detailTrigger.current = node;
@@ -265,7 +265,7 @@ export function AnalysisHistoryTable({
               className={`group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
               <MarkdownTableCell data-aireq-motion-cell="" className={cellClass}>
-                <RowLabel title={run.srTitle} subtitle={`${run.irId} · ${run.srId}`} />
+                <RowLabel title={run.srTitle} subtitle="SR" />
                 <Button
                   variant="link"
                   size="sm"
@@ -314,7 +314,7 @@ export function AnalysisHistoryTable({
                   variant="ghost"
                   size="icon"
                   className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
-                  aria-label={`查看 ${run.srId} ${time(run.startedAt)} 执行详情`}
+                  aria-label={`查看 ${run.srTitle} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}
                 >
                   <MoreHorizontal aria-hidden="true" className="size-4" />

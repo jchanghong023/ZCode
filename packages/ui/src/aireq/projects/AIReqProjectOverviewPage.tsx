@@ -359,7 +359,6 @@ export function AIReqProjectOverviewPage({
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{proposal.title}</span>
                           <span className="mt-1 block text-ui-sm text-foreground-subtle">
-                            {proposal.id} ·{" "}
                             {zh
                               ? todos
                                   .filter((todo) => todo.irId === proposal.id)
@@ -416,7 +415,6 @@ export function AIReqProjectOverviewPage({
                           <span className="min-w-0 flex-1 space-y-1.5">
                             <span className="block truncate font-medium">{proposal.title}</span>
                             <span className="block text-ui-sm text-foreground-subtle">
-                              {proposal.id} ·{" "}
                               {zh
                                 ? proposalPhaseLabel(proposal)
                                 : phaseEn[proposalProgressIndex(proposal)]}
@@ -486,9 +484,11 @@ export function AIReqProjectOverviewPage({
                           >
                             <span className="min-w-0 flex-1 space-y-1.5">
                               <span className="block truncate font-medium">{sr.title}</span>
-                              <span className="block truncate text-ui-sm text-foreground-subtle">
-                                {sr.id} · {parent?.title ?? sr.irId}
-                              </span>
+                              {parent && (
+                                <span className="block truncate text-ui-sm text-foreground-subtle">
+                                  {parent.title}
+                                </span>
+                              )}
                               <span className="flex flex-wrap items-center gap-2 text-ui-sm">
                                 {change.from && (
                                   <>

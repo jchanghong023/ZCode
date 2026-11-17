@@ -118,7 +118,7 @@ export function AIReqFormalTable() {
               <Input
                 className="h-9 rounded-lg bg-surface pl-9"
                 aria-label="搜索正式需求"
-                placeholder="搜索 IR／SR 名称或编号"
+                placeholder="搜索 IR／SR 名称"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -283,8 +283,8 @@ export function AIReqFormalTable() {
                               </Button>
                             </ControlHintTooltip>
                             <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
-                              IR · {group.id} · {srs.filter((sr) => srProgress(sr) === 100).length}/
-                              {srs.length} SR 完成
+                              IR · {srs.filter((sr) => srProgress(sr) === 100).length}/{srs.length}{" "}
+                              SR 完成
                             </p>
                           </div>
                         </div>
@@ -355,7 +355,7 @@ export function AIReqFormalTable() {
                                     </Button>
                                   </ControlHintTooltip>
                                   <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
-                                    SR · {sr.id}
+                                    SR
                                   </p>
                                 </div>
                               </div>
