@@ -27,7 +27,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIReqPlanningSummary } from "../tracking/RequirementPlanning.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
-import { AIReqPhaseHeader, AIReqDocumentPhaseActions } from "./AIReqPhaseHeader.js";
+import { AIReqPhaseHeader } from "./AIReqPhaseHeader.js";
 import { AIReqReviewNavigation } from "./AIReqReviewNavigation.js";
 import { AIReqProposalFeedback } from "./AIReqProposalFeedback.js";
 export function AIReqStageHeader({
@@ -536,7 +536,6 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
           )}
         </div>
       </div>
-      {!historical && (proposal || !group) && <AIReqDocumentPhaseActions />}
     </aside>
   );
 }

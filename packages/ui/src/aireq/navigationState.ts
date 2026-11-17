@@ -1,3 +1,4 @@
+import type { ProposalTask } from "./proposals/proposalTasks.js";
 import type { AIReqMainView, AIReqSelection } from "./contract.js";
 
 export type ProposalDraft = { id: string; sourceIrId?: string };
@@ -14,6 +15,7 @@ export interface AIReqNavigationState {
   mainView: AIReqMainView;
   requirementView: RequirementView;
   requirementReturnView: RequirementReturnView;
+  proposalTask: ProposalTask;
   overlay: NavigationOverlay;
   overviewOrigin?: { projectId: string; releaseId: string };
 }

@@ -4,7 +4,7 @@
 
 需求、方案、报告及保留的 Skill Markdown 使用 `MarkdownDocument`，底层为 `@uiw/react-markdown-preview`，不复用聊天 `MessageResponse` 排版。`AIReqMarkdownDocument` 仅包装材料只读策略，正文、版本和有效性由 AIReq 服务投影提供；主题及代码设置来自现有 ZCode store，不建立第二份业务状态。
 
-材料位于 [统一右侧工作区](unified-side-pane.md) 的 materials Tab，可与其他对象的报告、历史和分析并存。材料筛选、技术信息和正文共用所属面板内的居中阅读列，独立滚动；面板拖宽、折叠及完整视图由统一框架负责。
+需求澄清、方案设计和独立审查任务内可打开材料；工作台默认完整主区，材料阅读区不提供推进评审或交付的写操作。材料位于 [统一右侧工作区](unified-side-pane.md) 的 materials Tab，可与其他对象的报告、历史和分析并存。材料筛选、技术信息和正文共用所属面板内的居中阅读列，独立滚动；面板拖宽、折叠及完整视图由统一框架负责。
 
 ## 材料与选择
 

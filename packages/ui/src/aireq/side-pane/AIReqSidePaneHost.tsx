@@ -162,6 +162,9 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     ai.mainView !== "ideas" &&
     ai.mainView !== "projectOverview" &&
     ai.mainView !== "proposals" &&
+    (ai.mainView !== "chat" ||
+      ai.requirementView !== "proposals" ||
+      ai.proposalTask !== "overview") &&
     // 分析页的通用展开只会打开空启动页；有实际内容后才提供工作区入口。
     (ai.mainView !== "requirementAnalysis" || pane.tabs.some((tab) => tab.kind !== "launcher"));
   const isOpen = available && pane.isOpen;
@@ -189,14 +192,16 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
           inert={fullView}
           aria-hidden={fullView || undefined}
         >
-          {available && !isOpen && (
-            <div className="absolute top-2 right-2 z-20">
-              <WorkspaceSidePaneToggleButton
-                isSidePaneOpen={false}
-                onToggleSidePane={pane.toggle}
-              />
-            </div>
-          )}
+          {available &&
+            !isOpen &&
+            !(ai.mainView === "chat" && ai.requirementView === "proposals") && (
+              <div className="absolute top-2 right-2 z-20">
+                <WorkspaceSidePaneToggleButton
+                  isSidePaneOpen={false}
+                  onToggleSidePane={pane.toggle}
+                />
+              </div>
+            )}
           {children}
         </div>
       </ResizablePanel>

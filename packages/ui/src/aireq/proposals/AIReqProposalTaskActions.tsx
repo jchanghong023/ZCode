@@ -1,0 +1,213 @@
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog.js";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog.js";
+import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
+import { useAIReq } from "../AIReqContext.js";
+import { useAIReqDataSource } from "../data-source.js";
+import {
+  fullReviewReadyBlocker,
+  hasCurrentProposalSolution,
+  proposalProgressIndex,
+  requirementsReviewReadyBlocker,
+  requirementsReviewStartBlocker,
+  type AIReqAction,
+  type AIReqRequirementGroup,
+} from "../contract.js";
+
+/** 任务的显式业务动作复用原命令入口，接纳与阶段转换由 Context／服务端裁决。 */
+export function AIReqProposalTaskActions({
+  group,
+  full = false,
+  discussion = false,
+}: {
+  group: AIReqRequirementGroup;
+  full?: boolean;
+  discussion?: boolean;
+}) {
+  const ai = useAIReq()!;
+  const source = useAIReqDataSource();
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  const { setDraftNavigationGuard } = ai;
+  const guardOwner = `proposal-review-return:${group.projectId}:${group.id}:${full}`;
+  const phase = proposalProgressIndex(group, {});
+  const review = full ? group.review : group.originalReview;
+  const currentStage = full ? phase === 2 : phase <= 1;
+  useEffect(() => {
+    if ((!reason.trim() && !busy) || !currentStage || group.status === "requirements-pr") return;
+    setDraftNavigationGuard((next) => {
+      if (inFlight.current) return;
+      pendingNavigation.current = next;
+      setDiscardOpen(true);
+    }, guardOwner);
+    return () => setDraftNavigationGuard(null, guardOwner);
+  }, [reason, busy, guardOwner, currentStage, group.status, setDraftNavigationGuard]);
+  const running = ai.view?.running.some(
+    (item) => item.projectId === group.projectId && item.irId === group.id,
+  );
+  const unavailable =
+    busy ||
+    ai.pending ||
+    running ||
+    !source.capabilities.proposalDiscussion ||
+    !currentStage ||
+    group.status === "requirements-pr";
+  const startIssue = full
+    ? hasCurrentProposalSolution(group)
+      ? undefined
+      : "请先完善方案、任务与测试材料。"
+    : requirementsReviewStartBlocker(group);
+  const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
+  const target = { projectId: group.projectId, irId: group.id };
+  const run = async (command: AIReqAction) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await ai.command(command);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  if (!currentStage || group.status === "requirements-pr") return null;
+  return (
+    <div className="space-y-3" data-testid="proposal-task-actions">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant={discussion || !review ? "default" : "outline"}
+          disabled={Boolean(unavailable || startIssue)}
+          title={startIssue}
+          onClick={() =>
+            void run({ type: full ? "runFullReview" : "runRequirementsReview", ...target })
+          }
+        >
+          {busy
+            ? "处理中…"
+            : review
+              ? full
+                ? "重新审查方案"
+                : "重新评审需求"
+              : full
+                ? "发起方案审查"
+                : "发起需求评审"}
+        </Button>
+        {!discussion && review && (
+          <Button
+            disabled={Boolean(unavailable || approveIssue)}
+            title={approveIssue}
+            onClick={() =>
+              void run({
+                type: full ? "approveFullReview" : "acceptProposal",
+                ...target,
+                reviewId: review.id,
+                snapshotDigest: review.snapshotDigest,
+              })
+            }
+          >
+            {full ? "确认完整方案" : "确认业务需求"}
+          </Button>
+        )}
+        {!discussion && review && (
+          <Button
+            variant="ghost"
+            disabled={Boolean(unavailable)}
+            onClick={() => setReturnOpen(true)}
+          >
+            退回业务补充
+          </Button>
+        )}
+      </div>
+      {(discussion ? startIssue : approveIssue) && (
+        <p className="text-ui-sm text-foreground-subtle">
+          {discussion ? startIssue : approveIssue}
+        </p>
+      )}
+      <Dialog
+        open={returnOpen}
+        onOpenChange={(open) => {
+          if (!busy) setReturnOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>退回业务补充</DialogTitle>
+            <DialogDescription>
+              说明需要补充的内容，原评审与确认记录保留用于追溯。
+            </DialogDescription>
+          </DialogHeader>
+          <SettingsFormTextarea
+            aria-label="退回原因"
+            value={reason}
+            disabled={busy}
+            onChange={(event) => setReason(event.target.value)}
+            rows={5}
+          />
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setReturnOpen(false)}>
+              取消
+            </Button>
+            <Button
+              disabled={busy || !reason.trim()}
+              onClick={() => void run({ type: "returnProposal", ...target, reason: reason.trim() })}
+            >
+              确认退回
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>放弃未提交的退回原因？</AlertDialogTitle>
+            <AlertDialogDescription>
+              继续填写会保留内容，放弃后离开当前任务。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                pendingNavigation.current = null;
+              }}
+            >
+              继续填写
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const next = pendingNavigation.current;
+                pendingNavigation.current = null;
+                setReason("");
+                setReturnOpen(false);
+                setDraftNavigationGuard(null, guardOwner);
+                next?.();
+              }}
+            >
+              放弃并离开
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

@@ -19,9 +19,9 @@ const steps = [
     title: "从项目总览进入工作",
     titleEn: "Start with a project",
     description:
-      "登录后先看全部项目。点击项目总览中的项目或版本卡片进入对应范围，“需求规划”包含项目总览、想法池和需求共创，“研发交付”包含开发任务和进度分析。项目总览、想法池与我的待办始终跨项目，项目页面通过页头筛选版本；项目与版本仍在原有设置中配置。",
+      "登录后查看只读项目总览。通过左侧选择项目和具体 Release，再进入当前项目、需求共创、开发任务、进度分析或我的待办。项目总览和想法池跨项目，其余页面按所选项目与 Release 展示；项目和版本在设置中配置。",
     descriptionEn:
-      "Sign-in opens all projects. Open a project or release from its card in Projects. Requirements contains Projects, Ideas and Co-creation; Development & delivery contains Development tasks and Progress analysis. Projects, Ideas and My todos always span all projects. Project pages share the release filter. Manage projects and releases in the existing settings.",
+      "Sign-in opens the read-only project overview. Choose a project and Release in the sidebar before opening project tasks, requirements, analysis or todos. Projects and Ideas are global; the other pages use the selected project and Release. Manage projects and releases in Settings.",
   },
   {
     section: "待办与提案",
@@ -30,23 +30,23 @@ const steps = [
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办支持我的、待认领、全部及跨项目筛选，显示需求名称和当前事项，点击事项直接进入对应需求。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档支持 Markdown 导入，预览正文并单独确认短需求，选择具体 Release 后保存；导出时选择一个 IR，下载其当前有效业务文档。其他材料不提供导入导出。保存和导入不运行 AI，只有显式发送消息才开始本次澄清，原始需求评审并人工通过后才能拆分 SR。",
+      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档支持 Markdown 导入，预览正文并单独确认短需求，选择具体 Release 后保存；导出时选择一个 IR，下载其当前有效业务文档。其他材料不提供导入导出。保存和导入不运行 AI，只有显式发送消息才开始本次澄清，原始需求评审并人工通过后才能拆分 SR。",
     descriptionEn:
-      "Todos show requirement names and pending actions across projects, with Mine, Unassigned and All filters. Open an action to reach its requirement. Save unplanned requests in Ideas; moving an idea to project releases creates independent proposals and consumes it. CSV import previews original requests as a complete batch; blanks are skipped and duplicates retained. CSV export includes every filtered original request. Import an IR business document as Markdown, preview its content, confirm a separate short request and choose a Release. Markdown export downloads one IR's current valid business document. Other materials cannot be imported or exported. Saving and importing do not run AI; clarification starts only after an explicit message, and SR splitting requires business review and human approval.",
+      "Todos show Mine, Unassigned and All actions in the selected project and Release. Open an action to reach its requirement or task. Save unplanned requests in Ideas; moving an idea to project releases creates independent proposals and consumes it. CSV import previews original requests as a complete batch; blanks are skipped and duplicates retained. CSV export includes every filtered original request. Import an IR business document as Markdown, preview its content, confirm a separate short request and choose a Release. Markdown export downloads one IR's current valid business document. Other materials cannot be imported or exported. Saving and importing do not run AI; clarification starts only after an explicit message, and SR splitting requires business review and human approval.",
   },
   {
-    title: "澄清与单 Agent 评审",
-    titleEn: "Clarification and single-agent review",
+    title: "从需求工作台进入任务",
+    titleEn: "Open tasks from the requirement workspace",
     description:
-      "从提案表手动进入同一 IR 的原生讨论。业务阶段只整理业务需求文档；单 Agent 检查目标、范围、歧义和可验收性，无阻断且人工通过后才进入 SR 拆分。原始短需求始终独立保留。",
+      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。汇总页没有聊天框；点击具体审查进入独立详情和专属会话，返回仍回到汇总。评审完成仍需人工确认，原始短需求始终独立保留。",
     descriptionEn:
-      "Open an IR discussion explicitly from the proposal table. The business stage produces only business requirements. One agent reviews goals, scope, ambiguity and acceptance. A person must approve a non-blocking review before SR splitting. The short original request is preserved separately.",
+      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Summaries have no chat input; each reviewer opens an independent detail page and conversation, returning to its summary. Completed reviews still require human confirmation. The original request remains separate.",
   },
   {
     title: "每 SR 独立完整包",
     titleEn: "An independent complete package per SR",
     description:
-      "开发在同一方案阶段与 AI 完善 SR 的 proposal、design、tasks、specs 和追溯业务验收的 test-plan；每个 SR 是独立 OpenSpec change。IR 保留业务需求、权威依赖 JSON 和整体验收。右侧可切 SR 和历史材料，全部只读；平台不执行开发任务或构建测试。",
+      "在方案设计任务中与 AI 完善 SR 的 proposal、design、tasks、specs 和追溯业务验收的 test-plan；每个 SR 是独立 OpenSpec change。IR 保留业务需求、权威依赖 JSON 和整体验收。右侧文档目录按 IR 与各 SR 分组，历史材料仍可只读查看；平台不执行开发任务或构建测试。",
     descriptionEn:
       "In one solution stage, develop each SR's independent OpenSpec change: proposal, design, tasks, specs and a business-traceable test plan. The IR retains shared requirements, dependency JSON and overall acceptance. Switch SRs and read-only historical packages in the materials pane. AIReq never executes development tasks, builds or tests.",
   },

@@ -1,3 +1,4 @@
+import type { ProposalTask } from "./proposals/proposalTasks.js";
 import type { RequirementReturnView } from "./navigationState.js";
 import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
 import type {
@@ -18,6 +19,8 @@ export interface AIReqContextValue {
   mainView: WorkspaceMainView;
   requirementView: RequirementView;
   requirementReturnView: RequirementReturnView;
+  proposalTask: ProposalTask;
+  openProposalTask(task: ProposalTask, agent?: import("./contract.js").AIReqReviewAgentId): void;
   settingsOpen: boolean;
   openSettings(): void;
   closeSettings(): void;

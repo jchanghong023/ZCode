@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
-import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
+import { AIREQ_CONTENT_WIDTH_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import {
   proposalProgressIndex,
   proposalViewedIndex,
@@ -474,7 +474,7 @@ export function AIReqProposalStageBody({
   return (
     <main className="@container/conversation min-h-0 flex-1 overflow-auto py-6 text-ui-base [scrollbar-gutter:stable_both-edges]">
       <div className={`mx-auto min-w-0 space-y-6 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-        <h2 className="font-medium">三方确认与文档 PR</h2>
+        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>交付确认</h1>
         <p className="text-ui-sm text-foreground-subtle">
           {group?.proposalDelivery?.pushedAt
             ? "材料已提交，等待合入核验。"

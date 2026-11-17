@@ -2,7 +2,7 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessagesSquare, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -437,17 +437,21 @@ export function AIReqProposalTable() {
                   </td>
                   <td className="px-4 py-4">{proposalPhaseLabel(item)}</td>
                   <td className="px-2 py-4 text-right align-middle">
-                    <ControlHintTooltip title={zh ? "进入讨论" : "Open discussion"}>
+                    <ControlHintTooltip
+                      title={zh ? "打开需求工作台" : "Open requirement workspace"}
+                    >
                       <Button
                         variant="ghost"
                         size="icon"
                         className="size-8 text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
                         aria-label={
-                          zh ? `查看 ${item.id} 提案详情／讨论` : `Open discussion for ${item.id}`
+                          zh
+                            ? `查看 ${item.id} 需求工作台`
+                            : `Open requirement workspace for ${item.id}`
                         }
                         onClick={() => ai.select({ projectId: item.projectId, irId: item.id })}
                       >
-                        <MessagesSquare className="size-4" aria-hidden="true" />
+                        <ArrowUpRight className="size-4" aria-hidden="true" />
                       </Button>
                     </ControlHintTooltip>
                   </td>

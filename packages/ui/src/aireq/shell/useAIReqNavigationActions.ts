@@ -1,3 +1,4 @@
+import { proposalTaskSelection, type ProposalTask } from "../proposals/proposalTasks.js";
 import { useCallback, type RefObject } from "react";
 import type { AIReqMainView, AIReqSelection, AIReqWorkflowView } from "../contract.js";
 
@@ -10,6 +11,7 @@ type SelectTarget = (
   mainView?: WorkspaceMainView,
   targetReleaseId?: string,
   overviewOrigin?: ProjectOverviewOrigin | null,
+  task?: ProposalTask,
 ) => void;
 
 /** 只转发导航意图；所有可变选择、来源和历史仍由 AIReqContext 唯一持有。 */
@@ -117,7 +119,23 @@ export function useAIReqNavigationActions({
     },
     [select, viewRef, selectionRef, navigationRef],
   );
+  const openProposalTask = useCallback(
+    (task: ProposalTask, agent?: import("../contract.js").AIReqReviewAgentId) => {
+      navigate(() =>
+        select(
+          proposalTaskSelection(selectionRef.current, task, agent),
+          true,
+          "chat",
+          undefined,
+          undefined,
+          task,
+        ),
+      );
+    },
+    [navigate, select, selectionRef],
+  );
   return {
+    openProposalTask,
     setMainView,
     openFromProjectOverview,
     returnToProjectOverview,
