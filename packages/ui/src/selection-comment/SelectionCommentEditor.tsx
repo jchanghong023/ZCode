@@ -125,7 +125,7 @@ export function SelectionCommentEditor({
         aria-label={msg("chat.selections.commentPlaceholder")}
         placeholder={msg("chat.selections.commentPlaceholder")}
         data-conversation-selection-comment-input="true"
-        className="max-h-32 min-h-14 w-full resize-none rounded-md border border-input-border bg-input px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtlest hover:border-input-border-hover focus:border-input-border-focused focus:bg-input-focused max-md:text-mobile-input-safe"
+        className="max-h-32 min-h-14 w-full resize-none rounded-md border border-input-border bg-input px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-placeholder hover:border-input-border-hover focus:border-input-border-focused focus:bg-input-focused max-md:text-mobile-input-safe"
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
           // 输入法候选上屏的 Enter 不能当作保存。

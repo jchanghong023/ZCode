@@ -75,7 +75,7 @@ export function AIReqRequirementSearch({
               value={query}
               onValueChange={onQueryChange}
               placeholder="搜索 IR 或 SR…"
-              className="min-w-0 flex-1 bg-transparent text-ui-base leading-5 text-foreground outline-none placeholder:text-foreground-subtlest"
+              className="min-w-0 flex-1 bg-transparent text-ui-base leading-5 text-foreground outline-none placeholder:text-placeholder"
             />
           </div>
         </div>

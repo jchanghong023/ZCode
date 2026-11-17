@@ -157,10 +157,11 @@ export function AIReqSidebarNavigation() {
           </span>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
+      {/* 范围区固定在滚动区外：页面分组滚动时项目与 Release 始终可见，切范围不必先找回选择器。 */}
+      <div className="shrink-0 px-3 pt-1 pb-2">
         <section
           aria-label={zh ? "当前工作范围" : "Current workspace"}
-          className="mb-4 space-y-0.5 rounded-xl border border-border/70 p-1"
+          className="space-y-0.5 rounded-xl border border-border/70 p-1"
         >
           <Select
             value={project?.id ?? ""}
@@ -248,6 +249,8 @@ export function AIReqSidebarNavigation() {
             </SelectContent>
           </Select>
         </section>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {sections.map((section, index) => (
           <section
             key={section.title}

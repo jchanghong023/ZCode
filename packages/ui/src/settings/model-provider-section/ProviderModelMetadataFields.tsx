@@ -87,7 +87,7 @@ export function JsonSlotEditor({
         // 共享 Textarea 默认按内容自适应高度，长 Effective JSON placeholder 会撑高整个弹窗。
         // JSON 槽位保持固定高度，超出内容只在输入框内部滚动。
         className={cn(
-          "field-sizing-fixed h-32 min-h-32 max-h-32 resize-none overflow-y-auto rounded-lg px-3 py-2 font-mono text-foreground placeholder:text-foreground-subtlest",
+          "field-sizing-fixed h-32 min-h-32 max-h-32 resize-none overflow-y-auto rounded-lg px-3 py-2 font-mono text-foreground placeholder:text-placeholder",
           modelEditorControlStyle(overridden),
         )}
         data-personal-override={overridden}

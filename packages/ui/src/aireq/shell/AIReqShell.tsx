@@ -220,6 +220,19 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt"
     >
       <AIReqMotion rootRef={motionRoot} />
+      {/* 键盘用户从侧栏到主内容要穿过全部导航与页脚；跳过链接只在聚焦时可见，不新增导航 owner。 */}
+      <a
+        href="#aireq-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-popover focus:px-3 focus:py-1.5 focus:text-ui-base focus:text-foreground focus:shadow-md"
+        onClick={(event) => {
+          event.preventDefault();
+          const main = document.getElementById("aireq-main");
+          main?.focus();
+          main?.scrollIntoView({ block: "start" });
+        }}
+      >
+        {zh ? "跳到主内容" : "Skip to main content"}
+      </a>
       {/* 设置只隐藏工作台，保留会话、附件与面板；导航仍只有 Context 一个所有者。 */}
       <div
         hidden={settingsOpen}
@@ -249,8 +262,10 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         </nav>
         <AIReqSidePaneHost>
           <div
+            id="aireq-main"
+            tabIndex={-1}
             data-aireq-motion-main=""
-            className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background"
+            className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background outline-none"
           >
             {/* 返回占用已有留白，不挪动列表标题；普通讨论仍不保留空白导航栏。 */}
             {(ai.mainView !== "chat" || formal) && (

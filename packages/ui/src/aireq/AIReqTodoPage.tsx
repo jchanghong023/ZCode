@@ -147,11 +147,20 @@ export function AIReqTodoPage() {
     );
   return (
     <main
-      className="min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
+      className="@container/conversation min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-todos"
     >
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-8`}>
-        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
+          {/* 范围块可能滚出侧栏视口；标题旁保留当前项目与 Release，避免把空待办误读为全局无工作。 */}
+          <p
+            className="min-w-0 max-w-full truncate text-ui-sm text-foreground-subtle"
+            title={`${project.name} · ${release.title}`}
+          >
+            {project.name} · {release.title}
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="待办筛选">
           {(
             [
@@ -178,18 +187,18 @@ export function AIReqTodoPage() {
         </div>
         {/* 表格原先借用弱表面色；与外观页统一卡片和主次文字，交互时提升辅助文字对比度。 */}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          <table className="w-full min-w-[680px] table-fixed text-left">
+          <table className="w-full min-w-[480px] table-fixed text-left @min-[640px]/conversation:min-w-[680px]">
             <colgroup>
               <col className="w-[30%]" />
               <col />
-              <col className="w-[20%]" />
+              <col className="hidden w-[20%] @min-[640px]/conversation:table-column" />
               <col className="w-14" />
             </colgroup>
             <thead className="bg-card text-ui-sm text-foreground">
               <tr>
                 {["需求／开发任务", "待处理事项", "归属", "分工"].map((label, index) => (
                   <th
-                    className={`border-b border-border py-3 font-medium ${index === 3 ? "px-2 text-right" : "px-4"}`}
+                    className={`border-b border-border py-3 font-medium ${index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 3 ? "px-2 text-right" : "px-4"}`}
                     key={label}
                   >
                     {label}
@@ -235,8 +244,14 @@ export function AIReqTodoPage() {
                         {perspectiveLabels[item.perspective]}视角 · 独立确认
                       </span>
                     )}
+                    {/* 窄分栏隐藏归属列时，归属摘要并入事项单元格，认领判断不必横滚。 */}
+                    <span className="block text-ui-sm text-foreground-subtle @min-[640px]/conversation:hidden">
+                      归属：{item.employeeId ?? "未分配 · 待认领"}
+                    </span>
                   </td>
-                  <td className="px-4 py-3">{item.employeeId ?? "未分配 · 待认领"}</td>
+                  <td className="hidden px-4 py-3 @min-[640px]/conversation:table-cell">
+                    {item.employeeId ?? "未分配 · 待认领"}
+                  </td>
                   <td className="px-2 py-3 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

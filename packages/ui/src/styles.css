@@ -301,6 +301,8 @@ body {
   --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-700) 70%, transparent);
   --color-remote-foreground-muted: #595959;
   --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-700) 40%, transparent);
+  /* 占位符承载字段说明，须 ≥4.5:1；subtlest 仅 40% 混合不足，占位统一走 subtle 层级。 */
+  --color-placeholder: var(--color-foreground-subtle);
   --lucide-subtlest-opacity: 0.4;
   --color-foreground-inverse: var(--color-white);
   --color-success: var(--color-green-600);
@@ -470,6 +472,7 @@ body {
   --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-200) 60%, transparent);
   --color-remote-foreground-muted: #b3b3b3;
   --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-200) 30%, transparent);
+  --color-placeholder: var(--color-foreground-subtle);
   --lucide-subtlest-opacity: 0.3;
   --color-foreground-inverse: var(--color-white);
   --color-success: var(--color-green-500);
@@ -631,6 +634,7 @@ body {
   --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-900) 70%, transparent);
   --color-remote-foreground-muted: #595959;
   --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-900) 40%, transparent);
+  --color-placeholder: var(--color-foreground-subtle);
   --lucide-subtlest-opacity: 0.4;
   --color-foreground-inverse: #ffffff;
   --color-success: #1e8a3e;
@@ -792,6 +796,7 @@ body {
   --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-300) 62%, transparent);
   --color-remote-foreground-muted: #b3b3b3;
   --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-300) 30%, transparent);
+  --color-placeholder: var(--color-foreground-subtle);
   --lucide-subtlest-opacity: 0.3;
   --color-foreground-inverse: #000000;
   --color-success: #46bf72;

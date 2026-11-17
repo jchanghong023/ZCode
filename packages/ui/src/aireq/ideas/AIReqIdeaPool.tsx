@@ -636,6 +636,7 @@ export function AIReqIdeaPool() {
                 {zh ? "继续编辑" : "Keep editing"}
               </AlertDialogCancel>
               <AlertDialogAction
+                variant="destructive"
                 onClick={() => {
                   const next = pendingNavigation.current;
                   pendingNavigation.current = null;

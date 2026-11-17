@@ -421,6 +421,7 @@ export function AIReqEditPlanning({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>继续编辑</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={saving}
               onClick={() => {
                 const next = pendingNavigation.current;

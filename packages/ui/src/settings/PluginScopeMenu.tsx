@@ -258,7 +258,7 @@ function ScopeProjectList({
               value={query}
               placeholder={intl.formatMessage({ id: "settings.scope.searchProjects" })}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full text-ui-base/relaxed text-foreground outline-hidden placeholder:text-foreground-subtlest"
+              className="w-full text-ui-base/relaxed text-foreground outline-hidden placeholder:text-placeholder"
             />
             <InputGroupAddon>
               <Search className="size-4 shrink-0 text-foreground-subtlest" />

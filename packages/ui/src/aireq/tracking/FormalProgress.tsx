@@ -5,7 +5,6 @@ import {
   FileText,
   MoreHorizontal,
   Search,
-  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -33,7 +32,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import type { AIReqSidePaneKind } from "../side-pane/contract.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
-import { irPlanning, planningDate, planningWarnings } from "../contract.js";
+import { irPlanning, planningWarnings } from "../contract.js";
 import {
   irProgress,
   irProgressStatus,
@@ -46,6 +45,8 @@ import type { AIReqRequirementGroup, AIReqSystemRequirement } from "../contract.
 import { BranchCopy } from "./BranchCopy.js";
 import { TrackingTableScroll } from "./TrackingTableScroll.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
+import { CompactPlanSummary } from "./CompactPlanSummary.js";
+import { PersonnelPlan } from "./PersonnelPlan.js";
 
 // 表格与主区选择保持独立；点击对象只打开统一侧栏的目标 Tab，不重置筛选或浏览器历史。
 export function AIReqFormalTable() {
@@ -57,6 +58,15 @@ export function AIReqFormalTable() {
   const [status, setStatus] = useState("all");
   const [expanded, setExpanded] = useState(() => new Set<string>());
   const [filteredExpansion, setFilteredExpansion] = useState<Record<string, boolean>>({});
+  // 窄分栏把负责人及计划折叠为行内展开详情；展开状态属于本表布局，不进入业务 owner。
+  const [planExpanded, setPlanExpanded] = useState(() => new Set<string>());
+  const togglePlan = (key: string) =>
+    setPlanExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const [copyMessage, setCopyMessage] = useState("");
   const view = aireq.view;
   if (!view)
@@ -159,13 +169,13 @@ export function AIReqFormalTable() {
           viewportTestId="formal-table-scroll"
         >
           <table
-            className="w-full min-w-[640px] table-fixed border-separate border-spacing-0 bg-card text-ui-base"
+            className="w-full min-w-[480px] table-fixed border-separate border-spacing-0 bg-card text-ui-base @min-[640px]/conversation:min-w-[640px]"
             aria-label="正式需求 IR SR 开发进度表"
           >
             <colgroup>
               <col className="w-[34%]" />
               <col className="w-[30%]" />
-              <col />
+              <col className="hidden @min-[640px]/conversation:table-column" />
               <col className="w-14" />
             </colgroup>
             <MarkdownTableHeader className="bg-card">
@@ -176,7 +186,7 @@ export function AIReqFormalTable() {
                       key={title}
                       scope="col"
                       // 修复：列头和固定首列共用真实的双向滚动容器，避免仅 top-0 仍随页面滚走。
-                      className={`sticky top-0 h-10 min-w-0 bg-card whitespace-nowrap ${index === 3 ? "px-2 text-center" : "px-4"} font-medium text-ui-sm text-foreground ${index === 0 ? "left-0 z-30" : "z-20"}`}
+                      className={`sticky top-0 h-10 min-w-0 bg-card whitespace-nowrap ${index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 3 ? "px-2 text-center" : "px-4"} font-medium text-ui-sm text-foreground ${index === 0 ? "left-0 z-30" : "z-20"}`}
                     >
                       {title}
                     </MarkdownTableHead>
@@ -286,6 +296,14 @@ export function AIReqFormalTable() {
                               IR · {srs.filter((sr) => srProgress(sr) === 100).length}/{srs.length}{" "}
                               SR 完成
                             </p>
+                            <CompactPlanSummary
+                              planKey={`ir:${group.id}`}
+                              expanded={planExpanded.has(`ir:${group.id}`)}
+                              onToggle={() => togglePlan(`ir:${group.id}`)}
+                              developer={developers.join("、") || "未分配"}
+                              tester={testers.join("、") || "未分配"}
+                              label={group.title}
+                            />
                           </div>
                         </div>
                       </MarkdownTableCell>
@@ -297,7 +315,7 @@ export function AIReqFormalTable() {
                         />
                         <AnalysisSummary srs={srs} aggregate />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="px-4 py-4 align-middle">
+                      <MarkdownTableCell className="hidden px-4 py-4 align-middle @min-[640px]/conversation:table-cell">
                         <PersonnelPlan
                           developer={developers.join("、") || "未分配"}
                           tester={testers.join("、") || "未分配"}
@@ -315,12 +333,30 @@ export function AIReqFormalTable() {
                         />
                       </MarkdownTableCell>
                     </MarkdownTableRow>
+                    {planExpanded.has(`ir:${group.id}`) && (
+                      <MarkdownTableRow className="hover:bg-transparent @min-[640px]/conversation:hidden">
+                        <MarkdownTableCell
+                          id={`formal-plan-ir:${group.id}`}
+                          colSpan={4}
+                          className="bg-card px-4 pt-0 pb-3 pl-12"
+                        >
+                          <PersonnelPlan
+                            developer={developers.join("、") || "未分配"}
+                            tester={testers.join("、") || "未分配"}
+                            start={plan.plannedStart}
+                            end={plan.plannedEnd}
+                            incomplete={plan.incomplete}
+                            warnings={warnings}
+                          />
+                        </MarkdownTableCell>
+                      </MarkdownTableRow>
+                    )}
                     {showChildren &&
                       children.map((sr) => {
                         const warnings = planningWarnings(view, sr);
                         return (
+                          <Fragment key={sr.id}>
                           <MarkdownTableRow
-                            key={sr.id}
                             data-sr-id={sr.id}
                             data-aireq-motion-row=""
                             aria-selected={
@@ -357,6 +393,14 @@ export function AIReqFormalTable() {
                                   <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
                                     SR
                                   </p>
+                                  <CompactPlanSummary
+                                    planKey={`sr:${sr.id}`}
+                                    expanded={planExpanded.has(`sr:${sr.id}`)}
+                                    onToggle={() => togglePlan(`sr:${sr.id}`)}
+                                    developer={sr.developerEmployeeId ?? "待认领"}
+                                    tester={sr.testingEmployeeId ?? "待认领"}
+                                    label={sr.title}
+                                  />
                                 </div>
                               </div>
                             </MarkdownTableCell>
@@ -368,7 +412,7 @@ export function AIReqFormalTable() {
                               />
                               <AnalysisSummary srs={[sr]} />
                             </MarkdownTableCell>
-                            <MarkdownTableCell className="px-4 py-4 align-middle">
+                            <MarkdownTableCell className="hidden px-4 py-4 align-middle @min-[640px]/conversation:table-cell">
                               <PersonnelPlan
                                 developer={sr.developerEmployeeId ?? "待认领"}
                                 tester={sr.testingEmployeeId ?? "待认领"}
@@ -386,6 +430,24 @@ export function AIReqFormalTable() {
                               />
                             </MarkdownTableCell>
                           </MarkdownTableRow>
+                          {planExpanded.has(`sr:${sr.id}`) && (
+                            <MarkdownTableRow className="hover:bg-transparent @min-[640px]/conversation:hidden">
+                              <MarkdownTableCell
+                                id={`formal-plan-sr:${sr.id}`}
+                                colSpan={4}
+                                className="bg-card px-4 pt-0 pb-3 pl-16"
+                              >
+                                <PersonnelPlan
+                                  developer={sr.developerEmployeeId ?? "待认领"}
+                                  tester={sr.testingEmployeeId ?? "待认领"}
+                                  start={sr.planning?.plannedStart}
+                                  end={sr.planning?.plannedEnd}
+                                  warnings={warnings}
+                                />
+                              </MarkdownTableCell>
+                            </MarkdownTableRow>
+                          )}
+                          </Fragment>
                         );
                       })}
                   </Fragment>
@@ -528,65 +590,6 @@ function AnalysisSummary({
         )}
       </div>
     </ControlHintTooltip>
-  );
-}
-
-function PersonnelPlan({
-  developer,
-  tester,
-  start,
-  end,
-  incomplete,
-  warnings,
-}: {
-  developer: string;
-  tester: string;
-  start?: string;
-  end?: string;
-  incomplete?: boolean;
-  warnings: string[];
-}) {
-  // 人员分行和重复未排期文案会撑高单元格；固定两行，完整事实仍由提示承载。
-  const personnel = `开发：${developer} · 测试：${tester}`;
-  const plan =
-    !start && !end
-      ? "计划：未排期"
-      : `计划：${planningDate(start).split(" ")[0]} → ${planningDate(end).split(" ")[0]}`;
-  const planDetail = [
-    `计划开始：${start?.replace("T", " ") || "未排期"}`,
-    `计划结束：${end?.replace("T", " ") || "未排期"}`,
-    ...(incomplete && (start || end) ? ["部分未排期"] : []),
-    ...warnings,
-  ].join("\n");
-  return (
-    // 修复：展开长表后 sr-only 绝对定位曾越出滚动域，撑高 document；就地定位使排期读屏文本随单元格裁剪。
-    <div className="relative min-w-0 space-y-1 text-ui-sm">
-      <ControlHintTooltip title={personnel}>
-        <p
-          tabIndex={0}
-          className="truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          {personnel}
-        </p>
-      </ControlHintTooltip>
-      <ControlHintTooltip title={planDetail}>
-        <p
-          tabIndex={0}
-          className="flex min-w-0 items-center gap-1 rounded-sm text-foreground-subtle tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          {warnings.length > 0 && (
-            <>
-              <TriangleAlert
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-warning-surface-foreground"
-              />
-              <span className="sr-only">排期冲突／需协调：</span>
-            </>
-          )}
-          <span className="min-w-0 truncate">{plan}</span>
-        </p>
-      </ControlHintTooltip>
-    </div>
   );
 }
 

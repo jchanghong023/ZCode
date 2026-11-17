@@ -68,6 +68,15 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
         history: "Discussion and review history",
         analysis: "Analysis report",
       };
+  // 同对象多 Tab 只靠图标区分时用户必须回忆图标含义；可见短前缀让种类先于对象名被读到。
+  const kindPrefixes = zh
+    ? { report: "进度｜", materials: "材料｜", history: "历史｜", analysis: "分析｜" }
+    : { report: "Report · ", materials: "Materials · ", history: "History · ", analysis: "Analysis · " };
+  const moveTab = (id: string, direction: -1 | 1) => {
+    const index = pane.tabs.findIndex((tab) => tab.id === id);
+    const neighbor = pane.tabs[index + direction];
+    if (neighbor) pane.reorder(id, neighbor.id);
+  };
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const draggingTab = pane.tabs.find((tab) => tab.id === draggingId);
   const fullViewLabel = pane.fullView
@@ -136,7 +145,7 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
                 items={pane.tabs.map((tab) => tab.id)}
                 strategy={horizontalListSortingStrategy}
               >
-                {pane.tabs.map((tab) => {
+                {pane.tabs.map((tab, tabIndex) => {
                   const Icon = icons[tab.kind];
                   const accessibleTitle =
                     tab.kind === "launcher"
@@ -151,16 +160,22 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
                       title={tab.title}
                       accessibleTitle={accessibleTitle}
                       icon={<Icon className="size-3.5" aria-hidden="true" />}
+                      titlePrefix={tab.kind === "launcher" ? undefined : kindPrefixes[tab.kind]}
                       isActive={activeId === tab.id}
                       closeTabLabel={zh ? `关闭 ${accessibleTitle}` : `Close ${accessibleTitle}`}
                       closeTabMenuLabel={zh ? "关闭标签" : "Close tab"}
                       closeOtherTabsLabel={zh ? "关闭其他标签" : "Close other tabs"}
                       closeAllTabsLabel={zh ? "关闭全部标签" : "Close all tabs"}
+                      moveTabLeftLabel={zh ? "左移标签" : "Move tab left"}
+                      moveTabRightLabel={zh ? "右移标签" : "Move tab right"}
                       onActivateTab={pane.activate}
                       onCloseTab={pane.close}
                       onCloseOtherTabs={(id) => pane.close(id, { others: true })}
                       onCloseAllTabs={pane.closeAll}
                       canCloseOtherTabs={pane.tabs.length > 1}
+                      canMoveLeft={tabIndex > 0}
+                      canMoveRight={tabIndex < pane.tabs.length - 1}
+                      onMoveTab={moveTab}
                     />
                   );
                 })}
@@ -171,6 +186,9 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
             {draggingTab && (
               <SidePaneTabPresentationDragOverlay
                 title={draggingTab.title}
+                titlePrefix={
+                  draggingTab.kind === "launcher" ? undefined : kindPrefixes[draggingTab.kind]
+                }
                 icon={(() => {
                   const Icon = icons[draggingTab.kind];
                   return <Icon className="size-3.5" />;

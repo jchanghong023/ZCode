@@ -365,12 +365,12 @@ export function AIReqProposalTable() {
         </div>
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          <table className="w-full min-w-3xl table-fixed text-left text-ui-base">
+          <table className="w-full min-w-[480px] table-fixed text-left text-ui-base @min-[640px]/conversation:min-w-3xl">
             {/* 限宽正文中百分比列曾挤碎状态文字；为正文、短日期与状态保留列宽，窄面板只横滚表格。 */}
             <colgroup>
-              <col className="w-28" />
+              <col className="hidden w-28 @min-[640px]/conversation:table-column" />
               <col />
-              <col className="w-32" />
+              <col className="hidden w-32 @min-[640px]/conversation:table-column" />
               <col className="w-40" />
               <col className="w-14" />
             </colgroup>
@@ -381,7 +381,7 @@ export function AIReqProposalTable() {
                     <th
                       key={label}
                       title={index === 2 ? "北京时间" : undefined}
-                      className={`border-b border-border py-3 font-medium ${index === 4 ? "px-2 text-right" : "px-4"}`}
+                      className={`border-b border-border py-3 font-medium ${index === 0 || index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 4 ? "px-2 text-right" : "px-4"}`}
                     >
                       {label}
                     </th>
@@ -396,7 +396,9 @@ export function AIReqProposalTable() {
                   data-aireq-motion-row=""
                   className="border-b border-border/50 hover:bg-hover"
                 >
-                  <td className="px-4 py-4">{item.submittedBy}</td>
+                  <td className="hidden px-4 py-4 @min-[640px]/conversation:table-cell">
+                    {item.submittedBy}
+                  </td>
                   <td
                     data-aireq-motion-cell=""
                     className="max-w-xl whitespace-pre-wrap break-words px-4 py-4"
@@ -412,9 +414,21 @@ export function AIReqProposalTable() {
                           <span className="line-clamp-3 text-left">{item.originalText}</span>
                         </Button>
                       </ControlHintTooltip>
+                      {/* 窄分栏隐藏提交人／日期列时并入正文单元格，筛选判断不必横滚。 */}
+                      <p className="text-ui-sm text-foreground-subtle @min-[640px]/conversation:hidden">
+                        {item.submittedBy} ·{" "}
+                        {new Date(item.createdAt).toLocaleString("zh-CN", {
+                          timeZone: "Asia/Shanghai",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
+                      </p>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-foreground-subtle">
+                  <td className="hidden px-4 py-4 text-foreground-subtle @min-[640px]/conversation:table-cell">
                     <time
                       dateTime={item.createdAt}
                       title={`${new Date(item.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })} 北京时间`}

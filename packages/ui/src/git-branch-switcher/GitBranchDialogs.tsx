@@ -352,7 +352,7 @@ export function GitBranchSwitchAssistDialog({
                   placeholder={intl.formatMessage({
                     id: "git.branchSwitcher.commitDialog.messagePlaceholder",
                   })}
-                  className="min-h-32 rounded-lg border-input-border bg-background/50 px-3 py-3 text-ui-base text-foreground placeholder:text-foreground-subtlest focus-visible:border-input-border-focused focus-visible:bg-input-focused focus-visible:ring-0 md:text-ui-base"
+                  className="min-h-32 rounded-lg border-input-border bg-background/50 px-3 py-3 text-ui-base text-foreground placeholder:text-placeholder focus-visible:border-input-border-focused focus-visible:bg-input-focused focus-visible:ring-0 md:text-ui-base"
                   onChange={(event) => {
                     onCommitMessageChange(event.target.value);
                   }}

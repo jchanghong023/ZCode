@@ -60,7 +60,7 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 
 从当前项目进入的目标页在内容区顶部显示 `← 返回当前项目`，复用现有 48px 留白、正文宽度与双侧滚动槽，保持列表标题和正文起点不动。使用 ghost 按钮、次级文字及既有可见焦点，返回图标与正文左边缘对齐。侧栏直达不显示；普通讨论不增加空占位，仅有概览来源时显示上下文返回带；右侧详情不重复增加返回。
 
-项目分组铺满阅读列，版本摘要按所属面板宽度由一列变为两列，展开不改变分组外宽。按钮组可换行，表格局部横滚，不撑开整个页面。
+项目分组铺满阅读列，版本摘要按所属面板宽度由一列变为两列，展开不改变分组外宽。按钮组可换行，表格局部横滚，不撑开整个页面。侧栏范围区固定在导航滚动区之外；主区容器不足 640px 时业务表格进入紧凑呈现（次级列并入行内摘要或展开详情），不缩小字号。
 
 常用间距基于 4px 节奏：4px 图标间隙、8px 紧凑控件、12px 列表、16px 卡片内边距、20–24px 较大分组。组间距大于组内距。嵌套 flex／滚动区域按需使用 `min-w-0`、`min-h-0`。优先流体宽度和 max-width，固定宽度用于菜单、对话框及稳定侧栏，不新增业务页面几何体系。
 
@@ -90,13 +90,13 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 
 复用 Button variants：default、outline、secondary、ghost、destructive、warning、link。default 使用 primary 配对色；危险和警告只用于对应业务动作。尺寸为 default h-7、xs h-5、sm h-6、lg h-8，图标按钮使用现有 icon variants，不另设宽高体系。图标通常 size-4，细节按组件 variant 缩放。
 
-输入使用 input 背景及边框，hover／focus 使用对应 token，不默认发光。标签、错误和辅助信息与控件关联；保存中保留文本控件挂载且只读，不因 disabled 移走输入焦点。错误使用真实错误语义，不将普通说明标红。
+输入使用 input 背景及边框，hover／focus 使用对应 token，不默认发光。占位符与 Select 未选值使用 `foreground-subtle`，在输入表面保持 ≥4.5:1；`foreground-subtlest` 只用于弱元信息，不承载字段说明。标签、错误和辅助信息与控件关联；保存中保留文本控件挂载且只读，不因 disabled 移走输入焦点。错误使用真实错误语义，不将普通说明标红。
 
 ### Navigation and tabs
 
 导航行共用图标、名称及可选右对齐范围提示，选中使用 selected 和较强字重，键盘焦点独立可见，悬停不转移当前位置。品牌中英文两行始终存在，Logo 为装饰图像。
 
-Tab 使用紧凑外观及 active／inactive 对比，不用品牌整块填色；Tab 与 panel 保持语义关联。关闭、排序、折叠及完整视图复用统一框架，不为业务详情创建第二套壳。
+Tab 使用紧凑外观及 active／inactive 对比，不用品牌整块填色；Tab 与 panel 保持语义关联。内容 Tab 可见标题带短种类前缀，前缀不随对象名截断。关闭、排序（指针拖动或右键左移／右移）、折叠及完整视图复用统一框架，不为业务详情创建第二套壳。
 
 ### Menus and overlays
 

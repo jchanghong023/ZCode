@@ -72,9 +72,9 @@ const steps = [
     title: "分工与统一分析",
     titleEn: "Ownership and unified analysis",
     description:
-      "需求转正后保留原有身份、讨论与材料。在“开发任务”中，以 IR 为主行、SR 为子行，同页查看当前状态、问题、材料和报告。人员可指定、认领和代办；待办仍跨项目。项目内“进度分析”查看当前范围的任务、执行历史与失败重试，自动分析周期和项目配置在“设置 → AI 配置 → 分析设置”中调整。分析失败保留上次成功结果，旧版本结果不能覆盖新事实。",
+      "需求转正后保留原有身份、讨论与材料。在“开发任务”中，以 IR 为主行、SR 为子行，同页查看当前状态、问题、材料和报告。人员可指定、认领和代办；待办按当前项目与 Release 展示。项目内“进度分析”查看当前范围的任务、执行历史与失败重试，自动分析周期和项目配置在“设置 → AI 配置 → 分析设置”中调整。分析失败保留上次成功结果，旧版本结果不能覆盖新事实。",
     descriptionEn:
-      "Formal requirements retain their original identity, discussions and materials. Development tasks shows IR parent rows and SR children, with same-page status, issues, materials and reports. Assign, claim or act on behalf of others; todos remain cross-project. Progress analysis shows tasks, execution history and retries in the current project scope. Adjust scheduling and project analysis configuration in Settings → AI configuration → Analysis settings. Failed analyses retain the last success and stale results cannot replace newer facts.",
+      "Formal requirements retain their original identity, discussions and materials. Development tasks shows IR parent rows and SR children, with same-page status, issues, materials and reports. Assign, claim or act on behalf of others; todos follow the selected project and Release. Progress analysis shows tasks, execution history and retries in the current project scope. Adjust scheduling and project analysis configuration in Settings → AI configuration → Analysis settings. Failed analyses retain the last success and stale results cannot replace newer facts.",
   },
   {
     title: "合入 99%、人工验收 100%",
@@ -133,8 +133,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "项目总览、想法池和我的待办跨项目。返回项目总览，点击项目或版本卡片进入目标，在需求共创、开发任务和进度分析中工作；页头选择版本。同一需求从澄清到验收持续保留讨论、材料与记录。待办跨项目汇总，完成实际事项后自动消失，无需手工勾选完成。"
-              : "Projects, Ideas and My todos span all projects. Open a project or release from Projects, then use Co-creation, Development tasks and Progress analysis. Choose the release in the page header. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos span projects and disappear when their actual work is complete; there is no manual mark-done action."}
+              ? "项目总览和想法池跨项目；我的待办与其余页面按侧栏所选项目与 Release 展示。总览卡片只读，在左侧选择项目和具体 Release 后进入当前项目、需求共创、开发任务或进度分析。同一需求从澄清到验收持续保留讨论、材料与记录。待办完成实际事项后自动消失，无需手工勾选完成。"
+              : "Projects and Ideas span all projects; My todos and the other pages follow the project and Release selected in the sidebar. Overview cards are read-only: choose a project and a specific Release on the left, then open Current project, Co-creation, Development tasks or Progress analysis. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos disappear when their actual work is complete; there is no manual mark-done action."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh

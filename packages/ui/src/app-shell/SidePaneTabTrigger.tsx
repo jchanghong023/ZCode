@@ -26,6 +26,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu.js";
 import { TabsTrigger } from "@/components/ui/tabs.js";
@@ -63,16 +64,23 @@ export interface SidePaneTabPresentationProps {
   accessibleTitle?: string;
   icon: ReactNode;
   badge?: ReactNode;
+  /** 可见短种类前缀；不随对象名截断，完整语义仍在 accessibleTitle。 */
+  titlePrefix?: string;
   closeTabLabel: string;
   closeTabMenuLabel: string;
   closeOtherTabsLabel: string;
   closeAllTabsLabel: string;
+  moveTabLeftLabel?: string;
+  moveTabRightLabel?: string;
   isActive: boolean;
   onActivateTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   canCloseOtherTabs: boolean;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onMoveTab?: (tabId: string, direction: -1 | 1) => void;
 }
 
 /** 原生与业务 Tab 共用拖拽、关闭和上下文菜单，不绑定业务载荷。 */
@@ -84,19 +92,25 @@ export function SortableSidePaneTabPresentation({
   accessibleTitle,
   icon,
   badge,
+  titlePrefix,
   closeTabLabel,
   closeTabMenuLabel,
   closeOtherTabsLabel,
   closeAllTabsLabel,
+  moveTabLeftLabel,
+  moveTabRightLabel,
   isActive,
   onActivateTab,
   onCloseTab,
   onCloseOtherTabs,
   onCloseAllTabs,
   canCloseOtherTabs,
+  canMoveLeft,
+  canMoveRight,
+  onMoveTab,
 }: SidePaneTabPresentationProps) {
   const wasDraggingRef = useRef(false);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
   const normalizedTransform = transform
@@ -128,15 +142,13 @@ export function SortableSidePaneTabPresentation({
         data-state={isActive ? "active" : "inactive"}
         style={style}
         {...listeners}
-        // 只接入拖拽提示；role/tabIndex 留给 Radix，避免覆盖 Tab 语义与游走焦点。
+        // 只接指针拖拽监听；role/tabIndex 留给 Radix。不转发 dnd-kit 的拖拽角色与
+        // 空格拾起说明：宿主只配置 PointerSensor，空格实际是激活 Tab，键盘排序走右键菜单。
         role="tab"
         {...(triggerId ? { id: triggerId } : {})}
         {...(panelId ? { "aria-controls": panelId } : {})}
         aria-selected={isActive}
         aria-label={accessibleTitle ?? title}
-        aria-describedby={attributes["aria-describedby"]}
-        aria-roledescription={attributes["aria-roledescription"]}
-        aria-disabled={attributes["aria-disabled"]}
         onMouseDown={(event) => {
           // 只由显式激活回调接纳点击；避免 Radix 在 mousedown 提前触发第二次门禁。
           event.preventDefault();
@@ -201,6 +213,7 @@ export function SortableSidePaneTabPresentation({
           title={title}
           closeVisible={isActive}
           revealCloseOnHover
+          titlePrefix={titlePrefix}
         />
         <Button
           type="button"
@@ -242,6 +255,17 @@ export function SortableSidePaneTabPresentation({
           {closeOtherTabsLabel}
         </ContextMenuItem>
         <ContextMenuItem onSelect={onCloseAllTabs}>{closeAllTabsLabel}</ContextMenuItem>
+        {onMoveTab && moveTabLeftLabel && moveTabRightLabel && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem disabled={!canMoveLeft} onSelect={() => onMoveTab(id, -1)}>
+              {moveTabLeftLabel}
+            </ContextMenuItem>
+            <ContextMenuItem disabled={!canMoveRight} onSelect={() => onMoveTab(id, 1)}>
+              {moveTabRightLabel}
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -267,10 +291,12 @@ export function SidePaneTabDragOverlay({
 
 export function SidePaneTabPresentationDragOverlay({
   title,
+  titlePrefix,
   icon,
   badge,
 }: {
   title: string;
+  titlePrefix?: string;
   icon: ReactNode;
   badge?: ReactNode;
 }) {
@@ -281,7 +307,12 @@ export function SidePaneTabPresentationDragOverlay({
         "cursor-grabbing [corner-shape:superellipse(1.5)]",
       )}
     >
-      <SidePaneTabPresentationContent icon={icon} badge={badge} title={title} />
+      <SidePaneTabPresentationContent
+        icon={icon}
+        badge={badge}
+        title={title}
+        titlePrefix={titlePrefix}
+      />
     </div>
   );
 }
@@ -298,12 +329,14 @@ function SidePaneTabPresentationContent({
   icon,
   badge,
   title,
+  titlePrefix,
   closeVisible = false,
   revealCloseOnHover = false,
 }: {
   icon: ReactNode;
   badge?: ReactNode;
   title: string;
+  titlePrefix?: string;
   closeVisible?: boolean;
   revealCloseOnHover?: boolean;
 }) {
@@ -318,6 +351,11 @@ function SidePaneTabPresentationContent({
       )}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">{icon}</span>
+      {titlePrefix && (
+        <span className="shrink-0 text-ui-sm font-normal text-foreground-subtle">
+          {titlePrefix}
+        </span>
+      )}
       <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
         {title}
       </span>
