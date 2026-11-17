@@ -672,7 +672,6 @@ exceptions:
       - packages/shared/src/platform.ts
       - packages/ui/src/ChatErrorBanner.tsx
       - packages/ui/src/WorkspaceSidebarFooter.tsx
-      - packages/ui/src/workspace-file-tree/WorkspaceFileTree.tsx
       - packages/ui/src/v4/ConversationRowView.tsx
       - packages/ui/src/hooks/useFileContextActions.ts
       - packages/ui/src/components/ai-elements/code-block.tsx
@@ -753,10 +752,8 @@ exceptions:
   - id: hooks-lint-existing-ui-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/lib/workflowRunAckStore.ts
       - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
-      - packages/ui/src/workspace-file-search/useWorkspaceFileSearchFilter.ts
-    reason: 已准入的三个既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
+    reason: 已准入的既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
   - id: production-boundary-existing-session-open-telemetry
     rule: unmanaged-new-file
     paths: [packages/ui/src/lib/sessionOpenArmsTelemetry.ts]
@@ -861,8 +858,3 @@ exceptions:
       - packages/ui/src/v4/SessionPane.tsx
       - packages/ui/src/v4/ConversationComposer.tsx
     reason: AIReq通过现有v4会话和输入草稿所有者集成可选回填及首次发送端口；仅修改两个既有文件，不复制v4、不改变原生协议或新增并行状态，不接管整个ui模块。
-  - id: workflow-run-line-retired-navigation-existing-ui-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/components/workflow-run-line/TaskWorkflowRunLines.tsx
-    reason: 按 docs/specs/aireq-migration/release-surface.md 的退役边界，仅从既有运行行组件移除旧工作流导航及退役 context 依赖，保留通用运行行展示；不新增源码或状态 owner，不放开所在目录，不改变协议与其他架构规则。
