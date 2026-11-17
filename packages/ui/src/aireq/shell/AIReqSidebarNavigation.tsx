@@ -122,7 +122,7 @@ export function AIReqSidebarNavigation() {
       className="h-auto min-h-9 w-full justify-start gap-3 py-2 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
       data-aireq-motion-nav=""
-      onClick={() => ai.navigate(() => ai.setMainView(view))}
+      onClick={() => ai.navigate(() => ai.setMainView(view, { fromSidebar: true }))}
     >
       <Icon
         className={`size-4 ${selected === view ? "text-foreground" : "text-remote-foreground-muted"}`}
