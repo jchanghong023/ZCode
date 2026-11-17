@@ -1,10 +1,10 @@
+import { useLayoutEffect, useRef } from "react";
 import { ArrowRight, FileText, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   proposalProgressIndex,
   proposalState,
-  proposalStateLabel,
   PROPOSAL_STATE_OPTIONS,
   fullReviewCurrent,
   requirementsReviewCurrent,
@@ -33,6 +33,26 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const state = proposalState(group);
   const guidance = proposalTaskGuidance(group);
   const phase = proposalProgressIndex(group, {});
+  const track = useRef<HTMLDivElement>(null);
+  const currentStep = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const container = track.current;
+    if (!container) return;
+    // 仅移动轨迹横向视口；scrollIntoView 会连带滚动主区，破坏标题基线。
+    const revealCurrent = () => {
+      const button = currentStep.current;
+      if (!button) return;
+      const viewport = container.getBoundingClientRect();
+      const item = button.getBoundingClientRect();
+      if (item.left < viewport.left + 4) container.scrollLeft += item.left - viewport.left - 4;
+      else if (item.right > viewport.right - 4)
+        container.scrollLeft += item.right - viewport.right + 4;
+    };
+    revealCurrent();
+    const observer = new ResizeObserver(revealCurrent);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [state, group.projectId, group.id]);
   const notes: Partial<Record<ProposalTask, string>> = {
     requirements: "明确目标、范围与验收标准",
     requirementsReview: "查看评审意见并确认业务需求",
@@ -58,39 +78,43 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             {group.title || "需求工作台"}
           </h1>
         </header>
-        <section className="space-y-3 border-y border-border/50 py-5" aria-label="当前待处理事项">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-ui-lg font-semibold" aria-live="polite">
-                {proposalStateLabel(group, "zh-CN")}
-              </h2>
-              <p className="max-w-prose text-ui-sm leading-relaxed text-foreground-subtle">
-                {guidance.description}
-              </p>
-              <p className="text-ui-sm text-foreground-subtle">处理方：{guidance.role}</p>
-            </div>
-            <Button onClick={() => ai.openProposalTask(next)}>
-              {guidance.action}
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </Button>
-          </div>
-          <details className="pt-2 text-ui-sm text-foreground-subtle">
-            <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
-              查看完整流程
-            </summary>
-            <ol className="mt-3 flex flex-wrap gap-x-4 gap-y-2" aria-label="提案八态">
+        <section className="space-y-3 border-b border-border/50 pb-5" aria-label="当前待处理事项">
+          <div
+            ref={track}
+            className="overflow-x-auto overscroll-x-contain py-1"
+            data-testid="proposal-state-track"
+          >
+            <ol
+              className="flex w-max min-w-full items-center gap-1 whitespace-nowrap px-1"
+              aria-label="提案八态"
+            >
               {PROPOSAL_STATE_OPTIONS.map((option) => (
-                <li
-                  key={option.id}
-                  aria-current={state === option.id ? "step" : undefined}
-                  className={state === option.id ? "font-medium text-foreground" : undefined}
-                >
-                  {option.title}
+                <li key={option.id} className="shrink-0">
+                  {state === option.id ? (
+                    <Button
+                      ref={currentStep}
+                      variant="ghost"
+                      className="bg-selected px-2 font-semibold text-foreground"
+                      aria-current="step"
+                      aria-label={`${option.title}：${guidance.action}`}
+                      title={guidance.action}
+                      onClick={() => ai.openProposalTask(next)}
+                    >
+                      {option.title}
+                    </Button>
+                  ) : (
+                    <span className="inline-block px-2 py-1 text-ui-base text-foreground-subtle">
+                      {option.title}
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>
-            <p className="mt-3">材料变化或退回时，状态会回退；合入核验通过后转为正式需求。</p>
-          </details>
+          </div>
+          <p className="max-w-prose text-ui-sm leading-relaxed text-foreground-subtle">
+            {guidance.description}
+          </p>
+          <p className="text-ui-sm text-foreground-subtle">处理方：{guidance.role}</p>
         </section>
         <section aria-label="需求任务" className="space-y-2">
           <h2 className="text-ui-base font-medium">任务</h2>
