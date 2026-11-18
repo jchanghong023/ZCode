@@ -147,7 +147,7 @@ export async function findMissingPolicyPaths(policy, cwd = process.cwd()) {
       throw error;
     }
   };
-  // 原因：裁撤模块后的失效登记不能因 unmanaged、增量范围或 baseline 而被静默忽略。
+  // 原因：裁撤模块后的失效登记不能因 unmanaged 或增量范围而被静默忽略。
   for (const module of policy.modules) {
     for (const root of module.roots) {
       if (!(await exists(path.resolve(cwd, root)))) {

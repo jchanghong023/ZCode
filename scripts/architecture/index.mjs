@@ -20,24 +20,6 @@ import { cycleViolations, violation } from "./violations.mjs";
 import { browserBoundaryViolations } from "./browser-boundary.mjs";
 import { findMissingPackageEntrypoints } from "./package-entrypoints.mjs";
 
-// 修复原因：结构完整性与浏览器安全边界不能被历史 baseline 变成永久豁免。
-const integrityRules = new Set([
-  "missing-policy-path",
-  "missing-package-entrypoint",
-  "browser-policy",
-  "browser-node-import",
-  "browser-node-contract",
-  "browser-node-entrypoint",
-]);
-
-async function readBaseline(cwd) {
-  try {
-    return JSON.parse(await fs.readFile(path.join(cwd, ".architecture-baseline.json"), "utf8"));
-  } catch {
-    return { version: 1, violations: [] };
-  }
-}
-
 export async function checkArchitecture({ cwd = process.cwd(), changedFiles = null } = {}) {
   const policy = await loadPolicy(cwd);
   const workspace = await loadWorkspace(cwd);
@@ -331,8 +313,6 @@ export async function checkArchitecture({ cwd = process.cwd(), changedFiles = nu
   if (policy.global.forbidCycles)
     violations.push(...cycleViolations(edges, policy, modulesByFile, cwd));
 
-  const baseline = await readBaseline(cwd);
-  const baselineFingerprints = new Set(baseline.violations.map((item) => item.fingerprint));
   const changed = changedFiles
     ? new Set(changedFiles.map((file) => path.resolve(cwd, file)))
     : null;
@@ -351,43 +331,7 @@ export async function checkArchitecture({ cwd = process.cwd(), changedFiles = nu
       }
     }
   }
-  const scoped = changed
+  return changed
     ? violations.filter((item) => item.global || changed.has(path.resolve(cwd, item.file)))
     : violations;
-  const accepted = (item) =>
-    !integrityRules.has(item.rule) && baselineFingerprints.has(item.fingerprint);
-  const baselineViolations = scoped.filter(accepted);
-  const newViolations = scoped.filter((item) => !accepted(item));
-  return {
-    policy,
-    violations: scoped,
-    baselineViolations,
-    newViolations,
-    baseline,
-    changedClosure: changed,
-  };
 }
-
-/**
- * scope 为 --changed 的变更闭包。修复原因：首版直接用 scoped 结果覆盖整份 baseline，
- * `baseline:update -- --changed` 会把闭包之外的所有条目全部丢掉。
- */
-export async function updateBaseline({ cwd = process.cwd(), violations, scope = null }) {
-  const filename = path.join(cwd, ".architecture-baseline.json");
-  const previous = scope ? (await readBaseline(cwd)).violations : [];
-  const kept = scope
-    ? previous.filter((item) => !item.global && !scope.has(path.resolve(cwd, item.file)))
-    : [];
-  const merged = new Map();
-  for (const item of [...kept, ...violations]) {
-    if (!integrityRules.has(item.rule)) merged.set(item.fingerprint, item);
-  }
-  const entries = [...merged.values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
-  await fs.writeFile(filename, `${JSON.stringify({ version: 1, violations: entries }, null, 2)}\n`);
-  return entries;
-}
-
-export { loadPolicy };
-export { changedFilesFromGit, resolveDiffBase } from "./git-base.mjs";
-export { generateContext } from "./context.mjs";
-export { formatMarkdownReport, formatReport } from "./report.mjs";

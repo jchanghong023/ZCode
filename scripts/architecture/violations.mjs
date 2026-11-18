@@ -1,16 +1,7 @@
-import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { posix } from "./policy.mjs";
 
-function fingerprint(rule, file, detail = "") {
-  return createHash("sha256").update(`${rule}\0${file}\0${detail}`).digest("hex").slice(0, 16);
-}
-
-/**
- * 违规文件路径统一为相对 cwd 的 posix 路径。修复原因：首版写入绝对路径，fingerprint 随之含机器
- * 路径，baseline 在 CI 与不同开发机之间永远对不上（首版 baseline 为空所以没暴露）。
- */
 export function violation({
   rule,
   file,
@@ -31,7 +22,6 @@ export function violation({
     module: module?.id ?? null,
     detail: relativeDetail,
     message,
-    fingerprint: fingerprint(rule, relative, relativeDetail),
     global,
   };
 }

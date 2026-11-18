@@ -66,7 +66,6 @@ modules:
       - packages/design-runtime/src/contract.ts
     layers: { app: "." }
     owner: conversation
-  # sqlite-migrations：由 architecture:adopt 登记
   - id: conversation-telemetry-engine
     roots: [packages/shared/src/conversation-telemetry]
     managed: true
@@ -79,7 +78,6 @@ modules:
       - packages/shared/src/conversation-telemetry/remoteTelemetryEvent.ts
     layers: { app: "." }
     owner: conversation
-  # project-storage：由 architecture:adopt 登记
   - id: project-storage
     roots: [packages/services/src/project-storage]
     managed: true
@@ -93,7 +91,6 @@ modules:
     layers:
       adapters: .
     owner: conversation
-  # project：由 architecture:adopt 登记
   - id: project
     roots:
       - packages/services/src/project
@@ -103,7 +100,6 @@ modules:
     layers:
       adapters: .
     owner: conversation
-  # remote-projects：由 architecture:adopt 登记
   - id: gen-ui-protocol
     roots: [packages/shared/src/gen-ui]
     managed: true
@@ -120,9 +116,6 @@ modules:
     layers: { domain: "." }
     owner: conversation
 
-  # host-database-startup：由 architecture:adopt 登记
-  # cli-subagent-config：由 architecture:adopt 登记
-  # cli-session-execution：由 architecture:adopt 登记
 
   # 保留既有源码位置；精确登记源文件，不扩大到整个 CLI 或 handlers 目录。
 
@@ -168,7 +161,6 @@ modules:
     layers: { ui: . }
     owner: conversation
 
-  # task-groups：由 architecture:adopt 登记
   - id: task-groups
     roots:
       - packages/services/src/task-groups
@@ -180,10 +172,9 @@ modules:
       adapters: .
     owner: conversation
 
-  # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
+  # office-runtime：内置文档插件查看面板的共享运行时
 
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集
-  # side-pane-full-view：由 architecture:adopt 登记
   - id: side-pane-full-view
     roots:
       - packages/ui/src/side-pane-full-view
@@ -198,7 +189,6 @@ modules:
       ui: .
     owner: conversation
 
-  # local-ttft-contract：由 architecture:adopt 登记
   - id: local-ttft-contract
     roots:
       - packages/shared/src/local-ttft
@@ -208,7 +198,6 @@ modules:
       - packages/shared/src/local-ttft/contract.ts
     layers:
       contract: .
-  # local-ttft-renderer：由 architecture:adopt 登记
   - id: local-ttft-renderer
     roots:
       - packages/ui/src/v4/telemetry/local-ttft
@@ -220,13 +209,8 @@ modules:
       - packages/ui/src/v4/telemetry/local-ttft/contract.ts
     layers:
       ui: .
-  # local-ttft-desktop：由 architecture:adopt 登记
-  # local-ttft-cli：由 architecture:adopt 登记
-  # cli-official-command-endpoint：由 architecture:adopt 登记
-  # zcode-site-panel：zcode-site 插件自带的 Sites 面板（MCP server + 页面），由 architecture:adopt 登记
+  # zcode-site-panel：zcode-site 插件自带的 Sites 面板（MCP server + 页面）
 
-  # file-open-apps：由 architecture:adopt 登记
-  # ui-file-menu：由 architecture:adopt 登记
   - id: ui-file-menu
     roots:
       - packages/ui/src/file-menu
@@ -241,7 +225,6 @@ modules:
       ui: .
     owner: file-preview
 
-  # web-platform：由 architecture:adopt 登记
   - id: web-platform
     roots:
       - packages/web/src/platform
@@ -257,7 +240,6 @@ modules:
       adapters: .
     owner: web
 
-  # image-preview-editor：由 architecture:adopt 登记
   - id: image-preview-editor
     roots:
       - packages/ui/src/image-preview-editor
@@ -291,7 +273,6 @@ modules:
       ui: .
     owner: conversation
 
-  # protocol-session-data：由 architecture:adopt 登记
   - id: protocol-session-data
     roots:
       - packages/shared/src/zcode-protocol-v4/session-data
@@ -302,12 +283,7 @@ modules:
       - packages/shared/src/zcode-protocol-v4/session-data/contract.ts
     layers:
       domain: .
-  # cli-session-data-files：由 architecture:adopt 登记
-  # cli-session-data：由 architecture:adopt 登记
 
-  # session-lifecycle：由 architecture:adopt 登记
-  # workspace-mcp-trust：由 architecture:adopt 登记
-  # composer-edit-mode：由 architecture:adopt 登记
   - id: composer-edit-mode
     roots:
       - packages/ui/src/composer-edit-mode
@@ -320,8 +296,6 @@ modules:
       contract: contract.ts
       ui: .
     owner: conversation
-  # desktop-microphone-access：由 architecture:adopt 登记
-  # web-share-manage：由 architecture:adopt 登记
   # managed-worktree-tasks：只管理通用 worktree 展示所需 DTO，不提供服务或 descriptor。
   - id: managed-worktree-tasks
     roots: [packages/services/src/managed-worktree-tasks]
@@ -330,7 +304,6 @@ modules:
     publicEntrypoints: [packages/services/src/managed-worktree-tasks/contract.ts]
     layers: { app: . }
     owner: desktop
-  # managed-worktree-ui：由 architecture:adopt 登记
   - id: managed-worktree-ui
     roots:
       - packages/ui/src/managed-worktrees
@@ -383,7 +356,6 @@ modules:
       app: .
     owner: identity
 
-  # settings-search：由 architecture:adopt 登记
   - id: settings-search
     roots:
       - packages/ui/src/settings-search
@@ -396,7 +368,6 @@ modules:
     layers:
       ui: .
     owner: settings
-  # cli-memory-diagnostics：由 architecture:adopt 登记
   - id: mobile-ui
     roots: [packages/ui/src/components/mobile-ui]
     managed: true
@@ -406,7 +377,6 @@ modules:
       - packages/ui/src/components/mobile-ui/contract.ts
     layers: { ui: . }
     owner: ui
-  # aireq-contract：由 architecture:adopt 登记
   - id: aireq-contract
     roots:
       - packages/services/src/aireq
@@ -418,7 +388,6 @@ modules:
     layers:
       app: .
     owner: requirements
-  # aireq-mock：由 architecture:adopt 登记
   - id: aireq-mock
     roots:
       - packages/server/src/aireq
@@ -429,7 +398,6 @@ modules:
     layers:
       adapters: .
     owner: requirements
-  # aireq-ui：由 architecture:adopt 登记
   - id: aireq-ui
     roots:
       - packages/ui/src/aireq
@@ -450,7 +418,7 @@ global:
   forbidCycles: true
   forbidDeepImports: true
   managedOnly: true
-  # 浏览器公共面包含每个包的全部安全子入口；Node 专用入口显式排除，不能由 baseline 放行。
+  # 浏览器公共面包含每个包的全部安全子入口；Node 专用入口显式排除。
   browserScopes: [packages/ui/src, packages/web/src, packages/client/src]
   browserPackages:
     - "@zcode/ui"

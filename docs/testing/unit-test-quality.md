@@ -5,7 +5,7 @@
 | 前端 UT | `test/ut/`，独立验证 Web 前端函数与状态逻辑 | `bun run test:ut` | `bun run test:ut:typecheck` |
 | 后端 ST | `test/st/`，通过 HTTP、WebSocket 和 Channel RPC 验证已启动的后端服务 | `bun run test:st` | `bun run test:st:typecheck` |
 
-新增前端 UT 时更新[用例清单](../../scripts/engineering-test-files.json)。命令定义见[根工程配置](../../package.json)。
+前端 UT 从 `test/ut/*.test.ts` 自动发现，后端 ST 从 `test/st/*.test.ts` 独立发现。命令定义见[根工程配置](../../package.json)。
 
 UT 从消费者可观察的行为编写断言，通过可控 Promise 和公开事件安排时序。每例恢复替换的存储、计时器和监听。
 

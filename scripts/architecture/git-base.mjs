@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-
-import { gitFileNames } from "./git-file-names.mjs";
 
 const execFileAsync = promisify(execFile);
 const ZERO_SHA = /^0{40}$/;
@@ -23,26 +21,7 @@ async function hasCommit(cwd, ref) {
   );
 }
 
-function parsePrePushInput(text) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [localRef, localSha, remoteRef, remoteSha] = line.split(/\s+/);
-      return localRef && localSha && remoteRef && remoteSha
-        ? { localRef, localSha, remoteRef, remoteSha }
-        : null;
-    })
-    .filter(Boolean);
-}
-
-/**
- * 选择 --changed 的比较基线。
- * 修复原因：首版只用 `git diff HEAD`（工作树 vs HEAD）。CI 干净 checkout 与 pre-push 时改动
- * 已提交，差异为空，scoped 违规只剩 cycle 等 global 规则，门禁实际不工作。
- * 架构检查的选择顺序：显式 > CI 变量 > pre-push stdin > upstream > 默认分支 merge-base > HEAD。
- */
+// CI 的 checkout 可能已包含全部提交，需要选择实际的对比提交。
 export async function resolveDiffBase(
   cwd = process.cwd(),
   { explicit = null, env = process.env } = {},
@@ -53,11 +32,7 @@ export async function resolveDiffBase(
     const base = await gitOut(cwd, ["merge-base", "HEAD", ref]);
     return base ? { base, label: `merge-base ${label}` } : null;
   };
-  const explicitRef =
-    explicit ??
-    env.ZCODE_PRE_PUSH_BASE?.trim() ??
-    env.ZCODE_AFFECTED_TEST_BASE?.trim() ??
-    env.ARCHITECTURE_BASE?.trim();
+  const explicitRef = explicit ?? env.ARCHITECTURE_BASE?.trim();
   if (explicitRef) {
     const chosen = await pick(explicitRef, `explicit ${explicitRef}`, true);
     if (!chosen) throw new Error(`显式 base 不存在或不是 commit: ${explicitRef}`);
@@ -69,16 +44,6 @@ export async function resolveDiffBase(
     "CI_COMMIT_BEFORE_SHA",
   ]) {
     const chosen = await pick(env[key], `${key} ${env[key]}`);
-    if (chosen) return chosen;
-  }
-  const entries = parsePrePushInput(env.ZCODE_PRE_PUSH_STDIN ?? "");
-  if (entries.length > 0) {
-    const head = await gitOut(cwd, ["rev-parse", "HEAD"]);
-    const candidate =
-      entries.find((entry) => entry.localSha === head && !ZERO_SHA.test(entry.localSha)) ??
-      entries.find((entry) => !ZERO_SHA.test(entry.localSha));
-    const chosen =
-      candidate && (await pick(candidate.remoteSha, `pre-push remote ${candidate.remoteRef}`));
     if (chosen) return chosen;
   }
   const upstream = await gitOut(cwd, [
@@ -100,6 +65,35 @@ export async function resolveDiffBase(
     if (viaDefault) return viaDefault;
   }
   return { base: "HEAD", label: "HEAD (仅工作树差异；未找到远端基线)" };
+}
+
+function gitFileNames(cwd, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const files = [];
+    let pending = "";
+    let stderr = "";
+    // CI 持久缓存曾让 execFile 的 1 MiB 输出缓冲区溢出；流式消费路径，NUL 分隔避免转义和空白损坏。
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      const names = (pending + chunk).split("\0");
+      pending = names.pop() ?? "";
+      for (const name of names) if (name) files.push(name);
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(-16 * 1024);
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code !== 0) {
+        reject(new Error(`git ${args.join(" ")} failed (${signal ?? code}): ${stderr.trim()}`));
+        return;
+      }
+      if (pending) files.push(pending);
+      resolve(files);
+    });
+  });
 }
 
 export async function changedFilesFromGit(cwd = process.cwd(), { base = "HEAD" } = {}) {

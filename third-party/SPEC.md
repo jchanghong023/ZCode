@@ -73,7 +73,7 @@
 | ---- | --------------------------------------------------------- | -------------------------------------------------------------- |
 | Web  | 部署根目录 `THIRD-PARTY-NOTICES.md`，HTML `rel="license"` | `packages/web/vite.config.ts` 的 `thirdPartyNoticesVitePlugin` |
 
-Server 当前不单独复制声明，部署随 Web 根目录声明。Desktop、CLI、搜索工具与 SEA 的 staging 入口不属于当前发行链路。
+Web 部署根目录的声明同时覆盖随部署提供的服务端。退役发行格式的许可原文与来源继续归档。
 
 ## 验收
 

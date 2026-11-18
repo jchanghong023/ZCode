@@ -16,8 +16,9 @@ Web 入口负责浏览器装配和平台操作；UI 持有导航、草稿及服�
 | 检查当前变更及受影响的依赖方 | `bun run architecture:check --changed` |
 | 对指定提交比较 | `bun run architecture:check --changed --base <commit>` |
 | 策略或检查器变更 | `bun run architecture:check` |
-| 登记新的独立模块 | `bun run architecture:adopt <id> --root <dir> --layer <layer> --owner <owner>` |
 
 上下文命令默认列出相关文件路径。需要连同直接依赖的契约正文一起查看时加 `--full`。
 
-增量模式从 Git 取得本地差异和未跟踪文件，浏览器边界与包入口仍全量检查。新增文件按当前目录和依赖关系接受检查。业务验证见[前端 UT 与后端 ST](../testing/unit-test-quality.md)。
+新增受管模块时，在 `architecture-policy.yaml` 登记模块目录、依赖和公开入口，同步模块的 `module.ts` 与 `CONTRACT.md`，再运行全量检查。检查发现违规时返回非零退出码。
+
+增量模式从 Git 取得本地差异和未跟踪文件。比较基线依次取 `--base`、`ARCHITECTURE_BASE`、CI 提供的提交、上游或默认分支的共同祖先，最后回退到 `HEAD`。浏览器边界与包入口仍全量检查。新增文件按当前目录和依赖关系接受检查。业务验证见[前端 UT 与后端 ST](../testing/unit-test-quality.md)。

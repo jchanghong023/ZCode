@@ -121,7 +121,7 @@ function publicTarget(pkg, specifier) {
   return [];
 }
 
-/** 检查所有实际 workspace 包，不接受 changed 范围或 baseline 作为入口豁免。 */
+/** 检查所有实际 workspace 包，增量检查时也覆盖所有入口。 */
 export async function findMissingPackageEntrypoints(workspace) {
   const failures = [];
   const states = new Map();

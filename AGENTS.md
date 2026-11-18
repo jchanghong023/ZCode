@@ -21,7 +21,7 @@ AIReq 仅支持电脑浏览器；UI 验证使用桌面尺寸。按任务从[文�
 
 JavaScript／TypeScript 只用 `mise.toml` 固定的 Bun。`node:*` 与 `@types/node` 是兼容 API／类型，不要求 Node.js。依赖管理使用 `bun x --bun --package pnpm@10.33.2 pnpm <命令>`，不调用系统 pnpm／Corepack shim，不以 `bun install` 替代。
 
-启动与构建见[快速开始](README.md)，依赖诊断和清理见[依赖与清理](README.md#依赖与清理)。自动化测试分为前端 UT 和后端 ST，见[测试说明](docs/testing/unit-test-quality.md)。推送无需 pre-push 钩子或手动聚合检查。
+启动与构建见[快速开始](README.md)，依赖诊断和清理见[依赖与清理](README.md#依赖与清理)。自动化测试分为前端 UT 和后端 ST，见[测试说明](docs/testing/unit-test-quality.md)。
 
 ## 模块与接入
 

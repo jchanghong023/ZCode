@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { access, readFile, rm } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { runCommand, runCommandAndReadStdout } from "./spawn-command.mjs";
-import { clearHoistedPatchedDependencyTargets } from "./bootstrap-patched-dependencies.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
@@ -110,6 +110,41 @@ function assertExpectedArtifacts() {
     const relativePaths = missing.map((artifact) => relative(rootDir, resolve(rootDir, artifact)));
     throw new Error(`构建结束但产物缺失：${relativePaths.join(", ")}`);
   }
+}
+
+function resolvePatchedDependencyPackageName(key) {
+  const value = key.trim();
+  const match = value.startsWith("@")
+    ? value.match(/^(@[^/]+\/[^@]+)@/u)
+    : value.match(/^([^@]+)@/u);
+  if (!match?.[1]) {
+    throw new Error(`Invalid patched dependency key: ${key}`);
+  }
+  return match[1];
+}
+
+async function pathExists(path) {
+  return await access(path).then(
+    () => true,
+    () => false,
+  );
+}
+
+async function clearHoistedPatchedDependencyTargets({ rootDir, packageJsonPath }) {
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
+  const patchedDependencies = packageJson.pnpm?.patchedDependencies ?? {};
+  const packageNames = Object.keys(patchedDependencies).map(resolvePatchedDependencyPackageName);
+  const removed = [];
+  for (const packageName of packageNames) {
+    const target = join(rootDir, "node_modules", ...packageName.split("/"));
+    if (!(await pathExists(target))) continue;
+    // Bug 原因：pnpm 10 + node-linker=hoisted 会把 patch 直接应用到目标目录；下一次
+    // install 再对已 patch 内容应用同一 diff 并稳定失败。这里只清理可重建的依赖目标，
+    // 不碰 store 或用户文件，让 pnpm 从原包重新应用一次 patch。
+    await rm(target, { recursive: true, force: true });
+    removed.push(packageName);
+  }
+  return removed;
 }
 
 async function main() {

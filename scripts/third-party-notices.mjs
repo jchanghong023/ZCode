@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 export const repositoryRoot = resolve(import.meta.dirname, "..");
 export const noticesFileName = "THIRD-PARTY-NOTICES.md";
@@ -34,107 +34,6 @@ export async function readVerifiedNotices(root = repositoryRoot) {
     }
   }
   return bytes;
-}
-
-export async function stageThirdPartyNotices(directory, root = repositoryRoot) {
-  const bytes = await readThirdPartyNotices(root);
-  await mkdir(directory, { recursive: true });
-  await writeFile(resolve(directory, noticesFileName), bytes);
-}
-
-export async function readNodeNotices(version, root = repositoryRoot) {
-  // 当前 Web 发行不附带独立 Node 运行时；此入口只为仍在使用的历史打包流水线保留，
-  // 其原文来源登记在 third-party/runtime/sources.json，不进入根声明生成输入。
-  const normalized = version.replace(/^v/u, "");
-  const sources = JSON.parse(
-    await readFile(resolve(root, "third-party/runtime/sources.json"), "utf8"),
-  );
-  const source = sources.node.find((item) => item.version === normalized);
-  if (!source) throw new Error(`Missing Node ${normalized} license provenance`);
-  const bytes = await readFile(resolve(root, source.file));
-  return { source, bytes };
-}
-
-export async function stageNodeNotices(directory, version, root = repositoryRoot) {
-  const { source, bytes } = await readNodeNotices(version, root);
-  await mkdir(directory, { recursive: true });
-  // 修复：复用二进制缓存时也必须刷新声明；只复制 bin/node 会丢掉内嵌库条款。
-  await writeFile(resolve(directory, "LICENSE.node.txt"), bytes);
-  await writeFile(resolve(directory, "NODE-SOURCES.json"), `${JSON.stringify(source, null, 2)}\n`);
-  return resolve(directory, "LICENSE.node.txt");
-}
-
-// 原生搜索工具不随当前 Web 发行；这些入口与 sources.json 只为保留历史打包材料与
-// 尚未删除的流水线调用而存在，根声明生成不再消费它们。
-export async function readNativeSearchNotices(root = repositoryRoot, { verify = false } = {}) {
-  const inventoryPath = resolve(root, "third-party/native-search/sources.json");
-  const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));
-  // 原生材料生成时显式核验；准备缓存、构建和打包不把过期登记当作门禁。
-  if (verify) {
-    for (const [file, expected] of Object.entries(inventory.inputs)) {
-      if (hash(await readFile(resolve(root, file))) !== expected)
-        throw new Error(`Native license versions changed: ${file}`);
-    }
-  }
-  const records = new Map();
-  for (const component of inventory.components) {
-    for (const notice of component.notices) {
-      const bytes = await readFile(resolve(root, notice.file));
-      const sha256 = hash(bytes);
-      if (verify && sha256 !== notice.sha256)
-        throw new Error(`Changed native notice: ${notice.file}`);
-      const record = records.get(sha256) ?? { bytes, components: new Set() };
-      record.components.add(`${component.id} ${component.version ?? ""}`.trim());
-      records.set(sha256, record);
-    }
-  }
-  const parts = [
-    "NATIVE SEARCH THIRD-PARTY NOTICES\n",
-    inventory.scope,
-    "Ripgrep is available under MIT or Unlicense. Zstd uses its BSD alternative. GCC runtime portions use GPL-3.0 with the GCC Runtime Library Exception 3.1. These component licenses do not relicense the application.",
-    "Exact archive checksums, source URLs and notice hashes are recorded in SOURCES.json beside this file.",
-  ];
-  for (const record of records.values()) {
-    parts.push(
-      `\n===== ${[...record.components].join("; ")} =====\n`,
-      record.bytes.toString("utf8"),
-    );
-  }
-  return { inventory, bytes: Buffer.from(`${parts.join("\n\n")}\n`) };
-}
-
-export async function stageNativeSearchNotices(
-  plan,
-  root = repositoryRoot,
-  { builtFromSource = false, origin } = {},
-) {
-  // 内网镜像与仓库归档是同一 SHA-256 的输入字节，来源标签由调用方如实记录；默认仍为仓库归档。
-  const binaryOrigin = origin ?? (builtFromSource ? "source-build" : "repository-archive");
-  const { inventory, bytes } = await readNativeSearchNotices(root);
-  for (const artifact of plan.artifacts) {
-    const directory = dirname(artifact.binaryPath);
-    // 缓存命中也重写通知，避免旧二进制缓存继续缺失版权材料。
-    await writeFile(resolve(directory, "THIRD-PARTY-NOTICES.txt"), bytes);
-    await writeFile(
-      resolve(directory, "SOURCES.json"),
-      JSON.stringify(
-        {
-          ...inventory,
-          archiveChecksumScope:
-            "The archives list records repository binary inputs. Repackaged outputs containing these notices have different archive checksums; the binary below identifies this distribution.",
-          binary: {
-            toolId: artifact.toolId,
-            version: artifact.version,
-            sha256: hash(await readFile(artifact.binaryPath)),
-            origin: binaryOrigin,
-            ...(!builtFromSource ? { sourceArchiveSha256: artifact.archiveSha256 } : {}),
-          },
-        },
-        null,
-        2,
-      ) + "\n",
-    );
-  }
 }
 
 export function thirdPartyNoticesVitePlugin(root = repositoryRoot) {
