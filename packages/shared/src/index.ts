@@ -166,7 +166,6 @@ export {
 export type {
   ArmsCustomEventPayload,
   FinalArmsCustomEventPayload,
-  MobilePluginDiscoveryTelemetry,
   RendererTelemetryEventPayload,
   TelemetryEventPayload,
   TelemetryRendererContext,
@@ -175,7 +174,6 @@ export type {
 } from "./telemetry.js";
 export {
   PLUGIN_TELEMETRY_EVENTS,
-  mobilePluginDiscoveryTelemetrySchema,
   sanitizePluginTelemetryDetail,
   collectTelemetryRendererContext,
   normalizeTelemetryUiMode,
@@ -308,13 +306,11 @@ export * from "./skills-types.js";
 export * from "./skill-sync.js";
 export * from "./mcp-sync.js";
 export * from "./remote-sync.js";
-export * from "./plugin-types.js";
 export * from "./subagents-types.js";
 export * from "./settings-source.js";
 export * from "./settings-errors.js";
 export * from "./app-runtime-preferences.js";
 export * from "./command-types.js";
-export * from "./plugin-marketplaces.js";
 export * from "./lineChangeStat.js";
 export * from "./process-names.js";
 export * from "./mcp.js";
@@ -387,7 +383,6 @@ export * from "./conversationSelection.js";
 export * from "./attachment-source.js";
 
 export * from "./channel-mention.js";
-export * from "./plugin-store-visibility.js";
 
 export {
   requestSecuritySensitiveHeaders,

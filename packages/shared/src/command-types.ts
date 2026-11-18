@@ -28,7 +28,6 @@ export interface PluginCommand extends Omit<CommandInfo, "filePath"> {
   source: "plugin";
   enabled: boolean;
   pluginName: string;
-  pluginMarketplace: string;
   pluginEnabled: boolean;
   scope: "global";
   filePath: string;

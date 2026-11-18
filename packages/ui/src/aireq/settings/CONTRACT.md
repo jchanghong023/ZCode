@@ -12,4 +12,4 @@
 
 Skill 无设置／搜索入口，但保留草稿动作接入门禁；保存提示只依据正式收据。正文复用原生 SettingsFrame 内容列，补充说明与明细通过原生 details 收拢，控件与提交规则不受影响。
 
-完整规则见 `docs/specs/aireq-migration/tools-settings.md`；公开契约及部署边界见 `contract-design.md` 与 `release-surface.md`。
+完整规则见 `docs/specs/aireq-migration/tools-settings.md`；公开契约及发布边界见 `contract-design.md`。

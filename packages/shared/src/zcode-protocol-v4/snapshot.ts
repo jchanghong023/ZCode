@@ -1,7 +1,6 @@
 /* oxlint-disable max-lines -- v4 snapshot schema is a frozen cross-process contract; additions stay grouped here. */
 // ConversationSnapshot A 区。
 // A 区更新语义 = 字段级整体替换（state.updated），绝不深合并——深合并是错乱之母。
-import { pluginInstallRequestPayloadSchema } from "./pluginInstall.js";
 import { z } from "zod";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
 export { sharedContextImportStateSchema } from "./shared-context-import.js";
@@ -340,6 +339,64 @@ export const interactionAutoResolutionSchema = z.discriminatedUnion("state", [
   }),
 ]);
 export type InteractionAutoResolution = z.infer<typeof interactionAutoResolutionSchema>;
+
+// 旧会话可包含此类记录，仅供快照解码。
+const PLUGIN_LOCALIZED_LIMITS = {
+  entries: 16,
+  keyLength: 64,
+  textLength: 4_000,
+  textBytes: 4_096,
+  mapBytes: 24 * 1_024,
+} as const;
+
+const encoder = new TextEncoder();
+const jsonBytes = (value: unknown) => encoder.encode(JSON.stringify(value)).byteLength;
+const localized = z
+  .record(
+    z.string().min(1).max(PLUGIN_LOCALIZED_LIMITS.keyLength),
+    z
+      .string()
+      .max(PLUGIN_LOCALIZED_LIMITS.textLength)
+      .refine(
+        (value) =>
+          value.length <= PLUGIN_LOCALIZED_LIMITS.textLength &&
+          jsonBytes(value) <= PLUGIN_LOCALIZED_LIMITS.textBytes,
+        "Localized text exceeds its encoded byte budget",
+      ),
+  )
+  .refine(
+    (value) =>
+      Object.keys(value).length <= PLUGIN_LOCALIZED_LIMITS.entries &&
+      jsonBytes(value) <= PLUGIN_LOCALIZED_LIMITS.mapBytes,
+    "Localized map exceeds its entry or encoded byte budget",
+  );
+const pluginInstallRequestPayloadSchema = z
+  .object({
+    kind: z.literal("pluginInstall"),
+    pluginId: z
+      .string()
+      .max(256)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*@zcode-plugins-official$/u)
+      .refine(
+        (id) =>
+          ![
+            "node-repl-host@zcode-plugins-official",
+            "restore-legacy-sessions@zcode-plugins-official",
+          ].includes(id),
+      ),
+    name: z.string().max(256),
+    displayName: z.string().max(512).optional(),
+    displayNameI18n: localized.optional(),
+    description: z.string().max(4_000).optional(),
+    descriptionI18n: localized.optional(),
+    icon: z.string().max(2_048).optional(),
+    reason: z.string().trim().min(1).max(2_000),
+    action: z.enum(["install", "enable"]),
+    // install/workspace 明确授权安装并启用当前工作区；保留历史 install/user 载荷。
+    scope: z.enum(["user", "workspace"]),
+    toolCallId: z.string(),
+  })
+  .strict();
 
 export const pendingInteractionSchema = z
   .object({

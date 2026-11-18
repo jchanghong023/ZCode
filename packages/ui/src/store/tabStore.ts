@@ -323,7 +323,7 @@ export function createTabStore(storage: StorageLike | null | undefined = undefin
               : state.tabs.map((tab) => (tab.id === existing.id ? merged : tab)),
           activeTabId: existing.id,
           activeWorkspacePath: existing.workspacePath,
-          // Settings 页的插件管理要按“最近激活 workspace”的 identity 继续命中同一远端。
+          // 设置页按“最近激活 workspace”的 identity 继续命中同一远端。
           // 之前这里只保存路径，切到 settings tab 后 identity 会丢失，导致同路径远端隔离失效。
           activeWorkspaceIdentity: options?.workspaceIdentity ?? existing.workspaceIdentity ?? null,
           expandedWorkspacePaths: ensureWorkspaceExpanded(

@@ -196,12 +196,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     visibility: "all",
   },
   {
-    id: "settings.pluginAutoRecommendation",
-    section: "agentBehavior",
-    description: "settings.pluginAutoRecommendationDescription",
-    visibility: "all",
-  },
-  {
     id: "chat.officeSuggestions.setting",
     section: "general",
     description: "chat.officeSuggestions.settingDescription",

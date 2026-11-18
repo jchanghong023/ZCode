@@ -105,19 +105,12 @@ function pendingInteractionPayload(params: {
 
   // workspace Hook review 的唯一入口是 Settings；不得把它伪装成
   // permission/elicitation 系统通知。
-  if (interaction.payload.kind === "workspaceHookReview") {
+  if (
+    interaction.payload.kind === "workspaceHookReview" ||
+    interaction.payload.kind === "pluginInstall"
+  ) {
     return null;
   }
-  if (interaction.payload.kind === "pluginInstall") {
-    return {
-      taskId,
-      status: "elicitation_request",
-      requestId,
-      title: formatMessage({ id: "plugin.discovery.confirmTitle" }),
-      body: interaction.payload.reason,
-    };
-  }
-
   if (interaction.payload.kind === "permission") {
     return {
       taskId,

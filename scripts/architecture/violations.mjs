@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { isException, isSourceFile, moduleForFile, posix } from "./policy.mjs";
+import { posix } from "./policy.mjs";
 
 function fingerprint(rule, file, detail = "") {
   return createHash("sha256").update(`${rule}\0${file}\0${detail}`).digest("hex").slice(0, 16);
@@ -75,39 +75,4 @@ export function cycleViolations(edges, policy, modulesByFile, cwd) {
     );
   }
   return [...unique.values()];
-}
-
-const TEST_LIKE =
-  /(\.(test|spec|stories)\.[cm]?[jt]sx?|\.d\.ts)$|(^|\/)(test|tests|__tests__|e2e|__mocks__|fixtures|scripts)\//;
-
-/**
- * unmanaged-new-file：新增源码文件必须属于 managed 模块。
- * 修复原因：首版 `managedOnly: true` 下，新文件只要写进 legacy 根目录（如 packages/ui/src/）就
- * 跳过全部规则，"新代码走这套约束"没有任何机械保证；实测在 ui 根目录新建文件深导入
- * services 实现，0 违规。测试、类型声明与测试目录不在此列，避免把测试也逼进 managed 模块。
- */
-export function unmanagedNewFileViolations(addedFiles, policy, cwd) {
-  if (!policy.global.newFilesRequireManagedModule) return [];
-  const violations = [];
-  for (const relative of addedFiles) {
-    const normalized = posix(relative);
-    if (!isSourceFile(normalized) || TEST_LIKE.test(normalized)) continue;
-    if (!policy.global.newFileScopes.some((scope) => normalized.startsWith(`${scope}/`))) continue;
-    if (isException(policy, "unmanaged-new-file", path.resolve(cwd, relative), cwd)) continue;
-    const module = moduleForFile(path.resolve(cwd, relative), policy);
-    if (module?.managed) continue;
-    violations.push(
-      violation({
-        cwd,
-        rule: "unmanaged-new-file",
-        file: path.resolve(cwd, relative),
-        detail: module?.id ?? "unregistered",
-        module,
-        message: module
-          ? `新文件落在未受管模块 ${module.id}；请放入 managed 模块，或用 pnpm architecture:adopt <id> --root <dir> 为它所在目录登记模块`
-          : "新文件不属于任何已登记模块；请用 pnpm architecture:adopt <id> --root <dir> 登记后再提交",
-      }),
-    );
-  }
-  return violations;
 }

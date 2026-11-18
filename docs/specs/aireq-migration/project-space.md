@@ -52,7 +52,7 @@ AIReqContext 统一持有当前页面、项目、Release、目标 IR／SR 和浏
 
 业务提交后事件通知重读，读取代际拒绝迟到响应。首次加载提供错误与重试，后台重读保留已有内容、滚动和布局，不清空尚未处理的提交错误。刷新和重连不重放写入。
 
-运行与外部集成边界见[后端运行说明](../../architecture/mock-backend.md)，公开接口边界见[发布边界](release-surface.md)。
+运行与外部集成边界见[后端运行说明](../../architecture/mock-backend.md)，公开接口边界见[发布边界](contract-design.md#发布边界)。
 
 ## 事实来源
 

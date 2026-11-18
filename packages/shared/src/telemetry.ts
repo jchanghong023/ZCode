@@ -6,15 +6,7 @@ const pluginDimensionEnums: Record<string, readonly string[]> = {
   result: ["success", "failure", "cancelled", "noop", "partial"],
   source_type: ["builtin", "official_cdn", "personal", "unknown"],
   publisher_type: ["official", "community", "unknown"],
-  entry: [
-    "store_list",
-    "store_detail",
-    "side_pane_market",
-    "recommended_prompt",
-    "recommended_ui",
-    "component_settings",
-    "unknown",
-  ],
+  entry: ["recommended_prompt", "recommended_ui", "component_settings", "unknown"],
   trigger: ["user", "dependency", "automatic", "restore", "sync"],
   scope: ["user", "workspace", "unknown"],
   client_kind: ["desktop", "mobile", "unknown"],
@@ -45,13 +37,7 @@ const pluginDimensionEnums: Record<string, readonly string[]> = {
     "ui_tool_call",
   ],
 };
-const pluginIdentifierKeys = new Set([
-  "plugin_id",
-  "marketplace",
-  "version_before",
-  "version_after",
-  "batch_id",
-]);
+const pluginIdentifierKeys = new Set(["plugin_id", "version_before", "version_after", "batch_id"]);
 const pluginNumericKeys = new Set(["duration_ms", "target_count", "result_count"]);
 export const PLUGIN_TELEMETRY_EVENTS = [
   "plugin_lifecycle",
@@ -77,40 +63,6 @@ export function sanitizePluginTelemetryDetail(
     }),
   );
 }
-
-/** 手机只转发发现行为；管理结果由同一个 Desktop Host 产生。 */
-export const mobilePluginDiscoveryTelemetrySchema = z
-  .object({
-    elementName: z.literal("plugin_discovery"),
-    eventRegion: z.literal("app"),
-    eventType: z.literal("view"),
-    context: z
-      .object({
-        clientTimezone: z.string().max(128),
-        clientLanguage: z.string().max(128),
-        screenResolution: z.string().max(64),
-      })
-      .strict(),
-    eventExtraDetail: z
-      .object({
-        schema_version: z.literal("1"),
-        action: z.enum(["store_view", "detail_view", "search"]),
-        entry: z.enum(["store_list", "store_detail", "side_pane_market"]),
-        client_kind: z.literal("mobile"),
-        plugin_id: z
-          .string()
-          .regex(/^[A-Za-z0-9@._+:-]+$/)
-          .max(256)
-          .optional(),
-        result_count: z
-          .string()
-          .regex(/^\d{1,15}$/)
-          .optional(),
-      })
-      .strict(),
-  })
-  .strict();
-export type MobilePluginDiscoveryTelemetry = z.infer<typeof mobilePluginDiscoveryTelemetrySchema>;
 
 export const telemetryUiModeSchema = z.enum(["work", "code", "unknown"]);
 export type TelemetryUiMode = z.infer<typeof telemetryUiModeSchema>;

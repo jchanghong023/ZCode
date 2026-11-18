@@ -430,8 +430,6 @@ export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
 // ── 信封 ──
 export const commandEnvelopeSchema = z.strictObject({
   workspace: v4ColdResumeWorkspaceSchema,
-  /** 仅 Host 根据当前附件握手注入；未知 CLI 不发送。 */
-  pluginDiscoveryUi: z.literal(true).optional(),
   /** Host 可信 attachment 注入；CLI 保留到原 input intent。 */
   inputOrigin: z.enum(["desktop", "mobile"]).optional(),
   ttft: localTtftContextSchema.optional(),

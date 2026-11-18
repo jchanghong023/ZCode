@@ -109,18 +109,6 @@ export const BUILTIN_ZCODE_SLASH_COMMAND_HELP_ENTRIES: readonly BuiltinZCodeSlas
       usage: "/mcp [list|status|connect <server>|disconnect <server>]",
     },
     {
-      aliases: ["plugin"],
-      details: [
-        "Opens a TUI plugin panel when called without arguments.",
-        "Rows show ✓ for enabled plugins and ○ for disabled plugins.",
-        "Use enable or disable with a plugin id to persist the switch in user config.",
-        "Plugin capability changes apply to new sessions.",
-      ],
-      name: "plugins",
-      summary: "Open the plugin manager.",
-      usage: "/plugins [list|enable <plugin>|disable <plugin>]",
-    },
-    {
       details: [
         "Shows the current permission mode when submitted without arguments.",
         "Interactive TUI composer input opens a local picker before submit.",

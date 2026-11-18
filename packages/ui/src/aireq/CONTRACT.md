@@ -32,4 +32,4 @@ Web 连接、AIReq identity、v4 握手和命令信封使用同一 clientId。�
 
 Footer 业务桥复用通用 footer 的展示端口，仅提供当前工号、切换、帮助和主题等辅助工具；不挂载旧账户交易菜单，不消费后端来源元数据。页面共用居中内容列与主题 token。工具错误展示安全正文，不把错误码当用户文案；MR 平台核验只读取正式布尔事实，不由状态或链接推断。
 
-业务规格见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`、`project-space.md`、`proposals.md`、`tracking.md` 与 `tools-settings.md`。公开服务边界见 `contract-design.md`；部署限制集中于 `release-surface.md` 与 `docs/architecture/mock-backend.md`。
+业务规格见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`、`project-space.md`、`proposals.md`、`tracking.md` 与 `tools-settings.md`。公开服务边界见 `contract-design.md`；部署限制见 `docs/architecture/mock-backend.md`。

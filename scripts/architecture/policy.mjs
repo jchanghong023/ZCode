@@ -3,7 +3,6 @@ import path from "node:path";
 import ts from "typescript";
 import { parse as parseYaml } from "yaml";
 import { SOURCE_EXTENSIONS, resolveSpecifier } from "./resolver.mjs";
-import { isSnapshotPath } from "./upstream-snapshot.mjs";
 
 export { SOURCE_EXTENSIONS };
 
@@ -69,44 +68,12 @@ function validatePolicy(raw, cwd) {
     forbidDeepImports: raw.global?.forbidDeepImports !== false,
     managedOnly: raw.global?.managedOnly !== false,
     maxPublicMethods: raw.global?.maxPublicMethods ?? 12,
-    // 新增源码文件必须落在 managed 模块内；这是"新代码走这套约束"的唯一机械保证。
-    newFilesRequireManagedModule: raw.global?.newFilesRequireManagedModule !== false,
-    newFileScopes: raw.global?.newFileScopes ?? ["packages", "apps"],
-    // 规则生效时间点：首次进入 git 历史早于该日期的文件不受 unmanaged-new-file 追溯。
-    // 原因：长期分支相对 merge-base 有几百个提交的"新增"文件，它们写在规则存在之前；
-    // 用共享 baseline 兜会让各分支互相冲突，用生效日期则各分支一致且无需登记。
-    newFilesEnforcedSince: raw.global?.newFilesEnforcedSince
-      ? String(raw.global.newFilesEnforcedSince)
-      : null,
-    acceptedUpstreamCommits: raw.global?.acceptedUpstreamCommits ?? [],
-    acceptedUpstreamSnapshot: raw.global?.acceptedUpstreamSnapshot ?? null,
     // 原因：浏览器安全面与 Node 专属面由策略统一声明，不能在检查器中另存拓扑。
     browserScopes: raw.global?.browserScopes ?? [],
     browserPackages: raw.global?.browserPackages ?? [],
     nodeEntrypoints: raw.global?.nodeEntrypoints ?? [],
     nativePackages: raw.global?.nativePackages ?? [],
   };
-  if (
-    !Array.isArray(global.acceptedUpstreamCommits) ||
-    global.acceptedUpstreamCommits.some(
-      (entry) =>
-        !entry ||
-        !/^[a-f0-9]{40}$/.test(entry.commit ?? "") ||
-        !/^[a-f0-9]{40}$/.test(entry.previousHead ?? "") ||
-        typeof entry.reason !== "string" ||
-        !entry.reason.trim(),
-    )
-  ) {
-    throw new Error("acceptedUpstreamCommits 必须包含完整 commit、previousHead SHA 和非空 reason");
-  }
-  if (
-    global.acceptedUpstreamSnapshot !== null &&
-    (!isSnapshotPath(global.acceptedUpstreamSnapshot) || global.acceptedUpstreamCommits.length)
-  ) {
-    throw new Error(
-      "acceptedUpstreamSnapshot 必须为仓库相对路径，且不能与 acceptedUpstreamCommits 混用",
-    );
-  }
   const exceptions = (raw.exceptions ?? []).map((exception) => ({
     ...exception,
     paths: exception.paths ?? [],

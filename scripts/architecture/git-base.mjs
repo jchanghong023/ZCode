@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { selectDefaultBranchRef } from "./default-branch.mjs";
-import { gitAddedFilesSince, gitFileNames } from "./git-file-names.mjs";
-import { applyUpstreamAdmission } from "./upstream-admission.mjs";
+import { gitFileNames } from "./git-file-names.mjs";
 
 const execFileAsync = promisify(execFile);
 const ZERO_SHA = /^0{40}$/;
@@ -91,27 +89,16 @@ export async function resolveDiffBase(
   ]);
   const viaUpstream = upstream && (await pick(upstream, `upstream ${upstream}`, true));
   if (viaUpstream) return viaUpstream;
-  // 架构检查优先 origin/staging，其次 origin/HEAD；
-  // 否则长期分支会把 staging 尚未合入 main 的历史差异误算成本分支新增。
-  const originHead =
-    (await gitOut(cwd, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])) ?? null;
-  const existing = new Set();
-  for (const ref of [
-    "origin/staging",
-    originHead,
-    "origin/main",
-    "origin/master",
-    "main",
-    "master",
-  ]) {
-    if (ref && (await hasCommit(cwd, ref))) existing.add(ref);
+  const originHead = await gitOut(cwd, [
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "refs/remotes/origin/HEAD",
+  ]);
+  for (const ref of new Set([originHead, "origin/main", "origin/master", "main", "master"])) {
+    const viaDefault = await pick(ref, ref, true);
+    if (viaDefault) return viaDefault;
   }
-  const ref = selectDefaultBranchRef({
-    originHead,
-    hasCommit: (candidate) => existing.has(candidate),
-  });
-  const viaDefault = ref && (await pick(ref, ref, true));
-  if (viaDefault) return viaDefault;
   return { base: "HEAD", label: "HEAD (仅工作树差异；未找到远端基线)" };
 }
 
@@ -121,38 +108,4 @@ export async function changedFilesFromGit(cwd = process.cwd(), { base = "HEAD" }
     gitFileNames(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
   ]);
   return [...new Set([...diff, ...untracked])];
-}
-
-/**
- * 相对 base 新增的文件（含未跟踪）。传入 since 时，只保留"首次进入历史晚于 since"的已跟踪文件，
- * 未跟踪文件永远算新增。since 为空则不过滤。
- */
-export async function addedFilesFromGit(
-  cwd = process.cwd(),
-  {
-    base = "HEAD",
-    since = null,
-    acceptedUpstreamCommits = [],
-    acceptedUpstreamSnapshot = null,
-  } = {},
-) {
-  const [added, untracked] = await Promise.all([
-    gitFileNames(cwd, ["diff", "--name-only", "-z", "--diff-filter=A", base]),
-    gitFileNames(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
-  ]);
-  const untrackedSet = new Set(untracked);
-  let enforced = added;
-  let recent = null;
-  if (since) {
-    recent = new Set(await gitAddedFilesSince(cwd, { since }));
-    enforced = added.filter((file) => untrackedSet.has(file) || recent.has(file));
-  }
-  return applyUpstreamAdmission(cwd, {
-    base,
-    candidates: [...new Set([...enforced, ...untracked])],
-    untracked,
-    admissions: acceptedUpstreamCommits,
-    snapshotPath: acceptedUpstreamSnapshot,
-    eligibleHistoryFiles: recent,
-  });
 }

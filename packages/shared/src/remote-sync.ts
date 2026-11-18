@@ -25,15 +25,7 @@ export type DataSyncBlockedReason =
   /** 目标端同名 inline 插件不在 `~/.zcode/plugins` 下（例如开发中的 checkout）。 */
   | "external-directory"
   /** 目标端整类不能导入：远端实际生效的是 `~/.agents` 兼容配置（MCP），推送会使其失效。 */
-  | "target-compat-config"
-  /** marketplace 插件：本机来源已删除（Orphaned Installed Plugin）。 */
-  | "source-removed"
-  /** marketplace 插件：远端来源的最新版本与本机版本不一致，不能更新。 */
-  | "remote-latest-mismatch"
-  /** marketplace 插件：本地目录类来源镜像不支持跨 marketplace 的依赖。 */
-  | "cross-marketplace-dependency"
-  /** marketplace 插件：来源类型（如 npm）不支持同步。 */
-  | "unsupported-source";
+  | "target-compat-config";
 
 /** 轻量签名：文件数 + 总字节。不同即判为内容不同，相同时才计算全量哈希。 */
 export interface DataSyncItemSignature {
@@ -61,14 +53,6 @@ export interface DataSyncListItem {
   key: string;
   name: string;
   description?: string;
-  /** 插件分类：Plugin id（`name@marketplace`，保留大小写）。 */
-  pluginId?: string;
-  /** 只有带可靠版本来源的条目才有（例如商店安装元数据）。 */
-  version?: string;
-  /** 只按版本比较（marketplace 插件）：版本相同即已同步，不计算内容哈希。 */
-  versionOnly?: boolean;
-  /** 作为目标时：该条目来源当前能安装的最新版本（marketplace 插件取该端 catalog 中的版本）。 */
-  latestVersion?: string;
   signature?: DataSyncItemSignature;
   /** JSON 类条目哈希很便宜，可以直接在 list 中返回；目录类留空，按需调用 contentHashes。 */
   contentHash?: string;

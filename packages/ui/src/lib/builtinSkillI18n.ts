@@ -22,7 +22,6 @@ const OFFICIAL_BUILTIN_PLUGIN_NAMES = new Set([
   "ios-simulator",
   "restore-legacy-sessions",
   "skill-creator",
-  "plugin-creator",
   "superpowers",
   "zcode-guide",
 ]);
@@ -41,7 +40,6 @@ const OFFICIAL_PLUGIN_PATH_MARKERS = [
   "/ios-simulator-plugin/",
   "/restore-legacy-sessions-plugin/",
   "/skill-creator-plugin/",
-  "/plugin-creator-plugin/",
   "/superpowers-plugin/",
   "/zcode-guide-plugin/",
 ];
@@ -141,10 +139,6 @@ const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<"zh-CN" | "en-US", strin
     "zh-CN": "检查、规划或执行 ACP 时代 ZCode 旧 session 恢复到新的 ZCode 任务与会话库。",
     "en-US":
       "Inspect, plan, or restore old ACP-era ZCode sessions into the new ZCode task and session stores.",
-  },
-  "plugin-creator": {
-    "zh-CN": "创建、校验 ZCode 插件，并指导本地安装与更新。",
-    "en-US": "Create and validate ZCode plugins, and guide local installation and updates.",
   },
   "skill-creator": {
     "zh-CN":

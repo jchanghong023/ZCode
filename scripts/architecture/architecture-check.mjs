@@ -1,12 +1,10 @@
 #!/usr/bin/env bun
 import {
-  addedFilesFromGit,
   checkArchitecture,
   changedFilesFromGit,
   formatMarkdownReport,
   formatReport,
   generateContext,
-  loadPolicy,
   resolveDiffBase,
   updateBaseline,
 } from "./index.mjs";
@@ -26,8 +24,8 @@ function options(name) {
 
 if (command === "context") {
   const moduleId = args[1];
-  if (!moduleId) throw new Error("用法: pnpm architecture:context <module-id>");
-  console.log(await generateContext({ cwd, moduleId }));
+  if (!moduleId) throw new Error("用法: bun run architecture:context <module-id>");
+  console.log(await generateContext({ cwd, moduleId, full: args.includes("--full") }));
   process.exit(0);
 }
 
@@ -36,7 +34,7 @@ if (command === "adopt") {
   const roots = options("--root");
   if (!id || roots.length === 0) {
     throw new Error(
-      "用法: pnpm architecture:adopt <module-id> --root <dir> [--root <dir2>] [--layer domain|app|adapters|ui] [--owner <group>] [--requires a,b]",
+      "用法: bun run architecture:adopt <module-id> --root <dir> [--root <dir2>] [--layer domain|app|adapters|ui] [--owner <group>] [--requires a,b]",
     );
   }
   const summary = await adoptModule({
@@ -56,30 +54,20 @@ if (command === "adopt") {
       `roots: ${summary.roots.join(", ")}`,
       `requires: ${summary.requires.join(", ") || "none"}`,
       `created: ${summary.created.join(", ") || "none"}`,
-      "next: 填写 contract.ts 与 CONTRACT.md，运行 pnpm architecture:check -- --changed",
+      "next: 填写 contract.ts 与 CONTRACT.md，运行 bun run architecture:check --changed",
     ].join("\n"),
   );
   process.exit(0);
 }
 
 let changed = null;
-let added = null;
 let baseLabel = null;
 if (args.includes("--changed")) {
   const { base, label } = await resolveDiffBase(cwd, { explicit: option("--base") ?? null });
   baseLabel = label;
-  const { global } = await loadPolicy(cwd);
-  [changed, added] = await Promise.all([
-    changedFilesFromGit(cwd, { base }),
-    addedFilesFromGit(cwd, {
-      base,
-      since: global.newFilesEnforcedSince,
-      acceptedUpstreamCommits: global.acceptedUpstreamCommits,
-      acceptedUpstreamSnapshot: global.acceptedUpstreamSnapshot,
-    }),
-  ]);
+  changed = await changedFilesFromGit(cwd, { base });
 }
-const result = await checkArchitecture({ cwd, changedFiles: changed, addedFiles: added });
+const result = await checkArchitecture({ cwd, changedFiles: changed });
 
 if (command === "baseline:update") {
   const entries = await updateBaseline({

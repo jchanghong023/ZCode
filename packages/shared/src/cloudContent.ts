@@ -79,7 +79,7 @@ const action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dismiss_content") }),
   z.object({
     type: z.literal("navigate"),
-    destination: z.enum(["model_settings", "plugin_store", "settings"]),
+    destination: z.enum(["model_settings", "settings"]),
   }),
   z.object({ type: z.literal("copy_text"), text: z.string().max(20000) }),
   z.object({ type: z.literal("open_external"), url }),

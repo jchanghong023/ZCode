@@ -37,7 +37,6 @@ export const hostCapabilitiesSchema = z.object({
    * `state.updated`，并且先经 `clampWorkflowRunsForLegacy` 裁到旧界。
    */
   workflowRunDeltas: z.boolean().optional(),
-  pluginDiscovery: z.boolean().optional(),
   historyFirst: z.boolean().optional(),
   /**
    * 本 Host 开启并转发 `v4/conversation/inputPrediction`。旧 Host 缺失等价于 false，
@@ -93,7 +92,6 @@ export const clientHelloSchema = z
          * 是 `.strict()` 的，老 Host 见到不认识的键会整条 clientHello 解析失败、连接握不上手。
          */
         workflowRunDeltas: z.boolean().optional(),
-        pluginDiscoveryUi: z.boolean().optional(),
         historyFirst: z.boolean().optional(),
       })
       .strict()
@@ -456,7 +454,6 @@ export const v4ConversationSubscribeParamsSchema = subscribeParamsSchema.extend(
    * 不是某一次订阅可以自选的口味。缺席 = 按旧消费者处理（整键 patch + 旧界裁剪）。
    */
   workflowRunDeltas: z.boolean().optional(),
-  pluginDiscoveryUi: z.boolean().optional(),
   historyFirst: z.boolean().optional(),
 });
 export type V4ConversationSubscribeParams = z.infer<typeof v4ConversationSubscribeParamsSchema>;

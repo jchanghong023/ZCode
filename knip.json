@@ -22,8 +22,6 @@
         "src/zcode-protocol-v4/input-prediction/contract.ts",
         "src/zcode-protocol-v4/context-composition/contract.ts",
         "src/zcode-protocol/plugin-host-queries/contract.ts",
-        "src/plugin-store-visibility.ts",
-        "src/zcode-protocol-v4/pluginInstall.ts",
         "src/request-security-edition/policy.ts",
         "src/request-security-edition/verification-policy.ts",
         "src/local-ttft/contract.ts",

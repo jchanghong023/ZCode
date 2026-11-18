@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { discoverFiles, loadPolicy, moduleForFile, posix } from "./policy.mjs";
 
-export async function generateContext({ cwd = process.cwd(), moduleId }) {
+export async function generateContext({ cwd = process.cwd(), moduleId, full = false }) {
   const policy = await loadPolicy(cwd);
   const module = policy.modules.find((item) => item.id === moduleId);
   if (!module) throw new Error(`未知模块: ${moduleId}`);
@@ -23,18 +23,6 @@ export async function generateContext({ cwd = process.cwd(), moduleId }) {
     )
   ).filter(Boolean);
   const contractDoc = contractDocs[0];
-  const dependencyContracts = module.requires.flatMap((dependencyId) => {
-    const dependencyFiles = files.filter(
-      (file) => moduleForFile(file, policy)?.id === dependencyId,
-    );
-    return dependencyFiles.filter((file) => path.basename(file) === "contract.ts");
-  });
-  const inline = async (file) => {
-    const relative = posix(path.relative(cwd, file));
-    const body = await fs.readFile(file, "utf8");
-    const fence = file.endsWith(".md") ? "" : "```ts\n";
-    return [`### ${relative}`, "", `${fence}${body.trimEnd()}\n${fence ? "```" : ""}`, ""];
-  };
   const sections = [
     `# Architecture context: ${module.id}`,
     `owner: ${module.owner ?? "unassigned"}`,
@@ -48,6 +36,22 @@ export async function generateContext({ cwd = process.cwd(), moduleId }) {
     ...module.publicEntrypoints.map((entry) => `- public: ${entry}`),
     "",
   ];
+  if (!full) {
+    if (contractDoc) sections.push(`- ${posix(path.relative(cwd, contractDoc))}`);
+    return sections.join("\n");
+  }
+  const dependencyContracts = module.requires.flatMap((dependencyId) => {
+    const dependencyFiles = files.filter(
+      (file) => moduleForFile(file, policy)?.id === dependencyId,
+    );
+    return dependencyFiles.filter((file) => path.basename(file) === "contract.ts");
+  });
+  const inline = async (file) => {
+    const relative = posix(path.relative(cwd, file));
+    const body = await fs.readFile(file, "utf8");
+    const fence = file.endsWith(".md") ? "" : "```ts\n";
+    return [`### ${relative}`, "", `${fence}${body.trimEnd()}\n${fence ? "```" : ""}`, ""];
+  };
   // 阅读包内联契约正文：只列文件名会让 agent 再去打开实现；契约就是"读完就够"的那份。
   sections.push("## Contract");
   for (const file of [
@@ -62,8 +66,7 @@ export async function generateContext({ cwd = process.cwd(), moduleId }) {
   sections.push(
     "## Boundaries",
     "- Cross-module imports must use declared requirements and public entrypoints.",
-    "- Add a contract example and document invariants before exposing a new capability.",
-    "- New source files must live inside a managed module (rule: unmanaged-new-file).",
+    "- Document the public entrypoint and its invariants when exposing a new capability.",
   );
   return sections.join("\n");
 }

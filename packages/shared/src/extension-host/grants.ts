@@ -157,20 +157,6 @@ export type GrantExtensionInput = z.infer<typeof grantExtensionInputSchema>;
 export const revokeExtensionInputSchema = z.strictObject({ pluginId: z.string().min(1) });
 export type RevokeExtensionInput = z.infer<typeof revokeExtensionInputSchema>;
 
-/**
- * 从插件商店安装后、激活前的确认（§17.7，P3b）：已有别的扩展持有会话权限时，新装的带代码扩展先不激活。
- * pending：等用户确认；declined：用户选择不激活。owner 是 grants.json。
- */
-export const extensionActivationHoldSchema = z.enum(["pending", "declined"]);
-export type ExtensionActivationHold = z.infer<typeof extensionActivationHoldSchema>;
-
-/** 用户对「需要确认」的决定：allow 为 true 时激活，false 时记为 declined。 */
-export const decideExtensionActivationInputSchema = z.strictObject({
-  pluginId: z.string().min(1),
-  allow: z.boolean(),
-});
-export type DecideExtensionActivationInput = z.infer<typeof decideExtensionActivationInputSchema>;
-
 /** 详情页「系统通知」开关（§18.1 H8）。 */
 export const setExtensionNotificationsInputSchema = z.strictObject({
   pluginId: z.string().min(1),

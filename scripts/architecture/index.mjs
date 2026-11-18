@@ -16,7 +16,7 @@ import {
   resolveImport,
 } from "./policy.mjs";
 import { loadWorkspace } from "./resolver.mjs";
-import { cycleViolations, unmanagedNewFileViolations, violation } from "./violations.mjs";
+import { cycleViolations, violation } from "./violations.mjs";
 import { browserBoundaryViolations } from "./browser-boundary.mjs";
 import { findMissingPackageEntrypoints } from "./package-entrypoints.mjs";
 
@@ -38,11 +38,7 @@ async function readBaseline(cwd) {
   }
 }
 
-export async function checkArchitecture({
-  cwd = process.cwd(),
-  changedFiles = null,
-  addedFiles = null,
-} = {}) {
+export async function checkArchitecture({ cwd = process.cwd(), changedFiles = null } = {}) {
   const policy = await loadPolicy(cwd);
   const workspace = await loadWorkspace(cwd);
   const files = await discoverFiles(policy);
@@ -121,8 +117,8 @@ export async function checkArchitecture({
         }
       }
     }
-    // App 单测已退役；模块边界依靠契约、示例和文档，不再强制测试骨架。
-    const required = ["module.ts", "contract.ts", "contract.example.ts", "CONTRACT.md"];
+    // 公开契约按策略中的实际入口逐一校验，允许模块使用领域文件名。
+    const required = ["module.ts", "CONTRACT.md"];
     for (const artifact of required) {
       // 修复原因：discoverFiles 只收集源码扩展名，CONTRACT.md 永远不在 moduleFiles 里，
       // 首版对每个 managed 模块都会误报缺少 CONTRACT.md（--changed 下被 scope 过滤掉才没暴露）。
@@ -334,7 +330,6 @@ export async function checkArchitecture({
 
   if (policy.global.forbidCycles)
     violations.push(...cycleViolations(edges, policy, modulesByFile, cwd));
-  if (addedFiles) violations.push(...unmanagedNewFileViolations(addedFiles, policy, cwd));
 
   const baseline = await readBaseline(cwd);
   const baselineFingerprints = new Set(baseline.violations.map((item) => item.fingerprint));
@@ -393,6 +388,6 @@ export async function updateBaseline({ cwd = process.cwd(), violations, scope = 
 }
 
 export { loadPolicy };
-export { addedFilesFromGit, changedFilesFromGit, resolveDiffBase } from "./git-base.mjs";
+export { changedFilesFromGit, resolveDiffBase } from "./git-base.mjs";
 export { generateContext } from "./context.mjs";
 export { formatMarkdownReport, formatReport } from "./report.mjs";

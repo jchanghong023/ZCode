@@ -122,3 +122,11 @@ onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error�
 setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。
 
 参数版本、幂等和事件时序见[连接身份](connection-identity.md)，不得为表中没有版本／操作标识的接口添加虚构保证。
+
+## 发布边界
+
+后端替换复用同一前端产物、SDK、二进制传输、descriptor、DTO 和协议 schema。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域；公开事件和历史回执同样遵守公开数据边界。业务测试验收、无障碍标识和生产诊断各自按现行契约保留。
+
+材料摘要和字节数以实际正文为准；MR 外链、平台核验、AI 原分和规划建议须有对应事实。部署限制、工号与进程内数据的有效范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。退役模块时同步清理入口、依赖与架构登记，保留仍被使用的代码及第三方许可归因。
+
+发布验收关联同一次构建的前端产物、实际服务入口和公开契约，记录实测路径、结果与限制。替换后端时核对前端产物及契约的字节一致性。

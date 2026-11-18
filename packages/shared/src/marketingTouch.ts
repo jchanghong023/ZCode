@@ -35,7 +35,6 @@ export const marketingNavigationSchema = z.discriminatedUnion("page", [
           "computer_use",
           "memory",
           "subagents",
-          "plugins",
           "mcp",
           "skills",
           "commands",
@@ -47,12 +46,6 @@ export const marketingNavigationSchema = z.discriminatedUnion("page", [
     })
     .strict()
     .refine((args) => args.provider_id === undefined || args.section === "models"),
-  z
-    .object({
-      page: z.literal("plugin_marketplace"),
-      plugin_id: id.regex(/^[^@\s]+@[^@\s]+$/u).optional(),
-    })
-    .strict(),
 ]);
 export const marketingActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("close") }),

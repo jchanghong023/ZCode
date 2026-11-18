@@ -142,18 +142,13 @@ modules:
     publicEntrypoints: [packages/shared/src/zcode-protocol-v4/context-composition/contract.ts]
     layers: { app: . }
     owner: agent
-  # plugin-host-queries：保留插件查询、可见性与原生 v4 历史载荷 schema，不提供安装交互或插件运行能力。
   - id: plugin-host-queries
     roots:
       - packages/shared/src/zcode-protocol/plugin-host-queries
-      - packages/shared/src/plugin-store-visibility.ts
-      - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
     managed: true
     requires: [shared]
     publicEntrypoints:
       - packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts
-      - packages/shared/src/plugin-store-visibility.ts
-      - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
     layers: { app: . }
     owner: plugin
   # node-repl-call-ledger：node_repl 结果里可信事实的唯一来源
@@ -449,17 +444,12 @@ modules:
     owner: requirements
 
 global:
-  # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
-  # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。
-  newFilesEnforcedSince: "2026-09-10"
-  acceptedUpstreamCommits: []
   maxFileLines: 800
   maxContractLines: 300
   maxPublicMethods: 12
   forbidCycles: true
   forbidDeepImports: true
   managedOnly: true
-  acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
   # 浏览器公共面包含每个包的全部安全子入口；Node 专用入口显式排除，不能由 baseline 放行。
   browserScopes: [packages/ui/src, packages/web/src, packages/client/src]
   browserPackages:
@@ -475,142 +465,6 @@ global:
   nativePackages: ["@napi-rs/keyring"]
 
 exceptions:
-  - id: http-ip-platform-existing-edits
-    rule: unmanaged-new-file
-    paths:
-      - packages/server/src/entry-http.ts
-      - packages/shared/src/platform.ts
-      - packages/ui/src/ChatErrorBanner.tsx
-      - packages/ui/src/WorkspaceSidebarFooter.tsx
-      - packages/ui/src/v4/ConversationRowView.tsx
-      - packages/ui/src/hooks/useFileContextActions.ts
-      - packages/ui/src/components/ai-elements/code-block.tsx
-      - packages/ui/src/components/ai-elements/commit.tsx
-      - packages/ui/src/components/ai-elements/environment-variables.tsx
-      - packages/ui/src/components/ai-elements/markdown-table.tsx
-      - packages/ui/src/components/ai-elements/message.tsx
-      - packages/ui/src/components/ai-elements/snippet.tsx
-      - packages/ui/src/components/ai-elements/stack-trace.tsx
-      - packages/ui/src/components/ai-elements/terminal.tsx
-      - packages/ui/src/ToolCallBlocks/ToolLayout.tsx
-      - packages/ui/src/ToolCallBlocks/session/ToolDetailSection.tsx
-      - packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx
-    reason: 现有 HTTP 入口明确对外监听，平台契约增加文本复制端口，既有 UI 复制调用改走注入平台以支持普通 IP HTTP；不新增未受管源码，不改变业务状态或操作顺序。见 docs/architecture/web-build-workflow.md。
-  - id: mock-project-service-split
-    rule: unmanaged-new-file
-    paths: [packages/server/src/mock/project.ts]
-    reason: 纯 Web 模拟后端把本地项目与目录浏览从 planning.ts 拆出以满足 max-lines；server 为原型模块，后续由自有后端整体替换时一并删除。
-  - id: removed-tool-grouping-action-catalog
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/lib/userActionTraceCatalog.ts]
-    reason: 上游已有埋点目录仅删除已移除分组选项的三个事件声明；本次不接管整个 UI lib 目录。
-  - id: conversation-selection-comment-quote-schema-edit
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/conversationSelection.ts]
-    reason: 已准入的对话引用 schema 只追加可选 comment 与 agent 字段（选区批注，见 packages/ui/src/selection-comment/CONTRACT.md）；仍是 conversationQuotes 的唯一 schema，长度上限与模块边界不变，接管整个 shared 包不在本次范围内。
-  - id: side-pane-full-view-shortcut-command-edit
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/shortcutCommands.ts]
-    reason: 已准入的快捷键命令表只追加一条 toggleSidePaneFullView 命令（Side Pane 完整视图，见 packages/ui/src/side-pane-full-view/CONTRACT.md）；命令表仍是唯一数据源，签名与模块边界不变，接管整个 shared 包不在本次范围内。
-  - id: project-location-cache-recovery-existing-edit
-    rule: unmanaged-new-file
-    paths:
-      [
-        packages/shared/src/project-access-token.ts,
-        packages/shared/src/project-access-token-client.ts,
-      ]
-    reason: 已有项目 Token 与凭据存储增加派生缓存的局部恢复端口，并把换证请求失败按固定类别分码（ZCT-2111046389485834240）；已确认的 PAT 签发临时故障仅在原 pending 内重试一次，不扩展到 Key 创建或 OAuth；保持原有 owner 和共享文件锁，不接管全目录。
-  - id: plugin-agent-permission-mode-restrict-only-existing-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/shared/src/subagent-profile.ts
-      - packages/shared/src/subagent-profile-parser.ts
-    reason: 已准入的存量文件为插件 agent 的 permissionMode 只能收紧（ZP-20261028-13）增加进程内 profile 标记字段并更新注释；跨进程 schema 与解析行为不变，接管 shared 目录不在本次范围内。
-  - id: settings-personalization-size-constant-new-file
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/userInstructions.ts]
-    reason: 用户自定义指令字节上限共享常量（与读取截断对齐，数值见 packages/shared/src/userInstructions.ts），服务层校验与 UI 计数共用同一数值；仅两个常量导出，接管整个 shared 目录不在本次范围内。
-  - id: connection-log-secret-token-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/source-server/connectionLog.ts]
-    reason: 已存在的连接日志过滤函数只把已知秘密从子串替换改为完整 token 匹配，修复短密码反推泄露；签名与模块边界不变，接管整个 shared 包不在本次修复范围内。
-  - id: connection-errors-econnreset-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/source-server/connectionErrors.ts]
-    reason: 已存在的连接错误归一化码表补一项 ECONNRESET → remote-host-unreachable，修复在线断连恢复失败被误报为预检失败；签名与模块边界不变，接管整个 shared 包不在本次修复范围内。
-  - id: client-config-public-field-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/clientConfig.ts]
-    reason: Existing upstream public config parser gains one validated recommendation field; ownership and module boundaries remain unchanged, and adopting the shared package is outside this change.
-  - id: turn-work-segment-comment-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/v4/conversationTurnRenderUnitTypes.ts]
-    reason: 已入库的渲染单元类型只更新 workSegments 字段注释，使其与同一 drain 边界的 guide 共用一段的行为一致；类型与 ui 模块边界不变，接管整个 v4 目录不在本次范围内。
-  - id: shortcut-settings-existing-ui-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/components/ui/kbd.tsx
-    reason: Existing upstream keycap primitive retained as a shared control; adopting the entire controls directory requires a separate boundary refactor.
-  - id: sidebar-workflow-tooltip-existing-ui-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/components/workflow-run-line/WorkflowRunRail.tsx]
-    reason: Existing upstream workflow rail edited only to adapt native titles within the sidebar tooltip scope; workflow ownership and imports remain unchanged except for the shared UI tooltip adapter.
-  - id: lan-http-action-uuid-existing-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/lib/userActionTelemetry.ts]
-    reason: 已准入的存量遥测文件仅把无保护 randomUUID 改为现有 shared createUuid，兼容 Firefox 局域网 HTTP；action/span owner、采样和上报时点不变，不新增文件或放开目录。见 docs/specs/aireq-migration/connection-identity.md。
-  - id: hooks-lint-existing-ui-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/v4/telemetry/useSessionOpenArmsTelemetry.ts
-    reason: 已准入的既有 UI 文件仅修复 Hook 依赖、清理资源捕获与可选上下文读取（docs/testing/react-hooks-lint.md）；状态 owner、服务入口和依赖方向不变。不接管整个 UI 目录，不豁免 Hooks、浏览器安全或其它架构规则。
-  - id: production-boundary-existing-session-open-telemetry
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/lib/sessionOpenArmsTelemetry.ts]
-    reason: G6.9 仅从已入库的既有遥测模块删除四行 clearSessionOpenArmsReporterForTest；正式 reporter、payload、owner、生命周期和依赖不变。不为纯测试出口删除接管整个 lib，也不豁免其它规则；见 docs/specs/aireq-migration/release-surface.md。
-  - id: production-boundary-existing-workflow-canonical-limits
-    rule: unmanaged-new-file
-    paths:
-      - packages/shared/src/zcode-protocol-v4/workflow-runs-delta.ts
-      - packages/shared/src/zcode-protocol-v4/workflow-runs-eviction.ts
-    reason: G7.6 仅从两个既有协议算法移除测试 bounds／limits 及内部传参，唯一采用原有 WORKFLOW_RUNS_LIMITS；状态 owner、顺序、真实限额和依赖不变。不接管整个 shared 或 v4，不豁免其它规则；真实容量与顺序证明见 docs/specs/aireq-migration/release-surface.md。
-  - id: workflow-share-unmanaged-new-files
-    rule: unmanaged-new-file
-    paths:
-      [
-        packages/ui/src/ToolCallBlocks/presentationCapabilities.tsx,
-        packages/ui/src/ToolCallBlocks/renderers/list-models.tsx,
-        packages/ui/src/ToolCallBlocks/renderers/list-saved-workflows-presentation.tsx,
-        packages/ui/src/ToolCallBlocks/renderers/web-fetch.tsx,
-        packages/ui/src/hooks/useToolPresentationHostCapabilities.ts,
-        packages/ui/src/chat-input-toolbar/thoughtLevelLabels.ts,
-        packages/ui/src/components/workflow-timeline/subagent-model-label.ts,
-      ]
-    reason: Feature-branch files admitted path-exact; adopting conversation-share, tool presentation or renderer directories needs a separate module boundary refactor (same pattern as settings-machine-unmanaged-edit).
-  # 既有 workflow 摘要 renderer 的展示调整；仅登记这两个文件，不放开整个 renderer 目录。
-  - id: workflow-summary-row-existing-ui-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/ToolCallBlocks/renderers/workflow-draft-row.tsx
-      - packages/ui/src/ToolCallBlocks/renderers/workflow-fill-row.tsx
-    reason: Existing workflow row renderers edited only to replace decorative summary dots with layout spacing; adopting the renderer directory requires a separate module boundary refactor. Other architecture rules remain enforced.
-  - id: workflow-notifications-unmanaged-files
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/test-ids-workflow.ts]
-    reason: Workflow reminder, notification and model reference files reached staging without the MR architecture gate running; adopting the zcode-cli core and shared test ids needs a separate module boundary refactor.
-  - id: composer-toolbar-unmanaged-files
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/ControlShortcutBadge.tsx
-      - packages/ui/src/chat-input-toolbar/ComposerEffortHeading.tsx
-      - packages/ui/src/chat-input-toolbar/ComposerModelMenu.tsx
-      - packages/ui/src/chat-input-toolbar/ComposerProviderMenu.tsx
-      - packages/ui/src/chat-input-toolbar/ComposerTriggerTransition.tsx
-      - packages/ui/src/hooks/useComposerConnectionSwitch.ts
-      - packages/ui/src/lib/composerPlanGroups.ts
-      - packages/ui/src/lib/providerFamilyConnectionTransition.ts
-      - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
-    reason: Composer model, provider and toolbar files reached staging without the MR architecture gate running; adopting the packages/ui composer toolbar needs a separate module boundary refactor.
   - id: conversation-telemetry-existing-state-machine-size
     rule: max-file-lines
     paths:
@@ -623,41 +477,3 @@ exceptions:
       - packages/shared/src/conversation-telemetry/conversationTelemetryEngine.ts
       - packages/shared/src/conversation-telemetry/messageTelemetry.ts
     reason: Preserve the two original file-length annotations while relocating the existing implementation.
-  - id: element-mention-sync-plugin-unmanaged-new-file
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/v4/composer/ElementMentionSyncPlugin.tsx]
-    reason: 输入框里的元素 token 同步插件与既有 Skill/Goal token 同构，只跟随 composer 的引用列表；接管 packages/ui/src/v4/composer 需要单独的重构。
-  - id: request-verification-config-recovery-presentation
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/request-security-edition/errors.ts
-    reason: 在现有官方版本安全校验展示入口补充配置读取失败的分类与本地化，不改变状态 owner 或模块边界；公共 errors.ts 入口及其开源占位实现承接同一契约，沿用本条精确路径准入；接管整个 UI 安全校验目录不属于本次网络恢复修复。
-  - id: ui-more-locales-new-files
-    rule: unmanaged-new-file
-    paths: [packages/shared/src/locale.ts, packages/ui/src/i18n/localeMessages.ts]
-    reason: 新增日/俄/韩界面语言。locale.ts 是语言解析与回退的唯一事实源；Main 冷启动只读 setting.json 取界面语言；localeMessages 只装配各语言文案表；三份文案表与 en-US/zh-CN 同构，单文件远超 800 行上限，登记 managed 模块也须另加行数例外。接管整个 ui/shared/desktop 目录不在本次范围内。
-  - id: ui-loader-circle-existing-edit
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/components/workflow-timeline/WorkflowRosterParts.tsx
-      - packages/ui/src/v4/BotTopicPreparation.tsx
-    reason: 已准入的存量 UI 文件仅统一 Lucide 图标为 LoaderCircle，不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
-  - id: ui-more-locales-existing-edit
-    rule: unmanaged-new-file
-    paths:
-      [
-        packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx,
-        packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
-      ]
-    reason: 已准入的存量文件只把中英二选一的 locale 类型放宽为全部界面语言（X-Client-Language 带真实界面语言），会话创建遥测接收 Host 界面语言，时间格式化传入界面语言；owner、签名形态与模块边界不变，接管 workflow-timeline 目录不在本次范围内。
-  - id: browser-host-ports-existing-edits
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/shortcuts/bindings.ts
-    reason: 仅保留已有快捷键文件的浏览器宿主端口清理准入，注释移除原生菜单通道描述；旧工作区搜索设置已裁撤，不新增文件、不改变状态 owner，不豁免浏览器安全规则。
-  - id: aireq-native-composer-existing-integration
-    rule: unmanaged-new-file
-    paths:
-      - packages/ui/src/v4/SessionPane.tsx
-      - packages/ui/src/v4/ConversationComposer.tsx
-    reason: AIReq通过现有v4会话和输入草稿所有者集成可选回填及首次发送端口；仅修改两个既有文件，不复制v4、不改变原生协议或新增并行状态，不接管整个ui模块。

@@ -12,32 +12,15 @@
 
 ## 2. 模块与依赖方向
 
-| 模块                   | 当前路径／公开入口                                     | 职责                                                  |
-| ---------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
-| aireq-contract         | `packages/services/src/aireq`，`@zcode/services/aireq` | 浏览器安全领域类型、纯派生、operation map、descriptor |
-| aireq-mock             | `packages/server/src/aireq`，`contract.ts`             | 唯一共享业务 owner 与原生 admission/completion 接线   |
-| aireq-ui               | `packages/ui/src/aireq`，`contract.ts`／`index.ts`     | canonical port 与应用／UI；导航、草稿、读取投影       |
-| client                 | `packages/client/src/remoteServiceAccess.ts`           | 以 ProxyChannel 构造 IServiceAccessor                 |
-| rpc                    | `packages/rpc/src`                                     | 二进制 framing、序列化、调用和事件                    |
-| browser-employee-entry | `packages/web/src/auth`                                | 自报工号输入、标签页恢复、退出，不拥有业务事实        |
-
-UI 页面／hook／shell 经本模块 canonical `contract.ts` 选择性消费服务类型和纯派生，不复制第二套 DTO，不从 server 导入类型。server 不依赖 UI。`index.ts` 是 UI 应用入口，不反向承担领域 contract。架构登记及允许依赖以现行 architecture-policy 为准。
-
-`createMockServices` 创建一个 MockAIReqService，将其 remote 注册为 IAIReqService，把同一业务实例传入 MockZCodeAgentService。HTTP 将固定身份 facade 和逐连接 scope 作为 overrides，再按 publicMembers 暴露。业务私有方法不因实例注册而公开。
+UI 通过本模块 `contract.ts` 消费 `@zcode/services/aireq`，服务端通过 `createMockServices` 把同一个业务实例用于 RPC 和原生会话回调。HTTP 仅暴露当前连接身份允许的公开成员。模块入口与依赖见[模块所有权](../../architecture/pure-web-module-ownership.md)。
 
 ## 3. 应用与原生会话
 
-AIReqApplication 的 Provider 链为 AppErrorBoundary → Intl → Lucide → Tooltip → Service → Platform → Store → TabStore → AIReqDataSource → AIReqProvider → AIReqShell；通用 ConfirmDialogHost/AlertDialogHost 保留。ServiceProvider 的 composer namespace 包含 clientId/employeeId。
+`AIReqApplication` 注入平台、服务、store 与数据源；composer 命名空间包含 clientId 和 employeeId。连接变化时保留 store，重新绑定广播，入站偏好只应用一次。工作区适配器复用当前连接和服务端提供的 path／identity。
 
-`registerBaseWorkspaceServices` 连接现有 workspace 适配，逻辑 workspace 来自服务端返回的 path/identity，不新开业务 socket。StoreProvider 随当前 broadcastService 重新绑定广播，保持原 store 身份；入站偏好不回发。主题是浏览器偏好，不是 workflow revision。
+`createRemoteAIReqDataSource` 订阅服务，从 bootstrap 获取元数据，从 readWorkflow 获取 view、session 和 workspace。主区持有导航选择，详情 Tab 按显式目标独立读取，丢弃迟到结果。布局与标签生命周期见[右侧工作区](unified-side-pane.md)。
 
-`createRemoteAIReqDataSource` 经 aiReqService 订阅并读取；bootstrap 提供元数据，readWorkflow 同时提供 view/session/workspace。AIReqContext 只持导航与选择，不持第二份已接纳业务库。并行详情 Tab 使用显式目标读取，不抢占主选择；迟到结果按代际丢弃。
-
-会话路径由 `AIReqSessionPane` 复用当前 v4 Provider、SessionPane、ConversationComposer。AIReq 只登记会话引用和业务材料，rows／queue／附件／水位仍归原生 owner。正文、附件、临时模型由原 composer 冻结和 claim；accepted 后 adopt 与草稿结算仍由该 owner 处理，拒绝／上传失败保留草稿，未知决定不自动重发。
-
-提案先独立保存短需求；打开讨论不是自动发送，也不以首发 ACK 创建提案。明确发送才沿原生 admission/completion 回调写业务材料。Sketch 真正生成完整 PNG 并添加附件，不自动发送；不存在语音识别执行入口。隐藏 Skill 复用私有会话、预览与唯一未保存门禁，不恢复主导航、设置或搜索入口。
-
-当前右侧为[统一多 Tab 面板](unified-side-pane.md)，承载对象详情、报告、材料与只读历史；不是单对象覆盖面板。Tab 打开／激活／关闭、范围和读取 owner 沿现有实现，布局操作不重建主 composer 或扩大对象权限。
+`AIReqSessionPane` 复用 v4 会话与输入器。业务层保存会话引用和材料，原生层管理行、队列、附件、水位及草稿提交。发送接纳与失败恢复见[会话规格](conversation.md)，短需求及材料写入见[提案流程](proposals.md)。
 
 ## 4. 二进制与协议接线
 

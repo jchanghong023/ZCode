@@ -750,8 +750,6 @@ export const TID_V4_SUBAGENT_OPEN_SIDE_PANE = "v4-subagent-open-side-pane";
 export const TID_V4_ROW_ATTACHMENTS = "v4-row-attachments";
 
 // Plugin 商店
-/** Plugin 设置页里进入插件商店的入口按钮（商店是 WorkspaceShell 主视图，不是设置页分区） */
-export const TID_PLUGIN_STORE_BROWSE = "plugin-store-browse";
 
 // Automations / 定时任务
 export const TID_AUTOMATIONS_OPEN = "automations-open";
@@ -859,12 +857,6 @@ export const TID_EXTENSION_LOGS_CLEAR = "extension-logs-clear";
 export const TID_SIDE_PANE_EXTENSION_GRANT = "side-pane-extension-grant";
 export const TID_EXTENSION_GRANT_DIALOG = "extension-grant-dialog";
 export const TID_EXTENSION_ENABLE_CONFIRM_DIALOG = "extension-enable-confirm-dialog";
-/**
- * 从插件商店安装后、激活前的确认（§17.7，P3b）：启动页「需要确认」一行（`data-side-pane-open-tab-item`
- * 为 `extension-activation:<pluginId>`）与确认框（确认按钮 TID_CONFIRM_DIALOG_CONFIRM，取消即「不激活」）。
- */
-export const TID_SIDE_PANE_EXTENSION_ACTIVATION = "side-pane-extension-activation";
-export const TID_EXTENSION_ACTIVATION_DIALOG = "extension-activation-dialog";
 export const TID_EXTENSION_PERMISSIONS = "extension-permissions";
 export const TID_EXTENSION_PERMISSIONS_GRANT = "extension-permissions-grant";
 export const TID_EXTENSION_PERMISSIONS_REVOKE = "extension-permissions-revoke";

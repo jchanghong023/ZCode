@@ -1,4 +1,4 @@
 interface:
-  display_name: Architecture Governance
-  short_description: Check module boundaries and prepare a bounded code context
-  default_prompt: Use $architecture-governance to check affected module boundaries. Generate context for cross-module, ownership, or unclear-contract changes, and run the architecture checks before and after code changes.
+  display_name: AIReq 架构审查
+  short_description: 检查纯 Web 应用的模块依赖、公共接口和状态归属
+  default_prompt: 使用 $architecture-governance 审查本次变更涉及的模块边界与公开契约。

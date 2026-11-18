@@ -1,10 +1,8 @@
 /**
  * architecture:adopt —— 把一个目录登记为 managed 模块。
  *
- * 设计目的：unmanaged-new-file 规则要求新代码必须落在 managed 模块内，那么"登记一个模块"
- * 必须比"绕过规则"更便宜。本命令一次完成：
  *   1. 从实际 import 反推 requires（可与 --requires 合并）
- *   2. 生成缺失的四件套骨架（module.ts / contract.ts / contract.example.ts / CONTRACT.md）
+ *   2. 生成缺失的模块清单、契约与说明
  *   3. 在 architecture-policy.yaml 登记（保留注释；已存在则置 managed: true，不重复添加）
  */
 import { promises as fs } from "node:fs";
@@ -21,13 +19,13 @@ import {
 } from "./policy.mjs";
 import { loadWorkspace } from "./resolver.mjs";
 
-const ARTIFACTS = ["module.ts", "contract.ts", "contract.example.ts", "CONTRACT.md"];
+const ARTIFACTS = ["module.ts", "contract.ts", "CONTRACT.md"];
 
 function camel(id) {
   return id.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
 }
 
-function templates({ id, requires, layer }) {
+function templates({ id, requires, layer, publicEntrypoints }) {
   const name = camel(id);
   return {
     "module.ts": `/**
@@ -38,7 +36,7 @@ export const ${name}Module = {
   id: "${id}",
   requires: [${requires.map((item) => `"${item}"`).join(", ")}],
   provides: ["${id}"],
-  publicEntrypoints: ["index.ts", "contract.ts"],
+  publicEntrypoints: ${JSON.stringify(publicEntrypoints)},
 } as const;
 `,
     "contract.ts": `/**
@@ -49,15 +47,6 @@ export type ${name[0].toUpperCase() + name.slice(1)}Id = string & { readonly __b
 
 export interface ${name[0].toUpperCase() + name.slice(1)}Contract {
   // TODO(${id}): 一个意图一个方法，不超过 8 个。
-}
-`,
-    "contract.example.ts": `/**
- * ${id} 标准调用示例：agent 靠模仿写代码，这里放的就是该模仿的那份。
- */
-import type { ${name[0].toUpperCase() + name.slice(1)}Contract } from "./contract.js";
-
-export function example${name[0].toUpperCase() + name.slice(1)}(_contract: ${name[0].toUpperCase() + name.slice(1)}Contract): void {
-  // TODO(${id}): 展示最常见的一次完整调用。
 }
 `,
     "CONTRACT.md": `# ${id}
@@ -96,7 +85,9 @@ export async function adoptModule({
   const existing = modules.items.find((item) => item.get?.("id") === id);
   const primaryRoot = posix(path.relative(cwd, absoluteRoots[0]));
   const entrypoints = publicEntrypoints ?? [
-    `${primaryRoot}/index.ts`,
+    ...((await fs.stat(path.join(absoluteRoots[0], "index.ts")).catch(() => null))?.isFile()
+      ? [`${primaryRoot}/index.ts`]
+      : []),
     `${primaryRoot}/contract.ts`,
   ];
 
@@ -132,7 +123,14 @@ export async function adoptModule({
   const finalRequires = [...inferred].sort();
 
   const created = [];
-  const rendered = templates({ id, requires: finalRequires, layer });
+  const rendered = templates({
+    id,
+    requires: finalRequires,
+    layer,
+    publicEntrypoints: entrypoints.map((entry) =>
+      posix(path.relative(absoluteRoots[0], path.resolve(cwd, entry))),
+    ),
+  });
   for (const artifact of ARTIFACTS) {
     const target = path.join(absoluteRoots[0], artifact);
     const exists = await fs.stat(target).catch(() => null);

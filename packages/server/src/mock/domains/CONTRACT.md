@@ -65,7 +65,7 @@ mock/index.ts
 
 当前领域注册面：setting、provider-settings、model-selection、usage-stats、
 subagents、bots、gen-ui。
-扩展、凭据、产品插件管理与插件 UI、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
+扩展、凭据、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
 不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
 两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record
 及其独占推荐 fixtures 一并退役，不影响隐藏 Skill 会话或模型推荐。

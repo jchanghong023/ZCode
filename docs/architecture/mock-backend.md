@@ -17,7 +17,7 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 `entry-http.ts` 创建一次服务集合。每条 WebSocket 独占 socket、协议、ChannelServer、固定身份 facade 和 agent connection scope；关闭只释放连接资源和订阅，不销毁共享业务 owner。HTTP 层不复制业务或重放账本。`createMockHttpServer` 返回可由调用者 `stop()` 的 Bun server。
 
-运行时为 Bun，pnpm 管理依赖；`node:*` 为 Bun 兼容 API，不是独立 Node.js 后端。根 `dev` 并行启动 server/web，`build` 依次构建 server/web，具体命令以根 `package.json` 和[构建工作流](web-build-workflow.md)为准。
+运行时为 Bun，pnpm 管理依赖；`node:*` 为 Bun 兼容 API，不是独立 Node.js 后端。根 `dev` 并行启动 server/web，`build` 依次构建 server/web，具体命令以根 `package.json` 和[构建工作流](../../README.md#构建与部署)为准。
 
 ## 2. 权威状态
 
@@ -79,7 +79,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 当前没有真实 AI、代码扫描、Git 托管／合入、数据库、宿主业务文件写入、生产认证或权限体系。工号自报，clientId 不是凭据；内存材料、PR／分支和进度不是外部执行证明。产品不执行用户开发 tasks、业务构建或测试。
 
-正式前端构建、文案、SDK、传输、descriptor、DTO 与 schema 是固定对接面。更换后端只能实现相同保留契约并调整必要部署配置，不能要求浏览器增加 mock 分支、兼容接口或另一份业务状态。未实现能力明确失败，不能用空文件、空对象或假成功填补。限制集中在本文与[发布边界](../specs/aireq-migration/release-surface.md)，不注入用户材料、提示词或 provenance。
+正式前端构建、文案、SDK、传输、descriptor、DTO 与 schema 是固定对接面。更换后端只能实现相同保留契约并调整必要部署配置，不能要求浏览器增加 mock 分支、兼容接口或另一份业务状态。未实现能力明确失败，不能用空文件、空对象或假成功填补。限制集中在本文与[发布边界](../specs/aireq-migration/contract-design.md#发布边界)，不注入用户材料、提示词或 provenance。
 
 ## 6. 源码依据
 

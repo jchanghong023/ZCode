@@ -13,7 +13,7 @@ if (!moduleId) {
 
 const outputIndex = args.indexOf("--output");
 const output = outputIndex >= 0 ? args[outputIndex + 1] : null;
-const content = await generateContext({ cwd: process.cwd(), moduleId });
+const content = await generateContext({ cwd: process.cwd(), moduleId, full: true });
 if (output) {
   await fs.writeFile(path.resolve(process.cwd(), output), `${content}\n`);
 } else {
