@@ -7,7 +7,7 @@ import { prototypeIrRoot } from "./proposal-storage.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 
 /** 仅推导平台托管仓库的交接样例，不创建分支或访问文件系统。 */
-export function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
+function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
   const { group, project, employeeId, scenario = "current" } = input;
   const changeRoot = prototypeIrRoot(group.id);
   const sourceDirectory = group.proposalLocation?.directory ?? "";

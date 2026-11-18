@@ -53,8 +53,6 @@ import {
   type RequirementView,
 } from "./navigationState.js";
 
-export { aiReqQuery } from "./proposalRoutes.js";
-
 const AIReqContext = createContext<AIReqContextValue | null>(null);
 function sourceScope(source: AIReqDataSource): string {
   return JSON.stringify([source.backend?.id ?? "aireq", source.clientId, getEmployeeId()]);

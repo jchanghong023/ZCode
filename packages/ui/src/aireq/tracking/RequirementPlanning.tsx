@@ -42,7 +42,7 @@ import type {
   AIReqWorkflowView,
 } from "../contract.js";
 
-export function AIReqDependencies({
+function AIReqDependencies({
   sr,
   view,
   compact = false,

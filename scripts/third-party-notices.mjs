@@ -6,7 +6,7 @@ export const repositoryRoot = resolve(import.meta.dirname, "..");
 export const noticesFileName = "THIRD-PARTY-NOTICES.md";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-export async function readThirdPartyNotices(root = repositoryRoot) {
+async function readThirdPartyNotices(root = repositoryRoot) {
   // 开发和构建只消费已有声明；输入新鲜度由显式 license 检查负责，避免修改 skill 就阻断构建。
   return readFile(resolve(root, noticesFileName));
 }

@@ -12,7 +12,7 @@ import { config } from "./config.js";
 import { waitUntil, type STClient } from "./client.js";
 import { openNative } from "./native.js";
 
-export interface ProposalTarget {
+interface ProposalTarget {
   projectId: string;
   releaseId: string;
   irId: string;
@@ -213,7 +213,7 @@ export async function completeSolutionMaterial(c: STClient, target: ProposalTarg
   return remote;
 }
 
-export async function approveFullReview(c: STClient, target: ProposalTarget) {
+async function approveFullReview(c: STClient, target: ProposalTarget) {
   await commandAndRead(c, { type: "runFullReview" }, target);
   const reviewed = await waitUntil(
     "three independent reviews and their summary should finish",

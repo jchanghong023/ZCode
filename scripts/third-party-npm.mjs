@@ -10,7 +10,7 @@ export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("h
 const noticeName =
   /(?:^|[._-])(?:licen[sc]es?|copying|notice|copyright|unlicense|third.party|ofl)(?:[._-]|$)/iu;
 
-export async function readPackageNotices(directory) {
+async function readPackageNotices(directory) {
   const files = [];
   async function visit(path) {
     for (const entry of await readdir(path, { withFileTypes: true })) {
@@ -39,7 +39,7 @@ export async function readPackageNotices(directory) {
 }
 
 // 解析锁文件（v9）packages 段的平台约束：`  'name@version':` 下的 `    os/cpu/libc: [..]` 行。
-export function readLockfilePlatformConstraints(lockfileText) {
+function readLockfilePlatformConstraints(lockfileText) {
   const constraints = new Map();
   let inPackages = false;
   let key = null;
@@ -86,7 +86,7 @@ function pnpmCheckList(values, list) {
 }
 
 // targets.libc 为 null 表示宿主 libc 未知（非 Linux），pnpm 此时不检查 libc。
-export function createInstallablePackageFilter(constraints, targets) {
+function createInstallablePackageFilter(constraints, targets) {
   return (name, version) => {
     const wanted = constraints.get(`${name}@${version.split("(")[0]}`);
     if (!wanted) return true;
@@ -103,7 +103,7 @@ function hostLibc() {
 }
 
 // 与 pnpm checkPlatform 相同：supportedArchitectures 未配置时只取宿主，`current` 替换为宿主值。
-export async function readInstallTargets(root) {
+async function readInstallTargets(root) {
   const { parse } = await import("yaml");
   const workspace = parse(await readFile(join(root, "pnpm-workspace.yaml"), "utf8")) ?? {};
   const supported = workspace.supportedArchitectures ?? {};
@@ -119,7 +119,7 @@ export async function readInstallTargets(root) {
 
 // 修复：pnpm 按 supportedArchitectures 跳过的平台包（如 sharp 的 s390x/wasm32 构建）从不安装、不分发，
 // 此前靠按包名的例外名单放行，新依赖一引入就会误报缺失；现在按锁文件平台约束整棵子树跳过。
-export function productionPackages(projects, isInstallable = () => true) {
+function productionPackages(projects, isInstallable = () => true) {
   const own = new Set(projects.map((project) => project.name));
   const required = new Map();
   function dependencies(deps) {
@@ -140,7 +140,7 @@ export function productionPackages(projects, isInstallable = () => true) {
   return required;
 }
 
-export function assertInstalledLockfileSnapshot(rootLockfile, installedLockfile) {
+function assertInstalledLockfileSnapshot(rootLockfile, installedLockfile) {
   // Windows autocrlf 工作区的根 lockfile 可能是 CRLF，而 pnpm 安装快照始终写 LF；
   // 换行风格不改变依赖图，归一化后比较（评审 CR-03：原始字符串比较会把
   // 依赖图一致的 CRLF 工作区误判为安装快照过期，且重装无法消除差异）。
@@ -161,7 +161,7 @@ async function readWorkspaceProjects(root) {
   return JSON.parse(stdout);
 }
 
-export function createPnpmLockfileOnlyEnv(env = process.env) {
+function createPnpmLockfileOnlyEnv(env = process.env) {
   return { ...env, NPM_CONFIG_LOCKFILE_ONLY: "true" };
 }
 

@@ -39,7 +39,7 @@ export type AIReqSettingsSection =
   | "models"
   | "personalization"
   | "analysis";
-export type AIReqNavigationGuard = (navigate: () => void) => void;
+type AIReqNavigationGuard = (navigate: () => void) => void;
 const chineseTitles = {
   appearance: "外观",
   projects: "项目配置",

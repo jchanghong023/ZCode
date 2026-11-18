@@ -1,7 +1,7 @@
 import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
 
 /** Explicit in-memory failure fixtures, without filesystem or network probing. */
-export const PROTOTYPE_RECOVERY_SCENARIOS = SUPPORTED_AIREQ_DEMOS;
+const PROTOTYPE_RECOVERY_SCENARIOS = SUPPORTED_AIREQ_DEMOS;
 export type PrototypeRecoveryScenario = (typeof PROTOTYPE_RECOVERY_SCENARIOS)[number];
 export const prototypeRecoveryScenario = PROTOTYPE_RECOVERY_SCENARIOS.find(
   (value) => value === process.env.AIREQ_DEMO,

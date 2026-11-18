@@ -1,7 +1,7 @@
 /** 只包含解析器主动生成的输入校验消息，不透传浏览器或远端异常。 */
 export class ProposalCsvError extends Error {}
 
-export interface ProposalCsvPreview {
+interface ProposalCsvPreview {
   texts: string[];
   skipped: number;
   duplicateRows: number[];

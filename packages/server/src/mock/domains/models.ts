@@ -104,7 +104,7 @@ function buildProviderSettingsView(): ProviderSettingsView {
   };
 }
 
-export class MockProviderSettingsService implements IProviderSettingsService {
+class MockProviderSettingsService implements IProviderSettingsService {
   async getView(): Promise<ProviderSettingsView> {
     return buildProviderSettingsView();
   }
@@ -115,7 +115,7 @@ export class MockProviderSettingsService implements IProviderSettingsService {
   }
 }
 
-export class MockModelSelectionService implements IModelSelectionService {
+class MockModelSelectionService implements IModelSelectionService {
   private readonly changeEmitter = new Emitter<ModelSelectionView>();
   readonly onDidChange: Event<ModelSelectionView> = this.changeEmitter.event;
   private revision = 1;

@@ -44,7 +44,7 @@ import { CompactPlanSummary } from "./CompactPlanSummary.js";
 import { coordinationWarnings, PersonnelPlan } from "./PersonnelPlan.js";
 
 // 表格与主区选择保持独立；点击对象只打开统一侧栏的目标 Tab，不重置筛选或浏览器历史。
-export function AIReqFormalTable() {
+function AIReqFormalTable() {
   const aireq = useAIReq()!;
   const sidePane = useAIReqSidePane();
   const { locale } = useZCodeIntl();

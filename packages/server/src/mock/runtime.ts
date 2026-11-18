@@ -17,7 +17,7 @@ import type {
 export type WorkspaceRef = { workspacePath: string; workspaceIdentity?: string };
 
 /** 稳定后端身份不含操作者或连接 ID；项目、会话和任务必须共用此规则。 */
-export function workspaceIdentityOf(workspacePath: string): string {
+function workspaceIdentityOf(workspacePath: string): string {
   return `workspace:${createHash("sha256").update(hostname()).update("\0").update(resolve(workspacePath)).digest("hex")}`;
 }
 
@@ -78,7 +78,7 @@ export interface MockSession {
   };
 }
 
-export interface MockTaskRecord {
+interface MockTaskRecord {
   sessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
@@ -103,7 +103,7 @@ export interface VirtualFileNode {
   mtimeMs: number;
 }
 
-export interface MockRuntimeOptions {
+interface MockRuntimeOptions {
   workspacePath: string;
 }
 
@@ -145,7 +145,7 @@ function file(name: string, content: string): VirtualFileNode {
 }
 
 /** 一个可信的小项目：README + src + 配置，足以驱动文件树/搜索/预览 UI。 */
-export function buildFixtureWorkspace(): VirtualFileNode {
+function buildFixtureWorkspace(): VirtualFileNode {
   return dir("workspace", [
     file(
       "README.md",

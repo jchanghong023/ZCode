@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
-  "ignore": [".agents/**"],
   "workspaces": {
     ".": {
       "entry": ["scripts/licenses.mjs", "test/st/sequencer.ts"],
@@ -10,14 +9,8 @@
     "packages/shared": {
       "entry": [
         "src/app-control/contract.ts",
-        "src/workspace-hooks/contract.ts",
-        "src/conversation-telemetry/index.ts",
         "src/conversation-telemetry/contract.ts",
-        "src/conversation-telemetry/messageTelemetry.ts",
-        "src/conversation-telemetry/providerTelemetryIdentity.ts",
         "src/conversation-telemetry/remoteTelemetryEvent.ts",
-        "src/sqlite-migrations/contract.ts",
-        "src/gen-ui/index.ts",
         "src/gen-ui/contract.ts",
         "src/mcp-apps/contract.ts",
         "src/zcode-protocol-v4/input-prediction/contract.ts",
@@ -31,9 +24,6 @@
         "src/**/module.ts",
         "src/**/contract.example.ts"
       ]
-    },
-    "packages/session-control": {
-      "entry": ["src/contract.ts"]
     },
     "packages/design-runtime": {
       "entry": ["src/module.ts", "src/contract.example.ts"]

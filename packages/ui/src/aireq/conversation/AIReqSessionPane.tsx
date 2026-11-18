@@ -12,7 +12,7 @@ import {
   useOpenModelSettings,
 } from "../shell/ModelSettingsNavigationContext.js";
 
-export type AIReqSessionPaneProps = SessionPaneProps & {
+type AIReqSessionPaneProps = SessionPaneProps & {
   /** 历史任务页隐藏只读 composer，改用历史摘要和当前阶段出口。 */
   hideReadOnlyComposer?: boolean;
 };

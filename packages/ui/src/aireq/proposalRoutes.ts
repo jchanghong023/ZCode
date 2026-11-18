@@ -133,10 +133,3 @@ export function resolveObjectLink(
   if (!project || !release || !group || group.releaseId !== release.id || !sr) return null;
   return view.groups.includes(group) ? "formal" : "proposal";
 }
-
-export function aiReqQuery(selection: AIReqSelection): string {
-  const query = new URLSearchParams();
-  for (const key of ["projectId", "irId", "srId"] as const)
-    if (selection[key]) query.set(key, selection[key]!);
-  return query.toString();
-}

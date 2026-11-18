@@ -19,7 +19,7 @@ import type {
   AIReqProposalMergeScenario,
 } from "./internal-scenarios.js";
 
-export type PrototypeProposalDeliveryAction = Extract<
+type PrototypeProposalDeliveryAction = Extract<
   AIReqAction,
   { type: "confirmProposal" | "publishProposal" }
 >;

@@ -7,7 +7,7 @@ type AR<T extends (...args: never) => unknown> = Awaited<ReturnType<T>>;
 
 // ── 子智能体 / 技能 ──
 
-export class MockSubagentsService implements ISubagentsService {
+class MockSubagentsService implements ISubagentsService {
   async list(_params: P<ISubagentsService["list"]>): Promise<AR<ISubagentsService["list"]>> {
     // 当前目录没有任何已接纳子智能体；能力字段仍须遵守正式结果契约。
     return {

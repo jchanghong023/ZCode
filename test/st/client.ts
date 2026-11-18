@@ -14,12 +14,12 @@ import { requireCreatedThisRun } from "./resources.js";
 export function unique(label = "st"): string {
   return `${label}-${crypto.randomUUID()}`;
 }
-export function safeError(error: unknown, stage = "request"): Error {
+function safeError(error: unknown, stage = "request"): Error {
   // SDK 错误可能携带含 token 的完整 URL；只保留阶段，不传播原始 stack/cause。
   const kind = error instanceof Error && error.name === "AbortError" ? "cancelled" : "failed";
   return new Error(`ST ${stage} ${kind} (${unique("trace")})`);
 }
-export async function bounded<T>(
+async function bounded<T>(
   promise: Promise<T>,
   label: string,
   timeoutMs = config.timeoutMs,

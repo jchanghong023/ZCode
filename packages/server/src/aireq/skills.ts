@@ -4,7 +4,7 @@ import { PROTOTYPE_BACKEND } from "./backend.js";
 const detail =
   "# 技能详情\n\n用于核对技能的用途、使用条件和执行步骤。使用前，请核对技能内容、所需输入及适用范围，并确认目标项目包含所需依赖。不要把技能说明当作已经执行的结果。\n";
 
-export const PROTOTYPE_SKILLS: SkillSummary[] = [
+const PROTOTYPE_SKILLS: SkillSummary[] = [
   {
     id: "skill:writing-plans",
     name: "writing-plans",
@@ -34,7 +34,7 @@ export const PROTOTYPE_SKILLS: SkillSummary[] = [
   },
 ];
 
-export interface SkillFileNode {
+interface SkillFileNode {
   kind: "file" | "directory";
   name: string;
   content?: string;

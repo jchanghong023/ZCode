@@ -16,7 +16,7 @@ type ReadProjection = {
   error?: string;
 };
 type ScopedError = { key: string; message: string };
-export interface AIReqDetailScopeProps {
+interface AIReqDetailScopeProps {
   target: AIReqSelection;
   releaseId: string;
   tabId: string;

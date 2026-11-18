@@ -71,7 +71,7 @@ import {
 } from "./fixture-builders.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { createPrototypeWorkflow } from "./fixtures.js";
-export { DEFAULT_SELECTION, PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
+export { DEFAULT_SELECTION } from "./fixture-builders.js";
 let state = createPrototypeWorkflow();
 // 正式 SR 的分支是平台已分配的必填映射；此处仅补齐初始内存样例，不在前端猜测。
 for (const group of state.groups) {

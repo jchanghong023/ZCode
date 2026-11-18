@@ -17,7 +17,7 @@ import {
 } from "./proposal-storage.js";
 import { requirementMaterials } from "./materials.js";
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
-export function initialSelectionForDemo(demo?: string): AIReqSelection {
+function initialSelectionForDemo(demo?: string): AIReqSelection {
   if (demo === "empty-projects") return {};
   if (demo === "proposal-intake" || demo === "proposal-feedback" || demo === "operation-failure")
     return { projectId: "demo-aurora", irId: "draft-notification" };
@@ -40,7 +40,7 @@ export function initialSelectionForDemo(demo?: string): AIReqSelection {
 }
 export const DEFAULT_SELECTION: AIReqSelection = initialSelectionForDemo(prototypeRecoveryScenario);
 export const PROTOTYPE_WORKSPACE_IDENTITY = "aireq-mock";
-export const PROTOTYPE_RELEASE_ID = "release-2026-11";
+const PROTOTYPE_RELEASE_ID = "release-2026-11";
 export const createdAt = "2026-11-10T09:00:00.000Z";
 export function prototypeDefaultCommit(
   view: Pick<AIReqWorkflowView, "repositoryHeads">,

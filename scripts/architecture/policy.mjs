@@ -10,7 +10,7 @@ export function posix(value) {
   return value.split(path.sep).join("/");
 }
 
-export function isSourceFile(file) {
+function isSourceFile(file) {
   return SOURCE_EXTENSIONS.some((extension) => file.endsWith(extension));
 }
 
