@@ -2,10 +2,18 @@ import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useAIReq } from "../AIReqContext.js";
-import { proposalStateLabel, type AIReqRequirementGroup } from "../contract.js";
+import { proposalState, proposalStateLabel, type AIReqRequirementGroup } from "../contract.js";
 
 export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh: boolean }) {
   const ai = useAIReq()!;
+  const state = proposalState(item);
+  const needsConfirmation =
+    state === "ir-confirmation-pending" || state === "solution-confirmation-pending";
+  let actionHint: string | undefined;
+  if (needsConfirmation) actionHint = zh ? "需人工确认" : "Human sign-off";
+  if (state === "submission-pending") actionHint = zh ? "需人工提交" : "Submit manually";
+  if (state === "merge-pending" && item.requirementsPr?.status === "opened")
+    actionHint = zh ? "需人工合入" : "Merge manually";
   const submittedAt = new Date(item.createdAt);
   const date = (
     <time
@@ -59,7 +67,14 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
       <td className="hidden px-4 py-3 text-ui-caption text-foreground-subtle group-hover/row:text-foreground @min-[640px]/conversation:table-cell">
         {date}
       </td>
-      <td className="px-4 py-3">{proposalStateLabel(item, zh ? "zh-CN" : "en-US")}</td>
+      <td className="px-4 py-3">
+        {proposalStateLabel(item, zh ? "zh-CN" : "en-US")}
+        {actionHint && (
+          <span className="mt-1 block w-fit max-w-full rounded-sm bg-interaction-confirmation-surface px-1.5 py-0.5 text-ui-sm font-medium text-interaction-confirmation-foreground">
+            {actionHint}
+          </span>
+        )}
+      </td>
     </tr>
   );
 }
