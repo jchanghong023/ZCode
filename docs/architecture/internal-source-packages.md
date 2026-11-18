@@ -13,7 +13,7 @@
 | `@zcode/rpc`              | `.` 的 `types`、`default` 均为 `src/index.ts`，顶层 `types` 同源 |
 | `@zcode/server`           | `.` → `src/index.ts`                                             |
 | `@zcode/services`         | `.`、`./aireq`、`./logger` → 对应 `src/**`                       |
-| `@zcode/session-control`  | `./contracts`、`./cli`、`./app`、`./testing` → 对应 `src/**`     |
+| `@zcode/session-control`  | `./contracts` → `src/contract.ts`                                 |
 | `@zcode/shared`           | `.` 和显式子入口 → 对应 `src/**`，完整列表见包 manifest          |
 | `@zcode/ui`               | `.` 和显式子入口 → 对应 `src/**`；`./styles.css` 为 CSS 资源     |
 | `@zcode/web`              | 无 `exports`，由 Vite 的 `index.html` 启动                       |
@@ -44,4 +44,4 @@ RPC 的现行传输层是 `SocketProtocol`、`ChannelClient` / `ChannelServer`�
 
 修改入口时保持类型与运行时同源，并同步实际消费者。公共包导出与模块公开入口是两层约束；后者见 [模块所有权](pure-web-module-ownership.md)。Node 专用子入口不得进入浏览器依赖图。
 
-现存 Node 专用子入口包括 `@zcode/shared/sqlite-migrations`、`@zcode/shared/workspace-hook-discovery` 和 `@zcode/shared/workspace-hook-mutation`；具体限制以 `architecture-policy.yaml` 的 `nodeEntrypoints` 为准。未列为 Node 专用不等于已有浏览器消费者。
+当前没有登记 Node 专用子入口。`@zcode/shared/sqlite-migrations` 仅供服务端迁移契约做类型引用，未进入浏览器依赖图；不要据此恢复数据库实现或宿主写入能力。

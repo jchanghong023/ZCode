@@ -6,14 +6,10 @@
     "#session-control/*": "./src/*.ts"
   },
   "exports": {
-    "./contracts": "./src/contract.ts",
-    "./cli": "./src/application/cli/index.ts",
-    "./app": "./src/application/app/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./contracts": "./src/contract.ts"
   },
   "scripts": {
     "build": "bun --bun run tsc -p tsconfig.build.json",
-    "test": "bun --bun run vitest run --config vitest.config.ts",
     "typecheck": "bun --bun run tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -5,7 +5,7 @@
  */
 export const projectStorageModule = {
   id: "project-storage",
-  requires: ["shared", "sqlite-migrations", "services", "session", "task-groups"],
+  requires: ["shared", "services", "session", "task-groups"],
   provides: ["project-storage"],
-  publicEntrypoints: ["contract.ts", "repository-contract.ts"],
+  publicEntrypoints: ["repository-contract.ts"],
 } as const;

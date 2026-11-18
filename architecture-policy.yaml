@@ -4,26 +4,6 @@ version: 1
 # 裁撤后已无源码与消费者的退役模块撤销登记（见 docs/architecture/pure-web-module-ownership.md），
 # 不降低 managed 状态、不以空壳产物消账。
 modules:
-  - id: session-control
-    roots: [packages/session-control/src, packages/session-control/vitest.config.ts]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/session-control/src/contract.ts
-      - packages/session-control/src/application/cli/index.ts
-      - packages/session-control/src/application/app/index.ts
-      - packages/session-control/src/testing/index.ts
-    layers: { contract: contract, domain: domain, app: application }
-    owner: conversation
-  - id: app-control-protocol
-    roots: [packages/shared/src/app-control]
-    managed: true
-    requires: [session-control]
-    publicEntrypoints:
-      - packages/shared/src/app-control/index.ts
-      - packages/shared/src/app-control/contract.ts
-    layers: { contract: . }
-    owner: conversation
   - id: rpc
     roots: [packages/rpc/src]
     managed: false
@@ -33,13 +13,6 @@ modules:
   - id: model-option-map
     roots: [packages/model-option-map/src]
     managed: false
-  - id: workspace-hooks
-    roots: [packages/shared/src/workspace-hooks]
-    managed: true
-    requires: []
-    publicEntrypoints: [packages/shared/src/workspace-hooks/contract.ts]
-    layers: { contract: . }
-    owner: hooks
   - id: provider
     roots: [packages/provider/src]
     managed: false
@@ -106,32 +79,17 @@ modules:
       - packages/shared/src/conversation-telemetry/remoteTelemetryEvent.ts
     layers: { app: "." }
     owner: conversation
-  - id: sqlite-migrations
-    roots:
-      - packages/shared/src/sqlite-migrations
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/shared/src/sqlite-migrations/index.ts
-      - packages/shared/src/sqlite-migrations/contract.ts
-    layers:
-      adapters: .
-    owner: persistence
   # project-storage：由 architecture:adopt 登记
   - id: project-storage
     roots: [packages/services/src/project-storage]
     managed: true
     requires:
       - shared
-      - sqlite-migrations
       - services
       - session
       - task-groups
     publicEntrypoints:
-      [
-        packages/services/src/project-storage/contract.ts,
-        packages/services/src/project-storage/repository-contract.ts,
-      ]
+      [packages/services/src/project-storage/repository-contract.ts]
     layers:
       adapters: .
     owner: conversation
@@ -145,71 +103,7 @@ modules:
     layers:
       adapters: .
     owner: conversation
-  # project-sidebar：保留纯展示与派生资产；旧窗口目录和任务操作消费者已删除。
-  - id: project-sidebar
-    roots: [packages/ui/src/project-sidebar]
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-      - conversation-workspace-target
-      - managed-worktree-ui
-      - task-row-hover
-    publicEntrypoints:
-      - packages/ui/src/project-sidebar/index.tsx
-      - packages/ui/src/project-sidebar/contract.ts
-      - packages/ui/src/project-sidebar/WorkspaceDragOverlay.tsx
-    layers:
-      contract: contract.ts
-      ui: .
-    owner: conversation
   # remote-projects：由 architecture:adopt 登记
-  # workspace-config-catalog：由 architecture:adopt 登记
-  - id: workspace-config-catalog
-    roots:
-      - packages/ui/src/workspace-config-catalog
-    managed: true
-    requires: [services, shared, ui]
-    publicEntrypoints:
-      - packages/ui/src/workspace-config-catalog/index.ts
-      - packages/ui/src/workspace-config-catalog/contract.ts
-    layers:
-      contract: contract.ts
-      app: catalog.ts
-      ui: .
-    owner: configuration
-  # project-catalog：由 architecture:adopt 登记
-  - id: project-catalog
-    roots:
-      - packages/services/src/project-catalog
-    managed: true
-    requires: [project]
-    publicEntrypoints:
-      - packages/services/src/project-catalog/index.ts
-      - packages/services/src/project-catalog/contract.ts
-    layers:
-      contract: contract.ts
-      domain: selection-id.ts
-      app: .
-    owner: conversation
-  # conversation-workspace-target：由 architecture:adopt 登记
-  - id: conversation-workspace-target
-    roots:
-      - packages/ui/src/conversation-workspace-target
-    managed: true
-    requires: [shared, ui]
-    publicEntrypoints:
-      - packages/ui/src/conversation-workspace-target/index.ts
-      - packages/ui/src/conversation-workspace-target/contract.ts
-      - packages/ui/src/conversation-workspace-target/purpose.ts
-      - packages/ui/src/conversation-workspace-target/sourceIdentity.ts
-      - packages/ui/src/conversation-workspace-target/workbenchTarget.ts
-    layers:
-      contract: contract.ts
-      app: .
-    owner: conversation
-
   - id: gen-ui-protocol
     roots: [packages/shared/src/gen-ui]
     managed: true
@@ -222,25 +116,10 @@ modules:
     managed: true
     requires: [ui, gen-ui-protocol]
     publicEntrypoints:
-      - packages/ui/src/gen-ui/index.ts
       - packages/ui/src/gen-ui/contract.ts
     layers: { domain: "." }
     owner: conversation
 
-  # 插件 UI（MCP Apps 沙箱）：模块边界见各模块 CONTRACT.md。
-  - id: mcp-apps-protocol
-    roots: [packages/shared/src/mcp-apps]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      [
-        packages/shared/src/mcp-apps/index.ts,
-        packages/shared/src/mcp-apps/contract.ts,
-        packages/shared/src/mcp-apps/hostContract.ts,
-      ]
-    layers:
-      domain: "."
-    owner: plugin
   # host-database-startup：由 architecture:adopt 登记
   # cli-subagent-config：由 architecture:adopt 登记
   # cli-session-execution：由 architecture:adopt 登记
@@ -309,27 +188,6 @@ modules:
   # office-runtime：内置文档插件查看面板的共享运行时，由 architecture:adopt 登记
 
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集
-  # settings-scope：设置页 Scope 菜单按设备分组
-  - id: settings-scope
-    roots:
-      - packages/ui/src/settings-scope
-    managed: true
-    requires:
-      - services
-      - shared
-      - ui
-      - conversation-workspace-target
-      - workspace-config-catalog
-    publicEntrypoints:
-      - packages/ui/src/settings-scope/index.ts
-      - packages/ui/src/settings-scope/contract.ts
-    layers:
-      contract: contract.ts
-      domain: domain
-      app: app
-      ui: .
-    layerOrder: [contract, domain, app, ui]
-    owner: remote
   # side-pane-full-view：由 architecture:adopt 登记
   - id: side-pane-full-view
     roots:
@@ -344,19 +202,6 @@ modules:
     layers:
       ui: .
     owner: conversation
-
-  # 发行策略使用独立目录；修改后的文件由本模块承担边界检查。
-  - id: request-security-edition
-    roots: [packages/shared/src/request-security-edition]
-    managed: true
-    requires: [shared]
-    publicEntrypoints:
-      - packages/shared/src/request-security-edition/index.ts
-      - packages/shared/src/request-security-edition/policy.ts
-      - packages/shared/src/request-security-edition/verification-policy.ts
-      - packages/shared/src/request-security-edition/contract.ts
-    layers: { adapters: . }
-    owner: request-security
 
   # local-ttft-contract：由 architecture:adopt 登记
   - id: local-ttft-contract
@@ -515,21 +360,6 @@ modules:
     publicEntrypoints: [packages/ui/src/ToolCallBlocks/session/contract.ts]
     layers: { ui: "." }
     owner: conversation
-  # extension-host-protocol：扩展进程三方共用的纯 schema、类型与纯函数。
-  - id: extension-host-protocol
-    roots:
-      - packages/shared/src/extension-host
-    managed: true
-    # 能力表引用 context 组成的线格式与模型选择 schema；
-    # composer.mention 的候选项与 CLI plugins/mentionItems 共用一份 schema（§16.6）；
-    # 会话能力的入参与返回直接用 session-control 的端口 schema（§17.3）。
-    requires: [context-composition, plugin-host-queries, session-control, shared]
-    publicEntrypoints:
-      - packages/shared/src/extension-host/index.ts
-      - packages/shared/src/extension-host/contract.ts
-    layers:
-      domain: .
-    owner: plugin
   # 选区批注输入浮层；调用方是 v4 选区浮层，引用数据仍归 ui lib。
   - id: selection-comment
     roots:
@@ -571,22 +401,6 @@ modules:
     layers:
       ui: .
     owner: settings
-  # task-row-hover：会话行悬停卡片
-  - id: task-row-hover
-    roots:
-      - packages/ui/src/task-row-hover
-    managed: true
-    requires:
-      - managed-worktree-ui
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/task-row-hover/index.ts
-      - packages/ui/src/task-row-hover/contract.ts
-    layers:
-      ui: .
-    owner: conversation
-
   # cli-memory-diagnostics：由 architecture:adopt 登记
   - id: mobile-ui
     roots: [packages/ui/src/components/mobile-ui]
@@ -658,10 +472,6 @@ global:
     - "@zcode/model-option-map"
     - "@zcode/session-control"
     - "@zcode/design-runtime"
-  nodeEntrypoints:
-    - "@zcode/shared/sqlite-migrations"
-    - "@zcode/shared/workspace-hook-discovery"
-    - "@zcode/shared/workspace-hook-mutation"
   nativePackages: ["@napi-rs/keyring"]
 
 exceptions:
@@ -764,15 +574,10 @@ exceptions:
       - packages/shared/src/zcode-protocol-v4/workflow-runs-delta.ts
       - packages/shared/src/zcode-protocol-v4/workflow-runs-eviction.ts
     reason: G7.6 仅从两个既有协议算法移除测试 bounds／limits 及内部传参，唯一采用原有 WORKFLOW_RUNS_LIMITS；状态 owner、顺序、真实限额和依赖不变。不接管整个 shared 或 v4，不豁免其它规则；真实容量与顺序证明见 docs/specs/aireq-migration/release-surface.md。
-  - id: onboarding-existing-module-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/onboarding/]
-    reason: 保留既有 onboarding 通用视觉、网格、标题和选择控件的存量准入；服务端记录契约、旧流程与服务 hook 已裁撤，不恢复对应 RPC，也不扩大原 UI 目录准入范围。
   - id: workflow-share-unmanaged-new-files
     rule: unmanaged-new-file
     paths:
       [
-        packages/ui/src/ToolCallBlocks/ToolPresentation.tsx,
         packages/ui/src/ToolCallBlocks/presentationCapabilities.tsx,
         packages/ui/src/ToolCallBlocks/renderers/list-models.tsx,
         packages/ui/src/ToolCallBlocks/renderers/list-saved-workflows-presentation.tsx,
@@ -834,15 +639,13 @@ exceptions:
   - id: ui-loader-circle-existing-edit
     rule: unmanaged-new-file
     paths:
-      - packages/ui/src/components/workflow-timeline/WorkflowRoll.tsx
       - packages/ui/src/components/workflow-timeline/WorkflowRosterParts.tsx
       - packages/ui/src/v4/BotTopicPreparation.tsx
-    reason: 已准入的三个存量 UI 文件仅统一 Lucide 图标为 LoaderCircle，不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
+    reason: 已准入的存量 UI 文件仅统一 Lucide 图标为 LoaderCircle，不新增文件、不改变状态 owner、公共契约或模块依赖；旧归档删除按钮已裁撤，本次不接管其余所在业务模块。
   - id: ui-more-locales-existing-edit
     rule: unmanaged-new-file
     paths:
       [
-        packages/ui/src/app-shell/WorkflowRunHoleParts.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowSettingsChangeRow.tsx,
         packages/ui/src/components/workflow-timeline/WorkflowTimelineFills.tsx,
       ]
