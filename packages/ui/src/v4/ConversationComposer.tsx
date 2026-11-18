@@ -5,7 +5,6 @@ import {
 } from "@/v4/WorkspaceHookPendingBanner.js";
 import { StoreContext } from "@/store/StoreProvider.js";
 import { toTelemetryUiMode } from "@/lib/appTelemetry.js";
-import { ComposerSubmissionPendingContext } from "@/project-sidebar/index.js";
 /* oxlint-disable eslint(max-lines) -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
@@ -26,6 +25,7 @@ import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js
  * - 工具条（模型/思考深度/模式/context usage）见 V4ComposerToolbar。
  */
 import {
+  createContext,
   memo,
   useCallback,
   useContext,
@@ -219,6 +219,8 @@ import {
   trackUnsettledComposerSubmission,
 } from "@/v4/composer/composerSubmissionSettlement.js";
 
+/** 菜单持有切换意图；输入框只投影当前草稿是否允许提交，不保存第二份草稿。 */
+const ComposerSubmissionPendingContext = createContext<((pending: boolean) => void) | null>(null);
 const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
 
 export interface ConversationComposerSendOptions {

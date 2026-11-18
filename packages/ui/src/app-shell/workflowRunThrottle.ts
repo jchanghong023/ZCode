@@ -11,7 +11,22 @@
  */
 import type { WorkflowRunConcurrency, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import { isWorkflowRunConfigurable } from "@/components/workflow-timeline/workflowRunSettings.js";
-import type { WorkflowRunEventItem, WorkflowRunEventLine } from "./workflowRunPanel.js";
+/** 事件日志的一条输入（= v4 query 结果里的一项）。 */
+interface WorkflowRunEventItem {
+  sequence: number;
+  type: string;
+  payload: Record<string, unknown>;
+  truncated?: boolean;
+}
+
+interface WorkflowRunEventLine {
+  sequence: number;
+  type: string;
+  label: string;
+  detail?: string;
+  tone: "default" | "failed";
+  truncated?: boolean;
+}
 
 const MS_PER_SECOND = 1_000;
 const I18N_PREFIX = "chat.toolCall.workflow.run.";

@@ -66,14 +66,6 @@ export type {
   ZCodeAgentWorkspaceTarget,
 } from "./zcode-agent/zcodeAgent.js";
 
-export type {
-  ClientSceneConfig,
-  ClientSceneItem,
-  ClientSceneOption,
-} from "./client-scenes/clientScenes.js";
-
-export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
-
 // Subagents service — ISubagentsService is both a type (interface) and value (descriptor)
 export { ISubagentsService } from "./subagents/subagents.js";
 
@@ -92,9 +84,6 @@ export type {
   SaveProjectInput,
   ProjectDirectories,
 } from "#src/project/contract.js";
-
-export { readProjectCatalog, projectSelectionId } from "#src/project-catalog/index.js";
-export type { ProjectCatalogPort, ProjectCatalogSnapshot } from "#src/project-catalog/contract.js";
 
 export type {
   TaskGroup,

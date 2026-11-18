@@ -13,7 +13,6 @@
 | `bun run test:engineering`          | 执行 engineering 精确清单中的全部测试                              |
 | `bun run test:engineering:affected` | 使用 Vitest 官方依赖选择；空选择、dry-run 或整套跳过不表示执行通过 |
 | `bun run test:architecture`         | Bun 按 `./scripts/test` 发现测试，`--timeout 0`；当前无 case       |
-| session-control 包的 `test`         | 保留包内 Vitest 配置和命令，当前无用例                             |
 
 根命令见 [`package.json`](../../package.json)，精确登记见 [`engineering-test-files.json`](../../scripts/engineering-test-files.json)。新增文件须登记，不依靠全仓 glob 自动发现。`test/ut/tsconfig.json` 只检查用例，产品源码仍由根 `typecheck` 检查。
 
