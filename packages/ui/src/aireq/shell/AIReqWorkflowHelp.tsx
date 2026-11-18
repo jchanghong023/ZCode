@@ -133,8 +133,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "项目总览和想法池跨项目；我的待办与其余页面按侧栏所选项目与 Release 展示。总览卡片只读，在左侧选择项目和具体 Release 后进入当前项目、需求共创、开发任务或进度分析。同一需求从澄清到验收持续保留讨论、材料与记录。待办完成实际事项后自动消失，无需手工勾选完成。"
-              : "Projects and Ideas span all projects; My todos and the other pages follow the project and Release selected in the sidebar. Overview cards are read-only: choose a project and a specific Release on the left, then open Current project, Co-creation, Development tasks or Progress analysis. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos disappear when their actual work is complete; there is no manual mark-done action."}
+              ? "项目总览和想法池跨项目；我的待办与其余页面按侧栏所选项目与 Release 展示。在总览选择“查看提案”可打开该版本的需求共创，也可在侧栏切换项目、版本和页面。同一需求从澄清到验收持续保留讨论、材料与记录。待办完成实际事项后自动消失，无需手工勾选完成。"
+              : "Projects and Ideas span all projects. My todos and the other pages follow the selected project and release. Open a release’s proposals from the overview, or switch projects, releases and pages in the sidebar. Each requirement retains its discussions, materials and records from clarification through acceptance. Todos disappear when their actual work is complete."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh

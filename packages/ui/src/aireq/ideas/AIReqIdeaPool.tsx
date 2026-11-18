@@ -268,7 +268,6 @@ export function AIReqIdeaPool() {
           />
         </div>
         {ai.view && (
-          // 原表格透出页面底色且正文沿用链接主色；与外观页统一卡片底色和主次文字角色。
           <div className="overflow-x-auto rounded-xl border border-card-border bg-card text-foreground">
             <table className="w-full text-left text-ui-base">
               <thead className="bg-card text-ui-sm text-foreground">
@@ -276,8 +275,12 @@ export function AIReqIdeaPool() {
                   <th className="px-4 py-3 font-medium">
                     {zh ? "原始需求" : "Original requirement"}
                   </th>
-                  <th className="px-4 py-3 font-medium">{zh ? "提交人" : "Submitted by"}</th>
-                  <th className="px-4 py-3 font-medium">{zh ? "提交时间" : "Submitted"}</th>
+                  <th className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell">
+                    {zh ? "提交人" : "Submitted by"}
+                  </th>
+                  <th className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell">
+                    {zh ? "提交时间" : "Submitted"}
+                  </th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-medium">
                     {zh ? "操作" : "Actions"}
                   </th>
@@ -285,23 +288,24 @@ export function AIReqIdeaPool() {
               </thead>
               <tbody>
                 {visible.map((idea) => (
-                  <tr
-                    key={idea.id}
-                    data-aireq-motion-row=""
-                    className="group/row border-t border-border"
-                  >
+                  <tr key={idea.id} data-aireq-motion-row="" className="border-t border-border">
                     {/* 想法池此前漏接共享行标记；只平移需求正文，元数据和操作列保持原位。 */}
                     <td data-aireq-motion-cell="" className="max-w-lg px-4 py-4">
                       <Button
                         variant="link"
-                        className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-foreground-subtle hover:text-foreground"
+                        className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-foreground"
                         onClick={(event) => open("edit", event.currentTarget, idea)}
                       >
                         {idea.originalText}
                       </Button>
+                      <p className="mt-1 text-ui-sm text-foreground-subtle @min-[640px]/conversation:hidden">
+                        {idea.submittedBy} · {new Date(idea.createdAt).toLocaleString(locale)}
+                      </p>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4">{idea.submittedBy}</td>
-                    <td className="whitespace-nowrap px-4 py-4 text-ui-sm text-foreground-subtle">
+                    <td className="hidden whitespace-nowrap px-4 py-4 text-ui-caption text-foreground-subtle @min-[640px]/conversation:table-cell">
+                      {idea.submittedBy}
+                    </td>
+                    <td className="hidden whitespace-nowrap px-4 py-4 text-ui-sm text-foreground-subtle @min-[640px]/conversation:table-cell">
                       {new Date(idea.createdAt).toLocaleString(locale)}
                     </td>
                     <td className="px-2 py-4 text-right">
@@ -314,8 +318,7 @@ export function AIReqIdeaPool() {
                             }}
                             variant="ghost"
                             size="icon"
-                            // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／菜单展开时显现，保持表格安静。
-                            className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:text-foreground focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                            className="size-8 rounded-lg text-foreground-subtle hover:text-foreground focus-visible:text-foreground"
                             aria-label={
                               zh
                                 ? `${idea.originalText} 的更多操作`

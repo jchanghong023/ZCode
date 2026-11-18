@@ -141,6 +141,8 @@ export function createPrototypeProgressScheduler(
     );
     return { page, pageSize, start: (page - 1) * pageSize };
   };
+  const matchesState = (task: AIReqAnalysisTask, filter: AIReqAnalysisFilter) =>
+    !filter.taskState || task.state === filter.taskState;
   const newestFirst = (a: AIReqAnalysisRunSummary, b: AIReqAnalysisRunSummary) =>
     b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id);
   const summary = (run: AIReqAnalysisRun): AIReqAnalysisRunSummary => ({
@@ -265,7 +267,7 @@ export function createPrototypeProgressScheduler(
     const prompt = promptSnapshot();
     const batchId = `memory-demo-batch-${++serial}`;
     for (const task of tasks.values()) {
-      if (!active(task) || pending.has(task.id) || !matches(task, filter)) continue;
+      if (!active(task) || pending.has(task.id) || !matches(task, filter) || !matchesState(task, filter)) continue;
       if (
         trigger === "schedule" &&
         (!enabled || (task.nextRunAt && Date.parse(task.nextRunAt) > clock))
@@ -671,11 +673,13 @@ export function createPrototypeProgressScheduler(
       };
     },
     queryTasks(filter, requestedPage, requestedSize) {
-      const matching = [...tasks.values()].filter((task) => matches(task, filter));
+      const scoped = [...tasks.values()].filter((task) => matches(task, filter));
+      const matching = scoped.filter((task) => matchesState(task, filter));
       const bounds = pageBounds(matching.length, requestedPage, requestedSize);
       return {
         items: structuredClone(matching.slice(bounds.start, bounds.start + bounds.pageSize)),
         total: matching.length,
+        failedCount: scoped.filter((task) => task.state === "failed").length,
         page: bounds.page,
         pageSize: bounds.pageSize,
         eligibleCount: matching.reduce(

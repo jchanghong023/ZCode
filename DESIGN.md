@@ -24,7 +24,7 @@ AIReq 使用当前 ZCode 界面体系：安静、紧凑、可长时间操作的�
 | 更新中         | `progress-surface`／`progress-surface-foreground`                                      |
 | Diff           | `diff-added`／`diff-added-foreground`、`diff-removed`／`diff-removed-foreground`       |
 
-业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题和主要数值用主文字，原文、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。抬升表面（卡片内层面板、行悬停底色）会吃掉对比余量：其上的次级文字按实际合成底色核验 ≥4.5:1，不足时升为主文字或调整表面，不沿用外层卡片的通过结论。
+业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题、主要数值及想法池的原始需求用主文字，提案标题下的原文摘要、工号、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。抬升表面（卡片内层面板、行悬停底色）会吃掉对比余量：其上的次级文字按实际合成底色核验 ≥4.5:1，不足时升为主文字或调整表面，不沿用外层卡片的通过结论。
 
 状态色只表达真实状态，不作装饰；surface 与对应 foreground 配对。等待确认使用 interaction-confirmation，不借 success 表示等待。Git 文件状态使用 `git-*`，不借 Diff 或 warning。文件、Skill、命令 mention 使用各自 node 的背景、hover 和前景；Markdown 行内代码使用 `markdown-inline-code`。
 

@@ -2,7 +2,7 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import { MoreHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input.js";
 import { useAIReq } from "./AIReqContext.js";
 import { getEmployeeId } from "./identity.js";
 import type { AIReqTodo } from "./contract.js";
+import { ScopedPageTitle } from "./shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./shell/pageLayout.js";
 import { useAIReqDataSource } from "./data-source.js";
 
@@ -34,6 +35,7 @@ export function AIReqTodoPage() {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const [filter, setFilter] = useState<"mine" | "unassigned" | "all">("mine");
+  const nextFilterButton = useRef<HTMLButtonElement>(null);
   const [assignees, setAssignees] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<string>();
   const [assigningTodo, setAssigningTodo] = useState<AIReqTodo>();
@@ -67,11 +69,7 @@ export function AIReqTodoPage() {
     : filter === "mine"
       ? `${scopeLabel}没有分配给你的待办`
       : `${scopeLabel}没有待认领事项`;
-  const emptyDescription = !scopedTodos.length
-    ? "需要人工处理时，事项会自动出现在这里。"
-    : filter === "mine"
-      ? "可切换到待认领或全部待办。"
-      : "当前范围内的待办均已分配归属。";
+  const nextFilter = filter === "mine" && unassignedCount > 0 ? "unassigned" : "all";
   const assign = async (item: AIReqTodo, employee: string) => {
     if (pending) return false;
     setPending(item.id);
@@ -154,16 +152,7 @@ export function AIReqTodoPage() {
       data-testid="aireq-todos"
     >
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-8`}>
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>我的待办</h1>
-          {/* 范围块可能滚出侧栏视口；标题旁保留当前项目与 Release，避免把空待办误读为全局无工作。 */}
-          <p
-            className="min-w-0 max-w-full truncate text-ui-sm text-foreground-subtle"
-            title={`${project.name} · ${release.title}`}
-          >
-            {project.name} · {release.title}
-          </p>
-        </div>
+        <ScopedPageTitle title="我的待办" />
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="待办筛选">
           {(
             [
@@ -174,6 +163,7 @@ export function AIReqTodoPage() {
           ).map(([value, label, count]) => (
             <Button
               key={value}
+              ref={value === nextFilter ? nextFilterButton : undefined}
               variant={filter === value ? "secondary" : "ghost"}
               className="h-8 gap-3 px-3"
               aria-pressed={filter === value}
@@ -294,7 +284,22 @@ export function AIReqTodoPage() {
                 <tr>
                   <td colSpan={4} className="p-6 text-foreground-subtle">
                     <p className="font-medium text-foreground">{emptyTitle}</p>
-                    <p className="mt-1 text-ui-sm">{emptyDescription}</p>
+                    {scopedTodos.length > 0 ? (
+                      <Button
+                        variant="link"
+                        className="mt-1 h-auto p-0 text-ui-sm"
+                        onClick={() => {
+                          nextFilterButton.current?.focus();
+                          setFilter(nextFilter);
+                        }}
+                      >
+                        {nextFilter === "unassigned"
+                          ? `查看待认领（${unassignedCount}）`
+                          : `查看全部待办（${scopedTodos.length}）`}
+                      </Button>
+                    ) : (
+                      <p className="mt-1 text-ui-sm">需要人工处理时，事项会自动出现在这里。</p>
+                    )}
                   </td>
                 </tr>
               )}

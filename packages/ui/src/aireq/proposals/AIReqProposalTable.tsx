@@ -36,7 +36,8 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { PROPOSAL_STATE_GROUPS, PROPOSAL_STATE_OPTIONS, proposalState } from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
@@ -151,11 +152,13 @@ export function AIReqProposalTable() {
       generation.current++;
     };
   }, [importOpen]);
+  const search = query.trim().toLocaleLowerCase();
   const filtered = groups.filter(
     (item) =>
-      (!query ||
-        item.originalText.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
-        item.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
+      (!search ||
+        item.title.toLocaleLowerCase().includes(search) ||
+        item.originalText.toLocaleLowerCase().includes(search) ||
+        item.id.toLocaleLowerCase().includes(search)) &&
       (!submitter || item.submittedBy.includes(submitter)) &&
       (!phase || proposalState(item) === phase),
   );
@@ -272,7 +275,7 @@ export function AIReqProposalTable() {
         className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex h-full min-h-0 flex-col gap-4 pb-2 lg:pb-2`}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "需求共创" : "Co-creation"}</h1>
+          <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
               data-testid="new-requirement"
@@ -315,8 +318,12 @@ export function AIReqProposalTable() {
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
             />
             <Input
-              aria-label={zh ? "搜索原始需求" : "Search requirements"}
-              placeholder={zh ? "搜索原始需求" : "Search requirements"}
+              aria-label={
+                zh ? "搜索提案名称或原始需求" : "Search proposal name or original request"
+              }
+              placeholder={
+                zh ? "搜索提案名称或原始需求" : "Search proposal name or original request"
+              }
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -326,8 +333,8 @@ export function AIReqProposalTable() {
             />
           </div>
           <Input
-            aria-label="筛选提交人工号"
-            placeholder="提交人工号"
+            aria-label={zh ? "筛选提交人工号" : "Filter by submitter ID"}
+            placeholder={zh ? "提交人工号" : "Submitter ID"}
             value={submitter}
             onChange={(event) => {
               setSubmitter(event.target.value);
@@ -378,28 +385,34 @@ export function AIReqProposalTable() {
         </div>
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          <table className="w-full min-w-[480px] table-fixed text-left text-ui-base @min-[640px]/conversation:min-w-3xl">
-            {/* 限宽正文中百分比列曾挤碎状态文字；为正文、短日期与状态保留列宽，窄面板只横滚表格。 */}
+          <table className="w-full table-fixed text-left text-ui-base">
             <colgroup>
-              <col className="hidden w-28 @min-[640px]/conversation:table-column" />
               <col />
+              <col className="hidden w-28 @min-[640px]/conversation:table-column" />
               <col className="hidden w-32 @min-[640px]/conversation:table-column" />
-              <col className="w-40" />
-              <col className="w-14" />
+              <col className="w-28 @min-[640px]/conversation:w-32" />
             </colgroup>
-            <thead className="sticky top-0 bg-card">
-              <tr>
-                {["提交人", zh ? "原始需求" : "Requirement", "提交日期", "当前状态", "操作"].map(
-                  (label, index) => (
-                    <th
-                      key={label}
-                      title={index === 2 ? "北京时间" : undefined}
-                      className={`border-b border-border py-3 font-medium ${index === 0 || index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 4 ? "px-2 text-right" : "px-4"}`}
-                    >
-                      {label}
-                    </th>
-                  ),
-                )}
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border">
+                <th scope="col" className="px-4 py-3 font-medium">
+                  {zh ? "需求提案" : "Proposal"}
+                </th>
+                <th
+                  scope="col"
+                  className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell"
+                >
+                  {zh ? "提交人" : "Submitted by"}
+                </th>
+                <th
+                  scope="col"
+                  title={zh ? "北京时间" : "Beijing time"}
+                  className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell"
+                >
+                  {zh ? "提交日期" : "Submitted"}
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  {zh ? "当前状态" : "Status"}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -408,7 +421,7 @@ export function AIReqProposalTable() {
               ))}
               {!filtered.length && (
                 <tr>
-                  <td colSpan={5} className="p-6 text-foreground-subtle">
+                  <td colSpan={4} className="p-6 text-foreground-subtle">
                     {groups.length
                       ? "没有符合筛选条件的提案。"
                       : "暂无需求提案。新增只保存原文，不启动 AI。"}

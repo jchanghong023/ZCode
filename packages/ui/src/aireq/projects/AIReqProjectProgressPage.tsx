@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, FolderGit2, Plus } from "lucide-react";
+import { ArrowRight, ChevronDown, FolderGit2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Card } from "@/components/ui/card.js";
@@ -76,8 +76,8 @@ export function AIReqProjectProgressPage({
             )}
             <p className="text-ui-sm text-foreground-subtle">
               {zh
-                ? "全部项目；从版本卡片进入对应需求列表。"
-                : "All projects; open a release card to enter its requirements."}
+                ? "全部项目的版本进展与提案"
+                : "Release progress and proposals across all projects"}
             </p>
           </div>
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
@@ -188,7 +188,14 @@ export function AIReqProjectProgressPage({
                               />
                             </div>
                             {/* 修复原因：内层版本卡抬升底色上 12px foreground-subtle 实测 4.28:1（<4.5）；统计标签升为主文字。 */}
-                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-ui-sm text-foreground tabular-nums">
+                            {release.unanalyzedCount > 0 && (
+                              <span className="text-ui-base font-semibold text-foreground tabular-nums">
+                                {zh
+                                  ? `${release.unanalyzedCount} 个开发任务待分析`
+                                  : `Tasks awaiting analysis: ${release.unanalyzedCount}`}
+                              </span>
+                            )}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
                               {release.formalCount > 0 && (
                                 <span className="whitespace-nowrap">
                                   {zh ? "正式需求" : "Formal"}{" "}
@@ -197,35 +204,27 @@ export function AIReqProjectProgressPage({
                                   </strong>
                                 </span>
                               )}
-                              <span className="whitespace-nowrap">
-                                {zh ? "提案" : "Proposals"}{" "}
-                                <strong className="font-medium text-foreground">
-                                  {release.proposalCount}
-                                </strong>
-                              </span>
-                              {release.unanalyzedCount > 0 && (
-                                <span className="whitespace-nowrap">
-                                  {zh ? "未分析开发任务" : "Unanalyzed tasks"}{" "}
-                                  <strong className="font-medium text-foreground">
-                                    {release.unanalyzedCount}
-                                  </strong>
-                                </span>
+                              {release.proposalCount > 0 ? (
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="w-fit p-0"
+                                  onClick={() =>
+                                    // 当前项目专属来源入口会忽略全局总览；走已有的跨项目版本导航。
+                                    ai.navigate(() =>
+                                      ai.openProject(project.id, "proposals", release.releaseId),
+                                    )
+                                  }
+                                >
+                                  {zh
+                                    ? `查看 ${release.proposalCount} 个提案`
+                                    : `View proposals (${release.proposalCount})`}
+                                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                                </Button>
+                              ) : (
+                                <span>{zh ? "暂无提案" : "No proposals"}</span>
                               )}
-                            </span>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="w-fit p-0"
-                              onClick={() =>
-                                ai.openFromProjectOverview(
-                                  "proposals",
-                                  { projectId: project.id },
-                                  release.releaseId,
-                                )
-                              }
-                            >
-                              {zh ? "查看该版本提案" : "View proposals"}
-                            </Button>
+                            </div>
                           </div>
                         </article>
                       ))}

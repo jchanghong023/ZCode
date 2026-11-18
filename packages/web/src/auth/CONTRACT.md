@@ -18,7 +18,7 @@ stateDiagram-v2
     Active --> Entry: 退出或切换 / 清保存 / 卸载 / 关闭
 ```
 
-连接生命周期唯一 owner 为 main.tsx bootstrap。EmployeeEntry 保留 createEmployeeEntry/EmployeeEntry API，复用当前 ThemeHeroVisual（显式主题，无伪造 store）、Input/Button 和主题 token。标题为“以AI为中心的需求管理平台”，副标题说明需求澄清、方案评审与需求进度，不再承诺 Issue 功能；输入错误、持久化错误、提交 busy 明确展示。连接加载、断线、重试和退出由 main owner 管理；失败不能留在 loading，旧连接结果不得影响新身份。
+连接生命周期唯一 owner 为 main.tsx bootstrap。EmployeeEntry 保留 createEmployeeEntry/EmployeeEntry API，复用当前 ThemeHeroVisual（显式主题，无伪造 store）、Input/Button 和主题 token。标题沿用工作台名称“AI 需求协作”，副标题说明需求澄清、方案评审与需求进度，页脚仅保留 ZCode 品牌；输入错误、持久化错误、提交 busy 明确展示。连接加载、断线、重试和退出由 main owner 管理；失败不能留在 loading，旧连接结果不得影响新身份。
 
 ```mermaid
 sequenceDiagram

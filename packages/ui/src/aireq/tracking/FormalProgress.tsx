@@ -20,7 +20,8 @@ import {
   MarkdownTableRow,
 } from "@/components/ai-elements/markdown-table.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
@@ -77,6 +78,9 @@ export function AIReqFormalTable() {
   const groups = view.groups.filter(
     (group) => group.projectId === aireq.selection.projectId && group.releaseId === aireq.releaseId,
   );
+  // 自身计划缺项已由日期单元格说明，只有已排期任务的依赖或人员提醒需要协调。
+  const coordinationWarnings = (sr: AIReqSystemRequirement) =>
+    sr.planning?.plannedStart && sr.planning.plannedEnd ? planningWarnings(view, sr) : [];
   const normalized = query.trim().toLocaleLowerCase();
   const selectedTarget =
     sidePane.activeTab?.releaseId === aireq.releaseId ? sidePane.activeTab.selection : undefined;
@@ -115,7 +119,7 @@ export function AIReqFormalTable() {
         className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "flex h-full min-h-0 flex-col pb-2 lg:pb-2")}
       >
         <header className="shrink-0 space-y-4">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "开发任务" : "Development tasks"}</h1>
+          <ScopedPageTitle title={zh ? "开发任务" : "Development tasks"} />
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
@@ -256,7 +260,7 @@ export function AIReqFormalTable() {
                     srs.flatMap((sr) => (sr.testingEmployeeId ? [sr.testingEmployeeId] : [])),
                   ),
                 ];
-                const warnings = srs.flatMap((sr) => planningWarnings(view, sr));
+                const warnings = srs.flatMap(coordinationWarnings);
                 // 表头和固定列共用外观卡片底色；只叠一次悬停／选中行色，避免滚动透字和色块分裂。
                 return (
                   <Fragment key={group.id}>
@@ -396,7 +400,7 @@ export function AIReqFormalTable() {
                     )}
                     {showChildren &&
                       children.map((sr) => {
-                        const warnings = planningWarnings(view, sr);
+                        const warnings = coordinationWarnings(sr);
                         return (
                           <Fragment key={sr.id}>
                             <MarkdownTableRow

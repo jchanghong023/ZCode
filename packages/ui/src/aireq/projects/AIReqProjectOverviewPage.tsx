@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCheck, Clock3 } from "lucide-react";
+import { ArrowRight, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Badge } from "@/components/ui/badge.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -15,7 +15,8 @@ import {
   srProgressStatus,
 } from "../contract.js";
 import type { AIReqRequirementGroup, AIReqProgressStatus } from "../contract.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 import { OverviewProgress } from "./OverviewProgress.js";
 
@@ -101,6 +102,7 @@ export function AIReqProjectOverviewPage({
     { id: "development", label: zh ? "开发确认" : "Development confirmation" },
     { id: "testing", label: zh ? "测试视角确认" : "Testing confirmation" },
   ];
+  const allPendingCount = new Set(todos.map((todo) => todo.irId)).size;
   const pendingIds = new Set(matches(confirmationFilter).map((todo) => todo.irId));
   const pending = proposals.filter((item) => pendingIds.has(item.id));
   const recent = [...proposals]
@@ -152,7 +154,7 @@ export function AIReqProjectOverviewPage({
     >
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-8"}>
         <header className="flex items-center gap-2">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "当前项目" : "Current project"}</h1>
+          <ScopedPageTitle title={zh ? "当前项目" : "Current project"} />
           {active && <ProjectPageHelp scope="project-overview" />}
         </header>
         <p
@@ -269,31 +271,39 @@ export function AIReqProjectOverviewPage({
                   </div>
                 ))}
               </dl>
-              {/* 上方信息卡同样需要局部反馈；整体进度保持原位，不重播真实进度。 */}
+              {/* 正式 SR 的平均进度、验收比例和未转正提案的人工事项属于三个不同口径。 */}
               <div
                 data-aireq-motion-card=""
-                className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-card-border bg-card px-4 py-3 text-foreground"
+                className="grid gap-4 rounded-xl border border-card-border bg-card p-4 text-foreground @min-[44rem]/conversation:grid-cols-[2fr_1fr_1fr]"
               >
-                <div className="flex min-w-56 flex-1 items-center gap-4">
-                  <span className="shrink-0 text-ui-sm">
-                    {zh ? "整体进度" : "Overall progress"}
+                <div className="min-w-0 space-y-2">
+                  <span className="block text-ui-sm">
+                    {zh ? "正式开发任务进度" : "Formal task progress"}
                   </span>
-                  <div className="flex-1">
-                    <OverviewProgress
-                      percent={summary.percent}
-                      formalCount={summary.formalCount}
-                      label={release.title}
-                      zh={zh}
-                    />
-                  </div>
+                  <OverviewProgress
+                    percent={summary.percent}
+                    formalCount={summary.formalCount}
+                    label={release.title}
+                    zh={zh}
+                  />
                 </div>
-                <span className="inline-flex items-center gap-2 text-ui-sm text-foreground-subtle">
-                  <CheckCheck className="size-4" aria-hidden="true" />
-                  {zh
-                    ? `人工验收完成 ${completed} / ${srs.length}`
-                    : `Accepted ${completed} / ${srs.length}`}
-                  {srs.length > 0 ? ` · ${progressLabel((completed / srs.length) * 100)}` : ""}
-                </span>
+                <div className="space-y-1">
+                  <span className="block text-ui-sm">
+                    {zh ? "开发任务已验收" : "Tasks accepted"}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {completed} / {srs.length}
+                    {srs.length > 0 && (
+                      <span className="ml-2 text-ui-sm font-normal text-foreground-subtle">
+                        {progressLabel((completed / srs.length) * 100)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="block text-ui-sm">{filters[0].label}</span>
+                  <span className="font-medium tabular-nums">{allPendingCount}</span>
+                </div>
               </div>
               {summary.unanalyzedCount > 0 && (
                 <p className="text-ui-sm text-foreground-subtle">

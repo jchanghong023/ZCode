@@ -140,33 +140,6 @@ function PersonalizationContent({
             : "Saving updates shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
         </p>
       </AIReqPersonalConfigScope>
-      <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-background py-3">
-        <SettingsFormActions>
-          <Button size="lg" disabled={!canSave || saving} onClick={save}>
-            {zh ? "保存" : "Save"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="lg"
-            disabled={!dirtyCount || saving}
-            onClick={() => {
-              setDraft({ ...saved });
-              setMessage(null);
-            }}
-          >
-            {zh ? "取消" : "Cancel"}
-          </Button>
-        </SettingsFormActions>
-        {message && (
-          <p
-            role={message.kind === "error" ? "alert" : "status"}
-            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
-          >
-            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
-            {message.text}
-          </p>
-        )}
-      </div>
       <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select
@@ -200,14 +173,6 @@ function PersonalizationContent({
         >
           {zh ? selectedAgent?.description : selectedAgent?.descriptionEn}
         </p>
-        {/* 草稿属于全部 Agent，切换当前编辑项不能隐藏其他 Agent 的未保存状态。 */}
-        {dirty && (
-          <p role="status" className="text-ui-base leading-6 text-foreground-subtle">
-            {zh ? "未保存：" : "Unsaved: "}
-            {dirtyAgents.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
-            {zh ? "。保存或取消将应用于全部草稿。" : ". Save or cancel applies to all drafts."}
-          </p>
-        )}
       </AIReqSettingsTarget>
       <AIReqSettingsTarget id="aireq.instructions.prompt" className="space-y-2">
         <Label htmlFor="agent-system-prompt-append">
@@ -250,6 +215,47 @@ function PersonalizationContent({
           {oversized.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
         </p>
       )}
+      <div
+        className={`space-y-2 border-t border-border bg-background py-3 ${dirty || message ? "sticky bottom-0 z-10" : ""}`}
+      >
+        <SettingsFormActions
+          leadingAction={
+            dirty ? (
+              <p role="status" className="text-ui-sm leading-5 text-foreground-subtle">
+                {zh ? "未保存：" : "Unsaved: "}
+                {dirtyAgents
+                  .map((agent) => (zh ? agent.name : agent.nameEn))
+                  .join(zh ? "、" : ", ")}
+                {zh ? "。保存或取消将应用于全部草稿。" : ". Save or cancel applies to all drafts."}
+              </p>
+            ) : null
+          }
+        >
+          <Button size="lg" disabled={!canSave || saving} onClick={save}>
+            {zh ? "保存" : "Save"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="lg"
+            disabled={!dirtyCount || saving}
+            onClick={() => {
+              setDraft({ ...saved });
+              setMessage(null);
+            }}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+        </SettingsFormActions>
+        {message && (
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+          >
+            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+            {message.text}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

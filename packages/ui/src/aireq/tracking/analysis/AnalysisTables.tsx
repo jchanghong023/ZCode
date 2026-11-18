@@ -1,5 +1,4 @@
 import { useRef, useState, type ReactNode } from "react";
-import { MoreHorizontal } from "lucide-react";
 import type {
   AIReqAnalysisSnapshot,
   AIReqAnalysisTask,
@@ -68,7 +67,7 @@ export function AnalysisTaskTable({
           <col className="w-[44%]" />
           <col />
           <col className="w-36" />
-          <col className="w-14" />
+          <col className="w-20" />
         </colgroup>
         <MarkdownTableHeader className="bg-card text-foreground">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
@@ -136,9 +135,7 @@ export function AnalysisTaskTable({
                   <DialogTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／弹窗展开时显现。
-                      className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                      size="sm"
                       aria-haspopup="dialog"
                       aria-label={`查看 ${task.srTitle} 任务详情`}
                       ref={(node) => {
@@ -149,7 +146,7 @@ export function AnalysisTaskTable({
                         detailTrigger.current = event.currentTarget;
                       }}
                     >
-                      <MoreHorizontal aria-hidden="true" className="size-4" />
+                      {locale === "zh-CN" ? "详情" : "Details"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent
@@ -245,7 +242,7 @@ export function AnalysisHistoryTable({
           <col className="w-[36%]" />
           <col className="w-36" />
           <col />
-          <col className="w-14" />
+          <col className="w-20" />
         </colgroup>
         <MarkdownTableHeader className="bg-card text-foreground">
           <MarkdownTableRow className="border-b border-border hover:bg-transparent">
@@ -318,13 +315,11 @@ export function AnalysisHistoryTable({
               <MarkdownTableCell className="px-2 py-4 text-right align-middle">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦时显现。
-                  className="pointer-events-none size-8 rounded-lg opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+                  size="sm"
                   aria-label={`查看 ${run.srTitle} ${time(run.startedAt)} 执行详情`}
                   onClick={(event) => openReport(run.id, event.currentTarget)}
                 >
-                  <MoreHorizontal aria-hidden="true" className="size-4" />
+                  {locale === "zh-CN" ? "报告" : "Report"}
                 </Button>
               </MarkdownTableCell>
             </MarkdownTableRow>

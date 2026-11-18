@@ -329,7 +329,7 @@ export function AIReqProjectSettings({
     setReleaseOpen(true);
   };
   return (
-    <section className="space-y-8" data-testid="aireq-project-settings">
+    <section className="space-y-4" data-testid="aireq-project-settings">
       {/* 已有配置时重读只播报状态，避免周期性插入加载行挤动列表；首次读取仍可见。 */}
       {loading && !projectViews.length && projects.length > 0 && (
         <p role="status" className="text-ui-sm text-foreground-subtle">
@@ -434,7 +434,7 @@ export function AIReqProjectSettings({
               else projectElements.current.delete(project.id);
             }}
           >
-            <header className="space-y-3 px-4 py-4">
+            <header className="space-y-2 px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   <FolderGit2 className="size-4 shrink-0 text-foreground-subtle" />
@@ -453,8 +453,8 @@ export function AIReqProjectSettings({
                   {zh ? "编辑项目" : "Edit project"}
                 </Button>
               </div>
-              <div className="space-y-2">
-                <div className="space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <p className="text-ui-sm text-remote-foreground-muted">
                     {zh ? "Git 仓库" : "Git repository"}
                   </p>
@@ -471,7 +471,7 @@ export function AIReqProjectSettings({
                 </p>
               </div>
             </header>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2">
               <h3 className="text-ui-sm font-medium">
                 {zh ? `Release · ${view.releases.length} 个` : `Releases · ${view.releases.length}`}
               </h3>
@@ -487,7 +487,7 @@ export function AIReqProjectSettings({
             </div>
             {view.releases.length ? (
               <details className="border-t border-border">
-                <summary className="cursor-pointer px-4 py-3 text-ui-sm text-remote-foreground-muted hover:text-foreground focus-visible:bg-surface-hover">
+                <summary className="cursor-pointer px-4 py-2 text-ui-sm text-remote-foreground-muted hover:text-foreground focus-visible:bg-surface-hover">
                   {zh ? "查看 Release 明细" : "View release details"}
                 </summary>
                 <ul className="divide-y divide-border border-t border-border">
@@ -528,7 +528,7 @@ export function AIReqProjectSettings({
                 </ul>
               </details>
             ) : (
-              <div className="border-t border-border px-4 py-4 text-ui-sm text-remote-foreground-muted">
+              <div className="border-t border-border px-4 py-2 text-ui-sm text-remote-foreground-muted">
                 <p>
                   {zh
                     ? "尚无 Release，点击“添加 Release”开始整理本项目的需求。"

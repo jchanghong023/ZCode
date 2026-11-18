@@ -102,6 +102,9 @@ const filter = z
   })
   .strict();
 const calendarDate = z.iso.date();
+const taskFilter = filter.extend({
+  taskState: z.enum(["waiting", "running", "failed", "completed", "paused"]).optional(),
+});
 const timestamp = text.refine((value) => {
   if (!Number.isFinite(Date.parse(value))) return false;
   // Date.parse 会把二月三十日等归一化为下月；ISO 日期必须先核验真实日历，不能悄悄改变查询范围。
@@ -213,7 +216,7 @@ export const argumentSchemas = {
   "skillDesign.listSkills": z.tuple([text]),
   "skillDesign.savePreview": z.tuple([id, text, id, z.enum(["project", "user"]), revision, id]),
   "progressScheduler.read": z.tuple([]),
-  "progressScheduler.queryTasks": z.tuple([filter, page, pageSize]),
+  "progressScheduler.queryTasks": z.tuple([taskFilter, page, pageSize]),
   "progressScheduler.queryRuns": z.tuple([historyFilter, page, pageSize]),
   "progressScheduler.readRun": z.tuple([id]),
   "progressScheduler.setProjectEnabled": z.tuple([id, z.boolean()]),
@@ -221,5 +224,5 @@ export const argumentSchemas = {
     z.boolean(),
     z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   ]),
-  "progressScheduler.runNow": z.tuple([filter]),
+  "progressScheduler.runNow": z.tuple([taskFilter]),
 } satisfies Record<AIReqRemotePath, z.ZodType>;

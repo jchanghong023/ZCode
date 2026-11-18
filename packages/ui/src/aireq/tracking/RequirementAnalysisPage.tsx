@@ -11,7 +11,8 @@ import { SelectItem } from "@/components/ui/select.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "../projects/ProjectPageHelp.js";
 import { useOptionalAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -27,6 +28,7 @@ import {
   QueryFeedback,
   UpdateFeedback,
   runLabels,
+  taskLabels,
   time,
 } from "./analysis/AnalysisPresentation.js";
 import { useSchedulerQuery } from "./analysis/useSchedulerQuery.js";
@@ -50,9 +52,7 @@ export function AIReqRequirementAnalysisPage({
       {/* 滚动条属于全宽页面，限宽内容列不再承担纵向滚动。 */}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
         <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0 space-y-4")}>
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
-            {locale === "zh-CN" ? "进度分析" : "Progress analysis"}
-          </h1>
+          <ScopedPageTitle title={locale === "zh-CN" ? "进度分析" : "Progress analysis"} />
           {source?.progressScheduler ? (
             <ConnectedProgressAnalysis
               key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}:${aireq.selection.irId ?? ""}:${aireq.selection.srId ?? ""}`}
@@ -89,6 +89,7 @@ function ConnectedProgressAnalysis({
   const [srSearch, setSrSearch] = useState(() => aireq.selection.srId ?? "");
   const [targetSrId, setTargetSrId] = useState(() => aireq.selection.srId ?? "");
   const [historyStatus, setHistoryStatus] = useState("all");
+  const [taskState, setTaskState] = useState<AIReqAnalysisTask["state"] | "all">("all");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const [tab, setTab] = useState("tasks");
@@ -156,9 +157,13 @@ function ConnectedProgressAnalysis({
     }),
     [projectId, releaseId, irId, targetSrId, srSearch],
   );
+  const taskFilter = useMemo(
+    () => ({ ...filter, taskState: taskState === "all" ? undefined : taskState }),
+    [filter, taskState],
+  );
   const loadTasks = useCallback(
-    () => scheduler.queryTasks(filter, taskPage, taskPageSize),
-    [scheduler, filter, taskPage, taskPageSize],
+    () => scheduler.queryTasks(taskFilter, taskPage, taskPageSize),
+    [scheduler, taskFilter, taskPage, taskPageSize],
   );
   const taskQuery = useSchedulerQuery(loadTasks, revision);
   const taskResult = taskQuery.value;
@@ -307,6 +312,10 @@ function ConnectedProgressAnalysis({
   const resetHistoryPage = () => {
     setHistoryPage(1);
   };
+  const changeTaskState = (value: typeof taskState) => {
+    setTaskState(value);
+    setTaskPage(1);
+  };
   if (!snapshot)
     return (
       <section data-testid="aireq-requirement-analysis">
@@ -395,6 +404,7 @@ function ConnectedProgressAnalysis({
           className="min-w-0 gap-3"
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
             <TabsList aria-label="分析运行列表">
               <TabsTrigger value="tasks" aria-label="分析任务">
                 分析任务{" "}
@@ -411,6 +421,17 @@ function ConnectedProgressAnalysis({
                 )}
               </TabsTrigger>
             </TabsList>
+            {tab === "tasks" && (Boolean(taskResult?.failedCount) || taskState === "failed") && (
+              <Button
+                size="sm"
+                variant={taskState === "failed" ? "secondary" : "outline"}
+                aria-pressed={taskState === "failed"}
+                onClick={() => changeTaskState(taskState === "failed" ? "all" : "failed")}
+              >
+                失败 <span className="tabular-nums">{taskResult?.failedCount ?? "…"}</span>
+              </Button>
+            )}
+            </div>
             {tab === "tasks" &&
               currentProject?.enabled &&
               taskResult?.total !== 0 &&
@@ -431,9 +452,9 @@ function ConnectedProgressAnalysis({
                     onClick={() => {
                       setMessage("");
                       setAnalysisRequest({
-                        filter: { ...filter },
+                        filter: taskFilter,
                         count: taskResult?.eligibleCount ?? 0,
-                        scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
+                        scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}${taskState === "all" ? "" : `；任务状态：${taskLabels[taskState]}`}。`,
                       });
                       setAnalysisDialogOpen(true);
                     }}
@@ -490,7 +511,22 @@ function ConnectedProgressAnalysis({
                 </SelectItem>
               ))}
             </FilterSelect>
-            {(irId !== "all" || srSearch) && (
+            {tab === "tasks" && (
+              <FilterSelect
+                id="analysis-task-state"
+                label="任务状态"
+                className="w-32 max-w-full"
+                triggerClassName="rounded-lg bg-surface"
+                value={taskState}
+                onChange={(value) => changeTaskState(value as typeof taskState)}
+              >
+                <SelectItem value="all">全部状态</SelectItem>
+                {Object.entries(taskLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </FilterSelect>
+            )}
+            {(irId !== "all" || srSearch || (tab === "tasks" && taskState !== "all")) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -498,6 +534,7 @@ function ConnectedProgressAnalysis({
                   setIrId("all");
                   setSrSearch("");
                   setTargetSrId("");
+                  if (tab === "tasks") setTaskState("all");
                   resetAnalysisPages();
                 }}
               >
@@ -539,7 +576,7 @@ function ConnectedProgressAnalysis({
                   role="status"
                   className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle"
                 >
-                  {filter.irId || filter.srId || srSearch.trim()
+                  {filter.irId || filter.srId || srSearch.trim() || taskState !== "all"
                     ? "没有符合筛选条件的 SR。"
                     : "当前范围没有正式 SR 任务。"}
                 </p>

@@ -16,7 +16,9 @@ export function OverviewProgress({
 }) {
   if (percent === null)
     return (
-      <span className="text-ui-sm text-foreground-subtle">
+      <span
+        className={prominent ? "text-ui-sm text-foreground" : "text-ui-sm text-foreground-subtle"}
+      >
         {/* null 表示没有可统计的 SR；不能与未分析的 0% 或读取失败混为一谈。 */}
         {formalCount === 0
           ? zh
@@ -30,8 +32,8 @@ export function OverviewProgress({
   if (prominent)
     return (
       <div className="space-y-2">
-        <span className="block text-ui-sm text-foreground-subtle">
-          {zh ? "交付验收进度" : "Delivery acceptance progress"}
+        <span className="block text-ui-sm text-foreground">
+          {zh ? "正式开发任务进度" : "Formal task progress"}
         </span>
         {/* 进度条已提供同一百分比，避免版本按钮的辅助说明重复朗读。 */}
         <span aria-hidden="true" className="text-ui-xl font-medium tabular-nums">

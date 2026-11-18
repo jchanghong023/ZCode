@@ -226,60 +226,10 @@ export function AppearanceSectionContent({
                   />
                 }
               />
-              <SettingsRow
-                searchId="settings.showLineNumbers"
-                label={intl.formatMessage({ id: "settings.showLineNumbers" })}
-                description={intl.formatMessage({
-                  id: "settings.showLineNumbersDescription",
-                })}
-                control={
-                  <Switch
-                    aria-label={intl.formatMessage({ id: "settings.showLineNumbers" })}
-                    checked={codePreviewSettings.showLineNumbers}
-                    onCheckedChange={(checked) =>
-                      setCodePreviewSettings({ showLineNumbers: checked })
-                    }
-                  />
-                }
-              />
-              <SettingsRow
-                searchId="settings.wrapLongLines"
-                label={intl.formatMessage({ id: "settings.wrapLongLines" })}
-                description={intl.formatMessage({
-                  id: "settings.wrapLongLinesDescription",
-                })}
-                control={
-                  <Switch
-                    aria-label={intl.formatMessage({ id: "settings.wrapLongLines" })}
-                    checked={codePreviewSettings.wrapLongLines}
-                    onCheckedChange={(checked) =>
-                      setCodePreviewSettings({ wrapLongLines: checked })
-                    }
-                  />
-                }
-              />
-              <SettingsRow
-                searchId="settings.fontSize"
-                label={intl.formatMessage({ id: "settings.fontSize" })}
-                description={intl.formatMessage({
-                  id: "settings.fontSizeDescription",
-                })}
-                control={
-                  <FontSizeInput
-                    key={codePreviewSettings.fontSizePx}
-                    min={12}
-                    max={20}
-                    value={codePreviewSettings.fontSizePx}
-                    onChange={(fontSizePx) => setCodePreviewSettings({ fontSizePx })}
-                    ariaLabel={intl.formatMessage({ id: "settings.fontSize" })}
-                  />
-                }
-              />
             </CardContent>
           </Card>
         </div>
-
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-3">
           <div>
             <h3 className="text-ui-base font-semibold text-foreground">
               {intl.formatMessage({ id: "settings.previewSectionTitle" })}
@@ -311,6 +261,57 @@ export function AppearanceSectionContent({
             />
           </div>
         </div>
+        <Card className="border border-border bg-card py-0 shadow-none">
+          <CardContent className="space-y-0 px-0">
+            <SettingsRow
+              searchId="settings.showLineNumbers"
+              label={intl.formatMessage({ id: "settings.showLineNumbers" })}
+              description={intl.formatMessage({
+                id: "settings.showLineNumbersDescription",
+              })}
+              control={
+                <Switch
+                  aria-label={intl.formatMessage({ id: "settings.showLineNumbers" })}
+                  checked={codePreviewSettings.showLineNumbers}
+                  onCheckedChange={(checked) =>
+                    setCodePreviewSettings({ showLineNumbers: checked })
+                  }
+                />
+              }
+            />
+            <SettingsRow
+              searchId="settings.wrapLongLines"
+              label={intl.formatMessage({ id: "settings.wrapLongLines" })}
+              description={intl.formatMessage({
+                id: "settings.wrapLongLinesDescription",
+              })}
+              control={
+                <Switch
+                  aria-label={intl.formatMessage({ id: "settings.wrapLongLines" })}
+                  checked={codePreviewSettings.wrapLongLines}
+                  onCheckedChange={(checked) => setCodePreviewSettings({ wrapLongLines: checked })}
+                />
+              }
+            />
+            <SettingsRow
+              searchId="settings.fontSize"
+              label={intl.formatMessage({ id: "settings.fontSize" })}
+              description={intl.formatMessage({
+                id: "settings.fontSizeDescription",
+              })}
+              control={
+                <FontSizeInput
+                  key={codePreviewSettings.fontSizePx}
+                  min={12}
+                  max={20}
+                  value={codePreviewSettings.fontSizePx}
+                  onChange={(fontSizePx) => setCodePreviewSettings({ fontSizePx })}
+                  ariaLabel={intl.formatMessage({ id: "settings.fontSize" })}
+                />
+              }
+            />
+          </CardContent>
+        </Card>
       </div>
     </>
   );

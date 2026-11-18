@@ -1,11 +1,14 @@
 import type { AIReqAgentModelBinding, AIReqProgressAnalysis } from "./types.js";
 
-export interface AIReqAnalysisFilter {
+interface AnalysisScope {
   projectId?: string;
   releaseId?: string;
   irId?: string;
   srId?: string;
   srSearch?: string;
+}
+export interface AIReqAnalysisFilter extends AnalysisScope {
+  taskState?: AIReqAnalysisTask["state"];
 }
 export interface AIReqAnalysisProject {
   id: string;
@@ -63,7 +66,7 @@ export interface AIReqAnalysisRun extends AIReqAnalysisRunSummary {
   /** Immutable admission-time user instructions; revision is an opaque version token. */
   promptSnapshot?: { additionalPrompt: string; revision: string };
 }
-export interface AIReqAnalysisHistoryFilter extends AIReqAnalysisFilter {
+export interface AIReqAnalysisHistoryFilter extends AnalysisScope {
   status?: AIReqAnalysisRunSummary["status"];
   since?: string;
   until?: string;
@@ -76,6 +79,8 @@ export interface AIReqAnalysisPage<T> {
 }
 export interface AIReqAnalysisTaskPage extends AIReqAnalysisPage<AIReqAnalysisTask> {
   eligibleCount: number;
+  /** Failures matching the scope and search, before applying the task-state filter. */
+  failedCount: number;
 }
 export interface AIReqAnalysisSnapshot {
   enabled: boolean;

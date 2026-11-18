@@ -52,7 +52,7 @@ export function PersonnelPlan({
                 aria-hidden="true"
                 className="size-3.5 shrink-0 text-warning-surface-foreground"
               />
-              <span className="sr-only">排期冲突／需协调：</span>
+              <span className="sr-only">排期需协调：</span>
             </>
           )}
           <span className="min-w-0 truncate">{plan}</span>

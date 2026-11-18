@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import appLogoUrl from "@/assets/provider-icons/logo-zai.svg";
+import aireqMarkUrl from "@/assets/aireq-mark.png";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqMainView } from "../contract.js";
@@ -154,19 +154,19 @@ export function AIReqSidebarNavigation() {
   );
   return (
     <>
-      <div className="flex h-16 shrink-0 items-center gap-3 px-5">
+      <div className="flex h-16 shrink-0 items-center gap-2 px-4">
         <img
-          src={appLogoUrl}
+          src={aireqMarkUrl}
           alt=""
           aria-hidden="true"
           draggable={false}
           className="size-8 shrink-0 select-none object-contain"
         />
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <span lang="zh-CN" className="text-ui-lg leading-tight font-semibold text-foreground">
             AI 需求协作
           </span>
-          <span lang="en" className="text-ui-sm leading-tight text-remote-foreground-muted">
+          <span lang="en" className="text-ui-sm leading-none text-remote-foreground-muted">
             AI Requirements
           </span>
         </div>

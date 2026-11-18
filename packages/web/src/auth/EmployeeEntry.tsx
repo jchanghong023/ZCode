@@ -115,7 +115,7 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
               </div>
               <div className="flex flex-col items-center gap-1 text-center">
                 <h1 id="aireq-entry-title" className="text-ui-xl font-semibold tracking-tight">
-                  以AI为中心的需求管理平台
+                  AI 需求协作
                 </h1>
                 <p className="text-ui-base/relaxed text-foreground-subtle">
                   与团队一起澄清需求、评审方案和跟踪需求进度
@@ -200,7 +200,7 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
           </section>
         </div>
         <footer className="flex shrink-0 flex-col items-center gap-2 text-center text-ui-xs text-foreground-subtle">
-          <p>ZCode · AIReq</p>
+          <p>ZCode</p>
         </footer>
       </div>
     </main>

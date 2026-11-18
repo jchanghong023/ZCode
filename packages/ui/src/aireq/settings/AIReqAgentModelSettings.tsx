@@ -155,42 +155,6 @@ function ModelSettingsContent({
           ))}
         </dl>
       </AIReqPersonalConfigScope>
-      {/* 长表的提交区随正文滚动吸顶，摘要只从现有草稿派生，避免另存修改状态。 */}
-      <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-background py-3">
-        <SettingsFormActions
-          leadingAction={
-            <div className="space-y-1 text-ui-sm text-foreground-subtle">
-              <p role="status">
-                {dirty ? (zh ? `未保存：${changeSummary}` : `Unsaved: ${changeSummary}`) : ""}
-              </p>
-            </div>
-          }
-        >
-          <Button size="lg" disabled={!dirty || saving} onClick={() => void save()}>
-            {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存配置" : "Save configuration"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="lg"
-            disabled={!dirty || saving}
-            onClick={() => {
-              setDraft(structuredClone(saved));
-              setMessage(null);
-            }}
-          >
-            {zh ? "取消" : "Cancel"}
-          </Button>
-        </SettingsFormActions>
-        {message && (
-          <p
-            role={message.kind === "error" ? "alert" : "status"}
-            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
-          >
-            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
-            {message.text}
-          </p>
-        )}
-      </div>
       <section className="space-y-3" aria-labelledby="agent-default-model-title">
         <h3 id="agent-default-model-title" className="text-ui-base font-medium">
           {zh ? "默认模型" : "Default model"}
@@ -303,6 +267,44 @@ function ModelSettingsContent({
           </SettingsGroupCard>
         </AIReqSettingsTarget>
       </section>
+      {/* 提交区放在字段之后，草稿与反馈贴住可视区底部，避免编辑长表时滚回页头。 */}
+      <div
+        className={`space-y-2 border-t border-border bg-background py-3 ${dirty || message ? "sticky bottom-0 z-10" : ""}`}
+      >
+        <SettingsFormActions
+          leadingAction={
+            <div className="space-y-1 text-ui-sm text-foreground-subtle">
+              <p role="status">
+                {dirty ? (zh ? `未保存：${changeSummary}` : `Unsaved: ${changeSummary}`) : ""}
+              </p>
+            </div>
+          }
+        >
+          <Button size="lg" disabled={!dirty || saving} onClick={() => void save()}>
+            {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存配置" : "Save configuration"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="lg"
+            disabled={!dirty || saving}
+            onClick={() => {
+              setDraft(structuredClone(saved));
+              setMessage(null);
+            }}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+        </SettingsFormActions>
+        {message && (
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+          >
+            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+            {message.text}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
