@@ -1,5 +1,54 @@
 /* 原浅／深主题没有此 marker，不修改其颜色、几何、焦点或已有动效。 */
-.theme-zai-motion [data-aireq-motion-active] {
+@property --aireq-control-wash {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+/* 在基础层提供透明底纹，保留组件自己的背景图、焦点和状态色。
+ * 菜单通过 portal 挂到 body，启用条件与工作台共用同一个 active 标记。 */
+@layer base {
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .theme-zai-motion:has([data-aireq-motion-active]) {
+      &
+        :where(
+          button,
+          summary,
+          select,
+          input:is([type="checkbox"], [type="radio"], [type="range"]),
+          [role="button"],
+          [role="combobox"],
+          [role="tab"],
+          [role="switch"],
+          [role="checkbox"],
+          [role="radio"],
+          [role="option"],
+          [role^="menuitem"]
+        ):not(:where(:disabled, [aria-disabled="true"], [data-disabled], [data-aireq-motion-nav])) {
+        background-image: linear-gradient(var(--aireq-control-wash), var(--aireq-control-wash));
+        transition: --aireq-control-wash 120ms ease-out;
+
+        &:hover {
+          --aireq-control-wash: color-mix(in srgb, currentColor 9%, transparent);
+        }
+      }
+
+      & a[href]:hover {
+        text-decoration-line: underline;
+        text-underline-offset: 0.18em;
+      }
+
+      &
+        :where(input, textarea, [contenteditable="true"]):hover:not(
+          :where(:disabled, :focus, [aria-invalid="true"], [readonly], [type="hidden"])
+        ) {
+        border-color: var(--color-input-border-hover);
+      }
+    }
+  }
+}
+
+.theme-zai-motion:has([data-aireq-motion-active]) {
   --aireq-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -158,8 +207,11 @@
   color: var(--color-foreground);
 }
 
-.theme-zai-motion [data-aireq-motion-active] [data-slot="button"]:not([data-aireq-motion-nav]) {
+/* 弹窗按钮挂载在 body；按工作台启用状态匹配，避免其颜色工具类截断底纹过渡。 */
+.theme-zai-motion:has([data-aireq-motion-active])
+  [data-slot="button"]:not([data-aireq-motion-nav]) {
   transition:
+    --aireq-control-wash 120ms ease-out,
     background-color 180ms var(--aireq-motion-ease),
     color 180ms var(--aireq-motion-ease),
     border-color 180ms var(--aireq-motion-ease),
