@@ -7,8 +7,13 @@ import { RunModelFacts } from "../RunModelFacts.js";
 import { BranchCopy } from "../BranchCopy.js";
 import { duration, runLabels, Status, time } from "./AnalysisPresentation.js";
 
+interface AnalysisReportContext {
+  projectName: string;
+  irTitle: string;
+}
 interface AnalysisReportProps {
   run: AIReqAnalysisRun;
+  context: AnalysisReportContext;
   onOpenRequirement: () => void;
   onRetry: () => void;
   retryDisabledReason?: string;
@@ -35,7 +40,9 @@ export function ReportPane({
       }}
     >
       <DialogTitle className="sr-only">分析执行详情</DialogTitle>
-      <DialogDescription className="sr-only">{props.run.srId}</DialogDescription>
+      <DialogDescription className="sr-only">
+        {props.context.projectName} · {props.context.irTitle} · {props.run.srTitle}
+      </DialogDescription>
       <AnalysisReportContent {...props} />
     </DialogContent>
   );
@@ -43,6 +50,7 @@ export function ReportPane({
 
 export function AnalysisReportContent({
   run,
+  context,
   onOpenRequirement,
   onRetry,
   retryDisabledReason,
@@ -59,7 +67,9 @@ export function AnalysisReportContent({
       <div className="flex shrink-0 items-start justify-between gap-2 pr-6">
         <div className="min-w-0">
           <h2 className="text-ui-lg font-medium">分析执行详情</h2>
-          <p className="mt-1 break-all text-ui-sm text-foreground-subtle">{run.srId}</p>
+          <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
+            {context.projectName} · {context.irTitle}
+          </p>
         </div>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-ui-base text-foreground">
@@ -67,10 +77,6 @@ export function AnalysisReportContent({
           <h3 className="min-w-0 flex-1 break-words font-medium">{run.srTitle}</h3>
           <Status value={run.status}>{runLabels[run.status]}</Status>
         </div>
-        <p className="break-words text-ui-sm text-foreground-subtle">
-          项目：{run.projectId} · {run.irId} · {run.srId}
-        </p>
-        {/* 修复：报告只显示编号时，用户需离开分析页后再次手工查找同一 SR。 */}
         <Button variant="outline" size="sm" onClick={onOpenRequirement}>
           {locale === "zh-CN" ? "打开对应需求" : "Open requirement"}
         </Button>

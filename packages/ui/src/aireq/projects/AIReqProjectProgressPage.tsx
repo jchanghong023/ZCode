@@ -27,7 +27,13 @@ function sortReleases(releases: ReleaseSummary[]): ReleaseSummary[] {
   });
 }
 
-export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): void }) {
+export function AIReqProjectProgressPage({
+  onAddProject,
+  onConfigureProject,
+}: {
+  onAddProject(): void;
+  onConfigureProject(projectId: string): void;
+}) {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const { locale } = useZCodeIntl();
@@ -68,6 +74,11 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                   : "Values reflect the last successful read; use Retry above."}
               </p>
             )}
+            <p className="text-ui-sm text-foreground-subtle">
+              {zh
+                ? "全部项目；从版本卡片进入对应需求列表。"
+                : "All projects; open a release card to enter its requirements."}
+            </p>
           </div>
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             <div className="relative shrink-0">
@@ -136,6 +147,13 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                 ) : releases.length === 0 ? (
                   <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-foreground-subtle">
                     <span>{zh ? "暂无版本" : "No releases yet"}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onConfigureProject(project.id)}
+                    >
+                      {zh ? "配置项目" : "Configure project"}
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3 p-4">
@@ -194,6 +212,20 @@ export function AIReqProjectProgressPage({ onAddProject }: { onAddProject(): voi
                                 </span>
                               )}
                             </span>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="w-fit p-0"
+                              onClick={() =>
+                                ai.openFromProjectOverview(
+                                  "proposals",
+                                  { projectId: project.id },
+                                  release.releaseId,
+                                )
+                              }
+                            >
+                              {zh ? "查看该版本提案" : "View proposals"}
+                            </Button>
                           </div>
                         </article>
                       ))}

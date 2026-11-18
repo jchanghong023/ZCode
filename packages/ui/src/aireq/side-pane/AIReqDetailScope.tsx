@@ -332,15 +332,13 @@ export function AIReqDetailScope({
                   : "Loading details…"
                 : (value.error ?? (zh ? "详情暂不可用。" : "Details are unavailable."))}
             </p>
-            {!value.pending && (
-              <Button
-                variant="outline"
-                className="focus-visible:border-remote-foreground-muted"
-                onClick={() => void refresh()}
-              >
-                {zh ? "重试" : "Retry"}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              className="focus-visible:border-remote-foreground-muted"
+              onClick={() => void refresh()}
+            >
+              {zh ? "重新读取" : "Reload"}
+            </Button>
           </div>
         ) : (
           <>

@@ -12,10 +12,16 @@ import {
   useOpenModelSettings,
 } from "../shell/ModelSettingsNavigationContext.js";
 
-export type AIReqSessionPaneProps = SessionPaneProps;
+export type AIReqSessionPaneProps = SessionPaneProps & {
+  /** 历史任务页隐藏只读 composer，改用历史摘要和当前阶段出口。 */
+  hideReadOnlyComposer?: boolean;
+};
 
 /** AIReq owns admission/selection; native v4 remains the only draft and message owner. */
-export function AIReqSessionPane(props: AIReqSessionPaneProps) {
+export function AIReqSessionPane({
+  hideReadOnlyComposer = false,
+  ...props
+}: AIReqSessionPaneProps) {
   const aireq = useAIReq();
   const openModelSettings = useOpenModelSettings();
   const workspaceActive = useAIReqWorkspaceActive();
@@ -59,7 +65,7 @@ export function AIReqSessionPane(props: AIReqSessionPaneProps) {
   return (
     <SessionPane
       {...props}
-      retainReadOnlyComposer
+      retainReadOnlyComposer={!hideReadOnlyComposer}
       readOnly={props.readOnly || Boolean(readOnlyReason)}
       readOnlyReason={readOnlyReason}
       onBeforeReconnect={onBeforeReconnect}

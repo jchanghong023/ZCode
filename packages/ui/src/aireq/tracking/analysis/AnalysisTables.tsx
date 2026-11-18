@@ -168,15 +168,13 @@ export function AnalysisTaskTable({
                     }}
                   >
                     <DialogTitle>SR 任务详情</DialogTitle>
-                    <DialogDescription>
-                      {task.irId} · {task.srId}
-                    </DialogDescription>
+                    <DialogDescription>需求：{task.irTitle}</DialogDescription>
                     <div className="min-h-0 space-y-4 overflow-y-auto text-ui-base">
                       <h3 className="break-words font-medium">{task.srTitle}</h3>
                       <p className="break-words">
                         项目：
                         {projects.find((project) => project.id === task.projectId)?.name ??
-                          task.projectId}
+                          (locale === "zh-CN" ? "未知项目" : "Unknown project")}
                       </p>
                       <div className="flex items-center gap-2">
                         <Status value={task.state}>{taskLabels[task.state]}</Status>
@@ -228,12 +226,13 @@ export function AnalysisTaskTable({
 
 export function AnalysisHistoryTable({
   items,
+  irs,
   selectedRunId,
   openReport,
   openRequirement,
 }: {
   items: AIReqAnalysisRunSummary[];
-  projects: AIReqAnalysisSnapshot["projects"];
+  irs: AIReqAnalysisSnapshot["irs"];
   selectedRunId?: string;
   openReport: (id: string, trigger: HTMLButtonElement) => void;
   openRequirement: (target: AnalysisTarget) => void;
@@ -266,7 +265,13 @@ export function AnalysisHistoryTable({
               className={`group/row border-b border-border last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedRunId === run.id ? "bg-selected" : ""}`}
             >
               <MarkdownTableCell data-aireq-motion-cell="" className={cellClass}>
-                <RowLabel title={run.srTitle} subtitle="SR" />
+                <RowLabel
+                  title={run.srTitle}
+                  subtitle={
+                    irs.find((ir) => ir.projectId === run.projectId && ir.id === run.irId)?.title ??
+                    "—"
+                  }
+                />
                 <Button
                   variant="link"
                   size="sm"

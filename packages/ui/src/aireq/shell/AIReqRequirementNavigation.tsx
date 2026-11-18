@@ -58,6 +58,19 @@ export function AIReqRequirementContext({ showReturn = true }: { showReturn?: bo
       item.irId === ai.selection.irId &&
       item.id === ai.selection.srId,
   );
+  const formal = Boolean(
+    ai.view?.groups.some(
+      (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
+    ),
+  );
+  const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "开发单元" : "需求");
+  const subtitle = ai.selection.srId
+    ? "开发单元 · SR"
+    : formal
+      ? "正式需求 · IR"
+      : group
+        ? "需求提案 · IR"
+        : "只读上下文";
   return (
     <div
       className="shrink-0 space-y-1 border-b border-border/50 px-3 py-2 text-ui-sm"
@@ -65,16 +78,11 @@ export function AIReqRequirementContext({ showReturn = true }: { showReturn?: bo
     >
       <div className="flex min-w-0 items-center gap-2">
         {showReturn && <AIReqRequirementReturnButton />}
-        <span
-          className="min-w-0 flex-1 truncate text-ui-base font-medium"
-          title={sr?.title ?? group?.title}
-        >
-          {sr?.title ?? group?.title ?? ai.selection.irId}
+        <span className="min-w-0 flex-1 truncate text-ui-base font-medium" title={title}>
+          {title}
         </span>
       </div>
-      <span className="text-ui-sm text-foreground-subtle">
-        {ai.selection.srId ?? ai.selection.irId}
-      </span>
+      <span className="text-ui-sm text-foreground-subtle">{subtitle}</span>
     </div>
   );
 }

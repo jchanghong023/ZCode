@@ -217,7 +217,7 @@ function ModelSettingsContent({
                 <SelectTrigger
                   size="lg"
                   className="w-full min-w-0"
-                  aria-label={zh ? "默认模型" : "Default model"}
+                  aria-label={zh ? "工作流默认模型" : "Workflow default model"}
                 >
                   <SelectValue />
                 </SelectTrigger>

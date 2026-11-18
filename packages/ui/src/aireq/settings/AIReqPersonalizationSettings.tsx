@@ -45,7 +45,7 @@ function PersonalizationContent({
   const [saved, setSaved] = useState(() => source.prompts!.read().saved);
   const [draft, setDraft] = useState(() => ({ ...source.prompts!.read().saved }));
   const [savedRevision, setSavedRevision] = useState(() => source.prompts!.read().revision);
-  const [selected, setSelected] = useState("requirements");
+  const [selected, setSelected] = useState(() => agents[0]?.id ?? "");
   const selectedAgent = agents.find((agent) => agent.id === selected);
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -112,9 +112,23 @@ function PersonalizationContent({
     );
   }, [dirty, canSave, saving, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange?.(null), [onDraftActionsChange]);
+  if (!agents.length)
+    return (
+      <div className="space-y-8" data-testid="aireq-personalization-settings">
+        <p role="status" className="text-ui-sm text-foreground-subtle">
+          {zh ? "暂无可配置的 Agent。" : "No Agents are available."}
+        </p>
+      </div>
+    );
   return (
     <div className="space-y-8" data-testid="aireq-personalization-settings">
-      <AIReqPersonalConfigScope>
+      <AIReqPersonalConfigScope
+        scope={
+          zh
+            ? "团队共享配置 · 保存后用于新建评审和分析。"
+            : "Shared team settings · Used by new reviews and analyses after saving."
+        }
+      >
         <p>
           {zh
             ? "为各 Agent 追加团队共享的指令和工作约定，不替换内置指令。"
@@ -126,6 +140,33 @@ function PersonalizationContent({
             : "Saving updates shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
         </p>
       </AIReqPersonalConfigScope>
+      <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-background py-3">
+        <SettingsFormActions>
+          <Button size="lg" disabled={!canSave || saving} onClick={save}>
+            {zh ? "保存" : "Save"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="lg"
+            disabled={!dirtyCount || saving}
+            onClick={() => {
+              setDraft({ ...saved });
+              setMessage(null);
+            }}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+        </SettingsFormActions>
+        {message && (
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            className={`text-ui-sm ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
+          >
+            {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
+            {message.text}
+          </p>
+        )}
+      </div>
       <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
         <Label htmlFor="personalization-agent">{zh ? "选择 Agent" : "Select Agent"}</Label>
         <Select
@@ -196,7 +237,8 @@ function PersonalizationContent({
             {zh ? "留空则不追加指令。" : "Leave empty to add no instructions."}
           </p>
           <span id="agent-prompt-size">
-            {(currentBytes / 1024).toFixed(1)} / {USER_INSTRUCTIONS_MAX_BYTES / 1024} KB
+            {currentBytes < 1024 ? `${currentBytes} B` : `${(currentBytes / 1024).toFixed(1)} KB`} /{" "}
+            {USER_INSTRUCTIONS_MAX_BYTES / 1024} KB
           </span>
         </div>
       </AIReqSettingsTarget>
@@ -205,32 +247,7 @@ function PersonalizationContent({
           {zh
             ? "以下 Agent 的追加指令超过大小限制，请缩短后保存："
             : "Shorten these Agents' appended instructions before saving: "}
-          {oversized.map((agent) => (zh ? agent.name : agent.nameEn)).join("、")}
-        </p>
-      )}
-      <SettingsFormActions>
-        <Button size="lg" disabled={!canSave || saving} onClick={save}>
-          {zh ? "保存" : "Save"}
-        </Button>
-        <Button
-          variant="ghost"
-          size="lg"
-          disabled={!dirtyCount || saving}
-          onClick={() => {
-            setDraft({ ...saved });
-            setMessage(null);
-          }}
-        >
-          {zh ? "取消" : "Cancel"}
-        </Button>
-      </SettingsFormActions>
-      {message && (
-        <p
-          role={message.kind === "error" ? "alert" : "status"}
-          className={`text-ui-base ${message.kind === "error" ? "text-destructive" : "text-foreground-subtle"}`}
-        >
-          {message.kind === "error" && (zh ? "保存失败：" : "Save failed: ")}
-          {message.text}
+          {oversized.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
         </p>
       )}
     </div>

@@ -52,10 +52,10 @@ export function AnalysisSettings({
   projectSearch,
   setProjectSearch,
   focusProjectId,
+  currentProjectId,
   interval,
   setInterval,
   pending,
-  message,
   mutate,
 }: {
   snapshot: AIReqAnalysisSnapshot;
@@ -64,10 +64,10 @@ export function AnalysisSettings({
   projectSearch: string;
   setProjectSearch: (value: string) => void;
   focusProjectId?: string;
+  currentProjectId?: string;
   interval: string;
   setInterval: (value: string) => void;
   pending: boolean;
-  message: string;
   mutate: (action: () => void | Promise<void>, success: string) => Promise<boolean>;
 }) {
   const { locale } = useZCodeIntl();
@@ -170,10 +170,15 @@ export function AnalysisSettings({
               <Input
                 id="analysis-project-search"
                 className="h-8 max-w-sm"
-                placeholder="搜索项目名称"
+                placeholder={zh ? "搜索项目名称" : "Search project name"}
                 value={projectSearch}
                 onChange={(event) => setProjectSearch(event.target.value)}
               />
+              <p className="mt-2 text-ui-sm text-foreground-subtle">
+                {zh
+                  ? "待分析 SR 统计项目全部 Release。"
+                  : "Pending SRs count across all releases of the project."}
+              </p>
             </div>
             <div className="max-h-48 overflow-auto">
               <table className={`${tableClass} min-w-[640px]`}>
@@ -199,7 +204,7 @@ export function AnalysisSettings({
                     <MarkdownTableHead
                       className={`${cellClass} font-medium text-foreground-subtle`}
                     >
-                      待分析 SR
+                      {zh ? "待分析 SR" : "Pending SRs"}
                     </MarkdownTableHead>
                     <MarkdownTableHead
                       className={`${cellClass} font-medium text-foreground-subtle`}
@@ -221,7 +226,7 @@ export function AnalysisSettings({
                     >
                       <MarkdownTableCell className={cellClass}>
                         {project.name}
-                        {project.id === focusProjectId && (
+                        {project.id === currentProjectId && (
                           <span className="ml-2 text-ui-xs text-foreground-subtle">
                             {locale === "zh-CN" ? "当前项目" : "Current project"}
                           </span>
@@ -374,9 +379,6 @@ export function AnalysisSettings({
           </Collapsible>
         </AIReqSettingsTarget>
       </section>
-      <p role="status" aria-live="polite" className="text-ui-sm text-foreground-subtle">
-        {pending ? "正在提交…" : message}
-      </p>
     </div>
   );
 }

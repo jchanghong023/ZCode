@@ -5,6 +5,7 @@ import { useAIReq } from "../AIReqContext.js";
 import {
   proposalProgressIndex,
   proposalState,
+  proposalStateLabel,
   PROPOSAL_STATE_OPTIONS,
   fullReviewCurrent,
   requirementsReviewCurrent,
@@ -32,9 +33,15 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const next = proposalNextTask(group);
   const state = proposalState(group);
   const guidance = proposalTaskGuidance(group);
+  const stateLabel = proposalStateLabel(group);
   const phase = proposalProgressIndex(group, {});
   const track = useRef<HTMLDivElement>(null);
-  const currentStep = useRef<HTMLButtonElement>(null);
+  const currentStep = useRef<HTMLSpanElement>(null);
+  const businessContact = guidance.role === "人工确认" ? group.contacts?.business : undefined;
+  const roleLabel =
+    guidance.role === "人工确认"
+      ? `${guidance.role} · 业务${businessContact ? ` ${businessContact}` : "未分配"}`
+      : guidance.role;
   useLayoutEffect(() => {
     const container = track.current;
     if (!container) return;
@@ -78,7 +85,23 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             {group.title || "需求工作台"}
           </h1>
         </header>
-        <section className="space-y-3 border-b border-border/50 pb-5" aria-label="当前待处理事项">
+        <section className="space-y-4 border-b border-border/50 pb-5" aria-label="当前待处理事项">
+          <div className="rounded-lg border border-border/60 bg-card/40 p-4" data-testid="proposal-next-step">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <p className="text-ui-sm text-foreground-subtle">下一步 · {stateLabel}</p>
+                <p className="text-ui-base font-medium">{guidance.action}</p>
+                <p className="max-w-prose text-ui-sm leading-relaxed text-foreground-subtle">
+                  {guidance.description}
+                </p>
+                <p className="text-ui-sm text-foreground-subtle">处理方：{roleLabel}</p>
+              </div>
+              <Button onClick={() => ai.openProposalTask(next)}>
+                {guidance.action}
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
           <div
             ref={track}
             className="overflow-x-auto overscroll-x-contain py-1"
@@ -90,31 +113,26 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             >
               {PROPOSAL_STATE_OPTIONS.map((option) => (
                 <li key={option.id} className="shrink-0">
-                  {state === option.id ? (
-                    <Button
-                      ref={currentStep}
-                      variant="ghost"
-                      className="bg-selected px-2 font-semibold text-foreground"
-                      aria-current="step"
-                      aria-label={`${option.title}：${guidance.action}`}
-                      title={guidance.action}
-                      onClick={() => ai.openProposalTask(next)}
-                    >
-                      {option.title}
-                    </Button>
-                  ) : (
-                    <span className="inline-block px-2 py-1 text-ui-base text-foreground-subtle">
-                      {option.title}
-                    </span>
-                  )}
+                  <span
+                    ref={state === option.id ? currentStep : undefined}
+                    aria-current={state === option.id ? "step" : undefined}
+                    className={
+                      state === option.id
+                        ? "inline-flex items-center gap-1 rounded-sm bg-selected px-2 py-1 text-ui-base font-semibold text-foreground"
+                        : "inline-block px-2 py-1 text-ui-base text-foreground-subtle"
+                    }
+                  >
+                    {option.title}
+                    {state === option.id && (
+                      <span className="rounded-sm bg-surface px-1 text-ui-xs font-normal text-foreground-subtle">
+                        当前
+                      </span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ol>
           </div>
-          <p className="max-w-prose text-ui-sm leading-relaxed text-foreground-subtle">
-            {guidance.description}
-          </p>
-          <p className="text-ui-sm text-foreground-subtle">处理方：{guidance.role}</p>
         </section>
         <section aria-label="需求任务" className="space-y-2">
           <h2 className="text-ui-base font-medium">任务</h2>
@@ -190,7 +208,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
           </Button>
           <Button variant="ghost" onClick={() => ai.openProposalTask("management")}>
             <Settings2 className="size-4" aria-hidden="true" />
-            联系人与材料管理
+            管理需求（联系人与材料）
           </Button>
         </div>
       </div>

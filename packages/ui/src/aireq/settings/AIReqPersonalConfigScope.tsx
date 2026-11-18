@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
-export function AIReqPersonalConfigScope({ children }: { children?: ReactNode }) {
+export function AIReqPersonalConfigScope({
+  children,
+  scope,
+}: {
+  children?: ReactNode;
+  scope?: string;
+}) {
   const { locale } = useZCodeIntl();
   const zh = locale.startsWith("zh");
   return (
@@ -10,9 +16,10 @@ export function AIReqPersonalConfigScope({ children }: { children?: ReactNode })
       data-testid="aireq-personal-config-scope"
     >
       <p>
-        {zh
-          ? "团队共享配置 · 保存后用于新建评审和分析。"
-          : "Shared team settings · Used by new reviews and analyses after saving."}
+        {scope ??
+          (zh
+            ? "团队共享配置 · 保存后用于新建会话。"
+            : "Shared team settings · Used by new sessions after saving.")}
       </p>
       <details>
         <summary className="w-fit cursor-pointer rounded-sm border border-transparent text-remote-foreground-muted hover:text-foreground focus-visible:border-remote-foreground-muted">

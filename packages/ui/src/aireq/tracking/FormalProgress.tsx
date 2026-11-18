@@ -1,11 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  MoreHorizontal,
-  Search,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, MoreHorizontal, Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -127,8 +121,8 @@ export function AIReqFormalTable() {
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
               <Input
                 className="h-9 rounded-lg bg-surface pl-9"
-                aria-label="搜索正式需求"
-                placeholder="搜索 IR／SR 名称"
+                aria-label={zh ? "搜索 IR 或 SR 名称" : "Search IR or SR names"}
+                placeholder={zh ? "搜索 IR／SR 名称" : "Search IR / SR names"}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -138,12 +132,22 @@ export function AIReqFormalTable() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                {PROGRESS_STATUSES.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">全部状态 {groups.length}</SelectItem>
+                {PROGRESS_STATUSES.map((item) => {
+                  const count = groups.filter((group) => {
+                    const rows = irSrs(view, group);
+                    return (
+                      irProgressStatus(rows) === item ||
+                      rows.some((sr) => srProgressStatus(sr) === item)
+                    );
+                  }).length;
+                  return (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                      {count ? ` ${count}` : ""}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {(normalized || status !== "all") && (
@@ -195,6 +199,28 @@ export function AIReqFormalTable() {
               </MarkdownTableRow>
             </MarkdownTableHeader>
             <MarkdownTableBody>
+              {visible.length === 0 && (
+                <MarkdownTableRow>
+                  <MarkdownTableCell
+                    colSpan={4}
+                    className="px-4 py-10 text-center text-ui-sm text-foreground-subtle"
+                  >
+                    当前筛选无开发任务。
+                    {(normalized || status !== "all") && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => {
+                          setQuery("");
+                          setStatus("all");
+                        }}
+                      >
+                        清除筛选
+                      </Button>
+                    )}
+                  </MarkdownTableCell>
+                </MarkdownTableRow>
+              )}
               {visible.map((group) => {
                 const srs = irSrs(view, group);
                 const groupMatches = matches(group.id, group.originalText ?? group.title);
@@ -296,16 +322,16 @@ export function AIReqFormalTable() {
                               IR · {srs.filter((sr) => srProgress(sr) === 100).length}/{srs.length}{" "}
                               SR 完成
                             </p>
-                            <CompactPlanSummary
-                              planKey={`ir:${group.id}`}
-                              expanded={planExpanded.has(`ir:${group.id}`)}
-                              onToggle={() => togglePlan(`ir:${group.id}`)}
-                              developer={developers.join("、") || "未分配"}
-                              tester={testers.join("、") || "未分配"}
-                              label={group.title}
-                            />
                           </div>
                         </div>
+                        <CompactPlanSummary
+                          planKey={`ir:${group.id}`}
+                          expanded={planExpanded.has(`ir:${group.id}`)}
+                          onToggle={() => togglePlan(`ir:${group.id}`)}
+                          developer={developers.join("、") || "未分配"}
+                          tester={testers.join("、") || "未分配"}
+                          label={group.title}
+                        />
                       </MarkdownTableCell>
                       <MarkdownTableCell className="px-4 py-4 align-middle">
                         <ProgressValue
@@ -326,29 +352,46 @@ export function AIReqFormalTable() {
                         />
                       </MarkdownTableCell>
                       <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
-                        <FormalActions
-                          group={group}
-                          onDetail={() => open(group)}
-                          onMessage={setCopyMessage}
-                        />
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="px-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              open(group);
+                            }}
+                          >
+                            详情
+                          </Button>
+                          <FormalActions
+                            group={group}
+                            onDetail={() => open(group)}
+                            onMessage={setCopyMessage}
+                          />
+                        </div>
                       </MarkdownTableCell>
                     </MarkdownTableRow>
                     {planExpanded.has(`ir:${group.id}`) && (
-                      <MarkdownTableRow className="hover:bg-transparent @min-[640px]/conversation:hidden">
+                      <MarkdownTableRow className="bg-card hover:bg-transparent @min-[640px]/conversation:hidden">
                         <MarkdownTableCell
                           id={`formal-plan-ir:${group.id}`}
-                          colSpan={4}
-                          className="bg-card px-4 pt-0 pb-3 pl-12"
+                          className="sticky left-0 z-10 bg-card px-4 pt-0 pb-3 pl-12"
                         >
-                          <PersonnelPlan
-                            developer={developers.join("、") || "未分配"}
-                            tester={testers.join("、") || "未分配"}
-                            start={plan.plannedStart}
-                            end={plan.plannedEnd}
-                            incomplete={plan.incomplete}
-                            warnings={warnings}
-                          />
+                          <div className="w-[25rem] min-w-0">
+                            <PersonnelPlan
+                              developer={developers.join("、") || "未分配"}
+                              tester={testers.join("、") || "未分配"}
+                              start={plan.plannedStart}
+                              end={plan.plannedEnd}
+                              incomplete={plan.incomplete}
+                              warnings={warnings}
+                            />
+                          </div>
                         </MarkdownTableCell>
+                        <MarkdownTableCell className="px-4 pt-0 pb-3" />
+                        <MarkdownTableCell className="hidden px-4 pt-0 pb-3 @min-[640px]/conversation:table-cell" />
+                        <MarkdownTableCell className="px-2 pt-0 pb-3" />
                       </MarkdownTableRow>
                     )}
                     {showChildren &&
@@ -356,87 +399,63 @@ export function AIReqFormalTable() {
                         const warnings = planningWarnings(view, sr);
                         return (
                           <Fragment key={sr.id}>
-                          <MarkdownTableRow
-                            data-sr-id={sr.id}
-                            data-aireq-motion-row=""
-                            aria-selected={
-                              selectedTarget?.projectId === group.projectId &&
-                              selectedTarget.irId === group.id &&
-                              selectedTarget?.srId === sr.id
-                            }
-                            className={`group/row cursor-pointer hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedTarget?.projectId === group.projectId && selectedTarget.irId === group.id && selectedTarget?.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-transparent hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
-                            onClick={() => open(group, sr)}
-                          >
-                            <MarkdownTableCell
-                              data-aireq-motion-cell=""
-                              className="sticky left-0 z-10 bg-card pr-4 pl-12 py-3 align-middle"
-                              style={{
-                                backgroundImage:
-                                  "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
-                              }}
+                            <MarkdownTableRow
+                              data-sr-id={sr.id}
+                              data-aireq-motion-row=""
+                              aria-selected={
+                                selectedTarget?.projectId === group.projectId &&
+                                selectedTarget.irId === group.id &&
+                                selectedTarget?.srId === sr.id
+                              }
+                              className={`group/row cursor-pointer hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground ${selectedTarget?.projectId === group.projectId && selectedTarget.irId === group.id && selectedTarget?.srId === sr.id ? "bg-selected hover:bg-selected [--formal-row-fill:var(--color-selected)]" : "bg-transparent hover:bg-hover [--formal-row-fill:transparent] hover:[--formal-row-fill:var(--color-hover)]"}`}
+                              onClick={() => open(group, sr)}
                             >
-                              <div className="flex items-start gap-2">
-                                <FileText className="mt-1 size-4 shrink-0 text-foreground-subtle" />
-                                <div className="min-w-0 flex-1">
-                                  <ControlHintTooltip title={sr.title}>
-                                    <Button
-                                      variant="link"
-                                      className="h-auto w-full max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        open(group, sr);
-                                      }}
-                                    >
-                                      <span className="line-clamp-2">{sr.title}</span>
-                                    </Button>
-                                  </ControlHintTooltip>
-                                  <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
-                                    SR
-                                  </p>
-                                  <CompactPlanSummary
-                                    planKey={`sr:${sr.id}`}
-                                    expanded={planExpanded.has(`sr:${sr.id}`)}
-                                    onToggle={() => togglePlan(`sr:${sr.id}`)}
-                                    developer={sr.developerEmployeeId ?? "待认领"}
-                                    tester={sr.testingEmployeeId ?? "待认领"}
-                                    label={sr.title}
-                                  />
-                                </div>
-                              </div>
-                            </MarkdownTableCell>
-                            <MarkdownTableCell className="px-4 py-4 align-middle">
-                              <ProgressValue
-                                value={srProgress(sr)}
-                                label={sr.title}
-                                status={srProgressStatus(sr)}
-                              />
-                              <AnalysisSummary srs={[sr]} />
-                            </MarkdownTableCell>
-                            <MarkdownTableCell className="hidden px-4 py-4 align-middle @min-[640px]/conversation:table-cell">
-                              <PersonnelPlan
-                                developer={sr.developerEmployeeId ?? "待认领"}
-                                tester={sr.testingEmployeeId ?? "待认领"}
-                                start={sr.planning?.plannedStart}
-                                end={sr.planning?.plannedEnd}
-                                warnings={warnings}
-                              />
-                            </MarkdownTableCell>
-                            <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
-                              <FormalActions
-                                group={group}
-                                sr={sr}
-                                onDetail={() => open(group, sr)}
-                                onMessage={setCopyMessage}
-                              />
-                            </MarkdownTableCell>
-                          </MarkdownTableRow>
-                          {planExpanded.has(`sr:${sr.id}`) && (
-                            <MarkdownTableRow className="hover:bg-transparent @min-[640px]/conversation:hidden">
                               <MarkdownTableCell
-                                id={`formal-plan-sr:${sr.id}`}
-                                colSpan={4}
-                                className="bg-card px-4 pt-0 pb-3 pl-16"
+                                data-aireq-motion-cell=""
+                                className="sticky left-0 z-10 bg-card pr-2 pl-8 py-3 align-middle @min-[640px]/conversation:pr-4 @min-[640px]/conversation:pl-12"
+                                style={{
+                                  backgroundImage:
+                                    "linear-gradient(var(--formal-row-fill), var(--formal-row-fill))",
+                                }}
                               >
+                                <div className="ml-4 flex items-start gap-2 @min-[640px]/conversation:ml-0">
+                                  <FileText className="mt-1 size-4 shrink-0 text-foreground-subtle" />
+                                  <div className="min-w-0 flex-1">
+                                    <ControlHintTooltip title={sr.title}>
+                                      <Button
+                                        variant="link"
+                                        className="h-auto w-full max-w-full justify-start p-0 text-left font-medium whitespace-normal [overflow-wrap:anywhere]"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          open(group, sr);
+                                        }}
+                                      >
+                                        <span className="line-clamp-2">{sr.title}</span>
+                                      </Button>
+                                    </ControlHintTooltip>
+                                    <p className="mt-1 break-all text-ui-sm text-foreground-subtle">
+                                      SR
+                                    </p>
+                                  </div>
+                                </div>
+                                <CompactPlanSummary
+                                  planKey={`sr:${sr.id}`}
+                                  expanded={planExpanded.has(`sr:${sr.id}`)}
+                                  onToggle={() => togglePlan(`sr:${sr.id}`)}
+                                  developer={sr.developerEmployeeId ?? "待认领"}
+                                  tester={sr.testingEmployeeId ?? "待认领"}
+                                  label={sr.title}
+                                />
+                              </MarkdownTableCell>
+                              <MarkdownTableCell className="px-4 py-4 align-middle">
+                                <ProgressValue
+                                  value={srProgress(sr)}
+                                  label={sr.title}
+                                  status={srProgressStatus(sr)}
+                                />
+                                <AnalysisSummary srs={[sr]} />
+                              </MarkdownTableCell>
+                              <MarkdownTableCell className="hidden px-4 py-4 align-middle @min-[640px]/conversation:table-cell">
                                 <PersonnelPlan
                                   developer={sr.developerEmployeeId ?? "待认领"}
                                   tester={sr.testingEmployeeId ?? "待认领"}
@@ -445,8 +464,36 @@ export function AIReqFormalTable() {
                                   warnings={warnings}
                                 />
                               </MarkdownTableCell>
+                              <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
+                                <FormalActions
+                                  group={group}
+                                  sr={sr}
+                                  onDetail={() => open(group, sr)}
+                                  onMessage={setCopyMessage}
+                                />
+                              </MarkdownTableCell>
                             </MarkdownTableRow>
-                          )}
+                            {planExpanded.has(`sr:${sr.id}`) && (
+                              <MarkdownTableRow className="bg-card hover:bg-transparent @min-[640px]/conversation:hidden">
+                                <MarkdownTableCell
+                                  id={`formal-plan-sr:${sr.id}`}
+                                  className="sticky left-0 z-10 bg-card px-4 pt-0 pb-3 pl-16"
+                                >
+                                  <div className="w-[25rem] min-w-0">
+                                    <PersonnelPlan
+                                      developer={sr.developerEmployeeId ?? "待认领"}
+                                      tester={sr.testingEmployeeId ?? "待认领"}
+                                      start={sr.planning?.plannedStart}
+                                      end={sr.planning?.plannedEnd}
+                                      warnings={warnings}
+                                    />
+                                  </div>
+                                </MarkdownTableCell>
+                                <MarkdownTableCell className="px-4 pt-0 pb-3" />
+                                <MarkdownTableCell className="hidden px-4 pt-0 pb-3 @min-[640px]/conversation:table-cell" />
+                                <MarkdownTableCell className="px-2 pt-0 pb-3" />
+                              </MarkdownTableRow>
+                            )}
                           </Fragment>
                         );
                       })}

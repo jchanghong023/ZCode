@@ -1,7 +1,7 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { createUuid } from "@zcode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderGit2, GitBranch, Plus } from "lucide-react";
+import { FolderGit2, GitBranch, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
@@ -14,13 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import type { AIReqProject, AIReqSettingsDraftActions, AIReqWorkflowView } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
@@ -28,41 +21,12 @@ import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
+import { AIReqReleaseDialog } from "./AIReqReleaseDialog.js";
+import { validateRepository, type ProjectFieldErrors } from "./projectValidation.js";
 
 export type AIReqProjectSettingsRequest =
   | { kind: "create" }
   | { kind: "project"; projectId: string };
-
-function validateRepository(name: string, remote: string, branch: string) {
-  if (!name.trim()) return "请输入项目名称。";
-  const url = remote.trim();
-  let valid = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(url);
-  if (!valid && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(url)) {
-    try {
-      valid = Boolean(new URL(url).hostname);
-    } catch {
-      valid = false;
-    }
-  }
-  if (!valid)
-    return "请输入含主机的 HTTP(S)、SSH、git URL 或 user@host:path 远程仓库地址；不支持本地路径。";
-  const value = branch.trim();
-  if (
-    !value ||
-    /[\s~^:?*[\\]/.test(value) ||
-    value.includes("..") ||
-    value.includes("@{") ||
-    value.startsWith("-") ||
-    value.startsWith("/") ||
-    value.endsWith("/") ||
-    value.endsWith(".") ||
-    value.endsWith(".lock") ||
-    value.includes("//") ||
-    value === "@" ||
-    value.split("/").some((part) => part.startsWith("."))
-  )
-    return "请输入有效的默认分支名称。";
-}
 
 export function AIReqProjectSettings({
   guard,
@@ -94,6 +58,7 @@ export function AIReqProjectSettings({
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("");
   const [projectError, setProjectError] = useState("");
+  const [projectErrors, setProjectErrors] = useState<ProjectFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [releaseProjectId, setReleaseProjectId] = useState("");
@@ -104,6 +69,7 @@ export function AIReqProjectSettings({
   const [loadError, setLoadError] = useState("");
   const [targetError, setTargetError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [projectQuery, setProjectQuery] = useState("");
   const [releaseSaving, setReleaseSaving] = useState(false);
   const [projectViews, setProjectViews] = useState<
     { project: AIReqProject; view: AIReqWorkflowView }[]
@@ -143,6 +109,21 @@ export function AIReqProjectSettings({
   }, [source, aireq?.view, refreshKey]);
   const projects = aireq?.view?.projects ?? [];
   const releaseCount = projectViews.reduce((count, item) => count + item.view.releases.length, 0);
+  const normalizedProjectQuery = projectQuery.trim().toLocaleLowerCase();
+  const filteredProjectViews = normalizedProjectQuery
+    ? projectViews.filter(({ project }) =>
+        `${project.name} ${project.repositoryUrl ?? ""}`
+          .toLocaleLowerCase()
+          .includes(normalizedProjectQuery),
+      )
+    : projectViews;
+  const projectCountLabel = normalizedProjectQuery
+    ? zh
+      ? `显示 ${filteredProjectViews.length} / ${projects.length} 个项目`
+      : `${filteredProjectViews.length} of ${projects.length} projects`
+    : zh
+      ? `${projects.length} 个项目`
+      : `${projects.length} projects`;
   // 空投影也是首次读取的初值，只有当前快照读取成功后才能把它解释为真实的零。
   const releaseCountReady =
     !loading &&
@@ -159,6 +140,12 @@ export function AIReqProjectSettings({
         defaultBranch !== initialProject.current.defaultBranch)) ||
     (releaseOpen && (releaseTitle !== "" || releaseProjectId !== initialReleaseProject.current));
   const busy = saving || releaseSaving;
+  const clearProjectFieldError = (field: keyof ProjectFieldErrors) => {
+    setProjectError("");
+    setProjectErrors((previous) =>
+      previous[field] ? { ...previous, [field]: undefined } : previous,
+    );
+  };
   const canSave =
     !busy &&
     (projectOpen
@@ -169,15 +156,16 @@ export function AIReqProjectSettings({
         !aireq?.pending);
   const saveProject = async () => {
     if (!canSaveRepository || savingRef.current) return false;
-    // 输入校验直接产生业务提示，远程异常则交给统一安全错误格式化，避免下发实现细节。
-    const validationError = validateRepository(name, repositoryUrl, defaultBranch);
-    if (validationError) {
-      setProjectError(validationError);
+    // 输入校验直接产生字段级业务提示，远程异常则交给统一安全错误格式化，避免下发实现细节。
+    setProjectError("");
+    const validationErrors = validateRepository(name, repositoryUrl, defaultBranch);
+    if (Object.keys(validationErrors).length) {
+      setProjectErrors(validationErrors);
       return false;
     }
     savingRef.current = true;
     setSaving(true);
-    setProjectError("");
+    setProjectErrors({});
     try {
       const input = {
         projectId,
@@ -275,13 +263,14 @@ export function AIReqProjectSettings({
     setProjectId(project?.id);
     setName(project?.name ?? "");
     setRepositoryUrl(project?.repositoryUrl ?? "");
-    setDefaultBranch(project?.defaultBranch ?? "");
+    setDefaultBranch(project?.defaultBranch ?? "main");
     initialProject.current = {
       name: project?.name ?? "",
       repositoryUrl: project?.repositoryUrl ?? "",
-      defaultBranch: project?.defaultBranch ?? "",
+      defaultBranch: project?.defaultBranch ?? "main",
     };
     setProjectError("");
+    setProjectErrors({});
     setMessage("");
     setProjectOpen(true);
   }, []);
@@ -292,6 +281,11 @@ export function AIReqProjectSettings({
       if (canSaveRepository) openProject();
       else setTargetError(zh ? "当前无法添加项目。" : "Adding a project is unavailable.");
       onRequestHandled(request);
+      return;
+    }
+    // 搜索是展示过滤，外部定位目标必须先恢复完整列表，不能把被过滤的项目误判为已删除。
+    if (normalizedProjectQuery) {
+      setProjectQuery("");
       return;
     }
     // 项目列表更新后必须等待同一快照的配置加载，不能用旧列表判定目标不存在。
@@ -323,6 +317,7 @@ export function AIReqProjectSettings({
     canSaveRepository,
     onRequestHandled,
     openProject,
+    normalizedProjectQuery,
     zh,
   ]);
   if (!aireq) return null;
@@ -360,21 +355,18 @@ export function AIReqProjectSettings({
       >
         <div className="min-w-0 space-y-1">
           <p className="text-ui-base font-medium">
-            {zh
-              ? `${projects.length} 个项目 · ${
-                  releaseCountReady
-                    ? `${releaseCount} 个 Release`
-                    : loadError
-                      ? "Release 数量不可用"
-                      : "Release 数量读取中…"
-                }`
-              : `${projects.length} projects · ${
-                  releaseCountReady
-                    ? `${releaseCount} releases`
-                    : loadError
-                      ? "Release count unavailable"
-                      : "Loading Release count…"
-                }`}
+            {projectCountLabel} ·{" "}
+            {releaseCountReady
+              ? zh
+                ? `${releaseCount} 个 Release`
+                : `${releaseCount} releases`
+              : loadError
+                ? zh
+                  ? "Release 数量不可用"
+                  : "Release count unavailable"
+                : zh
+                  ? "Release 数量读取中…"
+                  : "Loading Release count…"}
             <span role="status" className="sr-only">
               {loading && projectViews.length > 0
                 ? zh
@@ -408,7 +400,30 @@ export function AIReqProjectSettings({
           </p>
         </div>
       </details>
-      {projectViews.map(({ project, view }) => (
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Label htmlFor="project-search" className="sr-only">
+          {zh ? "搜索项目" : "Search projects"}
+        </Label>
+        <div className="relative min-w-60 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
+          />
+          <Input
+            id="project-search"
+            className="h-9 rounded-lg bg-surface pl-9"
+            placeholder={zh ? "搜索项目名称或 Git 仓库" : "Search project name or Git repository"}
+            value={projectQuery}
+            onChange={(event) => setProjectQuery(event.target.value)}
+          />
+        </div>
+        {normalizedProjectQuery && (
+          <Button variant="ghost" size="sm" onClick={() => setProjectQuery("")}>
+            {zh ? "清除筛选" : "Clear filter"}
+          </Button>
+        )}
+      </div>
+      {filteredProjectViews.map(({ project, view }) => (
         <SettingsGroupCard key={project.id}>
           <article
             data-project-id={project.id}
@@ -524,6 +539,14 @@ export function AIReqProjectSettings({
           </article>
         </SettingsGroupCard>
       ))}
+      {!loading &&
+        projects.length > 0 &&
+        normalizedProjectQuery &&
+        !filteredProjectViews.length && (
+          <p role="status" className="text-ui-base text-foreground-subtle">
+            {zh ? "没有匹配的项目。" : "No matching projects."}
+          </p>
+        )}
       {aireq.view && !loadError && !projects.length && (
         <p className="text-ui-base text-foreground-subtle">
           还没有项目。配置 Git 仓库与默认分支后，即可创建 Release。
@@ -559,30 +582,58 @@ export function AIReqProjectSettings({
           >
             <div className="min-h-0 space-y-4 overflow-y-auto">
               <div className="space-y-2">
-                <Label htmlFor="project-name">{zh ? "项目名称" : "Project name"}</Label>
+                <Label htmlFor="project-name">
+                  {zh ? "项目名称" : "Project name"}
+                  <span aria-hidden="true" className="text-destructive">
+                    {" "}
+                    *
+                  </span>
+                </Label>
                 {/* 禁用文本框会丢失 Enter 提交前的焦点；只读即可阻止并发编辑。 */}
                 <Input
                   id="project-name"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    clearProjectFieldError("name");
+                  }}
+                  aria-invalid={Boolean(projectErrors.name) || undefined}
+                  aria-describedby={projectErrors.name ? "project-name-error" : undefined}
                   required
                   readOnly={saving}
                   disabled={!canSaveRepository}
                 />
+                {projectErrors.name && (
+                  <p id="project-name-error" role="alert" className="text-ui-sm text-destructive">
+                    {projectErrors.name}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="project-repository">
                   {zh ? "Git 仓库地址" : "Git repository URL"}
+                  <span aria-hidden="true" className="text-destructive">
+                    {" "}
+                    *
+                  </span>
                 </Label>
                 <Input
                   id="project-repository"
                   value={repositoryUrl}
-                  onChange={(event) => setRepositoryUrl(event.target.value)}
+                  onChange={(event) => {
+                    setRepositoryUrl(event.target.value);
+                    clearProjectFieldError("repository");
+                  }}
                   placeholder="ssh://git@git.example.internal/team/project.git"
                   required
                   readOnly={saving}
                   disabled={!canSaveRepository}
-                  aria-describedby="project-repository-help"
+                  aria-invalid={Boolean(projectErrors.repository) || undefined}
+                  aria-describedby={
+                    projectErrors.repository
+                      ? "project-repository-help project-repository-error"
+                      : "project-repository-help"
+                  }
                 />
                 <p
                   id="project-repository-help"
@@ -592,18 +643,43 @@ export function AIReqProjectSettings({
                     ? "填写 HTTP(S)、SSH 或 git@host:path 格式的远程地址，不填写本地路径。"
                     : "Enter an HTTP(S), SSH, or git@host:path remote URL, not a local path."}
                 </p>
+                {projectErrors.repository && (
+                  <p
+                    id="project-repository-error"
+                    role="alert"
+                    className="text-ui-sm text-destructive"
+                  >
+                    {projectErrors.repository}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="project-default-branch">{zh ? "默认分支" : "Default branch"}</Label>
+                <Label htmlFor="project-default-branch">
+                  {zh ? "默认分支" : "Default branch"}
+                  <span aria-hidden="true" className="text-destructive">
+                    {" "}
+                    *
+                  </span>
+                </Label>
                 <Input
                   id="project-default-branch"
                   value={defaultBranch}
-                  onChange={(event) => setDefaultBranch(event.target.value)}
+                  onChange={(event) => {
+                    setDefaultBranch(event.target.value);
+                    clearProjectFieldError("branch");
+                  }}
                   placeholder={zh ? "例如 main 或 master" : "For example, main or master"}
                   required
                   readOnly={saving}
                   disabled={!canSaveRepository}
+                  aria-invalid={Boolean(projectErrors.branch) || undefined}
+                  aria-describedby={projectErrors.branch ? "project-branch-error" : undefined}
                 />
+                {projectErrors.branch && (
+                  <p id="project-branch-error" role="alert" className="text-ui-sm text-destructive">
+                    {projectErrors.branch}
+                  </p>
+                )}
               </div>
               <p className="text-ui-sm leading-5 text-remote-foreground-muted">
                 {zh
@@ -642,103 +718,29 @@ export function AIReqProjectSettings({
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog
+      <AIReqReleaseDialog
         open={releaseOpen}
         onOpenChange={(open) => {
           if (!open && !savingRef.current) guard(() => setReleaseOpen(false));
         }}
-      >
-        {/* Release 同样将正文约束在视口内，避免大字号时主要动作被裁切。 */}
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
-          <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle>{zh ? "添加 Release" : "Add release"}</DialogTitle>
-            <DialogDescription>
-              {zh
-                ? "用于归集同一版本的需求，不是 Git 分支。沿用所选项目的 Git 仓库与默认分支。"
-                : "Group requirements for a version, not a Git branch. The release inherits the selected project's repository and default branch."}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-col gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveRelease();
-            }}
-          >
-            <div className="min-h-0 space-y-4 overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="release-project">{zh ? "所属项目" : "Project"}</Label>
-                <Select
-                  value={releaseProjectId}
-                  disabled={releaseSaving}
-                  onValueChange={(value) => {
-                    setReleaseProjectId(value);
-                    setReleaseError("");
-                  }}
-                >
-                  <SelectTrigger id="release-project" size="lg" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 text-ui-sm text-foreground-subtle">
-                <p className="break-all">
-                  {zh ? "Git 仓库：" : "Git repository: "}
-                  {projects.find((project) => project.id === releaseProjectId)?.repositoryUrl ??
-                    (zh ? "尚未配置" : "Not configured")}
-                </p>
-                <p>
-                  {zh ? "默认分支：" : "Default branch: "}
-                  {projects.find((project) => project.id === releaseProjectId)?.defaultBranch}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="release-name">{zh ? "Release 名称" : "Release name"}</Label>
-                <Input
-                  id="release-name"
-                  placeholder={
-                    zh
-                      ? "例如：2027.01 · 支付体验优化"
-                      : "For example, 2027.01 · Payment improvements"
-                  }
-                  value={releaseTitle}
-                  readOnly={releaseSaving}
-                  onChange={(event) => {
-                    setReleaseTitle(event.target.value);
-                    setReleaseError("");
-                  }}
-                  required
-                />
-              </div>
-              {releaseError && (
-                <p role="alert" className="text-ui-base text-destructive">
-                  {releaseError}
-                </p>
-              )}
-            </div>
-            <DialogFooter className="shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={releaseSaving}
-                onClick={() => guard(() => setReleaseOpen(false))}
-              >
-                {zh ? "取消" : "Cancel"}
-              </Button>
-              <Button type="submit" disabled={!canSave}>
-                {releaseSaving ? (zh ? "保存中…" : "Saving…") : zh ? "添加 Release" : "Add release"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        projects={projects}
+        releaseProjectId={releaseProjectId}
+        releaseTitle={releaseTitle}
+        releaseError={releaseError}
+        releaseSaving={releaseSaving}
+        canSave={canSave}
+        zh={zh}
+        onProjectChange={(value) => {
+          setReleaseProjectId(value);
+          setReleaseError("");
+        }}
+        onTitleChange={(value) => {
+          setReleaseTitle(value);
+          setReleaseError("");
+        }}
+        onCancel={() => guard(() => setReleaseOpen(false))}
+        onSubmit={() => void saveRelease()}
+      />
     </section>
   );
 }

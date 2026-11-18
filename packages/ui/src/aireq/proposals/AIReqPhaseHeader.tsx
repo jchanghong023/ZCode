@@ -1,4 +1,4 @@
-import { proposalNextTask, proposalTaskTitles } from "./proposalTasks.js";
+import { proposalNextTask, proposalTaskStatus, proposalTaskTitles } from "./proposalTasks.js";
 import { useRef, useState, type ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { MoreHorizontal, X } from "lucide-react";
@@ -500,13 +500,7 @@ export function AIReqPhaseHeader({
 export function AIReqDocumentPhaseActions() {
   return <AIReqPhaseHeader placement="document" />;
 }
-export function AIReqProposalStageBody({
-  materialsOpen,
-  onOpenMaterials,
-}: {
-  materialsOpen: boolean;
-  onOpenMaterials: () => void;
-}) {
+export function AIReqProposalStageBody() {
   const ai = useAIReq()!;
   const group = ai.view?.drafts.find(
     (item) => item.id === ai.selection.irId && item.projectId === ai.selection.projectId,
@@ -514,10 +508,41 @@ export function AIReqProposalStageBody({
   const mergePending = group && proposalState(group) === "merge-pending";
   const deliveryReady = group && proposalProgressIndex(group) === 3;
   const next = group ? proposalNextTask(group) : "overview";
+  const version = group ? proposalVersion(group) : "";
+  const versionLabel = group?.review?.round
+    ? `第 ${group.review.round} 轮`
+    : group?.originalReview?.round
+      ? `第 ${group.originalReview.round} 轮`
+      : "未记录";
+  const deliveryStatus = group ? proposalTaskStatus(group, "delivery") : "未开始";
+  const solutionStatus = group ? proposalTaskStatus(group, "solutionReview") : "未开始";
+  const fileCount = group?.files?.length ?? 0;
+  const threePartyCount = group
+    ? perspectives.filter(([key]) =>
+        group.alignment?.some((entry) => entry.perspective === key && entry.version === version),
+      ).length
+    : 0;
+  const threePartyText = group
+    ? perspectives
+        .map(([key, label]) => {
+          const confirmed = group.alignment?.some(
+            (entry) => entry.perspective === key && entry.version === version,
+          );
+          return `${label}${confirmed ? "已确认" : "未确认"}`;
+        })
+        .join(" · ")
+    : "业务未确认 · 开发未确认 · 测试未确认";
   return (
     <main className="@container/conversation min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges]">
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-6`}>
-        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>交付确认</h1>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>交付确认</h1>
+          {group && (
+            <span className="rounded-full border border-border/60 px-2 py-0.5 text-ui-sm text-interaction-confirmation-foreground">
+              {deliveryStatus}
+            </span>
+          )}
+        </div>
         <p className="text-ui-sm text-foreground-subtle">
           {mergePending
             ? "文档已提交，等待 MR 合入与后台核验。"
@@ -525,11 +550,6 @@ export function AIReqProposalStageBody({
               ? "确认当前材料，核对文件后提交文档 MR。"
               : "当前版本尚未完成审查。先处理以下前置任务，再进行交付确认。"}
         </p>
-        {!materialsOpen && (
-          <Button variant="outline" onClick={onOpenMaterials}>
-            展开需求材料
-          </Button>
-        )}
         {group &&
           (deliveryReady ? (
             <>
@@ -554,9 +574,52 @@ export function AIReqProposalStageBody({
               )}
             </>
           ) : (
-            <Button onClick={() => ai.openProposalTask(next)}>
-              前往{proposalTaskTitles[next]}
-            </Button>
+            <>
+              <section className="space-y-3" aria-label="前置条件">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-ui-base font-medium">前置条件</h2>
+                  <p className="text-ui-sm text-foreground-subtle">
+                    当前版本 {versionLabel} · {fileCount} 份材料
+                  </p>
+                </div>
+                <ul className="divide-y divide-border/50">
+                  <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-ui-base font-medium">方案审查</p>
+                      <p className="text-ui-sm text-foreground-subtle">
+                        当前版本的完整审查与人工确认
+                      </p>
+                    </div>
+                    <span className="text-ui-sm text-foreground-subtle">{solutionStatus}</span>
+                  </li>
+                  <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-ui-base font-medium">三方确认</p>
+                      <p className="text-ui-sm text-foreground-subtle">{threePartyText}</p>
+                    </div>
+                    <span className="text-ui-sm text-foreground-subtle">
+                      {threePartyCount} / 3
+                    </span>
+                  </li>
+                  <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-ui-base font-medium">文件清单</p>
+                      <p className="text-ui-sm text-foreground-subtle">
+                        当前版本需要核对的交付材料
+                      </p>
+                    </div>
+                    <span className="text-ui-sm text-foreground-subtle">
+                      {fileCount ? `${fileCount} 份材料` : "未记录"}
+                    </span>
+                  </li>
+                </ul>
+              </section>
+              <div>
+                <Button onClick={() => ai.openProposalTask(next)}>
+                  前往{proposalTaskTitles[next]}
+                </Button>
+              </div>
+            </>
           ))}
       </div>
     </main>

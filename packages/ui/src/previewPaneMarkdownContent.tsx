@@ -1,4 +1,4 @@
-import { Children, isValidElement, useMemo, useRef, type ComponentProps } from "react";
+import { Children, createElement, isValidElement, useMemo, useRef, type ComponentProps } from "react";
 import MarkdownPreview, {
   type MarkdownPreviewProps,
 } from "@uiw/react-markdown-preview/nohighlight";
@@ -38,6 +38,18 @@ export interface MarkdownDocumentProps {
   workspacePath?: string;
   showExportActions?: boolean;
   onOpenExternalUrl?: (url: string) => void;
+  /** 任务页内嵌材料需要把文档自身标题降级，页面 h1 仍唯一。 */
+  headingLevelOffset?: 0 | 1 | 2 | 3;
+}
+
+type MarkdownHeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+function createHeadingComponent(level: MarkdownHeadingLevel, offset: 0 | 1 | 2 | 3) {
+  const tag = `h${Math.min(6, level + offset)}` as `h${MarkdownHeadingLevel}`;
+  return ({
+    children,
+    node: _node,
+    ...props
+  }: ComponentProps<"h2"> & { node?: unknown }) => createElement(tag, props, children);
 }
 
 const documentMath = createMathPlugin({ singleDollarTextMath: true });
@@ -78,12 +90,19 @@ export function MarkdownDocument({
   workspacePath,
   showExportActions = true,
   onOpenExternalUrl,
+  headingLevelOffset = 0,
 }: MarkdownDocumentProps) {
   const resolvedTheme = resolveTheme(theme);
   const codeTheme =
     resolvedTheme === "dark" ? codePreviewSettings.darkTheme : codePreviewSettings.lightTheme;
   const components = useMemo<NonNullable<MarkdownPreviewProps["components"]>>(
     () => ({
+      h1: createHeadingComponent(1, headingLevelOffset),
+      h2: createHeadingComponent(2, headingLevelOffset),
+      h3: createHeadingComponent(3, headingLevelOffset),
+      h4: createHeadingComponent(4, headingLevelOffset),
+      h5: createHeadingComponent(5, headingLevelOffset),
+      h6: createHeadingComponent(6, headingLevelOffset),
       a: ({ children: label, href, node: _node, ...props }) => {
         if (href?.startsWith("#")) {
           return (
@@ -177,7 +196,15 @@ export function MarkdownDocument({
       thead: MarkdownTableHeader,
       tr: MarkdownTableRow,
     }),
-    [codePreviewSettings, codeTheme, onOpenExternalUrl, showExportActions, theme, workspacePath],
+    [
+      codePreviewSettings,
+      codeTheme,
+      headingLevelOffset,
+      onOpenExternalUrl,
+      showExportActions,
+      theme,
+      workspacePath,
+    ],
   );
   const source = useMemo(() => normalizeConsecutiveMarkdownImageBlocks(children), [children]);
   const wrapperElement = {
@@ -187,7 +214,7 @@ export function MarkdownDocument({
   return (
     <MarkdownPreview
       source={source}
-      className={cn("zcode-markdown-document min-w-0 break-words", className)}
+      className={cn("zcode-markdown-document min-w-0 break-words text-balance", className)}
       wrapperElement={wrapperElement}
       disableCopy
       skipHtml

@@ -65,18 +65,18 @@ export function createPrototypeRequirementsReview(
           : key === "summary" && scenario === "failed"
             ? "pending"
             : "completed",
-    // 文件版本摘要可能是完整 JSON；正文只呈现轮次，精确版本仍由 DTO 和只读技术信息保留。
+    // 模拟执行只记录实际输入与运行结果，避免把某条演示需求的验收结论套用到其他材料。
     report:
       scenario === "hold" || (scenario === "failed" && key === "summary")
         ? ""
-        : `# ${names[index]}\n\n第 ${round} 轮评审，输入 ${inputFiles.length} 份材料。\n\n${
+        : `# ${names[index]}\n\n第 ${round} 轮模拟评审，输入 ${inputFiles.length} 份材料。\n\n## 执行结果\n\n${
             scenario === "failed" && index === 0
               ? "本轮评审失败，不能放行。"
               : scenario === "blocked"
                 ? "本轮记录了阻断项：验收条件与材料需补充，不得人工绕过。"
                 : key === "summary"
                   ? "本轮 A、B、C 三份同版报告已登记，未记录阻断项；人工决定单独记录。"
-                  : "本轮状态已完成，未记录阻断项；人工决定单独记录。"
+                  : "本路评审已完成，未记录阻断项。人工决定单独记录。"
           }`,
     promptSnapshot: prompts[bindings[index]!.role],
     session: {

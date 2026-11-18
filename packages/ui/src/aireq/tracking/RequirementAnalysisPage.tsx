@@ -198,7 +198,7 @@ function ConnectedProgressAnalysis({
       const blocker = retryBlocker(current);
       if (blocker) throw new Error(blocker);
       await scheduler.runNow(exact);
-    }, `仅已请求 ${task.srId} 的单 SR 重试；未派发其他 SR，运行中不会重复接纳。`);
+    }, `仅已请求 ${task.srTitle} 的单 SR 重试；未派发其他 SR，运行中不会重复接纳。`);
   };
   const openReport = (id: string) => {
     const target =
@@ -240,7 +240,7 @@ function ConnectedProgressAnalysis({
           task.projectId === target.projectId &&
           task.irId === target.irId &&
           task.srId === target.srId,
-      )?.srTitle ?? target.srId;
+      )?.srTitle ?? "开发任务";
     sidePane.open({
       kind: "report",
       selection: {
@@ -260,7 +260,7 @@ function ConnectedProgressAnalysis({
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`查看 ${task.srId} 失败原因`}
+            aria-label={`查看 ${task.srTitle} 失败原因`}
             onClick={onOpenReport}
           >
             原因
@@ -271,7 +271,7 @@ function ConnectedProgressAnalysis({
             <Button
               variant="outline"
               size="sm"
-              aria-label={`重试 ${task.srId}`}
+              aria-label={`重试 ${task.srTitle}`}
               disabled={pending || Boolean(retryBlocker(task))}
               onClick={() => retry(task)}
             >
@@ -284,7 +284,7 @@ function ConnectedProgressAnalysis({
       <Button
         variant="ghost"
         size="sm"
-        aria-label={`查看 ${task.srId} 最近报告`}
+        aria-label={`查看 ${task.srTitle} 最近报告`}
         onClick={onOpenReport}
       >
         查看报告
@@ -320,6 +320,8 @@ function ConnectedProgressAnalysis({
   const activeQuery = tab === "tasks" ? taskQuery : historyQuery;
   const refreshError = snapshotQuery.error ?? (activeQuery.value ? activeQuery.error : undefined);
   const currentProject = snapshot.projects.find((project) => project.id === projectId);
+  const selectedIrTitle =
+    irId === "all" ? "全部 IR" : (irs.find((ir) => ir.id === irId)?.title ?? "当前需求");
   return (
     <section className="min-w-0 space-y-6" data-testid="aireq-requirement-analysis">
       {/* 页面标题由外层持有，调度状态与辅助操作在下一行集中呈现。 */}
@@ -409,29 +411,37 @@ function ConnectedProgressAnalysis({
                 )}
               </TabsTrigger>
             </TabsList>
-            {tab === "tasks" && (
-              <Button
-                size="sm"
-                disabled={
-                  pending ||
-                  taskQuery.loading ||
-                  Boolean(taskQuery.error) ||
-                  !taskResult?.eligibleCount
-                }
-                onClick={() => {
-                  setMessage("");
-                  setAnalysisRequest({
-                    filter: { ...filter },
-                    count: taskResult?.eligibleCount ?? 0,
-                    scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${irId === "all" ? "全部 IR" : irId}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
-                  });
-                  setAnalysisDialogOpen(true);
-                }}
-                aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
-              >
-                分析 {taskResult?.eligibleCount ?? "…"} 个 SR
-              </Button>
-            )}
+            {tab === "tasks" &&
+              currentProject?.enabled &&
+              taskResult?.total !== 0 &&
+              (taskResult && !taskResult.eligibleCount ? (
+                  // 资格计数也排除运行中的任务，仅据此不能判断任务停运或完成。
+                  <p role="status" className="max-w-72 text-ui-sm text-foreground-subtle">
+                    当前范围没有可发起分析的 SR。
+                  </p>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={
+                      pending ||
+                      taskQuery.loading ||
+                      Boolean(taskQuery.error) ||
+                      !taskResult?.eligibleCount
+                    }
+                    onClick={() => {
+                      setMessage("");
+                      setAnalysisRequest({
+                        filter: { ...filter },
+                        count: taskResult?.eligibleCount ?? 0,
+                        scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}。`,
+                      });
+                      setAnalysisDialogOpen(true);
+                    }}
+                    aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
+                  >
+                    分析 {taskResult?.eligibleCount ?? "…"} 个 SR
+                  </Button>
+                ))}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <div className="relative min-w-56 flex-1">
@@ -459,6 +469,7 @@ function ConnectedProgressAnalysis({
               label="筛选需求"
               className="w-60 max-w-full"
               triggerClassName="rounded-lg bg-surface"
+              contentClassName="max-w-[22rem]"
               value={irId}
               onChange={(value) => {
                 setTargetSrId("");
@@ -468,8 +479,14 @@ function ConnectedProgressAnalysis({
             >
               <SelectItem value="all">全部需求</SelectItem>
               {irs.map((ir) => (
-                <SelectItem key={`${ir.projectId}-${ir.id}`} value={ir.id}>
-                  {ir.title} · {ir.id}
+                <SelectItem
+                  key={`${ir.projectId}-${ir.id}`}
+                  value={ir.id}
+                  className="min-w-0 *:[span]:last:min-w-0"
+                >
+                  <span className="block truncate" title={ir.title}>
+                    {ir.title}
+                  </span>
                 </SelectItem>
               ))}
             </FilterSelect>
@@ -518,8 +535,13 @@ function ConnectedProgressAnalysis({
                 }
               />
               {!taskResult.total && (
-                <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
-                  当前范围没有正式 SR 任务。
+                <p
+                  role="status"
+                  className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle"
+                >
+                  {filter.irId || filter.srId || srSearch.trim()
+                    ? "没有符合筛选条件的 SR。"
+                    : "当前范围没有正式 SR 任务。"}
                 </p>
               )}
               <Pagination
@@ -572,20 +594,35 @@ function ConnectedProgressAnalysis({
                     resetHistoryPage();
                   }}
                 />
-                <Label htmlFor="analysis-until" className="text-ui-sm text-foreground-subtle">
-                  至
-                </Label>
-                <Input
-                  id="analysis-until"
-                  aria-label="结束时间（含）"
-                  className="h-9 w-48 rounded-lg bg-surface"
-                  type="datetime-local"
-                  value={until}
-                  onChange={(event) => {
-                    setUntil(event.target.value);
-                    resetHistoryPage();
-                  }}
-                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="analysis-until" className="text-ui-sm text-foreground-subtle">
+                      至
+                    </Label>
+                    <Input
+                      id="analysis-until"
+                      aria-label="结束时间（含）"
+                      aria-invalid={dateError || undefined}
+                      aria-describedby={dateError ? "analysis-date-error" : undefined}
+                      className="h-9 w-48 rounded-lg bg-surface"
+                      type="datetime-local"
+                      value={until}
+                      onChange={(event) => {
+                        setUntil(event.target.value);
+                        resetHistoryPage();
+                      }}
+                    />
+                  </div>
+                  {dateError && (
+                    <span
+                      id="analysis-date-error"
+                      role="alert"
+                      className="text-ui-sm text-destructive"
+                    >
+                      结束时间不能早于开始时间。
+                    </span>
+                  )}
+                </div>
                 {(historyStatus !== "all" || since || until) && (
                   <Button
                     variant="ghost"
@@ -600,11 +637,6 @@ function ConnectedProgressAnalysis({
                     清除历史筛选
                   </Button>
                 )}
-                {dateError && (
-                  <span role="alert" className="text-ui-sm text-destructive">
-                    结束时间不能早于开始时间。
-                  </span>
-                )}
               </div>
               <QueryFeedback
                 loading={historyQuery.loading}
@@ -612,12 +644,18 @@ function ConnectedProgressAnalysis({
                 onRetry={refresh}
                 hasData={Boolean(historyResult)}
               />
-              {historyResult && (
-                <>
+              {dateError ? (
+                <div className="min-w-0 rounded-xl border border-card-border bg-card text-foreground">
+                  <p className="flex min-h-48 items-center justify-center px-4 py-8 text-center text-ui-base text-foreground-subtle">
+                    请修正时间范围后查看执行历史。
+                  </p>
+                </div>
+              ) : (
+                historyResult && (
                   <div className="min-w-0 rounded-xl border border-card-border bg-card text-foreground">
                     <AnalysisHistoryTable
                       items={historyResult.items}
-                      projects={snapshot.projects}
+                      irs={snapshot.irs}
                       selectedRunId={selectedRunId}
                       openReport={openReport}
                       openRequirement={openRequirement}
@@ -641,7 +679,7 @@ function ConnectedProgressAnalysis({
                       }}
                     />
                   </div>
-                </>
+                )
               )}
             </TabsContent>
           )}

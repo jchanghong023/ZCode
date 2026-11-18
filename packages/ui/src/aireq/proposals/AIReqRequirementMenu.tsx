@@ -57,6 +57,11 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
     aireq.view?.operations.filter(
       (item) => item.irId === group.id || item.irIds?.includes(group.id),
     ) ?? [];
+  const sourceGroup = group.sourceIrId
+    ? [...(aireq.view?.groups ?? []), ...(aireq.view?.drafts ?? [])].find(
+        (item) => item.id === group.sourceIrId && item.projectId === group.projectId,
+      )
+    : undefined;
   if (
     aireq.selection.projectId !== group.projectId ||
     aireq.selection.irId !== group.id ||
@@ -67,6 +72,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
     <>
       <AIReqDeleteRequirement
         group={group}
+        returnFocusRef={menuTrigger}
         renderTrigger={(openDelete, prohibition) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -93,7 +99,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                     onSelect={openDelete}
                   >
                     <span className="min-w-0">
-                      删除提案
+                      移除需求
                       {prohibition && (
                         <span className="block max-w-64 whitespace-normal break-words text-ui-sm text-foreground-subtle">
                           {prohibition}
@@ -123,9 +129,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
         >
           <DialogHeader>
             <DialogTitle>{panel === "info" ? "提案信息" : "操作记录"}</DialogTitle>
-            <DialogDescription>
-              {group.id} · {group.title} · 只读，不改变阶段或发送消息。
-            </DialogDescription>
+            <DialogDescription>{group.title} · 只读，不改变阶段或发送消息。</DialogDescription>
           </DialogHeader>
           {panel === "info" ? (
             <div className="space-y-4 text-ui-sm">
@@ -142,7 +146,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                   <dt className="text-foreground-subtle">需求文件</dt>
                   <dd className="break-all font-mono">{group.documentPath}</dd>
                   <p className="mt-2 whitespace-pre-wrap">{group.originalText}</p>
-                  {group.sourceIrId && <p>关联来源 IR：{group.sourceIrId}</p>}
+                  {sourceGroup && <p>关联来源：{sourceGroup.title}</p>}
                 </div>
               </dl>
               <AIReqAgentModelSummary
@@ -155,12 +159,15 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                 operations.map((item) => (
                   <section key={item.operationId} className="space-y-1 border-b border-border pb-3">
                     <p>
-                      {operationLabels[item.type] ?? "其他操作"} ·{" "}
+                      {operationLabels[item.type] ?? (item.type || "其他操作")} ·{" "}
                       {item.status === "completed"
                         ? "已完成"
                         : item.status === "running"
                           ? "进行中"
                           : "失败"}
+                    </p>
+                    <p className="text-foreground-subtle">
+                      操作人：{item.identity?.employeeId ?? "未记录"}
                     </p>
                     <time dateTime={item.startedAt}>{recordTime(item.startedAt)}</time>
                     {item.steps.map((step, index) => (

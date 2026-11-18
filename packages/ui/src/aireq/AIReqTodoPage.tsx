@@ -39,6 +39,9 @@ export function AIReqTodoPage() {
   const [assigningTodo, setAssigningTodo] = useState<AIReqTodo>();
   const [assignmentError, setAssignmentError] = useState<string>();
   const employeeId = getEmployeeId();
+  const assigneeDraft = assigningTodo ? (assignees[assigningTodo.id] ?? "").trim() : "";
+  const assigneeValid = /^[a-z][0-9]{8}$/.test(assigneeDraft);
+  const assigneeInvalid = Boolean(assigneeDraft) && !assigneeValid;
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const release = ai.view?.releases.find(
     (item) => item.projectId === project?.id && item.id === ai.releaseId,
@@ -57,7 +60,7 @@ export function AIReqTodoPage() {
       filter === "all" || (filter === "mine" ? item.employeeId === employeeId : !item.employeeId),
   );
   const projectName = (id: string) =>
-    ai.view?.projects.find((project) => project.id === id)?.name ?? id;
+    ai.view?.projects.find((project) => project.id === id)?.name ?? "未知项目";
   const scopeLabel = "当前版本";
   const emptyTitle = !scopedTodos.length
     ? `${scopeLabel}暂无待处理事项`
@@ -68,7 +71,7 @@ export function AIReqTodoPage() {
     ? "需要人工处理时，事项会自动出现在这里。"
     : filter === "mine"
       ? "可切换到待认领或全部待办。"
-      : "当前范围内的待办均已分配负责人。";
+      : "当前范围内的待办均已分配归属。";
   const assign = async (item: AIReqTodo, employee: string) => {
     if (pending) return false;
     setPending(item.id);
@@ -280,7 +283,7 @@ export function AIReqTodoPage() {
                             setAssigningTodo(item);
                           }}
                         >
-                          分配负责人…
+                          调整分工…
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -306,7 +309,7 @@ export function AIReqTodoPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>分配负责人</DialogTitle>
+              <DialogTitle>调整分工</DialogTitle>
               <DialogDescription>
                 分配会更新对应联系人或负责人。仅代办无需调整分工。
               </DialogDescription>
@@ -319,17 +322,12 @@ export function AIReqTodoPage() {
                   {assigningTodo.srId && (
                     <>
                       <dt className="text-foreground-subtle">开发单元</dt>
-                      <dd className="break-words">{assigningTodo.srTitle ?? assigningTodo.srId}</dd>
+                      <dd className="break-words">{assigningTodo.srTitle ?? "开发任务"}</dd>
                     </>
                   )}
                   <dt className="text-foreground-subtle">项目</dt>
                   <dd className="break-words">{projectName(assigningTodo.projectId)}</dd>
-                  <dt className="text-foreground-subtle">编号</dt>
-                  <dd className="break-words font-mono">
-                    {assigningTodo.irId}
-                    {assigningTodo.srId ? ` / ${assigningTodo.srId}` : ""}
-                  </dd>
-                  <dt className="text-foreground-subtle">调整分工</dt>
+                  <dt className="text-foreground-subtle">分工类型</dt>
                   <dd>{assignmentLabel(assigningTodo)}</dd>
                   <dt className="text-foreground-subtle">当前工号</dt>
                   <dd className={assigningTodo.employeeId ? "font-mono" : undefined}>
@@ -342,6 +340,12 @@ export function AIReqTodoPage() {
                   </label>
                   <Input
                     id="todo-assignee"
+                    aria-describedby={
+                      assigneeInvalid
+                        ? "todo-assignee-hint todo-assignee-error"
+                        : "todo-assignee-hint"
+                    }
+                    aria-invalid={assigneeInvalid || undefined}
                     placeholder="例如 j00808874"
                     value={assignees[assigningTodo.id] ?? ""}
                     onChange={(event) =>
@@ -351,7 +355,18 @@ export function AIReqTodoPage() {
                       }))
                     }
                   />
-                  <p className="text-ui-sm text-foreground-subtle">小写字母开头，后接 8 位数字。</p>
+                  <p id="todo-assignee-hint" className="text-ui-sm text-foreground-subtle">
+                    小写字母开头，后接 8 位数字。
+                  </p>
+                  {assigneeInvalid && (
+                    <p
+                      id="todo-assignee-error"
+                      role="alert"
+                      className="text-ui-sm text-destructive"
+                    >
+                      工号格式应为小写字母开头，后接 8 位数字。
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -369,14 +384,10 @@ export function AIReqTodoPage() {
                 取消
               </Button>
               <Button
-                disabled={
-                  !assigningTodo ||
-                  Boolean(pending) ||
-                  !/^[a-z][0-9]{8}$/.test(assignees[assigningTodo.id] ?? "")
-                }
+                disabled={!assigningTodo || Boolean(pending) || !assigneeValid}
                 onClick={() => {
                   if (assigningTodo)
-                    void assign(assigningTodo, assignees[assigningTodo.id]!).then((success) => {
+                    void assign(assigningTodo, assigneeDraft).then((success) => {
                       if (success) setAssigningTodo(undefined);
                     });
                 }}

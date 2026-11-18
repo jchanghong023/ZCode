@@ -30,6 +30,9 @@ export function OverviewProgress({
   if (prominent)
     return (
       <div className="space-y-2">
+        <span className="block text-ui-sm text-foreground-subtle">
+          {zh ? "交付验收进度" : "Delivery acceptance progress"}
+        </span>
         {/* 进度条已提供同一百分比，避免版本按钮的辅助说明重复朗读。 */}
         <span aria-hidden="true" className="text-ui-xl font-medium tabular-nums">
           {progressLabel(percent)}

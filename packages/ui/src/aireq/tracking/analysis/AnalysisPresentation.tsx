@@ -69,6 +69,7 @@ export function FilterSelect({
   disabled,
   className = "w-44",
   triggerClassName,
+  contentClassName,
 }: {
   id: string;
   label: string;
@@ -78,6 +79,7 @@ export function FilterSelect({
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
     <div className={className}>
@@ -88,7 +90,7 @@ export function FilterSelect({
         <SelectTrigger id={id} className={`h-9 w-full ${triggerClassName ?? ""}`}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>{children}</SelectContent>
+        <SelectContent className={contentClassName}>{children}</SelectContent>
       </Select>
     </div>
   );

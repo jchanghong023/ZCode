@@ -1,6 +1,8 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAIReqDataSource } from "../../data-source.js";
+import { useAIReq } from "../../AIReqContext.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AIReqProgressScheduler, AIReqSettingsDraftActions } from "../../contract.js";
 import { AnalysisSettings, analysisIntervalMinutes } from "./AnalysisSettings.js";
 import { QueryFeedback, UpdateFeedback } from "./AnalysisPresentation.js";
@@ -29,6 +31,9 @@ function ConnectedAnalysisSettings({
   onDraftActionsChange,
   focusProjectId,
 }: AnalysisSettingsProps & { scheduler: AIReqProgressScheduler }) {
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
+  const currentProjectId = useAIReq()?.selection.projectId;
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const read = useCallback(() => scheduler.read(), [scheduler]);
@@ -38,6 +43,7 @@ function ConnectedAnalysisSettings({
   const [projectSearch, setProjectSearch] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageError, setMessageError] = useState(false);
   const mutation = useRef(false);
   const lifecycle = useRef<object | undefined>(undefined);
   const actions = useRef<AIReqSettingsDraftActions | null>(null);
@@ -64,6 +70,7 @@ function ConnectedAnalysisSettings({
       mutation.current = true;
       setPending(true);
       setMessage("");
+      setMessageError(false);
       try {
         await action();
         if (lifecycle.current !== scope) return false;
@@ -71,8 +78,10 @@ function ConnectedAnalysisSettings({
         refresh();
         return true;
       } catch (cause) {
-        if (lifecycle.current === scope)
+        if (lifecycle.current === scope) {
           setMessage(formatUserFacingError(cause, "分析设置保存失败，请稍后重试。"));
+          setMessageError(true);
+        }
         return false;
       } finally {
         if (lifecycle.current === scope) {
@@ -102,6 +111,7 @@ function ConnectedAnalysisSettings({
     discard: () => {
       setInterval(undefined);
       setMessage("");
+      setMessageError(false);
     },
   };
   const canSave = !pending && minutes !== undefined;
@@ -122,7 +132,22 @@ function ConnectedAnalysisSettings({
     return <QueryFeedback loading={query.loading} error={query.error} onRetry={refresh} />;
   return (
     <div className="space-y-4">
-      <UpdateFeedback error={query.error} pending={false} message="" onRetry={refresh} />
+      {(query.error || pending || message) && (
+        <div className="sticky top-0 z-10 space-y-1 border-b border-border bg-background py-2">
+          {query.error && (
+            <UpdateFeedback error={query.error} pending={false} message="" onRetry={refresh} />
+          )}
+          {(pending || message) && (
+            <p
+              role={messageError ? "alert" : "status"}
+              aria-live="polite"
+              className={`text-ui-sm ${messageError ? "text-destructive" : "text-foreground-subtle"}`}
+            >
+              {pending ? (zh ? "正在提交…" : "Saving…") : message}
+            </p>
+          )}
+        </div>
+      )}
       <AnalysisSettings
         snapshot={snapshot}
         scheduler={scheduler}
@@ -130,10 +155,10 @@ function ConnectedAnalysisSettings({
         projectSearch={projectSearch}
         setProjectSearch={setProjectSearch}
         focusProjectId={focusProjectId}
+        currentProjectId={currentProjectId}
         interval={currentInterval}
         setInterval={setInterval}
         pending={pending}
-        message={message}
         mutate={mutate}
       />
     </div>

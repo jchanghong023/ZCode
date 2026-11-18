@@ -1,5 +1,5 @@
 import { useAIReqDataSource } from "../data-source.js";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
@@ -22,9 +22,11 @@ import {
 export function AIReqDeleteRequirement({
   group: menuGroup,
   renderTrigger,
+  returnFocusRef,
 }: {
   group: AIReqRequirementGroup;
   renderTrigger?: (openDelete?: () => void, prohibition?: string) => ReactNode;
+  returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const source = useAIReqDataSource();
   const aireq = useAIReq()!;
@@ -94,7 +96,7 @@ export function AIReqDeleteRequirement({
           title={prohibition}
           onClick={openDelete}
         >
-          删除需求
+          移除需求
         </Button>
       )}
       <AlertDialog
@@ -103,11 +105,22 @@ export function AIReqDeleteRequirement({
           if (!open && !inFlight.current) setTarget(undefined);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (deleting || inFlight.current) return;
+            event.preventDefault();
+            setTarget(undefined);
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!returnFocusRef?.current) return;
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>移除需求“{group.title}”？</AlertDialogTitle>
             <AlertDialogDescription>
-              删除后将无法继续处理这条需求，请确认后再操作。
+              移除后，这条需求的材料、评审、确认与操作记录将不再可访问；此操作不可恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
           {aireq.error && (
@@ -128,7 +141,7 @@ export function AIReqDeleteRequirement({
                 void remove();
               }}
             >
-              确认删除
+              确认移除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

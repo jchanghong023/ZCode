@@ -5,6 +5,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 export function AIReqMarkdownDocument({
   theme,
   codePreviewSettings,
+  headingLevelOffset = 1,
   ...props
 }: Omit<MarkdownDocumentProps, "workspacePath" | "showExportActions" | "onOpenExternalUrl">) {
   const storeTheme = useZCodeStore((state) => state.theme);
@@ -12,6 +13,7 @@ export function AIReqMarkdownDocument({
   return (
     <MarkdownDocument
       {...props}
+      headingLevelOffset={headingLevelOffset}
       theme={theme ?? storeTheme}
       codePreviewSettings={codePreviewSettings ?? storeCodeSettings}
       showExportActions={false}

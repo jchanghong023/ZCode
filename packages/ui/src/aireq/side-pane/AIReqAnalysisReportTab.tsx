@@ -51,6 +51,8 @@ export function AIReqAnalysisReportTab({
     return {
       run,
       task,
+      projectName: snapshot.projects.find((project) => project.id === projectId)?.name ?? "—",
+      irTitle: currentIr?.title ?? "—",
       projectEnabled: Boolean(
         snapshot.projects.find((project) => project.id === projectId)?.enabled,
       ),
@@ -101,7 +103,7 @@ export function AIReqAnalysisReportTab({
       // 接纳前重新核对本 Tab 对象与实时资格；不能从主区或其他报告扩大重试范围。
       await scheduler.runNow({ projectId, releaseId, irId, srId });
       if (lifecycle.current === scope) {
-        setMessage(`已请求 ${srId} 的单 SR 重试，未派发其他任务。`);
+        setMessage(`已请求 ${current.run.srTitle} 的单 SR 重试，未派发其他任务。`);
         refresh();
       }
     } catch (cause) {
@@ -133,6 +135,7 @@ export function AIReqAnalysisReportTab({
     <div className="h-full min-h-0 min-w-0 p-4" data-testid="aireq-analysis-report-tab">
       <AnalysisReportContent
         run={value.run}
+        context={{ projectName: value.projectName, irTitle: value.irTitle }}
         feedback={
           <UpdateFeedback
             error={query.error}

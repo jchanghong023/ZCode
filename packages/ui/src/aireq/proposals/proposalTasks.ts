@@ -192,12 +192,12 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
     "solution-confirmation-pending": fullReviewBlocker(group)
       ? {
           role: "人工确认",
-          description: "完整审查已完成，请阅读独立审查意见并放行当前方案。",
+          description: "完整审查已完成，请阅读独立审查意见并确认完整方案。",
           action: "查看并确认方案",
         }
       : {
           role: "业务、开发、测试",
-          description: "完整方案已放行，还需三个视角分别确认当前材料。",
+          description: "完整方案已确认，还需三个视角分别确认当前材料。",
           action: "完成三方确认",
         },
     "submission-pending": {

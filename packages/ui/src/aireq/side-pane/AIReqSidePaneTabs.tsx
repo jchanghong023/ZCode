@@ -223,7 +223,7 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
           {pane.activeTab &&
             (pane.activeTab.kind === "launcher"
               ? pane.activeTab.title
-              : `${accessibleKinds[pane.activeTab.kind]} · ${pane.activeTab.title}`)}
+              : accessibleKinds[pane.activeTab.kind])}
         </p>
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
           {tool(zh ? "新建标签页" : "New tab", Plus, pane.newTab)}

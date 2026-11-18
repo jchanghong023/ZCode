@@ -348,24 +348,18 @@ export function AIReqSettingsPage({
           style: { gridTemplateColumns: "256px minmax(0, 1fr)" },
         }}
         backButton={
-          <ControlHintTooltip
-            title={zh ? "返回工作区" : "Return to workspace"}
-            side="right"
-            align="center"
+          <Button
+            ref={backButtonRef}
+            type="button"
+            variant="ghost"
+            size="lg"
+            aria-label={zh ? "返回工作区" : "Return to workspace"}
+            className="m-1 w-[calc(100%-0.5rem)] justify-start gap-2 rounded-xl bg-surface px-1.5 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground max-lg:m-1 max-lg:size-10 max-lg:justify-center max-lg:px-0"
+            onClick={() => guard(onClose)}
           >
-            <Button
-              ref={backButtonRef}
-              type="button"
-              variant="ghost"
-              size="lg"
-              aria-label={zh ? "返回工作区" : "Return to workspace"}
-              className="m-1 w-[calc(100%-0.5rem)] justify-start gap-2 rounded-xl bg-surface px-1.5 text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground max-lg:m-1 max-lg:size-10 max-lg:justify-center max-lg:px-0"
-              onClick={() => guard(onClose)}
-            >
-              <ArrowLeft className="size-4" />
-              <span className="max-lg:sr-only">{zh ? "返回工作区" : "Return to workspace"}</span>
-            </Button>
-          </ControlHintTooltip>
+            <ArrowLeft className="size-4" />
+            <span className="max-lg:sr-only">{zh ? "返回工作区" : "Return to workspace"}</span>
+          </Button>
         }
         search={
           <SettingsSearch
@@ -469,6 +463,7 @@ export function AIReqSettingsPage({
                   ))}
                 </TabsList>
                 <TabsContent key={section} value={section} className="mt-6 space-y-8">
+                  <h2 className="sr-only">{titles[section]}</h2>
                   {section === "models" ? (
                     <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
                   ) : section === "personalization" ? (

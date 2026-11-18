@@ -263,6 +263,8 @@ export interface SessionPaneProps {
   readOnlyReason?: string;
   /** 框选副屏：保留普通 composer/tools，但隐藏并禁止 edit/retry/fork/goal。 */
   selectionSideChat?: boolean;
+  /** 正式审查报告等业务消息不显示赞/踩；复制和正文仍保留。 */
+  hideMessageFeedback?: boolean;
   /** 主会话划词动作只投递到 Side Pane 当前激活的辅助 child。 */
   activeSelectionSideChatSessionId?: string | null;
   workspacePath: string;
@@ -512,6 +514,7 @@ export function SessionPane({
   retainReadOnlyComposer = false,
   readOnlyReason: workspaceReadOnlyReason,
   selectionSideChat = false,
+  hideMessageFeedback = false,
   activeSelectionSideChatSessionId = null,
   workspacePath,
   workspaceIdentity,
@@ -4161,7 +4164,9 @@ export function SessionPane({
             onFork={forkActionsEnabled ? handleFork : undefined}
             onRetry={retryActionsEnabled ? handleRetry : undefined}
             onFeedbackChange={
-              !readOnly && !selectionSideChat && sessionId ? handleAssistantFeedback : undefined
+              !readOnly && !selectionSideChat && !hideMessageFeedback && sessionId
+                ? handleAssistantFeedback
+                : undefined
             }
             onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
             canLoadOlder={

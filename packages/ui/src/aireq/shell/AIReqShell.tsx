@@ -199,7 +199,12 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   let content;
   if (ai.mainView === "projectProgress")
     content = (
-      <AIReqProjectProgressPage onAddProject={() => openProjectSettings({ kind: "create" })} />
+      <AIReqProjectProgressPage
+        onAddProject={() => openProjectSettings({ kind: "create" })}
+        onConfigureProject={(projectId) =>
+          openProjectSettings({ kind: "project", projectId })
+        }
+      />
     );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
