@@ -4,7 +4,7 @@
   "ignore": [".agents/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.test.mjs", "scripts/test/*.test.mjs", "scripts/licenses.mjs"]
+      "entry": ["scripts/*.test.mjs", "scripts/licenses.mjs"]
     },
     "packages/shared": {
       "entry": [

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 process.env.ST_RUN_ID = randomUUID();
-import { configDefaults, defineConfig } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 import engineeringTestFiles from "./scripts/engineering-test-files.json";
 
@@ -37,19 +37,6 @@ export default defineConfig({
     server: {
       deps: { inline: ["zod"] },
     },
-    // 官方依赖图不追踪 setupFiles；公共配置变化必须明确选中整个工程套件并报告跳过。
-    forceRerunTriggers: [
-      ...configDefaults.forceRerunTriggers,
-      "**/{vitest,vite}.config.*",
-      "**/vitest.setup.ts",
-      // managed worktree 路径含 .codex，globstar 默认不匹配隐藏目录；关键入口用精确绝对路径。
-      ...[
-        "package.json",
-        "vitest.config.ts",
-        "vitest.setup.ts",
-        "scripts/engineering-test-files.json",
-      ].map((file) => resolve(__dirname, file)),
-    ],
     // 修复原因：全量 run 的 stdout 会把**通过**测试里的 console 输出一并转发——services 层
     // 用 createServiceLogger 的用例在绿态下也要刷几千行多行日志，全量输出因此膨胀到
     // ~3.3MB，超过 CI/工作流门禁对单条命令 256KB 的 stdout 上限，导致门禁整条命令被判
