@@ -29,6 +29,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@zcode/client": "workspace:*",
+    "@zcode/services": "workspace:*",
+    "@zcode/shared": "workspace:*",
     "concurrently": "^9.1.2",
     "knip": "^6.0.6",
     "oxfmt": "^0.41.0",

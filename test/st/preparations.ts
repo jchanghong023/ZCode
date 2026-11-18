@@ -17,7 +17,7 @@ declare module "vitest" {
 type Outcome = { ok: true; ref: STFixture } | { ok: false; error: unknown };
 
 /** 一个 worker 内最多两份独立前置在途，断言仍串行；不会重放失败的 mutation。 */
-export function useFormalPreparations() {
+export function useFormalPreparations(concurrency = config.preparationConcurrency) {
   const jobs = new Map<string, Promise<Outcome>>();
   let workers: Promise<void>[] = [];
   // Vitest 要求首参使用解构，suite 只能从第二参取得。
@@ -42,44 +42,41 @@ export function useFormalPreparations() {
       return { task, resolve };
     });
     let next = 0;
-    workers = Array.from(
-      { length: Math.min(config.preparationConcurrency, pending.length) },
-      async () => {
-        for (;;) {
-          const job = pending[next++];
-          if (!job) return;
-          const timing = { startedAt: Date.now(), finishedAt: 0 };
-          job.task.meta.stPreparation = timing;
-          let c: Awaited<ReturnType<typeof connectST>> | undefined;
-          let outcome: Outcome;
-          try {
-            c = await connectST();
-            const purpose = String(job.task.meta.stFormalPurpose);
-            const ref =
-              config.fixtures[purpose] === undefined
-                ? await createFormalFixture(c, purpose)
-                : // 分配检查含 await，必须连同登记串行，防止两例领取同一个显式前置。
-                  await serialSTStep(() => claimFixture(c!, purpose));
-            outcome = { ok: true, ref };
-          } catch (error) {
-            outcome = { ok: false, error };
-          }
-          try {
-            await c?.close();
-          } catch (error) {
-            outcome = {
-              ok: false,
-              error: outcome.ok
-                ? error
-                : new AggregateError([outcome.error, error], "ST preparation and cleanup failed"),
-            };
-          }
-          timing.finishedAt = Date.now();
-          // 结果总是兑现；准备失败在对应 case 中抛出，不产生后台未处理拒绝或跳过整个套件。
-          job.resolve(outcome);
+    workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
+      for (;;) {
+        const job = pending[next++];
+        if (!job) return;
+        const timing = { startedAt: Date.now(), finishedAt: 0 };
+        job.task.meta.stPreparation = timing;
+        let c: Awaited<ReturnType<typeof connectST>> | undefined;
+        let outcome: Outcome;
+        try {
+          c = await connectST();
+          const purpose = String(job.task.meta.stFormalPurpose);
+          const ref =
+            config.fixtures[purpose] === undefined
+              ? await createFormalFixture(c, purpose)
+              : // 分配检查含 await，必须连同登记串行，防止两例领取同一个显式前置。
+                await serialSTStep(() => claimFixture(c!, purpose));
+          outcome = { ok: true, ref };
+        } catch (error) {
+          outcome = { ok: false, error };
         }
-      },
-    );
+        try {
+          await c?.close();
+        } catch (error) {
+          outcome = {
+            ok: false,
+            error: outcome.ok
+              ? error
+              : new AggregateError([outcome.error, error], "ST preparation and cleanup failed"),
+          };
+        }
+        timing.finishedAt = Date.now();
+        // 结果总是兑现；准备失败在对应 case 中抛出，不产生后台未处理拒绝或跳过整个套件。
+        job.resolve(outcome);
+      }
+    });
   });
   afterAll(async () => {
     const results = await Promise.allSettled(workers);

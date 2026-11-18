@@ -90,9 +90,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       });
   };
   const parent = proposalTaskParent(task);
-  const reviewTask = original
-    ? ("requirementsReview" as const)
-    : ("solutionReview" as const);
+  const reviewTask = original ? ("requirementsReview" as const) : ("solutionReview" as const);
   const reviewStatus = detail && proposal ? proposalTaskStatus(proposal, reviewTask) : undefined;
   const detailStatus =
     detail && reviewStatus === "待人工确认" ? "已完成 · 待人工确认" : reviewStatus;
@@ -152,8 +150,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         full={!original}
       />
     );
-  else if (task === "delivery")
-    content = <AIReqProposalStageBody />;
+  else if (task === "delivery") content = <AIReqProposalStageBody />;
   else if (task === "management")
     content = (
       <main
@@ -264,10 +261,9 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 {requirementsConfirmation && (
                   <p className="text-ui-sm text-foreground-subtle">
                     {requirementsConfirmation.employeeId} 于{" "}
-                    {new Date(requirementsConfirmation.decidedAt).toLocaleString(
-                      "zh-CN",
-                      { timeZone: "Asia/Shanghai" },
-                    )}{" "}
+                    {new Date(requirementsConfirmation.decidedAt).toLocaleString("zh-CN", {
+                      timeZone: "Asia/Shanghai",
+                    })}{" "}
                     确认了业务需求。
                   </p>
                 )}
@@ -323,29 +319,25 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               readOnly={conversationReadOnly}
               embedded
               focused={active}
-              composerPlaceholder={
-                detail ? "追问本次审查（不改变审查结论）" : undefined
-              }
+              composerPlaceholder={detail ? "追问本次审查（不改变审查结论）" : undefined}
               hideMessageFeedback={detail}
               conversationEmptyState={
                 <div className="p-6 text-center text-ui-sm text-foreground-subtle">
                   <p>尚无讨论记录。</p>
-                  {!conversationReadOnly &&
-                    (task === "solution" || task === "requirements") && (
-                      <p className="mt-1">
-                        {task === "solution"
-                          ? "当前技术方案在右侧“需求材料”中。"
-                          : "整理后的需求在右侧“需求材料”中。"}
-                      </p>
-                    )}
-                  {!conversationReadOnly &&
-                    (task === "solution" || task === "requirements") && (
-                      <p className="mt-1">
-                        {task === "solution"
-                          ? "可在下方继续与 AI 讨论。"
-                          : "可在下方继续与 AI 澄清需求。"}
-                      </p>
-                    )}
+                  {!conversationReadOnly && (task === "solution" || task === "requirements") && (
+                    <p className="mt-1">
+                      {task === "solution"
+                        ? "当前技术方案在右侧“需求材料”中。"
+                        : "整理后的需求在右侧“需求材料”中。"}
+                    </p>
+                  )}
+                  {!conversationReadOnly && (task === "solution" || task === "requirements") && (
+                    <p className="mt-1">
+                      {task === "solution"
+                        ? "可在下方继续与 AI 讨论。"
+                        : "可在下方继续与 AI 澄清需求。"}
+                    </p>
+                  )}
                 </div>
               }
             />

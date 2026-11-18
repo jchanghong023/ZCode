@@ -169,6 +169,9 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
         const action = args[0] as AIReqAction;
         if (action.type === "deleteRequirement")
           requireCreatedThisRun(action.projectId, action.irId);
+        return rpc(services.aiReqService.call(identity, path, args, selection)).catch((error) => {
+          throw new Error(`ST command ${action.type}: ${error.message}`, { cause: error });
+        });
       }
       return rpc(services.aiReqService.call(identity, path, args, selection));
     },

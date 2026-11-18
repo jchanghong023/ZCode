@@ -597,9 +597,7 @@ export function AIReqProposalStageBody() {
                       <p className="text-ui-base font-medium">三方确认</p>
                       <p className="text-ui-sm text-foreground-subtle">{threePartyText}</p>
                     </div>
-                    <span className="text-ui-sm text-foreground-subtle">
-                      {threePartyCount} / 3
-                    </span>
+                    <span className="text-ui-sm text-foreground-subtle">{threePartyCount} / 3</span>
                   </li>
                   <li className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0 flex-1">

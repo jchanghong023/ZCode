@@ -4,7 +4,8 @@
   "ignore": [".agents/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.test.mjs", "scripts/licenses.mjs", "test/st/sequencer.ts"]
+      "entry": ["scripts/licenses.mjs", "test/st/sequencer.ts"],
+      "ignoreDependencies": ["concurrently", "oxfmt", "oxlint"]
     },
     "packages/shared": {
       "entry": [
@@ -39,23 +40,10 @@
     },
     "packages/services": {
       "entry": [
-        "src/project-storage/contract.ts",
         "src/project-storage/repository-contract.ts",
         "src/project/contract.ts",
-        "src/gen-ui/contract.ts",
-        "src/zcode-agent/inputPredictionSwitch.ts",
-        "src/zcode-agent/contextCompositionClient.ts",
-        "src/zcode-agent/pluginHostQueriesClient.ts",
         "src/task-groups/contract.ts",
-        "src/window-project-directory/index.ts",
-        "src/window-project-directory/contract.ts",
-        "src/voice-input/index.ts",
-        "src/voice-input/contract.ts",
-        "src/provider-provisioning-status/index.ts",
-        "src/provider-provisioning-status/contract.ts",
         "src/managed-worktree-tasks/contract.ts",
-        "src/extensions/index.ts",
-        "src/extensions/contract.ts",
         "src/aireq/contract.ts",
         "src/**/module.ts",
         "src/**/contract.example.ts"
@@ -86,14 +74,8 @@
         "src/document-highlighting/index.ts",
         "src/document-highlighting/contract.ts",
         "src/document-highlighting/bundle.ts",
-        "src/project-workflow/contract.ts",
-        "src/project-workflow/useWorkflowRunSave.ts",
-        "src/project-workflow/WorkflowRunSaveControls.tsx",
-        "src/project-workflow/WorkflowRunPaneSaveSlots.tsx",
         "src/prompt-editor/useComposerToolbarFit.ts",
         "src/composer-toolbar-layout/contract.ts",
-        "src/data-sync/index.ts",
-        "src/data-sync/contract.ts",
         "src/side-pane-full-view/index.ts",
         "src/side-pane-full-view/contract.ts",
         "src/v4/telemetry/local-ttft/contract.ts",

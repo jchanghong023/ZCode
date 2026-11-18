@@ -86,8 +86,7 @@ modules:
       - services
       - session
       - task-groups
-    publicEntrypoints:
-      [packages/services/src/project-storage/repository-contract.ts]
+    publicEntrypoints: [packages/services/src/project-storage/repository-contract.ts]
     layers:
       adapters: .
     owner: conversation
@@ -115,7 +114,6 @@ modules:
       - packages/ui/src/gen-ui/contract.ts
     layers: { domain: "." }
     owner: conversation
-
 
   # 保留既有源码位置；精确登记源文件，不扩大到整个 CLI 或 handlers 目录。
 

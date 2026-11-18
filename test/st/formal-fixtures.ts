@@ -117,7 +117,7 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
     () => c.read(target.selection),
     (value) => {
       const required =
-        purpose === "formalCleanup"
+        purpose === "formalCleanup" || purpose === "scheduler"
           ? members(value, ref)
           : members(value, ref).filter((sr) => sr.id === ref.srId);
       return required.length > 0 && required.every((sr) => Boolean(sr.codeMerge?.commit));

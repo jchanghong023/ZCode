@@ -1,4 +1,11 @@
-import { Children, createElement, isValidElement, useMemo, useRef, type ComponentProps } from "react";
+import {
+  Children,
+  createElement,
+  isValidElement,
+  useMemo,
+  useRef,
+  type ComponentProps,
+} from "react";
 import MarkdownPreview, {
   type MarkdownPreviewProps,
 } from "@uiw/react-markdown-preview/nohighlight";
@@ -45,11 +52,8 @@ export interface MarkdownDocumentProps {
 type MarkdownHeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 function createHeadingComponent(level: MarkdownHeadingLevel, offset: 0 | 1 | 2 | 3) {
   const tag = `h${Math.min(6, level + offset)}` as `h${MarkdownHeadingLevel}`;
-  return ({
-    children,
-    node: _node,
-    ...props
-  }: ComponentProps<"h2"> & { node?: unknown }) => createElement(tag, props, children);
+  return ({ children, node: _node, ...props }: ComponentProps<"h2"> & { node?: unknown }) =>
+    createElement(tag, props, children);
 }
 
 const documentMath = createMathPlugin({ singleDollarTextMath: true });

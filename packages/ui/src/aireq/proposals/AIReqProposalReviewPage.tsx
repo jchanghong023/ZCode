@@ -90,7 +90,9 @@ export function AIReqProposalReviewPage({
             : "text-foreground-subtle";
   const recordDetails = review ? (
     <details className="text-ui-sm text-foreground-subtle">
-      <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">评审记录详情</summary>
+      <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+        评审记录详情
+      </summary>
       <div className="mt-3 space-y-2">
         <p>
           第 {review.round ?? 1} 轮 · {review.inputFiles?.length ?? 0} 份材料
@@ -190,9 +192,7 @@ export function AIReqProposalReviewPage({
             aria-label={full ? "综合审查摘要" : "评审摘要"}
           >
             <div className="space-y-1">
-              <p className="font-medium text-foreground">
-                {full ? "综合审查摘要" : "评审摘要"}
-              </p>
+              <p className="font-medium text-foreground">{full ? "综合审查摘要" : "评审摘要"}</p>
               <p className="text-foreground-subtle">
                 第 {review.round ?? 1} 轮 · {review.inputFiles?.length ?? 0} 份材料
               </p>
@@ -319,9 +319,7 @@ export function AIReqProposalReviewPage({
               </section>
             )}
             <section className="space-y-3" aria-label={full ? "独立审查" : "评审意见"}>
-              <h2 className="text-ui-base font-medium">
-                {full ? "独立审查" : "评审意见"}
-              </h2>
+              <h2 className="text-ui-base font-medium">{full ? "独立审查" : "评审意见"}</h2>
               {!full && confirmation ? (
                 reportCard
               ) : independentAgents.length ? (

@@ -94,9 +94,7 @@ export function AIReqProposalTaskActions({
   const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
   const approveReady = Boolean(review && !approveIssue);
   const evidenceIssue =
-    review && !reviewed
-      ? `请先展开${full ? "综合报告" : "评审报告"}并阅读，再确认。`
-      : "";
+    review && !reviewed ? `请先展开${full ? "综合报告" : "评审报告"}并阅读，再确认。` : "";
   const approveBlocker = approveIssue || evidenceIssue;
   // 弹窗确认的是打开时读过的版本；协作者重审后的新投影不能静默替换确认对象。
   const approvalChanged = Boolean(

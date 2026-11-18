@@ -86,7 +86,10 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
           </h1>
         </header>
         <section className="space-y-4 border-b border-border/50 pb-5" aria-label="当前待处理事项">
-          <div className="rounded-lg border border-border/60 bg-card/40 p-4" data-testid="proposal-next-step">
+          <div
+            className="rounded-lg border border-border/60 bg-card/40 p-4"
+            data-testid="proposal-next-step"
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <p className="text-ui-sm text-foreground-subtle">下一步 · {stateLabel}</p>

@@ -62,7 +62,8 @@ function projectSetting(
 // tracking.md: pagination is server-owned; global off only stops automatic admission.
 // No simulated clock, internal scheduler or model stub participates in these tests.
 describe("progress scheduler over the public backend", () => {
-  preparations = useFormalPreparations();
+  // 上一份前置的后台合入会推进全局版本，下一份前置的提案写入需等它结束。
+  preparations = useFormalPreparations(1);
   preparations.test(
     "manual admission ignores global automatic-off, deduplicates concurrent SR execution and preserves completion snapshots",
     { timeout: config.timeoutMs, meta: { stFormalPurpose: "scheduler", stPriority: 0 } },
