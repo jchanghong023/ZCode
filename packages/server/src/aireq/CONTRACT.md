@@ -1,6 +1,6 @@
 # AIReq mock
 
-在线人员遵循 `docs/specs/aireq-migration/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
+在线人员遵循 `docs/specs/aireq/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
 
 正常文档 MR 的内部模拟事实与交付候选同属 workflow owner。publish 只登记 opened 及真实服务时钟的最早合入时点；既有五秒轮询推进模拟外部状态，再复用当前候选、完整材料与版本核验转正。opened 至少保留十秒，幂等发布不重置，关闭交付后迟到结果无效。platformVerified 保持 false；simulatedMr 与既有故障场景字段一样由 publicBusinessProjection 递归剥离，不增加 RPC 或测试 setter。
 
@@ -8,7 +8,7 @@
 
 想法批量导入 `importIdeas(originalTexts)` 由现有 workflow 克隆事务唯一持有：全批非空校验、按批次 revision 和行序分配独立编号、使用实际操作者及服务时间、同一收据提交后广播。任一无效全批回滚，同操作重试返回原回执；不要求项目版本，不创建会话／提案或运行 AI。
 
-想法池与转入版本按 `docs/specs/aireq-migration/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
+想法池与转入版本按 `docs/specs/aireq/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
 
 初始业务数据按 [原型后端业务初始数据](../../../../docs/architecture/mock-backend.md#原型后端业务初始数据)组织，数量与待办只从各 owner 的事实派生。提案导入导出按 `proposals.md` 的契约：`importProposals.proposals` 原子接纳短需求及可选 IR 业务 Markdown，正文仅落在新 IR 的标准 requirements.md，计算真实摘要，不导入其他材料、SR 或批准；沿用版本、幂等与提交后广播。
 
@@ -46,11 +46,15 @@ v4 信封与封闭 payload／firstInput／answer／create config 拒绝未知键
 
 原始短需求 `originalText` 独立保存，新增／CSV 只创建可见提案，不启动 AI 或生成 SR，不等待首发聊天。导入先校验完整批次、当前项目及具体 Release，提交人和时间取服务端实际请求。进入讨论后才使用已有原生业务完成回调生成材料；回调绑定对象、阶段、轮次和版本，不接纳旧结果。
 
-IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 SR 独立 `openspec/changes/<sr-id>/`，包含 proposal、design、tasks、specs、test-plan。路径是内存模拟仓库引用，不写用户业务文件。前置 `originalReview` 单 Agent 加人工通过后才拆 SR；同一方案阶段完善全材料，再三路审查与第四终审、人工放行、三个视角 `alignment`，最后一个 IR 一个完整文档 PR。无后置测试 Agent、不执行 tasks 或编码。
+每个 SR 的 OpenSpec change 包含提案、设计、任务、规格和测试方案。当前材料路径是内存模拟仓库引用。原型当前仍生成并检查 IR 的 `acceptance.md`，也尚未实现可配置的 Markdown 章节校验。目标材料清单和校验规则见[提案规格](../../../../docs/specs/aireq/proposals.md#材料格式校验)。
+
+当前实现通过 `runRequirementsReview` 和 `runFullReview` 显式启动两类评审，报告中的阻断项会禁用对应人工批准。原始评审获人工通过后才拆 SR；完整方案在三路审查和终审后，仍须 `approveFullReview` 放行，再由三个视角分别确认。正式的[提案产品要求](../../../../docs/specs/aireq/proposals.md#业务澄清与原始评审)规定交付前使用临时目录，文件校验通过后自动启动评审，Agent 意见由确认人判断，方案以三方确认进入文档提交。
 
 整包任一材料变更撤销完整审查、终审、人工及三方确认，保留历史及失效原因；仅业务需求变更额外重做前置单评审。PR 提交冻结版本，需修改先关闭未合并 PR；仅核实完整同候选合入后保留同 IR/SR 转正，各 SR 分支取该文档合入提交，逐项保存错误，重复核验不复制。正式范围新增另建 `sourceIrId` 关联提案，不重新拆分或跨 Release 迁移。
 
-报告仅由此 owner 统一写回。分析指纹绑定 SR 材料、任务、代码／默认分支和合并事实，未变可跳过；失败保留上次成功并标记失败／过期，迟到结果不覆盖新事实。合入固定有效 99，AI 原始评分作为证据保留；人工 `progress.recordTest` 绑定预期 revision、代码版本、实际操作者及非空依据。失败保持 99 并开问题，修复新版本合入转待复测，人工通过才 100。全部 SR 100 后才能预览并确认清理登记分支；逐项错误、CAS 与操作幂等，主分支和历史受保护、不改进度。
+报告仅由此 owner 统一写回。分析指纹绑定 SR 材料、任务、代码／默认分支和合并事实，未变可跳过；失败保留上次成功并标记失败／过期，迟到结果不覆盖新事实。合入固定有效 99，AI 原始评分作为证据保留；人工 `progress.recordTest` 绑定预期 revision、代码版本、实际操作者及非空依据。人工通过才达到 100。全部 SR 100 后才能预览并确认清理登记分支；逐项错误、CAS 与操作幂等，主分支和历史受保护、不改进度。
+
+当前代码的分析接纳仍以有效进度低于 100 为条件之一，已合入且待验收的 SR 仍可进入分析。当前验收仍可提交不通过，失败保持 99 并生成测试问题，模拟修复合入后转待复测。正式 SR 的[产品要求](../../../../docs/specs/aireq/tracking.md#首次代码合入与人工验收)规定在首次合入时结束分析，并只保留人工验收通过。
 
 定时接纳使用唯一调度 owner 的真实服务时钟 `tick()` 与配置 `intervalMinutes`，没有运行项也检查到期任务；后台五秒检查不等于业务时间推进。退役的 `progressScheduler.advance` 及场景调度不可公开调用，不接受浏览器推进模拟时钟；隔离后端内部验证输入也必须消费同一去重、指纹与版本路径，不冒充真实等待间隔的验收证据。
 
@@ -61,6 +65,14 @@ IR 材料为 `docs/requirements/<ir-id>/` 共享需求、依赖及验收；每 S
 `prototype.*`、故障控制和场景时钟不属于公共接口。评审阻断／失败／hold、候选／代码合入及分支失败等内部输入只能留在后端私域，仍受正常业务 owner 的材料、阶段、版本、幂等及人工门禁约束，不直接设批准或 100。公共工作流及嵌套历史回执不得泄漏私有故障字段；迟到结果按对象／轮次／版本拒绝。先提交再发事件，重连不重放写入；未知异常仅服务端记录详情，响应、帧与历史均返回稳定安全提示。
 
 场景字段只使用现有 `internal-scenarios.ts` 服务端类型扩展，由 workflow／progress 同一事务 owner 持有，随项目／IR／SR 和评审 ID／轮次保存与消费。`branchCreationFailures`、`heldReviews`、`trackingBranch.nextCleanupFailure` 不属于公开 DTO；对外 `publicBusinessProjection` 递归移除私有字段，包括幂等回执内的历史视图。评审不再具有公开 `held` 标志，等待由 agent 的 pending／running 表达，人工放行只认当前轮次完整报告。
+
+### 当前 AI 配置实现
+
+模型配置和追加指令保存在服务进程的共享内存中。模型目录目前仍含 Skill 设计 Agent。IR 单路评审沿用 `requirements-review-a` 的模型和指令。完整方案审查在运行时要求 A、B、C 解析为三个不同的模型，保存配置时允许录入重复模型。
+
+新会话、评审和分析读取保存后的模型绑定。追加指令当前由新评审和进度分析读取。业务需求和方案讨论目前只读取模型绑定。分析接纳时保存模型与指令快照，结果去重依据材料和代码指纹，单独修改模型或指令时，手动分析仍可能跳过。
+
+确认后的角色清单与生效规则见[AI 配置规格](../../../../docs/specs/aireq/tools-settings.md#agent-角色)，手动重分析见[进度分析规格](../../../../docs/specs/aireq/tracking.md#统一进度分析)。
 
 ## 只读项目进度
 

@@ -1,6 +1,6 @@
 # side-pane-full-view
 
-通用 Side Pane 完整视图保留面板与浮动输入的布局计算和展示上下文，不持有 AIReq Tab 或业务选择。当前 AIReq 统一多 Tab 由 `docs/specs/aireq-migration/unified-side-pane.md` 及 `packages/ui/src/aireq/CONTRACT.md` 描述；本模块资产不等于当前装配了旧桌面 WorkspaceShell。
+通用 Side Pane 完整视图保留面板与浮动输入的布局计算和展示上下文，不持有 AIReq Tab 或业务选择。当前 AIReq 统一多 Tab 由 `docs/specs/aireq/unified-side-pane.md` 及 `packages/ui/src/aireq/CONTRACT.md` 描述；本模块资产不等于当前装配了旧桌面 WorkspaceShell。
 
 不变量：
 

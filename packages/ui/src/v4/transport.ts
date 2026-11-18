@@ -26,7 +26,7 @@ import type { AttachmentUploadOptions } from "@/v4/attachmentUploadTransaction.j
 /**
  * 一条连接上的 v4 conversation 传输面，每条连接各配一个 SessionDataLayer。
  * 工作区身份与位置分别由 workspaceIdentity 与 workspacePath 表达，不能用 cwd 替代身份；
- * 见 docs/specs/aireq-migration/connection-identity.md「工作区与会话」。
+ * 见 docs/specs/aireq/connection-identity.md「工作区与会话」。
  */
 export interface ConversationTransport {
   getSessionLifecycle?(sessionId: string): Promise<SessionLifecycleSnapshot | null>;

@@ -4,6 +4,8 @@
 
 ## 1. 身份来源
 
+应用入口只填写工号。校验格式通过即可进入，工号用来标记消息发送人和实际操作者，应用登录无需本人认证。用户可查看所有项目和 Release 的共享内容，可修改共享配置并执行满足工作流条件的操作。
+
 Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。
 
 `AIReqIdentity` 仅含 employeeId/clientId：
@@ -14,7 +16,7 @@ Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId(
 
 服务端在升级前验证自报身份；`getConnectionServices` 冻结连接身份，后续 bootstrap/call 的 employee/client 精确匹配，原生命令 envelope.clientId 也匹配。项目树与目录解析通过同一身份读取。请求局部上下文使用 `AsyncLocalStorage`，不用全局可变工号。
 
-这是一致性和作用域校验，不是本人认证。全部合法工号可修改共享配置及执行满足业务门禁的动作；owner、联系人或负责人不是独占权限。共享对象仍校验项目／Release／IR/SR／会话、阶段与版本。Skill 私有会话按精确 employee/client 隔离，不能只凭工号访问；clientId 不是租户、标签页或安全主体凭据。
+项目、Release、IR、SR、会话、阶段与版本校验用于定位正确对象并接纳工作流操作。联系人和负责人用于分工和待办派发，实际操作按执行时的工号记录。业务、开发、测试三个确认角色可由任一工号分别完成，规则见[三方确认](proposals.md#方案完整审查与三方确认)。部署 token 的作用域是整站访问。现有 Skill 私有会话按 employeeId 和 clientId 隔离。
 
 ## 2. 工作区与会话
 
@@ -24,9 +26,11 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 原生会话绑定与项目目录从 workflow owner 的即时只读查询取得最小事实；绑定查询不派生待办／进度或逐项目重读完整 workflow，目录一次取得项目工作区及 canonical 会话映射。查询只复制所需结果，不缓存另一份目录、不改变 revision、状态或事件。公开资格仍由当前项目及 IR 的 canonical 引用裁决，故障会话过滤、私有草稿 actor 与 Skill 私有归属、workspace 精确匹配继续在原边界执行；轻投影不能替代这些校验。
 
-`origin:"realUser"` 行使用接纳时已校验的 clientId；排队、提升及续跑保存原 QueueItem.clientId，后续请求不能覆盖。实时帧、快照与分页读取同一行事实。
+`origin:"realUser"` 行使用接纳时已校验的 clientId。现行原型的排队、提升及续跑保存原 QueueItem.clientId，后续请求不能覆盖。实时帧、快照与分页读取同一行事实。正式聊天的发送行为见[会话产品要求](conversation.md#会话产品要求与原型范围)。
 
-未发送正文、附件与输入历史由既有 composer owner 按 employee/client/opaque workspace namespace 隔离，不回读缺少身份的旧目录键。临时模型／模式属于单次 Submission，不改变 Session 默认。
+已发送的讨论、评审消息和随消息发送的附件对所有进入系统的工号共享可见。项目和 Release 选择用于筛选及定位内容。未发送正文、附件与输入历史由 composer 按工号、浏览器客户端、工作区和具体会话独立保存。切换工号从该工号自己的草稿恢复。同一工号在不同客户端各自保留草稿，已发送内容通过会话共同读取。临时模型和模式属于单次 Submission。当前草稿实现见[原型差异](conversation.md#当前原型差异)。
+
+验收使用两个工号和两个浏览器会话，核对已发送内容的共享读取、发送人显示、切工号后的草稿隔离及同工号在不同浏览器中的草稿隔离。
 
 ## 3. 相互独立的版本
 

@@ -1,6 +1,33 @@
 # AIReq 模块与依赖检查
 
-Web 入口负责浏览器装配和平台操作；UI 持有导航、草稿及服务端数据的展示投影。client／rpc 负责连接和传输，services／shared 提供契约和协议，server 实现业务写入及会话服务。具体公开入口、依赖方向和分层以[模块登记](../../architecture-policy.yaml)及各包 manifest 为准。
+Web 入口负责浏览器装配和平台操作。client／rpc 负责连接与传输，services／shared 提供公开契约、协议和共享规则，server 实现业务写入及会话服务。具体公开入口、依赖方向和分层以[模块登记](../../architecture-policy.yaml)及各包 manifest 为准。
+
+## 状态与职责
+
+| 模块             | 持有的状态和职责                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| Web 前端         | 当前项目和 Release、页面与浏览历史、右侧标签、未发送草稿。业务界面读取服务端投影                          |
+| AIReq 工作流     | 项目、Release、IR、SR、材料及校验结果、评审、人工确认、分工、合入和验收事实。保存业务对象与原生会话的关联 |
+| 原生会话服务     | 会话、消息、附件和 Agent 执行。正式对接使用 OMP 原生 Agent，当前由内存原型模拟                            |
+| 服务端进度调度器 | 分析配置、调度、任务与执行历史。将分析结果提交给工作流校验和接纳                                          |
+
+列表、详情、待办和项目汇总使用同一套规则，由业务事实推导[提案八态](../specs/aireq/proposals.md#提案业务状态)、[SR 五态与有效进度](../specs/aireq/tracking.md#sr-状态与有效进度)。人工确认和验收由工作流提交后对外发布。
+
+工作流将原生执行结果关联到原对象、会话及材料快照，校验文件后启动对应评审。进度调度在服务端运行，分析写入时由工作流核对对象、输入版本和首次合入事实。首次合入后的迟到分析只留在执行历史中。具体行为见[会话规格](../specs/aireq/conversation.md#会话产品要求与原型范围)和[进度分析规格](../specs/aireq/tracking.md#统一进度分析)。
+
+```mermaid
+flowchart LR
+  UI[Web 前端] -->|业务操作| W[AIReq 工作流]
+  UI -->|聊天消息| N[原生会话服务]
+  N -->|材料和执行结果| W
+  W -->|校验通过后启动评审| N
+  S[服务端进度调度器] -->|启动分析| A[进度分析 Agent]
+  A -->|分析结果| S
+  S -->|提交结果和输入版本| W
+  W -->|提交后通知重读| UI
+```
+
+当前可运行的服务是[单进程内存原型](mock-backend.md#2-权威状态)。正式对接按[发布边界](../specs/aireq/contract-design.md#发布边界)复用前端产物、公开契约和测试。
 
 ## 检查范围
 
@@ -10,12 +37,12 @@ Web 入口负责浏览器装配和平台操作；UI 持有导航、草稿及服�
 
 ## 命令
 
-| 场景 | 仓库根命令 |
-| --- | --- |
-| 定位一个模块的入口和依赖 | `bun run architecture:context aireq-ui` |
-| 检查当前变更及受影响的依赖方 | `bun run architecture:check --changed` |
-| 对指定提交比较 | `bun run architecture:check --changed --base <commit>` |
-| 策略或检查器变更 | `bun run architecture:check` |
+| 场景                         | 仓库根命令                                             |
+| ---------------------------- | ------------------------------------------------------ |
+| 定位一个模块的入口和依赖     | `bun run architecture:context aireq-ui`                |
+| 检查当前变更及受影响的依赖方 | `bun run architecture:check --changed`                 |
+| 对指定提交比较               | `bun run architecture:check --changed --base <commit>` |
+| 策略或检查器变更             | `bun run architecture:check`                           |
 
 上下文命令默认列出相关文件路径。需要连同直接依赖的契约正文一起查看时加 `--full`。
 

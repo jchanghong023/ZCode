@@ -55,14 +55,15 @@ bootstrap 无业务创建副作用，返回 contractVersion、opaque backend.id�
 
 readWorkflow 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对；正式只读目标不因此开启新的编辑会话。selection 必须来自现行类型／严格 schema，不能作为未校验权限或后端全局当前项目。
 
-onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error；可选 backendEpoch/revision/projectId/irId/operationId 只提供失效信息，不是持久事件日志或全局 bootstrap 水位。
+onDidChange 类型为 presence(snapshot)、workflow、models、prompts、scheduler、skills(sessionId) 和 error。可选 backendEpoch/revision/projectId/irId/operationId 只提供投影失效信息。连接恢复通过重读取得当前事实。
 
 ## 4. AIReq 操作登记
 
-当前 operation map、wire argumentSchemas 与服务分派对应以下 28 项。表中省略的结构字段、可选性及联合类型以源码类型为准；args 是有序 tuple，不是字段任意拼接对象。P/I/S 分别表示 projectId/irId/srId。
+当前 operation map、wire argumentSchemas 与服务分派对应以下 29 项。表中省略的结构字段、可选性及联合类型以源码类型为准。args 是有序 tuple。P/I/S 分别表示 projectId/irId/srId。
 
 | path                                | args                                                                      | result                                           |
 | ----------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
+| readPresence                        | []                                                                        | AIReqPresenceSnapshot                            |
 | readWorkflow                        | [selection]                                                               | AIReqRemoteWorkflow                              |
 | readPrHandoff                       | [{projectId,irId}]                                                        | AIReqPrHandoff                                   |
 | command                             | [action,selection,revision]                                               | AIReqWorkflowResult                              |
@@ -103,13 +104,13 @@ onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error�
 
 ## 5. command 动作与领域门禁
 
-服务公开动作白名单：
+当前实现的服务公开动作白名单：
 
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
 - 配置／提案：createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
 - 流程：runRequirementsReview、acceptProposal、returnProposal、runFullReview、approveFullReview、confirmAlignment、confirmProposal、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
 
-动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。人工放行绑定 reviewId/snapshotDigest，alignment 绑定 perspective/version，发布／关闭绑定 candidate，修改材料限定 requirements/solution/test-plan 与真实修改说明。
+动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。现行 approveFullReview 绑定 reviewId/snapshotDigest，confirmAlignment 绑定 perspective/version，发布／关闭绑定 candidate，修改材料限定 requirements/solution/test-plan 与真实修改说明。提案评审和确认的产品要求与现有命令的差异见[后端契约](../../../packages/server/src/aireq/CONTRACT.md#业务所有权)。
 
 原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[进度](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 
@@ -125,8 +126,10 @@ setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；�
 
 ## 发布边界
 
-后端替换复用同一前端产物、SDK、二进制传输、descriptor、DTO 和协议 schema。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域；公开事件和历史回执同样遵守公开数据边界。业务测试验收、无障碍标识和生产诊断各自按现行契约保留。
+原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、Git 和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
+
+原型和正式测试环境通过已有运行配置指定服务地址、测试仓库和前置数据。需要依赖状态的用例，由环境准备所需事实，测试通过同一个公开接口验证。正式环境验证真实 Git 合入时，使用专用测试仓库实际完成合入并读取公开结果。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域，公开事件和历史回执遵守同一公开数据边界。业务测试验收、无障碍标识和生产诊断各自按公开契约保留。
 
 材料摘要和字节数以实际正文为准；MR 外链、平台核验、AI 原分和规划建议须有对应事实。部署限制、工号与进程内数据的有效范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。退役模块时同步清理入口、依赖与架构登记，保留仍被使用的代码及第三方许可归因。
 
-发布验收关联同一次构建的前端产物、实际服务入口和公开契约，记录实测路径、结果与限制。替换后端时核对前端产物及契约的字节一致性。
+发布验收关联前端构建、公开契约、测试版本和实际服务入口。替换后端时核对前端产物和契约的字节一致性，并按[测试复用规则](../../testing/unit-test-quality.md#原型与正式环境的测试复用)运行同一套测试，分别记录环境、实测结果和限制。
