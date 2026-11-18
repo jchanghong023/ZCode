@@ -1,6 +1,12 @@
 import { TriangleAlert } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { planningDate } from "../contract.js";
+import { planningDate, planningWarnings } from "../contract.js";
+import type { AIReqSystemRequirement, AIReqWorkflowView } from "../contract.js";
+
+export function coordinationWarnings(view: AIReqWorkflowView, sr: AIReqSystemRequirement) {
+  // 自身计划缺项已由日期单元格说明，只有已排期任务的依赖或人员提醒需要协调。
+  return sr.planning?.plannedStart && sr.planning.plannedEnd ? planningWarnings(view, sr) : [];
+}
 
 /** 开发任务表的人员与计划单元格；固定两行，完整事实由提示承载。 */
 export function PersonnelPlan({

@@ -176,17 +176,15 @@ export function AIReqProjectProgressPage({
                           <h3 className="min-w-0 wrap-anywhere font-medium">{release.title}</h3>
                           <div
                             id={`${regionId}-details-${encodeURIComponent(release.releaseId)}`}
-                            className="flex w-full flex-1 flex-col justify-end gap-3"
+                            className="flex w-full flex-1 flex-col gap-3"
                           >
-                            <div className="my-auto">
-                              <OverviewProgress
-                                percent={release.percent}
-                                formalCount={release.formalCount}
-                                label={`${project.name} · ${release.title}`}
-                                zh={zh}
-                                prominent
-                              />
-                            </div>
+                            <OverviewProgress
+                              percent={release.percent}
+                              formalCount={release.formalCount}
+                              label={`${project.name} · ${release.title}`}
+                              zh={zh}
+                              prominent
+                            />
                             {/* 修复原因：内层版本卡抬升底色上 12px foreground-subtle 实测 4.28:1（<4.5）；统计标签升为主文字。 */}
                             {release.unanalyzedCount > 0 && (
                               <span className="text-ui-base font-semibold text-foreground tabular-nums">
@@ -195,7 +193,7 @@ export function AIReqProjectProgressPage({
                                   : `Tasks awaiting analysis: ${release.unanalyzedCount}`}
                               </span>
                             )}
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
+                            <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
                               {release.formalCount > 0 && (
                                 <span className="whitespace-nowrap">
                                   {zh ? "正式需求" : "Formal"}{" "}

@@ -27,7 +27,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import type { AIReqSidePaneKind } from "../side-pane/contract.js";
 import { AIReqEditPlanning } from "./RequirementPlanning.js";
-import { irPlanning, planningWarnings } from "../contract.js";
+import { irPlanning } from "../contract.js";
 import {
   irProgress,
   irProgressStatus,
@@ -41,7 +41,7 @@ import { BranchCopy } from "./BranchCopy.js";
 import { TrackingTableScroll } from "./TrackingTableScroll.js";
 import { ProgressValue } from "./formal/ProgressDisplay.js";
 import { CompactPlanSummary } from "./CompactPlanSummary.js";
-import { PersonnelPlan } from "./PersonnelPlan.js";
+import { coordinationWarnings, PersonnelPlan } from "./PersonnelPlan.js";
 
 // 表格与主区选择保持独立；点击对象只打开统一侧栏的目标 Tab，不重置筛选或浏览器历史。
 export function AIReqFormalTable() {
@@ -78,9 +78,6 @@ export function AIReqFormalTable() {
   const groups = view.groups.filter(
     (group) => group.projectId === aireq.selection.projectId && group.releaseId === aireq.releaseId,
   );
-  // 自身计划缺项已由日期单元格说明，只有已排期任务的依赖或人员提醒需要协调。
-  const coordinationWarnings = (sr: AIReqSystemRequirement) =>
-    sr.planning?.plannedStart && sr.planning.plannedEnd ? planningWarnings(view, sr) : [];
   const normalized = query.trim().toLocaleLowerCase();
   const selectedTarget =
     sidePane.activeTab?.releaseId === aireq.releaseId ? sidePane.activeTab.selection : undefined;
@@ -260,7 +257,7 @@ export function AIReqFormalTable() {
                     srs.flatMap((sr) => (sr.testingEmployeeId ? [sr.testingEmployeeId] : [])),
                   ),
                 ];
-                const warnings = srs.flatMap(coordinationWarnings);
+                const warnings = srs.flatMap((sr) => coordinationWarnings(view, sr));
                 // 表头和固定列共用外观卡片底色；只叠一次悬停／选中行色，避免滚动透字和色块分裂。
                 return (
                   <Fragment key={group.id}>
@@ -400,7 +397,7 @@ export function AIReqFormalTable() {
                     )}
                     {showChildren &&
                       children.map((sr) => {
-                        const warnings = coordinationWarnings(sr);
+                        const warnings = coordinationWarnings(view, sr);
                         return (
                           <Fragment key={sr.id}>
                             <MarkdownTableRow

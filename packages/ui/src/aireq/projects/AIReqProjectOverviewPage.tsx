@@ -95,8 +95,9 @@ export function AIReqProjectOverviewPage({
           ? todo.kind !== "alignment"
           : todo.kind === "alignment" && todo.perspective === kind),
     );
+  const pendingLabel = zh ? "待人工处理提案" : "Proposals awaiting people";
   const filters: { id: ConfirmationFilter; label: string }[] = [
-    { id: "all", label: zh ? "待人工处理提案" : "Proposals awaiting people" },
+    { id: "all", label: pendingLabel },
     { id: "review", label: zh ? "人工判断／放行" : "Review decisions" },
     { id: "business", label: zh ? "业务确认" : "Business confirmation" },
     { id: "development", label: zh ? "开发确认" : "Development confirmation" },
@@ -301,7 +302,7 @@ export function AIReqProjectOverviewPage({
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <span className="block text-ui-sm">{filters[0].label}</span>
+                  <span className="block text-ui-sm">{pendingLabel}</span>
                   <span className="font-medium tabular-nums">{allPendingCount}</span>
                 </div>
               </div>

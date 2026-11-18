@@ -267,7 +267,13 @@ export function createPrototypeProgressScheduler(
     const prompt = promptSnapshot();
     const batchId = `memory-demo-batch-${++serial}`;
     for (const task of tasks.values()) {
-      if (!active(task) || pending.has(task.id) || !matches(task, filter) || !matchesState(task, filter)) continue;
+      if (
+        !active(task) ||
+        pending.has(task.id) ||
+        !matches(task, filter) ||
+        !matchesState(task, filter)
+      )
+        continue;
       if (
         trigger === "schedule" &&
         (!enabled || (task.nextRunAt && Date.parse(task.nextRunAt) > clock))

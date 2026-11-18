@@ -77,6 +77,17 @@ function ConnectedProgressAnalysis({
   onOpenAnalysisSettings(): void;
 }) {
   const [revision, setRevision] = useState(0);
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
+  const stateLabels = zh
+    ? taskLabels
+    : {
+        waiting: "Waiting",
+        running: "Running",
+        failed: "Failed",
+        completed: "Completed",
+        paused: "Paused",
+      };
   const aireq = useAIReq()!;
   const projectId = aireq.selection.projectId ?? "";
   const releaseId = aireq.releaseId;
@@ -405,64 +416,65 @@ function ConnectedProgressAnalysis({
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-            <TabsList aria-label="分析运行列表">
-              <TabsTrigger value="tasks" aria-label="分析任务">
-                分析任务{" "}
-                <span className="ml-1 tabular-nums text-foreground-subtle">
-                  {taskResult?.total ?? "…"}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="history" aria-label="执行历史">
-                执行历史{" "}
-                {historyResult && (
+              <TabsList aria-label="分析运行列表">
+                <TabsTrigger value="tasks" aria-label="分析任务">
+                  分析任务{" "}
                   <span className="ml-1 tabular-nums text-foreground-subtle">
-                    {historyResult.total}
+                    {taskResult?.total ?? "…"}
                   </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-            {tab === "tasks" && (Boolean(taskResult?.failedCount) || taskState === "failed") && (
-              <Button
-                size="sm"
-                variant={taskState === "failed" ? "secondary" : "outline"}
-                aria-pressed={taskState === "failed"}
-                onClick={() => changeTaskState(taskState === "failed" ? "all" : "failed")}
-              >
-                失败 <span className="tabular-nums">{taskResult?.failedCount ?? "…"}</span>
-              </Button>
-            )}
+                </TabsTrigger>
+                <TabsTrigger value="history" aria-label="执行历史">
+                  执行历史{" "}
+                  {historyResult && (
+                    <span className="ml-1 tabular-nums text-foreground-subtle">
+                      {historyResult.total}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+              {tab === "tasks" && (Boolean(taskResult?.failedCount) || taskState === "failed") && (
+                <Button
+                  size="sm"
+                  variant={taskState === "failed" ? "secondary" : "outline"}
+                  aria-pressed={taskState === "failed"}
+                  onClick={() => changeTaskState(taskState === "failed" ? "all" : "failed")}
+                >
+                  {stateLabels.failed}{" "}
+                  <span className="tabular-nums">{taskResult?.failedCount ?? "…"}</span>
+                </Button>
+              )}
             </div>
             {tab === "tasks" &&
               currentProject?.enabled &&
               taskResult?.total !== 0 &&
               (taskResult && !taskResult.eligibleCount ? (
-                  // 资格计数也排除运行中的任务，仅据此不能判断任务停运或完成。
-                  <p role="status" className="max-w-72 text-ui-sm text-foreground-subtle">
-                    当前范围没有可发起分析的 SR。
-                  </p>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={
-                      pending ||
-                      taskQuery.loading ||
-                      Boolean(taskQuery.error) ||
-                      !taskResult?.eligibleCount
-                    }
-                    onClick={() => {
-                      setMessage("");
-                      setAnalysisRequest({
-                        filter: taskFilter,
-                        count: taskResult?.eligibleCount ?? 0,
-                        scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}${taskState === "all" ? "" : `；任务状态：${taskLabels[taskState]}`}。`,
-                      });
-                      setAnalysisDialogOpen(true);
-                    }}
-                    aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
-                  >
-                    分析 {taskResult?.eligibleCount ?? "…"} 个 SR
-                  </Button>
-                ))}
+                // 资格计数也排除运行中的任务，仅据此不能判断任务停运或完成。
+                <p role="status" className="max-w-72 text-ui-sm text-foreground-subtle">
+                  当前范围没有可发起分析的 SR。
+                </p>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={
+                    pending ||
+                    taskQuery.loading ||
+                    Boolean(taskQuery.error) ||
+                    !taskResult?.eligibleCount
+                  }
+                  onClick={() => {
+                    setMessage("");
+                    setAnalysisRequest({
+                      filter: taskFilter,
+                      count: taskResult?.eligibleCount ?? 0,
+                      scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}${taskState === "all" ? "" : `；任务状态：${taskLabels[taskState]}`}。`,
+                    });
+                    setAnalysisDialogOpen(true);
+                  }}
+                  aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
+                >
+                  分析 {taskResult?.eligibleCount ?? "…"} 个 SR
+                </Button>
+              ))}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <div className="relative min-w-56 flex-1">
@@ -514,15 +526,17 @@ function ConnectedProgressAnalysis({
             {tab === "tasks" && (
               <FilterSelect
                 id="analysis-task-state"
-                label="任务状态"
+                label={zh ? "任务状态" : "Task state"}
                 className="w-32 max-w-full"
                 triggerClassName="rounded-lg bg-surface"
                 value={taskState}
                 onChange={(value) => changeTaskState(value as typeof taskState)}
               >
-                <SelectItem value="all">全部状态</SelectItem>
-                {Object.entries(taskLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                <SelectItem value="all">{zh ? "全部状态" : "All states"}</SelectItem>
+                {Object.entries(stateLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
                 ))}
               </FilterSelect>
             )}
