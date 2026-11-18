@@ -1,6 +1,6 @@
 # 公开服务与 AIReq 契约
 
-本文件是当前对接目录，不以内部类成员、旧页面、纯 DTO 或协议 schema 扩大服务能力。[后端拓扑](../../architecture/mock-backend.md)记录实现限制，[连接身份](connection-identity.md)记录身份、版本与幂等，[集成规格](integration.md)记录接线。
+本文件是当前对接目录，不以内部类成员、旧页面、纯 DTO 或协议 schema 扩大服务能力。[后端拓扑](../../architecture/mock-backend.md)记录实现限制，[连接身份](connection-identity.md)记录身份、版本、幂等与二进制接线。
 
 ## 1. 权威契约与公开范围
 
@@ -111,7 +111,7 @@ onDidChange 类型为 workflow/models/prompts/scheduler/skills(sessionId)/error�
 
 动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。人工放行绑定 reviewId/snapshotDigest，alignment 绑定 perspective/version，发布／关闭绑定 candidate，修改材料限定 requirements/solution/test-plan 与真实修改说明。
 
-原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[进度](tracking.md)、[材料](document-surface.md)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
+原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[进度](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 
 ## 6. 拒绝、文件与设置
 

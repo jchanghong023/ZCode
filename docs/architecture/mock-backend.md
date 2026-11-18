@@ -1,6 +1,6 @@
 # 内存后端与部署拓扑
 
-本文记录当前实现、状态所有者和部署限制。精确公开面见[契约设计](../specs/aireq-migration/contract-design.md)，浏览器接线见[集成规格](../specs/aireq-migration/integration.md)，身份与顺序见[连接身份](../specs/aireq-migration/connection-identity.md)。
+本文记录当前实现、状态所有者和部署限制。精确公开面见[契约设计](../specs/aireq-migration/contract-design.md)，浏览器接线、身份与顺序见[连接身份](../specs/aireq-migration/connection-identity.md)。
 
 ## 1. 运行拓扑
 
@@ -36,6 +36,18 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 默认项目 `demo-aurora`（Aurora 协作控制台）、默认 Release `release-2026-11`（2026.11 · 体验优化）的初始提案覆盖未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交和待合入。每条样例持有对应的材料、快照、评审、人工及三方确认、交付候选与 PR 事实，业务状态仍由同一公共规则推导，不直接填状态答案。既有项目／版本数据保留。待合入样例是已有 opened PR 的初始记录，不预置自动合入时钟；读取与后台核验不会自行转正。用户显式发布后沿用正常的候选合入生命周期，关闭与修改仍遵守原门禁。
 
+### 原型后端业务初始数据
+
+默认项目 Aurora 协作控制台（`demo-aurora`）的 `release-2026-11`（2026.11 · 体验优化）包含 7 条正式 IR、21 条正式 SR。团队成员管理、消息偏好设置、附件管理和工作台快捷入口占其中 4 条 IR、12 条 SR；各 IR 保留完整材料、冻结快照、文档合入和独立开发分支，联系人与开发／测试分工可用于查看待办。
+
+开发任务必须覆盖待开发（含未分析与已分析 0%）、开发中、待合入、待验收、已完成。状态由既有公共进度函数从报告、代码合入与同版人工验收派生，不直接写展示状态；待合入必须有明确分析结论且尚未合入，待验收为合入 99%，已完成必须有匹配代码版本的人工通过记录及验收历史。
+
+SR 中保留六条 2026-11-16 至 2026-11-17 的既存历史变化，分别覆盖回到待开发、进入开发中、待合入、待验收和已完成；历史 `to` 必须与当前有效状态一致。它们是服务端预置的历史业务数据，加载不触发状态变化事务；不得按启动／读取时间补造或刷新，其他没有历史的 SR 继续缺失 `statusChange`。随后真实提交仍由 workflow 事务比较有效状态并更新记录。
+
+这批静态 SR 的 `automaticCodeMerge:false` 只保存在 workflow 内部类型，公共投影递归剥离（包括嵌套回执）。后台模拟代码合入跳过它们，避免启动数秒后五种状态全部被推进为待验收；公开分析、分工和人工验收仍沿正常业务门禁，新创建需求的模拟推进保持原规则。
+
+验收：同一 Release 的正式 IR／SR 计数为 7／21，五种状态均非空；最近动态按固定历史时间排序展示五个不同 SR，重复读取时间不变。检查这 12 条 SR 的材料归属、分支基点、验收代码版本，以及后台轮询后仍保留五种状态；公共返回不得包含内部控制字段，其他项目／Release 的数据不变。
+
 ## 3. 当前实现能力
 
 - AIReq 在内存中执行材料与报告、阶段门禁、配置保存和派生待办。模型目录 facade 使用同一 AIReq 目录投影；刷新读取内存目录，无事实变化不制造 revision 或事件，不表示外部供应商连通。
@@ -61,6 +73,8 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 浏览器标签页图标由 `packages/web/index.html` 内嵌 PNG 提供，静态发布目录不提供根路径的 `favicon.ico` 文件。
 
+只读材料摘要和大小取自实际正文的 UTF-8 字节。
+
 遥测 202 仅表示本服务诊断接纳，不表示第三方上传或持久化；无公开读取和重试队列。文件媒体返回字节或浏览器可达 URL，不能把服务器磁盘路径／`file://` 放入浏览器资源地址；跨源资源需 CORS，HTTPS 页面不能混用 HTTP 媒体。
 
 | 入口变量                    | 含义                                              |
@@ -85,6 +99,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 - `packages/server/src/entry-http.ts`、`mock/index.ts`：入口与 `createMockServices`。
 - `packages/server/src/http.ts`：`publicMembers`、`setupChannelServer`、`createMockHttpServer`。
+- `packages/server/src/aireq/fixture-release.ts`、`fixtures.ts`：默认 Release 的正式需求、任务和历史。
 - `packages/server/src/aireq/service.ts`：`MockAIReqService`、`getConnectionServices`。
 - `packages/server/src/mock/runtime.ts`、`mock/zcodeAgent.ts`：会话、水位与附件。
 - 精确原生契约：`packages/services/src/zcode-agent/zcodeAgent.ts`、`packages/shared/src/zcode-protocol-v4/`。

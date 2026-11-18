@@ -8,13 +8,13 @@ AIReq 是面向电脑浏览器的纯 Web 应用。用户在项目与 Release 下
 
 ## 产品与交互
 
-- [项目与版本](specs/aireq-migration/project-space.md)、[导航／想法／待办](specs/aireq-migration/section-navigation-and-ideas.md)。
+- [项目／版本／导航／想法／待办](specs/aireq-migration/section-navigation-and-ideas.md)。
 - [提案流程](specs/aireq-migration/proposals.md)、[正式需求与分析](specs/aireq-migration/tracking.md)、[原生会话](specs/aireq-migration/conversation.md)。
-- [材料](specs/aireq-migration/document-surface.md)、[设置与保留工具](specs/aireq-migration/tools-settings.md)、[统一右侧工作区](specs/aireq-migration/unified-side-pane.md)、[动效主题](specs/aireq-migration/motion-theme.md)。
+- [设置与保留工具](specs/aireq-migration/tools-settings.md)、[右侧工作区与材料](specs/aireq-migration/unified-side-pane.md)、[动效主题](../DESIGN.md#默认动效主题)。
 
 ## 架构与工程维护
 
 - [服务端与后端替换边界](architecture/mock-backend.md)。
-- [公开接口](specs/aireq-migration/contract-design.md)、[身份与连接](specs/aireq-migration/connection-identity.md)、[前后端接线](specs/aireq-migration/integration.md)。
+- [公开接口](specs/aireq-migration/contract-design.md)、[连接身份与二进制协议](specs/aireq-migration/connection-identity.md)。
 - [模块所有权](architecture/pure-web-module-ownership.md)、[构建与依赖](../README.md#依赖与清理)。
 - [前端 UT 与后端 ST](testing/unit-test-quality.md)。

@@ -24,7 +24,7 @@
 
 ## 身份与展示
 
-`zai-motion` 默认动效主题与既有主题共用 store／广播路径；暂时注释主题本地记忆的读取与写入，每次启动使用动效主题，当前会话仍可切换，既有存储值不删除。`AIReqMotion` 仅持有有界装饰节点与一次性动画，不保存坐标或导航事实；原主题、减少动态效果与性能模式无新增指针监听。视觉与性能边界见 `docs/specs/aireq-migration/motion-theme.md`。
+`zai-motion` 默认动效主题与既有主题共用 store／广播路径；暂时注释主题本地记忆的读取与写入，每次启动使用动效主题，当前会话仍可切换，既有存储值不删除。`AIReqMotion` 仅持有有界装饰节点与一次性动画，不保存坐标或导航事实；原主题、减少动态效果与性能模式无新增指针监听。视觉与性能边界见 [默认动效主题](../../../../DESIGN.md#默认动效主题)。
 
 Web 连接、AIReq identity、v4 握手和命令信封使用同一 clientId。全部合法工号可执行满足对象、版本、幂等及阶段门禁的操作；负责人不是权限。私有草稿仍按员工与客户端隔离。
 
@@ -32,4 +32,4 @@ Web 连接、AIReq identity、v4 握手和命令信封使用同一 clientId。�
 
 Footer 业务桥复用通用 footer 的展示端口，仅提供当前工号、切换、帮助和主题等辅助工具；不挂载旧账户交易菜单，不消费后端来源元数据。页面共用居中内容列与主题 token。工具错误展示安全正文，不把错误码当用户文案；MR 平台核验只读取正式布尔事实，不由状态或链接推断。
 
-业务规格见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`、`project-space.md`、`proposals.md`、`tracking.md` 与 `tools-settings.md`。公开服务边界见 `contract-design.md`；部署限制见 `docs/architecture/mock-backend.md`。
+业务规格见 `docs/specs/aireq-migration/section-navigation-and-ideas.md`、`proposals.md`、`tracking.md` 与 `tools-settings.md`。公开服务边界见 `contract-design.md`；部署限制见 `docs/architecture/mock-backend.md`。

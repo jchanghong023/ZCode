@@ -9,7 +9,7 @@ IR 属于唯一项目和 Release。提案与正式需求是同一 IR 生命周�
 | IR   | `docs/requirements/<ir-id>/requirements.md`、`sr-dependencies.json`、`acceptance.md`                |
 | SR   | `openspec/changes/<sr-id>/` 下的 `proposal.md`、`design.md`、`tasks.md`、`specs/` 与 `test-plan.md` |
 
-每个 SR 对应独立 OpenSpec change。依赖 JSON 是 SR 依赖、工作日预估与假设的唯一来源，不从正文或元数据补造。预估不直接转换为正式排期，工作日求和也不是 IR 总周期。材料阅读规则见[文档表面](document-surface.md)；材料路径不表示已写入真实仓库，运行边界见[后端运行说明](../../architecture/mock-backend.md)。
+每个 SR 对应独立 OpenSpec change。依赖 JSON 是 SR 依赖、工作日预估与假设的唯一来源，不从正文或元数据补造。预估不直接转换为正式排期，工作日求和也不是 IR 总周期。材料阅读规则见[材料阅读](unified-side-pane.md#材料阅读)；材料路径不表示已写入真实仓库，运行边界见[后端运行说明](../../architecture/mock-backend.md)。
 
 ## 提案业务状态
 

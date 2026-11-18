@@ -59,7 +59,7 @@ accepted 表示接纳真实转换，不等于后台执行完成；无需变化�
 
 事件只失效投影；错误可见，后续读取可修复。刷新不抢占导航、不覆盖 dirty prompt，保存不能清掉保存期间的新编辑。dispose 与读取代次使迟到响应失效。
 
-重连只替换 accessor、attachment 和订阅，不用连接代次作为 React key，不卸载工作区／正文／附件草稿。旧 pending RPC fail-closed，有限退避后可显式重连；退出身份生命周期终止旧 attempt。重连只订阅与重读，不自动重放 create/send/save/confirm/分析 mutation。
+连接关闭或出错终结旧 pending 请求。重连替换 accessor、attachment 和订阅，保留同一工号生命周期中的组件挂载、store、正文与附件草稿，重新绑定广播且入站偏好只应用一次。有限退避后可显式重连，退出工号终止旧连接尝试。重连只订阅与重读，不自动重放 create/send/save/confirm/分析 mutation。
 
 ## 6. 原生 topic
 
@@ -74,6 +74,24 @@ accepted 表示接纳真实转换，不等于后台执行完成；无需变化�
 
 局域网非 loopback HTTP 不能依赖 crypto.randomUUID/subtle。普通浏览器 UUID 使用 shared createUuid 的 getRandomValues 路径，不改写全局 crypto，不改变命令／操作 ID 分配和显式重试时点。附件仍提交完整字节 `sha256:<hex>`：安全上下文用 WebCrypto，其他支持环境用浏览器 SHA-256 实现，不放宽服务端校验。
 
-## 8. 源码依据
+## 8. 二进制与协议接线
 
-`packages/server/src/aireq/identity.ts` 的 validateAIReqIdentity/withAIReqIdentity；`service.ts` 的 getConnectionServices 与回执分派；`packages/web/src/main.tsx` 的连接 owner；`packages/ui/src/aireq/shell/remote-data-source.ts` 的失效代次；`packages/server/src/mock/{runtime,zcodeAgent}.ts` 的 CAS／topic；`packages/shared/src/zcode-protocol-v4/{core,snapshot,sessions-index}.ts` 的版本。
+同源 `/ws` 使用 `@zcode/rpc` 的 SocketProtocol。`connectViaWebSocket` 用 ArrayBuffer 包装 ISocket，收到 Channel Initialize 后返回 RemoteServiceAccess。替换后端须实现相同字节格式：
+
+- 帧头固定 13 字节：type:u8、id:u32BE、ack:u32BE、payloadLength:u32BE，普通消息 type=1；跨 message 半帧与粘包按 `packages/rpc/src/protocol.ts`，不增加透明重放。
+- payload 的 header/body 序列化、类型标签、VQL 长度、UTF-8 与二进制 marker 按 `serialization.ts`，不能替换成自定义 JSON。
+- 服务端为每条连接装配 ChannelServer，客户端在收到 Initialize 后发起调用。
+- 请求 ID 对应当前连接，Promise success/error、取消、事件 listen/fire/dispose 按 channels.shared/channelClient/channelServer。
+- ProxyChannel 方法实参为数组；onXxx 为 Event，onDynamicXxx(arg) 为参数化 Event，释放监听即退订，不作为普通 Promise 方法。
+
+v4 hello/initialize 后订阅 conversation，ACK 与 owned notification 分离；首帧经现有 response 后通知路径发送。wire complete/fragment 使用 shared wire-codec/wire-reassembly 的尺寸、校验与 typed fault，客户端重组后才应用逻辑帧。
+
+## 9. 附件传输
+
+附件通过 begin/chunk/commit/abort/read，不经宿主路径转移。begin 绑定 actor、session、workspace、文件名、MIME、总字节／块数及 SHA-256；当前上限 20 MiB、4096 块，每块不超过 512 KiB。块按序提交，相同已接纳块可复用但不可改写；commit 校验完整大小与 `sha256:<hex>` 后返回 ref。
+
+发送采用同一真实字节。abort 不删除已被行、队列或提升项采用的字节；读取核实 workspace／会话／采用行和可见性。其他操作者只可读取已发布共享会话真实采用的附件，不可读取私人暂存。read 的 offset 非负、limit 为 1—512 KiB，返回 dataBase64/mediaType/totalBytes/nextOffset；会话已删除不能因读取重建。
+
+## 10. 源码依据
+
+`packages/server/src/aireq/identity.ts` 的 validateAIReqIdentity/withAIReqIdentity；`service.ts` 的 getConnectionServices 与回执分派；`packages/web/src/main.tsx` 的连接 owner；`packages/client/src/websocket.ts` 的连接装配；`packages/rpc/src/{protocol,serialization,proxy-channel,channelClient,channelServer}.ts` 的传输；`packages/ui/src/aireq/shell/remote-data-source.ts` 的失效代次；`packages/server/src/mock/{runtime,zcodeAgent}.ts` 的 CAS／topic；`packages/shared/src/zcode-protocol-v4/{core,snapshot,sessions-index}.ts` 的版本。

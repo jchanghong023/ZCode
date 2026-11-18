@@ -12,7 +12,7 @@ import {
   getProposal,
 } from "./proposal-flow.js";
 
-// ST oracle: proposals.md, document-surface.md and connection-identity.md.
+// ST oracle: proposals.md, unified-side-pane.md (材料阅读) and connection-identity.md.
 // These tests use published service/wire contracts only, never backend fixtures,
 // private material generators or frontend/domain derivation functions as expectations.
 async function withClient(run: (client: STClient) => Promise<void>) {

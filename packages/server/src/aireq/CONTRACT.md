@@ -10,7 +10,7 @@
 
 想法池与转入版本按 `docs/specs/aireq-migration/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
 
-初始业务数据按 `docs/specs/aireq-migration/integration.md` 的“原型后端业务初始数据”组织，数量与待办只从各 owner 的事实派生。提案导入导出按 `proposals.md` 的契约：`importProposals.proposals` 原子接纳短需求及可选 IR 业务 Markdown，正文仅落在新 IR 的标准 requirements.md，计算真实摘要，不导入其他材料、SR 或批准；沿用版本、幂等与提交后广播。
+初始业务数据按 [原型后端业务初始数据](../../../../docs/architecture/mock-backend.md#原型后端业务初始数据)组织，数量与待办只从各 owner 的事实派生。提案导入导出按 `proposals.md` 的契约：`importProposals.proposals` 原子接纳短需求及可选 IR 业务 Markdown，正文仅落在新 IR 的标准 requirements.md，计算真实摘要，不导入其他材料、SR 或批准；沿用版本、幂等与提交后广播。
 
 单一进程生命周期内存 owner 持有共享项目、Release、提案、IR/SR、材料、两类评审、三方确认、联系人、报告、合并／验收问题、分支、配置、Skill 和调度任务。Issue 专属状态、调度、操作、事件及模型角色已裁撤。服务重启恢复样例；关闭连接不取消已接纳工作。每五秒核验文档 PR 的候选、版本与当前完整材料，待合并／关闭不转正。
 
