@@ -241,7 +241,8 @@ describe("frontend pending message recovery", () => {
     );
     registry.applyAck(envelope, ack(envelope, "accepted"));
     expect(
-      readV4ComposerDraft(workspace.workspacePath, workspace.workspaceIdentity, "session-a")?.text,
+      readV4ComposerDraft(workspace.workspacePath, workspace.workspaceIdentity, "session-a", scope)
+        ?.text,
     ).toBe("用户随后输入的新问题");
     expect(
       readV4ComposerDraft(

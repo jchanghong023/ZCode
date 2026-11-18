@@ -1,8 +1,8 @@
 import { businessRule } from "./errors.js";
 import { createHash } from "node:crypto";
-import { readPrototypeAgentPrompts } from "./personalization.js";
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
 import type {
+  AIReqAgentModelBinding,
   AIReqAnalysisFailure,
   AIReqAnalysisFilter,
   AIReqAnalysisHistoryFilter,
@@ -20,9 +20,15 @@ import {
   withPrototypeProgress,
 } from "./progress.js";
 import {
+  matches,
+  matchesState,
+  newestFirst,
+  pageBounds,
   prototypeAnalysisReport,
   prototypeProgressFingerprint,
+  summary,
 } from "./progress-scheduler-state.js";
+import { prototypeDefaultCommit } from "./fixture-builders.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { getPrototypeWorkflow, prototypeWorkflowChanges } from "./workflow.js";
 
@@ -33,7 +39,7 @@ interface Input {
   fingerprint: string;
 }
 interface Pending {
-  run: AIReqAnalysisRun;
+  run: AIReqAnalysisRun & { modelConfig: AIReqAgentModelBinding };
   input: Input;
   held?: boolean;
   fail?: boolean;
@@ -53,7 +59,7 @@ const failureSamples: AIReqAnalysisFailure[] = [
   {
     stage: "模型调用",
     reason: "模型请求超时，尚未生成分析结论。",
-    nextStep: "请检查需求分析 Agent 的模型配置与服务状态后重试。",
+    nextStep: "请检查进度分析 Agent 的模型配置与服务状态后重试。",
     retryable: true,
   },
   {
@@ -66,6 +72,10 @@ const failureSamples: AIReqAnalysisFailure[] = [
 function failureMessage(failure: AIReqAnalysisFailure): string {
   return `${failure.stage}失败：${failure.reason}`;
 }
+
+// Compare only the effective analysis configuration, not revisions or how a model was chosen.
+const configKey = (binding: AIReqAgentModelBinding) =>
+  JSON.stringify([binding.modelKey, binding.reasoning, binding.promptSnapshot]);
 
 /** Service-lifetime memory scheduler; accepted reports write to the existing workflow owner. */
 export function createPrototypeProgressScheduler(
@@ -85,7 +95,7 @@ export function createPrototypeProgressScheduler(
   const inputs = new Map<string, Input>();
   // Scheduler-only additions: never inserted into the formal workflow or its requirements UI.
   const scaleInputs = new Map<string, ScaleInput>();
-  const analysed = new Map<string, string>();
+  const analysed = new Map<string, { fingerprint: string; config: string }>();
   const pending = new Map<string, Pending>();
   const scenarios = new Map<string, "fail-next" | "hold-next">();
   const runs: AIReqAnalysisRun[] = [];
@@ -96,79 +106,31 @@ export function createPrototypeProgressScheduler(
       throw businessRule("分析间隔过大，请使用更小的正整数分钟数。");
     return value;
   };
-  const nextAt = () => new Date(clock + intervalMinutes * 60_000).toISOString();
-  const active = (task: AIReqAnalysisTask) =>
-    projects.get(task.projectId) === true &&
-    inputs.has(task.id) &&
-    task.percent < 100 &&
-    Boolean(task.branch.trim()) &&
-    inputs.get(task.id)?.sr.trackingBranch?.status !== "failed";
+  const nextAt = () => new Date(nextCheck).toISOString();
+  const active = (task: AIReqAnalysisTask) => {
+    const input = inputs.get(task.id);
+    const branchStatus = input?.sr.trackingBranch?.status;
+    return (
+      projects.get(task.projectId) === true &&
+      input !== undefined &&
+      !input.sr.codeMerge &&
+      Boolean(task.branch) &&
+      branchStatus !== "failed" &&
+      branchStatus !== "deleted"
+    );
+  };
+  const manuallyEligible = (task: AIReqAnalysisTask) => active(task) && !pending.has(task.id);
   const emit = () => {
     for (const listener of listeners) listener();
   };
   const requireActive = () => {
     if (disposed) throw businessRule("需求分析服务已关闭，请刷新页面后重试。");
   };
-  const matches = (
-    row: { projectId: string; releaseId?: string; irId: string; srId: string; srTitle: string },
-    filter: AIReqAnalysisFilter,
-  ) => {
-    const search = filter.srSearch?.trim().toLowerCase();
-    return (
-      (!filter.projectId || row.projectId === filter.projectId) &&
-      (!filter.releaseId ||
-        (row.releaseId ??
-          inputs.get(JSON.stringify([row.projectId, row.irId, row.srId]))?.releaseId) ===
-          filter.releaseId) &&
-      (!filter.irId || row.irId === filter.irId) &&
-      (!filter.srId || row.srId === filter.srId) &&
-      (!search ||
-        row.srId.toLowerCase().includes(search) ||
-        row.srTitle.toLowerCase().includes(search))
-    );
-  };
-  const pageBounds = (total: number, requestedPage: number, requestedSize: number) => {
-    if (
-      ![25, 50].includes(requestedSize) ||
-      !Number.isSafeInteger(requestedPage) ||
-      requestedPage < 1
-    )
-      throw businessRule("分页参数无效。");
-    const pageSize = requestedSize;
-    const page = Math.min(
-      Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1),
-      Math.max(1, Math.ceil(total / pageSize)),
-    );
-    return { page, pageSize, start: (page - 1) * pageSize };
-  };
-  const matchesState = (task: AIReqAnalysisTask, filter: AIReqAnalysisFilter) =>
-    !filter.taskState || task.state === filter.taskState;
-  const newestFirst = (a: AIReqAnalysisRunSummary, b: AIReqAnalysisRunSummary) =>
-    b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id);
-  const summary = (run: AIReqAnalysisRun): AIReqAnalysisRunSummary => ({
-    id: run.id,
-    batchId: run.batchId,
-    taskId: run.taskId,
-    projectId: run.projectId,
-    releaseId: run.releaseId,
-    irId: run.irId,
-    srId: run.srId,
-    srTitle: run.srTitle,
-    branch: run.branch,
-    trigger: run.trigger,
-    status: run.status,
-    startedAt: run.startedAt,
-    endedAt: run.endedAt,
-    message: run.message,
-    before: run.before,
-    after: run.after,
-  });
 
   function branchFor(sr: AIReqSystemRequirement): string {
     return sr.trackingBranch?.name?.trim() ?? "";
   }
-  function promptSnapshot() {
-    const additionalPrompt = readPrototypeAgentPrompts().saved["progress-analysis"] ?? "";
+  function promptSnapshot({ promptSnapshot: additionalPrompt }: AIReqAgentModelBinding) {
     return {
       additionalPrompt,
       revision: createHash("sha256").update(additionalPrompt).digest("hex"),
@@ -203,7 +165,11 @@ export function createPrototypeProgressScheduler(
       branch,
       releaseId: input.releaseId,
     });
-    if (!branch || sr.trackingBranch?.status === "failed")
+    if (
+      !branch ||
+      sr.trackingBranch?.status === "failed" ||
+      sr.trackingBranch?.status === "deleted"
+    )
       task.error = sr.trackingBranch?.error ?? "开发分支缺失，不能分析。";
     else if (task.error) {
       // 分支错误来自当前分支事实；恢复后只保留最近分析运行自身的失败，不能沿用旧分支错误。
@@ -226,7 +192,7 @@ export function createPrototypeProgressScheduler(
               sr,
               fingerprint,
               releaseId: group.releaseId,
-              defaultVersion: view.repositoryHeads?.[project.repositoryId],
+              defaultVersion: prototypeDefaultCommit(view, project.id),
             },
             irTitle: group.title,
           });
@@ -239,21 +205,19 @@ export function createPrototypeProgressScheduler(
     for (const project of readPrototypeProjectSettings().projects)
       if (!projects.has(project.id)) projects.set(project.id, false);
     for (const task of tasks.values()) {
-      if (pending.has(task.id)) {
-        task.state = "running";
-        task.nextRunAt = undefined;
-        continue;
-      }
-      if (inputs.has(task.id) && task.percent >= 100) {
+      if (inputs.get(task.id)?.sr.codeMerge) {
         task.state = "completed";
         task.nextRunAt = undefined;
         task.error = undefined;
-      } else if (!enabled || !active(task)) {
+      } else if (pending.has(task.id)) {
+        task.state = "running";
+        task.nextRunAt = undefined;
+      } else if (!active(task)) {
         task.state = "paused";
         task.nextRunAt = undefined;
       } else {
-        task.state = task.error ? "failed" : "waiting";
-        task.nextRunAt ??= nextAt();
+        task.state = task.error ? "failed" : enabled ? "waiting" : "paused";
+        task.nextRunAt = enabled ? (task.nextRunAt ?? nextAt()) : undefined;
       }
     }
   }
@@ -264,22 +228,18 @@ export function createPrototypeProgressScheduler(
 
   function admit(filter: AIReqAnalysisFilter, trigger: AIReqAnalysisRun["trigger"]): void {
     const modelConfig = readPrototypeAgentModelBinding("progress-analysis");
-    const prompt = promptSnapshot();
+    const prompt = promptSnapshot(modelConfig);
     const batchId = `memory-demo-batch-${++serial}`;
     for (const task of tasks.values()) {
-      if (
-        !active(task) ||
-        pending.has(task.id) ||
-        !matches(task, filter) ||
-        !matchesState(task, filter)
-      )
+      if (!manuallyEligible(task) || !matches(task, filter) || !matchesState(task, filter))
         continue;
       if (
         trigger === "schedule" &&
-        (!enabled || (task.nextRunAt && Date.parse(task.nextRunAt) > clock))
+        (!enabled || !task.nextRunAt || Date.parse(task.nextRunAt) > clock)
       )
         continue;
-      const run: AIReqAnalysisRun = {
+      const input = inputs.get(task.id)!;
+      const run: Pending["run"] = {
         id: `memory-demo-run-${++serial}`,
         batchId,
         taskId: task.id,
@@ -292,8 +252,9 @@ export function createPrototypeProgressScheduler(
         trigger,
         status: "running",
         startedAt: at(),
-        modelConfig: structuredClone(modelConfig),
-        promptSnapshot: { ...prompt },
+        inputFingerprint: input.fingerprint,
+        modelConfig,
+        promptSnapshot: prompt,
         message: "正在分析需求材料、任务及代码合入证据。",
         before: task.percent,
         after: task.percent,
@@ -303,12 +264,13 @@ export function createPrototypeProgressScheduler(
       scenarios.delete(task.id);
       pending.set(task.id, {
         run,
-        input: structuredClone(inputs.get(task.id)!),
+        input: structuredClone(input),
         held: scenario === "hold-next",
         fail: scenario === "fail-next",
       });
       task.state = "running";
       task.error = undefined;
+      task.retryable = undefined;
       task.nextRunAt = undefined;
       task.lastRunAt = at();
       task.lastRunId = run.id;
@@ -320,6 +282,8 @@ export function createPrototypeProgressScheduler(
   if (scaleDemo) {
     // Pad each of the two initial projects to 150 records, retaining every real formal-SR record.
     for (const project of initialProjects.slice(0, 2)) {
+      const releaseId = getPrototypeWorkflow({ projectId: project.id }).releases[0]?.id;
+      if (!releaseId) continue;
       const existingCount = [...tasks.values()].filter(
         (task) => task.projectId === project.id,
       ).length;
@@ -376,18 +340,12 @@ export function createPrototypeProgressScheduler(
             remaining: [],
             issues: [],
             activity: [],
-            ...(percent === 100
-              ? {
-                  manual: {
-                    employeeId: "j00808874",
-                    reason: "AI 分析到 99% 后人工确认完成（样例）。",
-                    at: at(),
-                  },
-                }
-              : {}),
           },
         };
-        const input = { sr, fingerprint: `memory-scale-input:${project.id}:${srId}:1` };
+        const fingerprint = createHash("sha256")
+          .update(`memory-scale-input:${project.id}:${srId}:1`)
+          .digest("hex");
+        const input = { sr, releaseId, fingerprint };
         scaleInputs.set(JSON.stringify([project.id, irId, srId]), {
           input,
           irTitle: `需求 ${irIndex} · ${project.name}`,
@@ -397,6 +355,9 @@ export function createPrototypeProgressScheduler(
     if (initialProjects[0]) projects.set(initialProjects[0].id, true);
   } else if (projects.has("demo-aurora")) projects.set("demo-aurora", true);
   reconcile();
+  const fixtureModel = readPrototypeAgentModelBinding("progress-analysis");
+  const fixturePrompt = promptSnapshot(fixtureModel);
+  const fixtureConfig = configKey(fixtureModel);
 
   if (scaleDemo) {
     const fixtureTasks = [...tasks.values()];
@@ -419,13 +380,15 @@ export function createPrototypeProgressScheduler(
         batchId: `memory-scale-batch-${Math.floor(index / 25) + 1}`,
         taskId: task.id,
         projectId: task.projectId,
+        releaseId: task.releaseId,
         irId: task.irId,
         srId: task.srId,
         srTitle: task.srTitle,
         branch: task.branch,
         trigger: index % 2 ? "manual" : "schedule",
-        modelConfig: readPrototypeAgentModelBinding("progress-analysis"),
-        promptSnapshot: promptSnapshot(),
+        inputFingerprint: input.fingerprint,
+        modelConfig: fixtureModel,
+        promptSnapshot: fixturePrompt,
         status,
         startedAt: timestamp,
         endedAt: timestamp,
@@ -437,12 +400,13 @@ export function createPrototypeProgressScheduler(
       });
       task.lastRunAt = timestamp;
       task.lastRunId = `memory-scale-run-${String(index + 1).padStart(4, "0")}`;
+      task.retryable = failure?.retryable;
       if (status === "failed") {
         task.error = message;
         analysed.delete(task.id);
       } else {
         task.error = undefined;
-        analysed.set(task.id, input.fingerprint);
+        analysed.set(task.id, { fingerprint: input.fingerprint, config: fixtureConfig });
       }
     }
     reconcile();
@@ -502,8 +466,9 @@ export function createPrototypeProgressScheduler(
         status,
         startedAt: timestamp,
         endedAt: timestamp,
-        modelConfig: readPrototypeAgentModelBinding("progress-analysis"),
-        promptSnapshot: promptSnapshot(),
+        inputFingerprint: input.fingerprint,
+        modelConfig: fixtureModel,
+        promptSnapshot: fixturePrompt,
         message,
         before: task.percent,
         // 样例成功也须记录实际写回值，不能把执行前分数复制为执行后分数。
@@ -513,10 +478,11 @@ export function createPrototypeProgressScheduler(
       });
       task.lastRunAt = timestamp;
       task.lastRunId = `memory-demo-fixture-${srId}`;
-      if (status !== "failed") analysed.set(task.id, input.fingerprint);
+      if (status !== "failed")
+        analysed.set(task.id, { fingerprint: input.fingerprint, config: fixtureConfig });
       else {
         task.error = message;
-        task.state = "failed";
+        task.retryable = failureSamples[2]!.retryable;
       }
       if (status === "failed") {
         for (const [index, failure] of failureSamples.slice(0, 2).entries()) {
@@ -535,8 +501,9 @@ export function createPrototypeProgressScheduler(
             status: "failed",
             startedAt: earlier,
             endedAt: earlier,
-            modelConfig: readPrototypeAgentModelBinding("progress-analysis"),
-            promptSnapshot: promptSnapshot(),
+            inputFingerprint: input.fingerprint,
+            modelConfig: fixtureModel,
+            promptSnapshot: fixturePrompt,
             message: failureMessage(failure),
             before: task.percent,
             after: task.percent,
@@ -556,22 +523,30 @@ export function createPrototypeProgressScheduler(
   const advanceTo = (nextClock: number) => {
     requireActive();
     reconcile();
-    requireTime(nextClock + intervalMinutes * 60_000);
+    const followingCheck = requireTime(nextClock + intervalMinutes * 60_000);
     clock = nextClock;
+    const checkDue = enabled && clock >= nextCheck;
     for (const [id, pendingRun] of pending) {
       if (pendingRun.held) continue;
       const { run, input } = pendingRun;
       const task = tasks.get(id)!;
       run.endedAt = at();
       const current = inputs.get(id);
-      if (!current || current.fingerprint !== input.fingerprint) {
+      const last = analysed.get(id);
+      const config = configKey(run.modelConfig);
+      if (!current || current.sr.codeMerge || current.fingerprint !== input.fingerprint) {
         run.status = "skipped";
-        run.message = "需求材料或代码版本已变化，本次结果未采用。";
+        run.message = current?.sr.codeMerge
+          ? "SR 已首次合入，本次结果未采用。"
+          : "需求材料或代码版本已变化，本次结果未采用。";
+        if (pendingRun.fail) run.failure = failureSamples[1];
+        else run.report = { ...report(input), stale: true };
       } else if (pendingRun.fail) {
         run.status = "failed";
         run.failure = failureSamples[1];
         run.message = failureMessage(failureSamples[1]!);
         task.error = run.message;
+        task.retryable = run.failure?.retryable;
         analysed.delete(id);
         acceptPrototypeProgressReport(
           run.projectId,
@@ -582,10 +557,15 @@ export function createPrototypeProgressScheduler(
           undefined,
           run.message,
         );
-      } else if (analysed.get(id) === input.fingerprint) {
+      } else if (
+        last?.fingerprint === input.fingerprint &&
+        (run.trigger === "schedule" || last.config === config)
+      ) {
         run.status = "skipped";
-        run.report = structuredClone(current.sr.progress);
-        run.message = "任务材料与代码版本未变化，已跳过重复分析。";
+        run.report = current.sr.progress;
+        run.message = run.report
+          ? "任务材料与代码版本未变化，已跳过重复分析；下方为此前的报告。"
+          : "任务材料与代码版本未变化，已跳过重复分析。";
       } else {
         const detail = report(input);
         const scale = scaleInputs.get(id);
@@ -600,27 +580,24 @@ export function createPrototypeProgressScheduler(
               detail,
             );
         run.status = accepted ? "succeeded" : "skipped";
-        run.message = accepted
-          ? "分析完成，最新报告已更新。"
-          : "输入版本已变化，迟到结果已拒绝写回。";
+        run.message = accepted ? "分析完成，最新报告已更新。" : "输入版本已变化，本次结果未采用。";
+        run.report = accepted ? detail : { ...detail, stale: true };
         if (accepted) {
           if (scale) scale.input.sr.progress = detail;
-          run.report = detail;
-          analysed.set(id, input.fingerprint);
+          analysed.set(id, { fingerprint: input.fingerprint, config });
           task.error = undefined;
         }
       }
-      const latest = withPrototypeProgress(
-        getPrototypeWorkflow({ projectId: run.projectId }),
-      ).srs.find((sr) => sr.irId === run.irId && sr.id === run.srId);
+      const latest = inputs.get(id)?.sr;
       run.after = latest ? srProgress(latest) : task.percent;
-      if (run.report && latest?.progress) run.report = structuredClone(latest.progress);
-      task.nextRunAt = nextAt();
+      task.nextRunAt = enabled
+        ? new Date(checkDue ? followingCheck : nextCheck).toISOString()
+        : undefined;
       pending.delete(id);
     }
-    if (enabled && clock >= nextCheck) {
+    if (checkDue) {
       lastCheckAt = at();
-      nextCheck = clock + intervalMinutes * 60_000;
+      nextCheck = followingCheck;
       admit({}, "schedule");
     }
     reconcile();
@@ -688,10 +665,7 @@ export function createPrototypeProgressScheduler(
         failedCount: scoped.filter((task) => task.state === "failed").length,
         page: bounds.page,
         pageSize: bounds.pageSize,
-        eligibleCount: matching.reduce(
-          (count, task) => count + Number(active(task) && !pending.has(task.id)),
-          0,
-        ),
+        eligibleCount: matching.reduce((count, task) => count + Number(manuallyEligible(task)), 0),
       };
     },
     queryRuns(filter: AIReqAnalysisHistoryFilter, requestedPage, requestedSize) {
@@ -747,8 +721,9 @@ export function createPrototypeProgressScheduler(
       if (typeof value !== "boolean") throw businessRule("全局分析开关无效。");
       if (!Number.isSafeInteger(minutes) || minutes < 1)
         throw businessRule("全局检查间隔须为正整数分钟。");
-      const next = requireTime(clock + minutes * 60_000);
-      reconcile();
+      const now = Math.max(clock, Date.now());
+      const next = requireTime(now + minutes * 60_000);
+      clock = now;
       enabled = value;
       intervalMinutes = minutes;
       nextCheck = next;
@@ -756,9 +731,32 @@ export function createPrototypeProgressScheduler(
       reconcile();
       emit();
     },
-    runNow(filter) {
+    runNow(filter, retryRunId) {
       requireActive();
       reconcile();
+      if (retryRunId) {
+        const run = runs.find((item) => item.id === retryRunId);
+        if (
+          !run ||
+          run.status !== "failed" ||
+          !run.failure?.retryable ||
+          !run.releaseId ||
+          run.projectId !== filter.projectId ||
+          run.releaseId !== filter.releaseId ||
+          run.irId !== filter.irId ||
+          run.srId !== filter.srId
+        )
+          throw businessRule("请选择当前 SR 的可重试失败记录。");
+        const task = tasks.get(run.taskId);
+        if (
+          !task ||
+          !manuallyEligible(task) ||
+          !matches(task, filter) ||
+          !matchesState(task, filter)
+        )
+          throw businessRule("该 SR 当前不能重试，请刷新任务状态。");
+      }
+      clock = Math.max(clock, Date.now());
       admit(filter, "manual");
       emit();
     },

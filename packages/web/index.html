@@ -15,52 +15,42 @@
     <title>AIReq</title>
     <script>
       (() => {
-        // JS bundle 前固定使用动效主题的深色启动壳，与入口／store 保持一致。
-        // const STORAGE_KEY = "zcode-theme";
-        const DEFAULT_THEME = "zai-motion";
-        const BROWSER_THEME_COLORS = {
-          dark: "#161616",
-          light: "#f8f8f8",
-        };
-
-        const normalizeResolvedTheme = (theme) => {
-          if (theme === "dark") return "dark";
-          if (theme === "light") return "light";
-          if (theme === "zai-dark" || theme === "zai-motion") return "dark";
-          if (theme === "zai-light") return "light";
-          return theme;
-        };
-
-        const syncBrowserThemeSurface = (theme) => {
-          document.documentElement.setAttribute("data-zcode-browser-theme-surface", theme);
-          document.documentElement.style.colorScheme = theme;
-          document
-            .querySelector('meta[name="theme-color"]')
-            ?.setAttribute("content", BROWSER_THEME_COLORS[theme]);
-          document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme);
-        };
-
+        // 在样式表和 React 之前应用浏览器偏好；有效值的规则与 useTheme.ts 相同。
+        let saved;
         try {
-          // 暂停读取主题记忆；保留旧值，每次启动均使用动效主题。
-          // const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
-          const saved = DEFAULT_THEME;
-          const resolved =
-            saved === "system"
-              ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light"
-              : normalizeResolvedTheme(saved);
-          const finalTheme = resolved === "dark" ? "dark" : "light";
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", finalTheme);
-          syncBrowserThemeSurface(finalTheme);
-          if (finalTheme === "dark") {
-            document.documentElement.classList.add("dark");
-          }
+          saved = localStorage.getItem("zcode-theme");
         } catch {
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", "dark");
-          syncBrowserThemeSurface("dark");
-          document.documentElement.classList.add("dark");
+          // 存储不可用时使用首次打开的动效主题。
         }
+        let theme;
+        switch (saved) {
+          case "light":
+          case "zai-light":
+            theme = "zai-light";
+            break;
+          case "dark":
+          case "zai-dark":
+            theme = "zai-dark";
+            break;
+          case "system":
+            theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "zai-dark"
+              : "zai-light";
+            break;
+          default:
+            theme = "zai-motion";
+        }
+        const scheme = theme === "zai-light" ? "light" : "dark";
+        const root = document.documentElement;
+        root.setAttribute("data-zcode-browser-theme-surface", scheme);
+        root.style.colorScheme = scheme;
+        root.classList.add(`theme-zai-${scheme}`);
+        if (scheme === "dark") root.classList.add("dark");
+        if (theme === "zai-motion") root.classList.add("theme-zai-motion");
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute("content", scheme === "dark" ? "#161616" : "#f8f8f8");
+        document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme);
       })();
     </script>
     <style>
@@ -73,8 +63,7 @@
       }
 
       body {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #0f172a));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #e2e8f0));
+        color: var(--color-foreground, #e2e8f0);
         font-family:
           Inter,
           -apple-system,
@@ -83,9 +72,8 @@
           sans-serif;
       }
 
-      html[data-zcode-bootstrap-theme="light"] body {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #f8fafc));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #334155));
+      html[data-zcode-browser-theme-surface="light"] body {
+        color: var(--color-foreground, #334155);
       }
 
       html[data-zcode-browser-theme-surface],
@@ -93,13 +81,13 @@
       html[data-zcode-browser-theme-surface] #root {
         /* 修复原因：共享 UI 样式为 Electron vibrancy 强制透明根背景；浏览器入口必须用语义背景
            覆盖该桌面专属行为，否则浏览器工具栏、overscroll 和页面画布会回退为系统白色。 */
-        background: var(--color-background, var(--zcode-bootstrap-bg, #161616)) !important;
+        background: var(--color-background, #161616) !important;
       }
 
       html[data-zcode-browser-theme-surface="light"],
       html[data-zcode-browser-theme-surface="light"] body,
       html[data-zcode-browser-theme-surface="light"] #root {
-        background: var(--color-background, var(--zcode-bootstrap-bg, #f8f8f8)) !important;
+        background: var(--color-background, #f8f8f8) !important;
       }
 
       .zcode-boot-loading {
@@ -108,14 +96,6 @@
         justify-content: center;
         width: 100%;
         height: 100%;
-        /* Bugfix: UI 全局样式会把 body/#root 置为透明，预渲染壳必须自己承接主题背景，否则深色主题会露出浏览器白底。 */
-        background: var(--zcode-bootstrap-bg, var(--color-background, #0f172a));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #e2e8f0));
-      }
-
-      html[data-zcode-bootstrap-theme="light"] .zcode-boot-loading {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #f8fafc));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #334155));
       }
 
       .zcode-boot-loading__logo-shell {

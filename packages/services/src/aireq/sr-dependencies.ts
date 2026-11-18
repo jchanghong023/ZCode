@@ -10,10 +10,10 @@ export interface AIReqSrDependencyDocument {
 
 /** Read the repository material, never the legacy group/SR dependency metadata. */
 export function readSrDependencies(
-  group: AIReqRequirementGroup,
+  group: Pick<AIReqRequirementGroup, "id" | "srIds" | "proposalRound" | "srDependencyFile">,
   material = group.srDependencyFile,
   requireEstimates = true,
-): { document?: AIReqSrDependencyDocument; issue?: string } {
+): { document: AIReqSrDependencyDocument; issue?: never } | { document?: never; issue: string } {
   const root = `docs/requirements/${group.id}/`;
   if (
     !material ||

@@ -6,7 +6,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   deriveAIReqTodos,
-  fullReviewReadyBlocker,
   requirementsReviewReadyBlocker,
   proposalUpdatedTime,
   proposalStateLabel,
@@ -79,11 +78,6 @@ export function AIReqProjectOverviewPage({
             !requirementsReviewReadyBlocker(proposal) &&
             proposal.originalReview?.humanDecision?.reviewId !== proposal.originalReview?.id
           );
-        if (todo.kind === "full-review")
-          return (
-            !fullReviewReadyBlocker(proposal) &&
-            proposal.review?.humanDecision?.reviewId !== proposal.review?.id
-          );
         return todo.kind === "alignment";
       })
     : [];
@@ -98,10 +92,10 @@ export function AIReqProjectOverviewPage({
   const pendingLabel = zh ? "待人工处理提案" : "Proposals awaiting people";
   const filters: { id: ConfirmationFilter; label: string }[] = [
     { id: "all", label: pendingLabel },
-    { id: "review", label: zh ? "人工判断／放行" : "Review decisions" },
+    { id: "review", label: zh ? "需求评审确认" : "Requirements review confirmation" },
     { id: "business", label: zh ? "业务确认" : "Business confirmation" },
     { id: "development", label: zh ? "开发确认" : "Development confirmation" },
-    { id: "testing", label: zh ? "测试视角确认" : "Testing confirmation" },
+    { id: "testing", label: zh ? "测试确认" : "Testing confirmation" },
   ];
   const allPendingCount = new Set(todos.map((todo) => todo.irId)).size;
   const pendingIds = new Set(matches(confirmationFilter).map((todo) => todo.irId));

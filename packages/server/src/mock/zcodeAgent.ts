@@ -27,6 +27,7 @@ import {
   type WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IZCodeAgentService } from "@zcode/services";
+import type { AIReqNativeBridge } from "../aireq/contract.js";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
 import { readPrototypeSkills } from "../aireq/skills.js";
 import {
@@ -108,13 +109,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     private readonly runtime: MockRuntime,
     private readonly business?: {
       admitNative(sessionId: string, commandId: string, text: string): void;
-      beginNative(sessionId: string, commandId: string, text: string): void;
-      completeNative(sessionId: string, commandId: string, text: string): string;
+      beginNative: AIReqNativeBridge["beginNative"];
+      completeNative: AIReqNativeBridge["completeNative"];
       discardNative(sessionId: string, commandId: string): void;
       seedNative(sessionId: string): string | undefined;
-      getNativeBinding(
-        sessionId: string,
-      ): { providerId: string; modelId: string; reasoning: string } | undefined;
+      getNativeBinding: AIReqNativeBridge["getNativeBinding"];
       isPublishedNativeSession(sessionId: string): boolean;
       actorKey(): string;
       registerNativeDraft(
@@ -282,12 +281,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
     if (this.business) {
       try {
-        // 排队接纳时前项尚未提交；每个实际 turn 开始时才冻结本轮业务版本，完成仍核对该快照。
-        this.business.beginNative(session.sessionId, commandId, text);
+        this.business.beginNative(session.sessionId, commandId, text, modelSelection);
         await this.sleep(80);
         if (owner.signal.aborted || session.activeTurn !== owner)
           return this.finalizeInterruptedTurn(session, turnHeader, owner);
-        const reply = this.business.completeNative(session.sessionId, commandId, text);
+        const { reply, modelId } = this.business.completeNative(session.sessionId, commandId, text);
         this.appendRow(session, {
           kind: "assistantText",
           rowId: this.nextRowId(session),
@@ -298,7 +296,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           assistantResponseId: responseId,
           text: reply,
           state: "complete",
-          model,
+          model: modelId ?? model,
         });
         this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
       } catch (error) {

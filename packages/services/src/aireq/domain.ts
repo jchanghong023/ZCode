@@ -1,4 +1,5 @@
 import type {
+  AIReqAlignment,
   AIReqFileVersion,
   AIReqProposalState,
   AIReqRequirementGroup,
@@ -9,6 +10,7 @@ import type {
   AIReqReview,
   AIReqTodo,
 } from "./types.js";
+import { srProgress } from "./progress.js";
 import { readSrDependencies } from "./sr-dependencies.js";
 
 /** 正式需求是同一项目内的只读查看，不绑定提案或开发会话。 */
@@ -46,6 +48,8 @@ export function requirementsReviewInputs(
   const file = group.files.find((item) => item.path === group.documentPath);
   // 文件名不能冒充有效材料：只接受 owner 当前快照中相同对象、相同版本的非空业务文档。
   if (
+    group.requirementsCheck?.issues.length !== 0 ||
+    (group.returnFeedback && !group.returnFeedback.resumedAt) ||
     !snapshot ||
     !snapshot.digest ||
     snapshot.projectId !== group.projectId ||
@@ -64,6 +68,8 @@ export function requirementsReviewInputs(
 export function requirementsReviewStartBlocker(group: AIReqRequirementGroup): string | undefined {
   if (group.returnFeedback && !group.returnFeedback.resumedAt)
     return "请先通过业务讨论补充退回意见。";
+  const issue = group.requirementsCheck?.issues[0];
+  if (issue) return `${issue.path}：${issue.reason}`;
   if (!requirementsReviewInputs(group)) return "请先讨论并生成 IR 原始需求文档。";
 }
 export function requirementsReviewCurrent(group: AIReqRequirementGroup): boolean {
@@ -72,7 +78,9 @@ export function requirementsReviewCurrent(group: AIReqRequirementGroup): boolean
   return Boolean(
     files &&
     review &&
+    review.kind === "original" &&
     !review.invalidatedReason &&
+    review.snapshotDigest === fileVersions(files) &&
     review.inputFiles &&
     sameFileVersions(files, review.inputFiles),
   );
@@ -106,26 +114,37 @@ export function requirementsDecisionCurrent(
     sameFileVersions(files, decision.inputFiles),
   );
 }
+
+function reviewAgentReportsReady(review: AIReqReview, ids: string[]): boolean {
+  return ids.every((id) =>
+    review.agents?.some(
+      (agent) => agent.id === id && agent.status === "completed" && Boolean(agent.report.trim()),
+    ),
+  );
+}
+
+function reviewOutputPending(review: AIReqReview): boolean {
+  return Boolean(
+    review.agents?.some(
+      (agent) =>
+        agent.status === "running" ||
+        (agent.status === "pending" &&
+          (agent.id !== "summary" || reviewAgentReportsReady(review, ["a", "b", "c"]))),
+    ),
+  );
+}
 function reviewReadyIssue(
   review: AIReqReview | undefined,
   current: boolean,
   ids: string[],
 ): string | undefined {
-  if (!review) return "尚未发起当前版本评审。";
-  if (!current) return "材料版本已变化，旧评审已失效，请重新评审。";
-  if (!review.report.trim()) return "评审报告缺失或不可读取，不能人工放行。";
-  if (
-    ids.some(
-      (id) =>
-        !review.agents?.some(
-          (agent) =>
-            agent.id === id && agent.status === "completed" && Boolean(agent.report.trim()),
-        ),
-    )
-  )
-    return "评审失败、暂缓或未完成，不能人工放行。";
-  if (review.findings?.some((finding) => finding.level === "blocking"))
-    return "存在阻断问题，请修改材料后重新评审。";
+  if (!review) return "尚未接纳当前版本评审。";
+  if (!current) return "材料版本已变化，旧评审已失效。";
+  if (review.agents?.some((agent) => agent.status === "failed"))
+    return "评审执行失败，请重试当前版本。";
+  if (reviewOutputPending(review)) return "评审报告尚未齐备，请等待评审完成。";
+  if (!review.report.trim() || !reviewAgentReportsReady(review, ids))
+    return "评审报告缺失或不可读取，请重试当前版本。";
 }
 export function requirementsReviewReadyBlocker(group: AIReqRequirementGroup): string | undefined {
   return (
@@ -137,14 +156,18 @@ export function requirementsReviewBlocker(group: AIReqRequirementGroup): string 
   return (
     requirementsReviewReadyBlocker(group) ??
     (!group.originalReview?.passed ||
-    group.originalReview.humanDecision?.reviewId !== group.originalReview.id
-      ? "原始需求评审完成后仍需人工通过。"
+    group.originalReview.humanDecision?.reviewId !== group.originalReview.id ||
+    group.originalReview.humanDecision.snapshotDigest !== group.originalReview.snapshotDigest
+      ? "原始需求评审完成后仍需业务人员确认。"
       : undefined)
   );
 }
 export function fullReviewCurrent(group: AIReqRequirementGroup): boolean {
   return Boolean(
+    group.solutionCheck?.issues.length === 0 &&
+    !(group.returnFeedback && !group.returnFeedback.resumedAt) &&
     group.review &&
+    group.review.kind === "full" &&
     !group.review.invalidatedReason &&
     group.review.snapshotDigest === proposalVersion(group) &&
     group.review.inputFiles &&
@@ -158,21 +181,41 @@ export function fullReviewReadyBlocker(group: AIReqRequirementGroup): string | u
     reviewReadyIssue(group.review, fullReviewCurrent(group), ["a", "b", "c", "summary"])
   );
 }
-export function fullReviewBlocker(group: AIReqRequirementGroup): string | undefined {
+/** A report with negative findings is complete; only failed or missing output may be rerun. */
+export function proposalReviewCanRetry(group: AIReqRequirementGroup, full: boolean): boolean {
+  const review = full ? group.review : group.originalReview;
+  const current = full
+    ? fullReviewCurrent(group) &&
+      hasCurrentProposalSolution(group) &&
+      !requirementsReviewBlocker(group)
+    : requirementsReviewCurrent(group) && !requirementsReviewStartBlocker(group);
+  if (!review || !current) return false;
+  if (!reviewReadyIssue(review, true, full ? ["a", "b", "c", "summary"] : ["a"])) return false;
   return (
-    fullReviewReadyBlocker(group) ??
-    (!group.review?.passed || group.review.humanDecision?.reviewId !== group.review.id
-      ? "完整审查与综合终审完成后仍需人工放行。"
-      : undefined)
+    Boolean(review.agents?.some((agent) => agent.status === "failed")) ||
+    !reviewOutputPending(review)
+  );
+}
+
+export function proposalAlignmentCurrent(
+  group: AIReqRequirementGroup,
+  entry: AIReqAlignment,
+): boolean {
+  const review = group.review;
+  return Boolean(
+    review &&
+    entry.reviewId === review.id &&
+    entry.snapshotDigest === review.snapshotDigest &&
+    entry.version === proposalVersion(group),
   );
 }
 export function alignmentBlocker(group: AIReqRequirementGroup): string | undefined {
   return (
-    fullReviewBlocker(group) ??
+    fullReviewReadyBlocker(group) ??
     (["business", "development", "testing"].some(
       (perspective) =>
         !group.alignment?.some(
-          (entry) => entry.perspective === perspective && entry.version === proposalVersion(group),
+          (entry) => entry.perspective === perspective && proposalAlignmentCurrent(group, entry),
         ),
     )
       ? "业务、开发、测试三个视角必须分别确认当前完整材料版本。"
@@ -196,7 +239,25 @@ export function proposalDeliveryCurrent(group: AIReqRequirementGroup): boolean {
   return Boolean(
     group.proposalDelivery &&
     hasCurrentProposalSolution(group) &&
-    group.proposalDelivery.version === proposalVersion(group),
+    group.proposalDelivery.version === proposalVersion(group) &&
+    sameFileVersions(group.files, group.proposalDelivery.files),
+  );
+}
+
+/** Publication identity stays frozen even when verification subsequently finds missing files. */
+export function proposalPrCurrent(group: AIReqRequirementGroup): boolean {
+  const delivery = group.proposalDelivery;
+  const pr = group.requirementsPr;
+  return Boolean(
+    delivery?.candidate &&
+    delivery.pushedAt &&
+    delivery.pushedCandidate === delivery.candidate &&
+    delivery.prCandidate === delivery.candidate &&
+    delivery.branch?.name &&
+    pr?.sourceBranch === delivery.branch.name &&
+    pr.number &&
+    pr.number > 0 &&
+    (pr.status === "opened" || pr.status === "merged"),
   );
 }
 
@@ -210,7 +271,6 @@ export const MATERIAL_KIND_LABELS = {
   st: "ST 报告",
   delivery: "交付说明",
   "test-plan": "测试方案",
-  acceptance: "整体验收",
   attachment: "附件",
   "ir-acceptance-report": "IR 验收报告",
   "ir-final-pr": "最终 PR",
@@ -227,7 +287,6 @@ export function requirementMaterialName(
   if (path.endsWith("/proposal.md")) return "SR 提案";
   if (path.endsWith("/tasks.md")) return "开发任务";
   if (path.endsWith("/test-plan.md")) return "测试方案";
-  if (path.endsWith("/acceptance.md")) return "整体验收";
   if (path.endsWith("/spec.md")) {
     const sr = srs.find((item) => item.documentPath === path);
     return sr ? `SR 需求 · ${sr.title}` : "SR 需求";
@@ -236,9 +295,8 @@ export function requirementMaterialName(
 
 export function completeProposalPaths(group: AIReqRequirementGroup): string[] {
   return [
-    group.documentPath,
+    `docs/requirements/${group.id}/requirements.md`,
     `docs/requirements/${group.id}/sr-dependencies.json`,
-    `docs/requirements/${group.id}/acceptance.md`,
     ...group.srIds.flatMap((id) => [
       `openspec/changes/${id}/proposal.md`,
       `openspec/changes/${id}/design.md`,
@@ -250,6 +308,7 @@ export function completeProposalPaths(group: AIReqRequirementGroup): string[] {
 }
 export function hasCurrentProposalSolution(group: AIReqRequirementGroup): boolean {
   return Boolean(
+    group.solutionCheck?.issues.length === 0 &&
     requirementsReviewInputs(group) &&
     group.snapshot &&
     sameFileVersions(group.files, group.snapshot.files) &&
@@ -291,24 +350,9 @@ export function proposalState(group: AIReqRequirementGroup): AIReqProposalState 
   if (!hasCurrentProposalSolution(group)) return "solution-incomplete";
   if (fullReviewReadyBlocker(group)) return "solution-review-pending";
   if (alignmentBlocker(group)) return "solution-confirmation-pending";
-  const delivery = group.proposalDelivery;
-  const pr = group.requirementsPr;
-  if (
-    delivery &&
-    proposalDeliveryCurrent(group) &&
-    sameFileVersions(group.files, delivery.files) &&
-    delivery.candidate &&
-    delivery.pushedAt &&
-    delivery.pushedCandidate === delivery.candidate &&
-    delivery.prCandidate === delivery.candidate &&
-    delivery.branch?.name &&
-    pr?.sourceBranch === delivery.branch.name &&
-    pr.number &&
-    pr.number > 0 &&
-    (pr.status === "opened" || pr.status === "merged")
-  )
-    return "merge-pending";
-  return "submission-pending";
+  return proposalDeliveryCurrent(group) && proposalPrCurrent(group)
+    ? "merge-pending"
+    : "submission-pending";
 }
 
 /** 四个操作工作区只负责导航；业务状态始终由 proposalState 的八态决定。 */
@@ -320,19 +364,12 @@ export function proposalProgressIndex(
     case "not-started":
       return 0;
     case "ir-review-pending":
-      // 失败或阻断报告仍应在评审工作区可读，不能因未晋级而丢失报告入口。
-      return group.returnFeedback && !group.returnFeedback.resumedAt
-        ? 0
-        : requirementsReviewCurrent(group)
-          ? 1
-          : 0;
     case "ir-confirmation-pending":
       return 1;
     case "solution-incomplete":
     case "solution-review-pending":
-      return 2;
     case "solution-confirmation-pending":
-      return fullReviewBlocker(group) ? 2 : 3;
+      return 2;
     case "submission-pending":
     case "merge-pending":
       return 3;
@@ -357,16 +394,17 @@ export function proposalViewedIndex(
 export function proposalActorLabel(group: AIReqRequirementGroup): string {
   switch (proposalState(group)) {
     case "not-started":
+      return `业务 ${group.proposalLocation?.employeeId ?? "提出人"} 完善需求`;
     case "ir-review-pending":
-      return `业务 ${group.proposalLocation?.employeeId ?? "提出人"} 补充需求或评审`;
+      return "等待需求评审报告";
     case "ir-confirmation-pending":
       return "人工确认当前 IR 评审";
     case "solution-incomplete":
       return `方案开发 ${group.developerAcceptance?.employeeId ?? "待确认"}`;
     case "solution-review-pending":
-      return "完整方案送审与处理审查意见";
+      return "等待完整方案审查报告";
     case "solution-confirmation-pending":
-      return fullReviewBlocker(group) ? "人工放行当前完整方案" : "业务、开发、测试分别确认当前版本";
+      return "业务、开发、测试分别确认当前版本";
     case "submission-pending":
       return "确认交付并提交整包文档 PR";
     case "merge-pending":
@@ -398,8 +436,7 @@ export function conversationReadOnlyReason(
     selection.discussionPhase !== (proposal.proposalStage ?? "requirements")
   )
     return "正在查看另一讨论阶段的历史，只读。";
-  if (proposal.status === "requirements-pr")
-    return "需求 MR 已创建，等待后台核验合入；当前版本只读。";
+  if (proposalPrCurrent(proposal)) return "需求 MR 已创建，等待后台核验合入；当前版本只读。";
 }
 
 /** 待办只由 owner 第一手业务事实派生，读取时不按当前项目筛选。 */
@@ -460,82 +497,60 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
         );
       continue;
     }
-    if (
-      state === "submission-pending" &&
-      proposalDeliveryCurrent(group) &&
-      group.proposalDelivery?.pushedAt &&
-      !group.requirementsPr
-    ) {
+    if (state === "submission-pending" && group.proposalDelivery?.publishError) {
       push(
         group,
         "failure",
-        "文档已推送但创建 PR 失败，请重试当前候选",
+        group.proposalDelivery.publishError.message,
         "development",
         contact.development,
       );
       continue;
     }
-    const original = state === "ir-review-pending" || state === "ir-confirmation-pending";
-    const solutionReview =
-      state === "solution-review-pending" || state === "solution-confirmation-pending";
-    const review = original ? group.originalReview : solutionReview ? group.review : undefined;
-    const current = original
-      ? requirementsReviewCurrent(group)
-      : solutionReview && fullReviewCurrent(group);
-    if (current && review?.agents?.some((agent) => agent.status === "failed")) {
+    const original = state === "ir-review-pending";
+    if (
+      (original || state === "solution-review-pending") &&
+      proposalReviewCanRetry(group, !original)
+    ) {
       push(
         group,
         "failure",
         "处理评审失败并重试",
         original ? "business" : "development",
         original ? contact.business : contact.development,
+        {
+          selection: {
+            projectId: group.projectId,
+            irId: group.id,
+            proposalStep: original ? "requirements-review" : "solution",
+          },
+        },
       );
       continue;
     }
-    if (
-      current &&
-      review?.agents?.some((agent) => agent.status === "running" || agent.status === "pending")
-    )
-      continue;
-    if (state === "not-started" || state === "ir-review-pending") {
-      push(
-        group,
-        current ? "original-review" : "business-discussion",
-        current ? "处理 IR 评审意见" : "完善业务需求并送审",
-        "business",
-        contact.business,
-      );
+    if (state === "not-started") {
+      push(group, "business-discussion", "完善业务需求", "business", contact.business);
     } else if (state === "ir-confirmation-pending") {
       push(group, "original-review", "人工确认当前 IR 评审", "business", contact.business);
-    } else if (state === "solution-incomplete" || state === "solution-review-pending") {
-      push(
-        group,
-        state === "solution-review-pending" && current ? "full-review" : "solution",
-        state === "solution-review-pending" && current
-          ? "处理完整审查意见"
-          : "拆分 SR 并完善完整材料",
-        "development",
-        contact.development,
-      );
+    } else if (state === "solution-incomplete") {
+      push(group, "solution", "拆分 SR 并完善完整材料", "development", contact.development);
     } else if (state === "solution-confirmation-pending") {
-      if (fullReviewBlocker(group)) {
-        push(group, "full-review", "人工放行当前完整方案", "development", contact.development);
-        continue;
-      }
-      const version = proposalVersion(group);
       for (const perspective of ["business", "development", "testing"] as const)
         if (
           !group.alignment?.some(
-            (entry) => entry.perspective === perspective && entry.version === version,
+            (entry) => entry.perspective === perspective && proposalAlignmentCurrent(group, entry),
           )
         )
           push(
             group,
             "alignment",
-            `${{ business: "业务", development: "开发", testing: "测试" }[perspective]}视角确认`,
+            `确认${{ business: "业务", development: "开发", testing: "测试" }[perspective]}角色`,
             perspective,
             contact[perspective],
-            { perspective },
+            {
+              perspective,
+              selection: { projectId: group.projectId, irId: group.id, proposalStep: "solution" },
+            },
           );
     } else if (state === "submission-pending") {
       push(group, "publish", "提交整包文档 PR", "development", contact.development);
@@ -543,13 +558,16 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
   }
   for (const group of view.groups) {
     for (const sr of view.srs.filter(
-      (row) => row.projectId === group.projectId && row.irId === group.id,
+      (row) =>
+        row.projectId === group.projectId && row.irId === group.id && group.srIds.includes(row.id),
     )) {
-      if (
-        sr.testAcceptance?.outcome === "passed" &&
-        sr.testAcceptance.codeVersion === sr.codeMerge?.commit
-      )
+      if (srProgress(sr) === 100) continue;
+      if (sr.codeMerge) {
+        push(group, "testing", "验收首次合入版本", "testing", sr.testingEmployeeId, {
+          srId: sr.id,
+        });
         continue;
+      }
       if (sr.lastAnalysisFailure || sr.progress?.analysisFailure) {
         // 修复：通用 failure 同时代表分支和评审失败，单列分析失败才能稳定直达对应 SR 的重试入口。
         push(
@@ -564,19 +582,6 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
       }
       if (sr.trackingBranch?.status === "failed") {
         push(group, "failure", "处理 SR 开发分支创建失败", "development", sr.developerEmployeeId, {
-          srId: sr.id,
-        });
-      } else if (sr.developmentIssues?.some((issue) => issue.status === "open")) {
-        push(
-          group,
-          "fix",
-          "处理测试失败问题并等待修复合入",
-          "development",
-          sr.developerEmployeeId,
-          { srId: sr.id },
-        );
-      } else if (sr.codeMerge) {
-        push(group, "testing", "记录当前合入版本测试验收", "testing", sr.testingEmployeeId, {
           srId: sr.id,
         });
       } else

@@ -6,28 +6,27 @@ import type {
   AIReqRequirementGroup,
   AIReqMaterialView,
 } from "@zcode/services/aireq";
-import { proposalVersion } from "@zcode/services/aireq";
-import {
-  group,
-  systemRequirement,
-  sessionRef,
-  prototypeDefaultCommit,
-} from "./fixture-builders.js";
+import { completeProposalPaths, proposalAlignmentCurrent } from "@zcode/services/aireq";
+import { group, systemRequirement, sessionRef } from "./fixture-builders.js";
 import { getEmployeeId } from "./identity.js";
 import { businessRule } from "./errors.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases, addPrototypeRelease } from "./project-releases.js";
-import { prototypeProposalDependencies, prototypeProposalSolution } from "./proposal-flow.js";
-import { prototypeMaterial, requirementMaterials } from "./materials.js";
+import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
-  createPrototypeRequirementsReview,
-  prototypeReviewSessions,
-} from "./requirements-review.js";
+  appendMaterialDiscussion,
+  checkProposalMaterials,
+  prototypeMaterial,
+  solutionMaterials,
+} from "./materials.js";
+import { prototypeMaterialIssue } from "./recovery.js";
+import { acceptPrototypeReview, type PrototypeReviewRun } from "./requirements-review.js";
 import {
-  beginPrototypeProposalMrLifecycle,
-  ensurePrototypeProposalMr,
+  closePrototypeProposalMr,
+  preparePrototypeProposalCandidate,
+  publishPrototypeProposal,
 } from "./proposal-delivery.js";
-import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
+import { capturePrototypeMaterialHistory } from "./proposal-storage.js";
 
 function materialsFor(
   state: AIReqWorkflowView,
@@ -37,9 +36,35 @@ function materialsFor(
     (item) => item.projectId === proposal.projectId && item.irId === proposal.id,
   );
 }
+function checkMaterials(
+  state: AIReqWorkflowView,
+  proposal: AIReqRequirementGroup,
+  stage: "requirements" | "solution",
+): void {
+  const result = checkProposalMaterials(
+    proposal,
+    materialsFor(state, proposal),
+    stage,
+    state.documentFormats,
+    prototypeMaterialIssue,
+  );
+  if (stage === "requirements") {
+    proposal.requirementsCheck = result;
+    proposal.solutionCheck = undefined;
+  } else {
+    proposal.solutionCheck = result;
+    if (proposal.proposalSolution) proposal.proposalSolution.valid = !result.issues.length;
+  }
+}
 function snapshot(state: AIReqWorkflowView, proposal: AIReqRequirementGroup): void {
+  const required = new Set(completeProposalPaths(proposal));
   proposal.files = materialsFor(state, proposal)
-    .filter((item) => item.valid)
+    .filter(
+      (item) =>
+        item.valid &&
+        required.has(item.path) &&
+        (item.path === proposal.documentPath || proposal.solutionCheck),
+    )
     .map(({ path, sha256, size }) => ({ path, sha256, size }));
   proposal.snapshot = createRequirementSnapshot({
     version: 1,
@@ -62,12 +87,9 @@ function invalidate(
   original: boolean,
 ): void {
   proposal.materialHistory ??= [];
-  proposal.materialHistory.push({
-    version: proposalVersion(proposal),
-    reason,
-    changedAt: new Date().toISOString(),
-    materials: structuredClone(materialsFor(state, proposal)),
-  });
+  proposal.materialHistory.push(
+    capturePrototypeMaterialHistory(state, proposal, materialsFor(state, proposal), reason),
+  );
   if (proposal.review) {
     proposal.review.invalidatedReason = reason;
     proposal.reviewHistory ??= [];
@@ -80,17 +102,18 @@ function invalidate(
     proposal.originalReviewHistory.push(structuredClone(proposal.originalReview));
     proposal.originalReview = undefined;
   }
+  if (original) proposal.developerAcceptance = undefined;
   if (proposal.alignment?.length) {
     proposal.alignmentHistory ??= [];
     proposal.alignmentHistory.push(...proposal.alignment);
   }
   proposal.alignment = [];
-  proposal.confirmation = undefined;
   if (proposal.proposalDelivery) {
     proposal.proposalDeliveryHistory ??= [];
     proposal.proposalDeliveryHistory.push(structuredClone(proposal.proposalDelivery));
     proposal.proposalDelivery = undefined;
   }
+  proposal.requirementsPr = undefined;
   proposal.revision += 1;
 }
 function replaceMaterial(
@@ -146,12 +169,21 @@ export function applyProposalMutation(
   projectId: string,
   irId: string | undefined,
   operation: AIReqOperationReceipt,
+  reviewRuns: PrototypeReviewRun[],
   solutionDiscussion?: string,
 ): string | undefined {
   const proposal = [...state.groups, ...state.drafts].find(
     (item) => item.id === irId && item.projectId === projectId,
   );
   const at = new Date().toISOString();
+  const acceptReview = (
+    target: AIReqRequirementGroup,
+    kind: PrototypeReviewRun["kind"],
+    retry = false,
+  ) => {
+    const run = acceptPrototypeReview(state, target, kind, getEmployeeId(), retry);
+    if (run) reviewRuns.push(run);
+  };
   switch (action.type) {
     case "importIdeas": {
       if (!action.originalTexts.length || action.originalTexts.some((text) => !text.trim()))
@@ -232,6 +264,15 @@ export function applyProposalMutation(
       operation.type = "想法转入版本";
       break;
     }
+    case "saveDocumentFormats":
+      state.documentFormats = Object.fromEntries(
+        Object.entries(action.documentFormats).map(([name, sections]) => [
+          name,
+          sections.map((section) => section.trim()),
+        ]),
+      ) as typeof action.documentFormats;
+      operation.type = "保存文档格式";
+      break;
     case "createRelease":
       addPrototypeRelease({
         id: `demo-release-${state.revision}`,
@@ -281,7 +322,7 @@ export function applyProposalMutation(
         );
         operation.irIds!.push(item.id);
         if (entry.businessDocument !== undefined) {
-          // 导入只接纳本 IR 业务正文，不调用生成流程或提前建立 SR／评审批准。
+          // 检查已提供正文，不重写导入字节；格式问题保留给本 IR 澄清。
           state.materials.push(
             prototypeMaterial({
               projectId,
@@ -292,7 +333,9 @@ export function applyProposalMutation(
               content: entry.businessDocument,
             }),
           );
+          checkMaterials(state, item, "requirements");
           snapshot(state, item);
+          acceptReview(item, "original");
         }
       });
       operation.type = "批量导入需求";
@@ -310,7 +353,8 @@ export function applyProposalMutation(
       const sr = state.srs.find(
         (item) => item.projectId === projectId && item.irId === irId && item.id === action.srId,
       )!;
-      if (sr.trackingBranch?.status === "ready") break;
+      const branch = sr.trackingBranch!;
+      if (branch.status !== "failed") break;
       const internal = proposal! as InternalRequirementGroup;
       internal.branchCreationAttempts ??= {};
       internal.branchCreationAttempts[sr.id] = (internal.branchCreationAttempts[sr.id] ?? 0) + 1;
@@ -319,9 +363,9 @@ export function applyProposalMutation(
         (id) => id !== sr.id,
       );
       sr.trackingBranch = {
-        name: `sr/${sr.id}`,
-        baseCommit: proposal!.merge!.commit,
-        createdAt: at,
+        name: branch.name,
+        baseCommit: branch.baseCommit,
+        createdAt: branch.createdAt,
         pushedAt: nextFailure ? "" : at,
         status: nextFailure ? "failed" : "ready",
         ...(nextFailure ? { error: "本次创建开发分支失败，请重试。" } : {}),
@@ -351,8 +395,14 @@ export function applyProposalMutation(
       break;
     case "acceptProposal": {
       const review = proposal!.originalReview!;
+      if (review.humanDecision) break;
       review.passed = true;
-      review.humanDecision = { employeeId: getEmployeeId(), decidedAt: at, reviewId: review.id };
+      review.humanDecision = {
+        employeeId: getEmployeeId(),
+        decidedAt: at,
+        reviewId: review.id,
+        snapshotDigest: review.snapshotDigest,
+      };
       proposal!.proposalStage = "solution";
       proposal!.developerAcceptance = {
         employeeId: getEmployeeId(),
@@ -376,78 +426,49 @@ export function applyProposalMutation(
     case "runRequirementsReview":
     case "runFullReview": {
       const kind = action.type === "runFullReview" ? "full" : "original";
-      const prior = kind === "original" ? proposal!.originalReview : proposal!.review;
-      if (prior) {
-        const history =
-          kind === "original"
-            ? (proposal!.originalReviewHistory ??= [])
-            : (proposal!.reviewHistory ??= []);
-        history.push(structuredClone(prior));
-      }
-      proposal!.revision += 1;
-      const scenario = (proposal! as InternalRequirementGroup).reviewScenarios?.[kind] ?? "normal";
-      const review = createPrototypeRequirementsReview(
-        proposal!,
-        getEmployeeId(),
-        false,
-        kind,
-        scenario,
-      );
-      // “下一次”仅在本轮评审成功接纳的同一事务中消费；读取和旧结果释放不改变该输入。
-      delete (proposal! as InternalRequirementGroup).reviewScenarios?.[kind];
-      if (kind === "original") {
-        // 重审接纳依据当前材料事实；路由同时回到业务评审，不能继续绑定旧方案讨论。
-        proposal!.proposalStage = "requirements";
-        proposal!.originalReview = review;
-      } else {
-        proposal!.proposalStage = "solution";
-        proposal!.review = review;
-        proposal!.alignmentHistory ??= [];
-        proposal!.alignmentHistory.push(...(proposal!.alignment ?? []));
-        proposal!.alignment = [];
-        proposal!.confirmation = undefined;
-        if (proposal!.proposalDelivery) {
-          proposal!.proposalDeliveryHistory ??= [];
-          proposal!.proposalDeliveryHistory.push(structuredClone(proposal!.proposalDelivery));
-        }
-        proposal!.proposalDelivery = undefined;
-      }
-      if (scenario === "hold") {
-        const internal = proposal! as InternalRequirementGroup;
-        internal.heldReviews ??= [];
-        internal.heldReviews.push(structuredClone(review));
-      }
-      const sessions = prototypeReviewSessions(review);
-      proposal!.sessions.push(...sessions);
-      state.sessions.push(...sessions);
-      operation.type = kind === "original" ? "原始需求评审" : "完整材料评审";
+      acceptReview(proposal!, kind, true);
+      operation.type = kind === "original" ? "重试需求评审" : "重试方案审查";
       break;
     }
-    case "approveFullReview":
-      proposal!.review!.passed = true;
-      // 新操作编号也不能重写同一轮首次人工放行的来源；版本门禁仍由命令接纳入口执行。
-      proposal!.review!.humanDecision ??= {
-        employeeId: getEmployeeId(),
-        decidedAt: at,
-        reviewId: proposal!.review!.id,
-      };
-      break;
-    case "confirmAlignment":
+    case "confirmAlignment": {
       proposal!.alignment ??= [];
       if (
         !proposal!.alignment.some(
-          (entry) => entry.perspective === action.perspective && entry.version === action.version,
+          (entry) =>
+            entry.perspective === action.perspective && proposalAlignmentCurrent(proposal!, entry),
         )
       )
         proposal!.alignment.push({
           perspective: action.perspective,
           version: action.version,
+          reviewId: action.reviewId,
+          snapshotDigest: action.snapshotDigest,
           employeeId: getEmployeeId(),
           confirmedAt: at,
         });
+      preparePrototypeProposalCandidate(
+        proposal!,
+        `sample-proposal-${state.revision}`,
+        getEmployeeId(),
+        at,
+      );
       break;
+    }
     case "generateRequirements":
     case "supplementRequirements": {
+      const existing = materialsFor(state, proposal!).find(
+        (item) => item.path === proposal!.documentPath,
+      );
+      const note = action.note.trim();
+      const content = /^#(?:[ \t]+|$)/.test(note)
+        ? note
+        : appendMaterialDiscussion(
+            existing?.content ??
+              `# ${proposal!.title}\n\n## 目标与范围\n\n${proposal!.originalText}`,
+            note,
+            "业务澄清",
+          );
+      if (existing?.content === content && proposal!.requirementsCheck?.issues.length === 0) break;
       invalidate(state, proposal!, "IR 业务需求文档发生变化，整包批准失效并重新进行前置评审", true);
       if (proposal!.proposalStage === "solution") {
         proposal!.proposalRound = (proposal!.proposalRound ?? 1) + 1;
@@ -462,77 +483,102 @@ export function applyProposalMutation(
         proposal!.sessions.push(session);
         state.sessions.push(session);
       }
-      const existing = materialsFor(state, proposal!).find(
-        (item) => item.path === proposal!.documentPath,
+      replaceMaterial(
+        state,
+        proposal!,
+        prototypeMaterial({
+          projectId,
+          irId: proposal!.id,
+          path: proposal!.documentPath,
+          kind: "ir",
+          content,
+        }),
       );
-      const material = existing
-        ? structuredClone(existing)
-        : requirementMaterials(projectId, proposal!.id, proposal!.title, [])[0]!;
-      material.content = `${material.content ?? ""}${existing ? "" : `\n\n## 原始短需求\n${proposal!.originalText}`}\n\n## 业务澄清\n${action.note.trim()}`;
-      material.size = new TextEncoder().encode(material.content).length;
-      replaceMaterial(state, proposal!, material);
       proposal!.proposalStage = "requirements";
       proposal!.status = "draft";
       if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;
       if (proposal!.returnFeedback) proposal!.returnFeedback.resumedAt = at;
       proposal!.requirementSupplements ??= [];
       proposal!.requirementSupplements.push({
-        note: action.note.trim(),
+        note,
         employeeId: getEmployeeId(),
         createdAt: at,
       });
+      checkMaterials(state, proposal!, "requirements");
       snapshot(state, proposal!);
+      acceptReview(proposal!, "original");
       break;
     }
     case "generateProposalSolution": {
-      // 原始评审已人工通过才可接纳方案；写回讨论路由，不把路由字段当业务状态。
-      proposal!.proposalStage = "solution";
+      const newSplit = proposal!.srIds.length === 0;
+      const rows = newSplit
+        ? ["业务操作与结果展示", "异常处理与恢复"].map((title, index) => {
+            const row = systemRequirement(
+              projectId,
+              proposal!.id,
+              `sr-${proposal!.id}-${index + 1}`,
+              `${proposal!.title} · ${title}`,
+            );
+            row.developerEmployeeId = proposal!.contacts?.development;
+            row.testingEmployeeId = proposal!.contacts?.testing;
+            return row;
+          })
+        : state.srs.filter((row) => row.projectId === projectId && row.irId === irId);
+      const current = materialsFor(state, proposal!);
+      const round = proposal!.proposalRound ?? 1;
+      const discussion = solutionDiscussion?.trim();
+      const dependencyInput = discussion?.startsWith("{") ? discussion : undefined;
+      const bundle = solutionMaterials(projectId, proposal!.id, rows);
+      for (const material of bundle) {
+        const prior = current.find((item) => item.path === material.path && item.round === round);
+        if (prior) material.content = prior.content;
+        if (discussion && !dependencyInput) {
+          material.content = appendMaterialDiscussion(material.content, discussion, "本轮方案讨论");
+        }
+      }
+      const dependency =
+        !dependencyInput && proposal!.srDependencyFile?.round === round
+          ? proposal!.srDependencyFile
+          : prototypeProposalDependencies(proposal!, rows, dependencyInput);
+      bundle.push(dependency);
+      if (
+        !newSplit &&
+        proposal!.solutionCheck?.issues.length === 0 &&
+        bundle.every((material) =>
+          current.some(
+            (prior) =>
+              prior.path === material.path &&
+              prior.round === round &&
+              prior.content === material.content,
+          ),
+        )
+      ) {
+        break;
+      }
       invalidate(
         state,
         proposal!,
         "SR 方案、拆分、依赖或测试材料发生变化，完整审查与三方确认失效",
         false,
       );
-      if (!proposal!.srIds.length) {
-        const rows = ["业务操作与结果展示", "异常处理与恢复"].map((title, index) => {
-          const row = systemRequirement(
-            projectId,
-            proposal!.id,
-            `sr-${proposal!.id}-${index + 1}`,
-            `${proposal!.title} · ${title}`,
-          );
-          row.developerEmployeeId = proposal!.contacts?.development;
-          row.testingEmployeeId = proposal!.contacts?.testing;
-          return row;
-        });
+      proposal!.proposalStage = "solution";
+      if (newSplit) {
         proposal!.srIds = rows.map((row) => row.id);
         state.srs.push(...rows);
       }
-      const rows = state.srs.filter((row) => row.projectId === projectId && row.irId === irId);
-      for (const material of requirementMaterials(
-        projectId,
-        proposal!.id,
-        proposal!.title,
-        rows,
-      ).filter((item) => item.kind !== "ir")) {
-        material.content += `\n\n## 本轮方案讨论\n${solutionDiscussion ?? ""}`;
-        material.size = new TextEncoder().encode(material.content).length;
-        replaceMaterial(state, proposal!, material);
-      }
-      const dependency = prototypeProposalDependencies(proposal!, rows, solutionDiscussion);
-      replaceMaterial(state, proposal!, dependency);
+      for (const material of bundle) replaceMaterial(state, proposal!, material);
       proposal!.srDependencyFile = dependency;
-      const summary = prototypeProposalSolution(proposal!, solutionDiscussion);
-      replaceMaterial(state, proposal!, summary);
       proposal!.proposalSolution = {
-        path: summary.path,
+        path: `openspec/changes/${rows[0]!.id}/design.md`,
         employeeId: getEmployeeId(),
         generatedAt: at,
-        round: proposal!.proposalRound ?? 1,
-        valid: true,
+        round,
+        valid: false,
       };
       proposal!.status = "solution-ready";
+      checkMaterials(state, proposal!, "solution");
       snapshot(state, proposal!);
+      acceptReview(proposal!, "full");
       break;
     }
     case "reviseProposalMaterial": {
@@ -543,26 +589,46 @@ export function applyProposalMutation(
           projectId,
           irId,
           operation,
+          reviewRuns,
         );
+      const note = action.note.trim();
+      const targets = materialsFor(state, proposal!).filter((item) =>
+        item.path.endsWith(action.target === "test-plan" ? "/test-plan.md" : "/design.md"),
+      );
+      const updated = targets.map((material) => ({
+        ...material,
+        content: /^#(?:[ \t]+|$)/.test(note)
+          ? note
+          : appendMaterialDiscussion(material.content, note, "修订"),
+      }));
+      if (
+        proposal!.solutionCheck?.issues.length === 0 &&
+        updated.every((material, index) => material.content === targets[index]?.content)
+      ) {
+        break;
+      }
       invalidate(
         state,
         proposal!,
         `${action.target === "test-plan" ? "测试方案" : "SR 方案"}修改，整包批准与三方确认失效`,
         false,
       );
-      for (const material of materialsFor(state, proposal!).filter((item) =>
-        action.target === "test-plan"
-          ? item.path.endsWith("/test-plan.md")
-          : item.path.endsWith("/design.md"),
-      )) {
-        material.content = `${material.content ?? ""}\n\n## 修订\n${action.note.trim()}`;
-        material.size = new TextEncoder().encode(material.content).length;
-        Object.assign(material, contentVersion(material.content ?? ""));
-      }
+      for (const material of updated) replaceMaterial(state, proposal!, material);
+      checkMaterials(state, proposal!, "solution");
       snapshot(state, proposal!);
+      acceptReview(proposal!, "full");
       break;
     }
-    case "returnProposal":
+    case "returnProposal": {
+      invalidate(state, proposal!, `需求退回补充：${action.reason.trim()}`, true);
+      proposal!.requirementsCheck = undefined;
+      proposal!.solutionCheck = undefined;
+      if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;
+      const returnedDocument = materialsFor(state, proposal!).find(
+        (item) => item.path === proposal!.documentPath,
+      );
+      if (returnedDocument) returnedDocument.valid = false;
+      snapshot(state, proposal!);
       proposal!.proposalStage = "requirements";
       proposal!.status = "draft";
       proposal!.returnFeedbackHistory ??= [];
@@ -570,6 +636,7 @@ export function applyProposalMutation(
       proposal!.returnFeedback = {
         employeeId: getEmployeeId(),
         returnedAt: at,
+        round: proposal!.proposalRound ?? 1,
         reason: action.reason.trim(),
       };
       proposal!.proposalRound = (proposal!.proposalRound ?? 1) + 1;
@@ -586,61 +653,13 @@ export function applyProposalMutation(
         state.sessions.push(session);
       }
       break;
-    case "confirmProposal":
-      if (proposal!.proposalDelivery) {
-        proposal!.proposalDeliveryHistory ??= [];
-        proposal!.proposalDeliveryHistory.push(structuredClone(proposal!.proposalDelivery));
-      }
-      proposal!.proposalDelivery = {
-        candidate: `sample-proposal-${state.revision}`,
-        version: proposalVersion(proposal!),
-        files: structuredClone(proposal!.files),
-        confirmedBy: getEmployeeId(),
-        confirmedAt: at,
-      };
-      proposal!.confirmation = {
-        operationId: operation.operationId,
-        snapshotDigest: proposal!.snapshot!.digest,
-        confirmedAt: at,
-      };
-      proposal!.requirementsPr = undefined;
-      break;
-    case "publishProposal": {
-      const delivery = proposal!.proposalDelivery!;
-      if (
-        delivery.pushedCandidate === action.candidate &&
-        proposal!.requirementsPr?.number &&
-        delivery.prCandidate === action.candidate
-      ) {
-        // 初始已有 PR 可能尚无内部观测；显式发布启动原候选，已有窗口由 owner 幂等保留。
-        beginPrototypeProposalMrLifecycle(proposal!);
-        operation.type = "复用当前版本的文档 PR，不重复推送或创建";
-        break;
-      }
-      delivery.branch ??= {
-        name: readPrototypeProposalPrHandoff(proposal!).branch,
-        baseCommit: prototypeDefaultCommit(state, projectId),
-        createdAt: at,
-        pushedAt: at,
-      };
-      delivery.pushedCandidate = action.candidate;
-      delivery.pushedAt = at;
-      ensurePrototypeProposalMr(proposal!);
-      beginPrototypeProposalMrLifecycle(proposal!);
-      delivery.mergeCheck = {
-        status: "waiting",
-        message: "文档 PR 等待合并，核验当前版本材料后转正。",
-      };
-      proposal!.status = "requirements-pr";
-      break;
     }
+    case "publishProposal":
+      if (publishPrototypeProposal(state, proposal!, at))
+        operation.type = "复用当前版本的文档 PR，不重复推送或创建";
+      break;
     case "closeProposalPr":
-      proposal!.requirementsPr!.status = "closed";
-      proposal!.proposalDeliveryHistory ??= [];
-      proposal!.proposalDeliveryHistory.push(structuredClone(proposal!.proposalDelivery!));
-      proposal!.proposalDelivery = undefined;
-      proposal!.confirmation = undefined;
-      proposal!.status = "solution-ready";
+      closePrototypeProposalMr(proposal!, `sample-proposal-${state.revision}`);
       break;
   }
   return irId;

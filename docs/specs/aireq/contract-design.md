@@ -53,7 +53,15 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 bootstrap 无业务创建副作用，返回 contractVersion、opaque backend.id、当前能力、initialSelection、模型 choices/settings/revision、提示词 saved/draft/revision、projects.developmentRoots 和可选 Skill 存储目标。它不返回私人 composer 草稿、服务注册清单、来源 owner/provenance 或全部分页报告。模型／提示词读取由此提供，本地 prompt draft 端口不是 RPC。
 
+当前 AIReq bootstrap 业务契约版本为 `5`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
+
+`models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`、`progress-analysis`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录，既有 `skillDesign` 操作不变。
+
+讨论会话创建时、评审和分析接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论提交单次临时模型沿用原生 Submission 语义，不修改会话绑定。
+
 readWorkflow 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对；正式只读目标不因此开启新的编辑会话。selection 必须来自现行类型／严格 schema，不能作为未校验权限或后端全局当前项目。
+
+`view.documentFormats` 存放全局已保存规则，以 `requirements.md`、`proposal.md`、`design.md`、`tasks.md`、`test-plan.md` 和 `spec.md` 为键，值为必需章节标题数组。提案的 `requirementsCheck` 和 `solutionCheck` 分别投影各阶段当前材料的检查结果 `{issues: {path, reason}[]}`；缺省表示尚未检查，空数组表示通过。保存规则不重算既有结果；方案只引用需求阶段已检查通过的正文。
 
 onDidChange 类型为 presence(snapshot)、workflow、models、prompts、scheduler、skills(sessionId) 和 error。可选 backendEpoch/revision/projectId/irId/operationId 只提供投影失效信息。连接恢复通过重读取得当前事实。
 
@@ -67,8 +75,8 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、schedul
 | readWorkflow                        | [selection]                                                               | AIReqRemoteWorkflow                              |
 | readPrHandoff                       | [{projectId,irId}]                                                        | AIReqPrHandoff                                   |
 | command                             | [action,selection,revision]                                               | AIReqWorkflowResult                              |
-| retryMaterial                       | [path,selection]                                                          | boolean                                          |
-| retrySession                        | [selection]                                                               | null                                             |
+| retryMaterial                       | [{projectId,releaseId,irId,path,sha256,round?}]                           | boolean                                          |
+| retrySession                        | [selection,sessionId]                                                     | null                                             |
 | progress.recordTest                 | [P,I,S,input]                                                             | null                                             |
 | progress.cleanupPreview             | [P,I]                                                                     | AIReqBranchCleanupItem[]                         |
 | progress.cleanupBranches            | [P,I,input]                                                               | null                                             |
@@ -91,26 +99,37 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、schedul
 | progressScheduler.readRun           | [id]                                                                      | AIReqAnalysisRun 或 null                         |
 | progressScheduler.setProjectEnabled | [P,enabled]                                                               | null                                             |
 | progressScheduler.configure         | [enabled,intervalMinutes]                                                 | null                                             |
-| progressScheduler.runNow            | [filter]                                                                  | null                                             |
+| progressScheduler.runNow            | [filter,retryRunId?]                                                      | null                                             |
 
 关键输入语义：
 
-- recordTest 输入为 operationId/expectedRevision/expectedCodeVersion/outcome/reason，outcome 为 passed/failed；不是直接设百分比。
+- `retrySession` 只恢复指定选择当前绑定的已有原生会话。`sessionId` 必须精确匹配该选择解析出的会话；不匹配或不存在时拒绝，不创建替代会话、不修改材料或重放输入。
+- `progress.recordTest` 只提交人工验收通过，输入为 `operationId`、`expectedRevision`、`expectedCodeVersion` 和非空 `reason`，不接收验收不通过或直接设置进度。工作流按正式 SR 归属及修订校验首次合入版本，无须成功的分析报告；记录验收依据、操作者、时间和首次合入版本后有效进度为 100%，相同请求重放不重复记录。
+- 正式 SR 的 `codeMerge` 只记录首次合入默认分支的事实，后续提交不替换该版本。`testAcceptance` 只保存与该版本绑定的一条人工验收通过记录；验收期间保留测试待办，完成后移除。
 - cleanupBranches 输入为 operationId/expectedRevision/branches；先读 preview，再确认登记分支。
 - planning 输入含 operationId/expectedRevision、可选 developerEmployeeId/testingEmployeeId/plannedStart/plannedEnd。
 - repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
-- 分析筛选为 projectId/releaseId/irId/srId/srSearch；历史另含 status/since/until。ISO 格式的日期须为真实日历日期（包括月末与闰年），不得将不存在的日期自动归一化；开始晚于结束时拒绝，同一时刻允许。既有合法时间表达的解析语义不变。页码从 1 开始，pageSize 仅 25/50；读取历史不启动分析。
+- 分析筛选为 projectId/releaseId/irId/srId/srSearch，任务可带 taskState，历史可带 status/since/until。ISO 格式的日期须为真实日历日期（包括月末与闰年），不得将不存在的日期自动归一化；开始晚于结束时拒绝，同一时刻允许。页码从 1 开始，pageSize 仅 25/50；读取历史不启动分析。分析页只在项目和具体 Release 均已就绪时读取和提交。
+- `queryTasks.eligibleCount` 与批量 `runNow` 使用同一手动资格，覆盖匹配的全部分页。项目关闭、已合入、分支不可用或已有在途执行的 SR 不接纳；全局暂停仅影响自动分析。分析任务的 `completed` 表示首次合入后已停止分析，不等于人工验收已通过。
+- 带 `retryRunId` 的 `runNow` 只接纳该次可重试失败所属的单一项目／Release／IR／SR，filter 必须同范围，服务在接纳时重查手动资格。任务行投影的 `retryable` 来自该任务最近一次失败。
+- 执行详情保存 `inputFingerprint` 和接纳时的模型、思考强度、追加指令。无业务变化时，显式手动请求可在生效配置实质变化后重新分析；配置保存本身不派发。合入和业务输入变化后的迟到结果只进入执行历史。
 
 ## 5. command 动作与领域门禁
 
 当前实现的服务公开动作白名单：
 
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
-- 配置／提案：createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
-- 流程：runRequirementsReview、acceptProposal、returnProposal、runFullReview、approveFullReview、confirmAlignment、confirmProposal、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
+- 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
+- 流程：runRequirementsReview、acceptProposal、returnProposal、runFullReview、confirmAlignment、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
 
-动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。现行 approveFullReview 绑定 reviewId/snapshotDigest，confirmAlignment 绑定 perspective/version，发布／关闭绑定 candidate，修改材料限定 requirements/solution/test-plan 与真实修改说明。提案评审和确认的产品要求与现有命令的差异见[后端契约](../../../packages/server/src/aireq/CONTRACT.md#业务所有权)。
+动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。材料校验通过后自动接纳当前版本的评审，runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
+
+交付投影保留已创建分支、推送及 PR 事实；`proposalDelivery.publishError` 区分 `branch`、`push`、`pr` 三种失败步骤。再次发布同一候选复用已完成的步骤。进入页面或读取候选不提交文档。
+
+关闭未合入 PR 后，该 PR 作为 `proposalDeliveryHistory[].closedPr` 留存；旧候选不再可写或核验。重新提交使用当前候选，并重新绑定完整清单。
+
+`saveDocumentFormats` 提交完整 `documentFormats` 记录，沿用 `command` 的版本检查、幂等和提交后通知，不绑定当前项目或 Release。
 
 原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[进度](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 
@@ -118,9 +137,11 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、schedul
 
 未知 path/action、额外封闭字段、非法 tuple／身份／归属／版本／阶段在 owner 执行前拒绝；不返回占位成功。普通 RPC 保持现有 Promise error 语义，不新增统一结果 envelope，也不依赖 Error 自定义属性必定跨 RPC 保留。只有显式安全业务说明对用户保留，未知异常留服务端诊断，不下发内部堆栈。类型化事件错误使用 AIReqRemoteError。
 
+`retryMaterial` 仅重试当前读取：目标、路径、正文摘要 `sha256` 和材料轮次 `round` 须与当前材料一致，否则拒绝，不能恢复其他版本。`materialHistory` 的新快照随材料固定保存 IR 文档路径 `documentPath`、方案轮次 `proposalRound` 和 SR 清单 `srs`（编号、名称、文档路径）。历史依赖图只使用快照；缺少绘图信息时显示原始文件及原因。
+
 文件 stat.size、分片 offset 按实际 UTF-8 原始字节；readFileRange 的 offset、length 必须是非负安全整数，非法范围在读取前拒绝，不取整、不把负偏移解释为从文件尾部计数。length=0 返回空字节；到达或超过 EOF 返回短数组或空数组。目录误读与缺失失败，零字节文件成功，next offset 按原契约。没有公开目录全量索引下载或宿主写盘。
 
-setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。
+setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。`state:theme` 广播只同步会话内外观，不写入浏览器偏好，也不得覆盖该浏览器已有的有效选择。
 
 参数版本、幂等和事件时序见[连接身份](connection-identity.md)，不得为表中没有版本／操作标识的接口添加虚构保证。
 

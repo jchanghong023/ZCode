@@ -78,15 +78,12 @@ export function AIReqFormalReport() {
         </li>
       )),
     );
-  // 旧验收记录不能冒充当前版本完成；有效进度仍只读取同源业务计算。
-  const manual =
-    selected?.testAcceptance?.outcome === "passed" &&
-    selected.testAcceptance.codeVersion === selected.codeMerge?.commit &&
-    percent === 100
-      ? selected.testAcceptance
-      : undefined;
+  const acceptances = rows.flatMap((sr) =>
+    sr.testAcceptance && srProgress(sr) === 100 ? [{ sr, acceptance: sr.testAcceptance }] : [],
+  );
+  const manual = Boolean(selected && acceptances.length);
   const hasAnalysis = rows.some((sr) => sr.progress);
-  const unanalysed = rows.filter((sr) => !sr.progress).length;
+  const unanalysed = rows.filter((sr) => !sr.progress && !sr.lastAnalysisFailure).length;
   const stale = rows.filter((sr) => sr.progress?.stale).length;
   const failed = rows.filter((sr) => sr.lastAnalysisFailure ?? sr.progress?.analysisFailure).length;
   const incompleteEvidence = unanalysed > 0 || stale > 0 || failed > 0;
@@ -94,10 +91,12 @@ export function AIReqFormalReport() {
     ? "人工确认"
     : selected
       ? selected.codeMerge
-        ? "代码合入事实"
+        ? "首次代码合入"
         : hasAnalysis
           ? "AI 分析"
-          : "尚未分析"
+          : failed
+            ? "分析失败"
+            : "尚未分析"
       : undefined;
   return (
     <main className="h-full min-h-0 overflow-auto bg-background" data-testid="aireq-formal-report">
@@ -109,7 +108,9 @@ export function AIReqFormalReport() {
               {selected?.id ?? group.id}
             </span>
             <ProgressStatusBadge status={status} />
-            <Badge variant="outline">{hasAnalysis ? "进度分析报告" : "尚未分析"}</Badge>
+            <Badge variant="outline">
+              {hasAnalysis ? "进度分析报告" : failed ? "分析失败" : "尚未分析"}
+            </Badge>
           </div>
           <h1 className="text-ui-lg font-semibold">{title}</h1>
           <ProgressValue
@@ -122,23 +123,16 @@ export function AIReqFormalReport() {
           <p className="text-ui-sm text-foreground-subtle">
             {selected
               ? manual
-                ? "完成状态来自人工确认；下方保留此前 AI 分析及代码证据。"
+                ? "已通过人工验收；下方保留此前的分析与代码证据。"
                 : selected.codeMerge
-                  ? "代码已合入，有效进度固定 99%；原始 AI 评分仅作证据。"
+                  ? "首次代码已合入，进度为 99%，等待人工验收。"
                   : hasAnalysis
                     ? "进度分析根据需求、验收标准与代码证据估计，不执行开发任务。"
-                    : "尚未分析；0% 为新需求的初始进度，不代表已有代码分析结论。"
+                    : failed
+                      ? "分析失败，暂无成功报告；进度按 0% 计。"
+                      : "尚未分析；0% 为新需求的初始进度，不代表已有代码分析结论。"
               : `${all.length} 个 SR 的进度算术平均值；全部 SR 完成后 IR 才完成。`}
           </p>
-          {manual && (
-            <p className="break-words text-ui-sm" data-testid="manual-progress-source">
-              {progressSource}：{manual.employeeId} · {manual.reason} ·{" "}
-              {new Date(manual.at).toLocaleString("zh-CN", {
-                timeZone: "Asia/Shanghai",
-                hour12: false,
-              })}
-            </p>
-          )}
           <p className="text-ui-sm text-foreground-subtle">
             {selected
               ? `开发：${selected.developerEmployeeId ?? "待认领"} · 测试：${selected.testingEmployeeId ?? "待认领"}`
@@ -150,7 +144,7 @@ export function AIReqFormalReport() {
           <p role="status" className="text-ui-sm text-warning-surface-foreground">
             {[
               unanalysed > 0 ? `${unanalysed} 个 SR 尚未分析` : "",
-              stale > 0 ? `${stale} 个 SR 报告已过期，等待当前版本分析` : "",
+              stale > 0 ? `${stale} 个 SR 报告已过期` : "",
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -161,23 +155,24 @@ export function AIReqFormalReport() {
           return failure ? (
             <div key={sr.id} role="alert" className="text-ui-sm text-destructive">
               <p>
-                {sr.title}：最近分析失败，{sr.progress ? "保留上次成功进度与报告" : "暂无成功报告"}{" "}
-                · {failure.message}
+                {sr.title}：最近分析失败，{sr.progress ? "保留上次成功报告" : "暂无成功报告"} ·{" "}
+                {failure.message}
               </p>
-              {/* 修复：只展示失败原因会迫使用户在分析页重新定位同一个 SR。 */}
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto px-0"
-                onClick={() =>
-                  aireq.openAnalysis(
-                    { projectId: group.projectId, irId: group.id, srId: sr.id },
-                    group.releaseId,
-                  )
-                }
-              >
-                {locale === "zh-CN" ? "查看对应分析任务" : "View analysis task"}
-              </Button>
+              {!sr.codeMerge && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0"
+                  onClick={() =>
+                    aireq.openAnalysis(
+                      { projectId: group.projectId, irId: group.id, srId: sr.id },
+                      group.releaseId,
+                    )
+                  }
+                >
+                  {locale === "zh-CN" ? "查看对应分析任务" : "View analysis task"}
+                </Button>
+              )}
             </div>
           ) : null;
         })}
@@ -201,7 +196,9 @@ export function AIReqFormalReport() {
                 ? incompleteEvidence
                   ? "已有报告未列出遗留问题；仍有未分析、过期或失败项，当前范围尚无完整结论。"
                   : "当前报告未发现需关注的遗留问题。"
-                : "尚未分析，暂无问题判断。"}
+                : failed
+                  ? "暂无成功分析报告可用于判断问题。"
+                  : "尚未分析，暂无问题判断。"}
             </p>
           )}
         </ReportSection>
@@ -216,8 +213,7 @@ export function AIReqFormalReport() {
                   {selected.progress.aiPercent === undefined
                     ? "未提供"
                     : `${selected.progress.aiPercent}%`}{" "}
-                  · 有效业务进度：{percent}%
-                  {selected.progress.stale ? " · 报告已过期，等待当前版本分析" : ""}
+                  · 有效业务进度：{percent}%{selected.progress.stale ? " · 报告已过期" : ""}
                 </p>
               )}
             </>
@@ -257,6 +253,34 @@ export function AIReqFormalReport() {
             </p>
           )}
         </ReportSection>
+        {acceptances.length > 0 && (
+          <ReportSection title="人工验收记录">
+            <ul className="space-y-3 text-ui-sm">
+              {acceptances.map(({ sr, acceptance }) => (
+                <li
+                  key={sr.id}
+                  className="space-y-1"
+                  data-testid={selected ? "manual-progress-source" : undefined}
+                >
+                  {!selected && <p className="font-medium">{sr.title}</p>}
+                  <p className="break-words">
+                    验收通过 · {acceptance.employeeId} ·{" "}
+                    <time dateTime={acceptance.at}>
+                      {new Date(acceptance.at).toLocaleString("zh-CN", {
+                        timeZone: "Asia/Shanghai",
+                        hour12: false,
+                      })}
+                    </time>
+                  </p>
+                  <p className="break-words">验收依据：{acceptance.reason}</p>
+                  <p className="break-all text-foreground-subtle">
+                    首次合入版本：{acceptance.codeVersion}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </ReportSection>
+        )}
         <ReportSection title="人员与计划时间">
           <AIReqPlanningSummary group={group} rows={rows} editable />
         </ReportSection>
@@ -274,7 +298,9 @@ export function AIReqFormalReport() {
             <p className="text-ui-sm text-foreground-subtle">
               {hasAnalysis
                 ? "当前报告没有列出未实现项；仍须核对合入事实及完成条件。"
-                : "尚未分析，暂无实现情况与代码版本结论。"}
+                : failed
+                  ? "暂无成功分析报告可用于判断实现情况。"
+                  : "尚未分析，暂无实现情况与代码版本结论。"}
             </p>
           )}
         </ReportSection>
@@ -330,17 +356,20 @@ export function AIReqFormalReport() {
                 )}
                 {sr.codeMerge && (
                   <p className="break-all text-ui-sm">
-                    已核实代码合入：{sr.codeMerge.commit} → {sr.codeMerge.branch}
+                    首次代码合入：{sr.codeMerge.commit} → {sr.codeMerge.branch}
                   </p>
                 )}
                 <p className="text-ui-sm text-foreground-subtle">
-                  最近分析：
+                  最近成功分析：
                   {sr.progress?.analysedAt
                     ? new Date(sr.progress.analysedAt).toLocaleString("zh-CN", {
                         timeZone: "Asia/Shanghai",
                         hour12: false,
                       })
-                    : "尚未分析"}
+                    : sr.lastAnalysisFailure
+                      ? "暂无成功报告"
+                      : "尚未分析"}
+                  {sr.progress?.stale ? " · 报告已过期" : ""}
                 </p>
                 {sr.progress ? (
                   <>
@@ -368,7 +397,11 @@ export function AIReqFormalReport() {
                   </>
                 ) : (
                   <p className="text-foreground-subtle">
-                    尚未分析，暂无代码活动、分析版本或合入判断。
+                    {sr.codeMerge
+                      ? "尚无成功分析报告；合入依据见首次代码合入记录。"
+                      : sr.lastAnalysisFailure
+                        ? "暂无成功分析报告可用于判断代码活动或版本。"
+                        : "尚未分析，暂无代码活动、分析版本或合入判断。"}
                   </p>
                 )}
               </li>
@@ -404,18 +437,20 @@ export function AIReqFormalReport() {
         </p>
         <div className="space-y-1 text-ui-sm text-foreground-subtle">
           <p>
-            最近分析 ·{" "}
+            最近成功分析 ·{" "}
             {analysedAt
               ? new Date(analysedAt).toLocaleString("zh-CN", {
                   timeZone: "Asia/Shanghai",
                   hour12: false,
                 })
-              : "尚未分析"}
+              : failed
+                ? "暂无成功报告"
+                : "尚未分析"}
           </p>
           <p className="break-all">
             仓库：{project?.repositoryUrl ?? "尚未配置"} · 默认分支：{project?.defaultBranch}
           </p>
-          <p>未合入由 AI 估计 0%～99%；合入固定 99%，仅人工测试通过可到 100%。</p>
+          <p>首次合入前由 AI 估计 0%～99%；首次合入后为 99%，人工验收通过后为 100%。</p>
         </div>
       </div>
     </main>

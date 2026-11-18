@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
-import type { AIReqAction, AIReqRequirementGroup } from "@zcode/services/aireq";
+import type {
+  AIReqAction,
+  AIReqDocumentFormats,
+  AIReqRequirementGroup,
+} from "@zcode/services/aireq";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
-import { config } from "./config.js";
+import { config, requireConfig } from "./config.js";
 import { createProject, createProposal } from "./business.js";
 import {
+  alignmentAction,
   approveOriginalReview,
   commandAndRead,
   completeBusinessMaterial,
   completeSolutionMaterial,
+  confirmAllPerspectives,
+  discuss,
   expectBusinessRejection,
   getProposal,
+  waitForReview,
 } from "./proposal-flow.js";
 
 // ST oracle: proposals.md, unified-side-pane.md (材料阅读) and connection-identity.md.
@@ -28,12 +36,6 @@ function materialVersions(group: AIReqRequirementGroup) {
   return group.files
     .map(({ path, sha256, size }) => ({ path, sha256, size }))
     .sort((a, b) => a.path.localeCompare(b.path));
-}
-
-function approvalRetained(group: AIReqRequirementGroup, reviewId: string): boolean {
-  return [group.review, ...(group.reviewHistory ?? [])].some(
-    (review) => review?.id === reviewId && Boolean(review.humanDecision),
-  );
 }
 
 describe("proposal business lifecycle through the deployed public API", () => {
@@ -75,7 +77,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
           expect(group.files).toEqual([]);
           expect(group.originalReview).toBeUndefined();
           expect(group.review).toBeUndefined();
-          expect(group.confirmation).toBeUndefined();
+          expect(group.alignment ?? []).toEqual([]);
+          expect(group.proposalDelivery).toBeUndefined();
           expect(group.requirementsPr).toBeUndefined();
           expect(group.contacts?.business).toBe(client.identity.employeeId);
         }
@@ -108,13 +111,166 @@ describe("proposal business lifecycle through the deployed public API", () => {
   );
 
   it(
+    "saves document rules, retains an invalid Markdown import and checks only new or revised material",
+    async () => {
+      await withClient(async (client) => {
+        const baseline = await client.read();
+        const original = baseline.view.documentFormats;
+        expect(Object.keys(original).sort()).toEqual([
+          "design.md",
+          "proposal.md",
+          "requirements.md",
+          "spec.md",
+          "tasks.md",
+          "test-plan.md",
+        ]);
+        let owned: AIReqDocumentFormats | undefined;
+        const saveFormats = async (documentFormats: AIReqDocumentFormats) => {
+          const current = await client.read();
+          expect(current.view.documentFormats).toEqual(owned ?? original);
+          const receipt = await client.command({
+            type: "saveDocumentFormats",
+            documentFormats,
+            expectedRevision: current.view.revision,
+          });
+          expect(receipt.status, receipt.error).toBe("completed");
+          owned = documentFormats;
+          expect((await client.read()).view.documentFormats).toEqual(documentFormats);
+        };
+        try {
+          const requirementsRules = { ...original, "requirements.md": ["数据范围", "验收方式"] };
+          await saveFormats(requirementsRules);
+          const project = await createProject(client);
+          const originalText = unique("导入业务需求原文");
+          const businessDocument = [
+            "# CSV 导出",
+            "## 数据范围示例",
+            "这是相近但不同的正文标题。",
+            "```md",
+            "## 数据范围",
+            "这是代码块中的示例，不是章节。",
+            "```",
+            "## 验收方式",
+            "## 附注",
+            "初稿尚未补齐。",
+          ].join("\n\n");
+          const receipt = await client.command(
+            {
+              type: "importProposals",
+              releaseId: project.releaseId,
+              proposals: [{ originalText, businessDocument }],
+            },
+            project.selection,
+          );
+          expect(receipt.status, receipt.error).toBe("completed");
+          const imported = (await client.read(project.selection)).view.drafts.find(
+            (group) => group.originalText === originalText,
+          )!;
+          expect(imported).toBeDefined();
+          const target = {
+            ...project,
+            irId: imported.id,
+            selection: { projectId: project.projectId, irId: imported.id },
+          };
+          const invalid = await waitUntil(
+            "the saved Markdown import exposes its file-specific format errors",
+            () => client.read(target.selection),
+            (remote) => Boolean(getProposal(remote, target).requirementsCheck?.issues.length),
+          );
+          expect(
+            invalid.view.materials.find(
+              (file) => file.irId === target.irId && file.path === imported.documentPath,
+            )?.content,
+          ).toBe(businessDocument);
+          const invalidGroup = getProposal(invalid, target);
+          const issues = invalidGroup.requirementsCheck!.issues;
+          expect(issues.every((issue) => issue.path === imported.documentPath)).toBe(true);
+          const reasons = issues.map((issue) => issue.reason).join("\n");
+          expect(reasons).toContain("数据范围");
+          expect(reasons).toContain("验收方式");
+          expect(invalidGroup.originalReview).toBeUndefined();
+
+          await discuss(
+            client,
+            target,
+            "请补齐导入文档的下列真实 Markdown 章节，保留原有业务目标：\n\n" +
+              "## 验收方式\n对比导出的 CSV 解析结果与项目原始需求。\n\n" +
+              "## 数据范围\n只导出当前项目及 Release 的原始需求。",
+          );
+          const accepted = getProposal(await approveOriginalReview(client, target), target);
+          const requirementsCheck = accepted.requirementsCheck;
+          expect(requirementsCheck?.issues).toEqual([]);
+          expect(accepted.originalReviewHistory ?? []).toEqual([]);
+          expect(accepted.originalText).toBe(originalText);
+
+          const testHeading = "CSV 往返验证";
+          await saveFormats({
+            ...requirementsRules,
+            "requirements.md": ["新需求合规声明"],
+            "test-plan.md": [testHeading],
+          });
+          const reread = getProposal(await client.read(target.selection), target);
+          expect(reread.requirementsCheck).toEqual(requirementsCheck);
+          expect(reread.originalReview).toEqual(accepted.originalReview);
+          await discuss(
+            client,
+            target,
+            "使用已确认的 IR 业务文档生成两项 SR 的提案、规格、设计、任务、测试方案及依赖和工作日预估，" +
+              "测试方案暂不包含往返验证章节。",
+          );
+          const missing = await waitUntil(
+            "new scheme material follows the newly saved test plan rule",
+            () => client.read(target.selection),
+            (remote) => Boolean(getProposal(remote, target).solutionCheck?.issues.length),
+          );
+          const incomplete = getProposal(missing, target);
+          expect(incomplete.srIds.length).toBeGreaterThan(0);
+          for (const id of incomplete.srIds) {
+            expect(incomplete.solutionCheck?.issues).toContainEqual(
+              expect.objectContaining({
+                path: `openspec/changes/${id}/test-plan.md`,
+                reason: expect.stringContaining(testHeading),
+              }),
+            );
+          }
+          expect(incomplete.review).toBeUndefined();
+          expect(incomplete.requirementsCheck).toEqual(requirementsCheck);
+          await commandAndRead(
+            client,
+            {
+              type: "reviseProposalMaterial",
+              target: "test-plan",
+              note: `## ${testHeading}\n导出后重新解析 CSV，逐条核对中文、逗号、引号及换行。`,
+            },
+            target,
+          );
+          const { remote } = await waitForReview(client, target, "full");
+          const repaired = getProposal(remote, target);
+          expect(repaired.solutionCheck?.issues).toEqual([]);
+          expect(repaired.requirementsCheck).toEqual(requirementsCheck);
+          expect(repaired.originalReview).toEqual(accepted.originalReview);
+          expect(repaired.files.find((file) => file.path === imported.documentPath)).toEqual(
+            accepted.files.find((file) => file.path === imported.documentPath),
+          );
+        } finally {
+          if (owned) await saveFormats(original);
+        }
+      });
+    },
+    config.timeoutMs,
+  );
+
+  it(
     "should require readable current business material and record a nonempty return reason without accepting the old review",
     async () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
         const before = await client.read(target.selection);
         await expectBusinessRejection(
-          client.command({ type: "runRequirementsReview" }, target.selection),
+          client.command(
+            { type: "acceptProposal", reviewId: unique("missing-review"), snapshotDigest: "none" },
+            target.selection,
+          ),
         );
         const unchanged = await client.read(target.selection);
         expect(getProposal(unchanged, target)).toEqual(getProposal(before, target));
@@ -160,216 +316,167 @@ describe("proposal business lifecycle through the deployed public API", () => {
   );
 
   it(
-    "should bind approval and three separate perspectives to one version, freeze the published candidate and allow revision only after its PR is closed",
+    "automatically reviews both stages, preserves each role's first confirmer and freezes the submitted material version",
     async () => {
       await withClient(async (client) => {
-        // 八态的前进依据是实际材料和确认，不以内部粗 status 或前端派生函数代替 HTTP 事实。
         const target = await createProposal(client);
-        const notStarted = getProposal(await client.read(target.selection), target);
+        const notStarted = getProposal(target.remote, target);
         expect(notStarted.files).toEqual([]);
         expect(notStarted.snapshot).toBeUndefined();
         expect(notStarted.originalReview).toBeUndefined();
         expect(notStarted.review).toBeUndefined();
+
         const business = getProposal(await completeBusinessMaterial(client, target), target);
         const irFile = business.files.find((row) => row.path === business.documentPath)!;
         expect(irFile.size).toBeGreaterThan(0);
         expect(business.snapshot?.files).toContainEqual(irFile);
-        expect(business.originalReview).toBeUndefined();
-        expect(business.srIds).toEqual([]);
-        await commandAndRead(client, { type: "runRequirementsReview" }, target);
-        const originalReviewed = await waitUntil(
-          "current original review completes before its separate human confirmation",
-          () => client.read(target.selection),
-          (remote) => {
-            const review = getProposal(remote, target).originalReview;
-            return Boolean(
-              review?.agents?.length &&
-              review.agents.every((agent) => agent.status === "completed"),
-            );
-          },
-        );
-        const originalReport = getProposal(originalReviewed, target).originalReview!;
-        expect(originalReport.report.trim()).toBeTruthy();
+        const { review: originalReport } = await waitForReview(client, target, "original");
         expect(originalReport.inputFiles).toEqual([irFile]);
         expect(originalReport.humanDecision).toBeUndefined();
-        expect(
-          originalReport.findings?.filter((finding) => finding.level === "blocking") ?? [],
-        ).toEqual([]);
-        const originalApproved = getProposal(
-          await commandAndRead(
-            client,
-            {
-              type: "acceptProposal",
-              reviewId: originalReport.id,
-              snapshotDigest: originalReport.snapshotDigest,
-            },
-            target,
-          ),
-          target,
-        );
-        expect(originalApproved.originalReview?.humanDecision).toMatchObject({
-          reviewId: originalReport.id,
-          employeeId: client.identity.employeeId,
-        });
+        const originalApproved = getProposal(await approveOriginalReview(client, target), target);
+        expect(originalApproved.originalReview?.humanDecision?.reviewId).toBe(originalReport.id);
+        expect(originalApproved.originalReviewHistory ?? []).toEqual([]);
         expect(originalApproved.srIds).toEqual([]);
         expect(originalApproved.review).toBeUndefined();
+
         const solution = getProposal(await completeSolutionMaterial(client, target), target);
-        expect(solution.srIds.length).toBeGreaterThan(0);
-        expect(solution.snapshot?.files).toEqual(expect.arrayContaining(solution.files));
-        expect(solution.review).toBeUndefined();
-        expect(solution.alignment ?? []).toEqual([]);
-        await commandAndRead(client, { type: "runFullReview" }, target);
-        const fullReviewed = await waitUntil(
-          "current full review completes before human approval and three independent perspectives",
-          () => client.read(target.selection),
-          (remote) => {
-            const review = getProposal(remote, target).review;
-            return Boolean(
-              review?.agents?.length === 4 &&
-              review.agents.every((agent) => agent.status === "completed"),
-            );
-          },
+        expect(solution.files.find((file) => file.path === irFile.path)).toEqual(irFile);
+        expect(solution.originalReview?.humanDecision).toEqual(
+          originalApproved.originalReview?.humanDecision,
         );
-        const fullReport = getProposal(fullReviewed, target).review!;
-        expect(fullReport.agents?.map((agent) => agent.id).sort()).toEqual([
-          "a",
-          "b",
-          "c",
-          "summary",
-        ]);
-        expect(fullReport.report.trim()).toBeTruthy();
-        expect(fullReport.humanDecision).toBeUndefined();
-        expect(
-          fullReport.findings?.filter((finding) => finding.level === "blocking") ?? [],
-        ).toEqual([]);
+        const { review: fullReport } = await waitForReview(client, target, "full");
         expect(
           fullReport.inputFiles
             ?.map(({ path, sha256, size }) => ({ path, sha256, size }))
             .sort((a, b) => a.path.localeCompare(b.path)),
         ).toEqual(materialVersions(solution));
-        const remote = await commandAndRead(
+        expect(fullReport.humanDecision).toBeUndefined();
+        const version = fullReport.snapshotDigest;
+        const alignment = alignmentAction(fullReport, "business");
+        await expectBusinessRejection(
+          client.command({ ...alignment, reviewId: originalReport.id }, target.selection),
+        );
+        await expectBusinessRejection(
+          client.command(
+            { ...alignment, version: originalReport.snapshotDigest },
+            target.selection,
+          ),
+        );
+        const readHandoff = () =>
+          client.call(
+            "readPrHandoff",
+            [{ projectId: target.projectId, irId: target.irId }],
+            target.selection,
+          );
+        expect((await readHandoff()).ready).toBe(false);
+
+        const first = getProposal(await commandAndRead(client, alignment, target), target);
+        const firstConfirmation = first.alignment?.find(
+          (entry) => entry.perspective === "business",
+        );
+        expect(firstConfirmation).toMatchObject({
+          version,
+          employeeId: client.identity.employeeId,
+          confirmedAt: expect.any(String),
+        });
+        const otherEmployee = requireConfig(config.otherEmployeeId, "第二个合法工号");
+        expect(otherEmployee).not.toBe(client.identity.employeeId);
+        const other = await connectST(otherEmployee);
+        try {
+          const repeated = getProposal(await commandAndRead(other, alignment, target), target);
+          expect(repeated.alignment).toEqual([firstConfirmation]);
+        } finally {
+          await other.close();
+        }
+        const two = await commandAndRead(
           client,
-          {
-            type: "approveFullReview",
-            reviewId: fullReport.id,
-            snapshotDigest: fullReport.snapshotDigest,
-          },
+          alignmentAction(fullReport, "development"),
           target,
         );
-        const prepared = { ...target, remote, version: fullReport.snapshotDigest };
-        const initial = getProposal(prepared.remote, prepared);
-        const fullReviewId = initial.review!.id;
-        const originalReviewId = initial.originalReview!.id;
-        const originalText = initial.originalText;
-        const srIds = [...initial.srIds];
-        const version = prepared.version;
-        expect(version.trim()).not.toBe("");
-        expect(initial.review?.passed).toBe(true);
-        await expectBusinessRejection(
-          client.command(
-            { type: "approveFullReview", reviewId: unique("old-review"), snapshotDigest: version },
-            prepared.selection,
-          ),
+        expect(getProposal(two, target).proposalDelivery).toBeUndefined();
+        expect((await readHandoff()).ready).toBe(false);
+        const confirmed = await commandAndRead(
+          client,
+          alignmentAction(fullReport, "testing"),
+          target,
         );
-        await expectBusinessRejection(
-          client.command(
-            { type: "confirmAlignment", perspective: "business", version: unique("old-version") },
-            prepared.selection,
-          ),
-        );
-        await expectBusinessRejection(
-          client.command({ type: "confirmProposal", version }, prepared.selection),
-        );
-        for (const perspective of ["business", "development", "testing"] as const) {
-          await commandAndRead(
-            client,
-            { type: "confirmAlignment", perspective, version },
-            prepared,
-          );
-          const current = getProposal(await client.read(prepared.selection), prepared);
-          expect(current.alignment).toContainEqual(
-            expect.objectContaining({
-              perspective,
-              version,
-              employeeId: client.identity.employeeId,
-            }),
-          );
-          if (perspective !== "testing")
-            await expectBusinessRejection(
-              client.command({ type: "confirmProposal", version }, prepared.selection),
-            );
-        }
-        const aligned = getProposal(await client.read(prepared.selection), prepared);
+        const aligned = getProposal(confirmed, target);
         expect(aligned.requirementsPr).toBeUndefined();
-        const confirmations = aligned.alignment!.filter((entry) => entry.version === version);
-        expect(confirmations.map((entry) => entry.perspective).sort()).toEqual([
+        expect(aligned.alignment?.map((entry) => entry.perspective).sort()).toEqual([
           "business",
           "development",
           "testing",
         ]);
-        expect(
-          confirmations.every(
-            (entry) =>
-              entry.employeeId === client.identity.employeeId && Boolean(entry.confirmedAt),
-          ),
-        ).toBe(true);
-        const handoff = await client.call(
-          "readPrHandoff",
-          [{ projectId: prepared.projectId, irId: prepared.irId }],
-          prepared.selection,
+        for (const entry of aligned.alignment!) {
+          expect(entry).toMatchObject({
+            version,
+            reviewId: fullReport.id,
+            snapshotDigest: fullReport.snapshotDigest,
+            employeeId: client.identity.employeeId,
+          });
+          expect(Number.isFinite(Date.parse(entry.confirmedAt))).toBe(true);
+        }
+        expect(aligned.review?.id).toBe(fullReport.id);
+        expect(aligned.reviewHistory ?? []).toEqual([]);
+        const candidate = aligned.proposalDelivery!;
+        expect(candidate).toMatchObject({
+          version,
+          confirmedBy: client.identity.employeeId,
+          candidate: expect.any(String),
+        });
+        expect(materialVersions({ ...aligned, files: candidate.files })).toEqual(
+          materialVersions(aligned),
         );
+        const handoff = await readHandoff();
         expect(handoff.ready, handoff.blockers.join("; ")).toBe(true);
-        expect(handoff.files.length).toBeGreaterThan(0);
-        const confirmed = await commandAndRead(
-          client,
-          { type: "confirmProposal", version },
-          prepared,
+        expect(handoff.files.map((file) => file.path).sort()).toEqual(
+          candidate.files.map((file) => file.path).sort(),
         );
-        const candidate = getProposal(confirmed, prepared).proposalDelivery!;
-        expect(candidate.version).toBe(version);
-        expect(candidate.confirmedBy).toBe(client.identity.employeeId);
-        expect(candidate.candidate.trim()).not.toBe("");
-        expect(candidate.files).toEqual(
-          expect.arrayContaining(materialVersions(getProposal(confirmed, prepared))),
-        );
-        expect(getProposal(confirmed, prepared).requirementsPr).toBeUndefined();
-        await expectBusinessRejection(
-          client.command(
-            { type: "publishProposal", candidate: unique("wrong-candidate") },
-            prepared.selection,
-          ),
-        );
+        const sourceDirectory = handoff.sourceDirectory.replace(/\\/g, "/").replace(/\/$/, "");
+        expect(sourceDirectory).not.toBe("");
+        expect(sourceDirectory).not.toBe(aligned.proposalLocation?.directory);
+        for (const file of handoff.files) {
+          expect(file.sourcePath.replace(/\\/g, "/")).toBe(`${sourceDirectory}/${file.path}`);
+          expect(file.digest).toBe(candidate.files.find(({ path }) => path === file.path)?.sha256);
+        }
+
         const publish: AIReqAction = {
           type: "publishProposal",
           candidate: candidate.candidate,
           operationId: unique("publish"),
         };
-        const receipt = await client.command(publish, prepared.selection);
+        await expectBusinessRejection(
+          client.command({ ...publish, candidate: unique("wrong-candidate") }, target.selection),
+        );
+        const receipt = await client.command(publish, target.selection);
         expect(receipt.status, receipt.error).not.toBe("failed");
-        const published = await client.read(prepared.selection);
-        const frozen = getProposal(published, prepared);
-        expect(frozen.status).toBe("requirements-pr");
-        expect(frozen.requirementsPr?.status).toBe("opened");
+        const published = await waitUntil(
+          "submitted candidate exposes its open document PR",
+          () => client.read(target.selection),
+          (remote) => getProposal(remote, target).requirementsPr?.status === "opened",
+        );
+        const frozen = getProposal(published, target);
         expect(frozen.proposalDelivery).toMatchObject({
           candidate: candidate.candidate,
           version,
           pushedCandidate: candidate.candidate,
           prCandidate: candidate.candidate,
         });
-        expect(
-          published.view.groups.some(
-            (group) => group.projectId === prepared.projectId && group.id === prepared.irId,
-          ),
-        ).toBe(false);
-        const repeated = await client.command(publish, prepared.selection);
+        expect(published.view.groups.some((group) => group.id === target.irId)).toBe(false);
+        const repeated = await client.command(publish, target.selection);
         expect(repeated.operationId).toBe(receipt.operationId);
-        expect(
-          getProposal(await client.read(prepared.selection), prepared).proposalDelivery?.candidate,
-        ).toBe(candidate.candidate);
+        await commandAndRead(
+          client,
+          { type: "publishProposal", candidate: candidate.candidate },
+          target,
+        );
+        const reread = getProposal(await client.read(target.selection), target);
+        expect(reread.requirementsPr).toEqual(frozen.requirementsPr);
+        expect(reread.alignment).toEqual(aligned.alignment);
         await expectBusinessRejection(
           client.command(
             { type: "reviseProposalMaterial", target: "test-plan", note: "补充引用换行的测试用例" },
-            prepared.selection,
+            target.selection,
           ),
         );
         await expectBusinessRejection(
@@ -377,32 +484,45 @@ describe("proposal business lifecycle through the deployed public API", () => {
             {
               type: "deleteRequirement",
               version: 1,
-              projectId: prepared.projectId,
-              irId: prepared.irId,
+              projectId: target.projectId,
+              irId: target.irId,
             },
-            prepared.selection,
+            target.selection,
           ),
         );
-        const stillFrozen = getProposal(await client.read(prepared.selection), prepared);
-        expect(materialVersions(stillFrozen)).toEqual(materialVersions(frozen));
-        expect(stillFrozen.proposalDelivery).toEqual(frozen.proposalDelivery);
+        expect(materialVersions(getProposal(await client.read(target.selection), target))).toEqual(
+          materialVersions(frozen),
+        );
         await expectBusinessRejection(
           client.command(
-            { type: "closeProposalPr", candidate: unique("wrong-close-candidate") },
-            prepared.selection,
+            { type: "closeProposalPr", candidate: unique("wrong-candidate") },
+            target.selection,
           ),
         );
         await commandAndRead(
           client,
           { type: "closeProposalPr", candidate: candidate.candidate },
-          prepared,
+          target,
         );
-        const closed = getProposal(await client.read(prepared.selection), prepared);
-        expect(closed.requirementsPr?.status).toBe("closed");
-        expect(closed.id).toBe(prepared.irId);
-        expect(closed.originalText).toBe(originalText);
-        expect(closed.srIds).toEqual(srIds);
+        const closed = getProposal(await client.read(target.selection), target);
+        expect(closed.requirementsPr).toBeUndefined();
+        expect(closed.proposalDeliveryHistory).toContainEqual(
+          expect.objectContaining({
+            candidate: candidate.candidate,
+            closedPr: { ...frozen.requirementsPr, status: "closed" },
+          }),
+        );
         expect(materialVersions(closed)).toEqual(materialVersions(frozen));
+        await expectBusinessRejection(
+          client.command(
+            { type: "publishProposal", candidate: candidate.candidate },
+            target.selection,
+          ),
+        );
+
+        const testPlan = published.view.materials.find(
+          (file) => file.irId === target.irId && file.path.endsWith("/test-plan.md"),
+        )!;
         await commandAndRead(
           client,
           {
@@ -410,35 +530,120 @@ describe("proposal business lifecycle through the deployed public API", () => {
             target: "test-plan",
             note: "补充 CSV 引用单元格换行和失败重试的验收用例。",
           },
-          prepared,
+          target,
         );
-        await completeSolutionMaterial(client, prepared);
-        const revised = getProposal(await client.read(prepared.selection), prepared);
-        expect(revised.originalText).toBe(originalText);
-        expect(revised.srIds).toEqual(srIds);
-        expect(revised.originalReview?.id).toBe(originalReviewId);
-        expect(revised.originalReview?.passed).toBe(true);
-        expect(approvalRetained(revised, fullReviewId)).toBe(true);
+        const { remote: revisedRemote, review: revisedReport } = await waitForReview(
+          client,
+          target,
+          "full",
+        );
+        const revised = getProposal(revisedRemote, target);
+        expect(revised.originalReview).toEqual(aligned.originalReview);
+        expect(revised.requirementsCheck).toEqual(aligned.requirementsCheck);
+        expect(revised.srIds).toEqual(aligned.srIds);
+        expect(revisedReport.id).not.toBe(fullReport.id);
+        expect(revisedReport.snapshotDigest).not.toBe(version);
+        expect(revised.reviewHistory).toContainEqual(
+          expect.objectContaining({ id: fullReport.id, invalidatedReason: expect.any(String) }),
+        );
+        expect(revised.alignment ?? []).toEqual([]);
+        expect(revised.alignmentHistory).toEqual(expect.arrayContaining(aligned.alignment!));
+        const history = revised.materialHistory?.find((item) => item.version === version);
+        expect(history?.materials).toContainEqual(testPlan);
+        expect(history?.srs).toHaveLength(frozen.srIds.length);
+        expect(history?.srs).toEqual(expect.arrayContaining(frozen.snapshot!.srs));
+        expect(history?.proposalRound).toBe(frozen.proposalRound ?? 1);
+        await expectBusinessRejection(client.command(alignment, target.selection));
+        await expect(
+          client.call(
+            "retryMaterial",
+            [
+              {
+                projectId: target.projectId,
+                releaseId: target.releaseId,
+                irId: target.irId,
+                path: testPlan.path,
+                sha256: testPlan.sha256,
+                round: testPlan.round,
+              },
+            ],
+            target.selection,
+          ),
+        ).rejects.toThrow();
+        const currentTestPlan = revisedRemote.view.materials.find(
+          (file) => file.irId === target.irId && file.path === testPlan.path,
+        )!;
+        expect(currentTestPlan.sha256).not.toBe(testPlan.sha256);
         expect(
-          revised.review?.humanDecision && !revised.review.invalidatedReason,
-          "the changed package must not retain an effective full approval",
-        ).toBeFalsy();
-        expect(revised.alignment?.some((entry) => entry.version === version)).toBeFalsy();
-        expect(revised.materialHistory?.some((history) => history.materials.length > 0)).toBe(true);
+          await client.call(
+            "retryMaterial",
+            [
+              {
+                projectId: target.projectId,
+                releaseId: target.releaseId,
+                irId: target.irId,
+                path: currentTestPlan.path,
+                sha256: currentTestPlan.sha256,
+                round: currentTestPlan.round,
+              },
+            ],
+            target.selection,
+          ),
+        ).toBe(true);
+        const afterRetry = getProposal(await client.read(target.selection), target);
+        expect(materialVersions(afterRetry)).toEqual(materialVersions(revised));
+        expect(afterRetry.review).toEqual(revisedReport);
+        expect(afterRetry.alignment ?? []).toEqual([]);
+
+        const realigned = await confirmAllPerspectives(client, target, revisedReport);
+        await commandAndRead(
+          client,
+          {
+            type: "reviseProposalMaterial",
+            target: "requirements",
+            note: "明确支持导出的访问权限。",
+          },
+          target,
+        );
+        const { remote: rechecked, review: replacement } = await waitForReview(
+          client,
+          target,
+          "original",
+        );
+        const changed = getProposal(rechecked, target);
+        expect(changed.originalText).toBe(aligned.originalText);
+        expect(changed.originalReviewHistory).toContainEqual(
+          expect.objectContaining({
+            id: originalReport.id,
+            humanDecision: aligned.originalReview?.humanDecision,
+            invalidatedReason: expect.any(String),
+          }),
+        );
+        expect(replacement.id).not.toBe(originalReport.id);
+        expect(replacement.humanDecision).toBeUndefined();
+        expect(changed.review).toBeUndefined();
+        expect(changed.reviewHistory).toContainEqual(
+          expect.objectContaining({ id: revisedReport.id, invalidatedReason: expect.any(String) }),
+        );
+        expect(changed.alignmentHistory).toEqual(
+          expect.arrayContaining(realigned.group.alignment!),
+        );
+        expect(changed.alignment ?? []).toEqual([]);
+        expect(changed.proposalDelivery).toBeUndefined();
+        expect(rechecked.view.groups.some((group) => group.id === target.irId)).toBe(false);
         await expectBusinessRejection(
           client.command(
-            { type: "approveFullReview", reviewId: fullReviewId, snapshotDigest: version },
-            prepared.selection,
+            {
+              type: "acceptProposal",
+              reviewId: originalReport.id,
+              snapshotDigest: originalReport.snapshotDigest,
+            },
+            target.selection,
           ),
         );
-        await expectBusinessRejection(
-          client.command({ type: "confirmProposal", version }, prepared.selection),
+        expect(getProposal(await client.read(target.selection), target).originalReview).toEqual(
+          replacement,
         );
-        expect(
-          (await client.read(prepared.selection)).view.groups.some(
-            (group) => group.projectId === prepared.projectId && group.id === prepared.irId,
-          ),
-        ).toBe(false);
       });
     },
     config.timeoutMs,
@@ -452,7 +657,18 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const before = await client.read(target.selection);
         expect(before.session).toBeDefined();
         const group = getProposal(before, target);
-        await client.call("retrySession", [target.selection], target.selection);
+        await expect(
+          client.call(
+            "retrySession",
+            [target.selection, unique("wrong-session")],
+            target.selection,
+          ),
+        ).rejects.toThrow();
+        await client.call(
+          "retrySession",
+          [target.selection, before.session!.sessionId],
+          target.selection,
+        );
         const recovered = await client.read(target.selection);
         expect(recovered.session?.sessionId).toBe(before.session!.sessionId);
         expect(recovered.workspace).toEqual(before.workspace);
@@ -460,19 +676,21 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(getProposal(recovered, target).srIds).toEqual([]);
         expect(getProposal(recovered, target).originalReview).toBeUndefined();
         const absentPath = `docs/requirements/${target.irId}/not-generated.md`;
-        let failure: unknown;
-        let accepted: boolean | undefined;
-        try {
-          accepted = await client.call(
+        await expect(
+          client.call(
             "retryMaterial",
-            [absentPath, target.selection],
+            [
+              {
+                projectId: target.projectId,
+                releaseId: target.releaseId,
+                irId: target.irId,
+                path: absentPath,
+                sha256: "0".repeat(64),
+              },
+            ],
             target.selection,
-          );
-        } catch (error) {
-          failure = error;
-        }
-        if (failure === undefined) expect(accepted).toBe(false);
-        else expect(failure).toBeInstanceOf(Error);
+          ),
+        ).rejects.toThrow();
         const after = await client.read(target.selection);
         expect(getProposal(after, target).files).toEqual(group.files);
         expect(after.session?.sessionId).toBe(before.session!.sessionId);

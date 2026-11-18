@@ -7,14 +7,12 @@ import type {
 import { parallelSrIds, readSrDependencies } from "@zcode/services/aireq";
 import { prototypeMaterial } from "./materials.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
-const solution =
-  "每个 SR 是独立 OpenSpec change，包含 proposal、design、tasks、specs 和 test-plan。IR 共享材料保存业务需求、整体验收与依赖 JSON。任务清单尚未实施或验证，代码与接口仍需核对。所有材料作为同一完整版本审查、人工放行和三方确认后进入一个文档 PR。";
 
 /** 依赖 JSON 是预估假设的唯一来源；写业务投入与范围条件，不把私有样例身份带入用户材料。 */
 export function prototypeProposalDependencies(
   group: AIReqRequirementGroup,
   rows: AIReqSystemRequirement[],
-  discussion?: string,
+  suppliedJson?: string,
 ): AIReqMaterialView {
   return prototypeMaterial({
     projectId: group.projectId,
@@ -23,49 +21,27 @@ export function prototypeProposalDependencies(
     stage: "solution",
     round: group.proposalRound ?? 1,
     path: `${prototypeIrRoot(group.id)}/sr-dependencies.json`,
-    content: JSON.stringify(
-      {
-        srs: group.srIds.map((srId) => ({
-          srId,
-          estimate: {
-            workingDays: srId === "proposal-sr-booking-notification" ? 2 : 3,
-            assumptions:
-              "按单个开发人员投入估算，假设复用现有接口；不含等待前置 SR、评审和外部联调时间，实际排期需结合接口核对和联调范围确认。" +
-              (discussion ? `本轮方案讨论：${discussion}` : ""),
-          },
-          prerequisites: (rows.find((row) => row.id === srId)?.dependencySrIds ?? []).map((id) => ({
-            srId: id,
-            reason: "需要先稳定前置 SR 提供的业务结果与接口约定，再实现当前能力。",
+    // A supplied dependency document must be inspected as-is, including structural errors.
+    content:
+      suppliedJson ??
+      JSON.stringify(
+        {
+          srs: rows.map((row) => ({
+            srId: row.id,
+            estimate: {
+              workingDays: row.id === "proposal-sr-booking-notification" ? 2 : 3,
+              assumptions:
+                "按单个开发人员投入估算，假设复用现有接口；不含等待前置 SR、评审和外部联调时间，实际排期需结合接口核对和联调范围确认。",
+            },
+            prerequisites: (row.dependencySrIds ?? []).map((id) => ({
+              srId: id,
+              reason: "需要先稳定前置 SR 提供的业务结果与接口约定，再实现当前能力。",
+            })),
           })),
-        })),
-      },
-      null,
-      2,
-    ),
-  });
-}
-
-export function prototypeProposalSolution(
-  group: AIReqRequirementGroup,
-  discussion?: string,
-): AIReqMaterialView {
-  const name = (id: string) =>
-    `${id} · ${group.snapshot?.srs.find((sr) => sr.id === id)?.title ?? id}`;
-  return prototypeMaterial({
-    projectId: group.projectId,
-    irId: group.id,
-    kind: "solution",
-    stage: "solution",
-    round: group.proposalRound ?? 1,
-    path: `${prototypeIrRoot(group.id)}/acceptance.md`,
-    content: `# ${group.title} · 技术方案\n\n${solution}${discussion ? `\n\n## 本轮方案讨论\n\n${discussion}` : ""}\n\n## SR 实现思路\n${group.srIds
-      .map((id) => {
-        const analysis = prototypeSrSolutionAnalysis(group, id);
-        return `### ${name(id)}\n\n实现思路：${analysis.approach}\n\n待确认事项：${analysis.uncertainties.join("；")}`;
-      })
-      .join(
-        "\n\n",
-      )}\n\n## 业务整体验收\n\n追溯 requirements.md 的 AC-1 正常结果与 AC-2 异常恢复；逐 SR 验证后检查跨 SR 协作与一致性。开发依赖、预估与原因唯一见 [sr-dependencies.json](./sr-dependencies.json)，不在这里维护第二份依赖。`,
+        },
+        null,
+        2,
+      ),
   });
 }
 

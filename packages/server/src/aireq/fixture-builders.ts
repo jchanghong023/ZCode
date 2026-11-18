@@ -169,14 +169,18 @@ export function group(
         }
       : {
           proposalRound: 1,
-          proposalSolution: {
-            path: `${prototypeIrRoot(id)}/acceptance.md`,
-            employeeId: "j00808874",
-            generatedAt: createdAt,
-            round: 1,
-            valid: true,
-            requirementsDigest: digest,
-          },
+          ...(rows.length
+            ? {
+                proposalSolution: {
+                  path: `openspec/changes/${rows[0]!.id}/design.md`,
+                  employeeId: "j00808874",
+                  generatedAt: createdAt,
+                  round: 1,
+                  valid: true,
+                  requirementsDigest: digest,
+                },
+              }
+            : {}),
         }),
     origin: "local",
     status: draft ? "draft" : rows.some((row) => row.startedAt) ? "frozen" : "formal",
@@ -197,11 +201,6 @@ export function group(
     snapshot: snapshot,
     ...(!draft
       ? {
-          confirmation: {
-            operationId: `sample-confirm-${id}`,
-            snapshotDigest: digest,
-            confirmedAt: createdAt,
-          },
           review: {
             id: `sample-review-${id}`,
             snapshotDigest: digest,

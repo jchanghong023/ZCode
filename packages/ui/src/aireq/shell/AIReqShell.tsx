@@ -44,6 +44,7 @@ const nativeSettingsSections = {
   models: "modelProvider",
   personalization: "personalization",
   analysis: "agentBehavior",
+  documentFormats: "documentFormats",
 } satisfies Record<Section, SettingsSectionId>;
 
 function readSettingsSection(): Section {
@@ -56,6 +57,8 @@ function readSettingsSection(): Section {
       return "personalization";
     case "agentBehavior":
       return "analysis";
+    case "documentFormats":
+      return "documentFormats";
     default:
       return "projects";
   }
@@ -163,7 +166,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     ai.selectionReady &&
     project &&
     !ai.view?.availableReleases.some((item) => item.projectId === project.id) &&
-    ["todos", "formal", "proposals"].includes(ai.mainView),
+    ["todos", "formal", "proposals", "requirementAnalysis"].includes(ai.mainView),
   );
   const formal =
     ai.mainView === "formal" ||
@@ -223,7 +226,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   else if (ai.mainView === "requirementAnalysis")
     content = (
       <AIReqRequirementAnalysisPage
-        onOpenModelSettings={openModelSettings}
         onOpenAnalysisSettings={() => openSettings("analysis", ai.selection.projectId)}
       />
     );
@@ -257,13 +259,17 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                 ? zh
                   ? "开发任务"
                   : "Development tasks"
-                : zh
-                  ? "需求共创"
-                  : "Co-creation"}
+                : ai.mainView === "requirementAnalysis"
+                  ? zh
+                    ? "进度分析"
+                    : "Progress analysis"
+                  : zh
+                    ? "需求共创"
+                    : "Co-creation"}
           </h1>
           <p role="status" className="text-foreground-subtle">
             {zh
-              ? `${project!.name} 尚无 Release，请先添加版本。`
+              ? `暂无 Release。请先为 ${project!.name} 添加版本。`
               : `${project!.name} has no releases. Add a release to continue.`}
           </p>
           <Button

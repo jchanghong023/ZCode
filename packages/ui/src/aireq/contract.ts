@@ -16,8 +16,12 @@ export type {
   AIReqAnalysisSnapshot,
   AIReqAnalysisTask,
   AIReqDataSource,
+  AIReqDocumentFormats,
+  AIReqDocumentName,
   AIReqFileVersion,
   AIReqIdentity,
+  AIReqMaterialHistory,
+  AIReqMaterialReadRequest,
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqPrHandoff,
@@ -50,6 +54,9 @@ export type {
 export {
   aiReqPrFactSchema,
   AIREQ_CONTRACT_VERSION,
+  AIREQ_DOCUMENT_PATHS,
+  checkMarkdownSections,
+  firstMarkdownTitle,
   MATERIAL_KIND_LABELS,
   PROGRESS_STATUSES,
   PROPOSAL_STATE_OPTIONS,
@@ -90,7 +97,8 @@ export {
   deriveAIReqTodos,
   fullReviewCurrent,
   fullReviewReadyBlocker,
-  fullReviewBlocker,
+  proposalAlignmentCurrent,
+  proposalReviewCanRetry,
   alignmentBlocker,
 } from "@zcode/services/aireq";
 
@@ -98,6 +106,8 @@ export {
 export interface AIReqApplicationProps {
   services: IServiceAccessor;
   platform: IPlatformService;
+  clientId: string;
+  connected: boolean;
   operator: { employeeNumber: string; leave(): void };
 }
 export type AIReqMainView =

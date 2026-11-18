@@ -112,9 +112,9 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
   return { wsUrl: `${resolveDefaultWsOrigin()}/ws` };
 }
 
-async function bootstrapWebApp(generation: number) {
+async function bootstrapWebApp(generation: number, employeeNumber: string) {
   const isCurrentEntry = () =>
-    generation === entryGeneration && employeeEntry.employeeNumber !== null;
+    generation === entryGeneration && employeeEntry.employeeNumber === employeeNumber;
   let bootstrap: WebBootstrapResult;
   try {
     bootstrap = await resolveWebBootstrap();
@@ -125,24 +125,24 @@ async function bootstrapWebApp(generation: number) {
   if (!isCurrentEntry()) return;
 
   // 修复原因：断线只替换 accessor 并重读，不卸载未发送草稿与业务工作区。
-  let hasConnected = false;
+  let currentServices: Awaited<ReturnType<typeof connectViaWebSocket>> | undefined;
 
-  const renderApp = (services: Awaited<ReturnType<typeof connectViaWebSocket>>) => {
-    hasConnected = true;
-    document.title = "AIReq · 需求管理";
+  const renderApp = (connected: boolean) => {
+    if (!currentServices) return;
     connectionNotice = null;
     application = (
       <AIReqWebApplication
-        key={employeeEntry.employeeNumber}
-        services={services}
+        key={employeeNumber}
+        services={currentServices}
         platform={platform}
+        clientId={webClientId}
+        connected={connected}
         operator={{
-          employeeNumber: employeeEntry.employeeNumber!,
+          employeeNumber,
           leave: () => employeeEntry.leave(),
         }}
       />
     );
-    renderEntry();
   };
 
   // 修复原因（P0-1）：原实现 onClose 传空函数，断线后 UI 无感知、请求永久挂起。
@@ -172,6 +172,7 @@ async function bootstrapWebApp(generation: number) {
     if (disposed || !isCurrentEntry() || reconnectTimer !== null || connecting) {
       return;
     }
+    renderApp(false);
     if (reconnectAttempt >= WEB_RECONNECT_DELAYS_MS.length) {
       renderWebDisconnected("服务暂时不可用，请检查网络后重试。", () => {
         reconnectAttempt = 0;
@@ -198,7 +199,7 @@ async function bootstrapWebApp(generation: number) {
     let attemptClosed = false;
     try {
       const nativeUrl = new URL(bootstrap.wsUrl);
-      nativeUrl.searchParams.set("employeeId", employeeEntry.employeeNumber!);
+      nativeUrl.searchParams.set("employeeId", employeeNumber);
       nativeUrl.searchParams.set("clientId", webClientId);
       const services = await connectViaWebSocket(nativeUrl.toString(), {
         onOpenSocket: (ws) => {
@@ -230,14 +231,17 @@ async function bootstrapWebApp(generation: number) {
       }
       closed = false;
       reconnectAttempt = 0;
-      renderApp(services);
+      currentServices = services;
+      document.title = "AIReq · 需求管理";
+      renderApp(true);
+      renderEntry();
     } catch (error) {
       if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) return;
       // 本轮失败即撤销关闭事件资格，异步 close 到达时不能再启动第二条恢复路径。
       attemptGeneration += 1;
       closeActiveSocket();
       closed = true;
-      if (!hasConnected) {
+      if (!currentServices) {
         logger.warn("[web] Initial connection failed", error);
         renderWebDisconnected("暂时无法连接服务，请重试。", () => {
           reconnectAttempt = 0;
@@ -251,7 +255,7 @@ async function bootstrapWebApp(generation: number) {
       connecting = false;
       // Bug 原因：connecting 尚为 true 时安排重试会被准入守卫丢弃。
       // 必须先释放本轮连接资格，再安排唯一 timer；旧 attempt 的关闭回调不能污染下一轮。
-      if (retry || (attemptClosed && hasConnected)) scheduleReconnect();
+      if (retry || (attemptClosed && currentServices)) scheduleReconnect();
     }
   };
 
@@ -280,7 +284,8 @@ function handleEntryChange() {
   application = null;
   connectionNotice = null;
   renderEntry();
-  if (employeeEntry.employeeNumber) void bootstrapWebApp(entryGeneration);
+  const employeeNumber = employeeEntry.employeeNumber;
+  if (employeeNumber) void bootstrapWebApp(entryGeneration, employeeNumber);
 }
 employeeEntry.subscribe(handleEntryChange);
 handleEntryChange();

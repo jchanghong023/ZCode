@@ -38,7 +38,12 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
-import { PROPOSAL_STATE_GROUPS, PROPOSAL_STATE_OPTIONS, proposalState } from "../contract.js";
+import {
+  checkMarkdownSections,
+  PROPOSAL_STATE_GROUPS,
+  PROPOSAL_STATE_OPTIONS,
+  proposalState,
+} from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
@@ -103,6 +108,14 @@ export function AIReqProposalTable() {
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
   const businessDocument = importFormat === "markdown" ? fileContent : null;
+  const requiredSections = ai.view?.documentFormats["requirements.md"];
+  const sectionIssues = useMemo(
+    () =>
+      businessDocument === null || !requiredSections
+        ? []
+        : checkMarkdownSections(businessDocument, requiredSections),
+    [businessDocument, requiredSections],
+  );
   const proposals =
     businessDocument !== null
       ? [{ originalText: documentRequest, businessDocument }]
@@ -564,6 +577,31 @@ export function AIReqProposalTable() {
                       : "The short request is stored separately. The document below is preserved and still requires review before solution planning."}
                   </p>
                 </div>
+                {sectionIssues.length > 0 && (
+                  <div role="status" className="space-y-1 text-ui-base text-foreground">
+                    <p className="font-medium">
+                      {zh ? "文档有待补充的必需章节" : "Required sections need attention"}
+                    </p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {sectionIssues.map(({ heading, kind }) => (
+                        <li key={heading} className="break-words">
+                          {zh
+                            ? kind === "missing"
+                              ? `缺少章节「${heading}」`
+                              : `章节「${heading}」缺少正文`
+                            : kind === "missing"
+                              ? `Missing section: ${heading}`
+                              : `Empty section: ${heading}`}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-foreground-subtle">
+                      {zh
+                        ? "仍可原样导入，之后在需求澄清中补齐。"
+                        : "You can import the original as-is and complete it during clarification."}
+                    </p>
+                  </div>
+                )}
                 <div
                   className="max-h-64 overflow-auto rounded-lg border border-border p-3"
                   aria-label={zh ? "IR 业务需求文档预览" : "IR business document preview"}

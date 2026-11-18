@@ -2,12 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearV4ComposerDraft,
   clearV4ComposerDraftTaskGroup,
+  composerDraftScopeKey,
   getV4ComposerDraftStorageKey,
   persistV4ComposerDraft,
   readV4ComposerDraft,
   V4_DRAFT_SCOPE_ROOT,
   type ComposerScope,
 } from "../../packages/ui/src/v4/composer/composerDraftStore.js";
+import {
+  readPromptHistoryEntries,
+  persistPromptHistoryEntries,
+} from "../../packages/ui/src/lib/promptHistoryStorage.js";
+import {
+  readComposerAttachmentScope,
+  updateComposerAttachmentScope,
+} from "../../packages/ui/src/store/composerAttachmentUploadStore.js";
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -45,6 +54,8 @@ describe("composer draft persistence", () => {
     hostId: "workspace-a",
     projectId: "project-a",
   };
+  const otherEmployee = { ...scope, clientNamespace: "j00000002:client-1" };
+  const otherClient = { ...scope, clientNamespace: "j00000001:client-2" };
 
   beforeEach(() => {
     storage = new MemoryStorage();
@@ -88,6 +99,86 @@ describe("composer draft persistence", () => {
       );
     }
     expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, scope)?.text).toBe("我的草稿");
+  });
+
+  it("switching the author on a shared session restores only that author's unsent text", () => {
+    const session = "shared-session";
+    persistV4ComposerDraft(path, identity, session, { text: "旧的无归属草稿" });
+    persistV4ComposerDraft(path, identity, session, { text: "甲的未发消息" }, scope);
+    expect(readV4ComposerDraft(path, identity, session, otherEmployee)).toBeNull();
+    expect(readV4ComposerDraft(path, identity, session, otherClient)).toBeNull();
+    persistV4ComposerDraft(path, identity, session, { text: "乙的未发消息" }, otherEmployee);
+
+    expect(readV4ComposerDraft(path, identity, session, scope)?.text).toBe("甲的未发消息");
+    expect(readV4ComposerDraft(path, identity, session, otherEmployee)?.text).toBe("乙的未发消息");
+    clearV4ComposerDraft(path, identity, session, scope);
+    expect(readV4ComposerDraft(path, identity, session, scope)).toBeNull();
+    expect(readV4ComposerDraft(path, identity, session, otherEmployee)?.text).toBe("乙的未发消息");
+  });
+
+  it("returning to a draft restores its original File without exposing it to another author", async () => {
+    const session = "attachment-session";
+    const ownerKey = composerDraftScopeKey(identity, session, scope.clientNamespace);
+    const file = new File(["真实附件内容"], "requirements.txt", { type: "text/plain" });
+    updateComposerAttachmentScope(ownerKey, () => [
+      {
+        id: "attachment-a",
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        file,
+        referenceOwnership: "composer",
+        uploadStatus: "waitingSession",
+        uploadProgress: 0,
+        autoRetryCount: 0,
+        runtimeRebuildRetryCount: 0,
+        showComplete: false,
+        localZeroCopy: false,
+      },
+    ]);
+    try {
+      for (const [workspace, target, namespace] of [
+        [identity, session, otherEmployee.clientNamespace],
+        [identity, session, otherClient.clientNamespace],
+        ["workspace-b", session, scope.clientNamespace],
+        [identity, "another-session", scope.clientNamespace],
+      ] as const) {
+        expect(
+          readComposerAttachmentScope(composerDraftScopeKey(workspace, target, namespace)),
+        ).toEqual([]);
+      }
+      const restored = readComposerAttachmentScope(ownerKey);
+      expect(restored.map((item) => item.filename)).toEqual(["requirements.txt"]);
+      expect(await restored[0]?.file?.text()).toBe("真实附件内容");
+    } finally {
+      updateComposerAttachmentScope(ownerKey, () => []);
+    }
+  });
+
+  it("prompt recall stays with the author, client, workspace and original session", () => {
+    const session = "history-session";
+    const ownerKey = composerDraftScopeKey(identity, session, scope.clientNamespace);
+    const otherKey = composerDraftScopeKey(identity, session, otherEmployee.clientNamespace);
+    persistPromptHistoryEntries(ownerKey, ["甲会话中的指令"]);
+    expect(readPromptHistoryEntries(otherKey)).toEqual([]);
+    persistPromptHistoryEntries(otherKey, ["乙会话中的指令"]);
+    expect(
+      readPromptHistoryEntries(
+        composerDraftScopeKey(identity, session, otherClient.clientNamespace),
+      ),
+    ).toEqual([]);
+    expect(
+      readPromptHistoryEntries(
+        composerDraftScopeKey(identity, "other-session", scope.clientNamespace),
+      ),
+    ).toEqual([]);
+    expect(
+      readPromptHistoryEntries(
+        composerDraftScopeKey("workspace-b", session, scope.clientNamespace),
+      ),
+    ).toEqual([]);
+    expect(readPromptHistoryEntries(ownerKey)).toEqual(["甲会话中的指令"]);
+    expect(readPromptHistoryEntries(otherKey)).toEqual(["乙会话中的指令"]);
   });
 
   it("isolates session drafts by workspace identity and session, even when paths are equal", () => {

@@ -255,9 +255,10 @@ export async function createRemoteAIReqDataSource(
       }
       return { identity: `aireq-remote:${clientId}`, kind: "unavailable" };
     },
-    retryMaterial: (path, target) => call("retryMaterial", [path, target], target),
-    retrySession: async (target) => {
-      await call("retrySession", [target], target);
+    retryMaterial: (request) =>
+      call("retryMaterial", [request], { projectId: request.projectId, irId: request.irId }),
+    retrySession: async (target, sessionId) => {
+      await call("retrySession", [target, sessionId], target);
     },
     readPrHandoff: (target) => call("readPrHandoff", [target], target),
     selectProject(projectId) {
@@ -306,7 +307,18 @@ export async function createRemoteAIReqDataSource(
       },
       revision: () => metadata.models.revision,
       subscribe: (listener) => subscribe(modelListeners, listener),
-      bindingChanged: (binding) => binding.configurationRevision !== metadata.models.revision,
+      bindingChanged(binding) {
+        const settings = metadata.models.settings;
+        const agent = settings.agents.find((item) => item.id === binding.role);
+        if (!agent) return false;
+        const inherited = agent.model === "inherit";
+        return (
+          binding.inherited !== inherited ||
+          binding.modelKey !== (inherited ? settings.defaultModel : agent.model) ||
+          binding.reasoning !== agent.reasoning ||
+          binding.promptSnapshot !== (metadata.prompts.saved[binding.role] ?? "")
+        );
+      },
     },
     prompts: {
       read: () => ({

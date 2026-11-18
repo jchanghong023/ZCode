@@ -45,7 +45,7 @@ function PersonalizationContent({
   const [saved, setSaved] = useState(() => source.prompts!.read().saved);
   const [draft, setDraft] = useState(() => ({ ...source.prompts!.read().saved }));
   const [savedRevision, setSavedRevision] = useState(() => source.prompts!.read().revision);
-  const [selected, setSelected] = useState(() => agents[0]?.id ?? "");
+  const [selected, setSelected] = useState<string>(() => agents[0]?.id ?? "");
   const selectedAgent = agents.find((agent) => agent.id === selected);
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -122,22 +122,11 @@ function PersonalizationContent({
     );
   return (
     <div className="space-y-8" data-testid="aireq-personalization-settings">
-      <AIReqPersonalConfigScope
-        scope={
-          zh
-            ? "团队共享配置 · 保存后用于新建评审和分析。"
-            : "Shared team settings · Used by new reviews and analyses after saving."
-        }
-      >
+      <AIReqPersonalConfigScope>
         <p>
           {zh
             ? "为各 Agent 追加团队共享的指令和工作约定，不替换内置指令。"
             : "Add shared team instructions and working conventions for each Agent without replacing built-in instructions."}
-        </p>
-        <p>
-          {zh
-            ? "保存后更新团队共享配置，不改写已有讨论或报告。新建评审和分析读取已保存指令。"
-            : "Saving updates shared team settings without rewriting existing discussions or reports. New reviews and analyses read the saved instructions."}
         </p>
       </AIReqPersonalConfigScope>
       <AIReqSettingsTarget id="aireq.instructions.agent" className="space-y-2">
@@ -232,7 +221,7 @@ function PersonalizationContent({
           }
         >
           <Button size="lg" disabled={!canSave || saving} onClick={save}>
-            {zh ? "保存" : "Save"}
+            {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存" : "Save"}
           </Button>
           <Button
             variant="ghost"

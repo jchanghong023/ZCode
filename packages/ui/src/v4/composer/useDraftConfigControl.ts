@@ -151,6 +151,7 @@ export function useDraftConfigControl(params: {
   sessionId: string | null;
   /** 仅匹配当前 Session 的首份投影可用作初始化；null 表示还没恢复完成。 */
   sessionConfig?: Partial<SessionConfigState> | null;
+  submissionConfigOnly?: boolean;
   modelSelectionService: IModelSelectionService | null;
   /** composer 编辑态：草稿切到该 Session 的 edit scope，原草稿留在原 scope 不动。 */
   editScopeId?: string | null;
@@ -160,6 +161,7 @@ export function useDraftConfigControl(params: {
     workspaceIdentity,
     sessionId,
     sessionConfig,
+    submissionConfigOnly = false,
     modelSelectionService,
     editScopeId = null,
   } = params;
@@ -183,7 +185,7 @@ export function useDraftConfigControl(params: {
     workspaceKey,
     scopeId,
     draftFocusVersion,
-    sessionId === null ? composerScopeKey(rootScope) : null,
+    sessionId === null ? composerScopeKey(rootScope) : clientNamespace,
   ]);
   const navigationInitialization = useZCodeSessionStore((state) => {
     const workspace = state.workspaces[workspaceKey];
@@ -305,14 +307,15 @@ export function useDraftConfigControl(params: {
     const currentMode = mode.success && mode.data !== "plan" ? mode.data : "build";
     const currentPlan = resolveExecutionState(sessionConfig).planEnabled;
     if (firstSnapshot && currentState.initialization === "session") {
-      // 草稿正文存在时曾保留旧模型，导致离开期间已确认的调档在返回发送时被撤销。
-      // 普通会话配置以 Session 为准，保留正文；新任务和消息编辑 scope 不走此恢复分支。
-      draft = {
-        ...draft,
-        mode: currentMode,
-        planEnabled: currentPlan,
-        modelSelection: sessionConfig.modelSelection,
-      };
+      // 普通会话以原生配置为准；业务会话的下一次提交选项不是共享会话配置。
+      if (!submissionConfigOnly || draft.updatedAt === 0) {
+        draft = {
+          ...draft,
+          mode: currentMode,
+          planEnabled: currentPlan,
+          modelSelection: sessionConfig.modelSelection,
+        };
+      }
     } else if (previous) {
       // 只处理本次打开后出现的新关联；使用最新快照值，不能从历史事件推导固定 yolo/Plan。
       const permissionChanged =
@@ -888,6 +891,7 @@ export function useDraftConfigControl(params: {
         workspaceIdentity,
         targetSessionId,
         draftForPromotion,
+        rootScope,
       );
       if (!written) return false;
       const staged = stagedContentRef.current;

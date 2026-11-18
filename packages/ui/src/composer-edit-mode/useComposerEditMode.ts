@@ -20,7 +20,12 @@ import { logger } from "@/logger.js";
 import { v4QueuedCommandText } from "@/v4/slashCommands.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { parseComposerPromptContexts } from "@/v4/composer/composerPromptContexts.js";
-import { persistV4ComposerDraft, type V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
+import {
+  composerDraftScopeKey,
+  persistV4ComposerDraft,
+  resolveComposerScope,
+  type V4ComposerDraft,
+} from "@/v4/composer/composerDraftStore.js";
 import {
   replaceComposerAttachmentsForScope,
   setComposerAttachmentPreviewUrlForScope,
@@ -29,7 +34,6 @@ import type { ConversationAttachmentReadParams, ConversationTransport } from "@/
 import { seedCodeCommentContextsForScope } from "@/v4/composer/useCodeCommentContexts.js";
 import { seedWebElementContextsForScope } from "@/v4/composer/useWebElementContexts.js";
 import { seedPptxElementReferencesForScope } from "@/v4/composer/usePptxElementReferences.js";
-import { composerEditSessionKey } from "./contract.js";
 import { ensureEditorIdentity, useEditorIdentity } from "./editorIdentity.js";
 import type {
   ComposerEditInvalidReason,
@@ -99,12 +103,14 @@ export interface ComposerEditMode {
 
 // 预置操作跨渲染复用，但不能与 dispatch/releaseLock 共享作用域；否则旧命令回调仍持有旧 pane。
 function createEnterEditScope({
+  clientNamespace,
   readAttachment,
   remoteSessionId,
   workspaceIdentity,
   workspaceKey,
   workspacePath,
 }: {
+  clientNamespace: string;
   readAttachment?: ConversationTransport["attachmentRead"];
   remoteSessionId?: string;
   workspaceIdentity?: string;
@@ -123,15 +129,19 @@ function createEnterEditScope({
       workspaceIdentity,
     });
     const visibleText = parsed.visibleContent;
-    persistV4ComposerDraft(workspacePath, workspaceIdentity, scopeId, {
-      text: visibleText,
-      ...content.config,
-    });
+    persistV4ComposerDraft(
+      workspacePath,
+      workspaceIdentity,
+      scopeId,
+      { text: visibleText, ...content.config },
+      resolveComposerScope(null, workspaceIdentity, clientNamespace),
+    );
     const attachmentItems = replaceComposerAttachmentsForScope(
       workspacePath,
       workspaceIdentity,
       scopeId,
       content.attachments,
+      clientNamespace,
     );
     // Bug 根因：session-owned 附件没有本地 objectUrl，编辑态媒体卡既无缩略图也无法打开 gallery
     // （VI06/VI07 视频预览 E2E）。与消息行一致按原序号读回；视频带 row target，
@@ -166,6 +176,7 @@ function createEnterEditScope({
               scopeId,
               item.id,
               url,
+              clientNamespace,
             );
             if (!applied && !("url" in result)) URL.revokeObjectURL(url);
           })
@@ -201,7 +212,8 @@ function createEnterEditScope({
             },
       ),
     );
-    useComposerEditStore.getState().begin(composerEditSessionKey(workspaceKey, targetSessionId), {
+    const sessionKey = composerDraftScopeKey(workspaceKey, targetSessionId, clientNamespace);
+    useComposerEditStore.getState().begin(sessionKey, {
       target,
       scopeId,
       inputKind: content.inputKind,
@@ -215,18 +227,18 @@ function createEnterEditScope({
 // Bug 原因：投影 effect 与长期复用的编辑回调共享词法作用域，旧回调会连带保留整份历史。
 // 独立作用域只负责本轮投影校验和锁同步；事件处理仍通过 snapshotRef 读取当前投影。
 function useComposerEditProjection({
+  enabled,
   snapshot,
   sessionId,
-  workspaceKey,
   sessionKey,
   editSession,
   editorId,
   editorIdentityConfirmed,
   releaseLock,
 }: {
+  enabled: boolean;
   snapshot: ConversationSnapshot | null;
   sessionId: string | null;
-  workspaceKey: string;
   sessionKey: string | null;
   editSession: ComposerEditSession | undefined;
   editorId: string;
@@ -267,12 +279,19 @@ function useComposerEditProjection({
   // 释放完成前该行显示「解除」入口（ConversationQueuePanel），用户也可手动处理。
   const releasedOrphanLocksRef = useRef(new Set<string>());
   useEffect(() => {
-    if (!editorIdentityConfirmed) return;
-    if (!sessionId || !snapshot || snapshot.sessionId !== sessionId) return;
+    if (
+      !enabled ||
+      !editorIdentityConfirmed ||
+      !sessionId ||
+      !sessionKey ||
+      !snapshot ||
+      snapshot.sessionId !== sessionId
+    )
+      return;
     for (const item of snapshot.queue.items) {
       if (item.editLock?.editorId !== editorId) continue;
       if (lockRequestsInFlight.has(item.queueItemId)) continue;
-      const active = getComposerEditSession(composerEditSessionKey(workspaceKey, sessionId));
+      const active = getComposerEditSession(sessionKey);
       if (active?.target.kind === "queueItem" && active.target.queueItemId === item.queueItemId) {
         continue;
       }
@@ -287,12 +306,14 @@ function useComposerEditProjection({
         if (!released) releasedOrphanLocksRef.current.delete(queueItemId);
       });
     }
-  }, [editorId, editorIdentityConfirmed, releaseLock, sessionId, snapshot, workspaceKey]);
+  }, [enabled, editorId, editorIdentityConfirmed, releaseLock, sessionId, sessionKey, snapshot]);
 
   return invalidReason;
 }
 
 export function useComposerEditMode(params: {
+  clientNamespace: string;
+  enabled: boolean;
   sessionId: string | null;
   workspacePath: string;
   workspaceIdentity?: string;
@@ -311,6 +332,8 @@ export function useComposerEditMode(params: {
   intl: { formatMessage: (descriptor: { id: string }) => string };
 }): ComposerEditMode {
   const {
+    clientNamespace,
+    enabled,
     sessionId,
     workspacePath,
     workspaceIdentity,
@@ -326,13 +349,15 @@ export function useComposerEditMode(params: {
     intl,
   } = params;
   const { editorId, confirmed: editorIdentityConfirmed } = useEditorIdentity();
-  const sessionKey = sessionId ? composerEditSessionKey(workspaceKey, sessionId) : null;
+  const sessionKey = sessionId
+    ? composerDraftScopeKey(workspaceKey, sessionId, clientNamespace)
+    : null;
   const editSession = useComposerEditStore((state) =>
     sessionKey ? state.sessions[sessionKey] : undefined,
   );
   const [pendingLockQueueItemId, setPendingLockQueueItemId] = useState<string | null>(null);
-  const bindingRef = useRef({ sessionId, workspaceKey });
-  bindingRef.current = { sessionId, workspaceKey };
+  const bindingRef = useRef(sessionKey);
+  bindingRef.current = sessionKey;
 
   /** 释放编辑锁；返回是否已确定释放（accepted/noop），供遗留锁自愈判断是否需要重试。 */
   const releaseLock = useCallback(
@@ -353,13 +378,21 @@ export function useComposerEditMode(params: {
   const enterEditScope = useMemo(
     () =>
       createEnterEditScope({
+        clientNamespace,
         readAttachment,
         remoteSessionId,
         workspaceIdentity,
         workspaceKey,
         workspacePath,
       }),
-    [readAttachment, remoteSessionId, workspaceIdentity, workspaceKey, workspacePath],
+    [
+      clientNamespace,
+      readAttachment,
+      remoteSessionId,
+      workspaceIdentity,
+      workspaceKey,
+      workspacePath,
+    ],
   );
 
   /**
@@ -470,8 +503,7 @@ export function useComposerEditMode(params: {
             toast(intl.formatMessage({ id: `chat.composerEdit.lockFailed.${reason}` }));
             return;
           }
-          const binding = bindingRef.current;
-          if (binding.sessionId !== sessionId || binding.workspaceKey !== workspaceKey) {
+          if (bindingRef.current !== sessionKey) {
             // ACK 返回前 pane 已切 task：不能把旧 session 的内容写进新 composer，锁也要立即还回去。
             void releaseLock(sessionId, queueItemId);
             return;
@@ -522,8 +554,8 @@ export function useComposerEditMode(params: {
       releaseLock,
       runWithSwitchGuard,
       sessionId,
+      sessionKey,
       snapshotRef,
-      workspaceKey,
     ],
   );
 
@@ -544,9 +576,9 @@ export function useComposerEditMode(params: {
   const finishEdit = useCallback(() => endEdit(false), [endEdit]);
 
   const invalidReason = useComposerEditProjection({
+    enabled,
     snapshot,
     sessionId,
-    workspaceKey,
     sessionKey,
     editSession,
     editorId,

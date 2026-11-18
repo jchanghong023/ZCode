@@ -1,3 +1,4 @@
+import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
 
 /** Explicit in-memory failure fixtures, without filesystem or network probing. */
@@ -13,16 +14,30 @@ const recoveredSessions = new Set<string>();
 const consumedOperations = new Set<string>();
 const scope = () => `process:${prototypeRecoveryScenario ?? ""}`;
 const scenario = () => prototypeRecoveryScenario;
-export function prototypeMaterialIssue(path: string): string | undefined {
-  if (path !== defaultMaterial || recoveredMaterials.has(`${scope()}:${path}`)) return undefined;
+const hasMaterialFailure = (material: AIReqMaterialView) =>
+  material.projectId === "demo-aurora" &&
+  material.irId === "draft-automation" &&
+  material.path === defaultMaterial &&
+  (scenario() === "missing-material" || scenario() === "material-read-failure");
+
+// IR IDs are stable within their project; the retry command validates their owning Release.
+const materialKey = ({ projectId, irId, path, sha256, round }: AIReqMaterialView) =>
+  JSON.stringify([projectId, irId, path, sha256, round]);
+
+export function prototypeMaterialIssue(material: AIReqMaterialView): string | undefined {
+  if (!hasMaterialFailure(material)) return undefined;
   if (scenario() === "missing-material") return "当前材料不存在，请核对需求及材料版本。";
-  if (scenario() === "material-read-failure") return "当前材料读取失败，请重试。";
-  return undefined;
+  if (!recoveredMaterials.has(materialKey(material))) return "当前材料读取失败，请重试。";
 }
-export function retryPrototypeMaterialRead(path: string): boolean {
-  if (scenario() === "missing-material" && path === defaultMaterial) return false;
-  recoveredMaterials.add(`${scope()}:${path}`);
-  return !prototypeMaterialIssue(path);
+export function readPrototypeMaterial(material: AIReqMaterialView): AIReqMaterialView {
+  const error = prototypeMaterialIssue(material);
+  return error ? { ...material, error, content: undefined } : material;
+}
+export function retryPrototypeMaterialRead(material: AIReqMaterialView): boolean {
+  if (!hasMaterialFailure(material)) return !material.error;
+  if (scenario() === "missing-material") return false;
+  recoveredMaterials.add(materialKey(material));
+  return true;
 }
 export function prototypeSessionReadIssue(sessionId: string): boolean {
   return (

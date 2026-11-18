@@ -4,11 +4,19 @@ import type {
   AIReqAgentModelSettings,
   AIReqIdea,
   AIReqRemoteBootstrap,
-} from "../../packages/services/src/aireq/index.js";
+} from "@zcode/services/aireq";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "../../packages/shared/src/userInstructions.js";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
-import { createProject } from "./business.js";
+import { createProject, createProposal } from "./business.js";
+import {
+  approveOriginalReview,
+  commandAndRead,
+  completeBusinessMaterial,
+  completeSolutionMaterial,
+  getProposal,
+  waitForReview,
+} from "./proposal-flow.js";
 
 // Assertions come from section-navigation-and-ideas.md, tools-settings.md,
 // connection-identity.md and the public services/aireq contract, not backend samples.
@@ -314,17 +322,45 @@ describe("ST global ideas and configuration", () => {
   );
 
   it(
-    "saves complete model configuration, emits committed invalidation and rejects stale or invalid replacements",
+    "saves shared and independent Agent models, binds new work and retains the original discussion binding",
     async () => {
       await usingClient(async (client) => {
         const original = (await client.bootstrap()).models;
+        const before = await createProposal(client);
+        const originalBinding = before.remote.session?.modelConfig;
+        expect(originalBinding?.role).toBe("requirements");
         const alternative = requireConfig(
           original.choices.find((choice) => choice.id !== original.settings.defaultModel),
           "模型配置测试需要至少两个可选正式模型",
         );
-        const next: AIReqAgentModelSettings = {
-          ...structuredClone(original.settings),
+        const reviewers = [
+          "requirements-review-a",
+          "requirements-review-b",
+          "requirements-review-c",
+        ];
+        const shared: AIReqAgentModelSettings = {
           defaultModel: alternative.id,
+          agents: original.settings.agents.map((agent) =>
+            ["requirements", ...reviewers].includes(agent.id)
+              ? { ...agent, model: "inherit" }
+              : agent,
+          ),
+        };
+        const originalReviewer = requireConfig(
+          shared.agents.find((agent) => agent.id === "requirements-review"),
+          "独立需求评审 Agent",
+        );
+        const previousReviewModel =
+          originalReviewer.model === "inherit" ? shared.defaultModel : originalReviewer.model;
+        const reviewModel = requireConfig(
+          original.choices.find((choice) => choice.id !== previousReviewModel),
+          "需求评审的独立模型选项",
+        );
+        const next: AIReqAgentModelSettings = {
+          ...shared,
+          agents: shared.agents.map((agent) =>
+            agent.id === originalReviewer.id ? { ...agent, model: reviewModel.id } : agent,
+          ),
         };
         let owned: AIReqRemoteBootstrap["models"] | undefined;
         let notified = false;
@@ -332,7 +368,10 @@ describe("ST global ideas and configuration", () => {
           if (event.type === "models") notified = true;
         });
         try {
-          await client.call("models.save", [next, original.revision]);
+          await client.call("models.save", [shared, original.revision]);
+          owned = (await client.bootstrap()).models;
+          expect(owned.settings).toEqual(shared);
+          await client.call("models.save", [next, owned.revision]);
           // Bootstrap is the public post-commit verification and the only restore baseline.
           owned = (await client.bootstrap()).models;
           expect(owned.settings).toEqual(next);
@@ -352,6 +391,39 @@ describe("ST global ideas and configuration", () => {
             ]),
           ).rejects.toThrow();
           expect((await client.bootstrap()).models).toEqual(owned);
+          expect(
+            owned.settings.agents.find((agent) => agent.id === "requirements-review-a"),
+          ).toEqual(shared.agents.find((agent) => agent.id === "requirements-review-a"));
+
+          const after = await createProposal(client);
+          expect(after.remote.session?.modelConfig).toMatchObject({
+            role: "requirements",
+            modelKey: alternative.id,
+            inherited: true,
+          });
+          expect((await client.read(before.selection)).session?.modelConfig).toEqual(
+            originalBinding,
+          );
+          await completeBusinessMaterial(client, after);
+          const { review: requirements } = await waitForReview(client, after, "original");
+          expect(requirements.agents?.[0]?.session.modelConfig).toMatchObject({
+            role: "requirements-review",
+            modelKey: reviewModel.id,
+            inherited: false,
+          });
+          await approveOriginalReview(client, after);
+          await completeSolutionMaterial(client, after);
+          const { review: solution } = await waitForReview(client, after, "full");
+          for (const role of reviewers) {
+            expect(
+              solution.agents?.find((agent) => agent.session.modelConfig?.role === role),
+            ).toMatchObject({
+              session: { modelConfig: { role, modelKey: alternative.id, inherited: true } },
+            });
+          }
+          expect(
+            solution.agents?.find((agent) => agent.id === "summary")?.session.modelConfig?.role,
+          ).toBe("solution-review-summary");
         } finally {
           subscription.dispose();
           await restoreModels(client, original, owned);
@@ -367,7 +439,10 @@ describe("ST global ideas and configuration", () => {
       await usingClient(async (client) => {
         const initial = await client.bootstrap();
         const original = initial.prompts;
-        const role = requireConfig(initial.models.settings.agents[0]?.id, "正式 Agent 角色");
+        const role = "requirements-review";
+        const before = await createProposal(client);
+        await completeBusinessMaterial(client, before);
+        const { review: historical } = await waitForReview(client, before, "original");
         const next = { ...original.saved, [role]: unique("追加指令：必须核对验收依据") };
         let owned: AIReqRemoteBootstrap["prompts"] | undefined;
         let notified = false;
@@ -402,6 +477,25 @@ describe("ST global ideas and configuration", () => {
             ]),
           ).rejects.toThrow();
           expect((await client.bootstrap()).prompts).toEqual(owned);
+          await commandAndRead(
+            client,
+            {
+              type: "reviseProposalMaterial",
+              target: "requirements",
+              note: "补充对无导出权限用户的验收条件。",
+            },
+            before,
+          );
+          const { remote, review: current } = await waitForReview(client, before, "original");
+          expect(current.id).not.toBe(historical.id);
+          expect(current.agents?.[0]).toMatchObject({
+            promptSnapshot: next[role],
+            session: { modelConfig: { role, promptSnapshot: next[role] } },
+          });
+          expect(getProposal(remote, before).originalReviewHistory).toContainEqual({
+            ...historical,
+            invalidatedReason: expect.any(String),
+          });
         } finally {
           subscription.dispose();
           await restorePrompts(client, original, owned);

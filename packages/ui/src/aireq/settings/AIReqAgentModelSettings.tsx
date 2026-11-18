@@ -136,10 +136,10 @@ function ModelSettingsContent({
             ? "为各 Agent 设置模型与思考强度，选择“跟随默认”时使用默认模型。"
             : "Set a model and reasoning level for each Agent. Choose “Follow default” to use the default model."}
         </p>
-        <p data-testid="agent-model-effective-scope">
+        <p>
           {zh
-            ? "保存后对新建会话生效，已有会话保留原配置。"
-            : "Saved settings apply to new sessions. Existing sessions keep their original configuration."}
+            ? "方案评审 A、B、C 分别执行，可以跟随同一个工作流默认模型。"
+            : "Solution reviewers A, B and C run separately and can follow the same workflow default model."}
         </p>
         <p>
           {zh

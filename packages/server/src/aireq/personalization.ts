@@ -1,16 +1,23 @@
 import { businessRule } from "./errors.js";
-import { readPrototypeAgentModels } from "./agent-models.js";
+import { AIREQ_AGENT_ROLES, type AIReqAgentRole } from "@zcode/services/aireq";
+import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
+
+const roles: ReadonlySet<string> = new Set(AIREQ_AGENT_ROLES);
 export interface PrototypeAgentPrompts {
   [agentId: string]: string;
 }
 let saved: PrototypeAgentPrompts = {};
 let revision = 1;
+
+export function readPrototypeAgentPrompt(role: AIReqAgentRole): string {
+  return saved[role] ?? "";
+}
+
 function validate(value: PrototypeAgentPrompts): void {
-  const roles = new Set(readPrototypeAgentModels().agents.map((agent) => agent.id));
   for (const [role, text] of Object.entries(value)) {
     if (!roles.has(role) || typeof text !== "string") throw businessRule("无效 Agent 追加指令。");
-    if (Buffer.byteLength(text, "utf8") > 102400)
-      throw businessRule(`${role} 的追加指令超过 102400 UTF-8 字节。`);
+    if (Buffer.byteLength(text, "utf8") > USER_INSTRUCTIONS_MAX_BYTES)
+      throw businessRule(`${role} 的追加指令超过 ${USER_INSTRUCTIONS_MAX_BYTES} UTF-8 字节。`);
   }
 }
 /** Only saved shared configuration is server-owned; unsent editor drafts stay in the client. */

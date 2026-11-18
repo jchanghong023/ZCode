@@ -9,6 +9,7 @@ import type {
   ConversationSnapshot,
 } from "@zcode/shared/zcode-protocol-v4";
 import {
+  isPendingCommandForClient,
   resolvePendingCommandWorkspaceKey,
   type PendingCommandClientContext,
 } from "@/v4/pendingCommandWorkspace.js";
@@ -422,12 +423,14 @@ export class PendingCommandRegistry {
               workspace.workspacePath,
               workspace.workspaceIdentity,
               entry.sessionId,
+              composer.scope,
             ) &&
             !persistV4ComposerDraft(
               workspace.workspacePath,
               workspace.workspaceIdentity,
               entry.sessionId,
               draft,
+              composer.scope,
             )
           )
             return false;
@@ -459,15 +462,18 @@ export class PendingCommandRegistry {
     sessionId: string | null,
     query: QueryCommands,
     workspaceKey?: string,
+    clientNamespace?: string,
   ): Promise<void> {
-    const inFlightKey = JSON.stringify([workspaceKey, sessionId]);
+    const inFlightKey = JSON.stringify([clientNamespace, workspaceKey, sessionId]);
     const existing = this.reconcileInFlight.get(inFlightKey);
     if (existing) return existing;
-    const pending = this.runReconcile(sessionId, query, workspaceKey).finally(() => {
-      if (this.reconcileInFlight.get(inFlightKey) === pending) {
-        this.reconcileInFlight.delete(inFlightKey);
-      }
-    });
+    const pending = this.runReconcile(sessionId, query, workspaceKey, clientNamespace).finally(
+      () => {
+        if (this.reconcileInFlight.get(inFlightKey) === pending) {
+          this.reconcileInFlight.delete(inFlightKey);
+        }
+      },
+    );
     this.reconcileInFlight.set(inFlightKey, pending);
     return pending;
   }
@@ -500,13 +506,15 @@ export class PendingCommandRegistry {
     sessionId: string | null,
     query: QueryCommands,
     workspaceKey?: string,
+    clientNamespace?: string,
   ): Promise<void> {
     // null bucket 会收集各 workspace 的创建；只能向命令原属 Agent 查询。
     const entries = this.list(sessionId).filter(
       (entry) =>
-        workspaceKey === undefined ||
-        resolvePendingCommandWorkspaceKey(entry) === workspaceKey ||
-        (sessionId !== null && resolvePendingCommandWorkspaceKey(entry) === null),
+        (clientNamespace === undefined || isPendingCommandForClient(entry, clientNamespace)) &&
+        (workspaceKey === undefined ||
+          resolvePendingCommandWorkspaceKey(entry) === workspaceKey ||
+          (sessionId !== null && resolvePendingCommandWorkspaceKey(entry) === null)),
     );
     for (let offset = 0; offset < entries.length; offset += 64) {
       const batch = entries.slice(offset, offset + 64);

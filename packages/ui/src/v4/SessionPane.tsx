@@ -62,6 +62,7 @@ import { useWorkspaceHomePath } from "@/hooks/useWorkspaceHomePath.js";
 import { prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import {
+  composerDraftScopeKey,
   readPendingTaskDraft,
   resolveComposerScope,
   composerScopeKey,
@@ -100,7 +101,6 @@ import {
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import {
   ComposerEditBar,
-  composerEditSessionKey,
   getComposerEditSession,
   useComposerEditMode,
   useComposerEditStore,
@@ -238,7 +238,7 @@ export interface SessionPaneProps {
   /** 模型选择仅作用于下一次提交，不修改已绑定会话的默认配置。 */
   submissionModelSelectionOnly?: boolean;
   /** 显式重连前由宿主恢复当前会话的可重读事实；失败不得继续原生重试。 */
-  onBeforeReconnect?: () => Promise<void>;
+  onBeforeReconnect?: (isCurrent: () => boolean) => Promise<void>;
   autoFocusEnabled?: boolean;
   /** 保持原生输入挂载时，宿主可暂停编辑与工具条全局快捷键。 */
   interactionEnabled?: boolean;
@@ -577,7 +577,7 @@ export function SessionPane({
     onRuntimeLifecycle,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
-  const { modelSelectionService } = useServices();
+  const { modelSelectionService, zcodeAgentService } = useServices();
   const { intl } = useZCodeIntl();
   const baseWorkspaceServices = useBaseWorkspaceServices();
   const composerClientNamespace = useComposerClientNamespace();
@@ -933,10 +933,11 @@ export function SessionPane({
     providerAgentStartupAllowed && remoteAvailable && draftProjectReady;
 
   // composer 编辑态：草稿切到 edit scope，原草稿留在原 scope。
+  const composerEditKey = sessionId
+    ? composerDraftScopeKey(workspaceKey, sessionId, composerClientNamespace)
+    : null;
   const composerEditScopeId = useComposerEditStore((store) =>
-    sessionId
-      ? store.sessions[composerEditSessionKey(workspaceKey, sessionId)]?.scopeId
-      : undefined,
+    composerEditKey ? store.sessions[composerEditKey]?.scopeId : undefined,
   );
   // Composer 保存下一次 Submission 的 renderer intent；prewarm session 仅承载草稿预热。
   const {
@@ -965,6 +966,7 @@ export function SessionPane({
     workspaceIdentity,
     sessionId,
     sessionConfig: runtimeReady && snapshot?.sessionId === sessionId ? snapshot.config : null,
+    submissionConfigOnly: submissionModelSelectionOnly,
     modelSelectionService,
     editScopeId: composerEditScopeId ?? null,
   });
@@ -1103,6 +1105,34 @@ export function SessionPane({
     ],
   );
 
+  const commandBinding = useMemo(
+    () => ({
+      zcodeAgentService,
+      sessionId,
+      workspacePath,
+      workspaceIdentity,
+      composerClientNamespace,
+      writable: remoteAvailable && interactionEnabled && !readOnly,
+      active: false,
+    }),
+    [
+      zcodeAgentService,
+      sessionId,
+      workspacePath,
+      workspaceIdentity,
+      composerClientNamespace,
+      remoteAvailable,
+      interactionEnabled,
+      readOnly,
+    ],
+  );
+  useLayoutEffect(() => {
+    commandBinding.active = true;
+    return () => {
+      commandBinding.active = false;
+    };
+  }, [commandBinding]);
+
   const dispatchCommand = useCallback(
     async (
       type: CommandType,
@@ -1118,7 +1148,8 @@ export function SessionPane({
       submittedDraftText?: string,
     ): Promise<CommandAck> => {
       // 离线点击/快捷键不得进入 accepted 命令恢复账本，更不能在重连后自动发送。
-      if (!remoteAvailable) throw createRemoteWorkspaceDisconnectedError();
+      if (!commandBinding.active || !commandBinding.writable)
+        throw createRemoteWorkspaceDisconnectedError();
       const submission = submissionConfigFromCommand(type, payload);
       const recentSubmission = recentSubmissionOverride ?? submission;
       // 发送时固定组织归属；同 cwd 可属于多个项目，切页和迟到 ACK 不得改写目标。
@@ -1132,6 +1163,7 @@ export function SessionPane({
         : undefined;
       if (recentSubmission && sessionId && targetSessionId) {
         recentScope = await resolveRecentScope(targetSessionId);
+        if (!commandBinding.active) throw createRemoteWorkspaceDisconnectedError();
       }
       if (recentReceipt) recentReceipt.scope = recentScope;
       const pendingDraft =
@@ -1162,6 +1194,7 @@ export function SessionPane({
         envelope,
         type === "createSession"
           ? {
+              clientNamespace: composerClientNamespace,
               workspace: {
                 workspacePath,
                 ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -1185,6 +1218,7 @@ export function SessionPane({
             }
           : recentReceipt
             ? {
+                clientNamespace: composerClientNamespace,
                 workspace: { workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) },
                 ...(sessionId === null
                   ? {
@@ -1204,7 +1238,10 @@ export function SessionPane({
                     : {}),
                 },
               }
-            : undefined,
+            : {
+                clientNamespace: composerClientNamespace,
+                workspace: { workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) },
+              },
       );
       // 首发等待预热时，闭包里的页面 lease 可能仍为空；按命令目标取得同一个投影 owner，
       // 避免漏记待投影输入造成 placeholder 闪回，也避免切页后把命令状态写进另一会话。
@@ -1289,11 +1326,12 @@ export function SessionPane({
     },
     [
       captureAcceptedModelSelection,
+      commandBinding,
+      composerClientNamespace,
       newTaskComposerScope,
       resolveRecentScope,
       layer,
       sendCommand,
-      remoteAvailable,
       sessionId,
       workspaceIdentity,
       workspacePath,
@@ -1923,6 +1961,7 @@ export function SessionPane({
           null,
         (params) => layer.queryCommands(params),
         workspaceIdentity?.trim() || workspacePath,
+        composerClientNamespace,
       )
       .catch((error) => {
         logger.warn("[v4-composer] 首发结果恢复查询失败，保留草稿身份", error);
@@ -1932,6 +1971,7 @@ export function SessionPane({
       off();
     };
   }, [
+    composerClientNamespace,
     recoveringDraft,
     remoteAvailable,
     layer,
@@ -1995,6 +2035,8 @@ export function SessionPane({
   }, [handleOnlineModelTransition]);
 
   const recoverableCommands = usePendingCommandRecovery({
+    clientNamespace: composerClientNamespace,
+    remoteAvailable,
     layer,
     sessionId: effectiveSessionId,
     snapshot,
@@ -2556,6 +2598,8 @@ export function SessionPane({
     [dispatchCommand],
   );
   const composerEdit = useComposerEditMode({
+    clientNamespace: composerClientNamespace,
+    enabled: !readOnly && runtimeReady && interactionEnabled && remoteAvailable,
     sessionId,
     workspacePath,
     workspaceIdentity,
@@ -2596,12 +2640,12 @@ export function SessionPane({
       const workspaceMode = composerEditWorkspaceModeRef.current;
       composerEditWorkspaceModeRef.current = "preserve";
       const current = snapshotRef.current;
-      if (!sessionId || current === null) return "blocked";
+      if (!sessionId || !composerEditKey || current === null) return "blocked";
       const submission =
         options?.submission === undefined ? createSubmissionFromComposer() : options.submission;
       // composer 展示的就是完整附件列表：显式提交完整数组，[] 表示用户删除了全部附件。
       const attachments = options?.attachments ?? [];
-      const editKey = composerEditSessionKey(workspaceKey, sessionId);
+      const editKey = composerEditKey;
       if (editSession.target.kind === "userQuery") {
         const result = await handleEdit(
           { rowId: editSession.target.rowId, entityId: editSession.target.entityId },
@@ -2670,6 +2714,7 @@ export function SessionPane({
       return "blocked";
     },
     [
+      composerEditKey,
       composerEditorId,
       createSubmissionFromComposer,
       dispatchCommand,
@@ -2678,7 +2723,6 @@ export function SessionPane({
       intl,
       promptApplyEditConfigToQueue,
       sessionId,
-      workspaceKey,
     ],
   );
 
@@ -2789,9 +2833,7 @@ export function SessionPane({
           throw error;
         }
       }
-      const editSession = sessionId
-        ? getComposerEditSession(composerEditSessionKey(workspaceKey, sessionId))
-        : undefined;
+      const editSession = composerEditKey ? getComposerEditSession(composerEditKey) : undefined;
       if (editSession && composerEditInvalidReasonRef.current === null) {
         return submitComposerEdit(editSession, text, options);
       }
@@ -2803,7 +2845,7 @@ export function SessionPane({
       sessionId,
       intl,
       submitComposerEdit,
-      workspaceKey,
+      composerEditKey,
       conversationExtension,
       dispatchCommand,
       waitForDraftSession,
@@ -2817,15 +2859,15 @@ export function SessionPane({
         firstSendAcceptedRef.current = null;
         accepted.settle();
       }
-      if (!sessionId) return;
-      const editSession = getComposerEditSession(composerEditSessionKey(workspaceKey, sessionId));
+      if (!composerEditKey) return;
+      const editSession = getComposerEditSession(composerEditKey);
       // 只结束本次提交所属的编辑；提交期间已切换到另一编辑目标时保持新编辑态。
       if (editSession?.scopeId !== scopeId) return;
       // 提交成功：回到原草稿时保留编辑态的模型与 mode。
       keepEditConfigOnExit(scopeId);
       finishComposerEdit();
     },
-    [finishComposerEdit, keepEditConfigOnExit, sessionId, workspaceKey],
+    [composerEditKey, finishComposerEdit, keepEditConfigOnExit],
   );
 
   const handleComposerEditRewindWorkspace = useCallback(() => {
@@ -2833,22 +2875,18 @@ export function SessionPane({
     setComposerEditSubmitRequest((request) => request + 1);
   }, []);
   const handleComposerEditConflictConversationOnly = useCallback(() => {
-    if (sessionId) {
-      useComposerEditStore
-        .getState()
-        .update(composerEditSessionKey(workspaceKey, sessionId), { conflictPreview: undefined });
+    if (composerEditKey) {
+      useComposerEditStore.getState().update(composerEditKey, { conflictPreview: undefined });
     }
     composerEditWorkspaceModeRef.current = "preserve";
     setComposerEditSubmitRequest((request) => request + 1);
-  }, [sessionId, workspaceKey]);
+  }, [composerEditKey]);
   const handleComposerEditConflictOpenChange = useCallback(
     (open: boolean) => {
-      if (open || !sessionId) return;
-      useComposerEditStore
-        .getState()
-        .update(composerEditSessionKey(workspaceKey, sessionId), { conflictPreview: undefined });
+      if (open || !composerEditKey) return;
+      useComposerEditStore.getState().update(composerEditKey, { conflictPreview: undefined });
     },
-    [sessionId, workspaceKey],
+    [composerEditKey],
   );
 
   const dispatchRetryTurn = useCallback(
@@ -3307,7 +3345,7 @@ export function SessionPane({
   // 面板打开时按 DOM 归属隔离；关闭时由 Shell 授权主区接收对话外 Esc，避免焦点离开输入框后无法停止。
   // 保留窗口冒泡阶段，让 mention/slash 的 preventDefault 和 dialog 优先处理。
   useEffect(() => {
-    if (!focused || readOnly) return;
+    if (!focused || readOnly || !runtimeReady || !interactionEnabled || !remoteAvailable) return;
     if (!sessionId || !snapshot?.control.canStop) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -3323,7 +3361,10 @@ export function SessionPane({
     allowEscapeStopOutsidePane,
     focused,
     handleStop,
+    interactionEnabled,
     readOnly,
+    remoteAvailable,
+    runtimeReady,
     sessionId,
     snapshot?.control.canStop,
   ]);
@@ -3342,9 +3383,22 @@ export function SessionPane({
       provider,
       layer,
       lease,
+      onBeforeReconnect,
+      canReconnect: interactionEnabled && remoteAvailable,
       active: false,
     }),
-    [paneId, sessionId, workspacePath, workspaceIdentity, provider, layer, lease],
+    [
+      paneId,
+      sessionId,
+      workspacePath,
+      workspaceIdentity,
+      provider,
+      layer,
+      lease,
+      onBeforeReconnect,
+      interactionEnabled,
+      remoteAvailable,
+    ],
   );
   const reconnectTargetRef = useRef(reconnectTarget);
   reconnectTargetRef.current = reconnectTarget;
@@ -3359,17 +3413,24 @@ export function SessionPane({
   const handleRetrySubscribe = useCallback(() => {
     const target = reconnectTarget;
     const isCurrentTarget = () => target.active && reconnectTargetRef.current === target;
-    if (!isCurrentTarget() || reconnectFlightRef.current === target) return;
+    const lease = target.lease;
+    if (
+      !target.canReconnect ||
+      !lease ||
+      !isCurrentTarget() ||
+      reconnectFlightRef.current === target
+    )
+      return;
     reconnectFlightRef.current = target;
     // 重连只重建当前绑定的订阅；业务准备完成后仍须核验代际，
     // 防止 A → B → A 或卸载后的迟到回调重试新目标。
     void (async () => {
       try {
-        if (onBeforeReconnect) {
-          await onBeforeReconnect();
+        if (target.onBeforeReconnect) {
+          await target.onBeforeReconnect(isCurrentTarget);
           if (!isCurrentTarget()) return;
         }
-        await target.lease?.store.retry();
+        await lease.store.retry();
       } catch (error) {
         logger.warn("[session-lifecycle] 重新连接失败", {
           workspacePath: target.workspacePath,
@@ -3384,7 +3445,7 @@ export function SessionPane({
         if (reconnectFlightRef.current === target) reconnectFlightRef.current = null;
       }
     })();
-  }, [reconnectTarget, onBeforeReconnect, intl]);
+  }, [reconnectTarget, intl]);
 
   // loadOlder 触发（接近顶部自动预取）。store 内部单飞防重入。
   const handleLoadOlder = useCallback(() => {
@@ -3428,13 +3489,13 @@ export function SessionPane({
 
   // subscribe ACK 会先把 store 置 live，initial snapshot 稍后才到；只看
   // status 会在无投影窗口提前启用编辑器。正式 session 必须等首个 snapshot 才可输入。
-  const connecting =
-    sessionId !== null &&
-    (snapshot === null || (state.status === "connecting" && !snapshot.runtimeInitialization));
   const errored = sessionId !== null && state.status === "error";
+  const connecting =
+    sessionId !== null && !runtimeReady && !errored && !snapshot?.runtimeInitialization;
   // runtime 不在线（崩溃后重连中或重连失败）时，旧快照里的运行项已经没有执行者：胶囊计时停在
   // 断开前、停止入口隐藏；重连后的 CLI 投影给出真正的终态。
-  const runtimeOffline = sessionId !== null && snapshot !== null && state.status !== "live";
+  const runtimeOffline =
+    sessionId !== null && snapshot !== null && (!remoteAvailable || state.status !== "live");
   // retry 的产品裁决属于行级权威投影。这里仅提供命令能力，入口是否展示
   // 完全读取 row.actions.canRetry，禁止再用 pane phase 形成第二套 guard。
   const retryActionsEnabled = runtimeReady && !readOnly && !selectionSideChat && Boolean(sessionId);
@@ -3742,7 +3803,7 @@ export function SessionPane({
     );
   }, [recoverableCommand]);
   const handleResendPendingCommand = useCallback(() => {
-    if (!recoverableCommand) return;
+    if (!commandBinding.active || !commandBinding.writable || !recoverableCommand) return;
     const replay = pendingCommandRegistry.consumeReplay({
       sessionId: recoverableCommand.sessionId,
       commandId: recoverableCommand.commandId,
@@ -3788,7 +3849,13 @@ export function SessionPane({
         // 新 command 已先写入 registry；本次 transport 失败仍可在下次连接继续对账。
         logger.warn("[v4-pending-command] 用户确认重发失败", error);
       });
-  }, [dispatchCommand, handleDraftSessionCreated, recoverableCommand, workspaceKey]);
+  }, [
+    commandBinding,
+    dispatchCommand,
+    handleDraftSessionCreated,
+    recoverableCommand,
+    workspaceKey,
+  ]);
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 普通观察视图隐藏输入；业务讨论显式保留禁用输入，沿原草稿 owner 显示只读原因。
@@ -3858,6 +3925,7 @@ export function SessionPane({
       disabled={
         !interactionEnabled ||
         connecting ||
+        errored ||
         draftRuntimeRebuilding ||
         composerEdit.pendingLockQueueItemId !== null
       }
@@ -3933,7 +4001,7 @@ export function SessionPane({
     ) : null
   ) : (
     <>
-      {!readOnly && recoverableCommand ? (
+      {!readOnly && runtimeReady && recoverableCommand ? (
         <PendingCommandRecoveryBanner
           entry={recoverableCommand}
           onResend={
@@ -3942,7 +4010,7 @@ export function SessionPane({
           onDismiss={handleDismissPendingRecovery}
         />
       ) : null}
-      {!readOnly && sessionId && snapshot ? (
+      {!readOnly && runtimeReady && sessionId && snapshot ? (
         <ConversationQueuePanel
           key="conversation-queue"
           queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
@@ -3965,7 +4033,10 @@ export function SessionPane({
       ) : null}
       {/* Bugfix: v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer
           共享 timeline bottom dock；渲染在 SessionPane 外层会脱离主列宽度并挤占下半屏。 */}
-      {!readOnly && effectiveSessionId && snapshot?.sessionId === effectiveSessionId ? (
+      {!readOnly &&
+      runtimeReady &&
+      effectiveSessionId &&
+      snapshot?.sessionId === effectiveSessionId ? (
         <V4InteractionDialogs
           key="conversation-interactions"
           resolveRecentScope={resolveRecentScope}
@@ -4141,15 +4212,15 @@ export function SessionPane({
         ) : null}
 
         {errored && remoteAvailable ? (
-          <>
-            <SessionSubscriptionErrorPanel
-              error={state.lastError ?? intl.formatMessage({ id: "chat.error.connectionLost" })}
-              sessionId={sessionId}
-              workspacePath={workspacePath}
-              onReconnect={handleRetrySubscribe}
-            />
-          </>
-        ) : (
+          <SessionSubscriptionErrorPanel
+            error={state.lastError ?? intl.formatMessage({ id: "chat.error.connectionLost" })}
+            sessionId={sessionId}
+            workspacePath={workspacePath}
+            retainingHistory={timelineSnapshot !== null}
+            onReconnect={handleRetrySubscribe}
+          />
+        ) : null}
+        {!errored || !remoteAvailable || timelineSnapshot ? (
           <ConversationTimeline
             contentWidthClassName={contentWidthClassName}
             scrollToBottomActionRef={timelineScrollToBottomRef}
@@ -4226,7 +4297,7 @@ export function SessionPane({
                 : undefined
             }
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

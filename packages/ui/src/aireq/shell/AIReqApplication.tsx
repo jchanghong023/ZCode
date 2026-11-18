@@ -14,7 +14,7 @@ import { AppErrorBoundary } from "@/ErrorBoundary.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { AlertDialogHost } from "@/AlertDialogHost.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
-import { getV4ClientId } from "@/v4/commandFactory.js";
+import { V4BaseConnectionContext } from "@/v4/V4ConversationContext.js";
 import { setEmployeeId } from "../identity.js";
 import type { AIReqApplicationProps } from "../contract.js";
 import { AIReqDataSourceProvider } from "../data-source.js";
@@ -27,10 +27,14 @@ export function AIReqApplication(props: AIReqApplicationProps) {
     setEmployeeId(props.operator.employeeNumber);
     return {
       employeeId: props.operator.employeeNumber,
-      clientId: getV4ClientId(),
+      clientId: props.clientId,
     };
   });
-  const [source, setSource] = useState<AIReqDataSource>();
+  const composerClientNamespace = `aireq:${identity.clientId}:${identity.employeeId}`;
+  const [binding, setBinding] = useState<{
+    source: AIReqDataSource;
+    services: typeof props.services;
+  }>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   // 主题交由下方 StoreProvider 统一初始化和订阅，避免独立 useTheme 的旧 system 监听覆盖固定主题。
@@ -42,7 +46,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
       (value) => {
         owned = value;
         if (active) {
-          setSource(value);
+          setBinding({ source: value, services: props.services });
           setError(undefined);
         } else void value.dispose();
       },
@@ -62,7 +66,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
           <TooltipProvider>
             <ServiceProvider
               services={props.services}
-              composerClientNamespace={`aireq:${identity.clientId}:${identity.employeeId}`}
+              composerClientNamespace={composerClientNamespace}
             >
               <PlatformProvider platform={props.platform}>
                 <StoreProvider
@@ -89,10 +93,17 @@ export function AIReqApplication(props: AIReqApplicationProps) {
                           </Button>
                         </div>
                       )}
-                      {source ? (
-                        <AIReqDataSourceProvider source={source}>
+                      {binding ? (
+                        <AIReqDataSourceProvider source={binding.source}>
                           <AIReqProvider>
-                            <AIReqShell onLogout={props.operator.leave} />
+                            <V4BaseConnectionContext.Provider
+                              value={{
+                                key: composerClientNamespace,
+                                available: props.connected && binding.services === props.services,
+                              }}
+                            >
+                              <AIReqShell onLogout={props.operator.leave} />
+                            </V4BaseConnectionContext.Provider>
                           </AIReqProvider>
                         </AIReqDataSourceProvider>
                       ) : (

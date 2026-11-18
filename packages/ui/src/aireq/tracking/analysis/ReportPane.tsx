@@ -107,7 +107,7 @@ export function AnalysisReportContent({
               <div>
                 <dt className="font-medium">是否可重试</dt>
                 <dd>
-                  {run.failure?.retryable === false
+                  {!run.failure?.retryable
                     ? "不可直接重试，需先处理上述问题。"
                     : "可重试；仅派发当前 SR，不影响其他任务。"}
                 </dd>
@@ -117,7 +117,7 @@ export function AnalysisReportContent({
               重试此 SR
             </Button>
             <p role="status" className="text-foreground-subtle">
-              {retryDisabledReason ?? "任一合法工号可代办；项目需开启，当前 SR 未完成且未运行。"}
+              {retryDisabledReason ?? "项目需开启，当前 SR 尚未首次合入且未运行。"}
             </p>
           </section>
         )}
@@ -153,7 +153,10 @@ export function AnalysisReportContent({
                 AI 原始评分：{report.aiPercent === undefined
                   ? "未提供"
                   : `${report.aiPercent}%`} ·
-                本次运行时有效进度：{report.percent}%
+                {run.status === "skipped" && !report.stale
+                  ? "此前报告有效进度"
+                  : "本次运行时有效进度"}
+                ：{report.percent}%
               </p>
               {report.stale && (
                 <p className="text-warning">报告已过期；业务有效进度仍以合入及人工测试事实为准。</p>

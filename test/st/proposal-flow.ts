@@ -59,7 +59,7 @@ export async function commandAndRead(c: STClient, action: AIReqAction, target: P
   return c.read(target.selection);
 }
 
-async function discuss(c: STClient, target: ProposalTarget, text: string) {
+export async function discuss(c: STClient, target: ProposalTarget, text: string) {
   const remote = await c.read(target.selection);
   expect(
     remote.session,
@@ -72,7 +72,7 @@ async function discuss(c: STClient, target: ProposalTarget, text: string) {
       ["accepted", "duplicate"],
       "the user's explicit discussion input should be admitted",
     ).toContain(ack.status);
-    await session.waitIdle();
+    expect((await session.waitIdle()).control.phase).toBe("completedSuccess");
   } finally {
     await session.close();
   }
@@ -93,6 +93,7 @@ export async function completeBusinessMaterial(c: STClient, target: ProposalTarg
       const group = getProposal(remote, target);
       return (
         group.files.some((file) => file.path === group.documentPath) &&
+        group.requirementsCheck?.issues.length === 0 &&
         remote.view.materials.some(
           (file) =>
             file.projectId === target.projectId &&
@@ -108,11 +109,47 @@ export async function completeBusinessMaterial(c: STClient, target: ProposalTarg
   );
 }
 
-function reviewFinished(review: AIReqReview | undefined): boolean {
-  return Boolean(
-    review?.agents?.length &&
-    review.agents.every((agent) => agent.status === "completed" || agent.status === "failed"),
+export async function waitForReview(
+  c: STClient,
+  target: ProposalTarget,
+  kind: "original" | "full",
+) {
+  const expectedAgents = kind === "original" ? ["a"] : ["a", "b", "c", "summary"];
+  const current = (remote: AIReqRemoteWorkflow) => {
+    const group = getProposal(remote, target);
+    return kind === "original" ? group.originalReview : group.review;
+  };
+  const remote = await waitUntil(
+    `automatic ${kind} review should produce current reports`,
+    () => c.read(target.selection),
+    (remote) => {
+      const review = current(remote);
+      if (!review || review.invalidatedReason) return false;
+      const failed = review.agents?.find((agent) => agent.status === "failed");
+      expect(failed, failed?.report || review.report).toBeUndefined();
+      const summary = review.agents?.find((agent) => agent.id === "summary");
+      if (summary && summary.status !== "pending") {
+        for (const id of ["a", "b", "c"]) {
+          const agent = review.agents!.find((agent) => agent.id === id);
+          expect(agent?.status, `scheme review ${id} must finish before synthesis`).toBe(
+            "completed",
+          );
+          expect(agent?.report.trim()).toBeTruthy();
+        }
+      }
+      return Boolean(
+        review.report.trim() &&
+        expectedAgents.every((id) =>
+          review.agents?.some(
+            (agent) => agent.id === id && agent.status === "completed" && agent.report.trim(),
+          ),
+        ),
+      );
+    },
   );
+  const review = current(remote)!;
+  assertReadableReview(review, expectedAgents);
+  return { remote, review };
 }
 
 function assertReadableReview(review: AIReqReview, expectedAgents: readonly string[]) {
@@ -125,19 +162,13 @@ function assertReadableReview(review: AIReqReview, expectedAgents: readonly stri
     expect(agent.report.trim(), `review ${agent.id} should expose its actual report`).not.toBe("");
   }
   expect(review.report.trim()).not.toBe("");
-  expect(review.findings?.filter((item) => item.level === "blocking") ?? []).toEqual([]);
+  expect(new Set(review.agents!.map((agent) => agent.session.sessionId)).size).toBe(
+    expectedAgents.length,
+  );
 }
 
 export async function approveOriginalReview(c: STClient, target: ProposalTarget) {
-  await commandAndRead(c, { type: "runRequirementsReview" }, target);
-  const reviewed = await waitUntil(
-    "the current original review should finish",
-    () => c.read(target.selection),
-    (remote) => reviewFinished(getProposal(remote, target).originalReview),
-    config.timeoutMs,
-  );
-  const review = getProposal(reviewed, target).originalReview!;
-  assertReadableReview(review, ["a"]);
+  const { review } = await waitForReview(c, target, "original");
   await commandAndRead(
     c,
     { type: "acceptProposal", reviewId: review.id, snapshotDigest: review.snapshotDigest },
@@ -162,9 +193,9 @@ export async function completeSolutionMaterial(c: STClient, target: ProposalTarg
   await discuss(
     c,
     target,
-    "请根据已经人工通过的业务需求，完成本轮方案材料。拆分稳定 SR，分别生成规格、设计、开发任务、测试方案；" +
-      "补齐 IR 整体验收标准，以及覆盖全部 SR 的 sr-dependencies.json。每个 SR 给出正有限工作日预估和假设，" +
-      "依赖须给出理由且无环。测试方案逐项追溯业务验收标准，不请求批准、不创建文档 PR。",
+    "请根据已确认的只读 IR 业务文档，将导出功能与异常恢复拆成至少两个稳定 SR，分别生成提案、规格、设计、开发任务、测试方案；" +
+      "生成覆盖全部 SR 的 sr-dependencies.json，每个 SR 给出正有限工作日预估和假设，依赖须给出理由且无环。" +
+      "测试方案逐项追溯业务验收标准，不请求确认、不创建文档 PR。",
   );
   const remote = await waitUntil(
     "solution discussion should produce the complete current document package",
@@ -173,19 +204,16 @@ export async function completeSolutionMaterial(c: STClient, target: ProposalTarg
       const group = getProposal(value, target);
       return Boolean(
         group.srIds.length &&
-        group.proposalSolution?.valid &&
-        group.srDependencyFile?.valid &&
-        group.srIds.every((srId) =>
-          ["proposal.md", "design.md", "tasks.md", "test-plan.md"].every((name) =>
-            value.view.materials.some(
-              (file) =>
-                file.projectId === target.projectId &&
-                file.irId === target.irId &&
-                file.path === `openspec/changes/${srId}/${name}` &&
-                file.valid &&
-                !file.error &&
-                Boolean(file.content?.trim()),
-            ),
+        group.solutionCheck?.issues.length === 0 &&
+        proposalMaterialPaths(group).every((path) =>
+          value.view.materials.some(
+            (file) =>
+              file.projectId === target.projectId &&
+              file.irId === target.irId &&
+              file.path === path &&
+              file.valid &&
+              !file.error &&
+              Boolean(file.content?.trim()),
           ),
         ),
       );
@@ -193,46 +221,46 @@ export async function completeSolutionMaterial(c: STClient, target: ProposalTarg
     config.timeoutMs,
   );
   const group = getProposal(remote, target);
-  const materialPaths = remote.view.materials
-    .filter(
-      (file) =>
-        file.projectId === target.projectId &&
-        file.irId === target.irId &&
-        file.valid &&
-        !file.error &&
-        Boolean(file.content?.trim()),
-    )
-    .map((file) => file.path);
-  expect(materialPaths).toContain(`docs/requirements/${target.irId}/acceptance.md`);
-  expect(materialPaths).toContain(`docs/requirements/${target.irId}/sr-dependencies.json`);
-  for (const srId of group.srIds) {
-    expect(materialPaths.some((path) => path.startsWith(`openspec/changes/${srId}/specs/`))).toBe(
-      true,
-    );
-  }
+  expect(group.files.map((file) => file.path).sort()).toEqual(proposalMaterialPaths(group).sort());
   return remote;
 }
 
-async function approveFullReview(c: STClient, target: ProposalTarget) {
-  await commandAndRead(c, { type: "runFullReview" }, target);
-  const reviewed = await waitUntil(
-    "three independent reviews and their summary should finish",
-    () => c.read(target.selection),
-    (remote) => reviewFinished(getProposal(remote, target).review),
-    config.timeoutMs,
-  );
-  const review = getProposal(reviewed, target).review!;
-  assertReadableReview(review, ["a", "b", "c", "summary"]);
-  const approved = await commandAndRead(
-    c,
-    { type: "approveFullReview", reviewId: review.id, snapshotDigest: review.snapshotDigest },
-    target,
-  );
-  expect(getProposal(approved, target).review?.humanDecision).toMatchObject({
+function proposalMaterialPaths(group: AIReqRequirementGroup): string[] {
+  return [
+    group.documentPath,
+    `docs/requirements/${group.id}/sr-dependencies.json`,
+    ...group.srIds.flatMap((id) =>
+      ["proposal.md", "design.md", "tasks.md", "test-plan.md", `specs/${id}/spec.md`].map(
+        (name) => `openspec/changes/${id}/${name}`,
+      ),
+    ),
+  ];
+}
+
+export function alignmentAction(
+  review: AIReqReview,
+  perspective: "business" | "development" | "testing",
+): Extract<AIReqAction, { type: "confirmAlignment" }> {
+  return {
+    type: "confirmAlignment",
+    perspective,
+    version: review.snapshotDigest,
     reviewId: review.id,
-    employeeId: c.identity.employeeId,
-  });
-  return { remote: approved, version: review.snapshotDigest };
+    snapshotDigest: review.snapshotDigest,
+  };
+}
+
+export async function confirmAllPerspectives(
+  c: STClient,
+  target: ProposalTarget,
+  review: AIReqReview,
+) {
+  for (const perspective of ["business", "development", "testing"] as const)
+    await commandAndRead(c, alignmentAction(review, perspective), target);
+  const remote = await c.read(target.selection);
+  const group = getProposal(remote, target);
+  expect(group.proposalDelivery?.candidate.trim()).toBeTruthy();
+  return { remote, group };
 }
 
 /** One case's own public prerequisites, reusable by network suites without hidden state injection. */
@@ -244,6 +272,6 @@ export async function prepareApprovedProposal(c: STClient) {
   await completeBusinessMaterial(c, target);
   await approveOriginalReview(c, target);
   await completeSolutionMaterial(c, target);
-  const approved = await approveFullReview(c, target);
-  return { ...target, ...approved, group: getProposal(approved.remote, target) };
+  const { review } = await waitForReview(c, target, "full");
+  return { ...target, ...(await confirmAllPerspectives(c, target, review)) };
 }

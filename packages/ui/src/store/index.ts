@@ -26,9 +26,11 @@ import {
 import type { Theme } from "../useTheme.js";
 import {
   applyTheme,
+  DEFAULT_THEME,
+  isTheme,
   normalizeThemePreference,
-  readThemePreference,
-  resolveTheme,
+  persistThemePreference,
+  readStoredThemePreference,
 } from "../useTheme.js";
 
 import {
@@ -197,6 +199,9 @@ export function createZCodeStore(
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
   let applyingBroadcast = false;
+  const initialThemePreference = readStoredThemePreference();
+  let lastLocalTheme = initialThemePreference;
+  let unsavedLocalTheme: Theme | null = null;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
@@ -213,12 +218,13 @@ export function createZCodeStore(
       writeSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY, interfaceMode);
       set({ interfaceMode });
     },
-    // 入口与 store 共用固定动效默认值，暂时不读取或改写主题记忆。
-    theme: readThemePreference(),
+    theme: initialThemePreference ?? DEFAULT_THEME,
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
-      // 暂停主题持久化；恢复时需同时启用入口／hook 的读取和写入。
-      // writeSafeLocalStorage("zcode-theme", normalizedTheme);
+      if (!applyingBroadcast) {
+        lastLocalTheme = normalizedTheme;
+        unsavedLocalTheme = persistThemePreference(normalizedTheme) ? null : normalizedTheme;
+      }
       syncSystemThemeListener(normalizedTheme);
       applyTheme(normalizedTheme);
 
@@ -385,10 +391,14 @@ export function createZCodeStore(
 
     applyingBroadcast = true;
     try {
-      // 调用对应的 setter，确保副作用（localStorage、DOM）也执行
       const state = useStore.getState();
-      if (field === "theme" && typeof msg.payload === "string") {
-        state.setTheme(msg.payload as Theme);
+      if (field === "theme" && isTheme(msg.payload)) {
+        const theme = normalizeThemePreference(msg.payload);
+        // 同一浏览器其他标签页可能刚保存新选择；其他浏览器的会话广播不能覆盖它。
+        const preferred = unsavedLocalTheme ?? readStoredThemePreference() ?? lastLocalTheme;
+        if (preferred && preferred !== theme) return;
+        lastLocalTheme = preferred;
+        state.setTheme(theme);
       } else if (
         field === "interfaceMode" &&
         (msg.payload === "office" || msg.payload === "coding")
@@ -429,10 +439,6 @@ export function createZCodeStore(
   applyTheme(useStore.getState().theme);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
   applyFontSmoothing(useStore.getState().fontSmoothingEnabled);
-  document.documentElement.classList.toggle(
-    "dark",
-    resolveTheme(useStore.getState().theme) === "dark",
-  );
 
   return Object.assign(useStore, { connectBroadcastService });
 }

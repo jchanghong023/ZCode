@@ -1,4 +1,33 @@
+import {
+  proposalVersion,
+  type AIReqMaterialHistory,
+  type AIReqMaterialView,
+  type AIReqRequirementGroup,
+  type AIReqWorkflowView,
+} from "@zcode/services/aireq";
+import { readPrototypeMaterial } from "./recovery.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
+
+export function capturePrototypeMaterialHistory(
+  state: AIReqWorkflowView,
+  proposal: AIReqRequirementGroup,
+  materials: AIReqMaterialView[],
+  reason: string,
+): AIReqMaterialHistory {
+  return {
+    version: proposalVersion(proposal),
+    reason,
+    changedAt: new Date().toISOString(),
+    documentPath: proposal.documentPath,
+    proposalRound: proposal.proposalRound ?? 1,
+    srs: state.srs
+      .filter((row) => row.projectId === proposal.projectId && row.irId === proposal.id)
+      .map(({ id, title, documentPath }) => ({ id, title, documentPath })),
+    materials: materials.map((item) => ({ ...readPrototypeMaterial(item) })),
+    requirementsCheck: structuredClone(proposal.requirementsCheck),
+    solutionCheck: structuredClone(proposal.solutionCheck),
+  };
+}
 
 /** Stable business IDs own their material directories; titles and operators never rename them. */
 export function prototypeChangeRoot(srId: string): string {

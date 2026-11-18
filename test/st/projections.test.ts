@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { AIReqWorkflowView } from "../../packages/services/src/aireq/index.js";
+import type { AIReqWorkflowView } from "@zcode/services/aireq";
 import { connectST, unique, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { createProject, createProposal } from "./business.js";
+import {
+  approveOriginalReview,
+  completeBusinessMaterial,
+  completeSolutionMaterial,
+  confirmAllPerspectives,
+  discuss,
+  getProposal,
+  waitForReview,
+} from "./proposal-flow.js";
 
 // Read the server's public projection; never call services/aireq derived functions here.
 // Rules: section-navigation-and-ideas.md and services/aireq/CONTRACT.md.
@@ -44,7 +53,7 @@ function projectActivity(view: AIReqWorkflowView, projectId: string) {
 
 describe("ST same-owner workflow projections", () => {
   it(
-    "keeps an empty Release visible with null progress and does not count proposals as formal SR delivery",
+    "keeps empty Release progress and excludes split and confirmed proposals until document delivery",
     async () => {
       await usingClient(async (client) => {
         const target = await createProject(client);
@@ -65,7 +74,7 @@ describe("ST same-owner workflow projections", () => {
           percent: null,
         });
         const text = unique("未评审提案不计入正式进度");
-        await client.command(
+        const created = await client.command(
           {
             type: "createProposal",
             projectId: target.projectId,
@@ -91,6 +100,58 @@ describe("ST same-owner workflow projections", () => {
           percent: null,
         });
         expect(current.srs.filter((sr) => sr.projectId === target.projectId)).toEqual([]);
+
+        const irId = requireConfig(created.irId, "提案创建回执的 IR 标识");
+        const proposal = { ...target, irId, selection: { projectId: target.projectId, irId } };
+        await completeBusinessMaterial(client, proposal);
+        await approveOriginalReview(client, proposal);
+        const initial = getProposal(await completeSolutionMaterial(client, proposal), proposal);
+        expect(initial.srIds.length).toBeGreaterThanOrEqual(2);
+        const [first, second] = initial.srIds;
+        const estimate = { workingDays: 2, assumptions: "复用已配置的导出基础设施。" };
+        // Repair the actual dependency document using the generated SR identities.
+        const dependencies = initial.srIds.map((srId) => ({
+          srId,
+          estimate,
+          prerequisites:
+            srId === first || srId === second
+              ? [{ srId: srId === first ? second! : first!, reason: "使用前置项的接口结果。" }]
+              : [],
+        }));
+        await discuss(client, proposal, JSON.stringify({ srs: dependencies }));
+        const cyclic = getProposal(await client.read(proposal.selection), proposal);
+        expect(cyclic.solutionCheck?.issues).toContainEqual({
+          path: `docs/requirements/${irId}/sr-dependencies.json`,
+          reason: expect.stringMatching(/循环|成环/),
+        });
+        expect(cyclic.review).toBeUndefined();
+        await discuss(
+          client,
+          proposal,
+          JSON.stringify({
+            srs: dependencies.map((row) =>
+              row.srId === first ? { ...row, prerequisites: [] } : row,
+            ),
+          }),
+        );
+        const { remote: reviewed, review } = await waitForReview(client, proposal, "full");
+        const todos = (view: AIReqWorkflowView) => view.todos!.filter((todo) => todo.irId === irId);
+        expect(
+          todos(reviewed.view)
+            .map((todo) => todo.perspective)
+            .sort(),
+        ).toEqual(["business", "development", "testing"]);
+        expect(todos(reviewed.view).every((todo) => todo.kind === "alignment")).toBe(true);
+        const { group, remote: confirmed } = await confirmAllPerspectives(client, proposal, review);
+        expect(group.srIds).toEqual(initial.srIds);
+        expect(todos(confirmed.view)).toEqual([expect.objectContaining({ kind: "publish" })]);
+        expect(summary(confirmed.view, target.projectId, target.releaseId).release).toMatchObject({
+          proposalCount: 1,
+          formalCount: 0,
+          srCount: 0,
+          percent: null,
+          requirements: [],
+        });
       });
     },
     config.timeoutMs,

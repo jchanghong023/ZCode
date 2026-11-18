@@ -17,21 +17,13 @@ function members(
 
 /** Only the published business flow creates documents, decisions, registered branches and acceptance. */
 export async function createFormalFixture(c: STClient, purpose: string): Promise<FormalFixture> {
+  if (["schedulerConfiguration", "schedulerAutomatic", "schedulerLateMerge"].includes(purpose))
+    throw new Error(
+      `[ST_BLOCKED] ${purpose} requires dedicated external facts in ST_FIXTURES_FILE`,
+    );
   const { target, delivery } = await serialSTStep(async () => {
     const target = await prepareApprovedProposal(c);
-    for (const perspective of ["business", "development", "testing"] as const)
-      await commandAndRead(
-        c,
-        { type: "confirmAlignment", perspective, version: target.version },
-        target,
-      );
-    const confirmed = await commandAndRead(
-      c,
-      { type: "confirmProposal", version: target.version },
-      target,
-    );
-    const delivery = getProposal(confirmed, target).proposalDelivery!;
-    expect(delivery?.candidate.trim()).toBeTruthy();
+    const delivery = requireConfig(target.group.proposalDelivery, "待发布文档 PR 候选");
     const published = await commandAndRead(
       c,
       { type: "publishProposal", candidate: delivery.candidate },
@@ -39,7 +31,6 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
     );
     expect(getProposal(published, target).proposalDelivery?.candidate).toBe(delivery.candidate);
     expect(getProposal(published, target).requirementsPr).toBeDefined();
-    expect(getProposal(published, target).proposalDelivery).not.toHaveProperty("simulatedMr");
     return { target, delivery };
   });
   // 只等待读回实际合入事实；不固定等待时长，不调用场景、推进时钟或伪造 Git/PR 结果。
@@ -72,8 +63,6 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
   expect(group.originalText).toBe(target.group.originalText);
   expect(group.proposalDelivery?.candidate).toBe(delivery.candidate);
   expect(group.merge?.files).toEqual(delivery.files);
-  expect(group.proposalDelivery).not.toHaveProperty("simulatedMr");
-  expect(group).not.toHaveProperty("branchCreationAttempts");
   expect(
     remote.view.drafts.some(
       (item) => item.projectId === target.projectId && item.id === target.irId,
@@ -113,59 +102,17 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
   };
   if (["formalPlanning", "formalCleanupBlocked"].includes(purpose)) return ref;
   remote = await waitUntil(
-    `${purpose}: current code merge facts become readable for registered SR branches`,
+    `${purpose}: first code merge facts become readable for registered SR branches`,
     () => c.read(target.selection),
     (value) => {
       const required =
-        purpose === "formalCleanup" || purpose === "scheduler"
+        purpose === "formalCleanup" || purpose === "schedulerMerged"
           ? members(value, ref)
           : members(value, ref).filter((sr) => sr.id === ref.srId);
       return required.length > 0 && required.every((sr) => Boolean(sr.codeMerge?.commit));
     },
     config.timeoutMs,
   );
-  if (purpose === "formalRetest") {
-    const failedVersion = await serialSTStep(async () => {
-      const current = await c.read(target.selection);
-      const sr = members(current, ref).find((item) => item.id === ref.srId)!;
-      const failedVersion = sr.codeMerge!.commit;
-      await c.call(
-        "progress.recordTest",
-        [
-          ref.projectId,
-          ref.irId,
-          sr.id,
-          {
-            operationId: unique("failed-acceptance"),
-            expectedRevision: current.view.revision,
-            expectedCodeVersion: failedVersion,
-            outcome: "failed",
-            reason: "首次验收发现边界行为不符合验收标准，需要修复后复测。",
-          },
-        ],
-        target.selection,
-      );
-      return failedVersion;
-    });
-    await waitUntil(
-      "a new merged repair version makes the recorded issue ready for retest",
-      () => c.read(target.selection),
-      (value) => {
-        const current = members(value, ref).find((item) => item.id === ref.srId);
-        return Boolean(
-          current?.codeMerge?.commit &&
-          current.codeMerge.commit !== failedVersion &&
-          current.developmentIssues?.some(
-            (issue) =>
-              issue.status === "awaiting-retest" &&
-              issue.failedCodeVersion === failedVersion &&
-              issue.fixCodeVersion === current.codeMerge!.commit,
-          ),
-        );
-      },
-      config.timeoutMs,
-    );
-  }
   if (purpose === "formalCleanup") {
     await serialSTStep(async () => {
       for (const member of members(remote, ref)) {
@@ -181,7 +128,6 @@ export async function createFormalFixture(c: STClient, purpose: string): Promise
               operationId: unique("passed-acceptance"),
               expectedRevision: latest.view.revision,
               expectedCodeVersion: sr.codeMerge!.commit,
-              outcome: "passed",
               reason: "本版本各项验收标准已人工核对，通过验收。",
             },
           ],

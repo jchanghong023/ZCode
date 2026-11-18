@@ -1,6 +1,19 @@
+export const AIREQ_AGENT_ROLES = [
+  "requirements",
+  "requirements-review",
+  "solution",
+  "requirements-review-a",
+  "requirements-review-b",
+  "requirements-review-c",
+  "solution-review-summary",
+  "progress-analysis",
+] as const;
+
+export type AIReqAgentRole = (typeof AIREQ_AGENT_ROLES)[number];
+
 /** 模型配置及会话绑定的浏览器安全业务DTO。 */
 export interface AIReqAgentModel {
-  id: string;
+  id: AIReqAgentRole;
   name: string;
   nameEn: string;
   description: string;
@@ -14,19 +27,6 @@ export interface AIReqAgentModelSettings {
   agents: AIReqAgentModel[];
 }
 
-export type AIReqAgentRole =
-  | "requirements"
-  | "requirements-review-a"
-  | "requirements-review-b"
-  | "requirements-review-c"
-  | "requirements-review"
-  | "solution"
-  | "planning"
-  | "execution"
-  | "ir-acceptance"
-  | "skill-design"
-  | "progress-analysis";
-
 export interface AIReqAgentModelBinding {
   role: AIReqAgentRole;
   roleName: string;
@@ -37,4 +37,6 @@ export interface AIReqAgentModelBinding {
   reasoning: string;
   inherited: boolean;
   configurationRevision: number;
+  /** Saved additional instructions at session creation or run admission; empty uses only built-ins. */
+  promptSnapshot: string;
 }

@@ -6,7 +6,12 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { AIReqContextProjection, useAIReq, type AIReqContextValue } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqWorkspaceActiveContext } from "../shell/ModelSettingsNavigationContext.js";
-import type { AIReqAction, AIReqSelection, AIReqWorkflowView } from "../contract.js";
+import type {
+  AIReqAction,
+  AIReqMaterialReadRequest,
+  AIReqSelection,
+  AIReqWorkflowView,
+} from "../contract.js";
 import type { AIReqSidePaneGuard } from "./contract.js";
 
 type ReadProjection = {
@@ -65,8 +70,8 @@ export function AIReqDetailScope({
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const key = targetKey(target, releaseId);
-  const current = useRef({ target, releaseId, key, onSelect, onGuardChange, main });
-  current.current = { target, releaseId, key, onSelect, onGuardChange, main };
+  const current = useRef({ target, releaseId, key, onSelect, onGuardChange, main, source, active });
+  current.current = { target, releaseId, key, onSelect, onGuardChange, main, source, active };
   const [read, setRead] = useState<ReadProjection>({ key: "", pending: true });
   const [operationError, setOperationError] = useState<ScopedError>();
   const [busyKey, setBusyKey] = useState<string>();
@@ -133,42 +138,54 @@ export function AIReqDetailScope({
       message: formatUserFacingError(cause, "操作暂时未能完成，请重试。"),
     });
   }, []);
-  const refresh = useCallback(async () => {
-    const request = current.current;
-    const revision = ++generation.current;
-    setRead((previous) => ({
-      key: request.key,
-      pending: true,
-      view: previous.key === request.key ? previous.view : undefined,
-    }));
-    try {
-      const next = await source.readWorkflow({ ...request.target });
-      if (!alive.current || revision !== generation.current || current.current.key !== request.key)
-        return;
-      if (!targetAvailable(next, request.target, request.releaseId)) {
-        // owner 已确认目标缺失时清除旧投影；网络失败才允许保留同目标上次内容。
-        viewRef.current = undefined;
-        setRead({
-          key: request.key,
-          pending: false,
-          error: "所选需求或版本已不可用，请关闭此标签或重新选择。",
-        });
-        return;
-      }
-      viewRef.current = next;
-      setRead({ key: request.key, pending: false, view: next, error: next.error });
-    } catch (cause) {
-      if (!alive.current || revision !== generation.current || current.current.key !== request.key)
-        return;
-      const message = formatUserFacingError(cause, "详情读取失败，请重试。");
+  const refresh = useCallback(
+    async (throwOnError = false) => {
+      const request = current.current;
+      const revision = ++generation.current;
       setRead((previous) => ({
         key: request.key,
-        pending: false,
+        pending: true,
         view: previous.key === request.key ? previous.view : undefined,
-        error: message,
       }));
-    }
-  }, [source]);
+      try {
+        const next = await source.readWorkflow({ ...request.target });
+        if (
+          !alive.current ||
+          revision !== generation.current ||
+          current.current.key !== request.key
+        )
+          return;
+        if (!targetAvailable(next, request.target, request.releaseId)) {
+          // owner 已确认目标缺失时清除旧投影；网络失败才允许保留同目标上次内容。
+          viewRef.current = undefined;
+          setRead({
+            key: request.key,
+            pending: false,
+            error: "所选需求或版本已不可用，请关闭此标签或重新选择。",
+          });
+          return;
+        }
+        viewRef.current = next;
+        setRead({ key: request.key, pending: false, view: next, error: next.error });
+      } catch (cause) {
+        if (
+          !alive.current ||
+          revision !== generation.current ||
+          current.current.key !== request.key
+        )
+          return;
+        const message = formatUserFacingError(cause, "详情读取失败，请重试。");
+        setRead((previous) => ({
+          key: request.key,
+          pending: false,
+          view: previous.key === request.key ? previous.view : undefined,
+          error: message,
+        }));
+        if (throwOnError) throw cause;
+      }
+    },
+    [source],
+  );
   useEffect(() => {
     alive.current = true;
     void refresh();
@@ -203,41 +220,7 @@ export function AIReqDetailScope({
         if (result.status === "failed")
           throw new Error(result.error ?? result.receipt.error ?? "操作失败。");
         if (!alive.current || current.current.key !== request.key) return result;
-        if (action.type === "runRequirementsReview")
-          request.onSelect(
-            {
-              ...request.target,
-              discussionPhase: "requirements",
-              proposalStep: "requirements-review",
-              reviewAgent: undefined,
-              proposalEditing: undefined,
-            },
-            request.releaseId,
-          );
-        else if (action.type === "runFullReview")
-          request.onSelect(
-            {
-              ...request.target,
-              discussionPhase: "solution",
-              proposalStep: "solution",
-              reviewAgent: "summary",
-              materialPath: undefined,
-              proposalEditing: undefined,
-            },
-            request.releaseId,
-          );
-        else if (action.type === "acceptProposal" || action.type === "returnProposal")
-          request.onSelect(
-            {
-              ...request.target,
-              materialPath: undefined,
-              discussionPhase: undefined,
-              proposalStep: undefined,
-              proposalEditing: undefined,
-            },
-            request.releaseId,
-          );
-        else await refresh();
+        await refresh();
         return result;
       } catch (cause) {
         if (alive.current && current.current.key === request.key) report(cause);
@@ -249,36 +232,44 @@ export function AIReqDetailScope({
     [source, refresh, report],
   );
   const retryMaterial = useCallback(
-    async (path: string) => {
+    async (material: AIReqMaterialReadRequest) => {
       const request = current.current;
-      try {
-        const result = await source.retryMaterial(path, { ...request.target });
-        if (current.current.key === request.key) await refresh();
-        return result;
-      } catch (cause) {
-        if (alive.current && current.current.key === request.key) report(cause);
+      if (
+        request.target.projectId !== material.projectId ||
+        request.target.irId !== material.irId ||
+        request.releaseId !== material.releaseId
+      )
         return false;
+      try {
+        return await source.retryMaterial(material);
+      } catch {
+        return false;
+      } finally {
+        if (alive.current && current.current.key === request.key) await refresh();
       }
     },
-    [source, refresh, report],
+    [source, refresh],
   );
   const retrySession = useCallback(
-    async (selection: AIReqSelection, sessionId: string) => {
+    async (selection: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
       const request = current.current;
-      const snapshot = viewRef.current;
-      if (
-        JSON.stringify(selection) !== JSON.stringify(request.target) ||
-        !snapshot ||
-        source.resolveSession(snapshot, selection)?.sessionId !== sessionId
-      )
+      const isCurrent = () =>
+        isCurrentPane() &&
+        alive.current &&
+        current.current.active &&
+        current.current.source === source &&
+        current.current.key === request.key &&
+        viewRef.current !== undefined &&
+        source.resolveSession(viewRef.current, selection)?.sessionId === sessionId;
+      if (JSON.stringify(selection) !== JSON.stringify(request.target) || !isCurrent())
         throw new Error("会话已切换，请在当前标签中重试。");
       try {
-        await source.retrySession({ ...request.target });
-        if (!alive.current || current.current.key !== request.key)
-          throw new Error("会话已切换，请在当前标签中重试。");
-        await refresh();
+        await source.retrySession({ ...request.target }, sessionId);
+        if (!isCurrent()) throw new Error("会话已切换，请在当前标签中重试。");
+        await refresh(true);
+        if (!isCurrent()) throw new Error("会话已切换，请在当前标签中重试。");
       } catch (cause) {
-        if (alive.current && current.current.key === request.key) report(cause);
+        if (isCurrent()) report(cause);
         throw cause;
       }
     },

@@ -32,6 +32,7 @@ import {
   type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
+import { composerDraftScopeKey } from "@/v4/composer/composerDraftStore.js";
 
 export const COMPOSER_ATTACHMENT_UPLOAD_CONCURRENCY = 2;
 export const COMPOSER_ATTACHMENT_AUTO_RETRY_DELAY_MS = 500;
@@ -100,6 +101,7 @@ export interface UseComposerAttachmentsOptions {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   scopeId: string;
+  clientNamespace?: string;
   attachmentSessionId?: string | null;
   attachmentPut: AttachmentPutFn;
   onRuntimeRestart?: (listener: () => void) => () => void;
@@ -122,8 +124,13 @@ export function buildScopeKey(
   workspacePath: string,
   workspaceIdentity: string | undefined,
   scopeId: string,
+  clientNamespace?: string,
 ): string {
-  return `${workspaceIdentity?.trim() || workspacePath}\u0000${scopeId}`;
+  return composerDraftScopeKey(
+    workspaceIdentity?.trim() || workspacePath,
+    scopeId,
+    clientNamespace,
+  );
 }
 
 /** queue / 已发送消息中的 AttachmentRef 已由 session 接管：恢复为 ready chip，不重复上传。 */
@@ -161,10 +168,11 @@ export function replaceComposerAttachmentsForScope(
   workspaceIdentity: string | undefined,
   scopeId: string,
   attachmentRefs: readonly AttachmentRef[],
+  clientNamespace?: string,
 ): readonly ComposerAttachmentUploadItem[] {
   const items = createSessionOwnedAttachmentItems(attachmentRefs);
   updateComposerAttachmentScope(
-    buildScopeKey(workspacePath, workspaceIdentity, scopeId),
+    buildScopeKey(workspacePath, workspaceIdentity, scopeId, clientNamespace),
     () => items,
   );
   return items;
@@ -180,8 +188,9 @@ export function setComposerAttachmentPreviewUrlForScope(
   scopeId: string,
   attachmentId: string,
   objectUrl: string,
+  clientNamespace?: string,
 ): boolean {
-  const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
+  const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId, clientNamespace);
   if (!readComposerAttachmentScope(scopeKey).some((item) => item.id === attachmentId)) return false;
   updateComposerAttachmentScope(scopeKey, (current) =>
     current.map((item) => (item.id === attachmentId ? { ...item, objectUrl } : item)),
@@ -240,6 +249,7 @@ export function useComposerAttachments(
     workspaceIdentity,
     remoteSessionId,
     scopeId,
+    clientNamespace,
     attachmentSessionId = null,
     attachmentPut,
     onRuntimeRestart,
@@ -248,7 +258,7 @@ export function useComposerAttachments(
     listenAddToChatEvents = true,
   } = options;
   const { intl } = useZCodeIntl();
-  const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
+  const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId, clientNamespace);
 
   const targetsRef = useRef(new Map<string, UploadTarget>());
   const uploadQueueRef = useRef<UploadQueueEntry[]>([]);
@@ -664,12 +674,13 @@ export function useComposerAttachments(
 
   const addAttachmentFiles = useCallback(
     (selectedFiles: File[]): string[] => {
+      if (disabled) return [];
       // 浏览器没有宿主绝对路径；选择器/拖拽/粘贴拿到的 File 一律走上传字节链路。
       return addPreparedAttachments(
         selectedFiles.map((file) => createChatComposerAttachment(file)),
       );
     },
-    [addPreparedAttachments],
+    [addPreparedAttachments, disabled],
   );
 
   useLayoutEffect(() => {

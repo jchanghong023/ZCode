@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AIREQ_AGENT_ROLES, AIREQ_DOCUMENT_PATHS } from "@zcode/services/aireq";
 import type { AIReqRemotePath } from "@zcode/services/aireq";
 
 const id = z.string().min(1);
@@ -52,6 +53,22 @@ const actionSchema = z.union([
     ideaRevision: revision,
     targets: z.array(z.object({ projectId: id, releaseId: id }).strict()).min(1),
   }),
+  z
+    .object({
+      ...operation,
+      type: z.literal("saveDocumentFormats"),
+      documentFormats: z.record(
+        z.enum(Object.keys(AIREQ_DOCUMENT_PATHS)),
+        z.array(
+          z
+            .string()
+            .trim()
+            .min(1)
+            .regex(/^[^\r\n]+$/),
+        ),
+      ),
+    })
+    .strict(),
   action("createRelease", { title: text }),
   action("createProposal", {
     originalText: text,
@@ -74,10 +91,11 @@ const actionSchema = z.union([
   }),
   action("assignContacts", { contacts }),
   action("runFullReview"),
-  action("approveFullReview", { reviewId: id, snapshotDigest: id }),
   action("confirmAlignment", {
     perspective: z.enum(["business", "development", "testing"]),
     version: id,
+    reviewId: id,
+    snapshotDigest: id,
   }),
   action("closeProposalPr", { candidate: id }),
   action("retrySrBranch", { srId: id }),
@@ -86,10 +104,9 @@ const actionSchema = z.union([
     note: text,
   }),
   action("deleteRequirement", { version: z.literal(1), projectId: id, irId: id }),
-  action("acceptProposal", { reviewId: id.optional(), snapshotDigest: id.optional() }),
+  action("acceptProposal", { reviewId: id, snapshotDigest: id }),
   action("runRequirementsReview"),
   action("returnProposal", { reason: text }),
-  action("confirmProposal", { version: id }),
   action("publishProposal", { candidate: id }),
 ]);
 const filter = z
@@ -125,7 +142,7 @@ const modelSettings = z
     agents: z.array(
       z
         .object({
-          id,
+          id: z.enum(AIREQ_AGENT_ROLES),
           name: text,
           nameEn: text,
           description: text,
@@ -158,8 +175,10 @@ export const argumentSchemas = {
   readWorkflow: z.tuple([selectionSchema]),
   readPrHandoff: z.tuple([target]),
   command: z.tuple([actionSchema, selectionSchema, revision]),
-  retryMaterial: z.tuple([text, selectionSchema]),
-  retrySession: z.tuple([selectionSchema]),
+  retryMaterial: z.tuple([
+    target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
+  ]),
+  retrySession: z.tuple([selectionSchema, id]),
   "progress.recordTest": z.tuple([
     id,
     id,
@@ -168,7 +187,6 @@ export const argumentSchemas = {
       .object({
         ...operation,
         expectedCodeVersion: text,
-        outcome: z.enum(["passed", "failed"]),
         reason: text,
       })
       .strict(),
@@ -224,5 +242,5 @@ export const argumentSchemas = {
     z.boolean(),
     z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   ]),
-  "progressScheduler.runNow": z.tuple([taskFilter]),
+  "progressScheduler.runNow": z.tuple([taskFilter, id.optional()]),
 } satisfies Record<AIReqRemotePath, z.ZodType>;

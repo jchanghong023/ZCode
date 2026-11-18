@@ -32,6 +32,22 @@ export function RunModelFacts({ binding }: { binding?: AIReqAgentModelBinding })
           <dd>{binding.inherited ? "继承默认配置" : "角色独立配置"}</dd>
           <dt>配置版本</dt>
           <dd>{binding.configurationRevision}</dd>
+          <dt>追加指令</dt>
+          <dd>
+            {binding.promptSnapshot ? (
+              <details>
+                <summary className="w-fit cursor-pointer">查看执行时指令</summary>
+                <p
+                  className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words"
+                  tabIndex={0}
+                >
+                  {binding.promptSnapshot}
+                </p>
+              </details>
+            ) : (
+              "仅使用内建指令"
+            )}
+          </dd>
         </dl>
       ) : (
         <p className="text-foreground-subtle">此历史记录未提供模型配置事实。</p>

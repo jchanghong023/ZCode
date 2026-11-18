@@ -1,7 +1,13 @@
 import type { AIReqApplicationProps, AIReqMainView, AIReqProjectProgress } from "./contract.js";
-/** Host supplies its connected accessor and operator; hidden Skill design stays retained. */
+/** The host supplies the accessor, stable client ID, connection status and operator. */
 export function exampleAIReqApplication(props: AIReqApplicationProps): AIReqApplicationProps {
-  return { services: props.services, platform: props.platform, operator: props.operator };
+  return {
+    services: props.services,
+    platform: props.platform,
+    clientId: props.clientId,
+    connected: props.connected,
+    operator: props.operator,
+  };
 }
 
 /** The 68px global rail opens all projects or cross-project todos. */

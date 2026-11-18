@@ -1,6 +1,7 @@
 import type { SessionCreateSource } from "@zcode/shared";
 import type { ComposerRecentReceipt, FullAccessRecentReceipt } from "@/lib/composerRecent.js";
 export interface PendingCommandClientContext {
+  clientNamespace?: string;
   fullAccess?: FullAccessRecentReceipt;
   composer?: ComposerRecentReceipt & { draftId?: string; submittedText?: string };
   workspace?: {
@@ -19,6 +20,17 @@ interface WorkspaceScopedPendingCommand {
     type: string;
     payload?: Record<string, unknown>;
   };
+}
+
+export function isPendingCommandForClient(
+  entry: WorkspaceScopedPendingCommand,
+  clientNamespace: string,
+): boolean {
+  const owner =
+    entry.clientContext?.clientNamespace ??
+    entry.clientContext?.composer?.scope.clientNamespace ??
+    "desktop";
+  return owner === clientNamespace;
 }
 
 export function resolvePendingCommandWorkspaceKey(

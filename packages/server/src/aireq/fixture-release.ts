@@ -176,7 +176,6 @@ export function initializePrototypeReleaseProgress(srs: AIReqSystemRequirement[]
           reason: "已按验收标准验证正常、失败恢复及重复操作，结果通过。",
           codeVersion,
         };
-        sr.acceptanceHistory = [structuredClone(sr.testAcceptance)];
       }
       if (sample.statusChange) sr.statusChange = structuredClone(sample.statusChange);
     }

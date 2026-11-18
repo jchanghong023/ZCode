@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   PROPOSAL_STATE_OPTIONS,
+  fileVersions,
+  proposalReviewCanRetry,
   proposalState,
   proposalStateIndex,
   proposalStateLabel,
@@ -40,6 +42,7 @@ function emptyProposal(): AIReqRequirementGroup {
 }
 function withIR(): AIReqRequirementGroup {
   const group = emptyProposal();
+  group.requirementsCheck = { issues: [] };
   group.files = [file(group.documentPath)];
   group.snapshot = {
     version: 1,
@@ -64,15 +67,15 @@ function review(group: AIReqRequirementGroup, kind: "original" | "full"): AIReqR
     phase: kind === "original" ? ("requirements" as const) : ("solution" as const),
     round: 1,
   };
+  const inputFiles =
+    kind === "original"
+      ? group.files.filter((row) => row.path === group.documentPath)
+      : group.files;
   return {
     id: `${kind}-review-current`,
     kind,
-    snapshotDigest: kind === "original" ? group.snapshot!.digest : proposalVersion(group),
-    inputFiles: structuredClone(
-      kind === "original"
-        ? group.files.filter((row) => row.path === group.documentPath)
-        : group.files,
-    ),
+    snapshotDigest: kind === "original" ? fileVersions(inputFiles) : proposalVersion(group),
+    inputFiles: structuredClone(inputFiles),
     passed: false,
     report: "已检查目标、范围与验收标准；无阻断问题。",
     agents: ids.map((id) => ({
@@ -88,7 +91,12 @@ function review(group: AIReqRequirementGroup, kind: "original" | "full"): AIReqR
 }
 function decide(current: AIReqReview): void {
   current.passed = true;
-  current.humanDecision = { employeeId, decidedAt: at, reviewId: current.id };
+  current.humanDecision = {
+    employeeId,
+    decidedAt: at,
+    reviewId: current.id,
+    snapshotDigest: current.snapshotDigest,
+  };
 }
 function withOriginalReview(): AIReqRequirementGroup {
   const group = withIR();
@@ -103,6 +111,7 @@ function withOriginalApproval(): AIReqRequirementGroup {
 }
 function withSolution(): AIReqRequirementGroup {
   const group = withOriginalApproval();
+  group.solutionCheck = { issues: [] };
   const srId = "sr-export";
   group.srIds = [srId];
   group.proposalSolution = {
@@ -115,7 +124,6 @@ function withSolution(): AIReqRequirementGroup {
   };
   group.files.push(
     file(`docs/requirements/${group.id}/sr-dependencies.json`),
-    file(`docs/requirements/${group.id}/acceptance.md`),
     ...["proposal.md", "design.md", "tasks.md", `specs/${srId}/spec.md`, "test-plan.md"].map(
       (name) => file(`openspec/changes/${srId}/${name}`),
     ),
@@ -144,16 +152,13 @@ function withFullReview(): AIReqRequirementGroup {
   group.review = review(group, "full");
   return group;
 }
-function withFullApproval(): AIReqRequirementGroup {
-  const group = withFullReview();
-  decide(group.review!);
-  return group;
-}
 function aligned(): AIReqRequirementGroup {
-  const group = withFullApproval();
+  const group = withFullReview();
   group.alignment = (["business", "development", "testing"] as const).map((perspective) => ({
     perspective,
     version: proposalVersion(group),
+    reviewId: group.review!.id,
+    snapshotDigest: group.review!.snapshotDigest,
     employeeId,
     confirmedAt: at,
   }));
@@ -233,12 +238,20 @@ describe("proposal business states from current materials and confirmations", ()
   });
 
   it("keeps a returned proposal in editable business discussion until its supplement is resumed", () => {
-    const group = withFullApproval();
+    const group = withFullReview();
+    group.originalReviewHistory = [group.originalReview!];
+    group.originalReview = undefined;
+    group.requirementsCheck = undefined;
     group.proposalStage = "requirements";
-    group.returnFeedback = { employeeId, returnedAt: at, reason: "补充特殊字符与空结果的验收边界" };
+    group.returnFeedback = {
+      employeeId,
+      returnedAt: at,
+      round: 1,
+      reason: "补充特殊字符与空结果的验收边界",
+    };
     const view = { drafts: [group] };
     const selection = { projectId: group.projectId, irId: group.id };
-    expect(proposalState(group)).toBe("ir-review-pending");
+    expect(proposalState(group)).toBe("not-started");
     expect(proposalProgressIndex(group)).toBe(0);
     expect(proposalViewedIndex(group, selection)).toBe(0);
     expect(conversationReadOnlyReason(view, selection)).toBeUndefined();
@@ -256,7 +269,7 @@ describe("proposal business states from current materials and confirmations", ()
         discussionPhase: "requirements",
       }),
     ).toBe("正在查看历史阶段，仅供只读查看。");
-    expect(group.originalReview!.humanDecision).toBeDefined();
+    expect(group.originalReviewHistory[0]!.humanDecision).toBeDefined();
   });
 
   it.each(["projectId", "irId", "documentPath"] as const)(
@@ -284,29 +297,54 @@ describe("proposal business states from current materials and confirmations", ()
       const group = withOriginalReview();
       group.originalReview!.agents![0]!.status = status;
       expect(proposalState(group)).toBe("ir-review-pending");
+      expect(proposalReviewCanRetry(group, false)).toBe(status === "failed");
     },
   );
 
-  it("requires readable reports, no blocking finding and matching human decision", () => {
-    for (const field of ["report", "agentReport", "blocking", "wrongDecision"] as const) {
+  it.each(["report", "agentReport", "wrongReview", "wrongDigest"] as const)(
+    "requires readable IR reports and matching confirmation: %s",
+    (field) => {
       const group = withOriginalApproval();
       if (field === "report") group.originalReview!.report = "  ";
       if (field === "agentReport") group.originalReview!.agents![0]!.report = "";
-      if (field === "blocking")
-        group.originalReview!.findings = [
-          {
-            id: "range",
-            level: "blocking",
-            message: "范围未明确",
-            documentPath: group.documentPath,
-          },
-        ];
-      if (field === "wrongDecision")
+      if (field === "wrongReview")
         group.originalReview!.humanDecision!.reviewId = "previous-review";
-      expect(proposalState(group), field).toBe(
-        field === "wrongDecision" ? "ir-confirmation-pending" : "ir-review-pending",
+      if (field === "wrongDigest")
+        group.originalReview!.humanDecision!.snapshotDigest = "previous-input";
+      const missingReport = field === "report" || field === "agentReport";
+      expect(proposalState(group)).toBe(
+        missingReport ? "ir-review-pending" : "ir-confirmation-pending",
       );
-    }
+      expect(proposalReviewCanRetry(group, false)).toBe(missingReport);
+    },
+  );
+
+  it("lets people confirm complete reports even when the agents found blocking issues", () => {
+    const ir = withOriginalReview();
+    const solution = withFullReview();
+    const findings = [
+      {
+        id: "range",
+        level: "blocking" as const,
+        message: "范围未明确",
+        documentPath: ir.documentPath,
+      },
+    ];
+    ir.originalReview!.findings = findings;
+    solution.review!.findings = findings;
+    expect(proposalState(ir)).toBe("ir-confirmation-pending");
+    expect(proposalState(solution)).toBe("solution-confirmation-pending");
+    expect(proposalReviewCanRetry(ir, false)).toBe(false);
+    expect(proposalReviewCanRetry(solution, true)).toBe(false);
+  });
+
+  it("allows a missing lane report to be retried when summary could not start", () => {
+    const group = withFullReview();
+    group.review!.agents![0]!.report = "";
+    group.review!.agents!.find((agent) => agent.id === "summary")!.status = "pending";
+    group.review!.report = "";
+    expect(proposalState(group)).toBe("solution-review-pending");
+    expect(proposalReviewCanRetry(group, true)).toBe(true);
   });
 
   it("returns to original review when the business document changes", () => {
@@ -327,18 +365,15 @@ describe("proposal business states from current materials and confirmations", ()
     expect(proposalState(changed)).toBe("solution-incomplete");
   });
 
-  it("keeps full approval and three separate perspectives in solution confirmation until all match", () => {
-    expect(proposalState(withFullApproval())).toBe("solution-confirmation-pending");
+  it("requires the three role records for the current report but no separate full approval", () => {
+    expect(proposalState(withFullReview())).toBe("solution-confirmation-pending");
     const group = aligned();
-    group.alignment!.pop();
+    const testing = group.alignment!.pop()!;
     expect(proposalState(group)).toBe("solution-confirmation-pending");
-    group.alignment!.push({
-      perspective: "testing",
-      version: "previous-version",
-      employeeId,
-      confirmedAt: at,
-    });
+    group.alignment!.push({ ...testing, reviewId: "previous-review" });
     expect(proposalState(group)).toBe("solution-confirmation-pending");
+    group.alignment![2] = testing;
+    expect(proposalState(group)).toBe("submission-pending");
   });
 
   it("invalidates the full review on changed solution material without losing original approval", () => {

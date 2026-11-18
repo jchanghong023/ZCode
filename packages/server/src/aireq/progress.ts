@@ -1,5 +1,5 @@
 import { businessRule } from "./errors.js";
-import type { InternalSystemRequirement, AIReqCodeMergeInput } from "./internal-scenarios.js";
+import type { InternalSystemRequirement } from "./internal-scenarios.js";
 import { digestValue } from "./content-digest.js";
 import { srCompletionBlocker, srProgress } from "@zcode/services/aireq";
 import type {
@@ -75,15 +75,6 @@ export function withPrototypeProgress(
         if (!sample) return sr;
         const analysedAt = "2026-11-11T01:30:00.000Z";
         progress = {
-          ...(sample.percent === 100
-            ? {
-                manual: {
-                  employeeId: "j00808874",
-                  reason: "代码已合入，人工测试验收通过。",
-                  at: analysedAt,
-                },
-              }
-            : {}),
           percent: sample.percent,
           aiPercent: Math.min(99, sample.percent),
           merged: sample.merged ?? false,
@@ -108,9 +99,9 @@ export function withPrototypeProgress(
                   ? [
                       {
                         // 同版合入样例的原始报告不能再声称尚未合入；运行后的历史报告不重写。
-                        title: sample.merged ? "等待人工测试验收" : "等待合入默认分支",
+                        title: sample.merged ? "等待人工验收" : "等待合入默认分支",
                         detail: sample.merged
-                          ? "代码已合入；有效进度固定 99%，等待人工记录本版本测试结果。"
+                          ? "代码已合入；有效进度固定 99%，等待人工验收通过。"
                           : "分支实现审查已通过；尚未合入，进度最高 99%。",
                       },
                     ]
@@ -199,14 +190,6 @@ export function operatePrototypeProgress(
       : undefined;
     if (!group || (srId && !sr)) throw businessRule("正式 IR/SR 不存在或不属于当前项目。");
     const at = new Date().toISOString();
-    // 样例报告也先归入同一 SR；后续分析、验收均只更新 workflow 内的报告事实。
-    if (sr && !sr.progress) {
-      sr.progress = withPrototypeProgress({
-        ...state,
-        groups: [group],
-        srs: [sr],
-      }).srs[0]?.progress;
-    }
     change(state, group, sr, employeeId, at);
     state.operations.push({
       operationId: input.operationId,
@@ -241,85 +224,24 @@ export async function recordPrototypeSrTest(
     input,
     (_state, _group, target, employeeId, at) => {
       const sr = target!;
-      if (input.outcome !== "passed" && input.outcome !== "failed")
-        throw businessRule("请选择测试通过或不通过。");
-      if (typeof input.reason !== "string" || !input.reason.trim())
-        throw businessRule("请填写本次测试的验收依据或问题。");
-      const version = sr.codeMerge?.commit;
-      if (!version || input.expectedCodeVersion !== version)
-        throw businessRule("已合入代码版本已变化，请基于新版本重新测试。");
       const blocker = srCompletionBlocker(sr);
       if (blocker) throw businessRule(blocker);
-      const acceptance = {
+      const version = sr.codeMerge?.commit;
+      if (!version || input.expectedCodeVersion !== version)
+        throw businessRule("验收版本与首次代码合入版本不符，请刷新后重试。");
+      if (typeof input.reason !== "string" || !input.reason.trim())
+        throw businessRule("请填写验收通过依据。");
+      sr.testAcceptance = {
         operationId: input.operationId,
-        outcome: input.outcome,
+        outcome: "passed",
         employeeId,
         at,
         reason: input.reason.trim(),
         codeVersion: version,
       };
-      sr.testAcceptance = acceptance;
-      sr.acceptanceHistory = [...(sr.acceptanceHistory ?? []), acceptance];
-      if (input.outcome === "failed") {
-        sr.developmentIssues = [
-          ...(sr.developmentIssues ?? []),
-          {
-            id: `test-issue-${input.operationId}`,
-            detail: acceptance.reason,
-            failedCodeVersion: version,
-            reportedBy: employeeId,
-            reportedAt: at,
-            status: "open",
-          },
-        ];
-      } else {
-        for (const issue of sr.developmentIssues ?? []) {
-          if (issue.status === "awaiting-retest") {
-            if (issue.fixCodeVersion !== version || issue.failedCodeVersion === version)
-              throw businessRule("问题修复版本不匹配，不能确认通过。");
-            issue.status = "resolved";
-            issue.resolvedAt = at;
-          }
-        }
-      }
-      if (sr.progress) {
-        sr.progress.percent = input.outcome === "passed" ? 100 : 99;
-        sr.progress.manual =
-          input.outcome === "passed" ? { employeeId, reason: acceptance.reason, at } : undefined;
-      }
-      sr.status = input.outcome === "passed" ? "completed" : "developing";
+      sr.status = "completed";
     },
   );
-}
-
-/** 内存 Git 依赖与既有内部输入共用写入路径，不替代人工验收或制造 AI 报告。 */
-function applyPrototypeCodeMergeFact(
-  state: AIReqWorkflowView,
-  sr: AIReqSystemRequirement,
-  fix: boolean,
-  at: string,
-): void {
-  if (srProgress(sr) === 100) throw businessRule("已完成 SR 不再接纳代码合入模拟。");
-  if (
-    !sr.trackingBranch?.name ||
-    sr.trackingBranch.status === "failed" ||
-    sr.trackingBranch.status === "deleted"
-  )
-    throw businessRule("开发分支尚不可用，不能模拟合入。");
-  const unresolved = (sr.developmentIssues ?? []).filter((issue) => issue.status !== "resolved");
-  if (fix && !unresolved.length) throw businessRule("没有待修复测试问题。");
-  if (!fix && unresolved.length) throw businessRule("存在未解决测试问题，请使用模拟修复合入。");
-  const commit = `simulated-${fix ? "fix" : "code"}-${sr.id}-${state.revision + 1}`;
-  const project = state.projects.find((item) => item.id === sr.projectId)!;
-  sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
-  state.repositoryHeads ??= {};
-  state.repositoryHeads[project.repositoryId] = commit;
-  for (const issue of unresolved) {
-    issue.status = "awaiting-retest";
-    issue.fixCodeVersion = commit;
-  }
-  if (sr.progress) sr.progress = { ...sr.progress, percent: 99, merged: true, stale: true };
-  sr.status = "developing";
 }
 
 /** 真实服务时钟观测内存 Git 事实；不以读取次数、请求身份或测试标识驱动。 */
@@ -339,44 +261,21 @@ export function pollPrototypeDevelopment(): void {
         // 预置的多状态样例需保持可见；正常新建 SR 仍按真实服务时钟推进。
         if ((sr as InternalSystemRequirement).automaticCodeMerge === false) continue;
         const branch = sr.trackingBranch;
-        if (!branch?.name || branch.status !== "ready" || srProgress(sr) === 100) continue;
-        // 分支成功推送才允许首次开发合入；失败后修复等待真实问题产生，不反写人工通过。
-        const openIssues = (sr.developmentIssues ?? []).filter((issue) => issue.status === "open");
-        const since = sr.codeMerge
-          ? openIssues.length
-            ? Math.max(...openIssues.map((issue) => Date.parse(issue.reportedAt)))
-            : NaN
-          : Date.parse(branch.pushedAt);
+        if (sr.codeMerge || !branch?.name || branch.status !== "ready") continue;
+        const since = Date.parse(branch.pushedAt);
         if (!Number.isFinite(since) || now - since < 10_000) continue;
-        applyPrototypeCodeMergeFact(state, sr, Boolean(sr.codeMerge), at);
+        const project = state.projects.find((item) => item.id === sr.projectId)!;
+        const commit = `simulated-code-${sr.id}-${state.revision + 1}`;
+        sr.codeMerge = { commit, branch: project.defaultBranch, checkedAt: at, files: [] };
+        (state.repositoryHeads ??= {})[project.repositoryId] = commit;
+        if (sr.progress) sr.progress.stale = true;
+        sr.status = "developing";
         changed = true;
       }
     }
     // 没有新事实时不发布 revision，避免轮询破坏界面的 CAS 编辑。
     return changed;
   });
-}
-
-/** 明确的外部模拟输入；不运行 Git、不修改业务代码，也不直接完成测试。 */
-export async function simulatePrototypeCodeMerge(
-  projectId: string,
-  irId: string,
-  srId: string,
-  input: AIReqCodeMergeInput,
-): Promise<void> {
-  operatePrototypeProgress(
-    projectId,
-    irId,
-    srId,
-    input,
-    "simulateCodeMerge",
-    input,
-    (state, _group, target, _employeeId, at) => {
-      const sr = target!;
-      if (typeof input.fix !== "boolean") throw businessRule("模拟合入类型无效。");
-      applyPrototypeCodeMergeFact(state, sr, input.fix, at);
-    },
-  );
 }
 
 function cleanupItems(
@@ -499,7 +398,8 @@ export function acceptPrototypeProgressReport(
         item.id === srId &&
         group?.srIds.includes(item.id),
     );
-    if (!group || !sr || fingerprint(state, group, sr) !== expectedFingerprint) return false;
+    if (!group || !sr || sr.codeMerge || fingerprint(state, group, sr) !== expectedFingerprint)
+      return false;
     if (!sr.progress)
       sr.progress = withPrototypeProgress({
         ...state,
@@ -516,10 +416,8 @@ export function acceptPrototypeProgressReport(
         };
     } else if (report) {
       sr.lastAnalysisFailure = undefined;
-      const manual = sr.progress?.manual;
       sr.progress = {
         ...structuredClone(report),
-        manual,
         inputFingerprint: expectedFingerprint,
         stale: false,
       };

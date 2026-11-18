@@ -1,6 +1,6 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bot, Folders, Palette, HelpCircle, Settings } from "lucide-react";
+import { ArrowLeft, Bot, FileText, Folders, Palette, HelpCircle, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import {
@@ -28,17 +28,19 @@ import {
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
+import { AIReqDocumentFormatSettings } from "./AIReqDocumentFormatSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings, type AIReqProjectSettingsRequest } from "./AIReqProjectSettings.js";
 import { AIReqAnalysisSettings } from "../tracking/analysis/AIReqAnalysisSettings.js";
-import type { AIReqSettingsDraftActions } from "../contract.js";
+import { AIREQ_DOCUMENT_PATHS, type AIReqSettingsDraftActions } from "../contract.js";
 
 export type AIReqSettingsSection =
   | "appearance"
   | "projects"
   | "models"
   | "personalization"
-  | "analysis";
+  | "analysis"
+  | "documentFormats";
 type AIReqNavigationGuard = (navigate: () => void) => void;
 const chineseTitles = {
   appearance: "外观",
@@ -46,6 +48,7 @@ const chineseTitles = {
   models: "模型",
   personalization: "Agent 指令",
   analysis: "分析设置",
+  documentFormats: "文档格式",
 };
 const englishTitles = {
   appearance: "Appearance",
@@ -53,6 +56,7 @@ const englishTitles = {
   models: "Models",
   personalization: "Agent instructions",
   analysis: "Analysis settings",
+  documentFormats: "Document formats",
 };
 const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
   appearance: "appearance",
@@ -60,6 +64,7 @@ const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSecti
   modelProvider: "models",
   personalization: "personalization",
   agentBehavior: "analysis",
+  documentFormats: "documentFormats",
 };
 
 function Appearance() {
@@ -167,7 +172,7 @@ export function AIReqSettingsPage({
             },
             {
               id: "aireq.model.progressAnalysis",
-              label: zh ? "需求分析 Agent 模型" : "Requirement Analysis Agent model",
+              label: zh ? "进度分析 Agent 模型" : "Progress Analysis Agent model",
               keywords: ["进度分析", "分析模型", "progress analysis", "analysis model"],
             },
           ],
@@ -218,6 +223,16 @@ export function AIReqSettingsPage({
             },
           ],
         },
+        {
+          id: "documentFormats",
+          label: titles.documentFormats,
+          includeSettings: false,
+          items: Object.keys(AIREQ_DOCUMENT_PATHS).map((name) => ({
+            id: `aireq.documentFormats.${name}` as const,
+            label: name,
+            keywords: ["文档格式", "必需章节", "Markdown", "required headings"],
+          })),
+        },
       ] as const,
     [titles, aiTitle, zh],
   );
@@ -236,6 +251,7 @@ export function AIReqSettingsPage({
   const busyRef = useRef(false);
   const [canSave, setCanSave] = useState(false);
   const [canDiscard, setCanDiscard] = useState(true);
+  const [saveBlockedReason, setSaveBlockedReason] = useState<string>();
   const [error, setError] = useState("");
   const [searchTarget, setSearchTarget] = useState<{ id: SettingsSearchId } | null>(null);
   const updateActions = useCallback(
@@ -244,6 +260,7 @@ export function AIReqSettingsPage({
       const { form, skill } = actions.current;
       setCanSave(form?.canSave !== false && skill?.canSave !== false);
       setCanDiscard(form?.canDiscard !== false && skill?.canDiscard !== false);
+      setSaveBlockedReason(form?.saveBlockedReason ?? skill?.saveBlockedReason);
     },
     [],
   );
@@ -253,7 +270,13 @@ export function AIReqSettingsPage({
   );
   useEffect(() => updateActions("skill", skillActions), [skillActions, updateActions]);
   const guard = useCallback<AIReqNavigationGuard>((navigate) => {
-    if (pending.current) return;
+    if (
+      pending.current ||
+      busyRef.current ||
+      actions.current.form?.canDiscard === false ||
+      actions.current.skill?.canDiscard === false
+    )
+      return;
     if (!actions.current.form && !actions.current.skill) {
       navigate();
       return;
@@ -398,6 +421,12 @@ export function AIReqSettingsPage({
                   label: aiTitle,
                   active: aiSection,
                 },
+                {
+                  id: "documentFormats",
+                  icon: FileText,
+                  label: titles.documentFormats,
+                  active: section === "documentFormats",
+                },
               ] as const
             ).map((entry) => {
               return (
@@ -487,6 +516,13 @@ export function AIReqSettingsPage({
               <div key={section} className="space-y-8">
                 {section === "appearance" ? (
                   <Appearance />
+                ) : section === "documentFormats" ? (
+                  active && (
+                    <AIReqDocumentFormatSettings
+                      onDraftActionsChange={onDraftActionsChange}
+                      onSave={() => void save()}
+                    />
+                  )
                 ) : (
                   <AIReqProjectSettings
                     guard={guard}
@@ -530,9 +566,9 @@ export function AIReqSettingsPage({
               {skillActions && "Skill 丢弃仅放弃本版确认保存，保留临时预览、未发送正文与附件。"}
             </DialogDescription>
           </DialogHeader>
-          {skillActions?.saveBlockedReason && (
+          {saveBlockedReason && (
             <p role="alert" className="text-ui-sm text-destructive">
-              {skillActions.saveBlockedReason}
+              {saveBlockedReason}
             </p>
           )}
           {error && (
@@ -552,7 +588,7 @@ export function AIReqSettingsPage({
               取消
             </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               disabled={busy || !canDiscard}
               onClick={() => {
                 const { form, skill } = actions.current;

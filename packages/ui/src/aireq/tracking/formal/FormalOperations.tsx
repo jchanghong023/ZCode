@@ -1,7 +1,7 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Label } from "@/components/ui/label.js";
 import {
@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { AnalysisRunConfirmation } from "../AnalysisRunConfirmation.js";
+import { useSchedulerQuery } from "../analysis/useSchedulerQuery.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReq } from "../../AIReqContext.js";
 import { useAIReqWorkspaceActive } from "../../shell/ModelSettingsNavigationContext.js";
@@ -36,23 +37,21 @@ export function AIReqFormalTestControls({
   const active = useAIReqWorkspaceActive();
   const aireq = useAIReq()!;
   const id = useId();
-  const [request, setRequest] = useState<AIReqTestAcceptanceInput>();
+  const [request, setRequest] = useState<Omit<AIReqTestAcceptanceInput, "reason">>();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const submitting = useRef(false);
   const blocker = !source.progress ? "测试验收服务暂不可用。" : srCompletionBlocker(sr);
-  const open = (outcome: "passed" | "failed") => {
-    if (!aireq.view) return;
+  const open = () => {
+    if (!aireq.view || !sr.codeMerge || blocker) return;
     setReason("");
     setError("");
     setRequest({
       operationId: createUuid(),
       expectedRevision: aireq.view.revision,
-      expectedCodeVersion: sr.codeMerge?.commit ?? "",
-      outcome,
-      reason: "",
+      expectedCodeVersion: sr.codeMerge.commit,
     });
     setDialogOpen(true);
   };
@@ -62,72 +61,13 @@ export function AIReqFormalTestControls({
       request.expectedCodeVersion !== sr.codeMerge?.commit);
   return (
     <section className="space-y-3" aria-label="人工测试验收">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={Boolean(blocker)}
-          onClick={() => open("passed")}
-        >
-          测试验收通过
+      {blocker ? (
+        srProgress(sr) !== 100 && <p className="text-ui-sm text-foreground-subtle">{blocker}</p>
+      ) : (
+        <Button size="sm" variant="outline" onClick={open}>
+          验收通过
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={Boolean(blocker)}
-          onClick={() => open("failed")}
-        >
-          测试不通过
-        </Button>
-      </div>
-      {blocker && <p className="text-ui-sm text-foreground-subtle">{blocker}</p>}
-      {sr.developmentIssues?.map((issue) => (
-        <div key={issue.id} className="rounded-md border border-border p-3 text-ui-sm">
-          <p className="font-medium">
-            {issue.status === "open"
-              ? "待开发修复"
-              : issue.status === "awaiting-retest"
-                ? "已处理，待人工复测"
-                : "复测通过，已解决"}
-            ：{issue.detail}
-          </p>
-          <p className="break-all text-foreground-subtle">
-            失败版本 {issue.failedCodeVersion} · {issue.reportedBy} ·{" "}
-            {/* 原始 ISO 曾与同页报告时区不一致；只格式化展示，机器可读值仍保留原回执。 */}
-            <time dateTime={issue.reportedAt}>
-              {new Date(issue.reportedAt).toLocaleString("zh-CN", {
-                timeZone: "Asia/Shanghai",
-                hour12: false,
-              })}
-            </time>
-          </p>
-          {issue.fixCodeVersion && (
-            <p className="break-all text-foreground-subtle">修复版本 {issue.fixCodeVersion}</p>
-          )}
-        </div>
-      ))}
-      {sr.acceptanceHistory?.length ? (
-        <details className="text-ui-sm">
-          <summary className="cursor-pointer">测试验收历史（实际操作者与代码版本）</summary>
-          <ul className="space-y-2 pt-2">
-            {sr.acceptanceHistory.map((item) => (
-              <li key={item.operationId} className="break-words">
-                {item.outcome === "passed" ? "通过" : "不通过"} · {item.employeeId} ·{" "}
-                <time dateTime={item.at}>
-                  {new Date(item.at).toLocaleString("zh-CN", {
-                    timeZone: "Asia/Shanghai",
-                    hour12: false,
-                  })}
-                </time>
-                <br />
-                {item.reason}
-                <br />
-                <span className="break-all">{item.codeVersion}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      )}
       {/* 关闭动画仍会渲染内容，保留本次请求避免标题和版本在退场时闪变。 */}
       <Dialog
         open={active && dialogOpen}
@@ -142,11 +82,9 @@ export function AIReqFormalTestControls({
           }}
         >
           <DialogHeader>
-            <DialogTitle>
-              {request?.outcome === "failed" ? "记录测试不通过" : "记录测试验收通过"}
-            </DialogTitle>
+            <DialogTitle>记录验收通过</DialogTitle>
             <DialogDescription>
-              {sr.title} · 仅人工测试通过才达到 100%；不通过保持 99%，交开发修复。
+              {sr.title} · 提交验收依据后，此 SR 将标记为已完成，进度为 100%。
             </DialogDescription>
           </DialogHeader>
           <form
@@ -173,12 +111,8 @@ export function AIReqFormalTestControls({
               }
             }}
           >
-            <p className="break-all text-ui-sm">
-              本次已合入代码版本：{request?.expectedCodeVersion}
-            </p>
-            <Label htmlFor={`${id}-basis`}>
-              {request?.outcome === "failed" ? "测试依据与具体问题" : "测试通过依据"}
-            </Label>
+            <p className="break-all text-ui-sm">首次合入版本：{request?.expectedCodeVersion}</p>
+            <Label htmlFor={`${id}-basis`}>验收依据</Label>
             <SettingsFormTextarea
               id={`${id}-basis`}
               required
@@ -190,7 +124,7 @@ export function AIReqFormalTestControls({
             {dialogOpen && !saving && (versionChanged || error) && (
               <p role="alert" className="text-ui-sm text-destructive">
                 {versionChanged
-                  ? "业务或代码版本已变化；请关闭后基于新版本重新记录，当前输入已保留。"
+                  ? "业务版本已变化；请关闭后重新打开验收表单，核对首次合入版本。"
                   : error}
               </p>
             )}
@@ -207,11 +141,7 @@ export function AIReqFormalTestControls({
                 type="submit"
                 disabled={saving || Boolean(blocker) || Boolean(versionChanged) || !reason.trim()}
               >
-                {saving
-                  ? "记录中…"
-                  : request?.outcome === "failed"
-                    ? "记录不通过并交开发"
-                    : "记录测试通过到 100%"}
+                {saving ? "记录中…" : "确认验收通过"}
               </Button>
             </DialogFooter>
           </form>
@@ -236,14 +166,37 @@ export function AIReqFormalAnalysisAction({
   const [message, setMessage] = useState("");
   const submitting = useRef(false);
   const scheduler = source.progressScheduler;
-  if (!scheduler) return null;
+  const { projectId, releaseId, id: irId } = group;
+  const { id: srId } = sr;
+  const [revision, setRevision] = useState(0);
+  const scope = useMemo(
+    () => ({ projectId, releaseId, irId, srId }),
+    [projectId, releaseId, irId, srId],
+  );
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const load = useCallback(() => scheduler!.queryTasks(scope, 1, 25), [scheduler, scope]);
+  const query = useSchedulerQuery(load, revision, active && Boolean(scheduler) && !sr.codeMerge);
+  useEffect(() => {
+    if (!active || !scheduler || sr.codeMerge) return;
+    return scheduler.subscribe(refresh);
+  }, [active, scheduler, sr.codeMerge, refresh]);
+  if (!scheduler || sr.codeMerge) return null;
+  const unavailable = query.loading || Boolean(query.error) || !query.value?.eligibleCount;
+  const eligibilityMessage =
+    query.error || (!query.loading && unavailable ? "当前 SR 暂不可发起分析。" : "");
   const analyse = async () => {
-    if (submitting.current || srProgress(sr) === 100) return;
+    if (submitting.current || unavailable) return;
     submitting.current = true;
     setPending(true);
     setMessage("");
     try {
-      await scheduler.runNow({ projectId: group.projectId, irId: group.id, srId: sr.id });
+      if (!(await load()).eligibleCount) {
+        setConfirm(false);
+        setMessage("当前 SR 已不可发起分析，请查看分析设置或执行记录。");
+        refresh();
+        return;
+      }
+      await scheduler.runNow(scope);
       setConfirm(false);
       setMessage("分析请求已提交，可在分析运行中查看处理进度。");
     } catch (cause) {
@@ -258,7 +211,7 @@ export function AIReqFormalAnalysisAction({
       <Button
         size="sm"
         variant="outline"
-        disabled={pending || srProgress(sr) === 100}
+        disabled={pending || unavailable}
         onClick={() => {
           setMessage("");
           setConfirm(true);
@@ -275,11 +228,12 @@ export function AIReqFormalAnalysisAction({
         count={1}
         unit="SR"
         disabled={pending}
-        error={message}
+        blocked={unavailable}
+        error={message || eligibilityMessage}
         onConfirm={() => void analyse()}
       />
       <p role="status" className="break-words text-ui-sm">
-        {message}
+        {message || eligibilityMessage}
       </p>
     </section>
   );
@@ -374,7 +328,7 @@ export function AIReqBranchCleanup({
             <DialogTitle>确认清理本 IR 登记开发分支</DialogTitle>
             <DialogDescription>
               仅清理本 IR
-              登记的开发分支；保留主分支、材料、报告和验收历史。已清理项不重复执行，只处理未成功项。
+              登记的开发分支；保留主分支、材料、报告和验收记录。已清理项不重复执行，只处理未成功项。
             </DialogDescription>
           </DialogHeader>
           <ul className="max-h-72 space-y-2 overflow-auto text-ui-sm">

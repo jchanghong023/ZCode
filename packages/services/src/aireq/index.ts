@@ -6,6 +6,7 @@ export * from "./progress.js";
 export * from "./progress-types.js";
 export * from "./planning.js";
 export * from "./sr-dependencies.js";
+export * from "./document-formats.js";
 export * from "./progress-scheduler.js";
 export * from "./proposal-list.js";
 export * from "./data-source.js";

@@ -5,6 +5,7 @@ import type {
   AIReqAction,
   AIReqAgentModelSettings,
   AIReqNativeSessionRef,
+  AIReqMaterialReadRequest,
   AIReqSelection,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
@@ -32,7 +33,7 @@ import type {
 } from "./progress.js";
 
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 4;
+export const AIREQ_CONTRACT_VERSION = 5;
 export type AIReqRemoteErrorCode =
   | "BUSINESS_RULE_VIOLATION"
   | "NOT_FOUND"
@@ -74,8 +75,8 @@ export interface AIReqRemoteOperations {
     [action: AIReqAction, selection: AIReqSelection, revision: number],
     AIReqWorkflowResult
   >;
-  retryMaterial: Operation<[path: string, selection: AIReqSelection], boolean>;
-  retrySession: Operation<[selection: AIReqSelection], null>;
+  retryMaterial: Operation<[request: AIReqMaterialReadRequest], boolean>;
+  retrySession: Operation<[selection: AIReqSelection, sessionId: string], null>;
   "progress.recordTest": Operation<
     [projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput],
     null
@@ -123,7 +124,7 @@ export interface AIReqRemoteOperations {
   "progressScheduler.readRun": Operation<[id: string], AIReqAnalysisRun | null>;
   "progressScheduler.setProjectEnabled": Operation<[projectId: string, enabled: boolean], null>;
   "progressScheduler.configure": Operation<[enabled: boolean, intervalMinutes: number], null>;
-  "progressScheduler.runNow": Operation<[filter: AIReqAnalysisFilter], null>;
+  "progressScheduler.runNow": Operation<[filter: AIReqAnalysisFilter, retryRunId?: string], null>;
 }
 export type AIReqRemotePath = keyof AIReqRemoteOperations;
 export type AIReqRemoteArgs<P extends AIReqRemotePath> = AIReqRemoteOperations[P]["args"];

@@ -36,7 +36,7 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 | 版本                                    | 含义                                          |
 | --------------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=4`              | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| `AIREQ_CONTRACT_VERSION=5`              | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
 | Protocol v4 wire `3`                    | hello/clientHello 与二进制 wire 版本          |
 | snapshot `protocolVersion=1`            | 会话投影格式，不是 wire 版本                  |
 | workflow revision、材料／候选／代码版本 | 对应业务 CAS、批准、分析及验收绑定            |

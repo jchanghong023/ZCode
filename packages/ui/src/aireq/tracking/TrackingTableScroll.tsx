@@ -3,8 +3,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 
-// 小于该宽度的横向溢出通常只是滚动条槽或取样误差，挪动后也看不到完整列。
-const MIN_SCROLL_OVERFLOW = 24;
+// 忽略由小数像素舍入造成、无法实际移动的边缘差值。
+const SCROLL_EDGE_TOLERANCE = 1;
 
 /** 只投影 DOM 横向滚动状态；页面可通过 viewportClassName 将表格设为自身纵向滚动域。 */
 export function TrackingTableScroll({
@@ -30,10 +30,9 @@ export function TrackingTableScroll({
     if (!element) return;
     const update = () => {
       const maximum = Math.max(0, element.scrollWidth - element.clientWidth);
-      const scrollable = maximum > MIN_SCROLL_OVERFLOW;
       const position = Math.max(0, Math.min(element.scrollLeft, maximum));
-      const left = scrollable && position > 1;
-      const right = scrollable && position < maximum - 1;
+      const left = position > SCROLL_EDGE_TOLERANCE;
+      const right = position < maximum - SCROLL_EDGE_TOLERANCE;
       setEdges((previous) =>
         previous.left === left && previous.right === right ? previous : { left, right },
       );
@@ -101,7 +100,7 @@ export function TrackingTableScroll({
         tabIndex={0}
         data-testid={viewportTestId}
         className={cn(
-          "min-w-0 overflow-x-auto rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          "min-w-0 overflow-x-auto rounded-xl border border-transparent outline-none focus-visible:border-remote-foreground-muted",
           viewportClassName,
         )}
         onKeyDown={(event) => {

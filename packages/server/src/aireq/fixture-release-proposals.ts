@@ -1,26 +1,28 @@
 import type {
   AIReqMaterialView,
+  AIReqProject,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
-import { aiReqPrFactSchema, proposalVersion } from "@zcode/services/aireq";
+import { aiReqPrFactSchema } from "@zcode/services/aireq";
 import { createRequirementSnapshot } from "./content-digest.js";
 import { createdAt, group, sessionRef, systemRequirement } from "./fixture-builders.js";
-import { requirementMaterials } from "./materials.js";
+import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
-import { prototypeProposalDependencies, prototypeProposalSolution } from "./proposal-flow.js";
+import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
 } from "./requirements-review.js";
+import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
 
 interface ProposalSample {
   id: string;
   title: string;
   originalText: string;
   material: "none" | "business" | "solution";
-  originalReview?: "reviewed" | "confirmed";
-  fullReview?: "reviewed" | "confirmed";
+  originalReview?: "failed" | "reviewed" | "confirmed";
+  fullReview?: "failed" | "reviewed";
   aligned?: boolean;
   published?: boolean;
   srTitle?: string;
@@ -39,6 +41,7 @@ const proposals: ProposalSample[] = [
     title: "通知免打扰时段",
     originalText: "成员可设置跨日免打扰时段，时段内停止提醒但保留站内消息，保存失败时保留输入。",
     material: "business",
+    originalReview: "failed",
   },
   {
     id: "draft-project-favorites",
@@ -61,6 +64,7 @@ const proposals: ProposalSample[] = [
       "在当前版本按日期查看需求计划，未排期需求单独展示，切换版本后不混入其他版本数据。",
     material: "solution",
     originalReview: "confirmed",
+    fullReview: "failed",
     srTitle: "交付日历与未排期需求展示",
   },
   {
@@ -78,7 +82,7 @@ const proposals: ProposalSample[] = [
     originalText: "管理员可导出当前项目成员活动，保留筛选条件与中文内容，无数据时明确反馈。",
     material: "solution",
     originalReview: "confirmed",
-    fullReview: "confirmed",
+    fullReview: "reviewed",
     aligned: true,
     srTitle: "活动筛选导出与空结果反馈",
   },
@@ -88,7 +92,7 @@ const proposals: ProposalSample[] = [
     originalText: "业务成员可阅读当前版本变更摘要并定位原需求，摘要内容与已确认的材料保持一致。",
     material: "solution",
     originalReview: "confirmed",
-    fullReview: "confirmed",
+    fullReview: "reviewed",
     aligned: true,
     published: true,
     srTitle: "变更摘要与需求定位",
@@ -129,18 +133,19 @@ export function createPrototypeReleaseProposals() {
       rows,
       sample.originalText,
     );
+    for (const material of bundle) material.round = proposal.proposalRound ?? 1;
+    const formats = emptyDocumentFormats();
+    proposal.requirementsCheck = checkProposalMaterials(proposal, bundle, "requirements", formats);
     if (rows.length) {
       proposal.srDependencyFile = prototypeProposalDependencies(proposal, rows);
-      const solution = prototypeProposalSolution(proposal);
-      const index = bundle.findIndex((item) => item.path === solution.path);
-      if (index >= 0) bundle.splice(index, 1);
-      bundle.push(solution, proposal.srDependencyFile);
+      bundle.push(proposal.srDependencyFile);
+      proposal.solutionCheck = checkProposalMaterials(proposal, bundle, "solution", formats);
       proposal.proposalSolution = {
-        path: solution.path,
+        path: `openspec/changes/${rows[0]!.id}/design.md`,
         employeeId,
         generatedAt: createdAt,
         round: 1,
-        valid: true,
+        valid: proposal.solutionCheck.issues.length === 0,
         requirementsDigest: "",
       };
     }
@@ -162,6 +167,8 @@ export function createPrototypeReleaseProposals() {
         proposal,
         employeeId,
         sample.originalReview === "confirmed",
+        "original",
+        sample.originalReview === "failed" ? "failed" : "normal",
       );
       proposal.originalReview.createdAt = createdAt;
       if (proposal.originalReview.humanDecision)
@@ -178,53 +185,62 @@ export function createPrototypeReleaseProposals() {
       proposal.review = createPrototypeRequirementsReview(
         proposal,
         employeeId,
-        sample.fullReview === "confirmed",
+        false,
         "full",
+        sample.fullReview === "failed" ? "failed" : "normal",
       );
       proposal.review.createdAt = createdAt;
-      if (proposal.review.humanDecision) proposal.review.humanDecision.decidedAt = createdAt;
       proposal.sessions.push(...prototypeReviewSessions(proposal.review));
     }
     if (sample.aligned) {
       proposal.alignment = (["business", "development", "testing"] as const).map((perspective) => ({
         perspective,
-        version: proposalVersion(proposal),
+        version: proposal.review!.snapshotDigest,
+        reviewId: proposal.review!.id,
+        snapshotDigest: proposal.review!.snapshotDigest,
         employeeId,
         confirmedAt: createdAt,
       }));
-    }
-    if (sample.published) {
-      const candidate = `sample-document-${proposal.id}`;
-      const branch = {
-        name: `ir/${proposal.id}`,
-        baseCommit: `sample-default-${project.repositoryId}`,
+      preparePrototypeProposalCandidate(
+        proposal,
+        `sample-document-${proposal.id}`,
+        employeeId,
         createdAt,
-        pushedAt: createdAt,
-      };
-      proposal.proposalDelivery = {
-        candidate,
-        version: proposalVersion(proposal),
-        files: structuredClone(proposal.files),
-        confirmedBy: employeeId,
-        confirmedAt: createdAt,
-        pushedCandidate: candidate,
-        pushedAt: createdAt,
-        prCandidate: candidate,
-        branch,
-        mergeCheck: { status: "waiting", message: "文档 PR 已提交，等待评审合入与完整材料核验。" },
-      };
-      // 初始 opened PR 是既有业务记录，不在初始化时伪造未来合入或建立推进时钟。
-      proposal.requirementsPr = aiReqPrFactSchema.parse({
-        number: 98,
-        title: `[需求] ${proposal.title}`,
-        status: "opened",
-        sourceBranch: branch.name,
-        targetBranch: project.defaultBranch,
-        recordedAt: createdAt,
-        platformVerified: false,
-      });
-      proposal.status = "requirements-pr";
+      );
     }
+    if (sample.published) seedPrototypePublishedProposal(proposal, project, 98);
   }
   return { drafts, srs, materials };
+}
+
+/** An opened seed is an existing business record, not a simulated future merge. */
+export function seedPrototypePublishedProposal(
+  proposal: AIReqRequirementGroup,
+  project: AIReqProject,
+  number: number,
+): void {
+  const delivery = proposal.proposalDelivery!;
+  delivery.branch = {
+    name: `ir/${proposal.id}`,
+    baseCommit: `sample-default-${project.repositoryId}`,
+    createdAt,
+    pushedAt: createdAt,
+  };
+  delivery.pushedCandidate = delivery.candidate;
+  delivery.pushedAt = createdAt;
+  delivery.prCandidate = delivery.candidate;
+  delivery.mergeCheck = {
+    status: "waiting",
+    message: "文档 PR 已提交，等待评审合入与完整材料核验。",
+  };
+  proposal.requirementsPr = aiReqPrFactSchema.parse({
+    number,
+    title: `[需求] ${proposal.title}`,
+    status: "opened",
+    sourceBranch: delivery.branch.name,
+    targetBranch: project.defaultBranch,
+    recordedAt: createdAt,
+    platformVerified: false,
+  });
+  proposal.status = "requirements-pr";
 }

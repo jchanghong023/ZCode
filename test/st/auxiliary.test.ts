@@ -321,10 +321,23 @@ describe("ST auxiliary public reads", () => {
           }
         }
         const bootstrap = await c.bootstrap();
+        const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
+        expect(workflowRoles).toEqual([
+          "progress-analysis",
+          "requirements",
+          "requirements-review",
+          "requirements-review-a",
+          "requirements-review-b",
+          "requirements-review-c",
+          "solution",
+          "solution-review-summary",
+        ]);
+        expect(workflowRoles).toEqual(expect.arrayContaining(Object.keys(bootstrap.prompts.saved)));
         const binding = requireConfig(
           created.remote.session?.modelConfig,
           "新建讨论必须提供实际 Agent 模型绑定",
         );
+        expect(binding.role).toBe("requirements");
         // 工作流 modelKey 与原生 providerId/modelId 是两套显式字段，不能解析 choice.id 猜测执行身份。
         // 用公开会话绑定关联配置选项及原生目录，展示名只核对展示名，不充当模型身份。
         const choice = bootstrap.models.choices.find((model) => model.id === binding.modelKey);

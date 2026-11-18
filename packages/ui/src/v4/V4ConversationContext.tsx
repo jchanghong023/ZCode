@@ -56,6 +56,12 @@ export interface V4ConversationContextValue {
 // 装配 value 后直接 Provider 注入，不经 V4ConversationProvider 的 workspace 解析链路。
 export const V4ConversationContext = createContext<V4ConversationContextValue | null>(null);
 
+/** A browser-owned base accessor can be replaced without changing session authority. */
+export const V4BaseConnectionContext = createContext<{
+  key: string;
+  available: boolean;
+} | null>(null);
+
 export interface V4ConversationProviderProps {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -218,6 +224,7 @@ export function V4PaneConversationProvider({
   unavailableFallback,
   disconnectedBanner,
 }: V4PaneConversationProviderProps) {
+  const baseConnection = useContext(V4BaseConnectionContext);
   const targetResolution = useWorkspaceServicesResolution(
     scope.workspacePath,
     scope.remoteSessionId ?? null,
@@ -244,9 +251,13 @@ export function V4PaneConversationProvider({
   // remoteSessionId 后若仍把原 scope 传给 registry，会以 __base__ 和远端 endpoint
   // 各建一份数据层，终态可能落到非可见 store。ready 后统一使用解析后的 scope。
   return (
-    <ReadyV4PaneConversationProvider scope={resolvedScope} services={ready.services}>
+    <ReadyV4PaneConversationProvider
+      scope={resolvedScope}
+      services={ready.services}
+      baseConnectionId={baseConnection?.key}
+    >
       <RemoteConversationAvailability
-        available={targetResolution.rpcReady}
+        available={targetResolution.rpcReady && (baseConnection?.available ?? true)}
         banner={disconnectedBanner}
       >
         {children}
@@ -258,9 +269,11 @@ export function V4PaneConversationProvider({
 function ReadyV4PaneConversationProvider({
   scope,
   services,
+  baseConnectionId,
   children,
 }: Pick<V4PaneConversationProviderProps, "scope" | "children"> & {
   services: IServiceAccessor;
+  baseConnectionId?: string;
 }) {
   const agentService = services.zcodeAgentService;
 
@@ -273,6 +286,7 @@ function ReadyV4PaneConversationProvider({
         workspacePath: scope.workspacePath,
         ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
         ...(scope.remoteSessionId ? { remoteSessionId: scope.remoteSessionId } : {}),
+        baseConnectionId,
       },
       agentService,
     );
@@ -295,7 +309,13 @@ function ReadyV4PaneConversationProvider({
           : {}),
       } satisfies V4ConversationContextValue,
     };
-  }, [agentService, scope.workspacePath, scope.workspaceIdentity, scope.remoteSessionId]);
+  }, [
+    agentService,
+    baseConnectionId,
+    scope.workspacePath,
+    scope.workspaceIdentity,
+    scope.remoteSessionId,
+  ]);
 
   useLayoutEffect(() => {
     // acquire 发生在 render，只负责稳定租约；远端 proxy 换代引发的 store 更新和

@@ -51,12 +51,13 @@ export function AIReqSessionPane({
       : undefined);
   const callerBeforeReconnect = props.onBeforeReconnect;
   const onBeforeReconnect = useMemo<SessionPaneProps["onBeforeReconnect"]>(() => {
-    // 私有 Skill 不属于当前业务会话，不能用当前选择恢复其他 session。
+    // 私有 Skill 只重订自身的原生 lease；不能借当前提案恢复另一个会话。
     if (!businessSession || !selection || !retrySession || sessionId === null)
       return callerBeforeReconnect;
-    return async () => {
-      await callerBeforeReconnect?.();
-      await retrySession(selection, sessionId);
+    return async (isCurrent) => {
+      if (callerBeforeReconnect) await callerBeforeReconnect(isCurrent);
+      if (!isCurrent()) return;
+      await retrySession(selection, sessionId, isCurrent);
     };
   }, [businessSession, selection, retrySession, sessionId, callerBeforeReconnect]);
   // 根因：私有 Skill 不命中当前业务 selection，却同样保留 Agent 创建绑定；
@@ -82,6 +83,7 @@ export function AIReqSessionPane({
           <>
             {/* 只保留真实生成附件的画图能力；未接入识别服务时不显示假录音入口。 */}
             <AIReqSketchButton
+              key={JSON.stringify([props.workspaceIdentity ?? props.workspacePath, sessionId])}
               disabled={port.disabled}
               onAddFiles={port.addFiles}
               onReturnToComposer={port.focusInput}

@@ -7,11 +7,6 @@ import type {
   AIReqReview,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
-import type { AIReqVersionedProgressInput } from "@zcode/services/aireq";
-
-export interface AIReqCodeMergeInput extends AIReqVersionedProgressInput {
-  fix: boolean;
-}
 
 // 生成材料只由原生讨论完成回调驱动，不能出现在浏览器安全的公共命令类型中。
 export type InternalWorkflowAction =
@@ -60,6 +55,8 @@ export type InternalProposalDelivery = AIReqProposalDelivery & {
   mergeScenario?: AIReqProposalMergeScenario;
   simulatedMr?: {
     candidate: string;
+    version: string;
+    manifest: string;
     number: number;
     openedAt: string;
     mergeEligibleAt: string;

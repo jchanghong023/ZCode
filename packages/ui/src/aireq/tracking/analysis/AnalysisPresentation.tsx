@@ -29,14 +29,14 @@ export const taskLabels: Record<AIReqAnalysisTask["state"], string> = {
   waiting: "待分析",
   running: "分析中",
   failed: "失败",
-  completed: "已完成",
+  completed: "合入后停止",
   paused: "已暂停",
 };
 export const runLabels: Record<AIReqAnalysisRun["status"], string> = {
   running: "分析中",
   succeeded: "成功",
   failed: "失败",
-  skipped: "无变化，已跳过",
+  skipped: "已跳过",
 };
 export const cellClass = "px-3 py-2.5 text-left align-middle";
 export const tableClass = "w-full table-fixed text-ui-base";
@@ -69,7 +69,7 @@ export function FilterSelect({
   disabled,
   className = "w-44",
   triggerClassName,
-  contentClassName,
+  alignToTrigger,
 }: {
   id: string;
   label: string;
@@ -79,7 +79,7 @@ export function FilterSelect({
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
-  contentClassName?: string;
+  alignToTrigger?: boolean;
 }) {
   return (
     <div className={className}>
@@ -90,7 +90,13 @@ export function FilterSelect({
         <SelectTrigger id={id} className={`h-9 w-full ${triggerClassName ?? ""}`}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className={contentClassName}>{children}</SelectContent>
+        <SelectContent
+          className={alignToTrigger ? "w-(--radix-select-trigger-width) min-w-0" : undefined}
+          position={alignToTrigger ? "popper" : undefined}
+          align={alignToTrigger ? "start" : undefined}
+        >
+          {children}
+        </SelectContent>
       </Select>
     </div>
   );
@@ -127,11 +133,11 @@ export function Status({ value, children }: { value: string; children: ReactNode
       ? { icon: TriangleAlert, color: "bg-destructive-surface text-destructive-surface-foreground" }
       : value === "running"
         ? { icon: LoaderCircle, color: "bg-progress-surface text-progress-surface-foreground" }
-        : value === "completed" || value === "succeeded"
+        : value === "succeeded"
           ? { icon: CheckCircle2, color: "bg-success-surface text-success-surface-foreground" }
           : value === "paused"
             ? { icon: PauseCircle, color: "bg-tag text-foreground" }
-            : value === "skipped"
+            : value === "skipped" || value === "completed"
               ? { icon: SkipForward, color: "bg-tag text-foreground" }
               : { icon: CircleDashed, color: "bg-tag text-foreground" };
   const Icon = appearance.icon;

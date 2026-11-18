@@ -1,10 +1,12 @@
 import { businessRule } from "./errors.js";
+import { AIREQ_AGENT_ROLES } from "@zcode/services/aireq";
 import type {
+  AIReqAgentModel,
   AIReqAgentModelSettings,
   AIReqAgentRole,
   AIReqAgentModelBinding,
 } from "@zcode/services/aireq";
-import type { ModelSelection } from "@zcode/shared";
+import { readPrototypeAgentPrompt } from "./personalization.js";
 
 // 目录与角色快照共用正式供应商标识，避免私有运行环境名称泄漏为业务模型身份。
 export const PROTOTYPE_AGENT_MODELS = [
@@ -35,102 +37,85 @@ export const PROTOTYPE_AGENT_MODELS = [
   },
 ];
 
-const sampleSettings: AIReqAgentModelSettings = {
-  defaultModel: "anthropic/claude-sonnet-4.5",
-  agents: [
-    {
-      id: "requirements",
-      name: "业务需求 Agent",
-      nameEn: "Requirements Agent",
-      description: "澄清业务目标、范围和验收条件，整理原始需求。",
-      descriptionEn: "Clarify business goals and organize requirements.",
-      model: "openai/gpt-5.2",
-      reasoning: "high",
-    },
-    {
-      id: "requirements-review-a",
-      name: "需求评审 A",
-      nameEn: "Requirements Reviewer A",
-      description: "检查业务目标、范围和验收条件，独立评审需求覆盖与一致性。",
-      descriptionEn:
-        "Check business goals, scope and acceptance; independently review requirement coverage and consistency.",
-      model: "anthropic/claude-opus-4.5",
-      reasoning: "high",
-    },
-    {
-      id: "requirements-review-b",
-      name: "需求评审 B",
-      nameEn: "Requirements Reviewer B",
-      description: "使用不同模型，独立评审技术方案与开发单元间的依赖。",
-      descriptionEn:
-        "Use a different model to independently review technical design and dependencies between development units.",
-      model: "openai/gpt-5.2",
-      reasoning: "high",
-    },
-    {
-      id: "requirements-review-c",
-      name: "需求评审 C",
-      nameEn: "Requirements Reviewer C",
-      description: "检查任务可执行性、测试充分性和业务验收追溯。",
-      descriptionEn:
-        "Review task executability, testing sufficiency and business-acceptance traceability.",
-      model: "deepseek/deepseek-v3.2",
-      reasoning: "high",
-    },
-    {
-      id: "requirements-review",
-      name: "综合评审 Agent",
-      nameEn: "Review Synthesis Agent",
-      description: "汇总 A／B／C 的评审意见，保留来源与分歧，由人工决定通过。",
-      descriptionEn:
-        "Synthesize completed A/B/C reports, retaining sources and disagreements. Humans decide approval.",
-      model: "anthropic/claude-sonnet-4.5",
-      reasoning: "high",
-    },
-    {
-      id: "solution",
-      name: "方案 Agent",
-      nameEn: "Solution Agent",
-      description: "业务通过后拆分开发单元，完善方案、任务和测试文档；不执行开发或测试。",
-      descriptionEn:
-        "After business approval, split development units and refine design, task and test documents. Never execute development or tests.",
-      model: "anthropic/claude-opus-4.5",
-      reasoning: "high",
-    },
-    {
-      id: "skill-design",
-      name: "Skill 设计 Agent",
-      nameEn: "Skill Design Agent",
-      description:
-        "在独立设计会话中澄清技能需求、推荐标识并生成临时文件；预览确认后保存到项目或个人技能目录。",
-      descriptionEn:
-        "Clarify skill requirements in a dedicated session, recommend a name, and prepare temporary files for preview before explicitly saving to project or personal skills.",
-      model: "inherit",
-      reasoning: "default",
-    },
-    {
-      id: "progress-analysis",
-      name: "需求分析 Agent",
-      nameEn: "Requirement Analysis Agent",
-      description: "结合任务、代码与合入证据分析进度和问题；不执行开发，完成仍须人工测试验收。",
-      descriptionEn:
-        "Analyze progress and issues using tasks, code and merge evidence. Never execute development; completion requires human test acceptance.",
-      model: "inherit",
-      reasoning: "default",
-    },
-  ],
+const roleDefaults: Record<AIReqAgentRole, Omit<AIReqAgentModel, "id">> = {
+  requirements: {
+    name: "业务需求 Agent",
+    nameEn: "Requirements Agent",
+    description: "在需求澄清会话中整理业务目标、范围和验收条件，生成 IR 需求文档。",
+    descriptionEn:
+      "Clarify business goals, scope and acceptance criteria, and prepare the IR requirements document.",
+    model: "openai/gpt-5.2",
+    reasoning: "high",
+  },
+  "requirements-review": {
+    name: "需求评审 Agent",
+    nameEn: "Requirements Review Agent",
+    description: "独立评审 IR 需求文档并给出意见，供业务人员确认。",
+    descriptionEn:
+      "Independently review the IR requirements document and give feedback for business confirmation.",
+    model: "anthropic/claude-opus-4.5",
+    reasoning: "high",
+  },
+  solution: {
+    name: "方案 Agent",
+    nameEn: "Solution Agent",
+    description: "在方案会话中与人拆分 SR，生成 SR 规格、设计、任务、测试方案及 IR 共享材料。",
+    descriptionEn:
+      "Split SRs with participants and prepare their specifications, designs, tasks, test plans and shared IR materials.",
+    model: "anthropic/claude-opus-4.5",
+    reasoning: "high",
+  },
+  "requirements-review-a": {
+    name: "方案评审 A",
+    nameEn: "Solution Reviewer A",
+    description: "独立审查需求覆盖和一致性。",
+    descriptionEn: "Independently review requirements coverage and consistency.",
+    model: "anthropic/claude-opus-4.5",
+    reasoning: "high",
+  },
+  "requirements-review-b": {
+    name: "方案评审 B",
+    nameEn: "Solution Reviewer B",
+    description: "独立审查技术方案和 SR 依赖。",
+    descriptionEn: "Independently review the technical design and SR dependencies.",
+    model: "openai/gpt-5.2",
+    reasoning: "high",
+  },
+  "requirements-review-c": {
+    name: "方案评审 C",
+    nameEn: "Solution Reviewer C",
+    description: "独立审查任务可执行性、测试充分性和验收追溯。",
+    descriptionEn:
+      "Independently review task executability, testing sufficiency and acceptance traceability.",
+    model: "deepseek/deepseek-v3.2",
+    reasoning: "high",
+  },
+  "solution-review-summary": {
+    name: "方案综审 Agent",
+    nameEn: "Solution Review Synthesis Agent",
+    description: "汇总三路方案评审的意见及分歧。",
+    descriptionEn: "Summarize feedback and disagreements across the three solution reviews.",
+    model: "anthropic/claude-sonnet-4.5",
+    reasoning: "high",
+  },
+  "progress-analysis": {
+    name: "进度分析 Agent",
+    nameEn: "Progress Analysis Agent",
+    description: "分析尚未首次合入的正式 SR 的开发进度和问题。",
+    descriptionEn:
+      "Analyze development progress and issues for formal SRs that have not yet merged.",
+    model: "inherit",
+    reasoning: "default",
+  },
 };
 
-// 模拟当前开发者后端自己的 OMP profile；不共享到团队 Web 或其他开发者，不随浏览器工号切换。
-// 原型配置保存在后端场景内存，刷新及重新连接保留，服务重启恢复样例。
-let savedSettings = structuredClone(sampleSettings);
-// 本步仅替换设置；尚未改造的流程页面仍需原有静态会话配置，不能因打开设置而破坏样例。
-const historicalStageRoles = new Set(["planning", "execution", "ir-acceptance"]);
+// 所有项目和 Release 共享服务端内存配置；刷新和重连保留，服务重启恢复样例。
+let savedSettings: AIReqAgentModelSettings = {
+  defaultModel: "anthropic/claude-sonnet-4.5",
+  agents: AIREQ_AGENT_ROLES.map((id) => ({ id, ...roleDefaults[id] })),
+};
 export function readPrototypeAgentModels(): AIReqAgentModelSettings {
-  return structuredClone({
-    ...savedSettings,
-    agents: savedSettings.agents.filter((agent) => !historicalStageRoles.has(agent.id)),
-  });
+  return structuredClone(savedSettings);
 }
 export function savePrototypeAgentModels(
   settings: AIReqAgentModelSettings,
@@ -138,7 +123,7 @@ export function savePrototypeAgentModels(
 ): void {
   if (expectedRevision !== configurationRevision)
     throw businessRule("模型配置已变化，请重新读取。");
-  const allowed = sampleSettings.agents.map((agent) => agent.id);
+  const allowed = AIREQ_AGENT_ROLES;
   const models = new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.id));
   if (
     !settings ||
@@ -154,16 +139,18 @@ export function savePrototypeAgentModels(
     )
   )
     throw businessRule("模型或角色配置无效。");
-  if (JSON.stringify(settings) === JSON.stringify(readPrototypeAgentModels())) return;
-  savedSettings = structuredClone(settings);
+  const agents = new Map(settings.agents.map((agent) => [agent.id, agent]));
+  const next: AIReqAgentModelSettings = {
+    defaultModel: settings.defaultModel,
+    agents: allowed.map((id) => {
+      const { model, reasoning } = agents.get(id)!;
+      return { id, ...roleDefaults[id], model, reasoning };
+    }),
+  };
+  if (JSON.stringify(next) === JSON.stringify(savedSettings)) return;
+  savedSettings = next;
   configurationRevision += 1;
   for (const listener of listeners) listener();
-}
-export function createPrototypeAgentModelSamples(): AIReqAgentModelSettings {
-  return structuredClone({
-    ...sampleSettings,
-    agents: sampleSettings.agents.filter((agent) => !historicalStageRoles.has(agent.id)),
-  });
 }
 
 let configurationRevision = 1;
@@ -177,14 +164,23 @@ export function subscribePrototypeAgentModels(listener: () => void) {
     listeners.delete(listener);
   };
 }
-/** 角色会话创建时复制的演示配置，不调用或验证真实模型。 */
+function resolveModel(modelKey: string) {
+  const model = PROTOTYPE_AGENT_MODELS.find((item) => item.id === modelKey);
+  if (!model) throw businessRule("请选择当前可用的模型。");
+  return model;
+}
+
+export function readPrototypeWorkflowDefaultModel() {
+  return resolveModel(savedSettings.defaultModel);
+}
+
+/** 会话创建或执行接纳时绑定已保存的配置；模拟后端不调用真实模型。 */
 export function readPrototypeAgentModelBinding(role: AIReqAgentRole): AIReqAgentModelBinding {
   const agent = savedSettings.agents.find((item) => item.id === role);
   if (!agent) throw businessRule("此 AIReq Agent 未配置。");
   const inherited = agent.model === "inherit";
   const modelKey = inherited ? savedSettings.defaultModel : agent.model;
-  const model = PROTOTYPE_AGENT_MODELS.find((item) => item.id === modelKey);
-  if (!model) throw businessRule("请选择当前可用的模型。");
+  const model = resolveModel(modelKey);
   return {
     role,
     roleName: agent.name,
@@ -195,21 +191,6 @@ export function readPrototypeAgentModelBinding(role: AIReqAgentRole): AIReqAgent
     reasoning: agent.reasoning,
     inherited,
     configurationRevision,
-  };
-}
-export function prototypeAgentModelBindingChanged(binding: AIReqAgentModelBinding): boolean {
-  const latest = readPrototypeAgentModelBinding(binding.role);
-  return (
-    latest.modelKey !== binding.modelKey ||
-    latest.reasoning !== binding.reasoning ||
-    latest.inherited !== binding.inherited
-  );
-}
-
-export function prototypeAgentModelSelection(binding: AIReqAgentModelBinding): ModelSelection {
-  return {
-    providerId: binding.providerId,
-    modelId: binding.modelId,
-    ...(binding.reasoning !== "default" ? { options: { reasoningLevel: binding.reasoning } } : {}),
+    promptSnapshot: readPrototypeAgentPrompt(role),
   };
 }

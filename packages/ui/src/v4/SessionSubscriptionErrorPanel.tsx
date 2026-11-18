@@ -7,18 +7,23 @@ export interface SessionSubscriptionErrorPanelProps {
   error: string;
   sessionId: string;
   workspacePath: string;
+  retainingHistory?: boolean;
   onReconnect: () => void;
   reconnectLabel?: string;
 }
 
 export function SessionSubscriptionErrorPanel({
   error,
+  retainingHistory = false,
   onReconnect,
   reconnectLabel,
 }: SessionSubscriptionErrorPanelProps) {
   const { intl } = useZCodeIntl();
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-ui-base">
+    <div
+      role="alert"
+      className={`flex flex-col items-center justify-center gap-3 p-4 text-ui-base ${retainingHistory ? "shrink-0" : "flex-1"}`}
+    >
       <p className="max-w-full break-words text-center text-destructive">
         {formatUserFacingError(error, intl.formatMessage({ id: "chat.error.sessionUnavailable" }))}
       </p>

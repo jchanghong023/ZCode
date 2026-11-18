@@ -38,12 +38,16 @@ import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 export function AIReqRequirementAnalysisPage({
   onOpenAnalysisSettings,
 }: {
-  onOpenModelSettings(): void;
   onOpenAnalysisSettings(): void;
 }) {
   const source = useOptionalAIReqDataSource();
   const { locale } = useZCodeIntl();
   const aireq = useAIReq()!;
+  const release = aireq.selectionReady
+    ? aireq.view?.availableReleases.find(
+        (item) => item.projectId === aireq.selection.projectId && item.id === aireq.releaseId,
+      )
+    : undefined;
   return (
     <main
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
@@ -53,9 +57,25 @@ export function AIReqRequirementAnalysisPage({
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
         <div className={cn(AIREQ_PAGE_CONTENT_CLASSNAME, "min-w-0 space-y-4")}>
           <ScopedPageTitle title={locale === "zh-CN" ? "进度分析" : "Progress analysis"} />
-          {source?.progressScheduler ? (
+          {!release ? (
+            aireq.selectionReady ? (
+              <p role="status" className="text-ui-base text-foreground-subtle">
+                {locale === "zh-CN" ? "请选择具体 Release。" : "Select a release to continue."}
+              </p>
+            ) : (
+              <QueryFeedback loading={aireq.pending} onRetry={() => void aireq.refresh()} />
+            )
+          ) : source?.progressScheduler ? (
             <ConnectedProgressAnalysis
-              key={`${aireq.selection.projectId ?? ""}:${aireq.releaseId}:${aireq.selection.irId ?? ""}:${aireq.selection.srId ?? ""}`}
+              key={JSON.stringify([
+                release.projectId,
+                release.id,
+                aireq.selection.irId,
+                aireq.selection.srId,
+              ])}
+              projectId={release.projectId}
+              releaseId={release.id}
+              releaseTitle={release.title}
               scheduler={source.progressScheduler}
               onOpenAnalysisSettings={onOpenAnalysisSettings}
             />
@@ -71,9 +91,15 @@ export function AIReqRequirementAnalysisPage({
 }
 function ConnectedProgressAnalysis({
   scheduler,
+  projectId,
+  releaseId,
+  releaseTitle,
   onOpenAnalysisSettings,
 }: {
   scheduler: AIReqProgressScheduler;
+  projectId: string;
+  releaseId: string;
+  releaseTitle: string;
   onOpenAnalysisSettings(): void;
 }) {
   const [revision, setRevision] = useState(0);
@@ -85,19 +111,17 @@ function ConnectedProgressAnalysis({
         waiting: "Waiting",
         running: "Running",
         failed: "Failed",
-        completed: "Completed",
+        completed: "Stopped after merge",
         paused: "Paused",
       };
   const aireq = useAIReq()!;
-  const projectId = aireq.selection.projectId ?? "";
-  const releaseId = aireq.releaseId;
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const loadSnapshot = useCallback(() => scheduler.read(), [scheduler]);
   const snapshotQuery = useSchedulerQuery(loadSnapshot, revision);
   const snapshot = snapshotQuery.value;
-  // 修复：待办直达时保留目标 IR/SR，并以 SR 编号精确筛选，不能让相似名称指向其他任务。
+  // 待办直达保留精确的 IR/SR 范围，但不把内部 SR 编号显示为搜索词。
   const [irId, setIrId] = useState(() => aireq.selection.irId ?? "all");
-  const [srSearch, setSrSearch] = useState(() => aireq.selection.srId ?? "");
+  const [srSearch, setSrSearch] = useState("");
   const [targetSrId, setTargetSrId] = useState(() => aireq.selection.srId ?? "");
   const [historyStatus, setHistoryStatus] = useState("all");
   const [taskState, setTaskState] = useState<AIReqAnalysisTask["state"] | "all">("all");
@@ -160,8 +184,8 @@ function ConnectedProgressAnalysis({
   const dateError = Boolean(since && until && since > until);
   const filter: AIReqAnalysisFilter = useMemo(
     () => ({
-      projectId: projectId || "__no_project__",
-      releaseId: releaseId || undefined,
+      projectId,
+      releaseId,
       irId: irId === "all" ? undefined : irId,
       srId: targetSrId || undefined,
       srSearch,
@@ -197,24 +221,21 @@ function ConnectedProgressAnalysis({
   );
   const historyQuery = useSchedulerQuery(loadHistory, revision, tab === "history" && !dateError);
   const historyResult = historyQuery.value;
-  const retryBlocker = (task?: AIReqAnalysisTask) =>
-    !task
-      ? "此 SR 已不在当前任务范围，无法重试。"
-      : !snapshot?.projects.find((project) => project.id === task.projectId)?.enabled
-        ? "项目分析已关闭，请先开启项目分析。"
-        : task.state === "running"
-          ? "此 SR 正在分析，不会重复接纳；完成后再查看结果。"
-          : task.state === "completed" || task.percent >= 100
-            ? "此 SR 已完成，分析已停止。"
+  const retryBlocker = (task: AIReqAnalysisTask) =>
+    !snapshot?.projects.find((project) => project.id === task.projectId)?.enabled
+      ? "项目分析已关闭，请先开启项目分析。"
+      : taskQuery.loading || taskQuery.error
+        ? "请刷新任务状态后重试。"
+        : !task.retryable
+          ? "此失败不可直接重试，请查看报告中的处理建议。"
+          : task.state === "paused"
+            ? "当前开发分支不可用，请恢复后重试。"
             : undefined;
   const retry = (task: AIReqAnalysisTask) => {
-    const exact = { projectId: task.projectId, irId: task.irId, srId: task.srId };
-    void mutate(async () => {
-      const current = (await scheduler.queryTasks(exact, 1, 25)).items[0];
-      const blocker = retryBlocker(current);
-      if (blocker) throw new Error(blocker);
-      await scheduler.runNow(exact);
-    }, `仅已请求 ${task.srTitle} 的单 SR 重试；未派发其他 SR，运行中不会重复接纳。`);
+    if (!task.lastRunId || retryBlocker(task)) return;
+    const exact = { projectId, releaseId, irId: task.irId, srId: task.srId };
+    const runId = task.lastRunId;
+    void mutate(() => scheduler.runNow(exact, runId), `已请求仅重试 ${task.srTitle}。`);
   };
   const openReport = (id: string) => {
     const target =
@@ -270,18 +291,16 @@ function ConnectedProgressAnalysis({
     });
   };
   const taskActions = (task: AIReqAnalysisTask, onOpenReport: () => void) =>
-    task.error || task.state === "failed" ? (
+    task.lastRunId && task.retryable !== undefined && task.state !== "completed" ? (
       <div className="flex items-center justify-end gap-1">
-        {task.lastRunId && (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`查看 ${task.srTitle} 失败原因`}
-            onClick={onOpenReport}
-          >
-            原因
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`查看 ${task.srTitle} 失败原因`}
+          onClick={onOpenReport}
+        >
+          原因
+        </Button>
         <ControlHintTooltip title={retryBlocker(task) ?? "仅重试当前 SR"}>
           <span tabIndex={retryBlocker(task) ? 0 : undefined}>
             <Button
@@ -341,7 +360,10 @@ function ConnectedProgressAnalysis({
   const refreshError = snapshotQuery.error ?? (activeQuery.value ? activeQuery.error : undefined);
   const currentProject = snapshot.projects.find((project) => project.id === projectId);
   const selectedIrTitle =
-    irId === "all" ? "全部 IR" : (irs.find((ir) => ir.id === irId)?.title ?? "当前需求");
+    irId === "all" ? "全部需求" : (irs.find((ir) => ir.id === irId)?.title ?? "当前需求");
+  const targetedSrTitle = targetSrId
+    ? taskResult?.items.find((task) => task.srId === targetSrId)?.srTitle
+    : undefined;
   return (
     <section className="min-w-0 space-y-6" data-testid="aireq-requirement-analysis">
       {/* 页面标题由外层持有，调度状态与辅助操作在下一行集中呈现。 */}
@@ -394,15 +416,16 @@ function ConnectedProgressAnalysis({
         count={analysisRequest?.count ?? 0}
         unit="SR"
         disabled={pending}
-        error={message}
+        blocked={!currentProject?.enabled}
+        error={currentProject?.enabled ? message : "项目分析已关闭，不能提交。"}
         onConfirm={() => {
-          if (!analysisRequest) return;
+          if (!analysisRequest || !currentProject?.enabled) return;
           const requestedFilter = analysisRequest.filter;
           setMessage("");
           void mutate(async () => {
             await scheduler.runNow(requestedFilter);
             setAnalysisDialogOpen(false);
-          }, "已提交全部筛选结果的分析任务；运行中的 SR 不会重复提交。");
+          }, "已提交当前范围内仍符合条件的分析任务。");
         }}
       />
       {/* 列表按内容自然撑高，纵向滚动统一交给页面，表格只负责横向滚动。 */}
@@ -446,8 +469,9 @@ function ConnectedProgressAnalysis({
             </div>
             {tab === "tasks" &&
               currentProject?.enabled &&
-              taskResult?.total !== 0 &&
-              (taskResult && !taskResult.eligibleCount ? (
+              taskResult &&
+              taskResult.total > 0 &&
+              (taskResult.eligibleCount === 0 ? (
                 // 资格计数也排除运行中的任务，仅据此不能判断任务停运或完成。
                 <p role="status" className="max-w-72 text-ui-sm text-foreground-subtle">
                   当前范围没有可发起分析的 SR。
@@ -455,24 +479,19 @@ function ConnectedProgressAnalysis({
               ) : (
                 <Button
                   size="sm"
-                  disabled={
-                    pending ||
-                    taskQuery.loading ||
-                    Boolean(taskQuery.error) ||
-                    !taskResult?.eligibleCount
-                  }
+                  disabled={pending || taskQuery.loading || Boolean(taskQuery.error)}
                   onClick={() => {
                     setMessage("");
                     setAnalysisRequest({
                       filter: taskFilter,
-                      count: taskResult?.eligibleCount ?? 0,
-                      scope: `分析当前项目／Release 全部筛选分页。项目：${snapshot.projects.find((project) => project.id === projectId)?.name ?? "未选择项目"}；Release：${aireq.view?.releases.find((release) => release.id === releaseId)?.title ?? "全部 Release"}；IR：${selectedIrTitle}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}${taskState === "all" ? "" : `；任务状态：${taskLabels[taskState]}`}。`,
+                      count: taskResult.eligibleCount,
+                      scope: `分析当前项目／Release 全部筛选分页。项目：${currentProject.name}；Release：${releaseTitle}；需求：${selectedIrTitle}${targetedSrTitle ? `；开发单元：${targetedSrTitle}` : ""}${srSearch.trim() ? `；搜索：${srSearch.trim()}` : ""}${taskState === "all" ? "" : `；任务状态：${stateLabels[taskState]}`}。`,
                     });
                     setAnalysisDialogOpen(true);
                   }}
-                  aria-label={`分析当前筛选范围的 ${taskResult?.eligibleCount ?? 0} 个 SR`}
+                  aria-label={`分析当前筛选范围的 ${taskResult.eligibleCount} 个 SR`}
                 >
-                  分析 {taskResult?.eligibleCount ?? "…"} 个 SR
+                  分析 {taskResult.eligibleCount} 个 SR
                 </Button>
               ))}
           </div>
@@ -501,8 +520,8 @@ function ConnectedProgressAnalysis({
               id="analysis-ir"
               label="筛选需求"
               className="w-60 max-w-full"
-              triggerClassName="rounded-lg bg-surface"
-              contentClassName="max-w-[22rem]"
+              triggerClassName="rounded-lg bg-surface [&_[data-slot=select-value]]:min-w-0"
+              alignToTrigger
               value={irId}
               onChange={(value) => {
                 setTargetSrId("");
@@ -540,7 +559,18 @@ function ConnectedProgressAnalysis({
                 ))}
               </FilterSelect>
             )}
-            {(irId !== "all" || srSearch || (tab === "tasks" && taskState !== "all")) && (
+            {targetSrId && (
+              <p
+                className="min-w-0 max-w-60 truncate text-ui-sm text-foreground-subtle"
+                title={targetedSrTitle}
+              >
+                {targetedSrTitle ?? "当前开发单元"}
+              </p>
+            )}
+            {(irId !== "all" ||
+              targetSrId ||
+              srSearch ||
+              (tab === "tasks" && taskState !== "all")) && (
               <Button
                 variant="ghost"
                 size="sm"

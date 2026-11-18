@@ -93,12 +93,12 @@ function AIReqFormalTable() {
       releaseId: group.releaseId,
       title: sr?.title ?? group.title,
     });
-  const matches = (id: string, title: string) =>
-    !normalized || `${id} ${title}`.toLocaleLowerCase().includes(normalized);
+  const matches = (id: string, title: string, original = "") =>
+    !normalized || `${id} ${title} ${original}`.toLocaleLowerCase().includes(normalized);
   const visible = groups.filter((group) => {
     const rows = irSrs(view, group);
     return (
-      (matches(group.id, group.originalText ?? group.title) ||
+      (matches(group.id, group.title, group.originalText) ||
         rows.some((sr) => matches(sr.id, sr.title))) &&
       (status === "all" ||
         irProgressStatus(rows) === status ||
@@ -118,7 +118,7 @@ function AIReqFormalTable() {
         <header className="shrink-0 space-y-4">
           <ScopedPageTitle title={zh ? "开发任务" : "Development tasks"} />
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-60 flex-1">
+            <div className="relative min-w-0 flex-1 basis-48 @min-[640px]/conversation:min-w-60">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle" />
               <Input
                 className="h-9 rounded-lg bg-surface pl-9"
@@ -170,7 +170,7 @@ function AIReqFormalTable() {
         <TrackingTableScroll
           label="正式需求表格滚动区域"
           className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground"
-          viewportClassName="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
+          viewportClassName="@container/formal-table min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
           viewportTestId="formal-table-scroll"
         >
           <table
@@ -179,9 +179,9 @@ function AIReqFormalTable() {
           >
             <colgroup>
               <col className="w-[34%]" />
-              <col className="w-[30%]" />
+              <col className="@min-[640px]/conversation:w-[30%]" />
               <col className="hidden @min-[640px]/conversation:table-column" />
-              <col className="w-14" />
+              <col className="w-20" />
             </colgroup>
             <MarkdownTableHeader className="bg-card">
               <MarkdownTableRow className="hover:bg-transparent">
@@ -224,7 +224,7 @@ function AIReqFormalTable() {
               )}
               {visible.map((group) => {
                 const srs = irSrs(view, group);
-                const groupMatches = matches(group.id, group.originalText ?? group.title);
+                const groupMatches = matches(group.id, group.title, group.originalText);
                 const children = srs.filter(
                   (sr) =>
                     (groupMatches || matches(sr.id, sr.title)) &&
@@ -352,8 +352,8 @@ function AIReqFormalTable() {
                           warnings={warnings}
                         />
                       </MarkdownTableCell>
-                      <MarkdownTableCell className="min-w-0 px-2 py-4 align-middle">
-                        <div className="flex items-center justify-center gap-1">
+                      <MarkdownTableCell className="min-w-0 px-1 py-4 align-middle">
+                        <div className="flex flex-wrap items-center justify-center gap-1">
                           <Button
                             variant="link"
                             size="sm"
@@ -377,10 +377,13 @@ function AIReqFormalTable() {
                       <MarkdownTableRow className="bg-card hover:bg-transparent @min-[640px]/conversation:hidden">
                         <MarkdownTableCell
                           id={`formal-plan-ir:${group.id}`}
-                          className="sticky left-0 z-10 bg-card px-4 pt-0 pb-3 pl-12"
+                          colSpan={3}
+                          className="bg-card p-0"
                         >
-                          <div className="w-[25rem] min-w-0">
+                          {/* 跨列单元格随表格滚动；详情内容保持在可视宽度内并与首列同向固定。 */}
+                          <div className="sticky left-0 w-[100cqi] max-w-full px-4 pb-3 pl-12">
                             <PersonnelPlan
+                              expanded
                               developer={developers.join("、") || "未分配"}
                               tester={testers.join("、") || "未分配"}
                               start={plan.plannedStart}
@@ -390,9 +393,6 @@ function AIReqFormalTable() {
                             />
                           </div>
                         </MarkdownTableCell>
-                        <MarkdownTableCell className="px-4 pt-0 pb-3" />
-                        <MarkdownTableCell className="hidden px-4 pt-0 pb-3 @min-[640px]/conversation:table-cell" />
-                        <MarkdownTableCell className="px-2 pt-0 pb-3" />
                       </MarkdownTableRow>
                     )}
                     {showChildren &&
@@ -478,10 +478,12 @@ function AIReqFormalTable() {
                               <MarkdownTableRow className="bg-card hover:bg-transparent @min-[640px]/conversation:hidden">
                                 <MarkdownTableCell
                                   id={`formal-plan-sr:${sr.id}`}
-                                  className="sticky left-0 z-10 bg-card px-4 pt-0 pb-3 pl-16"
+                                  colSpan={3}
+                                  className="bg-card p-0"
                                 >
-                                  <div className="w-[25rem] min-w-0">
+                                  <div className="sticky left-0 w-[100cqi] max-w-full px-4 pb-3 pl-16">
                                     <PersonnelPlan
+                                      expanded
                                       developer={sr.developerEmployeeId ?? "待认领"}
                                       tester={sr.testingEmployeeId ?? "待认领"}
                                       start={sr.planning?.plannedStart}
@@ -490,9 +492,6 @@ function AIReqFormalTable() {
                                     />
                                   </div>
                                 </MarkdownTableCell>
-                                <MarkdownTableCell className="px-4 pt-0 pb-3" />
-                                <MarkdownTableCell className="hidden px-4 pt-0 pb-3 @min-[640px]/conversation:table-cell" />
-                                <MarkdownTableCell className="px-2 pt-0 pb-3" />
                               </MarkdownTableRow>
                             )}
                           </Fragment>
@@ -574,7 +573,7 @@ function AnalysisSummary({
   aggregate?: boolean;
 }) {
   // 修复：零问题不代表已分析；折叠 IR 也必须直接呈现子 SR 的证据缺口。
-  const unanalysed = srs.filter((sr) => !sr.progress).length;
+  const unanalysed = srs.filter((sr) => !sr.progress && !sr.lastAnalysisFailure).length;
   const failed = srs.filter((sr) => sr.lastAnalysisFailure ?? sr.progress?.analysisFailure).length;
   const stale = srs.filter((sr) => sr.progress?.stale).length;
   const health = [
@@ -589,26 +588,19 @@ function AnalysisSummary({
     stale ? (aggregate ? `报告过期 ${stale}` : "报告已过期") : "",
   ].filter(Boolean);
   const issues = srs.flatMap((sr) => sr.progress?.issues ?? []);
-  const testIssues = srs.reduce(
-    (count, sr) =>
-      count + (sr.developmentIssues?.filter((issue) => issue.status !== "resolved").length ?? 0),
-    0,
-  );
   const missingBranches = srs.filter((sr) => !sr.trackingBranch?.name?.trim()).length;
   const branchErrors = srs.flatMap((sr) =>
     sr.trackingBranch?.error ? [sr.trackingBranch.error] : [],
   );
-  const primary = testIssues
-    ? `未解决测试问题：${testIssues} 项`
-    : missingBranches
-      ? `开发分支缺失：${missingBranches} 项`
-      : branchErrors.length
-        ? "开发分支异常，查看详情"
-        : issues.length
-          ? `分析问题 ${issues.length} 项 · ${issues[0]?.title}`
-          : !srs.length
-            ? "暂无 SR，尚无分析报告"
-            : "";
+  const primary = missingBranches
+    ? `开发分支缺失：${missingBranches} 项`
+    : branchErrors.length
+      ? "开发分支异常，查看详情"
+      : issues.length
+        ? `分析问题 ${issues.length} 项 · ${issues[0]?.title}`
+        : !srs.length
+          ? "暂无 SR，尚无分析报告"
+          : "";
   const detail = [...health, primary, ...branchErrors, ...issues.map((issue) => issue.title)]
     .filter(Boolean)
     .join("；");
@@ -628,7 +620,7 @@ function AnalysisSummary({
           <p
             className={cn(
               "line-clamp-1",
-              testIssues || missingBranches || branchErrors.length
+              missingBranches || branchErrors.length
                 ? "text-destructive"
                 : "text-foreground-subtle",
             )}
@@ -680,7 +672,7 @@ function FormalActions({
             size="icon"
             variant="ghost"
             // 行内操作统一默认隐藏（spec：全局想法池）：行悬停／键盘聚焦／菜单展开时显现，保持表格安静。
-            className="pointer-events-none size-8 shrink-0 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-hover focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+            className="pointer-events-none size-8 shrink-0 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 hover:bg-hover hover:text-foreground focus-visible:bg-hover focus-visible:text-foreground aria-expanded:pointer-events-auto aria-expanded:opacity-100"
             aria-label={`${sr?.title ?? group.title}的更多操作`}
           >
             <MoreHorizontal className="size-4" />

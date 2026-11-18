@@ -165,8 +165,13 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     (ai.mainView !== "chat" ||
       ai.requirementView !== "proposals" ||
       ai.proposalTask !== "overview") &&
-    // 分析页的通用展开只会打开空启动页；有实际内容后才提供工作区入口。
-    (ai.mainView !== "requirementAnalysis" || pane.tabs.some((tab) => tab.kind !== "launcher"));
+    // 分析报告只属于已就绪的具体 Release，不在范围切换或无 Release 时展开。
+    (ai.mainView !== "requirementAnalysis" ||
+      (ai.selectionReady &&
+        ai.view?.availableReleases.some(
+          (item) => item.projectId === ai.selection.projectId && item.id === ai.releaseId,
+        ) === true &&
+        pane.tabs.some((tab) => tab.kind !== "launcher")));
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   const asideRef = useRef<HTMLElement>(null);

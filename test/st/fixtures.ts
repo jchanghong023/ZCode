@@ -33,26 +33,30 @@ export async function claimFixture(client: STClient, kind: string): Promise<STFi
     if (allocated.has(key)) continue;
     if (!fixture.projectId || !fixture.irId)
       throw new Error(`ST 前置阻塞：${kind} 缺少 projectId/irId`);
-    const remote = await client.read({ projectId: fixture.projectId, irId: fixture.irId });
-    if (
-      !remote.view.groups.some(
-        (group) => group.projectId === fixture.projectId && group.id === fixture.irId,
-      )
-    )
-      throw new Error(`ST 前置阻塞：${kind} 必须是专用正式 IR`);
+    const { view } = await client.read({ projectId: fixture.projectId, irId: fixture.irId });
+    const group = view.groups.find(
+      (item) => item.projectId === fixture.projectId && item.id === fixture.irId,
+    );
+    if (!group) throw new Error(`[ST_BLOCKED] ${kind} 必须是专用正式 IR`);
+    if (fixture.releaseId !== undefined && group.releaseId !== fixture.releaseId)
+      throw new Error(`[ST_BLOCKED] ${kind} Release 与正式 IR 不匹配`);
     if (
       fixture.srId &&
-      !remote.view.srs.some(
-        (sr) =>
-          sr.projectId === fixture.projectId && sr.irId === fixture.irId && sr.id === fixture.srId,
-      )
+      (!group.srIds.includes(fixture.srId) ||
+        !view.srs.some(
+          (sr) =>
+            sr.projectId === fixture.projectId &&
+            sr.irId === fixture.irId &&
+            sr.id === fixture.srId,
+        ))
     )
-      throw new Error(`ST 前置阻塞：${kind} SR 归属不匹配`);
+      throw new Error(`[ST_BLOCKED] ${kind} SR 归属不匹配`);
     allocated.add(key);
     appendFileSync(
       allocationFile,
       JSON.stringify({
         kind,
+        runId: process.env.ST_RUN_ID,
         projectId: fixture.projectId,
         irId: fixture.irId,
         srId: fixture.srId,
@@ -61,5 +65,5 @@ export async function claimFixture(client: STClient, kind: string): Promise<STFi
     );
     return fixture;
   }
-  throw new Error(`ST 前置阻塞：${kind} 独立消费型前置不足，请配置 ST_FIXTURES_FILE`);
+  throw new Error(`[ST_BLOCKED] ${kind} 独立消费型前置不足，请配置 ST_FIXTURES_FILE`);
 }

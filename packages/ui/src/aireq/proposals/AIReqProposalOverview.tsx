@@ -7,11 +7,12 @@ import {
   proposalState,
   proposalStateLabel,
   PROPOSAL_STATE_OPTIONS,
-  fullReviewCurrent,
+  proposalAlignmentCurrent,
   requirementsReviewCurrent,
   type AIReqRequirementGroup,
 } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { AIReqProposalReviewSnapshot } from "./AIReqProposalReviewPage.js";
 import {
   proposalNextTask,
   proposalTaskGuidance,
@@ -27,6 +28,12 @@ const stages: ProposalTask[] = [
   "solutionReview",
   "delivery",
 ];
+
+const confirmRoles = [
+  ["business", "业务"],
+  ["development", "开发"],
+  ["testing", "测试"],
+] as const;
 /** 需求入口只消费实时业务投影，任务导航归 Context，阅读时不运行 Agent。 */
 export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup }) {
   const ai = useAIReq()!;
@@ -37,11 +44,25 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const phase = proposalProgressIndex(group, {});
   const track = useRef<HTMLDivElement>(null);
   const currentStep = useRef<HTMLSpanElement>(null);
-  const businessContact = guidance.role === "人工确认" ? group.contacts?.business : undefined;
+  const alignment =
+    group.alignment?.filter((entry) => proposalAlignmentCurrent(group, entry)) ?? [];
+  const contactLabel = ([role, label]: (typeof confirmRoles)[number]) =>
+    `${label} ${group.contacts?.[role] ?? "未分配"}`;
   const roleLabel =
-    guidance.role === "人工确认"
-      ? `${guidance.role} · 业务${businessContact ? ` ${businessContact}` : "未分配"}`
-      : guidance.role;
+    state === "solution-confirmation-pending"
+      ? confirmRoles
+          .filter(([role]) => !alignment.some((entry) => entry.perspective === role))
+          .map(contactLabel)
+          .join("、")
+      : state === "not-started" ||
+          state === "ir-review-pending" ||
+          state === "ir-confirmation-pending"
+        ? contactLabel(confirmRoles[0])
+        : state === "solution-review-pending" ||
+            state === "solution-incomplete" ||
+            state === "submission-pending"
+          ? contactLabel(confirmRoles[1])
+          : guidance.role;
   useLayoutEffect(() => {
     const container = track.current;
     if (!container) return;
@@ -64,13 +85,17 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
     requirements: "明确目标、范围与验收标准",
     requirementsReview: "查看评审意见并确认业务需求",
     solution: "完善技术方案、开发任务与测试材料",
-    solutionReview: "处理独立审查意见并确认完整方案",
-    delivery: "完成三方确认，核对文件并提交文档 MR",
+    solutionReview: "查看审查报告，由业务、开发和测试分别确认",
+    delivery: "核对完整文件并提交文档 PR，查看合入核验",
   };
-  const decisions = [
-    { key: "requirements", label: "确认了业务需求", review: group.originalReview },
-    { key: "solution", label: "确认了完整方案", review: group.review },
-  ].filter((item) => item.review?.passed && item.review.humanDecision?.reviewId === item.review.id);
+  const currentDecision = group.originalReview?.humanDecision;
+  const originalDecision =
+    currentDecision ??
+    group.originalReviewHistory?.findLast((entry) => entry.humanDecision)?.humanDecision;
+  const currentOriginal =
+    originalDecision?.reviewId === group.originalReview?.id &&
+    originalDecision?.snapshotDigest === group.originalReview?.snapshotDigest &&
+    requirementsReviewCurrent(group);
   return (
     <main
       className="min-h-0 flex-1 overflow-y-auto bg-background [scrollbar-gutter:stable_both-edges]"
@@ -184,22 +209,40 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             {group.originalText || "尚未记录原始需求。"}
           </div>
         </details>
-        {decisions.length > 0 && (
+        {(originalDecision || alignment.length > 0) && (
           <section className="space-y-3" aria-label="确认记录">
             <h2 className="text-ui-base font-medium">确认记录</h2>
-            {decisions.map(({ key, label, review }) => (
-              <p key={key} className="break-words text-ui-sm text-foreground-subtle">
-                {review!.humanDecision!.employeeId} ·{" "}
-                {new Date(review!.humanDecision!.decidedAt).toLocaleString("zh-CN", {
+            {originalDecision && (
+              <p className="break-words text-ui-sm text-foreground-subtle">
+                {originalDecision.employeeId} ·{" "}
+                {new Date(originalDecision.decidedAt).toLocaleString("zh-CN", {
                   timeZone: "Asia/Shanghai",
-                })}{" "}
-                · {label}
-                {!(key === "requirements"
-                  ? requirementsReviewCurrent(group)
-                  : fullReviewCurrent(group)) && "（材料已更新，原确认已失效）"}
+                })}
+                （北京时间） · 确认了业务需求
+                {!currentOriginal && "（旧记录，已失效）"}
               </p>
-            ))}
+            )}
+            {confirmRoles.map(([role, label]) => {
+              const entry = alignment.find((item) => item.perspective === role);
+              return (
+                entry && (
+                  <p key={role} className="break-words text-ui-sm text-foreground-subtle">
+                    {entry.employeeId} ·{" "}
+                    {new Date(entry.confirmedAt).toLocaleString("zh-CN", {
+                      timeZone: "Asia/Shanghai",
+                    })}
+                    （北京时间） · 确认了{label}角色
+                  </p>
+                )
+              );
+            })}
           </section>
+        )}
+        {group.originalReview && (
+          <AIReqProposalReviewSnapshot
+            key={group.originalReview.id}
+            review={group.originalReview}
+          />
         )}
         <div className="flex flex-wrap gap-3 border-t border-border/50 pt-4">
           <Button

@@ -8,7 +8,7 @@ export function coordinationWarnings(view: AIReqWorkflowView, sr: AIReqSystemReq
   return sr.planning?.plannedStart && sr.planning.plannedEnd ? planningWarnings(view, sr) : [];
 }
 
-/** 开发任务表的人员与计划单元格；固定两行，完整事实由提示承载。 */
+/** 开发任务表的人员与计划：宽表两行摘要，紧凑表展开时直接显示完整信息。 */
 export function PersonnelPlan({
   developer,
   tester,
@@ -16,6 +16,7 @@ export function PersonnelPlan({
   end,
   incomplete,
   warnings,
+  expanded = false,
 }: {
   developer: string;
   tester: string;
@@ -23,6 +24,7 @@ export function PersonnelPlan({
   end?: string;
   incomplete?: boolean;
   warnings: string[];
+  expanded?: boolean;
 }) {
   // 人员分行和重复未排期文案会撑高单元格；固定两行，完整事实仍由提示承载。
   const personnel = `开发：${developer} · 测试：${tester}`;
@@ -36,6 +38,14 @@ export function PersonnelPlan({
     ...(incomplete && (start || end) ? ["部分未排期"] : []),
     ...warnings,
   ].join("\n");
+  if (expanded)
+    return (
+      <div className="space-y-1 text-ui-sm [overflow-wrap:anywhere]">
+        <p>开发：{developer}</p>
+        <p>测试：{tester}</p>
+        <p className="whitespace-pre-line text-foreground-subtle tabular-nums">{planDetail}</p>
+      </div>
+    );
   return (
     // 修复：展开长表后 sr-only 绝对定位曾越出滚动域，撑高 document；就地定位使排期读屏文本随单元格裁剪。
     <div className="relative min-w-0 space-y-1 text-ui-sm">

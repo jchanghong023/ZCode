@@ -33,6 +33,8 @@ export interface AIReqAnalysisTask {
   lastRunAt?: string;
   lastRunId?: string;
   error?: string;
+  /** Whether the most recent run ended in a retryable failure. */
+  retryable?: boolean;
   percent: number;
 }
 export interface AIReqAnalysisRunSummary {
@@ -61,6 +63,7 @@ export interface AIReqAnalysisFailure {
   retryable: boolean;
 }
 export interface AIReqAnalysisRun extends AIReqAnalysisRunSummary {
+  inputFingerprint: string;
   report?: AIReqProgressAnalysis;
   failure?: AIReqAnalysisFailure;
   /** Immutable admission-time user instructions; revision is an opaque version token. */
@@ -112,6 +115,6 @@ export interface AIReqProgressScheduler {
   subscribe(listener: () => void): () => void;
   setProjectEnabled(projectId: string, enabled: boolean): void | Promise<void>;
   configure(enabled: boolean, intervalMinutes: number): void | Promise<void>;
-  runNow(filter: AIReqAnalysisFilter): void | Promise<void>;
+  runNow(filter: AIReqAnalysisFilter, retryRunId?: string): void | Promise<void>;
   dispose(): void;
 }

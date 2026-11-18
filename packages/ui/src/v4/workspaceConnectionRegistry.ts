@@ -43,6 +43,8 @@ export interface WorkspaceConnectionScope {
   workspaceIdentity?: string;
   /** endpoint 维度：remote shard 的 remoteSessionId；缺省 = 本机 __base__。 */
   remoteSessionId?: string;
+  /** Browser base connection survives accessor replacement only for the same operator. */
+  baseConnectionId?: string;
 }
 
 /** pane 持有的连接租约；release 幂等。 */
@@ -82,7 +84,10 @@ export const WORKSPACE_CONNECTION_KEEP_WARM_MS = 30_000;
 /** 注册表条目键 = endpoint + workspaceKey（同 workspaceKey 不同 endpoint 不共用）。 */
 export function buildWorkspaceConnectionKey(scope: WorkspaceConnectionScope): string {
   const workspaceKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
-  return `${scope.remoteSessionId ?? LOCAL_WORKSPACE_CONNECTION_ENDPOINT} ${workspaceKey}`;
+  if (scope.baseConnectionId)
+    return JSON.stringify([scope.baseConnectionId, scope.remoteSessionId, workspaceKey]);
+  const endpoint = scope.remoteSessionId ?? LOCAL_WORKSPACE_CONNECTION_ENDPOINT;
+  return `${endpoint} ${workspaceKey}`;
 }
 
 function disposeEntry(entry: RegistryEntry): void {
@@ -154,9 +159,7 @@ export function acquireWorkspaceConnection(
   const key = buildWorkspaceConnectionKey(scope);
   const existing = registry.get(key);
   const incomingServiceGeneration = remoteAgentServiceGeneration(agentService);
-  const isRemote =
-    (scope.remoteSessionId ?? LOCAL_WORKSPACE_CONNECTION_ENDPOINT) !==
-    LOCAL_WORKSPACE_CONNECTION_ENDPOINT;
+  const isRemote = Boolean(scope.baseConnectionId || scope.remoteSessionId);
   let entry: RegistryEntry;
   if (existing && (existing.agentService === agentService || isRemote)) {
     existing.refCount += 1;

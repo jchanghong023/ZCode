@@ -132,8 +132,8 @@ export function AnalysisSettings({
         </summary>
         <p className="pt-3">
           {zh
-            ? "所有工号共享此分析配置。全局及项目开关立即保存，统一间隔需手动保存。暂停不取消进行中的分析，已开启项目仍可手动分析。"
-            : "All employee IDs share these analysis settings. Global and project switches save immediately; the interval is saved manually. Pausing keeps analyses in progress and allows manual analysis for enabled projects."}
+            ? "全局关闭仅暂停自动分析；项目关闭同时停止接纳自动与手动分析。关闭开关不取消已接纳的分析，也不删除历史。"
+            : "Turning off the global switch pauses automatic analysis only. Turning off a project stops new automatic and manual analyses. Neither switch cancels accepted runs or removes history."}
         </p>
       </details>
       <AIReqSettingsTarget id="aireq.analysis.projects">
@@ -199,7 +199,7 @@ export function AnalysisSettings({
                     <MarkdownTableHead
                       className={`${cellClass} font-medium text-foreground-subtle`}
                     >
-                      自动分析
+                      {zh ? "自动／手动分析" : "Automatic / manual analysis"}
                     </MarkdownTableHead>
                     <MarkdownTableHead
                       className={`${cellClass} font-medium text-foreground-subtle`}
@@ -236,11 +236,17 @@ export function AnalysisSettings({
                         <Switch
                           checked={project.enabled}
                           disabled={pending}
-                          aria-label={`启用${project.name}进度分析`}
+                          aria-label={
+                            zh
+                              ? `${project.name}的自动与手动分析`
+                              : `Automatic and manual analysis for ${project.name}`
+                          }
                           onCheckedChange={(enabled) =>
                             mutate(
                               () => scheduler.setProjectEnabled(project.id, enabled),
-                              `已${enabled ? "启用" : "停用"}“${project.name}”的自动分析。`,
+                              zh
+                                ? `已${enabled ? "开启" : "关闭"}“${project.name}”的自动与手动分析。`
+                                : `${enabled ? "Enabled" : "Disabled"} automatic and manual analysis for ${project.name}.`,
                             )
                           }
                         />
@@ -372,7 +378,7 @@ export function AnalysisSettings({
                   disabled={pending}
                   onClick={onOpenModelSettings}
                 >
-                  {zh ? "配置需求分析 Agent 模型" : "Configure the analysis Agent model"}
+                  {zh ? "配置进度分析 Agent 模型" : "Configure the Progress Analysis Agent model"}
                 </Button>
               </div>
             </CollapsibleContent>

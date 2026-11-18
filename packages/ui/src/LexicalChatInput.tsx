@@ -996,9 +996,7 @@ function PromptHistoryPlugin({
   const applyingHistoryRef = useRef(false);
 
   useEffect(() => {
-    if (historyIndexRef.current !== null && entries[historyIndexRef.current] === undefined) {
-      historyIndexRef.current = null;
-    }
+    historyIndexRef.current = null;
   }, [entries]);
 
   useEffect(() => {

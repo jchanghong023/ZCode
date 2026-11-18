@@ -3,6 +3,7 @@ import type { RequirementReturnView } from "./navigationState.js";
 import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
 import type {
   AIReqAction,
+  AIReqMaterialReadRequest,
   AIReqNativeSessionRef,
   AIReqSelection,
   AIReqWorkflowResult,
@@ -50,12 +51,16 @@ export interface AIReqContextValue {
     mainView?: "projectOverview" | "proposals" | "formal",
     releaseId?: string,
   ): void;
-  select(value: AIReqSelection, releaseId?: string): void;
+  select(value: AIReqSelection, releaseId?: string, task?: ProposalTask): void;
   openAnalysis(value: AIReqSelection, releaseId?: string): void;
   objectLink(): string | undefined;
   refresh(): Promise<void>;
-  retryMaterial(path: string): Promise<boolean>;
-  retrySession(target: AIReqSelection, sessionId: string): Promise<void>;
+  retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
+  retrySession(
+    target: AIReqSelection,
+    sessionId: string,
+    isCurrentPane: () => boolean,
+  ): Promise<void>;
   command(value: AIReqAction): Promise<AIReqWorkflowResult | undefined>;
   setDraftNavigationGuard(guard: ((navigate: () => void) => void) | null, ownerId?: string): void;
   setNavigationGuard(guard: ((navigate: () => void) => void) | null): void;

@@ -7,7 +7,6 @@ export interface AIReqVersionedProgressInput {
 }
 export interface AIReqTestAcceptanceInput extends AIReqVersionedProgressInput {
   expectedCodeVersion: string;
-  outcome: "passed" | "failed";
   reason: string;
 }
 export interface AIReqBranchCleanupInput extends AIReqVersionedProgressInput {
@@ -154,10 +153,5 @@ export function irProgressStatus(srs: AIReqSystemRequirement[]): AIReqProgressSt
 /** 完成来自已合入版本的人工测试；原始 AI 评分不是验收前置条件。 */
 export function srCompletionBlocker(sr: AIReqSystemRequirement): string | undefined {
   if (srProgress(sr) === 100) return "当前 SR 已完成，无需重复验收。";
-  if (!sr.trackingBranch?.name?.trim() || sr.trackingBranch.status === "failed")
-    return "开发分支缺失或创建失败，不能验收。";
   if (!sr.codeMerge) return "代码尚未合入默认分支，不能验收。";
-  if (srProgress(sr) !== 99) return "只有已合入且有效进度 99% 的 SR 才能验收。";
-  if (sr.developmentIssues?.some((issue) => issue.status === "open"))
-    return "存在待处理测试问题；修复提交合入并进入待复测后才能重新验收。";
 }

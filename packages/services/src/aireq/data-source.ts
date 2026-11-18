@@ -15,6 +15,7 @@ import type {
   AIReqSrPlanningInput,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
+  AIReqMaterialReadRequest,
 } from "./types.js";
 import type { AIReqProgressScheduler } from "./progress-scheduler.js";
 import type {
@@ -127,8 +128,8 @@ export interface AIReqDataSource {
     view: AIReqWorkflowView,
     selection: AIReqSelection,
   ): AIReqNativeSessionRef | undefined;
-  retryMaterial(path: string, selection: AIReqSelection): Promise<boolean>;
-  retrySession(selection: AIReqSelection): Promise<void>;
+  retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
+  retrySession(selection: AIReqSelection, sessionId: string): Promise<void>;
   selectProject(projectId?: string): void;
   resolveWorkspace(view: AIReqWorkflowView | undefined, selection: AIReqSelection): AIReqWorkspace;
   dispose(): void | Promise<void>;

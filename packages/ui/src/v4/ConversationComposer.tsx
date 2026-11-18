@@ -148,7 +148,11 @@ import type {
   ComposerDraftContent,
   ComposerSubmissionDraftTransaction,
 } from "@/v4/composer/useDraftConfigControl.js";
-import { V4_DRAFT_SCOPE_ROOT, type V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
+import {
+  composerDraftScopeKey,
+  V4_DRAFT_SCOPE_ROOT,
+  type V4ComposerDraft,
+} from "@/v4/composer/composerDraftStore.js";
 import {
   composerInteractionState,
   resolveOppositeFollowupDelivery,
@@ -164,7 +168,6 @@ import {
   consumeV4ComposerDraftWorkspaceTransferRequest,
 } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
 import {
-  buildScopeKey as buildComposerAttachmentScopeKey,
   useComposerAttachments,
   useContextImageAttachments,
   type ContextImageAttachmentsOptions,
@@ -648,10 +651,16 @@ function ConversationComposerImpl({
     (rootDraftScopeKey ? `${V4_DRAFT_SCOPE_ROOT}:${rootDraftScopeKey}` : V4_DRAFT_SCOPE_ROOT);
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const composerClientNamespace = useComposerClientNamespace();
-  // 根因：仅以执行目录持久化历史会让切换工号后通过方向键读到上一身份的正文。
-  // 复用草稿的身份 namespace 与 workspace owner，不回读缺少身份的旧目录键。
-  const promptHistoryScopeKey = JSON.stringify([composerClientNamespace, workspaceKey]);
-  const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
+  const promptHistoryScopeKey = composerDraftScopeKey(
+    workspaceKey,
+    sessionId ?? draftScopeId,
+    composerClientNamespace,
+  );
+  const configPickerScopeKey = composerDraftScopeKey(
+    workspaceKey,
+    draftScopeId,
+    composerClientNamespace,
+  );
   const [reloadText, setReloadText] = useState(false);
   const reloadTextRef = useRef(false);
   const [textPresence, setTextPresence] = useState({ raw: false, trimmed: false });
@@ -759,6 +768,7 @@ function ConversationComposerImpl({
     workspaceIdentity,
     remoteSessionId,
     scopeId: draftScopeId,
+    clientNamespace: composerClientNamespace,
     attachmentSessionId,
     attachmentPut,
     onRuntimeRestart,
@@ -792,6 +802,7 @@ function ConversationComposerImpl({
   );
   const handleConversationDrop = useCallback(
     (event: DragEvent<HTMLElement>) => {
+      if (disabled || runtimeBlocked) return;
       const workspaceFilePayload = readWorkspaceFileDragPayload(event.dataTransfer);
       if (workspaceFilePayload) {
         // 文件树 payload 与 OS File[] 语义不同：只插入 mention，绝不能进入上传队列。
@@ -809,7 +820,7 @@ function ConversationComposerImpl({
       }
       handleDropComposer(event);
     },
-    [handleDropComposer, updateText, workspaceIdentity, workspacePath],
+    [disabled, handleDropComposer, runtimeBlocked, updateText, workspaceIdentity, workspacePath],
   );
   const conversationDragKind = workspaceFileDragging
     ? "workspace"
@@ -1063,7 +1074,14 @@ function ConversationComposerImpl({
     pendingFocusRef.current = false;
     // Lexical root 可能晚一帧就绪，聚焦排到下一帧（与草稿回填同款时序）。
     if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => inputApiRef.current?.focus());
+      const target = draftTargetRef.current;
+      requestAnimationFrame(() => {
+        if (
+          draftTargetRef.current === target &&
+          resolveComposerAutoFocus(focusOptsRef.current) === "focus-now"
+        )
+          inputApiRef.current?.focus();
+      });
     } else {
       inputApiRef.current.focus();
     }
@@ -1096,16 +1114,18 @@ function ConversationComposerImpl({
 
   // 离开 composer 编辑态的 edit scope 时（取消、切换目标）丢弃其中未提交的附件；
   // 已提交的附件在结算时已 adopt 并移除，这里只剩需要按未发送规则清理的部分。
-  const previousDraftScopeIdRef = useRef(draftScopeId);
+  const attachmentScopeKey = attachmentsApi.scopeKey;
+  const previousAttachmentScopeRef = useRef({ draftScopeId, attachmentScopeKey });
   useEffect(() => {
-    const previousScopeId = previousDraftScopeIdRef.current;
-    previousDraftScopeIdRef.current = draftScopeId;
-    if (previousScopeId === draftScopeId || !isComposerEditScopeId(previousScopeId)) return;
-    attachmentsApi.clearAttachments(
-      undefined,
-      buildComposerAttachmentScopeKey(workspacePath, workspaceIdentity, previousScopeId),
-    );
-  }, [attachmentsApi, draftScopeId, workspaceIdentity, workspacePath]);
+    const previous = previousAttachmentScopeRef.current;
+    previousAttachmentScopeRef.current = { draftScopeId, attachmentScopeKey };
+    if (
+      previous.attachmentScopeKey === attachmentScopeKey ||
+      !isComposerEditScopeId(previous.draftScopeId)
+    )
+      return;
+    attachmentsApi.clearAttachments(undefined, previous.attachmentScopeKey);
+  }, [attachmentScopeKey, attachmentsApi, draftScopeId]);
 
   const lastEditFocusRequestRef = useRef(editFocusRequest);
   useEffect(() => {
@@ -1124,6 +1144,7 @@ function ConversationComposerImpl({
     scheduleDraftPersist,
     persistDraftNow,
     onExternalTextInsertApplied,
+    clearAttachments: attachmentsApi.clearAttachments,
   });
   draftCommandsRef.current = {
     updateText,
@@ -1132,6 +1153,7 @@ function ConversationComposerImpl({
     scheduleDraftPersist,
     persistDraftNow,
     onExternalTextInsertApplied,
+    clearAttachments: attachmentsApi.clearAttachments,
   };
 
   // 最近一次已把草稿载入 Lexical 的 edit scope；只用于编辑态顶部内容的显示时机。
@@ -1221,8 +1243,14 @@ function ConversationComposerImpl({
       const restoredText = draft?.text ?? "";
       const restoredRevision = contentRevisionRef.current;
       unsubscribeSettled = subscribeComposerSubmissionSettled(
-        `${workspaceKey}\0${draftScopeId}`,
+        configPickerScopeKey,
         (submission) => {
+          if (submission.attachmentIds.length > 0) {
+            draftCommandsRef.current.clearAttachments(
+              submission.attachmentIds,
+              configPickerScopeKey,
+            );
+          }
           // 只清"确实是那次提交、且用户还没在其上继续编辑"的正文；编辑器把回填正文
           // 重新序列化后若与提交原文一致，也视为未编辑。
           if (submission.text !== restoredText) return;
@@ -1252,6 +1280,7 @@ function ConversationComposerImpl({
     return () => unsubscribeSettled?.();
     // 依赖收敛到 scope/workspace：draft 恢复只应发生在 scope 切换或 workspace 切换。
   }, [
+    configPickerScopeKey,
     draftScopeId,
     composerDraftScopeToken,
     requestComposerFocus,
@@ -1371,12 +1400,25 @@ function ConversationComposerImpl({
   ]);
 
   // ── prompt history（与草稿同身份隔离，↑/↓ 导航由 PromptHistoryPlugin 消费）──
-  const [promptHistory, setPromptHistory] = useState<readonly string[]>(() =>
-    readPromptHistoryEntries(promptHistoryScopeKey),
+  const [promptHistory, setPromptHistoryState] = useState<{
+    key: string;
+    entries: readonly string[];
+  }>(() => ({
+    key: promptHistoryScopeKey,
+    entries: readPromptHistoryEntries(promptHistoryScopeKey),
+  }));
+  if (promptHistory.key !== promptHistoryScopeKey)
+    setPromptHistoryState({
+      key: promptHistoryScopeKey,
+      entries: readPromptHistoryEntries(promptHistoryScopeKey),
+    });
+  const setPromptHistory = useCallback(
+    (entries: readonly string[]) =>
+      setPromptHistoryState((current) =>
+        current.key === promptHistoryScopeKey ? { key: promptHistoryScopeKey, entries } : current,
+      ),
+    [promptHistoryScopeKey],
   );
-  useEffect(() => {
-    setPromptHistory(readPromptHistoryEntries(promptHistoryScopeKey));
-  }, [promptHistoryScopeKey]);
 
   const mode = snapshot?.inputRouting.mode ?? "startNow";
   const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
@@ -1503,12 +1545,13 @@ function ConversationComposerImpl({
       // __draft__，下次新建任务又恢复。发送开始时冻结真正提交的 scope。
       const submissionDraftTransaction = captureComposerSubmissionDraftTransaction(submittedDraft);
       const submittedScopeId = draftScopeRef.current;
-      const submittedScopeKey = `${workspaceKey}\0${submittedScopeId}`;
+      const submittedScopeKey = configPickerScopeKey;
       let cleanupRevision = contentRevisionRef.current;
       const submission = createSubmissionFromComposer?.() ?? null;
       const submittedAttachmentIds = attachmentsApi.attachments.map((item) => item.id);
       const submittedAttachmentScopeKey = attachmentsApi.scopeKey;
       if (
+        disabled ||
         (!trimmed &&
           !hasPendingAttachments &&
           !hasPendingCodeCommentContexts &&
@@ -1588,12 +1631,17 @@ function ConversationComposerImpl({
         const result = submissionDraftTransaction.restore();
         const shouldRestoreEditor =
           result.applied && result.current && draftScopeRef.current === submittedScopeId;
-        if (result.applied && submittedCommandId && awaitsAuthority) {
+        if (
+          submittedCommandId &&
+          awaitsAuthority &&
+          (result.applied || submittedAttachmentIds.length > 0)
+        ) {
           // 传输层失败不等于 CLI 未 admission（ACK 丢失即如此）。正文虽已恢复回草稿，
           // 该 command 仍待权威结论；登记到模块级账本，让卸载重挂后的 composer 也能收口。
           trackUnsettledComposerSubmission(submittedScopeKey, {
             commandId: submittedCommandId,
-            text: submittedDraft.text,
+            text: result.applied ? submittedDraft.text : undefined,
+            attachmentIds: submittedAttachmentIds,
           });
         }
         // 正文已恢复给用户后，写盘抑制立即结束；事务闭包仍等待迟到的权威结算。
@@ -1819,6 +1867,8 @@ function ConversationComposerImpl({
       uiStore,
       attachmentsApi,
       captureComposerSubmissionDraftTransaction,
+      configPickerScopeKey,
+      disabled,
       conversationSelectionReferences,
       draftConfig,
       draftScopeIdProp,
@@ -1844,6 +1894,7 @@ function ConversationComposerImpl({
       workspaceIdentity,
       workspaceKey,
       promptHistoryScopeKey,
+      setPromptHistory,
       workspacePath,
       onSubmissionSettled,
     ],
@@ -2896,7 +2947,7 @@ function ConversationComposerImpl({
             attachmentAction={runtimeBlocked ? undefined : attachmentAction}
             inputTestId={TID_V4_COMPOSER_INPUT}
             inputApiRef={inputApiRef}
-            promptHistory={promptHistory}
+            promptHistory={promptHistory.entries}
             // Bugfix 原因：命令目录必须完整来自 CLI workspace slash catalog；UI 只在
             // secondary pane 按产品能力隐藏 goal，不再追加任何内建命令或别名。
             excludedSlashCommandNames={suppressGoalCommands ? ["goal"] : undefined}

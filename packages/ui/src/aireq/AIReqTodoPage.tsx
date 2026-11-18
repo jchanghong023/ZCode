@@ -25,6 +25,7 @@ import type { AIReqTodo } from "./contract.js";
 import { ScopedPageTitle } from "./shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./shell/pageLayout.js";
 import { useAIReqDataSource } from "./data-source.js";
+import { proposalTaskForTodo, proposalTaskSelection } from "./proposals/proposalTasks.js";
 
 const perspectiveLabels = { business: "业务", development: "开发", testing: "测试" } as const;
 const assignmentLabel = (item: AIReqTodo) =>
@@ -148,7 +149,7 @@ export function AIReqTodoPage() {
     );
   return (
     <main
-      className="@container/conversation min-h-0 flex-1 overflow-auto text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
+      className="@container/conversation min-h-0 min-w-0 flex-1 overflow-y-auto text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-todos"
     >
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex flex-col gap-8`}>
@@ -178,10 +179,8 @@ export function AIReqTodoPage() {
             </Button>
           ))}
         </div>
-        {/* 表格原先借用弱表面色；与外观页统一卡片和主次文字，交互时提升辅助文字对比度。 */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          {/* 主面板最窄可到 360px；480px 下限会把分工挤出，紧凑态改为单元格换行。 */}
-          <table className="w-full table-fixed text-left @min-[640px]/conversation:min-w-[680px]">
+        <div className="rounded-xl border border-card-border bg-card text-foreground">
+          <table className="w-full table-fixed text-left">
             <colgroup>
               <col className="w-[30%]" />
               <col />
@@ -192,7 +191,7 @@ export function AIReqTodoPage() {
               <tr>
                 {["需求／开发任务", "待处理事项", "归属", "分工"].map((label, index) => (
                   <th
-                    className={`border-b border-border py-3 font-medium ${index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 3 ? "px-2 text-right" : "px-4"}`}
+                    className={`border-b border-border px-2 py-3 font-medium ${index === 2 ? "hidden @min-[640px]/conversation:table-cell" : ""} ${index === 3 ? "text-right" : "@min-[640px]/conversation:px-4"}`}
                     key={label}
                   >
                     {label}
@@ -207,7 +206,10 @@ export function AIReqTodoPage() {
                   data-aireq-motion-row=""
                   className="group/row border-b border-border/50 last:border-0 hover:bg-hover hover:[&_.text-foreground-subtle]:text-foreground focus-within:[&_.text-foreground-subtle]:text-foreground"
                 >
-                  <td data-aireq-motion-cell="" className="break-words px-4 py-3">
+                  <td
+                    data-aireq-motion-cell=""
+                    className="px-2 py-3 [overflow-wrap:anywhere] @min-[640px]/conversation:px-4"
+                  >
                     {/* 复用共享行反馈；标题与所属需求一起移动，元数据和操作列保持原位。 */}
                     <div>
                       {/* 用 SR 名称与父需求区分工作对象，避免内部 ID 挤占业务信息。 */}
@@ -219,23 +221,30 @@ export function AIReqTodoPage() {
                       )}
                     </div>
                   </td>
-                  <td className="break-words px-4 py-3">
+                  <td className="px-2 py-3 [overflow-wrap:anywhere] @min-[640px]/conversation:px-4">
                     <Button
                       variant="ghost"
-                      className="h-auto justify-start whitespace-normal break-words px-0 text-left hover:underline"
+                      className="h-auto w-full justify-start px-0 text-left whitespace-normal hover:underline"
                       onClick={() => {
                         // 分析失败的待办需要到对应单 SR 重试位置，而非只显示失败报告。
                         if (item.kind === "analysis-failure")
                           ai.openAnalysis(item.selection, item.releaseId);
-                        else ai.select(item.selection, item.releaseId);
+                        else {
+                          const task = proposalTaskForTodo(item);
+                          ai.select(
+                            task ? proposalTaskSelection(item.selection, task) : item.selection,
+                            item.releaseId,
+                            task,
+                          );
+                        }
                       }}
                       aria-label={`处理 ${todoObjectLabel(item)} · ${item.title}`}
                     >
-                      {item.title}
+                      <span className="min-w-0 [overflow-wrap:anywhere]">{item.title}</span>
                     </Button>
                     {item.perspective && (
                       <span className="block text-ui-sm text-foreground-subtle">
-                        {perspectiveLabels[item.perspective]}视角 · 独立确认
+                        {perspectiveLabels[item.perspective]}角色 · 独立确认
                       </span>
                     )}
                     {/* 窄分栏隐藏归属列时，归属摘要并入事项单元格，认领判断不必横滚。 */}
@@ -253,7 +262,7 @@ export function AIReqTodoPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 hover:text-foreground focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100 aria-expanded:pointer-events-auto aria-expanded:opacity-100"
+                          className="pointer-events-none size-8 rounded-lg text-foreground-subtle opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 hover:text-foreground focus-visible:text-foreground aria-expanded:pointer-events-auto aria-expanded:opacity-100"
                           aria-label={`${todoObjectLabel(item)} · ${item.title} 的分工操作`}
                         >
                           <MoreHorizontal aria-hidden="true" className="size-4" />

@@ -17,6 +17,7 @@ export function AnalysisRunConfirmation({
   count,
   unit,
   disabled,
+  blocked,
   error,
   onConfirm,
 }: {
@@ -26,6 +27,7 @@ export function AnalysisRunConfirmation({
   count: number;
   unit: "SR";
   disabled: boolean;
+  blocked?: boolean;
   error?: string;
   onConfirm(): void;
 }) {
@@ -53,7 +55,7 @@ export function AnalysisRunConfirmation({
           <AlertDialogCancel disabled={disabled}>取消</AlertDialogCancel>
           {/* 默认 Action 会在异步接纳前关闭，失败被遮罩外提示掩盖；仅成功回执关闭。 */}
           <AlertDialogAction
-            disabled={disabled || count < 1}
+            disabled={disabled || blocked || count < 1}
             onClick={(event) => {
               event.preventDefault();
               onConfirm();

@@ -16,13 +16,49 @@ declare module "vitest" {
 
 type Outcome = { ok: true; ref: STFixture } | { ok: false; error: unknown };
 
+async function prepare(purpose: string): Promise<Outcome> {
+  let c: Awaited<ReturnType<typeof connectST>> | undefined;
+  let outcome: Outcome;
+  try {
+    c = await connectST();
+    const ref =
+      config.fixtures[purpose] === undefined
+        ? await createFormalFixture(c, purpose)
+        : await serialSTStep(() => claimFixture(c!, purpose));
+    outcome = { ok: true, ref };
+  } catch (error) {
+    outcome = { ok: false, error };
+  }
+  try {
+    await c?.close();
+  } catch (error) {
+    outcome = {
+      ok: false,
+      error: outcome.ok
+        ? error
+        : new AggregateError([outcome.error, error], "ST preparation and cleanup failed"),
+    };
+  }
+  return outcome;
+}
+
 /** 一个 worker 内最多两份独立前置在途，断言仍串行；不会重放失败的 mutation。 */
-export function useFormalPreparations(concurrency = config.preparationConcurrency) {
+export function useFormalPreparations(mode: "eager" | "case" = "eager") {
   const jobs = new Map<string, Promise<Outcome>>();
   let workers: Promise<void>[] = [];
+  async function prepareTask(task: Pick<TestContext["task"], "meta">): Promise<Outcome> {
+    const timing = { startedAt: Date.now(), finishedAt: 0 };
+    task.meta.stPreparation = timing;
+    try {
+      return await prepare(String(task.meta.stFormalPurpose));
+    } finally {
+      timing.finishedAt = Date.now();
+    }
+  }
   // Vitest 要求首参使用解构，suite 只能从第二参取得。
   // oxlint-disable-next-line no-empty-pattern
   beforeAll(({}, suite) => {
+    if (mode === "case") return;
     const plans = suite.tasks
       .filter(
         (task) =>
@@ -42,41 +78,17 @@ export function useFormalPreparations(concurrency = config.preparationConcurrenc
       return { task, resolve };
     });
     let next = 0;
-    workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
-      for (;;) {
-        const job = pending[next++];
-        if (!job) return;
-        const timing = { startedAt: Date.now(), finishedAt: 0 };
-        job.task.meta.stPreparation = timing;
-        let c: Awaited<ReturnType<typeof connectST>> | undefined;
-        let outcome: Outcome;
-        try {
-          c = await connectST();
-          const purpose = String(job.task.meta.stFormalPurpose);
-          const ref =
-            config.fixtures[purpose] === undefined
-              ? await createFormalFixture(c, purpose)
-              : // 分配检查含 await，必须连同登记串行，防止两例领取同一个显式前置。
-                await serialSTStep(() => claimFixture(c!, purpose));
-          outcome = { ok: true, ref };
-        } catch (error) {
-          outcome = { ok: false, error };
+    workers = Array.from(
+      { length: Math.min(config.preparationConcurrency, pending.length) },
+      async () => {
+        for (;;) {
+          const job = pending[next++];
+          if (!job) return;
+          // 结果总是兑现；准备失败由对应 case 报告。
+          job.resolve(await prepareTask(job.task));
         }
-        try {
-          await c?.close();
-        } catch (error) {
-          outcome = {
-            ok: false,
-            error: outcome.ok
-              ? error
-              : new AggregateError([outcome.error, error], "ST preparation and cleanup failed"),
-          };
-        }
-        timing.finishedAt = Date.now();
-        // 结果总是兑现；准备失败在对应 case 中抛出，不产生后台未处理拒绝或跳过整个套件。
-        job.resolve(outcome);
-      }
-    });
+      },
+    );
   });
   afterAll(async () => {
     const results = await Promise.allSettled(workers);
@@ -110,7 +122,12 @@ export function useFormalPreparations(concurrency = config.preparationConcurrenc
       options: { timeout: number; meta?: Record<string, unknown> },
       body: (context: Pick<TestContext, "task">) => Promise<void>,
     ) {
-      it(name, options, ({ task, signal }) => run(task.id, signal, () => body({ task })));
+      it(name, options, ({ task, signal }) => {
+        signal.throwIfAborted();
+        if (mode === "case" && typeof task.meta.stFormalPurpose === "string")
+          jobs.set(task.id, prepareTask(task));
+        return run(task.id, signal, () => body({ task }));
+      });
     },
   };
 }

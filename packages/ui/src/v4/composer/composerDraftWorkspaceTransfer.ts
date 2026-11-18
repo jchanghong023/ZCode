@@ -4,6 +4,7 @@ import {
   readV4ComposerDraft,
   readComposerWorkspaceScope,
   composerScopeKey,
+  composerDraftScopeKey,
   V4_DRAFT_SCOPE_ROOT,
   type V4ComposerDraft,
 } from "@/v4/composer/composerDraftStore.js";
@@ -44,7 +45,11 @@ export function captureV4ComposerDraftHandoff(
         text: "",
       },
       attachments: readComposerAttachmentScope(
-        `${sourceWorkspaceKey}\0${V4_DRAFT_SCOPE_ROOT}${scope ? `:${composerScopeKey(scope)}` : ""}`,
+        composerDraftScopeKey(
+          sourceWorkspaceKey,
+          `${V4_DRAFT_SCOPE_ROOT}${scope ? `:${composerScopeKey(scope)}` : ""}`,
+          clientNamespace,
+        ),
       ),
     }),
   };

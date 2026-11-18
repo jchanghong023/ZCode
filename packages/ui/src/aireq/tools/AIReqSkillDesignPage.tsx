@@ -102,8 +102,9 @@ function SkillDesignEditor({
   const [loadError, setLoadError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    // Reconnect reads the existing private session; only opening a new scope may allocate it.
+    if (session) return;
     let active = true;
-    setSession(undefined);
     setLoadError("");
     void (async () => {
       try {
@@ -117,7 +118,7 @@ function SkillDesignEditor({
     return () => {
       active = false;
     };
-  }, [design, projectId, attempt]);
+  }, [design, projectId, attempt, session]);
   if (loadError)
     return (
       <div className="space-y-2">

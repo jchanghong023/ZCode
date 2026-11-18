@@ -54,6 +54,14 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
     view: {
       version: 1,
       revision,
+      documentFormats: {
+        "requirements.md": [],
+        "proposal.md": [],
+        "design.md": [],
+        "tasks.md": [],
+        "test-plan.md": [],
+        "spec.md": [],
+      },
       currentProjectId: projectId,
       ideas: [],
       availableReleases: [],

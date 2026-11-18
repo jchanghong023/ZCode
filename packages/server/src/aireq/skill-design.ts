@@ -7,7 +7,7 @@ import type {
   AIReqSkillDesignPreview,
   AIReqAgentModelBinding,
 } from "@zcode/services/aireq";
-import { readPrototypeAgentModelBinding } from "./agent-models.js";
+import { readPrototypeWorkflowDefaultModel } from "./agent-models.js";
 const promptTemplate =
   "请根据以下说明与我一起设计可复用技能。请推荐技能标识，不要要求我先填写名称。信息不足时先澄清，不要把表单直接拼成技能文件。\n\n要解决什么任务：{{goal}}\n\n什么时候使用：{{when}}\n\n需要哪些输入：{{inputs}}\n\n期望结果与成功标准：{{outputs}}\n\n边界与不适用场景：{{boundaries}}\n\n流程、规则或参考资料：{{references}}\n\n真实例子或失败情况：{{example}}\n\n已发送的补充讨论：{{notes}}\n\n临时技能目录：{{directory}}\n主文件路径：{{directory}}/SKILL.md\n\n请先核对上述内容，必要时与我讨论，再推荐合适的技能标识，准备 SKILL.md 和必要的参考资料、脚本内容，并按此目录组织预览路径。回复推荐标识、文件清单及对应预览路径，供我预览、继续讨论修改。\n\n请明确区分建议、待确认内容与已完成的保存。只有逐一预览当前版本全部文件、选择项目或共享技能目录并确认后，才可请求保存；不覆盖同名技能。保存结果以返回的收据路径和版本为准，不把请求接纳当作完成。讨论与设置往返时保留尚未发送的内容和附件，不宣称未执行的分析、检查或工具操作已完成。\n";
 const generatedSample =
@@ -66,12 +66,14 @@ export const PROTOTYPE_SKILL_DESIGN_SAMPLE: AIReqSkillDesignDraft = {
     "输入：删除响应中的必填字段。期望：指出受影响调用方，并提出兼容过渡建议；没有证据时列为待核实。",
   notes: [],
 };
-const modelBindings = new Map<string, AIReqAgentModelBinding>();
-export function prototypeSkillDesignBinding(sessionId: string): AIReqAgentModelBinding {
+type SkillModelBinding = Pick<AIReqAgentModelBinding, "providerId" | "modelId" | "reasoning">;
+const modelBindings = new Map<string, SkillModelBinding>();
+export function prototypeSkillDesignBinding(sessionId: string): SkillModelBinding {
   assertSkillSession(sessionId);
   let binding = modelBindings.get(sessionId);
   if (!binding) {
-    binding = readPrototypeAgentModelBinding("skill-design");
+    const model = readPrototypeWorkflowDefaultModel();
+    binding = { providerId: model.providerId, modelId: model.name, reasoning: "default" };
     modelBindings.set(sessionId, binding);
   }
   return structuredClone(binding);

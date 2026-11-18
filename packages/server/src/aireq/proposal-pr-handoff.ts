@@ -10,7 +10,10 @@ import { readPrototypeProjectSettings } from "./project-settings.js";
 function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
   const { group, project, employeeId, scenario = "current" } = input;
   const changeRoot = prototypeIrRoot(group.id);
-  const sourceDirectory = group.proposalLocation?.directory ?? "";
+  const projectDirectory = group.proposalLocation?.directory;
+  const sourceDirectory = projectDirectory
+    ? `${projectDirectory.replace(/\/$/, "")}/.aireq/proposals/${group.id}`
+    : "";
   const branch = `ir/${group.id}`;
   const blockers: string[] = [];
   const reviewBlocker = alignmentBlocker(group);
@@ -22,8 +25,9 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
     !project.defaultBranch
   )
     blockers.push("请先配置提案所属项目的 Git 仓库和默认分支。");
-  if (!sourceDirectory) blockers.push("提案所属 OMP 项目目录记录缺失。");
-  else if (project && sourceDirectory !== project.root)
+  if (!projectDirectory || scenario === "missing-directory")
+    blockers.push("提案临时目录记录缺失。");
+  else if (project && projectDirectory !== project.root)
     blockers.push("提案记录的 OMP 项目目录与所属项目不匹配。");
   if (scenario === "wrong-repository") blockers.push("目标仓库与提案所属项目不匹配，不能推送。");
   if (!hasCurrentProposalSolution(group) || scenario === "stale-version")
@@ -41,7 +45,7 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
     changeRoot,
     files: group.files.map((file) => ({
       path: file.path,
-      sourcePath: `${sourceDirectory.replace(/\/$/, "")}/${file.path}`,
+      sourcePath: `${sourceDirectory}/${file.path}`,
       targetPath: `${branch}:${file.path}`,
       version:
         file.path.endsWith("/design.md") || file.path.endsWith("/sr-dependencies.json")

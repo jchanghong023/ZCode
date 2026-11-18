@@ -119,7 +119,7 @@ export function AIReqSidebarNavigation() {
       variant="ghost"
       size="lg"
       // 全局焦点样式会清除 outline 和阴影；复用按钮已有边框标出键盘焦点，行宽不变。
-      className="h-auto min-h-9 w-full justify-start gap-3 py-2 [@media(max-height:740px)]:py-1 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
+      className="h-auto min-h-9 w-full justify-start gap-3 py-2 [@media(max-height:740px)]:min-h-8 [@media(max-height:740px)]:py-1 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
       data-aireq-motion-nav=""
       onClick={() => ai.navigate(() => ai.setMainView(view, { fromSidebar: true }))}
@@ -279,12 +279,16 @@ export function AIReqSidebarNavigation() {
             <div className="mb-1 px-3 text-ui-sm font-medium text-remote-foreground-muted">
               {zh ? section.title : section.titleEn}
             </div>
-            <div className="flex flex-col gap-1">{section.pages.map(renderPage)}</div>
+            <div className="flex flex-col gap-1 [@media(max-height:740px)]:gap-0.5">
+              {section.pages.map(renderPage)}
+            </div>
           </section>
         ))}
       </div>
       <div className="shrink-0 px-3 pb-3">
-        <div className="border-t border-border pt-3">{renderPage(todos)}</div>
+        <div className="border-t border-border pt-3 [@media(max-height:740px)]:pt-2">
+          {renderPage(todos)}
+        </div>
       </div>
     </>
   );

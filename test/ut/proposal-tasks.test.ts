@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { fileVersions } from "../../packages/services/src/aireq/index.js";
 import {
   proposalTaskFromSelection,
   proposalTaskSelection,
@@ -6,6 +7,7 @@ import {
   restoreProposalTask,
   proposalNextTask,
   proposalTaskStatus,
+  proposalTaskForTodo,
   proposalTasks,
 } from "../../packages/ui/src/aireq/proposals/proposalTasks.js";
 import {
@@ -31,6 +33,7 @@ const group = (): AIReqRequirementGroup => ({
   revision: 1,
   srIds: [],
   files: [{ ...file }],
+  requirementsCheck: { issues: [] },
   snapshot: {
     version: 1,
     projectId: "p",
@@ -46,7 +49,8 @@ const group = (): AIReqRequirementGroup => ({
 });
 const review = (): AIReqReview => ({
   id: "review-1",
-  snapshotDigest: "v1",
+  kind: "original",
+  snapshotDigest: fileVersions([file]),
   passed: false,
   report: "评审意见",
   inputFiles: [{ ...file }],
@@ -84,7 +88,7 @@ describe("independent proposal task navigation", () => {
       proposalStage: "solution" as const,
     };
     expect(proposalNextTask(value)).toBe("requirementsReview");
-    expect(proposalTaskStatus(value, "delivery")).toBe("未开始");
+    expect(proposalTaskStatus(value, "delivery")).toBe("未就绪");
     value.files = [];
     expect(proposalNextTask(value)).toBe("requirements");
   });
@@ -154,8 +158,16 @@ describe("independent proposal task navigation", () => {
     ])
       expect(readObjectLink(base + query)).toBe("invalid");
   });
-  it("shows completion as awaiting human decision and invalidates stale confirmation", () => {
+  it("lets a person confirm a readable review with negative findings and invalidates stale confirmation", () => {
     const value = { ...group(), originalReview: review() };
+    value.originalReview.findings = [
+      {
+        id: "finding",
+        level: "blocking",
+        message: "验收标准有歧义",
+        documentPath: file.path,
+      },
+    ];
     expect(proposalTaskStatus(value, "requirementsReview")).toBe("待人工确认");
     expect(proposalNextTask(value)).toBe("requirementsReview");
     value.originalReview.passed = true;
@@ -163,10 +175,49 @@ describe("independent proposal task navigation", () => {
       employeeId: "employee",
       decidedAt: "2026-11-17T01:00:00Z",
       reviewId: "review-1",
+      snapshotDigest: value.originalReview.snapshotDigest,
     };
     expect(proposalTaskStatus(value, "requirementsReview")).toBe("已确认");
-    value.files = [{ ...file, sha256: "changed" }];
-    expect(proposalTaskStatus(value, "requirementsReview")).toBe("需要重新评审");
+    const replacement = { ...file, sha256: "changed" };
+    value.files = [replacement];
+    value.snapshot = { ...value.snapshot!, files: [replacement], digest: "changed" };
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("等待自动评审");
+  });
+  it("distinguishes validation, waiting, running and failed reviews on the workbench", () => {
+    const value = { ...group(), originalReview: review() };
+    value.requirementsCheck = { issues: [{ path: file.path, reason: "缺少验收标准" }] };
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("校验失败");
+    expect(proposalNextTask(value)).toBe("requirements");
+
+    value.requirementsCheck = { issues: [] };
+    const agent = value.originalReview.agents![0]!;
+    agent.status = "pending";
+    value.originalReview.report = "";
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("等待评审");
+    agent.status = "running";
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("评审中");
+    agent.status = "failed";
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("评审失败");
+    agent.status = "completed";
+    agent.report = "";
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("评审失败");
+  });
+
+  it("opens the role confirmation, step retry and delivery pages from their todos", () => {
+    expect(
+      proposalTaskForTodo({ kind: "alignment", selection: { proposalStep: "solution" } }),
+    ).toBe("solutionReview");
+    expect(
+      proposalTaskForTodo({ kind: "failure", selection: { proposalStep: "requirements-review" } }),
+    ).toBe("requirementsReview");
+    expect(proposalTaskForTodo({ kind: "failure", selection: { proposalStep: "solution" } })).toBe(
+      "solutionReview",
+    );
+    expect(proposalTaskForTodo({ kind: "failure", selection: {} })).toBe("delivery");
+    expect(proposalTaskForTodo({ kind: "publish", selection: {} })).toBe("delivery");
+    expect(
+      proposalTaskForTodo({ kind: "failure", srId: "sr", selection: { formalView: "detail" } }),
+    ).toBeUndefined();
   });
 });
 

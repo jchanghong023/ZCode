@@ -3,11 +3,8 @@
 // 旧草稿面（zcodeSessionStore composerDraftByScopeId + chatComposerDraftStorage 写路径）
 // 已随 store 收尾删除；本模块是 v4 侧替代——键空间独立（v4 前缀），不与旧键互写，
 // 旧键清理仍归 chatComposerDraftStorage 的 janitor。
-// 语义：scope = sessionId（draft 态 = "__draft__"）；保存 text + editorStateJson，外部预填在
-// Lexical 尚未挂载时额外保存 mention（保证重挂载不降级为纯文本）。
-// 仅有非空白正文才持久化；mode/modelSelection 随正文保存，删空后删除整个 scope。
-// 附件不入草稿（objectUrl/File 不可序列化，localPath 附件重启后归属难校验——
-// 与「v4 composer 不做附件草稿持久化」的裁决一致）。
+// scope = client + workspace + sessionId（新建时另按项目隔离）。正文与 Lexical 状态
+// 写入 localStorage；附件 File 与预览仅归原生上传 owner 的浏览器内存。
 import { logger } from "@/logger.js";
 import {
   createUuid,
@@ -17,7 +14,7 @@ import {
 } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
-import { isComposerEditScopeId } from "@/composer-edit-mode/contract.js";
+import { composerEditSessionKey, isComposerEditScopeId } from "@/composer-edit-mode/contract.js";
 
 export interface V4ComposerDraft {
   text: string;
@@ -48,6 +45,17 @@ export interface ComposerScope {
 
 export function composerScopeKey(scope: ComposerScope): string {
   return JSON.stringify([scope.clientNamespace, scope.hostId, scope.projectId]);
+}
+
+/** Browser editor state uses the actor and workspace as well as the native session or draft. */
+export function composerDraftScopeKey(
+  workspaceKey: string,
+  scopeId: string,
+  clientNamespace = "desktop",
+): string {
+  return clientNamespace === "desktop"
+    ? composerEditSessionKey(workspaceKey, scopeId)
+    : JSON.stringify([clientNamespace, workspaceKey, scopeId]);
 }
 
 export interface PendingTaskDraft {
@@ -185,10 +193,10 @@ function draftStorageKey(
   scopeId: string,
   scope?: ComposerScope,
 ): string {
-  // 同目录可以属于多个项目；新建草稿按组织归属隔离，正式 session 仍按工作区隔离。
+  // 未建立会话按项目隔离；已有会话没有项目选择维度。
   return scopeId === V4_DRAFT_SCOPE_ROOT && scope
     ? `zcode-v4-composer-project-drafts:v1:${composerScopeKey(scope)}`
-    : getV4ComposerDraftStorageKey(path, identity);
+    : getV4ComposerDraftStorageKey(path, identity, scope?.clientNamespace);
 }
 export const V4_DRAFT_SCOPE_ROOT = "__draft__";
 const warnedStorageKeys = new Set<string>();
@@ -216,9 +224,14 @@ function getStorage(): Storage | null {
 export function getV4ComposerDraftStorageKey(
   workspacePath: string,
   workspaceIdentity?: string,
+  clientNamespace = "desktop",
 ): string {
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-  return `${STORAGE_KEY_PREFIX}${encodeURIComponent(workspaceKey)}`;
+  const key =
+    clientNamespace === "desktop"
+      ? workspaceKey
+      : composerDraftScopeKey(workspaceKey, "", clientNamespace);
+  return `${STORAGE_KEY_PREFIX}${encodeURIComponent(key)}`;
 }
 
 function readDraftFile(key: string): V4DraftFile {
@@ -344,7 +357,12 @@ export function readV4ComposerDraft(
   const draft = file.scopes[scopeId];
   if (!draft || typeof draft.text !== "string") {
     // 旧记录只有显式项目归属才能认领；未归类历史不能靠最近目录猜测。
-    if (!file.legacyClaimed && scopeId === V4_DRAFT_SCOPE_ROOT && scope?.projectId) {
+    if (
+      !file.legacyClaimed &&
+      scopeId === V4_DRAFT_SCOPE_ROOT &&
+      scope?.clientNamespace === "desktop" &&
+      scope.projectId
+    ) {
       const legacy = readDraftFile(getV4ComposerDraftStorageKey(workspacePath, workspaceIdentity))
         .scopes[scopeId];
       if (legacy?.projectId === scope.projectId) return legacy;
@@ -395,6 +413,7 @@ export function persistV4ComposerDraft(
   // 新 key 首次写入即结束旧目录认领；保留旧数据，避免删除失败或换目录后复活正文。
   if (
     scopeId === V4_DRAFT_SCOPE_ROOT &&
+    scope?.clientNamespace === "desktop" &&
     scope?.projectId &&
     (hadDraft ||
       Boolean(file.scopes[scopeId]) ||
@@ -439,6 +458,7 @@ export function clearV4ComposerDraft(
   // 新 key 首次写入即结束旧目录认领；保留旧数据，避免删除失败或换目录后复活正文。
   if (
     scopeId === V4_DRAFT_SCOPE_ROOT &&
+    scope?.clientNamespace === "desktop" &&
     scope?.projectId &&
     (hadDraft ||
       Boolean(file.scopes[scopeId]) ||

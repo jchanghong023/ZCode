@@ -2,6 +2,7 @@ import {
   fullReviewCurrent,
   fullReviewReadyBlocker,
   proposalDeliveryCurrent,
+  proposalReviewCanRetry,
   proposalState,
   requirementsReviewCurrent,
   requirementsReviewReadyBlocker,
@@ -58,23 +59,25 @@ export function proposalStateLabel(
 
 /** 等待并非错误；只有当前交付的失败事实需要额外提示。 */
 export function proposalNeedsAttention(group: AIReqRequirementGroup): boolean {
-  if (!proposalDeliveryCurrent(group) || !group.proposalDelivery?.pushedAt) return false;
-  if (!proposalState(group)) return false;
-  const status = group.proposalDelivery.mergeCheck?.status;
-  return !group.requirementsPr || status === "failed" || status === "incomplete";
+  const delivery = group.proposalDelivery;
+  if (!delivery || !proposalDeliveryCurrent(group) || !proposalState(group)) return false;
+  const status = delivery.mergeCheck?.status;
+  return Boolean(delivery.publishError) || status === "failed" || status === "incomplete";
 }
 
 /** 状态以外的执行或阻断提示，不另建业务阶段，也不沿用失效评审。 */
 export function proposalProcessingHint(group: AIReqRequirementGroup): string {
   const state = proposalState(group);
-  if (!state || state === "not-started") return "";
+  if (!state) return "";
   if (group.returnFeedback && !group.returnFeedback.resumedAt) return "待业务补充退回意见";
+  const issue = (state === "not-started" ? group.requirementsCheck : group.solutionCheck)
+    ?.issues[0];
+  if (issue) return `${issue.path}：${issue.reason}`;
   if (proposalNeedsAttention(group)) return "交付失败或材料不完整，需要处理";
   const original = state === "ir-review-pending" || state === "ir-confirmation-pending";
   const review = original ? group.originalReview : group.review;
   const current = original ? requirementsReviewCurrent(group) : fullReviewCurrent(group);
-  if (current && review?.agents?.some((agent) => agent.status === "failed"))
-    return "评审执行失败，请处理后重试";
+  if (proposalReviewCanRetry(group, !original)) return "评审执行失败或报告缺失，请处理后重试";
   if (current && review?.agents?.some((agent) => ["running", "pending"].includes(agent.status)))
     return "评审执行中";
   if (state === "ir-review-pending" && group.originalReview)
@@ -115,7 +118,6 @@ export function proposalUpdatedTime(
     include(feedback.resumedAt);
   }
   include(group.proposalSolution?.generatedAt);
-  include(group.confirmation?.confirmedAt);
   include(group.proposalDelivery?.confirmedAt);
   include(group.proposalDelivery?.pushedAt);
   for (const delivery of group.proposalDeliveryHistory ?? []) {

@@ -1,5 +1,5 @@
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -8,15 +8,22 @@ import { useAIReq } from "../AIReqContext.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import {
   conversationReadOnlyReason,
+  fullReviewCurrent,
+  proposalAlignmentCurrent,
+  proposalState,
   proposalStateLabel,
   requirementsReviewCurrent,
 } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
-import { AIReqProposalStageBody } from "../proposals/AIReqPhaseHeader.js";
+import { AIReqProposalDeliveryPage } from "../proposals/AIReqProposalDeliveryPage.js";
 import { AIReqRequirementMenu } from "../proposals/AIReqRequirementMenu.js";
 import { AIReqProposalOverview } from "../proposals/AIReqProposalOverview.js";
-import { AIReqProposalReviewPage } from "../proposals/AIReqProposalReviewPage.js";
+import {
+  AIReqProposalMaterialCheck,
+  AIReqProposalReviewPage,
+} from "../proposals/AIReqProposalReviewPage.js";
+import { AIReqAgentModelSummary } from "../proposals/AIReqAgentModelSummary.js";
 import { AIReqProposalManagement } from "../proposals/AIReqProposalManagement.js";
 import { AIReqProposalFeedback } from "../proposals/AIReqProposalFeedback.js";
 import {
@@ -48,6 +55,16 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const agent = detail
     ? review?.agents?.find((item) => item.id === ai.selection.reviewAgent)
     : undefined;
+  const reviewCurrent = Boolean(
+    proposal && (original ? requirementsReviewCurrent(proposal) : fullReviewCurrent(proposal)),
+  );
+  const alignments = proposal
+    ? proposal.alignment?.filter((entry) => proposalAlignmentCurrent(proposal, entry))
+    : undefined;
+  const delivery = proposal?.proposalDelivery;
+  const closingPr = useRef(false);
+  const [closePending, setClosePending] = useState(false);
+  const managementHeading = useRef<HTMLHeadingElement>(null);
   const workspace = source.resolveWorkspace(ai.view, ai.selection);
   const scope = { workspacePath: workspace.path ?? "", workspaceIdentity: workspace.identity };
   const root = useRef<HTMLDivElement>(null);
@@ -93,7 +110,19 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const reviewTask = original ? ("requirementsReview" as const) : ("solutionReview" as const);
   const reviewStatus = detail && proposal ? proposalTaskStatus(proposal, reviewTask) : undefined;
   const detailStatus =
-    detail && reviewStatus === "待人工确认" ? "已完成 · 待人工确认" : reviewStatus;
+    detail && agent
+      ? agent.status === "failed"
+        ? "评审失败"
+        : agent.status === "pending"
+          ? "等待评审"
+          : agent.status === "running"
+            ? "评审中"
+            : !agent.report.trim()
+              ? "报告缺失"
+              : reviewStatus === "待人工确认"
+                ? "已完成 · 待人工确认"
+                : "已完成"
+      : undefined;
   const backLabel =
     parent === "overview"
       ? "返回需求工作台"
@@ -110,22 +139,22 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       ? "text-success"
       : headerStatus?.includes("待人工确认")
         ? "text-interaction-confirmation-foreground"
-        : headerStatus === "评审失败"
+        : headerStatus === "评审失败" || headerStatus === "校验失败" || headerStatus === "报告缺失"
           ? "text-destructive"
-          : headerStatus === "有待处理问题"
-            ? "text-warning"
-            : "text-foreground-subtle";
+          : "text-foreground-subtle";
   const conversationReadOnly = Boolean(
+    (detail && !reviewCurrent) ||
     conversationReadOnlyReason(ai.view, ai.selection, source.capabilities),
   );
   const originalReview = proposal?.originalReview;
   // 澄清转为只读即可进入评审，人工确认仍须匹配当前材料与通过的评审。
   const requirementsConfirmation =
-    task === "requirements" &&
+    (task === "requirements" || original) &&
     conversationReadOnly &&
     proposal &&
     originalReview?.passed &&
     originalReview.humanDecision?.reviewId === originalReview.id &&
+    originalReview.humanDecision.snapshotDigest === originalReview.snapshotDigest &&
     requirementsReviewCurrent(proposal)
       ? originalReview.humanDecision
       : undefined;
@@ -150,7 +179,10 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         full={!original}
       />
     );
-  else if (task === "delivery") content = <AIReqProposalStageBody />;
+  else if (task === "delivery")
+    content = (
+      <AIReqProposalDeliveryPage key={`${proposal.projectId}:${proposal.id}`} group={proposal} />
+    );
   else if (task === "management")
     content = (
       <main
@@ -158,27 +190,51 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         data-testid="proposal-management-page"
       >
         <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-6`}>
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>管理需求</h1>
+          <h1 ref={managementHeading} tabIndex={-1} className={AIREQ_PAGE_TITLE_CLASSNAME}>
+            管理需求
+          </h1>
           <AIReqProposalManagement
             key={`${proposal.projectId}:${proposal.id}`}
             group={proposal}
             returnDraft={managementReturn}
           />
-          {proposal.status === "requirements-pr" && proposal.proposalDelivery && (
-            <Button
-              variant="outline"
-              disabled={ai.pending}
-              onClick={() =>
-                void ai.command({
-                  type: "closeProposalPr",
-                  projectId: proposal.projectId,
-                  irId: proposal.id,
-                  candidate: proposal.proposalDelivery!.candidate,
-                })
-              }
-            >
-              关闭未合并 MR 后修改
-            </Button>
+          {proposalState(proposal) === "merge-pending" &&
+            proposal.requirementsPr?.status === "opened" &&
+            source.capabilities.requirementManagement &&
+            delivery && (
+              <Button
+                variant="outline"
+                disabled={ai.pending || closePending}
+                onClick={async () => {
+                  if (closingPr.current) return;
+                  closingPr.current = true;
+                  setClosePending(true);
+                  try {
+                    const result = await ai.command({
+                      type: "closeProposalPr",
+                      projectId: proposal.projectId,
+                      irId: proposal.id,
+                      candidate: delivery.candidate,
+                    });
+                    if (result?.status === "completed") managementHeading.current?.focus();
+                  } finally {
+                    closingPr.current = false;
+                    setClosePending(false);
+                  }
+                }}
+              >
+                {closePending ? "正在关闭文档 PR…" : "关闭未合入文档 PR 后修改"}
+              </Button>
+            )}
+          {proposal.requirementsPr?.status === "merged" && (
+            <p role="status" className="text-ui-sm text-foreground-subtle">
+              文档 PR 已合入，等待材料核验。已合入的 PR 不能关闭。
+            </p>
+          )}
+          {ai.error && (
+            <p role="alert" className="break-words text-ui-sm text-destructive">
+              {ai.error}
+            </p>
           )}
         </div>
       </main>
@@ -195,7 +251,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   else
     content = (
       <>
-        <div className="shrink-0 overflow-y-auto pb-5 [scrollbar-gutter:stable_both-edges]">
+        <div className="shrink-0 max-h-[35%] overflow-y-auto pb-5 [scrollbar-gutter:stable_both-edges]">
           <div
             className={`mx-auto flex min-w-0 flex-wrap items-center justify-between gap-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
           >
@@ -213,22 +269,18 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               {headerStatus && (
                 <span
                   className={`rounded-full border border-border/60 px-2 py-0.5 text-ui-sm ${headerStatusTone}`}
-                  title={
-                    task === "requirements"
-                      ? "需求材料已整理；评审通过后才会标记为已确认"
-                      : undefined
-                  }
+                  role="status"
                 >
                   {headerStatus}
                 </span>
               )}
-              {!detail && conversationReadOnly && (
+              {conversationReadOnly && (
                 <span className="rounded-full border border-border/60 px-2 py-0.5 text-ui-sm text-foreground-subtle">
                   历史阶段 · 只读
                 </span>
               )}
             </div>
-            {!detail && !(task === "requirements" && conversationReadOnly) && (
+            {!detail && !conversationReadOnly && (
               <Button
                 variant="outline"
                 onClick={() =>
@@ -241,16 +293,26 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               </Button>
             )}
           </div>
+          {!detail && !conversationReadOnly && (
+            <div className={`mx-auto min-w-0 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+              <AIReqProposalMaterialCheck
+                compact
+                check={
+                  task === "requirements" ? proposal.requirementsCheck : proposal.solutionCheck
+                }
+              />
+            </div>
+          )}
         </div>
-        {task === "requirements" && conversationReadOnly && proposal && (
+        {conversationReadOnly && (
           <section
-            className={`mx-auto w-full min-w-0 space-y-3 rounded-lg border border-border/60 bg-card/40 p-4 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
-            aria-label="历史澄清记录"
+            className={`mx-auto w-full min-w-0 max-h-[35%] shrink-0 overflow-auto space-y-3 rounded-lg border border-border/60 bg-card/40 p-4 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+            aria-label="历史阶段摘要"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-2">
                 <p className="text-ui-sm text-foreground-subtle">
-                  本页保留此前的需求澄清记录，可前往当前阶段继续处理。
+                  本页保留历史讨论，只读；可前往当前阶段继续处理。
                 </p>
                 <div>
                   <p className="text-ui-sm font-medium">原始需求</p>
@@ -267,29 +329,47 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                     确认了业务需求。
                   </p>
                 )}
+                {!original && task !== "requirements" && Boolean(alignments?.length) && (
+                  <ul className="space-y-1 text-ui-sm text-foreground-subtle">
+                    {alignments?.map((entry) => (
+                      <li key={entry.perspective}>
+                        {
+                          { business: "业务", development: "开发", testing: "测试" }[
+                            entry.perspective
+                          ]
+                        }
+                        ：{entry.employeeId} 于{" "}
+                        {new Date(entry.confirmedAt).toLocaleString("zh-CN", {
+                          timeZone: "Asia/Shanghai",
+                        })}
+                        （北京时间）确认。
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-ui-sm text-foreground-subtle">
-                  当前阶段：{proposalStateLabel(proposal)}；澄清材料可在右侧查看。
+                  当前阶段：{proposalStateLabel(proposal)}；材料可在右侧查看。
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => ai.openProposalTask(proposalNextTask(proposal))}>
                   前往{proposalTaskTitles[proposalNextTask(proposal)]}
                 </Button>
-                <Button variant="outline" onClick={() => ai.openProposalTask("overview")}>
-                  返回工作台
+                <Button variant="outline" onClick={() => ai.openProposalTask(parent)}>
+                  {backLabel}
                 </Button>
               </div>
             </div>
           </section>
         )}
         {detail && review && (
-          <div className={`mx-auto min-w-0 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+          <div
+            className={`mx-auto min-w-0 max-h-[25%] shrink-0 overflow-auto ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}
+          >
             <p className="text-ui-sm text-foreground-subtle">
-              第 {review.round ?? 1} 轮评审 · {review.inputFiles?.length ?? 0} 份材料 ·{" "}
-              {review.findings?.some((finding) => finding.level === "blocking")
-                ? "存在阻断项，请返回汇总查看"
-                : "未记录阻断项"}
+              第 {review.round ?? 1} 轮评审 · {review.inputFiles?.length ?? 0} 份材料
             </p>
+            <AIReqAgentModelSummary binding={agent?.session.modelConfig} />
           </div>
         )}
         {detail && (
@@ -386,7 +466,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               onClick={() => ai.openProposalTask(parent)}
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              {backLabel}
+              <span className="hidden @min-[400px]/conversation:inline">{backLabel}</span>
             </Button>
           </ControlHintTooltip>
         )}

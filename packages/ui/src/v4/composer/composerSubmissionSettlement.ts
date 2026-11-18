@@ -17,7 +17,8 @@ import {
 export interface UnsettledComposerSubmission {
   commandId: string;
   /** 提交时冻结的完整正文；消费方据此确认回填的草稿仍是这次提交，而非用户新输入。 */
-  text: string;
+  text: string | undefined;
+  attachmentIds: readonly string[];
 }
 
 type SettledListener = (submission: UnsettledComposerSubmission) => void;
@@ -39,7 +40,11 @@ function deliver(scopeKey: string, tracked: TrackedSubmission): void {
   if (!listeners || listeners.size === 0) return;
   // 一次结算只消费一次：投递给当前挂载的 composer 后即从账本移除。
   trackedByScope.delete(scopeKey);
-  const submission = { commandId: tracked.commandId, text: tracked.text };
+  const submission = {
+    commandId: tracked.commandId,
+    text: tracked.text,
+    attachmentIds: tracked.attachmentIds,
+  };
   for (const listener of listeners) listener(submission);
 }
 

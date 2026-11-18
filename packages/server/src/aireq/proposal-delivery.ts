@@ -1,43 +1,35 @@
-import { businessRule } from "./errors.js";
-import { consumePrototypeMrCreationFailure } from "./recovery.js";
+import { businessRule, businessFailureMessage } from "./errors.js";
+import { consumePrototypeMrCreationFailure, prototypeMaterialIssue } from "./recovery.js";
+import { contentVersion } from "./content-digest.js";
+import { prototypeDefaultCommit } from "./fixture-builders.js";
 import {
   aiReqPrFactSchema,
+  fileVersions,
   proposalVersion,
-  proposalState,
   proposalDeliveryCurrent,
-  hasCurrentProposalSolution,
+  completeProposalPaths,
+  proposalPrCurrent,
+  proposalDependencyMaterialIssue,
   alignmentBlocker,
 } from "@zcode/services/aireq";
-import { proposalDependencyMaterialIssue } from "@zcode/services/aireq";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
-import type { AIReqAction, AIReqRequirementGroup, AIReqWorkflowView } from "@zcode/services/aireq";
+import type { AIReqRequirementGroup, AIReqWorkflowView } from "@zcode/services/aireq";
 import type {
-  InternalWorkflowAction,
   InternalProposalDelivery,
   InternalRequirementGroup,
   AIReqProposalMergeScenario,
 } from "./internal-scenarios.js";
 
-type PrototypeProposalDeliveryAction = Extract<
-  AIReqAction,
-  { type: "confirmProposal" | "publishProposal" }
->;
-
-export function isPrototypeProposalDeliveryAction(
-  action: InternalWorkflowAction,
-): action is PrototypeProposalDeliveryAction {
-  return ["confirmProposal", "publishProposal"].includes(action.type);
-}
-
 let mrNumber = 100;
 const NORMAL_MR_OPEN_WINDOW_MS = 10_000;
 
 /** 正常内存 MR 依赖的生命周期，候选与编号共同绑定；不由浏览器驱动模拟时钟。 */
-export function beginPrototypeProposalMrLifecycle(group: AIReqRequirementGroup): void {
+function beginPrototypeProposalMrLifecycle(group: AIReqRequirementGroup): void {
   const delivery = group.proposalDelivery as InternalProposalDelivery | undefined;
   const mr = group.requirementsPr;
-  if (!delivery?.pushedAt || !mr?.number) throw businessRule("文档 MR 发布事实不完整。");
+  if (!delivery || !mr?.number || mr.status !== "opened" || !proposalPrCurrent(group))
+    throw businessRule("文档 MR 发布事实不完整。");
   if (
     delivery.simulatedMr?.candidate === delivery.candidate &&
     delivery.simulatedMr.number === mr.number
@@ -46,6 +38,8 @@ export function beginPrototypeProposalMrLifecycle(group: AIReqRequirementGroup):
   const openedAt = new Date().toISOString();
   delivery.simulatedMr = {
     candidate: delivery.candidate,
+    version: delivery.version,
+    manifest: fileVersions(delivery.files),
     number: mr.number,
     openedAt,
     mergeEligibleAt: new Date(Date.parse(openedAt) + NORMAL_MR_OPEN_WINDOW_MS).toISOString(),
@@ -73,13 +67,16 @@ export function observePrototypeProposalMr(
     fact.status = "merged";
     fact.commit = `sample-document-merge-${fact.candidate}`;
   }
-  return fact.status === "merged" ? "merged" : "unmerged";
+  if (fact.status !== "merged") return "unmerged";
+  if (fact.version !== delivery!.version) return "stale-version";
+  if (fact.manifest !== fileVersions(delivery!.files)) return "incomplete";
+  return "merged";
 }
 /** 演示交付只记录编号与状态；没有代码托管服务提供的真实URL时不返回链接。 */
-export function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
+function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
   const delivery = group.proposalDelivery;
   if (!delivery?.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
-  if (group.requirementsPr?.number && delivery.prCandidate === delivery.candidate) return;
+  if (proposalPrCurrent(group)) return;
   if (consumePrototypeMrCreationFailure(delivery.candidate))
     throw businessRule("分支已推送，但创建 MR 失败，请重试当前版本。");
   const handoff = readPrototypeProposalPrHandoff(group);
@@ -102,53 +99,142 @@ export function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
     ].join("\n"),
     sourceBranch: handoff.branch,
     targetBranch: handoff.targetBranch,
-    recordedAt: delivery.pushedAt,
+    recordedAt: new Date().toISOString(),
     platformVerified: false,
   });
   delivery.prCandidate = delivery.candidate;
 }
-export function validatePrototypeProposalDeliveryAction(
+/** The last role confirmation prepares, but never publishes, the immutable full-set candidate. */
+export function preparePrototypeProposalCandidate(
+  group: AIReqRequirementGroup,
+  candidate: string,
+  employeeId: string,
+  confirmedAt: string,
+): void {
+  if (alignmentBlocker(group) || proposalDeliveryCurrent(group)) return;
+  group.proposalDelivery = {
+    candidate,
+    version: proposalVersion(group),
+    files: structuredClone(group.files),
+    confirmedBy: employeeId,
+    confirmedAt,
+  };
+}
+
+export function closePrototypeProposalMr(
+  group: AIReqRequirementGroup,
+  nextCandidate: string,
+): void {
+  const delivery = group.proposalDelivery!;
+  const mr = group.requirementsPr!;
+  mr.status = "closed";
+  delivery.closedPr = mr;
+  (group.proposalDeliveryHistory ??= []).push(delivery);
+  group.proposalDelivery = undefined;
+  group.requirementsPr = undefined;
+  group.status = "solution-ready";
+  preparePrototypeProposalCandidate(
+    group,
+    nextCandidate,
+    delivery.confirmedBy,
+    delivery.confirmedAt,
+  );
+}
+
+/** Compare the candidate's exact required set and recompute evidence from the readable body. */
+export function prototypeProposalMaterialsIssue(
   view: AIReqWorkflowView,
   group: AIReqRequirementGroup,
-  action: PrototypeProposalDeliveryAction,
+): string | undefined {
+  if (!proposalDeliveryCurrent(group)) return "交付候选与当前材料版本不一致。";
+  const pr = group.requirementsPr;
+  if (
+    pr &&
+    pr.targetBranch !==
+      view.projects.find((project) => project.id === group.projectId)?.defaultBranch
+  )
+    return "当前文档 MR 与项目目标分支不一致。";
+  const expected = new Set(completeProposalPaths(group));
+  const files = group.proposalDelivery!.files;
+  if (files.length !== expected.size || files.some((file) => !expected.delete(file.path)))
+    return "交付候选的文件清单不完整或包含重复文件。";
+  const materials = new Map(
+    view.materials
+      .filter((item) => item.projectId === group.projectId && item.irId === group.id)
+      .map((item) => [item.path, item]),
+  );
+  for (const file of files) {
+    const material = materials.get(file.path);
+    if (!material) return `${file.path}：当前材料缺失。`;
+    const readIssue = prototypeMaterialIssue(material) ?? material.error;
+    if (readIssue) return `${file.path}：${readIssue}`;
+    if (!material.valid || !material.content?.trim())
+      return `${file.path}：当前材料无效或不可读取。`;
+    const actual = contentVersion(material.content);
+    if (
+      file.sha256 !== actual.sha256 ||
+      file.size !== actual.size ||
+      file.sha256 !== material.sha256 ||
+      file.size !== material.size
+    )
+      return `${file.path}：材料与交付候选的版本不一致。`;
+  }
+  return proposalDependencyMaterialIssue(group, view.materials);
+}
+
+export function validatePrototypeProposalPublication(
+  view: AIReqWorkflowView,
+  group: AIReqRequirementGroup,
+  candidate: string,
 ): void {
-  const blocker = alignmentBlocker(group);
-  if (blocker) throw businessRule(blocker);
-  const dependencyIssue = proposalDependencyMaterialIssue(group, view.materials);
-  if (dependencyIssue) throw businessRule(dependencyIssue);
-  if (!hasCurrentProposalSolution(group)) throw businessRule("请先完成当前需求版本的方案。");
   const handoff = readPrototypeProposalPrHandoff(group);
   if (!handoff.ready) throw businessRule(handoff.blockers.join("；"));
-  if (
-    !group.files.every((file) =>
-      view.materials.some(
-        (material) =>
-          material.projectId === group.projectId &&
-          material.irId === group.id &&
-          material.path === file.path &&
-          material.sha256 === file.sha256 &&
-          material.size === file.size &&
-          material.valid &&
-          material.content !== undefined &&
-          !material.error,
-      ),
-    )
-  )
-    throw businessRule("当前提案材料缺失、读取失败或版本不一致，不能确认、推送或核验合并。");
-  const state = proposalState(group);
-  if (action.type === "confirmProposal") {
-    if (state !== "submission-pending" || action.version !== proposalVersion(group))
-      throw businessRule("确认页面对应旧版本，请重新查看当前 IR、全部 SR 与方案后确认。");
-    return;
+  if (group.proposalDelivery?.candidate !== candidate || !proposalDeliveryCurrent(group))
+    throw businessRule("交付候选已失效，请重新查看当前版本的文件清单。");
+  if (proposalPrCurrent(group) && group.requirementsPr?.status === "merged")
+    throw businessRule("文档 MR 已合入，请等待完整材料核验。");
+  const issue = prototypeProposalMaterialsIssue(view, group);
+  if (issue) throw businessRule(issue);
+}
+
+/** Resume only the missing steps; a PR error cannot discard an already created/pushed branch. */
+export function publishPrototypeProposal(
+  state: AIReqWorkflowView,
+  group: AIReqRequirementGroup,
+  at: string,
+): boolean {
+  const delivery = group.proposalDelivery!;
+  const reused = proposalPrCurrent(group);
+  if (!reused) {
+    let step: NonNullable<typeof delivery.publishError>["step"] = "branch";
+    try {
+      delivery.branch ??= {
+        name: readPrototypeProposalPrHandoff(group).branch,
+        baseCommit: prototypeDefaultCommit(state, group.projectId),
+        createdAt: at,
+      };
+      step = "push";
+      if (delivery.pushedCandidate !== delivery.candidate) {
+        delivery.branch.pushedAt = at;
+        delivery.pushedCandidate = delivery.candidate;
+        delivery.pushedAt = at;
+      }
+      step = "pr";
+      ensurePrototypeProposalMr(group);
+    } catch (error) {
+      delivery.publishError = { step, message: businessFailureMessage(error) };
+      throw error;
+    }
+    delivery.publishError = undefined;
+    delivery.mergeCheck = {
+      status: "waiting",
+      message: "文档 PR 等待合并，核验当前版本材料后转正。",
+    };
+    group.status = "requirements-pr";
   }
-  const delivery = group.proposalDelivery;
-  if (!delivery || !proposalDeliveryCurrent(group) || action.candidate !== delivery.candidate)
-    throw businessRule("提案版本已变化，旧确认、推送与 PR 已失效，请重新确认当前版本。");
-  if (action.type === "publishProposal") {
-    if (state !== "submission-pending" && state !== "merge-pending")
-      throw businessRule("请先确认当前材料，再提交推送并自动创建 MR。");
-    return;
-  }
+  // Opened seeds have no observer until explicitly published; existing windows are never reset.
+  beginPrototypeProposalMrLifecycle(group);
+  return reused;
 }
 
 /** 仅写入内存样例；合入证据与文档完整性是自动入库的两项条件。 */
@@ -160,11 +246,11 @@ export function completePrototypeProposal(
   const project = state.projects.find((item) => item.id === group.projectId)!;
   const commit =
     (group.proposalDelivery as InternalProposalDelivery | undefined)?.simulatedMr?.commit ??
-    `sample-proposal-merged-${state.revision}`;
+    `sample-document-merge-${group.proposalDelivery!.candidate}`;
   group.status = "formal";
   group.merge = {
     commit,
-    branch: project.defaultBranch,
+    branch: group.requirementsPr!.targetBranch,
     checkedAt,
     files: structuredClone(group.files),
   };

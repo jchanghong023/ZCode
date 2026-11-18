@@ -30,9 +30,9 @@ const steps = [
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后一次转入一个或多个项目／版本；全部成功后原想法消失，各版本独立管理。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”，预览后整批导入；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档支持 Markdown 导入，预览正文并单独确认短需求，选择具体 Release 后保存；导出时选择一个 IR，下载其当前有效业务文档。其他材料不提供导入导出。保存和导入不运行 AI，只有显式发送消息才开始本次澄清，原始需求评审并人工通过后才能拆分 SR。",
+      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后自动评审，业务确认后开放方案设计。",
     descriptionEn:
-      "Todos show Mine, Unassigned and All actions in the selected project and Release. Open an action to reach its requirement or task. Save unplanned requests in Ideas; moving an idea to project releases creates independent proposals and consumes it. CSV import previews original requests as a complete batch; blanks are skipped and duplicates retained. CSV export includes every filtered original request. Import an IR business document as Markdown, preview its content, confirm a separate short request and choose a Release. Markdown export downloads one IR's current valid business document. Other materials cannot be imported or exported. Saving and importing do not run AI; clarification starts only after an explicit message, and SR splitting requires business review and human approval.",
+      "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. A validated business document is reviewed automatically; business confirmation unlocks solution design.",
   },
   {
     title: "从需求工作台进入任务",
@@ -46,25 +46,25 @@ const steps = [
     title: "每 SR 独立完整包",
     titleEn: "An independent complete package per SR",
     description:
-      "在方案设计任务中与 AI 完善 SR 的 proposal、design、tasks、specs 和追溯业务验收的 test-plan；每个 SR 是独立 OpenSpec change。IR 保留业务需求、权威依赖 JSON 和整体验收。右侧文档目录按 IR 与各 SR 分组，历史材料仍可只读查看；平台不执行开发任务或构建测试。",
+      "在方案设计中与 AI 完善各 SR 的 proposal、design、tasks、specs 和追溯业务验收的 test-plan；每个 SR 是独立 OpenSpec change。IR 保留业务需求和权威依赖 JSON。文件缺失或格式校验失败时，页面显示具体文件和原因；历史材料在右侧只读。平台不执行开发任务或构建测试。",
     descriptionEn:
-      "In one solution stage, develop each SR's independent OpenSpec change: proposal, design, tasks, specs and a business-traceable test plan. The IR retains shared requirements, dependency JSON and overall acceptance. Switch SRs and read-only historical packages in the materials pane. AIReq never executes development tasks, builds or tests.",
+      "Develop each SR's independent OpenSpec change: proposal, design, tasks, specs and a business-traceable test plan. The IR retains the business requirements and authoritative dependency JSON. Missing or invalid files are listed with their reasons. Historical materials are read-only in the materials pane. AIReq never executes development tasks, builds or tests.",
   },
   {
-    title: "完整三审、终审与三方确认",
-    titleEn: "Three reviews, synthesis and three perspectives",
+    title: "自动审查与三方确认",
+    titleEn: "Automatic reviews and three role confirmations",
     description:
-      "同一完整材料由三路分别检查需求一致性、方案依赖、任务及测试充分性，全部完成后第四 Agent 终审，再由人工放行。阶段主体直接显示业务、开发、测试三个视角的确认状态、操作和剩余条件，同一人可分别确认。任意材料变化使整包批准与确认全部失效；业务需求文档变化额外重做单评审，旧意见和失效原因保留。",
+      "完整材料通过校验后自动启动三路审查，再由方案综审 Agent 汇总。只有执行失败或缺报告时才重试。当前报告齐备可读后，业务、开发和测试分别确认；是否采纳意见由确认人判断，同一工号可分别承担三方，已确认角色保留原记录。材料更新按受影响范围重新校验、评审和确认，旧报告与确认只读。",
     descriptionEn:
-      "Three agents review coverage, design/dependencies and task/test sufficiency on one complete package. A fourth synthesizes after all three complete, followed by human approval. The stage shows business, development and testing confirmation states, actions and remaining conditions directly; one person may perform all three. Any material change invalidates the entire approval package. Business changes additionally require the original review again; history remains readable.",
+      "Validated solution materials automatically start three independent reviews followed by synthesis. Retry only failed or missing reports. Once current reports are readable and complete, business, development and testing confirm separately. The confirmers decide whether to act on the findings. One employee can fill all roles; each role retains its first decision. Material changes invalidate only affected reviews and decisions, keeping history read-only.",
   },
   {
     title: "一个 IR 一个文档 PR",
     titleEn: "One document PR per IR",
     description:
-      "三方确认齐全后确认全部文件并提交文档 PR。提交即冻结，修改前先关闭未合并 PR。等待、关闭、缺材料或版本不符都不转正；只有服务核实同一完整候选合入才以原 ID 转正，并逐 SR 建立开发分支，保留失败事实。",
+      "三方齐全后，核对完整文件清单并明确授权提交文档 PR。失败后重试同一候选，复用已创建分支和已推送材料。PR 打开期间材料冻结，修改前须关闭未合入 PR；同一候选合入且核验完整后，以原 ID 转正。各 SR 以同一文档合入提交为基点创建开发分支；只有失败分支需要单独重试。",
     descriptionEn:
-      "After all perspectives confirm, check all files and submit one document PR. Submitted materials freeze; close an unmerged PR before changes. Waiting, closure, missing material or a stale candidate never makes an IR formal. The service verifies the complete merged candidate, preserves IDs and records per-SR branch creation outcomes.",
+      "After all roles confirm, check every file and explicitly authorize submission of one document PR. A retry reuses the same candidate and completed branch or push steps. An open PR freezes its materials; close it before editing. The same candidate must merge and pass verification to become formal without changing its ID. Each SR gets a development branch from the document merge commit; retry only the failed branch.",
   },
   {
     section: "交付进度与分析运行",
@@ -80,9 +80,9 @@ const steps = [
     title: "合入 99%、人工验收 100%",
     titleEn: "Merged at 99%, accepted at 100%",
     description:
-      "未合入时 AI 可估计 0–99，代码合入后业务进度固定 99%，不依赖 AI 恰好打出 99。人工填写依据记录测试通过才到 100；失败保持 99 并产生修复待办，修复版本合入后复测。IR 是全部 SR 的等权平均，全部 SR 完成后才可再次确认清理登记分支；逐项保留失败，不删主分支、材料或历史。",
+      "首次代码合入后停止该 SR 的进度分析，进度为 99%，不需要先有成功的分析报告。人工确认通过并填写依据后，进度变为 100%；测试发现问题时仍待验收，不在此流程追踪修复。IR 是全部 SR 的等权平均，全部 SR 完成后才可再次确认清理登记分支；逐项保留失败，不删主分支、材料或历史。",
     descriptionEn:
-      "Before merge, AI estimates 0–99. Code merge fixes effective progress at 99 regardless of the raw AI score. Human test acceptance with evidence raises it to 100. Failure stays at 99 and creates repair work; retest a newly merged fix. IR progress averages all SRs. Only after every SR completes may a confirmed cleanup remove registered development branches, retaining failures, main branch, materials and history.",
+      "After the first code merge, analysis stops and progress stays at 99%, even without a successful analysis report. Human acceptance with evidence raises it to 100%. If testing finds a problem, the SR stays pending; this workflow does not track fixes. IR progress averages all SRs. Only after every SR completes may a confirmed cleanup remove registered development branches, retaining failures, the default branch, materials and history.",
   },
   {
     title: "项目与 Release 直接汇总 SR",

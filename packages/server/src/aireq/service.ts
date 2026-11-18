@@ -25,6 +25,7 @@ import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
   getPrototypeWorkflow,
+  retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
   readPrototypeProjectProgressInputs,
   applyPrototypeAction,
@@ -48,7 +49,7 @@ import {
 import { withPrototypePlanning, updatePrototypeSrPlanning } from "./planning.js";
 import { createPrototypeProgressScheduler } from "./progress-scheduler.js";
 import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
-import { retryPrototypeMaterialRead, retryPrototypeSessionRead } from "./recovery.js";
+import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
 
@@ -59,12 +60,12 @@ const commands = [
   "importIdeas",
   "updateIdea",
   "transferIdea",
+  "saveDocumentFormats",
   "createRelease",
   "createProposal",
   "importProposals",
   "assignContacts",
   "runFullReview",
-  "approveFullReview",
   "confirmAlignment",
   "closeProposalPr",
   "reviseProposalMaterial",
@@ -73,7 +74,6 @@ const commands = [
   "acceptProposal",
   "runRequirementsReview",
   "returnProposal",
-  "confirmProposal",
   "publishProposal",
 ] as const;
 
@@ -135,19 +135,11 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("readPrHandoff", (target: { projectId: string; irId: string }) =>
       readPrototypeProposalPrHandoff(this.group(target)),
     );
-    add("retryMaterial", (path: string, selection: AIReqSelection) => {
-      if (
-        !getPrototypeWorkflow(selection).materials.some(
-          (item) => item.irId === selection.irId && item.path === path,
-        )
-      )
-        throw businessRule("材料不属于当前需求。");
-      return retryPrototypeMaterialRead(path);
-    });
-    add("retrySession", (selection: AIReqSelection) => {
-      const session = resolvePrototypeSession(getPrototypeWorkflow(selection), selection);
-      if (!session) throw businessRule("会话不存在或已删除。");
-      retryPrototypeSessionRead(session.sessionId);
+    add("retryMaterial", retryPrototypeWorkflowMaterial);
+    add("retrySession", (selection: AIReqSelection, sessionId: string) => {
+      const session = this.workflow(selection).session;
+      if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
+      retryPrototypeSessionRead(sessionId);
     });
     add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) => {
       if (savePrototypeRepository(input)) notifyPrototypeProjectSettingsChanged();
@@ -271,7 +263,10 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       ? `${currentIdentity()?.employeeId}:${currentIdentity()?.clientId}:${metadata.operationId}`
       : undefined;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
-    const digest = digestValue([{ ...action, expectedRevision: undefined }, selection]);
+    const digest = digestValue([
+      { ...action, expectedRevision: undefined },
+      action.type === "saveDocumentFormats" ? undefined : selection,
+    ]);
     const prior = key ? this.operations.get(key) : undefined;
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");

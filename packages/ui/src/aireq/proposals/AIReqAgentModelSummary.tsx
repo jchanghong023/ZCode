@@ -1,15 +1,17 @@
+import { useSyncExternalStore } from "react";
 import { useAIReqDataSource } from "../data-source.js";
 import type { AIReqAgentModelBinding } from "../contract.js";
-const emptyRevision = () => 0;
+
 const emptySubscribe = () => () => {};
-import { useSyncExternalStore } from "react";
 
 export function AIReqAgentModelSummary({ binding }: { binding?: AIReqAgentModelBinding }) {
   const source = useAIReqDataSource();
-  useSyncExternalStore(
+  const bindingChanged = () =>
+    binding !== undefined && source.models?.bindingChanged(binding) === true;
+  const changed = useSyncExternalStore(
     source.models?.subscribe ?? emptySubscribe,
-    source.models?.revision ?? emptyRevision,
-    source.models?.revision ?? emptyRevision,
+    bindingChanged,
+    bindingChanged,
   );
   if (!binding) return null;
   const reasoning =
@@ -28,10 +30,14 @@ export function AIReqAgentModelSummary({ binding }: { binding?: AIReqAgentModelB
         {binding.roleName} · {binding.modelName} · 思考：{reasoning}
         {binding.inherited ? " · 跟随默认（创建时）" : ""}
       </p>
-      {source.models?.bindingChanged(binding) && (
-        <p data-testid="agent-session-model-pending">
-          设置已更新；此会话保留创建时配置，新建该角色会话后生效。
+      <details>
+        <summary className="w-fit cursor-pointer">追加指令快照</summary>
+        <p className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words" tabIndex={0}>
+          {binding.promptSnapshot || "仅使用内建指令。"}
         </p>
+      </details>
+      {changed && (
+        <p data-testid="agent-session-model-pending">设置已更新；本会话或评审仍保留原配置。</p>
       )}
     </div>
   );

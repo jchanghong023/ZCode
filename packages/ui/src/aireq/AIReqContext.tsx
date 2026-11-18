@@ -38,6 +38,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   AIReqAction,
   AIReqDataSource,
+  AIReqMaterialReadRequest,
   AIReqSelection,
   AIReqWorkflowView,
 } from "./contract.js";
@@ -73,6 +74,8 @@ export function AIReqContextProjection({
 /** One UI state controller; the entry point owns data and execution authority. */
 export function AIReqProvider({ children }: { children: ReactNode }) {
   const source = useAIReqDataSource();
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   const { locale } = useZCodeIntl();
   const [navigationOwner] = useState(() => createUuid());
   const initialLink = useRef(readObjectLink());
@@ -627,21 +630,30 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     return requirementObjectLink(window.location.href, target, group.releaseId);
   }, []);
   const retryMaterial = useCallback(
-    async (path: string) => {
-      try {
-        const recovered = await source.retryMaterial(path, selectionRef.current);
-        await refresh();
-        return recovered;
-      } catch (cause) {
-        report(cause);
+    async (request: AIReqMaterialReadRequest) => {
+      const target = selectionRef.current;
+      if (
+        target.projectId !== request.projectId ||
+        target.irId !== request.irId ||
+        releaseRef.current !== request.releaseId
+      )
         return false;
+      try {
+        return await source.retryMaterial(request);
+      } catch {
+        return false;
+      } finally {
+        if (selectionRef.current === target && releaseRef.current === request.releaseId)
+          await refresh();
       }
     },
-    [source, refresh, report],
+    [source, refresh],
   );
   const retrySession = useCallback(
-    async (target: AIReqSelection, sessionId: string) => {
+    async (target: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
       const isCurrent = () =>
+        isCurrentPane() &&
+        sourceRef.current === source &&
         selectionRef.current === target &&
         Boolean(
           viewRef.current &&
@@ -649,7 +661,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         );
       if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
       try {
-        await source.retrySession({ ...target });
+        await source.retrySession({ ...target }, sessionId);
         if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
         await load(target, false, true);
         if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
@@ -673,42 +685,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         // An operation completing in the background must not navigate a different view.
         if (selectionRef.current !== target) return result;
         commandError.current = false;
-        if (value.type === "createProposal" || value.type === "importProposals") await refresh();
-        else if (value.type === "runRequirementsReview")
-          select({
-            ...target,
-            discussionPhase: "requirements",
-            proposalStep: "requirements-review",
-            reviewAgent: undefined,
-            proposalEditing: undefined,
-          });
-        else if (value.type === "runFullReview")
-          // 运行后进入审查汇总，不能自动把主区换成综合 Agent 会话。
-          select(
-            {
-              ...target,
-              discussionPhase: "solution",
-              proposalStep: "solution",
-              reviewAgent: undefined,
-              materialPath: undefined,
-              proposalEditing: undefined,
-            },
-            true,
-            "chat",
-            undefined,
-            undefined,
-            "solutionReview",
-          );
-        else if (["acceptProposal", "returnProposal"].includes(value.type))
-          select({
-            ...target,
-            materialPath: undefined,
-            discussionPhase: undefined,
-            proposalStep: undefined,
-            reviewAgent: undefined,
-            proposalEditing: undefined,
-          });
-        else if (value.type === "deleteRequirement")
+        if (value.type === "deleteRequirement")
           select({ projectId: target.projectId }, true, target.formalView ? "formal" : "proposals");
         else await refresh();
         setError(undefined);
@@ -769,8 +746,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         switchProject,
         openProject: (projectId, mainView, releaseId) =>
           navigate(() => openProject(projectId, mainView, releaseId)),
-        select: (value, targetReleaseId) =>
-          navigate(() => select(value, true, "chat", targetReleaseId)),
+        select: (value, targetReleaseId, task) =>
+          navigate(() => select(value, true, "chat", targetReleaseId, undefined, task)),
         openAnalysis: (value, targetReleaseId) =>
           navigate(() => select(value, true, "requirementAnalysis", targetReleaseId)),
         objectLink,

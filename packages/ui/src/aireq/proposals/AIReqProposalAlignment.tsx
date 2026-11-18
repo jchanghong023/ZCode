@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -6,9 +7,8 @@ import { useAIReqDataSource } from "../data-source.js";
 import {
   alignmentBlocker,
   fullReviewReadyBlocker,
-  proposalProgressIndex,
+  proposalAlignmentCurrent,
   proposalVersion,
-  proposalViewedIndex,
 } from "../contract.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 
@@ -19,28 +19,31 @@ const perspectives = [
 ] as const;
 
 /** 三方确认只读取同版服务端事实；阶段主体与提交共用原有命令入口。 */
-export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup }) {
+export function AIReqProposalAlignment({
+  group,
+  readOnly = false,
+}: {
+  group: AIReqRequirementGroup;
+  readOnly?: boolean;
+}) {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const blockerId = useId();
+  const [confirming, setConfirming] = useState<string>();
+  const inFlight = useRef(false);
+  const review = group.review;
   const version = proposalVersion(group);
   const confirmedCount = perspectives.filter(([perspective]) =>
-    group.alignment?.some((item) => item.perspective === perspective && item.version === version),
+    group.alignment?.some(
+      (item) => item.perspective === perspective && proposalAlignmentCurrent(group, item),
+    ),
   ).length;
-  const history =
-    proposalProgressIndex(group, ai.selection) !== 3 ||
-    proposalViewedIndex(group, ai.selection) !== 3;
-  const frozen = group.status === "requirements-pr";
-  const reviewBlocker =
-    fullReviewReadyBlocker(group) ??
-    (!group.review?.passed || group.review.humanDecision?.reviewId !== group.review.id
-      ? zh
-        ? "完整审查完成后仍需人工放行。"
-        : "Human approval is required after the full review."
-      : undefined);
+  const reviewBlocker = fullReviewReadyBlocker(group);
   const blocker = alignmentBlocker(group);
   const pending =
+    Boolean(confirming) ||
     ai.pending ||
     ai.view?.running.some((item) => item.projectId === group.projectId && item.irId === group.id);
   return (
@@ -50,22 +53,20 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
       data-testid="proposal-alignment"
     >
       <div className="space-y-1">
-        <h3 className="text-ui-base font-medium">
-          {zh
-            ? `当前材料确认 · ${confirmedCount} / 3`
-            : `Confirm current materials · ${confirmedCount} / 3`}
-        </h3>
+        <h2 className="text-ui-base font-medium">
+          {zh ? `三方确认 · ${confirmedCount} / 3` : `Role confirmations · ${confirmedCount} / 3`}
+        </h2>
         <p className="text-ui-sm text-foreground-subtle">
           {zh
-            ? "业务、开发和测试分别确认同一完整材料版本；同一人可以兼任。材料变化后需要重新确认。"
-            : "Business, development and testing confirm the same material version. One person may cover multiple perspectives. Changes require new confirmations."}
+            ? "业务、开发和测试分别确认同一材料快照。同一人可承担多个角色；已确认的角色保留原记录。"
+            : "Business, development and testing each confirm the same material snapshot. One person can fill multiple roles. Original decisions are retained."}
         </p>
       </div>
       <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
         {perspectives.map(([perspective, label, labelEn]) => {
           // 旧版本的确认不计入当前结果，不能因重新组织页面而恢复旧批准。
           const confirmation = group.alignment?.find(
-            (item) => item.perspective === perspective && item.version === version,
+            (item) => item.perspective === perspective && proposalAlignmentCurrent(group, item),
           );
           const Icon = confirmation ? CheckCircle2 : Circle;
           return (
@@ -79,7 +80,7 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
                   className={`mt-0.5 size-4 shrink-0 ${confirmation ? "text-success" : "text-foreground-subtle"}`}
                 />
                 <div className="min-w-0 space-y-1">
-                  <p className="text-ui-base font-medium">{zh ? `${label}视角` : labelEn}</p>
+                  <p className="text-ui-base font-medium">{zh ? label : labelEn}</p>
                   <p className="break-words text-ui-sm text-foreground-subtle">
                     {confirmation
                       ? `${zh ? "已确认" : "Confirmed"} · ${confirmation.employeeId} · ${new Date(confirmation.confirmedAt).toLocaleString(locale, { timeZone: "Asia/Shanghai" })}`
@@ -89,48 +90,59 @@ export function AIReqProposalAlignment({ group }: { group: AIReqRequirementGroup
                   </p>
                 </div>
               </div>
-              {!confirmation && (
+              {!confirmation && !readOnly && (
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={
-                    history ||
-                    frozen ||
                     Boolean(pending) ||
                     Boolean(reviewBlocker) ||
                     !source.capabilities.proposalDiscussion
                   }
-                  onClick={() =>
-                    void ai.command({
-                      type: "confirmAlignment",
-                      projectId: group.projectId,
-                      irId: group.id,
-                      perspective,
-                      version,
-                    })
-                  }
+                  aria-describedby={reviewBlocker ? blockerId : undefined}
+                  onClick={async () => {
+                    if (!review || inFlight.current) return;
+                    inFlight.current = true;
+                    setConfirming(perspective);
+                    try {
+                      await ai.command({
+                        type: "confirmAlignment",
+                        projectId: group.projectId,
+                        irId: group.id,
+                        perspective,
+                        version,
+                        reviewId: review.id,
+                        snapshotDigest: review.snapshotDigest,
+                      });
+                    } finally {
+                      inFlight.current = false;
+                      setConfirming(undefined);
+                    }
+                  }}
                 >
-                  {zh ? `确认${label}视角` : `Confirm ${labelEn.toLowerCase()}`}
+                  {confirming === perspective
+                    ? zh
+                      ? "正在确认…"
+                      : "Confirming…"
+                    : zh
+                      ? `确认${label}角色`
+                      : `Confirm ${labelEn.toLowerCase()}`}
                 </Button>
               )}
             </li>
           );
         })}
       </ul>
-      <p className="text-ui-sm text-foreground-subtle" role="status">
-        {history
+      <p id={blockerId} className="text-ui-sm text-foreground-subtle" role="status">
+        {readOnly
           ? zh
-            ? "历史环节只读，请返回当前操作环节继续处理。"
-            : "This historical stage is read-only. Return to the current stage to continue."
-          : frozen
-            ? zh
-              ? "文档 PR 已提交，当前材料冻结，等待人工合入与后台核验。"
-              : "The document PR is submitted. Materials are frozen pending merge and verification."
-            : blocker
-              ? `${zh ? "提交前还需：" : "Before submission: "}${blocker}`
-              : zh
-                ? "三个视角已确认当前版本，可以核对完整材料并提交文档 PR。"
-                : "All perspectives confirmed this version. Review the complete materials and submit the document PR."}
+            ? "以上为当前材料的确认记录。"
+            : "These are the confirmations for the current materials."
+          : (reviewBlocker ??
+            blocker ??
+            (zh
+              ? "三方已确认，可以核对完整材料并提交文档 PR。"
+              : "All roles have confirmed. Review the complete materials and submit the document PR."))}
       </p>
     </section>
   );

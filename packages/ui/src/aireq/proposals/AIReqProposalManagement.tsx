@@ -26,6 +26,7 @@ export function AIReqProposalManagement({
   const ai = useAIReq()!;
   const [target, setTarget] = useState<"requirements" | "solution" | "test-plan">("requirements");
   const [note, setNote] = useState("");
+  const [noteRevision, setNoteRevision] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const submitting = useRef(false);
@@ -144,12 +145,12 @@ export function AIReqProposalManagement({
         )}
       </fieldset>
       <div className="space-y-2">
-        <label className="flex items-center gap-2">
+        <label className="flex flex-wrap items-center gap-2">
           请求修改材料
           <select
             aria-label="修改材料范围"
             disabled={busy}
-            className="rounded border border-border bg-background p-2"
+            className="min-w-0 max-w-full rounded border border-border bg-background p-2"
             value={target}
             onChange={(event) => setTarget(event.target.value as typeof target)}
           >
@@ -160,33 +161,64 @@ export function AIReqProposalManagement({
         </label>
         <SettingsFormTextarea
           aria-label="材料修改说明"
-          disabled={busy}
+          readOnly={busy}
           value={note}
-          onChange={(event) => setNote(event.target.value)}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (!value) setNoteRevision(undefined);
+            else if (noteRevision === undefined) setNoteRevision(ai.view?.revision);
+            setNote(value);
+          }}
           rows={3}
           placeholder="说明需要调整的内容与原因…"
         />
         <Button
           variant="outline"
-          disabled={busy || !note.trim() || group.status === "requirements-pr"}
+          disabled={
+            busy ||
+            ai.pending ||
+            !note.trim() ||
+            noteRevision === undefined ||
+            noteRevision !== ai.view?.revision ||
+            group.status === "requirements-pr"
+          }
           onClick={() =>
             void perform(async () => {
               const result = await ai.command({
                 type: "reviseProposalMaterial",
                 projectId: group.projectId,
                 irId: group.id,
+                expectedRevision: noteRevision,
                 target,
                 note,
               });
               if (!result) throw new Error("材料修改失败；请查看上方业务错误，输入已保留。");
-              if (result.status === "completed") setNote("");
+              if (result.status === "completed") {
+                setNote("");
+                setNoteRevision(undefined);
+              }
             }, "材料修改请求已提交，请查看处理结果。")
           }
         >
           提交修改请求
         </Button>
+        {note.trim() && noteRevision !== ai.view?.revision && (
+          <div className="flex flex-wrap items-center gap-2 text-ui-sm">
+            <p role="status" className="text-foreground-subtle">
+              当前需求记录已更新，旧版修改说明仍保留。
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy || ai.pending || !ai.view}
+              onClick={() => setNoteRevision(ai.view?.revision)}
+            >
+              已核对当前版本，保留说明
+            </Button>
+          </div>
+        )}
         <p>
-          所有送审材料变化都撤销整包审查、终审、人工放行和三方确认；业务文档变化额外重做单评审。历史保留。
+          方案材料更新后重新校验、审查和三方确认；若修改业务需求文档，还需重新评审并确认需求。旧记录仅供追溯。
         </p>
       </div>
       {Boolean(group.rejectedReviewResults?.length) && (
@@ -255,6 +287,7 @@ export function AIReqProposalManagement({
                 pendingNavigation.current = null;
                 returnFocus.current = null;
                 setNote("");
+                setNoteRevision(undefined);
                 setContacts(undefined);
                 setContactRevision(undefined);
                 returnDraft.discard();

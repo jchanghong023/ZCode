@@ -4,6 +4,7 @@ import type {
   AIReqSystemRequirement,
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
+import { srProgress, srProgressStatus } from "@zcode/services/aireq";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config } from "./config.js";
 import { useFormalPreparations } from "./preparations.js";
@@ -57,25 +58,14 @@ async function formalCase(
   }
 }
 function acceptancePrerequisite(sr: AIReqSystemRequirement) {
-  if (
-    !sr.codeMerge?.commit ||
-    !sr.trackingBranch?.name ||
-    ["failed", "deleted"].includes(sr.trackingBranch.status ?? "") ||
-    (sr.testAcceptance?.outcome === "passed" &&
-      sr.testAcceptance.codeVersion === sr.codeMerge.commit) ||
-    sr.developmentIssues?.some((issue) => issue.status === "open")
-  ) {
-    throw new Error(
-      "[ST_BLOCKED] acceptance requires an available registered branch, current merged code, no open issue and no completed acceptance for that version",
-    );
-  }
+  if (!sr.codeMerge?.commit || sr.testAcceptance)
+    throw new Error("[ST_BLOCKED] acceptance requires an unaccepted first code merge");
   return sr.codeMerge.commit;
 }
 function preservedFacts(sr: AIReqSystemRequirement) {
   return {
     acceptance: sr.testAcceptance,
-    acceptanceHistory: sr.acceptanceHistory,
-    issues: sr.developmentIssues,
+    merge: sr.codeMerge,
     branch: sr.trackingBranch,
     plan: sr.planning,
     developer: sr.developerEmployeeId,
@@ -86,61 +76,6 @@ function preservedFacts(sr: AIReqSystemRequirement) {
 // tracking.md: planning is an atomic versioned edit; assignment is not exclusive authorization.
 describe("formal SR contracts over the public backend", () => {
   preparations = useFormalPreparations();
-  preparations.test(
-    "accepting the configured repair version resolves awaiting-retest issues and retains history",
-    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalRetest", stPriority: 0 } },
-    async ({ task }) => {
-      await formalCase(task.id, async (c, ref, initial) => {
-        const before = srIn(initial, ref),
-          version = acceptancePrerequisite(before);
-        const issues =
-          before.developmentIssues?.filter((issue) => issue.status === "awaiting-retest") ?? [];
-        if (
-          !issues.length ||
-          issues.some(
-            (issue) => issue.fixCodeVersion !== version || issue.failedCodeVersion === version,
-          )
-        )
-          throw new Error(
-            "[ST_BLOCKED] formalRetest requires unresolved issues bound to a new merged repair version",
-          );
-        await c.call(
-          "progress.recordTest",
-          [
-            ref.projectId,
-            ref.irId,
-            before.id,
-            {
-              operationId: unique("retest-pass"),
-              expectedRevision: initial.revision,
-              expectedCodeVersion: version,
-              outcome: "passed",
-              reason: "ST repair regression evidence",
-            },
-          ],
-          selection(ref),
-        );
-        const accepted = srIn((await c.read(selection(ref))).view, ref);
-        // A prior AI report is not an acceptance precondition; optional report projections must agree when supplied.
-        if (accepted.progress) expect(accepted.progress.percent).toBe(100);
-        for (const issue of issues)
-          expect(accepted.developmentIssues).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                id: issue.id,
-                status: "resolved",
-                failedCodeVersion: issue.failedCodeVersion,
-                fixCodeVersion: version,
-              }),
-            ]),
-          );
-        expect(accepted.acceptanceHistory).toEqual(
-          expect.arrayContaining(before.acceptanceHistory ?? []),
-        );
-      });
-    },
-  );
-
   preparations.test(
     "cleans only registered branches of a completed IR while preserving evidence and idempotent receipts",
     { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalCleanup", stPriority: 1 } },
@@ -169,7 +104,6 @@ describe("formal SR contracts over the public backend", () => {
           id: sr.id,
           progress: sr.progress,
           acceptance: sr.testAcceptance,
-          history: sr.acceptanceHistory,
         }));
         const preview = await c.call(
           "progress.cleanupPreview",
@@ -215,7 +149,6 @@ describe("formal SR contracts over the public backend", () => {
               id: sr.id,
               progress: sr.progress,
               acceptance: sr.testAcceptance,
-              history: sr.acceptanceHistory,
             })),
         ).toEqual(evidence);
         expect(
@@ -239,62 +172,124 @@ describe("formal SR contracts over the public backend", () => {
   );
 
   preparations.test(
-    "binds a passing acceptance to the current merged version and keeps its receipt idempotent",
+    "keeps first-merge acceptance pending at 99% without analysis, then records evidence once and removes the todo",
     { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalAcceptance", stPriority: 2 } },
     async ({ task }) => {
       await formalCase(task.id, async (c, ref, initial) => {
         const before = srIn(initial, ref),
           version = acceptancePrerequisite(before);
-        const operationId = unique("acceptance"),
-          reason = "ST: acceptance evidence for the configured current code version";
+        const selected = selection(ref);
+        const releaseId = initial.groups.find(
+          (group) => group.projectId === ref.projectId && group.id === ref.irId,
+        )!.releaseId;
+        const testingTodos = (view: AIReqWorkflowView) =>
+          (view.todos ?? []).filter(
+            (todo) =>
+              todo.kind === "testing" &&
+              todo.projectId === ref.projectId &&
+              todo.releaseId === releaseId &&
+              todo.irId === ref.irId &&
+              todo.srId === before.id,
+          );
+        const filter = { projectId: ref.projectId, releaseId, irId: ref.irId, srId: before.id };
+        const successfulRuns = await c.call("progressScheduler.queryRuns", [
+          { ...filter, status: "succeeded" },
+          1,
+          25,
+        ]);
+        expect(successfulRuns.total).toBe(0);
+        expect(srProgressStatus(before)).toBe("待验收");
+        expect(srProgress(before)).toBe(99);
+        const todos = testingTodos(initial);
+        expect(todos).toHaveLength(1);
+        expect(todos[0]!.employeeId).toBe(before.testingEmployeeId);
+        const pending = (await c.read(selected)).view;
+        expect(srProgress(srIn(pending, ref))).toBe(99);
+        expect(testingTodos(pending)).toEqual(todos);
+        const operationId = unique("acceptance");
+        const reason = "ST: acceptance evidence for the first merged code version";
         const input = {
           operationId,
-          expectedRevision: initial.revision,
+          expectedRevision: pending.revision,
           expectedCodeVersion: version,
-          outcome: "passed" as const,
           reason,
         };
-        await c.call(
-          "progress.recordTest",
-          [ref.projectId, ref.irId, before.id, input],
-          selection(ref),
-        );
-        const accepted = srIn((await c.read(selection(ref))).view, ref);
+        await c.call("progress.recordTest", [ref.projectId, ref.irId, before.id, input], selected);
+        const acceptedView = (await c.read(selected)).view;
+        const accepted = srIn(acceptedView, ref);
         expect(accepted.testAcceptance).toMatchObject({
           operationId,
-          outcome: "passed",
           employeeId: c.identity.employeeId,
           codeVersion: version,
           reason,
         });
         expect(accepted.status).toBe("completed");
-        // A prior AI report is not an acceptance precondition; optional report projections must agree when supplied.
-        if (accepted.progress) expect(accepted.progress.percent).toBe(100);
-        expect(accepted.acceptanceHistory).toHaveLength(
-          (before.acceptanceHistory?.length ?? 0) + 1,
-        );
-        await c.call(
-          "progress.recordTest",
-          [ref.projectId, ref.irId, before.id, input],
-          selection(ref),
-        );
-        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-          preservedFacts(accepted),
-        );
+        expect(srProgressStatus(accepted)).toBe("已完成");
+        expect(Number.isFinite(Date.parse(accepted.testAcceptance!.at))).toBe(true);
+        expect(accepted.codeMerge).toEqual(before.codeMerge);
+        expect(accepted.trackingBranch).toEqual(before.trackingBranch);
+        expect(srProgress(accepted)).toBe(100);
+        expect(testingTodos(acceptedView)).toEqual([]);
+        await c.call("progress.recordTest", [ref.projectId, ref.irId, before.id, input], selected);
+        const replayedView = (await c.read(selected)).view;
+        await expect(
+          c.call(
+            "progress.recordTest",
+            [
+              ref.projectId,
+              ref.irId,
+              before.id,
+              {
+                ...input,
+                operationId: unique("duplicate-acceptance"),
+                expectedRevision: replayedView.revision,
+              },
+            ],
+            selected,
+          ),
+        ).rejects.toThrow();
+        const replayed = (await c.read(selected)).view;
+        expect(preservedFacts(srIn(replayed, ref))).toEqual(preservedFacts(accepted));
+        expect(testingTodos(replayed)).toEqual([]);
       });
     },
   );
 
   preparations.test(
-    "rejects stale code versions and empty evidence without changing acceptance or issue history",
-    { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalAcceptance", stPriority: 2 } },
+    "rejects stale revisions, mismatched merge versions and empty evidence without changing acceptance",
+    {
+      timeout: config.timeoutMs,
+      meta: { stFormalPurpose: "formalAcceptanceValidation", stPriority: 2 },
+    },
     async ({ task }) => {
       await formalCase(task.id, async (c, ref, initial) => {
         const before = srIn(initial, ref),
           version = acceptancePrerequisite(before);
+        const selected = selection(ref);
+        await c.call(
+          "planning.updateSr",
+          [
+            ref.projectId,
+            ref.irId,
+            before.id,
+            {
+              operationId: unique("assign-tester"),
+              expectedRevision: initial.revision,
+              testingEmployeeId:
+                before.testingEmployeeId === c.identity.employeeId ? "" : c.identity.employeeId,
+            },
+          ],
+          selected,
+        );
+        const pending = srIn((await c.read(selected)).view, ref);
         for (const patch of [
           { expectedCodeVersion: unique("wrong-code"), reason: "ST valid evidence" },
           { expectedCodeVersion: version, reason: " \n " },
+          {
+            expectedRevision: initial.revision,
+            expectedCodeVersion: version,
+            reason: "ST valid evidence",
+          },
         ]) {
           const latest = (await c.read(selection(ref))).view;
           await expect(
@@ -307,7 +302,6 @@ describe("formal SR contracts over the public backend", () => {
                 {
                   operationId: unique("invalid-acceptance"),
                   expectedRevision: latest.revision,
-                  outcome: "passed",
                   ...patch,
                 },
               ],
@@ -315,81 +309,9 @@ describe("formal SR contracts over the public backend", () => {
             ),
           ).rejects.toThrow();
           expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-            preservedFacts(before),
+            preservedFacts(pending),
           );
         }
-      });
-    },
-  );
-
-  preparations.test(
-    "a failed acceptance records a development issue and cannot be immediately changed to passed",
-    {
-      timeout: config.timeoutMs,
-      meta: { stFormalPurpose: "formalAcceptanceFailure", stPriority: 3 },
-    },
-    async ({ task }) => {
-      await formalCase(task.id, async (c, ref, initial) => {
-        const before = srIn(initial, ref),
-          version = acceptancePrerequisite(before),
-          reason = unique("ST-observed-failure");
-        await c.call(
-          "progress.recordTest",
-          [
-            ref.projectId,
-            ref.irId,
-            before.id,
-            {
-              operationId: unique("failed-acceptance"),
-              expectedRevision: initial.revision,
-              expectedCodeVersion: version,
-              outcome: "failed",
-              reason,
-            },
-          ],
-          selection(ref),
-        );
-        const failedView = (await c.read(selection(ref))).view,
-          failed = srIn(failedView, ref);
-        if (failed.progress) expect(failed.progress.percent).toBe(99);
-        expect(failed.testAcceptance).toMatchObject({
-          outcome: "failed",
-          codeVersion: version,
-          reason,
-          employeeId: c.identity.employeeId,
-        });
-        expect(failed.developmentIssues).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              detail: reason,
-              failedCodeVersion: version,
-              status: "open",
-              reportedBy: c.identity.employeeId,
-            }),
-          ]),
-        );
-        expect(failed.acceptanceHistory).toHaveLength((before.acceptanceHistory?.length ?? 0) + 1);
-        await expect(
-          c.call(
-            "progress.recordTest",
-            [
-              ref.projectId,
-              ref.irId,
-              before.id,
-              {
-                operationId: unique("premature-pass"),
-                expectedRevision: failedView.revision,
-                expectedCodeVersion: version,
-                outcome: "passed",
-                reason: "Cannot bypass the missing repair merge",
-              },
-            ],
-            selection(ref),
-          ),
-        ).rejects.toThrow();
-        expect(preservedFacts(srIn((await c.read(selection(ref))).view, ref))).toEqual(
-          preservedFacts(failed),
-        );
       });
     },
   );
@@ -587,7 +509,7 @@ describe("formal SR contracts over the public backend", () => {
   );
 
   preparations.test(
-    "retries a failed SR branch from the formal documentation merge base",
+    "retries only the failed SR branch from the formal documentation merge base",
     { timeout: config.timeoutMs, meta: { stFormalPurpose: "formalBranchFailure", stPriority: 6 } },
     async ({ task }) => {
       await formalCase(task.id, async (c, ref, initial) => {
@@ -599,20 +521,36 @@ describe("formal SR contracts over the public backend", () => {
           throw new Error(
             "[ST_BLOCKED] formalBranchFailure requires a failed registered branch and a formal documentation merge fact",
           );
+        const siblings = (view: AIReqWorkflowView) =>
+          view.srs
+            .filter(
+              (item) =>
+                item.projectId === ref.projectId && item.irId === ref.irId && item.id !== sr.id,
+            )
+            .map((item) => ({ id: item.id, branch: item.trackingBranch }));
+        const beforeSiblings = siblings(initial);
+        if (!beforeSiblings.some(({ branch }) => branch?.status === "ready"))
+          throw new Error("[ST_BLOCKED] formalBranchFailure requires a usable sibling branch");
         const result = await c.command({ type: "retrySrBranch", srId: sr.id }, selection(ref));
         expect(result.status).not.toBe("failed");
         const restored = await waitUntil(
           "formal branch retry reaches a usable registered branch",
-          async () => srIn((await c.read(selection(ref))).view, ref),
-          (current) => current.trackingBranch?.status === "ready",
+          async () => (await c.read(selection(ref))).view,
+          (view) => srIn(view, ref).trackingBranch?.status === "ready",
         );
-        expect(restored.trackingBranch).toMatchObject({
+        const restoredBranch = srIn(restored, ref).trackingBranch;
+        expect(restoredBranch).toMatchObject({
           status: "ready",
           baseCommit: group.merge.commit,
           name: sr.trackingBranch.name,
         });
-        expect(restored.trackingBranch?.error).toBeUndefined();
-        expect(restored.acceptanceHistory).toEqual(sr.acceptanceHistory);
+        expect(restoredBranch?.error).toBeUndefined();
+        expect(siblings(restored)).toEqual(beforeSiblings);
+        expect(
+          restored.groups
+            .filter((item) => item.projectId === ref.projectId && item.id === ref.irId)
+            .map((item) => item.srIds),
+        ).toEqual([group.srIds]);
       });
     },
   );
