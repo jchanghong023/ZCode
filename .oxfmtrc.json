@@ -4,8 +4,6 @@
     ".tmp-*/vite-cache/**",
     "THIRD-PARTY-NOTICES.md",
     "third-party/inventory.json",
-    "third-party/upstream/**",
-    "third-party/native-search/licenses/**",
-    "third-party/runtime/*.txt"
+    "third-party/upstream/**"
   ]
 }

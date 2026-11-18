@@ -130,10 +130,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       "````text\n" + record.bytes.toString("utf8") + "\n````",
     );
   }
-  sections.push(
-    "## Retained historical materials",
-    "`third-party/runtime/`, `third-party/native-search/` and the remaining `third-party/upstream/` snapshots are retained as provenance for retired Desktop, CLI and native-search packaging. They are not inputs to the current Web distribution and are not listed as current components; do not copy them into a Web release.",
-  );
   const bytes = Buffer.from(`${sections.join("\n\n")}\n`);
   const inventory = {
     schemaVersion: 1,

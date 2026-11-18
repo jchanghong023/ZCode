@@ -1,17 +1,20 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 import { getPathLeaf, isAbsoluteFilePath } from "@/lib/path.js";
-import {
-  DEFAULT_FILE_ICON_NAME,
-  normalizePath,
-  trimTrailingSeparator,
-  resolveIconName,
-} from "@/lib/fileDisplayHelpers.js";
+import { normalizePath, trimTrailingSeparator, resolveIconName } from "@/lib/fileDisplayHelpers.js";
 
-export const INLINE_FALLBACK_FILE_ICON_SRC =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="M4.5 1.5h4.586L12.5 4.914V13a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 3.5 13V3A1.5 1.5 0 0 1 5 1.5Z" stroke="%2394A3B8" stroke-width="1.2" stroke-linejoin="round"/><path d="M9 1.75V5h3.25" stroke="%2394A3B8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  );
+function fileIconUrl(path: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8493a7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const fileIcons = {
+  document: fileIconUrl("M6 3h8l4 4v14H6z M14 3v5h4 M9 13h6 M9 17h5"),
+  folder: fileIconUrl("M3 6h7l2 3h9v11H3z"),
+  image: fileIconUrl("M3 4h18v16H3z M4 18l6-7 4 5 3-3 4 5 M16 8h.01"),
+  code: fileIconUrl("M8 7l-5 5 5 5 M16 7l5 5-5 5 M14 4l-4 16"),
+};
+
+export const FOLDER_FILE_ICON_SRC = fileIcons.folder;
 let defaultFileDisplayBasePath: string | null = null;
 
 export interface FileDisplayDescriptor {
@@ -35,45 +38,6 @@ export interface FileDisplayOptions {
 
 export function setDefaultFileDisplayBasePath(basePath: string | null) {
   defaultFileDisplayBasePath = basePath;
-}
-
-function resolveMaterialIconBasePath(): string {
-  const baseUrl =
-    typeof import.meta !== "undefined" && typeof import.meta.env?.BASE_URL === "string"
-      ? import.meta.env.BASE_URL
-      : "/";
-
-  // web 端 public 资源挂在根路径下，desktop 端则使用 file:// + base="./"。
-  // 之前把图标路径写死成 /material-icons，Electron 会把它解析到磁盘根目录，导致 file icon 全部 404。
-  // 这里统一基于运行时 base URL 生成资源路径，让 desktop/web 都命中各自的 public/material-icons。
-  return `${baseUrl.replace(/\/?$/, "/")}material-icons`;
-}
-
-export function buildMaterialFileIconSrc(iconName: string): string {
-  return `${resolveMaterialIconBasePath()}/${iconName}.svg`;
-}
-
-function buildIconSrc(iconName: string): string {
-  return buildMaterialFileIconSrc(iconName);
-}
-
-export const FOLDER_FILE_ICON_SRC = buildMaterialFileIconSrc("folder");
-export const DOCUMENT_FILE_ICON_SRC = buildMaterialFileIconSrc(DEFAULT_FILE_ICON_NAME);
-
-function resolveFallbackFileIconSrc(currentSrc: string): string | null {
-  const defaultIconSrc = DOCUMENT_FILE_ICON_SRC;
-  if (currentSrc === INLINE_FALLBACK_FILE_ICON_SRC) {
-    return null;
-  }
-
-  if (currentSrc === defaultIconSrc || currentSrc.endsWith("/document.svg")) {
-    // 之前图标缺失最多只会回退到 document.svg。
-    // 如果默认素材本身也不存在，界面上仍会出现破图。这里补第二层兜底，
-    // 退回内置 data URL 图标，保证不同运行环境都至少有稳定占位。
-    return INLINE_FALLBACK_FILE_ICON_SRC;
-  }
-
-  return defaultIconSrc;
 }
 
 function stripBasePath(path: string, basePath?: string): string {
@@ -124,7 +88,7 @@ export function resolveFileDisplayDescriptor(
 
   return {
     fileIcon,
-    fileIconSrc: buildIconSrc(fileIcon),
+    fileIconSrc: fileIcons[fileIcon],
     fileName,
     filePath: resolvedFilePath,
     normalizedPath,
@@ -151,13 +115,6 @@ export function createFileDisplayDom(
     icon.height = options.iconSize ?? 14;
     icon.className = "shrink-0";
     icon.setAttribute("aria-hidden", "true");
-    icon.addEventListener("error", () => {
-      const fallbackSrc = resolveFallbackFileIconSrc(icon.src);
-      if (!fallbackSrc) {
-        return;
-      }
-      icon.src = fallbackSrc;
-    });
     container.append(icon);
   }
 
@@ -188,32 +145,16 @@ export function FileDisplayInline({
     basePath: options?.basePath,
     kind: options?.kind,
   });
-  const [fileIconSrc, setFileIconSrc] = useState(descriptor.fileIconSrc);
-
-  useEffect(() => {
-    // mention panel 会复用同一批列表项组件，之前这里只在首次渲染时初始化图标 src，
-    // 过滤条件或可视区变化后 path 变了但 state 没重置，就会把上一行的图标串到下一行。
-    // 这里在解析结果变化时同步重置，确保图标始终跟当前文件扩展名对应。
-    setFileIconSrc(descriptor.fileIconSrc);
-  }, [descriptor.fileIconSrc]);
-
   return (
     <span className={options?.className ?? "inline-flex max-w-full items-center gap-1 "}>
       {options?.showIcon !== false ? (
         <img
-          src={fileIconSrc}
+          src={descriptor.fileIconSrc}
           alt=""
           width={options?.iconSize ?? 16}
           height={options?.iconSize ?? 16}
           className="shrink-0"
           aria-hidden="true"
-          onError={() => {
-            const fallbackSrc = resolveFallbackFileIconSrc(fileIconSrc);
-            if (!fallbackSrc) {
-              return;
-            }
-            setFileIconSrc(fallbackSrc);
-          }}
         />
       ) : null}
       <span
@@ -243,30 +184,8 @@ export function FileDisplayIcon({
   size?: number;
   className?: string;
 }): ReactElement {
-  const [fileIconSrc, setFileIconSrc] = useState(src);
-
-  useEffect(() => {
-    // toolcall 列表项会复用同一套文件图标节点。
-    // 如果这里只在首次渲染时保留旧 src，切到下一条文件记录后会把上一条 fallback 状态串过来。
-    setFileIconSrc(src);
-  }, [src]);
-
   return (
-    <img
-      src={fileIconSrc}
-      alt=""
-      width={size}
-      height={size}
-      className={className}
-      aria-hidden="true"
-      onError={() => {
-        const fallbackSrc = resolveFallbackFileIconSrc(fileIconSrc);
-        if (!fallbackSrc) {
-          return;
-        }
-        setFileIconSrc(fallbackSrc);
-      }}
-    />
+    <img src={src} alt="" width={size} height={size} className={className} aria-hidden="true" />
   );
 }
 

@@ -2,6 +2,8 @@
 
 当前产品是固定中文的纯 Web 应用：`packages/web` 提供界面，`packages/server` 提供本地 HTTP 服务，业务数据来自内存 mock。发行物只有 Web 部署目录，根目录的 [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) 随部署根目录发布，构建后的 HTML 带 `rel="license"` 链接。
 
+Web 部署根目录的声明同时覆盖随部署提供的服务端。
+
 Desktop、CLI、独立 Server 发行包/SEA 和原生搜索工具已退役，当前仓库没有对应构建入口，其许可材料不再作为当前发行输入。
 
 ## 生成与新鲜度校验
@@ -45,22 +47,12 @@ bun scripts/licenses.mjs check
 
 ## 复制内容与改编声明
 
-当前登记 shadcn/ui、AI Elements 组件、VS Code IPC/基础工具、Superpowers 技能描述与 Material Icon Theme。范围、许可和改编说明见 [SPEC.md](SPEC.md#复制源码技能与素材)。
+当前登记 shadcn/ui、AI Elements 组件、VS Code IPC/基础工具与 Superpowers 技能描述。范围、来源和修改记录见 [copied-components.json](copied-components.json)。
 
 - Apache-2.0 复制内容中已确认源自上游并经过改编的文件，必须同时保留集中声明和文件内 `Modified by ZCode:` 声明；生成器会校验该标记。
 - shadcn 样式继续由 npm 原入口引入，不另复制 CSS。`shadcn@4.1.1` 的 MIT 原文与现有 shadcn 许可快照一致；版本由 UI manifest 和锁文件约束，不把整棵 CLI 依赖算作生产分发。
 - 未确认源自上游的自有文件不追加上游归属。
 - 最初引入 commit 未记录时保留 `importRevision: null`；固定的许可参考提交不冒充最初复制版本。
-
-## 已退役材料的保留
-
-`third-party/runtime/`、`third-party/native-search/` 与未被当前登记引用的 `third-party/upstream/` 快照仍保留原始许可文本和来源记录，用于历史法律归属核查。它们不是当前 Web 发行输入：
-
-- 不进入生成器的输入哈希、声明正文或 `inventory.json` 的当前组件列表；
-- 不复制到 Web 部署目录；
-- 不得因为“未使用”就删除这些合法材料，也不得反过来把历史归属声称为当前依赖。
-
-已退役的登记项包括 Fig autocomplete 注册表、CLI design-plugin 资源与模板、Knip 文档镜像及字体、Desktop Material Icons、dogfood 技能和 Superpowers CLI 插件目录；对应本地路径已随工作区删除。原 `embedded-components.json` 的 Skia、QuickJS-NG 记录也随 `@napi-rs/canvas`、`quickjs-wasi` 离开依赖图而移除；当前 Web 生产图没有内嵌原生/WASM 组件。
 
 ## 文件与哈希约定
 
@@ -69,19 +61,19 @@ bun scripts/licenses.mjs check
 - 相同原文按 SHA-256 去重，声明中同一段文本只出现一次，并列出所有适用组件。
 - 包元数据中的许可标识只作描述，不替代原始条款；不从 npm `author` 字段推断版权人。
 - 未取得完整许可的复制组件，其原始声明快照与 SHA-256 登记在 `copied-components.json` 的 `reviewEvidence`，只作追溯，不作为许可全文或声明正文输出。
-- `upstream/`、`native-search/licenses/` 与 `runtime/` 是原始快照，不要运行格式化工具改写。
+- `upstream/` 保存当前声明及核验所需的原始快照，不要运行格式化工具改写。
 
 ## 尚待核验的材料边界
 
 材料缺口保留在 `npm-overrides.json` 的 `reviewEvidence` 与声明的来源局限中，仅供追溯，不作为自动门禁。当前已知类型：
 
 - `react-remove-scroll-bar@2.3.8`：npm 归档 27 个文件无许可文件；npm 记录的 gitHead `b3b1287aad81def2e2ae707274b74531b61ddbaf` 已不可达，仓库也没有 2.3.8 对应的 ref。上游 2025-05-21 才在 commit `7301c160fda44cb8cf2b9fdfde61efad35736196` 加入 MIT LICENSE（Copyright (c) 2025 Anton Korzunov），晚于 2024-12-15 的发布，只能作为证据保留，不能作为该版本的许可原文。
-- `@hono/node-ws@1.3.0` 已随后端迁移 Bun 移出依赖图，不再属于当前声明输入；此前缺少版本对应许可的核验快照仅保留作历史证据，不表示许可缺口已补齐。
 - `ansi-to-react@6.2.6`：npm 归档 4 个文件无许可文件；tag `v6.2.6` 对应的 `145140971e9d83ccac32265f24b1c55dea437896` 树无许可文件，全部历史也没有 LICENSE/COPYING/NOTICE 或版权行，README 只有 BSD-3-Clause 标识链接，无法取得完整原文。
 - `boolbase@1.0.0`：发布包和 `9837d5bf4f30390ac6384a6bc605ca2d69ade4bf` 源码树均无完整许可文件，只有 `package.json` 的 ISC 标识；没有版权行，不能从 author 字段推断版权人。
 - `remark-github-blockquote-alert@1.3.1`：发布包和 npm gitHead `bb71a22d33ff6118d91531ac118bac8445625530` 的源码树无完整许可文件；README 只有 `MIT © Kenny Wong`，未提供完整 MIT 授权条款。
-- 后补的 `react-remove-scroll-bar` 与 `@hono/node-ws` LICENSE 原文以固定 commit 和 SHA-256 保存在 `third-party/upstream/`，只作版本不匹配的核验证据，不进入声明正文，也不表示版本对应材料已补齐。
 
 这些记录不阻断声明生成与校验；已有归属、原文和证据仍须保留，不能把检查通过表述为材料缺口已关闭。
 
-具体规则、交付入口与验收命令见 [SPEC.md](SPEC.md)。
+## Web 交付验证
+
+运行 `bun run build:web`。核对 `packages/web/dist/THIRD-PARTY-NOTICES.md` 与根声明字节一致，并确认构建后的 `index.html` 通过 `rel="license"` 引用声明。

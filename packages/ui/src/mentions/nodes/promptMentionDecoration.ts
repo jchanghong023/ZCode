@@ -1,9 +1,4 @@
-import {
-  DOCUMENT_FILE_ICON_SRC,
-  FOLDER_FILE_ICON_SRC,
-  INLINE_FALLBACK_FILE_ICON_SRC,
-  resolveFileDisplayDescriptor,
-} from "@/lib/fileDisplay.js";
+import { resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import type { MentionCategory, MentionItemData } from "@/mentions/mentionTypes.js";
 import {
   COMMAND_MENTION_ICON_NODE,
@@ -17,8 +12,6 @@ import {
   WORKFLOW_COMMAND_MENTION_ICON_NODE,
   type MentionLucideIconNode,
 } from "@/mentions/nodes/mentionIconDom.js";
-
-const pendingImages = new WeakMap<HTMLElement, HTMLImageElement>();
 
 function cssUrl(url: string): string {
   // CSS 中相对 URL 会按样式表路径解析；统一按文档 baseURI 解析，和原 img.src 一致。
@@ -36,40 +29,19 @@ function setMask(dom: HTMLElement, icon: MentionLucideIconNode) {
   dom.style.setProperty("--mention-icon-color", "currentColor");
 }
 
-function setImage(dom: HTMLElement, url: string, fallback: () => void) {
-  dom.style.removeProperty("--mention-mask");
-  dom.style.removeProperty("--mention-icon-color");
-  dom.style.setProperty("--mention-image", cssUrl(url));
-  const image = new Image();
-  pendingImages.set(dom, image);
-  // 根因：图标 error 回调过去 replaceChildren，可能在用户选区建立后销毁文字节点。
-  // 图标只更新装饰变量，且旧请求的回调不得覆盖新节点状态。
-  image.onerror = () => {
-    if (pendingImages.get(dom) !== image) return;
-    pendingImages.delete(dom);
-    fallback();
-  };
-  image.onload = () => {
-    if (pendingImages.get(dom) === image) pendingImages.delete(dom);
-  };
-  image.src = url;
-}
-
 export function decoratePromptMention(
   dom: HTMLElement,
   category: MentionCategory,
   value: string,
   data?: MentionItemData,
 ) {
-  pendingImages.delete(dom);
   if (category === "files") {
-    const descriptor = resolveFileDisplayDescriptor(data?.path ?? data?.relativePath ?? value);
-    const url = data?.kind === "directory" ? FOLDER_FILE_ICON_SRC : descriptor.fileIconSrc;
-    setImage(dom, url, () =>
-      setImage(dom, DOCUMENT_FILE_ICON_SRC, () => {
-        dom.style.setProperty("--mention-image", cssUrl(INLINE_FALLBACK_FILE_ICON_SRC));
-      }),
-    );
+    const descriptor = resolveFileDisplayDescriptor(data?.path ?? data?.relativePath ?? value, {
+      kind: data?.kind === "directory" ? "directory" : "file",
+    });
+    dom.style.removeProperty("--mention-mask");
+    dom.style.removeProperty("--mention-icon-color");
+    dom.style.setProperty("--mention-image", cssUrl(descriptor.fileIconSrc));
     return;
   }
   const command = value.trim().replace(/^\/+/, "");

@@ -1010,8 +1010,6 @@ The original import revisions of copied components are not recorded in the curre
 
 - ai-elements (Apache-2.0): packages/ui/src/components/ai-elements. License reference: https://raw.githubusercontent.com/vercel/ai-elements/6a9d5b1822ffb10bba4bd97175f01edd7d8651cd/LICENSE. Original import revision: not recorded.
 
-- Material Icon Theme (MIT): packages/web/public/material-icons. License reference: https://raw.githubusercontent.com/material-extensions/vscode-material-icon-theme/cb1dfb6d9cb73b15681a93939983d75dbba7bf5b/LICENSE. Original import revision: not recorded.
-
 - Visual Studio Code IPC and common utilities (MIT): packages/rpc/src, packages/shared/src/zcode-protocol-v4/wire-codec.ts. License reference: https://raw.githubusercontent.com/microsoft/vscode/44825207bf4389c3bd17c92d3ec28cf784c324cc/LICENSE.txt. Original import revision: not recorded.
 
 - Superpowers skill description adaptations (MIT): packages/ui/src/lib/builtinSkillI18n.ts. License reference: https://raw.githubusercontent.com/obra/superpowers/f2cbfbefebbfef77321e4c9abc9e949826bea9d7/LICENSE. Original import revision: not recorded.
@@ -18892,24 +18890,6 @@ SOFTWARE.
 
 ````
 
-### Notice cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670
-
-- Material Icon Theme: https://raw.githubusercontent.com/material-extensions/vscode-material-icon-theme/cb1dfb6d9cb73b15681a93939983d75dbba7bf5b/LICENSE
-
-
-
-````text
-The MIT License (MIT)
-Copyright (c) 2025 Material Extensions
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-````
-
 ### Notice 9480271317925265e806a9a196aaa33410a962fa9d4d1e248a4a5187bc8c9df9
 
 - Visual Studio Code IPC and common utilities: https://raw.githubusercontent.com/microsoft/vscode/44825207bf4389c3bd17c92d3ec28cf784c324cc/LICENSE.txt
@@ -18971,7 +18951,3 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ````
-
-## Retained historical materials
-
-`third-party/runtime/`, `third-party/native-search/` and the remaining `third-party/upstream/` snapshots are retained as provenance for retired Desktop, CLI and native-search packaging. They are not inputs to the current Web distribution and are not listed as current components; do not copy them into a Web release.

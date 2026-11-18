@@ -61,16 +61,6 @@
     ]
   },
   {
-    "id": "Material Icon Theme",
-    "roots": ["packages/web/public/material-icons"],
-    "license": "MIT",
-    "source": "https://raw.githubusercontent.com/material-extensions/vscode-material-icon-theme/cb1dfb6d9cb73b15681a93939983d75dbba7bf5b/LICENSE",
-    "file": "third-party/upstream/cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670.txt",
-    "sha256": "cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670",
-    "referenceRevision": "cb1dfb6d9cb73b15681a93939983d75dbba7bf5b",
-    "importRevision": null
-  },
-  {
     "id": "Visual Studio Code IPC and common utilities",
     "referenceRevision": "44825207bf4389c3bd17c92d3ec28cf784c324cc",
     "source": "https://raw.githubusercontent.com/microsoft/vscode/44825207bf4389c3bd17c92d3ec28cf784c324cc/LICENSE.txt",
