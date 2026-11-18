@@ -13,11 +13,11 @@
     "lint:fix": "bun --bun run oxlint --fix"
   },
   "dependencies": {
-    "@zcode/provider": "workspace:*",
     "@zcode/rpc": "workspace:*",
     "@zcode/services": "workspace:*",
     "@zcode/shared": "workspace:*",
-    "hono": "^4.12.9"
+    "hono": "^4.12.9",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

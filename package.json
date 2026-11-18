@@ -16,7 +16,7 @@
     "lint:fix": "bun --bun run oxlint --fix --fix-suggestions",
     "fmt": "bun --bun run oxfmt",
     "fmt:check": "bun --bun run oxfmt --check",
-    "knip": "bun --bun run knip",
+    "knip": "bun ./node_modules/knip/bin/knip.js",
     "clean": "bun scripts/clean.mjs",
     "clean:deps": "bun scripts/clean.mjs --dependencies",
     "dep:refs": "bun scripts/dep-refs.mjs",
@@ -53,7 +53,6 @@
     },
     "patchedDependencies": {
       "@radix-ui/react-collapsible@1.1.12": "patches/@radix-ui__react-collapsible@1.1.12.patch",
-      "vitest@4.1.7": "patches/vitest@4.1.7.patch",
       "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch",
       "@uiw/react-markdown-preview@5.2.1": "patches/@uiw__react-markdown-preview@5.2.1.patch",
       "vite@8.0.8": "patches/vite@8.0.8.patch"
