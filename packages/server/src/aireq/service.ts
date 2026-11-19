@@ -72,6 +72,7 @@ const commands = [
   "retrySrBranch",
   "deleteRequirement",
   "acceptProposal",
+  "submitProposalReview",
   "runRequirementsReview",
   "returnProposal",
   "publishProposal",

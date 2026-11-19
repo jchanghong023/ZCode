@@ -13,6 +13,7 @@ import {
   proposalState,
   proposalPrCurrent,
   proposalReviewCanRetry,
+  proposalReviewSubmitBlocker,
   deriveAIReqTodos,
   fullReviewReadyBlocker,
   fullReviewCurrent,
@@ -533,6 +534,12 @@ export function applyPrototypeAction(
     !proposalReviewCanRetry(targetProposal!, action.type === "runFullReview")
   )
     throw businessRule("只有当前材料的评审执行失败或报告缺失时才能重试。");
+  if (action.type === "submitProposalReview") {
+    const issue = proposalReviewSubmitBlocker(targetProposal!, action.kind);
+    if (issue) throw businessRule(issue);
+    if (action.snapshotDigest !== targetProposal!.snapshot?.digest)
+      throw businessRule("材料版本已变化，请重新阅读后再提交评审。");
+  }
   if (action.type === "acceptProposal") {
     const issue = requirementsReviewReadyBlocker(targetProposal!);
     if (issue) throw businessRule(issue);
@@ -543,7 +550,7 @@ export function applyPrototypeAction(
       throw businessRule("业务确认须绑定当前需求评审及业务文档版本。");
   }
   if (action.type === "generateRequirements" || action.type === "supplementRequirements") {
-    if (!inRequirements || !action.note.trim())
+    if (!inRequirements || requirementsReviewCurrent(targetProposal!) || !action.note.trim())
       throw businessRule("请在业务澄清阶段提交明确内容。");
   }
   if (action.type === "generateProposalSolution") {

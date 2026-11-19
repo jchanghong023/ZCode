@@ -105,6 +105,11 @@ const actionSchema = z.union([
   }),
   action("deleteRequirement", { version: z.literal(1), projectId: id, irId: id }),
   action("acceptProposal", { reviewId: id, snapshotDigest: id }),
+  action("submitProposalReview", {
+    ...target.shape,
+    kind: z.enum(["original", "full"]),
+    snapshotDigest: id,
+  }),
   action("runRequirementsReview"),
   action("returnProposal", { reason: text }),
   action("publishProposal", { candidate: id }),

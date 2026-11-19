@@ -121,9 +121,9 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、schedul
 
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
 - 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
-- 流程：runRequirementsReview、acceptProposal、returnProposal、runFullReview、confirmAlignment、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
+- 流程：submitProposalReview、runRequirementsReview、acceptProposal、returnProposal、runFullReview、confirmAlignment、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
 
-动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。材料校验通过后自动接纳当前版本的评审，runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
+动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
 
 交付投影保留已创建分支、推送及 PR 事实；`proposalDelivery.publishError` 区分 `branch`、`push`、`pr` 三种失败步骤。再次发布同一候选复用已完成的步骤。进入页面或读取候选不提交文档。
 

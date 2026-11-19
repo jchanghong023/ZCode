@@ -143,7 +143,9 @@ export function AIReqProposalTaskActions({
             <Button
               aria-haspopup="dialog"
               variant={approveReady ? "default" : "outline"}
-              disabled={Boolean(approveBlocker || !currentStage || !source.capabilities.proposalDiscussion)}
+              disabled={Boolean(
+                approveBlocker || !currentStage || !source.capabilities.proposalDiscussion,
+              )}
               aria-disabled={Boolean(unavailable || approveBlocker)}
               className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
               aria-describedby={hint ? hintId : undefined}
@@ -287,7 +289,7 @@ export function AIReqProposalTaskActions({
           <DialogHeader>
             <DialogTitle>退回业务补充</DialogTitle>
             <DialogDescription>
-              说明需要补充的内容。退回后旧评审与确认记录仅供追溯，补充材料并通过校验后将自动重新评审。取消会保留未提交内容。
+              说明需要补充的内容。退回后旧评审与确认记录仅供追溯，补充材料并通过校验后，请再次提交评审。取消会保留未提交内容。
             </DialogDescription>
           </DialogHeader>
           <label htmlFor={reasonId} className="text-ui-sm font-medium text-foreground">

@@ -30,9 +30,9 @@ const steps = [
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后自动评审，业务确认后开放方案设计。",
+      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求也可从“需求共创”新增或导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
     descriptionEn:
-      "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. A validated business document is reviewed automatically; business confirmation unlocks solution design.",
+      "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. Submit the validated business document for review; business confirmation unlocks solution design.",
   },
   {
     title: "从需求工作台进入任务",
@@ -51,12 +51,12 @@ const steps = [
       "Develop each SR's independent OpenSpec change: proposal, design, tasks, specs and a business-traceable test plan. The IR retains the business requirements and authoritative dependency JSON. Missing or invalid files are listed with their reasons. Historical materials are read-only in the materials pane. AIReq never executes development tasks, builds or tests.",
   },
   {
-    title: "自动审查与三方确认",
-    titleEn: "Automatic reviews and three role confirmations",
+    title: "提交审查与三方确认",
+    titleEn: "Review submission and three role confirmations",
     description:
-      "完整材料通过校验后自动启动三路审查，再由方案综审 Agent 汇总。只有执行失败或缺报告时才重试。当前报告齐备可读后，业务、开发和测试分别确认；是否采纳意见由确认人判断，同一工号可分别承担三方，已确认角色保留原记录。材料更新按受影响范围重新校验、评审和确认，旧报告与确认只读。",
+      "完整材料通过校验后，由用户提交并启动三路审查，再由方案综审 Agent 汇总。只有执行失败或缺报告时才重试。当前报告齐备可读后，业务、开发和测试分别确认；是否采纳意见由确认人判断，同一工号可分别承担三方，已确认角色保留原记录。材料更新后按受影响范围校验，由人重新提交评审并确认，旧报告与确认只读。",
     descriptionEn:
-      "Validated solution materials automatically start three independent reviews followed by synthesis. Retry only failed or missing reports. Once current reports are readable and complete, business, development and testing confirm separately. The confirmers decide whether to act on the findings. One employee can fill all roles; each role retains its first decision. Material changes invalidate only affected reviews and decisions, keeping history read-only.",
+      "Submitting validated solution materials starts three independent reviews followed by synthesis. Retry only failed or missing reports. Once current reports are readable and complete, business, development and testing confirm separately. The confirmers decide whether to act on the findings. One employee can fill all roles; each role retains its first decision. Material changes invalidate only affected reviews and decisions, keeping history read-only.",
   },
   {
     title: "一个 IR 一个文档 PR",

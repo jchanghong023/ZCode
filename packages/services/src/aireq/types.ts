@@ -601,6 +601,13 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
       }
     | { type: "deleteRequirement"; version: 1; projectId: string; irId: string }
     | { type: "acceptProposal"; reviewId: string; snapshotDigest: string }
+    | {
+        type: "submitProposalReview";
+        projectId: string;
+        irId: string;
+        kind: "original" | "full";
+        snapshotDigest: string;
+      }
     | { type: "runRequirementsReview" }
     | { type: "returnProposal"; reason: string }
     | { type: "publishProposal"; candidate: string }

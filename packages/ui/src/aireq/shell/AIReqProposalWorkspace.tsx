@@ -26,6 +26,7 @@ import {
 import { AIReqAgentModelSummary } from "../proposals/AIReqAgentModelSummary.js";
 import { AIReqProposalManagement } from "../proposals/AIReqProposalManagement.js";
 import { AIReqProposalFeedback } from "../proposals/AIReqProposalFeedback.js";
+import { AIReqProposalReviewSubmit } from "../proposals/AIReqProposalReviewSubmit.js";
 import {
   proposalNextTask,
   proposalTaskParent,
@@ -281,16 +282,10 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               )}
             </div>
             {!detail && !conversationReadOnly && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  ai.openProposalTask(
-                    task === "requirements" ? "requirementsReview" : "solutionReview",
-                  )
-                }
-              >
-                {task === "requirements" ? "前往需求评审" : "前往方案审查"}
-              </Button>
+              <AIReqProposalReviewSubmit
+                proposal={proposal}
+                kind={task === "requirements" ? "original" : "full"}
+              />
             )}
           </div>
           {!detail && !conversationReadOnly && (

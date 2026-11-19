@@ -176,7 +176,7 @@ export interface PrototypeReviewRun {
   scenario: Exclude<AIReqReviewScenario, "hold">;
 }
 
-/** Admit in the material transaction; duplicate notifications reuse the current round. */
+/** Admit only from an explicit submission or retry, against the current material version. */
 export function acceptPrototypeReview(
   state: AIReqWorkflowView,
   proposal: AIReqRequirementGroup,

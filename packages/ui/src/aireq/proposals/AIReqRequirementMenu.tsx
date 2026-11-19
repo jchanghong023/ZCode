@@ -26,6 +26,7 @@ const operationLabels: Record<string, string> = {
   generateRequirements: "整理需求",
   supplementRequirements: "补充需求",
   runRequirementsReview: "重试需求评审",
+  submitProposalReview: "提交评审",
   acceptProposal: "确认需求评审结果",
   generateProposalSolution: "方案 Agent 更新材料",
   returnProposal: "退回业务补充",

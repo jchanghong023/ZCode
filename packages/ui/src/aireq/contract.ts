@@ -99,6 +99,7 @@ export {
   fullReviewReadyBlocker,
   proposalAlignmentCurrent,
   proposalReviewCanRetry,
+  proposalReviewSubmitBlocker,
   alignmentBlocker,
 } from "@zcode/services/aireq";
 

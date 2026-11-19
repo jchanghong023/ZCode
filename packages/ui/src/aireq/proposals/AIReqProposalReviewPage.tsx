@@ -232,17 +232,15 @@ export function AIReqProposalReviewPage({
             <div className="space-y-2">
               <p className="text-ui-sm text-foreground-subtle">
                 {check
-                  ? "当前材料通过校验后由系统自动评审，无需手动启动。"
-                  : "先完善材料；校验通过后将自动评审。"}
+                  ? "当前材料尚未提交。请核对后发起评审。"
+                  : "先完善材料，校验通过后可提交评审。"}
               </p>
-              {!check && (
-                <Button
-                  variant="outline"
-                  onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
-                >
-                  {full ? "前往方案设计" : "前往需求澄清"}
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
+              >
+                {full ? "前往方案设计" : "前往需求澄清"}
+              </Button>
             </div>
           )
         )}

@@ -109,6 +109,22 @@ export async function completeBusinessMaterial(c: STClient, target: ProposalTarg
   );
 }
 
+export async function submitReview(c: STClient, target: ProposalTarget, kind: "original" | "full") {
+  const group = getProposal(await c.read(target.selection), target);
+  expect(group.snapshot?.digest).toBeTruthy();
+  return commandAndRead(
+    c,
+    {
+      type: "submitProposalReview",
+      projectId: target.projectId,
+      irId: target.irId,
+      kind,
+      snapshotDigest: group.snapshot!.digest,
+    },
+    target,
+  );
+}
+
 export async function waitForReview(
   c: STClient,
   target: ProposalTarget,
@@ -270,8 +286,10 @@ export async function prepareApprovedProposal(c: STClient) {
     "在当前项目及版本导出需求原文，特殊字符往返无损，空结果和读取失败有明确反馈。",
   );
   await completeBusinessMaterial(c, target);
+  await submitReview(c, target, "original");
   await approveOriginalReview(c, target);
   await completeSolutionMaterial(c, target);
+  await submitReview(c, target, "full");
   const { review } = await waitForReview(c, target, "full");
   return { ...target, ...(await confirmAllPerspectives(c, target, review)) };
 }

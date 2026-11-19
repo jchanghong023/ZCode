@@ -145,12 +145,16 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
     return group.requirementsCheck?.issues.length
       ? "校验失败"
       : requirementsReviewInputs(group)
-        ? "已整理"
+        ? requirementsReviewCurrent(group)
+          ? "已整理"
+          : "待提交评审"
         : "待整理";
   if (task === "solution") {
     if (group.solutionCheck?.issues.length) return "校验失败";
     return hasCurrentProposalSolution(group)
-      ? "已完成"
+      ? fullReviewCurrent(group)
+        ? "已完成"
+        : "待提交审查"
       : [
             "solution-incomplete",
             "solution-review-pending",
@@ -175,7 +179,7 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
   const current = original ? requirementsReviewCurrent(group) : fullReviewCurrent(group);
   if (!review || !current) {
     const ready = original ? requirementsReviewInputs(group) : hasCurrentProposalSolution(group);
-    return ready ? "等待自动评审" : "等待材料校验";
+    return ready ? (original ? "待提交评审" : "待提交审查") : "等待材料校验";
   }
   if (proposalReviewCanRetry(group, !original)) return "评审失败";
   const blocker = original ? requirementsReviewReadyBlocker(group) : fullReviewReadyBlocker(group);
@@ -194,24 +198,26 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
   const state = proposalState(group);
   const returned = group.returnFeedback && !group.returnFeedback.resumedAt;
   const messages = {
-    "not-started": {
-      role: "业务",
-      description: "先与业务 Agent 明确目标、范围和验收标准，形成需求文档。",
-      action: "开始需求澄清",
-    },
-    "ir-review-pending": returned
+    "not-started": returned
       ? {
           role: "业务",
-          description: "需求已退回。先在需求澄清中补充意见，再重新评审。",
+          description: "需求已退回。先在需求澄清中补充意见，再提交评审。",
           action: "处理退回意见",
         }
       : {
           role: "业务",
-          description: proposalReviewCanRetry(group, false)
-            ? "本轮需求评审失败，请查看原因并重试。"
-            : "材料校验通过后自动评审，可查看当前运行状态。",
-          action: "查看需求评审",
+          description: requirementsReviewInputs(group)
+            ? "需求文档已通过校验，请核对后提交评审。"
+            : "先与业务 Agent 明确目标、范围和验收标准，形成需求文档。",
+          action: requirementsReviewInputs(group) ? "前往提交需求评审" : "开始需求澄清",
         },
+    "ir-review-pending": {
+      role: "业务",
+      description: proposalReviewCanRetry(group, false)
+        ? "本轮需求评审失败，请查看原因并重试。"
+        : "当前需求已提交评审，可查看运行状态。",
+      action: "查看需求评审",
+    },
     "ir-confirmation-pending": {
       role: "人工确认",
       description: "业务评审已完成，请阅读意见并确认当前版本的需求。",
@@ -219,14 +225,16 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
     },
     "solution-incomplete": {
       role: "方案开发",
-      description: "业务需求已确认，继续完善技术方案、开发任务和测试材料。",
-      action: "继续完善方案",
+      description: hasCurrentProposalSolution(group)
+        ? "方案材料已通过校验，请核对后提交审查。"
+        : "业务需求已确认，继续完善技术方案、开发任务和测试材料。",
+      action: hasCurrentProposalSolution(group) ? "前往提交方案审查" : "继续完善方案",
     },
     "solution-review-pending": {
       role: "方案开发",
       description: proposalReviewCanRetry(group, true)
         ? "本轮方案审查失败，请查看原因并重试。"
-        : "材料校验通过后自动运行三路审查和综合终审。",
+        : "当前方案已提交审查，可查看三路审查和综合终审的状态。",
       action: "查看方案审查",
     },
     "solution-confirmation-pending": {

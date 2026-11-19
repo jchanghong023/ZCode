@@ -17,6 +17,7 @@ import {
   discuss,
   expectBusinessRejection,
   getProposal,
+  submitReview,
   waitForReview,
 } from "./proposal-flow.js";
 
@@ -197,6 +198,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
               "## 验收方式\n对比导出的 CSV 解析结果与项目原始需求。\n\n" +
               "## 数据范围\n只导出当前项目及 Release 的原始需求。",
           );
+          await submitReview(client, target, "original");
           const accepted = getProposal(await approveOriginalReview(client, target), target);
           const requirementsCheck = accepted.requirementsCheck;
           expect(requirementsCheck?.issues).toEqual([]);
@@ -244,6 +246,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
             },
             target,
           );
+          await submitReview(client, target, "full");
           const { remote } = await waitForReview(client, target, "full");
           const repaired = getProposal(remote, target);
           expect(repaired.solutionCheck?.issues).toEqual([]);
@@ -275,6 +278,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const unchanged = await client.read(target.selection);
         expect(getProposal(unchanged, target)).toEqual(getProposal(before, target));
         await completeBusinessMaterial(client, target);
+        await submitReview(client, target, "original");
         const approved = await approveOriginalReview(client, target);
         const original = getProposal(approved, target).originalReview!;
         expect(original.passed).toBe(true);
@@ -316,7 +320,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
   );
 
   it(
-    "automatically reviews both stages, preserves each role's first confirmer and freezes the submitted material version",
+    "starts reviews only after explicit submission, preserves each role's first confirmer and freezes the submitted material version",
     async () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
@@ -326,11 +330,44 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(notStarted.originalReview).toBeUndefined();
         expect(notStarted.review).toBeUndefined();
 
-        const business = getProposal(await completeBusinessMaterial(client, target), target);
+        const firstDraft = getProposal(await completeBusinessMaterial(client, target), target);
+        expect(firstDraft.originalReview).toBeUndefined();
+        await discuss(client, target, "补充验收条件：下载后核对每行与原始需求一致。");
+        const business = getProposal(await client.read(target.selection), target);
+        expect(business.originalReview).toBeUndefined();
+        expect(business.snapshot?.digest).not.toBe(firstDraft.snapshot?.digest);
+        await expectBusinessRejection(
+          client.command(
+            {
+              type: "submitProposalReview",
+              projectId: target.projectId,
+              irId: target.irId,
+              kind: "original",
+              snapshotDigest: firstDraft.snapshot!.digest,
+            },
+            target.selection,
+          ),
+        );
         const irFile = business.files.find((row) => row.path === business.documentPath)!;
         expect(irFile.size).toBeGreaterThan(0);
         expect(business.snapshot?.files).toContainEqual(irFile);
+        await submitReview(client, target, "original");
         const { review: originalReport } = await waitForReview(client, target, "original");
+        await expectBusinessRejection(
+          client.command(
+            {
+              type: "submitProposalReview",
+              projectId: target.projectId,
+              irId: target.irId,
+              kind: "original",
+              snapshotDigest: business.snapshot!.digest,
+            },
+            target.selection,
+          ),
+        );
+        expect(getProposal(await client.read(target.selection), target).originalReview?.id).toBe(
+          originalReport.id,
+        );
         expect(originalReport.inputFiles).toEqual([irFile]);
         expect(originalReport.humanDecision).toBeUndefined();
         const originalApproved = getProposal(await approveOriginalReview(client, target), target);
@@ -344,6 +381,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(solution.originalReview?.humanDecision).toEqual(
           originalApproved.originalReview?.humanDecision,
         );
+        expect(solution.review).toBeUndefined();
+        await submitReview(client, target, "full");
         const { review: fullReport } = await waitForReview(client, target, "full");
         expect(
           fullReport.inputFiles
@@ -532,6 +571,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           },
           target,
         );
+        await submitReview(client, target, "full");
         const { remote: revisedRemote, review: revisedReport } = await waitForReview(
           client,
           target,
@@ -605,6 +645,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           },
           target,
         );
+        await submitReview(client, target, "original");
         const { remote: rechecked, review: replacement } = await waitForReview(
           client,
           target,

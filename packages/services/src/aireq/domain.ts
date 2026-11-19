@@ -181,6 +181,22 @@ export function fullReviewReadyBlocker(group: AIReqRequirementGroup): string | u
     reviewReadyIssue(group.review, fullReviewCurrent(group), ["a", "b", "c", "summary"])
   );
 }
+export function proposalReviewSubmitBlocker(
+  group: AIReqRequirementGroup,
+  kind: "original" | "full",
+): string | undefined {
+  if (kind === "original") {
+    if (requirementsReviewCurrent(group)) return "当前需求版本已提交评审。";
+    return requirementsReviewStartBlocker(group);
+  }
+  if (fullReviewCurrent(group)) return "当前方案版本已提交审查。";
+  const issue = group.solutionCheck?.issues[0];
+  return (
+    requirementsReviewBlocker(group) ??
+    (issue ? `${issue.path}：${issue.reason}` : undefined) ??
+    (!hasCurrentProposalSolution(group) ? "请先完善并校验方案材料。" : undefined)
+  );
+}
 /** A report with negative findings is complete; only failed or missing output may be rerun. */
 export function proposalReviewCanRetry(group: AIReqRequirementGroup, full: boolean): boolean {
   const review = full ? group.review : group.originalReview;
@@ -344,10 +360,10 @@ export function fileVersions(files: AIReqFileVersion[]): string {
 /** 提案的唯一业务状态推导；导航和生命周期旧字段不构成推进证据。 */
 export function proposalState(group: AIReqRequirementGroup): AIReqProposalState | undefined {
   if (["formal", "frozen", "deleted"].includes(group.status) || group.merge) return;
-  if (!requirementsReviewInputs(group)) return "not-started";
+  if (!requirementsReviewCurrent(group)) return "not-started";
   if (requirementsReviewReadyBlocker(group)) return "ir-review-pending";
   if (requirementsReviewBlocker(group)) return "ir-confirmation-pending";
-  if (!hasCurrentProposalSolution(group)) return "solution-incomplete";
+  if (!hasCurrentProposalSolution(group) || !fullReviewCurrent(group)) return "solution-incomplete";
   if (fullReviewReadyBlocker(group)) return "solution-review-pending";
   if (alignmentBlocker(group)) return "solution-confirmation-pending";
   return proposalDeliveryCurrent(group) && proposalPrCurrent(group)
@@ -529,11 +545,23 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
       continue;
     }
     if (state === "not-started") {
-      push(group, "business-discussion", "完善业务需求", "business", contact.business);
+      push(
+        group,
+        "business-discussion",
+        requirementsReviewInputs(group) ? "提交需求评审" : "完善业务需求",
+        "business",
+        contact.business,
+      );
     } else if (state === "ir-confirmation-pending") {
       push(group, "original-review", "人工确认当前 IR 评审", "business", contact.business);
     } else if (state === "solution-incomplete") {
-      push(group, "solution", "拆分 SR 并完善完整材料", "development", contact.development);
+      push(
+        group,
+        "solution",
+        hasCurrentProposalSolution(group) ? "提交方案审查" : "拆分 SR 并完善完整材料",
+        "development",
+        contact.development,
+      );
     } else if (state === "solution-confirmation-pending") {
       for (const perspective of ["business", "development", "testing"] as const)
         if (

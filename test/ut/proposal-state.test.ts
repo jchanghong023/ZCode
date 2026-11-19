@@ -109,6 +109,11 @@ function withOriginalApproval(): AIReqRequirementGroup {
   group.proposalStage = "solution";
   return group;
 }
+function withPendingOriginalReview(): AIReqRequirementGroup {
+  const group = withOriginalReview();
+  group.originalReview!.agents![0]!.status = "pending";
+  return group;
+}
 function withSolution(): AIReqRequirementGroup {
   const group = withOriginalApproval();
   group.solutionCheck = { issues: [] };
@@ -164,6 +169,11 @@ function aligned(): AIReqRequirementGroup {
   }));
   return group;
 }
+function withPendingFullReview(): AIReqRequirementGroup {
+  const group = withFullReview();
+  group.review!.agents![0]!.status = "pending";
+  return group;
+}
 function published(): AIReqRequirementGroup {
   const group = aligned();
   group.proposalDelivery = {
@@ -194,10 +204,12 @@ describe("proposal business states from current materials and confirmations", ()
     (
       [
         [emptyProposal, "not-started", "未启动", 0],
-        [withIR, "ir-review-pending", "IR 待评审", 1],
+        [withIR, "not-started", "未启动", 0],
+        [withPendingOriginalReview, "ir-review-pending", "IR 待评审", 1],
         [withOriginalReview, "ir-confirmation-pending", "IR 待确认", 2],
         [withOriginalApproval, "solution-incomplete", "方案待完善", 3],
-        [withSolution, "solution-review-pending", "方案待评审", 4],
+        [withSolution, "solution-incomplete", "方案待完善", 3],
+        [withPendingFullReview, "solution-review-pending", "方案待评审", 4],
         [withFullReview, "solution-confirmation-pending", "方案待确认", 5],
         [aligned, "submission-pending", "待提交", 6],
         [published, "merge-pending", "待合入", 7],
@@ -347,12 +359,12 @@ describe("proposal business states from current materials and confirmations", ()
     expect(proposalReviewCanRetry(group, true)).toBe(true);
   });
 
-  it("returns to original review when the business document changes", () => {
+  it("returns to clarification when the business document changes", () => {
     const group = aligned();
     group.files.find((row) => row.path === group.documentPath)!.sha256 = "new-business-document";
     group.snapshot!.files = structuredClone(group.files);
     group.snapshot!.digest = "new-business-version";
-    expect(proposalState(group)).toBe("ir-review-pending");
+    expect(proposalState(group)).toBe("not-started");
   });
 
   it("requires all solution files, including the test plan, and matching dependency material", () => {
@@ -380,14 +392,14 @@ describe("proposal business states from current materials and confirmations", ()
     const group = aligned();
     group.files.find((row) => row.path.endsWith("test-plan.md"))!.sha256 = "new-test-plan";
     group.snapshot!.files = structuredClone(group.files);
-    expect(proposalState(group)).toBe("solution-review-pending");
+    expect(proposalState(group)).toBe("solution-incomplete");
     expect(group.originalReview!.humanDecision!.reviewId).toBe(group.originalReview!.id);
   });
 
   it("rejects a full review whose claimed version matches but whose input file versions do not", () => {
     const group = withFullReview();
     group.review!.inputFiles![0]!.sha256 = "previous-file";
-    expect(proposalState(group)).toBe("solution-review-pending");
+    expect(proposalState(group)).toBe("solution-incomplete");
   });
 
   it("does not treat a successful push as a created PR", () => {

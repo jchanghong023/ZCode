@@ -335,7 +335,6 @@ export function applyProposalMutation(
           );
           checkMaterials(state, item, "requirements");
           snapshot(state, item);
-          acceptReview(item, "original");
         }
       });
       operation.type = "批量导入需求";
@@ -423,6 +422,10 @@ export function applyProposalMutation(
       }
       break;
     }
+    case "submitProposalReview":
+      acceptReview(proposal!, action.kind);
+      operation.type = action.kind === "original" ? "提交需求评审" : "提交方案审查";
+      break;
     case "runRequirementsReview":
     case "runFullReview": {
       const kind = action.type === "runFullReview" ? "full" : "original";
@@ -506,7 +509,7 @@ export function applyProposalMutation(
       });
       checkMaterials(state, proposal!, "requirements");
       snapshot(state, proposal!);
-      acceptReview(proposal!, "original");
+      // 对话只产生材料和校验结果；人提交当前版本后才接纳评审。
       break;
     }
     case "generateProposalSolution": {
@@ -578,7 +581,6 @@ export function applyProposalMutation(
       proposal!.status = "solution-ready";
       checkMaterials(state, proposal!, "solution");
       snapshot(state, proposal!);
-      acceptReview(proposal!, "full");
       break;
     }
     case "reviseProposalMaterial": {
@@ -616,7 +618,6 @@ export function applyProposalMutation(
       for (const material of updated) replaceMaterial(state, proposal!, material);
       checkMaterials(state, proposal!, "solution");
       snapshot(state, proposal!);
-      acceptReview(proposal!, "full");
       break;
     }
     case "returnProposal": {

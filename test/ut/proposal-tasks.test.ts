@@ -79,7 +79,7 @@ describe("independent proposal task navigation", () => {
   it("enters a workbench from an ordinary proposal entry", () => {
     expect(proposalTaskFromSelection({ projectId: "p", irId: "ir" })).toBe("overview");
     expect(proposalNextTask({ ...group(), files: [] })).toBe("requirements");
-    expect(proposalNextTask(group())).toBe("requirementsReview");
+    expect(proposalNextTask(group())).toBe("requirements");
   });
   it("does not promote future delivery or legacy PR fields over current material facts", () => {
     const value = {
@@ -87,7 +87,7 @@ describe("independent proposal task navigation", () => {
       status: "requirements-pr" as const,
       proposalStage: "solution" as const,
     };
-    expect(proposalNextTask(value)).toBe("requirementsReview");
+    expect(proposalNextTask(value)).toBe("requirements");
     expect(proposalTaskStatus(value, "delivery")).toBe("未就绪");
     value.files = [];
     expect(proposalNextTask(value)).toBe("requirements");
@@ -181,7 +181,7 @@ describe("independent proposal task navigation", () => {
     const replacement = { ...file, sha256: "changed" };
     value.files = [replacement];
     value.snapshot = { ...value.snapshot!, files: [replacement], digest: "changed" };
-    expect(proposalTaskStatus(value, "requirementsReview")).toBe("等待自动评审");
+    expect(proposalTaskStatus(value, "requirementsReview")).toBe("待提交评审");
   });
   it("distinguishes validation, waiting, running and failed reviews on the workbench", () => {
     const value = { ...group(), originalReview: review() };

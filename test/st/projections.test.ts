@@ -10,6 +10,7 @@ import {
   confirmAllPerspectives,
   discuss,
   getProposal,
+  submitReview,
   waitForReview,
 } from "./proposal-flow.js";
 
@@ -104,6 +105,7 @@ describe("ST same-owner workflow projections", () => {
         const irId = requireConfig(created.irId, "提案创建回执的 IR 标识");
         const proposal = { ...target, irId, selection: { projectId: target.projectId, irId } };
         await completeBusinessMaterial(client, proposal);
+        await submitReview(client, proposal, "original");
         await approveOriginalReview(client, proposal);
         const initial = getProposal(await completeSolutionMaterial(client, proposal), proposal);
         expect(initial.srIds.length).toBeGreaterThanOrEqual(2);
@@ -134,6 +136,7 @@ describe("ST same-owner workflow projections", () => {
             ),
           }),
         );
+        await submitReview(client, proposal, "full");
         const { remote: reviewed, review } = await waitForReview(client, proposal, "full");
         const todos = (view: AIReqWorkflowView) => view.todos!.filter((todo) => todo.irId === irId);
         expect(

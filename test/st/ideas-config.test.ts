@@ -15,6 +15,7 @@ import {
   completeBusinessMaterial,
   completeSolutionMaterial,
   getProposal,
+  submitReview,
   waitForReview,
 } from "./proposal-flow.js";
 
@@ -405,6 +406,7 @@ describe("ST global ideas and configuration", () => {
             originalBinding,
           );
           await completeBusinessMaterial(client, after);
+          await submitReview(client, after, "original");
           const { review: requirements } = await waitForReview(client, after, "original");
           expect(requirements.agents?.[0]?.session.modelConfig).toMatchObject({
             role: "requirements-review",
@@ -413,6 +415,7 @@ describe("ST global ideas and configuration", () => {
           });
           await approveOriginalReview(client, after);
           await completeSolutionMaterial(client, after);
+          await submitReview(client, after, "full");
           const { review: solution } = await waitForReview(client, after, "full");
           for (const role of reviewers) {
             expect(
@@ -442,6 +445,7 @@ describe("ST global ideas and configuration", () => {
         const role = "requirements-review";
         const before = await createProposal(client);
         await completeBusinessMaterial(client, before);
+        await submitReview(client, before, "original");
         const { review: historical } = await waitForReview(client, before, "original");
         const next = { ...original.saved, [role]: unique("追加指令：必须核对验收依据") };
         let owned: AIReqRemoteBootstrap["prompts"] | undefined;
@@ -486,6 +490,7 @@ describe("ST global ideas and configuration", () => {
             },
             before,
           );
+          await submitReview(client, before, "original");
           const { remote, review: current } = await waitForReview(client, before, "original");
           expect(current.id).not.toBe(historical.id);
           expect(current.agents?.[0]).toMatchObject({

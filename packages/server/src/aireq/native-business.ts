@@ -143,7 +143,12 @@ export class AIReqNativeBusiness {
         irId: ref.irId,
         srId: ref.srId,
         discussionPhase: ref.phase === "solution" ? "solution" : "requirements",
-        proposalStep: ref.phase === "solution" ? "solution" : undefined,
+        proposalStep:
+          ref.phase === "solution"
+            ? "solution"
+            : ref.role === "reviewer"
+              ? "requirements-review"
+              : "requirements",
       },
       { proposalDiscussion: true, codeDevelopment: false },
     );
@@ -204,30 +209,11 @@ export class AIReqNativeBusiness {
         ? prototypeSkillDesignReply(sessionId, text)
         : "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
     } else {
-      const target = readPrototypeNativeContext(sessionId, true);
-      if (!target) throw businessRule("业务会话不存在。");
-      const { ref, draft: proposal } = target;
+      // 送审可能未改变文件摘要，但已关闭需求澄清的写权限；完成时沿用发送门禁。
+      const { ref, proposal } = this.currentProposal(sessionId);
       const selection = { projectId: ref.projectId, irId: ref.irId };
-      if (!proposal || version !== proposalVersion(proposal))
+      if (version !== proposalVersion(proposal))
         throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
-      // 退回只新增讨论轮次，材料摘要可能不变；旧接纳不能跨轮次或阶段重新取得写权限。
-      const readOnly = conversationReadOnlyReason(
-        { drafts: proposal ? [proposal] : [] },
-        {
-          ...selection,
-          discussionPhase: ref.phase === "solution" ? "solution" : "requirements",
-          proposalStep: ref.phase === "solution" ? "solution" : undefined,
-        },
-        { proposalDiscussion: true, codeDevelopment: false },
-      );
-      const review = ref.phase === "solution" ? proposal.review : proposal.originalReview;
-      if (
-        readOnly ||
-        (ref.role !== "reviewer" && ref.round !== (proposal.proposalRound ?? 1)) ||
-        (ref.role === "reviewer" &&
-          !review?.agents?.some((agent) => agent.session.sessionId === sessionId))
-      )
-        throw businessRule("当前会话阶段或轮次已变化，拒绝迟到的原生业务完成结果。");
       if (!text.trim()) reply = "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
       else if (ref.role === "reviewer")
         reply = "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。";

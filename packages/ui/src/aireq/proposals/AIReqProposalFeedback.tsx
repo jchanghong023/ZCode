@@ -54,7 +54,7 @@ export function AIReqProposalFeedback() {
             {feedback.reason}
           </div>
           <p className="text-ui-sm text-foreground-subtle">
-            与业务需求 Agent 讨论这些意见。业务需求文档补齐并通过校验后，将自动重新评审。
+            与业务需求 Agent 讨论这些意见。业务需求文档补齐并通过校验后，请再次提交评审。
           </p>
         </div>
       </section>
