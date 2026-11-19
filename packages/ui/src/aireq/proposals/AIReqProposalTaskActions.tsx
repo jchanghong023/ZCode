@@ -37,12 +37,10 @@ import {
 export function AIReqProposalTaskActions({
   group,
   full = false,
-  reviewed,
   focusFallback,
 }: {
   group: AIReqRequirementGroup;
   full?: boolean;
-  reviewed: boolean;
   focusFallback: RefObject<HTMLElement | null>;
 }) {
   const ai = useAIReq()!;
@@ -60,7 +58,7 @@ export function AIReqProposalTaskActions({
     projectId: string;
     irId: string;
     title: string;
-    review: Pick<AIReqReview, "id" | "snapshotDigest" | "round" | "inputFiles">;
+    review: Pick<AIReqReview, "id" | "snapshotDigest" | "round">;
   } | null>(null);
   const approvalEntry = useRef<HTMLButtonElement | null>(null);
   const pendingNavigation = useRef<(() => void) | null>(null);
@@ -100,8 +98,7 @@ export function AIReqProposalTaskActions({
   const canRetry = proposalReviewCanRetry(group, full);
   const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
   const approveReady = Boolean(review && !approveIssue);
-  const evidenceIssue = !full && review && !reviewed ? "请先展开评审报告并阅读，再确认。" : "";
-  const approveBlocker = approveIssue || evidenceIssue || (confirmed ? "当前评审已确认。" : "");
+  const approveBlocker = approveIssue || (confirmed ? "当前评审已确认。" : "");
   // 弹窗确认的是打开时读过的版本；协作者重审后的新投影不能静默替换确认对象。
   const approvalChanged = Boolean(
     approval &&
@@ -159,7 +156,6 @@ export function AIReqProposalTaskActions({
                     id: review.id,
                     snapshotDigest: review.snapshotDigest,
                     round: review.round,
-                    inputFiles: review.inputFiles,
                   },
                 });
               }}
@@ -229,11 +225,6 @@ export function AIReqProposalTaskActions({
               本次确认「{approval?.title}」第 {approval?.review.round ?? 1}{" "}
               轮需求评审。确认后进入方案设计；如需变更，须修改材料并重新评审。
             </AlertDialogDescription>
-            {approval?.review.inputFiles?.map((file) => (
-              <p key={file.path} className="break-all font-mono text-ui-sm text-foreground-subtle">
-                {file.path}
-              </p>
-            ))}
             {approvalChanged && (
               <p role="status" className="text-ui-sm text-destructive">
                 评审对象或材料版本已变化，请关闭并重新阅读评审后再确认。

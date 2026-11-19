@@ -12,7 +12,6 @@ import {
   type AIReqRequirementGroup,
 } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
-import { AIReqProposalReviewSnapshot } from "./AIReqProposalReviewPage.js";
 import {
   proposalNextTask,
   proposalTaskGuidance,
@@ -237,12 +236,6 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
               );
             })}
           </section>
-        )}
-        {group.originalReview && (
-          <AIReqProposalReviewSnapshot
-            key={group.originalReview.id}
-            review={group.originalReview}
-          />
         )}
         <div className="flex flex-wrap gap-3 border-t border-border/50 pt-4">
           <Button
