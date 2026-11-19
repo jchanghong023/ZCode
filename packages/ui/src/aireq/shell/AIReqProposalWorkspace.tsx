@@ -402,23 +402,27 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               composerPlaceholder={detail ? "追问本次审查（不改变审查结论）" : undefined}
               hideMessageFeedback={detail}
               conversationEmptyState={
-                <div className="p-6 text-center text-ui-sm text-foreground-subtle">
-                  <p>尚无讨论记录。</p>
-                  {!conversationReadOnly && (task === "solution" || task === "requirements") && (
-                    <p className="mt-1">
-                      {task === "solution"
-                        ? "当前技术方案在右侧“需求材料”中。"
-                        : "整理后的需求在右侧“需求材料”中。"}
+                !conversationReadOnly && task === "requirements" ? (
+                  <div className="mx-auto max-w-xl space-y-2 px-4 py-6 text-ui-base">
+                    <p className="font-medium">原始需求</p>
+                    <blockquote className="max-h-40 overflow-auto overscroll-contain rounded-lg border border-border bg-card px-3 py-2 whitespace-pre-wrap wrap-anywhere">
+                      {proposal.originalText}
+                    </blockquote>
+                    <p className="text-foreground-subtle">
+                      请补充一个真实场景。谁会在什么情况下使用它，想完成什么？
                     </p>
-                  )}
-                  {!conversationReadOnly && (task === "solution" || task === "requirements") && (
-                    <p className="mt-1">
-                      {task === "solution"
-                        ? "可在下方继续与 AI 讨论。"
-                        : "可在下方继续与 AI 澄清需求。"}
-                    </p>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-ui-sm text-foreground-subtle">
+                    <p>尚无讨论记录。</p>
+                    {!conversationReadOnly && task === "solution" && (
+                      <>
+                        <p className="mt-1">当前技术方案在右侧“需求材料”中。</p>
+                        <p className="mt-1">可在下方继续与 AI 讨论。</p>
+                      </>
+                    )}
+                  </div>
+                )
               }
             />
           </V4PaneConversationProvider>

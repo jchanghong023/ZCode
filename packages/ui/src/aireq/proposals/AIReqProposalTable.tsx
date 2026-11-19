@@ -49,6 +49,7 @@ import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
 import { AIReqProposalExport } from "./AIReqProposalExport.js";
 import { AIReqProposalRow } from "./AIReqProposalRow.js";
+import { AIReqProposalSavedNotice, type SavedProposal } from "./AIReqProposalSavedNotice.js";
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
@@ -69,6 +70,9 @@ export function AIReqProposalTable() {
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [savedProposal, setSavedProposal] = useState<SavedProposal>();
+  const clarificationAction = useRef<HTMLButtonElement>(null);
+  const focusClarificationAfterSave = useRef(false);
   const submitting = useRef(false);
   const [operationId, setOperationId] = useState(() => createUuid());
   const [baseline, setBaseline] = useState<number>();
@@ -263,6 +267,15 @@ export function AIReqProposalTable() {
             },
       );
       if (result?.status === "completed") {
+        if (kind === "create" && result.irId) {
+          // 使用成功回执定位本次提案，避免筛选或同名提案让入口打开错误对象。
+          setSavedProposal({
+            projectId: result.projectId,
+            releaseId: ai.releaseId,
+            irId: result.irId,
+          });
+          focusClarificationAfterSave.current = true;
+        }
         setDraftNavigationGuard(null);
         setText("");
         fileGeneration.current++;
@@ -324,6 +337,7 @@ export function AIReqProposalTable() {
             />
           </div>
         </header>
+        <AIReqProposalSavedNotice target={savedProposal} buttonRef={clarificationAction} zh={zh} />
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <div className="relative min-w-60 flex-1">
             <Search
@@ -671,7 +685,16 @@ export function AIReqProposalTable() {
           }}
         >
           {/* 修复：通用弹窗默认按视口铺满；新增提案应使用与导入一致的限宽和多行编辑区。 */}
-          <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogContent
+            className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
+            onCloseAutoFocus={(event) => {
+              if (!focusClarificationAfterSave.current) return;
+              focusClarificationAfterSave.current = false;
+              if (!clarificationAction.current) return;
+              event.preventDefault();
+              clarificationAction.current.focus();
+            }}
+          >
             <DialogHeader>
               <DialogTitle>新增提案</DialogTitle>
               <DialogDescription>

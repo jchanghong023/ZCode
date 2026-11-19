@@ -125,6 +125,7 @@ export function AIReqProposalReviewPage({
     (agent) => agent.id !== "summary" && agent.status === "completed" && agent.report.trim(),
   ).length;
   const reportSource = review?.report.trim() ?? "";
+  // 报告标题由页面的 h2 提供；去掉 Markdown 一级标题后，二级小节应紧接为 h3。
   const reportBody = reportSource.replace(/^#[ \t]+[^\n]*(?:\r?\n)+/, "").trimStart();
   const hasReport = reportAgent?.status === "completed" && Boolean(reportBody);
   const history = [
@@ -308,9 +309,7 @@ export function AIReqProposalReviewPage({
                 )}
                 {hasReport ? (
                   full || confirmation ? (
-                    <AIReqMarkdownDocument headingLevelOffset={2}>
-                      {reportBody}
-                    </AIReqMarkdownDocument>
+                    <AIReqMarkdownDocument>{reportBody}</AIReqMarkdownDocument>
                   ) : (
                     <details
                       key={reviewKey}
@@ -324,9 +323,7 @@ export function AIReqProposalReviewPage({
                       <summary className={`${detailsClass} text-ui-sm`}>
                         {reportOpen ? "收起评审报告" : "查看评审报告"}
                       </summary>
-                      <AIReqMarkdownDocument headingLevelOffset={2}>
-                        {reportBody}
-                      </AIReqMarkdownDocument>
+                      <AIReqMarkdownDocument>{reportBody}</AIReqMarkdownDocument>
                     </details>
                   )
                 ) : (
