@@ -533,7 +533,8 @@ export function applyProposalMutation(
       const dependencyInput = discussion?.startsWith("{") ? discussion : undefined;
       const bundle = solutionMaterials(projectId, proposal!.id, rows);
       for (const material of bundle) {
-        const prior = current.find((item) => item.path === material.path && item.round === round);
+        // 业务退回后，方案 Agent 仍以现存工作材料继续完善，不能按新轮次换回模板。
+        const prior = current.find((item) => item.path === material.path);
         if (prior) material.content = prior.content;
         if (discussion && !dependencyInput) {
           material.content = appendMaterialDiscussion(material.content, discussion, "本轮方案讨论");
@@ -542,7 +543,11 @@ export function applyProposalMutation(
       const dependency =
         !dependencyInput && proposal!.srDependencyFile?.round === round
           ? proposal!.srDependencyFile
-          : prototypeProposalDependencies(proposal!, rows, dependencyInput);
+          : prototypeProposalDependencies(
+              proposal!,
+              rows,
+              dependencyInput ?? proposal!.srDependencyFile?.content,
+            );
       bundle.push(dependency);
       if (
         !newSplit &&
@@ -625,11 +630,7 @@ export function applyProposalMutation(
       proposal!.requirementsCheck = undefined;
       proposal!.solutionCheck = undefined;
       if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;
-      const returnedDocument = materialsFor(state, proposal!).find(
-        (item) => item.path === proposal!.documentPath,
-      );
-      if (returnedDocument) returnedDocument.valid = false;
-      snapshot(state, proposal!);
+      // 退回只撤销批准及检查；保留文件、版本和清单，后续讨论负责更新实际材料。
       proposal!.proposalStage = "requirements";
       proposal!.status = "draft";
       proposal!.returnFeedbackHistory ??= [];

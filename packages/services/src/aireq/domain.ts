@@ -393,6 +393,10 @@ export function proposalProgressIndex(
       return -1;
   }
 }
+export function proposalReturnBlocker(group: AIReqRequirementGroup): string | undefined {
+  const phase = proposalProgressIndex(group);
+  if (phase !== 1 && phase !== 2) return "仅当前需求评审或方案阶段可以退回业务澄清。";
+}
 export function proposalViewedIndex(
   group: AIReqRequirementGroup,
   selection: AIReqSelection,

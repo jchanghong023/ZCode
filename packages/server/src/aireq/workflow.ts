@@ -14,6 +14,7 @@ import {
   proposalPrCurrent,
   proposalReviewCanRetry,
   proposalReviewSubmitBlocker,
+  proposalReturnBlocker,
   deriveAIReqTodos,
   fullReviewReadyBlocker,
   fullReviewCurrent,
@@ -590,8 +591,11 @@ export function applyPrototypeAction(
     )
       throw businessRule("对应方案材料尚未生成，请先完成方案讨论。");
   }
-  if (action.type === "returnProposal" && !action.reason.trim())
-    throw businessRule("请填写业务需补充的原因。");
+  if (action.type === "returnProposal") {
+    if (!action.reason.trim()) throw businessRule("请填写业务需补充的原因。");
+    const issue = proposalReturnBlocker(targetProposal!);
+    if (issue) throw businessRule(issue);
+  }
   if (
     action.type === "closeProposalPr" &&
     (!proposalPrCurrent(targetProposal!) ||

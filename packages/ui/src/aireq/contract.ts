@@ -100,6 +100,7 @@ export {
   proposalAlignmentCurrent,
   proposalReviewCanRetry,
   proposalReviewSubmitBlocker,
+  proposalReturnBlocker,
   alignmentBlocker,
 } from "@zcode/services/aireq";
 

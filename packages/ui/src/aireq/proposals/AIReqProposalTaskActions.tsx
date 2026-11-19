@@ -8,17 +8,8 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog.js";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog.js";
-import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import {
@@ -27,11 +18,11 @@ import {
   requirementsReviewCurrent,
   proposalProgressIndex,
   requirementsReviewReadyBlocker,
-  proposalVersion,
   type AIReqAction,
   type AIReqRequirementGroup,
   type AIReqReview,
 } from "../contract.js";
+import { AIReqProposalReturn } from "./AIReqProposalReturn.js";
 
 /** 任务的显式业务动作复用原命令入口，接纳与阶段转换由 Context／服务端裁决。 */
 export function AIReqProposalTaskActions({
@@ -46,14 +37,8 @@ export function AIReqProposalTaskActions({
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
   const hintId = useId();
-  const reasonId = useId();
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
-  const [returnOpen, setReturnOpen] = useState(false);
-  const [returnVersion, setReturnVersion] = useState<{ version: string; revision: number }>();
-  const returnTrigger = useRef<HTMLButtonElement>(null);
-  const [reason, setReason] = useState("");
-  const [discardOpen, setDiscardOpen] = useState(false);
   const [approval, setApproval] = useState<{
     projectId: string;
     irId: string;
@@ -61,9 +46,6 @@ export function AIReqProposalTaskActions({
     review: Pick<AIReqReview, "id" | "snapshotDigest" | "round">;
   } | null>(null);
   const approvalEntry = useRef<HTMLButtonElement | null>(null);
-  const pendingNavigation = useRef<(() => void) | null>(null);
-  const { setDraftNavigationGuard } = ai;
-  const guardOwner = `proposal-review-return:${group.projectId}:${group.id}:${full}`;
   const phase = proposalProgressIndex(group, {});
   const review = full ? group.review : group.originalReview;
   const currentStage = full ? phase === 2 : phase <= 1;
@@ -74,17 +56,6 @@ export function AIReqProposalTaskActions({
     review.humanDecision.snapshotDigest === review.snapshotDigest &&
     requirementsReviewCurrent(group),
   );
-  const currentVersion = proposalVersion(group);
-  const returnChanged = Boolean(returnVersion && returnVersion.version !== currentVersion);
-  useEffect(() => {
-    if ((!reason.trim() && !busy) || !currentStage || group.status === "requirements-pr") return;
-    setDraftNavigationGuard((next) => {
-      if (inFlight.current) return;
-      pendingNavigation.current = next;
-      setDiscardOpen(true);
-    }, guardOwner);
-    return () => setDraftNavigationGuard(null, guardOwner);
-  }, [reason, busy, guardOwner, currentStage, group.status, setDraftNavigationGuard]);
   const running = ai.view?.running.some(
     (item) => item.projectId === group.projectId && item.irId === group.id,
   );
@@ -120,13 +91,7 @@ export function AIReqProposalTaskActions({
     setBusy(true);
     try {
       const result = await ai.command(command);
-      if (result?.status === "completed") {
-        if (command.type === "returnProposal") {
-          setReturnOpen(false);
-          setReason("");
-        }
-        if (command.type === "acceptProposal") setApproval(null);
-      }
+      if (result?.status === "completed" && command.type === "acceptProposal") setApproval(null);
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -175,18 +140,11 @@ export function AIReqProposalTaskActions({
             </Button>
           )}
           {!full && review && requirementsReviewCurrent(group) && (
-            <Button
-              ref={returnTrigger}
-              variant="ghost"
+            <AIReqProposalReturn
+              group={group}
               disabled={Boolean(unavailable)}
-              onClick={() => {
-                if (ai.view)
-                  setReturnVersion({ version: currentVersion, revision: ai.view.revision });
-                setReturnOpen(true);
-              }}
-            >
-              退回业务补充
-            </Button>
+              focusFallback={focusFallback}
+            />
           )}
         </div>
       )}
@@ -258,107 +216,6 @@ export function AIReqProposalTaskActions({
               }}
             >
               {busy ? "正在确认…" : "确认业务需求"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <Dialog
-        open={returnOpen}
-        onOpenChange={(open) => {
-          if (!busy) setReturnOpen(open);
-        }}
-      >
-        <DialogContent
-          className="max-h-[85dvh] overflow-y-auto sm:max-w-xl"
-          showCloseButton={!busy}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            const entry = returnTrigger.current;
-            (entry && !entry.disabled ? entry : focusFallback.current)?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>退回业务补充</DialogTitle>
-            <DialogDescription>
-              说明需要补充的内容。退回后旧评审与确认记录仅供追溯，补充材料并通过校验后，请再次提交评审。取消会保留未提交内容。
-            </DialogDescription>
-          </DialogHeader>
-          <label htmlFor={reasonId} className="text-ui-sm font-medium text-foreground">
-            退回原因
-          </label>
-          <SettingsFormTextarea
-            id={reasonId}
-            aria-label="退回原因"
-            className="min-h-32"
-            value={reason}
-            readOnly={busy}
-            onChange={(event) => setReason(event.target.value)}
-            rows={5}
-          />
-          {returnChanged && (
-            <p role="status" className="text-ui-sm text-destructive">
-              材料版本已变化，请取消后重新阅读当前材料，再打开退回窗口。
-            </p>
-          )}
-          {ai.error && (
-            <p role="alert" className="text-ui-sm text-destructive">
-              {ai.error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => setReturnOpen(false)}>
-              取消
-            </Button>
-            <Button
-              disabled={Boolean(unavailable || returnChanged || !returnVersion || !reason.trim())}
-              onClick={() =>
-                void run({
-                  type: "returnProposal",
-                  ...target,
-                  expectedRevision: returnVersion?.revision,
-                  reason: reason.trim(),
-                })
-              }
-            >
-              确认退回
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
-        <AlertDialogContent
-          onEscapeKeyDown={(event) => {
-            if (busy) return;
-            event.preventDefault();
-            pendingNavigation.current = null;
-            setDiscardOpen(false);
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>放弃未提交的退回原因？</AlertDialogTitle>
-            <AlertDialogDescription>
-              继续填写会保留内容，放弃后离开当前任务。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                pendingNavigation.current = null;
-              }}
-            >
-              继续填写
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const next = pendingNavigation.current;
-                pendingNavigation.current = null;
-                setReason("");
-                setReturnOpen(false);
-                setDraftNavigationGuard(null, guardOwner);
-                next?.();
-              }}
-            >
-              放弃并离开
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

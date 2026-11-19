@@ -27,6 +27,7 @@ import { AIReqAgentModelSummary } from "../proposals/AIReqAgentModelSummary.js";
 import { AIReqProposalManagement } from "../proposals/AIReqProposalManagement.js";
 import { AIReqProposalFeedback } from "../proposals/AIReqProposalFeedback.js";
 import { AIReqProposalReviewSubmit } from "../proposals/AIReqProposalReviewSubmit.js";
+import { AIReqProposalReturn } from "../proposals/AIReqProposalReturn.js";
 import {
   proposalNextTask,
   proposalTaskParent,
@@ -282,10 +283,15 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               )}
             </div>
             {!detail && !conversationReadOnly && (
-              <AIReqProposalReviewSubmit
-                proposal={proposal}
-                kind={task === "requirements" ? "original" : "full"}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <AIReqProposalReviewSubmit
+                  proposal={proposal}
+                  kind={task === "requirements" ? "original" : "full"}
+                />
+                {task === "solution" && (
+                  <AIReqProposalReturn key={proposal.id} group={proposal} fromSolution />
+                )}
+              </div>
             )}
           </div>
           {!detail && !conversationReadOnly && (

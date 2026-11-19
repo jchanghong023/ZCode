@@ -217,7 +217,16 @@ export function AIReqProposalReviewPage({
         {(!full || canRetry) && (
           <AIReqProposalTaskActions group={group} full={full} focusFallback={heading} />
         )}
-        {full && !fullConfirmed && <AIReqProposalAlignment group={group} />}
+        {full && !fullConfirmed && (
+          <>
+            {current && (
+              <Button variant="outline" onClick={() => ai.openProposalTask("solution")}>
+                返回方案设计
+              </Button>
+            )}
+            <AIReqProposalAlignment group={group} />
+          </>
+        )}
         {(confirmation || fullConfirmed) && (
           <section
             className="space-y-3 border-y border-border/50 py-4"
