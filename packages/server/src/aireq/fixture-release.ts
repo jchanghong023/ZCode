@@ -16,7 +16,7 @@ interface SrSample {
 const requirements: Array<{
   id: string;
   title: string;
-  originalText: string;
+  originalText?: string;
   srs: SrSample[];
 }> = [
   {
@@ -112,6 +112,57 @@ const requirements: Array<{
       { id: "sr-shortcut-keyboard", title: "快捷入口键盘操作与失效提示" },
     ],
   },
+  {
+    id: "ir-notifications",
+    title: "通知中心",
+    srs: [
+      {
+        id: "sr-notification-inbox",
+        title: "通知列表与阅读状态",
+        percent: 99,
+        certain: true,
+        merged: true,
+        accepted: true,
+        statusChange: { from: "待验收", to: "已完成", at: "2026-11-14T01:30:00.000Z" },
+      },
+      {
+        id: "sr-notification-navigation",
+        title: "通知跳转与业务定位",
+        percent: 55,
+        statusChange: { from: "待开发", to: "开发中", at: "2026-11-18T01:30:00.000Z" },
+      },
+      {
+        id: "sr-notification-deduplication",
+        title: "重复投递去重",
+        percent: 99,
+        certain: true,
+        statusChange: { from: "开发中", to: "待合入", at: "2026-11-18T03:15:00.000Z" },
+      },
+    ],
+  },
+  {
+    id: "ir-audit-archive",
+    title: "操作审计",
+    srs: [
+      {
+        id: "sr-audit-retention",
+        title: "审计查询与留存",
+        percent: 99,
+        certain: true,
+        merged: true,
+        accepted: true,
+        statusChange: { from: "待验收", to: "已完成", at: "2026-11-14T02:30:00.000Z" },
+      },
+      {
+        id: "sr-audit-archive-traceability",
+        title: "归档记录追溯",
+        percent: 99,
+        certain: true,
+        merged: true,
+        statusChange: { from: "待合入", to: "待验收", at: "2026-11-18T06:00:00.000Z" },
+      },
+    ],
+  },
 ];
 
 export function createPrototypeReleaseRequirements() {
@@ -125,7 +176,7 @@ export function createPrototypeReleaseRequirements() {
       item.title,
       srs.filter((sr) => sr.irId === item.id),
     ),
-    originalText: item.originalText,
+    originalText: item.originalText ?? item.title,
   }));
   return { srs, groups };
 }

@@ -108,22 +108,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     ),
     systemRequirement(
       "demo-aurora",
-      "ir-notifications",
-      "sr-notification-inbox",
-      "通知列表与阅读状态",
-      undefined,
-      true,
-    ),
-    systemRequirement(
-      "demo-aurora",
-      "ir-audit-archive",
-      "sr-audit-retention",
-      "审计查询与留存",
-      undefined,
-      true,
-    ),
-    systemRequirement(
-      "demo-aurora",
       "draft-automation",
       "proposal-sr-trigger",
       "触发条件与执行范围",
@@ -211,18 +195,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       "ir-export",
       "报表导出",
       srs.filter((sr) => sr.irId === "ir-export"),
-    ),
-    group(
-      "demo-aurora",
-      "ir-notifications",
-      "通知中心",
-      srs.filter((sr) => sr.irId === "ir-notifications"),
-    ),
-    group(
-      "demo-aurora",
-      "ir-audit-archive",
-      "操作审计",
-      srs.filter((sr) => sr.irId === "ir-audit-archive"),
     ),
     group(
       "demo-mobile",
@@ -474,14 +446,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       checkedAt: "2026-11-11T01:30:00.000Z",
       files: [],
     };
-    if (
-      [
-        "sr-onboarding",
-        "sr-notification-inbox",
-        "sr-audit-retention",
-        "sr-mobile-profile",
-      ].includes(sr.id)
-    ) {
+    if (["sr-onboarding", "sr-mobile-profile"].includes(sr.id)) {
       sr.testAcceptance = {
         operationId: `sample-test-${sr.id}`,
         outcome: "passed",
