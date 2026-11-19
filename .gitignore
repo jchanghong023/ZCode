@@ -44,7 +44,6 @@ __pycache__/
 *.pyc
 .zcode-runtime
 
-# Impeccable：仅保留在当前开发镜像，不提交技能、Codex hook 或运行数据。
-/.agents/skills/impeccable/
-/.codex/hooks.json
+# Impeccable：忽略本地引擎二进制和运行数据。
+/.agents/skills/impeccable/scripts/bin/
 **/.impeccable/
