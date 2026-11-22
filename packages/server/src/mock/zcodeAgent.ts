@@ -31,8 +31,11 @@ import {
   type ConversationTopicFrame,
   type ConversationTopicWireFrame,
   type HelloMessage,
+  type PlanState,
   type QueueItem,
   type StatePatch,
+  type SubagentRow,
+  type ToolCallRow,
   type WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
@@ -401,7 +404,153 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return (last?.rowId ?? -1) + 1;
   }
 
-  // ── 原生回合：原型保留异步执行边界，但不伪造工具调用 ──
+  private startMockTurnWork(session: MockSession, turnId: string, responseId: string) {
+    const rowBase = () => ({
+      rowId: this.nextRowId(session),
+      turnId,
+      entityId: `entity_${createUuid()}`,
+      createdAt: Date.now(),
+      createdAtSeq: session.seq,
+    });
+    const newTool = (toolName: string, input: object): ToolCallRow => {
+      const base = rowBase();
+      return {
+        ...base,
+        kind: "toolCall",
+        assistantResponseId: responseId,
+        toolCallId: `tool_${createUuid()}`,
+        toolName,
+        input,
+        inputText: JSON.stringify(input),
+        status: "running",
+        startedAt: base.createdAt,
+      };
+    };
+    let reasoning: Extract<WireConversationRow, { kind: "reasoning" }> = {
+      ...rowBase(),
+      kind: "reasoning",
+      assistantResponseId: responseId,
+      text: "正在模拟分析本轮输入。",
+      state: "streaming",
+    };
+    const steps = ["整理本轮输入", "由模拟子代理复核", "整理本轮回复"];
+    let completed = 0;
+    let todo: ToolCallRow | undefined;
+    let agent: ToolCallRow | undefined;
+    let review: SubagentRow | undefined;
+    // 运行期间行只追加；停止和删除先中断回合，不能让迟到增量改写下一轮。
+    const reasoningIndex = session.rows.length;
+    this.appendRow(session, reasoning);
+
+    const finishReasoning = (state: "complete" | "interrupted") => {
+      if (reasoning.state !== "streaming") return;
+      reasoning = { ...reasoning, state, durationMs: Date.now() - reasoning.createdAt };
+      this.upsertRow(session, reasoning);
+    };
+    const todoInput = (finished: boolean) => {
+      const items = steps.map<PlanState["items"][number]>((content, index) => ({
+        id: `${turnId}:${index}`,
+        content,
+        status:
+          index < completed
+            ? "completed"
+            : index === completed && !finished
+              ? "inProgress"
+              : "pending",
+      }));
+      session.plan = { items, updatedAt: Date.now() };
+      this.patchState(session, { plan: session.plan });
+      return {
+        todos: items.map((item) => ({
+          ...item,
+          status: item.status === "inProgress" ? "in_progress" : item.status,
+        })),
+      };
+    };
+    const updateTodo = (outcome?: "success" | "failed" | "cancelled") => {
+      if (!todo) return;
+      const input = todoInput(outcome !== undefined);
+      todo = {
+        ...todo,
+        input,
+        inputText: JSON.stringify(input),
+        status: outcome === "failed" ? "error" : (outcome ?? "running"),
+        ...(outcome ? { endedAt: Date.now() } : {}),
+        ...(outcome === "failed"
+          ? { error: { code: "fault.prototype.executionFailed", message: "本轮模拟工作未完成。" } }
+          : {}),
+      };
+      this.upsertRow(session, todo);
+    };
+    const settleReview = (status: "success" | "failed" | "cancelled", summaryText: string) => {
+      if (!agent || review?.status !== "running") return;
+      const endedAt = Date.now();
+      review = { ...review, status, summaryText, endedAt };
+      this.upsertRow(session, review);
+      this.upsertRow(session, {
+        ...agent,
+        status: status === "failed" ? "error" : status,
+        endedAt,
+        output: { text: summaryText },
+        ...(status === "failed"
+          ? { error: { code: "fault.prototype.executionFailed", message: summaryText } }
+          : {}),
+      });
+    };
+    return {
+      explain: () => {
+        const append = "\n\n先整理 Todo，再模拟子代理复核。";
+        reasoning = { ...reasoning, text: reasoning.text + append };
+        session.rows[reasoningIndex] = reasoning;
+        this.emitConversationFrame(
+          session,
+          {
+            kind: "deltas",
+            deltas: [{ op: "row.delta", rowId: reasoning.rowId, path: "text", append }],
+          },
+          "online",
+        );
+      },
+      startTodo: () => {
+        finishReasoning("complete");
+        todo = newTool("TodoWrite", todoInput(false));
+        this.appendRow(session, todo);
+      },
+      startReview: () => {
+        completed = 1;
+        updateTodo();
+        const subagentType = "原型复核";
+        agent = newTool("Agent", {
+          subagent_type: subagentType,
+          description: "模拟复核本轮输入",
+          prompt: "核对本轮已交付的输入。",
+        });
+        this.appendRow(session, agent);
+        review = {
+          ...rowBase(),
+          kind: "subagent",
+          parentToolCallId: agent.toolCallId,
+          subagentType,
+          status: "running",
+          summaryText: "正在模拟复核本轮输入。",
+          startedAt: agent.startedAt,
+        };
+        this.appendRow(session, review);
+      },
+      finishReview: (inputCount: number) => {
+        settleReview("success", `原型复核已检查本轮 ${inputCount} 条输入，未启动真实子代理。`);
+        completed = 2;
+        updateTodo();
+      },
+      settle: (outcome: "success" | "failed" | "cancelled") => {
+        finishReasoning(outcome === "success" ? "complete" : "interrupted");
+        if (outcome === "success") completed = steps.length;
+        else
+          settleReview(outcome, outcome === "cancelled" ? "模拟复核已停止。" : "模拟复核未完成。");
+        updateTodo(outcome);
+      },
+    };
+  }
 
   private async runTurn(
     session: MockSession,
@@ -435,6 +584,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.appendRow(session, turnHeader);
     const inputs: MockInput[] = [];
     const startedCommands: string[] = [];
+    let work: ReturnType<MockZCodeAgentService["startMockTurnWork"]> | undefined;
     const discard = () => {
       for (const commandId of startedCommands)
         this.business?.discardNative(session.sessionId, commandId);
@@ -482,20 +632,30 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
     signal.onabort = () => {
       discard();
+      work?.settle("cancelled");
       this.interruptTurn(session, turnHeader, owner);
     };
 
     try {
       enter(input);
-      // 保留旧原型执行的两段异步工作窗口；在执行检查点实际交付 steer。
-      await wait(160 + 160 + 220, undefined, { signal });
+      work = this.startMockTurnWork(session, turnId, responseId);
+      // 只恢复原型展示；保留投递检查点与执行窗口，不改变 steer、跟进及停止语义。
+      await wait(160, undefined, { signal });
+      work.explain();
+      await wait(160, undefined, { signal });
+      work.startTodo();
+      await wait(220, undefined, { signal });
       consumeSteers();
-      await wait(320 + 160, undefined, { signal });
+      work.startReview();
+      await wait(320, undefined, { signal });
+      work.finishReview(inputs.length);
+      await wait(160, undefined, { signal });
       if (signal.aborted || session.activeTurn !== owner) return;
       consumeSteers();
       const result = this.business?.prepareNativeResult(session.sessionId, startedCommands);
       const reply = result?.reply ?? standaloneReply(inputs);
       if (result) this.business!.completeNative(session.sessionId, result);
+      work.settle("success");
       this.appendRow(session, {
         kind: "assistantText",
         rowId: this.nextRowId(session),
@@ -512,6 +672,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     } catch (error) {
       if (signal.aborted || session.activeTurn !== owner) return;
       discard();
+      work?.settle("failed");
       const message = this.standalone
         ? "Agent 未能完成回复，消息已保留。"
         : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
