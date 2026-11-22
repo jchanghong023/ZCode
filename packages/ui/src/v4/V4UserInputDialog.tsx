@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 export interface V4UserInputDialogProps {
   model: V4UserInputViewModel;
@@ -20,22 +19,6 @@ export interface V4UserInputDialogProps {
 export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
   const { intl } = useZCodeIntl();
   const [freeText, setFreeText] = useState("");
-
-  const handleOption = useCallback(
-    (optionId: string) => {
-      runUserAction({
-        input: {
-          featureId: "conversation.blocking.user_input",
-          action: "select_option",
-          trigger: "button",
-        },
-        operation: () => onSubmit({ optionId }),
-        completed: { resultSource: "optimistic_projection" },
-        failureStage: "user_input_submit",
-      });
-    },
-    [onSubmit],
-  );
 
   const handleFreeTextSubmit = useCallback(() => {
     const trimmed = freeText.trim();
@@ -58,7 +41,7 @@ export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
                 type="button"
                 variant="outline"
                 data-testid={testId(TID_V4_USER_INPUT_OPTION, option.optionId)}
-                onClick={() => handleOption(option.optionId)}
+                onClick={() => onSubmit({ optionId: option.optionId })}
               >
                 {option.label}
               </Button>

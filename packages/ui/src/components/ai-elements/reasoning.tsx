@@ -89,10 +89,10 @@ export const Reasoning = memo(
       onChange: onOpenChange,
       prop: preview ? false : open,
     });
-    const [duration, setDuration] = useControllableState<number | undefined>({
-      defaultProp: undefined,
-      prop: durationProp,
-    });
+    // 流式行完成后才可能收到原生耗时；将它作为显示覆盖值，而不是切换受控状态。
+    const [measuredDuration, setMeasuredDuration] = useState<number>();
+    const duration = durationProp ?? measuredDuration;
+    const hasDuration = durationProp !== undefined;
 
     const startTimeRef = useRef<number | null>(null);
     const contentUnmountDelayRef = useRef<number | null>(null);
@@ -112,8 +112,8 @@ export const Reasoning = memo(
 
     useEffect(() => {
       if (!isStreaming) {
-        if (startTimeRef.current !== null) {
-          setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
+        if (startTimeRef.current !== null && !hasDuration) {
+          setMeasuredDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
         }
         startTimeRef.current = null;
         return;
@@ -125,7 +125,7 @@ export const Reasoning = memo(
 
       // 收起态展示流式摘要，不需要为了隐藏的耗时每秒触发整块 reasoning 重渲染；
       // 展开时再按同一个开始时间补算并持续更新时间。
-      if (!isOpen) {
+      if (!isOpen || hasDuration) {
         return;
       }
 
@@ -133,13 +133,13 @@ export const Reasoning = memo(
         if (startTimeRef.current === null) {
           return;
         }
-        setDuration(Math.max(1, Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S)));
+        setMeasuredDuration(Math.max(1, Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S)));
       };
 
       updateDuration();
       const durationTimer = window.setInterval(updateDuration, MS_IN_S);
       return () => window.clearInterval(durationTimer);
-    }, [isOpen, isStreaming, setDuration]);
+    }, [hasDuration, isOpen, isStreaming]);
 
     useEffect(() => {
       const previousAutoCollapseKey = previousAutoCollapseKeyRef.current;

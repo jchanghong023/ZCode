@@ -13,16 +13,8 @@ import {
   useOpenModelSettings,
 } from "../shell/ModelSettingsNavigationContext.js";
 
-type AIReqSessionPaneProps = SessionPaneProps & {
-  /** 历史任务页隐藏只读 composer，改用历史摘要和当前阶段出口。 */
-  hideReadOnlyComposer?: boolean;
-};
-
 /** AIReq owns admission/selection; native v4 remains the only draft and message owner. */
-export function AIReqSessionPane({
-  hideReadOnlyComposer = false,
-  ...props
-}: AIReqSessionPaneProps) {
+export function AIReqSessionPane(props: SessionPaneProps) {
   const aireq = useAIReq();
   const openModelSettings = useOpenModelSettings();
   const workspaceActive = useAIReqWorkspaceActive();
@@ -62,7 +54,7 @@ export function AIReqSessionPane({
     };
   }, [businessSession, selection, retrySession, sessionId, callerBeforeReconnect]);
   const interactionEnabled = workspaceActive && (props.interactionEnabled ?? true);
-  const { services, rpcReady, remoteSessionId } = useWorkspaceServicesResolution(
+  const { services, rpcReady } = useWorkspaceServicesResolution(
     props.workspacePath,
     props.remoteSessionId,
     props.workspaceIdentity,
@@ -73,15 +65,14 @@ export function AIReqSessionPane({
     return agent.getConversationCommandCatalog?.({
       workspacePath: props.workspacePath,
       ...(props.workspaceIdentity ? { workspaceIdentity: props.workspaceIdentity } : {}),
-      ...(remoteSessionId ? { remoteSessionId } : {}),
       ...(sessionId ? { sessionId } : {}),
     });
-  }, [agent, props.workspacePath, props.workspaceIdentity, remoteSessionId, rpcReady, sessionId]);
+  }, [agent, props.workspacePath, props.workspaceIdentity, rpcReady, sessionId]);
   return (
     <SessionPane
       {...props}
       showTurnWork
-      retainReadOnlyComposer={!hideReadOnlyComposer}
+      retainReadOnlyComposer
       readOnly={props.readOnly || Boolean(readOnlyReason)}
       readOnlyReason={readOnlyReason}
       onBeforeReconnect={onBeforeReconnect}

@@ -19,7 +19,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePendingInteractionTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { logger } from "@/logger.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
-import { useWorkspaceHookReviewStore } from "@/store/workspaceHookReviewStore.js";
 import {
   getTaskUiState,
   getWorkspaceState,
@@ -94,10 +93,6 @@ export function V4InteractionDialogs({
   resolveRecentScope,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
-  const connectWorkspaceHookCommands = useWorkspaceHookReviewStore((state) => state.connect);
-  const disconnectWorkspaceHookCommands = useWorkspaceHookReviewStore((state) => state.disconnect);
-  const upsertWorkspaceHookReview = useWorkspaceHookReviewStore((state) => state.upsert);
-  const clearWorkspaceHookReview = useWorkspaceHookReviewStore((state) => state.clear);
   const platform = useOptionalPlatform();
   const { intl } = useZCodeIntl();
   // task 切换时 sessionId 会先更新，旧 task snapshot 可能再保留一帧。
@@ -108,17 +103,12 @@ export function V4InteractionDialogs({
     () => workflowSessionModelOf(currentSnapshot?.config),
     [currentSnapshot?.config],
   );
-  // Bug 根因：workspaceHookReview 是 Settings/Hooks 处理的特殊交互，不能由通用 Dialog 渲染；
-  // 但它可以和 permission/userInput 共存，固定读取 [0] 会遮挡后续真正需要弹窗的交互。
-  // 这里只选择本组件可渲染的首个交互，同时保留 permission/userInput 的队列顺序。
+  // 只选择本弹窗支持的首个交互，避免旧 Hook 审核挡住后续权限或问答。
   const pending =
     currentSnapshot?.pendingInteractions.find(
       (interaction) =>
         interaction.payload.kind === "permission" || interaction.payload.kind === "userInput",
     ) ?? null;
-  const workspaceHookReview = currentSnapshot?.pendingInteractions.find(
-    (interaction) => interaction.payload.kind === "workspaceHookReview",
-  );
   const notificationEnabled = useZCodeStoreWithDefault((state) => state.notificationEnabled, true);
   const botElicitationProgress = useZCodeSessionStore(
     (state) =>
@@ -136,48 +126,6 @@ export function V4InteractionDialogs({
     platform,
     formatMessage: intl.formatMessage,
   });
-  useEffect(() => {
-    connectWorkspaceHookCommands(sessionId, {
-      sessionId,
-      workspacePath,
-      workspaceIdentity,
-      remoteSessionId,
-      sendCommand,
-      onCommandSettled,
-    });
-    return () => disconnectWorkspaceHookCommands(sessionId, sendCommand);
-  }, [
-    connectWorkspaceHookCommands,
-    disconnectWorkspaceHookCommands,
-    onCommandSettled,
-    sendCommand,
-    sessionId,
-    workspaceIdentity,
-    remoteSessionId,
-    workspacePath,
-  ]);
-  useEffect(() => {
-    if (!workspaceHookReview || workspaceHookReview.payload.kind !== "workspaceHookReview") {
-      clearWorkspaceHookReview(sessionId);
-      return;
-    }
-    upsertWorkspaceHookReview(sessionId, {
-      request: workspaceHookReview.payload,
-      workspacePath,
-      sendCommand,
-      onCommandSettled,
-    });
-    // 软门禁：不再强制跳转 Settings/Hooks。
-    // 用户通过 WorkspaceHookPendingIndicator 的 [去审核] 按钮主动打开 Hooks 设置。
-  }, [
-    clearWorkspaceHookReview,
-    onCommandSettled,
-    sendCommand,
-    sessionId,
-    upsertWorkspaceHookReview,
-    workspaceHookReview,
-    workspacePath,
-  ]);
   const autoResolutionIntentRef = useRef(createInteractionAutoResolutionIntentTracker());
   const loggedSnoozeSourceIdsRef = useRef(new Set<string>());
   const [permissionResponse, setPermissionResponse] = useState<{

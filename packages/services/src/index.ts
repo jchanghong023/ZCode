@@ -5,10 +5,13 @@ export { IAIReqService } from "./aireq/contract.js";
 export {
   IModelSelectionService,
   IProviderSettingsService,
+  WEB_MODEL_SELECTION_METHODS,
   type ModelSelectionView,
   type ModelSelectionViewInput,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
+  type WebModelSelectionService,
+  type WebModelSelectionView,
 } from "./model-provider/providerFacadeServices.js";
 export {
   collectServiceMemoryDiagnostics,
@@ -19,19 +22,30 @@ export {
 // Accessor
 export type { IServiceAccessor } from "./accessor.js";
 
-// File service — IFileService is both a type (interface) and value (descriptor)
+// Web file service descriptor and its wire types
 export { IFileService } from "./file/file.js";
+export type { WebFileMediaPreview, WebFileService, WebWorkspaceFileEntry } from "./file/file.js";
 
 // System service — ISystemService is both a type (interface) and value (descriptor)
 export { ISystemService } from "./system/system.js";
 
 // Setting service — ISettingService is both a type (interface) and value (descriptor)
-export { ISettingService } from "./setting/setting.js";
+export {
+  ISettingService,
+  createDefaultWebAppSettings,
+  webAppSettingsPatchSchema,
+  type WebAppSettings,
+  type WebSettingService,
+} from "./setting/setting.js";
 
 // Broadcast service — IBroadcastService is both a type (interface) and value (descriptor)
 export { IBroadcastService } from "./broadcast/broadcast.js";
 
-export type { BroadcastMessage } from "./broadcast/broadcast.js";
+export type {
+  BroadcastMessage,
+  WebBroadcastMessage,
+  WebBroadcastService,
+} from "./broadcast/broadcast.js";
 
 export type {
   ZCodeTaskListKind,
@@ -83,6 +97,8 @@ export type {
   ProjectRoot,
   SaveProjectInput,
   ProjectDirectories,
+  WebProjectService,
+  WebProjectTree,
 } from "#src/project/contract.js";
 
 export type {

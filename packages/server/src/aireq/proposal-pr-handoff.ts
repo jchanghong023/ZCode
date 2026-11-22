@@ -1,5 +1,4 @@
 import type {
-  AIReqPrHandoffInput,
   AIReqPrHandoffScenario,
   InternalProposalDelivery,
   PrototypeRepositoryTarget,
@@ -7,7 +6,6 @@ import type {
 
 import type { AIReqPrHandoff, AIReqProject, AIReqRequirementGroup } from "@zcode/services/aireq";
 import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
-import { getEmployeeId } from "./identity.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
 
 export function prototypeProposalBranch(irId: string): string {
@@ -35,10 +33,12 @@ export function prototypeProposalRepositoryIssue(
     return "项目 Git 仓库或目标分支已变更，当前文档交付仍绑定原目标。";
 }
 
-/** 仅推导平台托管仓库的交接样例，不创建分支或访问文件系统。 */
-function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
-  const { group, project, employeeId, scenario = "current" } = input;
-  const changeRoot = prototypeIrRoot(group.id);
+/** 只读取交付信息，不创建分支或访问文件系统。 */
+export function readPrototypeProposalPrHandoff(
+  group: AIReqRequirementGroup,
+  project: AIReqProject | undefined,
+  scenario: AIReqPrHandoffScenario = "current",
+): AIReqPrHandoff {
   const projectDirectory = group.proposalLocation?.directory;
   const sourceDirectory = projectDirectory
     ? `${projectDirectory.replace(/\/$/, "")}/.aireq/proposals/${group.id}`
@@ -66,37 +66,12 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
   if (!hasCurrentProposalSolution(group) || scenario === "stale-version")
     blockers.push("请先完成当前需求版本的方案设计，再创建提案分支并提交推送。");
   if (scenario === "change-conflict")
-    blockers.push(`目标仓库存在同名 ${changeRoot}，不能覆盖其他提案。`);
+    blockers.push(`目标仓库存在同名 ${prototypeIrRoot(group.id)}，不能覆盖其他提案。`);
   return {
-    ready: blockers.length === 0,
     blockers,
-    employeeId,
     sourceDirectory,
     branch,
     repositoryUrl: target?.repositoryUrl,
     targetBranch: target?.defaultBranch ?? "未配置",
-    changeRoot,
-    files: group.files.map((file) => ({
-      path: file.path,
-      sourcePath: `${sourceDirectory}/${file.path}`,
-      targetPath: `${branch}:${file.path}`,
-      version:
-        file.path.endsWith("/design.md") || file.path.endsWith("/sr-dependencies.json")
-          ? `方案第 ${group.proposalSolution?.round ?? 1} 轮`
-          : `需求快照 ${group.snapshot?.digest ?? "未生成"}`,
-      digest: file.sha256,
-    })),
   };
-}
-export function readPrototypeProposalPrHandoff(
-  group: AIReqRequirementGroup,
-  project: AIReqProject | undefined,
-  scenario: AIReqPrHandoffScenario = "current",
-): AIReqPrHandoff {
-  return derivePrototypeProposalPrHandoff({
-    group,
-    employeeId: getEmployeeId(),
-    project,
-    scenario,
-  });
 }

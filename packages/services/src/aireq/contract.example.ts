@@ -4,13 +4,15 @@ import type { AIReqIdentity, AIReqSelection } from "./types.js";
 /** Reconnect reads facts and all-project document counts in one call; it never repeats a mutation. */
 export async function readAIReqProject(service: IAIReqService, identity: AIReqIdentity) {
   const bootstrap = await service.bootstrap(identity);
-  const workflow = await service.call(identity, "readWorkflow", [bootstrap.initialSelection]);
+  const workflow = await service.call(identity, "readWorkflow", [
+    { projectId: bootstrap.initialProjectId },
+  ]);
   return { bootstrap, workflow, projectDocuments: workflow.view.projectDocuments };
 }
 
 export function subscribeAIReqProjection(service: IAIReqService, invalidate: () => void) {
   return service.onDidChange((event) => {
-    if (event.type !== "error" && event.type !== "presence") invalidate();
+    if (event.type !== "presence") invalidate();
   });
 }
 

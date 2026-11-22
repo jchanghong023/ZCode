@@ -493,12 +493,6 @@ export function applyProposalMutation(
       state.sessions = state.sessions.filter(
         (item) => item.irId !== irId || item.projectId !== projectId,
       );
-      operation.deletion = {
-        version: 1,
-        operationId: operation.operationId,
-        deletedAt: at,
-        manualCloseNeeded: false,
-      };
       break;
     case "acceptProposal": {
       const review = proposal!.originalReview!;

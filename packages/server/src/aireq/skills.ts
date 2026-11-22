@@ -71,17 +71,29 @@ export function readBuiltinPrototypeSkills(): SkillSummary[] {
   return structuredClone(PROTOTYPE_SKILLS);
 }
 
+function projectPrototypeSkills<T>(
+  workspacePath: string | undefined,
+  project: (skill: SkillSummary) => T,
+): T[] {
+  const result = PROTOTYPE_SKILLS.map(project);
+  const workspaceKey = workspacePath ? pathKey(workspacePath) : undefined;
+  for (const entry of storage.skills) {
+    if (
+      entry.skill.scope === "user" ||
+      (workspaceKey !== undefined && pathKey(entry.workspacePath) === workspaceKey)
+    ) {
+      result.push(project(entry.skill));
+    }
+  }
+  return result;
+}
+
 export function readPrototypeSkills(workspacePath?: string): SkillSummary[] {
-  return structuredClone([
-    ...PROTOTYPE_SKILLS,
-    ...storage.skills
-      .filter(
-        (entry) =>
-          entry.skill.scope === "user" ||
-          (workspacePath && pathKey(entry.workspacePath) === pathKey(workspacePath)),
-      )
-      .map((entry) => entry.skill),
-  ]);
+  return projectPrototypeSkills(workspacePath, (skill) => structuredClone(skill));
+}
+
+export function readPrototypeSkillPaths(workspacePath: string): string[] {
+  return projectPrototypeSkills(workspacePath, (skill) => skill.path);
 }
 export function savePrototypeDesignedSkill(
   workspacePath: string,

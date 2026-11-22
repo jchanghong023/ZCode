@@ -68,7 +68,7 @@ async function begin(
     totalChunks: options.totalChunks ?? (bytes.byteLength ? 1 : 0),
     checksum: options.checksum ?? checksum(bytes),
   });
-  expect(receipt).toMatchObject({ uploadId, state: "staging", nextChunkIndex: 0 });
+  expect(receipt).toEqual({ state: "staging", nextChunkIndex: 0 });
   return params;
 }
 
@@ -80,7 +80,7 @@ async function upload(client: Client, native: Native, bytes: Uint8Array) {
       chunkIndex: 0,
       dataBase64: Buffer.from(bytes).toString("base64"),
     });
-    expect(chunk).toMatchObject({ uploadId: params.uploadId, nextChunkIndex: 1 });
+    expect(chunk).toEqual({ nextChunkIndex: 1 });
   }
   const receipt = await client.services.zcodeAgentService.attachmentCommitV4(params);
   expect(receipt.ref).toEqual(expect.any(String));
@@ -129,15 +129,15 @@ describe("attachment transactions through the deployed backend", () => {
 
     const whole = await client.services.zcodeAgentService.attachmentReadV4(read);
     expect(Buffer.from(whole.dataBase64, "base64")).toEqual(bytes);
-    expect(whole).toMatchObject({
+    expect(whole).toEqual({
+      dataBase64: expect.any(String),
       mediaType: "text/plain",
       totalBytes: bytes.length,
-      nextOffset: null,
     });
 
     const first = await client.services.zcodeAgentService.attachmentReadV4({ ...read, limit: 5 });
     expect(Buffer.from(first.dataBase64, "base64")).toEqual(bytes.subarray(0, 5));
-    expect(first.nextOffset).toBe(5);
+    expect(first.totalBytes).toBe(bytes.length);
     const rest = await client.services.zcodeAgentService.attachmentReadV4({ ...read, offset: 5 });
     expect(
       Buffer.concat([
@@ -145,12 +145,11 @@ describe("attachment transactions through the deployed backend", () => {
         Buffer.from(rest.dataBase64, "base64"),
       ]),
     ).toEqual(bytes);
-    expect(rest.nextOffset).toBeNull();
     const eof = await client.services.zcodeAgentService.attachmentReadV4({
       ...read,
       offset: bytes.length,
     });
-    expect(eof).toMatchObject({ dataBase64: "", totalBytes: bytes.length, nextOffset: null });
+    expect(eof).toMatchObject({ dataBase64: "", totalBytes: bytes.length });
 
     await client.services.zcodeAgentService.attachmentAbortV4(params);
     const retained = await client.services.zcodeAgentService.attachmentReadV4(read);

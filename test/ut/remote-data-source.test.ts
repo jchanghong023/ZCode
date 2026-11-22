@@ -33,15 +33,11 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
     capabilities: {
       workflowCommands: ["createIdea"],
       requirementManagement: true,
-      freeChat: false,
-      nativeChat: true,
-      nativeSurface: false,
     },
-    initialSelection: { projectId: "project-a" },
+    initialProjectId: "project-a",
     models: { choices: [], settings: { defaultModel: `model-${revision}`, agents: [] }, revision },
     prompts: {
       saved: { requirements: `saved-${revision}` },
-      draft: { requirements: `saved-${revision}` },
       revision,
     },
     projects: { developmentRoots: { "project-a": "/project-a" } },
@@ -78,18 +74,17 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
   };
 }
 
+function requestedWorkflow(args: unknown[]) {
+  return workflow((args[0] as AIReqSelection | undefined)?.projectId ?? "project-a");
+}
+
 function serviceDouble() {
   const listeners = new Set<(event: AIReqRemoteEvent) => void>();
   const metadata = { current: bootstrap() };
   const readBootstrap = vi.fn(async (_identity: AIReqIdentity) => metadata.current);
   const call = vi.fn(
-    async (
-      _identity: AIReqIdentity,
-      path: string,
-      _args: unknown[],
-      target?: AIReqSelection,
-    ): Promise<unknown> => {
-      if (path === "readWorkflow") return workflow(target?.projectId ?? "project-a");
+    async (_identity: AIReqIdentity, path: string, args: unknown[]): Promise<unknown> => {
+      if (path === "readWorkflow") return requestedWorkflow(args);
       return null;
     },
   );
@@ -131,7 +126,6 @@ describe("AIReq frontend data source", () => {
     const baselineReads = remote.readBootstrap.mock.calls.length;
     const snapshot = {
       revision: 1,
-      employeeCount: 1,
       rows: [{ employeeId: identity.employeeId, ip: "192.0.2.1" }],
     };
     remote.emit({ type: "presence", snapshot });
@@ -196,11 +190,10 @@ describe("AIReq frontend data source", () => {
     expect(remote.call).not.toHaveBeenCalled();
   });
 
-  it("opening another project's readonly detail does not change the selected project", async () => {
+  it("reads the requested project and saves shared models without a project argument", async () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
-      source.selectProject("project-a");
       const target = { projectId: "project-b", irId: "ir-b", formalView: "detail" as const };
       const view = await source.readWorkflow(target);
       expect(view.currentProjectId).toBe("project-b");
@@ -211,7 +204,6 @@ describe("AIReq frontend data source", () => {
         identity,
         "models.save",
         [{ defaultModel: "model-new", agents: [] }, 1],
-        { projectId: "project-a" },
       ]);
     } finally {
       await source.dispose();
@@ -221,14 +213,10 @@ describe("AIReq frontend data source", () => {
   it("keeps explicit retry identity and original expected revision instead of allocating a new operation", async () => {
     const remote = serviceDouble();
     const receipt: AIReqWorkflowResult = {
-      operationId: "create-idea-1",
       projectId: "project-a",
-      revision: 8,
-      status: "completed",
       ideaId: "idea-8",
       receipt: {
         operationId: "create-idea-1",
-        commandDigest: "business-input",
         type: "createIdea",
         status: "completed",
         startedAt: "2026-11-17T00:00:00Z",
@@ -236,8 +224,8 @@ describe("AIReq frontend data source", () => {
         steps: [],
       },
     };
-    remote.call.mockImplementation(async (_identity, path, _args, target) =>
-      path === "command" ? receipt : workflow(target?.projectId ?? "project-a"),
+    remote.call.mockImplementation(async (_identity, path, args) =>
+      path === "command" ? receipt : requestedWorkflow(args),
     );
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
@@ -281,7 +269,6 @@ describe("AIReq frontend data source", () => {
           { projectId: "project-b" },
           31,
         ],
-        { projectId: "project-b" },
       ]);
       expect((command![2][0] as { operationId: string }).operationId.trim()).not.toBe("");
       expect(action).toEqual({ type: "createIdea", originalText: "Export reports" });
@@ -310,8 +297,8 @@ describe("AIReq frontend data source", () => {
   it("a save acknowledgement cannot erase edits made while that save was pending", async () => {
     const remote = serviceDouble();
     const save = deferred<unknown>();
-    remote.call.mockImplementation(async (_identity, path, _args, target) =>
-      path === "prompts.save" ? save.promise : workflow(target?.projectId ?? "project-a"),
+    remote.call.mockImplementation(async (_identity, path, args) =>
+      path === "prompts.save" ? save.promise : requestedWorkflow(args),
     );
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
@@ -322,7 +309,6 @@ describe("AIReq frontend data source", () => {
         ...bootstrap(2),
         prompts: {
           saved: { requirements: "submitted" },
-          draft: { requirements: "submitted" },
           revision: 2,
         },
       };

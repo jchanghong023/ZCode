@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WebWorkspaceFileEntry } from "@zcode/services";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { buildFileMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@zcode/shared/workspaceFileSearch";
@@ -10,36 +10,26 @@ export function isLocalWorkspaceForFileMentionIndex(workspaceIdentity?: string):
   return !workspaceIdentity?.trim();
 }
 
-type ProjectFileEntry = WorkspaceFileEntry & {
-  rootPath?: string;
-  rootName?: string;
-  mentionPath?: string;
-};
-
-function mapWorkspaceFileToMentionItem(entry: ProjectFileEntry): MentionItem {
-  const mentionPath = entry.mentionPath ?? entry.relativePath;
+function mapWorkspaceFileToMentionItem(entry: WebWorkspaceFileEntry, rootName: string): MentionItem {
+  const name = entry.relativePath.slice(entry.relativePath.lastIndexOf("/") + 1);
   return {
     id: `file:${entry.path}`,
     category: "files",
-    label: entry.name,
+    label: name,
     description: entry.relativePath,
-    value: mentionPath,
+    value: entry.relativePath,
     // Bugfix: 文件 mention 的标准转译格式需要保持 `[filename](path)`，
     // 之前这里误把整条 relativePath 当成链接文本，导致发送后回显和复制内容都退化成“长路径做标题”。
     // 这里恢复为只用 basename 做 label，路径只放在链接目标里，和输入框 node 样式保持一致。
-    markdown: buildFileMentionMarkdown(mentionPath, entry.name, entry.type),
+    markdown: buildFileMentionMarkdown(entry.relativePath, name),
     keywords: [entry.relativePath, entry.path],
     data: {
-      kind: entry.type,
+      kind: "file",
       path: entry.path,
       relativePath: entry.relativePath,
-      rootName: entry.rootName,
+      rootName,
     },
   };
-}
-
-function normalizeRefreshQuery(query: string): string {
-  return query.trim().toLowerCase();
 }
 
 export function useFileMentionProvider(
@@ -67,7 +57,6 @@ export function useFileMentionProvider(
     getMentionGroupLimitForQuery(query, defaultPreviewLimit) ?? WORKSPACE_FILE_SEARCH_DISPLAY_CAP;
   // 连接实例也属于作用域：相同路径的远程重连不能接纳旧 Host 的查询结果。
   const scope = useMemo(
-    // 查询作用域保留连接、项目版本与启用状态；查询词不参与，保留增量 miss 补扫语义。
     () => ({
       fileService,
       projectService,
@@ -78,7 +67,6 @@ export function useFileMentionProvider(
       projectId,
       projectRevision,
       error: null as Error | null,
-      lastMissQuery: null as string | null,
     }),
     [
       fileService,
@@ -95,7 +83,7 @@ export function useFileMentionProvider(
     scope: typeof scope;
     query: string;
     limit: number;
-    entries: ProjectFileEntry[];
+    entries: WebWorkspaceFileEntry[];
     loading: boolean;
     error: Error | null;
   } | null>(null);
@@ -105,58 +93,34 @@ export function useFileMentionProvider(
     if (!enabled || scope.error) return;
     let active = true;
     setResult({ scope, query, limit, entries: [], loading: true, error: null });
-    const readRoots = async () => {
+    const read = async (): Promise<WebWorkspaceFileEntry[]> => {
       if ((sessionId || projectId) && !projectService)
         throw new Error("project.service-unavailable");
-      if (sessionId)
-        return (
-          await projectService!.resolveSessionDirectories({
-            taskId: sessionId,
-            workspacePath,
-            workspaceIdentity,
-          })
-        ).additionalDirectories;
-      // 当前目录来源只有已绑定会话；项目旧目录枚举不属于 Web 公开能力。
-      if (projectId) throw new Error("project.session-required");
-      return [];
-    };
-    const read = async (refresh = false): Promise<ProjectFileEntry[]> => {
-      const roots = [...new Set([workspacePath, ...(await readRoots())])];
+      if (sessionId && projectService) {
+        await projectService.resolveSessionDirectories({
+          taskId: sessionId,
+          workspacePath,
+          workspaceIdentity,
+        });
+      } else if (projectId) {
+        throw new Error("project.session-required");
+      }
       if (!active) return [];
-      const results = await Promise.all(
-        roots.map(async (rootPath) =>
-          (
-            await fileService.searchWorkspaceFiles({
-              rootPath,
-              workspaceIdentity,
-              query,
-              limit,
-              ...(refresh ? { refresh: true } : {}),
-            })
-          ).map((entry) => ({
-            ...entry,
-            rootPath,
-            rootName: rootPath.split(/[\\/]/).filter(Boolean).at(-1) ?? rootPath,
-            mentionPath: rootPath === workspacePath ? entry.relativePath : entry.path,
-          })),
-        ),
-      );
-      const unique = new Map<string, ProjectFileEntry>();
-      for (const entry of results.flat())
+      const entries = await fileService.searchWorkspaceFiles({
+        rootPath: workspacePath,
+        query,
+        limit,
+      });
+      const unique = new Map<string, WebWorkspaceFileEntry>();
+      for (const entry of entries) {
         if (!unique.has(entry.path)) unique.set(entry.path, entry);
+      }
       return [...unique.values()].slice(0, limit);
     };
     const search = async () => {
       try {
-        let entries = await read();
+        const entries = await read();
         if (!active) return;
-        const normalizedQuery = normalizeRefreshQuery(query);
-        if (entries.length === 0 && normalizedQuery && scope.lastMissQuery !== normalizedQuery) {
-          scope.lastMissQuery = normalizedQuery;
-          // 无命中补扫必须绕过 Host TTL，否则外部新文件在缓存有效期内永远不可见。
-          entries = await read(true);
-          if (!active) return;
-        }
         setResult({ scope, query, limit, entries, loading: false, error: null });
       } catch (error) {
         if (!active) return;
@@ -184,10 +148,11 @@ export function useFileMentionProvider(
 
   const current =
     enabled && result?.scope === scope && result.query === query && result.limit === limit;
-  const items = useMemo(
-    () => (current ? result.entries.map(mapWorkspaceFileToMentionItem) : []),
-    [current, result],
-  );
+  const items = useMemo(() => {
+    if (!current) return [];
+    const rootName = workspacePath.split(/[\\/]/).filter(Boolean).at(-1) ?? workspacePath;
+    return result.entries.map((entry) => mapWorkspaceFileToMentionItem(entry, rootName));
+  }, [current, result, workspacePath]);
   return {
     items,
     loading: enabled && !scope.error && (!current || result.loading),

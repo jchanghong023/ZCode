@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isZCodeAgentProvider, ZCODE_AGENT_PROVIDER, type ZCodeProvider } from "@zcode/shared";
-import type { IModelSelectionService, ModelSelectionView } from "@zcode/services";
+import type { IServiceAccessor, WebModelSelectionView } from "@zcode/services";
 import {
   buildModelConfigMissingUiError,
   type ModelConfigMissingUiError,
@@ -27,7 +27,7 @@ export interface DraftModelReadinessGate {
 }
 
 export function resolveModelSelectionReadinessStatus(
-  view: ModelSelectionView,
+  view: WebModelSelectionView,
 ): Extract<DraftModelReadinessStatus, "ready" | "missing"> {
   return view.providers.some((provider) => provider.models.length > 0) ? "ready" : "missing";
 }
@@ -44,7 +44,7 @@ export function useDraftModelReadinessGate(params: {
   workspaceIdentity?: string;
   provider?: ZCodeProvider;
   sessionId: string | null;
-  modelSelectionService: Pick<IModelSelectionService, "getView" | "onDidChange">;
+  modelSelectionService: IServiceAccessor["modelSelectionService"];
 }): DraftModelReadinessGate {
   const { workspacePath, workspaceIdentity, provider, sessionId, modelSelectionService } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
@@ -103,7 +103,7 @@ export function useDraftModelReadinessGate(params: {
       if (disposed) return;
       commitStatus(status);
     };
-    const subscription = modelSelectionService.onDidChange((view) => {
+    const subscription = modelSelectionService.onDidChange?.((view) => {
       registryEventVersion += 1;
       applyStatus(resolveModelSelectionReadinessStatus(view));
     });

@@ -86,7 +86,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     projectId:
       initialLink.current && initialLink.current !== "invalid"
         ? initialLink.current.projectId
-        : source.initialSelection.projectId,
+        : source.initialProjectId,
   }));
   const selectionRef = useRef(selection);
   const [navigation, setNavigation] = useState<AIReqNavigationState>(() => ({
@@ -234,7 +234,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         setView(next);
         setLoadedSelection({ ...target });
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
-        if (!commandError.current) setError(next.error);
+        if (!commandError.current) setError(undefined);
         // 旧历史与首次读取也必须落到具体版本；只在当前读取代际接纳后规范范围。
         const resolved = resolveRelease(target.projectId, next, releaseRef.current);
         releaseRef.current = resolved;
@@ -311,7 +311,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           overviewOrigin !== undefined)
       )
         recordNavigation(value, mainView, null, requirementView, overviewOrigin, proposalTask);
-      source.selectProject(value.projectId);
       selectionRef.current = value;
       setSelection(value);
       commandError.current = false;
@@ -319,7 +318,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       setLinkError(undefined);
       void load(value, projectChanged);
     },
-    [source, load, recordNavigation, resolveRelease],
+    [load, recordNavigation, resolveRelease],
   );
   const {
     setMainView,
@@ -699,9 +698,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const target = selectionRef.current;
       try {
         const result = await source.command(value, target, viewRef.current?.revision ?? 0);
-        if (result.status === "failed")
+        if (result.receipt.status === "failed")
           // 业务回执的错误字段由服务边界校验；保留版本、阶段等可操作原因，未知异常走统一回退。
-          throw Object.assign(new Error(result.error ?? result.receipt.error ?? "操作失败。"), {
+          throw Object.assign(new Error(result.receipt.error ?? "操作失败。"), {
             code: "BUSINESS_RULE_VIOLATION",
           });
         // An operation completing in the background must not navigate a different view.

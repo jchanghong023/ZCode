@@ -83,8 +83,7 @@ export function projectDirectory(state: AIReqWorkflowView): {
   projects: AIReqWorkflowView["projects"];
   sessions: AIReqNativeSessionRef[];
   workspaces: Record<string, AIReqWorkspace>;
-  skillWorkspaceIdentities: Record<string, string>;
-  skillDesignStorage: { workspacePath: string; sharedSkillsDirectory: string };
+  skillDesignWorkspacePath: string;
 } {
   const projects = readPrototypeProjectSettings().projects;
   const projectIds = new Set(projects.map((project) => project.id));
@@ -110,13 +109,7 @@ export function projectDirectory(state: AIReqWorkflowView): {
         },
       ]),
     ),
-    skillWorkspaceIdentities: Object.fromEntries(
-      projects.map((project) => [project.id, `${PROTOTYPE_WORKSPACE_IDENTITY}:${project.id}`]),
-    ),
-    skillDesignStorage: {
-      workspacePath: PROTOTYPE_BACKEND.configDirectory,
-      sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
-    },
+    skillDesignWorkspacePath: PROTOTYPE_BACKEND.configDirectory,
   };
 }
 

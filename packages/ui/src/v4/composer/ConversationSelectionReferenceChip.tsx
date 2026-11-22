@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquareTextIcon, PencilIcon, PlusIcon, QuoteIcon, Trash2Icon } from "lucide-react";
+import { MessageSquareTextIcon, QuoteIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
@@ -13,8 +13,6 @@ import {
 import { AnnotationNumber, annotationVariant } from "@/selection-comment/index.js";
 import { ContextAttachmentPill } from "@/v4/composer/ContextAttachmentPill.js";
 
-type AnchorPoint = { center: number; top: number; bottom: number };
-
 /**
  * 注释 chip：输入框与历史消息共用。每条注释只算一条（有无评论都一样），
  * 列表编号与正文里的编号一一对应；有评论 = 实心编号，仅原文 = 空心编号。
@@ -25,7 +23,6 @@ export function ConversationSelectionReferenceChip({
   numbered = false,
   onRemove,
   onRemoveAll,
-  onEdit,
 }: {
   references: readonly ConversationSelectionDisplayReference[];
   contentAlign?: AttachmentHoverCardContentProps["align"];
@@ -33,8 +30,6 @@ export function ConversationSelectionReferenceChip({
   numbered?: boolean;
   onRemove?: (id: string) => void;
   onRemoveAll?: () => void;
-  /** 提供时显示铅笔与“添加评论”；fallback 是正文编号不可见时编辑浮层的指向位置。 */
-  onEdit?: (id: string, fallback: AnchorPoint) => void;
 }) {
   const { intl, locale } = useZCodeIntl();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -45,7 +40,6 @@ export function ConversationSelectionReferenceChip({
   if (references.length === 0) return null;
   const filePath = references.length === 1 ? references[0]?.path : undefined;
   const hasComment = references.some((reference) => reference.comment?.trim());
-  const annotating = hasComment || onEdit !== undefined;
   // 文件引用沿用共用 pill，但不能被注释计数隐藏来源。
   const label = filePath
     ? intl.formatMessage(
@@ -56,17 +50,15 @@ export function ConversationSelectionReferenceChip({
         {
           id: references.some((reference) => reference.path)
             ? "chat.selections.mixedCount"
-            : annotating
+            : hasComment
               ? "chat.selections.count"
               : "chat.selections.quoteCount",
         },
         { count: String(references.length) },
       );
   const removeLabel = intl.formatMessage({
-    id: annotating ? "chat.selections.remove" : "chat.selections.quoteRemove",
+    id: hasComment ? "chat.selections.remove" : "chat.selections.quoteRemove",
   });
-  const editLabel = intl.formatMessage({ id: "chat.selections.commentEditTitle" });
-  const addCommentLabel = intl.formatMessage({ id: "chat.selections.commentAdd" });
   return (
     <ContextAttachmentPill
       contentAlign={contentAlign}
@@ -80,7 +72,7 @@ export function ConversationSelectionReferenceChip({
       label={label}
       onRemoveAll={onRemoveAll}
       removeLabel={intl.formatMessage({
-        id: annotating ? "chat.selections.removeAll" : "chat.selections.quoteRemoveAll",
+        id: hasComment ? "chat.selections.removeAll" : "chat.selections.quoteRemoveAll",
       })}
       triggerProps={{
         "data-conversation-selection-reference-count": references.length,
@@ -90,7 +82,7 @@ export function ConversationSelectionReferenceChip({
         <div className="flex items-center justify-between gap-2 px-2 pb-1 pt-1.5 text-ui-sm text-foreground-subtle">
           <span className="truncate">
             {intl.formatMessage(
-              { id: annotating ? "chat.selections.listHeader" : "chat.selections.quoteListHeader" },
+              { id: hasComment ? "chat.selections.listHeader" : "chat.selections.quoteListHeader" },
               { count: String(references.length) },
             )}
           </span>
@@ -102,19 +94,9 @@ export function ConversationSelectionReferenceChip({
       {references.map((reference, index) => {
         const id = isConversationSelectionReference(reference) ? reference.id : null;
         const comment = reference.comment?.trim();
-        const editable = Boolean(onEdit && id && reference.path === undefined);
-        const openEdit = (target: HTMLElement) => {
-          if (!onEdit || !id) return;
-          const rect = target
-            .closest("[data-conversation-annotation-row]")
-            ?.getBoundingClientRect();
-          const box = rect ?? target.getBoundingClientRect();
-          onEdit(id, { center: box.left + box.width / 2, top: box.top, bottom: box.bottom });
-        };
         return (
           <div
             key={id ?? `${index}:${reference.text}`}
-            data-conversation-annotation-row={id ?? undefined}
             className={cn(
               "group/reference flex gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-menu-hover",
               numbered && id && hoveredId === id && "bg-menu-hover",
@@ -168,16 +150,6 @@ export function ConversationSelectionReferenceChip({
                 >
                   {comment}
                 </div>
-              ) : editable ? (
-                <button
-                  type="button"
-                  data-conversation-annotation-add-comment="true"
-                  className="mt-1 flex items-center gap-1 text-ui-sm text-icon-blue hover:underline"
-                  onClick={(event) => openEdit(event.currentTarget)}
-                >
-                  <PlusIcon className="size-3.5" />
-                  {addCommentLabel}
-                </button>
               ) : null}
               {reference.path || isConversationSelectionReference(reference) ? (
                 <div className="mt-0.5 break-words text-ui-sm text-foreground-subtlest">
@@ -199,35 +171,19 @@ export function ConversationSelectionReferenceChip({
                 <div className="mt-0.5 text-ui-sm text-foreground-subtlest">{reference.agent}</div>
               ) : null}
             </div>
-            {editable || (onRemove && id) ? (
+            {onRemove && id ? (
               <div className="flex shrink-0 items-start gap-0.5 opacity-0 group-hover/reference:opacity-100 group-focus-within/reference:opacity-100">
-                {editable ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="size-5 text-foreground-subtle"
-                    aria-label={editLabel}
-                    title={editLabel}
-                    data-conversation-annotation-edit="true"
-                    onClick={(event) => openEdit(event.currentTarget)}
-                  >
-                    <PencilIcon className="size-3.5" />
-                  </Button>
-                ) : null}
-                {onRemove && id ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="size-5 text-foreground-subtle"
-                    aria-label={removeLabel}
-                    title={removeLabel}
-                    onClick={() => onRemove(id)}
-                  >
-                    <Trash2Icon className="size-3.5" />
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-5 text-foreground-subtle"
+                  aria-label={removeLabel}
+                  title={removeLabel}
+                  onClick={() => onRemove(id)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
               </div>
             ) : null}
           </div>

@@ -11,7 +11,7 @@
     "build": "bun run build:server && bun run build:web",
     "build:server": "bun run --cwd packages/server build",
     "build:web": "bun run --cwd packages/web build",
-    "typecheck": "bun --bun run tsc -b packages/shared/tsconfig.testing.json packages/rpc packages/provider packages/model-option-map packages/session-control packages/design-runtime packages/shared packages/services packages/client packages/server packages/ui packages/web",
+    "typecheck": "bun --bun run tsc -b packages/shared/tsconfig.testing.json packages/rpc packages/provider packages/model-option-map packages/session-control packages/shared packages/services packages/client packages/server packages/ui packages/web",
     "lint": "bun --bun run oxlint",
     "lint:fix": "bun --bun run oxlint --fix --fix-suggestions",
     "fmt": "bun --bun run oxfmt",

@@ -4,7 +4,6 @@ import { registerImageComposerTarget } from "@/image-preview-editor/index.js";
 import { toast } from "@/components/ui/toast.js";
 import { nanoid } from "nanoid";
 import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
-import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   MAX_CHAT_ATTACHMENTS,
   MissingInlinePdfContentError,
@@ -67,7 +66,6 @@ export interface ComposerAttachmentsApi {
   attachmentError: string | null;
   hasAttachments: boolean;
   hasUnreadyAttachments: boolean;
-  composerDragKind: "attachment" | "workspace" | null;
   isDraggingOverComposer: boolean;
   attachmentInputRef: React.RefObject<HTMLInputElement | null>;
   openAttachmentPicker: () => void;
@@ -276,8 +274,7 @@ export function useComposerAttachments(
    * 只靠它做依赖会漏掉唤醒，附件将永久停在 waitingSession。
    */
   const [restartEpoch, setRestartEpoch] = useState(0);
-  const [composerDragKind, setComposerDragKind] = useState<"attachment" | "workspace" | null>(null);
-  const isDraggingOverComposer = composerDragKind !== null;
+  const [isDraggingOverComposer, setIsDraggingOverComposer] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const dragFeedbackTimerRef = useRef<number | null>(null);
 
@@ -758,7 +755,7 @@ export function useComposerAttachments(
   }, []);
   const resetComposerDragFeedback = useCallback(() => {
     clearDragFeedbackTimer();
-    setComposerDragKind(null);
+    setIsDraggingOverComposer(false);
   }, [clearDragFeedbackTimer]);
   const scheduleComposerDragFeedbackReset = useCallback(() => {
     clearDragFeedbackTimer();
@@ -788,12 +785,12 @@ export function useComposerAttachments(
       const hasFiles = Array.from(event.dataTransfer.items ?? []).some(
         (item) => item.kind === "file",
       );
-      if (!hasFiles && !types.includes("Files") && !types.includes(WORKSPACE_FILE_DRAG_MIME)) {
+      if (!hasFiles && !types.includes("Files")) {
         return;
       }
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
-      setComposerDragKind(types.includes(WORKSPACE_FILE_DRAG_MIME) ? "workspace" : "attachment");
+      setIsDraggingOverComposer(true);
       scheduleComposerDragFeedbackReset();
     },
     [scheduleComposerDragFeedbackReset],
@@ -809,11 +806,6 @@ export function useComposerAttachments(
   );
   const handleDropComposer = useCallback(
     (event: React.DragEvent<HTMLElement>) => {
-      if (Array.from(event.dataTransfer.types).includes(WORKSPACE_FILE_DRAG_MIME)) {
-        event.preventDefault();
-        resetComposerDragFeedback();
-        return;
-      }
       const files = Array.from(event.dataTransfer.files);
       if (files.length > 0) {
         event.preventDefault();
@@ -947,7 +939,6 @@ export function useComposerAttachments(
       scopeKey,
       attachments,
       attachmentError,
-      composerDragKind,
       hasAttachments: attachments.length > 0,
       hasUnreadyAttachments: attachments.some((item) => item.uploadStatus !== "ready"),
       isDraggingOverComposer,
@@ -972,7 +963,6 @@ export function useComposerAttachments(
       attachmentError,
       scopeKey,
       attachments,
-      composerDragKind,
       clearAttachments,
       restoreDraftAttachments,
       restoreSessionOwnedAttachments,
@@ -988,79 +978,4 @@ export function useComposerAttachments(
       retryAttachment,
     ],
   );
-}
-
-export interface ContextImageAttachmentsPort {
-  addAttachmentFiles(files: File[]): string[];
-  removeAttachment(id: string): void;
-}
-
-export interface ContextImageAttachmentsOptions<T> {
-  toFiles: (context: T) => File[];
-}
-
-interface MaterializedContext<T> {
-  context: T;
-  ids: string[];
-  /** 附加时的撤销函数；切会话后仍清理原 scope 的截图。 */
-  remove: (id: string) => void;
-}
-
-export function useContextImageAttachments<T extends { id: string }>(
-  contexts: readonly T[],
-  port: ContextImageAttachmentsPort,
-  options: ContextImageAttachmentsOptions<T>,
-): ReadonlySet<string> {
-  const materialized = useRef(new Map<string, MaterializedContext<T>>());
-  /** 这里管着的附件 id：调用方可以据此只在条目上展示（如网页元素引用不在附件行重复出缩略图） */
-  const [managedIds, setManagedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const portRef = useRef(port);
-  portRef.current = port;
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
-  useEffect(() => {
-    const { toFiles } = optionsRef.current;
-    const release = (entry: MaterializedContext<T>) => {
-      const remove = entry.remove;
-      for (const id of entry.ids) {
-        remove(id);
-      }
-    };
-    const seen = new Set<string>();
-    for (const context of contexts) {
-      seen.add(context.id);
-      const existing = materialized.current.get(context.id);
-      if (existing?.context === context) continue;
-      if (existing) {
-        release(existing);
-        materialized.current.delete(context.id);
-      }
-      const files = toFiles(context);
-      if (files.length === 0) continue;
-      materialized.current.set(context.id, {
-        context,
-        ids: portRef.current.addAttachmentFiles(files),
-        remove: portRef.current.removeAttachment,
-      });
-    }
-    for (const [id, entry] of materialized.current) {
-      if (seen.has(id)) continue;
-      release(entry);
-      materialized.current.delete(id);
-    }
-    const ids = new Set([...materialized.current.values()].flatMap((entry) => entry.ids));
-    setManagedIds((current) =>
-      current.size === ids.size && [...ids].every((id) => current.has(id)) ? current : ids,
-    );
-  }, [contexts]);
-  useEffect(() => {
-    const entries = materialized.current;
-    return () => {
-      for (const entry of entries.values()) {
-        for (const id of entry.ids) entry.remove(id);
-      }
-      entries.clear();
-    };
-  }, []);
-  return managedIds;
 }

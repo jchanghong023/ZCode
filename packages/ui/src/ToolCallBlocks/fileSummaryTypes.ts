@@ -7,7 +7,6 @@ import { countPatchFileDiffs } from "@/lib/patchDiffPreview.js";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
 import type { ToolDisplayModel } from "@/lib/toolDisplay.js";
 import type { Theme } from "@/useTheme.js";
-import type { OpenPlanDetailSideTabRequest } from "@/lib/workspaceSidePane.js";
 // Bugfix：这里曾写成类型位置的内联动态 import 写法（在 typeof 后跟圆括号包模块名）。
 // TS 编译期会擦除它，但 share 闭包守卫（shareBuildBoundary.test）的动态 import 正则
 // 不区分类型/值与注释，把它当成值导入后，整个 ToolCallBlocks.tsx 大桶
@@ -248,8 +247,6 @@ export interface ToolCallBlockRenderContext {
   };
   /** v4 已配对 subagentRow 投影出的 runtime 权威类型；流式 input 尚未完整时优先使用。 */
   authoritativeAgentType?: string;
-  /** ExitPlanMode 计划卡片：由会话宿主绑定 parent/session scope 后打开 Side Pane。 */
-  onOpenPlanDetail?: (request: Omit<OpenPlanDetailSideTabRequest, "parentSessionId">) => void;
   /**
    * CreateWorkflow 运行详情入口。
    *

@@ -1,7 +1,7 @@
 import { BotChannelMessageContent } from "@/v4/ChannelMentionContent.js";
 import { parsePromptConversationSelections } from "@/lib/conversationSelectionReference.js";
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
-import { BotGroupSourceLabel } from "@/v4/BotTopicPreparation.js";
+import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
 import {
   closestCenter,
   DndContext,
@@ -32,7 +32,6 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 
 export interface ConversationQueuePanelProps {
   queue: QueueState;
@@ -332,18 +331,7 @@ const QueueRow = memo(function QueueRow({
           data-testid={testId(TID_V4_QUEUE_ITEM_SEND_NOW, item.queueItemId)}
           data-queue-item-id={item.queueItemId}
           disabled={rowLocked}
-          onClick={() =>
-            runUserAction({
-              input: {
-                featureId: "conversation.queue.item",
-                action: "send_now",
-                trigger: "button",
-              },
-              operation: () => onSendNow(item.queueItemId),
-              completed: { resultSource: "optimistic_projection" },
-              failureStage: "queue_send_now",
-            })
-          }
+          onClick={() => onSendNow(item.queueItemId)}
         >
           <ArrowUpFromLine className="size-3.5" />
           {intl.formatMessage({ id: isCompact ? "chat.queue.runNow" : "chat.queue.sendNow" })}
@@ -430,12 +418,7 @@ function ConversationQueuePanelImpl({
     if (!onResume || resumePending) return;
     setResumePending(true);
     try {
-      await runUserActionAsync({
-        input: { featureId: "conversation.queue.policy", action: "resume", trigger: "button" },
-        operation: () => Promise.resolve(onResume()),
-        completed: { resultSource: "authority_ack" },
-        failureStage: "queue_resume",
-      });
+      await onResume();
     } finally {
       setResumePending(false);
     }

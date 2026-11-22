@@ -392,29 +392,32 @@ export function ChatApp() {
           {recent.status === "ready" && recent.list.length === 0 && (
             <p className="sidebar-notice">发送消息后，会话会显示在这里。</p>
           )}
-          {recent.list.map((group) => (
-            <section className="directory-group" key={group.workspacePath}>
-              <h3 title={group.workspacePath}>
-                <Folder size={15} aria-hidden="true" />
-                <span>{group.workspacePath}</span>
-              </h3>
-              <ul>
-                {group.sessions.map((session) => (
-                  <li key={session.sessionId}>
-                    <button
-                      type="button"
-                      title={session.title}
-                      aria-current={session.sessionId === selected?.sessionId ? "true" : undefined}
-                      onClick={() => input.select(session)}
-                    >
-                      <MessageSquare size={14} aria-hidden="true" />
-                      <span>{session.title || "会话"}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+          {recent.list.map(({ sessions }) => {
+            const { workspacePath } = sessions[0];
+            return (
+              <section className="directory-group" key={workspacePath}>
+                <h3 title={workspacePath}>
+                  <Folder size={15} aria-hidden="true" />
+                  <span>{workspacePath}</span>
+                </h3>
+                <ul>
+                  {sessions.map((session) => (
+                    <li key={session.sessionId}>
+                      <button
+                        type="button"
+                        title={session.title}
+                        aria-current={session.sessionId === selected?.sessionId ? "true" : undefined}
+                        onClick={() => input.select(session)}
+                      >
+                        <MessageSquare size={14} aria-hidden="true" />
+                        <span>{session.title || "会话"}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
         </nav>
         <div className="connection-status" role="status">
           <span className={`status-dot ${status}`} aria-hidden="true" />

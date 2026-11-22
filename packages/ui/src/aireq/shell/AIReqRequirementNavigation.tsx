@@ -48,7 +48,7 @@ export function AIReqRequirementReturnButton() {
 }
 
 /** 非材料详情保留对象身份，不提供重复的复制入口。 */
-export function AIReqRequirementContext({ showReturn = true }: { showReturn?: boolean }) {
+export function AIReqRequirementContext() {
   const ai = useAIReq()!;
   const group = [...(ai.view?.groups ?? []), ...(ai.view?.drafts ?? [])].find(
     (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
@@ -78,7 +78,6 @@ export function AIReqRequirementContext({ showReturn = true }: { showReturn?: bo
       data-testid="aireq-requirement-context"
     >
       <div className="flex min-w-0 items-center gap-2">
-        {showReturn && <AIReqRequirementReturnButton />}
         <span className="min-w-0 flex-1 truncate text-ui-base font-medium" title={title}>
           {title}
         </span>

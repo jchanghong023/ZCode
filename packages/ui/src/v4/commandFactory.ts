@@ -3,10 +3,10 @@
 // 服务端幂等表与 pendingCommands 展示都以它区分提交端。
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
-  ROW_TARGETING_COMMANDS,
   type CommandEnvelope,
   type CommandPayloadMap,
   type CommandType,
+  type WebCreateSessionPayload,
 } from "@zcode/shared/zcode-protocol-v4";
 import { createUuid, uuidv7 } from "@zcode/shared";
 export { uuidv7 } from "@zcode/shared";
@@ -80,11 +80,10 @@ export function regenerateV4EditorId(): string {
 
 export interface CreateCommandEnvelopeInput<T extends CommandType> {
   type: T;
-  payload: CommandPayloadMap[T];
+  payload: T extends "createSession" ? WebCreateSessionPayload : CommandPayloadMap[T];
   /** createSession 时为 null。 */
   sessionId: string | null;
   baseRevision?: number;
-  baseLogEpoch?: string;
 }
 
 /** 构造命令信封；CAS 命令缺 baseRevision 直接抛（客户端编程错误就地暴露）。 */
@@ -96,9 +95,6 @@ export function createCommandEnvelope<T extends CommandType>(
       `command ${input.type} 是 CAS 命令，必须携带 baseRevision（10-protocol-spec §6.4）`,
     );
   }
-  if (ROW_TARGETING_COMMANDS.has(input.type) && !input.baseLogEpoch) {
-    throw new Error(`command ${input.type} 是 row target 命令，必须携带 baseLogEpoch`);
-  }
   // 会话 ID 恢复 UUID v4；在信封首次构造时分配，避免重试重新生成并预留另一条任务。
   // 原因：局域网 HTTP 下 Firefox 不暴露 randomUUID；复用 shared 的同形 UUID v4 生成。
   const payload =
@@ -106,7 +102,7 @@ export function createCommandEnvelope<T extends CommandType>(
       ? {
           ...input.payload,
           sessionId:
-            (input.payload as CommandPayloadMap["createSession"]).sessionId ??
+            (input.payload as WebCreateSessionPayload).sessionId ??
             `sess_${createUuid()}`,
         }
       : input.payload;
@@ -115,7 +111,6 @@ export function createCommandEnvelope<T extends CommandType>(
     clientId: getV4ClientId(),
     sessionId: input.sessionId,
     ...(input.baseRevision !== undefined ? { baseRevision: input.baseRevision } : {}),
-    ...(input.baseLogEpoch ? { baseLogEpoch: input.baseLogEpoch } : {}),
     type: input.type,
     payload,
     issuedAt: Date.now(),

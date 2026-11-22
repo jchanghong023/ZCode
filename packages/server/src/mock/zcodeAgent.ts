@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 原生 v4 会话、附件与订阅共享唯一模拟运行时。 */
 // 模拟 ZCode Agent 服务：仅保留当前产品与通用控件消费的会话/索引协议。
 // 帧先校验再发送，原型工具执行记录、会话行与配置由本模块提交。
-// 方法签名统一从 IZCodeAgentService 派生（Parameters/ReturnType），避免与契约漂移。
+// 方法签名从服务契约派生，避免与公开接口漂移。
 import { createHash } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { z } from "zod";
@@ -17,15 +17,16 @@ import {
   conversationTopicWireFrameSchema,
   encodeTopicWireFrames,
   measureTopicNotificationEnvelopeBytes,
+  projectWebCommandAck,
   queueItemSchema,
   subscribeParamsSchema,
   v4ConversationRowsRangeParamsSchema,
+  webCreateSessionPayloadSchema,
   type ClientHello,
   type CommandAck,
   type CommandEnvelope,
   type CommandPayloadMap,
   type CommandType,
-  type CommandsQueryResult,
   type ConversationDelta,
   type ConversationCommandCatalogEntry,
   type ConversationTopicFrame,
@@ -36,12 +37,15 @@ import {
   type StatePatch,
   type SubagentRow,
   type ToolCallRow,
+  type WebCommandsQueryResult,
+  type WebCreateSessionPayload,
   type WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   IZCodeAgentService,
   RecentChatDirectory,
-  ZCodeAgentSkillReferenceCatalogParams,
+  RecentChatSession,
+  WebAIReqAgent,
 } from "@zcode/services/zcode-agent";
 import { completeMockModelSelection, MOCK_DEFAULT_MODEL_SELECTION } from "./domains/contract.js";
 import type { AIReqNativeBridge } from "../aireq/contract.js";
@@ -118,16 +122,22 @@ const CHAT_COMMANDS: ReadonlySet<CommandType> = new Set([
 const workspaceTargetShape = {
   workspacePath: z.string(),
   workspaceIdentity: z.string().optional(),
-  remoteSessionId: z.string().optional(),
   __zcodeTrustedV4Connection: z.unknown().optional(),
 };
-const conversationSubscribeInputSchema = subscribeParamsSchema.omit({ topic: true }).extend({
-  ...workspaceTargetShape,
-  sessionId: z.string(),
-});
+const conversationSubscribeInputSchema = subscribeParamsSchema
+  .omit({ topic: true, visibility: true, retryInitialization: true })
+  .extend({
+    ...workspaceTargetShape,
+    sessionId: z.string(),
+  });
 const conversationRowsRangeInputSchema = v4ConversationRowsRangeParamsSchema
   .omit({ workspace: true, clientMode: true })
   .extend(workspaceTargetShape);
+const conversationCatalogInputSchema = z.strictObject({
+  workspacePath: z.string(),
+  workspaceIdentity: z.string().optional(),
+  sessionId: z.string().optional(),
+});
 const strictConversationTopicFrameSchema = conversationTopicFrameSchema.strict();
 
 interface ConversationSubscription {
@@ -143,7 +153,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private chatHistory?: Promise<void>;
   private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
   private readonly conversationSubs = new Map<string, ConversationSubscription>();
-  private readonly instanceId = createUuid();
 
   private readonly commandResults = new Map<string, { digest: string; ack: CommandAck }>();
   private readonly uploads = new Map<
@@ -224,19 +233,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const directories = new Map<string, RecentChatDirectory>();
     for (const session of sessions) {
       const key = session.chatDirectory!;
-      let group = directories.get(key);
-      if (!group) {
-        if (directories.size === 5) continue;
-        group = { workspacePath: session.workspaceRef.workspacePath, sessions: [] };
-        directories.set(key, group);
-      }
-      if (group.sessions.length < 5)
-        group.sessions.push({
-          ...session.workspaceRef,
-          sessionId: session.sessionId,
-          title: session.meta.title,
-          lastActivityAt: session.lastActivityAt,
-        });
+      const group = directories.get(key);
+      if (group ? group.sessions.length === 5 : directories.size === 5) continue;
+      const { workspacePath, workspaceIdentity } = session.workspaceRef;
+      const entry: RecentChatSession = {
+        workspacePath,
+        ...(workspaceIdentity === undefined ? {} : { workspaceIdentity }),
+        sessionId: session.sessionId,
+        title: session.meta.title,
+      };
+      if (group) group.sessions.push(entry);
+      else directories.set(key, { sessions: [entry] });
     }
     return [...directories.values()];
   }
@@ -263,7 +270,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           clientId: actor,
           commandId,
           issuedAt: createdAt,
-          payload: { workspaceId: starter.workspacePath },
+          payload: {},
         },
         directory,
       );
@@ -603,7 +610,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         origin: "realUser",
         sourceCommandId: submitted.commandId,
         clientId: submitted.clientId,
-        inputOrigin: "desktop",
         attachments: submitted.attachments,
         conversationQuotes: submitted.conversationQuotes,
         modelSelection,
@@ -864,7 +870,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     delivery: "queue" | "guide",
   ): QueueItem {
     return assertFrame(queueItemSchema, {
-      inputOrigin: "desktop",
       attachments: input.attachments ?? [],
       conversationQuotes: input.conversationQuotes,
       sourceCommandId: input.commandId,
@@ -978,7 +983,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   private createSessionInternal(envelope: CommandEnvelope, directory?: string): CommandAck {
-    const payload = envelope.payload as CommandPayloadMap["createSession"];
+    const payload = envelope.payload as WebCreateSessionPayload;
     // 首发无法执行时必须在创建会话/索引之前拒绝，不能返回“创建并发送”空成功。
     if (payload.firstInput && !this.business && !this.standalone)
       return this.rejectUnsupported(envelope, null);
@@ -1179,7 +1184,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       return this.allowsWebInput(envelope.payload as MockTextSubmission);
     if (envelope.type !== "createSession") return true;
 
-    const payload = envelope.payload as CommandPayloadMap["createSession"];
+    const payload = envelope.payload as WebCreateSessionPayload;
     const config = payload.config;
     return (
       payload.additionalDirectories === undefined &&
@@ -1380,8 +1385,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         localTerminal: false,
         binaryFrames: true,
         compression: "none",
-        workflowRunDeltas: true,
-        genUiContext: false,
       },
       auth: {},
     };
@@ -1413,7 +1416,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     }
   }
 
-  async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
+  async subscribeConversationV4(params: P<WebAIReqAgent["subscribeConversationV4"]>) {
     // 必须先验证原始入参，不能在预热／订阅之前只挑已知字段导致额外键被吞掉。
     conversationSubscribeInputSchema.parse(params);
     const workspaceKey = workspaceKeyOf(params);
@@ -1514,7 +1517,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return session;
   }
 
-  async resyncConversationV4(params: P<IZCodeAgentService["resyncConversationV4"]>) {
+  async resyncConversationV4(params: P<WebAIReqAgent["resyncConversationV4"]>) {
     const sub = this.conversationSubs.get(params.subscriptionId);
     const session = sub ? this.runtime.sessions.get(sub.sessionId) : undefined;
     if (!sub || !session) {
@@ -1543,7 +1546,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.conversationSubs.delete(params.subscriptionId);
   }
 
-  async conversationRowsRangeV4(params: P<IZCodeAgentService["conversationRowsRangeV4"]>) {
+  async conversationRowsRangeV4(params: P<WebAIReqAgent["conversationRowsRangeV4"]>) {
     conversationRowsRangeInputSchema.parse(params);
     // 原因：ensureSession 会补建有业务引用的缺失会话；只读驻留查询必须先拒绝，不能产生历史。
     if (params.residency === "resident-only" && !this.runtime.sessions.has(params.sessionId)) {
@@ -1567,7 +1570,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     }
     return {
       rows: eligible.slice(start),
-      atSeq: session?.seq ?? 0,
       atRevision: session?.revision ?? 0,
       atLogEpoch: session?.logEpoch ?? "unknown",
       hasMore: start > 0,
@@ -1587,21 +1589,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       };
     }
     const supported = (this.standalone ? CHAT_COMMANDS : AIREQ_COMMANDS).has(parsed.data.type);
-    const payload = supported
-      ? commandPayloadSchemas[parsed.data.type].safeParse(parsed.data.payload)
-      : undefined;
+    const payloadSchema =
+      parsed.data.type === "createSession"
+        ? webCreateSessionPayloadSchema
+        : commandPayloadSchemas[parsed.data.type];
+    const payload = supported ? payloadSchema.safeParse(parsed.data.payload) : undefined;
     const envelope = payload?.success ? { ...parsed.data, payload: payload.data } : parsed.data;
     // 执行与查询使用同一可信 actor 和请求工作区。
     const requestWorkspace = {
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
     };
-    if (
-      envelope.workspace &&
-      (workspaceKeyOf(envelope.workspace) !== workspaceKeyOf(requestWorkspace) ||
-        envelope.workspace.workspacePath !== requestWorkspace.workspacePath)
-    )
-      throw new Error("命令工作区与当前请求不一致。");
     const actor = this.actorKey() ?? "mock";
     const key = this.receiptKey(actor, requestWorkspace, envelope);
     const serialized = JSON.stringify(envelope);
@@ -1660,18 +1658,15 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async queryConversationCommandsV4(
-    params: P<IZCodeAgentService["queryConversationCommandsV4"]>,
-  ): Promise<CommandsQueryResult> {
-    const receivedAt = Date.now();
-    const { commands, clock } = commandsQueryParamsSchema.parse({
-      commands: params.commands,
-      clock: params.clock,
-    });
+    params: P<WebAIReqAgent["queryConversationCommandsV4"]>,
+  ): Promise<WebCommandsQueryResult> {
+    const { commands } = commandsQueryParamsSchema.parse({ commands: params.commands });
     const actor = this.actorKey() ?? "mock";
     return {
       results: commands.map((key) => {
-        const result = this.commandResults.get(this.receiptKey(actor, params, key))?.ack;
-        if (!result) return { key, result: "unknown" };
+        const ack = this.commandResults.get(this.receiptKey(actor, params, key))?.ack;
+        if (!ack) return { key, result: "unknown" };
+        const result = projectWebCommandAck(ack);
         const session = key.sessionId ? this.runtime.sessions.get(key.sessionId) : undefined;
         if (
           !session ||
@@ -1692,7 +1687,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
             : {}),
         };
       }),
-      ...(clock ? { clock: { instanceId: this.instanceId, receivedAt, sentAt: Date.now() } } : {}),
     };
   }
 
@@ -1706,7 +1700,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   // ── 附件 ──
 
-  async attachmentBeginV4(params: P<IZCodeAgentService["attachmentBeginV4"]>) {
+  async attachmentBeginV4(params: P<WebAIReqAgent["attachmentBeginV4"]>) {
     const actor = this.business?.actorKey() ?? "mock";
     // 未知会话不能取得上传归属；合法业务 provisional 仍走现有会话 owner。
     const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
@@ -1756,13 +1750,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.uploads.set(key, upload);
     return upload.ref
       ? {
-          uploadId: params.uploadId,
           state: "committed" as const,
-          nextChunkIndex: upload.chunks.length,
           ref: upload.ref,
         }
       : {
-          uploadId: params.uploadId,
           state: "staging" as const,
           nextChunkIndex: upload.chunks.length,
         };
@@ -1775,7 +1766,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       throw new Error("附件上传不存在或归属不符。");
     return upload;
   }
-  async attachmentChunkV4(params: P<IZCodeAgentService["attachmentChunkV4"]>) {
+  async attachmentChunkV4(params: P<WebAIReqAgent["attachmentChunkV4"]>) {
     const upload = this.attachmentUpload(params);
     if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(params.dataBase64))
       throw new Error("附件块不是有效 base64。");
@@ -1799,9 +1790,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         throw new Error("附件块顺序或大小不符。");
       upload.chunks.push(chunk);
     }
-    return { uploadId: params.uploadId, nextChunkIndex: upload.chunks.length };
+    return { nextChunkIndex: upload.chunks.length };
   }
-  async attachmentCommitV4(params: P<IZCodeAgentService["attachmentCommitV4"]>) {
+  async attachmentCommitV4(params: P<WebAIReqAgent["attachmentCommitV4"]>) {
     const upload = this.attachmentUpload(params);
     if (upload.ref) return { ref: upload.ref };
     if (upload.chunks.length !== upload.totalChunks) throw new Error("附件块尚未上传完整。");
@@ -1823,7 +1814,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     upload.ref = ref;
     return { ref };
   }
-  async attachmentAbortV4(params: P<IZCodeAgentService["attachmentAbortV4"]>): Promise<void> {
+  async attachmentAbortV4(params: P<WebAIReqAgent["attachmentAbortV4"]>): Promise<void> {
     const actor = this.business?.actorKey() ?? "mock";
     const value = this.uploads.get(`${actor}:${params.uploadId}`);
     if (value && value.sessionId !== params.sessionId) throw new Error("上传归属不符。");
@@ -1895,7 +1886,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (!adopted && !queued && !draft) throw new Error("附件不属于当前会话投影。");
     return value;
   }
-  async attachmentReadV4(params: P<IZCodeAgentService["attachmentReadV4"]>) {
+  async attachmentReadV4(params: P<WebAIReqAgent["attachmentReadV4"]>) {
     const value = this.attachmentFor(params);
     if (
       !Number.isSafeInteger(params.offset) ||
@@ -1906,12 +1897,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     )
       throw new Error("附件读取范围无效。");
     const bytes = value.bytes.subarray(params.offset, params.offset + params.limit);
-    const next = params.offset + bytes.length;
     return {
       dataBase64: bytes.toString("base64"),
       mediaType: value.mime,
       totalBytes: value.bytes.length,
-      nextOffset: next < value.bytes.length ? next : null,
     };
   }
 
@@ -1932,14 +1921,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       description,
       path,
       scope,
-      enabled: true,
       ...(pluginName ? { pluginName } : {}),
     }));
   }
 
   async getSkillReferenceCatalog(
-    params: P<IZCodeAgentService["getSkillReferenceCatalog"]>,
+    params: P<WebAIReqAgent["getSkillReferenceCatalog"]>,
   ): Promise<AR<IZCodeAgentService["getSkillReferenceCatalog"]>> {
+    conversationCatalogInputSchema.parse(params);
     if (params.sessionId === undefined)
       return {
         authority: "workspace",
@@ -1957,8 +1946,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   }
 
   async getConversationCommandCatalog(
-    params: ZCodeAgentSkillReferenceCatalogParams,
+    params: P<WebAIReqAgent["getConversationCommandCatalog"]>,
   ): Promise<{ commands: ConversationCommandCatalogEntry[] }> {
+    conversationCatalogInputSchema.parse(params);
     if (params.sessionId !== undefined) {
       const session = this.ensureSession({
         sessionId: params.sessionId,

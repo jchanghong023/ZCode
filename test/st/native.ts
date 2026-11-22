@@ -1,12 +1,13 @@
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
-  ROW_TARGETING_COMMANDS,
   TopicWireFrameAssembler,
   V4_WIRE_PROTOCOL_VERSION,
   commandAckSchema,
   conversationCommandCatalogEntrySchema,
   conversationTopicFrameSchema,
-  helloMessageSchema,
+  webConversationResyncResultSchema,
+  webConversationSubscribeResultSchema,
+  webHelloMessageSchema,
   type CommandAck,
   type CommandEnvelope,
   type ConversationCommandCatalogEntry,
@@ -17,12 +18,12 @@ import {
 import { expect } from "vitest";
 import type { AIReqRemoteWorkflow } from "@zcode/services/aireq";
 import type { IZCodeAgentService } from "@zcode/services";
+import type { WebAIReqAgent } from "@zcode/services/zcode-agent";
 import { unique, waitUntil, type STClient } from "./client.js";
 
 export interface NativeSendOptions {
   commandId?: string;
   baseRevision?: number;
-  baseLogEpoch?: string;
   sessionId?: string;
   omitPreconditions?: boolean;
 }
@@ -55,27 +56,24 @@ export async function openNative(c: STClient, remote: AIReqRemoteWorkflow): Prom
   );
 }
 
-type NativeHandshake = Pick<IZCodeAgentService, "helloConversationV4" | "initializeConversationV4">;
+type NativeHandshake = Pick<WebAIReqAgent, "helloConversationV4" | "initializeConversationV4">;
 type NativeConversationService = NativeHandshake &
+  Pick<WebAIReqAgent, "resyncConversationV4" | "subscribeConversationV4"> &
   Pick<
     IZCodeAgentService,
     | "onDynamicConversationFrame"
-    | "subscribeConversationV4"
-    | "resyncConversationV4"
     | "unsubscribeConversationV4"
     | "sendConversationCommandV4"
   >;
 
 export async function initializeNative(service: NativeHandshake, clientId: string) {
-  const hello = helloMessageSchema.parse(await service.helloConversationV4());
+  const hello = webHelloMessageSchema.parse(await service.helloConversationV4());
   if (hello.protocolVersion !== V4_WIRE_PROTOCOL_VERSION)
     throw new Error("ST native protocol mismatch");
   await service.initializeConversationV4({
     kind: "clientHello",
     protocolVersion: V4_WIRE_PROTOCOL_VERSION,
     clientId,
-    clientKind: "web",
-    appVersion: "st-contract",
   });
 }
 
@@ -106,9 +104,9 @@ export async function openNativeSession(
     const subscribed = await service.subscribeConversationV4({
       ...workspace,
       sessionId,
-      visibility: "foreground",
     });
     subscriptionId = subscribed.ack.subscriptionId;
+    webConversationSubscribeResultSchema.parse(subscribed);
     await waitUntil(
       "initial native snapshot",
       async () => {
@@ -129,12 +127,14 @@ export async function openNativeSession(
   const snapshot = async (): Promise<ConversationSnapshot> => {
     if (closed) throw new Error("ST native session is closed");
     const from = frames.length;
-    const response = await service.resyncConversationV4({
-      ...workspace,
-      subscriptionId,
-      base: null,
-      forceSnapshot: true,
-    });
+    const response = webConversationResyncResultSchema.parse(
+      await service.resyncConversationV4({
+        ...workspace,
+        subscriptionId,
+        base: null,
+        forceSnapshot: true,
+      }),
+    );
     if (response.ack.subscriptionId !== subscriptionId)
       throw new Error("ST resync changed owned subscription");
     const frame = await waitUntil(
@@ -162,23 +162,15 @@ export async function openNativeSession(
       if (closed) throw new Error("ST native session is closed");
       if (fault) throw fault;
       // 普通发送不要求 CAS；无条件 resync 会在测试辅助中耗尽真实的运行/排队窗口。
-      // 只补协议要求且调用方未显式提供的水位，保留故意传入的 0 或旧 epoch。
+      // 只补协议要求且调用方未显式提供的 revision，保留故意传入的 0。
       const needsRevision =
         !options.omitPreconditions && COMMANDS_REQUIRING_BASE_REVISION.has(type);
-      const needsEpoch = !options.omitPreconditions && ROW_TARGETING_COMMANDS.has(type);
       const current =
-        (needsRevision && options.baseRevision === undefined) ||
-        (needsEpoch && options.baseLogEpoch === undefined)
-          ? await snapshot()
-          : undefined;
+        needsRevision && options.baseRevision === undefined ? await snapshot() : undefined;
       const commandId = options.commandId ?? unique("native-command");
       const issuedAt = issuedAtByCommand.get(commandId) ?? Date.now();
       issuedAtByCommand.set(commandId, issuedAt);
-      const envelope: CommandEnvelope = {
-        workspace: {
-          ...workspace,
-          workspaceKey: workspace.workspaceIdentity ?? workspace.workspacePath,
-        },
+      const envelope: Omit<CommandEnvelope, "workspace"> = {
         commandId,
         clientId,
         sessionId: options.sessionId ?? sessionId,
@@ -187,9 +179,6 @@ export async function openNativeSession(
         payload,
         ...(options.baseRevision !== undefined || needsRevision
           ? { baseRevision: options.baseRevision ?? current!.revision }
-          : {}),
-        ...(options.baseLogEpoch !== undefined || needsEpoch
-          ? { baseLogEpoch: options.baseLogEpoch ?? current!.logEpoch }
           : {}),
       };
       return commandAckSchema.parse(
@@ -237,6 +226,7 @@ export function expectNativeTurnWork(
   const input = rows.find((row) => row.kind === "userInput" && row.sourceCommandId === commandId);
   const reply = rows.find((row) => row.kind === "assistantText" && row.state === "complete");
   expect(input).toBeDefined();
+  expect(input).not.toHaveProperty("inputOrigin");
   expect(reply).toMatchObject({ text: expect.stringMatching(/\S/) });
   expect(input!.rowId).toBeLessThan(reply!.rowId);
   const live = native.frames.flatMap((frame) =>
@@ -352,7 +342,7 @@ export async function expectRetiredConversationCommands(
     throw new Error("ST needs completed history with input and assistant row identities");
   const target = { rowId: assistant.rowId, entityId: assistant.entityId };
   const inputTarget = { rowId: input.rowId, entityId: input.entityId };
-  const options = { baseRevision: before.revision, baseLogEpoch: before.logEpoch };
+  const options = { baseRevision: before.revision };
   const queueItemId = unique("retired-queue-item");
   const retired = [
     ["deleteSession", {}],

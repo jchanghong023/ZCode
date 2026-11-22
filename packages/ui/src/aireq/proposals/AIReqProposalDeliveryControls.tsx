@@ -183,6 +183,7 @@ export function AIReqProposalDeliveryControls({
   if (!source.capabilities.requirementManagement) return null;
   const result = handoffResult?.group === group ? handoffResult : undefined;
   const handoff = result?.handoff;
+  const handoffReady = handoff?.blockers.length === 0;
   const target = { projectId: group.projectId, irId: group.id };
   const pushed = delivery?.pushedCandidate === delivery?.candidate;
   const failure = delivery?.publishError;
@@ -213,7 +214,7 @@ export function AIReqProposalDeliveryControls({
   const allFilesChecked = Boolean(
     dialog?.files.length && selectedFileCount === dialog.files.length,
   );
-  const editable = ready && canWrite && handoff?.ready && boundCurrent && !ai.pending && !busy;
+  const editable = ready && canWrite && handoffReady && boundCurrent && !ai.pending && !busy;
   const canSubmit = editable && allFilesChecked && acknowledged;
   const openDialog = () => {
     if (!delivery || !current) return;
@@ -241,7 +242,7 @@ export function AIReqProposalDeliveryControls({
         irId: snapshot.irId,
         candidate: snapshot.candidate,
       });
-      if (result?.status === "completed") setDialogOpen(false);
+      if (result?.receipt.status === "completed") setDialogOpen(false);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -276,9 +277,7 @@ export function AIReqProposalDeliveryControls({
               ref={openButton}
               data-testid="proposal-delivery-open"
               variant={prPresent ? "outline" : "default"}
-              disabled={
-                busy || ai.pending || (!prPresent && (!ready || !canWrite || !handoff?.ready))
-              }
+              disabled={busy || ai.pending || (!prPresent && (!ready || !canWrite || !handoffReady))}
               onClick={openDialog}
             >
               {prPresent ? "查看提交记录" : failure ? publishLabel : "核对文件并提交"}
@@ -320,7 +319,7 @@ export function AIReqProposalDeliveryControls({
               </Button>
             </div>
           )}
-          {!prPresent && handoff && !handoff.ready && (
+          {!prPresent && handoff && !handoffReady && (
             <ul className="list-disc space-y-1 pl-5 text-ui-sm text-foreground-subtle">
               {handoff.blockers.map((blocker) => (
                 <li key={blocker}>{blocker}</li>

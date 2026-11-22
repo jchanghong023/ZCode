@@ -15,12 +15,17 @@ import {
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { decodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { logger } from "@/logger.js";
-import type { ModelSelectionView, ProviderSettingsView } from "@zcode/services";
+import type { IServiceAccessor, ProviderSettingsView, WebModelSelectionView } from "@zcode/services";
 import {
   resolveModelProviderFamilySpecByProviderId,
   type ProviderFamilyConnectionSelection,
   type ZCodeProvider,
 } from "@zcode/shared";
+
+function refreshProviderSettings(service: IServiceAccessor["providerSettingsService"]) {
+  if (!service) throw new Error("Provider settings are unavailable");
+  return service.refresh("composer-connection");
+}
 
 export function useComposerConnectionSwitch({
   workspacePath,
@@ -150,7 +155,7 @@ export function useComposerConnectionSwitch({
         const connectionKeyOf = (view: ProviderSettingsView) =>
           view.providers.find((p) => p.providerId === connection.providerId)?.accountState
             ?.connectionKey;
-        const hasModels = (view: ModelSelectionView) =>
+        const hasModels = (view: WebModelSelectionView) =>
           Boolean(
             buildRegistryModelSelectGroups(agentProvider, view).find(
               (g) => g.key === `registry-provider:${connection.providerId}`,
@@ -159,9 +164,9 @@ export function useComposerConnectionSwitch({
         const readModels = async (restoring = false) => {
           if (!restoring && !stillCurrent()) throw new Error("Composer connection owner changed");
           // 配置写入由根 Host 管理；执行候选始终从目标 Host 读取，不向远端伪造本地目录。
-          const baseView = await base.providerSettingsService.refresh("composer-connection");
+          const baseView = await refreshProviderSettings(base.providerSettingsService);
           if (target !== base && stillCurrent()) {
-            const targetView = await target.providerSettingsService.refresh("composer-connection");
+            const targetView = await refreshProviderSettings(target.providerSettingsService);
             // 远端配置交付由既有 provisioning owner 管理；旧团队也可能有同名模型，
             // 必须核对账号连接身份，不能把目录非空误判成新团队已同步。
             const expected = connectionKeyOf(baseView);
@@ -191,11 +196,12 @@ export function useComposerConnectionSwitch({
           // 另一窗口写入时本窗口 Host 收不到通知、不刷新。只比根/目标两份缓存，两份同停在
           // 旧团队也会判为已生效，用旧团队目录选模且不报错。根 Host 先 refresh 取当前身份；
           // 目标 Host 仍只读缓存，不等远端 Provisioning（那才是慢的部分）。
-          const baseView = await base.providerSettingsService.refresh("composer-connection");
+          const baseView = await refreshProviderSettings(base.providerSettingsService);
           if (target !== base) {
             const expected = connectionKeyOf(baseView);
-            const targetView = await target.providerSettingsService.getView();
-            if (!expected || connectionKeyOf(targetView) !== expected) return undefined;
+            const targetView = await target.providerSettingsService?.getView();
+            if (!expected || !targetView || connectionKeyOf(targetView) !== expected)
+              return undefined;
           }
           const view = await target.modelSelectionService.getView();
           if (!hasModels(view)) return undefined;

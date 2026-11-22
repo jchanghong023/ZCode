@@ -1,30 +1,36 @@
 // 修复原因：mention 只读同源业务/会话事实，不能恢复 demo 项目或枚举宿主文件系统。
-import type { IProjectService, ProjectTask, VirtualProject } from "@zcode/services";
-import type { IAIReqService } from "@zcode/services/aireq";
-import { assertSkillSession, readPrototypeProjectDirectory } from "../aireq/contract.js";
+import { z } from "zod";
+import type { WebProjectService, WebProjectTree } from "@zcode/services";
+import {
+  assertSkillSession,
+  prototypeSkillDesignWorkspaceIdentity,
+  readPrototypeProjectDirectory,
+} from "../aireq/contract.js";
 import { businessRule } from "../aireq/errors.js";
 import { currentIdentity } from "../aireq/identity.js";
 import { isListedSession, type MockRuntime, type MockSession } from "./runtime.js";
 
+const sessionDirectoryRequestSchema = z.strictObject({
+  taskId: z.string(),
+  workspacePath: z.string(),
+  workspaceIdentity: z.string().optional(),
+});
+
 type Workspace = { workspacePath: string; workspaceIdentity: string; projectId: string | null };
 type Projection = {
   actor: string;
-  projects: VirtualProject[];
+  projects: WebProjectTree["projects"];
   workspaces: Workspace[];
   published: Map<string, Workspace>;
   skillWorkspaces: Workspace[];
 };
 
-export class MockProjectService implements IProjectService {
-  constructor(
-    private readonly runtime: MockRuntime,
-    private readonly business: IAIReqService,
-  ) {}
+export class MockProjectService implements WebProjectService {
+  constructor(private readonly runtime: MockRuntime) {}
 
-  private async projection(hostId?: string): Promise<Projection> {
+  private projection(): Projection {
     const identity = currentIdentity();
-    if (!identity || (hostId && hostId !== "local"))
-      throw businessRule("连接身份或工作区无效，请重新进入工作区。");
+    if (!identity) throw businessRule("连接身份或工作区无效，请重新进入工作区。");
     // 目录只需项目和 canonical 引用；逐项目走公开 readWorkflow 会嵌套重算全局进度与待办。
     // owner 一次复制目录事实，权限仍由下方 actor、私有 Skill 和精确 workspace 校验承担。
     const directory = readPrototypeProjectDirectory();
@@ -33,16 +39,13 @@ export class MockProjectService implements IProjectService {
       projects: [],
       workspaces: [],
       published: new Map(),
-      skillWorkspaces: directory.skillDesignStorage
-        ? [
-            {
-              workspacePath: directory.skillDesignStorage.workspacePath,
-              // Skill 原生 scope 复用业务身份接口，不在投影层硬编码后端前缀。
-              workspaceIdentity: `${await this.business.call(identity, "skillDesign.workspaceIdentity", ["personal"])}:skill-design`,
-              projectId: null,
-            },
-          ]
-        : [],
+      skillWorkspaces: [
+        {
+          workspacePath: directory.skillDesignWorkspacePath,
+          workspaceIdentity: prototypeSkillDesignWorkspaceIdentity("personal"),
+          projectId: null,
+        },
+      ],
     };
     const scopes = new Map<string, Workspace>();
     for (const project of directory.projects) {
@@ -60,19 +63,11 @@ export class MockProjectService implements IProjectService {
       result.workspaces.push(scope);
       result.skillWorkspaces.push({
         ...scope,
-        workspaceIdentity: `${directory.skillWorkspaceIdentities[projectId]}:skill-design`,
+        workspaceIdentity: prototypeSkillDesignWorkspaceIdentity(projectId),
       });
       result.projects.push({
         id: projectId,
-        hostId: "local",
         name: project.name,
-        nameOverridden: false,
-        roots: [{ rootPath: root, position: 0, isPrimary: true }],
-        position: result.projects.length,
-        pinned: false,
-        deleted: false,
-        createdAt: Date.parse(project.createdAt),
-        updatedAt: Date.parse(project.updatedAt),
       });
     }
     // canonical 资格由 owner 以当前项目、IR 和故障过滤一次裁决，不接纳私有/未知引用。
@@ -103,56 +98,36 @@ export class MockProjectService implements IProjectService {
     return workspace;
   }
 
-  async readTree(params?: Parameters<IProjectService["readTree"]>[0]) {
-    const projection = await this.projection(params?.hostId);
-    const tasks: ProjectTask[] = [];
+  async readTree() {
+    const projection = this.projection();
+    const tasks: WebProjectTree["tasks"] = [];
     // 正常业务订阅和发送只创建原生会话；task 镜像缺失不能让合法会话从 mention 消失。
     for (const session of this.runtime.sessions.values()) {
       if (!isListedSession(session)) continue;
       const workspace = this.accessibleWorkspace(session, projection);
       if (!workspace) continue;
-      const record = this.runtime.tasks.get(session.sessionId);
-      // 镜像仅补组织态，且不能把旧工作区的 pinned/archived 带入当前会话。
-      const organization =
-        record?.workspacePath === workspace.workspacePath &&
-        record.workspaceIdentity === workspace.workspaceIdentity
-          ? record
-          : undefined;
       tasks.push({
         taskId: session.sessionId,
-        traceId: `trace_${session.sessionId}`,
         title: session.meta.title || "新任务",
         workspacePath: workspace.workspacePath,
         workspaceIdentity: workspace.workspaceIdentity,
         createdAt: session.createdAt,
         updatedAt: session.lastActivityAt,
-        mode: "build",
-        provider: "glm",
         projectId: workspace.projectId,
-        hostId: "local",
-        pinned: organization?.pinned ?? false,
-        archived: organization?.archived ?? false,
       });
     }
     return { projects: projection.projects, tasks };
   }
 
   async resolveSessionDirectories(
-    task: Parameters<IProjectService["resolveSessionDirectories"]>[0],
-    hostId?: string,
+    request: Parameters<WebProjectService["resolveSessionDirectories"]>[0],
   ) {
-    const projection = await this.projection(hostId);
+    const task = sessionDirectoryRequestSchema.parse(request);
+    const projection = this.projection();
     const session = this.runtime.sessions.get(task.taskId);
-    let workspace = session
-      ? this.accessibleWorkspace(session, projection)
-      : projection.published.get(task.taskId);
-    // 私有归属直接由 Skill owner 校验，不再经公开模型绑定 RPC；身份隔离保持不变。
-    if (
-      !workspace &&
-      task.taskId.startsWith("prototype-skill-design:") &&
-      projection.skillWorkspaces.some((item) => item.workspacePath === task.workspacePath)
-    ) {
-      assertSkillSession(task.taskId);
+    let workspace: Workspace | undefined;
+    if (task.taskId.startsWith("prototype-skill-design:")) {
+      // Skill 归属和项目由 owner 校验；目录查询不打开或创建会话。
       const stableIdentity = session?.workspaceRef.workspaceIdentity ?? task.workspaceIdentity;
       const skillWorkspace = projection.skillWorkspaces.find(
         (item) =>
@@ -160,11 +135,16 @@ export class MockProjectService implements IProjectService {
       );
       if (
         skillWorkspace &&
+        assertSkillSession(task.taskId) === (skillWorkspace.projectId ?? "personal") &&
         (!session ||
           (session.workspaceRef.workspacePath === task.workspacePath &&
             session.workspaceKey === stableIdentity))
       )
         workspace = skillWorkspace;
+    } else {
+      workspace = session
+        ? this.accessibleWorkspace(session, projection)
+        : projection.published.get(task.taskId);
     }
     if (
       !workspace ||
@@ -173,12 +153,6 @@ export class MockProjectService implements IProjectService {
         task.workspaceIdentity !== workspace.workspaceIdentity)
     )
       throw businessRule("会话不存在或当前无法访问，请返回需求重新打开。");
-    return {
-      workspacePath: workspace.workspacePath,
-      // cwd/identity 创建后保持稳定；禁止重新按宿主路径哈希覆盖 AIReq 已登记身份。
-      workspaceIdentity: task.workspaceIdentity ?? workspace.workspaceIdentity,
-      additionalDirectories: [],
-      projectId: workspace.projectId,
-    };
+    return { projectId: workspace.projectId };
   }
 }

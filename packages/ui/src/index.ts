@@ -1,25 +1,11 @@
 export { AppErrorBoundary, ScopedErrorBoundary } from "./ErrorBoundary.js";
 export type { ScopedErrorBoundaryVariant } from "./ErrorBoundary.js";
 export { Button, buttonVariants } from "./components/ui/button.js";
-export { DesktopWindowFrame } from "./DesktopWindowFrame.js";
-export {
-  AssistantCodeCommentFeatureProvider,
-  useAssistantCodeCommentFeatureEnabled,
-} from "./AssistantCodeCommentFeatureProvider.js";
 export { ConfirmDialogHost } from "./ConfirmDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
 export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
 export type { ZCodeState } from "./store/index.js";
-export {
-  bindRemoteWorkspacePath,
-  getRemoteWorkspaceSession,
-  registerBaseWorkspaceServices,
-  registerRemoteWorkspaceSession,
-  unbindRemoteWorkspacePath,
-  unregisterRemoteWorkspaceSession,
-  useRemoteWorkspaceSessionStore,
-} from "./store/remoteWorkspaceSessionStore.js";
 export {
   REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE,
   createRemoteWorkspaceDisconnectedError,
@@ -32,9 +18,7 @@ export {
   useWorkspaceServices,
   PlatformProvider,
   usePlatform,
-  useSystemInfo,
   useSettings,
-  useRecentProjects,
   useConfirmDialog,
 } from "./hooks/index.js";
 
@@ -54,20 +38,6 @@ export {
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,
 } from "./lib/uiFontSize.js";
-export { reportUiLaunchToInput } from "./lib/uiPerfArmsTelemetry.js";
-export {
-  RendererUserActionTelemetry,
-  runUserAction,
-  runUserActionAsync,
-  setUserActionTelemetry,
-  startUserAction,
-} from "./lib/userActionTelemetry.js";
-export {
-  CORE_USER_ACTION_FEATURES,
-  SETTINGS_USER_ACTION_FEATURES,
-  USER_ACTION_CATALOG,
-} from "./lib/userActionTraceCatalog.js";
-export { setReactErrorArmsReporter } from "./lib/reactErrorArmsTelemetry.js";
 export {
   generateMobileDeviceFingerprint,
   getStreamClientId,
@@ -76,7 +46,6 @@ export {
 export { getV4ClientId } from "./v4/commandFactory.js";
 export { logger } from "./logger.js";
 
-export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 export {
   ensurePendingTaskDraft,
   readPendingTaskDraft,

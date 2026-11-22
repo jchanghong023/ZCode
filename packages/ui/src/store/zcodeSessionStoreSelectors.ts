@@ -4,8 +4,7 @@
  * 从 zcodeSessionStore.ts 拆分出来，包含 workspace 状态读取/更新辅助函数，
  * 以及所有按 task 粒度的只读访问器和独立选择器。
  */
-import type { ZCodeTaskRuntimeStatus, ZCodeTaskMeta } from "@zcode/shared";
-import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";
+import type { ZCodeTaskRuntimeStatus } from "@zcode/shared";
 import {
   DEFAULT_TASK_UI_STATE,
   DEFAULT_WORKSPACE_INIT_STATE,
@@ -43,11 +42,6 @@ function collectIdentityTaskIds(
 ): Set<string> {
   const normalizedIdentity = workspaceIdentity.trim();
   const taskIds = new Set<string>();
-  for (const task of baseState.taskListCache ?? []) {
-    if (task.workspaceIdentity?.trim() === normalizedIdentity) {
-      taskIds.add(task.taskId);
-    }
-  }
   for (const task of Object.values(baseState.optimisticTaskListByTaskId)) {
     if (task.workspaceIdentity?.trim() === normalizedIdentity) {
       taskIds.add(task.taskId);
@@ -68,8 +62,6 @@ function createIdentityWorkspaceStateSeed(
   const migratedTaskIds = workspaceIdentity
     ? collectIdentityTaskIds(baseState, workspaceIdentity)
     : new Set<string>();
-  const migratedTaskListCache =
-    baseState.taskListCache?.filter((task) => migratedTaskIds.has(task.taskId)) ?? null;
   return {
     ...seededState,
     // identity 首次写入时可以继承 workspace/draft 级展示种子，
@@ -97,8 +89,6 @@ function createIdentityWorkspaceStateSeed(
             baseState.taskConfigOptionsStatusByTaskId,
             migratedTaskIds,
           ),
-          taskListCache: migratedTaskListCache,
-          taskListVersion: baseState.taskListVersion,
           taskRuntimeByTaskId: copyTaskRecordEntries(
             baseState.taskRuntimeByTaskId,
             migratedTaskIds,
@@ -230,65 +220,6 @@ export function hasTaskPendingHumanInterventionRequest(
     hasTaskPendingPermissionRequest(workspaceState, taskId) ||
     taskUiState.elicitationRequest != null ||
     (taskUiState.pendingElicitationRequests?.length ?? 0) > 0
-  );
-}
-
-export function getTaskMeta(
-  workspaceState:
-    | WorkspaceZCodeUIState
-    | Partial<Pick<WorkspaceZCodeUIState, "optimisticTaskListByTaskId" | "taskListCache">>,
-  taskId: string,
-): ZCodeTaskMeta | null {
-  const optimisticTask = workspaceState.optimisticTaskListByTaskId?.[taskId];
-  const cachedTask = workspaceState.taskListCache?.find((task) => task.taskId === taskId) ?? null;
-
-  if (!optimisticTask) {
-    return cachedTask;
-  }
-
-  if (!cachedTask) {
-    return optimisticTask;
-  }
-
-  return mergeTaskWithOptimisticMeta(cachedTask, optimisticTask);
-}
-
-export function getVisibleTaskMetas(
-  workspaceState:
-    | WorkspaceZCodeUIState
-    | Partial<Pick<WorkspaceZCodeUIState, "optimisticTaskListByTaskId" | "taskListCache">>,
-): ZCodeTaskMeta[] {
-  const taskById = new Map<string, ZCodeTaskMeta>();
-
-  for (const task of workspaceState.taskListCache ?? []) {
-    taskById.set(task.taskId, task);
-  }
-
-  for (const task of Object.values(workspaceState.optimisticTaskListByTaskId ?? {})) {
-    taskById.set(task.taskId, getTaskMeta(workspaceState, task.taskId) ?? task);
-  }
-
-  return Array.from(taskById.values());
-}
-
-export function getTaskUnreadIndicator(
-  workspaceState:
-    | WorkspaceZCodeUIState
-    | Partial<
-        Pick<
-          WorkspaceZCodeUIState,
-          "optimisticTaskListByTaskId" | "taskListCache" | "taskUnreadByTaskId"
-        >
-      >,
-  taskId: string,
-  fallbackTask?: Pick<ZCodeTaskMeta, "unreadAt">,
-): boolean {
-  const storedTask = getTaskMeta(workspaceState, taskId);
-  // IDE 升级或重启后，任务列表会先从 query cache 恢复，而 session store 尚未水合；
-  // 此时持久化 unreadAt 只存在于列表 task。仅在 store 缺少该 task 时回退，避免旧列表覆盖 optimistic 已读状态。
-  return (
-    Boolean((storedTask ?? fallbackTask)?.unreadAt) ||
-    workspaceState.taskUnreadByTaskId?.[taskId] === true
   );
 }
 

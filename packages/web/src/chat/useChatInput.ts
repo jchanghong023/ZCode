@@ -5,8 +5,8 @@ import { createUuid } from "@zcode/shared/uuid";
 import {
   COMMAND_QUERY_UNAVAILABLE_REASON,
   PROTOCOL_V4_LIMITS,
-  commandAckSchema,
-  commandsQueryResultSchema,
+  webCommandAckSchema,
+  webCommandsQueryResultSchema,
   type CommandAck,
   type CommandKey,
   type CommandPayloadMap,
@@ -48,11 +48,7 @@ export function conversationCommand(
   payload: unknown,
   baseRevision?: number,
 ) {
-  const envelope: CommandEnvelope = {
-    workspace: {
-      ...workspace,
-      workspaceKey: workspace.workspaceIdentity ?? workspace.workspacePath,
-    },
+  const envelope: Omit<CommandEnvelope, "workspace"> = {
     commandId: createUuid(),
     clientId: connection.clientId,
     issuedAt: Date.now(),
@@ -96,7 +92,7 @@ export async function submitConversationCommand(
   connection: AgentConnection,
   request: CommandRequest,
 ) {
-  const ack = commandAckSchema.parse(
+  const ack = webCommandAckSchema.parse(
     await withReceiptDeadline(connection.agent.sendConversationCommandV4(request)),
   );
   if (ack.commandId !== request.envelope.commandId) throw new Error("Command receipt mismatch");
@@ -183,7 +179,7 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
       send.checkingOn = candidate;
       updateReceipt(send, "checking");
       try {
-        const { results } = commandsQueryResultSchema.parse(
+        const { results } = webCommandsQueryResultSchema.parse(
           await withReceiptDeadline(
             candidate.agent.queryConversationCommandsV4({
               ...send.workspace,
@@ -232,7 +228,6 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
           ...(streamingBehavior && { streamingBehavior }),
         })
       : conversationCommand(connection, workspace, null, "createSession", {
-          workspaceId: workspace.workspacePath,
           config: { modelSelection: model },
           firstInput: { text },
         });

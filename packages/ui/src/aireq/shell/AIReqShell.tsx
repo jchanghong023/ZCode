@@ -340,7 +340,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         >
           <AIReqSidebarNavigation />
           <AIReqWorkspaceFooter
-            compact={false}
             onOpenSettings={() => openSettings()}
             onLogout={() =>
               ai.navigate(() => {

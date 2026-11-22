@@ -1,5 +1,6 @@
 import type { Theme } from "@/useTheme.js";
 import { useState } from "react";
+import { Monitor, Moon, Sun, WandSparkles } from "lucide-react";
 import { resolveTheme } from "@/useTheme.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { Input } from "@/components/ui/input.js";
@@ -20,8 +21,14 @@ import {
 import { getCodePreviewTheme } from "@/lib/codePreviewPreferences.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
-import { THEME_MODES } from "@/settings/settingsPageConfig.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
+
+const THEME_MODES: Array<{ mode: Theme; icon: typeof Sun }> = [
+  { mode: "zai-motion", icon: WandSparkles },
+  { mode: "system", icon: Monitor },
+  { mode: "zai-dark", icon: Moon },
+  { mode: "zai-light", icon: Sun },
+];
 
 function FontSizeInput({
   value,
@@ -85,17 +92,11 @@ export function AppearanceSectionContent({
   setTheme,
   uiFontSizePx,
   setUiFontSizePx,
-  isMacDesktop,
-  fontSmoothingEnabled,
-  setFontSmoothingEnabled,
 }: {
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (settings: Partial<CodePreviewSettings>) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  isMacDesktop: boolean;
-  fontSmoothingEnabled: boolean;
-  setFontSmoothingEnabled: (enabled: boolean) => void;
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
 }) {
@@ -165,21 +166,6 @@ export function AppearanceSectionContent({
                 />
               }
             />
-            {isMacDesktop ? (
-              <SettingsRow
-                searchId="settings.fontSmoothing"
-                label={intl.formatMessage({ id: "settings.fontSmoothing" })}
-                description={intl.formatMessage({ id: "settings.fontSmoothingDescription" })}
-                control={
-                  <Switch
-                    data-testid="font-smoothing-switch"
-                    aria-label={intl.formatMessage({ id: "settings.fontSmoothing" })}
-                    checked={fontSmoothingEnabled}
-                    onCheckedChange={setFontSmoothingEnabled}
-                  />
-                }
-              />
-            ) : null}
           </CardContent>
         </Card>
       </div>

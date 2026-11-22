@@ -39,7 +39,7 @@ export { presenceIP } from "./presence.js";
 export { MockAIReqService, getConnectionServices, registerAIReqConnection } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
-export { assertSkillSession } from "./skill-design.js";
+export { assertSkillSession, prototypeSkillDesignWorkspaceIdentity } from "./skill-design.js";
 export {
   readPrototypeNativeContext,
   readPrototypeProjectDirectory,

@@ -11,7 +11,6 @@ import {
 import type { SessionCreateSource } from "@zcode/shared";
 import { reportSessionCreate } from "@/lib/sessionCreateTelemetry.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
-import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 /* oxlint-disable eslint(max-lines) -- SessionPane 是单 pane 竖切的命令编排收口（订阅/发送/停止/fork/edit/retry/queue/slash 全集），与旧 ChatView 同粒度；HEAD 已超限（693 行计数），拆散命令组会打散 dispatchCommand/snapshotRef 的闭包纪律。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import {
@@ -21,7 +20,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { Hand } from "lucide-react";
@@ -52,8 +50,6 @@ import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
-import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
-import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import { buildChatSessionScrollMemoryKey } from "@/lib/chatSessionScrollMemory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -109,8 +105,7 @@ import {
   type ComposerEditSession,
   useQueueConfigApplyPrompt,
 } from "@/composer-edit-mode/index.js";
-import { useConversationPanePresentation } from "@/side-pane-full-view/index.js";
-import { ConversationFileRewindDialog } from "@/v4/ConversationFileRewindDialog.js";
+import { ConversationEditConflictDialog } from "@/v4/ConversationEditConflictDialog.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
@@ -119,7 +114,6 @@ import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
 import { SessionSubscriptionErrorPanel } from "@/v4/SessionSubscriptionErrorPanel.js";
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
-import type { ConversationLatestTurnSummary } from "@/v4/conversationTimelineLiveTail.js";
 import { ConversationBottomDockTransition } from "@/v4/ConversationBottomDockTransition.js";
 import {
   resolveConversationStatusPanelVariant,
@@ -155,7 +149,6 @@ import {
 } from "@/v4/assistantPreviewPptxAutoOpen.js";
 import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
-import { useSelectionCommentSupport } from "@/selection-comment/index.js";
 import { createConfigCommandBarrier } from "@/v4/configCommandBarrier.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
 import type {
@@ -165,11 +158,9 @@ import type {
 } from "@/v4/legacyChatViewTypes.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { V4InteractionDialogs } from "@/v4/V4InteractionDialogs.js";
-import type { ConversationPromptTelemetrySeed } from "@zcode/shared/conversation-telemetry";
 import { useSessionOpenArmsTelemetry } from "@/v4/telemetry/useSessionOpenArmsTelemetry.js";
 import {
   parseV4VisibleSlashCommand,
-  parseSelectionSideSlashCommand,
   type V4VisibleSlashCommand,
 } from "@/v4/slashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
@@ -186,12 +177,8 @@ import {
   type ChatErrorBannerModelConfigTarget,
 } from "@/ChatErrorBanner.js";
 import { isProviderNotReadyError } from "@/lib/chatPrepareError.js";
-import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
-import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
 import type {
-  OpenPlanDetailSideTabRequest,
-  OpenScopedPlanDetailSideTabRequest,
   OpenWorkflowRunSideTabRequest,
   OpenWorkflowRunDirectorySideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
@@ -204,20 +191,9 @@ import type {
   OpenWorkflowWorkspaceSideTabRequest,
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
-  OpenScopedSubagentDirectorySideTabRequest,
-  OpenSelectionSideChatRequest,
-  SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
 } from "@/lib/workspaceSidePane.js";
-import {
-  buildSelectionSideChatKey,
-  createSelectionSideChat,
-  isSelectionSideChatBlocked,
-  registerSelectionSideChatOpener,
-  setSelectionSideChatBlocked,
-  subscribeSelectionSideChatRuntime,
-} from "@/lib/selectionSideChatRuntime.js";
-import { shouldOfferSideSlashCommand, type AppSlashCommand } from "@/slashCommandHelpers.js";
+import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import {
   dispatchConversationSelectionAdd,
   type ConversationSelectionReference,
@@ -265,14 +241,8 @@ export interface SessionPaneProps {
   retainReadOnlyComposer?: boolean;
   /** 工作区只读原因；普通 subagent 观察视图不传，避免误报目录失效。 */
   readOnlyReason?: string;
-  /** 框选副屏：保留普通 composer/tools，但隐藏并禁止 edit/retry/fork/goal。 */
-  selectionSideChat?: boolean;
-  /** 正式审查报告等业务消息不显示赞/踩；复制和正文仍保留。 */
-  hideMessageFeedback?: boolean;
   /** 会话入口可始终在时间线显示收到的思考与 Todo 行。 */
   showTurnWork?: boolean;
-  /** 主会话划词动作只投递到 Side Pane 当前激活的辅助 child。 */
-  activeSelectionSideChatSessionId?: string | null;
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string | null;
@@ -282,8 +252,6 @@ export interface SessionPaneProps {
   onSessionCreated?: (sessionId: string, origin?: "draft-promotion") => void;
   /** deleteSession：删除当前会话后回到 draft（shell 起新草稿）。 */
   onSessionDeleted?: () => void;
-  /** 隐藏副屏的 child 已不存在时，由宿主移除对应 tab。 */
-  onSelectionSideChatUnavailable?: () => void;
   /**
    * Focus 层：全局快捷键（Esc stop）与 add-to-chat 事件只路由到
    * focused pane。单 pane 消费者缺省 true。
@@ -313,16 +281,12 @@ export interface SessionPaneProps {
   onRefreshGit?: () => void;
   onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
   onOpenBrowserUrl?: (url: string) => void;
-  onOpenAutomationsMain?: OpenAutomationsMain;
+  onOpenAutomationsMain?: ConversationRowRenderContext["onOpenAutomationsMain"];
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onAutoOpenAssistantPptx?: (request: AssistantPreviewCardsAutoOpenRequest) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession?: (request: OpenScopedSubagentSideTabRequest) => void;
-  onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
-  onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
-  onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
-  onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   /** 通知行的产物 chip → 全尺寸查看 tab。 */
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
@@ -361,11 +325,12 @@ function isSessionBoundConversationCommand(type: CommandType): boolean {
   );
 }
 
-const EMPTY_SUBAGENT_PROJECTION: NonNullable<ConversationSnapshot["subagents"]> = {
+const EMPTY_SUBAGENT_PROJECTION: Pick<
+  NonNullable<ConversationSnapshot["subagents"]>,
+  "revision" | "running"
+> = {
   revision: 0,
-  childSessionIds: [],
   running: [],
-  endedTotal: 0,
 };
 
 function toComposerUiError(
@@ -412,7 +377,6 @@ function isConversationFileDrag(dataTransfer: DataTransfer): boolean {
   const types = Array.from(dataTransfer.types);
   return (
     types.includes("Files") ||
-    types.includes(WORKSPACE_FILE_DRAG_MIME) ||
     Array.from(dataTransfer.items ?? []).some((item) => item.kind === "file")
   );
 }
@@ -527,17 +491,13 @@ export function SessionPane({
   readOnly: workspaceReadOnly = false,
   retainReadOnlyComposer = false,
   readOnlyReason: workspaceReadOnlyReason,
-  selectionSideChat = false,
-  hideMessageFeedback = false,
   showTurnWork,
-  activeSelectionSideChatSessionId = null,
   workspacePath,
   workspaceIdentity,
   remoteSessionId,
   isDesktop = false,
   provider,
   onSessionCreated,
-  onSelectionSideChatUnavailable,
   focused = true,
   allowEscapeStopOutsidePane = false,
   onClosePane,
@@ -560,10 +520,6 @@ export function SessionPane({
   onOpenFileLink,
   onOpenSubagentSession,
   onOpenBackgroundBash,
-  onOpenSubagentDirectory,
-  onSyncSubagentSessionTabs,
-  onOpenSelectionSideChat,
-  onOpenPlanDetail,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
   onOpenWorkflowRunDirectory,
@@ -666,7 +622,6 @@ export function SessionPane({
     sessionId === null ||
     (state.status === "live" &&
       state.projectionReady !== false &&
-      (!state.lifecycle || state.lifecycle.state === "ready") &&
       snapshot?.sessionId === sessionId &&
       (!snapshot.runtimeInitialization || snapshot.runtimeInitialization.status === "ready"));
   const catalogScope = useMemo(
@@ -749,7 +704,6 @@ export function SessionPane({
   const readOnlyDropTargetController = useMemo<ConversationDropTargetController>(
     () => ({
       active: false,
-      kind: null,
       onDragLeave: () => {},
       onDragOver: (event) => {
         if (!isConversationFileDrag(event.dataTransfer)) return;
@@ -778,7 +732,6 @@ export function SessionPane({
         payload: Record<string, unknown>,
         targetSessionId: string | null,
         baseRevision?: number,
-        baseLogEpoch?: string,
       ) => Promise<CommandAck>)
     | null
   >(null);
@@ -921,62 +874,7 @@ export function SessionPane({
     : (snapshot?.pendingInteractions.find(
         (interaction) => interaction.payload.kind !== "workspaceHookReview",
       )?.interactionId ?? null);
-  const panePresentation = useConversationPanePresentation();
-  const isFloatingPresentation = panePresentation.presentation === "floating";
   const isRunning = Boolean(snapshot?.control.canStop);
-  const { reportFloatingStatus } = panePresentation;
-  const floatingOwnerKey = sessionId ?? "__draft__";
-  // 浮窗形态下由时间线上报最后一个回合（同一个 render unit 的运行状态、时长与最终回答）；
-  // 记录带上 owner，切换会话后旧会话的摘要不会混进新会话。
-  const [floatingLatestTurn, setFloatingLatestTurn] = useState<{
-    ownerKey: string;
-    summary: ConversationLatestTurnSummary;
-  } | null>(null);
-  const handleFloatingLatestTurnSummaryChange = useCallback(
-    (summary: ConversationLatestTurnSummary) =>
-      setFloatingLatestTurn({ ownerKey: floatingOwnerKey, summary }),
-    [floatingOwnerKey],
-  );
-  const floatingLatestTurnSummary =
-    isFloatingPresentation && floatingLatestTurn?.ownerKey === floatingOwnerKey
-      ? floatingLatestTurn.summary
-      : null;
-  const floatingTurnKey = floatingLatestTurnSummary?.turnKey ?? null;
-  const floatingTurnRunning = floatingLatestTurnSummary?.running ?? false;
-  const floatingTurnAnswer = floatingLatestTurnSummary?.answer ?? null;
-  const hasFloatingLatestTurn = floatingLatestTurnSummary !== null;
-  useEffect(() => {
-    // 完整视图浮窗只展示焦点 pane 的状态；docked 时 reportFloatingStatus 为 noop。
-    if (!focused) return;
-    reportFloatingStatus({
-      running: isRunning,
-      blockingInteractionId,
-      ownerKey: floatingOwnerKey,
-      latestTurn: hasFloatingLatestTurn
-        ? { turnKey: floatingTurnKey, running: floatingTurnRunning, answer: floatingTurnAnswer }
-        : null,
-    });
-  }, [
-    blockingInteractionId,
-    floatingOwnerKey,
-    floatingTurnAnswer,
-    floatingTurnKey,
-    floatingTurnRunning,
-    focused,
-    hasFloatingLatestTurn,
-    isRunning,
-    reportFloatingStatus,
-  ]);
-  const selectionSideChatKey =
-    sessionId && !sessionBoundInput ? buildSelectionSideChatKey(workspaceKey, sessionId) : null;
-  const selectionSideActionBlocked = useSyncExternalStore(
-    subscribeSelectionSideChatRuntime,
-    () =>
-      activeSelectionSideChatSessionId
-        ? isSelectionSideChatBlocked(activeSelectionSideChatSessionId)
-        : false,
-    () => false,
-  );
   const timelineScrollMemoryKey = buildChatSessionScrollMemoryKey({
     workspacePath,
     workspaceIdentity,
@@ -1099,7 +997,6 @@ export function SessionPane({
       }),
     [composerDraft.modelSelection, modelSelectionRead.state, sessionId],
   );
-  const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   // 首发 commandId 在 accepted 时已存在，也是 completion 的 message_id；不必等回复完成。
   const reportDraftCreated = useCallback(
     (createdSessionId: string, source: SessionCreateSource, messageId: string) => {
@@ -1142,9 +1039,7 @@ export function SessionPane({
     (state) => state.codePreviewSettings,
     DEFAULT_CODE_PREVIEW_SETTINGS,
   );
-  // Tier 1 fork 跳转：点 child 会话的 forkNotice → 把当前 pane 原地切到父会话，复用 fork
-  // 落地同款 onSessionCreated（primary→setActiveTaskId、分屏→bindPaneSession）。rowId 预留
-  // Tier 2 精确滚动——当前 forkNotice.parentRowId 恒为 0 占位，此处忽略。
+  // 历史分叉标记可切回父会话；当前仅切换会话，不定位到行。
   const handleNavigateToRow = useCallback(
     (targetSessionId: string, _rowId: number) => {
       if (!targetSessionId || targetSessionId === sessionId) {
@@ -1159,23 +1054,17 @@ export function SessionPane({
       if (!sessionId) return newTaskComposerScope;
       const projectService = baseWorkspaceServices.projectService;
       if (!projectService) throw new Error("project.service-unavailable");
-      // 辅助会话不在主任务索引内；普通会话和 fork 始终使用自身归属。
-      const taskId =
-        selectionSideChat && targetSessionId === sessionId && rootSessionId
-          ? rootSessionId
-          : targetSessionId;
-      const { projectId } = await projectService.resolveSessionDirectories(
-        { workspacePath, workspaceIdentity, taskId },
-        newTaskComposerScope.hostId,
-      );
+      const { projectId } = await projectService.resolveSessionDirectories({
+        workspacePath,
+        workspaceIdentity,
+        taskId: targetSessionId,
+      });
       return { ...newTaskComposerScope, projectId };
     },
     [
       sessionId,
       newTaskComposerScope,
       baseWorkspaceServices.projectService,
-      selectionSideChat,
-      rootSessionId,
       workspacePath,
       workspaceIdentity,
     ],
@@ -1215,8 +1104,6 @@ export function SessionPane({
       payload: Record<string, unknown>,
       targetSessionId: string | null,
       baseRevision?: number,
-      baseLogEpoch?: string,
-      telemetrySeed?: ConversationPromptTelemetrySeed,
       onEnvelopeCreated?: (envelope: CommandEnvelope) => void,
       creationProjectId?: string | null,
       sessionCreateSource?: SessionCreateSource,
@@ -1257,7 +1144,6 @@ export function SessionPane({
         sessionId: targetSessionId,
         payload: payload as never,
         ...(baseRevision !== undefined ? { baseRevision } : {}),
-        ...(baseLogEpoch ? { baseLogEpoch } : {}),
       });
       onEnvelopeCreated?.(envelope);
       const projectId =
@@ -1336,25 +1222,8 @@ export function SessionPane({
         }
         let ack: CommandAck;
         try {
-          if (telemetrySeed?.localTtft && !workspaceIdentity?.trim()) {
-            envelope.ttft = getLocalTtftObserver()?.dispatch(
-              telemetrySeed.localTtft,
-              workspacePath,
-              envelope.commandId,
-              targetSessionId,
-            );
-          }
-          ack =
-            projectId !== undefined
-              ? await sendCommand(envelope, { projectId })
-              : await sendCommand(envelope);
-          if (telemetrySeed?.localTtft && ack.reasonCode === "guard.heldQueueConfirmationStale")
-            getLocalTtftObserver()?.confirmationRetry(telemetrySeed.localTtft);
-          else if (telemetrySeed?.localTtft)
-            getLocalTtftObserver()?.ack(telemetrySeed.localTtft, ack.status, ack.ttftExcluded);
+          ack = await sendCommand(envelope);
         } catch (error) {
-          if (telemetrySeed?.localTtft)
-            getLocalTtftObserver()?.exclude(telemetrySeed.localTtft, "failed");
           if (commandLease) {
             commandLease.store.settleCommand(envelope.commandId);
           }
@@ -1435,30 +1304,7 @@ export function SessionPane({
     },
     [onOpenSubagentSession, remoteSessionId, rootSessionId, workspaceIdentity, workspacePath],
   );
-  const handleOpenSubagentDirectory = useCallback(
-    (request: import("@/lib/workspaceSidePane.js").OpenSubagentDirectorySideTabRequest) => {
-      onOpenSubagentDirectory?.({
-        ...request,
-        rootSessionId: request.rootSessionId ?? rootSessionId ?? request.parentSessionId,
-        workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        ...(remoteSessionId ? { remoteSessionId } : {}),
-      });
-    },
-    [onOpenSubagentDirectory, remoteSessionId, rootSessionId, workspaceIdentity, workspacePath],
-  );
-  const handleOpenPlanDetail = useCallback(
-    (request: OpenPlanDetailSideTabRequest) => {
-      onOpenPlanDetail?.({
-        ...request,
-        workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        ...(remoteSessionId ? { remoteSessionId } : {}),
-      });
-    },
-    [onOpenPlanDetail, remoteSessionId, workspaceIdentity, workspacePath],
-  );
-  // 与 plan-detail 完全同构：卡片只发意图（runId + toolCallId + 展示名），
+  // 工作流卡片只发意图（runId + toolCallId + 展示名），
   // 会话与 workspace 身份一律由宿主（这里）补齐，卡片不感知 scope。
   const handleOpenWorkflowRun = useCallback(
     (request: OpenWorkflowRunSideTabRequest) => {
@@ -1582,9 +1428,8 @@ export function SessionPane({
   );
   const handleAddSelectionToCurrentTask = useCallback(
     (reference: ConversationSelectionReference) => {
-      if (!sessionId) return undefined;
-      // 返回追加结果：批注超限时浮层据此保留输入并提示，而不是静默丢掉用户写的批注。
-      return dispatchConversationSelectionAdd({
+      if (!sessionId) return;
+      dispatchConversationSelectionAdd({
         targetSessionId: sessionId,
         workspaceKey,
         reference,
@@ -1592,202 +1437,18 @@ export function SessionPane({
     },
     [sessionId, workspaceKey],
   );
-  const handleOpenSelectionSideConversation = useCallback(
-    async (reference?: ConversationSelectionReference, forceNew = false) => {
-      if (!sessionId || !selectionSideChatKey || !onOpenSelectionSideChat) return;
-      try {
-        // 旧侧聊存活探测依赖已退出的 readSession；现有引用直接交给原生会话 owner。
-        const targetChildSessionId =
-          reference && !forceNew ? activeSelectionSideChatSessionId : null;
-
-        if (targetChildSessionId) {
-          onOpenSelectionSideChat({
-            workspacePath,
-            ...(workspaceIdentity ? { workspaceIdentity } : {}),
-            ...(remoteSessionId ? { remoteSessionId } : {}),
-            parentSessionId: sessionId,
-            childSessionId: targetChildSessionId,
-          });
-          if (reference) {
-            dispatchConversationSelectionAdd({
-              targetSessionId: targetChildSessionId,
-              workspaceKey,
-              reference,
-            });
-          }
-          return;
-        }
-
-        const childSessionId = await createSelectionSideChat(selectionSideChatKey, async () => {
-          const ack = await dispatchCommand("createSelectionSideSession", {}, sessionId);
-          if (
-            (ack.status !== "accepted" && ack.status !== "duplicate") ||
-            ack.result?.type !== "createSelectionSideSession"
-          ) {
-            throw new Error(ack.reasonCode ?? "createSelectionSideSession 被拒绝");
-          }
-          return ack.result.sessionId;
-        });
-        onOpenSelectionSideChat({
-          workspacePath,
-          ...(workspaceIdentity ? { workspaceIdentity } : {}),
-          ...(remoteSessionId ? { remoteSessionId } : {}),
-          parentSessionId: sessionId,
-          childSessionId,
-        });
-        if (reference) {
-          dispatchConversationSelectionAdd({
-            targetSessionId: childSessionId,
-            workspaceKey,
-            reference,
-          });
-        }
-      } catch (error) {
-        logger.warn("[v4-pane] 创建框选副屏会话失败", {
-          error: error instanceof Error ? error.message : String(error),
-          parentSessionId: sessionId,
-          workspaceKey,
-        });
-      }
-    },
-    [
-      activeSelectionSideChatSessionId,
-      dispatchCommand,
-      onOpenSelectionSideChat,
-      remoteSessionId,
-      selectionSideChatKey,
-      sessionId,
-      workspaceIdentity,
-      workspaceKey,
-      workspacePath,
-    ],
-  );
-
-  const handleOpenSelectionSideConversationWithPrompt = useCallback(
-    async (text: string, telemetrySeed?: ConversationPromptTelemetrySeed): Promise<boolean> => {
-      if (!sessionId || !selectionSideChatKey || !onOpenSelectionSideChat) {
-        throw new Error("selection side chat is unavailable");
-      }
-      // 参数命令每次都是新 child；同一条文本在 ACK 未回时重试仍复用 pending，
-      // 不同文本则不能与 bare `/side` 或另一条 prompt 合并。
-      const pendingKey = `${selectionSideChatKey}\u0000prompt\u0000${text}`;
-      const childSessionId = await createSelectionSideChat(pendingKey, async () => {
-        const ack = await dispatchCommand(
-          "createSelectionSideSession",
-          { firstInput: { text } },
-          sessionId,
-          undefined,
-          undefined,
-          telemetrySeed,
-        );
-        if (
-          (ack.status !== "accepted" && ack.status !== "duplicate") ||
-          ack.result?.type !== "createSelectionSideSession"
-        ) {
-          throw new Error(ack.reasonCode ?? "createSelectionSideSession 被拒绝");
-        }
-        return ack.result.sessionId;
-      });
-      onOpenSelectionSideChat({
-        workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        ...(remoteSessionId ? { remoteSessionId } : {}),
-        parentSessionId: sessionId,
-        childSessionId,
-      });
-      return true;
-    },
-    [
-      dispatchCommand,
-      onOpenSelectionSideChat,
-      remoteSessionId,
-      selectionSideChatKey,
-      sessionId,
-      workspaceIdentity,
-      workspacePath,
-    ],
-  );
-
-  useEffect(() => {
-    if (
-      sessionBoundInput ||
-      !selectionSideChatKey ||
-      !sessionId ||
-      readOnly ||
-      selectionSideChat ||
-      isMobileTextInputViewport ||
-      !onOpenSelectionSideChat
-    ) {
-      return;
-    }
-
-    // Side Pane 固定入口没有会话 Provider；这里只注册主 pane 已有的命令编排能力。
-    // 父会话即使处于 Permission/AskUser 等阻塞态也保持注册，直接入口仍可创建/激活副屏。
-    return registerSelectionSideChatOpener(
-      selectionSideChatKey,
-      // 合并时曾丢弃 reference，导致 Markdown 入口只建空白副屏；复用现有引用路由。
-      (reference) => handleOpenSelectionSideConversation(reference, !reference),
-      focused,
-      Boolean(blockingInteractionId) || selectionSideActionBlocked,
-    );
-  }, [
-    blockingInteractionId,
-    selectionSideActionBlocked,
-    focused,
-    handleOpenSelectionSideConversation,
-    isMobileTextInputViewport,
-    onOpenSelectionSideChat,
-    readOnly,
-    selectionSideChat,
-    sessionBoundInput,
-    selectionSideChatKey,
-    sessionId,
-  ]);
-
-  // Plan 选中即开启标准 Composer 开关，不能等发送时解析文本；与 /side 共用本地操作入口。
+  // Plan 选中即开启 Composer 开关，不能等发送时再解析文本。
   const appSlashCommands = useMemo<AppSlashCommand[] | undefined>(() => {
     if (readOnly || sessionBoundInput) return undefined;
-    const planAction: AppSlashCommand = {
-      value: "plan",
-      description: intl.formatMessage({ id: "chat.slash.app.plan.description" }),
-      keywords: ["plan", "计划", "计划模式"],
-      run: () => handleDraftSwitchMode("plan"),
-    };
-    if (
-      !sessionId ||
-      !onOpenSelectionSideChat ||
-      !shouldOfferSideSlashCommand({
-        isDraft: sessionId === null,
-        selectionSideChat,
-        readOnly,
-        isMobileViewport: isMobileTextInputViewport,
-      })
-    ) {
-      return [planAction];
-    }
-    const openNewSelectionSideChat = () => {
-      void handleOpenSelectionSideConversation(undefined, true);
-    };
-    // 关键词固定同时包含中英文别名，任一 locale 下输入 side / btw / 辅助 都能搜到。
-    // `/btw` 是 `/side` 的等价别名，适配不同用户输入习惯，面板中各自独立展示。
-    const sharedKeywords = ["side", "btw", "side chat", "auxiliary", "辅助对话", "辅助", "侧边"];
-    const description = intl.formatMessage({ id: "chat.slash.app.side.description" });
     return [
-      planAction,
-      { value: "side", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
-      { value: "btw", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
+      {
+        value: "plan",
+        description: intl.formatMessage({ id: "chat.slash.app.plan.description" }),
+        keywords: ["plan", "计划", "计划模式"],
+        run: () => handleDraftSwitchMode("plan"),
+      },
     ];
-  }, [
-    handleDraftSwitchMode,
-    handleOpenSelectionSideConversation,
-    intl,
-    isMobileTextInputViewport,
-    onOpenSelectionSideChat,
-    readOnly,
-    selectionSideChat,
-    sessionBoundInput,
-    sessionId,
-  ]);
+  }, [handleDraftSwitchMode, intl, readOnly, sessionBoundInput]);
 
   const chatLoadingBlockedByInteraction =
     !sessionBoundInput && hasChatLoadingBlockingInteraction(snapshot?.pendingInteractions ?? []);
@@ -1898,8 +1559,6 @@ export function SessionPane({
         !sessionBoundInput && runtimeReady && onOpenSubagentSession
           ? handleOpenSubagentSession
           : undefined,
-      onOpenPlanDetail:
-        !sessionBoundInput && runtimeReady && onOpenPlanDetail ? handleOpenPlanDetail : undefined,
       onOpenWorkflowRun:
         !sessionBoundInput && runtimeReady && onOpenWorkflowRun ? handleOpenWorkflowRun : undefined,
       onOpenWorkflowActor:
@@ -1949,8 +1608,6 @@ export function SessionPane({
       onOpenFileLink,
       onOpenSubagentSession,
       handleOpenSubagentSession,
-      onOpenPlanDetail,
-      handleOpenPlanDetail,
       onOpenWorkflowRun,
       handleOpenWorkflowRun,
       onOpenWorkflowActorSession,
@@ -2171,11 +1828,6 @@ export function SessionPane({
     };
   }, [layer, effectiveSessionId, setLease]);
 
-  useEffect(() => {
-    if (sessionBoundInput || !sessionId || !lease || snapshot?.sessionId !== sessionId) return;
-    void lease.store.refreshPlans();
-  }, [lease, sessionBoundInput, sessionId, snapshot?.sessionId, state.planDirectoryRevision]);
-
   // 预热会话订阅失败（CLI 重启内存会话消失等）→ 丢弃旧 binding，下一次发送由 owner 重试。
   useEffect(() => {
     if (
@@ -2198,18 +1850,6 @@ export function SessionPane({
     state.lastError,
     state.status,
   ]);
-
-  useEffect(() => {
-    if (
-      !selectionSideChat ||
-      state.status !== "error" ||
-      !state.lastError?.includes("sessionNotFound")
-    ) {
-      return;
-    }
-    // 副屏是临时 UI 绑定；持久 child 丢失后清 tab，下一次框选按父会话重建。
-    onSelectionSideChatUnavailable?.();
-  }, [onSelectionSideChatUnavailable, selectionSideChat, state.lastError, state.status]);
 
   const settleCurrentQueueInputs = useCallback((targetSessionId: string) => {
     const current = snapshotRef.current;
@@ -2311,11 +1951,6 @@ export function SessionPane({
       options: ConversationComposerSendOptions | undefined,
       createSourceAtSend: SessionCreateSource,
     ) => {
-      const dispatchSubmissionCommand = async (...args: Parameters<typeof dispatchCommand>) => {
-        args[8] = createSourceAtSend;
-        args[10] = options?.submittedDraftText ?? text;
-        return dispatchCommand(...args);
-      };
       // 进入 barrier 前已经冻结；等待配置/附件期间不再回读 Composer 或 Session。
       const submission = options?.submission ?? undefined;
       const heldQueueDisposition = options?.heldQueueDisposition;
@@ -2330,20 +1965,6 @@ export function SessionPane({
         return "blocked" as const;
       }
 
-      const selectionSideSlashCommand =
-        sessionId &&
-        appSlashCommands?.some((command) => command.value === "side" || command.value === "btw")
-          ? parseSelectionSideSlashCommand(text, readyAttachments, {
-              contextAttachmentCount,
-            })
-          : null;
-      if (sessionId && selectionSideSlashCommand) {
-        const created = await handleOpenSelectionSideConversationWithPrompt(
-          selectionSideSlashCommand.text,
-          options?.telemetrySeed,
-        );
-        return created ? ("sent" as const) : ("blocked" as const);
-      }
       if (
         submission?.planEnabled &&
         slashCommand !== null &&
@@ -2445,7 +2066,7 @@ export function SessionPane({
       // admission 写出后的失败或 transport error 不能证明 CLI 没有执行；保留原 binding
       // 的 pending 生命周期，交给 Composer 保留输入，禁止自动换会话/command 重发。
       // 附件 ref 已在 composer 预传状态机中收口。
-      const ack = await dispatchSubmissionCommand(
+      const ack = await dispatchCommand(
         "sendText",
         {
           text,
@@ -2468,17 +2089,16 @@ export function SessionPane({
         },
         targetSessionId,
         undefined,
-        undefined,
-        options?.telemetrySeed,
         options?.onCommandCreated
           ? (envelope) => {
               if (envelope.type === "sendText") options.onCommandCreated?.(envelope.commandId);
             }
           : undefined,
         undefined,
-        undefined,
+        createSourceAtSend,
         // Recent 记录加速前的 Composer 原始选择，不用被覆盖的 payload Selection。
         submission,
+        options?.submittedDraftText ?? text,
       );
       if (!sessionBoundInput && ack.reasonCode === "guard.heldQueueConfirmationStale") {
         return "confirmationRequired" as const;
@@ -2499,10 +2119,8 @@ export function SessionPane({
       dispatchSlashCommand,
       draftProjectReady,
       ensureDraftModelReadyForSend,
-      appSlashCommands,
       handleDraftSessionCreated,
       reportDraftCreated,
-      handleOpenSelectionSideConversationWithPrompt,
       intl,
       sessionBoundInput,
       sessionId,
@@ -2612,31 +2230,6 @@ export function SessionPane({
   const handleComposerTextChange = useCallback((text: string) => {
     composerTextRef.current = text;
   }, []);
-  const handleFork = useCallback(
-    (target: ConversationRowTarget) => {
-      const current = snapshotRef.current;
-      if (!sessionId || current === null) return;
-      // forkAssistant 是 CAS 命令：baseRevision 取当前投影 revision。
-      void dispatchCommand(
-        "forkAssistant",
-        { target },
-        sessionId,
-        current.revision,
-        current.logEpoch,
-      ).then((ack) => {
-        if (ack.status !== "accepted" && ack.status !== "duplicate") {
-          logger.warn(`[v4-pane] fork 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-          return;
-        }
-        if (ack.result?.type === "forkAssistant") {
-          // 原地切到 child session（与新建会话同一选择路径）。
-          onSessionCreated?.(ack.result.sessionId);
-        }
-      });
-    },
-    [dispatchCommand, onSessionCreated, sessionId],
-  );
-
   const handleEdit = useCallback(
     async (
       target: ConversationRowTarget,
@@ -2682,8 +2275,6 @@ export function SessionPane({
         },
         sessionId,
         latest.revision,
-        latest.logEpoch,
-        undefined,
       );
       if (ack.status !== "accepted" && ack.status !== "duplicate") {
         logger.warn(`[v4-pane] edit 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
@@ -2895,8 +2486,6 @@ export function SessionPane({
             },
             targetSessionId,
             undefined,
-            undefined,
-            options?.telemetrySeed,
             (envelope) => {
               // ACK 丢失后用户显式重试复用原命令水位；不能把同一 provisional 首发变成第二条输入。
               const previous = pendingCommandRegistry
@@ -3018,7 +2607,6 @@ export function SessionPane({
         { target },
         sessionId,
         current.revision,
-        current.logEpoch,
       );
     },
     [dispatchCommand, sessionId],
@@ -3039,29 +2627,6 @@ export function SessionPane({
         });
     },
     [dispatchRetryTurn],
-  );
-
-  const handleAssistantFeedback = useCallback(
-    async (
-      target: ConversationRowTarget,
-      feedback: "like" | "dislike" | null,
-    ): Promise<boolean> => {
-      const current = snapshotRef.current;
-      if (!sessionId || current === null) return false;
-      const ack = await dispatchCommand(
-        "setAssistantFeedback",
-        { target, feedback },
-        sessionId,
-        current.revision,
-        current.logEpoch,
-      );
-      const accepted = ack.status === "accepted" || ack.status === "duplicate";
-      if (!accepted) {
-        logger.warn(`[v4-pane] assistant 反馈被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-      }
-      return accepted;
-    },
-    [dispatchCommand, sessionId],
   );
 
   const handleDeleteQueueItem = useCallback(
@@ -3634,30 +3199,12 @@ export function SessionPane({
   // retry 的产品裁决属于行级权威投影。这里仅提供命令能力，入口是否展示
   // 完全读取 row.actions.canRetry，禁止再用 pane phase 形成第二套 guard。
   const retryActionsEnabled =
-    !sessionBoundInput && runtimeReady && !readOnly && !selectionSideChat && Boolean(sessionId);
+    !sessionBoundInput && runtimeReady && !readOnly && Boolean(sessionId);
 
-  // fork 可用性由行级 row.actions.canFork（CLI stable resolver 投影）与 session 锁
-  // availability.fork（compact）共同裁决；pane 只在锁关闭时提供命令回调。
-  const forkActionsEnabled =
-    !sessionBoundInput &&
-    runtimeReady &&
-    !readOnly &&
-    !selectionSideChat &&
-    Boolean(sessionId) &&
-    snapshot?.availability.fork.allowed !== false;
-  const selectionCommentSupported = useSelectionCommentSupport(
-    workspacePath,
-    workspaceIdentity,
-    !sessionBoundInput &&
-      Boolean(sessionId) &&
-      !readOnly &&
-      !selectionSideChat &&
-      !isMobileTextInputViewport,
-  );
   // editUserQuery 已由 command 层防御 latest real user query，并在 running
   // 提交时先 stop barrier 再 rewind/rerun；UI 不应再用 completed gate 把入口整轮隐藏。
   const editActionsEnabled =
-    !sessionBoundInput && runtimeReady && !readOnly && !selectionSideChat && Boolean(sessionId);
+    !sessionBoundInput && runtimeReady && !readOnly && Boolean(sessionId);
   const isDraft = sessionId === null;
   // 滚动恢复必须使用与 sessionId 匹配的 lease projection。切换 session 的 render 与
   // passive effect 不在同一时刻，旧 lease 的 rows 若提前交给 timeline，会让新记忆按旧
@@ -3706,30 +3253,8 @@ export function SessionPane({
       ),
     [pendingSubagentStops, sessionId, subagents.running],
   );
-  useEffect(() => {
-    if (sessionBoundInput || !sessionId || subagents.revision === 0 || !onSyncSubagentSessionTabs)
-      return;
-    onSyncSubagentSessionTabs({
-      rootSessionId: rootSessionId ?? sessionId,
-      parentSessionId: sessionId,
-      validChildSessionIds: subagents.childSessionIds,
-    });
-  }, [
-    onSyncSubagentSessionTabs,
-    rootSessionId,
-    sessionBoundInput,
-    sessionId,
-    subagents.childSessionIds,
-    subagents.revision,
-  ]);
-  useEffect(() => {
-    if (!selectionSideChat || !sessionId) return;
-    setSelectionSideChatBlocked(sessionId, Boolean(blockingInteractionId));
-    return () => setSelectionSideChatBlocked(sessionId, false);
-  }, [blockingInteractionId, selectionSideChat, sessionId]);
   const isOfficeMode = useIsOfficeMode();
-  const panelGoal = sessionBoundInput || selectionSideChat ? null : snapshot?.goal;
-  const panelPlans = sessionBoundInput ? undefined : state.sessionPlans;
+  const panelGoal = sessionBoundInput ? null : snapshot?.goal;
   const panelTodo = snapshot?.plan;
   const panelBackgroundWorks = sessionBoundInput ? undefined : snapshot?.backgroundWorks;
   const panelSubagents = sessionBoundInput ? undefined : subagents.running;
@@ -3738,12 +3263,10 @@ export function SessionPane({
     () =>
       buildConversationStatusPanelModel({
         isOfficeMode,
-        workspacePath,
         gitSummary,
         gitDirtyFileCount,
         gitWorktreeChangeSummary,
         goal: panelGoal,
-        sessionPlans: panelPlans,
         plan: panelTodo,
         backgroundWorks: panelBackgroundWorks,
         runningSubagents: panelSubagents,
@@ -3756,11 +3279,9 @@ export function SessionPane({
       gitWorktreeChangeSummary,
       panelBackgroundWorks,
       panelGoal,
-      panelPlans,
       panelSubagents,
       panelTodo,
       panelWorkflowRuns,
-      workspacePath,
     ],
   );
   const runningBackgroundWorkCount =
@@ -3934,15 +3455,6 @@ export function SessionPane({
   )
     ? "remote"
     : "local";
-  const handleOpenModelSettings = useCallback(() => {
-    // 业务壳没有旧设置标签消费者，优先由宿主导航到实际模型页。
-    if (onOpenModelSettings) {
-      onOpenModelSettings();
-      return;
-    }
-    setPendingSettingsSectionIntent("modelProvider");
-    openSettingsTab();
-  }, [onOpenModelSettings, openSettingsTab]);
   const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
   const recoverableCommand =
     (sessionBoundInput
@@ -3968,11 +3480,8 @@ export function SessionPane({
       replay.sessionId,
       replay.baseRevision,
       undefined,
-      undefined,
-      undefined,
       replay.clientContext?.projectId,
       replay.clientContext?.sessionCreateSource,
-      undefined,
     )
       .then((ack) => {
         if (
@@ -4030,9 +3539,7 @@ export function SessionPane({
       inputPending={state.optimisticCommands.some((command) =>
         requiresAcceptedInputProjection(command.type),
       )}
-      lifecycle={state.lifecycle}
       sessionId={sessionId}
-      selectionCommentEnabled={selectionCommentSupported}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}
@@ -4060,13 +3567,8 @@ export function SessionPane({
       persistComposerContent={persistComposerContent}
       createSubmissionFromComposer={sessionBoundInput ? undefined : createSubmissionFromComposer}
       telemetryDraftConfig={telemetryDraftConfig}
-      // 完整视图浮窗默认是一条输入框：草稿项目栏不进入浮窗，切到对话 tab 再选择项目。
-      contextHeader={isDraft && !isFloatingPresentation ? draftComposerHeader : undefined}
+      contextHeader={isDraft ? draftComposerHeader : undefined}
       centered={isDraft && !embedded}
-      layout={isFloatingPresentation ? "inline" : "stacked"}
-      workingDurationMs={
-        floatingTurnRunning ? floatingLatestTurnSummary?.workDurationMs : undefined
-      }
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={
         focused && (!sessionBoundInput || (!readOnly && runtimeReady && interactionEnabled))
@@ -4138,10 +3640,10 @@ export function SessionPane({
       onDismissError={handleDismissComposerError}
       onRetryInitialization={readOnly ? undefined : handleRetrySubscribe}
       onRetryError={!readOnly && retryConfigReadEnabled ? handleRetryConfigRead : undefined}
-      onOpenModelSettings={handleOpenModelSettings}
+      onOpenModelSettings={onOpenModelSettings}
       modelConfigTarget={modelConfigTarget}
       onOpenCodeViewer={onOpenCodeViewer}
-      suppressGoalCommands={selectionSideChat || sessionBoundInput}
+      suppressGoalCommands={sessionBoundInput}
       appSlashCommands={appSlashCommands}
       onDropTargetControllerChange={handleDropTargetControllerChange}
     />
@@ -4251,15 +3753,9 @@ export function SessionPane({
       ) : null}
       {composerNode}
       {!sessionBoundInput && composerEdit.editSession?.conflictPreview ? (
-        <ConversationFileRewindDialog
-          variant="editConflict"
-          open
+        <ConversationEditConflictDialog
           onOpenChange={handleComposerEditConflictOpenChange}
           preview={composerEdit.editSession.conflictPreview}
-          previewLoading={false}
-          applying={false}
-          error={null}
-          onApply={() => {}}
           onConversationOnly={handleComposerEditConflictConversationOnly}
         />
       ) : null}
@@ -4287,8 +3783,6 @@ export function SessionPane({
       ref={paneRef}
       data-testid={testId(TID_V4_SESSION_PANE, paneId)}
       data-session-id={sessionId ?? "draft"}
-      data-session-lifecycle={state.lifecycle?.state}
-      data-session-generation={state.lifecycle?.generation}
       data-initial-draft-provider={initialDraftConfigForDiagnostics?.provider ?? ""}
       data-initial-draft-model={initialDraftConfigForDiagnostics?.model ?? ""}
       data-projection-seq={snapshot?.seq ?? ""}
@@ -4307,14 +3801,7 @@ export function SessionPane({
         <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
             <Hand className="size-4 text-foreground" />
-            <span>
-              {intl.formatMessage({
-                id:
-                  effectiveDropTargetController.kind === "workspace"
-                    ? "chat.composer.workspaceFileDragHint"
-                    : "chat.attachments.dragHint",
-              })}
-            </span>
+            <span>{intl.formatMessage({ id: "chat.attachments.dragHint" })}</span>
           </div>
         </div>
       ) : null}
@@ -4335,12 +3822,10 @@ export function SessionPane({
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeTaskChangeSummary={activeTaskChangeSummary}
             goal={panelGoal}
-            sessionPlans={panelPlans}
             plan={panelTodo}
             backgroundWorks={panelBackgroundWorks}
             runningSubagents={panelSubagents}
             workflowRuns={panelWorkflowRuns}
-            endedSubagentCount={sessionBoundInput ? 0 : subagents.endedTotal}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
             layoutMode={statusPanelLayout}
@@ -4355,23 +3840,14 @@ export function SessionPane({
             onRefreshGit={onRefreshGit}
             onOpenGitReview={onOpenGitReview}
             onPauseGoal={
-              !sessionBoundInput &&
-              !readOnly &&
-              !selectionSideChat &&
-              snapshot?.availability.pauseGoal.allowed
+              !sessionBoundInput && !readOnly && snapshot?.availability.pauseGoal.allowed
                 ? handlePauseGoal
                 : undefined
             }
             onResumeGoal={
-              !sessionBoundInput &&
-              !readOnly &&
-              !selectionSideChat &&
-              snapshot?.availability.resumeGoal.allowed
+              !sessionBoundInput && !readOnly && snapshot?.availability.resumeGoal.allowed
                 ? handleResumeGoal
                 : undefined
-            }
-            onOpenPlanDetail={
-              !sessionBoundInput && onOpenPlanDetail ? handleOpenPlanDetail : undefined
             }
             onOpenBackgroundBash={
               !sessionBoundInput && onOpenBackgroundBash && sessionId
@@ -4399,11 +3875,6 @@ export function SessionPane({
             pendingSubagentStops={panelPendingSubagentStops}
             onOpenSubagentSession={
               !sessionBoundInput && onOpenSubagentSession ? handleOpenSubagentSession : undefined
-            }
-            onOpenSubagentDirectory={
-              !sessionBoundInput && onOpenSubagentDirectory
-                ? handleOpenSubagentDirectory
-                : undefined
             }
             onOpenWorkflowRun={
               !sessionBoundInput && onOpenWorkflowRun && sessionId
@@ -4453,17 +3924,7 @@ export function SessionPane({
             sessionKey={sessionId ?? "draft"}
             scrollMemoryKey={timelineScrollMemoryKey}
             rowContext={rowContext}
-            onFork={forkActionsEnabled ? handleFork : undefined}
             onRetry={retryActionsEnabled ? handleRetry : undefined}
-            onFeedbackChange={
-              !sessionBoundInput &&
-              !readOnly &&
-              !selectionSideChat &&
-              !hideMessageFeedback &&
-              sessionId
-                ? handleAssistantFeedback
-                : undefined
-            }
             onEdit={editActionsEnabled ? composerEdit.beginUserQueryEdit : undefined}
             canLoadOlder={
               !state.editPresentation && timelineSnapshot ? hasOlderRows(timelineSnapshot) : false
@@ -4486,17 +3947,7 @@ export function SessionPane({
                 </div>
               ) : null
             }
-            // 浮窗形态只露出底部输入区，空会话也必须贴底，不能居中。
-            centerEmptyStateWithDock={isDraft && !isFloatingPresentation && !embedded}
-            floatingComposerDock={isFloatingPresentation}
-            onComposerDockHeightChange={
-              isFloatingPresentation && focused
-                ? panePresentation.reportComposerDockHeight
-                : undefined
-            }
-            onLatestTurnSummaryChange={
-              isFloatingPresentation && focused ? handleFloatingLatestTurnSummaryChange : undefined
-            }
+            centerEmptyStateWithDock={isDraft && !embedded}
             summaryPanelLayout={statusPanelLayout}
             conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
             conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}
@@ -4510,16 +3961,11 @@ export function SessionPane({
             onSearchResultHighlightDone={onSearchResultHighlightDone}
             sessionPhase={isDraft ? undefined : snapshot?.control.phase}
             selectionActions={
-              !isDraft && sessionId && !readOnly && !selectionSideChat && !isMobileTextInputViewport
+              !isDraft && sessionId && !readOnly && !isMobileTextInputViewport
                 ? {
                     enabled: focused && !blockingInteractionId,
-                    sideActionDisabled: selectionSideActionBlocked,
-                    commentEnabled: selectionCommentSupported,
                     annotationWorkspaceKey: sessionBoundInput ? undefined : workspaceKey,
                     onAddToCurrentTask: handleAddSelectionToCurrentTask,
-                    onAskInSideChat: sessionBoundInput
-                      ? undefined
-                      : handleOpenSelectionSideConversation,
                   }
                 : undefined
             }

@@ -4,7 +4,7 @@ import {
   type CodingPlanUsageRemainingEntitlement,
   type CodingPlanUsageAvailableProvider,
   resolveCodingPlanUsageRemainingState,
-} from "@/CodingPlanUsageRemainingPanel.js";
+} from "@/lib/codingPlanUsageRemaining.js";
 import { cn } from "@/components/lib/utils.js";
 import { CodingPlanUsageHeaderAction } from "@/chat-input-toolbar/CodingPlanUsageHeaderAction.js";
 import { CodingPlanUsageNotice } from "@/chat-input-toolbar/CodingPlanUsageNotice.js";

@@ -22,7 +22,7 @@ function validate(value: PrototypeAgentPrompts): void {
 }
 /** Only saved shared configuration is server-owned; unsent editor drafts stay in the client. */
 export function readPrototypeAgentPrompts() {
-  return { saved: { ...saved }, draft: { ...saved }, revision };
+  return { saved: { ...saved }, revision };
 }
 export function savePrototypeAgentPrompts(
   value: PrototypeAgentPrompts,

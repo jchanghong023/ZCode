@@ -1,13 +1,7 @@
 import type { ZCodeProvider } from "@zcode/shared";
 import { useCallback, useEffect, useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { useServices } from "./useServices.js";
-import { useResolvedRemoteWorkspaceSessionId } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
-import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
-import { useTabStore } from "@/store/TabStoreProvider.js";
-import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";
 import { getSubagentsContextKey, useSubagentsContextStore } from "@/store/subagentsContextStore.js";
-import { useSubagentsStore } from "@/store/subagentsStore.js";
 
 export function useSubagents(
   workspacePath: string | null,
@@ -15,50 +9,8 @@ export function useSubagents(
   explicitWorkspaceIdentity?: string,
 ) {
   const { subagentsService } = useServices();
-  const explicitIdentity = explicitWorkspaceIdentity?.trim() || undefined;
-  const workspaceRpcTarget = useTabStore(
-    useShallow((state) => {
-      if (!workspacePath) {
-        return {
-          workspaceIdentity: undefined,
-          preferredRemoteSessionId: undefined,
-          remoteTarget: undefined,
-        };
-      }
-
-      const activeWorkspaceTab = state.activeTabId
-        ? state.tabs.find((tab) => tab.id === state.activeTabId)
-        : undefined;
-      const matchesRequestedScope = (tab: WindowTabState): tab is WorkspaceTabState =>
-        isWorkspaceTab(tab) &&
-        tab.workspacePath === workspacePath &&
-        (!explicitIdentity || tab.workspaceIdentity?.trim() === explicitIdentity);
-      const matchedWorkspaceTab =
-        activeWorkspaceTab && matchesRequestedScope(activeWorkspaceTab)
-          ? activeWorkspaceTab
-          : state.tabs.find(matchesRequestedScope);
-
-      return {
-        workspaceIdentity: matchedWorkspaceTab?.workspaceIdentity,
-        preferredRemoteSessionId: matchedWorkspaceTab?.remoteSessionId,
-        remoteTarget: matchedWorkspaceTab?.remoteTarget,
-      };
-    }),
-  );
-  const workspaceIdentity = explicitIdentity || workspaceRpcTarget.workspaceIdentity;
-  const remoteSessionId = useResolvedRemoteWorkspaceSessionId(
-    workspacePath,
-    workspaceRpcTarget.preferredRemoteSessionId,
-    workspaceIdentity,
-    workspaceRpcTarget.remoteTarget,
-  );
-  const workspaceRpcEnabled =
-    subagentsService !== undefined &&
-    shouldEnableWorkspaceRpc({
-      workspaceIdentity,
-      remoteSessionId,
-      remoteTarget: workspaceRpcTarget.remoteTarget,
-    });
+  const workspaceIdentity = explicitWorkspaceIdentity?.trim() || undefined;
+  const hasSubagentsService = subagentsService !== undefined;
   const contextKey =
     workspacePath && subagentsService
       ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity, subagentsService)
@@ -68,30 +20,9 @@ export function useSubagents(
   );
   const initialize = useSubagentsContextStore((state) => state.initialize);
   const refreshStore = useSubagentsContextStore((state) => state.refresh);
-  const legacyContext = useSubagentsStore(
-    useShallow((state) => ({
-      workspacePath: state.loadedWorkspacePath,
-      workspaceIdentity: state.loadedWorkspaceIdentity,
-      provider: state.loadedProvider,
-      agents: state.agents,
-      capability: state.capability,
-      loading: state.loading,
-      error: state.error,
-    })),
-  );
-  const useLegacyContext =
-    workspacePath !== null &&
-    legacyContext.workspacePath === workspacePath &&
-    legacyContext.workspaceIdentity === (workspaceIdentity ?? null) &&
-    legacyContext.provider === provider;
 
   useEffect(() => {
-    if (!workspacePath || !workspaceRpcEnabled || !subagentsService) {
-      // 远程 workspace 断连或 session 尚未重挂时，@ 面板会随输入框挂载预加载子智能体。
-      // 这里先跳过 workspace RPC，避免 disconnected proxy 的内部错误码显示成红色子智能体提示。
-      return;
-    }
-    if (context) return;
+    if (!workspacePath || !subagentsService || context) return;
     void initialize(workspacePath, provider, subagentsService, workspaceIdentity);
   }, [
     context,
@@ -100,11 +31,10 @@ export function useSubagents(
     subagentsService,
     workspaceIdentity,
     workspacePath,
-    workspaceRpcEnabled,
   ]);
 
   const refresh = useCallback(async () => {
-    if (!workspaceRpcEnabled || !workspacePath || !subagentsService) return;
+    if (!workspacePath || !subagentsService) return;
     await refreshStore(workspacePath, provider, subagentsService, workspaceIdentity);
   }, [
     provider,
@@ -112,34 +42,16 @@ export function useSubagents(
     subagentsService,
     workspaceIdentity,
     workspacePath,
-    workspaceRpcEnabled,
   ]);
 
   return useMemo(
     () => ({
-      agents: workspaceRpcEnabled
-        ? useLegacyContext
-          ? legacyContext.agents
-          : (context?.agents ?? [])
-        : [],
-      capability: workspaceRpcEnabled
-        ? useLegacyContext
-          ? legacyContext.capability
-          : (context?.capability ?? null)
-        : null,
-      loading:
-        workspaceRpcEnabled && workspacePath !== null
-          ? useLegacyContext
-            ? legacyContext.loading
-            : !context || context.loading
-          : false,
-      error: workspaceRpcEnabled
-        ? useLegacyContext
-          ? legacyContext.error
-          : (context?.error ?? null)
-        : null,
+      agents: context?.agents ?? [],
+      capability: context?.capability ?? null,
+      loading: hasSubagentsService && workspacePath !== null && (!context || context.loading),
+      error: context?.error ?? null,
       refresh,
     }),
-    [context, legacyContext, refresh, useLegacyContext, workspacePath, workspaceRpcEnabled],
+    [context, hasSubagentsService, refresh, workspacePath],
   );
 }

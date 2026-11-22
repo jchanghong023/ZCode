@@ -1,11 +1,33 @@
-// 当前 Web 的虚拟文件与系统信息；Skill 文件仍从其唯一 owner 读取。
+// 当前 Web 的虚拟文件；Skill 文件仍从其唯一 owner 读取。
 // 收口原因：移除旧 Git／监听／媒体会话及无当前消费者的文件正文、目录、索引 RPC。
 import * as nodePath from "node:path";
+import { z } from "zod";
 
-import type { IFileService, ISystemService } from "@zcode/services";
-import type { SystemInfo, FileStat, FileMediaPreview, WorkspaceFileEntry } from "@zcode/shared";
+import type { WebFileService, WebWorkspaceFileEntry } from "@zcode/services";
 import type { MockRuntime, VirtualFileNode } from "./runtime.js";
 import { readPrototypeSkillNode } from "../aireq/contract.js";
+
+const workspaceFileSearchInputSchema = z.strictObject({
+  rootPath: z.string(),
+  query: z.string(),
+  limit: z.number().optional(),
+});
+const filePathInputSchema = z.strictObject({ path: z.string() });
+const existingFilesInputSchema = z.strictObject({ paths: z.array(z.string()) });
+const fileRangeInputSchema = z.strictObject({
+  ...filePathInputSchema.shape,
+  offset: z.int().nonnegative(),
+  length: z.int().nonnegative(),
+});
+
+function requireSingleFileRequest(argumentCount: number): void {
+  if (argumentCount !== 1) {
+    throw Object.assign(new Error("文件操作必须接收一个请求对象。"), {
+      code: "INVALID_ARGUMENT",
+      publicMessage: true,
+    });
+  }
+}
 
 // ── 虚拟文件系统工具 ──
 
@@ -102,7 +124,7 @@ function toWorkspaceRelativePath(workspacePath: string, path: string): string {
   return resolved.slice(root.replace(/[\\/]+$/, "").length + 1);
 }
 
-export class MockFileService implements IFileService {
+export class MockFileService implements WebFileService {
   constructor(private readonly runtime: MockRuntime) {}
 
   /** 统一入口：绝对路径先收敛为工作区相对路径，相对路径按原样解析。 */
@@ -128,18 +150,17 @@ export class MockFileService implements IFileService {
     return node;
   }
 
-  async searchWorkspaceFiles(params: {
-    rootPath: string;
-    workspaceIdentity?: string;
-    query: string;
-    limit?: number;
-    refresh?: boolean;
-  }): Promise<WorkspaceFileEntry[]> {
-    const query = params.query.trim().toLowerCase();
-    const results: WorkspaceFileEntry[] = [];
-    const root = params.rootPath || this.runtime.workspacePath;
+  async searchWorkspaceFiles(
+    params: Parameters<WebFileService["searchWorkspaceFiles"]>[0],
+  ): Promise<WebWorkspaceFileEntry[]> {
+    requireSingleFileRequest(arguments.length);
+    const { rootPath, query: rawQuery, limit } = workspaceFileSearchInputSchema.parse(params);
+    const query = rawQuery.trim().toLowerCase();
+    const results: WebWorkspaceFileEntry[] = [];
+    const root = rootPath || this.runtime.workspacePath;
     const walk = (node: VirtualFileNode, relativeSegments: string[]) => {
-      if (node.kind === "directory" && node.children) {
+      if (node.kind === "directory") {
+        if (!node.children) return;
         for (const child of node.children.values()) {
           walk(child, [...relativeSegments, child.name]);
         }
@@ -149,53 +170,40 @@ export class MockFileService implements IFileService {
       const relativePath = relativeSegments.join("/");
       if (node.name.toLowerCase().includes(query) || relativePath.toLowerCase().includes(query)) {
         results.push({
-          name: node.name,
           path: joinPath(root, relativeSegments),
           relativePath,
-          type: "file",
         });
       }
     };
     walk(this.requireNode(root, "directory"), []);
-    return results.slice(0, params.limit ?? 50);
+    return results.slice(0, limit ?? 50);
   }
 
-  async stat(params: { path: string }): Promise<FileStat> {
-    const node = this.requireNode(params.path);
-    return {
-      path: params.path,
-      type: node.kind,
-      ...(node.kind === "file" ? { size: fileBytes(node).byteLength } : {}),
-      mtimeMs: node.mtimeMs,
-    };
+  async stat(params: { path: string }) {
+    requireSingleFileRequest(arguments.length);
+    const { path } = filePathInputSchema.parse(params);
+    const node = this.requireNode(path);
+    if (node.kind === "directory") return { type: "directory" as const };
+    return { type: "file" as const, size: fileBytes(node).byteLength, mtimeMs: node.mtimeMs };
   }
 
   async checkFilesExist(params: { paths: string[] }) {
-    return params.paths.map((path) => ({
-      path,
-      exists: this.resolveVirtual(path) !== null,
-    }));
+    requireSingleFileRequest(arguments.length);
+    const { paths } = existingFilesInputSchema.parse(params);
+    return paths.filter((path) => this.resolveVirtual(path) !== null);
   }
 
-  async readMediaPreview(params: { path: string; maxBytes?: number }): Promise<FileMediaPreview> {
-    const node = this.requireNode(params.path, "file");
+  async readMediaPreview(params: { path: string }) {
+    requireSingleFileRequest(arguments.length);
+    const { path } = filePathInputSchema.parse(params);
+    const node = this.requireNode(path, "file");
     const bytes = fileBytes(node);
-    if (
-      params.maxBytes !== undefined &&
-      (!Number.isSafeInteger(params.maxBytes) ||
-        params.maxBytes < 0 ||
-        bytes.length > params.maxBytes)
-    ) {
-      throw new Error("媒体文件超过读取预算，或读取预算无效。");
-    }
     const mediaType = mediaTypeOf(bytes);
     if (!mediaType) throw new Error("文件内容不是当前可预览的媒体格式。");
     // 与 stat/range 共用已保存的原始事实；不能用假图片或占位成功代替实际媒体。
     return {
-      path: params.path,
       mediaType,
       dataBase64: bytes.toString("base64"),
-      totalBytes: bytes.length,
     };
   }
 
@@ -204,23 +212,9 @@ export class MockFileService implements IFileService {
     offset: number;
     length: number;
   }): Promise<Uint8Array> {
-    // Buffer.subarray 会隐式解释负数并截断小数；文件 RPC 的范围必须是明确的非负字节整数。
-    if (
-      !Number.isSafeInteger(params.offset) ||
-      params.offset < 0 ||
-      !Number.isSafeInteger(params.length) ||
-      params.length < 0
-    ) {
-      throw new Error("文件读取偏移和长度必须是非负安全整数。");
-    }
-    const node = this.requireNode(params.path, "file");
-    return fileBytes(node).subarray(params.offset, params.offset + params.length);
-  }
-}
-
-export class MockSystemService implements ISystemService {
-  async info(): Promise<SystemInfo> {
-    // Web 不提供本机目录选择，也不泄漏服务器 home。
-    return { homedir: "", platform: process.platform };
+    requireSingleFileRequest(arguments.length);
+    const { path, offset, length } = fileRangeInputSchema.parse(params);
+    const node = this.requireNode(path, "file");
+    return fileBytes(node).subarray(offset, offset + length);
   }
 }

@@ -8,22 +8,16 @@
 // 服务上下文
 export { ServiceProvider, useServices } from "./useServices.js";
 export { useBaseWorkspaceServices, useWorkspaceServices } from "./useWorkspaceServices.js";
+export { useWorkspaceHomePath } from "./useWorkspaceHomePath.js";
 
 // 平台操作上下文
 export { PlatformProvider, usePlatform } from "./usePlatform.js";
 
-// 系统服务
-export { useSystemInfo } from "./useSystemService.js";
-export { useWorkspaceHomePath } from "./useWorkspaceHomePath.js";
-
-// 终端服务
-
 // 设置服务
-export { useSettings, useRecentProjects } from "./useSettingService.js";
+export { useSettings } from "./useSettingService.js";
 export { useSkills } from "./useSkills.js";
 
 // 通用确认弹窗
 export { useConfirmDialog } from "./useConfirmDialog.js";
-export { useAlertDialog } from "./useAlertDialog.js";
 
 export { useZCodeAgentService } from "./useZCodeAgentService.js";

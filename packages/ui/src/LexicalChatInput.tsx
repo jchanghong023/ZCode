@@ -60,7 +60,6 @@ import {
   PromptMentionNode,
 } from "./mentions/nodes/PromptMentionNode.js";
 import { logger } from "./logger.js";
-import { recordInputLag } from "./lib/uiPerfArmsTelemetry.js";
 import { navigatePromptHistory } from "./lib/promptHistory.js";
 import type { MentionItemData } from "@/mentions/mentionTypes.js";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
@@ -818,18 +817,15 @@ function TextContentPlugin({
   onUserInputClear,
   onUserInputPresenceChange,
   onUserInputStart,
-  taskId,
 }: {
   onChange?: (text: string) => void;
   onUserInputClear?: () => void;
   onUserInputPresenceChange?: (presence: UserInputPresence) => void;
   onUserInputStart?: () => void;
-  taskId?: string | null;
 }) {
   const [editor] = useLexicalComposerContext();
-  // IME 组合态标记:不直接依赖 editor.isComposing(),因为它在 update listener 同步执行时
-  // 是否已反映组合态存在时序不确定性,读不到 true 会把中文/日文长文本组合的高耗时误报成打字卡顿。
-  // 改由 compositionstart/compositionend 事件自行维护,稳健可控。
+  // update listener 内的 editor.isComposing() 不一定及时更新；用组合事件维护状态，
+  // 避免把尚未提交的 IME 候选正文发布给草稿。
   const composingRef = useRef(false);
   const compositionEndFrameRef = useRef<number | null>(null);
   const publicationRef = useRef<TextContentPublicationState | null>(null);
@@ -938,9 +934,6 @@ function TextContentPlugin({
         });
         return;
       }
-      // 输入卡顿计时：普通输入只序列化当前状态一次；IME 候选阶段完全留在 Lexical，
-      // compositionend 后的最终 update 才序列化并发布给 React 草稿 owner。
-      const startedAt = performance.now();
       const nextText = getEditorMarkdown(editorState);
       onUserInputPresenceChange?.({
         raw: nextText.length > 0,
@@ -948,7 +941,6 @@ function TextContentPlugin({
       });
       if (nextText.length === 0 && userInputUpdate) onUserInputClear?.();
       const publicationState = publicationRef.current!;
-      const compositionCommit = publicationState.pendingComposition;
       const publication = resolveTextContentPublication({
         composing: composingRef.current,
         nextText,
@@ -958,18 +950,8 @@ function TextContentPlugin({
       if (publication.publish === null) return;
 
       onChange(publication.publish);
-
-      const lagMs = performance.now() - startedAt;
-      // 程序化改写与 IME 组合态不算打字卡顿(判定在 recordInputLag 内统一短路)。
-      recordInputLag({
-        lagMs,
-        textLength: nextText.length,
-        isProgrammatic: tags.has(PROGRAMMATIC_UPDATE_TAG),
-        isComposing: composingRef.current || compositionCommit,
-        taskId: taskId ?? undefined,
-      });
     });
-  }, [editor, onChange, onUserInputClear, onUserInputPresenceChange, onUserInputStart, taskId]);
+  }, [editor, onChange, onUserInputClear, onUserInputPresenceChange, onUserInputStart]);
 
   return null;
 }
@@ -1335,7 +1317,7 @@ interface LexicalChatInputProps {
   compactPlaceholder?: boolean;
   onPaste?: (event: ChatComposerPasteEvent) => void;
   excludedSlashCommandNames?: readonly string[];
-  /** App 层本地斜杠命令（如 `/side`），选中即执行 UI 行为，不发送。 */
+  /** App 层本地斜杠命令（如 `/plan`），选中即执行 UI 行为，不发送。 */
   appSlashCommands?: readonly AppSlashCommand[];
   /** When provided (including an empty list), slash completion uses only the session catalog. */
   conversationCommands?: readonly ConversationCommandCatalogEntry[];
@@ -1500,7 +1482,6 @@ export function LexicalChatInput({
             onUserInputClear={onUserInputClear}
             onUserInputPresenceChange={onUserInputPresenceChange}
             onUserInputStart={onUserInputStart}
-            taskId={taskId}
           />
           <KeyboardPlugin
             onSubmit={handleSubmit}

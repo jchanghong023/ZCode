@@ -1,28 +1,18 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
+import { WebPageFrame } from "@/WebPageFrame.js";
 import { UI_MESSAGES } from "@/i18n/localeMessages.js";
 import { logger } from "@/logger.js";
-import { reportReactErrorToArms } from "@/lib/reactErrorArmsTelemetry.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { AlertTriangleIcon, RefreshCw } from "lucide-react";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
-  isDesktop?: boolean;
-  isMacDesktop?: boolean;
-  isWindowsDesktop?: boolean;
-  /**
-   * React 错误边界捕获的异常不会冒泡到 window.onerror，监控 SDK默认收不到。
-   * Desktop 等宿主可传入此回调，将 React 错误边界捕获的异常转发到监控 SDK。
-   */
-  onCaughtReactError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface AppErrorBoundaryState {
   error: Error | null;
-  componentStack: string;
 }
 
 export type ScopedErrorBoundaryVariant = "panel" | "inline" | "compact" | "silent";
@@ -34,7 +24,6 @@ interface ScopedErrorBoundaryProps {
   variant?: ScopedErrorBoundaryVariant;
   className?: string;
   onReset?: () => void;
-  onCaughtReactError?: (error: Error, errorInfo: ErrorInfo, scope: string) => void;
 }
 
 function normalizeError(error: unknown): Error {
@@ -76,31 +65,16 @@ function haveResetKeysChanged(
 function ErrorFallback({
   onReset,
   onReload,
-  isDesktop,
-  isMacDesktop,
-  isWindowsDesktop,
 }: {
-  error: Error;
-  componentStack: string;
   onReset: () => void;
   onReload: () => void;
-  isDesktop?: boolean;
-  isMacDesktop?: boolean;
-  isWindowsDesktop?: boolean;
 }) {
   return (
-    <DesktopWindowFrame
-      title={formatBoundaryMessage("appError.title")}
-      isDesktop={isDesktop}
-      isMacDesktop={isMacDesktop}
-      isWindowsDesktop={isWindowsDesktop}
-    >
+    <WebPageFrame>
       <div className="flex h-full min-h-0 justify-center overflow-y-auto p-6">
         <div
           role="alert"
-          // 错误信息和组件堆栈可能非常长，之前外层不可滚动会把内容挤出视口，
-          // 用户既看不完堆栈，也点不到“重试/刷新”按钮。这里让 fallback 卡片固定从顶部开始，
-          // 并配合外层纵向滚动，确保窗口再小也能完整访问全部操作。
+          // 卡片从顶部开始，低视口下可滚动到“重试／刷新”。
           className="w-full max-w-xl self-start rounded-3xl border border-destructive/20 bg-surface-alt p-6 shadow-sm"
         >
           <div className="flex size-10 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
@@ -128,10 +102,10 @@ function ErrorFallback({
             {formatBoundaryMessage("appError.hint")}
           </p>
 
-          {/* 原始异常与组件堆栈只走诊断回调，不在普通用户错误页回显。 */}
+          {/* 原始异常和组件堆栈仅记录到日志，不在错误页回显。 */}
         </div>
       </div>
-    </DesktopWindowFrame>
+    </WebPageFrame>
   );
 }
 
@@ -141,8 +115,6 @@ function ScopedErrorFallback({
   variant = "panel",
   className,
 }: {
-  error: Error;
-  componentStack: string;
   onReset: () => void;
   onReload: () => void;
   variant?: ScopedErrorBoundaryVariant;
@@ -237,16 +209,10 @@ function ScopedErrorFallback({
  * 至少保证界面还能给出“重试 / 刷新”的出口，并把错误打到统一 UI 日志里。
  */
 export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
-  state: AppErrorBoundaryState = {
-    error: null,
-    componentStack: "",
-  };
+  state: AppErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
-    return {
-      error: normalizeError(error),
-      componentStack: "",
-    };
+    return { error: normalizeError(error) };
   }
 
   override componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
@@ -258,21 +224,10 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       serializeErrorForLog(normalizedError),
       errorInfo.componentStack,
     );
-    this.props.onCaughtReactError?.(normalizedError, errorInfo);
-    // React 错误边界拦截了异常、阻止其冒泡到 window.onerror，RUM Browser SDK 默认收不到。
-    // 主动转发到 ARMS 自定义事件干道（reporter 在 renderer 入口早注入），补上根级渲染崩溃盲区。
-    reportReactErrorToArms({
-      error: normalizedError,
-      componentStack: errorInfo.componentStack ?? "",
-    });
-    this.setState({ componentStack: errorInfo.componentStack ?? "" });
   }
 
   private handleReset = () => {
-    this.setState({
-      error: null,
-      componentStack: "",
-    });
+    this.setState({ error: null });
   };
 
   private handleReload = () => {
@@ -286,17 +241,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       return this.props.children;
     }
 
-    return (
-      <ErrorFallback
-        error={this.state.error}
-        componentStack={this.state.componentStack}
-        onReset={this.handleReset}
-        onReload={this.handleReload}
-        isDesktop={this.props.isDesktop}
-        isMacDesktop={this.props.isMacDesktop}
-        isWindowsDesktop={this.props.isWindowsDesktop}
-      />
-    );
+    return <ErrorFallback onReset={this.handleReset} onReload={this.handleReload} />;
   }
 }
 
@@ -311,16 +256,10 @@ export class ScopedErrorBoundary extends Component<
   ScopedErrorBoundaryProps,
   AppErrorBoundaryState
 > {
-  state: AppErrorBoundaryState = {
-    error: null,
-    componentStack: "",
-  };
+  state: AppErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
-    return {
-      error: normalizeError(error),
-      componentStack: "",
-    };
+    return { error: normalizeError(error) };
   }
 
   override componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
@@ -332,15 +271,6 @@ export class ScopedErrorBoundary extends Component<
       serializeErrorForLog(normalizedError),
       errorInfo.componentStack,
     );
-    this.props.onCaughtReactError?.(normalizedError, errorInfo, this.props.scope);
-    // 同根级边界：scoped 区域捕获的渲染异常同样不会冒泡到 RUM，按 scope 区分上报，
-    // 让 sidebar/chat/terminal/settings 等局部崩溃在 RUM 里可见、可定位。
-    reportReactErrorToArms({
-      error: normalizedError,
-      componentStack: errorInfo.componentStack ?? "",
-      scope: this.props.scope,
-    });
-    this.setState({ componentStack: errorInfo.componentStack ?? "" });
   }
 
   override componentDidUpdate(previousProps: ScopedErrorBoundaryProps) {
@@ -348,18 +278,12 @@ export class ScopedErrorBoundary extends Component<
       // 局部 fallback 如果不随 workspace/task/tab 切换自动清空，
       // 用户离开出错区域后再回来仍会看到旧错误。resetKeys 变化时重置边界，
       // 让新的隔离上下文可以重新渲染。
-      this.setState({
-        error: null,
-        componentStack: "",
-      });
+      this.setState({ error: null });
     }
   }
 
   private handleReset = () => {
-    this.setState({
-      error: null,
-      componentStack: "",
-    });
+    this.setState({ error: null });
     this.props.onReset?.();
   };
 
@@ -376,8 +300,6 @@ export class ScopedErrorBoundary extends Component<
 
     return (
       <ScopedErrorFallback
-        error={this.state.error}
-        componentStack={this.state.componentStack}
         onReset={this.handleReset}
         onReload={this.handleReload}
         variant={this.props.variant}

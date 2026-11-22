@@ -225,13 +225,6 @@ export interface AIReqProposalRevision {
   delivery?: AIReqProposalDelivery;
   review?: AIReqReview;
 }
-export interface AIReqRequirementDeletion {
-  version: 1;
-  operationId: string;
-  deletedAt: string;
-  manualCloseNeeded: boolean;
-  requirementsPrUrl?: string;
-}
 export interface AIReqSystemRequirement {
   id: string;
   projectId: string;
@@ -325,7 +318,6 @@ export interface AIReqRequirementGroup {
   proposalRevisions?: AIReqProposalRevision[];
   revising?: boolean;
   requirementsDecisions?: AIReqRequirementsDecision[];
-  deletion?: AIReqRequirementDeletion;
   freeze?: {
     frozenAt: string;
     frozenBy: string;
@@ -363,7 +355,6 @@ export interface AIReqOperationReceipt {
   operationId: string;
   /** Request identity captured at admission; absent on historical sample receipts. */
   identity?: AIReqIdentity;
-  commandDigest: string;
   type: string;
   status: "running" | "completed" | "failed";
   startedAt: string;
@@ -375,7 +366,6 @@ export interface AIReqOperationReceipt {
   srId?: string;
   steps: { name: string; at: string; detail: string }[];
   error?: string;
-  deletion?: AIReqRequirementDeletion;
 }
 export interface AIReqMaterialView extends AIReqFileVersion {
   projectId: string;
@@ -407,9 +397,6 @@ export interface AIReqMaterialReadRequest extends Pick<
 > {
   releaseId: string;
 }
-export interface AIReqChangedFile extends AIReqFileVersion, AIReqObjectRef {
-  status: string;
-}
 export interface AIReqReleaseDocuments {
   releaseId: string;
   title: string;
@@ -430,7 +417,6 @@ export interface AIReqWorkflowView {
   availableReleases: AIReqRelease[];
   todos?: AIReqTodo[];
   projectDocuments?: AIReqProjectDocuments[];
-  ompWebId?: string;
   version: 1;
   revision: number;
   projects: AIReqProject[];
@@ -439,15 +425,11 @@ export interface AIReqWorkflowView {
   groups: AIReqRequirementGroup[];
   drafts: AIReqRequirementGroup[];
   srs: AIReqSystemRequirement[];
-  selected?: AIReqObjectRef;
   materials: AIReqMaterialView[];
   operations: AIReqOperationReceipt[];
   sessions: AIReqNativeSessionRef[];
   repositoryHeads?: Record<string, string>;
-  workspace?: { path: string; identity: string };
   running: AIReqNativeSessionRef[];
-  changes?: AIReqChangedFile[];
-  error?: string;
 }
 export interface AIReqCommandBase {
   operationId: string;
@@ -503,7 +485,7 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
         target: "requirements" | "solution" | "test-plan";
         note: string;
       }
-    | { type: "deleteRequirement"; version: 1; projectId: string; irId: string }
+    | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "acceptProposal"; reviewId: string; snapshotDigest: string }
     | {
         type: "submitProposalReview";
@@ -519,16 +501,10 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
 export interface AIReqWorkflowResult {
   ideaId?: string;
   transferredRequirements?: AIReqIdeaTransfer[];
-  operationId: string;
   projectId: string;
-  revision: number;
   irId?: string;
-  srId?: string;
-  status: "completed" | "failed" | "running";
   receipt: AIReqOperationReceipt;
-  view?: AIReqWorkflowView;
-  error?: string;
-  deletion?: AIReqRequirementDeletion;
+  documentFormatSnapshot?: Pick<AIReqWorkflowView, "documentFormats" | "revision">;
 }
 export interface AIReqSelection {
   formalView?: "list" | "detail";
@@ -588,9 +564,14 @@ export type AIReqNativePredictionAction =
   | { type: "shown"; generation: number }
   | { type: "accepted"; generation: number; rank: number };
 
+export interface AIReqSkillDesignSession {
+  sessionId: string;
+  workspaceIdentity: string;
+  temporaryDirectory: string;
+}
+
 export interface AIReqSkillDesignPreview {
   name: string;
-  directory: string;
   revision: number;
   files: { path: string; content: string }[];
   /** Receipt belongs to this exact generated revision; regeneration clears it. */
@@ -607,24 +588,13 @@ export interface AIReqSkillDesignDraft {
   example: string;
   notes: string[];
 }
-export interface AIReqPrHandoffFile {
-  path: string;
-  sourcePath: string;
-  targetPath: string;
-  version: string;
-  digest: string;
-}
+export type AIReqSkillDesignDraftFields = Omit<AIReqSkillDesignDraft, "notes">;
 export interface AIReqPrHandoff {
   repositoryUrl?: string;
-  ready: boolean;
   blockers: string[];
-  employeeId: string;
   sourceDirectory: string;
-  targetDirectory?: string;
   branch: string;
   targetBranch: string;
-  changeRoot: string;
-  files: AIReqPrHandoffFile[];
 }
 
 export interface AIReqWorkspace {
@@ -632,15 +602,12 @@ export interface AIReqWorkspace {
   identity: string;
   kind: "free" | "proposal" | "development" | "reference" | "unavailable";
   error?: string;
-  blockedPath?: string;
 }
 
 export interface AIReqSkillSaveReceipt {
-  operationId: string;
   path: string;
   revision: number;
   target: "project" | "user";
-  name: string;
 }
 export interface AIReqAlignment {
   perspective: "business" | "development" | "testing";

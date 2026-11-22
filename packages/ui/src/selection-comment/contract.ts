@@ -1,7 +1,20 @@
-import type { SelectionCommentEditor } from "@/selection-comment/SelectionCommentEditor.js";
+import type { RefObject } from "react";
+import type { ConversationSelectionTextAnchor } from "@/lib/conversationSelectionReference.js";
+import type { AnnotationNumberVariant } from "@/selection-comment/AnnotationNumber.js";
 
-/**
- * 选区批注输入浮层的输入契约，以实际组件为唯一类型源。
- * 调用方持有被批注的引用与锚点；组件只收集批注文字，保存（非空、已 trim）或取消后由调用方关闭。
- */
-export type SelectionCommentEditorProps = Parameters<typeof SelectionCommentEditor>[0];
+export interface AnnotationMarkItem {
+  id: string;
+  number: number;
+  variant: AnnotationNumberVariant;
+  rowId: number;
+  anchor: ConversationSelectionTextAnchor;
+  text: string;
+}
+
+/** 正文编号只读；悬停与引用列表联动。引用与锚点由调用方持有。 */
+export interface ConversationAnnotationMarksProps {
+  rootRef: RefObject<HTMLElement | null>;
+  items: readonly AnnotationMarkItem[];
+  hoveredId: string | null;
+  onHover: (id: string | null) => void;
+}

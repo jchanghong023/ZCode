@@ -174,7 +174,7 @@ export function LightweightDiffPreview({
                     : "whitespace-pre",
                 )}
               >
-                {/* 轻量 diff 只用行背景、状态条和行号颜色表达增删，和富 DiffViewer 保持一致；
+                {/* 轻量 diff 用行背景、状态条和行号颜色表达增删；
                 不能把 unified diff 的 `+/-/空格` 协议 marker 当成代码内容显示出来。 */}
                 {renderLineContent?.(lineParts, index) ?? (lineParts.content || " ")}
               </code>

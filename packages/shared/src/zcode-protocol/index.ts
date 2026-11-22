@@ -3011,7 +3011,6 @@ export const zcodeSkillReferenceCatalogEntrySchema = z
     description: z.string(),
     path: nonEmptyString,
     scope: z.enum(["workspace", "user", "plugin"]),
-    enabled: z.literal(true),
     pluginName: nonEmptyString.optional(),
   })
   .strict();

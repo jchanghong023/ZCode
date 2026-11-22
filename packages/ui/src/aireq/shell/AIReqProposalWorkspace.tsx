@@ -239,7 +239,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                       irId: proposal.id,
                       candidate: delivery.candidate,
                     });
-                    if (result?.status === "completed") managementHeading.current?.focus();
+                    if (result?.receipt.status === "completed")
+                      managementHeading.current?.focus();
                   } finally {
                     closingPr.current = false;
                     setClosePending(false);
@@ -431,7 +432,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                     ? "补充谁会使用、在什么场景使用，以及期望的结果"
                     : undefined
               }
-              hideMessageFeedback={detail}
               conversationEmptyState={
                 !conversationReadOnly && task === "requirements" ? (
                   <div className="mx-auto max-w-xl space-y-2 px-4 py-6 text-ui-base">

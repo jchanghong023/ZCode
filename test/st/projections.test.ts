@@ -254,7 +254,7 @@ describe("ST same-owner workflow projections", () => {
           { type: "publishProposal", candidate: group.proposalDelivery!.candidate },
           proposal.selection,
         );
-        expect(publication.status).toBe("completed");
+        expect(publication.receipt.status).toBe("completed");
         await changeRepository(replacementUrl, project.revision);
         const changed = await client.read(proposal.selection);
         const changedProject = changed.view.projects.find((item) => item.id === project.id)!;
@@ -336,7 +336,7 @@ describe("ST same-owner workflow projections", () => {
           { type: "createRelease", projectId: target.projectId, title: unique("第二版本") },
           target.selection,
         );
-        expect(second.status).toBe("completed");
+        expect(second.receipt.status).toBe("completed");
         const directory = (await client.read(target.selection)).view;
         const releaseIds = directory.releases.filter(
           (item) => item.projectId === target.projectId && item.id !== target.releaseId,
@@ -423,7 +423,7 @@ describe("ST same-owner workflow projections", () => {
           },
           target.selection,
         );
-        expect(assignment.status).toBe("completed");
+        expect(assignment.receipt.status).toBe("completed");
         const assignedView = (await client.read(target.selection)).view;
         const assigned = assignedView.todos!.filter(
           (item) => item.projectId === target.projectId && item.irId === target.irId,
@@ -470,7 +470,7 @@ describe("ST same-owner workflow projections", () => {
         );
         expect(
           reclaimed.operations.some(
-            (operation) => operation.operationId === assignment.operationId,
+            (operation) => operation.operationId === assignment.receipt.operationId,
           ),
         ).toBe(true);
       });
@@ -599,7 +599,7 @@ describe("ST Git document synchronization", () => {
           throw new Error("ST 前置阻塞：正式文档已包含 newText，请为本轮提供尚未同步的 Git 提交");
 
         const action = { type: "syncFormalDocuments" as const, ...selection };
-        expect((await admin.command(action, selection)).status).toBe("completed");
+        expect((await admin.command(action, selection)).receipt.status).toBe("completed");
         const after = await gitSyncArchive(admin, target);
         expect(after.group.files.map((file) => file.path).sort()).toEqual(
           before.group.files.map((file) => file.path).sort(),
@@ -643,7 +643,7 @@ describe("ST Git document synchronization", () => {
           event?.type === "git-sync" ? event.files[0]?.change.committedAt : undefined;
         expect(Number.isFinite(Date.parse(committedAt ?? ""))).toBe(true);
 
-        expect((await admin.command(action, selection)).status).toBe("completed");
+        expect((await admin.command(action, selection)).receipt.status).toBe("completed");
         const repeated = await gitSyncArchive(admin, target);
         expect(repeated.group.files).toEqual(after.group.files);
         expect(repeated.group.materialHistory).toEqual(history);
@@ -666,9 +666,9 @@ describe("ST Git document synchronization", () => {
         const message = await admin
           .command({ type: "syncFormalDocuments", ...selection }, selection)
           .then(
-            (receipt) => {
-              expect(receipt.status).toBe("failed");
-              return receipt.error;
+            (result) => {
+              expect(result.receipt.status).toBe("failed");
+              return result.receipt.error;
             },
             (error: unknown) => {
               if (!(error instanceof Error)) throw error;

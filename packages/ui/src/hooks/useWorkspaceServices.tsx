@@ -1,24 +1,11 @@
 import type { IServiceAccessor } from "@zcode/services";
 import { Event, ProxyChannel, type IChannel } from "@zcode/rpc";
 import { useMemo } from "react";
-import { useOptionalServices, useServices } from "@/hooks/useServices.js";
-import {
-  useRemoteWorkspaceSessionStore,
-  type RemoteWorkspaceSession,
-} from "@/store/remoteWorkspaceSessionStore.js";
-import { useResolvedRemoteWorkspaceSessionId } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
-import { useTabStore } from "@/store/TabStoreProvider.js";
-import { isWorkspaceTab } from "@/store/tabStore.js";
+import { useServices } from "@/hooks/useServices.js";
+import { useRegisteredBaseWorkspaceServices } from "@/store/baseWorkspaceServices.js";
 import { REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE } from "@/lib/remoteWorkspaceServiceError.js";
 
 let disconnectedRemoteServices: IServiceAccessor | null = null;
-
-interface WorkspaceServiceTargetTab {
-  workspacePath: string;
-  workspaceIdentity?: string | null;
-  remoteSessionId?: string | null;
-  remoteTarget?: unknown;
-}
 
 function createDisconnectedRemoteServices(): IServiceAccessor {
   const createDisconnectedError = () => {
@@ -51,173 +38,31 @@ export function getDisconnectedRemoteServices(): IServiceAccessor {
   return disconnectedRemoteServices;
 }
 
-export function resolveWorkspaceServicesForTarget(params: {
-  currentContextServices: IServiceAccessor;
-  resolvedRemoteSessionId: string | null;
-  baseServices: IServiceAccessor | null;
-  sessionsById: Record<string, Pick<RemoteWorkspaceSession, "services">>;
-  isRemoteTarget: boolean;
-  /** 无 workspace 的设置 user/server scope 可显式指定 SourceSettingsAttachment。 */
-  unscopedServices?: IServiceAccessor;
-}): IServiceAccessor {
-  const resolvedServices = params.resolvedRemoteSessionId
-    ? (params.sessionsById[params.resolvedRemoteSessionId]?.services ?? null)
-    : params.isRemoteTarget
-      ? getDisconnectedRemoteServices()
-      : (params.unscopedServices ?? params.baseServices);
-
-  if (params.isRemoteTarget && !resolvedServices) {
-    return getDisconnectedRemoteServices();
-  }
-
-  return resolvedServices ?? params.currentContextServices;
-}
-
-export function resolveBaseWorkspaceServices(
-  contextServices: IServiceAccessor,
-  registeredBaseServices: IServiceAccessor | null,
-): IServiceAccessor {
-  return registeredBaseServices ?? contextServices;
-}
-
-function hasRemoteWorkspaceMetadata(tab: WorkspaceServiceTargetTab | null | undefined): boolean {
-  return Boolean(tab?.remoteSessionId?.trim() || tab?.remoteTarget);
-}
-
-export function resolveWorkspaceServiceIsRemoteTarget(params: {
-  workspacePath: string | null | undefined;
-  workspaceIdentity?: string | null;
-  preferredRemoteSessionId?: string | null;
-  remoteTarget?: unknown;
-  activeWorkspacePath?: string | null;
-  activeWorkspaceIdentity?: string | null;
-  activeTab?: WorkspaceServiceTargetTab | null;
-  workspaceTabs?: readonly WorkspaceServiceTargetTab[];
-}): boolean {
-  // 修复原因：稳定工作区身份属于当前后端数据，不代表已裁撤的远程 Host 连接。
-  if (params.preferredRemoteSessionId?.trim() || params.remoteTarget) {
-    return true;
-  }
-
-  const workspacePath = params.workspacePath?.trim();
-  if (!workspacePath) {
-    return false;
-  }
-
-  if (params.activeWorkspacePath === params.workspacePath) {
-    // 显式旧远程元数据不能误投当前后端；稳定 identity 本身不参与此判定。
-    if (
-      params.activeTab?.workspacePath === params.workspacePath &&
-      (!params.workspaceIdentity?.trim() ||
-        params.activeTab?.workspaceIdentity?.trim() === params.workspaceIdentity.trim()) &&
-      hasRemoteWorkspaceMetadata(params.activeTab)
-    ) {
-      return true;
-    }
-  }
-
-  const matchingTabs = (params.workspaceTabs ?? []).filter(
-    (tab) =>
-      tab.workspacePath === params.workspacePath &&
-      (!params.workspaceIdentity?.trim() ||
-        tab.workspaceIdentity?.trim() === params.workspaceIdentity.trim()),
-  );
-  return matchingTabs.length === 1 && hasRemoteWorkspaceMetadata(matchingTabs[0]);
-}
-
 export function useBaseWorkspaceServices(): IServiceAccessor {
   const contextServices = useServices();
-  const registeredBaseServices = useRemoteWorkspaceSessionStore((state) => state.baseServices);
-
-  // App 会在当前激活 workspace 外层再套一层 ServiceProvider。
-  // 激活远端 tab 后，useServices() 读到的是远端 host；但 timeline/search/workspace
-  // 这类跨 workspace 查询里的本地 shard 必须继续查本机 host。
-  // 这里优先使用 renderer 启动时注册的根 services，避免远端连接污染本地任务列表。
-  return resolveBaseWorkspaceServices(contextServices, registeredBaseServices);
-}
-
-export function useOptionalBaseWorkspaceServices(): IServiceAccessor | null {
-  const contextServices = useOptionalServices();
-  const registeredBaseServices = useRemoteWorkspaceSessionStore((state) => state.baseServices);
-
-  // usage entitlement 等 app-global 能力曾从当前 workspace ServiceProvider
-  // 取服务；远端 tab 在 attachment ready 前会得到断连代理并产生无效 RPC。base host 才是
-  // app-global 权威；Web/SSR 未注册 base services 时保留原有 context/null 降级语义。
-  return registeredBaseServices ?? contextServices;
+  return useRegisteredBaseWorkspaceServices() ?? contextServices;
 }
 
 export interface WorkspaceServicesResolution {
   services: IServiceAccessor;
-  remoteSessionId: string | null;
-  isRemoteTarget: boolean;
-  connectionKind: "local-ready" | "remote-waiting" | "remote-ready";
   rpcReady: boolean;
 }
 
 export function useWorkspaceServicesResolution(
-  workspacePath: string | null | undefined,
+  _workspacePath: string | null | undefined,
   preferredRemoteSessionId?: string | null,
-  workspaceIdentity?: string | null,
+  _workspaceIdentity?: string | null,
   remoteTarget?: unknown,
   options?: { unscopedServices?: IServiceAccessor; forceUnscoped?: boolean },
 ): WorkspaceServicesResolution {
-  const currentContextServices = useServices();
-  const resolvedRemoteSessionId = useResolvedRemoteWorkspaceSessionId(
-    workspacePath,
-    preferredRemoteSessionId,
-    workspaceIdentity,
-    remoteTarget,
-  );
-  const inferredRemoteTarget = useTabStore((state) =>
-    resolveWorkspaceServiceIsRemoteTarget({
-      workspacePath,
-      workspaceIdentity,
-      preferredRemoteSessionId,
-      remoteTarget,
-      activeWorkspacePath: state.activeWorkspacePath,
-      activeWorkspaceIdentity: state.activeWorkspaceIdentity,
-      activeTab: (() => {
-        const activeTab = state.activeTabId
-          ? state.tabs.find((tab) => tab.id === state.activeTabId)
-          : null;
-        return activeTab && isWorkspaceTab(activeTab) ? activeTab : null;
-      })(),
-      workspaceTabs: state.tabs.filter(isWorkspaceTab),
-    }),
-  );
-  const isRemoteTarget = options?.forceUnscoped ? false : inferredRemoteTarget;
-  const effectiveRemoteSessionId = options?.forceUnscoped ? null : resolvedRemoteSessionId;
-  const resolvedServices = useRemoteWorkspaceSessionStore((state) =>
-    resolveWorkspaceServicesForTarget({
-      currentContextServices,
-      resolvedRemoteSessionId: effectiveRemoteSessionId,
-      baseServices: state.baseServices,
-      sessionsById: state.sessionsById,
-      isRemoteTarget,
-      unscopedServices: options?.unscopedServices,
-    }),
-  );
-  const connectionKind = isRemoteTarget
-    ? effectiveRemoteSessionId
-      ? "remote-ready"
-      : "remote-waiting"
-    : "local-ready";
-
-  // 远程 SSH host 断开后，若在 resolvedRemoteSessionId 为空时回退到 baseServices，
-  // /root 这类远程 task 会被本机 host 查询并报“task 不存在”。远程目标缺少 session 时必须保持断连态，
-  // 由上面的断连代理给出可恢复错误，而不是把请求误路由到本机 workspace。
-  // 启动重连期仅有 tab 元数据、真实 remote services 尚未注册时属于 remote-waiting；
-  // 调用方必须暂停 workspace RPC，断连代理只保留为最终越界保护，不能把预期等待态当失败重试。
-  return useMemo(
-    () => ({
-      services: resolvedServices,
-      remoteSessionId: effectiveRemoteSessionId,
-      isRemoteTarget,
-      connectionKind,
-      rpcReady: connectionKind !== "remote-waiting",
-    }),
-    [connectionKind, effectiveRemoteSessionId, isRemoteTarget, resolvedServices],
-  );
+  const baseServices = useBaseWorkspaceServices();
+  // 稳定工作区 identity 属于当前后端；只有显式旧远程目标才需要拒绝路由。
+  const legacyRemoteTarget = Boolean(preferredRemoteSessionId?.trim() || remoteTarget);
+  const rpcReady = Boolean(options?.forceUnscoped) || !legacyRemoteTarget;
+  const services = rpcReady
+    ? (options?.unscopedServices ?? baseServices)
+    : getDisconnectedRemoteServices();
+  return useMemo(() => ({ services, rpcReady }), [rpcReady, services]);
 }
 
 export function useWorkspaceServices(

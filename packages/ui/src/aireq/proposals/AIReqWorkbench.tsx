@@ -1,5 +1,5 @@
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ChevronRight, ListTree } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -34,7 +34,7 @@ import {
   type MaterialReadFeedback,
 } from "./material-reader.js";
 
-export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode }) {
+export function AIReqMaterialsPane() {
   const aireq = useAIReq()!;
   const { selection, releaseId } = aireq;
   return (
@@ -47,21 +47,13 @@ export function AIReqMaterialsPane({ headerAction }: { headerAction?: ReactNode 
         selection.materialPath,
       ])}
       aireq={aireq}
-      headerAction={headerAction}
     />
   );
 }
 
-function AIReqMaterialsReader({
-  aireq,
-  headerAction,
-}: {
-  aireq: AIReqContextValue;
-  headerAction?: ReactNode;
-}) {
+function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
-  const compact = headerAction != null;
   const theme = useZCodeStore((state) => state.theme);
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
   const { selection, releaseId, view } = aireq;
@@ -111,15 +103,6 @@ function AIReqMaterialsReader({
     const label = requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind];
     // IR 汇总列出多个 SR 的同类文件，必须同时给出所属 SR 和材料名。
     const materialSr = materialRows?.find((sr) => sr.id === item.srId);
-    if (compact && item.path.endsWith("/sr-dependencies.json"))
-      return zh ? "SR 依赖" : "SR dependencies";
-    if (compact) {
-      const name = item.path.split("/").at(-1) || item.path;
-      const title = `${label} · ${name}`;
-      return item.srId
-        ? `${title} · ${item.srId}${materialSr ? ` · ${materialSr.title}` : ""}`
-        : title;
-    }
     return item.srId
       ? `${item.srId}${materialSr ? ` · ${materialSr.title}` : ""} · ${label}`
       : label;
@@ -270,7 +253,6 @@ function AIReqMaterialsReader({
       >
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-2">
           <span>{zh ? "需求材料" : "Requirement materials"}</span>
-          {headerAction}
         </div>
         <p role="status" className="px-4 py-4 text-ui-sm text-foreground-subtle">
           {aireq.pending
@@ -289,133 +271,79 @@ function AIReqMaterialsReader({
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
       data-testid="materials-pane"
     >
-      {compact ? (
-        <>
-          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-2">
-            <span className="shrink-0 text-ui-base">
-              {zh ? "需求材料" : "Requirement materials"}
-            </span>
-            <Select value={displayedPath || "none"} onValueChange={setPath}>
-              <SelectTrigger
+      <div
+        className="shrink-0 overflow-y-auto pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
+        style={{ scrollbarWidth: "thin" }}
+      >
+        <div className={`mx-auto min-w-0 space-y-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
+          {historyControls}
+          {(proposalSolutionView || (historical && (solutionMaterial || dependencyMaterial))) && (
+            <nav
+              aria-label="方案材料定位"
+              className="flex gap-3 border-b border-border/50"
+              data-testid="proposal-material-navigation"
+            >
+              <Button
+                size="sm"
+                variant="ghost"
                 className={materialTabClassName}
-                data-testid="material-menu"
-                aria-label={zh ? "选择需求材料" : "Choose requirement material"}
+                disabled={!solutionMaterial}
+                aria-pressed={displayedPath === solutionMaterial?.path}
+                onClick={() => {
+                  setPath(solutionMaterial!.path);
+                }}
               >
-                <SelectValue>
-                  <span
-                    className="block min-w-0 truncate text-left"
-                    title={current && materialLabel(current)}
-                  >
-                    {current
-                      ? materialLabel(current)
-                      : awaitingRequirements
-                        ? zh
-                          ? "等待生成需求材料"
-                          : "Waiting for materials"
-                        : zh
-                          ? "暂无材料"
-                          : "No materials"}
-                  </span>
-                </SelectValue>
+                技术方案
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={materialTabClassName}
+                disabled={!dependencyMaterial}
+                aria-pressed={displayedPath === dependencyMaterial?.path}
+                onClick={() => {
+                  setPath(dependencyMaterial!.path);
+                }}
+              >
+                SR 依赖
+              </Button>
+            </nav>
+          )}
+          {materials.length > 1 && (
+            <Select
+              value={displayedPath}
+              onValueChange={(value) => {
+                setPath(value);
+              }}
+            >
+              <SelectTrigger
+                variant="ghost"
+                className="max-w-full gap-2 px-1 text-ui-sm text-foreground-subtle"
+                data-testid="material-menu"
+                aria-label={zh ? "文档目录" : "Document directory"}
+                title={current && materialLabel(current)}
+              >
+                <ListTree className="size-3.5 shrink-0" aria-hidden="true" />
+                <SelectValue>{zh ? "文档目录" : "Document directory"}</SelectValue>
               </SelectTrigger>
               <SelectContent position="popper" align="start">
-                {!materials.length && (
-                  <SelectItem value="none" disabled>
-                    {awaitingRequirements
-                      ? zh
-                        ? "等待生成需求材料"
-                        : "Waiting for materials"
-                      : zh
-                        ? "暂无材料"
-                        : "No materials"}
-                  </SelectItem>
-                )}
-                {materials.map((item) => (
-                  <SelectItem key={item.path} value={item.path}>
-                    {materialLabel(item)}
-                  </SelectItem>
+                {materialGroups.map((section) => (
+                  <SelectGroup key={section.id}>
+                    <SelectLabel className="max-w-full whitespace-normal break-words">
+                      {section.label}
+                    </SelectLabel>
+                    {section.items.map((item) => (
+                      <SelectItem key={item.path} value={item.path}>
+                        {requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
-            {headerAction}
-          </div>
-          {historyControls && <div className="px-3 py-2">{historyControls}</div>}
-        </>
-      ) : (
-        <div
-          className="shrink-0 overflow-y-auto pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
-          style={{ scrollbarWidth: "thin" }}
-        >
-          <div className={`mx-auto min-w-0 space-y-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-            {historyControls}
-            {(proposalSolutionView || (historical && (solutionMaterial || dependencyMaterial))) && (
-              <nav
-                aria-label="方案材料定位"
-                className="flex gap-3 border-b border-border/50"
-                data-testid="proposal-material-navigation"
-              >
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={materialTabClassName}
-                  disabled={!solutionMaterial}
-                  aria-pressed={displayedPath === solutionMaterial?.path}
-                  onClick={() => {
-                    setPath(solutionMaterial!.path);
-                  }}
-                >
-                  技术方案
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={materialTabClassName}
-                  disabled={!dependencyMaterial}
-                  aria-pressed={displayedPath === dependencyMaterial?.path}
-                  onClick={() => {
-                    setPath(dependencyMaterial!.path);
-                  }}
-                >
-                  SR 依赖
-                </Button>
-              </nav>
-            )}
-            {materials.length > 1 && (
-              <Select
-                value={displayedPath}
-                onValueChange={(value) => {
-                  setPath(value);
-                }}
-              >
-                <SelectTrigger
-                  variant="ghost"
-                  className="max-w-full gap-2 px-1 text-ui-sm text-foreground-subtle"
-                  data-testid="material-menu"
-                  aria-label={zh ? "文档目录" : "Document directory"}
-                  title={current && materialLabel(current)}
-                >
-                  <ListTree className="size-3.5 shrink-0" aria-hidden="true" />
-                  <SelectValue>{zh ? "文档目录" : "Document directory"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  {materialGroups.map((section) => (
-                    <SelectGroup key={section.id}>
-                      <SelectLabel className="max-w-full whitespace-normal break-words">
-                        {section.label}
-                      </SelectLabel>
-                      {section.items.map((item) => (
-                        <SelectItem key={item.path} value={item.path}>
-                          {requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind]}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      </div>
       <div
         key={`${historyIndex ?? "current"}:${displayedPath}`}
         className="min-h-0 flex-1 overflow-auto py-4 [scrollbar-gutter:stable_both-edges]"

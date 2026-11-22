@@ -8,7 +8,7 @@ import type {
   AIReqRemotePath,
   AIReqRemoteResult,
 } from "./remote-operations.js";
-import type { AIReqIdentity, AIReqSelection } from "./types.js";
+import type { AIReqIdentity } from "./types.js";
 
 /** The service owns accepted business state; clients retain projections and unsent drafts. */
 export interface IAIReqService {
@@ -19,7 +19,6 @@ export interface IAIReqService {
     identity: AIReqIdentity,
     path: P,
     args: AIReqRemoteArgs<P>,
-    selection?: AIReqSelection,
   ): Promise<AIReqRemoteResult<P>>;
   /** Invalidation facts, never another accepted-state store. Consumers re-read their current selection. */
   readonly onDidChange: Event<AIReqRemoteEvent>;

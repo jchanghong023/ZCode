@@ -5,7 +5,6 @@ export type { ConversationRowRenderContext } from "./conversationRowContext.js";
 export { createTopicWireDecoder } from "./topicWireDecoder.js";
 export { LexicalChatInput, type LexicalChatInputHandle } from "../LexicalChatInput.js";
 export { TooltipProvider } from "../components/ui/tooltip.js";
-export { TabStoreProvider } from "../store/TabStoreProvider.js";
 export { PlatformProvider } from "../hooks/usePlatform.js";
 export { ServiceProvider } from "../hooks/useServices.js";
 export { getDisconnectedRemoteServices } from "../hooks/useWorkspaceServices.js";

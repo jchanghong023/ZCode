@@ -43,9 +43,7 @@ import {
   shouldShowManageModelsAction,
 } from "@/chat-input-toolbar/modelSelection.js";
 import { resolveV4ModelTriggerDisplay } from "@/v4/composer/modelTriggerDisplay.js";
-import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
-import { useTabStore } from "@/store/TabStoreProvider.js";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import type {
   ModelSelectionState,
   ModelSelectionRefreshResult,
@@ -88,7 +86,7 @@ export interface ModelSelectionSource {
 export interface V4ComposerToolbarProps {
   workspacePath: string;
   workspaceIdentity?: string;
-  modelSelectionView?: ModelSelectionView | null;
+  modelSelectionView?: WebModelSelectionView | null;
   modelSelectionState?: ModelSelectionState;
   modelSelectionReload?: () => void;
   onOpenModelSettings?: () => void;
@@ -159,7 +157,6 @@ function V4ComposerModelControlsImpl({
   // 配置面存活服务读（过渡归宿 = 配置面 v4 化）：连接方式选中键喂 BigModel Team Plan 门控豁免。
   const baseServices = useBaseWorkspaceServices();
   const { settings: sharedSettings } = useSettings({ services: baseServices });
-  const openSettingsTab = useTabStore((state) => state.openSettingsTab);
   const modelTriggerRef = useRef<HTMLSpanElement | null>(null);
   const thoughtTriggerRef = useRef<HTMLSpanElement | null>(null);
   // Ctrl+M 热键：递增 openRequestKey 请求 ModelConfigSelect 打开菜单（旧 handleOpenModelMenuShortcut 语义）。
@@ -252,17 +249,7 @@ function V4ComposerModelControlsImpl({
     return buildRegistryModelSelectGroups(displayProvider, modelSelectionView, modelGroupLabels);
   }, [displayProvider, modelGroupLabels, modelSelectionView]);
 
-  // 修复：恢复「管理模型」入口（老版 onManageModels = 打开设置页并定位模型供应商区）。
-  const handleOpenModelProviderSettings = useCallback(() => {
-    // 独立业务壳接管模型设置导航，不能同时写入无人消费的旧标签意图。
-    if (onOpenModelSettings) {
-      onOpenModelSettings();
-      return;
-    }
-    setPendingSettingsSectionIntent("modelProvider");
-    openSettingsTab();
-  }, [onOpenModelSettings, openSettingsTab]);
-  const showManageModelsAction = shouldShowManageModelsAction(handleOpenModelProviderSettings);
+  const showManageModelsAction = shouldShowManageModelsAction(onOpenModelSettings);
   const manageModelsLabel = intl.formatMessage({
     id: "chat.toolbar.model.manageModels",
   });
@@ -611,6 +598,7 @@ function V4ComposerModelControlsImpl({
           })}
         </span>
       ) : modelMenuVisible &&
+        showManageModelsAction &&
         !providerSourcesLoading &&
         planGroups.length === 0 &&
         !connectionSwitch.pending ? (
@@ -621,7 +609,7 @@ function V4ComposerModelControlsImpl({
           size="sm"
           className="h-7 px-2 text-ui-sm"
           data-testid="chat-model-select-trigger"
-          onClick={handleOpenModelProviderSettings}
+          onClick={onOpenModelSettings}
         >
           {manageModelsLabel}
         </Button>
@@ -641,7 +629,7 @@ function V4ComposerModelControlsImpl({
           composerOptions={composerOptions}
           showManageModelsAction={showManageModelsAction}
           manageModelsLabel={manageModelsLabel}
-          onManageModels={handleOpenModelProviderSettings}
+          onManageModels={onOpenModelSettings}
           lockReasonMessage={intl.formatMessage({
             id: "chat.toolbar.modelSwitch.lockedByRunningTask",
           })}

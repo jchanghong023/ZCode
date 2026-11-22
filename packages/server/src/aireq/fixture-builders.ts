@@ -1,4 +1,4 @@
-import { createRequirementSnapshot, digestValue } from "./content-digest.js";
+import { createRequirementSnapshot } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type {
   AIReqWorkflowView,
@@ -96,7 +96,6 @@ export function receipt(
 ): AIReqOperationReceipt {
   return {
     operationId: `sample-operation-${revision}`,
-    commandDigest: digestValue({ type, revision, irId, srId, at }),
     type,
     status: "completed",
     startedAt: at,

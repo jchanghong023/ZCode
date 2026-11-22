@@ -11,7 +11,6 @@ import {
   type ZCodeTaskMeta,
 } from "@zcode/shared";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
-import { removeTaskFromHistory } from "@/lib/taskNavigationHistory.js";
 import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";
 import type {
   ConfigOptionsStatus,
@@ -36,18 +35,6 @@ type SetFn = (
     | Partial<ZCodeSessionStoreState>
     | ((state: ZCodeSessionStoreState) => ZCodeSessionStoreState | Partial<ZCodeSessionStoreState>),
 ) => void;
-
-function sortTasksByUpdatedAt(tasks: readonly ZCodeTaskMeta[]): ZCodeTaskMeta[] {
-  return [...tasks].sort((left, right) => {
-    if (right.updatedAt !== left.updatedAt) {
-      return right.updatedAt - left.updatedAt;
-    }
-    if (right.createdAt !== left.createdAt) {
-      return right.createdAt - left.createdAt;
-    }
-    return right.taskId.localeCompare(left.taskId);
-  });
-}
 
 function arePermissionOptionsEqual(
   left: ZCodePermissionRequest["options"],
@@ -754,25 +741,15 @@ export function createTaskSlice(set: SetFn) {
               ? mergeTaskWithOptimisticMeta(params.task, existingTask)
               : params.task;
             const currentTaskRuntime = getTaskRuntimeState(current, params.task.taskId);
-            const cachedTasks = current.taskListCache ?? [];
-            const nextTaskListCache =
-              current.taskListCache === null
-                ? current.taskListCache
-                : sortTasksByUpdatedAt([
-                    nextTask,
-                    ...cachedTasks.filter((cachedTask) => cachedTask.taskId !== params.task.taskId),
-                  ]);
 
             return {
               ...current,
               selectedProvider: normalizeAgentProviderToZCodeAgent(params.provider),
-              // 性能优化：后台首发不需要先经历 optimistic -> cache -> runtime 多轮 set。
-              // 合到一次写入可以削掉并发压测创建任务时的 renderer 订阅风暴。
+              // 后台首发在同一次写入更新乐观元数据和运行态，避免重复触发订阅。
               optimisticTaskListByTaskId: {
                 ...current.optimisticTaskListByTaskId,
                 [params.task.taskId]: nextTask,
               },
-              taskListCache: nextTaskListCache,
               taskRuntimeByTaskId: {
                 ...current.taskRuntimeByTaskId,
                 [params.task.taskId]: {
@@ -845,8 +822,8 @@ export function createTaskSlice(set: SetFn) {
       // 如果不在统一删除 action 里同步清理，重启后已删除 task 的草稿会继续残留。
       clearPersistedComposerDraft(workspacePath, taskId, workspaceIdentity);
       clearV4ComposerDraft(workspacePath, workspaceIdentity, taskId);
-      set((state) => {
-        const workspaceUpdate = updateWorkspaceState(
+      set((state) =>
+        updateWorkspaceState(
           state,
           workspacePath,
           (current) => {
@@ -884,13 +861,8 @@ export function createTaskSlice(set: SetFn) {
             };
           },
           workspaceIdentity,
-        );
-
-        return {
-          ...workspaceUpdate,
-          taskNavHistory: removeTaskFromHistory(state.taskNavHistory, taskId),
-        };
-      });
+        ),
+      );
     },
   };
 }

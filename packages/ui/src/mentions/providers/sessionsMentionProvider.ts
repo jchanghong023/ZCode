@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ProjectTree } from "@zcode/services";
-import type { ZCodeProvider, ZCodeTaskMeta } from "@zcode/shared";
+import type { WebProjectTree } from "@zcode/services";
+import type { ZCodeProvider } from "@zcode/shared";
 import { buildSessionMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { filterMentionItemsWithOptions } from "@/mentions/mentionSearch.js";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
 import type { SessionMentionWorkspaceScope } from "@/mentions/mentionPanelRouting.js";
-import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
+import { getWorkspaceKey } from "@/lib/workspaceKey.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
+
+type SessionMentionTask = Omit<WebProjectTree["tasks"][number], "projectId">;
 
 interface SessionMentionItem extends MentionItem {
   /** 只在候选聚合阶段分桶，不写入 Lexical node 或 canonical mention。 */
@@ -14,15 +16,15 @@ interface SessionMentionItem extends MentionItem {
 }
 
 function compareSessionTasks(
-  left: ZCodeTaskMeta,
-  right: ZCodeTaskMeta,
+  left: SessionMentionTask,
+  right: SessionMentionTask,
   currentWorkspaceKey?: string,
 ) {
   if (currentWorkspaceKey) {
     const leftCurrent =
-      buildTaskWorkspaceKey(left.workspacePath, left.workspaceIdentity) === currentWorkspaceKey;
+      getWorkspaceKey(left.workspacePath, left.workspaceIdentity) === currentWorkspaceKey;
     const rightCurrent =
-      buildTaskWorkspaceKey(right.workspacePath, right.workspaceIdentity) === currentWorkspaceKey;
+      getWorkspaceKey(right.workspacePath, right.workspaceIdentity) === currentWorkspaceKey;
     if (leftCurrent !== rightCurrent) return leftCurrent ? -1 : 1;
   }
   if (right.updatedAt !== left.updatedAt) return right.updatedAt - left.updatedAt;
@@ -30,19 +32,18 @@ function compareSessionTasks(
   return left.title.localeCompare(right.title);
 }
 
-function getSessionLabel(task: ZCodeTaskMeta): string {
+function getSessionLabel(task: SessionMentionTask): string {
   const title = task.title.replace(/^#(?:sess|session)_[a-zA-Z0-9._-]+\s*/, "").trim();
   return title || "Untitled session";
 }
 
-function getWorkspaceLabel(task: ZCodeTaskMeta): string {
+function getWorkspaceLabel(task: SessionMentionTask): string {
   const raw = task.workspacePath.trim() || task.workspaceIdentity?.trim() || "";
   return raw.split(/[\\/]/).filter(Boolean).at(-1) ?? raw;
 }
 
-function mapTaskToMentionItem(task: ZCodeTaskMeta, provider: ZCodeProvider): SessionMentionItem {
+function mapTaskToMentionItem(task: SessionMentionTask, provider: ZCodeProvider): SessionMentionItem {
   const sessionId = task.taskId;
-  const itemProvider = task.provider ?? provider;
   return {
     id: `session:${task.taskId}`,
     category: "sessions",
@@ -55,15 +56,14 @@ function mapTaskToMentionItem(task: ZCodeTaskMeta, provider: ZCodeProvider): Ses
       task.taskId,
       task.workspacePath,
       task.workspaceIdentity ?? "",
-      task.model ?? "",
-      itemProvider,
+      provider,
     ],
-    workspaceKey: buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity),
+    workspaceKey: getWorkspaceKey(task.workspacePath, task.workspaceIdentity),
   };
 }
 
 export function collectSessionMentionItems(
-  tasks: ZCodeTaskMeta[],
+  tasks: SessionMentionTask[],
   provider: ZCodeProvider,
   options: {
     workspacePath?: string;
@@ -71,13 +71,10 @@ export function collectSessionMentionItems(
   } = {},
 ): SessionMentionItem[] {
   const currentWorkspaceKey = options.workspacePath
-    ? buildTaskWorkspaceKey(options.workspacePath, options.workspaceIdentity)
+    ? getWorkspaceKey(options.workspacePath, options.workspaceIdentity)
     : undefined;
-  const taskBySessionId = new Map<string, ZCodeTaskMeta>();
+  const taskBySessionId = new Map<string, SessionMentionTask>();
   for (const task of tasks) {
-    if (task.migrationSource) {
-      continue;
-    }
     const sessionId = task.taskId;
     const current = taskBySessionId.get(sessionId);
     if (!current || task.updatedAt > current.updatedAt) {
@@ -104,7 +101,7 @@ export function useSessionsMentionProvider(
   const { services } = useWorkspaceServicesResolution(workspacePath, undefined, workspaceIdentity);
   const [snapshot, setSnapshot] = useState<{
     services: typeof services;
-    tree: ProjectTree;
+    tree: WebProjectTree;
     error: Error | null;
     loading: boolean;
   } | null>(null);
@@ -121,7 +118,7 @@ export function useSessionsMentionProvider(
       try {
         if (!services.projectService) throw new Error("project.service-unavailable");
         // 候选行由 Host 组织态与 CLI 镜像决定；不能让缺席的 sessions-index 或 tab 隐藏历史任务。
-        const tree = await services.projectService.readTree({ includeDeleted: true });
+        const tree = await services.projectService.readTree();
         if (current && request === generation)
           setSnapshot({ services, tree, error: null, loading: false });
       } catch (error) {
@@ -146,21 +143,17 @@ export function useSessionsMentionProvider(
   const tree = snapshot?.services === services ? snapshot.tree : null;
   const groups = useMemo(() => {
     if (!tree) return [];
-    const currentKey = buildTaskWorkspaceKey(workspacePath, workspaceIdentity);
+    const currentKey = getWorkspaceKey(workspacePath, workspaceIdentity);
     const visibleTasks = tree.tasks.filter(
       (task) =>
         workspaceScope !== "current-workspace" ||
-        buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity) === currentKey,
+        getWorkspaceKey(task.workspacePath, task.workspaceIdentity) === currentKey,
     );
-    const buckets = new Map<string, { id: string; title: string; tasks: ZCodeTaskMeta[] }>();
+    const buckets = new Map<string, { id: string; title: string; tasks: SessionMentionTask[] }>();
     for (const task of visibleTasks) {
       const id =
-        workspaceScope === "current-workspace"
-          ? "sessions"
-          : JSON.stringify([task.hostId, task.projectId]);
-      const project = tree.projects.find(
-        (project) => project.id === task.projectId && project.hostId === task.hostId,
-      );
+        workspaceScope === "current-workspace" ? "sessions" : JSON.stringify(task.projectId);
+      const project = tree.projects.find((project) => project.id === task.projectId);
       const bucket = buckets.get(id) ?? {
         id,
         title:

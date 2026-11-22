@@ -1,15 +1,14 @@
-/* oxlint-disable eslint(max-lines) -- 输入壳同时收口 Lexical 同步、拖拽和工具栏插槽，暂不拆组件。 */
+/* oxlint-disable eslint(max-lines) -- 输入壳同时收口 Lexical 同步和工具栏插槽。 */
 // 输入展示壳：纯 props 组件、无 store/协议依赖；mention 面板通过 enableMentionPanel 透传。
 import type {
   KeyboardEventHandler,
-  DragEventHandler,
   FormEventHandler,
   MutableRefObject,
   ReactNode,
 } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TID_CHAT_SEND_BUTTON } from "@zcode/shared/test-ids";
-import { ArrowUpIcon, Hand, XIcon } from "lucide-react";
+import { ArrowUpIcon, XIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
@@ -23,12 +22,6 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
-import {
-  hasWorkspaceFileDragPayload,
-  readWorkspaceFileDragPayload,
-} from "@/lib/workspaceFileDrag.js";
-import { appendWorkspaceFileMentionToComposer } from "@/lib/workspaceFileComposer.js";
-import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { ChatPromptActionMenu } from "@/prompt-editor/ChatPromptActionMenu.js";
 import { useComposerToolbarFit } from "@/prompt-editor/useComposerToolbarFit.js";
 
@@ -58,10 +51,6 @@ export function ChatPromptEditor({
   cancelLabel,
   showMentionButton = false,
   showSlashButton = false,
-  enableWorkspaceFileDrop = false,
-  enableExternalFileDrop = false,
-  isDraggingOver = false,
-  dragAttachmentHint,
   topContent,
   inputLeadingContent,
   leadingActions,
@@ -78,7 +67,6 @@ export function ChatPromptEditor({
   className,
   shellClassName,
   compactPlaceholder = false,
-  layout = "stacked",
   onChange,
   onUserInputClear,
   onUserInputPresenceChange,
@@ -88,9 +76,6 @@ export function ChatPromptEditor({
   onCancel,
   onFocus,
   onPaste,
-  onDragOver,
-  onDragLeave,
-  onDrop,
   excludedSlashCommandNames,
   appSlashCommands,
   conversationCommands,
@@ -115,10 +100,6 @@ export function ChatPromptEditor({
   cancelLabel?: string;
   showMentionButton?: boolean;
   showSlashButton?: boolean;
-  enableWorkspaceFileDrop?: boolean;
-  enableExternalFileDrop?: boolean;
-  isDraggingOver?: boolean;
-  dragAttachmentHint?: string;
   topContent?: ReactNode;
   /** 与输入正文同一行的前置内容；模型入口使用紧凑 Fast 标签。 */
   inputLeadingContent?: ReactNode;
@@ -142,12 +123,6 @@ export function ChatPromptEditor({
   className?: string;
   shellClassName?: string;
   compactPlaceholder?: boolean;
-  /**
-   * stacked：输入区在上、工具栏在下；inline：[+] 输入区 [控件][发送] 排成一行，控件只显示图标
-   * 。两种布局共用同一棵 DOM 树，
-   * 切换时编辑器不重新挂载。
-   */
-  layout?: "stacked" | "inline";
   onChange?: (value: string) => void;
   onUserInputClear?: () => void;
   onUserInputPresenceChange?: (presence: UserInputPresence) => void;
@@ -158,9 +133,6 @@ export function ChatPromptEditor({
   onCancel?: () => void;
   onFocus?: () => void;
   onPaste?: (event: ChatComposerPasteEvent) => void;
-  onDragOver?: DragEventHandler<HTMLDivElement>;
-  onDragLeave?: DragEventHandler<HTMLDivElement>;
-  onDrop?: DragEventHandler<HTMLDivElement>;
   excludedSlashCommandNames?: readonly string[];
   /** App 层本地斜杠命令（透传 LexicalChatInput）。 */
   appSlashCommands?: readonly AppSlashCommand[];
@@ -171,8 +143,7 @@ export function ChatPromptEditor({
   extraPlugins?: ReactNode;
 }) {
   const { intl } = useZCodeIntl();
-  const isInline = layout === "inline";
-  const toolbarRef = useComposerToolbarFit({ iconOnly: isInline });
+  const toolbarRef = useComposerToolbarFit();
   const internalInputApiRef = useRef<LexicalChatInputHandle | null>(null);
   const resolvedInputApiRef = inputApiRef ?? internalInputApiRef;
   const [internalTriggerPanelContainer, setInternalTriggerPanelContainer] =
@@ -180,22 +151,8 @@ export function ChatPromptEditor({
   const resolvedTriggerPanelContainer = triggerPanelContainer ?? internalTriggerPanelContainer;
   const latestTextRef = useRef(initialValue ?? "");
   const hasSyncedInitialValueRef = useRef(false);
-  const {
-    externalFileDragging,
-    internalDragging,
-    setExternalFileDragging,
-    setInternalDragging,
-    setWorkspaceFileDragging,
-    workspaceFileDragging,
-  } = usePromptEditorDragState({
-    enableExternalFileDrop,
-    enableWorkspaceFileDrop,
-  });
   const actionMenuTitle = intl.formatMessage({
     id: "chat.composer.actionMenu",
-  });
-  const workspaceFileDragHint = intl.formatMessage({
-    id: "chat.composer.workspaceFileDragHint",
   });
   const hasActionMenu = Boolean(attachmentAction) || showMentionButton || showSlashButton;
 
@@ -267,105 +224,8 @@ export function ChatPromptEditor({
     [onSubmit],
   );
 
-  const handleDragOver: DragEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      const hasWorkspaceFilePayload =
-        enableWorkspaceFileDrop && hasWorkspaceFileDragPayload(event.dataTransfer);
-      if (hasWorkspaceFilePayload) {
-        // 浏览器在 dragover 阶段通常只暴露 dataTransfer.types，不保证能读到 getData 内容。
-        // 之前用完整 payload 判断，导致编辑输入框 drop 可用但 hover 状态不亮。
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-        setWorkspaceFileDragging(true);
-        setInternalDragging(true);
-        return;
-      }
-      if (enableExternalFileDrop && Array.from(event.dataTransfer.types).includes("Files")) {
-        setExternalFileDragging(true);
-      }
-
-      onDragOver?.(event);
-    },
-    [
-      enableExternalFileDrop,
-      enableWorkspaceFileDrop,
-      onDragOver,
-      setWorkspaceFileDragging,
-      setExternalFileDragging,
-      setInternalDragging,
-    ],
-  );
-
-  const handleDragLeave: DragEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      const nextTarget = event.relatedTarget;
-      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-        return;
-      }
-
-      setInternalDragging(false);
-      onDragLeave?.(event);
-    },
-    [onDragLeave, setInternalDragging],
-  );
-
-  const handleDrop: DragEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      const workspaceFilePayload = enableWorkspaceFileDrop
-        ? readWorkspaceFileDragPayload(event.dataTransfer)
-        : null;
-      if (workspaceFilePayload) {
-        // file tree 拖拽不是系统文件，不能走附件分支；
-        // 这里统一转换成和 @ 文件一致的 mention，避免 contenteditable 插入纯文本。
-        event.preventDefault();
-        // 用户消息编辑器嵌套在 ChatView drop target 内；消费后必须停止冒泡，
-        // 否则同一条 mention 还会被底部主输入框再次接收。
-        event.stopPropagation();
-        setInternalDragging(false);
-        setWorkspaceFileDragging(false);
-        const currentMarkdown = resolvedInputApiRef.current?.getMarkdown() ?? latestTextRef.current;
-        appendWorkspaceFileMentionToComposer({
-          inputApiRef: resolvedInputApiRef,
-          currentMarkdown,
-          payload: workspaceFilePayload,
-          workspacePath,
-          workspaceIdentity,
-          onTextChange: handleTextChange,
-        });
-        return;
-      }
-
-      setInternalDragging(false);
-      setWorkspaceFileDragging(false);
-      setExternalFileDragging(false);
-      onDrop?.(event);
-    },
-    [
-      enableWorkspaceFileDrop,
-      setWorkspaceFileDragging,
-      setExternalFileDragging,
-      setInternalDragging,
-      handleTextChange,
-      onDrop,
-      resolvedInputApiRef,
-      workspaceIdentity,
-      workspacePath,
-    ],
-  );
-
-  // file tree 拖进编辑框时走的是 mention 插入，不是附件上传。
-  // 这里单独使用 workspace file 文案，并从拖拽开始事件就点亮可投放状态，避免必须 over 到输入框才有反馈。
-  const isWorkspaceFileDropActive = workspaceFileDragging || internalDragging;
-  const isExternalFileDropActive = externalFileDragging || isDraggingOver;
-  const draggingOverlayHint = isWorkspaceFileDropActive
-    ? workspaceFileDragHint
-    : isExternalFileDropActive
-      ? dragAttachmentHint
-      : undefined;
-
   const editorNode = (
-    // 单行时输入区至少占一半宽度，上下留白与 h-7 控件对齐；两行布局下 contents 不改变原有排版。
-    <div className={isInline ? "min-w-1/2 flex-1 py-1 [&_[contenteditable]]:min-h-5" : "contents"}>
+    <div className="contents">
       <LexicalChatInput
         extraPlugins={extraPlugins}
         placeholder={placeholder}
@@ -424,48 +284,25 @@ export function ChatPromptEditor({
         />
       )}
       <div
-        data-composer-layout={layout}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        data-composer-shell
         className={cn(
           "relative flex flex-col gap-3 overflow-hidden rounded-2xl border-[0.5px] border-input-border bg-input p-3 shadow-(--shadow-composer-soft) transition-colors hover:border-input-border-hover focus-within:!border-input-border-focused focus-within:bg-input-focused",
-          isInline && "flex-row flex-wrap items-end gap-2 p-2",
-          (isWorkspaceFileDropActive || isExternalFileDropActive) &&
-            "border-brand bg-input-focused ring-1 ring-brand/30",
           shellClassName,
         )}
       >
-        {draggingOverlayHint ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-accent/55 backdrop-blur-sm">
-            <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
-              <Hand className="size-4 text-foreground" />
-              <span>{draggingOverlayHint}</span>
-            </div>
-          </div>
-        ) : null}
-
-        {topContent ? (
-          // 单行布局下附件等内容单独占输入行上方一整行。
-          <div className={isInline ? "basis-full" : "contents"}>{topContent}</div>
-        ) : null}
-        {/* 单行布局把「+」放到输入区左侧；只有菜单按钮换位置重新挂载，编辑器位置不变。 */}
-        {isInline ? actionMenuNode : null}
+        {topContent ? <div className="contents">{topContent}</div> : null}
         {inputLeadingContent ? (
-          <div className={cn("flex min-w-0 items-start gap-2", isInline && "flex-1")}>
+          <div className="flex min-w-0 items-start gap-2">
             <div className="shrink-0">{inputLeadingContent}</div>
             <div className="min-w-0 flex-1">{editorNode}</div>
           </div>
         ) : (
           editorNode
         )}
-        <div
-          ref={toolbarRef}
-          className={cn("group/toolbar flex items-end gap-3", isInline && "shrink-0 gap-1.5")}
-        >
+        <div ref={toolbarRef} className="group/toolbar flex items-end gap-3">
           <div className="flex min-w-0 flex-1 items-center" data-composer-leading-actions>
             <div className="flex shrink-0 items-center gap-1" data-composer-leading-content>
-              {isInline ? null : actionMenuNode}
+              {actionMenuNode}
               {/* Bugfix：权限/模式选择曾作为 leadingActions 先于动作菜单渲染，导致常驻顺序与产品规范相反。 */}
               {leadingActions}
               {onModeSwitchContainerChange ? (

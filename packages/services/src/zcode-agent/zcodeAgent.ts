@@ -25,6 +25,12 @@ import type {
   V4ConversationRowsRangeResult,
   V4ConversationResyncResult,
   V4ConversationSubscribeResult,
+  WebClientHello,
+  WebCommandAck,
+  WebCommandsQueryResult,
+  WebConversationResyncResult,
+  WebConversationSubscribeResult,
+  WebHelloMessage,
 } from "@zcode/shared/zcode-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -104,6 +110,9 @@ export interface ZCodeAgentConversationRowsRangeParams extends ZCodeAgentSession
   residency?: "resident-only";
 }
 
+/** Channel RPC 分页只公开用于展示和一致性检查的字段。 */
+export type ZCodeAgentConversationRowsRangeResult = Omit<V4ConversationRowsRangeResult, "atSeq">;
+
 /** 当前有效分支里的终态 ExitPlanMode 目录。 */
 export type ZCodeAgentConversationPlansParams = ZCodeAgentSessionTarget;
 
@@ -138,11 +147,17 @@ export interface ZCodeAgentAttachmentBeginParams extends ZCodeAgentSessionTarget
   checksum: string;
 }
 
+export type ZCodeAgentAttachmentBeginResult =
+  | Omit<Extract<V4AttachmentBeginResult, { state: "staging" }>, "uploadId">
+  | Omit<Extract<V4AttachmentBeginResult, { state: "committed" }>, "uploadId" | "nextChunkIndex">;
+
 export interface ZCodeAgentAttachmentChunkParams extends ZCodeAgentSessionTarget {
   uploadId: string;
   chunkIndex: number;
   dataBase64: string;
 }
+
+export type ZCodeAgentAttachmentChunkResult = Omit<V4AttachmentChunkResult, "uploadId">;
 
 export interface ZCodeAgentAttachmentTerminalParams extends ZCodeAgentSessionTarget {
   uploadId: string;
@@ -166,14 +181,15 @@ export interface ZCodeAgentAppRuntimePreferences {
   modelIoFullRetentionEnabled?: boolean;
 }
 
-export interface RecentChatSession extends ZCodeAgentSessionTarget {
+export interface RecentChatSession extends Pick<
+  ZCodeAgentSessionTarget,
+  "sessionId" | "workspacePath" | "workspaceIdentity"
+> {
   title: string;
-  lastActivityAt: number;
 }
 
 export interface RecentChatDirectory {
-  workspacePath: string;
-  sessions: RecentChatSession[];
+  sessions: [RecentChatSession, ...RecentChatSession[]];
 }
 
 export interface IZCodeAgentService {
@@ -216,18 +232,24 @@ export interface IZCodeAgentService {
   /** rows/range 行分页 query（loadOlder 游标向上补历史）。 */
   conversationRowsRangeV4(
     params: ZCodeAgentConversationRowsRangeParams,
-  ): Promise<V4ConversationRowsRangeResult>;
+  ): Promise<ZCodeAgentConversationRowsRangeResult>;
   conversationPlansV4?(
     params: ZCodeAgentConversationPlansParams,
   ): Promise<V4ConversationPlansResult>;
   sendConversationCommandV4(params: ZCodeAgentConversationCommandParams): Promise<CommandAck>;
   queryConversationCommandsV4(params: ZCodeAgentCommandsQueryParams): Promise<CommandsQueryResult>;
-  attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<V4AttachmentBeginResult>;
-  attachmentChunkV4(params: ZCodeAgentAttachmentChunkParams): Promise<V4AttachmentChunkResult>;
+  attachmentBeginV4(
+    params: ZCodeAgentAttachmentBeginParams,
+  ): Promise<ZCodeAgentAttachmentBeginResult>;
+  attachmentChunkV4(
+    params: ZCodeAgentAttachmentChunkParams,
+  ): Promise<ZCodeAgentAttachmentChunkResult>;
   attachmentCommitV4(params: ZCodeAgentAttachmentTerminalParams): Promise<V4AttachmentCommitResult>;
   attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void>;
   /** 已发送 image/video 只读分块查询；connection scope 注入可信 workspace 连接。 */
-  attachmentReadV4(params: ZCodeAgentAttachmentReadParams): Promise<V4AttachmentReadResult>;
+  attachmentReadV4(
+    params: ZCodeAgentAttachmentReadParams,
+  ): Promise<Omit<V4AttachmentReadResult, "nextOffset">>;
   getSessionLifecycle?(
     params: ZCodeAgentSessionTarget,
   ): Promise<import("@zcode/shared").SessionLifecycleSnapshot | null>;
@@ -289,12 +311,83 @@ export const WEB_AIREQ_AGENT_EVENTS = [
   "onDynamicConversationFrame",
 ] as const satisfies readonly (keyof IZCodeAgentService)[];
 
+type WebAgentService = Omit<
+  IZCodeAgentService,
+  | "helloConversationV4"
+  | "initializeConversationV4"
+  | "subscribeConversationV4"
+  | "resyncConversationV4"
+  | "unsubscribeConversationV4"
+  | "conversationRowsRangeV4"
+  | "sendConversationCommandV4"
+  | "queryConversationCommandsV4"
+  | "attachmentBeginV4"
+  | "attachmentChunkV4"
+  | "attachmentCommitV4"
+  | "attachmentAbortV4"
+  | "attachmentReadV4"
+  | "getConversationCommandCatalog"
+  | "getSkillReferenceCatalog"
+  | "onDynamicConversationFrame"
+> & {
+  helloConversationV4(): Promise<WebHelloMessage>;
+  initializeConversationV4(clientHello: WebClientHello): Promise<void>;
+  subscribeConversationV4(
+    params: Omit<
+      ZCodeAgentConversationSubscribeParams,
+      "remoteSessionId" | "visibility" | "retryInitialization"
+    >,
+  ): Promise<WebConversationSubscribeResult>;
+  resyncConversationV4(
+    params: Omit<ZCodeAgentConversationResyncParams, "remoteSessionId" | "runtimePolicy">,
+  ): Promise<WebConversationResyncResult>;
+  unsubscribeConversationV4(
+    params: Omit<ZCodeAgentConversationUnsubscribeParams, "remoteSessionId" | "runtimePolicy">,
+  ): Promise<void>;
+  conversationRowsRangeV4(
+    params: Omit<ZCodeAgentConversationRowsRangeParams, "remoteSessionId">,
+  ): Promise<ZCodeAgentConversationRowsRangeResult>;
+  sendConversationCommandV4(
+    params: Omit<
+      ZCodeAgentConversationCommandParams,
+      "clientMode" | "remoteSessionId" | "projectId" | "envelope"
+    > & { envelope: Omit<CommandEnvelope, "workspace" | "inputOrigin" | "ttft" | "baseLogEpoch"> },
+  ): Promise<WebCommandAck>;
+  queryConversationCommandsV4(
+    params: Omit<ZCodeAgentCommandsQueryParams, "clock" | "remoteSessionId">,
+  ): Promise<WebCommandsQueryResult>;
+  attachmentBeginV4(
+    params: Omit<ZCodeAgentAttachmentBeginParams, "remoteSessionId">,
+  ): Promise<ZCodeAgentAttachmentBeginResult>;
+  attachmentChunkV4(
+    params: Omit<ZCodeAgentAttachmentChunkParams, "remoteSessionId">,
+  ): Promise<ZCodeAgentAttachmentChunkResult>;
+  attachmentCommitV4(
+    params: Omit<ZCodeAgentAttachmentTerminalParams, "remoteSessionId">,
+  ): Promise<V4AttachmentCommitResult>;
+  attachmentAbortV4(
+    params: Omit<ZCodeAgentAttachmentTerminalParams, "remoteSessionId">,
+  ): Promise<void>;
+  attachmentReadV4(
+    params: Omit<ZCodeAgentAttachmentReadParams, "remoteSessionId">,
+  ): Promise<Omit<V4AttachmentReadResult, "nextOffset">>;
+  getConversationCommandCatalog(
+    params: Omit<ZCodeAgentSkillReferenceCatalogParams, "remoteSessionId">,
+  ): Promise<{ commands: ConversationCommandCatalogEntry[] }>;
+  getSkillReferenceCatalog(
+    params: Omit<ZCodeAgentSkillReferenceCatalogParams, "remoteSessionId">,
+  ): Promise<Pick<ZCodeSkillsReferenceCatalogResult, "skills">>;
+  onDynamicConversationFrame(
+    params: Pick<ZCodeAgentWorkspaceTarget, "workspacePath" | "workspaceIdentity">,
+  ): Event<ConversationTopicWireCandidate>;
+};
+
 export type WebAIReqAgent = Required<
-  Pick<IZCodeAgentService, (typeof WEB_AIREQ_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
+  Pick<WebAgentService, (typeof WEB_AIREQ_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
 >;
 
 export type WebChatAgent = Required<
-  Pick<IZCodeAgentService, (typeof WEB_CHAT_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
+  Pick<WebAgentService, (typeof WEB_CHAT_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
 >;
 
 export const IZCodeAgentService = createServiceDescriptor<IZCodeAgentService>(

@@ -501,7 +501,11 @@ export class PendingCommandRegistry {
     };
     // Bug 原因：首发 admission 已持久化旧会话，确认重发沿用旧 ID 会被 CLI 拒绝。
     // 只在用户确认生成新命令时去掉 ID；同命令重试仍保留原信封，也兼容旧恢复记录。
-    if (request.type === "createSession") delete request.payload.sessionId;
+    if (request.type === "createSession") {
+      delete request.payload.sessionId;
+      // 旧记录的 workspaceId 仅供本地定位，不再进入新的 Web 创建请求。
+      delete request.payload.workspaceId;
+    }
     // 用户已确认以新 commandId 重发，旧 discarded 线索在本地完成收口。
     this.rejectComposer(entry);
     this.settle(entry.sessionId, entry.commandId);

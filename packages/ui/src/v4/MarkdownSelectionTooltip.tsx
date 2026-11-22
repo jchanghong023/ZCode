@@ -1,13 +1,6 @@
 import { SelectionActionMenu } from "@/v4/SelectionActionMenu.js";
-import {
-  buildSelectionSideChatKey,
-  getSelectionSideChatOpenState,
-  requestSelectionSideChatOpen,
-  subscribeSelectionSideChatRuntime,
-} from "@/lib/selectionSideChatRuntime.js";
-import { useCallback, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, type RefObject } from "react";
 import { useTextSelection } from "@/hooks/useTextSelection.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { hasExcludedConversationSelectionEndpoint } from "@/lib/conversationSelectionGuard.js";
 import {
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
@@ -31,7 +24,6 @@ export function MarkdownSelectionTooltip({
   sourcePath?: string;
   target: MarkdownSelectionTarget;
 }) {
-  const { intl } = useZCodeIntl();
   const inspect = useCallback(() => {
     const root = rootRef.current;
     const selection = window.getSelection();
@@ -59,14 +51,6 @@ export function MarkdownSelectionTooltip({
     scopeKey,
     observeSelectionChange: true,
   });
-  const sideKey = target.sessionId
-    ? buildSelectionSideChatKey(target.workspaceKey, target.sessionId)
-    : null;
-  const sideState = useSyncExternalStore(
-    subscribeSelectionSideChatRuntime,
-    () => (sideKey ? getSelectionSideChatOpenState(sideKey) : "unavailable"),
-    () => "unavailable",
-  );
   if (!state) return null;
   const createReference = () =>
     createConversationSelectionReference({
@@ -82,17 +66,6 @@ export function MarkdownSelectionTooltip({
       top={state.top}
       bottom={state.bottom}
       singleLimit={state.text.length > CONVERSATION_SELECTION_MAX_TEXT_LENGTH}
-      sideActionDisabled={sideState !== "ready"}
-      sideDisabledTitle={
-        sideState === "ready"
-          ? undefined
-          : intl.formatMessage({
-              id:
-                sideState === "blocked"
-                  ? "chat.selections.previewSideBlocked"
-                  : "chat.selections.previewSideUnavailable",
-            })
-      }
       onAddToCurrentTask={() => {
         dispatchConversationSelectionAdd({
           targetSessionId: target.sessionId,
@@ -101,9 +74,6 @@ export function MarkdownSelectionTooltip({
           reference: createReference(),
         });
         close();
-      }}
-      onAskInSideChat={() => {
-        if (sideKey && requestSelectionSideChatOpen(sideKey, createReference())) close();
       }}
     />
   );

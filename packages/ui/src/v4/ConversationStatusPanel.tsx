@@ -54,7 +54,6 @@ import type {
   BackgroundWorkSummary,
   GoalState,
   PlanState,
-  ToolCallRow,
   WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
@@ -80,8 +79,6 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatBackgroundTaskElapsedLabel } from "@/BackgroundTaskElapsedLabel.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
-  OpenPlanDetailSideTabRequest,
-  OpenSubagentDirectorySideTabRequest,
   OpenSubagentSideTabRequest,
   OpenWorkflowRunDirectorySideTabRequest,
 } from "@/lib/workspaceSidePane.js";
@@ -91,7 +88,6 @@ import {
   buildConversationStatusPanelModel,
   type ConversationStatusPanelRunningSubagent,
   type ConversationStatusPanelModel,
-  type ConversationStatusPanelSessionPlanItem,
   type ConversationStatusPanelWorkflowRun,
 } from "@/v4/conversationStatusPanelModel.js";
 import type { ConversationStatusPanelWorkflowRunTarget } from "@/v4/conversationStatusPanelModel.js";
@@ -116,7 +112,6 @@ export interface ConversationStatusPanelProps {
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
   goal?: GoalState | null;
-  sessionPlans?: readonly ToolCallRow[];
   plan?: PlanState | null;
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly ConversationStatusPanelRunningSubagent[];
@@ -134,7 +129,6 @@ export interface ConversationStatusPanelProps {
    * 仍然正确。
    */
   endedWorkflowRunCount?: number;
-  endedSubagentCount?: number;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -152,12 +146,10 @@ export interface ConversationStatusPanelProps {
   onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
-  onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
   onOpenBackgroundBash?: (work: BackgroundWorkSummary) => void;
   onCancelBackgroundWork?: (workId: string) => void;
   onStopSubagent?: (control: { taskId: string; executionId: string }) => void;
   onOpenSubagentSession?: (request: OpenSubagentSideTabRequest) => void;
-  onOpenSubagentDirectory?: (request: OpenSubagentDirectorySideTabRequest) => void;
   onOpenWorkflowRun?: (target: ConversationStatusPanelWorkflowRunTarget) => void;
   onOpenWorkflowRunDirectory?: (request: OpenWorkflowRunDirectorySideTabRequest) => void;
   className?: string;
@@ -240,7 +232,6 @@ function formatRunningSubagentCount(
 type StatusSectionKind =
   | "environment"
   | "goal"
-  | "sessionPlans"
   | "plan"
   | "terminal"
   | "workflow"
@@ -249,7 +240,6 @@ type StatusSectionKind =
 const STATUS_SECTION_SCROLL_POLICY = {
   environment: null,
   goal: "max-h-48",
-  sessionPlans: "max-h-48",
   // 六个双行 Todo（6 × 52px）需要约 20rem；超过后只滚动进程区块。
   plan: "max-h-80",
   terminal: "max-h-48",
@@ -795,70 +785,6 @@ function PlanStatusItems({
       ) : null}
     </ul>
   );
-}
-
-function SessionPlansStatusSection({
-  model,
-  onOpenPlanDetail,
-  parentSessionId,
-  separated,
-}: {
-  model: ConversationStatusPanelModel;
-  onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
-  parentSessionId?: string;
-  separated: boolean;
-}) {
-  const { intl } = useZCodeIntl();
-  const sessionPlans = model.sessionPlans;
-  if (!sessionPlans) return null;
-
-  return (
-    <StatusSection
-      section="sessionPlans"
-      separated={separated}
-      title={intl.formatMessage({ id: "chat.statusPanel.sessionPlans" })}
-    >
-      <ul className="space-y-0">
-        {sessionPlans.items.map((item) => {
-          const title = item.title ?? intl.formatMessage({ id: "chat.statusPanel.planFallback" });
-          const canOpen = Boolean(parentSessionId && onOpenPlanDetail);
-          return (
-            <li key={item.toolCallId}>
-              <button
-                type="button"
-                data-plan-directory-tool-call-id={item.toolCallId}
-                disabled={!canOpen}
-                aria-label={intl.formatMessage({ id: "chat.statusPanel.openPlan" }, { title })}
-                onClick={() => {
-                  if (!parentSessionId) return;
-                  onOpenPlanDetail?.(buildSessionPlanOpenRequest(parentSessionId, item));
-                }}
-                className={cn(
-                  "flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]",
-                  canOpen && "hover:bg-[var(--color-hover)]",
-                )}
-              >
-                <ListChecksIcon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
-                <span className="min-w-0 flex-1 truncate">{title}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </StatusSection>
-  );
-}
-
-export function buildSessionPlanOpenRequest(
-  parentSessionId: string,
-  item: ConversationStatusPanelSessionPlanItem,
-): OpenPlanDetailSideTabRequest {
-  return {
-    parentSessionId,
-    toolCallId: item.toolCallId,
-    markdown: item.markdown,
-    ...(item.planFilePath ? { planFilePath: item.planFilePath } : {}),
-  };
 }
 
 function PlanStatusSection({
@@ -1420,12 +1346,10 @@ function WorkflowStatusSection({
 }
 
 function SubagentStatusSection({
-  endedSubagentCount,
   timersPaused = false,
   onStopSubagent,
   pendingSubagentStops,
   onOpenChange,
-  onOpenSubagentDirectory,
   onOpenSubagentSession,
   open,
   parentSessionId,
@@ -1434,12 +1358,10 @@ function SubagentStatusSection({
   title,
   subagents,
 }: {
-  endedSubagentCount: number;
   timersPaused?: boolean;
   onStopSubagent?: (control: { taskId: string; executionId: string }) => void;
   pendingSubagentStops?: ReadonlySet<string>;
   onOpenChange?: (open: boolean) => void;
-  onOpenSubagentDirectory?: (request: OpenSubagentDirectorySideTabRequest) => void;
   onOpenSubagentSession?: (request: OpenSubagentSideTabRequest) => void;
   open?: boolean;
   parentSessionId?: string;
@@ -1460,7 +1382,7 @@ function SubagentStatusSection({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [subagents.length, timersPaused]);
-  if (subagents.length === 0 && endedSubagentCount <= 0) return null;
+  if (subagents.length === 0) return null;
   const longestElapsedMs = subagents.reduce(
     (longest, item) => Math.max(longest, Math.max(0, now - (item.startedAt ?? now))),
     0,
@@ -1475,7 +1397,7 @@ function SubagentStatusSection({
       separated={separated}
       title={title}
       trailing={(isOpen) =>
-        subagents.length === 0 ? null : isOpen ? (
+        isOpen ? (
           <span>{formatRunningSubagentCount(intl.formatMessage, subagents.length)}</span>
         ) : (
           <>
@@ -1586,26 +1508,11 @@ function SubagentStatusSection({
           );
         })}
       </ul>
-      <EndedSubagentDirectoryRow
-        count={endedSubagentCount}
-        parentSessionId={parentSessionId}
-        rootSessionId={rootSessionId}
-        onOpen={onOpenSubagentDirectory}
-        separated={subagents.length > 0}
-      />
     </StatusSection>
   );
 }
 
-/**
- * 「已结束的 X · N ›」页脚行：分区里那条通往目录页的入口。
- *
- * Agents 与 Workflows **共用这一个** affordance（图标/文案/计数/回调由调用方给）。抽出来的
- * 理由不是省行数，而是不出现第二套画法：两个分区的页脚行若各写一遍，两者会随时间长出不同的
- * 间距、不同的 hover、不同的计数位置，而它们在读者眼里本来是同一个动作。
- *
- * `count <= 0` 或缺回调即整行缺席：一个点了没反应的入口比没有入口更糟。
- */
+/** 无计数或无打开回调时，不显示已结束工作流的目录入口。 */
 function EndedDirectoryRow({
   count,
   icon,
@@ -1636,39 +1543,6 @@ function EndedDirectoryRow({
         <ChevronRightIcon className="size-4 text-[var(--color-foreground-subtle)]" />
       </button>
     </div>
-  );
-}
-
-function EndedSubagentDirectoryRow({
-  count,
-  onOpen,
-  parentSessionId,
-  rootSessionId,
-  separated,
-}: {
-  count: number;
-  onOpen?: (request: OpenSubagentDirectorySideTabRequest) => void;
-  parentSessionId?: string;
-  rootSessionId?: string;
-  separated: boolean;
-}) {
-  const { intl } = useZCodeIntl();
-  return (
-    <EndedDirectoryRow
-      count={count}
-      icon={<CheckCircle2Icon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />}
-      label={intl.formatMessage({ id: "chat.statusPanel.endedAgents" })}
-      separated={separated}
-      onOpen={
-        parentSessionId && onOpen
-          ? () =>
-              onOpen({
-                rootSessionId: rootSessionId ?? parentSessionId,
-                parentSessionId,
-              })
-          : undefined
-      }
-    />
   );
 }
 
@@ -1762,7 +1636,6 @@ function StatusSummaryRow({
   const expandLabel = intl.formatMessage({ id: "chat.summaryPanel.showPanel" });
   const currentPlanItem = getCurrentPlanItem(model.plan);
   const completedPlanItem = getCompletedPlanItem(model.plan);
-  const latestSessionPlan = model.sessionPlans?.items[0] ?? null;
   const goal = model.goal;
   const goalTitle = goal ? goal.summaryTitle?.trim() || goal.objective.trim() || null : null;
   const goalStatus = goal?.status ?? null;
@@ -1833,14 +1706,6 @@ function StatusSummaryRow({
         {model.plan.completedCount}/{model.plan.totalCount}
       </span>
     </StatusSummaryMetric>
-  ) : latestSessionPlan ? (
-    <StatusSummaryMetric
-      icon={<ListChecksIcon className="size-4 text-[var(--color-foreground)]" />}
-    >
-      <span className="min-w-0 truncate">
-        {latestSessionPlan.title ?? intl.formatMessage({ id: "chat.statusPanel.planFallback" })}
-      </span>
-    </StatusSummaryMetric>
   ) : runningCount > 0 ? (
     <StatusSummaryMetric
       // 头像默认最小尺寸为 20px，会撑出 16px 图标槽；此处按胶囊图标尺寸覆盖，避免偏心和挤占文字间距。
@@ -1907,13 +1772,11 @@ function ConversationStatusPanelImpl({
   gitWorktreeChangeSummary,
   activeTaskChangeSummary,
   goal,
-  sessionPlans,
   plan,
   backgroundWorks = EMPTY_BACKGROUND_WORKS,
   runningSubagents = EMPTY_RUNNING_SUBAGENTS,
   workflowRuns = EMPTY_WORKFLOW_RUNS,
   endedWorkflowRunCount = 0,
-  endedSubagentCount = 0,
   rootSessionId,
   parentSessionId,
   layoutMode = "none",
@@ -1929,14 +1792,12 @@ function ConversationStatusPanelImpl({
   onOpenGitReview,
   onPauseGoal,
   onResumeGoal,
-  onOpenPlanDetail,
   onOpenBackgroundBash,
   onCancelBackgroundWork,
   onStopSubagent,
   pendingSubagentStops,
   timersPaused = false,
   onOpenSubagentSession,
-  onOpenSubagentDirectory,
   onOpenWorkflowRun,
   onOpenWorkflowRunDirectory,
   className,
@@ -1950,8 +1811,6 @@ function ConversationStatusPanelImpl({
         gitDirtyFileCount,
         gitWorktreeChangeSummary,
         goal,
-        sessionPlans,
-        workspacePath,
         plan,
         backgroundWorks,
         runningSubagents,
@@ -1964,11 +1823,9 @@ function ConversationStatusPanelImpl({
       gitSummary,
       gitWorktreeChangeSummary,
       goal,
-      sessionPlans,
       plan,
       runningSubagents,
       workflowRuns,
-      workspacePath,
     ],
   );
   const variant = resolveConversationStatusPanelVariant({
@@ -1986,21 +1843,14 @@ function ConversationStatusPanelImpl({
   });
   const canRenderGit = Boolean(model.git && gitSummary && onRefreshGit);
   const canRenderGoal = Boolean(model.goal);
-  const canRenderSessionPlans = Boolean(model.sessionPlans);
   const canRenderPlan = Boolean(model.plan);
   const canRenderTerminals = model.runningBashWorks.length > 0;
-  // 已结束的 run 也开门（与 canRenderAgents 同判断）：重启后活动数为零，若只按它开门，
-  // 通往 run 目录的唯一入口会连带消失。
+  // 重启后仍须允许打开已结束的工作流目录，即使当前没有运行中的实例。
   const canRenderEndedWorkflows = Boolean(
     endedWorkflowRunCount > 0 && parentSessionId && onOpenWorkflowRunDirectory,
   );
   const canRenderWorkflows = model.runningWorkflowRuns.length > 0 || canRenderEndedWorkflows;
-  const canRenderEndedAgents = Boolean(
-    endedSubagentCount > 0 && parentSessionId && onOpenSubagentDirectory,
-  );
-  // 已结束目录入口过去渲染在 Agent StatusSection 之后，视觉和 DOM 都被提升成
-  // 并列顶层 section。Agent 的运行态和已结束目录属于同一领域，统一由 Agent 折叠分组承载。
-  const canRenderAgents = model.runningSubagentWorks.length > 0 || canRenderEndedAgents;
+  const canRenderAgents = model.runningSubagentWorks.length > 0;
   const handlePanelModeChange = useCallback(
     (value: string) => {
       if (value === "auto") {
@@ -2022,8 +1872,7 @@ function ConversationStatusPanelImpl({
 
   // `model.hasContent` 只认**活的**内容（模型手上的投影都是活状态），所以「只剩历史」的
   // 会话会连整个胶囊一起消失——而那正是重启后打开一条旧对话的样子，run 目录的入口于是又没了。
-  // 已结束的 run 因此单独开这道门。（Agents 的已结束行有同一个洞：`endedSubagentCount` 也
-  // 没进 `hasContent`。那是既有行为，不在本轮一起翻。）
+  // 因此已结束的工作流目录可以独立显示。
   if (!model.hasContent && !canRenderEndedWorkflows) {
     return null;
   }
@@ -2157,19 +2006,11 @@ function ConversationStatusPanelImpl({
                 onResumeGoal={onResumeGoal}
               />
             ) : null}
-            {canRenderSessionPlans ? (
-              <SessionPlansStatusSection
-                model={model}
-                parentSessionId={parentSessionId}
-                onOpenPlanDetail={onOpenPlanDetail}
-                separated={canRenderGit || canRenderGoal}
-              />
-            ) : null}
             {canRenderPlan ? (
               <PlanStatusSection
                 model={model}
                 popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
-                separated={canRenderGit || canRenderGoal || canRenderSessionPlans}
+                separated={canRenderGit || canRenderGoal}
               />
             ) : null}
             {canRenderTerminals ? (
@@ -2180,7 +2021,7 @@ function ConversationStatusPanelImpl({
                 works={model.runningBashWorks}
                 open={terminalSectionOpen}
                 onOpenChange={onTerminalSectionOpenChange}
-                separated={canRenderGit || canRenderGoal || canRenderSessionPlans || canRenderPlan}
+                separated={canRenderGit || canRenderGoal || canRenderPlan}
                 timersPaused={timersPaused}
                 onCancelBackgroundWork={onCancelBackgroundWork}
               />
@@ -2192,13 +2033,7 @@ function ConversationStatusPanelImpl({
                 endedRunCount={canRenderEndedWorkflows ? endedWorkflowRunCount : 0}
                 open={workflowSectionOpen}
                 onOpenChange={onWorkflowSectionOpenChange}
-                separated={
-                  canRenderGit ||
-                  canRenderGoal ||
-                  canRenderSessionPlans ||
-                  canRenderPlan ||
-                  canRenderTerminals
-                }
+                separated={canRenderGit || canRenderGoal || canRenderPlan || canRenderTerminals}
                 parentSessionId={parentSessionId}
                 timersPaused={timersPaused}
                 onCancelBackgroundWork={onCancelBackgroundWork}
@@ -2210,7 +2045,6 @@ function ConversationStatusPanelImpl({
               <SubagentStatusSection
                 title={intl.formatMessage({ id: "chat.statusPanel.agents" })}
                 subagents={model.runningSubagentWorks}
-                endedSubagentCount={canRenderEndedAgents ? endedSubagentCount : 0}
                 timersPaused={timersPaused}
                 onStopSubagent={onStopSubagent}
                 pendingSubagentStops={pendingSubagentStops}
@@ -2219,7 +2053,6 @@ function ConversationStatusPanelImpl({
                 separated={
                   canRenderGit ||
                   canRenderGoal ||
-                  canRenderSessionPlans ||
                   canRenderPlan ||
                   canRenderTerminals ||
                   canRenderWorkflows
@@ -2227,7 +2060,6 @@ function ConversationStatusPanelImpl({
                 parentSessionId={parentSessionId}
                 rootSessionId={rootSessionId}
                 onOpenSubagentSession={onOpenSubagentSession}
-                onOpenSubagentDirectory={onOpenSubagentDirectory}
               />
             ) : null}
           </div>

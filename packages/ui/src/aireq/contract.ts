@@ -36,6 +36,7 @@ export type {
   AIReqSelection,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
+  AIReqSkillDesignSession,
   AIReqSystemRequirement,
   AIReqWorkflowResult,
   AIReqWorkflowView,

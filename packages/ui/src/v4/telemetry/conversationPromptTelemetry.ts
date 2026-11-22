@@ -31,14 +31,12 @@ export function buildV4ConversationPromptTelemetryExtraDetail(params: {
   configProvider?: string | null;
   modelName?: string | null;
   askMode?: string | null;
-  providerBaseURL?: string | null;
 }): Record<string, string> {
   const agentProvider = params.agentProvider ?? ZCODE_AGENT_PROVIDER;
   const base = buildPromptTelemetryExtraDetail({
     askMode: params.askMode,
     modelName: resolveLegacyConversationModelValue(params),
     provider: agentProvider,
-    providerBaseURL: params.providerBaseURL,
   });
   return {
     ...base,

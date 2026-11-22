@@ -36,8 +36,8 @@ import type {
   AIReqSettingsDraftActions,
   AIReqSkillDesignDraft,
   AIReqSkillDesignPreview,
+  AIReqSkillDesignSession,
 } from "../contract.js";
-import type { SkillSummary } from "@zcode/shared";
 import { AIReqSkillBriefForm } from "./AIReqSkillBriefForm.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { cn } from "@/components/lib/utils.js";
@@ -98,7 +98,7 @@ function SkillDesignEditor({
 } & SkillDesignPageProps) {
   const source = useAIReqDataSource();
   const design = source.skillDesign!;
-  const [session, setSession] = useState<{ id: string; identity: string }>();
+  const [session, setSession] = useState<AIReqSkillDesignSession>();
   const [loadError, setLoadError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -108,9 +108,8 @@ function SkillDesignEditor({
     setLoadError("");
     void (async () => {
       try {
-        const id = await design.session(projectId);
-        const identity = await design.workspaceIdentity(projectId);
-        if (active) setSession({ id, identity });
+        const next = await design.session(projectId);
+        if (active) setSession(next);
       } catch (cause) {
         if (active) setLoadError(formatUserFacingError(cause, "加载技能设计会话失败，请重试。"));
       }
@@ -138,12 +137,11 @@ function SkillDesignEditor({
     );
   return (
     <ReadySkillDesignEditor
-      key={session.id}
+      key={session.sessionId}
       {...{ projectId, projectName, workspacePath, developmentRoot }}
       active={active}
       onDraftActionsChange={onDraftActionsChange}
-      sessionId={session.id}
-      identity={session.identity}
+      session={session}
     />
   );
 }
@@ -153,8 +151,7 @@ function ReadySkillDesignEditor({
   projectName,
   workspacePath,
   developmentRoot,
-  sessionId,
-  identity,
+  session: { sessionId, workspaceIdentity, temporaryDirectory },
   active: editorActive,
   onDraftActionsChange,
 }: {
@@ -162,19 +159,17 @@ function ReadySkillDesignEditor({
   projectName: string;
   workspacePath: string;
   developmentRoot?: string;
-  sessionId: string;
-  identity: string;
+  session: AIReqSkillDesignSession;
 } & SkillDesignPageProps) {
   const source = useAIReqDataSource();
   const design = source.skillDesign!;
   const scope = useMemo(
-    () => ({ workspacePath, workspaceIdentity: `${identity}:skill-design` }),
-    [workspacePath, identity],
+    () => ({ workspacePath, workspaceIdentity }),
+    [workspacePath, workspaceIdentity],
   );
   const [draft, setDraft] = useState<AIReqSkillDesignDraft>();
   const [preview, setPreview] = useState<AIReqSkillDesignPreview>();
-  const [temporaryDirectory, setTemporaryDirectory] = useState("");
-  const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [skillPaths, setSkillPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filling, setFilling] = useState(false);
@@ -217,7 +212,7 @@ function ReadySkillDesignEditor({
       : developmentRoot
         ? `${developmentRoot}/.omp/skills/${targetName}`
         : undefined;
-  const collision = skills.some((skill) => skill.path === `${targetDirectory}/SKILL.md`);
+  const collision = skillPaths.includes(`${targetDirectory}/SKILL.md`);
   const file = preview?.files.find((item) => item.path === selectedFile) ?? preview?.files[0];
   const viewedCount =
     viewedFiles?.revision === preview?.revision
@@ -251,7 +246,8 @@ function ReadySkillDesignEditor({
     pendingDraftSaves.current++;
     setPendingDraftSaveCount(pendingDraftSaves.current);
     const save = draftSave.current.then(async () => {
-      await design.saveDraft(sessionId, next);
+      const { notes: _notes, ...fields } = next;
+      await design.saveDraft(sessionId, fields);
     });
     draftSave.current = save.catch(() => {});
     return save
@@ -288,11 +284,10 @@ function ReadySkillDesignEditor({
       const editVersion = draftVersion.current;
       const canReadDraft = pendingDraftSaves.current === 0 && !draftSaveError.current;
       try {
-        const [nextDraft, next, directory, nextSkills] = await Promise.all([
+        const [nextDraft, next, nextSkillPaths] = await Promise.all([
           design.read(sessionId),
           design.readPreview(sessionId),
-          design.temporaryDirectory(sessionId),
-          design.listSkills(workspacePath),
+          design.listSkills(sessionId),
         ]);
         if (disposed || request !== revision) return;
         // 表单编辑由本地序列保护；对话追加 notes 则仍以服务端事实更新。
@@ -317,8 +312,7 @@ function ReadySkillDesignEditor({
         );
         if (next?.savedReceipt?.revision === next?.revision && next?.savedReceipt)
           setSaveTarget(next.savedReceipt.target);
-        setTemporaryDirectory(directory);
-        setSkills(nextSkills);
+        setSkillPaths(nextSkillPaths);
         if (!draftSaveError.current) setError("");
         setLoading(false);
       } catch (cause) {
@@ -336,7 +330,7 @@ function ReadySkillDesignEditor({
       active.current = false;
       subscription.dispose();
     };
-  }, [design, sessionId, workspacePath, refreshAttempt]);
+  }, [design, sessionId, refreshAttempt]);
   const handleInsertApplied = useCallback((appliedId: number) => {
     const pending = pendingInsert.current;
     if (pending?.requestId !== appliedId) return;
@@ -357,14 +351,15 @@ function ReadySkillDesignEditor({
     try {
       await draftSave.current;
       if (draftSaveError.current) throw draftSaveError.current;
-      const text = await design.prompt(sessionId, draft);
+      const { notes: _notes, ...fields } = draft;
+      const text = await design.prompt(sessionId, fields);
       if (!active.current) return;
       const request: ExternalTextInsertRequest & { summary: string } = {
         requestId: ++requestId.current,
         text,
         mode: "append",
         replaceText: lastFilledText.current,
-        summary: draft.goal.trim() || "已整理技能说明，可展开核对全部内容。",
+        summary: fields.goal.trim() || "已整理技能说明，可展开核对全部内容。",
       };
       pendingInsert.current = request;
       setInsertRequest(request);
@@ -406,14 +401,7 @@ function ReadySkillDesignEditor({
     try {
       await draftSave.current;
       if (draftSaveError.current) throw draftSaveError.current;
-      const receipt = await design.savePreview(
-        sessionId,
-        developmentRoot ?? "",
-        targetName,
-        saveTarget,
-        revision,
-        operationId,
-      );
+      const receipt = await design.savePreview(sessionId, saveTarget, revision, operationId);
       if (!active.current || previewRevision.current !== revision) return false;
       setSavedReceipt(receipt);
       setError("");
@@ -676,7 +664,7 @@ function ReadySkillDesignEditor({
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <p className="break-all font-mono text-ui-sm text-foreground-subtle">
-                          {preview.directory}/{file?.path}
+                          {temporaryDirectory}/{file?.path}
                         </p>
                       </CollapsibleContent>
                     </Collapsible>

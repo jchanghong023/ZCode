@@ -29,6 +29,13 @@ export interface IBroadcastService {
   onMessage: Event<BroadcastMessage>;
 }
 
+export type WebBroadcastMessage = Pick<BroadcastMessage, "channel" | "payload">;
+
+export interface WebBroadcastService {
+  send(message: WebBroadcastMessage): Promise<void>;
+  onMessage: Event<WebBroadcastMessage>;
+}
+
 export const IBroadcastService = createServiceDescriptor<IBroadcastService>(
   ServiceChannels.Broadcast,
 );

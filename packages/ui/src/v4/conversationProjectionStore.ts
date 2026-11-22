@@ -1,5 +1,3 @@
-import type { SessionLifecycleSnapshot } from "@zcode/shared";
-import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 /* eslint-disable max-lines -- projection/base/recovery/optimistic 必须共享一个原子 store 状态机，拆分会重新引入跨对象竞态。 */
 // Per-session projection store（只读 projection store）。
 // 唯一写入方是订阅推送；UI 只读。客户端遵守三条规则：
@@ -20,7 +18,6 @@ import {
   type ConversationOpenTiming,
   type ConversationTopicFrame,
   type SessionModelTransition,
-  type ToolCallRow,
   type TopicFrameDeliveryKind,
 } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
@@ -124,7 +121,6 @@ export interface OptimisticCommand {
 
 export interface ConversationStoreState {
   status: ConversationStoreStatus;
-  lifecycle?: SessionLifecycleSnapshot;
   projectionReady?: boolean;
   snapshot: ConversationSnapshot | null;
   subscriptionId: string | null;
@@ -143,11 +139,6 @@ export interface ConversationStoreState {
   } | null;
   /** loadOlder 在途标记（自动预取防重入）。 */
   loadingOlder: boolean;
-  /** CLI 完整有效 projection 返回的终态计划目录。 */
-  sessionPlans: readonly ToolCallRow[];
-  /** 只用于触发计划目录只读 query，不属于 conversation 协议事实。 */
-  planDirectoryRevision: number;
-  plansLoading: boolean;
   /**
    * 问题导航目录（turn navigator）的失效代际。
    * not-enough-queries 终态过去只以 logEpoch 判定有效，但
@@ -174,31 +165,8 @@ const INITIAL_STATE: ConversationStoreState = {
   optimisticCommands: [],
   editPresentation: null,
   loadingOlder: false,
-  sessionPlans: [],
-  planDirectoryRevision: 0,
-  plansLoading: false,
   turnNavigatorDirectoryRevision: 0,
 };
-
-const TERMINAL_PLAN_STATUSES: ReadonlySet<ToolCallRow["status"]> = new Set([
-  "success",
-  "error",
-  "cancelled",
-]);
-
-function shouldInvalidatePlanDirectory(frame: ConversationTopicFrame): boolean {
-  if (frame.payload.kind === "snapshot") return true;
-  return frame.payload.deltas.some((delta) => {
-    if (delta.op === "row.removed") return true;
-    if (delta.op !== "row.appended" && delta.op !== "row.upserted") return false;
-    const row = delta.row;
-    return (
-      row.kind === "toolCall" &&
-      row.toolName === "ExitPlanMode" &&
-      TERMINAL_PLAN_STATUSES.has(row.status)
-    );
-  });
-}
 
 /**
  * 问题导航目录是否需要失效。
@@ -447,7 +415,6 @@ export class ConversationProjectionStore {
     /** 本次 flight 是为内容确定性失败发起的：终态用 contentRejected，不混进瞬态统计。 */
     contentFault: boolean;
   } | null = null;
-  private readonly offSessionLifecycle: (() => void) | undefined;
   private readonly offAssemblyFault: () => void;
   private readonly offRuntimeRestart: (() => void) | null = null;
   private readonly offRuntimeLifecycle: (() => void) | null = null;
@@ -455,8 +422,6 @@ export class ConversationProjectionStore {
   private runtimeRecycleRetryAttempt = 0;
   private sessionOpenRendererTiming: SessionOpenRendererTiming = {};
   private initialSubscribeAckAt: number | null = null;
-  private planQueryInFlight = false;
-  private planQueryPending = false;
   /** accepted input 的 projection confirmation watchdog；不承载命令，也不生成本地事实。 */
   private readonly acceptedInputProjectionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   // hydrated/not-enough-queries 终态缓存。过去仅以
@@ -478,9 +443,6 @@ export class ConversationProjectionStore {
     private readonly rowPool: ConversationRowPool = new ConversationRowPool(),
   ) {
     liveProjectionStores.add(this);
-    this.offSessionLifecycle = transport.onSessionLifecycle?.((snapshot) =>
-      this.handleSessionLifecycle(snapshot),
-    );
     this.offAssemblyFault = transport.onAssemblyFault((fault) => {
       if (fault.topic === this.topic) {
         this.handleAssemblyFault(fault.subscriptionId, fault.deliveryKind, fault.reasonCode);
@@ -555,40 +517,6 @@ export class ConversationProjectionStore {
    * 发起/重发订阅。base 取自当前 snapshot 水位（水位不变量：仅当真持有该时刻
    * 一致状态才携带）；forceSnapshot 用于 resume 续传帧仍断档的兜底，丢 base 要全量。
    */
-  private handleSessionLifecycle(snapshot: SessionLifecycleSnapshot, queried = false): void {
-    if (this.closed || snapshot.sessionId !== parseConversationTopic(this.topic)) return;
-    const previous = this.state.lifecycle;
-    if (previous && snapshot.revision <= previous.revision) return;
-    this.setState({ lifecycle: snapshot });
-    if (snapshot.state === "stopping" || snapshot.state === "faulted") {
-      this.generation += 1;
-      this.clearRuntimeRecycleRetry();
-      this.discardRecovery();
-      this.awaitingInitial = null;
-      this.subscriptionHasAppliedBase = false;
-      this.setState({
-        subscriptionId: null,
-        editPresentation: null,
-        projectionReady: false,
-        status: snapshot.state === "faulted" ? "error" : "connecting",
-        lastError: snapshot.lastError?.message ?? null,
-      });
-      return;
-    }
-    if (snapshot.state === "unloaded" && snapshot.lastError) {
-      this.setState({ status: "error", lastError: snapshot.lastError.message });
-      return;
-    }
-    if (
-      !queried &&
-      (snapshot.state === "starting" || snapshot.state === "ready") &&
-      !this.state.subscriptionId &&
-      this.connectInFlight === 0
-    ) {
-      void this.connect({ forceSnapshot: true });
-    }
-  }
-
   async connect(
     options: {
       forceSnapshot?: boolean;
@@ -622,15 +550,6 @@ export class ConversationProjectionStore {
       rendererTiming: this.sessionOpenRendererTiming,
     });
     try {
-      const sessionId = parseConversationTopic(this.topic);
-      const getSessionLifecycle = this.transport.getSessionLifecycle;
-      if (sessionId && getSessionLifecycle) {
-        const lifecycle = await getSessionLifecycle.call(this.transport, sessionId);
-        if (generation !== this.generation || this.closed) return;
-        if (lifecycle) this.handleSessionLifecycle(lifecycle, true);
-        if (this.state.lifecycle?.state === "stopping" || this.state.lifecycle?.state === "faulted")
-          return;
-      }
       const result = await this.transport.subscribe({
         topic: this.topic,
         base: snapshot ? { logEpoch: snapshot.logEpoch, seq: snapshot.seq } : undefined,
@@ -728,16 +647,6 @@ export class ConversationProjectionStore {
       this.setState({ status: "error", lastError: message });
     } finally {
       this.connectInFlight -= 1;
-      // 旧 subscribe 可能在 stopping 后迟到；starting/ready 已到达时接续一次新订阅。
-      if (
-        generation !== this.generation &&
-        !this.closed &&
-        this.connectInFlight === 0 &&
-        !this.state.subscriptionId &&
-        (this.state.lifecycle?.state === "starting" || this.state.lifecycle?.state === "ready")
-      ) {
-        void this.connect({ forceSnapshot: true });
-      }
     }
   }
 
@@ -790,7 +699,6 @@ export class ConversationProjectionStore {
       status: "connecting",
       subscriptionId: null,
       editPresentation: null,
-      lifecycle: undefined,
       projectionReady: false,
     });
     // 不能只 dormant 等 available：agent 懒启动，dispose 后无人拉起时该信号永不到达，
@@ -895,7 +803,6 @@ export class ConversationProjectionStore {
       this.setState({
         snapshot,
         projectionReady: true,
-        planDirectoryRevision: this.state.planDirectoryRevision + 1,
         // snapshot 整体替换后 real-user query 集合可能已变，终态缓存必须失效。
         turnNavigatorDirectoryRevision: this.state.turnNavigatorDirectoryRevision + 1,
       });
@@ -955,25 +862,8 @@ export class ConversationProjectionStore {
     // 先于 setState 登记分区：订阅方在同一次通知里读取新 rows 时，分区已就绪。
     advanceConversationRowsPartition(current.rows.window, next.rows.window, frame.payload.deltas);
     logSubagentProjectionTransition(this.topic, current, next, "deltas");
-    const removedFromRowId = frame.payload.deltas.reduce<number | null>(
-      (earliest, delta) =>
-        delta.op === "row.removed"
-          ? Math.min(earliest ?? delta.fromRowId, delta.fromRowId)
-          : earliest,
-      null,
-    );
     this.setState({
       snapshot: next,
-      // row.removed 已给出权威裁剪边界，可以同步删掉缓存目录中的旧分支计划；
-      // 完整 query 继续负责补回 wire tail 之外、但仍属于当前分支的早期计划。
-      ...(removedFromRowId === null
-        ? {}
-        : {
-            sessionPlans: this.state.sessionPlans.filter((row) => row.rowId < removedFromRowId),
-          }),
-      ...(shouldInvalidatePlanDirectory(frame)
-        ? { planDirectoryRevision: this.state.planDirectoryRevision + 1 }
-        : {}),
       // real-user query 增删（row.appended/row.upserted 命中 realUser userInput，
       // 或 row.removed 截断分支）递增导航目录 revision，使终态缓存失效允许重新探测。
       ...(shouldInvalidateTurnNavigatorDirectory(frame)
@@ -986,7 +876,6 @@ export class ConversationProjectionStore {
     this.reconcileOptimistic(next);
     this.reconcileAcceptedInputProjection(next);
     this.observeModelTransition(next, context.online);
-    if (context.online && !context.recovery) getLocalTtftObserver()?.projected(frame);
     if (context.recovery) this.markRecoveryFrameSeen();
   }
 
@@ -1288,7 +1177,6 @@ export class ConversationProjectionStore {
     this.setState({
       status: "connecting",
       subscriptionId: null,
-      lifecycle: undefined,
       projectionReady: false,
     });
     // proxy handoff 不等于 CLI runtime 重启；强制 snapshot 会把用户已加载的
@@ -1502,54 +1390,6 @@ export class ConversationProjectionStore {
     }
   }
 
-  /**
-   * 按本地失效 revision 合并并发的计划目录查询。
-   * 旧计划可能早于 snapshot tail；同时 edit/retry 的 row.removed 会让在途
-   * query 立刻过期，必须以 revision + epoch 双重校验，不能把旧分支计划重新写回 UI。
-   */
-  async refreshPlans(): Promise<void> {
-    const plans = this.transport.plans;
-    if (this.closed || !plans) return;
-    if (this.planQueryInFlight) {
-      this.planQueryPending = true;
-      return;
-    }
-    const snapshot = this.state.snapshot;
-    const sessionId = parseConversationTopic(this.topic);
-    if (!snapshot || !sessionId) return;
-    const requestedGeneration = this.generation;
-    const requestedRevision = this.state.planDirectoryRevision;
-    this.planQueryInFlight = true;
-    this.setState({ plansLoading: true });
-    try {
-      const result = await plans.call(this.transport, { sessionId });
-      if (this.closed) return;
-      if (this.generation !== requestedGeneration) return;
-      const current = this.state.snapshot;
-      if (!current || current.logEpoch !== result.atLogEpoch) {
-        return;
-      }
-      if (this.state.planDirectoryRevision !== requestedRevision) {
-        this.planQueryPending = true;
-        return;
-      }
-      this.setState({ sessionPlans: result.plans });
-    } catch (error) {
-      if (!this.closed) {
-        logger.warn(
-          `[v4-store] plans ${this.topic} 失败: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    } finally {
-      this.planQueryInFlight = false;
-      if (!this.closed) this.setState({ plansLoading: false });
-      if (this.planQueryPending && !this.closed) {
-        this.planQueryPending = false;
-        void this.refreshPlans();
-      }
-    }
-  }
-
   /** 命令上行前登记 overlay（pending/stopping 展示用）。 */
   markCommandPending(command: OptimisticCommand): void {
     if (this.closed) return;
@@ -1691,7 +1531,6 @@ export class ConversationProjectionStore {
       topic: this.topic,
     });
     this.closed = true;
-    this.offSessionLifecycle?.();
     this.offAssemblyFault();
     this.offRuntimeRestart?.();
     this.offRuntimeLifecycle?.();

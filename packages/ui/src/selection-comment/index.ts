@@ -1,15 +1,6 @@
-export { SelectionCommentEditor } from "@/selection-comment/SelectionCommentEditor.js";
-export type { SelectionCommentEditorProps } from "@/selection-comment/contract.js";
-export { useSelectionCommentSupport } from "@/selection-comment/useSelectionCommentSupport.js";
-export {
-  AnnotationNumber,
-  annotationVariant,
-  type AnnotationNumberVariant,
-} from "@/selection-comment/AnnotationNumber.js";
-export {
-  ConversationAnnotationMarks,
-  type AnnotationMarkItem,
-} from "@/selection-comment/ConversationAnnotationMarks.js";
+export { AnnotationNumber, annotationVariant } from "@/selection-comment/AnnotationNumber.js";
+export { ConversationAnnotationMarks } from "@/selection-comment/ConversationAnnotationMarks.js";
+export type { AnnotationMarkItem } from "@/selection-comment/contract.js";
 export {
   ANNOTATION_UNDO_MS,
   deleteConversationAnnotationWithUndo,

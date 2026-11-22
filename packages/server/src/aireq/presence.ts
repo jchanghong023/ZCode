@@ -53,7 +53,6 @@ export class AIReqPresence {
       );
     return {
       revision: this.revision,
-      employeeCount: new Set(rows.map((row) => row.employeeId)).size,
       rows,
     };
   }

@@ -1,7 +1,6 @@
 import type { AssistantTextRow, UserInputRow } from "@zcode/shared/zcode-protocol-v4";
 import type { ChatSearchResultHighlightRequest } from "@/v4/legacyChatViewTypes.js";
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
-import { projectAssistantCodeComments } from "@/lib/assistantCodeComment.js";
 
 export type ConversationFindRowKind = "userInput" | "assistantText";
 
@@ -37,15 +36,7 @@ interface ConversationFindTarget {
   normalizedText: string;
 }
 
-type FindOptions = { projectAssistantCodeComments?: boolean };
-type FindTextCache = WeakMap<
-  UserInputRow | AssistantTextRow,
-  {
-    projected: boolean;
-    text: string;
-    normalizedText: string;
-  }
->;
+type FindTextCache = WeakMap<UserInputRow | AssistantTextRow, string>;
 
 export function normalizeConversationFindQuery(query: string): string {
   return query.trim().toLocaleLowerCase();
@@ -55,68 +46,46 @@ function addTargetsForUnit(
   targets: ConversationFindTarget[],
   unit: ConversationTurnRenderUnit,
   unitIndex: number,
-  projectCodeComments: boolean,
-  cache?: FindTextCache,
+  cache: FindTextCache,
 ) {
-  const latestAssistantState = unit.latestAssistantTextRow?.state;
-  const projectUnitCodeComments =
-    projectCodeComments &&
-    (unit.isRunning ||
-      latestAssistantState === "complete" ||
-      latestAssistantState === "interrupted");
   for (const row of unit.visibleUserInputs) {
-    targets.push(createTarget(unitIndex, row, false, cache));
+    targets.push(createTarget(unitIndex, row, cache));
   }
   for (const row of unit.assistantTextRows) {
-    targets.push(createTarget(unitIndex, row, projectUnitCodeComments, cache));
+    targets.push(createTarget(unitIndex, row, cache));
   }
 }
 
 function createTarget(
   unitIndex: number,
   row: UserInputRow | AssistantTextRow,
-  projected: boolean,
-  cache?: FindTextCache,
+  cache: FindTextCache,
 ): ConversationFindTarget {
-  let prepared = cache?.get(row);
-  if (!prepared || prepared.projected !== projected) {
-    const text =
-      projected && row.kind === "assistantText"
-        ? projectAssistantCodeComments(row.text, { streaming: row.state === "streaming" })
-            .visibleText
-        : row.text;
-    prepared = { projected, text, normalizedText: text.toLocaleLowerCase() };
-    cache?.set(row, prepared);
+  let normalizedText = cache.get(row);
+  if (normalizedText === undefined) {
+    normalizedText = row.text.toLocaleLowerCase();
+    cache.set(row, normalizedText);
   }
   return {
     unitIndex,
     rowId: row.rowId,
     rowKind: row.kind,
-    text: prepared.text,
-    normalizedText: prepared.normalizedText,
+    text: row.text,
+    normalizedText,
   };
 }
 
-export function buildConversationFindIndex(
-  units: readonly ConversationTurnRenderUnit[],
-  query: string,
-  options: FindOptions = {},
-): ConversationFindIndex {
-  return buildFindIndex(units, query, options);
-}
-
-/** query 逐字变化时不能反复投影和转小写全部历史；弱引用跟随不可变 row 的生命期。 */
+/** query 逐字变化时不能反复转小写全部历史；弱引用跟随不可变 row 的生命期。 */
 export function createConversationFindIndexBuilder() {
   const cache: FindTextCache = new WeakMap();
-  return (units: readonly ConversationTurnRenderUnit[], query: string, options: FindOptions = {}) =>
-    buildFindIndex(units, query, options, cache);
+  return (units: readonly ConversationTurnRenderUnit[], query: string) =>
+    buildFindIndex(units, query, cache);
 }
 
 function buildFindIndex(
   units: readonly ConversationTurnRenderUnit[],
   query: string,
-  options: FindOptions,
-  cache?: FindTextCache,
+  cache: FindTextCache,
 ): ConversationFindIndex {
   const normalizedQuery = normalizeConversationFindQuery(query);
   if (!normalizedQuery) {
@@ -131,15 +100,7 @@ function buildFindIndex(
     };
   }
   const targets: ConversationFindTarget[] = [];
-  units.forEach((unit, unitIndex) =>
-    addTargetsForUnit(
-      targets,
-      unit,
-      unitIndex,
-      options.projectAssistantCodeComments === true,
-      cache,
-    ),
-  );
+  units.forEach((unit, unitIndex) => addTargetsForUnit(targets, unit, unitIndex, cache));
 
   const matches: ConversationFindMatch[] = [];
   for (const target of targets) {

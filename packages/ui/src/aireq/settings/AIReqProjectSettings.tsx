@@ -219,7 +219,7 @@ export function AIReqProjectSettings({
         projectId: releaseProjectId,
         title: releaseTitle,
       });
-      if (result?.status !== "completed") {
+      if (result?.receipt.status !== "completed") {
         setReleaseError("未能添加 Release，请检查名称和所属项目。");
         return false;
       }

@@ -7,7 +7,7 @@ const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const text = z.string();
 const employee = z.union([z.string().regex(/^[a-z][0-9]{8}$/), z.literal("")]);
 const operation = { operationId: id, expectedRevision: revision };
-export const selectionSchema = z
+const selectionSchema = z
   .object({
     projectId: id.optional(),
     irId: id.optional(),
@@ -115,7 +115,7 @@ const actionSchema = z.union([
     target: z.enum(["requirements", "solution", "test-plan"]),
     note: text,
   }),
-  action("deleteRequirement", { version: z.literal(1), projectId: id, irId: id }),
+  action("deleteRequirement", { projectId: id, irId: id }),
   action("acceptProposal", { reviewId: id, snapshotDigest: id }),
   action("submitProposalReview", {
     ...target.shape,
@@ -144,7 +144,7 @@ const modelSettings = z
     ),
   })
   .strict();
-const draft = z
+const draftFields = z
   .object({
     goal: text,
     when: text,
@@ -153,7 +153,6 @@ const draft = z
     boundaries: text,
     references: text,
     example: text,
-    notes: z.array(text),
   })
   .strict();
 
@@ -181,12 +180,10 @@ export const argumentSchemas = {
   "models.save": z.tuple([modelSettings, revision]),
   "prompts.save": z.tuple([z.record(z.string(), text), revision]),
   "skillDesign.session": z.tuple([id]),
-  "skillDesign.workspaceIdentity": z.tuple([id]),
   "skillDesign.read": z.tuple([id]),
-  "skillDesign.saveDraft": z.tuple([id, draft]),
-  "skillDesign.prompt": z.tuple([id, draft]),
-  "skillDesign.temporaryDirectory": z.tuple([id]),
+  "skillDesign.saveDraft": z.tuple([id, draftFields]),
+  "skillDesign.prompt": z.tuple([id, draftFields]),
   "skillDesign.readPreview": z.tuple([id]),
-  "skillDesign.listSkills": z.tuple([text]),
-  "skillDesign.savePreview": z.tuple([id, text, id, z.enum(["project", "user"]), revision, id]),
+  "skillDesign.listSkills": z.tuple([id]),
+  "skillDesign.savePreview": z.tuple([id, z.enum(["project", "user"]), revision, id]),
 } satisfies Record<AIReqRemotePath, z.ZodType>;

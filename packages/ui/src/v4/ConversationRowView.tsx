@@ -1,4 +1,3 @@
-import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
 import { expandTopicInputMessages } from "@/v4/topicInputMessages.js";
@@ -10,7 +9,6 @@ import {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,22 +24,16 @@ import {
   GoalIcon,
   InfoIcon,
   PencilIcon,
-  ThumbsDownIcon,
-  ThumbsUpIcon,
-  TrendingUpDownIcon,
   XIcon,
 } from "lucide-react";
 import { parseAutomationRunId } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import { resolveProviderLabel } from "@/lib/registryProviderView.js";
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import {
   TID_V4_EDIT,
   TID_V4_EDIT_ATTACHMENT_REMOVE,
   TID_V4_EDIT_IN_COMPOSER_HINT,
-  TID_V4_FEEDBACK_DISLIKE,
-  TID_V4_FEEDBACK_LIKE,
-  TID_V4_FORK,
   TID_V4_ROW,
   TID_V4_ROW_ATTACHMENTS,
   testId,
@@ -62,8 +54,6 @@ import type {
   UserInputRow,
 } from "@zcode/shared/zcode-protocol-v4";
 import { AssistantPreviewCards } from "@/AssistantPreviewCards.js";
-import { AssistantCodeCommentCards } from "@/AssistantCodeCommentCards.js";
-import { useAssistantCodeCommentFeatureEnabled } from "@/AssistantCodeCommentFeatureProvider.js";
 import {
   Attachment,
   AttachmentPreview,
@@ -98,9 +88,7 @@ import {
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { usePlatform, useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
-import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
 import {
@@ -108,10 +96,6 @@ import {
   FileDisplayInline,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
-import {
-  projectAssistantCodeComments,
-  type AssistantCodeCommentCard,
-} from "@/lib/assistantCodeComment.js";
 import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
 import {
   isConversationReasoningRowVisible,
@@ -127,15 +111,11 @@ import { WebElementContextAttachmentChip } from "@/v4/composer/WebElementContext
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
 import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip.js";
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
-import { BotGroupSourceLabel } from "@/v4/BotTopicPreparation.js";
+import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
-import {
-  ForkDestinationMenu,
-  WorktreeCreatedMarker,
-  useForkDestination,
-} from "@/managed-worktrees/index.js";
+import { WorktreeCreatedMarker } from "@/managed-worktrees/index.js";
 
 function RowShell({
   rowId,
@@ -238,17 +218,11 @@ const CopyRowAction = memo(function CopyRowAction({
 }) {
   const { writeClipboardText } = usePlatform();
   const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     if (!text) return;
-    void runUserActionAsync({
-      input: { featureId: "conversation.history.feedback", action: "copy", trigger: "button" },
-      operation: () => writeClipboardText(text),
-      completed: { resultSource: "platform_result" },
-      failureStage: "clipboard_write",
-    }).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    });
+    await writeClipboardText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
   }, [text, writeClipboardText]);
   return (
     <MessageAction
@@ -257,7 +231,7 @@ const CopyRowAction = memo(function CopyRowAction({
       tooltip={tooltip}
       data-testid={`v4-copy-${rowId}`}
       disabled={text.length === 0}
-      onClick={handleCopy}
+      onClick={() => void handleCopy()}
     >
       {copied ? <CheckIcon className="size-3.5 text-success" /> : <CopyIcon className="size-3.5" />}
     </MessageAction>
@@ -267,8 +241,6 @@ const CopyRowAction = memo(function CopyRowAction({
 /** 请求在底部 composer 编辑该 user 行；提交由 composer 完成。 */
 export type UserInputEditHandler = (target: ConversationRowTarget) => Promise<void> | void;
 
-type AssistantMessageFeedback = "like" | "dislike";
-
 function getAttachmentTypeLabel(filename: string, mimeType: string): string {
   const leaf = filename.split(/[\\/]/u).at(-1) ?? filename;
   const dotIndex = leaf.lastIndexOf(".");
@@ -276,17 +248,6 @@ function getAttachmentTypeLabel(filename: string, mimeType: string): string {
     return leaf.slice(dotIndex + 1).toUpperCase();
   }
   return (mimeType.split("/").at(-1) ?? mimeType).toUpperCase();
-}
-
-export type AssistantFeedbackHandler = (
-  target: ConversationRowTarget,
-  feedback: AssistantMessageFeedback | null,
-) => Promise<boolean | void> | boolean | void;
-
-export function readAssistantFeedback(row: AssistantTextRow): AssistantMessageFeedback | null {
-  // feedback 是 additive V4 row 字段；兼容旧 CLI 的 row 时缺省为 null。
-  const feedback = row.feedback;
-  return feedback === "like" || feedback === "dislike" ? feedback : null;
 }
 
 export interface EditWorkspaceRewindAvailability {
@@ -298,10 +259,6 @@ export interface ConversationRowViewProps {
   row: ConversationRow;
   /** 渲染上下文（theme/codePreviewSettings/workspacePath）；宿主保证引用稳定。 */
   context: ConversationRowRenderContext;
-  /** 完成态 assistant 行的 fork 入口（forkAssistant command）。 */
-  onFork?: (target: ConversationRowTarget) => void;
-  /** assistant entity 反馈 CAS；UI 先乐观更新，命令失败时回滚。 */
-  onFeedbackChange?: AssistantFeedbackHandler;
   /** 协议兼容：上层仍可提供 retryTurn capability，但产品 UI 不渲染普通重试入口。 */
   onRetry?: (target: ConversationRowTarget) => void;
   /** user 行的 edit 入口：进入底部 composer 编辑态，提交走 editUserQuery。 */
@@ -324,10 +281,6 @@ export interface ConversationRowViewProps {
   assistantPreviewCards?: AssistantPreviewCard[];
   /** 仅当前 renderer 观察到 running -> complete 时下发的一次性自动打开身份。 */
   assistantPreviewCardsAutoOpenKey?: string;
-  /** Assistant code-comment cards 只由 TurnGroup 为轮尾终态 assistant text 计算后下发。 */
-  assistantCodeCommentCards?: AssistantCodeCommentCard[];
-  /** 由 TurnGroup 统一裁决整轮正文是否隐藏 code-comment 协议原文。 */
-  assistantCodeCommentProjectionEnabled?: boolean;
 }
 
 // ── 每种行拆成独立 memo 叶子：虚拟列表下父级重渲染时，只有 props 真变的行重渲染；
@@ -1220,179 +1173,33 @@ const UserInputRowView = memo(function UserInputRowView(
 
 export const ConversationAssistantTextActions = memo(function ConversationAssistantTextActions({
   rowId,
-  entityId,
   text,
   createdAt,
   compactForRemoteControl = false,
-  feedback = null,
   hookInvocations,
-  sessionId,
   turnId,
-  onFork,
-  onFeedbackChange,
   className,
 }: {
   rowId: number;
-  entityId?: string;
   text: string;
   createdAt: number;
   compactForRemoteControl?: boolean;
-  feedback?: AssistantMessageFeedback | null;
   hookInvocations?: readonly HookInvocationRow[];
-  sessionId?: string | null;
   turnId?: string;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
-  onFeedbackChange?: AssistantFeedbackHandler;
   className?: string;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const platform = useOptionalPlatform();
-  const [localFeedback, setLocalFeedback] = useState<AssistantMessageFeedback | null>(feedback);
   const copyLabel = intl.formatMessage({ id: "chat.message.copy" });
-  const likeLabel = intl.formatMessage({
-    id: localFeedback === "like" ? "chat.message.liked" : "chat.message.like",
-  });
-  const dislikeLabel = intl.formatMessage({
-    id: localFeedback === "dislike" ? "chat.message.disliked" : "chat.message.dislike",
-  });
-  const forkLabel = intl.formatMessage({ id: "chat.message.fork" });
   const timeLabel = formatMessageTimeLabel(createdAt, locale, intl);
-  const resolveTooltip = (label: string): string | undefined =>
-    compactForRemoteControl ? undefined : label;
-
-  useEffect(() => {
-    setLocalFeedback(feedback);
-  }, [feedback]);
-
-  const handleFeedback = useCallback(
-    (nextFeedback: AssistantMessageFeedback) => {
-      const previousFeedback = localFeedback;
-      const resolvedFeedback = previousFeedback === nextFeedback ? null : nextFeedback;
-      setLocalFeedback(resolvedFeedback);
-      logger.info("[ConversationRowView] 用户反馈 assistant 消息", {
-        messageId: entityId ?? null,
-        reaction: resolvedFeedback ?? "none",
-      });
-      if (entityId) {
-        void Promise.resolve(onFeedbackChange?.({ rowId, entityId }, resolvedFeedback)).then(
-          (result) => {
-            if (result === false) setLocalFeedback(previousFeedback);
-          },
-          (error: unknown) => {
-            setLocalFeedback(previousFeedback);
-            // V4 初版只改 renderer local state，command 失败后会显示并不存在的反馈。
-            // 失败必须回滚到点击前投影值，等待后续权威 row 再校正。
-            logger.warn("[ConversationRowView] 持久化 assistant 反馈失败", {
-              error: error instanceof Error ? error.message : String(error),
-              messageId: entityId,
-            });
-          },
-        );
-      }
-      if (platform && entityId) {
-        void reportAppTelemetryEvent(
-          platform,
-          {
-            elementName: "assistant_message_feedback",
-            eventRegion: "chat",
-            eventType: "ck",
-            eventExtraDetail: { reaction: resolvedFeedback ?? "none" },
-            ...(sessionId ? { talkId: sessionId } : {}),
-            messageId: entityId,
-          },
-          "ConversationRowView",
-        );
-      }
-    },
-    [entityId, localFeedback, onFeedbackChange, platform, rowId, sessionId],
-  );
-  const handleFork = useCallback(() => {
-    if (entityId) {
-      runUserAction({
-        input: { featureId: "conversation.history.branch", action: "fork", trigger: "button" },
-        operation: () => onFork?.({ rowId, entityId }),
-        completed: { resultSource: "optimistic_projection" },
-        failureStage: "fork",
-      });
-    }
-  }, [entityId, onFork, rowId]);
-  const forkDestination = useForkDestination();
-  const forkToWorktree = forkDestination.forkToWorktree;
-  const handleForkToWorktree = useCallback(() => {
-    if (entityId && forkToWorktree) forkToWorktree({ rowId, entityId });
-  }, [entityId, forkToWorktree, rowId]);
   return (
     <MessageActions className={className}>
       <CopyRowAction
         text={text}
         rowId={rowId}
         label={copyLabel}
-        tooltip={resolveTooltip(copyLabel)}
+        tooltip={compactForRemoteControl ? undefined : copyLabel}
       />
-      {entityId && onFeedbackChange ? (
-        <>
-          <MessageAction
-            aria-label={likeLabel}
-            aria-pressed={localFeedback === "like"}
-            label={likeLabel}
-            tooltip={resolveTooltip(likeLabel)}
-            data-testid={testId(TID_V4_FEEDBACK_LIKE, String(rowId))}
-            className={localFeedback === "like" ? "!bg-success/10" : undefined}
-            onClick={() => handleFeedback("like")}
-          >
-            <span
-              className={cn(
-                "relative inline-flex",
-                localFeedback === "like" && "zcode-reaction-burst",
-              )}
-            >
-              <ThumbsUpIcon className="size-3.5" />
-            </span>
-          </MessageAction>
-          <MessageAction
-            aria-label={dislikeLabel}
-            aria-pressed={localFeedback === "dislike"}
-            label={dislikeLabel}
-            tooltip={resolveTooltip(dislikeLabel)}
-            data-testid={testId(TID_V4_FEEDBACK_DISLIKE, String(rowId))}
-            className={localFeedback === "dislike" ? "!bg-warning/10" : undefined}
-            onClick={() => handleFeedback("dislike")}
-          >
-            <span
-              className={cn(
-                "relative inline-flex",
-                localFeedback === "dislike" && "zcode-reaction-burst",
-              )}
-            >
-              <ThumbsDownIcon className="size-3.5" />
-            </span>
-          </MessageAction>
-        </>
-      ) : null}
-      {onFork && entityId ? (
-        forkToWorktree ? (
-          <ForkDestinationMenu
-            rowId={rowId}
-            label={forkLabel}
-            tooltip={resolveTooltip(forkLabel)}
-            worktreeAvailable={forkDestination.available}
-            inWorktree={forkDestination.inWorktree}
-            onForkHere={handleFork}
-            onForkToWorktree={handleForkToWorktree}
-          />
-        ) : (
-          <MessageAction
-            aria-label={forkLabel}
-            label={forkLabel}
-            tooltip={resolveTooltip(forkLabel)}
-            data-testid={testId(TID_V4_FORK, String(rowId))}
-            onClick={handleFork}
-          >
-            <TrendingUpDownIcon className="size-3.5" />
-          </MessageAction>
-        )
-      ) : null}
       {turnId && hookInvocations ? (
         <ConversationHookDetailsAction rows={hookInvocations} turnId={turnId} />
       ) : null}
@@ -1408,92 +1215,25 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
 const AssistantTextRowView = memo(function AssistantTextRowView({
   row,
   context,
-  onFork,
   onRetry,
-  onFeedbackChange,
   hideActions,
   deferActions,
   copyText,
   previewCards,
   previewCardsAutoOpenKey,
-  codeCommentCards,
-  codeCommentProjectionEnabled,
 }: {
   row: AssistantTextRow;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
-  onFeedbackChange?: AssistantFeedbackHandler;
   hideActions?: boolean;
   deferActions?: boolean;
   copyText?: string;
   previewCards?: AssistantPreviewCard[];
   previewCardsAutoOpenKey?: string;
-  codeCommentCards?: AssistantCodeCommentCard[];
-  codeCommentProjectionEnabled?: boolean;
 }) {
   const streaming = row.state === "streaming";
   const isOfficeMode = useIsOfficeMode();
-  const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
-  const projectsCodeComments = codeCommentCardsEnabled && codeCommentProjectionEnabled === true;
-  const visibleText = useMemo(
-    () =>
-      projectsCodeComments
-        ? projectAssistantCodeComments(row.text, { streaming }).visibleText
-        : row.text,
-    [projectsCodeComments, row.text, streaming],
-  );
   const visiblePreviewCards = previewCards && previewCards.length > 0 ? previewCards : null;
-  const textElement = useRef<HTMLDivElement>(null);
-  const paintFrames = useRef<number[]>([]);
-  useEffect(
-    () => () => {
-      for (const frame of paintFrames.current) cancelAnimationFrame(frame);
-    },
-    [],
-  );
-  useLayoutEffect(() => {
-    if (context.workspaceIdentity || !context.sessionId) return;
-    const observer = getLocalTtftObserver();
-    const args = [context.workspacePath, context.sessionId, row.turnId, row.rowId] as const;
-    if (!observer?.needsTextRender(...args)) return;
-    const element = textElement.current;
-    if (!element?.textContent?.trim()) return;
-    const visible = () => {
-      if (
-        !element.isConnected ||
-        document.visibilityState !== "visible" ||
-        !element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
-      )
-        return false;
-      const rect = element.getBoundingClientRect();
-      return (
-        rect.bottom > 0 &&
-        rect.right > 0 &&
-        rect.top < window.innerHeight &&
-        rect.left < window.innerWidth
-      );
-    };
-    if (!observer.textRendered(...args, "committed", visible())) return;
-    // 接收帧早于 React 提交；两次 rAF 只代表经过绘制机会，不能声称像素已上屏。
-    // 流式文本更新不能取消首帧观察，仅组件卸载取消，避免高频更新把计时拖到整轮结束。
-    paintFrames.current.push(
-      requestAnimationFrame(() => {
-        paintFrames.current.push(
-          requestAnimationFrame(() => {
-            observer.textRendered(...args, "paint_estimate", visible());
-          }),
-        );
-      }),
-    );
-  }, [
-    context.workspaceIdentity,
-    context.workspacePath,
-    context.sessionId,
-    row.turnId,
-    row.rowId,
-    visibleText,
-  ]);
   return (
     <RowShell rowId={row.rowId} className="group/assistant-row">
       {/* M5④ 阶段2：assistant 文本走 streamdown（MessageResponse），
@@ -1501,7 +1241,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
       {/* Bugfix：MessageResponse 只消费自身声明的 props，不会把 data-* 透传到真实 DOM，
           导致 assistant 正文虽然在 JSX 上标了 selectable，框选逻辑却永远找不到该区域。
           selectable 语义必须放在稳定的 DOM 包装层上，完成态和 streaming 共用同一路径。 */}
-      <div ref={textElement} data-conversation-selectable="true" className="w-full text-ui-base">
+      <div data-conversation-selectable="true" className="w-full text-ui-base">
         <MessageResponse
           renderZCodeFileCitations
           streaming={streaming}
@@ -1517,20 +1257,9 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           sessionId={context.sessionId ?? undefined}
           readAttachment={context.readAttachment}
         >
-          {visibleText}
+          {row.text}
         </MessageResponse>
       </div>
-      {codeCommentCardsEnabled && codeCommentCards && codeCommentCards.length > 0 ? (
-        <div className="mt-3">
-          <AssistantCodeCommentCards
-            cards={codeCommentCards}
-            workspacePath={context.workspacePath}
-            workspaceIdentity={context.workspaceIdentity}
-            workspaceRemoteSessionId={context.workspaceRemoteSessionId}
-            onOpenCodeViewer={context.onOpenCodeViewer}
-          />
-        </div>
-      ) : null}
       {visiblePreviewCards ? (
         <div className="mt-3">
           <AssistantPreviewCards
@@ -1546,21 +1275,16 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           />
         </div>
       ) : null}
-      {/* 完成态动作行悬停显现（对齐旧 MessageActions）：复制 + fork（图标 ghost）。
+      {/* 完成态操作栏在悬停时显示。
           一轮对用户是一个回复：action 只在轮尾段（hideActions 由 TurnGroup 裁决），
           复制内容 = 整轮全部 text 段合并（copyText 覆盖）。 */}
       {row.state === "complete" && !hideActions && !deferActions ? (
         <ConversationAssistantTextActions
           rowId={row.rowId}
-          entityId={row.entityId}
           text={copyText ?? row.text}
           createdAt={row.createdAt}
           compactForRemoteControl={context.compactForRemoteControl}
-          feedback={readAssistantFeedback(row)}
-          sessionId={context.sessionId}
-          onFork={onFork}
           onRetry={onRetry}
-          onFeedbackChange={onFeedbackChange}
           className={cn(
             "mt-1",
             context.compactForRemoteControl
@@ -1732,7 +1456,7 @@ export const ConversationTimelineMarkerDivider = memo(function ConversationTimel
   row: TimelineMarkerRow;
   isOfficeMode?: boolean;
   /** 模型目录；只读页没有目录，provider 名称回退到 ID。 */
-  modelSelectionView?: ModelSelectionView | null;
+  modelSelectionView?: WebModelSelectionView | null;
   /** fork 跳父会话；只读页不传。 */
   onNavigateToRow?: (sessionId: string, rowId: number) => void;
 }) {
@@ -2046,15 +1770,6 @@ const ToolCallRowView = memo(function ToolCallRowView({
           onOpenFileLink={context.onOpenFileLink}
           onOpenBrowserUrl={context.onOpenBrowserUrl}
           onOpenAutomationsMain={context.onOpenAutomationsMain}
-          onOpenPlanDetail={
-            context.onOpenPlanDetail && context.sessionId
-              ? (request) =>
-                  context.onOpenPlanDetail?.({
-                    ...request,
-                    parentSessionId: context.sessionId!,
-                  })
-              : undefined
-          }
           onOpenWorkflowRun={
             context.onOpenWorkflowRun && context.sessionId && workflowRun
               ? (request) =>
@@ -2138,15 +1853,12 @@ const SubagentRowView = memo(function SubagentRowView({ row }: { row: SubagentRo
 
 /**
  * v4 row 渲染分发。memo：虚拟列表逐行渲染，父投影变化时只有 props 真正变化的行才重渲染
- * （前提是 onFork/onRetry/onEdit 为稳定引用 + context 引用稳定，见 SessionPane 的
- * useCallback/useMemo）。
+ * （前提是 onRetry/onEdit 与 context 保持引用稳定，见 SessionPane 的 useCallback/useMemo）。
  */
 function ConversationRowViewImpl({
   row,
   context,
-  onFork,
   onRetry,
-  onFeedbackChange,
   onEdit,
   editWorkspaceRewindAvailability,
   hideAssistantActions,
@@ -2154,8 +1866,6 @@ function ConversationRowViewImpl({
   assistantCopyText,
   assistantPreviewCards,
   assistantPreviewCardsAutoOpenKey,
-  assistantCodeCommentCards,
-  assistantCodeCommentProjectionEnabled,
   reasoningContentVariant,
   userInputStatus,
 }: ConversationRowViewProps) {
@@ -2175,16 +1885,12 @@ function ConversationRowViewImpl({
         <AssistantTextRowView
           row={row}
           context={context}
-          onFork={onFork}
           onRetry={onRetry}
-          onFeedbackChange={onFeedbackChange}
           hideActions={hideAssistantActions}
           deferActions={deferAssistantActions}
           copyText={assistantCopyText}
           previewCards={assistantPreviewCards}
           previewCardsAutoOpenKey={assistantPreviewCardsAutoOpenKey}
-          codeCommentCards={assistantCodeCommentCards}
-          codeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       );
     case "reasoning":

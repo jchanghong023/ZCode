@@ -4,7 +4,9 @@ import type { MockAIReqOwner } from "./contract.js";
 export async function readSharedProject(service: MockAIReqOwner) {
   const identity = { employeeId: "j00808874", clientId: "contract-example" };
   const bootstrap = await service.bootstrap(identity);
-  const workflow = await service.call(identity, "readWorkflow", [bootstrap.initialSelection]);
+  const workflow = await service.call(identity, "readWorkflow", [
+    { projectId: bootstrap.initialProjectId },
+  ]);
   return {
     workflow,
     projects: workflow.view.projectDocuments,

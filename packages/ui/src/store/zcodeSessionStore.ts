@@ -7,14 +7,12 @@
 import { create } from "zustand";
 import { type ZCodeSessionStoreState } from "./zcodeSessionStoreTypes.js";
 import { getWorkspaceState } from "./zcodeSessionStoreSelectors.js";
-import { createNavigationSlice } from "./zcodeSessionStoreNavigation.js";
 import { createTaskSlice } from "./zcodeSessionStoreTaskSlice.js";
 import { createWorkspaceSlice } from "./zcodeSessionStoreWorkspaceSlice.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
 export const useZCodeSessionStore = create<ZCodeSessionStoreState>()((set, get) => ({
   workspaces: {},
-  ...createNavigationSlice(set, get),
   ...createWorkspaceSlice(set),
   ...createTaskSlice(set),
   getWorkspaceState: (workspacePath: string, workspaceIdentity?: string) =>
@@ -26,12 +24,6 @@ export const useZCodeSessionStore = create<ZCodeSessionStoreState>()((set, get) 
 // ────────────────────────────────────────────
 export * from "./zcodeSessionStoreTypes.js";
 export * from "./zcodeSessionStoreSelectors.js";
-// Re-export navigation types used externally:
-export type {
-  TaskNavigationHistory,
-  TaskNavEntry,
-  WorkspaceNavEntry,
-} from "@/lib/taskNavigationHistory.js";
 
 // 内存诊断计数器：workspace 桶全仓无删除路径，先落日志。
 uiMemoryDiagnosticsRegistry.register("sessionStore", () => ({

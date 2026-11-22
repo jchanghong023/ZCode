@@ -24,12 +24,14 @@ import {
   IFileService,
   IModelSelectionService,
   IProjectService,
-  IProviderSettingsService,
   ISettingService,
-  ISystemService,
   IZCodeAgentService,
+  WEB_MODEL_SELECTION_METHODS,
   type ServiceDescriptor,
   type ServiceExposurePolicy,
+  type WebBroadcastMessage,
+  type WebBroadcastService,
+  type WebProjectService,
   createZCodeAgentConnectionScope,
 } from "@zcode/services";
 import {
@@ -131,17 +133,15 @@ const publicMembers = new Map([
     "readMediaPreview",
     "readFileRange",
   ]),
-  publicService(ISystemService, ["info"]),
   publicService(IProjectService, ["resolveSessionDirectories", "readTree"]),
   publicService(IBroadcastService, ["send"], ["onMessage"]),
   publicService(ISettingService, ["get", "update"]),
-  publicService(IProviderSettingsService, ["getView", "refresh"]),
-  publicService(IModelSelectionService, ["getView"], ["onDidChange"]),
+  publicService(IModelSelectionService, WEB_MODEL_SELECTION_METHODS),
 ]);
 const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
 const chatExposure: ServiceExposurePolicy = {
   allowedMembers: new Map([
-    publicService(IModelSelectionService, ["getView"]),
+    publicService(IModelSelectionService, WEB_MODEL_SELECTION_METHODS),
     publicService(IZCodeAgentService, WEB_CHAT_AGENT_METHODS, WEB_AIREQ_AGENT_EVENTS),
   ]),
 };
@@ -170,7 +170,7 @@ function setupChannelServer(
     {
       allowCommandQueriesAcrossWorkspaces: exposure === chatExposure,
       // 不展开作用域代理：订阅和会话方法通过它转发，不能从可枚举属性重建。
-      advertiseDesktopControls: false,
+      webProtocol: true,
     },
   );
   overrides.set(IZCodeAgentService.channelName, connectionScope.service);
@@ -188,30 +188,50 @@ function setupAIReqChannelServer(
 ) {
   const overrides = getConnectionServices(services, identity);
   // 项目读取复用 AIReq 的可信连接身份，防止 mention 投影越权读取他人的私有会话。
-  const project = services.get(IProjectService);
+  const project = services.get<WebProjectService>(IProjectService);
   const connectionIdentity = Object.freeze(validateAIReqIdentity(identity));
-  const connectionProject: IProjectService = {
-    resolveSessionDirectories: (request) =>
-      withAIReqIdentity(connectionIdentity, () => project.resolveSessionDirectories(request)),
-    readTree: (request) => withAIReqIdentity(connectionIdentity, () => project.readTree(request)),
+  const connectionProject: WebProjectService = {
+    resolveSessionDirectories: (request, ...extra: unknown[]) => {
+      if (extra.length !== 0) {
+        throw Object.assign(new Error("会话目录查询只接收会话引用。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      return withAIReqIdentity(connectionIdentity, () => project.resolveSessionDirectories(request));
+    },
+    readTree: (...args: unknown[]) => {
+      if (args.length !== 0) {
+        throw Object.assign(new Error("项目树查询不接收参数。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      return withAIReqIdentity(connectionIdentity, () => project.readTree());
+    },
   };
   overrides.set(IProjectService.channelName, connectionProject);
-  // Web 产品不提供本机目录选择；保持读取契约但不下发真实主机 home 路径。
-  overrides.set(ISystemService.channelName, {
-    info: async () => ({ homedir: "", platform: process.platform }),
-  });
   const broadcast = services.get(IBroadcastService);
   const sourceWindowId = ++nextBroadcastSourceId;
-  const incoming = new Emitter<Parameters<IBroadcastService["send"]>[0]>();
+  const incoming = new Emitter<WebBroadcastMessage>();
   let closed = false;
   // 来源归连接而非客户端正文；同 clientId 的两个标签页也必须互相收到。
-  const broadcastListener = broadcast.onMessage((message) => {
-    if (!closed && message.sourceWindowId !== sourceWindowId) incoming.fire(message);
+  const broadcastListener = broadcast.onMessage(({ sourceWindowId: source, channel, payload }) => {
+    if (!closed && source !== sourceWindowId) incoming.fire({ channel, payload });
   });
-  const connectionBroadcast: IBroadcastService = {
+  const connectionBroadcast: WebBroadcastService = {
     send: (message) => {
       if (closed) return Promise.reject(new Error("广播连接已关闭。"));
-      return broadcast.send({ channel: message.channel, payload: message.payload, sourceWindowId });
+      if ("sourceWindowId" in message) {
+        return Promise.reject(
+          Object.assign(new Error("Web 广播不接收窗口来源 ID。"), {
+            code: "INVALID_ARGUMENT",
+            publicMessage: true,
+          }),
+        );
+      }
+      const { channel, payload } = message;
+      return broadcast.send({ channel, payload, sourceWindowId });
     },
     onMessage: incoming.event,
   };

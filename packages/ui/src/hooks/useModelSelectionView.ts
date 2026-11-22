@@ -1,22 +1,23 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type {
-  IModelSelectionService,
-  ModelSelectionView,
+  IServiceAccessor,
   ModelSelectionViewInput,
+  WebModelSelectionView,
 } from "@zcode/services";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { logger } from "@/logger.js";
 
-type ModelSelectionCatalog = Pick<ModelSelectionView, "revision" | "providers">;
+type ModelSelectionReader = IServiceAccessor["modelSelectionService"];
+type ModelSelectionCatalog = Pick<WebModelSelectionView, "revision" | "providers">;
 
 export type ModelSelectionState =
   | { status: "loading"; catalog?: ModelSelectionCatalog }
-  | { status: "ready"; view: ModelSelectionView; refreshError?: { revision: number; error: Error } }
+  | { status: "ready"; view: WebModelSelectionView; refreshError?: { revision: number; error: Error } }
   | { status: "unavailable"; reason: "remote-waiting" | "missing-target" }
   | { status: "error"; error: Error };
 
 export type ModelSelectionRefreshResult =
-  | { kind: "ready"; view: ModelSelectionView }
+  | { kind: "ready"; view: WebModelSelectionView }
   | { kind: "superseded" };
 
 export interface ModelSelectionRead {
@@ -26,7 +27,7 @@ export interface ModelSelectionRead {
 }
 
 interface OwnedModelSelectionState {
-  service: IModelSelectionService | null;
+  service: ModelSelectionReader | null;
   enabled: boolean;
   unavailableReason: "remote-waiting" | "missing-target";
   inputKey: string | undefined;
@@ -46,7 +47,7 @@ function isTransientReadError(cause: unknown): boolean {
 }
 
 function initialState(
-  service: IModelSelectionService | null,
+  service: ModelSelectionReader | null,
   enabled: boolean,
   unavailableReason: "remote-waiting" | "missing-target",
   catalog?: ModelSelectionCatalog,
@@ -58,7 +59,7 @@ function initialState(
 
 function retainedCatalog(
   previous: OwnedModelSelectionState,
-  service: IModelSelectionService | null,
+  service: ModelSelectionReader | null,
   enabled: boolean,
   unavailableReason: "remote-waiting" | "missing-target",
 ): ModelSelectionCatalog | undefined {
@@ -79,7 +80,7 @@ function retainedCatalog(
 
 /** 订阅明确 Host Service；返回状态在同一次 render 即绑定新 owner，不暴露旧 Host View。 */
 export function useModelSelectionServiceView(
-  service: IModelSelectionService | null | undefined,
+  service: ModelSelectionReader | null | undefined,
   enabled = true,
   unavailableReason: "remote-waiting" | "missing-target" = "remote-waiting",
   input?: ModelSelectionViewInput,
@@ -148,7 +149,7 @@ export function useModelSelectionServiceView(
       if (retryTimer !== undefined) clearTimeout(retryTimer);
       retryTimer = undefined;
     };
-    const commit = (candidate: ModelSelectionView): void => {
+    const commit = (candidate: WebModelSelectionView): void => {
       if (generation !== generationRef.current || candidate.revision < latestRevision) return;
       latestRevision = candidate.revision;
       hasReadyView = true;
@@ -210,8 +211,9 @@ export function useModelSelectionServiceView(
       );
     };
     // 原因：相同目录不会再发事件；显式重读与订阅读取共享请求序号，迟到旧失败不能覆盖重试。
+    // Web 目录只有读取能力，不能用不存在的事件建立订阅。
     readRef.current = read;
-    const subscription = normalizedService.onDidChange((candidate) => {
+    const subscription = normalizedService.onDidChange?.((candidate) => {
       if (generation !== generationRef.current) return;
       if (stableInput === undefined) commit(candidate);
       else {
@@ -225,7 +227,7 @@ export function useModelSelectionServiceView(
       generationRef.current += 1;
       if (readRef.current === read) readRef.current = null;
       cancelRetry();
-      subscription.dispose();
+      subscription?.dispose();
     };
   }, [enabled, normalizedService, reloadVersion, unavailableReason, inputKey, stableInput]);
 
@@ -242,7 +244,7 @@ export function useModelSelectionServiceView(
   };
 }
 
-/** 模型候选只来自明确 Workspace Target；等待远端时不读取 Local/Base Host。 */
+/** 模型候选只来自明确的工作区；旧远程目标不回退到基础服务。 */
 export function useModelSelectionView(
   workspacePath: string | null | undefined,
   remoteSessionId?: string | null,
@@ -257,10 +259,9 @@ export function useModelSelectionView(
     workspaceIdentity,
     remoteTarget,
   );
-  const remoteWaiting = resolution.connectionKind === "remote-waiting";
   return useModelSelectionServiceView(
     resolution.services.modelSelectionService,
-    hasTarget && !remoteWaiting,
+    hasTarget && resolution.rpcReady,
     hasTarget ? "remote-waiting" : "missing-target",
     input,
   );

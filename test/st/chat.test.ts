@@ -1,13 +1,13 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { IAIReqService } from "@zcode/services";
+import { IAIReqService, IZCodeAgentService } from "@zcode/services";
 import {
   PROTOCOL_V4_LIMITS,
   commandAckSchema,
-  commandsQueryResultSchema,
   conversationTopicWireFrameSchema,
   measureTopicNotificationEnvelopeBytes,
+  webCommandsQueryResultSchema,
   type CommandKey,
   type ConversationTopicWireFrame,
   type ModelSelection,
@@ -46,14 +46,12 @@ function chatCreateRequest(
   return {
     workspacePath,
     envelope: {
-      workspace: { workspacePath, workspaceKey: workspacePath },
       sessionId: null,
       commandId: unique("chat-create"),
       clientId: client.clientId,
       issuedAt: Date.now(),
       type: "createSession" as const,
       payload: {
-        workspaceId: workspacePath,
         ...(text ? { firstInput: { text } } : {}),
         ...(modelSelection ? { config: { modelSelection } } : {}),
       },
@@ -129,7 +127,7 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
     );
     requireAccepted(directoryAck);
     const directoryKey = { sessionId: null, commandId: directoryRequest.envelope.commandId };
-    const directoryReceipt = commandsQueryResultSchema.parse(
+    const directoryReceipt = webCommandsQueryResultSchema.parse(
       await resumed.queryConversationCommandsV4({
         workspacePath: directoryRequest.workspacePath,
         commands: [directoryKey, firstKey],
@@ -142,7 +140,7 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
     const secondKey = { sessionId, commandId: secondId };
     const wrongBucket = { sessionId, commandId: request.envelope.commandId };
     const commands: CommandKey[] = [firstKey, secondKey, wrongBucket];
-    const receipt = commandsQueryResultSchema.parse(
+    const receipt = webCommandsQueryResultSchema.parse(
       await resumed.queryConversationCommandsV4({ workspacePath, commands }),
     );
     expect(receipt.results).toEqual([
@@ -150,6 +148,14 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
       expect.objectContaining({ key: secondKey, result: sendAck }),
       expect.objectContaining({ key: wrongBucket, result: "unknown" }),
     ]);
+    expect(
+      await reconnected.probeRpc(
+        "call",
+        IZCodeAgentService.channelName,
+        "queryConversationCommandsV4",
+        [{ workspacePath, commands: [firstKey], clock: true }],
+      ),
+    ).toMatchObject({ code: "INVALID_ARGUMENT" });
     const rows = await resumed.conversationRowsRangeV4({ ...target, limit: 60 });
     expect(rows.rows.filter((row) => row.kind === "userInput")).toEqual([
       expect.objectContaining({
@@ -185,7 +191,7 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
       if (read.status === "rejected") {
         expect(read.error).toBeInstanceOf(Error);
       } else {
-        expect(commandsQueryResultSchema.parse(read.value).results).toEqual([
+        expect(webCommandsQueryResultSchema.parse(read.value).results).toEqual([
           { key, result: "unknown" },
         ]);
       }
@@ -464,8 +470,15 @@ it("lists the five most active directories and five most active sessions per dir
     for (const directory of otherDirectories)
       await completeChatSession(client, directory, `目录 ${directory}`);
     await createChatSession(client, ".");
+    expect(
+      await client.probeRpc("call", IZCodeAgentService.channelName, "listRecentChatSessions", [
+        { limit: 1 },
+      ]),
+    ).toMatchObject({ code: "INVALID_ARGUMENT" });
     const before = await service.listRecentChatSessions();
-    expect(before.map((entry) => entry.workspacePath)).toEqual([...otherDirectories].reverse());
+    expect(before.map(({ sessions }) => sessions[0].workspacePath)).toEqual(
+      [...otherDirectories].reverse(),
+    );
 
     const oldest = primarySessions[0]!;
     const native = await openNativeSession(service, client.clientId, oldest.sessionId, oldest);
@@ -476,10 +489,11 @@ it("lists the five most active directories and five most active sessions per dir
       await native.close();
     }
     const after = await service.listRecentChatSessions();
-    expect(after.map((entry) => entry.workspacePath)).toEqual([
+    expect(after.map(({ sessions }) => sessions[0].workspacePath)).toEqual([
       oldest.workspacePath,
       ...[...otherDirectories].reverse().slice(0, 4),
     ]);
+    for (const group of after) expect(group).not.toHaveProperty("workspacePath");
     expect(after[0]?.sessions.map((item) => item.sessionId)).toEqual([
       oldest.sessionId,
       ...primarySessions
@@ -577,14 +591,15 @@ it("fragments online and snapshot payloads without publishing snapshots to other
     const service = client.services.zcodeAgentService;
     await initializeNative(service, client.clientId);
     const target = await createChatSession(client, ".");
-    firstListener = service.onDynamicConversationFrame(target)((frame) => firstWires.push(frame));
+    const workspace = { workspacePath: target.workspacePath };
+    firstListener = service.onDynamicConversationFrame(workspace)((frame) => firstWires.push(frame));
     first = await openNativeSession(service, client.clientId, target.sessionId, target);
     const text = '界🙂"\n'.repeat(120_000);
     await sendAndWaitChatTurn(first, text);
 
     const otherService = other.services.zcodeAgentService;
     await initializeNative(otherService, other.clientId);
-    secondListener = otherService.onDynamicConversationFrame(target)((frame) =>
+    secondListener = otherService.onDynamicConversationFrame(workspace)((frame) =>
       secondWires.push(frame),
     );
     second = await openNativeSession(otherService, other.clientId, target.sessionId, target);

@@ -84,20 +84,6 @@ export function extractPlanToolCallContent(
   return {};
 }
 
-const MARKDOWN_H1_PATTERN = /^\s{0,3}#(?!#)\s+(.+?)\s*#*\s*$/m;
-const MARKDOWN_LEADING_DECORATION = /^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+)/;
-
-/** 计划目录标题取首个 H1，否则取首个非空文本行。 */
-export function getPlanDirectoryTitle(markdown: string): string | undefined {
-  const h1 = MARKDOWN_H1_PATTERN.exec(markdown)?.[1]?.trim();
-  if (h1) return h1;
-  for (const line of markdown.split(/\r?\n/u)) {
-    const title = line.replace(MARKDOWN_LEADING_DECORATION, "").trim();
-    if (title) return title;
-  }
-  return undefined;
-}
-
 export function getPlanFileLabel(planFilePath?: string): string | undefined {
   return planFilePath ? getPathLeaf(planFilePath) : undefined;
 }

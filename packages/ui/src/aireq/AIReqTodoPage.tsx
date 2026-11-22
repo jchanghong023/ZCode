@@ -90,8 +90,8 @@ export function AIReqTodoPage() {
         target,
         view.revision,
       );
-      if (result.status === "failed")
-        throw Object.assign(new Error(result.error ?? result.receipt.error ?? "联系人分配失败。"), {
+      if (result.receipt.status === "failed")
+        throw Object.assign(new Error(result.receipt.error ?? "联系人分配失败。"), {
           code: "BUSINESS_RULE_VIOLATION",
         });
       await ai.refresh();

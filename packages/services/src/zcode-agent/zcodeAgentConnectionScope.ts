@@ -1,18 +1,24 @@
 /* eslint-disable max-lines -- V4 conversation 的 connection ownership 生命周期集中在单一 facade。 */
 // V4 connection-scoped service facade：每个 RPC attachment 独立持有 subscription
 // ownership；base service 仍只转发 CLI 事实，不在 host/main/relay 复制业务状态。
+import { z } from "zod";
 import { Emitter, type Event, type IDisposable } from "@zcode/rpc";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   clientHelloSchema,
   clientSupportsWorkflowRunDeltas,
+  conversationResyncParamsSchema,
   conversationTopic,
+  projectWebCommandAck,
+  webClientHelloSchema,
   type ConversationTopicWireCandidate,
   type HelloMessage,
   type V4ConnectionFlowState,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   IZCodeAgentService,
+  WebAIReqAgent,
+  ZCodeAgentCommandsQueryParams,
   ZCodeAgentConversationResyncParams,
   ZCodeAgentConversationUnsubscribeParams,
   ZCodeAgentRuntimePolicy,
@@ -120,6 +126,38 @@ function withTrustedUnsubscribeRoute<T extends object>(
   return forwarded as T;
 }
 
+const webConversationFrameParamsSchema = z.strictObject({
+  workspacePath: z.string(),
+  workspaceIdentity: z.string().optional(),
+});
+const webConversationUnsubscribeParamsSchema = webConversationFrameParamsSchema.extend({
+  subscriptionId: z.string(),
+});
+const webConversationResyncParamsSchema = conversationResyncParamsSchema.extend(
+  webConversationFrameParamsSchema.shape,
+);
+
+function validateWebConversationParams(
+  schema: z.ZodType,
+  params: unknown,
+  operation: "帧监听" | "恢复" | "退订",
+): void {
+  // 只校验，不使用 schema 裁剪过的 subscriptionId 或 logEpoch：归属和恢复仍使用原值。
+  const result = schema.safeParse(params);
+  if (result.success) return;
+  const extraFields = result.error.issues.find(
+    (issue) => issue.code === "unrecognized_keys" && issue.path.length === 0,
+  );
+  const keys = extraFields?.code === "unrecognized_keys" ? extraFields.keys : [];
+  if (operation !== "帧监听" && keys.includes("runtimePolicy")) {
+    throw new Error("fault.conversation.runtimePolicyUnsupported");
+  }
+  const message = keys.includes("remoteSessionId")
+    ? `Web 会话${operation}不接收远程宿主会话 ID。`
+    : `Web 会话${operation}参数无效。`;
+  throw Object.assign(new Error(message), { code: "INVALID_ARGUMENT", publicMessage: true });
+}
+
 /** sendText.source 或 createSession.firstInput.source 是 extension（CLI 契约 conversation-input-source.md §2）。 */
 function carriesExtensionInputSource(envelope: { type: string; payload: unknown }): boolean {
   const payload =
@@ -216,51 +254,88 @@ function deliveryProfileFor(clientMode: ZCodeAgentV4ClientMode): HelloMessage["d
 function createHello(
   context: ZCodeAgentV4ConnectionContext,
   advertiseDesktopControls: boolean,
+  advertiseWorkflowRunDeltas: boolean,
 ): HelloMessage {
   const continuous = context.clientMode === "desktop-continuous";
   return {
     kind: "hello",
     protocolVersion: V4_WIRE_PROTOCOL_VERSION,
-    connectionId: context.connectionId,
-    clientMode: context.clientMode,
-    deliveryProfile: deliveryProfileFor(context.clientMode),
-    serverTime: Date.now(),
     capabilities: {
+      ...(advertiseDesktopControls && {
+        workspaceHookReview: true,
+        independentPlanState: true,
+        genUiContext: true,
+      }),
+      ...(advertiseWorkflowRunDeltas && { workflowRunDeltas: true }),
+      historyFirst: true,
       nativeDialogs: continuous,
       localTerminal: continuous,
       binaryFrames: false,
       compression: "none",
-      ...(advertiseDesktopControls && { workspaceHookReview: true, independentPlanState: true }),
-      genUiContext: true,
-      // 本 Host 会转发 `workflowRun.*` 键级增量；客户端见到它才能在 clientHello 里回声明
-      // （那个 capabilities 是 .strict() 的，反过来会让老 Host 握不上手）。
-      workflowRunDeltas: true,
-      historyFirst: true,
-      // 手机任务列表预加载：rowsRange 支持 residency=resident-only（只读热会话）。
       residentRowsRange: true,
     },
+    connectionId: context.connectionId,
+    clientMode: context.clientMode,
+    deliveryProfile: deliveryProfileFor(context.clientMode),
+    serverTime: Date.now(),
     auth: {},
   };
 }
 
-export interface ZCodeAgentConnectionScope {
-  readonly service: IZCodeAgentService;
+type WebScopedMethods = Pick<
+  WebAIReqAgent,
+  | "attachmentAbortV4"
+  | "attachmentBeginV4"
+  | "attachmentChunkV4"
+  | "attachmentCommitV4"
+  | "attachmentReadV4"
+  | "conversationRowsRangeV4"
+  | "helloConversationV4"
+  | "initializeConversationV4"
+  | "onDynamicConversationFrame"
+  | "queryConversationCommandsV4"
+  | "resyncConversationV4"
+  | "sendConversationCommandV4"
+  | "subscribeConversationV4"
+  | "unsubscribeConversationV4"
+>;
+type WebScopedAgent = Omit<IZCodeAgentService, keyof WebScopedMethods> & WebScopedMethods;
+
+export interface ZCodeAgentConnectionScope<Agent = IZCodeAgentService> {
+  readonly service: Agent;
   /** MessagePort/transport sideband only；不是 UI-facing RPC。 */
   setTransportFlowState(state: V4ConnectionFlowState): Promise<void>;
   dispose(): Promise<void>;
+}
+
+interface ConnectionScopeOptions {
+  allowCommandQueriesAcrossWorkspaces?: boolean;
+  advertiseDesktopControls?: boolean;
+  advertiseWorkflowRunDeltas?: boolean;
+  webProtocol?: boolean;
 }
 
 /** 为单个 host/server RPC attachment 建立可信 V4 facade。 */
 export function createZCodeAgentConnectionScope(
   base: IZCodeAgentService,
   context: ZCodeAgentV4ConnectionContext,
-  options?: {
-    allowCommandQueriesAcrossWorkspaces?: boolean;
-    advertiseDesktopControls?: boolean;
-  },
-): ZCodeAgentConnectionScope {
+  options: ConnectionScopeOptions & { webProtocol: true },
+): ZCodeAgentConnectionScope<WebScopedAgent>;
+export function createZCodeAgentConnectionScope(
+  base: IZCodeAgentService,
+  context: ZCodeAgentV4ConnectionContext,
+  options?: ConnectionScopeOptions & { webProtocol?: false },
+): ZCodeAgentConnectionScope;
+export function createZCodeAgentConnectionScope(
+  base: IZCodeAgentService,
+  context: ZCodeAgentV4ConnectionContext,
+  options?: ConnectionScopeOptions,
+): ZCodeAgentConnectionScope<WebScopedAgent> {
   assertConnectionId(context.connectionId);
   const role = context.role ?? "terminal-client";
+  const webProtocol = options?.webProtocol === true;
+  const advertiseWorkflowRunDeltas = !webProtocol && options?.advertiseWorkflowRunDeltas !== false;
+  const handshakeSchema = webProtocol ? webClientHelloSchema : clientHelloSchema;
   const owned = new Map<string, OwnedSubscription>();
   const routeKeyByOwnership = new Map<string, string>();
   const pendingByOwnership = new Map<string, Set<PendingOwnership>>();
@@ -427,7 +502,7 @@ export function createZCodeAgentConnectionScope(
   const forwardedUnsubscribeRoute = (
     params: unknown,
   ): TrustedZCodeAgentV4UnsubscribeRoute | null => {
-    if (role !== "trusted-host-relay") return null;
+    if (webProtocol || role !== "trusted-host-relay") return null;
     const downstream = readTrustedZCodeAgentV4UnsubscribeRoute(params);
     if (!downstream) return null;
     assertConnectionId(downstream.connectionId);
@@ -676,7 +751,7 @@ export function createZCodeAgentConnectionScope(
 
   const sessionLifecycle = base.onDynamicSessionLifecycle?.bind(base);
   const listRecentChatSessions = base.listRecentChatSessions?.bind(base);
-  const overrides: Partial<IZCodeAgentService> = {
+  const overrides: Partial<WebScopedAgent> = {
     ...(sessionLifecycle && {
       onDynamicSessionLifecycle: (params) => (listener) =>
         sessionLifecycle(params)((snapshot) => {
@@ -704,23 +779,41 @@ export function createZCodeAgentConnectionScope(
     async helloConversationV4() {
       assertOpen();
       helloIssued = true;
-      return createHello(context, options?.advertiseDesktopControls !== false);
+      if (webProtocol) {
+        return {
+          kind: "hello",
+          protocolVersion: V4_WIRE_PROTOCOL_VERSION,
+          capabilities: { historyFirst: true },
+        };
+      }
+      return createHello(
+        context,
+        options?.advertiseDesktopControls !== false,
+        advertiseWorkflowRunDeltas,
+      );
     },
     async initializeConversationV4(clientHello) {
       assertOpen();
       if (!helloIssued) throw new Error("fault.connection.helloRequired");
-      const parsed = clientHelloSchema.parse(clientHello);
+      const parsed = handshakeSchema.parse(clientHello);
       if (boundClientId !== null && boundClientId !== parsed.clientId) {
         throw new Error("fault.connection.clientChanged");
       }
       boundClientId = parsed.clientId;
-      clientWorkflowRunDeltas = clientSupportsWorkflowRunDeltas(parsed);
+      clientWorkflowRunDeltas =
+        advertiseWorkflowRunDeltas && clientSupportsWorkflowRunDeltas(parsed);
       clientHistoryFirst = parsed.capabilities?.historyFirst === true;
       handshakeComplete = true;
     },
     ...(listRecentChatSessions && {
-      async listRecentChatSessions() {
+      async listRecentChatSessions(...args: unknown[]) {
         assertReady();
+        if (webProtocol && args.length !== 0) {
+          throw Object.assign(new Error("Web 最近会话列表不接收参数。"), {
+            code: "INVALID_ARGUMENT",
+            publicMessage: true,
+          });
+        }
         return listRecentChatSessions();
       },
     }),
@@ -757,15 +850,64 @@ export function createZCodeAgentConnectionScope(
           throw new Error("fault.command.clientMismatch");
         }
       }
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 会话命令不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && "projectId" in params) {
+        throw Object.assign(new Error("Web 会话命令不接收项目 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && "clientMode" in params) {
+        throw Object.assign(new Error("Web 会话命令不接收客户端运行模式。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && "workspace" in params.envelope) {
+        throw Object.assign(new Error("Web 会话命令只在请求外层接收工作区。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && ("inputOrigin" in params.envelope || "ttft" in params.envelope)) {
+        throw Object.assign(new Error("Web 会话命令不接收宿主输入来源或本机首字耗时遥测。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && "baseLogEpoch" in params.envelope) {
+        throw Object.assign(new Error("Web 会话命令不接收定位行命令的日志代次。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       // command 过去只校验 envelope.clientId，却没有像订阅、附件一样注入
       // host 真值，导致 mobile 可伪造顶层 clientMode，且 relay 下游身份在 command 链路丢失。
       // envelope 仍原样透传；可信连接上下文只通过 host 内部 carrier 传给 base service。
-      return base.sendConversationCommandV4(
+      const pending = base.sendConversationCommandV4(
         withTrustedConnection(params, forwardedConnection(params)),
       );
+      return webProtocol ? projectWebCommandAck(await pending) : pending;
     },
-    async queryConversationCommandsV4(params) {
+    async queryConversationCommandsV4(params: ZCodeAgentCommandsQueryParams) {
       assertReady();
+      if (webProtocol && "clock" in params) {
+        throw Object.assign(new Error("Web 命令回执查询不接收校时字段。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 命令回执查询不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       // 仅目录聊天连接由服务端开启多目录查询；其 owner 逐条校验 actor + workspace。
       // 时钟探测也不改变默认连接的 workspace 绑定。
       if (params.clock || options?.allowCommandQueriesAcrossWorkspaces)
@@ -789,6 +931,12 @@ export function createZCodeAgentConnectionScope(
     },
     async attachmentBeginV4(params) {
       assertReady();
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 附件初始化不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       const forwarded = forwardedConnection(params);
       const result = await base.attachmentBeginV4(withTrustedConnection(params, forwarded));
       if (result.state === "staging") {
@@ -818,19 +966,43 @@ export function createZCodeAgentConnectionScope(
     },
     async attachmentReadV4(params) {
       assertReady();
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 附件读取不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       return base.attachmentReadV4(withTrustedConnection(params, forwardedConnection(params)));
     },
     async attachmentChunkV4(params) {
       assertReady();
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 附件分片上传不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       return base.attachmentChunkV4(withTrustedConnection(params, forwardedConnection(params)));
     },
     async attachmentCommitV4(params) {
       assertReady();
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 附件提交不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       const forwarded = forwardedConnection(params);
       return base.attachmentCommitV4(withTrustedConnection(params, forwarded));
     },
     async attachmentAbortV4(params) {
       assertReady();
+      if (webProtocol && "remoteSessionId" in params) {
+        throw Object.assign(new Error("Web 附件取消不接收远程宿主会话 ID。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
       const forwarded = forwardedConnection(params);
       await base.attachmentAbortV4(withTrustedConnection(params, forwarded));
     },
@@ -853,13 +1025,18 @@ export function createZCodeAgentConnectionScope(
           },
           pending,
         );
-        return result;
+        if (!webProtocol) return result;
+        const { subscriptionId, mode, logEpoch } = result.ack;
+        return { ack: { subscriptionId, mode, logEpoch } };
       } catch (error) {
         discardPendingOwnership(pending);
         throw error;
       }
     },
-    async unsubscribeConversationV4(params) {
+    async unsubscribeConversationV4(params: ZCodeAgentConversationUnsubscribeParams) {
+      if (webProtocol) {
+        validateWebConversationParams(webConversationUnsubscribeParamsSchema, params, "退订");
+      }
       const entry = findBySubscription(
         "conversation",
         params,
@@ -870,9 +1047,18 @@ export function createZCodeAgentConnectionScope(
       await unsubscribeOwnedEntry(entry, params.runtimePolicy);
     },
     async resyncConversationV4(params) {
-      return resyncOwned("conversation", params);
+      if (webProtocol) {
+        validateWebConversationParams(webConversationResyncParamsSchema, params, "恢复");
+      }
+      const result = resyncOwned("conversation", params);
+      if (!webProtocol) return result;
+      const { ack } = await result;
+      return { ack: { subscriptionId: ack.subscriptionId, mode: ack.mode } };
     },
     onDynamicConversationFrame(params) {
+      if (webProtocol) {
+        validateWebConversationParams(webConversationFrameParamsSchema, params, "帧监听");
+      }
       return routedEvent<ConversationTopicWireCandidate>(
         "conversation",
         params,
@@ -881,7 +1067,7 @@ export function createZCodeAgentConnectionScope(
     },
   };
 
-  const service = new Proxy(base, {
+  const service = new Proxy<WebScopedAgent>(base, {
     get(target, property, receiver) {
       const override = Reflect.get(overrides, property, receiver);
       if (override !== undefined) return override;

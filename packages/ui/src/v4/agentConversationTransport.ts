@@ -1,11 +1,6 @@
-import type { SessionLifecycleSnapshot } from "@zcode/shared";
-import { getLocalTtftObserver } from "@/v4/telemetry/local-ttft/contract.js";
-import { calibrateLocalTtftClock, createUuid, localTtftNow } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
-// ConversationTransport 的 desktop/host 实现：桥到 IZCodeAgentService 的 v4 转发面
-// （依赖注入原则——数据层不感知 host 细节，
-// web 直连 ws relay 时换一个实现即可）。
-import type { IZCodeAgentService } from "@zcode/services";
+// ConversationTransport 桥接渲染服务访问器中的 v4 RPC；数据层不感知连接细节。
+import type { IServiceAccessor } from "@zcode/services";
 import {
   conversationTopicFrameSchema,
   PROTOCOL_V4_LIMITS,
@@ -13,8 +8,6 @@ import {
   TopicWireFrameAssembler,
   type CommandAck,
   type CommandEnvelope,
-  type CommandsQueryParams,
-  type CommandsQueryResult,
   type ConversationTopicFrame,
   type ConversationTopicWireCandidate,
   type ConversationResyncParams,
@@ -22,12 +15,9 @@ import {
   type TopicFrameDeliveryKind,
   type V4AttachmentPutParams,
   type V4AttachmentPutResult,
-  type V4ConversationPlansParams,
-  type V4ConversationPlansResult,
   type V4ConversationRowsRangeParams,
-  type V4ConversationRowsRangeResult,
   type V4ConversationSubscribeResult,
-  type V4ConversationResyncResult,
+  type WebConversationResyncResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
@@ -45,7 +35,7 @@ export interface AgentConversationTransportTarget {
 }
 
 export type ConversationV4AgentService = Pick<
-  IZCodeAgentService,
+  IServiceAccessor["zcodeAgentService"],
   | "subscribeConversationV4"
   | "resyncConversationV4"
   | "helloConversationV4"
@@ -54,14 +44,11 @@ export type ConversationV4AgentService = Pick<
   | "sendConversationCommandV4"
   | "queryConversationCommandsV4"
   | "conversationRowsRangeV4"
-  | "conversationPlansV4"
   | "attachmentBeginV4"
   | "attachmentChunkV4"
   | "attachmentCommitV4"
   | "attachmentAbortV4"
   | "attachmentReadV4"
-  | "getSessionLifecycle"
-  | "onDynamicSessionLifecycle"
   | "onDynamicConversationFrame"
   | "onAgentRuntimeRestarted"
   | "onAgentRuntimeLifecycle"
@@ -79,36 +66,7 @@ export function createAgentConversationTransport(
     workspacePath: target.workspacePath,
     ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
   };
-  let calibrationFlight: Promise<void> | undefined;
-  const calibrate = () => {
-    const observer = getLocalTtftObserver();
-    if (
-      target.workspaceIdentity?.trim() ||
-      !observer?.needsCalibration(target.workspacePath) ||
-      calibrationFlight
-    )
-      return;
-    const start = localTtftNow();
-    calibrationFlight = agentService
-      .queryConversationCommandsV4({
-        ...workspace,
-        commands: [{ sessionId: null, commandId: `ttft-clock-${createUuid()}` }],
-        clock: true,
-      })
-      .then((result) => {
-        const clock = result.clock && calibrateLocalTtftClock(start, localTtftNow(), result.clock);
-        if (clock) observer.calibrate(target.workspacePath, clock);
-      })
-      .catch(() => {})
-      .finally(() => {
-        calibrationFlight = undefined;
-      });
-  };
-  const ensureHandshake = async () => {
-    const hello = await ensureAgentV4ConnectionHandshake(agentService);
-    calibrate();
-    return hello;
-  };
+  const ensureHandshake = () => ensureAgentV4ConnectionHandshake(agentService);
   const listeners = new Set<
     (frame: ConversationTopicFrame, context?: { deliveryKind: TopicFrameDeliveryKind }) => void
   >();
@@ -127,16 +85,6 @@ export function createAgentConversationTransport(
   const decoder = createTopicWireDecoder(
     new TopicWireFrameAssembler(conversationTopicFrameSchema),
     (frame: ConversationTopicFrame, deliveryKind) => {
-      try {
-        if (!target.workspaceIdentity?.trim()) {
-          getLocalTtftObserver()?.receive(target.workspacePath, frame, deliveryKind);
-          // Bug 原因：校准只在 ensureHandshake 顺带刷新，排队/慢发送等待期间没有传输调用，
-          // 首输出时校准已超过 60 秒有效期，跨进程阶段被整体丢弃。内容帧到达即刷新过期校准。
-          calibrate();
-        }
-      } catch (error) {
-        logger.debug("[local-ttft] observation failed", { error });
-      }
       for (const listener of listeners) listener(frame, { deliveryKind });
     },
     (fault) => {
@@ -151,9 +99,6 @@ export function createAgentConversationTransport(
   let runtimeRestartUpstream: { dispose(): void } | null = null;
   let runtimeLifecycleUpstream: { dispose(): void } | null = null;
   let runtimeGeneration = 0;
-  const sessionGenerations = new Map<string, number>();
-  const sessionLifecycleListeners = new Set<(snapshot: SessionLifecycleSnapshot) => void>();
-  let sessionLifecycleUpstream: { dispose(): void } | null = null;
   const targetWorkspaceKey = target.workspaceIdentity?.trim() || target.workspacePath;
   const lifecycleContext = {
     workspaceKey: targetWorkspaceKey,
@@ -163,22 +108,6 @@ export function createAgentConversationTransport(
 
   // Bug 原因：上游回调若创建在 onX(listener) 内，会与退订闭包共享作用域，
   // Set.delete 后仍保留首个 listener 及其已关闭 store。上游创建只捕获 transport 本身。
-  const attachSessionLifecycleUpstream = () => {
-    sessionLifecycleUpstream ??=
-      agentService.onDynamicSessionLifecycle?.(workspace)((snapshot) => {
-        if (snapshot.state === "stopping") {
-          const topic = `conversation/${snapshot.sessionId}`;
-          sessionGenerations.set(topic, (sessionGenerations.get(topic) ?? 0) + 1);
-          for (const [id, subscriptionTopic] of topicBySubscriptionId) {
-            if (subscriptionTopic !== topic) continue;
-            barrier.forget(id);
-            decoder.discard(topic, id);
-            topicBySubscriptionId.delete(id);
-          }
-        }
-        for (const callback of sessionLifecycleListeners) callback(snapshot);
-      }) ?? null;
-  };
   const attachFrameUpstream = () => {
     if (!upstream) {
       upstream = agentService.onDynamicConversationFrame(workspace)((frame) =>
@@ -198,8 +127,6 @@ export function createAgentConversationTransport(
     runtimeRestartUpstream ??=
       agentService.onAgentRuntimeRestarted?.((event) => {
         if (event.workspaceKey !== targetWorkspaceKey) return;
-        if (!target.workspaceIdentity?.trim())
-          getLocalTtftObserver()?.interrupt(target.workspacePath);
         runtimeGeneration += 1;
         // runtime generation 可复用 subId/ordinal；ownership 与 assembler 必须原子失效。
         barrier.clear();
@@ -212,8 +139,6 @@ export function createAgentConversationTransport(
     runtimeLifecycleUpstream ??=
       agentService.onAgentRuntimeLifecycle?.((event) => {
         if (event.workspaceKey !== targetWorkspaceKey) return;
-        if (event.state === "unavailable" && !target.workspaceIdentity?.trim())
-          getLocalTtftObserver()?.interrupt(target.workspacePath);
         // 只转发、不动 runtimeGeneration/barrier/decoder/topicBySubscriptionId：那是
         // onRuntimeRestart 的语义（新 runtime 已存在、可安全重订阅）。unavailable 时
         // 旧 CLI 已死不会再有帧到达，而提前递增 generation 会让随后 restart 的
@@ -232,30 +157,7 @@ export function createAgentConversationTransport(
     }
     return bytes;
   };
-  const getSessionLifecycle = agentService.getSessionLifecycle?.bind(agentService);
-  const queryPlans = agentService.conversationPlansV4?.bind(agentService);
   return {
-    ...(getSessionLifecycle
-      ? {
-          getSessionLifecycle: (sessionId: string) =>
-            getSessionLifecycle({ ...workspace, sessionId }),
-        }
-      : {}),
-    ...(agentService.onDynamicSessionLifecycle
-      ? {
-          onSessionLifecycle(listener: (snapshot: SessionLifecycleSnapshot) => void) {
-            sessionLifecycleListeners.add(listener);
-            attachSessionLifecycleUpstream();
-            return () => {
-              sessionLifecycleListeners.delete(listener);
-              if (sessionLifecycleListeners.size === 0) {
-                sessionLifecycleUpstream?.dispose();
-                sessionLifecycleUpstream = null;
-              }
-            };
-          },
-        }
-      : {}),
     async subscribe(params: SubscribeParams): Promise<V4ConversationSubscribeResult> {
       const sessionId = parseConversationTopic(params.topic);
       if (!sessionId) {
@@ -276,20 +178,13 @@ export function createAgentConversationTransport(
         await ensureHandshake();
         pending = barrier.begin(params.topic);
         const subscribeRuntimeGeneration = runtimeGeneration;
-        const subscribeSessionGeneration = sessionGenerations.get(params.topic) ?? 0;
         const result = await agentService.subscribeConversationV4({
           ...workspace,
           sessionId,
           ...(params.base ? { base: params.base } : {}),
           ...(params.visibility ? { visibility: params.visibility } : {}),
-          ...(params.retryInitialization
-            ? { retryInitialization: params.retryInitialization }
-            : {}),
         });
-        if (
-          subscribeRuntimeGeneration !== runtimeGeneration ||
-          subscribeSessionGeneration !== (sessionGenerations.get(params.topic) ?? 0)
-        ) {
+        if (subscribeRuntimeGeneration !== runtimeGeneration) {
           // 旧 runtime 的迟到 ACK 可能复用新 runtime 的 subId；此处只能
           // 丢本地 pending，不能向新 runtime 盲退订同名 subscription。
           barrier.cancel(pending);
@@ -365,7 +260,7 @@ export function createAgentConversationTransport(
         ...(activation?.topic ? { topic: activation.topic } : {}),
       });
     },
-    async resync(params: ConversationResyncParams): Promise<V4ConversationResyncResult> {
+    async resync(params: ConversationResyncParams): Promise<WebConversationResyncResult> {
       await ensureHandshake();
       const topic = topicBySubscriptionId.get(params.subscriptionId);
       if (!topic) throw new Error("fault.subscription.notOwned");
@@ -426,42 +321,32 @@ export function createAgentConversationTransport(
         throw error;
       }
     },
-    async sendCommand(
-      envelope: CommandEnvelope,
-      context?: { projectId?: string | null },
-    ): Promise<CommandAck> {
-      const hello = await ensureHandshake();
+    async sendCommand(envelope: CommandEnvelope): Promise<CommandAck> {
+      await ensureHandshake();
       const payload = envelope.payload as {
         planEnabled?: boolean;
         config?: { planEnabled?: boolean };
         firstInput?: { planEnabled?: boolean };
         genUiContext?: unknown[];
       };
-      // 旧 Host 会剥掉未知字段；不能把 yolo + Plan 错发成完全访问执行。
-      if (
-        hello.capabilities.independentPlanState !== true &&
-        (payload.planEnabled || payload.config?.planEnabled || payload.firstInput?.planEnabled)
-      ) {
+      // Web 不支持旧 Plan；不能剥掉请求后把 Plan 错发成普通执行。
+      if (payload.planEnabled || payload.config?.planEnabled || payload.firstInput?.planEnabled) {
         throw new Error("proto.independentPlanUnsupported");
       }
-      // 旧 Host 可能先剥掉未知字段，执行端检查无法找回已丢失的状态。
-      if (
-        envelope.type === "sendText" &&
-        payload.genUiContext?.length &&
-        hello.capabilities.genUiContext !== true
-      ) {
+      // Web 不接纳 GenUI 输入；保留明确拒绝，不发送丢失上下文的命令。
+      if (envelope.type === "sendText" && payload.genUiContext?.length) {
         throw new Error("proto.genUiContextUnsupported");
       }
-      return agentService.sendConversationCommandV4({ ...workspace, ...context, envelope });
+      return agentService.sendConversationCommandV4({ ...workspace, envelope });
     },
-    async queryCommands(params: CommandsQueryParams): Promise<CommandsQueryResult> {
+    async queryCommands({ commands }) {
       await ensureHandshake();
       return agentService.queryConversationCommandsV4({
         ...workspace,
-        commands: params.commands,
+        commands,
       });
     },
-    async rowsRange(params: V4ConversationRowsRangeParams): Promise<V4ConversationRowsRangeResult> {
+    async rowsRange(params: V4ConversationRowsRangeParams) {
       await ensureHandshake();
       return agentService.conversationRowsRangeV4({
         ...workspace,
@@ -470,14 +355,6 @@ export function createAgentConversationTransport(
         limit: params.limit,
       });
     },
-    ...(queryPlans
-      ? {
-          async plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult> {
-            await ensureHandshake();
-            return queryPlans({ ...workspace, sessionId: params.sessionId });
-          },
-        }
-      : {}),
     async attachmentPut(
       params: V4AttachmentPutParams,
       options?: AttachmentUploadOptions,
@@ -524,14 +401,8 @@ export function createAgentConversationTransport(
         if (nextOffset > totalBytes) {
           throw new Error("fault.attachment.previewSizeMismatch");
         }
-        if (result.nextOffset !== null && result.nextOffset !== nextOffset) {
-          throw new Error("fault.attachment.previewOffsetMismatch");
-        }
         chunks.push(chunk);
-        if (result.nextOffset === null) {
-          if (nextOffset !== totalBytes) {
-            throw new Error("fault.attachment.previewTruncated");
-          }
+        if (nextOffset === totalBytes) {
           params.signal?.throwIfAborted();
           const bytes = new Uint8Array(totalBytes);
           let writeOffset = 0;
@@ -544,7 +415,7 @@ export function createAgentConversationTransport(
         if (chunk.byteLength === 0) {
           throw new Error("fault.attachment.previewEmptyChunk");
         }
-        offset = result.nextOffset;
+        offset = nextOffset;
       }
     },
     async attachmentReadRange(params) {
@@ -563,11 +434,13 @@ export function createAgentConversationTransport(
         limit: params.limit,
       });
       params.signal?.throwIfAborted();
+      const bytes = decodeBase64Chunk(result.dataBase64);
+      const endOffset = params.offset + bytes.byteLength;
       return {
-        bytes: decodeBase64Chunk(result.dataBase64),
+        bytes,
         mediaType: result.mediaType,
         totalBytes: result.totalBytes,
-        nextOffset: result.nextOffset,
+        nextOffset: endOffset < result.totalBytes ? endOffset : null,
       };
     },
     onFrame(

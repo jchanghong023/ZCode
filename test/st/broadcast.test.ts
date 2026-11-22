@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BroadcastMessage } from "@zcode/services";
+import type { WebBroadcastMessage } from "@zcode/services";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config } from "./config.js";
 
@@ -8,7 +8,7 @@ const observeQuietWindow = () => new Promise<void>((resolve) => setTimeout(resol
 
 describe("ST connection-owned broadcast", () => {
   it(
-    "delivers only to other connections, overwrites forged source and releases disposed subscriptions",
+    "rejects client-supplied origins and delivers only to other active connections",
     async () => {
       const clients: STClient[] = [];
       const listeners: { dispose(): void }[] = [];
@@ -21,9 +21,9 @@ describe("ST connection-owned broadcast", () => {
         clients.push(c);
         const channel = unique("st:broadcast");
         const received = {
-          a: [] as BroadcastMessage[],
-          b: [] as BroadcastMessage[],
-          c: [] as BroadcastMessage[],
+          a: [] as WebBroadcastMessage[],
+          b: [] as WebBroadcastMessage[],
+          c: [] as WebBroadcastMessage[],
         };
         listeners.push(
           a.services.broadcastService.onMessage((message) => {
@@ -39,26 +39,23 @@ describe("ST connection-owned broadcast", () => {
         // 首次回读确认订阅客户端的 RPC 已可用，发送后由真实 onMessage 验证交付。
         await Promise.all([a.bootstrap(), b.bootstrap(), c.bootstrap()]);
         const first = { marker: unique("first"), value: { theme: "st-only" } };
-        const forgedSource = -1;
-        await a.services.broadcastService.send({
+        // 无效请求必须拒绝，且不能进入任何连接的事件流。
+        const forgedMessage = {
           channel,
-          payload: first,
-          sourceWindowId: forgedSource,
-        });
+          payload: { marker: unique("rejected") },
+          sourceWindowId: -1,
+        };
+        await expect(a.services.broadcastService.send(forgedMessage)).rejects.toThrow();
+        await a.services.broadcastService.send({ channel, payload: first });
         await waitUntil(
           "B/C 收到 A 的广播",
           async () => received,
           (value) => value.b.length > 0 && value.c.length > 0,
         );
-        expect(received.b[0]?.payload).toEqual(first);
-        expect(received.c[0]?.payload).toEqual(first);
-        expect(received.b[0]?.sourceWindowId).toEqual(expect.any(Number));
-        expect(received.b[0]?.sourceWindowId).not.toBe(forgedSource);
-        expect(received.c[0]?.sourceWindowId).toBe(received.b[0]?.sourceWindowId);
         await observeQuietWindow();
         expect(received.a).toEqual([]);
-        expect(received.b.map((message) => message.payload)).toEqual([first]);
-        expect(received.c.map((message) => message.payload)).toEqual([first]);
+        expect(received.b).toEqual([{ channel, payload: first }]);
+        expect(received.c).toEqual([{ channel, payload: first }]);
 
         listeners[1]!.dispose();
         const second = { marker: unique("after-unsubscribe") };

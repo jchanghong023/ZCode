@@ -2,7 +2,6 @@ import { buildEditCodeViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
 import { CollapsedChangeSummary } from "@/ToolCallBlocks/renderers.js";
 import { SummaryGroupBoundaryContext } from "@/v4/conversationRowContext.js";
 import { ConsecutiveSummaryGroup } from "@/ToolCallBlocks/ToolSummaryRow.js";
-import { BotTopicPreparationList } from "@/v4/BotTopicPreparation.js";
 /* eslint-disable max-lines -- turn group 需要在同一处维护普通 assistant 与后台结果的严格行序，拆分会重复 actions/preview/tail 协议。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { Fragment, memo, useContext, useEffect, useMemo, useState } from "react";
@@ -39,12 +38,6 @@ import {
 } from "@/ToolCallBlocks/renderers/offpeak-create.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
-import { useAssistantCodeCommentFeatureEnabled } from "@/AssistantCodeCommentFeatureProvider.js";
-import {
-  buildAssistantCodeCommentCards,
-  projectAssistantCodeComments,
-  type AssistantCodeCommentCard,
-} from "@/lib/assistantCodeComment.js";
 import { useAssistantPreviewCardsForAssistantTextRow } from "@/v4/useAssistantPreviewCardsForRow.js";
 import { shouldShowTurnChatLoading } from "@/v4/chatLoadingVisibility.js";
 import {
@@ -72,8 +65,6 @@ import {
   ConversationAssistantTextActions,
   type UserInputEditHandler,
 } from "@/v4/ConversationRowView.js";
-import { readAssistantFeedback } from "@/v4/ConversationRowView.js";
-import type { AssistantFeedbackHandler } from "@/v4/ConversationRowView.js";
 import { type ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type {
   AssistantWorkRow,
@@ -90,9 +81,7 @@ interface ConversationTurnGroupProps {
   /** 仅由 Timeline 注入给当前 live turn；历史 turn 永远不携带运行时 retry。 */
   apiRetry?: ApiRetryState | null;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
-  onFeedbackChange?: AssistantFeedbackHandler;
   onEdit?: UserInputEditHandler;
   /** 会话首轮：顶部留白由 Timeline 的状态胶囊 inset 提供，本轮不再留顶部 padding。 */
   topClearedByTimeline?: boolean;
@@ -194,13 +183,10 @@ function ConversationAssistantWorkItems({
 function ConversationAssistantWorkContent({
   items,
   context,
-  assistantCodeCommentProjectionEnabled = false,
   historyContainer,
 }: {
   items: readonly ConversationAssistantWorkRenderItem[];
   context: ConversationRowRenderContext;
-  /** running turn 的正文可能暂时落在 history renderer，仍需隐藏特化协议原文。 */
-  assistantCodeCommentProjectionEnabled?: boolean;
   historyContainer?: { chunkKey: string; open: boolean };
 }) {
   const { intl } = useZCodeIntl();
@@ -225,7 +211,6 @@ function ConversationAssistantWorkContent({
         row={item.row}
         context={context}
         hideAssistantActions={item.row.kind === "assistantText"}
-        assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
       />
     ) : (
       <ConversationAgentToolCallRow key={item.key} item={item} context={context} />
@@ -552,29 +537,21 @@ function ConversationWorkSegmentFlow({
   segment,
   turnRunning,
   context,
-  onFork,
   onRetry,
   onEdit,
   assistantCopyText,
   assistantPreviewCards,
   assistantPreviewCardsAutoOpenKey,
-  assistantCodeCommentCards,
-  assistantCodeCommentProjectionEnabled,
-  canForkLatestAssistant,
   canRetryLatestAssistant,
 }: {
   segment: ConversationTurnWorkSegment;
   turnRunning: boolean;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
   assistantCopyText?: string;
   assistantPreviewCards: AssistantPreviewCard[];
   assistantPreviewCardsAutoOpenKey?: string;
-  assistantCodeCommentCards: AssistantCodeCommentCard[];
-  assistantCodeCommentProjectionEnabled: boolean;
-  canForkLatestAssistant: boolean;
   canRetryLatestAssistant: boolean;
 }) {
   // 外层过程收纳由工作段独立控制，不能由内部工具分组隐藏入口或强制展开。
@@ -628,7 +605,6 @@ function ConversationWorkSegmentFlow({
             <ConversationAssistantWorkItems
               rows={item.rows}
               context={context}
-              assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
               historyContainer={{ chunkKey, open }}
             />
           );
@@ -637,7 +613,6 @@ function ConversationWorkSegmentFlow({
             <ConversationTurnRow
               row={item.row}
               context={context}
-              onFork={item.latest && canForkLatestAssistant ? onFork : undefined}
               onRetry={item.latest && canRetryLatestAssistant ? onRetry : undefined}
               hideAssistantActions={!item.latest}
               deferAssistantActions={item.latest}
@@ -646,8 +621,6 @@ function ConversationWorkSegmentFlow({
               assistantPreviewCardsAutoOpenKey={
                 item.latest ? assistantPreviewCardsAutoOpenKey : undefined
               }
-              assistantCodeCommentCards={item.latest ? assistantCodeCommentCards : undefined}
-              assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
             />
           );
         } else {
@@ -655,7 +628,6 @@ function ConversationWorkSegmentFlow({
             <ConversationAssistantWorkItems
               rows={item.rows}
               context={context}
-              assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
             />
           );
         }
@@ -678,23 +650,17 @@ function ConversationTurnFlow({
   unit,
   apiRetry,
   context,
-  onFork,
   onRetry,
   onEdit,
   assistantCopyText,
-  assistantCodeCommentCards,
-  assistantCodeCommentProjectionEnabled,
   assistantPreviewCardsAutoOpenKey,
 }: {
   unit: ConversationTurnRenderUnit;
   apiRetry: ApiRetryState | null;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
   assistantCopyText?: string;
-  assistantCodeCommentCards: AssistantCodeCommentCard[];
-  assistantCodeCommentProjectionEnabled: boolean;
   assistantPreviewCardsAutoOpenKey?: string;
 }) {
   // 产品语义：可见正文或工具不代表主轮已经结束；ChatLoading 跟随最后一轮
@@ -721,7 +687,6 @@ function ConversationTurnFlow({
         <ConversationAssistantWorkItems
           rows={unit.assistantWorkRows}
           context={context}
-          assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
         <TurnChatLoadingSlot
           apiRetry={apiRetry}
@@ -766,7 +731,6 @@ function ConversationTurnFlow({
 
   const latestAssistantTextRow = unit.latestAssistantTextRow;
   const canRetryLatestAssistant = latestAssistantTextRow?.actions?.canRetry === true;
-  const canForkLatestAssistant = latestAssistantTextRow?.actions?.canFork === true;
 
   // 即使恢复了 guide 的 row 全序，也不能让所有 history chunk 共享同一个
   // Collapsible。accepted guide 现在由 CLI workSegments 定界，每段组件自行维护折叠状态。
@@ -778,15 +742,11 @@ function ConversationTurnFlow({
           segment={segment}
           turnRunning={unit.isRunning}
           context={context}
-          onFork={onFork}
           onRetry={onRetry}
           onEdit={onEdit}
           assistantCopyText={assistantCopyText}
           assistantPreviewCards={assistantPreviewCards}
           assistantPreviewCardsAutoOpenKey={assistantPreviewCardsAutoOpenKey}
-          assistantCodeCommentCards={assistantCodeCommentCards}
-          assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
-          canForkLatestAssistant={canForkLatestAssistant}
           canRetryLatestAssistant={canRetryLatestAssistant}
         />
       ))}
@@ -846,23 +806,17 @@ function ConversationBackgroundResultWork({
   unit,
   apiRetry,
   context,
-  onFork,
   onRetry,
   title,
   assistantCopyText,
-  assistantCodeCommentCards,
-  assistantCodeCommentProjectionEnabled,
   assistantPreviewCardsAutoOpenKey,
 }: {
   unit: ConversationTurnRenderUnit;
   apiRetry: ApiRetryState | null;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   title: string;
   assistantCopyText?: string;
-  assistantCodeCommentCards: AssistantCodeCommentCard[];
-  assistantCodeCommentProjectionEnabled: boolean;
   assistantPreviewCardsAutoOpenKey?: string;
 }) {
   const [historyOpen, setHistoryOpen] = useState(unit.assistantHistoryDefaultOpen);
@@ -993,7 +947,6 @@ function ConversationBackgroundResultWork({
       <ConversationAssistantWorkContent
         items={historyItems}
         context={context}
-        assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         historyContainer={{ chunkKey: unit.key, open }}
       />
       {latestAssistantTextRow ? (
@@ -1001,21 +954,17 @@ function ConversationBackgroundResultWork({
           key={`${latestAssistantTextRow.rowId}:${latestAssistantTextRow.entityId ?? ""}`}
           row={latestAssistantTextRow}
           context={context}
-          onFork={latestAssistantTextRow.actions?.canFork === true ? onFork : undefined}
           onRetry={latestAssistantTextRow.actions?.canRetry === true ? onRetry : undefined}
           deferAssistantActions
           assistantCopyText={assistantCopyText}
           assistantPreviewCards={assistantPreviewCards}
           assistantPreviewCardsAutoOpenKey={assistantPreviewCardsAutoOpenKey}
-          assistantCodeCommentCards={assistantCodeCommentCards}
-          assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       ) : null}
       {hasFollowing ? (
         <ConversationAssistantWorkItems
           rows={unit.assistantFollowingRows}
           context={context}
-          assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       ) : null}
       <TurnChatLoadingSlot
@@ -1031,9 +980,7 @@ function ConversationTurnGroupImpl({
   unit,
   apiRetry = null,
   context,
-  onFork,
   onRetry,
-  onFeedbackChange,
   onEdit,
   topClearedByTimeline = false,
 }: ConversationTurnGroupProps) {
@@ -1054,21 +1001,14 @@ function ConversationTurnGroupImpl({
   );
   const latestAssistantTextRow = unit.latestAssistantTextRow;
   const assistantPreviewPptxAutoOpenTarget = context.assistantPreviewPptxAutoOpenTarget;
-  const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
-  const assistantCodeCommentProjectionEnabled =
-    codeCommentCardsEnabled &&
-    (unit.isRunning ||
-      latestAssistantTextRow?.state === "complete" ||
-      latestAssistantTextRow?.state === "interrupted");
   // 性能：copyText 的消费方全部卡在终态——行内 actions 要求 row.state === "complete"
   // （ConversationRowView），轮尾 actions 走 canRenderAssistantActions 同样要求 complete。
-  // 流式期间算出来没有任何人读，但 resolveAssistantCopyText 要合并整轮文本，
-  // 后面的 projectAssistantCodeComments 还要再扫一遍全文，每 30ms 白跑一轮。
+  // 流式期间没有消费者，但 resolveAssistantCopyText 要合并整轮文本。
   // 判据用 latestAssistantTextRow.state 而不是 unit.isRunning：回合可能还在跑
   // （模型说完一段正在调工具），但最新文本行已经终态，那时 copyText 仍须可用。
   const assistantTextTerminal =
     latestAssistantTextRow?.state === "complete" || latestAssistantTextRow?.state === "interrupted";
-  const assistantRawCopyText = useMemo(
+  const assistantCopyText = useMemo(
     () =>
       assistantTextTerminal
         ? resolveAssistantCopyText({
@@ -1087,35 +1027,6 @@ function ConversationTurnGroupImpl({
   const assistantFileSummaryText = useMemo(
     () => unit.assistantTextRows.map((row) => row.text).join("\n\n"),
     [unit.assistantTextRows],
-  );
-  const assistantCopyText = useMemo(
-    () =>
-      assistantCodeCommentProjectionEnabled && assistantRawCopyText !== undefined
-        ? projectAssistantCodeComments(assistantRawCopyText, {
-            streaming: unit.isRunning,
-          }).visibleText
-        : assistantRawCopyText,
-    [assistantRawCopyText, assistantCodeCommentProjectionEnabled, unit.isRunning],
-  );
-  const assistantCodeCommentCards = useMemo(
-    () =>
-      codeCommentCardsEnabled &&
-      assistantRawCopyText !== undefined &&
-      // 卡片与 zcode-file-citation 的预览卡片保持一致：流式期间只投影正文，
-      // 只有终态 row 才生成卡片，避免运行中卡片先出现又因模型续写而回滚。
-      (latestAssistantTextRow?.state === "complete" ||
-        latestAssistantTextRow?.state === "interrupted")
-        ? buildAssistantCodeCommentCards(assistantRawCopyText, context.workspacePath, 50, {
-            homePath: context.workspaceHomePath,
-          })
-        : [],
-    [
-      assistantRawCopyText,
-      codeCommentCardsEnabled,
-      context.workspaceHomePath,
-      context.workspacePath,
-      latestAssistantTextRow?.state,
-    ],
   );
   const cronAutomationTurnCards = useMemo(
     () => (unit.isRunning ? [] : resolveCronAutomationTurnCards(unit.assistantWorkRows)),
@@ -1170,7 +1081,6 @@ function ConversationTurnGroupImpl({
     !unit.isRunning &&
     unit.hookInvocations.some((row) => row.executions.some((execution) => execution.didExecute));
   const canRetryLatestAssistant = latestAssistantTextRow?.actions?.canRetry === true;
-  const canForkLatestAssistant = latestAssistantTextRow?.actions?.canFork === true;
   const backgroundResultTitle = resolveBackgroundResultTitle(unit);
   const hasAssistantWorkContent = unit.timelineOnly
     ? unit.assistantWorkRows.length > 0
@@ -1245,12 +1155,9 @@ function ConversationTurnGroupImpl({
                   unit={unit}
                   apiRetry={apiRetry}
                   context={assistantRowContext}
-                  onFork={canForkLatestAssistant ? onFork : undefined}
                   onRetry={onRetry}
                   title={backgroundResultTitle}
                   assistantCopyText={assistantCopyText}
-                  assistantCodeCommentCards={assistantCodeCommentCards}
-                  assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
                   assistantPreviewCardsAutoOpenKey={
                     assistantPreviewPptxAutoOpenTarget?.turnId === unit.turnId
                       ? assistantPreviewPptxAutoOpenTarget.key
@@ -1263,12 +1170,9 @@ function ConversationTurnGroupImpl({
                 unit={unit}
                 apiRetry={apiRetry}
                 context={assistantRowContext}
-                onFork={canForkLatestAssistant ? onFork : undefined}
                 onRetry={onRetry}
                 onEdit={onEdit}
                 assistantCopyText={assistantCopyText}
-                assistantCodeCommentCards={assistantCodeCommentCards}
-                assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
                 assistantPreviewCardsAutoOpenKey={
                   assistantPreviewPptxAutoOpenTarget?.turnId === unit.turnId
                     ? assistantPreviewPptxAutoOpenTarget.key
@@ -1307,7 +1211,6 @@ function ConversationTurnGroupImpl({
               <ConversationAssistantWorkItems
                 rows={unit.browserTurnEndRows}
                 context={assistantRowContext}
-                assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
               />
             ) : null}
             {canRenderAssistantActions && latestAssistantTextRow ? (
@@ -1315,15 +1218,10 @@ function ConversationTurnGroupImpl({
               // assistant text 内联渲染，会插到 summary 前面，读起来像 summary 不是本轮收尾。
               <ConversationAssistantTextActions
                 rowId={latestAssistantTextRow.rowId}
-                entityId={latestAssistantTextRow.entityId}
                 text={assistantCopyText}
                 createdAt={latestAssistantTextRow.createdAt}
                 compactForRemoteControl={context.compactForRemoteControl}
-                feedback={readAssistantFeedback(latestAssistantTextRow)}
-                sessionId={context.sessionId}
-                onFork={canForkLatestAssistant ? onFork : undefined}
                 onRetry={canRetryLatestAssistant ? onRetry : undefined}
-                onFeedbackChange={onFeedbackChange}
                 hookInvocations={unit.hookInvocations}
                 turnId={unit.turnId}
                 className={cn(
@@ -1353,7 +1251,6 @@ function ConversationTurnGroupImpl({
               <ConversationAssistantWorkItems
                 rows={unit.assistantTailRows}
                 context={assistantRowContext}
-                assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
               />
             ) : null}
           </div>
@@ -1364,13 +1261,8 @@ function ConversationTurnGroupImpl({
             context={assistantRowContext}
             onEdit={onEdit}
             assistantCopyText={assistantCopyText}
-            assistantCodeCommentCards={assistantCodeCommentCards}
-            assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
           />
         )}
-        {unit.topicPreparations?.length ? (
-          <BotTopicPreparationList items={unit.topicPreparations} />
-        ) : null}
       </section>
     </SummaryGroupBoundaryContext.Provider>
   );

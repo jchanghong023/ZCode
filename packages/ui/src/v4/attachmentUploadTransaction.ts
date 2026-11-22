@@ -4,24 +4,28 @@ import { BufferWriter, serialize } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
 import {
   PROTOCOL_V4_LIMITS,
-  type V4AttachmentBeginResult,
-  type V4AttachmentChunkResult,
   type V4AttachmentPutParams,
   type V4AttachmentPutResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   ZCodeAgentAttachmentBeginParams,
+  ZCodeAgentAttachmentBeginResult,
   ZCodeAgentAttachmentChunkParams,
+  ZCodeAgentAttachmentChunkResult,
   ZCodeAgentAttachmentTerminalParams,
-} from "@zcode/services";
+} from "@zcode/services/zcode-agent";
 import { logger } from "@/logger.js";
 
 /** 384KiB 可被 3 整除，除末片外 base64 不含 padding；同时为两层 envelope 留足空间。 */
 export const ATTACHMENT_UPLOAD_CHUNK_BYTES = 384 * 1024;
 
 export interface AttachmentUploadAgent {
-  attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<V4AttachmentBeginResult>;
-  attachmentChunkV4(params: ZCodeAgentAttachmentChunkParams): Promise<V4AttachmentChunkResult>;
+  attachmentBeginV4(
+    params: ZCodeAgentAttachmentBeginParams,
+  ): Promise<ZCodeAgentAttachmentBeginResult>;
+  attachmentChunkV4(
+    params: ZCodeAgentAttachmentChunkParams,
+  ): Promise<ZCodeAgentAttachmentChunkResult>;
   attachmentCommitV4(params: ZCodeAgentAttachmentTerminalParams): Promise<V4AttachmentPutResult>;
   attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void>;
 }

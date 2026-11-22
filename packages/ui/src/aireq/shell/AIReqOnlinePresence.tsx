@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ChevronRight, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -15,11 +16,14 @@ export function AIReqOnlinePresence() {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const { snapshot, error } = useOnlinePresence();
-  const count = snapshot
-    ? zh
-      ? `${snapshot.employeeCount} 人`
-      : `${snapshot.employeeCount} people`
-    : undefined;
+  const employeeCount = useMemo(() => {
+    if (!snapshot) return undefined;
+    const ids = new Set<string>();
+    for (const { employeeId } of snapshot.rows) ids.add(employeeId);
+    return ids.size;
+  }, [snapshot]);
+  const count =
+    employeeCount === undefined ? undefined : zh ? `${employeeCount} 人` : `${employeeCount} people`;
   const unavailable = zh ? "在线状态暂不可用" : "Online status unavailable";
 
   return (

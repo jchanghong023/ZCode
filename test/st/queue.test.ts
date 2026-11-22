@@ -128,6 +128,7 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
 
     // Use the actual queued item and an active primary turn rather than a missing target.
     const queueItem = running.queue.items[0]!;
+    expect(queueItem).not.toHaveProperty("inputOrigin");
     const [deleteQueue, deleteSession] = await Promise.all([
       native.send(
         "deleteQueueItem",

@@ -33,15 +33,6 @@ export type AIReqPrHandoffScenario =
   | "change-conflict"
   | "stale-version";
 
-export interface AIReqPrHandoffInput {
-  group: AIReqRequirementGroup;
-  project?: AIReqProject;
-  developmentRoot?: string;
-  developmentDirectory?: { path: string; repositoryRoot?: string; git: boolean };
-  employeeId: string;
-  scenario?: AIReqPrHandoffScenario;
-}
-
 export type AIReqReviewScenario = "normal" | "blocked" | "failed" | "hold";
 
 export type InternalRequirementGroup = AIReqRequirementGroup & {

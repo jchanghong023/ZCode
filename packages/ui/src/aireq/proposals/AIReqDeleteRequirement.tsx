@@ -1,6 +1,5 @@
 import { useAIReqDataSource } from "../data-source.js";
 import { useRef, useState, type ReactNode, type RefObject } from "react";
-import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +24,8 @@ export function AIReqDeleteRequirement({
   returnFocusRef,
 }: {
   group: AIReqRequirementGroup;
-  renderTrigger?: (openDelete?: () => void, prohibition?: string) => ReactNode;
-  returnFocusRef?: RefObject<HTMLButtonElement | null>;
+  renderTrigger: (openDelete?: () => void, prohibition?: string) => ReactNode;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
 }) {
   const source = useAIReqDataSource();
   const aireq = useAIReq()!;
@@ -49,7 +48,7 @@ export function AIReqDeleteRequirement({
     group.status === "formal" ||
     view?.groups.some((item) => item.id === group.id && item.projectId === group.projectId)
   )
-    return <>{renderTrigger?.()}</>;
+    return <>{renderTrigger()}</>;
   const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group, selection);
   const prohibition =
     group.merge || group.proposalRevisions?.length || group.freeze || group.status === "frozen"
@@ -70,11 +69,10 @@ export function AIReqDeleteRequirement({
     try {
       const result = await aireq.command({
         type: "deleteRequirement",
-        version: 1,
         projectId: group.projectId,
         irId: group.id,
       });
-      if (result?.status === "completed") setTarget(undefined);
+      if (result?.receipt.status === "completed") setTarget(undefined);
     } finally {
       inFlight.current = false;
       setDeleting(false);
@@ -82,20 +80,7 @@ export function AIReqDeleteRequirement({
   };
   return (
     <>
-      {renderTrigger ? (
-        renderTrigger(openDelete, prohibition)
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          data-testid="delete-requirement"
-          disabled={!!prohibition || deleting}
-          title={prohibition}
-          onClick={openDelete}
-        >
-          移除需求
-        </Button>
-      )}
+      {renderTrigger(openDelete, prohibition)}
       <AlertDialog
         open={targetMatches}
         onOpenChange={(open) => {
@@ -109,7 +94,7 @@ export function AIReqDeleteRequirement({
             setTarget(undefined);
           }}
           onCloseAutoFocus={(event) => {
-            if (!returnFocusRef?.current) return;
+            if (!returnFocusRef.current) return;
             event.preventDefault();
             returnFocusRef.current.focus();
           }}

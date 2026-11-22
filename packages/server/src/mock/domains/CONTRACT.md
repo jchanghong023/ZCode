@@ -13,16 +13,18 @@
 
 各服务直接按已有 wire 契约返回能力值：已实现操作必须有可观察的内存状态转换，未实现操作明确拒绝。这里只按领域拆分代码，不建立能力矩阵实现层；UI 不增加 mock 分支。
 
-工号只由浏览器标签页保存，不需要后端账号会话或凭据 RPC；Provider 目录只保留
-`getView`、`refresh` 和 `onDidChange`，AIReq 模型设置仍由 AIReq owner 管理。
+工号只由浏览器标签页保存，不需要后端账号会话或凭据 RPC。模型选择目录只提供 `getView`；供应商条目不含 `templateId`，供应商配置只包含可选的 `logo`、`api` 和 `access`，不下发 `group` 或 `visibility`。API 配置只投影 `type`，访问配置只投影访问类型和账户套餐展示字段。不下发端点、请求头、API 密钥或密钥管理地址。模型候选和顺序只由 `models` 表达。模型选项只公开 `reasoningLevel.values`，模型能力只公开 `inputFormat.supportsImage`；不发布执行参数映射、输出令牌配置或其他执行能力。不发布目录变更事件，不注册 Provider 设置目录。AIReq 模型设置仍由 AIReq owner 管理并发布业务变更通知。
 工号切换或退出不触发共享会话、项目或设置的删除、解绑或重置。
 setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/save 访问，
 不再保留旧 getUserInstructions/saveUserInstructions 及其模拟路径。
+`setting.update(patch)` 不提供桌面 Provider 账户写入的快照参数；额外实参在校验或合并 patch 前拒绝。
 
-公开设置 patch 使用 shared 的严格 `appSettingsPatchSchema`，只对声明字段按正式值规则解析，整份成功后一次合并到唯一内存 settings；失败不改变任何字段，partial 不填默认。初值由 `appSettingsSchema` 生成；theme／uiFontSizePx 使用既有主题枚举和 12—20px 整数字号规则，语言使用 locale，不新增 language 别名。不改变浏览器本机 store 的偏好所有权。
+公开设置 patch 使用从 shared 严格 `appSettingsPatchSchema` 派生的 `webAppSettingsPatchSchema`。补丁和回读共用同一份排除清单，移除宿主网络、终端、桌面窗口、电源、托盘迁移、桌面远程宿主、桌面工作区与标签页恢复、旧工具搜索、记忆开关、旧内置 Agent CLI 启用列表、电脑操作入口偏好、桌面数据目录、首次设置同步提示和旧端点覆盖字段，具体成员见[公开契约](../../../../../docs/specs/aireq/contract-design.md#6-拒绝文件与设置)。原型从 `appSettingsSchema` 的初值中排除这些字段。整份 patch 验证成功后一次合并到唯一内存 settings；失败不改变任何字段，partial 不填默认。theme／uiFontSizePx 使用既有主题枚举和 12—20px 整数字号规则，语言使用 locale，不新增 language 别名。不改变浏览器本机 store 的偏好所有权。
+
+Web 设置不返回或接受旧套餐推荐、引导、思考展示迁移和自动归档字段。自动归档迁移标记 `taskAutoArchiveResetVersion` 原本就不属于严格补丁，仅需从回读投影排除；聊天的思考和 Todo 展示仍使用各自现有偏好。
 
 终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
-不再注册兼容空壳。Provider 设置与模型目录仍沿既有契约访问。
+不再注册兼容空壳。模型目录仍沿既有契约访问。
 
 产品插件与旧宿主服务整体退役：不注册 Git、文件监听、媒体会话、MCP 同步、client-config、
 skills、task-groups、prompt-attachment-transfer 和子代理目录；HTTP 帮助配置不受影响。
@@ -45,10 +47,9 @@ readTree 仅投影当前身份可见的原生会话，不发布示例目录项�
 `MockZCodeAgentService` 仅从接纳信封取得真实 clientId。立即发送和繁忙时接纳的引导／跟进均保留原来源，不用后续操作者或固定值替代。实时行和历史分页共用 runtime.rows。
 
 文件来自同一虚拟树与 Skill owner 私有文件事实，缺失／错类型明确拒绝，字节按 UTF-8。
-公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange；
+公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange，各自仅接收一个封闭请求对象，访问文件前拒绝额外实参或字段；
 Skill 私有文件 helper 仍保留，不因移除公开正文／目录／索引 RPC 而删除。
-广播总线归唯一 MockBroadcastService，每连接 HTTP facade 绑定可信数字来源，
-过滤本源、关闭注销。
+广播总线归唯一 MockBroadcastService。HTTP facade 在广播前拒绝客户端传入的 `sourceWindowId`，为每条连接绑定可信数字来源，过滤本源并在关闭时注销。
 
 ## 装配顺序
 
@@ -62,7 +63,7 @@ mock/index.ts
 
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。
 
-当前领域注册面：setting、provider-settings、model-selection。
+当前领域注册面：setting、model-selection。
 扩展、凭据、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
 不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
 两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record

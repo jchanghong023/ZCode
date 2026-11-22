@@ -25,7 +25,6 @@ import type {
   ChatSearchResultHighlightRequest,
   ConversationFindMatchState,
 } from "@/v4/legacyChatViewTypes.js";
-import { useAssistantCodeCommentFeatureEnabled } from "@/AssistantCodeCommentFeatureProvider.js";
 
 const FIND_AUTO_LOAD_ROW_LIMIT = 1200;
 const SEARCH_RESULT_HIGHLIGHT_DURATION_MS = 3000;
@@ -157,7 +156,6 @@ export function useConversationTimelineFind({
   const buildFindIndex = useMemo(() => createConversationFindIndexBuilder(), []);
   // 未查找时的固定空索引：依赖它的 effect 不会随每个流式帧重跑。
   const emptyFindIndex = useMemo(() => buildFindIndex([], ""), [buildFindIndex]);
-  const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const findStable = sessionPhase !== "running" && sessionPhase !== "prewarming";
   const normalizedFindQuery = conversationFindQuery.trim().toLocaleLowerCase();
   // 历史段与尾段各自只保留当前段的 unit；两段之间迁移的 unit 由对方的表兜底命中。
@@ -177,20 +175,16 @@ export function useConversationTimelineFind({
       units: renderUnits.history,
       indexOffset: 0,
       matches,
-      cacheKeyPrefix: `${normalizedFindQuery}:${codeCommentCardsEnabled}`,
+      cacheKeyPrefix: normalizedFindQuery,
       lookups: [historyFindCacheRef.current, tailFindCacheRef.current],
       nextCache,
-      build: (unit) =>
-        buildFindIndex([unit], conversationFindQuery, {
-          projectAssistantCodeComments: codeCommentCardsEnabled,
-        }),
+      build: (unit) => buildFindIndex([unit], conversationFindQuery),
     });
     // 仅保留当前窗口，不让裁剪后的历史命中继续占用缓存。
     historyFindCacheRef.current = nextCache;
     return { matches, loadedRowCount };
   }, [
     buildFindIndex,
-    codeCommentCardsEnabled,
     conversationFindQuery,
     normalizedFindQuery,
     renderUnits.history,
@@ -207,13 +201,10 @@ export function useConversationTimelineFind({
       units: renderUnits.tail,
       indexOffset: renderUnits.history.length,
       matches,
-      cacheKeyPrefix: `${normalizedFindQuery}:${codeCommentCardsEnabled}`,
+      cacheKeyPrefix: normalizedFindQuery,
       lookups: [tailFindCacheRef.current, historyFindCacheRef.current],
       nextCache,
-      build: (unit) =>
-        buildFindIndex([unit], conversationFindQuery, {
-          projectAssistantCodeComments: codeCommentCardsEnabled,
-        }),
+      build: (unit) => buildFindIndex([unit], conversationFindQuery),
     });
     tailFindCacheRef.current = nextCache;
     return {
@@ -224,7 +215,6 @@ export function useConversationTimelineFind({
     };
   }, [
     buildFindIndex,
-    codeCommentCardsEnabled,
     conversationFindQuery,
     emptyFindIndex,
     historyFindIndex,
@@ -237,12 +227,10 @@ export function useConversationTimelineFind({
         ? buildFindIndex(
             [...renderUnits.history, ...renderUnits.tail],
             searchResultHighlightRequest.query,
-            { projectAssistantCodeComments: codeCommentCardsEnabled },
           )
         : emptyFindIndex,
     [
       buildFindIndex,
-      codeCommentCardsEnabled,
       emptyFindIndex,
       findStable,
       renderUnits,

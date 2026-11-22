@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AIREQ_CONTRACT_VERSION, AIREQ_WORKFLOW_VERSION } from "@zcode/services/aireq";
+import { AIREQ_CONTRACT_VERSION, AIREQ_WORKFLOW_VERSION, IAIReqService } from "@zcode/services/aireq";
 import { connectST, stFetch, unique, waitUntil, wsUrl } from "./client.js";
 import { config } from "./config.js";
 
@@ -22,6 +22,10 @@ describe("ST service readiness and connection boundary", () => {
         expect(bootstrap.models.revision).toBeGreaterThanOrEqual(0);
         expect(bootstrap.models.choices).toEqual(expect.any(Array));
         const remote = await c.read();
+        expect(bootstrap).not.toHaveProperty("initialSelection");
+        expect(bootstrap.initialProjectId).toBe(remote.view.currentProjectId);
+        expect(remote.view).not.toHaveProperty("ompWebId");
+        expect(remote.view).not.toHaveProperty("changes");
         expect(remote.view.version).toBe(AIREQ_WORKFLOW_VERSION);
         expect(remote.view.projects).toEqual(expect.any(Array));
         expect(remote.view.releases).toEqual(expect.any(Array));
@@ -34,7 +38,7 @@ describe("ST service readiness and connection boundary", () => {
   );
 
   it(
-    "rejects a body identity that differs from its connection and rejects unknown paths and malformed tuples",
+    "rejects a mismatched body identity, unknown paths, malformed tuples and extra RPC arguments",
     async () => {
       const c = await connectST();
       try {
@@ -53,6 +57,14 @@ describe("ST service readiness and connection boundary", () => {
         await expect(
           c.services.aiReqService.call(c.identity, "readWorkflow", [{}, "extra"] as never),
         ).rejects.toThrow();
+        expect(
+          await c.probeRpc("call", IAIReqService.channelName, "call", [
+            c.identity,
+            "readWorkflow",
+            [{}],
+            {},
+          ]),
+        ).toMatchObject({ code: "INVALID_ARGUMENT" });
         // 拒绝后连接仍能读取正式契约，不以 socket open 代替 RPC 可用性。
         expect((await c.bootstrap()).contractVersion).toBe(AIREQ_CONTRACT_VERSION);
         expect((await c.read()).view.version).toBe(AIREQ_WORKFLOW_VERSION);

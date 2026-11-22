@@ -6,15 +6,15 @@ import {
   IBroadcastService,
   IFileService,
   IProjectService,
-  ISystemService,
   IZCodeAgentService,
+  type WebProjectService,
 } from "@zcode/services";
 import { MockBroadcastService } from "./broadcast.js";
-import { registerModelsMockServices } from "./domains/models.js";
+import { registerModelSelectionMockService } from "./domains/models.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
 import { MockProjectService } from "./project.js";
 import { MockRuntime } from "./runtime.js";
-import { MockFileService, MockSystemService } from "./workspace.js";
+import { MockFileService } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
 import { IAIReqService } from "@zcode/services/aireq";
 import {
@@ -37,18 +37,17 @@ export function createMockServices(options: MockServicesOptions): {
 
   // 收口原因：当前 Web 不提供 Git、文件监听或媒体会话，不能注册旧能力空壳。
   services.register(IFileService, new MockFileService(runtime));
-  services.register(ISystemService, new MockSystemService());
   services.register(IBroadcastService, new MockBroadcastService());
 
   // 领域服务：每域只注册自己的服务，权威状态仍在 runtime。
   registerSettingsMockServices(services);
-  registerModelsMockServices(services);
+  registerModelSelectionMockService(services);
 
   // 协议面与项目目录：AIReq、v4 会话、项目目录。
   const aiReqService = new MockAIReqService(options.readGitDocuments) satisfies AIReqNativeBridge;
   services.register(IAIReqService, aiReqService.remote);
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
-  services.register(IProjectService, new MockProjectService(runtime, aiReqService));
+  services.register<WebProjectService>(IProjectService, new MockProjectService(runtime));
 
   return { services, runtime };
 }

@@ -6,6 +6,5 @@ export interface AIReqPresenceRow {
 
 export interface AIReqPresenceSnapshot {
   revision: number;
-  employeeCount: number;
   rows: AIReqPresenceRow[];
 }

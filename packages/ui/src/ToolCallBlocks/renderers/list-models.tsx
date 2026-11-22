@@ -169,7 +169,7 @@ function listModelsGroupName(
   if (label !== undefined && label.length > 0 && label !== providerId) {
     return label;
   }
-  // 会话清单查不到时会退回 providerId 本身（zcodeSessionSettingsToConfigOptions），当作没查到。
+  // 清单若返回 providerId 本身，仍视为没有提供显示名。
   const resolved = providerName?.(providerId)?.trim();
   if (resolved !== undefined && resolved.length > 0 && resolved !== providerId) {
     return resolved;

@@ -7,9 +7,7 @@ import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSe
  * （workspace configOptions 里 category === "model" 的那一项）已经带着
  * `modelProviderId` / `modelProviderName`，不必为一行字再开第二份 provider 目录。
  *
- * 只给**名字**，不给 id：`modelProviderName` 在没有 providerLabel 时会退回 providerId 本身
- * （见 zcodeSessionSettingsToConfigOptions），那种「名字」在这里就当作没有——屏幕上绝不出现
- * providerId（团队套餐的它是一个 UUID）。
+ * 如果清单用 providerId 作为缺省显示名，就当作未提供名字，以免显示团队套餐的 UUID。
  */
 function workflowSubagentProviderNameLookup(
   configOptions: readonly ZCodeConfigOption[] | null | undefined,

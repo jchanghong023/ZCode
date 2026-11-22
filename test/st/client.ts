@@ -104,7 +104,6 @@ export interface STClient {
   call<P extends AIReqRemotePath>(
     path: P,
     args: AIReqRemoteArgs<P>,
-    selection?: AIReqSelection,
   ): Promise<AIReqRemoteResult<P>>;
   command(action: AIReqAction, selection?: AIReqSelection): Promise<AIReqRemoteResult<"command">>;
   close(): Promise<void>;
@@ -269,19 +268,18 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
     identity,
     probeRpc,
     bootstrap: () => rpc(services.aiReqService.bootstrap(identity)),
-    read: (selection = {}) =>
-      rpc(services.aiReqService.call(identity, "readWorkflow", [selection], selection)),
-    call: (path, args, selection) => {
+    read: (selection = {}) => rpc(services.aiReqService.call(identity, "readWorkflow", [selection])),
+    call: (path, args) => {
       if (isClosing()) throw new Error("ST 客户端已关闭");
       if (path === "command") {
         const action = args[0] as AIReqAction;
         if (action.type === "deleteRequirement")
           requireCreatedThisRun(action.projectId, action.irId);
-        return rpc(services.aiReqService.call(identity, path, args, selection)).catch((error) => {
+        return rpc(services.aiReqService.call(identity, path, args)).catch((error) => {
           throw new Error(`ST command ${action.type}: ${error.message}`, { cause: error });
         });
       }
-      return rpc(services.aiReqService.call(identity, path, args, selection));
+      return rpc(services.aiReqService.call(identity, path, args));
     },
     async command(action, selection = {}) {
       const revision = action.expectedRevision ?? (await client.read(selection)).view.revision;
@@ -290,7 +288,7 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
         operationId: action.operationId ?? unique("operation"),
         expectedRevision: revision,
       };
-      return client.call("command", [command, selection, revision], selection);
+      return client.call("command", [command, selection, revision]);
     },
     close,
   };

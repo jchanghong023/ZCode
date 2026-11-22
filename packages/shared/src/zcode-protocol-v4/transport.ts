@@ -48,20 +48,27 @@ export const hostCapabilitiesSchema = z.object({
 });
 export type HostCapabilities = z.infer<typeof hostCapabilitiesSchema>;
 
-export const helloMessageSchema = z
-  .object({
-    kind: z.literal("hello"),
-    protocolVersion: z.literal(V4_WIRE_PROTOCOL_VERSION),
+const helloMessageBaseSchema = z.strictObject({
+  kind: z.literal("hello"),
+  protocolVersion: z.literal(V4_WIRE_PROTOCOL_VERSION),
+  capabilities: hostCapabilitiesSchema,
+});
+
+export const webHelloMessageSchema = helloMessageBaseSchema.extend({
+  capabilities: hostCapabilitiesSchema.pick({ historyFirst: true }).strict(),
+});
+export type WebHelloMessage = z.infer<typeof webHelloMessageSchema>;
+
+export const helloMessageSchema = helloMessageBaseSchema
+  .extend({
     connectionId: z.string(),
     clientMode: z.enum(["desktop-continuous", "web-remote-replayable"]),
     deliveryProfile: z.enum(["continuous", "replayable"]),
     // 首次时钟校准。
     serverTime: timestampSchema,
-    capabilities: hostCapabilitiesSchema,
     // 此处只留位。
     auth: z.object({ userId: z.string().optional() }),
   })
-  .strict()
   .superRefine((hello, context) => {
     const expectedProfile = hello.clientMode === "desktop-continuous" ? "continuous" : "replayable";
     if (hello.deliveryProfile !== expectedProfile) {
@@ -100,7 +107,19 @@ export const clientHelloSchema = z
   .strict();
 export type ClientHello = z.infer<typeof clientHelloSchema>;
 
-export function hostSupportsWorkspaceHookReview(capabilities: HostCapabilities): boolean {
+export const webClientHelloSchema = clientHelloSchema
+  .omit({ clientKind: true, appVersion: true })
+  .extend({
+    capabilities: clientHelloSchema.shape.capabilities
+      .unwrap()
+      .pick({ historyFirst: true })
+      .optional(),
+  });
+export type WebClientHello = z.infer<typeof webClientHelloSchema>;
+
+export function hostSupportsWorkspaceHookReview(
+  capabilities: Pick<HostCapabilities, "workspaceHookReview">,
+): boolean {
   return capabilities.workspaceHookReview === true;
 }
 
@@ -108,11 +127,15 @@ export function clientSupportsWorkspaceHookReview(clientHello: ClientHello): boo
   return clientHello.capabilities?.workspaceHookReviewUi === true;
 }
 
-export function hostSupportsWorkflowRunDeltas(capabilities: HostCapabilities): boolean {
+export function hostSupportsWorkflowRunDeltas(
+  capabilities: Pick<HostCapabilities, "workflowRunDeltas">,
+): boolean {
   return capabilities.workflowRunDeltas === true;
 }
 
-export function clientSupportsWorkflowRunDeltas(clientHello: ClientHello): boolean {
+export function clientSupportsWorkflowRunDeltas(
+  clientHello: Pick<ClientHello, "capabilities">,
+): boolean {
   return clientHello.capabilities?.workflowRunDeltas === true;
 }
 
@@ -467,6 +490,11 @@ export const v4ConversationSubscribeResultSchema = z
   .strict();
 export type V4ConversationSubscribeResult = z.infer<typeof v4ConversationSubscribeResultSchema>;
 
+export const webConversationSubscribeResultSchema = z.strictObject({
+  ack: subscribeAckSchema.strict(),
+});
+export type WebConversationSubscribeResult = z.infer<typeof webConversationSubscribeResultSchema>;
+
 // sessions-index 与 conversation 共用同一 subscribe RPC；公共 response 同样 ACK-only。
 export const v4SessionsIndexSubscribeResultSchema = z
   .object({
@@ -517,6 +545,11 @@ export const v4ConversationResyncResultSchema = z
   })
   .strict();
 export type V4ConversationResyncResult = z.infer<typeof v4ConversationResyncResultSchema>;
+
+export const webConversationResyncResultSchema = z.strictObject({
+  ack: subscribeAckSchema.pick({ subscriptionId: true, mode: true }).strict(),
+});
+export type WebConversationResyncResult = z.infer<typeof webConversationResyncResultSchema>;
 
 export const v4ConversationUnsubscribeParamsSchema = z
   .object({

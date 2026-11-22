@@ -15,14 +15,10 @@ export function AIReqWorkspaceFooter({
   onOpenSettings,
   onLogout,
   onHelp,
-  settingsButtonMode = "settings",
-  compact = true,
 }: {
   onOpenSettings: () => void;
   onLogout: () => void;
   onHelp: (returnFocusTo?: HTMLButtonElement | null) => void;
-  settingsButtonMode?: "settings" | "back";
-  compact?: boolean;
 }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -35,7 +31,6 @@ export function AIReqWorkspaceFooter({
     <>
       <AIReqOnlinePresence />
       <WorkspaceSidebarFooter
-        compact={compact}
         theme={theme}
         onThemeChange={(value) => {
           if (
@@ -47,7 +42,6 @@ export function AIReqWorkspaceFooter({
             setTheme(value);
         }}
         onSettingsButtonClick={onOpenSettings}
-        settingsButtonMode={settingsButtonMode}
         profileTriggerRef={menuTriggerRef}
         profileAriaLabel={zh ? "工号与界面菜单" : "Employee and interface menu"}
         profileLabel={<span title={employeeId}>{employeeId}</span>}

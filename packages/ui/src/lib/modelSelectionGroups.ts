@@ -5,7 +5,7 @@ import {
   type ZCodeProviderAccountAccess,
   type ZCodeProvider,
 } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import type { ModelSelectGroup } from "@/ModelConfigSelect.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { shouldShowModelVisionBadge } from "@/lib/modelVisionBadge.js";
@@ -32,7 +32,7 @@ function supportsRegistryApiFormat(
 
 export function buildRegistryModelSelectGroups(
   selectedProvider: ZCodeProvider,
-  view: ModelSelectionView,
+  view: WebModelSelectionView,
   labels: ModelProviderGroupLabelOptions = {},
 ): ModelSelectGroup[] {
   return view.providers.flatMap((provider) => {

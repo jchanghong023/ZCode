@@ -1,5 +1,5 @@
 import type { ComposerInitialConfig } from "@/store/zcodeSessionStoreTypes.js";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import { readComposerRecent, resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
 import {
   readV4ComposerDraft,
@@ -15,7 +15,7 @@ export function initializeNewTaskDraft(
   draft: V4ComposerDraft,
   workspacePath: string,
   workspaceIdentity: string | undefined,
-  view: ModelSelectionView,
+  view: WebModelSelectionView,
   scope?: ComposerScope,
 ): V4ComposerDraft {
   const recent = readComposerRecent(workspacePath, workspaceIdentity, undefined, scope);

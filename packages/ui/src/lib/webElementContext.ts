@@ -1,68 +1,37 @@
-import type {
-  PageElementRect,
-  PageElementSnapshot,
-  PageElementStyleSummary,
-} from "@zcode/design-runtime";
-
-export const WEB_ELEMENT_CONTEXT_ADD_TO_CHAT_EVENT = "zcode:web-element-context-add-to-chat";
-export const WEB_ELEMENT_CONTEXT_REMOVE_FROM_CHAT_EVENT =
-  "zcode:web-element-context-remove-from-chat";
-/** 事件 detail 上的标记键：只更新已有的同 id 引用（不新加） */
-export const WEB_ELEMENT_CONTEXT_UPDATE_ONLY = "__zcodeUpdateOnly";
-/** 输入框里用户删掉了引用（与上面「浏览器要求撤回」方向相反）；浏览器设计工具据此取消页面上的选中 */
-export const WEB_ELEMENT_CONTEXTS_REMOVED_EVENT = "zcode:web-element-contexts-removed";
-
 const WEB_ELEMENT_CONTEXT_BLOCK_TITLE = "# Web page elements:";
 const MAX_MARKDOWN_FIELD_LENGTH = 8_000;
 
-export type WebElementRect = PageElementRect;
-export type WebElementStyleSummary = PageElementStyleSummary;
-
-/**
- * 选中元素时按元素 rect 裁出的截图。
- * 只在内存里随 chip 走：composer 附加时把它预上传为图片附件，不进提示词文本，也不进历史回显。
- */
-export interface WebElementScreenshot {
-  data: ArrayBuffer;
-  mimeType: "image/png";
+interface WebElementStyleSummary {
+  color?: string;
+  backgroundColor?: string;
+  fontFamily?: string;
+  fontSize?: string;
+  fontWeight?: string;
+  display?: string;
 }
 
-export interface WebElementContextPayload extends PageElementSnapshot {
-  id?: string;
+export interface WebElementContextComposerAttachment {
+  id: string;
   workspacePath: string;
   workspaceIdentity?: string;
-  screenshot?: WebElementScreenshot;
-  /**
-   * 设计模式点选的元素：在输入框正文里以元素 token 出现（可在前后穿插文字），不出单独的标签和缩略图。
-   * 普通网页「选择元素」不带它，仍是输入框上方的元素标签。
-   */
+  pageUrl: string;
+  pageTitle: string;
+  tagName: string;
+  role?: string;
+  accessibleName?: string;
+  selector?: string;
+  xpath?: string;
+  text?: string;
+  nearbyText?: string;
+  htmlExcerpt?: string;
+  attributes?: Record<string, string>;
+  rect?: { x: number; y: number; width: number; height: number };
+  style?: WebElementStyleSummary;
+  capturedAt: number;
+  /** 历史消息中的内联引用显示为正文 token，其余显示为引用标签。 */
   inline?: boolean;
-}
-
-/** 截图文件名与提示词里的 `## Element N` 共用 chip 的稳定编号，模型才分得清哪张图是哪个元素。 */
-export function buildWebElementScreenshotFileName(ordinal: number): string {
-  return `element-${ordinal}.png`;
-}
-
-export interface WebElementContextComposerAttachment extends WebElementContextPayload {
-  id: string;
-  /**
-   * 提示词 `## Element N` 与截图文件名 `element-N.png` 共用的编号。
-   * 加入时取当前最大值 + 1、同 id 覆盖保留原值，所以删掉前面的 chip 后两者仍一一对应（编号可不连续）。
-   */
+  /** 提示词中的 `## Element N` 保留原编号。 */
   ordinal: number;
-}
-
-/** chip 带的截图 → composer 图片附件文件（没有截图时为空） */
-export function webElementScreenshotFiles(context: WebElementContextComposerAttachment): File[] {
-  const { screenshot } = context;
-  return screenshot
-    ? [
-        new File([screenshot.data], buildWebElementScreenshotFileName(context.ordinal), {
-          type: screenshot.mimeType,
-        }),
-      ]
-    : [];
 }
 
 interface ParsedWebElementContextPrompt {
@@ -70,66 +39,11 @@ interface ParsedWebElementContextPrompt {
   webElementContexts: WebElementContextComposerAttachment[];
 }
 
-type WebElementContextAddToChatEvent = CustomEvent<WebElementContextPayload>;
-type WebElementContextRemoveFromChatEvent = CustomEvent<{
-  id: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-}>;
-
-export function createWebElementContextId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `web-element-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 export function getWebElementContextWorkspaceKey(
   workspacePath: string,
   workspaceIdentity?: string,
 ) {
   return workspaceIdentity?.trim() || workspacePath;
-}
-
-export function isWebElementContextAddToChatEvent(
-  event: Event,
-): event is WebElementContextAddToChatEvent {
-  return (
-    event.type === WEB_ELEMENT_CONTEXT_ADD_TO_CHAT_EVENT &&
-    "detail" in event &&
-    typeof (event as CustomEvent<unknown>).detail === "object" &&
-    (event as CustomEvent<unknown>).detail !== null
-  );
-}
-
-export function isWebElementContextRemoveFromChatEvent(
-  event: Event,
-): event is WebElementContextRemoveFromChatEvent {
-  return (
-    event.type === WEB_ELEMENT_CONTEXT_REMOVE_FROM_CHAT_EVENT &&
-    "detail" in event &&
-    typeof (event as CustomEvent<unknown>).detail === "object" &&
-    (event as CustomEvent<unknown>).detail !== null
-  );
-}
-
-export function isWebElementContextPayload(payload: unknown): payload is WebElementContextPayload {
-  const candidate = payload as WebElementContextPayload;
-  return (
-    typeof payload === "object" &&
-    payload !== null &&
-    typeof candidate.workspacePath === "string" &&
-    candidate.workspacePath.length > 0 &&
-    (candidate.workspaceIdentity === undefined ||
-      typeof candidate.workspaceIdentity === "string") &&
-    typeof candidate.pageUrl === "string" &&
-    candidate.pageUrl.length > 0 &&
-    typeof candidate.pageTitle === "string" &&
-    typeof candidate.tagName === "string" &&
-    candidate.tagName.length > 0 &&
-    typeof candidate.capturedAt === "number"
-  );
 }
 
 function truncateMarkdownValue(value: string | undefined) {
@@ -362,70 +276,4 @@ export function parsePromptWebElementContexts(
     visibleContent: content.slice(0, blockMatch.index).trimEnd(),
     webElementContexts,
   };
-}
-
-/**
- * 返回是否有输入框收下（收下的 composer 会 preventDefault）。
- * updateOnly：只更新已有的同 id 引用（如稍后补上的截图），输入框里没有这条就忽略，不当成新引用加进来。
- */
-export function dispatchWebElementContextAddToChat(
-  payload: WebElementContextPayload,
-  options: { updateOnly?: boolean } = {},
-): boolean {
-  return !window.dispatchEvent(
-    new CustomEvent(WEB_ELEMENT_CONTEXT_ADD_TO_CHAT_EVENT, {
-      cancelable: true,
-      detail: options.updateOnly
-        ? { ...payload, [WEB_ELEMENT_CONTEXT_UPDATE_ONLY]: true }
-        : payload,
-    }),
-  );
-}
-
-export function dispatchWebElementContextRemoveFromChat(payload: {
-  id: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-}) {
-  window.dispatchEvent(
-    new CustomEvent(WEB_ELEMENT_CONTEXT_REMOVE_FROM_CHAT_EVENT, {
-      detail: payload,
-    }),
-  );
-}
-
-/**
- * composer 删掉引用后广播（按 workspace 区分）。reason：user 是用户点了删除（浏览器取消对应选中），
- * sent 是随消息发出去了（浏览器只忘掉这些引用，选中留着，再点同一元素会重新引用）。
- */
-export function dispatchWebElementContextsRemoved(payload: {
-  ids: string[];
-  reason: "user" | "sent";
-  workspacePath: string;
-  workspaceIdentity?: string;
-}) {
-  if (payload.ids.length === 0) return;
-  window.dispatchEvent(new CustomEvent(WEB_ELEMENT_CONTEXTS_REMOVED_EVENT, { detail: payload }));
-}
-
-export function subscribeWebElementContextsRemoved(
-  target: { workspacePath: string; workspaceIdentity?: string },
-  onRemoved: (ids: string[], reason: "user" | "sent") => void,
-): () => void {
-  const key = getWebElementContextWorkspaceKey(target.workspacePath, target.workspaceIdentity);
-  const handle = (event: Event) => {
-    const detail = (event as CustomEvent<unknown>).detail as
-      | { ids?: unknown; reason?: unknown; workspacePath?: unknown; workspaceIdentity?: unknown }
-      | undefined;
-    if (!detail || !Array.isArray(detail.ids) || typeof detail.workspacePath !== "string") return;
-    const identity =
-      typeof detail.workspaceIdentity === "string" ? detail.workspaceIdentity : undefined;
-    if (getWebElementContextWorkspaceKey(detail.workspacePath, identity) !== key) return;
-    onRemoved(
-      detail.ids.filter((id): id is string => typeof id === "string"),
-      detail.reason === "user" ? "user" : "sent",
-    );
-  };
-  window.addEventListener(WEB_ELEMENT_CONTEXTS_REMOVED_EVENT, handle);
-  return () => window.removeEventListener(WEB_ELEMENT_CONTEXTS_REMOVED_EVENT, handle);
 }

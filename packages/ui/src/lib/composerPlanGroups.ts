@@ -1,4 +1,4 @@
-import type { ModelSelectionView, ProviderSettingsView } from "@zcode/services";
+import type { ProviderSettingsView, WebModelSelectionView } from "@zcode/services";
 import {
   resolveModelProviderFamilySpecByProviderId,
   type ProviderFamilyDomain,
@@ -90,7 +90,7 @@ export function buildComposerPlanGroups(
       {
         revision: 0,
         providers: missing,
-      } as ModelSelectionView,
+      } as WebModelSelectionView,
       labels,
     ),
   ];

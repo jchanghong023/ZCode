@@ -26,11 +26,6 @@ import {
 } from "@zcode/shared";
 import type { SessionConfigState, SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
-import type {
-  AutomationsNavigationTab,
-  TaskNavigationHistory,
-  WorkspaceNavEntry,
-} from "@/lib/taskNavigationHistory.js";
 import type { MentionCategory, MentionItemData } from "@/mentions/mentionTypes.js";
 
 // ────────────────────────────────────────────
@@ -203,10 +198,6 @@ export interface WorkspaceZCodeUIState {
   configOptions: ZCodeConfigOption[] | null;
   /** configOptions 加载状态 */
   configOptionsStatus: ConfigOptionsStatus;
-  /** 任务列表版本号，每次创建/删除任务时自增，驱动 TaskList 刷新 */
-  taskListVersion: number;
-  /** 缓存已拉取的任务列表，避免组件 remount 时闪烁 */
-  taskListCache: ZCodeTaskMeta[] | null;
   /** 新建草稿时递增，驱动输入框在切到草稿态后主动聚焦 */
   draftFocusVersion: number;
 }
@@ -423,14 +414,6 @@ export interface ZCodeSessionStoreState {
     modeId: string | null,
     workspaceIdentity?: string,
   ) => void;
-  /** 任务列表变更时调用（创建/删除任务），驱动 zcodeTaskMetaMerge 重新拉取列表 */
-  bumpTaskListVersion: (workspacePath: string, workspaceIdentity?: string) => void;
-  /** 更新已拉取的任务列表缓存 */
-  setTaskListCache: (
-    workspacePath: string,
-    tasks: ZCodeTaskMeta[],
-    workspaceIdentity?: string,
-  ) => void;
   /** 更新 task 的未读提示，控制左侧蓝点显示 */
   setTaskUnreadIndicator: (
     workspacePath: string,
@@ -438,22 +421,6 @@ export interface ZCodeSessionStoreState {
     hasUnread: boolean,
     workspaceIdentity?: string,
   ) => void;
-
-  /** workspace 导航历史（全局、跨 workspace，包含 task 与 Automations） */
-  taskNavHistory: TaskNavigationHistory;
-  /** 记录 Automations 主视图或详情导航。 */
-  taskNavPushAutomations: (
-    workspacePath: string,
-    workspaceIdentity?: string,
-    automationId?: string,
-    automationTab?: AutomationsNavigationTab,
-  ) => void;
-  /** 后退，返回目标 entry；到头了返回 null */
-  taskNavGoBack: () => WorkspaceNavEntry | null;
-  /** 前进，返回目标 entry；到头了返回 null */
-  taskNavGoForward: () => WorkspaceNavEntry | null;
-  /** task 被删除时清理导航历史中的对应 task 条目 */
-  removeTaskFromNavHistory: (taskId: string) => void;
 }
 
 // ────────────────────────────────────────────
@@ -523,8 +490,6 @@ export function createDefaultWorkspaceState(
     supplierMismatchReason: null,
     configOptions: null,
     configOptionsStatus: "idle",
-    taskListVersion: 0,
-    taskListCache: null,
     draftFocusVersion: 0,
   };
 }

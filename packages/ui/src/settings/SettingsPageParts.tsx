@@ -1,7 +1,6 @@
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode, Ref } from "react";
 import type { LucideIcon } from "lucide-react";
-import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
-import { WindowsTopLeftLogo } from "@/WindowsTopLeftLogo.js";
+import { WebPageFrame } from "@/WebPageFrame.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { BundledTheme } from "shiki";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
@@ -276,12 +275,7 @@ export function SettingsSidebarButton({
   );
 }
 
-/** 原生设置与业务设置共用窗口几何；行为和数据仍由各自调用方持有。 */
 export function SettingsPageFrame({
-  title,
-  isDesktop,
-  isMacDesktop,
-  isWindowsDesktop,
   rootProps,
   backButton,
   search,
@@ -293,10 +287,6 @@ export function SettingsPageFrame({
   header,
   children,
 }: {
-  title: string;
-  isDesktop?: boolean;
-  isMacDesktop?: boolean;
-  isWindowsDesktop?: boolean;
   rootProps?: HTMLAttributes<HTMLDivElement> & {
     "data-testid"?: string;
     "data-active-section"?: string;
@@ -312,25 +302,17 @@ export function SettingsPageFrame({
   children: ReactNode;
 }) {
   return (
-    <DesktopWindowFrame
-      title={title}
-      isDesktop={isDesktop}
-      isMacDesktop={isMacDesktop}
-      isWindowsDesktop={isWindowsDesktop}
-    >
+    <WebPageFrame>
       <div
         {...rootProps}
-        // 隐式 auto 行会按 Memory viewer 的内容高度撑出窗口，随后被 DesktopWindowFrame 裁切且没有滚动条。
-        // 固定为单个 minmax(0, 1fr) 行，让普通设置页和内部滚动 viewer 都以窗口剩余高度为边界。
+        // 限制网格行高，避免长页面撑出视口；正文在自己的容器内滚动。
         className="relative grid h-screen min-h-full w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)] compact-web:grid-cols-1 compact-web:grid-rows-[auto_minmax(0,1fr)]"
       >
-        {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
-
         {/* 手机窄屏 Web 下 68px 图标栏会挤占内容宽度，compact-web 下改成顶部横向滚动导航条。
               spec：相邻实现 */}
         <aside className="min-w-0">
           <div className="flex h-full flex-col compact-web:flex-row compact-web:items-center">
-            <div className="h-12 [app-region:drag] compact-web:hidden"></div>
+            <div className="h-12 compact-web:hidden" />
             <div className="px-2 pb-3 pt-3 compact-web:shrink-0 compact-web:py-1.5 compact-web:pr-0">
               {backButton}
             </div>
@@ -353,45 +335,25 @@ export function SettingsPageFrame({
           </div>
         </aside>
 
-        <section
-          data-settings-content-frame="true"
-          className={cn(
-            "flex min-h-0 flex-col",
-            // 桌面平台统一复用主工作区的面板 inset；左侧仍与导航相接，顶部由独立拖拽留白承接。
-            isDesktop ? (isWindowsDesktop ? "pr-1.5 pb-1.5" : "pr-1 pb-1") : "p-0",
-          )}
-        >
-          <div
-            data-settings-top-inset={isDesktop ? "true" : undefined}
-            // 下方面板使用 h-full；顶部留白不能参与 flex 收缩，否则 6px 会变成小数像素。
-            className={cn(
-              "shrink-0 [app-region:drag]",
-              isDesktop && (isWindowsDesktop ? "h-1.5" : "h-1"),
-              isMacDesktop && "max-lg:h-16",
-            )}
-          />
+        <section data-settings-content-frame="true" className="flex min-h-0 flex-col p-0">
           <div
             data-settings-panel-frame="true"
-            className={cn(
-              "relative flex flex-col min-h-0 h-full border border-border bg-background",
-              // 直接写像素圆角会绕过设计 token；设置页与工作区统一复用 rounded-md（默认 6px）。
-              isWindowsDesktop ? "rounded-md" : "rounded-xl",
-            )}
+            className="relative flex flex-col min-h-0 h-full border border-border bg-background rounded-xl"
           >
-            <div className="absolute top-0 z-50 h-10 w-10 pointer-events-auto [app-region:no-drag] right-0">
-              <div className="absolute right-2.5 top-2.5 pointer-events-auto [app-region:no-drag]">
+            <div className="absolute top-0 z-50 h-10 w-10 pointer-events-auto right-0">
+              <div className="absolute right-2.5 top-2.5 pointer-events-auto">
                 {help}
               </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex h-12 shrink-0">
-                <div className="min-w-0 flex-1 [app-region:drag] mr-12">{header}</div>
+                <div className="min-w-0 flex-1 mr-12">{header}</div>
               </div>
               {children}
             </div>
           </div>
         </section>
       </div>
-    </DesktopWindowFrame>
+    </WebPageFrame>
   );
 }

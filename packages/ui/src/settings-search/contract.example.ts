@@ -10,7 +10,6 @@ export const fontSizeSearchResult = {
 export const documentFormatSearchSection = {
   id: "documentFormats",
   label: "文档格式",
-  includeSettings: false,
   items: [
     {
       id: "aireq.documentFormats.requirements.md",

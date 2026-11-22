@@ -4,10 +4,13 @@ import { createHash } from "node:crypto";
 import { currentIdentity } from "./identity.js";
 import type {
   AIReqSkillDesignDraft,
+  AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
+  AIReqSkillDesignSession,
   AIReqAgentModelBinding,
 } from "@zcode/services/aireq";
 import { readPrototypeWorkflowDefaultModel } from "./agent-models.js";
+import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 const promptTemplate =
   "请根据以下说明与我一起设计可复用技能。请推荐技能标识，不要要求我先填写名称。信息不足时先澄清，不要把表单直接拼成技能文件。\n\n要解决什么任务：{{goal}}\n\n什么时候使用：{{when}}\n\n需要哪些输入：{{inputs}}\n\n期望结果与成功标准：{{outputs}}\n\n边界与不适用场景：{{boundaries}}\n\n流程、规则或参考资料：{{references}}\n\n真实例子或失败情况：{{example}}\n\n已发送的补充讨论：{{notes}}\n\n临时技能目录：{{directory}}\n主文件路径：{{directory}}/SKILL.md\n\n请先核对上述内容，必要时与我讨论，再推荐合适的技能标识，准备 SKILL.md 和必要的参考资料、脚本内容，并按此目录组织预览路径。回复推荐标识、文件清单及对应预览路径，供我预览、继续讨论修改。\n\n请明确区分建议、待确认内容与已完成的保存。只有逐一预览当前版本全部文件、选择项目或共享技能目录并确认后，才可请求保存；不覆盖同名技能。保存结果以返回的收据路径和版本为准，不把请求接纳当作完成。讨论与设置往返时保留尚未发送的内容和附件，不宣称未执行的分析、检查或工具操作已完成。\n";
 const generatedSample =
@@ -37,7 +40,7 @@ const reviewFlowSample = `<svg xmlns="http://www.w3.org/2000/svg" width="760" he
 `;
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import { readPrototypeDevelopmentRoot } from "./project-settings.js";
-import { savePrototypeDesignedSkill } from "./skills.js";
+import { readPrototypeSkillPaths, savePrototypeDesignedSkill } from "./skills.js";
 const chatTemplate =
   "已接纳本次技能说明。当前候选技能标识：`{{name}}`，待确认文件：\n\n- `{{directory}}/SKILL.md`\n- `{{directory}}/references/checklist.md`\n- `{{directory}}/references/review-flow.svg`\n\n请在“临时文件预览”中逐个核对；这些候选内容不代表已完成针对本次要求的分析或检查。需要调整时可继续补充要求；确认当前内容后，选择项目或共享技能目录保存，以保存收据确认结果。\n";
 const discussionTemplate =
@@ -82,7 +85,11 @@ const drafts = new Map<string, AIReqSkillDesignDraft>();
 const supplements = createPrototypeEvent<string>();
 export const onPrototypeSkillDesignSupplement = supplements.event;
 const scopes = new Map<string, { projectId: string; employeeId: string; clientId: string }>();
-export function prototypeSkillDesignSession(projectId: string): string {
+export function prototypeSkillDesignWorkspaceIdentity(projectId: string): string {
+  return `${PROTOTYPE_WORKSPACE_IDENTITY}:${projectId}:skill-design`;
+}
+
+export function prototypeSkillDesignSession(projectId: string): AIReqSkillDesignSession {
   const identity = currentIdentity();
   if (!identity) throw businessRule("连接身份已失效，请重新进入工作区。");
   if (projectId && projectId !== "personal" && !readPrototypeDevelopmentRoot(projectId))
@@ -92,7 +99,11 @@ export function prototypeSkillDesignSession(projectId: string): string {
     .digest("hex")}`;
   scopes.set(id, { projectId, employeeId: identity.employeeId, clientId: identity.clientId });
   prototypeSkillDesignBinding(id);
-  return id;
+  return {
+    sessionId: id,
+    workspaceIdentity: prototypeSkillDesignWorkspaceIdentity(projectId),
+    temporaryDirectory: prototypeSkillDesignDirectory(id),
+  };
 }
 export function assertSkillSession(sessionId: string): string {
   const scope = scopes.get(sessionId);
@@ -110,27 +121,15 @@ export function readPrototypeSkillDesign(sessionId: string): AIReqSkillDesignDra
   assertSkillSession(sessionId);
   return structuredClone(drafts.get(sessionId) ?? emptyDraft);
 }
-function validateDraft(value: AIReqSkillDesignDraft): void {
-  if (
-    !value ||
-    ["goal", "when", "inputs", "outputs", "boundaries", "references", "example"].some(
-      (key) => typeof value[key as keyof AIReqSkillDesignDraft] !== "string",
-    ) ||
-    !Array.isArray(value.notes) ||
-    value.notes.some((note) => typeof note !== "string")
-  )
-    throw businessRule("技能设计说明参数无效。");
-}
 export function savePrototypeSkillDesignDraft(
   sessionId: string,
-  value: AIReqSkillDesignDraft,
+  value: AIReqSkillDesignDraftFields,
 ): void {
   assertSkillSession(sessionId);
-  validateDraft(value);
-  drafts.set(sessionId, structuredClone(value));
+  drafts.set(sessionId, { ...value, notes: drafts.get(sessionId)?.notes ?? [] });
 }
 const previews = new Map<string, AIReqSkillDesignPreview>();
-export function prototypeSkillDesignDirectory(sessionId: string): string {
+function prototypeSkillDesignDirectory(sessionId: string): string {
   assertSkillSession(sessionId);
   const prefix = `prototype-skill-design:${PROTOTYPE_BACKEND.id}:`;
   const projectKey = sessionId.startsWith(prefix) ? sessionId.slice(prefix.length) : sessionId;
@@ -138,14 +137,13 @@ export function prototypeSkillDesignDirectory(sessionId: string): string {
 }
 export function preparePrototypeSkillDesignPrompt(
   sessionId: string,
-  draft: AIReqSkillDesignDraft,
+  fields: AIReqSkillDesignDraftFields,
 ): string {
-  assertSkillSession(sessionId);
-  validateDraft(draft);
+  const directory = prototypeSkillDesignDirectory(sessionId);
   const values: Record<string, string> = {
-    ...draft,
-    notes: draft.notes.join("\n\n"),
-    directory: prototypeSkillDesignDirectory(sessionId),
+    ...fields,
+    notes: (drafts.get(sessionId) ?? emptyDraft).notes.join("\n\n"),
+    directory,
   };
   return promptTemplate.replace(
     /\{\{(\w+)\}\}/g,
@@ -159,9 +157,14 @@ export function readPrototypeSkillDesignPreview(
   const preview = previews.get(sessionId);
   return preview ? structuredClone(preview) : undefined;
 }
+export function listPrototypeSkillDesignPaths(sessionId: string): string[] {
+  const projectId = assertSkillSession(sessionId);
+  const projectRoot = projectId === "personal" ? undefined : readPrototypeDevelopmentRoot(projectId);
+  return readPrototypeSkillPaths(projectRoot ?? PROTOTYPE_BACKEND.configDirectory);
+}
 export interface StagedSkillDiscussion {
   reply: string;
-  draft: AIReqSkillDesignDraft;
+  note: string | undefined;
   preview?: AIReqSkillDesignPreview;
 }
 
@@ -169,18 +172,15 @@ export function stagePrototypeSkillDiscussion(
   sessionId: string,
   message: string,
 ): StagedSkillDiscussion {
-  const draft = readPrototypeSkillDesign(sessionId);
   const directory = prototypeSkillDesignDirectory(sessionId);
   // 完整表单消息已在会话历史中保留，避免再次填入时递归嵌套此前整份提示词。
-  const isFormSubmission = message.includes(directory);
-  if (!isFormSubmission) draft.notes.push(message);
+  const note = message.includes(directory) ? undefined : message;
   const previous = previews.get(sessionId);
-  if (!isFormSubmission && !previous) return { draft, reply: discussionTemplate };
+  if (note !== undefined && !previous) return { note, reply: discussionTemplate };
   // 原型固定产物自行提供推荐标识，不从用户填写的字段生成名称。
   const name = generatedSample.match(/^name: (.+)$/m)![1]!.trim();
   const preview: AIReqSkillDesignPreview = {
     name,
-    directory,
     revision: (previous?.revision ?? 0) + 1,
     files: [
       {
@@ -192,7 +192,7 @@ export function stagePrototypeSkillDiscussion(
     ],
   };
   return {
-    draft,
+    note,
     preview,
     reply: chatTemplate.replaceAll("{{directory}}", directory).replaceAll("{{name}}", name),
   };
@@ -202,7 +202,13 @@ export function commitPrototypeSkillDiscussion(
   sessionId: string,
   output: StagedSkillDiscussion,
 ): void {
-  savePrototypeSkillDesignDraft(sessionId, output.draft);
+  assertSkillSession(sessionId);
+  if (output.note !== undefined) {
+    // 回合准备后表单仍可保存；完成时只向当前草稿追加备注。
+    const draft = drafts.get(sessionId);
+    if (draft) draft.notes.push(output.note);
+    else drafts.set(sessionId, { ...emptyDraft, notes: [output.note] });
+  }
   if (output.preview) previews.set(sessionId, output.preview);
   supplements.fire(sessionId);
 }
@@ -212,8 +218,6 @@ const saves = new Map<
 >();
 export function savePrototypeSkillDesignPreview(
   sessionId: string,
-  workspacePath: string,
-  name: string,
   target: "project" | "user",
   expectedPreviewRevision: number,
   operationId: string,
@@ -221,7 +225,7 @@ export function savePrototypeSkillDesignPreview(
   // 幂等回读也必须先验证私有会话归属，不能凭操作编号读取他人的收据。
   const projectId = assertSkillSession(sessionId);
   if (!operationId?.trim()) throw businessRule("保存操作编号缺失。");
-  const digest = digestValue([sessionId, workspacePath, name, target, expectedPreviewRevision]);
+  const digest = digestValue([target, expectedPreviewRevision]);
   const saveKey = `${sessionId}:${operationId}`;
   const prior = saves.get(saveKey);
   if (prior) {
@@ -233,12 +237,15 @@ export function savePrototypeSkillDesignPreview(
   if (preview.revision !== expectedPreviewRevision)
     throw businessRule("临时文件版本已变化，请重新预览并确认。");
   if (!["project", "user"].includes(target)) throw businessRule("保存目标无效。");
-  if (
-    target === "project" &&
-    (!workspacePath || readPrototypeDevelopmentRoot(projectId) !== workspacePath)
-  )
-    throw businessRule("请选择有效项目，或保存到共享技能目录。");
-  if (name !== preview.name || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64)
+  const workspacePath =
+    target === "user"
+      ? PROTOTYPE_BACKEND.userSkillsDirectory
+      : projectId === "personal"
+        ? undefined
+        : readPrototypeDevelopmentRoot(projectId);
+  if (!workspacePath) throw businessRule("请选择有效项目，或保存到共享技能目录。");
+  const { name } = preview;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64)
     throw businessRule("请通过对话调整候选技能标识。");
   const paths = new Set<string>();
   if (
@@ -265,14 +272,14 @@ export function savePrototypeSkillDesignPreview(
   )
     throw businessRule("临时文件路径无效，请重新生成并预览。");
   const path = savePrototypeDesignedSkill(
-    target === "user" ? PROTOTYPE_BACKEND.userSkillsDirectory : workspacePath,
+    workspacePath,
     name,
     "接口变更评审：检查接口契约的向后兼容性",
     preview.files,
     target === "user" ? "user" : "workspace",
     preview.revision,
   );
-  const receipt = { operationId, path, revision: preview.revision, target, name };
+  const receipt = { path, revision: preview.revision, target };
   preview.savedReceipt = receipt;
   saves.set(saveKey, { digest, receipt });
   supplements.fire(sessionId);

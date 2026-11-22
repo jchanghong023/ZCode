@@ -128,7 +128,7 @@ export function useConversation(
     const unsubscribe = (id: string) =>
       agent.unsubscribeConversationV4({ ...workspace, subscriptionId: id }).catch(() => {});
     void agent
-      .subscribeConversationV4({ ...workspace, sessionId, visibility: "foreground" })
+      .subscribeConversationV4({ ...workspace, sessionId })
       .then(({ ack }) => {
         subscriptionId = ack.subscriptionId;
         if (!active) return unsubscribe(subscriptionId);

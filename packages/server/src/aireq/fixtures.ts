@@ -44,7 +44,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       operations: [],
       sessions: [],
       running: [],
-      changes: [],
     };
   const releaseRequirements = createPrototypeReleaseRequirements();
   const srs = [
@@ -502,17 +501,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       receipt("离线体验草稿", 10, "ir-mobile-offline"),
     ],
     sessions: [...groups, ...drafts].flatMap((item) => item.sessions),
-    selected: { projectId: "demo-aurora", irId: "ir-auth" },
     running: [],
-    changes: materials.map((item) => ({
-      path: item.path,
-      sha256: item.sha256,
-      size: item.size,
-      projectId: item.projectId,
-      irId: item.irId,
-      srId: item.srId,
-      status: "M",
-    })),
   };
   if (
     prototypeRecoveryScenario === "empty-releases" ||
@@ -524,7 +513,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     result.materials = result.materials.filter((item) => item.projectId !== "demo-aurora");
     result.sessions = result.sessions.filter((item) => item.projectId !== "demo-aurora");
     result.operations = [];
-    result.changes = result.changes?.filter((item) => item.projectId !== "demo-aurora");
   }
   return result;
 }

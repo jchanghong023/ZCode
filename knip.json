@@ -26,9 +26,6 @@
         "src/**/contract.example.ts"
       ]
     },
-    "packages/design-runtime": {
-      "entry": ["src/module.ts", "src/contract.example.ts"]
-    },
     "packages/services": {
       "entry": [
         "src/project-storage/repository-contract.ts",
@@ -59,7 +56,6 @@
         "src/components/lib/*.ts",
         "src/components/ClientSceneLucideIcon.tsx",
         "src/components/ModelInputCapabilityBadge.tsx",
-        "src/components/TaskTitleOverflowText.tsx",
         "src/assets/channel-icons/index.ts",
         "src/gen-ui/contract.ts",
         "src/document-highlighting/index.ts",
@@ -67,9 +63,6 @@
         "src/document-highlighting/bundle.ts",
         "src/prompt-editor/useComposerToolbarFit.ts",
         "src/composer-toolbar-layout/contract.ts",
-        "src/side-pane-full-view/index.ts",
-        "src/side-pane-full-view/contract.ts",
-        "src/v4/telemetry/local-ttft/contract.ts",
         "src/file-menu/index.ts",
         "src/file-menu/contract.ts",
         "src/image-preview-editor/index.ts",

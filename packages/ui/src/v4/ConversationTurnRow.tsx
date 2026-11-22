@@ -1,12 +1,8 @@
 import type { ConversationRow, ConversationRowTarget } from "@zcode/shared/zcode-protocol-v4";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
-import type { AssistantCodeCommentCard } from "@/lib/assistantCodeComment.js";
 import { extractPlanToolCallContent } from "@/lib/planToolCall.js";
 import { ConversationRowView, type UserInputEditHandler } from "@/v4/ConversationRowView.js";
-import type {
-  AssistantFeedbackHandler,
-  EditWorkspaceRewindAvailability,
-} from "@/v4/ConversationRowView.js";
+import type { EditWorkspaceRewindAvailability } from "@/v4/ConversationRowView.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
@@ -14,9 +10,7 @@ import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 interface ConversationTurnRowProps {
   row: ConversationRow;
   context: ConversationRowRenderContext;
-  onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
-  onFeedbackChange?: AssistantFeedbackHandler;
   onEdit?: UserInputEditHandler;
   editWorkspaceRewindAvailability?: EditWorkspaceRewindAvailability;
   hideAssistantActions?: boolean;
@@ -24,8 +18,6 @@ interface ConversationTurnRowProps {
   assistantCopyText?: string;
   assistantPreviewCards?: AssistantPreviewCard[];
   assistantPreviewCardsAutoOpenKey?: string;
-  assistantCodeCommentCards?: AssistantCodeCommentCard[];
-  assistantCodeCommentProjectionEnabled?: boolean;
   reasoningContentVariant?: "default" | "nested";
   userInputStatus?: string;
 }
@@ -33,9 +25,7 @@ interface ConversationTurnRowProps {
 export function ConversationTurnRow({
   row,
   context,
-  onFork,
   onRetry,
-  onFeedbackChange,
   onEdit,
   editWorkspaceRewindAvailability,
   hideAssistantActions,
@@ -43,8 +33,6 @@ export function ConversationTurnRow({
   assistantCopyText,
   assistantPreviewCards,
   assistantPreviewCardsAutoOpenKey,
-  assistantCodeCommentCards,
-  assistantCodeCommentProjectionEnabled,
   reasoningContentVariant,
   userInputStatus,
 }: ConversationTurnRowProps) {
@@ -52,9 +40,7 @@ export function ConversationTurnRow({
     <ConversationRowView
       row={row}
       context={context}
-      onFork={onFork}
       onRetry={onRetry}
-      onFeedbackChange={onFeedbackChange}
       onEdit={onEdit}
       editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
       hideAssistantActions={hideAssistantActions}
@@ -62,8 +48,6 @@ export function ConversationTurnRow({
       assistantCopyText={assistantCopyText}
       assistantPreviewCards={assistantPreviewCards}
       assistantPreviewCardsAutoOpenKey={assistantPreviewCardsAutoOpenKey}
-      assistantCodeCommentCards={assistantCodeCommentCards}
-      assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
       reasoningContentVariant={reasoningContentVariant}
       userInputStatus={userInputStatus}
     />

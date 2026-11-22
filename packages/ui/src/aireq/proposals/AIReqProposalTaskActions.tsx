@@ -91,7 +91,8 @@ export function AIReqProposalTaskActions({
     setBusy(true);
     try {
       const result = await ai.command(command);
-      if (result?.status === "completed" && command.type === "acceptProposal") setApproval(null);
+      if (result?.receipt.status === "completed" && command.type === "acceptProposal")
+        setApproval(null);
     } finally {
       inFlight.current = false;
       setBusy(false);

@@ -6,13 +6,15 @@ import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import type { WorkspaceOpenInEditorScope } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { fileSaveSuccessMessageId, saveFileCopy } from "@/file-menu/fileCopy.js";
 import { logger } from "@/logger.js";
 
-interface Props extends WorkspaceOpenInEditorScope {
+interface Props {
   path: string;
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   variant?: "context" | "dropdown";
   disabled?: boolean;
 }

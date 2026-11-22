@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   connectWebChatAgent,
-  type ModelSelectionView,
   type WebChatAgent,
+  type WebModelSelectionView,
 } from "@zcode/client/agent";
 import { createUuid } from "@zcode/shared/uuid";
-import { helloMessageSchema, V4_WIRE_PROTOCOL_VERSION } from "@zcode/shared/zcode-protocol-v4";
+import { V4_WIRE_PROTOCOL_VERSION, webHelloMessageSchema } from "@zcode/shared/zcode-protocol-v4";
 
 const clientKey = "zcode-web-chat-client";
 
@@ -24,7 +24,7 @@ function getBrowserId(): string {
 export interface AgentConnection {
   agent: WebChatAgent;
   clientId: string;
-  modelCatalog: ModelSelectionView;
+  modelCatalog: WebModelSelectionView;
 }
 
 type ConnectionView = {
@@ -66,15 +66,13 @@ export function useAgentConnection() {
           signal,
           onClose: reconnect,
         });
-        const hello = helloMessageSchema.parse(await agent.helloConversationV4());
+        const hello = webHelloMessageSchema.parse(await agent.helloConversationV4());
         if (hello.protocolVersion !== V4_WIRE_PROTOCOL_VERSION)
           throw new Error("Agent protocol mismatch");
         await agent.initializeConversationV4({
           kind: "clientHello",
           protocolVersion: hello.protocolVersion,
           clientId,
-          clientKind: "web",
-          appVersion: "web-chat",
         });
         const modelCatalog = await getModelCatalog();
         if (signal.aborted) return;

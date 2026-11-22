@@ -1,7 +1,7 @@
 import { isHighspeedProviderId } from "@zcode/shared";
 import { modelSelectionSchema, type ModelSelection } from "@zcode/shared/model-selection";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import { logger } from "@/logger.js";
 import { composerScopeKey, type ComposerScope } from "@/v4/composer/composerDraftStore.js";
 
@@ -196,7 +196,7 @@ export function captureComposerRecentSubmission(
 }
 
 export function resolveDraftInitialModelSelection(
-  view: ModelSelectionView | null,
+  view: WebModelSelectionView | null,
   recent: ModelSelection | null,
 ): { readonly selection: ModelSelection | null; readonly invalidated: boolean } {
   // Registry 尚未到达时不能把已有草稿意图误判为失效；先原样保留，等同一 Hook
@@ -228,7 +228,7 @@ export function resolveDraftInitialModelSelection(
   };
 }
 
-export function isSelectionInView(view: ModelSelectionView, selection: ModelSelection): boolean {
+export function isSelectionInView(view: WebModelSelectionView, selection: ModelSelection): boolean {
   const model = findModel(view, selection);
   if (!model) return false;
   const reasoning = selection.options?.reasoningLevel;
@@ -236,7 +236,7 @@ export function isSelectionInView(view: ModelSelectionView, selection: ModelSele
   return reasoning !== undefined && reasoningSpec.values.includes(reasoning);
 }
 
-function findModel(view: ModelSelectionView, selection: ModelSelection) {
+function findModel(view: WebModelSelectionView, selection: ModelSelection) {
   return view.providers
     .find((provider) => provider.providerId === selection.providerId)
     ?.models.find((candidate) => candidate.modelId === selection.modelId);

@@ -5,18 +5,16 @@ import { createContext } from "react";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
-import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import type { WorkflowRunSettingsChange } from "@/components/workflow-timeline/workflowRunSettings.js";
 import type { WorkflowDraftPosition, WorkflowRunCardSummary } from "@/ToolCallBlocks/shared.js";
 import type { WorkflowFillGraph } from "@/v4/workflowRunCardJoin.js";
 import type { Theme } from "@/useTheme.js";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import type { ZCodeWorkflowsForRunCandidate } from "@zcode/shared";
 import type { ConversationAttachmentReadParams, ConversationTransport } from "@/v4/transport.js";
 import type {
-  OpenPlanDetailSideTabRequest,
   OpenWorkflowActorSessionSideTabRequest,
   OpenWorkflowArtifactSideTabRequest,
   OpenWorkflowRunSideTabRequest,
@@ -33,7 +31,7 @@ export interface ConversationRowRenderContext {
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   /** SessionPane 从目标 Host 读取的同一份模型选择 View。 */
-  modelSelectionView?: ModelSelectionView | null;
+  modelSelectionView?: WebModelSelectionView | null;
   theme: Theme;
   /** 需保持引用稳定（MessageResponse/ToolCallBlock 的 memo 依赖）。 */
   codePreviewSettings: CodePreviewSettings;
@@ -63,7 +61,10 @@ export interface ConversationRowRenderContext {
   onNavigateToRow?: (sessionId: string, rowId: number) => void;
   /** Assistant Preview Cards：Website 卡片预览入口，由 app shell 注入 side pane 行为。 */
   onOpenBrowserUrl?: (url: string) => void;
-  onOpenAutomationsMain?: OpenAutomationsMain;
+  onOpenAutomationsMain?: (
+    automationId?: string,
+    automationTab?: "scheduled" | "idle" | "workflow",
+  ) => void;
   /** Assistant Preview Cards：Markdown/文件卡片预览入口，由 app shell 注入 code viewer 行为。 */
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   /** Desktop 完成态 PPTX：由 shell 原子创建多个右侧 Preview Tab。 */
@@ -73,7 +74,6 @@ export interface ConversationRowRenderContext {
   /** Assistant markdown 本地文件链接入口：由 shell 统一 stat 后分流到预览或文件树。 */
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenSubagentSession?: (request: OpenSubagentSideTabRequest) => void;
-  onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
   /** 插件 UI：内联卡片请求在侧栏打开；RowView 补 parentSessionId 与 workspace 字段。 */
   onOpenWorkflowRun?: (request: OpenWorkflowRunSideTabRequest) => void;
   /**

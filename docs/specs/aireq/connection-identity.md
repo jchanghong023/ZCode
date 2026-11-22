@@ -43,7 +43,9 @@ sequenceDiagram
 
 opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产品模式分支。`MockRuntime.workspaceKeyOf` 优先使用非空 workspaceIdentity，否则由主机及规范工作路径生成稳定身份；wire 完整 workspace 引用同时含 workspacePath/workspaceKey。调用方不得另造与实际请求不一致的 key。
 
-命令入口核对外层请求与 envelope 工作区；分页、会话、附件及订阅继续检查业务绑定与 workspace。Project 树仅投影当前业务及该身份可访问的会话，includeDeleted 不扩大权限，不枚举宿主目录或他人私有草稿。
+浏览器的工作区请求使用当前 WebSocket 的基础服务，不按工作区另行注册桌面远程主机连接。显式带有旧远程目标或远程会话 ID 的工作区不回退到当前后端；只有稳定 `workspaceIdentity` 的工作区照常请求并按该身份隔离。
+
+Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服务端派生内部工作区引用。命令、分页、会话、附件及订阅继续检查业务绑定与 workspace。Project 树仅投影当前业务及该连接身份可访问的会话，不枚举宿主目录或他人的私有草稿。
 
 原生会话绑定与项目目录从 workflow owner 的即时只读查询取得最小事实；绑定查询不派生待办／进度或逐项目重读完整 workflow，目录一次取得项目工作区及 canonical 会话映射。查询只复制所需结果，不缓存另一份目录、不改变 revision、状态或事件。公开资格仍由当前项目及 IR 的 canonical 引用裁决，故障会话过滤、私有草稿 actor 与 Skill 私有归属、workspace 精确匹配继续在原边界执行；轻投影不能替代这些校验。
 
@@ -57,7 +59,7 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 | 版本                              | 含义                                          |
 | --------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=9`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| `AIREQ_CONTRACT_VERSION=12`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
 | Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
 | snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
 | workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
@@ -65,16 +67,16 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 | session revision                  | 原生命令 CAS                                  |
 | topic logEpoch/seq                | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
 
-AIReq 事件的 backendEpoch/revision/对象/operationId 字段可选，bootstrap 没有全局事件水位，不承诺持久重放或跨重启 exactly-once。
+AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或跨重启 exactly-once。在线人员快照的 `revision` 只用于在线人员投影排序。
 
 ## 4. CAS 与幂等
 
 - `command` 按 employee/client/operationId 保存回执，摘要包含目标与业务参数，不包含首次 expectedRevision／外层 revision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
 - 项目保存与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
-- `skillDesign.saveDraft` 没有请求 CAS／operationId，按当前覆盖保存规则执行。
+- `skillDesign.saveDraft` 没有请求 CAS／operationId，按提交顺序覆盖可编辑字段，不覆盖会话补充记录。
 
-原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`；行命令还比较 baseLogEpoch、rowId/entityId。陈旧请求不改变事实、队列或水位。两个入口都可查询同一接纳归属下的决定与当前执行事实；首发使用空会话键。
+原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`。Web 不接纳定位行命令或信封字段 `baseLogEpoch`；订阅恢复仍使用 `logEpoch`。陈旧请求不改变事实、队列或水位。两个入口都可查询同一接纳归属下的决定与当前执行事实；首发使用空会话键。
 
 accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
 
@@ -115,7 +117,7 @@ v4 hello/initialize 后订阅 conversation，ACK 与 owned notification 分离�
 
 附件通过 begin/chunk/commit/abort/read，不经宿主路径转移。begin 绑定 actor、session、workspace、文件名、MIME、总字节／块数及 SHA-256；当前上限 20 MiB、4096 块，每块不超过 512 KiB。块按序提交，相同已接纳块可复用但不可改写；commit 校验完整大小与 `sha256:<hex>` 后返回 ref。
 
-发送采用同一真实字节。abort 不删除已被行、队列或提升项采用的字节；读取核实 workspace／会话／采用行和可见性。其他操作者只可读取已发布共享会话真实采用的附件，不可读取私人暂存。read 的 offset 非负、limit 为 1—512 KiB，返回 dataBase64/mediaType/totalBytes/nextOffset；会话已删除不能因读取重建。
+发送采用同一真实字节。abort 不删除已被行、队列或提升项采用的字节；读取核实 workspace／会话／采用行和可见性。其他操作者只可读取已发布共享会话真实采用的附件，不可读取私人暂存。`attachmentReadV4` 的 `offset` 非负、`limit` 为 1—512 KiB，返回 `dataBase64`、`mediaType` 和 `totalBytes`。请求偏移加分片解码后的字节数小于总字节数时继续读取；到达或超过末尾则没有下一片。会话已删除不能因读取重建。
 
 ## 10. 源码依据
 

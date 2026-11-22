@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { appSettingsSchema } from "@zcode/shared";
-import { connectST, unique } from "./client.js";
+import {
+  IModelSelectionService,
+  IProjectService,
+  IProviderSettingsService,
+  ISystemService,
+} from "@zcode/services";
+import { connectST, expectRpcUnavailable, unique } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { createProposal } from "./business.js";
 import { openNative, requireAccepted } from "./native.js";
@@ -11,9 +16,13 @@ type STClient = Awaited<ReturnType<typeof connectST>>;
 async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
   const created = await createProposal(c);
   const session = requireConfig(created.remote.session, "公开提案必须提供原生会话引用");
-  const workspacePath = requireConfig(created.remote.workspace.path, "公开提案必须提供工作区路径");
-  const sessionId = await c.call("skillDesign.session", [created.projectId]);
-  const identity = await c.call("skillDesign.workspaceIdentity", [created.projectId]);
+  const skillSession = await c.call("skillDesign.session", [created.projectId]);
+  expect(skillSession).toEqual({
+    sessionId: expect.stringMatching(/\S/),
+    workspaceIdentity: expect.stringMatching(/\S/),
+    temporaryDirectory: expect.stringMatching(/\S/),
+  });
+  const { sessionId, workspaceIdentity, temporaryDirectory } = skillSession;
   const draft = {
     goal,
     when: "检查业务文件及配套流程说明时使用。",
@@ -22,14 +31,14 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
     boundaries: "只读，不删除或覆盖已有文件。",
     references: "文件接口契约。",
     example: "中文验收：偏移按字节而非字符计算。",
-    notes: [],
   };
   await c.call("skillDesign.saveDraft", [sessionId, draft]);
   const prompt = await c.call("skillDesign.prompt", [sessionId, draft]);
+  expect(prompt).toContain(`${temporaryDirectory}/SKILL.md`);
   const native = await openNative(c, {
     ...created.remote,
     session: { ...session, sessionId },
-    workspace: { ...created.remote.workspace, identity },
+    workspace: { ...created.remote.workspace, identity: workspaceIdentity },
   });
   try {
     requireAccepted(await native.send("sendText", { text: prompt }));
@@ -38,25 +47,28 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
       await c.call("skillDesign.readPreview", [sessionId]),
       "技能讨论必须生成可保存的文件预览",
     );
+    expect(preview).not.toHaveProperty("directory");
     const main = requireConfig(
       preview.files.find((entry) => entry.path === "SKILL.md"),
       "技能预览必须包含 SKILL.md",
     );
     const receipt = await c.call("skillDesign.savePreview", [
       sessionId,
-      workspacePath,
-      preview.name,
       "project",
       preview.revision,
       unique("save-file"),
     ]);
+    expect(receipt).toEqual({
+      path: expect.any(String),
+      revision: preview.revision,
+      target: "project",
+    });
     const slash = Math.max(receipt.path.lastIndexOf("/"), receipt.path.lastIndexOf("\\"));
     return {
       preview,
       main,
       receipt,
       directoryPath: receipt.path.slice(0, slash),
-      workspaceIdentity: created.remote.workspace.identity,
     };
   } finally {
     await native.close();
@@ -75,7 +87,6 @@ async function fileFixture(c: STClient) {
     file = {
       // 搜索限定本次新建的技能目录，避免其他同名 SKILL.md 占用 limit=1 的结果。
       workspacePath: saved.directoryPath,
-      workspaceIdentity: saved.workspaceIdentity,
       path: saved.receipt.path,
       directoryPath: saved.directoryPath,
       missingPath: `${saved.directoryPath}/${unique("missing")}.txt`,
@@ -99,17 +110,18 @@ describe("ST auxiliary public reads", () => {
         const { file, bytes } = await fileFixture(c);
         const service = c.services.fileService;
         const stat = await service.stat({ path: file.path });
-        expect(stat).toMatchObject({ path: file.path, type: "file", size: bytes.byteLength });
-        expect((await service.stat({ path: file.directoryPath })).type).toBe("directory");
+        expect(stat).toMatchObject({
+          type: "file",
+          size: bytes.byteLength,
+          mtimeMs: expect.any(Number),
+        });
+        expect(stat).not.toHaveProperty("path");
+        expect(await service.stat({ path: file.directoryPath })).toEqual({ type: "directory" });
         expect(
           await service.checkFilesExist({
             paths: [file.path, file.directoryPath, file.missingPath],
           }),
-        ).toEqual([
-          { path: file.path, exists: true },
-          { path: file.directoryPath, exists: true },
-          { path: file.missingPath, exists: false },
-        ]);
+        ).toEqual([file.path, file.directoryPath]);
         const multiByteOffset = bytes.findIndex((byte) => byte > 127);
         for (const [offset, length] of [
           [0, bytes.length + 7],
@@ -148,13 +160,11 @@ describe("ST auxiliary public reads", () => {
         const name = file.path.split(/[\\/]/u).at(-1)!;
         const matches = await service.searchWorkspaceFiles({
           rootPath: file.workspacePath,
-          workspaceIdentity: file.workspaceIdentity,
           query: name,
           limit: 1,
-          refresh: true,
         });
-        expect(matches.length).toBeLessThanOrEqual(1);
-        expect(matches).toContainEqual(expect.objectContaining({ path: file.path, type: "file" }));
+        expect(matches).toEqual([{ path: file.path, relativePath: expect.any(String) }]);
+        expect(matches[0]!.relativePath.split("/").at(-1)).toBe(name);
         const after = await service.stat({ path: file.path });
         expect(after).toEqual(stat);
         expect(
@@ -204,11 +214,8 @@ describe("ST auxiliary public reads", () => {
           "fixtures.media[0].bytesBase64",
         );
         const expected = Buffer.from(bytesBase64, "base64");
-        const result = await c.services.fileService.readMediaPreview({
-          path,
-          maxBytes: expected.length + 1,
-        });
-        expect(result).toMatchObject({ path, mediaType, totalBytes: expected.length });
+        const result = await c.services.fileService.readMediaPreview({ path });
+        expect(result).toEqual({ mediaType, dataBase64: expect.any(String) });
         expect(Buffer.from(result.dataBase64, "base64")).toEqual(expected);
       } finally {
         await c.close();
@@ -239,16 +246,24 @@ describe("ST auxiliary public reads", () => {
         };
         const before = await c.read(created.selection);
         const projectService = requireConfig(c.services.projectService, "公开 project service");
-        const directories = await projectService.resolveSessionDirectories(ref);
-        expect(directories).toMatchObject({
-          workspacePath,
-          workspaceIdentity: ref.workspaceIdentity,
+        expect(await projectService.resolveSessionDirectories(ref)).toEqual({
           projectId: created.projectId,
         });
-        expect(directories.additionalDirectories).toEqual(expect.any(Array));
+        expect(
+          await c.probeRpc("call", IProjectService.channelName, "resolveSessionDirectories", [
+            ref,
+            "local",
+          ]),
+        ).toMatchObject({ code: "INVALID_ARGUMENT" });
         const tree = await projectService.readTree();
         expect(tree.projects).toContainEqual(expect.objectContaining({ id: created.projectId }));
         expect(new Set(tree.projects.map((project) => project.id)).size).toBe(tree.projects.length);
+        for (const entry of [...tree.projects, ...tree.tasks]) {
+          expect(entry).not.toHaveProperty("hostId");
+        }
+        expect(
+          await c.probeRpc("call", IProjectService.channelName, "readTree", [{ hostId: "local" }]),
+        ).toMatchObject({ code: "INVALID_ARGUMENT" });
         await expect(
           projectService.resolveSessionDirectories({
             ...ref,
@@ -272,7 +287,6 @@ describe("ST auxiliary public reads", () => {
             await c.command(
               {
                 type: "deleteRequirement",
-                version: 1,
                 projectId: created.projectId,
                 irId: created.irId,
               },
@@ -287,17 +301,34 @@ describe("ST auxiliary public reads", () => {
   );
 
   it(
-    "reads complete settings, safe system fields and resolves the business model in native catalogs",
+    "rejects retired channels, projects Web settings, and resolves the business model",
     async () => {
       const c = await connectST();
       try {
         const created = await createProposal(c);
         const settings = await c.services.settingService.get();
-        expect(appSettingsSchema.safeParse(settings).success).toBe(true);
-        const system = await c.services.systemService.info();
-        expect(Object.keys(system).sort()).toEqual(["homedir", "platform"]);
-        expect(typeof system.homedir).toBe("string");
-        expect(typeof system.platform).toBe("string");
+        expect(settings).toHaveProperty("locale");
+        expect(settings).not.toHaveProperty("terminalInheritSystemProfile");
+        expect(settings).not.toHaveProperty("closeToTrayOnWindows");
+        expect(settings).not.toHaveProperty("sourceServers");
+        expect(settings).not.toHaveProperty("recentProjects");
+        await expect(
+          c.services.settingService.update({
+            recentProjects: [],
+          } as unknown as Parameters<typeof c.services.settingService.update>[0]),
+        ).rejects.toThrow();
+        expect(settings).not.toHaveProperty("lastActiveWorkspace");
+        expect(settings).not.toHaveProperty("lastWorkspaceSession");
+        expect(settings).not.toHaveProperty("lastActiveTabIndex");
+        expect(settings).not.toHaveProperty("lastActiveTaskByWorkspace");
+        await expect(
+          c.services.settingService.update({
+            lastActiveTaskByWorkspace: { "test-workspace": "test-task" },
+          } as unknown as Parameters<typeof c.services.settingService.update>[0]),
+        ).rejects.toThrow();
+        expect(settings).not.toHaveProperty("memoryEnabled");
+        expect(settings).not.toHaveProperty("computerUseComposerEntryHidden");
+        await expectRpcUnavailable(c.probeRpc, "call", ISystemService.channelName, "info", [], true);
         const bootstrap = await c.bootstrap();
         const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
         expect(workflowRoles).toEqual([
@@ -322,18 +353,29 @@ describe("ST auxiliary public reads", () => {
         const modelView = await c.services.modelSelectionService.getView();
         expect(Number.isInteger(modelView.revision)).toBe(true);
         const provider = modelView.providers.find((item) => item.providerId === binding.providerId);
-        expect(provider?.models).toContainEqual(
-          expect.objectContaining({
-            modelId: binding.modelId,
-            config: expect.objectContaining({ enabled: true }),
-          }),
+        const model = requireConfig(
+          provider?.models.find((item) => item.modelId === binding.modelId),
+          "会话绑定模型必须出现在原生模型目录中",
         );
-        const settingsView = await c.services.providerSettingsService.getView();
-        const settingsProvider = settingsView.providers.find(
-          (item) => item.providerId === binding.providerId,
-        );
-        expect(settingsProvider?.models).toContainEqual(
-          expect.objectContaining({ modelId: binding.modelId, selectable: true, executable: true }),
+        expect(model.config).not.toHaveProperty("enabled");
+        const modelSelectionChannel = IModelSelectionService.channelName;
+        const emptySelection = { selection: null };
+        expect(
+          await c.probeRpc("call", modelSelectionChannel, "getView", [emptySelection]),
+        ).toMatchObject({ type: 201 }); // PromiseSuccess
+        expect(
+          await c.probeRpc("call", modelSelectionChannel, "getView", [
+            emptySelection,
+            emptySelection,
+          ]),
+        ).toMatchObject({ code: "INVALID_ARGUMENT" });
+        await expectRpcUnavailable(
+          c.probeRpc,
+          "call",
+          IProviderSettingsService.channelName,
+          "getView",
+          [],
+          true,
         );
       } finally {
         await c.close();

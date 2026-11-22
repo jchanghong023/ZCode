@@ -15,10 +15,12 @@ describe("online people through real connection lifecycle", () => {
     const firstId = `p${suffix}`;
     const secondId = `q${suffix}`;
     try {
-      const baseline = await observer.call("readPresence", []);
+      expect(await observer.call("readPresence", [])).not.toHaveProperty("employeeCount");
       const first = await connectST(firstId);
       clients.push(first);
-      await expect.poll(() => events.at(-1)?.employeeCount).toBe(baseline.employeeCount + 1);
+      await expect
+        .poll(() => events.at(-1)?.rows.some((row) => row.employeeId === firstId))
+        .toBe(true);
       const firstSnapshot = await observer.call("readPresence", []);
       const firstRows = firstSnapshot.rows.filter((row) => row.employeeId === firstId);
       expect(firstRows).toHaveLength(1);
@@ -27,12 +29,13 @@ describe("online people through real connection lifecycle", () => {
       const duplicate = await connectST(firstId);
       clients.push(duplicate);
       const duplicateSnapshot = await observer.call("readPresence", []);
-      expect(duplicateSnapshot.employeeCount).toBe(baseline.employeeCount + 1);
       expect(duplicateSnapshot.rows.filter((row) => row.employeeId === firstId)).toEqual(firstRows);
 
       const second = await connectST(secondId);
       clients.push(second);
-      await expect.poll(() => events.at(-1)?.employeeCount).toBe(baseline.employeeCount + 2);
+      await expect
+        .poll(() => events.at(-1)?.rows.map((row) => row.employeeId))
+        .toEqual(expect.arrayContaining([firstId, secondId]));
       await first.close();
       expect(
         (await observer.call("readPresence", [])).rows.filter((row) => row.employeeId === firstId),
@@ -44,7 +47,11 @@ describe("online people through real connection lifecycle", () => {
         )
         .toBe(false);
       await second.close();
-      await expect.poll(() => events.at(-1)?.employeeCount).toBe(baseline.employeeCount);
+      await expect
+        .poll(() =>
+          events.at(-1)?.rows.some((row) => row.employeeId === firstId || row.employeeId === secondId),
+        )
+        .toBe(false);
       expect(
         events.every((event, index) => index === 0 || event.revision > events[index - 1]!.revision),
       ).toBe(true);

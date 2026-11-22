@@ -6,15 +6,12 @@ import {
   type ZCodeConfigOption,
   type ModelSelectionResolution,
   type ZCodeProvider,
-  type ZCodeTaskMeta,
   type ZCodeTaskRuntimeStatus,
   type ZCodeWorkspaceInitStatus,
 } from "@zcode/shared";
 import { persistLastSelectedAgentProvider } from "@/lib/zcodeProviderPreference.js";
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
-import { pushNavEntry } from "@/lib/taskNavigationHistory.js";
-import { notifyTaskNavigationCommitted } from "@/store/zcodeSessionStoreNavigation.js";
 import { resolveTaskRestorePreloadConfigOptions } from "@/lib/taskModelRecovery.js";
 import type {
   ZCodeSessionStoreState,
@@ -26,7 +23,6 @@ import type {
   WorkspaceZCodeUIState,
 } from "@/store/zcodeSessionStoreTypes.js";
 import {
-  getTaskMeta,
   getWorkspaceState,
   getWorkspaceInitState,
   updateWorkspaceState,
@@ -188,7 +184,7 @@ function resolveActiveTaskConfigOptionsOnSwitch(
     };
   }
 
-  const taskMeta = getTaskMeta(current, taskId);
+  const taskMeta = current.optimisticTaskListByTaskId[taskId];
   // 切到历史 task 时，工具栏模型和 context 用量来自不同状态桶。
   // 没有 task 级 settings 缓存时先用 task meta 预热模型，并进入 loading 等待运行态 settings 回填，
   // 避免继续展示上一条任务的模型（例如 glm-0531[1m]）配上当前任务的 contextWindow。
@@ -220,8 +216,8 @@ export function createWorkspaceSlice(set: SetFn) {
       workspaceIdentity?: string,
       composerConfig?: ComposerInitialConfig,
     ) => {
-      set((state) => {
-        const workspaceUpdate = updateWorkspaceState(
+      set((state) =>
+        updateWorkspaceState(
           state,
           workspacePath,
           (current) => {
@@ -272,22 +268,8 @@ export function createWorkspaceSlice(set: SetFn) {
               : nextState;
           },
           workspaceIdentity,
-        );
-
-        const navUpdate = id
-          ? {
-              taskNavHistory: pushNavEntry(
-                state.taskNavHistory,
-                workspacePath,
-                id,
-                workspaceIdentity,
-              ),
-            }
-          : {};
-
-        return { ...workspaceUpdate, ...navUpdate };
-      });
-      if (id) notifyTaskNavigationCommitted({ workspacePath, workspaceIdentity, taskId: id });
+        ),
+      );
     },
 
     invalidateDraftRuntime: (workspacePath: string, workspaceIdentity?: string) => {
@@ -804,41 +786,6 @@ export function createWorkspaceSlice(set: SetFn) {
       );
     },
 
-    bumpTaskListVersion: (workspacePath: string, workspaceIdentity?: string) => {
-      set((state) =>
-        updateWorkspaceState(
-          state,
-          workspacePath,
-          (current) => ({
-            ...current,
-            taskListVersion: current.taskListVersion + 1,
-          }),
-          workspaceIdentity,
-        ),
-      );
-    },
-
-    setTaskListCache: (
-      workspacePath: string,
-      tasks: ZCodeTaskMeta[],
-      workspaceIdentity?: string,
-    ) => {
-      set((state) =>
-        updateWorkspaceState(
-          state,
-          workspacePath,
-          (current) => ({
-            ...current,
-            taskListCache: tasks,
-            // unread 的真实来源已经统一收敛到 task meta.unreadAt。
-            // 这里不再把列表缓存重建成另一份“未读真相源”，避免 cache 刷新和局部 optimistic 更新互相打架。
-            taskUnreadByTaskId: current.taskUnreadByTaskId,
-          }),
-          workspaceIdentity,
-        ),
-      );
-    },
-
     setTaskUnreadIndicator: (
       workspacePath: string,
       taskId: string,
@@ -850,23 +797,21 @@ export function createWorkspaceSlice(set: SetFn) {
           state,
           workspacePath,
           (current) => {
-            const optimisticTaskMeta = current.optimisticTaskListByTaskId[taskId];
-            const cachedTaskMeta = current.taskListCache?.find((task) => task.taskId === taskId);
-            const baseTaskMeta = optimisticTaskMeta ?? cachedTaskMeta;
+            const taskMeta = current.optimisticTaskListByTaskId[taskId];
             const currentHasUnread = current.taskUnreadByTaskId[taskId] === true;
-            const currentUnreadAt = optimisticTaskMeta?.unreadAt ?? cachedTaskMeta?.unreadAt;
+            const currentUnreadAt = taskMeta?.unreadAt;
 
             if (hasUnread) {
-              const nextUnreadAt = baseTaskMeta?.unreadAt ?? Date.now();
+              const nextUnreadAt = currentUnreadAt ?? Date.now();
               if (currentHasUnread && currentUnreadAt === nextUnreadAt) {
                 return current;
               }
 
-              const nextOptimisticTaskListByTaskId = baseTaskMeta
+              const nextOptimisticTaskListByTaskId = taskMeta
                 ? {
                     ...current.optimisticTaskListByTaskId,
                     [taskId]: {
-                      ...baseTaskMeta,
+                      ...taskMeta,
                       unreadAt: nextUnreadAt,
                     },
                   }
@@ -890,11 +835,11 @@ export function createWorkspaceSlice(set: SetFn) {
 
             const { [taskId]: _removedTaskUnread, ...restTaskUnreadByTaskId } =
               current.taskUnreadByTaskId;
-            const nextOptimisticTaskListByTaskId = baseTaskMeta
+            const nextOptimisticTaskListByTaskId = taskMeta
               ? {
                   ...current.optimisticTaskListByTaskId,
                   [taskId]: {
-                    ...baseTaskMeta,
+                    ...taskMeta,
                     unreadAt: undefined,
                   },
                 }

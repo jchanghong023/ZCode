@@ -22,7 +22,7 @@ export interface SlashCommandPluginProps {
   disabled?: boolean;
   excludedCommandNames?: readonly string[];
   /**
-   * App 层本地命令（如 `/side`）。命令目录仍以 CLI catalog 为权威；这里只允许渲染层
+   * App 层本地命令（如 `/plan`）。命令目录仍以 CLI catalog 为权威；这里只允许渲染层
    * 追加"选中即执行 UI 行为"的命令，不参与发送，也不写回 CLI 命令列表。
    */
   appCommands?: readonly AppSlashCommand[];
@@ -31,7 +31,7 @@ export interface SlashCommandPluginProps {
 
 /** App 层斜杠命令：选中即执行 UI 行为（不插入 mention、不发送）。 */
 export interface AppSlashCommand {
-  /** 命令值（不含 `/`），如 "side"。 */
+  /** 命令值（不含 `/`），如 "plan"。 */
   value: string;
   /** 本地化描述，直接展示在 `/` 面板。 */
   description: string;
@@ -82,21 +82,6 @@ export function buildConversationCommandSuggestions(
 
 export function isAppSlashCommandSuggestion(suggestion: PromptInputSuggestionItem): boolean {
   return suggestion.id.startsWith(APP_SLASH_SUGGESTION_ID_PREFIX);
-}
-
-/**
- * `/side` 门禁：草稿态没有父 session 可挂 child，辅助对话自身不允许再开辅助对话，
- * 只读与手机 viewport 与固定入口保持一致地隐藏。
- */
-export function shouldOfferSideSlashCommand(options: {
-  isDraft: boolean;
-  selectionSideChat: boolean;
-  readOnly: boolean;
-  isMobileViewport: boolean;
-}): boolean {
-  return (
-    !options.isDraft && !options.selectionSideChat && !options.readOnly && !options.isMobileViewport
-  );
 }
 
 export function normalizeSlashCommandValue(name: string): string {

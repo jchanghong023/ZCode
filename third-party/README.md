@@ -68,7 +68,6 @@ bun scripts/licenses.mjs check
 材料缺口保留在 `npm-overrides.json` 的 `reviewEvidence` 与声明的来源局限中，仅供追溯，不作为自动门禁。当前已知类型：
 
 - `react-remove-scroll-bar@2.3.8`：npm 归档 27 个文件无许可文件；npm 记录的 gitHead `b3b1287aad81def2e2ae707274b74531b61ddbaf` 已不可达，仓库也没有 2.3.8 对应的 ref。上游 2025-05-21 才在 commit `7301c160fda44cb8cf2b9fdfde61efad35736196` 加入 MIT LICENSE（Copyright (c) 2025 Anton Korzunov），晚于 2024-12-15 的发布，只能作为证据保留，不能作为该版本的许可原文。
-- `ansi-to-react@6.2.6`：npm 归档 4 个文件无许可文件；tag `v6.2.6` 对应的 `145140971e9d83ccac32265f24b1c55dea437896` 树无许可文件，全部历史也没有 LICENSE/COPYING/NOTICE 或版权行，README 只有 BSD-3-Clause 标识链接，无法取得完整原文。
 - `boolbase@1.0.0`：发布包和 `9837d5bf4f30390ac6384a6bc605ca2d69ade4bf` 源码树均无完整许可文件，只有 `package.json` 的 ISC 标识；没有版权行，不能从 author 字段推断版权人。
 - `remark-github-blockquote-alert@1.3.1`：发布包和 npm gitHead `bb71a22d33ff6118d91531ac118bac8445625530` 的源码树无完整许可文件；README 只有 `MIT © Kenny Wong`，未提供完整 MIT 授权条款。
 

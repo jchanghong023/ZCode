@@ -197,10 +197,7 @@ export function SlashCommandPlugin({
     () =>
       conversationCommands
         ? buildConversationCommandSuggestions(conversationCommands, "skill")
-        : buildSkillSuggestions(
-            filterSkillsForProvider(skills, provider).filter((skill) => skill.enabled),
-            locale,
-          ),
+        : buildSkillSuggestions(filterSkillsForProvider(skills, provider), locale),
     [conversationCommands, locale, provider, skills],
   );
   const filteredCommandSuggestions = useMemo(

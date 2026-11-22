@@ -1,6 +1,6 @@
 "use client";
 
-import type { FileMediaPreview } from "@zcode/shared";
+import type { WebFileMediaPreview } from "@zcode/services";
 import { decodeMarkdownArtifactImageSource } from "@zcode/shared";
 import { ImageIcon, ImageOffIcon } from "lucide-react";
 import { Children, isValidElement } from "react";
@@ -124,7 +124,7 @@ export function MarkdownImageParagraph({
   return <p {...props}>{children}</p>;
 }
 
-function formatMediaPreviewDataUrl(preview: FileMediaPreview): string {
+function formatMediaPreviewDataUrl(preview: WebFileMediaPreview): string {
   return `data:${preview.mediaType};base64,${preview.dataBase64}`;
 }
 

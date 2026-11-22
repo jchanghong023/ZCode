@@ -10,9 +10,6 @@ const CLOSED_STATE: ConversationStoreState = {
   optimisticCommands: [],
   editPresentation: null,
   loadingOlder: false,
-  sessionPlans: [],
-  planDirectoryRevision: 0,
-  plansLoading: false,
   turnNavigatorDirectoryRevision: 0,
 };
 

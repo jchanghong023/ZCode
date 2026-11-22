@@ -43,7 +43,6 @@ import {
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
-import { readPrototypeSkills } from "./skills.js";
 import { readPrototypeProjectSettings, savePrototypeRepository } from "./project-settings.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
@@ -85,7 +84,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   );
   readonly remote: IAIReqService = {
     bootstrap: (identity) => this.bootstrap(identity),
-    call: (identity, path, args, selection) => this.call(identity, path, args, selection),
+    call: (identity, path, args) => this.call(identity, path, args),
     onDidChange: this.onDidChange,
   };
   private readonly pendingOperations = new Map<
@@ -129,13 +128,11 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       this.changed.fire({ type: "prompts" });
     });
     add("skillDesign.session", skills.prototypeSkillDesignSession);
-    add("skillDesign.workspaceIdentity", (projectId: string) => `aireq-mock:${projectId}`);
     add("skillDesign.read", skills.readPrototypeSkillDesign);
     add("skillDesign.saveDraft", skills.savePrototypeSkillDesignDraft);
     add("skillDesign.prompt", skills.preparePrototypeSkillDesignPrompt);
-    add("skillDesign.temporaryDirectory", skills.prototypeSkillDesignDirectory);
     add("skillDesign.readPreview", skills.readPrototypeSkillDesignPreview);
-    add("skillDesign.listSkills", readPrototypeSkills);
+    add("skillDesign.listSkills", skills.listPrototypeSkillDesignPaths);
     add("skillDesign.savePreview", skills.savePrototypeSkillDesignPreview);
   }
   /** Preserve explicit business operation results across reconnect. */
@@ -245,12 +242,12 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const result = applyPrototypeAction(action, selection, undefined, {
       gitSnapshot,
       operationId: metadata.operationId,
-      commandDigest: digest,
     });
     if (key) this.operations.set(key, { digest, result: structuredClone(result) });
     return result;
   }
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
+    const initialProjectId = DEFAULT_SELECTION.projectId;
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
       backend: { id: PROTOTYPE_BACKEND.id },
@@ -258,11 +255,8 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         proposalDiscussion: true,
         workflowCommands: [...commands],
         requirementManagement: true,
-        freeChat: false,
-        nativeChat: true,
-        nativeSurface: false,
       },
-      initialSelection: DEFAULT_SELECTION,
+      ...(initialProjectId === undefined ? {} : { initialProjectId }),
       models: {
         choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
           id,
@@ -288,18 +282,10 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     identity: AIReqIdentity,
     path: P,
     args: AIReqRemoteArgs<P>,
-    selection?: AIReqSelection,
   ): Promise<AIReqRemoteResult<P>> {
     return withAIReqIdentity(identity, async () => {
-      validateAIReqRemoteCall({ path, args, selection });
-      if (
-        path.startsWith("skillDesign.") &&
-        ![
-          "skillDesign.session",
-          "skillDesign.workspaceIdentity",
-          "skillDesign.listSkills",
-        ].includes(path)
-      )
+      validateAIReqRemoteCall(path, args);
+      if (path.startsWith("skillDesign.") && path !== "skillDesign.session")
         skills.assertSkillSession(String(args[0]));
       const method = this.methods.get(path);
       if (!method) throw businessRule("此操作不可用，请刷新页面后重试。");
@@ -374,6 +360,13 @@ export function getConnectionServices(
             // 业务 owner 区分私有草稿与已发布 ref；原生层继续核实 workspace 和附件采用行。
             if (sessionId) business.getNativeBinding(sessionId);
           }
+          if (key === "getSkillReferenceCatalog") {
+            return target
+              .getSkillReferenceCatalog(
+                request as Parameters<typeof target.getSkillReferenceCatalog>[0],
+              )
+              .then(({ skills }) => ({ skills }));
+          }
           return Reflect.apply(value, target, args);
         });
     },
@@ -388,8 +381,15 @@ export function getConnectionServices(
   };
   const scopedBusiness: IAIReqService = {
     bootstrap: (value) => business.bootstrap(connectionIdentity(value)),
-    call: (value, path, args, selection) =>
-      business.call(connectionIdentity(value), path, args, selection),
+    call: (value, path, args, ...extra: unknown[]) => {
+      if (extra.length !== 0) {
+        throw Object.assign(new Error("业务调用只接收身份、操作路径和参数。"), {
+          code: "INVALID_ARGUMENT",
+          publicMessage: true,
+        });
+      }
+      return business.call(connectionIdentity(value), path, args);
+    },
     onDidChange: business.onDidChange,
   };
   overrides.set(AIReqDescriptor.channelName, scopedBusiness);

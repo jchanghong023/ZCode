@@ -281,7 +281,7 @@ export function AIReqProposalTable({
               expectedRevision,
             },
       );
-      if (result?.status === "completed") {
+      if (result?.receipt.status === "completed") {
         if (kind === "create" && result.irId) {
           // 使用成功回执定位本次提案，避免筛选或同名提案让入口打开错误对象。
           setSavedProposal({

@@ -1,6 +1,6 @@
 // 工具条只展示 Composer 的下一次提交选择；Session 不是存活编辑器的补值来源。
 import type { ZCodeConfigOption } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
 /** 只将结构化选择投影给现有展示控件；不能借旧 Snapshot 或平铺别名填满空选择。 */
@@ -23,7 +23,7 @@ export function resolveDraftDisplayedConfig(
 export function resolveDraftModelThoughtOption(
   providerId: string,
   modelId: string,
-  modelSelectionView: ModelSelectionView | null,
+  modelSelectionView: WebModelSelectionView | null,
 ): ZCodeConfigOption | null {
   if (!modelSelectionView) return null;
   return resolveModelThoughtOption({

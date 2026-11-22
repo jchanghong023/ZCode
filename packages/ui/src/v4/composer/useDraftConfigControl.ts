@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveExecutionState } from "@zcode/shared";
 import type { ModelSelection } from "@zcode/shared";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
-import type { IModelSelectionService } from "@zcode/services";
+import type { IServiceAccessor } from "@zcode/services";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
   useModelSelectionServiceView,
@@ -16,7 +16,7 @@ import {
 } from "@/hooks/useModelSelectionView.js";
 import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { parseModelPickerValue } from "@/lib/zcodeCustomModelValue.js";
 import { resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
 import { initializeNewTaskDraft } from "@/v4/composer/newTaskDraft.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
@@ -148,7 +148,7 @@ export function useDraftConfigControl(params: {
   sessionId: string | null;
   /** 仅匹配当前 Session 的首份投影可用作初始化；null 表示还没恢复完成。 */
   sessionConfig?: Partial<SessionConfigState> | null;
-  modelSelectionService: IModelSelectionService | null;
+  modelSelectionService: IServiceAccessor["modelSelectionService"] | null;
   /** composer 编辑态：草稿切到该 Session 的 edit scope，原草稿留在原 scope 不动。 */
   editScopeId?: string | null;
 }): DraftConfigControl {

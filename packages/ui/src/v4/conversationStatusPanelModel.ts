@@ -4,7 +4,6 @@ import type {
   GoalState,
   PlanState,
   RunningSubagentSummary,
-  ToolCallRow,
   WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { SessionWorkflowPhaseSummary } from "@zcode/shared/zcode-protocol-v4";
@@ -12,7 +11,6 @@ import {
   deriveSessionWorkflowPhases,
   workflowRunStepCounts,
 } from "@zcode/shared/zcode-protocol-v4";
-import { extractPlanToolCallContent, getPlanDirectoryTitle } from "@/lib/planToolCall.js";
 import { workflowRunParallelPhaseLabel } from "@/lib/workflowRunLine.js";
 
 export interface ConversationStatusPanelGitModel {
@@ -32,18 +30,6 @@ export interface ConversationStatusPanelPlanModel {
   completedCount: number;
   waitingCount: number;
   totalCount: number;
-}
-
-export interface ConversationStatusPanelSessionPlanItem {
-  rowId: number;
-  toolCallId: string;
-  markdown: string;
-  title?: string;
-  planFilePath?: string;
-}
-
-export interface ConversationStatusPanelSessionPlansModel {
-  items: ConversationStatusPanelSessionPlanItem[];
 }
 
 export interface ConversationStatusPanelRunningSubagent extends RunningSubagentSummary {
@@ -120,7 +106,6 @@ export interface ConversationStatusPanelModel {
   hasContent: boolean;
   git: ConversationStatusPanelGitModel | null;
   goal: GoalState | null;
-  sessionPlans: ConversationStatusPanelSessionPlansModel | null;
   plan: ConversationStatusPanelPlanModel | null;
   runningBashWorks: BackgroundWorkSummary[];
   runningSubagentWorks: ConversationStatusPanelRunningSubagent[];
@@ -133,8 +118,6 @@ export interface BuildConversationStatusPanelModelInput {
   gitDirtyFileCount?: number;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
   goal?: GoalState | null;
-  sessionPlans?: readonly ToolCallRow[];
-  workspacePath?: string;
   plan?: PlanState | null;
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly ConversationStatusPanelRunningSubagent[];
@@ -192,35 +175,6 @@ function buildPlanModel(plan: PlanState | null | undefined) {
     waitingCount: plan.items.length - completed.length,
     totalCount: plan.items.length,
   };
-}
-
-function buildSessionPlansModel(
-  rows: readonly ToolCallRow[] | undefined,
-  workspacePath: string | undefined,
-): ConversationStatusPanelSessionPlansModel | null {
-  if (!rows?.length) return null;
-  const items = rows
-    .filter(
-      (row) =>
-        row.toolName === "ExitPlanMode" &&
-        (row.status === "success" || row.status === "error" || row.status === "cancelled"),
-    )
-    .toSorted((left, right) => right.rowId - left.rowId)
-    .flatMap((row) => {
-      const content = extractPlanToolCallContent(row, workspacePath ?? "");
-      if (!content.markdown) return [];
-      const title = getPlanDirectoryTitle(content.markdown);
-      return [
-        {
-          rowId: row.rowId,
-          toolCallId: row.toolCallId,
-          markdown: content.markdown,
-          ...(title ? { title } : {}),
-          ...(content.planFilePath ? { planFilePath: content.planFilePath } : {}),
-        },
-      ];
-    });
-  return items.length > 0 ? { items } : null;
 }
 
 /**
@@ -342,7 +296,6 @@ export function buildConversationStatusPanelModel(
 ): ConversationStatusPanelModel {
   const git = input.isOfficeMode ? null : buildGitModel(input);
   const goal = input.goal ?? null;
-  const sessionPlans = buildSessionPlansModel(input.sessionPlans, input.workspacePath);
   const plan = buildPlanModel(input.plan);
   const runningBashWorks: BackgroundWorkSummary[] = [];
   const workflowWorkByWorkId = new Map<string, BackgroundWorkSummary>();
@@ -372,7 +325,6 @@ export function buildConversationStatusPanelModel(
   return {
     git,
     goal,
-    sessionPlans,
     plan,
     runningBashWorks,
     runningSubagentWorks,
@@ -380,7 +332,6 @@ export function buildConversationStatusPanelModel(
     hasContent: Boolean(
       git ||
       goal ||
-      sessionPlans ||
       plan ||
       runningBashWorks.length > 0 ||
       runningSubagentWorks.length > 0 ||

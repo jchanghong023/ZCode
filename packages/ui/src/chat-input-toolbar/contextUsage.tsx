@@ -162,7 +162,7 @@ export function buildContextUsageProgressSegments(
   }));
 }
 
-export function getRenderableTaskUsage<T extends { used: number; size: number }>(
+function getRenderableTaskUsage<T extends { used: number; size: number }>(
   taskUsage: T | null,
 ): T | null {
   if (!taskUsage) {
@@ -181,10 +181,6 @@ export function getRenderableTaskUsage<T extends { used: number; size: number }>
   }
 
   return taskUsage;
-}
-
-export function getContextCompressionCommand(_provider: ZCodeProvider): string {
-  return "/compact";
 }
 
 export function refreshContextUsageOnOpen(

@@ -5,7 +5,6 @@ import { logger } from "@/logger.js";
 
 export interface ConversationSkillCatalogState {
   skills: ZCodeSkillReferenceCatalogEntry[];
-  authority: "session" | "workspace" | null;
   loading: boolean;
   error: string | null;
 }
@@ -17,7 +16,6 @@ interface ScopedConversationSkillCatalogState {
 
 const EMPTY_STATE: ConversationSkillCatalogState = {
   skills: [],
-  authority: null,
   loading: false,
   error: null,
 };
@@ -37,9 +35,8 @@ export interface UseSkillsOptions {
 
 /**
  * Composer 的 Skill catalog。
- * 无 prewarm 的 draft 以 workspace 当前扫描为 authority；prewarm/已有 Session 以对应
- * AgentRuntime 冻结快照为 authority。workspace/session/remote attachment/runtime 代次变化时，
- * 旧异步结果一律不得回填。
+ * 草稿读取工作区当前目录；预热或已有会话读取对应的冻结目录。工作区、会话、
+ * 远程连接或运行时的作用域变化后，旧异步结果一律不得回填。
  */
 export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogState {
   const resolution = useWorkspaceServicesResolution(
@@ -52,8 +49,7 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
   const [runtimeRevision, setRuntimeRevision] = useState(0);
   const requestSeqRef = useRef(0);
   const workspaceKey = options.workspaceIdentity?.trim() || options.workspacePath;
-  const remoteSessionId =
-    resolution.remoteSessionId ?? options.preferredRemoteSessionId ?? undefined;
+  const remoteSessionId = options.preferredRemoteSessionId;
   const services = resolution.services;
   const rpcReady = resolution.rpcReady;
   const requestKey = `${workspaceKey}|${remoteSessionId ?? "local"}|${options.sessionId ?? "draft"}|runtime:${runtimeRevision}`;
@@ -63,14 +59,14 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
     const subscription = services.zcodeAgentService.onAgentRuntimeRestarted?.((event) => {
       if (event.workspaceKey !== workspaceKey) return;
       // runtime 重建后 workspace/session key 不变，旧 catalog 会继续命中。
-      // 显式推进代次，使冷恢复后的新 runtime 必须重新提供一次 Session authority。
+      // 显式推进代次，使冷恢复后的新 runtime 重新读取会话目录。
       setRuntimeRevision((current) => current + 1);
     });
     return subscription ? () => subscription.dispose() : undefined;
   }, [options.enabled, options.sessionId, rpcReady, services, workspaceKey]);
 
   // 用 scope 身份隔离渲染：key 切换后的 effect 尚未执行时也只返回空态，避免旧 Session
-  // 或旧 remote attachment 的 Skill 在一帧内泄漏到新 Composer。
+  // 或旧 accessor 的 Skill 在一帧内泄漏到新 Composer。
   const requestScope = useMemo(
     () => ({ enabled: options.enabled, remoteSessionId, requestKey, rpcReady, services }),
     [options.enabled, remoteSessionId, requestKey, rpcReady, services],
@@ -82,12 +78,11 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
     let cancelled = false;
     setScopedState({
       scope: requestScope,
-      value: { skills: [], authority: null, loading: true, error: null },
+      value: { skills: [], loading: true, error: null },
     });
     const params = {
       workspacePath: options.workspacePath,
       ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
-      ...(remoteSessionId ? { remoteSessionId } : {}),
       ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     };
     services.zcodeAgentService
@@ -98,7 +93,6 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
           scope: requestScope,
           value: {
             skills: result.skills,
-            authority: result.authority,
             loading: false,
             error: null,
           },
@@ -113,7 +107,7 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
         });
         setScopedState({
           scope: requestScope,
-          value: { skills: [], authority: null, loading: false, error: message },
+          value: { skills: [], loading: false, error: message },
         });
       });
     return () => {
@@ -124,7 +118,6 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
     options.sessionId,
     options.workspaceIdentity,
     options.workspacePath,
-    remoteSessionId,
     requestKey,
     requestScope,
     rpcReady,

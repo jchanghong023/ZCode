@@ -49,13 +49,16 @@ export async function expectBusinessRejection(
     expect((failure as Error).message.trim()).not.toBe("");
     return;
   }
-  expect(result?.status, "an invalid business operation should not be admitted").toBe("failed");
-  expect(result?.error?.trim()).toBeTruthy();
+  expect(result?.receipt.status, "an invalid business operation should not be admitted").toBe(
+    "failed",
+  );
+  expect(result).not.toHaveProperty("error");
+  expect(result?.receipt.error?.trim()).toBeTruthy();
 }
 
 export async function commandAndRead(c: STClient, action: AIReqAction, target: ProposalTarget) {
-  const receipt = await c.command(action, target.selection);
-  expect(receipt.status, receipt.error).not.toBe("failed");
+  const result = await c.command(action, target.selection);
+  expect(result.receipt.status, result.receipt.error).not.toBe("failed");
   return c.read(target.selection);
 }
 

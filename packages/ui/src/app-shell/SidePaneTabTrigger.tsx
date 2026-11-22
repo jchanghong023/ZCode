@@ -7,14 +7,11 @@ import { useRef, type CSSProperties, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  FolderOpenIcon,
   BotMessageSquareIcon,
   FileIcon,
   FileCode2Icon,
   FileDiffIcon,
-  MessageSquareTextIcon,
   ListTreeIcon,
-  NotepadTextIcon,
   PackageIcon,
   SquareTerminalIcon,
   TerminalIcon,
@@ -372,19 +369,11 @@ function isDiffPreviewTab(tab: WorkspaceSidePaneTab): boolean {
 }
 
 export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
-  if (tab.type === "file-manager") return <FolderOpenIcon className="size-3.5" />;
-  // plan-detail tab 由 switch-mode（ExitPlanMode）工具调用卡片打开，来源卡片
-  // 用 NotepadTextIcon；tab 必须与来源一致，避免点击后图标跳变。不用 ListChecksIcon：
-  // 那会与状态面板 Todo section 撞图标，语义上也偏向 todo 而非计划方案文档。
-  if (tab.type === "plan-detail") {
-    return <NotepadTextIcon className="size-3.5" />;
-  }
   // 同一条约定：来源卡片（CreateWorkflow）用 lucide Workflow，tab 必须与它一致。
   if (tab.type === "workflow-run") {
     return <WorkflowIcon className="size-3.5" />;
   }
-  // run 目录与单个 run 的详情必须能一眼分开（一页名单 vs 一次运行），所以借 subagent 目录
-  // 的同一枚「目录」图标——两个目录页在 tab 条上因此同形，正是它们的共同点。
+  // 列表图标用于区分工作流目录和单次运行的详情。
   if (tab.type === "workflow-directory") {
     return <ListTreeIcon className="size-3.5" />;
   }
@@ -402,15 +391,8 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "workflow-artifact") {
     return <PackageIcon className="size-3.5" />;
   }
-  if (tab.type === "selection-side-chat") {
-    return <MessageSquareTextIcon className="size-3.5" />;
-  }
   if (tab.type === "subagent-session") {
     return <SubagentTabAvatar tab={tab} />;
-  }
-
-  if (tab.type === "subagent-directory") {
-    return <ListTreeIcon className="size-3.5" />;
   }
 
   if (tab.type === "git") {
@@ -557,9 +539,6 @@ export function getSidePaneTabTitle(
   tab: WorkspaceSidePaneTab,
   formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string,
 ): string {
-  if (tab.type === "plan-detail") {
-    return formatMessage({ id: "planTool.panel.planTab" });
-  }
   // 展示名是卡片打开时冻结的兜底；run 身份始终是 runId（tab id 里那一段）。
   if (tab.type === "workflow-run") {
     return tab.workflowName?.trim() || formatMessage({ id: "sidePane.workflowRun" });
@@ -568,7 +547,7 @@ export function getSidePaneTabTitle(
     return formatMessage({ id: "sidePane.workflowDirectory" });
   }
   // 实例序号必须留在标题里：同一车道族的实例共用脚本里那一个名字，少了序号 tab 条上就是
-  // 两个无法区分的「reviewer」。拼接而不是本地化模板——照 selection-side-chat 的先例。
+  // 两个无法区分的「reviewer」。
   if (tab.type === "workflow-actor-session") {
     const name = tab.actorName?.trim() || formatMessage({ id: "sidePane.workflowActor" });
     return `${name} #${tab.ordinal}`;
@@ -583,15 +562,8 @@ export function getSidePaneTabTitle(
       tab.title?.trim() || tab.artifactId || formatMessage({ id: "sidePane.workflowArtifact" })
     );
   }
-  if (tab.type === "selection-side-chat") {
-    return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;
-  }
   if (tab.type === "subagent-session") {
     return tab.title?.trim() || formatMessage({ id: "sidePane.subagent" });
-  }
-
-  if (tab.type === "subagent-directory") {
-    return formatMessage({ id: "sidePane.subagentDirectory" });
   }
 
   if (tab.type === "git") {
@@ -604,8 +576,6 @@ export function getSidePaneTabTitle(
     return tab.title || formatMessage({ id: "terminal.title" });
   }
 
-  if (tab.type === "file-manager")
-    return tab.source?.title || formatMessage({ id: "fileManager.title" });
   return tab.source.title || formatMessage({ id: "codeViewer.title" });
 }
 

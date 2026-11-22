@@ -51,7 +51,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
       onSelect={select}
       onGuardChange={guard}
     >
-      {tab.kind !== "materials" && <AIReqRequirementContext showReturn={false} />}
+      {tab.kind !== "materials" && <AIReqRequirementContext />}
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab.kind === "materials" ? <AIReqMaterialsPane /> : <AIReqFormalHistory />}
       </div>

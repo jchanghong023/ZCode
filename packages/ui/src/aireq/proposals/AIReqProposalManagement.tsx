@@ -198,7 +198,7 @@ export function AIReqProposalManagement({
                 note,
               });
               if (!result) throw new Error("材料修改失败；请查看上方业务错误，输入已保留。");
-              if (result.status === "completed") {
+              if (result.receipt.status === "completed") {
                 setNote("");
                 setNoteRevision(undefined);
               }

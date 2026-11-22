@@ -1,5 +1,4 @@
 import type { AIReqPresenceSnapshot } from "./presence.js";
-import type { SkillSummary } from "@zcode/shared";
 import type {
   AIReqAction,
   AIReqSelection,
@@ -9,7 +8,9 @@ import type {
   AIReqAgentModelSettings,
   AIReqAgentModelBinding,
   AIReqSkillDesignDraft,
+  AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
+  AIReqSkillDesignSession,
   AIReqPrHandoff,
   AIReqWorkspace,
   AIReqSkillSaveReceipt,
@@ -52,21 +53,17 @@ export interface AIReqPromptServices {
 }
 export interface AIReqSkillDesignServices {
   readonly storage: { workspacePath: string; sharedSkillsDirectory: string };
-  session(projectId: string): string | Promise<string>;
-  workspaceIdentity(projectId: string): string | Promise<string>;
+  session(projectId: string): AIReqSkillDesignSession | Promise<AIReqSkillDesignSession>;
   read(sessionId: string): AIReqSkillDesignDraft | Promise<AIReqSkillDesignDraft>;
-  saveDraft(sessionId: string, value: AIReqSkillDesignDraft): void | Promise<void>;
+  saveDraft(sessionId: string, value: AIReqSkillDesignDraftFields): void | Promise<void>;
   subscribe(listener: (sessionId: string) => void): { dispose(): void };
-  prompt(sessionId: string, value: AIReqSkillDesignDraft): string | Promise<string>;
-  temporaryDirectory(sessionId: string): string | Promise<string>;
+  prompt(sessionId: string, value: AIReqSkillDesignDraftFields): string | Promise<string>;
   readPreview(
     sessionId: string,
   ): AIReqSkillDesignPreview | undefined | Promise<AIReqSkillDesignPreview | undefined>;
-  listSkills(workspacePath: string): SkillSummary[] | Promise<SkillSummary[]>;
+  listSkills(sessionId: string): string[] | Promise<string[]>;
   savePreview(
     sessionId: string,
-    workspacePath: string,
-    name: string,
     target: "project" | "user",
     expectedPreviewRevision: number,
     operationId: string,
@@ -83,11 +80,8 @@ export interface AIReqDataSource {
     proposalDiscussion?: boolean;
     workflowCommands: readonly AIReqAction["type"][];
     requirementManagement: boolean;
-    freeChat: boolean;
-    nativeChat: boolean;
-    nativeSurface: boolean;
   };
-  initialSelection: AIReqSelection;
+  initialProjectId?: string;
   refreshIdentity?(): Promise<void>;
   readWorkflow(selection: AIReqSelection): Promise<AIReqWorkflowView>;
   readPrHandoff(target: { projectId: string; irId: string }): Promise<AIReqPrHandoff>;
@@ -103,7 +97,6 @@ export interface AIReqDataSource {
   ): AIReqNativeSessionRef | undefined;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
   retrySession(selection: AIReqSelection, sessionId: string): Promise<void>;
-  selectProject(projectId?: string): void;
   resolveWorkspace(view: AIReqWorkflowView | undefined, selection: AIReqSelection): AIReqWorkspace;
   dispose(): void | Promise<void>;
   projects?: AIReqProjectServices;

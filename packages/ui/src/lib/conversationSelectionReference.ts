@@ -8,7 +8,6 @@ import {
 
 export {
   buildPromptWithConversationSelections,
-  CONVERSATION_SELECTION_MAX_COMMENT_LENGTH,
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
   CONVERSATION_SELECTION_MAX_COUNT,
   CONVERSATION_SELECTION_MAX_TOTAL_LENGTH,
@@ -84,7 +83,6 @@ const USER_SELECT_KEYS = new Set(["text", "path", "comment", "agent"]);
 const USER_SELECT_BLOCK_PATTERN = /(?:\n\n)?# userselect:\n```userselect\n([\s\S]*?)\n```\s*$/;
 const LEGACY_BLOCK_PATTERN =
   /(?:\n\n)?# Conversation selections:\n```zcode-conversation-selections\n([\s\S]*?)\n```\s*$/;
-const EDIT_EVENT = "zcode:conversation-selection-edit";
 const referencesByScope = new Map<string, readonly ConversationSelectionReference[]>();
 const limitReasonByScope = new Map<string, ConversationSelectionLimitReason>();
 /** 已随消息发出的注释（含锚点），只用于正文里画灰色“已发送”标记；不持久化，刷新后消失。 */
@@ -367,26 +365,6 @@ export function retainSelectionCommentsWithLiveSource(
   return next.length === references.length ? references : next;
 }
 
-/** 修改作用域内一条注释的评论；空评论表示回到“只保留原文”，不会删除这条注释。 */
-export function updateConversationSelectionCommentInScope(
-  sessionId: string | null,
-  workspaceKey: string,
-  id: string,
-  comment: string,
-  draftScopeKey?: string,
-): void {
-  const current = getConversationSelectionReferenceScope(sessionId, workspaceKey, draftScopeKey);
-  const trimmed = comment.trim();
-  let changed = false;
-  const next = current.map((reference) => {
-    if (reference.id !== id || (reference.comment ?? "") === trimmed) return reference;
-    changed = true;
-    const { comment: _previous, ...rest } = reference;
-    return (trimmed ? { ...rest, comment: trimmed } : rest) as ConversationSelectionReference;
-  });
-  if (changed) setConversationSelectionReferenceScope(sessionId, workspaceKey, next, draftScopeKey);
-}
-
 export interface RemovedConversationSelectionReference {
   reference: ConversationSelectionReference;
   index: number;
@@ -456,34 +434,6 @@ export function getSentConversationSelections(
   workspaceKey: string,
 ): readonly ConversationSelectionReference[] {
   return sentReferencesByScope.get(referenceScopeKey(sessionId, workspaceKey)) ?? EMPTY_REFERENCES;
-}
-
-interface ConversationSelectionEditEventDetail {
-  /** 同一会话分屏时多个时间线都在监听，第一个打开浮层的置 true，其余跳过。 */
-  handled?: boolean;
-  sessionId: string;
-  workspaceKey: string;
-  id: string;
-  /** 正文标记不可见（行未挂载、锚点失效）时，编辑浮层退回指向这个位置。 */
-  fallback: { center: number; top: number; bottom: number };
-}
-
-/** composer 注释列表点铅笔/“添加评论”：请求时间线在正文编号处打开编辑浮层。 */
-export function dispatchConversationSelectionEdit(
-  detail: ConversationSelectionEditEventDetail,
-): void {
-  window.dispatchEvent(new CustomEvent(EDIT_EVENT, { detail }));
-}
-
-export function subscribeConversationSelectionEdit(
-  listener: (detail: ConversationSelectionEditEventDetail) => void,
-): () => void {
-  const handle = (event: Event) => {
-    if (event instanceof CustomEvent)
-      listener(event.detail as ConversationSelectionEditEventDetail);
-  };
-  window.addEventListener(EDIT_EVENT, handle);
-  return () => window.removeEventListener(EDIT_EVENT, handle);
 }
 
 let hoveredAnnotationId: string | null = null;

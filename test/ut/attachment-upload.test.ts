@@ -23,11 +23,7 @@ function agent() {
   return {
     attachmentBeginV4: vi
       .fn<AttachmentUploadAgent["attachmentBeginV4"]>()
-      .mockImplementation(async ({ uploadId }) => ({
-        uploadId,
-        state: "staging",
-        nextChunkIndex: 0,
-      })),
+      .mockResolvedValue({ state: "staging", nextChunkIndex: 0 }),
     attachmentChunkV4: vi
       .fn<AttachmentUploadAgent["attachmentChunkV4"]>()
       .mockImplementation(async ({ chunkIndex, uploadId }) => ({
@@ -104,11 +100,7 @@ describe("frontend attachment upload transaction", () => {
     const bytes = new Uint8Array(ATTACHMENT_UPLOAD_CHUNK_BYTES + 3);
     bytes.set([5, 9, 255], ATTACHMENT_UPLOAD_CHUNK_BYTES);
     const service = agent();
-    service.attachmentBeginV4.mockImplementation(async ({ uploadId }) => ({
-      uploadId,
-      state: "staging",
-      nextChunkIndex: 1,
-    }));
+    service.attachmentBeginV4.mockResolvedValue({ state: "staging", nextChunkIndex: 1 });
 
     expect(await uploadAttachmentTransaction(service, workspace, input(bytes))).toEqual(receipt);
 
@@ -119,12 +111,10 @@ describe("frontend attachment upload transaction", () => {
 
   it("returns an already committed receipt without sending chunks or committing again", async () => {
     const service = agent();
-    service.attachmentBeginV4.mockImplementation(async ({ uploadId }) => ({
-      uploadId,
+    service.attachmentBeginV4.mockResolvedValue({
       state: "committed",
-      nextChunkIndex: 1,
       ref: "attachment:existing",
-    }));
+    });
 
     expect(await uploadAttachmentTransaction(service, workspace, input())).toEqual({
       ref: "attachment:existing",
@@ -258,11 +248,7 @@ describe("frontend attachment upload transaction", () => {
     async (phase) => {
       const service = agent();
       if (phase === "begin")
-        service.attachmentBeginV4.mockImplementation(async ({ uploadId }) => ({
-          uploadId,
-          state: "staging",
-          nextChunkIndex: 2,
-        }));
+        service.attachmentBeginV4.mockResolvedValue({ state: "staging", nextChunkIndex: 2 });
       else
         service.attachmentChunkV4.mockImplementation(async ({ uploadId }) => ({
           uploadId,

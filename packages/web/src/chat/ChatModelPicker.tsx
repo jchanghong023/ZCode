@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ModelSelectionView } from "@zcode/client/agent";
+import type { WebModelSelectionView } from "@zcode/client/agent";
 import type { ModelSelection } from "@zcode/shared/model-selection";
 import {
   buildRegistryModelSelectGroups,
@@ -20,7 +20,7 @@ export function ChatModelPicker({
   disabled,
   onSelect,
 }: {
-  catalog: ModelSelectionView;
+  catalog: WebModelSelectionView;
   selection: ModelSelection | null;
   pending: boolean;
   disabled: boolean;

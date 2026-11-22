@@ -69,8 +69,6 @@ function Appearance() {
   const setCodePreviewSettings = useZCodeStore((s) => s.setCodePreviewSettings);
   const uiFontSizePx = useZCodeStore((s) => s.uiFontSizePx);
   const setUiFontSizePx = useZCodeStore((s) => s.setUiFontSizePx);
-  const fontSmoothingEnabled = useZCodeStore((s) => s.fontSmoothingEnabled);
-  const setFontSmoothingEnabled = useZCodeStore((s) => s.setFontSmoothingEnabled);
   return (
     <AppearanceSectionContent
       {...{
@@ -80,10 +78,7 @@ function Appearance() {
         setCodePreviewSettings,
         uiFontSizePx,
         setUiFontSizePx,
-        fontSmoothingEnabled,
-        setFontSmoothingEnabled,
       }}
-      isMacDesktop={false}
     />
   );
 }
@@ -127,7 +122,6 @@ export function AIReqSettingsPage({
         {
           id: "general",
           label: titles.projects,
-          includeSettings: false,
           items: [
             {
               id: "aireq.projects",
@@ -151,7 +145,6 @@ export function AIReqSettingsPage({
         {
           id: "modelProvider",
           label: `${aiTitle} · ${titles.models}`,
-          includeSettings: false,
           items: [
             {
               id: "aireq.model.default",
@@ -168,7 +161,6 @@ export function AIReqSettingsPage({
         {
           id: "personalization",
           label: `${aiTitle} · ${titles.personalization}`,
-          includeSettings: false,
           items: [
             {
               id: "aireq.instructions.agent",
@@ -192,7 +184,6 @@ export function AIReqSettingsPage({
         {
           id: "documentFormats",
           label: titles.documentFormats,
-          includeSettings: false,
           items: Object.keys(AIREQ_DOCUMENT_PATHS).map((name) => ({
             id: `aireq.documentFormats.${name}` as const,
             label: name,
@@ -326,10 +317,6 @@ export function AIReqSettingsPage({
     <SettingsSearchTargetContext.Provider value={searchTarget}>
       {/* 固定窄栏和纵向按钮导致设置导航偏离 base；复用共享框架与导航控件恢复原有布局。 */}
       <SettingsPageFrame
-        title={zh ? "设置" : "Settings"}
-        isDesktop={false}
-        isMacDesktop={false}
-        isWindowsDesktop={false}
         rootProps={{
           "data-testid": "aireq-settings",
           "data-active-section": section,

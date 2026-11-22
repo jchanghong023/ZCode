@@ -74,7 +74,7 @@ export function AIReqProposalReturn({
         expectedRevision: returnVersion.revision,
         reason: opinion,
       });
-      if (result?.status === "completed") {
+      if (result?.receipt.status === "completed") {
         setReturnOpen(false);
         setReason("");
         // 退回已提交，解除本弹窗的未保存保护，再进入同一 IR 的新澄清会话。

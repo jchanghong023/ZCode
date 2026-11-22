@@ -18,6 +18,10 @@ import {
   requireRejected,
 } from "./native.js";
 
+const webSkillReferenceCatalogSchema = zcodeSkillsReferenceCatalogResultSchema.pick({
+  skills: true,
+});
+
 // conversation.md：接纳不是完成；同命令身份重试不能重复生成输入；重连只读不重发。
 it("native send completes with canonical rows, query receipt and real owned frames", async () => {
   const c = await connectST();
@@ -26,31 +30,19 @@ it("native send completes with canonical rows, query receipt and real owned fram
     const proposal = await createProposal(c);
     native = await openNative(c, proposal.remote);
     const catalogTarget = { ...native.workspace, sessionId: native.sessionId };
-    const initialCatalog = zcodeSkillsReferenceCatalogResultSchema.parse(
+    const initialCatalog = webSkillReferenceCatalogSchema.parse(
       await c.services.zcodeAgentService.getSkillReferenceCatalog(catalogTarget),
     );
-    const workspaceCatalog = zcodeSkillsReferenceCatalogResultSchema.parse(
+    const workspaceCatalog = webSkillReferenceCatalogSchema.parse(
       await c.services.zcodeAgentService.getSkillReferenceCatalog(native.workspace),
     );
-    expect(workspaceCatalog.authority).toBe("workspace");
-    // 新会话使用初始化时可用的目录，不能用固定空数组伪装 session authority。
-    const availableSkills = await c.call("skillDesign.listSkills", [
-      native.workspace.workspacePath,
-    ]);
-    const expectedSkills = availableSkills
-      .filter((skill) => skill.enabled)
-      .map(({ id, name, description, path, scope, pluginName }) => ({
-        id,
-        name,
-        description,
-        path,
-        scope,
-        enabled: true,
-        ...(pluginName ? { pluginName } : {}),
-      }));
-    expect(workspaceCatalog.skills).toEqual(expect.arrayContaining(expectedSkills));
-    expect(workspaceCatalog.skills).toHaveLength(expectedSkills.length);
-    expect(initialCatalog.authority).toBe("session");
+    // 新会话使用初始化时可用的目录，不能返回固定空数组。
+    const { sessionId: skillSessionId } = await c.call("skillDesign.session", [proposal.projectId]);
+    const availablePaths = await c.call("skillDesign.listSkills", [skillSessionId]);
+    expect(availablePaths).not.toHaveLength(0);
+    const catalogPaths = workspaceCatalog.skills.map(({ path }) => path);
+    expect(catalogPaths).toEqual(expect.arrayContaining(availablePaths));
+    expect(catalogPaths).toHaveLength(availablePaths.length);
     expect(initialCatalog.skills).toEqual(workspaceCatalog.skills);
     await expect(
       c.services.zcodeAgentService.getSkillReferenceCatalog({
@@ -87,7 +79,7 @@ it("native send completes with canonical rows, query receipt and real owned fram
       sessionId: native.sessionId,
       limit: 200,
     });
-    v4ConversationRowsRangeResultSchema.parse(rows);
+    v4ConversationRowsRangeResultSchema.omit({ atSeq: true }).strict().parse(rows);
     const inputs = rows.rows.filter(
       (row) => row.kind === "userInput" && row.sourceCommandId === id,
     );
@@ -118,8 +110,7 @@ it("native send completes with canonical rows, query receipt and real owned fram
       ...native.workspace,
       sessionId: native.sessionId,
     });
-    zcodeSkillsReferenceCatalogResultSchema.parse(catalog);
-    expect(catalog.authority).toBe("session");
+    webSkillReferenceCatalogSchema.parse(catalog);
     expect(catalog).toEqual(initialCatalog);
     await expectNativeSkillInput(native, c.identity.clientId, commands);
   } finally {

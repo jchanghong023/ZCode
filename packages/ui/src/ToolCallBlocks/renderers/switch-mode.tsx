@@ -1,5 +1,5 @@
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ToolOutput } from "@/components/ai-elements/tool.js";
 import { Button } from "@/components/ui/button.js";
@@ -8,15 +8,7 @@ import { getToolCallErrorText } from "@/lib/toolError.js";
 import { extractPlanToolCallContent, getPlanFileLabel } from "@/lib/planToolCall.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
-import { ArrowRightIcon, CheckIcon, CopyIcon, NotepadTextIcon } from "lucide-react";
-
-function isInteractiveDescendant(target: EventTarget | null, card: HTMLElement): boolean {
-  if (!(target instanceof Element)) return false;
-  const interactive = target.closest("button, a, input, textarea, select, [role='button']");
-  // 卡片自身带 role=button，旧 closest 会让卡片任意位置都命中自己，
-  // 结果“点击卡片打开详情”从未执行。这里只拦截复制/展开/正文链接等真实子控件。
-  return interactive !== null && interactive !== card;
-}
+import { CheckIcon, CopyIcon, NotepadTextIcon } from "lucide-react";
 
 export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
   const { writeClipboardText } = usePlatform();
@@ -38,28 +30,6 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
   const [copiedMarkdown, setCopiedMarkdown] = useState<string | null>(null);
   const copied = copiedMarkdown === markdown;
 
-  const openDetail = () => {
-    if (!markdown || !context.onOpenPlanDetail) return;
-    context.onOpenPlanDetail({
-      toolCallId: toolCall.toolId,
-      markdown,
-      ...(planFilePath ? { planFilePath } : {}),
-    });
-  };
-
-  const handleCardClick = (event: MouseEvent<HTMLElement>) => {
-    if (!isInteractiveDescendant(event.target, event.currentTarget)) openDetail();
-  };
-
-  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    // 内部按钮的 keydown 会继续冒泡到整卡，导致一次键盘操作重复打开详情。
-    // 与点击路径共用交互元素判定，只允许整卡自身接管 Enter / Space。
-    if (isInteractiveDescendant(event.target, event.currentTarget)) return;
-    event.preventDefault();
-    openDetail();
-  };
-
   const handleCopy = () => {
     if (!markdown) return;
     void writeClipboardText(markdown).then(
@@ -72,11 +42,6 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
     return (
       <>
         <section
-          role={context.onOpenPlanDetail ? "button" : undefined}
-          tabIndex={context.onOpenPlanDetail ? 0 : undefined}
-          aria-label={intl.formatMessage({ id: "planTool.panel.open" })}
-          onClick={handleCardClick}
-          onKeyDown={handleCardKeyDown}
           className="group w-full min-w-0 overflow-hidden rounded-xl border border-card-border bg-card text-foreground shadow-xs outline-none transition-colors hover:border-border-hover focus-visible:border-input-border-focused focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <header className="flex h-10 min-w-0 items-start gap-2 px-4 pt-4">
@@ -127,19 +92,6 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
                 {markdown}
               </MessageResponse>
             </div>
-            <Button
-              type="button"
-              variant="default"
-              size="lg"
-              className="absolute bottom-6 left-1/2 h-10 -translate-x-1/2 rounded-full !pr-4.5 pl-6 shadow-xs"
-              onClick={(event) => {
-                event.stopPropagation();
-                openDetail();
-              }}
-            >
-              {intl.formatMessage({ id: "planTool.panel.viewFull" })}
-              <ArrowRightIcon data-icon="inline-end" className="size-4" />
-            </Button>
           </div>
         </section>
         {snapshotNotice}

@@ -146,7 +146,7 @@ function V4ComposerModeSwitchImpl({
             >
               <Icon className="size-4" />
               <span className="inline group-data-[composer-compact=true]/mode:hidden">
-                {/* Plan 菜单重写时普通 span 丢失了旧 ConfigSelect 的翻滚；复用同一动画组件恢复。 */}
+                {/* Plan 菜单沿用工具栏标签的翻滚动画。 */}
                 <RollingToolbarLabel label={label(selected)} />
               </span>
               <ChevronDownIcon className="size-3.5 group-data-[composer-compact=true]/mode:hidden" />

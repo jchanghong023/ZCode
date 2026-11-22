@@ -19,8 +19,8 @@
  *   // 自动把所有方法映射为 call，所有 on* 事件映射为 listen
  *
  * 客户端同样一行：
- *   const fileService = ProxyChannel.toService<IFileService>(channel);
- *   await fileService.readFile(uri);  // 就像调用本地方法！
+ *   const fileService = ProxyChannel.toService<WebFileService>(channel);
+ *   await fileService.stat({ path });  // 就像调用本地方法！
  *
  * 原理：
  * - fromService: 遍历 service 的属性，方法 → call，on* 事件 → listen

@@ -58,7 +58,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           },
           project.selection,
         );
-        expect(result.status, result.error).toBe("completed");
+        expect(result.receipt.status, result.receipt.error).toBe("completed");
         const read = await client.read(project.selection);
         const imported = read.view.drafts.filter((group) =>
           originalTexts.includes(group.originalText),
@@ -134,7 +134,12 @@ describe("proposal business lifecycle through the deployed public API", () => {
             documentFormats,
             expectedRevision: current.view.revision,
           });
-          expect(receipt.status, receipt.error).toBe("completed");
+          expect(receipt.receipt.status, receipt.receipt.error).toBe("completed");
+          expect(receipt).not.toHaveProperty("view");
+          expect(receipt.documentFormatSnapshot).toEqual({
+            documentFormats,
+            revision: receipt.receipt.revision,
+          });
           owned = documentFormats;
           expect((await client.read()).view.documentFormats).toEqual(documentFormats);
         };
@@ -163,7 +168,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
             },
             project.selection,
           );
-          expect(receipt.status, receipt.error).toBe("completed");
+          expect(receipt.receipt.status, receipt.receipt.error).toBe("completed");
           const imported = (await client.read(project.selection)).view.drafts.find(
             (group) => group.originalText === originalText,
           )!;
@@ -415,12 +420,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
           ),
         );
         const readHandoff = () =>
-          client.call(
-            "readPrHandoff",
-            [{ projectId: target.projectId, irId: target.irId }],
-            target.selection,
-          );
-        expect((await readHandoff()).ready).toBe(false);
+          client.call("readPrHandoff", [{ projectId: target.projectId, irId: target.irId }]);
+        expect((await readHandoff()).blockers).not.toHaveLength(0);
 
         const first = getProposal(await commandAndRead(client, alignment, target), target);
         const firstConfirmation = first.alignment?.find(
@@ -446,7 +447,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           target,
         );
         expect(getProposal(two, target).proposalDelivery).toBeUndefined();
-        expect((await readHandoff()).ready).toBe(false);
+        expect((await readHandoff()).blockers).not.toHaveLength(0);
         const confirmed = await commandAndRead(
           client,
           alignmentAction(fullReport, "testing"),
@@ -480,17 +481,11 @@ describe("proposal business lifecycle through the deployed public API", () => {
           materialVersions(aligned),
         );
         const handoff = await readHandoff();
-        expect(handoff.ready, handoff.blockers.join("; ")).toBe(true);
-        expect(handoff.files.map((file) => file.path).sort()).toEqual(
-          candidate.files.map((file) => file.path).sort(),
-        );
+        expect(handoff.blockers).toEqual([]);
+        expect(handoff).not.toHaveProperty("ready");
         const sourceDirectory = handoff.sourceDirectory.replace(/\\/g, "/").replace(/\/$/, "");
         expect(sourceDirectory).not.toBe("");
         expect(sourceDirectory).not.toBe(aligned.proposalLocation?.directory);
-        for (const file of handoff.files) {
-          expect(file.sourcePath.replace(/\\/g, "/")).toBe(`${sourceDirectory}/${file.path}`);
-          expect(file.digest).toBe(candidate.files.find(({ path }) => path === file.path)?.sha256);
-        }
 
         const publish: AIReqAction = {
           type: "publishProposal",
@@ -501,7 +496,12 @@ describe("proposal business lifecycle through the deployed public API", () => {
           client.command({ ...publish, candidate: unique("wrong-candidate") }, target.selection),
         );
         const receipt = await client.command(publish, target.selection);
-        expect(receipt.status, receipt.error).not.toBe("failed");
+        expect(receipt).not.toHaveProperty("operationId");
+        expect(receipt).not.toHaveProperty("status");
+        expect(receipt).not.toHaveProperty("revision");
+        expect(receipt).not.toHaveProperty("view");
+        expect(receipt).not.toHaveProperty("documentFormatSnapshot");
+        expect(receipt.receipt.status, receipt.receipt.error).not.toBe("failed");
         const published = await waitUntil(
           "submitted candidate exposes its open document PR",
           () => client.read(target.selection),
@@ -518,7 +518,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(frozen.proposalDelivery).not.toHaveProperty("simulatedMr");
         expect(published.view.groups.some((group) => group.id === target.irId)).toBe(false);
         const repeated = await client.command(publish, target.selection);
-        expect(repeated.operationId).toBe(receipt.operationId);
+        expect(repeated.receipt.operationId).toBe(receipt.receipt.operationId);
         await commandAndRead(
           client,
           { type: "publishProposal", candidate: candidate.candidate },
@@ -537,7 +537,6 @@ describe("proposal business lifecycle through the deployed public API", () => {
           client.command(
             {
               type: "deleteRequirement",
-              version: 1,
               projectId: target.projectId,
               irId: target.irId,
             },
@@ -560,7 +559,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           },
         ]);
         expect(await readHandoff()).toMatchObject({
-          ready: false,
+          blockers: expect.arrayContaining([expect.stringContaining("仍绑定原目标")]),
           targetBranch: project.defaultBranch,
         });
         await expect(
@@ -591,7 +590,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(
           closed.proposalDeliveryHistory?.find((item) => item.candidate === candidate.candidate),
         ).not.toHaveProperty("repositoryTarget");
-        expect(await readHandoff()).toMatchObject({ ready: true, targetBranch: newBranch });
+        expect(await readHandoff()).toMatchObject({ blockers: [], targetBranch: newBranch });
         expect(materialVersions(closed)).toEqual(materialVersions(frozen));
         await expectBusinessRejection(
           client.command(
@@ -652,40 +651,32 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(history?.proposalRound).toBe(frozen.proposalRound ?? 1);
         await expectBusinessRejection(client.command(alignment, target.selection));
         await expect(
-          client.call(
-            "retryMaterial",
-            [
-              {
-                projectId: target.projectId,
-                releaseId: target.releaseId,
-                irId: target.irId,
-                path: testPlan.path,
-                sha256: testPlan.sha256,
-                round: testPlan.round,
-              },
-            ],
-            target.selection,
-          ),
+          client.call("retryMaterial", [
+            {
+              projectId: target.projectId,
+              releaseId: target.releaseId,
+              irId: target.irId,
+              path: testPlan.path,
+              sha256: testPlan.sha256,
+              round: testPlan.round,
+            },
+          ]),
         ).rejects.toThrow();
         const currentTestPlan = revisedRemote.view.materials.find(
           (file) => file.irId === target.irId && file.path === testPlan.path,
         )!;
         expect(currentTestPlan.sha256).not.toBe(testPlan.sha256);
         expect(
-          await client.call(
-            "retryMaterial",
-            [
-              {
-                projectId: target.projectId,
-                releaseId: target.releaseId,
-                irId: target.irId,
-                path: currentTestPlan.path,
-                sha256: currentTestPlan.sha256,
-                round: currentTestPlan.round,
-              },
-            ],
-            target.selection,
-          ),
+          await client.call("retryMaterial", [
+            {
+              projectId: target.projectId,
+              releaseId: target.releaseId,
+              irId: target.irId,
+              path: currentTestPlan.path,
+              sha256: currentTestPlan.sha256,
+              round: currentTestPlan.round,
+            },
+          ]),
         ).toBe(true);
         const afterRetry = getProposal(await client.read(target.selection), target);
         expect(materialVersions(afterRetry)).toEqual(materialVersions(revised));
@@ -753,20 +744,13 @@ describe("proposal business lifecycle through the deployed public API", () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
         const before = await client.read(target.selection);
+        expect(before.view).not.toHaveProperty("selected");
         expect(before.session).toBeDefined();
         const group = getProposal(before, target);
         await expect(
-          client.call(
-            "retrySession",
-            [target.selection, unique("wrong-session")],
-            target.selection,
-          ),
+          client.call("retrySession", [target.selection, unique("wrong-session")]),
         ).rejects.toThrow();
-        await client.call(
-          "retrySession",
-          [target.selection, before.session!.sessionId],
-          target.selection,
-        );
+        await client.call("retrySession", [target.selection, before.session!.sessionId]);
         const recovered = await client.read(target.selection);
         expect(recovered.session?.sessionId).toBe(before.session!.sessionId);
         expect(recovered.workspace).toEqual(before.workspace);
@@ -775,19 +759,15 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(getProposal(recovered, target).originalReview).toBeUndefined();
         const absentPath = `docs/requirements/${target.irId}/not-generated.md`;
         await expect(
-          client.call(
-            "retryMaterial",
-            [
-              {
-                projectId: target.projectId,
-                releaseId: target.releaseId,
-                irId: target.irId,
-                path: absentPath,
-                sha256: "0".repeat(64),
-              },
-            ],
-            target.selection,
-          ),
+          client.call("retryMaterial", [
+            {
+              projectId: target.projectId,
+              releaseId: target.releaseId,
+              irId: target.irId,
+              path: absentPath,
+              sha256: "0".repeat(64),
+            },
+          ]),
         ).rejects.toThrow();
         const after = await client.read(target.selection);
         expect(getProposal(after, target).files).toEqual(group.files);
@@ -804,10 +784,12 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const target = await createProposal(client);
         const before = await client.read(target.selection);
         const unrelated = before.view.drafts.filter((group) => group.id !== target.irId);
-        await client.command(
-          { type: "deleteRequirement", version: 1, projectId: target.projectId, irId: target.irId },
+        const result = await client.command(
+          { type: "deleteRequirement", projectId: target.projectId, irId: target.irId },
           target.selection,
         );
+        expect(result.receipt.status, result.receipt.error).toBe("completed");
+        expect(result.receipt).not.toHaveProperty("deletion");
         const deleted = await client.read({ projectId: target.projectId });
         expect(deleted.view.drafts.some((group) => group.id === target.irId)).toBe(false);
         expect(deleted.view.groups.some((group) => group.id === target.irId)).toBe(false);

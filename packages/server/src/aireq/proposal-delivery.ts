@@ -181,8 +181,8 @@ export function validatePrototypeProposalPublication(
   candidate: string,
 ): void {
   const project = view.projects.find((item) => item.id === group.projectId);
-  const handoff = readPrototypeProposalPrHandoff(group, project);
-  if (!handoff.ready) throw businessRule(handoff.blockers.join("；"));
+  const { blockers } = readPrototypeProposalPrHandoff(group, project);
+  if (blockers.length !== 0) throw businessRule(blockers.join("；"));
   if (group.proposalDelivery?.candidate !== candidate || !proposalDeliveryCurrent(group))
     throw businessRule("交付候选已失效，请重新查看当前版本的文件清单。");
   if (proposalPrCurrent(group) && group.requirementsPr?.status === "merged")

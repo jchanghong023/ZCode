@@ -59,9 +59,8 @@ export async function createRemoteAIReqDataSource(
     )?.session;
     return session ? { ...snapshot.value, session } : undefined;
   };
-  let selection: AIReqSelection = {};
   let disposed = false;
-  let eventError: Error | undefined;
+  let metadataRefreshError: Error | undefined;
   let invalidationGeneration = 0;
   let initializing = true;
   let promptDraftRevision = 0;
@@ -77,10 +76,9 @@ export async function createRemoteAIReqDataSource(
   const call = <P extends AIReqRemotePath>(
     path: P,
     args: AIReqRemoteArgs<P>,
-    target = selection,
   ): Promise<AIReqRemoteResult<P>> => {
     if (disposed) return Promise.reject(new Error("AIReq连接已关闭"));
-    return services.aiReqService.call(identity, path, args, target);
+    return services.aiReqService.call(identity, path, args);
   };
   const readBootstrap = async (): Promise<AIReqRemoteBootstrap> => {
     const incoming = await services.aiReqService.bootstrap(identity);
@@ -96,13 +94,13 @@ export async function createRemoteAIReqDataSource(
     const entries = await Promise.all(
       Object.keys(incoming.projects.developmentRoots).map(async (projectId) => {
         const target = { projectId };
-        const result = await call("readWorkflow", [target], target);
+        const result = await call("readWorkflow", [target]);
         return [projectId, result.workspace] as const;
       }),
     );
     return new Map(entries);
   };
-  let promptDraft: AIReqRemoteBootstrap["prompts"]["draft"];
+  let promptDraft: AIReqRemoteBootstrap["prompts"]["saved"];
   let refreshFlight: Promise<void> | undefined;
   const refreshMetadata = (): Promise<void> => {
     if (refreshFlight) return refreshFlight;
@@ -115,7 +113,7 @@ export async function createRemoteAIReqDataSource(
           if (disposed) throw new Error("AIReq连接已关闭");
           if (generation !== invalidationGeneration) continue;
           if (JSON.stringify(promptDraft) === JSON.stringify(metadata.prompts.saved))
-            promptDraft = { ...incoming.prompts.draft };
+            promptDraft = { ...incoming.prompts.saved };
           metadata = incoming;
           projectWorkspaces = incomingWorkspaces;
           break;
@@ -133,11 +131,6 @@ export async function createRemoteAIReqDataSource(
       for (const listener of presenceListeners) listener(frame.snapshot);
       return;
     }
-    if (frame.type === "error") {
-      eventError = new Error(frame.error.message);
-      if (!initializing) emit(workflowListeners);
-      return;
-    }
     invalidationGeneration += 1;
     if (initializing) return;
     if (frame.type === "skills")
@@ -146,13 +139,13 @@ export async function createRemoteAIReqDataSource(
       void refreshMetadata().then(
         () => {
           if (disposed) return;
-          eventError = undefined;
+          metadataRefreshError = undefined;
           emit(modelListeners);
           emit(workflowListeners);
         },
         (cause) => {
           if (disposed) return;
-          eventError = cause instanceof Error ? cause : new Error(String(cause));
+          metadataRefreshError = cause instanceof Error ? cause : new Error(String(cause));
           emit(workflowListeners);
         },
       );
@@ -162,12 +155,10 @@ export async function createRemoteAIReqDataSource(
       const generation = invalidationGeneration;
       const incoming = await readBootstrap();
       const incomingWorkspaces = await readProjectWorkspaces(incoming);
-      if (eventError) throw eventError;
       if (generation !== invalidationGeneration) continue;
       metadata = incoming;
       projectWorkspaces = incomingWorkspaces;
-      selection = { ...metadata.initialSelection };
-      promptDraft = { ...metadata.prompts.draft };
+      promptDraft = { ...metadata.prompts.saved };
       initializing = false;
       break;
     }
@@ -193,22 +184,21 @@ export async function createRemoteAIReqDataSource(
     get capabilities() {
       return metadata.capabilities;
     },
-    get initialSelection() {
-      return metadata.initialSelection;
+    get initialProjectId() {
+      return metadata.initialProjectId;
     },
     async refreshIdentity() {
       await refreshMetadata();
-      eventError = undefined;
+      metadataRefreshError = undefined;
       emit(modelListeners);
       emit(workflowListeners);
     },
     async readWorkflow(target) {
-      if (eventError) {
+      if (metadataRefreshError) {
         await refreshMetadata();
-        eventError = undefined;
+        metadataRefreshError = undefined;
       }
-      // 只读详情查询不能夺取主区默认选择；并行Tab始终使用显式目标。
-      const result = await call("readWorkflow", [target], target);
+      const result = await call("readWorkflow", [target]);
       snapshots.set(result.view, {
         key: JSON.stringify(target),
         reviewScopeKey: JSON.stringify({ ...target, reviewAgent: undefined }),
@@ -225,7 +215,7 @@ export async function createRemoteAIReqDataSource(
         operationId: action.operationId ?? createUuid(),
         expectedRevision: action.expectedRevision ?? revision,
       };
-      const result = await call("command", [command, target, revision], target);
+      const result = await call("command", [command, target, revision]);
       await refreshMetadata();
       return result;
     },
@@ -253,15 +243,11 @@ export async function createRemoteAIReqDataSource(
       }
       return { identity: `aireq-remote:${clientId}`, kind: "unavailable" };
     },
-    retryMaterial: (request) =>
-      call("retryMaterial", [request], { projectId: request.projectId, irId: request.irId }),
+    retryMaterial: (request) => call("retryMaterial", [request]),
     retrySession: async (target, sessionId) => {
-      await call("retrySession", [target, sessionId], target);
+      await call("retrySession", [target, sessionId]);
     },
-    readPrHandoff: (target) => call("readPrHandoff", [target], target),
-    selectProject(projectId) {
-      selection = { projectId };
-    },
+    readPrHandoff: (target) => call("readPrHandoff", [target]),
     dispose() {
       presenceListeners.clear();
       disposed = true;
@@ -322,13 +308,11 @@ export async function createRemoteAIReqDataSource(
         return metadata.skillDesignStorage;
       },
       session: (...args) => call("skillDesign.session", args),
-      workspaceIdentity: (...args) => call("skillDesign.workspaceIdentity", args),
       read: (...args) => call("skillDesign.read", args),
       saveDraft: async (...args) => {
         await call("skillDesign.saveDraft", args);
       },
       prompt: (...args) => call("skillDesign.prompt", args),
-      temporaryDirectory: (...args) => call("skillDesign.temporaryDirectory", args),
       readPreview: async (...args) => (await call("skillDesign.readPreview", args)) ?? undefined,
       listSkills: (...args) => call("skillDesign.listSkills", args),
       savePreview: (...args) => call("skillDesign.savePreview", args),

@@ -1,3 +1,4 @@
+import type { WebFileService } from "@zcode/services";
 import {
   buildConversationPreviewArtifactCandidatesFromReferences,
   CONVERSATION_PREVIEW_CARD_CANDIDATE_LIMIT,
@@ -67,9 +68,7 @@ export type AssistantPreviewCard =
       path: string;
     };
 
-export interface AssistantPreviewCardFileStatService {
-  checkFilesExist(params: { paths: string[] }): Promise<Array<{ path: string; exists: boolean }>>;
-}
+export type AssistantPreviewCardFileStatService = Pick<WebFileService, "checkFilesExist">;
 
 const LOCALHOST_URL_RE =
   /\bhttps?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:[/?#][^\s<>()\]`"'*，。！？；：、]*)?/gi;

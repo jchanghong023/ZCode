@@ -56,16 +56,6 @@ modules:
   - id: web
     roots: [packages/web/src]
     managed: false
-  # design-runtime：网页元素上下文的共享类型与页面 inspector 表达式。
-  - id: design-runtime
-    roots: [packages/design-runtime/src]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      - packages/design-runtime/src/index.ts
-      - packages/design-runtime/src/contract.ts
-    layers: { app: "." }
-    owner: conversation
   - id: conversation-telemetry-engine
     roots: [packages/shared/src/conversation-telemetry]
     managed: true
@@ -173,20 +163,6 @@ modules:
   # office-runtime：内置文档插件查看面板的共享运行时
 
   # voice-input：Composer 语音输入按钮、状态机与麦克风采集
-  - id: side-pane-full-view
-    roots:
-      - packages/ui/src/side-pane-full-view
-    managed: true
-    requires:
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/side-pane-full-view/index.ts
-      - packages/ui/src/side-pane-full-view/contract.ts
-    layers:
-      ui: .
-    owner: conversation
-
   - id: local-ttft-contract
     roots:
       - packages/shared/src/local-ttft
@@ -196,17 +172,6 @@ modules:
       - packages/shared/src/local-ttft/contract.ts
     layers:
       contract: .
-  - id: local-ttft-renderer
-    roots:
-      - packages/ui/src/v4/telemetry/local-ttft
-    managed: true
-    requires:
-      - shared
-      - ui
-    publicEntrypoints:
-      - packages/ui/src/v4/telemetry/local-ttft/contract.ts
-    layers:
-      ui: .
   # zcode-site-panel：zcode-site 插件自带的 Sites 面板（MCP server + 页面）
 
   - id: ui-file-menu
@@ -326,7 +291,7 @@ modules:
     publicEntrypoints: [packages/ui/src/ToolCallBlocks/session/contract.ts]
     layers: { ui: "." }
     owner: conversation
-  # 选区批注输入浮层；调用方是 v4 选区浮层，引用数据仍归 ui lib。
+  # 选区引用和已有批注的编号标记；引用数据仍归 ui lib。
   - id: selection-comment
     roots:
       - packages/ui/src/selection-comment
@@ -435,7 +400,6 @@ global:
     - "@zcode/provider"
     - "@zcode/model-option-map"
     - "@zcode/session-control"
-    - "@zcode/design-runtime"
   nativePackages: ["@napi-rs/keyring"]
 
 exceptions:

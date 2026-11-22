@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/components/lib/utils.js";
-import type { ConversationSelectionTextAnchor } from "@/lib/conversationSelectionReference.js";
 import {
   AnnotationNumber,
   type AnnotationNumberVariant,
@@ -10,15 +9,7 @@ import {
   getSelectionLineRects,
   resolveSelectionTextAnchor,
 } from "@/selection-comment/textAnchor.js";
-
-export interface AnnotationMarkItem {
-  id: string;
-  number: number;
-  variant: AnnotationNumberVariant;
-  rowId: number;
-  anchor: ConversationSelectionTextAnchor;
-  text: string;
-}
+import type { ConversationAnnotationMarksProps } from "@/selection-comment/contract.js";
 
 interface MarkLayout {
   id: string;
@@ -40,22 +31,14 @@ function sameLayouts(a: readonly MarkLayout[], b: readonly MarkLayout[]): boolea
  *
  * 不改 Markdown 渲染树：标记是消息层上的绝对定位覆盖层，坐标由文字锚点还原出的 Range 计算。
  * 这样流式输出、虚拟滚动卸载/重挂、主题切换都不需要改动行组件；行没挂载或文字对不上时就不画。
- * 覆盖层整体 pointer-events: none，只有编号气泡可点，不影响正文继续划词。
+ * 只有待发引用编号接收悬停事件；编号和正文标记均不可编辑。
  */
 export function ConversationAnnotationMarks({
   rootRef,
   items,
   hoveredId,
   onHover,
-  onActivate,
-}: {
-  rootRef: RefObject<HTMLElement | null>;
-  items: readonly AnnotationMarkItem[];
-  hoveredId: string | null;
-  onHover: (id: string | null) => void;
-  /** 点编号气泡：打开编辑浮层，rect 是气泡在视口里的位置。 */
-  onActivate: (id: string, rect: DOMRect) => void;
-}) {
+}: ConversationAnnotationMarksProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [layouts, setLayouts] = useState<readonly MarkLayout[]>([]);
   const itemsRef = useRef(items);
@@ -150,7 +133,6 @@ export function ConversationAnnotationMarks({
     >
       {layouts.map((layout) => {
         const sent = layout.variant === "sent-comment" || layout.variant === "sent-quote";
-        const pending = layout.variant === "pending";
         const solid = layout.variant === "comment" || layout.variant === "sent-comment";
         const highlighted = hoveredId === layout.id && !sent;
         const last = layout.lines[layout.lines.length - 1];
@@ -162,8 +144,7 @@ export function ConversationAnnotationMarks({
                 key={index}
                 className={cn(
                   "absolute",
-                  // 新增时输入框抢走焦点会折叠浏览器选区；用同色底保留“正在注释哪段”的高亮。
-                  (pending || highlighted) && "rounded-[2px] bg-icon-blue/15",
+                  highlighted && "rounded-[2px] bg-icon-blue/15",
                 )}
                 style={{ left: line.left, top: line.top, width: line.width, height: line.height }}
               >
@@ -176,7 +157,7 @@ export function ConversationAnnotationMarks({
                 />
               </div>
             ))}
-            {pending || sent ? (
+            {sent ? (
               <span
                 className="absolute"
                 style={{ left: last.left + last.width + 1, top: last.top - 6 }}
@@ -184,26 +165,22 @@ export function ConversationAnnotationMarks({
                 <AnnotationNumber value={layout.number} variant={layout.variant} />
               </span>
             ) : (
-              <button
-                type="button"
+              <span
+                role="img"
                 data-annotation-mark-id={layout.id}
                 data-annotation-mark-number={layout.number}
                 aria-label={String(layout.number)}
-                className="pointer-events-auto absolute flex rounded-full outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+                className="pointer-events-auto absolute flex rounded-full"
                 style={{ left: last.left + last.width + 1, top: last.top - 6 }}
-                onPointerDown={(event) => event.preventDefault()}
                 onMouseEnter={() => onHover(layout.id)}
                 onMouseLeave={() => onHover(null)}
-                onClick={(event) =>
-                  onActivate(layout.id, event.currentTarget.getBoundingClientRect())
-                }
               >
                 <AnnotationNumber
                   value={layout.number}
                   variant={layout.variant}
                   highlighted={highlighted}
                 />
-              </button>
+              </span>
             )}
           </div>
         );

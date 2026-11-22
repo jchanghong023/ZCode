@@ -3,11 +3,11 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
-import type { IServiceAccessor, ISettingService } from "@zcode/services";
+import type { IServiceAccessor, ISettingService, WebAppSettings } from "@zcode/services";
 import { useServices } from "./useServices.js";
 
 type SettingsSnapshot = {
-  settings: AppSettings | null;
+  settings: WebAppSettings | null;
   loading: boolean;
   error: unknown | null;
 };
@@ -56,7 +56,7 @@ function setSettingsSnapshot(cacheKey: string, snapshot: SettingsSnapshot): void
   }
 }
 
-async function refreshSharedSettings(cacheKey: string, getSettings: () => Promise<AppSettings>) {
+async function refreshSharedSettings(cacheKey: string, getSettings: () => Promise<WebAppSettings>) {
   const inflight = inflightRefreshes.get(cacheKey);
   if (inflight) {
     return inflight;
@@ -184,19 +184,5 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
     error: snapshot.error,
     update,
     refresh,
-  };
-}
-
-/** 最近项目列表的便捷 hook */
-export function useRecentProjects() {
-  const { settings, loading, update } = useSettings();
-  return {
-    recentProjects: settings?.recentProjects ?? [],
-    loading,
-    addProject: async (path: string) => {
-      const current = settings?.recentProjects ?? [];
-      const updated = [path, ...current.filter((p) => p !== path)].slice(0, 10);
-      await update({ recentProjects: updated });
-    },
   };
 }

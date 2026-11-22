@@ -13,12 +13,7 @@ import {
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { SettingsSearchResult, SettingsSearchSection } from "@/settings-search/contract.js";
-import { isSettingsSectionAvailable } from "@/settings/settingsPageConfig.js";
-import {
-  resolveSettingsSearchAvailability,
-  SETTINGS_SEARCH_ITEMS,
-  type SettingsSearchAvailability,
-} from "@/settings-search/settingsSearchIndex.js";
+import { APPEARANCE_SETTINGS_SEARCH_ITEMS } from "@/settings-search/settingsSearchIndex.js";
 import {
   matchesSettingsNavigation,
   settingsNavigationSearchKeys,
@@ -34,7 +29,6 @@ export function SettingsSearch({
   compact?: boolean;
 }) {
   const { intl } = useZCodeIntl();
-  const visible: SettingsSearchAvailability = resolveSettingsSearchAvailability();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selectedRef = useRef<SettingsSearchResult | null>(null);
@@ -43,19 +37,21 @@ export function SettingsSearch({
   const entries = useMemo(
     () =>
       sections.flatMap((section) => {
-        const sectionLabel = section.label ?? intl.formatMessage({ id: section.titleId });
-        const items = SETTINGS_SEARCH_ITEMS.filter(
-          (item) => section.includeSettings !== false && item.section === section.id,
-        ).map((item) => ({
-          section: section.id,
-          setting: item.id,
-          label: intl.formatMessage({ id: item.id }),
-          sectionLabel,
-          keys: settingsNavigationSearchKeys([intl.formatMessage({ id: item.id })]),
-          descriptionKeys: [intl.formatMessage({ id: item.description })],
-          visibility: item.visibility,
-        }));
-        // 自有页面的条目由调用方提供，避免启用原生分区时一并暴露已裁撤设置。
+        const sectionLabel = section.label;
+        const appearanceItems =
+          section.id === "appearance"
+            ? APPEARANCE_SETTINGS_SEARCH_ITEMS.map((item) => {
+                const label = intl.formatMessage({ id: item.id });
+                return {
+                  section: section.id,
+                  setting: item.id,
+                  label,
+                  sectionLabel,
+                  keys: settingsNavigationSearchKeys([label]),
+                  descriptionKeys: [intl.formatMessage({ id: item.description })],
+                };
+              })
+            : [];
         const extraItems = (section.items ?? []).map((item) => ({
           section: section.id,
           setting: item.id,
@@ -63,7 +59,6 @@ export function SettingsSearch({
           sectionLabel,
           keys: settingsNavigationSearchKeys([item.label, ...(item.keywords ?? [])]),
           descriptionKeys: [],
-          visibility: "all" as const,
         }));
         return [
           {
@@ -73,9 +68,8 @@ export function SettingsSearch({
             sectionLabel,
             keys: settingsNavigationSearchKeys([sectionLabel]),
             descriptionKeys: [],
-            visibility: "all" as const,
           },
-          ...items,
+          ...appearanceItems,
           ...extraItems,
         ];
       }),
@@ -83,11 +77,6 @@ export function SettingsSearch({
   );
   const results = entries
     .flatMap((entry) => {
-      if (
-        !isSettingsSectionAvailable(entry.section) ||
-        (entry.visibility !== "all" && !visible[entry.visibility])
-      )
-        return [];
       const nameMatch = matchesSettingsNavigation(query, entry.keys);
       // 说明较长，只做片段匹配，避免顺序字符在整段说明中产生大量无关结果。
       const descriptionMatch =

@@ -1,6 +1,6 @@
 import { resolveExecutionState, type ModelSelection } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+import type { WebModelSelectionView } from "@zcode/services";
 import { validateModelSelectionOptions } from "@zcode/provider";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
@@ -17,7 +17,7 @@ export function createComposerSubmissionConfig(
     | { mode?: string; planEnabled?: boolean; modelSelection?: ModelSelection }
     | null
     | undefined,
-  view: ModelSelectionView | null,
+  view: WebModelSelectionView | null,
 ): ComposerSubmissionConfig | null {
   // 只读子会话和未挂载 Composer 的 SessionPane 不提供草稿；这类场景没有可提交配置，
   // 不能因为渲染提交门禁而读取 undefined 并让整个会话区域崩溃。
@@ -49,7 +49,7 @@ export function createComposerSubmissionConfig(
 export const SESSION_MODEL_UNAVAILABLE_ERROR_CODE = "ZCODE_RUNTIME_MODEL_UNAVAILABLE";
 
 /** 会话原选择在当前 Registry 视图里解析不出可执行模型的三种原因；档位问题不属于「模型不可用」。 */
-const SESSION_MODEL_UNAVAILABLE_ISSUES = new Set<ModelSelectionView["selectionIssue"]>([
+const SESSION_MODEL_UNAVAILABLE_ISSUES = new Set<WebModelSelectionView["selectionIssue"]>([
   "provider-not-found",
   "model-not-found",
   "account-connection-unavailable",

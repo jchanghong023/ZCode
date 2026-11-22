@@ -84,14 +84,14 @@ export function AIReqDocumentFormatSettings({
         {},
         original.revision,
       );
-      if (result.status !== "completed") {
+      if (result.receipt.status !== "completed") {
         setMessage({
           error: true,
-          text: result.error ?? (zh ? "未保存文档格式。" : "Document formats were not saved."),
+          text: result.receipt.error ?? (zh ? "未保存文档格式。" : "Document formats were not saved."),
         });
         return false;
       }
-      setRead(result.view);
+      setRead(result.documentFormatSnapshot);
       setEdits({});
       setBaseline(undefined);
       setNeedsRead(false);

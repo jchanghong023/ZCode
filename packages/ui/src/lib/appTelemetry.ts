@@ -1,5 +1,3 @@
-import { useCallback, useContext } from "react";
-import { StoreContext } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   BIGMODEL_PROVIDER_ID,
@@ -74,36 +72,4 @@ export async function reportAppTelemetryEvent(
 /** 只在埋点边界映射；没有交互来源时不假定默认编程模式。 */
 export function toTelemetryUiMode(mode: InterfaceMode | undefined): TelemetryUiMode {
   return mode === "office" ? "work" : mode === "coding" ? "code" : "unknown";
-}
-
-/** 用户入口显式调用；初始化、快捷键及广播仍使用原 store 命令。 */
-export function useSetInterfaceModeWithTelemetry(
-  platform: Pick<IPlatformService, "reportTelemetryEvent">,
-  eventRegion: "app.profile" | "app.setting" | "app.onboarding",
-): (mode: InterfaceMode) => void {
-  const store = useContext(StoreContext);
-  if (!store) throw new Error("useSetInterfaceModeWithTelemetry 必须在 StoreProvider 内使用");
-  return useCallback(
-    (mode: InterfaceMode) => {
-      // 操作时读取唯一 owner，连续切换及广播更新后也不会用旧 render 的值归因。
-      const previousMode = store.getState().interfaceMode;
-      store.getState().setInterfaceMode(mode);
-      const currentMode = store.getState().interfaceMode;
-      if (previousMode === currentMode) return;
-      void reportAppTelemetryEvent(
-        platform,
-        {
-          elementName: "ui_mode_switch",
-          eventRegion,
-          eventType: "ck",
-          eventExtraDetail: {
-            previous_ui_mode: toTelemetryUiMode(previousMode),
-            ui_mode: toTelemetryUiMode(currentMode),
-          },
-        },
-        "interfaceModeTelemetry",
-      );
-    },
-    [store, platform, eventRegion],
-  );
 }

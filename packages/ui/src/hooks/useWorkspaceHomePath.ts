@@ -12,7 +12,7 @@ interface WorkspaceHomePathParams {
 interface WorkspaceHomeCacheEntry {
   homePath?: string;
   promise?: Promise<string | null>;
-  systemService: IServiceAccessor["systemService"];
+  systemService: NonNullable<IServiceAccessor["systemService"]>;
 }
 
 const workspaceHomePathCache = new Map<string, WorkspaceHomeCacheEntry>();
@@ -79,5 +79,5 @@ export function useWorkspaceHomePath(params: WorkspaceHomePathParams): string | 
     };
   }, [cacheKey, systemService]);
 
-  return state.cacheKey === cacheKey ? state.homePath : undefined;
+  return systemService && state.cacheKey === cacheKey ? state.homePath : undefined;
 }

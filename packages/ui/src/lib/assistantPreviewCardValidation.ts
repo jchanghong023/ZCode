@@ -54,10 +54,7 @@ export async function resolveValidatedAssistantPreviewCards(
   const paths = candidates
     .map(getAssistantPreviewCardFilePath)
     .filter((path): path is string => path !== null);
-  const results = await fileService.checkFilesExist({ paths });
-  const existingPaths = new Set(
-    results.filter((result) => result.exists).map((result) => result.path),
-  );
+  const existingPaths = new Set(await fileService.checkFilesExist({ paths }));
 
   return candidates
     .filter((card) => {

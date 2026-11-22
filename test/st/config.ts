@@ -58,7 +58,6 @@ export const config = {
     | undefined
     | {
         workspacePath: string;
-        workspaceIdentity?: string;
         path: string;
         directoryPath: string;
         missingPath: string;

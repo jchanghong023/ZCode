@@ -1,4 +1,3 @@
-import { digestValue } from "./content-digest.js";
 import { businessRule, businessFailureMessage } from "./errors.js";
 import type {
   InternalRequirementGroup,
@@ -6,7 +5,6 @@ import type {
   InternalWorkflowAction,
 } from "./internal-scenarios.js";
 import type { AIReqProposalMergeScenario, AIReqReviewScenario } from "./internal-scenarios.js";
-import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   proposalVersion,
   proposalState,
@@ -323,7 +321,6 @@ export function getPrototypeWorkflow(
     todos: deriveAIReqTodos(state).filter((todo) =>
       hasProjectRole(state, todo.projectId, getEmployeeId(), todo.assignmentPerspective),
     ),
-    ompWebId: PROTOTYPE_BACKEND.id,
     projects,
     currentProjectId: projectId,
     // 内部按完整 Git 目标隔离头提交，公开投影仍按仓库 ID 返回当前配置的头提交。
@@ -351,11 +348,6 @@ export function getPrototypeWorkflow(
             (group.id === item.irId || item.irIds?.includes(group.id)),
         ),
     ),
-    changes: state.changes?.filter((item) => item.projectId === projectId),
-    selected:
-      selection.irId && projectId
-        ? { projectId, irId: selection.irId, ...(selection.srId ? { srId: selection.srId } : {}) }
-        : undefined,
   };
 }
 /** 提案内的 IR/SR 是查看目标；业务需求会话始终归属于整份提案。 */
@@ -436,7 +428,7 @@ export function applyPrototypeAction(
   action: InternalWorkflowAction,
   selection: AIReqSelection,
   stagedOutput?: NativeProposalOutput,
-  request?: { operationId: string; commandDigest: string; gitSnapshot?: GitDocumentSnapshot },
+  request?: { operationId: string; gitSnapshot?: GitDocumentSnapshot },
 ): AIReqWorkflowResult {
   if (consumePrototypeOperationFailure(action.type))
     throw businessRule("操作未完成。内容和当前状态已保留，请明确重试。");
@@ -717,12 +709,9 @@ export function applyPrototypeAction(
     proposalAction || action.type === "importProposals" || globalAction
       ? undefined
       : (action.srId ?? selection.srId);
-  const selectedProjectId = projectId;
   const operation = receipt(action.type, ++state.revision, irId, srId, new Date().toISOString());
   // 请求回执元数据与状态在同一事务形成，不能发布事件后再覆盖导致返回投影和回执不一致。
   if (request) operation.operationId = request.operationId;
-  operation.commandDigest =
-    request?.commandDigest ?? digestValue([action, selection, stagedOutput]);
   const identity = currentIdentity();
   if (identity) operation.identity = { ...identity };
   const reviewRuns: PrototypeReviewRun[] = [];
@@ -763,20 +752,16 @@ export function applyPrototypeAction(
   for (const run of reviewRuns) schedulePrototypeReview(run);
   prototypeWorkflowChanges.fire();
   return {
-    operationId: operation.operationId,
-    projectId: selectedProjectId,
-    revision: state.revision,
+    projectId,
     irId,
-    srId,
-    status: operation.status,
-    error: operation.error,
     receipt: operation,
-    deletion: operation.deletion,
     ideaId: action.type === "createIdea" ? `idea-${state.revision}` : undefined,
     transferredRequirements:
       action.type === "transferIdea"
         ? action.targets.map((target, index) => ({ ...target, irId: operation.irIds![index]! }))
         : undefined,
-    view: getPrototypeWorkflow({ projectId: selectedProjectId, irId, srId }),
+    ...(action.type === "saveDocumentFormats" && {
+      documentFormatSnapshot: { documentFormats: state.documentFormats, revision: state.revision },
+    }),
   };
 }

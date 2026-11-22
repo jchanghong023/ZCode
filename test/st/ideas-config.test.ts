@@ -75,7 +75,7 @@ describe("ST global ideas and configuration", () => {
       await usingClient(async (client) => {
         const text = unique("想法原文");
         const created = await client.command({ type: "createIdea", originalText: text });
-        expect(created.status).toBe("completed");
+        expect(created.receipt.status).toBe("completed");
         const first = ideaByText((await client.read()).view.ideas, text);
         expect(first.submittedBy).toBe(client.identity.employeeId);
         expect(Number.isFinite(Date.parse(first.createdAt))).toBe(true);
@@ -86,7 +86,7 @@ describe("ST global ideas and configuration", () => {
           ideaRevision: first.revision,
           originalText: nextText,
         });
-        expect(edited.status).toBe("completed");
+        expect(edited.receipt.status).toBe("completed");
         const after = ideaByText((await client.read()).view.ideas, nextText);
         expect(after).toMatchObject({
           id: first.id,
@@ -119,7 +119,7 @@ describe("ST global ideas and configuration", () => {
           type: "importIdeas",
           originalTexts: [repeated, repeated],
         });
-        expect(imported.status).toBe("completed");
+        expect(imported.receipt.status).toBe("completed");
         const duplicateIdeas = (await client.read()).view.ideas.filter(
           (idea) => idea.originalText === repeated,
         );
@@ -166,7 +166,8 @@ describe("ST global ideas and configuration", () => {
           expectedRevision: baseline,
         };
         const transferred = await client.command(action);
-        expect(transferred.status).toBe("completed");
+        expect(transferred.receipt.status).toBe("completed");
+        expect(transferred.receipt).not.toHaveProperty("commandDigest");
         expect(transferred.transferredRequirements).toHaveLength(2);
         expect(new Set(transferred.transferredRequirements!.map((item) => item.irId)).size).toBe(2);
         // 转入目标的 releaseId 不是 readWorkflow selection 字段；按项目读取后再核对 Release 归属。
@@ -188,7 +189,7 @@ describe("ST global ideas and configuration", () => {
           expect(view.running.filter((session) => session.irId === proposals[0]!.id)).toEqual([]);
         }
         const retried = await client.command(action);
-        expect(retried.operationId).toBe(transferred.operationId);
+        expect(retried.receipt.operationId).toBe(transferred.receipt.operationId);
         expect(retried.transferredRequirements).toEqual(transferred.transferredRequirements);
         await expect(client.command({ ...action, targets: [targets[0]!] })).rejects.toThrow();
         for (const target of targets) {
@@ -261,56 +262,44 @@ describe("ST global ideas and configuration", () => {
         expect(project).toBeDefined();
         const name = unique("修改项目名称");
         const repositoryUrl = requireConfig(config.repositoryUrl, "repositoryUrl");
-        await client.call(
-          "projects.saveRepository",
-          [
-            {
-              projectId: project.id,
-              name,
-              repositoryUrl,
-              defaultBranch: config.branch,
-              expectedRevision: project.revision,
-              operationId: unique("保存项目"),
-            },
-          ],
-          target.selection,
-        );
+        await client.call("projects.saveRepository", [
+          {
+            projectId: project.id,
+            name,
+            repositoryUrl,
+            defaultBranch: config.branch,
+            expectedRevision: project.revision,
+            operationId: unique("保存项目"),
+          },
+        ]);
         const changed = (await client.read(target.selection)).view.projects.find(
           (item) => item.id === project.id,
         )!;
         expect(changed).toMatchObject({ name, defaultBranch: config.branch });
         expect(changed.revision).toBeGreaterThan(project.revision);
         await expect(
-          client.call(
-            "projects.saveRepository",
-            [
-              {
-                projectId: project.id,
-                name: unique("旧版本覆盖"),
-                repositoryUrl,
-                defaultBranch: config.branch,
-                expectedRevision: project.revision,
-                operationId: unique("过期项目保存"),
-              },
-            ],
-            target.selection,
-          ),
+          client.call("projects.saveRepository", [
+            {
+              projectId: project.id,
+              name: unique("旧版本覆盖"),
+              repositoryUrl,
+              defaultBranch: config.branch,
+              expectedRevision: project.revision,
+              operationId: unique("过期项目保存"),
+            },
+          ]),
         ).rejects.toThrow();
         await expect(
-          client.call(
-            "projects.saveRepository",
-            [
-              {
-                projectId: project.id,
-                name: unique("无效地址不应保存"),
-                repositoryUrl: "javascript:invalid-repository",
-                defaultBranch: config.branch,
-                expectedRevision: changed.revision,
-                operationId: unique("无效项目保存"),
-              },
-            ],
-            target.selection,
-          ),
+          client.call("projects.saveRepository", [
+            {
+              projectId: project.id,
+              name: unique("无效地址不应保存"),
+              repositoryUrl: "javascript:invalid-repository",
+              defaultBranch: config.branch,
+              expectedRevision: changed.revision,
+              operationId: unique("无效项目保存"),
+            },
+          ]),
         ).rejects.toThrow();
         expect(
           (await client.read(target.selection)).view.projects.find(
@@ -457,7 +446,8 @@ describe("ST global ideas and configuration", () => {
           await client.call("prompts.save", [next, original.revision]);
           owned = (await client.bootstrap()).prompts;
           expect(owned.saved).toEqual(next);
-          expect(owned.draft).toEqual(next);
+          // 草稿属于浏览器，bootstrap 只返回已保存指令及版本。
+          expect(owned).not.toHaveProperty("draft");
           expect(owned.revision).toBeGreaterThan(original.revision);
           await waitUntil(
             "指令保存后的通知与重读",

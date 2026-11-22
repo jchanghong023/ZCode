@@ -41,7 +41,6 @@ function ToolCallBlockComponent({
   onOpenFileLink,
   onOpenBrowserUrl,
   onOpenAutomationsMain,
-  onOpenPlanDetail,
   onOpenWorkflowRun,
   onResumeWorkflowRun,
   onOpenWorkflowActor,
@@ -69,7 +68,6 @@ function ToolCallBlockComponent({
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenAutomationsMain?: (automationId?: string) => void;
-  onOpenPlanDetail?: ToolCallBlockRenderContext["onOpenPlanDetail"];
   onOpenWorkflowRun?: ToolCallBlockRenderContext["onOpenWorkflowRun"];
   /** 工具卡页脚的 Resume；与 workflowRun 同样不向子工具卡透传。 */
   onResumeWorkflowRun?: ToolCallBlockRenderContext["onResumeWorkflowRun"];
@@ -163,7 +161,6 @@ function ToolCallBlockComponent({
               onOpenFileLink={onOpenFileLink}
               onOpenBrowserUrl={onOpenBrowserUrl}
               onOpenAutomationsMain={onOpenAutomationsMain}
-              onOpenPlanDetail={onOpenPlanDetail}
               onOpenWorkflowRun={onOpenWorkflowRun}
               onLoadFullToolCallFields={onLoadFullToolCallFields}
               suppressSourceLabel={suppressSourceLabel}
@@ -183,7 +180,6 @@ function ToolCallBlockComponent({
       onLoadFullToolCallFields,
       onOpenAutomationsMain,
       onOpenBrowserUrl,
-      onOpenPlanDetail,
       onOpenFileLink,
       showIcon,
       showTodoToolCalls,
@@ -221,7 +217,6 @@ function ToolCallBlockComponent({
       onOpenFileLink,
       onOpenBrowserUrl,
       onOpenAutomationsMain,
-      onOpenPlanDetail,
       // onOpenWorkflowRun 之前只被透传给子工具卡，从未进过 renderContext，
       // 于是 CreateWorkflow renderer 永远收不到它——「打开详情页」的入口不是被埋深了，
       // 是根本没渲染过。run 态紧凑卡就挂在这个回调上，所以它必须在这里。
@@ -248,7 +243,6 @@ function ToolCallBlockComponent({
       onLoadFullToolCallFields,
       onOpenAutomationsMain,
       onOpenBrowserUrl,
-      onOpenPlanDetail,
       onOpenWorkflowRun,
       onResumeWorkflowRun,
       onOpenWorkflowActor,

@@ -1,98 +1,37 @@
-import { useSetInterfaceModeWithTelemetry } from "@/lib/appTelemetry.js";
-import { SidebarNativeTooltip, ControlHintTooltip } from "@/ControlHintTooltip.js";
-/* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
-import type { UserInfo } from "@zcode/shared";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { memo, useState, type ReactNode, type Ref } from "react";
-import {
-  TID_LOGIN_MENU_ITEM,
-  TID_LOGIN_TRIGGER,
-  TID_LOGOUT_BUTTON,
-  TID_TASK_SETTINGS_BUTTON,
-} from "@zcode/shared/test-ids";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.js";
+import { TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@zcode/shared/test-ids";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import {
-  Copy,
-  PencilRuler,
-  LogInIcon,
-  LogOut,
-  Maximize,
-  Palette,
-  Settings,
-  User,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { Maximize, Palette, Settings, User, ZoomIn, ZoomOut } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
-import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
 import type { Theme } from "@/useTheme.js";
-import { WorkspaceSidebarFooterUsageSummaryContent } from "@/WorkspaceSidebarFooterUsageSummary.js";
-
-function getSidebarProfileName(user?: UserInfo | null): string {
-  const displayName = user?.displayName?.trim();
-  if (displayName) {
-    return displayName;
-  }
-
-  const username = user?.username?.trim();
-  if (username) {
-    return username;
-  }
-
-  return "ZCode";
-}
-
-function getSidebarProfileBadge(
-  user: UserInfo | null | undefined,
-  formatMessage: ReturnType<typeof useZCodeIntl>["intl"]["formatMessage"],
-): string {
-  if (user) {
-    return getSidebarProfileName(user);
-  }
-
-  return formatMessage({ id: "sidebar.profile.notLoggedIn" });
-}
-
-function getAvatarFallbackText(user: UserInfo | null | undefined): string {
-  const source = user?.displayName?.trim() || user?.username?.trim() || "Z";
-  return source[0]?.toUpperCase() ?? "Z";
-}
 
 interface WorkspaceSidebarFooterProps {
   theme: Theme;
   onThemeChange: (value: string) => void;
   onSettingsButtonClick?: () => void;
-  onUsageClick?: () => void;
-  onLogin?: () => void;
-  onLogout?: () => void;
   settingsButtonMode?: "settings" | "back";
-  user?: UserInfo | null;
-  workspacePath?: string;
-  workspaceIdentity?: string;
-  isDesktop?: boolean;
   className?: string;
-  customMenuContent?: ReactNode;
-  profileLabel?: ReactNode;
+  customMenuContent: ReactNode;
+  profileLabel: ReactNode;
   profileDescription?: ReactNode;
-  profileAriaLabel?: string;
+  profileAriaLabel: string;
   profileTriggerRef?: Ref<HTMLButtonElement>;
   compact?: boolean;
 }
@@ -167,152 +106,11 @@ function WorkspaceSidebarFooterZoomMenu() {
   );
 }
 
-// 业务菜单不能只隐藏账户项：原用量 hook 仍会读取设置和 entitlement，故仅在默认模式挂载。
-function WorkspaceSidebarFooterNativeMenu({
-  theme,
-  onThemeChange,
-  user,
-  onUsageClick,
-  onSettingsButtonClick,
-  onLogin,
-  onLogout,
-}: Pick<
-  WorkspaceSidebarFooterProps,
-  | "theme"
-  | "onThemeChange"
-  | "user"
-  | "workspaceIdentity"
-  | "workspacePath"
-  | "onUsageClick"
-  | "onSettingsButtonClick"
-  | "onLogin"
-  | "onLogout"
->) {
-  const { writeClipboardText } = usePlatform();
-  const { intl } = useZCodeIntl();
-  const platform = usePlatform();
-  const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
-  const avatarFallbackText = getAvatarFallbackText(user);
-  const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
-  const interfaceMode = useZCodeStore((state) => state.interfaceMode);
-  const setInterfaceMode = useSetInterfaceModeWithTelemetry(platform, "app.profile");
-  const copyUserId = async () => {
-    if (!user?.id) return;
-    try {
-      await writeClipboardText(user.id);
-      toast(intl.formatMessage({ id: "sidebar.profile.userIdCopied" }));
-    } catch {
-      toast(intl.formatMessage({ id: "sidebar.profile.userIdCopyFailed" }));
-    }
-  };
-  const usageButtonClick = onUsageClick ?? onSettingsButtonClick;
-  return (
-    <>
-      {user ? (
-        <>
-          <div
-            data-testid="profile-menu-header"
-            className="flex max-w-80 items-center gap-2 px-2 py-1.5"
-          >
-            <Avatar key={avatarKey} size="default">
-              {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={profileBadge} /> : null}
-              <AvatarFallback className="bg-background text-foreground">
-                {avatarFallbackText}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span data-testid="profile-menu-name" className="truncate text-ui-base font-medium">
-                  {profileBadge}
-                </span>
-              </div>
-              {user.id ? (
-                <div className="flex min-w-0 items-center gap-1 text-ui-sm text-foreground-subtle">
-                  <span data-testid="profile-menu-id" className="min-w-0 truncate">
-                    {intl.formatMessage({ id: "sidebar.profile.accountId" }, { id: user.id })}
-                  </span>
-                  <DropdownMenuItem
-                    asChild
-                    className="data-[highlighted]:bg-transparent data-[highlighted]:hover:bg-menu-hover data-[highlighted]:focus-visible:bg-menu-hover"
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      void copyUserId();
-                    }}
-                  >
-                    <SidebarNativeTooltip>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        data-testid="copy-user-id"
-                        className="min-h-0 p-0 text-foreground-subtle"
-                        aria-label={intl.formatMessage({ id: "sidebar.profile.copyUserId" })}
-                        title={intl.formatMessage({ id: "sidebar.profile.copyUserId" })}
-                      >
-                        <Copy className="size-3" />
-                      </Button>
-                    </SidebarNativeTooltip>
-                  </DropdownMenuItem>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <DropdownMenuSeparator />
-        </>
-      ) : null}
-      <WorkspaceSidebarFooterThemeMenu theme={theme} onThemeChange={onThemeChange} />
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <PencilRuler className="size-4" />
-          {intl.formatMessage({ id: "settings.interfaceMode" })}
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-48">
-          <DropdownMenuRadioGroup
-            value={interfaceMode}
-            onValueChange={(value) => setInterfaceMode(normalizeInterfaceMode(value))}
-          >
-            <DropdownMenuRadioItem value="coding">
-              {intl.formatMessage({ id: "settings.interfaceMode.coding" })}
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="office">
-              {intl.formatMessage({ id: "settings.interfaceMode.office" })}
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-      <WorkspaceSidebarFooterZoomMenu />
-      <WorkspaceSidebarFooterUsageSummaryContent onUsageClick={usageButtonClick} />
-      {onLogin && !user ? (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onLogin} data-testid={TID_LOGIN_MENU_ITEM}>
-            <LogInIcon className="size-4" />
-            {intl.formatMessage({ id: "app.login" })}
-          </DropdownMenuItem>
-        </>
-      ) : null}
-      {onLogout ? <DropdownMenuSeparator /> : null}
-      {onLogout ? (
-        <DropdownMenuItem onSelect={onLogout} data-testid={TID_LOGOUT_BUTTON}>
-          <LogOut className="size-4" />
-          {intl.formatMessage({ id: "app.logout" })}
-        </DropdownMenuItem>
-      ) : null}
-    </>
-  );
-}
-
 export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterComponent({
   theme,
   onThemeChange,
   onSettingsButtonClick,
-  onUsageClick,
-  onLogin,
-  onLogout,
   settingsButtonMode = "settings",
-  user,
-  workspacePath,
-  workspaceIdentity,
   className,
   customMenuContent,
   profileLabel,
@@ -322,21 +120,17 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   compact = false,
 }: WorkspaceSidebarFooterProps) {
   const { intl } = useZCodeIntl();
-  const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
-  const avatarFallbackText = getAvatarFallbackText(user);
-  const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const profileContent = (
     <>
-      <Avatar key={avatarKey} size="default">
-        {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={profileBadge} /> : null}
+      <Avatar size="default">
         <AvatarFallback className="bg-background text-foreground">
-          {user ? avatarFallbackText : <User className="size-4" />}
+          <User className="size-4" />
         </AvatarFallback>
       </Avatar>
       <div className={cn("min-w-0 flex-1 overflow-hidden text-left", compact && "sr-only")}>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 truncate text-ui-base font-semibold text-foreground">
-            {profileLabel ?? profileBadge}
+            {profileLabel}
           </span>
         </div>
         {profileDescription != null ? (
@@ -362,7 +156,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         )}
         data-testid={TID_LOGIN_TRIGGER}
         ref={profileTriggerRef}
-        aria-label={profileAriaLabel ?? profileBadge}
+        aria-label={profileAriaLabel}
       >
         {profileContent}
       </Button>
@@ -381,7 +175,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
           {/* 保留统一的账户菜单入口；紧凑侧栏还需在键盘聚焦时显示名称。 */}
           {compact ? (
-            <ControlHintTooltip title={profileAriaLabel ?? profileBadge} side="right">
+            <ControlHintTooltip title={profileAriaLabel} side="right">
               {profileTrigger}
             </ControlHintTooltip>
           ) : (
@@ -393,25 +187,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             className="w-max min-w-50 max-w-[calc(100vw-2rem)]"
             forceMount
           >
-            {customMenuContent !== undefined ? (
-              <>
-                {customMenuContent}
-                <WorkspaceSidebarFooterThemeMenu theme={theme} onThemeChange={onThemeChange} />
-                <WorkspaceSidebarFooterZoomMenu />
-              </>
-            ) : (
-              <WorkspaceSidebarFooterNativeMenu
-                theme={theme}
-                onThemeChange={onThemeChange}
-                user={user}
-                workspaceIdentity={workspaceIdentity}
-                workspacePath={workspacePath}
-                onUsageClick={onUsageClick}
-                onSettingsButtonClick={onSettingsButtonClick}
-                onLogin={onLogin}
-                onLogout={onLogout}
-              />
-            )}
+            {customMenuContent}
+            <WorkspaceSidebarFooterThemeMenu theme={theme} onThemeChange={onThemeChange} />
+            <WorkspaceSidebarFooterZoomMenu />
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">

@@ -8,11 +8,11 @@ export interface SettingsSearchItem {
   keywords?: readonly string[];
 }
 
-export type SettingsSearchSection = {
+export interface SettingsSearchSection {
   id: SettingsSectionId;
-  includeSettings?: boolean;
+  label: string;
   items?: readonly SettingsSearchItem[];
-} & ({ titleId: string; label?: never } | { label: string; titleId?: never });
+}
 
 /** 仅导航到分类或固定设置行；调用方不得据此修改设置值。 */
 export interface SettingsSearchResult {

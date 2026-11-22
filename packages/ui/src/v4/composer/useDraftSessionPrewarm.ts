@@ -77,7 +77,7 @@ export function startDraftSessionPrewarm(params: {
   };
 
   const createPayload = () => {
-    const createPayload: Record<string, unknown> = { workspaceId: workspaceKey };
+    const createPayload: Record<string, unknown> = {};
     const initialConfig = resolveInitialConfig?.();
     if (initialConfig && Object.keys(initialConfig).length > 0) {
       // 预热会话首帧即用全局模型（CLI 归并 createSession.config），不闪 workspace 缺省。

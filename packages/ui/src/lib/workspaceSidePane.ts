@@ -16,25 +16,6 @@ export interface GitSidePaneTab {
   openedAt?: number;
 }
 
-export interface FileManagerTarget {
-  workspacePath: string;
-  workspaceName?: string;
-  workspaceIdentity?: string;
-  workspaceRemoteSessionId?: string;
-  revealPath?: string;
-  temporaryExternalDirectory?: boolean;
-}
-
-export interface FileManagerSidePaneTab {
-  id: string;
-  type: "file-manager";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-  target: FileManagerTarget;
-  source: CodeViewerSource | null;
-}
-
 export interface CodeViewerSidePaneTab {
   id: string;
   type: "code-viewer";
@@ -79,55 +60,6 @@ export interface SubagentSessionSidePaneTab {
   title: string;
 }
 
-export interface SubagentDirectorySidePaneTab {
-  id: string;
-  type: "subagent-directory";
-  ownerTaskId?: string | null;
-  openedAt?: number;
-  workspaceKey: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  rootSessionId: string;
-  parentSessionId: string;
-}
-
-export interface SelectionSideChatPaneTab {
-  id: string;
-  type: "selection-side-chat";
-  ownerTaskId?: string | null;
-  openedAt?: number;
-  workspaceKey: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  parentSessionId: string;
-  childSessionId: string;
-  ordinal: number;
-}
-
-export interface PlanDetailSidePaneTab {
-  id: string;
-  type: "plan-detail";
-  ownerTaskId?: string | null;
-  openedAt?: number;
-  workspaceKey: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  parentSessionId: string;
-  toolCallId: string;
-  markdown: string;
-  planFilePath?: string;
-}
-
-export interface OpenPlanDetailSideTabRequest {
-  parentSessionId: string;
-  toolCallId: string;
-  markdown: string;
-  planFilePath?: string;
-}
-
 /**
  * workflow run 的详情页 tab。
  *
@@ -148,8 +80,7 @@ export interface OpenPlanDetailSideTabRequest {
  * - **父会话 edit / retry 时不要关它。** run 身份不会因为对话被改写而失效，最多是那条工具
  *   调用行不在窗口里了——那同样只降级成"没有图可画"，不是"这个 tab 该消失"。
  *
- * 可见性已经按 `parentSessionId` 收窄（同 plan-detail），所以 tab 不会泄漏到别的对话里。
- * `syncSubagentSessionSidePaneTabs` 那套回收只作用于 subagent-session，不要把它扩过来。
+ * 可见性按 `parentSessionId` 收窄，标签不会泄漏到别的对话。
  */
 export interface WorkflowRunSidePaneTab {
   id: string;
@@ -188,7 +119,7 @@ export interface OpenWorkflowRunSideTabRequest {
  * 一条对话的 workflow run 目录 tab。
  *
  * 身份是**对话**（`parentSessionId`）：一条对话只有一份 run 目录，所以页脚行重复点击幂等地
- * 聚焦同一个 tab——与 `subagent-directory` 同构。
+ * 聚焦同一个 tab。
  *
  * 这个 tab 不带任何 run 数据：目录页自己按 `parentSessionId` 读一页 journal（run 目录的
  * 单一信源）。把摘要冻进 tab 会让「重启后打开一个恢复出来的 tab」显示
@@ -219,14 +150,8 @@ export interface OpenWorkflowRunDirectorySideTabRequest {
  *
  * ## 为什么是**独立类型**，不是给 `subagent-session` 加一个变体标记
  *
- * `syncSubagentSessionSidePaneTabs` 会删掉 `childSessionId` 不在 `validChildSessionIds`
- * 里的 subagent tab，而 actor 会话**永远不在**那个集合里（它不是子智能体的子会话）。复用
- * 那个类型等于：父会话的 subagent 投影每更新一次，这个 tab 就被回收一次。修法只能是教那套
- * 回收认识变体标记，也就是同样的工作量，只是把不变式藏进了回收逻辑里。
- *
- * 另外两处也会打架：subagent tab 的可见性按 `rootSessionId` 收窄（actor tab 要按
- * `parentSessionId`，同 workflow-run），而 `lastActiveSubagentTabByRootRef` 按
- * `rootSessionId` 记忆 active tab——actor tab 没有、也不该有一个 root 会话。
+ * actor 会话不属于子智能体的子会话。actor tab 按 `parentSessionId` 收窄可见性，
+ * 与按 `rootSessionId` 归属的 subagent tab 分开。
  *
  * ## GC：同 `workflow-run`，**没有**，别加
  *
@@ -392,45 +317,12 @@ export interface OpenScopedWorkflowRunDirectorySideTabRequest extends OpenWorkfl
   remoteSessionId?: string;
 }
 
-export interface OpenScopedPlanDetailSideTabRequest extends OpenPlanDetailSideTabRequest {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-}
-
-export interface OpenSelectionSideChatRequest {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  parentSessionId: string;
-  childSessionId: string;
-  /** active child 已确定不存在时，由宿主原子替换对应旧 tab。 */
-  replacesChildSessionId?: string;
-}
-
 export interface OpenSubagentSideTabRequest {
   rootSessionId?: string;
   parentSessionId: string;
   childSessionId: string;
   subagentType: string;
   title: string;
-}
-
-export interface OpenSubagentDirectorySideTabRequest {
-  rootSessionId?: string;
-  parentSessionId: string;
-}
-
-export interface OpenScopedSubagentDirectorySideTabRequest extends OpenSubagentDirectorySideTabRequest {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-}
-
-export interface SyncSubagentSessionTabsRequest {
-  rootSessionId: string;
-  parentSessionId: string;
-  validChildSessionIds: readonly string[];
 }
 
 export interface OpenScopedSubagentSideTabRequest extends OpenSubagentSideTabRequest {
@@ -448,15 +340,11 @@ export interface NewTabSidePaneTab {
 }
 
 export type WorkspaceSidePaneTab =
-  | FileManagerSidePaneTab
   | NewTabSidePaneTab
   | BackgroundBashSidePaneTab
   | GitSidePaneTab
   | CodeViewerSidePaneTab
   | SubagentSessionSidePaneTab
-  | SubagentDirectorySidePaneTab
-  | SelectionSideChatPaneTab
-  | PlanDetailSidePaneTab
   | WorkflowRunSidePaneTab
   | WorkflowRunDirectorySidePaneTab
   | WorkflowActorSessionSidePaneTab
@@ -499,49 +387,16 @@ export function normalizeWorkspaceSidePaneState(
 
   // Treemapping、Whiteboard、Model Trajectory 已从产品移除。旧版本可能已经把对应 tab
   // 写进了 workspace 级 side pane 内存，这里在状态边界统一过滤，避免恢复后出现未知 tab。
-  const filteredTabs = current.tabs.filter(
-    (tab) => !LEGACY_REMOVED_SIDE_PANE_TAB_TYPES.has(tab.type),
-  );
-  if (filteredTabs.length === 0) {
+  const tabs = current.tabs.filter((tab) => !LEGACY_REMOVED_SIDE_PANE_TAB_TYPES.has(tab.type));
+  if (tabs.length === 0) {
     return null;
   }
-
-  // 多开引入 `ordinal` 之前创建的辅助对话 tab（HMR/同窗口旧内存状态）没有该
-  // 字段，直接参与 getNextSelectionSideChatOrdinal 会得到 NaN/undefined 并造成标题
-  // 编号冲突。这里在状态边界按 parent 分组回填最小可用编号，保持既有编号不变。
-  let migratedOrdinal = false;
-  const tabs = filteredTabs.map((tab, index, allTabs) => {
-    if (tab.type !== "selection-side-chat" || Number.isInteger(tab.ordinal)) {
-      return tab;
-    }
-    // allTabs 中本轮迭代已回填的 tab 被原位替换，天然带整数 ordinal 参与占用判定。
-    const used = new Set(
-      allTabs.flatMap((candidate) =>
-        candidate.type === "selection-side-chat" &&
-        candidate.workspaceKey === tab.workspaceKey &&
-        candidate.parentSessionId === tab.parentSessionId &&
-        Number.isInteger(candidate.ordinal)
-          ? [candidate.ordinal]
-          : [],
-      ),
-    );
-    let ordinal = 1;
-    while (used.has(ordinal)) ordinal += 1;
-    migratedOrdinal = true;
-    const migrated: SelectionSideChatPaneTab = { ...tab, ordinal };
-    allTabs[index] = migrated;
-    return migrated;
-  });
 
   const activeTabId =
     current.activeTabId === "" || tabs.some((tab) => tab.id === current.activeTabId)
       ? current.activeTabId
       : tabs[tabs.length - 1]!.id;
-  if (
-    !migratedOrdinal &&
-    tabs.length === current.tabs.length &&
-    activeTabId === current.activeTabId
-  ) {
+  if (tabs.length === current.tabs.length && activeTabId === current.activeTabId) {
     return current;
   }
 
@@ -589,81 +444,6 @@ export function createSubagentSessionSidePaneTab(options: {
     childSessionId: options.childSessionId,
     subagentType: options.subagentType,
     title: options.title.trim(),
-  };
-}
-
-export function createSubagentDirectorySidePaneTab(options: {
-  workspaceKey: string;
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  rootSessionId?: string;
-  parentSessionId: string;
-}): SubagentDirectorySidePaneTab {
-  const rootSessionId = options.rootSessionId ?? options.parentSessionId;
-  return {
-    id: [
-      "subagent-directory",
-      encodeSidePaneTabIdPart(options.workspaceKey),
-      encodeSidePaneTabIdPart(rootSessionId),
-      encodeSidePaneTabIdPart(options.parentSessionId),
-    ].join(":"),
-    type: "subagent-directory",
-    openedAt: Date.now(),
-    workspaceKey: options.workspaceKey,
-    workspacePath: options.workspacePath,
-    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
-    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
-    rootSessionId,
-    parentSessionId: options.parentSessionId,
-  };
-}
-
-export function createSelectionSideChatPaneTab(
-  options: OpenSelectionSideChatRequest & {
-    workspaceKey: string;
-    ordinal: number;
-  },
-): SelectionSideChatPaneTab {
-  return {
-    id: [
-      "selection-side-chat",
-      encodeSidePaneTabIdPart(options.workspaceKey),
-      encodeSidePaneTabIdPart(options.parentSessionId),
-      encodeSidePaneTabIdPart(options.childSessionId),
-    ].join(":"),
-    type: "selection-side-chat",
-    openedAt: Date.now(),
-    workspaceKey: options.workspaceKey,
-    workspacePath: options.workspacePath,
-    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
-    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
-    parentSessionId: options.parentSessionId,
-    childSessionId: options.childSessionId,
-    ordinal: options.ordinal,
-  };
-}
-
-export function createPlanDetailSidePaneTab(
-  options: OpenScopedPlanDetailSideTabRequest & { workspaceKey: string },
-): PlanDetailSidePaneTab {
-  return {
-    id: [
-      "plan-detail",
-      encodeSidePaneTabIdPart(options.workspaceKey),
-      encodeSidePaneTabIdPart(options.parentSessionId),
-      encodeSidePaneTabIdPart(options.toolCallId),
-    ].join(":"),
-    type: "plan-detail",
-    openedAt: Date.now(),
-    workspaceKey: options.workspaceKey,
-    workspacePath: options.workspacePath,
-    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
-    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
-    parentSessionId: options.parentSessionId,
-    toolCallId: options.toolCallId,
-    markdown: options.markdown,
-    ...(options.planFilePath ? { planFilePath: options.planFilePath } : {}),
   };
 }
 
@@ -928,18 +708,14 @@ export function isSidePaneTabVisibleInScope(
     case "git":
       return true;
     case "subagent-session":
-    case "subagent-directory":
     case "bash-output":
       return tab.rootSessionId === scope.ownerTaskId;
-    case "selection-side-chat":
-    case "plan-detail":
     case "workflow-run":
     case "workflow-directory":
     case "workflow-actor-session":
     case "workflow-workspace":
     case "workflow-artifact":
       return tab.parentSessionId === scope.ownerTaskId;
-    case "file-manager":
     case "code-viewer":
     case "new-tab":
       return sidePaneOwnerKey(tab.ownerTaskId) === sidePaneOwnerKey(scope.ownerTaskId);
@@ -958,12 +734,6 @@ export function isSidePaneTabOwnedByTask(
   );
 }
 
-// 新标签页只是空入口，不迁移：之前草稿只开了新标签页，首发后新任务也会带上它并展开侧栏。
-const DRAFT_ADOPTABLE_TAB_TYPES = new Set<WorkspaceSidePaneTab["type"]>([
-  "file-manager",
-  "code-viewer",
-]);
-
 /** 草稿首发升级为正式任务时，把草稿 scope 中按 ownerTaskId 归属的可见 tab 迁到新任务。 */
 export function adoptDraftSidePaneTabs(
   state: WorkspaceSidePaneState | null,
@@ -973,10 +743,11 @@ export function adoptDraftSidePaneTabs(
   const draftScope = { workspaceKey: scope.workspaceKey, ownerTaskId: null };
   const adoptedTabs: WorkspaceSidePaneTab[] = [];
   const tabs = state.tabs.map((tab) => {
-    if (!DRAFT_ADOPTABLE_TAB_TYPES.has(tab.type) || !isSidePaneTabVisibleInScope(tab, draftScope)) {
+    // 空白新标签不随草稿首发迁移，避免打开新会话时自动展开空侧栏。
+    if (tab.type !== "code-viewer" || !isSidePaneTabVisibleInScope(tab, draftScope)) {
       return tab;
     }
-    const adopted = { ...tab, ownerTaskId: scope.ownerTaskId } as WorkspaceSidePaneTab;
+    const adopted = { ...tab, ownerTaskId: scope.ownerTaskId };
     adoptedTabs.push(adopted);
     return adopted;
   });
@@ -1046,44 +817,6 @@ export function restoreSidePaneTab(
     ...tab,
     openedAt: tab.openedAt ?? Date.now(),
   });
-}
-
-export function openFileManagerSidePane(
-  current: WorkspaceSidePaneState | null,
-  target: FileManagerTarget,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, {
-    id: `file-manager:${createUuid()}`,
-    type: "file-manager",
-    target,
-    source: null,
-    openedAt: Date.now(),
-  });
-}
-
-export function navigateFileManagerSidePane(
-  current: WorkspaceSidePaneState | null,
-  tabId: string,
-  source: CodeViewerSource,
-): WorkspaceSidePaneState | null {
-  if (!current) return current;
-  const normalizedSource = normalizeCodeViewerSource(source);
-  return {
-    ...current,
-    // 导航只更新目标实例，不激活其他 Tab，也不改变实例 id 和任务归属。
-    tabs: current.tabs.map((tab) => {
-      if (tab.id !== tabId) return tab;
-      if (tab.type === "file-manager") return { ...tab, source: normalizedSource };
-      if (tab.type === "code-viewer") {
-        return {
-          ...tab,
-          source: normalizedSource,
-          sourceKey: getCodeViewerTabSourceKey(normalizedSource),
-        };
-      }
-      return tab;
-    }),
-  };
 }
 
 export function openCodeViewerSidePane(
@@ -1207,124 +940,11 @@ export function openSubagentSessionSidePane(
   );
 }
 
-export function openSubagentDirectorySidePane(
-  current: WorkspaceSidePaneState | null,
-  options: {
-    workspaceKey: string;
-    workspacePath: string;
-    workspaceIdentity?: string;
-    remoteSessionId?: string;
-    rootSessionId?: string;
-    parentSessionId: string;
-  },
-): WorkspaceSidePaneState {
-  const nextTab = createSubagentDirectorySidePaneTab(options);
-  const existing = current?.tabs.find(
-    (tab): tab is SubagentDirectorySidePaneTab =>
-      tab.type === "subagent-directory" && tab.id === nextTab.id,
-  );
-  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
-}
-
-export function syncSubagentSessionSidePaneTabs(
-  current: WorkspaceSidePaneState | null,
-  options: SyncSubagentSessionTabsRequest,
-): WorkspaceSidePaneState | null {
-  if (!current) return null;
-  const validChildSessionIds = new Set(options.validChildSessionIds);
-  const removedTabs = current.tabs.filter(
-    (tab) =>
-      tab.type === "subagent-session" &&
-      tab.rootSessionId === options.rootSessionId &&
-      tab.parentSessionId === options.parentSessionId &&
-      !validChildSessionIds.has(tab.childSessionId),
-  );
-  if (removedTabs.length === 0) return current;
-  const removedIds = new Set(removedTabs.map((tab) => tab.id));
-  const tabs = current.tabs.filter((tab) => !removedIds.has(tab.id));
-  if (tabs.length === 0) return null;
-  if (!removedIds.has(current.activeTabId)) return { ...current, tabs };
-  const directory = tabs.find(
-    (tab) => tab.type === "subagent-directory" && tab.rootSessionId === options.rootSessionId,
-  );
-  if (directory) return { tabs, activeTabId: directory.id };
-  const removedIndex = current.tabs.findIndex((tab) => tab.id === current.activeTabId);
-  const previous = tabs[Math.max(0, Math.min(removedIndex - 1, tabs.length - 1))];
-  return { tabs, activeTabId: previous?.id ?? tabs.at(-1)!.id };
-}
-
-export function openSelectionSideChatPane(
-  current: WorkspaceSidePaneState | null,
-  options: OpenSelectionSideChatRequest & { workspaceKey: string },
-): WorkspaceSidePaneState {
-  const existing = current?.tabs.find(
-    (tab): tab is SelectionSideChatPaneTab =>
-      tab.type === "selection-side-chat" &&
-      tab.workspaceKey === options.workspaceKey &&
-      tab.parentSessionId === options.parentSessionId &&
-      tab.childSessionId === options.childSessionId,
-  );
-  const ordinal =
-    existing?.ordinal ??
-    getNextSelectionSideChatOrdinal(
-      current?.tabs ?? [],
-      options.workspaceKey,
-      options.parentSessionId,
-    );
-  const nextTab = createSelectionSideChatPaneTab({ ...options, ordinal });
-  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
-}
-
-function getNextSelectionSideChatOrdinal(
-  tabs: readonly WorkspaceSidePaneTab[],
-  workspaceKey: string,
-  parentSessionId: string,
-): number {
-  const used = new Set(
-    tabs.flatMap((tab) =>
-      tab.type === "selection-side-chat" &&
-      tab.workspaceKey === workspaceKey &&
-      tab.parentSessionId === parentSessionId
-        ? [tab.ordinal]
-        : [],
-    ),
-  );
-  let ordinal = 1;
-  while (used.has(ordinal)) ordinal += 1;
-  return ordinal;
-}
-
-export function getActiveSelectionSideChatTab(
-  current: WorkspaceSidePaneState | null,
-  scope: { workspaceKey: string; parentSessionId: string },
-): SelectionSideChatPaneTab | null {
-  const active = getActiveSidePaneTab(current);
-  return active?.type === "selection-side-chat" &&
-    active.workspaceKey === scope.workspaceKey &&
-    active.parentSessionId === scope.parentSessionId
-    ? active
-    : null;
-}
-
-export function openPlanDetailSidePane(
-  current: WorkspaceSidePaneState | null,
-  options: OpenScopedPlanDetailSideTabRequest & { workspaceKey: string },
-): WorkspaceSidePaneState {
-  const nextTab = createPlanDetailSidePaneTab(options);
-  const existing = current?.tabs.find(
-    (tab): tab is PlanDetailSidePaneTab => tab.type === "plan-detail" && tab.id === nextTab.id,
-  );
-  // 同一个 toolCall 只保留一个 tab；再次点击用卡片当前正文刷新 fallback，
-  // 详情组件的实时正文仍以父 conversation projection 为权威。
-  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
-}
-
 /**
  * 打开或复用一个 workflow run 详情 tab。
  *
- * 复用规则与 plan-detail 同构（结构化 id 幂等），刻意也**同样没有 GC**：事件日志读的是
- * journal，而 `workflowRuns` 投影只留最近 8 个 run，所以一个被淘汰的 run 仍有完整可读的
- * 事件日志——那正是用户会把这个 tab 留着的场景。投影缺席退化成详情页的空态，不关 tab。
+ * 结构化 id 保证重复打开幂等。事件日志来自 journal，不随有限的
+ * `workflowRuns` 投影淘汰，投影缺席时降级为空态而不关闭标签。
  */
 export function openWorkflowRunSidePane(
   current: WorkspaceSidePaneState | null,
@@ -1492,9 +1112,6 @@ export function selectSidePaneTabsForScope(
     visibleTabs.findLast(
       (tab) =>
         tab.type === "subagent-session" ||
-        tab.type === "subagent-directory" ||
-        tab.type === "selection-side-chat" ||
-        tab.type === "plan-detail" ||
         tab.type === "workflow-run" ||
         tab.type === "workflow-actor-session" ||
         tab.type === "workflow-workspace" ||

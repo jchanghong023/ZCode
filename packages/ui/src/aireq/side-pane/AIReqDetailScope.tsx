@@ -166,7 +166,7 @@ export function AIReqDetailScope({
           return;
         }
         viewRef.current = next;
-        setRead({ key: request.key, pending: false, view: next, error: next.error });
+        setRead({ key: request.key, pending: false, view: next });
       } catch (cause) {
         if (
           !alive.current ||
@@ -217,8 +217,8 @@ export function AIReqDetailScope({
       setOperationError(undefined);
       try {
         const result = await source.command(action, { ...request.target }, snapshot.revision);
-        if (result.status === "failed")
-          throw new Error(result.error ?? result.receipt.error ?? "操作失败。");
+        if (result.receipt.status === "failed")
+          throw new Error(result.receipt.error ?? "操作失败。");
         if (!alive.current || current.current.key !== request.key) return result;
         await refresh();
         return result;

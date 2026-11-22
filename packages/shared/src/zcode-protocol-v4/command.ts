@@ -388,6 +388,11 @@ export type CommandPayloadMap = {
     : z.infer<(typeof commandPayloadSchemas)[T]>;
 };
 
+export const webCreateSessionPayloadSchema = commandPayloadSchemas.createSession.omit({
+  workspaceId: true,
+});
+export type WebCreateSessionPayload = z.infer<typeof webCreateSessionPayloadSchema>;
+
 export const commandTypeSchema = z.enum(
   Object.keys(commandPayloadSchemas) as [CommandType, ...CommandType[]],
 );
@@ -587,6 +592,18 @@ export const commandAckSchema = z.object({
 });
 export type CommandAck = z.infer<typeof commandAckSchema>;
 
+export const webCommandAckSchema = commandAckSchema.omit({ memoryEnabled: true, ttftExcluded: true });
+export type WebCommandAck = z.infer<typeof webCommandAckSchema>;
+
+export function projectWebCommandAck(ack: CommandAck): WebCommandAck {
+  if (!("memoryEnabled" in ack) && !("ttftExcluded" in ack)) return ack;
+  // 回执可能由命令账本复用；Web 投影不得修改原对象。
+  const webAck = { ...ack };
+  delete webAck.memoryEnabled;
+  delete webAck.ttftExcluded;
+  return webAck;
+}
+
 // ── commands/query ──
 /**
  * commands/query 读取命令记录失败时的 reasonCode（status 为 failed）。它表示"无法确认命令是否执行"，
@@ -602,9 +619,11 @@ export const commandKeySchema = z
   .strict();
 export type CommandKey = z.infer<typeof commandKeySchema>;
 
+const COMMAND_QUERY_MAX_KEYS = 64;
+
 export const commandsQueryParamsSchema = z
   .object({
-    commands: z.array(commandKeySchema).min(1).max(64),
+    commands: z.array(commandKeySchema).min(1).max(COMMAND_QUERY_MAX_KEYS),
     clock: z.literal(true).optional(),
   })
   .strict()
@@ -637,8 +656,17 @@ export type CommandQueryItem = z.infer<typeof commandQueryItemSchema>;
 
 export const commandsQueryResultSchema = z
   .object({
-    results: z.array(commandQueryItemSchema).min(1).max(64),
+    results: z.array(commandQueryItemSchema).min(1).max(COMMAND_QUERY_MAX_KEYS),
     clock: localTtftClockSchema.optional(),
   })
   .strict();
 export type CommandsQueryResult = z.infer<typeof commandsQueryResultSchema>;
+
+const webCommandQueryItemSchema = commandQueryItemSchema.safeExtend({
+  result: z.union([webCommandAckSchema, z.literal("unknown")]),
+});
+
+export const webCommandsQueryResultSchema = z.strictObject({
+  results: z.array(webCommandQueryItemSchema).min(1).max(COMMAND_QUERY_MAX_KEYS),
+});
+export type WebCommandsQueryResult = z.infer<typeof webCommandsQueryResultSchema>;
