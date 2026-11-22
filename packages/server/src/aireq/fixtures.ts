@@ -29,7 +29,6 @@ export function createPrototypeWorkflow(): WorkflowState {
   const documentFormats = emptyDocumentFormats();
   if (!sharedSettings.projects.length)
     return {
-      version: 1,
       revision: 0,
       documentFormats,
       ideas: [],
@@ -296,7 +295,6 @@ export function createPrototypeWorkflow(): WorkflowState {
     }
     item.files = bundle.map(({ path, sha256, size }) => ({ path, sha256, size }));
     item.snapshot = createRequirementSnapshot({
-      version: 1,
       projectId: item.projectId,
       irId: item.id,
       title: item.title,
@@ -315,9 +313,8 @@ export function createPrototypeWorkflow(): WorkflowState {
       item.originalReview = createPrototypeRequirementsReview(
         item,
         "j00808874",
-        rows.length > 0 || item === solutionProposal,
         "original",
-        haveReport ? "normal" : "failed",
+        rows.length || item === solutionProposal ? "confirmed" : haveReport ? "reviewed" : "failed",
       );
       item.originalReview.createdAt = createdAt;
       if (item.originalReview.humanDecision)
@@ -335,7 +332,7 @@ export function createPrototypeWorkflow(): WorkflowState {
       item === intakeProposal ||
       item === publishProposal
     ) {
-      item.review = createPrototypeRequirementsReview(item, "j00808874", false, "full");
+      item.review = createPrototypeRequirementsReview(item, "j00808874", "full", "reviewed");
       item.review.createdAt = createdAt;
       item.sessions.push(...prototypeReviewSessions(item.review));
       if (groups.includes(item) || item === intakeProposal || item === publishProposal) {
@@ -395,7 +392,6 @@ export function createPrototypeWorkflow(): WorkflowState {
   srs.push(...releaseProposals.srs);
   materials.push(...releaseProposals.materials);
   const result: WorkflowState = {
-    version: 1,
     revision: 12,
     documentFormats,
     ideas: [

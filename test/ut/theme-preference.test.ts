@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BroadcastMessage, IBroadcastService } from "../../packages/services/src/index.js";
+import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import { createZCodeStore } from "../../packages/ui/src/store/index.js";
 
 const html = readFileSync(new URL("../../packages/web/index.html", import.meta.url), "utf8");
@@ -59,14 +59,14 @@ function openBrowser(saved: string | null, systemDark = false, storageBlocked = 
 }
 
 function connection() {
-  const listeners = new Set<(message: BroadcastMessage) => void>();
+  const listeners = new Set<(message: WebBroadcastMessage) => void>();
   const service = {
     onMessage(listener) {
       listeners.add(listener);
       return { dispose: () => listeners.delete(listener) };
     },
-    send: vi.fn(async (_message: BroadcastMessage) => {}),
-  } satisfies IBroadcastService;
+    send: vi.fn(async (_message: WebBroadcastMessage) => {}),
+  } satisfies WebBroadcastService;
   return {
     service,
     receiveTheme: (payload: string) =>

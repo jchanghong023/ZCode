@@ -19,12 +19,13 @@ function compileCss(source: string, path: string) {
   const imports: string[] = [];
   const refs = source
     .replace(/\/\*[\s\S]*?\*\//g, "")
-    .matchAll(/@(?:import|plugin)\s*(["'])([^"']+)\1|url\(\s*(?:(["'])([^"']+)\3|([^)\s]+))\s*\)/gi);
+    .matchAll(
+      /@(?:import|plugin)\s*(["'])([^"']+)\1|url\(\s*(?:(["'])([^"']+)\3|([^)\s]+))\s*\)/gi,
+    );
   for (const [, , quotedImport, , quotedUrl, bareUrl] of refs) {
     const ref = quotedImport ?? quotedUrl ?? bareUrl;
     if (!ref || externalUrl.test(ref)) continue;
-    const isLocal =
-      !quotedImport || /^[./]/.test(ref) || existsSync(resolve(dirname(path), ref));
+    const isLocal = !quotedImport || /^[./]/.test(ref) || existsSync(resolve(dirname(path), ref));
     imports.push(toImport(isLocal ? localPath(ref) : ref));
   }
   return imports.join("\n");

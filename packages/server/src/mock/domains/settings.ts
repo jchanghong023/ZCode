@@ -18,8 +18,11 @@ export class MockSettingService implements WebSettingService {
     return this.settings;
   }
 
-  async update(patch: Parameters<WebSettingService["update"]>[0], ...extra: never[]): Promise<void> {
-    // 原型不支持桌面账户快照校验；不能忽略额外实参后仍提交设置。
+  async update(
+    patch: Parameters<WebSettingService["update"]>[0],
+    ...extra: never[]
+  ): Promise<void> {
+    // Web 更新只接受一个补丁；额外参数必须在提交之前拒绝。
     if (extra.length !== 0) {
       throw Object.assign(new Error("设置更新只接收设置补丁。"), {
         code: "INVALID_ARGUMENT",
@@ -33,5 +36,5 @@ export class MockSettingService implements WebSettingService {
 }
 
 export function registerSettingsMockServices(services: MockServiceRegistrar): void {
-  services.register<WebSettingService>(ISettingService, new MockSettingService());
+  services.register(ISettingService, new MockSettingService());
 }

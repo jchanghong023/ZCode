@@ -29,7 +29,7 @@ export type { WebFileMediaPreview, WebFileService, WebWorkspaceFileEntry } from 
 // System service — ISystemService is both a type (interface) and value (descriptor)
 export { ISystemService } from "./system/system.js";
 
-// Setting service — ISettingService is both a type (interface) and value (descriptor)
+// Web settings service descriptor, projection, and patch schema
 export {
   ISettingService,
   createDefaultWebAppSettings,

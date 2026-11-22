@@ -46,7 +46,7 @@ export function AIReqProposalTaskActions({
     review: Pick<AIReqReview, "id" | "snapshotDigest" | "round">;
   } | null>(null);
   const approvalEntry = useRef<HTMLButtonElement | null>(null);
-  const phase = proposalProgressIndex(group, {});
+  const phase = proposalProgressIndex(group);
   const review = full ? group.review : group.originalReview;
   const currentStage = full ? phase === 2 : phase <= 1;
   const confirmed = Boolean(

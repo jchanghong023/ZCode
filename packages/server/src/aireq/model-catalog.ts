@@ -7,7 +7,7 @@ import { PROTOTYPE_AGENT_MODELS, readPrototypeAgentModelBinding } from "./agent-
 
 /** Extend existing offline catalog with precisely the models used by AIReq role bindings. */
 export function modelCatalogOverrides(services: ServiceCollection): Map<string, unknown> {
-  const selection = services.get<WebModelSelectionService>(IModelSelectionService);
+  const selection = services.get(IModelSelectionService);
   const selectionFacade: WebModelSelectionService = {
     async getView(...args: Parameters<WebModelSelectionService["getView"]>) {
       const original = await selection.getView(...args);
@@ -16,33 +16,31 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
       const modelTemplate = template.models[0];
       if (!modelTemplate) throw new Error("模拟模型配置缺失。");
       const { api } = template.config;
-      // 浏览器只用协议类型判断模型是否可列出，不能透传端点或鉴权请求头。
-      const publicApi = api == null ? api : { type: api.type };
-      const binding = readPrototypeAgentModelBinding("requirements");
+      const { supportsImage } = modelTemplate.config.properties.inputFormat;
       // 底层已严格校验并解析请求；不能把原始 selection 重新放进响应。
-      const preferred =
-        args[0]?.selection == null
-          ? {
-              providerId: binding.providerId,
-              modelId: binding.modelId,
-              options: { reasoningLevel: binding.reasoning },
-            }
-          : original.preferredSelection;
+      let preferred = original.preferredSelection;
+      if (args[0]?.selection == null) {
+        const { runtimeModel: binding } = readPrototypeAgentModelBinding("requirements");
+        preferred = {
+          providerId: binding.providerId,
+          modelId: binding.modelId,
+          options: { reasoningLevel: binding.reasoning },
+        };
+      }
       return {
-        ...original,
+        revision: original.revision,
         providers: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))].map(
           (providerId) => ({
             providerId,
             providerName: PROTOTYPE_AGENT_MODELS.find((model) => model.providerId === providerId)!
               .provider,
-            // 底座样例是 Start Plan；继承其账号元数据会把四个供应商都错误显示为免费套餐。
-            config: { api: publicApi },
+            // 仅公开协议类型；模板的 Start Plan 账号与端点不属于这些供应商。
+            config: api === undefined ? {} : { api: api === null ? null : { type: api.type } },
             models: PROTOTYPE_AGENT_MODELS.filter((model) => model.providerId === providerId).map(
               (model) => ({
-                ...modelTemplate,
                 modelId: model.name,
                 config: {
-                  ...modelTemplate.config,
+                  properties: { inputFormat: { supportsImage } },
                   optionSpecs: {
                     reasoningLevel: { values: ["default", "low", "medium", "high"] },
                   },
@@ -51,8 +49,12 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
             ),
           }),
         ),
-        preferredSelection: preferred,
-        effectiveSelection: preferred,
+        ...(preferred === undefined
+          ? {}
+          : { preferredSelection: preferred, effectiveSelection: preferred }),
+        ...(original.selectionIssue === undefined
+          ? {}
+          : { selectionIssue: original.selectionIssue }),
       };
     },
   };

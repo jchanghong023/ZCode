@@ -592,7 +592,10 @@ export const commandAckSchema = z.object({
 });
 export type CommandAck = z.infer<typeof commandAckSchema>;
 
-export const webCommandAckSchema = commandAckSchema.omit({ memoryEnabled: true, ttftExcluded: true });
+export const webCommandAckSchema = commandAckSchema.omit({
+  memoryEnabled: true,
+  ttftExcluded: true,
+});
 export type WebCommandAck = z.infer<typeof webCommandAckSchema>;
 
 export function projectWebCommandAck(ack: CommandAck): WebCommandAck {
@@ -662,7 +665,8 @@ export const commandsQueryResultSchema = z
   .strict();
 export type CommandsQueryResult = z.infer<typeof commandsQueryResultSchema>;
 
-const webCommandQueryItemSchema = commandQueryItemSchema.safeExtend({
+const webCommandQueryItemSchema = z.strictObject({
+  key: commandKeySchema,
   result: z.union([webCommandAckSchema, z.literal("unknown")]),
 });
 

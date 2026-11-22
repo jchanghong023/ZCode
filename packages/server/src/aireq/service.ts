@@ -17,6 +17,7 @@ import {
   type AIReqRemoteResult,
   type AIReqWorkflowTarget,
   type AIReqCommand,
+  type AIReqCommandTarget,
   type AIReqWorkflowResult,
 } from "@zcode/services/aireq";
 import { AIReqNativeBusiness } from "./native-business.js";
@@ -111,7 +112,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
     add("readWorkflow", (target: AIReqWorkflowTarget) => this.workflow(target));
-    add("command", (action: AIReqCommand, target: AIReqWorkflowTarget, revision: number) =>
+    add("command", (action: AIReqCommand, target: AIReqCommandTarget, revision: number) =>
       this.command(action, target, revision),
     );
     add("readPrHandoff", getPrototypeProposalPrHandoff);
@@ -187,11 +188,10 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
-  private async command(action: AIReqCommand, selection: AIReqWorkflowTarget, revision: number) {
+  private async command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
     if (!(commands as readonly string[]).includes(action.type))
       throw businessRule("此操作不可用，请刷新页面后重试。");
-    if (!action.operationId.trim())
-      throw businessRule("操作参数无效，请刷新页面后重试。");
+    if (!action.operationId.trim()) throw businessRule("操作参数无效，请刷新页面后重试。");
     const identity = currentIdentity()!;
     const key = `${identity.employeeId}:${identity.clientId}:${action.operationId}`;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。

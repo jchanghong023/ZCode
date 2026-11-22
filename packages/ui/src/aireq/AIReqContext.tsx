@@ -39,7 +39,7 @@ import type {
   AIReqAction,
   AIReqDataSource,
   AIReqMaterialReadRequest,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqWorkflowView,
 } from "./contract.js";
 
@@ -82,7 +82,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const initialLinkUrl = useRef(window.location.href);
   const pendingObjectLink = useRef(initialLink.current);
   // 修复：仅显式分享链接可越过默认总览，普通登录不恢复前一工号的页面。
-  const [selection, setSelection] = useState<AIReqSelection>(() => ({
+  const [selection, setSelection] = useState<AIReqWorkflowTarget>(() => ({
     projectId:
       initialLink.current && initialLink.current !== "invalid"
         ? initialLink.current.projectId
@@ -119,7 +119,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   );
   const recordNavigation = useCallback(
     (
-      target: AIReqSelection,
+      target: AIReqWorkflowTarget,
       mainView: WorkspaceMainView,
       overlay: NavigationOverlay = null,
       requirementView: RequirementView = navigationRef.current.requirementView,
@@ -174,7 +174,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [source, navigationOwner],
   );
   const [view, setView] = useState<AIReqWorkflowView>();
-  const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
+  const [loadedSelection, setLoadedSelection] = useState<AIReqWorkflowTarget>();
   const viewRef = useRef(view);
   const [error, setError] = useState<string>();
   const [linkError, setLinkError] = useState<"incomplete" | "not-found">();
@@ -224,7 +224,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [],
   );
   const load = useCallback(
-    async (target: AIReqSelection, _projectChanged = false, throwOnError = false) => {
+    async (target: AIReqWorkflowTarget, throwOnError = false) => {
       const revision = ++requestRevision.current;
       setPending(true);
       try {
@@ -264,7 +264,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }, [source, refresh]);
   const select = useCallback(
     (
-      value: AIReqSelection,
+      value: AIReqWorkflowTarget,
       addHistory = true,
       mainView: WorkspaceMainView = "chat",
       targetReleaseId?: string,
@@ -316,7 +316,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       commandError.current = false;
       setError(undefined);
       setLinkError(undefined);
-      void load(value, projectChanged);
+      void load(value);
     },
     [load, recordNavigation, resolveRelease],
   );
@@ -521,7 +521,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       );
       releaseRef.current = nextRelease;
       updateReleaseId(nextRelease);
-      select(event.state.aiReqSelection as AIReqSelection, false, mainView, nextRelease);
+      select(event.state.aiReqSelection as AIReqWorkflowTarget, false, mainView, nextRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
@@ -671,7 +671,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [source, refresh],
   );
   const retrySession = useCallback(
-    async (target: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
+    async (target: AIReqWorkflowTarget, sessionId: string, isCurrentPane: () => boolean) => {
       const isCurrent = () =>
         isCurrentPane() &&
         sourceRef.current === source &&
@@ -682,9 +682,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         );
       if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
       try {
-        await source.retrySession({ ...target }, sessionId);
+        await source.retrySession(target, sessionId);
         if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
-        await load(target, false, true);
+        await load(target, true);
         if (!isCurrent()) throw new Error("会话已切换，请在当前会话中重试。");
       } catch (cause) {
         if (isCurrent()) report(cause);

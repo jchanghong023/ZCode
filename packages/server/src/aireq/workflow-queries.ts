@@ -8,6 +8,8 @@ import type {
   AIReqReleaseSummary,
   AIReqRequirementGroup,
   AIReqReview,
+  AIReqRoleRegistration,
+  AIReqSystemRequirement,
   AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { PROTOTYPE_BACKEND } from "./backend.js";
@@ -15,6 +17,7 @@ import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 import { mapPrototypeProjectSettings, readPrototypeProjectSetting } from "./project-settings.js";
 import { prototypeSessionReadIssue } from "./recovery.js";
 import type {
+  NativeSessionRef,
   Project,
   ProposalDelivery,
   Receipt,
@@ -34,6 +37,18 @@ export function projectSummary(project: Project): AIReqProject {
   };
 }
 
+export function projectRoleRegistration(registration: AIReqRoleRegistration): AIReqRoleRegistration {
+  const { id, projectId, employeeId, role, status, note } = registration;
+  return { id, projectId, employeeId, role, status, note };
+}
+
+export function projectSystemRequirement(
+  requirement: AIReqSystemRequirement,
+): AIReqSystemRequirement {
+  const { id, projectId, irId, title, documentPath } = requirement;
+  return { id, projectId, irId, title, documentPath };
+}
+
 export function projectReceipt(receipt: Receipt): AIReqOperationReceipt {
   return {
     operationId: receipt.operationId,
@@ -45,10 +60,17 @@ export function projectReceipt(receipt: Receipt): AIReqOperationReceipt {
     revision: receipt.revision,
     irId: receipt.irId,
     irIds: receipt.irIds,
-    srId: receipt.srId,
     steps: receipt.steps,
     error: receipt.error,
   };
+}
+
+export function projectSessionRef(ref: NativeSessionRef): AIReqNativeSessionRef {
+  const { projectId, irId, srId, sessionId, role, phase, round, modelConfig } = ref;
+  const result: AIReqNativeSessionRef = { projectId, irId, sessionId, role, phase, round };
+  if (srId !== undefined) result.srId = srId;
+  if (modelConfig !== undefined) result.modelConfig = modelConfig;
+  return result;
 }
 
 function projectReview(review: Review): AIReqReview {
@@ -58,14 +80,14 @@ function projectReview(review: Review): AIReqReview {
     snapshotDigest: review.snapshotDigest,
     passed: review.passed,
     report: review.report,
-    reviewer: review.reviewer,
+    reviewer: "projectId" in review.reviewer ? projectSessionRef(review.reviewer) : review.reviewer,
     createdAt: review.createdAt,
     invalidatedReason: review.invalidatedReason,
     agents: review.agents?.map(({ id, name, status, session, report }) => ({
       id,
       name,
       status,
-      session,
+      session: projectSessionRef(session),
       report,
     })),
     humanDecision: review.humanDecision,
@@ -105,13 +127,12 @@ export function projectRequirement(group: RequirementGroup): AIReqRequirementGro
     revision: group.revision,
     srIds: group.srIds,
     files: group.files,
-    sessions: group.sessions,
+    sessions: group.sessions.map(projectSessionRef),
     createdAt: group.createdAt,
     originalText: group.originalText,
     submittedBy: group.submittedBy,
     sourceIrId: group.sourceIrId,
     contacts: group.contacts,
-    clientDraftId: group.clientDraftId,
     originalReview: group.originalReview && projectReview(group.originalReview),
     originalReviewHistory: group.originalReviewHistory?.map(projectReview),
     review: group.review && projectReview(group.review),
@@ -138,17 +159,6 @@ export function projectRequirement(group: RequirementGroup): AIReqRequirementGro
       requirementsPr: revision.requirementsPr,
       delivery: revision.delivery && projectDelivery(revision.delivery),
       review: revision.review && projectReview(revision.review),
-    })),
-    requirementsDecisions: group.requirementsDecisions?.map((decision) => ({
-      reviewId: decision.reviewId,
-      snapshotDigest: decision.snapshotDigest,
-      inputFiles: decision.inputFiles,
-      opinion: decision.opinion,
-      outcome: decision.outcome,
-      result: decision.result,
-      employeeId: decision.employeeId,
-      createdAt: decision.createdAt,
-      review: projectReview(decision.review),
     })),
     freeze: group.freeze,
     srDependencyFile: group.srDependencyFile,
@@ -198,7 +208,7 @@ export function projectNativeContext(
   includeRequirement = false,
 ):
   | {
-      ref: AIReqNativeSessionRef;
+      ref: NativeSessionRef;
       published: boolean;
       draft?: RequirementGroup;
       formal?: RequirementGroup;
@@ -222,7 +232,7 @@ export function projectNativeContext(
 /** 项目树只读 canonical 元数据；不为目录请求派生所有项目的业务报表。 */
 export function projectDirectory(state: WorkflowState): {
   projects: Pick<AIReqProject, "id" | "name">[];
-  sessions: AIReqNativeSessionRef[];
+  sessions: Pick<NativeSessionRef, "projectId" | "sessionId">[];
   workspaces: Record<string, AIReqWorkspace>;
   skillDesignWorkspacePath: string;
 } {
@@ -242,7 +252,7 @@ export function projectDirectory(state: WorkflowState): {
   );
   return {
     projects: entries.map(({ project }) => project),
-    sessions: structuredClone(sessions),
+    sessions: sessions.map(({ projectId, sessionId }) => ({ projectId, sessionId })),
     workspaces: Object.fromEntries(entries.map(({ project, workspace }) => [project.id, workspace])),
     skillDesignWorkspacePath: PROTOTYPE_BACKEND.configDirectory,
   };

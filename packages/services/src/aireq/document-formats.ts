@@ -9,7 +9,7 @@ export const AIREQ_DOCUMENT_PATHS = {
 
 export type AIReqDocumentName = keyof typeof AIREQ_DOCUMENT_PATHS;
 export type AIReqDocumentFormats = Record<AIReqDocumentName, string[]>;
-export type AIReqMarkdownSectionIssue = { heading: string; kind: "missing" | "empty" };
+type AIReqMarkdownSectionIssue = { heading: string; kind: "missing" | "empty" };
 export interface AIReqMaterialCheck {
   issues: { path: string; reason: string }[];
 }

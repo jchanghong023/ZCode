@@ -37,7 +37,6 @@ export type MockInputContext = { skill: SkillSummary; args: string };
 
 export type MockQueuedInput = {
   item: QueueItem;
-  actor: string;
   context?: MockInputContext;
   retained?: boolean;
 };
@@ -67,7 +66,6 @@ export interface MockSession {
   lastActivityAt: number;
   meta: SessionMetaState;
   rows: WireConversationRow[];
-  deliveredTurns: Map<string, string>;
   usage: SessionUsageState;
   plan: PlanState | null;
   /** 只读队列投影与真实待交付输入共用同一份事实。 */

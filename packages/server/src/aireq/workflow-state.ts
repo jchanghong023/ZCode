@@ -1,6 +1,8 @@
 import type {
+  AIReqAction,
   AIReqAgentModelBinding,
   AIReqAlignment,
+  AIReqCommandBase,
   AIReqDocumentFormats,
   AIReqFileVersion,
   AIReqIdea,
@@ -17,13 +19,28 @@ import type {
   AIReqRequirementGroup,
   AIReqRequirementSnapshot,
   AIReqRequirementStatus,
-  AIReqRequirementsDecision,
   AIReqReview,
   AIReqReviewAgent,
   AIReqRoleRegistration,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
-import type { AIReqProposalMergeScenario, AIReqReviewScenario } from "./internal-scenarios.js";
+import type { NativeRuntimeModel } from "./agent-models.js";
+
+// 生成材料只由原生讨论完成回调驱动，不属于浏览器安全的公共命令。
+export type InternalWorkflowAction =
+  | AIReqAction
+  | (AIReqCommandBase &
+      (
+        | { type: "generateRequirements"; note: string }
+        | { type: "supplementRequirements"; note: string }
+        | { type: "generateProposalSolution" }
+      ));
+
+type InternalRoleRegistration = AIReqRoleRegistration & {
+  requestedAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+};
 
 export interface Project {
   id: string;
@@ -40,16 +57,24 @@ export type PrototypeRepositoryTarget = Pick<
   "repositoryId" | "repositoryUrl" | "defaultBranch"
 >;
 
+export interface NativeSessionRef extends AIReqNativeSessionRef {
+  runtimeModel?: NativeRuntimeModel;
+}
+
+export interface ReviewAgent extends AIReqReviewAgent {
+  session: NativeSessionRef;
+}
+
 export interface Review {
   id: string;
   kind?: "original" | "full";
   snapshotDigest: string;
   passed: boolean;
   report: string;
-  reviewer: AIReqReview["reviewer"];
+  reviewer: NativeSessionRef | Exclude<AIReqReview["reviewer"], AIReqNativeSessionRef>;
   createdAt: string;
   invalidatedReason?: string;
-  agents?: AIReqReviewAgent[];
+  agents?: ReviewAgent[];
   humanDecision?: AIReqReview["humanDecision"];
   modelConfig?: AIReqAgentModelBinding;
   inputFiles?: AIReqFileVersion[];
@@ -76,7 +101,6 @@ export interface Receipt {
 
 export interface ProposalDelivery extends AIReqProposalDelivery {
   repositoryTarget?: PrototypeRepositoryTarget;
-  mergeScenario?: AIReqProposalMergeScenario;
   simulatedMr?: {
     candidate: string;
     version: string;
@@ -94,10 +118,6 @@ interface ProposalRevision extends Omit<AIReqProposalRevision, "delivery" | "rev
   review?: Review;
 }
 
-interface RequirementsDecision extends Omit<AIReqRequirementsDecision, "review"> {
-  review: Review;
-}
-
 type Contacts = NonNullable<AIReqRequirementGroup["contacts"]>;
 
 export interface RequirementGroup {
@@ -111,7 +131,7 @@ export interface RequirementGroup {
   revision: number;
   srIds: string[];
   files: AIReqFileVersion[];
-  sessions: AIReqNativeSessionRef[];
+  sessions: NativeSessionRef[];
   createdAt: string;
   originalText: string;
   submittedBy: string;
@@ -135,7 +155,6 @@ export interface RequirementGroup {
   proposalDelivery?: ProposalDelivery;
   proposalDeliveryHistory?: ProposalDelivery[];
   proposalRevisions?: ProposalRevision[];
-  requirementsDecisions?: RequirementsDecision[];
   freeze?: AIReqRequirementGroup["freeze"];
   srDependencyFile?: AIReqMaterialView;
   proposalStage?: "requirements" | "solution";
@@ -147,24 +166,25 @@ export interface RequirementGroup {
   returnFeedback?: AIReqProposalFeedbackNote;
   returnFeedbackHistory?: AIReqProposalFeedbackNote[];
   proposalLocation?: { employeeId: string; directory: string };
-  reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
-  heldReviews?: Review[];
+}
+
+export interface SystemRequirement extends AIReqSystemRequirement {
+  dependencySrIds?: string[];
 }
 
 /** Mutable facts, not a wire view; role visibility and aggregates are computed on read. */
 export interface WorkflowState {
-  version: 1;
   revision: number;
   projects: Project[];
   repositoryHeads: Record<string, string>;
-  roleRegistrations?: AIReqRoleRegistration[];
+  roleRegistrations?: InternalRoleRegistration[];
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   groups: RequirementGroup[];
   drafts: RequirementGroup[];
-  srs: AIReqSystemRequirement[];
+  srs: SystemRequirement[];
   materials: AIReqMaterialView[];
   operations: Receipt[];
-  sessions: AIReqNativeSessionRef[];
-  running: AIReqNativeSessionRef[];
+  sessions: NativeSessionRef[];
+  running: NativeSessionRef[];
 }

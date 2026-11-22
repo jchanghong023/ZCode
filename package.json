@@ -30,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@zcode/client": "workspace:*",
+    "@zcode/rpc": "workspace:*",
     "@zcode/services": "workspace:*",
     "@zcode/shared": "workspace:*",
     "concurrently": "^9.1.2",

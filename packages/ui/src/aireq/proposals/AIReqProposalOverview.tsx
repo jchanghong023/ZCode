@@ -45,7 +45,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const state = proposalState(group);
   const guidance = proposalTaskGuidance(group);
   const stateLabel = proposalStateLabel(group);
-  const phase = proposalProgressIndex(group, {});
+  const phase = proposalProgressIndex(group);
   const developer = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
   const roles = {
     development: developer,

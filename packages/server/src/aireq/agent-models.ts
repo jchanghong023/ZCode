@@ -2,6 +2,7 @@ import { businessRule } from "./errors.js";
 import { AIREQ_AGENT_ROLES } from "@zcode/services/aireq";
 import type {
   AIReqAgentModel,
+  AIReqAgentModelInput,
   AIReqAgentModelSettings,
   AIReqAgentRole,
   AIReqAgentModelBinding,
@@ -109,7 +110,7 @@ export function readPrototypeAgentModels(): AIReqAgentModelSettings {
   return structuredClone(savedSettings);
 }
 export function savePrototypeAgentModels(
-  settings: AIReqAgentModelSettings,
+  settings: AIReqAgentModelInput,
   expectedRevision: number,
 ): void {
   if (expectedRevision !== configurationRevision)
@@ -165,23 +166,37 @@ export function readPrototypeWorkflowDefaultModel() {
   return resolveModel(savedSettings.defaultModel);
 }
 
+export interface NativeRuntimeModel {
+  providerId: string;
+  modelId: string;
+  reasoning: string;
+}
+
 /** 会话创建或执行接纳时绑定已保存的配置；模拟后端不调用真实模型。 */
-export function readPrototypeAgentModelBinding(role: AIReqAgentRole): AIReqAgentModelBinding {
+export function readPrototypeAgentModelBinding(role: AIReqAgentRole): {
+  modelConfig: AIReqAgentModelBinding;
+  runtimeModel: NativeRuntimeModel;
+} {
   const agent = savedSettings.agents.find((item) => item.id === role);
   if (!agent) throw businessRule("此 AIReq Agent 未配置。");
   const inherited = agent.model === "inherit";
   const modelKey = inherited ? savedSettings.defaultModel : agent.model;
   const model = resolveModel(modelKey);
   return {
-    role,
-    roleName: agent.name,
-    modelKey,
-    modelName: model.name,
-    providerId: model.providerId,
-    modelId: model.name,
-    reasoning: agent.reasoning,
-    inherited,
-    configurationRevision,
-    promptSnapshot: readPrototypeAgentPrompt(role),
+    modelConfig: {
+      role,
+      roleName: agent.name,
+      modelKey,
+      modelName: model.name,
+      reasoning: agent.reasoning,
+      inherited,
+      promptSnapshot: readPrototypeAgentPrompt(role),
+    },
+    runtimeModel: {
+      providerId: model.providerId,
+      // 模拟原生模型目录以名称作为供应商内 ID；modelKey 是 AIReq 配置键，不能互换。
+      modelId: model.name,
+      reasoning: agent.reasoning,
+    },
   };
 }

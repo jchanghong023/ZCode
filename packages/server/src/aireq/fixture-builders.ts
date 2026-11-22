@@ -1,15 +1,13 @@
 import { createRequirementSnapshot } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
-import type {
-  AIReqSystemRequirement,
-  AIReqNativeSessionRef,
-  AIReqWorkflowTarget,
-} from "@zcode/services/aireq";
+import type { AIReqSystemRequirement, AIReqWorkflowTarget } from "@zcode/services/aireq";
 import { prototypeRepositoryKey } from "./project-settings.js";
 import type {
+  NativeSessionRef,
   PrototypeRepositoryTarget,
   Receipt,
   RequirementGroup,
+  SystemRequirement,
   WorkflowState,
 } from "./workflow-state.js";
 import {
@@ -59,7 +57,7 @@ export function systemRequirement(
   irId: string,
   id: string,
   title: string,
-): AIReqSystemRequirement {
+): SystemRequirement {
   return {
     id,
     projectId,
@@ -71,11 +69,11 @@ export function systemRequirement(
 export function sessionRef(
   projectId: string,
   irId: string,
-  phase: AIReqNativeSessionRef["phase"],
+  phase: NativeSessionRef["phase"],
   srId?: string,
   preferred?: string,
   round = 1,
-): AIReqNativeSessionRef {
+): NativeSessionRef {
   const sessionId =
     preferred ??
     `${projectId}-${irId}-${srId ?? "ir"}-${phase}${round > 1 ? `-round-${round}` : ""}`;
@@ -87,7 +85,7 @@ export function sessionRef(
     role: phase,
     phase,
     round,
-    modelConfig: readPrototypeAgentModelBinding(phase === "solution" ? "solution" : "requirements"),
+    ...readPrototypeAgentModelBinding(phase === "solution" ? "solution" : "requirements"),
   };
 }
 export function receipt(
@@ -126,7 +124,6 @@ export function group(
   const materials = requirementMaterials(projectId, id, title, rows);
   const files = materials.map(({ path, sha256, size }) => ({ path, sha256, size }));
   const snapshot = createRequirementSnapshot({
-    version: 1,
     projectId,
     irId: id,
     title,

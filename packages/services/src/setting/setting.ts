@@ -1,25 +1,10 @@
-import { appSettingsPatchSchema, appSettingsSchema, ServiceChannels, type AppSettings } from "@zcode/shared";
+import {
+  appSettingsPatchSchema,
+  appSettingsSchema,
+  ServiceChannels,
+  type AppSettings,
+} from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
-
-/** Host 私有装配端口：只读取本机已提交目录，禁止递归读取设置或网络。 */
-export type WorkspaceSettingsProjection = Pick<
-  AppSettings,
-  "lastActiveWorkspace" | "lastWorkspaceSession" | "recentProjects" | "lastActiveTabIndex"
->;
-
-export interface ISettingService {
-  get(): Promise<AppSettings>;
-  /** 完整连接映射写入必须传入原快照和操作版本；服务在锁内比较并递增版本。 */
-  update(
-    patch: Partial<AppSettings>,
-    expectedAccountSettings?: Pick<
-      AppSettings,
-      | "providerFamilyDomain"
-      | "providerFamilyConnectionSelections"
-      | "providerFamilyDomainUpdatedAt"
-    >,
-  ): Promise<void>;
-}
 
 const HOST_ONLY_PATCH_FIELDS = {
   httpProxy: true,
@@ -62,6 +47,12 @@ const HOST_ONLY_PATCH_FIELDS = {
   dataBaseDir: true,
   settingsSyncFirstRunPromptHandled: true,
   zcodeEndpointOrigin: true,
+  providerFamilyDomain: true,
+  providerFamilyConnectionSelections: true,
+  providerFamilyDomainUpdatedAt: true,
+  providerFamilyDomainMigrated: true,
+  askUserQuestionAutoResolutionEnabled: true,
+  modelIoFullRetentionEnabled: true,
 } as const;
 
 // 迁移版本是通用设置的内部字段，原本就不属于严格补丁 schema。
@@ -88,4 +79,4 @@ export interface WebSettingService {
   update(patch: Partial<WebAppSettings>): Promise<void>;
 }
 
-export const ISettingService = createServiceDescriptor<ISettingService>(ServiceChannels.Setting);
+export const ISettingService = createServiceDescriptor<WebSettingService>(ServiceChannels.Setting);

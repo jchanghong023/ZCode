@@ -15,7 +15,6 @@ import {
 import { prototypeProposalBranch, readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
 import { prototypeRepositoryKey, prototypeRepositoryTarget } from "./project-settings.js";
-import type { AIReqProposalMergeScenario } from "./internal-scenarios.js";
 import type { RequirementGroup, WorkflowState } from "./workflow-state.js";
 
 let mrNumber = 100;
@@ -48,9 +47,8 @@ function beginPrototypeProposalMrLifecycle(group: RequirementGroup): void {
 export function observePrototypeProposalMr(
   group: RequirementGroup,
   now: number,
-): AIReqProposalMergeScenario {
+): "unmerged" | "merged" | "stale-version" | "incomplete" {
   const delivery = group.proposalDelivery;
-  if (delivery?.mergeScenario) return delivery.mergeScenario;
   const fact = delivery?.simulatedMr;
   const mr = group.requirementsPr;
   if (

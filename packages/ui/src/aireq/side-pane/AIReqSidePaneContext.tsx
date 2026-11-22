@@ -16,7 +16,7 @@ import {
   selectPaneTab,
 } from "@/lib/workspaceSidePane.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqSelection } from "../contract.js";
+import type { AIReqWorkflowTarget } from "../contract.js";
 import type {
   AIReqSidePaneController,
   AIReqSidePaneGuard,
@@ -111,7 +111,7 @@ export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
     [admit, edit],
   );
   const updateTab = useCallback(
-    (id: string, selection: AIReqSelection, releaseId?: string) => {
+    (id: string, selection: AIReqWorkflowTarget, releaseId?: string) => {
       // 后台内容仍归原集合；迟到完成只能更新原 Tab，不能写入当前项目的集合。
       const entry = Object.entries(scopesRef.current).find(([, state]) =>
         state.tabs.some((tab) => tab.id === id),

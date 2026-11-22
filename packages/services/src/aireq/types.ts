@@ -15,10 +15,7 @@ export interface AIReqIdentity {
   clientId: string;
 }
 
-/** Phase-one frontend presentation contracts. No OMP runtime dependency or execution authority. */
-export const AIREQ_WORKFLOW_VERSION = 1 as const;
-export const AIREQ_WORKFLOW_STAGES = ["planning", "executing", "pr"] as const;
-export type AIReqWorkflowStage = (typeof AIREQ_WORKFLOW_STAGES)[number] | "solution";
+export type AIReqWorkflowStage = "planning" | "executing" | "pr" | "solution";
 export type AIReqRequirementStatus =
   | "draft"
   | "solution-ready"
@@ -142,7 +139,6 @@ export interface AIReqReview {
   createdAt: string;
 }
 export interface AIReqRequirementSnapshot {
-  version: 1;
   projectId: string;
   irId: string;
   title: string;
@@ -193,17 +189,6 @@ export interface AIReqProposalDelivery {
     message: string;
   };
 }
-export interface AIReqRequirementsDecision {
-  reviewId: string;
-  snapshotDigest: string;
-  inputFiles: AIReqFileVersion[];
-  opinion: string;
-  outcome: "supplement" | "maintain" | "defer";
-  result: string;
-  employeeId: string;
-  createdAt: string;
-  review: AIReqReview;
-}
 export interface AIReqProposalRevision {
   reason: string;
   employeeId: string;
@@ -222,7 +207,6 @@ export interface AIReqSystemRequirement {
   irId: string;
   title: string;
   documentPath: string;
-  dependencySrIds?: string[];
 }
 export type AIReqProjectRole = "development" | "testing";
 export interface AIReqRoleRegistration {
@@ -231,10 +215,7 @@ export interface AIReqRoleRegistration {
   employeeId: string;
   role: AIReqProjectRole;
   status: "pending" | "approved" | "rejected" | "revoked";
-  requestedAt: string;
   note?: string;
-  decidedAt?: string;
-  decidedBy?: string;
 }
 export interface AIReqGitFileCommit {
   hash: string;
@@ -276,7 +257,6 @@ export interface AIReqRequirementGroup {
   solutionCheck?: AIReqMaterialCheck;
   materialHistory?: AIReqMaterialHistory[];
   rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
-  clientDraftId?: string;
   id: string;
   projectId: string;
   releaseId: string;
@@ -297,7 +277,6 @@ export interface AIReqRequirementGroup {
   proposalDelivery?: AIReqProposalDelivery;
   proposalDeliveryHistory?: AIReqProposalDelivery[];
   proposalRevisions?: AIReqProposalRevision[];
-  requirementsDecisions?: AIReqRequirementsDecision[];
   freeze?: {
     frozenAt: string;
     frozenBy: string;
@@ -342,7 +321,6 @@ export interface AIReqOperationReceipt {
   irId?: string;
   /** Atomic import associates every new IR without attributing the batch to the previous selection. */
   irIds?: string[];
-  srId?: string;
   steps: { name: string; at: string; detail: string }[];
   error?: string;
 }
@@ -368,7 +346,6 @@ export interface AIReqWorkflowView {
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   todos?: AIReqTodo[];
-  version: 1;
   revision: number;
   projects: AIReqProject[];
   /** 唯一 Release 目录及同一快照的跨项目只读统计。 */
@@ -468,50 +445,6 @@ export interface AIReqWorkflowTarget {
   discussionPhase?: "requirements" | "solution";
 }
 
-export interface AIReqSelection extends AIReqWorkflowTarget {
-  materialPath?: string;
-  proposalDraftId?: string;
-}
-
-export interface AIReqNativeSurfaceTarget extends AIReqObjectRef {
-  sessionId: string;
-  phase: AIReqNativeSessionRef["phase"];
-  round: number;
-  clientId: string;
-}
-export type AIReqNativeUiState =
-  | { method: "notify"; value: { message: string; type?: "info" | "warning" | "error" } }
-  | { method: "setStatus"; value: { key: string; text: string | undefined } }
-  | { method: "setWorkingMessage"; value: string | undefined }
-  | {
-      method: "setWidget";
-      value: {
-        key: string;
-        content: string[] | undefined;
-        options?: { placement?: "aboveEditor" | "belowEditor" };
-      };
-    }
-  | { method: "setTitle" | "setEditorText" | "pasteToEditor"; value: string }
-  | { method: "rerenderMessage"; value: number }
-  | { method: "refreshTranscript"; value: readonly string[] }
-  | { method: "setToolsExpanded"; value: boolean }
-  | { method: "setHeader" | "setFooter"; value: null };
-export type AIReqNativeUiStateEvent = AIReqNativeUiState & {
-  t: "native-ui-state";
-  target: AIReqNativeSurfaceTarget;
-  sequence: number;
-};
-export interface AIReqNativePredictionSnapshot {
-  target: AIReqNativeSurfaceTarget;
-  generation: number;
-  choices: readonly string[];
-}
-export type AIReqNativePredictionAction =
-  | { type: "cancel" }
-  | { type: "draft"; text: string }
-  | { type: "shown"; generation: number }
-  | { type: "accepted"; generation: number; rank: number };
-
 export interface AIReqSkillDesignSession {
   sessionId: string;
   workspaceIdentity: string;
@@ -548,7 +481,7 @@ export interface AIReqPrHandoff {
 export interface AIReqWorkspace {
   path?: string;
   identity: string;
-  kind: "free" | "proposal" | "development" | "reference" | "unavailable";
+  kind: "proposal" | "unavailable";
   error?: string;
 }
 
@@ -581,5 +514,5 @@ export interface AIReqTodo extends AIReqObjectRef {
     | "failure";
   employeeId?: string;
   perspective?: AIReqAlignment["perspective"];
-  selection: AIReqSelection;
+  selection: AIReqWorkflowTarget;
 }

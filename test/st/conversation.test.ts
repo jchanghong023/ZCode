@@ -3,6 +3,7 @@ import { zcodeSkillsReferenceCatalogResultSchema } from "@zcode/shared";
 import {
   conversationSnapshotSchema,
   v4ConversationRowsRangeResultSchema,
+  webCommandAckSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import { connectST, expectRetiredAgentRpc, unique, waitUntil } from "./client.js";
 import { createProposal } from "./business.js";
@@ -69,12 +70,25 @@ it("native send completes with canonical rows, query receipt and real owned fram
     expect(getProposal(afterLocalCommands, proposal)).toEqual(proposalBefore);
     const id = unique("discussion");
     const text = "请澄清需求边界、使用者及验收标准，生成本阶段业务需求材料。";
-    const ack = await native.send("sendText", { text }, { commandId: id });
+    const service = c.services.zcodeAgentService;
+    const ack = webCommandAckSchema.strict().parse(
+      await service.sendConversationCommandV4({
+        ...native.workspace,
+        envelope: {
+          sessionId: native.sessionId,
+          commandId: id,
+          clientId: c.identity.clientId,
+          issuedAt: Date.now(),
+          type: "sendText",
+          payload: { text },
+        },
+      }),
+    );
     requireAccepted(ack);
     const final = await native.waitIdle();
     expect(final.control.phase).toBe("completedSuccess");
     expectNativeTurnWork(native, final, id);
-    const rows = await c.services.zcodeAgentService.conversationRowsRangeV4({
+    const rows = await service.conversationRowsRangeV4({
       ...native.workspace,
       sessionId: native.sessionId,
       limit: 200,
@@ -85,21 +99,26 @@ it("native send completes with canonical rows, query receipt and real owned fram
     );
     expect(inputs).toHaveLength(1);
     expect(inputs[0]).toMatchObject({ text, clientId: c.identity.clientId });
+    const turnId = inputs[0]!.turnId;
+    expect(
+      rows.rows.find((row) => row.kind === "turnHeader" && row.turnId === turnId),
+    ).toMatchObject({ sourceCommandId: id, state: "completedSuccess" });
     expect(
       rows.rows.some(
-        (row) => row.kind === "assistantText" && row.state === "complete" && row.text.trim(),
+        (row) =>
+          row.turnId === turnId &&
+          row.kind === "assistantText" &&
+          row.state === "complete" &&
+          row.text.trim(),
       ),
     ).toBe(true);
-    const receipt = await c.services.zcodeAgentService.queryConversationCommandsV4({
-      ...native.workspace,
-      commands: [{ sessionId: native.sessionId, commandId: id }],
-    });
-    expect(receipt.results).toHaveLength(1);
-    expect(receipt.results[0]?.key).toEqual({ sessionId: native.sessionId, commandId: id });
-    expect(receipt.results[0]?.result).toMatchObject({
-      commandId: id,
-      status: expect.stringMatching(/^(accepted|duplicate)$/),
-    });
+    const key = { sessionId: native.sessionId, commandId: id };
+    expect(
+      await service.queryConversationCommandsV4({
+        ...native.workspace,
+        commands: [key],
+      }),
+    ).toStrictEqual({ results: [{ key, result: ack }] });
     expect(
       native.frames.some(
         (frame) => frame.subscriptionId === native!.subscriptionId && frame.toSeq > 0,
@@ -151,16 +170,13 @@ it("same command and input reuses its decision; replacing its text is rejected w
     expect(afterConflict.revision).toBe(beforeConflict.revision);
     expect(afterConflict.logEpoch).toBe(beforeConflict.logEpoch);
     expect(afterConflict.rows.window).toEqual(beforeConflict.rows.window);
-    const decision = await c.services.zcodeAgentService.queryConversationCommandsV4({
-      ...native.workspace,
-      commands: [{ sessionId: native.sessionId, commandId }],
-    });
-    expect(decision.results).toEqual([
-      expect.objectContaining({
-        key: { sessionId: native.sessionId, commandId },
-        result: originalAck,
+    const key = { sessionId: native.sessionId, commandId };
+    expect(
+      await c.services.zcodeAgentService.queryConversationCommandsV4({
+        ...native.workspace,
+        commands: [key],
       }),
-    ]);
+    ).toStrictEqual({ results: [{ key, result: originalAck }] });
     const rows = await c.services.zcodeAgentService.conversationRowsRangeV4({
       ...native.workspace,
       sessionId: native.sessionId,
@@ -220,14 +236,10 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
       .unsubscribeConversationV4({ ...first.workspace, subscriptionId: first.subscriptionId })
       .catch(() => undefined);
     const commandId = unique("before-reconnect");
-    requireAccepted(
-      await first.send(
-        "sendText",
-        { text: "需求：共享需求讨论应允许其他参与人读取。" },
-        { commandId },
-      ),
-    );
-    await first.waitIdle();
+    const text = "需求：共享需求讨论应允许其他参与人读取。";
+    const ack = await first.send("sendText", { text }, { commandId });
+    requireAccepted(ack);
+    expectNativeTurnWork(first, await first.waitIdle(), commandId);
     const observed = await waitUntil(
       "shared canonical input",
       () => second!.snapshot(),
@@ -241,11 +253,21 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
         (row) => row.kind === "userInput" && row.sourceCommandId === commandId,
       ),
     ).toHaveLength(1);
+    const key = { sessionId: first.sessionId, commandId };
+    expect(
+      await b.services.zcodeAgentService.queryConversationCommandsV4({
+        ...second.workspace,
+        commands: [key],
+      }),
+    ).toStrictEqual({ results: [{ key, result: "unknown" }] });
     const oldId = second.subscriptionId;
     await second.close();
     second = undefined;
     await b.close();
-    reconnected = await connectST(a.identity.employeeId);
+    await first.close();
+    first = undefined;
+    await a.close();
+    reconnected = await connectST(a.identity.employeeId, a.identity.clientId);
     second = await openNative(reconnected, proposal.remote);
     expect(second.subscriptionId).not.toBe(oldId);
     await expect(
@@ -256,11 +278,20 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
         forceSnapshot: true,
       }),
     ).rejects.toThrow();
+    const resumed = reconnected.services.zcodeAgentService;
     expect(
-      (await second.snapshot()).rows.window.filter(
-        (row) => row.kind === "userInput" && row.sourceCommandId === commandId,
+      await resumed.queryConversationCommandsV4({ ...second.workspace, commands: [key] }),
+    ).toStrictEqual({ results: [{ key, result: ack }] });
+    const history = await second.snapshot();
+    const inputs = history.rows.window.filter(
+      (row) => row.kind === "userInput" && row.sourceCommandId === commandId,
+    );
+    expect(inputs).toEqual([expect.objectContaining({ text, clientId: a.identity.clientId })]);
+    expect(
+      history.rows.window.find(
+        (row) => row.kind === "turnHeader" && row.turnId === inputs[0]!.turnId,
       ),
-    ).toHaveLength(1);
+    ).toMatchObject({ sourceCommandId: commandId, state: "completedSuccess" });
   } catch (error) {
     failures.push(error);
   } finally {

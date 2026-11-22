@@ -1,4 +1,4 @@
-import type { AIReqSelection, AIReqReviewAgentId, AIReqWorkflowView } from "./contract.js";
+import type { AIReqReviewAgentId, AIReqWorkflowTarget, AIReqWorkflowView } from "./contract.js";
 import { requirementObjectLink, type AIReqNavigationState } from "./navigationState.js";
 import {
   proposalTaskSelection,
@@ -59,7 +59,7 @@ export function clearAIReqObjectLink() {
 }
 export function proposalTaskUrl(
   base: string,
-  selection: AIReqSelection,
+  selection: AIReqWorkflowTarget,
   releaseId: string,
   task: ProposalTask,
 ) {
@@ -76,7 +76,7 @@ export function proposalTaskUrl(
 }
 
 /** 历史任务链接在转正后保留对象归属，不再恢复已结束的编辑任务。 */
-export function selectionFromObjectLink(link: ObjectLink, formal: boolean): AIReqSelection {
+export function selectionFromObjectLink(link: ObjectLink, formal: boolean): AIReqWorkflowTarget {
   const target = {
     projectId: link.projectId,
     irId: link.irId,
@@ -85,7 +85,7 @@ export function selectionFromObjectLink(link: ObjectLink, formal: boolean): AIRe
   if (formal) return { ...target, formalView: "detail" };
   return link.task ? proposalTaskSelection(target, link.task, link.agent, true) : target;
 }
-export function formalObjectUrl(base: string, target: AIReqSelection, releaseId: string) {
+export function formalObjectUrl(base: string, target: AIReqWorkflowTarget, releaseId: string) {
   return (
     requirementObjectLink(base, target, releaseId) ?? withoutObjectLink(new URL(base)).toString()
   );
@@ -93,7 +93,7 @@ export function formalObjectUrl(base: string, target: AIReqSelection, releaseId:
 /** 纯投影；后台转正后的导航接纳与历史替换仍由 Context 完成。 */
 export function formalProposalNavigation(
   previous: AIReqNavigationState,
-  selection: AIReqSelection,
+  selection: AIReqWorkflowTarget,
   view: Pick<AIReqWorkflowView, "groups"> | undefined,
 ): AIReqNavigationState | null {
   if (

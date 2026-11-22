@@ -2,8 +2,7 @@
  * useSettingService —— 设置服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
-import type { IServiceAccessor, ISettingService, WebAppSettings } from "@zcode/services";
+import type { IServiceAccessor, WebAppSettings } from "@zcode/services";
 import { useServices } from "./useServices.js";
 
 type SettingsSnapshot = {
@@ -98,7 +97,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
   // Bug 原因：SettingsPage 可在远端 workspace 的 ServiceProvider 下渲染；若继续隐式取当前
   // context，“记住 Source 选择”会写入远端 setting，Controller 本地快照随后把选择重置为本机。
   const settingsServices = options.services ?? contextualServices;
-  const { broadcastService, settingService, zcodeAgentService } = settingsServices;
+  const { settingService } = settingsServices;
   const cacheKey = resolveSettingsCacheKey(options.cacheKey, settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(() => getSettingsSnapshot(cacheKey));
 
@@ -124,49 +123,11 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
   }, [cacheKey, refresh]);
 
   const update = useCallback(
-    async (
-      patch: Partial<AppSettings>,
-      expectedAccountSettings?: Parameters<ISettingService["update"]>[1],
-    ) => {
-      try {
-        if (expectedAccountSettings) await settingService.update(patch, expectedAccountSettings);
-        else await settingService.update(patch);
-      } catch (error) {
-        // 原因：CAS 失败后页面仍持有旧快照；重读事实后报告失败，下一次用户重试才有新预期。
-        if (expectedAccountSettings) await refresh();
-        throw error;
-      }
+    async (patch: Partial<WebAppSettings>) => {
+      await settingService.update(patch);
       await refresh();
-      if (
-        zcodeAgentService.syncAppRuntimePreferences &&
-        (typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-          typeof patch.modelIoFullRetentionEnabled === "boolean")
-      ) {
-        const currentSettings = getSettingsSnapshot(cacheKey).settings;
-        const preferences = {
-          askUserQuestionAutoResolutionEnabled:
-            patch.askUserQuestionAutoResolutionEnabled ??
-            currentSettings?.askUserQuestionAutoResolutionEnabled !== false,
-          modelIoFullRetentionEnabled:
-            patch.modelIoFullRetentionEnabled ??
-            currentSettings?.modelIoFullRetentionEnabled === true,
-        };
-        const syncResults = await Promise.allSettled([
-          zcodeAgentService.syncAppRuntimePreferences(preferences),
-        ]);
-        const syncError = syncResults.find(
-          (result): result is PromiseRejectedResult => result.status === "rejected",
-        )?.reason;
-        await broadcastService.send({
-          channel: APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
-          payload: preferences,
-        });
-        if (syncError) {
-          throw syncError;
-        }
-      }
     },
-    [broadcastService, cacheKey, settingService, zcodeAgentService, refresh],
+    [refresh, settingService],
   );
 
   return {

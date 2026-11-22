@@ -32,6 +32,9 @@ importers:
       '@zcode/client':
         specifier: workspace:*
         version: link:packages/client
+      '@zcode/rpc':
+        specifier: workspace:*
+        version: link:packages/rpc
       '@zcode/services':
         specifier: workspace:*
         version: link:packages/services

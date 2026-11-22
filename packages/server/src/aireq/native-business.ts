@@ -82,7 +82,7 @@ export class AIReqNativeBusiness {
     if (prototypeSessionReadIssue(sessionId)) throw businessRule("会话读取失败，请重试。");
     if (sessionId.startsWith("prototype-skill-design:"))
       return prototypeSkillDesignBinding(sessionId);
-    return readPrototypeNativeContext(sessionId)?.ref.modelConfig;
+    return readPrototypeNativeContext(sessionId)?.ref.runtimeModel;
   }
   assertNativeWritable(sessionId: string): void {
     if (!currentIdentity()) throw businessRule("连接身份无效，请重新进入工作区。");

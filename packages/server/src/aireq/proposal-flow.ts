@@ -1,15 +1,12 @@
-import type {
-  AIReqRequirementGroup,
-  AIReqMaterialView,
-  AIReqSystemRequirement,
-} from "@zcode/services/aireq";
+import type { AIReqRequirementGroup, AIReqMaterialView } from "@zcode/services/aireq";
 import { prototypeMaterial } from "./materials.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
+import type { SystemRequirement } from "./workflow-state.js";
 
 /** 依赖 JSON 是预估假设的唯一来源；写业务投入与范围条件，不把私有样例身份带入用户材料。 */
 export function prototypeProposalDependencies(
   group: AIReqRequirementGroup,
-  rows: AIReqSystemRequirement[],
+  rows: SystemRequirement[],
   suppliedJson?: string,
 ): AIReqMaterialView {
   return prototypeMaterial({

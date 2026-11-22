@@ -49,7 +49,7 @@ export function AIReqDeleteRequirement({
     view?.groups.some((item) => item.id === group.id && item.projectId === group.projectId)
   )
     return <>{renderTrigger()}</>;
-  const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group, selection);
+  const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group);
   const prohibition =
     group.merge || group.proposalRevisions?.length || group.freeze || group.status === "frozen"
       ? "已入库的正式文档及其修订历史须保留。"

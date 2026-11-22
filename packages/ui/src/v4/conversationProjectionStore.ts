@@ -26,15 +26,7 @@ import type { ConversationTransport } from "@/v4/transport.js";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
-/**
- * runtime 换代打断 subscribe 后的退避节奏。
- *
- * CUA Helper 冷启动就绪会 recycleUntilStable → disposeWorkspace 回收 agent
- * runtime，在途 subscribe 被 rejectAll 打断。若把这次瞬态失败定格成 status="error"，
- * 懒启动的 agent 在 dispose 后可能无人拉起，onRuntimeRestart 就不会到达，面板只能靠用户
- * 手点「重新连接」。subscribeConversationV4 走 start-if-needed，重订阅自身会拉起 runtime，
- * 所以这里对 runtime 回收导致的订阅中断做有界退避。
- */
+// runtime 换代打断 subscribe 后有界退避，避免懒启动时一直等不到重启通知。
 const RUNTIME_RECYCLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
 
 /**
@@ -71,13 +63,7 @@ function roundedDuration(startedAt: number, endedAt: number): number {
   return Math.max(0, Math.round(endedAt - startedAt));
 }
 
-/**
- * 是否为 runtime 换代/回收导致的瞬态 subscribe 失败。
- *
- * 已知文案都来自同一次回收：transport 关闭时 ZCodeProtocolClient.rejectAll 打断在途请求
- * （transport closed），复用已回收 client 时 assertNotDisposed 早退（client disposed），
- * 以及 runtime 尚未重新拉起时的 fail-fast（runtime is not running）。
- */
+/** 识别 runtime 换代或连接关闭导致的瞬态订阅失败。 */
 function isRuntimeRecycleError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
@@ -448,8 +434,7 @@ export class ConversationProjectionStore {
         this.handleAssemblyFault(fault.subscriptionId, fault.deliveryKind, fault.reasonCode);
       }
     });
-    // runtime 换代（CLI 进程换代）优先走 lifecycle：dispose
-    // 当场只有 unavailable 可观测，onRuntimeRestart 要等新进程 spawn——懒启动下可能永不到达。
+    // 优先监听 runtime lifecycle：unavailable 可立即观测，restart 要等新进程启动。
     if (transport.onRuntimeLifecycle) {
       this.offRuntimeLifecycle = transport.onRuntimeLifecycle((state) => {
         if (state === "available") this.handleRuntimeAvailable();
@@ -686,7 +671,7 @@ export class ConversationProjectionStore {
     return true;
   }
 
-  /** workspace-dispose 当场：旧 runtime 已死，新的尚不存在，不可重订阅。 */
+  /** 旧 runtime 已失效，清除订阅水位并安排重连。 */
   private handleRuntimeUnavailable(): void {
     if (this.closed) return;
     this.clearRuntimeRecycleRetry();
@@ -701,8 +686,7 @@ export class ConversationProjectionStore {
       editPresentation: null,
       projectionReady: false,
     });
-    // 不能只 dormant 等 available：agent 懒启动，dispose 后无人拉起时该信号永不到达，
-    // 面板会永久转圈。退避重连自身会拉起 runtime；available 先到则复位计数并即时重连。
+    // 不只等待 available：退避重连可拉起懒启动的 runtime；available 先到则立即重连。
     if (this.scheduleRuntimeRecycleReconnect(this.generation)) return;
     // 退避额度耗尽（runtime 反复回收）：必须落 error 暴露「重新连接」入口，
     // 否则 connecting 无 timer 就是永久转圈，连手动重试都没有。

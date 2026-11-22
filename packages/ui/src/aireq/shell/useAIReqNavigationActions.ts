@@ -1,12 +1,12 @@
 import { proposalTaskSelection, type ProposalTask } from "../proposals/proposalTasks.js";
 import { useCallback, type RefObject } from "react";
-import type { AIReqMainView, AIReqSelection, AIReqWorkflowView } from "../contract.js";
+import type { AIReqMainView, AIReqWorkflowTarget, AIReqWorkflowView } from "../contract.js";
 
 type WorkspaceMainView = AIReqMainView;
 export type ProjectOverviewOrigin = { projectId: string; releaseId: string };
 type NavigationSnapshot = { mainView: WorkspaceMainView; overviewOrigin?: ProjectOverviewOrigin };
 type SelectTarget = (
-  value: AIReqSelection,
+  value: AIReqWorkflowTarget,
   addHistory?: boolean,
   mainView?: WorkspaceMainView,
   targetReleaseId?: string,
@@ -24,7 +24,7 @@ export function useAIReqNavigationActions({
   select,
 }: {
   navigationRef: RefObject<NavigationSnapshot>;
-  selectionRef: RefObject<AIReqSelection>;
+  selectionRef: RefObject<AIReqWorkflowTarget>;
   releaseRef: RefObject<string>;
   viewRef: RefObject<AIReqWorkflowView | undefined>;
   navigate: (action: () => void) => void;
@@ -50,7 +50,7 @@ export function useAIReqNavigationActions({
   const openFromProjectOverview = useCallback(
     (
       mainView: "proposals" | "formal" | "chat" | "todos",
-      target?: AIReqSelection,
+      target?: AIReqWorkflowTarget,
       targetReleaseId?: string,
     ) => {
       navigate(() => {

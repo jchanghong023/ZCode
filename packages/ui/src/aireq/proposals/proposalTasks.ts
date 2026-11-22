@@ -1,8 +1,8 @@
 import type {
-  AIReqSelection,
   AIReqReviewAgentId,
   AIReqRequirementGroup,
   AIReqTodo,
+  AIReqWorkflowTarget,
 } from "../contract.js";
 import {
   proposalState,
@@ -50,10 +50,13 @@ export function canOpenProposalTask(
   return true;
 }
 
-export function restoreProposalTask(value: unknown, selection: AIReqSelection = {}): ProposalTask {
+export function restoreProposalTask(
+  value: unknown,
+  selection: AIReqWorkflowTarget = {},
+): ProposalTask {
   return proposalTasks.find((task) => task === value) ?? proposalTaskFromSelection(selection);
 }
-export function proposalTaskFromSelection(selection: AIReqSelection): ProposalTask {
+export function proposalTaskFromSelection(selection: AIReqWorkflowTarget): ProposalTask {
   if (selection.reviewAgent)
     return selection.discussionPhase === "solution" || selection.proposalStep === "solution"
       ? "solutionReviewDetail"
@@ -72,12 +75,12 @@ export function proposalTaskFromSelection(selection: AIReqSelection): ProposalTa
 }
 /** 导航只映射既有阶段选择；任务页本身不进入服务端 DTO。 */
 export function proposalTaskSelection(
-  base: AIReqSelection,
+  base: AIReqWorkflowTarget,
   task: ProposalTask,
   agent?: AIReqReviewAgentId,
   preserveSr = false,
-): AIReqSelection {
-  const target: AIReqSelection = { projectId: base.projectId, irId: base.irId };
+): AIReqWorkflowTarget {
+  const target: AIReqWorkflowTarget = { projectId: base.projectId, irId: base.irId };
   if (task === "overview" || task === "management") return target;
   if (
     task === "requirements" ||

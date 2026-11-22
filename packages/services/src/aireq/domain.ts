@@ -3,8 +3,7 @@ import type {
   AIReqFileVersion,
   AIReqProposalState,
   AIReqRequirementGroup,
-  AIReqRequirementsDecision,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqSystemRequirement,
   AIReqWorkflowView,
   AIReqReview,
@@ -38,7 +37,7 @@ export function hasProjectRole(
 /** 正式需求是同一项目内的只读查看，不绑定提案或开发会话。 */
 export function isFormalSelection(
   view: AIReqWorkflowView | undefined,
-  selection: AIReqSelection,
+  selection: AIReqWorkflowTarget,
 ): boolean {
   return Boolean(
     selection.formalView ||
@@ -46,20 +45,6 @@ export function isFormalSelection(
       (group) => group.projectId === selection.projectId && group.id === selection.irId,
     ),
   );
-}
-
-/** 切版本只清除不兼容的报告选择，正式需求不能退回提案工作区。 */
-export function selectionForRelease(
-  selection: AIReqSelection,
-  view: Pick<AIReqWorkflowView, "groups" | "drafts">,
-  releaseId: string,
-): AIReqSelection {
-  const formal = view.groups.find((group) => group.id === selection.irId);
-  const selected = formal ?? view.drafts.find((group) => group.id === selection.irId);
-  if (!selected || selected.releaseId === releaseId) return selection;
-  return selection.formalView || formal
-    ? { projectId: selection.projectId, formalView: "list" }
-    : { projectId: selection.projectId };
 }
 
 /** 前置单评审只绑定 IR 业务文档，后续方案材料变化不使它过期。 */
@@ -119,21 +104,6 @@ function sameFileVersions(files: AIReqFileVersion[], recordedFiles: AIReqFileVer
         file.sha256 === recorded[index]?.sha256 &&
         file.size === recorded[index]?.size,
     )
-  );
-}
-
-/** 人工处理绑定原始 AI 评审和材料；不是替代 AI 结论的通过凭证。 */
-export function requirementsDecisionCurrent(
-  group: AIReqRequirementGroup,
-  decision: Pick<AIReqRequirementsDecision, "reviewId" | "snapshotDigest" | "inputFiles">,
-): boolean {
-  const files = requirementsReviewInputs(group);
-  return Boolean(
-    files &&
-    requirementsReviewCurrent(group) &&
-    decision.reviewId === group.originalReview?.id &&
-    decision.snapshotDigest === group.originalReview?.snapshotDigest &&
-    sameFileVersions(files, decision.inputFiles),
   );
 }
 
@@ -386,10 +356,7 @@ export function proposalState(group: AIReqRequirementGroup): AIReqProposalState 
 }
 
 /** 四个操作工作区只负责导航；业务状态始终由 proposalState 的八态决定。 */
-export function proposalProgressIndex(
-  group: AIReqRequirementGroup,
-  _selection?: AIReqSelection,
-): number {
+export function proposalProgressIndex(group: AIReqRequirementGroup): number {
   switch (proposalState(group)) {
     case "not-started":
       return 0;
@@ -413,15 +380,14 @@ export function proposalReturnBlocker(group: AIReqRequirementGroup): string | un
 }
 export function proposalViewedIndex(
   group: AIReqRequirementGroup,
-  selection: AIReqSelection,
+  selection: AIReqWorkflowTarget,
 ): number {
   if (selection.proposalStep)
     return ["requirements", "requirements-review", "solution", "intake"].indexOf(
       selection.proposalStep,
     );
-  if (selection.discussionPhase === "requirements" && proposalProgressIndex(group, selection) > 1)
-    return 0;
-  return proposalProgressIndex(group, selection);
+  const progress = proposalProgressIndex(group);
+  return selection.discussionPhase === "requirements" && progress > 1 ? 0 : progress;
 }
 
 /** 提出人固定，当前处理责任按业务状态变化；不是权限或自动分派系统。 */
@@ -451,19 +417,17 @@ export function proposalActorLabel(group: AIReqRequirementGroup): string {
 /** Formal views never mount retired development conversations. */
 export function conversationReadOnlyReason(
   view: Pick<AIReqWorkflowView, "drafts"> | undefined,
-  selection: AIReqSelection,
+  selection: AIReqWorkflowTarget,
   access?: { proposalDiscussion?: boolean },
 ): string | undefined {
   if (!view) return;
-  if (selection.proposalDraftId)
-    return access?.proposalDiscussion === false ? "当前提案讨论只读。" : undefined;
   const proposal = view.drafts.find(
     (item) => item.projectId === selection.projectId && item.id === selection.irId,
   );
   if (!proposal) return "正式需求材料仅供只读查看。";
   if (access?.proposalDiscussion === false) return "当前提案讨论只读。";
   // 历史节点可能与当前节点同属 requirements 讨论面，必须比较业务阶段，不能只比较 discussionPhase。
-  if (proposalViewedIndex(proposal, selection) !== proposalProgressIndex(proposal, selection))
+  if (proposalViewedIndex(proposal, selection) !== proposalProgressIndex(proposal))
     return "正在查看历史阶段，仅供只读查看。";
   if (
     selection.discussionPhase &&

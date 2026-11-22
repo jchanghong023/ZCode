@@ -328,7 +328,38 @@ describe("ST auxiliary public reads", () => {
         ).rejects.toThrow();
         expect(settings).not.toHaveProperty("memoryEnabled");
         expect(settings).not.toHaveProperty("computerUseComposerEntryHidden");
-        await expectRpcUnavailable(c.probeRpc, "call", ISystemService.channelName, "info", [], true);
+        const allowedPatch = { locale: settings.locale === "en-US" ? "zh-CN" : "en-US" } as const;
+        const desktopOnly = {
+          providerFamilyDomain: "",
+          providerFamilyConnectionSelections: {},
+          providerFamilyDomainUpdatedAt: 1,
+          providerFamilyDomainMigrated: true,
+          askUserQuestionAutoResolutionEnabled: true,
+          modelIoFullRetentionEnabled: true,
+        };
+        const settingsService = c.services.settingService;
+        try {
+          for (const [field, value] of Object.entries(desktopOnly)) {
+            expect(settings).not.toHaveProperty(field);
+            await expect(
+              settingsService.update({ ...allowedPatch, [field]: value }),
+              `Web setting.update must reject ${field}`,
+            ).rejects.toThrow();
+            expect(await settingsService.get()).toStrictEqual(settings);
+          }
+          await expect(settingsService.update(allowedPatch)).resolves.toBeUndefined();
+          expect(await settingsService.get()).toStrictEqual({ ...settings, ...allowedPatch });
+        } finally {
+          await settingsService.update({ locale: settings.locale });
+        }
+        await expectRpcUnavailable(
+          c.probeRpc,
+          "call",
+          ISystemService.channelName,
+          "info",
+          [],
+          true,
+        );
         const bootstrap = await c.bootstrap();
         const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
         expect(workflowRoles).toEqual([
@@ -346,18 +377,55 @@ describe("ST auxiliary public reads", () => {
           "新建讨论必须提供实际 Agent 模型绑定",
         );
         expect(binding.role).toBe("requirements");
-        // 工作流 modelKey 与原生 providerId/modelId 是两套显式字段，不能解析 choice.id 猜测执行身份。
-        // 用公开会话绑定关联配置选项及原生目录，展示名只核对展示名，不充当模型身份。
+        // 业务配置键只对应 AIReq 目录；原生执行标识从 v4 快照读取，不解析 choice.id。
         const choice = bootstrap.models.choices.find((model) => model.id === binding.modelKey);
         expect(choice).toMatchObject({ name: binding.modelName });
         const modelView = await c.services.modelSelectionService.getView();
         expect(Number.isInteger(modelView.revision)).toBe(true);
-        const provider = modelView.providers.find((item) => item.providerId === binding.providerId);
+        const native = await openNative(c, created.remote);
+        const selection = await native
+          .snapshot()
+          .then((snapshot) => snapshot.config.modelSelection)
+          .finally(() => native.close());
+        const provider = requireConfig(
+          modelView.providers.find((item) => item.providerId === selection?.providerId),
+          "会话绑定供应商必须出现在原生模型目录中",
+        );
         const model = requireConfig(
-          provider?.models.find((item) => item.modelId === binding.modelId),
+          provider.models.find((item) => item.modelId === selection?.modelId),
           "会话绑定模型必须出现在原生模型目录中",
         );
-        expect(model.config).not.toHaveProperty("enabled");
+        for (const entry of modelView.providers) {
+          expect(entry).not.toHaveProperty("templateId");
+          expect(
+            Object.keys(entry.config).filter((key) => !["logo", "api", "access"].includes(key)),
+          ).toEqual([]);
+          if (entry.config.api) {
+            expect(entry.config.api).toStrictEqual({ type: entry.config.api.type });
+          }
+          const access = entry.config.access;
+          if (access) {
+            expect(access).toStrictEqual(
+              access.type === "zhipu-account"
+                ? {
+                    type: access.type,
+                    accountType: access.accountType,
+                    mode: access.mode,
+                    entitled: access.entitled,
+                  }
+                : { type: access.type },
+            );
+          }
+          for (const { config } of entry.models) {
+            expect(config.properties).toStrictEqual({
+              inputFormat: { supportsImage: expect.any(Boolean) },
+            });
+            expect(config.optionSpecs).toStrictEqual({
+              reasoningLevel: { values: expect.any(Array) },
+            });
+            expect(config).not.toHaveProperty("enabled");
+          }
+        }
         const modelSelectionChannel = IModelSelectionService.channelName;
         const emptySelection = { selection: null };
         expect(
@@ -369,6 +437,16 @@ describe("ST auxiliary public reads", () => {
             emptySelection,
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
+        const selectionIds = { providerId: provider.providerId, modelId: model.modelId };
+        for (const invalid of [
+          { ...emptySelection, refresh: true },
+          { selection: { ...selectionIds, baseUrl: "http://example.invalid" } },
+          { selection: { ...selectionIds, options: { reasoningLevel: "default", extra: true } } },
+        ]) {
+          expect(
+            await c.probeRpc("call", modelSelectionChannel, "getView", [invalid]),
+          ).toMatchObject({ type: 202 }); // PromiseError
+        }
         await expectRpcUnavailable(
           c.probeRpc,
           "call",

@@ -1,5 +1,6 @@
-import type { AIReqAgentModelBinding, IAIReqService } from "@zcode/services/aireq";
+import type { IAIReqService } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
+import type { NativeRuntimeModel } from "./agent-models.js";
 import type { AIReqNativeTurnResult } from "./native-business.js";
 
 /** Business callbacks only; rows, attachments, topics and subscriptions remain with native mock owner. */
@@ -25,9 +26,7 @@ export interface AIReqNativeBridge {
   /** Read existing business report, without creating work. */
   seedNative(sessionId: string): string | undefined;
   /** Session-creation binding snapshot; not current platform defaults. */
-  getNativeBinding(
-    sessionId: string,
-  ): Pick<AIReqAgentModelBinding, "providerId" | "modelId" | "reasoning"> | undefined;
+  getNativeBinding(sessionId: string): NativeRuntimeModel | undefined;
   /** Canonical published proposal/history ref only; never provisional drafts or private Skill. */
   isPublishedNativeSession(sessionId: string): boolean;
   /** Immutable connection actor/client key, used by native attachment admission. */
@@ -40,8 +39,4 @@ export { MockAIReqService, getConnectionServices, registerAIReqConnection } from
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
 export { assertSkillSession, prototypeSkillDesignWorkspaceIdentity } from "./skill-design.js";
-export {
-  readPrototypeNativeContext,
-  readPrototypeProjectDirectory,
-  readPrototypeProjectWorkspace,
-} from "./workflow.js";
+export { readPrototypeProjectDirectory } from "./workflow.js";

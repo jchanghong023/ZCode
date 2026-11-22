@@ -106,6 +106,22 @@ describe("proposal business lifecycle through the deployed public API", () => {
           false,
         );
         expect(refused.view.revision).toBe(read.view.revision);
+        const action = {
+          type: "createProposal" as const,
+          projectId: project.projectId,
+          releaseId: project.releaseId,
+          originalText: unique("可重试的草稿"),
+          clientDraftId: unique("browser-draft"),
+        };
+        const created = await client.command(action, project.selection);
+        const repeated = await client.command(action, project.selection);
+        expect(repeated.receipt.operationId).not.toBe(created.receipt.operationId);
+        expect(repeated.irId).toBe(created.irId);
+        const drafts = (await client.read(project.selection)).view.drafts.filter(
+          (group) => group.originalText === action.originalText,
+        );
+        expect(drafts.map((group) => group.id)).toEqual([created.irId]);
+        expect(drafts[0]).not.toHaveProperty("clientDraftId");
       });
     },
     config.timeoutMs,
@@ -353,6 +369,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         await discuss(client, target, "补充验收条件：下载后核对每行与原始需求一致。");
         const business = getProposal(await client.read(target.selection), target);
         expect(business.originalReview).toBeUndefined();
+        expect(business.snapshot).not.toHaveProperty("version");
         expect(business.snapshot?.digest).not.toBe(firstDraft.snapshot?.digest);
         await expectBusinessRejection(
           client.command(
@@ -390,6 +407,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(originalReport.humanDecision).toBeUndefined();
         const originalApproved = getProposal(await approveOriginalReview(client, target), target);
         expect(originalApproved.originalReview?.humanDecision?.reviewId).toBe(originalReport.id);
+        expect(originalApproved).not.toHaveProperty("requirementsDecisions");
         expect(originalApproved.originalReviewHistory ?? []).toEqual([]);
         expect(originalApproved.srIds).toEqual([]);
         expect(originalApproved.review).toBeUndefined();

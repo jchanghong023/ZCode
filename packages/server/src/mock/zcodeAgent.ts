@@ -68,7 +68,6 @@ type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 type MockTextSubmission = CommandPayloadMap["sendText"];
 type MockInput = {
-  actor: string;
   commandId: string;
   clientId: string;
   text: string;
@@ -614,7 +613,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         conversationQuotes: submitted.conversationQuotes,
         modelSelection,
       });
-      session.deliveredTurns.set(JSON.stringify([submitted.actor, submitted.commandId]), turnId);
       // AIReq 材料只消费用户语义；冻结的技能正文留在会话执行上下文。
       this.business?.beginNative(
         session.sessionId,
@@ -890,9 +888,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.patchState(session, { queue: projectMockQueue(session) });
   }
 
-  private queuedInput({ item, actor, context }: MockQueuedInput): MockInput {
+  private queuedInput({ item, context }: MockQueuedInput): MockInput {
     return {
-      actor,
       commandId: item.sourceCommandId,
       clientId: item.clientId,
       text: item.text,
@@ -1049,7 +1046,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       lastActivityAt: now,
       meta: { title: "", titleSource: "default" },
       rows: [],
-      deliveredTurns: new Map(),
       usage: {
         contextWindow: null,
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -1252,7 +1248,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.business?.admitNative(session.sessionId, envelope.commandId, payload.text);
     if (queued) {
       session.nextAdmissionSeq += 1;
-      session.queuedInputs.push({ item: queued, actor: input.actor, context });
+      session.queuedInputs.push({ item: queued, context });
       this.patchQueue(session);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
@@ -1274,7 +1270,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     context?: MockInputContext,
   ): MockInput {
     return {
-      actor: this.actorKey() ?? "mock",
       commandId: envelope.commandId,
       clientId: envelope.clientId,
       text: payload.text,
@@ -1392,10 +1387,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   async initializeConversationV4(_clientHello: ClientHello): Promise<void> {}
 
-  async setConnectionFlowStateV4(
-    _params: P<IZCodeAgentService["setConnectionFlowStateV4"]>,
-  ): Promise<void> {}
-
   private applyNativeBinding(session: MockSession): void {
     if (!this.business || session.nativeBindingApplied) return;
     const binding = this.business.getNativeBinding(session.sessionId);
@@ -1490,7 +1481,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       lastActivityAt: now,
       meta: { title: "", titleSource: "default" },
       rows: [],
-      deliveredTurns: new Map(),
       usage: {
         contextWindow: null,
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -1665,27 +1655,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return {
       results: commands.map((key) => {
         const ack = this.commandResults.get(this.receiptKey(actor, params, key))?.ack;
-        if (!ack) return { key, result: "unknown" };
-        const result = projectWebCommandAck(ack);
-        const session = key.sessionId ? this.runtime.sessions.get(key.sessionId) : undefined;
-        if (
-          !session ||
-          !this.matchesWorkspace(session, params) ||
-          result.status !== "accepted" ||
-          result.result?.type !== "inputAccepted"
-        )
-          return { key, result };
-        const turnId = session.deliveredTurns.get(JSON.stringify([actor, key.commandId]));
-        const header = turnId
-          ? session.rows.find((row) => row.kind === "turnHeader" && row.turnId === turnId)
-          : undefined;
-        return {
-          key,
-          result,
-          ...(header?.kind === "turnHeader"
-            ? { turn: { turnId: header.turnId, state: header.state } }
-            : {}),
-        };
+        return { key, result: ack ? projectWebCommandAck(ack) : "unknown" };
       }),
     };
   }
@@ -1970,24 +1940,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         byName.set(command, { name: command, description, source: "skill" });
     }
     return [...byName.values()];
-  }
-
-  async disposeWorkspace(_params: P<IZCodeAgentService["disposeWorkspace"]>): Promise<void> {
-    for (const [sessionId, session] of this.runtime.sessions) {
-      if (session.workspaceKey === workspaceKeyOf(_params)) {
-        // 先撤销会话归属，避免同步取消收口重新启动待发队列。
-        this.runtime.sessions.delete(sessionId);
-        session.activeTurn?.controller.abort();
-      }
-    }
-  }
-
-  disposeAll(): void {
-    for (const session of this.runtime.sessions.values()) {
-      this.runtime.sessions.delete(session.sessionId);
-      session.activeTurn?.controller.abort();
-    }
-    this.conversationSubs.clear();
   }
 }
 

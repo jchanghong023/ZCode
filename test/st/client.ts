@@ -101,10 +101,7 @@ export interface STClient {
   probeRpc: RpcProbe;
   bootstrap(): ReturnType<RemoteServiceAccess["aiReqService"]["bootstrap"]>;
   read(target?: AIReqWorkflowTarget): Promise<AIReqRemoteResult<"readWorkflow">>;
-  call<P extends AIReqRemotePath>(
-    path: P,
-    args: AIReqRemoteArgs<P>,
-  ): Promise<AIReqRemoteResult<P>>;
+  call<P extends AIReqRemotePath>(path: P, args: AIReqRemoteArgs<P>): Promise<AIReqRemoteResult<P>>;
   command(action: AIReqAction, target?: AIReqWorkflowTarget): Promise<AIReqRemoteResult<"command">>;
   close(): Promise<void>;
 }
@@ -254,10 +251,13 @@ export function connectChatST(clientId = crypto.randomUUID()) {
   }));
 }
 
-export async function connectST(employeeId = config.employeeId): Promise<STClient> {
+export async function connectST(
+  employeeId = config.employeeId,
+  clientId = unique("client"),
+): Promise<STClient> {
   const identity = {
     employeeId: requireConfig(employeeId, "ST_EMPLOYEE_ID"),
-    clientId: unique("client"),
+    clientId,
   };
   const { guardedServices, services, close, rpc, probeRpc, isClosing } = await connectSTTransport(
     wsUrl(identity),
@@ -268,7 +268,8 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
     identity,
     probeRpc,
     bootstrap: () => rpc(services.aiReqService.bootstrap(identity)),
-    read: (selection = {}) => rpc(services.aiReqService.call(identity, "readWorkflow", [selection])),
+    read: (selection = {}) =>
+      rpc(services.aiReqService.call(identity, "readWorkflow", [selection])),
     call: (path, args) => {
       if (isClosing()) throw new Error("ST 客户端已关闭");
       if (path === "command") {
@@ -284,9 +285,14 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
     async command(action, selection = {}) {
       const { expectedRevision, operationId, ...intent } = action;
       const revision = expectedRevision ?? (await client.read(selection)).view.revision;
+      const { projectId, irId, srId } = selection;
       return client.call("command", [
         { ...intent, operationId: operationId ?? unique("operation") },
-        selection,
+        {
+          ...(projectId !== undefined ? { projectId } : {}),
+          ...(irId !== undefined ? { irId } : {}),
+          ...(srId !== undefined ? { srId } : {}),
+        },
         revision,
       ]);
     },
@@ -324,6 +330,9 @@ export async function expectRetiredAgentRpc(
     ["supportsConversationQuoteComment", [target]],
     ["conversationPlansV4", [target]],
     ["getSessionLifecycle", [target]],
+    ["setConnectionFlowStateV4", [{ workspacePath: target.workspacePath, state: "saturated" }]],
+    ["disposeWorkspace", [{ workspacePath: target.workspacePath }]],
+    ["disposeAll", []],
   ] as const;
   await Promise.all([
     ...methods.map(([method, args]) =>

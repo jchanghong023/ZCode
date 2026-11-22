@@ -47,7 +47,6 @@ function withIR(): AIReqRequirementGroup {
   group.requirementsCheck = { issues: [] };
   group.files = [file(group.documentPath)];
   group.snapshot = {
-    version: 1,
     projectId: group.projectId,
     irId: group.id,
     title: group.title,

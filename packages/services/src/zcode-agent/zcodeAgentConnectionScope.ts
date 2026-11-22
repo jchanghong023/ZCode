@@ -13,7 +13,6 @@ import {
   webClientHelloSchema,
   type ConversationTopicWireCandidate,
   type HelloMessage,
-  type V4ConnectionFlowState,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   IZCodeAgentService,
@@ -191,14 +190,7 @@ interface OwnedSubscription {
   subscriptionId: string;
   topic: string;
   connectionId: string;
-  clientMode: ZCodeAgentV4ClientMode;
   target: ZCodeAgentWorkspaceTarget;
-}
-
-interface ConnectionFlowRoute {
-  key: string;
-  target: ZCodeAgentWorkspaceTarget;
-  connection: ZCodeAgentV4ConnectionContext;
 }
 
 type RoutedTopicFrame = ConversationTopicWireCandidate;
@@ -303,8 +295,6 @@ type WebScopedAgent = Omit<IZCodeAgentService, keyof WebScopedMethods> & WebScop
 
 export interface ZCodeAgentConnectionScope<Agent = IZCodeAgentService> {
   readonly service: Agent;
-  /** MessagePort/transport sideband only；不是 UI-facing RPC。 */
-  setTransportFlowState(state: V4ConnectionFlowState): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -351,12 +341,6 @@ export function createZCodeAgentConnectionScope(
   let clientWorkflowRunDeltas = false;
   let clientHistoryFirst = false;
   let commandQueryWorkspaceKey: string | null = null;
-  let currentTransportFlowState: V4ConnectionFlowState = "drained";
-  let flowClosed = false;
-  let flowUpdateChain = Promise.resolve();
-  const forwardedFlowStateByRoute = new Map<string, V4ConnectionFlowState>();
-  /** attachment 曾触及的 workspace route 留到 port dispose，保证无 subscription 也能 trusted closed。 */
-  const attachmentFlowRoutes = new Map<string, ConnectionFlowRoute>();
 
   const forwardedConnection = (params: unknown): ZCodeAgentV4ConnectionContext => {
     const downstream = readTrustedZCodeAgentV4Connection(params);
@@ -396,68 +380,6 @@ export function createZCodeAgentConnectionScope(
     `${kind}\0${workspaceKey(target)}\0${topic}`;
   const routedEventKey = (kind: SubscriptionKind, target: ZCodeAgentWorkspaceTarget) =>
     `${kind}\0${workspaceKey(target)}`;
-  const flowRouteKey = (target: ZCodeAgentWorkspaceTarget, connectionId: string) =>
-    `${workspaceKey(target)}\0${connectionId}`;
-  const flowRouteForEntry = (entry: OwnedSubscription): ConnectionFlowRoute => ({
-    key: flowRouteKey(entry.target, entry.connectionId),
-    target: entry.target,
-    connection: {
-      connectionId: entry.connectionId,
-      clientMode: entry.clientMode,
-    } satisfies ZCodeAgentV4ConnectionContext,
-  });
-  const currentFlowRoutes = () => {
-    const routes = new Map<string, ConnectionFlowRoute>(attachmentFlowRoutes);
-    for (const entry of owned.values()) {
-      const route = flowRouteForEntry(entry);
-      routes.set(route.key, route);
-    }
-    return routes;
-  };
-  const forwardFlowRoute = async (
-    route: ConnectionFlowRoute,
-    state: V4ConnectionFlowState,
-  ): Promise<void> => {
-    if (forwardedFlowStateByRoute.get(route.key) === state) return;
-    await base.setConnectionFlowStateV4(
-      withTrustedConnection(
-        {
-          ...workspaceTarget(route.target),
-          state,
-        },
-        route.connection,
-      ),
-    );
-    forwardedFlowStateByRoute.set(route.key, state);
-  };
-  const applyTransportFlowState = async (state: V4ConnectionFlowState): Promise<void> => {
-    if (flowClosed && state !== "closed") return;
-    currentTransportFlowState = state;
-    if (state === "closed") flowClosed = true;
-    for (const route of currentFlowRoutes().values()) {
-      await forwardFlowRoute(route, state);
-    }
-  };
-  const enqueueTransportFlowState = (state: V4ConnectionFlowState): Promise<void> => {
-    if (disposed || (flowClosed && state !== "closed")) return Promise.resolve();
-    const update = flowUpdateChain.then(() => applyTransportFlowState(state));
-    // 快速 SAT→DRN 与 close 必须保持提交顺序；单次 RPC 失败不能打断后续
-    // close 清理，但调用方仍会收到该次 update 的 rejection。
-    flowUpdateChain = update.catch(() => {});
-    return update;
-  };
-  const syncCurrentFlowForEntry = async (entry: OwnedSubscription): Promise<void> => {
-    if (currentTransportFlowState !== "saturated") return;
-    await forwardFlowRoute(flowRouteForEntry(entry), "saturated");
-  };
-  const closeUnusedFlowRoute = async (entry: OwnedSubscription): Promise<void> => {
-    const route = flowRouteForEntry(entry);
-    if (currentFlowRoutes().has(route.key)) return;
-    if (forwardedFlowStateByRoute.has(route.key)) {
-      await forwardFlowRoute(route, "closed");
-      forwardedFlowStateByRoute.delete(route.key);
-    }
-  };
   const remember = (subscriptionId: string, entry: OwnedSubscription): void => {
     const key = routeKey(entry.kind, entry.target, entry.topic, subscriptionId, entry.connectionId);
     const previous = routeKeyByOwnership.get(entry.ownershipKey);
@@ -620,19 +542,6 @@ export function createZCodeAgentConnectionScope(
     });
     return base.unsubscribeConversationV4(forwarded);
   };
-  const unsubscribeOwnedEntry = async (
-    entry: OwnedSubscription,
-    runtimePolicy?: ZCodeAgentRuntimePolicy,
-  ): Promise<void> => {
-    forget(entry);
-    try {
-      // trusted relay 以 owned route 校验 flow control。最后一个 subscription
-      // 必须先 closed 再 unsubscribe；反序会让上游先忘 owner，closed 被拒绝后留下 paused connection。
-      await closeUnusedFlowRoute(entry);
-    } finally {
-      await unsubscribeBase(entry, runtimePolicy);
-    }
-  };
   const resyncBase = (entry: OwnedSubscription, params: ZCodeAgentConversationResyncParams) => {
     const forwarded = withTrustedUnsubscribeRoute(params, {
       topic: entry.topic,
@@ -658,10 +567,12 @@ export function createZCodeAgentConnectionScope(
   ): Promise<void> => {
     removePendingOwnership(pending);
     const complete = { ...entry, subscriptionId };
+    // 关闭会清空 generation 表；已观察到的换代仍由 pending 标记区分。
     if (
       pending.invalidatedByRuntimeRestart ||
-      pending.runtimeGeneration !==
-        (runtimeGenerationByWorkspaceKey.get(workspaceKey(entry.target)) ?? 0)
+      (!disposed &&
+        pending.runtimeGeneration !==
+          (runtimeGenerationByWorkspaceKey.get(workspaceKey(entry.target)) ?? 0))
     ) {
       // 旧 runtime 的迟到 ACK 可能与新 runtime 复用同一 subId。
       // 这里只丢本地 owner，绝不能向新 runtime 反向 unsubscribe 同名 subscription。
@@ -682,15 +593,6 @@ export function createZCodeAgentConnectionScope(
       throw new Error(reason);
     }
     remember(subscriptionId, complete);
-    try {
-      // 当前 transport 已 saturated 时，订阅 ACK 才让 trusted downstream route 成为事实；
-      // 必须在此补发一次 SAT，不能等待下一个 high-water edge。
-      await syncCurrentFlowForEntry(complete);
-    } catch (error) {
-      forget(complete);
-      await unsubscribeBase(complete).catch(() => {});
-      throw error;
-    }
     const route = routedFrameEvents.get(routedEventKey(entry.kind, entry.target));
     if (!route) return;
     // CLI notification 可能先于 RPC subscribe response 抵达 host。旧实现
@@ -710,11 +612,6 @@ export function createZCodeAgentConnectionScope(
     // runtime 内 subscription 已全部消失；本地 owner 直接 forget，不向新 runtime 清理。
     for (const entry of owned.values()) {
       if (workspaceKey(entry.target) === invalidatedWorkspaceKey) forget(entry);
-    }
-    for (const key of forwardedFlowStateByRoute.keys()) {
-      if (key.startsWith(`${invalidatedWorkspaceKey}\0`)) {
-        forwardedFlowStateByRoute.delete(key);
-      }
     }
     const invalidatedPending = [...pendingByOwnership.values()]
       .flatMap((group) => [...group])
@@ -749,33 +646,8 @@ export function createZCodeAgentConnectionScope(
         invalidateWorkspaceRuntime(restarted, nextGeneration);
       });
 
-  const sessionLifecycle = base.onDynamicSessionLifecycle?.bind(base);
   const listRecentChatSessions = base.listRecentChatSessions?.bind(base);
   const overrides: Partial<WebScopedAgent> = {
-    ...(sessionLifecycle && {
-      onDynamicSessionLifecycle: (params) => (listener) =>
-        sessionLifecycle(params)((snapshot) => {
-          if (snapshot.state === "stopping") {
-            const topic = conversationTopic(snapshot.sessionId);
-            const key = workspaceKey(params);
-            // 只清当前 session 的 owner；不能使其他任务的订阅失效。
-            for (const entry of owned.values()) {
-              if (workspaceKey(entry.target) === key && entry.topic === topic) forget(entry);
-            }
-            // 此处同步清理且不调用外部回调；仅删除当前项，不会引入待遍历的新 owner。
-            for (const group of pendingByOwnership.values()) {
-              for (const pending of group) {
-                if (workspaceKey(pending.target) !== key || pending.topic !== topic) continue;
-                pending.invalidatedByRuntimeRestart = true;
-                removePendingOwnership(pending);
-                pending.frames.length = 0;
-                pending.stagedBytes = 0;
-              }
-            }
-          }
-          listener(snapshot);
-        }),
-    }),
     async helloConversationV4() {
       assertOpen();
       helloIssued = true;
@@ -817,24 +689,6 @@ export function createZCodeAgentConnectionScope(
         return listRecentChatSessions();
       },
     }),
-    async setConnectionFlowStateV4(params) {
-      assertOpen();
-      if (role !== "trusted-host-relay") {
-        throw new Error("fault.connection.flowControlForbidden");
-      }
-      const downstream = readTrustedZCodeAgentV4Connection(params);
-      if (!downstream) throw new Error("fault.connection.flowControlUntrusted");
-      const forwarded = forwardedConnection(params);
-      const ownsRoute =
-        attachmentFlowRoutes.has(flowRouteKey(params, forwarded.connectionId)) ||
-        [...owned.values()].some(
-          (entry) =>
-            workspaceKey(entry.target) === workspaceKey(params) &&
-            entry.connectionId === forwarded.connectionId,
-        );
-      if (!ownsRoute) throw new Error("fault.subscription.notOwned");
-      await base.setConnectionFlowStateV4(withTrustedConnection(params, forwarded));
-    },
     async sendConversationCommandV4(params) {
       assertOpen();
       // extension 来源只由扩展网关经 app-control 注入；app-control 直接调
@@ -910,18 +764,27 @@ export function createZCodeAgentConnectionScope(
       }
       // 仅目录聊天连接由服务端开启多目录查询；其 owner 逐条校验 actor + workspace。
       // 时钟探测也不改变默认连接的 workspace 绑定。
-      if (params.clock || options?.allowCommandQueriesAcrossWorkspaces)
-        return base.queryConversationCommandsV4(
-          withTrustedConnection(params, forwardedConnection(params)),
-        );
-      const requestedWorkspaceKey = workspaceKey(params);
-      if (commandQueryWorkspaceKey !== null && commandQueryWorkspaceKey !== requestedWorkspaceKey) {
-        throw new Error("fault.command.queryForeignWorkspace");
+      if (!params.clock && !options?.allowCommandQueriesAcrossWorkspaces) {
+        const requestedWorkspaceKey = workspaceKey(params);
+        if (
+          commandQueryWorkspaceKey !== null &&
+          commandQueryWorkspaceKey !== requestedWorkspaceKey
+        ) {
+          throw new Error("fault.command.queryForeignWorkspace");
+        }
+        commandQueryWorkspaceKey = requestedWorkspaceKey;
       }
-      commandQueryWorkspaceKey = requestedWorkspaceKey;
-      return base.queryConversationCommandsV4(
+      const pending = base.queryConversationCommandsV4(
         withTrustedConnection(params, forwardedConnection(params)),
       );
+      if (!webProtocol) return pending;
+      const { results } = await pending;
+      return {
+        results: results.map(({ key, result }) => ({
+          key,
+          result: result === "unknown" ? result : projectWebCommandAck(result),
+        })),
+      };
     },
     async conversationRowsRangeV4(params) {
       assertReady();
@@ -939,28 +802,10 @@ export function createZCodeAgentConnectionScope(
       }
       const forwarded = forwardedConnection(params);
       const result = await base.attachmentBeginV4(withTrustedConnection(params, forwarded));
-      if (result.state === "staging") {
-        if (disposed || flowClosed) {
-          // begin ACK 可能晚于 port close。若此时再登记 route，closed 已经错过它，
-          // CLI 会留下只能等 TTL 的半上传；先用同 trusted identity abort，再拒绝迟到结果。
-          await base.attachmentAbortV4(withTrustedConnection(params, forwarded)).catch(() => {});
-          throw new Error("fault.connection.closed");
-        }
-        const route: ConnectionFlowRoute = {
-          key: flowRouteKey(params, forwarded.connectionId),
-          target: workspaceTarget(params),
-          connection: forwarded,
-        };
-        attachmentFlowRoutes.set(route.key, route);
-        if (currentTransportFlowState === "saturated") {
-          try {
-            await forwardFlowRoute(route, "saturated");
-          } catch (error) {
-            attachmentFlowRoutes.delete(route.key);
-            await base.attachmentAbortV4(withTrustedConnection(params, forwarded)).catch(() => {});
-            throw error;
-          }
-        }
+      if (result.state === "staging" && disposed) {
+        // begin ACK 可能晚于连接关闭；用原连接身份取消迟到的暂存上传。
+        await base.attachmentAbortV4(withTrustedConnection(params, forwarded)).catch(() => {});
+        throw new Error("fault.connection.closed");
       }
       return result;
     },
@@ -1020,7 +865,6 @@ export function createZCodeAgentConnectionScope(
             ownershipKey: `conversation\0${workspaceKey(params)}\0${topic}\0${forwarded.connectionId}`,
             topic,
             connectionId: forwarded.connectionId,
-            clientMode: forwarded.clientMode,
             target: workspaceTarget(params),
           },
           pending,
@@ -1044,7 +888,8 @@ export function createZCodeAgentConnectionScope(
         forwardedUnsubscribeRoute(params),
       );
       if (!entry) return;
-      await unsubscribeOwnedEntry(entry, params.runtimePolicy);
+      forget(entry);
+      await unsubscribeBase(entry, params.runtimePolicy);
     },
     async resyncConversationV4(params) {
       if (webProtocol) {
@@ -1078,13 +923,7 @@ export function createZCodeAgentConnectionScope(
 
   return {
     service,
-    setTransportFlowState(state) {
-      return enqueueTransportFlowState(state);
-    },
     async dispose() {
-      if (disposed) return;
-      // close 必须排在已入队 SAT/DRN 之后；即使控制 RPC 失败也继续 owned cleanup。
-      await enqueueTransportFlowState("closed").catch(() => {});
       if (disposed) return;
       disposed = true;
       handshakeComplete = false;
@@ -1110,8 +949,6 @@ export function createZCodeAgentConnectionScope(
       runtimeLifecycleDisposable?.dispose();
       runtimeRestartDisposable?.dispose();
       runtimeGenerationByWorkspaceKey.clear();
-      attachmentFlowRoutes.clear();
-      forwardedFlowStateByRoute.clear();
       await Promise.allSettled(entries.map((entry) => unsubscribeBase(entry)));
     },
   };

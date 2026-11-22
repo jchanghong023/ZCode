@@ -12,7 +12,11 @@ type ModelSelectionCatalog = Pick<WebModelSelectionView, "revision" | "providers
 
 export type ModelSelectionState =
   | { status: "loading"; catalog?: ModelSelectionCatalog }
-  | { status: "ready"; view: WebModelSelectionView; refreshError?: { revision: number; error: Error } }
+  | {
+      status: "ready";
+      view: WebModelSelectionView;
+      refreshError?: { revision: number; error: Error };
+    }
   | { status: "unavailable"; reason: "remote-waiting" | "missing-target" }
   | { status: "error"; error: Error };
 
@@ -34,7 +38,7 @@ interface OwnedModelSelectionState {
   state: ModelSelectionState;
 }
 
-// 首读的临时 IO 失败未必产生 Provider 变化事件；只重读两次，不轮询业务状态或重试写操作。
+// 首读的临时 IO 失败只重读两次，不轮询业务状态或重试写操作。
 const INITIAL_READ_RETRY_DELAYS = [500, 1500] as const;
 function isTransientReadError(cause: unknown): boolean {
   if (!cause || typeof cause !== "object") return false;
@@ -78,7 +82,7 @@ function retainedCatalog(
   return previous.state.status === "loading" ? previous.state.catalog : undefined;
 }
 
-/** 订阅明确 Host Service；返回状态在同一次 render 即绑定新 owner，不暴露旧 Host View。 */
+/** 读取明确 Host 的模型目录；返回状态在同一次 render 即绑定新 owner，不暴露旧 Host View。 */
 export function useModelSelectionServiceView(
   service: ModelSelectionReader | null | undefined,
   enabled = true,
@@ -86,7 +90,7 @@ export function useModelSelectionServiceView(
   input?: ModelSelectionViewInput,
 ): ModelSelectionRead {
   const normalizedService = service ?? null;
-  // 调用方可每次 render 创建参数对象；所有权按选择内容绑定，不按对象引用反复订阅。
+  // 调用方可每次 render 创建参数对象；所有权按选择内容绑定，不按对象引用反复读取。
   const inputKey = input === undefined ? undefined : JSON.stringify(input);
   const stableInput = useMemo<ModelSelectionViewInput | undefined>(
     () => (inputKey === undefined ? undefined : (JSON.parse(inputKey) as ModelSelectionViewInput)),
@@ -179,8 +183,8 @@ export function useModelSelectionServiceView(
             return { kind: "superseded" };
           const error = cause instanceof Error ? cause : new Error(String(cause));
           logger.warn("[model-selection] 目标 Host View 读取失败", { error });
-          // 原因：保留旧 ready 不能吞掉新 revision 的失败，否则连接切换会永久等待。
-          // 失败与当前 service/input 及事件 revision 绑定；保留旧目录，成功重读清除回执。
+          // 保留旧 ready 不能吞掉重读失败，否则连接切换会永久等待。
+          // 失败与当前 service/input 及最近已读 revision 绑定；成功重读清除回执。
           if (hasReadyView) {
             setOwned((previous) =>
               previous.state.status === "ready"
@@ -210,24 +214,13 @@ export function useModelSelectionServiceView(
         },
       );
     };
-    // 原因：相同目录不会再发事件；显式重读与订阅读取共享请求序号，迟到旧失败不能覆盖重试。
-    // Web 目录只有读取能力，不能用不存在的事件建立订阅。
+    // 显式重读和自动首读共享请求序号，旧结果不能覆盖更新的读取。
     readRef.current = read;
-    const subscription = normalizedService.onDidChange?.((candidate) => {
-      if (generation !== generationRef.current) return;
-      if (stableInput === undefined) commit(candidate);
-      else {
-        // 公共事件没有某个调用者的原意图；只能用它触发当前输入重读，不能直接接管结果。
-        latestRevision = Math.max(latestRevision, candidate.revision);
-        void read().catch(() => {});
-      }
-    });
     void read().catch(() => {});
     return () => {
       generationRef.current += 1;
       if (readRef.current === read) readRef.current = null;
       cancelRetry();
-      subscription?.dispose();
     };
   }, [enabled, normalizedService, reloadVersion, unavailableReason, inputKey, stableInput]);
 

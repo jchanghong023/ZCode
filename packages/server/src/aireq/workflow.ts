@@ -1,10 +1,5 @@
 import { businessRule, businessFailureMessage } from "./errors.js";
-import type {
-  AIReqProposalMergeScenario,
-  AIReqReviewScenario,
-  InternalWorkflowAction,
-} from "./internal-scenarios.js";
-import type { RequirementGroup, WorkflowState } from "./workflow-state.js";
+import type { InternalWorkflowAction, RequirementGroup, WorkflowState } from "./workflow-state.js";
 import {
   proposalVersion,
   proposalState,
@@ -20,7 +15,6 @@ import {
   requirementsReviewCurrent,
 } from "@zcode/services/aireq";
 import {
-  closePrototypeProposalMr,
   prototypeProposalMaterialsIssue,
   validatePrototypeProposalPublication,
   observePrototypeProposalMr,
@@ -31,15 +25,16 @@ import {
   readPrototypeProposalPrHandoff,
 } from "./proposal-pr-handoff.js";
 import { createPrototypeEvent } from "./events.js";
-import { PROTOTYPE_REVIEW_SCENARIOS, PROTOTYPE_PROPOSAL_MERGE_SCENARIOS } from "./scenarios.js";
-
 import {
   projectNativeContext,
   projectDirectory,
   projectReceipt,
   projectReleases,
   projectRequirement,
+  projectRoleRegistration,
+  projectSessionRef,
   projectSummary,
+  projectSystemRequirement,
   readProjectWorkspace,
   readProjectWorkspaces,
 } from "./workflow-queries.js";
@@ -61,6 +56,7 @@ import { currentIdentity, getEmployeeId, isEmployeeId } from "./identity.js";
 import { readPrototypeProjectSetting, readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
 import type {
+  AIReqCommandTarget,
   AIReqMaterialReadRequest,
   AIReqNativeSessionRef,
   AIReqWorkflowResult,
@@ -87,7 +83,7 @@ const prototypeGit = createPrototypeGitDocumentSource(state);
 export const readPrototypeGitDocuments = prototypeGit.read;
 export const prototypeWorkflowChanges = createPrototypeEvent<void>();
 /** 同一个业务 owner 的事务入口：callback 失败或返回 false 时不发布任何修改。 */
-export function mutatePrototypeWorkflow(update: (next: WorkflowState) => void | boolean): void {
+function mutatePrototypeWorkflow(update: (next: WorkflowState) => void | boolean): void {
   const next = structuredClone(state);
   if (update(next) === false) return;
   next.revision += 1;
@@ -109,17 +105,19 @@ function schedulePrototypeReview(run: PrototypeReviewRun): void {
         current?.id !== run.reviewId ||
         current.snapshotDigest !== run.snapshotDigest ||
         !(full ? fullReviewCurrent(proposal) : requirementsReviewCurrent(proposal))
-      )
-        return false;
-      continueToSummary = advancePrototypeReview(current, run.scenario);
+      ) {
+        (proposal.rejectedReviewResults ??= []).push({
+          reviewId: run.reviewId,
+          at: new Date().toISOString(),
+          reason: "该评审结果对应的轮次或材料版本已过期，未采用",
+        });
+        return;
+      }
+      continueToSummary = advancePrototypeReview(current);
     });
     if (continueToSummary) schedulePrototypeReview(run);
   });
 }
-export function readPrototypeWorkflowState(): WorkflowState {
-  return structuredClone(state);
-}
-
 export function readPrototypeWorkflowRevision(): number {
   return state.revision;
 }
@@ -137,51 +135,6 @@ export function readPrototypeProjectWorkspace(projectId?: string) {
 export function readPrototypeProjectWorkspaces(): Record<string, AIReqWorkspace> {
   return readProjectWorkspaces();
 }
-export function setPrototypeProposalReviewScenario(
-  projectId: string,
-  irId: string,
-  kind: "original" | "full",
-  scenario: AIReqReviewScenario,
-): void {
-  if (
-    !["original", "full"].includes(kind) ||
-    !(PROTOTYPE_REVIEW_SCENARIOS as readonly string[]).includes(scenario)
-  )
-    throw businessRule("未知模拟评审场景。");
-  mutatePrototypeWorkflow((view) => {
-    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId);
-    if (!proposal) throw businessRule("需求提案不存在。");
-    const scenarios = (proposal.reviewScenarios ??= {});
-    scenarios[kind] = scenario;
-  });
-}
-export function releasePrototypeProposalReviewResults(projectId: string, irId: string): void {
-  mutatePrototypeWorkflow((view) => {
-    const proposal = view.drafts.find((item) => item.projectId === projectId && item.id === irId);
-    if (!proposal) throw businessRule("需求提案不存在。");
-    if (!proposal.heldReviews?.length) return false;
-    for (const held of proposal.heldReviews) {
-      const current = held.kind === "full" ? proposal.review : proposal.originalReview;
-      // A callback must refer to the same admitted round and still-current validated input.
-      if (
-        current?.id !== held.id ||
-        current.snapshotDigest !== held.snapshotDigest ||
-        !(held.kind === "full" ? fullReviewCurrent(proposal) : requirementsReviewCurrent(proposal))
-      ) {
-        proposal.rejectedReviewResults ??= [];
-        proposal.rejectedReviewResults.push({
-          reviewId: held.id,
-          at: new Date().toISOString(),
-          reason: "该评审结果对应的轮次或材料版本已过期，未采用",
-        });
-        continue;
-      }
-      if (advancePrototypeReview(current, "normal")) advancePrototypeReview(current, "normal");
-    }
-    proposal.heldReviews = [];
-  });
-}
-
 /** Settings writes call this synchronously before a command or merge poll can read the new target. */
 export function notifyPrototypeProjectSettingsChanged(): void {
   state.projects = readPrototypeProjectSettings().projects;
@@ -189,20 +142,7 @@ export function notifyPrototypeProjectSettingsChanged(): void {
   prototypeWorkflowChanges.fire();
 }
 
-export function setPrototypeProposalMergeScenario(
-  projectId: string,
-  irId: string,
-  scenario: AIReqProposalMergeScenario,
-): void {
-  const group = state.drafts.find((item) => item.projectId === projectId && item.id === irId);
-  if (!group || !proposalPrCurrent(group)) throw businessRule("请先创建当前候选的文档 MR。");
-  if (!(PROTOTYPE_PROPOSAL_MERGE_SCENARIOS as readonly string[]).includes(scenario))
-    throw businessRule("未知 MR 检查情景。");
-  group.proposalDelivery!.mergeScenario = scenario;
-  prototypeWorkflowChanges.fire();
-}
-
-/** 原型五秒轮询消费内部 MR 生命周期与显式外部场景，不连接真实 Git、PR API 或模型。 */
+/** 原型五秒轮询检查内部 MR 生命周期，不连接真实 Git、PR API 或模型。 */
 export function pollPrototypeProposalMerges(): void {
   let checked = false;
   // 转正替换 state.drafts 引用，不修改当前遍历的数组，因此无需复制快照。
@@ -214,22 +154,8 @@ export function pollPrototypeProposalMerges(): void {
     const now = Date.now();
     const at = new Date(now).toISOString();
     const nextCheckAt = new Date(now + 5000).toISOString();
-    const scenario = observePrototypeProposalMr(group, now);
-    if (scenario === "failed") {
-      delivery.mergeCheck = {
-        status: "failed",
-        checkedAt: at,
-        nextCheckAt,
-        message: "本轮合入检查失败，保留最后结果，下一轮定时重试。",
-      };
-      continue;
-    }
-    if (scenario === "mr-closed" && mr.status === "opened") {
-      delivery.mergeCheck = { status: "unmerged", checkedAt: at, message: "MR 已关闭且未合入。" };
-      closePrototypeProposalMr(group, `sample-proposal-${++state.revision}`);
-      continue;
-    }
-    if (scenario === "unmerged" || scenario === "mr-closed") {
+    const observation = observePrototypeProposalMr(group, now);
+    if (observation === "unmerged") {
       delivery.mergeCheck = {
         status: mr.status === "merged" ? "failed" : "unmerged",
         checkedAt: at,
@@ -248,9 +174,9 @@ export function pollPrototypeProposalMerges(): void {
     const project = state.projects.find((item) => item.id === group.projectId);
     const issue =
       prototypeProposalRepositoryIssue(group, project) ??
-      (scenario === "stale-version"
+      (observation === "stale-version"
         ? "合入证据对应旧版本，当前需求不能转正。"
-        : scenario === "incomplete"
+        : observation === "incomplete"
           ? "合入提交缺少当前候选的完整文件清单。"
           : prototypeProposalMaterialsIssue(state, group));
     if (issue) {
@@ -296,7 +222,7 @@ export function requireProjectRole(
     );
 }
 
-export function canSyncFormalDocuments(projectId: string | undefined): boolean {
+function canSyncFormalDocuments(projectId: string | undefined): boolean {
   return (
     hasProjectRole(state, projectId, getEmployeeId(), "development") ||
     hasProjectRole(state, projectId, getEmployeeId(), "testing")
@@ -318,8 +244,7 @@ function requireArchivedFormalGroup(target: { projectId: string; irId: string })
   const group = state.groups.find(
     (item) => item.projectId === target.projectId && item.id === target.irId,
   );
-  if (!group?.merge || !group.files.length)
-    throw businessRule("只有已归档的正式文档可以同步。");
+  if (!group?.merge || !group.files.length) throw businessRule("只有已归档的正式文档可以同步。");
   return group;
 }
 
@@ -354,15 +279,14 @@ export function getPrototypeWorkflow(
   for (const group of groups) irIds.add(group.id);
   for (const group of drafts) irIds.add(group.id);
   return {
-    version: state.version,
     revision: state.revision,
     documentFormats: state.documentFormats,
     ideas: state.ideas,
     roleAdministrator,
     roleRegistrations:
-      state.roleRegistrations?.filter(
-        (entry) => roleAdministrator || entry.employeeId === employeeId,
-      ) ?? [],
+      state.roleRegistrations
+        ?.filter((entry) => roleAdministrator || entry.employeeId === employeeId)
+        .map(projectRoleRegistration) ?? [],
     todos: deriveAIReqTodos(state).filter((todo) =>
       hasProjectRole(state, todo.projectId, employeeId, todo.assignmentPerspective),
     ),
@@ -370,14 +294,14 @@ export function getPrototypeWorkflow(
     releases: projectReleases(state, readPrototypeProjectReleases()),
     groups: groups.map(projectRequirement),
     drafts: drafts.map(projectRequirement),
-    srs: state.srs.filter((item) => item.projectId === projectId),
+    srs: state.srs.filter((item) => item.projectId === projectId).map(projectSystemRequirement),
     materials: state.materials
       .filter((item) => item.projectId === projectId)
       .map(readPrototypeMaterial),
-    sessions: state.sessions.filter(
-      (item) => item.projectId === projectId && !prototypeSessionReadIssue(item.sessionId),
-    ),
-    running: state.running.filter((item) => item.projectId === projectId),
+    sessions: state.sessions
+      .filter((item) => item.projectId === projectId && !prototypeSessionReadIssue(item.sessionId))
+      .map(projectSessionRef),
+    running: state.running.filter((item) => item.projectId === projectId).map(projectSessionRef),
     operations: state.operations
       .filter(
         (item) =>
@@ -430,11 +354,6 @@ export function resolvePrototypeSession(
     )
     .sort((a, b) => b.round - a.round)[0];
 }
-export function getPrototypeSession(
-  selection: AIReqWorkflowTarget = DEFAULT_SELECTION,
-): AIReqNativeSessionRef | undefined {
-  return resolvePrototypeSession(state, selection);
-}
 export function retryPrototypeWorkflowMaterial(request: AIReqMaterialReadRequest): boolean {
   const { projectId, releaseId, irId, path, sha256, round } = request;
   const belongs = (group: { id: string; projectId: string; releaseId: string }) =>
@@ -464,7 +383,7 @@ export function stagePrototypeNativeMaterials(
 /** Validate and commit a business command in the single workflow owner. */
 export function applyPrototypeAction(
   action: InternalWorkflowAction,
-  selection: AIReqWorkflowTarget,
+  selection: AIReqCommandTarget,
   stagedOutput?: NativeProposalOutput,
   request?: { operationId: string; gitSnapshot?: GitDocumentSnapshot },
 ): AIReqWorkflowResult {

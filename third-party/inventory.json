@@ -4,7 +4,7 @@
   "scope": "Production dependency union across the current Web workspace projects and copied source/assets; excludes retired Desktop, CLI and native-search release inputs; not a per-installer SBOM or a certification of all licensing obligations.",
   "noticesSha256": "655adabca19901b1cdb7634b102db5c363fa9cb4b69f66218c144dcb095a4c49",
   "inputs": {
-    "package.json": "46412277b0f7daa5f0cb45adfad5d69879afd343224690c40b25fb9053d74791",
+    "package.json": "402fbb606ada3de3c288c65aaa526539eb4db9de6db3486da5a83d4eb11ae24a",
     "packages/client/package.json": "17990b6fe0467dd4a0b5f24ba22acd891c9764ec56d9ce3e1fd1cd968c424698",
     "packages/model-option-map/package.json": "62a76bf12a234fb5e1b975f614edbb0907acdb9e8ad9183e94b2cb414b57354b",
     "packages/provider/package.json": "f1bce76f146e9b39ad7ae507fa7c31a6f133d0797d2650c59c030c6686ce9e1e",
@@ -88,7 +88,7 @@
     "patches/@radix-ui__react-menu@2.1.16.patch": "4b05eae73074149ac453ee047d9f48707df7d5c9ddedeab8d514f9b9fa097a6c",
     "patches/@uiw__react-markdown-preview@5.2.1.patch": "79d04ab069523aa06ca6a578a55abc0e21fb9799493aef2429500dcbf3c06466",
     "patches/vite@8.0.8.patch": "b601470892c4a2dc66aca580e81c6a3a43b3d121d07ad6d808012459357bc5af",
-    "pnpm-lock.yaml": "2e62f3d25d9ea51e2047b45dc43ef7d23c4d0eefc51df1cba098aa52a29d53fa",
+    "pnpm-lock.yaml": "f2eefff6447e6646f0f07f56dacb9b4d5138dead9e4d34e86f39fdfaa4753e62",
     "pnpm-workspace.yaml": "ca246df899133c0183e8978cb0ff751d080e9056df84d187f7bbca45fb136791",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "third-party/copied-components.json": "5e0dd7f5a5efdff7bc1820d2e573d95a48e286b2028ba70718536f421abf2b73",

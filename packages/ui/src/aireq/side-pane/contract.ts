@@ -1,9 +1,9 @@
-import type { AIReqSelection } from "../contract.js";
+import type { AIReqWorkflowTarget } from "../contract.js";
 
 export type AIReqSidePaneKind = "launcher" | "materials" | "history";
 export interface AIReqSidePaneRequest {
   kind: AIReqSidePaneKind;
-  selection: AIReqSelection;
+  selection: AIReqWorkflowTarget;
   releaseId: string;
   title: string;
 }
@@ -18,7 +18,7 @@ export interface AIReqSidePaneController {
   fullView: boolean;
   recentClosed: AIReqSidePaneTab[];
   open(target: AIReqSidePaneRequest, options?: { ifAbsent?: boolean }): void;
-  updateTab(id: string, selection: AIReqSelection, releaseId?: string): void;
+  updateTab(id: string, selection: AIReqWorkflowTarget, releaseId?: string): void;
   activate(id: string): void;
   close(id: string, options?: { others?: boolean }): void;
   closeAll(): void;

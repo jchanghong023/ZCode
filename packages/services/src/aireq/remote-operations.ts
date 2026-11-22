@@ -2,6 +2,7 @@ import type { AIReqPresenceSnapshot } from "./presence.js";
 import type { AIReqBackendView, AIReqDataSource } from "./data-source.js";
 import type {
   AIReqCommand,
+  AIReqAgentModel,
   AIReqAgentModelSettings,
   AIReqNativeSessionRef,
   AIReqMaterialReadRequest,
@@ -18,7 +19,12 @@ import type {
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 13;
+export const AIREQ_CONTRACT_VERSION = 16;
+export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId" | "srId">;
+export interface AIReqAgentModelInput {
+  defaultModel: string;
+  agents: Pick<AIReqAgentModel, "id" | "model" | "reasoning">[];
+}
 export interface AIReqRemoteWorkflow {
   view: AIReqWorkflowView;
   session?: AIReqNativeSessionRef;
@@ -39,13 +45,13 @@ export interface AIReqRemoteOperations {
   readWorkflow: Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
   command: Operation<
-    [action: AIReqCommand, target: AIReqWorkflowTarget, expectedRevision: number],
+    [action: AIReqCommand, target: AIReqCommandTarget, expectedRevision: number],
     AIReqWorkflowResult
   >;
   retryMaterial: Operation<[request: AIReqMaterialReadRequest], boolean>;
   retrySession: Operation<[target: AIReqWorkflowTarget, sessionId: string], null>;
   "projects.saveRepository": Operation<[input: AIReqRemoteRepositoryInput], null>;
-  "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
+  "models.save": Operation<[settings: AIReqAgentModelInput, expectedRevision: number], null>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
   "skillDesign.session": Operation<[projectId: string], AIReqSkillDesignSession>;
   "skillDesign.read": Operation<[sessionId: string], AIReqSkillDesignDraft>;

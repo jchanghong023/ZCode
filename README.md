@@ -51,7 +51,7 @@ PowerShell 先设置 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/di
 
 Bun 和 Vite 直接消费 workspace 源码。跨包导入使用包 manifest 的公开 `exports`，类型检查使用 `tsc -b`。升级补丁依赖时，同时核对根 manifest 的 `pnpm.patchedDependencies`、[补丁](patches)和[锁文件](pnpm-lock.yaml)。更换开发后端端口时同步调整 [Vite 代理](packages/web/vite.config.ts)。
 
-`bun run knip` 扫描所有工作区的 JS／TS 和应用静态资源（CSS、HTML、PNG、SVG、MP3、SQL），默认包含测试，不含 Git 忽略的构建产物和依赖。`bun run knip --files` 只看整文件候选。入口按实际启动、构建、公开包入口和工具调用确定；保留组件仍可出现在报告中，但不得据此删除。删除前还须核对动态路径、构建扫描、测试和公开契约。Markdown 文档和其他不参与模块引用图的文件不由 Knip 判定。包入口与浏览器边界由 `bun run architecture:check` 校验。
+`bun run knip` 扫描所有工作区的 JS／TS 和应用静态资源（CSS、HTML、PNG、SVG、MP3、SQL），默认包含测试，不含 Git 忽略的构建产物和依赖。`bun run knip --files` 只看整文件候选。[Knip 配置](knip.ts)按实际启动、构建、公开包入口和工具调用确定入口；保留组件仍可出现在报告中，但不得据此删除。删除前还须核对动态路径、构建扫描、测试和公开契约。Markdown 文档和其他不参与模块引用图的文件不由 Knip 判定。包入口与浏览器边界由 `bun run architecture:check` 校验。
 
 `bun run clean` 清理根目录与各包的 `dist`、`*.tsbuildinfo`；`bun run clean:deps` 额外清除对应的 `node_modules`。
 

@@ -3,12 +3,14 @@ import type {
   AIReqAction,
   AIReqAgentModelSettings,
   AIReqIdea,
+  AIReqRemoteArgs,
   AIReqRemoteBootstrap,
 } from "@zcode/services/aireq";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "../../packages/shared/src/userInstructions.js";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { createProject, createProposal } from "./business.js";
+import { openNative } from "./native.js";
 import {
   approveOriginalReview,
   commandAndRead,
@@ -35,6 +37,13 @@ function ideaByText(ideas: AIReqIdea[], text: string): AIReqIdea {
   return matching[0]!;
 }
 
+function modelWriteInput(settings: AIReqAgentModelSettings): AIReqRemoteArgs<"models.save">[0] {
+  return {
+    defaultModel: settings.defaultModel,
+    agents: settings.agents.map(({ id, model, reasoning }) => ({ id, model, reasoning })),
+  };
+}
+
 // Global configuration is shared. Restore only the exact revision written here;
 // a newer writer is a test conflict and must never be overwritten in cleanup.
 async function restoreModels(
@@ -48,7 +57,7 @@ async function restoreModels(
     throw new Error("模型配置在 ST 运行期间被其他操作者修改，拒绝覆盖其配置；需人工核对本次变更。");
   }
   expect(current.settings, "同版本模型内容也必须仍是本例写入值").toEqual(owned.settings);
-  await client.call("models.save", [original.settings, current.revision]);
+  await client.call("models.save", [modelWriteInput(original.settings), current.revision]);
   expect((await client.bootstrap()).models.settings).toEqual(original.settings);
 }
 async function restorePrompts(
@@ -80,9 +89,9 @@ describe("ST global ideas and configuration", () => {
         expect(created.receipt).not.toHaveProperty("identity");
         expect(created.receipt.actorEmployeeId).toBe(client.identity.employeeId);
         const { view } = await client.read();
-        expect(view.operations.find((item) => item.operationId === created.receipt.operationId)).toEqual(
-          created.receipt,
-        );
+        expect(
+          view.operations.find((item) => item.operationId === created.receipt.operationId),
+        ).toEqual(created.receipt);
         const first = ideaByText(view.ideas, text);
         expect(first.submittedBy).toBe(client.identity.employeeId);
         expect(Number.isFinite(Date.parse(first.createdAt))).toBe(true);
@@ -366,10 +375,10 @@ describe("ST global ideas and configuration", () => {
           if (event.type === "models") notified = true;
         });
         try {
-          await client.call("models.save", [shared, original.revision]);
+          await client.call("models.save", [modelWriteInput(shared), original.revision]);
           owned = (await client.bootstrap()).models;
           expect(owned.settings).toEqual(shared);
-          await client.call("models.save", [next, owned.revision]);
+          await client.call("models.save", [modelWriteInput(next), owned.revision]);
           // Bootstrap is the public post-commit verification and the only restore baseline.
           owned = (await client.bootstrap()).models;
           expect(owned.settings).toEqual(next);
@@ -380,25 +389,57 @@ describe("ST global ideas and configuration", () => {
             (metadata) => notified && metadata.models.revision === owned!.revision,
           );
           await expect(
-            client.call("models.save", [original.settings, original.revision]),
+            client.call("models.save", [modelWriteInput(original.settings), original.revision]),
           ).rejects.toThrow();
           await expect(
             client.call("models.save", [
-              { ...next, defaultModel: unique("不存在的模型") },
+              { ...modelWriteInput(next), defaultModel: unique("不存在的模型") },
               owned.revision,
             ]),
           ).rejects.toThrow();
+          const { defaultModel, agents } = original.settings;
+          for (const field of ["name", "nameEn", "description", "descriptionEn"] as const) {
+            await expect(
+              client.services.aiReqService.call(client.identity, "models.save", [
+                {
+                  defaultModel,
+                  agents: agents.map(({ id, model, reasoning, [field]: display }) => ({
+                    id,
+                    model,
+                    reasoning,
+                    [field]: display,
+                  })),
+                },
+                owned.revision,
+              ] as never),
+            ).rejects.toThrow("操作参数无效，请检查输入并重试。");
+          }
           expect((await client.bootstrap()).models).toEqual(owned);
           expect(
             owned.settings.agents.find((agent) => agent.id === "requirements-review-a"),
           ).toEqual(shared.agents.find((agent) => agent.id === "requirements-review-a"));
 
           const after = await createProposal(client);
-          expect(after.remote.session?.modelConfig).toMatchObject({
+          const requirementsAgent = next.agents.find((agent) => agent.id === "requirements")!;
+          expect(after.remote.session?.modelConfig).toEqual({
             role: "requirements",
+            roleName: requirementsAgent.name,
             modelKey: alternative.id,
+            modelName: alternative.name,
+            reasoning: requirementsAgent.reasoning,
             inherited: true,
+            promptSnapshot: expect.any(String),
           });
+          expect(after.remote.session).not.toHaveProperty("runtimeModel");
+          const native = await openNative(client, after.remote);
+          try {
+            expect((await native.snapshot()).config.modelSelection).toMatchObject({
+              options: { reasoningLevel: requirementsAgent.reasoning },
+              modelId: alternative.name,
+            });
+          } finally {
+            await native.close();
+          }
           expect((await client.read(before.selection)).session?.modelConfig).toEqual(
             originalBinding,
           );
@@ -410,6 +451,8 @@ describe("ST global ideas and configuration", () => {
             modelKey: reviewModel.id,
             inherited: false,
           });
+          expect(requirements.agents?.[0]?.session).not.toHaveProperty("runtimeModel");
+          expect(requirements.reviewer).not.toHaveProperty("runtimeModel");
           await approveOriginalReview(client, after);
           await completeSolutionMaterial(client, after);
           await submitReview(client, after, "full");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AIREQ_CONTRACT_VERSION, AIREQ_WORKFLOW_VERSION, IAIReqService } from "@zcode/services/aireq";
+import { AIREQ_CONTRACT_VERSION, IAIReqService } from "@zcode/services/aireq";
 import { connectST, stFetch, unique, waitUntil, wsUrl } from "./client.js";
 import { config } from "./config.js";
 
@@ -48,12 +48,15 @@ describe("ST service readiness and connection boundary", () => {
           "repositoryHeads",
           "projectDocuments",
           "availableReleases",
+          "version",
         ]) {
           expect(remote.view).not.toHaveProperty(field);
         }
         expect(remote.view).not.toHaveProperty("ompWebId");
         expect(remote.view).not.toHaveProperty("changes");
-        expect(remote.view.version).toBe(AIREQ_WORKFLOW_VERSION);
+        expect(Number.isSafeInteger(remote.view.revision)).toBe(true);
+        for (const sr of remote.view.srs) expect(sr).not.toHaveProperty("dependencySrIds");
+        for (const receipt of remote.view.operations) expect(receipt).not.toHaveProperty("srId");
         expect(remote.view.projects).toEqual(expect.any(Array));
         expect(remote.view.releases).toEqual(expect.any(Array));
         expect(remote.workspace.identity.trim()).not.toBe("");
@@ -93,6 +96,17 @@ describe("ST service readiness and connection boundary", () => {
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
         const revision = (await c.read()).view.revision;
+        const navigationTargetAction = {
+          type: "createIdea",
+          operationId: unique("legacy-navigation"),
+          originalText: unique("rejected-idea"),
+        };
+        const navigationTargets = [
+          { formalView: "detail" },
+          { reviewAgent: "a" },
+          { proposalStep: "requirements" },
+          { discussionPhase: "requirements" },
+        ];
         const legacyRequests = [
           ["readWorkflow", [{ materialPath: "requirements.md" }]],
           ["readWorkflow", [{ proposalDraftId: "local-draft" }]],
@@ -110,6 +124,10 @@ describe("ST service readiness and connection boundary", () => {
               revision + 1,
             ],
           ],
+          ...navigationTargets.map((target) => [
+            "command",
+            [navigationTargetAction, target, revision],
+          ]),
         ];
         for (const [path, args] of legacyRequests) {
           await expect(
@@ -118,7 +136,18 @@ describe("ST service readiness and connection boundary", () => {
         }
         // 拒绝后连接仍能读取正式契约，不以 socket open 代替 RPC 可用性。
         expect((await c.bootstrap()).contractVersion).toBe(AIREQ_CONTRACT_VERSION);
-        expect((await c.read()).view.version).toBe(AIREQ_WORKFLOW_VERSION);
+        const { view } = await c.read();
+        expect(view.revision).toBe(revision);
+        expect(
+          view.ideas.some(
+            ({ originalText }) => originalText === navigationTargetAction.originalText,
+          ),
+        ).toBe(false);
+        expect(
+          view.operations.some(
+            ({ operationId }) => operationId === navigationTargetAction.operationId,
+          ),
+        ).toBe(false);
       } finally {
         await c.close();
       }
@@ -168,8 +197,7 @@ describe("ST service readiness and connection boundary", () => {
       const c = await connectST();
       let outcome: "pending" | "read" | "closed" = "pending";
       const read = c.read().then(
-        (remote) => {
-          expect(remote.view.version).toBe(AIREQ_WORKFLOW_VERSION);
+        () => {
           outcome = "read";
         },
         (error: unknown) => {

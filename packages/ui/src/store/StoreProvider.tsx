@@ -14,7 +14,7 @@ import {
 } from "react";
 import { useStore } from "zustand";
 import type { UserInfo } from "@zcode/shared";
-import type { IBroadcastService } from "@zcode/services";
+import type { WebBroadcastService } from "@zcode/services";
 import { createZCodeStore, type ZCodeStore, type ZCodeState } from "./index.js";
 
 // 导出 Context 供测试直接注入已构造的 store 实例（如跨窗口广播抑制用例）。
@@ -25,7 +25,7 @@ export function StoreProvider({
   initialUser = null,
   children,
 }: {
-  broadcastService: IBroadcastService;
+  broadcastService: WebBroadcastService;
   initialUser?: UserInfo | null;
   children: ReactNode;
 }) {

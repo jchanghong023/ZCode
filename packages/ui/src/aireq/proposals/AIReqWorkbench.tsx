@@ -39,13 +39,7 @@ export function AIReqMaterialsPane() {
   const { selection, releaseId } = aireq;
   return (
     <AIReqMaterialsReader
-      key={JSON.stringify([
-        selection.projectId,
-        releaseId,
-        selection.irId,
-        selection.srId,
-        selection.materialPath,
-      ])}
+      key={JSON.stringify([selection.projectId, releaseId, selection.irId, selection.srId])}
       aireq={aireq}
     />
   );
@@ -87,7 +81,6 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   } = readMaterialSelection(group, view?.materials ?? [], currentRows, {
     path,
     historyIndex,
-    materialPath: selection.materialPath,
     srId: selection.srId,
     preferDesign: proposalSolutionView,
   });

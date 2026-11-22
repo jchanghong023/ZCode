@@ -20,7 +20,6 @@ export function readMaterialSelection(
   currentRows: NonNullable<AIReqMaterialHistory["srs"]>,
   options: {
     path?: string;
-    materialPath?: string;
     srId?: string;
     historyIndex?: number;
     preferDesign?: boolean;
@@ -39,7 +38,6 @@ export function readMaterialSelection(
   let material = selected;
   if (!material) {
     for (const path of [
-      options.materialPath,
       rows?.find((item) => item.id === options.srId)?.documentPath,
       viewingHistory || options.preferDesign ? design?.path : undefined,
       viewingHistory ? historical?.documentPath : group?.documentPath,

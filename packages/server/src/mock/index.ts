@@ -7,7 +7,6 @@ import {
   IFileService,
   IProjectService,
   IZCodeAgentService,
-  type WebProjectService,
 } from "@zcode/services";
 import { MockBroadcastService } from "./broadcast.js";
 import { registerModelSelectionMockService } from "./domains/models.js";
@@ -47,7 +46,7 @@ export function createMockServices(options: MockServicesOptions): {
   const aiReqService = new MockAIReqService(options.readGitDocuments) satisfies AIReqNativeBridge;
   services.register(IAIReqService, aiReqService.remote);
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
-  services.register<WebProjectService>(IProjectService, new MockProjectService(runtime));
+  services.register(IProjectService, new MockProjectService(runtime));
 
   return { services, runtime };
 }

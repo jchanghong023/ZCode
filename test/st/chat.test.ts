@@ -4,10 +4,9 @@ import { expect, it } from "vitest";
 import { IAIReqService, IZCodeAgentService } from "@zcode/services";
 import {
   PROTOCOL_V4_LIMITS,
-  commandAckSchema,
   conversationTopicWireFrameSchema,
   measureTopicNotificationEnvelopeBytes,
-  webCommandsQueryResultSchema,
+  webCommandAckSchema,
   type CommandKey,
   type ConversationTopicWireFrame,
   type ModelSelection,
@@ -65,11 +64,13 @@ async function createChatSession(
   text?: string,
   modelSelection?: ModelSelection,
 ) {
-  const ack = commandAckSchema.parse(
-    await client.services.zcodeAgentService.sendConversationCommandV4(
-      chatCreateRequest(client, workspacePath, text, modelSelection),
-    ),
-  );
+  const ack = webCommandAckSchema
+    .strict()
+    .parse(
+      await client.services.zcodeAgentService.sendConversationCommandV4(
+        chatCreateRequest(client, workspacePath, text, modelSelection),
+      ),
+    );
   requireAccepted(ack);
   if (ack.result?.type !== "createSession") throw new Error("ST 未收到创建会话结果");
   return { workspacePath, sessionId: ack.result.sessionId };
@@ -91,17 +92,21 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
 
     const recentBefore = await service.listRecentChatSessions();
     requireRejected(
-      commandAckSchema.parse(
-        await service.sendConversationCommandV4(
-          chatCreateRequest(client, workspacePath, `/skill:${unique("unknown-first")}`),
+      webCommandAckSchema
+        .strict()
+        .parse(
+          await service.sendConversationCommandV4(
+            chatCreateRequest(client, workspacePath, `/skill:${unique("unknown-first")}`),
+          ),
         ),
-      ),
     );
     expect(await service.listRecentChatSessions()).toEqual(recentBefore);
 
     const firstText = `/${skill!.name} 核对浏览器使用说明`;
     const request = chatCreateRequest(client, workspacePath, firstText);
-    const createAck = commandAckSchema.parse(await service.sendConversationCommandV4(request));
+    const createAck = webCommandAckSchema
+      .strict()
+      .parse(await service.sendConversationCommandV4(request));
     requireAccepted(createAck);
     if (createAck.result?.type !== "createSession") throw new Error("ST 未收到创建会话回执");
     const { sessionId } = createAck.result;
@@ -112,7 +117,7 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
     const secondId = unique("chat-continue");
     const sendAck = await native.send("sendText", { text: secondText }, { commandId: secondId });
     requireAccepted(sendAck);
-    await native.waitIdle();
+    expectNativeTurnWork(native, await native.waitIdle(), secondId);
     await native.close();
     native = undefined;
     await client.close();
@@ -122,42 +127,45 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
     await initializeNative(resumed, reconnected.clientId);
     const firstKey = { sessionId: null, commandId: request.envelope.commandId };
     const directoryRequest = chatCreateRequest(reconnected, "docs", "核对另一个工作目录的回执");
-    const directoryAck = commandAckSchema.parse(
-      await resumed.sendConversationCommandV4(directoryRequest),
-    );
+    const directoryAck = webCommandAckSchema
+      .strict()
+      .parse(await resumed.sendConversationCommandV4(directoryRequest));
     requireAccepted(directoryAck);
     const directoryKey = { sessionId: null, commandId: directoryRequest.envelope.commandId };
-    const directoryReceipt = webCommandsQueryResultSchema.parse(
+    expect(
       await resumed.queryConversationCommandsV4({
         workspacePath: directoryRequest.workspacePath,
         commands: [directoryKey, firstKey],
       }),
-    );
-    expect(directoryReceipt.results).toEqual([
-      { key: directoryKey, result: directoryAck },
-      { key: firstKey, result: "unknown" },
-    ]);
+    ).toStrictEqual({
+      results: [
+        { key: directoryKey, result: directoryAck },
+        { key: firstKey, result: "unknown" },
+      ],
+    });
     const secondKey = { sessionId, commandId: secondId };
     const wrongBucket = { sessionId, commandId: request.envelope.commandId };
     const commands: CommandKey[] = [firstKey, secondKey, wrongBucket];
-    const receipt = webCommandsQueryResultSchema.parse(
-      await resumed.queryConversationCommandsV4({ workspacePath, commands }),
-    );
-    expect(receipt.results).toEqual([
-      expect.objectContaining({ key: firstKey, result: createAck }),
-      expect.objectContaining({ key: secondKey, result: sendAck }),
-      expect.objectContaining({ key: wrongBucket, result: "unknown" }),
-    ]);
-    expect(
-      await reconnected.probeRpc(
-        "call",
-        IZCodeAgentService.channelName,
-        "queryConversationCommandsV4",
-        [{ workspacePath, commands: [firstKey], clock: true }],
-      ),
-    ).toMatchObject({ code: "INVALID_ARGUMENT" });
+    expect(await resumed.queryConversationCommandsV4({ workspacePath, commands })).toStrictEqual({
+      results: [
+        { key: firstKey, result: createAck },
+        { key: secondKey, result: sendAck },
+        { key: wrongBucket, result: "unknown" },
+      ],
+    });
+    for (const extra of [{ clock: true }, { remoteSessionId: sessionId }]) {
+      expect(
+        await reconnected.probeRpc(
+          "call",
+          IZCodeAgentService.channelName,
+          "queryConversationCommandsV4",
+          [{ workspacePath, commands: [firstKey], ...extra }],
+        ),
+      ).toMatchObject({ code: "INVALID_ARGUMENT" });
+    }
     const rows = await resumed.conversationRowsRangeV4({ ...target, limit: 60 });
-    expect(rows.rows.filter((row) => row.kind === "userInput")).toEqual([
+    const inputs = rows.rows.filter((row) => row.kind === "userInput");
+    expect(inputs).toEqual([
       expect.objectContaining({
         text: firstText,
         clientId: client.clientId,
@@ -169,6 +177,23 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
         sourceCommandId: secondId,
       }),
     ]);
+    for (const input of inputs) {
+      const turnRows = rows.rows.filter((row) => row.turnId === input.turnId);
+      expect(turnRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "turnHeader",
+            sourceCommandId: input.sourceCommandId,
+            state: "completedSuccess",
+          }),
+          expect.objectContaining({
+            kind: "assistantText",
+            state: "complete",
+            text: expect.stringMatching(/\S/),
+          }),
+        ]),
+      );
+    }
     const catalog = await readNativeCommandCatalog(resumed, target);
     expect(catalog).toContainEqual(skill);
     native = await openNativeSession(resumed, reconnected.clientId, sessionId, target);
@@ -191,9 +216,7 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
       if (read.status === "rejected") {
         expect(read.error).toBeInstanceOf(Error);
       } else {
-        expect(webCommandsQueryResultSchema.parse(read.value).results).toEqual([
-          { key, result: "unknown" },
-        ]);
+        expect(read.value).toStrictEqual({ results: [{ key, result: "unknown" }] });
       }
     }
     expect(await readNativeCommandCatalog(otherService, target)).toContainEqual(skill);
@@ -592,7 +615,9 @@ it("fragments online and snapshot payloads without publishing snapshots to other
     await initializeNative(service, client.clientId);
     const target = await createChatSession(client, ".");
     const workspace = { workspacePath: target.workspacePath };
-    firstListener = service.onDynamicConversationFrame(workspace)((frame) => firstWires.push(frame));
+    firstListener = service.onDynamicConversationFrame(workspace)((frame) =>
+      firstWires.push(frame),
+    );
     first = await openNativeSession(service, client.clientId, target.sessionId, target);
     const text = '界🙂"\n'.repeat(120_000);
     await sendAndWaitChatTurn(first, text);

@@ -1,4 +1,3 @@
-import type { Event } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared/channels";
 import {
   type ModelSelectionView,
@@ -22,11 +21,6 @@ export interface IProviderSettingsService {
 export const IProviderSettingsService = createServiceDescriptor<IProviderSettingsService>(
   ServiceChannels.ProviderSettings,
 );
-
-export interface IModelSelectionService {
-  readonly onDidChange?: Event<ModelSelectionView>;
-  getView(input?: ModelSelectionViewInput): Promise<ModelSelectionView>;
-}
 
 type ModelSelectionProvider = ModelSelectionView["providers"][number];
 type ModelSelectionModel = ModelSelectionProvider["models"][number];
@@ -73,10 +67,10 @@ export interface WebModelSelectionService {
   getView(input?: ModelSelectionViewInput): Promise<WebModelSelectionView>;
 }
 
-export const WEB_MODEL_SELECTION_METHODS = ["getView"] as const satisfies readonly (
-  keyof WebModelSelectionService
-)[];
+export const WEB_MODEL_SELECTION_METHODS = [
+  "getView",
+] as const satisfies readonly (keyof WebModelSelectionService)[];
 
-export const IModelSelectionService = createServiceDescriptor<IModelSelectionService>(
+export const IModelSelectionService = createServiceDescriptor<WebModelSelectionService>(
   ServiceChannels.ModelSelection,
 );

@@ -1,4 +1,4 @@
-// 项目数据彻底删除的端口与结果类型；IProjectService 的两条数据命令使用这些类型。
+// 项目存储内部使用的数据清理端口与结果类型，不属于 Web Project RPC。
 
 /**
  * 彻底删除数据的一个会话：sessionId 即任务 ID；workspacePath 是会话的归属 workspace，

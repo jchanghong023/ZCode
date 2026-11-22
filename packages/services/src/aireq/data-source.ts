@@ -1,7 +1,7 @@
 import type { AIReqPresenceSnapshot } from "./presence.js";
 import type {
   AIReqAction,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqWorkflowView,
   AIReqWorkflowResult,
   AIReqNativeSessionRef,
@@ -22,17 +22,6 @@ export interface AIReqBackendView {
   /** Opaque backend identity used to isolate browser preferences. */
   id: string;
 }
-
-export interface AIReqDirectory {
-  path: string;
-  name: string;
-  git: boolean;
-  branch: string;
-  repositoryRoot?: string;
-}
-export type AIReqDirectoryCheck =
-  | { valid: false; error: string }
-  | { valid: true; root: string; directory: AIReqDirectory };
 
 export interface AIReqProjectServices {
   saveRepository?(input: AIReqRemoteRepositoryInput): Promise<void>;
@@ -83,21 +72,21 @@ export interface AIReqDataSource {
   };
   initialProjectId?: string;
   refreshIdentity?(): Promise<void>;
-  readWorkflow(selection: AIReqSelection): Promise<AIReqWorkflowView>;
+  readWorkflow(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
   readPrHandoff(target: { projectId: string; irId: string }): Promise<AIReqPrHandoff>;
   subscribeWorkflow(listener: () => void): () => void;
   command(
     action: AIReqAction,
-    selection: AIReqSelection,
+    target: AIReqWorkflowTarget,
     revision: number,
   ): Promise<AIReqWorkflowResult>;
   resolveSession(
     view: AIReqWorkflowView,
-    selection: AIReqSelection,
+    target: AIReqWorkflowTarget,
   ): AIReqNativeSessionRef | undefined;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
-  retrySession(selection: AIReqSelection, sessionId: string): Promise<void>;
-  resolveWorkspace(view: AIReqWorkflowView | undefined, selection: AIReqSelection): AIReqWorkspace;
+  retrySession(target: AIReqWorkflowTarget, sessionId: string): Promise<void>;
+  resolveWorkspace(view: AIReqWorkflowView | undefined, target: AIReqWorkflowTarget): AIReqWorkspace;
   dispose(): void | Promise<void>;
   projects?: AIReqProjectServices;
   models?: AIReqModelServices;

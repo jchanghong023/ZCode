@@ -188,7 +188,7 @@ function setupAIReqChannelServer(
 ) {
   const overrides = getConnectionServices(services, identity);
   // 项目读取复用 AIReq 的可信连接身份，防止 mention 投影越权读取他人的私有会话。
-  const project = services.get<WebProjectService>(IProjectService);
+  const project = services.get(IProjectService);
   const connectionIdentity = Object.freeze(validateAIReqIdentity(identity));
   const connectionProject: WebProjectService = {
     resolveSessionDirectories: (request, ...extra: unknown[]) => {
@@ -198,7 +198,9 @@ function setupAIReqChannelServer(
           publicMessage: true,
         });
       }
-      return withAIReqIdentity(connectionIdentity, () => project.resolveSessionDirectories(request));
+      return withAIReqIdentity(connectionIdentity, () =>
+        project.resolveSessionDirectories(request),
+      );
     },
     readTree: (...args: unknown[]) => {
       if (args.length !== 0) {
@@ -220,11 +222,20 @@ function setupAIReqChannelServer(
     if (!closed && source !== sourceWindowId) incoming.fire({ channel, payload });
   });
   const connectionBroadcast: WebBroadcastService = {
-    send: (message) => {
+    send: (message, ...extra: unknown[]) => {
       if (closed) return Promise.reject(new Error("广播连接已关闭。"));
-      if ("sourceWindowId" in message) {
+      if (
+        extra.length !== 0 ||
+        typeof message !== "object" ||
+        message === null ||
+        Object.getPrototypeOf(message) !== Object.prototype ||
+        Reflect.ownKeys(message).length !== 2 ||
+        !Object.hasOwn(message, "channel") ||
+        typeof message.channel !== "string" ||
+        !Object.hasOwn(message, "payload")
+      ) {
         return Promise.reject(
-          Object.assign(new Error("Web 广播不接收窗口来源 ID。"), {
+          Object.assign(new Error("Web 广播只接收一个包含 channel 和 payload 的消息对象。"), {
             code: "INVALID_ARGUMENT",
             publicMessage: true,
           }),

@@ -98,22 +98,11 @@ export function useDraftModelReadinessGate(params: {
 
     commitStatus("checking");
     let disposed = false;
-    let registryEventVersion = 0;
-    const applyStatus = (status: DraftModelReadinessStatus) => {
-      if (disposed) return;
-      commitStatus(status);
-    };
-    const subscription = modelSelectionService.onDidChange?.((view) => {
-      registryEventVersion += 1;
-      applyStatus(resolveModelSelectionReadinessStatus(view));
-    });
-    const initialReadVersion = registryEventVersion;
+    // Web 目录只支持读取；首发仍会显式重读，避免沿用首读的可用性。
     void modelSelectionService
       .getView()
       .then((view) => {
-        // 读取在变更事件之前发起、之后才返回时，事件快照更新；禁止旧读取覆盖新状态。
-        if (registryEventVersion !== initialReadVersion) return;
-        applyStatus(resolveModelSelectionReadinessStatus(view));
+        if (!disposed) commitStatus(resolveModelSelectionReadinessStatus(view));
       })
       .catch((error) => {
         handleReadinessFailure(error);
@@ -132,7 +121,6 @@ export function useDraftModelReadinessGate(params: {
 
     return () => {
       disposed = true;
-      subscription?.dispose();
     };
   }, [commitStatus, enabled, modelSelectionService, workspaceKey]);
 

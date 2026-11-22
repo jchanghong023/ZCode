@@ -1,12 +1,4 @@
-import {
-  fullReviewCurrent,
-  fullReviewReadyBlocker,
-  proposalDeliveryCurrent,
-  proposalReviewCanRetry,
-  proposalState,
-  requirementsReviewCurrent,
-  requirementsReviewReadyBlocker,
-} from "./domain.js";
+import { proposalState } from "./domain.js";
 import type { AIReqOperationReceipt, AIReqProposalState, AIReqRequirementGroup } from "./types.js";
 
 export const PROPOSAL_STATE_OPTIONS = [
@@ -57,46 +49,12 @@ export function proposalStateLabel(
   return option ? (locale === "en-US" ? option.titleEn : option.title) : "";
 }
 
-/** 等待并非错误；只有当前交付的失败事实需要额外提示。 */
-export function proposalNeedsAttention(group: AIReqRequirementGroup): boolean {
-  const delivery = group.proposalDelivery;
-  if (!delivery || !proposalDeliveryCurrent(group) || !proposalState(group)) return false;
-  const status = delivery.mergeCheck?.status;
-  return Boolean(delivery.publishError) || status === "failed" || status === "incomplete";
-}
-
-/** 状态以外的执行或阻断提示，不另建业务阶段，也不沿用失效评审。 */
-export function proposalProcessingHint(group: AIReqRequirementGroup): string {
-  const state = proposalState(group);
-  if (!state) return "";
-  if (group.returnFeedback && !group.returnFeedback.resumedAt) return "待业务补充退回意见";
-  const issue = (state === "not-started" ? group.requirementsCheck : group.solutionCheck)
-    ?.issues[0];
-  if (issue) return `${issue.path}：${issue.reason}`;
-  if (proposalNeedsAttention(group)) return "交付失败或材料不完整，需要处理";
-  const original = state === "ir-review-pending" || state === "ir-confirmation-pending";
-  const review = original ? group.originalReview : group.review;
-  const current = original ? requirementsReviewCurrent(group) : fullReviewCurrent(group);
-  if (proposalReviewCanRetry(group, !original)) return "评审执行失败或报告缺失，请处理后重试";
-  if (current && review?.agents?.some((agent) => ["running", "pending"].includes(agent.status)))
-    return "评审执行中";
-  if (state === "ir-review-pending" && group.originalReview)
-    return requirementsReviewReadyBlocker(group) ?? "";
-  if (state === "solution-review-pending" && group.review)
-    return fullReviewReadyBlocker(group) ?? "";
-  return "";
-}
-
-export function proposalCreatedTime(group: AIReqRequirementGroup): number {
-  return Date.parse(group.createdAt) || 0;
-}
-
 /** Only recorded workflow facts contribute; viewing a proposal never updates its order. */
 export function proposalUpdatedTime(
   group: AIReqRequirementGroup,
   operations: AIReqOperationReceipt[],
 ): number {
-  let latest = proposalCreatedTime(group);
+  let latest = Date.parse(group.createdAt) || 0;
   const include = (value?: string) => {
     if (value) latest = Math.max(latest, Date.parse(value) || 0);
   };
@@ -106,10 +64,6 @@ export function proposalUpdatedTime(
   for (const review of group.originalReviewHistory ?? []) include(review.createdAt);
   include(group.review?.createdAt);
   for (const review of group.reviewHistory ?? []) include(review.createdAt);
-  for (const decision of group.requirementsDecisions ?? []) {
-    include(decision.createdAt);
-    include(decision.review.createdAt);
-  }
   for (const supplement of group.requirementSupplements ?? []) include(supplement.createdAt);
   include(group.returnFeedback?.returnedAt);
   include(group.returnFeedback?.resumedAt);

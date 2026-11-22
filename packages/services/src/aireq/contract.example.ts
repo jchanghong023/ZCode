@@ -1,5 +1,5 @@
 import type { IAIReqService } from "./contract.js";
-import type { AIReqIdentity, AIReqWorkflowTarget } from "./types.js";
+import type { AIReqIdentity } from "./types.js";
 
 /** Reconnect reads facts and all-project document counts in one call; it never repeats a mutation. */
 export async function readAIReqProject(service: IAIReqService, identity: AIReqIdentity) {
@@ -20,7 +20,7 @@ export function subscribeAIReqProjection(service: IAIReqService, invalidate: () 
 export function createAIReqProposal(
   service: IAIReqService,
   identity: AIReqIdentity,
-  target: AIReqWorkflowTarget,
+  projectId: string,
   releaseId: string,
   originalText: string,
   operationId: string,
@@ -29,12 +29,12 @@ export function createAIReqProposal(
   return service.call(identity, "command", [
     {
       type: "createProposal",
-      projectId: target.projectId,
+      projectId,
       releaseId,
       originalText,
       operationId,
     },
-    target,
+    {},
     expectedRevision,
   ]);
 }

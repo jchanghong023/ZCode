@@ -1,11 +1,7 @@
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared/channels";
-import type {
-  ZCodeSkillsReferenceCatalogResult,
-  ZCodeSessionSubagentsResult,
-  ZCodeTaskClientMode,
-} from "@zcode/shared";
+import type { ZCodeSkillsReferenceCatalogResult, ZCodeTaskClientMode } from "@zcode/shared";
 import type {
   ClientHello,
   CommandAck,
@@ -20,8 +16,6 @@ import type {
   V4AttachmentChunkResult,
   V4AttachmentCommitResult,
   V4AttachmentReadResult,
-  V4ConnectionFlowState,
-  V4ConversationPlansResult,
   V4ConversationRowsRangeResult,
   V4ConversationResyncResult,
   V4ConversationSubscribeResult,
@@ -67,13 +61,6 @@ export interface ZCodeAgentRuntimeLifecycleEvent extends ZCodeAgentWorkspaceTarg
   state: "available" | "unavailable";
 }
 
-export interface ZCodeAgentListSessionSubagentsParams extends ZCodeAgentSessionTarget {
-  endedCursor?: string;
-  endedLimit?: number;
-  /** 远程 workspace 的宿主连接身份；只用于选择现有 Host，不进入 CLI wire query。 */
-  remoteSessionId?: string;
-}
-
 // ── v4 conversation 通道（竖切）──
 // host 只做转发：subscribe/unsubscribe/command 透传给 CLI v4 gateway，
 // v4/conversation/frame 通知按 workspace fan-out 给 renderer。
@@ -112,9 +99,6 @@ export interface ZCodeAgentConversationRowsRangeParams extends ZCodeAgentSession
 
 /** Channel RPC 分页只公开用于展示和一致性检查的字段。 */
 export type ZCodeAgentConversationRowsRangeResult = Omit<V4ConversationRowsRangeResult, "atSeq">;
-
-/** 当前有效分支里的终态 ExitPlanMode 目录。 */
-export type ZCodeAgentConversationPlansParams = ZCodeAgentSessionTarget;
 
 /**
  * Host 进程内的受管 worktree 服务发送命令时设置的标记。只有带此标记的命令可以携带
@@ -171,16 +155,6 @@ export interface ZCodeAgentAttachmentReadParams extends ZCodeAgentSessionTarget 
   limit: number;
 }
 
-/** host scope 内部 transport 控制面；connectionId 只能经 trusted carrier 注入。 */
-export interface ZCodeAgentConnectionFlowParams extends ZCodeAgentWorkspaceTarget {
-  state: V4ConnectionFlowState;
-}
-
-export interface ZCodeAgentAppRuntimePreferences {
-  askUserQuestionAutoResolutionEnabled: boolean;
-  modelIoFullRetentionEnabled?: boolean;
-}
-
 export interface RecentChatSession extends Pick<
   ZCodeAgentSessionTarget,
   "sessionId" | "workspacePath" | "workspaceIdentity"
@@ -195,18 +169,6 @@ export interface RecentChatDirectory {
 export interface IZCodeAgentService {
   /** 独立聊天连接中有历史的最近目录与会话，各取前五。 */
   listRecentChatSessions?(): Promise<RecentChatDirectory[]>;
-  /**
-   * 同步 App 全局运行时偏好到所有已活动 workspace；不得为此启动空闲 Agent。
-   */
-  syncAppRuntimePreferences?(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
-  listSessionSubagents?(
-    params: ZCodeAgentListSessionSubagentsParams,
-  ): Promise<ZCodeSessionSubagentsResult>;
-  /**
-   * 该 workspace 的 CLI 是否在 runtime/capabilities 中声明 conversationQuoteComment。
-   * renderer 据此决定是否提供选区“批注”入口；未实现（旧 Host / 远端）按不支持处理。
-   */
-  supportsConversationQuoteComment?(target: ZCodeAgentWorkspaceTarget): Promise<boolean>;
   /** Composer Skill 引用 catalog；带 sessionId 时读取该 runtime 的冻结快照。 */
   getSkillReferenceCatalog(
     params: ZCodeAgentSkillReferenceCatalogParams,
@@ -220,8 +182,6 @@ export interface IZCodeAgentService {
   helloConversationV4(): Promise<HelloMessage>;
   /** hello 校验后回送 clientHello；metadata 不能覆盖 connection mode/profile。 */
   initializeConversationV4(clientHello: ClientHello): Promise<void>;
-  /** 仅供 trusted host relay/facade；terminal RPC caller 必须被 connection scope 拒绝。 */
-  setConnectionFlowStateV4(params: ZCodeAgentConnectionFlowParams): Promise<void>;
   subscribeConversationV4(
     params: ZCodeAgentConversationSubscribeParams,
   ): Promise<V4ConversationSubscribeResult>;
@@ -233,9 +193,6 @@ export interface IZCodeAgentService {
   conversationRowsRangeV4(
     params: ZCodeAgentConversationRowsRangeParams,
   ): Promise<ZCodeAgentConversationRowsRangeResult>;
-  conversationPlansV4?(
-    params: ZCodeAgentConversationPlansParams,
-  ): Promise<V4ConversationPlansResult>;
   sendConversationCommandV4(params: ZCodeAgentConversationCommandParams): Promise<CommandAck>;
   queryConversationCommandsV4(params: ZCodeAgentCommandsQueryParams): Promise<CommandsQueryResult>;
   attachmentBeginV4(
@@ -250,13 +207,6 @@ export interface IZCodeAgentService {
   attachmentReadV4(
     params: ZCodeAgentAttachmentReadParams,
   ): Promise<Omit<V4AttachmentReadResult, "nextOffset">>;
-  getSessionLifecycle?(
-    params: ZCodeAgentSessionTarget,
-  ): Promise<import("@zcode/shared").SessionLifecycleSnapshot | null>;
-  /** 独立于可被释放的 conversation publisher 的生命周期事实。 */
-  onDynamicSessionLifecycle?(
-    params: ZCodeAgentWorkspaceTarget,
-  ): Event<import("@zcode/shared").SessionLifecycleSnapshot>;
   /** workspace 级下行帧流（v4/conversation/frame），renderer 侧按 topic 自行路由。 */
   onDynamicConversationFrame(
     params: ZCodeAgentWorkspaceTarget,
@@ -274,10 +224,6 @@ export interface IZCodeAgentService {
   onAgentRuntimeLifecycle?: (
     listener: (event: ZCodeAgentRuntimeLifecycleEvent) => void,
   ) => IDisposable;
-  disposeWorkspace(
-    params: ZCodeAgentWorkspaceTarget & { releasePreparation?: boolean },
-  ): Promise<void>;
-  disposeAll(): void;
 }
 
 const WEB_CONVERSATION_METHODS = [

@@ -1,5 +1,10 @@
-import type { AIReqReviewScenario } from "./internal-scenarios.js";
-import type { RequirementGroup, Review, WorkflowState } from "./workflow-state.js";
+import type {
+  NativeSessionRef,
+  RequirementGroup,
+  Review,
+  ReviewAgent,
+  WorkflowState,
+} from "./workflow-state.js";
 import {
   requirementsReviewInputs,
   requirementsReviewStartBlocker,
@@ -12,11 +17,7 @@ import {
   proposalVersion,
 } from "@zcode/services/aireq";
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
-import type {
-  AIReqNativeSessionRef,
-  AIReqReviewAgent,
-  AIReqReviewAgentId,
-} from "@zcode/services/aireq";
+import type { AIReqReviewAgentId } from "@zcode/services/aireq";
 
 function prototypeReviewModelBindings() {
   return (
@@ -28,7 +29,7 @@ function prototypeReviewModelBindings() {
     ] as const
   ).map(readPrototypeAgentModelBinding);
 }
-export function prototypeReviewSessions(review: Review): AIReqNativeSessionRef[] {
+export function prototypeReviewSessions(review: Review): NativeSessionRef[] {
   return (
     review.agents?.map((agent) => agent.session) ??
     ("projectId" in review.reviewer ? [review.reviewer] : [])
@@ -38,10 +39,8 @@ export function prototypeReviewSessions(review: Review): AIReqNativeSessionRef[]
 export function createPrototypeRequirementsReview(
   group: RequirementGroup,
   employeeId: string,
-  seedPassed = false,
-  kind: "original" | "full" = "original",
-  scenario: AIReqReviewScenario = "normal",
-  settled = true,
+  kind: "original" | "full",
+  seed?: "confirmed" | "reviewed" | "failed",
 ): Review {
   const round =
     kind === "original"
@@ -59,7 +58,7 @@ export function createPrototypeRequirementsReview(
     kind === "full"
       ? ["需求覆盖／一致性", "技术方案／依赖", "任务可执行性／测试充分性", "综合终审"]
       : ["原始业务需求评审"];
-  const agents: AIReqReviewAgent[] = keys.map((key, index) => ({
+  const agents: ReviewAgent[] = keys.map((key, index) => ({
     id: key,
     name: names[index]!,
     status: key === "summary" ? "pending" : "running",
@@ -70,18 +69,19 @@ export function createPrototypeRequirementsReview(
       sessionId: `${id}:${key}`,
       role: "reviewer",
       phase: kind === "full" ? "solution" : "requirements",
-      modelConfig: bindings[index],
+      ...bindings[index]!,
       round,
     },
   }));
+  const confirmed = kind === "original" && seed === "confirmed";
   const review: Review = {
     id,
     kind,
     snapshotDigest: digest,
     inputFiles: structuredClone(inputFiles),
-    passed: kind === "original" && seedPassed && scenario === "normal",
+    passed: confirmed,
     agents,
-    ...(kind === "original" && seedPassed && scenario === "normal"
+    ...(confirmed
       ? {
           humanDecision: {
             employeeId,
@@ -91,48 +91,33 @@ export function createPrototypeRequirementsReview(
           },
         }
       : {}),
-    modelConfig: bindings.at(-1),
+    modelConfig: bindings.at(-1)?.modelConfig,
     report: "",
     requestedBy: employeeId,
     round,
     reviewer: agents.at(-1)!.session,
     createdAt: new Date().toISOString(),
   };
-  if (settled && scenario !== "hold") {
-    if (advancePrototypeReview(review, scenario)) advancePrototypeReview(review, scenario);
+  if (seed === "failed") {
+    agents[0]!.status = "failed";
+    agents[0]!.report = "本路评审执行失败，请重试当前材料版本。";
   }
+  if (seed && advancePrototypeReview(review)) advancePrototypeReview(review);
   return review;
 }
 
 /** Complete the admitted runs and start summary only after three readable, successful reports. */
-export function advancePrototypeReview(
-  review: Review,
-  scenario: Exclude<AIReqReviewScenario, "hold">,
-): boolean {
+export function advancePrototypeReview(review: Review): boolean {
   const agents = review.agents ?? [];
   const summary = agents.find((agent) => agent.id === "summary");
   if (summary?.status === "running") {
-    finishPrototypeReport(review, summary, scenario);
+    finishPrototypeReport(review, summary);
     review.report = summary.report;
-    review.passed = scenario === "normal";
+    review.passed = true;
     return false;
   }
   for (const agent of agents) {
-    if (agent.id === "summary" || agent.status !== "running") continue;
-    if (scenario === "failed" && agent.id === "a") {
-      agent.status = "failed";
-      agent.report = "本路评审执行失败，请重试当前材料版本。";
-    } else finishPrototypeReport(review, agent, scenario);
-  }
-  if (scenario === "blocked") {
-    review.findings = [
-      {
-        id: `${review.id}:blocking`,
-        level: "blocking",
-        message: "建议补齐业务验收条件并核对方案材料。",
-        documentPath: review.inputFiles?.[0]?.path ?? "",
-      },
-    ];
+    if (agent.id !== "summary" && agent.status === "running") finishPrototypeReport(review, agent);
   }
   if (!summary) review.report = agents[0]?.status === "completed" ? agents[0].report : "";
   if (
@@ -148,18 +133,12 @@ export function advancePrototypeReview(
   return false;
 }
 
-function finishPrototypeReport(
-  review: Review,
-  agent: AIReqReviewAgent,
-  scenario: Exclude<AIReqReviewScenario, "hold">,
-): void {
+function finishPrototypeReport(review: Review, agent: ReviewAgent): void {
   agent.status = "completed";
   const opinion =
-    scenario === "blocked"
-      ? "建议补齐验收条件、核对材料。是否采纳由确认人判断。"
-      : agent.id === "summary"
-        ? "A、B、C 三份同版报告已齐备，未记录阻断项。"
-        : "本路模拟评审已完成，未记录阻断项。";
+    agent.id === "summary"
+      ? "A、B、C 三份同版报告已齐备，未记录阻断项。"
+      : "本路模拟评审已完成，未记录阻断项。";
   agent.report = `# ${agent.name}\n\n第 ${review.round} 轮模拟评审，输入 ${review.inputFiles?.length ?? 0} 份材料。\n\n## 评审意见\n\n${opinion}`;
 }
 
@@ -169,7 +148,6 @@ export interface PrototypeReviewRun {
   kind: "original" | "full";
   reviewId: string;
   snapshotDigest: string;
-  scenario: Exclude<AIReqReviewScenario, "hold">;
 }
 
 /** Admit only from an explicit submission or retry, against the current material version. */
@@ -197,31 +175,17 @@ export function acceptPrototypeReview(
       : (proposal.originalReviewHistory ??= []);
     history.push(prior);
   }
-  const scenario = proposal.reviewScenarios?.[kind] ?? "normal";
-  delete proposal.reviewScenarios?.[kind];
-  const review = createPrototypeRequirementsReview(
-    proposal,
-    employeeId,
-    false,
-    kind,
-    scenario,
-    false,
-  );
+  const review = createPrototypeRequirementsReview(proposal, employeeId, kind);
   if (full) proposal.review = review;
   else proposal.originalReview = review;
   const sessions = prototypeReviewSessions(review);
   proposal.sessions.push(...sessions);
   state.sessions.push(...sessions);
-  if (scenario === "hold") {
-    (proposal.heldReviews ??= []).push(review);
-    return;
-  }
   return {
     projectId: proposal.projectId,
     irId: proposal.id,
     kind,
     reviewId: review.id,
     snapshotDigest: review.snapshotDigest,
-    scenario,
   };
 }

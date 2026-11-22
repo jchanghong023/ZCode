@@ -1,6 +1,6 @@
 import type { AIReqMaterialView, AIReqRequirementGroup } from "./types.js";
 
-export interface AIReqSrDependencyDocument {
+interface AIReqSrDependencyDocument {
   srs: {
     srId: string;
     estimate?: { workingDays: number; assumptions: string };
@@ -8,7 +8,7 @@ export interface AIReqSrDependencyDocument {
   }[];
 }
 
-/** Read the repository material, never the legacy group/SR dependency metadata. */
+/** Read the repository material as the single dependency and estimate source. */
 export function readSrDependencies(
   group: Pick<AIReqRequirementGroup, "id" | "srIds" | "proposalRound" | "srDependencyFile">,
   material = group.srDependencyFile,
@@ -113,14 +113,4 @@ export function proposalDependencyMaterialIssue(
     material.size !== group.srDependencyFile.size
   )
     return "sr-dependencies.json 版本已变化，请重新生成并确认本轮方案。";
-}
-export function parallelSrIds(group: AIReqRequirementGroup, srId: string): string[] {
-  const result = readSrDependencies(group);
-  if (result.issue) return [];
-  const graph = Object.fromEntries(
-    result.document!.srs.map((row) => [row.srId, row.prerequisites.map((item) => item.srId)]),
-  );
-  const related = (from: string, to: string): boolean =>
-    (graph[from] ?? []).some((id) => id === to || related(id, to));
-  return group.srIds.filter((id) => id !== srId && !related(srId, id) && !related(id, srId));
 }

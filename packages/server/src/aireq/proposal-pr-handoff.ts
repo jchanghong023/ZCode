@@ -1,8 +1,6 @@
-import type { AIReqPrHandoffScenario } from "./internal-scenarios.js";
 import type { Project, PrototypeRepositoryTarget, RequirementGroup } from "./workflow-state.js";
 import type { AIReqPrHandoff } from "@zcode/services/aireq";
 import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
-import { prototypeIrRoot } from "./proposal-storage.js";
 
 export function prototypeProposalBranch(irId: string): string {
   return `ir/${irId}`;
@@ -33,7 +31,6 @@ export function prototypeProposalRepositoryIssue(
 export function readPrototypeProposalPrHandoff(
   group: RequirementGroup,
   project: Project | undefined,
-  scenario: AIReqPrHandoffScenario = "current",
 ): AIReqPrHandoff {
   const projectDirectory = group.proposalLocation?.directory;
   const sourceDirectory = projectDirectory
@@ -53,15 +50,11 @@ export function readPrototypeProposalPrHandoff(
   const repositoryIssue = prototypeProposalRepositoryIssue(group, project);
   if (repositoryIssue) blockers.push(repositoryIssue);
   const target = group.proposalDelivery?.repositoryTarget ?? project;
-  if (!projectDirectory || scenario === "missing-directory")
-    blockers.push("提案临时目录记录缺失。");
+  if (!projectDirectory) blockers.push("提案临时目录记录缺失。");
   else if (project && projectDirectory !== project.root)
     blockers.push("提案记录的 OMP 项目目录与所属项目不匹配。");
-  if (scenario === "wrong-repository") blockers.push("目标仓库与提案所属项目不匹配，不能推送。");
-  if (!hasCurrentProposalSolution(group) || scenario === "stale-version")
+  if (!hasCurrentProposalSolution(group))
     blockers.push("请先完成当前需求版本的方案设计，再创建提案分支并提交推送。");
-  if (scenario === "change-conflict")
-    blockers.push(`目标仓库存在同名 ${prototypeIrRoot(group.id)}，不能覆盖其他提案。`);
   return {
     blockers,
     sourceDirectory,

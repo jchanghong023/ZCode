@@ -93,5 +93,5 @@ class MockModelSelectionService implements WebModelSelectionService {
 }
 
 export function registerModelSelectionMockService(services: ModelServiceRegistrar): void {
-  services.register<WebModelSelectionService>(IModelSelectionService, new MockModelSelectionService());
+  services.register(IModelSelectionService, new MockModelSelectionService());
 }

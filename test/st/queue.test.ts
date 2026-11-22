@@ -72,18 +72,32 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
         .map((row) => row.sourceCommandId),
     ).toEqual([startId, followUpId]);
     const { workspace, sessionId } = native;
+    const rejectedKey = { sessionId, commandId: implicitId };
+    const steerKey = { sessionId, commandId: steerId };
+    const followUpKey = { sessionId, commandId: followUpId };
     const [ownerReceipts, peerReceipts] = await Promise.all([
       c.services.zcodeAgentService.queryConversationCommandsV4({
         ...workspace,
-        commands: [implicitId, steerId].map((commandId) => ({ sessionId, commandId })),
+        commands: [rejectedKey, steerKey, followUpKey],
       }),
       peerClient.services.zcodeAgentService.queryConversationCommandsV4({
         ...workspace,
-        commands: [{ sessionId, commandId: followUpId }],
+        commands: [followUpKey, steerKey],
       }),
     ]);
-    expect(ownerReceipts.results.map((item) => item.result)).toEqual([implicit, steered]);
-    expect(peerReceipts.results[0]?.result).toEqual(followed);
+    expect(ownerReceipts).toStrictEqual({
+      results: [
+        { key: rejectedKey, result: implicit },
+        { key: steerKey, result: steered },
+        { key: followUpKey, result: "unknown" },
+      ],
+    });
+    expect(peerReceipts).toStrictEqual({
+      results: [
+        { key: followUpKey, result: followed },
+        { key: steerKey, result: "unknown" },
+      ],
+    });
   } finally {
     try {
       await Promise.all([peer?.close(), native?.close()]);

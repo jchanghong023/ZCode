@@ -4,10 +4,9 @@ import type {
   AIReqRemoteWorkflow,
   AIReqRequirementGroup,
   AIReqReview,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqWorkflowResult,
 } from "@zcode/services/aireq";
-import { createProposal } from "./business.js";
 import { config } from "./config.js";
 import { connectST, waitUntil, type STClient } from "./client.js";
 import { openNative } from "./native.js";
@@ -16,7 +15,7 @@ interface ProposalTarget {
   projectId: string;
   releaseId: string;
   irId: string;
-  selection: AIReqSelection;
+  selection: AIReqWorkflowTarget;
 }
 
 /** Read only public workflow objects. No generated text, timestamps or IDs are fabricated. */
@@ -317,19 +316,4 @@ export async function confirmAllPerspectives(
   const group = getProposal(remote, target);
   expect(group.proposalDelivery?.candidate.trim()).toBeTruthy();
   return { remote, group };
-}
-
-/** One case's own public prerequisites, reusable by network suites without hidden state injection. */
-export async function prepareApprovedProposal(c: STClient) {
-  const target = await createProposal(
-    c,
-    "在当前项目及版本导出需求原文，特殊字符往返无损，空结果和读取失败有明确反馈。",
-  );
-  await completeBusinessMaterial(c, target);
-  await submitReview(c, target, "original");
-  await approveOriginalReview(c, target);
-  await completeSolutionMaterial(c, target);
-  await submitReview(c, target, "full");
-  const { review } = await waitForReview(c, target, "full");
-  return { ...target, ...(await confirmAllPerspectives(c, target, review)) };
 }

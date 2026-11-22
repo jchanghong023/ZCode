@@ -5,7 +5,7 @@
  * 广播频道前缀 "state:" 表示状态同步类消息。
  */
 import { create } from "zustand";
-import type { IBroadcastService, BroadcastMessage } from "@zcode/services";
+import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import type { UserInfo } from "@zcode/shared";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
@@ -141,10 +141,10 @@ const STATE_CHANNEL_PREFIX = "state:";
 /**
  * 创建 Zustand store；由 Provider 在挂载后连接广播并在卸载时释放。
  *
- * @param broadcastService - 当前连接的正式广播服务；Desktop／Web 均经各自宿主转发到其他连接。
+ * @param broadcastService - 当前 Web 连接的广播服务，由宿主转发给其他连接。
  */
 export function createZCodeStore(
-  broadcastService: IBroadcastService,
+  broadcastService: WebBroadcastService,
   options: {
     initialUser?: UserInfo | null;
   } = {},
@@ -305,7 +305,7 @@ export function createZCodeStore(
     });
 
   // 监听来自其他窗口的广播
-  const receiveBroadcast = (msg: BroadcastMessage) => {
+  const receiveBroadcast = (msg: WebBroadcastMessage) => {
     if (!msg.channel.startsWith(STATE_CHANNEL_PREFIX)) return;
 
     const field = msg.channel.slice(STATE_CHANNEL_PREFIX.length) as BroadcastField;
@@ -337,7 +337,7 @@ export function createZCodeStore(
   };
 
   let disconnectBroadcast = () => {};
-  const connectBroadcastService = (service: IBroadcastService) => {
+  const connectBroadcastService = (service: WebBroadcastService) => {
     // Web 重连保留 Provider 和 Store；必须释放旧代理的订阅并替换发送目标，不能重置草稿。
     disconnectBroadcast();
     if (service !== broadcastService) {

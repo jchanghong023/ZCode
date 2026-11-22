@@ -7,9 +7,8 @@ import type {
   AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
   AIReqSkillDesignSession,
-  AIReqAgentModelBinding,
 } from "@zcode/services/aireq";
-import { readPrototypeWorkflowDefaultModel } from "./agent-models.js";
+import { readPrototypeWorkflowDefaultModel, type NativeRuntimeModel } from "./agent-models.js";
 import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 const promptTemplate =
   "请根据以下说明与我一起设计可复用技能。请推荐技能标识，不要要求我先填写名称。信息不足时先澄清，不要把表单直接拼成技能文件。\n\n要解决什么任务：{{goal}}\n\n什么时候使用：{{when}}\n\n需要哪些输入：{{inputs}}\n\n期望结果与成功标准：{{outputs}}\n\n边界与不适用场景：{{boundaries}}\n\n流程、规则或参考资料：{{references}}\n\n真实例子或失败情况：{{example}}\n\n已发送的补充讨论：{{notes}}\n\n临时技能目录：{{directory}}\n主文件路径：{{directory}}/SKILL.md\n\n请先核对上述内容，必要时与我讨论，再推荐合适的技能标识，准备 SKILL.md 和必要的参考资料、脚本内容，并按此目录组织预览路径。回复推荐标识、文件清单及对应预览路径，供我预览、继续讨论修改。\n\n请明确区分建议、待确认内容与已完成的保存。只有逐一预览当前版本全部文件、选择项目或共享技能目录并确认后，才可请求保存；不覆盖同名技能。保存结果以返回的收据路径和版本为准，不把请求接纳当作完成。讨论与设置往返时保留尚未发送的内容和附件，不宣称未执行的分析、检查或工具操作已完成。\n";
@@ -57,21 +56,8 @@ const emptyDraft: AIReqSkillDesignDraft = {
   example: "",
   notes: [],
 };
-export const PROTOTYPE_SKILL_DESIGN_SAMPLE: AIReqSkillDesignDraft = {
-  goal: "评审接口变更，识别向后兼容性问题",
-  when: "用户请求评审 API 变更、接口 PR，或检查向后兼容性时使用。",
-  inputs: "当前 Git diff、接口定义、受影响调用方及相关测试。",
-  outputs: "按严重程度列出问题，包含文件和行号、影响、依据与修改建议；区分已确认问题和待核实项。",
-  boundaries: "只分析，不修改代码。纯文档排版不触发；缺少接口变更时说明不适用。",
-  references:
-    "先阅读项目现有接口规范，核对请求、响应、错误码及相关测试，不假定未提供的客户端行为。",
-  example:
-    "输入：删除响应中的必填字段。期望：指出受影响调用方，并提出兼容过渡建议；没有证据时列为待核实。",
-  notes: [],
-};
-type SkillModelBinding = Pick<AIReqAgentModelBinding, "providerId" | "modelId" | "reasoning">;
-const modelBindings = new Map<string, SkillModelBinding>();
-export function prototypeSkillDesignBinding(sessionId: string): SkillModelBinding {
+const modelBindings = new Map<string, NativeRuntimeModel>();
+export function prototypeSkillDesignBinding(sessionId: string): NativeRuntimeModel {
   assertSkillSession(sessionId);
   let binding = modelBindings.get(sessionId);
   if (!binding) {

@@ -11,7 +11,7 @@ import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { hasProjectRole, type AIReqSelection } from "../contract.js";
+import { hasProjectRole, type AIReqWorkflowTarget } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { canOpenProposalTask } from "../proposals/proposalTasks.js";
@@ -29,7 +29,7 @@ import type { AIReqSidePaneGuard, AIReqSidePaneTab } from "./contract.js";
 function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }) {
   const { open, updateTab, registerGuard } = useAIReqSidePane();
   const select = useCallback(
-    (selection: AIReqSelection, releaseId?: string) => {
+    (selection: AIReqWorkflowTarget, releaseId?: string) => {
       const target = { ...tab, selection, releaseId: releaseId ?? tab.releaseId };
       if (sidePaneTargetKey(target) === sidePaneTargetKey(tab))
         updateTab(tab.id, selection, target.releaseId);

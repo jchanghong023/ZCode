@@ -1,8 +1,4 @@
-import type {
-  AIReqMaterialView,
-  AIReqSystemRequirement,
-} from "@zcode/services/aireq";
-import { aiReqPrFactSchema } from "@zcode/services/aireq";
+import { aiReqPrFactSchema, type AIReqMaterialView } from "@zcode/services/aireq";
 import { createRequirementSnapshot } from "./content-digest.js";
 import { createdAt, group, sessionRef, systemRequirement } from "./fixture-builders.js";
 import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
@@ -14,7 +10,7 @@ import {
 } from "./requirements-review.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
 import { prototypeProposalBranch } from "./proposal-pr-handoff.js";
-import type { Project, RequirementGroup } from "./workflow-state.js";
+import type { Project, RequirementGroup, SystemRequirement } from "./workflow-state.js";
 
 interface ProposalSample {
   id: string;
@@ -102,7 +98,7 @@ const proposals: ProposalSample[] = [
 /** 初始化同一默认版本的独立提案；后续修改仍走正常 workflow owner。 */
 export function createPrototypeReleaseProposals() {
   const drafts: RequirementGroup[] = [];
-  const srs: AIReqSystemRequirement[] = [];
+  const srs: SystemRequirement[] = [];
   const materials: AIReqMaterialView[] = [];
   const employeeId = "j00808874";
   const projectId = "demo-aurora";
@@ -147,7 +143,6 @@ export function createPrototypeReleaseProposals() {
     }
     proposal.files = bundle.map(({ path, sha256, size }) => ({ path, sha256, size }));
     proposal.snapshot = createRequirementSnapshot({
-      version: 1,
       projectId,
       irId: proposal.id,
       title: proposal.title,
@@ -162,9 +157,8 @@ export function createPrototypeReleaseProposals() {
       proposal.originalReview = createPrototypeRequirementsReview(
         proposal,
         employeeId,
-        sample.originalReview === "confirmed",
         "original",
-        sample.originalReview === "failed" ? "failed" : "normal",
+        sample.originalReview,
       );
       proposal.originalReview.createdAt = createdAt;
       if (proposal.originalReview.humanDecision)
@@ -181,9 +175,8 @@ export function createPrototypeReleaseProposals() {
       proposal.review = createPrototypeRequirementsReview(
         proposal,
         employeeId,
-        false,
         "full",
-        sample.fullReview === "failed" ? "failed" : "normal",
+        sample.fullReview,
       );
       proposal.review.createdAt = createdAt;
       proposal.sessions.push(...prototypeReviewSessions(proposal.review));

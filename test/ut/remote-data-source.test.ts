@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { IServiceAccessor } from "../../packages/services/src/index.js";
 import {
   AIREQ_CONTRACT_VERSION,
+  type AIReqAgentModelSettings,
   type AIReqIdentity,
   type AIReqRemoteBootstrap,
   type AIReqRemoteEvent,
   type AIReqRemoteWorkflow,
-  type AIReqSelection,
   type AIReqWorkflowResult,
+  type AIReqWorkflowTarget,
   type IAIReqService,
 } from "../../packages/services/src/aireq/index.js";
 import { createRemoteAIReqDataSource } from "../../packages/ui/src/aireq/shell/remote-data-source.js";
@@ -27,7 +28,7 @@ function deferred<T>() {
 }
 
 function workspace(projectId: string): AIReqRemoteWorkflow["workspace"] {
-  return { identity: `workspace:${projectId}`, path: `/${projectId}`, kind: "reference" };
+  return { identity: `workspace:${projectId}`, path: `/${projectId}`, kind: "proposal" };
 }
 
 function bootstrap(revision = 1): AIReqRemoteBootstrap {
@@ -52,7 +53,6 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
   return {
     workspace: workspace(projectId),
     view: {
-      version: 1,
       revision,
       documentFormats: {
         "requirements.md": [],
@@ -77,7 +77,7 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
 }
 
 function requestedWorkflow(args: unknown[]) {
-  return workflow((args[0] as AIReqSelection | undefined)?.projectId ?? "project-a");
+  return workflow((args[0] as AIReqWorkflowTarget | undefined)?.projectId ?? "project-a");
 }
 
 function serviceDouble() {
@@ -161,7 +161,7 @@ describe("AIReq frontend data source", () => {
       expect(source.resolveWorkspace(undefined, { projectId: "project-b" })).toEqual({
         identity: "workspace:project-b",
         path: "/project-b",
-        kind: "reference",
+        kind: "proposal",
       });
       expect(source.projects!.readDevelopmentRoot("project-a")).toBeUndefined();
       expect(source.projects!.readDevelopmentRoot("project-b")).toBe("/project-b");
@@ -193,40 +193,92 @@ describe("AIReq frontend data source", () => {
     expect(remote.call).not.toHaveBeenCalled();
   });
 
-  it("reads the requested scope without local material or draft navigation fields", async () => {
+  it("forwards the same proposal stage target to workflow reads and session retries", async () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
-      const target = {
+      const target: AIReqWorkflowTarget = {
         projectId: "project-b",
         irId: "ir-b",
-        formalView: "detail" as const,
-        materialPath: "requirements.md",
-        proposalDraftId: "local-draft",
+        srId: "sr-b",
+        proposalStep: "solution",
+        reviewAgent: "summary",
+        discussionPhase: "solution",
       };
       const view = await source.readWorkflow(target);
-      expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [
-        { projectId: "project-b", irId: "ir-b", formalView: "detail" },
-      ]);
+      expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [target]);
       expect(source.resolveWorkspace(view, target).identity).toBe("workspace:project-b");
       await source.retrySession(target, "session-b");
-      expect(remote.call).toHaveBeenCalledWith(identity, "retrySession", [
-        { projectId: "project-b", irId: "ir-b", formalView: "detail" },
-        "session-b",
-      ]);
-      await source.models!.save({ defaultModel: "model-new", agents: [] }, 1);
-      const save = remote.call.mock.calls.find(([, path]) => path === "models.save");
-      expect(save).toEqual([
-        identity,
-        "models.save",
-        [{ defaultModel: "model-new", agents: [] }, 1],
-      ]);
+      expect(remote.call).toHaveBeenCalledWith(identity, "retrySession", [target, "session-b"]);
     } finally {
       await source.dispose();
     }
   });
 
-  it("keeps explicit retry identity and original expected revision instead of allocating a new operation", async () => {
+  it("sends only role configuration when saving models while preserving the read DTO", async () => {
+    const remote = serviceDouble();
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    try {
+      const settings: AIReqAgentModelSettings = {
+        defaultModel: "model-new",
+        agents: [
+          {
+            id: "requirements",
+            name: "需求",
+            nameEn: "Requirements",
+            description: "编写需求",
+            descriptionEn: "Write requirements",
+            model: "inherit",
+            reasoning: "high",
+          },
+        ],
+      };
+      const metadata = bootstrap(2);
+      remote.metadata.current = { ...metadata, models: { ...metadata.models, settings } };
+
+      await source.models!.save(settings, 1);
+      expect(remote.call.mock.calls.find(([, path]) => path === "models.save")).toStrictEqual([
+        identity,
+        "models.save",
+        [
+          {
+            defaultModel: "model-new",
+            agents: [{ id: "requirements", model: "inherit", reasoning: "high" }],
+          },
+          1,
+        ],
+      ]);
+      expect(source.models!.read()).toStrictEqual(settings);
+    } finally {
+      await source.dispose();
+    }
+  });
+
+  it("requires a fresh workspace read when switching formal requirements or projects", async () => {
+    const remote = serviceDouble();
+    remote.metadata.current.projects.workspaces["project-b"] = workspace("project-b");
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    const first = { projectId: "project-a", irId: "ir-1", formalView: "detail" as const };
+    const second = { ...first, irId: "ir-2" };
+    const otherProject = { ...second, projectId: "project-b" };
+    const unavailable = { identity: `aireq-remote:${identity.clientId}`, kind: "unavailable" };
+    try {
+      const firstView = await source.readWorkflow(first);
+      expect(source.resolveWorkspace(firstView, first)).toEqual(workspace("project-a"));
+      expect(source.resolveWorkspace(firstView, second)).toEqual(unavailable);
+
+      const secondView = await source.readWorkflow(second);
+      expect(source.resolveWorkspace(secondView, second)).toEqual(workspace("project-a"));
+      expect(source.resolveWorkspace(secondView, otherProject)).toEqual(unavailable);
+
+      const otherView = await source.readWorkflow(otherProject);
+      expect(source.resolveWorkspace(otherView, otherProject)).toEqual(workspace("project-b"));
+    } finally {
+      await source.dispose();
+    }
+  });
+
+  it("keeps the command target, operation ID and CAS baseline when only navigation changes", async () => {
     const remote = serviceDouble();
     const receipt: AIReqWorkflowResult = {
       projectId: "project-a",
@@ -250,15 +302,34 @@ describe("AIReq frontend data source", () => {
         operationId: "create-idea-1",
         expectedRevision: 7,
       };
-      const target = { projectId: "project-a", materialPath: "requirements.md" };
+      const ids = { projectId: "project-a", irId: "ir-a", srId: "sr-a" };
+      const target: AIReqWorkflowTarget = {
+        ...ids,
+        formalView: "detail",
+        reviewAgent: "a",
+        proposalStep: "requirements",
+        discussionPhase: "requirements",
+      };
       expect(await source.command(action, target, 7)).toEqual(receipt);
-      expect(await source.command(action, target, 20)).toEqual(receipt);
+      expect(
+        await source.command(
+          action,
+          {
+            ...target,
+            formalView: "list",
+            reviewAgent: "b",
+            proposalStep: "solution",
+            discussionPhase: "solution",
+          },
+          20,
+        ),
+      ).toEqual(receipt);
       expect(
         remote.call.mock.calls.filter(([, path]) => path === "command").map(([, , args]) => args),
-      ).toEqual(
+      ).toStrictEqual(
         Array.from({ length: 2 }, () => [
           { type: "createIdea", originalText: "Export reports", operationId: "create-idea-1" },
-          { projectId: "project-a" },
+          ids,
           7,
         ]),
       );
@@ -283,11 +354,7 @@ describe("AIReq frontend data source", () => {
       expect(command).toEqual([
         identity,
         "command",
-        [
-          { ...action, operationId: expect.any(String) },
-          { projectId: "project-b" },
-          31,
-        ],
+        [{ ...action, operationId: expect.any(String) }, { projectId: "project-b" }, 31],
       ]);
       expect((command![2][0] as { operationId: string }).operationId.trim()).not.toBe("");
       expect(action).toEqual({ type: "createIdea", originalText: "Export reports" });

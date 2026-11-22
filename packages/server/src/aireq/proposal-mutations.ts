@@ -1,11 +1,12 @@
 import { contentVersion, createRequirementSnapshot } from "./content-digest.js";
-import type { InternalWorkflowAction } from "./internal-scenarios.js";
-import type { Receipt, RequirementGroup, WorkflowState } from "./workflow-state.js";
 import type {
-  AIReqMaterialView,
-  AIReqMaterialHistoryEvent,
-  AIReqSystemRequirement,
-} from "@zcode/services/aireq";
+  InternalWorkflowAction,
+  Receipt,
+  RequirementGroup,
+  SystemRequirement,
+  WorkflowState,
+} from "./workflow-state.js";
+import type { AIReqMaterialView, AIReqMaterialHistoryEvent } from "@zcode/services/aireq";
 import { completeProposalPaths, proposalAlignmentCurrent } from "@zcode/services/aireq";
 import { group, systemRequirement, sessionRef } from "./fixture-builders.js";
 import { getEmployeeId } from "./identity.js";
@@ -42,7 +43,7 @@ type NativeRequirementsOutput = {
 };
 type NativeSolutionOutput = {
   kind: "solution";
-  rows: AIReqSystemRequirement[];
+  rows: SystemRequirement[];
   bundle: AIReqMaterialView[];
   dependency: AIReqMaterialView;
 };
@@ -151,7 +152,6 @@ function snapshot(state: WorkflowState, proposal: RequirementGroup): void {
     )
     .map(({ path, sha256, size }) => ({ path, sha256, size }));
   proposal.snapshot = createRequirementSnapshot({
-    version: 1,
     projectId: proposal.projectId,
     irId: proposal.id,
     title: proposal.title,

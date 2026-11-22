@@ -31,11 +31,8 @@ export interface AIReqAgentModelBinding {
   roleName: string;
   modelKey: string;
   modelName: string;
-  providerId: string;
-  modelId: string;
   reasoning: string;
   inherited: boolean;
-  configurationRevision: number;
   /** Saved additional instructions at session creation or run admission; empty uses only built-ins. */
   promptSnapshot: string;
 }

@@ -2,9 +2,7 @@ import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
 
 /** Explicit in-memory failure fixtures, without filesystem or network probing. */
-const PROTOTYPE_RECOVERY_SCENARIOS = SUPPORTED_AIREQ_DEMOS;
-export type PrototypeRecoveryScenario = (typeof PROTOTYPE_RECOVERY_SCENARIOS)[number];
-export const prototypeRecoveryScenario = PROTOTYPE_RECOVERY_SCENARIOS.find(
+export const prototypeRecoveryScenario = SUPPORTED_AIREQ_DEMOS.find(
   (value) => value === process.env.AIREQ_DEMO,
 );
 const defaultMaterial = "docs/requirements/draft-automation/requirements.md";

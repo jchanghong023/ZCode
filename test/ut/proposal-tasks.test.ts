@@ -35,7 +35,6 @@ const group = (): AIReqRequirementGroup => ({
   files: [{ ...file }],
   requirementsCheck: { issues: [] },
   snapshot: {
-    version: 1,
     projectId: "p",
     irId: "ir",
     title: "需求",

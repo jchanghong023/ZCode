@@ -82,6 +82,7 @@ describe("ST same-owner workflow projections", () => {
               type: "requestProjectRoles",
               projectId: target.projectId,
               roles: ["development"],
+              note: "申请开发角色以验证审批投影",
               operationId,
             },
             target.selection,
@@ -106,9 +107,14 @@ describe("ST same-owner workflow projections", () => {
             target.selection,
           );
           const registrations = (await admin.read(target.selection)).view.roleRegistrations;
-          expect(registrations?.find((entry) => entry.id === secondApplication!.id)?.status).toBe(
-            "approved",
-          );
+          expect(registrations?.find((entry) => entry.id === secondApplication!.id)).toEqual({
+            id: secondApplication!.id,
+            projectId: target.projectId,
+            employeeId: second.identity.employeeId,
+            role: "development",
+            status: "approved",
+            note: "申请开发角色以验证审批投影",
+          });
           expect(registrations?.find((entry) => entry.id === pending[0]!.id)?.status).toBe(
             "pending",
           );

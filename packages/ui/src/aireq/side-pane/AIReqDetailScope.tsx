@@ -9,7 +9,7 @@ import { AIReqWorkspaceActiveContext } from "../shell/ModelSettingsNavigationCon
 import type {
   AIReqAction,
   AIReqMaterialReadRequest,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqWorkflowView,
 } from "../contract.js";
 import type { AIReqSidePaneGuard } from "./contract.js";
@@ -22,22 +22,22 @@ type ReadProjection = {
 };
 type ScopedError = { key: string; message: string };
 interface AIReqDetailScopeProps {
-  target: AIReqSelection;
+  target: AIReqWorkflowTarget;
   releaseId: string;
   tabId: string;
   active?: boolean;
-  onSelect(selection: AIReqSelection, releaseId?: string): void;
+  onSelect(selection: AIReqWorkflowTarget, releaseId?: string): void;
   onGuardChange?(guard: AIReqSidePaneGuard): void;
   children: ReactNode;
 }
 
-function targetKey(target: AIReqSelection, releaseId: string): string {
+function targetKey(target: AIReqWorkflowTarget, releaseId: string): string {
   return JSON.stringify([target, releaseId]);
 }
 
 function targetAvailable(
   view: AIReqWorkflowView,
-  target: AIReqSelection,
+  target: AIReqWorkflowTarget,
   releaseId: string,
 ): boolean {
   const group = [...view.groups, ...view.drafts].find(
@@ -148,7 +148,7 @@ export function AIReqDetailScope({
         view: previous.key === request.key ? previous.view : undefined,
       }));
       try {
-        const next = await source.readWorkflow({ ...request.target });
+        const next = await source.readWorkflow(request.target);
         if (
           !alive.current ||
           revision !== generation.current ||
@@ -198,7 +198,7 @@ export function AIReqDetailScope({
   }, [key, source, refresh]);
 
   const select = useCallback(
-    (selection: AIReqSelection, selectedRelease?: string) => {
+    (selection: AIReqWorkflowTarget, selectedRelease?: string) => {
       navigate(() =>
         current.current.onSelect(selection, selectedRelease ?? current.current.releaseId),
       );
@@ -216,7 +216,7 @@ export function AIReqDetailScope({
       setBusyKey(request.key);
       setOperationError(undefined);
       try {
-        const result = await source.command(action, { ...request.target }, snapshot.revision);
+        const result = await source.command(action, request.target, snapshot.revision);
         if (result.receipt.status === "failed")
           throw new Error(result.receipt.error ?? "操作失败。");
         if (!alive.current || current.current.key !== request.key) return result;
@@ -251,7 +251,7 @@ export function AIReqDetailScope({
     [source, refresh],
   );
   const retrySession = useCallback(
-    async (selection: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
+    async (selection: AIReqWorkflowTarget, sessionId: string, isCurrentPane: () => boolean) => {
       const request = current.current;
       const isCurrent = () =>
         isCurrentPane() &&
@@ -264,7 +264,7 @@ export function AIReqDetailScope({
       if (JSON.stringify(selection) !== JSON.stringify(request.target) || !isCurrent())
         throw new Error("会话已切换，请在当前标签中重试。");
       try {
-        await source.retrySession({ ...request.target }, sessionId);
+        await source.retrySession(request.target, sessionId);
         if (!isCurrent()) throw new Error("会话已切换，请在当前标签中重试。");
         await refresh(true);
         if (!isCurrent()) throw new Error("会话已切换，请在当前标签中重试。");

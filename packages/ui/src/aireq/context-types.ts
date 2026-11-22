@@ -5,8 +5,8 @@ import type {
   AIReqAction,
   AIReqMaterialReadRequest,
   AIReqNativeSessionRef,
-  AIReqSelection,
   AIReqWorkflowResult,
+  AIReqWorkflowTarget,
   AIReqWorkflowView,
 } from "./contract.js";
 
@@ -15,7 +15,7 @@ export type RequirementView = "proposals" | "formal";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
-  selection: AIReqSelection;
+  selection: AIReqWorkflowTarget;
   session?: AIReqNativeSessionRef;
   mainView: WorkspaceMainView;
   requirementView: RequirementView;
@@ -28,7 +28,7 @@ export interface AIReqContextValue {
   setMainView(value: WorkspaceMainView, options?: { fromSidebar?: boolean }): void;
   openFromProjectOverview(
     mainView: "proposals" | "formal" | "chat" | "todos",
-    target?: AIReqSelection,
+    target?: AIReqWorkflowTarget,
     releaseId?: string,
   ): void;
   canReturnToProjectOverview: boolean;
@@ -52,12 +52,12 @@ export interface AIReqContextValue {
     mainView?: "projectOverview" | "proposals" | "formal",
     releaseId?: string,
   ): void;
-  select(value: AIReqSelection, releaseId?: string, task?: ProposalTask): void;
+  select(value: AIReqWorkflowTarget, releaseId?: string, task?: ProposalTask): void;
   objectLink(): string | undefined;
   refresh(): Promise<void>;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
   retrySession(
-    target: AIReqSelection,
+    target: AIReqWorkflowTarget,
     sessionId: string,
     isCurrentPane: () => boolean,
   ): Promise<void>;

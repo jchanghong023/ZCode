@@ -23,6 +23,8 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/sa
 
 Web 设置不返回或接受旧套餐推荐、引导、思考展示迁移和自动归档字段。自动归档迁移标记 `taskAutoArchiveResetVersion` 原本就不属于严格补丁，仅需从回读投影排除；聊天的思考和 Todo 展示仍使用各自现有偏好。
 
+桌面 Provider 账户连接及桌面 Agent 的自动回答与模型 I/O 留存偏好不属于 Web 设置投影或补丁；Web 不装配对应的运行时同步。
+
 终端、Git 检查点、营销、Desktop Provider Provisioning、会话分享和商业订阅交易不属于当前产品，
 不再注册兼容空壳。模型目录仍沿既有契约访问。
 
@@ -49,7 +51,7 @@ readTree 仅投影当前身份可见的原生会话，不发布示例目录项�
 文件来自同一虚拟树与 Skill owner 私有文件事实，缺失／错类型明确拒绝，字节按 UTF-8。
 公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange，各自仅接收一个封闭请求对象，访问文件前拒绝额外实参或字段；
 Skill 私有文件 helper 仍保留，不因移除公开正文／目录／索引 RPC 而删除。
-广播总线归唯一 MockBroadcastService。HTTP facade 在广播前拒绝客户端传入的 `sourceWindowId`，为每条连接绑定可信数字来源，过滤本源并在关闭时注销。
+广播总线归唯一 MockBroadcastService。HTTP facade 只接受一个含 `channel` 和 `payload` 的请求，拒绝额外实参和字段；为每条连接绑定可信数字来源，过滤本源并在关闭时注销。
 
 ## 装配顺序
 

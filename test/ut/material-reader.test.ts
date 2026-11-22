@@ -67,7 +67,7 @@ describe("material reader", () => {
     const list = [firstSr, firstIr, design];
     const options = { srId: sr.id, preferDesign: true };
     expect(
-      readMaterialSelection(group, list, [sr], { ...options, materialPath: documentPath }).material,
+      readMaterialSelection(group, list, [sr], { ...options, path: documentPath }).material,
     ).toBe(firstIr);
     expect(readMaterialSelection(group, list, [sr], options).material).toBe(firstSr);
     expect(readMaterialSelection(group, list, [sr], { preferDesign: true }).material).toBe(design);

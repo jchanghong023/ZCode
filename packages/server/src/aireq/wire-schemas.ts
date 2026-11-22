@@ -6,11 +6,16 @@ const id = z.string().min(1);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const text = z.string();
 const employee = z.union([z.string().regex(/^[a-z][0-9]{8}$/), z.literal("")]);
-const workflowTargetSchema = z
+const commandTargetSchema = z
   .object({
     projectId: id.optional(),
     irId: id.optional(),
     srId: id.optional(),
+  })
+  .strict();
+const workflowTargetSchema = z
+  .object({
+    ...commandTargetSchema.shape,
     formalView: z.enum(["list", "detail"]).optional(),
     reviewAgent: z.enum(["a", "b", "c", "summary"]).optional(),
     proposalStep: z.enum(["requirements", "requirements-review", "solution", "intake"]).optional(),
@@ -116,17 +121,13 @@ const actionSchema = z.union([
   action("returnProposal", { reason: text }),
   action("publishProposal", { candidate: id }),
 ]);
-const modelSettings = z
+const modelInput = z
   .object({
     defaultModel: id,
     agents: z.array(
       z
         .object({
           id: z.enum(AIREQ_AGENT_ROLES),
-          name: text,
-          nameEn: text,
-          description: text,
-          descriptionEn: text,
           model: id,
           reasoning: id,
         })
@@ -151,7 +152,7 @@ export const argumentSchemas = {
   readPresence: z.tuple([]),
   readWorkflow: z.tuple([workflowTargetSchema]),
   readPrHandoff: z.tuple([target]),
-  command: z.tuple([actionSchema, workflowTargetSchema, revision]),
+  command: z.tuple([actionSchema, commandTargetSchema, revision]),
   retryMaterial: z.tuple([
     target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
   ]),
@@ -168,7 +169,7 @@ export const argumentSchemas = {
       })
       .strict(),
   ]),
-  "models.save": z.tuple([modelSettings, revision]),
+  "models.save": z.tuple([modelInput, revision]),
   "prompts.save": z.tuple([z.record(z.string(), text), revision]),
   "skillDesign.session": z.tuple([id]),
   "skillDesign.read": z.tuple([id]),

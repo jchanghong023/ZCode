@@ -59,7 +59,7 @@ Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服�
 
 | 版本                              | 含义                                          |
 | --------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=12`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| `AIREQ_CONTRACT_VERSION=16`       | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
 | Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
 | snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
 | workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
@@ -71,12 +71,12 @@ AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或
 
 ## 4. CAS 与幂等
 
-- `command` 按 employee/client/operationId 保存回执，摘要包含目标与业务参数，不包含首次 expectedRevision／外层 revision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
+- `command` 按 employee/client/operationId 保存回执，摘要包含业务目标（projectId/irId/srId）与业务参数，不包含阅读选择或首次 expectedRevision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
 - 项目保存与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
 - `skillDesign.saveDraft` 没有请求 CAS／operationId，按提交顺序覆盖可编辑字段，不覆盖会话补充记录。
 
-原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`。Web 不接纳定位行命令或信封字段 `baseLogEpoch`；订阅恢复仍使用 `logEpoch`。陈旧请求不改变事实、队列或水位。两个入口都可查询同一接纳归属下的决定与当前执行事实；首发使用空会话键。
+原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`。Web 不接纳定位行命令或信封字段 `baseLogEpoch`；订阅恢复仍使用 `logEpoch`。陈旧请求不改变事实、队列或水位。两个入口都可查询同一接纳归属下的决定，不从回执读取回合状态；当前执行事实由会话投影提供。首发使用空会话键。
 
 accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
 

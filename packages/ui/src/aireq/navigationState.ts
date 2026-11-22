@@ -1,5 +1,5 @@
 import type { ProposalTask } from "./proposals/proposalTasks.js";
-import type { AIReqMainView, AIReqSelection } from "./contract.js";
+import type { AIReqMainView, AIReqWorkflowTarget } from "./contract.js";
 
 export type ProposalDraft = { id: string; sourceIrId?: string };
 export type NavigationOverlay =
@@ -80,7 +80,7 @@ export function restoreMainView(saved: unknown): AIReqMainView {
 /** 共享链接仅投影显式对象；不携带页面查询、凭据或锚点。 */
 export function requirementObjectLink(
   base: string,
-  target: AIReqSelection,
+  target: AIReqWorkflowTarget,
   releaseId: string,
 ): string | undefined {
   if (!target.projectId || !target.irId || !releaseId) return undefined;

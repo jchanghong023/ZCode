@@ -15,12 +15,7 @@
  * 三件套不能全部门控在 config!==null 上——草稿态会整体不渲染。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  resolveModelProviderFamilySpecByProviderId,
-  ZCODE_AGENT_PROVIDER,
-  type ZCodeConfigOption,
-  type ZCodeProvider,
-} from "@zcode/shared";
+import { ZCODE_AGENT_PROVIDER, type ZCodeConfigOption, type ZCodeProvider } from "@zcode/shared";
 import { TID_V4_COMPOSER_INPUT } from "@zcode/shared/test-ids";
 import type {
   SessionConfigState,
@@ -48,15 +43,8 @@ import type {
   ModelSelectionState,
   ModelSelectionRefreshResult,
 } from "@/hooks/useModelSelectionView.js";
-import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
-import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useComposerConnectionSwitch } from "@/hooks/useComposerConnectionSwitch.js";
-import {
-  buildComposerPlanGroups,
-  composerConnectionKey,
-  chooseConnectionModel,
-} from "@/lib/composerPlanGroups.js";
-import { useSettings } from "@/hooks/useSettingService.js";
+import { buildComposerPlanGroups, chooseConnectionModel } from "@/lib/composerPlanGroups.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
@@ -150,13 +138,6 @@ function V4ComposerModelControlsImpl({
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-  const providerSettingsRead = useProviderSettingsView();
-  const providerSettingsView =
-    providerSettingsRead.state.status === "ready" ? providerSettingsRead.state.view : null;
-  const providerSourcesLoading = providerSettingsRead.state.status !== "ready";
-  // 配置面存活服务读（过渡归宿 = 配置面 v4 化）：连接方式选中键喂 BigModel Team Plan 门控豁免。
-  const baseServices = useBaseWorkspaceServices();
-  const { settings: sharedSettings } = useSettings({ services: baseServices });
   const modelTriggerRef = useRef<HTMLSpanElement | null>(null);
   const thoughtTriggerRef = useRef<HTMLSpanElement | null>(null);
   // Ctrl+M 热键：递增 openRequestKey 请求 ModelConfigSelect 打开菜单（旧 handleOpenModelMenuShortcut 语义）。
@@ -199,12 +180,6 @@ function V4ComposerModelControlsImpl({
   const effectiveConfig = useMemo<SessionConfigState | null>(() => {
     return resolveDraftDisplayedConfig(draftConfig ?? {});
   }, [draftConfig]);
-
-  // 按当前连接 family 拉取团队产品，避免 zai 团队误用 bigmodel 产品目录。
-  const connectionFamily =
-    resolveModelProviderFamilySpecByProviderId(effectiveConfig?.provider ?? "")?.id ??
-    sharedSettings?.providerFamilyDomain ??
-    "bigmodel";
 
   // 高频交互排障只走 debug，避免生产日志量随每次选择增长。
   useEffect(() => {
@@ -346,21 +321,13 @@ function V4ComposerModelControlsImpl({
 
   const planGroups = useMemo(
     () =>
-      buildComposerPlanGroups(
-        modelSelectGroups,
-        [],
-        providerSettingsView,
-        displayProvider,
-        modelGroupLabels,
-        sharedSettings?.providerFamilyConnectionSelections,
+      // 保留目录套餐的布局；Web 不再切换需要持久化的账号身份。
+      buildComposerPlanGroups(modelSelectGroups, []).map((group) =>
+        group.connection?.selection
+          ? { ...group, connection: { ...group.connection, disabled: true } }
+          : group,
       ),
-    [
-      modelSelectGroups,
-      providerSettingsView,
-      displayProvider,
-      modelGroupLabels,
-      sharedSettings?.providerFamilyConnectionSelections,
-    ],
+    [modelSelectGroups],
   );
   const connectionSwitch = useComposerConnectionSwitch({
     scopeId: sessionId ?? undefined,
@@ -369,9 +336,7 @@ function V4ComposerModelControlsImpl({
     workspaceIdentity,
     agentProvider: displayProvider,
     normalizedValue: normalizedModelValue,
-    currentReasoningLevel: effectiveConfig?.thought,
     onSelectModel: handleModelValueChange,
-    waitForPresentation: true,
     refreshPresentation: modelSelectionRefresh,
     presentationStatus: modelSelectionState.status,
     presentationRevision: modelSelectionView?.revision,
@@ -381,15 +346,12 @@ function V4ComposerModelControlsImpl({
         : undefined,
   });
   const selectedProviderId = decodeCustomModelValue(normalizedModelValue)?.providerId;
-  const selectedPlanGroup = planGroups.find((group) => {
-    const connection = group.connection;
-    if (!connection || connection.providerId !== selectedProviderId) return false;
-    const selection = sharedSettings?.providerFamilyConnectionSelections?.[connection.family];
-    return (
-      connection.selection?.kind !== "team-coding-plan" ||
-      (selection && composerConnectionKey(connection.family, selection) === connection.key)
-    );
-  });
+  const selectedPlanGroup = planGroups.find(
+    (group) =>
+      group.connection?.providerId === selectedProviderId &&
+      group.connection !== undefined &&
+      group.connection.selection?.kind !== "team-coding-plan",
+  );
   const selectedPlanKey = connectionSwitch.pending
     ? connectionSwitch.previousKey
     : (selectedPlanGroup?.key ??
@@ -486,29 +448,17 @@ function V4ComposerModelControlsImpl({
         // 团队目录查询不是用户的连接切换操作，不能把登录错误挂到 API 菜单。
         error: connectionSwitch.error,
         onSelect: (group) => {
-          // 原因：展示失败时设置可能已成功；已选连接仍须允许重试，不能被同 key 短路。
+          // 展示失败后允许重选；账号身份切换不能降级为普通目录选模。
           if (group.key === selectedPlanKey && !connectionSwitch.error) return;
-          if (group.connection) {
-            void selectConnection(group.connection, selectedPlanKey);
-          } else {
-            const model = chooseConnectionModel(
-              group.items,
-              decodeCustomModelValue(normalizedModelValue)?.modelName,
-            );
-            const providerId = decodeCustomModelValue(model?.value ?? "")?.providerId;
-            // 原因：普通 API 原先绕过连接切换 owner，缺少 loading 且会暴露旧目录。
-            if (providerId)
-              void selectConnection(
-                {
-                  key: group.key,
-                  label: group.label,
-                  providerId,
-                  family: connectionFamily,
-                  items: group.items,
-                },
-                selectedPlanKey,
-              );
-          }
+          if (group.connection?.selection || group.connection?.disabled) return;
+          const model = chooseConnectionModel(
+            group.items,
+            decodeCustomModelValue(normalizedModelValue)?.modelName,
+          );
+          const providerId =
+            group.connection?.providerId ?? decodeCustomModelValue(model?.value ?? "")?.providerId;
+          // 普通目录选模也进入同一个 pending 和展示回执流程。
+          if (providerId) void selectConnection(providerId, selectedPlanKey);
         },
       },
       providerLabel: intl.formatMessage({ id: "chat.toolbar.combined.provider" }),
@@ -532,7 +482,6 @@ function V4ComposerModelControlsImpl({
       connectionSwitch.error,
       selectConnection,
       normalizedModelValue,
-      connectionFamily,
       intl,
       thoughtShortcutLabel,
       thoughtOption,
@@ -597,22 +546,6 @@ function V4ComposerModelControlsImpl({
                 : "chat.toolbar.model.targetMissing",
           })}
         </span>
-      ) : modelMenuVisible &&
-        showManageModelsAction &&
-        !providerSourcesLoading &&
-        planGroups.length === 0 &&
-        !connectionSwitch.pending ? (
-        // 空配置是正常状态；直接复用 Provider 设置入口，不展开无名称、无模型的菜单。
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-ui-sm"
-          data-testid="chat-model-select-trigger"
-          onClick={onOpenModelSettings}
-        >
-          {manageModelsLabel}
-        </Button>
       ) : modelMenuVisible ? (
         <ModelConfigSelect
           key={JSON.stringify([
