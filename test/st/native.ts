@@ -13,7 +13,9 @@ import {
   type ConversationSnapshot,
   type ConversationTopicFrame,
 } from "@zcode/shared/zcode-protocol-v4";
+import { expect } from "vitest";
 import type { AIReqRemoteWorkflow } from "@zcode/services/aireq";
+import type { IZCodeAgentService } from "@zcode/services";
 import { unique, waitUntil, type STClient } from "./client.js";
 
 export interface NativeSendOptions {
@@ -40,22 +42,38 @@ export async function openNative(c: STClient, remote: AIReqRemoteWorkflow): Prom
       "ST prerequisite blocked: public proposal has no usable native session/workspace",
     );
   }
-  const service = c.services.zcodeAgentService;
+  return openNativeSession(
+    c.services.zcodeAgentService,
+    c.identity.clientId,
+    remote.session.sessionId,
+    {
+      workspacePath: remote.workspace.path,
+      workspaceIdentity: remote.workspace.identity,
+    },
+  );
+}
+
+export async function initializeNative(service: IZCodeAgentService, clientId: string) {
   const hello = helloMessageSchema.parse(await service.helloConversationV4());
   if (hello.protocolVersion !== V4_WIRE_PROTOCOL_VERSION)
     throw new Error("ST native protocol mismatch");
   await service.initializeConversationV4({
     kind: "clientHello",
     protocolVersion: V4_WIRE_PROTOCOL_VERSION,
-    clientId: c.identity.clientId,
+    clientId,
     clientKind: "web",
     appVersion: "st-contract",
   });
-  const sessionId = remote.session.sessionId;
-  const workspace = {
-    workspacePath: remote.workspace.path,
-    workspaceIdentity: remote.workspace.identity,
-  };
+}
+
+export async function openNativeSession(
+  service: IZCodeAgentService,
+  clientId: string,
+  sessionId: string,
+  { workspacePath, workspaceIdentity }: NativeSession["workspace"],
+): Promise<NativeSession> {
+  await initializeNative(service, clientId);
+  const workspace = { workspacePath, workspaceIdentity };
   const frames: ConversationTopicFrame[] = [];
   const assembler = new TopicWireFrameAssembler(conversationTopicFrameSchema);
   let fault: Error | undefined;
@@ -149,7 +167,7 @@ export async function openNative(c: STClient, remote: AIReqRemoteWorkflow): Prom
           workspaceKey: workspace.workspaceIdentity ?? workspace.workspacePath,
         },
         commandId,
-        clientId: c.identity.clientId,
+        clientId,
         sessionId,
         type: commandType,
         issuedAt,
@@ -191,6 +209,55 @@ export function requireAccepted(ack: CommandAck): void {
       `ST command did not succeed: ${ack.status}/${ack.reasonCode ?? "missing-reason"}`,
     );
   }
+}
+
+export function expectNativeTurnWork(
+  native: NativeSession,
+  snapshot: ConversationSnapshot,
+  commandId: string,
+) {
+  const turn = snapshot.rows.window.find(
+    (row) => row.kind === "turnHeader" && row.sourceCommandId === commandId,
+  );
+  const rows = snapshot.rows.window.filter((row) => row.turnId === turn?.turnId);
+  expect(rows.map((row) => (row.kind === "toolCall" ? row.toolName : row.kind))).toEqual([
+    "turnHeader",
+    "userInput",
+    "reasoning",
+    "TodoWrite",
+    "Agent",
+    "subagent",
+    "assistantText",
+  ]);
+  const reasoning = rows.find((row) => row.kind === "reasoning");
+  const agent = rows.find((row) => row.kind === "toolCall" && row.toolName === "Agent");
+  expect(reasoning).toMatchObject({ state: "complete", text: expect.stringContaining("子代理") });
+  expect(agent).toMatchObject({ status: "success" });
+  expect(rows.find((row) => row.kind === "subagent")).toMatchObject({
+    status: "success",
+    parentToolCallId: agent?.kind === "toolCall" ? agent.toolCallId : undefined,
+    summaryText: expect.stringContaining("复核"),
+  });
+  expect(snapshot.plan?.items.map((item) => item.status)).toEqual([
+    "completed",
+    "completed",
+    "completed",
+  ]);
+  const live = native.frames.flatMap((frame) =>
+    frame.payload.kind === "deltas" ? frame.payload.deltas : [],
+  );
+  const stages = live.flatMap((delta) => {
+    if (delta.op === "row.delta" && delta.rowId === reasoning?.rowId) return ["reasoning"];
+    if (delta.op !== "row.appended" && delta.op !== "row.upserted") return [];
+    const { row } = delta;
+    if (row.turnId !== turn?.turnId) return [];
+    if (row.kind === "toolCall" && row.toolName === "TodoWrite" && row.status === "running")
+      return ["todo"];
+    if (row.kind === "subagent") return [row.status];
+    if (row.kind === "assistantText") return ["reply"];
+    return [];
+  });
+  expect(stages).toEqual(["reasoning", "todo", "running", "success", "reply"]);
 }
 
 export function requireRejected(ack: CommandAck): void {

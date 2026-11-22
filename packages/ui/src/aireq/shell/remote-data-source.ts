@@ -29,7 +29,6 @@ export async function createRemoteAIReqDataSource(
   const presenceListeners = new Set<(snapshot: AIReqPresenceSnapshot) => void>();
   const workflowListeners = new Set<() => void>();
   const modelListeners = new Set<() => void>();
-  const schedulerListeners = new Set<() => void>();
   const skillListeners = new Set<(sessionId: string) => void>();
   // 头像只切换同一已读取评审中的会话；不把异步刷新间隙当成工作区丢失。
   const resolveSnapshot = (
@@ -141,7 +140,6 @@ export async function createRemoteAIReqDataSource(
     }
     invalidationGeneration += 1;
     if (initializing) return;
-    if (frame.type === "scheduler") emit(schedulerListeners);
     if (frame.type === "skills")
       for (const listener of skillListeners) listener(frame.sessionId ?? "");
     if (["models", "workflow", "prompts"].includes(frame.type))
@@ -269,25 +267,6 @@ export async function createRemoteAIReqDataSource(
       disposed = true;
       subscription.dispose();
     },
-    progress: {
-      recordTest: async (...args) => {
-        await call("progress.recordTest", args, {
-          projectId: args[0],
-          irId: args[1],
-          srId: args[2],
-        });
-      },
-      cleanupPreview: (...args) =>
-        call("progress.cleanupPreview", args, { projectId: args[0], irId: args[1] }),
-      cleanupBranches: async (...args) => {
-        await call("progress.cleanupBranches", args, { projectId: args[0], irId: args[1] });
-      },
-    },
-    planning: {
-      updateSr: async (...args) => {
-        await call("planning.updateSr", args, { projectId: args[0], irId: args[1], srId: args[2] });
-      },
-    },
     projects: {
       saveRepository: async (input) => {
         await call("projects.saveRepository", [input]);
@@ -360,25 +339,6 @@ export async function createRemoteAIReqDataSource(
             skillListeners.delete(listener);
           },
         };
-      },
-    },
-    progressScheduler: {
-      read: () => call("progressScheduler.read", []),
-      queryTasks: (...args) => call("progressScheduler.queryTasks", args),
-      queryRuns: (...args) => call("progressScheduler.queryRuns", args),
-      readRun: async (...args) => (await call("progressScheduler.readRun", args)) ?? undefined,
-      subscribe: (listener) => subscribe(schedulerListeners, listener),
-      setProjectEnabled: async (...args) => {
-        await call("progressScheduler.setProjectEnabled", args);
-      },
-      configure: async (...args) => {
-        await call("progressScheduler.configure", args);
-      },
-      runNow: async (...args) => {
-        await call("progressScheduler.runNow", args);
-      },
-      dispose() {
-        schedulerListeners.clear();
       },
     },
   };

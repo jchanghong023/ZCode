@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
@@ -18,11 +18,15 @@ export function AIReqProposalReviewSubmit({
   const ai = useAIReq()!;
   const submitting = useRef(false);
   const [pending, setPending] = useState(false);
+  const reasonId = useId();
   const full = kind === "full";
   const name = full ? "方案审查" : "需求评审";
   const current = full ? fullReviewCurrent(proposal) : requirementsReviewCurrent(proposal);
   const blocker = proposalReviewSubmitBlocker(proposal, kind);
   const snapshotDigest = proposal.snapshot?.digest;
+  const reason = !full
+    ? (blocker ?? (!snapshotDigest ? "等待需求文档校验完成后提交。" : undefined))
+    : undefined;
 
   if (current) {
     return (
@@ -36,27 +40,35 @@ export function AIReqProposalReviewSubmit({
   }
 
   return (
-    <Button
-      disabled={!snapshotDigest || Boolean(blocker) || pending || ai.pending}
-      onClick={async () => {
-        if (!snapshotDigest || blocker || submitting.current) return;
-        submitting.current = true;
-        setPending(true);
-        try {
-          await ai.command({
-            type: "submitProposalReview",
-            projectId: proposal.projectId,
-            irId: proposal.id,
-            kind,
-            snapshotDigest,
-          });
-        } finally {
-          submitting.current = false;
-          setPending(false);
-        }
-      }}
-    >
-      {pending ? "正在提交…" : `提交${name}`}
-    </Button>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button
+        aria-describedby={reason ? reasonId : undefined}
+        disabled={!snapshotDigest || Boolean(blocker) || pending || ai.pending}
+        onClick={async () => {
+          if (!snapshotDigest || blocker || submitting.current) return;
+          submitting.current = true;
+          setPending(true);
+          try {
+            await ai.command({
+              type: "submitProposalReview",
+              projectId: proposal.projectId,
+              irId: proposal.id,
+              kind,
+              snapshotDigest,
+            });
+          } finally {
+            submitting.current = false;
+            setPending(false);
+          }
+        }}
+      >
+        {pending ? "正在提交…" : `提交${name}`}
+      </Button>
+      {reason && (
+        <p id={reasonId} className="max-w-xs break-words text-ui-sm text-foreground-subtle">
+          {reason}
+        </p>
+      )}
+    </div>
   );
 }

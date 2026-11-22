@@ -8,7 +8,6 @@ import {
   IAIReqService as AIReqDescriptor,
   AIREQ_CONTRACT_VERSION,
   proposalDeliveryCurrent,
-  projectProgress,
   type AIReqIdentity,
   type IAIReqService,
   type AIReqRemoteBootstrap,
@@ -24,31 +23,28 @@ import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./ide
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
+  canSyncFormalDocuments,
+  readPrototypeGitDocuments,
   getPrototypeWorkflow,
+  getPrototypeProposalPrHandoff,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
-  readPrototypeProjectProgressInputs,
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
   pollPrototypeProposalMerges,
   notifyPrototypeProjectSettingsChanged,
 } from "./workflow.js";
+import {
+  prototypeChangeRoot,
+  prototypeIrRoot,
+  type GitDocumentReader,
+} from "./proposal-storage.js";
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
 import { readPrototypeSkills } from "./skills.js";
 import { readPrototypeProjectSettings, savePrototypeRepository } from "./project-settings.js";
-import {
-  withPrototypeProgress,
-  recordPrototypeSrTest,
-  previewPrototypeBranchCleanup,
-  cleanupPrototypeBranches,
-  pollPrototypeDevelopment,
-} from "./progress.js";
-import { withPrototypePlanning, updatePrototypeSrPlanning } from "./planning.js";
-import { createPrototypeProgressScheduler } from "./progress-scheduler.js";
-import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
@@ -56,6 +52,9 @@ import { modelCatalogOverrides } from "./model-catalog.js";
 const logger = createServiceLogger("aireq");
 const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
 const commands = [
+  "requestProjectRoles",
+  "decideProjectRole",
+  "syncFormalDocuments",
   "createIdea",
   "importIdeas",
   "updateIdea",
@@ -69,7 +68,6 @@ const commands = [
   "confirmAlignment",
   "closeProposalPr",
   "reviseProposalMaterial",
-  "retrySrBranch",
   "deleteRequirement",
   "acceptProposal",
   "submitProposalReview",
@@ -90,10 +88,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     call: (identity, path, args, selection) => this.call(identity, path, args, selection),
     onDidChange: this.onDidChange,
   };
-  // 规模样例也包含真实 SR；按浏览器 URL 另建调度器会绕过同 SR 并发去重，必须启动时统一选定。
-  private readonly scheduler = createPrototypeProgressScheduler({
-    scaleDemo: process.env.AIREQ_DEMO === "analysis-scale",
-  });
   private readonly pendingOperations = new Map<
     string,
     { digest: string; result?: Promise<unknown> }
@@ -101,30 +95,15 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   private readonly operations = new Map<string, { digest: string; result: unknown }>();
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
   private readonly timer: ReturnType<typeof setInterval>;
-  constructor() {
+  constructor(private readonly readGitDocuments: GitDocumentReader = readPrototypeGitDocuments) {
     super();
     remoteOwners.set(this.remote, this);
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
     models.subscribePrototypeAgentModels(() => this.changed.fire({ type: "models" }));
-    this.scheduler.subscribe(() => this.changed.fire({ type: "scheduler" }));
     skills.onPrototypeSkillDesignSupplement((sessionId) =>
       this.changed.fire({ type: "skills", sessionId }),
     );
-    this.timer = setInterval(() => {
-      pollPrototypeProposalMerges();
-      pollPrototypeDevelopment();
-      // 已接纳分析由服务生命周期继续；浏览器关闭不取消 pending 或要求重新发送。
-      try {
-        withAIReqIdentity(
-          { employeeId: PROTOTYPE_BACKEND.owner, clientId: "mock-background" },
-          () => this.scheduler.tick(),
-        );
-      } catch (error) {
-        logger.error(undefined, "Background scheduler advancement failed", {
-          error: String(error),
-        });
-      }
-    }, 5000);
+    this.timer = setInterval(pollPrototypeProposalMerges, 5000);
     this.timer.unref();
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
@@ -133,9 +112,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("command", (action: AIReqAction, selection: AIReqSelection, revision: number) =>
       this.command(action, selection, revision),
     );
-    add("readPrHandoff", (target: { projectId: string; irId: string }) =>
-      readPrototypeProposalPrHandoff(this.group(target)),
-    );
+    add("readPrHandoff", getPrototypeProposalPrHandoff);
     add("retryMaterial", retryPrototypeWorkflowMaterial);
     add("retrySession", (selection: AIReqSelection, sessionId: string) => {
       const session = this.workflow(selection).session;
@@ -151,10 +128,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       prompts.savePrototypeAgentPrompts(value, revision);
       this.changed.fire({ type: "prompts" });
     });
-    add("progress.recordTest", recordPrototypeSrTest);
-    add("progress.cleanupPreview", previewPrototypeBranchCleanup);
-    add("progress.cleanupBranches", cleanupPrototypeBranches);
-    add("planning.updateSr", updatePrototypeSrPlanning);
     add("skillDesign.session", skills.prototypeSkillDesignSession);
     add("skillDesign.workspaceIdentity", (projectId: string) => `aireq-mock:${projectId}`);
     add("skillDesign.read", skills.readPrototypeSkillDesign);
@@ -164,18 +137,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("skillDesign.readPreview", skills.readPrototypeSkillDesignPreview);
     add("skillDesign.listSkills", readPrototypeSkills);
     add("skillDesign.savePreview", skills.savePrototypeSkillDesignPreview);
-    for (const name of [
-      "read",
-      "queryTasks",
-      "queryRuns",
-      "readRun",
-      "setProjectEnabled",
-      "configure",
-      "runNow",
-    ] as const)
-      this.methods.set(`progressScheduler.${name}`, (...args) =>
-        Reflect.apply(this.scheduler[name], this.scheduler, args),
-      );
   }
   /** Preserve explicit business operation results across reconnect. */
   invokeOnce(
@@ -202,36 +163,8 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     return result;
   }
-  private group(input: { projectId: string; irId: string }) {
-    const view = getPrototypeWorkflow(input);
-    const group = [...view.drafts, ...view.groups].find(
-      (item) => item.id === input.irId && item.projectId === input.projectId,
-    );
-    if (!group) throw businessRule("需求不存在或已删除。");
-    return group;
-  }
   private workflow(selection: AIReqSelection) {
-    const selected = getPrototypeWorkflow(selection);
-    // 全局统计一次读取并派生，再按项目分桶；不能每项目重跑含全局待办/操作的 workflow。
-    const progress = withPrototypeProgress(readPrototypeProjectProgressInputs());
-    const view = withPrototypePlanning({
-      ...selected,
-      srs: progress.srs.filter((sr) => sr.projectId === selected.currentProjectId),
-    });
-    const byProject = new Map<string, Parameters<typeof projectProgress>[0]>(
-      view.projects.map((project) => [
-        project.id,
-        { groups: [], drafts: [], srs: [], releases: [] },
-      ]),
-    );
-    for (const group of progress.groups) byProject.get(group.projectId)?.groups.push(group);
-    for (const draft of progress.drafts) byProject.get(draft.projectId)?.drafts.push(draft);
-    for (const sr of progress.srs) byProject.get(sr.projectId)?.srs.push(sr);
-    for (const release of progress.releases)
-      byProject.get(release.projectId)?.releases.push(release);
-    view.projectProgress = view.projects.map((project) =>
-      projectProgress(byProject.get(project.id)!, project.id),
-    );
+    const view = getPrototypeWorkflow(selection);
     const proposal = view.drafts.find(
       (item) => item.projectId === selection.projectId && item.id === selection.irId,
     );
@@ -254,7 +187,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
-  private command(action: AIReqAction, selection: AIReqSelection, revision: number) {
+  private async command(action: AIReqAction, selection: AIReqSelection, revision: number) {
     if (!(commands as readonly string[]).includes(action.type))
       throw businessRule("此操作不可用，请刷新页面后重试。");
     const metadata = action as AIReqAction & { operationId?: string; expectedRevision?: number };
@@ -279,7 +212,38 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       (metadata.expectedRevision !== undefined && metadata.expectedRevision !== current.revision)
     )
       throw businessRule("需求版本已变化，请重新读取当前版本。");
+    let gitSnapshot;
+    if (action.type === "syncFormalDocuments") {
+      if (!canSyncFormalDocuments(action.projectId))
+        throw businessRule("需要当前项目已授权的开发或测试角色。");
+      const target = getPrototypeWorkflow({ projectId: action.projectId, irId: action.irId });
+      const group = target.groups.find(
+        (item) => item.projectId === action.projectId && item.id === action.irId,
+      );
+      if (!group?.merge || !group.files.length)
+        throw businessRule("只有已归档的正式文档可以同步。");
+      const project = target.projects.find((item) => item.id === group.projectId);
+      if (!project?.repositoryUrl) throw businessRule("请先为项目配置 Git 仓库。");
+      gitSnapshot = await this.readGitDocuments(
+        {
+          id: project.id,
+          repositoryId: project.repositoryId,
+          repositoryUrl: project.repositoryUrl,
+          defaultBranch: project.defaultBranch,
+        },
+        [prototypeIrRoot(group.id), ...group.srIds.map(prototypeChangeRoot)],
+      );
+      const concurrent = key ? this.operations.get(key) : undefined;
+      if (concurrent) {
+        if (concurrent.digest !== digest)
+          throw businessRule("操作编号已被其他请求使用，请重新操作。");
+        return structuredClone(concurrent.result);
+      }
+      if (getPrototypeWorkflow(selection).revision !== revision)
+        throw businessRule("读取 Git 期间平台文档或权限已变化，请重新同步。");
+    }
     const result = applyPrototypeAction(action, selection, undefined, {
+      gitSnapshot,
       operationId: metadata.operationId,
       commandDigest: digest,
     });
@@ -292,7 +256,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       backend: { id: PROTOTYPE_BACKEND.id },
       capabilities: {
         proposalDiscussion: true,
-        codeDevelopment: false,
         workflowCommands: [...commands],
         requirementManagement: true,
         freeChat: false,
@@ -364,9 +327,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         path === "projects.saveRepository" ||
         path === "models.save" ||
         path === "prompts.save" ||
-        path === "skillDesign.savePreview" ||
-        path === "progressScheduler.configure" ||
-        path === "progressScheduler.setProjectEnabled"
+        path === "skillDesign.savePreview"
       ) {
         const actor = currentIdentity()!;
         logger.info(undefined, "Business operation succeeded", {

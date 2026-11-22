@@ -1,5 +1,8 @@
 import {
+  fullReviewReadyBlocker,
+  proposalAlignmentCurrent,
   readSrDependencies,
+  requirementsReviewBlocker,
   type AIReqMaterialHistory,
   type AIReqMaterialReadRequest,
   type AIReqMaterialView,
@@ -54,6 +57,41 @@ export function readMaterialSelection(
     selected,
     material: material ?? materials[0],
   };
+}
+
+export function isCurrentMaterialConfirmed(
+  group: AIReqRequirementGroup | undefined,
+  material: AIReqMaterialView | undefined,
+): boolean {
+  if (
+    !group ||
+    !material?.valid ||
+    material.projectId !== group.projectId ||
+    material.irId !== group.id
+  )
+    return false;
+  const matchesFile = (file: Pick<AIReqMaterialView, "path" | "sha256" | "size">) =>
+    file.path === material.path && file.sha256 === material.sha256 && file.size === material.size;
+  if (!group.files.some(matchesFile)) return false;
+
+  if (group.merge) {
+    // Git history records only the paths changed by each accepted sync. A later sync
+    // of another path leaves this file's accepted version in place.
+    const accepted = group.materialHistory?.findLast(
+      ({ event }) =>
+        event?.type === "git-sync" && event.files.some(({ path }) => path === material.path),
+    );
+    // Unchanged paths retain the exact file version verified at intake.
+    return (accepted?.materials ?? group.merge.files).some(matchesFile);
+  }
+
+  // Approval of requirements covers just the IR; any current alignment covers the
+  // full review input. History alone is never evidence of current human approval.
+  if (material.path === group.documentPath && !requirementsReviewBlocker(group)) return true;
+  return (
+    !fullReviewReadyBlocker(group) &&
+    (group.alignment?.some((entry) => proposalAlignmentCurrent(group, entry)) ?? false)
+  );
 }
 
 export type MaterialReadFeedback = { request: AIReqMaterialReadRequest; message?: string };

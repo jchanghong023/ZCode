@@ -50,13 +50,10 @@ export function AIReqDeleteRequirement({
     view?.groups.some((item) => item.id === group.id && item.projectId === group.projectId)
   )
     return <>{renderTrigger?.()}</>;
-  const started = view?.srs.some(
-    (sr) => sr.projectId === group.projectId && sr.irId === group.id && sr.status !== "pending",
-  );
   const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group, selection);
   const prohibition =
-    group.merge || group.proposalRevisions?.length || group.status === "frozen" || started
-      ? "已入库的正式提案、修订及开发历史保留展示；只能移除允许删除的草稿。"
+    group.merge || group.proposalRevisions?.length || group.freeze || group.status === "frozen"
+      ? "已入库的正式文档及其修订历史须保留。"
       : history
         ? "正在查看历史环节，仅供只读查看；请返回当前操作环节。"
         : undefined;

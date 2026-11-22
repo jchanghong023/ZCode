@@ -264,7 +264,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
   );
 
   it(
-    "should require readable current business material and record a nonempty return reason without accepting the old review",
+    "lets a business user return the current requirements review without accepting the old review",
     async () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
@@ -279,14 +279,24 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(getProposal(unchanged, target)).toEqual(getProposal(before, target));
         await completeBusinessMaterial(client, target);
         await submitReview(client, target, "original");
-        const approved = await approveOriginalReview(client, target);
-        const original = getProposal(approved, target).originalReview!;
-        expect(original.passed).toBe(true);
+        const { remote: reviewed, review: original } = await waitForReview(
+          client,
+          target,
+          "original",
+        );
+        expect(reviewed.view.roleAdministrator).toBe(false);
+        expect(
+          reviewed.view.roleRegistrations?.filter((entry) => entry.projectId === target.projectId),
+        ).toEqual([]);
+        expect(original.humanDecision).toBeUndefined();
         await expectBusinessRejection(
           client.command({ type: "returnProposal", reason: "  " }, target.selection),
         );
         const reason = "导出验收还须明确引用单元格换行和中文往返无损。";
-        const returned = await commandAndRead(client, { type: "returnProposal", reason }, target);
+        const returned = await commandAndRead(client, { type: "returnProposal", reason }, {
+          ...target,
+          selection: { ...target.selection, proposalStep: "solution" },
+        });
         const group = getProposal(returned, target);
         expect(group.returnFeedback).toMatchObject({
           reason,
@@ -296,11 +306,10 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(group.returnFeedback?.resumedAt).toBeUndefined();
         expect(group.proposalStage).toBe("requirements");
         expect(group.srIds).toEqual([]);
-        expect(
-          [group.originalReview, ...(group.originalReviewHistory ?? [])].some(
-            (review) => review?.id === original.id,
-          ),
-        ).toBe(true);
+        expect(group.originalReview).toBeUndefined();
+        expect(group.originalReviewHistory).toContainEqual(
+          expect.objectContaining({ id: original.id, invalidatedReason: expect.any(String) }),
+        );
         await expectBusinessRejection(
           client.command(
             {
@@ -501,6 +510,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
           pushedCandidate: candidate.candidate,
           prCandidate: candidate.candidate,
         });
+        expect(frozen.proposalDelivery).not.toHaveProperty("repositoryTarget");
+        expect(frozen.proposalDelivery).not.toHaveProperty("simulatedMr");
         expect(published.view.groups.some((group) => group.id === target.irId)).toBe(false);
         const repeated = await client.command(publish, target.selection);
         expect(repeated.operationId).toBe(receipt.operationId);
@@ -532,6 +543,28 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(materialVersions(getProposal(await client.read(target.selection), target))).toEqual(
           materialVersions(frozen),
         );
+        const project = published.view.projects.find((item) => item.id === target.projectId)!;
+        const newBranch = unique("st-delivery-branch");
+        await client.call("projects.saveRepository", [
+          {
+            projectId: project.id,
+            name: project.name,
+            repositoryUrl: requireConfig(project.repositoryUrl, "交付项目仓库"),
+            defaultBranch: newBranch,
+            expectedRevision: project.revision,
+            operationId: unique("change-delivery-branch"),
+          },
+        ]);
+        expect(await readHandoff()).toMatchObject({
+          ready: false,
+          targetBranch: project.defaultBranch,
+        });
+        await expect(
+          client.command(
+            { type: "publishProposal", candidate: candidate.candidate },
+            target.selection,
+          ),
+        ).rejects.toThrow(/仍绑定原目标/);
         await expectBusinessRejection(
           client.command(
             { type: "closeProposalPr", candidate: unique("wrong-candidate") },
@@ -551,12 +584,32 @@ describe("proposal business lifecycle through the deployed public API", () => {
             closedPr: { ...frozen.requirementsPr, status: "closed" },
           }),
         );
+        expect(
+          closed.proposalDeliveryHistory?.find((item) => item.candidate === candidate.candidate),
+        ).not.toHaveProperty("repositoryTarget");
+        expect(await readHandoff()).toMatchObject({ ready: true, targetBranch: newBranch });
         expect(materialVersions(closed)).toEqual(materialVersions(frozen));
         await expectBusinessRejection(
           client.command(
             { type: "publishProposal", candidate: candidate.candidate },
             target.selection,
           ),
+        );
+        const reboundCandidate = closed.proposalDelivery!.candidate;
+        const rebound = getProposal(
+          await commandAndRead(
+            client,
+            { type: "publishProposal", candidate: reboundCandidate },
+            target,
+          ),
+          target,
+        );
+        expect(rebound.requirementsPr).toMatchObject({ status: "opened", targetBranch: newBranch });
+        expect(rebound.requirementsPr?.number).not.toBe(frozen.requirementsPr?.number);
+        await commandAndRead(
+          client,
+          { type: "closeProposalPr", candidate: reboundCandidate },
+          target,
         );
 
         const testPlan = published.view.materials.find(

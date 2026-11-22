@@ -1,6 +1,23 @@
 import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqProject } from "@zcode/services/aireq";
+import type { PrototypeRepositoryTarget } from "./internal-scenarios.js";
+
+export function prototypeRepositoryTarget({
+  repositoryId,
+  repositoryUrl,
+  defaultBranch,
+}: PrototypeRepositoryTarget): PrototypeRepositoryTarget {
+  return { repositoryId, repositoryUrl, defaultBranch };
+}
+
+export function prototypeRepositoryKey({
+  repositoryId,
+  repositoryUrl,
+  defaultBranch,
+}: PrototypeRepositoryTarget): string {
+  return JSON.stringify([repositoryId, repositoryUrl, defaultBranch]);
+}
 
 interface PrototypeProjectSettings {
   projects: AIReqProject[];

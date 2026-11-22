@@ -12,28 +12,12 @@ import type {
   AIReqWorkflowView,
   AIReqWorkflowResult,
   AIReqWorkspace,
-  AIReqSrPlanningInput,
   AIReqPrHandoff,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
 } from "./types.js";
-import type {
-  AIReqAnalysisFilter,
-  AIReqAnalysisHistoryFilter,
-  AIReqAnalysisSnapshot,
-  AIReqAnalysisTaskPage,
-  AIReqAnalysisPage,
-  AIReqAnalysisRunSummary,
-  AIReqAnalysisRun,
-} from "./progress-scheduler.js";
-import type {
-  AIReqTestAcceptanceInput,
-  AIReqBranchCleanupInput,
-  AIReqBranchCleanupItem,
-} from "./progress.js";
-
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 5;
+export const AIREQ_CONTRACT_VERSION = 7;
 export type AIReqRemoteErrorCode =
   | "BUSINESS_RULE_VIOLATION"
   | "NOT_FOUND"
@@ -77,19 +61,6 @@ export interface AIReqRemoteOperations {
   >;
   retryMaterial: Operation<[request: AIReqMaterialReadRequest], boolean>;
   retrySession: Operation<[selection: AIReqSelection, sessionId: string], null>;
-  "progress.recordTest": Operation<
-    [projectId: string, irId: string, srId: string, input: AIReqTestAcceptanceInput],
-    null
-  >;
-  "progress.cleanupPreview": Operation<[projectId: string, irId: string], AIReqBranchCleanupItem[]>;
-  "progress.cleanupBranches": Operation<
-    [projectId: string, irId: string, input: AIReqBranchCleanupInput],
-    null
-  >;
-  "planning.updateSr": Operation<
-    [projectId: string, irId: string, srId: string, input: AIReqSrPlanningInput],
-    null
-  >;
   "projects.saveRepository": Operation<[input: AIReqRemoteRepositoryInput], null>;
   "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
@@ -112,19 +83,6 @@ export interface AIReqRemoteOperations {
     ],
     AIReqSkillSaveReceipt
   >;
-  "progressScheduler.read": Operation<[], AIReqAnalysisSnapshot>;
-  "progressScheduler.queryTasks": Operation<
-    [filter: AIReqAnalysisFilter, page: number, pageSize: number],
-    AIReqAnalysisTaskPage
-  >;
-  "progressScheduler.queryRuns": Operation<
-    [filter: AIReqAnalysisHistoryFilter, page: number, pageSize: number],
-    AIReqAnalysisPage<AIReqAnalysisRunSummary>
-  >;
-  "progressScheduler.readRun": Operation<[id: string], AIReqAnalysisRun | null>;
-  "progressScheduler.setProjectEnabled": Operation<[projectId: string, enabled: boolean], null>;
-  "progressScheduler.configure": Operation<[enabled: boolean, intervalMinutes: number], null>;
-  "progressScheduler.runNow": Operation<[filter: AIReqAnalysisFilter, retryRunId?: string], null>;
 }
 export type AIReqRemotePath = keyof AIReqRemoteOperations;
 export type AIReqRemoteArgs<P extends AIReqRemotePath> = AIReqRemoteOperations[P]["args"];
@@ -151,7 +109,6 @@ export type AIReqRemoteEvent = (
   | { type: "workflow" }
   | { type: "models" }
   | { type: "prompts" }
-  | { type: "scheduler" }
   | { type: "skills"; sessionId: string }
   | { type: "error"; error: AIReqRemoteError }
 ) & {

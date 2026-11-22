@@ -66,6 +66,7 @@ export function AIReqSessionPane({
   return (
     <SessionPane
       {...props}
+      showTurnWork
       retainReadOnlyComposer={!hideReadOnlyComposer}
       readOnly={props.readOnly || Boolean(readOnlyReason)}
       readOnlyReason={readOnlyReason}

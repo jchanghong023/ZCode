@@ -36,6 +36,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         {/* 项目页用提案名识别对象；列表沿用同一名称，标题和原文共用一个键盘入口。 */}
         <ControlHintTooltip title={item.originalText}>
           <Button
+            data-aireq-proposal-entry={item.id}
             variant="link"
             className="h-auto max-w-full flex-col items-start gap-1 whitespace-normal break-words p-0 text-left text-foreground hover:no-underline"
             aria-label={

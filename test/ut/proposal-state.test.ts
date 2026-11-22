@@ -11,10 +11,12 @@ import {
   proposalViewedIndex,
   conversationReadOnlyReason,
   type AIReqFileVersion,
+  type AIReqMaterialView,
   type AIReqRequirementGroup,
   type AIReqReview,
   type AIReqReviewAgentId,
 } from "../../packages/services/src/aireq/index.js";
+import { isCurrentMaterialConfirmed } from "../../packages/ui/src/aireq/proposals/material-reader.js";
 
 const at = "2026-11-17T00:00:00.000Z";
 const employeeId = "s00000001";
@@ -437,4 +439,107 @@ describe("proposal business states from current materials and confirmations", ()
       expect(proposalStateIndex(group)).toBe(-1);
     },
   );
+});
+
+describe("current file confirmation", () => {
+  function currentMaterial(
+    group: AIReqRequirementGroup,
+    path = group.documentPath,
+  ): AIReqMaterialView {
+    return {
+      ...group.files.find((entry) => entry.path === path)!,
+      projectId: group.projectId,
+      irId: group.id,
+      kind: path === group.documentPath ? "ir" : "solution",
+      valid: true,
+    };
+  }
+
+  it("keeps IR approval valid when only the plan changes, without confirming SR files", () => {
+    const group = aligned();
+    const srPath = group.proposalSolution!.path;
+    group.files.find((entry) => entry.path === srPath)!.sha256 = "new-plan";
+    group.snapshot!.files = structuredClone(group.files);
+    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(true);
+    expect(isCurrentMaterialConfirmed(group, currentMaterial(group, srPath))).toBe(false);
+  });
+
+  it.each(["business", "development", "testing"] as const)(
+    "accepts current %s alignment, but not a previous review's approval of the same bytes",
+    (role) => {
+      const group = aligned();
+      group.alignment = group.alignment!.filter((entry) => entry.perspective === role);
+      const material = currentMaterial(group, group.proposalSolution!.path);
+      expect(isCurrentMaterialConfirmed(group, material)).toBe(true);
+      group.review!.id = "new-review-of-same-files";
+      expect(isCurrentMaterialConfirmed(group, material)).toBe(false);
+    },
+  );
+
+  it("keeps approval of returned material in history even when its bytes are unchanged", () => {
+    const group = aligned();
+    const ir = currentMaterial(group);
+    const sr = currentMaterial(group, group.proposalSolution!.path);
+    group.materialHistory = [
+      {
+        version: proposalVersion(group),
+        reason: "人工确认",
+        changedAt: at,
+        proposalRound: 1,
+        event: { type: "confirmation", employeeId, role: "business" },
+        materials: [ir, sr],
+      },
+    ];
+    group.originalReviewHistory = [group.originalReview!];
+    group.alignmentHistory = group.alignment;
+    group.originalReview = undefined;
+    group.alignment = [];
+    group.review = undefined;
+    group.returnFeedback = { round: 1, returnedAt: at, reason: "补充业务范围", employeeId };
+    group.proposalRound = 2;
+    expect(isCurrentMaterialConfirmed(group, ir)).toBe(false);
+    expect(isCurrentMaterialConfirmed(group, sr)).toBe(false);
+  });
+
+  it("uses the latest accepted Git change for the path and preserves unsynced merge approval", () => {
+    const group = aligned();
+    const irAtMerge = currentMaterial(group);
+    const sr = currentMaterial(group, group.proposalSolution!.path);
+    group.status = "frozen";
+    group.merge = {
+      commit: "merged",
+      branch: "main",
+      checkedAt: at,
+      files: structuredClone(group.files),
+    };
+    const sync = (path: string, sha256: string) => {
+      group.files.find((entry) => entry.path === path)!.sha256 = sha256;
+      (group.materialHistory ??= []).push({
+        version: `version-${sha256}`,
+        reason: "Git 同步并确认",
+        changedAt: at,
+        materials: [currentMaterial(group), currentMaterial(group, sr.path)],
+        event: {
+          type: "git-sync",
+          employeeId,
+          commit: sha256,
+          files: [
+            {
+              path,
+              change: { hash: sha256, message: "sync", employee: employeeId, committedAt: at },
+            },
+          ],
+        },
+      });
+    };
+    sync(irAtMerge.path, "git-v1");
+    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(true);
+    expect(isCurrentMaterialConfirmed(group, sr)).toBe(true);
+    sync(irAtMerge.path, "git-v2");
+    sync(sr.path, "git-plan");
+    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(true);
+    // A matching older snapshot cannot override the last accepted Git change.
+    group.files.find((entry) => entry.path === irAtMerge.path)!.sha256 = "git-v1";
+    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(false);
+  });
 });

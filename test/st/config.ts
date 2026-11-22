@@ -51,7 +51,6 @@ export const config = {
   otherEmployeeId: process.env.ST_OTHER_EMPLOYEE_ID || "s00000002",
   token: process.env.ST_TOKEN,
   timeoutMs: positiveInteger(process.env.ST_TIMEOUT_MS, 120_000),
-  preparationConcurrency: positiveInteger(process.env.ST_PREPARE_CONCURRENCY, 2),
   repositoryUrl: process.env.ST_REPOSITORY_URL || "https://github.com/jchanghong023/test.git",
   branch: process.env.ST_REPOSITORY_BRANCH || "main",
   fixtures: fixtureFile(),
@@ -66,8 +65,6 @@ export const config = {
         bytesBase64: string;
       },
 };
-if (config.preparationConcurrency > 2)
-  throw new Error("ST 配置错误：ST_PREPARE_CONCURRENCY 目前仅支持 1 或 2");
 if (process.env.ST_FILE_JSON) {
   try {
     config.file = JSON.parse(process.env.ST_FILE_JSON);

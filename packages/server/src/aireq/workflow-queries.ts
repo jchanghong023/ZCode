@@ -8,21 +8,45 @@ import type {
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 import { readPrototypeProjectSettings } from "./project-settings.js";
-import { readPrototypeProjectReleases } from "./project-releases.js";
 import { prototypeSessionReadIssue } from "./recovery.js";
 
-/** 统计只复制所需事实；逐项目报表不得重新构造整份 workflow 和全局待办。 */
-export function projectProgressInputs(
-  state: AIReqWorkflowView,
-): Pick<AIReqWorkflowView, "groups" | "drafts" | "srs" | "releases" | "repositoryHeads"> {
-  const projects = new Set(readPrototypeProjectSettings().projects.map((project) => project.id));
-  return structuredClone({
-    groups: state.groups.filter((group) => projects.has(group.projectId)),
-    drafts: state.drafts.filter((group) => projects.has(group.projectId)),
-    srs: state.srs.filter((sr) => projects.has(sr.projectId)),
-    releases: readPrototypeProjectReleases().filter((release) => projects.has(release.projectId)),
-    repositoryHeads: state.repositoryHeads,
-  });
+/** 只读统计使用同一工作流的提案和转正事实，按 Release 汇总。 */
+export function projectDocuments(
+  state: Pick<AIReqWorkflowView, "groups" | "drafts">,
+  projects: AIReqWorkflowView["projects"],
+  releases: AIReqWorkflowView["availableReleases"],
+): NonNullable<AIReqWorkflowView["projectDocuments"]> {
+  const summaries = new Map(
+    projects.map((project) => [
+      project.id,
+      {
+        projectId: project.id,
+        releases: [] as NonNullable<AIReqWorkflowView["projectDocuments"]>[number]["releases"],
+      },
+    ]),
+  );
+  const totals = new Map(
+    releases.map((release) => {
+      const summary = {
+        releaseId: release.id,
+        title: release.title,
+        createdAt: release.createdAt,
+        proposalCount: 0,
+        formalCount: 0,
+      };
+      summaries.get(release.projectId)?.releases.push(summary);
+      return [JSON.stringify([release.projectId, release.id]), summary];
+    }),
+  );
+  for (const group of state.drafts) {
+    const summary = totals.get(JSON.stringify([group.projectId, group.releaseId]));
+    if (summary) summary.proposalCount++;
+  }
+  for (const group of state.groups) {
+    const summary = totals.get(JSON.stringify([group.projectId, group.releaseId]));
+    if (summary) summary.formalCount++;
+  }
+  return [...summaries.values()];
 }
 
 /** 原生会话热路径只读取其所属对象，不构建全工作流、待办或进度聚合。 */

@@ -1,10 +1,39 @@
-import type { AIReqPrHandoffInput, AIReqPrHandoffScenario } from "./internal-scenarios.js";
+import type {
+  AIReqPrHandoffInput,
+  AIReqPrHandoffScenario,
+  InternalProposalDelivery,
+  PrototypeRepositoryTarget,
+} from "./internal-scenarios.js";
 
-import type { AIReqPrHandoff, AIReqRequirementGroup } from "@zcode/services/aireq";
+import type { AIReqPrHandoff, AIReqProject, AIReqRequirementGroup } from "@zcode/services/aireq";
 import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
 import { getEmployeeId } from "./identity.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
-import { readPrototypeProjectSettings } from "./project-settings.js";
+
+export function prototypeProposalBranch(irId: string): string {
+  return `ir/${irId}`;
+}
+
+export function prototypeProposalRepositoryIssue(
+  group: AIReqRequirementGroup,
+  project: PrototypeRepositoryTarget | undefined,
+): string | undefined {
+  const delivery = group.proposalDelivery as InternalProposalDelivery | undefined;
+  const target = delivery?.repositoryTarget;
+  if (!target) {
+    if (delivery?.branch || delivery?.pushedAt || group.requirementsPr)
+      return "当前文档交付缺少已绑定的 Git 仓库及目标分支。";
+    return;
+  }
+  if (
+    !project ||
+    target.repositoryId !== project.repositoryId ||
+    target.repositoryUrl !== project.repositoryUrl ||
+    target.defaultBranch !== project.defaultBranch ||
+    (group.requirementsPr && group.requirementsPr.targetBranch !== target.defaultBranch)
+  )
+    return "项目 Git 仓库或目标分支已变更，当前文档交付仍绑定原目标。";
+}
 
 /** 仅推导平台托管仓库的交接样例，不创建分支或访问文件系统。 */
 function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHandoff {
@@ -14,7 +43,7 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
   const sourceDirectory = projectDirectory
     ? `${projectDirectory.replace(/\/$/, "")}/.aireq/proposals/${group.id}`
     : "";
-  const branch = `ir/${group.id}`;
+  const branch = prototypeProposalBranch(group.id);
   const blockers: string[] = [];
   const reviewBlocker = alignmentBlocker(group);
   if (reviewBlocker) blockers.push(reviewBlocker);
@@ -25,6 +54,10 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
     !project.defaultBranch
   )
     blockers.push("请先配置提案所属项目的 Git 仓库和默认分支。");
+  const repositoryIssue = prototypeProposalRepositoryIssue(group, project);
+  if (repositoryIssue) blockers.push(repositoryIssue);
+  const target = (group.proposalDelivery as InternalProposalDelivery | undefined)
+    ?.repositoryTarget ?? project;
   if (!projectDirectory || scenario === "missing-directory")
     blockers.push("提案临时目录记录缺失。");
   else if (project && projectDirectory !== project.root)
@@ -40,8 +73,8 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
     employeeId,
     sourceDirectory,
     branch,
-    repositoryUrl: project?.repositoryUrl,
-    targetBranch: project?.defaultBranch ?? "未配置",
+    repositoryUrl: target?.repositoryUrl,
+    targetBranch: target?.defaultBranch ?? "未配置",
     changeRoot,
     files: group.files.map((file) => ({
       path: file.path,
@@ -57,14 +90,13 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
 }
 export function readPrototypeProposalPrHandoff(
   group: AIReqRequirementGroup,
+  project: AIReqProject | undefined,
   scenario: AIReqPrHandoffScenario = "current",
 ): AIReqPrHandoff {
   return derivePrototypeProposalPrHandoff({
     group,
     employeeId: getEmployeeId(),
-    project: readPrototypeProjectSettings().projects.find(
-      (project) => project.id === group.projectId,
-    ),
+    project,
     scenario,
   });
 }

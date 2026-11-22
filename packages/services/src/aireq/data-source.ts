@@ -12,17 +12,10 @@ import type {
   AIReqSkillDesignPreview,
   AIReqPrHandoff,
   AIReqWorkspace,
-  AIReqSrPlanningInput,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
   AIReqMaterialReadRequest,
 } from "./types.js";
-import type { AIReqProgressScheduler } from "./progress-scheduler.js";
-import type {
-  AIReqTestAcceptanceInput,
-  AIReqBranchCleanupInput,
-  AIReqBranchCleanupItem,
-} from "./progress.js";
 
 export interface AIReqBackendView {
   /** Opaque backend identity used to isolate browser preferences. */
@@ -84,30 +77,10 @@ export interface AIReqDataSource {
     read(): Promise<AIReqPresenceSnapshot>;
     subscribe(listener: (snapshot: AIReqPresenceSnapshot) => void): () => void;
   };
-  planning?: {
-    updateSr(
-      projectId: string,
-      irId: string,
-      srId: string,
-      input: AIReqSrPlanningInput,
-    ): Promise<void>;
-  };
-  progressScheduler?: AIReqProgressScheduler;
-  progress?: {
-    recordTest(
-      projectId: string,
-      irId: string,
-      srId: string,
-      input: AIReqTestAcceptanceInput,
-    ): Promise<void>;
-    cleanupPreview(projectId: string, irId: string): Promise<AIReqBranchCleanupItem[]>;
-    cleanupBranches(projectId: string, irId: string, input: AIReqBranchCleanupInput): Promise<void>;
-  };
   clientId: string;
   backend?: AIReqBackendView;
   capabilities: {
     proposalDiscussion?: boolean;
-    codeDevelopment?: boolean;
     workflowCommands: readonly AIReqAction["type"][];
     requirementManagement: boolean;
     freeChat: boolean;

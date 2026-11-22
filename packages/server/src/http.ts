@@ -38,6 +38,7 @@ import {
   sanitizeTelemetryEventRequest,
   telemetryEventRequestSchema,
 } from "@zcode/shared";
+import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
 import {
   getConnectionServices,
   registerAIReqConnection,
@@ -46,13 +47,15 @@ import {
   withAIReqIdentity,
 } from "./aireq/contract.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
+import { bindWebChatConnection } from "./chat/service.js";
 
-interface ConnectionData {
-  identity: AIReqIdentity;
-  ip: string | null;
+type ConnectionData = (
+  | { kind: "aireq"; identity: AIReqIdentity; ip: string | null }
+  | { kind: "chat"; clientId: string }
+) & {
   leavePresence?: () => void;
   transport?: ReturnType<typeof wrapWebSocket>;
-}
+};
 
 function wrapWebSocket(ws: ServerWebSocket<ConnectionData>) {
   const onData = new Emitter<VSBuffer>();
@@ -162,6 +165,25 @@ const publicMembers = new Map([
   publicService(ISubagentsService, ["list"]),
 ]);
 const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
+const chatExposure: ServiceExposurePolicy = {
+  allowedMembers: new Map([
+    publicService(IModelSelectionService, ["getView"]),
+    publicService(
+      IZCodeAgentService,
+      [
+        "helloConversationV4",
+        "initializeConversationV4",
+        "listRecentChatSessions",
+        "subscribeConversationV4",
+        "resyncConversationV4",
+        "unsubscribeConversationV4",
+        "conversationRowsRangeV4",
+        "sendConversationCommandV4",
+      ],
+      ["onDynamicConversationFrame"],
+    ),
+  ]),
+};
 
 let nextBroadcastSourceId = 0;
 
@@ -169,12 +191,32 @@ let nextBroadcastSourceId = 0;
 function setupChannelServer(
   socket: ISocket,
   services: ServiceCollection,
-  identity: AIReqIdentity,
+  overrides: Map<string, unknown>,
+  exposure: ServiceExposurePolicy,
 ): void {
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
   const loggedServer = new LoggingChannelServer(rawServer, log);
+  const agentService = overrides.get(IZCodeAgentService.channelName) as IZCodeAgentService;
+  const connectionScope = createZCodeAgentConnectionScope(agentService, {
+    connectionId: `web-ws-${crypto.randomUUID()}`,
+    clientMode: "web-remote-replayable",
+    role: "terminal-client",
+  });
+  overrides.set(IZCodeAgentService.channelName, connectionScope.service);
+  services.exposeOnChannelServer(loggedServer, overrides, exposure);
+  socket.onClose(() => {
+    void connectionScope.dispose();
+    rawServer.dispose();
+  });
+}
+
+function setupAIReqChannelServer(
+  socket: ISocket,
+  services: ServiceCollection,
+  identity: AIReqIdentity,
+) {
   const overrides = getConnectionServices(services, identity);
   // 项目读取复用 AIReq 的可信连接身份，防止 mention 投影越权读取他人的私有会话。
   const project = services.get(IProjectService);
@@ -189,19 +231,6 @@ function setupChannelServer(
   overrides.set(ISystemService.channelName, {
     info: async () => ({ homedir: "", platform: process.platform }),
   });
-  const agentService = overrides.get(IZCodeAgentService.channelName) as
-    | IZCodeAgentService
-    | undefined;
-  const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
-        connectionId: `mock-ws-${crypto.randomUUID()}`,
-        clientMode: "web-remote-replayable",
-        role: "terminal-client",
-      })
-    : undefined;
-  if (connectionScope) {
-    overrides.set(IZCodeAgentService.channelName, connectionScope.service);
-  }
   const broadcast = services.get(IBroadcastService);
   const sourceWindowId = ++nextBroadcastSourceId;
   const incoming = new Emitter<Parameters<IBroadcastService["send"]>[0]>();
@@ -218,20 +247,19 @@ function setupChannelServer(
     onMessage: incoming.event,
   };
   overrides.set(IBroadcastService.channelName, connectionBroadcast);
-  services.exposeOnChannelServer(loggedServer, overrides, publicExposure);
   socket.onClose(() => {
     closed = true;
     broadcastListener.dispose();
     incoming.dispose();
-    void connectionScope?.dispose();
-    rawServer.dispose();
   });
+  setupChannelServer(socket, services, overrides, publicExposure);
 }
 
 export interface MockHttpServerOptions {
   host?: string;
   port?: number;
   authToken?: string;
+  chatServices: ServiceCollection;
   /** Exact proxy IPs allowed to supply X-Forwarded-For; empty means direct peers only. */
   trustedProxyIPs?: readonly string[];
   /** 生产模式：托管 packages/web 构建产物并开启 SPA fallback。 */
@@ -410,10 +438,7 @@ function negotiateStaticEncoding(
   return (identityQuality ?? (qualities.get("*") === 0 ? 0 : 1)) > 0 ? "identity" : null;
 }
 
-export function createMockHttpServer(
-  services: ServiceCollection,
-  options: MockHttpServerOptions = {},
-) {
+export function createMockHttpServer(services: ServiceCollection, options: MockHttpServerOptions) {
   const app = new Hono<{ Bindings: { server: Bun.Server<ConnectionData> } }>();
   app.onError((error, c) => {
     console.error("[http] request failed", error);
@@ -480,7 +505,30 @@ export function createMockHttpServer(
       c.req.header("x-forwarded-for"),
       options.trustedProxyIPs ?? [],
     );
-    if (c.env.server.upgrade(c.req.raw, { data: { identity, ip }, headers: c.res.headers })) {
+    if (
+      c.env.server.upgrade(c.req.raw, {
+        data: { kind: "aireq", identity, ip },
+        headers: c.res.headers,
+      })
+    ) {
+      return new Response(null);
+    }
+    return c.text("WebSocket upgrade required", 400);
+  });
+
+  app.get("/ws/chat", (c) => {
+    const query = new URL(c.req.url).searchParams;
+    const clientId = query.get("clientId") ?? "";
+    if (
+      [...query.keys()].some(
+        (key) => !["clientId", "token"].includes(key) || query.getAll(key).length !== 1,
+      ) ||
+      !/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(clientId)
+    )
+      return c.json({ error: "Invalid chat connection" }, 400);
+    if (
+      c.env.server.upgrade(c.req.raw, { data: { kind: "chat", clientId }, headers: c.res.headers })
+    ) {
       return new Response(null);
     }
     return c.text("WebSocket upgrade required", 400);
@@ -537,15 +585,27 @@ export function createMockHttpServer(
       // ping/pong 保持无人操作的订阅，同时清理断网后没有 close 帧的失联连接。
       idleTimeout: 60,
       sendPings: true,
+      // 逻辑快照会成批发送；base64 后可超过 Bun 默认的 16 MiB 写缓冲。
+      backpressureLimit: 2 * PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes,
+      closeOnBackpressureLimit: true,
       open(ws) {
         ws.binaryType = "uint8array";
         const transport = wrapWebSocket(ws);
         ws.data.transport = transport;
-        ws.data.leavePresence = registerAIReqConnection(services, ws.data.identity, ws.data.ip);
         try {
-          setupChannelServer(transport.socket, services, ws.data.identity);
+          if (ws.data.kind === "chat") {
+            const agent = bindWebChatConnection(
+              options.chatServices.get(IZCodeAgentService),
+              ws.data.clientId,
+            );
+            const overrides = new Map([[IZCodeAgentService.channelName, agent]]);
+            setupChannelServer(transport.socket, options.chatServices, overrides, chatExposure);
+          } else {
+            ws.data.leavePresence = registerAIReqConnection(services, ws.data.identity, ws.data.ip);
+            setupAIReqChannelServer(transport.socket, services, ws.data.identity);
+          }
         } catch (error) {
-          ws.data.leavePresence();
+          ws.data.leavePresence?.();
           ws.close(1011, "Connection setup failed");
           throw error;
         }

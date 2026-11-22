@@ -1,6 +1,8 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button.js";
+import { getEmployeeId } from "../identity.js";
+import { hasProjectRole } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   alignmentBlocker,
@@ -59,6 +61,7 @@ export function AIReqProposalReviewPage({
   full: boolean;
 }) {
   const ai = useAIReq()!;
+  const developer = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
   const heading = useRef<HTMLHeadingElement>(null);
   const review = full ? group.review : group.originalReview;
   const current = full ? fullReviewCurrent(group) : requirementsReviewCurrent(group);
@@ -71,7 +74,8 @@ export function AIReqProposalReviewPage({
       ? review.humanDecision
       : undefined;
   const fullConfirmed = full && !alignmentBlocker(group);
-  const canRetry = proposalReviewCanRetry(group, full);
+  const canEditMaterials = !full || developer;
+  const canRetry = canEditMaterials && proposalReviewCanRetry(group, full);
   const title = full ? "方案审查" : "需求评审";
   const reportLabel = full ? "综合报告" : "评审报告";
   const status = proposalTaskStatus(group, full ? "solutionReview" : "requirementsReview");
@@ -105,10 +109,12 @@ export function AIReqProposalReviewPage({
     : [];
   const nextActions = (
     <div className="flex flex-wrap items-center gap-2">
-      <Button onClick={() => ai.openProposalTask(full ? "delivery" : "solution")}>
-        {full ? "前往交付确认" : "进入方案设计"}
-        <ArrowRight className="size-4" aria-hidden="true" />
-      </Button>
+      {developer && (
+        <Button onClick={() => ai.openProposalTask(full ? "delivery" : "solution")}>
+          {full ? "前往交付确认" : "进入方案设计"}
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Button>
+      )}
       <Button variant="outline" onClick={() => ai.openProposalTask("management")}>
         前往管理需求修改材料
       </Button>
@@ -146,30 +152,31 @@ export function AIReqProposalReviewPage({
             </p>
           </section>
         )}
-        {check?.issues.length ? (
-          <Button
-            variant="outline"
-            onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
-          >
-            {full ? "前往完善方案" : "前往需求澄清"}
-          </Button>
-        ) : (
-          !current && (
-            <div className="space-y-2">
-              <p className="text-ui-sm text-foreground-subtle">
-                {check
-                  ? "当前材料尚未提交。请核对后发起评审。"
-                  : "先完善材料，校验通过后可提交评审。"}
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
-              >
-                {full ? "前往方案设计" : "前往需求澄清"}
-              </Button>
-            </div>
-          )
-        )}
+        {canEditMaterials &&
+          (check?.issues.length ? (
+            <Button
+              variant="outline"
+              onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
+            >
+              {full ? "前往完善方案" : "前往需求澄清"}
+            </Button>
+          ) : (
+            !current && (
+              <div className="space-y-2">
+                <p className="text-ui-sm text-foreground-subtle">
+                  {check
+                    ? "当前材料尚未提交。请核对后发起评审。"
+                    : "先完善材料，校验通过后可提交评审。"}
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => ai.openProposalTask(full ? "solution" : "requirements")}
+                >
+                  {full ? "前往方案设计" : "前往需求澄清"}
+                </Button>
+              </div>
+            )
+          ))}
         {current && review && (
           <section className="min-w-0 space-y-4" aria-labelledby="proposal-review-report">
             <h2 id="proposal-review-report" className="text-ui-lg font-semibold">
@@ -219,7 +226,7 @@ export function AIReqProposalReviewPage({
         )}
         {full && !fullConfirmed && (
           <>
-            {current && (
+            {current && developer && (
               <Button variant="outline" onClick={() => ai.openProposalTask("solution")}>
                 返回方案设计
               </Button>

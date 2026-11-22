@@ -87,11 +87,7 @@ export interface STClient {
   command(action: AIReqAction, selection?: AIReqSelection): Promise<AIReqRemoteResult<"command">>;
   close(): Promise<void>;
 }
-export async function connectST(employeeId = config.employeeId): Promise<STClient> {
-  const identity = {
-    employeeId: requireConfig(employeeId, "ST_EMPLOYEE_ID"),
-    clientId: unique("client"),
-  };
+async function connectSTTransport(url: string) {
   const sockets: WebSocket[] = [];
   const NativeSocket = globalThis.WebSocket;
   let closing = false;
@@ -114,7 +110,7 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
   let connecting: Promise<IServiceAccessor>;
   try {
     globalThis.WebSocket = TrackedSocket;
-    connecting = connectViaWebSocket(wsUrl(identity));
+    connecting = connectViaWebSocket(url);
   } catch (error) {
     closeSockets();
     throw safeError(error, "WS construction");
@@ -155,6 +151,45 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
       });
     },
   });
+  async function close() {
+    const waits = sockets
+      .filter((socket) => socket.readyState !== NativeSocket.CLOSED)
+      .map(
+        (socket) =>
+          new Promise<void>((resolve) =>
+            socket.addEventListener("close", () => resolve(), { once: true }),
+          ),
+      );
+    closeSockets();
+    await bounded(
+      Promise.all(waits).then(() => {}),
+      "client socket cleanup",
+      Math.min(config.timeoutMs, 3000),
+    );
+  }
+  return { guardedServices, services, close, rpc, isClosing: () => closing };
+}
+
+export function connectChatST(clientId = crypto.randomUUID()) {
+  const url = new URL("/ws/chat", config.baseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("clientId", clientId);
+  if (config.token) url.searchParams.set("token", config.token);
+  return connectSTTransport(url.toString()).then(({ guardedServices, close }) => ({
+    services: guardedServices,
+    close,
+    clientId,
+  }));
+}
+
+export async function connectST(employeeId = config.employeeId): Promise<STClient> {
+  const identity = {
+    employeeId: requireConfig(employeeId, "ST_EMPLOYEE_ID"),
+    clientId: unique("client"),
+  };
+  const { guardedServices, services, close, rpc, isClosing } = await connectSTTransport(
+    wsUrl(identity),
+  );
   const client: STClient = {
     services: guardedServices,
     identity,
@@ -162,9 +197,7 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
     read: (selection = {}) =>
       rpc(services.aiReqService.call(identity, "readWorkflow", [selection], selection)),
     call: (path, args, selection) => {
-      if (closing) throw new Error("ST 客户端已关闭");
-      if (path === "progress.cleanupBranches")
-        requireCreatedThisRun(String(args[0]), String(args[1]));
+      if (isClosing()) throw new Error("ST 客户端已关闭");
       if (path === "command") {
         const action = args[0] as AIReqAction;
         if (action.type === "deleteRequirement")
@@ -184,22 +217,7 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
       };
       return client.call("command", [command, selection, revision], selection);
     },
-    async close() {
-      const waits = sockets
-        .filter((socket) => socket.readyState !== NativeSocket.CLOSED)
-        .map(
-          (socket) =>
-            new Promise<void>((resolve) =>
-              socket.addEventListener("close", () => resolve(), { once: true }),
-            ),
-        );
-      closeSockets();
-      await bounded(
-        Promise.all(waits).then(() => {}),
-        "client socket cleanup",
-        Math.min(config.timeoutMs, 3000),
-      );
-    },
+    close,
   };
   return client;
 }

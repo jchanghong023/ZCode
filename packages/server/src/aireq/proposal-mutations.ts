@@ -1,10 +1,11 @@
 import { contentVersion, createRequirementSnapshot } from "./content-digest.js";
-import type { InternalRequirementGroup, InternalWorkflowAction } from "./internal-scenarios.js";
+import type { InternalWorkflowAction } from "./internal-scenarios.js";
 import type {
   AIReqWorkflowView,
   AIReqOperationReceipt,
   AIReqRequirementGroup,
   AIReqMaterialView,
+  AIReqMaterialHistoryEvent,
 } from "@zcode/services/aireq";
 import { completeProposalPaths, proposalAlignmentCurrent } from "@zcode/services/aireq";
 import { group, systemRequirement, sessionRef } from "./fixture-builders.js";
@@ -80,6 +81,25 @@ function snapshot(state: AIReqWorkflowView, proposal: AIReqRequirementGroup): vo
   if (proposal.proposalSolution?.valid)
     proposal.proposalSolution.requirementsDigest = proposal.snapshot.digest;
 }
+function recordMaterialConfirmation(
+  state: AIReqWorkflowView,
+  proposal: AIReqRequirementGroup,
+  role: Extract<AIReqMaterialHistoryEvent, { type: "confirmation" }>["role"],
+  at: string,
+  requirementsOnly = false,
+): void {
+  const paths = new Set(proposal.files.map((file) => file.path));
+  const confirmed = materialsFor(state, proposal).filter(
+    (file) => paths.has(file.path) && (!requirementsOnly || file.path === proposal.documentPath),
+  );
+  const snapshot = capturePrototypeMaterialHistory(state, proposal, confirmed, "人工确认");
+  (proposal.materialHistory ??= []).push({
+    ...snapshot,
+    changedAt: at,
+    event: { type: "confirmation", employeeId: getEmployeeId(), role },
+  });
+}
+
 function invalidate(
   state: AIReqWorkflowView,
   proposal: AIReqRequirementGroup,
@@ -185,6 +205,31 @@ export function applyProposalMutation(
     if (run) reviewRuns.push(run);
   };
   switch (action.type) {
+    case "requestProjectRoles":
+      for (const role of action.roles) {
+        (state.roleRegistrations ??= []).push({
+          id: crypto.randomUUID(),
+          projectId,
+          employeeId: getEmployeeId(),
+          role,
+          status: "pending",
+          note: action.note?.trim() || undefined,
+          requestedAt: at,
+        });
+      }
+      break;
+    case "decideProjectRole": {
+      const registration = state.roleRegistrations!.find(
+        (entry) => entry.id === action.registrationId && entry.projectId === projectId,
+      )!;
+      registration.status = action.decision;
+      registration.decidedAt = at;
+      registration.decidedBy = getEmployeeId();
+      break;
+    }
+    case "syncFormalDocuments":
+      throw businessRule("Git 同步需要服务端已读取的版本。");
+
     case "importIdeas": {
       if (!action.originalTexts.length || action.originalTexts.some((text) => !text.trim()))
         throw businessRule("导入正文无效，本批未写入任何想法。");
@@ -348,29 +393,6 @@ export function applyProposalMutation(
         contacts: { ...action.contacts },
       });
       break;
-    case "retrySrBranch": {
-      const sr = state.srs.find(
-        (item) => item.projectId === projectId && item.irId === irId && item.id === action.srId,
-      )!;
-      const branch = sr.trackingBranch!;
-      if (branch.status !== "failed") break;
-      const internal = proposal! as InternalRequirementGroup;
-      internal.branchCreationAttempts ??= {};
-      internal.branchCreationAttempts[sr.id] = (internal.branchCreationAttempts[sr.id] ?? 0) + 1;
-      const nextFailure = internal.branchCreationFailures?.includes(sr.id);
-      internal.branchCreationFailures = internal.branchCreationFailures?.filter(
-        (id) => id !== sr.id,
-      );
-      sr.trackingBranch = {
-        name: branch.name,
-        baseCommit: branch.baseCommit,
-        createdAt: branch.createdAt,
-        pushedAt: nextFailure ? "" : at,
-        status: nextFailure ? "failed" : "ready",
-        ...(nextFailure ? { error: "本次创建开发分支失败，请重试。" } : {}),
-      };
-      break;
-    }
     case "deleteRequirement":
       state.groups = state.groups.filter(
         (item) => item.id !== irId || item.projectId !== projectId,
@@ -402,6 +424,7 @@ export function applyProposalMutation(
         reviewId: review.id,
         snapshotDigest: review.snapshotDigest,
       };
+      recordMaterialConfirmation(state, proposal!, "business", at, true);
       proposal!.proposalStage = "solution";
       proposal!.developerAcceptance = {
         employeeId: getEmployeeId(),
@@ -440,7 +463,7 @@ export function applyProposalMutation(
           (entry) =>
             entry.perspective === action.perspective && proposalAlignmentCurrent(proposal!, entry),
         )
-      )
+      ) {
         proposal!.alignment.push({
           perspective: action.perspective,
           version: action.version,
@@ -449,6 +472,8 @@ export function applyProposalMutation(
           employeeId: getEmployeeId(),
           confirmedAt: at,
         });
+        recordMaterialConfirmation(state, proposal!, action.perspective, at);
+      }
       preparePrototypeProposalCandidate(
         proposal!,
         `sample-proposal-${state.revision}`,
@@ -522,8 +547,6 @@ export function applyProposalMutation(
               `sr-${proposal!.id}-${index + 1}`,
               `${proposal!.title} · ${title}`,
             );
-            row.developerEmployeeId = proposal!.contacts?.development;
-            row.testingEmployeeId = proposal!.contacts?.testing;
             return row;
           })
         : state.srs.filter((row) => row.projectId === projectId && row.irId === irId);

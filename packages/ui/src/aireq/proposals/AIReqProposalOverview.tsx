@@ -1,9 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
 import { ArrowRight, FileText, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { getEmployeeId } from "../identity.js";
+import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   proposalProgressIndex,
+  hasProjectRole,
+  fullReviewCurrent,
   proposalState,
   proposalStateLabel,
   PROPOSAL_STATE_OPTIONS,
@@ -13,6 +17,7 @@ import {
 } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import {
+  canOpenProposalTask,
   proposalNextTask,
   proposalTaskGuidance,
   proposalTaskStatus,
@@ -41,6 +46,14 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const guidance = proposalTaskGuidance(group);
   const stateLabel = proposalStateLabel(group);
   const phase = proposalProgressIndex(group, {});
+  const developer = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
+  const roles = {
+    development: developer,
+    testing: hasProjectRole(ai.view, group.projectId, getEmployeeId(), "testing"),
+  };
+  const tasks = stages.filter((task) => canOpenProposalTask(task, roles));
+  const businessConfirmation =
+    !canOpenProposalTask("solutionReview", roles) && fullReviewCurrent(group);
   const track = useRef<HTMLDivElement>(null);
   const currentStep = useRef<HTMLSpanElement>(null);
   const alignment =
@@ -83,7 +96,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const notes: Partial<Record<ProposalTask, string>> = {
     requirements: "明确目标、范围与验收标准",
     requirementsReview: "查看评审意见并确认业务需求",
-    solution: "完善技术方案、开发任务与测试材料",
+    solution: "完善技术方案、实施说明与测试材料",
     solutionReview: "查看审查报告，由业务、开发和测试分别确认",
     delivery: "核对完整文件并提交文档 PR，查看合入核验",
   };
@@ -123,10 +136,12 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
                 </p>
                 <p className="text-ui-sm text-foreground-subtle">处理方：{roleLabel}</p>
               </div>
-              <Button onClick={() => ai.openProposalTask(next)}>
-                {guidance.action}
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </Button>
+              {tasks.includes(next) && (
+                <Button onClick={() => ai.openProposalTask(next)}>
+                  {guidance.action}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Button>
+              )}
             </div>
           </div>
           <div
@@ -164,7 +179,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
         <section aria-label="需求任务" className="space-y-2">
           <h2 className="text-ui-base font-medium">任务</h2>
           <ol className="divide-y divide-border/50">
-            {stages.map((task) => (
+            {tasks.map((task) => (
               <li key={task}>
                 <button
                   type="button"
@@ -191,6 +206,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             ))}
           </ol>
         </section>
+        {businessConfirmation && <AIReqProposalAlignment group={group} />}
         {/* 原文长度不可决定主要操作的位置；折叠阅读区保留完整文本与键盘滚动。 */}
         <details
           key={`${group.projectId}:${group.id}`}
@@ -240,10 +256,12 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
         <div className="flex flex-wrap gap-3 border-t border-border/50 pt-4">
           <Button
             variant="ghost"
-            onClick={() => ai.openProposalTask(phase >= 2 ? "solution" : "requirements")}
+            onClick={() =>
+              ai.openProposalTask(phase >= 2 && developer ? "solution" : "requirements")
+            }
           >
             <FileText className="size-4" aria-hidden="true" />
-            查看需求与方案材料
+            查看需求材料
           </Button>
           <Button variant="ghost" onClick={() => ai.openProposalTask("management")}>
             <Settings2 className="size-4" aria-hidden="true" />

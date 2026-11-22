@@ -1,5 +1,5 @@
 import type { Event } from "@zcode/rpc";
-import { ServiceChannels } from "@zcode/shared";
+import { ServiceChannels } from "@zcode/shared/channels";
 import {
   type ModelSelectionView,
   type ModelSelectionViewInput,

@@ -31,7 +31,6 @@ import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
 import { AIReqDocumentFormatSettings } from "./AIReqDocumentFormatSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings, type AIReqProjectSettingsRequest } from "./AIReqProjectSettings.js";
-import { AIReqAnalysisSettings } from "../tracking/analysis/AIReqAnalysisSettings.js";
 import { AIREQ_DOCUMENT_PATHS, type AIReqSettingsDraftActions } from "../contract.js";
 
 export type AIReqSettingsSection =
@@ -39,7 +38,6 @@ export type AIReqSettingsSection =
   | "projects"
   | "models"
   | "personalization"
-  | "analysis"
   | "documentFormats";
 type AIReqNavigationGuard = (navigate: () => void) => void;
 const chineseTitles = {
@@ -47,7 +45,6 @@ const chineseTitles = {
   projects: "项目配置",
   models: "模型",
   personalization: "Agent 指令",
-  analysis: "分析设置",
   documentFormats: "文档格式",
 };
 const englishTitles = {
@@ -55,7 +52,6 @@ const englishTitles = {
   projects: "Project configuration",
   models: "Models",
   personalization: "Agent instructions",
-  analysis: "Analysis settings",
   documentFormats: "Document formats",
 };
 const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSection>> = {
@@ -63,7 +59,6 @@ const searchSectionTargets: Partial<Record<SettingsSectionId, AIReqSettingsSecti
   general: "projects",
   modelProvider: "models",
   personalization: "personalization",
-  agentBehavior: "analysis",
   documentFormats: "documentFormats",
 };
 
@@ -101,7 +96,6 @@ export function AIReqSettingsPage({
   onHelp,
   onNavigationGuardChange,
   skillActions,
-  analysisProjectId,
   projectSettingsRequest,
   onProjectSettingsRequestHandled,
 }: {
@@ -112,7 +106,6 @@ export function AIReqSettingsPage({
   onHelp: (returnFocusTo?: HTMLButtonElement | null) => void;
   onNavigationGuardChange?: (guard: AIReqNavigationGuard | null) => void;
   skillActions: AIReqSettingsDraftActions | null;
-  analysisProjectId?: string;
   projectSettingsRequest: AIReqProjectSettingsRequest | null;
   onProjectSettingsRequestHandled(request: AIReqProjectSettingsRequest): void;
 }) {
@@ -120,7 +113,7 @@ export function AIReqSettingsPage({
   const zh = locale === "zh-CN";
   const titles = zh ? chineseTitles : englishTitles;
   const aiTitle = zh ? "AI 配置" : "AI configuration";
-  const aiSection = section === "models" || section === "personalization" || section === "analysis";
+  const aiSection = section === "models" || section === "personalization";
   const contentRef = useRef<HTMLElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
   // 覆盖层打开会隐藏旧焦点；给键盘用户一个可见且可直接退出的位置。
@@ -170,11 +163,6 @@ export function AIReqSettingsPage({
               label: zh ? "Agent 模型与思考强度" : "Agent models and reasoning",
               keywords: ["模型配置", "思考强度", "推理", "agent model", "reasoning"],
             },
-            {
-              id: "aireq.model.progressAnalysis",
-              label: zh ? "进度分析 Agent 模型" : "Progress Analysis Agent model",
-              keywords: ["进度分析", "分析模型", "progress analysis", "analysis model"],
-            },
           ],
         },
         {
@@ -198,28 +186,6 @@ export function AIReqSettingsPage({
                 "prompt",
                 "instructions",
               ],
-            },
-          ],
-        },
-        {
-          id: "agentBehavior",
-          label: `${aiTitle} · ${titles.analysis}`,
-          includeSettings: false,
-          items: [
-            {
-              id: "aireq.analysis.enabled",
-              label: zh ? "全局自动分析" : "Global automatic analysis",
-              keywords: ["分析开关", "自动调度", "global analysis", "scheduler"],
-            },
-            {
-              id: "aireq.analysis.projects",
-              label: zh ? "项目分析范围" : "Project analysis scope",
-              keywords: ["项目分析", "启用项目", "project analysis", "project scope"],
-            },
-            {
-              id: "aireq.analysis.interval",
-              label: zh ? "统一分析间隔" : "Analysis interval",
-              keywords: ["间隔", "周期", "调度", "interval", "schedule"],
             },
           ],
         },
@@ -485,7 +451,7 @@ export function AIReqSettingsPage({
                 className="min-w-0"
               >
                 <TabsList aria-label={aiTitle}>
-                  {(["models", "personalization", "analysis"] as const).map((id) => (
+                  {(["models", "personalization"] as const).map((id) => (
                     <TabsTrigger key={id} value={id}>
                       {titles[id]}
                     </TabsTrigger>
@@ -495,20 +461,8 @@ export function AIReqSettingsPage({
                   <h2 className="sr-only">{titles[section]}</h2>
                   {section === "models" ? (
                     <AIReqAgentModelSettings onDraftActionsChange={onDraftActionsChange} />
-                  ) : section === "personalization" ? (
-                    <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
                   ) : (
-                    <AIReqAnalysisSettings
-                      onOpenModelSettings={() =>
-                        guard(() => {
-                          // 分析设置指向对应 Agent，避免进入模型页后再次搜索目标。
-                          onSectionChange("models");
-                          setSearchTarget({ id: "aireq.model.progressAnalysis" });
-                        })
-                      }
-                      onDraftActionsChange={onDraftActionsChange}
-                      focusProjectId={analysisProjectId}
-                    />
+                    <AIReqPersonalizationSettings onDraftActionsChange={onDraftActionsChange} />
                   )}
                 </TabsContent>
               </Tabs>

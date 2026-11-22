@@ -4,7 +4,7 @@
 
 ## 1. 身份来源
 
-应用入口只填写工号。校验格式通过即可进入，工号用来标记消息发送人和实际操作者，应用登录无需本人认证。用户可查看所有项目和 Release 的共享内容，可修改共享配置并执行满足工作流条件的操作。
+应用入口只填写工号。校验格式通过即可进入，工号用来标记消息发送人和实际操作者，应用登录无需本人认证。用户可查看所有项目和 Release 的共享内容，可使用业务页面，其他操作依项目角色开放。
 
 Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。
 
@@ -16,7 +16,28 @@ Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId(
 
 服务端在升级前验证自报身份；`getConnectionServices` 冻结连接身份，后续 bootstrap/call 的 employee/client 精确匹配，原生命令 envelope.clientId 也匹配。项目树与目录解析通过同一身份读取。请求局部上下文使用 `AsyncLocalStorage`，不用全局可变工号。
 
-项目、Release、IR、SR、会话、阶段与版本校验用于定位正确对象并接纳工作流操作。联系人和负责人用于分工和待办派发，实际操作按执行时的工号记录。业务、开发、测试三个确认角色可由任一工号分别完成，规则见[三方确认](proposals.md#方案完整审查与三方确认)。部署 token 的作用域是整站访问。现有 Skill 私有会话按 employeeId 和 clientId 隔离。
+项目、Release、IR、SR、会话、阶段与版本校验用于定位正确对象并接纳工作流操作。提案联系人用于分工和待办派发，实际操作按执行时的工号记录。三方确认按实际角色校验，规则见[三方确认](proposals.md#方案完整审查与三方确认)。部署 token 的作用域是整站访问。现有 Skill 私有会话按 employeeId 和 clientId 隔离。
+
+### 项目角色
+
+每个合法工号默认拥有业务权限。侧栏工号上方始终提供「角色申请」。申请任选项目，一次可选开发、测试或两者。待审批与已授权角色不重复申请；未通过或已撤销可再申请。
+
+管理员工号固定为 `y00000000`，默认拥有所有项目的业务、开发和测试权限，无需申请。在角色页分别批准、拒绝或撤销项目角色。所有角色从「需求共创」打开同一需求工作台。业务人员可澄清需求、评审需求并在工作台确认方案的业务角色。开发人员可进入方案设计、发起或重试方案审查、提交文档 PR；开发和测试都可阅读方案审查，并按已授权角色确认。普通工号的开发和测试角色只在获批项目生效，联系人分工只负责派发。内存环境以连接工号验证角色；现有自报入口仍需可信工号认证才能用于正式授权。
+
+状态归工作流。选定项目的开发／测试写操作及会话执行在服务端查询当前角色，浏览器基于同一投影隐藏入口。角色申请一次提交全部所选项；工作流为每条角色申请分配唯一记录标识，客户端操作编号只用于请求幂等。审批和撤销按单角色校验当前状态并记录处理人和时间。先提交，再发工作流变更；连接恢复重读。
+
+```mermaid
+sequenceDiagram
+  participant U as 工号
+  participant W as 工作流
+  participant A as 管理员
+  U->>W: 申请当前项目的开发及／或测试角色
+  W-->>A: 待审批记录
+  A->>W: 批准或拒绝单个角色
+  W-->>U: 广播后重读角色，更新入口
+```
+
+验收覆盖共用入口、双角色一次申请、审批前后需求详情的可见任务及操作、项目隔离、管理员三个角色均可确认及撤销后写入拒绝。未授权任务的直达地址显示需求工作台。
 
 ## 2. 工作区与会话
 
@@ -34,24 +55,24 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 ## 3. 相互独立的版本
 
-| 版本                                    | 含义                                          |
-| --------------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=5`              | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
-| Protocol v4 wire `3`                    | hello/clientHello 与二进制 wire 版本          |
-| snapshot `protocolVersion=1`            | 会话投影格式，不是 wire 版本                  |
-| workflow revision、材料／候选／代码版本 | 对应业务 CAS、批准、分析及验收绑定            |
-| 模型配置、提示词、目录 revision         | 分别属于各 owner，不互相替代                  |
-| session revision                        | 原生命令 CAS                                  |
-| topic logEpoch/seq                      | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
+| 版本                              | 含义                                          |
+| --------------------------------- | --------------------------------------------- |
+| `AIREQ_CONTRACT_VERSION=7`          | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
+| snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
+| workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
+| 模型配置、提示词、目录 revision   | 分别属于各 owner，不互相替代                  |
+| session revision                  | 原生命令 CAS                                  |
+| topic logEpoch/seq                | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
 
 AIReq 事件的 backendEpoch/revision/对象/operationId 字段可选，bootstrap 没有全局事件水位，不承诺持久重放或跨重启 exactly-once。
 
 ## 4. CAS 与幂等
 
 - `command` 按 employee/client/operationId 保存回执，摘要包含目标与业务参数，不包含首次 expectedRevision／外层 revision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
-- 项目保存、排期、测试验收、清理与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
+- 项目保存与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
-- `skillDesign.saveDraft` 和 scheduler 的 setProjectEnabled/configure/runNow 没有请求 CAS／operationId，按当前覆盖保存／调度规则执行。
+- `skillDesign.saveDraft` 没有请求 CAS／operationId，按当前覆盖保存规则执行。
 
 原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`；行命令还比较 baseLogEpoch、rowId/entityId。陈旧请求不改变事实、队列或水位。query 返回已知决定与当前 turn 事实。
 
@@ -63,7 +84,7 @@ accepted 表示接纳真实转换，不等于后台执行完成；无需变化�
 
 事件只失效投影；错误可见，后续读取可修复。刷新不抢占导航、不覆盖 dirty prompt，保存不能清掉保存期间的新编辑。dispose 与读取代次使迟到响应失效。
 
-连接关闭或出错终结旧 pending 请求。重连替换 accessor、attachment 和订阅，保留同一工号生命周期中的组件挂载、store、正文与附件草稿，重新绑定广播且入站偏好只应用一次。有限退避后可显式重连，退出工号终止旧连接尝试。重连只订阅与重读，不自动重放 create/send/save/confirm/分析 mutation。
+连接关闭或出错终结旧 pending 请求。重连替换 accessor、attachment 和订阅，保留同一工号生命周期中的组件挂载、store、正文与附件草稿，重新绑定广播且入站偏好只应用一次。有限退避后可显式重连，退出工号终止旧连接尝试。重连只订阅与重读，不自动重放 create/send/save/confirm mutation。
 
 ## 6. 原生 topic
 

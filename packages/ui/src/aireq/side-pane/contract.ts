@@ -1,12 +1,11 @@
 import type { AIReqSelection } from "../contract.js";
 
-export type AIReqSidePaneKind = "launcher" | "report" | "materials" | "history" | "analysis";
+export type AIReqSidePaneKind = "launcher" | "materials" | "history";
 export interface AIReqSidePaneRequest {
   kind: AIReqSidePaneKind;
   selection: AIReqSelection;
   releaseId: string;
   title: string;
-  runId?: string;
 }
 export interface AIReqSidePaneTab extends AIReqSidePaneRequest {
   id: string;

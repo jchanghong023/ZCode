@@ -14,7 +14,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqRequirementGroup } from "../contract.js";
+import { getEmployeeId } from "../identity.js";
+import { hasProjectRole, type AIReqRequirementGroup } from "../contract.js";
 
 export function AIReqProposalManagement({
   group,
@@ -24,6 +25,8 @@ export function AIReqProposalManagement({
   returnDraft: { dirty: boolean; busy: boolean; discard: () => void };
 }) {
   const ai = useAIReq()!;
+  const development = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
+  const testing = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "testing");
   const [target, setTarget] = useState<"requirements" | "solution" | "test-plan">("requirements");
   const [note, setNote] = useState("");
   const [noteRevision, setNoteRevision] = useState<number>();
@@ -155,8 +158,8 @@ export function AIReqProposalManagement({
             onChange={(event) => setTarget(event.target.value as typeof target)}
           >
             <option value="requirements">业务原始需求文档</option>
-            <option value="solution">SR 方案完整包</option>
-            <option value="test-plan">仅测试方案</option>
+            {development && <option value="solution">SR 方案完整包</option>}
+            {(development || testing) && <option value="test-plan">仅测试方案</option>}
           </select>
         </label>
         <SettingsFormTextarea
@@ -178,6 +181,8 @@ export function AIReqProposalManagement({
             busy ||
             ai.pending ||
             !note.trim() ||
+            (target === "solution" && !development) ||
+            (target === "test-plan" && !development && !testing) ||
             noteRevision === undefined ||
             noteRevision !== ai.view?.revision ||
             group.status === "requirements-pr"

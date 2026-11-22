@@ -16,5 +16,4 @@ export function freezePrototypeRequirement(
     dependencies: srDependencyMap(group),
   };
   group.status = "frozen";
-  group.developmentStartedAt ??= at;
 }

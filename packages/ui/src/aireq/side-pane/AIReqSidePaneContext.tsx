@@ -46,7 +46,7 @@ export function useAIReqSidePane(): AIReqSidePaneController {
 }
 export function sidePaneTargetKey(target: AIReqSidePaneRequest): string {
   const s = target.selection;
-  return JSON.stringify([target.kind, s.projectId, target.releaseId, s.irId, s.srId, target.runId]);
+  return JSON.stringify([target.kind, s.projectId, target.releaseId, s.irId, s.srId]);
 }
 const targetScope = (target: AIReqSidePaneRequest) =>
   JSON.stringify([target.selection.projectId ?? "", target.releaseId]);
@@ -188,7 +188,6 @@ export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
       title: locale === "zh-CN" ? "新标签页" : "New tab",
       selection: { ...(active?.selection ?? aiRef.current.selection) },
       releaseId: aiRef.current.releaseId,
-      runId: active?.runId,
     };
     admit(state.activeTabId ? [state.activeTabId] : [], () =>
       edit(key, (current) => ({

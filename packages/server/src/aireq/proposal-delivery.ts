@@ -12,8 +12,9 @@ import {
   proposalDependencyMaterialIssue,
   alignmentBlocker,
 } from "@zcode/services/aireq";
-import { readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
+import { prototypeProposalBranch, readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
+import { prototypeRepositoryKey, prototypeRepositoryTarget } from "./project-settings.js";
 import type { AIReqRequirementGroup, AIReqWorkflowView } from "@zcode/services/aireq";
 import type {
   InternalProposalDelivery,
@@ -73,13 +74,12 @@ export function observePrototypeProposalMr(
   return "merged";
 }
 /** 演示交付只记录编号与状态；没有代码托管服务提供的真实URL时不返回链接。 */
-function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
+function ensurePrototypeProposalMr(group: AIReqRequirementGroup, targetBranch: string): void {
   const delivery = group.proposalDelivery;
-  if (!delivery?.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
-  if (proposalPrCurrent(group)) return;
+  if (!delivery?.branch || !delivery.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
+  const sourceBranch = delivery.branch.name;
   if (consumePrototypeMrCreationFailure(delivery.candidate))
     throw businessRule("分支已推送，但创建 MR 失败，请重试当前版本。");
-  const handoff = readPrototypeProposalPrHandoff(group);
   const number = ++mrNumber;
   group.requirementsPr = aiReqPrFactSchema.parse({
     number,
@@ -89,16 +89,16 @@ function ensurePrototypeProposalMr(group: AIReqRequirementGroup): void {
       "## 需求与方案",
       `IR：${group.id} · ${group.title}`,
       `候选：${delivery.candidate}`,
-      `来源分支：${handoff.branch}`,
-      `目标分支：${handoff.targetBranch}`,
+      `来源分支：${sourceBranch}`,
+      `目标分支：${targetBranch}`,
       "",
       "## 文档清单",
       ...delivery.files.map((file) => `- ${file.path}`),
       "",
       "请人工评审并合并 MR；后台定时核验实际合入与材料完整性，满足后自动转正。",
     ].join("\n"),
-    sourceBranch: handoff.branch,
-    targetBranch: handoff.targetBranch,
+    sourceBranch,
+    targetBranch,
     recordedAt: new Date().toISOString(),
     platformVerified: false,
   });
@@ -147,13 +147,6 @@ export function prototypeProposalMaterialsIssue(
   group: AIReqRequirementGroup,
 ): string | undefined {
   if (!proposalDeliveryCurrent(group)) return "交付候选与当前材料版本不一致。";
-  const pr = group.requirementsPr;
-  if (
-    pr &&
-    pr.targetBranch !==
-      view.projects.find((project) => project.id === group.projectId)?.defaultBranch
-  )
-    return "当前文档 MR 与项目目标分支不一致。";
   const expected = new Set(completeProposalPaths(group));
   const files = group.proposalDelivery!.files;
   if (files.length !== expected.size || files.some((file) => !expected.delete(file.path)))
@@ -187,7 +180,8 @@ export function validatePrototypeProposalPublication(
   group: AIReqRequirementGroup,
   candidate: string,
 ): void {
-  const handoff = readPrototypeProposalPrHandoff(group);
+  const project = view.projects.find((item) => item.id === group.projectId);
+  const handoff = readPrototypeProposalPrHandoff(group, project);
   if (!handoff.ready) throw businessRule(handoff.blockers.join("；"));
   if (group.proposalDelivery?.candidate !== candidate || !proposalDeliveryCurrent(group))
     throw businessRule("交付候选已失效，请重新查看当前版本的文件清单。");
@@ -203,14 +197,16 @@ export function publishPrototypeProposal(
   group: AIReqRequirementGroup,
   at: string,
 ): boolean {
-  const delivery = group.proposalDelivery!;
+  const delivery = group.proposalDelivery as InternalProposalDelivery;
   const reused = proposalPrCurrent(group);
   if (!reused) {
+    const project = state.projects.find((item) => item.id === group.projectId)!;
+    const target = (delivery.repositoryTarget ??= prototypeRepositoryTarget(project));
     let step: NonNullable<typeof delivery.publishError>["step"] = "branch";
     try {
       delivery.branch ??= {
-        name: readPrototypeProposalPrHandoff(group).branch,
-        baseCommit: prototypeDefaultCommit(state, group.projectId),
+        name: prototypeProposalBranch(group.id),
+        baseCommit: prototypeDefaultCommit(state, target),
         createdAt: at,
       };
       step = "push";
@@ -220,7 +216,7 @@ export function publishPrototypeProposal(
         delivery.pushedAt = at;
       }
       step = "pr";
-      ensurePrototypeProposalMr(group);
+      ensurePrototypeProposalMr(group, target.defaultBranch);
     } catch (error) {
       delivery.publishError = { step, message: businessFailureMessage(error) };
       throw error;
@@ -242,15 +238,14 @@ export function completePrototypeProposal(
   state: AIReqWorkflowView,
   group: InternalRequirementGroup,
   checkedAt: string,
-): void {
-  const project = state.projects.find((item) => item.id === group.projectId)!;
-  const commit =
-    (group.proposalDelivery as InternalProposalDelivery | undefined)?.simulatedMr?.commit ??
-    `sample-document-merge-${group.proposalDelivery!.candidate}`;
+) {
+  const delivery = group.proposalDelivery as InternalProposalDelivery;
+  const target = delivery.repositoryTarget!;
+  const commit = delivery.simulatedMr?.commit ?? `sample-document-merge-${delivery.candidate}`;
   group.status = "formal";
   group.merge = {
     commit,
-    branch: group.requirementsPr!.targetBranch,
+    branch: target.defaultBranch,
     checkedAt,
     files: structuredClone(group.files),
   };
@@ -263,30 +258,7 @@ export function completePrototypeProposal(
   const revision = group.proposalRevisions?.at(-1);
   if (revision && !revision.completedAt) revision.completedAt = checkedAt;
   state.repositoryHeads ??= {};
-  state.repositoryHeads[project.repositoryId] = commit;
-  const members = state.srs.filter(
-    (item) => item.projectId === group.projectId && item.irId === group.id,
-  );
-  group.branchCreationAttempts ??= {};
-  for (const [index, sr] of members.entries()) {
-    sr.developerEmployeeId ??= group.contacts?.development;
-    sr.testingEmployeeId ??= group.contacts?.testing;
-    const attempt = (group.branchCreationAttempts[sr.id] ?? 0) + 1;
-    group.branchCreationAttempts[sr.id] = attempt;
-    // 正常内存 Git 依赖首次推送首个分支暂时失败；显式内部故障输入仍优先，重试复用同一合入基点。
-    const failed =
-      group.branchCreationFailures !== undefined
-        ? group.branchCreationFailures.includes(sr.id)
-        : index === 0 && attempt === 1;
-    sr.trackingBranch = {
-      name: `sr/${sr.id}`,
-      baseCommit: commit,
-      createdAt: checkedAt,
-      pushedAt: failed ? "" : checkedAt,
-      status: failed ? "failed" : "ready",
-      ...(failed ? { error: "创建或推送开发分支失败，请重试。" } : {}),
-    };
-  }
-  group.branchCreationFailures = [];
+  state.repositoryHeads[prototypeRepositoryKey(target)] = commit;
   freezePrototypeRequirement(group, "platform", checkedAt);
+  return target;
 }

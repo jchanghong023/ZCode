@@ -110,3 +110,34 @@ export const prototypeRequirementDetails: Record<
     contacts: { business: "j00808875", development: "j00808877", testing: "j00808876" },
   },
 };
+
+/** 模拟仓库中的后续提交，与平台初始归档材料分开。 */
+export const prototypeGitDocumentRevision = {
+  projectId: "demo-aurora",
+  employee: "m00000001",
+  committedAt: "2026-11-20T07:30:00.000Z",
+  message: "补充通知恢复、审计查询及附件验收说明",
+  appended: [
+    {
+      path: "docs/requirements/ir-notifications/requirements.md",
+      text: "\n\n## 加载失败时的处理\n\n刷新通知失败时，保留上一次成功结果与未读状态。用户可点击重试，重试成功后更新通知列表。\n",
+    },
+    {
+      path: "docs/requirements/ir-workspace-shortcuts/requirements.md",
+      text: "\n\n## 重排失败时的处理\n\n快捷入口重排失败时，保留上一次成功保存的顺序。\n",
+    },
+    {
+      path: "docs/requirements/ir-audit-archive/requirements.md",
+      text: "\n\n## 归档检索\n\n归档后的审计记录可按操作者和时间区间检索。\n",
+    },
+    {
+      path: "docs/requirements/ir-attachment-management/requirements.md",
+      text: "\n\n## 下载失败恢复\n\n下载失败时保留当前附件选择，提供单文件重试。\n",
+    },
+  ],
+  removed: "openspec/changes/sr-audit-retention/test-plan.md",
+  moved: {
+    from: "openspec/changes/sr-attachment-upload/test-plan.md",
+    to: "openspec/changes/sr-attachment-upload/verification/test-plan.md",
+  },
+} as const;

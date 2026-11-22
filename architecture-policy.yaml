@@ -409,6 +409,14 @@ modules:
       ui: .
     owner: requirements
 
+  - id: web-agent-chat
+    roots: [packages/web/src/chat]
+    managed: true
+    requires: [client, shared, ui, web-platform]
+    publicEntrypoints: [packages/web/src/chat/main.tsx]
+    layers: { app: . }
+    owner: conversation
+
 global:
   maxFileLines: 800
   maxContractLines: 300

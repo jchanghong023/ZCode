@@ -2,6 +2,7 @@
 // 默认 workspace 为当前工作目录；可用 ZCODE_SERVER_WORKSPACE 覆盖。
 import { createMockServices } from "./mock/index.js";
 import { createMockHttpServer } from "./http.js";
+import { createWebChatServices } from "./chat/service.js";
 
 function resolveWorkspacePath(): string {
   return process.env["ZCODE_SERVER_WORKSPACE"]?.trim() || process.cwd();
@@ -15,8 +16,10 @@ async function main(): Promise<void> {
   const authToken = process.env["ZCODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;
 
   const { services } = createMockServices({ workspacePath });
+  const chatServices = createWebChatServices(workspacePath);
   createMockHttpServer(services, {
     port,
+    chatServices,
     trustedProxyIPs: (process.env["ZCODE_TRUSTED_PROXY_IPS"] ?? "")
       .split(",")
       .map((ip) => ip.trim())

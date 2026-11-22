@@ -20,7 +20,6 @@ export const selectionSchema = z
     freeDraftId: id.optional(),
     proposalDraftId: id.optional(),
     proposalDraftReleaseId: id.optional(),
-    irAcceptance: z.boolean().optional(),
     freeSessionId: id.optional(),
     freeFiles: z.boolean().optional(),
     stage: z.enum(["planning", "executing", "pr", "solution"]).optional(),
@@ -45,6 +44,20 @@ const actionBase = {
 const action = (type: string, fields: z.ZodRawShape = {}) =>
   z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
 const actionSchema = z.union([
+  action("requestProjectRoles", {
+    projectId: id,
+    roles: z
+      .array(z.enum(["development", "testing"]))
+      .min(1)
+      .max(2),
+    note: text.max(300).optional(),
+  }),
+  action("decideProjectRole", {
+    projectId: id,
+    registrationId: id,
+    decision: z.enum(["approved", "rejected", "revoked"]),
+  }),
+  action("syncFormalDocuments", { projectId: id, irId: id }),
   action("createIdea", { originalText: text }),
   action("importIdeas", { originalTexts: z.array(text).min(1) }),
   action("updateIdea", { ideaId: id, ideaRevision: revision, originalText: text }),
@@ -98,7 +111,6 @@ const actionSchema = z.union([
     snapshotDigest: id,
   }),
   action("closeProposalPr", { candidate: id }),
-  action("retrySrBranch", { srId: id }),
   action("reviseProposalMaterial", {
     target: z.enum(["requirements", "solution", "test-plan"]),
     note: text,
@@ -114,33 +126,6 @@ const actionSchema = z.union([
   action("returnProposal", { reason: text }),
   action("publishProposal", { candidate: id }),
 ]);
-const filter = z
-  .object({
-    projectId: id.optional(),
-    releaseId: id.optional(),
-    irId: id.optional(),
-    srId: id.optional(),
-    srSearch: text.optional(),
-  })
-  .strict();
-const calendarDate = z.iso.date();
-const taskFilter = filter.extend({
-  taskState: z.enum(["waiting", "running", "failed", "completed", "paused"]).optional(),
-});
-const timestamp = text.refine((value) => {
-  if (!Number.isFinite(Date.parse(value))) return false;
-  // Date.parse 会把二月三十日等归一化为下月；ISO 日期必须先核验真实日历，不能悄悄改变查询范围。
-  // 仅补充 ISO 年月日校验，保留原有合法时间表达和时区解析语义。
-  const isoDate = /^\d{4}-\d{2}-\d{2}(?=T|\s|$)/.exec(value)?.[0];
-  return isoDate === undefined || calendarDate.safeParse(isoDate).success;
-});
-const historyFilter = filter
-  .extend({
-    status: z.enum(["running", "succeeded", "failed", "skipped"]).optional(),
-    since: timestamp.optional(),
-    until: timestamp.optional(),
-  })
-  .strict();
 const modelSettings = z
   .object({
     defaultModel: id,
@@ -171,8 +156,6 @@ const draft = z
     notes: z.array(text),
   })
   .strict();
-const page = z.number().int().min(1);
-const pageSize = z.union([z.literal(25), z.literal(50)]);
 
 /** 精确白名单拒绝退役路径；配置读取统一经 bootstrap，不为本地读取端口保留 RPC。 */
 export const argumentSchemas = {
@@ -184,38 +167,6 @@ export const argumentSchemas = {
     target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
   ]),
   retrySession: z.tuple([selectionSchema, id]),
-  "progress.recordTest": z.tuple([
-    id,
-    id,
-    id,
-    z
-      .object({
-        ...operation,
-        expectedCodeVersion: text,
-        reason: text,
-      })
-      .strict(),
-  ]),
-  "progress.cleanupPreview": z.tuple([id, id]),
-  "progress.cleanupBranches": z.tuple([
-    id,
-    id,
-    z.object({ ...operation, branches: z.array(text) }).strict(),
-  ]),
-  "planning.updateSr": z.tuple([
-    id,
-    id,
-    id,
-    z
-      .object({
-        ...operation,
-        developerEmployeeId: employee.optional(),
-        testingEmployeeId: employee.optional(),
-        plannedStart: text.optional(),
-        plannedEnd: text.optional(),
-      })
-      .strict(),
-  ]),
   "projects.saveRepository": z.tuple([
     z
       .object({
@@ -238,14 +189,4 @@ export const argumentSchemas = {
   "skillDesign.readPreview": z.tuple([id]),
   "skillDesign.listSkills": z.tuple([text]),
   "skillDesign.savePreview": z.tuple([id, text, id, z.enum(["project", "user"]), revision, id]),
-  "progressScheduler.read": z.tuple([]),
-  "progressScheduler.queryTasks": z.tuple([taskFilter, page, pageSize]),
-  "progressScheduler.queryRuns": z.tuple([historyFilter, page, pageSize]),
-  "progressScheduler.readRun": z.tuple([id]),
-  "progressScheduler.setProjectEnabled": z.tuple([id, z.boolean()]),
-  "progressScheduler.configure": z.tuple([
-    z.boolean(),
-    z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-  ]),
-  "progressScheduler.runNow": z.tuple([taskFilter, id.optional()]),
 } satisfies Record<AIReqRemotePath, z.ZodType>;

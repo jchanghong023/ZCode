@@ -8,6 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./aireq": "./src/aireq/index.ts",
+    "./zcode-agent": "./src/zcode-agent/zcodeAgent.ts",
+    "./model-selection": "./src/model-provider/providerFacadeServices.ts",
     "./logger": "./src/logger/serviceLogger.ts"
   },
   "scripts": {

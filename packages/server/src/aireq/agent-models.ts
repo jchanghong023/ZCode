@@ -98,15 +98,6 @@ const roleDefaults: Record<AIReqAgentRole, Omit<AIReqAgentModel, "id">> = {
     model: "anthropic/claude-sonnet-4.5",
     reasoning: "high",
   },
-  "progress-analysis": {
-    name: "进度分析 Agent",
-    nameEn: "Progress Analysis Agent",
-    description: "分析尚未首次合入的正式 SR 的开发进度和问题。",
-    descriptionEn:
-      "Analyze development progress and issues for formal SRs that have not yet merged.",
-    model: "inherit",
-    reasoning: "default",
-  },
 };
 
 // 所有项目和 Release 共享服务端内存配置；刷新和重连保留，服务重启恢复样例。

@@ -207,9 +207,6 @@ function ModelSettingsContent({
               return (
                 <SettingsRow
                   key={agent.id}
-                  searchId={
-                    agent.id === "progress-analysis" ? "aireq.model.progressAnalysis" : undefined
-                  }
                   label={name}
                   controlLayout="wide"
                   control={

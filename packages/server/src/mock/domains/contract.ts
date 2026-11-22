@@ -10,3 +10,9 @@ export interface MockServiceRegistrar {
 
 /** 一个领域的装配入口；集中装配 index.ts 逐个调用。 */
 export type MockDomainRegistrar = (services: MockServiceRegistrar, runtime: MockRuntime) => void;
+
+export {
+  completeMockModelSelection,
+  MOCK_DEFAULT_MODEL_SELECTION,
+  registerModelSelectionMockService,
+} from "./models.js";

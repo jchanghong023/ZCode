@@ -1,6 +1,6 @@
 # AIReq — AI 需求协作
 
-面向电脑浏览器的需求澄清、评审与跟踪平台。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
+面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档交付和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
 
 当前没有真实 Agent、AI／Git 执行、数据库持久化或可信工号认证。服务重启会重新初始化内存业务数据。完整能力边界见[系统范围](docs/README.md#系统范围)与[服务端说明](docs/architecture/mock-backend.md)。
 
@@ -32,7 +32,9 @@ bun run dev
 
 浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api` 和 `/ws`。
 
-输入一位小写字母加八位数字的工号后进入项目总览。产品范围与各功能规格见[文档索引](docs/README.md)。
+输入一位小写字母加八位数字的工号后进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
+
+打开 <http://localhost:5174/chat> 进入独立的 Web Agent 聊天，浏览器无需登录。聊天使用服务端内存模拟，工作目录根沿用 `ZCODE_SERVER_WORKSPACE` 或服务工作目录。聊天的会话范围见 [Web Agent 聊天](docs/specs/web-agent-chat.md)。
 
 ## 构建与部署
 

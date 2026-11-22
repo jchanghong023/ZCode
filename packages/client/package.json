@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./agent": "./src/agent.ts"
   },
   "scripts": {
     "lint": "bun --bun run oxlint",

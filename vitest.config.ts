@@ -49,7 +49,6 @@ export default defineConfig({
           execArgv: process.execArgv,
           fileParallelism: false,
           maxWorkers: 1,
-          sequence: { sequencer: resolve(__dirname, "test/st/sequencer.ts") },
           testTimeout: Number(process.env.ST_TIMEOUT_MS) || 120_000,
           hookTimeout: Number(process.env.ST_TIMEOUT_MS) || 120_000,
         },

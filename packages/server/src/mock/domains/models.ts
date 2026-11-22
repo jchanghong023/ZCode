@@ -1,15 +1,22 @@
 // 模拟模型领域：Provider 设置视图与模型选择。
 import { Emitter, type Event } from "@zcode/rpc";
 import { BIGMODEL_PROVIDER_ID } from "@zcode/shared";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import {
   IModelSelectionService,
   IProviderSettingsService,
   type ModelSelectionView,
   type ProviderSettingsView,
+  type ServiceCollection,
 } from "@zcode/services";
-import type { MockServiceRegistrar } from "./contract.js";
+
+type ModelServiceRegistrar = Pick<ServiceCollection, "register">;
 
 // ── Provider / 模型选择视图 ──
+
+function reasoningLevels(modelId: string): string[] {
+  return modelId.includes("Flash") ? ["low", "medium", "high", "max"] : ["low", "medium", "high"];
+}
 
 function completeModelConfig(modelId: string) {
   return {
@@ -32,9 +39,7 @@ function completeModelConfig(modelId: string) {
     },
     optionSpecs: {
       reasoningLevel: {
-        values: modelId.includes("Flash")
-          ? ["low", "medium", "high", "max"]
-          : ["low", "medium", "high"],
+        values: reasoningLevels(modelId),
         map: "{}",
       },
       maxOutputTokens: { max: 16_384, map: "{'max_tokens': maxOutputTokens}" },
@@ -43,6 +48,26 @@ function completeModelConfig(modelId: string) {
 }
 
 const MOCK_MODEL_IDS = ["GLM-5.3-Flash", "GLM-5.3"];
+export const MOCK_DEFAULT_MODEL_SELECTION = {
+  providerId: BIGMODEL_PROVIDER_ID,
+  modelId: MOCK_MODEL_IDS[0]!,
+  options: { reasoningLevel: "max" },
+};
+
+export function completeMockModelSelection(selection: ModelSelection) {
+  if (selection.providerId !== BIGMODEL_PROVIDER_ID || !MOCK_MODEL_IDS.includes(selection.modelId))
+    return null;
+  const thoughtLevels = reasoningLevels(selection.modelId);
+  const thought = selection.options?.reasoningLevel ?? thoughtLevels.at(-1)!;
+  if (!thoughtLevels.includes(thought)) return null;
+  return {
+    provider: selection.providerId,
+    model: selection.modelId,
+    thought,
+    thoughtLevels,
+    modelSelection: { ...selection, options: { reasoningLevel: thought } },
+  };
+}
 
 function buildProviderSettingsView(): ProviderSettingsView {
   return {
@@ -127,9 +152,7 @@ class MockModelSelectionService implements IModelSelectionService {
       options?: { reasoningLevel?: string };
     } | null;
   }): Promise<ModelSelectionView> {
-    const preferred = input?.selection
-      ? input.selection
-      : { providerId: "bigmodel", modelId: "GLM-5.3-Flash", options: { reasoningLevel: "max" } };
+    const preferred = input?.selection ?? MOCK_DEFAULT_MODEL_SELECTION;
     return {
       revision: this.revision,
       providers: [
@@ -162,7 +185,11 @@ class MockModelSelectionService implements IModelSelectionService {
   }
 }
 
-export function registerModelsMockServices(services: MockServiceRegistrar): void {
+export function registerModelsMockServices(services: ModelServiceRegistrar): void {
   services.register(IProviderSettingsService, new MockProviderSettingsService());
+  registerModelSelectionMockService(services);
+}
+
+export function registerModelSelectionMockService(services: ModelServiceRegistrar): void {
   services.register(IModelSelectionService, new MockModelSelectionService());
 }

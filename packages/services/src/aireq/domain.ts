@@ -10,8 +10,30 @@ import type {
   AIReqReview,
   AIReqTodo,
 } from "./types.js";
-import { srProgress } from "./progress.js";
 import { readSrDependencies } from "./sr-dependencies.js";
+
+export const AIREQ_ROLE_ADMINISTRATOR = "y00000000";
+
+export function hasProjectRole(
+  view: Pick<AIReqWorkflowView, "roleRegistrations"> | undefined,
+  projectId: string | undefined,
+  employeeId: string,
+  role: "business" | "development" | "testing",
+): boolean {
+  return (
+    role === "business" ||
+    (Boolean(projectId) && employeeId === AIREQ_ROLE_ADMINISTRATOR) ||
+    Boolean(
+      view?.roleRegistrations?.some(
+        (entry) =>
+          entry.projectId === projectId &&
+          entry.employeeId === employeeId &&
+          entry.role === role &&
+          entry.status === "approved",
+      ),
+    )
+  );
+}
 
 /** 正式需求是同一项目内的只读查看，不绑定提案或开发会话。 */
 export function isFormalSelection(
@@ -438,7 +460,7 @@ export function proposalActorLabel(group: AIReqRequirementGroup): string {
 export function conversationReadOnlyReason(
   view: Pick<AIReqWorkflowView, "drafts"> | undefined,
   selection: AIReqSelection,
-  access?: { proposalDiscussion?: boolean; codeDevelopment?: boolean },
+  access?: { proposalDiscussion?: boolean },
 ): string | undefined {
   if (!view) return;
   if (selection.proposalDraftId)
@@ -470,21 +492,13 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
     employeeId?: string,
     extra: Partial<AIReqTodo> = {},
   ) => {
-    // 同 IR 的独立 SR 不能只靠编号区分；名称与分工视角必须来自产生待办的同一快照。
-    const sr = extra.srId
-      ? view.srs.find(
-          (row) =>
-            row.projectId === group.projectId && row.irId === group.id && row.id === extra.srId,
-        )
-      : undefined;
     result.push({
-      id: `${group.projectId}:${group.id}:${kind}:${extra.srId ?? extra.perspective ?? ""}`,
+      id: `${group.projectId}:${group.id}:${kind}:${extra.perspective ?? ""}`,
       // 跨项目待办不能从当前项目投影补名字或 Release；由同一 IR 事实一次派生。
       projectId: group.projectId,
       irId: group.id,
       requirementTitle: group.title,
       releaseId: group.releaseId,
-      srTitle: sr?.title,
       assignmentPerspective,
       kind,
       title,
@@ -492,7 +506,6 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
       selection: {
         projectId: group.projectId,
         irId: group.id,
-        ...(extra.srId ? { srId: extra.srId, formalView: "detail" as const } : {}),
       },
       ...extra,
     });
@@ -586,45 +599,6 @@ export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
           );
     } else if (state === "submission-pending") {
       push(group, "publish", "提交整包文档 PR", "development", contact.development);
-    }
-  }
-  for (const group of view.groups) {
-    for (const sr of view.srs.filter(
-      (row) =>
-        row.projectId === group.projectId && row.irId === group.id && group.srIds.includes(row.id),
-    )) {
-      if (srProgress(sr) === 100) continue;
-      if (sr.codeMerge) {
-        push(group, "testing", "验收首次合入版本", "testing", sr.testingEmployeeId, {
-          srId: sr.id,
-        });
-        continue;
-      }
-      if (sr.lastAnalysisFailure || sr.progress?.analysisFailure) {
-        // 修复：通用 failure 同时代表分支和评审失败，单列分析失败才能稳定直达对应 SR 的重试入口。
-        push(
-          group,
-          "analysis-failure",
-          "查看进度分析失败并通过正常入口重试",
-          "development",
-          sr.developerEmployeeId,
-          { srId: sr.id },
-        );
-        continue;
-      }
-      if (sr.trackingBranch?.status === "failed") {
-        push(group, "failure", "处理 SR 开发分支创建失败", "development", sr.developerEmployeeId, {
-          srId: sr.id,
-        });
-      } else
-        push(
-          group,
-          "development",
-          "在平台外开发并查看审查意见",
-          "development",
-          sr.developerEmployeeId,
-          { srId: sr.id },
-        );
     }
   }
   return result;

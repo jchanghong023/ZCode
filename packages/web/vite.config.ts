@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { IncomingMessage } from "node:http";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -15,6 +16,12 @@ const { version, zcodeCompatibility } = JSON.parse(
   readFileSync(resolve(REPO_ROOT, "package.json"), "utf-8"),
 ) as { version: string; zcodeCompatibility?: { minCompatibleVersion?: string } };
 const minCompatibleVersion = zcodeCompatibility?.minCompatibleVersion ?? version;
+
+function resolveChatEntry(req: IncomingMessage, _res: unknown, next: () => void) {
+  // Vite 的 HTML 中间件只对带尾斜杠的路径查找目录 index。
+  if (req.url) req.url = req.url.replace(/^\/chat(?=\?|$)/, "/chat/");
+  next();
+}
 
 function resolveZCodeEnv(value: string | undefined): "test" | "production" {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
@@ -36,6 +43,15 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      {
+        name: "web-chat-entry",
+        configureServer(server) {
+          server.middlewares.use(resolveChatEntry);
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use(resolveChatEntry);
+        },
+      },
       {
         name: "katex-woff2-only",
         enforce: "pre",
@@ -107,6 +123,9 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_ZCODE_ENDPOINT_ORIGIN": JSON.stringify(zcodeEndpointOrigin),
     },
     build: {
+      rollupOptions: {
+        input: [resolve(HERE, "index.html"), resolve(HERE, "chat/index.html")],
+      },
       // hidden 仍会产出可公开下载的源码映射；生产不生成，开发调试继续保留。
       sourcemap: mode !== "production",
     },

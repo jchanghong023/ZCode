@@ -10,7 +10,7 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import { connectST, unique, waitUntil } from "./client.js";
 import { createProposal } from "./business.js";
-import { openNative, requireAccepted, requireRejected } from "./native.js";
+import { expectNativeTurnWork, openNative, requireAccepted, requireRejected } from "./native.js";
 
 // conversation.md：接纳不是完成；同命令身份重试不能重复生成输入；重连只读不重发。
 it("native send completes with canonical rows, query receipt and real owned frames", async () => {
@@ -68,6 +68,7 @@ it("native send completes with canonical rows, query receipt and real owned fram
     requireAccepted(ack);
     const final = await native.waitIdle();
     expect(final.control.phase).toBe("completedSuccess");
+    expectNativeTurnWork(native, final, id);
     const rows = await c.services.zcodeAgentService.conversationRowsRangeV4({
       ...native.workspace,
       sessionId: native.sessionId,

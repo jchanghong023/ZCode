@@ -481,20 +481,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       }
       approvedHistory.current = false;
       const mainView = restoreMainView(event.state.aiReqMainView);
-      const restoredRelease =
+      const nextRelease =
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
       const requirementView: RequirementView =
         event.state.aiReqRequirementView === "proposals" ? "proposals" : "formal";
       const previous = navigationRef.current;
-      // 弹窗内更换版本属于当前表单，不得因关闭弹窗恢复旧的全部 Release。
-      const nextRelease =
-        (previous.overlay?.kind === "proposal" || previous.overlay?.kind === "proposal-import") &&
-        !overlay &&
-        mainView === previous.mainView &&
-        JSON.stringify(event.state.aiReqSelection) === JSON.stringify(selectionRef.current)
-          ? releaseRef.current
-          : restoredRelease;
       const requirementReturnView = restoreRequirementReturnView(
         mainView,
         event.state.aiReqRequirementReturnView,
@@ -539,12 +531,20 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     (sourceIrId?: string) => {
       navigate(() => {
         const draft = { id: createUuid(), sourceIrId };
+        const previousView = navigationRef.current.mainView;
+        const { projectId } = selectionRef.current;
+        const releaseId = releaseRef.current;
+        const overviewOrigin =
+          previousView === "projectOverview" && projectId && releaseId
+            ? { projectId, releaseId }
+            : undefined;
         // 新增弹窗此前只入栈页面而未记录弹窗，浏览器后退会留在原遮罩中。
         recordNavigation(
           selectionRef.current,
           "proposals",
-          { kind: "proposal", draft },
+          { kind: "proposal", draft, fromList: previousView === "proposals" },
           "proposals",
+          overviewOrigin,
         );
       });
     },
@@ -576,8 +576,41 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     closingOverlay.current = true;
     window.history.back();
   }, []);
+  const completeProposalDraft = useCallback(
+    (releaseId: string) => {
+      const current = navigationRef.current;
+      const overlay = current.overlay;
+      if (overlay?.kind !== "proposal" && overlay?.kind !== "proposal-import") return;
+      const sameRelease = releaseId === releaseRef.current;
+      if (sameRelease && (overlay.kind === "proposal-import" || overlay.fromList)) {
+        closeOverlay();
+        return;
+      }
+      // 成功回执才接纳目标版本。替换表单历史槽，后退回原页面而不是已经提交的表单。
+      const target = { projectId: selectionRef.current.projectId };
+      const next = {
+        ...current,
+        overlay: null,
+        overviewOrigin: sameRelease ? current.overviewOrigin : undefined,
+      };
+      navigationRef.current = next;
+      setNavigation(next);
+      window.history.replaceState(
+        {
+          ...window.history.state,
+          aiReqSelection: target,
+          aiReqReleaseId: releaseId,
+          aiReqOverlay: null,
+          aiReqOverviewOrigin: next.overviewOrigin ?? null,
+        },
+        "",
+      );
+      select(target, false, "proposals", releaseId);
+    },
+    [closeOverlay, select],
+  );
   const setReleaseId = useCallback(
-    (id: string, options?: { inProposalDialog?: boolean }) => {
+    (id: string) => {
       const current = selectionRef.current;
       if (id === releaseRef.current) return;
       if (
@@ -590,17 +623,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       releaseRef.current = id;
       updateReleaseId(id);
       if (current.projectId) projectReleasesRef.current.set(current.projectId, id);
-      if (options?.inProposalDialog) {
-        // 新增和导入共享此分支；选择版本不离开表单，也不重置输入或预览。
-        const next = { ...navigationRef.current, overviewOrigin: undefined };
-        navigationRef.current = next;
-        setNavigation(next);
-        window.history.replaceState(
-          { ...window.history.state, aiReqReleaseId: id, aiReqOverviewOrigin: null },
-          "",
-        );
-        return;
-      }
       const target = {
         projectId: current.projectId,
         ...(current.formalView ? { formalView: "list" as const } : {}),
@@ -748,8 +770,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           navigate(() => openProject(projectId, mainView, releaseId)),
         select: (value, targetReleaseId, task) =>
           navigate(() => select(value, true, "chat", targetReleaseId, undefined, task)),
-        openAnalysis: (value, targetReleaseId) =>
-          navigate(() => select(value, true, "requirementAnalysis", targetReleaseId)),
         objectLink,
         refresh,
         retryMaterial,
@@ -761,6 +781,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         proposalDraft: navigation.overlay?.kind === "proposal" ? navigation.overlay.draft : null,
         proposalImportOpen: navigation.overlay?.kind === "proposal-import",
         closeProposalDraft: closeOverlay,
+        completeProposalDraft,
         setDraftNavigationGuard,
         setNavigationGuard,
         navigate,

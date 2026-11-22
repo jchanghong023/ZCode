@@ -14,10 +14,10 @@ import type { AIReqSettingsDraftActions } from "../contract.js";
 import { AIReqProposalTable } from "../proposals/AIReqProposalTable.js";
 import { AIReqTodoPage } from "../AIReqTodoPage.js";
 import {
-  AIReqProjectProgressPage,
+  AIReqProjectDocumentsPage,
   AIReqProjectOverviewPage,
-} from "../projects/AIReqProjectProgressPage.js";
-import { AIReqFormalWorkspace, AIReqRequirementAnalysisPage } from "../tracking/index.js";
+} from "../projects/AIReqProjectDocumentsPage.js";
+import { AIReqFormalWorkspace } from "../documents/AIReqFormalWorkspace.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
 import type { AIReqProjectSettingsRequest } from "../settings/AIReqProjectSettings.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
@@ -28,7 +28,7 @@ import {
 } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
-import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
+import { AIReqRolesPage, AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
 import { AIReqMotion } from "./AIReqMotion.js";
 import { AIReqIdeaPool } from "../ideas/AIReqIdeaPool.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
@@ -43,7 +43,6 @@ const nativeSettingsSections = {
   projects: "general",
   models: "modelProvider",
   personalization: "personalization",
-  analysis: "agentBehavior",
   documentFormats: "documentFormats",
 } satisfies Record<Section, SettingsSectionId>;
 
@@ -55,8 +54,6 @@ function readSettingsSection(): Section {
       return "models";
     case "personalization":
       return "personalization";
-    case "agentBehavior":
-      return "analysis";
     case "documentFormats":
       return "documentFormats";
     default:
@@ -73,11 +70,50 @@ export function AIReqShell(props: { onLogout(): void }) {
 }
 function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const motionRoot = useRef<HTMLDivElement>(null);
+  const mainContent = useRef<HTMLDivElement>(null);
+  const overviewCreateTrigger = useRef<HTMLButtonElement | null>(null);
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const { setNavigationGuard } = ai;
   const settingsOpen = ai.settingsOpen;
+  const proposalId =
+    ai.mainView === "chat" && ai.requirementView === "proposals" ? ai.selection.irId : undefined;
+  const proposalOverlay = Boolean(ai.proposalDraft || ai.proposalImportOpen);
+  const focusRoute = JSON.stringify([ai.mainView, proposalId, proposalId && ai.proposalTask]);
+  const focusSource = useRef<{ route: string; proposalId?: string; overlay: boolean }>(undefined);
+  const pendingMainFocus = useRef<{ proposalId?: string } | null>(null);
+  useLayoutEffect(() => {
+    const previous = focusSource.current;
+    focusSource.current = { route: focusRoute, proposalId, overlay: proposalOverlay };
+    if (previous?.route !== focusRoute) {
+      pendingMainFocus.current =
+        proposalOverlay || previous?.overlay
+          ? null
+          : { proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined };
+    }
+    const target = pendingMainFocus.current;
+    if (!target || !ai.selectionReady || settingsOpen || proposalOverlay || !mainContent.current)
+      return;
+    // 页面切换会卸载原按钮。返回列表优先恢复原行；被筛选掉时读列表标题。
+    const heading = [...mainContent.current.querySelectorAll("h1")].find(
+      (element) => !element.closest("[hidden], [inert]"),
+    );
+    const row = target.proposalId
+      ? [
+          ...mainContent.current.querySelectorAll<HTMLButtonElement>("[data-aireq-proposal-entry]"),
+        ].find(
+          (element) =>
+            element.dataset.aireqProposalEntry === target.proposalId &&
+            !element.closest("[hidden], [inert]"),
+        )
+      : undefined;
+    const focusTarget = row ?? heading;
+    if (!focusTarget) return;
+    pendingMainFocus.current = null;
+    if (heading && focusTarget === heading) heading.tabIndex = -1;
+    focusTarget.focus({ preventScroll: !row });
+  }, [ai.mainView, ai.selectionReady, focusRoute, proposalId, proposalOverlay, settingsOpen]);
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (settingsOpen || !settingsReturnFocus.current) return;
@@ -96,7 +132,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const [todosMounted, setTodosMounted] = useState(false);
   const [projectOverviewMounted, setProjectOverviewMounted] = useState(false);
   const [proposalsMounted, setProposalsMounted] = useState(false);
-  const [analysisProjectId, setAnalysisProjectId] = useState<string>();
   const [projectSettingsRequest, setProjectSettingsRequest] =
     useState<AIReqProjectSettingsRequest | null>(null);
   const [skillMounted, setSkillMounted] = useState(false);
@@ -127,13 +162,12 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     writeLastSettingsSectionPreference(nativeSettingsSections[section]);
   }, []);
   const openSettings = useCallback(
-    (section?: Section, projectId?: string) => {
+    (section?: Section) => {
       settingsReturnFocus.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       ai.navigate(() => {
         if (section) commitSettingsSection(section);
         setProjectSettingsRequest(null);
-        setAnalysisProjectId(projectId);
         ai.openSettings();
         setSettingsMounted(true);
       });
@@ -146,7 +180,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     ai.navigate(() => {
       commitSettingsSection("projects");
-      setAnalysisProjectId(undefined);
       setProjectSettingsRequest(request);
       ai.openSettings();
       setSettingsMounted(true);
@@ -166,7 +199,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     ai.selectionReady &&
     project &&
     !ai.view?.availableReleases.some((item) => item.projectId === project.id) &&
-    ["todos", "formal", "proposals", "requirementAnalysis"].includes(ai.mainView),
+    ["todos", "formal", "proposals"].includes(ai.mainView),
   );
   const formal =
     ai.mainView === "formal" ||
@@ -202,13 +235,14 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   let content;
   if (ai.mainView === "projectProgress")
     content = (
-      <AIReqProjectProgressPage
+      <AIReqProjectDocumentsPage
         onAddProject={() => openProjectSettings({ kind: "create" })}
         onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
       />
     );
   else if (ai.mainView === "todos") content = null;
   else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
+  else if (ai.mainView === "roles") content = <AIReqRolesPage />;
   else if (ai.mainView === "projectOverview") content = null;
   else if (!project && ai.view && ai.selectionReady)
     content = (
@@ -222,12 +256,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
           {zh ? "返回项目列表" : "Back to projects"}
         </Button>
       </div>
-    );
-  else if (ai.mainView === "requirementAnalysis")
-    content = (
-      <AIReqRequirementAnalysisPage
-        onOpenAnalysisSettings={() => openSettings("analysis", ai.selection.projectId)}
-      />
     );
   else if (ai.mainView === "proposals") content = null;
   else if (formal)
@@ -253,19 +281,15 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
             {ai.mainView === "todos"
               ? zh
-                ? "我的待办"
-                : "My todos"
+                ? "版本待办"
+                : "Release todos"
               : ai.mainView === "formal"
                 ? zh
-                  ? "开发任务"
-                  : "Development tasks"
-                : ai.mainView === "requirementAnalysis"
-                  ? zh
-                    ? "进度分析"
-                    : "Progress analysis"
-                  : zh
-                    ? "需求共创"
-                    : "Co-creation"}
+                  ? "正式文档"
+                  : "Formal documents"
+                : zh
+                  ? "需求共创"
+                  : "Co-creation"}
           </h1>
           <p role="status" className="text-foreground-subtle">
             {zh
@@ -330,6 +354,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         </nav>
         <AIReqSidePaneHost>
           <div
+            ref={mainContent}
             id="aireq-main"
             tabIndex={-1}
             data-aireq-motion-main=""
@@ -338,7 +363,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             {/* 返回占用已有留白，不挪动列表标题；普通讨论仍不保留空白导航栏。 */}
             {(ai.mainView !== "chat" || formal) && (
               <div className="h-12 shrink-0 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-                {ai.canReturnToProjectOverview && (
+                {ai.canReturnToProjectOverview && !(formal && ai.selection.irId) && (
                   <div
                     className={`${AIREQ_CONTENT_WIDTH_CLASSNAME} mx-auto flex h-full items-center`}
                   >
@@ -348,7 +373,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                       className="-ml-2 text-ui-sm text-foreground-subtle hover:text-foreground focus-visible:border-remote-foreground-muted"
                     >
                       <ArrowLeft aria-hidden="true" className="size-3.5" />
-                      {zh ? "返回当前项目" : "Back to current project"}
+                      {zh ? "返回项目概览" : "Back to project overview"}
                     </Button>
                   </div>
                 )}
@@ -400,6 +425,10 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                       <AIReqProjectOverviewPage
                         key={`${ai.selection.projectId ?? ""}:${ai.releaseId}`}
                         active={ai.mainView === "projectOverview" && !settingsOpen}
+                        onCreateProposal={(trigger) => {
+                          overviewCreateTrigger.current = trigger;
+                          ai.startProposalDraft();
+                        }}
                         onConfigureProject={() =>
                           openProjectSettings({
                             kind: "project",
@@ -438,7 +467,10 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                             : "hidden"
                         }
                       >
-                        <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
+                        <AIReqProposalTable
+                          key={ai.selection.projectId ?? "no-project"}
+                          overviewCreateTrigger={overviewCreateTrigger}
+                        />
                       </div>
                     </>
                   )}
@@ -485,7 +517,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             <AIReqSettingsPage
               active={settingsOpen || ai.mainView === "skillDesign"}
               section={settingsSection}
-              analysisProjectId={analysisProjectId}
               projectSettingsRequest={projectSettingsRequest}
               onProjectSettingsRequestHandled={projectSettingsRequestHandled}
               onSectionChange={commitSettingsSection}

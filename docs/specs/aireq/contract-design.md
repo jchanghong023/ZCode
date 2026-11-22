@@ -53,75 +53,58 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 bootstrap 无业务创建副作用，返回 contractVersion、opaque backend.id、当前能力、initialSelection、模型 choices/settings/revision、提示词 saved/draft/revision、projects.developmentRoots 和可选 Skill 存储目标。它不返回私人 composer 草稿、服务注册清单、来源 owner/provenance 或全部分页报告。模型／提示词读取由此提供，本地 prompt draft 端口不是 RPC。
 
-当前 AIReq bootstrap 业务契约版本为 `5`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
+当前 AIReq bootstrap 业务契约版本为 `7`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
 
-`models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`、`progress-analysis`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录，既有 `skillDesign` 操作不变。
+`models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录，既有 `skillDesign` 操作不变。
 
-讨论会话创建时、评审和分析接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论提交单次临时模型沿用原生 Submission 语义，不修改会话绑定。
+讨论会话创建时、评审接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论提交单次临时模型沿用原生 Submission 语义，不修改会话绑定。
 
 readWorkflow 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对；正式只读目标不因此开启新的编辑会话。selection 必须来自现行类型／严格 schema，不能作为未校验权限或后端全局当前项目。
 
 `view.documentFormats` 存放全局已保存规则，以 `requirements.md`、`proposal.md`、`design.md`、`tasks.md`、`test-plan.md` 和 `spec.md` 为键，值为必需章节标题数组。提案的 `requirementsCheck` 和 `solutionCheck` 分别投影各阶段当前材料的检查结果 `{issues: {path, reason}[]}`；缺省表示尚未检查，空数组表示通过。保存规则不重算既有结果；方案只引用需求阶段已检查通过的正文。
 
-onDidChange 类型为 presence(snapshot)、workflow、models、prompts、scheduler、skills(sessionId) 和 error。可选 backendEpoch/revision/projectId/irId/operationId 只提供投影失效信息。连接恢复通过重读取得当前事实。
+onDidChange 类型为 presence(snapshot)、workflow、models、prompts、skills(sessionId) 和 error。可选 backendEpoch/revision/projectId/irId/operationId 只提供投影失效信息。连接恢复通过重读取得当前事实。
 
 ## 4. AIReq 操作登记
 
-当前 operation map、wire argumentSchemas 与服务分派对应以下 29 项。表中省略的结构字段、可选性及联合类型以源码类型为准。args 是有序 tuple。P/I/S 分别表示 projectId/irId/srId。
+当前 operation map、wire argumentSchemas 与服务分派对应以下 18 项。表中省略的结构字段、可选性及联合类型以源码类型为准。args 是有序 tuple。P 表示 projectId。
 
-| path                                | args                                                                      | result                                           |
-| ----------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| readPresence                        | []                                                                        | AIReqPresenceSnapshot                            |
-| readWorkflow                        | [selection]                                                               | AIReqRemoteWorkflow                              |
-| readPrHandoff                       | [{projectId,irId}]                                                        | AIReqPrHandoff                                   |
-| command                             | [action,selection,revision]                                               | AIReqWorkflowResult                              |
-| retryMaterial                       | [{projectId,releaseId,irId,path,sha256,round?}]                           | boolean                                          |
-| retrySession                        | [selection,sessionId]                                                     | null                                             |
-| progress.recordTest                 | [P,I,S,input]                                                             | null                                             |
-| progress.cleanupPreview             | [P,I]                                                                     | AIReqBranchCleanupItem[]                         |
-| progress.cleanupBranches            | [P,I,input]                                                               | null                                             |
-| planning.updateSr                   | [P,I,S,input]                                                             | null                                             |
-| projects.saveRepository             | [input]                                                                   | null                                             |
-| models.save                         | [settings,expectedRevision]                                               | null                                             |
-| prompts.save                        | [value,expectedRevision]                                                  | null                                             |
-| skillDesign.session                 | [P]                                                                       | sessionId                                        |
-| skillDesign.workspaceIdentity       | [P]                                                                       | string                                           |
-| skillDesign.read                    | [sessionId]                                                               | AIReqSkillDesignDraft                            |
-| skillDesign.saveDraft               | [sessionId,draft]                                                         | null                                             |
-| skillDesign.prompt                  | [sessionId,draft]                                                         | string                                           |
-| skillDesign.temporaryDirectory      | [sessionId]                                                               | string                                           |
-| skillDesign.readPreview             | [sessionId]                                                               | AIReqSkillDesignPreview 或 null                  |
-| skillDesign.listSkills              | [workspacePath]                                                           | SkillSummary[]                                   |
-| skillDesign.savePreview             | [sessionId,workspacePath,name,target,expectedPreviewRevision,operationId] | AIReqSkillSaveReceipt                            |
-| progressScheduler.read              | []                                                                        | AIReqAnalysisSnapshot                            |
-| progressScheduler.queryTasks        | [filter,page,pageSize]                                                    | AIReqAnalysisTaskPage                            |
-| progressScheduler.queryRuns         | [historyFilter,page,pageSize]                                             | AIReqAnalysisPage&lt;AIReqAnalysisRunSummary&gt; |
-| progressScheduler.readRun           | [id]                                                                      | AIReqAnalysisRun 或 null                         |
-| progressScheduler.setProjectEnabled | [P,enabled]                                                               | null                                             |
-| progressScheduler.configure         | [enabled,intervalMinutes]                                                 | null                                             |
-| progressScheduler.runNow            | [filter,retryRunId?]                                                      | null                                             |
+| path                           | args                                                                      | result                          |
+| ------------------------------ | ------------------------------------------------------------------------- | ------------------------------- |
+| readPresence                   | []                                                                        | AIReqPresenceSnapshot           |
+| readWorkflow                   | [selection]                                                               | AIReqRemoteWorkflow             |
+| readPrHandoff                  | [{projectId,irId}]                                                        | AIReqPrHandoff                  |
+| command                        | [action,selection,revision]                                               | AIReqWorkflowResult             |
+| retryMaterial                  | [{projectId,releaseId,irId,path,sha256,round?}]                           | boolean                         |
+| retrySession                   | [selection,sessionId]                                                     | null                            |
+| projects.saveRepository        | [input]                                                                   | null                            |
+| models.save                    | [settings,expectedRevision]                                               | null                            |
+| prompts.save                   | [value,expectedRevision]                                                  | null                            |
+| skillDesign.session            | [P]                                                                       | sessionId                       |
+| skillDesign.workspaceIdentity  | [P]                                                                       | string                          |
+| skillDesign.read               | [sessionId]                                                               | AIReqSkillDesignDraft           |
+| skillDesign.saveDraft          | [sessionId,draft]                                                         | null                            |
+| skillDesign.prompt             | [sessionId,draft]                                                         | string                          |
+| skillDesign.temporaryDirectory | [sessionId]                                                               | string                          |
+| skillDesign.readPreview        | [sessionId]                                                               | AIReqSkillDesignPreview 或 null |
+| skillDesign.listSkills         | [workspacePath]                                                           | SkillSummary[]                  |
+| skillDesign.savePreview        | [sessionId,workspacePath,name,target,expectedPreviewRevision,operationId] | AIReqSkillSaveReceipt           |
 
 关键输入语义：
 
 - `retrySession` 只恢复指定选择当前绑定的已有原生会话。`sessionId` 必须精确匹配该选择解析出的会话；不匹配或不存在时拒绝，不创建替代会话、不修改材料或重放输入。
-- `progress.recordTest` 只提交人工验收通过，输入为 `operationId`、`expectedRevision`、`expectedCodeVersion` 和非空 `reason`，不接收验收不通过或直接设置进度。工作流按正式 SR 归属及修订校验首次合入版本，无须成功的分析报告；记录验收依据、操作者、时间和首次合入版本后有效进度为 100%，相同请求重放不重复记录。
-- 正式 SR 的 `codeMerge` 只记录首次合入默认分支的事实，后续提交不替换该版本。`testAcceptance` 只保存与该版本绑定的一条人工验收通过记录；验收期间保留测试待办，完成后移除。
-- cleanupBranches 输入为 operationId/expectedRevision/branches；先读 preview，再确认登记分支。
-- planning 输入含 operationId/expectedRevision、可选 developerEmployeeId/testingEmployeeId/plannedStart/plannedEnd。
 - repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
-- 分析筛选为 projectId/releaseId/irId/srId/srSearch，任务可带 taskState，历史可带 status/since/until。ISO 格式的日期须为真实日历日期（包括月末与闰年），不得将不存在的日期自动归一化；开始晚于结束时拒绝，同一时刻允许。页码从 1 开始，pageSize 仅 25/50；读取历史不启动分析。分析页只在项目和具体 Release 均已就绪时读取和提交。
-- `queryTasks.eligibleCount` 与批量 `runNow` 使用同一手动资格，覆盖匹配的全部分页。项目关闭、已合入、分支不可用或已有在途执行的 SR 不接纳；全局暂停仅影响自动分析。分析任务的 `completed` 表示首次合入后已停止分析，不等于人工验收已通过。
 - 带 `retryRunId` 的 `runNow` 只接纳该次可重试失败所属的单一项目／Release／IR／SR，filter 必须同范围，服务在接纳时重查手动资格。任务行投影的 `retryable` 来自该任务最近一次失败。
-- 执行详情保存 `inputFingerprint` 和接纳时的模型、思考强度、追加指令。无业务变化时，显式手动请求可在生效配置实质变化后重新分析；配置保存本身不派发。合入和业务输入变化后的迟到结果只进入执行历史。
 
 ## 5. command 动作与领域门禁
+
+`requestProjectRoles` 提交项目、所选角色和可选说明。 `decideProjectRole` 由管理员处理单条申请或撤销授权。 `syncFormalDocuments` 提交项目和正式 IR，仅由服务端读取 Git 正文与提交事实，按角色、工作流修订和完整路径清单接纳。同一操作 ID 重试沿用已有回执，可读投影通过 `readWorkflow` 返回。
 
 当前实现的服务公开动作白名单：
 
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
 - 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
-- 流程：submitProposalReview、runRequirementsReview、acceptProposal、returnProposal、runFullReview、confirmAlignment、publishProposal、closeProposalPr、reviseProposalMaterial、retrySrBranch。
 
 动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
 
@@ -133,7 +116,7 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、schedul
 
 `saveDocumentFormats` 提交完整 `documentFormats` 记录，沿用 `command` 的版本检查、幂等和提交后通知，不绑定当前项目或 Release。
 
-原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[进度](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
+原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[正式文档](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 
 ## 6. 拒绝、文件与设置
 
@@ -151,7 +134,7 @@ setting.get/update 使用正式 AppSettings，初值由完整 schema 生成；�
 
 原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、Git 和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
 
-原型和正式测试环境通过已有运行配置指定服务地址、测试仓库和前置数据。需要依赖状态的用例，由环境准备所需事实，测试通过同一个公开接口验证。正式环境验证真实 Git 合入时，使用专用测试仓库实际完成合入并读取公开结果。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域，公开事件和历史回执遵守同一公开数据边界。业务测试验收、无障碍标识和生产诊断各自按公开契约保留。
+原型和正式测试环境通过已有运行配置指定服务地址、测试仓库和前置数据。需要依赖状态的用例，由环境准备所需事实，测试通过同一个公开接口验证。正式环境验证真实 Git 合入时，使用专用测试仓库实际完成合入并读取公开结果。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域，公开事件和历史回执遵守同一公开数据边界。无障碍标识和生产诊断各自按公开契约保留。
 
 材料摘要和字节数以实际正文为准；MR 外链、平台核验、AI 原分和规划建议须有对应事实。部署限制、工号与进程内数据的有效范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。退役模块时同步清理入口、依赖与架构登记，保留仍被使用的代码及第三方许可归因。
 

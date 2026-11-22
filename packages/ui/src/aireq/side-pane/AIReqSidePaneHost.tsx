@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import { FileText, ChartNoAxesCombined, History } from "lucide-react";
+import { FileText, History } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   ResizableHandle,
@@ -11,14 +11,14 @@ import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqSelection } from "../contract.js";
+import { hasProjectRole, type AIReqSelection } from "../contract.js";
+import { getEmployeeId } from "../identity.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
-import { AIReqFormalReport } from "../tracking/formal/FormalReport.js";
-import { AIReqFormalHistory } from "../tracking/formal/FormalHistory.js";
+import { canOpenProposalTask } from "../proposals/proposalTasks.js";
+import { AIReqFormalHistory } from "../documents/AIReqFormalHistory.js";
 import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
 import { AIReqDetailScope } from "./AIReqDetailScope.js";
 import { AIReqSidePaneTabs } from "./AIReqSidePaneTabs.js";
-import { AIReqAnalysisReportTab } from "./AIReqAnalysisReportTab.js";
 import {
   AIReqSidePaneMemoryContext,
   sidePaneTargetKey,
@@ -42,7 +42,6 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
     [registerGuard, tab.id],
   );
   if (tab.kind === "launcher") return <Launcher tab={tab} />;
-  if (tab.kind === "analysis") return <AIReqAnalysisReportTab tab={tab} active={active} />;
   return (
     <AIReqDetailScope
       target={tab.selection}
@@ -54,13 +53,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
     >
       {tab.kind !== "materials" && <AIReqRequirementContext showReturn={false} />}
       <div className="min-h-0 flex-1 overflow-hidden">
-        {tab.kind === "materials" ? (
-          <AIReqMaterialsPane />
-        ) : tab.kind === "history" ? (
-          <AIReqFormalHistory />
-        ) : (
-          <AIReqFormalReport />
-        )}
+        {tab.kind === "materials" ? <AIReqMaterialsPane /> : <AIReqFormalHistory />}
       </div>
     </AIReqDetailScope>
   );
@@ -87,13 +80,6 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
       enabled: Boolean(group),
     },
     {
-      kind: "report" as const,
-      title: zh ? "进度报告" : "Progress report",
-      description: zh ? "查看需求或开发任务进展" : "Inspect delivery progress",
-      icon: ChartNoAxesCombined,
-      enabled: Boolean(formal),
-    },
-    {
       kind: "history" as const,
       title: zh ? "讨论／评审历史" : "Discussion & review history",
       description: zh ? "回看已归档的讨论与评审" : "Read archived discussion and reviews",
@@ -113,8 +99,8 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
         ) : (
           <p className="px-2 text-ui-sm text-remote-foreground-muted">
             {zh
-              ? "从主区选择需求，报告、材料与历史会在这里打开。"
-              : "Select a requirement in the main workspace to open reports, materials and history here."}
+              ? "从主区选择需求，材料与历史会在这里打开。"
+              : "Select a requirement in the main workspace to open materials and history here."}
           </p>
         )}
         <div className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
@@ -157,21 +143,42 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const pane = useAIReqSidePane();
   const ai = useAIReq()!;
   const scopes = useContext(AIReqSidePaneMemoryContext);
+  const { activeTab, collapse } = pane;
+  const { projectId, irId } = ai.selection;
+  const proposalId =
+    ai.mainView === "chat" && ai.requirementView === "proposals" ? irId : undefined;
+  const previousProposal = useRef({ projectId, releaseId: ai.releaseId, proposalId });
+  useLayoutEffect(() => {
+    const previous = previousProposal.current;
+    previousProposal.current = { projectId, releaseId: ai.releaseId, proposalId };
+    if (
+      pane.isOpen &&
+      previous.proposalId &&
+      previous.proposalId !== proposalId &&
+      previous.projectId === projectId &&
+      previous.releaseId === ai.releaseId &&
+      activeTab?.kind === "materials" &&
+      activeTab.selection.irId === previous.proposalId
+    ) {
+      // 同一 Release 共用标签：离开提案收起旧材料，保留标签供用户重开。
+      collapse();
+    }
+  }, [activeTab, ai.releaseId, collapse, pane.isOpen, projectId, proposalId]);
+  const employee = getEmployeeId();
+  const proposalTaskAvailable =
+    ai.proposalTask !== "overview" &&
+    canOpenProposalTask(ai.proposalTask, {
+      development: hasProjectRole(ai.view, projectId, employee, "development"),
+      testing: hasProjectRole(ai.view, projectId, employee, "testing"),
+    });
   const available =
     ai.mainView !== "projectProgress" &&
     ai.mainView !== "ideas" &&
     ai.mainView !== "projectOverview" &&
     ai.mainView !== "proposals" &&
-    (ai.mainView !== "chat" ||
-      ai.requirementView !== "proposals" ||
-      ai.proposalTask !== "overview") &&
-    // 分析报告只属于已就绪的具体 Release，不在范围切换或无 Release 时展开。
-    (ai.mainView !== "requirementAnalysis" ||
-      (ai.selectionReady &&
-        ai.view?.availableReleases.some(
-          (item) => item.projectId === ai.selection.projectId && item.id === ai.releaseId,
-        ) === true &&
-        pane.tabs.some((tab) => tab.kind !== "launcher")));
+    ai.mainView !== "roles" &&
+    (ai.mainView !== "formal" || Boolean(irId)) &&
+    (ai.mainView !== "chat" || ai.requirementView !== "proposals" || proposalTaskAvailable);
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   const asideRef = useRef<HTMLElement>(null);

@@ -9,7 +9,6 @@ import {
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import {
-  ChartNoAxesCombined,
   ChevronsDown,
   FileText,
   Files,
@@ -46,10 +45,8 @@ import type { AIReqSidePaneController, AIReqSidePaneKind, AIReqSidePaneTab } fro
 
 const icons = {
   launcher: FileText,
-  report: ChartNoAxesCombined,
   materials: Files,
   history: History,
-  analysis: ChartNoAxesCombined,
 } satisfies Record<AIReqSidePaneKind, typeof FileText>;
 
 /** 仅持有拖拽与搜索展示状态；Tab 接纳、顺序及关闭门禁均由 pane owner 处理。 */
@@ -61,21 +58,17 @@ export function AIReqSidePaneTabs({ pane }: { pane: AIReqSidePaneController }) {
   const activeId = pane.activeTab?.id ?? "";
   const tabCount = pane.tabs.length;
   const accessibleKinds = zh
-    ? { report: "进度报告", materials: "需求材料", history: "讨论与评审历史", analysis: "分析报告" }
+    ? { materials: "需求材料", history: "讨论与评审历史" }
     : {
-        report: "Progress report",
         materials: "Requirement materials",
         history: "Discussion and review history",
-        analysis: "Analysis report",
       };
   // 同对象多 Tab 只靠图标区分时用户必须回忆图标含义；可见短前缀让种类先于对象名被读到。
   const kindPrefixes = zh
-    ? { report: "进度｜", materials: "材料｜", history: "历史｜", analysis: "分析｜" }
+    ? { materials: "材料｜", history: "历史｜" }
     : {
-        report: "Report · ",
         materials: "Materials · ",
         history: "History · ",
-        analysis: "Analysis · ",
       };
   const moveTab = (id: string, direction: -1 | 1) => {
     const index = pane.tabs.findIndex((tab) => tab.id === id);
@@ -261,17 +254,13 @@ function AIReqTabOverview({ pane }: { pane: AIReqSidePaneController }) {
   const kinds: Record<AIReqSidePaneKind, string> = zh
     ? {
         launcher: "新标签页",
-        report: "进度报告",
         materials: "材料",
         history: "历史",
-        analysis: "分析报告",
       }
     : {
         launcher: "New tab",
-        report: "Progress report",
         materials: "Materials",
         history: "History",
-        analysis: "Analysis report",
       };
   const items = (tabs: AIReqSidePaneTab[]) =>
     filterAndRankSearchItems(
@@ -279,7 +268,7 @@ function AIReqTabOverview({ pane }: { pane: AIReqSidePaneController }) {
         tab,
         searchFields: buildSearchFields(
           tab.title,
-          `${tab.selection.irId ?? ""} ${tab.selection.srId ?? ""} ${tab.runId ?? ""}`,
+          `${tab.selection.irId ?? ""} ${tab.selection.srId ?? ""}`,
           kinds[tab.kind],
         ),
       })),

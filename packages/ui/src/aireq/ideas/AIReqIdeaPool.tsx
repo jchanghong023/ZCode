@@ -199,6 +199,11 @@ export function AIReqIdeaPool() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "想法池" : "Ideas"}</h1>
+            <p className="mt-1.5 text-ui-sm text-foreground-subtle">
+              {zh
+                ? "先记录还没排期的需求，确定后再转入项目版本。"
+                : "Capture unscheduled requests here, then move them into a release."}
+            </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <AIReqIdeaImportExport ideas={visible} />

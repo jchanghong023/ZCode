@@ -710,6 +710,10 @@ export function createZCodeAgentConnectionScope(
       clientHistoryFirst = parsed.capabilities?.historyFirst === true;
       handshakeComplete = true;
     },
+    async listRecentChatSessions() {
+      assertReady();
+      return base.listRecentChatSessions();
+    },
     async setConnectionFlowStateV4(params) {
       assertOpen();
       if (role !== "trusted-host-relay") {

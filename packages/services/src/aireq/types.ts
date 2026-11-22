@@ -8,11 +8,6 @@ export type {
   AIReqAgentRole,
   AIReqAgentModelBinding,
 } from "./model-types.js";
-import type {
-  AIReqProgressStatus,
-  AIReqProjectProgress,
-  AIReqTestAcceptance,
-} from "./progress-types.js";
 
 /** Caller identity records provenance and isolates private sessions; it is not authorization. */
 export interface AIReqIdentity {
@@ -238,148 +233,43 @@ export interface AIReqRequirementDeletion {
   manualCloseNeeded: boolean;
   requirementsPrUrl?: string;
 }
-export interface AIReqStageApproval {
-  stage: AIReqWorkflowStage;
-  round: number;
-  operationId: string;
-  digest: string;
-  files: AIReqFileVersion[];
-  approvedAt: string;
-  valid?: boolean;
-}
-export interface AIReqStageMaterial extends AIReqFileVersion {
-  stage: AIReqWorkflowStage;
-  kind: "solution" | "plan" | "completion" | "ut" | "st" | "delivery";
-  round: number;
-  valid: boolean;
-}
-export interface AIReqSrDelivery {
-  candidate: string;
-  round: number;
-  defaultCommit: string;
-  inputDigest: string;
-  inputs: AIReqFileVersion[];
-  files: (AIReqFileVersion & { category: "code" | "test" | "spec" })[];
-  manifestPath: string;
-  sourceChange: string;
-  sourceSpec: string;
-  status:
-    | "prepared"
-    | "verified"
-    | "implementation-issue"
-    | "git-conflict"
-    | "requirement-conflict";
-  verification?: { candidate: string; defaultCommit: string; checkedAt: string };
-  pushedCandidate?: string;
-  prCandidate?: string;
-  humanResolution?: { note: string; employeeId: string; resolvedAt: string };
-}
 export interface AIReqSystemRequirement {
-  /** Latest effective status transition committed by the workflow owner; absent on legacy records. */
-  statusChange?: { from?: AIReqProgressStatus; to: AIReqProgressStatus; at: string };
-  testingEmployeeId?: string;
-  lastAnalysisFailure?: { message: string; at: string };
-  testAcceptance?: AIReqTestAcceptance;
-  planning?: AIReqSrPlanning;
-  solutionAnalysis?: AIReqSrSolutionAnalysis;
-  progress?: AIReqProgressAnalysis;
-  trackingBranch?: {
-    name: string;
-    baseCommit: string;
-    createdAt: string;
-    pushedAt: string;
-    status?: "ready" | "failed" | "deleted";
-    error?: string;
-    deletedAt?: string;
-  };
-  ompWebId?: string;
   id: string;
   projectId: string;
   irId: string;
   title: string;
   documentPath: string;
-  status: "pending" | "developing" | "completed";
-  stage?: AIReqWorkflowStage | "solution";
-  round: number;
-  delivery?: AIReqSrDelivery;
-  deliveryHistory?: AIReqSrDelivery[];
   dependencySrIds?: string[];
-  developerEmployeeId?: string;
-  startedAt?: string;
-  developmentRoot?: string;
-  worktree?: AIReqWorktree;
-  sessions: AIReqNativeSessionRef[];
-  approvals: AIReqStageApproval[];
-  materials: AIReqStageMaterial[];
-  materialDigest?: string;
-  codePrHistory?: AIReqPrFact[];
-  codePr?: AIReqPrFact;
-  /** Immutable evidence of the first code merge into the default branch. */
-  codeMerge?: AIReqMergeFact;
 }
-export interface AIReqIrAcceptance {
-  status: "reviewing" | "issues" | "passed" | "pr-ready" | "pr-submitted" | "completed";
+export type AIReqProjectRole = "development" | "testing";
+export interface AIReqRoleRegistration {
+  id: string;
+  projectId: string;
   employeeId: string;
-  startedAt: string;
-  session: AIReqNativeSessionRef;
-  worktree: AIReqWorktree;
-  baseCommit: string;
-  candidate: string;
-  revision: number;
-  reportPath?: string;
-  reportCandidate?: string;
-  reportBaseCommit?: string;
-  reportVersion?: AIReqFileVersion;
-  srMergeVersion?: string;
-  hasFixes: boolean;
-  finalPrPath?: string;
-  finalPrVersion?: AIReqFileVersion;
-  pr?: AIReqPrFact;
-  archive?: {
-    sourceRoot: string;
-    targetRoot: string;
-    skipSpecs: boolean;
-    moves: (AIReqFileVersion & { sourcePath: string })[];
-    fixes: AIReqFileVersion[];
-  };
-  packageVersion?: string;
-  pushedCandidate?: string;
-  pushedPackageVersion?: string;
-  prCandidate?: string;
-  prPackageVersion?: string;
-  history?: {
-    candidate: string;
-    baseCommit: string;
-    status: string;
-    reportPath?: string;
-    finalPrPath?: string;
-    prUrl?: string;
-  }[];
-  archiveResult?: { sourceAbsent: boolean; targetFiles: AIReqFileVersion[]; skipSpecs: boolean };
-  merge?: AIReqMergeFact;
+  role: AIReqProjectRole;
+  status: "pending" | "approved" | "rejected" | "revoked";
+  requestedAt: string;
+  note?: string;
+  decidedAt?: string;
+  decidedBy?: string;
 }
-export interface AIReqSrSolutionAnalysis {
-  approach: string;
-  dependencyReason: string;
-  parallelSrIds: string[];
-  uncertainties: string[];
+export interface AIReqGitFileCommit {
+  hash: string;
+  message: string;
+  employee: string;
+  committedAt: string;
 }
-export interface AIReqSrPlanningInput {
-  developerEmployeeId?: string;
-  plannedStart?: string;
-  testingEmployeeId?: string;
-  operationId?: string;
-  expectedRevision?: number;
-  plannedEnd?: string;
-}
-export interface AIReqSrPlanning extends AIReqSrPlanningInput {
-  source: "ai" | "manual";
-  assumptions: string;
-  suggestion?: AIReqSrPlanningInput;
-  updatedBy?: string;
-  updatedAt?: string;
-}
+export type AIReqMaterialHistoryEvent =
+  | { type: "confirmation"; employeeId: string; role: "business" | AIReqProjectRole }
+  | {
+      type: "git-sync";
+      employeeId: string;
+      commit: string;
+      files: { path: string; change: AIReqGitFileCommit }[];
+    };
+
 export interface AIReqMaterialHistory {
+  event?: AIReqMaterialHistoryEvent;
   version: string;
   reason: string;
   changedAt: string;
@@ -446,9 +336,7 @@ export interface AIReqRequirementGroup {
     srIds: string[];
     dependencies: Record<string, string[]>;
   };
-  developmentStartedAt?: string;
   srDependencyFile?: AIReqMaterialView;
-  acceptance?: AIReqIrAcceptance;
   proposalStage?: "requirements" | "solution";
   proposalRound?: number;
   developerHandoff?: { employeeId: string; submittedAt: string };
@@ -499,7 +387,12 @@ export interface AIReqMaterialView extends AIReqFileVersion {
     | "sr"
     | "solution"
     | "test-plan"
-    | AIReqStageMaterial["kind"]
+    | "solution"
+    | "plan"
+    | "completion"
+    | "ut"
+    | "st"
+    | "delivery"
     | "attachment"
     | "ir-acceptance-report"
     | "ir-final-pr"
@@ -519,19 +412,26 @@ export interface AIReqMaterialReadRequest extends Pick<
 export interface AIReqChangedFile extends AIReqFileVersion, AIReqObjectRef {
   status: string;
 }
-export interface AIReqRepositoryAIReqelopment {
-  repositoryId: string;
-  limit: number;
-  activeSrs: AIReqSystemRequirement[];
-  owners: (AIReqObjectRef & { title: string })[];
+export interface AIReqReleaseDocuments {
+  releaseId: string;
+  title: string;
+  createdAt: string;
+  proposalCount: number;
+  formalCount: number;
+}
+export interface AIReqProjectDocuments {
+  projectId: string;
+  releases: AIReqReleaseDocuments[];
 }
 export interface AIReqWorkflowView {
+  roleRegistrations?: AIReqRoleRegistration[];
+  roleAdministrator?: boolean;
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   /** Same-owner global release directory for cross-project planning; releases remains project-scoped. */
   availableReleases: AIReqRelease[];
   todos?: AIReqTodo[];
-  projectProgress?: AIReqProjectProgress[];
+  projectDocuments?: AIReqProjectDocuments[];
   ompWebId?: string;
   version: 1;
   revision: number;
@@ -545,7 +445,6 @@ export interface AIReqWorkflowView {
   materials: AIReqMaterialView[];
   operations: AIReqOperationReceipt[];
   sessions: AIReqNativeSessionRef[];
-  repositoryDevelopment?: AIReqRepositoryAIReqelopment;
   repositoryHeads?: Record<string, string>;
   workspace?: { path: string; identity: string };
   running: AIReqNativeSessionRef[];
@@ -562,6 +461,14 @@ export interface AIReqCommandBase {
 export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevision"> &
   Partial<Pick<AIReqCommandBase, "operationId" | "expectedRevision">> &
   (
+    | { type: "requestProjectRoles"; projectId: string; roles: AIReqProjectRole[]; note?: string }
+    | {
+        type: "decideProjectRole";
+        projectId: string;
+        registrationId: string;
+        decision: "approved" | "rejected" | "revoked";
+      }
+    | { type: "syncFormalDocuments"; projectId: string; irId: string }
     | { type: "createIdea"; originalText: string }
     | { type: "importIdeas"; originalTexts: string[] }
     | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
@@ -593,7 +500,6 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
         snapshotDigest: string;
       }
     | { type: "closeProposalPr"; candidate: string }
-    | { type: "retrySrBranch"; srId: string }
     | {
         type: "reviseProposalMaterial";
         target: "requirements" | "solution" | "test-plan";
@@ -635,7 +541,6 @@ export interface AIReqSelection {
   freeDraftId?: string;
   proposalDraftId?: string;
   proposalDraftReleaseId?: string;
-  irAcceptance?: boolean;
   freeSessionId?: string;
   freeFiles?: boolean;
   projectId?: string;
@@ -646,23 +551,6 @@ export interface AIReqSelection {
   discussionPhase?: "requirements" | "solution";
 }
 
-export interface AIReqProgressAnalysis {
-  aiPercent?: number;
-  inputFingerprint?: string;
-  analysisFailure?: { message: string; at: string };
-  stale?: boolean;
-  percent: number;
-  merged: boolean;
-  certain: boolean;
-  branch: string;
-  analysedAt: string;
-  codeVersion: string;
-  defaultVersion: string;
-  implemented: string[];
-  remaining: string[];
-  issues: { title: string; detail: string }[];
-  activity: { commit: string; message: string; at: string }[];
-}
 export interface AIReqNativeSurfaceTarget extends AIReqObjectRef {
   sessionId: string;
   phase: AIReqNativeSessionRef["phase"];
@@ -767,7 +655,6 @@ export interface AIReqAlignment {
 export interface AIReqTodo extends AIReqObjectRef {
   id: string;
   requirementTitle: string;
-  srTitle?: string;
   assignmentPerspective: AIReqAlignment["perspective"];
   releaseId: string;
   title: string;
@@ -778,10 +665,7 @@ export interface AIReqTodo extends AIReqObjectRef {
     | "full-review"
     | "alignment"
     | "publish"
-    | "development"
-    | "testing"
-    | "failure"
-    | "analysis-failure";
+    | "failure";
   employeeId?: string;
   perspective?: AIReqAlignment["perspective"];
   selection: AIReqSelection;

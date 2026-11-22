@@ -11,6 +11,7 @@ import {
   getPrototypeWorkflow,
   applyPrototypeAction,
   readPrototypeNativeContext,
+  requireProjectRole,
 } from "./workflow.js";
 import {
   prototypeSkillDesignReply,
@@ -71,6 +72,11 @@ export class AIReqNativeBusiness {
       return prototypeSkillDesignBinding(sessionId);
     return readPrototypeNativeContext(sessionId)?.ref.modelConfig;
   }
+  assertNativeWritable(sessionId: string): void {
+    if (!currentIdentity()) throw businessRule("连接身份无效，请重新进入工作区。");
+    if (sessionId.startsWith("prototype-skill-design:")) assertSkillSession(sessionId);
+    else this.currentProposal(sessionId);
+  }
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
     if (!identity) throw businessRule("连接身份无效，请重新进入工作区。");
@@ -91,13 +97,7 @@ export class AIReqNativeBusiness {
       this.failures.add(identity.clientId);
       throw businessRule("消息未发送成功，请重试。");
     }
-    if (sessionId.startsWith("prototype-skill-design:")) {
-      prototypeSkillDesignBinding(sessionId);
-      this.actors.set(key, { ...identity });
-      this.admittedTexts.set(key, text);
-      return;
-    }
-    this.currentProposal(sessionId);
+    this.assertNativeWritable(sessionId);
     this.actors.set(key, { ...identity });
     this.admittedTexts.set(key, text);
   }
@@ -136,6 +136,7 @@ export class AIReqNativeBusiness {
     const target = readPrototypeNativeContext(sessionId, true);
     if (!target) throw businessRule("会话不属于当前可达 AIReq 业务。");
     const { ref, draft: proposal } = target;
+    if (ref.phase === "solution") requireProjectRole(ref.projectId, "development");
     const reason = conversationReadOnlyReason(
       { drafts: proposal ? [proposal] : [] },
       {
@@ -150,7 +151,7 @@ export class AIReqNativeBusiness {
               ? "requirements-review"
               : "requirements",
       },
-      { proposalDiscussion: true, codeDevelopment: false },
+      { proposalDiscussion: true },
     );
     if (reason) throw businessRule(reason);
     if (ref.role === "reviewer") {

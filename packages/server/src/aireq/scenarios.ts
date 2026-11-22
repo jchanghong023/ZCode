@@ -1,6 +1,5 @@
 /** Named, explicit in-memory fixtures; no external model, repository or filesystem operations. */
 export const SUPPORTED_AIREQ_DEMOS = [
-  "analysis-scale",
   "review-chat",
   "proposal-feedback",
   "proposal-intake",

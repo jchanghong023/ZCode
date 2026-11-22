@@ -2,10 +2,12 @@ import { CheckCircle2, Circle } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
 import {
   alignmentBlocker,
+  hasProjectRole,
   fullReviewReadyBlocker,
   proposalAlignmentCurrent,
   proposalVersion,
@@ -35,12 +37,19 @@ export function AIReqProposalAlignment({
   const inFlight = useRef(false);
   const review = group.review;
   const version = proposalVersion(group);
-  const confirmedCount = perspectives.filter(([perspective]) =>
-    group.alignment?.some(
-      (item) => item.perspective === perspective && proposalAlignmentCurrent(group, item),
-    ),
-  ).length;
+  const employeeId = getEmployeeId();
   const reviewBlocker = fullReviewReadyBlocker(group);
+  const roles = perspectives.map(([perspective, label, labelEn]) => ({
+    perspective,
+    label,
+    labelEn,
+    confirmation: reviewBlocker
+      ? undefined
+      : group.alignment?.find(
+          (item) => item.perspective === perspective && proposalAlignmentCurrent(group, item),
+        ),
+  }));
+  const confirmedCount = roles.filter(({ confirmation }) => confirmation).length;
   const blocker = alignmentBlocker(group);
   const pending =
     Boolean(confirming) ||
@@ -54,21 +63,23 @@ export function AIReqProposalAlignment({
     >
       <div className="space-y-1">
         <h2 className="text-ui-base font-medium">
-          {zh ? `三方确认 · ${confirmedCount} / 3` : `Role confirmations · ${confirmedCount} / 3`}
+          {zh
+            ? `三方确认 · ${confirmedCount} / ${roles.length}`
+            : `Role confirmations · ${confirmedCount} / ${roles.length}`}
         </h2>
         <p className="text-ui-sm text-foreground-subtle">
           {zh
-            ? "业务、开发和测试分别确认同一材料快照。同一人可承担多个角色；已确认的角色保留原记录。"
-            : "Business, development and testing each confirm the same material snapshot. One person can fill multiple roles. Original decisions are retained."}
+            ? "确认你在当前项目中拥有的角色，记录会绑定当前材料版本。"
+            : "Confirm the roles you hold in this project. Each decision is tied to the current document version."}
         </p>
       </div>
       <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
-        {perspectives.map(([perspective, label, labelEn]) => {
-          // 旧版本的确认不计入当前结果，不能因重新组织页面而恢复旧批准。
-          const confirmation = group.alignment?.find(
-            (item) => item.perspective === perspective && proposalAlignmentCurrent(group, item),
-          );
+        {roles.map(({ perspective, label, labelEn, confirmation }) => {
           const Icon = confirmation ? CheckCircle2 : Circle;
+          const canConfirm =
+            !confirmation &&
+            !readOnly &&
+            hasProjectRole(ai.view, group.projectId, employeeId, perspective);
           return (
             <li
               key={perspective}
@@ -90,7 +101,7 @@ export function AIReqProposalAlignment({
                   </p>
                 </div>
               </div>
-              {!confirmation && !readOnly && (
+              {canConfirm && (
                 <Button
                   variant="outline"
                   size="sm"

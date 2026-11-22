@@ -1,40 +1,29 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Badge } from "@/components/ui/badge.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   deriveAIReqTodos,
-  requirementsReviewReadyBlocker,
   proposalUpdatedTime,
   proposalStateLabel,
-  progressLabel,
-  srProgress,
-  srProgressStatus,
 } from "../contract.js";
-import type { AIReqRequirementGroup, AIReqProgressStatus } from "../contract.js";
+import type { AIReqRequirementGroup } from "../contract.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
-import { OverviewProgress } from "./OverviewProgress.js";
 
 type ConfirmationFilter = "all" | "review" | "business" | "development" | "testing";
-const statusEn: Record<AIReqProgressStatus, string> = {
-  待开发: "Not started",
-  开发中: "In development",
-  待合入: "Awaiting merge",
-  待验收: "Awaiting acceptance",
-  已完成: "Completed",
-};
 export function AIReqProjectOverviewPage({
   active,
   onReturnProjects,
   onConfigureProject,
+  onCreateProposal,
 }: {
   active: boolean;
   onReturnProjects(): void;
   onConfigureProject(): void;
+  onCreateProposal(trigger: HTMLButtonElement): void;
 }) {
   const ai = useAIReq()!;
   const scrollRoot = useRef<HTMLElement>(null);
@@ -55,7 +44,7 @@ export function AIReqProjectOverviewPage({
   );
   const summary =
     ai.selectionReady && release
-      ? view?.projectProgress
+      ? view?.projectDocuments
           ?.find((item) => item.projectId === project?.id)
           ?.releases.find((item) => item.releaseId === release.id)
       : undefined;
@@ -63,30 +52,18 @@ export function AIReqProjectOverviewPage({
     view?.drafts.filter(
       (item) => item.projectId === project?.id && item.releaseId === release?.id,
     ) ?? [];
-  const formalIds = new Set(summary?.requirements.map((item) => item.irId) ?? []);
-  const srs =
-    view?.srs.filter((sr) => sr.projectId === project?.id && formalIds.has(sr.irId)) ?? [];
-  const completed = srs.filter((sr) => srProgress(sr) === 100).length;
-  const proposalsById = new Map(proposals.map((proposal) => [proposal.id, proposal]));
-  const todos = view
-    ? deriveAIReqTodos(view).filter((todo) => {
-        if (todo.projectId !== project?.id || todo.releaseId !== release?.id) return false;
-        const proposal = proposalsById.get(todo.irId);
-        if (!proposal) return false;
-        if (todo.kind === "original-review")
-          return (
-            !requirementsReviewReadyBlocker(proposal) &&
-            proposal.originalReview?.humanDecision?.reviewId !== proposal.originalReview?.id
-          );
-        return todo.kind === "alignment";
-      })
+  // The view contains every draft for the project, but its todos are filtered by operator role.
+  const confirmationTodos = view
+    ? deriveAIReqTodos({ ...view, drafts: proposals }).filter(
+        (todo) => todo.kind === "original-review" || todo.kind === "alignment",
+      )
     : [];
   const matches = (kind: ConfirmationFilter) =>
-    todos.filter(
+    confirmationTodos.filter(
       (todo) =>
         kind === "all" ||
         (kind === "review"
-          ? todo.kind !== "alignment"
+          ? todo.kind === "original-review"
           : todo.kind === "alignment" && todo.perspective === kind),
     );
   const pendingLabel = zh ? "待人工处理提案" : "Proposals awaiting people";
@@ -97,7 +74,7 @@ export function AIReqProjectOverviewPage({
     { id: "development", label: zh ? "开发确认" : "Development confirmation" },
     { id: "testing", label: zh ? "测试确认" : "Testing confirmation" },
   ];
-  const allPendingCount = new Set(todos.map((todo) => todo.irId)).size;
+  const allPendingCount = new Set(confirmationTodos.map((todo) => todo.irId)).size;
   const pendingIds = new Set(matches(confirmationFilter).map((todo) => todo.irId));
   const pending = proposals.filter((item) => pendingIds.has(item.id));
   const recent = [...proposals]
@@ -105,12 +82,6 @@ export function AIReqProjectOverviewPage({
       (a, b) =>
         proposalUpdatedTime(b, view?.operations ?? []) -
           proposalUpdatedTime(a, view?.operations ?? []) || a.id.localeCompare(b.id),
-    )
-    .slice(0, 5);
-  const recentSrs = srs
-    .filter((sr) => sr.statusChange)
-    .sort(
-      (a, b) => b.statusChange!.at.localeCompare(a.statusChange!.at) || a.id.localeCompare(b.id),
     )
     .slice(0, 5);
   const time = (value: number | string) =>
@@ -145,12 +116,19 @@ export function AIReqProjectOverviewPage({
       }}
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges] [&_button:focus-visible]:border-remote-foreground-muted"
       data-testid="aireq-project-overview"
-      aria-label={zh ? "当前项目" : "Current project"}
+      aria-label={zh ? "项目概览" : "Project overview"}
     >
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-8"}>
-        <header className="flex items-center gap-2">
-          <ScopedPageTitle title={zh ? "当前项目" : "Current project"} />
-          {active && <ProjectPageHelp scope="project-overview" />}
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <ScopedPageTitle title={zh ? "项目概览" : "Project overview"} />
+            {active && <ProjectPageHelp scope="project-overview" />}
+          </div>
+          {ai.selectionReady && release && (
+            <Button onClick={(event) => onCreateProposal(event.currentTarget)}>
+              {zh ? "新建需求" : "New requirement"}
+            </Button>
+          )}
         </header>
         <p
           role="status"
@@ -183,7 +161,7 @@ export function AIReqProjectOverviewPage({
                 : "Choose a project in the sidebar, or add your first project."}
             </p>
             <Button variant="outline" onClick={onReturnProjects}>
-              {zh ? "项目总览" : "Projects"}
+              {zh ? "所有项目" : "All projects"}
             </Button>
           </div>
         ) : !release ? (
@@ -194,7 +172,7 @@ export function AIReqProjectOverviewPage({
             <p className="text-foreground-subtle">
               {zh
                 ? "添加 Release 后，即可查看需求、确认事项和开发进展。"
-                : "Add a release to see requirements, confirmations and delivery progress."}
+                : "Add a release to see requirements, confirmations and formal documents."}
             </p>
             <Button variant="outline" onClick={onConfigureProject}>
               {zh ? "配置项目" : "Configure project"}
@@ -223,11 +201,11 @@ export function AIReqProjectOverviewPage({
               {/* 数据区原先透出页面底色、辅助文字混用侧栏灰；按外观页卡片与文字角色呈现。 */}
               <dl
                 data-aireq-motion-card=""
-                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-4"
+                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-3"
               >
                 {[
                   {
-                    label: zh ? "正式需求 IR" : "Formal requirements · IR",
+                    label: zh ? "正式文档" : "Formal documents",
                     count: summary.formalCount,
                     target: "formal" as const,
                   },
@@ -237,76 +215,33 @@ export function AIReqProjectOverviewPage({
                     target: "proposals" as const,
                   },
                   {
-                    label: zh ? "开发任务 SR" : "Development tasks · SR",
-                    count: summary.srCount,
-                    target: "formal" as const,
-                  },
-                  {
-                    label: zh ? "已完成 SR" : "Completed SRs",
-                    count: completed,
-                    target: "formal" as const,
+                    label: pendingLabel,
+                    count: allPendingCount,
                   },
                 ].map((item) => (
                   <div key={item.label} data-aireq-motion-stat="" className="space-y-1 rounded-lg">
                     <dt className="text-ui-sm text-foreground">{item.label}</dt>
                     <dd>
-                      <Button
-                        variant="link"
-                        className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
-                        aria-label={`${item.label}: ${item.count}`}
-                        onClick={() => ai.openFromProjectOverview(item.target)}
-                      >
-                        {item.count}
-                        <ArrowRight
-                          className="size-3.5 text-foreground-subtle"
-                          aria-hidden="true"
-                        />
-                      </Button>
+                      {item.target ? (
+                        <Button
+                          variant="link"
+                          className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
+                          aria-label={item.label + ": " + item.count}
+                          onClick={() => item.target && ai.openFromProjectOverview(item.target)}
+                        >
+                          {item.count}
+                          <ArrowRight
+                            className="size-3.5 text-foreground-subtle"
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      ) : (
+                        <span className="text-ui-xl font-semibold tabular-nums">{item.count}</span>
+                      )}
                     </dd>
                   </div>
                 ))}
               </dl>
-              {/* 正式 SR 的平均进度、验收比例和未转正提案的人工事项属于三个不同口径。 */}
-              <div
-                data-aireq-motion-card=""
-                className="grid gap-4 rounded-xl border border-card-border bg-card p-4 text-foreground @min-[44rem]/conversation:grid-cols-[2fr_1fr_1fr]"
-              >
-                <div className="min-w-0 space-y-2">
-                  <span className="block text-ui-sm">
-                    {zh ? "正式开发任务进度" : "Formal task progress"}
-                  </span>
-                  <OverviewProgress
-                    percent={summary.percent}
-                    formalCount={summary.formalCount}
-                    label={release.title}
-                    zh={zh}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="block text-ui-sm">
-                    {zh ? "开发任务已验收" : "Tasks accepted"}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {completed} / {srs.length}
-                    {srs.length > 0 && (
-                      <span className="ml-2 text-ui-sm font-normal text-foreground-subtle">
-                        {progressLabel((completed / srs.length) * 100)}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <span className="block text-ui-sm">{pendingLabel}</span>
-                  <span className="font-medium tabular-nums">{allPendingCount}</span>
-                </div>
-              </div>
-              {summary.unanalyzedCount > 0 && (
-                <p className="text-ui-sm text-foreground-subtle">
-                  {zh
-                    ? `未分析 SR ${summary.unanalyzedCount}`
-                    : `Unanalyzed SRs ${summary.unanalyzedCount}`}
-                </p>
-              )}
             </section>
             <section aria-labelledby="overview-confirmations" className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -357,11 +292,11 @@ export function AIReqProjectOverviewPage({
                           <span className="block truncate font-medium">{proposal.title}</span>
                           <span className="mt-1 block text-ui-sm text-foreground-subtle">
                             {zh
-                              ? todos
+                              ? confirmationTodos
                                   .filter((todo) => todo.irId === proposal.id)
                                   .map((todo) => todo.title)
                                   .join("、")
-                              : "Open co-creation to confirm"}
+                              : "Open co-creation"}
                           </span>
                         </span>
                         <ArrowRight
@@ -383,131 +318,68 @@ export function AIReqProjectOverviewPage({
                 </Button>
               )}
             </section>
-            <div className="grid gap-8 @min-[60rem]/conversation:grid-cols-2">
+            <div>
               <section aria-labelledby="overview-recent-proposals" className="min-w-0 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <h2 id="overview-recent-proposals" className="text-ui-xl font-semibold">
                     {zh ? "最近更新的提案" : "Recently updated proposals"}
                   </h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => ai.openFromProjectOverview("proposals")}
-                  >
-                    {zh ? "查看全部" : "View all"}
-                    <ArrowRight className="size-3.5" aria-hidden="true" />
-                  </Button>
+                  {recent.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => ai.openFromProjectOverview("proposals")}
+                    >
+                      {zh ? "查看全部" : "View all"}
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  )}
                 </div>
                 <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
-                  {recent.length === 0
-                    ? empty(zh ? "当前 Release 暂无需求提案。" : "No proposals in this release.")
-                    : recent.map((proposal) => (
-                        <button
-                          key={proposal.id}
-                          type="button"
-                          data-aireq-motion-row=""
-                          className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
-                          onClick={() => openProposal(proposal)}
-                        >
-                          <span className="min-w-0 flex-1 space-y-1.5">
-                            <span className="block truncate font-medium">{proposal.title}</span>
-                            <span className="block text-ui-sm text-foreground-subtle">
-                              {proposalStateLabel(proposal, zh ? "zh-CN" : "en-US")}
-                            </span>
-                            <time
-                              className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"
-                              dateTime={new Date(
-                                proposalUpdatedTime(proposal, view?.operations ?? []),
-                              ).toISOString()}
-                            >
-                              <Clock3 className="size-3.5" aria-hidden="true" />
-                              {time(proposalUpdatedTime(proposal, view?.operations ?? []))}
-                            </time>
+                  {recent.length === 0 ? (
+                    <div className="space-y-3 px-4 py-6">
+                      <p className="text-ui-sm text-foreground-subtle">
+                        {zh ? "当前 Release 暂无需求提案。" : "No proposals in this release."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => onCreateProposal(event.currentTarget)}
+                      >
+                        {zh ? "新建需求" : "New requirement"}
+                      </Button>
+                    </div>
+                  ) : (
+                    recent.map((proposal) => (
+                      <button
+                        key={proposal.id}
+                        type="button"
+                        data-aireq-motion-row=""
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
+                        onClick={() => openProposal(proposal)}
+                      >
+                        <span className="min-w-0 flex-1 space-y-1.5">
+                          <span className="block truncate font-medium">{proposal.title}</span>
+                          <span className="block text-ui-sm text-foreground-subtle">
+                            {proposalStateLabel(proposal, zh ? "zh-CN" : "en-US")}
                           </span>
-                          <ArrowRight
-                            className="mt-1 size-4 shrink-0 text-foreground-subtle"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      ))}
-                </div>
-              </section>
-              <section aria-labelledby="overview-recent-srs" className="min-w-0 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 id="overview-recent-srs" className="text-ui-xl font-semibold">
-                    {zh ? "最近状态变化的 SR" : "Recent SR status changes"}
-                  </h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => ai.openFromProjectOverview("formal")}
-                  >
-                    {zh ? "查看全部" : "View all"}
-                    <ArrowRight className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-                <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
-                  {recentSrs.length === 0
-                    ? empty(
-                        zh
-                          ? "当前 Release 暂无已记录的状态变化。"
-                          : "No recorded status changes in this release.",
-                      )
-                    : recentSrs.map((sr) => {
-                        const change = sr.statusChange!;
-                        const parent = view?.groups.find(
-                          (item) => item.projectId === sr.projectId && item.id === sr.irId,
-                        );
-                        return (
-                          <button
-                            key={sr.id}
-                            type="button"
-                            data-aireq-motion-row=""
-                            className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
-                            onClick={() =>
-                              ai.openFromProjectOverview(
-                                "chat",
-                                {
-                                  projectId: sr.projectId,
-                                  irId: sr.irId,
-                                  srId: sr.id,
-                                  formalView: "detail",
-                                },
-                                release.id,
-                              )
-                            }
+                          <time
+                            className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"
+                            dateTime={new Date(
+                              proposalUpdatedTime(proposal, view?.operations ?? []),
+                            ).toISOString()}
                           >
-                            <span className="min-w-0 flex-1 space-y-1.5">
-                              <span className="block truncate font-medium">{sr.title}</span>
-                              {parent && (
-                                <span className="block truncate text-ui-sm text-foreground-subtle">
-                                  {parent.title}
-                                </span>
-                              )}
-                              <span className="flex flex-wrap items-center gap-2 text-ui-sm">
-                                {change.from && (
-                                  <>
-                                    <span className="text-foreground-subtle">
-                                      {zh ? change.from : statusEn[change.from]}
-                                    </span>
-                                    <ArrowRight className="size-3" aria-hidden="true" />
-                                  </>
-                                )}
-                                <Badge variant="secondary">
-                                  {zh ? srProgressStatus(sr) : statusEn[srProgressStatus(sr)]}
-                                </Badge>
-                                <time className="text-foreground-subtle" dateTime={change.at}>
-                                  {time(change.at)}
-                                </time>
-                              </span>
-                            </span>
-                            <ArrowRight
-                              className="mt-1 size-4 shrink-0 text-foreground-subtle"
-                              aria-hidden="true"
-                            />
-                          </button>
-                        );
-                      })}
+                            <Clock3 className="size-3.5" aria-hidden="true" />
+                            {time(proposalUpdatedTime(proposal, view?.operations ?? []))}
+                          </time>
+                        </span>
+                        <ArrowRight
+                          className="mt-1 size-4 shrink-0 text-foreground-subtle"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    ))
+                  )}
                 </div>
               </section>
             </div>

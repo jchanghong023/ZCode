@@ -4,7 +4,7 @@ import type { AIReqMainView, AIReqSelection } from "./contract.js";
 export type ProposalDraft = { id: string; sourceIrId?: string };
 export type NavigationOverlay =
   | { kind: "settings" }
-  | { kind: "proposal"; draft: ProposalDraft }
+  | { kind: "proposal"; draft: ProposalDraft; fromList?: boolean }
   | { kind: "proposal-import" }
   | null;
 export type RequirementView = "proposals" | "formal";
@@ -46,6 +46,7 @@ export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
     if (draft && typeof draft === "object" && "id" in draft && typeof draft.id === "string")
       return {
         kind: "proposal",
+        ...("fromList" in saved && saved.fromList === true ? { fromList: true } : {}),
         draft: {
           id: draft.id,
           ...("sourceIrId" in draft && typeof draft.sourceIrId === "string"
@@ -58,6 +59,8 @@ export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
 }
 
 export function restoreMainView(saved: unknown): AIReqMainView {
+  if (saved === "requirementAnalysis") return "formal";
+  if (saved === "development" || saved === "testing") return "proposals";
   return (
     (
       [
@@ -67,7 +70,7 @@ export function restoreMainView(saved: unknown): AIReqMainView {
         "todos",
         "proposals",
         "formal",
-        "requirementAnalysis",
+        "roles",
         "skillDesign",
       ] as const
     ).find((view) => view === saved) ?? "chat"

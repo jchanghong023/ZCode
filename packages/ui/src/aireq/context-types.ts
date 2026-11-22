@@ -27,7 +27,7 @@ export interface AIReqContextValue {
   closeSettings(): void;
   setMainView(value: WorkspaceMainView, options?: { fromSidebar?: boolean }): void;
   openFromProjectOverview(
-    mainView: "proposals" | "formal" | "chat" | "todos" | "requirementAnalysis",
+    mainView: "proposals" | "formal" | "chat" | "todos",
     target?: AIReqSelection,
     releaseId?: string,
   ): void;
@@ -38,13 +38,14 @@ export interface AIReqContextValue {
   proposalDraft: ProposalDraft | null;
   proposalImportOpen: boolean;
   closeProposalDraft(): void;
+  completeProposalDraft(releaseId: string): void;
   pending: boolean;
   selectionReady: boolean;
   error?: string;
   linkError?: string;
   clearLinkError(): void;
   releaseId: string;
-  setReleaseId(id: string, options?: { inProposalDialog?: boolean }): void;
+  setReleaseId(id: string): void;
   switchProject(projectId: string): void;
   openProject(
     projectId: string,
@@ -52,7 +53,6 @@ export interface AIReqContextValue {
     releaseId?: string,
   ): void;
   select(value: AIReqSelection, releaseId?: string, task?: ProposalTask): void;
-  openAnalysis(value: AIReqSelection, releaseId?: string): void;
   objectLink(): string | undefined;
   refresh(): Promise<void>;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;

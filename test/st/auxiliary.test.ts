@@ -323,7 +323,6 @@ describe("ST auxiliary public reads", () => {
         const bootstrap = await c.bootstrap();
         const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
         expect(workflowRoles).toEqual([
-          "progress-analysis",
           "requirements",
           "requirements-review",
           "requirements-review-a",

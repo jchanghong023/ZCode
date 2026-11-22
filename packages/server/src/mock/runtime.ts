@@ -37,6 +37,8 @@ export interface MockSession {
   workspaceRef: WorkspaceRef;
   /** 原生草稿创建者不可由订阅或附件请求改写，防止猜测 ID 后认领他人草稿。 */
   draftCreatorActor?: string;
+  /** 独立聊天的归组目录，服务端解析路径别名后保存。 */
+  chatDirectory?: string;
   /** 首次初始化时冻结的可引用技能；目录更新不能泄漏进既有会话。 */
   skillReferenceCatalog: ZCodeSkillReferenceCatalogEntry[];
   logEpoch: string;
@@ -217,6 +219,15 @@ export function buildConversationSnapshot(
   switchModelConfigAllowed = true,
 ): ConversationSnapshot {
   const ended = session.phase === "completedSuccess" || session.phase === "completedInterrupted";
+  const standalone = session.chatDirectory !== undefined;
+  const canStop = session.phase === "running" && !standalone;
+  const unsupported = {
+    allowed: false,
+    reasonCode: "fault.command.capabilityUnsupported",
+  } as const;
+  const queueCommand: ConversationSnapshot["availability"]["queueEdit"] = standalone
+    ? unsupported
+    : { allowed: true };
   return {
     protocolVersion: 1,
     sessionId: session.sessionId,
@@ -226,8 +237,8 @@ export function buildConversationSnapshot(
     control: {
       phase: session.phase,
       sessionEnded: ended,
-      canStop: session.phase === "running",
-      stopState: session.phase === "running" ? "stoppable" : "idle",
+      canStop,
+      stopState: canStop ? "stoppable" : "idle",
       stopTargetKind: "unknown",
       activeWorks: [],
       lastError: null,
@@ -236,12 +247,10 @@ export function buildConversationSnapshot(
     availability: {
       fork: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
       compact: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
-      switchModelConfig: switchModelConfigAllowed
-        ? { allowed: true }
-        : { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
-      setFollowupMode: { allowed: true },
-      queueEdit: { allowed: true },
-      sendQueuedNow: { allowed: true },
+      switchModelConfig: switchModelConfigAllowed ? { allowed: true } : unsupported,
+      setFollowupMode: queueCommand,
+      queueEdit: queueCommand,
+      sendQueuedNow: queueCommand,
       pauseGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
       resumeGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
     },

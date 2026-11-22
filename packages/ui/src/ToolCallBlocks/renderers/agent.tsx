@@ -380,11 +380,11 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
         toolId={toolCall.toolId}
         icon={null}
         showIcon={false}
-        canToggle={false}
+        canToggle={!summaryAction && Boolean(activityContent)}
         forceOpen={false}
         summaryAction={summaryAction}
-        // 产品边界：Agent/Task 在父对话中只保留单行摘要；完整 child timeline 统一从
-        // 右侧 tab / 手机抽屉查看，因此这里既不自动展开，也不提供手动展开入口。
+        // 有子会话下钻动作时，原生摘要继续打开该会话。只有会话内结果的调用需要
+        // 保留展开入口，否则结果存在于已加载的工具行中却无法在界面读取。
         kindLabel={null}
         expandedKindLabel={null}
         kindDetail={agentNameDetail}

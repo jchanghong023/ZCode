@@ -1,6 +1,6 @@
 # AIReq 设置
 
-`AIReqSettingsPage` 由 shell 受控传入 active、section、返回动作与定位请求。侧栏为外观、项目配置、AI 配置、文档格式；AI 配置页签为模型、Agent 指令和分析设置。文档格式分区为 documentFormats，其他分区继续使用 appearance/projects/models/personalization/analysis，不另建页面选择 owner。
+`AIReqSettingsPage` 由 shell 受控传入 active、section、返回动作与定位请求。侧栏为外观、项目配置、AI 配置、文档格式；AI 配置页签为模型和 Agent 指令。文档格式分区为 documentFormats，其他分区继续使用 appearance/projects/models/personalization，不另建页面选择 owner。
 
 本模块拥有未保存模型、逐 Agent 指令与项目／Release 编辑草稿；共享业务归 AIReq 数据源。外观使用浏览器偏好。设置搜索仅注入当前可达字段，命中先消费导航门禁，再对挂载行滚动、聚焦和高亮，不恢复其他产品分区。
 

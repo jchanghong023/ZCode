@@ -3,6 +3,7 @@ import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { createProposal } from "./business.js";
 import { connectST } from "./client.js";
 import { config } from "./config.js";
+import { openNative } from "./native.js";
 import {
   alignmentAction,
   approveOriginalReview,
@@ -59,6 +60,55 @@ it(
         irId: target.irId,
         reason,
       } as const;
+      const tester = await connectST(config.otherEmployeeId);
+      try {
+        expect(tester.identity.employeeId).not.toBe(client.identity.employeeId);
+        const requested = await commandAndRead(
+          tester,
+          { type: "requestProjectRoles", projectId: target.projectId, roles: ["testing"] },
+          target,
+        );
+        const registration = requested.view.roleRegistrations?.find(
+          (entry) => entry.projectId === target.projectId && entry.role === "testing",
+        );
+        expect(registration?.status).toBe("pending");
+        const admin = await connectST("y00000000");
+        try {
+          await commandAndRead(
+            admin,
+            {
+              type: "decideProjectRole",
+              projectId: target.projectId,
+              registrationId: registration!.id,
+              decision: "approved",
+            },
+            target,
+          );
+        } finally {
+          await admin.close();
+        }
+        await expect(
+          tester.command(action, { ...solution.selection, proposalStep: "requirements-review" }),
+        ).rejects.toThrow(/开发角色/);
+        const reviewer = await tester.read({ ...solution.selection, reviewAgent: "a" });
+        expect(reviewer.session?.sessionId).toBe(
+          review.agents?.find((agent) => agent.id === "a")?.session.sessionId,
+        );
+        const native = await openNative(tester, reviewer);
+        try {
+          const initial = await native.snapshot();
+          expect(initial.queue.autoDrain).toBe(true);
+          await expect(native.send("stop", {})).rejects.toThrow(/开发角色/);
+          await expect(native.send("setAutoDrain", { autoDrain: false })).rejects.toThrow(/开发角色/);
+          const after = await native.snapshot();
+          expect(after.revision).toBe(initial.revision);
+          expect(after.queue).toEqual(initial.queue);
+        } finally {
+          await native.close();
+        }
+      } finally {
+        await tester.close();
+      }
       await expectBusinessRejection(
         client.command({ ...action, reason: "  " }, solution.selection),
       );
@@ -125,6 +175,16 @@ it(
       await expectBusinessRejection(
         client.command(alignmentAction(review, "testing"), solution.selection),
       );
+      const historical = await client.read({ ...solution.selection, reviewAgent: "a" });
+      expect(historical.session?.sessionId).toBe(
+        review.agents?.find((agent) => agent.id === "a")?.session.sessionId,
+      );
+      const oldReviewer = await openNative(client, historical);
+      try {
+        await expect(oldReviewer.send("stop", {})).rejects.toThrow(/历史阶段/);
+      } finally {
+        await oldReviewer.close();
+      }
 
       await discuss(
         client,

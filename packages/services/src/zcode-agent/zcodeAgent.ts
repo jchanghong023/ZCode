@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
-import { ServiceChannels } from "@zcode/shared";
+import { ServiceChannels } from "@zcode/shared/channels";
 import type {
   ZCodeSkillsReferenceCatalogResult,
   ZCodeSessionSubagentsResult,
@@ -165,7 +165,19 @@ export interface ZCodeAgentAppRuntimePreferences {
   modelIoFullRetentionEnabled?: boolean;
 }
 
+export interface RecentChatSession extends ZCodeAgentSessionTarget {
+  title: string;
+  lastActivityAt: number;
+}
+
+export interface RecentChatDirectory {
+  workspacePath: string;
+  sessions: RecentChatSession[];
+}
+
 export interface IZCodeAgentService {
+  /** 独立聊天连接中有历史的最近目录与会话，各取前五。 */
+  listRecentChatSessions(): Promise<RecentChatDirectory[]>;
   /**
    * 同步 App 全局运行时偏好到所有已活动 workspace；不得为此启动空闲 Agent。
    */

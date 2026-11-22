@@ -4,11 +4,13 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
+import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import {
   conversationReadOnlyReason,
   fullReviewCurrent,
+  hasProjectRole,
   proposalAlignmentCurrent,
   proposalState,
   proposalStateLabel,
@@ -29,6 +31,7 @@ import { AIReqProposalFeedback } from "../proposals/AIReqProposalFeedback.js";
 import { AIReqProposalReviewSubmit } from "../proposals/AIReqProposalReviewSubmit.js";
 import { AIReqProposalReturn } from "../proposals/AIReqProposalReturn.js";
 import {
+  canOpenProposalTask,
   proposalNextTask,
   proposalTaskParent,
   proposalTaskStatus,
@@ -49,7 +52,14 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const proposal = ai.view?.drafts.find(
     (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
   );
-  const task = ai.proposalTask;
+  const projectId = ai.selection.projectId;
+  const employee = getEmployeeId();
+  const developer = hasProjectRole(ai.view, projectId, employee, "development");
+  const roles = {
+    development: developer,
+    testing: hasProjectRole(ai.view, projectId, employee, "testing"),
+  };
+  const task = canOpenProposalTask(ai.proposalTask, roles) ? ai.proposalTask : "overview";
   const detail = task === "requirementsReviewDetail" || task === "solutionReviewDetail";
   const conversation = task === "requirements" || task === "solution" || detail;
   const original = task === "requirementsReview" || task === "requirementsReviewDetail";
@@ -83,8 +93,17 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     if (main && ai.selectionReady) main.scrollTop = scrollMemory.current.get(routeKey) ?? 0;
   }, [routeKey, ai.selectionReady]);
   const openedTarget = useRef("");
+  const hasMaterials = ai.view?.materials.some(
+    (item) => item.projectId === proposal?.projectId && item.irId === proposal?.id,
+  );
   useEffect(() => {
-    if (!conversation || !ai.selectionReady || !proposal) return;
+    if (
+      !conversation ||
+      !ai.selectionReady ||
+      !proposal ||
+      (task === "requirements" && !hasMaterials)
+    )
+      return;
     const key = JSON.stringify([proposal.projectId, proposal.id, proposal.releaseId, ai.selection]);
     if (openedTarget.current === key) return;
     openedTarget.current = key;
@@ -97,7 +116,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       },
       { ifAbsent: true },
     );
-  }, [conversation, ai.selectionReady, ai.selection, proposal, open]);
+  }, [conversation, ai.selectionReady, ai.selection, proposal, open, task, hasMaterials]);
   const managementReturn = useMemo(() => ({ dirty: false, busy: false, discard: () => {} }), []);
   const openMaterials = () => {
     if (proposal && ai.selectionReady)
@@ -109,6 +128,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       });
   };
   const parent = proposalTaskParent(task);
+  const next = proposal ? proposalNextTask(proposal) : undefined;
   const reviewTask = original ? ("requirementsReview" as const) : ("solutionReview" as const);
   const reviewStatus = detail && proposal ? proposalTaskStatus(proposal, reviewTask) : undefined;
   const detailStatus =
@@ -145,7 +165,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           ? "text-destructive"
           : "text-foreground-subtle";
   const conversationReadOnly = Boolean(
-    (detail && !reviewCurrent) ||
+    (detail && (!reviewCurrent || (task === "solutionReviewDetail" && !developer))) ||
     conversationReadOnlyReason(ai.view, ai.selection, source.capabilities),
   );
   const originalReview = proposal?.originalReview;
@@ -200,7 +220,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
             group={proposal}
             returnDraft={managementReturn}
           />
-          {proposalState(proposal) === "merge-pending" &&
+          {developer &&
+            proposalState(proposal) === "merge-pending" &&
             proposal.requirementsPr?.status === "opened" &&
             source.capabilities.requirementManagement &&
             delivery && (
@@ -353,9 +374,11 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => ai.openProposalTask(proposalNextTask(proposal))}>
-                  前往{proposalTaskTitles[proposalNextTask(proposal)]}
-                </Button>
+                {next && next !== task && canOpenProposalTask(next, roles) && (
+                  <Button onClick={() => ai.openProposalTask(next)}>
+                    前往{proposalTaskTitles[next]}
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => ai.openProposalTask(parent)}>
                   {backLabel}
                 </Button>
@@ -400,7 +423,14 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               readOnly={conversationReadOnly}
               embedded
               focused={active}
-              composerPlaceholder={detail ? "追问本次审查（不改变审查结论）" : undefined}
+              autoFocusEnabled={false}
+              composerPlaceholder={
+                detail
+                  ? "追问本次审查（不改变审查结论）"
+                  : task === "requirements"
+                    ? "补充谁会使用、在什么场景使用，以及期望的结果"
+                    : undefined
+              }
               hideMessageFeedback={detail}
               conversationEmptyState={
                 !conversationReadOnly && task === "requirements" ? (

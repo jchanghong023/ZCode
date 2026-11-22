@@ -1,0 +1,284 @@
+@import "@zcode/ui/styles.css";
+@source "./**/*.{ts,tsx}";
+
+:root {
+  color-scheme: dark;
+  --background: #161616;
+  --panel: #202020;
+  --sidebar: #191919;
+  --input: #252525;
+  --foreground: #ededed;
+  --subtle: #a8a8a8;
+  --line: #343434;
+  --hover: #252525;
+  --selected: #303030;
+  --focus: #88b8fa;
+  --success: #76c4a4;
+  --error: #f5a8a8;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  font-size: 16px;
+  background: var(--background);
+  color: var(--foreground);
+  scrollbar-color: #515151 transparent;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.chat-sidebar button,
+.request-error button,
+.directory-field input {
+  color: inherit;
+  font: inherit;
+}
+.chat-sidebar button,
+.request-error button {
+  cursor: pointer;
+}
+.chat-sidebar :focus-visible,
+.request-error button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.chat-sidebar svg,
+.conversation-header svg,
+.directory-field svg,
+.request-error svg {
+  flex: none;
+}
+
+.chat-shell {
+  display: grid;
+  grid-template-columns: clamp(13rem, 21vw, 16rem) minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 0;
+}
+
+.chat-sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+}
+
+.sidebar-top {
+  padding: 22px 16px 15px;
+}
+.app-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 4px;
+  font-weight: 650;
+}
+.new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 22px;
+  padding: 7px 10px;
+  border: 1px solid #404040;
+  border-radius: 7px;
+  background: var(--panel);
+  font-weight: 550;
+}
+.new-chat:hover {
+  background: var(--selected);
+}
+.recent-sessions {
+  overflow: auto;
+  padding: 3px 12px 20px;
+}
+.recent-sessions h2 {
+  margin: 8px 8px 15px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--subtle);
+}
+.sidebar-notice {
+  color: var(--subtle);
+  margin: 0 8px;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+.sidebar-notice button,
+.connection-status button,
+.request-error button {
+  border: 0;
+  background: none;
+  padding: 3px 5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.directory-group + .directory-group {
+  margin-top: 14px;
+}
+.directory-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 0.8125rem;
+  font-weight: 550;
+}
+.directory-group h3 svg,
+.directory-group button svg {
+  color: var(--subtle);
+}
+.directory-group span,
+.conversation-title,
+.workspace-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.directory-group ul {
+  padding: 0;
+  margin: 3px 0 0;
+  list-style: none;
+}
+.directory-group button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px 5px 22px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+.directory-group button:hover {
+  background: var(--hover);
+}
+.directory-group button[aria-current] {
+  background: var(--selected);
+  border-color: var(--line);
+}
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 20px;
+  border-top: 1px solid var(--line);
+  color: var(--subtle);
+  font-size: 0.8125rem;
+}
+.status-dot {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--subtle);
+}
+.status-dot.connected {
+  background: var(--success);
+}
+.status-dot.offline {
+  background: var(--error);
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  min-height: 60px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.conversation-title {
+  font-weight: 600;
+}
+.workspace-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 45%;
+  color: var(--subtle);
+  font: 0.8125rem var(--font-mono);
+}
+.directory-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 0 11px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--subtle);
+}
+.directory-field span {
+  white-space: nowrap;
+}
+.directory-field input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+}
+.composer-box {
+  position: relative;
+  border: 1px solid #484848;
+  border-radius: 12px;
+  background: var(--input);
+  padding: 11px 12px 9px;
+}
+.directory-field:focus-within,
+.composer-box:focus-within {
+  border-color: var(--focus);
+}
+.directory-field input:focus {
+  outline: 0;
+}
+.directory-field input::placeholder {
+  color: var(--subtle);
+}
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 7px;
+  color: var(--subtle);
+  font-size: 0.8125rem;
+}
+.request-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--error);
+}

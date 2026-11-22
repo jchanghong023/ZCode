@@ -15,14 +15,15 @@ export function AIReqRequirementReturnButton() {
       (group) => group.projectId === ai.selection.projectId && group.id === ai.selection.irId,
     );
   const destination = ai.requirementReturnView ?? (formal ? "formal" : "proposals");
-  const label = ai.canReturnToProjectOverview
+  const returnToOverview = destination !== "formal" && ai.canReturnToProjectOverview;
+  const label = returnToOverview
     ? zh
-      ? "返回当前项目"
-      : "Back to current project"
+      ? "返回项目概览"
+      : "Back to project overview"
     : destination === "formal"
       ? zh
-        ? "返回正式需求列表"
-        : "Back to formal requirements"
+        ? "返回正式文档"
+        : "Back to formal documents"
       : zh
         ? "返回提案列表"
         : "Back to proposals";
@@ -34,7 +35,7 @@ export function AIReqRequirementReturnButton() {
         className="shrink-0 focus-visible:border-remote-foreground-muted"
         aria-label={label}
         onClick={() =>
-          ai.canReturnToProjectOverview
+          returnToOverview
             ? ai.returnToProjectOverview()
             : ai.navigate(() => ai.setMainView(destination))
         }
@@ -63,11 +64,11 @@ export function AIReqRequirementContext({ showReturn = true }: { showReturn?: bo
       (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
     ),
   );
-  const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "开发单元" : "需求");
+  const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "需求规格" : "需求");
   const subtitle = ai.selection.srId
-    ? "开发单元 · SR"
+    ? "需求规格 · SR"
     : formal
-      ? "正式需求 · IR"
+      ? "正式文档 · IR"
       : group
         ? "需求提案 · IR"
         : "只读上下文";

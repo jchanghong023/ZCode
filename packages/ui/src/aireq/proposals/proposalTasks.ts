@@ -40,6 +40,16 @@ export const proposalTaskTitles: Record<ProposalTask, string> = {
   delivery: "交付确认",
   management: "管理需求",
 };
+export function canOpenProposalTask(
+  task: ProposalTask,
+  roles: { development: boolean; testing: boolean },
+): boolean {
+  if (task === "solution" || task === "delivery") return roles.development;
+  if (task === "solutionReview" || task === "solutionReviewDetail")
+    return roles.development || roles.testing;
+  return true;
+}
+
 export function restoreProposalTask(value: unknown, selection: AIReqSelection = {}): ProposalTask {
   return proposalTasks.find((task) => task === value) ?? proposalTaskFromSelection(selection);
 }
@@ -227,7 +237,7 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
       role: "方案开发",
       description: hasCurrentProposalSolution(group)
         ? "方案材料已通过校验，请核对后提交审查。"
-        : "业务需求已确认，继续完善技术方案、开发任务和测试材料。",
+        : "业务需求已确认，继续完善技术方案、实施说明和测试材料。",
       action: hasCurrentProposalSolution(group) ? "前往提交方案审查" : "继续完善方案",
     },
     "solution-review-pending": {

@@ -5,7 +5,6 @@ import type {
   AIReqRequirementGroup,
   AIReqProposalDelivery,
   AIReqReview,
-  AIReqSystemRequirement,
 } from "@zcode/services/aireq";
 
 // 生成材料只由原生讨论完成回调驱动，不能出现在浏览器安全的公共命令类型中。
@@ -48,10 +47,14 @@ export type AIReqReviewScenario = "normal" | "blocked" | "failed" | "hold";
 export type InternalRequirementGroup = AIReqRequirementGroup & {
   reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
   heldReviews?: AIReqReview[];
-  branchCreationFailures?: string[];
-  branchCreationAttempts?: Record<string, number>;
 };
+export type PrototypeRepositoryTarget = Pick<
+  AIReqProject,
+  "repositoryId" | "repositoryUrl" | "defaultBranch"
+>;
+
 export type InternalProposalDelivery = AIReqProposalDelivery & {
+  repositoryTarget?: PrototypeRepositoryTarget;
   mergeScenario?: AIReqProposalMergeScenario;
   simulatedMr?: {
     candidate: string;
@@ -62,14 +65,5 @@ export type InternalProposalDelivery = AIReqProposalDelivery & {
     mergeEligibleAt: string;
     status: "opened" | "merged";
     commit?: string;
-  };
-};
-
-// 故障输入仅留在服务端 owner；公开 SR 只投影本次操作已产生的分支事实。
-export type InternalSystemRequirement = Omit<AIReqSystemRequirement, "trackingBranch"> & {
-  /** 静态业务样例不自动推进代码合入；不属于公开契约。 */
-  automaticCodeMerge?: boolean;
-  trackingBranch?: NonNullable<AIReqSystemRequirement["trackingBranch"]> & {
-    nextCleanupFailure?: boolean;
   };
 };

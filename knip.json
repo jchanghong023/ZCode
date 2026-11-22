@@ -1,9 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
+  "ignore": [".agents/skills/impeccable/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/licenses.mjs", "test/st/sequencer.ts"],
+      "entry": ["scripts/licenses.mjs"],
       "ignoreDependencies": ["concurrently", "oxfmt", "oxlint"]
     },
     "packages/shared": {
@@ -94,6 +95,7 @@
     },
     "packages/web": {
       "entry": [
+        "src/chat/main.tsx",
         "src/auth/index.ts",
         "src/auth/contract.ts",
         "src/platform/contract.ts",

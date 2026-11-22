@@ -2,14 +2,14 @@ import { createRequirementSnapshot, digestValue } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type {
   AIReqWorkflowView,
-  AIReqWorkflowStage,
   AIReqSystemRequirement,
   AIReqNativeSessionRef,
   AIReqOperationReceipt,
   AIReqRequirementGroup,
   AIReqSelection,
 } from "@zcode/services/aireq";
-import { readPrototypeProjectSettings } from "./project-settings.js";
+import { prototypeRepositoryKey } from "./project-settings.js";
+import type { PrototypeRepositoryTarget } from "./internal-scenarios.js";
 import {
   prototypeIrRoot,
   prototypeSpecPath,
@@ -44,20 +44,17 @@ const PROTOTYPE_RELEASE_ID = "release-2026-11";
 export const createdAt = "2026-11-10T09:00:00.000Z";
 export function prototypeDefaultCommit(
   view: Pick<AIReqWorkflowView, "repositoryHeads">,
-  projectId: string,
+  target: PrototypeRepositoryTarget,
 ): string {
-  const project = readPrototypeProjectSettings().projects.find((item) => item.id === projectId);
-  if (!project) throw new Error("项目不存在。");
-  return view.repositoryHeads?.[project.repositoryId] ?? `sample-default-${project.repositoryId}`;
+  return (
+    view.repositoryHeads?.[prototypeRepositoryKey(target)] ?? `sample-default-${target.repositoryId}`
+  );
 }
 export function systemRequirement(
   projectId: string,
   irId: string,
   id: string,
   title: string,
-  stage?: AIReqWorkflowStage,
-  completed = false,
-  _preferred = false,
 ): AIReqSystemRequirement {
   return {
     id,
@@ -65,11 +62,6 @@ export function systemRequirement(
     irId,
     title,
     documentPath: prototypeSpecPath(irId, id),
-    status: completed ? "completed" : stage ? "developing" : "pending",
-    round: 0,
-    sessions: [],
-    approvals: [],
-    materials: [],
   };
 }
 export function sessionRef(
@@ -183,7 +175,7 @@ export function group(
             : {}),
         }),
     origin: "local",
-    status: draft ? "draft" : rows.some((row) => row.startedAt) ? "frozen" : "formal",
+    status: draft ? "draft" : "formal",
     revision: 1,
     srIds: rows.map((row) => row.id),
     files,

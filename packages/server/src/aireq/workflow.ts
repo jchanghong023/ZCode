@@ -1,4 +1,3 @@
-import { recordSrStatusChanges, type WorkflowUpdate } from "./sr-status-changes.js";
 import { digestValue } from "./content-digest.js";
 import { businessRule, businessFailureMessage } from "./errors.js";
 import type {
@@ -16,6 +15,8 @@ import {
   proposalReviewSubmitBlocker,
   proposalReturnBlocker,
   deriveAIReqTodos,
+  hasProjectRole,
+  AIREQ_ROLE_ADMINISTRATOR,
   fullReviewReadyBlocker,
   fullReviewCurrent,
   requirementsReviewCurrent,
@@ -27,13 +28,17 @@ import {
   observePrototypeProposalMr,
   completePrototypeProposal,
 } from "./proposal-delivery.js";
+import {
+  prototypeProposalRepositoryIssue,
+  readPrototypeProposalPrHandoff,
+} from "./proposal-pr-handoff.js";
 import { createPrototypeEvent } from "./events.js";
 import { PROTOTYPE_REVIEW_SCENARIOS, PROTOTYPE_PROPOSAL_MERGE_SCENARIOS } from "./scenarios.js";
 
 import {
   projectNativeContext,
   projectDirectory,
-  projectProgressInputs,
+  projectDocuments,
   readProjectWorkspace,
 } from "./workflow-queries.js";
 
@@ -61,35 +66,23 @@ import type {
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
 
+import { DEFAULT_SELECTION, prototypeDefaultCommit, receipt } from "./fixture-builders.js";
 import {
-  DEFAULT_SELECTION,
-  createdAt,
-  prototypeDefaultCommit,
-  receipt,
-} from "./fixture-builders.js";
+  applyGitDocumentSnapshot,
+  createPrototypeGitDocumentSource,
+  type GitDocumentSnapshot,
+} from "./proposal-storage.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { createPrototypeWorkflow } from "./fixtures.js";
 export { DEFAULT_SELECTION } from "./fixture-builders.js";
 let state = createPrototypeWorkflow();
-// 正式 SR 的分支是平台已分配的必填映射；此处仅补齐初始内存样例，不在前端猜测。
-for (const group of state.groups) {
-  for (const sr of state.srs.filter(
-    (item) => item.projectId === group.projectId && item.irId === group.id,
-  )) {
-    sr.trackingBranch ??= {
-      name: `sr/${sr.id}`,
-      baseCommit: prototypeDefaultCommit(state, group.projectId),
-      createdAt,
-      pushedAt: createdAt,
-    };
-  }
-}
+const prototypeGit = createPrototypeGitDocumentSource(state);
+export const readPrototypeGitDocuments = prototypeGit.read;
 export const prototypeWorkflowChanges = createPrototypeEvent<void>();
 /** 同一个业务 owner 的事务入口：callback 失败或返回 false 时不发布任何修改。 */
-export function mutatePrototypeWorkflow(update: WorkflowUpdate, recordStatusChanges = true): void {
+export function mutatePrototypeWorkflow(update: (next: AIReqWorkflowView) => void | boolean): void {
   const next = structuredClone(state);
   if (update(next) === false) return;
-  if (recordStatusChanges) recordSrStatusChanges(state, next);
   next.revision += 1;
   state = next;
   prototypeWorkflowChanges.fire();
@@ -112,7 +105,7 @@ function schedulePrototypeReview(run: PrototypeReviewRun): void {
       )
         return false;
       continueToSummary = advancePrototypeReview(current, run.scenario);
-    }, false);
+    });
     if (continueToSummary) schedulePrototypeReview(run);
   });
 }
@@ -126,9 +119,6 @@ export function readPrototypeNativeContext(sessionId: string, includeRequirement
 }
 export function readPrototypeProjectDirectory() {
   return projectDirectory(state);
-}
-export function readPrototypeProjectProgressInputs() {
-  return projectProgressInputs(state);
 }
 export function readPrototypeProjectWorkspace(projectId?: string) {
   return readProjectWorkspace(projectId);
@@ -179,22 +169,10 @@ export function releasePrototypeProposalReviewResults(projectId: string, irId: s
     proposal.heldReviews = [];
   });
 }
-export function setPrototypeBranchCreationFailure(
-  projectId: string,
-  irId: string,
-  srId: string,
-): void {
-  mutatePrototypeWorkflow((view) => {
-    const proposal = [...view.drafts, ...view.groups].find(
-      (item) => item.projectId === projectId && item.id === irId,
-    ) as InternalRequirementGroup | undefined;
-    if (!proposal?.srIds.includes(srId)) throw businessRule("SR 不属于当前需求。");
-    proposal.branchCreationFailures ??= [];
-    if (!proposal.branchCreationFailures.includes(srId)) proposal.branchCreationFailures.push(srId);
-  });
-}
+
+/** Settings writes call this synchronously before a command or merge poll can read the new target. */
 export function notifyPrototypeProjectSettingsChanged(): void {
-  Object.assign(state, readPrototypeProjectSettings());
+  state.projects = readPrototypeProjectSettings().projects;
   state.revision += 1;
   prototypeWorkflowChanges.fire();
 }
@@ -255,12 +233,14 @@ export function pollPrototypeProposalMerges(): void {
       mr.status = "merged";
       state.revision += 1;
     }
+    const project = state.projects.find((item) => item.id === group.projectId);
     const issue =
-      scenario === "stale-version"
+      prototypeProposalRepositoryIssue(group, project) ??
+      (scenario === "stale-version"
         ? "合入证据对应旧版本，当前需求不能转正。"
         : scenario === "incomplete"
           ? "合入提交缺少当前候选的完整文件清单。"
-          : prototypeProposalMaterialsIssue(state, group);
+          : prototypeProposalMaterialsIssue(state, group));
     if (issue) {
       delivery.mergeCheck = {
         status: "incomplete",
@@ -273,45 +253,82 @@ export function pollPrototypeProposalMerges(): void {
     delivery.mergeCheck = {
       status: "merged",
       checkedAt: at,
-      message: "当前候选已登记合入且材料版本完整，提案转正；各 SR 分支结果分别记录。",
+      message: "当前候选已登记合入且材料版本完整，提案转正，正式文档可查阅。",
     };
     const operation = receipt(
-      "提案合入登记与材料版本检查，转正并登记 SR 分支结果",
+      "提案合入登记与材料版本检查，并归档正式文档",
       ++state.revision,
       group.id,
     );
     operation.startedAt = at;
     operation.completedAt = at;
-    completePrototypeProposal(state, group, at);
+    const target = completePrototypeProposal(state, group, at);
+    prototypeGit.recordMerge(state, group, target);
     state.operations.push(operation);
   }
   if (checked) {
-    // 纯检查时间变化不是业务修改，不能让其他 IR 的验收／清理表单每五秒过期。
+    // 检查时间更新只刷新投影，不推进业务修订。
     prototypeWorkflowChanges.fire();
   }
+}
+
+export function requireProjectRole(
+  projectId: string | undefined,
+  role: "development" | "testing",
+): void {
+  if (!hasProjectRole(state, projectId, getEmployeeId(), role))
+    throw businessRule(
+      role === "development"
+        ? "请先申请并获批当前项目的开发角色。"
+        : "请先申请并获批当前项目的测试角色。",
+    );
+}
+
+export function canSyncFormalDocuments(projectId: string | undefined): boolean {
+  return (
+    hasProjectRole(state, projectId, getEmployeeId(), "development") ||
+    hasProjectRole(state, projectId, getEmployeeId(), "testing")
+  );
+}
+
+export function getPrototypeProposalPrHandoff(target: { projectId: string; irId: string }) {
+  const matches = (item: AIReqWorkflowView["drafts"][number]) =>
+    item.id === target.irId && item.projectId === target.projectId;
+  const group = state.drafts.find(matches) ?? state.groups.find(matches);
+  if (!group) throw businessRule("需求不存在或已删除。");
+  const project = state.projects.find((item) => item.id === target.projectId);
+  return readPrototypeProposalPrHandoff(group, project);
 }
 
 export function getPrototypeWorkflow(
   selection: AIReqSelection = DEFAULT_SELECTION,
 ): AIReqWorkflowView {
   const projectId = selection.projectId ?? DEFAULT_SELECTION.projectId;
-  const sharedSettings = readPrototypeProjectSettings();
+  const projects = state.projects;
+  const availableReleases = readPrototypeProjectReleases().filter((release) =>
+    projects.some((project) => project.id === release.projectId),
+  );
   return {
     ...state,
-    todos: deriveAIReqTodos(state),
+    roleAdministrator: getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR,
+    roleRegistrations:
+      state.roleRegistrations?.filter(
+        (entry) =>
+          getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR || entry.employeeId === getEmployeeId(),
+      ) ?? [],
+    todos: deriveAIReqTodos(state).filter((todo) =>
+      hasProjectRole(state, todo.projectId, getEmployeeId(), todo.assignmentPerspective),
+    ),
     ompWebId: PROTOTYPE_BACKEND.id,
-    projects: sharedSettings.projects,
+    projects,
     currentProjectId: projectId,
+    // 内部按完整 Git 目标隔离头提交，公开投影仍按仓库 ID 返回当前配置的头提交。
     repositoryHeads: Object.fromEntries(
-      sharedSettings.projects.map((project) => [
-        project.repositoryId,
-        prototypeDefaultCommit(state, project.id),
-      ]),
+      projects.map((project) => [project.repositoryId, prototypeDefaultCommit(state, project)]),
     ),
     releases: readPrototypeProjectReleases(projectId),
-    availableReleases: readPrototypeProjectReleases().filter((release) =>
-      sharedSettings.projects.some((project) => project.id === release.projectId),
-    ),
+    availableReleases,
+    projectDocuments: projectDocuments(state, projects, availableReleases),
     groups: state.groups.filter((item) => item.projectId === projectId),
     drafts: state.drafts.filter((item) => item.projectId === projectId),
     srs: state.srs.filter((item) => item.projectId === projectId),
@@ -350,6 +367,7 @@ export function resolvePrototypeSession(
   );
   if (!proposal) return;
   const viewed = proposalViewedIndex(proposal, selection);
+  if (viewed === 2 && !canSyncFormalDocuments(proposal.projectId)) return;
   // Delivery has no conversation, and a reviewer URL must never fall back to a different agent.
   if (viewed === 3) return;
   const selectedReview =
@@ -405,7 +423,7 @@ export function applyPrototypeAction(
   action: InternalWorkflowAction,
   selection: AIReqSelection,
   solutionDiscussion?: string,
-  request?: { operationId: string; commandDigest: string },
+  request?: { operationId: string; commandDigest: string; gitSnapshot?: GitDocumentSnapshot },
 ): AIReqWorkflowResult {
   if (consumePrototypeOperationFailure(action.type))
     throw businessRule("操作未完成。内容和当前状态已保留，请明确重试。");
@@ -472,6 +490,68 @@ export function applyPrototypeAction(
   const targetProposal = state.drafts.find(
     (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
   );
+  if (action.type === "requestProjectRoles" || action.type === "decideProjectRole") {
+    if (
+      !isEmployeeId(getEmployeeId()) ||
+      !readPrototypeProjectSettings().projects.some((project) => project.id === action.projectId)
+    )
+      throw businessRule("请使用有效工号并选择已有项目。");
+    if (action.type === "requestProjectRoles") {
+      if (
+        !action.roles.length ||
+        new Set(action.roles).size !== action.roles.length ||
+        action.roles.some((role) => role !== "development" && role !== "testing")
+      )
+        throw businessRule("请选择开发或测试角色。");
+      if (
+        action.roles.some((role) =>
+          hasProjectRole(state, action.projectId, getEmployeeId(), role),
+        ) ||
+        state.roleRegistrations?.some(
+          (entry) =>
+            entry.projectId === action.projectId &&
+            entry.employeeId === getEmployeeId() &&
+            action.roles.includes(entry.role) &&
+            entry.status === "pending",
+        )
+      )
+        throw businessRule("所选角色已有待审批或已获批记录，请重新选择。");
+    } else {
+      if (getEmployeeId() !== AIREQ_ROLE_ADMINISTRATOR)
+        throw businessRule("只有管理员可以处理角色申请。");
+      const entry = state.roleRegistrations?.find(
+        (item) => item.id === action.registrationId && item.projectId === action.projectId,
+      );
+      const expected = action.decision === "revoked" ? "approved" : "pending";
+      if (entry?.status !== expected) throw businessRule("申请状态已变化，请重新读取。");
+    }
+  }
+  const formal =
+    action.type === "syncFormalDocuments"
+      ? state.groups.find((item) => item.projectId === action.projectId && item.id === action.irId)
+      : undefined;
+  if (action.type === "syncFormalDocuments") {
+    if (!canSyncFormalDocuments(action.projectId))
+      throw businessRule("需要当前项目已授权的开发或测试角色。");
+    if (!formal?.merge || !formal.files.length)
+      throw businessRule("只有已归档的正式文档可以同步。");
+    if (!request?.gitSnapshot) throw businessRule("Git 快照未读取，请重新同步。");
+  }
+  if (action.type === "confirmAlignment" && action.perspective !== "business")
+    requireProjectRole(targetProjectId, action.perspective);
+  if (
+    action.type === "generateProposalSolution" ||
+    action.type === "runFullReview" ||
+    action.type === "publishProposal" ||
+    action.type === "closeProposalPr" ||
+    (action.type === "submitProposalReview" && action.kind === "full") ||
+    (action.type === "reviseProposalMaterial" && action.target === "solution")
+  )
+    requireProjectRole(targetProjectId, "development");
+  if (action.type === "reviseProposalMaterial" && action.target === "test-plan") {
+    if (!canSyncFormalDocuments(targetProjectId))
+      throw businessRule("需要当前项目已授权的开发或测试角色。");
+  }
   const proposalAction = ![
     "createIdea",
     "importIdeas",
@@ -482,15 +562,12 @@ export function applyPrototypeAction(
     "createProposal",
     "importProposals",
     "assignContacts",
-    "retrySrBranch",
+    "requestProjectRoles",
+    "decideProjectRole",
+    "syncFormalDocuments",
   ].includes(action.type);
-  const targetGroup =
-    targetProposal ??
-    state.groups.find(
-      (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
-    );
   if (action.type === "assignContacts") {
-    if (!targetGroup) throw businessRule("IR 不存在。");
+    if (!targetProposal) throw businessRule("只能为未转正的需求提案分工。");
     if (
       !action.contacts ||
       Object.keys(action.contacts).some(
@@ -499,22 +576,6 @@ export function applyPrototypeAction(
       Object.values(action.contacts).some((value) => value !== undefined && !isEmployeeId(value))
     )
       throw businessRule("联系人须为合法工号，空归属请清除该字段。");
-  }
-  if (action.type === "retrySrBranch") {
-    const formal = state.groups.find(
-      (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
-    );
-    const sr = state.srs.find(
-      (item) =>
-        item.projectId === targetProjectId && item.irId === formal?.id && item.id === action.srId,
-    );
-    if (
-      !formal?.merge ||
-      !sr?.trackingBranch ||
-      sr.trackingBranch.baseCommit !== formal.merge.commit ||
-      !["failed", "ready"].includes(sr.trackingBranch.status ?? "ready")
-    )
-      throw businessRule("仅正式 IR 已登记的失败开发分支可重试创建。");
   }
   const currentProposalState = targetProposal ? proposalState(targetProposal) : undefined;
   // 业务状态取当前材料和批准事实；底层讨论路由标记不能阻挡材料失效后的合法重审。
@@ -595,6 +656,7 @@ export function applyPrototypeAction(
     if (!action.reason.trim()) throw businessRule("请填写业务需补充的原因。");
     const issue = proposalReturnBlocker(targetProposal!);
     if (issue) throw businessRule(issue);
+    if (!inRequirements) requireProjectRole(targetProjectId, "development");
   }
   if (
     action.type === "closeProposalPr" &&
@@ -610,7 +672,7 @@ export function applyPrototypeAction(
     (!targetProposal ||
       targetProposal.proposalRevisions?.length ||
       targetProposal.merge ||
-      targetProposal.developmentStartedAt)
+      targetProposal.freeze)
   )
     throw businessRule("正式提案的修订必须保留原入库记录，不能作为普通草稿删除。");
   if (
@@ -619,7 +681,7 @@ export function applyPrototypeAction(
       (item) =>
         item.projectId === targetProjectId &&
         item.id === (action.irId ?? selection.irId) &&
-        (item.merge || item.developmentStartedAt),
+        (item.merge || item.freeze),
     )
   )
     throw businessRule("已入库的正式提案须保留 Git 记录与历史，不能通过删除需求释放仓库。");
@@ -633,6 +695,8 @@ export function applyPrototypeAction(
     "updateIdea",
     "transferIdea",
     "saveDocumentFormats",
+    "requestProjectRoles",
+    "decideProjectRole",
   ].includes(action.type);
   let irId =
     action.type === "importProposals" || globalAction ? undefined : (action.irId ?? selection.irId);
@@ -650,15 +714,29 @@ export function applyPrototypeAction(
   if (identity) operation.identity = { ...identity };
   const reviewRuns: PrototypeReviewRun[] = [];
   try {
-    irId = applyProposalMutation(
-      state,
-      action,
-      projectId,
-      irId,
-      operation,
-      reviewRuns,
-      solutionDiscussion,
-    );
+    if (action.type === "syncFormalDocuments") {
+      const group = state.groups.find(
+        (entry) => entry.projectId === action.projectId && entry.id === action.irId,
+      )!;
+      operation.type = applyGitDocumentSnapshot(
+        state,
+        group,
+        request!.gitSnapshot!,
+        getEmployeeId(),
+        operation.startedAt,
+      )
+        ? "Git 同步并确认"
+        : "Git 文档已是最新";
+    } else
+      irId = applyProposalMutation(
+        state,
+        action,
+        projectId,
+        irId,
+        operation,
+        reviewRuns,
+        solutionDiscussion,
+      );
   } catch (error) {
     if (action.type !== "publishProposal") {
       state = previous;

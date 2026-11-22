@@ -1,7 +1,7 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -47,11 +47,19 @@ import {
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
+import {
+  AIReqProposalCreateDialog,
+  AIReqProposalReleaseField,
+} from "./AIReqProposalCreateDialog.js";
 import { AIReqProposalExport } from "./AIReqProposalExport.js";
 import { AIReqProposalRow } from "./AIReqProposalRow.js";
 import { AIReqProposalSavedNotice, type SavedProposal } from "./AIReqProposalSavedNotice.js";
 
-export function AIReqProposalTable() {
+export function AIReqProposalTable({
+  overviewCreateTrigger,
+}: {
+  overviewCreateTrigger: RefObject<HTMLButtonElement | null>;
+}) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -61,6 +69,11 @@ export function AIReqProposalTable() {
   const [page, setPage] = useState(0);
   const [text, setText] = useState("");
   const importOpen = ai.proposalImportOpen;
+  const createOpen = Boolean(ai.proposalDraft);
+  const [targetReleaseId, setTargetReleaseId] = useState<string>();
+  const draftReleaseId = targetReleaseId ?? ai.releaseId;
+  const createButton = useRef<HTMLButtonElement>(null);
+  const importButton = useRef<HTMLButtonElement>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -73,6 +86,7 @@ export function AIReqProposalTable() {
   const [savedProposal, setSavedProposal] = useState<SavedProposal>();
   const clarificationAction = useRef<HTMLButtonElement>(null);
   const focusClarificationAfterSave = useRef(false);
+  const [focusSavedWhenReady, setFocusSavedWhenReady] = useState(false);
   const submitting = useRef(false);
   const [operationId, setOperationId] = useState(() => createUuid());
   const [baseline, setBaseline] = useState<number>();
@@ -88,6 +102,22 @@ export function AIReqProposalTable() {
   const releases = (ai.view?.releases ?? []).filter(
     (item) => item.projectId === ai.selection.projectId,
   );
+  useEffect(() => {
+    if (!createOpen && !importOpen) setTargetReleaseId(undefined);
+  }, [createOpen, importOpen]);
+  useEffect(() => {
+    if (
+      createOpen ||
+      !focusSavedWhenReady ||
+      !ai.selectionReady ||
+      ai.releaseId !== savedProposal?.releaseId
+    )
+      return;
+    const button = clarificationAction.current;
+    if (!button || button.closest("[hidden], [inert]")) return;
+    setFocusSavedWhenReady(false);
+    button.focus();
+  }, [createOpen, focusSavedWhenReady, savedProposal, ai.releaseId, ai.selectionReady]);
   // 修复：预览可以先于 Release 选择；保留 CSV 原文并按当前范围重算重复行，避免沿用旧版本提示。
   const parsedCsv = useMemo(() => {
     if (fileContent === null || importFormat !== "csv") return { preview: null, error: "" };
@@ -95,7 +125,12 @@ export function AIReqProposalTable() {
       return {
         preview: parseProposalCsv(
           fileContent,
-          groups.map((item) => item.originalText),
+          (ai.view?.drafts ?? [])
+            .filter(
+              (item) =>
+                item.projectId === ai.selection.projectId && item.releaseId === draftReleaseId,
+            )
+            .map((item) => item.originalText),
         ),
         error: "",
       };
@@ -108,7 +143,7 @@ export function AIReqProposalTable() {
             : formatUserFacingError(error, "CSV 解析失败，请检查文件格式。"),
       };
     }
-  }, [fileContent, importFormat, groups]);
+  }, [fileContent, importFormat, ai.view?.drafts, ai.selection.projectId, draftReleaseId]);
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
   const businessDocument = importFormat === "markdown" ? fileContent : null;
@@ -181,39 +216,19 @@ export function AIReqProposalTable() {
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
-  const ready = releases.some((release) => release.id === ai.releaseId);
+  const ready = releases.some((release) => release.id === draftReleaseId);
   const releaseSelector = (
-    <div className="space-y-2">
-      <Label>{zh ? "所属 Release" : "Release"}</Label>
-      <Select
-        value={ai.releaseId || undefined}
-        disabled={busy || !releases.length}
-        onValueChange={(id) => {
-          // 修复：弹窗内切换范围是同一表单的选择，不应触发离开门禁或丢弃输入。
-          ai.setReleaseId(id, { inProposalDialog: true });
-          setBaseline(undefined);
-          setOperationId(createUuid());
-        }}
-      >
-        <SelectTrigger aria-label={zh ? "选择所属 Release" : "Choose a Release"}>
-          <SelectValue placeholder={zh ? "选择具体 Release" : "Choose a Release"} />
-        </SelectTrigger>
-        <SelectContent>
-          {releases.map((release) => (
-            <SelectItem key={release.id} value={release.id}>
-              {release.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {!releases.length && (
-        <p className="text-ui-sm text-foreground-subtle">
-          {zh
-            ? "当前项目尚无 Release，请关闭弹窗并在项目配置中添加。"
-            : "This project has no Releases. Close this dialog and add one in project settings."}
-        </p>
-      )}
-    </div>
+    <AIReqProposalReleaseField
+      releaseId={draftReleaseId}
+      releases={releases}
+      busy={busy}
+      onChange={(id) => {
+        // 选中的版本属于草稿。原列表、历史和概览返回来源只在成功回执后更新。
+        setTargetReleaseId(id);
+        setBaseline(undefined);
+        setOperationId(createUuid());
+      }}
+    />
   );
   // 关闭时保留预览供退场动画使用；重新打开导入时再清空，关闭后不算草稿。
   const close = () =>
@@ -251,7 +266,7 @@ export function AIReqProposalTable() {
           ? {
               type: "createProposal",
               projectId: ai.selection.projectId,
-              releaseId: ai.releaseId,
+              releaseId: draftReleaseId,
               originalText: text,
               sourceIrId: ai.proposalDraft?.sourceIrId,
               operationId: `${ai.proposalDraft?.id ?? "proposal"}:${operationId}`,
@@ -260,7 +275,7 @@ export function AIReqProposalTable() {
           : {
               type: "importProposals",
               projectId: ai.selection.projectId,
-              releaseId: ai.releaseId,
+              releaseId: draftReleaseId,
               proposals,
               operationId,
               expectedRevision,
@@ -271,7 +286,7 @@ export function AIReqProposalTable() {
           // 使用成功回执定位本次提案，避免筛选或同名提案让入口打开错误对象。
           setSavedProposal({
             projectId: result.projectId,
-            releaseId: ai.releaseId,
+            releaseId: draftReleaseId,
             irId: result.irId,
           });
           focusClarificationAfterSave.current = true;
@@ -283,7 +298,7 @@ export function AIReqProposalTable() {
         setDocumentRequest("");
         setFileName("");
         setFileError("");
-        ai.closeProposalDraft();
+        ai.completeProposalDraft(draftReleaseId);
         setOperationId(createUuid());
         setBaseline(undefined);
       }
@@ -304,6 +319,7 @@ export function AIReqProposalTable() {
           <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
+              ref={createButton}
               data-testid="new-requirement"
               disabled={busy}
               onClick={() => {
@@ -311,9 +327,10 @@ export function AIReqProposalTable() {
                 ai.startProposalDraft();
               }}
             >
-              新增提案
+              {zh ? "新建需求" : "New requirement"}
             </Button>
             <Button
+              ref={importButton}
               variant="outline"
               disabled={busy}
               onClick={() => {
@@ -451,7 +468,7 @@ export function AIReqProposalTable() {
                   <td colSpan={4} className="p-6 text-foreground-subtle">
                     {groups.length
                       ? "没有符合筛选条件的提案。"
-                      : "暂无需求提案。新增只保存原文，不启动 AI。"}
+                      : "暂无需求提案。可以新建需求，保存后成为提案。"}
                   </td>
                 </tr>
               )}
@@ -483,7 +500,15 @@ export function AIReqProposalTable() {
             if (!open && !busy) close();
           }}
         >
-          <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-2xl">
+          <DialogContent
+            className="max-h-[85dvh] overflow-auto sm:max-w-2xl"
+            onCloseAutoFocus={(event) => {
+              const button = importButton.current;
+              if (!button || button.closest("[hidden], [inert]")) return;
+              event.preventDefault();
+              button.focus();
+            }}
+          >
             <DialogHeader>
               <DialogTitle>{zh ? "导入需求预览" : "Preview requirement import"}</DialogTitle>
               <DialogDescription>
@@ -678,74 +703,40 @@ export function AIReqProposalTable() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <Dialog
-          open={Boolean(ai.proposalDraft)}
-          onOpenChange={(open) => {
-            if (!open && !busy) close();
+        <AIReqProposalCreateDialog
+          busy={busy}
+          ready={ready}
+          hasReleases={releases.length > 0}
+          releaseField={releaseSelector}
+          text={text}
+          onTextChange={(value) => {
+            setText(value);
+            setBaseline(undefined);
+            setOperationId(createUuid());
           }}
-        >
-          {/* 修复：通用弹窗默认按视口铺满；新增提案应使用与导入一致的限宽和多行编辑区。 */}
-          <DialogContent
-            className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
-            onCloseAutoFocus={(event) => {
-              if (!focusClarificationAfterSave.current) return;
-              focusClarificationAfterSave.current = false;
-              if (!clarificationAction.current) return;
+          onClose={close}
+          onRetry={() => void rebase()}
+          onSave={() => void submit("create")}
+          onCloseAutoFocus={(event) => {
+            const afterSave = focusClarificationAfterSave.current;
+            focusClarificationAfterSave.current = false;
+            const overviewTrigger = overviewCreateTrigger.current;
+            overviewCreateTrigger.current = null;
+            if (afterSave) {
+              // 必须等 Dialog 释放锁再交给成功提示，跨版本仍在读取时延后交焦。
               event.preventDefault();
-              clarificationAction.current.focus();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>新增提案</DialogTitle>
-              <DialogDescription>
-                只保存原始短需求，不生成材料或运行 AI。
-                {ai.proposalDraft?.sourceIrId ? `来源 IR：${ai.proposalDraft.sourceIrId}` : ""}
-              </DialogDescription>
-            </DialogHeader>
-            {releaseSelector}
-            <div className="space-y-2">
-              <Label htmlFor="new-proposal-text">原始需求</Label>
-              <SettingsFormTextarea
-                id="new-proposal-text"
-                className="field-sizing-fixed min-h-32"
-                rows={6}
-                value={text}
-                disabled={busy || !releases.length}
-                onChange={(event) => {
-                  setText(event.target.value);
-                  setBaseline(undefined);
-                  setOperationId(createUuid());
-                }}
-              />
-              {!ready && releases.length > 0 && (
-                <p className="text-ui-sm text-foreground-subtle">
-                  {zh ? "请选择所属 Release 后保存。" : "Choose a Release before saving."}
-                </p>
-              )}
-            </div>
-            {ai.error && (
-              <div className="space-y-2">
-                <p role="alert" className="text-ui-sm text-destructive">
-                  {ai.error}
-                </p>
-                <Button variant="outline" disabled={busy} onClick={() => void rebase()}>
-                  重新读取版本并保留输入
-                </Button>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" disabled={busy} onClick={close}>
-                取消
-              </Button>
-              <Button
-                disabled={!ready || !text.trim() || busy}
-                onClick={() => void submit("create")}
-              >
-                保存原文
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              setFocusSavedWhenReady(true);
+              return;
+            }
+            const button = [overviewTrigger, createButton.current].find(
+              (candidate) => candidate?.isConnected && !candidate.closest("[hidden], [inert]"),
+            );
+            if (!button) return;
+            event.preventDefault();
+            // Dialog 释放焦点锁之后才能聚焦原入口，页面恢复时提前 focus 会被弹窗拦住。
+            button.focus({ preventScroll: true });
+          }}
+        />
         <AlertDialog
           open={discardOpen}
           onOpenChange={(open) => {

@@ -55,11 +55,18 @@ describe("requirement detail return navigation", () => {
     expect(restoreMainView({ mainView: "ideas" })).toBe("chat");
   });
 
+  it.each(["development", "testing"])("restores retired %s entries to co-creation", (page) => {
+    expect(restoreMainView(page)).toBe("proposals");
+  });
+
   it("restores supported overlays without accepting malformed draft records", () => {
     expect(restoreNavigationOverlay({ kind: "settings" })).toEqual({ kind: "settings" });
     expect(
       restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft", sourceIrId: "ir" } }),
     ).toEqual({ kind: "proposal", draft: { id: "draft", sourceIrId: "ir" } });
+    expect(
+      restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" }, fromList: true }),
+    ).toEqual({ kind: "proposal", draft: { id: "draft" }, fromList: true });
     expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: 7 } })).toBeNull();
     expect(restoreNavigationOverlay({ kind: "unknown" })).toBeNull();
   });

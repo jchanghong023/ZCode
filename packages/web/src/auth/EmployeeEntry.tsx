@@ -118,7 +118,7 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
                   AI 需求协作
                 </h1>
                 <p className="text-ui-base/relaxed text-foreground-subtle">
-                  与团队一起澄清需求、评审方案和跟踪需求进度
+                  与团队一起澄清需求、评审方案并交付正式文档
                 </p>
               </div>
             </header>

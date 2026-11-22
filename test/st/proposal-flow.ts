@@ -9,7 +9,7 @@ import type {
 } from "@zcode/services/aireq";
 import { createProposal } from "./business.js";
 import { config } from "./config.js";
-import { waitUntil, type STClient } from "./client.js";
+import { connectST, waitUntil, type STClient } from "./client.js";
 import { openNative } from "./native.js";
 
 interface ProposalTarget {
@@ -202,7 +202,44 @@ export async function approveOriginalReview(c: STClient, target: ProposalTarget)
     employeeId: c.identity.employeeId,
   });
   expect(group.srIds, "entering the solution stage alone should not split SRs").toEqual([]);
-  return approved;
+  const existing =
+    approved.view.roleRegistrations?.filter(
+      (entry) => entry.projectId === target.projectId && entry.status === "approved",
+    ) ?? [];
+  const roles = (["development", "testing"] as const).filter(
+    (role) => !existing.some((entry) => entry.role === role),
+  );
+  if (!roles.length) return approved;
+  const { view } = await commandAndRead(
+    c,
+    {
+      type: "requestProjectRoles",
+      projectId: target.projectId,
+      roles,
+    },
+    target,
+  );
+  const registrations =
+    view.roleRegistrations?.filter(
+      (entry) => entry.projectId === target.projectId && entry.status === "pending",
+    ) ?? [];
+  const admin = await connectST("y00000000");
+  try {
+    for (const registration of registrations)
+      await commandAndRead(
+        admin,
+        {
+          type: "decideProjectRole",
+          projectId: target.projectId,
+          registrationId: registration.id,
+          decision: "approved",
+        },
+        target,
+      );
+  } finally {
+    await admin.close();
+  }
+  return c.read(target.selection);
 }
 
 export async function completeSolutionMaterial(c: STClient, target: ProposalTarget) {

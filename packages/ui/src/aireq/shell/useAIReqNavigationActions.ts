@@ -49,7 +49,7 @@ export function useAIReqNavigationActions({
   );
   const openFromProjectOverview = useCallback(
     (
-      mainView: "proposals" | "formal" | "chat" | "todos" | "requirementAnalysis",
+      mainView: "proposals" | "formal" | "chat" | "todos",
       target?: AIReqSelection,
       targetReleaseId?: string,
     ) => {
@@ -90,10 +90,8 @@ export function useAIReqNavigationActions({
     ) => {
       if (
         releaseId &&
-        !viewRef.current?.projectProgress?.some(
-          (project) =>
-            project.projectId === projectId &&
-            project.releases.some((release) => release.releaseId === releaseId),
+        !viewRef.current?.availableReleases.some(
+          (release) => release.projectId === projectId && release.id === releaseId,
         )
       )
         return;

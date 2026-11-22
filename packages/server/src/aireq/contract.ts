@@ -3,6 +3,8 @@ import type { ModelSelection } from "@zcode/shared";
 
 /** Business callbacks only; rows, attachments, topics and subscriptions remain with native mock owner. */
 export interface AIReqNativeBridge {
+  /** Recheck live business scope for commands that mutate an existing native session. */
+  assertNativeWritable(sessionId: string): void;
   /** Validate immutable input actor and current scope before ACK; queueing does not freeze execution. */
   admitNative(sessionId: string, commandId: string, text: string): void;
   /** Freeze execution input, model, session instructions and business version once after dispatch. */
@@ -30,6 +32,7 @@ export interface AIReqNativeBridge {
   actorKey(): string;
 }
 export type MockAIReqOwner = IAIReqService & AIReqNativeBridge;
+export type { GitDocumentReader } from "./proposal-storage.js";
 export { presenceIP } from "./presence.js";
 export { MockAIReqService, getConnectionServices, registerAIReqConnection } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";

@@ -6,7 +6,6 @@ export const AIREQ_AGENT_ROLES = [
   "requirements-review-b",
   "requirements-review-c",
   "solution-review-summary",
-  "progress-analysis",
 ] as const;
 
 export type AIReqAgentRole = (typeof AIREQ_AGENT_ROLES)[number];

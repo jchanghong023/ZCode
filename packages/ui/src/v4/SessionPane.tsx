@@ -265,6 +265,8 @@ export interface SessionPaneProps {
   selectionSideChat?: boolean;
   /** 正式审查报告等业务消息不显示赞/踩；复制和正文仍保留。 */
   hideMessageFeedback?: boolean;
+  /** 会话入口可始终在时间线显示收到的思考与 Todo 行。 */
+  showTurnWork?: boolean;
   /** 主会话划词动作只投递到 Side Pane 当前激活的辅助 child。 */
   activeSelectionSideChatSessionId?: string | null;
   workspacePath: string;
@@ -515,6 +517,7 @@ export function SessionPane({
   readOnlyReason: workspaceReadOnlyReason,
   selectionSideChat = false,
   hideMessageFeedback = false,
+  showTurnWork,
   activeSelectionSideChatSessionId = null,
   workspacePath,
   workspaceIdentity,
@@ -1053,8 +1056,9 @@ export function SessionPane({
   );
   const { settings: sharedSettings } = useSettings();
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
-  const messageStreamShowReasoning = sharedSettings?.messageStreamShowReasoning ?? true;
-  const messageStreamShowTodos = sharedSettings?.messageStreamShowTodos ?? false;
+  const messageStreamShowReasoning =
+    showTurnWork ?? sharedSettings?.messageStreamShowReasoning ?? true;
+  const messageStreamShowTodos = showTurnWork ?? sharedSettings?.messageStreamShowTodos ?? false;
   const snapshotSessionId = snapshot?.sessionId ?? null;
   const snapshotFollowupMode = snapshot?.config.followupMode ?? null;
   const snapshotRevision = snapshot?.revision ?? null;

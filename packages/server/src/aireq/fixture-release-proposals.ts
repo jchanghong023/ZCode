@@ -8,13 +8,15 @@ import { aiReqPrFactSchema } from "@zcode/services/aireq";
 import { createRequirementSnapshot } from "./content-digest.js";
 import { createdAt, group, sessionRef, systemRequirement } from "./fixture-builders.js";
 import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
-import { readPrototypeProjectSettings } from "./project-settings.js";
+import { prototypeRepositoryTarget, readPrototypeProjectSettings } from "./project-settings.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
 } from "./requirements-review.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
+import { prototypeProposalBranch } from "./proposal-pr-handoff.js";
+import type { InternalProposalDelivery } from "./internal-scenarios.js";
 
 interface ProposalSample {
   id: string;
@@ -115,10 +117,6 @@ export function createPrototypeReleaseProposals() {
     const proposal = group(projectId, sample.id, sample.title, rows, true, employeeId);
     proposal.originalText = sample.originalText;
     proposal.contacts = { business: employeeId, development: employeeId, testing: "j00808875" };
-    for (const sr of rows) {
-      sr.developerEmployeeId = proposal.contacts.development;
-      sr.testingEmployeeId = proposal.contacts.testing;
-    }
     drafts.push(proposal);
     srs.push(...rows);
     if (sample.material === "none") {
@@ -219,9 +217,10 @@ export function seedPrototypePublishedProposal(
   project: AIReqProject,
   number: number,
 ): void {
-  const delivery = proposal.proposalDelivery!;
+  const delivery = proposal.proposalDelivery as InternalProposalDelivery;
+  delivery.repositoryTarget = prototypeRepositoryTarget(project);
   delivery.branch = {
-    name: `ir/${proposal.id}`,
+    name: prototypeProposalBranch(proposal.id),
     baseCommit: `sample-default-${project.repositoryId}`,
     createdAt,
     pushedAt: createdAt,

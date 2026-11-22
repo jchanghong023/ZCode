@@ -7,14 +7,20 @@ export const fontSizeSearchResult = {
 } satisfies SettingsSearchResult;
 
 /** 产品专用条目只投影可达的设置，命中后仍交给调用方处理导航与门禁。 */
-export const analysisSearchSection = {
-  id: "agentBehavior",
-  label: "AI 配置 · 分析设置",
+export const documentFormatSearchSection = {
+  id: "documentFormats",
+  label: "文档格式",
   includeSettings: false,
-  items: [{ id: "aireq.analysis.interval", label: "统一分析间隔", keywords: ["间隔", "周期"] }],
+  items: [
+    {
+      id: "aireq.documentFormats.requirements.md",
+      label: "requirements.md",
+      keywords: ["必需章节", "Markdown"],
+    },
+  ],
 } satisfies SettingsSearchSection;
 
-export const analysisIntervalSearchResult = {
-  section: "agentBehavior",
-  setting: "aireq.analysis.interval",
+export const documentFormatSearchResult = {
+  section: "documentFormats",
+  setting: "aireq.documentFormats.requirements.md",
 } satisfies SettingsSearchResult;

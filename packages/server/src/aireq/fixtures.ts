@@ -5,7 +5,7 @@ import {
 import { createRequirementSnapshot } from "./content-digest.js";
 import type { AIReqWorkflowView, AIReqMaterialView } from "@zcode/services/aireq";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
-import { readPrototypeProjectSettings } from "./project-settings.js";
+import { prototypeRepositoryKey, readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import { prototypeRequirementDetails } from "./fixture-content.js";
@@ -24,10 +24,7 @@ import {
   prototypeReviewSessions,
 } from "./requirements-review.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
-import {
-  createPrototypeReleaseRequirements,
-  initializePrototypeReleaseProgress,
-} from "./fixture-release.js";
+import { createPrototypeReleaseRequirements } from "./fixture-release.js";
 export function createPrototypeWorkflow(): AIReqWorkflowView {
   const sharedSettings = readPrototypeProjectSettings();
   const documentFormats = emptyDocumentFormats();
@@ -52,60 +49,18 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
   const releaseRequirements = createPrototypeReleaseRequirements();
   const srs = [
     ...releaseRequirements.srs,
-    systemRequirement(
-      "demo-aurora",
-      "ir-auth",
-      "sr-auth",
-      "统一登录与会话管理",
-      "planning",
-      false,
-      false,
-    ),
-    systemRequirement(
-      "demo-aurora",
-      "ir-auth",
-      "sr-session",
-      "会话恢复与设备管理",
-      "planning",
-      false,
-      true,
-    ),
+    systemRequirement("demo-aurora", "ir-auth", "sr-auth", "统一登录与会话管理"),
+    systemRequirement("demo-aurora", "ir-auth", "sr-session", "会话恢复与设备管理"),
     systemRequirement("demo-aurora", "ir-auth", "sr-permissions", "角色权限与访问边界"),
     systemRequirement("demo-aurora", "ir-auth", "sr-audit", "操作审计与交付"),
-    systemRequirement("demo-aurora", "ir-auth", "sr-onboarding", "首次登录引导", undefined, true),
+    systemRequirement("demo-aurora", "ir-auth", "sr-onboarding", "首次登录引导"),
     systemRequirement("demo-aurora", "ir-dashboard", "sr-dashboard", "指标概览与趋势卡片"),
     systemRequirement("demo-aurora", "ir-dashboard", "sr-dashboard-filters", "筛选器与空态"),
-    systemRequirement(
-      "demo-mobile",
-      "ir-mobile",
-      "sr-mobile-navigation",
-      "移动导航与项目切换",
-      "planning",
-    ),
-    systemRequirement(
-      "demo-mobile",
-      "ir-mobile",
-      "sr-mobile-notifications",
-      "通知列表与阅读状态",
-      "executing",
-    ),
-    systemRequirement(
-      "demo-mobile",
-      "ir-mobile",
-      "sr-mobile-profile",
-      "个人资料卡片",
-      undefined,
-      true,
-    ),
-    systemRequirement("demo-aurora", "ir-export", "sr-export", "导出任务与下载", undefined, true),
-    systemRequirement(
-      "demo-aurora",
-      "ir-export",
-      "sr-export-download",
-      "导出结果下载与有效期提示",
-      undefined,
-      true,
-    ),
+    systemRequirement("demo-mobile", "ir-mobile", "sr-mobile-navigation", "移动导航与项目切换"),
+    systemRequirement("demo-mobile", "ir-mobile", "sr-mobile-notifications", "通知列表与阅读状态"),
+    systemRequirement("demo-mobile", "ir-mobile", "sr-mobile-profile", "个人资料卡片"),
+    systemRequirement("demo-aurora", "ir-export", "sr-export", "导出任务与下载"),
+    systemRequirement("demo-aurora", "ir-export", "sr-export-download", "导出结果下载与有效期提示"),
     systemRequirement(
       "demo-aurora",
       "draft-automation",
@@ -320,10 +275,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       continue;
     }
     const rows = srs.filter((sr) => sr.projectId === item.projectId && sr.irId === item.id);
-    for (const sr of rows) {
-      sr.developerEmployeeId = item.contacts.development;
-      sr.testingEmployeeId = item.contacts.testing;
-    }
     const bundle = requirementMaterials(
       item.projectId,
       item.id,
@@ -424,72 +375,13 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
         files: structuredClone(item.files),
       };
       freezePrototypeRequirement(item, "j00808874", createdAt);
-      // 初始开发分支也必须基于本 IR 的文档合入提交，不能误用项目当前主分支。
-      for (const sr of rows) {
-        sr.trackingBranch = {
-          name: `sr/${sr.id}`,
-          baseCommit: item.merge.commit,
-          createdAt,
-          pushedAt: createdAt,
-          status: "ready",
-        };
-      }
     }
-  }
-  for (const sr of srs.filter(
-    (row) => row.status === "completed" || row.id === "sr-mobile-notifications",
-  )) {
-    const project = sharedSettings.projects.find((item) => item.id === sr.projectId)!;
-    sr.codeMerge = {
-      commit: `${sr.id}-head`,
-      branch: project.defaultBranch,
-      checkedAt: "2026-11-11T01:30:00.000Z",
-      files: [],
-    };
-    if (["sr-onboarding", "sr-mobile-profile"].includes(sr.id)) {
-      sr.testAcceptance = {
-        operationId: `sample-test-${sr.id}`,
-        outcome: "passed",
-        employeeId: "j00808874",
-        at: "2026-11-11T01:30:00.000Z",
-        reason: "测试验收通过。",
-        codeVersion: sr.codeMerge.commit,
-      };
-    } else sr.status = "developing";
   }
   drafts[2]!.returnFeedback = {
     employeeId: "j00808876",
     returnedAt: "2026-11-11T03:00:00.000Z",
     round: drafts[2]!.proposalRound ?? 1,
     reason: "请补充跨项目结果隔离、离线搜索的可用范围，以及从结果返回后保留检索条件的验收规则。",
-  };
-  const unassignedSr = srs.find((sr) => sr.id === "sr-dashboard-filters")!;
-  unassignedSr.developerEmployeeId = undefined;
-  unassignedSr.testingEmployeeId = undefined;
-  unassignedSr.planning = { source: "manual", assumptions: "" };
-  for (const [id, start, end] of [
-    ["sr-auth", "2026-11-16T09:00", "2026-11-20T18:00"],
-    ["sr-session", "2026-11-16T09:00", "2026-11-18T18:00"],
-    ["sr-mobile-navigation", "2026-11-17T09:00", "2026-11-23T18:00"],
-  ]) {
-    const sr = srs.find((item) => item.id === id)!;
-    sr.planning = {
-      source: "manual",
-      assumptions: "按已确认分工安排，依赖变化后由负责人重新核对。",
-      plannedStart: start,
-      plannedEnd: end,
-      updatedBy: "j00808874",
-      updatedAt: "2026-11-15T06:00:00.000Z",
-    };
-  }
-  const branchFailure = srs.find((sr) => sr.id === "sr-mobile-offline")!;
-  branchFailure.trackingBranch = {
-    name: `sr/${branchFailure.id}`,
-    baseCommit: "sample-merged-ir-mobile-offline",
-    createdAt,
-    pushedAt: "",
-    status: "failed",
-    error: "开发分支创建未完成，请核对仓库状态后重试。",
   };
   if (prototypeRecoveryScenario === "proposal-feedback") {
     drafts[1]!.proposalStage = "requirements";
@@ -501,7 +393,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       reason: "请补充通知失败后的业务恢复规则及验收依据。",
     };
   }
-  initializePrototypeReleaseProgress(srs);
   const releaseProposals = createPrototypeReleaseProposals();
   drafts.push(...releaseProposals.drafts);
   srs.push(...releaseProposals.srs);
@@ -594,25 +485,23 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
     materials,
     repositoryHeads: Object.fromEntries(
       sharedSettings.projects.map((project) => [
-        project.repositoryId,
+        prototypeRepositoryKey(project),
         `sample-default-${project.repositoryId}`,
       ]),
     ),
     operations: [
       receipt("需求整理", 1, "ir-auth"),
       receipt("提案方案已随需求合入", 2, "ir-auth"),
-      receipt("计划准备", 3, "ir-auth", "sr-session"),
+      receipt("方案材料整理", 3, "ir-auth", "sr-session"),
       receipt("验证报告展示", 4, "ir-auth", "sr-permissions"),
       receipt("交付信息展示", 5, "ir-auth", "sr-audit"),
-      receipt("完成状态展示", 6, "ir-auth", "sr-onboarding"),
+      receipt("正式规格归档", 6, "ir-auth", "sr-onboarding"),
       receipt("需求整理", 7, "ir-dashboard"),
       receipt("草稿创建", 8, "draft-automation"),
       receipt("移动工作台需求", 9, "ir-mobile", "sr-mobile-navigation"),
       receipt("离线体验草稿", 10, "ir-mobile-offline"),
     ],
-    sessions: [...groups, ...drafts]
-      .flatMap((item) => item.sessions)
-      .concat(srs.flatMap((sr) => sr.sessions)),
+    sessions: [...groups, ...drafts].flatMap((item) => item.sessions),
     selected: { projectId: "demo-aurora", irId: "ir-auth" },
     running: [],
     changes: materials.map((item) => ({

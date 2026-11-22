@@ -25,10 +25,10 @@ import {
   type AIReqMaterialView,
 } from "../contract.js";
 import { useAIReq, type AIReqContextValue } from "../AIReqContext.js";
-import { AIReqPlanningSummary } from "../tracking/RequirementPlanning.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 import {
+  isCurrentMaterialConfirmed,
   materialReadFeedback,
   readMaterialSelection,
   type MaterialReadFeedback,
@@ -67,7 +67,6 @@ function AIReqMaterialsReader({
   const { selection, releaseId, view } = aireq;
   const [path, setPath] = useState<string>();
   const [readFeedback, setReadFeedback] = useState<MaterialReadFeedback>();
-  const [showPlanning, setShowPlanning] = useState(false);
   const [historyIndex, setHistoryIndex] = useState<number>();
   const viewingHistory = historyIndex !== undefined;
   const group = [...(view?.groups ?? []), ...(view?.drafts ?? [])].find(
@@ -76,7 +75,7 @@ function AIReqMaterialsReader({
       item.projectId === selection.projectId &&
       item.releaseId === releaseId,
   );
-  const planningRows = viewingHistory
+  const currentRows = viewingHistory
     ? []
     : (view?.srs.filter((item) => item.irId === group?.id && item.projectId === group?.projectId) ??
       []);
@@ -85,7 +84,6 @@ function AIReqMaterialsReader({
     group &&
     view?.drafts.includes(group) &&
     proposalViewedIndex(group, selection) >= 2;
-  const planningOpen = showPlanning && proposalSolutionView;
   const {
     historical,
     materials,
@@ -94,7 +92,7 @@ function AIReqMaterialsReader({
     design,
     selected,
     material: current,
-  } = readMaterialSelection(group, view?.materials ?? [], planningRows, {
+  } = readMaterialSelection(group, view?.materials ?? [], currentRows, {
     path,
     historyIndex,
     materialPath: selection.materialPath,
@@ -151,7 +149,95 @@ function AIReqMaterialsReader({
       };
     })
     .filter((section) => section.items.length);
-  const hasHistoryChoices = Boolean(group?.materialHistory?.length);
+  const historyChoices =
+    group?.materialHistory?.flatMap((item, index) => {
+      if (!item.materials.some((file) => file.path === displayedPath)) return [];
+      const event = item.event;
+      const change =
+        event?.type === "git-sync"
+          ? event.files.find((file) => file.path === displayedPath)?.change
+          : undefined;
+      if (event?.type === "git-sync" && !change && index !== historyIndex) return [];
+      const time = new Date(item.changedAt).toLocaleString(locale, { timeZone: "Asia/Shanghai" });
+      return [{ item, index, event, change, time }];
+    }) ?? [];
+  const selectHistory = (value: string) => {
+    setPath(displayedPath || undefined);
+    setHistoryIndex(value === "current" ? undefined : Number(value));
+  };
+  const confirmationBadge = !viewingHistory && isCurrentMaterialConfirmed(group, current) && (
+    <span className="text-ui-sm text-success">{zh ? "已确认" : "Confirmed"}</span>
+  );
+  const historyControls = historyChoices.length > 0 ? (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={historyIndex === undefined ? "current" : String(historyIndex)}
+          onValueChange={selectHistory}
+        >
+          <SelectTrigger
+            variant="ghost"
+            className="max-w-full min-w-0 text-ui-sm"
+            aria-label="选择文件版本"
+          >
+            <SelectValue>{viewingHistory ? "历史版本 · 只读" : "当前版本"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="current">当前版本</SelectItem>
+            {historyChoices.map(({ item, index, time }) => (
+              <SelectItem key={index} value={String(index)}>
+                {item.reason} · {time}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {historical && (
+          <span className="text-ui-sm text-foreground-subtle">{historical.reason}</span>
+        )}
+        {confirmationBadge}
+      </div>
+      <details className="text-ui-sm">
+        <summary className="w-fit cursor-pointer rounded-sm text-foreground-subtle focus-visible:outline-2 focus-visible:outline-ring">
+          文件操作记录
+        </summary>
+        <ol className="mt-1 divide-y divide-border">
+          {[...historyChoices].reverse().map(({ item, index, event, change, time }) => (
+            <li key={index} className="space-y-1 py-2">
+              <button
+                type="button"
+                className="text-left font-medium hover:underline"
+                onClick={() => selectHistory(String(index))}
+              >
+                {item.reason} · {time}
+              </button>
+              {event?.type === "confirmation" && (
+                <p className="text-foreground-subtle">
+                  {{ business: "业务", development: "开发", testing: "测试" }[event.role]}确认 ·{" "}
+                  {event.employeeId}
+                </p>
+              )}
+              {event?.type === "git-sync" && change && (
+                <div className="space-y-1 wrap-anywhere text-foreground-subtle">
+                  <p>
+                    同步人 {event.employeeId} · 仓库提交 <code>{event.commit}</code>
+                  </p>
+                  <p>
+                    {change.message} · {change.employee} ·{" "}
+                    {new Date(change.committedAt).toLocaleString(locale, {
+                      timeZone: "Asia/Shanghai",
+                    })}
+                  </p>
+                  <p className="font-mono">{change.hash}</p>
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+      </details>
+    </div>
+  ) : (
+    confirmationBadge
+  );
   const materialTabClassName =
     "h-9 min-w-0 flex-1 rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 text-foreground-subtle hover:bg-transparent hover:text-foreground aria-pressed:border-foreground aria-pressed:text-foreground";
   const error = current?.error;
@@ -203,38 +289,23 @@ function AIReqMaterialsReader({
       data-testid="materials-pane"
     >
       {compact ? (
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-2">
-          <span className="shrink-0 text-ui-base">{zh ? "需求材料" : "Requirement materials"}</span>
-          <Select
-            value={planningOpen ? "planning" : displayedPath ? `file:${displayedPath}` : "none"}
-            onValueChange={(value) => {
-              setShowPlanning(value === "planning");
-              if (value.startsWith("file:")) setPath(value.slice(5));
-            }}
-          >
-            <SelectTrigger
-              className={materialTabClassName}
-              data-testid="material-menu"
-              aria-label={zh ? "选择需求材料" : "Choose requirement material"}
-            >
-              <SelectValue>
-                <span
-                  className="block min-w-0 truncate text-left"
-                  title={
-                    planningOpen
-                      ? zh
-                        ? "工期预估"
-                        : "Schedule estimate"
-                      : current
-                        ? materialLabel(current)
-                        : undefined
-                  }
-                >
-                  {planningOpen
-                    ? zh
-                      ? "工期预估"
-                      : "Schedule estimate"
-                    : current
+        <>
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-2">
+            <span className="shrink-0 text-ui-base">
+              {zh ? "需求材料" : "Requirement materials"}
+            </span>
+            <Select value={displayedPath || "none"} onValueChange={setPath}>
+              <SelectTrigger
+                className={materialTabClassName}
+                data-testid="material-menu"
+                aria-label={zh ? "选择需求材料" : "Choose requirement material"}
+              >
+                <SelectValue>
+                  <span
+                    className="block min-w-0 truncate text-left"
+                    title={current && materialLabel(current)}
+                  >
+                    {current
                       ? materialLabel(current)
                       : awaitingRequirements
                         ? zh
@@ -243,83 +314,39 @@ function AIReqMaterialsReader({
                         : zh
                           ? "暂无材料"
                           : "No materials"}
-                </span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              {!materials.length && (
-                <SelectItem value="none" disabled>
-                  {awaitingRequirements
-                    ? zh
-                      ? "等待生成需求材料"
-                      : "Waiting for materials"
-                    : zh
-                      ? "暂无材料"
-                      : "No materials"}
-                </SelectItem>
-              )}
-              {materials.map((item) => (
-                <SelectItem key={item.path} value={`file:${item.path}`}>
-                  {materialLabel(item)}
-                </SelectItem>
-              ))}
-              {proposalSolutionView && group && (
-                <SelectItem value="planning">{zh ? "工期预估" : "Schedule estimate"}</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          {headerAction}
-        </div>
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                {!materials.length && (
+                  <SelectItem value="none" disabled>
+                    {awaitingRequirements
+                      ? zh
+                        ? "等待生成需求材料"
+                        : "Waiting for materials"
+                      : zh
+                        ? "暂无材料"
+                        : "No materials"}
+                  </SelectItem>
+                )}
+                {materials.map((item) => (
+                  <SelectItem key={item.path} value={item.path}>
+                    {materialLabel(item)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {headerAction}
+          </div>
+          {historyControls && <div className="px-3 py-2">{historyControls}</div>}
+        </>
       ) : (
         <div
           className="shrink-0 overflow-y-auto pt-4 pb-3 [scrollbar-gutter:stable_both-edges]"
           style={{ scrollbarWidth: "thin" }}
         >
           <div className={`mx-auto min-w-0 space-y-3 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-            {group && hasHistoryChoices && (
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <Select
-                  value={historyIndex === undefined ? "current" : String(historyIndex)}
-                  onValueChange={(id) => {
-                    setHistoryIndex(id === "current" ? undefined : Number(id));
-                    setPath(undefined);
-                    setShowPlanning(false);
-                  }}
-                >
-                  <SelectTrigger
-                    variant="ghost"
-                    className="ml-auto max-w-full min-w-0 text-ui-sm text-foreground-subtle"
-                    aria-label="选择材料历史版本"
-                  >
-                    <SelectValue>
-                      {viewingHistory
-                        ? zh
-                          ? "历史只读"
-                          : "Read-only history"
-                        : zh
-                          ? "版本历史"
-                          : "Version history"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">当前材料</SelectItem>
-                    {/* 历史只追加；相同正文也可以属于不同快照，按该对象的记录选择。 */}
-                    {group.materialHistory?.map((item, index) => (
-                      <SelectItem key={index} value={String(index)}>
-                        历史只读 · {item.reason} ·{" "}
-                        {new Date(item.changedAt).toLocaleString("zh-CN")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {/* 完整版本标识可能是长快照；阅读区保留原因，技术标识收进已有折叠区。 */}
-                {historical && (
-                  <p className="text-ui-sm text-foreground-subtle">
-                    历史只读 · 失效原因：{historical.reason}
-                  </p>
-                )}
-              </div>
-            )}
+            {historyControls}
             {(proposalSolutionView || (historical && (solutionMaterial || dependencyMaterial))) && (
               <nav
                 aria-label="方案材料定位"
@@ -331,9 +358,8 @@ function AIReqMaterialsReader({
                   variant="ghost"
                   className={materialTabClassName}
                   disabled={!solutionMaterial}
-                  aria-pressed={!planningOpen && displayedPath === solutionMaterial?.path}
+                  aria-pressed={displayedPath === solutionMaterial?.path}
                   onClick={() => {
-                    setShowPlanning(false);
                     setPath(solutionMaterial!.path);
                   }}
                 >
@@ -344,32 +370,19 @@ function AIReqMaterialsReader({
                   variant="ghost"
                   className={materialTabClassName}
                   disabled={!dependencyMaterial}
-                  aria-pressed={!planningOpen && displayedPath === dependencyMaterial?.path}
+                  aria-pressed={displayedPath === dependencyMaterial?.path}
                   onClick={() => {
-                    setShowPlanning(false);
                     setPath(dependencyMaterial!.path);
                   }}
                 >
                   SR 依赖
                 </Button>
-                {proposalSolutionView && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={materialTabClassName}
-                    aria-pressed={planningOpen}
-                    onClick={() => setShowPlanning(true)}
-                  >
-                    工期预估
-                  </Button>
-                )}
               </nav>
             )}
             {materials.length > 1 && (
               <Select
-                value={planningOpen ? "" : displayedPath}
+                value={displayedPath}
                 onValueChange={(value) => {
-                  setShowPlanning(false);
                   setPath(value);
                 }}
               >
@@ -403,15 +416,15 @@ function AIReqMaterialsReader({
         </div>
       )}
       <div
-        key={`${historyIndex ?? "current"}:${planningOpen ? "planning" : displayedPath}`}
+        key={`${historyIndex ?? "current"}:${displayedPath}`}
         className="min-h-0 flex-1 overflow-auto py-4 [scrollbar-gutter:stable_both-edges]"
         style={{ scrollbarWidth: "thin" }}
         data-testid="material"
-        data-material-path={planningOpen ? undefined : displayedPath}
-        data-material-valid={planningOpen ? undefined : current?.valid}
+        data-material-path={displayedPath}
+        data-material-valid={current?.valid}
       >
         <div className={`mx-auto min-w-0 ${AIREQ_CONTENT_WIDTH_CLASSNAME}`}>
-          {!planningOpen && (displayedPath || historical) && (
+          {(displayedPath || historical) && (
             <Collapsible className="mb-4">
               <CollapsibleTrigger asChild>
                 <Button
@@ -440,7 +453,7 @@ function AIReqMaterialsReader({
               </CollapsibleContent>
             </Collapsible>
           )}
-          {!planningOpen && materialIssues.length > 0 && (
+          {materialIssues.length > 0 && (
             <div className="mb-4 space-y-1 text-ui-sm text-destructive" role="alert">
               <p className="font-medium">材料校验失败</p>
               <ul className="space-y-1">
@@ -452,22 +465,19 @@ function AIReqMaterialsReader({
               </ul>
             </div>
           )}
-          {!planningOpen &&
-            current?.valid === false &&
+          {current?.valid === false &&
             !viewingHistory &&
             !materialIssues.some((issue) => issue.path === displayedPath) && (
               <p role="alert" className="mb-4 text-ui-sm text-destructive">
                 当前材料已失效或过期，不能作为本轮批准依据；现有正文只读保留。
               </p>
             )}
-          {!planningOpen && feedback && (
+          {feedback && (
             <p role="status" className="mb-4 text-ui-sm text-foreground-subtle">
               {feedback}
             </p>
           )}
-          {planningOpen && group ? (
-            <AIReqPlanningSummary group={group} rows={planningRows} />
-          ) : error ? (
+          {error ? (
             <div className="space-y-3">
               <p role="alert" className="text-ui-base text-destructive">
                 {error}
