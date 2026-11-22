@@ -65,54 +65,6 @@ export function buildChatSessionScrollMemoryKey({
   return taskScope ? `${rendererScope}::task:${taskScope}` : null;
 }
 
-export function migrateTaskScrollMemoryToSession({
-  workspacePath,
-  workspaceIdentity,
-  paneId,
-  sessionId,
-  taskId,
-}: {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  paneId?: string;
-  sessionId?: string | null;
-  taskId?: string | null;
-}): string | null {
-  const sessionKey = buildChatSessionScrollMemoryKey({
-    workspacePath,
-    workspaceIdentity,
-    paneId,
-    sessionId,
-    taskId: null,
-  });
-  const fallbackTaskKey = buildChatSessionScrollMemoryKey({
-    workspacePath,
-    workspaceIdentity,
-    paneId,
-    sessionId: null,
-    taskId,
-  });
-
-  if (!sessionKey || !fallbackTaskKey || sessionKey === fallbackTaskKey) {
-    return sessionKey ?? fallbackTaskKey;
-  }
-
-  if (!chatSessionScrollMemory.has(sessionKey)) {
-    const fallbackState = chatSessionScrollMemory.get(fallbackTaskKey);
-    if (fallbackState) {
-      // sessionId 可能晚于 taskId 回填。这里把临时 task 桶迁移到真实 session 桶，
-      // 避免同一会话在元数据补齐前后丢失滚动位置。
-      touchChatSessionScrollMemoryEntry(sessionKey, {
-        ...fallbackState,
-        updatedAt: Date.now(),
-      });
-    }
-  }
-
-  chatSessionScrollMemory.delete(fallbackTaskKey);
-  return sessionKey;
-}
-
 export function readChatSessionScrollMemoryState(
   key: string | null,
 ): ChatSessionScrollMemoryState | null {

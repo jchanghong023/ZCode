@@ -76,7 +76,14 @@ describe("ST global ideas and configuration", () => {
         const text = unique("想法原文");
         const created = await client.command({ type: "createIdea", originalText: text });
         expect(created.receipt.status).toBe("completed");
-        const first = ideaByText((await client.read()).view.ideas, text);
+        expect(created).not.toHaveProperty("ideaId");
+        expect(created.receipt).not.toHaveProperty("identity");
+        expect(created.receipt.actorEmployeeId).toBe(client.identity.employeeId);
+        const { view } = await client.read();
+        expect(view.operations.find((item) => item.operationId === created.receipt.operationId)).toEqual(
+          created.receipt,
+        );
+        const first = ideaByText(view.ideas, text);
         expect(first.submittedBy).toBe(client.identity.employeeId);
         expect(Number.isFinite(Date.parse(first.createdAt))).toBe(true);
         const nextText = unique("编辑后的想法");
@@ -88,6 +95,7 @@ describe("ST global ideas and configuration", () => {
         });
         expect(edited.receipt.status).toBe("completed");
         const after = ideaByText((await client.read()).view.ideas, nextText);
+        expect(after).not.toHaveProperty("updatedAt");
         expect(after).toMatchObject({
           id: first.id,
           submittedBy: first.submittedBy,
@@ -484,9 +492,10 @@ describe("ST global ideas and configuration", () => {
           const { remote, review: current } = await waitForReview(client, before, "original");
           expect(current.id).not.toBe(historical.id);
           expect(current.agents?.[0]).toMatchObject({
-            promptSnapshot: next[role],
             session: { modelConfig: { role, promptSnapshot: next[role] } },
           });
+          expect(current.agents?.[0]).not.toHaveProperty("promptSnapshot");
+          expect(current).not.toHaveProperty("requestedBy");
           expect(getProposal(remote, before).originalReviewHistory).toContainEqual({
             ...historical,
             invalidatedReason: expect.any(String),

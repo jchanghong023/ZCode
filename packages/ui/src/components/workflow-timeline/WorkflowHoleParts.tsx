@@ -1,5 +1,4 @@
 import { PenIcon } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { TimelineHole } from "./timeline-holes.js";
@@ -41,18 +40,6 @@ export function HoleWaitingMeta({ hole }: { hole: TimelineHole | undefined }) {
       {intl.formatMessage({ id: "chat.toolCall.workflow.hole.waiting" })}
     </span>
   );
-}
-
-/** 侧板状态头的同一枚芯片：直接读 run 的留白表，数等待中的。 */
-export function RunHolesWaitingChip({
-  run,
-  testId,
-}: {
-  run: Pick<WorkflowRunState, "holes"> | undefined;
-  testId: string;
-}) {
-  const count = (run?.holes ?? []).filter((hole) => hole.state === "waiting").length;
-  return <HolesWaitingChip count={count} testId={testId} />;
 }
 
 /**

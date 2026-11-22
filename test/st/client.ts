@@ -17,7 +17,7 @@ import type {
   AIReqRemoteArgs,
   AIReqRemotePath,
   AIReqRemoteResult,
-  AIReqSelection,
+  AIReqWorkflowTarget,
 } from "@zcode/services/aireq";
 import { config, requireConfig } from "./config.js";
 import { requireCreatedThisRun } from "./resources.js";
@@ -100,12 +100,12 @@ export interface STClient {
   identity: AIReqIdentity;
   probeRpc: RpcProbe;
   bootstrap(): ReturnType<RemoteServiceAccess["aiReqService"]["bootstrap"]>;
-  read(selection?: AIReqSelection): Promise<AIReqRemoteResult<"readWorkflow">>;
+  read(target?: AIReqWorkflowTarget): Promise<AIReqRemoteResult<"readWorkflow">>;
   call<P extends AIReqRemotePath>(
     path: P,
     args: AIReqRemoteArgs<P>,
   ): Promise<AIReqRemoteResult<P>>;
-  command(action: AIReqAction, selection?: AIReqSelection): Promise<AIReqRemoteResult<"command">>;
+  command(action: AIReqAction, target?: AIReqWorkflowTarget): Promise<AIReqRemoteResult<"command">>;
   close(): Promise<void>;
 }
 async function connectSTTransport<T extends object>(
@@ -282,13 +282,13 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
       return rpc(services.aiReqService.call(identity, path, args));
     },
     async command(action, selection = {}) {
-      const revision = action.expectedRevision ?? (await client.read(selection)).view.revision;
-      const command = {
-        ...action,
-        operationId: action.operationId ?? unique("operation"),
-        expectedRevision: revision,
-      };
-      return client.call("command", [command, selection, revision]);
+      const { expectedRevision, operationId, ...intent } = action;
+      const revision = expectedRevision ?? (await client.read(selection)).view.revision;
+      return client.call("command", [
+        { ...intent, operationId: operationId ?? unique("operation") },
+        selection,
+        revision,
+      ]);
     },
     close,
   };

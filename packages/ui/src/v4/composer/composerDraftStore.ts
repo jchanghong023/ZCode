@@ -98,15 +98,6 @@ export function ensurePendingTaskDraft(scope: ComposerScope): PendingTaskDraft {
   writePendingTaskDraft(scope, next);
   return next;
 }
-export function bindPendingTaskDraft(
-  scope: ComposerScope,
-  draftId: string,
-  workspacePath: string,
-): void {
-  const current = readPendingTaskDraft(scope);
-  if (current?.draftId === draftId && current.workspacePath !== workspacePath)
-    writePendingTaskDraft(scope, { ...current, workspacePath });
-}
 export function completePendingTaskDraft(scope: ComposerScope, draftId: string): void {
   if (readPendingTaskDraft(scope)?.draftId === draftId) writePendingTaskDraft(scope, null);
 }
@@ -152,20 +143,6 @@ function workspaceScopeKey(
   clientNamespace: string,
 ): string {
   return `zcode-composer-workspace-scope:v1:${JSON.stringify([clientNamespace, identity?.trim() || path])}`;
-}
-export function rememberComposerWorkspaceScope(
-  path: string,
-  identity: string | undefined,
-  scope: ComposerScope,
-): void {
-  try {
-    getStorage()?.setItem(
-      workspaceScopeKey(path, identity, scope.clientNamespace),
-      JSON.stringify(scope),
-    );
-  } catch (error) {
-    warnStorageFailure(workspaceScopeKey(path, identity, scope.clientNamespace), error);
-  }
 }
 export function readComposerWorkspaceScope(
   path: string,

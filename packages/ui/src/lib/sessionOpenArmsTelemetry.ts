@@ -65,10 +65,6 @@ export interface SessionOpenResultFields extends SessionOpenTimingFields {
 
 let reporter: SessionOpenArmsReporter | null = null;
 
-export function setSessionOpenArmsReporter(next: SessionOpenArmsReporter | null): void {
-  reporter = next;
-}
-
 function roundedNonNegative(value: number | undefined): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return Math.round(value);

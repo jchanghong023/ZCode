@@ -2,25 +2,11 @@ import type { TaskNotificationPayload } from "@zcode/shared";
 import type {
   ConversationSnapshot,
   PendingInteraction,
-  SessionPhase,
-  SessionSummary,
   UserInputRequestPayload,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { IntlInstance } from "@/i18n/index.js";
 
 type FormatMessage = IntlInstance["formatMessage"];
-
-function terminalStatusForPhase(
-  phase: SessionPhase,
-): Extract<TaskNotificationPayload["status"], "completed" | "failed"> | null {
-  if (phase === "completedSuccess" || phase === "completedInterrupted") {
-    return "completed";
-  }
-  if (phase === "error") {
-    return "failed";
-  }
-  return null;
-}
 
 function taskTitleBody(
   title: string,
@@ -32,49 +18,6 @@ function taskTitleBody(
     return formatMessage({ id: "notification.taskWithTitle" }, { title: trimmedTitle });
   }
   return formatMessage({ id: fallbackMessageId });
-}
-
-function terminalPayloadForSession(
-  session: SessionSummary,
-  status: Extract<TaskNotificationPayload["status"], "completed" | "failed">,
-  formatMessage: FormatMessage,
-): TaskNotificationPayload {
-  if (status === "completed") {
-    return {
-      taskId: session.sessionId,
-      status,
-      title: formatMessage({ id: "notification.completed" }),
-      body: taskTitleBody(session.title, "notification.completedBody", formatMessage),
-    };
-  }
-
-  return {
-    taskId: session.sessionId,
-    status,
-    title: formatMessage({ id: "notification.error" }),
-    body: taskTitleBody(session.title, "notification.error", formatMessage),
-  };
-}
-
-export function collectTerminalTaskNotificationPayloads(params: {
-  previousBySessionId: ReadonlyMap<string, SessionSummary>;
-  sessions: readonly SessionSummary[];
-  formatMessage: FormatMessage;
-}): TaskNotificationPayload[] {
-  const payloads: TaskNotificationPayload[] = [];
-  for (const session of params.sessions) {
-    const status = terminalStatusForPhase(session.phase);
-    if (!status) continue;
-
-    const previous = params.previousBySessionId.get(session.sessionId);
-    if (!previous) continue;
-
-    const previousStatus = terminalStatusForPhase(previous.phase);
-    if (previousStatus === status) continue;
-
-    payloads.push(terminalPayloadForSession(session, status, params.formatMessage));
-  }
-  return payloads;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

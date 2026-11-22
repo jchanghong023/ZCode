@@ -182,54 +182,6 @@ export function SettingsGroupCard({ children }: { children: ReactNode }) {
   );
 }
 
-export function SettingsBadge({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-md bg-surface px-2.5 py-1 text-ui-base font-medium text-foreground-subtle">
-      {children}
-    </span>
-  );
-}
-
-export function SettingsRangeControl({
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  valueLabel,
-  valueLabelClassName,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-  valueLabel: ReactNode;
-  valueLabelClassName?: string;
-}) {
-  return (
-    <div className="flex w-[280px] min-w-0 items-center gap-3">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.currentTarget.value))}
-        className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
-      />
-      <span
-        className={cn(
-          "min-w-10 text-right text-ui-base font-medium tabular-nums text-foreground",
-          valueLabelClassName,
-        )}
-      >
-        {valueLabel}
-      </span>
-    </div>
-  );
-}
-
 export function getThemeOptionLabel(value: BundledTheme): string {
   return CODE_PREVIEW_THEME_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }

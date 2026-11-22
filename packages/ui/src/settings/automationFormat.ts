@@ -1,100 +1,9 @@
-import type { ZCodeAutomationRun } from "@zcode/shared";
-
 // 定时任务展示层格式化：cron 表达式 → 人类可读的调度摘要 / 相对时间 / cron builder 组装。
 // 说明：croner 只在 services 侧用于算下次触发时间；UI 这里仅做「已知常见模式」的可读化，
 // 覆盖不到的表达式回退成原始 cron 文本，保证不误导。
 
 export interface IntlLike {
   formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string;
-}
-
-export type AutomationStatusKind = "active" | "paused" | "completed" | "failed";
-
-interface AutomationStatusLike {
-  lifecycleStatus: AutomationStatusKind;
-  enabled: boolean;
-}
-
-interface AutomationFailureLike {
-  lifecycleStatus: AutomationStatusKind;
-  dispatchStatus?: "idle" | "claimed" | "dispatched" | "failed_to_dispatch";
-  dispatchAttempts?: number;
-  retryAt?: number;
-  lastError?: string;
-}
-
-/** 最近一次真实运行/派发失败时展示失败态；循环任务本身仍保持 active 并继续调度。 */
-export function hasAutomationFailureState(automation: AutomationFailureLike): boolean {
-  return (
-    automation.lifecycleStatus === "failed" ||
-    automation.dispatchStatus === "failed_to_dispatch" ||
-    Boolean(automation.lastError?.trim())
-  );
-}
-
-/** 派发失败进入退避队列时，失败态旁展示真实的重试排队信息。 */
-export function hasAutomationRetryQueueState(automation: AutomationFailureLike): boolean {
-  return (
-    hasAutomationFailureState(automation) &&
-    automation.dispatchStatus === "failed_to_dispatch" &&
-    (automation.dispatchAttempts ?? 0) > 0 &&
-    typeof automation.retryAt === "number"
-  );
-}
-
-/** 定时任务生命周期展示状态：终态优先，其次 paused/enabled，最后 active。 */
-export function resolveAutomationStatusKind(
-  automation: AutomationStatusLike,
-): AutomationStatusKind {
-  if (automation.lifecycleStatus === "failed") return "failed";
-  if (automation.lifecycleStatus === "completed") return "completed";
-  if (automation.lifecycleStatus === "paused" || !automation.enabled) return "paused";
-  return "active";
-}
-
-// 状态筛选也是纯展示派生，归入既有格式化工具，避免平行未受管 helper。
-export type AutomationStatusFilter =
-  | "all"
-  | "waiting"
-  | "inProgress"
-  | "paused"
-  | "completed"
-  | "failed";
-export type AutomationStatusFilterKind = Exclude<AutomationStatusFilter, "all">;
-
-/** 默认筛选：不过滤。AutomationsSection 通过该常量引用，避免源码里再出现裸 "all" 触发 All tab 回归断言。 */
-export const DEFAULT_AUTOMATION_STATUS_FILTER: AutomationStatusFilter = "all";
-
-export const SCHEDULED_AUTOMATION_STATUS_FILTERS = [
-  "all",
-  "waiting",
-  "inProgress",
-  "paused",
-  "completed",
-  "failed",
-] as const;
-
-export const SCHEDULED_AUTOMATION_STATUS_LABELS: Record<AutomationStatusFilter, string> = {
-  all: "全部",
-  waiting: "已启用 · 等待执行",
-  inProgress: "执行中",
-  paused: "已暂停",
-  completed: "已完成",
-  failed: "失败",
-};
-
-type AutomationFilterLike = Parameters<typeof resolveAutomationStatusKind>[0] &
-  Parameters<typeof hasAutomationFailureState>[0];
-
-/** 修复原因：enabled 仅允许调度，不能把没有在途运行记录的任务显示为执行中。 */
-export function resolveScheduledAutomationStatus(
-  automation: AutomationFilterLike,
-  runs: readonly Pick<ZCodeAutomationRun, "outcome">[] = [],
-): AutomationStatusFilterKind {
-  if (hasAutomationFailureState(automation)) return "failed";
-  const status = resolveAutomationStatusKind(automation);
-  if (status === "paused" || status === "completed") return status;
-  return runs.some((run) => run.outcome === "running") ? "inProgress" : "waiting";
 }
 
 /** cron builder 支持的频率类型（覆盖 Feishu 自定义重复里最常用的几种）。 */
@@ -126,21 +35,6 @@ export interface CronBuilderState {
 export const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const pad2 = (value: number): string => String(value).padStart(2, "0");
-const AUTOMATION_CARD_RELATIVE_NEXT_RUN_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
-
-export function isSessionCreatedAutomation(
-  automation: { targetTaskId?: string } | null | undefined,
-): boolean {
-  return Boolean(automation?.targetTaskId?.trim());
-}
-
-export function buildAutomationEditCronExpr(
-  state: CronBuilderState,
-  automation: { cronExpr: string; targetTaskId?: string } | null | undefined,
-): string {
-  // Bugfix: 会话内创建的 cron 可能超出 UI builder 的表达能力，编辑其他字段时必须原样保留。
-  return isSessionCreatedAutomation(automation) ? automation!.cronExpr : buildCronExpr(state);
-}
 
 /** 组装 cron builder 状态 → 5 段 cron 表达式（分 时 日 月 周）。 */
 export function buildCronExpr(state: CronBuilderState): string {
@@ -440,84 +334,3 @@ export function describeCron(expr: string, intl: IntlLike): string {
   return describeCronBuilder(builder, intl);
 }
 
-/** UI 调度 builder 是否能无损回显 cron；固定月日和未知表达式必须走“自定义”替换流程。 */
-export function canVisualizeCronInAutomationEditor(expr: string): boolean {
-  const normalizedExpr = expr.trim().replace(/\s+/g, " ");
-  if (/^\d+ \d+ \d+ \d+ \*$/.test(normalizedExpr)) return false;
-  if (/^\d+ \d+ \d+ \*\/\d+ \*$/.test(normalizedExpr)) return false;
-  const builder = parseCronToBuilder(normalizedExpr);
-  return buildCronExpr(builder) === normalizedExpr;
-}
-
-/** 本地时区偏移 → GMT 文案；支持 GMT+8 与 GMT+5:30 这类半小时时区。 */
-export function formatGmtOffset(offsetMinutes = -new Date().getTimezoneOffset()): string {
-  if (offsetMinutes === 0) return "GMT";
-  const sign = offsetMinutes > 0 ? "+" : "-";
-  const absoluteMinutes = Math.abs(offsetMinutes);
-  const hours = Math.floor(absoluteMinutes / 60);
-  const minutes = absoluteMinutes % 60;
-  return `GMT${sign}${hours}${minutes > 0 ? `:${pad2(minutes)}` : ""}`;
-}
-
-/** 毫秒时间戳 → 本地日期时间（YYYY-MM-DD HH:MM）。 */
-export function formatDateTime(ts: number | undefined): string {
-  if (!ts) return "-";
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-/** 相对时间（如 “in 2h”“3d ago”），用于“下次运行 / 上次运行”。 */
-export function formatRelativeToNow(ts: number | undefined, now: number, intl: IntlLike): string {
-  if (!ts) return "-";
-  const diff = ts - now;
-  const abs = Math.abs(diff);
-  const future = diff >= 0;
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-
-  let value: number;
-  let unitId: string;
-  if (abs < minute) {
-    return intl.formatMessage({
-      id: future ? "automations.time.soon" : "automations.time.justNow",
-    });
-  }
-  if (abs < hour) {
-    value = Math.round(abs / minute);
-    unitId = "automations.time.minutes";
-  } else if (abs < day) {
-    value = Math.round(abs / hour);
-    unitId = "automations.time.hours";
-  } else {
-    value = Math.round(abs / day);
-    unitId = "automations.time.days";
-  }
-  const amount = intl.formatMessage({ id: unitId }, { value: String(value) });
-  return intl.formatMessage(
-    { id: future ? "automations.time.in" : "automations.time.ago" },
-    { amount },
-  );
-}
-
-/** 定时任务卡片下次运行时间：过期不展示；一个月内相对时间，更远的未来绝对时间。 */
-export function formatAutomationCardNextRun(
-  ts: number | undefined,
-  now: number,
-  intl: IntlLike,
-): string | null {
-  if (!ts || ts <= now) return null;
-  return ts - now <= AUTOMATION_CARD_RELATIVE_NEXT_RUN_THRESHOLD_MS
-    ? formatRelativeToNow(ts, now, intl)
-    : formatDateTime(ts);
-}
-
-/** 运行时长（毫秒）→ 可读文本（如 “1m 20s”“3s”）。 */
-export function formatDuration(startTs: number | undefined, endTs: number | undefined): string {
-  if (!startTs || !endTs || endTs < startTs) return "-";
-  const totalSec = Math.round((endTs - startTs) / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  if (min <= 0) return `${sec}s`;
-  return `${min}m ${sec}s`;
-}

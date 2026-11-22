@@ -198,7 +198,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const missingRelease = Boolean(
     ai.selectionReady &&
     project &&
-    !ai.view?.availableReleases.some((item) => item.projectId === project.id) &&
+    !ai.view?.releases.some((item) => item.projectId === project.id) &&
     ["todos", "formal", "proposals"].includes(ai.mainView),
   );
   const formal =

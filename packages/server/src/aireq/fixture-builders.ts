@@ -1,15 +1,17 @@
 import { createRequirementSnapshot } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type {
-  AIReqWorkflowView,
   AIReqSystemRequirement,
   AIReqNativeSessionRef,
-  AIReqOperationReceipt,
-  AIReqRequirementGroup,
-  AIReqSelection,
+  AIReqWorkflowTarget,
 } from "@zcode/services/aireq";
 import { prototypeRepositoryKey } from "./project-settings.js";
-import type { PrototypeRepositoryTarget } from "./internal-scenarios.js";
+import type {
+  PrototypeRepositoryTarget,
+  Receipt,
+  RequirementGroup,
+  WorkflowState,
+} from "./workflow-state.js";
 import {
   prototypeIrRoot,
   prototypeSpecPath,
@@ -17,7 +19,7 @@ import {
 } from "./proposal-storage.js";
 import { requirementMaterials } from "./materials.js";
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
-function initialSelectionForDemo(demo?: string): AIReqSelection {
+function initialSelectionForDemo(demo?: string): AIReqWorkflowTarget {
   if (demo === "empty-projects") return {};
   if (demo === "proposal-intake" || demo === "proposal-feedback" || demo === "operation-failure")
     return { projectId: "demo-aurora", irId: "draft-notification" };
@@ -38,16 +40,17 @@ function initialSelectionForDemo(demo?: string): AIReqSelection {
     return { projectId: "demo-aurora", irId: "draft-automation" };
   return { projectId: "demo-aurora" };
 }
-export const DEFAULT_SELECTION: AIReqSelection = initialSelectionForDemo(prototypeRecoveryScenario);
+export const DEFAULT_SELECTION: AIReqWorkflowTarget =
+  initialSelectionForDemo(prototypeRecoveryScenario);
 export const PROTOTYPE_WORKSPACE_IDENTITY = "aireq-mock";
 const PROTOTYPE_RELEASE_ID = "release-2026-11";
 export const createdAt = "2026-11-10T09:00:00.000Z";
 export function prototypeDefaultCommit(
-  view: Pick<AIReqWorkflowView, "repositoryHeads">,
+  view: Pick<WorkflowState, "repositoryHeads">,
   target: PrototypeRepositoryTarget,
 ): string {
   return (
-    view.repositoryHeads?.[prototypeRepositoryKey(target)] ??
+    view.repositoryHeads[prototypeRepositoryKey(target)] ??
     `sample-default-${target.repositoryId}`
   );
 }
@@ -93,7 +96,7 @@ export function receipt(
   irId?: string,
   srId?: string,
   at = createdAt,
-): AIReqOperationReceipt {
+): Receipt {
   return {
     operationId: `sample-operation-${revision}`,
     type,
@@ -119,7 +122,7 @@ export function group(
   rows: AIReqSystemRequirement[],
   draft = false,
   proposerId = "j00808874",
-): AIReqRequirementGroup {
+): RequirementGroup {
   const materials = requirementMaterials(projectId, id, title, rows);
   const files = materials.map(({ path, sha256, size }) => ({ path, sha256, size }));
   const snapshot = createRequirementSnapshot({
@@ -180,15 +183,6 @@ export function group(
     files,
     sessions: [requirementsSession],
     createdAt,
-    ...(!draft
-      ? {
-          worktree: {
-            path: `/demo/worktrees/${projectId}/${id}`,
-            branch: `demo/requirements/${id}`,
-            baseCommit: "sample-base",
-          },
-        }
-      : {}),
     snapshot: snapshot,
     ...(!draft
       ? {

@@ -87,9 +87,6 @@ export function buildWorkflowRunByRunId(
  * 原文挂在那条行的 display/入参上；resume 行的 display 里没有图，填它自己会让详情页落
  * 「可见历史里没有这张工作流图」）。联接摘要带投影的 `toolCallId` 时恒用投影值；缺席
  * 回落点中行的 id——create 行点开时两者本就相等。
- *
- * 顺带挡住覆盖污染：`openWorkflowRunSidePane` 对已存在 tab 做 `{...existing, ...nextTab}`
- * 合并，请求里若带错 id 会把原本正常的 tab 也写坏。
  */
 export function resolveWorkflowRunOpenToolCallId(
   rowToolCallId: string,
@@ -213,53 +210,6 @@ export function buildWorkflowFillGraphByRunId(
     byRunId.set(fill.runId, { graph: fill.graph, holeLabels: labels });
   }
   return byRunId;
-}
-
-/** 卡与侧板取图的唯一入口：补全过就是补全行的图，否则按发起 toolCallId（含「配置」的借图规则）。 */
-export function resolveWorkflowRunGraphForRun(
-  graphs: ReadonlyMap<string, WorkflowCausalityGraphData>,
-  fills: ReadonlyMap<string, WorkflowFillGraph> | undefined,
-  toolCallId: string | undefined,
-  runId: string | undefined,
-  runs: readonly WorkflowRunState[] | undefined,
-): WorkflowCausalityGraphData | undefined {
-  const fill = runId === undefined ? undefined : fills?.get(runId);
-  if (fill !== undefined) return fill.graph;
-  return toolCallId === undefined ? undefined : resolveWorkflowRunGraph(graphs, toolCallId, runs);
-}
-
-/** 「配置」修订出来的 run 的发起 toolCallId 前缀。 */
-export const WORKFLOW_SETTINGS_TOOL_CALL_PREFIX = "settings-";
-
-/**
- * 按发起 toolCallId 取图，外加唯一一条借图规则：
- * 「配置」修订出来的 run（`settings-…`）在它的设置轮落地之前——主代理正在一轮对话里，设置轮要等那一轮
- * 结束——行窗口里还没有它的图，此时经 `resumedFrom` 借前驱的图：它的脚本按构造就是前驱那一份。
- * 其他 run 一概不借——改过的脚本画的是另一张图。前驱自己也可能是一次「配置」，所以沿链上溯，带环保护。
- */
-export function resolveWorkflowRunGraph(
-  graphs: ReadonlyMap<string, WorkflowCausalityGraphData>,
-  toolCallId: string,
-  runs: readonly WorkflowRunState[] | undefined,
-): WorkflowCausalityGraphData | undefined {
-  const visited = new Set<string>();
-  let current: string | undefined = toolCallId;
-  while (current !== undefined && !visited.has(current)) {
-    visited.add(current);
-    const graph = graphs.get(current);
-    if (graph !== undefined) return graph;
-    if (!current.startsWith(WORKFLOW_SETTINGS_TOOL_CALL_PREFIX)) return undefined;
-    const settingsToolCallId: string = current;
-    const run: WorkflowRunState | undefined = runs?.find(
-      (candidate) => candidate.toolCallId === settingsToolCallId,
-    );
-    const predecessorId: string | undefined = run?.resumedFrom;
-    current =
-      predecessorId === undefined
-        ? undefined
-        : runs?.find((candidate) => candidate.runId === predecessorId)?.toolCallId;
-  }
-  return undefined;
 }
 
 /**

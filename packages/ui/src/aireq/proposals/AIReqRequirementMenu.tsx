@@ -166,7 +166,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                           : "失败"}
                     </p>
                     <p className="text-foreground-subtle">
-                      操作人：{item.identity?.employeeId ?? "未记录"}
+                      操作人：{item.actorEmployeeId ?? "未记录"}
                     </p>
                     <time dateTime={item.startedAt}>{recordTime(item.startedAt)}</time>
                     {item.steps.map((step, index) => (

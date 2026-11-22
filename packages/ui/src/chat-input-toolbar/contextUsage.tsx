@@ -183,15 +183,6 @@ function getRenderableTaskUsage<T extends { used: number; size: number }>(
   return taskUsage;
 }
 
-export function refreshContextUsageOnOpen(
-  open: boolean,
-  onAccess: (() => Promise<void> | void) | undefined,
-): void {
-  if (open) {
-    void onAccess?.();
-  }
-}
-
 export function ChatContextUsage({
   codingPlanUsageRemaining,
   startPlanBalance,

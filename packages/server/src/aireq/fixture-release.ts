@@ -1,4 +1,5 @@
 import { group, systemRequirement } from "./fixture-builders.js";
+import type { WorkflowState } from "./workflow-state.js";
 
 interface SrSample {
   id: string;
@@ -114,7 +115,7 @@ const requirements: Array<{
   },
 ];
 
-export function createPrototypeReleaseRequirements() {
+export function createPrototypeReleaseRequirements(): Pick<WorkflowState, "srs" | "groups"> {
   const srs = requirements.flatMap((item) =>
     item.srs.map((sr) => systemRequirement("demo-aurora", item.id, sr.id, sr.title)),
   );

@@ -1,22 +1,24 @@
 import {
   proposalVersion,
   type AIReqGitFileCommit,
-  type AIReqProject,
   type AIReqMaterialHistory,
   type AIReqMaterialView,
-  type AIReqRequirementGroup,
-  type AIReqWorkflowView,
 } from "@zcode/services/aireq";
 import { contentVersion, digestValue } from "./content-digest.js";
 import { businessRule } from "./errors.js";
 import { prototypeGitDocumentRevision } from "./fixture-content.js";
 import { readPrototypeMaterial } from "./recovery.js";
-import { prototypeRepositoryKey, readPrototypeProjectSettings } from "./project-settings.js";
-import type { PrototypeRepositoryTarget } from "./internal-scenarios.js";
+import { prototypeRepositoryKey, readPrototypeProjectSetting } from "./project-settings.js";
+import type {
+  Project,
+  PrototypeRepositoryTarget,
+  RequirementGroup,
+  WorkflowState,
+} from "./workflow-state.js";
 
 export function capturePrototypeMaterialHistory(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   materials: AIReqMaterialView[],
   reason: string,
 ): AIReqMaterialHistory {
@@ -48,9 +50,9 @@ export function prototypeSpecPath(_irId: string, srId: string): string {
 
 // 每个 IR 记录同一 OMP 项目 dir；只返回内存材料路径，不写业务文件。
 export function prototypeProposalLocation(projectId: string, employeeId: string) {
-  const project = readPrototypeProjectSettings().projects.find((item) => item.id === projectId);
+  const project = readPrototypeProjectSetting(projectId);
   if (!project) throw new Error("提案所属项目不存在。");
-  return { projectName: project.storageName ?? project.name, employeeId, directory: project.root };
+  return { employeeId, directory: project.root };
 }
 
 export interface GitDocumentSnapshot {
@@ -60,19 +62,19 @@ export interface GitDocumentSnapshot {
 
 /** 读取器在固定提交中枚举完整受管目录，返回该提交内的文件正文及各自的 Git 提交记录。 */
 export type GitDocumentReader = (
-  project: Pick<AIReqProject, "id" | "repositoryId" | "repositoryUrl" | "defaultBranch">,
+  project: Pick<Project, "id"> & PrototypeRepositoryTarget,
   roots: readonly string[],
 ) => Promise<GitDocumentSnapshot>;
 
 /** 内存仓库保存独立的文件树，平台同步只读该树。 */
-export function createPrototypeGitDocumentSource(initial: AIReqWorkflowView) {
+export function createPrototypeGitDocumentSource(initial: WorkflowState) {
   type GitFile = GitDocumentSnapshot["files"][number];
   type Repository = { commit: string; files: Map<string, GitFile> };
   const repositories = new Map<string, Repository>();
 
   function recordMerge(
-    view: AIReqWorkflowView,
-    group: AIReqRequirementGroup,
+    view: WorkflowState,
+    group: RequirementGroup,
     target: PrototypeRepositoryTarget,
   ): void {
     const merge = group.merge!;
@@ -109,7 +111,7 @@ export function createPrototypeGitDocumentSource(initial: AIReqWorkflowView) {
   for (const project of initial.projects) {
     const key = prototypeRepositoryKey(project);
     const repository = repositories.get(key);
-    const head = initial.repositoryHeads?.[key];
+    const head = initial.repositoryHeads[key];
     if (repository && head) repository.commit = head;
   }
 
@@ -135,7 +137,7 @@ export function createPrototypeGitDocumentSource(initial: AIReqWorkflowView) {
       repository.files.set(seed.moved.to, { path: seed.moved.to, content: moved.content, change });
     }
     repository.commit = commit;
-    (initial.repositoryHeads ??= {})[prototypeRepositoryKey(project)] = commit;
+    initial.repositoryHeads[prototypeRepositoryKey(project)] = commit;
   }
 
   const read: GitDocumentReader = async (project, roots) => {
@@ -150,8 +152,8 @@ export function createPrototypeGitDocumentSource(initial: AIReqWorkflowView) {
 }
 
 export function applyGitDocumentSnapshot(
-  state: AIReqWorkflowView,
-  group: AIReqRequirementGroup,
+  state: WorkflowState,
+  group: RequirementGroup,
   snapshot: GitDocumentSnapshot,
   employeeId: string,
   at: string,

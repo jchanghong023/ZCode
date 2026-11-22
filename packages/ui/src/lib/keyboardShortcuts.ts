@@ -60,31 +60,6 @@ export function formatCommandShortcutLabel(
   return `${mod}+${key.toUpperCase()}`;
 }
 
-export function formatAltCommandShortcutLabel(
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): string {
-  const isApple = isAppleKeyboardPlatform(platformInfo);
-  const command = getCommandModifierLabel(platformInfo);
-  if (isApple) {
-    return formatAppleShortcutLabel("⌥", command, formatShortcutKeyLabel(key));
-  }
-  return `Ctrl+Alt+${key.toUpperCase()}`;
-}
-
-export function formatShiftCommandShortcutLabel(
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): string {
-  const isApple = isAppleKeyboardPlatform(platformInfo);
-  const command = getCommandModifierLabel(platformInfo);
-  const displayKey = formatShortcutKeyLabel(key);
-  if (isApple) {
-    return formatAppleShortcutLabel("⇧", command, displayKey);
-  }
-  return `Ctrl+Shift+${displayKey}`;
-}
-
 function formatShortcutKeyLabel(key: string): string {
   switch (key) {
     case "[":
@@ -96,55 +71,6 @@ function formatShortcutKeyLabel(key: string): string {
   }
 }
 
-export function matchesPrimaryShortcut(
-  event: PrimaryShortcutKeyboardEvent,
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): boolean {
-  return (
-    matchesPrimaryModifier(event, platformInfo) &&
-    !event.shiftKey &&
-    !event.altKey &&
-    matchesShortcutKey(event, key)
-  );
-}
-
-export function matchesPrimaryShiftShortcut(
-  event: PrimaryShortcutKeyboardEvent,
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): boolean {
-  return (
-    matchesPrimaryModifier(event, platformInfo) &&
-    event.shiftKey &&
-    !event.altKey &&
-    matchesShortcutKey(event, key)
-  );
-}
-
-export function matchesPrimaryAltShortcut(
-  event: PrimaryShortcutKeyboardEvent,
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): boolean {
-  return (
-    matchesPrimaryModifier(event, platformInfo) &&
-    !event.shiftKey &&
-    event.altKey &&
-    matchesShortcutKey(event, key)
-  );
-}
-
-function matchesPrimaryModifier(
-  event: PrimaryShortcutKeyboardEvent,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): boolean {
-  const isApple = isAppleKeyboardPlatform(platformInfo);
-  // 主快捷键要按平台隔离。macOS 的 Ctrl 保留给系统 Emacs 风格文本编辑，
-  // Windows/Linux 才使用 Ctrl；同时按下 Ctrl 和 Command 不视作主快捷键，避免误触发。
-  return isApple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-}
-
 export function matchesCtrlShortcut(event: PrimaryShortcutKeyboardEvent, key: string): boolean {
   return (
     event.ctrlKey &&
@@ -153,37 +79,6 @@ export function matchesCtrlShortcut(event: PrimaryShortcutKeyboardEvent, key: st
     !event.altKey &&
     matchesShortcutKey(event, key)
   );
-}
-
-export function matchesCtrlShiftShortcut(
-  event: PrimaryShortcutKeyboardEvent,
-  key: string,
-): boolean {
-  return (
-    event.ctrlKey &&
-    !event.metaKey &&
-    event.shiftKey &&
-    !event.altKey &&
-    matchesShortcutKey(event, key)
-  );
-}
-
-/**
- * 纯 Shift+Tab（不含 Ctrl/Cmd/Alt）匹配工具。
- * 历史上聊天工具栏 mode 曾使用该组合键；保留给仍需要区分反向 Tab 导航的调用方。
- */
-export function matchesShiftTab(event: PrimaryShortcutKeyboardEvent): boolean {
-  return (
-    event.shiftKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    !event.altKey &&
-    (event.key === "Tab" || event.code === "Tab")
-  );
-}
-
-export function formatShiftTabShortcutLabel(platformInfo?: KeyboardShortcutPlatformInfo): string {
-  return isAppleKeyboardPlatform(platformInfo) ? formatAppleShortcutLabel("⇧", "Tab") : "Shift+Tab";
 }
 
 function matchesShortcutKey(

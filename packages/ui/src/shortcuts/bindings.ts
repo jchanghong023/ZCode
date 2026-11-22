@@ -9,7 +9,6 @@ import {
   type ParsedShortcutBinding,
   type ShortcutCommandId,
   parseShortcutBinding,
-  serializeShortcutBinding,
   SHORTCUT_COMMANDS,
 } from "@zcode/shared";
 import {
@@ -166,42 +165,6 @@ function modifiersMatch(
   return parsed.shift === shift;
 }
 
-/**
- * 纯 Shift+可打印单字符绑定（如 Shift+f）判定。
- * 这类绑定与「输入大写字母」是同一物理事件；事件目标是可编辑元素时
- * 命中它必须放行，否则用户在输入框打不出该大写字母（按键被 preventDefault 吞掉并触发命令）。
- */
-export function isShiftOnlyPrintableBinding(binding: string): boolean {
-  const parsed = parseShortcutBinding(binding);
-  if (parsed === null) {
-    return false;
-  }
-  return (
-    !parsed.cmdOrCtrl &&
-    !parsed.ctrl &&
-    !parsed.alt &&
-    !parsed.altGr &&
-    parsed.shift &&
-    parsed.key.length === 1
-  );
-}
-
-/**
- * 快捷键事件的目标是否为可编辑元素（input/textarea/select 或 contenteditable）。
- * 与 isShiftOnlyPrintableBinding 配套：可编辑目标内跳过纯 Shift 可打印键绑定。
- * 无 DOM 环境（node 单测）下恒为 false。
- */
-export function isEditableShortcutEventTarget(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined" || !(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
 /** 键匹配：event.key 小写比较优先，event.code 兜底（macOS Option 改写、非 US 布局）。 */
 function eventMatchesKey(event: Pick<ShortcutBindingEvent, "key" | "code">, key: string): boolean {
   if (event.key === key) {
@@ -220,123 +183,11 @@ function eventMatchesKey(event: Pick<ShortcutBindingEvent, "key" | "code">, key:
 // 录制器
 // ============================================================================
 
-export type ShortcutRecordResult =
-  | { kind: "pending" }
-  | { kind: "binding"; binding: string }
-  | { kind: "invalid"; reason: "no-modifier" | "unsupported-key" };
-
-function isModifierOnlyKey(key: string): boolean {
-  return (
-    key === "Shift" ||
-    key === "Control" ||
-    key === "Meta" ||
-    key === "Alt" ||
-    key === "AltGraph" ||
-    key === "OS"
-  );
-}
-
-/**
- * 录制键盘事件为规范绑定串。
- *
- * - pending：纯修饰键按下 / 无可反查 code 的 IME 噪声 —— 继续等待用户按出完整组合；
- * - binding：合法组合（主修饰键平台归一：mac 的 Cmd、win/linux 的 Ctrl → CmdOrCtrl；mac 显式 Ctrl 保留为 Ctrl）；
- * - invalid：无修饰键的普通键（F 键与方向键除外）或不支持的键。
- *
- * 键名提取优先 event.code 反查物理基键（Shift+7 在任何布局都录出 "7" 而非 "&"），
- * event.key 仅作 fallback。IME 组合事件（isComposing/Process/229）的 key 不可信，但
- * event.code 仍是物理键 —— 录制是点击录制按钮后的显式意图，中文输入法开启时焦点若在
- * 可编辑元素里，Shift+字母 会被 IME 吞成组合输入，此时仍按 code 录制（匹配侧照旧过滤，
- * 见 isShortcutEventNoise）。Escape / Backspace 的录制态语义（取消/清除）由设置页 UI 处理。
- */
-export function recordShortcutBinding(
-  event: ShortcutBindingEvent,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): ShortcutRecordResult {
-  if (event.repeat === true || isModifierOnlyKey(event.key)) {
-    return { kind: "pending" };
-  }
-
-  if (isImeEvent(event)) {
-    const codeKey = event.code !== undefined ? CODE_TO_KEY[event.code] : undefined;
-    if (codeKey === undefined) {
-      return { kind: "pending" };
-    }
-    return buildRecordedBinding(event, codeKey, platformInfo);
-  }
-
-  const key =
-    event.code !== undefined
-      ? (CODE_TO_KEY[event.code] ?? normalizeEventKey(event.key))
-      : normalizeEventKey(event.key);
-  if (key === null) {
-    return { kind: "invalid", reason: "unsupported-key" };
-  }
-  return buildRecordedBinding(event, key, platformInfo);
-}
-
-/** 录制尾部：修饰键校验 + 平台归一 + 序列化（键名已由调用方提取）。 */
-function buildRecordedBinding(
-  event: ShortcutBindingEvent,
-  key: string,
-  platformInfo?: KeyboardShortcutPlatformInfo,
-): ShortcutRecordResult {
-  const isApple = isAppleKeyboardPlatform(platformInfo);
-  const hasModifier = event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
-  // F 键 / 方向键等命名键（多字符）允许无修饰单键；普通字符键必须至少一个修饰键。
-  const namedKey = key.length > 1;
-  if (!hasModifier && !namedKey) {
-    return { kind: "invalid", reason: "no-modifier" };
-  }
-
-  const parsed: ParsedShortcutBinding = {
-    // AltGr 与 Ctrl+Alt 物理不可区分，录制统一产出 CmdOrCtrl+Alt（用户心智里按的就是 Ctrl+Alt）。
-    cmdOrCtrl: isApple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey,
-    ctrl: isApple ? event.ctrlKey && !event.metaKey : false,
-    alt: event.altKey,
-    shift: event.shiftKey,
-    altGr: false,
-    key,
-  };
-
-  // mac 的 Cmd+Ctrl+组合、win/linux 的纯 Meta（Win 键）组合经平台归一后
-  // cmdOrCtrl/ctrl 双双归 false，而上面 hasModifier 用原始事件校验已放行，序列化产物会变成
-  // 裸单键（如 "k"）——不在保留黑名单、不触发冲突检测，落盘后全应用每次裸按该键都命中
-  // 命令并吞掉输入。序列化前校验主修饰键没有在归一中丢失。
-  if ((event.metaKey || event.ctrlKey) && !parsed.cmdOrCtrl && !parsed.ctrl) {
-    return { kind: "invalid", reason: "unsupported-key" };
-  }
-
-  const binding = serializeShortcutBinding(parsed);
-  if (binding === null) {
-    return { kind: "invalid", reason: "unsupported-key" };
-  }
-  return { kind: "binding", binding };
-}
-
-/** event.key → 规范键名（仅 fallback 路径）：单字符小写化，命名键原样。 */
-function normalizeEventKey(rawKey: string): string | null {
-  if (rawKey.length === 1) {
-    return /^[a-zA-Z0-9[\]=\-,./;'\\`]$/.test(rawKey) ? rawKey.toLowerCase() : null;
-  }
-  return rawKey in KEY_TO_CODE ? rawKey : null;
-}
-
 // ============================================================================
 // 录制态抑制
 // ============================================================================
 
 let shortcutRecordingActive = false;
-
-/**
- * 设置页进入快捷键录制态时置 true。
- * 录制监听与 useAppKeyboard 同为 window capture 监听，但注册更晚（点击录制按钮才挂），
- * 同阶段先注册先执行——录制按下的组合会先触发原命令再进入录制处理，改键永远不成功。
- * useAppKeyboard 分发前检查此标记短路；浏览器没有原生菜单通道。
- */
-export function setShortcutRecordingActive(active: boolean): void {
-  shortcutRecordingActive = active;
-}
 
 export function isShortcutRecordingActive(): boolean {
   return shortcutRecordingActive;

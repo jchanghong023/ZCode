@@ -26,11 +26,11 @@ async function usingClient(run: (client: STClient) => Promise<void>, employeeId?
   }
 }
 function summary(view: AIReqWorkflowView, projectId: string, releaseId: string) {
-  const project = view.projectDocuments?.find((item) => item.projectId === projectId);
-  expect(project, "公开 readWorkflow 必须提供当前项目的文档数量投影").toBeDefined();
-  const release = project!.releases.find((item) => item.releaseId === releaseId);
+  const release = view.releases.find(
+    (item) => item.projectId === projectId && item.id === releaseId,
+  );
   expect(release, "空 Release 也必须有同源统计").toBeDefined();
-  return { project: project!, release: release! };
+  return release!;
 }
 function projectActivity(view: AIReqWorkflowView, projectId: string) {
   const irIds = new Set(
@@ -148,7 +148,7 @@ describe("ST same-owner workflow projections", () => {
         const target = await createProject(client);
         const emptyView = (await client.read(target.selection)).view;
         const empty = summary(emptyView, target.projectId, target.releaseId);
-        expect(empty.release).toMatchObject({
+        expect(empty).toMatchObject({
           proposalCount: 0,
           formalCount: 0,
         });
@@ -164,7 +164,7 @@ describe("ST same-owner workflow projections", () => {
         );
         const current = (await client.read(target.selection)).view;
         const currentSummary = summary(current, target.projectId, target.releaseId);
-        expect(currentSummary.release).toMatchObject({
+        expect(currentSummary).toMatchObject({
           proposalCount: 1,
           formalCount: 0,
         });
@@ -232,7 +232,7 @@ describe("ST same-owner workflow projections", () => {
           changedAt: expect.any(String),
         });
         expect(todos(confirmed.view)).toEqual([expect.objectContaining({ kind: "publish" })]);
-        expect(summary(confirmed.view, target.projectId, target.releaseId).release).toMatchObject({
+        expect(summary(confirmed.view, target.projectId, target.releaseId)).toMatchObject({
           proposalCount: 1,
           formalCount: 0,
         });
@@ -259,12 +259,9 @@ describe("ST same-owner workflow projections", () => {
         const changed = await client.read(proposal.selection);
         const changedProject = changed.view.projects.find((item) => item.id === project.id)!;
         expect(changedProject).toMatchObject({
-          repositoryId: project.repositoryId,
           repositoryUrl: replacementUrl,
           defaultBranch: project.defaultBranch,
         });
-        const head = changed.view.repositoryHeads?.[project.repositoryId];
-        expect(head).toBeTruthy();
         const observed = await waitUntil(
           "the server observes the old MR after the URL-only repository change",
           () => client.read(proposal.selection),
@@ -278,7 +275,10 @@ describe("ST same-owner workflow projections", () => {
         });
         expect(blocked?.merge).toBeUndefined();
         expect(observed.view.groups.some((item) => item.id === irId)).toBe(false);
-        expect(observed.view.repositoryHeads?.[project.repositoryId]).toBe(head);
+        expect(summary(observed.view, target.projectId, target.releaseId)).toMatchObject({
+          proposalCount: 1,
+          formalCount: 0,
+        });
 
         await changeRepository(originalUrl, changedProject.revision);
         const { view: archived } = await waitUntil(
@@ -287,7 +287,7 @@ describe("ST same-owner workflow projections", () => {
           (value) => value.view.groups.some((item) => item.id === irId),
           config.timeoutMs,
         );
-        expect(summary(archived, target.projectId, target.releaseId).release).toMatchObject({
+        expect(summary(archived, target.projectId, target.releaseId)).toMatchObject({
           proposalCount: 0,
           formalCount: 1,
         });
@@ -301,7 +301,7 @@ describe("ST same-owner workflow projections", () => {
           review: { id: review.id },
         });
         expect(formal.merge?.files).toEqual(group.files);
-        expect(archived.repositoryHeads?.[project.repositoryId]).toBe(formal.merge?.commit);
+        expect(formal.merge?.commit).toMatch(/\S/);
         expect(archived.materials.filter((item) => item.irId === irId)).toEqual(
           expect.arrayContaining(group.files.map((file) => expect.objectContaining(file))),
         );
@@ -312,37 +312,48 @@ describe("ST same-owner workflow projections", () => {
         const replacement = (await client.read(proposal.selection)).view.projects.find(
           (item) => item.id === project.id,
         )!;
+        const sync = { type: "syncFormalDocuments" as const, projectId: project.id, irId };
         try {
-          await expect(
-            client.command(
-              { type: "syncFormalDocuments", projectId: project.id, irId },
-              proposal.selection,
-            ),
-          ).rejects.toThrow(/暂无已登记的文档快照/);
+          await expect(client.command(sync, proposal.selection)).rejects.toThrow(
+            /暂无已登记的文档快照/,
+          );
         } finally {
           await changeRepository(originalUrl, replacement.revision);
         }
+        expect((await client.command(sync, proposal.selection)).receipt.status).toBe("completed");
+        const synced = (await client.read(proposal.selection)).view;
+        expect(synced.groups.find((item) => item.id === irId)?.materialHistory).toEqual(
+          formal.materialHistory,
+        );
+        expect(synced.materials.filter((item) => item.irId === irId)).toEqual(
+          archived.materials.filter((item) => item.irId === irId),
+        );
       });
     },
     config.timeoutMs,
   );
 
   it(
-    "separates each Release's proposals within the same project snapshot",
+    "projects global Release counts without exposing other projects' details",
     async () => {
       await usingClient(async (client) => {
         const target = await createProject(client);
+        const other = await createProject(client);
         const second = await client.command(
           { type: "createRelease", projectId: target.projectId, title: unique("第二版本") },
           target.selection,
         );
         expect(second.receipt.status).toBe("completed");
         const directory = (await client.read(target.selection)).view;
-        const releaseIds = directory.releases.filter(
+        const secondReleases = directory.releases.filter(
           (item) => item.projectId === target.projectId && item.id !== target.releaseId,
         );
-        expect(releaseIds).toHaveLength(1);
-        const secondRelease = releaseIds[0]!;
+        expect(secondReleases).toHaveLength(1);
+        const secondRelease = secondReleases[0]!;
+        expect(summary(directory, other.projectId, other.releaseId)).toMatchObject({
+          proposalCount: 0,
+          formalCount: 0,
+        });
         await client.command(
           {
             type: "createProposal",
@@ -371,14 +382,22 @@ describe("ST same-owner workflow projections", () => {
           target.selection,
         );
         const view = (await client.read(target.selection)).view;
-        expect(summary(view, target.projectId, target.releaseId).release).toMatchObject({
+        expect(summary(view, target.projectId, target.releaseId)).toMatchObject({
           proposalCount: 1,
         });
-        expect(summary(view, target.projectId, secondRelease.id).release).toMatchObject({
+        expect(summary(view, target.projectId, secondRelease.id)).toMatchObject({
           title: secondRelease.title,
           createdAt: secondRelease.createdAt,
           proposalCount: 2,
         });
+        const otherView = (await client.read(other.selection)).view;
+        expect(summary(otherView, target.projectId, target.releaseId)).toEqual(
+          summary(view, target.projectId, target.releaseId),
+        );
+        expect(summary(otherView, target.projectId, secondRelease.id)).toEqual(
+          summary(view, target.projectId, secondRelease.id),
+        );
+        expect(otherView.drafts.some((item) => item.projectId === target.projectId)).toBe(false);
       });
     },
     config.timeoutMs,
@@ -446,6 +465,7 @@ describe("ST same-owner workflow projections", () => {
             (item) => item.id === target.irId && item.projectId === target.projectId,
           );
           expect(sharedGroup?.contacts?.business).toBe(otherEmployee);
+          expect(sharedGroup).not.toHaveProperty("contactHistory");
         } finally {
           await other.close();
         }

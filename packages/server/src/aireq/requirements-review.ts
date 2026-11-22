@@ -1,4 +1,5 @@
-import type { AIReqReviewScenario, InternalRequirementGroup } from "./internal-scenarios.js";
+import type { AIReqReviewScenario } from "./internal-scenarios.js";
+import type { RequirementGroup, Review, WorkflowState } from "./workflow-state.js";
 import {
   requirementsReviewInputs,
   requirementsReviewStartBlocker,
@@ -13,11 +14,8 @@ import {
 import { readPrototypeAgentModelBinding } from "./agent-models.js";
 import type {
   AIReqNativeSessionRef,
-  AIReqRequirementGroup,
-  AIReqReview,
   AIReqReviewAgent,
   AIReqReviewAgentId,
-  AIReqWorkflowView,
 } from "@zcode/services/aireq";
 
 function prototypeReviewModelBindings() {
@@ -30,7 +28,7 @@ function prototypeReviewModelBindings() {
     ] as const
   ).map(readPrototypeAgentModelBinding);
 }
-export function prototypeReviewSessions(review: AIReqReview): AIReqNativeSessionRef[] {
+export function prototypeReviewSessions(review: Review): AIReqNativeSessionRef[] {
   return (
     review.agents?.map((agent) => agent.session) ??
     ("projectId" in review.reviewer ? [review.reviewer] : [])
@@ -38,13 +36,13 @@ export function prototypeReviewSessions(review: AIReqReview): AIReqNativeSession
 }
 /** Create a version-bound round; only historical seed facts start settled. */
 export function createPrototypeRequirementsReview(
-  group: AIReqRequirementGroup,
+  group: RequirementGroup,
   employeeId: string,
   seedPassed = false,
   kind: "original" | "full" = "original",
   scenario: AIReqReviewScenario = "normal",
   settled = true,
-): AIReqReview {
+): Review {
   const round =
     kind === "original"
       ? (group.originalReviewHistory?.length ?? 0) + 1
@@ -66,7 +64,6 @@ export function createPrototypeRequirementsReview(
     name: names[index]!,
     status: key === "summary" ? "pending" : "running",
     report: "",
-    promptSnapshot: bindings[index]!.promptSnapshot || undefined,
     session: {
       projectId: group.projectId,
       irId: group.id,
@@ -77,7 +74,7 @@ export function createPrototypeRequirementsReview(
       round,
     },
   }));
-  const review: AIReqReview = {
+  const review: Review = {
     id,
     kind,
     snapshotDigest: digest,
@@ -109,7 +106,7 @@ export function createPrototypeRequirementsReview(
 
 /** Complete the admitted runs and start summary only after three readable, successful reports. */
 export function advancePrototypeReview(
-  review: AIReqReview,
+  review: Review,
   scenario: Exclude<AIReqReviewScenario, "hold">,
 ): boolean {
   const agents = review.agents ?? [];
@@ -152,7 +149,7 @@ export function advancePrototypeReview(
 }
 
 function finishPrototypeReport(
-  review: AIReqReview,
+  review: Review,
   agent: AIReqReviewAgent,
   scenario: Exclude<AIReqReviewScenario, "hold">,
 ): void {
@@ -177,8 +174,8 @@ export interface PrototypeReviewRun {
 
 /** Admit only from an explicit submission or retry, against the current material version. */
 export function acceptPrototypeReview(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   kind: "original" | "full",
   employeeId: string,
   retry = false,
@@ -200,9 +197,8 @@ export function acceptPrototypeReview(
       : (proposal.originalReviewHistory ??= []);
     history.push(prior);
   }
-  const internal: InternalRequirementGroup = proposal;
-  const scenario = internal.reviewScenarios?.[kind] ?? "normal";
-  delete internal.reviewScenarios?.[kind];
+  const scenario = proposal.reviewScenarios?.[kind] ?? "normal";
+  delete proposal.reviewScenarios?.[kind];
   const review = createPrototypeRequirementsReview(
     proposal,
     employeeId,
@@ -217,7 +213,7 @@ export function acceptPrototypeReview(
   proposal.sessions.push(...sessions);
   state.sessions.push(...sessions);
   if (scenario === "hold") {
-    (internal.heldReviews ??= []).push(review);
+    (proposal.heldReviews ??= []).push(review);
     return;
   }
   return {

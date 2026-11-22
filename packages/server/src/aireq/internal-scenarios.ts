@@ -1,16 +1,9 @@
-import type {
-  AIReqAction,
-  AIReqCommandBase,
-  AIReqProject,
-  AIReqRequirementGroup,
-  AIReqProposalDelivery,
-  AIReqReview,
-} from "@zcode/services/aireq";
+import type { AIReqAction, AIReqCommandBase } from "@zcode/services/aireq";
 
 // 生成材料只由原生讨论完成回调驱动，不能出现在浏览器安全的公共命令类型中。
 export type InternalWorkflowAction =
   | AIReqAction
-  | (Omit<AIReqCommandBase, "operationId" | "expectedRevision"> &
+  | (AIReqCommandBase &
       (
         | { type: "generateRequirements"; note: string }
         | { type: "supplementRequirements"; note: string }
@@ -34,27 +27,3 @@ export type AIReqPrHandoffScenario =
   | "stale-version";
 
 export type AIReqReviewScenario = "normal" | "blocked" | "failed" | "hold";
-
-export type InternalRequirementGroup = AIReqRequirementGroup & {
-  reviewScenarios?: { original?: AIReqReviewScenario; full?: AIReqReviewScenario };
-  heldReviews?: AIReqReview[];
-};
-export type PrototypeRepositoryTarget = Pick<
-  AIReqProject,
-  "repositoryId" | "repositoryUrl" | "defaultBranch"
->;
-
-export type InternalProposalDelivery = AIReqProposalDelivery & {
-  repositoryTarget?: PrototypeRepositoryTarget;
-  mergeScenario?: AIReqProposalMergeScenario;
-  simulatedMr?: {
-    candidate: string;
-    version: string;
-    manifest: string;
-    number: number;
-    openedAt: string;
-    mergeEligibleAt: string;
-    status: "opened" | "merged";
-    commit?: string;
-  };
-};

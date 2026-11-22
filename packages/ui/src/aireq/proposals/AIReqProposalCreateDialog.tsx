@@ -27,7 +27,7 @@ export function AIReqProposalReleaseField({
   onChange,
 }: {
   releaseId: string;
-  releases: readonly { id: string; title: string }[];
+  releases: readonly { id: string; title: string }[] | undefined;
   busy: boolean;
   onChange(id: string): void;
 }) {
@@ -37,28 +37,32 @@ export function AIReqProposalReleaseField({
     <div className="space-y-2">
       <Label>{zh ? "所属 Release" : "Release"}</Label>
       <Select
-        value={releaseId || undefined}
-        disabled={busy || !releases.length}
+        value={releases?.some((release) => release.id === releaseId) ? releaseId : ""}
+        disabled={busy || !releases?.length}
         onValueChange={onChange}
       >
         <SelectTrigger aria-label={zh ? "选择所属 Release" : "Choose a Release"}>
           <SelectValue placeholder={zh ? "选择具体 Release" : "Choose a Release"} />
         </SelectTrigger>
         <SelectContent>
-          {releases.map((release) => (
+          {releases?.map((release) => (
             <SelectItem key={release.id} value={release.id}>
               {release.title}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {!releases.length && (
+      {!releases ? (
+        <p role="status" className="text-ui-sm text-foreground-subtle">
+          {zh ? "正在读取 Release…" : "Loading releases…"}
+        </p>
+      ) : !releases.length ? (
         <p className="text-ui-sm text-foreground-subtle">
           {zh
             ? "当前项目尚无 Release，请关闭弹窗并在项目配置中添加。"
             : "This project has no Releases. Close this dialog and add one in project settings."}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

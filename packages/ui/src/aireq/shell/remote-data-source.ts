@@ -12,6 +12,7 @@ import {
   type AIReqRemoteArgs,
   type AIReqRemoteResult,
   type AIReqSelection,
+  type AIReqWorkflowTarget,
   type AIReqWorkflowView,
 } from "../contract.js";
 import type { IServiceAccessor } from "../contract.js";
@@ -20,6 +21,11 @@ const snapshots = new WeakMap<
   AIReqWorkflowView,
   { key: string; reviewScopeKey: string; selection: AIReqSelection; value: AIReqRemoteWorkflow }
 >();
+
+function workflowTarget(selection: AIReqSelection): AIReqWorkflowTarget {
+  const { materialPath: _materialPath, proposalDraftId: _proposalDraftId, ...target } = selection;
+  return target;
+}
 
 export async function createRemoteAIReqDataSource(
   services: IServiceAccessor,
@@ -87,19 +93,10 @@ export async function createRemoteAIReqDataSource(
     return incoming;
   };
   let metadata: AIReqRemoteBootstrap;
-  // Project-only workspace projections come from the same server owner as workflow scopes.
-  // Never turn an unavailable client fallback into an executable project identity.
-  let projectWorkspaces = new Map<string, AIReqRemoteWorkflow["workspace"]>();
-  const readProjectWorkspaces = async (incoming: AIReqRemoteBootstrap) => {
-    const entries = await Promise.all(
-      Object.keys(incoming.projects.developmentRoots).map(async (projectId) => {
-        const target = { projectId };
-        const result = await call("readWorkflow", [target]);
-        return [projectId, result.workspace] as const;
-      }),
-    );
-    return new Map(entries);
-  };
+  const projectWorkspace = (projectId: string) =>
+    Object.hasOwn(metadata.projects.workspaces, projectId)
+      ? metadata.projects.workspaces[projectId]
+      : undefined;
   let promptDraft: AIReqRemoteBootstrap["prompts"]["saved"];
   let refreshFlight: Promise<void> | undefined;
   const refreshMetadata = (): Promise<void> => {
@@ -109,13 +106,11 @@ export async function createRemoteAIReqDataSource(
         for (;;) {
           const generation = invalidationGeneration;
           const incoming = await readBootstrap();
-          const incomingWorkspaces = await readProjectWorkspaces(incoming);
           if (disposed) throw new Error("AIReq连接已关闭");
           if (generation !== invalidationGeneration) continue;
           if (JSON.stringify(promptDraft) === JSON.stringify(metadata.prompts.saved))
             promptDraft = { ...incoming.prompts.saved };
           metadata = incoming;
-          projectWorkspaces = incomingWorkspaces;
           break;
         }
       } finally {
@@ -154,10 +149,8 @@ export async function createRemoteAIReqDataSource(
     for (;;) {
       const generation = invalidationGeneration;
       const incoming = await readBootstrap();
-      const incomingWorkspaces = await readProjectWorkspaces(incoming);
       if (generation !== invalidationGeneration) continue;
       metadata = incoming;
-      projectWorkspaces = incomingWorkspaces;
       promptDraft = { ...metadata.prompts.saved };
       initializing = false;
       break;
@@ -198,7 +191,7 @@ export async function createRemoteAIReqDataSource(
         await refreshMetadata();
         metadataRefreshError = undefined;
       }
-      const result = await call("readWorkflow", [target]);
+      const result = await call("readWorkflow", [workflowTarget(target)]);
       snapshots.set(result.view, {
         key: JSON.stringify(target),
         reviewScopeKey: JSON.stringify({ ...target, reviewAgent: undefined }),
@@ -209,13 +202,13 @@ export async function createRemoteAIReqDataSource(
     },
     subscribeWorkflow: (listener) => subscribe(workflowListeners, listener),
     command: async (action, target, revision) => {
-      // 普通业务按钮没有显式编号；在唯一远程入口补齐一次，避免被 owner 的幂等门禁拒绝。
-      const command = {
-        ...action,
-        operationId: action.operationId ?? createUuid(),
-        expectedRevision: action.expectedRevision ?? revision,
-      };
-      const result = await call("command", [command, target, revision]);
+      // 表单可能开始于更早的视图；只把它当成 CAS 基线，不让后台重读悄悄升级。
+      const { operationId, expectedRevision, ...intent } = action;
+      const result = await call("command", [
+        { ...intent, operationId: operationId ?? createUuid() },
+        workflowTarget(target),
+        expectedRevision ?? revision,
+      ]);
       await refreshMetadata();
       return result;
     },
@@ -238,14 +231,14 @@ export async function createRemoteAIReqDataSource(
         return snapshot.value.workspace;
       }
       if (target.projectId && !target.irId && !target.srId && !target.proposalDraftId) {
-        const workspace = projectWorkspaces.get(target.projectId);
+        const workspace = projectWorkspace(target.projectId);
         if (workspace) return workspace;
       }
       return { identity: `aireq-remote:${clientId}`, kind: "unavailable" };
     },
     retryMaterial: (request) => call("retryMaterial", [request]),
     retrySession: async (target, sessionId) => {
-      await call("retrySession", [target, sessionId]);
+      await call("retrySession", [workflowTarget(target), sessionId]);
     },
     readPrHandoff: (target) => call("readPrHandoff", [target]),
     dispose() {
@@ -258,7 +251,10 @@ export async function createRemoteAIReqDataSource(
         await call("projects.saveRepository", [input]);
         await refreshMetadata();
       },
-      readDevelopmentRoot: (projectId) => metadata.projects.developmentRoots[projectId],
+      readDevelopmentRoot: (projectId) => {
+        const workspace = projectWorkspace(projectId);
+        return workspace?.kind === "unavailable" ? undefined : workspace?.path;
+      },
     },
     models: {
       get choices() {

@@ -35,14 +35,6 @@ export interface PptxElementReference extends PresentationPageElement {
   capturedAt: number;
 }
 
-export interface PptxElementReferenceSource {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  sourcePath: string;
-  sourceTitle: string;
-}
-
 interface ParsedPptxElementReferencePrompt {
   visibleContent: string;
   pptxElementReferences: PptxElementReference[];
@@ -134,55 +126,6 @@ export function isPptxElementReferencePayload(payload: unknown): payload is Pptx
   );
 }
 
-export function createPptxElementReferenceId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `pptx-element-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-export async function sha256Fingerprint(value: ArrayBuffer | string): Promise<string> {
-  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : new Uint8Array(value);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return `sha256:${hex}`;
-}
-
-export async function createPptxElementReference(options: {
-  element: PresentationPageElement;
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  sourcePath: string;
-  sourceTitle: string;
-  sourceFingerprint: string;
-  selectedText?: string;
-  comment?: string;
-}): Promise<PptxElementReference> {
-  const selectedText = options.selectedText?.trim();
-  const comment = options.comment?.trim();
-  return {
-    ...options.element,
-    id: createPptxElementReferenceId(),
-    workspacePath: options.workspacePath,
-    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
-    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
-    sourcePath: options.sourcePath,
-    sourceTitle: options.sourceTitle,
-    sourceFingerprint: options.sourceFingerprint,
-    ...(selectedText ? { selectedText } : {}),
-    ...(comment ? { comment } : {}),
-    ...(options.element.text
-      ? {
-          textFingerprint: await sha256Fingerprint(options.element.text.trim()),
-        }
-      : {}),
-    capturedAt: Date.now(),
-  };
-}
-
 function getReferenceDedupeKey(reference: PptxElementReference) {
   return [
     reference.sourcePath,
@@ -259,10 +202,3 @@ export function isPptxElementReferenceAddToChatEvent(
   );
 }
 
-export function dispatchPptxElementReferenceAddToChat(reference: PptxElementReference) {
-  window.dispatchEvent(
-    new CustomEvent(PPTX_ELEMENT_REFERENCE_ADD_TO_CHAT_EVENT, {
-      detail: reference,
-    }),
-  );
-}

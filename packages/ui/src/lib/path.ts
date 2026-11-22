@@ -8,30 +8,6 @@ export function getPathLeaf(path: string): string {
   return segments[segments.length - 1] ?? path;
 }
 
-export function getContainingDirectoryPath(path: string): string | null {
-  const trimmedPath = path.trim().replace(/[\\/]+$/, "");
-  if (!trimmedPath) {
-    return null;
-  }
-
-  const lastSeparatorIndex = Math.max(trimmedPath.lastIndexOf("/"), trimmedPath.lastIndexOf("\\"));
-
-  if (lastSeparatorIndex < 0) {
-    return null;
-  }
-
-  if (lastSeparatorIndex === 0) {
-    return trimmedPath[0] ?? null;
-  }
-
-  const parentPath = trimmedPath.slice(0, lastSeparatorIndex);
-  if (/^[A-Za-z]:$/.test(parentPath)) {
-    return `${parentPath}${trimmedPath[lastSeparatorIndex] ?? "\\"}`;
-  }
-
-  return parentPath || null;
-}
-
 export function isAbsoluteFilePath(path: string): boolean {
   return path.startsWith("/") || WINDOWS_ABSOLUTE_PATH_RE.test(path) || UNC_PATH_RE.test(path);
 }

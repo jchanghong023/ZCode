@@ -51,12 +51,6 @@ export interface MarkdownSelectionReference extends ConversationSelectionText {
 
 export type ConversationSelectionReference = MessageSelectionReference | MarkdownSelectionReference;
 
-export interface MarkdownSelectionTarget {
-  sessionId: string | null;
-  workspaceKey: string;
-  draftScopeKey?: string;
-}
-
 export type ConversationSelectionDisplayReference =
   | ConversationSelectionText
   | ConversationSelectionReference;
@@ -145,16 +139,6 @@ export function getConversationSelectionReferenceLimitReason(
   draftScopeKey?: string,
 ): ConversationSelectionLimitReason | null {
   return limitReasonByScope.get(referenceScopeKey(sessionId, workspaceKey, draftScopeKey)) ?? null;
-}
-
-export function clearConversationSelectionReferenceScope(
-  sessionId: string,
-  workspaceKey: string,
-): void {
-  referencesByScope.delete(referenceScopeKey(sessionId, workspaceKey));
-  limitReasonByScope.delete(referenceScopeKey(sessionId, workspaceKey));
-  sentReferencesByScope.delete(referenceScopeKey(sessionId, workspaceKey));
-  notifyScopeListeners();
 }
 
 export function clearConversationSelectionReferenceLimitReason(

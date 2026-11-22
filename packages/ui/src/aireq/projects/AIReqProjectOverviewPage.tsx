@@ -38,19 +38,13 @@ export function AIReqProjectOverviewPage({
   const release = view?.releases.find(
     (item) => item.projectId === project?.id && item.id === ai.releaseId,
   );
-  const summary =
-    ai.selectionReady && release
-      ? view?.projectDocuments
-          ?.find((item) => item.projectId === project?.id)
-          ?.releases.find((item) => item.releaseId === release.id)
-      : undefined;
   const proposals =
     view?.drafts.filter(
       (item) => item.projectId === project?.id && item.releaseId === release?.id,
     ) ?? [];
   // The view contains every draft for the project, but its todos are filtered by operator role.
   const confirmationTodos = view
-    ? deriveAIReqTodos({ ...view, drafts: proposals }).filter(
+    ? deriveAIReqTodos({ drafts: proposals }).filter(
         (todo) => todo.kind === "original-review" || todo.kind === "alignment",
       )
     : [];
@@ -174,15 +168,6 @@ export function AIReqProjectOverviewPage({
               {zh ? "配置项目" : "Configure project"}
             </Button>
           </div>
-        ) : !summary ? (
-          <div role="status" className="space-y-3">
-            <p>{unavailable}</p>
-            {!ai.pending && (
-              <Button variant="outline" onClick={() => void ai.refresh()}>
-                {zh ? "重试" : "Retry"}
-              </Button>
-            )}
-          </div>
         ) : (
           <>
             <section
@@ -202,12 +187,12 @@ export function AIReqProjectOverviewPage({
                 {[
                   {
                     label: zh ? "正式文档" : "Formal documents",
-                    count: summary.formalCount,
+                    count: release.formalCount,
                     target: "formal" as const,
                   },
                   {
                     label: zh ? "需求提案" : "Proposals",
-                    count: summary.proposalCount,
+                    count: release.proposalCount,
                     target: "proposals" as const,
                   },
                   {

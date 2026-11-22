@@ -1,5 +1,3 @@
-import type { MentionItem } from "./mentionTypes.js";
-
 const LINK_MENTION_MARKDOWN_PATTERN =
   /\[((?:\\.|[^\\\]])*)\]\((?:<((?:\\.|[^>])*?)>|((?:\\.|[^)])*))\)/g;
 const INLINE_MENTION_TOKEN_PATTERN =
@@ -95,39 +93,6 @@ export const ELEMENT_MENTION_SCHEME = "zcode-element://";
 
 export function buildElementMentionMarkdown(label: string, referenceId: string): string {
   return `[${escapeMarkdownLabel(`@${label}`)}](${ELEMENT_MENTION_SCHEME}${escapeMarkdownDestination(referenceId)})`;
-}
-
-export function buildMentionMarkdown(
-  item: Pick<MentionItem, "category" | "data" | "label" | "value">,
-): string {
-  if (item.category === "files") {
-    return buildFileMentionMarkdown(
-      item.data?.relativePath ?? item.value,
-      item.label,
-      item.data?.kind === "directory" ? "directory" : "file",
-    );
-  }
-  if (item.category === "skills") {
-    // Bugfix: skill mention 之前序列化成 `$slug`，消息里拿不到具体技能路径，
-    // 后续展示和解析都只能退化成纯文本 token。这里统一改成 `[$Label](path)`，
-    // 让 skill 和 file 一样具备稳定的链接载体；若历史数据里还没带 path，则继续回退旧格式避免丢内容。
-    return buildSkillMentionMarkdown(item.value, item.data?.path);
-  }
-  if (item.category === "subagents") {
-    return buildSubagentMentionMarkdown(item.value);
-  }
-  if (item.category === "sessions") {
-    return buildSessionMentionMarkdown(item.value, item.label);
-  }
-
-  return `@${item.value}`;
-}
-
-export function renderMentionMarkdownAsPlainText(content: string): string {
-  return content.replaceAll(LINK_MENTION_MARKDOWN_PATTERN, (_, label: string) => {
-    const normalizedLabel = unescapeMarkdownText(label);
-    return normalizedLabel.startsWith("@") ? normalizedLabel.slice(1) : normalizedLabel;
-  });
 }
 
 type MentionTextPart =

@@ -26,6 +26,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function workspace(projectId: string): AIReqRemoteWorkflow["workspace"] {
+  return { identity: `workspace:${projectId}`, path: `/${projectId}`, kind: "reference" };
+}
+
 function bootstrap(revision = 1): AIReqRemoteBootstrap {
   return {
     contractVersion: AIREQ_CONTRACT_VERSION,
@@ -40,13 +44,13 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
       saved: { requirements: `saved-${revision}` },
       revision,
     },
-    projects: { developmentRoots: { "project-a": "/project-a" } },
+    projects: { workspaces: { "project-a": workspace("project-a") } },
   };
 }
 
 function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
   return {
-    workspace: { identity: `workspace:${projectId}`, path: `/${projectId}`, kind: "reference" },
+    workspace: workspace(projectId),
     view: {
       version: 1,
       revision,
@@ -58,9 +62,7 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
         "test-plan.md": [],
         "spec.md": [],
       },
-      currentProjectId: projectId,
       ideas: [],
-      availableReleases: [],
       projects: [],
       releases: [],
       groups: [],
@@ -148,7 +150,7 @@ describe("AIReq frontend data source", () => {
     expect(remote.listenerCount()).toBe(1);
     remote.metadata.current = {
       ...bootstrap(2),
-      projects: { developmentRoots: { "project-b": "/project-b" } },
+      projects: { workspaces: { "project-b": workspace("project-b") } },
     };
     remote.emit({ type: "models" });
     oldRead.resolve(bootstrap(1));
@@ -163,7 +165,8 @@ describe("AIReq frontend data source", () => {
       });
       expect(source.projects!.readDevelopmentRoot("project-a")).toBeUndefined();
       expect(source.projects!.readDevelopmentRoot("project-b")).toBe("/project-b");
-      expect(remote.call.mock.calls.filter(([, path]) => path === "command")).toEqual([]);
+      expect(remote.readBootstrap).toHaveBeenCalledTimes(2);
+      expect(remote.call).not.toHaveBeenCalled();
     } finally {
       await source.dispose();
     }
@@ -190,14 +193,27 @@ describe("AIReq frontend data source", () => {
     expect(remote.call).not.toHaveBeenCalled();
   });
 
-  it("reads the requested project and saves shared models without a project argument", async () => {
+  it("reads the requested scope without local material or draft navigation fields", async () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
-      const target = { projectId: "project-b", irId: "ir-b", formalView: "detail" as const };
+      const target = {
+        projectId: "project-b",
+        irId: "ir-b",
+        formalView: "detail" as const,
+        materialPath: "requirements.md",
+        proposalDraftId: "local-draft",
+      };
       const view = await source.readWorkflow(target);
-      expect(view.currentProjectId).toBe("project-b");
+      expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [
+        { projectId: "project-b", irId: "ir-b", formalView: "detail" },
+      ]);
       expect(source.resolveWorkspace(view, target).identity).toBe("workspace:project-b");
+      await source.retrySession(target, "session-b");
+      expect(remote.call).toHaveBeenCalledWith(identity, "retrySession", [
+        { projectId: "project-b", irId: "ir-b", formalView: "detail" },
+        "session-b",
+      ]);
       await source.models!.save({ defaultModel: "model-new", agents: [] }, 1);
       const save = remote.call.mock.calls.find(([, path]) => path === "models.save");
       expect(save).toEqual([
@@ -214,7 +230,6 @@ describe("AIReq frontend data source", () => {
     const remote = serviceDouble();
     const receipt: AIReqWorkflowResult = {
       projectId: "project-a",
-      ideaId: "idea-8",
       receipt: {
         operationId: "create-idea-1",
         type: "createIdea",
@@ -235,14 +250,18 @@ describe("AIReq frontend data source", () => {
         operationId: "create-idea-1",
         expectedRevision: 7,
       };
-      const target = { projectId: "project-a" };
+      const target = { projectId: "project-a", materialPath: "requirements.md" };
       expect(await source.command(action, target, 7)).toEqual(receipt);
       expect(await source.command(action, target, 20)).toEqual(receipt);
       expect(
-        remote.call.mock.calls
-          .filter(([, path]) => path === "command")
-          .map(([, , args]) => args[0]),
-      ).toEqual([action, action]);
+        remote.call.mock.calls.filter(([, path]) => path === "command").map(([, , args]) => args),
+      ).toEqual(
+        Array.from({ length: 2 }, () => [
+          { type: "createIdea", originalText: "Export reports", operationId: "create-idea-1" },
+          { projectId: "project-a" },
+          7,
+        ]),
+      );
       expect(action).toEqual({
         type: "createIdea",
         originalText: "Export reports",
@@ -265,7 +284,7 @@ describe("AIReq frontend data source", () => {
         identity,
         "command",
         [
-          { ...action, operationId: expect.any(String), expectedRevision: 31 },
+          { ...action, operationId: expect.any(String) },
           { projectId: "project-b" },
           31,
         ],
@@ -277,13 +296,25 @@ describe("AIReq frontend data source", () => {
     }
   });
 
-  it("refreshes shared settings without replacing the user's unsaved prompt", async () => {
+  it("refreshes shared settings and project workspaces without workflow fan-out or losing a draft", async () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
       source.prompts!.updateDraft({ requirements: "my unsaved instructions" });
-      remote.metadata.current = bootstrap(2);
-      await source.refreshIdentity!();
+      remote.metadata.current = {
+        ...bootstrap(2),
+        projects: { workspaces: { "project-b": workspace("project-b") } },
+      };
+      const invalidated = new Promise<void>((resolve) => source.subscribeWorkflow(resolve));
+      remote.emit({ type: "workflow" });
+      await invalidated;
+      expect(source.resolveWorkspace(undefined, { projectId: "project-b" })).toEqual(
+        workspace("project-b"),
+      );
+      expect(source.resolveWorkspace(undefined, { projectId: "project-a" }).kind).toBe(
+        "unavailable",
+      );
+      expect(remote.call).not.toHaveBeenCalled();
       expect(source.prompts!.read()).toEqual({
         saved: { requirements: "saved-2" },
         draft: { requirements: "my unsaved instructions" },

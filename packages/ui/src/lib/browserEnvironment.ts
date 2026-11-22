@@ -69,10 +69,3 @@ export function writeSafeLocalStorage(key: string, value: string): void {
   }
 }
 
-export function readNavigatorLanguage(): string | null {
-  if (typeof navigator === "undefined" || typeof navigator.language !== "string") {
-    return null;
-  }
-
-  return navigator.language;
-}

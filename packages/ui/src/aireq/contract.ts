@@ -23,7 +23,7 @@ export type {
   AIReqProject,
   AIReqProjectRole,
   AIReqRoleRegistration,
-  AIReqProjectDocuments,
+  AIReqReleaseSummary,
   AIReqRemoteArgs,
   AIReqRemoteBootstrap,
   AIReqRemotePath,
@@ -39,6 +39,7 @@ export type {
   AIReqSkillDesignSession,
   AIReqSystemRequirement,
   AIReqWorkflowResult,
+  AIReqWorkflowTarget,
   AIReqWorkflowView,
   AIReqTodo,
 } from "@zcode/services/aireq";

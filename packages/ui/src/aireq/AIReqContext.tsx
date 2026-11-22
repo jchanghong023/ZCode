@@ -104,7 +104,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const projectReleasesRef = useRef(new Map<string, string>());
   const resolveRelease = useCallback(
     (projectId: string | undefined, snapshot: AIReqWorkflowView, preferred?: string) => {
-      const releases = snapshot.availableReleases.filter((item) => item.projectId === projectId);
+      const releases = snapshot.releases.filter((item) => item.projectId === projectId);
       const saved =
         preferred || (projectId ? projectReleasesRef.current.get(projectId) : undefined);
       return (
@@ -747,7 +747,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           navigation.mainView !== "projectOverview" &&
           navigation.overviewOrigin.projectId === selection.projectId &&
           navigation.overviewOrigin.releaseId === releaseId &&
-          view?.availableReleases.some(
+          view?.releases.some(
             (release) => release.projectId === selection.projectId && release.id === releaseId,
           ),
         ),

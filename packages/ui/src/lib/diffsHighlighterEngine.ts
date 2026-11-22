@@ -1,7 +1,4 @@
 import type { HighlighterTypes } from "@pierre/diffs";
-import type { WorkerInitializationRenderOptions } from "@pierre/diffs/react";
-import type { BundledTheme } from "shiki";
-
 /**
  * @pierre/diffs 默认使用 shiki 的 JavaScript 正则引擎（shiki-js）。该引擎把 TextMate
  * 语法逐条翻译成巨型 RegExp 并在引擎级缓存里永久持有，V8 会把执行过的正则编译成原生代码放进
@@ -12,26 +9,3 @@ import type { BundledTheme } from "shiki";
  */
 export const DIFFS_PREFERRED_HIGHLIGHTER: HighlighterTypes = "shiki-wasm";
 
-export interface DiffsHighlighterThemeSettings {
-  lightTheme: BundledTheme;
-  darkTheme: BundledTheme;
-}
-
-/** diff worker 池初始化参数；主线程兜底渲染与 worker 必须使用同一个引擎选择。 */
-export function createDiffsWorkerHighlighterOptions(
-  settings: DiffsHighlighterThemeSettings,
-): WorkerInitializationRenderOptions {
-  return {
-    theme: {
-      light: settings.lightTheme,
-      dark: settings.darkTheme,
-    },
-    // 不同 patch 的逐词差异计算会额外占用主线程；先沿用库默认阈值，
-    // 后续可基于慢日志再单独收紧，避免一次改动引入“高亮信息突然消失”的回归。
-    lineDiffType: "word-alt",
-    maxLineDiffLength: 1_000,
-    tokenizeMaxLineLength: 1_000,
-    useTokenTransformer: false,
-    preferredHighlighter: DIFFS_PREFERRED_HIGHLIGHTER,
-  };
-}

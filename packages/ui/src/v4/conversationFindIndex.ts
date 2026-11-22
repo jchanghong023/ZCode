@@ -176,14 +176,6 @@ export function resolveConversationFindActiveIndex(
   return 0;
 }
 
-export function resolveConversationFindActiveMatch(
-  index: ConversationFindIndex,
-  preferredIndex: number,
-): ConversationFindMatch | null {
-  const activeIndex = resolveConversationFindActiveIndex(index, preferredIndex);
-  return activeIndex >= 0 ? (index.matches[activeIndex] ?? null) : null;
-}
-
 function normalizeSearchResultProbeText(text: string): string {
   return text
     .replace(/^\.{3}/, "")

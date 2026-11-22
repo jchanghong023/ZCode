@@ -1,6 +1,6 @@
 import type { MockAIReqOwner } from "./contract.js";
 
-/** One read returns scoped workflow objects plus all-project summaries; no mutation is replayed. */
+/** One read returns scoped workflow objects plus the global Release directory. */
 export async function readSharedProject(service: MockAIReqOwner) {
   const identity = { employeeId: "j00808874", clientId: "contract-example" };
   const bootstrap = await service.bootstrap(identity);
@@ -9,9 +9,10 @@ export async function readSharedProject(service: MockAIReqOwner) {
   ]);
   return {
     workflow,
-    projects: workflow.view.projectDocuments,
-    currentProject: workflow.view.projectDocuments?.find(
-      (project) => project.projectId === workflow.view.currentProjectId,
+    projects: workflow.view.projects,
+    releases: workflow.view.releases,
+    projectReleases: workflow.view.releases.filter(
+      (release) => release.projectId === bootstrap.initialProjectId,
     ),
   };
 }

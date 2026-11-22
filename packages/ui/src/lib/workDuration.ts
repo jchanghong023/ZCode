@@ -52,18 +52,6 @@ export function workDurationUnitSeparator(locale: string): string {
   return SPACED_DURATION_UNIT_LOCALES.has(locale) ? " " : "";
 }
 
-export function formatWorkDuration(
-  durationMs: number | undefined,
-  formatMessage: FormatMessage,
-  locale: string,
-): string | null {
-  if (durationMs === undefined) return null;
-  const separator = workDurationUnitSeparator(locale);
-  return workDurationParts(durationMs, formatMessage)
-    .map((part) => `${part.value}${separator}${part.unit}`)
-    .join(" ");
-}
-
 /** 按已完整经过的秒拆分，不显示小数；完成耗时保持原有格式。 */
 export function formatRunningWorkDuration(
   durationMs: number,

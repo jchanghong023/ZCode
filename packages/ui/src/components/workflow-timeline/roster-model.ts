@@ -15,8 +15,6 @@ import type { TimelinePill, TimelineStation } from "./timeline-model.js";
 export const ROSTER_THRESHOLD = 6;
 /** 卡上钉住的药丸数：五枚 + 「还有 n 个」一行 = 六枚药丸的高度。 */
 export const ROSTER_PINS_CARD = 5;
-/** 侧板钉住的药丸数（拉满一列，有地方多说几个名字）。 */
-export const ROSTER_PINS_PANE = 5;
 /** 「还有 n 个」那一行上叠着的脸数。 */
 export const ROSTER_DECK = 3;
 
@@ -52,13 +50,6 @@ export function pillStatusOf(pill: Pick<TimelinePill, "status">): StepRunStatus 
   return pill.status ?? "pending";
 }
 
-/** 实例键（`siteId@ordinal`）：待答问题按它挂到提问者；合成车道没有。 */
-export function pillInstanceKey(pill: Pick<TimelinePill, "instance">): string | undefined {
-  return pill.instance === undefined
-    ? undefined
-    : `${pill.instance.siteId}@${pill.instance.ordinal}`;
-}
-
 export function rosterCounts(pills: readonly TimelinePill[]): RosterCounts {
   const counts: RosterCounts = { done: 0, failed: 0, pending: 0, running: 0 };
   for (const pill of pills) counts[pillStatusOf(pill)] += 1;
@@ -77,8 +68,6 @@ function addUnlisted(counts: RosterCounts, unlisted: RosterUnlisted): RosterCoun
   return counts;
 }
 
-/** 注意力序：「还有 n 个」那一叠脸先露最要紧的；名单的组也按它排。 */
-export const ATTENTION_ORDER: readonly StepRunStatus[] = ["failed", "running", "pending", "done"];
 const ATTENTION_RANK: Record<StepRunStatus, number> = {
   failed: 0,
   running: 1,
@@ -150,11 +139,6 @@ export function stationRosterOf(
   });
 }
 
-/** 门关着时那一行的计数行：门后的一切——表内的其余，加上没有药丸的表外那些。 */
-export function rosterRestCounts(roster: StationRoster): RosterCounts {
-  return addUnlisted(rosterCounts(roster.rest), roster.unlisted);
-}
-
 /** 卡上「还有 n 个」那一行的内容（追记「五枚药丸与一扇门」）。 */
 export interface RosterMore {
   /** 没被钉住的参与者数（表外的也算——它们同样在这一行后面）。 */
@@ -175,16 +159,3 @@ export function rosterMore(roster: StationRoster, deck: number = ROSTER_DECK): R
   };
 }
 
-/** 侧板名单里的一组：同一状态的其余参与者，参与者序。 */
-export interface RollGroup {
-  status: StepRunStatus;
-  pills: TimelinePill[];
-}
-
-/** 门后的名单：其余按状态分组、组序即注意力序、空组缺席。 */
-export function rosterRoll(roster: StationRoster): RollGroup[] {
-  return ATTENTION_ORDER.map((status) => ({
-    pills: roster.rest.filter((pill) => pillStatusOf(pill) === status),
-    status,
-  })).filter((group) => group.pills.length > 0);
-}

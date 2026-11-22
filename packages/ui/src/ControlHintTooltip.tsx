@@ -140,22 +140,6 @@ export function ControlHintTooltip({
 
 const SidebarTooltipContext = createContext(false);
 
-export function SidebarTooltipProvider({ children }: { children: ReactNode }) {
-  // 侧栏原先继承全局零延迟，且连续划过按钮会跳过等待；在边界统一配置，每个提示都等待 300ms。
-  return (
-    <SidebarTooltipContext.Provider value>
-      <TooltipProvider
-        delayDuration={300}
-        skipDelayDuration={0}
-        alwaysDelay
-        disableHoverableContent
-      >
-        {children}
-      </TooltipProvider>
-    </SidebarTooltipContext.Provider>
-  );
-}
-
 /** 原生 title 无法配置延迟；只在侧栏范围内替换，复用组件在其它页面的行为不变。 */
 export function SidebarNativeTooltip({
   children,

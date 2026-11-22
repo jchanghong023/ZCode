@@ -50,12 +50,11 @@ export class MockProjectService implements WebProjectService {
     const scopes = new Map<string, Workspace>();
     for (const project of directory.projects) {
       const projectId = project.id;
-      const root = project.root;
       const workspace = directory.workspaces[projectId];
-      if (!workspace || workspace.path !== root || !workspace.identity)
+      if (!workspace?.path || !workspace.identity)
         throw businessRule("项目工作区已变化，请刷新页面后重试。");
       const scope: Workspace = {
-        workspacePath: root,
+        workspacePath: workspace.path,
         workspaceIdentity: workspace.identity,
         projectId,
       };

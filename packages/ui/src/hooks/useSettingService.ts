@@ -92,15 +92,6 @@ async function refreshSharedSettings(cacheKey: string, getSettings: () => Promis
   return refreshPromise;
 }
 
-export async function updateSettingsAndRefreshSnapshot(params: {
-  settingService: Pick<ISettingService, "get" | "update">;
-  patch: Partial<AppSettings>;
-}): Promise<void> {
-  const cacheKey = resolveSettingsCacheKey(undefined, params.settingService);
-  await params.settingService.update(params.patch);
-  await refreshSharedSettings(cacheKey, () => params.settingService.get());
-}
-
 /** 获取和更新应用设置 */
 export function useSettings(options: { cacheKey?: string; services?: IServiceAccessor } = {}) {
   const contextualServices = useServices();

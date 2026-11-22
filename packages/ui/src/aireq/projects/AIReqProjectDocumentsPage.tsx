@@ -6,23 +6,19 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqProjectDocuments } from "../contract.js";
+import type { AIReqReleaseSummary } from "../contract.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
 
 const VISIBLE_RELEASES = 2;
-type ReleaseSummary = AIReqProjectDocuments["releases"][number];
-
-function sortReleases(releases: ReleaseSummary[]): ReleaseSummary[] {
-  return [...releases].sort((a, b) => {
-    const first = Date.parse(a.createdAt);
-    const second = Date.parse(b.createdAt);
-    if (Number.isFinite(first) && Number.isFinite(second) && first !== second)
-      return second - first;
-    if (Number.isFinite(first) !== Number.isFinite(second)) return Number.isFinite(first) ? -1 : 1;
-    return a.releaseId.localeCompare(b.releaseId);
-  });
+function newestReleaseFirst(a: AIReqReleaseSummary, b: AIReqReleaseSummary): number {
+  const first = Date.parse(a.createdAt);
+  const second = Date.parse(b.createdAt);
+  if (Number.isFinite(first) && Number.isFinite(second) && first !== second)
+    return second - first;
+  if (Number.isFinite(first) !== Number.isFinite(second)) return Number.isFinite(first) ? -1 : 1;
+  return a.id.localeCompare(b.id);
 }
 
 export function AIReqProjectDocumentsPage({
@@ -99,10 +95,11 @@ export function AIReqProjectDocumentsPage({
         </header>
         <section className="space-y-6" aria-label={zh ? "所有项目" : "All projects"}>
           {view?.projects.map((project) => {
-            const summary = view.projectDocuments?.find((entry) => entry.projectId === project.id);
-            const releases = summary ? sortReleases(summary.releases) : undefined;
+            const releases = view.releases
+              .filter((release) => release.projectId === project.id)
+              .sort(newestReleaseFirst);
             const expanded = expandedProjects.has(project.id);
-            const visible = expanded ? releases : releases?.slice(0, VISIBLE_RELEASES);
+            const visible = expanded ? releases : releases.slice(0, VISIBLE_RELEASES);
             const regionId = `project-releases-${encodeURIComponent(project.id)}`;
             return (
               <Card
@@ -120,24 +117,16 @@ export function AIReqProjectDocumentsPage({
                     <h2 className="min-w-0 wrap-anywhere font-semibold">{project.name}</h2>
                   </div>
                   <span className="text-ui-sm text-foreground-subtle">
-                    {releases
-                      ? !expanded && releases.length > VISIBLE_RELEASES
-                        ? zh
-                          ? `最近 ${VISIBLE_RELEASES} 个 · 共 ${releases.length} 个版本`
-                          : `Latest ${VISIBLE_RELEASES} · ${releases.length} releases`
-                        : zh
-                          ? `${releases.length} 个版本`
-                          : `${releases.length} releases`
+                    {!expanded && releases.length > VISIBLE_RELEASES
+                      ? zh
+                        ? `最近 ${VISIBLE_RELEASES} 个 · 共 ${releases.length} 个版本`
+                        : `Latest ${VISIBLE_RELEASES} · ${releases.length} releases`
                       : zh
-                        ? "正在读取…"
-                        : "Loading…"}
+                        ? `${releases.length} 个版本`
+                        : `${releases.length} releases`}
                   </span>
                 </div>
-                {!releases ? (
-                  <p role="status" className="px-4 py-5 text-ui-sm text-foreground-subtle">
-                    {unavailable}
-                  </p>
-                ) : releases.length === 0 ? (
+                {releases.length === 0 ? (
                   <div className="flex flex-wrap items-center gap-3 px-4 py-5 text-ui-sm text-foreground-subtle">
                     <span>{zh ? "暂无版本" : "No releases yet"}</span>
                     <Button
@@ -154,10 +143,10 @@ export function AIReqProjectDocumentsPage({
                       id={regionId}
                       className="grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2"
                     >
-                      {visible?.map((release, index) => (
+                      {visible.map((release, index) => (
                         // Release 与外观设置行共用卡片底色，避免半透明 surface 在父卡片上再次叠色。
                         <article
-                          key={release.releaseId}
+                          key={release.id}
                           className={
                             "flex min-w-0 flex-col gap-3 rounded-lg border border-card-border bg-card p-4" +
                             (index >= VISIBLE_RELEASES
@@ -168,7 +157,7 @@ export function AIReqProjectDocumentsPage({
                         >
                           <h3 className="min-w-0 wrap-anywhere font-medium">{release.title}</h3>
                           <div
-                            id={`${regionId}-details-${encodeURIComponent(release.releaseId)}`}
+                            id={`${regionId}-details-${encodeURIComponent(release.id)}`}
                             className="flex w-full flex-1 flex-col gap-3"
                           >
                             <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
@@ -196,7 +185,7 @@ export function AIReqProjectDocumentsPage({
                                   : `Enter workspace: ${project.name} · ${release.title}`
                               }
                               onClick={() =>
-                                ai.openProject(project.id, "projectOverview", release.releaseId)
+                                ai.openProject(project.id, "projectOverview", release.id)
                               }
                             >
                               {zh ? "进入工作区" : "Enter workspace"}
@@ -248,11 +237,6 @@ export function AIReqProjectDocumentsPage({
                 : unavailable}
             </div>
           )}
-          {view?.projects.length && !view.projectDocuments && !ai.pending ? (
-            <Button variant="outline" onClick={() => void ai.refresh()}>
-              {zh ? "重新读取项目" : "Reload projects"}
-            </Button>
-          ) : null}
         </section>
       </div>
     </main>

@@ -1,4 +1,4 @@
-import type { ZCodeError, ZCodeTaskMeta, TraceId } from "@zcode/shared";
+import type { ZCodeError, TraceId } from "@zcode/shared";
 import { errorAttributionSchema, type ErrorAttribution } from "@zcode/shared/zcode-protocol-v4";
 import { resolveRequestVerificationBusinessCode } from "@/lib/providerBusinessError.js";
 
@@ -272,16 +272,3 @@ export function normalizeZCodeUiError(
   };
 }
 
-export function normalizeRestoredTaskFailureError(meta: ZCodeTaskMeta): ZCodeUiError | null {
-  if (!meta.lastError) {
-    return null;
-  }
-
-  // Bugfix: 手机 Web 断连恢复时可能只拿到 error snapshot，看不到断连期间的 task_error。
-  // 没有服务端持久化的 lastError 时不再编造兜底文案，避免展示没有实际根因的错误。
-  return normalizeZCodeUiError(meta.lastError, {
-    fallbackCode: meta.lastError.code,
-    traceId: meta.lastError.traceId ?? meta.traceId,
-    taskId: meta.lastError.taskId ?? meta.taskId,
-  });
-}

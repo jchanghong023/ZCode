@@ -58,15 +58,8 @@ export interface AIReqFileVersion {
 export interface AIReqProject {
   id: string;
   name: string;
-  storageName?: string;
-  root: string;
-  commonDir: string;
   revision: number;
-  createdAt: string;
-  updatedAt: string;
   defaultBranch: string;
-  remote?: string;
-  repositoryId: string;
   repositoryUrl?: string;
 }
 export interface AIReqRemoteRepositoryInput {
@@ -84,13 +77,18 @@ export interface AIReqRelease {
   title: string;
   createdAt: string;
 }
+
+export interface AIReqReleaseSummary extends AIReqRelease {
+  proposalCount: number;
+  formalCount: number;
+}
+
 /** A global unplanned need; it is consumed when admitted to one or more releases. */
 export interface AIReqIdea {
   id: string;
   originalText: string;
   submittedBy: string;
   createdAt: string;
-  updatedAt: string;
   revision: number;
 }
 export interface AIReqIdeaTarget {
@@ -99,11 +97,6 @@ export interface AIReqIdeaTarget {
 }
 export interface AIReqIdeaTransfer extends AIReqIdeaTarget {
   irId: string;
-}
-export interface AIReqWorktree {
-  path: string;
-  branch: string;
-  baseCommit: string;
 }
 export interface AIReqProposalFeedbackNote {
   employeeId: string;
@@ -119,7 +112,6 @@ export interface AIReqReviewAgent {
   status: "pending" | "running" | "completed" | "failed";
   session: AIReqNativeSessionRef;
   report: string;
-  promptSnapshot?: string;
 }
 export interface AIReqReview {
   kind?: "original" | "full";
@@ -137,7 +129,6 @@ export interface AIReqReview {
   report: string;
   modelConfig?: AIReqAgentModelBinding;
   inputFiles?: AIReqFileVersion[];
-  requestedBy?: string;
   round?: number;
   findings?: {
     id: string;
@@ -277,11 +268,6 @@ export interface AIReqRequirementGroup {
   submittedBy: string;
   sourceIrId?: string;
   contacts?: { business?: string; development?: string; testing?: string };
-  contactHistory?: {
-    employeeId: string;
-    at: string;
-    contacts: { business?: string; development?: string; testing?: string };
-  }[];
   originalReview?: AIReqReview;
   originalReviewHistory?: AIReqReview[];
   alignment?: AIReqAlignment[];
@@ -290,9 +276,7 @@ export interface AIReqRequirementGroup {
   solutionCheck?: AIReqMaterialCheck;
   materialHistory?: AIReqMaterialHistory[];
   rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
-  ownerEmployeeId?: string;
   clientDraftId?: string;
-  ompWebId?: string;
   id: string;
   projectId: string;
   releaseId: string;
@@ -303,9 +287,6 @@ export interface AIReqRequirementGroup {
   revision: number;
   srIds: string[];
   files: AIReqFileVersion[];
-  evidenceFiles?: AIReqFileVersion[];
-  retiredFiles?: AIReqFileVersion[];
-  worktree?: AIReqWorktree;
   sessions: AIReqNativeSessionRef[];
   snapshot?: AIReqRequirementSnapshot;
   review?: AIReqReview;
@@ -316,7 +297,6 @@ export interface AIReqRequirementGroup {
   proposalDelivery?: AIReqProposalDelivery;
   proposalDeliveryHistory?: AIReqProposalDelivery[];
   proposalRevisions?: AIReqProposalRevision[];
-  revising?: boolean;
   requirementsDecisions?: AIReqRequirementsDecision[];
   freeze?: {
     frozenAt: string;
@@ -349,12 +329,11 @@ export interface AIReqRequirementGroup {
   returnFeedback?: AIReqProposalFeedbackNote;
   returnFeedbackHistory?: AIReqProposalFeedbackNote[];
   /** directory 是 IR 所属 OMP 项目 dir，不是每提案临时目录；会话历史由 OMP 管理。 */
-  proposalLocation?: { projectName: string; employeeId: string; directory: string };
+  proposalLocation?: { employeeId: string; directory: string };
 }
 export interface AIReqOperationReceipt {
   operationId: string;
-  /** Request identity captured at admission; absent on historical sample receipts. */
-  identity?: AIReqIdentity;
+  actorEmployeeId?: string;
   type: string;
   status: "running" | "completed" | "failed";
   startedAt: string;
@@ -371,21 +350,7 @@ export interface AIReqMaterialView extends AIReqFileVersion {
   projectId: string;
   irId: string;
   srId?: string;
-  kind:
-    | "ir"
-    | "sr"
-    | "solution"
-    | "test-plan"
-    | "plan"
-    | "completion"
-    | "ut"
-    | "st"
-    | "delivery"
-    | "attachment"
-    | "ir-acceptance-report"
-    | "ir-final-pr"
-    | "sr-delivery-package";
-  stage?: AIReqWorkflowStage;
+  kind: "ir" | "sr" | "solution" | "test-plan" | "plan";
   round?: number;
   valid: boolean;
   content?: string;
@@ -397,49 +362,31 @@ export interface AIReqMaterialReadRequest extends Pick<
 > {
   releaseId: string;
 }
-export interface AIReqReleaseDocuments {
-  releaseId: string;
-  title: string;
-  createdAt: string;
-  proposalCount: number;
-  formalCount: number;
-}
-export interface AIReqProjectDocuments {
-  projectId: string;
-  releases: AIReqReleaseDocuments[];
-}
 export interface AIReqWorkflowView {
   roleRegistrations?: AIReqRoleRegistration[];
   roleAdministrator?: boolean;
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
-  /** Same-owner global release directory for cross-project planning; releases remains project-scoped. */
-  availableReleases: AIReqRelease[];
   todos?: AIReqTodo[];
-  projectDocuments?: AIReqProjectDocuments[];
   version: 1;
   revision: number;
   projects: AIReqProject[];
-  currentProjectId?: string;
-  releases: AIReqRelease[];
+  /** 唯一 Release 目录及同一快照的跨项目只读统计。 */
+  releases: AIReqReleaseSummary[];
   groups: AIReqRequirementGroup[];
   drafts: AIReqRequirementGroup[];
   srs: AIReqSystemRequirement[];
   materials: AIReqMaterialView[];
   operations: AIReqOperationReceipt[];
   sessions: AIReqNativeSessionRef[];
-  repositoryHeads?: Record<string, string>;
   running: AIReqNativeSessionRef[];
 }
 export interface AIReqCommandBase {
-  operationId: string;
-  expectedRevision: number;
   projectId?: string;
   irId?: string;
   srId?: string;
 }
-export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevision"> &
-  Partial<Pick<AIReqCommandBase, "operationId" | "expectedRevision">> &
+type AIReqIntent = AIReqCommandBase &
   (
     | { type: "requestProjectRoles"; projectId: string; roles: AIReqProjectRole[]; note?: string }
     | {
@@ -498,31 +445,32 @@ export type AIReqAction = Omit<AIReqCommandBase, "operationId" | "expectedRevisi
     | { type: "returnProposal"; reason: string }
     | { type: "publishProposal"; candidate: string }
   );
+
+/** 本地表单可携带独立于最新投影的编辑基线。 */
+export type AIReqAction = AIReqIntent & { operationId?: string; expectedRevision?: number };
+/** 远程动作仅携带意图和幂等键；CAS 版本单独传递。 */
+export type AIReqCommand = AIReqIntent & { operationId: string };
+
 export interface AIReqWorkflowResult {
-  ideaId?: string;
   transferredRequirements?: AIReqIdeaTransfer[];
   projectId: string;
   irId?: string;
   receipt: AIReqOperationReceipt;
   documentFormatSnapshot?: Pick<AIReqWorkflowView, "documentFormats" | "revision">;
 }
-export interface AIReqSelection {
+export interface AIReqWorkflowTarget {
   formalView?: "list" | "detail";
   reviewAgent?: AIReqReviewAgentId;
-  materialPath?: string;
-  proposalEditing?: boolean;
   proposalStep?: "requirements" | "requirements-review" | "solution" | "intake";
-  freeDraftId?: string;
-  proposalDraftId?: string;
-  proposalDraftReleaseId?: string;
-  freeSessionId?: string;
-  freeFiles?: boolean;
   projectId?: string;
   irId?: string;
   srId?: string;
-  stage?: AIReqWorkflowStage;
-  stageRound?: number;
   discussionPhase?: "requirements" | "solution";
+}
+
+export interface AIReqSelection extends AIReqWorkflowTarget {
+  materialPath?: string;
+  proposalDraftId?: string;
 }
 
 export interface AIReqNativeSurfaceTarget extends AIReqObjectRef {

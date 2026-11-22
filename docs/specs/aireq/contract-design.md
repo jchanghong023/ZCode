@@ -100,17 +100,21 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `call` 只接收 `identity`、`path` 和 `args`，在进入业务处理前拒绝额外实参。操作在各自的 `args` 中声明和校验目标；不接收独立的导航选择。
 
-`bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.developmentRoots` 和可选 Skill 存储目标。`initialProjectId` 只给出默认项目，没有默认项目时省略；不返回 IR 或 SR 的导航选择，显式分享链接优先。`capabilities` 只包含 `workflowCommands`、`requirementManagement` 和可选的 `proposalDiscussion`。响应不返回私人 composer 草稿、服务注册清单、来源 owner/provenance 或全部分页报告。模型／提示词读取由此提供；提示词草稿在前端从 `saved` 初始化，刷新已保存配置时不覆盖未保存编辑。
+`bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，值与该项目的 `readWorkflow.workspace` 来自同一个服务端工作区投影，包含 `identity`、`kind` 和可选的 `path`、`error`。初始化与元数据失效只读一次 bootstrap，不按项目读取完整工作流；详情仍按目标读取并优先使用该读回的工作区。前端不拼接身份或以旧值覆盖不可用结果。默认项目省略时不猜测；显式分享链接优先。`capabilities` 只包含 `workflowCommands`、`requirementManagement` 和可选的 `proposalDiscussion`。响应不返回 IR/SR 导航、私人草稿、服务注册清单或后端配置。提示词草稿在前端从 `saved` 初始化，刷新不覆盖未保存编辑。
 
-当前 AIReq bootstrap 业务契约版本为 `12`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
+当前 AIReq bootstrap 业务契约版本为 `13`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
 
 `models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录。
 
-讨论会话创建时、评审接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论输入不覆盖会话配置。
+讨论会话创建时、评审接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。评审 Agent 只通过 `session.modelConfig` 返回提示词快照，不另复制。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论输入不覆盖会话配置。
 
-`readWorkflow` 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对。顶层 `view` 不返回后端 ID；前端从 `bootstrap.backend.id` 取得该标识。工作区只在响应顶层 `workspace` 返回，包含 `identity`、`kind` 和可选的 `path`、`error`。只公开逻辑会话身份，不返回宿主 `sessionFile` 路径。正式只读目标不因此开启编辑会话。`selection` 由前端持有，服务端按严格 schema 校验并用于定位查询目标，不回显为 `view.selected`，也不把它用作权限或全局当前项目。
+`readWorkflow` 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对。只公开逻辑会话身份，不返回宿主 `sessionFile`。正式只读目标不开启编辑会话。读取、命令与会话重试的目标只接纳可选的 `projectId`、`irId`、`srId`、`formalView`、`reviewAgent`、`proposalStep` 和 `discussionPhase`；严格拒绝未知键。材料路径、草稿导航、历史及 Release 选择由前端持有，不随 RPC 往返；`view` 不回显当前项目或后端 ID。
 
 工作流读取失败通过 RPC 拒绝返回，`view` 不含通用 `error` 字段。工作区和单份材料的错误仍随各自的投影返回。
+
+`view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`proposalCount` 和 `formalCount`。计数按同一 owner 的 `(projectId, id)` 派生，含零文档 Release。详情、材料、会话及操作历史仍按查询项目返回。项目无 Release 与视图未加载是不同状态。
+
+项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。Git 目标 ID、仓库头、项目存储元数据、完整操作身份、联系人变更历史及评审发起人由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。当前联系人、人工决定操作者、确认事实及工作区公开路径不变。命令结果不返回创建想法 ID，客户端重读想法池。
 
 材料通过 `view.materials` 返回，交付文件清单以 `proposalDelivery.files` 为准；工作流视图不另附通用 `changes` 清单。
 
@@ -129,7 +133,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 | readPresence                   | []                                                                        | AIReqPresenceSnapshot           |
 | readWorkflow                   | [selection]                                                               | AIReqRemoteWorkflow             |
 | readPrHandoff                  | [{projectId,irId}]                                                        | AIReqPrHandoff                  |
-| command                        | [action,selection,revision]                                               | AIReqWorkflowResult             |
+| command                        | [action,target,expectedRevision]                                          | AIReqWorkflowResult             |
 | retryMaterial                  | [{projectId,releaseId,irId,path,sha256,round?}]                           | boolean                         |
 | retrySession                   | [selection,sessionId]                                                     | null                            |
 | projects.saveRepository        | [input]                                                                   | null                            |
@@ -160,7 +164,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 ## 5. command 动作与领域门禁
 
-`command` 通过 `receipt.operationId`、`receipt.status` 和 `receipt.error` 返回操作编号、处理状态和已接纳操作的失败说明，不在顶层重复。RPC 拒绝仍通过 Promise 错误返回。请求中的 `action.operationId` 仍用于幂等裁决。命令摘要只由服务端幂等账本持有，不出现在命令结果或工作流历史的公开回执中。
+`command` 通过 `receipt.operationId`、`receipt.status` 和 `receipt.error` 返回操作编号、处理状态和已接纳操作的失败说明。RPC 拒绝仍通过 Promise 错误返回。唯一 CAS 值是第三参：编辑命令使用表单开始编辑时的基线，普通命令使用发起时当前视图的版本。`action` 拒绝 `expectedRevision`。同一操作编号和同一业务目标及参数，先返回已接纳回执，再考虑版本校验；编号复用但业务参数不同则拒绝。首次接纳直接读取 workflow owner 的版本；异步 Git 读取后以同一基线再校验，失败不提交。客户端不自动重发，命令摘要不进入公开投影。
 
 `deleteRequirement` 以 `projectId` 和 `irId` 指定目标，不接收固定的 `version` 字段。仍执行 `command` 的版本校验、目标归属校验和删除门禁。前端按通用回执的 `receipt.status` 判断删除是否完成，删除后的对象状态通过 `readWorkflow` 读取。
 
@@ -177,7 +181,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 - 交付与正式文档：publishProposal、closeProposalPr、syncFormalDocuments。
 - 项目角色：requestProjectRoles、decideProjectRole。
 
-动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
+动作包含 `operationId` 及适用目标；`updateIdea`／`transferIdea` 另校验 `ideaRevision`。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
 
 `returnProposal` 使用非空意见，提交时校验同一项目、IR、当前操作版本和可退回阶段。方案对话可退回当前未冻结的方案阶段。服务端在同一事务记录实际操作者、意见和轮次，保留旧材料和会话，使当前评审及确认失效，并创建新一轮需求澄清。当前文件正文、路径、清单和材料快照保持原样，后续 Agent 材料操作另行提交。
 
@@ -186,6 +190,27 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 关闭未合入 PR 后，该 PR 作为 `proposalDeliveryHistory[].closedPr` 留存；旧候选不再可写或核验。重新提交使用当前候选，并重新绑定完整清单。
 
 `saveDocumentFormats` 提交完整 `documentFormats` 记录，沿用 `command` 的版本检查、幂等和提交后通知，不绑定当前项目或 Release。
+
+```mermaid
+sequenceDiagram
+  participant UI as 浏览器
+  participant RPC as AIReq 分派
+  participant W as workflow owner
+  UI->>RPC: bootstrap
+  RPC-->>UI: 同一响应中的项目工作区与配置
+  UI->>RPC: command(action, target, expectedRevision)
+  RPC->>RPC: 严格校验并查幂等回执
+  alt 已接纳的相同操作
+    RPC-->>UI: 原回执
+  else 首次接纳
+    RPC->>W: 读取版本并校验编辑基线
+    RPC->>W: 校验业务目标并提交
+    W-->>UI: 提交后通知失效
+    RPC-->>UI: 公开回执
+  end
+```
+
+验收覆盖：初次及失效刷新没有逐项目工作流查询；切范围不复用他项目的工作区或统计；空 Release 计数为零；旧编辑基线拒绝且不写入，已有操作重读后返回原回执；旧请求键被拒绝，公开视图及回执不包含服务端私有字段。
 
 原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[正式文档](tracking.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 

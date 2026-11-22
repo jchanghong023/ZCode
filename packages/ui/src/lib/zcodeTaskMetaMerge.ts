@@ -55,15 +55,3 @@ export function mergeTaskWithOptimisticMeta(
   };
 }
 
-export function mergeTaskMetaCandidates(
-  ...candidates: Array<ZCodeTaskMeta | null | undefined>
-): ZCodeTaskMeta | undefined {
-  let merged: ZCodeTaskMeta | undefined;
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    merged = merged ? mergeTaskWithOptimisticMeta(candidate, merged) : candidate;
-  }
-  return merged;
-}

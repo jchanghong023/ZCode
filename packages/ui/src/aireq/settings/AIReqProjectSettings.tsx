@@ -72,12 +72,16 @@ export function AIReqProjectSettings({
   const [projectQuery, setProjectQuery] = useState("");
   const [releaseSaving, setReleaseSaving] = useState(false);
   const [projectViews, setProjectViews] = useState<
-    { project: AIReqProject; view: AIReqWorkflowView }[]
+    {
+      project: AIReqProject;
+      releases: AIReqWorkflowView["releases"];
+      groups: AIReqWorkflowView["groups"];
+    }[]
   >([]);
   const projectElements = useRef(new Map<string, HTMLElement>());
   const loadedSnapshot = useRef<{
     source: typeof source;
-    view: AIReqWorkflowView | undefined;
+    view: AIReqWorkflowView;
     refreshKey: number;
   } | null>(null);
   useEffect(() => {
@@ -85,11 +89,20 @@ export function AIReqProjectSettings({
     const view = aireq?.view;
     setLoading(true);
     setLoadError("");
+    if (!view) {
+      setProjectViews([]);
+      return;
+    }
     Promise.all(
-      (view?.projects ?? []).map(async (project) => ({
-        project,
-        view: await source.readWorkflow({ projectId: project.id }),
-      })),
+      view.projects.map(async (project) => {
+        // Release 目录是全局的；只读取该项目的正式需求，用于现有 SR 统计。
+        const { releases, groups } = await source.readWorkflow({ projectId: project.id });
+        return {
+          project,
+          releases: releases.filter((release) => release.projectId === project.id),
+          groups: groups.filter((group) => group.projectId === project.id),
+        };
+      }),
     )
       .then((views) => {
         if (active) {
@@ -108,7 +121,7 @@ export function AIReqProjectSettings({
     };
   }, [source, aireq?.view, refreshKey]);
   const projects = aireq?.view?.projects ?? [];
-  const releaseCount = projectViews.reduce((count, item) => count + item.view.releases.length, 0);
+  const releaseCount = projectViews.reduce((count, item) => count + item.releases.length, 0);
   const normalizedProjectQuery = projectQuery.trim().toLocaleLowerCase();
   const filteredProjectViews = normalizedProjectQuery
     ? projectViews.filter(({ project }) =>
@@ -208,7 +221,9 @@ export function AIReqProjectSettings({
     try {
       if (
         (await source.readWorkflow({ projectId: releaseProjectId })).releases.some(
-          (release) => release.title.toLowerCase() === releaseTitle.trim().toLowerCase(),
+          (release) =>
+            release.projectId === releaseProjectId &&
+            release.title.toLowerCase() === releaseTitle.trim().toLowerCase(),
         )
       ) {
         setReleaseError("此项目中已存在同名 Release，请使用其他名称。");
@@ -360,7 +375,7 @@ export function AIReqProjectSettings({
               ? zh
                 ? `${releaseCount} 个 Release`
                 : `${releaseCount} releases`
-              : loadError
+              : loadError || (!aireq.view && !aireq.pending)
                 ? zh
                   ? "Release 数量不可用"
                   : "Release count unavailable"
@@ -423,7 +438,7 @@ export function AIReqProjectSettings({
           </Button>
         )}
       </div>
-      {filteredProjectViews.map(({ project, view }) => (
+      {filteredProjectViews.map(({ project, releases, groups }) => (
         <SettingsGroupCard key={project.id}>
           <article
             data-project-id={project.id}
@@ -473,7 +488,7 @@ export function AIReqProjectSettings({
             </header>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2">
               <h3 className="text-ui-sm font-medium">
-                {zh ? `Release · ${view.releases.length} 个` : `Releases · ${view.releases.length}`}
+                {zh ? `Release · ${releases.length} 个` : `Releases · ${releases.length}`}
               </h3>
               <Button
                 variant="outline"
@@ -485,18 +500,18 @@ export function AIReqProjectSettings({
                 {zh ? "添加 Release" : "Add release"}
               </Button>
             </div>
-            {view.releases.length ? (
+            {releases.length ? (
               <details className="border-t border-border">
                 <summary className="cursor-pointer px-4 py-2 text-ui-sm text-remote-foreground-muted hover:text-foreground focus-visible:bg-surface-hover">
                   {zh ? "查看 Release 明细" : "View release details"}
                 </summary>
                 <ul className="divide-y divide-border border-t border-border">
-                  {view.releases.map((release) => {
-                    const groups = view.groups.filter((group) => group.releaseId === release.id);
-                    const draftCount = view.drafts.filter(
-                      (group) => group.releaseId === release.id,
-                    ).length;
-                    const srCount = groups.reduce((count, group) => count + group.srIds.length, 0);
+                  {releases.map((release) => {
+                    const srCount = groups.reduce(
+                      (count, group) =>
+                        group.releaseId === release.id ? count + group.srIds.length : count,
+                      0,
+                    );
                     return (
                       <li
                         key={release.id}
@@ -507,14 +522,16 @@ export function AIReqProjectSettings({
                           {/* 计数展开领域术语；仅有提案时补充，避免重复的零值干扰扫描。 */}
                           <p className="text-ui-sm text-foreground-subtle">
                             {zh
-                              ? `正式需求（IR）${groups.length} · 开发单元（SR）${srCount}`
-                              : `Formal requirements (IR) ${groups.length} · Development units (SR) ${srCount}`}
-                            {draftCount > 0 &&
-                              (zh ? ` · 需求提案 ${draftCount}` : ` · Proposals ${draftCount}`)}
+                              ? `正式需求（IR）${release.formalCount} · 开发单元（SR）${srCount}`
+                              : `Formal requirements (IR) ${release.formalCount} · Development units (SR) ${srCount}`}
+                            {release.proposalCount > 0 &&
+                              (zh
+                                ? ` · 需求提案 ${release.proposalCount}`
+                                : ` · Proposals ${release.proposalCount}`)}
                           </p>
                         </div>
                         <Badge variant="outline">
-                          {groups.length
+                          {release.formalCount
                             ? zh
                               ? "已有需求"
                               : "Has requirements"
@@ -539,7 +556,7 @@ export function AIReqProjectSettings({
           </article>
         </SettingsGroupCard>
       ))}
-      {!loading &&
+      {releaseCountReady &&
         projects.length > 0 &&
         normalizedProjectQuery &&
         !filteredProjectViews.length && (

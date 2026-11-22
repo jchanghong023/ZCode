@@ -2,13 +2,13 @@
 
 在线人员遵循 `docs/specs/aireq/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
 
-正常文档 MR 的内部模拟事实与交付候选同属 workflow owner。publish 只登记 opened 及真实服务时钟的最早合入时点；既有五秒轮询推进模拟外部状态，再复用当前候选、完整材料与版本核验转正。opened 至少保留十秒，幂等发布不重置，关闭交付后迟到结果无效。platformVerified 保持 false；simulatedMr 与既有故障场景字段一样由 publicBusinessProjection 递归剥离，不增加 RPC 或测试 setter。
+正常文档 MR 的内部模拟事实与交付候选同属 workflow owner。publish 只登记 opened 及真实服务时钟的最早合入时点；既有五秒轮询推进模拟外部状态，再复用当前候选、完整材料与版本核验转正。opened 至少保留十秒，幂等发布不重置，关闭交付后迟到结果无效。platformVerified 保持 false；公开候选投影不包含 `simulatedMr`，不增加 RPC 或测试 setter。
 
 会话与项目热查询使用 workflow-queries 的无缓存只读投影，由工作流传入当前业务事实。
 
 想法批量导入 `importIdeas(originalTexts)` 由现有 workflow 克隆事务唯一持有：全批非空校验、按批次 revision 和行序分配独立编号、使用实际操作者及服务时间、同一收据提交后广播。任一无效全批回滚，同操作重试返回原回执；不要求项目版本，不创建会话／提案或运行 AI。
 
-想法池与转入版本按 `docs/specs/aireq/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在操作回执中。
+想法池与转入版本按 `docs/specs/aireq/section-navigation-and-ideas.md`，业务事实归现有 workflow owner。一次克隆事务中校验全部项目／版本和想法 revision、建立独立提案、移除想法并形成收据；失败回滚，提交后广播，同操作重试复用既有回执。原文和原始提交信息进入各版本提案，实际转入操作者记录在内部收据中。
 
 初始业务数据按 [原型后端业务初始数据](../../../../docs/architecture/mock-backend.md#原型后端业务初始数据)组织，数量与待办只从各 owner 的事实派生。提案导入导出按 `proposals.md` 的契约：`importProposals.proposals` 原子接纳短需求及可选 IR 业务 Markdown，正文仅落在新 IR 的标准 requirements.md，计算真实摘要，不导入其他材料、SR 或批准；沿用版本、幂等与提交后广播。
 
@@ -17,16 +17,16 @@
 公开 `MockAIReqService` 实现 `@zcode/services/aireq` bootstrap/call/onDidChange；所有普通调用显式携带合法工号和 clientId，全部合法工号可操作，backend.owner 不授予权限。写操作按各自实际签名保留对象归属、阶段、版本、幂等及参数校验，不承诺所有写入都有 CAS／operationId。`getConnectionServices` 为原生会话逐连接绑定不可变身份并保留既有连接 scope；ALS 仅传递请求上下文，不保存全局当前操作者。
 原生命令的 envelope.clientId 除了匹配 v4 握手，还必须匹配 HTTP 连接固定的 clientId；握手自报值不构成覆盖连接身份的授权。接纳后的队列与用户行沿原来源传递，查询、恢复、重试和其他客户端的提升动作不得改写该来源。
 
-业务 `command` 在首次接纳前校验 revision；幂等摘要只比较目标与业务参数，排除 `expectedRevision`／RPC revision。同操作重读版本后优先返回已接纳回执，业务参数变化仍拒绝，不能因 ACK 丢失重复创建 IR。UI 显式重读保留输入及操作 ID，不自动重新发送。
+业务 `command` 使用唯一的第三参编辑基线，首次接纳直接比较当前 workflow owner 暴露的版本，不为 CAS 构建视图；Git 返回后复核同一基线。幂等摘要只比较业务参数与目标。同操作重读版本后优先返回已接纳回执，业务参数变化仍拒绝，不能因 ACK 丢失重复创建 IR。UI 显式重读保留输入及操作 ID，不自动重新发送。
 
-远程白名单为 16 项。`skillDesign.session` 一次返回私有会话标识、完整工作区身份和临时目录，不提供后两项的独立 RPC。bootstrap 提供模型／提示词设置和 revision；前端本地读取端口及 `models.save`／`prompts.save` 的 expectedRevision CAS 不变。
+远程白名单为 16 项。`skillDesign.session` 一次返回私有会话标识、完整工作区身份和临时目录。bootstrap 一次返回项目工作区目录、模型／提示词设置及其 revision；`models.save`／`prompts.save` 的独立 expectedRevision CAS 不变。
 `skillDesign.listSkills` 与 `skillDesign.savePreview` 按私有会话解析工作区，不接受客户端路径；只有绑定有效项目的会话可以保存到该项目。
 
 `models.save`／`prompts.save` 没有 operationId；`skillDesign.saveDraft` 没有请求版本或 operationId，只覆盖可编辑字段，不改写服务端追加的对话补充记录。其他操作只按已有签名提供相应版本及回执保证；内存回执不保证跨重启 exactly-once。所有 mutation 均不自动重放，不为理论持久保障扩展接口。
 
 模型目录 facade 将底层 `getView`、`refresh(reason)` 的返回映射为同一 AIReq 供应商／模型目录；刷新实际调用底层 refresh 并传递 reason，不能退化为 getView。目录 revision 仅表示本进程刷新观测，不推进模型配置业务 revision，也不声称刷新真实供应商。
 
-配置保存成功后，使用 `@zcode/services/logger` 的现有 `createServiceLogger` 记录实际工号、clientId、操作名和时间；不记录配置正文、提示词或材料。业务动作收据保留实际身份，原有人工决定保留操作者，来源 owner 不代替实际操作者。
+配置保存成功后，使用 `@zcode/services/logger` 的现有 `createServiceLogger` 记录实际工号、clientId、操作名和时间；不记录配置正文、提示词或材料。业务动作内部收据与联系人变更历史保留实际操作者，公开收据只返回 `actorEmployeeId`。公开人工决定仍显示操作者，来源 owner 不代替实际操作者。
 
 原生 rows、附件字节、队列、订阅、水位、帧唯一归现有 `MockRuntime/MockZCodeAgentService`；本模块仅提供 admission/completion/seed 业务回调，不建立另一套会话存储。保留需求、评审、方案及隐藏 Skill 的完整内存流程，Skill 不提供导航／设置／搜索入口。AIReq 自动化专属 owner、manifest 和 task/workpool RPC 裁撤，通用设施保留。拒绝退休自由聊天、开发执行及验收 Agent 动作。真实能力和上线限制只记部署／交付文档，公开回复和材料仅陈述实际接纳的输入、材料、状态与版本，不宣称未发生的外部执行。
 
@@ -65,7 +65,7 @@ IR 固定包含业务需求 Markdown 和依赖 JSON；每个 SR 的独立 OpenSp
 
 `prototype.*`、故障控制和场景时钟不属于公共接口。评审阻断／失败／hold、文档候选合入等内部输入只能留在后端私域，仍受正常业务 owner 的材料、阶段、版本、幂等及人工门禁约束，不直接设置批准。公共工作流及嵌套历史回执不得泄漏私有故障字段；迟到结果按对象／轮次／版本拒绝。先提交再发事件，重连不重放写入；未知异常仅服务端记录详情，响应、帧与历史均返回稳定安全提示。
 
-场景字段只使用 `internal-scenarios.ts` 服务端类型扩展，由同一 owner 持有。`heldReviews`、`mergeScenario` 和 `simulatedMr` 等通过 `publicBusinessProjection` 递归移除，包括幂等回执中的历史投影。公开评审通过 agent 状态表达待运行、运行、失败与完成；没有修改这类模拟事实的公开命令。
+服务端状态持有 Git 目标、审计数据和模拟控制；公开工作流和命令回执按各自类型投影，移除仅服务端事实，包括嵌套历史的私有控制。公开评审通过 agent 状态表达待运行、运行、失败与完成；没有修改这类模拟事实的公开命令。
 
 ### 当前 AI 配置实现
 
@@ -77,4 +77,4 @@ IR 固定包含业务需求 Markdown 和依赖 JSON；每个 SR 的独立 OpenSp
 
 ## 只读文档统计
 
-`readWorkflow` 从同一工作流的提案、正式 IR 与 Release 派生 `view.projectDocuments`，含所有项目及空 Release。每个 Release 提供名称、创建时间、提案数及正式文档数。详情、材料、会话和历史仍按所选项目返回；聚合不写回状态，提交后经 workflow 事件通知客户端重读。
+`readWorkflow` 从同一工作流的提案、正式 IR 与 Release 派生唯一的 `view.releases`，含所有项目的 Release 和零文档计数。详情、材料、会话和历史仍按所选项目返回；聚合不写回状态，提交后通知客户端重读。

@@ -33,21 +33,3 @@ export function businessFailureMessage(
   });
   return fallback;
 }
-
-/** 私有交付元数据和故障场景不能混入公开业务投影，包括历史回执中的嵌套视图。 */
-export function publicBusinessProjection<T>(value: T): T {
-  if (Array.isArray(value)) return value.map(publicBusinessProjection) as T;
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(
-        ([key]) =>
-          key !== "reviewScenarios" &&
-          key !== "mergeScenario" &&
-          key !== "repositoryTarget" &&
-          key !== "simulatedMr" &&
-          key !== "heldReviews",
-      )
-      .map(([key, nested]) => [key, publicBusinessProjection(nested)]),
-  ) as T;
-}

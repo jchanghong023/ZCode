@@ -1,6 +1,6 @@
 import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
-import { businessRule, publicBusinessProjection } from "./errors.js";
+import { businessRule } from "./errors.js";
 import { Emitter } from "@zcode/rpc";
 import { IZCodeAgentService, type ServiceCollection } from "@zcode/services";
 import { createServiceLogger } from "@zcode/services/logger";
@@ -15,20 +15,23 @@ import {
   type AIReqRemotePath,
   type AIReqRemoteArgs,
   type AIReqRemoteResult,
-  type AIReqSelection,
-  type AIReqAction,
+  type AIReqWorkflowTarget,
+  type AIReqCommand,
+  type AIReqWorkflowResult,
 } from "@zcode/services/aireq";
 import { AIReqNativeBusiness } from "./native-business.js";
 import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./identity.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
-  canSyncFormalDocuments,
   readPrototypeGitDocuments,
   getPrototypeWorkflow,
   getPrototypeProposalPrHandoff,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
+  readPrototypeProjectWorkspaces,
+  readPrototypeWorkflowRevision,
+  readPrototypeFormalGitTarget,
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
@@ -43,7 +46,7 @@ import {
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
-import { readPrototypeProjectSettings, savePrototypeRepository } from "./project-settings.js";
+import { savePrototypeRepository } from "./project-settings.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
@@ -91,7 +94,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     string,
     { digest: string; result?: Promise<unknown> }
   >();
-  private readonly operations = new Map<string, { digest: string; result: unknown }>();
+  private readonly operations = new Map<string, { digest: string; result: AIReqWorkflowResult }>();
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
   private readonly timer: ReturnType<typeof setInterval>;
   constructor(private readonly readGitDocuments: GitDocumentReader = readPrototypeGitDocuments) {
@@ -107,13 +110,13 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
-    add("readWorkflow", (selection: AIReqSelection) => this.workflow(selection));
-    add("command", (action: AIReqAction, selection: AIReqSelection, revision: number) =>
-      this.command(action, selection, revision),
+    add("readWorkflow", (target: AIReqWorkflowTarget) => this.workflow(target));
+    add("command", (action: AIReqCommand, target: AIReqWorkflowTarget, revision: number) =>
+      this.command(action, target, revision),
     );
     add("readPrHandoff", getPrototypeProposalPrHandoff);
     add("retryMaterial", retryPrototypeWorkflowMaterial);
-    add("retrySession", (selection: AIReqSelection, sessionId: string) => {
+    add("retrySession", (selection: AIReqWorkflowTarget, sessionId: string) => {
       const session = this.workflow(selection).session;
       if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
       retryPrototypeSessionRead(sessionId);
@@ -160,7 +163,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     return result;
   }
-  private workflow(selection: AIReqSelection) {
+  private workflow(selection: AIReqWorkflowTarget) {
     const view = getPrototypeWorkflow(selection);
     const proposal = view.drafts.find(
       (item) => item.projectId === selection.projectId && item.id === selection.irId,
@@ -184,66 +187,46 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
-  private async command(action: AIReqAction, selection: AIReqSelection, revision: number) {
+  private async command(action: AIReqCommand, selection: AIReqWorkflowTarget, revision: number) {
     if (!(commands as readonly string[]).includes(action.type))
       throw businessRule("此操作不可用，请刷新页面后重试。");
-    const metadata = action as AIReqAction & { operationId?: string; expectedRevision?: number };
-    if (typeof metadata.operationId !== "string" || !metadata.operationId.trim())
+    if (!action.operationId.trim())
       throw businessRule("操作参数无效，请刷新页面后重试。");
-    const key = metadata.operationId
-      ? `${currentIdentity()?.employeeId}:${currentIdentity()?.clientId}:${metadata.operationId}`
-      : undefined;
+    const identity = currentIdentity()!;
+    const key = `${identity.employeeId}:${identity.clientId}:${action.operationId}`;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
     const digest = digestValue([
-      { ...action, expectedRevision: undefined },
+      action,
       action.type === "saveDocumentFormats" ? undefined : selection,
     ]);
-    const prior = key ? this.operations.get(key) : undefined;
+    const prior = this.operations.get(key);
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");
-      return structuredClone(prior.result);
+      return prior.result;
     }
-    const current = getPrototypeWorkflow(selection);
-    if (
-      revision !== current.revision ||
-      (metadata.expectedRevision !== undefined && metadata.expectedRevision !== current.revision)
-    )
+    if (revision !== readPrototypeWorkflowRevision())
       throw businessRule("需求版本已变化，请重新读取当前版本。");
     let gitSnapshot;
     if (action.type === "syncFormalDocuments") {
-      if (!canSyncFormalDocuments(action.projectId))
-        throw businessRule("需要当前项目已授权的开发或测试角色。");
-      const target = getPrototypeWorkflow({ projectId: action.projectId, irId: action.irId });
-      const group = target.groups.find(
-        (item) => item.projectId === action.projectId && item.id === action.irId,
-      );
-      if (!group?.merge || !group.files.length)
-        throw businessRule("只有已归档的正式文档可以同步。");
-      const project = target.projects.find((item) => item.id === group.projectId);
-      if (!project?.repositoryUrl) throw businessRule("请先为项目配置 Git 仓库。");
-      gitSnapshot = await this.readGitDocuments(
-        {
-          id: project.id,
-          repositoryId: project.repositoryId,
-          repositoryUrl: project.repositoryUrl,
-          defaultBranch: project.defaultBranch,
-        },
-        [prototypeIrRoot(group.id), ...group.srIds.map(prototypeChangeRoot)],
-      );
-      const concurrent = key ? this.operations.get(key) : undefined;
+      const { group, project } = readPrototypeFormalGitTarget(action);
+      gitSnapshot = await this.readGitDocuments(project, [
+        prototypeIrRoot(group.id),
+        ...group.srIds.map(prototypeChangeRoot),
+      ]);
+      const concurrent = this.operations.get(key);
       if (concurrent) {
         if (concurrent.digest !== digest)
           throw businessRule("操作编号已被其他请求使用，请重新操作。");
-        return structuredClone(concurrent.result);
+        return concurrent.result;
       }
-      if (getPrototypeWorkflow(selection).revision !== revision)
+      if (readPrototypeWorkflowRevision() !== revision)
         throw businessRule("读取 Git 期间平台文档或权限已变化，请重新同步。");
     }
     const result = applyPrototypeAction(action, selection, undefined, {
       gitSnapshot,
-      operationId: metadata.operationId,
+      operationId: action.operationId,
     });
-    if (key) this.operations.set(key, { digest, result: structuredClone(result) });
+    this.operations.set(key, { digest, result: structuredClone(result) });
     return result;
   }
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
@@ -267,11 +250,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         revision: models.prototypeAgentModelConfigurationRevision(),
       },
       prompts: prompts.readPrototypeAgentPrompts(),
-      projects: {
-        developmentRoots: Object.fromEntries(
-          readPrototypeProjectSettings().projects.map((project) => [project.id, project.root]),
-        ),
-      },
+      projects: { workspaces: readPrototypeProjectWorkspaces() },
       skillDesignStorage: {
         workspacePath: PROTOTYPE_BACKEND.configDirectory,
         sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
@@ -323,7 +302,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           at: new Date().toISOString(),
         });
       }
-      return publicBusinessProjection(structuredClone(result ?? null)) as AIReqRemoteResult<P>;
+      return structuredClone(result ?? null) as AIReqRemoteResult<P>;
     });
   }
 }

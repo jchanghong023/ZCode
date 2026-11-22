@@ -1,10 +1,6 @@
-import type {
-  AIReqPrHandoffScenario,
-  InternalProposalDelivery,
-  PrototypeRepositoryTarget,
-} from "./internal-scenarios.js";
-
-import type { AIReqPrHandoff, AIReqProject, AIReqRequirementGroup } from "@zcode/services/aireq";
+import type { AIReqPrHandoffScenario } from "./internal-scenarios.js";
+import type { Project, PrototypeRepositoryTarget, RequirementGroup } from "./workflow-state.js";
+import type { AIReqPrHandoff } from "@zcode/services/aireq";
 import { hasCurrentProposalSolution, alignmentBlocker } from "@zcode/services/aireq";
 import { prototypeIrRoot } from "./proposal-storage.js";
 
@@ -13,10 +9,10 @@ export function prototypeProposalBranch(irId: string): string {
 }
 
 export function prototypeProposalRepositoryIssue(
-  group: AIReqRequirementGroup,
+  group: RequirementGroup,
   project: PrototypeRepositoryTarget | undefined,
 ): string | undefined {
-  const delivery = group.proposalDelivery as InternalProposalDelivery | undefined;
+  const delivery = group.proposalDelivery;
   const target = delivery?.repositoryTarget;
   if (!target) {
     if (delivery?.branch || delivery?.pushedAt || group.requirementsPr)
@@ -35,8 +31,8 @@ export function prototypeProposalRepositoryIssue(
 
 /** 只读取交付信息，不创建分支或访问文件系统。 */
 export function readPrototypeProposalPrHandoff(
-  group: AIReqRequirementGroup,
-  project: AIReqProject | undefined,
+  group: RequirementGroup,
+  project: Project | undefined,
   scenario: AIReqPrHandoffScenario = "current",
 ): AIReqPrHandoff {
   const projectDirectory = group.proposalLocation?.directory;
@@ -56,8 +52,7 @@ export function readPrototypeProposalPrHandoff(
     blockers.push("请先配置提案所属项目的 Git 仓库和默认分支。");
   const repositoryIssue = prototypeProposalRepositoryIssue(group, project);
   if (repositoryIssue) blockers.push(repositoryIssue);
-  const target =
-    (group.proposalDelivery as InternalProposalDelivery | undefined)?.repositoryTarget ?? project;
+  const target = group.proposalDelivery?.repositoryTarget ?? project;
   if (!projectDirectory || scenario === "missing-directory")
     blockers.push("提案临时目录记录缺失。");
   else if (project && projectDirectory !== project.root)

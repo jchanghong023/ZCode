@@ -2,15 +2,11 @@
  * slashCommandHelpers — 纯函数辅助工具，供 SlashCommandPlugin.tsx 使用
  */
 import { $getRoot, $getSelection, $isRangeSelection, $isTextNode } from "lexical";
-import type { AgentSummary, Locale, SkillSummary, ZCodeSlashCommand } from "@zcode/shared";
+import type { AgentSummary, Locale, SkillSummary } from "@zcode/shared";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import type { MentionItem } from "@/mentions/mentionTypes.js";
 import { mapSubagentsToMentionItemsForTest } from "@/mentions/providers/subagentsMentionProvider.js";
 import { mapSkillsToMentionItemsForTest } from "@/mentions/providers/skillsMentionProvider.js";
-import {
-  extractActivePromptInputTrigger,
-  getActivePromptInputTokenTailLength,
-} from "./lib/promptInputTriggers.js";
 import type { PromptInputSuggestionItem } from "./lib/promptInputTriggers.js";
 
 export interface SlashCommandPluginProps {
@@ -90,27 +86,6 @@ export function normalizeSlashCommandValue(name: string): string {
   return name.trim().replace(/^\/+/, "");
 }
 
-export function buildSlashSuggestions(commands: ZCodeSlashCommand[]): PromptInputSuggestionItem[] {
-  return commands.flatMap((command) => {
-    const value = normalizeSlashCommandValue(command.name);
-    // Plan 是 Composer 本地操作。旧 Agent 仍可能广播同名命令，不能让它重新
-    // 变成插入文本、等到发送时才切模式的旧入口；其余命令仍以 CLI catalog 为准。
-    if (!value || value.toLowerCase() === "plan") {
-      return [];
-    }
-    return [
-      {
-        id: `slash:${value}`,
-        trigger: "/",
-        value,
-        label: command.inputHint?.trim() || `/${value}`,
-        description: command.description,
-        keywords: [...new Set([value, command.name, command.description, command.inputHint ?? ""])],
-      },
-    ];
-  });
-}
-
 export function buildSubagentSuggestions(
   agents: Array<
     Pick<
@@ -150,30 +125,6 @@ function mapSubagentMentionItemToSuggestion(item: MentionItem): PromptInputSugge
     description: item.description,
     keywords: [...new Set([...(item.keywords ?? []), "subagent", "agent"])],
     data: item.data,
-  };
-}
-
-export function replaceActiveSlashToken(
-  textBeforeCursor: string,
-  textAfterCursor: string,
-  replacementToken: string,
-) {
-  const activeTrigger = extractActivePromptInputTrigger(textBeforeCursor);
-  if (!activeTrigger || activeTrigger.trigger !== "/") {
-    return null;
-  }
-
-  const tokenStart = textBeforeCursor.length - activeTrigger.query.length - 1;
-  const tailLength = getActivePromptInputTokenTailLength(
-    activeTrigger,
-    textAfterCursor,
-    replacementToken,
-  );
-  const prefix = textBeforeCursor.slice(0, tokenStart);
-  const suffix = textAfterCursor.slice(tailLength);
-  return {
-    cursorOffset: prefix.length + replacementToken.length + 1,
-    text: `${prefix}${replacementToken} ${suffix}`,
   };
 }
 

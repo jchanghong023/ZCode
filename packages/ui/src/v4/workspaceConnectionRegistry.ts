@@ -225,15 +225,3 @@ export function acquireWorkspaceConnection(
   };
 }
 
-/** 仅测试/诊断用：当前注册的连接条目数（不含已换代失效、待存量租约释放的旧条目）。 */
-export function workspaceConnectionRegistrySize(): number {
-  return registry.size;
-}
-
-/** 永久删除不能等待 keep-warm；只清同一 endpoint + workspace 的对应会话。 */
-export function forgetWorkspaceConversation(
-  scope: WorkspaceConnectionScope,
-  sessionId: string,
-): void {
-  registry.get(buildWorkspaceConnectionKey(scope))?.layer.forget(sessionId);
-}

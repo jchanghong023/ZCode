@@ -21,14 +21,6 @@ export type WorkflowStepData = WorkflowCausalityGraphData["steps"][number];
 export type WorkflowLaneData = WorkflowCausalityGraphData["lanes"][number];
 export type WorkflowParticipantData = WorkflowCausalityGraphData["participants"][number];
 export type WorkflowHandoffData = WorkflowCausalityGraphData["handoffs"][number];
-/**
- * 作者用 `phase("…")` 施加的分组结构。板面的
- * 第一层就是它；无标记脚本由 UI 合成一个隐式阶段（participant-model.ts）。`phases` /
- * `phaseEdges` 是可选的，所以这两个别名先摘掉 undefined——消费者拿到的永远是数组元素类型。
- */
-export type WorkflowPhaseData = NonNullable<WorkflowCausalityGraphData["phases"]>[number];
-export type WorkflowPhaseEdgeData = NonNullable<WorkflowCausalityGraphData["phaseEdges"]>[number];
-
 /** Per-step run state for the live-execution view; keyed by step id. */
 export type StepRunStatus = "pending" | "running" | "done" | "failed";
 
@@ -39,17 +31,6 @@ export type StepRunStatus = "pending" | "running" | "done" | "failed";
  */
 export type StepStatusTable = Partial<Record<string, StepRunStatus>>;
 
-/**
- * 板面上可被选中的三类东西：一张
- * 参与者卡、一个阶段模块、终端返回物。`line` 是宿主做脚本行定位的便利字段（权限块）。
- */
-export type WorkflowGraphSelectionKind = "participant" | "phase" | "sink";
-export interface WorkflowCausalityGraphSelection {
-  id: string;
-  kind: WorkflowGraphSelectionKind;
-  line?: number;
-}
-
 /** The single lane every `files.*` read runs in. */
 export const WORKSPACE_LANE_ID = "workspace";
 /** Lane of an ask whose receiver the analysis could not resolve to an actor site. */
@@ -59,8 +40,6 @@ export const UNKNOWN_LANE_ID = "unknown";
  * 从不画成药丸——开着的留白自己就是一站（presentation.md「Pills」）。
  */
 export const MAIN_LANE_ID = "main";
-/** The terminal marker node: the artifact the workflow returns. */
-export const SINK_NODE_ID = "sink";
 /**
  * 兜底阶段：首个 `phase()` 标记之前发出的 step 的家，也是无标记脚本的隐式唯一阶段
  * （分析器的参与者恒带 `phase: "unphased"`）。保留 id，且**没有 name**——显示名由 UI

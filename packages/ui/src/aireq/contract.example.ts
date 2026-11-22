@@ -1,4 +1,4 @@
-import type { AIReqApplicationProps, AIReqMainView, AIReqProjectDocuments } from "./contract.js";
+import type { AIReqApplicationProps, AIReqMainView, AIReqReleaseSummary } from "./contract.js";
 /** The host supplies the accessor, stable client ID, connection status and operator. */
 export function exampleAIReqApplication(props: AIReqApplicationProps): AIReqApplicationProps {
   return {
@@ -26,16 +26,14 @@ export const exampleAIReqProjectNavigation = [
 
 export const exampleAIReqInitialView: AIReqMainView = "projectProgress";
 
-/** Read-only document counts returned by the workflow. */
-export const exampleAIReqProjectDocuments = {
-  projectId: "example-project",
-  releases: [
-    {
-      releaseId: "example-release",
-      title: "Example release",
-      createdAt: "2026-11-16T00:00:00.000Z",
-      proposalCount: 1,
-      formalCount: 0,
-    },
-  ],
-} satisfies AIReqProjectDocuments;
+/** Global Release directory returned by the workflow, with read-only document counts. */
+export const exampleAIReqReleases = [
+  {
+    id: "example-release",
+    projectId: "example-project",
+    title: "Example release",
+    createdAt: "2026-11-16T00:00:00.000Z",
+    proposalCount: 1,
+    formalCount: 0,
+  },
+] satisfies AIReqReleaseSummary[];

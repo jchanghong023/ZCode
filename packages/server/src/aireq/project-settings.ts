@@ -1,7 +1,6 @@
 import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
-import type { AIReqProject } from "@zcode/services/aireq";
-import type { PrototypeRepositoryTarget } from "./internal-scenarios.js";
+import type { Project, PrototypeRepositoryTarget } from "./workflow-state.js";
 
 export function prototypeRepositoryTarget({
   repositoryId,
@@ -20,22 +19,16 @@ export function prototypeRepositoryKey({
 }
 
 interface PrototypeProjectSettings {
-  projects: AIReqProject[];
+  projects: Project[];
 }
-const createdAt = "2026-10-15T09:00:00.000Z";
 
-function project(id: string, name: string, root: string): AIReqProject {
+function project(id: string, name: string, root: string): Project {
   return {
     id,
     name,
-    storageName: root.split("/").filter(Boolean).at(-1)!,
     root,
-    commonDir: `${root}/.git`,
     revision: 1,
-    createdAt,
-    updatedAt: createdAt,
     defaultBranch: "main",
-    remote: "origin",
     repositoryId: `sample-repository-${id}`,
     repositoryUrl: `ssh://git@git.example.internal/team/${root.split("/").at(-1)}.git`,
   };
@@ -53,6 +46,14 @@ let settings: PrototypeProjectSettings = {
 
 export function readPrototypeProjectSettings(): PrototypeProjectSettings {
   return structuredClone(settings);
+}
+
+export function readPrototypeProjectSetting(projectId?: string): Readonly<Project> | undefined {
+  return settings.projects.find((project) => project.id === projectId);
+}
+
+export function mapPrototypeProjectSettings<T>(map: (project: Readonly<Project>) => T): T[] {
+  return settings.projects.map(map);
 }
 
 /** 设置页仅保存内存配置，不探测仓库、不拉取或推送，也不改既有样例工作区。 */
@@ -108,7 +109,6 @@ export function savePrototypeRepository(
     repositoryUrl,
     defaultBranch,
     revision: existing ? existing.revision + 1 : 1,
-    updatedAt: new Date().toISOString(),
   };
   settings = {
     projects: existing

@@ -316,8 +316,6 @@ export type WorkflowRunNode = z.infer<typeof workflowRunNodeSchema>;
  *   **只在 ≠ D 时在场**（高于低于都算）：跑在默认上的 run 与从前一模一样，一个键都不多。
  * - `cooldownMs`：带 Retry-After 的限流冻结新派发的时长，**相对量**（同 `retryInMs` 的理由）；
  *   `idle_reset` 与 run 终态清掉它。
- *
- * UI 的读数规则见 workflowRunConcurrencyView。
  */
 export const workflowRunConcurrencySchema = z.object({
   key: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxConcurrencyKeyLength).optional(),

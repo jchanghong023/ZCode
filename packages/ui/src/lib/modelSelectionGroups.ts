@@ -7,7 +7,7 @@ import {
 } from "@zcode/shared";
 import type { WebModelSelectionView } from "@zcode/services";
 import type { ModelSelectGroup } from "@/ModelConfigSelect.js";
-import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
+import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { shouldShowModelVisionBadge } from "@/lib/modelVisionBadge.js";
 
 export interface ModelProviderGroupLabelOptions {
@@ -93,14 +93,3 @@ function getRegistryAccountProviderGroupPresentation(
   return { label, labelBadge: labels.codingPlanBadgeLabel ?? "Individual" };
 }
 
-export function resolveModelDisplayName(
-  modelGroups: readonly ModelSelectGroup[],
-  value: string,
-): string | null {
-  for (const group of modelGroups) {
-    const matched = group.items.find((item) => item.value === value);
-    if (matched) return matched.name;
-  }
-
-  return decodeCustomModelValue(value)?.modelName ?? null;
-}

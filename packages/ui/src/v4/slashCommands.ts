@@ -69,7 +69,3 @@ export function v4QueuedCommandText(kind: "sendText" | "sendGoalCommand", text: 
   return GOAL_COMMAND_RE.test(trimmed) ? text : `/goal ${trimmed}`;
 }
 
-export function extractV4GoalObjective(text: string): string {
-  const parsed = parseV4VisibleSlashCommand(v4QueuedCommandText("sendGoalCommand", text));
-  return parsed?.kind === "sendGoalCommand" ? parsed.objective : text.trim();
-}

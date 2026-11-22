@@ -6,7 +6,6 @@ import {
 } from "@zcode/shared";
 import {
   cleanAssistantFilePathCandidate,
-  extractAssistantFileReferences,
   getAssistantPreviewFileTypeDefinition,
   hasAssistantPreviewFileChangeCandidates,
   isAssistantPreviewHtmlPath,
@@ -260,20 +259,6 @@ function getCardSeenKey(card: AssistantPreviewCard): string {
   } catch {
     return card.id;
   }
-}
-
-export function buildAssistantPreviewCards(
-  content: string,
-  workspacePath: string,
-  options: AssistantPreviewCardOptions = {},
-): AssistantPreviewCard[] {
-  if (!content.trim()) return [];
-  return buildAssistantPreviewCardsFromReferences(
-    content,
-    workspacePath,
-    extractAssistantFileReferences(content, workspacePath, { homePath: options.homePath }),
-    options,
-  );
 }
 
 export function buildAssistantPreviewCardsFromReferences(

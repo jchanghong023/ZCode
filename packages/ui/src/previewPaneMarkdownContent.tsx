@@ -1,19 +1,10 @@
-import {
-  Children,
-  createElement,
-  isValidElement,
-  useMemo,
-  useRef,
-  type ComponentProps,
-} from "react";
+import { Children, createElement, isValidElement, useMemo, type ComponentProps } from "react";
 import MarkdownPreview, {
   type MarkdownPreviewProps,
 } from "@uiw/react-markdown-preview/nohighlight";
 import { createMathPlugin } from "@streamdown/math";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { PluggableList } from "unified";
-import { MarkdownSelectionTooltip } from "@/v4/MarkdownSelectionTooltip.js";
-import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import {
   MarkdownImage,
@@ -245,69 +236,3 @@ export function MarkdownDocument({
   );
 }
 
-interface MarkdownPreviewContentProps {
-  content: string;
-  sourceKey?: string;
-  sourceTitle?: string;
-  sourcePath?: string;
-  selectionTarget?: MarkdownSelectionTarget;
-  workspacePath?: string;
-  /** 应用主题（store 耦合剥离）：透传给 markdown 渲染，缺省按 "system" 兜底。 */
-  theme?: Theme;
-  /** 代码预览设置（store 耦合剥离）：透传给 markdown 渲染，需保持引用稳定。 */
-  codePreviewSettings?: CodePreviewSettings;
-  onOpenBrowserUrl?: (url: string) => void;
-}
-
-export function MarkdownPreviewContent({
-  content,
-  sourceKey,
-  sourceTitle,
-  sourcePath,
-  selectionTarget,
-  workspacePath,
-  theme,
-  codePreviewSettings,
-  onOpenBrowserUrl,
-}: MarkdownPreviewContentProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const selectionScope = useMemo(
-    // 文档与来源身份变化必须清除旧选区，不能删掉这些失效信号。
-    () => ({
-      content,
-      sourceKey,
-      sourcePath,
-      workspaceKey: selectionTarget?.workspaceKey,
-      sessionId: selectionTarget?.sessionId,
-    }),
-    [content, sourceKey, sourcePath, selectionTarget?.workspaceKey, selectionTarget?.sessionId],
-  );
-  return (
-    <div
-      ref={rootRef}
-      data-markdown-preview="true"
-      className="w-full h-full bg-background overflow-auto"
-    >
-      {selectionTarget && sourceKey ? (
-        <MarkdownSelectionTooltip
-          scopeKey={selectionScope}
-          rootRef={rootRef}
-          sourceKey={sourceKey}
-          sourceTitle={sourceTitle ?? sourceKey}
-          sourcePath={sourcePath}
-          target={selectionTarget}
-        />
-      ) : null}
-      <div className="mx-auto min-h-full w-full max-w-[900px] bg-background p-6">
-        <MarkdownDocument
-          workspacePath={workspacePath}
-          theme={theme}
-          codePreviewSettings={codePreviewSettings}
-          onOpenExternalUrl={onOpenBrowserUrl}
-        >
-          {content}
-        </MarkdownDocument>
-      </div>
-    </div>
-  );
-}

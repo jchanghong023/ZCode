@@ -109,17 +109,6 @@ function sameStartDepth(
   ).length;
 }
 
-/** 包着 `holeId` 的补全有几层（侧板的框按它向里收）。 */
-export function fillDepthOf(
-  holeId: string,
-  fills: readonly Pick<TimelineFill, "holeId">[],
-  parents: HoleParents,
-): number {
-  return fills.filter(
-    (other) => other.holeId !== holeId && fillContains(other.holeId, holeId, parents),
-  ).length;
-}
-
 /**
  * 卡上的框。有头的补全：x 从首列左缘 − 8 到末列右缘 + 8，y 从头那一行的中线到它最高那一列药丸之下 8px
  * （那几列没有药丸——比如卡收起时——就到轨道行 / 站台行之下 4px）；同起于一列的嵌套框每层左、右、
@@ -198,43 +187,3 @@ export function legendGaps(
     .map((row) => ({ x: row.left - FRAME_LEGEND_GAP, width: row.width + 2 * FRAME_LEGEND_GAP }));
 }
 
-/**
- * 侧板的框：x 从 8 到列表右缘 − 12，每层嵌套各收 4px；有标题的补全从标题的中线起、到它最后一节之下
- * 4px，起笔在轨道的 x（21，笔盖着那一截）；无阶段的补全围自己那一节，上下各收 2px，从左上角起笔。
- * 纵向位置由调用方从 DOM 量来（节的展开 / 折叠会改它们）。
- */
-export const SPINE_FRAME_LEFT = 8;
-export const SPINE_FRAME_RIGHT = 12;
-export const SPINE_RAIL_X = 21;
-
-export function spineFrameBox({
-  bottom,
-  depth,
-  headed,
-  top,
-  width,
-}: {
-  /** 标题行的顶（有头）或那一节的顶（无头），相对列表内容。 */
-  top: number;
-  /** 最后一节的底。 */
-  bottom: number;
-  width: number;
-  depth: number;
-  headed: boolean;
-}): FrameBox {
-  const k = depth * FRAME_NEST_INSET;
-  return headed
-    ? {
-        x0: SPINE_FRAME_LEFT + k,
-        x1: width - SPINE_FRAME_RIGHT - k,
-        y0: Math.round(top + HEAD_ROW / 2),
-        y1: Math.round(bottom + 4),
-        start: SPINE_RAIL_X,
-      }
-    : {
-        x0: SPINE_FRAME_LEFT + k,
-        x1: width - SPINE_FRAME_RIGHT - k,
-        y0: Math.round(top + 2),
-        y1: Math.round(bottom - 2),
-      };
-}

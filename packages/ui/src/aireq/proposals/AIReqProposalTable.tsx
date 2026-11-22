@@ -99,9 +99,9 @@ export function AIReqProposalTable({
       ),
     [ai.view?.drafts, ai.selection.projectId, ai.releaseId],
   );
-  const releases = (ai.view?.releases ?? []).filter(
-    (item) => item.projectId === ai.selection.projectId,
-  );
+  const releases = ai.selectionReady
+    ? ai.view?.releases.filter((item) => item.projectId === ai.selection.projectId)
+    : undefined;
   useEffect(() => {
     if (!createOpen && !importOpen) setTargetReleaseId(undefined);
   }, [createOpen, importOpen]);
@@ -216,7 +216,7 @@ export function AIReqProposalTable({
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
-  const ready = releases.some((release) => release.id === draftReleaseId);
+  const ready = releases?.some((release) => release.id === draftReleaseId) ?? false;
   const releaseSelector = (
     <AIReqProposalReleaseField
       releaseId={draftReleaseId}
@@ -528,7 +528,7 @@ export function AIReqProposalTable({
                 zh ? "选择 UTF-8 CSV 或 Markdown 文件" : "Choose a UTF-8 CSV or Markdown file"
               }
               className="text-transparent file:text-foreground"
-              disabled={busy || !releases.length}
+              disabled={busy || !releases?.length}
               onChange={async (event) => {
                 const generation = ++fileGeneration.current;
                 const file = event.target.files?.[0];
@@ -669,7 +669,7 @@ export function AIReqProposalTable({
                 </ol>
               </>
             )}
-            {!ready && releases.length > 0 && (
+            {!ready && Boolean(releases?.length) && (
               <p className="text-ui-sm text-foreground-subtle">
                 {zh ? "请选择所属 Release 后导入。" : "Choose a Release before importing."}
               </p>
@@ -706,7 +706,7 @@ export function AIReqProposalTable({
         <AIReqProposalCreateDialog
           busy={busy}
           ready={ready}
-          hasReleases={releases.length > 0}
+          hasReleases={Boolean(releases?.length)}
           releaseField={releaseSelector}
           text={text}
           onTextChange={(value) => {

@@ -74,7 +74,7 @@ export function useAIReqNavigationActions({
         !origin ||
         origin.projectId !== selectionRef.current.projectId ||
         origin.releaseId !== releaseRef.current ||
-        !viewRef.current?.availableReleases.some(
+        !viewRef.current?.releases.some(
           (release) => release.projectId === origin.projectId && release.id === origin.releaseId,
         )
       )
@@ -90,7 +90,7 @@ export function useAIReqNavigationActions({
     ) => {
       if (
         releaseId &&
-        !viewRef.current?.availableReleases.some(
+        !viewRef.current?.releases.some(
           (release) => release.projectId === projectId && release.id === releaseId,
         )
       )

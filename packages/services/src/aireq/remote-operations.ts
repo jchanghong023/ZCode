@@ -1,11 +1,11 @@
 import type { AIReqPresenceSnapshot } from "./presence.js";
 import type { AIReqBackendView, AIReqDataSource } from "./data-source.js";
 import type {
-  AIReqAction,
+  AIReqCommand,
   AIReqAgentModelSettings,
   AIReqNativeSessionRef,
   AIReqMaterialReadRequest,
-  AIReqSelection,
+  AIReqWorkflowTarget,
   AIReqSkillDesignDraft,
   AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
@@ -18,7 +18,7 @@ import type {
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 12;
+export const AIREQ_CONTRACT_VERSION = 13;
 export interface AIReqRemoteWorkflow {
   view: AIReqWorkflowView;
   session?: AIReqNativeSessionRef;
@@ -36,14 +36,14 @@ interface Operation<A extends unknown[], R> {
 /** 仅保留实际 RPC；模型／提示词读取由 bootstrap 提供，本地读取端口不是远程操作。 */
 export interface AIReqRemoteOperations {
   readPresence: Operation<[], AIReqPresenceSnapshot>;
-  readWorkflow: Operation<[selection: AIReqSelection], AIReqRemoteWorkflow>;
+  readWorkflow: Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
   readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
   command: Operation<
-    [action: AIReqAction, selection: AIReqSelection, revision: number],
+    [action: AIReqCommand, target: AIReqWorkflowTarget, expectedRevision: number],
     AIReqWorkflowResult
   >;
   retryMaterial: Operation<[request: AIReqMaterialReadRequest], boolean>;
-  retrySession: Operation<[selection: AIReqSelection, sessionId: string], null>;
+  retrySession: Operation<[target: AIReqWorkflowTarget, sessionId: string], null>;
   "projects.saveRepository": Operation<[input: AIReqRemoteRepositoryInput], null>;
   "models.save": Operation<[settings: AIReqAgentModelSettings, expectedRevision: number], null>;
   "prompts.save": Operation<[value: Record<string, string>, expectedRevision: number], null>;
@@ -77,7 +77,7 @@ export interface AIReqRemoteBootstrap {
     revision: number;
   };
   prompts: AIReqRemotePrompts;
-  projects: { developmentRoots: Record<string, string> };
+  projects: { workspaces: Record<string, AIReqWorkspace> };
   skillDesignStorage?: { workspacePath: string; sharedSkillsDirectory: string };
 }
 export type AIReqRemoteEvent =

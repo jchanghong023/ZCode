@@ -71,19 +71,6 @@ export function formatArtifactBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-/**
- * 这个 contentType 的正文是不是**人能读的文本**——「复制」动作的门。
- *
- * `application/json` 单独列出来的理由：它按 IANA 归在 application/ 下，但脚本用
- * `artifact.file("summary", "out/report.json")` 交出来的东西，用户想要的就是把它复制走。
- * 与正文分派用的 `textLanguageFor` 是两件事：那个决定用哪个 code viewer，这个只决定
- * 「能不能整份复制」。
- */
-export function isTextArtifactContentType(contentType: string | undefined): boolean {
-  if (contentType === undefined) return false;
-  return contentType.startsWith("text/") || contentType === "application/json";
-}
-
 /** 文件的类型徽字：工作区原路径的扩展名优先（`out/book.pdf` → `PDF`），没有路径时退回 MIME 子类型。 */
 export function artifactFileBadge(artifact: {
   sourcePath?: string;
@@ -228,43 +215,3 @@ export function buildPresetLabels(
   };
 }
 
-/**
- * 该产物能不能在**本地文件系统**上被定位（「在工作区显示」的门）。
- *
- * 远程 workspace（SSH / WSL / Docker）的路径在本机不存在，也没有文件树可以跳。
- * `sourcePath` 缺席则连路径都没有——markdown 产物与预置看板天生就没有出处。
- */
-export function canRevealArtifactInWorkspace(params: {
-  sourcePath?: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-}): boolean {
-  return (
-    Boolean(params.sourcePath?.trim()) &&
-    !params.workspaceIdentity?.trim() &&
-    !params.remoteSessionId
-  );
-}
-
-/**
- * 「作为文件打开」副本的文件名。`markdown` 恒为 `<id>.md`（id 已限定在 `[A-Za-z0-9_.-]`）；
- * `file` 取**这一版**的 `sourcePath` 基名——扩展名决定系统用哪个 App 打开，而同一个 id 的
- * 不同版本可以来自不同路径。拿不到出处时退回 id。
- */
-export function artifactOpenAsFileName(
-  artifact: {
-    id: string;
-    kind: WorkflowRunArtifactKind;
-    version: number;
-    sourcePath?: string;
-    versions?: readonly { version: number; sourcePath?: string }[];
-  },
-  version: number,
-): string {
-  if (artifact.kind === "markdown") return `${artifact.id}.md`;
-  const sourcePath =
-    artifact.versions?.find((entry) => entry.version === version)?.sourcePath ??
-    (version === artifact.version ? artifact.sourcePath : undefined);
-  const leaf = sourcePath?.split(/[\\/]/u).at(-1)?.trim();
-  return leaf ? leaf : artifact.id;
-}

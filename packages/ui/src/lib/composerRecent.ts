@@ -89,9 +89,6 @@ export function acceptComposerRecentReceipt(
   }
 }
 
-let submissionSequence = 0;
-const acceptedSequences = new WeakMap<StorageLike, Map<string, number>>();
-
 function resolveComposerRecentKey(
   workspacePath: string,
   workspaceIdentity?: string,
@@ -134,65 +131,6 @@ export function readComposerRecent(
   } catch {
     return null;
   }
-}
-
-/** 发起真实 Submission 时捕获；返回函数只在 accepted ACK 后调用。 */
-export function captureComposerRecentSubmission(
-  workspacePath: string,
-  submission: { readonly modelSelection: ModelSelection; readonly mode: SubmissionMode },
-  workspaceIdentity?: string,
-  storage: StorageLike | null = browserStorage(),
-  scope?: ComposerScope,
-): () => void {
-  if (!storage) return () => {};
-  const key = resolveComposerRecentKey(workspacePath, workspaceIdentity, scope);
-  const mode = submissionModeSchema.safeParse(submission.mode);
-  const modelSelection = normalizeSparseModelSelection(submission.modelSelection);
-  if (modelSelection && isHighspeedProviderId(modelSelection.providerId)) {
-    // 兜底（spec §5.1）：加速 Provider 是单轮执行身份，不在任何模型目录里，写进 Recent 会让
-    // 新任务草稿种子解析为空。正常链路由 SessionPane 在加速轮传入 Composer 原始选择，这里
-    // 只拦截直接拿覆盖后 payload 调用的路径；跳过不推进序号，保留上一次合法记录。
-    logger.warn("[ComposerRecent] 提交指向加速卡 Provider，跳过偏好记录", {
-      workspacePath,
-      workspaceIdentity,
-    });
-    return () => {};
-  }
-  if (!mode.success || !modelSelection) {
-    // Recent 是发送后的附带偏好；输入异常时只放弃记录，不能阻断权威 command。
-    logger.warn("[ComposerRecent] 最近提交配置格式无效，跳过偏好记录", {
-      workspacePath,
-      workspaceIdentity,
-    });
-    return () => {};
-  }
-  const sequence = ++submissionSequence;
-  const recent = {
-    modelSelection,
-    mode: mode.data,
-  };
-  let accepted = acceptedSequences.get(storage);
-  if (!accepted) {
-    accepted = new Map();
-    acceptedSequences.set(storage, accepted);
-  }
-  return () => {
-    // 只保存模型会让首发迁移 Root 后丢失权限；两个字段必须一起保存。
-    // 同一 Renderer 内按发起顺序取最近已接纳提交，防止跨 Pane 的迟到 ACK 回写旧偏好。
-    // 未接纳候选不推进水位，也不改变草稿或 CLI 的输入队列。
-    if (sequence <= (accepted.get(key) ?? 0)) return;
-    accepted.set(key, sequence);
-    try {
-      storage.setItem(key, JSON.stringify(recent));
-    } catch (error) {
-      // 权威发送已经接纳，本地偏好写入失败不能把它报告成发送失败。
-      logger.warn("[ComposerRecent] 保存最近提交配置失败", {
-        workspacePath,
-        workspaceIdentity,
-        error,
-      });
-    }
-  };
 }
 
 export function resolveDraftInitialModelSelection(
@@ -240,20 +178,6 @@ function findModel(view: WebModelSelectionView, selection: ModelSelection) {
   return view.providers
     .find((provider) => provider.providerId === selection.providerId)
     ?.models.find((candidate) => candidate.modelId === selection.modelId);
-}
-
-function normalizeSparseModelSelection(selection: ModelSelection): ModelSelection | null {
-  const candidate =
-    selection && typeof selection === "object" && !Array.isArray(selection) ? selection : null;
-  const options = candidate?.options;
-  const normalizedOptions =
-    options?.reasoningLevel !== undefined ? { reasoningLevel: options.reasoningLevel } : {};
-  const parsed = modelSelectionSchema.safeParse({
-    providerId: candidate?.providerId,
-    modelId: candidate?.modelId,
-    ...(Object.keys(normalizedOptions).length > 0 ? { options: normalizedOptions } : {}),
-  });
-  return parsed.success ? parsed.data : null;
 }
 
 function browserStorage(): StorageLike | null {

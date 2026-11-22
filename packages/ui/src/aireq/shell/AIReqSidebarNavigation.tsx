@@ -65,8 +65,7 @@ export function AIReqSidebarNavigation() {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
-  const releases =
-    ai.view?.availableReleases.filter((item) => item.projectId === project?.id) ?? [];
+  const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
   const formal = Boolean(
     ai.selection.formalView ||
     ai.view?.groups.some(

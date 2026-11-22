@@ -3,15 +3,14 @@ import {
   seedPrototypePublishedProposal,
 } from "./fixture-release-proposals.js";
 import { createRequirementSnapshot } from "./content-digest.js";
-import type { AIReqWorkflowView, AIReqMaterialView } from "@zcode/services/aireq";
+import type { AIReqMaterialView } from "@zcode/services/aireq";
+import type { WorkflowState } from "./workflow-state.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
 import { prototypeRepositoryKey, readPrototypeProjectSettings } from "./project-settings.js";
-import { readPrototypeProjectReleases } from "./project-releases.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import { prototypeRequirementDetails } from "./fixture-content.js";
 import {
   createdAt,
-  DEFAULT_SELECTION,
   group,
   systemRequirement,
   sessionRef,
@@ -25,7 +24,7 @@ import {
 } from "./requirements-review.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
 import { createPrototypeReleaseRequirements } from "./fixture-release.js";
-export function createPrototypeWorkflow(): AIReqWorkflowView {
+export function createPrototypeWorkflow(): WorkflowState {
   const sharedSettings = readPrototypeProjectSettings();
   const documentFormats = emptyDocumentFormats();
   if (!sharedSettings.projects.length)
@@ -34,9 +33,8 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
       revision: 0,
       documentFormats,
       ideas: [],
-      availableReleases: [],
       projects: [],
-      releases: [],
+      repositoryHeads: {},
       groups: [],
       drafts: [],
       srs: [],
@@ -396,7 +394,7 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
   drafts.push(...releaseProposals.drafts);
   srs.push(...releaseProposals.srs);
   materials.push(...releaseProposals.materials);
-  const result: AIReqWorkflowView = {
+  const result: WorkflowState = {
     version: 1,
     revision: 12,
     documentFormats,
@@ -407,7 +405,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "收集客户反馈时，希望能一次粘贴多条原始诉求，逐条确认后进入想法池，并保留反馈来源，减少人工拆分和遗漏。",
         submittedBy: "j00808874",
         createdAt: "2026-11-10T02:20:00.000Z",
-        updatedAt: "2026-11-10T02:20:00.000Z",
         revision: 1,
       },
       {
@@ -416,7 +413,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "新增需求前，希望能检索已有想法和需求中的相似内容，查看原文及当前处理情况，由提交人决定继续新增还是补充已有需求。",
         submittedBy: "j00808875",
         createdAt: "2026-11-10T07:45:00.000Z",
-        updatedAt: "2026-11-10T07:45:00.000Z",
         revision: 1,
       },
       {
@@ -425,7 +421,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "需求讨论较长时，希望能查看已确认结论、尚未解决的问题和对应讨论位置，便于新加入的业务、开发与测试人员快速接续讨论。",
         submittedBy: "j00808876",
         createdAt: "2026-11-11T01:15:00.000Z",
-        updatedAt: "2026-11-11T01:15:00.000Z",
         revision: 1,
       },
       {
@@ -434,7 +429,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "安排版本需求时，希望集中查看候选需求的工作量、负责人和依赖，识别资源冲突后再确认排期，不直接改变已有版本计划。",
         submittedBy: "j00808874",
         createdAt: "2026-11-12T06:30:00.000Z",
-        updatedAt: "2026-11-12T06:30:00.000Z",
         revision: 1,
       },
       {
@@ -443,7 +437,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "希望按项目订阅交付摘要，集中了解本周完成的需求、待处理的阻塞和需要本人确认的事项，避免逐个页面查找进展。",
         submittedBy: "j00808877",
         createdAt: "2026-11-13T03:10:00.000Z",
-        updatedAt: "2026-11-13T03:10:00.000Z",
         revision: 1,
       },
       {
@@ -452,7 +445,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "测试验收时，希望按验收条件整理结果与证明材料，明确区分通过、未通过和未执行，方便业务人员核对后作出验收结论。",
         submittedBy: "j00808876",
         createdAt: "2026-11-14T08:00:00.000Z",
-        updatedAt: "2026-11-14T08:00:00.000Z",
         revision: 1,
       },
       {
@@ -461,7 +453,6 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "需求发生变更时，希望能查看变更前后的业务规则、调整原因和确认人，并定位受影响的方案与验收条件，减少跨角色理解偏差。",
         submittedBy: "j00808875",
         createdAt: "2026-11-16T02:40:00.000Z",
-        updatedAt: "2026-11-16T02:40:00.000Z",
         revision: 1,
       },
       {
@@ -470,14 +461,10 @@ export function createPrototypeWorkflow(): AIReqWorkflowView {
           "创建相似需求时，希望能查阅过往已交付需求的业务背景、方案取舍和验收经验，选择需要引用的材料，同时保持新需求独立管理。",
         submittedBy: "j00808877",
         createdAt: "2026-11-17T01:00:00.000Z",
-        updatedAt: "2026-11-17T01:00:00.000Z",
         revision: 1,
       },
     ],
-    availableReleases: readPrototypeProjectReleases(),
-    ...sharedSettings,
-    releases: readPrototypeProjectReleases(),
-    currentProjectId: DEFAULT_SELECTION.projectId,
+    projects: sharedSettings.projects,
     groups,
     drafts,
     srs,

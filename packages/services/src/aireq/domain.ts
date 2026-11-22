@@ -304,15 +304,7 @@ export const MATERIAL_KIND_LABELS = {
   sr: "SR 规格",
   solution: "方案材料",
   plan: "开发计划",
-  completion: "完成报告",
-  ut: "UT 报告",
-  st: "ST 报告",
-  delivery: "交付说明",
   "test-plan": "测试方案",
-  attachment: "附件",
-  "ir-acceptance-report": "IR 验收报告",
-  "ir-final-pr": "最终 PR",
-  "sr-delivery-package": "SR 交付清单",
 };
 
 export function requirementMaterialName(
@@ -482,7 +474,7 @@ export function conversationReadOnlyReason(
 }
 
 /** 待办只由 owner 第一手业务事实派生，读取时不按当前项目筛选。 */
-export function deriveAIReqTodos(view: AIReqWorkflowView): AIReqTodo[] {
+export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReqTodo[] {
   const result: AIReqTodo[] = [];
   const push = (
     group: AIReqRequirementGroup,

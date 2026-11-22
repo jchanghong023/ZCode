@@ -1,14 +1,12 @@
 import type {
   AIReqMaterialView,
-  AIReqProject,
-  AIReqRequirementGroup,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
 import { aiReqPrFactSchema } from "@zcode/services/aireq";
 import { createRequirementSnapshot } from "./content-digest.js";
 import { createdAt, group, sessionRef, systemRequirement } from "./fixture-builders.js";
 import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
-import { prototypeRepositoryTarget, readPrototypeProjectSettings } from "./project-settings.js";
+import { prototypeRepositoryTarget, readPrototypeProjectSetting } from "./project-settings.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
   createPrototypeRequirementsReview,
@@ -16,7 +14,7 @@ import {
 } from "./requirements-review.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
 import { prototypeProposalBranch } from "./proposal-pr-handoff.js";
-import type { InternalProposalDelivery } from "./internal-scenarios.js";
+import type { Project, RequirementGroup } from "./workflow-state.js";
 
 interface ProposalSample {
   id: string;
@@ -103,12 +101,12 @@ const proposals: ProposalSample[] = [
 
 /** 初始化同一默认版本的独立提案；后续修改仍走正常 workflow owner。 */
 export function createPrototypeReleaseProposals() {
-  const drafts: AIReqRequirementGroup[] = [];
+  const drafts: RequirementGroup[] = [];
   const srs: AIReqSystemRequirement[] = [];
   const materials: AIReqMaterialView[] = [];
   const employeeId = "j00808874";
   const projectId = "demo-aurora";
-  const project = readPrototypeProjectSettings().projects.find((item) => item.id === projectId);
+  const project = readPrototypeProjectSetting(projectId);
   if (!project) return { drafts, srs, materials };
   for (const sample of proposals) {
     const rows = sample.srTitle
@@ -213,11 +211,11 @@ export function createPrototypeReleaseProposals() {
 
 /** An opened seed is an existing business record, not a simulated future merge. */
 export function seedPrototypePublishedProposal(
-  proposal: AIReqRequirementGroup,
-  project: AIReqProject,
+  proposal: RequirementGroup,
+  project: Readonly<Project>,
   number: number,
 ): void {
-  const delivery = proposal.proposalDelivery as InternalProposalDelivery;
+  const delivery = proposal.proposalDelivery!;
   delivery.repositoryTarget = prototypeRepositoryTarget(project);
   delivery.branch = {
     name: prototypeProposalBranch(proposal.id),

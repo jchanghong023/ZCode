@@ -6,24 +6,14 @@ const id = z.string().min(1);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const text = z.string();
 const employee = z.union([z.string().regex(/^[a-z][0-9]{8}$/), z.literal("")]);
-const operation = { operationId: id, expectedRevision: revision };
-const selectionSchema = z
+const workflowTargetSchema = z
   .object({
     projectId: id.optional(),
     irId: id.optional(),
     srId: id.optional(),
     formalView: z.enum(["list", "detail"]).optional(),
     reviewAgent: z.enum(["a", "b", "c", "summary"]).optional(),
-    materialPath: text.optional(),
-    proposalEditing: z.boolean().optional(),
     proposalStep: z.enum(["requirements", "requirements-review", "solution", "intake"]).optional(),
-    freeDraftId: id.optional(),
-    proposalDraftId: id.optional(),
-    proposalDraftReleaseId: id.optional(),
-    freeSessionId: id.optional(),
-    freeFiles: z.boolean().optional(),
-    stage: z.enum(["planning", "executing", "pr", "solution"]).optional(),
-    stageRound: revision.optional(),
     discussionPhase: z.enum(["requirements", "solution"]).optional(),
   })
   .strict();
@@ -36,7 +26,7 @@ const contacts = z
   })
   .strict();
 const actionBase = {
-  ...operation,
+  operationId: id,
   projectId: id.optional(),
   irId: id.optional(),
   srId: id.optional(),
@@ -68,7 +58,7 @@ const actionSchema = z.union([
   }),
   z
     .object({
-      ...operation,
+      operationId: id,
       type: z.literal("saveDocumentFormats"),
       documentFormats: z.record(
         z.enum(Object.keys(AIREQ_DOCUMENT_PATHS)),
@@ -159,17 +149,18 @@ const draftFields = z
 /** 精确白名单拒绝退役路径；配置读取统一经 bootstrap，不为本地读取端口保留 RPC。 */
 export const argumentSchemas = {
   readPresence: z.tuple([]),
-  readWorkflow: z.tuple([selectionSchema]),
+  readWorkflow: z.tuple([workflowTargetSchema]),
   readPrHandoff: z.tuple([target]),
-  command: z.tuple([actionSchema, selectionSchema, revision]),
+  command: z.tuple([actionSchema, workflowTargetSchema, revision]),
   retryMaterial: z.tuple([
     target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
   ]),
-  retrySession: z.tuple([selectionSchema, id]),
+  retrySession: z.tuple([workflowTargetSchema, id]),
   "projects.saveRepository": z.tuple([
     z
       .object({
-        ...operation,
+        operationId: id,
+        expectedRevision: revision,
         projectId: id.optional(),
         name: text,
         repositoryUrl: text,

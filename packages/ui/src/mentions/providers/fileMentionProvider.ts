@@ -6,10 +6,6 @@ import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@zcode/shared/workspaceFileSe
 import { getMentionGroupLimitForQuery } from "@/mentions/mentionSearch.js";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
 
-export function isLocalWorkspaceForFileMentionIndex(workspaceIdentity?: string): boolean {
-  return !workspaceIdentity?.trim();
-}
-
 function mapWorkspaceFileToMentionItem(entry: WebWorkspaceFileEntry, rootName: string): MentionItem {
   const name = entry.relativePath.slice(entry.relativePath.lastIndexOf("/") + 1);
   return {

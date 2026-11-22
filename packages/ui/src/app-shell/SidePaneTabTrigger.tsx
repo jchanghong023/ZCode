@@ -1,23 +1,8 @@
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
-import { useSubagents } from "@/hooks/useSubagents.js";
-import { SUBAGENT_WORKFLOW_COLOR } from "@/lib/subagentColors.js";
-import { WorkflowAgentFace } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 /* oxlint-disable eslint(max-lines) -- 侧栏 Tab trigger 集中维护拖拽、上下文菜单与各类图标，不为行数拆散既有交互。 */
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  BotMessageSquareIcon,
-  FileIcon,
-  FileCode2Icon,
-  FileDiffIcon,
-  ListTreeIcon,
-  PackageIcon,
-  SquareTerminalIcon,
-  TerminalIcon,
-  Workflow as WorkflowIcon,
-  XIcon,
-} from "lucide-react";
+import { XIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import {
   ContextMenu,
@@ -27,31 +12,8 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu.js";
 import { TabsTrigger } from "@/components/ui/tabs.js";
-import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
-import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { Button } from "@/components/ui/button.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
-
-// tab 默认按 156px 等宽排列；空间不足时以相同 grow/shrink 参数平均收缩到 60px，
-// 之后由外层滚动容器承接溢出，避免标题长度改变每个 tab 的宽度。
-// 标题没有独立上限时，长网页标题会持续撑宽 tab；主 tab 与拖拽浮层都只钳制标题本体，避免挤占图标、徽标和关闭按钮。
-export function SortableSidePaneTabTrigger({
-  tab,
-  diffBadgeLabel,
-  ...props
-}: Omit<SidePaneTabPresentationProps, "id" | "icon" | "badge"> & {
-  tab: WorkspaceSidePaneTab;
-  diffBadgeLabel: string;
-}) {
-  return (
-    <SortableSidePaneTabPresentation
-      {...props}
-      id={tab.id}
-      icon={<SidePaneTabIcon tab={tab} />}
-      badge={isDiffPreviewTab(tab) ? <SidePaneTabDiffBadge label={diffBadgeLabel} /> : undefined}
-    />
-  );
-}
 
 export interface SidePaneTabPresentationProps {
   id: string;
@@ -268,24 +230,6 @@ export function SortableSidePaneTabPresentation({
   );
 }
 
-export function SidePaneTabDragOverlay({
-  tab,
-  title,
-  diffBadgeLabel,
-}: {
-  tab: WorkspaceSidePaneTab;
-  title: string;
-  diffBadgeLabel: string;
-}) {
-  return (
-    <SidePaneTabPresentationDragOverlay
-      title={title}
-      icon={<SidePaneTabIcon tab={tab} />}
-      badge={isDiffPreviewTab(tab) ? <SidePaneTabDiffBadge label={diffBadgeLabel} /> : undefined}
-    />
-  );
-}
-
 export function SidePaneTabPresentationDragOverlay({
   title,
   titlePrefix,
@@ -311,14 +255,6 @@ export function SidePaneTabPresentationDragOverlay({
         titlePrefix={titlePrefix}
       />
     </div>
-  );
-}
-
-function SidePaneTabDiffBadge({ label }: { label: string }) {
-  return (
-    <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
-      {label}
-    </span>
   );
 }
 
@@ -361,243 +297,3 @@ function SidePaneTabPresentationContent({
   );
 }
 
-function isDiffPreviewTab(tab: WorkspaceSidePaneTab): boolean {
-  return (
-    tab.type === "code-viewer" &&
-    (tab.source.type === "patch" || tab.source.type === "multi-file-diff")
-  );
-}
-
-export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
-  // 同一条约定：来源卡片（CreateWorkflow）用 lucide Workflow，tab 必须与它一致。
-  if (tab.type === "workflow-run") {
-    return <WorkflowIcon className="size-3.5" />;
-  }
-  // 列表图标用于区分工作流目录和单次运行的详情。
-  if (tab.type === "workflow-directory") {
-    return <ListTreeIcon className="size-3.5" />;
-  }
-  // actor transcript 是「一个 actor 的对话记录」：既不是整次运行（Workflow），也不是子智能体
-  // 会话（Bot）。三者在 tab 条上必须能一眼分开——它们的可见性与回收语义都不同。
-  if (tab.type === "workflow-actor-session") {
-    return <BotMessageSquareIcon className="size-3.5" />;
-  }
-  // 脚本 transcript 与脚本药丸同一枚字形（终端）：来源与 tab 一致，点开不跳变。
-  if (tab.type === "workflow-workspace") {
-    return <TerminalIcon className="size-3.5" />;
-  }
-  // 产物 tab 的图标**按 kind 变**是错的：tab 条上的图标要在打开前就稳定（tab 从内存恢复时
-  // 元数据还没读回来）。所以用一枚固定的「交付物」图标，kind 的区分留给 tab 内部的头部与卡片。
-  if (tab.type === "workflow-artifact") {
-    return <PackageIcon className="size-3.5" />;
-  }
-  if (tab.type === "subagent-session") {
-    return <SubagentTabAvatar tab={tab} />;
-  }
-
-  if (tab.type === "git") {
-    return <FileDiffIcon className="size-3.5" />;
-  }
-
-  if (tab.type === "new-tab") return <FileIcon className="size-3.5" />;
-
-  if (tab.type === "bash-output") {
-    return <SquareTerminalIcon className="size-3.5" />;
-  }
-
-  if (tab.source.type === "patch") {
-    const fileDisplayTarget = getPatchFileDisplayTarget(tab.source);
-    if (fileDisplayTarget) {
-      const descriptor = resolveFileDisplayDescriptor(fileDisplayTarget);
-      return <FileDisplayIcon src={descriptor.fileIconSrc} size={14} className="shrink-0" />;
-    }
-
-    return <FileDiffIcon className="size-3.5" />;
-  }
-
-  if (tab.source.type === "multi-file-diff") {
-    if (tab.source.path) {
-      const descriptor = resolveFileDisplayDescriptor(tab.source.path);
-      return <FileDisplayIcon src={descriptor.fileIconSrc} size={14} className="shrink-0" />;
-    }
-
-    return <FileDiffIcon className="size-3.5" />;
-  }
-
-  if (tab.source.path) {
-    const descriptor = resolveFileDisplayDescriptor(tab.source.path);
-    return <FileDisplayIcon src={descriptor.fileIconSrc} size={14} className="shrink-0" />;
-  }
-
-  return <FileCode2Icon className="size-3.5" />;
-}
-
-function isUsablePatchFileTarget(target: string | null | undefined): target is string {
-  const trimmedTarget = target?.trim();
-  return Boolean(trimmedTarget && trimmedTarget !== "/dev/null");
-}
-
-function unquoteDiffPath(path: string): string {
-  const trimmedPath = path.trim();
-  if (trimmedPath.length >= 2 && trimmedPath.startsWith('"') && trimmedPath.endsWith('"')) {
-    return trimmedPath.slice(1, -1);
-  }
-
-  return trimmedPath;
-}
-
-function stripDiffPathPrefix(path: string): string {
-  const unquotedPath = unquoteDiffPath(path);
-  if (unquotedPath.startsWith("a/") || unquotedPath.startsWith("b/")) {
-    return unquotedPath.slice(2);
-  }
-
-  return unquotedPath;
-}
-
-function parseDiffHeaderPath(headerValue: string): string | null {
-  const trimmedValue = headerValue.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-
-  if (trimmedValue.startsWith('"')) {
-    const quotedPathMatch = trimmedValue.match(/^"((?:\\.|[^"\\])+)"/);
-    return quotedPathMatch?.[1] ? stripDiffPathPrefix(quotedPathMatch[1]) : null;
-  }
-
-  const pathWithoutTimestamp = trimmedValue.split("\t", 1)[0]?.trim();
-  return pathWithoutTimestamp ? stripDiffPathPrefix(pathWithoutTimestamp) : null;
-}
-
-function parseDiffGitLinePath(line: string): string | null {
-  const gitPathMatch = line.match(
-    /^diff --git (?:"((?:\\.|[^"\\])*)"|(\S+)) (?:"((?:\\.|[^"\\])*)"|(\S+))$/,
-  );
-  const nextPath = gitPathMatch?.[3] ?? gitPathMatch?.[4];
-  const previousPath = gitPathMatch?.[1] ?? gitPathMatch?.[2];
-  const normalizedNextPath = nextPath ? stripDiffPathPrefix(nextPath) : null;
-  if (isUsablePatchFileTarget(normalizedNextPath)) {
-    return normalizedNextPath;
-  }
-
-  const normalizedPreviousPath = previousPath ? stripDiffPathPrefix(previousPath) : null;
-  return isUsablePatchFileTarget(normalizedPreviousPath) ? normalizedPreviousPath : null;
-}
-
-function getPatchHeaderFileDisplayTarget(patch: string): string | null {
-  for (const line of patch.split(/\r?\n/)) {
-    const diffGitTarget = parseDiffGitLinePath(line);
-    if (diffGitTarget) {
-      return diffGitTarget;
-    }
-
-    if (line.startsWith("+++ ")) {
-      const nextFileTarget = parseDiffHeaderPath(line.slice(4));
-      if (isUsablePatchFileTarget(nextFileTarget)) {
-        // 部分 file diff source 没有带 path，title 也可能只是“Diff”。
-        // 这里从 unified diff 的文件头里取真实文件名，再交给 fileDisplay 解析文件类型图标。
-        return nextFileTarget;
-      }
-    }
-  }
-
-  for (const line of patch.split(/\r?\n/)) {
-    if (!line.startsWith("--- ")) {
-      continue;
-    }
-
-    const previousFileTarget = parseDiffHeaderPath(line.slice(4));
-    if (isUsablePatchFileTarget(previousFileTarget)) {
-      return previousFileTarget;
-    }
-  }
-
-  return null;
-}
-
-export function getPatchFileDisplayTarget(source: {
-  path?: string;
-  title: string;
-  patch: string;
-}): string | null {
-  if (isUsablePatchFileTarget(source.path)) {
-    return source.path;
-  }
-
-  const patchHeaderTarget = getPatchHeaderFileDisplayTarget(source.patch);
-  if (patchHeaderTarget) {
-    return patchHeaderTarget;
-  }
-
-  // 新增/删除文件的 diff 有时会把 source.path 传成 /dev/null。
-  // /dev/null 不是业务文件名，直接用于图标识别会固定落到 document；这里只在路径无效时回退 title。
-  return isUsablePatchFileTarget(source.title) ? source.title : null;
-}
-
-export function getSidePaneTabTitle(
-  tab: WorkspaceSidePaneTab,
-  formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string,
-): string {
-  // 展示名是卡片打开时冻结的兜底；run 身份始终是 runId（tab id 里那一段）。
-  if (tab.type === "workflow-run") {
-    return tab.workflowName?.trim() || formatMessage({ id: "sidePane.workflowRun" });
-  }
-  if (tab.type === "workflow-directory") {
-    return formatMessage({ id: "sidePane.workflowDirectory" });
-  }
-  // 实例序号必须留在标题里：同一车道族的实例共用脚本里那一个名字，少了序号 tab 条上就是
-  // 两个无法区分的「reviewer」。
-  if (tab.type === "workflow-actor-session") {
-    const name = tab.actorName?.trim() || formatMessage({ id: "sidePane.workflowActor" });
-    return `${name} #${tab.ordinal}`;
-  }
-  // 标题是 run 名（一个 run 一份脚本 transcript）；类型标签「Script steps / 脚本步骤」在 tooltip 里。
-  if (tab.type === "workflow-workspace") {
-    return tab.workflowName?.trim() || formatMessage({ id: "sidePane.workflowScript" });
-  }
-  // 展示名是打开时冻结的兜底；产物身份始终是 (runId, artifactId)（tab id 里那两段）。
-  if (tab.type === "workflow-artifact") {
-    return (
-      tab.title?.trim() || tab.artifactId || formatMessage({ id: "sidePane.workflowArtifact" })
-    );
-  }
-  if (tab.type === "subagent-session") {
-    return tab.title?.trim() || formatMessage({ id: "sidePane.subagent" });
-  }
-
-  if (tab.type === "git") {
-    return formatMessage({ id: "sidePane.review" });
-  }
-
-  if (tab.type === "new-tab") return formatMessage({ id: "sidePane.newTab" });
-
-  if (tab.type === "bash-output") {
-    return tab.title || formatMessage({ id: "terminal.title" });
-  }
-
-  return tab.source.title || formatMessage({ id: "codeViewer.title" });
-}
-
-function SubagentTabAvatar({
-  tab,
-}: {
-  tab: Extract<WorkspaceSidePaneTab, { type: "subagent-session" }>;
-}) {
-  const { agents } = useSubagents(tab.workspacePath, ZCODE_AGENT_PROVIDER, tab.workspaceIdentity);
-  const key = tab.subagentType.trim().toLowerCase();
-  const color = agents.find(
-    (agent) => agent.name.trim().toLowerCase() === key || agent.id.trim().toLowerCase() === key,
-  )?.color;
-  return (
-    <WorkflowAgentFace
-      avatarIndex={undefined}
-      name={tab.subagentType}
-      color={color ? SUBAGENT_WORKFLOW_COLOR[color] : undefined}
-      status={undefined}
-      idle
-      // 头像默认最小尺寸为 20px；紧凑标签必须同时覆盖，否则 size 不生效。
-      className="size-3.5 min-h-3.5! min-w-3.5!"
-    />
-  );
-}

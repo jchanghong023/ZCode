@@ -403,13 +403,6 @@ function normalizeRenderUnitPosition(
   };
 }
 
-export function buildConversationTurnRenderUnits(
-  rows: readonly ConversationRow[],
-  options: BuildConversationTurnRenderUnitsOptions = {},
-): ConversationTurnRenderUnit[] {
-  return buildRenderUnits(rows, options, materializeDraftUnit);
-}
-
 // Bug 根因：selector 的复用判定原先用 zustand shallow。它比较数组或对象时会为两侧各建一个 Map，
 // 而判定每帧对每个历史轮都跑一遍。长会话流式输出时这成了 renderer 主线程的头号热点
 // （约 8000 行时每帧约 1.75ms；宽屏问题目录补齐完整历史后，成本随历史长度增长）。
@@ -456,22 +449,6 @@ function groupDraftUnits(rows: readonly ConversationRow[]): DraftTurnRenderUnit[
     unit.assistantWorkRows.push(row);
   }
   return units;
-}
-
-function buildRenderUnits(
-  rows: readonly ConversationRow[],
-  options: BuildConversationTurnRenderUnitsOptions,
-  materialize: typeof materializeDraftUnit,
-): ConversationTurnRenderUnit[] {
-  const units = groupDraftUnits(rows);
-  const materializedUnits = units.map((unit, index) =>
-    materialize(unit, index, units.length, options),
-  );
-  const keptUnits = materializedUnits.filter(shouldKeepRenderUnit);
-  const normalizedUnits = keptUnits.map((unit, index) =>
-    normalizeRenderUnitPosition(unit, index, keptUnits.length, options),
-  );
-  return normalizedUnits;
 }
 
 /** 与 rows 分区对应的 render unit。 */

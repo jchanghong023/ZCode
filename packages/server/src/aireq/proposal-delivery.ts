@@ -15,19 +15,15 @@ import {
 import { prototypeProposalBranch, readPrototypeProposalPrHandoff } from "./proposal-pr-handoff.js";
 import { freezePrototypeRequirement } from "./requirement-freeze.js";
 import { prototypeRepositoryKey, prototypeRepositoryTarget } from "./project-settings.js";
-import type { AIReqRequirementGroup, AIReqWorkflowView } from "@zcode/services/aireq";
-import type {
-  InternalProposalDelivery,
-  InternalRequirementGroup,
-  AIReqProposalMergeScenario,
-} from "./internal-scenarios.js";
+import type { AIReqProposalMergeScenario } from "./internal-scenarios.js";
+import type { RequirementGroup, WorkflowState } from "./workflow-state.js";
 
 let mrNumber = 100;
 const NORMAL_MR_OPEN_WINDOW_MS = 10_000;
 
 /** 正常内存 MR 依赖的生命周期，候选与编号共同绑定；不由浏览器驱动模拟时钟。 */
-function beginPrototypeProposalMrLifecycle(group: AIReqRequirementGroup): void {
-  const delivery = group.proposalDelivery as InternalProposalDelivery | undefined;
+function beginPrototypeProposalMrLifecycle(group: RequirementGroup): void {
+  const delivery = group.proposalDelivery;
   const mr = group.requirementsPr;
   if (!delivery || !mr?.number || mr.status !== "opened" || !proposalPrCurrent(group))
     throw businessRule("文档 MR 发布事实不完整。");
@@ -50,10 +46,10 @@ function beginPrototypeProposalMrLifecycle(group: AIReqRequirementGroup): void {
 
 /** 由既有后台 poll 消费同 owner 的模拟外部观测，再交给材料核验决定是否转正。 */
 export function observePrototypeProposalMr(
-  group: AIReqRequirementGroup,
+  group: RequirementGroup,
   now: number,
 ): AIReqProposalMergeScenario {
-  const delivery = group.proposalDelivery as InternalProposalDelivery | undefined;
+  const delivery = group.proposalDelivery;
   if (delivery?.mergeScenario) return delivery.mergeScenario;
   const fact = delivery?.simulatedMr;
   const mr = group.requirementsPr;
@@ -74,7 +70,7 @@ export function observePrototypeProposalMr(
   return "merged";
 }
 /** 演示交付只记录编号与状态；没有代码托管服务提供的真实URL时不返回链接。 */
-function ensurePrototypeProposalMr(group: AIReqRequirementGroup, targetBranch: string): void {
+function ensurePrototypeProposalMr(group: RequirementGroup, targetBranch: string): void {
   const delivery = group.proposalDelivery;
   if (!delivery?.branch || !delivery.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
   const sourceBranch = delivery.branch.name;
@@ -106,7 +102,7 @@ function ensurePrototypeProposalMr(group: AIReqRequirementGroup, targetBranch: s
 }
 /** The last role confirmation prepares, but never publishes, the immutable full-set candidate. */
 export function preparePrototypeProposalCandidate(
-  group: AIReqRequirementGroup,
+  group: RequirementGroup,
   candidate: string,
   employeeId: string,
   confirmedAt: string,
@@ -122,7 +118,7 @@ export function preparePrototypeProposalCandidate(
 }
 
 export function closePrototypeProposalMr(
-  group: AIReqRequirementGroup,
+  group: RequirementGroup,
   nextCandidate: string,
 ): void {
   const delivery = group.proposalDelivery!;
@@ -143,8 +139,8 @@ export function closePrototypeProposalMr(
 
 /** Compare the candidate's exact required set and recompute evidence from the readable body. */
 export function prototypeProposalMaterialsIssue(
-  view: AIReqWorkflowView,
-  group: AIReqRequirementGroup,
+  view: WorkflowState,
+  group: RequirementGroup,
 ): string | undefined {
   if (!proposalDeliveryCurrent(group)) return "交付候选与当前材料版本不一致。";
   const expected = new Set(completeProposalPaths(group));
@@ -176,8 +172,8 @@ export function prototypeProposalMaterialsIssue(
 }
 
 export function validatePrototypeProposalPublication(
-  view: AIReqWorkflowView,
-  group: AIReqRequirementGroup,
+  view: WorkflowState,
+  group: RequirementGroup,
   candidate: string,
 ): void {
   const project = view.projects.find((item) => item.id === group.projectId);
@@ -193,11 +189,11 @@ export function validatePrototypeProposalPublication(
 
 /** Resume only the missing steps; a PR error cannot discard an already created/pushed branch. */
 export function publishPrototypeProposal(
-  state: AIReqWorkflowView,
-  group: AIReqRequirementGroup,
+  state: WorkflowState,
+  group: RequirementGroup,
   at: string,
 ): boolean {
-  const delivery = group.proposalDelivery as InternalProposalDelivery;
+  const delivery = group.proposalDelivery!;
   const reused = proposalPrCurrent(group);
   if (!reused) {
     const project = state.projects.find((item) => item.id === group.projectId)!;
@@ -235,11 +231,11 @@ export function publishPrototypeProposal(
 
 /** 仅写入内存样例；合入证据与文档完整性是自动入库的两项条件。 */
 export function completePrototypeProposal(
-  state: AIReqWorkflowView,
-  group: InternalRequirementGroup,
+  state: WorkflowState,
+  group: RequirementGroup,
   checkedAt: string,
 ) {
-  const delivery = group.proposalDelivery as InternalProposalDelivery;
+  const delivery = group.proposalDelivery!;
   const target = delivery.repositoryTarget!;
   const commit = delivery.simulatedMr?.commit ?? `sample-document-merge-${delivery.candidate}`;
   group.status = "formal";
@@ -254,10 +250,8 @@ export function completePrototypeProposal(
   );
   if (!state.groups.some((item) => item.id === group.id && item.projectId === group.projectId))
     state.groups.push(group);
-  group.revising = false;
   const revision = group.proposalRevisions?.at(-1);
   if (revision && !revision.completedAt) revision.completedAt = checkedAt;
-  state.repositoryHeads ??= {};
   state.repositoryHeads[prototypeRepositoryKey(target)] = commit;
   freezePrototypeRequirement(group, "platform", checkedAt);
   return target;

@@ -23,7 +23,34 @@ describe("ST service readiness and connection boundary", () => {
         expect(bootstrap.models.choices).toEqual(expect.any(Array));
         const remote = await c.read();
         expect(bootstrap).not.toHaveProperty("initialSelection");
-        expect(bootstrap.initialProjectId).toBe(remote.view.currentProjectId);
+        for (const projectId of Object.keys(bootstrap.projects.workspaces)) {
+          expect((await c.read({ projectId })).workspace).toEqual(
+            bootstrap.projects.workspaces[projectId],
+          );
+        }
+        expect(Object.keys(bootstrap.projects.workspaces).sort()).toEqual(
+          remote.view.projects.map(({ id }) => id).sort(),
+        );
+        expect(bootstrap.projects).not.toHaveProperty("developmentRoots");
+        for (const project of remote.view.projects) {
+          expect(Object.keys(project).sort()).toEqual(
+            [
+              "id",
+              "name",
+              "revision",
+              "defaultBranch",
+              ...(project.repositoryUrl === undefined ? [] : ["repositoryUrl"]),
+            ].sort(),
+          );
+        }
+        for (const field of [
+          "currentProjectId",
+          "repositoryHeads",
+          "projectDocuments",
+          "availableReleases",
+        ]) {
+          expect(remote.view).not.toHaveProperty(field);
+        }
         expect(remote.view).not.toHaveProperty("ompWebId");
         expect(remote.view).not.toHaveProperty("changes");
         expect(remote.view.version).toBe(AIREQ_WORKFLOW_VERSION);
@@ -65,6 +92,30 @@ describe("ST service readiness and connection boundary", () => {
             {},
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
+        const revision = (await c.read()).view.revision;
+        const legacyRequests = [
+          ["readWorkflow", [{ materialPath: "requirements.md" }]],
+          ["readWorkflow", [{ proposalDraftId: "local-draft" }]],
+          ["retrySession", [{ freeSessionId: "retired" }, "absent-session"]],
+          [
+            "command",
+            [
+              {
+                type: "createIdea",
+                operationId: unique(),
+                originalText: "invalid",
+                expectedRevision: revision,
+              },
+              {},
+              revision + 1,
+            ],
+          ],
+        ];
+        for (const [path, args] of legacyRequests) {
+          await expect(
+            c.services.aiReqService.call(c.identity, path as never, args as never),
+          ).rejects.toThrow("操作参数无效，请检查输入并重试。");
+        }
         // 拒绝后连接仍能读取正式契约，不以 socket open 代替 RPC 可用性。
         expect((await c.bootstrap()).contractVersion).toBe(AIREQ_CONTRACT_VERSION);
         expect((await c.read()).view.version).toBe(AIREQ_WORKFLOW_VERSION);

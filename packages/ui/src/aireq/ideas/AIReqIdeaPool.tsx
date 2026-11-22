@@ -115,6 +115,7 @@ export function AIReqIdeaPool() {
         },
     );
   const targets = draft?.targets ?? [];
+  const view = ai.view;
   const duplicate = targets.some(
     (target, index) =>
       target.projectId &&
@@ -129,8 +130,8 @@ export function AIReqIdeaPool() {
     targets.length > 0 &&
     targets.every(
       (target) =>
-        ai.view?.projects.some((project) => project.id === target.projectId) &&
-        ai.view.availableReleases.some(
+        view?.projects.some((project) => project.id === target.projectId) &&
+        view.releases.some(
           (release) => release.projectId === target.projectId && release.id === target.releaseId,
         ),
     );
@@ -250,7 +251,7 @@ export function AIReqIdeaPool() {
                   {ai.view?.projects.find((project) => project.id === target.projectId)?.name ??
                     target.projectId}{" "}
                   ·{" "}
-                  {ai.view?.availableReleases.find(
+                  {ai.view?.releases.find(
                     (release) =>
                       release.id === target.releaseId && release.projectId === target.projectId,
                   )?.title ?? target.releaseId}
@@ -491,14 +492,14 @@ export function AIReqIdeaPool() {
                         </Label>
                         <Select
                           value={target.releaseId}
-                          disabled={busy || !target.projectId}
+                          disabled={busy || !ai.view || !target.projectId}
                           onValueChange={(releaseId) => changeTarget(target.key, { releaseId })}
                         >
                           <SelectTrigger id={`idea-release-${target.key}`} className="w-full">
                             <SelectValue placeholder={zh ? "选择版本" : "Choose release"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {ai.view?.availableReleases
+                            {ai.view?.releases
                               .filter((release) => release.projectId === target.projectId)
                               .map((release) => (
                                 <SelectItem key={release.id} value={release.id}>
@@ -556,20 +557,19 @@ export function AIReqIdeaPool() {
                         : "Each project and release combination must be unique."}
                     </p>
                   )}
-                  {(!ai.view?.projects.length ||
-                    targets.some(
-                      (target) =>
-                        target.projectId &&
-                        !ai.view?.availableReleases.some(
-                          (release) => release.projectId === target.projectId,
-                        ),
-                    )) && (
-                    <p role="status" className="text-ui-sm text-foreground-subtle">
-                      {zh
-                        ? "目标项目尚无可用版本，请在原有项目配置中添加后再转入。当前想法会保留。"
-                        : "Add a release in project settings before transferring. The idea will remain in the pool."}
-                    </p>
-                  )}
+                  {view &&
+                    (!view.projects.length ||
+                      targets.some(
+                        (target) =>
+                          target.projectId &&
+                          !view.releases.some((release) => release.projectId === target.projectId),
+                      )) && (
+                      <p role="status" className="text-ui-sm text-foreground-subtle">
+                        {zh
+                          ? "目标项目尚无可用版本，请在原有项目配置中添加后再转入。当前想法会保留。"
+                          : "Add a release in project settings before transferring. The idea will remain in the pool."}
+                      </p>
+                    )}
                 </div>
               )
             )}

@@ -1,100 +1,69 @@
-{
-  "$schema": "https://unpkg.com/knip@6/schema.json",
-  "tags": ["-lintignore"],
-  "ignore": [".agents/skills/impeccable/**"],
-  "workspaces": {
-    ".": {
-      "entry": ["scripts/licenses.mjs"],
-      "ignoreDependencies": ["concurrently", "oxfmt", "oxlint"]
-    },
-    "packages/shared": {
-      "entry": [
-        "src/app-control/contract.ts",
-        "src/conversation-telemetry/contract.ts",
-        "src/conversation-telemetry/remoteTelemetryEvent.ts",
-        "src/gen-ui/contract.ts",
-        "src/mcp-apps/contract.ts",
-        "src/zcode-protocol-v4/input-prediction/contract.ts",
-        "src/zcode-protocol-v4/context-composition/contract.ts",
-        "src/zcode-protocol/plugin-host-queries/contract.ts",
-        "src/request-security-edition/policy.ts",
-        "src/request-security-edition/verification-policy.ts",
-        "src/local-ttft/contract.ts",
-        "src/zcode-protocol-v4/session-data/index.ts",
-        "src/zcode-protocol-v4/session-data/contract.ts",
-        "src/**/module.ts",
-        "src/**/contract.example.ts"
-      ]
-    },
-    "packages/services": {
-      "entry": [
-        "src/project-storage/repository-contract.ts",
-        "src/project/contract.ts",
-        "src/task-groups/contract.ts",
-        "src/managed-worktree-tasks/contract.ts",
-        "src/aireq/contract.ts",
-        "src/**/module.ts",
-        "src/**/contract.example.ts"
-      ]
-    },
-    "packages/server": {
-      "entry": [
-        "src/entry-http.ts",
-        "src/mock/domains/contract.ts",
-        "src/aireq/contract.ts",
-        "src/**/module.ts",
-        "src/**/contract.example.ts"
-      ]
-    },
-    "packages/ui": {
-      "entry": [
-        "src/aireq/contract.ts",
-        "src/components/ui/*.tsx",
-        "src/components/mobile-ui/*.{ts,tsx}",
-        "src/components/ai-elements/*.tsx",
-        "src/components/icons/*.ts",
-        "src/components/lib/*.ts",
-        "src/components/ClientSceneLucideIcon.tsx",
-        "src/components/ModelInputCapabilityBadge.tsx",
-        "src/assets/channel-icons/index.ts",
-        "src/gen-ui/contract.ts",
-        "src/document-highlighting/index.ts",
-        "src/document-highlighting/contract.ts",
-        "src/document-highlighting/bundle.ts",
-        "src/prompt-editor/useComposerToolbarFit.ts",
-        "src/composer-toolbar-layout/contract.ts",
-        "src/file-menu/index.ts",
-        "src/file-menu/contract.ts",
-        "src/image-preview-editor/index.ts",
-        "src/image-preview-editor/contract.ts",
-        "src/hooks/useImageFilePreview.ts",
-        "src/lib/copyPreviewImage.ts",
-        "src/lib/imagePreviewDownload.ts",
-        "src/v4/ConversationImageFileMention.tsx",
-        "src/conversation-user-input-presentation/contract.ts",
-        "src/v4/ConversationUserInputBubble.tsx",
-        "src/composer-edit-mode/index.ts",
-        "src/composer-edit-mode/contract.ts",
-        "src/managed-worktrees/index.ts",
-        "src/managed-worktrees/contract.ts",
-        "src/ToolCallBlocks/session/contract.ts",
-        "src/selection-comment/index.ts",
-        "src/selection-comment/contract.ts",
-        "src/settings-search/index.ts",
-        "src/settings-search/contract.ts",
-        "src/**/module.ts",
-        "src/**/contract.example.ts"
-      ]
-    },
-    "packages/web": {
-      "entry": [
-        "src/chat/main.tsx",
-        "src/auth/index.ts",
-        "src/auth/contract.ts",
-        "src/platform/contract.ts",
-        "src/**/module.ts",
-        "src/**/contract.example.ts"
-      ]
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import type { KnipConfig } from "knip";
+
+const webRoot = resolve(import.meta.dirname, "packages/web");
+const externalUrl = /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i;
+const toImport = (path: string) => `import ${JSON.stringify(path)};`;
+
+function localPath(ref: string) {
+  return ref.startsWith("/")
+    ? resolve(webRoot, ref.slice(1)).replaceAll("\\", "/")
+    : ref.startsWith(".")
+      ? ref
+      : `./${ref}`;
+}
+
+// Knip 分析模块引用；把样式的静态资源和 Tailwind 插件引用转成等价的导入。
+function compileCss(source: string, path: string) {
+  const imports: string[] = [];
+  const refs = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .matchAll(/@(?:import|plugin)\s*(["'])([^"']+)\1|url\(\s*(?:(["'])([^"']+)\3|([^)\s]+))\s*\)/gi);
+  for (const [, , quotedImport, , quotedUrl, bareUrl] of refs) {
+    const ref = quotedImport ?? quotedUrl ?? bareUrl;
+    if (!ref || externalUrl.test(ref)) continue;
+    const isLocal =
+      !quotedImport || /^[./]/.test(ref) || existsSync(resolve(dirname(path), ref));
+    imports.push(toImport(isLocal ? localPath(ref) : ref));
+  }
+  return imports.join("\n");
+}
+
+function compileHtml(source: string) {
+  const imports: string[] = [];
+  const markup = source.replace(/<!--[\s\S]*?-->/g, "");
+  for (const [tag] of markup.matchAll(/<(?:script|link|img|audio|video|source|iframe)\b[^>]*>/gi)) {
+    for (const [, , ref] of tag.matchAll(/\s(?:src|href|poster)\s*=\s*(["'])([^"']+)\1/gi)) {
+      if (ref && !externalUrl.test(ref)) imports.push(toImport(localPath(ref)));
     }
   }
+  return imports.join("\n");
 }
+
+const opaqueAsset = () => "";
+
+export default {
+  tags: ["-lintignore"],
+  compilers: {
+    css: compileCss,
+    html: compileHtml,
+    png: opaqueAsset,
+    svg: opaqueAsset,
+    mp3: opaqueAsset,
+    sql: opaqueAsset,
+  },
+  workspaces: {
+    ".": {
+      entry: ["scripts/licenses.mjs"],
+      ignoreDependencies: ["concurrently", "oxfmt", "oxlint"],
+    },
+    "packages/server": {
+      entry: ["src/entry-http.ts!"],
+    },
+    "packages/web": {
+      entry: ["index.html!", "chat/index.html!"],
+    },
+  },
+} satisfies KnipConfig;
+MV knip.ts

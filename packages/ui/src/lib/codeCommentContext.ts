@@ -1,8 +1,6 @@
 export const CODE_COMMENT_ADD_TO_CHAT_EVENT = "zcode:code-comment-add-to-chat";
 export const CODE_COMMENT_REMOVE_FROM_CHAT_EVENT = "zcode:code-comment-remove-from-chat";
 export const CODE_COMMENT_REMOVE_BROADCAST_CHANNEL = "code-comment:remove-from-chat";
-export const CODE_COMMENT_PREVIEW_RESTORE_BROADCAST_CHANNEL = "code-comment:restore-preview";
-
 export interface CodeCommentRange {
   startLine: number;
   endLine: number;
@@ -54,10 +52,6 @@ export function getCodeCommentWorkspaceKey(workspacePath: string, workspaceIdent
 
 function getCodeCommentRemovalKey(payload: CodeCommentRemovePayload) {
   return `${getCodeCommentWorkspaceKey(payload.workspacePath, payload.workspaceIdentity)}\0${payload.id}`;
-}
-
-export function isCodeCommentMarkedRemoved(payload: CodeCommentRemovePayload) {
-  return removedCodeCommentKeys.has(getCodeCommentRemovalKey(payload));
 }
 
 export function markCodeCommentRemoved(payload: CodeCommentRemovePayload) {
@@ -270,19 +264,3 @@ export function parsePromptCodeComments(
   };
 }
 
-export function dispatchCodeCommentAddToChat(payload: CodeCommentPayload) {
-  const event = new CustomEvent(CODE_COMMENT_ADD_TO_CHAT_EVENT, {
-    cancelable: true,
-    detail: payload,
-  });
-  return !window.dispatchEvent(event);
-}
-
-export function dispatchCodeCommentRemoveFromChat(payload: CodeCommentRemovePayload) {
-  markCodeCommentRemoved(payload);
-  window.dispatchEvent(
-    new CustomEvent(CODE_COMMENT_REMOVE_FROM_CHAT_EVENT, {
-      detail: payload,
-    }),
-  );
-}

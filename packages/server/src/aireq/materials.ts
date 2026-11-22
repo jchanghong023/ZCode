@@ -145,7 +145,7 @@ export function solutionMaterials(
 ): AIReqMaterialView[] {
   return rows.flatMap((row) => {
     const root = prototypeChangeRoot(row.id);
-    const context = { projectId, irId, srId: row.id, stage: "solution" as const };
+    const context = { projectId, irId, srId: row.id };
     return [
       prototypeMaterial({
         ...context,

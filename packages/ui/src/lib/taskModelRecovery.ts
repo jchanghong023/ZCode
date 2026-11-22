@@ -253,16 +253,3 @@ export function resolveTaskRestorePreloadConfigOptions({
   return cachedOptions;
 }
 
-export function mergeGlmRecoveredTaskModelConfigOptions({
-  taskMeta,
-  configOptions,
-}: {
-  taskMeta: Pick<ZCodeTaskMeta, "provider" | "model">;
-  configOptions: readonly ZCodeConfigOption[];
-}): ZCodeConfigOption[] | null {
-  if (taskMeta.provider !== "glm") {
-    return null;
-  }
-
-  return mergeRecoveredTaskModelConfigOptions({ taskMeta, configOptions });
-}

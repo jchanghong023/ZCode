@@ -1,9 +1,7 @@
 import { contentVersion, createRequirementSnapshot } from "./content-digest.js";
 import type { InternalWorkflowAction } from "./internal-scenarios.js";
+import type { Receipt, RequirementGroup, WorkflowState } from "./workflow-state.js";
 import type {
-  AIReqWorkflowView,
-  AIReqOperationReceipt,
-  AIReqRequirementGroup,
   AIReqMaterialView,
   AIReqMaterialHistoryEvent,
   AIReqSystemRequirement,
@@ -12,7 +10,6 @@ import { completeProposalPaths, proposalAlignmentCurrent } from "@zcode/services
 import { group, systemRequirement, sessionRef } from "./fixture-builders.js";
 import { getEmployeeId } from "./identity.js";
 import { businessRule } from "./errors.js";
-import { readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases, addPrototypeRelease } from "./project-releases.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
@@ -31,8 +28,8 @@ import {
 import { capturePrototypeMaterialHistory } from "./proposal-storage.js";
 
 function materialsFor(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
 ): AIReqMaterialView[] {
   return state.materials.filter(
     (item) => item.projectId === proposal.projectId && item.irId === proposal.id,
@@ -52,7 +49,7 @@ type NativeSolutionOutput = {
 export type NativeProposalOutput = NativeRequirementsOutput | NativeSolutionOutput;
 
 function stageRequirementsOutput(
-  proposal: AIReqRequirementGroup,
+  proposal: RequirementGroup,
   existing: AIReqMaterialView | undefined,
   note: string,
 ): NativeRequirementsOutput {
@@ -77,8 +74,8 @@ function stageRequirementsOutput(
 
 /** Simulated execution stages the same material bundle without mutating the workflow. */
 export function stageNativeProposalOutput(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   kind: NativeProposalOutput["kind"],
   text: string,
 ): NativeProposalOutput {
@@ -124,8 +121,8 @@ export function stageNativeProposalOutput(
 }
 
 function checkMaterials(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   stage: "requirements" | "solution",
 ): void {
   const result = checkProposalMaterials(
@@ -143,7 +140,7 @@ function checkMaterials(
     if (proposal.proposalSolution) proposal.proposalSolution.valid = !result.issues.length;
   }
 }
-function snapshot(state: AIReqWorkflowView, proposal: AIReqRequirementGroup): void {
+function snapshot(state: WorkflowState, proposal: RequirementGroup): void {
   const required = new Set(completeProposalPaths(proposal));
   proposal.files = materialsFor(state, proposal)
     .filter(
@@ -168,8 +165,8 @@ function snapshot(state: AIReqWorkflowView, proposal: AIReqRequirementGroup): vo
     proposal.proposalSolution.requirementsDigest = proposal.snapshot.digest;
 }
 function recordMaterialConfirmation(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   role: Extract<AIReqMaterialHistoryEvent, { type: "confirmation" }>["role"],
   at: string,
   requirementsOnly = false,
@@ -187,8 +184,8 @@ function recordMaterialConfirmation(
 }
 
 function invalidate(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   reason: string,
   original: boolean,
 ): void {
@@ -223,8 +220,8 @@ function invalidate(
   proposal.revision += 1;
 }
 function replaceMaterial(
-  state: AIReqWorkflowView,
-  proposal: AIReqRequirementGroup,
+  state: WorkflowState,
+  proposal: RequirementGroup,
   material: AIReqMaterialView,
 ): void {
   material.round = proposal.proposalRound ?? 1;
@@ -238,14 +235,14 @@ function replaceMaterial(
   state.materials.push(material);
 }
 function createProposal(
-  state: AIReqWorkflowView,
+  state: WorkflowState,
   projectId: string,
   releaseId: string,
   text: string,
-  operation: AIReqOperationReceipt,
+  operation: Receipt,
   suffix = "",
   sourceIrId?: string,
-): AIReqRequirementGroup {
+): RequirementGroup {
   const id = `ir-demo-${state.revision}${suffix}`;
   const proposal = group(
     projectId,
@@ -270,11 +267,11 @@ function createProposal(
 }
 /** Mutates only the transaction supplied by the unique workflow owner. */
 export function applyProposalMutation(
-  state: AIReqWorkflowView,
+  state: WorkflowState,
   action: InternalWorkflowAction,
   projectId: string,
   irId: string | undefined,
-  operation: AIReqOperationReceipt,
+  operation: Receipt,
   reviewRuns: PrototypeReviewRun[],
   stagedOutput?: NativeProposalOutput,
 ): string | undefined {
@@ -283,7 +280,7 @@ export function applyProposalMutation(
   );
   const at = new Date().toISOString();
   const acceptReview = (
-    target: AIReqRequirementGroup,
+    target: RequirementGroup,
     kind: PrototypeReviewRun["kind"],
     retry = false,
   ) => {
@@ -326,7 +323,6 @@ export function applyProposalMutation(
           originalText: text.trim(),
           submittedBy: getEmployeeId(),
           createdAt: operation.startedAt,
-          updatedAt: operation.startedAt,
           revision: 1,
         })),
       );
@@ -340,7 +336,6 @@ export function applyProposalMutation(
         originalText: action.originalText.trim(),
         submittedBy: getEmployeeId(),
         createdAt: operation.startedAt,
-        updatedAt: operation.startedAt,
         revision: 1,
       });
       operation.type = "新增想法";
@@ -356,16 +351,14 @@ export function applyProposalMutation(
         if (!action.originalText.trim()) throw businessRule("请输入原始需求。");
         idea.originalText = action.originalText.trim();
         idea.revision += 1;
-        idea.updatedAt = operation.startedAt;
         operation.type = "修改想法";
         break;
       }
-      const projects = readPrototypeProjectSettings().projects;
       const targets = new Set<string>();
       if (!action.targets.length) throw businessRule("请至少选择一个项目和版本。");
       for (const target of action.targets) {
         if (
-          !projects.some((item) => item.id === target.projectId) ||
+          !state.projects.some((item) => item.id === target.projectId) ||
           !readPrototypeProjectReleases(target.projectId).some(
             (item) => item.id === target.releaseId,
           )
@@ -411,7 +404,6 @@ export function applyProposalMutation(
         title: action.title.trim(),
         createdAt: at,
       });
-      state.releases = readPrototypeProjectReleases();
       break;
     case "createProposal": {
       const existing = action.clientDraftId

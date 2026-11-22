@@ -16,7 +16,6 @@ export function prototypeProposalDependencies(
     projectId: group.projectId,
     irId: group.id,
     kind: "solution",
-    stage: "solution",
     round: group.proposalRound ?? 1,
     path: `${prototypeIrRoot(group.id)}/sr-dependencies.json`,
     // A supplied dependency document must be inspected as-is, including structural errors.

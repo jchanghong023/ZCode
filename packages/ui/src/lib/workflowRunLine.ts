@@ -1,16 +1,9 @@
 // 侧栏工作流运行行的纯模型。
 // 输入是 sessions-index 下发的 workflowActivity 与渲染端的已确认集合，输出是「画哪几行、每行几盏灯」。
 // 无时钟、无 DOM：已结束的行何时折叠只看确认集合，不看时间。
-import type {
-  SessionWorkflowActivity,
-  SessionWorkflowPhaseSummary,
-  SessionWorkflowRunSummary,
-} from "@zcode/shared/zcode-protocol-v4";
-import { isSessionWorkflowRunLive } from "@zcode/shared/zcode-protocol-v4";
+import type { SessionWorkflowPhaseSummary } from "@zcode/shared/zcode-protocol-v4";
 import { bandOf, foldPhaseBands, trackOf } from "../components/workflow-timeline/timeline-bands.js";
 
-/** 一个会话最多画的运行行数；其余折成「+n」。 */
-export const WORKFLOW_RUN_LINE_MAX_LINES = 2;
 /** 迷你轨道最多画的站点数；更多时折到运行站 ±2 并带「+n」尾。 */
 const WORKFLOW_RUN_RAIL_MAX_STATIONS = 6;
 /** 折叠时保留在运行站两侧的站点数。 */
@@ -117,40 +110,3 @@ export function workflowRunParallelPhaseLabel(
     : undefined;
 }
 
-interface WorkflowRunLineSelection {
-  lines: SessionWorkflowRunSummary[];
-  /** 没画出来的行数（「+n」词）。 */
-  overflow: number;
-}
-
-/**
- * 选出要画的行：在跑的永远画；已结束的只在**未确认**时画（确认 = 会话被打开过）。
- * 输入顺序已由投影排好（在跑的按启动序在前，其后最近结束的），这里只过滤与截断。
- */
-export function selectWorkflowRunLines(
-  activity: SessionWorkflowActivity | undefined,
-  isAcknowledged: (runId: string) => boolean,
-): WorkflowRunLineSelection {
-  if (activity === undefined) return { lines: [], overflow: 0 };
-  const visible = activity.runs.filter(
-    (run) => isSessionWorkflowRunLive(run.status) || !isAcknowledged(run.runId),
-  );
-  return {
-    lines: visible.slice(0, WORKFLOW_RUN_LINE_MAX_LINES),
-    overflow: Math.max(0, visible.length - WORKFLOW_RUN_LINE_MAX_LINES),
-  };
-}
-
-/** 已结束（可被确认）的 run id：打开会话时整批确认。 */
-export function settledWorkflowRunIds(activity: SessionWorkflowActivity | undefined): string[] {
-  if (activity === undefined) return [];
-  return activity.runs
-    .filter((run) => !isSessionWorkflowRunLive(run.status))
-    .map((run) => run.runId);
-}
-
-/** 在跑的 run 数（收起的项目组头旁的脉冲灯与数量）。 */
-export function countLiveWorkflowRuns(activity: SessionWorkflowActivity | undefined): number {
-  if (activity === undefined) return 0;
-  return activity.runs.filter((run) => isSessionWorkflowRunLive(run.status)).length;
-}
