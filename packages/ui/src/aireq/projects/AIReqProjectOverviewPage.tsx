@@ -3,11 +3,7 @@ import { ArrowRight, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import {
-  deriveAIReqTodos,
-  proposalUpdatedTime,
-  proposalStateLabel,
-} from "../contract.js";
+import { deriveAIReqTodos, proposalUpdatedTime, proposalStateLabel } from "../contract.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";

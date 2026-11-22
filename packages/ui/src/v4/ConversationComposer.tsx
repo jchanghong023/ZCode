@@ -58,6 +58,7 @@ import {
 } from "@zcode/shared/test-ids";
 import type {
   AttachmentRef,
+  ConversationCommandCatalogEntry,
   ConversationSnapshot,
   SessionConfigState,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -243,6 +244,7 @@ export interface ConversationComposerSendOptions {
   telemetrySeed?: ConversationPromptTelemetrySeed;
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
   requestedDelivery?: "startNow" | "queue" | "guide";
+  streamingBehavior?: "steer" | "followUp";
   /** 提交命令创建后由 Composer 订阅权威 projection，覆盖 ACK 丢失后的收口。 */
   onCommandCreated?: (commandId: string) => void;
   /** 插件 UI 代发：随 sendText 持久化，用户消息卡片显示"来自插件 X"。 */
@@ -256,6 +258,7 @@ type ComposerSubmit = (
   expectedHeldQueueItemIds?: readonly string[],
   existingTelemetrySeed?: ConversationPromptTelemetrySeed,
   requestedDelivery?: "startNow" | "queue" | "guide",
+  streamingBehavior?: ConversationComposerSendOptions["streamingBehavior"],
 ) => Promise<void>;
 function getComposerAttachmentTypeLabel(filename: string, mimeType: string): string {
   const leaf = filename.split(/[\\/]/u).at(-1) ?? filename;
@@ -538,6 +541,7 @@ export interface ConversationComposerProps {
   suppressGoalCommands?: boolean;
   /** App 层本地斜杠命令（如 `/side`），由 SessionPane 按门禁组装后透传。 */
   appSlashCommands?: readonly AppSlashCommand[];
+  conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** 把 composer 的 drop 路由暴露给整个对话 pane / 桌面草稿标题栏。 */
   onDropTargetControllerChange?: RegisterConversationDropTarget;
 }
@@ -628,9 +632,11 @@ function ConversationComposerImpl({
   onSubmissionSettled,
   suppressGoalCommands = false,
   appSlashCommands,
+  conversationCommands,
   onDropTargetControllerChange,
 }: ConversationComposerProps) {
   const remoteAvailable = useRemoteConversationAvailable();
+  const sessionBoundInput = conversationCommands !== undefined;
   const [targetSelectionPending, setTargetSelectionPending] = useState(false);
   const targetSelectionPendingRef = useRef(false);
   const updateTargetSelectionPending = useCallback((pending: boolean) => {
@@ -724,7 +730,7 @@ function ConversationComposerImpl({
   // 接线没有补回，导致 Enter 误发送。恢复旧语义：手机视口下 Enter 换行并用按钮发送；
   // 桌面端仍由 resolveChatEnterSubmits 的视口门禁保持 Enter 发送。
   const enterSubmits = resolveChatEnterSubmits({
-    preferEnterNewline: false,
+    preferEnterNewline: snapshot?.inputRouting.mode === "streamingChoice",
   });
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
   const updateText = useCallback(
@@ -1421,10 +1427,16 @@ function ConversationComposerImpl({
   );
 
   const mode = snapshot?.inputRouting.mode ?? "startNow";
-  const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
-    inputRoutingMode: mode,
-  });
-  const canStop = !readOnly && Boolean(snapshot?.control.canStop);
+  const streamingChoice = mode === "streamingChoice";
+  const modifiedEnterSubmits =
+    !sessionBoundInput && shouldEnableModifiedEnterSubmit({ inputRoutingMode: mode });
+  const canStop =
+    !readOnly &&
+    Boolean(snapshot?.control.canStop) &&
+    (!sessionBoundInput ||
+      (!disabled &&
+        !runtimeBlocked &&
+        Boolean(snapshot?.control.activeWorks.some((work) => work.foregroundExecutionId))));
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = textPresence.trimmed;
   const hasDraftToSubmit =
@@ -1450,7 +1462,9 @@ function ConversationComposerImpl({
   // choice 保留正常发送按钮；提交后由 SessionPane 按 slash 语义决定是否弹确认框。
   // V4 重构时把 guide 当成“不可提交”状态，导致按钮和 Enter 同时失效；
   // guide 是 CLI 已授权的 busy 输入路由，是否最终 steer 或回退 queue 由命令层裁决。
-  const routingAllowsSend = draftMode || (snapshot !== null && mode !== "reject");
+  const routingAllowsSend =
+    draftMode ||
+    (snapshot !== null && mode !== "reject" && (!sessionBoundInput || mode !== "choice"));
   const attachmentsReady = !attachmentsApi.hasUnreadyAttachments;
   const recoveryCommand = appSlashCommands?.find(
     (command) => command.recovery && command.value === "reload",
@@ -1478,7 +1492,7 @@ function ConversationComposerImpl({
     hasDraftToSubmit &&
     (canReload || (routingAllowsSend && attachmentsReady && submissionReady && !runtimeBlocked));
   // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
-  const showStopControl = canStop && !hasDraftToSubmit;
+  const showStopControl = canStop && (sessionBoundInput || !hasDraftToSubmit);
 
   useEffect(() => {
     if (!canSend) setActionTooltipOpen(false);
@@ -1490,10 +1504,18 @@ function ConversationComposerImpl({
       expectedHeldQueueItemIds?: readonly string[],
       existingTelemetrySeed?: ConversationPromptTelemetrySeed,
       requestedDelivery?: "startNow" | "queue" | "guide",
+      streamingBehavior?: ConversationComposerSendOptions["streamingBehavior"],
     ) => {
       // 连接 pending 同步进入 ref，覆盖菜单点击后 React 尚未提交的一帧及快捷键提交。
       // 只阻止新输入，不取消正在执行或已排队消息，也不清空草稿。
       if (connectionPendingRef.current) return;
+      if (
+        sessionBoundInput &&
+        snapshotRef.current?.inputRouting.mode === "streamingChoice" &&
+        !streamingBehavior
+      ) {
+        return;
+      }
       const submittedAt = performance.timeOrigin + performance.now();
       // IME 候选期间 textRef 尚未接收最终 onChange；提交必须与 claim/恢复共用 Lexical 快照。
       const submittedDraft = snapshotDraftOfEditor();
@@ -1510,7 +1532,7 @@ function ConversationComposerImpl({
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
       // /reload 是本地操作，在模型配置、队列和消息历史处理之前截获；参数和附件不发给模型。
-      if (/^\/reload(?:\s|$)/.test(trimmed)) {
+      if (!sessionBoundInput && /^\/reload(?:\s|$)/.test(trimmed)) {
         if (
           trimmed !== "/reload" ||
           !recoveryCommand ||
@@ -1809,6 +1831,7 @@ function ConversationComposerImpl({
           telemetrySeed,
           onCommandCreated: subscribeToCommandResolution,
           ...(requestedDelivery ? { requestedDelivery } : {}),
+          ...(streamingBehavior ? { streamingBehavior } : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
           ...(readyAttachmentRefs.length > 0 ? { attachments: readyAttachmentRefs } : {}),
@@ -1864,6 +1887,7 @@ function ConversationComposerImpl({
     [
       recoveryCommand,
       recoveryAllowed,
+      sessionBoundInput,
       uiStore,
       attachmentsApi,
       captureComposerSubmissionDraftTransaction,
@@ -1947,6 +1971,16 @@ function ConversationComposerImpl({
     },
     [submit],
   );
+
+  const handleSteer = useCallback(() => {
+    sendTriggerRef.current = "button";
+    void submit(undefined, undefined, undefined, undefined, "steer");
+  }, [submit]);
+
+  const handleFollowUp = useCallback(() => {
+    sendTriggerRef.current = "button";
+    void submit(undefined, undefined, undefined, undefined, "followUp");
+  }, [submit]);
 
   const handleModifiedEditorSubmit = useCallback(
     (value: string) => {
@@ -2080,6 +2114,9 @@ function ConversationComposerImpl({
     choice: zh
       ? "有待发送消息，发送时可选择保留或清空队列。"
       : "Messages are queued. Choose whether to keep or clear them when sending.",
+    streamingChoice: zh
+      ? "正在执行。可引导当前任务，也可将输入加入队列。"
+      : "Working. Steer the current task or queue your input for later.",
     ready: "",
   };
   const interactionHint = showInteractionStatus ? interactionHints[interactionState] : "";
@@ -2106,6 +2143,13 @@ function ConversationComposerImpl({
     : sendTooltipTitle;
   const resolvedSendTooltipShortcut = modifierTooltip?.shortcut ?? sendShortcut;
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
+  const boundSelection = sessionBoundInput ? snapshot?.config.modelSelection : undefined;
+  const boundModel = boundSelection
+    ? [boundSelection.modelId, boundSelection.options?.reasoningLevel].filter(Boolean).join(" · ")
+    : undefined;
+  const boundModelLabel = zh ? "会话模型" : "Session model";
+  const steerLabel = intl.formatMessage({ id: "chat.followup.guideCurrent" });
+  const followUpLabel = intl.formatMessage({ id: "chat.followup.addToQueue" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
 
   const attachmentAction = useMemo(
@@ -2586,7 +2630,15 @@ function ConversationComposerImpl({
             {intl.formatMessage({ id: "remote.conversation.sendUnavailable" })}
           </span>
         ) : null}
-        {remoteAvailable ? (
+        {remoteAvailable && sessionBoundInput && boundModel ? (
+          <span
+            className="min-w-0 truncate text-ui-caption text-foreground-subtle"
+            title={`${boundModelLabel}: ${boundModel}`}
+          >
+            {boundModelLabel}: {boundModel}
+          </span>
+        ) : null}
+        {remoteAvailable && !sessionBoundInput ? (
           <span className="flex min-w-0 shrink items-center gap-1 overflow-hidden empty:hidden">
             <V4ComposerModelControls
               workspacePath={workspacePath}
@@ -2616,7 +2668,32 @@ function ConversationComposerImpl({
         ) : null}
         {/* 业务辅助工具放在原生模型之后、发送之前，避免模型控制簇把右侧工具顺序截断。 */}
         {trailingToolsNode}
-        {/* 同一操作位始终复用现有的受控提示状态；不靠重挂载修告警，保留按钮焦点。 */}
+        {streamingChoice ? (
+          <>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              disabled={!canSend}
+              onClick={handleSteer}
+              data-testid="v4-composer-steer"
+              className="shrink-0"
+            >
+              {steerLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={!canSend}
+              onClick={handleFollowUp}
+              data-testid="v4-composer-follow-up"
+              className="shrink-0"
+            >
+              {followUpLabel}
+            </Button>
+          </>
+        ) : null}
         {showStopControl ? (
           <ControlHintTooltip
             title={stopTooltipTitle}
@@ -2637,7 +2714,8 @@ function ConversationComposerImpl({
               <span className="sr-only">{stopTooltipTitle}</span>
             </Button>
           </ControlHintTooltip>
-        ) : (
+        ) : null}
+        {!streamingChoice && !showStopControl ? (
           <ControlHintTooltip
             title={resolvedSendTooltipTitle}
             shortcut={resolvedSendTooltipShortcut}
@@ -2657,12 +2735,20 @@ function ConversationComposerImpl({
               <span className="sr-only">{resolvedSendTooltipTitle}</span>
             </Button>
           </ControlHintTooltip>
-        )}
+        ) : null}
       </div>
     ),
     [
       intl,
       canSend,
+      boundModel,
+      boundModelLabel,
+      handleSteer,
+      handleFollowUp,
+      sessionBoundInput,
+      steerLabel,
+      followUpLabel,
+      streamingChoice,
       activeConfigPicker,
       composerPhase,
       composerUsage,
@@ -2709,16 +2795,18 @@ function ConversationComposerImpl({
   const leadingActionsNode = useMemo(
     () => (
       <>
-        <V4ComposerModeSwitch
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          provider={provider}
-          draftConfig={draftConfig}
-          disabled={disabled || runtimeBlocked}
-          activeConfigPicker={activeConfigPicker}
-          onConfigPickerOpenChange={handleConfigPickerOpenChange}
-          onSwitchMode={onSwitchMode}
-        />
+        {!sessionBoundInput ? (
+          <V4ComposerModeSwitch
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            provider={provider}
+            draftConfig={draftConfig}
+            disabled={disabled || runtimeBlocked}
+            activeConfigPicker={activeConfigPicker}
+            onConfigPickerOpenChange={handleConfigPickerOpenChange}
+            onSwitchMode={onSwitchMode}
+          />
+        ) : null}
         {sessionId && workspaceHookAdmission ? (
           <WorkspaceHookPendingIndicator
             key={JSON.stringify([sessionId, workspaceHookAdmission.bundleDigest])}
@@ -2760,6 +2848,7 @@ function ConversationComposerImpl({
       onOpenRunningBackgroundWorks,
       onSwitchMode,
       provider,
+      sessionBoundInput,
       runningSubagentCount,
       sessionId,
       workspaceHookAdmission,
@@ -2924,6 +3013,7 @@ function ConversationComposerImpl({
             submitDisabled={
               pending ||
               connectionPending ||
+              streamingChoice ||
               (!canReload &&
                 (runtimeBlocked || !routingAllowsSend || !attachmentsReady || !submissionReady))
             }
@@ -2954,6 +3044,7 @@ function ConversationComposerImpl({
             appSlashCommands={appSlashCommands?.filter((command) =>
               command.recovery ? recoveryAvailable : !runtimeBlocked,
             )}
+            conversationCommands={conversationCommands}
             enableMentionPanel
             leadingActions={
               <>

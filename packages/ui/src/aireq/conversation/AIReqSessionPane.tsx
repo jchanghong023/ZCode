@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { SessionPane, type SessionPaneProps } from "../../v4/SessionPane.js";
 import {
   conversationReadOnlyReason,
@@ -60,9 +61,22 @@ export function AIReqSessionPane({
       await retrySession(selection, sessionId, isCurrent);
     };
   }, [businessSession, selection, retrySession, sessionId, callerBeforeReconnect]);
-  // 根因：私有 Skill 不命中当前业务 selection，却同样保留 Agent 创建绑定；
-  // 仅按 businessSession 开端口会误发被服务端拒绝的 switchModelConfig。
-  // AIReq 的选模统一归本次 Submission，businessSession 只裁决业务重连归属。
+  const interactionEnabled = workspaceActive && (props.interactionEnabled ?? true);
+  const { services, rpcReady, remoteSessionId } = useWorkspaceServicesResolution(
+    props.workspacePath,
+    props.remoteSessionId,
+    props.workspaceIdentity,
+  );
+  const agent = services.zcodeAgentService;
+  const loadConversationCommands = useCallback(() => {
+    if (!rpcReady) return;
+    return agent.getConversationCommandCatalog?.({
+      workspacePath: props.workspacePath,
+      ...(props.workspaceIdentity ? { workspaceIdentity: props.workspaceIdentity } : {}),
+      ...(remoteSessionId ? { remoteSessionId } : {}),
+      ...(sessionId ? { sessionId } : {}),
+    });
+  }, [agent, props.workspacePath, props.workspaceIdentity, remoteSessionId, rpcReady, sessionId]);
   return (
     <SessionPane
       {...props}
@@ -72,9 +86,9 @@ export function AIReqSessionPane({
       readOnlyReason={readOnlyReason}
       onBeforeReconnect={onBeforeReconnect}
       onOpenModelSettings={props.onOpenModelSettings ?? openModelSettings}
-      submissionModelSelectionOnly
+      loadConversationCommands={loadConversationCommands}
       focused={workspaceActive && (props.focused ?? true)}
-      interactionEnabled={workspaceActive && (props.interactionEnabled ?? true)}
+      interactionEnabled={interactionEnabled}
       autoFocusEnabled={
         workspaceActive && (props.autoFocusEnabled ?? aireq?.session?.role !== "reviewer")
       }

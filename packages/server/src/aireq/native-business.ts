@@ -5,34 +5,46 @@ import {
   requirementsReviewCurrent,
   fullReviewCurrent,
   proposalVersion,
+  type AIReqIdentity,
 } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
+import type { NativeProposalOutput } from "./proposal-mutations.js";
 import {
-  getPrototypeWorkflow,
+  stagePrototypeNativeMaterials,
   applyPrototypeAction,
   readPrototypeNativeContext,
   requireProjectRole,
 } from "./workflow.js";
 import {
-  prototypeSkillDesignReply,
+  stagePrototypeSkillDiscussion,
+  commitPrototypeSkillDiscussion,
   prototypeSkillDesignBinding,
   assertSkillSession,
+  type StagedSkillDiscussion,
 } from "./skill-design.js";
 import { currentIdentity, withAIReqIdentity } from "./identity.js";
 import { consumePrototypeSendFailure, prototypeSessionReadIssue } from "./recovery.js";
 
+export interface AIReqNativeTurnResult {
+  commandIds: readonly string[];
+  reply: string;
+  output:
+    | { kind: "none" }
+    | { kind: "skill"; discussion: StagedSkillDiscussion }
+    | { kind: "proposal"; note: string; materials: NativeProposalOutput };
+}
+
 interface NativeExecutionSnapshot {
   text: string;
+  effectiveText: string;
   version?: string;
   modelSelection?: ModelSelection;
   promptSnapshot: string;
 }
 
 export class AIReqNativeBusiness {
-  private readonly results = new Map<string, { text: string; reply: string }>();
   private readonly failures = new Set<string>();
-  private readonly actors = new Map<string, import("@zcode/services/aireq").AIReqIdentity>();
-  private readonly admittedTexts = new Map<string, string>();
+  private readonly admissions = new Map<string, { actor: AIReqIdentity; text: string }>();
   private readonly executionSnapshots = new Map<string, NativeExecutionSnapshot>();
   private readonly nativeDrafts = new Map<
     string,
@@ -80,14 +92,14 @@ export class AIReqNativeBusiness {
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
     if (!identity) throw businessRule("连接身份无效，请重新进入工作区。");
-    const key = `${sessionId}:${commandId}`;
-    const admittedActor = this.actors.get(key);
-    // 接纳记录是消息的不可变身份；失败重试不能抢占原操作者或替换已接纳正文。
+    const key = JSON.stringify([sessionId, commandId]);
+    const prior = this.admissions.get(key);
+    // 接纳记录是消息的不可变身份；引导和跟进也不能替换原操作者或正文。
     if (
-      admittedActor &&
-      (admittedActor.employeeId !== identity.employeeId ||
-        admittedActor.clientId !== identity.clientId ||
-        this.admittedTexts.get(key) !== text)
+      prior &&
+      (prior.actor.employeeId !== identity.employeeId ||
+        prior.actor.clientId !== identity.clientId ||
+        prior.text !== text)
     )
       throw businessRule("相同消息编号不能用于不同正文或操作者。");
     if (
@@ -98,8 +110,7 @@ export class AIReqNativeBusiness {
       throw businessRule("消息未发送成功，请重试。");
     }
     this.assertNativeWritable(sessionId);
-    this.actors.set(key, { ...identity });
-    this.admittedTexts.set(key, text);
+    this.admissions.set(key, { actor: { ...identity }, text });
   }
   /** Admission is immutable; freeze actual turn selection and its session's instructions at dispatch. */
   beginNative(
@@ -107,25 +118,33 @@ export class AIReqNativeBusiness {
     commandId: string,
     text: string,
     modelSelection?: ModelSelection,
+    effectiveText = text,
   ): void {
-    const key = `${sessionId}:${commandId}`;
-    const actor = this.actors.get(key);
-    if (!actor) throw businessRule("消息未接纳。");
-    withAIReqIdentity(actor, () => {
+    const key = JSON.stringify([sessionId, commandId]);
+    const admitted = this.admissions.get(key);
+    if (!admitted || admitted.text !== text) throw businessRule("消息与接纳记录不一致。");
+    withAIReqIdentity(admitted.actor, () => {
       const prior = this.executionSnapshots.get(key);
       if (prior) {
-        if (prior.text !== text) throw businessRule("已开始执行的消息正文不能替换。");
+        if (prior.text !== text || prior.effectiveText !== effectiveText)
+          throw businessRule("已开始执行的输入不能替换。");
         return;
       }
       if (sessionId.startsWith("prototype-skill-design:")) {
         assertSkillSession(sessionId);
-        this.executionSnapshots.set(key, { text, modelSelection, promptSnapshot: "" });
+        this.executionSnapshots.set(key, {
+          text,
+          effectiveText,
+          modelSelection,
+          promptSnapshot: "",
+        });
         return;
       }
       // 前项可在此项等待期间更新材料；开始时冻结一次，完成或重试不能换版本或重读设置。
       const { proposal, ref } = this.currentProposal(sessionId);
       this.executionSnapshots.set(key, {
         text,
+        effectiveText,
         version: proposalVersion(proposal),
         modelSelection,
         promptSnapshot: ref.modelConfig?.promptSnapshot ?? "",
@@ -169,87 +188,102 @@ export class AIReqNativeBusiness {
     return { proposal: proposal!, ref };
   }
   discardNative(sessionId: string, commandId: string): void {
-    const key = `${sessionId}:${commandId}`;
-    // 取消只撤销未完成的私有接纳，已完成收据仍用于同一命令的幂等读取。
-    if (this.results.has(key)) return;
-    this.actors.delete(key);
-    this.admittedTexts.delete(key);
+    const key = JSON.stringify([sessionId, commandId]);
+    this.admissions.delete(key);
     this.executionSnapshots.delete(key);
   }
-  completeNative(
-    sessionId: string,
-    commandId: string,
-    text: string,
-  ): { reply: string; modelId?: string } {
-    const key = `${sessionId}:${commandId}`;
-    const actor = this.actors.get(key);
-    if (!actor) throw businessRule("消息未接纳。");
+
+  private currentExecution(sessionId: string, commandId: string) {
+    const key = JSON.stringify([sessionId, commandId]);
+    const admitted = this.admissions.get(key);
     const execution = this.executionSnapshots.get(key);
-    if (!execution || execution.text !== text) throw businessRule("完成消息正文与执行快照不一致。");
-    const reply = withAIReqIdentity(actor, () =>
-      this.completeForActor(sessionId, commandId, execution),
-    );
-    return { reply, modelId: execution.modelSelection?.modelId };
-  }
-  private completeForActor(
-    sessionId: string,
-    commandId: string,
-    execution: NativeExecutionSnapshot,
-  ): string {
-    const { text, version } = execution;
-    const key = `${sessionId}:${commandId}`;
-    const prior = this.results.get(key);
-    if (prior) {
-      if (prior.text !== text) throw businessRule("消息编号冲突。");
-      return prior.reply;
-    }
-    let reply: string;
-    if (sessionId.startsWith("prototype-skill-design:")) {
-      assertSkillSession(sessionId);
-      reply = text.trim()
-        ? prototypeSkillDesignReply(sessionId, text)
-        : "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
-    } else {
-      // 送审可能未改变文件摘要，但已关闭需求澄清的写权限；完成时沿用发送门禁。
-      const { ref, proposal } = this.currentProposal(sessionId);
-      const selection = { projectId: ref.projectId, irId: ref.irId };
-      if (version !== proposalVersion(proposal))
-        throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
-      if (!text.trim()) reply = "本次输入已在当前会话接纳；未生成文字分析或修改材料。";
-      else if (ref.role === "reviewer")
-        reply = "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。";
-      else {
-        const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
-        if (ref.phase === "solution")
-          applyPrototypeAction({ type: "generateProposalSolution", ...selection }, selection, text);
-        else
-          applyPrototypeAction(
-            {
-              type: initial ? "generateRequirements" : "supplementRequirements",
-              note: text,
-              ...selection,
-            },
-            selection,
-          );
-        // 完成回复只引用 owner 提交后的材料版本，不能把固定产物描述为专属分析。
-        const changed = getPrototypeWorkflow(selection).materials.filter(
-          (material) =>
-            material.irId === ref.irId &&
-            !proposal.files.some(
-              (file) => file.path === material.path && file.sha256 === material.sha256,
-            ),
-        );
-        reply = `已接纳本次${ref.phase === "solution" ? "方案" : "需求"}讨论。${
-          changed.length
-            ? `本次更新材料：\n${changed
-                .map((material) => `- ${material.path}（SHA-256：${material.sha256}）`)
-                .join("\n")}`
-            : "本次未改变材料内容。"
-        }`;
+    if (!admitted || !execution || admitted.text !== execution.text)
+      throw businessRule("当前输入未进入执行或已取消。");
+    // 根输入与引导输入可能属于不同工号，每项都必须按自己的权限重验。
+    withAIReqIdentity(admitted.actor, () => {
+      if (sessionId.startsWith("prototype-skill-design:")) {
+        assertSkillSession(sessionId);
+      } else {
+        const { proposal } = this.currentProposal(sessionId);
+        if (execution.version !== proposalVersion(proposal))
+          throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
       }
-    }
-    this.results.set(key, { text, reply });
-    return reply;
+    });
+    return { actor: admitted.actor, text: execution.effectiveText };
+  }
+
+  prepareNativeResult(sessionId: string, commandIds: readonly string[]): AIReqNativeTurnResult {
+    const started = commandIds.map((id) => this.currentExecution(sessionId, id));
+    const first = started[0];
+    if (!first) throw businessRule("本轮没有已执行输入。");
+    return withAIReqIdentity(first.actor, () => {
+      const note = started
+        .map(({ text }) => text.trim())
+        .filter(Boolean)
+        .join("\n\n");
+      if (!note) {
+        return {
+          commandIds,
+          reply: "本次输入已在当前会话接纳；未生成文字分析或修改材料。",
+          output: { kind: "none" },
+        };
+      }
+      if (sessionId.startsWith("prototype-skill-design:")) {
+        const discussion = stagePrototypeSkillDiscussion(sessionId, note);
+        return { commandIds, reply: discussion.reply, output: { kind: "skill", discussion } };
+      }
+      const { ref, proposal } = this.currentProposal(sessionId);
+      if (ref.role === "reviewer") {
+        return {
+          commandIds,
+          reply: "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。",
+          output: { kind: "none" },
+        };
+      }
+      const kind = ref.phase === "solution" ? "solution" : "requirements";
+      return {
+        commandIds,
+        reply: `本轮${kind === "solution" ? "方案" : "需求"}讨论已完成。材料与格式检查结果请在材料区核对。`,
+        output: {
+          kind: "proposal",
+          note,
+          materials: stagePrototypeNativeMaterials(proposal, kind, note),
+        },
+      };
+    });
+  }
+
+  completeNative(sessionId: string, result: AIReqNativeTurnResult): void {
+    const [firstId, ...steeredIds] = result.commandIds;
+    if (!firstId) throw businessRule("本轮没有已执行输入。");
+    const first = this.currentExecution(sessionId, firstId);
+    for (const id of steeredIds) this.currentExecution(sessionId, id);
+    const output = result.output;
+    withAIReqIdentity(first.actor, () => {
+      switch (output.kind) {
+        case "none":
+          break;
+        case "skill":
+          commitPrototypeSkillDiscussion(sessionId, output.discussion);
+          break;
+        case "proposal": {
+          const { ref, proposal } = this.currentProposal(sessionId);
+          const target = { projectId: ref.projectId, irId: ref.irId };
+          const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
+          const action =
+            output.materials.kind === "solution"
+              ? ({ type: "generateProposalSolution", ...target } as const)
+              : ({
+                  type: initial ? "generateRequirements" : "supplementRequirements",
+                  note: output.note,
+                  ...target,
+                } as const);
+          applyPrototypeAction(action, target, output.materials);
+          break;
+        }
+      }
+    });
+    for (const id of result.commandIds) this.discardNative(sessionId, id);
   }
   seedNative(sessionId: string): string | undefined {
     const target = readPrototypeNativeContext(sessionId, true);

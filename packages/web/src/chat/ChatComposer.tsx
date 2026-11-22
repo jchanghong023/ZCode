@@ -1,15 +1,13 @@
 import { ArrowUp, Folder } from "lucide-react";
-import { useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import type {
+  ConversationCommandCatalogEntry,
+  InputRouting,
+} from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@zcode/ui/button";
 import { LexicalChatInput, type LexicalChatInputHandle } from "@zcode/ui/web-chat-view";
 
-export interface ChatDraft {
-  text: string;
-  sending: boolean;
-  error: string;
-}
-
-export type UpdateChatDraft = (update: (current: ChatDraft) => ChatDraft) => void;
+import type { ChatDraft, StreamingBehavior } from "./useChatInput.js";
 
 // 宿主提供目录和发送提交，编辑与键盘行为由原生输入器处理。
 export function ChatComposer({
@@ -19,10 +17,13 @@ export function ChatComposer({
   sessionId,
   setDirectory,
   draft,
-  updateDraft,
+  setText,
   disabled,
   modelPicker,
   send,
+  routing,
+  conversationCommands,
+  stopButton,
 }: {
   directory?: string;
   workspacePath: string;
@@ -30,26 +31,31 @@ export function ChatComposer({
   sessionId?: string;
   setDirectory: (path: string) => void;
   draft: ChatDraft;
-  updateDraft: UpdateChatDraft;
+  setText: (text: string) => void;
   disabled: boolean;
   modelPicker?: ReactNode;
-  send: (text: string) => Promise<boolean>;
+  send: (text: string, behavior?: StreamingBehavior) => void;
+  routing?: InputRouting["mode"];
+  conversationCommands: readonly ConversationCommandCatalogEntry[];
+  stopButton?: ReactNode;
 }) {
   const editor = useRef<LexicalChatInputHandle>(null);
   const editorText = useRef("");
-  const creating = directory !== undefined && draft.sending;
+  const [triggerPanelContainer, setTriggerPanelContainer] = useState<HTMLDivElement | null>(null);
+  const streaming = routing === "streamingChoice";
   const canSend =
     !disabled &&
-    !draft.sending &&
+    !draft.receipt &&
     Boolean(draft.text.trim()) &&
     (directory === undefined || Boolean(directory.trim()));
+  const canSendNormally = canSend && routing === "startNow";
 
   const onChange = useCallback(
     (text: string) => {
       editorText.current = text;
-      updateDraft((current) => (current.text === text ? current : { ...current, text }));
+      setText(text);
     },
-    [updateDraft],
+    [setText],
   );
   useEffect(() => {
     const api = editor.current;
@@ -59,37 +65,31 @@ export function ChatComposer({
     else api.clear();
   }, [draft.text]);
 
-  async function submit(text: string) {
-    if (!canSend || !text.trim()) return;
-    // 结果回调使用同一草稿键；切到历史再回来也只清除本次已确认的正文。
-    updateDraft((current) => ({ ...current, text, sending: true }));
-    let accepted = false;
-    try {
-      accepted = await send(text.trim());
-    } finally {
-      updateDraft((current) => ({
-        ...current,
-        text: accepted && current.text === text ? "" : current.text,
-        sending: false,
-      }));
-    }
+  function submit(text: string, behavior?: StreamingBehavior) {
+    if (!text.trim() || (behavior ? !canSend || !streaming : !canSendNormally)) return;
+    send(text, behavior);
+  }
+
+  function currentText() {
+    return editor.current?.getMarkdown() ?? draft.text;
   }
 
   return (
     <form
-      className="composer"
+      className="composer relative"
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        void submit(editor.current?.getMarkdown() ?? draft.text);
+        submit(currentText());
       }}
     >
+      {/* 原生斜杠菜单通过 portal 挂载；独立聊天使用自己的输入区锚点。 */}
+      <div ref={setTriggerPanelContainer} className="absolute inset-x-0 bottom-full z-20" />
       {directory !== undefined && (
         <label className="directory-field">
           <Folder size={16} aria-hidden="true" />
           <span>工作目录</span>
           <input
             value={directory}
-            readOnly={creating}
             onChange={(event) => setDirectory(event.target.value)}
             placeholder="输入服务端目录"
             spellCheck={false}
@@ -105,21 +105,48 @@ export function ChatComposer({
           inputTestId="web-chat-input"
           editorApiRef={editor}
           enableMentionPanel={false}
-          disabled={creating}
-          submitDisabled={!canSend}
+          conversationCommands={conversationCommands}
+          triggerPanelContainer={triggerPanelContainer}
+          submitDisabled={!canSendNormally}
           onChange={onChange}
           onSubmit={(text) => {
-            void submit(text);
+            submit(text);
             return false;
           }}
         />
         <div className="composer-actions">
-          <span>Enter 发送 · Shift + Enter 换行</span>
-          <div className="flex min-w-0 items-center gap-2">
-            {modelPicker && <fieldset disabled={draft.sending}>{modelPicker}</fieldset>}
-            <Button size="icon" type="submit" aria-label="发送消息" disabled={!canSend}>
-              <ArrowUp size={18} aria-hidden="true" />
-            </Button>
+          <span>
+            {streaming ? "请选择引导或跟进 · Enter 换行" : "Enter 发送 · Shift + Enter 换行"}
+          </span>
+          <div className="composer-buttons">
+            {modelPicker && <fieldset>{modelPicker}</fieldset>}
+            {stopButton}
+            {streaming ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!canSend}
+                  onClick={() => submit(currentText(), "steer")}
+                >
+                  引导当前任务
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!canSend}
+                  onClick={() => submit(currentText(), "followUp")}
+                >
+                  排队跟进
+                </Button>
+              </>
+            ) : (
+              <Button size="icon" type="submit" aria-label="发送消息" disabled={!canSendNormally}>
+                <ArrowUp size={18} aria-hidden="true" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

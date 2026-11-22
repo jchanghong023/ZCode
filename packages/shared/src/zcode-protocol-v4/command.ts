@@ -142,6 +142,7 @@ export const commandPayloadSchemas = {
       // Desktop Cmd/Ctrl+Enter 只覆盖本次 busy input，不改 session followupMode。
       // startNow 由 CLI 原子抢占当前 turn，不经过 queue admission。
       requestedDelivery: z.enum(["startNow", "queue", "guide"]).optional(),
+      streamingBehavior: z.enum(["steer", "followUp"]).optional(),
       genUiContext: genUiModelContextSchema.optional(),
       browserAmbientContext: zcodeBrowserAmbientContextSchema.optional(),
       // Share handover 只允许当前 session 的一个已导入上下文；完整正文由 runtime 从
@@ -489,10 +490,26 @@ export function committedPermissionGrantMode(reasonCode: string | undefined) {
   return undefined;
 }
 
+export const conversationCommandCatalogEntrySchema = z.strictObject({
+  name: z
+    .string()
+    .min(1)
+    .regex(/^[^/\s]+$/),
+  description: z.string(),
+  source: z.enum(["builtin", "skill"]),
+});
+export type ConversationCommandCatalogEntry = z.infer<typeof conversationCommandCatalogEntrySchema>;
+
 export const commandResultSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),
+    workspace: z
+      .object({
+        workspacePath: z.string(),
+        workspaceIdentity: z.string().optional(),
+      })
+      .optional(),
     input: z
       .object({
         delivery: z.enum(["startNow", "queue", "guide"]),
@@ -538,6 +555,11 @@ export const commandResultSchema = z.discriminatedUnion("type", [
     delivery: z.enum(["startNow", "queue", "guide"]),
     inputId: z.string(),
     messageId: z.string().optional(),
+  }),
+  z.strictObject({
+    type: z.literal("localCommand"),
+    name: z.string().min(1),
+    output: z.string(),
   }),
   z.object({
     // restart discarded 过去只返回一个无差别 fault，renderer 无法区分

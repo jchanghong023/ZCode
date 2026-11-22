@@ -66,7 +66,6 @@ const review = (): AIReqReview => ({
         projectId: "p",
         irId: "ir",
         sessionId: "review-a",
-        sessionFile: "review-a.json",
         phase: "requirements",
         role: "reviewer",
         round: 1,

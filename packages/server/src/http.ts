@@ -126,6 +126,7 @@ const publicMembers = new Map([
       "listSessionSubagents",
       "supportsConversationQuoteComment",
       "getSkillReferenceCatalog",
+      "getConversationCommandCatalog",
       "helloConversationV4",
       "initializeConversationV4",
       "subscribeConversationV4",
@@ -179,6 +180,8 @@ const chatExposure: ServiceExposurePolicy = {
         "unsubscribeConversationV4",
         "conversationRowsRangeV4",
         "sendConversationCommandV4",
+        "queryConversationCommandsV4",
+        "getConversationCommandCatalog",
       ],
       ["onDynamicConversationFrame"],
     ),
@@ -199,11 +202,15 @@ function setupChannelServer(
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
   const loggedServer = new LoggingChannelServer(rawServer, log);
   const agentService = overrides.get(IZCodeAgentService.channelName) as IZCodeAgentService;
-  const connectionScope = createZCodeAgentConnectionScope(agentService, {
-    connectionId: `web-ws-${crypto.randomUUID()}`,
-    clientMode: "web-remote-replayable",
-    role: "terminal-client",
-  });
+  const connectionScope = createZCodeAgentConnectionScope(
+    agentService,
+    {
+      connectionId: `web-ws-${crypto.randomUUID()}`,
+      clientMode: "web-remote-replayable",
+      role: "terminal-client",
+    },
+    { allowCommandQueriesAcrossWorkspaces: exposure === chatExposure },
+  );
   overrides.set(IZCodeAgentService.channelName, connectionScope.service);
   services.exposeOnChannelServer(loggedServer, overrides, exposure);
   socket.onClose(() => {

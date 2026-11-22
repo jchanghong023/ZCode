@@ -2,10 +2,14 @@
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import { resolve } from "node:path";
-import { createUuid, type ZCodeSkillReferenceCatalogEntry } from "@zcode/shared";
+import { createUuid, type SkillSummary } from "@zcode/shared";
 import type {
+  ActiveWorkSummary,
   ConversationSnapshot,
   PlanState,
+  QueueState,
+  SessionControl,
+  SessionErrorInfo,
   PendingInteraction,
   QueueItem,
   SessionMetaState,
@@ -30,6 +34,20 @@ export function workspaceRefOf(ref: WorkspaceRef): WorkspaceRef {
   return { workspacePath: ref.workspacePath, workspaceIdentity: workspaceKeyOf(ref) };
 }
 
+export type MockInputContext = { skill: SkillSummary; args: string };
+
+export type MockQueuedInput = {
+  item: QueueItem;
+  actor: string;
+  context?: MockInputContext;
+  retained?: boolean;
+};
+
+export type MockActiveTurn = {
+  controller: AbortController;
+  work: ActiveWorkSummary & { foregroundExecutionId: string };
+};
+
 /** 一个模拟会话：v4 conversation topic 的权威状态。 */
 export interface MockSession {
   sessionId: string;
@@ -40,7 +58,7 @@ export interface MockSession {
   /** 独立聊天的归组目录，服务端解析路径别名后保存。 */
   chatDirectory?: string;
   /** 首次初始化时冻结的可引用技能；目录更新不能泄漏进既有会话。 */
-  skillReferenceCatalog: ZCodeSkillReferenceCatalogEntry[];
+  skills: SkillSummary[];
   logEpoch: string;
   /** topic 帧水位；(fromSeq, toSeq] 记账。 */
   seq: number;
@@ -50,20 +68,17 @@ export interface MockSession {
   lastActivityAt: number;
   meta: SessionMetaState;
   rows: WireConversationRow[];
+  deliveredTurns: Map<string, string>;
   usage: SessionUsageState;
   plan: PlanState | null;
   pendingInteractions: PendingInteraction[];
-  /** 已准入但尚未开始的排队输入；queue 投影与 ACK 共用这一份状态。 */
-  queuedInputs: QueueItem[];
-  /** queue 的准入序号；order.admissionSeq 单调递增。 */
+  /** 只读队列投影与真实待交付输入共用同一份事实。 */
+  queuedInputs: MockQueuedInput[];
   nextAdmissionSeq: number;
-  autoDrain: boolean;
-  /** autoDrain=false 的原因（stopped / manual）；恢复自动续跑时清除。 */
-  pauseReason?: "stopped" | "manual" | "error";
-  /** 保留提升项的原命令与附件；仅保存正文会使中断续跑丢失接纳身份。 */
-  pendingStartInput: QueueItem | null;
-  /** 运行中的 turn 模拟器；stop 命令通过它中断。 */
-  activeTurn: { abort: () => void } | null;
+  pauseReason?: "stopped" | "error";
+  activeTurn: MockActiveTurn | null;
+  lastError?: SessionErrorInfo;
+  nativeBindingApplied?: boolean;
   /** 会话配置（createSession.config 合并 + switchModelConfig 更新）。 */
   config: {
     provider: string;
@@ -213,57 +228,83 @@ function buildFixtureWorkspace(): VirtualFileNode {
 
 const SNAPSHOT_TAIL_WINDOW_ROWS = 60;
 
+function projectMockControl(session: MockSession): SessionControl {
+  const work = session.activeTurn?.work;
+  return {
+    phase: session.phase,
+    sessionEnded: session.phase === "completedSuccess" || session.phase === "completedInterrupted",
+    canStop: work !== undefined,
+    stopState: work ? "stoppable" : "idle",
+    stopTargetKind: work ? "assistant" : "unknown",
+    activeWorks: work ? [work] : [],
+    lastError: session.lastError ?? null,
+    apiRetry: null,
+  };
+}
+
+export function projectMockQueue(session: MockSession): QueueState {
+  const pauseReason = session.pauseReason;
+  const paused =
+    pauseReason !== undefined &&
+    session.queuedInputs.length > 0 &&
+    session.queuedInputs.every((input) => input.retained);
+  return {
+    items: session.queuedInputs.map(({ item }, queuePosition) => ({
+      ...item,
+      order: { admissionSeq: item.order.admissionSeq, queuePosition },
+    })),
+    autoDrain: !paused,
+    ...(paused ? { pauseReason } : {}),
+  };
+}
+
+export function projectMockExecution(
+  session: MockSession,
+  switchModelConfigAllowed: boolean,
+): Pick<ConversationSnapshot, "control" | "availability" | "inputRouting" | "queue"> {
+  const canSwitchModel = switchModelConfigAllowed && session.activeTurn === null;
+  const unsupported = {
+    allowed: false,
+    reasonCode: "fault.command.capabilityUnsupported",
+  } as const;
+  const switchModelConfig = canSwitchModel
+    ? { allowed: true as const }
+    : switchModelConfigAllowed
+      ? { allowed: false as const, reasonCode: "guard.session.busy" }
+      : unsupported;
+  return {
+    queue: projectMockQueue(session),
+    control: projectMockControl(session),
+    availability: {
+      fork: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
+      compact: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
+      switchModelConfig,
+      setFollowupMode: unsupported,
+      queueEdit: unsupported,
+      sendQueuedNow: unsupported,
+      pauseGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
+      resumeGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
+    },
+    inputRouting: { mode: session.activeTurn ? "streamingChoice" : "startNow" },
+  };
+}
+
 /** 由权威会话状态构造 conversation snapshot（尾窗 60 行）。 */
 export function buildConversationSnapshot(
   session: MockSession,
   switchModelConfigAllowed = true,
 ): ConversationSnapshot {
-  const ended = session.phase === "completedSuccess" || session.phase === "completedInterrupted";
-  const standalone = session.chatDirectory !== undefined;
-  const canStop = session.phase === "running" && !standalone;
-  const unsupported = {
-    allowed: false,
-    reasonCode: "fault.command.capabilityUnsupported",
-  } as const;
-  const queueCommand: ConversationSnapshot["availability"]["queueEdit"] = standalone
-    ? unsupported
-    : { allowed: true };
   return {
     protocolVersion: 1,
     sessionId: session.sessionId,
     logEpoch: session.logEpoch,
     seq: session.seq,
     revision: session.revision,
-    control: {
-      phase: session.phase,
-      sessionEnded: ended,
-      canStop,
-      stopState: canStop ? "stoppable" : "idle",
-      stopTargetKind: "unknown",
-      activeWorks: [],
-      lastError: null,
-      apiRetry: null,
-    },
-    availability: {
-      fork: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
-      compact: { allowed: false, reasonCode: "fault.command.capabilityUnsupported" },
-      switchModelConfig: switchModelConfigAllowed ? { allowed: true } : unsupported,
-      setFollowupMode: queueCommand,
-      queueEdit: queueCommand,
-      sendQueuedNow: queueCommand,
-      pauseGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
-      resumeGoal: { allowed: false, reasonCode: "guard.goal.inactive" },
-    },
-    inputRouting: { mode: "startNow" },
+    ...projectMockExecution(session, switchModelConfigAllowed),
     meta: session.meta,
     config: session.config,
     modelTransition: null,
     usage: session.usage,
-    queue: {
-      items: session.queuedInputs,
-      autoDrain: session.autoDrain,
-      ...(session.pauseReason ? { pauseReason: session.pauseReason } : {}),
-    },
     pendingInteractions: session.pendingInteractions,
     pendingCommands: [],
     backgroundWorks: [],

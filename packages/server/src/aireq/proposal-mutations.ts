@@ -6,6 +6,7 @@ import type {
   AIReqRequirementGroup,
   AIReqMaterialView,
   AIReqMaterialHistoryEvent,
+  AIReqSystemRequirement,
 } from "@zcode/services/aireq";
 import { completeProposalPaths, proposalAlignmentCurrent } from "@zcode/services/aireq";
 import { group, systemRequirement, sessionRef } from "./fixture-builders.js";
@@ -37,6 +38,91 @@ function materialsFor(
     (item) => item.projectId === proposal.projectId && item.irId === proposal.id,
   );
 }
+
+type NativeRequirementsOutput = {
+  kind: "requirements";
+  material: AIReqMaterialView;
+};
+type NativeSolutionOutput = {
+  kind: "solution";
+  rows: AIReqSystemRequirement[];
+  bundle: AIReqMaterialView[];
+  dependency: AIReqMaterialView;
+};
+export type NativeProposalOutput = NativeRequirementsOutput | NativeSolutionOutput;
+
+function stageRequirementsOutput(
+  proposal: AIReqRequirementGroup,
+  existing: AIReqMaterialView | undefined,
+  note: string,
+): NativeRequirementsOutput {
+  const content = /^#(?:[ \t]+|$)/.test(note)
+    ? note
+    : appendMaterialDiscussion(
+        existing?.content ?? `# ${proposal.title}\n\n## 目标与范围\n\n${proposal.originalText}`,
+        note,
+        "业务澄清",
+      );
+  return {
+    kind: "requirements",
+    material: prototypeMaterial({
+      projectId: proposal.projectId,
+      irId: proposal.id,
+      path: proposal.documentPath,
+      kind: "ir",
+      content,
+    }),
+  };
+}
+
+/** Simulated execution stages the same material bundle without mutating the workflow. */
+export function stageNativeProposalOutput(
+  state: AIReqWorkflowView,
+  proposal: AIReqRequirementGroup,
+  kind: NativeProposalOutput["kind"],
+  text: string,
+): NativeProposalOutput {
+  const current = materialsFor(state, proposal);
+  if (kind === "requirements")
+    return stageRequirementsOutput(
+      proposal,
+      current.find((item) => item.path === proposal.documentPath),
+      text,
+    );
+
+  const { projectId, id: irId } = proposal;
+  const rows = proposal.srIds.length
+    ? state.srs.filter((row) => row.projectId === projectId && row.irId === irId)
+    : ["业务操作与结果展示", "异常处理与恢复"].map((title, index) =>
+        systemRequirement(
+          projectId,
+          irId,
+          `sr-${irId}-${index + 1}`,
+          `${proposal.title} · ${title}`,
+        ),
+      );
+  const dependencyInput = text.startsWith("{") ? text : undefined;
+  const bundle = solutionMaterials(projectId, irId, rows);
+  for (const material of bundle) {
+    // 退回后继续使用已经存在的工作材料，不能用新一轮的模拟模板覆盖它。
+    const prior = current.find((item) => item.path === material.path);
+    if (prior) material.content = prior.content;
+    if (!dependencyInput)
+      material.content = appendMaterialDiscussion(material.content, text, "本轮方案讨论");
+  }
+  const round = proposal.proposalRound ?? 1;
+  const dependency =
+    !dependencyInput && proposal.srDependencyFile?.round === round
+      ? { ...proposal.srDependencyFile }
+      : prototypeProposalDependencies(
+          proposal,
+          rows,
+          dependencyInput ?? proposal.srDependencyFile?.content,
+        );
+  bundle.push(dependency);
+  return { kind, rows, bundle, dependency };
+}
+
 function checkMaterials(
   state: AIReqWorkflowView,
   proposal: AIReqRequirementGroup,
@@ -190,7 +276,7 @@ export function applyProposalMutation(
   irId: string | undefined,
   operation: AIReqOperationReceipt,
   reviewRuns: PrototypeReviewRun[],
-  solutionDiscussion?: string,
+  stagedOutput?: NativeProposalOutput,
 ): string | undefined {
   const proposal = [...state.groups, ...state.drafts].find(
     (item) => item.id === irId && item.projectId === projectId,
@@ -488,15 +574,15 @@ export function applyProposalMutation(
         (item) => item.path === proposal!.documentPath,
       );
       const note = action.note.trim();
-      const content = /^#(?:[ \t]+|$)/.test(note)
-        ? note
-        : appendMaterialDiscussion(
-            existing?.content ??
-              `# ${proposal!.title}\n\n## 目标与范围\n\n${proposal!.originalText}`,
-            note,
-            "业务澄清",
-          );
-      if (existing?.content === content && proposal!.requirementsCheck?.issues.length === 0) break;
+      const { material } =
+        stagedOutput?.kind === "requirements"
+          ? stagedOutput
+          : stageRequirementsOutput(proposal!, existing, note);
+      if (
+        existing?.content === material.content &&
+        proposal!.requirementsCheck?.issues.length === 0
+      )
+        break;
       invalidate(state, proposal!, "IR 业务需求文档发生变化，整包批准失效并重新进行前置评审", true);
       if (proposal!.proposalStage === "solution") {
         proposal!.proposalRound = (proposal!.proposalRound ?? 1) + 1;
@@ -511,17 +597,7 @@ export function applyProposalMutation(
         proposal!.sessions.push(session);
         state.sessions.push(session);
       }
-      replaceMaterial(
-        state,
-        proposal!,
-        prototypeMaterial({
-          projectId,
-          irId: proposal!.id,
-          path: proposal!.documentPath,
-          kind: "ir",
-          content,
-        }),
-      );
+      replaceMaterial(state, proposal!, material);
       proposal!.proposalStage = "requirements";
       proposal!.status = "draft";
       if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;
@@ -538,40 +614,11 @@ export function applyProposalMutation(
       break;
     }
     case "generateProposalSolution": {
+      if (stagedOutput?.kind !== "solution") throw businessRule("方案执行未提交材料。");
+      const { rows, bundle, dependency } = stagedOutput;
       const newSplit = proposal!.srIds.length === 0;
-      const rows = newSplit
-        ? ["业务操作与结果展示", "异常处理与恢复"].map((title, index) => {
-            const row = systemRequirement(
-              projectId,
-              proposal!.id,
-              `sr-${proposal!.id}-${index + 1}`,
-              `${proposal!.title} · ${title}`,
-            );
-            return row;
-          })
-        : state.srs.filter((row) => row.projectId === projectId && row.irId === irId);
       const current = materialsFor(state, proposal!);
       const round = proposal!.proposalRound ?? 1;
-      const discussion = solutionDiscussion?.trim();
-      const dependencyInput = discussion?.startsWith("{") ? discussion : undefined;
-      const bundle = solutionMaterials(projectId, proposal!.id, rows);
-      for (const material of bundle) {
-        // 业务退回后，方案 Agent 仍以现存工作材料继续完善，不能按新轮次换回模板。
-        const prior = current.find((item) => item.path === material.path);
-        if (prior) material.content = prior.content;
-        if (discussion && !dependencyInput) {
-          material.content = appendMaterialDiscussion(material.content, discussion, "本轮方案讨论");
-        }
-      }
-      const dependency =
-        !dependencyInput && proposal!.srDependencyFile?.round === round
-          ? proposal!.srDependencyFile
-          : prototypeProposalDependencies(
-              proposal!,
-              rows,
-              dependencyInput ?? proposal!.srDependencyFile?.content,
-            );
-      bundle.push(dependency);
       if (
         !newSplit &&
         proposal!.solutionCheck?.issues.length === 0 &&

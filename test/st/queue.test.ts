@@ -1,352 +1,157 @@
 import { expect, it } from "vitest";
-import type { ConversationSnapshot, QueueItem } from "@zcode/shared/zcode-protocol-v4";
-import { connectST, unique, waitUntil, type STClient } from "./client.js";
+import { connectST, unique, type STClient } from "./client.js";
 import { createProposal } from "./business.js";
-import { openNative, requireAccepted, type NativeSession } from "./native.js";
+import { expectNativeTurnWork, openNative, requireAccepted, requireRejected } from "./native.js";
+import { getProposal } from "./proposal-flow.js";
 
-// conversation.md：排队项保存自己的 Submission；stop 保留队列并暂停自动续跑。
-async function queued(native: NativeSession, commandId: string): Promise<QueueItem> {
-  const snapshot = await native.snapshot();
-  const item = snapshot.queue.items.find((row) => row.sourceCommandId === commandId);
-  if (!item || item.dispatch.state !== "queued") {
-    throw new Error(
-      "ST prerequisite blocked: public execution window did not retain a queued input",
-    );
-  }
-  return item;
-}
-async function establishQueue(native: NativeSession, c: STClient) {
-  const before = await native.snapshot();
-  const modelSelection = before.config.modelSelection;
-  if (!modelSelection)
-    throw new Error("ST prerequisite blocked: no public model selection for Submission");
-  requireAccepted(await native.send("setFollowupMode", { mode: "queue" }));
-  // 先暂停续跑，避免前台完成后消耗刚接纳的排队项；运行窗口内只提交输入。
-  // 逐项快照再发送存在 TOCTOU：读到 running 不代表下一次请求仍在运行。
-  requireAccepted(await native.send("setAutoDrain", { autoDrain: false }));
-  // 同一连接先按顺序发出首发及后续输入，再等待全部回执；不把首发 ACK 的网络往返当作运行窗口。
-  const started = native.send("sendText", {
-    text: "请逐项分析需求参与人、使用场景、数据权限、边界条件和验收标准，并整理业务需求材料。",
-    modelSelection,
-    mode: "build",
-    planEnabled: false,
-  });
-  const ids = [unique("queued-a"), unique("queued-b"), unique("queued-c")];
-  const texts = ids.map((id) => `补充需求 ${id}：验收结果需要可追溯。`);
-  // sendText 不要求 CAS，三个独立输入可直接提交；仍以实际 ACK 和权威队列核验接纳。
-  const admissions = await Promise.allSettled([
-    started,
-    ...ids.map((commandId, i) =>
-      native.send(
-        "sendText",
-        {
-          text: texts[i],
-          requestedDelivery: "queue",
-          modelSelection,
-          mode: "build",
-          planEnabled: true,
-        },
-        { commandId },
-      ),
-    ),
-  ]);
-  const failures = admissions.filter((result) => result.status === "rejected");
-  if (failures.length)
-    throw new AggregateError(
-      failures.map((result) => result.reason),
-      "ST queue admission failed",
-    );
-  for (const [index, result] of admissions.entries()) {
-    if (result.status !== "fulfilled") continue;
-    requireAccepted(result.value);
-    expect(result.value).toMatchObject({
-      result: { type: "inputAccepted", delivery: index === 0 ? "startNow" : "queue" },
-    });
-  }
-  const items = await Promise.all(ids.map((id) => queued(native, id)));
-  expect(items.map((item) => item.text)).toEqual(texts);
-  for (const item of items) {
-    expect(item).toMatchObject({
-      clientId: c.identity.clientId,
-      modelSelection,
-      mode: "build",
-      planEnabled: true,
-      attachments: [],
-    });
-  }
-  return { ids, texts, items, modelSelection };
-}
-async function stopAndRead(native: NativeSession): Promise<ConversationSnapshot> {
-  requireAccepted(await native.send("stop", {}));
-  const stopped = await native.waitIdle();
-  expect(stopped.queue.autoDrain).toBe(false);
-  return stopped;
-}
-
-it("queued Submission keeps its own config; edits, locks, config application and ordering preserve unrelated content", async () => {
+it("rejects an implicit busy send, steers the active turn, and delivers follow-up as its own turn", async () => {
   const c = await connectST();
-  let native: NativeSession | undefined;
+  let native: Awaited<ReturnType<typeof openNative>> | undefined;
+  let peerClient: STClient | undefined;
+  let peer: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    native = await openNative(c, (await createProposal(c)).remote);
-    const setup = await establishQueue(native, c);
-    const [first, second, third] = setup.items;
-    if (!first || !second || !third) throw new Error("ST queue setup incomplete");
-    await stopAndRead(native);
-    const editorId = unique("editor");
-    requireAccepted(
-      await native.send("lockQueueItemEdit", { queueItemId: first.queueItemId, editorId }),
-    );
-    let snapshot = await native.snapshot();
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === first.queueItemId)?.editLock,
-    ).toMatchObject({ editorId, clientId: c.identity.clientId });
-    const otherEditor = await native.send("lockQueueItemEdit", {
-      queueItemId: first.queueItemId,
-      editorId: unique("competing-editor"),
-    });
-    expect(otherEditor.status).not.toBe("accepted");
-    expect(otherEditor.reasonCode).toBeTruthy();
-    const forbidden = await native.send("editQueueItem", {
-      queueItemId: first.queueItemId,
-      editorId: unique("wrong-editor"),
-      newText: "不得写入",
-    });
-    expect(forbidden.status).not.toBe("accepted");
-    expect(
-      (await native.snapshot()).queue.items.find((item) => item.queueItemId === first.queueItemId)
-        ?.text,
-    ).toBe(first.text);
-    const revisedText = "修订需求：验收记录必须保留操作者。";
-    requireAccepted(
-      await native.send("editQueueItem", {
-        queueItemId: first.queueItemId,
-        editorId,
-        newText: revisedText,
-      }),
-    );
-    snapshot = await native.snapshot();
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === first.queueItemId),
-    ).toMatchObject({
-      text: revisedText,
-      modelSelection: setup.modelSelection,
-      mode: "build",
-      planEnabled: true,
-      attachments: [],
-    });
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === first.queueItemId)?.editLock,
-    ).toBeUndefined();
-    // Configuration application cannot rewrite text, attachments or the queued Plan choice.
-    requireAccepted(
-      await native.send("lockQueueItemEdit", { queueItemId: second.queueItemId, editorId }),
-    );
-    const applied = await native.send("applyQueueItemsConfig", {
-      queueItemIds: [first.queueItemId, second.queueItemId, third.queueItemId],
-      mode: "edit",
-    });
-    requireAccepted(applied);
-    snapshot = await native.snapshot();
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === first.queueItemId),
-    ).toMatchObject({ text: revisedText, mode: "edit", planEnabled: true, attachments: [] });
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === third.queueItemId),
-    ).toMatchObject({ text: third.text, mode: "edit", planEnabled: true, attachments: [] });
-    expect(
-      snapshot.queue.items.find((item) => item.queueItemId === second.queueItemId),
-    ).toMatchObject({
-      text: second.text,
-      mode: "build",
-      editLock: { editorId },
-      planEnabled: true,
-    });
-    requireAccepted(await native.send("releaseQueueItemEdit", { queueItemId: second.queueItemId }));
-    expect(
-      (await native.snapshot()).queue.items.find((item) => item.queueItemId === second.queueItemId)
-        ?.editLock,
-    ).toBeUndefined();
-    requireAccepted(
-      await native.send("reorderQueueItem", {
-        queueItemId: third.queueItemId,
-        beforeQueueItemId: first.queueItemId,
-      }),
-    );
-    expect((await native.snapshot()).queue.items.map((item) => item.queueItemId)).toEqual([
-      third.queueItemId,
-      first.queueItemId,
-      second.queueItemId,
+    const proposal = await createProposal(c);
+    native = await openNative(c, proposal.remote);
+    peerClient = await connectST(c.identity.employeeId);
+    peer = await openNative(peerClient, proposal.remote);
+    const startId = unique("foreground");
+    const implicitId = unique("implicit-busy");
+    const steerId = unique("steer");
+    const followUpId = unique("follow-up");
+    const text = "补充需求：验收结果需要可追溯。";
+    // One socket sends the initial sequence in order; submit the follow-up from a different actor.
+    const [started, implicit, steered] = await Promise.all([
+      native.send("sendText", { text: "请梳理验收标准与适用场景。" }, { commandId: startId }),
+      native.send("sendText", { text }, { commandId: implicitId }),
+      native.send("sendText", { text, streamingBehavior: "steer" }, { commandId: steerId }),
     ]);
-    requireAccepted(await native.send("deleteQueueItem", { queueItemId: second.queueItemId }));
-    expect((await native.snapshot()).queue.items.map((item) => item.queueItemId)).toEqual([
-      third.queueItemId,
-      first.queueItemId,
+    const followed = await peer.send(
+      "sendText",
+      { text, streamingBehavior: "followUp" },
+      { commandId: followUpId },
+    );
+    requireRejected(implicit);
+    for (const [ack, delivery] of [
+      [started, "startNow"],
+      [steered, "guide"],
+      [followed, "queue"],
+    ] as const) {
+      requireAccepted(ack);
+      expect(ack.result).toMatchObject({ type: "inputAccepted", delivery });
+    }
+
+    const final = await native.waitIdle();
+    expectNativeTurnWork(native, final, startId);
+    expectNativeTurnWork(native, final, followUpId);
+    expect(final.queue.items).toEqual([]);
+    const deltas = native.frames.flatMap((frame) =>
+      frame.payload.kind === "deltas" ? frame.payload.deltas : [],
+    );
+    expect(
+      deltas.some(
+        (delta) =>
+          delta.op === "state.updated" && delta.patch.inputRouting?.mode === "streamingChoice",
+      ),
+    ).toBe(true);
+
+    const inputs = final.rows.window.filter((row) => row.kind === "userInput");
+    expect(inputs.map((row) => row.sourceCommandId)).toEqual([startId, steerId, followUpId]);
+    const [start, steer, followUp] = inputs;
+    expect(steer).toMatchObject({ text, turnId: start!.turnId, clientId: c.identity.clientId });
+    expect(followUp).toMatchObject({ text, clientId: peerClient.identity.clientId });
+    expect(followUp!.turnId).not.toBe(start!.turnId);
+    expect(
+      final.rows.window
+        .filter((row) => row.kind === "turnHeader")
+        .map((row) => row.sourceCommandId),
+    ).toEqual([startId, followUpId]);
+    const { workspace, sessionId } = native;
+    const [ownerReceipts, peerReceipts] = await Promise.all([
+      c.services.zcodeAgentService.queryConversationCommandsV4({
+        ...workspace,
+        commands: [implicitId, steerId].map((commandId) => ({ sessionId, commandId })),
+      }),
+      peerClient.services.zcodeAgentService.queryConversationCommandsV4({
+        ...workspace,
+        commands: [{ sessionId, commandId: followUpId }],
+      }),
     ]);
+    expect(ownerReceipts.results.map((item) => item.result)).toEqual([implicit, steered]);
+    expect(peerReceipts.results[0]?.result).toEqual(followed);
   } finally {
     try {
-      await native?.close();
+      await Promise.all([peer?.close(), native?.close()]);
     } finally {
-      await c.close();
+      await Promise.all([peerClient?.close(), c.close()]);
     }
   }
 });
 
-it("a queued edit lock cannot be stolen, released or bypassed by another client", async () => {
-  const a = await connectST();
-  let b: STClient | undefined;
-  let owner: NativeSession | undefined;
-  let peer: NativeSession | undefined;
-  const failures: unknown[] = [];
-  try {
-    b = await connectST(a.identity.employeeId);
-    const proposal = await createProposal(a);
-    owner = await openNative(a, proposal.remote);
-    const setup = await establishQueue(owner, a);
-    await stopAndRead(owner);
-    peer = await openNative(b, proposal.remote);
-    const first = setup.items[0]!;
-    const editorId = unique("owner-editor");
-    requireAccepted(
-      await owner.send("lockQueueItemEdit", { queueItemId: first.queueItemId, editorId }),
-    );
-    const locked = await owner.snapshot();
-    const attempts = [
-      ["lockQueueItemEdit", { queueItemId: first.queueItemId, editorId: unique("peer-editor") }],
-      ["releaseQueueItemEdit", { queueItemId: first.queueItemId }],
-      [
-        "editQueueItem",
-        { queueItemId: first.queueItemId, editorId, newText: "不得冒用持锁编辑器" },
-      ],
-      ["editQueueItem", { queueItemId: first.queueItemId, newText: "不得省略编辑器绕过锁" }],
-      ["deleteQueueItem", { queueItemId: first.queueItemId }],
-      ["reorderQueueItem", { queueItemId: first.queueItemId, beforeQueueItemId: null }],
-      ["sendQueuedNow", { queueItemId: first.queueItemId }],
-    ] as const;
-    for (const [type, payload] of attempts) {
-      const ack = await peer.send(type, payload);
-      const after = await owner.snapshot();
-      const item = after.queue.items.find((item) => item.queueItemId === first.queueItemId);
-      expect(item, type).toMatchObject({
-        text: first.text,
-        editLock: { editorId, clientId: a.identity.clientId },
-      });
-      expect(ack.status, type).not.toBe("accepted");
-      expect(ack.reasonCode).toBeTruthy();
-      expect(after.queue.items).toEqual(locked.queue.items);
-      // 已停止的旧轮仍可迟到收口耗时；锁拒绝必须保持队列及 canonical 输入，不比较后台计时字段。
-      expect(after.rows.window.filter((row) => row.kind === "userInput")).toEqual(
-        locked.rows.window.filter((row) => row.kind === "userInput"),
-      );
-    }
-    requireAccepted(await owner.send("releaseQueueItemEdit", { queueItemId: first.queueItemId }));
-    expect(
-      (await owner.snapshot()).queue.items.find((item) => item.queueItemId === first.queueItemId)
-        ?.editLock,
-    ).toBeUndefined();
-    // 拒绝只针对无权使用当前锁的请求；正常释放后另一客户端可以取得自己的锁并提交。
-    const peerEditor = unique("peer-owner-editor");
-    requireAccepted(
-      await peer.send("lockQueueItemEdit", {
-        queueItemId: first.queueItemId,
-        editorId: peerEditor,
-      }),
-    );
-    const revisedText = "新的持锁者修订需求：验收记录需可追溯。";
-    requireAccepted(
-      await peer.send("editQueueItem", {
-        queueItemId: first.queueItemId,
-        editorId: peerEditor,
-        newText: revisedText,
-      }),
-    );
-    const edited = await owner.snapshot();
-    const editedFirst = edited.queue.items.find((item) => item.queueItemId === first.queueItemId);
-    expect(editedFirst).toMatchObject({
-      text: revisedText,
-      modelSelection: first.modelSelection,
-      planEnabled: first.planEnabled,
-      attachments: first.attachments,
-    });
-    expect(editedFirst?.editLock).toBeUndefined();
-    expect(edited.queue.items.filter((item) => item.queueItemId !== first.queueItemId)).toEqual(
-      locked.queue.items.filter((item) => item.queueItemId !== first.queueItemId),
-    );
-  } catch (error) {
-    failures.push(error);
-  } finally {
-    // 退订要使用仍开启的连接；并行关 socket 会掩盖真正的锁业务断言错误。
-    // 两阶段均等待所有结果，保留业务失败与清理失败，不让 finally 覆盖前者。
-    const subscriptions = await Promise.allSettled([peer?.close(), owner?.close()]);
-    const connections = await Promise.allSettled([b?.close(), a.close()]);
-    for (const result of [...subscriptions, ...connections])
-      if (result.status === "rejected") failures.push(result.reason);
-  }
-  if (failures.length === 1) throw failures[0];
-  if (failures.length > 1) throw new AggregateError(failures, "队列锁断言或资源清理失败");
-});
-
-it("stop preserves queued inputs; sendQueuedNow promotes only the chosen input and autoDrain resumes the rest", async () => {
+it("stops only the expected execution and keeps undispatched follow-up as preview without replay", async () => {
   const c = await connectST();
-  let native: NativeSession | undefined;
+  let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    native = await openNative(c, (await createProposal(c)).remote);
-    const setup = await establishQueue(native, c);
-    const stopped = await stopAndRead(native);
-    expect(stopped.queue.items.map((item) => item.sourceCommandId)).toEqual(setup.ids);
-    const chosen = setup.items[1]!;
-    requireAccepted(await native.send("sendQueuedNow", { queueItemId: chosen.queueItemId }));
-    const promoted = await native.waitIdle();
-    expect(
-      promoted.rows.window.filter(
-        (row) => row.kind === "userInput" && row.sourceCommandId === chosen.sourceCommandId,
-      ),
-    ).toEqual([
+    const proposal = await createProposal(c);
+    native = await openNative(c, proposal.remote);
+    const before = getProposal(proposal.remote, proposal);
+    const startId = unique("stop-target");
+    const followUpId = unique("pending-at-stop");
+    const laterId = unique("later-work");
+    const text = "补充需求：记录人工验收人的角色。";
+    const [started, queued, running] = await Promise.all([
+      native.send("sendText", { text: "请梳理范围和边界条件。" }, { commandId: startId }),
+      native.send("sendText", { text, streamingBehavior: "followUp" }, { commandId: followUpId }),
+      native.snapshot(),
+    ]);
+    requireAccepted(started);
+    requireAccepted(queued);
+    expect(queued.result).toMatchObject({ type: "inputAccepted", delivery: "queue" });
+    const expectedForegroundExecutionId = running.control.activeWorks.find(
+      (work) => work.kind === "primaryTurn" && work.sourceCommandId === startId,
+    )?.foregroundExecutionId;
+    expect(expectedForegroundExecutionId).toEqual(expect.any(String));
+    expect(running.control.canStop).toBe(true);
+    const preview = [
       expect.objectContaining({
-        text: chosen.text,
-        modelSelection: setup.modelSelection,
-        planEnabled: true,
+        sourceCommandId: followUpId,
+        clientId: c.identity.clientId,
+        text,
       }),
+    ];
+    expect(running.queue.items).toEqual(preview);
+
+    requireAccepted(await native.send("stop", { expectedForegroundExecutionId }));
+    const stopped = await native.waitIdle();
+    expect(stopped.control.phase).toBe("completedInterrupted");
+    expect(stopped.queue.items).toEqual(preview);
+    expect(stopped.availability.queueEdit.allowed).toBe(false);
+    expect(stopped.availability.sendQueuedNow.allowed).toBe(false);
+    expect(stopped.availability.setFollowupMode.allowed).toBe(false);
+    expect(
+      stopped.rows.window
+        .filter((row) => row.kind === "userInput")
+        .map((row) => row.sourceCommandId),
+    ).toEqual([startId]);
+    const afterStop = getProposal(await c.read(proposal.selection), proposal);
+    expect(afterStop.files).toEqual(before.files);
+    expect(afterStop.requirementsCheck).toEqual(before.requirementsCheck);
+
+    const [later, laterRunning] = await Promise.all([
+      native.send("sendText", { text: "用户显式发送一条新需求。" }, { commandId: laterId }),
+      native.snapshot(),
+      native.send("stop", { expectedForegroundExecutionId }),
     ]);
-    expect(promoted.queue.items.map((item) => item.sourceCommandId)).toEqual([
-      setup.ids[0],
-      setup.ids[2],
-    ]);
-    requireAccepted(await native.send("setAutoDrain", { autoDrain: true }));
-    const drained = await waitUntil(
-      "queued inputs completed",
-      () => native!.snapshot(),
-      (snapshot) =>
-        snapshot.queue.items.length === 0 &&
-        !["running", "prewarming"].includes(snapshot.control.phase),
+    requireAccepted(later);
+    const laterWork = laterRunning.control.activeWorks.find(
+      (work) => work.sourceCommandId === laterId,
     );
-    const history = await c.services.zcodeAgentService.conversationRowsRangeV4({
-      ...native.workspace,
-      sessionId: native.sessionId,
-      limit: 200,
-    });
-    for (const commandId of setup.ids) {
-      expect(
-        history.rows.filter((row) => row.kind === "userInput" && row.sourceCommandId === commandId),
-      ).toHaveLength(1);
-      // 队列消失或最后一轮成功都不足以证明全部执行成功；逐项核对原命令对应的完成事实。
-      const turn = history.rows.find(
-        (row) => row.kind === "turnHeader" && row.sourceCommandId === commandId,
-      );
-      if (!turn || turn.kind !== "turnHeader")
-        throw new Error(`ST queued input has no canonical turn: ${commandId}`);
-      expect(turn.state).toBe("completedSuccess");
-      expect(
-        history.rows.some(
-          (row) =>
-            row.kind === "assistantText" &&
-            row.turnId === turn.turnId &&
-            row.state === "complete" &&
-            row.text.trim(),
-        ),
-      ).toBe(true);
-    }
-    expect(drained.queue.autoDrain).toBe(true);
-    expect(drained.control.phase).toBe("completedSuccess");
+    expect(laterWork?.foregroundExecutionId).toEqual(expect.any(String));
+    expect(laterWork?.foregroundExecutionId).not.toBe(expectedForegroundExecutionId);
+    const final = await native.waitIdle();
+    expectNativeTurnWork(native, final, laterId);
+    expect(
+      final.rows.window.find((row) => row.kind === "turnHeader" && row.sourceCommandId === startId),
+    ).toMatchObject({ state: "completedInterrupted" });
   } finally {
     try {
       await native?.close();

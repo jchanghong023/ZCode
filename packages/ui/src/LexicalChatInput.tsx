@@ -51,6 +51,7 @@ import {
 } from "lexical";
 import { SlashCommandPlugin } from "./SlashCommandPlugin.js";
 import type { AppSlashCommand } from "./slashCommandHelpers.js";
+import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import { MentionPlugin } from "./mentions/MentionPlugin.js";
 import { useChatViewActiveTaskProvider } from "@/v4/activeTaskProvider.js";
 import {
@@ -1336,6 +1337,8 @@ interface LexicalChatInputProps {
   excludedSlashCommandNames?: readonly string[];
   /** App 层本地斜杠命令（如 `/side`），选中即执行 UI 行为，不发送。 */
   appSlashCommands?: readonly AppSlashCommand[];
+  /** When provided (including an empty list), slash completion uses only the session catalog. */
+  conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** mention（@/#）面板开关。v4 数据面未就绪时显式关闭，入口保留。 */
   enableMentionPanel?: boolean;
   /** 调用方额外挂在同一个 LexicalComposer 里的插件（如设计模式元素 token 同步） */
@@ -1371,6 +1374,7 @@ export function LexicalChatInput({
   onPaste,
   excludedSlashCommandNames,
   appSlashCommands,
+  conversationCommands,
   extraPlugins,
   enableMentionPanel = true,
 }: LexicalChatInputProps) {
@@ -1509,7 +1513,9 @@ export function LexicalChatInput({
           <PromptHistoryPlugin entries={promptHistory} disabled={disabled} />
           <EditablePlugin editable={!disabled} />
           <EditorApiPlugin editorApiRef={editorApiRef} />
-          <LeadingChineseSlashAliasPlugin disabled={disabled} />
+          {conversationCommands === undefined ? (
+            <LeadingChineseSlashAliasPlugin disabled={disabled} />
+          ) : null}
           <PasteCapturePlugin disabled={disabled} onPaste={onPaste} />
         </div>
         <SlashCommandPlugin
@@ -1521,6 +1527,7 @@ export function LexicalChatInput({
           disabled={disabled}
           excludedCommandNames={excludedSlashCommandNames}
           appCommands={appSlashCommands}
+          conversationCommands={conversationCommands}
         />
         {enableMentionPanel ? (
           <MentionPlugin

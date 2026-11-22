@@ -3,6 +3,7 @@
  */
 import { $getRoot, $getSelection, $isRangeSelection, $isTextNode } from "lexical";
 import type { AgentSummary, Locale, SkillSummary, ZCodeSlashCommand } from "@zcode/shared";
+import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import type { MentionItem } from "@/mentions/mentionTypes.js";
 import { mapSubagentsToMentionItemsForTest } from "@/mentions/providers/subagentsMentionProvider.js";
 import { mapSkillsToMentionItemsForTest } from "@/mentions/providers/skillsMentionProvider.js";
@@ -25,6 +26,7 @@ export interface SlashCommandPluginProps {
    * 追加"选中即执行 UI 行为"的命令，不参与发送，也不写回 CLI 命令列表。
    */
   appCommands?: readonly AppSlashCommand[];
+  conversationCommands?: readonly ConversationCommandCatalogEntry[];
 }
 
 /** App 层斜杠命令：选中即执行 UI 行为（不插入 mention、不发送）。 */
@@ -61,6 +63,21 @@ export function buildAppSlashCommandSuggestions(
       },
     ];
   });
+}
+
+export function buildConversationCommandSuggestions(
+  commands: readonly ConversationCommandCatalogEntry[],
+  source: ConversationCommandCatalogEntry["source"],
+): PromptInputSuggestionItem[] {
+  return commands
+    .filter((command) => command.source === source)
+    .map((command) => ({
+      id: `conversation-command:${command.name}`,
+      trigger: "/",
+      value: command.name,
+      label: `/${command.name}`,
+      description: command.description,
+    }));
 }
 
 export function isAppSlashCommandSuggestion(suggestion: PromptInputSuggestionItem): boolean {

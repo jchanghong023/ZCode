@@ -272,6 +272,9 @@ export class PendingCommandRegistry {
       if (!this.acceptComposer(entry)) return;
       this.clearRecovery(entry);
       this.notifyResolution(entry.commandId, ack.status);
+      if (entry.clientContext?.settleOnAdmission || ack.result?.type === "localCommand") {
+        this.settle(entry.sessionId, entry.commandId);
+      }
       return;
     }
     if (ack.status === "failed" && ack.reasonCode === "fault.command.inputDiscardedOnRestart") {
@@ -328,6 +331,9 @@ export class PendingCommandRegistry {
         if (!this.acceptComposer(entry)) continue;
         this.clearRecovery(entry);
         this.notifyResolution(entry.commandId, item.result.status);
+        if (entry.clientContext?.settleOnAdmission || item.result.result?.type === "localCommand") {
+          this.settle(entry.sessionId, entry.commandId);
+        }
       } else {
         this.rejectComposer(entry);
         this.notifyResolution(entry.commandId, "failed");

@@ -71,7 +71,6 @@ export function createPrototypeRequirementsReview(
       projectId: group.projectId,
       irId: group.id,
       sessionId: `${id}:${key}`,
-      sessionFile: `/demo/sessions/${id}:${key}.jsonl`,
       role: "reviewer",
       phase: kind === "full" ? "solution" : "requirements",
       modelConfig: bindings[index],

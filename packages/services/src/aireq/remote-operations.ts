@@ -17,7 +17,7 @@ import type {
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 7;
+export const AIREQ_CONTRACT_VERSION = 8;
 export type AIReqRemoteErrorCode =
   | "BUSINESS_RULE_VIOLATION"
   | "NOT_FOUND"

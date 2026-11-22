@@ -293,10 +293,14 @@ describe("proposal business lifecycle through the deployed public API", () => {
           client.command({ type: "returnProposal", reason: "  " }, target.selection),
         );
         const reason = "导出验收还须明确引用单元格换行和中文往返无损。";
-        const returned = await commandAndRead(client, { type: "returnProposal", reason }, {
-          ...target,
-          selection: { ...target.selection, proposalStep: "solution" },
-        });
+        const returned = await commandAndRead(
+          client,
+          { type: "returnProposal", reason },
+          {
+            ...target,
+            selection: { ...target.selection, proposalStep: "solution" },
+          },
+        );
         const group = getProposal(returned, target);
         expect(group.returnFeedback).toMatchObject({
           reason,

@@ -168,76 +168,77 @@ function AIReqMaterialsReader({
   const confirmationBadge = !viewingHistory && isCurrentMaterialConfirmed(group, current) && (
     <span className="text-ui-sm text-success">{zh ? "已确认" : "Confirmed"}</span>
   );
-  const historyControls = historyChoices.length > 0 ? (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={historyIndex === undefined ? "current" : String(historyIndex)}
-          onValueChange={selectHistory}
-        >
-          <SelectTrigger
-            variant="ghost"
-            className="max-w-full min-w-0 text-ui-sm"
-            aria-label="选择文件版本"
+  const historyControls =
+    historyChoices.length > 0 ? (
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={historyIndex === undefined ? "current" : String(historyIndex)}
+            onValueChange={selectHistory}
           >
-            <SelectValue>{viewingHistory ? "历史版本 · 只读" : "当前版本"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="current">当前版本</SelectItem>
-            {historyChoices.map(({ item, index, time }) => (
-              <SelectItem key={index} value={String(index)}>
-                {item.reason} · {time}
-              </SelectItem>
+            <SelectTrigger
+              variant="ghost"
+              className="max-w-full min-w-0 text-ui-sm"
+              aria-label="选择文件版本"
+            >
+              <SelectValue>{viewingHistory ? "历史版本 · 只读" : "当前版本"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current">当前版本</SelectItem>
+              {historyChoices.map(({ item, index, time }) => (
+                <SelectItem key={index} value={String(index)}>
+                  {item.reason} · {time}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {historical && (
+            <span className="text-ui-sm text-foreground-subtle">{historical.reason}</span>
+          )}
+          {confirmationBadge}
+        </div>
+        <details className="text-ui-sm">
+          <summary className="w-fit cursor-pointer rounded-sm text-foreground-subtle focus-visible:outline-2 focus-visible:outline-ring">
+            文件操作记录
+          </summary>
+          <ol className="mt-1 divide-y divide-border">
+            {[...historyChoices].reverse().map(({ item, index, event, change, time }) => (
+              <li key={index} className="space-y-1 py-2">
+                <button
+                  type="button"
+                  className="text-left font-medium hover:underline"
+                  onClick={() => selectHistory(String(index))}
+                >
+                  {item.reason} · {time}
+                </button>
+                {event?.type === "confirmation" && (
+                  <p className="text-foreground-subtle">
+                    {{ business: "业务", development: "开发", testing: "测试" }[event.role]}确认 ·{" "}
+                    {event.employeeId}
+                  </p>
+                )}
+                {event?.type === "git-sync" && change && (
+                  <div className="space-y-1 wrap-anywhere text-foreground-subtle">
+                    <p>
+                      同步人 {event.employeeId} · 仓库提交 <code>{event.commit}</code>
+                    </p>
+                    <p>
+                      {change.message} · {change.employee} ·{" "}
+                      {new Date(change.committedAt).toLocaleString(locale, {
+                        timeZone: "Asia/Shanghai",
+                      })}
+                    </p>
+                    <p className="font-mono">{change.hash}</p>
+                  </div>
+                )}
+              </li>
             ))}
-          </SelectContent>
-        </Select>
-        {historical && (
-          <span className="text-ui-sm text-foreground-subtle">{historical.reason}</span>
-        )}
-        {confirmationBadge}
+          </ol>
+        </details>
       </div>
-      <details className="text-ui-sm">
-        <summary className="w-fit cursor-pointer rounded-sm text-foreground-subtle focus-visible:outline-2 focus-visible:outline-ring">
-          文件操作记录
-        </summary>
-        <ol className="mt-1 divide-y divide-border">
-          {[...historyChoices].reverse().map(({ item, index, event, change, time }) => (
-            <li key={index} className="space-y-1 py-2">
-              <button
-                type="button"
-                className="text-left font-medium hover:underline"
-                onClick={() => selectHistory(String(index))}
-              >
-                {item.reason} · {time}
-              </button>
-              {event?.type === "confirmation" && (
-                <p className="text-foreground-subtle">
-                  {{ business: "业务", development: "开发", testing: "测试" }[event.role]}确认 ·{" "}
-                  {event.employeeId}
-                </p>
-              )}
-              {event?.type === "git-sync" && change && (
-                <div className="space-y-1 wrap-anywhere text-foreground-subtle">
-                  <p>
-                    同步人 {event.employeeId} · 仓库提交 <code>{event.commit}</code>
-                  </p>
-                  <p>
-                    {change.message} · {change.employee} ·{" "}
-                    {new Date(change.committedAt).toLocaleString(locale, {
-                      timeZone: "Asia/Shanghai",
-                    })}
-                  </p>
-                  <p className="font-mono">{change.hash}</p>
-                </div>
-              )}
-            </li>
-          ))}
-        </ol>
-      </details>
-    </div>
-  ) : (
-    confirmationBadge
-  );
+    ) : (
+      confirmationBadge
+    );
   const materialTabClassName =
     "h-9 min-w-0 flex-1 rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 text-foreground-subtle hover:bg-transparent hover:text-foreground aria-pressed:border-foreground aria-pressed:text-foreground";
   const error = current?.error;

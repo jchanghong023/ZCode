@@ -1,9 +1,12 @@
-import { CircleAlert, Folder, MessageSquare, Plus } from "lucide-react";
+import { CircleAlert, Folder, MessageSquare, Plus, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RecentChatDirectory, ZCodeAgentSessionTarget } from "@zcode/client/agent";
+import type { RecentChatDirectory } from "@zcode/client/agent";
 import type { ModelSelection } from "@zcode/shared/model-selection";
-import { createUuid } from "@zcode/shared/uuid";
-import { commandAckSchema, type CommandEnvelope } from "@zcode/shared/zcode-protocol-v4";
+import {
+  conversationCommandCatalogEntrySchema,
+  type ConversationCommandCatalogEntry,
+} from "@zcode/shared/zcode-protocol-v4";
+import { Button } from "@zcode/ui/button";
 import {
   ConversationTimeline,
   ConversationStatusPanel,
@@ -11,9 +14,15 @@ import {
   DEFAULT_CODE_PREVIEW_SETTINGS,
   type ConversationRowRenderContext,
 } from "@zcode/ui/web-chat-view";
-import { ChatComposer, type ChatDraft, type UpdateChatDraft } from "./ChatComposer.js";
+import { ChatComposer } from "./ChatComposer.js";
 import { ChatModelPicker } from "./ChatModelPicker.js";
 import { useAgentConnection, type AgentConnection } from "./useAgentConnection.js";
+import {
+  conversationCommand,
+  submitConversationCommand,
+  useChatInput,
+  type StreamingBehavior,
+} from "./useChatInput.js";
 import { useConversation } from "./useConversation.js";
 
 const connectionLabels = {
@@ -23,7 +32,42 @@ const connectionLabels = {
   offline: "连接暂不可用",
 };
 
-const emptyDraft: ChatDraft = { text: "", sending: false, error: "" };
+const emptyCommands: readonly ConversationCommandCatalogEntry[] = [];
+const commandCatalogSchema = conversationCommandCatalogEntrySchema.array();
+
+function useCommandCatalog(
+  connection: AgentConnection | null,
+  workspacePath: string,
+  workspaceIdentity: string | undefined,
+  sessionId: string | undefined,
+) {
+  const [catalog, setCatalog] = useState<{
+    connection: AgentConnection;
+    scope: string;
+    commands: readonly ConversationCommandCatalogEntry[];
+  }>();
+  const scope = JSON.stringify([workspacePath, workspaceIdentity, sessionId]);
+  useEffect(() => {
+    if (!connection || !workspacePath) return;
+    let active = true;
+    void connection.agent
+      .getConversationCommandCatalog({ workspacePath, workspaceIdentity, sessionId })
+      .then(({ commands }) => {
+        if (active) {
+          setCatalog({ connection, scope, commands: commandCatalogSchema.parse(commands) });
+        }
+      })
+      .catch(() => {
+        if (active) setCatalog(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connection, scope, workspacePath, workspaceIdentity, sessionId]);
+  return catalog?.connection === connection && catalog.scope === scope
+    ? catalog.commands
+    : emptyCommands;
+}
 
 function useRecentSessions(connection: AgentConnection | null) {
   const [list, setList] = useState<RecentChatDirectory[]>([]);
@@ -55,33 +99,21 @@ function useRecentSessions(connection: AgentConnection | null) {
 }
 
 function ChatPane({
-  target,
-  directory,
-  setDirectory,
-  draft,
-  updateDraft,
-  draftModel,
-  setDraftModel,
+  input,
   connection,
-  onCreated,
   onActivity,
 }: {
-  target: ZCodeAgentSessionTarget | null;
-  directory: string;
-  setDirectory: (path: string) => void;
-  draft: ChatDraft;
-  updateDraft: UpdateChatDraft;
-  draftModel: ModelSelection | null;
-  setDraftModel: (selection: ModelSelection) => void;
+  input: ReturnType<typeof useChatInput>;
   connection: AgentConnection | null;
-  onCreated: (session: ZCodeAgentSessionTarget) => void;
   onActivity: () => void;
 }) {
+  const { target, directory, draft, draftModel, setDraftModel } = input;
   const conversation = useConversation(connection, target);
   const { phase, error: historyError } = conversation;
-  const workspacePath = target?.workspacePath ?? directory;
+  const workspacePath = target?.workspacePath ?? directory.trim();
   const workspaceIdentity = target?.workspaceIdentity;
   const sessionId = target?.sessionId;
+  const commands = useCommandCatalog(connection, workspacePath, workspaceIdentity, sessionId);
   const { logEpoch } = conversation;
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
@@ -98,40 +130,43 @@ function ChatPane({
   );
   const [error, setError] = useState("");
   const [switchingModel, setSwitchingModel] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const selectedModel = target
     ? (conversation.modelSelection ?? null)
     : (draftModel ?? connection?.modelCatalog.effectiveSelection ?? null);
   const busy = phase === "running" || phase === "prewarming";
+  const routing = target ? conversation.inputRouting?.mode : "startNow";
+  const stopTarget =
+    conversation.control?.canStop && conversation.control.stopState === "stoppable"
+      ? conversation.control.activeWorks.find((work) => work.foregroundExecutionId)
+          ?.foregroundExecutionId
+      : undefined;
+  const canSwitchModel = conversation.ready && conversation.availability?.switchModelConfig.allowed;
   useEffect(() => {
     if (phase === "completedSuccess" || phase === "completedInterrupted") onActivity();
   }, [phase, onActivity]);
 
-  async function submitCommand(
-    type: CommandEnvelope["type"],
-    payload: unknown,
-    baseRevision?: number,
-  ) {
-    if (!connection) throw new Error("Agent 连接不可用。");
-    const workspace = target
-      ? { workspacePath: target.workspacePath, workspaceIdentity: target.workspaceIdentity }
-      : { workspacePath: directory.trim() };
-    const envelope: CommandEnvelope = {
-      workspace: {
-        ...workspace,
-        workspaceKey: workspace.workspaceIdentity ?? workspace.workspacePath,
-      },
-      commandId: createUuid(),
-      clientId: connection.clientId,
-      issuedAt: Date.now(),
-      sessionId: target?.sessionId ?? null,
-      type,
-      payload,
-      ...(baseRevision === undefined ? {} : { baseRevision }),
-    };
-    const ack = commandAckSchema.parse(
-      await connection.agent.sendConversationCommandV4({ ...workspace, envelope }),
-    );
-    return { ack, workspace };
+  async function stop() {
+    if (!connection || !target || !stopTarget || stopping) return;
+    setError("");
+    setStopping(true);
+    try {
+      const request = conversationCommand(
+        connection,
+        { workspacePath, workspaceIdentity },
+        target.sessionId,
+        "stop",
+        { expectedForegroundExecutionId: stopTarget },
+      );
+      const ack = await submitConversationCommand(connection, request);
+      if (ack.status !== "accepted" && ack.status !== "duplicate") {
+        setError(ack.message ?? "无法停止当前任务，请核对任务状态。");
+      }
+    } catch {
+      setError("暂时无法确认停止结果，请核对任务状态。");
+    } finally {
+      setStopping(false);
+    }
   }
 
   async function selectModel(next: ModelSelection) {
@@ -141,16 +176,20 @@ function ChatPane({
     }
     if (
       !connection ||
-      !conversation.ready ||
+      !canSwitchModel ||
       conversation.revision === undefined ||
       switchingModel ||
+      Boolean(draft.receipt) ||
       busy
     )
       return;
     setError("");
     setSwitchingModel(true);
     try {
-      const { ack } = await submitCommand(
+      const request = conversationCommand(
+        connection,
+        { workspacePath, workspaceIdentity },
+        target.sessionId,
         "switchModelConfig",
         {
           provider: next.providerId,
@@ -159,6 +198,7 @@ function ChatPane({
         },
         conversation.revision,
       );
+      const ack = await submitConversationCommand(connection, request);
       if (ack.status !== "accepted" && ack.status !== "duplicate") {
         setError(ack.message ?? "会话状态已变化，请重试切换模型。");
       }
@@ -169,39 +209,10 @@ function ChatPane({
     }
   }
 
-  async function send(text: string): Promise<boolean> {
-    if (!connection || switchingModel || (target ? !conversation.ready : !selectedModel))
-      return false;
-    updateDraft((current) => ({ ...current, error: "" }));
-    try {
-      const { ack, workspace } = await (target
-        ? submitCommand("sendText", { text })
-        : submitCommand("createSession", {
-            workspaceId: directory.trim(),
-            config: { modelSelection: selectedModel },
-            firstInput: { text },
-          }));
-      if (ack.status !== "accepted" && ack.status !== "duplicate") {
-        updateDraft((current) => ({ ...current, error: ack.message ?? "消息未发送，请重试。" }));
-        return false;
-      }
-      if (!target && ack.result?.type === "createSession") {
-        onCreated({ ...workspace, sessionId: ack.result.sessionId });
-      }
-      onActivity();
-      return true;
-    } catch (cause) {
-      const invalidDirectory =
-        cause instanceof Error && "code" in cause && cause.code === "fault.chat.invalidDirectory";
-      updateDraft((current) => ({
-        ...current,
-        error: invalidDirectory
-          ? cause.message
-          : "暂时无法确认发送结果。消息草稿已保留，请先核对会话历史。",
-      }));
-      onActivity();
-      return false;
-    }
+  function send(text: string, behavior?: StreamingBehavior) {
+    if (switchingModel || (target && !conversation.ready)) return;
+    if (routing !== (behavior ? "streamingChoice" : "startNow")) return;
+    void input.send(text, selectedModel, behavior);
   }
 
   return (
@@ -240,6 +251,50 @@ function ChatPane({
           emptyState={target ? undefined : <ConversationDraftEmptyState />}
           bottomDock={
             <>
+              {conversation.queue && conversation.queue.items.length > 0 && (
+                <div className="chat-dock-notice">
+                  <strong>待交付消息</strong>
+                  <ul className="queued-inputs" aria-label="待交付消息">
+                    {conversation.queue.items.map((item) => (
+                      <li key={item.queueItemId}>{item.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {draft.localResult && (
+                <div className="chat-dock-notice" role="status">
+                  <strong>/{draft.localResult.name}</strong>
+                  <div className="local-command-output">{draft.localResult.output}</div>
+                </div>
+              )}
+              {draft.receipt && (
+                <div className="chat-dock-notice receipt-status" role="status">
+                  <span>
+                    {draft.receipt === "sending"
+                      ? "正在发送…"
+                      : draft.receipt === "checking"
+                        ? "正在核对发送回执…"
+                        : "发送结果待确认，已保留草稿。"}
+                  </span>
+                  {draft.receipt === "unknown" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!connection}
+                      onClick={input.checkReceipt}
+                    >
+                      核对发送回执
+                    </Button>
+                  )}
+                </div>
+              )}
+              {conversation.control?.lastError && (
+                <div role="alert" className="request-error">
+                  <CircleAlert size={16} aria-hidden="true" />
+                  <span>{conversation.control.lastError.message}</span>
+                </div>
+              )}
               {(draft.error || error || historyError) && (
                 <div role="alert" className="request-error">
                   <CircleAlert size={16} aria-hidden="true" />
@@ -256,10 +311,26 @@ function ChatPane({
                 workspacePath={workspacePath}
                 workspaceIdentity={workspaceIdentity}
                 sessionId={sessionId}
-                setDirectory={setDirectory}
+                setDirectory={input.setDirectory}
                 draft={draft}
-                updateDraft={updateDraft}
+                setText={input.setText}
                 send={send}
+                routing={routing}
+                conversationCommands={commands}
+                stopButton={
+                  stopTarget && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label="停止当前任务"
+                      disabled={stopping}
+                      onClick={() => void stop()}
+                    >
+                      <Square size={15} aria-hidden="true" />
+                    </Button>
+                  )
+                }
                 disabled={
                   !connection || switchingModel || (target ? !conversation.ready : !selectedModel)
                 }
@@ -269,7 +340,9 @@ function ChatPane({
                       catalog={connection.modelCatalog}
                       selection={selectedModel}
                       pending={switchingModel}
-                      disabled={busy || Boolean(target && !conversation.ready)}
+                      disabled={
+                        busy || Boolean(draft.receipt) || Boolean(target && !canSwitchModel)
+                      }
                       onSelect={(next) => void selectModel(next)}
                     />
                   )
@@ -286,20 +359,8 @@ function ChatPane({
 export function ChatApp() {
   const { connection, status, reconnect } = useAgentConnection();
   const recent = useRecentSessions(connection);
-  const [selected, setSelected] = useState<ZCodeAgentSessionTarget | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, ChatDraft>>({});
-  const [draftModel, setDraftModel] = useState<ModelSelection | null>(null);
-  const [directory, setDirectory] = useState(".");
-  const draftKey = selected?.sessionId ?? "";
-  const updateDraft = useCallback<UpdateChatDraft>(
-    (update) =>
-      setDrafts((current) => {
-        const previous = current[draftKey] ?? emptyDraft;
-        const next = update(previous);
-        return next === previous ? current : { ...current, [draftKey]: next };
-      }),
-    [draftKey],
-  );
+  const input = useChatInput(connection, recent.invalidate);
+  const { target: selected } = input;
   const onActivity = recent.invalidate;
 
   return (
@@ -310,16 +371,7 @@ export function ChatApp() {
             <MessageSquare size={18} strokeWidth={1.8} aria-hidden="true" />
             Agent 聊天
           </div>
-          <button
-            className="new-chat"
-            type="button"
-            onClick={() => {
-              if (selected && !drafts[""]?.text && !drafts[""]?.sending) {
-                setDirectory(selected.workspacePath);
-              }
-              setSelected(null);
-            }}
-          >
+          <button className="new-chat" type="button" onClick={() => input.select(null)}>
             <Plus size={17} aria-hidden="true" />
             新建会话
           </button>
@@ -353,11 +405,7 @@ export function ChatApp() {
                       type="button"
                       title={session.title}
                       aria-current={session.sessionId === selected?.sessionId ? "true" : undefined}
-                      onClick={() =>
-                        setSelected((previous) =>
-                          previous?.sessionId === session.sessionId ? previous : session,
-                        )
-                      }
+                      onClick={() => input.select(session)}
                     >
                       <MessageSquare size={14} aria-hidden="true" />
                       <span>{session.title || "会话"}</span>
@@ -379,20 +427,10 @@ export function ChatApp() {
         </div>
       </aside>
       <ChatPane
-        key={draftKey}
-        target={selected}
-        directory={directory}
-        setDirectory={setDirectory}
-        draft={drafts[draftKey] ?? emptyDraft}
-        updateDraft={updateDraft}
-        draftModel={draftModel}
-        setDraftModel={setDraftModel}
+        key={input.draftKey}
+        input={input}
         connection={connection}
         onActivity={onActivity}
-        onCreated={(session) => {
-          setDraftModel(null);
-          setSelected((current) => current ?? session);
-        }}
       />
     </div>
   );

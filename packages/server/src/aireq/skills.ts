@@ -66,6 +66,11 @@ export function readPrototypeSkillNode(
   }
   return { ...saved, children };
 }
+
+export function readBuiltinPrototypeSkills(): SkillSummary[] {
+  return structuredClone(PROTOTYPE_SKILLS);
+}
+
 export function readPrototypeSkills(workspacePath?: string): SkillSummary[] {
   return structuredClone([
     ...PROTOTYPE_SKILLS,

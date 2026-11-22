@@ -10,7 +10,16 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import { connectST, unique, waitUntil } from "./client.js";
 import { createProposal } from "./business.js";
-import { expectNativeTurnWork, openNative, requireAccepted, requireRejected } from "./native.js";
+import { getProposal } from "./proposal-flow.js";
+import {
+  expectNativeLocalCommands,
+  expectNativeSkillInput,
+  expectNativeTurnWork,
+  openNative,
+  readNativeCommandCatalog,
+  requireAccepted,
+  requireRejected,
+} from "./native.js";
 
 // conversation.md：接纳不是完成；同命令身份重试不能重复生成输入；重连只读不重发。
 it("native send completes with canonical rows, query receipt and real owned frames", async () => {
@@ -58,13 +67,20 @@ it("native send completes with canonical rows, query receipt and real owned fram
         workspaceIdentity: unique("wrong-workspace"),
       }),
     ).rejects.toThrow();
+    const commands = await readNativeCommandCatalog(c.services.zcodeAgentService, catalogTarget);
+    expect(
+      commands
+        .filter(({ source }) => source === "skill")
+        .map(({ name }) => name)
+        .sort(),
+    ).toEqual(initialCatalog.skills.map(({ name }) => `skill:${name}`).sort());
+    const proposalBefore = getProposal(proposal.remote, proposal);
+    await expectNativeLocalCommands(native, commands);
+    const afterLocalCommands = await c.read(proposal.selection);
+    expect(getProposal(afterLocalCommands, proposal)).toEqual(proposalBefore);
     const id = unique("discussion");
     const text = "请澄清需求边界、使用者及验收标准，生成本阶段业务需求材料。";
-    const ack = await native.send(
-      "sendText",
-      { text, mode: "build", planEnabled: false },
-      { commandId: id },
-    );
+    const ack = await native.send("sendText", { text }, { commandId: id });
     requireAccepted(ack);
     const final = await native.waitIdle();
     expect(final.control.phase).toBe("completedSuccess");
@@ -125,6 +141,7 @@ it("native send completes with canonical rows, query receipt and real owned fram
       sessionId: native.sessionId,
     });
     expect(sessionLifecycleSnapshotSchema.parse(lifecycle).sessionId).toBe(native.sessionId);
+    await expectNativeSkillInput(native, c.identity.clientId, commands);
   } finally {
     try {
       await native?.close();
@@ -143,8 +160,6 @@ it("same command and input reuses its decision; replacing its text is rejected w
     const commandId = unique("idempotent-input");
     const payload = {
       text: "需求：用户可以查看需求进度，并区分人工验收与分析结论。",
-      mode: "build",
-      planEnabled: false,
     };
     const originalAck = await native.send("sendText", payload, { commandId });
     requireAccepted(originalAck);
@@ -197,9 +212,7 @@ it("feedback is bound to the current row epoch and stale revisions cannot change
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
     native = await openNative(c, (await createProposal(c)).remote);
-    requireAccepted(
-      await native.send("sendText", { text: "请整理当前需求目标与验收标准。", mode: "build" }),
-    );
+    requireAccepted(await native.send("sendText", { text: "请整理当前需求目标与验收标准。" }));
     const final = await native.waitIdle();
     const assistant = final.rows.window.findLast(
       (row) => row.kind === "assistantText" && row.state === "complete",
@@ -261,7 +274,7 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
     requireAccepted(
       await first.send(
         "sendText",
-        { text: "需求：共享需求讨论应允许其他参与人读取。", mode: "build" },
+        { text: "需求：共享需求讨论应允许其他参与人读取。" },
         { commandId },
       ),
     );

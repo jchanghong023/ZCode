@@ -12,6 +12,7 @@ import type {
   CommandEnvelope,
   CommandKey,
   CommandsQueryResult,
+  ConversationCommandCatalogEntry,
   ConversationTopicWireCandidate,
   ConversationRowTarget,
   HelloMessage,
@@ -194,6 +195,10 @@ export interface IZCodeAgentService {
   getSkillReferenceCatalog(
     params: ZCodeAgentSkillReferenceCatalogParams,
   ): Promise<ZCodeSkillsReferenceCatalogResult>;
+  /** 当前会话可用的斜杠命令；省略 sessionId 时只列首发支持的命令。 */
+  getConversationCommandCatalog?(
+    params: ZCodeAgentSkillReferenceCatalogParams,
+  ): Promise<{ commands: ConversationCommandCatalogEntry[] }>;
   // ── v4 conversation 通道（竖切）──
   /** RPC attachment 建立后先读取 host 可信 hello。 */
   helloConversationV4(): Promise<HelloMessage>;

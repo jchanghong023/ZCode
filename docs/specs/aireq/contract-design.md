@@ -29,7 +29,7 @@ Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skill
 
 方法按用途列出，名称是 Channel 包装方法，不是 wire 路径：
 
-- 偏好／目录：`syncAppRuntimePreferences`、`listSessionSubagents`、`supportsConversationQuoteComment`、`getSkillReferenceCatalog`。
+- 偏好／目录：`syncAppRuntimePreferences`、`listSessionSubagents`、`supportsConversationQuoteComment`、`getSkillReferenceCatalog`、`getConversationCommandCatalog`。
 - 握手／会话：`helloConversationV4`、`initializeConversationV4`、`subscribeConversationV4`、`resyncConversationV4`、`unsubscribeConversationV4`、`conversationRowsRangeV4`、`conversationPlansV4`、`sendConversationCommandV4`、`queryConversationCommandsV4`。
 - 附件：`attachmentBeginV4`、`attachmentChunkV4`、`attachmentCommitV4`、`attachmentAbortV4`、`attachmentReadV4`。
 - 生命周期：`getSessionLifecycle`。
@@ -37,6 +37,8 @@ Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skill
 事件：`onDynamicSessionLifecycle`、`onDynamicConversationFrame`、`onAgentRuntimeRestarted`、`onAgentRuntimeLifecycle`。动态事件保留参数化订阅及释放语义。
 
 精确请求／结果由 `packages/services/src/zcode-agent/zcodeAgent.ts` 和 shared `zcode-protocol-v4` 的 transport/command/snapshot/wire schemas 定义，不在文档另造 DTO。Host 内部 flow/dispose 接口不是 Web 公开成员；workspace-config wire 类型存在也不构成公开订阅包装。
+
+AIReq 与 `/chat` 的发送、停止和状态使用 [OMP 对齐的聊天语义](conversation.md#聊天命令和会话配置)。`/chat` 白名单包含 `queryConversationCommandsV4`，回执与会话同受匿名归属约束。现有二进制传输、时间线行和其他 Agent 消费者的契约保持不变。
 
 ## 3. AIReq 服务入口
 
@@ -53,13 +55,13 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 bootstrap 无业务创建副作用，返回 contractVersion、opaque backend.id、当前能力、initialSelection、模型 choices/settings/revision、提示词 saved/draft/revision、projects.developmentRoots 和可选 Skill 存储目标。它不返回私人 composer 草稿、服务注册清单、来源 owner/provenance 或全部分页报告。模型／提示词读取由此提供，本地 prompt draft 端口不是 RPC。
 
-当前 AIReq bootstrap 业务契约版本为 `7`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
+当前 AIReq bootstrap 业务契约版本为 `8`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
 
 `models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录，既有 `skillDesign` 操作不变。
 
-讨论会话创建时、评审接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论提交单次临时模型沿用原生 Submission 语义，不修改会话绑定。
+讨论会话创建时、评审接纳时绑定 `modelConfig`，包含解析后的模型、思考强度和 `promptSnapshot`（已保存的追加指令；空字符串仅用内建指令）。后续设置保存不改写已有会话、已接纳执行或历史报告。讨论输入不覆盖会话配置。
 
-readWorkflow 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对；正式只读目标不因此开启新的编辑会话。selection 必须来自现行类型／严格 schema，不能作为未校验权限或后端全局当前项目。
+readWorkflow 返回 `{view,session?,workspace}`，将业务投影、原生会话引用与同源工作区配对；只公开逻辑会话身份，不返回宿主 `sessionFile` 路径。正式只读目标不因此开启编辑会话。selection 必须来自现行类型／严格 schema，不能作为未校验权限或后端全局当前项目。
 
 `view.documentFormats` 存放全局已保存规则，以 `requirements.md`、`proposal.md`、`design.md`、`tasks.md`、`test-plan.md` 和 `spec.md` 为键，值为必需章节标题数组。提案的 `requirementsCheck` 和 `solutionCheck` 分别投影各阶段当前材料的检查结果 `{issues: {path, reason}[]}`；缺省表示尚未检查，空数组表示通过。保存规则不重算既有结果；方案只引用需求阶段已检查通过的正文。
 
@@ -95,7 +97,6 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、skills(
 - `retrySession` 只恢复指定选择当前绑定的已有原生会话。`sessionId` 必须精确匹配该选择解析出的会话；不匹配或不存在时拒绝，不创建替代会话、不修改材料或重放输入。
 - repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
-- 带 `retryRunId` 的 `runNow` 只接纳该次可重试失败所属的单一项目／Release／IR／SR，filter 必须同范围，服务在接纳时重查手动资格。任务行投影的 `retryable` 来自该任务最近一次失败。
 
 ## 5. command 动作与领域门禁
 
@@ -105,6 +106,10 @@ onDidChange 类型为 presence(snapshot)、workflow、models、prompts、skills(
 
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
 - 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
+- 评审与确认：submitProposalReview、runRequirementsReview、runFullReview、acceptProposal、confirmAlignment。
+- 退回与材料修订：returnProposal、reviseProposalMaterial。
+- 交付与正式文档：publishProposal、closeProposalPr、syncFormalDocuments。
+- 项目角色：requestProjectRoles、decideProjectRole。
 
 动作包含 operationId/expectedRevision 及适用目标；updateIdea/transferIdea 另校验 ideaRevision。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
 

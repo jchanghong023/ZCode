@@ -72,7 +72,11 @@ import {
   createPrototypeGitDocumentSource,
   type GitDocumentSnapshot,
 } from "./proposal-storage.js";
-import { applyProposalMutation } from "./proposal-mutations.js";
+import {
+  applyProposalMutation,
+  stageNativeProposalOutput,
+  type NativeProposalOutput,
+} from "./proposal-mutations.js";
 import { createPrototypeWorkflow } from "./fixtures.js";
 export { DEFAULT_SELECTION } from "./fixture-builders.js";
 let state = createPrototypeWorkflow();
@@ -418,11 +422,20 @@ export function retryPrototypeWorkflowMaterial(request: AIReqMaterialReadRequest
   if (recovered && hadReadIssue) prototypeWorkflowChanges.fire();
   return recovered;
 }
+
+export function stagePrototypeNativeMaterials(
+  proposal: InternalRequirementGroup,
+  kind: NativeProposalOutput["kind"],
+  text: string,
+): NativeProposalOutput {
+  return stageNativeProposalOutput(state, proposal, kind, text);
+}
+
 /** Validate and commit a business command in the single workflow owner. */
 export function applyPrototypeAction(
   action: InternalWorkflowAction,
   selection: AIReqSelection,
-  solutionDiscussion?: string,
+  stagedOutput?: NativeProposalOutput,
   request?: { operationId: string; commandDigest: string; gitSnapshot?: GitDocumentSnapshot },
 ): AIReqWorkflowResult {
   if (consumePrototypeOperationFailure(action.type))
@@ -709,7 +722,7 @@ export function applyPrototypeAction(
   // 请求回执元数据与状态在同一事务形成，不能发布事件后再覆盖导致返回投影和回执不一致。
   if (request) operation.operationId = request.operationId;
   operation.commandDigest =
-    request?.commandDigest ?? digestValue([action, selection, solutionDiscussion]);
+    request?.commandDigest ?? digestValue([action, selection, stagedOutput]);
   const identity = currentIdentity();
   if (identity) operation.identity = { ...identity };
   const reviewRuns: PrototypeReviewRun[] = [];
@@ -735,7 +748,7 @@ export function applyPrototypeAction(
         irId,
         operation,
         reviewRuns,
-        solutionDiscussion,
+        stagedOutput,
       );
   } catch (error) {
     if (action.type !== "publishProposal") {

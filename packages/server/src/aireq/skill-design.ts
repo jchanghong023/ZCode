@@ -159,20 +159,26 @@ export function readPrototypeSkillDesignPreview(
   const preview = previews.get(sessionId);
   return preview ? structuredClone(preview) : undefined;
 }
-export function prototypeSkillDesignReply(sessionId: string, message: string): string {
+export interface StagedSkillDiscussion {
+  reply: string;
+  draft: AIReqSkillDesignDraft;
+  preview?: AIReqSkillDesignPreview;
+}
+
+export function stagePrototypeSkillDiscussion(
+  sessionId: string,
+  message: string,
+): StagedSkillDiscussion {
   const draft = readPrototypeSkillDesign(sessionId);
   const directory = prototypeSkillDesignDirectory(sessionId);
   // 完整表单消息已在会话历史中保留，避免再次填入时递归嵌套此前整份提示词。
-  if (!message.includes(directory)) draft.notes.push(message);
-  savePrototypeSkillDesignDraft(sessionId, draft);
+  const isFormSubmission = message.includes(directory);
+  if (!isFormSubmission) draft.notes.push(message);
   const previous = previews.get(sessionId);
-  if (!message.includes(directory) && !previous) {
-    supplements.fire(sessionId);
-    return discussionTemplate;
-  }
+  if (!isFormSubmission && !previous) return { draft, reply: discussionTemplate };
   // 原型固定产物自行提供推荐标识，不从用户填写的字段生成名称。
   const name = generatedSample.match(/^name: (.+)$/m)![1]!.trim();
-  previews.set(sessionId, {
+  const preview: AIReqSkillDesignPreview = {
     name,
     directory,
     revision: (previous?.revision ?? 0) + 1,
@@ -184,9 +190,21 @@ export function prototypeSkillDesignReply(sessionId: string, message: string): s
       { path: "references/checklist.md", content: checklistSample },
       { path: "references/review-flow.svg", content: reviewFlowSample },
     ],
-  });
+  };
+  return {
+    draft,
+    preview,
+    reply: chatTemplate.replaceAll("{{directory}}", directory).replaceAll("{{name}}", name),
+  };
+}
+
+export function commitPrototypeSkillDiscussion(
+  sessionId: string,
+  output: StagedSkillDiscussion,
+): void {
+  savePrototypeSkillDesignDraft(sessionId, output.draft);
+  if (output.preview) previews.set(sessionId, output.preview);
   supplements.fire(sessionId);
-  return chatTemplate.replaceAll("{{directory}}", directory).replaceAll("{{name}}", name);
 }
 const saves = new Map<
   string,

@@ -22,6 +22,7 @@ import {
 } from "@/LexicalChatInput.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
+import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import {
   hasWorkspaceFileDragPayload,
   readWorkspaceFileDragPayload,
@@ -92,6 +93,7 @@ export function ChatPromptEditor({
   onDrop,
   excludedSlashCommandNames,
   appSlashCommands,
+  conversationCommands,
   extraPlugins,
   enableMentionPanel,
 }: {
@@ -162,6 +164,7 @@ export function ChatPromptEditor({
   excludedSlashCommandNames?: readonly string[];
   /** App 层本地斜杠命令（透传 LexicalChatInput）。 */
   appSlashCommands?: readonly AppSlashCommand[];
+  conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** mention 面板开关（透传 LexicalChatInput）。 */
   enableMentionPanel?: boolean;
   /** 额外挂进编辑器的 Lexical 插件（透传 LexicalChatInput）。 */
@@ -389,6 +392,7 @@ export function ChatPromptEditor({
         onPaste={onPaste}
         excludedSlashCommandNames={excludedSlashCommandNames}
         appSlashCommands={appSlashCommands}
+        conversationCommands={conversationCommands}
         enableMentionPanel={enableMentionPanel}
       />
     </div>

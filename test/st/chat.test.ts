@@ -4,23 +4,53 @@ import { expect, it } from "vitest";
 import {
   PROTOCOL_V4_LIMITS,
   commandAckSchema,
+  commandsQueryResultSchema,
   conversationTopicWireFrameSchema,
   measureTopicNotificationEnvelopeBytes,
+  type CommandKey,
   type ConversationTopicWireFrame,
   type ModelSelection,
 } from "@zcode/shared/zcode-protocol-v4";
 import { createProposal } from "./business.js";
 import { connectChatST, connectST, unique, waitUntil } from "./client.js";
 import {
+  expectNativeLocalCommands,
+  expectNativeSkillInput,
   expectNativeTurnWork,
   initializeNative,
   openNative,
   openNativeSession,
+  readNativeCommandCatalog,
   requireAccepted,
+  requireRejected,
   type NativeSession,
 } from "./native.js";
 
 type ChatClient = Awaited<ReturnType<typeof connectChatST>>;
+
+function chatCreateRequest(
+  client: ChatClient,
+  workspacePath: string,
+  text?: string,
+  modelSelection?: ModelSelection,
+) {
+  return {
+    workspacePath,
+    envelope: {
+      workspace: { workspacePath, workspaceKey: workspacePath },
+      sessionId: null,
+      commandId: unique("chat-create"),
+      clientId: client.clientId,
+      issuedAt: Date.now(),
+      type: "createSession" as const,
+      payload: {
+        workspaceId: workspacePath,
+        ...(text ? { firstInput: { text } } : {}),
+        ...(modelSelection ? { config: { modelSelection } } : {}),
+      },
+    },
+  };
+}
 
 async function createChatSession(
   client: ChatClient,
@@ -28,29 +58,138 @@ async function createChatSession(
   text?: string,
   modelSelection?: ModelSelection,
 ) {
-  const service = client.services.zcodeAgentService;
   const ack = commandAckSchema.parse(
-    await service.sendConversationCommandV4({
-      workspacePath,
-      envelope: {
-        workspace: { workspacePath, workspaceKey: workspacePath },
-        sessionId: null,
-        commandId: unique("chat-create"),
-        clientId: client.clientId,
-        issuedAt: Date.now(),
-        type: "createSession",
-        payload: {
-          workspaceId: workspacePath,
-          ...(text ? { firstInput: { text } } : {}),
-          ...(modelSelection ? { config: { modelSelection } } : {}),
-        },
-      },
-    }),
+    await client.services.zcodeAgentService.sendConversationCommandV4(
+      chatCreateRequest(client, workspacePath, text, modelSelection),
+    ),
   );
   requireAccepted(ack);
   if (ack.result?.type !== "createSession") throw new Error("ST 未收到创建会话结果");
   return { workspacePath, sessionId: ack.result.sessionId };
 }
+
+it("recovers anonymous first-send and session receipts on reconnect without re-sending", async () => {
+  const client = await connectChatST();
+  let native: NativeSession | undefined;
+  let reconnected: ChatClient | undefined;
+  let other: ChatClient | undefined;
+  try {
+    const service = client.services.zcodeAgentService;
+    await initializeNative(service, client.clientId);
+    const workspacePath = ".";
+    const draftCatalog = await readNativeCommandCatalog(service, { workspacePath });
+    const skill = draftCatalog.find(({ source }) => source === "skill");
+    expect(skill?.name).toMatch(/^skill:/);
+    expect(draftCatalog.some(({ source }) => source === "builtin")).toBe(false);
+
+    const recentBefore = await service.listRecentChatSessions();
+    requireRejected(
+      commandAckSchema.parse(
+        await service.sendConversationCommandV4(
+          chatCreateRequest(client, workspacePath, `/skill:${unique("unknown-first")}`),
+        ),
+      ),
+    );
+    expect(await service.listRecentChatSessions()).toEqual(recentBefore);
+
+    const firstText = `/${skill!.name} 核对浏览器使用说明`;
+    const request = chatCreateRequest(client, workspacePath, firstText);
+    const createAck = commandAckSchema.parse(await service.sendConversationCommandV4(request));
+    requireAccepted(createAck);
+    if (createAck.result?.type !== "createSession") throw new Error("ST 未收到创建会话回执");
+    const { sessionId } = createAck.result;
+    const target = { workspacePath, sessionId };
+    native = await openNativeSession(service, client.clientId, sessionId, target);
+    expect((await native.waitIdle()).control.phase).toBe("completedSuccess");
+    const secondText = unique("chat-receipt");
+    const secondId = unique("chat-continue");
+    const sendAck = await native.send("sendText", { text: secondText }, { commandId: secondId });
+    requireAccepted(sendAck);
+    await native.waitIdle();
+    await native.close();
+    native = undefined;
+    await client.close();
+
+    reconnected = await connectChatST(client.clientId);
+    const resumed = reconnected.services.zcodeAgentService;
+    await initializeNative(resumed, reconnected.clientId);
+    const firstKey = { sessionId: null, commandId: request.envelope.commandId };
+    const directoryRequest = chatCreateRequest(reconnected, "docs", "核对另一个工作目录的回执");
+    const directoryAck = commandAckSchema.parse(
+      await resumed.sendConversationCommandV4(directoryRequest),
+    );
+    requireAccepted(directoryAck);
+    const directoryKey = { sessionId: null, commandId: directoryRequest.envelope.commandId };
+    const directoryReceipt = commandsQueryResultSchema.parse(
+      await resumed.queryConversationCommandsV4({
+        workspacePath: directoryRequest.workspacePath,
+        commands: [directoryKey, firstKey],
+      }),
+    );
+    expect(directoryReceipt.results).toEqual([
+      { key: directoryKey, result: directoryAck },
+      { key: firstKey, result: "unknown" },
+    ]);
+    const secondKey = { sessionId, commandId: secondId };
+    const wrongBucket = { sessionId, commandId: request.envelope.commandId };
+    const commands: CommandKey[] = [firstKey, secondKey, wrongBucket];
+    const receipt = commandsQueryResultSchema.parse(
+      await resumed.queryConversationCommandsV4({ workspacePath, commands }),
+    );
+    expect(receipt.results).toEqual([
+      expect.objectContaining({ key: firstKey, result: createAck }),
+      expect.objectContaining({ key: secondKey, result: sendAck }),
+      expect.objectContaining({ key: wrongBucket, result: "unknown" }),
+    ]);
+    const rows = await resumed.conversationRowsRangeV4({ ...target, limit: 60 });
+    expect(rows.rows.filter((row) => row.kind === "userInput")).toEqual([
+      expect.objectContaining({
+        text: firstText,
+        clientId: client.clientId,
+        sourceCommandId: firstKey.commandId,
+      }),
+      expect.objectContaining({
+        text: secondText,
+        clientId: client.clientId,
+        sourceCommandId: secondId,
+      }),
+    ]);
+    const catalog = await readNativeCommandCatalog(resumed, target);
+    expect(catalog).toContainEqual(skill);
+    native = await openNativeSession(resumed, reconnected.clientId, sessionId, target);
+    const title = await expectNativeLocalCommands(native, catalog);
+    expect(
+      (await resumed.listRecentChatSessions()).flatMap((group) => group.sessions),
+    ).toContainEqual(expect.objectContaining({ sessionId, title }));
+    await expectNativeSkillInput(native, client.clientId, catalog);
+
+    other = await connectChatST();
+    const otherService = other.services.zcodeAgentService;
+    await initializeNative(otherService, other.clientId);
+    for (const key of [firstKey, secondKey]) {
+      const read = await otherService
+        .queryConversationCommandsV4({ workspacePath, commands: [key] })
+        .then(
+          (value) => ({ status: "read" as const, value }),
+          (error: unknown) => ({ status: "rejected" as const, error }),
+        );
+      if (read.status === "rejected") {
+        expect(read.error).toBeInstanceOf(Error);
+      } else {
+        expect(commandsQueryResultSchema.parse(read.value).results).toEqual([
+          { key, result: "unknown" },
+        ]);
+      }
+    }
+    expect(await readNativeCommandCatalog(otherService, target)).toContainEqual(skill);
+  } finally {
+    try {
+      await native?.close();
+    } finally {
+      await Promise.all([client.close(), reconnected?.close(), other?.close()]);
+    }
+  }
+});
 
 it("uses the draft model on first send and keeps a switched model in native history", async () => {
   const client = await connectChatST();
@@ -117,28 +256,20 @@ async function completeChatSession(client: ChatClient, directory: string, text: 
   return target;
 }
 
-it("opens independent Agent chat anonymously and isolates histories in both directions", async () => {
+it("shares live chat across anonymous connections and isolates AIReq histories in both directions", async () => {
   const chat = await connectChatST();
   const aiReq = await connectST();
   const other = await connectChatST();
   try {
     const service = chat.services.zcodeAgentService;
     await initializeNative(service, chat.clientId);
-    const [starterGroups, simultaneous] = await Promise.all([
+    const otherService = other.services.zcodeAgentService;
+    await initializeNative(otherService, other.clientId);
+    const [initialGroups, simultaneous] = await Promise.all([
       service.listRecentChatSessions(),
-      service.listRecentChatSessions(),
+      otherService.listRecentChatSessions(),
     ]);
-    expect(simultaneous).toEqual(starterGroups);
-    expect(
-      starterGroups.map(({ workspacePath, sessions }) => [workspacePath, sessions.length]),
-    ).toEqual([
-      ["docs", 3],
-      ["packages", 3],
-    ]);
-    expect(await service.listRecentChatSessions()).toEqual(starterGroups);
-    const starterIds = starterGroups.flatMap((group) =>
-      group.sessions.map((session) => session.sessionId),
-    );
+    expect(simultaneous).toEqual(initialGroups);
     const message = unique("standalone-chat");
     const target = await createChatSession(chat, ".");
     const native = await openNativeSession(service, chat.clientId, target.sessionId, target);
@@ -156,10 +287,69 @@ it("opens independent Agent chat anonymously and isolates histories in both dire
               (delta) =>
                 delta.op === "state.updated" &&
                 delta.patch.control?.phase === "running" &&
-                !delta.patch.control.canStop,
+                delta.patch.control.canStop &&
+                delta.patch.inputRouting?.mode === "streamingChoice",
             ),
         ),
       ).toBe(true);
+      const stopId = unique("chat-stop-target");
+      const [started, running] = await Promise.all([
+        native.send("sendText", { text: "请开始一轮可停止的工作。" }, { commandId: stopId }),
+        native.snapshot(),
+      ]);
+      requireAccepted(started);
+      const expectedForegroundExecutionId = running.control.activeWorks.find(
+        (work) => work.sourceCommandId === stopId,
+      )?.foregroundExecutionId;
+      expect(expectedForegroundExecutionId).toEqual(expect.any(String));
+      requireAccepted(await native.send("stop", { expectedForegroundExecutionId }));
+      expect((await native.waitIdle()).control.phase).toBe("completedInterrupted");
+
+      const otherGroups = await otherService.listRecentChatSessions();
+      expect(otherGroups).toEqual(await service.listRecentChatSessions());
+      expect(otherGroups[0]?.sessions[0]?.sessionId).toBe(target.sessionId);
+      const peer = await openNativeSession(otherService, other.clientId, target.sessionId, target);
+      try {
+        expect((await peer.snapshot()).rows.window).toContainEqual(
+          expect.objectContaining({ kind: "userInput", text: message, clientId: chat.clientId }),
+        );
+        const firstText = unique("chat-client-a");
+        const secondText = unique("chat-client-b");
+        const aStart = native.frames.length;
+        const bStart = peer.frames.length;
+        const results = await Promise.all([
+          native.send("sendText", { text: firstText }),
+          peer.send("sendText", { text: secondText }),
+        ]);
+        for (const ack of results) requireAccepted(ack);
+        expect(
+          results.map(({ result }) => result?.type === "inputAccepted" && result.delivery).sort(),
+        ).toEqual(["queue", "startNow"]);
+        const observed = (pane: NativeSession, start: number, text: string, clientId: string) =>
+          pane.frames
+            .slice(start)
+            .some(
+              (frame) =>
+                frame.payload.kind === "deltas" &&
+                frame.payload.deltas.some(
+                  (delta) =>
+                    delta.op === "row.appended" &&
+                    delta.row.kind === "userInput" &&
+                    delta.row.text === text &&
+                    delta.row.clientId === clientId,
+                ),
+            );
+        await waitUntil(
+          "live peer input on both chat subscriptions",
+          async () =>
+            observed(native, aStart, secondText, other.clientId) &&
+            observed(peer, bStart, firstText, chat.clientId),
+          Boolean,
+        );
+        await peer.waitIdle();
+      } finally {
+        await peer.close();
+      }
     } finally {
       await native.close();
     }
@@ -178,25 +368,13 @@ it("opens independent Agent chat anonymously and isolates histories in both dire
       ).rejects.toThrow();
       await expect(chat.services.aiReqService.bootstrap(aiReq.identity)).rejects.toThrow();
       expect(
-        (await service.listRecentChatSessions()).flatMap((entry) =>
-          entry.sessions.map((session) => session.sessionId),
-        ),
-      ).toEqual([target.sessionId, ...starterIds]);
+        (await service.listRecentChatSessions()).flatMap(({ sessions }) => sessions),
+      ).not.toContainEqual(expect.objectContaining({ sessionId: business.sessionId }));
     } finally {
       await business.close();
     }
 
-    await initializeNative(other.services.zcodeAgentService, other.clientId);
-    const otherGroups = await other.services.zcodeAgentService.listRecentChatSessions();
-    expect(otherGroups.map((group) => group.sessions.length)).toEqual([3, 3]);
-    expect(
-      otherGroups.flatMap((group) => group.sessions.map((session) => session.sessionId)),
-    ).not.toEqual(starterIds);
-    await expect(
-      other.services.zcodeAgentService.conversationRowsRangeV4({ ...target, limit: 60 }),
-    ).rejects.toThrow();
-
-    const reconnected = await connectChatST(chat.clientId);
+    const reconnected = await connectChatST(other.clientId);
     try {
       await initializeNative(reconnected.services.zcodeAgentService, reconnected.clientId);
       const rows = await reconnected.services.zcodeAgentService.conversationRowsRangeV4({
@@ -209,26 +387,6 @@ it("opens independent Agent chat anonymously and isolates histories in both dire
           expect.objectContaining({ kind: "assistantText", state: "complete" }),
         ]),
       );
-      const { workspacePath, workspaceIdentity, sessionId } = starterGroups[0]!.sessions[0]!;
-      const starter = await openNativeSession(
-        reconnected.services.zcodeAgentService,
-        reconnected.clientId,
-        sessionId,
-        { workspacePath, workspaceIdentity },
-      );
-      try {
-        const history = await starter.snapshot();
-        expect(history.rows.window.map((row) => row.kind)).toEqual([
-          "turnHeader",
-          "userInput",
-          "assistantText",
-        ]);
-        requireAccepted(await starter.send("sendText", { text: "继续示例会话" }));
-        const updated = await starter.waitIdle();
-        expect(updated.rows.window.filter((row) => row.kind === "assistantText")).toHaveLength(2);
-      } finally {
-        await starter.close();
-      }
     } finally {
       await reconnected.close();
     }
@@ -310,11 +468,9 @@ it("groups an absolute directory with its examples and safely rejects invalid pa
     const absolute = await completeChatSession(client, resolve(root, "docs"), "绝对目录会话");
     const relative = await completeChatSession(client, "./docs", "相对目录会话");
     const after = await service.listRecentChatSessions();
-    expect(after).toHaveLength(seeded.length);
-    expect(after[0]?.sessions.map((item) => item.sessionId)).toEqual([
+    expect(after[0]?.sessions.slice(0, 2).map((item) => item.sessionId)).toEqual([
       relative.sessionId,
       absolute.sessionId,
-      ...seeded[0]!.sessions.map((item) => item.sessionId),
     ]);
   } finally {
     await client.close();
@@ -327,15 +483,17 @@ async function sendAndWaitChatTurn(native: NativeSession, text: string): Promise
   await waitUntil(
     "online chat turn completion",
     async () =>
-      native.frames.slice(start).some(
-        (frame) =>
-          frame.subscriptionId === native.subscriptionId &&
-          frame.payload.kind === "deltas" &&
-          frame.payload.deltas.some(
-            (delta) =>
-              delta.op === "state.updated" && delta.patch.control?.phase === "completedSuccess",
-          ),
-      ),
+      native.frames
+        .slice(start)
+        .some(
+          (frame) =>
+            frame.subscriptionId === native.subscriptionId &&
+            frame.payload.kind === "deltas" &&
+            frame.payload.deltas.some(
+              (delta) =>
+                delta.op === "state.updated" && delta.patch.control?.phase === "completedSuccess",
+            ),
+        ),
     Boolean,
   );
 }
@@ -392,10 +550,6 @@ it("fragments online and snapshot payloads without publishing snapshots to other
     expect(recovered.rows.window.some((row) => row.kind === "userInput" && row.text === text)).toBe(
       true,
     );
-    const agent = recovered.rows.window.find(
-      (row) => row.kind === "toolCall" && row.toolName === "Agent",
-    );
-    expect(agent?.kind === "toolCall" ? agent.inputText?.length : undefined).toBeLessThan(256);
     await sendAndWaitChatTurn(first, "确认其他订阅仍正常接收实时帧");
 
     const firstFrames = firstWires.map((frame) => conversationTopicWireFrameSchema.parse(frame));
@@ -441,14 +595,14 @@ it("keeps a byte-bounded recent snapshot and preserves earlier rows for paginati
 
     const history = await native.snapshot();
     const firstVisible = history.rows.window[0]!.rowId;
-    expect(history.rows.totalCount).toBe(35);
+    expect(firstVisible).toBeGreaterThan(0);
     expect(history.rows.firstRowId).toBe(0);
-    expect(firstVisible).toBeGreaterThan(1);
+    expect(history.rows.totalCount).toBeGreaterThan(history.rows.window.length);
     expect(history.rows.window.at(-1)?.rowId).toBe(history.rows.totalCount - 1);
     const earlier = await service.conversationRowsRangeV4({
       ...target,
       beforeRowId: firstVisible,
-      limit: 10,
+      limit: 60,
     });
     expect(earlier.rows.at(-1)?.rowId).toBe(firstVisible - 1);
     expect(earlier.rows.some((row) => row.kind === "userInput" && row.text === `0\n${text}`)).toBe(

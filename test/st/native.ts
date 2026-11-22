@@ -4,10 +4,12 @@ import {
   TopicWireFrameAssembler,
   V4_WIRE_PROTOCOL_VERSION,
   commandAckSchema,
+  conversationCommandCatalogEntrySchema,
   conversationTopicFrameSchema,
   helloMessageSchema,
   type CommandAck,
   type CommandEnvelope,
+  type ConversationCommandCatalogEntry,
   type CommandType,
   type ConversationRowTarget,
   type ConversationSnapshot,
@@ -219,45 +221,100 @@ export function expectNativeTurnWork(
   const turn = snapshot.rows.window.find(
     (row) => row.kind === "turnHeader" && row.sourceCommandId === commandId,
   );
+  expect(turn).toMatchObject({ state: "completedSuccess" });
   const rows = snapshot.rows.window.filter((row) => row.turnId === turn?.turnId);
-  expect(rows.map((row) => (row.kind === "toolCall" ? row.toolName : row.kind))).toEqual([
-    "turnHeader",
-    "userInput",
-    "reasoning",
-    "TodoWrite",
-    "Agent",
-    "subagent",
-    "assistantText",
-  ]);
-  const reasoning = rows.find((row) => row.kind === "reasoning");
-  const agent = rows.find((row) => row.kind === "toolCall" && row.toolName === "Agent");
-  expect(reasoning).toMatchObject({ state: "complete", text: expect.stringContaining("子代理") });
-  expect(agent).toMatchObject({ status: "success" });
-  expect(rows.find((row) => row.kind === "subagent")).toMatchObject({
-    status: "success",
-    parentToolCallId: agent?.kind === "toolCall" ? agent.toolCallId : undefined,
-    summaryText: expect.stringContaining("复核"),
-  });
-  expect(snapshot.plan?.items.map((item) => item.status)).toEqual([
-    "completed",
-    "completed",
-    "completed",
-  ]);
+  const input = rows.find((row) => row.kind === "userInput" && row.sourceCommandId === commandId);
+  const reply = rows.find((row) => row.kind === "assistantText" && row.state === "complete");
+  expect(input).toBeDefined();
+  expect(reply).toMatchObject({ text: expect.stringMatching(/\S/) });
+  expect(input!.rowId).toBeLessThan(reply!.rowId);
   const live = native.frames.flatMap((frame) =>
     frame.payload.kind === "deltas" ? frame.payload.deltas : [],
   );
-  const stages = live.flatMap((delta) => {
-    if (delta.op === "row.delta" && delta.rowId === reasoning?.rowId) return ["reasoning"];
-    if (delta.op !== "row.appended" && delta.op !== "row.upserted") return [];
-    const { row } = delta;
-    if (row.turnId !== turn?.turnId) return [];
-    if (row.kind === "toolCall" && row.toolName === "TodoWrite" && row.status === "running")
-      return ["todo"];
-    if (row.kind === "subagent") return [row.status];
-    if (row.kind === "assistantText") return ["reply"];
-    return [];
+  expect(live).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        op: "row.appended",
+        row: expect.objectContaining({ rowId: input!.rowId }),
+      }),
+      expect.objectContaining({
+        op: "row.appended",
+        row: expect.objectContaining({ rowId: reply!.rowId }),
+      }),
+    ]),
+  );
+}
+
+export async function readNativeCommandCatalog(
+  service: IZCodeAgentService,
+  target: NativeSession["workspace"] & { sessionId?: string },
+) {
+  const catalog = await service.getConversationCommandCatalog?.(target);
+  expect(catalog).toBeDefined();
+  return conversationCommandCatalogEntrySchema.array().parse(catalog?.commands);
+}
+
+export async function expectNativeLocalCommands(
+  native: NativeSession,
+  commands: ConversationCommandCatalogEntry[],
+) {
+  const session = commands.find(({ name, source }) => name === "session" && source === "builtin");
+  const rename = commands.find(({ name, source }) => name === "rename" && source === "builtin");
+  expect(session).toBeDefined();
+  expect(rename).toBeDefined();
+  const before = await native.snapshot();
+  const info = await native.send("sendText", { text: `/${session!.name} info` });
+  requireAccepted(info);
+  expect(info.result).toMatchObject({
+    type: "localCommand",
+    name: session!.name,
+    output: expect.stringContaining(native.sessionId),
   });
-  expect(stages).toEqual(["reasoning", "todo", "running", "success", "reply"]);
+  const shortInfo = await native.send("sendText", { text: `/${session!.name}` });
+  requireAccepted(shortInfo);
+  expect(shortInfo.result).toEqual(info.result);
+
+  const title = `新会话标题 ${unique("native-rename")}`;
+  const renamed = await native.send("sendText", { text: `/${rename!.name} ${title}` });
+  requireAccepted(renamed);
+  expect(renamed.result).toMatchObject({
+    type: "localCommand",
+    name: rename!.name,
+    output: expect.stringContaining(title),
+  });
+  requireRejected(await native.send("sendText", { text: `/${rename!.name}` }));
+  requireRejected(await native.send("sendText", { text: "/quit" }));
+  const after = await native.snapshot();
+  expect(after.meta).toEqual({ title, titleSource: "custom" });
+  expect(after.rows).toEqual(before.rows);
+  expect(after.control).toEqual(before.control);
+  return title;
+}
+
+export async function expectNativeSkillInput(
+  native: NativeSession,
+  clientId: string,
+  commands: ConversationCommandCatalogEntry[],
+) {
+  const skill = commands.find(({ source }) => source === "skill");
+  expect(skill?.name).toMatch(/^skill:/);
+  const text = `/${skill!.name} 请核对验收范围`;
+  const before = await native.snapshot();
+  const unknown = await native.send("sendText", { text: `/skill:${unique("unknown")}` });
+  requireRejected(unknown);
+  expect((await native.snapshot()).rows).toEqual(before.rows);
+
+  const commandId = unique("native-skill");
+  const ack = await native.send("sendText", { text }, { commandId });
+  requireAccepted(ack);
+  expect(ack.result).toMatchObject({ type: "inputAccepted", delivery: "startNow" });
+  const completed = await native.waitIdle();
+  expectNativeTurnWork(native, completed, commandId);
+  expect(
+    completed.rows.window.filter(
+      (row) => row.kind === "userInput" && row.sourceCommandId === commandId,
+    ),
+  ).toEqual([expect.objectContaining({ text, clientId })]);
 }
 
 export function requireRejected(ack: CommandAck): void {

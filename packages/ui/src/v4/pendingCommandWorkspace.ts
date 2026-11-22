@@ -2,6 +2,8 @@ import type { SessionCreateSource } from "@zcode/shared";
 import type { ComposerRecentReceipt, FullAccessRecentReceipt } from "@/lib/composerRecent.js";
 export interface PendingCommandClientContext {
   clientNamespace?: string;
+  /** The service's admission receipt is sufficient; a later transcript row need not exist. */
+  settleOnAdmission?: boolean;
   fullAccess?: FullAccessRecentReceipt;
   composer?: ComposerRecentReceipt & { draftId?: string; submittedText?: string };
   workspace?: {

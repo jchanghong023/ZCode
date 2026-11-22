@@ -252,6 +252,7 @@ export interface ZCodeAgentConnectionScope {
 export function createZCodeAgentConnectionScope(
   base: IZCodeAgentService,
   context: ZCodeAgentV4ConnectionContext,
+  options?: { allowCommandQueriesAcrossWorkspaces?: boolean },
 ): ZCodeAgentConnectionScope {
   assertConnectionId(context.connectionId);
   const role = context.role ?? "terminal-client";
@@ -756,8 +757,9 @@ export function createZCodeAgentConnectionScope(
     },
     async queryConversationCommandsV4(params) {
       assertReady();
-      // 纯时钟探测不查询任何 command，不能抢占/改变业务查询的 workspace 绑定。
-      if (params.clock)
+      // 仅目录聊天连接由服务端开启多目录查询；其 owner 逐条校验 actor + workspace。
+      // 时钟探测也不改变默认连接的 workspace 绑定。
+      if (params.clock || options?.allowCommandQueriesAcrossWorkspaces)
         return base.queryConversationCommandsV4(
           withTrustedConnection(params, forwardedConnection(params)),
         );

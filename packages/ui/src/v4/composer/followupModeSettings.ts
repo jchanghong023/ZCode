@@ -103,5 +103,6 @@ export function composerInteractionState({
   if (mode === "enqueue") return "queued";
   if (mode === "guide") return "guide";
   if (mode === "choice") return "choice";
+  if (mode === "streamingChoice") return "streamingChoice";
   return "ready";
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import { useCallback, useEffect, useState } from "react";
+import type { CommandAck, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
 import { pendingCommandRegistry, type PendingCommandEntry } from "@/v4/pendingCommandRegistry.js";
 import {
@@ -18,6 +18,7 @@ export interface UsePendingCommandRecoveryOptions {
   subscriptionId: string | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  onRecoveredLocalCommand?: (ack: CommandAck) => void;
 }
 
 /**
@@ -34,7 +35,8 @@ export function usePendingCommandRecovery({
   subscriptionId,
   workspacePath,
   workspaceIdentity,
-}: UsePendingCommandRecoveryOptions): readonly PendingCommandEntry[] {
+  onRecoveredLocalCommand,
+}: UsePendingCommandRecoveryOptions) {
   const [version, setVersion] = useState(0);
 
   useEffect(() => pendingCommandRegistry.subscribe(() => setVersion((current) => current + 1)), []);
@@ -43,50 +45,70 @@ export function usePendingCommandRecovery({
     if (snapshot) pendingCommandRegistry.reconcileSnapshot(snapshot);
   }, [snapshot]);
 
-  useEffect(() => {
-    if (!remoteAvailable || status !== "live" || subscriptionId === null) return;
-    // 当前 session 与 createSession(null bucket) 可并行查询；registry 内部各自 single-flight。
-    const targets: Array<string | null> = sessionId === null ? [null] : [sessionId, null];
-    void Promise.all(
-      targets.map((target) =>
-        pendingCommandRegistry.reconcileSession(
-          target,
-          (params) => layer.queryCommands(params),
-          workspaceIdentity?.trim() || workspacePath,
-          clientNamespace,
+  const reconcile = useCallback(
+    (isCurrent?: () => boolean) => {
+      if (!remoteAvailable || status !== "live" || subscriptionId === null) return;
+      // 当前 session 与 createSession(null bucket) 可并行查询；registry 内部各自 single-flight。
+      const targets: Array<string | null> = sessionId === null ? [null] : [sessionId, null];
+      void Promise.all(
+        targets.map((target) =>
+          pendingCommandRegistry.reconcileSession(
+            target,
+            async (params) => {
+              const result = await layer.queryCommands(params);
+              if ((!isCurrent || isCurrent()) && onRecoveredLocalCommand && target === sessionId) {
+                for (const item of result.results) {
+                  if (item.result !== "unknown" && item.result.result?.type === "localCommand") {
+                    onRecoveredLocalCommand(item.result);
+                  }
+                }
+              }
+              return result;
+            },
+            workspaceIdentity?.trim() || workspacePath,
+            clientNamespace,
+          ),
         ),
-      ),
-    ).catch((error) => {
-      logger.warn("[v4-pending-command] 重连对账失败，保留账本等待下次连接", error);
-    });
-  }, [
-    clientNamespace,
-    layer,
-    remoteAvailable,
-    sessionId,
-    status,
-    subscriptionId,
-    workspacePath,
-    workspaceIdentity,
-  ]);
+      ).catch((error) => {
+        logger.warn("[v4-pending-command] 重连对账失败，保留账本等待下次连接", error);
+      });
+    },
+    [
+      clientNamespace,
+      layer,
+      onRecoveredLocalCommand,
+      remoteAvailable,
+      sessionId,
+      status,
+      subscriptionId,
+      workspacePath,
+      workspaceIdentity,
+    ],
+  );
+  useEffect(() => {
+    let current = true;
+    reconcile(() => current);
+    return () => {
+      current = false;
+    };
+  }, [reconcile]);
 
   // version 是 registry 的窄订阅信号；不把整份账本复制进 React state。
   void version;
-  const scoped = pendingCommandRegistry
-    .listRecoverable(sessionId)
-    .filter(
-      (entry) =>
-        isPendingCommandForClient(entry, clientNamespace) &&
-        isPendingCommandForWorkspace(entry, workspacePath, workspaceIdentity),
-    );
-  const recoverableCreates = pendingCommandRegistry
-    .listRecoverable(null)
-    .filter(
-      (entry) =>
-        isPendingCommandForClient(entry, clientNamespace) &&
-        isPendingCommandForWorkspace(entry, workspacePath, workspaceIdentity),
-    );
+  const matchesScope = (entry: PendingCommandEntry) =>
+    isPendingCommandForClient(entry, clientNamespace) &&
+    isPendingCommandForWorkspace(entry, workspacePath, workspaceIdentity);
+  const scoped =
+    sessionId === null ? [] : pendingCommandRegistry.list(sessionId).filter(matchesScope);
+  const recoverableCreates = pendingCommandRegistry.listRecoverable(null).filter(matchesScope);
   // null bucket 只表示 createSession 尚未绑定 session，不表示它没有 workspace。
   // 每个 pane 都订阅同一 registry，因此必须在展示/消费前按 workspace identity 隔离。
-  return sessionId === null ? recoverableCreates : [...scoped, ...recoverableCreates];
+  return {
+    checkReceipts: () => reconcile(),
+    pendingSend: scoped.some((entry) => entry.clientContext?.settleOnAdmission && !entry.recovery),
+    recoverableCommands: [
+      ...scoped.filter((entry) => entry.recovery === "discarded" && !entry.recoveryDismissed),
+      ...recoverableCreates,
+    ],
+  };
 }

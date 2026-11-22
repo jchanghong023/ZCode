@@ -45,7 +45,6 @@ export interface AIReqObjectRef {
 }
 export interface AIReqNativeSessionRef extends AIReqObjectRef {
   sessionId: string;
-  sessionFile: string;
   role: "requirements" | "solution" | "reviewer" | "ir-acceptance" | AIReqWorkflowStage;
   phase: "requirements" | "solution" | "ir-acceptance" | AIReqWorkflowStage;
   round: number;
@@ -387,7 +386,6 @@ export interface AIReqMaterialView extends AIReqFileVersion {
     | "sr"
     | "solution"
     | "test-plan"
-    | "solution"
     | "plan"
     | "completion"
     | "ut"

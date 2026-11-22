@@ -47,7 +47,8 @@ export function prototypeDefaultCommit(
   target: PrototypeRepositoryTarget,
 ): string {
   return (
-    view.repositoryHeads?.[prototypeRepositoryKey(target)] ?? `sample-default-${target.repositoryId}`
+    view.repositoryHeads?.[prototypeRepositoryKey(target)] ??
+    `sample-default-${target.repositoryId}`
   );
 }
 export function systemRequirement(
@@ -80,7 +81,6 @@ export function sessionRef(
     irId,
     ...(srId ? { srId } : {}),
     sessionId,
-    sessionFile: `/demo/sessions/${sessionId}.jsonl`,
     role: phase,
     phase,
     round,

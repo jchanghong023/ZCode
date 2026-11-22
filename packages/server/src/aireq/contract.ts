@@ -1,5 +1,6 @@
 import type { AIReqAgentModelBinding, IAIReqService } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
+import type { AIReqNativeTurnResult } from "./native-business.js";
 
 /** Business callbacks only; rows, attachments, topics and subscriptions remain with native mock owner. */
 export interface AIReqNativeBridge {
@@ -13,13 +14,14 @@ export interface AIReqNativeBridge {
     commandId: string,
     text: string,
     modelSelection?: ModelSelection,
+    effectiveText?: string,
   ): void;
-  /** Commit once after successful native completion; explicit simulated output. */
-  completeNative(
-    sessionId: string,
-    commandId: string,
-    text: string,
-  ): { reply: string; modelId?: string };
+  /** Stage structured output without modifying the workflow. */
+  prepareNativeResult(sessionId: string, commandIds: readonly string[]): AIReqNativeTurnResult;
+  /** Commit only after the original execution is still current. */
+  completeNative(sessionId: string, result: AIReqNativeTurnResult): void;
+  /** Release a canceled or failed execution's uncommitted input. */
+  discardNative(sessionId: string, commandId: string): void;
   /** Read existing business report, without creating work. */
   seedNative(sessionId: string): string | undefined;
   /** Session-creation binding snapshot; not current platform defaults. */

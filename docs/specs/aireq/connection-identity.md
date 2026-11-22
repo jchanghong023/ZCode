@@ -47,9 +47,9 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 原生会话绑定与项目目录从 workflow owner 的即时只读查询取得最小事实；绑定查询不派生待办／进度或逐项目重读完整 workflow，目录一次取得项目工作区及 canonical 会话映射。查询只复制所需结果，不缓存另一份目录、不改变 revision、状态或事件。公开资格仍由当前项目及 IR 的 canonical 引用裁决，故障会话过滤、私有草稿 actor 与 Skill 私有归属、workspace 精确匹配继续在原边界执行；轻投影不能替代这些校验。
 
-`origin:"realUser"` 行使用接纳时已校验的 clientId。现行原型的排队、提升及续跑保存原 QueueItem.clientId，后续请求不能覆盖。实时帧、快照与分页读取同一行事实。正式聊天的发送行为见[会话产品要求](conversation.md#会话产品要求与原型范围)。
+`origin:"realUser"` 行使用接纳时已校验的 clientId；引导和跟进在实际交付时保留原命令和提交人。实时帧、快照与分页读取同一行事实。
 
-已发送的讨论、评审消息和随消息发送的附件对所有进入系统的工号共享可见。项目和 Release 选择用于筛选及定位内容。未发送正文、附件与输入历史由 composer 按工号、浏览器客户端、工作区和具体会话独立保存。切换工号从该工号自己的草稿恢复。同一工号在不同客户端各自保留草稿，已发送内容通过会话共同读取。临时模型和模式属于单次 Submission。当前草稿实现见[原型差异](conversation.md#当前原型差异)。
+已发送的讨论、评审消息和随消息发送的附件对所有进入系统的工号共享可见。项目和 Release 选择用于筛选及定位内容。未发送正文、附件和输入历史按工号、浏览器客户端、工作区和会话独立保存。模型和模式属于会话配置，不随草稿和消息覆盖。
 
 验收使用两个工号和两个浏览器会话，核对已发送内容的共享读取、发送人显示、切工号后的草稿隔离及同工号在不同浏览器中的草稿隔离。
 
@@ -57,7 +57,7 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 | 版本                              | 含义                                          |
 | --------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=7`          | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| `AIREQ_CONTRACT_VERSION=8`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
 | Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
 | snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
 | workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
@@ -74,7 +74,7 @@ AIReq 事件的 backendEpoch/revision/对象/operationId 字段可选，bootstra
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
 - `skillDesign.saveDraft` 没有请求 CAS／operationId，按当前覆盖保存规则执行。
 
-原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`；行命令还比较 baseLogEpoch、rowId/entityId。陈旧请求不改变事实、队列或水位。query 返回已知决定与当前 turn 事实。
+原生命令先解析 envelope、核对身份和请求工作区，再按 actor/session/commandId 查决定。相同完整请求返回原 ACK，不因首次成功后的 revision 变化重复执行；同 ID 不同输入拒绝。新命令才校验 `COMMANDS_REQUIRING_BASE_REVISION`；行命令还比较 baseLogEpoch、rowId/entityId。陈旧请求不改变事实、队列或水位。两个入口都可查询同一接纳归属下的决定与当前执行事实；首发使用空会话键。
 
 accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
 

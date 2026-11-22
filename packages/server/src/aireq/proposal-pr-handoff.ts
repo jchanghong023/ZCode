@@ -56,8 +56,8 @@ function derivePrototypeProposalPrHandoff(input: AIReqPrHandoffInput): AIReqPrHa
     blockers.push("请先配置提案所属项目的 Git 仓库和默认分支。");
   const repositoryIssue = prototypeProposalRepositoryIssue(group, project);
   if (repositoryIssue) blockers.push(repositoryIssue);
-  const target = (group.proposalDelivery as InternalProposalDelivery | undefined)
-    ?.repositoryTarget ?? project;
+  const target =
+    (group.proposalDelivery as InternalProposalDelivery | undefined)?.repositoryTarget ?? project;
   if (!projectDirectory || scenario === "missing-directory")
     blockers.push("提案临时目录记录缺失。");
   else if (project && projectDirectory !== project.root)

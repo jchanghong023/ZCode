@@ -20,8 +20,10 @@ export type WebChatAgent = Pick<
   | "unsubscribeConversationV4"
   | "conversationRowsRangeV4"
   | "sendConversationCommandV4"
+  | "queryConversationCommandsV4"
   | "onDynamicConversationFrame"
->;
+> &
+  Required<Pick<IZCodeAgentService, "getConversationCommandCatalog">>;
 
 export async function connectWebChatAgent(
   url: string,

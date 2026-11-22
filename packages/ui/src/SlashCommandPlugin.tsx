@@ -50,6 +50,7 @@ import {
 import { MentionPanel } from "./mentions/components/MentionPanel.js";
 import {
   buildAppSlashCommandSuggestions,
+  buildConversationCommandSuggestions,
   buildSkillSuggestions,
   buildSubagentSuggestions,
   getTextAroundCursor,
@@ -156,15 +157,17 @@ export function SlashCommandPlugin({
   disabled = false,
   excludedCommandNames,
   appCommands,
+  conversationCommands,
 }: SlashCommandPluginProps & { provider: ZCodeProvider }) {
   const [editor] = useLexicalComposerContext();
   const { intl, locale } = useZCodeIntl();
   const [activeTrigger, setActiveTrigger] = useState<ActivePromptInputTrigger | null>(null);
+  const conversationCatalog = conversationCommands !== undefined;
   const {
     agents,
     loading: subagentsLoading,
     error: subagentsError,
-  } = useSubagents(workspacePath, provider, workspaceIdentity);
+  } = useSubagents(conversationCatalog ? null : workspacePath, provider, workspaceIdentity);
   const {
     skills,
     loading: skillsLoading,
@@ -173,27 +176,32 @@ export function SlashCommandPlugin({
     workspacePath,
     workspaceIdentity,
     sessionId: sessionId ?? null,
-    enabled: !disabled && activeTrigger?.trigger === "/",
+    enabled: !conversationCatalog && !disabled && activeTrigger?.trigger === "/",
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const dismissedSignatureRef = useRef<string | null>(null);
   const activeSignatureRef = useRef<string | null>(null);
   const activeTokenRef = useRef<ActivePromptInputTokenSnapshot | null>(null);
   const commandSuggestions = useMemo(() => {
+    if (conversationCommands) {
+      return buildConversationCommandSuggestions(conversationCommands, "builtin");
+    }
     const excluded = new Set((excludedCommandNames ?? []).map(normalizeSlashCommandValue));
     // App 命令由当前 Composer 注册；子代理与 Skill 仍各自读取原生目录。
     return buildAppSlashCommandSuggestions(appCommands ?? []).filter(
       (item) => !excluded.has(item.value),
     );
-  }, [appCommands, excludedCommandNames]);
+  }, [appCommands, conversationCommands, excludedCommandNames]);
   const subagentSuggestions = useMemo(() => buildSubagentSuggestions(agents), [agents]);
   const skillSuggestions = useMemo(
     () =>
-      buildSkillSuggestions(
-        filterSkillsForProvider(skills, provider).filter((skill) => skill.enabled),
-        locale,
-      ),
-    [locale, provider, skills],
+      conversationCommands
+        ? buildConversationCommandSuggestions(conversationCommands, "skill")
+        : buildSkillSuggestions(
+            filterSkillsForProvider(skills, provider).filter((skill) => skill.enabled),
+            locale,
+          ),
+    [conversationCommands, locale, provider, skills],
   );
   const filteredCommandSuggestions = useMemo(
     () => filterPromptInputSuggestions(commandSuggestions, activeTrigger?.query ?? null),
@@ -298,6 +306,11 @@ export function SlashCommandPlugin({
           tokenEnd,
         );
 
+        if (conversationCatalog) {
+          selectionState.selection.insertText(`${suggestion.label} `);
+          return;
+        }
+
         if (isAppCommand) {
           // App 层命令"选中即执行"：只移除输入中的 `/xxx` token，不插入 mention、不发送。
           selectionState.selection.removeText();
@@ -326,7 +339,7 @@ export function SlashCommandPlugin({
         editor.focus();
       });
     },
-    [appCommands, editor],
+    [appCommands, conversationCatalog, editor],
   );
 
   const selectSuggestion = useCallback(
@@ -380,6 +393,16 @@ export function SlashCommandPlugin({
     const unregisterEnter = editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
+        if (
+          conversationCatalog &&
+          (event?.isComposing ||
+            event?.shiftKey ||
+            event?.ctrlKey ||
+            event?.metaKey ||
+            event?.altKey)
+        ) {
+          return false;
+        }
         if (!selectSuggestion(selectedIndex)) {
           return false;
         }
@@ -441,13 +464,24 @@ export function SlashCommandPlugin({
       unregisterEscape();
       unregisterBlur();
     };
-  }, [editor, filteredSuggestions.length, isOpen, selectSuggestion, selectedIndex]);
+  }, [
+    conversationCatalog,
+    editor,
+    filteredSuggestions.length,
+    isOpen,
+    selectSuggestion,
+    selectedIndex,
+  ]);
 
   const panelTitle = intl.formatMessage({ id: "chat.slash.title" });
   const hasActiveQuery = (activeTrigger?.query ?? "").trim().length > 0;
   const panelDescription = hasActiveQuery
     ? ""
-    : intl.formatMessage({ id: "chat.slash.searchHint" });
+    : conversationCatalog
+      ? locale === "zh-CN"
+        ? "搜索命令或技能"
+        : "Search commands or skills"
+      : intl.formatMessage({ id: "chat.slash.searchHint" });
 
   // 空状态按未过滤查询的应用命令计数，区分“无可用命令”和“无匹配结果”。
   const panelSections = useSlashCommandMentionPanelSections(
@@ -460,6 +494,7 @@ export function SlashCommandPlugin({
     filteredSubagentSuggestions,
     subagentsLoading,
     subagentsError,
+    conversationCatalog,
   );
 
   if (!isOpen || !container) {

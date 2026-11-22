@@ -185,6 +185,10 @@ export function useConversation(
   return {
     rows,
     phase: view?.snapshot.control.phase,
+    control: ready ? view?.snapshot.control : undefined,
+    inputRouting: ready ? view?.snapshot.inputRouting : undefined,
+    queue: view?.snapshot.queue,
+    availability: ready ? view?.snapshot.availability : undefined,
     title: view?.snapshot.meta.title,
     totalCount: view?.snapshot.rows.totalCount ?? 0,
     plan: view?.snapshot.plan ?? null,

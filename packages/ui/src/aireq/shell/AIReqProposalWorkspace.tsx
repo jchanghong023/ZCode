@@ -401,7 +401,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
             <p className="text-ui-sm text-foreground-subtle">
               {conversationReadOnly
                 ? `本次审查会话为历史只读，不能继续追问；如需变更材料，请返回${proposalTaskTitles[parent]}或${task === "requirementsReviewDetail" ? "需求澄清" : "方案设计"}。`
-                : `追问只追加本次审查会话，不改变材料、报告或人工决定。模型与模式只作用于本次追问；需要变更材料请返回${proposalTaskTitles[parent]}或${task === "requirementsReviewDetail" ? "需求澄清" : "方案设计"}。`}
+                : `追问只追加本次审查会话，不改变材料、报告或人工决定。追问沿用该会话绑定的模型与模式；需要变更材料请返回${proposalTaskTitles[parent]}或${task === "requirementsReviewDetail" ? "需求澄清" : "方案设计"}。`}
             </p>
           </div>
         )}

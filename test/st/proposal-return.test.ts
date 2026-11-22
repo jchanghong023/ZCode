@@ -97,9 +97,12 @@ it(
         const native = await openNative(tester, reviewer);
         try {
           const initial = await native.snapshot();
-          expect(initial.queue.autoDrain).toBe(true);
+          expect(initial.availability.queueEdit.allowed).toBe(false);
           await expect(native.send("stop", {})).rejects.toThrow(/开发角色/);
-          await expect(native.send("setAutoDrain", { autoDrain: false })).rejects.toThrow(/开发角色/);
+          await expect(native.send("setAutoDrain", { autoDrain: false })).resolves.toMatchObject({
+            status: "rejected",
+            reasonCode: "fault.command.capabilityUnsupported",
+          });
           const after = await native.snapshot();
           expect(after.revision).toBe(initial.revision);
           expect(after.queue).toEqual(initial.queue);

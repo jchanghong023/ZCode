@@ -6,12 +6,13 @@ import { createHash } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { z } from "zod";
 import { Emitter, Event, type IDisposable } from "@zcode/rpc";
-import { createUuid, type SessionLifecycleSnapshot } from "@zcode/shared";
+import { createUuid, type SessionLifecycleSnapshot, type SkillSummary } from "@zcode/shared";
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
   PROTOCOL_V4_LIMITS,
   ROW_TARGETING_COMMANDS,
   conversationTopicFrameSchema,
+  commandsQueryParamsSchema,
   conversationTopicWireFrameSchema,
   encodeTopicWireFrames,
   measureTopicNotificationEnvelopeBytes,
@@ -26,34 +27,48 @@ import {
   type CommandType,
   type CommandsQueryResult,
   type ConversationDelta,
+  type ConversationCommandCatalogEntry,
   type ConversationTopicFrame,
   type ConversationTopicWireFrame,
   type HelloMessage,
   type QueueItem,
-  type ReasoningRow,
   type StatePatch,
-  type SubagentRow,
-  type ToolCallRow,
   type WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
-import type { IZCodeAgentService, RecentChatDirectory } from "@zcode/services/zcode-agent";
+import type {
+  IZCodeAgentService,
+  RecentChatDirectory,
+  ZCodeAgentSkillReferenceCatalogParams,
+} from "@zcode/services/zcode-agent";
 import { completeMockModelSelection, MOCK_DEFAULT_MODEL_SELECTION } from "./domains/contract.js";
 import type { AIReqNativeBridge } from "../aireq/contract.js";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
-import { readPrototypeSkills } from "../aireq/skills.js";
+import { readBuiltinPrototypeSkills, readPrototypeSkills } from "../aireq/skills.js";
 import {
   buildConversationSnapshot,
+  projectMockExecution,
+  projectMockQueue,
   workspaceKeyOf,
   workspaceRefOf,
+  type MockActiveTurn,
+  type MockInputContext,
+  type MockQueuedInput,
   type MockRuntime,
   type MockSession,
 } from "./runtime.js";
 
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
-type MockSubmission = Pick<QueueItem, "modelSelection" | "mode" | "planEnabled">;
-type MockTextSubmission = MockSubmission &
-  Pick<CommandPayloadMap["sendText"], "text" | "attachments">;
+type MockTextSubmission = CommandPayloadMap["sendText"];
+type MockInput = {
+  actor: string;
+  commandId: string;
+  clientId: string;
+  text: string;
+  attachments?: QueueItem["attachments"];
+  conversationQuotes?: QueueItem["conversationQuotes"];
+  context?: MockInputContext;
+};
 type MockChatStarter = {
   workspacePath: string;
   title: string;
@@ -65,32 +80,31 @@ type StandaloneChat = {
   resolveDirectory(path: string): Promise<string>;
   starterSessions: readonly MockChatStarter[];
 };
-type MockTurnWork = {
-  reasoning?: ReasoningRow;
-  todo?: ToolCallRow;
-  agent?: { call: ToolCallRow; row: SubagentRow };
-};
+const BUILTIN_COMMANDS = [
+  {
+    name: "session",
+    description: "查看当前会话（/session 或 /session info）。",
+    source: "builtin",
+  },
+  { name: "rename", description: "修改当前会话标题（/rename <title>）。", source: "builtin" },
+] as const satisfies readonly ConversationCommandCatalogEntry[];
+
+type MockParsedInput =
+  | { kind: "text"; context?: MockInputContext }
+  | { kind: "builtin"; name: (typeof BUILTIN_COMMANDS)[number]["name"]; args: string }
+  | { kind: "rejected"; message: string };
 
 // 单次请求可超过物理帧上限，但队列全量投影仍须给逻辑帧的其他字段留空间。
 const CHAT_COMMAND_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 4;
 const CHAT_QUEUE_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 2;
 
 const NATIVE_WRITABLE_COMMANDS: ReadonlySet<CommandType> = new Set([
-  "sendText",
   "stop",
-  "sendQueuedNow",
-  "lockQueueItemEdit",
-  "editQueueItem",
-  "reorderQueueItem",
-  "deleteQueueItem",
-  "applyQueueItemsConfig",
-  "setAutoDrain",
+  "switchCollaborationMode",
   "resolveInteraction",
   "renameSession",
   "deleteSession",
   "switchModelConfig",
-  "switchCollaborationMode",
-  "setFollowupMode",
   "setAssistantFeedback",
 ]);
 
@@ -120,19 +134,15 @@ function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown
 }
 
 export class MockZCodeAgentService implements IZCodeAgentService {
-  private readonly chatHistoryByActor = new Map<string, Promise<void>>();
+  private chatHistory?: Promise<void>;
   private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
   private readonly sessionLifecycleEmitter = new Emitter<SessionLifecycleSnapshot>();
   private readonly runtimeRestartedEmitter = new Emitter<{ workspaceKey: string }>();
   private readonly conversationSubs = new Map<string, ConversationSubscription>();
   private sessionGeneration = 1;
+  private readonly instanceId = createUuid();
 
-  private readonly boundSessions = new Set<string>();
   private readonly commandResults = new Map<string, { digest: string; ack: CommandAck }>();
-  private readonly turnAttachments = new Map<
-    string,
-    import("@zcode/shared/zcode-protocol-v4").AttachmentRef[]
-  >();
   private readonly uploads = new Map<
     string,
     {
@@ -165,6 +175,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       assertNativeWritable(sessionId: string): void;
       admitNative(sessionId: string, commandId: string, text: string): void;
       beginNative: AIReqNativeBridge["beginNative"];
+      prepareNativeResult: AIReqNativeBridge["prepareNativeResult"];
       completeNative: AIReqNativeBridge["completeNative"];
       discardNative(sessionId: string, commandId: string): void;
       seedNative(sessionId: string): string | undefined;
@@ -195,16 +206,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   async listRecentChatSessions(): Promise<RecentChatDirectory[]> {
     if (!this.standalone) throw new Error("当前连接不支持聊天最近列表。");
-    const actor = this.standalone.actorKey();
-    let history = this.chatHistoryByActor.get(actor);
-    if (!history) {
-      history = this.seedChatHistory(actor, this.standalone);
-      this.chatHistoryByActor.set(actor, history);
-    }
-    await history;
+    this.chatHistory ??= this.seedChatHistory(this.standalone);
+    await this.chatHistory;
     const sessions = [...this.runtime.sessions.values()].filter(
       (session) =>
-        session.draftCreatorActor === actor && session.rows.some((row) => row.kind === "userInput"),
+        session.chatDirectory !== undefined && session.rows.some((row) => row.kind === "userInput"),
     );
     sessions.sort(
       (a, b) =>
@@ -232,7 +238,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return [...directories.values()];
   }
 
-  private async seedChatHistory(actor: string, standalone: StandaloneChat): Promise<void> {
+  private async seedChatHistory(standalone: StandaloneChat): Promise<void> {
+    const actor = "mock-chat-starter";
     const resolvedPaths = new Map<string, Promise<string | null>>();
     for (const [index, starter] of standalone.starterSessions.entries()) {
       let resolution = resolvedPaths.get(starter.workspacePath);
@@ -394,238 +401,25 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return (last?.rowId ?? -1) + 1;
   }
 
-  // ── AIReq 业务回合：完整回复一次提交，恢复读取同一权威事实 ──
-
-  private newToolRow(
-    session: MockSession,
-    turnId: string,
-    assistantResponseId: string,
-    toolName: string,
-    input: Record<string, unknown>,
-  ): ToolCallRow {
-    return {
-      kind: "toolCall",
-      rowId: this.nextRowId(session),
-      turnId,
-      assistantResponseId,
-      entityId: `entity_${createUuid()}`,
-      createdAt: Date.now(),
-      createdAtSeq: session.seq,
-      toolCallId: `tool_${createUuid()}`,
-      toolName,
-      status: "running",
-      inputText: JSON.stringify(input),
-      input,
-      startedAt: Date.now(),
-    };
-  }
-
-  private async simulateTurnWork(
-    session: MockSession,
-    work: MockTurnWork,
-    turnId: string,
-    responseId: string,
-    text: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const startedAt = Date.now();
-    work.reasoning = {
-      kind: "reasoning",
-      rowId: this.nextRowId(session),
-      turnId,
-      assistantResponseId: responseId,
-      entityId: `entity_${createUuid()}`,
-      createdAt: startedAt,
-      createdAtSeq: session.seq,
-      text: "正在解析本轮输入。",
-      state: "streaming",
-    };
-    this.appendRow(session, work.reasoning);
-    await wait(160, undefined, { signal });
-    const append = "\n\n先整理 Todo，再由子代理复核本轮输入。";
-    const index = session.rows.findIndex((row) => row.rowId === work.reasoning!.rowId);
-    work.reasoning = { ...work.reasoning, text: work.reasoning.text + append };
-    session.rows[index] = work.reasoning;
-    this.emitConversationFrame(
-      session,
-      {
-        kind: "deltas",
-        deltas: [{ op: "row.delta", rowId: work.reasoning.rowId, path: "text", append }],
-      },
-      "online",
-    );
-    await wait(160, undefined, { signal });
-    work.reasoning = { ...work.reasoning, state: "complete", durationMs: Date.now() - startedAt };
-    this.upsertRow(session, work.reasoning);
-
-    const steps = ["整理本轮待办", "由子代理复核输入", "整理本轮回复"];
-    const items = steps.map((content, index) => ({
-      id: `${turnId}:${index}`,
-      content,
-      status: index === 0 ? ("inProgress" as const) : ("pending" as const),
-    }));
-    session.plan = { items, updatedAt: Date.now() };
-    this.patchState(session, { plan: session.plan });
-    work.todo = this.newToolRow(session, turnId, responseId, "TodoWrite", this.todoInput(items));
-    this.appendRow(session, work.todo);
-    await wait(220, undefined, { signal });
-    this.publishTodoProgress(session, work, 1);
-
-    const subagentType = "原型复核";
-    const call = this.newToolRow(session, turnId, responseId, "Agent", {
-      subagent_type: subagentType,
-      description: "复核本轮输入",
-      prompt: "复核父会话中本轮用户输入，统计非空行并摘要首行。",
-    });
-    this.appendRow(session, call);
-    const row: SubagentRow = {
-      kind: "subagent",
-      rowId: this.nextRowId(session),
-      turnId,
-      entityId: `entity_${createUuid()}`,
-      createdAt: Date.now(),
-      createdAtSeq: session.seq,
-      parentToolCallId: call.toolCallId,
-      subagentType,
-      status: "running",
-      summaryText: "正在复核本轮输入。",
-      startedAt: call.startedAt,
-    };
-    this.appendRow(session, row);
-    work.agent = { call, row };
-    await wait(320, undefined, { signal });
-    let lineCount = 0;
-    let firstLine = "（无文字）";
-    for (const [line] of text.matchAll(/[^\n]+/gu)) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (lineCount === 0) firstLine = trimmed.slice(0, 120);
-      lineCount += 1;
-    }
-    this.setSubagentResult(
-      session,
-      work.agent,
-      "success",
-      `复核了本轮输入中的 ${lineCount} 行文字。\n\n首行：${firstLine}`,
-    );
-    this.publishTodoProgress(session, work, 2);
-    await wait(160, undefined, { signal });
-  }
-
-  private todoInput(items: NonNullable<MockSession["plan"]>["items"]) {
-    return {
-      todos: items.map((item) => ({
-        ...item,
-        status: item.status === "inProgress" ? "in_progress" : item.status,
-      })),
-    };
-  }
-
-  private publishTodoProgress(
-    session: MockSession,
-    work: MockTurnWork,
-    completed: number,
-    ended = false,
-  ): void {
-    if (!session.plan || !work.todo) return;
-    const items = session.plan.items.map((item, index) => ({
-      ...item,
-      status:
-        index < completed
-          ? ("completed" as const)
-          : index === completed && !ended
-            ? ("inProgress" as const)
-            : ("pending" as const),
-    }));
-    session.plan = { items, updatedAt: Date.now() };
-    this.patchState(session, { plan: session.plan });
-    const input = this.todoInput(items);
-    work.todo = {
-      ...work.todo,
-      input,
-      inputText: JSON.stringify(input),
-      status: completed ? "success" : "cancelled",
-      endedAt: work.todo.endedAt ?? Date.now(),
-    };
-    this.upsertRow(session, work.todo);
-  }
-
-  private setSubagentResult(
-    session: MockSession,
-    agent: NonNullable<MockTurnWork["agent"]>,
-    status: "success" | "failed" | "cancelled",
-    summaryText: string,
-  ): void {
-    const endedAt = Date.now();
-    agent.row = { ...agent.row, status, summaryText, endedAt };
-    agent.call = {
-      ...agent.call,
-      status: status === "failed" ? "error" : status,
-      endedAt,
-      output: { text: summaryText },
-      ...(status === "failed"
-        ? { error: { code: "prototype.reviewFailed", message: summaryText } }
-        : {}),
-    };
-    this.upsertRow(session, agent.row);
-    this.upsertRow(session, agent.call);
-  }
-
-  private finishTurnWork(
-    session: MockSession,
-    work: MockTurnWork,
-    status: "success" | "failed" | "cancelled",
-  ): void {
-    if (work.reasoning?.state === "streaming") {
-      this.upsertRow(session, { ...work.reasoning, state: "interrupted" });
-    }
-    if (work.agent?.row.status === "running")
-      this.setSubagentResult(
-        session,
-        work.agent,
-        status,
-        status === "cancelled" ? "复核已中止。" : "复核未完成。",
-      );
-    if (work.todo && session.plan) {
-      const completed =
-        status === "success"
-          ? session.plan.items.length
-          : session.plan.items.filter((item) => item.status === "completed").length;
-      this.publishTodoProgress(session, work, completed, true);
-    }
-  }
+  // ── 原生回合：原型保留异步执行边界，但不伪造工具调用 ──
 
   private async runTurn(
     session: MockSession,
-    commandId: string,
-    clientId: string,
-    text: string,
-    submission: MockSubmission,
-    owner: AbortController,
+    input: MockInput,
+    owner: MockActiveTurn,
   ): Promise<void> {
-    const modelSelection = submission.modelSelection ?? session.config.modelSelection;
+    const { startedAt, foregroundExecutionId } = owner.work;
+    const { signal } = owner.controller;
+    const modelSelection = session.config.modelSelection;
     const model = modelSelection?.modelId ?? session.config.model;
-    const startedAt = Date.now();
-    const turnId = `turn_${createUuid()}`;
+    const turnId = foregroundExecutionId;
     const responseId = `resp_${createUuid()}`;
     session.lastActivityAt = startedAt;
     session.phase = "running";
-    // 独立聊天连接只接纳创建会话和发送，不能在运行态投影出停止动作。
-    const canStop = !this.standalone;
-    this.patchState(session, {
-      control: {
-        phase: "running",
-        sessionEnded: false,
-        canStop,
-        stopState: canStop ? "stoppable" : "idle",
-        stopTargetKind: canStop ? "assistant" : "unknown",
-        activeWorks: [{ kind: "primaryTurn", sourceCommandId: commandId, startedAt }],
-        lastError: null,
-        apiRetry: null,
-      },
-    });
+    delete session.lastError;
+    this.patchExecution(session);
 
-    const turnHeader: WireConversationRow = {
+    const turnHeader: Extract<WireConversationRow, { kind: "turnHeader" }> = {
       kind: "turnHeader",
       rowId: this.nextRowId(session),
       turnId,
@@ -634,148 +428,170 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       createdAtSeq: session.seq,
       origin: "userInput",
       executionKind: "agent",
-      sourceCommandId: commandId,
+      sourceCommandId: input.commandId,
       state: "running",
       startedAt,
     };
     this.appendRow(session, turnHeader);
-    const work: MockTurnWork = {};
-    // 停止先同步收口本轮；旧 await 恢复时不能把替代轮当作自己的运行句柄。
-    owner.signal.onabort = () => {
-      this.business?.discardNative(session.sessionId, commandId);
-      this.finishTurnWork(session, work, "cancelled");
-      this.finalizeInterruptedTurn(session, turnHeader, owner);
+    const inputs: MockInput[] = [];
+    const startedCommands: string[] = [];
+    const discard = () => {
+      for (const commandId of startedCommands)
+        this.business?.discardNative(session.sessionId, commandId);
     };
-
-    const userInputRow: WireConversationRow = {
-      kind: "userInput",
-      rowId: this.nextRowId(session),
-      turnId,
-      entityId: `entity_${createUuid()}`,
-      createdAt: Date.now(),
-      createdAtSeq: session.seq,
-      text,
-      origin: "realUser",
-      sourceCommandId: commandId,
-      clientId,
-      inputOrigin: "desktop",
-      attachments: this.turnAttachments.get(commandId),
-      modelSelection,
-      ...(submission.mode !== undefined ? { mode: submission.mode } : {}),
-      ...(submission.planEnabled !== undefined ? { planEnabled: submission.planEnabled } : {}),
+    const enter = (submitted: MockInput) => {
+      inputs.push(submitted);
+      startedCommands.push(submitted.commandId);
+      this.appendRow(session, {
+        kind: "userInput",
+        rowId: this.nextRowId(session),
+        turnId,
+        entityId: `entity_${createUuid()}`,
+        createdAt: Date.now(),
+        createdAtSeq: session.seq,
+        text: submitted.text,
+        origin: "realUser",
+        sourceCommandId: submitted.commandId,
+        clientId: submitted.clientId,
+        inputOrigin: "desktop",
+        attachments: submitted.attachments,
+        conversationQuotes: submitted.conversationQuotes,
+        modelSelection,
+      });
+      session.deliveredTurns.set(JSON.stringify([submitted.actor, submitted.commandId]), turnId);
+      // AIReq 材料只消费用户语义；冻结的技能正文留在会话执行上下文。
+      this.business?.beginNative(
+        session.sessionId,
+        submitted.commandId,
+        submitted.text,
+        modelSelection,
+        submitted.context?.args,
+      );
     };
-    this.appendRow(session, userInputRow);
-
-    if (this.business || this.standalone) {
-      try {
-        this.business?.beginNative(session.sessionId, commandId, text, modelSelection);
-        await this.simulateTurnWork(session, work, turnId, responseId, text, owner.signal);
-        if (owner.signal.aborted || session.activeTurn !== owner) return;
-        const { reply, modelId } = this.business?.completeNative(
-          session.sessionId,
-          commandId,
-          text,
-        ) ?? {
-          reply: "本轮原型执行已完成。上方的 **Todo** 和子代理工作记录可以展开查看。",
-          modelId: undefined,
-        };
-        this.finishTurnWork(session, work, "success");
-        this.appendRow(session, {
-          kind: "assistantText",
-          rowId: this.nextRowId(session),
-          turnId,
-          entityId: `entity_${createUuid()}`,
-          createdAt: Date.now(),
-          createdAtSeq: session.seq,
-          assistantResponseId: responseId,
-          text: reply,
-          state: "complete",
-          model: modelId ?? model,
-        });
-        this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
-      } catch (error) {
-        // abort 监听已同步提交中止状态；异步等待拒绝后不能再次改写同一轮。
-        if (owner.signal.aborted || session.activeTurn !== owner) return;
-        this.finishTurnWork(session, work, "failed");
-        // 已接纳不等于完成：只透出显式安全业务错误，未知详情由既有服务端诊断记录。
-        const message = this.standalone
-          ? "Agent 未能完成回复，消息已保留。"
-          : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
-        this.appendRow(session, {
-          kind: "assistantText",
-          rowId: this.nextRowId(session),
-          turnId,
-          entityId: `entity_${createUuid()}`,
-          createdAt: Date.now(),
-          createdAtSeq: session.seq,
-          assistantResponseId: responseId,
-          text: message,
-          state: "failed",
-          model: this.business ? model : undefined,
-        });
-        this.finalizeInterruptedTurn(session, turnHeader, owner, "failed");
+    const consumeSteers = () => {
+      for (let index = 0; index < session.queuedInputs.length; ) {
+        const queued = session.queuedInputs[index]!;
+        if (queued.retained || queued.item.delivery.admitted !== "guide") {
+          index += 1;
+          continue;
+        }
+        session.queuedInputs.splice(index, 1);
+        this.patchQueue(session);
+        enter(this.queuedInput(queued));
       }
-      return;
+    };
+    signal.onabort = () => {
+      discard();
+      this.interruptTurn(session, turnHeader, owner);
+    };
+
+    try {
+      enter(input);
+      // 保留旧原型执行的两段异步工作窗口；在执行检查点实际交付 steer。
+      await wait(160 + 160 + 220, undefined, { signal });
+      consumeSteers();
+      await wait(320 + 160, undefined, { signal });
+      if (signal.aborted || session.activeTurn !== owner) return;
+      consumeSteers();
+      const result = this.business?.prepareNativeResult(session.sessionId, startedCommands);
+      const reply = result?.reply ?? standaloneReply(inputs);
+      if (result) this.business!.completeNative(session.sessionId, result);
+      this.appendRow(session, {
+        kind: "assistantText",
+        rowId: this.nextRowId(session),
+        turnId,
+        entityId: `entity_${createUuid()}`,
+        createdAt: Date.now(),
+        createdAtSeq: session.seq,
+        assistantResponseId: responseId,
+        text: reply,
+        state: "complete",
+        model,
+      });
+      this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
+    } catch (error) {
+      if (signal.aborted || session.activeTurn !== owner) return;
+      discard();
+      const message = this.standalone
+        ? "Agent 未能完成回复，消息已保留。"
+        : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
+      this.appendRow(session, {
+        kind: "assistantText",
+        rowId: this.nextRowId(session),
+        turnId,
+        entityId: `entity_${createUuid()}`,
+        createdAt: Date.now(),
+        createdAtSeq: session.seq,
+        assistantResponseId: responseId,
+        text: message,
+        state: "failed",
+        model,
+      });
+      this.interruptTurn(session, turnHeader, owner, message);
     }
   }
 
-  private finalizeInterruptedTurn(
+  private interruptTurn(
     session: MockSession,
-    turnHeader: WireConversationRow,
-    owner: AbortController,
-    state: "completedInterrupted" | "failed" = "completedInterrupted",
+    turnHeader: Extract<WireConversationRow, { kind: "turnHeader" }>,
+    owner: MockActiveTurn,
+    error?: string,
   ): void {
-    owner.signal.onabort = null;
-    if (turnHeader.kind === "turnHeader") {
-      this.upsertRow(session, {
-        ...turnHeader,
-        state,
-        endedAt: Date.now(),
-        activeMs: Date.now() - turnHeader.startedAt,
-      });
-    }
-    // 迟到中断只更新自己的行；替代轮即使已结束，也不能被旧轮重新收口。
+    owner.controller.signal.onabort = null;
     if (session.activeTurn !== owner) return;
+    const endedAt = Date.now();
     session.activeTurn = null;
-    session.phase = "completedInterrupted";
-    session.lastActivityAt = Date.now();
-    this.patchState(session, {
-      control: {
-        phase: "completedInterrupted",
-        sessionEnded: true,
-        canStop: false,
-        stopState: "idle",
-        stopTargetKind: "unknown",
-        activeWorks: [],
-        lastError: null,
-        apiRetry: null,
-      },
+    session.phase = error ? "error" : "completedInterrupted";
+    session.lastActivityAt = endedAt;
+    if (error)
+      session.lastError = {
+        code: "fault.prototype.executionFailed",
+        message: error,
+        recoverable: true,
+        at: endedAt,
+        source: "runtime",
+      };
+    // 保留未交付的原提交；新的明确发送不会把这些输入带进无关执行。
+    if (session.queuedInputs.some((input) => !input.retained)) {
+      for (const input of session.queuedInputs) input.retained = true;
+      session.pauseReason = error ? "error" : "stopped";
+    }
+    this.upsertRow(session, {
+      ...turnHeader,
+      state: error ? "failed" : "completedInterrupted",
+      endedAt,
+      activeMs: endedAt - turnHeader.startedAt,
     });
-    this.maybeStartNextInput(session);
+    this.patchExecution(session);
+  }
+
+  private patchExecution(session: MockSession): void {
+    this.patchState(session, {
+      ...projectMockExecution(session, !this.business),
+      usage: session.usage,
+      meta: session.meta,
+    });
   }
 
   private finalizeTurn(
     session: MockSession,
-    turnHeader: WireConversationRow,
-    owner: AbortController,
+    turnHeader: Extract<WireConversationRow, { kind: "turnHeader" }>,
+    owner: MockActiveTurn,
     startedAt: number,
     reply: string,
   ): void {
-    if (owner.signal.aborted || session.activeTurn !== owner)
-      return this.finalizeInterruptedTurn(session, turnHeader, owner);
-    owner.signal.onabort = null;
+    if (owner.controller.signal.aborted || session.activeTurn !== owner) return;
+    owner.controller.signal.onabort = null;
     session.activeTurn = null;
     session.phase = "completedSuccess";
     session.lastActivityAt = Date.now();
-    if (turnHeader.kind === "turnHeader") {
-      this.upsertRow(session, {
-        ...turnHeader,
-        state: "completedSuccess",
-        endedAt: Date.now(),
-        activeMs: Date.now() - startedAt,
-        ...(this.business ? { outputTokens: Math.ceil(reply.length / 2) } : {}),
-      });
-    }
+    this.upsertRow(session, {
+      ...turnHeader,
+      state: "completedSuccess",
+      endedAt: session.lastActivityAt,
+      activeMs: session.lastActivityAt - startedAt,
+      ...(this.business ? { outputTokens: Math.ceil(reply.length / 2) } : {}),
+    });
     if (this.business)
       session.usage = {
         contextWindow: {
@@ -793,21 +609,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (session.meta.titleSource === "default" && this.business) {
       session.meta = { title: textToTitle(reply), titleSource: "generated" };
     }
-    this.patchState(session, {
-      control: {
-        phase: "completedSuccess",
-        sessionEnded: true,
-        canStop: false,
-        stopState: "idle",
-        stopTargetKind: "unknown",
-        activeWorks: [],
-        lastError: null,
-        apiRetry: null,
-      },
-      usage: session.usage,
-      meta: session.meta,
-    });
-    this.maybeStartNextInput(session);
+    this.patchExecution(session);
+    this.maybeStartFollowUp(session);
   }
 
   // ── 会话与命令 ──
@@ -829,14 +632,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         workspaceKeyOf(params.workspace),
       );
     if (!session) throw this.sessionUnavailable();
-    if (
-      params.workspace &&
-      (session.workspaceKey !== workspaceKeyOf(params.workspace) ||
-        session.workspaceRef.workspacePath !== params.workspace.workspacePath)
-    ) {
-      // 会话按工作区隔离：不属于调用方工作区的会话对外等价于不存在。
+    if (params.workspace && !this.matchesWorkspace(session, params.workspace))
       throw this.sessionUnavailable();
-    }
     if (
       session.draftCreatorActor &&
       session.draftCreatorActor !== this.actorKey() &&
@@ -844,6 +641,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     )
       throw this.sessionUnavailable();
     return session;
+  }
+
+  private matchesWorkspace(
+    session: MockSession,
+    workspace: { workspacePath: string; workspaceIdentity?: string },
+  ): boolean {
+    return (
+      session.workspaceRef.workspacePath === workspace.workspacePath &&
+      ((this.standalone && workspace.workspaceIdentity === undefined) ||
+        session.workspaceKey === workspaceKeyOf(workspace))
+    );
   }
 
   private ackAccepted(envelope: CommandEnvelope, result?: CommandAck["result"]): CommandAck {
@@ -870,101 +678,147 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  /** 未实现命令的唯一出口：明确拒绝，绝不返回 accepted 让 UI 以为状态已变。 */
-  private rejectUnsupported(envelope: CommandEnvelope, session: MockSession | null): CommandAck {
+  private reject(
+    envelope: CommandEnvelope,
+    session: MockSession | null,
+    reasonCode: string,
+    message: string,
+  ): CommandAck {
     return {
       commandId: envelope.commandId,
       status: "rejected",
-      reasonCode: "fault.command.capabilityUnsupported",
-      message: "当前服务暂不支持此操作。",
+      reasonCode,
+      message,
       revisionAtDecision: session?.revision ?? 0,
     };
   }
 
+  private rejectUnsupported(envelope: CommandEnvelope, session: MockSession | null): CommandAck {
+    return this.reject(
+      envelope,
+      session,
+      "fault.command.capabilityUnsupported",
+      "当前服务暂不支持此操作。",
+    );
+  }
+
   private createQueueItem(
     session: MockSession,
-    envelope: CommandEnvelope,
-    submission: MockTextSubmission,
+    input: MockInput,
+    delivery: "queue" | "guide",
   ): QueueItem {
-    const queueItemId = `input_${createUuid()}`;
     return assertFrame(queueItemSchema, {
       inputOrigin: "desktop",
-      // 附件归已接纳输入所有，不属于编辑锁，也不能被空数组覆盖。
-      attachments: submission.attachments ?? [],
-      sourceCommandId: envelope.commandId,
-      queueItemId,
-      clientId: envelope.clientId,
+      attachments: input.attachments ?? [],
+      conversationQuotes: input.conversationQuotes,
+      sourceCommandId: input.commandId,
+      queueItemId: `input_${createUuid()}`,
+      clientId: input.clientId,
       kind: "sendText",
-      text: submission.text,
-      ...(submission.modelSelection ? { modelSelection: submission.modelSelection } : {}),
-      ...(submission.mode !== undefined ? { mode: submission.mode } : {}),
-      ...(submission.planEnabled !== undefined ? { planEnabled: submission.planEnabled } : {}),
-      delivery: { requested: "queue", admitted: "queue" },
-      order: {
-        admissionSeq: session.nextAdmissionSeq,
-        queuePosition: session.queuedInputs.length,
-      },
-      steer: { state: "notRequested" },
+      text: input.text,
+      modelSelection: session.config.modelSelection,
+      delivery: { requested: delivery, admitted: delivery },
+      order: { admissionSeq: session.nextAdmissionSeq, queuePosition: session.queuedInputs.length },
+      steer: { state: delivery === "guide" ? "steering" : "notRequested" },
       dispatch: { state: "queued" },
       admittedAt: Date.now(),
     });
   }
 
-  private findQueueItem(session: MockSession, queueItemId: string): QueueItem | undefined {
-    return session.queuedInputs.find((item) => item.queueItemId === queueItemId);
-  }
-
-  /** queue 投影是唯一出口：items 顺序、位置与自动续跑开关一起下发。 */
   private patchQueue(session: MockSession): void {
-    session.queuedInputs.forEach((item, index) => {
-      item.order = { ...item.order, queuePosition: index };
-    });
-    this.patchState(session, {
-      queue: {
-        items: session.queuedInputs,
-        autoDrain: session.autoDrain,
-        ...(session.pauseReason ? { pauseReason: session.pauseReason } : {}),
+    this.patchState(session, { queue: projectMockQueue(session) });
+  }
+
+  private queuedInput({ item, actor, context }: MockQueuedInput): MockInput {
+    return {
+      actor,
+      commandId: item.sourceCommandId,
+      clientId: item.clientId,
+      text: item.text,
+      attachments: item.attachments,
+      conversationQuotes: item.conversationQuotes,
+      context,
+    };
+  }
+
+  private startTurn(session: MockSession, input: MockInput): void {
+    const owner: MockActiveTurn = {
+      controller: new AbortController(),
+      work: {
+        kind: "primaryTurn",
+        foregroundExecutionId: `turn_${createUuid()}`,
+        sourceCommandId: input.commandId,
+        startedAt: Date.now(),
       },
-    });
-  }
-
-  private startTurn(
-    session: MockSession,
-    commandId: string,
-    clientId: string,
-    text: string,
-    attachments?: QueueItem["attachments"],
-    submission: MockSubmission = {},
-  ): void {
-    // 接纳来源沿信封／队列项传递，不能被后续提升、恢复或编辑命令的操作者覆盖。
-    if (attachments !== undefined) this.turnAttachments.set(commandId, attachments);
-    const owner = new AbortController();
+    };
     session.activeTurn = owner;
-    void this.runTurn(session, commandId, clientId, text, submission, owner);
+    void this.runTurn(session, input, owner);
   }
 
-  /** turn 结束后处理 sendQueuedNow 提升项或 autoDrain 队列；运行中不并发开新 turn。 */
-  private maybeStartNextInput(session: MockSession): void {
-    // 删除后旧 turn 可能才结束，不能让它复活索引或继续启动排队输入。
-    if (!this.runtime.sessions.has(session.sessionId) || session.activeTurn !== null) return;
-    if (session.pendingStartInput !== null) {
-      const input = session.pendingStartInput;
-      session.pendingStartInput = null;
-      this.startTurn(
-        session,
-        input.sourceCommandId,
-        input.clientId,
-        input.text,
-        input.attachments,
-        input,
-      );
-      return;
+  private maybeStartFollowUp(session: MockSession): void {
+    if (this.runtime.sessions.get(session.sessionId) !== session || session.activeTurn) return;
+    const index = session.queuedInputs.findIndex(
+      ({ item, retained }) => !retained && item.delivery.admitted === "queue",
+    );
+    if (index < 0) return;
+    const [next] = session.queuedInputs.splice(index, 1);
+    this.startTurn(session, this.queuedInput(next!));
+  }
+
+  private parseConversationInput(text: string, skills: readonly SkillSummary[]): MockParsedInput {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith("/")) return { kind: "text" };
+    const token = /^\S+/u.exec(trimmed)![0];
+    const name = token.slice(1);
+    const args = trimmed.slice(token.length).trim();
+    const builtin = BUILTIN_COMMANDS.find((command) => command.name === name);
+    if (builtin) return { kind: "builtin", name: builtin.name, args };
+    if (name.startsWith("skill:")) {
+      const skill = skills.find((entry) => entry.name === name.slice("skill:".length));
+      if (skill) return { kind: "text", context: { skill, args } };
+      return { kind: "rejected", message: "此会话未启用该技能。" };
     }
-    if (!session.autoDrain) return;
-    const next = session.queuedInputs.shift();
-    if (!next) return;
-    this.patchQueue(session);
-    this.startTurn(session, next.sourceCommandId, next.clientId, next.text, next.attachments, next);
+    return { kind: "rejected", message: "当前服务不支持此命令。" };
+  }
+
+  private handleBuiltinCommand(
+    session: MockSession,
+    envelope: CommandEnvelope,
+    command: Extract<MockParsedInput, { kind: "builtin" }>,
+  ): CommandAck {
+    const { name, args } = command;
+    if (name === "session" && (args === "" || args === "info")) {
+      return this.ackAccepted(envelope, {
+        type: "localCommand",
+        name,
+        output: `会话：${session.meta.title || "未命名会话"}\n会话 ID：${session.sessionId}\n模型：${session.config.model}\n状态：${session.phase}`,
+      });
+    }
+    if (name === "rename" && args && !/[\r\n]/.test(args)) {
+      this.business?.assertNativeWritable(session.sessionId);
+      this.renameSession(session, args);
+      return this.ackAccepted(envelope, {
+        type: "localCommand",
+        name,
+        output: `会话已重命名为「${args}」。`,
+      });
+    }
+    return this.reject(
+      envelope,
+      session,
+      "fault.command.invalidArguments",
+      name === "rename" ? "用法：/rename <title>。" : "用法：/session 或 /session info。",
+    );
+  }
+
+  private renameSession(session: MockSession, title: string): void {
+    session.meta = { title, titleSource: "custom" };
+    const task = this.runtime.tasks.get(session.sessionId);
+    if (task) {
+      task.title = title;
+      task.titleSource = "custom";
+    }
+    this.patchState(session, { meta: session.meta });
   }
 
   private createSessionInternal(envelope: CommandEnvelope, directory?: string): CommandAck {
@@ -973,23 +827,20 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (payload.firstInput && !this.business && !this.standalone)
       return this.rejectUnsupported(envelope, null);
     const chatConfig = this.standalone
-      ? completeMockModelSelection(
-          payload.config?.modelSelection ??
-            payload.firstInput?.modelSelection ??
-            MOCK_DEFAULT_MODEL_SELECTION,
-        )
+      ? completeMockModelSelection(payload.config?.modelSelection ?? MOCK_DEFAULT_MODEL_SELECTION)
       : null;
-    if (
-      this.standalone &&
-      (!chatConfig ||
-        (payload.firstInput?.modelSelection &&
-          !completeMockModelSelection(payload.firstInput.modelSelection)))
-    )
-      return this.rejectUnsupported(envelope, null);
+    if (this.standalone && !chatConfig) return this.rejectUnsupported(envelope, null);
     if (!envelope.workspace) throw new Error("创建会话缺少请求工作区。");
-    const sessionRef = workspaceRefOf(envelope.workspace);
+    // 对客户端保留它选择的路径，规范身份由已校验的真实目录生成，不回传真实宿主路径。
+    const sessionRef =
+      directory === undefined
+        ? workspaceRefOf(envelope.workspace)
+        : {
+            workspacePath: envelope.workspace.workspacePath,
+            workspaceIdentity: workspaceKeyOf({ workspacePath: directory }),
+          };
     const sessionId = payload.sessionId ?? this.runtime.newSessionId();
-    const actor = this.actorKey();
+    const actor = this.business?.actorKey();
     const existing = this.runtime.sessions.get(sessionId);
     // 刷新/重复准备不能用新 createSession 覆盖已接纳 rows；首发重放由 commandId 收据对账。
     if (existing) {
@@ -1001,8 +852,25 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         throw this.sessionUnavailable();
       if (payload.firstInput)
         throw new Error("此会话已存在，请通过原消息编号查询接纳结果或使用 sendText。");
-      return this.ackAccepted(envelope, { type: "createSession", sessionId });
+      return this.ackAccepted(envelope, {
+        type: "createSession",
+        sessionId,
+        workspace: existing.workspaceRef,
+      });
     }
+    const skills = this.readEnabledSkills(sessionRef.workspacePath);
+    const firstInput = payload.firstInput;
+    const parsed = firstInput ? this.parseConversationInput(firstInput.text, skills) : undefined;
+    if (firstInput && this.hasInputOverrides(firstInput))
+      return this.rejectUnsupported(envelope, null);
+    if (parsed?.kind === "rejected")
+      return this.reject(envelope, null, "fault.command.unsupportedSlashCommand", parsed.message);
+    if (parsed?.kind === "builtin")
+      return this.reject(envelope, null, "guard.command.sessionRequired", "此命令需要已有会话。");
+    if (this.standalone && firstInput?.attachments?.length)
+      return this.rejectUnsupported(envelope, null);
+    if (firstInput && !firstInput.attachments?.length && !firstInput.text.trim())
+      return this.reject(envelope, null, "fault.command.emptyInput", "请输入要发送的消息。");
     const now = Date.now();
     const session: MockSession = {
       sessionId,
@@ -1015,9 +883,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       },
       ...(actor ? { draftCreatorActor: actor } : {}),
       ...(directory ? { chatDirectory: directory } : {}),
-      skillReferenceCatalog: this.standalone
-        ? []
-        : this.readWorkspaceSkillCatalog(sessionRef.workspacePath),
+      skills,
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -1026,6 +892,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       lastActivityAt: now,
       meta: { title: "", titleSource: "default" },
       rows: [],
+      deliveredTurns: new Map(),
       usage: {
         contextWindow: null,
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -1034,8 +901,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       pendingInteractions: [],
       queuedInputs: [],
       nextAdmissionSeq: 1,
-      autoDrain: true,
-      pendingStartInput: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -1055,18 +920,28 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       Object.assign(session.config, payload.config);
     }
     if (chatConfig) Object.assign(session.config, chatConfig);
+    this.validateInputAttachments(session, firstInput?.attachments ?? []);
+    if (firstInput) {
+      this.applyNativeBinding(session);
+      this.business?.admitNative(sessionId, envelope.commandId, firstInput.text);
+    }
+    try {
+      this.business?.registerNativeDraft(
+        sessionId,
+        session.workspaceRef,
+        () =>
+          this.runtime.sessions.get(sessionId) === session &&
+          session.phase === "draft" &&
+          session.rows.length === 0 &&
+          session.queuedInputs.length === 0 &&
+          session.activeTurn === null,
+        () => this.runtime.sessions.get(sessionId) === session,
+      );
+    } catch (error) {
+      if (firstInput) this.business?.discardNative(sessionId, envelope.commandId);
+      throw error;
+    }
     this.runtime.sessions.set(sessionId, session);
-    this.business?.registerNativeDraft(
-      sessionId,
-      session.workspaceRef,
-      () =>
-        this.runtime.sessions.get(sessionId) === session &&
-        session.phase === "draft" &&
-        session.rows.length === 0 &&
-        session.queuedInputs.length === 0 &&
-        session.activeTurn === null,
-      () => this.runtime.sessions.get(sessionId) === session,
-    );
     // AIReq 私有预热不进入普通任务产品；显式业务首发负责发布提案。
     if (!this.business && !this.standalone) {
       this.runtime.tasks.set(sessionId, {
@@ -1085,22 +960,32 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       });
     }
 
-    if (payload.firstInput) {
-      this.sendTextInternal(session, { ...envelope, sessionId, payload: payload.firstInput });
+    if (firstInput) {
+      const input = this.makeInput(
+        envelope,
+        firstInput,
+        parsed?.kind === "text" ? parsed.context : undefined,
+      );
+      this.startSubmittedTurn(session, input);
       return this.ackAccepted(envelope, {
         type: "createSession",
         sessionId,
+        workspace: session.workspaceRef,
         input: { delivery: "startNow", inputId: `input_${createUuid()}` },
       });
     }
-    return this.ackAccepted(envelope, { type: "createSession", sessionId });
+    return this.ackAccepted(envelope, {
+      type: "createSession",
+      sessionId,
+      workspace: session.workspaceRef,
+    });
   }
 
   private validateInputAttachments(
     session: MockSession,
     attachments: QueueItem["attachments"],
   ): void {
-    const actor = this.business?.actorKey() ?? "mock";
+    const actor = this.actorKey() ?? "mock";
     if (attachments.length > 8) throw new Error("最多接纳八个附件。");
     for (const attachment of attachments) {
       const value = this.attachments.get(attachment.ref);
@@ -1117,79 +1002,109 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     }
   }
 
+  private hasInputOverrides(payload: MockTextSubmission): boolean {
+    return Object.entries(payload).some(
+      ([key, value]) =>
+        value !== undefined &&
+        key !== "text" &&
+        key !== "attachments" &&
+        key !== "streamingBehavior" &&
+        (key !== "conversationQuotes" || !this.business),
+    );
+  }
+
   private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
-    // 没有业务执行者就没有可提交的回复事实，不能落入演示执行分支。
     if (!this.business && !this.standalone) return this.rejectUnsupported(envelope, session);
-    let payload = envelope.payload as MockTextSubmission;
-    if (this.standalone && payload.modelSelection) {
-      const config = completeMockModelSelection(payload.modelSelection);
-      if (!config) return this.rejectUnsupported(envelope, session);
-      payload = { ...payload, modelSelection: config.modelSelection };
+    const payload = envelope.payload as MockTextSubmission;
+    if (this.hasInputOverrides(payload)) return this.rejectUnsupported(envelope, session);
+    const parsed = this.parseConversationInput(payload.text, session.skills);
+    if (parsed.kind === "rejected")
+      return this.reject(
+        envelope,
+        session,
+        "fault.command.unsupportedSlashCommand",
+        parsed.message,
+      );
+    if (parsed.kind === "builtin") {
+      if (payload.attachments?.length) return this.rejectUnsupported(envelope, session);
+      return this.handleBuiltinCommand(session, envelope, parsed);
     }
-    // 先校验真实字节及归属，再执行业务接纳；失败不能留下已采用的输入。
+    if (this.standalone && payload.attachments?.length)
+      return this.rejectUnsupported(envelope, session);
+    if (!payload.text.trim() && !payload.attachments?.length)
+      return this.reject(envelope, session, "fault.command.emptyInput", "请输入要发送的消息。");
+    // 两个浏览器都可能按空闲状态发出输入；独立聊天把后到输入交给现有跟进队列。
+    if (session.activeTurn && !payload.streamingBehavior && !this.standalone)
+      return this.reject(
+        envelope,
+        session,
+        "guard.command.streamingBehaviorRequired",
+        "请选择引导当前执行或随后运行。",
+      );
     this.validateInputAttachments(session, payload.attachments ?? []);
-    const queuedItem = session.activeTurn
-      ? this.createQueueItem(session, envelope, payload)
-      : undefined;
+    return this.admitText(session, envelope, payload, parsed.context);
+  }
+
+  private admitText(
+    session: MockSession,
+    envelope: CommandEnvelope,
+    payload: MockTextSubmission,
+    context?: MockInputContext,
+  ): CommandAck {
+    const input = this.makeInput(envelope, payload, context);
+    const delivery = payload.streamingBehavior === "steer" ? "guide" : "queue";
+    const queued = session.activeTurn ? this.createQueueItem(session, input, delivery) : undefined;
     if (
-      this.standalone &&
-      queuedItem &&
-      jsonByteLength(session.queuedInputs) + jsonByteLength(queuedItem) + 1 > CHAT_QUEUE_MAX_BYTES
+      queued &&
+      jsonByteLength(projectMockQueue(session).items) + jsonByteLength(queued) + 1 >
+        CHAT_QUEUE_MAX_BYTES
     )
-      return {
-        commandId: envelope.commandId,
-        status: "rejected",
-        reasonCode: "guard.chat.queueFull",
-        message: "待发送的消息过多，请等当前回合处理完成。",
-        revisionAtDecision: session.revision,
-      };
+      return this.reject(
+        envelope,
+        session,
+        "guard.chat.queueFull",
+        "待发送的消息过多，请等当前回合处理完成。",
+      );
+    this.applyNativeBinding(session);
     this.business?.admitNative(session.sessionId, envelope.commandId, payload.text);
-    if (this.standalone && session.meta.titleSource === "default") {
-      session.meta = { title: textToTitle(payload.text), titleSource: "generated" };
-    }
-    this.turnAttachments.set(envelope.commandId, payload.attachments ?? []);
-    if (session.rows.length === 0) {
-      const binding = this.business?.getNativeBinding(session.sessionId);
-      if (binding) {
-        session.config = {
-          ...session.config,
-          provider: binding.providerId,
-          model: binding.modelId,
-          thought: binding.reasoning,
-          thoughtLevels: ["default", "low", "medium", "high"],
-          modelSelection: {
-            providerId: binding.providerId,
-            modelId: binding.modelId,
-            options: { reasoningLevel: binding.reasoning },
-          },
-        };
-        this.boundSessions.add(session.sessionId);
-      }
-    }
-    if (queuedItem) {
-      // 运行中发送真实进入队列：ACK 的 delivery=queue 与 snapshot.queue.items 一致。
+    if (queued) {
       session.nextAdmissionSeq += 1;
-      session.queuedInputs.push(queuedItem);
+      session.queuedInputs.push({ item: queued, actor: input.actor, context });
       this.patchQueue(session);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
-        delivery: "queue",
-        inputId: queuedItem.queueItemId,
+        delivery,
+        inputId: queued.queueItemId,
       });
     }
-    this.startTurn(
-      session,
-      envelope.commandId,
-      envelope.clientId,
-      payload.text,
-      undefined,
-      payload,
-    );
+    this.startSubmittedTurn(session, input);
     return this.ackAccepted(envelope, {
       type: "inputAccepted",
       delivery: "startNow",
       inputId: `input_${createUuid()}`,
     });
+  }
+
+  private makeInput(
+    envelope: CommandEnvelope,
+    payload: MockTextSubmission,
+    context?: MockInputContext,
+  ): MockInput {
+    return {
+      actor: this.actorKey() ?? "mock",
+      commandId: envelope.commandId,
+      clientId: envelope.clientId,
+      text: payload.text,
+      attachments: payload.attachments,
+      conversationQuotes: payload.conversationQuotes,
+      context,
+    };
+  }
+
+  private startSubmittedTurn(session: MockSession, input: MockInput): void {
+    if (this.standalone && session.meta.titleSource === "default")
+      session.meta = { title: textToTitle(input.text), titleSource: "generated" };
+    this.startTurn(session, input);
   }
 
   private handleEnvelope(envelope: CommandEnvelope, directory?: string): CommandAck {
@@ -1233,190 +1148,24 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         reasonCode: fault,
         revisionAtDecision: session.revision,
       };
-    // 反馈是历史行标注，解除自己的编辑锁只清理资源；二者不恢复执行写权限。
+    // 普通输入和本地命令分别按实际写入行为校验业务权限。
     if (this.business && NATIVE_WRITABLE_COMMANDS.has(envelope.type))
       this.business.assertNativeWritable(session.sessionId);
     switch (envelope.type) {
       case "sendText":
         return this.sendTextInternal(session, envelope);
       case "stop": {
-        if (session.activeTurn !== null) {
-          // stop 暂停自动续跑：队列保留，直到 setAutoDrain 恢复。
-          session.autoDrain = false;
-          session.pauseReason = "stopped";
-          session.activeTurn.abort();
-          this.patchQueue(session);
-          return this.ackAccepted(envelope);
-        }
-        if (session.autoDrain || session.queuedInputs.length > 0) {
-          session.autoDrain = false;
-          session.pauseReason = "stopped";
-          this.patchQueue(session);
-          return this.ackAccepted(envelope);
-        }
-        return this.ackNoop(envelope, session);
-      }
-      case "sendQueuedNow": {
-        const payload = envelope.payload as { queueItemId: string };
-        const index = session.queuedInputs.findIndex(
-          (item) => item.queueItemId === payload.queueItemId,
-        );
-        const item = index >= 0 ? session.queuedInputs[index] : undefined;
-        if (!item) return this.ackNoop(envelope, session);
-        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
-        session.queuedInputs.splice(index, 1);
-        if (session.activeTurn !== null) {
-          // 立即发送 = 中断当前 turn；队列项在中断收口后开始，不并发写会话状态。
-          session.pendingStartInput = item;
-          session.activeTurn.abort();
-        } else {
-          this.startTurn(
+        const active = session.activeTurn;
+        if (!active) return this.ackNoop(envelope, session);
+        const { expectedForegroundExecutionId } = envelope.payload as CommandPayloadMap["stop"];
+        if (expectedForegroundExecutionId !== active.work.foregroundExecutionId)
+          return this.reject(
+            envelope,
             session,
-            item.sourceCommandId,
-            item.clientId,
-            item.text,
-            item.attachments,
-            item,
+            "guard.stop.foregroundChanged",
+            "当前执行已变化，未中断其他执行。",
           );
-        }
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "lockQueueItemEdit": {
-        const payload = envelope.payload as { queueItemId: string; editorId: string };
-        const item = this.findQueueItem(session, payload.queueItemId);
-        if (!item) return this.ackNoop(envelope, session);
-        if (item.dispatch.state !== "queued") {
-          return this.ackNoop(envelope, session, "guard.queueItemReserved");
-        }
-        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
-        item.editLock = {
-          editorId: payload.editorId,
-          clientId: envelope.clientId,
-          inputOrigin: "desktop",
-        };
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "releaseQueueItemEdit": {
-        const payload = envelope.payload as { queueItemId: string };
-        const item = this.findQueueItem(session, payload.queueItemId);
-        if (!item?.editLock) return this.ackNoop(envelope, session);
-        // 释放协议不带 editorId，仍须核对可信命令的 clientId，不能让其他客户端取消持有者的冻结。
-        if (item.editLock.clientId !== envelope.clientId)
-          return this.ackNoop(envelope, session, "guard.queueEditLockLost");
-        delete item.editLock;
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "editQueueItem": {
-        const payload = envelope.payload as {
-          queueItemId: string;
-          newText: string;
-          editorId?: string;
-          attachments?: QueueItem["attachments"];
-          conversationQuotes?: QueueItem["conversationQuotes"];
-          modelSelection?: QueueItem["modelSelection"];
-          mode?: QueueItem["mode"];
-          planEnabled?: boolean;
-        };
-        const item = this.findQueueItem(session, payload.queueItemId);
-        if (!item) return this.ackNoop(envelope, session);
-        // editorId 可从共享快照读取，不能单独作为持锁凭据；省略它也不能绕过已有冻结。
-        const ownsEdit = item.editLock
-          ? item.editLock.clientId === envelope.clientId &&
-            item.editLock.editorId === payload.editorId
-          : payload.editorId === undefined;
-        if (!ownsEdit) {
-          return this.ackNoop(envelope, session, "guard.queueEditLockLost");
-        }
-        if (payload.attachments !== undefined)
-          this.validateInputAttachments(session, payload.attachments);
-        const updated = assertFrame(queueItemSchema, {
-          ...item,
-          text: payload.newText,
-          ...(payload.attachments !== undefined ? { attachments: payload.attachments } : {}),
-          ...(payload.conversationQuotes !== undefined
-            ? { conversationQuotes: payload.conversationQuotes }
-            : {}),
-          ...(payload.modelSelection !== undefined
-            ? { modelSelection: payload.modelSelection }
-            : {}),
-          ...(payload.mode !== undefined ? { mode: payload.mode } : {}),
-          ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
-        });
-        // 同一命令释放编辑锁。
-        delete updated.editLock;
-        Object.assign(item, updated);
-        delete item.editLock;
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "reorderQueueItem": {
-        const payload = envelope.payload as {
-          queueItemId: string;
-          beforeQueueItemId: string | null;
-        };
-        const from = session.queuedInputs.findIndex(
-          (item) => item.queueItemId === payload.queueItemId,
-        );
-        const item = from >= 0 ? session.queuedInputs[from] : undefined;
-        if (!item) return this.ackNoop(envelope, session);
-        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
-        session.queuedInputs.splice(from, 1);
-        const before =
-          payload.beforeQueueItemId === null
-            ? session.queuedInputs.length
-            : session.queuedInputs.findIndex(
-                (candidate) => candidate.queueItemId === payload.beforeQueueItemId,
-              );
-        if (before < 0) {
-          session.queuedInputs.splice(from, 0, item);
-          return this.ackNoop(envelope, session);
-        }
-        session.queuedInputs.splice(before, 0, item);
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "deleteQueueItem": {
-        const payload = envelope.payload as { queueItemId: string };
-        const index = session.queuedInputs.findIndex(
-          (item) => item.queueItemId === payload.queueItemId,
-        );
-        const item = index >= 0 ? session.queuedInputs[index] : undefined;
-        if (!item) return this.ackNoop(envelope, session);
-        if (item.editLock) return this.ackNoop(envelope, session, "guard.queueItemEditLocked");
-        session.queuedInputs.splice(index, 1);
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "applyQueueItemsConfig": {
-        const payload = envelope.payload as {
-          queueItemIds: string[];
-          modelSelection?: QueueItem["modelSelection"];
-          mode?: QueueItem["mode"];
-        };
-        let applied = 0;
-        for (const item of session.queuedInputs) {
-          if (!payload.queueItemIds.includes(item.queueItemId)) continue;
-          if (item.dispatch.state !== "queued" || item.editLock || item.kind === "compact") {
-            continue;
-          }
-          if (payload.modelSelection !== undefined) item.modelSelection = payload.modelSelection;
-          if (payload.mode !== undefined) item.mode = payload.mode;
-          applied += 1;
-        }
-        if (applied === 0) return this.ackNoop(envelope, session);
-        this.patchQueue(session);
-        return this.ackAccepted(envelope);
-      }
-      case "setAutoDrain": {
-        const payload = envelope.payload as { autoDrain: boolean };
-        session.autoDrain = payload.autoDrain;
-        if (payload.autoDrain) delete session.pauseReason;
-        else session.pauseReason = "manual";
-        this.patchQueue(session);
-        if (payload.autoDrain) this.maybeStartNextInput(session);
+        active.controller.abort();
         return this.ackAccepted(envelope);
       }
       case "resolveInteraction": {
@@ -1428,25 +1177,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         session.pendingInteractions = session.pendingInteractions.filter(
           (item) => item.interactionId !== payload.interactionId,
         );
-        const permissionToolCallId =
-          interaction.payload.kind === "permission"
-            ? (interaction.payload as { toolCallId: string }).toolCallId
-            : undefined;
-        if (permissionToolCallId) {
-          const row = session.rows.find(
-            (candidate) =>
-              candidate.kind === "toolCall" && candidate.toolCallId === permissionToolCallId,
-          );
-          if (row?.kind === "toolCall") {
-            this.upsertRow(session, { ...row, status: "running" });
-            const succeeded: WireConversationRow = {
-              ...row,
-              status: "success",
-              endedAt: Date.now(),
-            };
-            setTimeout(() => this.upsertRow(session, succeeded), 120);
-          }
-        }
         this.patchState(session, { pendingInteractions: session.pendingInteractions });
         return this.ackAccepted(envelope, {
           type: "resolveInteraction",
@@ -1455,23 +1185,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       }
       case "renameSession": {
         const payload = envelope.payload as { title: string };
-        session.meta = { title: payload.title, titleSource: "custom" };
-        const task = this.runtime.tasks.get(session.sessionId);
-        if (task) {
-          task.title = payload.title;
-          task.titleSource = "custom";
-        }
-        this.patchState(session, { meta: session.meta });
+        this.renameSession(session, payload.title);
         return this.ackAccepted(envelope);
       }
       case "deleteSession": {
         this.runtime.sessions.delete(session.sessionId);
         this.runtime.tasks.delete(session.sessionId);
+        session.activeTurn?.controller.abort();
         return this.ackAccepted(envelope);
       }
       case "switchModelConfig": {
-        if (this.business?.getNativeBinding(session.sessionId))
-          return this.rejectUnsupported(envelope, session);
+        if (this.business) return this.rejectUnsupported(envelope, session);
         const payload = envelope.payload as { provider: string; model: string; thought: string };
         const previous = session.config;
         const chatConfig = this.standalone
@@ -1482,14 +1206,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
             })
           : null;
         if (this.standalone && !chatConfig) return this.rejectUnsupported(envelope, session);
-        if (this.standalone && session.activeTurn)
-          return {
-            commandId: envelope.commandId,
-            status: "rejected",
-            reasonCode: "guard.session.busy",
-            message: "当前回合结束后可切换模型。",
-            revisionAtDecision: session.revision,
-          };
+        if (session.activeTurn)
+          return this.reject(envelope, session, "guard.session.busy", "当前回合结束后可切换模型。");
         session.config = chatConfig
           ? { ...session.config, ...chatConfig }
           : {
@@ -1526,12 +1244,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       case "switchCollaborationMode": {
         const payload = envelope.payload as { mode: string };
         session.config = { ...session.config, mode: payload.mode };
-        this.patchState(session, { config: { ...session.config } });
-        return this.ackAccepted(envelope);
-      }
-      case "setFollowupMode": {
-        const payload = envelope.payload as { mode: "queue" | "guide" };
-        session.config = { ...session.config, followupMode: payload.mode };
         this.patchState(session, { config: { ...session.config } });
         return this.ackAccepted(envelope);
       }
@@ -1588,14 +1300,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     _params: P<IZCodeAgentService["setConnectionFlowStateV4"]>,
   ): Promise<void> {}
 
-  async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
-    // 必须先验证原始入参，不能在预热／订阅之前只挑已知字段导致额外键被吞掉。
-    conversationSubscribeInputSchema.parse(params);
-    const workspaceKey = workspaceKeyOf(params);
-    const session = this.ensureOrSeedDraftSession(params, workspaceKey);
-    const binding = this.business?.getNativeBinding(session.sessionId);
-    if (binding && !this.boundSessions.has(session.sessionId)) {
-      this.boundSessions.add(session.sessionId);
+  private applyNativeBinding(session: MockSession): void {
+    if (!this.business || session.nativeBindingApplied) return;
+    const binding = this.business.getNativeBinding(session.sessionId);
+    if (binding) {
+      session.nativeBindingApplied = true;
       session.config = {
         ...session.config,
         provider: binding.providerId,
@@ -1609,6 +1318,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         },
       };
     }
+  }
+
+  async subscribeConversationV4(params: P<IZCodeAgentService["subscribeConversationV4"]>) {
+    // 必须先验证原始入参，不能在预热／订阅之前只挑已知字段导致额外键被吞掉。
+    conversationSubscribeInputSchema.parse(params);
+    const workspaceKey = workspaceKeyOf(params);
+    const session = this.ensureOrSeedDraftSession(params, workspaceKey);
+    this.applyNativeBinding(session);
     const seed =
       session.rows.length === 0 ? this.business?.seedNative(session.sessionId) : undefined;
     if (seed)
@@ -1626,8 +1343,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const subscriptionId = `sub-${createUuid()}`;
     this.conversationSubs.set(subscriptionId, { sessionId: session.sessionId, ordinal: 0 });
     try {
-      const snapshot = buildConversationSnapshot(session, !binding);
-      this.emitConversationFrame(session, { kind: "snapshot", snapshot }, "initial", subscriptionId);
+      const snapshot = buildConversationSnapshot(session, !this.business);
+      this.emitConversationFrame(
+        session,
+        { kind: "snapshot", snapshot },
+        "initial",
+        subscriptionId,
+      );
     } catch (error) {
       this.conversationSubs.delete(subscriptionId);
       throw error;
@@ -1663,7 +1385,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       sessionId: params.sessionId,
       workspaceKey,
       workspaceRef: workspaceRefOf(params),
-      skillReferenceCatalog: this.readWorkspaceSkillCatalog(params.workspacePath),
+      skills: this.readEnabledSkills(params.workspacePath),
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
       revision: 0,
@@ -1672,6 +1394,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       lastActivityAt: now,
       meta: { title: "", titleSource: "default" },
       rows: [],
+      deliveredTurns: new Map(),
       usage: {
         contextWindow: null,
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -1680,8 +1403,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       pendingInteractions: [],
       queuedInputs: [],
       nextAdmissionSeq: 1,
-      autoDrain: true,
-      pendingStartInput: null,
       activeTurn: null,
       config: {
         provider: "account:bigmodel-start-plan",
@@ -1707,10 +1428,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (!sub || !session) {
       throw new Error("fault.subscription.unknownSubscription");
     }
-    const snapshot = buildConversationSnapshot(
-      session,
-      !this.business?.getNativeBinding(session.sessionId),
-    );
+    this.ensureSession({ sessionId: session.sessionId, workspace: params, allowSeed: false });
+    const snapshot = buildConversationSnapshot(session, !this.business);
     this.emitConversationFrame(
       session,
       { kind: "snapshot", snapshot },
@@ -1788,77 +1507,99 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       };
     }
     const envelope = parsed.envelope;
-    let directory: string | undefined;
-    if (this.standalone) {
-      if (
-        envelope.type !== "createSession" &&
-        envelope.type !== "sendText" &&
-        envelope.type !== "switchModelConfig"
-      )
-        return this.rejectUnsupported(envelope, null);
-      type TextInput = { text: string; attachments?: unknown[] };
-      const input =
-        envelope.type === "createSession"
-          ? (envelope.payload as { firstInput?: TextInput }).firstInput
-          : envelope.type === "sendText"
-            ? (envelope.payload as TextInput)
-            : undefined;
-      if (input && !input.text.trim()) throw new Error("请输入要发送的消息。");
-      if (input?.attachments?.length) return this.rejectUnsupported(envelope, null);
-      if (envelope.type === "createSession") {
-        directory = await this.standalone.resolveDirectory(params.workspacePath);
-      }
-    }
-    // 缓存接纳结果同样按当前请求工作区隔离，不能绕过归属检查。
-    const requestWorkspace = workspaceRefOf(params);
+    if ((envelope.type === "createSession") !== (envelope.sessionId === null))
+      return this.reject(envelope, null, "fault.command.invalidEnvelope", "命令的会话范围无效。");
+    // 执行与查询使用同一可信 actor 和请求工作区。
+    const requestWorkspace = {
+      workspacePath: params.workspacePath,
+      workspaceIdentity: params.workspaceIdentity,
+    };
     if (
       parsed.envelope.workspace &&
       (workspaceKeyOf(parsed.envelope.workspace) !== workspaceKeyOf(requestWorkspace) ||
         parsed.envelope.workspace.workspacePath !== requestWorkspace.workspacePath)
     )
       throw new Error("命令工作区与当前请求不一致。");
-    const key = `${this.actorKey() ?? "mock"}:${parsed.envelope.sessionId ?? "draft"}:${parsed.envelope.commandId}`;
-    const serialized = JSON.stringify([requestWorkspace, parsed.envelope]);
-    if (this.standalone && Buffer.byteLength(serialized) > CHAT_COMMAND_MAX_BYTES)
-      return {
-        commandId: envelope.commandId,
-        status: "rejected",
-        reasonCode: "fault.chat.inputTooLarge",
-        message: "消息过长，请分段发送。",
-        revisionAtDecision: 0,
-      };
+    const actor = this.actorKey() ?? "mock";
+    const key = this.receiptKey(actor, requestWorkspace, envelope);
+    const serialized = JSON.stringify(envelope);
     const digest = createHash("sha256").update(serialized).digest("hex");
-    const prior = this.commandResults.get(key);
-    if (prior) {
-      if (prior.digest !== digest) throw new Error("原生消息编号不能用于不同输入。");
-      return prior.ack;
+    const replay = () => {
+      const prior = this.commandResults.get(key);
+      if (prior && prior.digest !== digest) throw new Error("原生消息编号不能用于不同输入。");
+      return prior?.ack;
+    };
+    const prior = replay();
+    if (prior) return prior;
+    let ack: CommandAck;
+    if (this.standalone && Buffer.byteLength(serialized) > CHAT_COMMAND_MAX_BYTES) {
+      ack = this.reject(envelope, null, "fault.chat.inputTooLarge", "消息过长，请分段发送。");
+    } else if (
+      this.standalone &&
+      envelope.type !== "createSession" &&
+      envelope.type !== "sendText" &&
+      envelope.type !== "switchModelConfig" &&
+      envelope.type !== "stop"
+    ) {
+      ack = this.rejectUnsupported(envelope, null);
+    } else {
+      const directory =
+        this.standalone && envelope.type === "createSession"
+          ? await this.standalone.resolveDirectory(params.workspacePath)
+          : undefined;
+      const concurrent = replay();
+      if (concurrent) return concurrent;
+      ack = this.handleEnvelope(
+        {
+          ...envelope,
+          workspace: { ...requestWorkspace, workspaceKey: workspaceKeyOf(requestWorkspace) },
+        },
+        directory,
+      );
     }
-    const ack = this.handleEnvelope(
-      {
-        ...parsed.envelope,
-        workspace: { ...requestWorkspace, workspaceKey: workspaceKeyOf(requestWorkspace) },
-      },
-      directory,
-    );
     this.commandResults.set(key, { digest, ack });
     return ack;
+  }
+
+  private receiptKey(
+    actor: string,
+    workspace: { workspacePath: string; workspaceIdentity?: string },
+    key: { sessionId: string | null; commandId: string },
+  ): string {
+    return JSON.stringify([
+      actor,
+      workspace.workspacePath,
+      workspaceKeyOf(workspace),
+      key.sessionId,
+      key.commandId,
+    ]);
   }
 
   async queryConversationCommandsV4(
     params: P<IZCodeAgentService["queryConversationCommandsV4"]>,
   ): Promise<CommandsQueryResult> {
+    const receivedAt = Date.now();
+    const { commands, clock } = commandsQueryParamsSchema.parse({
+      commands: params.commands,
+      clock: params.clock,
+    });
+    const actor = this.actorKey() ?? "mock";
     return {
-      results: params.commands.map((key) => {
-        const result =
-          this.commandResults.get(
-            `${this.business?.actorKey() ?? "mock"}:${key.sessionId ?? "draft"}:${key.commandId}`,
-          )?.ack ?? ("unknown" as const);
-        const session = key.sessionId
-          ? this.ensureSession({ sessionId: key.sessionId, workspace: params })
+      results: commands.map((key) => {
+        const result = this.commandResults.get(this.receiptKey(actor, params, key))?.ack;
+        if (!result) return { key, result: "unknown" };
+        const session = key.sessionId ? this.runtime.sessions.get(key.sessionId) : undefined;
+        if (
+          !session ||
+          !this.matchesWorkspace(session, params) ||
+          result.status !== "accepted" ||
+          result.result?.type !== "inputAccepted"
+        )
+          return { key, result };
+        const turnId = session.deliveredTurns.get(JSON.stringify([actor, key.commandId]));
+        const header = turnId
+          ? session.rows.find((row) => row.kind === "turnHeader" && row.turnId === turnId)
           : undefined;
-        const header = session?.rows.find(
-          (row) => row.kind === "turnHeader" && row.sourceCommandId === key.commandId,
-        );
         return {
           key,
           result,
@@ -1867,8 +1608,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
             : {}),
         };
       }),
-      ...(params.clock ? { clock: { clockOffsetMs: 0, sampledAt: Date.now() } } : {}),
-    } as unknown as CommandsQueryResult;
+      ...(clock ? { clock: { instanceId: this.instanceId, receivedAt, sentAt: Date.now() } } : {}),
+    };
   }
 
   onDynamicConversationFrame(
@@ -2037,12 +1778,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       value?.ref &&
       ![...this.runtime.sessions.values()].some(
         (session) =>
-          // ACK 后草稿 abort 只能移除暂存句柄，队列／提升项仍持有真实字节。
-          session.queuedInputs.some((item) =>
+          // ACK 后草稿 abort 只能移除暂存句柄，已接纳输入仍持有真实字节。
+          session.queuedInputs.some(({ item }) =>
             item.attachments.some((attachment) => attachment.ref === value.ref),
-          ) ||
-          session.pendingStartInput?.attachments.some(
-            (attachment) => attachment.ref === value.ref,
           ) ||
           session.rows.some(
             (row) =>
@@ -2090,10 +1828,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     // 已接纳但尚未生成行的输入同样拥有附件；不能依赖已释放的上传暂存。
     const queued =
       !params.target &&
-      (session.queuedInputs.some((item) =>
+      session.queuedInputs.some(({ item }) =>
         item.attachments.some((attachment) => attachment.ref === params.ref),
-      ) ||
-        session.pendingStartInput?.attachments.some((attachment) => attachment.ref === params.ref));
+      );
     const draft =
       !params.target &&
       [...this.uploads.values()].some(
@@ -2139,20 +1876,24 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     >;
   }
 
-  private readWorkspaceSkillCatalog(
-    workspacePath: string,
+  private readEnabledSkills(workspacePath: string): SkillSummary[] {
+    return (
+      this.standalone ? readBuiltinPrototypeSkills() : readPrototypeSkills(workspacePath)
+    ).filter((skill) => skill.enabled && skill.body.trim().length > 0);
+  }
+
+  private skillReferences(
+    skills: readonly SkillSummary[],
   ): AR<IZCodeAgentService["getSkillReferenceCatalog"]>["skills"] {
-    return readPrototypeSkills(workspacePath)
-      .filter((skill) => skill.enabled)
-      .map(({ id, name, description, path, scope, pluginName }) => ({
-        id,
-        name,
-        description,
-        path,
-        scope,
-        enabled: true,
-        ...(pluginName ? { pluginName } : {}),
-      }));
+    return skills.map(({ id, name, description, path, scope, pluginName }) => ({
+      id,
+      name,
+      description,
+      path,
+      scope,
+      enabled: true,
+      ...(pluginName ? { pluginName } : {}),
+    }));
   }
 
   async getSkillReferenceCatalog(
@@ -2161,7 +1902,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (params.sessionId === undefined)
       return {
         authority: "workspace",
-        skills: this.readWorkspaceSkillCatalog(params.workspacePath),
+        skills: this.skillReferences(this.readEnabledSkills(params.workspacePath)),
       };
     // 目录必须属于已驻留且可访问的会话；补建或回退 workspace 会让新技能进入旧对话。
     const session = this.ensureSession({
@@ -2171,7 +1912,33 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     });
     // Skill 设计等私有业务会话的归属仍由业务 owner 校验，不能只核对 workspace。
     this.business?.getNativeBinding(session.sessionId);
-    return { authority: "session", skills: structuredClone(session.skillReferenceCatalog) };
+    return { authority: "session", skills: this.skillReferences(session.skills) };
+  }
+
+  async getConversationCommandCatalog(
+    params: ZCodeAgentSkillReferenceCatalogParams,
+  ): Promise<{ commands: ConversationCommandCatalogEntry[] }> {
+    if (params.sessionId !== undefined) {
+      const session = this.ensureSession({
+        sessionId: params.sessionId,
+        workspace: params,
+        allowSeed: false,
+      });
+      this.business?.getNativeBinding(session.sessionId);
+      return { commands: [...BUILTIN_COMMANDS, ...this.skillCommands(session.skills)] };
+    }
+    if (this.standalone) await this.standalone.resolveDirectory(params.workspacePath);
+    return { commands: this.skillCommands(this.readEnabledSkills(params.workspacePath)) };
+  }
+
+  private skillCommands(skills: readonly SkillSummary[]): ConversationCommandCatalogEntry[] {
+    const byName = new Map<string, ConversationCommandCatalogEntry>();
+    for (const { name, description } of skills) {
+      const command = `skill:${name}`;
+      if (!byName.has(command))
+        byName.set(command, { name: command, description, source: "skill" });
+    }
+    return [...byName.values()];
   }
 
   supportsConversationQuoteComment(
@@ -2185,7 +1952,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (session.workspaceKey === workspaceKeyOf(_params)) {
         // 先撤销会话归属，避免同步取消收口重新启动待发队列。
         this.runtime.sessions.delete(sessionId);
-        session.activeTurn?.abort();
+        session.activeTurn?.controller.abort();
       }
     }
   }
@@ -2193,7 +1960,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   disposeAll(): void {
     for (const session of this.runtime.sessions.values()) {
       this.runtime.sessions.delete(session.sessionId);
-      session.activeTurn?.abort();
+      session.activeTurn?.controller.abort();
     }
     this.conversationSubs.clear();
   }
@@ -2201,6 +1968,21 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
 function jsonByteLength(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value));
+}
+
+function standaloneReply(inputs: readonly MockInput[]): string {
+  const sections = inputs.flatMap(({ text, context }) => {
+    // 原型消费封装的技能指令与参数，不运行脚本，也不把正文复制到公开输出。
+    if (context) {
+      const args = context.args.split("\n", 1)[0]?.slice(0, 120);
+      return [
+        `已加载「${context.skill.name}」技能说明${args ? `，处理参数：${args}` : ""}。未执行外部操作。`,
+      ];
+    }
+    const subject = text.trim().split("\n", 1)[0]?.slice(0, 120);
+    return subject ? [`已收到：${subject}`] : [];
+  });
+  return ["本轮原型执行已完成。", ...sections].join("\n\n");
 }
 
 function fitSnapshotTail(frame: ConversationTopicFrame): ConversationTopicFrame {

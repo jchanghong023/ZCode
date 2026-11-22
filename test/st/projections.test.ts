@@ -109,7 +109,9 @@ describe("ST same-owner workflow projections", () => {
           expect(registrations?.find((entry) => entry.id === secondApplication!.id)?.status).toBe(
             "approved",
           );
-          expect(registrations?.find((entry) => entry.id === pending[0]!.id)?.status).toBe("pending");
+          expect(registrations?.find((entry) => entry.id === pending[0]!.id)?.status).toBe(
+            "pending",
+          );
           const approval = {
             type: "decideProjectRole" as const,
             projectId: target.projectId,

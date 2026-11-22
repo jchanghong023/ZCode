@@ -69,9 +69,10 @@ const steps = [
   {
     title: "查阅正式文档",
     titleEn: "Read formal documents",
-    detail:
+    // 弹窗按语言读取 description 和 descriptionEn，字段不匹配会导致正文空白。
+    description:
       "文档 PR 合入并核验后，在当前 Release 的「正式文档」查看原始需求、规格、方案及讨论评审历史。",
-    detailEn:
+    descriptionEn:
       "Once the document PR merges and passes verification, open Formal documents for the original requirement, specifications, design and review history.",
   },
 ];

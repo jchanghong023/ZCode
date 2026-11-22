@@ -171,7 +171,8 @@ export type SessionActionAvailability = z.infer<typeof sessionActionAvailability
 export const inputRoutingSchema = z.object({
   // choice：held（completed+queue>0+autoDrain=false）下
   // 输入不静默入队，客户端呈现「清空 queue 后发送 / 保留 queue 立即发送」。
-  mode: z.enum(["startNow", "enqueue", "guide", "reject", "choice"]),
+  mode: z.enum(["startNow", "enqueue", "guide", "reject", "choice", "streamingChoice"]),
+  // streamingChoice 要求操作者为本次忙时输入选择 steer 或 followUp。
   // mode=reject 必带；enqueue/guide/choice 可带（如 guide 不合格回退原因）。
   reasonCode: z.string().optional(),
 });
