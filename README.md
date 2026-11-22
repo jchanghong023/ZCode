@@ -45,6 +45,8 @@ ZCODE_WEB_STATIC_ROOT="$PWD/packages/web/dist" bun packages/server/dist/entry-ht
 
 构建产物为 `packages/server/dist/entry-http.js` 和 `packages/web/dist/`。后端 bundle 由固定版本 Bun 执行，可同时托管 HTTP、WebSocket 和前端静态资源，不依赖部署目录的 `node_modules`。
 
+Web 生产构建按依赖和页面模块分包，保持 Vite 默认的 500 kB JavaScript 分包告警阈值。代码高亮首次使用时从同源加载带内容哈希的 Oniguruma `.wasm`，与其他 `dist/assets/` 资源一同部署。验收以实际构建输出无分包体积告警、两个浏览器入口均可用且代码预览能加载高亮为准。
+
 PowerShell 先设置 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再运行后端产物。`PORT` 控制后端端口，`ZCODE_SERVER_HOST` 控制监听地址；部署访问控制、HTTP 资源和 WebSocket 必须保持同源契约，详见[服务端部署说明](docs/architecture/mock-backend.md)。
 
 ## 依赖与清理

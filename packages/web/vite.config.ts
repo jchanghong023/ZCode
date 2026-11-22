@@ -75,6 +75,11 @@ export default defineConfig(({ mode }) => {
           find: /^shiki$/,
           replacement: resolve(__dirname, "../ui/src/document-highlighting/bundle.ts"),
         },
+        // 主线程和 diff worker 共用 WASM 资源 URL，不再把二进制内联进 JavaScript。
+        {
+          find: /^shiki\/wasm$/,
+          replacement: resolve(__dirname, "../ui/src/document-highlighting/oniguruma-wasm.ts"),
+        },
         // 修复 UI 组件库中的 @ 别名解析失败。
         // 问题原因：packages/ui 的源码直接被 web 应用交给 Vite 打包，但 web 自己没声明 @ -> packages/ui/src，
         // 所以像 "@/components/lib/utils" 这类导入会在运行时构建阶段报找不到模块。
@@ -123,8 +128,47 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_ZCODE_ENDPOINT_ORIGIN": JSON.stringify(zcodeEndpointOrigin),
     },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         input: [resolve(HERE, "index.html"), resolve(HERE, "chat/index.html")],
+        output: {
+          // 按入口可达性和功能拆包，避免把仅异步使用的模块合进首屏。
+          // 不递归吸收依赖，让公共模块保持独立；跨 chunk 仍按导入顺序执行。
+          strictExecutionOrder: true,
+          codeSplitting: {
+            includeDependenciesRecursively: false,
+            minSize: 24_000,
+            maxSize: 360_000,
+            groups: [
+              {
+                name: "react-runtime",
+                test: /[\\/]node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
+              },
+              {
+                name: "motion",
+                test: /[\\/]node_modules[\\/](?:motion|framer-motion|motion-dom|motion-utils)[\\/]/,
+              },
+              { name: "editor", test: /[\\/]node_modules[\\/](?:lexical|@lexical)[\\/]/ },
+              { name: "diffs", test: /[\\/]node_modules[\\/]@pierre[\\/]diffs[\\/]/ },
+              { name: "highlighting", test: /[\\/]node_modules[\\/](?:shiki|@shikijs)[\\/]/ },
+              {
+                name: "markdown",
+                test: /[\\/]node_modules[\\/](?:streamdown|@streamdown|@uiw|katex)[\\/]/,
+              },
+              {
+                name: "ui-primitives",
+                test: /[\\/]node_modules[\\/](?:lucide-react|radix-ui|@radix-ui)[\\/]/,
+              },
+              { name: "aireq-graph", test: /[\\/]node_modules[\\/](?:@xyflow|@dnd-kit)[\\/]/ },
+              { name: "pinyin", test: /[\\/]node_modules[\\/]pinyin-pro[\\/]/ },
+              { name: "aireq", test: /[\\/]packages[\\/]ui[\\/]src[\\/]aireq[\\/]/ },
+              {
+                name: "conversation",
+                test: /[\\/]packages[\\/]ui[\\/]src[\\/](?:v4|ToolCallBlocks|prompt-editor)[\\/]/,
+              },
+              { name: "shared-ui", test: /[\\/]packages[\\/]ui[\\/]src[\\/]/ },
+            ].map((group) => ({ ...group, entriesAware: true })),
+          },
+        },
       },
       // hidden 仍会产出可公开下载的源码映射；生产不生成，开发调试继续保留。
       sourcemap: mode !== "production",
