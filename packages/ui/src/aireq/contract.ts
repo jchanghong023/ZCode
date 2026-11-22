@@ -20,6 +20,7 @@ export type {
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqPrHandoff,
+  AIReqProposalReturnTarget,
   AIReqProject,
   AIReqProjectRole,
   AIReqReleaseSummary,

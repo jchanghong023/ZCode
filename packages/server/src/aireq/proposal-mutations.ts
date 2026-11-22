@@ -17,6 +17,7 @@ import {
   appendMaterialDiscussion,
   checkProposalMaterials,
   prototypeMaterial,
+  reviseGeneratedMarkdown,
   solutionMaterials,
 } from "./materials.js";
 import { prototypeMaterialIssue } from "./recovery.js";
@@ -28,10 +29,7 @@ import {
 } from "./proposal-delivery.js";
 import { capturePrototypeMaterialHistory } from "./proposal-storage.js";
 
-function materialsFor(
-  state: WorkflowState,
-  proposal: RequirementGroup,
-): AIReqMaterialView[] {
+function materialsFor(state: WorkflowState, proposal: RequirementGroup): AIReqMaterialView[] {
   return state.materials.filter(
     (item) => item.projectId === proposal.projectId && item.irId === proposal.id,
   );
@@ -54,13 +52,11 @@ function stageRequirementsOutput(
   existing: AIReqMaterialView | undefined,
   note: string,
 ): NativeRequirementsOutput {
-  const content = /^#(?:[ \t]+|$)/.test(note)
-    ? note
-    : appendMaterialDiscussion(
-        existing?.content ?? `# ${proposal.title}\n\n## 目标与范围\n\n${proposal.originalText}`,
-        note,
-        "业务澄清",
-      );
+  const content = reviseGeneratedMarkdown(
+    existing?.content ?? `# ${proposal.title}\n\n## 目标与范围\n\n${proposal.originalText}`,
+    note,
+    "业务澄清",
+  );
   return {
     kind: "requirements",
     material: prototypeMaterial({
@@ -104,9 +100,12 @@ export function stageNativeProposalOutput(
   for (const material of bundle) {
     // 退回后继续使用已经存在的工作材料，不能用新一轮的模拟模板覆盖它。
     const prior = current.find((item) => item.path === material.path);
-    if (prior) material.content = prior.content;
-    if (!dependencyInput)
-      material.content = appendMaterialDiscussion(material.content, text, "本轮方案讨论");
+    const base = prior?.content ?? material.content ?? "";
+    const content = dependencyInput ? base : appendMaterialDiscussion(base, text, "本轮方案讨论");
+    if (content !== material.content) {
+      material.content = content;
+      Object.assign(material, contentVersion(content));
+    }
   }
   const round = proposal.proposalRound ?? 1;
   const dependency =
@@ -254,7 +253,7 @@ function createProposal(
   );
   proposal.originalText = text;
   proposal.submittedBy = getEmployeeId();
-  proposal.contacts = { business: getEmployeeId() };
+  proposal.contacts = { business: proposal.submittedBy };
   proposal.sourceIrId = sourceIrId;
   proposal.createdAt = operation.startedAt;
   proposal.origin = suffix ? "import" : "browser";
@@ -642,61 +641,35 @@ export function applyProposalMutation(
       proposal!.status = "solution-ready";
       checkMaterials(state, proposal!, "solution");
       snapshot(state, proposal!);
-      break;
-    }
-    case "reviseProposalMaterial": {
-      if (action.target === "requirements")
-        return applyProposalMutation(
-          state,
-          { type: "supplementRequirements", note: action.note },
-          projectId,
-          irId,
-          operation,
-          reviewRuns,
-        );
-      const note = action.note.trim();
-      const targets = materialsFor(state, proposal!).filter((item) =>
-        item.path.endsWith(action.target === "test-plan" ? "/test-plan.md" : "/design.md"),
-      );
-      const updated = targets.map((material) => ({
-        ...material,
-        content: /^#(?:[ \t]+|$)/.test(note)
-          ? note
-          : appendMaterialDiscussion(material.content, note, "修订"),
-      }));
-      if (
-        proposal!.solutionCheck?.issues.length === 0 &&
-        updated.every((material, index) => material.content === targets[index]?.content)
-      ) {
-        break;
-      }
-      invalidate(
-        state,
-        proposal!,
-        `${action.target === "test-plan" ? "测试方案" : "SR 方案"}修改，整包批准与三方确认失效`,
-        false,
-      );
-      for (const material of updated) replaceMaterial(state, proposal!, material);
-      checkMaterials(state, proposal!, "solution");
-      snapshot(state, proposal!);
+      if (proposal!.returnFeedback?.target === "solution" && !proposal!.returnFeedback.resumedAt)
+        proposal!.returnFeedback.resumedAt = at;
       break;
     }
     case "returnProposal": {
-      invalidate(state, proposal!, `需求退回补充：${action.reason.trim()}`, true);
-      proposal!.requirementsCheck = undefined;
+      const target = action.target ?? "requirements";
+      const toSolution = target === "solution";
+      const reason = action.reason.trim();
+      const label = toSolution ? "退回方案设计" : "退回业务澄清";
+      invalidate(state, proposal!, `${label}：${reason}`, !toSolution);
+      // 退回只撤销对应批准与检查，保留文件、清单和快照供后续讨论修改。
       proposal!.solutionCheck = undefined;
       if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;
-      // 退回只撤销批准及检查；保留文件、版本和清单，后续讨论负责更新实际材料。
-      proposal!.proposalStage = "requirements";
-      proposal!.status = "draft";
+      proposal!.proposalStage = target;
+      proposal!.status = toSolution ? "solution-ready" : "draft";
       proposal!.returnFeedbackHistory ??= [];
       if (proposal!.returnFeedback) proposal!.returnFeedbackHistory.push(proposal!.returnFeedback);
       proposal!.returnFeedback = {
         employeeId: getEmployeeId(),
         returnedAt: at,
         round: proposal!.proposalRound ?? 1,
-        reason: action.reason.trim(),
+        reason,
+        target,
       };
+      if (toSolution) {
+        operation.type = label;
+        break;
+      }
+      proposal!.requirementsCheck = undefined;
       proposal!.proposalRound = (proposal!.proposalRound ?? 1) + 1;
       {
         const session = sessionRef(

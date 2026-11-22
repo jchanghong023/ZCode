@@ -35,8 +35,6 @@ const operationLabels: Record<string, string> = {
   runFullReview: "重试方案审查",
   confirmAlignment: "方案角色确认",
   closeProposalPr: "关闭未合并文档 PR",
-  reviseProposalMaterial: "修改材料并使旧确认失效",
-  assignContacts: "调整联系人",
 };
 
 // 同一历史弹窗的时间统一转为北京时间，避免 UTC 原文与本地格式混排。
@@ -197,6 +195,17 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
                     {feedback.reason}
                   </p>
                 </details>
+              ))}
+              {group.rejectedReviewResults?.map((entry, index) => (
+                <section
+                  key={`${entry.reviewId}:${entry.at}:${index}`}
+                  className="space-y-1 break-all"
+                >
+                  <p>旧版本评审结果未采纳</p>
+                  <p>{entry.reason}</p>
+                  <p className="text-foreground-subtle">评审：{entry.reviewId}</p>
+                  <time dateTime={entry.at}>{recordTime(entry.at)}</time>
+                </section>
               ))}
               {[...(group.originalReviewHistory ?? []), ...(group.reviewHistory ?? [])].map(
                 (review, index) => (

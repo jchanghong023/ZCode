@@ -1,6 +1,6 @@
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, FileText } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
@@ -10,9 +10,9 @@ import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import {
   conversationReadOnlyReason,
   fullReviewCurrent,
+  hasCurrentProposalSolution,
   hasProjectRole,
   proposalAlignmentCurrent,
-  proposalState,
   proposalStateLabel,
   requirementsReviewCurrent,
 } from "../contract.js";
@@ -26,7 +26,6 @@ import {
   AIReqProposalReviewPage,
 } from "../proposals/AIReqProposalReviewPage.js";
 import { AIReqAgentModelSummary } from "../proposals/AIReqAgentModelSummary.js";
-import { AIReqProposalManagement } from "../proposals/AIReqProposalManagement.js";
 import { AIReqProposalFeedback } from "../proposals/AIReqProposalFeedback.js";
 import { AIReqProposalReviewSubmit } from "../proposals/AIReqProposalReviewSubmit.js";
 import { AIReqProposalReturn } from "../proposals/AIReqProposalReturn.js";
@@ -37,11 +36,7 @@ import {
   proposalTaskStatus,
   proposalTaskTitles,
 } from "../proposals/proposalTasks.js";
-import {
-  AIREQ_CONTENT_WIDTH_CLASSNAME,
-  AIREQ_PAGE_CONTENT_CLASSNAME,
-  AIREQ_PAGE_TITLE_CLASSNAME,
-} from "./pageLayout.js";
+import { AIREQ_CONTENT_WIDTH_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqRequirementReturnButton } from "./AIReqRequirementNavigation.js";
 
 /** 工作台与任务共享导航 owner；独立 Agent 详情不通过同页标签替换聊天身份。 */
@@ -73,10 +68,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const alignments = proposal
     ? proposal.alignment?.filter((entry) => proposalAlignmentCurrent(proposal, entry))
     : undefined;
-  const delivery = proposal?.proposalDelivery;
-  const closingPr = useRef(false);
-  const [closePending, setClosePending] = useState(false);
-  const managementHeading = useRef<HTMLHeadingElement>(null);
   const workspace = source.resolveWorkspace(ai.view, ai.selection);
   const scope = { workspacePath: workspace.path ?? "", workspaceIdentity: workspace.identity };
   const root = useRef<HTMLDivElement>(null);
@@ -117,16 +108,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       { ifAbsent: true },
     );
   }, [conversation, ai.selectionReady, ai.selection, proposal, open, task, hasMaterials]);
-  const managementReturn = useMemo(() => ({ dirty: false, busy: false, discard: () => {} }), []);
-  const openMaterials = () => {
-    if (proposal && ai.selectionReady)
-      open({
-        kind: "materials",
-        selection: ai.selection,
-        releaseId: proposal.releaseId,
-        title: proposal.title,
-      });
-  };
   const parent = proposalTaskParent(task);
   const next = proposal ? proposalNextTask(proposal) : undefined;
   const reviewTask = original ? ("requirementsReview" as const) : ("solutionReview" as const);
@@ -205,64 +186,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     content = (
       <AIReqProposalDeliveryPage key={`${proposal.projectId}:${proposal.id}`} group={proposal} />
     );
-  else if (task === "management")
-    content = (
-      <main
-        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
-        data-testid="proposal-management-page"
-      >
-        <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-6`}>
-          <h1 ref={managementHeading} tabIndex={-1} className={AIREQ_PAGE_TITLE_CLASSNAME}>
-            管理需求
-          </h1>
-          <AIReqProposalManagement
-            key={`${proposal.projectId}:${proposal.id}`}
-            group={proposal}
-            returnDraft={managementReturn}
-          />
-          {developer &&
-            proposalState(proposal) === "merge-pending" &&
-            proposal.requirementsPr?.status === "opened" &&
-            source.capabilities.requirementManagement &&
-            delivery && (
-              <Button
-                variant="outline"
-                disabled={ai.pending || closePending}
-                onClick={async () => {
-                  if (closingPr.current) return;
-                  closingPr.current = true;
-                  setClosePending(true);
-                  try {
-                    const result = await ai.command({
-                      type: "closeProposalPr",
-                      projectId: proposal.projectId,
-                      irId: proposal.id,
-                      candidate: delivery.candidate,
-                    });
-                    if (result?.receipt.status === "completed")
-                      managementHeading.current?.focus();
-                  } finally {
-                    closingPr.current = false;
-                    setClosePending(false);
-                  }
-                }}
-              >
-                {closePending ? "正在关闭文档 PR…" : "关闭未合入文档 PR 后修改"}
-              </Button>
-            )}
-          {proposal.requirementsPr?.status === "merged" && (
-            <p role="status" className="text-ui-sm text-foreground-subtle">
-              文档 PR 已合入，等待材料核验。已合入的 PR 不能关闭。
-            </p>
-          )}
-          {ai.error && (
-            <p role="alert" className="break-words text-ui-sm text-destructive">
-              {ai.error}
-            </p>
-          )}
-        </div>
-      </main>
-    );
   else if (detail && !agent)
     content = (
       <div className="m-auto space-y-3 p-6 text-ui-sm">
@@ -311,7 +234,12 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                   kind={task === "requirements" ? "original" : "full"}
                 />
                 {task === "solution" && (
-                  <AIReqProposalReturn key={proposal.id} group={proposal} fromSolution />
+                  <AIReqProposalReturn
+                    key={proposal.id}
+                    group={proposal}
+                    target="requirements"
+                    label="退回业务澄清"
+                  />
                 )}
               </div>
             )}
@@ -406,7 +334,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
             </p>
           </div>
         )}
-        {task === "requirements" && <AIReqProposalFeedback />}
+        {!detail && !conversationReadOnly && <AIReqProposalFeedback />}
         {ai.selection.srId ? (
           <div className="space-y-3 p-6 text-ui-sm text-foreground-subtle">
             <p>SR 规格为只读材料，方案讨论在所属需求进行。</p>
@@ -425,6 +353,9 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               embedded
               focused={active}
               autoFocusEnabled={false}
+              composerAriaLabel={
+                detail ? "审查追问" : task === "requirements" ? "需求澄清消息" : "方案设计消息"
+              }
               composerPlaceholder={
                 detail
                   ? "追问本次审查（不改变审查结论）"
@@ -447,10 +378,11 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                   <div className="p-6 text-center text-ui-sm text-foreground-subtle">
                     <p>尚无讨论记录。</p>
                     {!conversationReadOnly && task === "solution" && (
-                      <>
-                        <p className="mt-1">当前技术方案在右侧“需求材料”中。</p>
-                        <p className="mt-1">可在下方继续与 AI 讨论。</p>
-                      </>
+                      <p className="mt-1">
+                        {hasCurrentProposalSolution(proposal)
+                          ? "可在右侧查看已生成的方案，在下方继续讨论。"
+                          : "在下方讨论技术方案、实施拆分和测试用例。生成方案材料并通过校验后即可送审。"}
+                      </p>
                     )}
                   </div>
                 )
@@ -509,20 +441,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           {task === "overview" ? "需求工作台" : (proposal?.title ?? "需求工作台")}
         </span>
         {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
-        {task !== "overview" && (
-          <ControlHintTooltip title="查看需求材料">
-            <Button
-              variant="ghost"
-              size="icon-md"
-              aria-label="查看需求材料"
-              disabled={!proposal || !ai.selectionReady}
-              onClick={openMaterials}
-            >
-              <FileText className="size-4" aria-hidden="true" />
-            </Button>
-          </ControlHintTooltip>
-        )}
-        {task !== "overview" && !isOpen && activeTab && (
+        {task !== "overview" && !isOpen && (activeTab || (ai.selectionReady && hasMaterials)) && (
           <WorkspaceSidePaneToggleButton isSidePaneOpen={false} onToggleSidePane={toggle} />
         )}
       </div>

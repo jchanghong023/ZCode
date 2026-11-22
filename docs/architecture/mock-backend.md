@@ -21,15 +21,15 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 ## 2. 权威状态
 
-| 状态                                                                            | 唯一所有者                                             | 边界                                          |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------- |
-| 项目、Release、想法、IR/SR、材料、审查、确认、PR 候选、分工、评审报告与正式文档 | `MockAIReqService` 与 `aireq/workflow.ts` 等领域 owner | UI 只保留可失效投影；待办、文档统计从事实派生 |
-| 模型绑定、提示词及各自 revision                                                 | `aireq/agent-models.ts`、`personalization.ts`          | bootstrap 提供配置，不另建读取 RPC            |
-| Skill 私有草稿、预览、文件、版本与 catalog                                      | `aireq/skill-design.ts`、`skills.ts`                   | 文件服务只读同一内存事实                      |
-| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位   | `MockRuntime.sessions` / `MockSession`                 | `MockZCodeAgentService` 接纳命令并发帧        |
-| 原生任务索引                                                                    | `MockRuntime.tasks`                                    | 不是 AIReq 待办 owner                         |
-| 附件暂存、提交字节及采用关系                                                    | `MockZCodeAgentService`                                | composer 只拥有未发送草稿和引用               |
-| 通用应用设置                                                                    | `MockSettingService`                                   | 不与 AIReq 模型／提示词共用版本               |
+| 状态                                                                          | 唯一所有者                                             | 边界                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------- |
+| 项目、Release、想法、IR/SR、材料、审查、确认、PR 候选、评审报告与正式文档     | `MockAIReqService` 与 `aireq/workflow.ts` 等领域 owner | UI 只保留可失效投影；待办、文档统计从事实派生 |
+| 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts`          | bootstrap 提供配置，不另建读取 RPC            |
+| Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`                   | 文件服务只读同一内存事实                      |
+| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`                 | `MockZCodeAgentService` 接纳命令并发帧        |
+| 原生任务索引                                                                  | `MockRuntime.tasks`                                    | 不是 AIReq 待办 owner                         |
+| 附件暂存、提交字节及采用关系                                                  | `MockZCodeAgentService`                                | composer 只拥有未发送草稿和引用               |
+| 通用应用设置                                                                  | `MockSettingService`                                   | 不与 AIReq 模型／提示词共用版本               |
 
 先校验身份、参数、归属及对应阶段／版本／幂等条件，再提交事实，最后通知。异步完成还绑定对象、阶段、轮次、会话及输入版本；迟到结果不能恢复失效批准。后台每五秒观测文档 PR。浏览器关闭不取消已接纳的评审和交付，检查时间等观测元数据不推进业务修订。
 
@@ -38,6 +38,10 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 ### 原型后端业务初始数据
 
 默认项目 Aurora 协作控制台的 2026.11 版本有 7 份正式 IR 文档，2026.12 版本有 2 份。每个 IR 保留原始需求、材料、冻结快照与文档合入事实。项目与 Release 统计按正式 IR 和在途提案分别计数。
+
+初始提案、正式文档及原型运行时生成或修订的 IR／SR Markdown 材料均以 Mermaid 流程图开头。需求澄清、方案讨论或材料修订再次生成时保留已有首图，不重复添加；初始和运行时生成的已完成评审报告在标题后以流程图开始正文。图随正文保存，材料摘要和快照按最终正文计算。导入及 Git 同步仍按来源正文保存，依赖 JSON 保持纯 JSON。
+
+演示工作区预置的 Markdown 文件和原型 Skill Markdown 正文也以 Mermaid 图开始；生成的 `SKILL.md` 先保留 YAML front matter，再显示流程图。原有文件格式和阅读入口不变。
 
 默认 Git 快照从已合入的正式文档初始化，按项目仓库与默认分支保存。仓库样例含一个后续提交，可在 Aurora「正式文档」使用同一「从 Git 同步」入口验证：
 

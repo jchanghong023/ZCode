@@ -120,7 +120,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 `view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`proposalCount` 和 `formalCount`。计数按同一 owner 的 `(projectId, id)` 派生，含零文档 Release。详情、材料、会话及操作历史仍按查询项目返回。项目无 Release 与视图未加载是不同状态。
 
-项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。Git 目标 ID、仓库头、项目存储元数据、完整操作身份、联系人变更历史及评审发起人由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。当前联系人、人工决定操作者、确认事实及工作区公开路径不变。命令结果不返回创建想法 ID，客户端重读想法池。
+项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。Git 目标 ID、仓库头、项目存储元数据、完整操作身份、版本待办分工历史及评审发起记录由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。人工决定操作者、确认事实及工作区公开路径沿用现有公开投影。`readWorkflow` 从归档事实派生正式 IR 的可选 `formalParticipants` 工号。待办投影通过 `perspective` 和可选 `employeeId` 返回所需角色及归属工号。未转正提案的 `contacts` 供版本待办按当前版本提交分工。命令结果不返回创建想法 ID，客户端重读想法池。
 
 角色登记公开 `id`、`projectId`、`employeeId`、`role`、`status` 和可选 `note`，申请／裁决时间及裁决人只留服务端。提案创建的 `clientDraftId` 仍用于写入去重，不回传到提案投影。需求确认只记录在 `originalReview.humanDecision` 及材料确认历史，不另建平行决策列表。
 
@@ -186,7 +186,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 - 想法：createIdea、importIdeas、updateIdea、transferIdea。
 - 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、assignContacts、deleteRequirement。
 - 评审与确认：submitProposalReview、runRequirementsReview、runFullReview、acceptProposal、confirmAlignment。
-- 退回与材料修订：returnProposal、reviseProposalMaterial。
+- 退回修改：returnProposal，目标为 `requirements` 或 `solution`。
 - 交付与正式文档：publishProposal、closeProposalPr、syncFormalDocuments。
 - 项目角色：requestProjectRoles、decideProjectRole。
 

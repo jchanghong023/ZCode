@@ -5,7 +5,6 @@ import type { AIReqRemotePath } from "@zcode/services/aireq";
 const id = z.string().min(1);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const text = z.string();
-const employee = z.union([z.string().regex(/^[a-z][0-9]{8}$/), z.literal("")]);
 const commandTargetSchema = z
   .object({
     projectId: id.optional(),
@@ -23,12 +22,9 @@ const workflowTargetSchema = z
   })
   .strict();
 const target = z.object({ projectId: id, irId: id }).strict();
+const contactEmployee = z.string().regex(/^[a-z][0-9]{8}$/).optional();
 const contacts = z
-  .object({
-    business: employee.optional(),
-    development: employee.optional(),
-    testing: employee.optional(),
-  })
+  .object({ business: contactEmployee, development: contactEmployee, testing: contactEmployee })
   .strict();
 const actionBase = {
   operationId: id,
@@ -106,10 +102,6 @@ const actionSchema = z.union([
     snapshotDigest: id,
   }),
   action("closeProposalPr", { candidate: id }),
-  action("reviseProposalMaterial", {
-    target: z.enum(["requirements", "solution", "test-plan"]),
-    note: text,
-  }),
   action("deleteRequirement", { projectId: id, irId: id }),
   action("acceptProposal", { reviewId: id, snapshotDigest: id }),
   action("submitProposalReview", {
@@ -118,7 +110,7 @@ const actionSchema = z.union([
     snapshotDigest: id,
   }),
   action("runRequirementsReview"),
-  action("returnProposal", { reason: text }),
+  action("returnProposal", { reason: text, target: z.enum(["requirements", "solution"]).optional() }),
   action("publishProposal", { candidate: id }),
 ]);
 const modelInput = z

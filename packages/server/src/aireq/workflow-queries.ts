@@ -116,6 +116,20 @@ function projectDelivery(delivery: ProposalDelivery): AIReqProposalDelivery {
 }
 
 export function projectRequirement(group: RequirementGroup): AIReqRequirementGroup {
+  const review = group.review;
+  // 转正后状态会冻结，合入事实才是归档标识。Git 同步后仍沿用归档时的审查与确认。
+  const formalParticipants = group.merge && {
+    business: group.originalReview?.humanDecision?.employeeId,
+    development: review?.requestedBy,
+    testing:
+      review &&
+      group.alignment?.find(
+        (entry) =>
+          entry.perspective === "testing" &&
+          entry.reviewId === review.id &&
+          entry.snapshotDigest === review.snapshotDigest,
+      )?.employeeId,
+  };
   return {
     id: group.id,
     projectId: group.projectId,
@@ -132,7 +146,8 @@ export function projectRequirement(group: RequirementGroup): AIReqRequirementGro
     originalText: group.originalText,
     submittedBy: group.submittedBy,
     sourceIrId: group.sourceIrId,
-    contacts: group.contacts,
+    ...(!group.merge && group.contacts && { contacts: group.contacts }),
+    ...(formalParticipants && { formalParticipants }),
     originalReview: group.originalReview && projectReview(group.originalReview),
     originalReviewHistory: group.originalReviewHistory?.map(projectReview),
     review: group.review && projectReview(group.review),

@@ -73,7 +73,8 @@ export function AIReqSidebarNavigation() {
     ),
   );
   const selected = ai.mainView === "chat" ? (formal ? "formal" : "proposals") : ai.mainView;
-  const inWorkspace = globalPages.every((page) => page.view !== selected);
+  // 角色申请在页面内选择项目，无需沿用侧栏的项目和 Release 范围。
+  const inWorkspace = selected !== "roles" && globalPages.every((page) => page.view !== selected);
   const renderPage = ({ view, label, labelEn, icon: Icon }: SidebarPage) => (
     <Button
       key={view}

@@ -16,6 +16,7 @@ import {
   commandAndRead,
   completeBusinessMaterial,
   completeSolutionMaterial,
+  discuss,
   getProposal,
   submitReview,
   waitForReview,
@@ -525,12 +526,13 @@ describe("ST global ideas and configuration", () => {
           await commandAndRead(
             client,
             {
-              type: "reviseProposalMaterial",
+              type: "returnProposal",
               target: "requirements",
-              note: "补充对无导出权限用户的验收条件。",
+              reason: "补充对无导出权限用户的验收条件。",
             },
             before,
           );
+          await discuss(client, before, "补充对无导出权限用户的验收条件。");
           await submitReview(client, before, "original");
           const { remote, review: current } = await waitForReview(client, before, "original");
           expect(current.id).not.toBe(historical.id);

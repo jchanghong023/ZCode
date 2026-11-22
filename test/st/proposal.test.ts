@@ -81,7 +81,6 @@ describe("proposal business lifecycle through the deployed public API", () => {
           expect(group.alignment ?? []).toEqual([]);
           expect(group.proposalDelivery).toBeUndefined();
           expect(group.requirementsPr).toBeUndefined();
-          expect(group.contacts?.business).toBe(client.identity.employeeId);
         }
         expect(read.view.srs).toEqual(baseline.view.srs);
         expect(read.view.groups).toEqual(baseline.view.groups);
@@ -258,14 +257,10 @@ describe("proposal business lifecycle through the deployed public API", () => {
           }
           expect(incomplete.review).toBeUndefined();
           expect(incomplete.requirementsCheck).toEqual(requirementsCheck);
-          await commandAndRead(
+          await discuss(
             client,
-            {
-              type: "reviseProposalMaterial",
-              target: "test-plan",
-              note: `## ${testHeading}\n导出后重新解析 CSV，逐条核对中文、逗号、引号及换行。`,
-            },
             target,
+            `## ${testHeading}\n导出后重新解析 CSV，逐条核对中文、逗号、引号及换行。`,
           );
           await submitReview(client, target, "full");
           const { remote } = await waitForReview(client, target, "full");
@@ -547,7 +542,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(reread.alignment).toEqual(aligned.alignment);
         await expectBusinessRejection(
           client.command(
-            { type: "reviseProposalMaterial", target: "test-plan", note: "补充引用换行的测试用例" },
+            { type: "returnProposal", target: "solution", reason: "补充引用换行的测试用例" },
             target.selection,
           ),
         );
@@ -636,15 +631,37 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const testPlan = published.view.materials.find(
           (file) => file.irId === target.irId && file.path.endsWith("/test-plan.md"),
         )!;
-        await commandAndRead(
+        const reason = "补充 CSV 引用单元格换行和失败重试的验收用例。";
+        const returnedRemote = await commandAndRead(
           client,
-          {
-            type: "reviseProposalMaterial",
-            target: "test-plan",
-            note: "补充 CSV 引用单元格换行和失败重试的验收用例。",
-          },
+          { type: "returnProposal", target: "solution", reason },
           target,
         );
+        const returned = getProposal(returnedRemote, target);
+        expect(returned).toMatchObject({
+          proposalStage: "solution",
+          originalReview: aligned.originalReview,
+          files: rebound.files,
+          snapshot: rebound.snapshot,
+          returnFeedback: { target: "solution", reason, employeeId: client.identity.employeeId },
+        });
+        expect(returned.review).toBeUndefined();
+        expect(returned.proposalDelivery).toBeUndefined();
+        expect(returned.alignment).toEqual([]);
+        expect(returnedRemote.session?.phase).toBe("solution");
+        await expectBusinessRejection(
+          client.command(
+            {
+              type: "submitProposalReview",
+              projectId: target.projectId,
+              irId: target.irId,
+              kind: "full",
+              snapshotDigest: returned.snapshot!.digest,
+            },
+            target.selection,
+          ),
+        );
+        await discuss(client, target, reason);
         await submitReview(client, target, "full");
         const { remote: revisedRemote, review: revisedReport } = await waitForReview(
           client,
@@ -652,6 +669,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
           "full",
         );
         const revised = getProposal(revisedRemote, target);
+        expect(revised.returnFeedback?.resumedAt).toBeTruthy();
         expect(revised.originalReview).toEqual(aligned.originalReview);
         expect(revised.requirementsCheck).toEqual(aligned.requirementsCheck);
         expect(revised.srIds).toEqual(aligned.srIds);
@@ -704,13 +722,19 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const realigned = await confirmAllPerspectives(client, target, revisedReport);
         await commandAndRead(
           client,
+          { type: "returnProposal", target: "solution", reason: "交付前需要重新核对业务范围。" },
+          target,
+        );
+        await commandAndRead(
+          client,
           {
-            type: "reviseProposalMaterial",
+            type: "returnProposal",
             target: "requirements",
-            note: "明确支持导出的访问权限。",
+            reason: "明确支持导出的访问权限。",
           },
           target,
         );
+        await discuss(client, target, "明确支持导出的访问权限。");
         await submitReview(client, target, "original");
         const { remote: rechecked, review: replacement } = await waitForReview(
           client,

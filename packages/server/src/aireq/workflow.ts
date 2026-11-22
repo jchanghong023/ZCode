@@ -150,6 +150,7 @@ export function pollPrototypeProposalMerges(): void {
     if (!proposalPrCurrent(group)) continue;
     const delivery = group.proposalDelivery!;
     const mr = group.requirementsPr!;
+    if (delivery.mergeCheck?.status === "untracked") continue;
     checked = true;
     const now = Date.now();
     const at = new Date(now).toISOString();
@@ -163,7 +164,7 @@ export function pollPrototypeProposalMerges(): void {
         message:
           mr.status === "merged"
             ? "本轮状态与已观测的合入记录不一致，保留已合入事实，等待下一轮核验。"
-            : "当前 MR 待合入，后续继续检查候选状态与材料版本。",
+            : "文档 PR 待合入，后台会继续核验候选状态与材料版本。",
       };
       continue;
     }
@@ -288,7 +289,7 @@ export function getPrototypeWorkflow(
         ?.filter((entry) => roleAdministrator || entry.employeeId === employeeId)
         .map(projectRoleRegistration) ?? [],
     todos: deriveAIReqTodos(state).filter((todo) =>
-      hasProjectRole(state, todo.projectId, employeeId, todo.assignmentPerspective),
+      hasProjectRole(state, todo.projectId, employeeId, todo.perspective),
     ),
     projects: state.projects.map(projectSummary),
     releases: projectReleases(state, readPrototypeProjectReleases()),
@@ -496,14 +497,9 @@ export function applyPrototypeAction(
     action.type === "runFullReview" ||
     action.type === "publishProposal" ||
     action.type === "closeProposalPr" ||
-    (action.type === "submitProposalReview" && action.kind === "full") ||
-    (action.type === "reviseProposalMaterial" && action.target === "solution")
+    (action.type === "submitProposalReview" && action.kind === "full")
   )
     requireProjectRole(targetProjectId, "development");
-  if (action.type === "reviseProposalMaterial" && action.target === "test-plan") {
-    if (!canSyncFormalDocuments(targetProjectId))
-      throw businessRule("需要当前项目已授权的开发或测试角色。");
-  }
   const proposalAction = ![
     "createIdea",
     "importIdeas",
@@ -584,29 +580,9 @@ export function applyPrototypeAction(
     )
       throw businessRule("三方确认须绑定当前评审、材料版本和明确角色。");
   }
-  if (action.type === "reviseProposalMaterial") {
-    if (!action.note.trim() || !["requirements", "solution", "test-plan"].includes(action.target))
-      throw businessRule("请选择材料和明确修订内容。");
-    if (
-      action.target !== "requirements" &&
-      (!targetProposal!.srIds.length || !currentProposalState || inRequirements)
-    )
-      throw businessRule("请先进入方案阶段并生成 SR 材料。");
-    // 尚无方案材料时不能把修订记成成功，也不能无故清空已存在的评审批准。
-    if (
-      action.target !== "requirements" &&
-      !state.materials.some(
-        (material) =>
-          material.projectId === targetProjectId &&
-          material.irId === targetProposal!.id &&
-          material.path.endsWith(action.target === "test-plan" ? "/test-plan.md" : "/design.md"),
-      )
-    )
-      throw businessRule("对应方案材料尚未生成，请先完成方案讨论。");
-  }
   if (action.type === "returnProposal") {
-    if (!action.reason.trim()) throw businessRule("请填写业务需补充的原因。");
-    const issue = proposalReturnBlocker(targetProposal!);
+    if (!action.reason.trim()) throw businessRule("请填写退回原因。");
+    const issue = proposalReturnBlocker(targetProposal!, action.target);
     if (issue) throw businessRule(issue);
     if (!inRequirements) requireProjectRole(targetProjectId, "development");
   }

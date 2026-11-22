@@ -18,7 +18,12 @@ import {
   proposalDeliveryCurrent,
   requirementMaterialName,
 } from "../contract.js";
-import type { AIReqFileVersion, AIReqPrHandoff, AIReqRequirementGroup } from "../contract.js";
+import type {
+  AIReqFileVersion,
+  AIReqMaterialView,
+  AIReqPrHandoff,
+  AIReqRequirementGroup,
+} from "../contract.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 
 interface DeliveryDialog {
@@ -96,10 +101,12 @@ function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequirementGroup
       >
         {check?.message ?? "等待后台核验当前候选的完整文档。"}
       </p>
-      <p className="text-ui-sm text-foreground-subtle">
-        {check?.checkedAt ? `最近核验：${time(check.checkedAt)}（北京时间）` : "等待首轮核验"}
-        {check?.nextCheckAt ? ` · 下次核验：${time(check.nextCheckAt)}（北京时间）` : ""}
-      </p>
+      {check?.status !== "untracked" && (
+        <p className="text-ui-sm text-foreground-subtle">
+          {check?.checkedAt ? `最近核验：${time(check.checkedAt)}（北京时间）` : "等待首轮核验"}
+          {check?.nextCheckAt ? ` · 下次核验：${time(check.nextCheckAt)}（北京时间）` : ""}
+        </p>
+      )}
       <details className="text-ui-sm text-foreground-subtle">
         <summary className={detailsClass}>查看分支与核验详情</summary>
         <dl className="mt-3 space-y-2">
@@ -139,6 +146,7 @@ export function AIReqProposalDeliveryControls({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [checkedFiles, setCheckedFiles] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [previewPath, setPreviewPath] = useState<string>();
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [readAttempt, setReadAttempt] = useState(0);
@@ -214,8 +222,48 @@ export function AIReqProposalDeliveryControls({
   const allFilesChecked = Boolean(
     dialog?.files.length && selectedFileCount === dialog.files.length,
   );
+  const materials = new Map(
+    ai.view?.materials
+      .filter((item) => item.projectId === group.projectId && item.irId === group.id)
+      .map((item) => [item.path, item]),
+  );
+  const srs = ai.view?.srs.filter((sr) => sr.projectId === group.projectId && sr.irId === group.id);
+  const fileGroups = new Map<
+    string,
+    {
+      title: string;
+      files: { file: AIReqFileVersion; material?: AIReqMaterialView; readable: boolean }[];
+    }
+  >();
+  for (const file of dialog?.files ?? []) {
+    const item = materials.get(file.path);
+    // 同名文件可能已经被更新，预览只取当前候选清单中相同摘要和字节数的正文。
+    const material =
+      item?.sha256 === file.sha256 && item.size === file.size ? item : undefined;
+    const srId = material?.srId ?? /^openspec\/changes\/([^/]+)\//.exec(file.path)?.[1];
+    const dependency = file.path.endsWith("/sr-dependencies.json");
+    const key = srId ? `sr:${srId}` : dependency ? "dependencies" : "requirements";
+    let section = fileGroups.get(key);
+    if (!section) {
+      const title = srId
+        ? (srs?.find((sr) => sr.id === srId)?.title ?? "SR 材料")
+        : dependency
+          ? "依赖"
+          : "业务需求";
+      section = { title, files: [] };
+      fileGroups.set(key, section);
+    }
+    section.files.push({
+      file,
+      material,
+      readable: Boolean(material?.content?.trim() && !material.error),
+    });
+  }
+  const allFilesReadable = [...fileGroups.values()].every(({ files }) =>
+    files.every(({ readable }) => readable),
+  );
   const editable = ready && canWrite && handoffReady && boundCurrent && !ai.pending && !busy;
-  const canSubmit = editable && allFilesChecked && acknowledged;
+  const canSubmit = editable && allFilesReadable && allFilesChecked && acknowledged;
   const openDialog = () => {
     if (!delivery || !current) return;
     setDialog({
@@ -229,6 +277,7 @@ export function AIReqProposalDeliveryControls({
     });
     setCheckedFiles([]);
     setAcknowledged(false);
+    setPreviewPath(undefined);
     setDialogOpen(true);
   };
   const publish = async (snapshot: { projectId: string; irId: string; candidate: string }) => {
@@ -243,6 +292,18 @@ export function AIReqProposalDeliveryControls({
         candidate: snapshot.candidate,
       });
       if (result?.receipt.status === "completed") setDialogOpen(false);
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  };
+  const closePr = async (candidate: string) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    try {
+      const result = await ai.command({ type: "closeProposalPr", ...target, candidate });
+      if (result?.receipt.status === "completed") focusFallback.current?.focus();
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -282,18 +343,22 @@ export function AIReqProposalDeliveryControls({
             >
               {prPresent ? "查看提交记录" : failure ? publishLabel : "核对文件并提交"}
             </Button>
-            {canWrite && prPresent && group.requirementsPr?.status === "opened" && (
+            {canWrite && prPresent && delivery.mergeCheck?.status === "untracked" && (
               <Button
                 variant="outline"
                 disabled={busy || ai.pending}
                 onClick={() => void publish({ ...target, candidate: delivery.candidate })}
               >
-                {busy ? "正在提交…" : "继续跟踪此 PR"}
+                {busy ? "正在启动…" : "开始跟踪 PR"}
               </Button>
             )}
-            {(prPresent || failure) && (
-              <Button variant="ghost" onClick={() => ai.openProposalTask("management")}>
-                前往管理需求
+            {canWrite && prPresent && group.requirementsPr?.status === "opened" && (
+              <Button
+                variant="outline"
+                disabled={busy || ai.pending}
+                onClick={() => void closePr(delivery.candidate)}
+              >
+                关闭未合入文档 PR
               </Button>
             )}
           </div>
@@ -458,12 +523,13 @@ export function AIReqProposalDeliveryControls({
                           checked={
                             allFilesChecked ? true : selectedFileCount > 0 ? "indeterminate" : false
                           }
-                          disabled={!editable || !dialog.files.length}
-                          onCheckedChange={(checked) =>
+                          disabled={!editable || !allFilesReadable || !dialog.files.length}
+                          onCheckedChange={(checked) => {
+                            setAcknowledged(false);
                             setCheckedFiles(
                               checked === true ? dialog.files.map((file) => file.path) : [],
-                            )
-                          }
+                            );
+                          }}
                         />
                         全选文件
                       </label>
@@ -478,51 +544,107 @@ export function AIReqProposalDeliveryControls({
                         : `${dialog.files.length} 份文件`}
                     </span>
                   </div>
-                  <ul className="divide-y divide-border/40">
-                    {dialog.files.map((file) => (
-                      <li key={file.path} className="px-2 py-3">
-                        <label className="flex items-start gap-3 text-ui-sm">
-                          {dialog.mode === "publish" && (
-                            <Checkbox
-                              data-testid="proposal-delivery-file-check"
-                              className="data-[state=unchecked]:border-foreground/60"
-                              aria-label={`确认 ${file.path}`}
-                              checked={checkedFiles.includes(file.path)}
-                              disabled={!editable}
-                              onCheckedChange={(checked) =>
-                                setCheckedFiles((previous) =>
-                                  checked === true
-                                    ? [...previous, file.path]
-                                    : previous.filter((path) => path !== file.path),
-                                )
-                              }
-                            />
-                          )}
-                          <span className="min-w-0">
-                            <span className="block">
-                              {requirementMaterialName(file.path, ai.view?.srs) ?? "需求材料"}
-                            </span>
-                            <span className="mt-1 block break-all font-mono text-foreground-subtle">
-                              {file.path}
-                            </span>
-                          </span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
+                  {[...fileGroups].map(([key, section]) => (
+                    <section key={key} className="space-y-1">
+                      <h3 className="break-words bg-surface px-2 py-2 text-ui-sm font-medium">
+                        {section.title}
+                      </h3>
+                      <ul className="divide-y divide-border/40">
+                        {section.files.map(({ file, material, readable }) => {
+                          const name = requirementMaterialName(file.path) ?? "需求材料";
+                          const previewLabel = name === section.title ? name : `${section.title} · ${name}`;
+                          const expanded = previewPath === file.path;
+                          return (
+                            <li key={file.path} className="space-y-2 px-2 py-3">
+                              <div className="flex items-start gap-3">
+                                <label className="flex min-w-0 flex-1 items-start gap-3 text-ui-sm">
+                                  {dialog.mode === "publish" && (
+                                    <Checkbox
+                                      data-testid="proposal-delivery-file-check"
+                                      className="data-[state=unchecked]:border-foreground/60"
+                                      aria-label={`确认 ${file.path}`}
+                                      checked={checkedFiles.includes(file.path)}
+                                      disabled={!editable || !readable}
+                                      onCheckedChange={(checked) => {
+                                        setAcknowledged(false);
+                                        setCheckedFiles((previous) =>
+                                          checked === true
+                                            ? [...previous, file.path]
+                                            : previous.filter((path) => path !== file.path),
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                  <span className="min-w-0">
+                                    <span className="block">{name}</span>
+                                    <span className="mt-1 block break-all font-mono text-foreground-subtle">
+                                      {file.path}
+                                    </span>
+                                    {matchesCandidate && !readable && (
+                                      <span className="mt-1 block text-destructive">暂不可读</span>
+                                    )}
+                                  </span>
+                                </label>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  aria-label={`${expanded ? "收起预览" : "预览"} ${previewLabel}`}
+                                  aria-expanded={expanded}
+                                  disabled={!matchesCandidate}
+                                  onClick={() => setPreviewPath(expanded ? undefined : file.path)}
+                                >
+                                  {expanded ? "收起" : "预览"}
+                                </Button>
+                              </div>
+                              {expanded && matchesCandidate && (
+                                <div className="min-w-0 rounded-lg border border-border/60 px-4 py-3">
+                                  {readable && material?.content ? (
+                                    file.path.endsWith(".json") ? (
+                                      <pre className="wrap-anywhere whitespace-pre-wrap font-mono text-ui-sm">
+                                        {material.content}
+                                      </pre>
+                                    ) : (
+                                      <AIReqMarkdownDocument headingLevelOffset={2}>
+                                        {material.content}
+                                      </AIReqMarkdownDocument>
+                                    )
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p role="status" className="text-ui-sm text-foreground-subtle">
+                                        {material?.error ?? "暂未读取到当前候选的文件正文。"}
+                                      </p>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={ai.pending || busy}
+                                        onClick={() =>
+                                          material?.error
+                                            ? void ai.retryMaterial({
+                                                projectId: group.projectId,
+                                                releaseId: group.releaseId,
+                                                irId: group.id,
+                                                path: material.path,
+                                                sha256: material.sha256,
+                                                round: material.round,
+                                              })
+                                            : void ai.refresh()
+                                        }
+                                      >
+                                        重新读取文件
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ))}
                 </fieldset>
-                {dialog.mode === "publish" && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-surface p-4 text-ui-sm">
-                    <Checkbox
-                      data-testid="proposal-delivery-confirm-all"
-                      className="data-[state=unchecked]:border-foreground/60"
-                      checked={acknowledged}
-                      disabled={!editable}
-                      onCheckedChange={(checked) => setAcknowledged(checked === true)}
-                    />
-                    <span>我已核对全部文件，并授权提交当前候选的文档 PR。</span>
-                  </label>
-                )}
                 {ai.error && (
                   <p role="alert" className="break-words text-ui-sm text-destructive">
                     {ai.error}
@@ -530,11 +652,25 @@ export function AIReqProposalDeliveryControls({
                 )}
               </div>
               <DialogFooter className="shrink-0 flex-row flex-wrap items-center gap-2 border-t border-border/50 px-5 py-3">
-                <p className="mr-auto text-ui-sm text-foreground-subtle">
-                  {dialog.mode === "publish"
-                    ? "勾选全部文件并明确授权后可提交"
-                    : "当前候选的提交记录 · 只读"}
-                </p>
+                {dialog.mode === "publish" ? (
+                  <label className="mr-auto flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-ui-sm">
+                    <Checkbox
+                      data-testid="proposal-delivery-confirm-all"
+                      className="data-[state=unchecked]:border-foreground/60"
+                      checked={acknowledged}
+                      disabled={!editable || !allFilesReadable || !allFilesChecked}
+                      onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                    />
+                    <span>
+                      我已核对全部文件，并授权提交当前候选的文档 PR。
+                      {!allFilesReadable && (
+                        <span className="mt-1 block text-destructive">请重新读取暂不可读的文件。</span>
+                      )}
+                    </span>
+                  </label>
+                ) : (
+                  <p className="mr-auto text-ui-sm text-foreground-subtle">当前候选的提交记录 · 只读</p>
+                )}
                 <Button
                   type="button"
                   variant="outline"

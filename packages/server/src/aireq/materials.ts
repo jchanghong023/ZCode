@@ -119,6 +119,35 @@ export function prototypeMaterial(
     valid: true,
   };
 }
+
+function leadingMermaidEnd(content: string): number {
+  const opener = /^(?:[ \t]*\r?\n)* {0,3}(`{3,}|~{3,})[ \t]*mermaid[ \t]*\r?\n/.exec(content);
+  if (!opener?.[1]) return 0;
+  const fence = opener[1];
+  const closer = new RegExp(
+    `^ {0,3}${fence}${fence[0]}*[ \\t]*(?:\\r?\\n|$)(?:[ \\t]*\\r?\\n)*`,
+    "gm",
+  );
+  closer.lastIndex = opener[0].length;
+  return closer.test(content) ? closer.lastIndex : 0;
+}
+
+export function reviseGeneratedMarkdown(
+  content: string | undefined,
+  note: string,
+  heading: string,
+): string {
+  const noteDiagramEnd = leadingMermaidEnd(note);
+  if (!/^ {0,3}#(?:[ \t]+|\r?\n|$)/.test(note.slice(noteDiagramEnd))) {
+    return appendMaterialDiscussion(content, note, heading);
+  }
+  if (noteDiagramEnd) return note;
+  const priorDiagramEnd = content ? leadingMermaidEnd(content) : 0;
+  if (!content || !priorDiagramEnd) return note;
+  const diagram = content.slice(0, priorDiagramEnd);
+  return diagram + (diagram.endsWith("\n") ? "" : "\n") + note;
+}
+
 export function requirementMaterials(
   projectId: string,
   irId: string,

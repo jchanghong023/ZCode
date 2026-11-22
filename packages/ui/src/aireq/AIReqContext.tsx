@@ -232,7 +232,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         if (revision !== requestRevision.current) return;
         viewRef.current = next;
         setView(next);
-        setLoadedSelection({ ...target });
+        // 不同任务可以映射到相同的选择字段，必须区分各次导航的读取结果。
+        setLoadedSelection(target);
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
         if (!commandError.current) setError(undefined);
         // 旧历史与首次读取也必须落到具体版本；只在当前读取代际接纳后规范范围。
@@ -708,7 +709,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         commandError.current = false;
         if (value.type === "deleteRequirement")
           select({ projectId: target.projectId }, true, target.formalView ? "formal" : "proposals");
-        else await refresh();
+        else if (
+          value.type === "submitProposalReview" &&
+          result.receipt.status === "completed" &&
+          value.projectId === target.projectId && value.irId === target.irId
+        ) {
+          // 送审会让原澄清页转为只读，当前对象成功后直接接到对应评审汇总。
+          openProposalTask(value.kind === "full" ? "solutionReview" : "requirementsReview");
+        } else await refresh();
         setError(undefined);
         return result;
       } catch (cause) {
@@ -719,7 +727,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         return undefined;
       }
     },
-    [source, refresh, report, select],
+    [source, refresh, report, select, openProposalTask],
   );
   return (
     <AIReqContext.Provider
@@ -728,9 +736,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         selection,
         session: view && source.resolveSession(view, selection),
         pending,
-        selectionReady: Boolean(
-          view && loadedSelection && JSON.stringify(loadedSelection) === JSON.stringify(selection),
-        ),
+        selectionReady: Boolean(view && loadedSelection === selection),
         mainView: navigation.mainView,
         requirementView: navigation.requirementView,
         requirementReturnView: navigation.requirementReturnView,

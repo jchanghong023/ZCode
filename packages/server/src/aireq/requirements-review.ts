@@ -117,7 +117,9 @@ export function advancePrototypeReview(review: Review): boolean {
     return false;
   }
   for (const agent of agents) {
-    if (agent.id !== "summary" && agent.status === "running") finishPrototypeReport(review, agent);
+    if (agent.id !== "summary" && agent.status === "running") {
+      finishPrototypeReport(review, agent);
+    }
   }
   if (!summary) review.report = agents[0]?.status === "completed" ? agents[0].report : "";
   if (
@@ -139,7 +141,7 @@ function finishPrototypeReport(review: Review, agent: ReviewAgent): void {
     agent.id === "summary"
       ? "A、B、C 三份同版报告已齐备，未记录阻断项。"
       : "本路模拟评审已完成，未记录阻断项。";
-  agent.report = `# ${agent.name}\n\n第 ${review.round} 轮模拟评审，输入 ${review.inputFiles?.length ?? 0} 份材料。\n\n## 评审意见\n\n${opinion}`;
+  agent.report = `# ${agent.name}\n\n## 评审意见\n\n${opinion}\n\n第 ${review.round} 轮模拟评审，输入 ${review.inputFiles?.length ?? 0} 份材料。`;
 }
 
 export interface PrototypeReviewRun {

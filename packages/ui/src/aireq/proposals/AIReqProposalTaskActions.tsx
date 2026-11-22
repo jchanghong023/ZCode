@@ -22,7 +22,6 @@ import {
   type AIReqRequirementGroup,
   type AIReqReview,
 } from "../contract.js";
-import { AIReqProposalReturn } from "./AIReqProposalReturn.js";
 
 /** 任务的显式业务动作复用原命令入口，接纳与阶段转换由 Context／服务端裁决。 */
 export function AIReqProposalTaskActions({
@@ -139,13 +138,6 @@ export function AIReqProposalTaskActions({
             >
               {busy ? "正在重试…" : full ? "重试方案审查" : "重试需求评审"}
             </Button>
-          )}
-          {!full && review && requirementsReviewCurrent(group) && (
-            <AIReqProposalReturn
-              group={group}
-              disabled={Boolean(unavailable)}
-              focusFallback={focusFallback}
-            />
           )}
         </div>
       )}

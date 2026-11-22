@@ -95,11 +95,13 @@ export interface AIReqIdeaTarget {
 export interface AIReqIdeaTransfer extends AIReqIdeaTarget {
   irId: string;
 }
+export type AIReqProposalReturnTarget = "requirements" | "solution";
 export interface AIReqProposalFeedbackNote {
   employeeId: string;
   returnedAt: string;
   round: number;
   reason: string;
+  target?: AIReqProposalReturnTarget;
   resumedAt?: string;
 }
 export type AIReqReviewAgentId = "a" | "b" | "c" | "summary";
@@ -183,7 +185,7 @@ export interface AIReqProposalDelivery {
   /** A closed PR retained with the historical candidate, not an active publication. */
   closedPr?: AIReqPrFact;
   mergeCheck?: {
-    status: "waiting" | "unmerged" | "incomplete" | "failed" | "merged";
+    status: "untracked" | "waiting" | "unmerged" | "incomplete" | "failed" | "merged";
     checkedAt?: string;
     nextCheckAt?: string;
     message: string;
@@ -249,6 +251,7 @@ export interface AIReqRequirementGroup {
   submittedBy: string;
   sourceIrId?: string;
   contacts?: { business?: string; development?: string; testing?: string };
+  formalParticipants?: { business?: string; development?: string; testing?: string };
   originalReview?: AIReqReview;
   originalReviewHistory?: AIReqReview[];
   alignment?: AIReqAlignment[];
@@ -393,7 +396,7 @@ type AIReqIntent = AIReqCommandBase &
       }
     | {
         type: "assignContacts";
-        contacts: { business?: string; development?: string; testing?: string };
+        contacts: NonNullable<AIReqRequirementGroup["contacts"]>;
       }
     | { type: "runFullReview" }
     | {
@@ -404,11 +407,6 @@ type AIReqIntent = AIReqCommandBase &
         snapshotDigest: string;
       }
     | { type: "closeProposalPr"; candidate: string }
-    | {
-        type: "reviseProposalMaterial";
-        target: "requirements" | "solution" | "test-plan";
-        note: string;
-      }
     | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "acceptProposal"; reviewId: string; snapshotDigest: string }
     | {
@@ -419,7 +417,7 @@ type AIReqIntent = AIReqCommandBase &
         snapshotDigest: string;
       }
     | { type: "runRequirementsReview" }
-    | { type: "returnProposal"; reason: string }
+    | { type: "returnProposal"; reason: string; target?: AIReqProposalReturnTarget }
     | { type: "publishProposal"; candidate: string }
   );
 
@@ -501,7 +499,8 @@ export interface AIReqAlignment {
 export interface AIReqTodo extends AIReqObjectRef {
   id: string;
   requirementTitle: string;
-  assignmentPerspective: AIReqAlignment["perspective"];
+  perspective: AIReqAlignment["perspective"];
+  employeeId?: string;
   releaseId: string;
   title: string;
   kind:
@@ -512,7 +511,5 @@ export interface AIReqTodo extends AIReqObjectRef {
     | "alignment"
     | "publish"
     | "failure";
-  employeeId?: string;
-  perspective?: AIReqAlignment["perspective"];
   selection: AIReqWorkflowTarget;
 }

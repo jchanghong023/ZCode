@@ -220,8 +220,8 @@ export function seedPrototypePublishedProposal(
   delivery.pushedAt = createdAt;
   delivery.prCandidate = delivery.candidate;
   delivery.mergeCheck = {
-    status: "waiting",
-    message: "文档 PR 已提交，等待评审合入与完整材料核验。",
+    status: "untracked",
+    message: "文档 PR 已打开，开始跟踪后将自动核验合入与材料完整性。",
   };
   proposal.requirementsPr = aiReqPrFactSchema.parse({
     number,

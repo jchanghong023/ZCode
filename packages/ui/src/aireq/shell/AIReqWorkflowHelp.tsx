@@ -30,7 +30,7 @@ const steps = [
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办按当前项目与 Release 展示我的、待认领和全部事项，点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
+      "待办按当前项目与 Release 展示「我的」「待认领」和「全部待办」。查看归属工号，或在行内认领、调整分工。点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
     descriptionEn:
       "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. Create requirements from Project overview or Co-creation. To import, use Co-creation. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. Submit the validated business document for review; business confirmation unlocks solution design.",
   },
@@ -121,7 +121,7 @@ export function AIReqWorkflowHelp({
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "设置分为外观、项目配置、AI 配置和文档格式；AI 配置包含模型和共享 Agent 指令。离开未保存表单时可保存、丢弃或取消，取消保留当前输入；往返设置保留未发送的讨论与附件。所有合法工号都可认领或代办，记录实际操作者。"
+              ? "设置分为外观、项目配置、AI 配置和文档格式；AI 配置包含模型和共享 Agent 指令。离开未保存表单时可保存、丢弃或取消，取消保留当前输入；往返设置保留未发送的讨论与附件。"
               : "Settings includes Appearance, Project configuration, AI configuration and Document formats. AI configuration includes models and shared Agent instructions. Save, discard or cancel when leaving an unsaved form; cancel keeps your input. Returning from settings preserves unsent discussion text and attachments. Any valid employee may claim or act on behalf of others, with the actual operator recorded."}
           </p>
           <ol className="space-y-3">

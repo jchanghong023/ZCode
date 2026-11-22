@@ -1,13 +1,10 @@
 import { useLayoutEffect, useRef } from "react";
-import { ArrowRight, FileText, Settings2 } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { getEmployeeId } from "../identity.js";
-import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
-  proposalProgressIndex,
   hasProjectRole,
-  fullReviewCurrent,
   proposalState,
   proposalStateLabel,
   PROPOSAL_STATE_OPTIONS,
@@ -45,36 +42,24 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
   const state = proposalState(group);
   const guidance = proposalTaskGuidance(group);
   const stateLabel = proposalStateLabel(group);
-  const phase = proposalProgressIndex(group);
   const developer = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
   const roles = {
     development: developer,
     testing: hasProjectRole(ai.view, group.projectId, getEmployeeId(), "testing"),
   };
   const tasks = stages.filter((task) => canOpenProposalTask(task, roles));
-  const businessConfirmation =
-    !canOpenProposalTask("solutionReview", roles) && fullReviewCurrent(group);
+  const currentStateIndex = PROPOSAL_STATE_OPTIONS.findIndex((option) => option.id === state);
   const track = useRef<HTMLDivElement>(null);
   const currentStep = useRef<HTMLSpanElement>(null);
   const alignment =
     group.alignment?.filter((entry) => proposalAlignmentCurrent(group, entry)) ?? [];
-  const contactLabel = ([role, label]: (typeof confirmRoles)[number]) =>
-    `${label} ${group.contacts?.[role] ?? "未分配"}`;
   const roleLabel =
     state === "solution-confirmation-pending"
       ? confirmRoles
           .filter(([role]) => !alignment.some((entry) => entry.perspective === role))
-          .map(contactLabel)
+          .map(([, label]) => label)
           .join("、")
-      : state === "not-started" ||
-          state === "ir-review-pending" ||
-          state === "ir-confirmation-pending"
-        ? contactLabel(confirmRoles[0])
-        : state === "solution-review-pending" ||
-            state === "solution-incomplete" ||
-            state === "submission-pending"
-          ? contactLabel(confirmRoles[1])
-          : guidance.role;
+      : guidance.role;
   useLayoutEffect(() => {
     const container = track.current;
     if (!container) return;
@@ -153,17 +138,25 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
               className="flex w-max min-w-full items-center justify-between gap-1 whitespace-nowrap pr-1"
               aria-label="提案八态"
             >
-              {PROPOSAL_STATE_OPTIONS.map((option) => (
+              {PROPOSAL_STATE_OPTIONS.map((option, index) => (
                 <li key={option.id} className="shrink-0">
                   <span
                     ref={state === option.id ? currentStep : undefined}
                     aria-current={state === option.id ? "step" : undefined}
                     className={
-                      state === option.id
+                      index === currentStateIndex
                         ? "inline-flex items-center gap-1 rounded-sm bg-selected px-2 py-1 text-ui-base font-semibold text-foreground"
-                        : "inline-block px-2 py-1 text-ui-base text-foreground-subtle"
+                        : index < currentStateIndex
+                          ? "inline-flex items-center gap-1 px-2 py-1 text-ui-base text-foreground"
+                          : "inline-block px-2 py-1 text-ui-base text-foreground-subtle"
                     }
                   >
+                    {index < currentStateIndex && (
+                      <>
+                        <Check className="size-3.5 text-success" aria-hidden="true" />
+                        <span className="sr-only">已完成：</span>
+                      </>
+                    )}
                     {option.title}
                     {state === option.id && (
                       <span className="rounded-sm bg-surface px-1 text-ui-xs font-normal text-foreground-subtle">
@@ -206,7 +199,6 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             ))}
           </ol>
         </section>
-        {businessConfirmation && <AIReqProposalAlignment group={group} />}
         {/* 原文长度不可决定主要操作的位置；折叠阅读区保留完整文本与键盘滚动。 */}
         <details
           key={`${group.projectId}:${group.id}`}
@@ -253,21 +245,6 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             })}
           </section>
         )}
-        <div className="flex flex-wrap gap-3 border-t border-border/50 pt-4">
-          <Button
-            variant="ghost"
-            onClick={() =>
-              ai.openProposalTask(phase >= 2 && developer ? "solution" : "requirements")
-            }
-          >
-            <FileText className="size-4" aria-hidden="true" />
-            查看需求材料
-          </Button>
-          <Button variant="ghost" onClick={() => ai.openProposalTask("management")}>
-            <Settings2 className="size-4" aria-hidden="true" />
-            管理需求（联系人与材料）
-          </Button>
-        </div>
       </div>
     </main>
   );

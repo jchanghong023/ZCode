@@ -305,7 +305,13 @@ describe("ST same-owner workflow projections", () => {
           srIds: group.srIds,
           requirementsPr: { status: "merged" },
           review: { id: review.id },
+          formalParticipants: {
+            business: client.identity.employeeId,
+            development: client.identity.employeeId,
+            testing: "y00000000",
+          },
         });
+        expect(formal).not.toHaveProperty("contacts");
         expect(formal.merge?.files).toEqual(group.files);
         expect(formal.merge?.commit).toMatch(/\S/);
         expect(archived.materials.filter((item) => item.irId === irId)).toEqual(
@@ -433,7 +439,8 @@ describe("ST same-owner workflow projections", () => {
           irId: target.irId,
           requirementTitle: group!.title,
           kind: "business-discussion",
-          assignmentPerspective: "business",
+          perspective: "business",
+          employeeId: client.identity.employeeId,
           selection: { projectId: target.projectId, irId: target.irId },
         });
         const assignment = await client.command(
@@ -460,7 +467,7 @@ describe("ST same-owner workflow projections", () => {
           releaseId: target.releaseId,
           irId: target.irId,
           kind: "business-discussion",
-          assignmentPerspective: "business",
+          perspective: "business",
           employeeId: otherEmployee,
         });
         const other = await connectST(otherEmployee);

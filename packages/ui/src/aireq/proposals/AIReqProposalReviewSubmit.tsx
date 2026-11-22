@@ -24,9 +24,7 @@ export function AIReqProposalReviewSubmit({
   const current = full ? fullReviewCurrent(proposal) : requirementsReviewCurrent(proposal);
   const blocker = proposalReviewSubmitBlocker(proposal, kind);
   const snapshotDigest = proposal.snapshot?.digest;
-  const reason = !full
-    ? (blocker ?? (!snapshotDigest ? "等待需求文档校验完成后提交。" : undefined))
-    : undefined;
+  const reason = blocker ?? (!snapshotDigest ? "等待当前材料校验完成后提交。" : undefined);
 
   if (current) {
     return (

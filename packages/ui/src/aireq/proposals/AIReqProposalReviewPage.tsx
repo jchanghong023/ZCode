@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button.js";
 import { getEmployeeId } from "../identity.js";
 import { hasProjectRole } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
+import { useAIReqDataSource } from "../data-source.js";
 import {
   alignmentBlocker,
   fullReviewCurrent,
+  fullReviewReadyBlocker,
   proposalAlignmentCurrent,
   proposalReviewCanRetry,
+  proposalReturnBlocker,
   requirementsReviewCurrent,
   type AIReqRequirementGroup,
 } from "../contract.js";
@@ -16,6 +19,7 @@ import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../she
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
 import { AIReqProposalTaskActions } from "./AIReqProposalTaskActions.js";
+import { AIReqProposalReturn } from "./AIReqProposalReturn.js";
 import { proposalTaskStatus } from "./proposalTasks.js";
 
 const detailsClass =
@@ -61,6 +65,7 @@ export function AIReqProposalReviewPage({
   full: boolean;
 }) {
   const ai = useAIReq()!;
+  const source = useAIReqDataSource();
   const developer = hasProjectRole(ai.view, group.projectId, getEmployeeId(), "development");
   const heading = useRef<HTMLHeadingElement>(null);
   const review = full ? group.review : group.originalReview;
@@ -74,7 +79,12 @@ export function AIReqProposalReviewPage({
       ? review.humanDecision
       : undefined;
   const fullConfirmed = full && !alignmentBlocker(group);
+  const fullReady = full && !fullReviewReadyBlocker(group);
   const canEditMaterials = !full || developer;
+  const returnTarget = full ? "solution" : "requirements";
+  const canReturn =
+    current && (developer || (!full && !confirmation)) && !proposalReturnBlocker(group, returnTarget);
+  const feedback = group.returnFeedback;
   const canRetry = canEditMaterials && proposalReviewCanRetry(group, full);
   const title = full ? "方案审查" : "需求评审";
   const reportLabel = full ? "综合报告" : "评审报告";
@@ -107,19 +117,6 @@ export function AIReqProposalReviewPage({
         ...(group.alignment ?? []).filter((entry) => !proposalAlignmentCurrent(group, entry)),
       ]
     : [];
-  const nextActions = (
-    <div className="flex flex-wrap items-center gap-2">
-      {developer && (
-        <Button onClick={() => ai.openProposalTask(full ? "delivery" : "solution")}>
-          {full ? "前往交付确认" : "进入方案设计"}
-          <ArrowRight className="size-4" aria-hidden="true" />
-        </Button>
-      )}
-      <Button variant="outline" onClick={() => ai.openProposalTask("management")}>
-        前往管理需求修改材料
-      </Button>
-    </div>
-  );
   return (
     <main
       className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
@@ -136,19 +133,28 @@ export function AIReqProposalReviewPage({
           >
             {status}
           </span>
+          {canReturn && source.capabilities.proposalDiscussion && (
+            <div className="ml-auto">
+              <AIReqProposalReturn
+                group={group}
+                target={returnTarget}
+                focusFallback={heading}
+              />
+            </div>
+          )}
         </header>
         {!(current && hasReport) && <AIReqProposalMaterialCheck check={check} />}
-        {!full && group.returnFeedback && !group.returnFeedback.resumedAt && (
+        {!full && feedback && feedback.target !== "solution" && !feedback.resumedAt && (
           <section className="space-y-2" aria-label="当前退回意见">
             <p className="text-ui-sm font-medium">
-              已退回业务补充 · 第 {group.returnFeedback.round} 轮
+              已退回业务补充 · 第 {feedback.round} 轮
             </p>
             <p className="text-ui-sm text-foreground-subtle">
-              {group.returnFeedback.employeeId} · {reviewTime(group.returnFeedback.returnedAt)}
+              {feedback.employeeId} · {reviewTime(feedback.returnedAt)}
               （北京时间）
             </p>
             <p className="whitespace-pre-wrap break-words text-ui-sm">
-              {group.returnFeedback.reason}
+              {feedback.reason}
             </p>
           </section>
         )}
@@ -186,7 +192,12 @@ export function AIReqProposalReviewPage({
               <AIReqMarkdownDocument>{reportBody}</AIReqMarkdownDocument>
             ) : (
               <div className="space-y-2 text-ui-sm text-foreground-subtle">
-                {full && <p>三路审查已完成 {completedIndependent} / 3</p>}
+                {full && (
+                  <p role="status">
+                    三路审查已完成 {completedIndependent} / 3
+                    {completedIndependent === 3 && reportAgent?.status === "running" && " · 综合终审中"}
+                  </p>
+                )}
                 <p>
                   {canRetry
                     ? `${reportLabel}缺失或不可读取，可重试当前材料。`
@@ -224,16 +235,7 @@ export function AIReqProposalReviewPage({
         {(!full || canRetry) && (
           <AIReqProposalTaskActions group={group} full={full} focusFallback={heading} />
         )}
-        {full && !fullConfirmed && (
-          <>
-            {current && developer && (
-              <Button variant="outline" onClick={() => ai.openProposalTask("solution")}>
-                返回方案设计
-              </Button>
-            )}
-            <AIReqProposalAlignment group={group} />
-          </>
-        )}
+        {fullReady && hasReport && !fullConfirmed && <AIReqProposalAlignment group={group} />}
         {(confirmation || fullConfirmed) && (
           <section
             className="space-y-3 border-y border-border/50 py-4"
@@ -253,7 +255,12 @@ export function AIReqProposalReviewPage({
             ) : (
               <AIReqProposalAlignment group={group} readOnly />
             )}
-            {nextActions}
+            {developer && (
+              <Button onClick={() => ai.openProposalTask(full ? "delivery" : "solution")}>
+                {full ? "前往交付确认" : "进入方案设计"}
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             {group.status === "requirements-pr" && (
               <p className="text-ui-sm text-foreground-subtle">
                 当前材料已冻结；如需修改，请先关闭未合入的文档 PR。

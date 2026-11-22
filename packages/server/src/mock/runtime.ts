@@ -159,10 +159,12 @@ function file(name: string, content: string): VirtualFileNode {
 
 /** 一个可信的小项目：README + src + 配置，足以驱动文件树/搜索/预览 UI。 */
 function buildFixtureWorkspace(): VirtualFileNode {
+  const diagram = "```mermaid\nflowchart LR\n  UI[浏览器] --> Mock[模拟后端]\n```\n";
   return dir("workspace", [
     file(
       "README.md",
       [
+        diagram,
         "# ZCode Web Demo",
         "",
         "这是一个模拟后端驱动的演示工作区。",
@@ -216,7 +218,7 @@ function buildFixtureWorkspace(): VirtualFileNode {
         file("Dialog.tsx", "export function Dialog() {\n  return null;\n}\n"),
       ]),
     ]),
-    dir("docs", [file("design.md", "# 设计说明\n\n- 主色：#1f2937\n- 圆角：8px\n")]),
+    dir("docs", [file("design.md", `${diagram}\n# 设计说明\n\n- 主色：#1f2937\n- 圆角：8px\n`)]),
   ]);
 }
 

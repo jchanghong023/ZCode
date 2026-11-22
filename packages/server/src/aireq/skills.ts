@@ -2,6 +2,7 @@ import { businessRule } from "./errors.js";
 import type { SkillSummary } from "@zcode/shared";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 const detail =
+  '```mermaid\nflowchart LR\n  A["核对技能用途与范围"] --> B["确认输入和项目依赖"] --> C["查阅执行步骤"]\n```\n\n' +
   "# 技能详情\n\n用于核对技能的用途、使用条件和执行步骤。使用前，请核对技能内容、所需输入及适用范围，并确认目标项目包含所需依赖。不要把技能说明当作已经执行的结果。\n";
 
 const PROTOTYPE_SKILLS: SkillSummary[] = [

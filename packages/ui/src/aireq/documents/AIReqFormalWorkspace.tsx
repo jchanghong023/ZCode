@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, FileText, History, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { AIReqRequirementGroup } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { hasProjectRole } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -17,7 +19,7 @@ export function AIReqFormalWorkspace() {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const [search, setSearch] = useState("");
-  const [syncing, setSyncing] = useState(false);
+  const [syncingIrId, setSyncingIrId] = useState<string>();
   const [syncFeedback, setSyncFeedback] = useState<{ irId: string; label: string }>();
   const syncFlight = useRef(false);
   const routedTarget = useRef<string | undefined>(undefined);
@@ -67,26 +69,27 @@ export function AIReqFormalWorkspace() {
         a.title.localeCompare(b.title, locale),
     );
   const searchLabel = zh ? "搜索正式文档" : "Search formal documents";
+  const syncLabel = zh ? "从 Git 同步" : "Sync from Git";
   const date = selected?.merge?.checkedAt && new Date(selected.merge.checkedAt);
   const pr = selected?.requirementsPr;
   const canSync =
     hasProjectRole(ai.view, projectId, getEmployeeId(), "development") ||
     hasProjectRole(ai.view, projectId, getEmployeeId(), "testing");
-  const syncDocuments = async () => {
-    if (!selected || !canSync || syncFlight.current) return;
+  const syncDocuments = async (group: AIReqRequirementGroup) => {
+    if (!canSync || !group.merge || ai.pending || syncFlight.current) return;
     syncFlight.current = true;
-    setSyncing(true);
+    setSyncingIrId(group.id);
     setSyncFeedback(undefined);
     try {
       const result = await ai.command({
         type: "syncFormalDocuments",
-        projectId: selected.projectId,
-        irId: selected.id,
+        projectId: group.projectId,
+        irId: group.id,
       });
-      if (result) setSyncFeedback({ irId: selected.id, label: result.receipt.type });
+      if (result) setSyncFeedback({ irId: group.id, label: result.receipt.type });
     } finally {
       syncFlight.current = false;
-      setSyncing(false);
+      setSyncingIrId(undefined);
     }
   };
   return (
@@ -113,16 +116,6 @@ export function AIReqFormalWorkspace() {
               <p className="wrap-anywhere whitespace-pre-wrap">{selected.originalText}</p>
             </section>
             <div className="flex flex-wrap gap-2">
-              {canSync && selected.merge && (
-                <Button
-                  variant="outline"
-                  disabled={syncing || ai.pending}
-                  onClick={() => void syncDocuments()}
-                >
-                  <RefreshCw aria-hidden="true" />
-                  {syncing ? (zh ? "正在同步…" : "Syncing…") : zh ? "从 Git 同步" : "Sync from Git"}
-                </Button>
-              )}
               <Button
                 variant="outline"
                 onClick={() =>
@@ -166,11 +159,6 @@ export function AIReqFormalWorkspace() {
                 {zh ? "新建关联提案" : "New related proposal"}
               </Button>
             </div>
-            {syncFeedback?.irId === selected.id && (
-              <p role="status" className="text-ui-sm text-foreground-subtle">
-                {syncFeedback.label}
-              </p>
-            )}
           </>
         ) : (
           <>
@@ -188,32 +176,132 @@ export function AIReqFormalWorkspace() {
                   />
                 )}
                 {visible.length ? (
-                  <ul className="divide-y divide-border rounded-xl border border-card-border bg-card">
-                    {visible.map((group) => (
-                      <li key={group.id} data-aireq-motion-row="">
-                        <Button
-                          variant="ghost"
-                          className="h-auto w-full justify-between gap-3 px-4 py-3 text-left whitespace-normal focus-visible:border-remote-foreground-muted"
-                          onClick={() =>
-                            ai.select(
-                              { projectId: group.projectId, irId: group.id, formalView: "detail" },
-                              group.releaseId,
-                            )
-                          }
-                        >
-                          <span data-aireq-motion-cell="" className="min-w-0 wrap-anywhere">
-                            <span className="block">{group.title}</span>
-                            {group.title !== group.originalText && (
-                              <span className="mt-0.5 block text-ui-sm font-normal text-foreground-subtle">
-                                {group.originalText}
-                              </span>
+                  <div className="overflow-x-auto rounded-xl border border-card-border bg-card text-foreground">
+                    <table className="w-full min-w-lg table-fixed text-left text-ui-base">
+                      <colgroup>
+                        <col />
+                        <col className="w-28" />
+                        <col className="w-28" />
+                        <col className="w-28" />
+                        {canSync && <col className="w-16" />}
+                      </colgroup>
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th scope="col" className="px-4 py-3 font-medium">
+                            {zh ? "文档名称" : "Document name"}
+                          </th>
+                          <th scope="col" className="px-4 py-3 font-medium">
+                            {zh ? "业务" : "Business"}
+                          </th>
+                          <th scope="col" className="px-4 py-3 font-medium">
+                            {zh ? "开发" : "Development"}
+                          </th>
+                          <th scope="col" className="px-4 py-3 font-medium">
+                            {zh ? "测试" : "Testing"}
+                          </th>
+                          {canSync && (
+                            <th scope="col" className="px-3 py-3 text-center font-medium">
+                              {zh ? "同步" : "Sync"}
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {visible.map((group) => (
+                          <tr
+                            key={group.id}
+                            data-aireq-motion-row=""
+                            className="group/row cursor-pointer hover:bg-hover"
+                            onClick={() =>
+                              ai.select(
+                                {
+                                  projectId: group.projectId,
+                                  irId: group.id,
+                                  formalView: "detail",
+                                },
+                                group.releaseId,
+                              )
+                            }
+                          >
+                            <td data-aireq-motion-cell="" className="px-4 py-3">
+                              <div className="min-w-0">
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="h-auto max-w-full cursor-pointer gap-1.5 p-0 text-left whitespace-normal text-foreground group-hover/row:underline"
+                                >
+                                  <span className="min-w-0 wrap-anywhere">{group.title}</span>
+                                  <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
+                                </Button>
+                                {group.title !== group.originalText && (
+                                  <p className="mt-0.5 truncate text-ui-sm text-foreground-subtle group-hover/row:text-foreground">
+                                    {group.originalText}
+                                  </p>
+                                )}
+                                {canSync && (
+                                  <p
+                                    role="status"
+                                    className="text-ui-sm text-foreground-subtle group-hover/row:text-foreground"
+                                  >
+                                    {syncFeedback?.irId === group.id
+                                      ? syncFeedback.label
+                                      : undefined}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-ui-caption text-foreground-subtle tabular-nums group-hover/row:text-foreground">
+                              {group.formalParticipants?.business ?? "—"}
+                            </td>
+                            <td className="px-4 py-3 text-ui-caption text-foreground-subtle tabular-nums group-hover/row:text-foreground">
+                              {group.formalParticipants?.development ?? "—"}
+                            </td>
+                            <td className="px-4 py-3 text-ui-caption text-foreground-subtle tabular-nums group-hover/row:text-foreground">
+                              {group.formalParticipants?.testing ?? "—"}
+                            </td>
+                            {canSync && (
+                              <td className="px-3 text-center">
+                                {group.merge && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label={
+                                          syncingIrId === group.id
+                                            ? zh
+                                              ? "正在同步…"
+                                              : "Syncing…"
+                                            : syncLabel
+                                        }
+                                        disabled={syncingIrId !== undefined || ai.pending}
+                                        className="disabled:pointer-events-auto"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          void syncDocuments(group);
+                                        }}
+                                      >
+                                        <RefreshCw
+                                          aria-hidden="true"
+                                          className={
+                                            syncingIrId === group.id
+                                              ? "motion-safe:animate-spin"
+                                              : undefined
+                                          }
+                                        />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{syncLabel}</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </td>
                             )}
-                          </span>
-                          <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <p role="status" className="text-foreground-subtle">
                     {groups.length

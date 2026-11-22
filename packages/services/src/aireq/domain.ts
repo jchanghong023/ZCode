@@ -1,6 +1,7 @@
 import type {
   AIReqAlignment,
   AIReqFileVersion,
+  AIReqProposalReturnTarget,
   AIReqProposalState,
   AIReqRequirementGroup,
   AIReqWorkflowTarget,
@@ -56,7 +57,9 @@ export function requirementsReviewInputs(
   // 文件名不能冒充有效材料：只接受 owner 当前快照中相同对象、相同版本的非空业务文档。
   if (
     group.requirementsCheck?.issues.length !== 0 ||
-    (group.returnFeedback && !group.returnFeedback.resumedAt) ||
+    (group.returnFeedback &&
+      group.returnFeedback.target !== "solution" &&
+      !group.returnFeedback.resumedAt) ||
     !snapshot ||
     !snapshot.digest ||
     snapshot.projectId !== group.projectId ||
@@ -73,7 +76,11 @@ export function requirementsReviewInputs(
   return [{ ...file }];
 }
 export function requirementsReviewStartBlocker(group: AIReqRequirementGroup): string | undefined {
-  if (group.returnFeedback && !group.returnFeedback.resumedAt)
+  if (
+    group.returnFeedback &&
+    group.returnFeedback.target !== "solution" &&
+    !group.returnFeedback.resumedAt
+  )
     return "请先通过业务讨论补充退回意见。";
   const issue = group.requirementsCheck?.issues[0];
   if (issue) return `${issue.path}：${issue.reason}`;
@@ -374,9 +381,21 @@ export function proposalProgressIndex(group: AIReqRequirementGroup): number {
       return -1;
   }
 }
-export function proposalReturnBlocker(group: AIReqRequirementGroup): string | undefined {
-  const phase = proposalProgressIndex(group);
-  if (phase !== 1 && phase !== 2) return "仅当前需求评审或方案阶段可以退回业务澄清。";
+export function proposalReturnBlocker(
+  group: AIReqRequirementGroup,
+  target: AIReqProposalReturnTarget = "requirements",
+): string | undefined {
+  const state = proposalState(group);
+  if (!state || state === "merge-pending" || proposalPrCurrent(group))
+    return "只能退回未冻结的提案。";
+  if (target === "solution") {
+    if (!fullReviewCurrent(group) || requirementsReviewBlocker(group))
+      return "仅当前方案审查或待提交交付可以退回方案设计。";
+  } else if (state === "not-started") {
+    return "提案已在需求澄清阶段。";
+  } else if (state === "submission-pending") {
+    return "交付待提交时请先退回方案设计。";
+  }
 }
 export function proposalViewedIndex(
   group: AIReqRequirementGroup,
@@ -434,7 +453,7 @@ export function conversationReadOnlyReason(
     selection.discussionPhase !== (proposal.proposalStage ?? "requirements")
   )
     return "正在查看另一讨论阶段的历史，只读。";
-  if (proposalPrCurrent(proposal)) return "需求 MR 已创建，等待后台核验合入；当前版本只读。";
+  if (proposalPrCurrent(proposal)) return "文档 PR 已创建，等待核验合入；当前版本只读。";
 }
 
 /** 待办只由 owner 第一手业务事实派生，读取时不按当前项目筛选。 */
@@ -444,35 +463,37 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
     group: AIReqRequirementGroup,
     kind: AIReqTodo["kind"],
     title: string,
-    assignmentPerspective: AIReqTodo["assignmentPerspective"],
-    employeeId?: string,
-    extra: Partial<AIReqTodo> = {},
+    perspective: AIReqTodo["perspective"],
+    proposalStep?: AIReqWorkflowTarget["proposalStep"],
   ) => {
     result.push({
-      id: `${group.projectId}:${group.id}:${kind}:${extra.perspective ?? ""}`,
+      id: `${group.projectId}:${group.id}:${kind}:${kind === "alignment" ? perspective : ""}`,
       // 跨项目待办不能从当前项目投影补名字或 Release；由同一 IR 事实一次派生。
       projectId: group.projectId,
       irId: group.id,
       requirementTitle: group.title,
       releaseId: group.releaseId,
-      assignmentPerspective,
+      perspective,
+      employeeId: group.contacts?.[perspective],
       kind,
       title,
-      employeeId,
       selection: {
         projectId: group.projectId,
         irId: group.id,
+        ...(proposalStep && { proposalStep }),
       },
-      ...extra,
     });
   };
   for (const group of view.drafts) {
     const state = proposalState(group);
     if (!state) continue;
-    const contact = group.contacts ?? {};
     // 退回保留旧评审用于追溯，但未补充前的当前动作只能是业务讨论，不能再次判断旧报告。
-    if (group.returnFeedback && !group.returnFeedback.resumedAt) {
-      push(group, "business-discussion", "讨论和补充业务需求", "business", contact.business);
+    if (
+      group.returnFeedback &&
+      group.returnFeedback.target !== "solution" &&
+      !group.returnFeedback.resumedAt
+    ) {
+      push(group, "business-discussion", "讨论和补充业务需求", "business");
       continue;
     }
     if (state === "merge-pending") {
@@ -482,18 +503,11 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
           "failure",
           "处理文档 PR 核验失败或材料不完整",
           "development",
-          contact.development,
         );
       continue;
     }
     if (state === "submission-pending" && group.proposalDelivery?.publishError) {
-      push(
-        group,
-        "failure",
-        group.proposalDelivery.publishError.message,
-        "development",
-        contact.development,
-      );
+      push(group, "failure", group.proposalDelivery.publishError.message, "development");
       continue;
     }
     const original = state === "ir-review-pending";
@@ -506,14 +520,7 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
         "failure",
         "处理评审失败并重试",
         original ? "business" : "development",
-        original ? contact.business : contact.development,
-        {
-          selection: {
-            projectId: group.projectId,
-            irId: group.id,
-            proposalStep: original ? "requirements-review" : "solution",
-          },
-        },
+        original ? "requirements-review" : "solution",
       );
       continue;
     }
@@ -523,17 +530,15 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
         "business-discussion",
         requirementsReviewInputs(group) ? "提交需求评审" : "完善业务需求",
         "business",
-        contact.business,
       );
     } else if (state === "ir-confirmation-pending") {
-      push(group, "original-review", "人工确认当前 IR 评审", "business", contact.business);
+      push(group, "original-review", "人工确认当前 IR 评审", "business");
     } else if (state === "solution-incomplete") {
       push(
         group,
         "solution",
         hasCurrentProposalSolution(group) ? "提交方案审查" : "拆分 SR 并完善完整材料",
         "development",
-        contact.development,
       );
     } else if (state === "solution-confirmation-pending") {
       for (const perspective of ["business", "development", "testing"] as const)
@@ -547,14 +552,10 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
             "alignment",
             `确认${{ business: "业务", development: "开发", testing: "测试" }[perspective]}角色`,
             perspective,
-            contact[perspective],
-            {
-              perspective,
-              selection: { projectId: group.projectId, irId: group.id, proposalStep: "solution" },
-            },
+            "solution",
           );
     } else if (state === "submission-pending") {
-      push(group, "publish", "提交整包文档 PR", "development", contact.development);
+      push(group, "publish", "提交整包文档 PR", "development");
     }
   }
   return result;

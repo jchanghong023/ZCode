@@ -27,7 +27,17 @@ import { proposalTaskForTodo, proposalTaskSelection } from "./proposals/proposal
 
 const perspectiveLabels = { business: "业务", development: "开发", testing: "测试" } as const;
 const assignmentLabel = (item: AIReqTodo) =>
-  perspectiveLabels[item.assignmentPerspective] + "联系人";
+  perspectiveLabels[item.perspective] + "联系人";
+
+function TodoOwnership({ label, assignee }: { label: string; assignee?: string }) {
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span className={label === "他人" ? undefined : "font-semibold"}>{label}</span>
+      {assignee && <span className="font-mono text-ui-sm text-foreground-subtle">{assignee}</span>}
+    </span>
+  );
+}
+
 export function AIReqTodoPage() {
   const ai = useAIReq()!;
   const source = useAIReqDataSource();
@@ -38,6 +48,8 @@ export function AIReqTodoPage() {
   const [assigningTodo, setAssigningTodo] = useState<AIReqTodo>();
   const [assignmentError, setAssignmentError] = useState<string>();
   const employeeId = getEmployeeId();
+  const ownershipLabel = (item: AIReqTodo) =>
+    item.employeeId === employeeId ? "我的" : item.employeeId ? "他人" : "待认领";
   const assigneeDraft = assigningTodo ? (assignees[assigningTodo.id] ?? "").trim() : "";
   const assigneeValid = /^[a-z][0-9]{8}$/.test(assigneeDraft);
   const assigneeInvalid = Boolean(assigneeDraft) && !assigneeValid;
@@ -79,7 +91,7 @@ export function AIReqTodoPage() {
       );
       if (!group) throw new Error("待办所属 IR 已不存在，请刷新后重试。");
       // 弹窗展示与实际写入使用同一职责，不能从流程阶段猜测待办的分工类型。
-      const perspective = item.assignmentPerspective;
+      const perspective = item.perspective;
       const result = await source.command(
         {
           type: "assignContacts",
@@ -207,22 +219,21 @@ export function AIReqTodoPage() {
                           task,
                         );
                       }}
-                      aria-label={`处理 ${item.requirementTitle} · ${item.title}`}
+                      aria-label={`打开 ${item.requirementTitle} · ${item.title} · ${ownershipLabel(item)}${item.employeeId ? ` · ${item.employeeId}` : ""}`}
                     >
                       <span className="min-w-0 [overflow-wrap:anywhere]">{item.title}</span>
                     </Button>
-                    {item.perspective && (
-                      <span className="block text-ui-sm text-foreground-subtle">
-                        {perspectiveLabels[item.perspective]}角色 · 独立确认
-                      </span>
-                    )}
+                    <span className="block text-ui-sm text-foreground-subtle">
+                      {perspectiveLabels[item.perspective]}角色
+                      {item.kind === "alignment" && " · 独立确认"}
+                    </span>
                     {/* 窄分栏隐藏归属列时，归属摘要并入事项单元格，认领判断不必横滚。 */}
-                    <span className="block text-ui-sm text-foreground-subtle @min-[640px]/conversation:hidden">
-                      归属：{item.employeeId ?? "未分配 · 待认领"}
+                    <span className="mt-0.5 block text-ui-sm @min-[640px]/conversation:hidden">
+                      <TodoOwnership label={ownershipLabel(item)} assignee={item.employeeId} />
                     </span>
                   </td>
                   <td className="hidden px-4 py-3 @min-[640px]/conversation:table-cell">
-                    {item.employeeId ?? "未分配 · 待认领"}
+                    <TodoOwnership label={ownershipLabel(item)} assignee={item.employeeId} />
                   </td>
                   <td className="px-2 py-3 text-right">
                     <DropdownMenu>
@@ -238,12 +249,14 @@ export function AIReqTodoPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          disabled={Boolean(pending)}
-                          onSelect={() => void assign(item, employeeId)}
-                        >
-                          由我{item.employeeId ? "接手" : "认领"}
-                        </DropdownMenuItem>
+                        {item.employeeId !== employeeId && (
+                          <DropdownMenuItem
+                            disabled={Boolean(pending)}
+                            onSelect={() => void assign(item, employeeId)}
+                          >
+                            由我{item.employeeId ? "接手" : "认领"}
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           disabled={Boolean(pending)}
                           onSelect={() => {

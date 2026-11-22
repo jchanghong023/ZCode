@@ -2739,6 +2739,7 @@ function ConversationComposerImpl({
           }
         >
           <ChatPromptEditor
+            inputLabel={composerAriaLabel}
             extraPlugins={elementMentionPlugin}
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}

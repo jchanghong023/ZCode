@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { proposalState } from "../contract.js";
 import { useAIReq } from "../AIReqContext.js";
 
 /** 原文只读；页面内独立滚动，全屏阅读不切换阶段或改变聊天位置。 */
@@ -23,8 +22,8 @@ export function AIReqProposalFeedback() {
   if (
     !group ||
     aireq.selection.srId ||
-    !["not-started", "ir-review-pending"].includes(proposalState(group) ?? "") ||
     !feedback ||
+    (feedback.target ?? "requirements") !== aireq.selection.discussionPhase ||
     feedback.resumedAt
   )
     return null;
@@ -54,7 +53,9 @@ export function AIReqProposalFeedback() {
             {feedback.reason}
           </div>
           <p className="text-ui-sm text-foreground-subtle">
-            与业务需求 Agent 讨论这些意见。业务需求文档补齐并通过校验后，请再次提交评审。
+            {feedback.target === "solution"
+              ? "在方案设计中讨论这些意见。更新材料并通过校验后，请再次提交方案审查。"
+              : "在需求澄清中讨论这些意见。更新材料并通过校验后，请再次提交需求评审。"}
           </p>
         </div>
       </section>

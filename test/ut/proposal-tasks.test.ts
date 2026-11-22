@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fileVersions } from "../../packages/services/src/aireq/index.js";
 import {
+  canOpenProposalTask,
   proposalTaskFromSelection,
   proposalTaskSelection,
   proposalTaskParent,
@@ -74,6 +75,13 @@ const review = (): AIReqReview => ({
 });
 
 describe("independent proposal task navigation", () => {
+  it("gives business users the shared solution report without opening restricted sessions", () => {
+    const business = { development: false, testing: false };
+    expect(canOpenProposalTask("solutionReview", business)).toBe(true);
+    expect(canOpenProposalTask("solutionReviewDetail", business)).toBe(false);
+    expect(canOpenProposalTask("solution", business)).toBe(false);
+    expect(canOpenProposalTask("delivery", business)).toBe(false);
+  });
   it("enters a workbench from an ordinary proposal entry", () => {
     expect(proposalTaskFromSelection({ projectId: "p", irId: "ir" })).toBe("overview");
     expect(proposalNextTask({ ...group(), files: [] })).toBe("requirements");

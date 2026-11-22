@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
+import { useAIReqDataSource } from "../data-source.js";
 import {
   fullReviewReadyBlocker,
   proposalAlignmentCurrent,
@@ -11,6 +12,7 @@ import {
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqProposalAlignment } from "./AIReqProposalAlignment.js";
 import { AIReqProposalDeliveryControls } from "./AIReqProposalDeliveryControls.js";
+import { AIReqProposalReturn } from "./AIReqProposalReturn.js";
 import { proposalNextTask, proposalTaskStatus, proposalTaskTitles } from "./proposalTasks.js";
 
 const roles = [
@@ -22,6 +24,7 @@ const roles = [
 export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGroup }) {
   // 前置条件和发布意图读取同一 IR 投影，不根据用户所看的任务阶段推进。
   const ai = useAIReq()!;
+  const source = useAIReqDataSource();
   const heading = useRef<HTMLHeadingElement>(null);
   const state = proposalState(group);
   const mergePending = state === "merge-pending";
@@ -52,6 +55,11 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
           >
             {deliveryStatus}
           </span>
+          {submissionPending && source.capabilities.proposalDiscussion && (
+            <div className="ml-auto">
+              <AIReqProposalReturn group={group} target="solution" focusFallback={heading} />
+            </div>
+          )}
         </header>
         {mergePending ? (
           <p className="text-ui-sm text-foreground-subtle">

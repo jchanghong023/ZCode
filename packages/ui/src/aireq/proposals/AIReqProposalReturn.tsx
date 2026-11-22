@@ -20,17 +20,24 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useAIReq } from "../AIReqContext.js";
-import { proposalReturnBlocker, proposalVersion, type AIReqRequirementGroup } from "../contract.js";
+import {
+  proposalReturnBlocker,
+  proposalVersion,
+  type AIReqProposalReturnTarget,
+  type AIReqRequirementGroup,
+} from "../contract.js";
 
-/** 方案设计和需求评审复用同一个有原因、绑定版本的退回操作。 */
+/** 评审与交付复用绑定版本的退回弹窗，服务端提交后才进入讨论。 */
 export function AIReqProposalReturn({
   group,
-  fromSolution = false,
+  target,
+  label = "退回修改",
   disabled = false,
   focusFallback,
 }: {
   group: AIReqRequirementGroup;
-  fromSolution?: boolean;
+  target: AIReqProposalReturnTarget;
+  label?: string;
   disabled?: boolean;
   focusFallback?: RefObject<HTMLElement | null>;
 }) {
@@ -45,11 +52,10 @@ export function AIReqProposalReturn({
   const [reason, setReason] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
-  const guardOwner = `proposal-return:${group.projectId}:${group.id}:${fromSolution}`;
+  const guardOwner = `proposal-return:${group.projectId}:${group.id}:${target}`;
   const currentVersion = proposalVersion(group);
   const returnChanged = Boolean(returnVersion && returnVersion.version !== currentVersion);
-  const unavailable = busy || disabled || ai.pending || Boolean(proposalReturnBlocker(group));
-  const label = fromSolution ? "退回业务澄清" : "退回业务补充";
+  const unavailable = busy || disabled || ai.pending || Boolean(proposalReturnBlocker(group, target));
 
   useEffect(() => {
     if (!reason.trim() && !busy) return;
@@ -72,14 +78,15 @@ export function AIReqProposalReturn({
         projectId: group.projectId,
         irId: group.id,
         expectedRevision: returnVersion.revision,
+        target,
         reason: opinion,
       });
       if (result?.receipt.status === "completed") {
         setReturnOpen(false);
         setReason("");
-        // 退回已提交，解除本弹窗的未保存保护，再进入同一 IR 的新澄清会话。
+        // 退回已提交，解除本弹窗的未保存保护，再进入同一 IR 的对应讨论。
         setDraftNavigationGuard(null, guardOwner);
-        if (fromSolution) ai.openProposalTask("requirements");
+        ai.openProposalTask(target);
       }
     } finally {
       inFlight.current = false;
@@ -91,7 +98,7 @@ export function AIReqProposalReturn({
     <>
       <Button
         ref={returnTrigger}
-        variant={fromSolution ? "outline" : "ghost"}
+        variant="outline"
         aria-haspopup="dialog"
         disabled={unavailable || !ai.view}
         onClick={() => {
@@ -120,9 +127,9 @@ export function AIReqProposalReturn({
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
             <DialogDescription>
-              {fromSolution
-                ? "请写明需要业务澄清的问题。退回会使当前确认和审查失效，材料与历史文件仍保留。"
-                : "说明需要补充的内容。退回后旧评审与确认记录仅供追溯，补充材料并通过校验后，请再次提交评审。取消会保留未提交内容。"}
+              {target === "solution"
+                ? "退回后进入方案设计。业务需求确认保留，当前方案审查、三方确认和交付候选转为历史。"
+                : "退回后进入需求澄清。当前需求评审、方案审查及相应确认转为历史。"}
             </DialogDescription>
           </DialogHeader>
           <label htmlFor={reasonId} className="text-ui-sm font-medium text-foreground">

@@ -13,8 +13,11 @@ import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 const promptTemplate =
   "请根据以下说明与我一起设计可复用技能。请推荐技能标识，不要要求我先填写名称。信息不足时先澄清，不要把表单直接拼成技能文件。\n\n要解决什么任务：{{goal}}\n\n什么时候使用：{{when}}\n\n需要哪些输入：{{inputs}}\n\n期望结果与成功标准：{{outputs}}\n\n边界与不适用场景：{{boundaries}}\n\n流程、规则或参考资料：{{references}}\n\n真实例子或失败情况：{{example}}\n\n已发送的补充讨论：{{notes}}\n\n临时技能目录：{{directory}}\n主文件路径：{{directory}}/SKILL.md\n\n请先核对上述内容，必要时与我讨论，再推荐合适的技能标识，准备 SKILL.md 和必要的参考资料、脚本内容，并按此目录组织预览路径。回复推荐标识、文件清单及对应预览路径，供我预览、继续讨论修改。\n\n请明确区分建议、待确认内容与已完成的保存。只有逐一预览当前版本全部文件、选择项目或共享技能目录并确认后，才可请求保存；不覆盖同名技能。保存结果以返回的收据路径和版本为准，不把请求接纳当作完成。讨论与设置往返时保留尚未发送的内容和附件，不宣称未执行的分析、检查或工具操作已完成。\n";
 const generatedSample =
-  "---\nname: review-api-changes\ndescription: 用户请求评审 API 变更、接口 PR 或检查向后兼容性时使用。\n---\n\n# 接口变更评审\n\n## 工作方式\n先读取项目接口规范、当前 diff、接口定义及相关测试，再核对受影响调用方。不要假定没有提供的客户端行为；缺少关键材料时先向用户索取。\n\n1. 确认变更涉及接口契约；纯排版修改说明不适用。\n2. 按 references/checklist.md 检查请求、响应和错误处理的兼容性。\n3. 对每项问题列出文件位置、影响、证据与兼容过渡建议。\n4. 将已确认问题和待核实项分开；不修改代码，不宣称未运行的测试通过。\n\n## 输出\n按严重程度报告问题；没有足够证据时明确说明缺口，不编造调用方或测试结果。\n";
+  "---\nname: review-api-changes\ndescription: 用户请求评审 API 变更、接口 PR 或检查向后兼容性时使用。\n---\n\n" +
+  '```mermaid\nflowchart LR\n  A["核对评审材料"] --> B{"材料齐全？"}\n  B -->|否| C["向用户索取缺失材料"]\n  B -->|是| D["检查接口兼容性"] --> E["区分已确认问题与待核实项"]\n```\n\n' +
+  "# 接口变更评审\n\n## 工作方式\n先读取项目接口规范、当前 diff、接口定义及相关测试，再核对受影响调用方。不要假定没有提供的客户端行为；缺少关键材料时先向用户索取。\n\n1. 确认变更涉及接口契约；纯排版修改说明不适用。\n2. 按 references/checklist.md 检查请求、响应和错误处理的兼容性。\n3. 对每项问题列出文件位置、影响、证据与兼容过渡建议。\n4. 将已确认问题和待核实项分开；不修改代码，不宣称未运行的测试通过。\n\n## 输出\n按严重程度报告问题；没有足够证据时明确说明缺口，不编造调用方或测试结果。\n";
 const checklistSample =
+  '```mermaid\nflowchart LR\n  A["核对契约变更"] --> B["检查调用方证据"] --> C{"已执行旧客户端测试？"}\n  C -->|是| D["记录测试结果"]\n  C -->|否| E["标为未验证"]\n```\n\n' +
   "# 接口兼容性检查清单\n\n- 删除或收紧响应字段时，是否有受影响调用方的证据？\n- 请求字段、默认值、错误码及分页语义是否改变？\n- 相关测试是否覆盖旧客户端行为？没有执行时明确标为未验证。\n- 缺少输入时先列缺口；不要编造兼容结论。\n";
 // 配套流程说明仍是服务端内部模拟产物；仅含静态文字和几何形状，不嵌脚本、外链或用户输入。
 const reviewFlowSample = `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="180" viewBox="0 0 760 180" role="img" aria-labelledby="title description">
@@ -145,7 +148,8 @@ export function readPrototypeSkillDesignPreview(
 }
 export function listPrototypeSkillDesignPaths(sessionId: string): string[] {
   const projectId = assertSkillSession(sessionId);
-  const projectRoot = projectId === "personal" ? undefined : readPrototypeDevelopmentRoot(projectId);
+  const projectRoot =
+    projectId === "personal" ? undefined : readPrototypeDevelopmentRoot(projectId);
   return readPrototypeSkillPaths(projectRoot ?? PROTOTYPE_BACKEND.configDirectory);
 }
 export interface StagedSkillDiscussion {

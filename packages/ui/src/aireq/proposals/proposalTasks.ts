@@ -26,7 +26,6 @@ export const proposalTasks = [
   "solutionReview",
   "solutionReviewDetail",
   "delivery",
-  "management",
 ] as const;
 export type ProposalTask = (typeof proposalTasks)[number];
 export const proposalTaskTitles: Record<ProposalTask, string> = {
@@ -38,15 +37,13 @@ export const proposalTaskTitles: Record<ProposalTask, string> = {
   solutionReview: "方案审查",
   solutionReviewDetail: "独立审查详情",
   delivery: "交付确认",
-  management: "管理需求",
 };
 export function canOpenProposalTask(
   task: ProposalTask,
   roles: { development: boolean; testing: boolean },
 ): boolean {
   if (task === "solution" || task === "delivery") return roles.development;
-  if (task === "solutionReview" || task === "solutionReviewDetail")
-    return roles.development || roles.testing;
+  if (task === "solutionReviewDetail") return roles.development || roles.testing;
   return true;
 }
 
@@ -81,7 +78,7 @@ export function proposalTaskSelection(
   preserveSr = false,
 ): AIReqWorkflowTarget {
   const target: AIReqWorkflowTarget = { projectId: base.projectId, irId: base.irId };
-  if (task === "overview" || task === "management") return target;
+  if (task === "overview") return target;
   if (
     task === "requirements" ||
     task === "requirementsReview" ||

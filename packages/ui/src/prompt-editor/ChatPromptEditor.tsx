@@ -41,6 +41,7 @@ export function ChatPromptEditor({
   initialValue,
   syncInitialValueOnMount = true,
   placeholder,
+  inputLabel,
   disabled = false,
   disabledReason,
   submitting = false,
@@ -90,6 +91,7 @@ export function ChatPromptEditor({
   initialValue?: string;
   syncInitialValueOnMount?: boolean;
   placeholder?: string;
+  inputLabel?: string;
   disabled?: boolean;
   disabledReason?: string;
   submitting?: boolean;
@@ -229,6 +231,7 @@ export function ChatPromptEditor({
       <LexicalChatInput
         extraPlugins={extraPlugins}
         placeholder={placeholder}
+        inputLabel={inputLabel ?? intl.formatMessage({ id: "chat.composer.inputLabel" })}
         disabled={disabled}
         submitDisabled={submitDisabled}
         allowSubmitWhenEmpty={allowSubmitWhenEmpty}

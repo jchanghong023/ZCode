@@ -70,7 +70,6 @@ const commands = [
   "runFullReview",
   "confirmAlignment",
   "closeProposalPr",
-  "reviseProposalMaterial",
   "deleteRequirement",
   "acceptProposal",
   "submitProposalReview",

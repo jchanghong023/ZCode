@@ -5192,6 +5192,7 @@ const zhCN: Record<string, string> = {
     "附件尚未上传完成，请重新添加文件后发送。",
   "chat.attachments.upload.retry": "重试上传",
   "chat.composer.actionMenu": "添加上下文",
+  "chat.composer.inputLabel": "消息内容",
   "chat.composer.insertMentionShortcut": "使用 @ 添加上下文",
   "chat.composer.insertSessionShortcut": "插入 # 会话",
   "chat.composer.insertSlashShortcut": "使用 / 选择能力",

@@ -25,7 +25,7 @@ function beginPrototypeProposalMrLifecycle(group: RequirementGroup): void {
   const delivery = group.proposalDelivery;
   const mr = group.requirementsPr;
   if (!delivery || !mr?.number || mr.status !== "opened" || !proposalPrCurrent(group))
-    throw businessRule("文档 MR 发布事实不完整。");
+    throw businessRule("文档 PR 发布事实不完整。");
   if (
     delivery.simulatedMr?.candidate === delivery.candidate &&
     delivery.simulatedMr.number === mr.number
@@ -40,6 +40,10 @@ function beginPrototypeProposalMrLifecycle(group: RequirementGroup): void {
     openedAt,
     mergeEligibleAt: new Date(Date.parse(openedAt) + NORMAL_MR_OPEN_WINDOW_MS).toISOString(),
     status: "opened",
+  };
+  delivery.mergeCheck = {
+    status: "waiting",
+    message: "已开始后台跟踪。文档 PR 合入并通过材料核验后自动转正。",
   };
 }
 
@@ -70,10 +74,10 @@ export function observePrototypeProposalMr(
 /** 演示交付只记录编号与状态；没有代码托管服务提供的真实URL时不返回链接。 */
 function ensurePrototypeProposalMr(group: RequirementGroup, targetBranch: string): void {
   const delivery = group.proposalDelivery;
-  if (!delivery?.branch || !delivery.pushedAt) throw businessRule("推送当前材料后才能创建 MR。");
+  if (!delivery?.branch || !delivery.pushedAt) throw businessRule("推送当前材料后才能创建文档 PR。");
   const sourceBranch = delivery.branch.name;
   if (consumePrototypeMrCreationFailure(delivery.candidate))
-    throw businessRule("分支已推送，但创建 MR 失败，请重试当前版本。");
+    throw businessRule("分支已推送，但创建文档 PR 失败，请重试当前版本。");
   const number = ++mrNumber;
   group.requirementsPr = aiReqPrFactSchema.parse({
     number,
@@ -89,7 +93,7 @@ function ensurePrototypeProposalMr(group: RequirementGroup, targetBranch: string
       "## 文档清单",
       ...delivery.files.map((file) => `- ${file.path}`),
       "",
-      "请人工评审并合并 MR；后台定时核验实际合入与材料完整性，满足后自动转正。",
+      "文档 PR 合入后，后台核验材料版本与完整性，通过后自动转正。",
     ].join("\n"),
     sourceBranch,
     targetBranch,
@@ -180,7 +184,7 @@ export function validatePrototypeProposalPublication(
   if (group.proposalDelivery?.candidate !== candidate || !proposalDeliveryCurrent(group))
     throw businessRule("交付候选已失效，请重新查看当前版本的文件清单。");
   if (proposalPrCurrent(group) && group.requirementsPr?.status === "merged")
-    throw businessRule("文档 MR 已合入，请等待完整材料核验。");
+    throw businessRule("文档 PR 已合入，请等待完整材料核验。");
   const issue = prototypeProposalMaterialsIssue(view, group);
   if (issue) throw businessRule(issue);
 }
@@ -216,10 +220,6 @@ export function publishPrototypeProposal(
       throw error;
     }
     delivery.publishError = undefined;
-    delivery.mergeCheck = {
-      status: "waiting",
-      message: "文档 PR 等待合并，核验当前版本材料后转正。",
-    };
     group.status = "requirements-pr";
   }
   // Opened seeds have no observer until explicitly published; existing windows are never reset.

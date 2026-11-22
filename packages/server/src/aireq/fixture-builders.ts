@@ -147,7 +147,6 @@ export function group(
     id,
     originalText: title,
     submittedBy: proposerId,
-    contacts: { business: proposerId },
     projectId,
     releaseId: PROTOTYPE_RELEASE_ID,
     title,
