@@ -49,7 +49,7 @@ export interface ConversationTransport {
   /** v4/conversation/rowsRange（loadOlder）：按游标向上取一窗历史行。 */
   rowsRange(params: V4ConversationRowsRangeParams): Promise<V4ConversationRowsRangeResult>;
   /** v4/conversation/plans：当前有效分支里的全部终态计划。 */
-  plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult>;
+  plans?(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult>;
   /** UI 高层附件上传；production wire 为 begin/chunk/commit/abort。 */
   attachmentPut(
     params: V4AttachmentPutParams,
@@ -85,7 +85,9 @@ export interface ConversationTransport {
     }) => void,
   ): () => void;
   /** CLI runtime 或承载 proxy 换代；transport 已先清 ownership/barrier/assembler。 */
-  onRuntimeRestart(listener: (reason?: "runtimeRestart" | "transportReplaced") => void): () => void;
+  onRuntimeRestart?(
+    listener: (reason?: "runtimeRestart" | "transportReplaced") => void,
+  ): () => void;
   /**
    * CLI runtime 存活态。unavailable 在 workspace-dispose 当场到达（此时新 runtime 尚不存在，
    * 不可重订阅）；available 在新进程 spawn 时到达，与 onRuntimeRestart 同刻同义。

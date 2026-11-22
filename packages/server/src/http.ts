@@ -26,13 +26,17 @@ import {
   IProjectService,
   IProviderSettingsService,
   ISettingService,
-  ISubagentsService,
   ISystemService,
   IZCodeAgentService,
   type ServiceDescriptor,
   type ServiceExposurePolicy,
   createZCodeAgentConnectionScope,
 } from "@zcode/services";
+import {
+  WEB_AIREQ_AGENT_EVENTS,
+  WEB_AIREQ_AGENT_METHODS,
+  WEB_CHAT_AGENT_METHODS,
+} from "@zcode/services/zcode-agent";
 import {
   formatLogPrefix,
   sanitizeTelemetryEventRequest,
@@ -119,37 +123,7 @@ function publicService<T>(
 // 收口原因：白名单与当前契约逐项对齐；退役能力不能仅从 SDK 隐藏后仍可手写 RPC 调用。
 const publicMembers = new Map([
   publicService(IAIReqService, ["bootstrap", "call"], ["onDidChange"]),
-  publicService(
-    IZCodeAgentService,
-    [
-      "syncAppRuntimePreferences",
-      "listSessionSubagents",
-      "supportsConversationQuoteComment",
-      "getSkillReferenceCatalog",
-      "getConversationCommandCatalog",
-      "helloConversationV4",
-      "initializeConversationV4",
-      "subscribeConversationV4",
-      "resyncConversationV4",
-      "unsubscribeConversationV4",
-      "conversationRowsRangeV4",
-      "conversationPlansV4",
-      "sendConversationCommandV4",
-      "queryConversationCommandsV4",
-      "attachmentBeginV4",
-      "attachmentChunkV4",
-      "attachmentCommitV4",
-      "attachmentAbortV4",
-      "attachmentReadV4",
-      "getSessionLifecycle",
-    ],
-    [
-      "onDynamicSessionLifecycle",
-      "onDynamicConversationFrame",
-      "onAgentRuntimeRestarted",
-      "onAgentRuntimeLifecycle",
-    ],
-  ),
+  publicService(IZCodeAgentService, WEB_AIREQ_AGENT_METHODS, WEB_AIREQ_AGENT_EVENTS),
   publicService(IFileService, [
     "searchWorkspaceFiles",
     "stat",
@@ -163,28 +137,12 @@ const publicMembers = new Map([
   publicService(ISettingService, ["get", "update"]),
   publicService(IProviderSettingsService, ["getView", "refresh"]),
   publicService(IModelSelectionService, ["getView"], ["onDidChange"]),
-  publicService(ISubagentsService, ["list"]),
 ]);
 const publicExposure: ServiceExposurePolicy = { allowedMembers: publicMembers };
 const chatExposure: ServiceExposurePolicy = {
   allowedMembers: new Map([
     publicService(IModelSelectionService, ["getView"]),
-    publicService(
-      IZCodeAgentService,
-      [
-        "helloConversationV4",
-        "initializeConversationV4",
-        "listRecentChatSessions",
-        "subscribeConversationV4",
-        "resyncConversationV4",
-        "unsubscribeConversationV4",
-        "conversationRowsRangeV4",
-        "sendConversationCommandV4",
-        "queryConversationCommandsV4",
-        "getConversationCommandCatalog",
-      ],
-      ["onDynamicConversationFrame"],
-    ),
+    publicService(IZCodeAgentService, WEB_CHAT_AGENT_METHODS, WEB_AIREQ_AGENT_EVENTS),
   ]),
 };
 
@@ -209,7 +167,11 @@ function setupChannelServer(
       clientMode: "web-remote-replayable",
       role: "terminal-client",
     },
-    { allowCommandQueriesAcrossWorkspaces: exposure === chatExposure },
+    {
+      allowCommandQueriesAcrossWorkspaces: exposure === chatExposure,
+      // 不展开作用域代理：订阅和会话方法通过它转发，不能从可枚举属性重建。
+      advertiseDesktopControls: false,
+    },
   );
   overrides.set(IZCodeAgentService.channelName, connectionScope.service);
   services.exposeOnChannelServer(loggedServer, overrides, exposure);

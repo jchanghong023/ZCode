@@ -25,8 +25,8 @@ setting 仅保留 get/update；当前个性化提示词通过 AIReq bootstrap/sa
 不再注册兼容空壳。Provider 设置与模型目录仍沿既有契约访问。
 
 产品插件与旧宿主服务整体退役：不注册 Git、文件监听、媒体会话、MCP 同步、client-config、
-skills、task-groups、prompt-attachment-transfer；HTTP 帮助配置不受影响。
-原生 Skill catalog、AIReq 隐藏 Skill、子智能体目录及纯 DTO/schema 保留。
+skills、task-groups、prompt-attachment-transfer 和子代理目录；HTTP 帮助配置不受影响。
+保留原生 Skill catalog、AIReq 隐藏 Skill 和通用 DTO/schema。父会话中的子代理工作记录不依赖独立目录。
 旧 task-list 事件及其专用 emitter／发射接线随 `onDynamicWorkspaceEvent` 一并退役。
 原生 tasks 的置顶／归档组织态保留。
 
@@ -42,7 +42,7 @@ readTree 仅投影当前身份可见的原生会话，不发布示例目录项�
 配置／材料／候选版本、阶段和幂等。原型的结果只在进程内保留，不代表生产持久化或完整通用 CAS；
 真实后端必须依已有 v4 契约实现，不得以原型限制取消这些当前正确性门禁。
 
-`MockZCodeAgentService` 仅从接纳信封取得真实 clientId；排队项保留原来源，立即发送、提升与恢复续跑均沿同一 startTurn／runTurn 参数链写入 userInput，不能用后续操作者或固定值替代。实时行和历史分页共用 runtime.rows，连接校验及幂等边界不变。
+`MockZCodeAgentService` 仅从接纳信封取得真实 clientId。立即发送和繁忙时接纳的引导／跟进均保留原来源，不用后续操作者或固定值替代。实时行和历史分页共用 runtime.rows。
 
 文件来自同一虚拟树与 Skill owner 私有文件事实，缺失／错类型明确拒绝，字节按 UTF-8。
 公开文件面只保留 searchWorkspaceFiles/stat/checkFilesExist/readMediaPreview/readFileRange；
@@ -57,14 +57,12 @@ mock/index.ts
   ├─ MockRuntime（唯一权威状态）
   ├─ broadcast（跨窗口总线）
   ├─ domains/settings → domains/models
-  ├─ domains/assets
   └─ zcodeAgent / project / workspace（协议与文件面）
 ```
 
 顺序只影响注册表写入，不表达依赖；任何领域都不应在装配期执行副作用（不写文件、不发网络请求、不启动定时器）。
 
-当前领域注册面：setting、provider-settings、model-selection、usage-stats、
-subagents、bots、gen-ui。
+当前领域注册面：setting、provider-settings、model-selection。
 扩展、凭据、命令/hook/记忆管理、同步迁移、反馈、语音、云媒体、高速卡与闲时任务
 不再注册 mock 或保留专属 fixtures；隐藏的 AIReq Skill 设计操作和数据不在裁撤范围。
 两处 AIReq 原生面板均为 embedded，旧草稿推荐不挂载；client-scenes 与 onboarding-record

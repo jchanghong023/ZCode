@@ -10,7 +10,6 @@ import {
   IZCodeAgentService,
 } from "@zcode/services";
 import { MockBroadcastService } from "./broadcast.js";
-import { registerAssetsMockServices } from "./domains/assets.js";
 import { registerModelsMockServices } from "./domains/models.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
 import { MockProjectService } from "./project.js";
@@ -44,7 +43,6 @@ export function createMockServices(options: MockServicesOptions): {
   // 领域服务：每域只注册自己的服务，权威状态仍在 runtime。
   registerSettingsMockServices(services);
   registerModelsMockServices(services);
-  registerAssetsMockServices(services);
 
   // 协议面与项目目录：AIReq、v4 会话、项目目录。
   const aiReqService = new MockAIReqService(options.readGitDocuments) satisfies AIReqNativeBridge;

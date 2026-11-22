@@ -45,6 +45,7 @@ export function ConversationSelectionReferenceChip({
   if (references.length === 0) return null;
   const filePath = references.length === 1 ? references[0]?.path : undefined;
   const hasComment = references.some((reference) => reference.comment?.trim());
+  const annotating = hasComment || onEdit !== undefined;
   // 文件引用沿用共用 pill，但不能被注释计数隐藏来源。
   const label = filePath
     ? intl.formatMessage(
@@ -55,11 +56,15 @@ export function ConversationSelectionReferenceChip({
         {
           id: references.some((reference) => reference.path)
             ? "chat.selections.mixedCount"
-            : "chat.selections.count",
+            : annotating
+              ? "chat.selections.count"
+              : "chat.selections.quoteCount",
         },
         { count: String(references.length) },
       );
-  const removeLabel = intl.formatMessage({ id: "chat.selections.remove" });
+  const removeLabel = intl.formatMessage({
+    id: annotating ? "chat.selections.remove" : "chat.selections.quoteRemove",
+  });
   const editLabel = intl.formatMessage({ id: "chat.selections.commentEditTitle" });
   const addCommentLabel = intl.formatMessage({ id: "chat.selections.commentAdd" });
   return (
@@ -74,7 +79,9 @@ export function ConversationSelectionReferenceChip({
       }
       label={label}
       onRemoveAll={onRemoveAll}
-      removeLabel={intl.formatMessage({ id: "chat.selections.removeAll" })}
+      removeLabel={intl.formatMessage({
+        id: annotating ? "chat.selections.removeAll" : "chat.selections.quoteRemoveAll",
+      })}
       triggerProps={{
         "data-conversation-selection-reference-count": references.length,
       }}
@@ -83,7 +90,7 @@ export function ConversationSelectionReferenceChip({
         <div className="flex items-center justify-between gap-2 px-2 pb-1 pt-1.5 text-ui-sm text-foreground-subtle">
           <span className="truncate">
             {intl.formatMessage(
-              { id: "chat.selections.listHeader" },
+              { id: annotating ? "chat.selections.listHeader" : "chat.selections.quoteListHeader" },
               { count: String(references.length) },
             )}
           </span>

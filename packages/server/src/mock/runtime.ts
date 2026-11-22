@@ -10,7 +10,6 @@ import type {
   QueueState,
   SessionControl,
   SessionErrorInfo,
-  PendingInteraction,
   QueueItem,
   SessionMetaState,
   SessionPhase,
@@ -71,7 +70,6 @@ export interface MockSession {
   deliveredTurns: Map<string, string>;
   usage: SessionUsageState;
   plan: PlanState | null;
-  pendingInteractions: PendingInteraction[];
   /** 只读队列投影与真实待交付输入共用同一份事实。 */
   queuedInputs: MockQueuedInput[];
   nextAdmissionSeq: number;
@@ -305,7 +303,7 @@ export function buildConversationSnapshot(
     config: session.config,
     modelTransition: null,
     usage: session.usage,
-    pendingInteractions: session.pendingInteractions,
+    pendingInteractions: [],
     pendingCommands: [],
     backgroundWorks: [],
     goal: null,

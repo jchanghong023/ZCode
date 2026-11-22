@@ -60,13 +60,13 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
 
   useEffect(() => {
     if (!options.enabled || !options.sessionId || !rpcReady) return;
-    const subscription = services.zcodeAgentService.onAgentRuntimeRestarted((event) => {
+    const subscription = services.zcodeAgentService.onAgentRuntimeRestarted?.((event) => {
       if (event.workspaceKey !== workspaceKey) return;
       // runtime 重建后 workspace/session key 不变，旧 catalog 会继续命中。
       // 显式推进代次，使冷恢复后的新 runtime 必须重新提供一次 Session authority。
       setRuntimeRevision((current) => current + 1);
     });
-    return () => subscription.dispose();
+    return subscription ? () => subscription.dispose() : undefined;
   }, [options.enabled, options.sessionId, rpcReady, services, workspaceKey]);
 
   // 用 scope 身份隔离渲染：key 切换后的 effect 尚未执行时也只返回空态，避免旧 Session

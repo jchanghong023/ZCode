@@ -147,8 +147,9 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
       }
       await refresh();
       if (
-        typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-        typeof patch.modelIoFullRetentionEnabled === "boolean"
+        zcodeAgentService.syncAppRuntimePreferences &&
+        (typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
+          typeof patch.modelIoFullRetentionEnabled === "boolean")
       ) {
         const currentSettings = getSettingsSnapshot(cacheKey).settings;
         const preferences = {

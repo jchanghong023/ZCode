@@ -54,10 +54,9 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 - AIReq 在内存中执行材料与报告、阶段门禁、配置保存和派生待办。模型目录 facade 使用同一 AIReq 目录投影；刷新读取内存目录，无事实变化不制造 revision 或事件，不表示外部供应商连通。
 - AI、文档交付、文件与媒体依赖由服务端内存实现提供。文档 PR 保留可关闭的 opened 窗口，按服务时钟观测模拟合入后仍核验候选和完整材料，再将同一 IR 转正。
 - 原生会话提供握手、快照、增量、分页、命令决定查询、只读队列与附件事务。AIReq 与 `/chat` 使用[同一聊天语义](../specs/aireq/conversation.md#聊天命令和会话配置)：显式引导或跟进、面向目标执行的停止、独立于接纳的运行终态。模拟结果不代表真实模型；AIReq 业务材料和聊天回复分别提交。
-- 业务绑定会话不允许 `switchModelConfig`；`/chat` 空闲时可使用。聊天命令不开放按队列项编辑、重排、提升或设置自动续跑。未实现能力返回 `rejected` 与 `fault.command.capabilityUnsupported`，不以无状态变化的 accepted 填补。
+- 业务绑定会话不支持 `switchModelConfig`；`/chat` 空闲时可使用。只接纳[公开契约](../specs/aireq/contract-design.md#2-原生-agent-精确公开成员)允许的命令，并在会话创建／访问前拒绝退役命令，不以 accepted 或空目录填补。
 - File 只读既有虚拟树与 Skill 文件；Project 仅身份约束的树和会话目录解析，不提供宿主目录选择或浏览。
-- 思考、Todo 和子代理工作记录仅由原型在已开始的聊天回合中模拟。复核结果留在父会话，不创建真实子代理会话。
-- lifecycle 只能表达实际内存事实或明确不可用，不能冒充宿主进程控制。
+- 思考、Todo 和子代理工作记录仅由原型在已开始的聊天回合中模拟。复核结果留在父会话，不创建真实子代理会话。Web 不公开桌面 Agent 进程或会话生命周期。
 
 Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门禁保留。共享逻辑配置路径 `/aireq/config`，共享技能根 `/aireq/skills/shared`，逻辑后端标识 `aireq-shared`；项目技能位于项目逻辑工作区 `.omp/skills/`。保存原子提交文件／目录与 catalog，`metadata.version` 对应收据 revision；通用文件服务读取这些节点，不因此增加公开目录分页或文件写入 RPC。
 

@@ -4,7 +4,7 @@ import type { ConversationTransport } from "@/v4/transport.js";
 
 type FrameListener = Parameters<ConversationTransport["onFrame"]>[0];
 type AssemblyFaultListener = Parameters<ConversationTransport["onAssemblyFault"]>[0];
-type RuntimeRestartListener = Parameters<ConversationTransport["onRuntimeRestart"]>[0];
+type RuntimeRestartListener = Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0];
 type RuntimeLifecycleListener = Parameters<
   NonNullable<ConversationTransport["onRuntimeLifecycle"]>
 >[0];
@@ -43,11 +43,10 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     (snapshot: SessionLifecycleSnapshot) => void
   >();
   private offSessionLifecycle: (() => void) | null = null;
-  getSessionLifecycle(sessionId: string): Promise<SessionLifecycleSnapshot | null> {
-    if (!this.current.getSessionLifecycle) return Promise.resolve(null);
-    return this.current.getSessionLifecycle(sessionId);
+  get getSessionLifecycle(): ConversationTransport["getSessionLifecycle"] {
+    return this.current.getSessionLifecycle?.bind(this.current);
   }
-  onSessionLifecycle(listener: (snapshot: SessionLifecycleSnapshot) => void): () => void {
+  onSessionLifecycle?: ConversationTransport["onSessionLifecycle"] = (listener) => {
     this.sessionLifecycleListeners.add(listener);
     this.bindSessionLifecycleListener();
     return () => {
@@ -57,7 +56,7 @@ export class ReplaceableConversationTransport implements ConversationTransport {
         this.offSessionLifecycle = null;
       }
     };
-  }
+  };
   private bindSessionLifecycleListener(): void {
     if (this.offSessionLifecycle || this.sessionLifecycleListeners.size === 0) return;
     this.offSessionLifecycle =
@@ -96,6 +95,9 @@ export class ReplaceableConversationTransport implements ConversationTransport {
   };
 
   constructor(private current: ConversationTransport) {
+    if (!current.onSessionLifecycle) {
+      this.onSessionLifecycle = undefined;
+    }
     if (!current.onRuntimeLifecycle) {
       this.onRuntimeLifecycle = undefined;
     }
@@ -174,10 +176,8 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     return this.current.rowsRange(params);
   }
 
-  plans(
-    params: Parameters<ConversationTransport["plans"]>[0],
-  ): ReturnType<ConversationTransport["plans"]> {
-    return this.current.plans(params);
+  get plans(): ConversationTransport["plans"] {
+    return this.current.plans?.bind(this.current);
   }
 
   attachmentPut(
@@ -260,14 +260,15 @@ export class ReplaceableConversationTransport implements ConversationTransport {
   private bindRuntimeRestartListener(): void {
     if (this.offRuntimeRestart || this.runtimeRestartListeners.size === 0) return;
     const owner = this.current;
-    this.offRuntimeRestart = owner.onRuntimeRestart(() => {
-      for (const [subscriptionId, subscriptionOwner] of this.transportBySubscriptionId) {
-        if (subscriptionOwner.owner === owner) {
-          this.transportBySubscriptionId.delete(subscriptionId);
+    this.offRuntimeRestart =
+      owner.onRuntimeRestart?.(() => {
+        for (const [subscriptionId, subscriptionOwner] of this.transportBySubscriptionId) {
+          if (subscriptionOwner.owner === owner) {
+            this.transportBySubscriptionId.delete(subscriptionId);
+          }
         }
-      }
-      for (const listener of this.runtimeRestartListeners) listener();
-    });
+        for (const listener of this.runtimeRestartListeners) listener();
+      }) ?? null;
   }
 
   private bindRuntimeLifecycleListener(): void {

@@ -8,7 +8,7 @@
 - `remote-operations.ts` 定义 correlated path/args/result；`AIReqRemotePath` 是 operation map 的键，不接受任意字符串或万能 unknown[] 代理。
 - `packages/server/src/aireq/wire-schemas.ts`、`validation.ts` 做运行时校验，静态类型不代替 wire 校验。
 - `packages/server/src/http.ts` 的 `publicMembers` 是部署白名单。只公开指定方法／事件；overrides 不绕过白名单，不能反射实现类私有方法。
-- `IServiceAccessor`、`RemoteServiceAccess` 和 `createMockServices` 对应同一服务面。当前白名单逐项为下列 10 个频道。
+- `RemoteServiceAccess` 和 `createMockServices` 装配当前 Web 服务。白名单只公开下列 9 个频道，不把通用 Agent 服务的桌面成员带入 Web。
 
 | 频道              | 方法                                                                         | 事件        |
 | ----------------- | ---------------------------------------------------------------------------- | ----------- |
@@ -21,7 +21,6 @@
 | setting           | get、update                                                                  | 无          |
 | provider-settings | getView、refresh                                                             | 无          |
 | model-selection   | getView                                                                      | onDidChange |
-| subagents         | list                                                                         | 无          |
 
 Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skills RPC、任务分组、跨宿主附件转移不属于公开服务。HTTP configs、原生 Skill catalog 与 AIReq Skill 不因此消失。受管 worktree、插件、终端等纯类型或通用展示组件存留不授权对应 RPC。
 
@@ -29,16 +28,17 @@ Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skill
 
 方法按用途列出，名称是 Channel 包装方法，不是 wire 路径：
 
-- 偏好／目录：`syncAppRuntimePreferences`、`listSessionSubagents`、`supportsConversationQuoteComment`、`getSkillReferenceCatalog`、`getConversationCommandCatalog`。
-- 握手／会话：`helloConversationV4`、`initializeConversationV4`、`subscribeConversationV4`、`resyncConversationV4`、`unsubscribeConversationV4`、`conversationRowsRangeV4`、`conversationPlansV4`、`sendConversationCommandV4`、`queryConversationCommandsV4`。
+- 目录：`getSkillReferenceCatalog`、`getConversationCommandCatalog`。
+- 握手／会话：`helloConversationV4`、`initializeConversationV4`、`subscribeConversationV4`、`resyncConversationV4`、`unsubscribeConversationV4`、`conversationRowsRangeV4`、`sendConversationCommandV4`、`queryConversationCommandsV4`。
 - 附件：`attachmentBeginV4`、`attachmentChunkV4`、`attachmentCommitV4`、`attachmentAbortV4`、`attachmentReadV4`。
-- 生命周期：`getSessionLifecycle`。
 
-事件：`onDynamicSessionLifecycle`、`onDynamicConversationFrame`、`onAgentRuntimeRestarted`、`onAgentRuntimeLifecycle`。动态事件保留参数化订阅及释放语义。
+唯一会话事件为 `onDynamicConversationFrame`，保留参数化订阅及释放语义。Web 通过连接、订阅、快照和 `logEpoch` 恢复，不查询或订阅独立的 Agent 进程／会话生命周期。
 
 精确请求／结果由 `packages/services/src/zcode-agent/zcodeAgent.ts` 和 shared `zcode-protocol-v4` 的 transport/command/snapshot/wire schemas 定义，不在文档另造 DTO。Host 内部 flow/dispose 接口不是 Web 公开成员；workspace-config wire 类型存在也不构成公开订阅包装。
 
 AIReq 与 `/chat` 的发送、停止和状态使用 [OMP 对齐的聊天语义](conversation.md#聊天命令和会话配置)。`/chat` 白名单包含 `queryConversationCommandsV4`，回执与会话同受匿名归属约束。现有二进制传输、时间线行和其他 Agent 消费者的契约保持不变。
+
+AIReq 会话命令只接纳创建、发送、目标停止和会话标题更新；`/chat` 另支持会话级模型切换，通过 OMP 拼写 `/rename <title>` 更新标题。不向两端暴露旧 Plan 目录、子代理目录与控制、选区批注或桌面运行时设置同步。移除队列编辑与提升、单条选模、协作模式、分叉、文件回滚、后台任务恢复、回复反馈、会话删除及原生工具交互裁决。手写已移除的 RPC/命令不可执行；不删通用消费者需要的共享类型、组件及协议值。
 
 ## 3. AIReq 服务入口
 
@@ -55,7 +55,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 bootstrap 无业务创建副作用，返回 contractVersion、opaque backend.id、当前能力、initialSelection、模型 choices/settings/revision、提示词 saved/draft/revision、projects.developmentRoots 和可选 Skill 存储目标。它不返回私人 composer 草稿、服务注册清单、来源 owner/provenance 或全部分页报告。模型／提示词读取由此提供，本地 prompt draft 端口不是 RPC。
 
-当前 AIReq bootstrap 业务契约版本为 `8`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
+当前 AIReq bootstrap 业务契约版本为 `9`；客户端检测不匹配时不装配数据源。该版本独立于原生 Agent 的 Protocol v4 wire 版本。
 
 `models.settings.agents` 是模型与追加指令页签共用的有序角色目录：`requirements`、`requirements-review`、`solution`、`requirements-review-a`、`requirements-review-b`、`requirements-review-c`、`solution-review-summary`。需求评审独立于方案评审 A；方案评审 A/B/C 的模型选择可相同。「跟随默认」解析工作流默认模型。Skill 设计不属于该目录，既有 `skillDesign` 操作不变。
 

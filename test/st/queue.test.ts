@@ -1,7 +1,13 @@
 import { expect, it } from "vitest";
 import { connectST, unique, type STClient } from "./client.js";
 import { createProposal } from "./business.js";
-import { expectNativeTurnWork, openNative, requireAccepted, requireRejected } from "./native.js";
+import {
+  expectCapabilityRejected,
+  expectNativeTurnWork,
+  openNative,
+  requireAccepted,
+  requireRejected,
+} from "./native.js";
 import { getProposal } from "./proposal-flow.js";
 
 it("rejects an implicit busy send, steers the active turn, and delivers follow-up as its own turn", async () => {
@@ -119,6 +125,22 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
       }),
     ];
     expect(running.queue.items).toEqual(preview);
+
+    // Use the actual queued item and an active primary turn rather than a missing target.
+    const queueItem = running.queue.items[0]!;
+    const [deleteQueue, deleteSession] = await Promise.all([
+      native.send(
+        "deleteQueueItem",
+        { queueItemId: queueItem.queueItemId },
+        { baseRevision: running.revision },
+      ),
+      native.send("deleteSession", {}),
+    ]);
+    expectCapabilityRejected(deleteQueue);
+    expectCapabilityRejected(deleteSession);
+    const afterRejected = await native.snapshot();
+    expect(afterRejected.control.activeWorks).toEqual(running.control.activeWorks);
+    expect(afterRejected.queue).toEqual(running.queue);
 
     requireAccepted(await native.send("stop", { expectedForegroundExecutionId }));
     const stopped = await native.waitIdle();

@@ -116,7 +116,7 @@ export function ConversationSelectionTooltip({
   onAddToCurrentTask: (
     reference: ConversationSelectionReference,
   ) => ConversationSelectionAppendResult | undefined;
-  onAskInSideChat: (reference: ConversationSelectionReference) => void;
+  onAskInSideChat?: (reference: ConversationSelectionReference) => void;
 }) {
   const { intl } = useZCodeIntl();
   const rowsRef = useRef(rows);
@@ -396,10 +396,14 @@ export function ConversationSelectionTooltip({
           if (state.reference) onAddToCurrentTask(state.reference);
           close();
         }}
-        onAskInSideChat={() => {
-          if (state.reference) onAskInSideChat(state.reference);
-          close();
-        }}
+        onAskInSideChat={
+          onAskInSideChat
+            ? () => {
+                if (state.reference) onAskInSideChat(state.reference);
+                close();
+              }
+            : undefined
+        }
         onComment={
           commentEnabled
             ? () => {

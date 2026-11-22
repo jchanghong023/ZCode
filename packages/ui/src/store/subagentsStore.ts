@@ -254,7 +254,7 @@ export async function refreshSubagentsStoreForRemoteWorkspaces(
     workspaces.map(async ({ workspacePath, workspaceIdentity }) => {
       const identity = workspaceIdentity?.trim();
       const services = identity ? getRemoteWorkspaceServicesForIdentity(identity) : null;
-      if (!services) return;
+      if (!services?.subagentsService) return;
       await refreshLoadedSubagentsStoreForWorkspace({
         scope: "workspace",
         workspacePath,

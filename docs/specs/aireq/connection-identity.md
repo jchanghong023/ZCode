@@ -57,7 +57,7 @@ opaque backend.id/workspaceIdentity 用于隔离，不用于来源展示或产�
 
 | 版本                              | 含义                                          |
 | --------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=8`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
+| `AIREQ_CONTRACT_VERSION=9`        | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
 | Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
 | snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
 | workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
@@ -93,7 +93,7 @@ accepted 表示接纳真实转换，不等于后台执行完成；无需变化�
 - conversation 随投影推进，即使暂无订阅者。
 - 每次订阅生成新 subscriptionId；`createZCodeAgentConnectionScope` 只路由本连接所属帧。重连重新订阅，不复用旧 ID。
 - 跨连接 resync 为 `fault.subscription.notOwned`，未知订阅为 `fault.subscription.unknownSubscription`；非本连接 unsubscribe 幂等忽略，不删除他人订阅。
-- conversation 按会话及 workspace 隔离。会话删除后迟到 turn 不重新创建会话或启动下一队列项。
+- conversation 按会话及 workspace 隔离。服务端释放工作区后，迟到 turn 不重新创建会话或启动下一队列项；Web 不提供会话删除命令。
 
 ## 7. 浏览器 ID 与附件摘要
 

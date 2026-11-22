@@ -6,8 +6,10 @@
 // - 30s keep-warm：refCount 归零不立即 dispose（防 pane 关/开、布局调整抖动）；
 // - agentService 换代：远程条目保持 layer/transport 身份并单向切换最新 proxy；
 //   本地 __base__ 用新 service 重建条目。
-import type { IZCodeAgentService } from "@zcode/services";
-import { createAgentConversationTransport } from "@/v4/agentConversationTransport.js";
+import {
+  createAgentConversationTransport,
+  type ConversationV4AgentService,
+} from "@/v4/agentConversationTransport.js";
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { ReplaceableConversationTransport } from "@/v4/replaceableConversationTransport.js";
 import { SessionDataLayer } from "@/v4/sessionDataLayer.js";
@@ -15,27 +17,7 @@ import type { ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
 
 /** 注册表需要的 agentService 窄面（= conversation transport 的依赖面，便于测试注入）。 */
-export type WorkspaceConnectionAgentService = Pick<
-  IZCodeAgentService,
-  | "helloConversationV4"
-  | "initializeConversationV4"
-  | "subscribeConversationV4"
-  | "resyncConversationV4"
-  | "unsubscribeConversationV4"
-  | "sendConversationCommandV4"
-  | "queryConversationCommandsV4"
-  | "conversationRowsRangeV4"
-  | "conversationPlansV4"
-  | "attachmentBeginV4"
-  | "attachmentChunkV4"
-  | "attachmentCommitV4"
-  | "attachmentAbortV4"
-  | "attachmentReadV4"
-  | "getSessionLifecycle"
-  | "onDynamicSessionLifecycle"
-  | "onDynamicConversationFrame"
-  | "onAgentRuntimeRestarted"
->;
+export type WorkspaceConnectionAgentService = ConversationV4AgentService;
 
 export interface WorkspaceConnectionScope {
   /** = pane 绑定的 primary workspace（连接路由键）。 */

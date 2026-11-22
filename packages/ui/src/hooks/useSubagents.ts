@@ -52,14 +52,17 @@ export function useSubagents(
     workspaceIdentity,
     workspaceRpcTarget.remoteTarget,
   );
-  const workspaceRpcEnabled = shouldEnableWorkspaceRpc({
-    workspaceIdentity,
-    remoteSessionId,
-    remoteTarget: workspaceRpcTarget.remoteTarget,
-  });
-  const contextKey = workspacePath
-    ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity, subagentsService)
-    : null;
+  const workspaceRpcEnabled =
+    subagentsService !== undefined &&
+    shouldEnableWorkspaceRpc({
+      workspaceIdentity,
+      remoteSessionId,
+      remoteTarget: workspaceRpcTarget.remoteTarget,
+    });
+  const contextKey =
+    workspacePath && subagentsService
+      ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity, subagentsService)
+      : null;
   const context = useSubagentsContextStore((state) =>
     contextKey ? state.contexts[contextKey] : undefined,
   );
@@ -83,7 +86,7 @@ export function useSubagents(
     legacyContext.provider === provider;
 
   useEffect(() => {
-    if (!workspacePath || !workspaceRpcEnabled) {
+    if (!workspacePath || !workspaceRpcEnabled || !subagentsService) {
       // 远程 workspace 断连或 session 尚未重挂时，@ 面板会随输入框挂载预加载子智能体。
       // 这里先跳过 workspace RPC，避免 disconnected proxy 的内部错误码显示成红色子智能体提示。
       return;
@@ -101,10 +104,7 @@ export function useSubagents(
   ]);
 
   const refresh = useCallback(async () => {
-    if (!workspaceRpcEnabled) {
-      return;
-    }
-    if (!workspacePath) return;
+    if (!workspaceRpcEnabled || !workspacePath || !subagentsService) return;
     await refreshStore(workspacePath, provider, subagentsService, workspaceIdentity);
   }, [
     provider,

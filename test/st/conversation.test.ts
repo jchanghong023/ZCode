@@ -1,20 +1,17 @@
 import { expect, it } from "vitest";
-import {
-  sessionLifecycleSnapshotSchema,
-  zcodeSkillsReferenceCatalogResultSchema,
-} from "@zcode/shared";
+import { zcodeSkillsReferenceCatalogResultSchema } from "@zcode/shared";
 import {
   conversationSnapshotSchema,
-  v4ConversationPlansResultSchema,
   v4ConversationRowsRangeResultSchema,
 } from "@zcode/shared/zcode-protocol-v4";
-import { connectST, unique, waitUntil } from "./client.js";
+import { connectST, expectRetiredAgentRpc, unique, waitUntil } from "./client.js";
 import { createProposal } from "./business.js";
 import { getProposal } from "./proposal-flow.js";
 import {
   expectNativeLocalCommands,
   expectNativeSkillInput,
   expectNativeTurnWork,
+  expectRetiredConversationCommands,
   openNative,
   readNativeCommandCatalog,
   requireAccepted,
@@ -111,24 +108,12 @@ it("native send completes with canonical rows, query receipt and real owned fram
       commandId: id,
       status: expect.stringMatching(/^(accepted|duplicate)$/),
     });
-    const plans = v4ConversationPlansResultSchema.parse(
-      await c.services.zcodeAgentService.conversationPlansV4({
-        ...native.workspace,
-        sessionId: native.sessionId,
-      }),
-    );
-    expect(plans.atLogEpoch).toBe(rows.atLogEpoch);
     expect(
       native.frames.some(
         (frame) => frame.subscriptionId === native!.subscriptionId && frame.toSeq > 0,
       ),
     ).toBe(true);
     conversationSnapshotSchema.parse(final);
-    expect(
-      typeof (await c.services.zcodeAgentService.supportsConversationQuoteComment?.(
-        native.workspace,
-      )),
-    ).toBe("boolean");
     const catalog = await c.services.zcodeAgentService.getSkillReferenceCatalog({
       ...native.workspace,
       sessionId: native.sessionId,
@@ -136,11 +121,6 @@ it("native send completes with canonical rows, query receipt and real owned fram
     zcodeSkillsReferenceCatalogResultSchema.parse(catalog);
     expect(catalog.authority).toBe("session");
     expect(catalog).toEqual(initialCatalog);
-    const lifecycle = await c.services.zcodeAgentService.getSessionLifecycle({
-      ...native.workspace,
-      sessionId: native.sessionId,
-    });
-    expect(sessionLifecycleSnapshotSchema.parse(lifecycle).sessionId).toBe(native.sessionId);
     await expectNativeSkillInput(native, c.identity.clientId, commands);
   } finally {
     try {
@@ -207,36 +187,14 @@ it("same command and input reuses its decision; replacing its text is rejected w
   }
 });
 
-it("feedback is bound to the current row epoch and stale revisions cannot change its fact", async () => {
+it("rejects retired RPC members and commands without changing the business conversation", async () => {
   const c = await connectST();
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
     native = await openNative(c, (await createProposal(c)).remote);
+    await expectRetiredAgentRpc(c.probeRpc, { ...native.workspace, sessionId: native.sessionId });
     requireAccepted(await native.send("sendText", { text: "请整理当前需求目标与验收标准。" }));
-    const final = await native.waitIdle();
-    const assistant = final.rows.window.findLast(
-      (row) => row.kind === "assistantText" && row.state === "complete",
-    );
-    if (!assistant?.entityId)
-      throw new Error(
-        "ST prerequisite blocked: no completed assistant row with entity identity for feedback",
-      );
-    const target = { rowId: assistant.rowId, entityId: assistant.entityId };
-    requireAccepted(await native.send("setAssistantFeedback", { feedback: "like" }, { target }));
-    const liked = await native.snapshot();
-    expect(liked.rows.window.find((row) => row.rowId === target.rowId)).toMatchObject({
-      feedback: "like",
-    });
-    requireRejected(
-      await native.send(
-        "setAssistantFeedback",
-        { feedback: "dislike" },
-        { target, baseRevision: 0, baseLogEpoch: unique("wrong-epoch") },
-      ),
-    );
-    expect(
-      (await native.snapshot()).rows.window.find((row) => row.rowId === target.rowId),
-    ).toMatchObject({ feedback: "like" });
+    await expectRetiredConversationCommands(native, await native.waitIdle());
   } finally {
     try {
       await native?.close();

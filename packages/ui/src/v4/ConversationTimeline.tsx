@@ -346,7 +346,7 @@ export interface ConversationTimelineProps {
     onAddToCurrentTask: (
       reference: ConversationSelectionReference,
     ) => ConversationSelectionAppendResult | undefined;
-    onAskInSideChat: (reference: ConversationSelectionReference) => void;
+    onAskInSideChat?: (reference: ConversationSelectionReference) => void;
   };
   /** 范围编辑时，左侧 rail 由分享选择面板独占。 */
   hideTurnNavigator?: boolean;

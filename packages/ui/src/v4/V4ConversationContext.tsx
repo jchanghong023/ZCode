@@ -44,7 +44,7 @@ export interface V4ConversationContextValue {
   attachmentReadRange(
     params: Parameters<ConversationTransport["attachmentReadRange"]>[0],
   ): ReturnType<ConversationTransport["attachmentReadRange"]>;
-  onRuntimeRestart(listener: () => void): () => void;
+  onRuntimeRestart?(listener: () => void): () => void;
   /**
    * 承载 transport 暴露 runtime 存活态时才存在（见 ConversationTransport.onRuntimeLifecycle）。
    * unavailable 在 workspace-dispose 当场到达，是草稿预热重建唯一可依赖的换代信号。
@@ -125,13 +125,8 @@ function ReadyV4ConversationProvider({
         transport.attachmentPut(params, options),
       attachmentRead: (params) => transport.attachmentRead(params),
       attachmentReadRange: (params) => transport.attachmentReadRange(params),
-      onRuntimeRestart: (listener: () => void) => transport.onRuntimeRestart(listener),
-      ...(transport.onRuntimeLifecycle
-        ? {
-            onRuntimeLifecycle: (listener: (state: "available" | "unavailable") => void) =>
-              transport.onRuntimeLifecycle?.(listener) ?? (() => {}),
-          }
-        : {}),
+      onRuntimeRestart: transport.onRuntimeRestart?.bind(transport),
+      onRuntimeLifecycle: transport.onRuntimeLifecycle?.bind(transport),
     } satisfies V4ConversationContextValue;
   }, [workspacePath, workspaceIdentity, zcodeAgentService]);
 
@@ -300,13 +295,8 @@ function ReadyV4PaneConversationProvider({
           lease.transport.attachmentPut(params, options),
         attachmentRead: (params) => lease.transport.attachmentRead(params),
         attachmentReadRange: (params) => lease.transport.attachmentReadRange(params),
-        onRuntimeRestart: (listener: () => void) => lease.transport.onRuntimeRestart(listener),
-        ...(lease.transport.onRuntimeLifecycle
-          ? {
-              onRuntimeLifecycle: (listener: (state: "available" | "unavailable") => void) =>
-                lease.transport.onRuntimeLifecycle?.(listener) ?? (() => {}),
-            }
-          : {}),
+        onRuntimeRestart: lease.transport.onRuntimeRestart?.bind(lease.transport),
+        onRuntimeLifecycle: lease.transport.onRuntimeLifecycle?.bind(lease.transport),
       } satisfies V4ConversationContextValue,
     };
   }, [

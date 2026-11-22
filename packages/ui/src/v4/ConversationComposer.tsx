@@ -1822,7 +1822,7 @@ function ConversationComposerImpl({
                     senderId,
                     messageId,
                     sentAt,
-                    comment,
+                    ...(!sessionBoundInput ? { comment } : {}),
                     agent,
                   }),
                 ),
@@ -2807,7 +2807,7 @@ function ConversationComposerImpl({
             onSwitchMode={onSwitchMode}
           />
         ) : null}
-        {sessionId && workspaceHookAdmission ? (
+        {!sessionBoundInput && sessionId && workspaceHookAdmission ? (
           <WorkspaceHookPendingIndicator
             key={JSON.stringify([sessionId, workspaceHookAdmission.bundleDigest])}
             sessionId={sessionId}
@@ -2830,12 +2830,14 @@ function ConversationComposerImpl({
             admission={workspaceMcpAdmission}
           />
         ) : null}
-        <ConversationBackgroundWorkTrigger
-          backgroundWorks={backgroundWorks ?? []}
-          runningSubagentCount={runningSubagentCount}
-          onOpen={onOpenRunningBackgroundWorks}
-          openTarget={backgroundWorkOpenTarget}
-        />
+        {!sessionBoundInput ? (
+          <ConversationBackgroundWorkTrigger
+            backgroundWorks={backgroundWorks ?? []}
+            runningSubagentCount={runningSubagentCount}
+            onOpen={onOpenRunningBackgroundWorks}
+            openTarget={backgroundWorkOpenTarget}
+          />
+        ) : null}
       </>
     ),
     [

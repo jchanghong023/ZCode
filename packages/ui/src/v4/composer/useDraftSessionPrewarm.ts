@@ -42,15 +42,25 @@ export function startDraftSessionPrewarm(params: {
   onReady: (sessionId: string) => void;
   /** single-flight owner 用于等待不可取消的 createSession 收口；无论成功失败都只调用一次。 */
   onSettled?: () => void;
+  /** Some hosts do not expose deleteSession; keep their draft cleanup local. */
+  deleteUnusedSession?: boolean;
   /** 预热会话初始 config（全局「上次选择」，同步解析）；让投影首帧即全局、不闪。 */
   resolveInitialConfig?: () => Partial<SessionConfigState> | undefined;
 }): DraftPrewarmController {
-  const { workspaceKey, dispatchCommand, onReady, onSettled, resolveInitialConfig } = params;
+  const {
+    workspaceKey,
+    dispatchCommand,
+    onReady,
+    onSettled,
+    resolveInitialConfig,
+    deleteUnusedSession = true,
+  } = params;
   let disposed = false;
   let promotionState: "draft" | "pending" | "promoted" | "discarded" = "draft";
   let createdSessionId: string | null = null;
 
   const deleteCreatedSession = (sessionId: string) => {
+    if (!deleteUnusedSession) return;
     void dispatchCommand("deleteSession", {}, sessionId)
       .then((ack) => {
         if (ack.status !== "accepted" && ack.status !== "noop") {
@@ -213,6 +223,7 @@ class DraftSessionPrewarmCoordinator {
     private readonly workspaceKey: string,
     dispatchCommand: DispatchCommand,
     resolveInitialConfig: (() => Partial<SessionConfigState> | undefined) | undefined,
+    private readonly deleteUnusedSession: boolean,
     private readonly onEmpty: () => void,
   ) {
     this.dispatchCommand = dispatchCommand;
@@ -377,6 +388,7 @@ class DraftSessionPrewarmCoordinator {
     });
     const controller = startDraftSessionPrewarm({
       workspaceKey: this.workspaceKey,
+      deleteUnusedSession: this.deleteUnusedSession,
       dispatchCommand: (type, payload, targetSessionId) =>
         this.dispatchCommand(type, payload, targetSessionId),
       resolveInitialConfig: () => this.resolveInitialConfig?.(),
@@ -524,6 +536,7 @@ function getDraftSessionPrewarmCoordinator(params: {
   paneId: string;
   transportIdentity: unknown;
   dispatchCommand: DispatchCommand;
+  deleteUnusedSession: boolean;
   resolveInitialConfig: (() => Partial<SessionConfigState> | undefined) | undefined;
 }): DraftSessionPrewarmCoordinator {
   let transportCoordinators = draftPrewarmCoordinatorsByTransport.get(params.transportIdentity);
@@ -538,6 +551,7 @@ function getDraftSessionPrewarmCoordinator(params: {
       params.workspaceKey,
       params.dispatchCommand,
       params.resolveInitialConfig,
+      params.deleteUnusedSession,
       () => {
         if (transportCoordinators?.get(ownerKey) !== coordinator) {
           return;
@@ -585,6 +599,7 @@ export function useDraftSessionPrewarm(params: {
   /** conversation provider 的 transport identity；同 workspace lease 变化时保持不变。 */
   transportIdentity: unknown;
   dispatchCommand: DispatchCommand;
+  deleteUnusedSession?: boolean;
   /** 预热会话初始 config（全局「上次选择」，同步解析）；让投影首帧即全局、不闪。 */
   resolveInitialConfig?: () => Partial<SessionConfigState> | undefined;
 }): DraftSessionPrewarm {
@@ -595,6 +610,7 @@ export function useDraftSessionPrewarm(params: {
     transportIdentity,
     invalidationVersion = 0,
     dispatchCommand,
+    deleteUnusedSession = true,
     resolveInitialConfig,
   } = params;
   // workspace/pane/transport 共同定义逻辑 owner：同 owner 重挂复用 single-flight，transport
@@ -626,7 +642,11 @@ export function useDraftSessionPrewarm(params: {
     // 已关闭 store 和历史。登记与订阅必须同属已提交的 effect，中止 render 也不能留下 owner。
     // 命令更新只替换 coordinator 的调用入口，不重新 acquire 当前预热生命周期。
     const commands = latestCommandsRef.current;
-    const coordinator = getDraftSessionPrewarmCoordinator({ ...owner, ...commands });
+    const coordinator = getDraftSessionPrewarmCoordinator({
+      ...owner,
+      ...commands,
+      deleteUnusedSession,
+    });
     coordinator.update(commands.dispatchCommand, commands.resolveInitialConfig);
     acquired.current = { generation, coordinator };
     const release = coordinator.acquire({
@@ -645,7 +665,7 @@ export function useDraftSessionPrewarm(params: {
       acquired.current = null;
       release();
     };
-  }, [enabled, generation, invalidationVersion, owner]);
+  }, [deleteUnusedSession, enabled, generation, invalidationVersion, owner]);
 
   const waitForSession = useMemo(
     () => createWaitForDraftSession(acquired, enabled, generation, invalidationVersion),

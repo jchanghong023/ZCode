@@ -178,12 +178,12 @@ export interface RecentChatDirectory {
 
 export interface IZCodeAgentService {
   /** 独立聊天连接中有历史的最近目录与会话，各取前五。 */
-  listRecentChatSessions(): Promise<RecentChatDirectory[]>;
+  listRecentChatSessions?(): Promise<RecentChatDirectory[]>;
   /**
    * 同步 App 全局运行时偏好到所有已活动 workspace；不得为此启动空闲 Agent。
    */
-  syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
-  listSessionSubagents(
+  syncAppRuntimePreferences?(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
+  listSessionSubagents?(
     params: ZCodeAgentListSessionSubagentsParams,
   ): Promise<ZCodeSessionSubagentsResult>;
   /**
@@ -217,7 +217,7 @@ export interface IZCodeAgentService {
   conversationRowsRangeV4(
     params: ZCodeAgentConversationRowsRangeParams,
   ): Promise<V4ConversationRowsRangeResult>;
-  conversationPlansV4(
+  conversationPlansV4?(
     params: ZCodeAgentConversationPlansParams,
   ): Promise<V4ConversationPlansResult>;
   sendConversationCommandV4(params: ZCodeAgentConversationCommandParams): Promise<CommandAck>;
@@ -228,11 +228,11 @@ export interface IZCodeAgentService {
   attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void>;
   /** 已发送 image/video 只读分块查询；connection scope 注入可信 workspace 连接。 */
   attachmentReadV4(params: ZCodeAgentAttachmentReadParams): Promise<V4AttachmentReadResult>;
-  getSessionLifecycle(
+  getSessionLifecycle?(
     params: ZCodeAgentSessionTarget,
   ): Promise<import("@zcode/shared").SessionLifecycleSnapshot | null>;
   /** 独立于可被释放的 conversation publisher 的生命周期事实。 */
-  onDynamicSessionLifecycle(
+  onDynamicSessionLifecycle?(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<import("@zcode/shared").SessionLifecycleSnapshot>;
   /** workspace 级下行帧流（v4/conversation/frame），renderer 侧按 topic 自行路由。 */
@@ -244,7 +244,7 @@ export interface IZCodeAgentService {
    * v4 订阅活在 CLI 进程内存，进程换代即失效；订阅方（task-index syncer 等）
    * 收到后必须对该 workspaceKey 重发 subscribe，否则帧流静默中断。
    */
-  onAgentRuntimeRestarted(listener: (event: { workspaceKey: string }) => void): IDisposable;
+  onAgentRuntimeRestarted?(listener: (event: { workspaceKey: string }) => void): IDisposable;
   /**
    * Agent client 在 service 内完成登记后发布 available，当前 client 关闭后发布 unavailable。
    * 这是被动 observer attach/detach 的唯一生命周期信号，不表达用户使用租约。
@@ -257,6 +257,45 @@ export interface IZCodeAgentService {
   ): Promise<void>;
   disposeAll(): void;
 }
+
+const WEB_CONVERSATION_METHODS = [
+  "helloConversationV4",
+  "initializeConversationV4",
+  "subscribeConversationV4",
+  "resyncConversationV4",
+  "unsubscribeConversationV4",
+  "conversationRowsRangeV4",
+  "sendConversationCommandV4",
+  "queryConversationCommandsV4",
+  "getConversationCommandCatalog",
+] as const satisfies readonly (keyof IZCodeAgentService)[];
+
+export const WEB_CHAT_AGENT_METHODS = [
+  ...WEB_CONVERSATION_METHODS,
+  "listRecentChatSessions",
+] as const satisfies readonly (keyof IZCodeAgentService)[];
+
+export const WEB_AIREQ_AGENT_METHODS = [
+  ...WEB_CONVERSATION_METHODS,
+  "getSkillReferenceCatalog",
+  "attachmentBeginV4",
+  "attachmentChunkV4",
+  "attachmentCommitV4",
+  "attachmentAbortV4",
+  "attachmentReadV4",
+] as const satisfies readonly (keyof IZCodeAgentService)[];
+
+export const WEB_AIREQ_AGENT_EVENTS = [
+  "onDynamicConversationFrame",
+] as const satisfies readonly (keyof IZCodeAgentService)[];
+
+export type WebAIReqAgent = Required<
+  Pick<IZCodeAgentService, (typeof WEB_AIREQ_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
+>;
+
+export type WebChatAgent = Required<
+  Pick<IZCodeAgentService, (typeof WEB_CHAT_AGENT_METHODS | typeof WEB_AIREQ_AGENT_EVENTS)[number]>
+>;
 
 export const IZCodeAgentService = createServiceDescriptor<IZCodeAgentService>(
   ServiceChannels.ZCodeAgent,

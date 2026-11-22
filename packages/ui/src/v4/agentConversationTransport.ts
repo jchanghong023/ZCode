@@ -44,7 +44,7 @@ export interface AgentConversationTransportTarget {
   workspaceIdentity?: string;
 }
 
-type ConversationV4AgentService = Pick<
+export type ConversationV4AgentService = Pick<
   IZCodeAgentService,
   | "subscribeConversationV4"
   | "resyncConversationV4"
@@ -64,8 +64,8 @@ type ConversationV4AgentService = Pick<
   | "onDynamicSessionLifecycle"
   | "onDynamicConversationFrame"
   | "onAgentRuntimeRestarted"
-> &
-  Partial<Pick<IZCodeAgentService, "onAgentRuntimeLifecycle">>;
+  | "onAgentRuntimeLifecycle"
+>;
 
 /**
  * 一条 host 连接（= 一个 workspace）上的 v4 conversation 传输面。
@@ -121,7 +121,7 @@ export function createAgentConversationTransport(
     }) => void
   >();
   const runtimeRestartListeners = new Set<
-    Parameters<ConversationTransport["onRuntimeRestart"]>[0]
+    Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0]
   >();
   const runtimeLifecycleListeners = new Set<(state: "available" | "unavailable") => void>();
   const decoder = createTopicWireDecoder(
@@ -164,19 +164,20 @@ export function createAgentConversationTransport(
   // Bug 原因：上游回调若创建在 onX(listener) 内，会与退订闭包共享作用域，
   // Set.delete 后仍保留首个 listener 及其已关闭 store。上游创建只捕获 transport 本身。
   const attachSessionLifecycleUpstream = () => {
-    sessionLifecycleUpstream ??= agentService.onDynamicSessionLifecycle(workspace)((snapshot) => {
-      if (snapshot.state === "stopping") {
-        const topic = `conversation/${snapshot.sessionId}`;
-        sessionGenerations.set(topic, (sessionGenerations.get(topic) ?? 0) + 1);
-        for (const [id, subscriptionTopic] of topicBySubscriptionId) {
-          if (subscriptionTopic !== topic) continue;
-          barrier.forget(id);
-          decoder.discard(topic, id);
-          topicBySubscriptionId.delete(id);
+    sessionLifecycleUpstream ??=
+      agentService.onDynamicSessionLifecycle?.(workspace)((snapshot) => {
+        if (snapshot.state === "stopping") {
+          const topic = `conversation/${snapshot.sessionId}`;
+          sessionGenerations.set(topic, (sessionGenerations.get(topic) ?? 0) + 1);
+          for (const [id, subscriptionTopic] of topicBySubscriptionId) {
+            if (subscriptionTopic !== topic) continue;
+            barrier.forget(id);
+            decoder.discard(topic, id);
+            topicBySubscriptionId.delete(id);
+          }
         }
-      }
-      for (const callback of sessionLifecycleListeners) callback(snapshot);
-    });
+        for (const callback of sessionLifecycleListeners) callback(snapshot);
+      }) ?? null;
   };
   const attachFrameUpstream = () => {
     if (!upstream) {
@@ -194,17 +195,18 @@ export function createAgentConversationTransport(
     }
   };
   const attachRuntimeRestartUpstream = () => {
-    runtimeRestartUpstream ??= agentService.onAgentRuntimeRestarted((event) => {
-      if (event.workspaceKey !== targetWorkspaceKey) return;
-      if (!target.workspaceIdentity?.trim())
-        getLocalTtftObserver()?.interrupt(target.workspacePath);
-      runtimeGeneration += 1;
-      // runtime generation 可复用 subId/ordinal；ownership 与 assembler 必须原子失效。
-      barrier.clear();
-      decoder.clear();
-      topicBySubscriptionId.clear();
-      for (const restartListener of runtimeRestartListeners) restartListener("runtimeRestart");
-    });
+    runtimeRestartUpstream ??=
+      agentService.onAgentRuntimeRestarted?.((event) => {
+        if (event.workspaceKey !== targetWorkspaceKey) return;
+        if (!target.workspaceIdentity?.trim())
+          getLocalTtftObserver()?.interrupt(target.workspacePath);
+        runtimeGeneration += 1;
+        // runtime generation 可复用 subId/ordinal；ownership 与 assembler 必须原子失效。
+        barrier.clear();
+        decoder.clear();
+        topicBySubscriptionId.clear();
+        for (const restartListener of runtimeRestartListeners) restartListener("runtimeRestart");
+      }) ?? null;
   };
   const attachRuntimeLifecycleUpstream = () => {
     runtimeLifecycleUpstream ??=
@@ -230,21 +232,30 @@ export function createAgentConversationTransport(
     }
     return bytes;
   };
+  const getSessionLifecycle = agentService.getSessionLifecycle?.bind(agentService);
+  const queryPlans = agentService.conversationPlansV4?.bind(agentService);
   return {
-    getSessionLifecycle(sessionId) {
-      return agentService.getSessionLifecycle({ ...workspace, sessionId });
-    },
-    onSessionLifecycle(listener) {
-      sessionLifecycleListeners.add(listener);
-      attachSessionLifecycleUpstream();
-      return () => {
-        sessionLifecycleListeners.delete(listener);
-        if (sessionLifecycleListeners.size === 0) {
-          sessionLifecycleUpstream?.dispose();
-          sessionLifecycleUpstream = null;
+    ...(getSessionLifecycle
+      ? {
+          getSessionLifecycle: (sessionId: string) =>
+            getSessionLifecycle({ ...workspace, sessionId }),
         }
-      };
-    },
+      : {}),
+    ...(agentService.onDynamicSessionLifecycle
+      ? {
+          onSessionLifecycle(listener: (snapshot: SessionLifecycleSnapshot) => void) {
+            sessionLifecycleListeners.add(listener);
+            attachSessionLifecycleUpstream();
+            return () => {
+              sessionLifecycleListeners.delete(listener);
+              if (sessionLifecycleListeners.size === 0) {
+                sessionLifecycleUpstream?.dispose();
+                sessionLifecycleUpstream = null;
+              }
+            };
+          },
+        }
+      : {}),
     async subscribe(params: SubscribeParams): Promise<V4ConversationSubscribeResult> {
       const sessionId = parseConversationTopic(params.topic);
       if (!sessionId) {
@@ -459,13 +470,14 @@ export function createAgentConversationTransport(
         limit: params.limit,
       });
     },
-    async plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult> {
-      await ensureHandshake();
-      return agentService.conversationPlansV4({
-        ...workspace,
-        sessionId: params.sessionId,
-      });
-    },
+    ...(queryPlans
+      ? {
+          async plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult> {
+            await ensureHandshake();
+            return queryPlans({ ...workspace, sessionId: params.sessionId });
+          },
+        }
+      : {}),
     async attachmentPut(
       params: V4AttachmentPutParams,
       options?: AttachmentUploadOptions,
@@ -586,17 +598,23 @@ export function createAgentConversationTransport(
       faultListeners.add(listener);
       return () => faultListeners.delete(listener);
     },
-    onRuntimeRestart(listener) {
-      runtimeRestartListeners.add(listener);
-      attachRuntimeRestartUpstream();
-      return () => {
-        runtimeRestartListeners.delete(listener);
-        if (runtimeRestartListeners.size === 0) {
-          runtimeRestartUpstream?.dispose();
-          runtimeRestartUpstream = null;
+    ...(agentService.onAgentRuntimeRestarted
+      ? {
+          onRuntimeRestart(
+            listener: Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0],
+          ) {
+            runtimeRestartListeners.add(listener);
+            attachRuntimeRestartUpstream();
+            return () => {
+              runtimeRestartListeners.delete(listener);
+              if (runtimeRestartListeners.size === 0) {
+                runtimeRestartUpstream?.dispose();
+                runtimeRestartUpstream = null;
+              }
+            };
+          },
         }
-      };
-    },
+      : {}),
     ...(agentService.onAgentRuntimeLifecycle
       ? {
           onRuntimeLifecycle(listener: (state: "available" | "unavailable") => void) {

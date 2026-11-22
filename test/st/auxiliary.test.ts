@@ -287,39 +287,17 @@ describe("ST auxiliary public reads", () => {
   );
 
   it(
-    "reads complete settings, safe system fields, runtime agent capability and resolves the business model in native catalogs",
+    "reads complete settings, safe system fields and resolves the business model in native catalogs",
     async () => {
       const c = await connectST();
       try {
-        // 本例只需要 subagents.list 的工作区目标；文件字节夹具与这些只读契约无关。
-        // 从本例公开创建的业务对象取得目标，避免缺少 ST_FILE_JSON 时整例尚未请求就被阻塞。
         const created = await createProposal(c);
-        const workspacePath = requireConfig(
-          created.remote.workspace.path,
-          "公开提案读取必须提供讨论 workspace.path",
-        );
         const settings = await c.services.settingService.get();
         expect(appSettingsSchema.safeParse(settings).success).toBe(true);
         const system = await c.services.systemService.info();
         expect(Object.keys(system).sort()).toEqual(["homedir", "platform"]);
         expect(typeof system.homedir).toBe("string");
         expect(typeof system.platform).toBe("string");
-        const agents = await c.services.subagentsService.list({
-          workspacePath,
-          workspaceIdentity: created.remote.workspace.identity,
-        });
-        expect(typeof agents.capability.userScopeAvailable).toBe("boolean");
-        for (const directory of [agents.agents, agents.userAgents, agents.pluginAgents]) {
-          expect(directory).toEqual(expect.any(Array));
-          expect(new Set(directory.map((agent) => agent.id)).size).toBe(directory.length);
-          for (const agent of directory) {
-            expect(agent).toMatchObject({
-              id: expect.any(String),
-              name: expect.any(String),
-              enabled: expect.any(Boolean),
-            });
-          }
-        }
         const bootstrap = await c.bootstrap();
         const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
         expect(workflowRoles).toEqual([

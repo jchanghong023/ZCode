@@ -5,18 +5,18 @@
 import { createHash } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { z } from "zod";
-import { Emitter, Event, type IDisposable } from "@zcode/rpc";
-import { createUuid, type SessionLifecycleSnapshot, type SkillSummary } from "@zcode/shared";
+import { Emitter } from "@zcode/rpc";
+import { createUuid, type SkillSummary } from "@zcode/shared";
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
   PROTOCOL_V4_LIMITS,
-  ROW_TARGETING_COMMANDS,
+  commandEnvelopeSchema,
+  commandPayloadSchemas,
   conversationTopicFrameSchema,
   commandsQueryParamsSchema,
   conversationTopicWireFrameSchema,
   encodeTopicWireFrames,
   measureTopicNotificationEnvelopeBytes,
-  parseCommandEnvelope,
   queueItemSchema,
   subscribeParamsSchema,
   v4ConversationRowsRangeParamsSchema,
@@ -101,14 +101,17 @@ type MockParsedInput =
 const CHAT_COMMAND_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 4;
 const CHAT_QUEUE_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 2;
 
-const NATIVE_WRITABLE_COMMANDS: ReadonlySet<CommandType> = new Set([
+const AIREQ_COMMANDS: ReadonlySet<CommandType> = new Set([
+  "createSession",
+  "sendText",
   "stop",
-  "switchCollaborationMode",
-  "resolveInteraction",
   "renameSession",
-  "deleteSession",
+]);
+const CHAT_COMMANDS: ReadonlySet<CommandType> = new Set([
+  "createSession",
+  "sendText",
+  "stop",
   "switchModelConfig",
-  "setAssistantFeedback",
 ]);
 
 // Channel 的扁平工作区目标复用 wire 的实际输入规则；仅保留连接 facade 注入的可信载体。
@@ -139,10 +142,7 @@ function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown
 export class MockZCodeAgentService implements IZCodeAgentService {
   private chatHistory?: Promise<void>;
   private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
-  private readonly sessionLifecycleEmitter = new Emitter<SessionLifecycleSnapshot>();
-  private readonly runtimeRestartedEmitter = new Emitter<{ workspaceKey: string }>();
   private readonly conversationSubs = new Map<string, ConversationSubscription>();
-  private sessionGeneration = 1;
   private readonly instanceId = createUuid();
 
   private readonly commandResults = new Map<string, { digest: string; ack: CommandAck }>();
@@ -438,7 +438,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     let todo: ToolCallRow | undefined;
     let agent: ToolCallRow | undefined;
     let review: SubagentRow | undefined;
-    // 运行期间行只追加；停止和删除先中断回合，不能让迟到增量改写下一轮。
+    // 停止先中断当前回合，不能让迟到增量改写下一轮。
     const reasoningIndex = session.rows.length;
     this.appendRow(session, reasoning);
 
@@ -826,15 +826,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  private ackNoop(
-    envelope: CommandEnvelope,
-    session: MockSession,
-    reasonCode?: string,
-  ): CommandAck {
+  private ackNoop(envelope: CommandEnvelope, session: MockSession): CommandAck {
     return {
       commandId: envelope.commandId,
       status: "noop",
-      ...(reasonCode ? { reasonCode } : {}),
       revisionAtDecision: session.revision,
     };
   }
@@ -1022,14 +1017,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const skills = this.readEnabledSkills(sessionRef.workspacePath);
     const firstInput = payload.firstInput;
     const parsed = firstInput ? this.parseConversationInput(firstInput.text, skills) : undefined;
-    if (firstInput && this.hasInputOverrides(firstInput))
-      return this.rejectUnsupported(envelope, null);
     if (parsed?.kind === "rejected")
       return this.reject(envelope, null, "fault.command.unsupportedSlashCommand", parsed.message);
     if (parsed?.kind === "builtin")
       return this.reject(envelope, null, "guard.command.sessionRequired", "此命令需要已有会话。");
-    if (this.standalone && firstInput?.attachments?.length)
-      return this.rejectUnsupported(envelope, null);
     if (firstInput && !firstInput.attachments?.length && !firstInput.text.trim())
       return this.reject(envelope, null, "fault.command.emptyInput", "请输入要发送的消息。");
     const now = Date.now();
@@ -1059,7 +1050,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       },
       plan: null,
-      pendingInteractions: [],
       queuedInputs: [],
       nextAdmissionSeq: 1,
       activeTurn: null,
@@ -1077,8 +1067,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         },
       },
     };
-    if (payload.config) {
-      Object.assign(session.config, payload.config);
+    const config = payload.config;
+    if (config) {
+      const { provider, model, thought, followupMode, modelSelection } = config;
+      if (provider !== undefined) session.config.provider = provider;
+      if (model !== undefined) session.config.model = model;
+      if (thought !== undefined) session.config.thought = thought;
+      if (followupMode !== undefined) session.config.followupMode = followupMode;
+      if (modelSelection !== undefined) session.config.modelSelection = modelSelection;
     }
     if (chatConfig) Object.assign(session.config, chatConfig);
     this.validateInputAttachments(session, firstInput?.attachments ?? []);
@@ -1163,21 +1159,44 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     }
   }
 
-  private hasInputOverrides(payload: MockTextSubmission): boolean {
-    return Object.entries(payload).some(
-      ([key, value]) =>
-        value !== undefined &&
-        key !== "text" &&
-        key !== "attachments" &&
-        key !== "streamingBehavior" &&
-        (key !== "conversationQuotes" || !this.business),
+  private allowsWebInput(payload: MockTextSubmission): boolean {
+    return (
+      (!this.standalone || !payload.attachments?.length) &&
+      !payload.conversationQuotes?.some(({ comment }) => comment !== undefined) &&
+      Object.entries(payload).every(
+        ([key, value]) =>
+          value === undefined ||
+          key === "text" ||
+          key === "attachments" ||
+          key === "streamingBehavior" ||
+          (key === "conversationQuotes" && this.business !== undefined),
+      )
+    );
+  }
+
+  private allowsWebPayload(envelope: CommandEnvelope): boolean {
+    if (envelope.type === "sendText")
+      return this.allowsWebInput(envelope.payload as MockTextSubmission);
+    if (envelope.type !== "createSession") return true;
+
+    const payload = envelope.payload as CommandPayloadMap["createSession"];
+    const config = payload.config;
+    return (
+      payload.additionalDirectories === undefined &&
+      payload.cwd === undefined &&
+      payload.worktreeCreation === undefined &&
+      payload.permissionScope === undefined &&
+      payload.mcpServers === undefined &&
+      payload.offPeakToolEnabled === undefined &&
+      config?.mode === undefined &&
+      config?.planEnabled === undefined &&
+      (!payload.firstInput || this.allowsWebInput(payload.firstInput))
     );
   }
 
   private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
     if (!this.business && !this.standalone) return this.rejectUnsupported(envelope, session);
     const payload = envelope.payload as MockTextSubmission;
-    if (this.hasInputOverrides(payload)) return this.rejectUnsupported(envelope, session);
     const parsed = this.parseConversationInput(payload.text, session.skills);
     if (parsed.kind === "rejected")
       return this.reject(
@@ -1190,8 +1209,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (payload.attachments?.length) return this.rejectUnsupported(envelope, session);
       return this.handleBuiltinCommand(session, envelope, parsed);
     }
-    if (this.standalone && payload.attachments?.length)
-      return this.rejectUnsupported(envelope, session);
     if (!payload.text.trim() && !payload.attachments?.length)
       return this.reject(envelope, session, "fault.command.emptyInput", "请输入要发送的消息。");
     // 两个浏览器都可能按空闲状态发出输入；独立聊天把后到输入交给现有跟进队列。
@@ -1272,46 +1289,23 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (envelope.type === "createSession") {
       return this.createSessionInternal(envelope, directory);
     }
-    if (!envelope.sessionId) {
-      // 没有会话归属的命令（如 createSelectionSideSession）一律走未实现分支，不先抛 fault。
-      return this.rejectUnsupported(envelope, null);
-    }
+    // 会话范围、产品能力和载荷已在收据入口检查；退役命令不能借归属检查补建会话。
     const session = this.ensureSession({
-      sessionId: envelope.sessionId,
+      sessionId: envelope.sessionId!,
       workspace: envelope.workspace,
-      // CAS/行命令不能借归属查询创建新会话事实。
-      allowSeed:
-        !COMMANDS_REQUIRING_BASE_REVISION.has(envelope.type) &&
-        !ROW_TARGETING_COMMANDS.has(envelope.type),
+      allowSeed: envelope.type !== "switchModelConfig",
     });
-    // 幂等命中在入口先返回；首次裁决必须在任何状态/行/水位写入之前完成。
-    let fault: string | undefined;
-    if (
-      COMMANDS_REQUIRING_BASE_REVISION.has(envelope.type) &&
-      envelope.baseRevision !== session.revision
-    )
-      fault = "proto.staleRevision";
-    if (ROW_TARGETING_COMMANDS.has(envelope.type)) {
-      const { target } = envelope.payload as { target: { rowId: number; entityId: string } };
-      if (envelope.baseLogEpoch !== session.logEpoch) fault = "proto.staleLogEpoch";
-      else if (
-        !session.rows.some(
-          (row) =>
-            row.rowId === target.rowId && "entityId" in row && row.entityId === target.entityId,
-        )
-      )
-        fault ??= "proto.staleTarget";
-    }
-    if (fault)
+    if (envelope.type === "switchModelConfig" && envelope.baseRevision !== session.revision) {
       return {
         commandId: envelope.commandId,
         status: "rejected",
-        reasonCode: fault,
+        reasonCode: "proto.staleRevision",
         revisionAtDecision: session.revision,
       };
+    }
     // 普通输入和本地命令分别按实际写入行为校验业务权限。
-    if (this.business && NATIVE_WRITABLE_COMMANDS.has(envelope.type))
-      this.business.assertNativeWritable(session.sessionId);
+    if (envelope.type === "stop" || envelope.type === "renameSession")
+      this.business?.assertNativeWritable(session.sessionId);
     switch (envelope.type) {
       case "sendText":
         return this.sendTextInternal(session, envelope);
@@ -1329,59 +1323,23 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         active.controller.abort();
         return this.ackAccepted(envelope);
       }
-      case "resolveInteraction": {
-        const payload = envelope.payload as { interactionId: string };
-        const interaction = session.pendingInteractions.find(
-          (item) => item.interactionId === payload.interactionId,
-        );
-        if (!interaction) return this.ackNoop(envelope, session, "proto.alreadyResolved");
-        session.pendingInteractions = session.pendingInteractions.filter(
-          (item) => item.interactionId !== payload.interactionId,
-        );
-        this.patchState(session, { pendingInteractions: session.pendingInteractions });
-        return this.ackAccepted(envelope, {
-          type: "resolveInteraction",
-          resolvedBy: { clientId: envelope.clientId },
-        });
-      }
       case "renameSession": {
         const payload = envelope.payload as { title: string };
         this.renameSession(session, payload.title);
         return this.ackAccepted(envelope);
       }
-      case "deleteSession": {
-        this.runtime.sessions.delete(session.sessionId);
-        this.runtime.tasks.delete(session.sessionId);
-        session.activeTurn?.controller.abort();
-        return this.ackAccepted(envelope);
-      }
       case "switchModelConfig": {
-        if (this.business) return this.rejectUnsupported(envelope, session);
-        const payload = envelope.payload as { provider: string; model: string; thought: string };
+        const payload = envelope.payload as CommandPayloadMap["switchModelConfig"];
         const previous = session.config;
-        const chatConfig = this.standalone
-          ? completeMockModelSelection({
-              providerId: payload.provider,
-              modelId: payload.model,
-              options: { reasoningLevel: payload.thought },
-            })
-          : null;
-        if (this.standalone && !chatConfig) return this.rejectUnsupported(envelope, session);
+        const chatConfig = completeMockModelSelection({
+          providerId: payload.provider,
+          modelId: payload.model,
+          options: { reasoningLevel: payload.thought },
+        });
+        if (!chatConfig) return this.rejectUnsupported(envelope, session);
         if (session.activeTurn)
           return this.reject(envelope, session, "guard.session.busy", "当前回合结束后可切换模型。");
-        session.config = chatConfig
-          ? { ...session.config, ...chatConfig }
-          : {
-              ...session.config,
-              provider: payload.provider,
-              model: payload.model,
-              thought: payload.thought,
-              modelSelection: {
-                providerId: payload.provider,
-                modelId: payload.model,
-                options: { reasoningLevel: payload.thought },
-              },
-            };
+        session.config = { ...session.config, ...chatConfig };
         // 配置边界行先进入权威集合，实时帧与恢复/分页才能看到相同事实。
         this.patchState(session, { config: { ...session.config } });
         this.appendRow(session, {
@@ -1402,33 +1360,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         });
         return this.ackAccepted(envelope);
       }
-      case "switchCollaborationMode": {
-        const payload = envelope.payload as { mode: string };
-        session.config = { ...session.config, mode: payload.mode };
-        this.patchState(session, { config: { ...session.config } });
-        return this.ackAccepted(envelope);
-      }
-      case "setAssistantFeedback": {
-        const payload = envelope.payload as {
-          target: { rowId: number; entityId: string };
-          feedback: "like" | "dislike" | null;
-        };
-        const row = session.rows.find(
-          (candidate) =>
-            candidate.rowId === payload.target.rowId &&
-            "entityId" in candidate &&
-            candidate.entityId === payload.target.entityId,
-        );
-        if (row?.kind !== "assistantText") return this.ackNoop(envelope, session);
-        const updated: Record<string, unknown> = { ...row };
-        if (payload.feedback) updated["feedback"] = payload.feedback;
-        else delete updated["feedback"];
-        this.upsertRow(session, updated as unknown as WireConversationRow);
-        return this.ackAccepted(envelope);
-      }
       default:
-        // 未实现命令必须明确拒绝：以前一律 accepted 会让 UI 以为状态已经变化。
-        return this.rejectUnsupported(envelope, session);
+        throw new Error("未装配已公开的 Web 会话命令。");
     }
   }
 
@@ -1448,7 +1381,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         binaryFrames: true,
         compression: "none",
         workflowRunDeltas: true,
-        independentPlanState: true,
         genUiContext: false,
       },
       auth: {},
@@ -1561,7 +1493,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       },
       plan: null,
-      pendingInteractions: [],
       queuedInputs: [],
       nextAdmissionSeq: 1,
       activeTurn: null,
@@ -1643,23 +1574,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  async conversationPlansV4(params: P<IZCodeAgentService["conversationPlansV4"]>) {
-    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
-    return {
-      plans: (session?.rows ?? []).filter(
-        (row): row is Extract<WireConversationRow, { kind: "toolCall" }> =>
-          row.kind === "toolCall" && row.toolName === "exit_plan_mode",
-      ),
-      atSeq: session?.seq ?? 0,
-      atLogEpoch: session?.logEpoch ?? "unknown",
-    };
-  }
-
   async sendConversationCommandV4(
     params: P<IZCodeAgentService["sendConversationCommandV4"]>,
   ): Promise<CommandAck> {
-    const parsed = parseCommandEnvelope(params.envelope);
-    if (!parsed.ok) {
+    const parsed = commandEnvelopeSchema.safeParse(params.envelope);
+    if (!parsed.success) {
       return {
         commandId: params.envelope.commandId,
         status: "rejected",
@@ -1667,18 +1586,20 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         revisionAtDecision: 0,
       };
     }
-    const envelope = parsed.envelope;
-    if ((envelope.type === "createSession") !== (envelope.sessionId === null))
-      return this.reject(envelope, null, "fault.command.invalidEnvelope", "命令的会话范围无效。");
+    const supported = (this.standalone ? CHAT_COMMANDS : AIREQ_COMMANDS).has(parsed.data.type);
+    const payload = supported
+      ? commandPayloadSchemas[parsed.data.type].safeParse(parsed.data.payload)
+      : undefined;
+    const envelope = payload?.success ? { ...parsed.data, payload: payload.data } : parsed.data;
     // 执行与查询使用同一可信 actor 和请求工作区。
     const requestWorkspace = {
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
     };
     if (
-      parsed.envelope.workspace &&
-      (workspaceKeyOf(parsed.envelope.workspace) !== workspaceKeyOf(requestWorkspace) ||
-        parsed.envelope.workspace.workspacePath !== requestWorkspace.workspacePath)
+      envelope.workspace &&
+      (workspaceKeyOf(envelope.workspace) !== workspaceKeyOf(requestWorkspace) ||
+        envelope.workspace.workspacePath !== requestWorkspace.workspacePath)
     )
       throw new Error("命令工作区与当前请求不一致。");
     const actor = this.actorKey() ?? "mock";
@@ -1693,15 +1614,17 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const prior = replay();
     if (prior) return prior;
     let ack: CommandAck;
-    if (this.standalone && Buffer.byteLength(serialized) > CHAT_COMMAND_MAX_BYTES) {
+    if (!supported) {
+      ack = this.rejectUnsupported(envelope, null);
+    } else if (this.standalone && Buffer.byteLength(serialized) > CHAT_COMMAND_MAX_BYTES) {
       ack = this.reject(envelope, null, "fault.chat.inputTooLarge", "消息过长，请分段发送。");
     } else if (
-      this.standalone &&
-      envelope.type !== "createSession" &&
-      envelope.type !== "sendText" &&
-      envelope.type !== "switchModelConfig" &&
-      envelope.type !== "stop"
+      !payload?.success ||
+      (envelope.type === "createSession") !== (envelope.sessionId === null) ||
+      (COMMANDS_REQUIRING_BASE_REVISION.has(envelope.type) && envelope.baseRevision === undefined)
     ) {
+      ack = this.reject(envelope, null, "fault.command.invalidEnvelope", "命令信封无效。");
+    } else if (!this.allowsWebPayload(envelope)) {
       ack = this.rejectUnsupported(envelope, null);
     } else {
       const directory =
@@ -1780,37 +1703,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       IZCodeAgentService["onDynamicConversationFrame"]
     >;
   }
-
-  onDynamicSessionLifecycle(
-    _params: P<IZCodeAgentService["onDynamicSessionLifecycle"]>,
-  ): ReturnType<IZCodeAgentService["onDynamicSessionLifecycle"]> {
-    return this.sessionLifecycleEmitter.event as unknown as ReturnType<
-      IZCodeAgentService["onDynamicSessionLifecycle"]
-    >;
-  }
-
-  async getSessionLifecycle(
-    params: P<IZCodeAgentService["getSessionLifecycle"]>,
-  ): Promise<AR<IZCodeAgentService["getSessionLifecycle"]>> {
-    if (!this.runtime.sessions.has(params.sessionId)) return null;
-    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
-    return {
-      sessionId: session.sessionId,
-      // ready 仅表示已有内存 owner 可接纳命令，不表示外部进程存在。
-      state: "ready",
-      generation: this.sessionGeneration,
-      revision: session.revision,
-      lastError: null,
-    };
-  }
-
-  onAgentRuntimeRestarted(listener: (event: { workspaceKey: string }) => void): IDisposable {
-    return this.runtimeRestartedEmitter.event(listener);
-  }
-
-  /** 可选 runtime 事件：mock 无进程换代，恒为空事件。 */
-  readonly onAgentRuntimeLifecycle: NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]> =
-    Event.None as unknown as NonNullable<IZCodeAgentService["onAgentRuntimeLifecycle"]>;
 
   // ── 附件 ──
 
@@ -2023,19 +1915,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
   }
 
-  // ── 当前产品保留的目录与运行偏好 ──
-
-  async syncAppRuntimePreferences(
-    _preferences: P<IZCodeAgentService["syncAppRuntimePreferences"]>,
-  ): Promise<void> {}
-
-  async listSessionSubagents(
-    _params: P<IZCodeAgentService["listSessionSubagents"]>,
-  ): Promise<AR<IZCodeAgentService["listSessionSubagents"]>> {
-    return { subagents: [], endedTotal: 0, revision: 0 } as unknown as AR<
-      IZCodeAgentService["listSessionSubagents"]
-    >;
-  }
+  // ── 当前产品保留的 Skill 与命令目录 ──
 
   private readEnabledSkills(workspacePath: string): SkillSummary[] {
     return (
@@ -2100,12 +1980,6 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         byName.set(command, { name: command, description, source: "skill" });
     }
     return [...byName.values()];
-  }
-
-  supportsConversationQuoteComment(
-    _target: NonNullable<P<IZCodeAgentService["supportsConversationQuoteComment"]>>,
-  ): Promise<boolean> {
-    return Promise.resolve(false);
   }
 
   async disposeWorkspace(_params: P<IZCodeAgentService["disposeWorkspace"]>): Promise<void> {

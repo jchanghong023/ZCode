@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { IAIReqService } from "@zcode/services";
 import {
   PROTOCOL_V4_LIMITS,
   commandAckSchema,
@@ -12,11 +13,19 @@ import {
   type ModelSelection,
 } from "@zcode/shared/zcode-protocol-v4";
 import { createProposal } from "./business.js";
-import { connectChatST, connectST, unique, waitUntil } from "./client.js";
+import {
+  connectChatST,
+  connectST,
+  expectRetiredAgentRpc,
+  expectRpcUnavailable,
+  unique,
+  waitUntil,
+} from "./client.js";
 import {
   expectNativeLocalCommands,
   expectNativeSkillInput,
   expectNativeTurnWork,
+  expectRetiredConversationCommands,
   initializeNative,
   openNative,
   openNativeSession,
@@ -187,6 +196,32 @@ it("recovers anonymous first-send and session receipts on reconnect without re-s
       await native?.close();
     } finally {
       await Promise.all([client.close(), reconnected?.close(), other?.close()]);
+    }
+  }
+});
+
+it("rejects retired RPC members and commands without changing anonymous chat", async () => {
+  const client = await connectChatST();
+  let native: NativeSession | undefined;
+  try {
+    const service = client.services.zcodeAgentService;
+    await initializeNative(service, client.clientId);
+    const target = await createChatSession(client, ".", "请整理讨论目标。");
+    native = await openNativeSession(service, client.clientId, target.sessionId, target);
+    await expectRetiredAgentRpc(client.probeRpc, target);
+    const before = await native.waitIdle();
+    expect(
+      (await service.listRecentChatSessions()).flatMap(({ sessions }) => sessions),
+    ).toContainEqual(expect.objectContaining({ sessionId: target.sessionId }));
+    await expectRetiredConversationCommands(native, before);
+    expect(
+      (await service.listRecentChatSessions()).flatMap(({ sessions }) => sessions),
+    ).toContainEqual(expect.objectContaining({ sessionId: target.sessionId }));
+  } finally {
+    try {
+      await native?.close();
+    } finally {
+      await client.close();
     }
   }
 });
@@ -366,7 +401,14 @@ it("shares live chat across anonymous connections and isolates AIReq histories i
       await expect(
         aiReq.services.zcodeAgentService.conversationRowsRangeV4({ ...target, limit: 60 }),
       ).rejects.toThrow();
-      await expect(chat.services.aiReqService.bootstrap(aiReq.identity)).rejects.toThrow();
+      await expectRpcUnavailable(
+        chat.probeRpc,
+        "call",
+        IAIReqService.channelName,
+        "bootstrap",
+        [aiReq.identity],
+        true,
+      );
       expect(
         (await service.listRecentChatSessions()).flatMap(({ sessions }) => sessions),
       ).not.toContainEqual(expect.objectContaining({ sessionId: business.sessionId }));

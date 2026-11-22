@@ -213,7 +213,10 @@ function deliveryProfileFor(clientMode: ZCodeAgentV4ClientMode): HelloMessage["d
   return clientMode === "desktop-continuous" ? "continuous" : "replayable";
 }
 
-function createHello(context: ZCodeAgentV4ConnectionContext): HelloMessage {
+function createHello(
+  context: ZCodeAgentV4ConnectionContext,
+  advertiseDesktopControls: boolean,
+): HelloMessage {
   const continuous = context.clientMode === "desktop-continuous";
   return {
     kind: "hello",
@@ -227,8 +230,7 @@ function createHello(context: ZCodeAgentV4ConnectionContext): HelloMessage {
       localTerminal: continuous,
       binaryFrames: false,
       compression: "none",
-      workspaceHookReview: true,
-      independentPlanState: true,
+      ...(advertiseDesktopControls && { workspaceHookReview: true, independentPlanState: true }),
       genUiContext: true,
       // 本 Host 会转发 `workflowRun.*` 键级增量；客户端见到它才能在 clientHello 里回声明
       // （那个 capabilities 是 .strict() 的，反过来会让老 Host 握不上手）。
@@ -252,7 +254,10 @@ export interface ZCodeAgentConnectionScope {
 export function createZCodeAgentConnectionScope(
   base: IZCodeAgentService,
   context: ZCodeAgentV4ConnectionContext,
-  options?: { allowCommandQueriesAcrossWorkspaces?: boolean },
+  options?: {
+    allowCommandQueriesAcrossWorkspaces?: boolean;
+    advertiseDesktopControls?: boolean;
+  },
 ): ZCodeAgentConnectionScope {
   assertConnectionId(context.connectionId);
   const role = context.role ?? "terminal-client";
@@ -669,10 +674,12 @@ export function createZCodeAgentConnectionScope(
         invalidateWorkspaceRuntime(restarted, nextGeneration);
       });
 
+  const sessionLifecycle = base.onDynamicSessionLifecycle?.bind(base);
+  const listRecentChatSessions = base.listRecentChatSessions?.bind(base);
   const overrides: Partial<IZCodeAgentService> = {
-    onDynamicSessionLifecycle(params) {
-      return (listener) =>
-        base.onDynamicSessionLifecycle(params)((snapshot) => {
+    ...(sessionLifecycle && {
+      onDynamicSessionLifecycle: (params) => (listener) =>
+        sessionLifecycle(params)((snapshot) => {
           if (snapshot.state === "stopping") {
             const topic = conversationTopic(snapshot.sessionId);
             const key = workspaceKey(params);
@@ -692,12 +699,12 @@ export function createZCodeAgentConnectionScope(
             }
           }
           listener(snapshot);
-        });
-    },
+        }),
+    }),
     async helloConversationV4() {
       assertOpen();
       helloIssued = true;
-      return createHello(context);
+      return createHello(context, options?.advertiseDesktopControls !== false);
     },
     async initializeConversationV4(clientHello) {
       assertOpen();
@@ -711,10 +718,12 @@ export function createZCodeAgentConnectionScope(
       clientHistoryFirst = parsed.capabilities?.historyFirst === true;
       handshakeComplete = true;
     },
-    async listRecentChatSessions() {
-      assertReady();
-      return base.listRecentChatSessions();
-    },
+    ...(listRecentChatSessions && {
+      async listRecentChatSessions() {
+        assertReady();
+        return listRecentChatSessions();
+      },
+    }),
     async setConnectionFlowStateV4(params) {
       assertOpen();
       if (role !== "trusted-host-relay") {

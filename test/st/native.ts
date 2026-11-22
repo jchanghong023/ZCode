@@ -11,7 +11,6 @@ import {
   type CommandEnvelope,
   type ConversationCommandCatalogEntry,
   type CommandType,
-  type ConversationRowTarget,
   type ConversationSnapshot,
   type ConversationTopicFrame,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -24,14 +23,15 @@ export interface NativeSendOptions {
   commandId?: string;
   baseRevision?: number;
   baseLogEpoch?: string;
-  target?: ConversationRowTarget;
+  sessionId?: string;
+  omitPreconditions?: boolean;
 }
 export interface NativeSession {
   sessionId: string;
   subscriptionId: string;
   workspace: { workspacePath: string; workspaceIdentity?: string };
   frames: ConversationTopicFrame[];
-  send(type: string, payload: unknown, options?: NativeSendOptions): Promise<CommandAck>;
+  send(type: CommandType, payload: unknown, options?: NativeSendOptions): Promise<CommandAck>;
   snapshot(): Promise<ConversationSnapshot>;
   waitIdle(): Promise<ConversationSnapshot>;
   close(): Promise<void>;
@@ -55,7 +55,18 @@ export async function openNative(c: STClient, remote: AIReqRemoteWorkflow): Prom
   );
 }
 
-export async function initializeNative(service: IZCodeAgentService, clientId: string) {
+type NativeHandshake = Pick<IZCodeAgentService, "helloConversationV4" | "initializeConversationV4">;
+type NativeConversationService = NativeHandshake &
+  Pick<
+    IZCodeAgentService,
+    | "onDynamicConversationFrame"
+    | "subscribeConversationV4"
+    | "resyncConversationV4"
+    | "unsubscribeConversationV4"
+    | "sendConversationCommandV4"
+  >;
+
+export async function initializeNative(service: NativeHandshake, clientId: string) {
   const hello = helloMessageSchema.parse(await service.helloConversationV4());
   if (hello.protocolVersion !== V4_WIRE_PROTOCOL_VERSION)
     throw new Error("ST native protocol mismatch");
@@ -69,7 +80,7 @@ export async function initializeNative(service: IZCodeAgentService, clientId: st
 }
 
 export async function openNativeSession(
-  service: IZCodeAgentService,
+  service: NativeConversationService,
   clientId: string,
   sessionId: string,
   { workspacePath, workspaceIdentity }: NativeSession["workspace"],
@@ -150,11 +161,11 @@ export async function openNativeSession(
     async send(type, payload, options = {}) {
       if (closed) throw new Error("ST native session is closed");
       if (fault) throw fault;
-      const commandType = type as CommandType;
       // 普通发送不要求 CAS；无条件 resync 会在测试辅助中耗尽真实的运行/排队窗口。
       // 只补协议要求且调用方未显式提供的水位，保留故意传入的 0 或旧 epoch。
-      const needsRevision = COMMANDS_REQUIRING_BASE_REVISION.has(commandType);
-      const needsEpoch = ROW_TARGETING_COMMANDS.has(commandType);
+      const needsRevision =
+        !options.omitPreconditions && COMMANDS_REQUIRING_BASE_REVISION.has(type);
+      const needsEpoch = !options.omitPreconditions && ROW_TARGETING_COMMANDS.has(type);
       const current =
         (needsRevision && options.baseRevision === undefined) ||
         (needsEpoch && options.baseLogEpoch === undefined)
@@ -170,10 +181,10 @@ export async function openNativeSession(
         },
         commandId,
         clientId,
-        sessionId,
-        type: commandType,
+        sessionId: options.sessionId ?? sessionId,
+        type,
         issuedAt,
-        payload: options.target ? { ...(payload as object), target: options.target } : payload,
+        payload,
         ...(options.baseRevision !== undefined || needsRevision
           ? { baseRevision: options.baseRevision ?? current!.revision }
           : {}),
@@ -246,12 +257,11 @@ export function expectNativeTurnWork(
 }
 
 export async function readNativeCommandCatalog(
-  service: IZCodeAgentService,
+  service: Required<Pick<IZCodeAgentService, "getConversationCommandCatalog">>,
   target: NativeSession["workspace"] & { sessionId?: string },
 ) {
-  const catalog = await service.getConversationCommandCatalog?.(target);
-  expect(catalog).toBeDefined();
-  return conversationCommandCatalogEntrySchema.array().parse(catalog?.commands);
+  const catalog = await service.getConversationCommandCatalog(target);
+  return conversationCommandCatalogEntrySchema.array().parse(catalog.commands);
 }
 
 export async function expectNativeLocalCommands(
@@ -321,4 +331,62 @@ export function requireRejected(ack: CommandAck): void {
   if (!["rejected", "stale", "failed"].includes(ack.status) || !ack.reasonCode) {
     throw new Error(`ST expected explicit rejection, received ${ack.status}`);
   }
+}
+
+export function expectCapabilityRejected(ack: CommandAck) {
+  expect(ack).toMatchObject({
+    status: "rejected",
+    reasonCode: "fault.command.capabilityUnsupported",
+  });
+}
+
+export async function expectRetiredConversationCommands(
+  native: NativeSession,
+  before: ConversationSnapshot,
+) {
+  const assistant = before.rows.window.findLast(
+    (row) => row.kind === "assistantText" && row.state === "complete",
+  );
+  const input = before.rows.window.findLast((row) => row.kind === "userInput");
+  if (!assistant?.entityId || !input?.entityId)
+    throw new Error("ST needs completed history with input and assistant row identities");
+  const target = { rowId: assistant.rowId, entityId: assistant.entityId };
+  const inputTarget = { rowId: input.rowId, entityId: input.entityId };
+  const options = { baseRevision: before.revision, baseLogEpoch: before.logEpoch };
+  const queueItemId = unique("retired-queue-item");
+  const retired = [
+    ["deleteSession", {}],
+    ["setAssistantFeedback", { target, feedback: "like" }],
+    ["resolveInteraction", { interactionId: unique("interaction"), answer: { action: "accept" } }],
+    ["switchCollaborationMode", { mode: "plan" }],
+    ["sendQueuedNow", { queueItemId }],
+    ["setAutoDrain", { autoDrain: false }],
+    ["setFollowupMode", { mode: "guide" }],
+    ["forkAssistant", { target }],
+    ["editUserQuery", { target: inputTarget, newText: "不应改写历史" }],
+    ["applyFileRewind", { target: inputTarget }],
+    ["stopSubagent", { taskId: unique("child-task"), executionId: unique("child-execution") }],
+    ["resumeWorkflowRun", { workId: unique("background-work") }],
+  ] as const satisfies readonly (readonly [CommandType, unknown])[];
+  await Promise.all(
+    retired.map(async ([type, payload]) =>
+      expectCapabilityRejected(await native.send(type, payload, options)),
+    ),
+  );
+
+  // No row, CAS stamps or resident session: retirement must precede all three lookups.
+  expectCapabilityRejected(
+    await native.send(
+      "forkAssistant",
+      {},
+      { sessionId: unique("unknown-session"), omitPreconditions: true },
+    ),
+  );
+  const after = await native.snapshot();
+  expect(after.revision).toBe(before.revision);
+  expect(after.logEpoch).toBe(before.logEpoch);
+  expect(after.rows).toEqual(before.rows);
+  expect(after.control).toEqual(before.control);
+  expect(after.queue).toEqual(before.queue);
+  expect(after.config).toEqual(before.config);
 }

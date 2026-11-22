@@ -500,14 +500,14 @@ export class ConversationProjectionStore {
       // subscriptionId，帧流静默中断且不自愈。
       // 只认 transportReplaced 即可两不重叠：底层 runtime restart 经 bindRuntimeRestartListener
       // 转发时调的是 listener()（reason 为 undefined），已由 lifecycle 的 available 接管。
-      this.offRuntimeRestart = transport.onRuntimeRestart((reason) => {
-        if (reason !== "transportReplaced") return;
-        this.handleRuntimeRestart(reason);
-      });
+      this.offRuntimeRestart =
+        transport.onRuntimeRestart?.((reason) => {
+          if (reason !== "transportReplaced") return;
+          this.handleRuntimeRestart(reason);
+        }) ?? null;
     } else {
-      this.offRuntimeRestart = transport.onRuntimeRestart((reason) =>
-        this.handleRuntimeRestart(reason),
-      );
+      this.offRuntimeRestart =
+        transport.onRuntimeRestart?.((reason) => this.handleRuntimeRestart(reason)) ?? null;
     }
   }
 
@@ -623,8 +623,9 @@ export class ConversationProjectionStore {
     });
     try {
       const sessionId = parseConversationTopic(this.topic);
-      if (sessionId && this.transport.getSessionLifecycle) {
-        const lifecycle = await this.transport.getSessionLifecycle(sessionId);
+      const getSessionLifecycle = this.transport.getSessionLifecycle;
+      if (sessionId && getSessionLifecycle) {
+        const lifecycle = await getSessionLifecycle.call(this.transport, sessionId);
         if (generation !== this.generation || this.closed) return;
         if (lifecycle) this.handleSessionLifecycle(lifecycle, true);
         if (this.state.lifecycle?.state === "stopping" || this.state.lifecycle?.state === "faulted")
@@ -1507,7 +1508,8 @@ export class ConversationProjectionStore {
    * query 立刻过期，必须以 revision + epoch 双重校验，不能把旧分支计划重新写回 UI。
    */
   async refreshPlans(): Promise<void> {
-    if (this.closed) return;
+    const plans = this.transport.plans;
+    if (this.closed || !plans) return;
     if (this.planQueryInFlight) {
       this.planQueryPending = true;
       return;
@@ -1520,7 +1522,7 @@ export class ConversationProjectionStore {
     this.planQueryInFlight = true;
     this.setState({ plansLoading: true });
     try {
-      const result = await this.transport.plans({ sessionId });
+      const result = await plans.call(this.transport, { sessionId });
       if (this.closed) return;
       if (this.generation !== requestedGeneration) return;
       const current = this.state.snapshot;

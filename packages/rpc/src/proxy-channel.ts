@@ -148,7 +148,7 @@ export namespace ProxyChannel {
    */
   export function toService<T extends object>(
     channel: IChannel,
-    options?: { context?: unknown },
+    options?: { context?: unknown; members?: ReadonlySet<keyof T> },
   ): T {
     return new Proxy({} as T, {
       get(target: T, propKey: PropertyKey, receiver: object) {
@@ -162,6 +162,10 @@ export namespace ProxyChannel {
 
         if (typeof propKey === "string") {
           if (propKey === "then") {
+            return undefined;
+          }
+
+          if (options?.members && !options.members.has(propKey as keyof T)) {
             return undefined;
           }
 

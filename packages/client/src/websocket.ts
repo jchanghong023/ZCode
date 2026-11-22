@@ -8,7 +8,7 @@ export type { WebSocketConnectionCloseEvent } from "./channelWebSocket.js";
 export async function connectViaWebSocket(
   wsUrl: string,
   options?: WebSocketConnectionOptions,
-): Promise<IServiceAccessor> {
+): Promise<RemoteServiceAccess> {
   return new RemoteServiceAccess(await connectWebSocketChannel(wsUrl, options));
 }
 

@@ -8,6 +8,7 @@
     "paths": {
       "@/*": ["../../packages/ui/src/*"],
       "@zcode/client": ["../../packages/client/src/index.ts"],
+      "@zcode/client/agent": ["../../packages/client/src/agent.ts"],
       "@zcode/services": ["../../packages/services/src/index.ts"],
       "@zcode/services/aireq": ["../../packages/services/src/aireq/index.ts"],
       "@zcode/shared": ["../../packages/shared/src/index.ts"],

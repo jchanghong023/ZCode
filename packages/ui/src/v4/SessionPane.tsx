@@ -355,6 +355,12 @@ function createSessionErrorKey(
 
 const EMPTY_CONVERSATION_COMMANDS: readonly ConversationCommandCatalogEntry[] = [];
 
+function isSessionBoundConversationCommand(type: CommandType): boolean {
+  return (
+    type === "createSession" || type === "sendText" || type === "stop" || type === "renameSession"
+  );
+}
+
 const EMPTY_SUBAGENT_PROJECTION: NonNullable<ConversationSnapshot["subagents"]> = {
   revision: 0,
   childSessionIds: [],
@@ -730,16 +736,6 @@ export function SessionPane({
       newlyCreatedSessionIdRef.current = null;
     }
   }, [sessionId]);
-  const mobilePlanInteractionReconcileTimersRef = useRef(
-    new Map<string, ReturnType<typeof setTimeout>>(),
-  );
-  useEffect(() => {
-    const timers = mobilePlanInteractionReconcileTimersRef.current;
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-    };
-  }, [lease, sessionId]);
   const [dismissedErrorKeys, setDismissedErrorKeys] = useState<readonly string[]>([]);
   const [sendSubmissionError, setSendSubmissionError] = useState<ZCodeUiError | null>(null);
   const [paneLocalSummaryPanelVariantOverride, setPaneLocalSummaryPanelVariantOverride] =
@@ -920,10 +916,11 @@ export function SessionPane({
     [workspaceKey, sessionId],
   );
   // 软审核不是阻塞交互，不能隐藏 Composer 或禁用选区引用。
-  const blockingInteractionId =
-    snapshot?.pendingInteractions.find(
-      (interaction) => interaction.payload.kind !== "workspaceHookReview",
-    )?.interactionId ?? null;
+  const blockingInteractionId = sessionBoundInput
+    ? null
+    : (snapshot?.pendingInteractions.find(
+        (interaction) => interaction.payload.kind !== "workspaceHookReview",
+      )?.interactionId ?? null);
   const panePresentation = useConversationPanePresentation();
   const isFloatingPresentation = panePresentation.presentation === "floating";
   const isRunning = Boolean(snapshot?.control.canStop);
@@ -970,9 +967,8 @@ export function SessionPane({
     isRunning,
     reportFloatingStatus,
   ]);
-  const selectionSideChatKey = sessionId
-    ? buildSelectionSideChatKey(workspaceKey, sessionId)
-    : null;
+  const selectionSideChatKey =
+    sessionId && !sessionBoundInput ? buildSelectionSideChatKey(workspaceKey, sessionId) : null;
   const selectionSideActionBlocked = useSyncExternalStore(
     subscribeSelectionSideChatRuntime,
     () =>
@@ -1013,9 +1009,10 @@ export function SessionPane({
     providerAgentStartupAllowed && remoteAvailable && draftProjectReady;
 
   // composer 编辑态：草稿切到 edit scope，原草稿留在原 scope。
-  const composerEditKey = sessionId
-    ? composerDraftScopeKey(workspaceKey, sessionId, composerClientNamespace)
-    : null;
+  const composerEditKey =
+    sessionId && !sessionBoundInput
+      ? composerDraftScopeKey(workspaceKey, sessionId, composerClientNamespace)
+      : null;
   const composerEditScopeId = useComposerEditStore((store) =>
     composerEditKey ? store.sessions[composerEditKey]?.scopeId : undefined,
   );
@@ -1229,6 +1226,8 @@ export function SessionPane({
       // 离线点击/快捷键不得进入 accepted 命令恢复账本，更不能在重连后自动发送。
       if (!commandBinding.active || !commandBinding.writable)
         throw createRemoteWorkspaceDisconnectedError();
+      if (sessionBoundInput && !isSessionBoundConversationCommand(type))
+        throw new Error("fault.command.capabilityUnsupported");
       const submission = submissionConfigFromCommand(type, payload);
       const recentSubmission = recentSubmissionOverride ?? submission;
       // 发送时固定组织归属；同 cwd 可属于多个项目，切页和迟到 ACK 不得改写目标。
@@ -1711,6 +1710,7 @@ export function SessionPane({
 
   useEffect(() => {
     if (
+      sessionBoundInput ||
       !selectionSideChatKey ||
       !sessionId ||
       readOnly ||
@@ -1739,6 +1739,7 @@ export function SessionPane({
     onOpenSelectionSideChat,
     readOnly,
     selectionSideChat,
+    sessionBoundInput,
     selectionSideChatKey,
     sessionId,
   ]);
@@ -1788,9 +1789,8 @@ export function SessionPane({
     sessionId,
   ]);
 
-  const chatLoadingBlockedByInteraction = hasChatLoadingBlockingInteraction(
-    snapshot?.pendingInteractions ?? [],
-  );
+  const chatLoadingBlockedByInteraction =
+    !sessionBoundInput && hasChatLoadingBlockingInteraction(snapshot?.pendingInteractions ?? []);
   const chatLoadingBlockedByActiveWork = hasChatLoadingBlockingActiveWork(
     snapshot?.control.activeWorks ?? [],
   );
@@ -1887,7 +1887,7 @@ export function SessionPane({
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
       messageStreamShowTodos,
-      onNavigateToRow: handleNavigateToRow,
+      onNavigateToRow: sessionBoundInput ? undefined : handleNavigateToRow,
       onOpenBrowserUrl,
       onOpenAutomationsMain,
       onOpenCodeViewer,
@@ -1895,16 +1895,27 @@ export function SessionPane({
       assistantPreviewPptxAutoOpenTarget,
       onOpenFileLink,
       onOpenSubagentSession:
-        runtimeReady && onOpenSubagentSession ? handleOpenSubagentSession : undefined,
-      onOpenPlanDetail: runtimeReady && onOpenPlanDetail ? handleOpenPlanDetail : undefined,
-      onOpenWorkflowRun: runtimeReady && onOpenWorkflowRun ? handleOpenWorkflowRun : undefined,
+        !sessionBoundInput && runtimeReady && onOpenSubagentSession
+          ? handleOpenSubagentSession
+          : undefined,
+      onOpenPlanDetail:
+        !sessionBoundInput && runtimeReady && onOpenPlanDetail ? handleOpenPlanDetail : undefined,
+      onOpenWorkflowRun:
+        !sessionBoundInput && runtimeReady && onOpenWorkflowRun ? handleOpenWorkflowRun : undefined,
       onOpenWorkflowActor:
-        runtimeReady && onOpenWorkflowActorSession ? handleOpenWorkflowActorSession : undefined,
+        !sessionBoundInput && runtimeReady && onOpenWorkflowActorSession
+          ? handleOpenWorkflowActorSession
+          : undefined,
       onOpenWorkflowWorkspace:
-        runtimeReady && onOpenWorkflowWorkspace ? handleOpenWorkflowWorkspace : undefined,
+        !sessionBoundInput && runtimeReady && onOpenWorkflowWorkspace
+          ? handleOpenWorkflowWorkspace
+          : undefined,
       onOpenWorkflowArtifact:
-        runtimeReady && onOpenWorkflowArtifact ? handleOpenWorkflowArtifact : undefined,
-      onCancelBackgroundWork: readOnly || !runtimeReady ? undefined : handleCancelBackgroundWork,
+        !sessionBoundInput && runtimeReady && onOpenWorkflowArtifact
+          ? handleOpenWorkflowArtifact
+          : undefined,
+      onCancelBackgroundWork:
+        sessionBoundInput || readOnly || !runtimeReady ? undefined : handleCancelBackgroundWork,
       workflowRunByToolCallId,
       workflowRunByRunId,
       workflowRunPendingQuestionsByRunId,
@@ -1950,6 +1961,7 @@ export function SessionPane({
       handleOpenWorkflowArtifact,
       readOnly,
       runtimeReady,
+      sessionBoundInput,
       handleCancelBackgroundWork,
       workflowRunByToolCallId,
       workflowRunByRunId,
@@ -1965,8 +1977,15 @@ export function SessionPane({
   // ── 草稿态 v4 draft session 预热（m5）──
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
+  const prewarmBindingRef = useRef<ReturnType<typeof useDraftSessionPrewarm>["binding"]>(null);
+  // 浏览器换连接只重建订阅，不改变已有草稿及附件的归属。
+  const keepBrowserPrewarm =
+    sessionBoundInput &&
+    draftProjectReady &&
+    prewarmBindingRef.current?.workspaceKey === workspaceKey;
   const { binding: prewarmBinding, waitForSession: waitForDraftSession } = useDraftSessionPrewarm({
-    enabled: sessionId === null && draftAgentStartupAllowed && !recoveringDraft,
+    enabled:
+      sessionId === null && (draftAgentStartupAllowed || keepBrowserPrewarm) && !recoveringDraft,
     workspaceKey,
     paneId,
     invalidationVersion: draftRuntimeInvalidationVersion,
@@ -1974,18 +1993,18 @@ export function SessionPane({
     // 共享 identity；provider wrapper 重建产生的新 sendCommand 函数不能误判为 transport 换代。
     transportIdentity: layer,
     dispatchCommand,
-    // 预热会话只消费当前 Root Composer Draft 的一次性初始化结果。
-    resolveInitialConfig: resolveInitialDraftConfig,
+    deleteUnusedSession: !sessionBoundInput,
+    // The browser uses the native binding; only generic hosts apply local initial config.
+    resolveInitialConfig: sessionBoundInput ? undefined : resolveInitialDraftConfig,
   });
-  const prewarmBindingRef = useRef(prewarmBinding);
   prewarmBindingRef.current = prewarmBinding;
   const prewarmSessionId = prewarmBinding?.sessionId ?? null;
   // runtime 换代（CUA Helper 就绪、liveness 恢复等触发 workspace-dispose）会冲掉草稿态尚未
   // 持久化的预热会话。重建期间禁止发送，否则附件会挂在已消失的会话上（sessionNotFound）。
   const { rebuilding: draftRuntimeRebuilding } = useDraftRuntimeRebuildGate({
-    enabled: sessionId === null,
-    onRuntimeRestart,
-    onRuntimeLifecycle,
+    enabled: sessionId === null && !sessionBoundInput,
+    onRuntimeRestart: sessionBoundInput ? undefined : onRuntimeRestart,
+    onRuntimeLifecycle: sessionBoundInput ? undefined : onRuntimeLifecycle,
     prewarmSessionId,
     workspaceIdentity,
     workspacePath,
@@ -2153,20 +2172,32 @@ export function SessionPane({
   }, [layer, effectiveSessionId, setLease]);
 
   useEffect(() => {
-    if (!sessionId || !lease || snapshot?.sessionId !== sessionId) return;
+    if (sessionBoundInput || !sessionId || !lease || snapshot?.sessionId !== sessionId) return;
     void lease.store.refreshPlans();
-  }, [lease, sessionId, snapshot?.sessionId, state.planDirectoryRevision]);
+  }, [lease, sessionBoundInput, sessionId, snapshot?.sessionId, state.planDirectoryRevision]);
 
   // 预热会话订阅失败（CLI 重启内存会话消失等）→ 丢弃旧 binding，下一次发送由 owner 重试。
   useEffect(() => {
-    if (sessionId === null && prewarmBinding && state.status === "error") {
+    if (
+      sessionId === null &&
+      prewarmBinding &&
+      state.status === "error" &&
+      (!sessionBoundInput || (remoteAvailable && state.lastError?.includes("sessionNotFound")))
+    ) {
       logger.warn("[v4-draft-prewarm] 预热会话订阅失败，丢弃旧 binding", {
         prewarmSessionId: prewarmBinding.sessionId,
         lastError: state.lastError ?? null,
       });
       prewarmBinding.discard();
     }
-  }, [prewarmBinding, sessionId, state.lastError, state.status]);
+  }, [
+    prewarmBinding,
+    remoteAvailable,
+    sessionBoundInput,
+    sessionId,
+    state.lastError,
+    state.status,
+  ]);
 
   useEffect(() => {
     if (
@@ -2678,7 +2709,8 @@ export function SessionPane({
   );
   const composerEdit = useComposerEditMode({
     clientNamespace: composerClientNamespace,
-    enabled: !readOnly && runtimeReady && interactionEnabled && remoteAvailable,
+    enabled:
+      !sessionBoundInput && !readOnly && runtimeReady && interactionEnabled && remoteAvailable,
     sessionId,
     workspacePath,
     workspaceIdentity,
@@ -3616,7 +3648,11 @@ export function SessionPane({
   const selectionCommentSupported = useSelectionCommentSupport(
     workspacePath,
     workspaceIdentity,
-    Boolean(sessionId) && !readOnly && !selectionSideChat && !isMobileTextInputViewport,
+    !sessionBoundInput &&
+      Boolean(sessionId) &&
+      !readOnly &&
+      !selectionSideChat &&
+      !isMobileTextInputViewport,
   );
   // editUserQuery 已由 command 层防御 latest real user query，并在 running
   // 提交时先 stop barrier 再 rewind/rerun；UI 不应再用 completed gate 把入口整轮隐藏。
@@ -3671,7 +3707,8 @@ export function SessionPane({
     [pendingSubagentStops, sessionId, subagents.running],
   );
   useEffect(() => {
-    if (!sessionId || subagents.revision === 0 || !onSyncSubagentSessionTabs) return;
+    if (sessionBoundInput || !sessionId || subagents.revision === 0 || !onSyncSubagentSessionTabs)
+      return;
     onSyncSubagentSessionTabs({
       rootSessionId: rootSessionId ?? sessionId,
       parentSessionId: sessionId,
@@ -3680,6 +3717,7 @@ export function SessionPane({
   }, [
     onSyncSubagentSessionTabs,
     rootSessionId,
+    sessionBoundInput,
     sessionId,
     subagents.childSessionIds,
     subagents.revision,
@@ -3690,6 +3728,12 @@ export function SessionPane({
     return () => setSelectionSideChatBlocked(sessionId, false);
   }, [blockingInteractionId, selectionSideChat, sessionId]);
   const isOfficeMode = useIsOfficeMode();
+  const panelGoal = sessionBoundInput || selectionSideChat ? null : snapshot?.goal;
+  const panelPlans = sessionBoundInput ? undefined : state.sessionPlans;
+  const panelTodo = snapshot?.plan;
+  const panelBackgroundWorks = sessionBoundInput ? undefined : snapshot?.backgroundWorks;
+  const panelSubagents = sessionBoundInput ? undefined : subagents.running;
+  const panelWorkflowRuns = sessionBoundInput ? undefined : snapshot?.workflowRuns?.runs;
   const statusPanelModel = useMemo(
     () =>
       buildConversationStatusPanelModel({
@@ -3698,25 +3742,24 @@ export function SessionPane({
         gitSummary,
         gitDirtyFileCount,
         gitWorktreeChangeSummary,
-        goal: selectionSideChat ? null : (snapshot?.goal ?? null),
-        sessionPlans: state.sessionPlans,
-        plan: snapshot?.plan ?? null,
-        backgroundWorks: snapshot?.backgroundWorks ?? [],
-        runningSubagents: subagents.running,
-        workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        goal: panelGoal,
+        sessionPlans: panelPlans,
+        plan: panelTodo,
+        backgroundWorks: panelBackgroundWorks,
+        runningSubagents: panelSubagents,
+        workflowRuns: panelWorkflowRuns,
       }),
     [
       isOfficeMode,
       gitDirtyFileCount,
       gitSummary,
       gitWorktreeChangeSummary,
-      snapshot?.backgroundWorks,
-      snapshot?.goal,
-      snapshot?.plan,
-      snapshot?.workflowRuns,
-      state.sessionPlans,
-      selectionSideChat,
-      subagents.running,
+      panelBackgroundWorks,
+      panelGoal,
+      panelPlans,
+      panelSubagents,
+      panelTodo,
+      panelWorkflowRuns,
       workspacePath,
     ],
   );
@@ -3901,7 +3944,10 @@ export function SessionPane({
     openSettingsTab();
   }, [onOpenModelSettings, openSettingsTab]);
   const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
-  const recoverableCommand = recoverableCommands[0] ?? null;
+  const recoverableCommand =
+    (sessionBoundInput
+      ? recoverableCommands.find((entry) => isSessionBoundConversationCommand(entry.replay.type))
+      : recoverableCommands[0]) ?? null;
   const handleDismissPendingRecovery = useCallback(() => {
     if (!recoverableCommand) return;
     pendingCommandRegistry.dismissRecovery(
@@ -4051,8 +4097,8 @@ export function SessionPane({
       modelSelectionRefresh={modelSelectionRead.refresh}
       attachmentSessionId={effectiveSessionId}
       attachmentPut={attachmentPut}
-      onRuntimeRestart={onRuntimeRestart}
-      onRuntimeLifecycle={onRuntimeLifecycle}
+      onRuntimeRestart={sessionBoundInput ? undefined : onRuntimeRestart}
+      onRuntimeLifecycle={sessionBoundInput ? undefined : onRuntimeLifecycle}
       provider={provider}
       onSendText={handleSendText}
       onDraftStateChange={handleComposerDraftStateChange}
@@ -4187,7 +4233,8 @@ export function SessionPane({
       ) : null}
       {/* Bugfix: v4 权限/问答等待态只是 runtime 的阻塞交互，必须和 composer
           共享 timeline bottom dock；渲染在 SessionPane 外层会脱离主列宽度并挤占下半屏。 */}
-      {!readOnly &&
+      {!sessionBoundInput &&
+      !readOnly &&
       runtimeReady &&
       effectiveSessionId &&
       snapshot?.sessionId === effectiveSessionId ? (
@@ -4203,7 +4250,7 @@ export function SessionPane({
         />
       ) : null}
       {composerNode}
-      {composerEdit.editSession?.conflictPreview ? (
+      {!sessionBoundInput && composerEdit.editSession?.conflictPreview ? (
         <ConversationFileRewindDialog
           variant="editConflict"
           open
@@ -4287,13 +4334,13 @@ export function SessionPane({
             gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             activeTaskChangeSummary={activeTaskChangeSummary}
-            goal={selectionSideChat ? null : (snapshot?.goal ?? null)}
-            sessionPlans={state.sessionPlans}
-            plan={snapshot?.plan ?? null}
-            backgroundWorks={snapshot?.backgroundWorks ?? []}
-            runningSubagents={subagents.running}
-            workflowRuns={snapshot?.workflowRuns?.runs ?? []}
-            endedSubagentCount={subagents.endedTotal}
+            goal={panelGoal}
+            sessionPlans={panelPlans}
+            plan={panelTodo}
+            backgroundWorks={panelBackgroundWorks}
+            runningSubagents={panelSubagents}
+            workflowRuns={panelWorkflowRuns}
+            endedSubagentCount={sessionBoundInput ? 0 : subagents.endedTotal}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
             layoutMode={statusPanelLayout}
@@ -4308,18 +4355,26 @@ export function SessionPane({
             onRefreshGit={onRefreshGit}
             onOpenGitReview={onOpenGitReview}
             onPauseGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.pauseGoal.allowed
+              !sessionBoundInput &&
+              !readOnly &&
+              !selectionSideChat &&
+              snapshot?.availability.pauseGoal.allowed
                 ? handlePauseGoal
                 : undefined
             }
             onResumeGoal={
-              !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
+              !sessionBoundInput &&
+              !readOnly &&
+              !selectionSideChat &&
+              snapshot?.availability.resumeGoal.allowed
                 ? handleResumeGoal
                 : undefined
             }
-            onOpenPlanDetail={onOpenPlanDetail ? handleOpenPlanDetail : undefined}
+            onOpenPlanDetail={
+              !sessionBoundInput && onOpenPlanDetail ? handleOpenPlanDetail : undefined
+            }
             onOpenBackgroundBash={
-              onOpenBackgroundBash && sessionId
+              !sessionBoundInput && onOpenBackgroundBash && sessionId
                 ? (work) =>
                     onOpenBackgroundBash({
                       workspacePath,
@@ -4333,21 +4388,33 @@ export function SessionPane({
                 : undefined
             }
             onCancelBackgroundWork={
-              readOnly || runtimeOffline ? undefined : handleCancelBackgroundWork
+              sessionBoundInput || readOnly || runtimeOffline
+                ? undefined
+                : handleCancelBackgroundWork
             }
-            onStopSubagent={readOnly || runtimeOffline ? undefined : handleStopSubagent}
+            onStopSubagent={
+              sessionBoundInput || readOnly || runtimeOffline ? undefined : handleStopSubagent
+            }
             timersPaused={runtimeOffline}
             pendingSubagentStops={panelPendingSubagentStops}
-            onOpenSubagentSession={onOpenSubagentSession ? handleOpenSubagentSession : undefined}
+            onOpenSubagentSession={
+              !sessionBoundInput && onOpenSubagentSession ? handleOpenSubagentSession : undefined
+            }
             onOpenSubagentDirectory={
-              onOpenSubagentDirectory ? handleOpenSubagentDirectory : undefined
+              !sessionBoundInput && onOpenSubagentDirectory
+                ? handleOpenSubagentDirectory
+                : undefined
             }
             onOpenWorkflowRun={
-              onOpenWorkflowRun && sessionId ? handleOpenWorkflowRunFromPanel : undefined
+              !sessionBoundInput && onOpenWorkflowRun && sessionId
+                ? handleOpenWorkflowRunFromPanel
+                : undefined
             }
-            endedWorkflowRunCount={endedWorkflowRunCount}
+            endedWorkflowRunCount={sessionBoundInput ? 0 : endedWorkflowRunCount}
             onOpenWorkflowRunDirectory={
-              onOpenWorkflowRunDirectory ? handleOpenWorkflowRunDirectoryFromPanel : undefined
+              !sessionBoundInput && onOpenWorkflowRunDirectory
+                ? handleOpenWorkflowRunDirectoryFromPanel
+                : undefined
             }
           />
         ) : null}
@@ -4389,7 +4456,11 @@ export function SessionPane({
             onFork={forkActionsEnabled ? handleFork : undefined}
             onRetry={retryActionsEnabled ? handleRetry : undefined}
             onFeedbackChange={
-              !readOnly && !selectionSideChat && !hideMessageFeedback && sessionId
+              !sessionBoundInput &&
+              !readOnly &&
+              !selectionSideChat &&
+              !hideMessageFeedback &&
+              sessionId
                 ? handleAssistantFeedback
                 : undefined
             }
@@ -4444,9 +4515,11 @@ export function SessionPane({
                     enabled: focused && !blockingInteractionId,
                     sideActionDisabled: selectionSideActionBlocked,
                     commentEnabled: selectionCommentSupported,
-                    annotationWorkspaceKey: workspaceKey,
+                    annotationWorkspaceKey: sessionBoundInput ? undefined : workspaceKey,
                     onAddToCurrentTask: handleAddSelectionToCurrentTask,
-                    onAskInSideChat: handleOpenSelectionSideConversation,
+                    onAskInSideChat: sessionBoundInput
+                      ? undefined
+                      : handleOpenSelectionSideConversation,
                   }
                 : undefined
             }

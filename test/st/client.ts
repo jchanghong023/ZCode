@@ -1,5 +1,16 @@
-import { connectViaWebSocket } from "@zcode/client";
-import type { IServiceAccessor } from "@zcode/services";
+import { connectViaWebSocket, type RemoteServiceAccess } from "@zcode/client";
+import { connectWebChatAgent } from "@zcode/client/agent";
+import {
+  BufferReader,
+  BufferWriter,
+  Emitter,
+  Event,
+  SocketProtocol,
+  VSBuffer,
+  deserialize,
+  serialize,
+} from "@zcode/rpc";
+import { ISubagentsService, IZCodeAgentService } from "@zcode/services";
 import type {
   AIReqAction,
   AIReqIdentity,
@@ -74,10 +85,21 @@ export async function stFetch(path: string, init: RequestInit = {}): Promise<Res
     throw safeError(error, "HTTP");
   }
 }
+// ChannelClient logs EventError instead of returning it to the subscriber.
+// Probe the raw response on the same transport, without involving SDK member lookup.
+const rpcWire = { call: 100, listen: 102, callError: 202, eventError: 205 } as const;
+type RpcProbe = (
+  kind: "call" | "listen",
+  channel: string,
+  member: string,
+  arg?: unknown,
+) => Promise<{ type: number; code?: unknown }>;
+
 export interface STClient {
-  services: IServiceAccessor;
+  services: RemoteServiceAccess;
   identity: AIReqIdentity;
-  bootstrap(): ReturnType<IServiceAccessor["aiReqService"]["bootstrap"]>;
+  probeRpc: RpcProbe;
+  bootstrap(): ReturnType<RemoteServiceAccess["aiReqService"]["bootstrap"]>;
   read(selection?: AIReqSelection): Promise<AIReqRemoteResult<"readWorkflow">>;
   call<P extends AIReqRemotePath>(
     path: P,
@@ -87,7 +109,10 @@ export interface STClient {
   command(action: AIReqAction, selection?: AIReqSelection): Promise<AIReqRemoteResult<"command">>;
   close(): Promise<void>;
 }
-async function connectSTTransport(url: string) {
+async function connectSTTransport<T extends object>(
+  url: string,
+  connect: (url: string) => Promise<T>,
+) {
   const sockets: WebSocket[] = [];
   const NativeSocket = globalThis.WebSocket;
   let closing = false;
@@ -107,17 +132,17 @@ async function connectSTTransport(url: string) {
       });
     }
   }
-  let connecting: Promise<IServiceAccessor>;
+  let connecting: Promise<T>;
   try {
     globalThis.WebSocket = TrackedSocket;
-    connecting = connectViaWebSocket(url);
+    connecting = connect(url);
   } catch (error) {
     closeSockets();
     throw safeError(error, "WS construction");
   } finally {
     globalThis.WebSocket = NativeSocket;
   }
-  let services: IServiceAccessor;
+  let services: T;
   try {
     services = await bounded(connecting, "WS/RPC initialization", config.timeoutMs, closeSockets);
   } catch (error) {
@@ -151,6 +176,50 @@ async function connectSTTransport(url: string) {
       });
     },
   });
+  let nextProbeId = 1_000_000; // Keep raw correlation IDs clear of this SDK connection's requests.
+  const probeRpc: RpcProbe = async (kind, channel, member, arg) => {
+    const socket = sockets.at(-1);
+    if (socket?.readyState !== NativeSocket.OPEN) throw new Error("ST socket is not open");
+    const chunks = new Emitter<VSBuffer>();
+    const onMessage = (event: MessageEvent<ArrayBuffer>) =>
+      chunks.fire(VSBuffer.wrap(new Uint8Array(event.data)));
+    socket.addEventListener("message", onMessage);
+    const protocol = new SocketProtocol({
+      onData: chunks.event,
+      onClose: Event.None,
+      onEnd: Event.None,
+      write: (data) => socket.send(data.buffer as Uint8Array<ArrayBuffer>),
+      end: () => socket.close(),
+      drain: () => Promise.resolve(),
+      dispose: () => {},
+    });
+    const id = nextProbeId++;
+    try {
+      const response = new Promise<{ type: number; code?: unknown }>((resolve) => {
+        protocol.onMessage((message) => {
+          const reader = new BufferReader(message);
+          const [type, responseId] = deserialize(reader) as [number, number?];
+          if (responseId !== id) return;
+          const body = deserialize(reader) as { code?: unknown } | undefined;
+          resolve({ type, code: body?.code });
+        });
+        const request = new BufferWriter();
+        serialize(request, [rpcWire[kind], id, channel, member]);
+        serialize(request, arg);
+        protocol.send(request.buffer);
+      });
+      return await bounded(
+        response,
+        `raw RPC ${channel}.${member}`,
+        config.timeoutMs,
+        closeSockets,
+      );
+    } finally {
+      socket.removeEventListener("message", onMessage);
+      protocol.dispose();
+      chunks.dispose();
+    }
+  };
   async function close() {
     const waits = sockets
       .filter((socket) => socket.readyState !== NativeSocket.CLOSED)
@@ -167,7 +236,7 @@ async function connectSTTransport(url: string) {
       Math.min(config.timeoutMs, 3000),
     );
   }
-  return { guardedServices, services, close, rpc, isClosing: () => closing };
+  return { guardedServices, services, close, rpc, probeRpc, isClosing: () => closing };
 }
 
 export function connectChatST(clientId = crypto.randomUUID()) {
@@ -175,10 +244,14 @@ export function connectChatST(clientId = crypto.randomUUID()) {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("clientId", clientId);
   if (config.token) url.searchParams.set("token", config.token);
-  return connectSTTransport(url.toString()).then(({ guardedServices, close }) => ({
+  return connectSTTransport(url.toString(), async (target) => {
+    const { agent, getModelCatalog } = await connectWebChatAgent(target);
+    return { zcodeAgentService: agent, modelSelectionService: { getView: getModelCatalog } };
+  }).then(({ guardedServices, close, probeRpc }) => ({
     services: guardedServices,
     close,
     clientId,
+    probeRpc,
   }));
 }
 
@@ -187,12 +260,14 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
     employeeId: requireConfig(employeeId, "ST_EMPLOYEE_ID"),
     clientId: unique("client"),
   };
-  const { guardedServices, services, close, rpc, isClosing } = await connectSTTransport(
+  const { guardedServices, services, close, rpc, probeRpc, isClosing } = await connectSTTransport(
     wsUrl(identity),
+    connectViaWebSocket,
   );
   const client: STClient = {
     services: guardedServices,
     identity,
+    probeRpc,
     bootstrap: () => rpc(services.aiReqService.bootstrap(identity)),
     read: (selection = {}) =>
       rpc(services.aiReqService.call(identity, "readWorkflow", [selection], selection)),
@@ -221,6 +296,48 @@ export async function connectST(employeeId = config.employeeId): Promise<STClien
   };
   return client;
 }
+
+export function expectRpcUnavailable(
+  probeRpc: RpcProbe,
+  kind: "call" | "listen",
+  channel: string,
+  member: string,
+  arg?: unknown,
+  missingChannel = false,
+) {
+  return probeRpc(kind, channel, member, arg).then((reply) => {
+    const expected = {
+      type: kind === "call" ? rpcWire.callError : rpcWire.eventError,
+      code: missingChannel ? "SERVICE_UNAVAILABLE" : "UNSUPPORTED_OPERATION",
+    };
+    if (reply.type !== expected.type || reply.code !== expected.code)
+      throw new Error(`ST expected ${expected.code} from ${kind} ${channel}.${member}`);
+  });
+}
+
+export async function expectRetiredAgentRpc(
+  probeRpc: RpcProbe,
+  target: { workspacePath: string; workspaceIdentity?: string; sessionId: string },
+) {
+  const channel = IZCodeAgentService.channelName;
+  const methods = [
+    ["syncAppRuntimePreferences", [{ askUserQuestionAutoResolutionEnabled: false }]],
+    ["listSessionSubagents", [target]],
+    ["supportsConversationQuoteComment", [target]],
+    ["conversationPlansV4", [target]],
+    ["getSessionLifecycle", [target]],
+  ] as const;
+  await Promise.all([
+    ...methods.map(([method, args]) =>
+      expectRpcUnavailable(probeRpc, "call", channel, method, args),
+    ),
+    expectRpcUnavailable(probeRpc, "listen", channel, "onDynamicSessionLifecycle", target),
+    expectRpcUnavailable(probeRpc, "listen", channel, "onAgentRuntimeRestarted"),
+    expectRpcUnavailable(probeRpc, "listen", channel, "onAgentRuntimeLifecycle"),
+    expectRpcUnavailable(probeRpc, "call", ISubagentsService.channelName, "list", [target], true),
+  ]);
+}
+
 export async function waitUntil<T>(
   label: string,
   read: () => Promise<T>,

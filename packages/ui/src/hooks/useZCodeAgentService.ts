@@ -1,4 +1,4 @@
-import type { IZCodeAgentService } from "@zcode/services";
+import type { IServiceAccessor } from "@zcode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 
@@ -6,7 +6,7 @@ export function useZCodeAgentService(
   workspacePath?: string,
   preferredRemoteSessionId?: string | null,
   workspaceIdentity?: string | null,
-): IZCodeAgentService {
+): IServiceAccessor["zcodeAgentService"] {
   // 路径可在同一实例内变化；固定调用顺序，只选择结果，避免切换工作区破坏 Hook 状态。
   const contextServices = useServices();
   const workspaceServices = useWorkspaceServices(
