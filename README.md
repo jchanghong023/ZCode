@@ -49,6 +49,18 @@ Web 生产构建按依赖和页面模块分包，保持 Vite 默认的 500 kB Ja
 
 PowerShell 先设置 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再运行后端产物。`PORT` 控制后端端口，`ZCODE_SERVER_HOST` 控制监听地址；部署访问控制、HTTP 资源和 WebSocket 必须保持同源契约，详见[服务端部署说明](docs/architecture/mock-backend.md)。
 
+### Windows x64 单文件
+
+从 OMP fork 的 `bun run pack:sdk` 取得 SDK ZIP 和 SHA-256。安装本仓库依赖后执行：
+
+```powershell
+bun run build:standalone <omp-sdk.zip> <sha256>
+.\dist\zcode.exe --version
+.\dist\zcode.exe
+```
+
+可通过第三个参数指定 `.exe` 输出。构建使用 Windows 自带 `tar.exe`，需要能获取 SDK 锁定的构建依赖，不需要 OMP 源码工作区或 Rust 工具链。输出内嵌 Bun、OMP SDK、原生模块和完整 Web 构建；运行不需要另装 Bun、OMP 或提供 `web/dist`。可执行文件将 Web 资源释放到临时目录，许可证可用 `--licenses` 查看。当前仍使用原型后端：打包不会启用真实模型或改变公开接口。
+
 ## 依赖与清理
 
 Bun 和 Vite 直接消费 workspace 源码。跨包导入使用包 manifest 的公开 `exports`，类型检查使用 `tsc -b`。升级补丁依赖时，同时核对根 manifest 的 `pnpm.patchedDependencies`、[补丁](patches)和[锁文件](pnpm-lock.yaml)。更换开发后端端口时同步调整 [Vite 代理](packages/web/vite.config.ts)。
