@@ -66,4 +66,3 @@ export default {
     },
   },
 } satisfies KnipConfig;
-MV knip.ts
