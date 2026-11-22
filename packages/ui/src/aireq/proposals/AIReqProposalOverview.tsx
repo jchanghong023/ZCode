@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -137,6 +137,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
             <ol
               className="flex w-max min-w-full items-center justify-between gap-1 whitespace-nowrap pr-1"
               aria-label="提案八态"
+              title="IR 是整体业务需求，SR 是从中拆分的需求项"
             >
               {PROPOSAL_STATE_OPTIONS.map((option, index) => (
                 <li key={option.id} className="shrink-0">
@@ -153,8 +154,8 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
                   >
                     {index < currentStateIndex && (
                       <>
-                        <Check className="size-3.5 text-success" aria-hidden="true" />
-                        <span className="sr-only">已完成：</span>
+                        <Circle className="size-2.5 text-foreground-subtle" aria-hidden="true" />
+                        <span className="sr-only">已历经：</span>
                       </>
                     )}
                     {option.title}

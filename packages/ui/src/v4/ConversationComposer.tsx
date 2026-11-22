@@ -1830,10 +1830,6 @@ function ConversationComposerImpl({
     [submit],
   );
 
-  const handleSteer = useCallback(() => {
-    void submit(undefined, undefined, undefined, undefined, "steer");
-  }, [submit]);
-
   const handleFollowUp = useCallback(() => {
     void submit(undefined, undefined, undefined, undefined, "followUp");
   }, [submit]);
@@ -1926,8 +1922,8 @@ function ConversationComposerImpl({
       ? "有待发送消息，发送时可选择保留或清空队列。"
       : "Messages are queued. Choose whether to keep or clear them when sending.",
     streamingChoice: zh
-      ? "正在执行。可引导当前任务，也可将输入加入队列。"
-      : "Working. Steer the current task or queue your input for later.",
+      ? "正在执行。新消息可加入队列。"
+      : "Working. You can queue your next message.",
     ready: "",
   };
   const interactionHint = showInteractionStatus ? interactionHints[interactionState] : "";
@@ -1959,7 +1955,6 @@ function ConversationComposerImpl({
     ? [boundSelection.modelId, boundSelection.options?.reasoningLevel].filter(Boolean).join(" · ")
     : undefined;
   const boundModelLabel = zh ? "会话模型" : "Session model";
-  const steerLabel = intl.formatMessage({ id: "chat.followup.guideCurrent" });
   const followUpLabel = intl.formatMessage({ id: "chat.followup.addToQueue" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
 
@@ -2449,17 +2444,6 @@ function ConversationComposerImpl({
           <>
             <Button
               type="button"
-              variant="default"
-              size="sm"
-              disabled={!canSend}
-              onClick={handleSteer}
-              data-testid="v4-composer-steer"
-              className="shrink-0"
-            >
-              {steerLabel}
-            </Button>
-            <Button
-              type="button"
               variant="secondary"
               size="sm"
               disabled={!canSend}
@@ -2520,10 +2504,8 @@ function ConversationComposerImpl({
       canSend,
       boundModel,
       boundModelLabel,
-      handleSteer,
       handleFollowUp,
       sessionBoundInput,
-      steerLabel,
       followUpLabel,
       streamingChoice,
       activeConfigPicker,

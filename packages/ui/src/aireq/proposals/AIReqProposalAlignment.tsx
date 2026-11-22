@@ -76,6 +76,7 @@ export function AIReqProposalAlignment({
       <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
         {roles.map(({ perspective, label, labelEn, confirmation }) => {
           const Icon = confirmation ? CheckCircle2 : Circle;
+          const contact = group.contacts?.[perspective];
           const canConfirm =
             !confirmation &&
             !readOnly &&
@@ -94,10 +95,18 @@ export function AIReqProposalAlignment({
                   <p className="text-ui-base font-medium">{zh ? label : labelEn}</p>
                   <p className="break-words text-ui-sm text-foreground-subtle">
                     {confirmation
-                      ? `${zh ? "已确认" : "Confirmed"} · ${confirmation.employeeId} · ${new Date(confirmation.confirmedAt).toLocaleString(locale, { timeZone: "Asia/Shanghai" })}`
+                      ? `${zh ? "已确认" : "Confirmed"} · ${confirmation.employeeId} · ${new Date(confirmation.confirmedAt).toLocaleString(locale, { timeZone: "Asia/Shanghai" })}${zh ? "（北京时间）" : " (Beijing time)"} · ${zh ? `第 ${review?.round ?? 1} 轮` : `Round ${review?.round ?? 1}`}`
                       : zh
-                        ? "待确认当前版本"
-                        : "Awaiting confirmation of this version"}
+                        ? canConfirm
+                          ? "待你确认当前版本"
+                          : `等待项目${label}人员确认`
+                        : canConfirm
+                          ? "This version awaits your confirmation"
+                          : `Awaiting a project ${labelEn.toLowerCase()} reviewer`}
+                    {!confirmation &&
+                      !canConfirm &&
+                      contact &&
+                      ` · ${zh ? "交接联系人" : "Contact"} ${contact}`}
                   </p>
                 </div>
               </div>
@@ -136,14 +145,27 @@ export function AIReqProposalAlignment({
                       ? "正在确认…"
                       : "Confirming…"
                     : zh
-                      ? `确认${label}角色`
-                      : `Confirm ${labelEn.toLowerCase()}`}
+                      ? `以${label}身份确认本版`
+                      : `Confirm this version as ${labelEn.toLowerCase()}`}
                 </Button>
               )}
             </li>
           );
         })}
       </ul>
+      {!readOnly &&
+        roles.some(
+          ({ perspective, confirmation }) =>
+            !confirmation && !hasProjectRole(ai.view, group.projectId, employeeId, perspective),
+        ) && (
+          <Button
+            variant="link"
+            className="h-auto p-0"
+            onClick={() => ai.navigate(() => ai.setMainView("roles"))}
+          >
+            {zh ? "查看或申请项目角色" : "View or request project roles"}
+          </Button>
+        )}
       <p id={blockerId} className="text-ui-sm text-foreground-subtle" role="status">
         {readOnly
           ? zh

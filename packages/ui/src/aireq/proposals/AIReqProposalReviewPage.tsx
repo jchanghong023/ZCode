@@ -83,7 +83,9 @@ export function AIReqProposalReviewPage({
   const canEditMaterials = !full || developer;
   const returnTarget = full ? "solution" : "requirements";
   const canReturn =
-    current && (developer || (!full && !confirmation)) && !proposalReturnBlocker(group, returnTarget);
+    current &&
+    (developer || (!full && !confirmation)) &&
+    !proposalReturnBlocker(group, returnTarget);
   const feedback = group.returnFeedback;
   const canRetry = canEditMaterials && proposalReviewCanRetry(group, full);
   const title = full ? "方案审查" : "需求评审";
@@ -97,8 +99,13 @@ export function AIReqProposalReviewPage({
         : status === "评审失败" || status === "校验失败"
           ? "text-destructive"
           : "text-foreground-subtle";
+  const directReturn = !full && !confirmation;
   const check = full ? group.solutionCheck : group.requirementsCheck;
   const agents = review?.agents ?? [];
+  const independentAgents = agents.filter((agent) => agent.id !== "summary");
+  const failedAgents = agents.filter(
+    (agent) => agent.status === "failed" || (agent.status === "completed" && !agent.report.trim()),
+  );
   const reportAgent = agents.find((agent) => agent.id === (full ? "summary" : "a"));
   const completedIndependent = agents.filter(
     (agent) => agent.id !== "summary" && agent.status === "completed" && agent.report.trim(),
@@ -139,6 +146,8 @@ export function AIReqProposalReviewPage({
                 group={group}
                 target={returnTarget}
                 focusFallback={heading}
+                direct={directReturn}
+                label={directReturn ? "返回需求澄清" : undefined}
               />
             </div>
           )}
@@ -146,16 +155,12 @@ export function AIReqProposalReviewPage({
         {!(current && hasReport) && <AIReqProposalMaterialCheck check={check} />}
         {!full && feedback && feedback.target !== "solution" && !feedback.resumedAt && (
           <section className="space-y-2" aria-label="当前退回意见">
-            <p className="text-ui-sm font-medium">
-              已退回业务补充 · 第 {feedback.round} 轮
-            </p>
+            <p className="text-ui-sm font-medium">已退回业务补充 · 第 {feedback.round} 轮</p>
             <p className="text-ui-sm text-foreground-subtle">
               {feedback.employeeId} · {reviewTime(feedback.returnedAt)}
               （北京时间）
             </p>
-            <p className="whitespace-pre-wrap break-words text-ui-sm">
-              {feedback.reason}
-            </p>
+            <p className="whitespace-pre-wrap break-words text-ui-sm">{feedback.reason}</p>
           </section>
         )}
         {canEditMaterials &&
@@ -184,7 +189,10 @@ export function AIReqProposalReviewPage({
             )
           ))}
         {current && review && (
-          <section className="min-w-0 space-y-4" aria-labelledby="proposal-review-report">
+          <section
+            className="min-w-0 space-y-4 rounded-xl border border-card-border bg-card p-4 lg:p-6"
+            aria-labelledby="proposal-review-report"
+          >
             <h2 id="proposal-review-report" className="text-ui-lg font-semibold">
               {reportLabel}
             </h2>
@@ -195,21 +203,24 @@ export function AIReqProposalReviewPage({
                 {full && (
                   <p role="status">
                     三路审查已完成 {completedIndependent} / 3
-                    {completedIndependent === 3 && reportAgent?.status === "running" && " · 综合终审中"}
+                    {completedIndependent === 3 &&
+                      reportAgent?.status === "running" &&
+                      " · 综合终审中"}
                   </p>
                 )}
-                <p>
-                  {canRetry
-                    ? `${reportLabel}缺失或不可读取，可重试当前材料。`
-                    : `${reportLabel}尚未生成。`}
-                </p>
-                {agents
-                  .filter((agent) => agent.status === "failed" && agent.report.trim())
-                  .map((agent) => (
-                    <p key={agent.id} role="alert" className="break-words text-destructive">
-                      {agent.report}
-                    </p>
-                  ))}
+                {canRetry ? (
+                  <p role="alert" className="break-words text-destructive">
+                    {failedAgents.length
+                      ? `${failedAgents.map((agent) => agent.name).join("、")}未生成可读报告。`
+                      : `${reportLabel}缺失或不可读取。`}
+                    {
+                      failedAgents.find((agent) => agent.report && !agent.report.includes("请重试"))
+                        ?.report
+                    }
+                  </p>
+                ) : (
+                  <p>{reportLabel}尚未生成。</p>
+                )}
               </div>
             )}
             {hasReport && Boolean(review.findings?.length) && (
@@ -230,6 +241,31 @@ export function AIReqProposalReviewPage({
                 </ul>
               </section>
             )}
+          </section>
+        )}
+        {full && current && hasReport && independentAgents.length > 0 && (
+          <section className="space-y-2" aria-label="三路审查报告">
+            <h2 className="text-ui-lg font-semibold">三路审查报告</h2>
+            {independentAgents.map((agent) => (
+              <details
+                key={agent.id}
+                className="rounded-lg border border-card-border bg-card px-3 py-2"
+              >
+                <summary className={detailsClass}>
+                  {agent.name} ·{" "}
+                  {agent.status === "completed" && agent.report.trim()
+                    ? "报告已完成"
+                    : "报告暂不可用"}
+                </summary>
+                {agent.report.trim() && (
+                  <div className="mt-2">
+                    <AIReqMarkdownDocument headingLevelOffset={2}>
+                      {agent.report}
+                    </AIReqMarkdownDocument>
+                  </div>
+                )}
+              </details>
+            ))}
           </section>
         )}
         {(!full || canRetry) && (

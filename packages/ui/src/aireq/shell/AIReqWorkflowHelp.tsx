@@ -19,7 +19,7 @@ const steps = [
     title: "从所有项目进入版本工作区",
     titleEn: "Start with a project",
     description:
-      "登录后打开「所有项目」。选择 Release 的「进入工作区」打开项目概览，再使用侧栏进入需求共创、正式文档或版本待办。侧栏可切换项目和 Release，项目和版本在设置中配置。",
+      "登录后打开「所有项目」。选择版本的「进入工作区」打开项目概览，再使用侧栏进入需求共创、正式文档或版本待办。侧栏可切换项目和版本，项目和版本在设置中配置。",
     descriptionEn:
       "Sign-in opens All projects. Choose Enter workspace on a release to open its project overview, then use the sidebar to open Co-creation, Formal documents or Release todos. Switch projects and releases in the sidebar. Manage projects and releases in Settings.",
   },
@@ -30,7 +30,7 @@ const steps = [
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办按当前项目与 Release 展示「我的」「待认领」和「全部待办」。查看归属工号，或在行内认领、调整分工。点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
+      "待办按当前项目与版本展示「我的」「待认领」和「全部待办」。查看归属工号，或在行内认领、调整分工。点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
     descriptionEn:
       "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. Create requirements from Project overview or Co-creation. To import, use Co-creation. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. Submit the validated business document for review; business confirmation unlocks solution design.",
   },
@@ -38,7 +38,7 @@ const steps = [
     title: "从需求工作台进入任务",
     titleEn: "Open tasks from the requirement workspace",
     description:
-      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后移入正式需求。",
+      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后归入正式文档。",
     descriptionEn:
       "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Review summaries open directly to the current report. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. Verified merged proposals appear under Formal documents.",
   },
@@ -71,7 +71,7 @@ const steps = [
     titleEn: "Read formal documents",
     // 弹窗按语言读取 description 和 descriptionEn，字段不匹配会导致正文空白。
     description:
-      "文档 PR 合入并核验后，在当前 Release 的「正式文档」查看原始需求、规格、方案及讨论评审历史。",
+      "文档 PR 合入并核验后，在当前版本的「正式文档」查看原始需求、规格、方案及讨论评审历史。",
     descriptionEn:
       "Once the document PR merges and passes verification, open Formal documents for the original requirement, specifications, design and review history.",
   },
@@ -116,7 +116,7 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "「所有项目」和「想法池」跨项目。版本工作区的页面按侧栏所选项目与 Release 展示。待办完成实际事项后自动消失，无需手工勾选完成。"
+              ? "「所有项目」和「想法池」跨项目。版本工作区的页面按侧栏所选项目与版本展示。待办完成实际事项后自动消失，无需手工勾选完成。"
               : "All projects and Ideas span all projects. Workspace pages follow the project and release selected in the sidebar. Todos disappear when their actual work is complete."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">

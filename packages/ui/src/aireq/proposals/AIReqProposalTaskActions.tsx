@@ -72,6 +72,7 @@ export function AIReqProposalTaskActions({
   // 弹窗确认的是打开时读过的版本；协作者重审后的新投影不能静默替换确认对象。
   const approvalChanged = Boolean(
     approval &&
+    !busy &&
     (approval.projectId !== group.projectId ||
       approval.irId !== group.id ||
       !requirementsReviewCurrent(group) ||
@@ -79,7 +80,7 @@ export function AIReqProposalTaskActions({
       approval.review.snapshotDigest !== review?.snapshotDigest),
   );
   const hint = canRetry
-    ? `${full ? "方案审查" : "需求评审"}未产出完整报告，可重试当前材料。`
+    ? undefined
     : running
       ? "正在评审当前材料，完成后可查看意见并人工确认。"
       : approveBlocker;

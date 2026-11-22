@@ -187,7 +187,7 @@ export function AIReqSidebarNavigation() {
                       id="sidebar-release-label"
                       className="text-ui-sm leading-4 text-remote-foreground-muted"
                     >
-                      Release
+                      {zh ? "版本" : "Release"}
                     </span>
                     <SelectValue
                       className="block truncate text-ui-base leading-5 font-medium text-foreground"
@@ -197,7 +197,7 @@ export function AIReqSidebarNavigation() {
                             ? "正在读取…"
                             : "Loading…"
                           : zh
-                            ? "暂无 Release"
+                            ? "暂无版本"
                             : "No releases"
                       }
                     />

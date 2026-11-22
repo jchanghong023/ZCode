@@ -139,8 +139,8 @@ function finishPrototypeReport(review: Review, agent: ReviewAgent): void {
   agent.status = "completed";
   const opinion =
     agent.id === "summary"
-      ? "A、B、C 三份同版报告已齐备，未记录阻断项。"
-      : "本路模拟评审已完成，未记录阻断项。";
+      ? "三份针对同一材料版本的审查报告已齐备。请核对需求覆盖、技术与依赖、任务与测试的意见。"
+      : "此项模拟评审已完成。请人工核对材料内容。";
   agent.report = `# ${agent.name}\n\n## 评审意见\n\n${opinion}\n\n第 ${review.round} 轮模拟评审，输入 ${review.inputFiles?.length ?? 0} 份材料。`;
 }
 

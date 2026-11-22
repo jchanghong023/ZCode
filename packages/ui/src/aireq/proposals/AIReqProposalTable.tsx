@@ -404,7 +404,7 @@ export function AIReqProposalTable({
               {/* 修复原因：八态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
               {PROPOSAL_STATE_GROUPS.map((group) => (
                 <SelectGroup key={group.title}>
-                  <SelectLabel className="text-ui-sm">
+                  <SelectLabel className="text-ui-sm font-medium text-foreground">
                     {zh ? group.title : group.titleEn}
                   </SelectLabel>
                   {group.ids.map((id) => {

@@ -25,6 +25,8 @@ export function AIReqProposalReviewSubmit({
   const blocker = proposalReviewSubmitBlocker(proposal, kind);
   const snapshotDigest = proposal.snapshot?.digest;
   const reason = blocker ?? (!snapshotDigest ? "等待当前材料校验完成后提交。" : undefined);
+  const checkMessage =
+    reason ?? `材料格式检查通过 · ${full ? proposal.files.length : 1} 份材料，请核对内容`;
 
   if (current) {
     return (
@@ -62,11 +64,13 @@ export function AIReqProposalReviewSubmit({
       >
         {pending ? "正在提交…" : `提交${name}`}
       </Button>
-      {reason && (
-        <p id={reasonId} className="max-w-xs break-words text-ui-sm text-foreground-subtle">
-          {reason}
-        </p>
-      )}
+      <p
+        id={reasonId}
+        role="status"
+        className="max-w-xs break-words text-ui-sm text-foreground-subtle"
+      >
+        {checkMessage}
+      </p>
     </div>
   );
 }

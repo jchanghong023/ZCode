@@ -35,7 +35,7 @@ export function AIReqProposalReleaseField({
   const zh = locale === "zh-CN";
   return (
     <div className="space-y-2">
-      <Label>{zh ? "所属 Release" : "Release"}</Label>
+      <Label>{zh ? "所属版本" : "Release"}</Label>
       <Select
         value={releases?.some((release) => release.id === releaseId) ? releaseId : ""}
         disabled={busy || !releases?.length}
@@ -95,6 +95,12 @@ export function AIReqProposalCreateDialog({
   const zh = locale === "zh-CN";
   const originalInput = useRef<HTMLTextAreaElement>(null);
   const sourceIrId = ai.proposalDraft?.sourceIrId;
+  const sourceDocument = ai.view?.groups.find(
+    (item) => item.id === sourceIrId && item.projectId === ai.selection.projectId,
+  );
+  const sourceRelease = ai.view?.releases.find(
+    (item) => item.id === sourceDocument?.releaseId && item.projectId === sourceDocument?.projectId,
+  );
   return (
     <Dialog
       open={Boolean(ai.proposalDraft)}
@@ -118,7 +124,11 @@ export function AIReqProposalCreateDialog({
             {zh
               ? "原始需求保存后成为提案。你可以稍后开始需求澄清。"
               : "The original request is saved as a proposal. You can then start clarification."}
-            {sourceIrId ? (zh ? `来源 IR：${sourceIrId}` : ` Source IR: ${sourceIrId}`) : ""}
+            {sourceDocument &&
+              (zh
+                ? ` 来源文档「${sourceDocument.title}」`
+                : ` Source document: ${sourceDocument.title}`)}
+            {sourceDocument && sourceRelease && ` · ${sourceRelease.title}`}
           </DialogDescription>
         </DialogHeader>
         {releaseField}

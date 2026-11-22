@@ -29,6 +29,7 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
   const state = proposalState(group);
   const mergePending = state === "merge-pending";
   const submissionPending = state === "submission-pending";
+  const irStatus = proposalTaskStatus(group, "requirementsReview");
   const reviewReady = !fullReviewReadyBlocker(group);
   const version = group.review?.round ? `第 ${group.review.round} 轮` : "未记录";
   const fileCount = proposalDeliveryCurrent(group)
@@ -51,7 +52,7 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
             交付确认
           </h1>
           <span
-            className={`rounded-full border border-border/60 px-2 py-0.5 text-ui-sm ${deliveryStatus === "提交失败" ? "text-destructive" : "text-interaction-confirmation-foreground"}`}
+            className={`rounded-full border border-border/60 px-2 py-0.5 text-ui-sm ${deliveryStatus === "提交失败" ? "text-destructive" : deliveryStatus === "待提交" ? "text-interaction-confirmation-foreground" : "text-foreground-subtle"}`}
           >
             {deliveryStatus}
           </span>
@@ -78,6 +79,10 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
               </p>
             </div>
             <dl className="divide-y divide-border/50 text-ui-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
+                <dt className="font-medium">需求评审</dt>
+                <dd className="text-foreground-subtle">{irStatus}</dd>
+              </div>
               <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
                 <dt className="font-medium">方案审查</dt>
                 <dd className="text-foreground-subtle">

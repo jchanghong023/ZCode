@@ -12,11 +12,10 @@ import { ProjectPageHelp } from "./ProjectPageHelp.js";
 export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
 
 const VISIBLE_RELEASES = 2;
-function newestReleaseFirst(a: AIReqReleaseSummary, b: AIReqReleaseSummary): number {
+export function newestReleaseFirst(a: AIReqReleaseSummary, b: AIReqReleaseSummary): number {
   const first = Date.parse(a.createdAt);
   const second = Date.parse(b.createdAt);
-  if (Number.isFinite(first) && Number.isFinite(second) && first !== second)
-    return second - first;
+  if (Number.isFinite(first) && Number.isFinite(second) && first !== second) return second - first;
   if (Number.isFinite(first) !== Number.isFinite(second)) return Number.isFinite(first) ? -1 : 1;
   return a.id.localeCompare(b.id);
 }
@@ -70,7 +69,7 @@ export function AIReqProjectDocumentsPage({
             )}
             <p className="text-ui-sm text-foreground-subtle">
               {zh
-                ? "选择一个 Release，进入对应的需求与文档工作区。"
+                ? "选择一个版本，进入对应的需求与文档工作区。"
                 : "Choose a Release to open its requirements and documents workspace."}
             </p>
           </div>

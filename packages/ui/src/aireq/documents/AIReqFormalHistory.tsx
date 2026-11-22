@@ -73,10 +73,12 @@ function sessionLabel(session: AIReqNativeSessionRef, zh: boolean, reviewerName?
 function ReviewHistory({
   title,
   reviews,
+  confirmations,
   zh,
 }: {
   title: string;
   reviews: AIReqReview[];
+  confirmations?: ReadonlyMap<string, number>;
   zh: boolean;
 }) {
   if (!reviews.length) return null;
@@ -87,7 +89,21 @@ function ReviewHistory({
         <details key={review.id} className="rounded-lg border border-border px-3 py-2">
           <summary className="cursor-pointer">
             {zh ? `第 ${review.round ?? 1} 轮` : `Round ${review.round ?? 1}`} ·{" "}
-            {review.passed ? (zh ? "已通过" : "Passed") : zh ? "未通过" : "Not passed"}
+            {review.invalidatedReason
+              ? review.invalidatedReason.startsWith("退回")
+                ? zh
+                  ? "已退回"
+                  : "Returned for changes"
+                : zh
+                  ? "旧版本 · 已失效"
+                  : "Outdated version"
+              : review.report.trim()
+                ? zh
+                  ? "报告已完成"
+                  : "Report completed"
+                : zh
+                  ? "无完整报告"
+                  : "No complete report"}
           </summary>
           <div className="mt-3 space-y-3 break-words">
             {review.invalidatedReason && (
@@ -96,6 +112,17 @@ function ReviewHistory({
                 {review.invalidatedReason}
               </p>
             )}
+            <p className="text-foreground-subtle">
+              {confirmations
+                ? `${zh ? "此轮三方确认" : "Role confirmations for this round"} · ${confirmations.get(review.id) ?? 0} / 3`
+                : review.humanDecision
+                  ? zh
+                    ? "业务已确认此轮材料"
+                    : "Business confirmed this version"
+                  : zh
+                    ? "该轮无业务需求确认记录"
+                    : "No business requirement confirmation for this round"}
+            </p>
             {review.report && <AIReqMarkdownDocument>{review.report}</AIReqMarkdownDocument>}
             {review.agents?.map((agent) => (
               <details key={agent.id}>
@@ -218,6 +245,33 @@ export function AIReqFormalHistory() {
     ...(group.originalReview ? [group.originalReview] : []),
   ];
   const fullReviews = [...(group.reviewHistory ?? []), ...(group.review ? [group.review] : [])];
+  const historicRoles = new Map<string, Set<string>>();
+  for (const entry of [...(group.alignmentHistory ?? []), ...(group.alignment ?? [])]) {
+    const roles = historicRoles.get(entry.reviewId) ?? new Set<string>();
+    roles.add(entry.perspective);
+    historicRoles.set(entry.reviewId, roles);
+  }
+  const originalSessionIds = new Set(
+    originals.flatMap((review) => review.agents?.map((agent) => agent.session.sessionId) ?? []),
+  );
+  const sessionsByStage = [
+    [
+      zh ? "业务需求" : "Business requirement",
+      sessions.filter(
+        (session) =>
+          originalSessionIds.has(session.sessionId) ||
+          (session.role !== "reviewer" && session.phase !== "solution"),
+      ),
+    ],
+    [
+      zh ? "方案" : "Solution",
+      sessions.filter(
+        (session) =>
+          !originalSessionIds.has(session.sessionId) &&
+          (session.role === "reviewer" || session.phase === "solution"),
+      ),
+    ],
+  ] as const;
   const reviewerNames = new Map(
     [...originals, ...fullReviews].flatMap((review) =>
       (review.agents ?? []).map((agent) => [agent.session.sessionId, agent.name] as const),
@@ -359,29 +413,37 @@ export function AIReqFormalHistory() {
         {sessions.length > 0 && (
           <section className="space-y-2">
             <h3 className="font-medium">{zh ? "历史会话" : "Historical conversations"}</h3>
-            <div className="flex flex-wrap gap-2">
-              {sessions.map((session) => (
-                <Button
-                  key={session.sessionId}
-                  variant="outline"
-                  size="sm"
-                  aria-pressed={read?.sessionId === session.sessionId}
-                  onClick={() => void openSession(session)}
-                >
-                  {sessionLabel(session, zh, reviewerNames.get(session.sessionId))}
-                </Button>
+            {sessionsByStage
+              .filter(([, stageSessions]) => stageSessions.length)
+              .map(([stage, stageSessions]) => (
+                <details key={stage} className="rounded-lg border border-border px-3 py-2" open>
+                  <summary className="cursor-pointer font-medium">{stage}</summary>
+                  <div className="mt-2 flex flex-col items-start gap-1">
+                    {stageSessions.map((session) => (
+                      <Button
+                        key={session.sessionId}
+                        variant="outline"
+                        size="sm"
+                        aria-pressed={read?.sessionId === session.sessionId}
+                        onClick={() => void openSession(session)}
+                      >
+                        {sessionLabel(session, zh, reviewerNames.get(session.sessionId))}
+                      </Button>
+                    ))}
+                  </div>
+                </details>
               ))}
-            </div>
           </section>
         )}
         <ReviewHistory
-          title={zh ? "原始需求评审" : "Original requirement review"}
+          title={zh ? "需求评审" : "Original requirement review"}
           reviews={originals}
           zh={zh}
         />
         <ReviewHistory
-          title={zh ? "完整材料评审" : "Full materials review"}
+          title={zh ? "方案审查" : "Full materials review"}
           reviews={fullReviews}
+          confirmations={new Map([...historicRoles].map(([id, roles]) => [id, roles.size]))}
           zh={zh}
         />
         {!sessions.length && !originals.length && !fullReviews.length && (
@@ -395,6 +457,13 @@ export function AIReqFormalHistory() {
       {read && (
         // 修复：原生消息列的命名容器查询会落到全工作区，导致窄侧栏被错误缩成单字列。
         <div className="@container/conversation flex min-h-0 flex-1 flex-col border-t border-border">
+          {selected && (
+            <div className="shrink-0 px-4 py-2" aria-live="polite">
+              <h3 className="text-ui-sm font-medium">
+                {sessionLabel(selected, zh, reviewerNames.get(selected.sessionId))}
+              </h3>
+            </div>
+          )}
           {read.status === "loading" ? (
             <p role="status" className="p-4">
               {zh ? "正在读取历史会话…" : "Loading historical conversation…"}

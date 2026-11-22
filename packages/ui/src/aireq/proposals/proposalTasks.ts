@@ -211,8 +211,11 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
     "not-started": returned
       ? {
           role: "业务",
-          description: "需求已退回。先在需求澄清中补充意见，再提交评审。",
-          action: "处理退回意见",
+          description:
+            returned && group.returnFeedback?.reason.trim()
+              ? "先根据退回意见完善需求文档，再提交评审。"
+              : "先在需求澄清中完善需求文档，再提交评审。",
+          action: "继续需求澄清",
         }
       : {
           role: "业务",

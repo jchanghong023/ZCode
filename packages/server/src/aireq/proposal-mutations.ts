@@ -17,6 +17,7 @@ import {
   appendMaterialDiscussion,
   checkProposalMaterials,
   prototypeMaterial,
+  materialStatements,
   reviseGeneratedMarkdown,
   solutionMaterials,
 } from "./materials.js";
@@ -55,7 +56,7 @@ function stageRequirementsOutput(
   const content = reviseGeneratedMarkdown(
     existing?.content ?? `# ${proposal.title}\n\n## 目标与范围\n\n${proposal.originalText}`,
     note,
-    "业务澄清",
+    "补充业务规则",
   );
   return {
     kind: "requirements",
@@ -97,11 +98,21 @@ export function stageNativeProposalOutput(
       );
   const dependencyInput = text.startsWith("{") ? text : undefined;
   const bundle = solutionMaterials(projectId, irId, rows);
+  const structuredNote = /^ {0,3}(?:#{1,6}[ \t]|```|~~~)/m.test(text);
+  const statements = structuredNote ? [] : materialStatements(text);
   for (const material of bundle) {
     // 退回后继续使用已经存在的工作材料，不能用新一轮的模拟模板覆盖它。
     const prior = current.find((item) => item.path === material.path);
     const base = prior?.content ?? material.content ?? "";
-    const content = dependencyInput ? base : appendMaterialDiscussion(base, text, "本轮方案讨论");
+    // 正文仅接收可归入当前材料的业务陈述，完整指令保留在会话记录。
+    const testPlan = material.kind === "test-plan";
+    const details = testPlan
+      ? statements.filter((line) => /测试|验证|验收|回归/u.test(line))
+      : statements;
+    const section = testPlan ? "已提出的测试场景" : "补充实施说明";
+    const content = dependencyInput
+      ? base
+      : appendMaterialDiscussion(base, structuredNote ? text : details.join("\n"), section);
     if (content !== material.content) {
       material.content = content;
       Object.assign(material, contentVersion(content));
@@ -650,7 +661,7 @@ export function applyProposalMutation(
       const toSolution = target === "solution";
       const reason = action.reason.trim();
       const label = toSolution ? "退回方案设计" : "退回业务澄清";
-      invalidate(state, proposal!, `${label}：${reason}`, !toSolution);
+      invalidate(state, proposal!, reason ? `${label}：${reason}` : label, !toSolution);
       // 退回只撤销对应批准与检查，保留文件、清单和快照供后续讨论修改。
       proposal!.solutionCheck = undefined;
       if (proposal!.proposalSolution) proposal!.proposalSolution.valid = false;

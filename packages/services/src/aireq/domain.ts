@@ -81,7 +81,9 @@ export function requirementsReviewStartBlocker(group: AIReqRequirementGroup): st
     group.returnFeedback.target !== "solution" &&
     !group.returnFeedback.resumedAt
   )
-    return "请先通过业务讨论补充退回意见。";
+    return group.returnFeedback.reason.trim()
+      ? "请先根据退回意见更新需求文档。"
+      : "请先完善需求文档，再提交评审。";
   const issue = group.requirementsCheck?.issues[0];
   if (issue) return `${issue.path}：${issue.reason}`;
   if (!requirementsReviewInputs(group)) return "请先讨论并生成 IR 原始需求文档。";
@@ -498,12 +500,7 @@ export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReq
     }
     if (state === "merge-pending") {
       if (["failed", "incomplete"].includes(group.proposalDelivery?.mergeCheck?.status ?? ""))
-        push(
-          group,
-          "failure",
-          "处理文档 PR 核验失败或材料不完整",
-          "development",
-        );
+        push(group, "failure", "处理文档 PR 核验失败或材料不完整", "development");
       continue;
     }
     if (state === "submission-pending" && group.proposalDelivery?.publishError) {

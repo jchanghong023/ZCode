@@ -581,7 +581,9 @@ export function applyPrototypeAction(
       throw businessRule("三方确认须绑定当前评审、材料版本和明确角色。");
   }
   if (action.type === "returnProposal") {
-    if (!action.reason.trim()) throw businessRule("请填写退回原因。");
+    // 业务尚未确认时可以直接回澄清，在讨论中说明需要完善的内容。
+    if (!action.reason.trim() && !(inRequirements && action.target !== "solution"))
+      throw businessRule("请填写退回原因。");
     const issue = proposalReturnBlocker(targetProposal!, action.target);
     if (issue) throw businessRule(issue);
     if (!inRequirements) requireProjectRole(targetProjectId, "development");

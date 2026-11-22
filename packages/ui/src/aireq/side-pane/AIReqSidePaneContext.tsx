@@ -104,7 +104,10 @@ export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
           return { ...state, ...activatePaneTab(state, tab), collapsed: false };
         });
       admit(
-        current.activeTabId && current.activeTabId !== existing?.id ? [current.activeTabId] : [],
+        // 收起已通过当前标签的离开门禁。隐藏的标签不能再次拦截显式打开操作。
+        !current.collapsed && current.activeTabId && current.activeTabId !== existing?.id
+          ? [current.activeTabId]
+          : [],
         apply,
       );
     },

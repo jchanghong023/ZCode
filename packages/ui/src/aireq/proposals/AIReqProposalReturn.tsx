@@ -34,11 +34,13 @@ export function AIReqProposalReturn({
   label = "退回修改",
   disabled = false,
   focusFallback,
+  direct = false,
 }: {
   group: AIReqRequirementGroup;
   target: AIReqProposalReturnTarget;
   label?: string;
   disabled?: boolean;
+  direct?: boolean;
   focusFallback?: RefObject<HTMLElement | null>;
 }) {
   const ai = useAIReq()!;
@@ -55,7 +57,8 @@ export function AIReqProposalReturn({
   const guardOwner = `proposal-return:${group.projectId}:${group.id}:${target}`;
   const currentVersion = proposalVersion(group);
   const returnChanged = Boolean(returnVersion && returnVersion.version !== currentVersion);
-  const unavailable = busy || disabled || ai.pending || Boolean(proposalReturnBlocker(group, target));
+  const unavailable =
+    busy || disabled || ai.pending || Boolean(proposalReturnBlocker(group, target));
 
   useEffect(() => {
     if (!reason.trim() && !busy) return;
@@ -67,9 +70,16 @@ export function AIReqProposalReturn({
     return () => setDraftNavigationGuard(null, guardOwner);
   }, [reason, busy, guardOwner, setDraftNavigationGuard]);
 
-  const submitReturn = async () => {
-    const opinion = reason.trim();
-    if (unavailable || returnChanged || !returnVersion || !opinion || inFlight.current) return;
+  const submitReturn = async (revision = returnVersion?.revision) => {
+    const opinion = direct ? "" : reason.trim();
+    if (
+      unavailable ||
+      returnChanged ||
+      revision === undefined ||
+      (!direct && !opinion) ||
+      inFlight.current
+    )
+      return;
     inFlight.current = true;
     setBusy(true);
     try {
@@ -77,7 +87,7 @@ export function AIReqProposalReturn({
         type: "returnProposal",
         projectId: group.projectId,
         irId: group.id,
-        expectedRevision: returnVersion.revision,
+        expectedRevision: revision,
         target,
         reason: opinion,
       });
@@ -99,15 +109,19 @@ export function AIReqProposalReturn({
       <Button
         ref={returnTrigger}
         variant="outline"
-        aria-haspopup="dialog"
+        aria-haspopup={direct ? undefined : "dialog"}
         disabled={unavailable || !ai.view}
         onClick={() => {
           if (!ai.view) return;
+          if (direct) {
+            void submitReturn(ai.view.revision);
+            return;
+          }
           setReturnVersion({ version: currentVersion, revision: ai.view.revision });
           setReturnOpen(true);
         }}
       >
-        {label}
+        {busy && direct ? "正在返回…" : label}
       </Button>
       <Dialog
         open={returnOpen}

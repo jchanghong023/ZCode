@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, FileText, History, RefreshCw } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileText, History, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
@@ -11,6 +11,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIReqRequirementReturnButton } from "../shell/AIReqRequirementNavigation.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { resolveMrLink } from "../proposals/AIReqDocumentPrStatus.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 
 export function AIReqFormalWorkspace() {
@@ -18,6 +19,9 @@ export function AIReqFormalWorkspace() {
   const { open } = useAIReqSidePane();
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const [expandedTitle, setExpandedTitle] = useState<string>();
+  const [clippedTitle, setClippedTitle] = useState<string>();
+  const titleElement = useRef<HTMLHeadingElement>(null);
   const [search, setSearch] = useState("");
   const [syncingIrId, setSyncingIrId] = useState<string>();
   const [syncFeedback, setSyncFeedback] = useState<{ irId: string; label: string }>();
@@ -32,6 +36,15 @@ export function AIReqFormalWorkspace() {
   const ready = ai.selectionReady;
   const releaseId = selected?.releaseId;
   const selectedTitle = selected?.title;
+  useEffect(() => {
+    const element = titleElement.current;
+    if (!element || !ready || !selected || expandedTitle === selected.id) return;
+    const measure = () =>
+      setClippedTitle(element.scrollHeight > element.clientHeight + 1 ? selected.id : undefined);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [expandedTitle, ready, selected]);
   const materialTitle = srId
     ? (ai.view?.srs.find(
         (item) => item.projectId === projectId && item.irId === irId && item.id === srId,
@@ -39,7 +52,7 @@ export function AIReqFormalWorkspace() {
     : selectedTitle;
 
   useEffect(() => {
-    if (!irId || formalView === "list") {
+    if (!irId || !srId || formalView === "list") {
       routedTarget.current = undefined;
       return;
     }
@@ -72,6 +85,7 @@ export function AIReqFormalWorkspace() {
   const syncLabel = zh ? "从 Git 同步" : "Sync from Git";
   const date = selected?.merge?.checkedAt && new Date(selected.merge.checkedAt);
   const pr = selected?.requirementsPr;
+  const prLink = pr?.status === "merged" ? resolveMrLink(pr.url) : undefined;
   const canSync =
     hasProjectRole(ai.view, projectId, getEmployeeId(), "development") ||
     hasProjectRole(ai.view, projectId, getEmployeeId(), "testing");
@@ -99,22 +113,49 @@ export function AIReqFormalWorkspace() {
           <>
             <AIReqRequirementReturnButton />
             <header className="space-y-2">
-              <h1 tabIndex={-1} className={AIREQ_PAGE_TITLE_CLASSNAME + " wrap-anywhere"}>
+              <h1
+                ref={titleElement}
+                tabIndex={-1}
+                className={`${AIREQ_PAGE_TITLE_CLASSNAME} wrap-anywhere ${expandedTitle === selected.id ? "" : "line-clamp-2"}`}
+                title={selected.title}
+              >
                 {selected.title}
               </h1>
+              {(clippedTitle === selected.id || expandedTitle === selected.id) && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  aria-expanded={expandedTitle === selected.id}
+                  onClick={() =>
+                    setExpandedTitle(expandedTitle === selected.id ? undefined : selected.id)
+                  }
+                >
+                  {expandedTitle === selected.id
+                    ? zh
+                      ? "收起标题"
+                      : "Collapse title"
+                    : zh
+                      ? "展开完整标题"
+                      : "Expand full title"}
+                </Button>
+              )}
               {date && (
-                <p className="text-ui-sm text-foreground-subtle">
-                  {zh ? "文档合入于 " : "Merged "}
+                <p role="status" className="flex items-center gap-2 text-ui-sm text-success">
+                  <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
+                  {zh ? "已通过材料核验并归档 · " : "Verified and archived · "}
                   <time dateTime={selected.merge?.checkedAt}>
                     {date.toLocaleDateString(locale, { timeZone: "Asia/Shanghai" })}
                   </time>
                 </p>
               )}
             </header>
-            <section className="space-y-2 rounded-xl border border-card-border bg-card p-4">
-              <h2 className="font-medium">{zh ? "原始需求" : "Original requirement"}</h2>
-              <p className="wrap-anywhere whitespace-pre-wrap">{selected.originalText}</p>
-            </section>
+            {selected.originalText.trim() !== selected.title.trim() && (
+              <section className="space-y-2 rounded-xl border border-card-border bg-card p-4">
+                <h2 className="font-medium">{zh ? "原始需求" : "Original requirement"}</h2>
+                <p className="wrap-anywhere whitespace-pre-wrap">{selected.originalText}</p>
+              </section>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -148,9 +189,9 @@ export function AIReqFormalWorkspace() {
                 <History aria-hidden="true" />
                 {zh ? "讨论与评审历史" : "Discussion and review history"}
               </Button>
-              {pr?.status === "merged" && pr.url && /^https?:\/\//i.test(pr.url) && (
+              {prLink && (
                 <Button asChild variant="outline">
-                  <a href={pr.url} target="_blank" rel="noreferrer">
+                  <a href={prLink} target="_blank" rel="noreferrer">
                     {zh ? "查看文档 PR" : "View document PR"}
                   </a>
                 </Button>
@@ -159,6 +200,25 @@ export function AIReqFormalWorkspace() {
                 {zh ? "新建关联提案" : "New related proposal"}
               </Button>
             </div>
+            {selected.merge && (
+              <details className="space-y-3 rounded-lg border border-border px-3 py-2 text-ui-sm">
+                <summary className="w-fit cursor-pointer rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
+                  {zh ? "查看交付记录" : "View delivery record"}
+                </summary>
+                <p>
+                  {pr?.number !== undefined ? `文档 PR #${pr.number} · ` : ""}
+                  {zh ? "文件核验通过" : "Files verified"} · {selected.merge.files.length}{" "}
+                  {zh ? "份文件" : "files"}
+                </p>
+                <ul className="divide-y divide-border/50">
+                  {selected.merge.files.map((file) => (
+                    <li key={file.path} className="break-all py-1 font-mono text-foreground-subtle">
+                      {file.path}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </>
         ) : (
           <>

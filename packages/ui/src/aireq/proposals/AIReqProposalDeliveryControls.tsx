@@ -1,5 +1,14 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import {
@@ -12,18 +21,14 @@ import {
 } from "@/components/ui/dialog.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useAIReq } from "../AIReqContext.js";
-import {
-  aiReqPrFactSchema,
-  proposalState,
-  proposalDeliveryCurrent,
-  requirementMaterialName,
-} from "../contract.js";
+import { proposalState, proposalDeliveryCurrent, requirementMaterialName } from "../contract.js";
 import type {
   AIReqFileVersion,
   AIReqMaterialView,
   AIReqPrHandoff,
   AIReqRequirementGroup,
 } from "../contract.js";
+import { AIReqProposalBackgroundStatus } from "./AIReqDocumentPrStatus.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 
 interface DeliveryDialog {
@@ -37,100 +42,9 @@ interface DeliveryDialog {
   handoff?: AIReqPrHandoff;
 }
 
-function resolveMrLink(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
-    // .invalid 是保留占位域，不能展示为可访问的 PR 链接。
-    const hostname = url.hostname.replace(/\.$/, "");
-    if (hostname === "invalid" || hostname.endsWith(".invalid")) return undefined;
-    return url.href;
-  } catch {
-    return undefined;
-  }
-}
-
-const time = (value: string) =>
-  new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 const detailsClass =
   "w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring";
 const steps = { branch: "创建文档分支", push: "推送文档", pr: "创建文档 PR" } as const;
-
-function AIReqProposalBackgroundStatus({ group }: { group: AIReqRequirementGroup }) {
-  const delivery = group.proposalDelivery;
-  const parsedPr = aiReqPrFactSchema.safeParse(group.requirementsPr);
-  if (!delivery || !parsedPr.success) return <p role="alert">文档 PR 信息无效，请重新读取。</p>;
-  const pr = parsedPr.data;
-  const link = resolveMrLink(pr.url);
-  const check = delivery.mergeCheck;
-  return (
-    <section
-      className="space-y-3 rounded-lg border border-border p-4"
-      data-testid="proposal-background-status"
-    >
-      <h2 className="text-ui-base font-medium">
-        文档 PR{pr.number === undefined ? "" : ` #${pr.number}`}
-      </h2>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-sm">
-        <span>{pr.status === "merged" ? "已合入 · 待材料核验" : "已打开 · 待合入"}</span>
-        <span className="text-foreground-subtle">
-          {pr.platformVerified ? "平台已核验" : "平台未核验"}
-        </span>
-        {link ? (
-          <a
-            className="text-brand underline-offset-4 hover:underline"
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            查看 PR
-          </a>
-        ) : (
-          <span className="text-foreground-subtle">暂无可访问链接</span>
-        )}
-      </div>
-      <p
-        className={
-          check?.status === "failed" || check?.status === "incomplete"
-            ? "text-ui-sm text-destructive"
-            : "text-ui-sm"
-        }
-        role="status"
-        data-testid="proposal-background-result"
-      >
-        {check?.message ?? "等待后台核验当前候选的完整文档。"}
-      </p>
-      {check?.status !== "untracked" && (
-        <p className="text-ui-sm text-foreground-subtle">
-          {check?.checkedAt ? `最近核验：${time(check.checkedAt)}（北京时间）` : "等待首轮核验"}
-          {check?.nextCheckAt ? ` · 下次核验：${time(check.nextCheckAt)}（北京时间）` : ""}
-        </p>
-      )}
-      <details className="text-ui-sm text-foreground-subtle">
-        <summary className={detailsClass}>查看分支与核验详情</summary>
-        <dl className="mt-3 space-y-2">
-          <div>
-            <dt>来源 → 目标分支</dt>
-            <dd className="break-all font-mono">
-              {pr.sourceBranch} → {pr.targetBranch}
-            </dd>
-          </div>
-          {delivery.branch && (
-            <div>
-              <dt>创建基点</dt>
-              <dd className="break-all font-mono">{delivery.branch.baseCommit}</dd>
-            </div>
-          )}
-          <div>
-            <dt>提交候选</dt>
-            <dd className="break-all font-mono">{delivery.candidate}</dd>
-          </div>
-        </dl>
-      </details>
-    </section>
-  );
-}
 
 export function AIReqProposalDeliveryControls({
   group,
@@ -144,6 +58,9 @@ export function AIReqProposalDeliveryControls({
   const openButton = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DeliveryDialog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [previewedFiles, setPreviewedFiles] = useState<string[]>([]);
+  const [closingPr, setClosingPr] = useState<{ candidate: string; number?: number }>();
+  const [closedPr, setClosedPr] = useState<{ irId: string; number?: number }>();
   const [checkedFiles, setCheckedFiles] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
   const [previewPath, setPreviewPath] = useState<string>();
@@ -213,7 +130,11 @@ export function AIReqProposalDeliveryControls({
   );
   const boundCurrent = matchesCandidate && (dialog?.mode === "record" ? prPresent : matchesHandoff);
   const changed = Boolean(
+    // 发布投影可先于回执到达，Radix 也会在退场期间保留内容。仅对仍打开的表单报冲突。
+    dialogOpen &&
+    !busy &&
     dialog &&
+    !(dialog.mode === "publish" && matchesCandidate && prPresent) &&
     (!matchesCandidate ||
       (dialog.mode === "record" ? !prPresent : !ready || (handoff && !matchesHandoff))),
   );
@@ -238,8 +159,7 @@ export function AIReqProposalDeliveryControls({
   for (const file of dialog?.files ?? []) {
     const item = materials.get(file.path);
     // 同名文件可能已经被更新，预览只取当前候选清单中相同摘要和字节数的正文。
-    const material =
-      item?.sha256 === file.sha256 && item.size === file.size ? item : undefined;
+    const material = item?.sha256 === file.sha256 && item.size === file.size ? item : undefined;
     const srId = material?.srId ?? /^openspec\/changes\/([^/]+)\//.exec(file.path)?.[1];
     const dependency = file.path.endsWith("/sr-dependencies.json");
     const key = srId ? `sr:${srId}` : dependency ? "dependencies" : "requirements";
@@ -263,7 +183,11 @@ export function AIReqProposalDeliveryControls({
     files.every(({ readable }) => readable),
   );
   const editable = ready && canWrite && handoffReady && boundCurrent && !ai.pending && !busy;
-  const canSubmit = editable && allFilesReadable && allFilesChecked && acknowledged;
+  const previewedCount =
+    dialog?.files.filter((file) => previewedFiles.includes(file.path)).length ?? 0;
+  const allFilesPreviewed = Boolean(dialog?.files.length && previewedCount === dialog.files.length);
+  const canSubmit =
+    editable && allFilesReadable && allFilesChecked && allFilesPreviewed && acknowledged;
   const openDialog = () => {
     if (!delivery || !current) return;
     setDialog({
@@ -275,6 +199,7 @@ export function AIReqProposalDeliveryControls({
       files: delivery.files,
       handoff,
     });
+    setPreviewedFiles([]);
     setCheckedFiles([]);
     setAcknowledged(false);
     setPreviewPath(undefined);
@@ -297,13 +222,20 @@ export function AIReqProposalDeliveryControls({
       setBusy(false);
     }
   };
-  const closePr = async (candidate: string) => {
+  const closePr = async (request: NonNullable<typeof closingPr>) => {
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
     try {
-      const result = await ai.command({ type: "closeProposalPr", ...target, candidate });
-      if (result?.receipt.status === "completed") focusFallback.current?.focus();
+      const result = await ai.command({
+        type: "closeProposalPr",
+        ...target,
+        candidate: request.candidate,
+      });
+      if (result?.receipt.status === "completed") {
+        setClosedPr({ irId: target.irId, number: request.number });
+        setClosingPr(undefined);
+      }
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -311,6 +243,12 @@ export function AIReqProposalDeliveryControls({
   };
   return (
     <section className="min-w-0 space-y-3" data-testid="proposal-delivery-controls">
+      {closedPr?.irId === target.irId && !prPresent && (
+        <p role="status" className="text-ui-sm">
+          文档 PR{closedPr.number === undefined ? "" : ` #${closedPr.number}`}{" "}
+          已关闭，已停止跟踪。材料已解冻，可重新核对或退回修改。
+        </p>
+      )}
       {(prPresent || ready) && delivery && (
         <>
           {prPresent ? (
@@ -338,7 +276,9 @@ export function AIReqProposalDeliveryControls({
               ref={openButton}
               data-testid="proposal-delivery-open"
               variant={prPresent ? "outline" : "default"}
-              disabled={busy || ai.pending || (!prPresent && (!ready || !canWrite || !handoffReady))}
+              disabled={
+                busy || ai.pending || (!prPresent && (!ready || !canWrite || !handoffReady))
+              }
               onClick={openDialog}
             >
               {prPresent ? "查看提交记录" : failure ? publishLabel : "核对文件并提交"}
@@ -356,7 +296,12 @@ export function AIReqProposalDeliveryControls({
               <Button
                 variant="outline"
                 disabled={busy || ai.pending}
-                onClick={() => void closePr(delivery.candidate)}
+                onClick={() =>
+                  setClosingPr({
+                    candidate: delivery.candidate,
+                    number: group.requirementsPr?.number,
+                  })
+                }
               >
                 关闭未合入文档 PR
               </Button>
@@ -398,6 +343,47 @@ export function AIReqProposalDeliveryControls({
           )}
         </>
       )}
+      <AlertDialog
+        open={Boolean(closingPr)}
+        onOpenChange={(open) => {
+          if (!open && !submitting.current) setClosingPr(undefined);
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            if (!prPresent) {
+              event.preventDefault();
+              focusFallback.current?.focus();
+            }
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              关闭未合入的文档 PR{closingPr?.number === undefined ? "" : ` #${closingPr.number}`}？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              关闭后停止核验并解除材料冻结，需求回到待提交。三方确认保留。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {ai.error && (
+            <p role="alert" className="text-ui-sm text-destructive">
+              {ai.error}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={busy || !prPresent || closingPr?.candidate !== delivery?.candidate}
+              onClick={() => {
+                if (closingPr) void closePr(closingPr);
+              }}
+            >
+              {busy ? "正在关闭…" : "关闭文档 PR"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -405,7 +391,7 @@ export function AIReqProposalDeliveryControls({
         }}
       >
         <DialogContent
-          className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+          className="grid h-[85dvh] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-3xl"
           showCloseButton={false}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
@@ -420,12 +406,12 @@ export function AIReqProposalDeliveryControls({
             <DialogDescription>
               {dialog?.mode === "record"
                 ? "文档 PR 合入并通过当前候选核验后，需求自动转正。"
-                : "核对当前候选的全部文件，并明确授权提交。"}
+                : "预览本次拟提交的文件，选入提交清单后授权提交。"}
             </DialogDescription>
           </DialogHeader>
           {dialog && (
             <form
-              className="flex min-h-0 flex-1 flex-col"
+              className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (canSubmit) void publish(dialog);
@@ -435,9 +421,18 @@ export function AIReqProposalDeliveryControls({
                 className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4"
                 data-testid="proposal-delivery-body"
               >
+                {dialogOpen &&
+                  !busy &&
+                  dialog.mode === "publish" &&
+                  matchesCandidate &&
+                  prPresent && (
+                    <p role="status" className="text-ui-sm">
+                      此版本的文档 PR 已创建。关闭后可查看合入进度。
+                    </p>
+                  )}
                 {changed && (
                   <p role="alert" className="text-ui-sm text-destructive">
-                    交付候选、材料或提交目标已变化，请关闭并重新核对。
+                    文件版本或提交目标已变化，请关闭并重新核对。
                   </p>
                 )}
                 {dialog.mode === "publish" && matchesCandidate && ready && !result && (
@@ -540,7 +535,7 @@ export function AIReqProposalDeliveryControls({
                       data-testid="proposal-delivery-selection-count"
                     >
                       {dialog.mode === "publish"
-                        ? `已选 ${selectedFileCount} / ${dialog.files.length}`
+                        ? `已选 ${selectedFileCount} / ${dialog.files.length} · 已预览 ${previewedCount} / ${dialog.files.length}`
                         : `${dialog.files.length} 份文件`}
                     </span>
                   </div>
@@ -552,7 +547,8 @@ export function AIReqProposalDeliveryControls({
                       <ul className="divide-y divide-border/40">
                         {section.files.map(({ file, material, readable }) => {
                           const name = requirementMaterialName(file.path) ?? "需求材料";
-                          const previewLabel = name === section.title ? name : `${section.title} · ${name}`;
+                          const previewLabel =
+                            name === section.title ? name : `${section.title} · ${name}`;
                           const expanded = previewPath === file.path;
                           return (
                             <li key={file.path} className="space-y-2 px-2 py-3">
@@ -562,7 +558,7 @@ export function AIReqProposalDeliveryControls({
                                     <Checkbox
                                       data-testid="proposal-delivery-file-check"
                                       className="data-[state=unchecked]:border-foreground/60"
-                                      aria-label={`确认 ${file.path}`}
+                                      aria-label={`纳入提交 ${previewLabel}`}
                                       checked={checkedFiles.includes(file.path)}
                                       disabled={!editable || !readable}
                                       onCheckedChange={(checked) => {
@@ -580,6 +576,13 @@ export function AIReqProposalDeliveryControls({
                                     <span className="mt-1 block break-all font-mono text-foreground-subtle">
                                       {file.path}
                                     </span>
+                                    {dialog.mode === "publish" && readable && (
+                                      <span className="mt-1 block text-foreground-subtle">
+                                        {previewedFiles.includes(file.path)
+                                          ? "已打开预览"
+                                          : "待预览"}
+                                      </span>
+                                    )}
                                     {matchesCandidate && !readable && (
                                       <span className="mt-1 block text-destructive">暂不可读</span>
                                     )}
@@ -592,7 +595,15 @@ export function AIReqProposalDeliveryControls({
                                   aria-label={`${expanded ? "收起预览" : "预览"} ${previewLabel}`}
                                   aria-expanded={expanded}
                                   disabled={!matchesCandidate}
-                                  onClick={() => setPreviewPath(expanded ? undefined : file.path)}
+                                  onClick={() => {
+                                    setPreviewPath(expanded ? undefined : file.path);
+                                    if (!expanded && readable)
+                                      setPreviewedFiles((previous) =>
+                                        previous.includes(file.path)
+                                          ? previous
+                                          : [...previous, file.path],
+                                      );
+                                  }}
                                 >
                                   {expanded ? "收起" : "预览"}
                                 </Button>
@@ -611,7 +622,10 @@ export function AIReqProposalDeliveryControls({
                                     )
                                   ) : (
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <p role="status" className="text-ui-sm text-foreground-subtle">
+                                      <p
+                                        role="status"
+                                        className="text-ui-sm text-foreground-subtle"
+                                      >
                                         {material?.error ?? "暂未读取到当前候选的文件正文。"}
                                       </p>
                                       <Button
@@ -658,18 +672,29 @@ export function AIReqProposalDeliveryControls({
                       data-testid="proposal-delivery-confirm-all"
                       className="data-[state=unchecked]:border-foreground/60"
                       checked={acknowledged}
-                      disabled={!editable || !allFilesReadable || !allFilesChecked}
+                      disabled={
+                        !editable || !allFilesReadable || !allFilesChecked || !allFilesPreviewed
+                      }
                       onCheckedChange={(checked) => setAcknowledged(checked === true)}
                     />
                     <span>
-                      我已核对全部文件，并授权提交当前候选的文档 PR。
+                      我已核对全部文件，并授权提交文档 PR。
+                      {allFilesReadable && !allFilesPreviewed && (
+                        <span className="mt-1 block text-foreground-subtle">
+                          请先打开全部文件的预览。
+                        </span>
+                      )}
                       {!allFilesReadable && (
-                        <span className="mt-1 block text-destructive">请重新读取暂不可读的文件。</span>
+                        <span className="mt-1 block text-destructive">
+                          请重新读取暂不可读的文件。
+                        </span>
                       )}
                     </span>
                   </label>
                 ) : (
-                  <p className="mr-auto text-ui-sm text-foreground-subtle">当前候选的提交记录 · 只读</p>
+                  <p className="mr-auto text-ui-sm text-foreground-subtle">
+                    本次提交的文件记录 · 只读
+                  </p>
                 )}
                 <Button
                   type="button"

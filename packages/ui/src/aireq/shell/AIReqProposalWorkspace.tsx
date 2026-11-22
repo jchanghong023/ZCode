@@ -1,6 +1,6 @@
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
@@ -56,7 +56,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   };
   const task = canOpenProposalTask(ai.proposalTask, roles) ? ai.proposalTask : "overview";
   const detail = task === "requirementsReviewDetail" || task === "solutionReviewDetail";
-  const conversation = task === "requirements" || task === "solution" || detail;
   const original = task === "requirementsReview" || task === "requirementsReviewDetail";
   const review = original ? proposal?.originalReview : proposal?.review;
   const agent = detail
@@ -83,31 +82,23 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     const main = root.current?.querySelector("main");
     if (main && ai.selectionReady) main.scrollTop = scrollMemory.current.get(routeKey) ?? 0;
   }, [routeKey, ai.selectionReady]);
-  const openedTarget = useRef("");
   const hasMaterials = ai.view?.materials.some(
     (item) => item.projectId === proposal?.projectId && item.irId === proposal?.id,
   );
-  useEffect(() => {
-    if (
-      !conversation ||
-      !ai.selectionReady ||
-      !proposal ||
-      (task === "requirements" && !hasMaterials)
-    )
-      return;
-    const key = JSON.stringify([proposal.projectId, proposal.id, proposal.releaseId, ai.selection]);
-    if (openedTarget.current === key) return;
-    openedTarget.current = key;
-    open(
-      {
-        kind: "materials",
-        selection: ai.selection,
-        releaseId: proposal.releaseId,
-        title: proposal.title,
-      },
-      { ifAbsent: true },
-    );
-  }, [conversation, ai.selectionReady, ai.selection, proposal, open, task, hasMaterials]);
+  const openMaterials = () => {
+    if (!proposal || !hasMaterials) return;
+    // 材料生成只改变服务端事实，不能挤压正在使用的窄桌面讨论区。
+    open({
+      kind: "materials",
+      selection: ai.selection,
+      releaseId: proposal.releaseId,
+      title: proposal.title,
+    });
+  };
+  const returning =
+    proposal?.returnFeedback &&
+    (proposal.returnFeedback.target ?? "requirements") === task &&
+    !proposal.returnFeedback.resumedAt;
   const parent = proposalTaskParent(task);
   const next = proposal ? proposalNextTask(proposal) : undefined;
   const reviewTask = original ? ("requirementsReview" as const) : ("solutionReview" as const);
@@ -334,7 +325,9 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
             </p>
           </div>
         )}
-        {!detail && !conversationReadOnly && <AIReqProposalFeedback />}
+        {!detail && !conversationReadOnly && (
+          <AIReqProposalFeedback openMaterials={hasMaterials ? openMaterials : undefined} />
+        )}
         {ai.selection.srId ? (
           <div className="space-y-3 p-6 text-ui-sm text-foreground-subtle">
             <p>SR 规格为只读材料，方案讨论在所属需求进行。</p>
@@ -359,9 +352,15 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
               composerPlaceholder={
                 detail
                   ? "追问本次审查（不改变审查结论）"
-                  : task === "requirements"
-                    ? "补充谁会使用、在什么场景使用，以及期望的结果"
-                    : undefined
+                  : returning
+                    ? task === "requirements"
+                      ? proposal.returnFeedback?.reason
+                        ? "根据上方退回原因，补充或更正业务规则"
+                        : "补充或更正需要重新评审的业务规则"
+                      : "根据上方退回原因，修改方案、任务或测试场景"
+                    : task === "requirements"
+                      ? "补充谁会使用、在什么场景使用，以及期望的结果"
+                      : "说明方案思路、实施步骤和测试场景"
               }
               conversationEmptyState={
                 !conversationReadOnly && task === "requirements" ? (
@@ -371,7 +370,9 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                       {proposal.originalText}
                     </blockquote>
                     <p className="text-foreground-subtle">
-                      请补充一个真实场景。谁会在什么情况下使用它，想完成什么？
+                      {returning
+                        ? "请在下方更新需要重新评审的业务规则。"
+                        : "请补充一个真实场景。谁会在什么情况下使用它，想完成什么？"}
                     </p>
                   </div>
                 ) : (
@@ -441,7 +442,12 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           {task === "overview" ? "需求工作台" : (proposal?.title ?? "需求工作台")}
         </span>
         {proposal && <AIReqRequirementMenu key={proposal.id} group={proposal} />}
-        {task !== "overview" && !isOpen && (activeTab || (ai.selectionReady && hasMaterials)) && (
+        {task !== "overview" && ai.selectionReady && hasMaterials && (
+          <Button size="sm" variant="ghost" className="shrink-0" onClick={openMaterials}>
+            <FileText className="size-4" aria-hidden="true" /> 查看材料
+          </Button>
+        )}
+        {task !== "overview" && !isOpen && activeTab && (
           <WorkspaceSidePaneToggleButton isSidePaneOpen={false} onToggleSidePane={toggle} />
         )}
       </div>

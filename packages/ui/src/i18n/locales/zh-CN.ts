@@ -3995,7 +3995,6 @@ const zhCN: Record<string, string> = {
   "chat.queue.sendConfirm.keep": "发送消息",
   "chat.message.turnSteer.guided": "已引导对话",
   "chat.message.turnSteer.pending": "等待引导当前任务…",
-  "chat.followup.guideCurrent": "引导当前任务",
   "chat.followup.sendNow": "立即发送",
   "chat.followup.addToQueue": "加入队列",
   "chat.modelChangeNotice.changed": "已从 {fromModel} 切换至 {toModel}",

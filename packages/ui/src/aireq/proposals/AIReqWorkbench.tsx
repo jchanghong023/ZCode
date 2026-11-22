@@ -51,6 +51,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   const theme = useZCodeStore((state) => state.theme);
   const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
   const { selection, releaseId, view } = aireq;
+  const [paneBoundary, setPaneBoundary] = useState<HTMLElement | null>(null);
   const [path, setPath] = useState<string>();
   const [readFeedback, setReadFeedback] = useState<MaterialReadFeedback>();
   const [historyIndex, setHistoryIndex] = useState<number>();
@@ -96,10 +97,23 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
     const label = requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind];
     // IR 汇总列出多个 SR 的同类文件，必须同时给出所属 SR 和材料名。
     const materialSr = materialRows?.find((sr) => sr.id === item.srId);
-    return item.srId
-      ? `${item.srId}${materialSr ? ` · ${materialSr.title}` : ""} · ${label}`
-      : label;
+    const title = materialSr?.title;
+    const shortTitle =
+      title && group && title.startsWith(`${group.title} · `)
+        ? title.slice(group.title.length + 3)
+        : title;
+    return shortTitle ? `${shortTitle} · ${label}` : label;
   };
+  const materialBody = current?.content?.replace(/^#\s+([^\n]+)\n+/u, (heading, title: string) => {
+    const owner = materialRows?.find((row) => row.id === current.srId);
+    return [
+      group?.title,
+      owner?.title,
+      owner ? `${owner.title} · ${requirementMaterialName(current.path)}` : undefined,
+    ].includes(title.trim())
+      ? ""
+      : heading;
+  });
   const selectedMaterialSrId = current?.srId ?? selection.srId;
   const solutionMaterial =
     materials.find(
@@ -112,14 +126,16 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
     undefined,
     ...new Set(materials.map((item) => item.srId).filter((id): id is string => Boolean(id))),
   ]
-    .map((srId) => {
+    .map((srId, index) => {
       const owner = materialRows?.find((item) => item.id === srId);
       return {
         id: srId ?? "ir",
         label: srId
-          ? `${owner?.title ?? srId}${owner ? ` · ${srId}` : ""}`
+          ? owner?.title.startsWith(`${group?.title} · `)
+            ? owner.title.slice((group?.title.length ?? 0) + 3)
+            : (owner?.title ?? `需求项 ${index}`)
           : zh
-            ? "IR 共享材料"
+            ? "共享需求材料"
             : "Shared IR materials",
         items: materials.filter((item) => item.srId === srId),
       };
@@ -159,11 +175,18 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
             >
               <SelectValue>{viewingHistory ? "历史版本 · 只读" : "当前版本"}</SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              position="popper"
+              align="start"
+              collisionBoundary={paneBoundary}
+              className="w-80 max-w-(--radix-select-content-available-width)"
+            >
               <SelectItem value="current">当前版本</SelectItem>
               {historyChoices.map(({ item, index, time }) => (
                 <SelectItem key={index} value={String(index)}>
-                  {item.reason} · {time}
+                  <span className="min-w-0 whitespace-normal wrap-anywhere">
+                    {item.reason} · {time}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -261,6 +284,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   }
   return (
     <aside
+      ref={setPaneBoundary}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
       data-testid="materials-pane"
     >
@@ -319,10 +343,15 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
                 <ListTree className="size-3.5 shrink-0" aria-hidden="true" />
                 <SelectValue>{zh ? "文档目录" : "Document directory"}</SelectValue>
               </SelectTrigger>
-              <SelectContent position="popper" align="start">
+              <SelectContent
+                position="popper"
+                align="start"
+                collisionBoundary={paneBoundary}
+                className="w-72 max-w-(--radix-select-content-available-width)"
+              >
                 {materialGroups.map((section) => (
                   <SelectGroup key={section.id}>
-                    <SelectLabel className="max-w-full whitespace-normal break-words">
+                    <SelectLabel className="max-w-full whitespace-normal break-words font-medium text-foreground">
                       {section.label}
                     </SelectLabel>
                     {section.items.map((item) => (
@@ -462,12 +491,13 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
                 />
               ) : (
                 <article className="w-full min-w-0" data-testid="material-document">
+                  <h2 className="mb-3 text-ui-lg font-semibold">{materialLabel(current)}</h2>
                   <AIReqMarkdownDocument
                     className="h-auto min-w-0 break-words"
                     theme={theme}
                     codePreviewSettings={codePreviewSettings}
                   >
-                    {current.content}
+                    {materialBody ?? current.content}
                   </AIReqMarkdownDocument>
                 </article>
               )}

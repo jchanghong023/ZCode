@@ -40,6 +40,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqIdea, AIReqIdeaTransfer, AIReqIdeaTarget } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import { newestReleaseFirst } from "../projects/AIReqProjectDocumentsPage.js";
 import { AIReqIdeaImportExport } from "./AIReqIdeaImportExport.js";
 
 type Target = AIReqIdeaTarget & { key: string };
@@ -66,8 +67,16 @@ export function AIReqIdeaPool() {
   const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
   const ideaMenuTriggers = useRef(new Map<string, HTMLButtonElement>());
   const addIdeaButton = useRef<HTMLButtonElement | null>(null);
+  const receiptPanel = useRef<HTMLElement | null>(null);
+  const ideaEntries = useRef(new Map<string, HTMLButtonElement>());
+  const [savedIdea, setSavedIdea] = useState<{ text: string; at: string; actor?: string }>();
+  const [locateIdea, setLocateIdea] = useState(false);
   const [transferred, setTransferred] = useState<AIReqIdeaTransfer[]>([]);
   const { setDraftNavigationGuard } = ai;
+  useEffect(() => {
+    // 转入会移除原行，旧滚动位置可能让页头回执完全离开视口。
+    if (savedIdea || transferred.length) receiptPanel.current?.scrollIntoView({ block: "nearest" });
+  }, [savedIdea, transferred]);
   const dirty = Boolean(
     draft &&
     (draft.mode === "transfer"
@@ -139,7 +148,9 @@ export function AIReqIdeaPool() {
     ai.view &&
     draft &&
     !busy &&
-    (draft.mode === "edit" ? draft.text.trim() : targetsReady && !duplicate),
+    (draft.mode === "edit"
+      ? draft.text.trim() && draft.text.trim() !== draft.idea?.originalText
+      : targetsReady && !duplicate),
   );
   const save = async () => {
     if (!draft || !canSave || submitting.current) return;
@@ -176,6 +187,15 @@ export function AIReqIdeaPool() {
       }
       // 转入回执已消费原想法；旧行可能在关闭后才卸载，不能按关闭瞬间的 DOM 存活判断返回目标。
       if (draft.mode === "transfer") dialogReturnFocus.current = addIdeaButton.current;
+      setSavedIdea(
+        draft.mode === "edit" && !draft.idea
+          ? {
+              text: draft.text.trim(),
+              at: result.receipt.startedAt,
+              actor: result.receipt.actorEmployeeId,
+            }
+          : undefined,
+      );
       setTransferred(result.transferredRequirements ?? []);
       setDraft(null);
     } finally {
@@ -191,6 +211,17 @@ export function AIReqIdeaPool() {
       idea.originalText.toLocaleLowerCase().includes(normalized) ||
       idea.id.toLocaleLowerCase().includes(normalized),
   );
+  const savedEntry = ideas.find(
+    (idea) =>
+      idea.createdAt === savedIdea?.at &&
+      idea.originalText === savedIdea.text &&
+      (!savedIdea.actor || idea.submittedBy === savedIdea.actor),
+  );
+  useEffect(() => {
+    if (!locateIdea || !savedEntry) return;
+    ideaEntries.current.get(savedEntry.id)?.focus();
+    setLocateIdea(false);
+  }, [locateIdea, savedEntry]);
   return (
     <div
       className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
@@ -218,9 +249,35 @@ export function AIReqIdeaPool() {
             </Button>
           </div>
         </div>
+        {savedIdea && (
+          <section
+            ref={receiptPanel}
+            className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-3"
+          >
+            <p role="status" className="flex-1">
+              {zh ? "想法已保存" : "Idea saved"}
+            </p>
+            {savedEntry && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setLocateIdea(true);
+                }}
+              >
+                {zh ? "查看想法" : "Find idea"}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setSavedIdea(undefined)}>
+              {zh ? "关闭" : "Dismiss"}
+            </Button>
+          </section>
+        )}
         {transferred.length > 0 && (
           <section
             className="space-y-2 rounded-xl border border-border bg-surface p-3"
+            ref={receiptPanel}
             aria-label={zh ? "转入结果" : "Transfer result"}
           >
             <div className="flex items-center gap-2">
@@ -248,6 +305,7 @@ export function AIReqIdeaPool() {
                     )
                   }
                 >
+                  {zh ? "打开提案 · " : "Open proposal · "}
                   {ai.view?.projects.find((project) => project.id === target.projectId)?.name ??
                     target.projectId}{" "}
                   ·{" "}
@@ -298,6 +356,10 @@ export function AIReqIdeaPool() {
                     {/* 想法池此前漏接共享行标记；只平移需求正文，元数据和操作列保持原位。 */}
                     <td data-aireq-motion-cell="" className="max-w-lg px-4 py-4">
                       <Button
+                        ref={(node) => {
+                          if (node) ideaEntries.current.set(idea.id, node);
+                          else ideaEntries.current.delete(idea.id);
+                        }}
                         variant="link"
                         className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-foreground"
                         onClick={(event) => open("edit", event.currentTarget, idea)}
@@ -501,9 +563,11 @@ export function AIReqIdeaPool() {
                           <SelectContent>
                             {ai.view?.releases
                               .filter((release) => release.projectId === target.projectId)
-                              .map((release) => (
+                              .sort(newestReleaseFirst)
+                              .map((release, index) => (
                                 <SelectItem key={release.id} value={release.id}>
                                   {release.title}
+                                  {index === 0 ? (zh ? "（最近版本）" : " (latest)") : ""}
                                 </SelectItem>
                               ))}
                           </SelectContent>
@@ -632,8 +696,12 @@ export function AIReqIdeaPool() {
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {zh
-                  ? "原文和目标选择尚未提交，离开将放弃这些修改。"
-                  : "The requirement or release choices have not been saved. Leaving will discard these changes."}
+                  ? draft?.mode === "transfer"
+                    ? "所选目标版本尚未提交，离开将放弃选择。"
+                    : "想法正文尚未保存，离开将放弃修改。"
+                  : draft?.mode === "transfer"
+                    ? "Leaving will discard your release choices."
+                    : "Leaving will discard your changes to the idea."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
