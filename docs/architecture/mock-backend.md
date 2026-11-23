@@ -41,7 +41,9 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 项目和 Release 的需求总数来自同一工作流。Release 同时汇总当前文档版本已确认的需求数。
 
-原型的业务和方案材料可包含 Mermaid 流程图。依赖清单使用纯 JSON。
+需求共创的预置样例和两个 Agent 生成的 Markdown 材料均包含简单的 Mermaid 流程图。预置历史版本在确认快照前写入图示，Agent 在保存材料前补齐图示，正文、摘要与大小随快照一起保存。依赖清单使用纯 JSON，由右侧文档区按对应版本绘制依赖图。
+
+演示验收从右侧文档区打开当前及历史版本，并在需求 Agent 和方案 Agent 会话中生成材料，确认各 Markdown 文件能显示流程图，依赖图能读取同版依赖。
 
 演示工作区预置的 Markdown 文件和原型 Skill Markdown 正文也以 Mermaid 图开始；生成的 `SKILL.md` 先保留 YAML front matter，再显示流程图。原有文件格式和阅读入口不变。
 

@@ -1,6 +1,5 @@
 import type { AIReqDiscussionAgent, AIReqMaterialView } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import { contentVersion } from "./content-digest.js";
 import { requirementMaterialsFor } from "./document-versions.js";
 import { systemRequirement } from "./fixture-builders.js";
 import {
@@ -12,10 +11,6 @@ import {
 } from "./materials.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import type { NativeDocumentOutput, RequirementGroup, WorkflowState } from "./workflow-state.js";
-
-function replaceContent(file: AIReqMaterialView, content: string): AIReqMaterialView {
-  return { ...file, content, ...contentVersion(content) };
-}
 
 /** 内存原型只根据明确的编辑意图或提供的正文生成文档。 */
 export function stageNativeDocuments(
@@ -81,14 +76,14 @@ export function stageNativeDocuments(
         : statements;
       const material = prior ?? file;
       materials.push(
-        replaceContent(
-          material,
-          appendMaterialDiscussion(
+        prototypeMaterial({
+          ...material,
+          content: appendMaterialDiscussion(
             material.content,
             structured ? text : details.join("\n"),
             testPlan ? "已提出的测试场景" : "补充实施说明",
           ),
-        ),
+        }),
       );
     }
   }

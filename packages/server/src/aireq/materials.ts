@@ -56,14 +56,56 @@ export function appendMaterialDiscussion(
 export function prototypeMaterial(
   input: Omit<AIReqMaterialView, "sha256" | "size" | "valid">,
 ): AIReqMaterialView {
-  // 摘要与字节数只取实际正文，不能为材料注入与业务无关的说明。
-  const content = input.content ?? "";
+  // 样例和 Agent 共用写入逻辑，让图示随正文一起进入版本快照与摘要。
+  const content =
+    input.path.endsWith(".md") && input.content
+      ? withPrototypeDiagram(input.content, input.kind)
+      : input.content;
   return {
     ...input,
-    ...(input.content === undefined ? {} : { content }),
-    ...contentVersion(content),
+    ...(content === undefined ? {} : { content }),
+    ...contentVersion(content ?? ""),
     valid: true,
   };
+}
+
+const prototypeFlows: Record<AIReqMaterialView["kind"], string> = {
+  ir: "A[说明业务场景] --> B[明确预期结果] --> C[核对验收条件]",
+  sr: "A[读取业务需求] --> B[明确变更范围] --> C[描述可观察结果]",
+  solution: "A[核对现有接口] --> B[设计处理路径] --> C[检查异常边界]",
+  plan: "A[核对前置条件] --> B[实施变更] --> C[记录验证结果]",
+  "test-plan": "A[准备测试场景] --> B[执行操作] --> C[比对预期结果]",
+};
+
+function hasMermaidDiagram(content: string): boolean {
+  let fence: string | undefined;
+  let mermaid = false;
+  let hasBody = false;
+  for (const line of content.split(/\r?\n/)) {
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (marker && marker[1]!.startsWith(fence) && !marker[2]!.trim()) {
+        if (mermaid && hasBody) return true;
+        fence = undefined;
+      } else if (line.trim()) {
+        hasBody = true;
+      }
+    } else if (marker && (marker[1]![0] === "~" || !marker[2]!.includes("`"))) {
+      fence = marker[1]!;
+      mermaid = marker[2]!.trim() === "mermaid";
+      hasBody = false;
+    }
+  }
+  return false;
+}
+
+function withPrototypeDiagram(content: string, kind: AIReqMaterialView["kind"]): string {
+  if (hasMermaidDiagram(content)) return content;
+  const diagram = "```mermaid\nflowchart TD\n  " + prototypeFlows[kind] + "\n```";
+  const title = /^(?:[ \t]*\r?\n)* {0,3}#[ \t]+[^\r\n]+/.exec(content)?.[0];
+  if (!title) return diagram + "\n\n" + content;
+  const body = content.slice(title.length).replace(/^(?:[ \t]*\r?\n)+/, "");
+  return [title, diagram, body].filter(Boolean).join("\n\n");
 }
 
 function leadingMermaidEnd(content: string): number {
@@ -87,7 +129,7 @@ export function reviseGeneratedMarkdown(
   if (!/^ {0,3}#(?:[ \t]+|\r?\n|$)/.test(note.slice(noteDiagramEnd))) {
     return appendMaterialDiscussion(content, note, heading);
   }
-  if (noteDiagramEnd) return note;
+  if (noteDiagramEnd || hasMermaidDiagram(note)) return note;
   const priorDiagramEnd = content ? leadingMermaidEnd(content) : 0;
   if (!content || !priorDiagramEnd) return note;
   const diagram = content.slice(0, priorDiagramEnd);
