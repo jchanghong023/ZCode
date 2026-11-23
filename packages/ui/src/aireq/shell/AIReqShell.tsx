@@ -244,7 +244,12 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
       />
     );
-  else if (ai.mainView === "ideas") content = <AIReqIdeaPool />;
+  else if (ai.mainView === "ideas")
+    content = (
+      <AIReqIdeaPool
+        onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
+      />
+    );
   else if (ai.mainView === "roles") content = <AIReqRolesPage />;
   else if (!project && ai.view && ai.selectionReady)
     content = (

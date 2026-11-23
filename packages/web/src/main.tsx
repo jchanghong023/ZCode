@@ -18,7 +18,7 @@ import {
 import "./styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 
-import { EmployeeEntry, createEmployeeEntry } from "./auth/index.js";
+import { EmployeeEntry, createEmployeeEntry, type EmployeeEntryConnection } from "./auth/index.js";
 import { AIReqApplication as AIReqWebApplication } from "@zcode/ui/aireq";
 
 const root = createRoot(document.getElementById("root")!);
@@ -45,12 +45,13 @@ let stopConnection: (() => void) | null = null;
 let entryGeneration = 0;
 let application: ReactNode = null;
 let connectionNotice: ReactNode = null;
+let entryConnection: EmployeeEntryConnection | null = null;
 
-function renderEntry(content: ReactNode = null): void {
+function renderEntry(): void {
   root.render(
     <div className="flex h-dvh flex-col">
-      <EmployeeEntry owner={employeeEntry}>
-        <div className="flex min-h-0 flex-1 flex-col">{application ?? content}</div>
+      <EmployeeEntry owner={employeeEntry} connection={entryConnection}>
+        <div className="flex min-h-0 flex-1 flex-col">{application}</div>
         {connectionNotice}
       </EmployeeEntry>
     </div>,
@@ -65,15 +66,10 @@ interface WebBootstrapResult {
   wsUrl: string;
 }
 
-function renderWebBootstrapFailure(error: unknown): void {
-  // 原始连接异常可能含内部地址或协议细节；产品界面只提供稳定的恢复提示。
-  logger.error("[web] Application bootstrap failed", error);
-  document.title = "AIReq · 启动失败";
-  renderEntry(
-    <div role="alert" className="m-auto p-6 text-ui-base text-destructive">
-      暂时无法启动工作台，请刷新页面重试。
-    </div>,
-  );
+function renderWebEntryConnection(connection: EmployeeEntryConnection): void {
+  entryConnection = connection;
+  document.title = connection.status === "failed" ? "AIReq · 连接失败" : "AIReq · 正在连接";
+  renderEntry();
 }
 
 /** 断线重建 accessor 的退避序列（毫秒）；用尽后停留在显式断线屏。 */
@@ -110,11 +106,21 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
 async function bootstrapWebApp(generation: number, employeeNumber: string) {
   const isCurrentEntry = () =>
     generation === entryGeneration && employeeEntry.employeeNumber === employeeNumber;
+  if (!isCurrentEntry()) return;
+  renderWebEntryConnection({ status: "connecting" });
   let bootstrap: WebBootstrapResult;
   try {
     bootstrap = await resolveWebBootstrap();
   } catch (error) {
-    if (isCurrentEntry()) renderWebBootstrapFailure(error);
+    if (isCurrentEntry()) {
+      // 原始连接异常可能含内部地址或协议细节；入口只呈现可执行的恢复提示。
+      logger.error("[web] Application bootstrap failed", error);
+      renderWebEntryConnection({
+        status: "failed",
+        message: "暂时无法准备工作台连接，请重新连接。",
+        retry: () => void bootstrapWebApp(generation, employeeNumber),
+      });
+    }
     return;
   }
   if (!isCurrentEntry()) return;
@@ -150,6 +156,7 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
   let activeSocket: WebSocket | null = null;
   let attemptGeneration = 0;
   let disposed = false;
+  const connectionLifetime = new AbortController();
   const closeActiveSocket = () => {
     activeSocket?.close();
     activeSocket = null;
@@ -159,7 +166,9 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
     attemptGeneration += 1;
     if (reconnectTimer !== null) clearTimeout(reconnectTimer);
     reconnectTimer = null;
-    closeActiveSocket();
+    // 切换工号也可以发生在 open 之前，旧 socket 尚未成为 activeSocket。
+    connectionLifetime.abort();
+    activeSocket = null;
     window.removeEventListener("online", handleOnline);
   };
 
@@ -189,6 +198,9 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
       return;
     }
     connecting = true;
+    if (!currentServices && entryConnection?.status === "failed") {
+      renderWebEntryConnection({ status: "connecting" });
+    }
     const attempt = ++attemptGeneration;
     let retry = false;
     let attemptClosed = false;
@@ -197,6 +209,7 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
       nativeUrl.searchParams.set("employeeId", employeeNumber);
       nativeUrl.searchParams.set("clientId", webClientId);
       const services = await connectViaWebSocket(nativeUrl.toString(), {
+        signal: connectionLifetime.signal,
         onOpenSocket: (ws) => {
           if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) {
             ws.close();
@@ -221,12 +234,13 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
       });
       if (disposed || attempt !== attemptGeneration || !isCurrentEntry()) return;
       if (attemptClosed) {
-        retry = true;
-        return;
+        // 握手完成前关闭也属于连接失败，首次进入应回到入口恢复动作。
+        throw new Error("The connection closed before the workbench was ready.");
       }
       closed = false;
       reconnectAttempt = 0;
       currentServices = services;
+      entryConnection = null;
       document.title = "AIReq · 需求管理";
       renderApp(true);
       renderEntry();
@@ -238,9 +252,10 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
       closed = true;
       if (!currentServices) {
         logger.warn("[web] Initial connection failed", error);
-        renderWebDisconnected("暂时无法连接服务，请重试。", () => {
-          reconnectAttempt = 0;
-          void connect();
+        renderWebEntryConnection({
+          status: "failed",
+          message: "暂时无法连接工作台。请检查网络后重新连接。",
+          retry: () => void connect(),
         });
       } else {
         logger.warn("[web] RPC reconnect failed", error);
@@ -278,9 +293,14 @@ function handleEntryChange() {
   stopConnection = null;
   application = null;
   connectionNotice = null;
-  renderEntry();
+  entryConnection = null;
   const employeeNumber = employeeEntry.employeeNumber;
-  if (employeeNumber) void bootstrapWebApp(entryGeneration, employeeNumber);
+  if (employeeNumber) {
+    void bootstrapWebApp(entryGeneration, employeeNumber);
+  } else {
+    document.title = "AIReq · 工号入口";
+    renderEntry();
+  }
 }
 employeeEntry.subscribe(handleEntryChange);
 handleEntryChange();

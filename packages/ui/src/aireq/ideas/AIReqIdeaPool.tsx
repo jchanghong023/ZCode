@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createUuid } from "@zcode/shared";
 import { MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -52,8 +52,13 @@ type Draft = {
   operationId: string;
   expectedRevision?: number;
 };
+const IDEA_DRAFT_OWNER = "idea-draft";
 
-export function AIReqIdeaPool() {
+export function AIReqIdeaPool({
+  onConfigureProject,
+}: {
+  onConfigureProject(projectId: string): void;
+}) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -64,6 +69,7 @@ export function AIReqIdeaPool() {
   const [failed, setFailed] = useState(false);
   const [discard, setDiscard] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
+  const resumeTarget = useRef<string | null>(null);
   const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
   const ideaMenuTriggers = useRef(new Map<string, HTMLButtonElement>());
   const addIdeaButton = useRef<HTMLButtonElement | null>(null);
@@ -72,7 +78,7 @@ export function AIReqIdeaPool() {
   const [savedIdea, setSavedIdea] = useState<{ text: string; at: string; actor?: string }>();
   const [locateIdea, setLocateIdea] = useState(false);
   const [transferred, setTransferred] = useState<AIReqIdeaTransfer[]>([]);
-  const { setDraftNavigationGuard } = ai;
+  const { setDraftNavigationGuard, settingsOpen } = ai;
   useEffect(() => {
     // 转入会移除原行，旧滚动位置可能让页头回执完全离开视口。
     if (savedIdea || transferred.length) receiptPanel.current?.scrollIntoView({ block: "nearest" });
@@ -83,25 +89,27 @@ export function AIReqIdeaPool() {
       ? draft.targets.some((target) => target.projectId || target.releaseId)
       : draft.text !== (draft.idea?.originalText ?? "")),
   );
+  const guardDraftNavigation = useCallback((next: () => void) => {
+    if (submitting.current || pendingNavigation.current) return;
+    pendingNavigation.current = next;
+    setDiscard(true);
+  }, []);
   useEffect(() => {
     if (!dirty && !busy) return;
-    setDraftNavigationGuard((next) => {
-      if (submitting.current || pendingNavigation.current) return;
-      pendingNavigation.current = next;
-      setDiscard(true);
-    });
+    if (!settingsOpen) setDraftNavigationGuard(guardDraftNavigation, IDEA_DRAFT_OWNER);
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", beforeUnload);
     return () => {
-      setDraftNavigationGuard(null);
+      setDraftNavigationGuard(null, IDEA_DRAFT_OWNER);
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [dirty, busy, setDraftNavigationGuard]);
+  }, [dirty, busy, settingsOpen, setDraftNavigationGuard, guardDraftNavigation]);
   const open = (mode: Draft["mode"], trigger: HTMLButtonElement, idea?: AIReqIdea) => {
     dialogReturnFocus.current = trigger;
+    resumeTarget.current = null;
     setFailed(false);
     setDraft({
       mode,
@@ -123,6 +131,16 @@ export function AIReqIdeaPool() {
           ),
         },
     );
+  const configureRelease = (target: Target) => {
+    resumeTarget.current = target.key;
+    // 这是转入的续步。只让当前草稿放行这次设置导航，其他草稿仍走既有门禁。
+    setDraftNavigationGuard(null, IDEA_DRAFT_OWNER);
+    try {
+      onConfigureProject(target.projectId);
+    } finally {
+      setDraftNavigationGuard(guardDraftNavigation, IDEA_DRAFT_OWNER);
+    }
+  };
   const targets = draft?.targets ?? [];
   const view = ai.view;
   const duplicate = targets.some(
@@ -238,7 +256,7 @@ export function AIReqIdeaPool() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <AIReqIdeaImportExport ideas={visible} />
+            <AIReqIdeaImportExport ideas={visible} filtered={Boolean(normalized)} />
             <Button
               ref={addIdeaButton}
               disabled={!ai.view || ai.pending}
@@ -451,16 +469,32 @@ export function AIReqIdeaPool() {
           </p>
         )}
         <Dialog
-          open={Boolean(draft)}
+          open={Boolean(draft) && !settingsOpen}
           onOpenChange={(value) => {
             if (!value && !submitting.current) ai.navigate(() => setDraft(null));
           }}
         >
           <DialogContent
             className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-2xl"
+            onOpenAutoFocus={(event) => {
+              const key = resumeTarget.current;
+              if (!key) return;
+              resumeTarget.current = null;
+              const release = document.getElementById(`idea-release-${key}`);
+              const target = release?.matches(":enabled")
+                ? release
+                : document.getElementById(`idea-configure-release-${key}`);
+              if (target) {
+                event.preventDefault();
+                target.focus();
+              }
+              // 配置可能新增 Release；采用当前工作流基线，仍用原想法 revision 校验转入。
+              setDraft((current) => current && { ...current, expectedRevision: undefined });
+            }}
             onCloseAutoFocus={(event) => {
               // 受控弹窗没有 DialogTrigger；转入成功还会移除原行，需回到仍在页内的新增入口。
               event.preventDefault();
+              if (resumeTarget.current) return;
               const trigger = dialogReturnFocus.current;
               if (trigger?.isConnected) trigger.focus();
               else addIdeaButton.current?.focus();
@@ -521,80 +555,114 @@ export function AIReqIdeaPool() {
                   <p className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-surface p-3 text-ui-base">
                     {draft.idea?.originalText}
                   </p>
-                  {targets.map((target, index) => (
-                    <div
-                      key={target.key}
-                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2"
-                    >
-                      <div className="min-w-0 space-y-2">
-                        <Label htmlFor={`idea-project-${target.key}`}>
-                          {zh ? `目标项目 ${index + 1}` : `Project ${index + 1}`}
-                        </Label>
-                        <Select
-                          value={target.projectId}
-                          disabled={busy}
-                          onValueChange={(projectId) =>
-                            changeTarget(target.key, { projectId, releaseId: "" })
-                          }
-                        >
-                          <SelectTrigger id={`idea-project-${target.key}`} className="w-full">
-                            <SelectValue placeholder={zh ? "选择项目" : "Choose project"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ai.view?.projects.map((project) => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                  {targets.map((target, index) => {
+                    const releases = view?.releases
+                      .filter((release) => release.projectId === target.projectId)
+                      .sort(newestReleaseFirst);
+                    const hasProject = view?.projects.some(({ id }) => id === target.projectId);
+                    const needsRelease = hasProject && releases?.length === 0;
+                    const releasePlaceholder = needsRelease
+                      ? zh
+                        ? "暂无版本"
+                        : "No releases"
+                      : zh
+                        ? "选择版本"
+                        : "Choose release";
+                    return (
+                      <div key={target.key} className="space-y-2">
+                        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
+                          <div className="min-w-0 space-y-2">
+                            <Label htmlFor={`idea-project-${target.key}`}>
+                              {zh ? `目标项目 ${index + 1}` : `Project ${index + 1}`}
+                            </Label>
+                            <Select
+                              value={target.projectId}
+                              disabled={busy}
+                              onValueChange={(projectId) =>
+                                changeTarget(target.key, { projectId, releaseId: "" })
+                              }
+                            >
+                              <SelectTrigger id={`idea-project-${target.key}`} className="w-full">
+                                <SelectValue placeholder={zh ? "选择项目" : "Choose project"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ai.view?.projects.map((project) => (
+                                  <SelectItem key={project.id} value={project.id}>
+                                    {project.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="min-w-0 space-y-2">
+                            <Label htmlFor={`idea-release-${target.key}`}>
+                              {/* 多目标必须与项目共用编号，否则读屏中的版本控件名称完全相同。 */}
+                              {zh ? `目标版本 ${index + 1}` : `Release ${index + 1}`}
+                            </Label>
+                            <Select
+                              value={target.releaseId}
+                              disabled={busy || !releases?.length}
+                              onValueChange={(releaseId) => changeTarget(target.key, { releaseId })}
+                            >
+                              <SelectTrigger id={`idea-release-${target.key}`} className="w-full">
+                                <SelectValue placeholder={releasePlaceholder} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {releases?.map((release, index) => (
+                                  <SelectItem key={release.id} value={release.id}>
+                                    {release.title}
+                                    {index === 0 ? (zh ? "（最近版本）" : " (latest)") : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={zh ? `移除目标 ${index + 1}` : `Remove target ${index + 1}`}
+                            disabled={busy || targets.length === 1}
+                            onClick={() =>
+                              setDraft(
+                                (current) =>
+                                  current && {
+                                    ...current,
+                                    operationId: createUuid(),
+                                    targets: current.targets.filter(
+                                      (item) => item.key !== target.key,
+                                    ),
+                                  },
+                              )
+                            }
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                        {needsRelease && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p
+                              id={`idea-release-help-${target.key}`}
+                              className="text-ui-sm text-foreground-subtle"
+                            >
+                              {zh
+                                ? "请先为此项目添加版本。返回后可继续转入。"
+                                : "Add a release for this project, then return to continue."}
+                            </p>
+                            <Button
+                              id={`idea-configure-release-${target.key}`}
+                              aria-describedby={`idea-release-help-${target.key}`}
+                              variant="outline"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => configureRelease(target)}
+                            >
+                              {zh ? "配置版本" : "Configure releases"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <div className="min-w-0 space-y-2">
-                        <Label htmlFor={`idea-release-${target.key}`}>
-                          {/* 多目标必须与项目共用编号，否则读屏中的版本控件名称完全相同。 */}
-                          {zh ? `目标版本 ${index + 1}` : `Release ${index + 1}`}
-                        </Label>
-                        <Select
-                          value={target.releaseId}
-                          disabled={busy || !ai.view || !target.projectId}
-                          onValueChange={(releaseId) => changeTarget(target.key, { releaseId })}
-                        >
-                          <SelectTrigger id={`idea-release-${target.key}`} className="w-full">
-                            <SelectValue placeholder={zh ? "选择版本" : "Choose release"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ai.view?.releases
-                              .filter((release) => release.projectId === target.projectId)
-                              .sort(newestReleaseFirst)
-                              .map((release, index) => (
-                                <SelectItem key={release.id} value={release.id}>
-                                  {release.title}
-                                  {index === 0 ? (zh ? "（最近版本）" : " (latest)") : ""}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={zh ? `移除目标 ${index + 1}` : `Remove target ${index + 1}`}
-                        disabled={busy || targets.length === 1}
-                        onClick={() =>
-                          setDraft(
-                            (current) =>
-                              current && {
-                                ...current,
-                                operationId: createUuid(),
-                                targets: current.targets.filter((item) => item.key !== target.key),
-                              },
-                          )
-                        }
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <Button
                     variant="outline"
                     size="sm"
@@ -623,19 +691,13 @@ export function AIReqIdeaPool() {
                         : "Each project and release combination must be unique."}
                     </p>
                   )}
-                  {view &&
-                    (!view.projects.length ||
-                      targets.some(
-                        (target) =>
-                          target.projectId &&
-                          !view.releases.some((release) => release.projectId === target.projectId),
-                      )) && (
-                      <p role="status" className="text-ui-sm text-foreground-subtle">
-                        {zh
-                          ? "目标项目尚无可用版本，请在原有项目配置中添加后再转入。当前想法会保留。"
-                          : "Add a release in project settings before transferring. The idea will remain in the pool."}
-                      </p>
-                    )}
+                  {view && !view.projects.length && (
+                    <p role="status" className="text-ui-sm text-foreground-subtle">
+                      {zh
+                        ? "请在项目配置中添加项目和版本后再转入。"
+                        : "Add a project and release in project settings before transferring."}
+                    </p>
+                  )}
                 </div>
               )
             )}
@@ -720,7 +782,7 @@ export function AIReqIdeaPool() {
                   const next = pendingNavigation.current;
                   pendingNavigation.current = null;
                   setDraft(null);
-                  setDraftNavigationGuard(null);
+                  setDraftNavigationGuard(null, IDEA_DRAFT_OWNER);
                   setDiscard(false);
                   next?.();
                 }}

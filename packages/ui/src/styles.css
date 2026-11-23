@@ -92,10 +92,21 @@ body,
 :root {
   --shadow-composer-soft: 0 0 #0000;
   --ui-font-size: 14px;
+  --zai-light-background: #f8f8f8;
+  --zai-dark-background: #161616;
   --color-remote-continuity-panel: #202124;
   --color-remote-continuity-panel-surface: #2c2d30;
   --color-remote-continuity-panel-foreground: #f8f8f8;
   --color-remote-continuity-panel-subtle: #a7a7ad;
+}
+
+/* 代码主题可与界面明暗不同。只在交叉配色时替换代码区底色，同色系沿用调用方表面。 */
+:root:not(.dark) {
+  --code-viewer-dark-surface: var(--zai-dark-background);
+}
+
+:root.dark {
+  --code-viewer-light-surface: var(--zai-light-background);
 }
 
 body {
@@ -542,7 +553,7 @@ body {
   --shadow-composer-soft: 0 1px 3px rgb(0 0 0 / 4%), 0 6px 18px rgb(0 0 0 / 4%);
   --animated-gradient-text-strong: rgba(13, 13, 13, 1);
   --animated-gradient-text-soft: rgba(13, 13, 13, 0.22);
-  --color-background: #f8f8f8;
+  --color-background: var(--zai-light-background);
   --color-background-win-alt: #ececee;
   --color-background-alt: color-mix(in oklab, var(--color-background) 70%, transparent);
   --color-brand: #000000;
@@ -703,7 +714,7 @@ body {
 .theme-zai-dark {
   --animated-gradient-text-strong: rgba(255, 255, 255, 1);
   --animated-gradient-text-soft: rgba(255, 255, 255, 0.22);
-  --color-background: #161616;
+  --color-background: var(--zai-dark-background);
   --color-background-win-alt: #2b2b2b;
   --color-background-alt: color-mix(in oklab, var(--color-background-win-alt) 60%, transparent);
   --color-brand: #ffffff;

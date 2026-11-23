@@ -115,6 +115,14 @@ export function AIReqSketchButton({
           gap: 0,
         }}
         aria-describedby={undefined}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          // 父层也可能先收到 Esc；让持有画布的 iframe 走与取消按钮相同的退出判断。
+          frameRef.current?.contentWindow?.postMessage(
+            { type: "aireq-sketch-request-cancel" },
+            window.location.origin,
+          );
+        }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onReturnToComposer();

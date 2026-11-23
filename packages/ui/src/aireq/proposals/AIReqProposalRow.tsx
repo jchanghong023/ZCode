@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { FileText } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
@@ -6,8 +7,17 @@ import { type AIReqRequirementGroup, hasProjectRole } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqCopyDocumentSyncButton } from "./AIReqCopyDocumentSyncButton.js";
+import { AIReqProposalText } from "./AIReqProposalText.js";
 
-export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh: boolean }) {
+export function AIReqProposalRow({
+  item,
+  search,
+  zh,
+}: {
+  item: AIReqRequirementGroup;
+  search: string;
+  zh: boolean;
+}) {
   const ai = useAIReq()!;
   const { open, isOpen, activeTab } = useAIReqSidePane();
   const selection = { projectId: item.projectId, irId: item.id };
@@ -39,8 +49,8 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
       ? "未定版"
       : "Unconfirmed";
   const noDocuments = zh ? "暂无文档" : "No documents";
-  const requirementsLabel = zh ? "需求 Agent" : "Requirements Agent";
-  const solutionLabel = zh ? "方案 Agent" : "Solution Agent";
+  const requirementsLabel = zh ? "讨论需求" : "Discuss requirements";
+  const solutionLabel = zh ? "讨论方案" : "Discuss solution";
   const documentsLabel = zh ? "查看文档" : "View documents";
   const solutionHint = zh
     ? "仅项目开发和测试可进入"
@@ -122,20 +132,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         data-aireq-motion-cell=""
         className="min-w-0 px-4 py-3 @max-[520px]/conversation:pb-0"
       >
-        <p
-          className="line-clamp-2 wrap-anywhere font-semibold"
-          title={`${item.title}\n${zh ? "提交人" : "Submitted by"} ${item.submittedBy} · ${submittedAt}`}
-        >
-          {item.title}
-        </p>
-        {item.originalText !== item.title && (
-          <p
-            className="mt-1 line-clamp-2 whitespace-pre-wrap wrap-anywhere text-ui-caption text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground"
-            title={item.originalText}
-          >
-            {item.originalText}
-          </p>
-        )}
+        <AIReqProposalText item={item} search={search} submittedAt={submittedAt} zh={zh} />
         <div className="mt-2 text-ui-caption @min-[640px]/conversation:hidden">
           {versionSummary}
         </div>
@@ -150,24 +147,26 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         role="cell"
         className="px-3 py-3 @max-[520px]/conversation:px-4 @min-[640px]/conversation:px-4"
       >
-        <div className="flex flex-wrap items-center justify-end gap-1.5 @max-[520px]/conversation:justify-start">
-          <Button
-            size="sm"
-            variant="secondary"
-            data-aireq-proposal-entry={item.id}
-            data-aireq-agent="requirements"
-            aria-label={`${requirementsLabel} · ${item.title}`}
-            onClick={() =>
-              ai.select({ ...selection, discussionPhase: "requirements" }, item.releaseId)
-            }
-          >
-            {requirementsLabel}
-          </Button>
-          {canUseSolution ? (
-            solutionButton
-          ) : (
-            <ControlHintTooltip title={solutionHint}>{solutionButton}</ControlHintTooltip>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 @max-[520px]/conversation:justify-start">
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 @max-[520px]/conversation:justify-start">
+            <Button
+              size="sm"
+              variant="secondary"
+              data-aireq-proposal-entry={item.id}
+              data-aireq-agent="requirements"
+              aria-label={`${requirementsLabel} · ${item.title}`}
+              onClick={() =>
+                ai.select({ ...selection, discussionPhase: "requirements" }, item.releaseId)
+              }
+            >
+              {requirementsLabel}
+            </Button>
+            {canUseSolution ? (
+              solutionButton
+            ) : (
+              <ControlHintTooltip title={solutionHint}>{solutionButton}</ControlHintTooltip>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <Button
               size="sm"
@@ -182,6 +181,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
                 open({ selection, releaseId: item.releaseId, title: item.title });
               }}
             >
+              <FileText aria-hidden="true" />
               {documentsLabel}
             </Button>
             <AIReqCopyDocumentSyncButton item={item} zh={zh} />

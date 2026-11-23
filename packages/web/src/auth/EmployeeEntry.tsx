@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { logger } from "@zcode/ui";
 import { Button } from "@zcode/ui/button";
 import { Input } from "@zcode/ui/input";
@@ -11,6 +11,10 @@ import type { EmployeeEntryContract } from "./contract.js";
 
 const STORAGE_KEY = "zcode:employee-number";
 const EMPLOYEE_ID = /^[a-z][0-9]{8}$/;
+
+export type EmployeeEntryConnection =
+  | { status: "connecting" }
+  | { status: "failed"; message: string; retry(): void };
 
 export function createEmployeeEntry(): EmployeeEntryContract {
   let employeeNumber: string | null = null;
@@ -77,22 +81,58 @@ export function createEmployeeEntry(): EmployeeEntryContract {
 
 export function EmployeeEntry({
   owner,
+  connection,
   children,
 }: {
   owner: EmployeeEntryContract;
+  connection: EmployeeEntryConnection | null;
   children: ReactNode;
 }) {
   const employeeNumber = useSyncExternalStore(owner.subscribe, () => owner.employeeNumber);
-  if (!employeeNumber) return <EmployeeLoginScreen owner={owner} />;
+  if (!employeeNumber || connection) {
+    return (
+      <EmployeeLoginScreen owner={owner} employeeNumber={employeeNumber} connection={connection} />
+    );
+  }
   // 修复原因：入口中间层必须保持 flex 高度约束，否则长表会把侧栏页脚推到视口外。
   return <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
 }
 
-function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
+function EntryError({ id, children }: { id?: string; children: ReactNode }) {
+  // 入口错误原先使用实心红底与半透明白字，动效主题下普通文本对比度不足。
+  return (
+    <Alert
+      id={id}
+      className="border-destructive/40 bg-destructive-surface text-destructive-surface-foreground"
+    >
+      <TriangleAlertIcon aria-hidden="true" className="size-4" />
+      <AlertDescription className="text-inherit">{children}</AlertDescription>
+    </Alert>
+  );
+}
+
+function EmployeeLoginScreen({
+  owner,
+  employeeNumber,
+  connection,
+}: {
+  owner: EmployeeEntryContract;
+  employeeNumber: string | null;
+  connection: EmployeeEntryConnection | null;
+}) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { theme } = useTheme();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const connectionStatus = connection?.status;
+  const connecting = connectionStatus === "connecting";
+  useEffect(() => {
+    // 首次失败时入口仍挂载。显式聚焦恢复动作，切换工号则回到可编辑输入。
+    if (connectionStatus === "failed") submitRef.current?.focus();
+    else if (!connectionStatus) inputRef.current?.focus();
+  }, [connectionStatus]);
   // 原版入口为居中标题、448px 卡片及独立页脚；不能用左对齐的512px表单替代。
   return (
     <main
@@ -127,7 +167,11 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
               noValidate
               onSubmit={async (event) => {
                 event.preventDefault();
-                if (submitting) return;
+                if (submitting || connecting) return;
+                if (connection?.status === "failed") {
+                  connection.retry();
+                  return;
+                }
                 if (!EMPLOYEE_ID.test(value.trim())) {
                   setError("请输入一个小写字母和八位数字组成的工号，例如 j00808874。");
                   return;
@@ -151,50 +195,66 @@ function EmployeeLoginScreen({ owner }: { owner: EmployeeEntryContract }) {
                 </Label>
                 <Input
                   id="aireq-employee-id"
+                  ref={inputRef}
                   size="lg"
                   className="h-10 w-full text-ui-base"
-                  autoFocus
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
                   maxLength={32}
                   placeholder="例如 j00808874"
                   aria-describedby={
-                    error ? "employee-id-help employee-id-error" : "employee-id-help"
+                    connection
+                      ? undefined
+                      : error
+                        ? "employee-id-help employee-id-error"
+                        : "employee-id-help"
                   }
                   aria-invalid={Boolean(error)}
-                  value={value}
-                  disabled={submitting}
+                  value={connection ? (employeeNumber ?? "") : value}
+                  readOnly={Boolean(connection) || submitting}
                   onChange={(event) => {
                     setValue(event.target.value);
                     setError("");
                   }}
                 />
-                <p id="employee-id-help" className="text-center text-ui-sm text-foreground-subtle">
-                  a–z 中任一小写字母开头，后接 8 位数字；无需密码。
-                </p>
+                {!connection && (
+                  <p
+                    id="employee-id-help"
+                    className="text-center text-ui-sm text-foreground-subtle"
+                  >
+                    a–z 中任一小写字母开头，后接 8 位数字；无需密码。
+                  </p>
+                )}
               </div>
-              {error && (
-                <Alert variant="destructive" id="employee-id-error">
-                  <TriangleAlertIcon className="size-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {owner.persistenceError && (
-                <Alert variant="destructive">
-                  <TriangleAlertIcon className="size-4" />
-                  <AlertDescription>{owner.persistenceError}</AlertDescription>
-                </Alert>
-              )}
+              {error && <EntryError id="employee-id-error">{error}</EntryError>}
+              {connection?.status === "failed" && <EntryError>{connection.message}</EntryError>}
+              {owner.persistenceError && <EntryError>{owner.persistenceError}</EntryError>}
               <div className="flex flex-col items-center gap-2">
+                <span role="status" className="sr-only">
+                  {connecting && "正在连接工作台…"}
+                </span>
                 <Button
+                  ref={submitRef}
                   type="submit"
                   size="lg"
-                  className="h-10 w-full px-6 text-ui-base font-medium"
-                  disabled={!value.trim() || submitting}
+                  className="h-10 w-full px-6 text-ui-base font-medium aria-disabled:pointer-events-none aria-disabled:opacity-50"
+                  disabled={!connection && (!value.trim() || submitting)}
+                  aria-disabled={connecting || undefined}
                 >
-                  {submitting ? "正在进入…" : "进入工作台"}
+                  {connecting ? "正在连接…" : connection ? "重新连接" : "进入工作台"}
                 </Button>
+                {connection && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="w-full"
+                    onClick={() => owner.leave()}
+                  >
+                    切换工号
+                  </Button>
+                )}
               </div>
             </form>
           </section>

@@ -71,6 +71,10 @@ export function AIReqProjectSettings({
   const [refreshKey, setRefreshKey] = useState(0);
   const [projectQuery, setProjectQuery] = useState("");
   const [releaseSaving, setReleaseSaving] = useState(false);
+  const addProjectButton = useRef<HTMLButtonElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const projectForm = useRef<HTMLFormElement>(null);
+  const dialogTrigger = useRef<HTMLButtonElement | null>(null);
   const [projectViews, setProjectViews] = useState<
     {
       project: AIReqProject;
@@ -174,6 +178,12 @@ export function AIReqProjectSettings({
     const validationErrors = validateRepository(name, repositoryUrl, defaultBranch);
     if (Object.keys(validationErrors).length) {
       setProjectErrors(validationErrors);
+      const fieldId = validationErrors.name
+        ? "project-name"
+        : validationErrors.repository
+          ? "project-repository"
+          : "project-default-branch";
+      projectForm.current?.querySelector<HTMLInputElement>(`#${fieldId}`)?.focus();
       return false;
     }
     savingRef.current = true;
@@ -272,7 +282,8 @@ export function AIReqProjectSettings({
     );
   }, [dirty, busy, canSave, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange(null), [onDraftActionsChange]);
-  const openProject = useCallback((project?: AIReqProject) => {
+  const openProject = useCallback((project?: AIReqProject, trigger = addProjectButton.current) => {
+    dialogTrigger.current = trigger;
     setProjectRevision(project?.revision ?? 0);
     repositoryOperation.current = null;
     setProjectId(project?.id);
@@ -336,12 +347,23 @@ export function AIReqProjectSettings({
     zh,
   ]);
   if (!aireq) return null;
-  const openRelease = (id: string) => {
+  const openRelease = (id: string, trigger: HTMLButtonElement) => {
+    dialogTrigger.current = trigger;
     initialReleaseProject.current = id;
     setReleaseProjectId(id);
     setReleaseTitle("");
     setReleaseError("");
     setReleaseOpen(true);
+  };
+  const restoreDialogFocus = (event: Event) => {
+    const trigger = dialogTrigger.current;
+    dialogTrigger.current = null;
+    // 受控弹窗没有 Radix Trigger；等弹窗释放焦点锁后再返回实际入口。
+    event.preventDefault();
+    const target = trigger?.isConnected && !trigger.disabled ? trigger : searchInput.current;
+    if (active && target?.isConnected && !target.closest("[hidden], [inert]")) {
+      target.focus({ preventScroll: true });
+    }
   };
   return (
     <section className="space-y-4" data-testid="aireq-project-settings">
@@ -392,7 +414,7 @@ export function AIReqProjectSettings({
           </p>
         </div>
         {canSaveRepository && (
-          <Button onClick={() => openProject()}>
+          <Button ref={addProjectButton} onClick={() => openProject()}>
             <Plus className="size-4" />
             {zh ? "添加项目" : "Add project"}
           </Button>
@@ -425,6 +447,7 @@ export function AIReqProjectSettings({
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
           />
           <Input
+            ref={searchInput}
             id="project-search"
             className="h-9 rounded-lg bg-surface pl-9"
             placeholder={zh ? "搜索项目名称或项目地址" : "Search by name or project address"}
@@ -433,7 +456,14 @@ export function AIReqProjectSettings({
           />
         </div>
         {normalizedProjectQuery && (
-          <Button variant="ghost" size="sm" onClick={() => setProjectQuery("")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setProjectQuery("");
+              searchInput.current?.focus();
+            }}
+          >
             {zh ? "清除筛选" : "Clear filter"}
           </Button>
         )}
@@ -462,7 +492,7 @@ export function AIReqProjectSettings({
                   variant="outline"
                   className="shrink-0"
                   disabled={!canSaveRepository}
-                  onClick={() => openProject(project)}
+                  onClick={(event) => openProject(project, event.currentTarget)}
                   aria-label={zh ? `编辑项目 ${project.name}` : `Edit project ${project.name}`}
                 >
                   {zh ? "编辑项目" : "Edit project"}
@@ -493,7 +523,7 @@ export function AIReqProjectSettings({
               <Button
                 variant="outline"
                 disabled={!canCreateRelease}
-                onClick={() => openRelease(project.id)}
+                onClick={(event) => openRelease(project.id, event.currentTarget)}
                 aria-label={`为${project.name}添加 Release`}
               >
                 <Plus className="size-3.5" />
@@ -574,7 +604,10 @@ export function AIReqProjectSettings({
         }}
       >
         {/* 矮窗口中表单曾超出视口；限定弹窗高度，仅正文滚动，保留标题、关闭和底部动作。 */}
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
+        <DialogContent
+          className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg"
+          onCloseAutoFocus={restoreDialogFocus}
+        >
           <DialogHeader className="shrink-0 pr-8">
             <DialogTitle>
               {projectId ? (zh ? "编辑项目" : "Edit project") : zh ? "添加项目" : "Add project"}
@@ -586,6 +619,7 @@ export function AIReqProjectSettings({
             </DialogDescription>
           </DialogHeader>
           <form
+            ref={projectForm}
             className="flex min-h-0 flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
@@ -732,6 +766,7 @@ export function AIReqProjectSettings({
       </Dialog>
       <AIReqReleaseDialog
         open={releaseOpen}
+        onCloseAutoFocus={restoreDialogFocus}
         onOpenChange={(open) => {
           if (!open && !savingRef.current) guard(() => setReleaseOpen(false));
         }}

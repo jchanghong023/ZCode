@@ -1,6 +1,6 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReqDataSource } from "../data-source.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Label } from "@/components/ui/label.js";
@@ -14,14 +14,15 @@ import {
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { AIReqDiscardDraftButton } from "./AIReqDiscardDraftButton.js";
 import { AIReqPersonalConfigScope } from "./AIReqPersonalConfigScope.js";
 import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
-import type { AIReqModelDraftActions } from "./AIReqAgentModelSettings.js";
+import type { AIReqSettingsDraftActions } from "../contract.js";
 
 export function AIReqPersonalizationSettings({
   onDraftActionsChange,
 }: {
-  onDraftActionsChange?: (actions: AIReqModelDraftActions | null) => void;
+  onDraftActionsChange?: (actions: AIReqSettingsDraftActions | null) => void;
 }) {
   const source = useAIReqDataSource();
   if (!source.prompts || !source.models)
@@ -36,7 +37,7 @@ export function AIReqPersonalizationSettings({
 function PersonalizationContent({
   onDraftActionsChange,
 }: {
-  onDraftActionsChange?: (actions: AIReqModelDraftActions | null) => void;
+  onDraftActionsChange?: (actions: AIReqSettingsDraftActions | null) => void;
 }) {
   const source = useAIReqDataSource();
   const { locale } = useZCodeIntl();
@@ -46,21 +47,62 @@ function PersonalizationContent({
   const [draft, setDraft] = useState(() => ({ ...source.prompts!.read().saved }));
   const [savedRevision, setSavedRevision] = useState(() => source.prompts!.read().revision);
   const [selected, setSelected] = useState<string>(() => agents[0]?.id ?? "");
+  const agentSelectRef = useRef<HTMLButtonElement>(null);
   const selectedAgent = agents.find((agent) => agent.id === selected);
   // 成功与失败共用一个带类型的反馈，避免异常被渲染成普通成功状态。
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const dirtyAgents = agents.filter((agent) => draft[agent.id] !== saved[agent.id]);
   const dirtyCount = dirtyAgents.length;
   const encoder = new TextEncoder();
-  const oversized = agents.filter(
-    (agent) => encoder.encode(draft[agent.id] ?? "").length > USER_INSTRUCTIONS_MAX_BYTES,
-  );
-  const currentBytes = encoder.encode(draft[selected] ?? "").length;
+  const instructionSizes = agents.map((agent) => ({
+    agent,
+    bytes: encoder.encode(draft[agent.id] ?? "").length,
+  }));
+  const oversized = instructionSizes.filter(({ bytes }) => bytes > USER_INSTRUCTIONS_MAX_BYTES);
+  const currentBytes = instructionSizes.find(({ agent }) => agent.id === selected)?.bytes ?? 0;
+  const currentOverage = currentBytes - USER_INSTRUCTIONS_MAX_BYTES;
+  const formatNumber = new Intl.NumberFormat(locale);
+  const formatOverage = (bytes: number) => {
+    const amount = formatNumber.format(bytes);
+    if (zh) return `超出 ${amount} 字节`;
+    return `${amount} ${bytes === 1 ? "byte" : "bytes"} over the limit`;
+  };
+  const oversizedSummary = oversized
+    .map(({ agent, bytes }) => {
+      const name = zh ? agent.name : agent.nameEn;
+      return `${name}${zh ? "（" : " ("}${formatOverage(bytes - USER_INSTRUCTIONS_MAX_BYTES)}${zh ? "）" : ")"}`;
+    })
+    .join(zh ? "、" : ", ");
+  const saveBlockedReason = oversizedSummary
+    ? zh
+      ? `请缩短指令后再保存：${oversizedSummary}。`
+      : `Shorten these instructions before saving: ${oversizedSummary}.`
+    : undefined;
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const focusEditorAfterSwitch = useRef(false);
+  useLayoutEffect(() => {
+    if (!focusEditorAfterSwitch.current) return;
+    focusEditorAfterSwitch.current = false;
+    textarea.current?.scrollIntoView({ block: "center" });
+    textarea.current?.focus({ preventScroll: true });
+  }, [selected]);
+  const firstOversizedAgent = oversized[0]?.agent.id;
+  const editOversizedInstructions = () => {
+    if (!firstOversizedAgent) return;
+    if (firstOversizedAgent === selected) {
+      textarea.current?.scrollIntoView({ block: "center" });
+      textarea.current?.focus({ preventScroll: true });
+    } else {
+      // 等待切换后的值和错误描述就位，再把焦点移到正确的编辑器。
+      focusEditorAfterSwitch.current = true;
+      setSelected(firstOversizedAgent);
+    }
+  };
   const canSave = dirtyCount > 0 && oversized.length === 0;
   const dirty = dirtyCount > 0;
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const draftActions = useRef<AIReqModelDraftActions | null>(null);
+  const draftActions = useRef<AIReqSettingsDraftActions | null>(null);
   const save = async () => {
     if (!canSave || savingRef.current) return false;
     savingRef.current = true;
@@ -105,12 +147,13 @@ function PersonalizationContent({
         ? {
             canSave: canSave && !saving,
             canDiscard: !saving,
+            saveBlockedReason,
             save: () => draftActions.current?.save() ?? false,
             discard: () => draftActions.current?.discard(),
           }
         : null,
     );
-  }, [dirty, canSave, saving, onDraftActionsChange]);
+  }, [dirty, canSave, saving, saveBlockedReason, onDraftActionsChange]);
   useEffect(() => () => onDraftActionsChange?.(null), [onDraftActionsChange]);
   if (!agents.length)
     return (
@@ -140,6 +183,7 @@ function PersonalizationContent({
           }}
         >
           <SelectTrigger
+            ref={agentSelectRef}
             id="personalization-agent"
             size="lg"
             className="w-full sm:w-72"
@@ -164,12 +208,21 @@ function PersonalizationContent({
         </p>
       </AIReqSettingsTarget>
       <AIReqSettingsTarget id="aireq.instructions.prompt" className="space-y-2">
-        <Label htmlFor="agent-system-prompt-append">
-          {zh ? "追加指令" : "Additional instructions"}
-        </Label>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <Label htmlFor="agent-system-prompt-append">
+            {zh ? "追加指令" : "Additional instructions"}
+          </Label>
+          <span id="agent-prompt-size" className="text-ui-sm text-foreground-subtle">
+            {currentBytes < 1024 || currentOverage > 0
+              ? `${formatNumber.format(currentBytes)} B`
+              : `${(currentBytes / 1024).toFixed(1)} KB`}{" "}
+            / {USER_INSTRUCTIONS_MAX_BYTES / 1024} KB
+          </span>
+        </div>
         <SettingsFormTextarea
+          ref={textarea}
           id="agent-system-prompt-append"
-          className="min-h-64 w-full text-ui-base"
+          className="h-48 field-sizing-fixed overflow-y-auto [@media(min-height:800px)]:h-64"
           spellCheck={false}
           value={draft[selected] ?? ""}
           readOnly={saving}
@@ -178,35 +231,40 @@ function PersonalizationContent({
               ? "输入你希望追加给该 Agent 的指令。留空则仅使用原有指令。"
               : "Enter instructions you want to append for this Agent. Leave empty to use existing instructions only."
           }
-          aria-describedby="agent-prompt-help agent-prompt-size"
-          aria-invalid={currentBytes > USER_INSTRUCTIONS_MAX_BYTES}
+          aria-describedby={
+            currentOverage > 0
+              ? "agent-prompt-help agent-prompt-size agent-prompt-error"
+              : "agent-prompt-help agent-prompt-size"
+          }
+          aria-invalid={currentOverage > 0}
           onChange={(event) => {
             const value = event.target.value;
             setDraft((current) => ({ ...current, [selected]: value }));
             setMessage(null);
           }}
         />
-        <div className="flex flex-wrap items-start justify-between gap-2 text-ui-sm text-foreground-subtle">
-          <p id="agent-prompt-help">
-            {zh ? "留空则不追加指令。" : "Leave empty to add no instructions."}
-          </p>
-          <span id="agent-prompt-size">
-            {currentBytes < 1024 ? `${currentBytes} B` : `${(currentBytes / 1024).toFixed(1)} KB`} /{" "}
-            {USER_INSTRUCTIONS_MAX_BYTES / 1024} KB
-          </span>
-        </div>
-      </AIReqSettingsTarget>
-      {oversized.length > 0 && (
-        <p role="alert" className="text-ui-base text-destructive">
-          {zh
-            ? "以下 Agent 的追加指令超过大小限制，请缩短后保存："
-            : "Shorten these Agents' appended instructions before saving: "}
-          {oversized.map((agent) => (zh ? agent.name : agent.nameEn)).join(zh ? "、" : ", ")}
+        <p id="agent-prompt-help" className="text-ui-sm text-foreground-subtle">
+          {zh ? "留空则不追加指令。" : "Leave empty to add no instructions."}
         </p>
-      )}
+        {currentOverage > 0 && (
+          <p id="agent-prompt-error" className="text-ui-sm text-destructive">
+            {formatOverage(currentOverage)}
+          </p>
+        )}
+      </AIReqSettingsTarget>
       <div
         className={`space-y-2 border-t border-border bg-background py-3 ${dirty || message ? "sticky bottom-0 z-10" : ""}`}
       >
+        {saveBlockedReason && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p role="alert" className="text-ui-sm leading-5 text-destructive">
+              {saveBlockedReason}
+            </p>
+            <Button variant="link" onClick={editOversizedInstructions}>
+              {zh ? "编辑超限指令" : "Edit over-limit instructions"}
+            </Button>
+          </div>
+        )}
         <SettingsFormActions
           leadingAction={
             dirty ? (
@@ -215,7 +273,7 @@ function PersonalizationContent({
                 {dirtyAgents
                   .map((agent) => (zh ? agent.name : agent.nameEn))
                   .join(zh ? "、" : ", ")}
-                {zh ? "。保存或取消将应用于全部草稿。" : ". Save or cancel applies to all drafts."}
+                {zh ? "。保存适用于全部草稿。" : ". Saving applies to all drafts."}
               </p>
             ) : null
           }
@@ -223,17 +281,17 @@ function PersonalizationContent({
           <Button size="lg" disabled={!canSave || saving} onClick={save}>
             {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存" : "Save"}
           </Button>
-          <Button
-            variant="ghost"
+          <AIReqDiscardDraftButton
             size="lg"
             disabled={!dirtyCount || saving}
-            onClick={() => {
-              setDraft({ ...saved });
-              setMessage(null);
-            }}
-          >
-            {zh ? "取消" : "Cancel"}
-          </Button>
+            description={
+              zh
+                ? "当前修改过的所有 Agent 指令都会恢复为已保存内容。"
+                : "All edited Agent instructions will revert to their saved values."
+            }
+            onDiscard={() => draftActions.current?.discard()}
+            focusAfterDiscard={agentSelectRef}
+          />
         </SettingsFormActions>
         {message && (
           <p

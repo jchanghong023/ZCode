@@ -5,7 +5,11 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { BundledTheme } from "shiki";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { Card, CardContent } from "@/components/ui/card.js";
-import { CODE_PREVIEW_THEME_OPTIONS, SETTINGS_PREVIEW_CODE } from "@/lib/codePreviewPreferences.js";
+import {
+  CODE_PREVIEW_THEME_OPTIONS,
+  isDarkCodePreviewTheme,
+  SETTINGS_PREVIEW_CODE,
+} from "@/lib/codePreviewPreferences.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,
@@ -70,12 +74,11 @@ export function ThemePreviewCard({
   fontSizePx: number;
 }) {
   const { intl } = useZCodeIntl();
-  const previewSurfaceClassName = mode === "light" ? "ring-1 ring-black/5" : "ring-1 ring-white/8";
-  const previewThemeStyle = {
-    "--color-background": mode === "light" ? "#f8f8f8" : "#161616",
-    "--color-card": mode === "light" ? "#f8f8f8" : "#161616",
-    "--color-foreground": mode === "light" ? "#0d0d0d" : "#ffffff",
-  } as CSSProperties;
+  // mode 决定卡片属于哪个设置槽，预览内容的背景与边框则跟随实际选择的代码主题。
+  const isDarkPreview = isDarkCodePreviewTheme(theme);
+  const previewSurface = isDarkPreview
+    ? "var(--zai-dark-background)"
+    : "var(--zai-light-background)";
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -102,10 +105,16 @@ export function ThemePreviewCard({
           showLineNumbers={showLineNumbers}
           wrapLongLines={wrapLongLines}
           fontSizePx={fontSizePx}
-          // Light/Dark Preview 是预览目标主题，不应继承当前应用主题的 background token。
-          // CodeBlock 内部会把 @pierre/diffs 背景映射到 card，这里同时固定 background/card。
-          className={`overflow-hidden border-0 bg-background ${previewSurfaceClassName}`}
-          style={previewThemeStyle}
+          className={cn(
+            "overflow-hidden border-0 bg-background ring-1",
+            isDarkPreview ? "ring-white/8" : "ring-black/5",
+          )}
+          style={
+            {
+              "--color-background": previewSurface,
+              "--color-card": previewSurface,
+            } as CSSProperties
+          }
         />
       </div>
     </div>

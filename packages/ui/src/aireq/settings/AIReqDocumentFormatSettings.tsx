@@ -15,6 +15,7 @@ import {
   type AIReqWorkflowView,
 } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
+import { AIReqDiscardDraftButton } from "./AIReqDiscardDraftButton.js";
 
 const files = Object.keys(AIREQ_DOCUMENT_PATHS) as AIReqDocumentName[];
 const documentGroups = [
@@ -23,6 +24,22 @@ const documentGroups = [
 ];
 type Baseline = Pick<AIReqWorkflowView, "documentFormats" | "revision">;
 type Edits = Partial<Record<AIReqDocumentName, string>>;
+
+function findHeadingMarkerLine(input: string) {
+  const lines = input.split("\n");
+  const index = lines.findIndex((line, i) => {
+    if (/^#{1,6}(?:[ \t]|$)/.test(line.trim())) return true;
+    // Markdown 的下划线标题成对出现。单独的连字符正文不按标题标记处理。
+    const previous = lines[i - 1];
+    return (
+      /^ {0,3}(?:=+|-+)[ \t]*$/.test(line) &&
+      previous !== undefined &&
+      /^ {0,3}[^ \t#>]/.test(previous) &&
+      !/^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]/.test(previous)
+    );
+  });
+  return index === -1 ? undefined : index + 1;
+}
 
 export function AIReqDocumentFormatSettings({
   onDraftActionsChange,
@@ -40,6 +57,8 @@ export function AIReqDocumentFormatSettings({
   const [edits, setEdits] = useState<Edits>({});
   const [pending, setPending] = useState<"save" | "read">();
   const pendingRef = useRef(false);
+  const firstHeadingField = useRef<HTMLTextAreaElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
   const operation = useRef<{ payload: string; id: string } | null>(null);
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
   const [needsRead, setNeedsRead] = useState(false);
@@ -52,6 +71,22 @@ export function AIReqDocumentFormatSettings({
   const conflictMessage = zh
     ? "保存前请重新读取最新规则。本页编辑将保留，请核对后再保存。"
     : "Reload the latest rules before saving. Your edits will be preserved for review.";
+  const headingErrors: Partial<Record<AIReqDocumentName, number>> = {};
+  for (const name of files) {
+    const edit = edits[name];
+    if (edit === undefined) continue;
+    const line = findHeadingMarkerLine(edit);
+    if (line !== undefined) headingErrors[name] = line;
+  }
+  const firstInvalid = files.find((name) => headingErrors[name] !== undefined);
+  const headingError = (line: number) =>
+    zh
+      ? `请从第 ${line} 行去掉 Markdown 标题标记。`
+      : `Remove the Markdown heading marker on line ${line}.`;
+  const headingBlockedReason = firstInvalid
+    ? `${firstInvalid} ${headingError(headingErrors[firstInvalid]!)}`
+    : undefined;
+  const saveBlockedReason = headingBlockedReason ?? (conflicted ? conflictMessage : undefined);
 
   const discard = () => {
     if (pendingRef.current) return;
@@ -63,7 +98,7 @@ export function AIReqDocumentFormatSettings({
     operation.current = null;
   };
   const save = async () => {
-    if (pendingRef.current || !dirty || !original || conflicted) return false;
+    if (pendingRef.current || !dirty || !original || saveBlockedReason) return false;
     const documentFormats: AIReqDocumentFormats = { ...original.documentFormats };
     for (const name of files) {
       const input = edits[name];
@@ -87,7 +122,8 @@ export function AIReqDocumentFormatSettings({
       if (result.receipt.status !== "completed") {
         setMessage({
           error: true,
-          text: result.receipt.error ?? (zh ? "未保存文档格式。" : "Document formats were not saved."),
+          text:
+            result.receipt.error ?? (zh ? "未保存文档格式。" : "Document formats were not saved."),
         });
         return false;
       }
@@ -121,16 +157,16 @@ export function AIReqDocumentFormatSettings({
     onDraftActionsChange(
       dirty || pending
         ? {
-            canSave: !pending && !conflicted,
+            canSave: !pending && !saveBlockedReason,
             canDiscard: !pending,
-            saveBlockedReason: conflicted ? conflictMessage : undefined,
+            saveBlockedReason,
             save: () => actions.current.save(),
             discard: () => actions.current.discard(),
           }
         : null,
     );
     return () => onDraftActionsChange(null);
-  }, [dirty, pending, conflicted, conflictMessage, onDraftActionsChange]);
+  }, [dirty, pending, saveBlockedReason, onDraftActionsChange]);
 
   const reload = async () => {
     if (pendingRef.current) return;
@@ -167,11 +203,27 @@ export function AIReqDocumentFormatSettings({
 
   return (
     <div className="space-y-6">
-      <p className="text-ui-base text-foreground-subtle">
-        {zh
-          ? "规则适用于所有项目和 Release。每行填写一个完整的章节标题；留空时只检查文件。修改仅对保存后开始的检查生效。"
-          : "Rules apply to all projects and releases. Enter one complete heading per line. Empty lists check the file only. Changes apply to checks that start after saving."}
-      </p>
+      <div className="space-y-1 text-ui-base text-foreground-subtle">
+        <p>
+          {zh
+            ? "规则适用于所有项目和 Release。修改仅对保存后开始的检查生效。"
+            : "Rules apply to all projects and releases. Changes apply to checks that start after saving."}
+        </p>
+        <p id="aireq-required-headings-help">
+          {zh ? (
+            <>
+              每行填写一个完整标题，例如把 <code>## 范围</code> 填成 <code>范围</code>。
+              定版检查会匹配完整标题并检查该章节是否有正文。留空时只检查文件。
+            </>
+          ) : (
+            <>
+              Enter one complete heading per line. For example, enter <code>Scope</code> for{" "}
+              <code>## Scope</code>. Finalization checks for an exact heading match and a nonempty
+              section body. Leave the list empty to check only the file.
+            </>
+          )}
+        </p>
+      </div>
       {original ? (
         documentGroups.map((group) => (
           <section
@@ -197,11 +249,31 @@ export function AIReqDocumentFormatSettings({
                   control={
                     <div className="min-w-0 flex-1 space-y-1">
                       <SettingsFormTextarea
+                        ref={name === "requirements.md" ? firstHeadingField : undefined}
                         rows={2}
                         aria-label={zh ? `${name} 必需章节` : `${name} required headings`}
+                        aria-describedby={
+                          headingErrors[name] === undefined
+                            ? "aireq-required-headings-help"
+                            : `aireq-required-headings-help aireq-heading-error-${name}`
+                        }
+                        aria-invalid={headingErrors[name] !== undefined || undefined}
+                        className="max-h-40 overflow-y-auto"
                         placeholder={zh ? "无必需章节" : "No required headings"}
                         value={edits[name] ?? original.documentFormats[name].join("\n")}
                         readOnly={Boolean(pending)}
+                        onFocus={(event) => {
+                          const field = event.currentTarget;
+                          const footer = footerRef.current;
+                          // 浏览器的原生滚动只考虑视口边缘，输入框仍可能被吸底操作区挡住。
+                          if (
+                            footer &&
+                            field.getBoundingClientRect().bottom >
+                              footer.getBoundingClientRect().top
+                          ) {
+                            field.scrollIntoView({ block: "center", inline: "nearest" });
+                          }
+                        }}
                         onChange={(event) => {
                           const text = event.target.value;
                           const next = { ...edits, [name]: text };
@@ -211,6 +283,14 @@ export function AIReqDocumentFormatSettings({
                           setMessage(undefined);
                         }}
                       />
+                      {headingErrors[name] !== undefined && (
+                        <p
+                          id={`aireq-heading-error-${name}`}
+                          className="text-ui-caption text-destructive"
+                        >
+                          {headingError(headingErrors[name])}
+                        </p>
+                      )}
                       {showSaved && edits[name] !== undefined && (
                         <p className="text-ui-caption break-words text-foreground-subtle">
                           {zh ? "最新保存：" : "Latest saved: "}
@@ -230,10 +310,18 @@ export function AIReqDocumentFormatSettings({
           {zh ? "正在读取文档格式…" : "Loading document formats…"}
         </p>
       ) : null}
-      <div className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-background py-3">
+      <div
+        ref={footerRef}
+        className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-background py-3"
+      >
         {conflicted && (
           <p role="status" className="text-ui-base text-warning">
             {conflictMessage}
+          </p>
+        )}
+        {headingBlockedReason && (
+          <p role="alert" className="text-ui-base text-destructive">
+            {headingBlockedReason}
           </p>
         )}
         {(message || (!original && ai.error)) && (
@@ -258,10 +346,20 @@ export function AIReqDocumentFormatSettings({
               {pending === "read" ? (zh ? "读取中…" : "Loading…") : zh ? "重新读取" : "Reload"}
             </Button>
           )}
-          <Button variant="ghost" disabled={!dirty || Boolean(pending)} onClick={discard}>
-            {zh ? "取消" : "Cancel"}
-          </Button>
-          <Button disabled={!dirty || Boolean(pending) || conflicted} onClick={onSave}>
+          <AIReqDiscardDraftButton
+            disabled={!dirty || Boolean(pending)}
+            description={
+              zh
+                ? "当前修改过的所有文件规则都会恢复为已保存内容。"
+                : "All edited document rules will revert to their saved values."
+            }
+            onDiscard={discard}
+            focusAfterDiscard={firstHeadingField}
+          />
+          <Button
+            disabled={!dirty || Boolean(pending) || Boolean(saveBlockedReason)}
+            onClick={onSave}
+          >
             {pending === "save"
               ? zh
                 ? "保存中…"

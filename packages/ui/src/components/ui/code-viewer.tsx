@@ -110,8 +110,6 @@ interface SelectedLineRange {
 type CodeViewerStyle = CSSProperties & {
   "--code-comment-add-tooltip"?: string;
   "--diffs-bg"?: string;
-  "--diffs-light-bg"?: string;
-  "--diffs-dark-bg"?: string;
   "--diffs-font-family"?: string;
   "--diffs-font-size"?: string;
 };
@@ -712,9 +710,11 @@ export function CodeViewer({
       // @pierre/diffs 的 token 颜色依赖 color-scheme/light-dark()，必须跟随代码主题显式指定，
       // 否则 text 代码块会在深色卡片上渲染成浅色主题的深色文字，看起来像正文丢失。
       colorScheme: resolveCodeViewerColorScheme(theme),
-      "--diffs-bg": "var(--color-background)",
-      "--diffs-light-bg": "var(--color-background)",
-      "--diffs-dark-bg": "var(--color-background)",
+      // 渲染器会输出主题自带底色；用同一个 color-scheme 选择应用表面，同色系保持原有层级。
+      "--diffs-bg": `light-dark(
+        var(--code-viewer-light-surface, var(--code-viewer-surface, var(--color-background))),
+        var(--code-viewer-dark-surface, var(--code-viewer-surface, var(--color-background)))
+      )`,
       // @pierre/diffs 在 Shadow DOM 内使用自己的等宽 fallback，Windows 中文会落到宋体。
       // 显式透传应用 token，让 Markdown code block、文件预览和 inline code 使用同一 CJK fallback。
       "--diffs-font-family": "var(--font-mono)",

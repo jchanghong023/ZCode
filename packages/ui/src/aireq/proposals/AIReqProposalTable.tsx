@@ -300,7 +300,7 @@ export function AIReqProposalTable() {
               {filtered
                 .slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
                 .map((item) => (
-                  <AIReqProposalRow key={item.id} item={item} zh={zh} />
+                  <AIReqProposalRow key={item.id} item={item} search={search} zh={zh} />
                 ))}
               {!filtered.length && (
                 <tr role="row" className="@max-[520px]/conversation:block">

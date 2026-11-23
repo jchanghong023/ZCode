@@ -27,7 +27,13 @@ import { useAIReq } from "../AIReqContext.js";
 import type { AIReqIdea } from "../contract.js";
 import { downloadIdeaCsv, parseIdeaCsv, IdeaCsvError } from "./idea-csv.js";
 
-export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }) {
+export function AIReqIdeaImportExport({
+  ideas,
+  filtered,
+}: {
+  ideas: readonly AIReqIdea[];
+  filtered: boolean;
+}) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -141,7 +147,13 @@ export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }
         }
       >
         <Download aria-hidden="true" className="size-4" />
-        {zh ? "导出" : "Export"}
+        {filtered
+          ? zh
+            ? `导出当前结果（${ideas.length} 条）`
+            : `Export results (${ideas.length})`
+          : zh
+            ? `导出全部（${ideas.length} 条）`
+            : `Export all (${ideas.length})`}
       </Button>
       <Dialog
         open={open}

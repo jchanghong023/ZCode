@@ -25,18 +25,23 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     (item) => item.projectId === projectId && item.id === irId,
   );
   const employee = getEmployeeId();
-  const canEnter =
-    agent === "requirements" ||
+  const canUseSolution =
     hasProjectRole(ai.view, projectId, employee, "development") ||
     hasProjectRole(ai.view, projectId, employee, "testing");
-  const agentTitle =
-    agent === "requirements"
-      ? zh
-        ? "需求 Agent"
-        : "Requirements Agent"
-      : zh
-        ? "方案 Agent"
-        : "Solution Agent";
+  const canEnter = agent === "requirements" || canUseSolution;
+  const alternateAgent = agent === "requirements" ? "solution" : "requirements";
+  const canSwitchAgent = alternateAgent === "requirements" || canUseSolution;
+  const agentLabels = {
+    requirements: zh ? "需求 Agent" : "Requirements Agent",
+    solution: zh ? "方案 Agent" : "Solution Agent",
+  };
+  const agentTitle = agentLabels[agent];
+  const alternateLabel = zh
+    ? `切换到${agentLabels[alternateAgent]}`
+    : `Switch to the ${agentLabels[alternateAgent]}`;
+  const solutionAccessHint = zh
+    ? "该项目的开发和测试可以进入方案 Agent。"
+    : "The Solution Agent is available to this project's developers and testers.";
   const materialsOpened = useRef(false);
   const focusOpenedDocuments = useRef(false);
   const reviewInFlight = useRef(false);
@@ -108,7 +113,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const scope = { workspacePath: workspace.path ?? "", workspaceIdentity: workspace.identity };
   const review = group?.documentReviews.filter((item) => item.agent === agent).at(-1);
   const reviewing = requestingReview || review?.status === "running";
-  const reviewLabel =
+  const latestVersion = group?.documentVersion?.number;
+  const reviewAction =
     agent === "requirements"
       ? zh
         ? "评审需求"
@@ -116,6 +122,13 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       : zh
         ? "审查方案"
         : "Review solution";
+  // 评审始终使用最新版；读取右栏历史版本不改变按钮显示的操作目标。
+  const reviewLabel =
+    latestVersion === undefined
+      ? reviewAction
+      : zh
+        ? `${reviewAction} · 最新 V${latestVersion}`
+        : `${reviewAction} (latest V${latestVersion})`;
   const reviewingLabel = zh ? "评审中…" : "Reviewing…";
   const reviewStatus = review
     ? review.status === "running"
@@ -139,6 +152,28 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     : zh
       ? "当前会话暂不可用。"
       : "This conversation is unavailable.";
+  const switchAgentButton = group && (
+    <Button
+      type="button"
+      size="lg"
+      variant="outline"
+      aria-disabled={!canSwitchAgent || undefined}
+      aria-description={!canSwitchAgent ? solutionAccessHint : undefined}
+      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+      onClick={() => {
+        if (!canSwitchAgent) return;
+        // 沿用工作台导航和回焦，仅改变会话阶段，保留同一需求及文档定位。
+        ai.navigate(() =>
+          ai.select(
+            { projectId: group.projectId, irId: group.id, srId, discussionPhase: alternateAgent },
+            group.releaseId,
+          ),
+        );
+      }}
+    >
+      {alternateLabel}
+    </Button>
+  );
   return (
     <div
       className="@container/conversation flex h-full min-h-0 flex-col overflow-hidden bg-background"
@@ -146,11 +181,11 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       data-aireq-agent={agent}
     >
       <header
-        className="flex min-h-14 min-w-0 shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2"
+        className="flex min-h-14 min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2"
         data-testid="aireq-agent-toolbar"
       >
         <AIReqRequirementReturnButton />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-36">
           <h1 className="text-ui-lg font-semibold leading-tight">{agentTitle}</h1>
           {group && (
             <p className="truncate text-ui-caption text-foreground-subtle" title={group.title}>
@@ -158,9 +193,16 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
             </p>
           )}
         </div>
-        {selectionReady && canEnter && group && (
-          <div className="flex shrink-0 items-center gap-1">
-            {!currentDocumentsOpen && (
+        {selectionReady && group && (
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
+            {canSwitchAgent ? (
+              switchAgentButton
+            ) : (
+              <ControlHintTooltip title={solutionAccessHint}>
+                {switchAgentButton}
+              </ControlHintTooltip>
+            )}
+            {canEnter && !currentDocumentsOpen && (
               <Button
                 type="button"
                 size="lg"
@@ -174,15 +216,13 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 {zh ? "查看文档" : "View documents"}
               </Button>
             )}
-            <AIReqRequirementMenu group={group} />
+            {canEnter && <AIReqRequirementMenu group={group} />}
           </div>
         )}
       </header>
       {selectionReady && !canEnter ? (
         <p role="status" className="m-auto p-6 text-ui-base text-foreground-subtle">
-          {zh
-            ? "该项目的开发和测试可以进入方案 Agent。"
-            : "The Solution Agent is available to this project's developers and testers."}
+          {solutionAccessHint}
         </p>
       ) : session ? (
         <>
@@ -208,31 +248,28 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 <ControlHintTooltip
                   title={reviewing ? reviewingLabel : reviewLabel}
                   description={
-                    !group?.documentVersion
+                    latestVersion === undefined
                       ? zh
                         ? "生成文档后即可发起评审。"
                         : "Create a document to request a review."
                       : zh
-                        ? `由独立子代理评审最新文档 V${group.documentVersion.number}。`
-                        : `An independent subagent reviews the latest documents (V${group.documentVersion.number}).`
+                        ? "由独立子代理评审最新文档。"
+                        : "An independent subagent reviews the latest documents."
                   }
                 >
                   <Button
                     type="button"
                     variant="secondary"
-                    aria-label={reviewing ? reviewingLabel : reviewLabel}
-                    aria-disabled={disabled || reviewing || !group?.documentVersion}
-                    className="group/review h-7 gap-1 rounded-lg aria-disabled:opacity-60 data-[composer-compact=true]:w-7 data-[composer-compact=true]:px-0"
-                    data-composer-collapse-priority="extension"
+                    aria-disabled={disabled || reviewing || latestVersion === undefined}
+                    className="h-7 gap-1 rounded-lg aria-disabled:opacity-60"
                     data-testid="aireq-review-documents"
                     onClick={() => {
-                      if (!disabled && !reviewing && group?.documentVersion) void requestReview();
+                      if (!disabled && !reviewing && latestVersion !== undefined)
+                        void requestReview();
                     }}
                   >
                     <ClipboardCheck className="size-4" aria-hidden="true" />
-                    <span className="group-data-[composer-compact=true]/review:hidden">
-                      {reviewing ? reviewingLabel : reviewLabel}
-                    </span>
+                    {reviewing ? reviewingLabel : reviewLabel}
                   </Button>
                 </ControlHintTooltip>
               )}

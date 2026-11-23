@@ -139,7 +139,7 @@ SOFTWARE.
         position: relative;
         flex: 1;
         min-height: 0;
-        overflow: hidden;
+        overflow: clip;
         touch-action: none;
       }
       .canvas-container {
@@ -206,6 +206,37 @@ SOFTWARE.
         text-align: center;
         font-variant-numeric: tabular-nums;
       }
+      #discardDialog {
+        max-width: min(400px, calc(100% - 32px));
+        margin: auto;
+        padding: 20px;
+        border: 1px solid var(--color-border);
+        border-radius: 16px;
+        background: var(--color-background);
+        color: var(--color-foreground);
+      }
+      #discardDialog::backdrop {
+        background: rgb(0 0 0 / 60%);
+      }
+      #discardDialog h2 {
+        margin: 0 0 8px;
+        font-size: inherit;
+      }
+      #discardDialog p {
+        margin: 0 0 16px;
+      }
+      #discardDialog menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+      }
+      #discardButton {
+        background: var(--color-destructive-surface);
+        color: var(--color-destructive-surface-foreground);
+      }
       /* 状态提示使用成对语义色，避免固定浅色文字在浅色主题失去对比度。 */
       #status[data-state="error"] {
         background: var(--color-destructive-surface);
@@ -267,7 +298,14 @@ SOFTWARE.
           <span class="dot" style="width: 14px; height: 14px"></span>
         </button>
       </div>
-      <button id="panButton" aria-pressed="false" title="拖动以平移视野，不绘制笔迹">平移</button>
+      <button
+        id="panButton"
+        aria-pressed="false"
+        aria-describedby="panHint"
+        title="开启后可拖动或使用方向键平移视野"
+      >
+        平移
+      </button>
       <button id="zoomOutButton" aria-label="缩小">−</button>
       <output id="zoomLevel" aria-label="缩放比例">100%</output>
       <button id="zoomInButton" aria-label="放大">+</button>
@@ -295,7 +333,8 @@ SOFTWARE.
     </main>
     <footer class="footer">
       <div class="hint">
-        滚轮：缩放 · <kbd>空格</kbd>＋拖动／中键拖动：平移 · <kbd>Ctrl+V</kbd> 粘贴 ·
+        滚轮：缩放 · <span id="panHint">开启「平移」后，聚焦按钮可用方向键移动视野</span> ·
+        <kbd>Ctrl+V</kbd> 粘贴 ·
         <kbd>Enter</kbd> 添加附件 · <kbd>Esc</kbd> 取消 · <kbd>C</kbd> 清空 · <kbd>Z</kbd> 撤销 ·
         <kbd>1-3</kbd> 画笔粗细
       </div>
@@ -306,6 +345,19 @@ SOFTWARE.
         可直接绘图或粘贴截图。添加附件不会自动发送消息。
       </div>
     </footer>
+    <dialog
+      id="discardDialog"
+      role="alertdialog"
+      aria-labelledby="discardTitle"
+      aria-describedby="discardDescription"
+    >
+      <h2 id="discardTitle">放弃当前绘图？</h2>
+      <p id="discardDescription">画布上的改动将丢失，输入框里的内容会保留。</p>
+      <menu>
+        <button id="discardButton" type="button">放弃绘图</button>
+        <button id="continueButton" type="button" class="primary" autofocus>继续绘图</button>
+      </menu>
+    </dialog>
     <script>
       (function () {
         "use strict";
@@ -314,6 +366,13 @@ SOFTWARE.
         var status = document.getElementById("status");
         var sendButton = document.getElementById("sendButton");
         var cancelButton = document.getElementById("cancelButton");
+        const discardDialog = document.getElementById("discardDialog");
+        const panDirections = {
+          ArrowLeft: [1, 0],
+          ArrowRight: [-1, 0],
+          ArrowUp: [0, 1],
+          ArrowDown: [0, -1],
+        };
         const viewport = document.getElementById("viewport");
         const container = document.getElementById("canvasContainer");
         const panButton = document.getElementById("panButton");
@@ -337,6 +396,8 @@ SOFTWARE.
         var pending = false;
         var pasteGeneration = 0;
         var states = [];
+        let initialDrawing;
+        let returnFocus;
         var lastX = 0;
         var lastY = 0;
         var DEFAULT_WIDTH = 1000;
@@ -348,7 +409,7 @@ SOFTWARE.
         }
 
         function busy() {
-          return pending || restoring;
+          return pending || restoring || discardDialog.open;
         }
 
         function updateView() {
@@ -412,6 +473,29 @@ SOFTWARE.
         });
         panButton.addEventListener("click", function () {
           panMode = !panMode;
+          updateView();
+        });
+        panButton.addEventListener("keydown", function (event) {
+          if (!panMode || event.ctrlKey || event.metaKey || event.altKey) return;
+          const direction = panDirections[event.key];
+          if (!Array.isArray(direction)) return;
+          event.preventDefault();
+          if (busy() || resizing || pointerId !== null) return;
+          const spaceX = viewport.clientWidth - canvas.width * zoom;
+          const spaceY = viewport.clientHeight - canvas.height * zoom;
+          // 键盘平移沿可见边界移动，避免重复按键把整张画布推离视口。
+          if (direction[0]) {
+            offsetX = Math.max(
+              Math.min(0, spaceX),
+              Math.min(Math.max(0, spaceX), offsetX + direction[0] * 48),
+            );
+          }
+          if (direction[1]) {
+            offsetY = Math.max(
+              Math.min(0, spaceY),
+              Math.min(Math.max(0, spaceY), offsetY + direction[1] * 48),
+            );
+          }
           updateView();
         });
 
@@ -586,10 +670,15 @@ SOFTWARE.
           if (
             event.source !== window.parent ||
             event.origin !== window.parent.location.origin ||
-            !event.data ||
-            event.data.type !== "aireq-sketch-error"
+            !event.data
           )
             return;
+          if (event.data.type === "aireq-sketch-request-cancel") {
+            if (discardDialog.open) continueDrawing();
+            else cancel();
+            return;
+          }
+          if (event.data.type !== "aireq-sketch-error") return;
           pending = false;
           sendButton.disabled = false;
           cancelButton.disabled = false;
@@ -609,17 +698,41 @@ SOFTWARE.
           }
         }
         function cancel() {
-          if (busy()) return;
+          if (busy() || resizing) return;
           finishStroke();
           pasteGeneration++;
-          transport("cancel", "");
+          // iframe 持有实际画布和撤销历史，父层不能用焦点位置推断是否能直接退出。
+          if (states.at(-1).data === initialDrawing) {
+            transport("cancel", "");
+            return;
+          }
+          returnFocus = document.activeElement;
+          discardDialog.showModal();
         }
+        function continueDrawing() {
+          discardDialog.close();
+          const target =
+            returnFocus instanceof HTMLElement && returnFocus !== document.body
+              ? returnFocus
+              : cancelButton;
+          target.focus({ preventScroll: true });
+        }
+        discardDialog.addEventListener("cancel", function (event) {
+          event.preventDefault();
+          continueDrawing();
+        });
+        document.getElementById("continueButton").addEventListener("click", continueDrawing);
+        document.getElementById("discardButton").addEventListener("click", function () {
+          discardDialog.close();
+          transport("cancel", "");
+        });
         document.getElementById("clearButton").addEventListener("click", clearCanvas);
         document.getElementById("undoButton").addEventListener("click", undo);
         sendButton.addEventListener("click", send);
         cancelButton.addEventListener("click", cancel);
 
         document.addEventListener("keydown", function (event) {
+          if (discardDialog.open) return;
           var key = (event.key || "").toLowerCase();
           // 修复原因：工具按钮的 Enter／空格须走原生激活，不能冒泡为“添加附件”或平移。
           if (
@@ -697,6 +810,22 @@ SOFTWARE.
         });
 
         const resizeHandle = document.getElementById("resizeHandle");
+        function revealResizeHandle() {
+          const bounds = viewport.getBoundingClientRect();
+          const handle = resizeHandle.getBoundingClientRect();
+          // 手柄随画布缩放；焦点到达或键盘改变尺寸时仅移动视野，保留当前缩放。
+          const inset = 8;
+          offsetX +=
+            Math.max(bounds.left + inset - handle.left, 0) -
+            Math.max(handle.right - bounds.right + inset, 0);
+          offsetY +=
+            Math.max(bounds.top + inset - handle.top, 0) -
+            Math.max(handle.bottom - bounds.bottom + inset, 0);
+          updateView();
+        }
+        resizeHandle.addEventListener("focus", function () {
+          if (resizeHandle.matches(":focus-visible")) revealResizeHandle();
+        });
         // 修复原因：二维手柄原来仅支持拖动；键盘与鼠标共用尺寸边界、像素保留及撤销路径。
         function resizeCanvas(width, height, imageData) {
           canvas.width = Math.max(200, Math.round(width));
@@ -733,6 +862,7 @@ SOFTWARE.
           if (Math.max(200, width) === canvas.width && Math.max(150, height) === canvas.height)
             return;
           resizeCanvas(width, height, ctx.getImageData(0, 0, canvas.width, canvas.height));
+          revealResizeHandle();
           saveState();
         });
         resizeHandle.addEventListener("pointerdown", function (event) {
@@ -780,6 +910,7 @@ SOFTWARE.
         updateView();
         whiteBackground();
         saveState();
+        initialDrawing = states[0].data;
       })();
     </script>
   </body>

@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/select.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import type { AIReqProjectRole } from "../contract.js";
+import { hasProjectRole, type AIReqProjectRole } from "../contract.js";
+import { getEmployeeId } from "../identity.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 
 const roles = ["development", "testing"] as const;
@@ -45,6 +46,20 @@ export function AIReqRolesPage() {
   const project =
     projects.find((item) => item.id === (chosenProject ?? ai.selection.projectId)) ?? projects[0];
   const administrator = ai.view?.roleAdministrator === true;
+  const currentEmployee = getEmployeeId();
+  // 复用业务入口的角色判断，管理员的隐含权限与当前项目名单使用同一口径。
+  const currentRoles = roles.filter((role) =>
+    hasProjectRole(ai.view, project?.id, currentEmployee, role),
+  );
+  const roleNames = currentRoles.map((role) =>
+    role === "development" ? (zh ? "开发" : "Developer") : zh ? "测试" : "Tester",
+  );
+  const roleSummary = administrator
+    ? zh
+      ? "管理员（拥有开发与测试权限）"
+      : "Administrator (developer and tester permissions)"
+    : roleNames.join(zh ? "、" : ", ") ||
+      (zh ? "未加入开发或测试名单" : "No developer or tester role");
   const canEdit = administrator && Boolean(project) && ai.selectionReady && !ai.pending && !busy;
   const deleting = edit?.type === "removeProjectRoleMember" ? edit : undefined;
   const roleTitle = (role: AIReqProjectRole) =>
@@ -150,6 +165,28 @@ export function AIReqRolesPage() {
           </div>
         </header>
 
+        {project && (
+          <div role="status" className="space-y-1 border-y border-border py-3">
+            <p className="font-medium">
+              {zh ? `我的项目角色：${roleSummary}` : `My project role: ${roleSummary}`}
+            </p>
+            <p className="text-ui-base text-foreground-subtle">
+              {zh
+                ? "所有人都可进入需求 Agent、发起需求评审和查阅文档。"
+                : "Everyone can use the Requirements Agent, request requirements reviews, and view documents."}
+            </p>
+            <p className="text-ui-base text-foreground-subtle">
+              {currentRoles.length
+                ? zh
+                  ? "你还可以进入方案 Agent、发起方案评审，并确认符合定版条件的最新版。"
+                  : "You can also use the Solution Agent, request solution reviews, and confirm the latest eligible document version."
+                : zh
+                  ? "加入开发或测试名单后，可进入方案 Agent、发起方案评审，并确认符合定版条件的最新版。"
+                  : "A developer or tester role lets you use the Solution Agent, request solution reviews, and confirm the latest eligible document version."}
+            </p>
+          </div>
+        )}
+
         <div className="grid min-w-0 items-start gap-6 @min-[640px]/conversation:grid-cols-2">
           {roles.map((role) => {
             const title = roleTitle(role);
@@ -254,7 +291,14 @@ export function AIReqRolesPage() {
                       )}
                       {members.map(({ employeeId }) => (
                         <tr key={employeeId} className="hover:bg-surface-hover">
-                          <td className="px-4 py-3 font-mono text-foreground">{employeeId}</td>
+                          <td className="px-4 py-3 text-foreground">
+                            <span className="font-mono">{employeeId}</span>
+                            {employeeId === currentEmployee && (
+                              <span className="ml-2 text-ui-sm text-foreground-subtle">
+                                {zh ? "本人" : "You"}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-2 py-2 text-right">
                             <Button
                               size="sm"

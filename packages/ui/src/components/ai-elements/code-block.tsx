@@ -375,13 +375,10 @@ export const CodeBlock = ({
               markedLines={markedLines}
               className="bg-transparent"
               fontSizePx={fontSizePx}
-              // markdown 代码块外层是 bg-card，但 CodeViewer 默认把 @pierre/diffs 背景设成 background。
-              // 这里仅覆盖 markdown CodeBlock 入口，避免侧边栏文件预览的背景层级被一起改掉。
+              // 保留正文代码块的卡片层级，交叉主题的底色由 CodeViewer 和语法配色统一选择。
               style={
                 {
-                  "--diffs-bg": "var(--color-card)",
-                  "--diffs-light-bg": "var(--color-card)",
-                  "--diffs-dark-bg": "var(--color-card)",
+                  "--code-viewer-surface": "var(--color-card)",
                   "--diffs-gap-block": "0px",
                 } as CSSProperties
               }

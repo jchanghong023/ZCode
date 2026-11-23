@@ -278,6 +278,8 @@ export function restorePersistedComposerDraftIntoInput({
     inputApi.setMention(draft.mention, draft.text.slice(draft.mention.markdown.length));
     return draft.text;
   }
+  // 空草稿落到空编辑器时，setText 会设置 Lexical 选区并夺走宿主刚移到标题的焦点。
+  if (draft.text === "" && inputApi.getMarkdown() === "") return "";
   inputApi.setText(draft.text);
   return draft.text;
 }

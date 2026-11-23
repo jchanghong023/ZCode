@@ -10,6 +10,9 @@ import type { AIReqReleaseSummary } from "../contract.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 
 const VISIBLE_RELEASES = 2;
+const RELEASE_GRID_CLASSNAME =
+  "grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2";
+
 export function newestReleaseFirst(a: AIReqReleaseSummary, b: AIReqReleaseSummary): number {
   const first = Date.parse(a.createdAt);
   const second = Date.parse(b.createdAt);
@@ -96,8 +99,54 @@ export function AIReqProjectDocumentsPage({
               .filter((release) => release.projectId === project.id)
               .sort(newestReleaseFirst);
             const expanded = expandedProjects.has(project.id);
-            const visible = expanded ? releases : releases.slice(0, VISIBLE_RELEASES);
             const regionId = `project-releases-${encodeURIComponent(project.id)}`;
+            const olderReleases = releases.slice(VISIBLE_RELEASES);
+            const renderRelease = (release: AIReqReleaseSummary, older = false) => (
+              // Release 与外观设置行共用卡片底色，避免半透明 surface 在父卡片上再次叠色。
+              <article
+                key={release.id}
+                className={
+                  "flex min-w-0 flex-col gap-3 rounded-lg border border-card-border bg-card p-4" +
+                  (older
+                    ? " motion-safe:animate-in motion-safe:fade-in-0 motion-safe:[animation-duration:200ms]"
+                    : "")
+                }
+                aria-label={`${project.name} · ${release.title}`}
+              >
+                <h3 className="min-w-0 wrap-anywhere font-medium">{release.title}</h3>
+                <div
+                  id={`${regionId}-details-${encodeURIComponent(release.id)}`}
+                  className="flex w-full flex-1 flex-col gap-3"
+                >
+                  <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
+                    <span>
+                      {zh ? "已定版需求" : "Confirmed requirements"}{" "}
+                      <strong className="font-medium">{release.confirmedRequirementCount}</strong>
+                    </span>
+                    <span>
+                      {zh ? "未定版需求" : "Unconfirmed requirements"}{" "}
+                      <strong className="font-medium">
+                        {release.requirementCount - release.confirmedRequirementCount}
+                      </strong>
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    aria-label={
+                      zh
+                        ? `进入工作区：${project.name} · ${release.title}`
+                        : `Enter workspace: ${project.name} · ${release.title}`
+                    }
+                    onClick={() => ai.openProject(project.id, release.id)}
+                  >
+                    {zh ? "进入工作区" : "Enter workspace"}
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+              </article>
+            );
             return (
               <Card
                 key={project.id}
@@ -136,86 +185,42 @@ export function AIReqProjectDocumentsPage({
                   </div>
                 ) : (
                   <div className="space-y-3 p-4">
-                    <div
-                      id={regionId}
-                      className="grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2"
-                    >
-                      {visible.map((release, index) => (
-                        // Release 与外观设置行共用卡片底色，避免半透明 surface 在父卡片上再次叠色。
-                        <article
-                          key={release.id}
-                          className={
-                            "flex min-w-0 flex-col gap-3 rounded-lg border border-card-border bg-card p-4" +
-                            (index >= VISIBLE_RELEASES
-                              ? " motion-safe:animate-in motion-safe:fade-in-0 motion-safe:[animation-duration:200ms]"
-                              : "")
-                          }
-                          aria-label={`${project.name} · ${release.title}`}
-                        >
-                          <h3 className="min-w-0 wrap-anywhere font-medium">{release.title}</h3>
-                          <div
-                            id={`${regionId}-details-${encodeURIComponent(release.id)}`}
-                            className="flex w-full flex-1 flex-col gap-3"
-                          >
-                            <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
-                              <span>
-                                {zh ? "已定版需求" : "Confirmed requirements"}{" "}
-                                <strong className="font-medium">
-                                  {release.confirmedRequirementCount}
-                                </strong>
-                              </span>
-                              <span>
-                                {zh ? "未定版需求" : "Unconfirmed requirements"}{" "}
-                                <strong className="font-medium">
-                                  {release.requirementCount - release.confirmedRequirementCount}
-                                </strong>
-                              </span>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-fit"
-                              aria-label={
-                                zh
-                                  ? `进入工作区：${project.name} · ${release.title}`
-                                  : `Enter workspace: ${project.name} · ${release.title}`
-                              }
-                              onClick={() => ai.openProject(project.id, release.id)}
-                            >
-                              {zh ? "进入工作区" : "Enter workspace"}
-                              <ArrowRight className="size-3.5" aria-hidden="true" />
-                            </Button>
-                          </div>
-                        </article>
-                      ))}
+                    <div className={RELEASE_GRID_CLASSNAME}>
+                      {releases.slice(0, VISIBLE_RELEASES).map((release) => renderRelease(release))}
                     </div>
-                    {releases.length > VISIBLE_RELEASES && (
-                      <div className="flex justify-center border-t border-border pt-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-expanded={expanded}
-                          aria-controls={regionId}
-                          onClick={() => toggleProject(project.id)}
-                        >
-                          {expanded
-                            ? zh
-                              ? "收起"
-                              : "Show less"
-                            : zh
-                              ? `查看全部 ${releases.length} 个版本`
-                              : `View all ${releases.length} releases`}
-                          <span
-                            aria-hidden="true"
-                            className={
-                              "transition-transform duration-180 ease-out motion-reduce:transition-none" +
-                              (expanded ? " rotate-180" : "")
-                            }
+                    {olderReleases.length > 0 && (
+                      <>
+                        {/* 开关位于新揭示的卡片之前，展开后焦点留在原处，下一次 Tab 即可读到旧版本。 */}
+                        <div className="flex justify-center border-t border-border pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-expanded={expanded}
+                            aria-controls={regionId}
+                            onClick={() => toggleProject(project.id)}
                           >
-                            <ChevronDown className="size-3.5" />
-                          </span>
-                        </Button>
-                      </div>
+                            {expanded
+                              ? zh
+                                ? "收起"
+                                : "Show less"
+                              : zh
+                                ? `查看全部 ${releases.length} 个版本`
+                                : `View all ${releases.length} releases`}
+                            <span
+                              aria-hidden="true"
+                              className={
+                                "transition-transform duration-180 ease-out motion-reduce:transition-none" +
+                                (expanded ? " rotate-180" : "")
+                              }
+                            >
+                              <ChevronDown className="size-3.5" />
+                            </span>
+                          </Button>
+                        </div>
+                        <div id={regionId} className={expanded ? RELEASE_GRID_CLASSNAME : "hidden"}>
+                          {expanded && olderReleases.map((release) => renderRelease(release, true))}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}

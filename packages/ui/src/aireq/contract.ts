@@ -6,6 +6,7 @@ import type { AIReqWorkflowTarget } from "@zcode/services/aireq";
 export type { IServiceAccessor } from "@zcode/services";
 export type {
   AIReqAction,
+  AIReqAgentModelSettings,
   AIReqPresenceSnapshot,
   AIReqIdea,
   AIReqIdeaTarget,

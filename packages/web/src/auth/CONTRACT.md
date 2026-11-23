@@ -13,12 +13,19 @@
 stateDiagram-v2
     [*] --> Restore
     Restore --> Entry: 无已存工号
-    Restore --> Active: 恢复格式合法工号
-    Entry --> Active: 提交工号 / 保存 / 连接
+    Restore --> Connecting: 恢复格式合法工号
+    Entry --> Connecting: 提交工号 / 保存 / 连接
+    Connecting --> Active: 首次连接成功
+    Connecting --> Failed: 首次连接失败
+    Failed --> Connecting: 重新连接 / 沿用同一工号
+    Connecting --> Entry: 切换工号 / 清保存 / 关闭旧尝试
+    Failed --> Entry: 切换工号 / 清保存 / 关闭旧尝试
     Active --> Entry: 退出或切换 / 清保存 / 卸载 / 关闭
 ```
 
-连接生命周期唯一 owner 为 main.tsx bootstrap。EmployeeEntry 保留 createEmployeeEntry/EmployeeEntry API，复用当前 ThemeHeroVisual（显式主题，无伪造 store）、Input/Button 和主题 token。标题沿用工作台名称“AI 需求协作”，副标题说明需求澄清、方案评审与需求进度，页脚仅保留 ZCode 品牌；输入错误、持久化错误、提交 busy 明确展示。连接加载、断线、重试和退出由 main owner 管理；失败不能留在 loading，旧连接结果不得影响新身份。
+连接生命周期唯一 owner 为 main.tsx bootstrap。EmployeeEntry 复用当前 ThemeHeroVisual（显式主题，无伪造 store）、Input/Button 和主题 token。标题沿用工作台名称“AI 需求协作”，副标题说明需求澄清、方案评审与需求进度，页脚仅保留 ZCode 品牌。输入错误、持久化错误和首次连接错误使用错误表面及对应前景，正常字号错误信息在浅色与动效主题内均须达到 4.5:1 对比度。
+
+首次连接期间仍展示居中的入口及只读工号，通过状态文本说明正在连接。首次连接失败在同一入口提供「重新连接」和「切换工号」，焦点进入「重新连接」。main 投影连接中／失败以及对应重试动作，EmployeeEntry 仅负责呈现；重试沿用原工号和连接代次，切换后清除保存工号、废止旧尝试并聚焦空工号输入。验收覆盖已缓存及刚提交的工号、失败后重试成功、连接中或失败时切换、旧连接结果迟到，以及两套主题错误文本。工作台已进入后的断线恢复沿用右下角提示，旧连接结果不得影响新工号。
 
 ```mermaid
 sequenceDiagram
