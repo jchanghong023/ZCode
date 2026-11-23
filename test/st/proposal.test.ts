@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { connectST, unique, type STClient } from "./client.js";
-import { config, requireConfig } from "./config.js";
+import { config } from "./config.js";
 import { createProject, createProposal } from "./business.js";
 import {
   completeBusinessMaterial,
@@ -24,67 +24,11 @@ async function withClient(run: (client: STClient) => Promise<void>) {
 
 describe("co-creation document versions through the public API", () => {
   it(
-    "should create and import independent proposals without generating documents or splitting SRs",
+    "creates a short requirement without generating documents or splitting SRs and deduplicates draft retries",
     async () => {
       await withClient(async (client) => {
         const project = await createProject(client);
         const baseline = await client.read(project.selection);
-        const originalTexts = [
-          unique("CSV export with quoted newlines"),
-          unique("A separate searchable requirement"),
-        ];
-        const result = await client.command(
-          {
-            type: "importProposals",
-            releaseId: project.releaseId,
-            proposals: originalTexts.map((originalText) => ({ originalText })),
-          },
-          project.selection,
-        );
-        expect(result.receipt.status, result.receipt.error).toBe("completed");
-        const read = await client.read(project.selection);
-        const imported = read.view.requirements.filter((group) =>
-          originalTexts.includes(group.originalText),
-        );
-        expect(imported).toHaveLength(2);
-        expect(new Set(imported.map((group) => group.id)).size).toBe(2);
-        for (const group of imported) {
-          expect(group).toMatchObject({
-            projectId: project.projectId,
-            releaseId: project.releaseId,
-            submittedBy: client.identity.employeeId,
-          });
-          expect(group.originalText).toBe(
-            originalTexts.find((text) => text === group.originalText),
-          );
-          expect(group.srIds).toEqual([]);
-          expect(group.files).toEqual([]);
-          expect(group.documentVersion).toBeUndefined();
-          expect(group.documentHistory).toEqual([]);
-          expect(group.documentReviews).toEqual([]);
-        }
-        expect(read.view.srs).toEqual(baseline.view.srs);
-        const stable = await client.read(project.selection);
-        expect(stable.view.revision).toBe(read.view.revision);
-        expect(stable.view.requirements).toEqual(read.view.requirements);
-
-        const mustNotExist = unique("should not survive an invalid batch");
-        await expectBusinessRejection(
-          client.command(
-            {
-              type: "importProposals",
-              releaseId: project.releaseId,
-              proposals: [{ originalText: mustNotExist }, { originalText: "   " }],
-            },
-            project.selection,
-          ),
-        );
-        const refused = await client.read(project.selection);
-        expect(refused.view.requirements).toEqual(read.view.requirements);
-        expect(refused.view.requirements.some((group) => group.originalText === mustNotExist)).toBe(
-          false,
-        );
-        expect(refused.view.revision).toBe(read.view.revision);
         const action = {
           type: "createProposal" as const,
           projectId: project.projectId,
@@ -96,18 +40,30 @@ describe("co-creation document versions through the public API", () => {
         const repeated = await client.command(action, project.selection);
         expect(repeated.receipt.operationId).not.toBe(created.receipt.operationId);
         expect(repeated.irId).toBe(created.irId);
-        const drafts = (await client.read(project.selection)).view.requirements.filter(
+        const read = await client.read(project.selection);
+        const drafts = read.view.requirements.filter(
           (group) => group.originalText === action.originalText,
         );
         expect(drafts.map((group) => group.id)).toEqual([created.irId]);
+        expect(drafts[0]).toMatchObject({
+          projectId: project.projectId,
+          releaseId: project.releaseId,
+          submittedBy: client.identity.employeeId,
+          srIds: [],
+          files: [],
+          documentHistory: [],
+          documentReviews: [],
+        });
         expect(drafts[0]).not.toHaveProperty("clientDraftId");
+        expect(drafts[0]?.documentVersion).toBeUndefined();
+        expect(read.view.srs).toEqual(baseline.view.srs);
       });
     },
     config.timeoutMs,
   );
 
   it(
-    "retains Markdown import bytes and uses saved document headings in optional review",
+    "uses saved document headings to validate and review requirements generated in chat",
     async () => {
       await withClient(async (client) => {
         const original = (await client.read()).view.documentFormats;
@@ -132,45 +88,29 @@ describe("co-creation document versions through the public API", () => {
             documentFormats: formats,
             revision: saved.receipt.revision,
           });
-          const project = await createProject(client);
-          const originalText = unique("导入业务需求原文");
-          const businessDocument = [
-            "# CSV 导出",
-            "## 数据范围示例",
-            "这是名字相近的正文标题。",
-            "```md\n## 数据范围\n这是代码块中的示例。\n```",
-            "## 验收方式",
-          ].join("\n\n");
-          const result = await client.command(
-            {
-              type: "importProposals",
-              releaseId: project.releaseId,
-              proposals: [{ originalText, businessDocument }],
-            },
-            project.selection,
-          );
-          expect(result.receipt.status, result.receipt.error).toBe("completed");
-          const imported = requireConfig(
-            (await client.read(project.selection)).view.requirements.find(
-              (group) => group.originalText === originalText,
-            ),
-            "导入的 Markdown 需求",
-          );
-          const target = { ...project, irId: imported.id };
+          const target = await createProposal(client, "提供可配置的项目通知规则。");
           const selection = proposalSelection(target);
-          const [material] = getMaterials(await client.read(selection), target);
-          expect(imported.documentVersion).toEqual({ number: 1 });
-          expect(material).toMatchObject({
-            path: imported.documentPath,
-            content: businessDocument,
-          });
+          await discuss(
+            client,
+            target,
+            [
+              "# 项目通知规则",
+              "## 数据范围示例",
+              "这是名字相近的正文标题。",
+              "```md\n## 数据范围\n这是代码块中的示例。\n```",
+              "## 验收方式",
+            ].join("\n\n"),
+          );
+          const read = await client.read(selection);
+          const proposal = getProposal(read, target);
+          expect(proposal.documentVersion).toEqual({ number: 1 });
           const admin = await connectST("y00000000");
           try {
             expect(
               (await admin.call("validateDocumentVersion", [selection])).issues,
             ).toContainEqual({
               kind: "invalid",
-              path: imported.documentPath,
+              path: proposal.documentPath,
               reason: "缺少章节「数据范围」、章节「验收方式」缺少正文",
             });
           } finally {
@@ -182,14 +122,14 @@ describe("co-creation document versions through the public API", () => {
           await discuss(
             client,
             target,
-            "## 数据范围\n只导出当前项目与 Release 的需求原文。\n\n" +
-              "## 验收方式\n重新解析 CSV 并逐条比较需求内容。",
+            "## 数据范围\n通知仅发送给当前项目的订阅者。\n\n" +
+              "## 验收方式\n验证订阅者收到通知，其他人员不收到。",
           );
           const repaired = await client.read(selection);
           expect(getProposal(repaired, target).documentVersion).toEqual({ number: 1 });
           expect(getMaterials(repaired, target)[0]).toMatchObject({
-            path: imported.documentPath,
-            content: expect.stringContaining("重新解析 CSV 并逐条比较需求内容。"),
+            path: proposal.documentPath,
+            content: expect.stringContaining("验证订阅者收到通知，其他人员不收到。"),
           });
           const { review: reviewed } = await reviewDocuments(client, target, "requirements");
           expect(reviewed.report).not.toMatch(/(?:数据范围|验收方式)[^\n]*(?:缺失|缺少)/u);

@@ -52,12 +52,10 @@
   --aireq-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 总览的 article 会被空白柔光主动避开；只读卡片用局部颜色反馈聚焦阅读，
- * 当前项目的信息卡复用颜色反馈；不改进度、不加卡片位移或手形。 */
+/* 版本卡片用边框和底色提示悬停，保持卡片位置。 */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"],
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article,
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-card] {
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article {
     transition:
       border-color 120ms var(--aireq-motion-ease),
       background-color 120ms var(--aireq-motion-ease);
@@ -68,8 +66,7 @@
     transition-duration: 200ms;
   }
 
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover,
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-card]:hover {
+  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover {
     border-color: color-mix(in srgb, var(--color-foreground) 35%, var(--color-card-border));
     background-color: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
     transition-duration: 200ms;

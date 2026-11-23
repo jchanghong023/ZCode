@@ -59,12 +59,6 @@ function* markdownBlocks(content: string): Generator<Heading | null> {
   }
 }
 
-export function firstMarkdownTitle(content: string): string | undefined {
-  for (const heading of markdownBlocks(content)) {
-    if (heading?.level === 1 && heading.title) return heading.title;
-  }
-}
-
 /** Check the whole heading and distinguish a missing section from one with no body. */
 export function checkMarkdownSections(
   content: string,

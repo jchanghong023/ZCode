@@ -18,7 +18,6 @@ export const exampleAIReqNavigation = [
 
 /** Project-space surfaces share one project/Release selection and requirement identity. */
 export const exampleAIReqProjectNavigation = [
-  "projectOverview",
   "proposals",
 ] as const satisfies readonly AIReqMainView[];
 

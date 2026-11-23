@@ -1,88 +1,41 @@
 import { useCallback, type RefObject } from "react";
 import type { AIReqMainView, AIReqWorkflowTarget, AIReqWorkflowView } from "../contract.js";
 
-type WorkspaceMainView = AIReqMainView;
-export type ProjectOverviewOrigin = { projectId: string; releaseId: string };
-type NavigationSnapshot = { mainView: WorkspaceMainView; overviewOrigin?: ProjectOverviewOrigin };
 type SelectTarget = (
   value: AIReqWorkflowTarget,
   addHistory?: boolean,
-  mainView?: WorkspaceMainView,
+  mainView?: AIReqMainView,
   targetReleaseId?: string,
-  overviewOrigin?: ProjectOverviewOrigin | null,
 ) => void;
 
-/** 只转发导航意图；所有可变选择、来源和历史仍由 AIReqContext 唯一持有。 */
+/** 只转发导航意图；选择和历史由 AIReqContext 持有。 */
 export function useAIReqNavigationActions({
   navigationRef,
   selectionRef,
-  releaseRef,
   viewRef,
-  navigate,
   select,
 }: {
-  navigationRef: RefObject<NavigationSnapshot>;
+  navigationRef: RefObject<{ mainView: AIReqMainView }>;
   selectionRef: RefObject<AIReqWorkflowTarget>;
-  releaseRef: RefObject<string>;
   viewRef: RefObject<AIReqWorkflowView | undefined>;
-  navigate: (action: () => void) => void;
   select: SelectTarget;
 }) {
   const setMainView = useCallback(
-    (mainView: WorkspaceMainView, options?: { fromSidebar?: boolean }) => {
-      if (
-        mainView === navigationRef.current.mainView &&
-        !(options?.fromSidebar && navigationRef.current.overviewOrigin)
-      )
-        return;
-      select(
-        { projectId: selectionRef.current.projectId },
-        true,
-        mainView,
-        undefined,
-        options?.fromSidebar ? null : undefined,
-      );
+    (mainView: AIReqMainView) => {
+      if (mainView === navigationRef.current.mainView) return;
+      select({ projectId: selectionRef.current.projectId }, true, mainView);
     },
     [select, selectionRef, navigationRef],
   );
-  const openRequirementsFromOverview = useCallback(() => {
-    navigate(() => {
-      const projectId = selectionRef.current.projectId;
-      const releaseId = releaseRef.current;
-      if (navigationRef.current.mainView !== "projectOverview" || !projectId || !releaseId) return;
-      select({ projectId }, true, "proposals", releaseId, { projectId, releaseId });
-    });
-  }, [navigate, select, selectionRef, releaseRef, navigationRef]);
-  const returnToProjectOverview = useCallback(() => {
-    // 明确返回来源概览，而不是后退到可能属于表单、设置或外站的历史项。
-    navigate(() => {
-      const origin = navigationRef.current.overviewOrigin;
-      if (
-        !origin ||
-        origin.projectId !== selectionRef.current.projectId ||
-        origin.releaseId !== releaseRef.current ||
-        !viewRef.current?.releases.some(
-          (release) => release.projectId === origin.projectId && release.id === origin.releaseId,
-        )
-      )
-        return;
-      select({ projectId: origin.projectId }, true, "projectOverview", origin.releaseId, null);
-    });
-  }, [navigate, select, selectionRef, releaseRef, navigationRef, viewRef]);
   const openProject = useCallback(
-    (
-      projectId: string,
-      mainView: "projectOverview" | "proposals" = "projectOverview",
-      releaseId?: string,
-    ) => {
+    (projectId: string, releaseId: string) => {
       if (
-        releaseId &&
         !viewRef.current?.releases.some(
           (release) => release.projectId === projectId && release.id === releaseId,
         )
       )
         return;
-      select({ projectId }, true, mainView, releaseId);
+      select({ projectId }, true, "proposals", releaseId);
     },
     [select, viewRef],
   );
@@ -99,8 +52,6 @@ export function useAIReqNavigationActions({
   );
   return {
     setMainView,
-    openRequirementsFromOverview,
-    returnToProjectOverview,
     openProject,
     switchProject,
   };

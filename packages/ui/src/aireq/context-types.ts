@@ -16,14 +16,9 @@ export interface AIReqContextValue {
   settingsOpen: boolean;
   openSettings(): void;
   closeSettings(): void;
-  setMainView(value: AIReqMainView, options?: { fromSidebar?: boolean }): void;
-  openRequirementsFromOverview(): void;
-  canReturnToProjectOverview: boolean;
-  returnToProjectOverview(): void;
+  setMainView(value: AIReqMainView): void;
   startProposalDraft(): void;
-  startProposalImport(): void;
   proposalDraft: ProposalDraft | null;
-  proposalImportOpen: boolean;
   closeProposalDraft(): void;
   completeProposalDraft(releaseId: string): void;
   pending: boolean;
@@ -34,11 +29,7 @@ export interface AIReqContextValue {
   releaseId: string;
   setReleaseId(id: string): void;
   switchProject(projectId: string): void;
-  openProject(
-    projectId: string,
-    mainView?: "projectOverview" | "proposals",
-    releaseId?: string,
-  ): void;
+  openProject(projectId: string, releaseId: string): void;
   select(value: AIReqWorkflowTarget, releaseId?: string): void;
   refresh(): Promise<void>;
   retrySession(

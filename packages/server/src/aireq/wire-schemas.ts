@@ -65,19 +65,6 @@ const actionSchema = z.union([
     clientDraftId: id.optional(),
     releaseId: id,
   }),
-  action("importProposals", {
-    releaseId: id,
-    proposals: z
-      .array(
-        z
-          .object({
-            originalText: text,
-            businessDocument: z.string().min(1).max(1_048_576).optional(),
-          })
-          .strict(),
-      )
-      .min(1),
-  }),
   z.strictObject({
     ...target.shape,
     operationId: id,

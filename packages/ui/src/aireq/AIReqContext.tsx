@@ -7,10 +7,7 @@ import {
 export { clearAIReqObjectLink } from "./proposalRoutes.js";
 import type { AIReqContextValue } from "./context-types.js";
 export type { AIReqContextValue } from "./context-types.js";
-import {
-  useAIReqNavigationActions,
-  type ProjectOverviewOrigin,
-} from "./shell/useAIReqNavigationActions.js";
+import { useAIReqNavigationActions } from "./shell/useAIReqNavigationActions.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
@@ -95,23 +92,13 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       target: AIReqWorkflowTarget,
       mainView: WorkspaceMainView,
       overlay: NavigationOverlay = null,
-      overviewOrigin?: ProjectOverviewOrigin | null,
     ) => {
       const previous = navigationRef.current;
-      const candidate = overviewOrigin === undefined ? previous.overviewOrigin : overviewOrigin;
-      // 来源只描述当前范围的浏览路径；切范围或回到概览后不能沿用旧来源。
-      const origin =
-        mainView !== "projectOverview" &&
-        candidate?.projectId === target.projectId &&
-        candidate?.releaseId === releaseRef.current
-          ? (candidate ?? undefined)
-          : undefined;
       const next = {
         index: previous.index + 1,
         extent: previous.index + 1,
         mainView,
         overlay,
-        overviewOrigin: origin,
       };
       window.history.pushState(
         {
@@ -124,7 +111,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqMainView: mainView,
           aiReqReleaseId: releaseRef.current,
           aiReqOverlay: overlay,
-          aiReqOverviewOrigin: origin ?? null,
         },
         "",
         mainView !== "chat"
@@ -232,7 +218,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       addHistory = true,
       mainView: WorkspaceMainView = "chat",
       targetReleaseId?: string,
-      overviewOrigin?: ProjectOverviewOrigin | null,
     ) => {
       const previousReleaseId = releaseRef.current;
       const projectChanged = selectionRef.current.projectId !== value.projectId;
@@ -255,10 +240,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
           navigationRef.current.mainView !== mainView ||
-          previousReleaseId !== releaseRef.current ||
-          overviewOrigin !== undefined)
+          previousReleaseId !== releaseRef.current)
       )
-        recordNavigation(value, mainView, null, overviewOrigin);
+        recordNavigation(value, mainView);
       selectionRef.current = value;
       setSelection(value);
       commandError.current = false;
@@ -268,18 +252,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [load, recordNavigation, resolveRelease],
   );
-  const {
-    setMainView,
-    openRequirementsFromOverview,
-    returnToProjectOverview,
-    openProject,
-    switchProject,
-  } = useAIReqNavigationActions({
+  const { setMainView, openProject, switchProject } = useAIReqNavigationActions({
     navigationRef,
     selectionRef,
-    releaseRef,
     viewRef,
-    navigate,
     select,
   });
   useEffect(() => {
@@ -313,7 +289,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqMainView: navigationRef.current.mainView,
           aiReqReleaseId: releaseRef.current,
           aiReqOverlay: navigationRef.current.overlay,
-          aiReqOverviewOrigin: navigationRef.current.overviewOrigin ?? null,
         },
         "",
         initialLink.current ? withoutObjectLink(new URL(window.location.href)) : undefined,
@@ -332,7 +307,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
             ...navigationRef.current,
             index: 0,
             extent: 0,
-            overviewOrigin: undefined,
           };
           navigationRef.current = current;
           setNavigation(current);
@@ -347,7 +321,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqMainView: current.mainView,
               aiReqReleaseId: releaseRef.current,
               aiReqOverlay: current.overlay,
-              aiReqOverviewOrigin: null,
             },
             "",
             withoutObjectLink(new URL(window.location.href)),
@@ -386,22 +359,22 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
       const previous = navigationRef.current;
-      const savedOrigin = event.state.aiReqOverviewOrigin;
-      const overviewOrigin: ProjectOverviewOrigin | undefined =
-        mainView !== "projectOverview" &&
-        savedOrigin &&
-        typeof savedOrigin.projectId === "string" &&
-        typeof savedOrigin.releaseId === "string" &&
-        savedOrigin.projectId === event.state.aiReqSelection.projectId &&
-        savedOrigin.releaseId === nextRelease
-          ? { projectId: savedOrigin.projectId, releaseId: savedOrigin.releaseId }
-          : undefined;
+      const savedTarget = event.state.aiReqSelection as AIReqWorkflowTarget;
+      const currentTarget = selectionRef.current;
+      // 设置返回同一范围时沿用已读选择，避免重读期间卸载「配置 Release」入口而丢失焦点。
+      const target =
+        previous.overlay?.kind === "settings" &&
+        !overlay &&
+        previous.mainView === mainView &&
+        releaseRef.current === nextRelease &&
+        JSON.stringify(currentTarget) === JSON.stringify(savedTarget)
+          ? currentTarget
+          : savedTarget;
       const next = {
         index,
         extent: previous.extent,
         mainView,
         overlay,
-        overviewOrigin,
       };
       navigationRef.current = next;
       setNavigation(next);
@@ -411,7 +384,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       );
       releaseRef.current = nextRelease;
       updateReleaseId(nextRelease);
-      select(event.state.aiReqSelection as AIReqWorkflowTarget, false, mainView, nextRelease);
+      select(target, false, mainView, nextRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
@@ -419,26 +392,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const startProposalDraft = useCallback(() => {
     navigate(() => {
       const draft = { id: createUuid() };
-      const previousView = navigationRef.current.mainView;
-      const { projectId } = selectionRef.current;
-      const releaseId = releaseRef.current;
-      const overviewOrigin =
-        previousView === "projectOverview" && projectId && releaseId
-          ? { projectId, releaseId }
-          : undefined;
       // 新增弹窗此前只入栈页面而未记录弹窗，浏览器后退会留在原遮罩中。
-      recordNavigation(
-        selectionRef.current,
-        "proposals",
-        { kind: "proposal", draft, fromList: previousView === "proposals" },
-        overviewOrigin,
-      );
-    });
-  }, [navigate, recordNavigation]);
-  const startProposalImport = useCallback(() => {
-    navigate(() => {
-      // 导入弹窗同样进入历史，后退不能仅移动被弹窗遮住的列表。
-      recordNavigation(selectionRef.current, "proposals", { kind: "proposal-import" });
+      recordNavigation(selectionRef.current, "proposals", { kind: "proposal", draft });
     });
   }, [navigate, recordNavigation]);
   const openSettings = useCallback(() => {
@@ -465,9 +420,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     (releaseId: string) => {
       const current = navigationRef.current;
       const overlay = current.overlay;
-      if (overlay?.kind !== "proposal" && overlay?.kind !== "proposal-import") return;
-      const sameRelease = releaseId === releaseRef.current;
-      if (sameRelease && (overlay.kind === "proposal-import" || overlay.fromList)) {
+      if (overlay?.kind !== "proposal") return;
+      if (releaseId === releaseRef.current) {
         closeOverlay();
         return;
       }
@@ -476,7 +430,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const next = {
         ...current,
         overlay: null,
-        overviewOrigin: sameRelease ? current.overviewOrigin : undefined,
       };
       navigationRef.current = next;
       setNavigation(next);
@@ -486,7 +439,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqSelection: target,
           aiReqReleaseId: releaseId,
           aiReqOverlay: null,
-          aiReqOverviewOrigin: next.overviewOrigin ?? null,
         },
         "",
       );
@@ -584,17 +536,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         openSettings,
         closeSettings: closeOverlay,
         setMainView,
-        openRequirementsFromOverview,
-        returnToProjectOverview,
-        canReturnToProjectOverview: Boolean(
-          navigation.overviewOrigin &&
-          navigation.mainView !== "projectOverview" &&
-          navigation.overviewOrigin.projectId === selection.projectId &&
-          navigation.overviewOrigin.releaseId === releaseId &&
-          view?.releases.some(
-            (release) => release.projectId === selection.projectId && release.id === releaseId,
-          ),
-        ),
         error,
         linkError: linkError
           ? linkError === "incomplete"
@@ -609,8 +550,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         releaseId,
         setReleaseId,
         switchProject,
-        openProject: (projectId, mainView, releaseId) =>
-          navigate(() => openProject(projectId, mainView, releaseId)),
+        openProject: (projectId, releaseId) => navigate(() => openProject(projectId, releaseId)),
         select: (value, targetReleaseId) =>
           navigate(() => select(value, true, "chat", targetReleaseId)),
         refresh,
@@ -618,9 +558,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         command,
         report,
         startProposalDraft,
-        startProposalImport,
         proposalDraft: navigation.overlay?.kind === "proposal" ? navigation.overlay.draft : null,
-        proposalImportOpen: navigation.overlay?.kind === "proposal-import",
         closeProposalDraft: closeOverlay,
         completeProposalDraft,
         setDraftNavigationGuard,

@@ -207,35 +207,16 @@ export function applyPrototypeAction(
   action: AIReqCommand,
   selection: AIReqCommandTarget,
 ): { result: AIReqWorkflowResult; review?: DocumentReviewRun } {
-  if (action.type === "createProposal" || action.type === "importProposals") {
+  if (action.type === "createProposal") {
     const projectId = action.projectId ?? selection.projectId;
     if (
       !projectId ||
       !readPrototypeProjectReleases(projectId).some((release) => release.id === action.releaseId)
     )
       throw businessRule("请选择明确项目和有效 Release。");
-    if (
-      action.type === "createProposal" &&
-      (typeof action.originalText !== "string" || !action.originalText.trim())
-    )
+    if (typeof action.originalText !== "string" || !action.originalText.trim())
       throw businessRule("请输入原始需求。");
-    if (
-      action.type === "importProposals" &&
-      (!Array.isArray(action.proposals) ||
-        !action.proposals.length ||
-        action.proposals.some(
-          (entry) =>
-            !entry ||
-            typeof entry.originalText !== "string" ||
-            !entry.originalText.trim() ||
-            (entry.businessDocument !== undefined &&
-              (typeof entry.businessDocument !== "string" ||
-                !entry.businessDocument.trim() ||
-                new TextEncoder().encode(entry.businessDocument).length > 1_048_576)),
-        ))
-    )
-      throw businessRule("导入正文无效，本批未写入任何提案。");
-    if (action.type === "createProposal" && action.clientDraftId) {
+    if (action.clientDraftId) {
       const existing = state.requirements.find(
         (item) =>
           item.projectId === projectId &&
@@ -309,7 +290,6 @@ export function applyPrototypeAction(
     "addProjectRoleMember",
     "removeProjectRoleMember",
     "createRelease",
-    "importProposals",
   ].includes(action.type);
   let irId = global ? undefined : (action.irId ?? selection.irId);
   const operation = receipt(action.type, state.revision + 1, irId, new Date().toISOString());

@@ -25,11 +25,7 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqIdea } from "../contract.js";
-import {
-  downloadProposalCsv,
-  parseProposalCsv,
-  ProposalCsvError,
-} from "../proposals/proposal-csv.js";
+import { downloadIdeaCsv, parseIdeaCsv, IdeaCsvError } from "./idea-csv.js";
 
 export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }) {
   const ai = useAIReq()!;
@@ -55,7 +51,7 @@ export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }
     if (content === null) return { preview: null, error: "" };
     try {
       return {
-        preview: parseProposalCsv(
+        preview: parseIdeaCsv(
           content,
           (allIdeas ?? []).map((idea) => idea.originalText),
         ),
@@ -65,7 +61,7 @@ export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }
       return {
         preview: null,
         error:
-          zh && error instanceof ProposalCsvError
+          zh && error instanceof IdeaCsvError
             ? error.message
             : zh
               ? "CSV 解析失败，请检查文件格式。"
@@ -138,7 +134,7 @@ export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }
         variant="outline"
         disabled={!ideas.length || !ai.view}
         onClick={() =>
-          downloadProposalCsv(
+          downloadIdeaCsv(
             ideas.map((idea) => idea.originalText),
             "想法池.csv",
           )
@@ -190,7 +186,7 @@ export function AIReqIdeaImportExport({ ideas }: { ideas: readonly AIReqIdea[] }
           <Button
             variant="outline"
             disabled={busy}
-            onClick={() => downloadProposalCsv([], "想法池导入模板.csv")}
+            onClick={() => downloadIdeaCsv([], "想法池导入模板.csv")}
           >
             {zh ? "下载模板" : "Download template"}
           </Button>

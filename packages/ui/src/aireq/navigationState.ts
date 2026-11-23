@@ -3,46 +3,34 @@ import type { AIReqMainView, AIReqWorkflowTarget } from "./contract.js";
 export type ProposalDraft = { id: string };
 export type NavigationOverlay =
   | { kind: "settings" }
-  | { kind: "proposal"; draft: ProposalDraft; fromList?: boolean }
-  | { kind: "proposal-import" }
+  | { kind: "proposal"; draft: ProposalDraft }
   | null;
 export interface AIReqNavigationState {
   index: number;
   extent: number;
   mainView: AIReqMainView;
   overlay: NavigationOverlay;
-  overviewOrigin?: { projectId: string; releaseId: string };
 }
 
 export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
   if (!saved || typeof saved !== "object") return null;
   if (!("kind" in saved)) return null;
-  if (saved.kind === "settings" || saved.kind === "proposal-import") return { kind: saved.kind };
+  if (saved.kind === "settings") return { kind: saved.kind };
   if (saved.kind === "proposal" && "draft" in saved) {
     const draft = saved.draft;
     if (draft && typeof draft === "object" && "id" in draft && typeof draft.id === "string")
-      return {
-        kind: "proposal",
-        ...("fromList" in saved && saved.fromList === true ? { fromList: true } : {}),
-        draft: { id: draft.id },
-      };
+      return { kind: "proposal", draft: { id: draft.id } };
   }
   return null;
 }
 
 export function restoreMainView(saved: unknown): AIReqMainView {
+  // 旧概览历史沿用原项目与 Release，打开当前的需求共创。
+  if (saved === "projectOverview") return "proposals";
   return (
-    (
-      [
-        "chat",
-        "ideas",
-        "projectProgress",
-        "projectOverview",
-        "proposals",
-        "roles",
-        "skillDesign",
-      ] as const
-    ).find((view) => view === saved) ?? "projectProgress"
+    (["chat", "ideas", "projectProgress", "proposals", "roles", "skillDesign"] as const).find(
+      (view) => view === saved,
+    ) ?? "projectProgress"
   );
 }
 

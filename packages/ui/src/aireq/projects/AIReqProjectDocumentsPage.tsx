@@ -9,8 +9,6 @@ import { useAIReq } from "../AIReqContext.js";
 import type { AIReqReleaseSummary } from "../contract.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 
-export { AIReqProjectOverviewPage } from "./AIReqProjectOverviewPage.js";
-
 const VISIBLE_RELEASES = 2;
 export function newestReleaseFirst(a: AIReqReleaseSummary, b: AIReqReleaseSummary): number {
   const first = Date.parse(a.createdAt);
@@ -58,7 +56,7 @@ export function AIReqProjectDocumentsPage({
           <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "所有项目" : "All projects"}</h1>
-              <ProjectPageHelp scope="all-projects" />
+              <ProjectPageHelp />
             </div>
             {ai.error && view && (
               <p className="text-ui-sm text-foreground-subtle">
@@ -174,9 +172,7 @@ export function AIReqProjectDocumentsPage({
                                   ? `进入工作区：${project.name} · ${release.title}`
                                   : `Enter workspace: ${project.name} · ${release.title}`
                               }
-                              onClick={() =>
-                                ai.openProject(project.id, "projectOverview", release.id)
-                              }
+                              onClick={() => ai.openProject(project.id, release.id)}
                             >
                               {zh ? "进入工作区" : "Enter workspace"}
                               <ArrowRight className="size-3.5" aria-hidden="true" />

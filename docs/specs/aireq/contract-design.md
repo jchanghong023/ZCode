@@ -181,7 +181,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 公开动作白名单：
 
 - 想法使用 `createIdea`、`importIdeas`、`updateIdea`、`transferIdea`。
-- 配置及需求录入使用 `saveDocumentFormats`、`createRelease`、`createProposal`、`importProposals`、`deleteRequirement`。
+- 配置及需求录入使用 `saveDocumentFormats`、`createRelease`、`createProposal`、`deleteRequirement`。
 - 项目角色使用 `addProjectRoleMember` 和 `removeProjectRoleMember`。
 - 文档评审和定版使用 `reviewDocuments` 和 `confirmDocumentVersion`。
 

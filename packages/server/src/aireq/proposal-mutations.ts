@@ -4,8 +4,6 @@ import { group } from "./fixture-builders.js";
 import { getEmployeeId } from "./identity.js";
 import { businessRule } from "./errors.js";
 import { readPrototypeProjectReleases, addPrototypeRelease } from "./project-releases.js";
-import { prototypeMaterial } from "./materials.js";
-import { saveDocumentChanges } from "./document-versions.js";
 
 function createProposal(
   state: WorkflowState,
@@ -23,7 +21,7 @@ function createProposal(
     getEmployeeId(),
   );
   proposal.createdAt = operation.startedAt;
-  proposal.origin = suffix ? "import" : "browser";
+  proposal.origin = "browser";
   state.requirements.push(proposal);
   return proposal;
 }
@@ -120,7 +118,6 @@ export function applyProposalMutation(
         );
         item.submittedBy = idea.submittedBy;
         item.createdAt = idea.createdAt;
-        item.origin = "browser";
         return item.id;
       });
       state.ideas = state.ideas.filter((item) => item.id !== idea.id);
@@ -162,36 +159,6 @@ export function applyProposalMutation(
       operation.irId = irId;
       break;
     }
-    case "importProposals":
-      // 整批共用一个回执与幂等身份，新 IR 关联不借用导入前的查看目标。
-      operation.irIds = [];
-      action.proposals.forEach((entry, index) => {
-        const item = createProposal(
-          state,
-          projectId,
-          action.releaseId,
-          entry.originalText.trim(),
-          operation,
-          `-${index + 1}`,
-        );
-        operation.irIds!.push(item.id);
-        if (entry.businessDocument !== undefined) {
-          saveDocumentChanges(state, item, {
-            agent: "requirements",
-            materials: [
-              prototypeMaterial({
-                projectId,
-                irId: item.id,
-                path: item.documentPath,
-                kind: "ir",
-                content: entry.businessDocument,
-              }),
-            ],
-          });
-        }
-      });
-      operation.type = "批量导入需求";
-      break;
     case "deleteRequirement":
       state.requirements = state.requirements.filter(
         (item) => item.id !== irId || item.projectId !== projectId,

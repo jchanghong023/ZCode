@@ -1,14 +1,14 @@
 /** 只包含解析器主动生成的输入校验消息，不透传浏览器或远端异常。 */
-export class ProposalCsvError extends Error {}
+export class IdeaCsvError extends Error {}
 
-interface ProposalCsvPreview {
+interface IdeaCsvPreview {
   texts: string[];
   skipped: number;
   duplicateRows: number[];
 }
 
-/** 单列 CSV 只在未引用的行尾分行，不能把单元格换行拆成多个 IR。 */
-export function parseProposalCsv(input: string, existing: readonly string[]): ProposalCsvPreview {
+/** 单列 CSV 只在引用外分行，保留单条想法正文中的换行。 */
+export function parseIdeaCsv(input: string, existing: readonly string[]): IdeaCsvPreview {
   const text = input.replace(/^\uFEFF/, "");
   const rows: { value: string; line: number }[] = [];
   let value = "",
@@ -20,7 +20,7 @@ export function parseProposalCsv(input: string, existing: readonly string[]): Pr
     column = 1,
     rowLine = 1;
   const fail = (message: string): never => {
-    throw new ProposalCsvError(`第 ${line} 行，第 ${column} 列：${message}`);
+    throw new IdeaCsvError(`第 ${line} 行，第 ${column} 列：${message}`);
   };
   const endRow = () => {
     if (columns !== 1) fail("只允许“原始需求”一列；含逗号的正文必须用双引号包围。");
@@ -74,10 +74,10 @@ export function parseProposalCsv(input: string, existing: readonly string[]): Pr
   const headerIndex = rows.findIndex((row) => row.value.trim());
   const header = rows[headerIndex];
   if (header?.value !== "原始需求")
-    throw new ProposalCsvError(`第 ${header?.line ?? 1} 行：表头必须为“原始需求”，且只能有一列。`);
+    throw new IdeaCsvError(`第 ${header?.line ?? 1} 行：表头必须为“原始需求”，且只能有一列。`);
   // 服务端保存 trim 后正文；只按此口径提示重复，仍保留原文及全部条目。
   const seen = new Set(existing.map((text) => text.trim()));
-  const result: ProposalCsvPreview = { texts: [], skipped: headerIndex, duplicateRows: [] };
+  const result: IdeaCsvPreview = { texts: [], skipped: headerIndex, duplicateRows: [] };
   for (const row of rows.slice(headerIndex + 1)) {
     const normalized = row.value.trim();
     if (!normalized) {
@@ -91,7 +91,7 @@ export function parseProposalCsv(input: string, existing: readonly string[]): Pr
   return result;
 }
 
-export function downloadProposalCsv(texts: readonly string[], filename: string): void {
+export function downloadIdeaCsv(texts: readonly string[], filename: string): void {
   const csv =
     "\uFEFF原始需求\r\n" + texts.map((text) => `"${text.replaceAll('"', '""')}"`).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));

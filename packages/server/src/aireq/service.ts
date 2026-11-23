@@ -61,7 +61,6 @@ const commands = [
   "saveDocumentFormats",
   "createRelease",
   "createProposal",
-  "importProposals",
   "deleteRequirement",
   "reviewDocuments",
   "confirmDocumentVersion",

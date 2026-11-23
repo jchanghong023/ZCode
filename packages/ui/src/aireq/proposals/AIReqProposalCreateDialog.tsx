@@ -101,7 +101,6 @@ export function AIReqProposalCreateDialog({
         if (!open && !busy) onClose();
       }}
     >
-      {/* 修复：通用弹窗默认按视口铺满；新建需求使用与导入一致的限宽和多行编辑区。 */}
       <DialogContent
         className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
         onOpenAutoFocus={(event) => {
