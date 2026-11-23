@@ -14,7 +14,7 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import type { AgentConnection } from "./useAgentConnection.js";
 
-export type StreamingBehavior = NonNullable<CommandPayloadMap["sendText"]["streamingBehavior"]>;
+type StreamingBehavior = NonNullable<CommandPayloadMap["sendText"]["streamingBehavior"]>;
 
 export interface ChatDraft {
   text: string;

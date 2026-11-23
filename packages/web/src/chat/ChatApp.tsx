@@ -17,12 +17,7 @@ import {
 import { ChatComposer } from "./ChatComposer.js";
 import { ChatModelPicker } from "./ChatModelPicker.js";
 import { useAgentConnection, type AgentConnection } from "./useAgentConnection.js";
-import {
-  conversationCommand,
-  submitConversationCommand,
-  useChatInput,
-  type StreamingBehavior,
-} from "./useChatInput.js";
+import { conversationCommand, submitConversationCommand, useChatInput } from "./useChatInput.js";
 import { useConversation } from "./useConversation.js";
 
 const connectionLabels = {
@@ -136,6 +131,7 @@ function ChatPane({
     : (draftModel ?? connection?.modelCatalog.effectiveSelection ?? null);
   const busy = phase === "running" || phase === "prewarming";
   const routing = target ? conversation.inputRouting?.mode : "startNow";
+  const canRouteInput = routing === "startNow" || routing === "streamingChoice";
   const stopTarget =
     conversation.control?.canStop && conversation.control.stopState === "stoppable"
       ? conversation.control.activeWorks.find((work) => work.foregroundExecutionId)
@@ -209,10 +205,10 @@ function ChatPane({
     }
   }
 
-  function send(text: string, behavior?: StreamingBehavior) {
-    if (switchingModel || (target && !conversation.ready)) return;
-    if (routing !== (behavior ? "streamingChoice" : "startNow")) return;
-    void input.send(text, selectedModel, behavior);
+  function send(text: string) {
+    if (!canRouteInput || switchingModel || (target && !conversation.ready)) return;
+    // 执行中的普通发送直接引导当前回合，发送键与 Enter 共用这条路径。
+    void input.send(text, selectedModel, routing === "streamingChoice" ? "steer" : undefined);
   }
 
   return (
@@ -315,7 +311,6 @@ function ChatPane({
                 draft={draft}
                 setText={input.setText}
                 send={send}
-                routing={routing}
                 conversationCommands={commands}
                 stopButton={
                   stopTarget && (
@@ -332,7 +327,10 @@ function ChatPane({
                   )
                 }
                 disabled={
-                  !connection || switchingModel || (target ? !conversation.ready : !selectedModel)
+                  !canRouteInput ||
+                  !connection ||
+                  switchingModel ||
+                  (target ? !conversation.ready : !selectedModel)
                 }
                 modelPicker={
                   connection && (

@@ -1,13 +1,10 @@
 import { ArrowUp, Folder } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type {
-  ConversationCommandCatalogEntry,
-  InputRouting,
-} from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@zcode/ui/button";
 import { LexicalChatInput, type LexicalChatInputHandle } from "@zcode/ui/web-chat-view";
 
-import type { ChatDraft, StreamingBehavior } from "./useChatInput.js";
+import type { ChatDraft } from "./useChatInput.js";
 
 // 宿主提供目录和发送提交，编辑与键盘行为由原生输入器处理。
 export function ChatComposer({
@@ -21,7 +18,6 @@ export function ChatComposer({
   disabled,
   modelPicker,
   send,
-  routing,
   conversationCommands,
   stopButton,
 }: {
@@ -34,21 +30,18 @@ export function ChatComposer({
   setText: (text: string) => void;
   disabled: boolean;
   modelPicker?: ReactNode;
-  send: (text: string, behavior?: StreamingBehavior) => void;
-  routing?: InputRouting["mode"];
+  send: (text: string) => void;
   conversationCommands: readonly ConversationCommandCatalogEntry[];
   stopButton?: ReactNode;
 }) {
   const editor = useRef<LexicalChatInputHandle>(null);
   const editorText = useRef("");
   const [triggerPanelContainer, setTriggerPanelContainer] = useState<HTMLDivElement | null>(null);
-  const streaming = routing === "streamingChoice";
   const canSend =
     !disabled &&
     !draft.receipt &&
     Boolean(draft.text.trim()) &&
     (directory === undefined || Boolean(directory.trim()));
-  const canSendNormally = canSend && routing === "startNow";
 
   const onChange = useCallback(
     (text: string) => {
@@ -65,13 +58,9 @@ export function ChatComposer({
     else api.clear();
   }, [draft.text]);
 
-  function submit(text: string, behavior?: StreamingBehavior) {
-    if (!text.trim() || (behavior ? !canSend || !streaming : !canSendNormally)) return;
-    send(text, behavior);
-  }
-
-  function currentText() {
-    return editor.current?.getMarkdown() ?? draft.text;
+  function submit(text: string) {
+    if (!canSend || !text.trim()) return;
+    send(text);
   }
 
   return (
@@ -79,7 +68,7 @@ export function ChatComposer({
       className="composer relative"
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        submit(currentText());
+        submit(editor.current?.getMarkdown() ?? draft.text);
       }}
     >
       {/* 原生斜杠菜单通过 portal 挂载；独立聊天使用自己的输入区锚点。 */}
@@ -107,7 +96,7 @@ export function ChatComposer({
           enableMentionPanel={false}
           conversationCommands={conversationCommands}
           triggerPanelContainer={triggerPanelContainer}
-          submitDisabled={!canSendNormally}
+          submitDisabled={!canSend}
           onChange={onChange}
           onSubmit={(text) => {
             submit(text);
@@ -115,38 +104,13 @@ export function ChatComposer({
           }}
         />
         <div className="composer-actions">
-          <span>
-            {streaming ? "请选择引导或跟进 · Enter 换行" : "Enter 发送 · Shift + Enter 换行"}
-          </span>
-          <div className="composer-buttons">
+          <span>Enter 发送 · Shift + Enter 换行</span>
+          <div className="flex min-w-0 items-center gap-2">
             {modelPicker && <fieldset>{modelPicker}</fieldset>}
             {stopButton}
-            {streaming ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!canSend}
-                  onClick={() => submit(currentText(), "steer")}
-                >
-                  引导当前任务
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!canSend}
-                  onClick={() => submit(currentText(), "followUp")}
-                >
-                  排队跟进
-                </Button>
-              </>
-            ) : (
-              <Button size="icon" type="submit" aria-label="发送消息" disabled={!canSendNormally}>
-                <ArrowUp size={18} aria-hidden="true" />
-              </Button>
-            )}
+            <Button size="icon" type="submit" aria-label="发送消息" disabled={!canSend}>
+              <ArrowUp size={18} aria-hidden="true" />
+            </Button>
           </div>
         </div>
       </div>

@@ -274,13 +274,6 @@ body {
   padding-top: 7px;
   color: var(--subtle);
   font-size: 0.8125rem;
-  flex-wrap: wrap;
-}
-.composer-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 .chat-dock-notice {
   margin-bottom: 10px;
