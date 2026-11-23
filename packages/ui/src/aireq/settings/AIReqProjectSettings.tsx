@@ -410,8 +410,8 @@ export function AIReqProjectSettings({
           </p>
           <p>
             {zh
-              ? "Release 用于归集需求，不是 Git 分支；沿用项目的仓库与默认分支。"
-              : "A release groups requirements, is not a Git branch, and inherits its project's repository and default branch."}
+              ? "Release 用于归集需求。项目地址与默认分支用于读取项目代码。"
+              : "Releases group requirements. The project address and default branch specify where to read code."}
           </p>
         </div>
       </details>
@@ -427,7 +427,7 @@ export function AIReqProjectSettings({
           <Input
             id="project-search"
             className="h-9 rounded-lg bg-surface pl-9"
-            placeholder={zh ? "搜索项目名称或 Git 仓库" : "Search project name or Git repository"}
+            placeholder={zh ? "搜索项目名称或项目地址" : "Search by name or project address"}
             value={projectQuery}
             onChange={(event) => setProjectQuery(event.target.value)}
           />
@@ -471,7 +471,7 @@ export function AIReqProjectSettings({
               <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <p className="text-ui-sm text-remote-foreground-muted">
-                    {zh ? "Git 仓库" : "Git repository"}
+                    {zh ? "项目地址" : "Project address"}
                   </p>
                   <p className="select-text break-all font-mono text-ui-sm leading-5">
                     {project.repositoryUrl ?? (zh ? "尚未配置" : "Not configured")}
@@ -561,7 +561,7 @@ export function AIReqProjectSettings({
         )}
       {aireq.view && !loadError && !projects.length && (
         <p className="text-ui-base text-foreground-subtle">
-          还没有项目。配置 Git 仓库与默认分支后，即可创建 Release。
+          还没有项目。添加项目后即可创建 Release。
         </p>
       )}
       <p role="status" className="text-ui-base text-foreground-subtle">
@@ -581,8 +581,8 @@ export function AIReqProjectSettings({
             </DialogTitle>
             <DialogDescription>
               {zh
-                ? "配置项目名称、远程 Git 仓库与默认分支。"
-                : "Set the project name, remote Git repository, and default branch."}
+                ? "配置项目名称及用于读取代码的 Git 地址和默认分支。"
+                : "Set the project name and the Git address and default branch used to read code."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -623,7 +623,7 @@ export function AIReqProjectSettings({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="project-repository">
-                  {zh ? "Git 仓库地址" : "Git repository URL"}
+                  {zh ? "项目地址" : "Project address"}
                   <span aria-hidden="true" className="text-destructive">
                     {" "}
                     *

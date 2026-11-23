@@ -61,10 +61,3 @@ export function consumePrototypeOperationFailure(type: string): boolean {
   consumedOperations.add(key);
   return true;
 }
-export function consumePrototypeMrCreationFailure(candidate: string): boolean {
-  if (scenario() !== "mr-create-failure") return false;
-  const key = `${scope()}:mr:${candidate}`;
-  if (consumedOperations.has(key)) return false;
-  consumedOperations.add(key);
-  return true;
-}

@@ -297,11 +297,6 @@ export function AIReqProposalReviewPage({
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Button>
             )}
-            {group.status === "requirements-pr" && (
-              <p className="text-ui-sm text-foreground-subtle">
-                当前材料已冻结；如需修改，请先关闭未合入的文档 PR。
-              </p>
-            )}
           </section>
         )}
         {ai.error && (

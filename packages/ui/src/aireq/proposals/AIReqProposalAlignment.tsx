@@ -169,8 +169,8 @@ export function AIReqProposalAlignment({
           : (reviewBlocker ??
             blocker ??
             (zh
-              ? "三方已确认，可以核对完整材料并提交文档 PR。"
-              : "All roles have confirmed. Review the complete materials and submit the document PR."))}
+              ? "三方已确认，可以核对完整材料并提交归档。"
+              : "All roles have confirmed. Review the complete materials and submit them for archiving."))}
       </p>
     </section>
   );

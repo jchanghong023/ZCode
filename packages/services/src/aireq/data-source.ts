@@ -11,7 +11,6 @@ import type {
   AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
   AIReqSkillDesignSession,
-  AIReqPrHandoff,
   AIReqWorkspace,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
@@ -73,7 +72,6 @@ export interface AIReqDataSource {
   initialProjectId?: string;
   refreshIdentity?(): Promise<void>;
   readWorkflow(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
-  readPrHandoff(target: { projectId: string; irId: string }): Promise<AIReqPrHandoff>;
   subscribeWorkflow(listener: () => void): () => void;
   command(
     action: AIReqAction,
@@ -86,7 +84,10 @@ export interface AIReqDataSource {
   ): AIReqNativeSessionRef | undefined;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
   retrySession(target: AIReqWorkflowTarget, sessionId: string): Promise<void>;
-  resolveWorkspace(view: AIReqWorkflowView | undefined, target: AIReqWorkflowTarget): AIReqWorkspace;
+  resolveWorkspace(
+    view: AIReqWorkflowView | undefined,
+    target: AIReqWorkflowTarget,
+  ): AIReqWorkspace;
   dispose(): void | Promise<void>;
   projects?: AIReqProjectServices;
   models?: AIReqModelServices;

@@ -27,7 +27,6 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
   const source = useAIReqDataSource();
   const heading = useRef<HTMLHeadingElement>(null);
   const state = proposalState(group);
-  const mergePending = state === "merge-pending";
   const submissionPending = state === "submission-pending";
   const irStatus = proposalTaskStatus(group, "requirementsReview");
   const reviewReady = !fullReviewReadyBlocker(group);
@@ -43,7 +42,6 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
   );
   const next = proposalNextTask(group);
   const deliveryStatus = proposalTaskStatus(group, "delivery");
-  const history = group.proposalDeliveryHistory ?? [];
   return (
     <main className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable_both-edges]">
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-6`}>
@@ -52,7 +50,7 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
             交付确认
           </h1>
           <span
-            className={`rounded-full border border-border/60 px-2 py-0.5 text-ui-sm ${deliveryStatus === "提交失败" ? "text-destructive" : deliveryStatus === "待提交" ? "text-interaction-confirmation-foreground" : "text-foreground-subtle"}`}
+            className={`rounded-full border border-border/60 px-2 py-0.5 text-ui-sm ${deliveryStatus === "待提交" ? "text-interaction-confirmation-foreground" : "text-foreground-subtle"}`}
           >
             {deliveryStatus}
           </span>
@@ -62,13 +60,9 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
             </div>
           )}
         </header>
-        {mergePending ? (
+        {submissionPending && fileCount > 0 ? (
           <p className="text-ui-sm text-foreground-subtle">
-            当前材料已冻结。文档 PR 合入并通过完整核验后，此需求自动转正。
-          </p>
-        ) : submissionPending && fileCount > 0 ? (
-          <p className="text-ui-sm text-foreground-subtle">
-            三方已确认当前版本。请核对 {fileCount} 份文件并提交文档 PR。
+            三方已确认当前版本。请核对 {fileCount} 份文件并提交归档。
           </p>
         ) : (
           <section className="space-y-3" aria-label="前置条件">
@@ -118,7 +112,7 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
           </section>
         )}
         <AIReqProposalDeliveryControls group={group} focusFallback={heading} />
-        {(mergePending || submissionPending) && (
+        {submissionPending && (
           <details className="text-ui-sm">
             <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
               查看三方确认记录
@@ -126,31 +120,6 @@ export function AIReqProposalDeliveryPage({ group }: { group: AIReqRequirementGr
             <div className="mt-3">
               <AIReqProposalAlignment group={group} readOnly />
             </div>
-          </details>
-        )}
-        {history.length > 0 && (
-          <details className="space-y-3 border-t border-border/50 pt-4 text-ui-sm">
-            <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
-              历史交付记录 · 只读
-            </summary>
-            <ul className="divide-y divide-border/50">
-              {history.map((entry) => (
-                <li key={entry.candidate} className="space-y-1 py-3">
-                  <p>
-                    {entry.closedPr?.number === undefined
-                      ? "旧候选"
-                      : `文档 PR #${entry.closedPr.number} · 已关闭`}{" "}
-                    · {entry.files.length} 份文件
-                  </p>
-                  <p className="break-all font-mono text-foreground-subtle">{entry.candidate}</p>
-                  {entry.publishError && (
-                    <p className="break-words text-foreground-subtle">
-                      {entry.publishError.message}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
           </details>
         )}
       </div>

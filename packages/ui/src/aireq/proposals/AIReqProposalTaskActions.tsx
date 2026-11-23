@@ -59,12 +59,7 @@ export function AIReqProposalTaskActions({
     (item) => item.projectId === group.projectId && item.irId === group.id,
   );
   const unavailable =
-    busy ||
-    ai.pending ||
-    running ||
-    !source.capabilities.proposalDiscussion ||
-    !currentStage ||
-    group.status === "requirements-pr";
+    busy || ai.pending || running || !source.capabilities.proposalDiscussion || !currentStage;
   const canRetry = proposalReviewCanRetry(group, full);
   const approveIssue = full ? fullReviewReadyBlocker(group) : requirementsReviewReadyBlocker(group);
   const approveReady = Boolean(review && !approveIssue);
@@ -100,7 +95,7 @@ export function AIReqProposalTaskActions({
   };
   return (
     <div className="space-y-3" data-testid="proposal-task-actions">
-      {!confirmed && (currentStage || !full) && group.status !== "requirements-pr" && (
+      {!confirmed && (currentStage || !full) && (
         <div className="flex flex-wrap items-center gap-3">
           {!full && (
             <Button

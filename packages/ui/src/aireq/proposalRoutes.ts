@@ -104,5 +104,5 @@ export function resolveObjectLink(
         item.projectId === link.projectId && item.irId === link.irId && item.id === link.srId,
     );
   if (!project || !release || !group || group.releaseId !== release.id || !sr) return null;
-  return group.merge ? "formal" : "proposal";
+  return group.archive ? "formal" : "proposal";
 }

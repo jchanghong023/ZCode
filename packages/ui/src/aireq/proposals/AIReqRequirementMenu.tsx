@@ -30,11 +30,10 @@ const operationLabels: Record<string, string> = {
   acceptProposal: "确认需求评审结果",
   generateProposalSolution: "方案 Agent 更新材料",
   returnProposal: "退回业务补充",
-  publishProposal: "提交文档 PR",
+  archiveProposal: "提交需求归档",
   importProposals: "原子导入提案",
   runFullReview: "重试方案审查",
   confirmAlignment: "方案角色确认",
-  closeProposalPr: "关闭未合并文档 PR",
 };
 
 // 同一历史弹窗的时间统一转为北京时间，避免 UTC 原文与本地格式混排。

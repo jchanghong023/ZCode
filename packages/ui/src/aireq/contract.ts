@@ -19,7 +19,6 @@ export type {
   AIReqMaterialReadRequest,
   AIReqMaterialView,
   AIReqNativeSessionRef,
-  AIReqPrHandoff,
   AIReqProposalReturnTarget,
   AIReqProject,
   AIReqProjectRole,
@@ -40,7 +39,6 @@ export type {
   AIReqWorkflowView,
 } from "@zcode/services/aireq";
 export {
-  aiReqPrFactSchema,
   AIREQ_CONTRACT_VERSION,
   AIREQ_DOCUMENT_PATHS,
   checkMarkdownSections,

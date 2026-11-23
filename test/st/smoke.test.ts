@@ -95,6 +95,13 @@ describe("ST service readiness and connection boundary", () => {
             {},
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
+        await expect(
+          c.services.aiReqService.call(
+            c.identity,
+            "readPrHandoff" as never,
+            [{ projectId: "p", irId: "ir" }] as never,
+          ),
+        ).rejects.toThrow();
         const revision = (await c.read()).view.revision;
         const navigationTargetAction = {
           type: "createIdea",
@@ -123,6 +130,10 @@ describe("ST service readiness and connection boundary", () => {
               revision + 1,
             ],
           ],
+          ...["publishProposal", "closeProposalPr"].map((type) => [
+            "command",
+            [{ type, operationId: unique(), candidate: "old" }, {}, revision],
+          ]),
           ...navigationTargets.map((target) => [
             "command",
             [navigationTargetAction, target, revision],

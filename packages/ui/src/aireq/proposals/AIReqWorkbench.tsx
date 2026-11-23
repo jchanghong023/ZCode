@@ -67,10 +67,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
     : (view?.srs.filter((item) => item.irId === group?.id && item.projectId === group?.projectId) ??
       []);
   const proposalSolutionView =
-    !viewingHistory &&
-    group &&
-    !group.merge &&
-    proposalViewedIndex(group, selection) >= 2;
+    !viewingHistory && group && !group.archive && proposalViewedIndex(group, selection) >= 2;
   const {
     historical,
     materials,

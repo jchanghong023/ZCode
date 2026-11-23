@@ -5,7 +5,6 @@ export interface STFixture {
   irId: string;
   srId?: string;
   releaseId?: string;
-  expectedBaseCommit?: string;
   [key: string]: unknown;
 }
 function positiveInteger(value: string | undefined, fallback: number): number {

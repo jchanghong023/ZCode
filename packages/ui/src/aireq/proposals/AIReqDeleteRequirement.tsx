@@ -35,7 +35,7 @@ export function AIReqDeleteRequirement({
   const { selection, view } = aireq;
   // 菜单展示对象与命令目标必须同 scope；不能把旧弹窗套到后来选择的另一条提案。
   const group = view?.requirements.find(
-    (item) => !item.merge &&
+    (item) => !item.archive &&
       item.id === menuGroup.id &&
       item.projectId === menuGroup.projectId &&
       item.id === selection.irId &&
@@ -50,7 +50,7 @@ export function AIReqDeleteRequirement({
     return <>{renderTrigger()}</>;
   const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group);
   const prohibition =
-    group.merge || group.proposalRevisions?.length || group.freeze || group.status === "frozen"
+    group.archive || group.proposalRevisions?.length || group.freeze || group.status === "frozen"
       ? "已入库的正式文档及其修订历史须保留。"
       : history
         ? "正在查看历史环节，仅供只读查看；请返回当前操作环节。"

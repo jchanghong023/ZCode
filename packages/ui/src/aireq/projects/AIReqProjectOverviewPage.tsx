@@ -45,7 +45,7 @@ export function AIReqProjectOverviewPage({
   );
   const proposals =
     view?.requirements.filter(
-      (item) => !item.merge && item.projectId === project?.id && item.releaseId === release?.id,
+      (item) => !item.archive && item.projectId === project?.id && item.releaseId === release?.id,
     ) ?? [];
   const confirmations = proposals.flatMap<{
     irId: string;

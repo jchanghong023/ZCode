@@ -1,21 +1,12 @@
-import {
-  createPrototypeReleaseProposals,
-  seedPrototypePublishedProposal,
-} from "./fixture-release-proposals.js";
+import { createPrototypeReleaseProposals } from "./fixture-release-proposals.js";
 import { createRequirementSnapshot } from "./content-digest.js";
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import type { WorkflowState } from "./workflow-state.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
-import { prototypeRepositoryKey, readPrototypeProjectSettings } from "./project-settings.js";
+import { readPrototypeProjectSettings } from "./project-settings.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import { prototypeRequirementDetails } from "./fixture-content.js";
-import {
-  createdAt,
-  group,
-  systemRequirement,
-  sessionRef,
-  receipt,
-} from "./fixture-builders.js";
+import { createdAt, group, systemRequirement, sessionRef, receipt } from "./fixture-builders.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
 import {
@@ -33,7 +24,6 @@ export function createPrototypeWorkflow(): WorkflowState {
       documentFormats,
       ideas: [],
       projects: [],
-      repositoryHeads: {},
       projectRoleMembers: [],
       groups: [],
       drafts: [],
@@ -202,7 +192,7 @@ export function createPrototypeWorkflow(): WorkflowState {
     "j00808877",
   );
   solutionProposal.proposalStage = "solution";
-  const publishProposal = group(
+  const submissionProposal = group(
     "demo-aurora",
     "draft-delivery-digest",
     "每周交付摘要",
@@ -210,8 +200,8 @@ export function createPrototypeWorkflow(): WorkflowState {
     true,
     "j00808875",
   );
-  publishProposal.proposalStage = "solution";
-  publishProposal.status = "solution-ready";
+  submissionProposal.proposalStage = "solution";
+  submissionProposal.status = "solution-ready";
   const drafts = [
     group(
       "demo-aurora",
@@ -241,7 +231,7 @@ export function createPrototypeWorkflow(): WorkflowState {
     intakeProposal,
     untouchedProposal,
     solutionProposal,
-    publishProposal,
+    submissionProposal,
   ];
   drafts[1]!.proposalStage = "solution";
   // 完整方案样例须与已生成材料一致，否则后续完整审查的版本及交付门禁无法闭环。
@@ -325,12 +315,12 @@ export function createPrototypeWorkflow(): WorkflowState {
       item === drafts[1] ||
       item === readyProposal ||
       item === intakeProposal ||
-      item === publishProposal
+      item === submissionProposal
     ) {
       item.review = createPrototypeRequirementsReview(item, "j00808874", "full", "reviewed");
       item.review.createdAt = createdAt;
       item.sessions.push(...prototypeReviewSessions(item.review));
-      if (groups.includes(item) || item === intakeProposal || item === publishProposal) {
+      if (groups.includes(item) || item === intakeProposal || item === submissionProposal) {
         item.alignment = (["business", "development", "testing"] as const).map((perspective) => ({
           perspective,
           version: item.review!.snapshotDigest,
@@ -339,28 +329,20 @@ export function createPrototypeWorkflow(): WorkflowState {
           employeeId: "j00808874",
           confirmedAt: createdAt,
         }));
-        if (item === intakeProposal || item === publishProposal) {
+        if (item === intakeProposal || item === submissionProposal) {
           preparePrototypeProposalCandidate(
             item,
             `sample-document-${item.id}`,
             "j00808874",
             createdAt,
           );
-          if (item === intakeProposal)
-            seedPrototypePublishedProposal(
-              item,
-              sharedSettings.projects.find((project) => project.id === item.projectId)!,
-              99,
-            );
         }
       }
     }
     if (groups.includes(item)) {
-      item.merge = {
-        commit: `sample-merged-${item.id}`,
-        branch: sharedSettings.projects.find((project) => project.id === item.projectId)!
-          .defaultBranch,
-        checkedAt: createdAt,
+      item.archive = {
+        archivedAt: createdAt,
+        archivedBy: "j00808874",
         files: structuredClone(item.files),
       };
       freezePrototypeRequirement(item, "j00808874", createdAt);
@@ -461,15 +443,9 @@ export function createPrototypeWorkflow(): WorkflowState {
     srs,
     materials,
     projectRoleMembers: [],
-    repositoryHeads: Object.fromEntries(
-      sharedSettings.projects.map((project) => [
-        prototypeRepositoryKey(project),
-        `sample-default-${project.repositoryId}`,
-      ]),
-    ),
     operations: [
       receipt("需求整理", 1, "ir-auth"),
-      receipt("提案方案已随需求合入", 2, "ir-auth"),
+      receipt("提案方案已归档", 2, "ir-auth"),
       receipt("方案材料整理", 3, "ir-auth", "sr-session"),
       receipt("验证报告展示", 4, "ir-auth", "sr-permissions"),
       receipt("交付信息展示", 5, "ir-auth", "sr-audit"),

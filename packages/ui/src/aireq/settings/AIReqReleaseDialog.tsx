@@ -55,8 +55,8 @@ export function AIReqReleaseDialog({
           <DialogTitle>{zh ? "添加 Release" : "Add release"}</DialogTitle>
           <DialogDescription>
             {zh
-              ? "用于归集同一版本的需求，不是 Git 分支。沿用所选项目的 Git 仓库与默认分支。"
-              : "Group requirements for a version, not a Git branch. The release inherits the selected project's repository and default branch."}
+              ? "用于归集同一项目版本的需求。"
+              : "Group requirements for a project release."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -85,17 +85,6 @@ export function AIReqReleaseDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2 text-ui-sm text-foreground-subtle">
-              <p className="break-all">
-                {zh ? "Git 仓库：" : "Git repository: "}
-                {projects.find((project) => project.id === releaseProjectId)?.repositoryUrl ??
-                  (zh ? "尚未配置" : "Not configured")}
-              </p>
-              <p>
-                {zh ? "默认分支：" : "Default branch: "}
-                {projects.find((project) => project.id === releaseProjectId)?.defaultBranch}
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="release-name">

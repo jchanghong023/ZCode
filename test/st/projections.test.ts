@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AIReqWorkflowView } from "@zcode/services/aireq";
-import { connectST, unique, waitUntil, type STClient } from "./client.js";
+import { connectST, unique, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { createProject, createProposal } from "./business.js";
 import {
@@ -122,7 +122,7 @@ describe("ST same-owner workflow projections", () => {
   );
 
   it(
-    "keeps the same requirement and count through verified archive",
+    "archives the same IR and verified file set independently of the code source",
     async () => {
       await usingClient(async (client) => {
         const target = await createProject(client);
@@ -206,53 +206,62 @@ describe("ST same-owner workflow projections", () => {
           requirementCount: 1,
         });
         const project = confirmed.view.projects.find((item) => item.id === target.projectId)!;
-        const originalUrl = requireConfig(project.repositoryUrl, "交付项目仓库");
         const replacementUrl = `https://example.invalid/${unique("st-replacement")}.git`;
-        const changeRepository = (repositoryUrl: string, expectedRevision: number) =>
-          client.call("projects.saveRepository", [
-            {
-              projectId: project.id,
-              name: project.name,
-              repositoryUrl,
-              defaultBranch: project.defaultBranch,
-              expectedRevision,
-              operationId: unique("switch-repository-target"),
-            },
-          ]);
-        const publication = await client.command(
-          { type: "publishProposal", candidate: group.proposalDelivery!.candidate },
-          proposal.selection,
-        );
-        expect(publication.receipt.status).toBe("completed");
-        await changeRepository(replacementUrl, project.revision);
-        const changed = await client.read(proposal.selection);
-        const changedProject = changed.view.projects.find((item) => item.id === project.id)!;
-        expect(changedProject).toMatchObject({
+        const defaultBranch = unique("st-code-source");
+        await client.call("projects.saveRepository", [
+          {
+            projectId: project.id,
+            name: project.name,
+            repositoryUrl: replacementUrl,
+            defaultBranch,
+            expectedRevision: project.revision,
+            operationId: unique("update-code-source"),
+          },
+        ]);
+        const beforeArchive = await client.read(proposal.selection);
+        expect(beforeArchive.view.projects.find((item) => item.id === project.id)).toMatchObject({
           repositoryUrl: replacementUrl,
-          defaultBranch: project.defaultBranch,
+          defaultBranch,
         });
-        const observed = await waitUntil(
-          "the server observes the old MR after the URL-only repository change",
-          () => client.read(proposal.selection),
-          (value) => getProposal(value, proposal).requirementsPr?.status === "merged",
-          config.timeoutMs,
+        expect(getProposal(beforeArchive, proposal).proposalDelivery).toEqual(
+          group.proposalDelivery,
         );
-        const blocked = observed.view.requirements.find((item) => item.id === irId);
-        expect(blocked?.proposalDelivery?.mergeCheck).toMatchObject({
-          status: "incomplete",
-          message: expect.stringMatching(/仍绑定原目标/),
-        });
-        expect(blocked?.merge).toBeUndefined();
-        expect(summary(observed.view, target.projectId, target.releaseId)).toMatchObject({
-          requirementCount: 1,
-        });
-
-        await changeRepository(originalUrl, changedProject.revision);
-        const { view: archived } = await waitUntil(
-          "verified document merge archives the original IR",
-          () => client.read(proposal.selection),
-          (value) => value.view.requirements.some((item) => item.id === irId && item.merge),
-          config.timeoutMs,
+        const action = {
+          type: "archiveProposal",
+          projectId: project.id,
+          irId,
+          candidate: group.proposalDelivery!.candidate,
+          operationId: unique("archive-materials"),
+        } as const;
+        await expectBusinessRejection(
+          client.command(
+            { ...action, expectedRevision: confirmed.view.revision },
+            proposal.selection,
+          ),
+        );
+        const result = await client.command(action, proposal.selection);
+        expect(result.receipt).toMatchObject({ status: "completed", irId });
+        expect(await client.command(action, proposal.selection)).toEqual(result);
+        const { view: archived, session } = await client.read(proposal.selection);
+        expect(session).toBeUndefined();
+        await expectBusinessRejection(
+          client.command(
+            {
+              ...action,
+              operationId: unique("archive-again"),
+            },
+            proposal.selection,
+          ),
+        );
+        await expectBusinessRejection(
+          client.command(
+            {
+              type: "deleteRequirement",
+              projectId: project.id,
+              irId,
+            },
+            proposal.selection,
+          ),
         );
         expect(summary(archived, target.projectId, target.releaseId)).toMatchObject({
           requirementCount: 1,
@@ -264,11 +273,15 @@ describe("ST same-owner workflow projections", () => {
           originalText: text,
           releaseId: target.releaseId,
           srIds: group.srIds,
-          requirementsPr: { status: "merged" },
           review: { id: review.id },
         });
-        expect(formal?.merge?.files).toEqual(group.files);
-        expect(formal?.merge?.commit).toMatch(/\S/);
+        expect(formal?.archive).toEqual({
+          archivedBy: client.identity.employeeId,
+          archivedAt: expect.any(String),
+          files: group.files,
+        });
+        expect(formal?.freeze?.files).toEqual(group.files);
+        expect(formal?.materialHistory).toEqual(group.materialHistory);
         expect(archived.materials.filter((item) => item.irId === irId)).toEqual(
           expect.arrayContaining(group.files.map((file) => expect.objectContaining(file))),
         );

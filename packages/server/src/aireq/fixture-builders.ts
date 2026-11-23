@@ -1,14 +1,11 @@
 import { createRequirementSnapshot } from "./content-digest.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqSystemRequirement, AIReqWorkflowTarget } from "@zcode/services/aireq";
-import { prototypeRepositoryKey } from "./project-settings.js";
 import type {
   NativeSessionRef,
-  PrototypeRepositoryTarget,
   Receipt,
   RequirementGroup,
   SystemRequirement,
-  WorkflowState,
 } from "./workflow-state.js";
 import {
   prototypeIrRoot,
@@ -43,15 +40,6 @@ export const DEFAULT_SELECTION: AIReqWorkflowTarget =
 export const PROTOTYPE_WORKSPACE_IDENTITY = "aireq-mock";
 const PROTOTYPE_RELEASE_ID = "release-2026-11";
 export const createdAt = "2026-11-10T09:00:00.000Z";
-export function prototypeDefaultCommit(
-  view: Pick<WorkflowState, "repositoryHeads">,
-  target: PrototypeRepositoryTarget,
-): string {
-  return (
-    view.repositoryHeads[prototypeRepositoryKey(target)] ??
-    `sample-default-${target.repositoryId}`
-  );
-}
 export function systemRequirement(
   projectId: string,
   irId: string,

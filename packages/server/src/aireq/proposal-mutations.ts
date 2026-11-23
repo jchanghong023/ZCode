@@ -24,9 +24,8 @@ import {
 import { prototypeMaterialIssue } from "./recovery.js";
 import { acceptPrototypeReview, type PrototypeReviewRun } from "./requirements-review.js";
 import {
-  closePrototypeProposalMr,
   preparePrototypeProposalCandidate,
-  publishPrototypeProposal,
+  archivePrototypeProposal,
 } from "./proposal-delivery.js";
 import { capturePrototypeMaterialHistory } from "./proposal-storage.js";
 
@@ -226,7 +225,6 @@ function invalidate(
     proposal.proposalDeliveryHistory.push(structuredClone(proposal.proposalDelivery));
     proposal.proposalDelivery = undefined;
   }
-  proposal.requirementsPr = undefined;
   proposal.revision += 1;
 }
 function replaceMaterial(
@@ -298,7 +296,11 @@ export function applyProposalMutation(
   };
   switch (action.type) {
     case "addProjectRoleMember":
-      state.projectRoleMembers.push({ projectId, employeeId: action.employeeId, role: action.role });
+      state.projectRoleMembers.push({
+        projectId,
+        employeeId: action.employeeId,
+        role: action.role,
+      });
       break;
     case "removeProjectRoleMember":
       state.projectRoleMembers = state.projectRoleMembers.filter(
@@ -671,12 +673,8 @@ export function applyProposalMutation(
       }
       break;
     }
-    case "publishProposal":
-      if (publishPrototypeProposal(state, proposal!, at))
-        operation.type = "复用当前版本的文档 PR，不重复推送或创建";
-      break;
-    case "closeProposalPr":
-      closePrototypeProposalMr(proposal!, `sample-proposal-${state.revision}`);
+    case "archiveProposal":
+      archivePrototypeProposal(state, proposal!, getEmployeeId(), at);
       break;
   }
   return irId;

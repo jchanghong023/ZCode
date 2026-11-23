@@ -10,9 +10,8 @@ import type {
   AIReqMaterialCheck,
   AIReqMaterialHistory,
   AIReqMaterialView,
-  AIReqMergeFact,
+  AIReqArchiveFact,
   AIReqNativeSessionRef,
-  AIReqPrFact,
   AIReqProposalFeedbackNote,
   AIReqProposalDelivery,
   AIReqProposalRevision,
@@ -42,14 +41,8 @@ export interface Project {
   revision: number;
   defaultBranch: string;
   repositoryUrl?: string;
-  repositoryId: string;
   root: string;
 }
-
-export type PrototypeRepositoryTarget = Pick<
-  Project,
-  "repositoryId" | "repositoryUrl" | "defaultBranch"
->;
 
 export interface NativeSessionRef extends AIReqNativeSessionRef {
   runtimeModel?: NativeRuntimeModel;
@@ -93,25 +86,10 @@ export interface Receipt {
   identity?: AIReqIdentity;
 }
 
-export interface ProposalDelivery extends AIReqProposalDelivery {
-  repositoryTarget?: PrototypeRepositoryTarget;
-  simulatedMr?: {
-    candidate: string;
-    version: string;
-    manifest: string;
-    number: number;
-    openedAt: string;
-    mergeEligibleAt: string;
-    status: "opened" | "merged";
-    commit?: string;
-  };
-}
-
 interface ProposalRevision extends Omit<AIReqProposalRevision, "delivery" | "review"> {
-  delivery?: ProposalDelivery;
+  delivery?: AIReqProposalDelivery;
   review?: Review;
 }
-
 
 export interface RequirementGroup {
   id: string;
@@ -141,10 +119,9 @@ export interface RequirementGroup {
   materialHistory?: AIReqMaterialHistory[];
   rejectedReviewResults?: AIReqRequirementGroup["rejectedReviewResults"];
   snapshot?: AIReqRequirementSnapshot;
-  requirementsPr?: AIReqPrFact;
-  merge?: AIReqMergeFact;
-  proposalDelivery?: ProposalDelivery;
-  proposalDeliveryHistory?: ProposalDelivery[];
+  archive?: AIReqArchiveFact;
+  proposalDelivery?: AIReqProposalDelivery;
+  proposalDeliveryHistory?: AIReqProposalDelivery[];
   proposalRevisions?: ProposalRevision[];
   freeze?: AIReqRequirementGroup["freeze"];
   srDependencyFile?: AIReqMaterialView;
@@ -167,7 +144,6 @@ export interface SystemRequirement extends AIReqSystemRequirement {
 export interface WorkflowState {
   revision: number;
   projects: Project[];
-  repositoryHeads: Record<string, string>;
   projectRoleMembers: AIReqProjectRoleMember[];
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;

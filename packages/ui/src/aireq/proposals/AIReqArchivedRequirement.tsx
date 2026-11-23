@@ -6,7 +6,6 @@ import { useAIReq } from "../AIReqContext.js";
 import { AIReqRequirementReturnButton } from "../shell/AIReqRequirementNavigation.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
-import { resolveMrLink } from "../proposals/AIReqDocumentPrStatus.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 
 export function AIReqArchivedRequirement({ group: selected }: { group: AIReqRequirementGroup }) {
@@ -57,9 +56,7 @@ export function AIReqArchivedRequirement({ group: selected }: { group: AIReqRequ
     );
   }, [irId, materialTitle, open, projectId, ready, releaseId, srId]);
 
-  const date = selected?.merge?.checkedAt && new Date(selected.merge.checkedAt);
-  const pr = selected?.requirementsPr;
-  const prLink = pr?.status === "merged" ? resolveMrLink(pr.url) : undefined;
+  const date = selected?.archive?.archivedAt && new Date(selected.archive.archivedAt);
   return (
     <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
       <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " min-w-0 space-y-5"}>
@@ -96,7 +93,7 @@ export function AIReqArchivedRequirement({ group: selected }: { group: AIReqRequ
             <p role="status" className="flex items-center gap-2 text-ui-sm text-success">
               <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
               {zh ? "已通过材料核验并归档 · " : "Verified and archived · "}
-              <time dateTime={selected.merge?.checkedAt}>
+              <time dateTime={selected.archive?.archivedAt}>
                 {date.toLocaleDateString(locale, { timeZone: "Asia/Shanghai" })}
               </time>
             </p>
@@ -140,29 +137,21 @@ export function AIReqArchivedRequirement({ group: selected }: { group: AIReqRequ
             <History aria-hidden="true" />
             {zh ? "讨论与评审历史" : "Discussion and review history"}
           </Button>
-          {prLink && (
-            <Button asChild variant="outline">
-              <a href={prLink} target="_blank" rel="noreferrer">
-                {zh ? "查看文档 PR" : "View document PR"}
-              </a>
-            </Button>
-          )}
           <Button variant="ghost" onClick={() => ai.startProposalDraft(selected.id)}>
             {zh ? "新建关联提案" : "New related proposal"}
           </Button>
         </div>
-        {selected.merge && (
+        {selected.archive && (
           <details className="space-y-3 rounded-lg border border-border px-3 py-2 text-ui-sm">
             <summary className="w-fit cursor-pointer rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
-              {zh ? "查看交付记录" : "View delivery record"}
+              {zh ? "查看归档记录" : "View archive record"}
             </summary>
             <p>
-              {pr?.number !== undefined ? `文档 PR #${pr.number} · ` : ""}
-              {zh ? "文件核验通过" : "Files verified"} · {selected.merge.files.length}{" "}
-              {zh ? "份文件" : "files"}
+              {zh ? "归档人" : "Archived by"} {selected.archive.archivedBy} ·{" "}
+              {selected.archive.files.length} {zh ? "份文件" : "files"}
             </p>
             <ul className="divide-y divide-border/50">
-              {selected.merge.files.map((file) => (
+              {selected.archive.files.map((file) => (
                 <li key={file.path} className="break-all py-1 font-mono text-foreground-subtle">
                   {file.path}
                 </li>

@@ -1,7 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { resolveMrLink } from "./AIReqDocumentPrStatus.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   proposalReviewCanRetry,
@@ -23,22 +22,6 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
     (state === "solution-review-pending" && proposalReviewCanRetry(item, true));
   if (failed)
     actionHint = zh ? "上次评审失败 · 可重试" : "Previous review failed · Retry available";
-  if (state === "merge-pending") {
-    const untracked = item.proposalDelivery?.mergeCheck?.status === "untracked";
-    const external =
-      item.requirementsPr?.status === "opened" && Boolean(resolveMrLink(item.requirementsPr.url));
-    actionHint = untracked
-      ? zh
-        ? "需要开始跟踪"
-        : "Tracking not started"
-      : external
-        ? zh
-          ? "等待仓库合入"
-          : "Awaiting repository merge"
-        : zh
-          ? "后台跟踪中"
-          : "Tracking in background";
-  }
   const submittedAt = new Date(item.createdAt);
   const date = (
     <time
@@ -94,7 +77,11 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         {date}
       </td>
       <td className="px-4 py-3">
-        {item.merge ? (zh ? "已归档" : "Archived") : proposalStateLabel(item, zh ? "zh-CN" : "en-US")}
+        {item.archive
+          ? zh
+            ? "已归档"
+            : "Archived"
+          : proposalStateLabel(item, zh ? "zh-CN" : "en-US")}
         {actionHint && (
           <span
             className={`mt-1 block w-fit max-w-full rounded-sm px-1.5 py-0.5 text-ui-sm font-medium ${failed ? "text-destructive" : "bg-interaction-confirmation-surface text-interaction-confirmation-foreground"}`}

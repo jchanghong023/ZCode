@@ -26,7 +26,6 @@ import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
   getPrototypeWorkflow,
-  getPrototypeProposalPrHandoff,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
   readPrototypeProjectWorkspaces,
@@ -34,7 +33,6 @@ import {
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
-  pollPrototypeProposalMerges,
   notifyPrototypeProjectSettingsChanged,
 } from "./workflow.js";
 import * as models from "./agent-models.js";
@@ -60,13 +58,12 @@ const commands = [
   "importProposals",
   "runFullReview",
   "confirmAlignment",
-  "closeProposalPr",
   "deleteRequirement",
   "acceptProposal",
   "submitProposalReview",
   "runRequirementsReview",
   "returnProposal",
-  "publishProposal",
+  "archiveProposal",
 ] as const;
 
 /** One instance is registered by createMockServices; connection scopes never dispose it. */
@@ -87,7 +84,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   >();
   private readonly operations = new Map<string, { digest: string; result: AIReqWorkflowResult }>();
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
-  private readonly timer: ReturnType<typeof setInterval>;
   constructor() {
     super();
     remoteOwners.set(this.remote, this);
@@ -96,8 +92,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     skills.onPrototypeSkillDesignSupplement((sessionId) =>
       this.changed.fire({ type: "skills", sessionId }),
     );
-    this.timer = setInterval(pollPrototypeProposalMerges, 5000);
-    this.timer.unref();
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
@@ -105,7 +99,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("command", (action: AIReqCommand, target: AIReqCommandTarget, revision: number) =>
       this.command(action, target, revision),
     );
-    add("readPrHandoff", getPrototypeProposalPrHandoff);
     add("retryMaterial", retryPrototypeWorkflowMaterial);
     add("retrySession", (selection: AIReqWorkflowTarget, sessionId: string) => {
       const session = this.workflow(selection).session;
@@ -165,13 +158,11 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       (proposal &&
         !selection.proposalStep &&
         !selection.discussionPhase &&
-        (proposalDeliveryCurrent(proposal) || proposal.status === "requirements-pr"));
+        proposalDeliveryCurrent(proposal));
     return {
       view,
       session:
-        proposal?.merge ||
-        selection.srId ||
-        intake
+        proposal?.archive || selection.srId || intake
           ? undefined
           : resolvePrototypeSession(view, selection),
       workspace: readPrototypeProjectWorkspace(selection.projectId),

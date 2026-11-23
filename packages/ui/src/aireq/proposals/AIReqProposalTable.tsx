@@ -212,7 +212,7 @@ export function AIReqProposalTable({
         item.originalText.toLocaleLowerCase().includes(search) ||
         item.id.toLocaleLowerCase().includes(search)) &&
       (!submitter || item.submittedBy.includes(submitter)) &&
-      (!phase || (item.merge ? phase === "archived" : proposalState(item) === phase)),
+      (!phase || (item.archive ? phase === "archived" : proposalState(item) === phase)),
   );
   filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
@@ -403,7 +403,7 @@ export function AIReqProposalTable({
             <SelectContent>
               <SelectItem value="all">{zh ? "全部状态" : "All statuses"}</SelectItem>
               <SelectItem value="archived">{zh ? "已归档" : "Archived"}</SelectItem>
-              {/* 修复原因：八态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
+              {/* 修复原因：七态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
               {PROPOSAL_STATE_GROUPS.map((group) => (
                 <SelectGroup key={group.title}>
                   <SelectLabel className="text-ui-sm font-medium text-foreground">

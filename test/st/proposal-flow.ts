@@ -236,7 +236,7 @@ export async function completeSolutionMaterial(c: STClient, target: ProposalTarg
     target,
     "请根据已确认的只读 IR 业务文档，将导出功能与异常恢复拆成至少两个稳定 SR，分别生成提案、规格、设计、开发任务、测试方案；" +
       "生成覆盖全部 SR 的 sr-dependencies.json，每个 SR 给出正有限工作日预估和假设，依赖须给出理由且无环。" +
-      "测试方案逐项追溯业务验收标准，不请求确认、不创建文档 PR。",
+      "测试方案逐项追溯业务验收标准，保留待人工确认的结果。",
   );
   const remote = await waitUntil(
     "solution discussion should produce the complete current document package",

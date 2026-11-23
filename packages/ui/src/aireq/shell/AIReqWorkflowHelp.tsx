@@ -38,9 +38,9 @@ const steps = [
     title: "从需求工作台进入任务",
     titleEn: "Open tasks from the requirement workspace",
     description:
-      "提案入口先到需求工作台，查看当前进展和下一项操作，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后在需求共创显示为已归档。",
+      "提案入口先到需求工作台，查看当前进展和下一项操作，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交；材料变化会重新判断状态，转正后在需求共创显示为已归档。",
     descriptionEn:
-      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Review summaries open directly to the current report. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. After verification, the requirement appears as Archived in Co-creation.",
+      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Review summaries open directly to the current report. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, and Submission pending. Material changes recalculate status. After verification, the requirement appears as Archived in Co-creation.",
   },
   {
     title: "每 SR 独立完整包",
@@ -59,21 +59,20 @@ const steps = [
       "Submitting validated solution materials starts three independent reviews followed by synthesis. Retry only failed or missing reports. Once current reports are readable and complete, business, development and testing confirm separately. The confirmers decide whether to act on the findings. One employee can fill all roles; each role retains its first decision. Material changes invalidate only affected reviews and decisions, keeping history read-only.",
   },
   {
-    title: "一个 IR 一个文档 PR",
-    titleEn: "One document PR per IR",
+    title: "提交归档",
+    titleEn: "Archive documents",
     description:
-      "三方齐全后，核对完整文件清单并明确授权提交文档 PR。失败后重试同一候选，复用已创建分支和已推送材料。PR 打开期间材料冻结，修改前须关闭未合入 PR；同一候选合入且核验完整后，以原 ID 转正。转正后可在已归档需求查阅完整材料。",
+      "三方确认后，开发人员核对完整文件清单并提交归档。成功后可在同一需求的归档详情查阅完整材料和历史。",
     descriptionEn:
-      "After all roles confirm, check every file and explicitly authorize submission of one document PR. A retry reuses the same candidate and completed branch or push steps. An open PR freezes its materials; close it before editing. The same candidate must merge and pass verification to become formal without changing its ID. Open archived requirements to read the published materials.",
+      "After all roles confirm, a project developer checks every file and submits it for archiving. Read the complete materials and history in the archived requirement.",
   },
   {
     title: "查阅已归档需求",
     titleEn: "Read formal documents",
     // 弹窗按语言读取 description 和 descriptionEn，字段不匹配会导致正文空白。
-    description:
-      "文档 PR 合入并核验后，在当前版本的「已归档需求」查看原始需求、规格、方案及讨论评审历史。",
+    description: "提交归档后，在当前版本的「已归档需求」查看原始需求、规格、方案及讨论评审历史。",
     descriptionEn:
-      "Once the document PR merges and passes verification, open archived requirements for the original requirement, specifications, design and review history.",
+      "After the documents are archived, open archived requirements for the original requirement, specifications, design and review history.",
   },
 ];
 

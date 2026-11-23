@@ -14,5 +14,4 @@ export const SUPPORTED_AIREQ_DEMOS = [
   "session-read-failure",
   "send-failure",
   "operation-failure",
-  "mr-create-failure",
 ] as const;

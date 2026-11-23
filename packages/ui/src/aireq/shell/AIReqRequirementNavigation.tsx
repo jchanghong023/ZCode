@@ -52,7 +52,7 @@ export function AIReqRequirementContext() {
   const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "需求规格" : "需求");
   const subtitle = ai.selection.srId
     ? "需求规格 · SR"
-    : group?.merge
+    : group?.archive
       ? "已归档需求 · IR"
       : group
         ? "需求提案 · IR"

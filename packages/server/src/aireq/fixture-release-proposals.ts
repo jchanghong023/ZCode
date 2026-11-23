@@ -1,16 +1,15 @@
-import { aiReqPrFactSchema, type AIReqMaterialView } from "@zcode/services/aireq";
+import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { createRequirementSnapshot } from "./content-digest.js";
 import { createdAt, group, sessionRef, systemRequirement } from "./fixture-builders.js";
 import { checkProposalMaterials, emptyDocumentFormats, requirementMaterials } from "./materials.js";
-import { prototypeRepositoryTarget, readPrototypeProjectSetting } from "./project-settings.js";
+import { readPrototypeProjectSetting } from "./project-settings.js";
 import { prototypeProposalDependencies } from "./proposal-flow.js";
 import {
   createPrototypeRequirementsReview,
   prototypeReviewSessions,
 } from "./requirements-review.js";
 import { preparePrototypeProposalCandidate } from "./proposal-delivery.js";
-import { prototypeProposalBranch } from "./proposal-pr-handoff.js";
-import type { Project, RequirementGroup, SystemRequirement } from "./workflow-state.js";
+import type { RequirementGroup, SystemRequirement } from "./workflow-state.js";
 
 interface ProposalSample {
   id: string;
@@ -20,7 +19,6 @@ interface ProposalSample {
   originalReview?: "failed" | "reviewed" | "confirmed";
   fullReview?: "failed" | "reviewed";
   aligned?: boolean;
-  published?: boolean;
   srTitle?: string;
 }
 
@@ -90,7 +88,6 @@ const proposals: ProposalSample[] = [
     originalReview: "confirmed",
     fullReview: "reviewed",
     aligned: true,
-    published: true,
     srTitle: "变更摘要与需求定位",
   },
 ];
@@ -196,40 +193,6 @@ export function createPrototypeReleaseProposals() {
         createdAt,
       );
     }
-    if (sample.published) seedPrototypePublishedProposal(proposal, project, 98);
   }
   return { drafts, srs, materials };
-}
-
-/** An opened seed is an existing business record, not a simulated future merge. */
-export function seedPrototypePublishedProposal(
-  proposal: RequirementGroup,
-  project: Readonly<Project>,
-  number: number,
-): void {
-  const delivery = proposal.proposalDelivery!;
-  delivery.repositoryTarget = prototypeRepositoryTarget(project);
-  delivery.branch = {
-    name: prototypeProposalBranch(proposal.id),
-    baseCommit: `sample-default-${project.repositoryId}`,
-    createdAt,
-    pushedAt: createdAt,
-  };
-  delivery.pushedCandidate = delivery.candidate;
-  delivery.pushedAt = createdAt;
-  delivery.prCandidate = delivery.candidate;
-  delivery.mergeCheck = {
-    status: "untracked",
-    message: "文档 PR 已打开，开始跟踪后将自动核验合入与材料完整性。",
-  };
-  proposal.requirementsPr = aiReqPrFactSchema.parse({
-    number,
-    title: `[需求] ${proposal.title}`,
-    status: "opened",
-    sourceBranch: delivery.branch.name,
-    targetBranch: project.defaultBranch,
-    recordedAt: createdAt,
-    platformVerified: false,
-  });
-  proposal.status = "requirements-pr";
 }

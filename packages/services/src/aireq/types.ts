@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { AIReqDocumentFormats, AIReqMaterialCheck } from "./document-formats.js";
 import type { AIReqAgentModelBinding } from "./model-types.js";
 export { AIREQ_AGENT_ROLES } from "./model-types.js";
@@ -15,11 +14,10 @@ export interface AIReqIdentity {
   clientId: string;
 }
 
-export type AIReqWorkflowStage = "planning" | "executing" | "pr" | "solution";
+export type AIReqWorkflowStage = "planning" | "executing" | "solution";
 export type AIReqRequirementStatus =
   | "draft"
   | "solution-ready"
-  | "requirements-pr"
   | "formal"
   | "frozen"
   | "deleted"
@@ -33,8 +31,7 @@ export type AIReqProposalState =
   | "solution-incomplete"
   | "solution-review-pending"
   | "solution-confirmation-pending"
-  | "submission-pending"
-  | "merge-pending";
+  | "submission-pending";
 export interface AIReqObjectRef {
   projectId: string;
   irId: string;
@@ -148,26 +145,9 @@ export interface AIReqRequirementSnapshot {
   files: AIReqFileVersion[];
   digest: string;
 }
-/** 平台核验是正式布尔事实；内存记录不代表外部平台核验成功。 */
-export const aiReqPrFactSchema = z
-  .object({
-    /** Only returned when the code-hosting provider supplies an accessible URL. */
-    url: z.string().optional(),
-    sourceBranch: z.string(),
-    targetBranch: z.string(),
-    recordedAt: z.string(),
-    platformVerified: z.boolean(),
-    number: z.number().optional(),
-    title: z.string().optional(),
-    body: z.string().optional(),
-    status: z.enum(["opened", "merged", "closed"]).optional(),
-  })
-  .strict();
-export type AIReqPrFact = z.infer<typeof aiReqPrFactSchema>;
-export interface AIReqMergeFact {
-  commit: string;
-  branch: string;
-  checkedAt: string;
+export interface AIReqArchiveFact {
+  archivedAt: string;
+  archivedBy: string;
   files: AIReqFileVersion[];
 }
 export interface AIReqProposalDelivery {
@@ -176,19 +156,6 @@ export interface AIReqProposalDelivery {
   files: AIReqFileVersion[];
   confirmedBy: string;
   confirmedAt: string;
-  pushedCandidate?: string;
-  pushedAt?: string;
-  prCandidate?: string;
-  branch?: { name: string; baseCommit: string; createdAt: string; pushedAt?: string };
-  publishError?: { step: "branch" | "push" | "pr"; message: string };
-  /** A closed PR retained with the historical candidate, not an active publication. */
-  closedPr?: AIReqPrFact;
-  mergeCheck?: {
-    status: "untracked" | "waiting" | "unmerged" | "incomplete" | "failed" | "merged";
-    checkedAt?: string;
-    nextCheckAt?: string;
-    message: string;
-  };
 }
 export interface AIReqProposalRevision {
   reason: string;
@@ -196,9 +163,8 @@ export interface AIReqProposalRevision {
   startedAt: string;
   completedAt?: string;
   snapshot: AIReqRequirementSnapshot;
-  merge: AIReqMergeFact;
+  archive: AIReqArchiveFact;
   materials: AIReqMaterialView[];
-  requirementsPr?: AIReqPrFact;
   delivery?: AIReqProposalDelivery;
   review?: AIReqReview;
 }
@@ -259,8 +225,7 @@ export interface AIReqRequirementGroup {
   snapshot?: AIReqRequirementSnapshot;
   review?: AIReqReview;
   reviewHistory?: AIReqReview[];
-  requirementsPr?: AIReqPrFact;
-  merge?: AIReqMergeFact;
+  archive?: AIReqArchiveFact;
   createdAt: string;
   proposalDelivery?: AIReqProposalDelivery;
   proposalDeliveryHistory?: AIReqProposalDelivery[];
@@ -378,7 +343,6 @@ type AIReqIntent = AIReqCommandBase &
         reviewId: string;
         snapshotDigest: string;
       }
-    | { type: "closeProposalPr"; candidate: string }
     | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "acceptProposal"; reviewId: string; snapshotDigest: string }
     | {
@@ -390,7 +354,7 @@ type AIReqIntent = AIReqCommandBase &
       }
     | { type: "runRequirementsReview" }
     | { type: "returnProposal"; reason: string; target?: AIReqProposalReturnTarget }
-    | { type: "publishProposal"; candidate: string }
+    | { type: "archiveProposal"; projectId: string; irId: string; candidate: string }
   );
 
 /** 本地表单可携带独立于最新投影的编辑基线。 */
@@ -439,14 +403,6 @@ export interface AIReqSkillDesignDraft {
   notes: string[];
 }
 export type AIReqSkillDesignDraftFields = Omit<AIReqSkillDesignDraft, "notes">;
-export interface AIReqPrHandoff {
-  repositoryUrl?: string;
-  blockers: string[];
-  sourceDirectory: string;
-  branch: string;
-  targetBranch: string;
-}
-
 export interface AIReqWorkspace {
   path?: string;
   identity: string;

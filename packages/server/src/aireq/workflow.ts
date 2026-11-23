@@ -1,9 +1,8 @@
-import { businessRule, businessFailureMessage } from "./errors.js";
+import { businessRule } from "./errors.js";
 import type { InternalWorkflowAction, RequirementGroup, WorkflowState } from "./workflow-state.js";
 import {
   proposalVersion,
   proposalState,
-  proposalPrCurrent,
   proposalReviewCanRetry,
   proposalReviewSubmitBlocker,
   proposalReturnBlocker,
@@ -13,16 +12,7 @@ import {
   fullReviewCurrent,
   requirementsReviewCurrent,
 } from "@zcode/services/aireq";
-import {
-  prototypeProposalMaterialsIssue,
-  validatePrototypeProposalPublication,
-  observePrototypeProposalMr,
-  completePrototypeProposal,
-} from "./proposal-delivery.js";
-import {
-  prototypeProposalRepositoryIssue,
-  readPrototypeProposalPrHandoff,
-} from "./proposal-pr-handoff.js";
+import { validatePrototypeProposalArchive } from "./proposal-delivery.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
@@ -126,79 +116,11 @@ export function readPrototypeProjectWorkspace(projectId?: string) {
 export function readPrototypeProjectWorkspaces(): Record<string, AIReqWorkspace> {
   return readProjectWorkspaces();
 }
-/** Settings writes call this synchronously before a command or merge poll can read the new target. */
+/** Settings writes call this synchronously before the next command reads settings. */
 export function notifyPrototypeProjectSettingsChanged(): void {
   state.projects = readPrototypeProjectSettings().projects;
   state.revision += 1;
   prototypeWorkflowChanges.fire();
-}
-
-/** 原型五秒轮询检查内部 MR 生命周期，不连接真实 Git、PR API 或模型。 */
-export function pollPrototypeProposalMerges(): void {
-  let checked = false;
-  // 转正替换 state.drafts 引用，不修改当前遍历的数组，因此无需复制快照。
-  for (const group of state.drafts) {
-    if (!proposalPrCurrent(group)) continue;
-    const delivery = group.proposalDelivery!;
-    const mr = group.requirementsPr!;
-    if (delivery.mergeCheck?.status === "untracked") continue;
-    checked = true;
-    const now = Date.now();
-    const at = new Date(now).toISOString();
-    const nextCheckAt = new Date(now + 5000).toISOString();
-    const observation = observePrototypeProposalMr(group, now);
-    if (observation === "unmerged") {
-      delivery.mergeCheck = {
-        status: mr.status === "merged" ? "failed" : "unmerged",
-        checkedAt: at,
-        nextCheckAt,
-        message:
-          mr.status === "merged"
-            ? "本轮状态与已观测的合入记录不一致，保留已合入事实，等待下一轮核验。"
-            : "文档 PR 待合入，后台会继续核验候选状态与材料版本。",
-      };
-      continue;
-    }
-    if (mr.status !== "merged") {
-      mr.status = "merged";
-      state.revision += 1;
-    }
-    const project = state.projects.find((item) => item.id === group.projectId);
-    const issue =
-      prototypeProposalRepositoryIssue(group, project) ??
-      (observation === "stale-version"
-        ? "合入证据对应旧版本，当前需求不能转正。"
-        : observation === "incomplete"
-          ? "合入提交缺少当前候选的完整文件清单。"
-          : prototypeProposalMaterialsIssue(state, group));
-    if (issue) {
-      delivery.mergeCheck = {
-        status: "incomplete",
-        checkedAt: at,
-        nextCheckAt,
-        message: issue,
-      };
-      continue;
-    }
-    delivery.mergeCheck = {
-      status: "merged",
-      checkedAt: at,
-      message: "当前候选已登记合入且材料版本完整，提案转正，正式文档可查阅。",
-    };
-    const operation = receipt(
-      "提案合入登记与材料版本检查，并归档正式文档",
-      ++state.revision,
-      group.id,
-    );
-    operation.startedAt = at;
-    operation.completedAt = at;
-    completePrototypeProposal(state, group, at);
-    state.operations.push(operation);
-  }
-  if (checked) {
-    // 检查时间更新只刷新投影，不推进业务修订。
-    prototypeWorkflowChanges.fire();
-  }
 }
 
 export function requireProjectRole(
@@ -207,9 +129,7 @@ export function requireProjectRole(
 ): void {
   if (!hasProjectRole(state, projectId, getEmployeeId(), role))
     throw businessRule(
-      role === "development"
-        ? "此操作需要当前项目的开发角色。"
-        : "此操作需要当前项目的测试角色。",
+      role === "development" ? "此操作需要当前项目的开发角色。" : "此操作需要当前项目的测试角色。",
     );
 }
 
@@ -218,15 +138,6 @@ function canViewSolutionSession(projectId: string | undefined): boolean {
     hasProjectRole(state, projectId, getEmployeeId(), "development") ||
     hasProjectRole(state, projectId, getEmployeeId(), "testing")
   );
-}
-
-export function getPrototypeProposalPrHandoff(target: { projectId: string; irId: string }) {
-  const matches = (item: RequirementGroup) =>
-    item.id === target.irId && item.projectId === target.projectId;
-  const group = state.drafts.find(matches) ?? state.groups.find(matches);
-  if (!group) throw businessRule("需求不存在或已删除。");
-  const project = state.projects.find((item) => item.id === target.projectId);
-  return readPrototypeProposalPrHandoff(group, project);
 }
 
 export function getPrototypeWorkflow(
@@ -277,7 +188,7 @@ export function resolvePrototypeSession(
   const proposal = view.requirements.find(
     (item) => item.projectId === projectId && item.id === selection.irId,
   );
-  if (!proposal || proposal.merge) return;
+  if (!proposal || proposal.archive) return;
   const viewed = proposalViewedIndex(proposal, selection);
   if (viewed === 2 && !canViewSolutionSession(proposal.projectId)) return;
   // Delivery has no conversation, and a reviewer URL must never fall back to a different agent.
@@ -429,8 +340,7 @@ export function applyPrototypeAction(
   if (
     action.type === "generateProposalSolution" ||
     action.type === "runFullReview" ||
-    action.type === "publishProposal" ||
-    action.type === "closeProposalPr" ||
+    action.type === "archiveProposal" ||
     (action.type === "submitProposalReview" && action.kind === "full")
   )
     requireProjectRole(targetProjectId, "development");
@@ -454,11 +364,6 @@ export function applyPrototypeAction(
   if (proposalAction) {
     if (!targetProposal) throw businessRule("请选择需求提案，正式需求不能重新进入提案流程。");
     if (!isEmployeeId(getEmployeeId())) throw businessRule("请先输入有效工号。");
-    if (
-      proposalPrCurrent(targetProposal) &&
-      !["closeProposalPr", "publishProposal", "confirmAlignment"].includes(action.type)
-    )
-      throw businessRule("文档 PR 已提交，当前材料冻结；请先关闭未合并 PR。");
   }
   if (
     (action.type === "runRequirementsReview" || action.type === "runFullReview") &&
@@ -509,33 +414,26 @@ export function applyPrototypeAction(
     if (issue) throw businessRule(issue);
     if (!inRequirements) requireProjectRole(targetProjectId, "development");
   }
-  if (
-    action.type === "closeProposalPr" &&
-    (!proposalPrCurrent(targetProposal!) ||
-      targetProposal!.requirementsPr?.status !== "opened" ||
-      action.candidate !== targetProposal!.proposalDelivery?.candidate)
-  )
-    throw businessRule("只能关闭当前候选的未合并文档 PR。");
-  if (action.type === "publishProposal")
-    validatePrototypeProposalPublication(state, targetProposal!, action.candidate);
+  if (action.type === "archiveProposal")
+    validatePrototypeProposalArchive(state, targetProposal!, action.candidate);
   if (
     action.type === "deleteRequirement" &&
     (!targetProposal ||
       targetProposal.proposalRevisions?.length ||
-      targetProposal.merge ||
+      targetProposal.archive ||
       targetProposal.freeze)
   )
-    throw businessRule("正式提案的修订必须保留原入库记录，不能作为普通草稿删除。");
+    throw businessRule("正式提案的修订必须保留归档记录，不能作为普通草稿删除。");
   if (
     action.type === "deleteRequirement" &&
     state.groups.some(
       (item) =>
         item.projectId === targetProjectId &&
         item.id === (action.irId ?? selection.irId) &&
-        (item.merge || item.freeze),
+        (item.archive || item.freeze),
     )
   )
-    throw businessRule("已入库的正式提案须保留 Git 记录与历史，不能通过删除需求释放仓库。");
+    throw businessRule("已归档需求的材料及历史须保留。");
   const previous = state;
   state = structuredClone(state);
   const projectId = action.projectId ?? selection.projectId ?? "demo-aurora";
@@ -572,13 +470,8 @@ export function applyPrototypeAction(
       stagedOutput,
     );
   } catch (error) {
-    if (action.type !== "publishProposal") {
-      state = previous;
-      throw error;
-    }
-    // 推送是已完成事实；创建 PR 失败不能抹去它，也不能静默冒充成功。
-    operation.status = "failed";
-    operation.error = businessFailureMessage(error);
+    state = previous;
+    throw error;
   }
   state.operations.push(operation);
   for (const run of reviewRuns) schedulePrototypeReview(run);

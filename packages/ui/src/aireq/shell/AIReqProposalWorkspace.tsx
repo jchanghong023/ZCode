@@ -45,7 +45,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const source = useAIReqDataSource();
   const { open, activeTab, isOpen, toggle } = useAIReqSidePane();
   const proposal = ai.view?.requirements.find(
-    (item) => !item.merge && item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
+    (item) =>
+      !item.archive && item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
   );
   const projectId = ai.selection.projectId;
   const employee = getEmployeeId();

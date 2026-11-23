@@ -223,7 +223,7 @@ export function AIReqArchivedHistory() {
   );
   const group = aireq.view?.requirements.find(
     (item) =>
-      item.merge &&
+      item.archive &&
       item.projectId === aireq.selection.projectId &&
       item.id === aireq.selection.irId,
   );

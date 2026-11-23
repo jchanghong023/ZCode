@@ -96,7 +96,7 @@ export function AIReqProposalCreateDialog({
   const originalInput = useRef<HTMLTextAreaElement>(null);
   const sourceIrId = ai.proposalDraft?.sourceIrId;
   const sourceDocument = ai.view?.requirements.find(
-    (item) => item.merge && item.id === sourceIrId && item.projectId === ai.selection.projectId,
+    (item) => item.archive && item.id === sourceIrId && item.projectId === ai.selection.projectId,
   );
   const sourceRelease = ai.view?.releases.find(
     (item) => item.id === sourceDocument?.releaseId && item.projectId === sourceDocument?.projectId,

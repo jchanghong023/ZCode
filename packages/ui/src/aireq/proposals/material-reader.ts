@@ -72,7 +72,7 @@ export function isCurrentMaterialConfirmed(
     file.path === material.path && file.sha256 === material.sha256 && file.size === material.size;
   if (!group.files.some(matchesFile)) return false;
 
-  if (group.merge) return group.merge.files.some(matchesFile);
+  if (group.archive) return group.archive.files.some(matchesFile);
 
   // Approval of requirements covers just the IR; any current alignment covers the
   // full review input. History alone is never evidence of current human approval.

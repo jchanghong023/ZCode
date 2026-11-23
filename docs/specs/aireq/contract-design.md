@@ -120,7 +120,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 `view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`requirementCount`。计数按同一 owner 的 `(projectId, id)` 派生，含零需求 Release。详情、材料、会话及操作历史仍按查询项目返回。项目无 Release 与视图未加载是不同状态。
 
-项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。Git 目标 ID、仓库头、项目存储元数据、完整操作身份及评审发起记录由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。人工决定操作者、确认事实及工作区公开路径沿用现有公开投影。`readWorkflow.view.requirements` 返回当前项目的全部需求。已核验归档的 IR 带有 `merge`，其评审及确认人来自原始记录。命令结果不返回创建想法 ID，客户端重读想法池。
+项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区与存储元数据、完整操作身份及评审发起记录由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。人工决定操作者、确认事实及工作区公开路径沿用现有公开投影。`readWorkflow.view.requirements` 返回当前项目的全部需求。已核验归档的 IR 带有 `merge`，其评审及确认人来自原始记录。命令结果不返回创建想法 ID，客户端重读想法池。
 
 `view.projectRoleMembers` 向所有用户公开当前有效的项目角色成员，每行含 `projectId`、`employeeId` 和 `role`。`view.roleAdministrator` 来自当前连接身份。提案创建的 `clientDraftId` 仍用于写入去重，不回传到提案投影。需求确认只记录在 `originalReview.humanDecision` 及材料确认历史，不另建平行决策列表。
 
@@ -134,13 +134,12 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 ## 4. AIReq 操作登记
 
-当前 operation map、wire argumentSchemas 与服务分派对应以下 16 项。表中省略的结构字段、可选性及联合类型以源码类型为准。args 是有序 tuple。P 表示 projectId。
+当前 operation map、wire argumentSchemas 与服务分派对应以下 15 项。表中省略的结构字段、可选性及联合类型以源码类型为准。args 是有序 tuple。P 表示 projectId。
 
 | path                    | args                                                              | result                          |
 | ----------------------- | ----------------------------------------------------------------- | ------------------------------- |
 | readPresence            | []                                                                | AIReqPresenceSnapshot           |
 | readWorkflow            | [selection]                                                       | AIReqRemoteWorkflow             |
-| readPrHandoff           | [{projectId,irId}]                                                | AIReqPrHandoff                  |
 | command                 | [action,{projectId?,irId?,srId?},expectedRevision]                | AIReqWorkflowResult             |
 | retryMaterial           | [{projectId,releaseId,irId,path,sha256,round?}]                   | boolean                         |
 | retrySession            | [selection,sessionId]                                             | null                            |
@@ -155,8 +154,6 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 | skillDesign.listSkills  | [sessionId]                                                       | string[]                        |
 | skillDesign.savePreview | [sessionId,target,expectedPreviewRevision,operationId]            | AIReqSkillSaveReceipt           |
 
-`readPrHandoff` 返回 `blockers`、可选 `repositoryUrl`、`branch`、`targetBranch` 和 `sourceDirectory`。成功读取且 `blockers` 为空时交付预检通过；提交文件清单只从工作流投影 `proposalDelivery.files` 读取。服务端提交时仍校验阻塞条件、当前交付候选和材料版本。
-
 `skillDesign.savePreview` 的收据只包含 `path`、`revision` 和 `target`；`skillDesign.readPreview` 重读时附带同形状的已保存收据。保存不接收路径：项目目标由私有会话关联的项目及当前已登记工作区确定，无项目的会话只可保存到共享目录。保存请求按会话和 `operationId` 幂等裁决，比较目标与预览版本；新保存校验 `expectedPreviewRevision`，再由服务端从该版预览读取并校验候选名称。
 
 `skillDesign.session` 按项目和当前工号／客户端打开或读取同一私有会话，一次返回 `sessionId`、可直接使用的 `workspaceIdentity` 和 `temporaryDirectory`。后两项不设独立查询；浏览器不拼接工作区身份。`skillDesign.readPreview` 的文件路径相对于该会话的临时目录，没有预览时仍可从会话结果展示目录。切换项目或浏览器身份不得复用其他作用域的会话。
@@ -166,7 +163,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 关键输入语义：
 
 - `retrySession` 只恢复指定选择当前绑定的已有原生会话。`sessionId` 必须精确匹配该选择解析出的会话；不匹配或不存在时拒绝，不创建替代会话、不修改材料或重放输入。
-- repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。
+- repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。项目地址与默认分支用于只读代码访问，文档存储及归档独立于该配置。
 - `models.save` 只接收默认模型和每个角色的 ID、模型、思考档位；名称与描述由模型设置 owner 提供，只在读取中返回。写入仍要求完整角色集合和有效 CAS。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
 - `skillDesign.saveDraft` 和 `skillDesign.prompt` 的说明入参只包含 `goal`、`when`、`inputs`、`outputs`、`boundaries`、`references`、`example`，拒绝 `notes`。原生对话完成时由服务端追加 `notes`，表单保存不改写它。草稿读取仍返回补充记录；`skillDesign.prompt` 使用提交的表单字段和当前会话已提交的 `notes` 生成正文。
@@ -187,16 +184,14 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 - 配置／提案：saveDocumentFormats、createRelease、createProposal、importProposals、deleteRequirement。
 - 评审与确认：submitProposalReview、runRequirementsReview、runFullReview、acceptProposal、confirmAlignment。
 - 退回修改：returnProposal，目标为 `requirements` 或 `solution`。
-- 文档交付：publishProposal、closeProposalPr。
+- 文档交付：archiveProposal。
 - 项目角色：addProjectRoleMember、removeProjectRoleMember。
 
-动作包含 `operationId` 及适用目标；`updateIdea`／`transferIdea` 另校验 `ideaRevision`。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。发布／关闭绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
+动作包含 `operationId` 及适用目标；`updateIdea`／`transferIdea` 另校验 `ideaRevision`。转入使用非空 projectId/releaseId targets 并原子消费想法；导入提案绑定具体 Release，可带独立 businessDocument。submitProposalReview 绑定项目、IR、评审类型 kind 和材料快照 snapshotDigest，材料校验通过且该版本尚未接纳时才启动评审；runRequirementsReview／runFullReview 仅用于当前评审失败或缺报告时重试。acceptProposal 绑定 reviewId/snapshotDigest；confirmAlignment 还绑定 perspective/version，首次有效记录按角色保留，最后一个角色自动生成交付候选。归档绑定 candidate（含当前完整文件清单），修改材料限定 requirements/solution/test-plan 与真实修改说明。
 
 `returnProposal` 提交时校验同一项目、IR、当前操作版本和可退回阶段。需求尚未确认时可直接返回需求澄清，后续阶段需要非空意见。服务端在同一事务记录实际操作者、意见和轮次，保留旧材料和会话，使对应评审及确认失效。退回需求澄清时创建新一轮。当前文件正文、路径、清单和材料快照保持原样，后续 Agent 材料操作另行提交。
 
-交付投影保留已创建分支、推送及 PR 事实；`proposalDelivery.prCandidate` 与当前候选匹配是区分现行 PR 和旧候选 PR 的必要条件。`proposalDelivery.publishError` 区分 `branch`、`push`、`pr` 三种失败步骤。再次发布同一候选复用已完成的步骤。进入页面或读取候选不提交文档。
-
-关闭未合入 PR 后，该 PR 作为 `proposalDeliveryHistory[].closedPr` 留存；旧候选不再可写或核验。重新提交使用当前候选，并重新绑定完整清单。
+归档请求使用 `archiveProposal`，以项目、IR 和当前候选为目标。服务端在同一事务核验项目开发角色、三方确认、材料版本、正文和完整清单，再返回回执。归档事实 `archive` 包含 `archivedAt`、`archivedBy` 和 `files`。读取视图与候选不会提交材料。
 
 `saveDocumentFormats` 提交完整 `documentFormats` 记录，沿用 `command` 的版本检查、幂等和提交后通知，不绑定当前项目或 Release。
 
@@ -221,7 +216,7 @@ sequenceDiagram
 
 验收覆盖：初次及失效刷新没有逐项目工作流查询；切范围不复用他项目的工作区或统计；空 Release 计数为零；旧编辑基线拒绝且不写入，已有操作重读后返回原回执；旧请求键被拒绝，公开视图及回执不包含服务端私有字段。
 
-原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、代码合入、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
+原生讨论完成回调才可进入服务端私有材料生成动作；公开面没有手工伪造 AI 结果、场景时钟或审批结果的路径。任何材料变化使对应批准失效，异步回调绑定原对象／轮次／版本。完整业务规则分别见[提案](proposals.md)、[材料阅读](unified-side-pane.md#材料阅读)和[工具设置](tools-settings.md)，不在本文件重复维护工作流全文。
 
 ## 6. 拒绝、文件与设置
 
@@ -273,10 +268,10 @@ Web 的 `broadcast.send` 只接收一个含 `channel` 和 `payload` 的对象，
 
 ## 发布边界
 
-原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、Git 和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
+原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、只读代码源和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
 
-原型和正式测试环境通过已有运行配置指定服务地址、测试仓库和前置数据。需要依赖状态的用例，由环境准备所需事实，测试通过同一个公开接口验证。正式环境验证真实 Git 合入时，使用专用测试仓库实际完成合入并读取公开结果。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域，公开事件和历史回执遵守同一公开数据边界。无障碍标识和生产诊断各自按公开契约保留。
+原型和正式测试环境通过已有运行配置指定服务地址、测试仓库和前置数据。需要依赖状态的用例，由环境准备所需事实，测试通过同一个公开接口验证。正式环境另验证项目代码的只读访问，归档用例通过公开工作流验证平台内归档记录。模拟时钟、故障注入、固定回复及测试写入口仅限服务端私域，公开事件和历史回执遵守同一公开数据边界。无障碍标识和生产诊断各自按公开契约保留。
 
-材料摘要和字节数以实际正文为准；MR 外链、平台核验、AI 原分和规划建议须有对应事实。部署限制、工号与进程内数据的有效范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。退役模块时同步清理入口、依赖与架构登记，保留仍被使用的代码及第三方许可归因。
+材料摘要和字节数以实际正文为准；归档记录、AI 原分和规划建议须有对应事实。部署限制、工号与进程内数据的有效范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。退役模块时同步清理入口、依赖与架构登记，保留仍被使用的代码及第三方许可归因。
 
 发布验收关联前端构建、公开契约、测试版本和实际服务入口。替换后端时核对前端产物和契约的字节一致性，并按[测试复用规则](../../testing/unit-test-quality.md#原型与正式环境的测试复用)运行同一套测试，分别记录环境、实测结果和限制。

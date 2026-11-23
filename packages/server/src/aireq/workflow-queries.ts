@@ -3,7 +3,6 @@ import type {
   AIReqNativeSessionRef,
   AIReqOperationReceipt,
   AIReqProject,
-  AIReqProposalDelivery,
   AIReqRelease,
   AIReqReleaseSummary,
   AIReqRequirementGroup,
@@ -18,7 +17,6 @@ import { prototypeSessionReadIssue } from "./recovery.js";
 import type {
   NativeSessionRef,
   Project,
-  ProposalDelivery,
   Receipt,
   RequirementGroup,
   Review,
@@ -92,23 +90,6 @@ function projectReview(review: Review): AIReqReview {
   };
 }
 
-function projectDelivery(delivery: ProposalDelivery): AIReqProposalDelivery {
-  return {
-    candidate: delivery.candidate,
-    version: delivery.version,
-    files: delivery.files,
-    confirmedBy: delivery.confirmedBy,
-    confirmedAt: delivery.confirmedAt,
-    pushedCandidate: delivery.pushedCandidate,
-    pushedAt: delivery.pushedAt,
-    prCandidate: delivery.prCandidate,
-    branch: delivery.branch,
-    publishError: delivery.publishError,
-    closedPr: delivery.closedPr,
-    mergeCheck: delivery.mergeCheck,
-  };
-}
-
 export function projectRequirement(group: RequirementGroup): AIReqRequirementGroup {
   return {
     id: group.id,
@@ -137,20 +118,18 @@ export function projectRequirement(group: RequirementGroup): AIReqRequirementGro
     materialHistory: group.materialHistory,
     rejectedReviewResults: group.rejectedReviewResults,
     snapshot: group.snapshot,
-    requirementsPr: group.requirementsPr,
-    merge: group.merge,
-    proposalDelivery: group.proposalDelivery && projectDelivery(group.proposalDelivery),
-    proposalDeliveryHistory: group.proposalDeliveryHistory?.map(projectDelivery),
+    archive: group.archive,
+    proposalDelivery: group.proposalDelivery,
+    proposalDeliveryHistory: group.proposalDeliveryHistory,
     proposalRevisions: group.proposalRevisions?.map((revision) => ({
       reason: revision.reason,
       employeeId: revision.employeeId,
       startedAt: revision.startedAt,
       completedAt: revision.completedAt,
       snapshot: revision.snapshot,
-      merge: revision.merge,
+      archive: revision.archive,
       materials: revision.materials,
-      requirementsPr: revision.requirementsPr,
-      delivery: revision.delivery && projectDelivery(revision.delivery),
+      delivery: revision.delivery,
       review: revision.review && projectReview(revision.review),
     })),
     freeze: group.freeze,
@@ -242,7 +221,9 @@ export function projectDirectory(state: WorkflowState): {
   return {
     projects: entries.map(({ project }) => project),
     sessions: sessions.map(({ projectId, sessionId }) => ({ projectId, sessionId })),
-    workspaces: Object.fromEntries(entries.map(({ project, workspace }) => [project.id, workspace])),
+    workspaces: Object.fromEntries(
+      entries.map(({ project, workspace }) => [project.id, workspace]),
+    ),
     skillDesignWorkspacePath: PROTOTYPE_BACKEND.configDirectory,
   };
 }

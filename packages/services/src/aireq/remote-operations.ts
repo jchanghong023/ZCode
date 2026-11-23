@@ -14,12 +14,11 @@ import type {
   AIReqWorkflowView,
   AIReqWorkflowResult,
   AIReqWorkspace,
-  AIReqPrHandoff,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 20;
+export const AIREQ_CONTRACT_VERSION = 21;
 export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId" | "srId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;
@@ -43,7 +42,6 @@ interface Operation<A extends unknown[], R> {
 export interface AIReqRemoteOperations {
   readPresence: Operation<[], AIReqPresenceSnapshot>;
   readWorkflow: Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
-  readPrHandoff: Operation<[target: { projectId: string; irId: string }], AIReqPrHandoff>;
   command: Operation<
     [action: AIReqCommand, target: AIReqCommandTarget, expectedRevision: number],
     AIReqWorkflowResult

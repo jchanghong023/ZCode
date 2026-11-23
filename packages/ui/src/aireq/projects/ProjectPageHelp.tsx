@@ -20,8 +20,8 @@ export function ProjectPageHelp({ scope }: { scope: "all-projects" | "project-ov
       ? "版本卡片显示各 Release 的需求总数。进入工作区可查看该版本的需求。"
       : "Release cards show the total requirement count. Open a workspace to see its requirements."
     : zh
-      ? "提案完成评审和三方确认后提交文档 PR。合入并核验完整材料后，可在需求共创查阅已归档需求。"
-      : "Submit a document PR after review and confirmation. Once the merge and materials are verified, the archived requirement is available in Co-creation.";
+      ? "提案完成评审和三方确认后提交归档，可在需求共创查阅已归档材料。"
+      : "Submit the verified documents for archiving after review and confirmation. Read archived materials in Co-creation.";
 
   return (
     // 长说明需稳定阅读；开合与焦点交还原生 Popover，避免离开问号就消失。

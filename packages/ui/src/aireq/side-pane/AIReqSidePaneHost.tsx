@@ -67,7 +67,7 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
   const group = ai.view?.requirements.find(
     (item) => item.projectId === selection.projectId && item.id === selection.irId,
   );
-  const archived = Boolean(group?.merge);
+  const archived = Boolean(group?.archive);
   const releaseId = tab?.releaseId ?? ai.releaseId;
   const rows = [
     {
@@ -144,7 +144,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const { activeTab, collapse } = pane;
   const { projectId, irId } = ai.selection;
   const archived = ai.view?.requirements.some(
-    (item) => item.merge && item.projectId === projectId && item.id === irId,
+    (item) => item.archive && item.projectId === projectId && item.id === irId,
   );
   const proposalId = ai.mainView === "chat" && !archived ? irId : undefined;
   const previousProposal = useRef({ projectId, releaseId: ai.releaseId, proposalId });

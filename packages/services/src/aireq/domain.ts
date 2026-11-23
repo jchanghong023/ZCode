@@ -25,9 +25,7 @@ export function hasProjectRole(
     Boolean(
       view?.projectRoleMembers.some(
         (entry) =>
-          entry.projectId === projectId &&
-          entry.employeeId === employeeId &&
-          entry.role === role,
+          entry.projectId === projectId && entry.employeeId === employeeId && entry.role === role,
       ),
     )
   );
@@ -40,7 +38,8 @@ export function isFormalSelection(
 ): boolean {
   return Boolean(
     view?.requirements.some(
-      (group) => group.merge && group.projectId === selection.projectId && group.id === selection.irId,
+      (group) =>
+        group.archive && group.projectId === selection.projectId && group.id === selection.irId,
     ),
   );
 }
@@ -237,7 +236,7 @@ export function alignmentBlocker(group: AIReqRequirementGroup): string | undefin
   );
 }
 
-/** Opaque in-memory version, not a real Git commit or content hash. */
+/** Opaque version of the current proposal materials. */
 export function proposalVersion(group: AIReqRequirementGroup): string {
   return JSON.stringify({
     round: group.proposalRound ?? 1,
@@ -255,23 +254,6 @@ export function proposalDeliveryCurrent(group: AIReqRequirementGroup): boolean {
     hasCurrentProposalSolution(group) &&
     group.proposalDelivery.version === proposalVersion(group) &&
     sameFileVersions(group.files, group.proposalDelivery.files),
-  );
-}
-
-/** Publication identity stays frozen even when verification subsequently finds missing files. */
-export function proposalPrCurrent(group: AIReqRequirementGroup): boolean {
-  const delivery = group.proposalDelivery;
-  const pr = group.requirementsPr;
-  return Boolean(
-    delivery?.candidate &&
-    delivery.pushedAt &&
-    delivery.pushedCandidate === delivery.candidate &&
-    delivery.prCandidate === delivery.candidate &&
-    delivery.branch?.name &&
-    pr?.sourceBranch === delivery.branch.name &&
-    pr.number &&
-    pr.number > 0 &&
-    (pr.status === "opened" || pr.status === "merged"),
   );
 }
 
@@ -349,19 +331,17 @@ export function fileVersions(files: AIReqFileVersion[]): string {
 }
 /** 提案的唯一业务状态推导；导航和生命周期旧字段不构成推进证据。 */
 export function proposalState(group: AIReqRequirementGroup): AIReqProposalState | undefined {
-  if (["formal", "frozen", "deleted"].includes(group.status) || group.merge) return;
+  if (["formal", "frozen", "deleted"].includes(group.status) || group.archive) return;
   if (!requirementsReviewCurrent(group)) return "not-started";
   if (requirementsReviewReadyBlocker(group)) return "ir-review-pending";
   if (requirementsReviewBlocker(group)) return "ir-confirmation-pending";
   if (!hasCurrentProposalSolution(group) || !fullReviewCurrent(group)) return "solution-incomplete";
   if (fullReviewReadyBlocker(group)) return "solution-review-pending";
   if (alignmentBlocker(group)) return "solution-confirmation-pending";
-  return proposalDeliveryCurrent(group) && proposalPrCurrent(group)
-    ? "merge-pending"
-    : "submission-pending";
+  return "submission-pending";
 }
 
-/** 四个操作工作区只负责导航；业务状态始终由 proposalState 的八态决定。 */
+/** 四个操作工作区只负责导航；业务状态始终由 proposalState 的七态决定。 */
 export function proposalProgressIndex(group: AIReqRequirementGroup): number {
   switch (proposalState(group)) {
     case "not-started":
@@ -374,7 +354,6 @@ export function proposalProgressIndex(group: AIReqRequirementGroup): number {
     case "solution-confirmation-pending":
       return 2;
     case "submission-pending":
-    case "merge-pending":
       return 3;
     default:
       return -1;
@@ -385,8 +364,7 @@ export function proposalReturnBlocker(
   target: AIReqProposalReturnTarget = "requirements",
 ): string | undefined {
   const state = proposalState(group);
-  if (!state || state === "merge-pending" || proposalPrCurrent(group))
-    return "只能退回未冻结的提案。";
+  if (!state) return "只能退回未归档的提案。";
   if (target === "solution") {
     if (!fullReviewCurrent(group) || requirementsReviewBlocker(group))
       return "仅当前方案审查或待提交交付可以退回方案设计。";
@@ -424,9 +402,7 @@ export function proposalActorLabel(group: AIReqRequirementGroup): string {
     case "solution-confirmation-pending":
       return "业务、开发、测试分别确认当前版本";
     case "submission-pending":
-      return "确认交付并提交整包文档 PR";
-    case "merge-pending":
-      return "人工评审 PR · 后台定时核验";
+      return "核对文件并提交归档";
     default:
       return "";
   }
@@ -442,7 +418,7 @@ export function conversationReadOnlyReason(
   const proposal = view.requirements.find(
     (item) => item.projectId === selection.projectId && item.id === selection.irId,
   );
-  if (!proposal || proposal.merge) return "已归档需求材料仅供只读查看。";
+  if (!proposal || proposal.archive) return "已归档需求材料仅供只读查看。";
   if (access?.proposalDiscussion === false) return "当前提案讨论只读。";
   // 历史节点可能与当前节点同属 requirements 讨论面，必须比较业务阶段，不能只比较 discussionPhase。
   if (proposalViewedIndex(proposal, selection) !== proposalProgressIndex(proposal))
@@ -452,5 +428,4 @@ export function conversationReadOnlyReason(
     selection.discussionPhase !== (proposal.proposalStage ?? "requirements")
   )
     return "正在查看另一讨论阶段的历史，只读。";
-  if (proposalPrCurrent(proposal)) return "文档 PR 已创建，等待核验合入；当前版本只读。";
 }

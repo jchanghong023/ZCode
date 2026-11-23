@@ -352,7 +352,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         !new URLSearchParams(window.location.search).has("aireqTask"))
     )
       return;
-    // 合入后仍是同一 IR，收口旧任务参数并保留原浏览来源。
+    // 归档后仍是同一 IR，收口旧任务参数并保留原浏览来源。
     const target = { projectId: selection.projectId, irId: selection.irId, srId: selection.srId };
     const next = { ...navigation, proposalTask: "overview" as const };
     navigationRef.current = next;

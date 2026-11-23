@@ -8,7 +8,7 @@ interface AIReqSrDependencyDocument {
   }[];
 }
 
-/** Read the repository material as the single dependency and estimate source. */
+/** Read the dependency document as the single source for dependencies and estimates. */
 export function readSrDependencies(
   group: Pick<AIReqRequirementGroup, "id" | "srIds" | "proposalRound" | "srDependencyFile">,
   material = group.srDependencyFile,

@@ -1,22 +1,6 @@
 import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
-import type { Project, PrototypeRepositoryTarget } from "./workflow-state.js";
-
-export function prototypeRepositoryTarget({
-  repositoryId,
-  repositoryUrl,
-  defaultBranch,
-}: PrototypeRepositoryTarget): PrototypeRepositoryTarget {
-  return { repositoryId, repositoryUrl, defaultBranch };
-}
-
-export function prototypeRepositoryKey({
-  repositoryId,
-  repositoryUrl,
-  defaultBranch,
-}: PrototypeRepositoryTarget): string {
-  return JSON.stringify([repositoryId, repositoryUrl, defaultBranch]);
-}
+import type { Project } from "./workflow-state.js";
 
 interface PrototypeProjectSettings {
   projects: Project[];
@@ -29,7 +13,6 @@ function project(id: string, name: string, root: string): Project {
     root,
     revision: 1,
     defaultBranch: "main",
-    repositoryId: `sample-repository-${id}`,
     repositoryUrl: `ssh://git@git.example.internal/team/${root.split("/").at(-1)}.git`,
   };
 }

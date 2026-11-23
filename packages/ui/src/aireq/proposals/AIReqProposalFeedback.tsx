@@ -17,7 +17,10 @@ export function AIReqProposalFeedback({ openMaterials }: { openMaterials?: () =>
   const aireq = useAIReq()!;
   const [expanded, setExpanded] = useState(false);
   const group = aireq.view?.requirements.find(
-    (item) => !item.merge && item.projectId === aireq.selection.projectId && item.id === aireq.selection.irId,
+    (item) =>
+      !item.archive &&
+      item.projectId === aireq.selection.projectId &&
+      item.id === aireq.selection.irId,
   );
   const feedback = group?.returnFeedback;
   if (

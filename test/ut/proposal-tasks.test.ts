@@ -84,10 +84,10 @@ describe("independent proposal task navigation", () => {
     expect(proposalNextTask({ ...group(), files: [] })).toBe("requirements");
     expect(proposalNextTask(group())).toBe("requirements");
   });
-  it("does not promote future delivery or legacy PR fields over current material facts", () => {
+  it("does not promote future delivery or coarse lifecycle fields over current material facts", () => {
     const value = {
       ...group(),
-      status: "requirements-pr" as const,
+      status: "solution-ready" as const,
       proposalStage: "solution" as const,
     };
     expect(proposalNextTask(value)).toBe("requirements");

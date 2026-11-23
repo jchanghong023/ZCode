@@ -83,7 +83,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
     requirementsReview: "查看评审意见并确认业务需求",
     solution: "完善技术方案、实施说明与测试材料",
     solutionReview: "查看审查报告，由业务、开发和测试分别确认",
-    delivery: "核对完整文件并提交文档 PR，查看合入核验",
+    delivery: "核对完整文件并提交归档",
   };
   const currentDecision = group.originalReview?.humanDecision;
   const originalDecision =
@@ -136,7 +136,7 @@ export function AIReqProposalOverview({ group }: { group: AIReqRequirementGroup 
           >
             <ol
               className="flex w-max min-w-full items-center justify-between gap-1 whitespace-nowrap pr-1"
-              aria-label="提案八态"
+              aria-label="提案进度"
               title="IR 是整体业务需求，SR 是从中拆分的需求项"
             >
               {PROPOSAL_STATE_OPTIONS.map((option, index) => (

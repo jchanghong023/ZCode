@@ -7,6 +7,7 @@ import {
   proposalStateIndex,
   proposalStateLabel,
   proposalVersion,
+  proposalDeliveryCurrent,
   proposalProgressIndex,
   proposalViewedIndex,
   conversationReadOnlyReason,
@@ -175,7 +176,7 @@ function withPendingFullReview(): AIReqRequirementGroup {
   group.review!.agents![0]!.status = "pending";
   return group;
 }
-function published(): AIReqRequirementGroup {
+function withCandidate(): AIReqRequirementGroup {
   const group = aligned();
   group.proposalDelivery = {
     candidate: "candidate-current",
@@ -183,20 +184,7 @@ function published(): AIReqRequirementGroup {
     files: structuredClone(group.files),
     confirmedBy: employeeId,
     confirmedAt: at,
-    pushedCandidate: "candidate-current",
-    pushedAt: at,
-    prCandidate: "candidate-current",
-    branch: { name: "proposal/ir-export", baseCommit: "base-main", createdAt: at, pushedAt: at },
   };
-  group.requirementsPr = {
-    number: 42,
-    sourceBranch: "proposal/ir-export",
-    targetBranch: "main",
-    recordedAt: at,
-    platformVerified: false,
-    status: "opened",
-  };
-  group.status = "requirements-pr";
   return group;
 }
 
@@ -213,7 +201,6 @@ describe("proposal business states from current materials and confirmations", ()
         [withPendingFullReview, "solution-review-pending", "方案待评审", 4],
         [withFullReview, "solution-confirmation-pending", "方案待确认", 5],
         [aligned, "submission-pending", "待提交", 6],
-        [published, "merge-pending", "待合入", 7],
       ] as const
     ).map(([build, state, title, index]) => ({ build, state, title, index })),
   )("derives $state from current facts", ({ build, state, title, index }) => {
@@ -223,7 +210,7 @@ describe("proposal business states from current materials and confirmations", ()
     expect(proposalStateIndex(group)).toBe(index);
   });
 
-  it("offers exactly eight stable filters and no formal terminal option", () => {
+  it("offers exactly seven stable filters and no formal terminal option", () => {
     expect(PROPOSAL_STATE_OPTIONS.map(({ id }) => id)).toEqual([
       "not-started",
       "ir-review-pending",
@@ -232,21 +219,20 @@ describe("proposal business states from current materials and confirmations", ()
       "solution-review-pending",
       "solution-confirmation-pending",
       "submission-pending",
-      "merge-pending",
     ]);
     expect(PROPOSAL_STATE_OPTIONS.every(({ titleEn }) => titleEn.trim())).toBe(true);
   });
 
   it("does not treat coarse storage status or a selected historical workspace as business progress", () => {
     const group = emptyProposal();
-    group.status = "requirements-pr";
+    group.status = "solution-ready";
     group.proposalStage = "solution";
     expect(proposalState(group)).toBe("not-started");
-    const current = published();
+    const current = withCandidate();
     const saved = structuredClone(current);
     expect(proposalViewedIndex(current, { proposalStep: "requirements" })).toBe(0);
     expect(proposalProgressIndex(current)).toBe(3);
-    expect(proposalState(current)).toBe("merge-pending");
+    expect(proposalState(current)).toBe("submission-pending");
     expect(current).toEqual(saved);
   });
 
@@ -403,35 +389,30 @@ describe("proposal business states from current materials and confirmations", ()
     expect(proposalState(group)).toBe("solution-incomplete");
   });
 
-  it("does not treat a successful push as a created PR", () => {
-    const group = published();
-    group.requirementsPr = undefined;
-    group.proposalDelivery!.prCandidate = undefined;
+  it("keeps the proposal pending until the verified file set is archived", () => {
+    const group = withCandidate();
+    expect(proposalDeliveryCurrent(group)).toBe(true);
+    group.proposalDelivery!.files.pop();
+    expect(proposalDeliveryCurrent(group)).toBe(false);
     expect(proposalState(group)).toBe("submission-pending");
-  });
-
-  it.each(["candidate", "branch", "closed", "files"] as const)(
-    "does not wait for merge with mismatching %s facts",
-    (condition) => {
-      const group = published();
-      if (condition === "candidate") group.proposalDelivery!.prCandidate = "old-candidate";
-      if (condition === "branch") group.requirementsPr!.sourceBranch = "another-branch";
-      if (condition === "closed") group.requirementsPr!.status = "closed";
-      if (condition === "files") group.proposalDelivery!.files.pop();
-      expect(proposalState(group)).toBe("submission-pending");
-    },
-  );
-
-  it("waits for verified intake even if the provider already reports a merged PR", () => {
-    const group = published();
-    group.requirementsPr!.status = "merged";
-    expect(proposalState(group)).toBe("merge-pending");
+    group.archive = { archivedAt: at, archivedBy: employeeId, files: structuredClone(group.files) };
+    expect(proposalState(group)).toBeUndefined();
+    expect(proposalStateIndex(group)).toBe(-1);
+    expect(
+      conversationReadOnlyReason(
+        { requirements: [group] },
+        {
+          projectId: group.projectId,
+          irId: group.id,
+        },
+      ),
+    ).toContain("已归档");
   });
 
   it.each(["formal", "frozen", "deleted"] as const)(
     "excludes %s IRs from all proposal statuses",
     (status) => {
-      const group = published();
+      const group = withCandidate();
       group.status = status;
       expect(proposalState(group)).toBeUndefined();
       expect(proposalStateLabel(group)).toBe("");

@@ -104,7 +104,7 @@ export function proposalTaskParent(task: ProposalTask): ProposalTask {
 }
 
 export function proposalNextTask(group: AIReqRequirementGroup): ProposalTask {
-  // 八态是业务事实，任务是操作入口；不能用旧阶段字段决定下一步。
+  // 七态是业务事实，任务是操作入口；不能用旧阶段字段决定下一步。
   switch (proposalState(group)) {
     case "ir-review-pending":
       return group.returnFeedback && !group.returnFeedback.resumedAt
@@ -118,7 +118,6 @@ export function proposalNextTask(group: AIReqRequirementGroup): ProposalTask {
     case "solution-confirmation-pending":
       return "solutionReview";
     case "submission-pending":
-    case "merge-pending":
       return "delivery";
     default:
       return "requirements";
@@ -144,17 +143,15 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
             "solution-review-pending",
             "solution-confirmation-pending",
             "submission-pending",
-            "merge-pending",
           ].includes(proposalState(group) ?? "")
         ? "待完善"
         : "未开始";
   }
   if (task === "delivery") {
     const state = proposalState(group);
-    if (state === "merge-pending") return "待合入";
     if (state !== "submission-pending") return "未就绪";
     if (!proposalDeliveryCurrent(group)) return "待准备文件清单";
-    return group.proposalDelivery?.publishError ? "提交失败" : "待提交";
+    return "待提交";
   }
   const original = task === "requirementsReview";
   const review = original ? group.originalReview : group.review;
@@ -177,7 +174,7 @@ export function proposalTaskStatus(group: AIReqRequirementGroup, task: ProposalT
   return confirmed ? "已确认" : "待人工确认";
 }
 
-/** 文案只解释公共八态及剩余动作，不保存业务状态或分派责任。 */
+/** 文案只解释公共七态及剩余动作，不保存业务状态或分派责任。 */
 export function proposalTaskGuidance(group: AIReqRequirementGroup) {
   const state = proposalState(group);
   const returned = group.returnFeedback && !group.returnFeedback.resumedAt;
@@ -230,17 +227,9 @@ export function proposalTaskGuidance(group: AIReqRequirementGroup) {
       action: "完成三方确认",
     },
     "submission-pending": {
-      role: "提交人",
-      description:
-        group.proposalDelivery?.publishError && proposalDeliveryCurrent(group)
-          ? "本次文档 PR 提交未完成。查看失败原因，继续提交同一候选。"
-          : "三方确认已完成，核对完整文件清单并提交文档 PR。",
-      action: "核对文件并提交",
-    },
-    "merge-pending": {
-      role: "PR 评审人／后台核验",
-      description: "文档 PR 已创建。合入并通过材料核验后，将自动转为正式需求。",
-      action: "查看合入进展",
+      role: "开发",
+      description: "三方确认已完成，核对完整文件清单并在平台内归档。",
+      action: "核对文件并提交归档",
     },
   };
   return state

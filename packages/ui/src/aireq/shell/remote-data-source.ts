@@ -44,7 +44,7 @@ export async function createRemoteAIReqDataSource(
     )
       return undefined;
     const group = view.requirements.find(
-      (item) => !item.merge && item.id === target.irId && item.projectId === target.projectId,
+      (item) => !item.archive && item.id === target.irId && item.projectId === target.projectId,
     );
     const review = [
       group?.originalReview,
@@ -225,7 +225,6 @@ export async function createRemoteAIReqDataSource(
     retrySession: async (target, sessionId) => {
       await call("retrySession", [target, sessionId]);
     },
-    readPrHandoff: (target) => call("readPrHandoff", [target]),
     dispose() {
       presenceListeners.clear();
       disposed = true;

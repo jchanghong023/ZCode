@@ -201,7 +201,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   );
   const archived = ai.selectionReady && ai.mainView === "chat"
     ? ai.view?.requirements.find(
-        (item) => item.merge && item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
+        (item) => item.archive && item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
       )
     : undefined;
   // 切项目后的旧投影不包含目标列表，不能先展示零条和空态。

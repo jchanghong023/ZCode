@@ -88,7 +88,6 @@ const actionSchema = z.union([
     reviewId: id,
     snapshotDigest: id,
   }),
-  action("closeProposalPr", { candidate: id }),
   action("deleteRequirement", { projectId: id, irId: id }),
   action("acceptProposal", { reviewId: id, snapshotDigest: id }),
   action("submitProposalReview", {
@@ -97,8 +96,11 @@ const actionSchema = z.union([
     snapshotDigest: id,
   }),
   action("runRequirementsReview"),
-  action("returnProposal", { reason: text, target: z.enum(["requirements", "solution"]).optional() }),
-  action("publishProposal", { candidate: id }),
+  action("returnProposal", {
+    reason: text,
+    target: z.enum(["requirements", "solution"]).optional(),
+  }),
+  action("archiveProposal", { ...target.shape, candidate: id }),
 ]);
 const modelInput = z
   .object({
@@ -130,7 +132,6 @@ const draftFields = z
 export const argumentSchemas = {
   readPresence: z.tuple([]),
   readWorkflow: z.tuple([workflowTargetSchema]),
-  readPrHandoff: z.tuple([target]),
   command: z.tuple([actionSchema, commandTargetSchema, revision]),
   retryMaterial: z.tuple([
     target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
