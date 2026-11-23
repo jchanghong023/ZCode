@@ -7,6 +7,9 @@ import { readPrototypeProjectSettings } from "./project-settings.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { WorkflowState } from "./workflow-state.js";
 
+const prototypeRoleEmployees = ["y00519437", "j00808874"];
+const prototypeRoles = ["development", "testing"] as const;
+
 const samples = [
   {
     projectId: "demo-aurora",
@@ -62,7 +65,11 @@ export function createPrototypeWorkflow(): WorkflowState {
     revision: 12,
     documentFormats: emptyDocumentFormats(),
     projects,
-    projectRoleMembers: [],
+    projectRoleMembers: projects.flatMap(({ id: projectId }) =>
+      prototypeRoles.flatMap((role) =>
+        prototypeRoleEmployees.map((employeeId) => ({ projectId, employeeId, role })),
+      ),
+    ),
     requirements: [],
     srs: [],
     materials: [],
