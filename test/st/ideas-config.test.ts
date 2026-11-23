@@ -81,15 +81,15 @@ describe("ST global ideas and configuration", () => {
     async () => {
       await usingClient(async (client) => {
         const text = unique("想法原文");
-        const created = await client.command({ type: "createIdea", originalText: text });
-        expect(created.receipt.status).toBe("completed");
+        const operationId = unique("create-idea");
+        const created = await client.command({ type: "createIdea", operationId, originalText: text });
+        expect(created.receipt).toMatchObject({ status: "completed", operationId });
         expect(created).not.toHaveProperty("ideaId");
         expect(created.receipt).not.toHaveProperty("identity");
+        expect(created.receipt).not.toHaveProperty("steps");
+        expect(created.receipt).not.toHaveProperty("irIds");
         expect(created.receipt.actorEmployeeId).toBe(client.identity.employeeId);
         const { view } = await client.read();
-        expect(
-          view.operations.find((item) => item.operationId === created.receipt.operationId),
-        ).toEqual(created.receipt);
         const first = ideaByText(view.ideas, text);
         expect(first.submittedBy).toBe(client.identity.employeeId);
         expect(Number.isFinite(Date.parse(first.createdAt))).toBe(true);

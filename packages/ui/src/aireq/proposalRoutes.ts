@@ -1,4 +1,4 @@
-import type { AIReqDiscussionAgent, AIReqWorkflowTarget, AIReqWorkflowView } from "./contract.js";
+import type { AIReqDiscussionAgent, AIReqSelection, AIReqWorkflowView } from "./contract.js";
 
 const objectLinkKeys = [
   "aireqProject",
@@ -41,7 +41,7 @@ export function clearAIReqObjectLink() {
   );
 }
 
-export function selectionFromObjectLink(link: ObjectLink): AIReqWorkflowTarget {
+export function selectionFromObjectLink(link: ObjectLink): AIReqSelection {
   return {
     projectId: link.projectId,
     irId: link.irId,

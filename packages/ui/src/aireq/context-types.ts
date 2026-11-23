@@ -3,14 +3,14 @@ import type {
   AIReqMainView,
   AIReqNativeSessionRef,
   AIReqWorkflowResult,
-  AIReqWorkflowTarget,
+  AIReqSelection,
   AIReqWorkflowView,
 } from "./contract.js";
 import type { ProposalDraft } from "./navigationState.js";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
-  selection: AIReqWorkflowTarget;
+  selection: AIReqSelection;
   session?: AIReqNativeSessionRef;
   mainView: AIReqMainView;
   settingsOpen: boolean;
@@ -30,10 +30,10 @@ export interface AIReqContextValue {
   setReleaseId(id: string): void;
   switchProject(projectId: string): void;
   openProject(projectId: string, releaseId: string): void;
-  select(value: AIReqWorkflowTarget, releaseId?: string): void;
+  select(value: AIReqSelection, releaseId?: string): void;
   refresh(): Promise<void>;
   retrySession(
-    target: AIReqWorkflowTarget,
+    target: AIReqSelection,
     sessionId: string,
     isCurrentPane: () => boolean,
   ): Promise<void>;

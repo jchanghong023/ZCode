@@ -9,7 +9,6 @@ const commandTargetSchema = z
   .object({
     projectId: id.optional(),
     irId: id.optional(),
-    srId: id.optional(),
   })
   .strict();
 const workflowTargetSchema = z
@@ -23,7 +22,6 @@ const actionBase = {
   operationId: id,
   projectId: id.optional(),
   irId: id.optional(),
-  srId: id.optional(),
 };
 const action = (type: string, fields: z.ZodRawShape = {}) =>
   z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
@@ -68,7 +66,13 @@ const actionSchema = z.union([
   z.strictObject({
     ...target.shape,
     operationId: id,
-    type: z.enum(["deleteRequirement", "confirmDocumentVersion"]),
+    type: z.literal("deleteRequirement"),
+  }),
+  z.strictObject({
+    ...target.shape,
+    operationId: id,
+    type: z.literal("confirmDocumentVersion"),
+    snapshot: z.string().regex(/^[a-f0-9]{64}$/),
   }),
   z.strictObject({
     ...target.shape,

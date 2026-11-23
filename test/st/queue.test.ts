@@ -8,7 +8,7 @@ import {
   requireAccepted,
   requireRejected,
 } from "./native.js";
-import { getProposal } from "./proposal-flow.js";
+import { getMaterials, getProposal } from "./proposal-flow.js";
 
 it("rejects an implicit busy send, steers the active turn, and delivers follow-up as its own turn", async () => {
   const c = await connectST();
@@ -169,9 +169,9 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
         .filter((row) => row.kind === "userInput")
         .map((row) => row.sourceCommandId),
     ).toEqual([startId]);
-    const afterStop = getProposal(await c.read(proposal.selection), proposal);
-    expect(afterStop.files).toEqual(before.files);
-    expect(afterStop.documentVersion).toEqual(before.documentVersion);
+    const afterStop = await c.read(proposal.selection);
+    expect(getMaterials(afterStop, proposal)).toEqual(getMaterials(proposal.remote, proposal));
+    expect(getProposal(afterStop, proposal).documentVersion).toEqual(before.documentVersion);
 
     const [later, laterRunning] = await Promise.all([
       native.send("sendText", { text: "用户显式发送一条新需求。" }, { commandId: laterId }),

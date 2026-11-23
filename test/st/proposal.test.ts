@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { connectST, unique, type STClient } from "./client.js";
 import { config } from "./config.js";
-import { createProject, createProposal } from "./business.js";
+import { createProject, createProposal, createProposalIn } from "./business.js";
 import {
   completeBusinessMaterial,
   completeSolutionMaterial,
@@ -50,13 +50,15 @@ describe("co-creation document versions through the public API", () => {
           releaseId: project.releaseId,
           submittedBy: client.identity.employeeId,
           srIds: [],
-          files: [],
           documentHistory: [],
           documentReviews: [],
         });
         expect(drafts[0]).not.toHaveProperty("clientDraftId");
+        expect(drafts[0]).not.toHaveProperty("origin");
+        expect(drafts[0]).not.toHaveProperty("files");
         expect(drafts[0]?.documentVersion).toBeUndefined();
         expect(read.view.srs).toEqual(baseline.view.srs);
+        expect(read.view.materials).toEqual(baseline.view.materials);
       });
     },
     config.timeoutMs,
@@ -177,12 +179,13 @@ describe("co-creation document versions through the public API", () => {
             expect(result.receipt.status, result.receipt.error).toBe("completed");
           }
           const selection = proposalSelection(target);
-          const action = {
+          const confirmationAction = (snapshot: string) => ({
             type: "confirmDocumentVersion",
             ...selection,
+            snapshot,
             expectedRevision: target.remote.view.revision,
-            operationId: unique("confirm-v1"),
-          } as const;
+            operationId: unique("confirm-document"),
+          }) as const;
           const release = ({ view }: typeof target.remote) =>
             view.releases.find(
               ({ projectId, id }) => projectId === target.projectId && id === target.releaseId,
@@ -193,9 +196,8 @@ describe("co-creation document versions through the public API", () => {
             confirmedRequirementCount: 0,
           });
           await expect(business.call("validateDocumentVersion", [selection])).rejects.toThrow();
-          await expectBusinessRejection(
-            tester.command({ ...action, operationId: unique("confirm-empty") }, selection),
-          );
+          const emptyCheck = await tester.call("validateDocumentVersion", [selection]);
+          await expectBusinessRejection(tester.command(confirmationAction(emptyCheck.snapshot), selection));
           const v1 = await completeBusinessMaterial(business, target);
           expect(getProposal(v1, target)).toMatchObject({
             documentVersion: { number: 1 },
@@ -215,6 +217,8 @@ describe("co-creation document versions through the public API", () => {
           expect(getMaterials(solution, target).length).toBeGreaterThan(
             getMaterials(v1, target).length,
           );
+          const initialCheck = await tester.call("validateDocumentVersion", [selection]);
+          expect(initialCheck.issues).toEqual([]);
 
           const v1Addition = "## 验收补充\n下载错误后可重试，原始需求保持原样。";
           await discuss(business, target, v1Addition);
@@ -224,11 +228,16 @@ describe("co-creation document versions through the public API", () => {
           expect(files.find((file) => file.path === solutionGroup.documentPath)?.content).toContain(
             v1Addition,
           );
-          expect(latest.view.revision).toBeGreaterThan(action.expectedRevision);
-          await expectBusinessRejection(
-            business.command({ ...action, operationId: unique("unauthorised-confirm") }, selection),
+          const action = confirmationAction(
+            (await tester.call("validateDocumentVersion", [selection])).snapshot,
           );
+          expect(latest.view.revision).toBeGreaterThan(action.expectedRevision);
+          await expect(
+            tester.command(confirmationAction(initialCheck.snapshot), selection),
+          ).rejects.toThrow("文档已变化");
+          await expectBusinessRejection(business.command(action, selection));
           expect(await tester.call("validateDocumentVersion", [selection])).toEqual({
+            snapshot: action.snapshot,
             version: 1,
             fileCount: files.length,
             issues: [],
@@ -285,13 +294,15 @@ describe("co-creation document versions through the public API", () => {
             getMaterials(latestV2, target).find((file) => file.path === v2.documentPath)?.content,
           ).toContain(v2Addition);
 
-          const lockedV2 = await developer.command(
-            {
-              type: "confirmDocumentVersion",
-              ...selection,
-            },
-            selection,
-          );
+          await expect(
+            developer.command(confirmationAction(action.snapshot), selection),
+          ).rejects.toThrow("文档已变化");
+          expect(getProposal(await developer.read(selection), target).documentVersion).toEqual({
+            number: 2,
+          });
+          const nextCheck = await developer.call("validateDocumentVersion", [selection]);
+          expect(nextCheck.issues).toEqual([]);
+          const lockedV2 = await developer.command(confirmationAction(nextCheck.snapshot), selection);
           expect(lockedV2.receipt.status, lockedV2.receipt.error).toBe("completed");
           const reread = getProposal(await business.read(selection), target);
           expect(reread.documentVersion).toMatchObject({
@@ -323,7 +334,6 @@ describe("co-creation document versions through the public API", () => {
           const selection = proposalSelection(target);
           const first = await completeBusinessMaterial(client, target);
           const { documentPath } = getProposal(first, target);
-          const confirm = { type: "confirmDocumentVersion", ...selection } as const;
           await discuss(client, target, `请删除文件 ${documentPath}`);
           const empty = await client.read(selection);
           expect(getMaterials(empty, target)).toEqual([]);
@@ -352,7 +362,10 @@ describe("co-creation document versions through the public API", () => {
               },
             ],
           });
-          const rejected = await admin.command(confirm, selection);
+          const rejected = await admin.command(
+            { type: "confirmDocumentVersion", ...selection, snapshot: validation.snapshot },
+            selection,
+          );
           expect(rejected.receipt.status).toBe("failed");
           expect(rejected.documentValidation).toEqual(validation);
           const unchanged = await admin.read(selection);
@@ -376,24 +389,50 @@ describe("co-creation document versions through the public API", () => {
   );
 
   it(
-    "should delete a plain proposal without deleting unrelated requirements or leaving SRs behind",
+    "deletes an unconfirmed IR and its SRs and materials without affecting a sibling IR",
     async () => {
       await withClient(async (client) => {
-        const target = await createProposal(client);
-        const before = await client.read(target.selection);
-        const unrelated = before.view.requirements.filter((group) => group.id !== target.irId);
-        const result = await client.command(
-          { type: "deleteRequirement", projectId: target.projectId, irId: target.irId },
-          target.selection,
-        );
-        expect(result.receipt.status, result.receipt.error).toBe("completed");
-        expect(result.receipt).not.toHaveProperty("deletion");
-        const deleted = await client.read({ projectId: target.projectId });
-        expect(deleted.view.requirements.some((group) => group.id === target.irId)).toBe(false);
-        expect(deleted.view.requirements.filter((group) => group.id !== target.irId)).toEqual(
-          unrelated,
-        );
-        expect(deleted.view.srs.filter((sr) => sr.irId === target.irId)).toEqual([]);
+        const admin = await connectST("y00000000");
+        try {
+          const target = await createProposal(client);
+          const sibling = await createProposalIn(client, target, "删除后仍保留的旁路需求");
+          await completeBusinessMaterial(client, target);
+          await completeSolutionMaterial(admin, target);
+          await completeBusinessMaterial(client, sibling);
+          const before = await client.read(target.selection);
+          const targetGroup = getProposal(before, target);
+          expect(targetGroup.documentVersion).toEqual({ number: 1 });
+          expect(targetGroup.srIds.length).toBeGreaterThan(0);
+          const targetSrIds = before.view.srs
+            .filter(({ irId }) => irId === target.irId)
+            .map(({ id }) => id)
+            .sort();
+          expect(targetSrIds).toEqual([...targetGroup.srIds].sort());
+          expect(getMaterials(before, target)).toContainEqual(
+            expect.objectContaining({ srId: targetGroup.srIds[0] }),
+          );
+          const siblingGroup = getProposal(before, sibling);
+          expect(siblingGroup.releaseId).toBe(target.releaseId);
+          expect(getMaterials(before, sibling).length).toBeGreaterThan(0);
+          const result = await client.command(
+            { type: "deleteRequirement", ...target.selection },
+            target.selection,
+          );
+          expect(result.receipt.status, result.receipt.error).toBe("completed");
+          expect(result.receipt).not.toHaveProperty("deletion");
+          const deleted = await client.read(target.selection);
+          expect(deleted.session).toBeUndefined();
+          expect(deleted.view.requirements).toEqual(
+            before.view.requirements.filter(({ id }) => id !== target.irId),
+          );
+          expect(deleted.view.srs).toEqual(before.view.srs.filter(({ irId }) => irId !== target.irId));
+          expect(deleted.view.materials).toEqual(
+            before.view.materials.filter(({ irId }) => irId !== target.irId),
+          );
+          expect((await client.read(sibling.selection)).session).toEqual(sibling.remote.session);
+        } finally {
+          await admin.close();
+        }
       });
     },
     config.timeoutMs,

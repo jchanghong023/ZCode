@@ -27,7 +27,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   AIReqAction,
   AIReqDataSource,
-  AIReqWorkflowTarget,
+  AIReqSelection,
   AIReqWorkflowView,
 } from "./contract.js";
 
@@ -55,7 +55,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const initialLink = useRef(readObjectLink());
   const pendingObjectLink = useRef(initialLink.current);
   // 修复：仅显式分享链接可越过默认总览，普通登录不恢复前一工号的页面。
-  const [selection, setSelection] = useState<AIReqWorkflowTarget>(() => ({
+  const [selection, setSelection] = useState<AIReqSelection>(() => ({
     projectId:
       initialLink.current && initialLink.current !== "invalid"
         ? initialLink.current.projectId
@@ -89,7 +89,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   );
   const recordNavigation = useCallback(
     (
-      target: AIReqWorkflowTarget,
+      target: AIReqSelection,
       mainView: WorkspaceMainView,
       overlay: NavigationOverlay = null,
     ) => {
@@ -123,7 +123,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [source, navigationOwner],
   );
   const [view, setView] = useState<AIReqWorkflowView>();
-  const [loadedSelection, setLoadedSelection] = useState<AIReqWorkflowTarget>();
+  const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
   const viewRef = useRef(view);
   const [error, setError] = useState<string>();
   const [linkError, setLinkError] = useState<"incomplete" | "not-found">();
@@ -173,7 +173,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [],
   );
   const load = useCallback(
-    async (target: AIReqWorkflowTarget, throwOnError = false) => {
+    async (target: AIReqSelection, throwOnError = false) => {
       const revision = ++requestRevision.current;
       setPending(true);
       try {
@@ -214,7 +214,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }, [source, refresh]);
   const select = useCallback(
     (
-      value: AIReqWorkflowTarget,
+      value: AIReqSelection,
       addHistory = true,
       mainView: WorkspaceMainView = "chat",
       targetReleaseId?: string,
@@ -359,7 +359,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
       const previous = navigationRef.current;
-      const savedTarget = event.state.aiReqSelection as AIReqWorkflowTarget;
+      const savedTarget = event.state.aiReqSelection as AIReqSelection;
       const currentTarget = selectionRef.current;
       // 设置返回同一范围时沿用已读选择，避免重读期间卸载「配置 Release」入口而丢失焦点。
       const target =
@@ -469,7 +469,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [select, recordNavigation],
   );
   const retrySession = useCallback(
-    async (target: AIReqWorkflowTarget, sessionId: string, isCurrentPane: () => boolean) => {
+    async (target: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
       const isCurrent = () =>
         isCurrentPane() &&
         sourceRef.current === source &&

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createProject, createProposal } from "./business.js";
+import { createProject, createProposal, createProposalIn } from "./business.js";
 import { connectST, unique, waitUntil } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { openNative } from "./native.js";
@@ -16,7 +16,7 @@ import {
 
 describe("co-creation agents through the public API", () => {
   it(
-    "isolates discussion history by agent and requirement, and enforces project membership",
+    "isolates discussion history between roles and IRs in one Release, and enforces project membership",
     async () => {
       const business = await connectST();
       const tester = await connectST(config.testerEmployeeId);
@@ -24,6 +24,9 @@ describe("co-creation agents through the public API", () => {
       try {
         expect(business.identity.employeeId).not.toBe(tester.identity.employeeId);
         const target = await createProposal(business);
+        const sibling = await createProposalIn(business, target, "同版本中的另一条需求");
+        expect(sibling.irId).not.toBe(target.irId);
+        expect(getProposal(sibling.remote, sibling).releaseId).toBe(target.releaseId);
         const other = await createProject(business);
         const selection = proposalSelection(target);
         const requirements = { ...selection, discussionPhase: "requirements" } as const;
@@ -59,6 +62,7 @@ describe("co-creation agents through the public API", () => {
 
         const reqText = unique("请补充登录前不可导出的验收条件");
         const solutionText = unique("请补充服务端测试数据隔离");
+        const siblingText = unique("请补充审计追踪的验收条件");
         await discuss(tester, target, solutionText, "solution");
         const solutionFirst = await tester.read(solution);
         expect(getProposal(solutionFirst, target).documentVersion).toEqual({ number: 1 });
@@ -66,22 +70,54 @@ describe("co-creation agents through the public API", () => {
           true,
         );
         await discuss(business, target, reqText);
-        const readInputs = async (actor: typeof business, remote: typeof initial) => {
+        await discuss(business, sibling, siblingText);
+        const readHistory = async (actor: typeof business, remote: typeof initial) => {
           const native = await openNative(actor, remote);
           try {
-            return (await native.snapshot()).rows.window
-              .filter((row) => row.kind === "userInput")
-              .map((row) => row.text);
+            const { control, rows } = await native.snapshot();
+            return { phase: control.phase, rows: rows.window };
           } finally {
             await native.close();
           }
         };
-        const businessInputs = await readInputs(business, await business.read(requirements));
-        const solutionInputs = await readInputs(tester, await tester.read(solution));
+        const inputs = ({ rows }: Awaited<ReturnType<typeof readHistory>>) =>
+          rows.filter((row) => row.kind === "userInput").map((row) => row.text);
+        const requirementsRemote = await business.read(requirements);
+        const solutionRemote = await tester.read(solution);
+        const siblingRemote = await business.read(sibling.selection);
+        expect(siblingRemote.session).toMatchObject({ ...sibling.selection, phase: "requirements" });
+        const siblingSession = requireConfig(siblingRemote.session, "旁路需求讨论会话");
+        expect(
+          new Set([irSession.sessionId, srSession.sessionId, siblingSession.sessionId]).size,
+        ).toBe(3);
+        const businessInputs = inputs(await readHistory(business, requirementsRemote));
         expect(businessInputs).toContain(reqText);
         expect(businessInputs).not.toContain(solutionText);
+        expect(businessInputs).not.toContain(siblingText);
+        const solutionHistory = await readHistory(tester, solutionRemote);
+        const solutionInputs = inputs(solutionHistory);
         expect(solutionInputs).toContain(solutionText);
         expect(solutionInputs).not.toContain(reqText);
+        expect(solutionInputs).not.toContain(siblingText);
+        const siblingInputs = inputs(await readHistory(business, siblingRemote));
+        expect(siblingInputs).toContain(siblingText);
+        expect(siblingInputs).not.toContain(reqText);
+        expect(siblingInputs).not.toContain(solutionText);
+
+        const testerRequirements = await tester.read(requirements);
+        expect(testerRequirements.session?.sessionId).toBe(irSession.sessionId);
+        const beforeRetry = await readHistory(tester, testerRequirements);
+        expect(inputs(beforeRetry)).toEqual(businessInputs);
+        expect(await tester.call("retrySession", [requirements, irSession.sessionId])).toBeNull();
+        for (const mismatchedId of [srSession.sessionId, siblingSession.sessionId]) {
+          await expect(tester.call("retrySession", [requirements, mismatchedId])).rejects.toThrow(
+            "会话已切换或不存在。",
+          );
+        }
+        const repaired = await tester.read(requirements);
+        expect(repaired).toEqual(testerRequirements);
+        expect(await readHistory(tester, repaired)).toEqual(beforeRetry);
+        expect(await readHistory(tester, await tester.read(solution))).toEqual(solutionHistory);
 
         const removed = await admin.command(
           { type: "removeProjectRoleMember", ...member },

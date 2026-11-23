@@ -285,13 +285,12 @@ export async function connectST(
     async command(action, selection = {}) {
       const { expectedRevision, operationId, ...intent } = action;
       const revision = expectedRevision ?? (await client.read(selection)).view.revision;
-      const { projectId, irId, srId } = selection;
+      const { projectId, irId } = selection;
       return client.call("command", [
         { ...intent, operationId: operationId ?? unique("operation") },
         {
           ...(projectId !== undefined ? { projectId } : {}),
           ...(irId !== undefined ? { irId } : {}),
-          ...(srId !== undefined ? { srId } : {}),
         },
         revision,
       ]);

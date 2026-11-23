@@ -1,6 +1,6 @@
 # AIReq — AI 需求协作
 
-面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档交付和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
+面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档定版和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
 
 开发在「需求共创」复制同步命令后，可用 Python 3.10 或以上和 Git 在开发分支导入最新已定版的整套文档。[同步使用说明](docs/specs/aireq/proposals.md#同步已定版文档到本地分支)
 
@@ -32,7 +32,7 @@ bun x --bun --package pnpm@10.33.2 pnpm install
 bun run dev
 ```
 
-浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api` 和 `/ws`。
+浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api`、`/ws` 和 `/aireq-sync`；同步命令从 `/aireq-sync/<sha256>.py` 下载脚本。
 
 输入一位小写字母加八位数字的工号后进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
 

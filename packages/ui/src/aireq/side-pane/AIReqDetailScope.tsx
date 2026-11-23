@@ -13,7 +13,7 @@ import type {
 interface DocumentDetail {
   view: AIReqWorkflowView;
   validateVersion(): Promise<AIReqDocumentValidation>;
-  confirmVersion(): Promise<AIReqDocumentValidation | undefined>;
+  confirmVersion(snapshot: string): Promise<AIReqDocumentValidation | undefined>;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
 }
 
@@ -80,12 +80,12 @@ export function AIReqDetailScope({
     if (!projectId || !irId) throw new Error(zh ? "请选择当前需求。" : "Select a requirement.");
     return source.validateDocumentVersion({ projectId, irId });
   };
-  const confirmVersion = async () => {
+  const confirmVersion = async (snapshot: string) => {
     if (!projectId || !irId || !view)
       throw new Error(zh ? "请重新读取当前需求。" : "Reload the requirement.");
     const target = { projectId, irId };
     const result = await source.command(
-      { type: "confirmDocumentVersion", ...target },
+      { type: "confirmDocumentVersion", ...target, snapshot },
       target,
       view.revision,
     );

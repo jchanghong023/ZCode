@@ -16,6 +16,7 @@ import {
   completeBusinessMaterial,
   completeSolutionMaterial,
   discuss,
+  getMaterials,
   getProposal,
 } from "./proposal-flow.js";
 
@@ -64,9 +65,52 @@ describe("confirmed document sync", () => {
 
         await completeBusinessMaterial(admin, target);
         await completeSolutionMaterial(admin, target);
-        const confirm = () =>
-          admin.command({ type: "confirmDocumentVersion", ...target.selection }, target.selection);
-        expect((await confirm()).receipt.status).toBe("completed");
+        const confirm = async () => {
+          const { snapshot, issues } = await admin.call("validateDocumentVersion", [target.selection]);
+          expect(issues).toEqual([]);
+          const before = await admin.read(target.selection);
+          const result = await admin.command(
+            { type: "confirmDocumentVersion", ...target.selection, snapshot },
+            target.selection,
+          );
+          expect(result.receipt.status, result.receipt.error).toBe("completed");
+          return before;
+        };
+        const compareWith = async (
+          bundle: AIReqConfirmedDocumentBundle,
+          before: Awaited<ReturnType<typeof confirm>>,
+        ) => {
+          const { documentVersion, srIds } = getProposal(before, target);
+          const confirmed = getProposal(await admin.read(target.selection), target).documentVersion;
+          expect(documentVersion?.confirmation).toBeUndefined();
+          expect(confirmed?.number).toBe(documentVersion?.number);
+          expect(confirmed?.confirmation).toBeDefined();
+          expect(srIds.length).toBeGreaterThan(1);
+          expect(new Set(srIds).size).toBe(srIds.length);
+          const projectedSrIds = before.view.srs
+            .filter(({ projectId, irId }) => projectId === target.projectId && irId === target.irId)
+            .map(({ id }) => id)
+            .sort();
+          expect(projectedSrIds).toEqual([...srIds].sort());
+          const files = getMaterials(before, target).map(({ path, sha256, size, content }) => {
+            expect(content, path).toMatch(/\S/);
+            return { path, sha256, size, content };
+          });
+          expect({
+            ...bundle,
+            srIds: [...bundle.srIds].sort(),
+            files: [...bundle.files].sort((a, b) => a.path.localeCompare(b.path)),
+          }).toEqual({
+            ...target.selection,
+            releaseId: target.releaseId,
+            repositoryUrl: before.view.projects.find(({ id }) => id === target.projectId)?.repositoryUrl,
+            version: documentVersion?.number,
+            confirmation: confirmed?.confirmation,
+            srIds: projectedSrIds,
+            files,
+          });
+        };
+        const firstBeforeConfirmation = await confirm();
         const readBundle = async () => {
           const response = await stFetch(endpoint);
           expect(response.status).toBe(200);
@@ -74,6 +118,7 @@ describe("confirmed document sync", () => {
           return (await response.json()) as AIReqConfirmedDocumentBundle;
         };
         const first = await readBundle();
+        await compareWith(first, firstBeforeConfirmation);
         expect(first).toMatchObject({
           ...target.selection,
           releaseId: target.releaseId,
@@ -130,7 +175,12 @@ describe("confirmed document sync", () => {
             input: answer,
             encoding: "utf-8",
             timeout: 35_000,
-            env: { ...process.env, AIREQ_SYNC_TOKEN: config.token ?? "" },
+            env: {
+              ...process.env,
+              PYTHONUTF8: "1",
+              PYTHONIOENCODING: "utf-8",
+              AIREQ_SYNC_TOKEN: config.token ?? "",
+            },
           });
         git("remote", "set-url", "origin", "https://wrong.example.invalid/project.git");
         const wrongRepo = run("y\n");
@@ -154,11 +204,16 @@ describe("confirmed document sync", () => {
         expect(await readFile(join(repo, "unrelated.txt"), "utf8")).toBe("保留");
         expect(run("\n").stdout).toContain("文档内容已一致");
 
-        expect((await confirm()).receipt.status).toBe("completed");
+        const secondBeforeConfirmation = await confirm();
+        const second = await readBundle();
+        await compareWith(second, secondBeforeConfirmation);
+        expect(second.version).toBe(2);
         const upgraded = run("y\n");
         expect(upgraded.status, upgraded.stderr).toBe(0);
         expect(upgraded.stdout).toContain("已同步 V2 到 feature/test-sync");
         expect(await readFile(destination, "utf8")).toContain("补充下一版的测试条件");
+        for (const file of second.files)
+          expect(await readFile(join(repo, file.path), "utf8")).toBe(file.content);
         expect(git("rev-parse", "HEAD")).toBe(baseCommit);
         expect(git("diff", "--cached", "--name-only")).toBe("");
       } finally {

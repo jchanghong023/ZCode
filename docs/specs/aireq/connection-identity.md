@@ -16,7 +16,7 @@ Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId(
 
 服务端在升级前验证自报身份；`getConnectionServices` 冻结连接身份，后续 bootstrap/call 的 employee/client 精确匹配，原生命令 envelope.clientId 也匹配。项目树与目录解析通过同一身份读取。请求局部上下文使用 `AsyncLocalStorage`，不用全局可变工号。
 
-项目、Release、IR、SR 与会话校验定位真实对象。工作流记录执行时的工号，并按当前项目名单校验方案会话、方案评审和文档确认。
+工作流按项目、IR 和会话校验业务归属，记录执行时的工号，并按当前项目名单校验方案会话、方案评审和文档确认。Release 用于项目版本范围和归属校验，不是会话键。
 
 ### 项目角色
 
@@ -38,7 +38,7 @@ sequenceDiagram
   W-->>U: 通知名单变化并重读
 ```
 
-验收覆盖不同身份看到同一名单与按钮、管理员添加和删除、普通用户通过接口写入被拒、双角色独立、重复添加和过期操作被拒、跨项目隔离，以及成员移除后角色写入不再可用。无角色的任务直达地址打开需求工作台。
+验收覆盖不同身份看到同一名单与按钮、管理员添加和删除、普通用户通过接口写入被拒、双角色独立、重复添加和过期操作被拒、跨项目隔离，以及成员移除后角色写入不再可用。
 
 ## 2. 工作区与会话
 
@@ -50,6 +50,8 @@ Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服�
 
 原生会话绑定与项目目录从 workflow owner 的即时只读查询取得最小事实；绑定查询无需逐项目重读完整 workflow，目录一次取得项目工作区及 canonical 会话映射。查询只复制所需结果，不缓存另一份目录、不改变 revision、状态或事件。公开资格仍由当前项目及 IR 的 canonical 引用裁决，故障会话过滤、私有草稿 actor 与 Skill 私有归属、workspace 精确匹配继续在原边界执行；轻投影不能替代这些校验。
 
+浏览器的 SR 选择只定位文档。工作流读取与会话恢复按项目、IR 和 Agent 定位原生会话，不接收 SR。
+
 `origin:"realUser"` 行使用接纳时已校验的 clientId；引导和跟进在实际交付时保留原命令和提交人。实时帧、快照与分页读取同一行事实。
 
 已发送的消息、附件和评审结果按各 Agent 会话的权限共享。未发送正文、附件和输入历史按工号、客户端、工作区及会话隔离。
@@ -58,21 +60,22 @@ Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服�
 
 ## 3. 相互独立的版本
 
-| 版本                              | 含义                                          |
-| --------------------------------- | --------------------------------------------- |
-| `AIREQ_CONTRACT_VERSION=16`       | bootstrap 契约兼容性，客户端不匹配则拒绝装配  |
-| Protocol v4 wire `3`              | hello/clientHello 与二进制 wire 版本          |
-| snapshot `protocolVersion=1`      | 会话投影格式，不是 wire 版本                  |
-| workflow revision、材料／候选版本 | 对应业务 CAS、批准及交付绑定                  |
-| 模型配置、提示词、目录 revision   | 分别属于各 owner，不互相替代                  |
-| session revision                  | 原生命令 CAS                                  |
-| topic logEpoch/seq                | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
+| 版本或标识 | 含义 |
+| --- | --- |
+| `AIREQ_CONTRACT_VERSION=26` | bootstrap 契约兼容性，客户端不匹配则拒绝装配 |
+| Protocol v4 wire `3` | hello/clientHello 与二进制 wire 版本 |
+| snapshot `protocolVersion=1` | 会话投影格式，不是 wire 版本 |
+| workflow revision | 普通业务写入的 CAS 基线 |
+| 文档版本号、预检 `snapshot` | 版本号描述材料版本；快照标识绑定定版前检查的版本及文件，同版编辑也会改变快照 |
+| 模型配置、提示词、目录 revision | 分别属于各 owner，不互相替代 |
+| session revision | 原生命令 CAS |
+| topic logEpoch/seq | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
 
 AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或跨重启 exactly-once。在线人员快照的 `revision` 只用于在线人员投影排序。
 
 ## 4. CAS 与幂等
 
-- `command` 按 employee/client/operationId 保存回执，摘要包含业务目标（projectId/irId/srId）与业务参数，不包含阅读选择或首次 expectedRevision。同 ID 同内容重读后显式重试返回原回执，同 ID 改内容拒绝；新请求校验首次版本及阶段。
+- `command` 按 employee/client/operationId 保存回执，摘要包含业务目标（`projectId`／`irId`）与参数，不包含阅读选择或第三参 `expectedRevision`。同 ID 同内容显式重试返回原回执，同 ID 改内容拒绝。普通写入首次接纳时比对 workflow revision。
 - 项目保存与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
 - `skillDesign.saveDraft` 没有请求 CAS／operationId，按提交顺序覆盖可编辑字段，不覆盖会话补充记录。
@@ -81,7 +84,7 @@ AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或
 
 accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
 
-评审和确认版本在接纳时读取服务器的最新材料，沿用操作编号去重。确认固定当前版本全部文件，并写入确认人及时间。
+确认版本不比对 workflow revision：提交预检返回的 `snapshot`，只在相同版本及文件仍未定版时按当前规则复核、固定全部文件并记录确认人及时间。材料漂移或已定版时 RPC 拒绝；快照仍匹配但复核未通过时，`result.documentValidation` 与 `receipt` 同级。评审也不比较 workflow revision，但不提交预检快照，而是捕获接纳时最新已保存材料供独立评审。两者均沿用操作编号去重。
 
 ## 5. 失效通知与重连
 
@@ -124,4 +127,6 @@ v4 hello/initialize 后订阅 conversation，ACK 与 owned notification 分离�
 
 ## 10. 源码依据
 
-`packages/server/src/aireq/identity.ts` 的 validateAIReqIdentity/withAIReqIdentity；`service.ts` 的 getConnectionServices 与回执分派；`packages/web/src/main.tsx` 的连接 owner；`packages/client/src/websocket.ts` 的连接装配；`packages/rpc/src/{protocol,serialization,proxy-channel,channelClient,channelServer}.ts` 的传输；`packages/ui/src/aireq/shell/remote-data-source.ts` 的失效代次；`packages/server/src/mock/{runtime,zcodeAgent}.ts` 的 CAS／topic；`packages/shared/src/zcode-protocol-v4/{core,snapshot,sessions-index}.ts` 的版本。
+- 身份与业务分派：[`identity.ts`](../../../packages/server/src/aireq/identity.ts)、[`service.ts`](../../../packages/server/src/aireq/service.ts)、[`remote-operations.ts`](../../../packages/services/src/aireq/remote-operations.ts)。
+- 浏览器连接、装配与失效：[`main.tsx`](../../../packages/web/src/main.tsx)、[`websocket.ts`](../../../packages/client/src/websocket.ts)、[`remote-data-source.ts`](../../../packages/ui/src/aireq/shell/remote-data-source.ts)。
+- 传输：`packages/rpc/src/{protocol,serialization,proxy-channel,channelClient,channelServer}.ts`。原生 CAS 与 topic：`packages/server/src/mock/{runtime,zcodeAgent}.ts`。协议版本及会话投影：`packages/shared/src/zcode-protocol-v4/{core,snapshot,sessions-index}.ts`。

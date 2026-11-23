@@ -11,6 +11,7 @@ import {
   type AIReqWorkflowTarget,
   type IAIReqService,
 } from "../../packages/services/src/aireq/index.js";
+import type { AIReqSelection } from "../../packages/ui/src/aireq/contract.js";
 import { createRemoteAIReqDataSource } from "../../packages/ui/src/aireq/shell/remote-data-source.js";
 
 // Expectations follow connection-identity.md §4–5: explicit targets, invalidation,
@@ -69,7 +70,6 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
       requirements: [],
       srs: [],
       materials: [],
-      operations: [],
     },
   };
 }
@@ -200,7 +200,7 @@ describe("AIReq frontend data source", () => {
         irId: "ir-b",
         discussionPhase: "solution",
       } as const;
-      const target: AIReqWorkflowTarget = { ...sessionTarget, srId: "sr-b" };
+      const target: AIReqSelection = { ...sessionTarget, srId: "sr-b" };
       const view = await source.readWorkflow(target);
       expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [sessionTarget]);
       expect(source.resolveWorkspace(view, target).identity).toBe("workspace:project-b");
@@ -288,7 +288,6 @@ describe("AIReq frontend data source", () => {
         status: "completed",
         startedAt: "2026-11-17T00:00:00Z",
         revision: 8,
-        steps: [],
       },
     };
     remote.call.mockImplementation(async (_identity, path, args) =>
@@ -302,9 +301,10 @@ describe("AIReq frontend data source", () => {
         operationId: "create-idea-1",
         expectedRevision: 7,
       };
-      const ids = { projectId: "project-a", irId: "ir-a", srId: "sr-a" };
-      const target: AIReqWorkflowTarget = {
+      const ids = { projectId: "project-a", irId: "ir-a" };
+      const target: AIReqSelection = {
         ...ids,
+        srId: "sr-a",
         discussionPhase: "requirements",
       };
       expect(await source.command(action, target, 7)).toEqual(receipt);

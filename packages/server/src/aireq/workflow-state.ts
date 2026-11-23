@@ -5,7 +5,6 @@ import type {
   AIReqDocumentSnapshot,
   AIReqDocumentVersion,
   AIReqIdea,
-  AIReqIdentity,
   AIReqMaterialView,
   AIReqNativeSessionRef,
   AIReqOperationReceipt,
@@ -28,8 +27,9 @@ export interface NativeSessionRef extends AIReqNativeSessionRef {
   runtimeModel?: NativeRuntimeModel;
 }
 
-export interface Receipt extends Omit<AIReqOperationReceipt, "actorEmployeeId"> {
-  identity?: AIReqIdentity;
+/** Batch transfer uses these IDs only while assembling its result. */
+export interface Receipt extends AIReqOperationReceipt {
+  irIds?: string[];
 }
 
 export interface DocumentReview extends AIReqDocumentReview {
@@ -67,5 +67,4 @@ export interface WorkflowState {
   requirements: RequirementGroup[];
   srs: SystemRequirement[];
   materials: AIReqMaterialView[];
-  operations: Receipt[];
 }

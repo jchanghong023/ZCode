@@ -1,4 +1,4 @@
-import type { AIReqMainView, AIReqWorkflowTarget } from "./contract.js";
+import type { AIReqMainView, AIReqSelection } from "./contract.js";
 
 export type ProposalDraft = { id: string };
 export type NavigationOverlay =
@@ -25,8 +25,6 @@ export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
 }
 
 export function restoreMainView(saved: unknown): AIReqMainView {
-  // 旧概览历史沿用原项目与 Release，打开当前的需求共创。
-  if (saved === "projectOverview") return "proposals";
   return (
     (["chat", "ideas", "projectProgress", "proposals", "roles", "skillDesign"] as const).find(
       (view) => view === saved,
@@ -37,7 +35,7 @@ export function restoreMainView(saved: unknown): AIReqMainView {
 /** 共享链接仅投影显式对象；不携带页面查询、凭据或锚点。 */
 export function requirementObjectLink(
   base: string,
-  target: AIReqWorkflowTarget,
+  target: AIReqSelection,
   releaseId: string,
 ): string | undefined {
   if (!target.projectId || !target.irId || !releaseId) return undefined;

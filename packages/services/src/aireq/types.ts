@@ -18,7 +18,6 @@ export type AIReqDiscussionAgent = "requirements" | "solution";
 export interface AIReqObjectRef {
   projectId: string;
   irId: string;
-  srId?: string;
 }
 export interface AIReqNativeSessionRef extends AIReqObjectRef {
   sessionId: string;
@@ -117,12 +116,9 @@ export interface AIReqRequirementGroup {
   originalText: string;
   submittedBy: string;
   documentPath: string;
-  /** 保留已有需求的录入来源。 */
-  origin: "local" | "browser" | "import";
   createdAt: string;
   revision: number;
   srIds: string[];
-  files: AIReqFileVersion[];
   sessions: AIReqNativeSessionRef[];
   documentVersion?: AIReqDocumentVersion;
   documentHistory: AIReqDocumentSnapshot[];
@@ -137,9 +133,6 @@ export interface AIReqOperationReceipt {
   completedAt?: string;
   revision: number;
   irId?: string;
-  /** Atomic import associates every new IR without attributing the batch to the previous selection. */
-  irIds?: string[];
-  steps: { name: string; at: string; detail: string }[];
   error?: string;
 }
 export interface AIReqMaterialView extends AIReqFileVersion {
@@ -169,12 +162,10 @@ export interface AIReqWorkflowView {
   requirements: AIReqRequirementGroup[];
   srs: AIReqSystemRequirement[];
   materials: AIReqMaterialView[];
-  operations: AIReqOperationReceipt[];
 }
 export interface AIReqCommandBase {
   projectId?: string;
   irId?: string;
-  srId?: string;
 }
 type AIReqIntent = AIReqCommandBase &
   (
@@ -193,7 +184,7 @@ type AIReqIntent = AIReqCommandBase &
       }
     | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "reviewDocuments"; projectId: string; irId: string; agent: AIReqDiscussionAgent }
-    | { type: "confirmDocumentVersion"; projectId: string; irId: string }
+    | { type: "confirmDocumentVersion"; projectId: string; irId: string; snapshot: string }
   );
 
 /** 本地表单可携带独立于最新投影的编辑基线。 */
@@ -203,6 +194,7 @@ export type AIReqCommand = AIReqIntent & { operationId: string };
 
 export interface AIReqDocumentValidation {
   version?: number;
+  snapshot: string;
   fileCount: number;
   issues: { kind: "missing" | "invalid"; path: string; reason: string }[];
 }
@@ -218,7 +210,6 @@ export interface AIReqWorkflowResult {
 export interface AIReqWorkflowTarget {
   projectId?: string;
   irId?: string;
-  srId?: string;
   discussionPhase?: AIReqDiscussionAgent;
 }
 

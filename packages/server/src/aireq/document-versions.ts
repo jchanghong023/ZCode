@@ -60,7 +60,6 @@ export function saveDocumentChanges(
     state.srs = state.srs.filter((row) => !belongs(row)).concat(srs);
     requirement.srIds = srs.map(({ id }) => id);
   }
-  requirement.files = nextMaterials.map(({ path, sha256, size }) => ({ path, sha256, size }));
   requirement.revision += 1;
   for (const review of requirement.documentReviews) {
     review.stale =

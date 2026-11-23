@@ -1,7 +1,7 @@
-import type { AIReqWorkflowTarget } from "../contract.js";
+import type { AIReqSelection } from "../contract.js";
 
 export interface AIReqSidePaneRequest {
-  selection: AIReqWorkflowTarget;
+  selection: AIReqSelection;
   releaseId: string;
   title: string;
 }

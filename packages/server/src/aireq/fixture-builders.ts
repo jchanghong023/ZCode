@@ -2,7 +2,6 @@ import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqDiscussionAgent, AIReqWorkflowTarget } from "@zcode/services/aireq";
 import type {
   NativeSessionRef,
-  Receipt,
   RequirementGroup,
   SystemRequirement,
 } from "./workflow-state.js";
@@ -40,18 +39,6 @@ export function sessionRef(
   };
 }
 
-export function receipt(type: string, revision: number, irId?: string, at = createdAt): Receipt {
-  return {
-    operationId: `sample-operation-${revision}`,
-    type,
-    status: "completed",
-    startedAt: at,
-    completedAt: at,
-    revision,
-    irId,
-    steps: [{ name: "业务处理", at, detail: "已接收当前操作。" }],
-  };
-}
 export function group(
   projectId: string,
   id: string,
@@ -67,10 +54,8 @@ export function group(
     releaseId,
     title: text.split("\n")[0]!.slice(0, 60),
     documentPath: `${prototypeIrRoot(id)}/requirements.md`,
-    origin: "local",
     revision: 1,
     srIds: [],
-    files: [],
     sessions: [sessionRef(projectId, id, "requirements"), sessionRef(projectId, id, "solution")],
     createdAt,
     documentHistory: [],

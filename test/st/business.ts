@@ -28,25 +28,30 @@ export async function createProject(client: STClient) {
   if (!release) throw new Error("新建 Release 未通过公开读取返回");
   return { projectId: project.id, releaseId: release.id, selection };
 }
-export async function createProposal(
+export async function createProposal(client: STClient, text?: string) {
+  return createProposalIn(client, await createProject(client), text);
+}
+
+export async function createProposalIn(
   client: STClient,
+  { projectId, releaseId }: Pick<Awaited<ReturnType<typeof createProject>>, "projectId" | "releaseId">,
   text = "支持导出 CSV，并提供明确的完成与失败提示。",
 ) {
-  const project = await createProject(client);
   const result = await client.command(
     {
       type: "createProposal",
       originalText: `${text}\n${unique("ST")}`,
-      releaseId: project.releaseId,
-      projectId: project.projectId,
+      releaseId,
+      projectId,
     },
-    project.selection,
+    { projectId },
   );
   if (!result.irId) throw new Error("创建提案未返回 IR 标识");
-  recordCreated(project.projectId, result.irId);
-  const selection = { projectId: project.projectId, irId: result.irId };
+  recordCreated(projectId, result.irId);
+  const selection = { projectId, irId: result.irId };
   return {
-    ...project,
+    projectId,
+    releaseId,
     irId: result.irId,
     selection,
     remote: await client.read({ ...selection, discussionPhase: "requirements" }),

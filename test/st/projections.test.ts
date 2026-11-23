@@ -3,6 +3,7 @@ import type { AIReqWorkflowView } from "@zcode/services/aireq";
 import { connectST, unique, type STClient } from "./client.js";
 import { config } from "./config.js";
 import { createProject, createProposal } from "./business.js";
+import { openNative } from "./native.js";
 import {
   completeBusinessMaterial,
   expectBusinessRejection,
@@ -26,19 +27,6 @@ function summary(view: AIReqWorkflowView, projectId: string, releaseId: string) 
   );
   expect(release, "空 Release 也必须有同源统计").toBeDefined();
   return release!;
-}
-function projectActivity(view: AIReqWorkflowView, projectId: string) {
-  const irIds = new Set(
-    view.requirements.filter((group) => group.projectId === projectId).map((group) => group.id),
-  );
-  return {
-    operations: view.operations.filter(
-      (item) =>
-        (item.irId !== undefined && irIds.has(item.irId)) ||
-        item.irIds?.some((id) => irIds.has(id)),
-    ),
-    requirements: view.requirements.filter((item) => item.projectId === projectId),
-  };
 }
 
 describe("ST same-owner workflow projections", () => {
@@ -222,19 +210,67 @@ describe("ST same-owner workflow projections", () => {
   );
 
   it(
-    "does not create operations or new sessions through repeated reads and bootstrap",
+    "does not change workflow data or existing session history through repeated reads and bootstrap",
     async () => {
       await usingClient(async (client) => {
         const target = await createProposal(client, unique("只读不生成动态"));
-        const baseline = (await client.read(target.selection)).view;
-        const activity = projectActivity(baseline, target.projectId);
-        const stats = summary(baseline, target.projectId, target.releaseId);
-        for (let attempt = 0; attempt < 3; attempt++) {
-          await client.bootstrap();
-          const reread = (await client.read(target.selection)).view;
-          expect(projectActivity(reread, target.projectId)).toEqual(activity);
-          expect(summary(reread, target.projectId, target.releaseId)).toEqual(stats);
+        await completeBusinessMaterial(client, target);
+        const baseline = await client.read(target.selection);
+        const stats = summary(baseline.view, target.projectId, target.releaseId);
+        const session = await openNative(client, baseline);
+        try {
+          const before = await session.waitIdle();
+          expect(before.rows.window).toContainEqual(expect.objectContaining({ kind: "userInput" }));
+          for (let attempt = 0; attempt < 3; attempt++) {
+            await client.bootstrap();
+            const reread = await client.read(target.selection);
+            expect(reread).toEqual(baseline);
+            expect(summary(reread.view, target.projectId, target.releaseId)).toEqual(stats);
+          }
+          const after = await session.snapshot();
+          expect(after.rows.window).toEqual(before.rows.window);
+          expect(after.control.phase).toBe(before.control.phase);
+        } finally {
+          await session.close();
         }
+      });
+    },
+    config.timeoutMs,
+  );
+
+  it(
+    "retries only the current material identified by its project, Release, IR, path and digest",
+    async () => {
+      await usingClient(async (client) => {
+        const target = await createProposal(client);
+        const baseline = await completeBusinessMaterial(client, target);
+        const { documentPath } = getProposal(baseline, target);
+        const material = getMaterials(baseline, target).find(({ path }) => path === documentPath);
+        expect(material).toMatchObject({
+          valid: true,
+          content: expect.stringMatching(/\S/),
+          sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        });
+        const request = {
+          ...target.selection,
+          releaseId: target.releaseId,
+          path: documentPath,
+          sha256: material!.sha256,
+        };
+        expect(await client.call("retryMaterial", [request])).toBe(true);
+        const staleSha = `${request.sha256[0] === "0" ? "1" : "0"}${request.sha256.slice(1)}`;
+        await expect(client.call("retryMaterial", [{ ...request, sha256: staleSha }])).rejects.toThrow(
+          "材料版本已变化，请重新读取当前版本。",
+        );
+        for (const wrong of [
+          { ...request, releaseId: unique("missing-release") },
+          { ...request, path: `${documentPath}.missing` },
+        ]) {
+          await expect(client.call("retryMaterial", [wrong])).rejects.toThrow(
+            "材料不属于当前需求版本。",
+          );
+        }
+        expect(await client.read(target.selection)).toEqual(baseline);
       });
     },
     config.timeoutMs,

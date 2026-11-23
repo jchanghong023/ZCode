@@ -1,8 +1,8 @@
 import { useCallback, type RefObject } from "react";
-import type { AIReqMainView, AIReqWorkflowTarget, AIReqWorkflowView } from "../contract.js";
+import type { AIReqMainView, AIReqSelection, AIReqWorkflowView } from "../contract.js";
 
 type SelectTarget = (
-  value: AIReqWorkflowTarget,
+  value: AIReqSelection,
   addHistory?: boolean,
   mainView?: AIReqMainView,
   targetReleaseId?: string,
@@ -16,7 +16,7 @@ export function useAIReqNavigationActions({
   select,
 }: {
   navigationRef: RefObject<{ mainView: AIReqMainView }>;
-  selectionRef: RefObject<AIReqWorkflowTarget>;
+  selectionRef: RefObject<AIReqSelection>;
   viewRef: RefObject<AIReqWorkflowView | undefined>;
   select: SelectTarget;
 }) {

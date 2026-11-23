@@ -13,12 +13,11 @@ import {
   type AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import type { NativeDocumentOutput, WorkflowState } from "./workflow-state.js";
+import type { NativeDocumentOutput, Receipt, WorkflowState } from "./workflow-state.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
   projectDirectory,
-  projectReceipt,
   projectReleases,
   projectRequirement,
   projectSummary,
@@ -31,10 +30,10 @@ import {
   readPrototypeMaterial,
   retryPrototypeMaterialRead,
 } from "./recovery.js";
-import { currentIdentity, getEmployeeId, isEmployeeId } from "./identity.js";
+import { getEmployeeId, isEmployeeId } from "./identity.js";
 import { readPrototypeProjectSetting, readPrototypeProjectSettings } from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
-import { DEFAULT_SELECTION, receipt } from "./fixture-builders.js";
+import { DEFAULT_SELECTION } from "./fixture-builders.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { stageNativeDocuments } from "./native-documents.js";
 import { confirmDocumentVersion, saveDocumentChanges } from "./document-versions.js";
@@ -148,7 +147,6 @@ export function getPrototypeWorkflow(
 ): AIReqWorkflowView {
   const projectId = selection.projectId ?? DEFAULT_SELECTION.projectId;
   const requirements = state.requirements.filter((item) => item.projectId === projectId);
-  const irIds = new Set(requirements.map((item) => item.id));
   const solution = projectId !== undefined && canAccessSolution(projectId);
   return {
     revision: state.revision,
@@ -163,14 +161,6 @@ export function getPrototypeWorkflow(
     materials: state.materials
       .filter((item) => item.projectId === projectId)
       .map(readPrototypeMaterial),
-    operations: state.operations
-      .filter(
-        (item) =>
-          (!item.irId && !item.irIds?.length) ||
-          (item.irId !== undefined && irIds.has(item.irId)) ||
-          item.irIds?.some((irId) => irIds.has(irId)),
-      )
-      .map(projectReceipt),
   };
 }
 
@@ -178,7 +168,7 @@ export function resolvePrototypeSession(
   view: Pick<AIReqWorkflowView, "requirements">,
   selection: AIReqWorkflowTarget,
 ): AIReqNativeSessionRef | undefined {
-  if (!selection.irId || selection.srId) return;
+  if (!selection.irId) return;
   const projectId = selection.projectId ?? DEFAULT_SELECTION.projectId;
   return view.requirements
     .find((item) => item.projectId === projectId && item.id === selection.irId)
@@ -336,17 +326,22 @@ export function applyPrototypeAction(
     "createRelease",
   ].includes(action.type);
   let irId = global ? undefined : (action.irId ?? selection.irId);
-  const operation = receipt(action.type, state.revision + 1, irId, new Date().toISOString());
-  operation.operationId = action.operationId;
-  const identity = currentIdentity();
-  if (identity) operation.identity = { ...identity };
-  if (
-    action.type === "confirmDocumentVersion" &&
-    requirement &&
-    !requirement.documentVersion?.confirmation
-  ) {
-    // 接纳与定版在同一个同步 owner 内完成。预检查只用于展示，提交仍检查实际写入的文件。
-    const documentValidation = validateDocumentVersion(state, requirement);
+  const at = new Date().toISOString();
+  const operation: Receipt = {
+    operationId: action.operationId,
+    actorEmployeeId: getEmployeeId(),
+    type: action.type,
+    status: "completed",
+    startedAt: at,
+    completedAt: at,
+    revision: state.revision + 1,
+    irId,
+  };
+  if (action.type === "confirmDocumentVersion" && requirement) {
+    if (requirement.documentVersion?.confirmation)
+      throw businessRule("当前版本已定版，不能再次确认。");
+    // 同一 owner 内同步核对预检快照、复核当前规则并提交；不让旧弹窗定版其他文件。
+    const documentValidation = validateDocumentVersion(state, requirement, action.snapshot);
     if (documentValidation.issues.length) {
       operation.status = "failed";
       operation.error = "文档检查未通过，请修正后重新检查。";
@@ -355,7 +350,7 @@ export function applyPrototypeAction(
         result: {
           projectId: targetProjectId,
           irId,
-          receipt: projectReceipt(operation),
+          receipt: operation,
           documentValidation,
         },
       };
@@ -381,18 +376,18 @@ export function applyPrototypeAction(
     } else {
       irId = applyProposalMutation(next, action, targetProjectId, irId, operation);
     }
-    next.operations.push(operation);
     return true;
   });
+  const { irIds, ...receipt } = operation;
   return {
     review,
     result: {
       projectId: targetProjectId,
       irId,
-      receipt: projectReceipt(operation),
+      receipt,
       transferredRequirements:
         action.type === "transferIdea"
-          ? action.targets.map((target, index) => ({ ...target, irId: operation.irIds![index]! }))
+          ? action.targets.map((target, index) => ({ ...target, irId: irIds![index]! }))
           : undefined,
       ...(action.type === "saveDocumentFormats" && {
         documentFormatSnapshot: {

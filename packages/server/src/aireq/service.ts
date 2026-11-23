@@ -202,17 +202,18 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const identity = currentIdentity()!;
     const key = `${identity.employeeId}:${identity.clientId}:${action.operationId}`;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
-    const latest = action.type === "confirmDocumentVersion" || action.type === "reviewDocuments";
+    const usesWorkflowRevision =
+      action.type !== "confirmDocumentVersion" && action.type !== "reviewDocuments";
     const digest = digestValue([
       action,
-      latest || action.type === "saveDocumentFormats" ? undefined : selection,
+      !usesWorkflowRevision || action.type === "saveDocumentFormats" ? undefined : selection,
     ]);
     const prior = this.operations.get(key);
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");
       return prior.result;
     }
-    if (!latest && revision !== readPrototypeWorkflowRevision())
+    if (usesWorkflowRevision && revision !== readPrototypeWorkflowRevision())
       throw businessRule("需求版本已变化，请重新读取当前版本。");
     const { result, review } = applyPrototypeAction(action, selection);
     this.operations.set(key, { digest, result: structuredClone(result) });

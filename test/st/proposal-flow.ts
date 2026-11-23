@@ -43,15 +43,17 @@ export function getMaterials(
 }
 
 export async function expectBusinessRejection(operation: Promise<AIReqWorkflowResult>) {
-  const result = await operation.catch((error: unknown) => {
-    expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toMatch(/\S/);
-    return undefined;
-  });
-  if (result) {
-    expect(result.receipt.status).toBe("failed");
-    expect(result.receipt.error).toMatch(/\S/);
+  const outcome = await operation.then(
+    (result) => ({ ok: true as const, result }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  if (!outcome.ok) {
+    expect(outcome.error).toBeInstanceOf(Error);
+    expect((outcome.error as Error).message).toMatch(/\S/);
+    return;
   }
+  expect(outcome.result?.receipt?.status).toBe("failed");
+  expect(outcome.result.receipt.error).toMatch(/\S/);
 }
 
 export async function discuss(

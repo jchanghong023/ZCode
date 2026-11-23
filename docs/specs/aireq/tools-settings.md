@@ -67,15 +67,26 @@ AI 配置中的模型和指令页签使用同一份角色清单。
 
 ## 文档格式
 
-「文档格式」是独立的一级设置。页面列出[平台文档](proposals.md#材料与版本)中的六种 Markdown，按 IR 与 SR 分组，显示文件名及路径模板。用户可为每种文件添加、修改和移除必需章节。文件清单固定，每个文件的必需章节列表初始为空。
+「文档格式」是独立的一级设置。每种文件可添加、修改和移除必需章节，列表初始为空。固定清单按 IR 与 SR 分组，路径以工作树根目录为基准：
 
-所有项目和 Release 共用一套已保存的章节规则。草稿沿用设置页的保存、取消和离开门禁，保存成功后供后续编写和格式提示使用。版本确认以工作流当时保存的文件为准。
+| 对象 | 文件路径 |
+| --- | --- |
+| IR | `docs/requirements/<ir-id>/requirements.md` |
+| SR | `openspec/changes/<sr-id>/proposal.md` |
+| SR | `openspec/changes/<sr-id>/design.md` |
+| SR | `openspec/changes/<sr-id>/tasks.md` |
+| SR | `openspec/changes/<sr-id>/test-plan.md` |
+| SR | `openspec/changes/<sr-id>/specs/<sr-id>/spec.md` |
 
-验收检查一级入口、固定的六种文件和初始空清单。保存对某一种文件的编辑后，其他文件和已完成的检查仍保留各自结果。
+`docs/requirements/<ir-id>/sr-dependencies.json` 也参与定版检查，但不是可设置 Markdown 章节的文件。
+
+所有项目和 Release 共用一套已保存的章节规则。草稿沿用设置页的保存、取消和离开门禁，保存成功后供后续编写和格式提示使用。定版提交预检快照，服务端确认版本及文件仍一致后按当时已保存的格式规则复核。
+
+验收检查一级入口、固定的六种文件和初始空清单。编辑并保存一种文件的规则不改变其他文件的规则。
 
 ## 原生输入与 Sketch
 
-可编辑业务会话复用原 composer 和附件事务，不复制输入器或草稿 owner。模型和思考档位显示创建时的会话绑定，输入不覆盖绑定；在设置中修改角色配置只影响随后创建的会话。只读历史不挂载输入辅助。
+可编辑业务会话复用原 composer 和附件事务，不复制输入器或草稿 owner。模型和思考档位显示创建时的会话绑定，输入不覆盖绑定；在设置中修改角色配置只影响随后创建的讨论会话和随后接纳的评审。
 
 Sketch 使用浏览器真实 Canvas，位于全页 Dialog 内的现有 HTML iframe，通过既有路径复制主题及字号变量。保留画笔、橡皮、颜色、粗细、绘制、平移、缩放、适应、撤销、清空和尺寸调整。色块未选中也有可见边界；颜色与粗细以 `aria-pressed` 表达状态，手柄支持键盘尺寸调整并保留画布，不误触添加附件。
 
@@ -102,7 +113,8 @@ Sketch 使用浏览器真实 Canvas，位于全页 Dialog 内的现有 HTML ifra
 ## 实现依据
 
 - `packages/ui/src/aireq/shell/AIReqShell.tsx`
-- `packages/ui/src/aireq/settings/AIReqSettingsPage.tsx`、`AIReqProjectSettings.tsx`、`AIReqAgentModelSettings.tsx`、`AIReqPersonalizationSettings.tsx`
+- `packages/ui/src/aireq/settings/AIReqSettingsPage.tsx`、`AIReqProjectSettings.tsx`、`AIReqAgentModelSettings.tsx`、`AIReqPersonalizationSettings.tsx`、`AIReqDocumentFormatSettings.tsx`
+- 固定路径模板见 [`document-formats.ts`](../../../packages/services/src/aireq/document-formats.ts)，服务端定版检查见 [`document-validation.ts`](../../../packages/server/src/aireq/document-validation.ts)。
 - `packages/ui/src/aireq/tools/AIReqSketchButton.tsx`、`sketch.html`、`AIReqSkillDesignPage.tsx`、`AIReqSkillFilePreview.tsx`
 - `packages/ui/src/store/StoreProvider.tsx`
 

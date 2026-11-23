@@ -41,7 +41,7 @@ interface Props {
   canUseSolution: boolean;
   requirementsPath: string;
   validateVersion(): Promise<AIReqDocumentValidation>;
-  confirmVersion(): Promise<AIReqDocumentValidation | undefined>;
+  confirmVersion(snapshot: string): Promise<AIReqDocumentValidation | undefined>;
   focusVersion(): void;
   openRepairAgent(agent: AIReqDiscussionAgent): void;
 }
@@ -67,7 +67,8 @@ export function AIReqDocumentConfirmation({
   const cancel = useRef<HTMLButtonElement>(null);
   const error = result && "error" in result ? result.error : undefined;
   const validation = result && "issues" in result ? result : undefined;
-  const passed = Boolean(validation && !validation.issues.length);
+  const snapshot = validation?.issues.length === 0 ? validation.snapshot : undefined;
+  const passed = snapshot !== undefined;
   const repairActions = [
     {
       agent: "requirements",
@@ -86,12 +87,12 @@ export function AIReqDocumentConfirmation({
     if (open && result && !passed) cancel.current?.focus();
   }, [open, passed, result]);
 
-  const run = async (phase: "check" | "confirm") => {
+  const run = async (snapshot?: string) => {
     if (flight.current || !canConfirm) return;
     flight.current = true;
-    setBusy(phase);
+    setBusy(snapshot === undefined ? "check" : "confirm");
     try {
-      const validation = await (phase === "check" ? validateVersion() : confirmVersion());
+      const validation = await (snapshot === undefined ? validateVersion() : confirmVersion(snapshot));
       if (validation) {
         setResult(validation);
         setOpen(true);
@@ -125,7 +126,7 @@ export function AIReqDocumentConfirmation({
           aria-busy={busy === "check"}
           className="aria-disabled:opacity-60"
           data-testid="confirm-document-version"
-          onClick={() => void run("check")}
+          onClick={() => void run()}
         >
           {busy === "check"
             ? zh
@@ -246,7 +247,7 @@ export function AIReqDocumentConfirmation({
                 className="aria-disabled:opacity-60"
                 onClick={(event) => {
                   event.preventDefault();
-                  void run(passed ? "confirm" : "check");
+                  void run(snapshot);
                 }}
               >
                 {busy === "confirm"

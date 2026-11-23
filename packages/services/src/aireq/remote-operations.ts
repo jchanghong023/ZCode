@@ -19,8 +19,8 @@ import type {
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 25;
-export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId" | "srId">;
+export const AIREQ_CONTRACT_VERSION = 26;
+export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;
   agents: Pick<AIReqAgentModel, "id" | "model" | "reasoning">[];

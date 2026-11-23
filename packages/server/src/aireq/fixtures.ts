@@ -73,7 +73,6 @@ export function createPrototypeWorkflow(): WorkflowState {
     requirements: [],
     srs: [],
     materials: [],
-    operations: [],
     ideas: [
       {
         id: "idea-backlog-intake",

@@ -17,14 +17,9 @@ import type { IServiceAccessor } from "../contract.js";
 // 读取投影随 view 释放；重建 accessor 时仍可解析屏幕上旧 view，避免卸载草稿/报告。
 const snapshots = new WeakMap<AIReqWorkflowView, { key: string; value: AIReqRemoteWorkflow }>();
 
-/** SR 链接可定位右侧文件，Agent 始终归属整个 IR。 */
-function sessionTarget(target: AIReqWorkflowTarget): AIReqWorkflowTarget {
-  if (!target.discussionPhase || !target.srId) return target;
-  return {
-    projectId: target.projectId,
-    irId: target.irId,
-    discussionPhase: target.discussionPhase,
-  };
+/** 本地选择可能额外携带 SR；请求只发送会话目标。 */
+function sessionTarget({ projectId, irId, discussionPhase }: AIReqWorkflowTarget): AIReqWorkflowTarget {
+  return { projectId, irId, discussionPhase };
 }
 
 export async function createRemoteAIReqDataSource(
@@ -183,13 +178,12 @@ export async function createRemoteAIReqDataSource(
     command: async (action, target, revision) => {
       // 表单可能开始于更早的视图；只把它当成 CAS 基线，不让后台重读悄悄升级。
       const { operationId, expectedRevision, ...intent } = action;
-      const { projectId, irId, srId } = target;
+      const { projectId, irId } = target;
       const result = await call("command", [
         { ...intent, operationId: operationId ?? createUuid() },
         {
           ...(projectId !== undefined ? { projectId } : {}),
           ...(irId !== undefined ? { irId } : {}),
-          ...(srId !== undefined ? { srId } : {}),
         },
         expectedRevision ?? revision,
       ]);
@@ -200,7 +194,7 @@ export async function createRemoteAIReqDataSource(
     resolveWorkspace(view, target) {
       const resolved = resolveSnapshot(view, target);
       if (resolved) return resolved.workspace;
-      if (target.projectId && !target.irId && !target.srId) {
+      if (target.projectId && !target.irId) {
         const workspace = projectWorkspace(target.projectId);
         if (workspace) return workspace;
       }

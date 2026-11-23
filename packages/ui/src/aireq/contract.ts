@@ -1,5 +1,6 @@
 import type { IServiceAccessor } from "@zcode/services";
 import type { IPlatformService } from "@zcode/shared";
+import type { AIReqWorkflowTarget } from "@zcode/services/aireq";
 
 // 本模块 UI 的具名业务 port；类型与纯派生仍由 services 公共契约唯一维护。
 export type { IServiceAccessor } from "@zcode/services";
@@ -17,7 +18,6 @@ export type {
   AIReqDocumentVersion,
   AIReqDocumentFormats,
   AIReqDocumentName,
-  AIReqFileVersion,
   AIReqIdentity,
   AIReqMaterialReadRequest,
   AIReqMaterialView,
@@ -44,7 +44,6 @@ export {
   AIREQ_SYNC_SCRIPT_ROOT,
   AIREQ_DOCUMENT_PATHS,
   checkMarkdownSections,
-  fileVersions,
   MATERIAL_KIND_LABELS,
   hasProjectRole,
   readSrDependencies,
@@ -52,6 +51,11 @@ export {
 } from "@zcode/services/aireq";
 
 export type { AIReqDocumentValidation } from "@zcode/services/aireq";
+
+/** SR 只在浏览器内定位文档，原生会话始终归属 IR。 */
+export interface AIReqSelection extends AIReqWorkflowTarget {
+  srId?: string;
+}
 
 /** 独立需求管理应用；普通业务身份每次显式传递，会话复用现有连接。 */
 export interface AIReqApplicationProps {

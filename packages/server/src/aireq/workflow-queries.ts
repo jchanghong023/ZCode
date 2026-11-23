@@ -1,7 +1,6 @@
 // 无缓存的即时只读投影；可变事实只由 workflow owner 持有并在调用时传入。
 import type {
   AIReqNativeSessionRef,
-  AIReqOperationReceipt,
   AIReqProject,
   AIReqRelease,
   AIReqReleaseSummary,
@@ -16,7 +15,6 @@ import { prototypeSessionReadIssue } from "./recovery.js";
 import type {
   NativeSessionRef,
   Project,
-  Receipt,
   RequirementGroup,
   WorkflowState,
 } from "./workflow-state.js";
@@ -39,26 +37,9 @@ export function projectSystemRequirement(
   return { id, projectId, irId, title, documentPath };
 }
 
-export function projectReceipt(receipt: Receipt): AIReqOperationReceipt {
-  return {
-    operationId: receipt.operationId,
-    ...(receipt.identity && { actorEmployeeId: receipt.identity.employeeId }),
-    type: receipt.type,
-    status: receipt.status,
-    startedAt: receipt.startedAt,
-    completedAt: receipt.completedAt,
-    revision: receipt.revision,
-    irId: receipt.irId,
-    irIds: receipt.irIds,
-    steps: receipt.steps,
-    error: receipt.error,
-  };
-}
-
 export function projectSessionRef(ref: NativeSessionRef): AIReqNativeSessionRef {
-  const { projectId, irId, srId, sessionId, phase, modelConfig } = ref;
+  const { projectId, irId, sessionId, phase, modelConfig } = ref;
   const result: AIReqNativeSessionRef = { projectId, irId, sessionId, phase };
-  if (srId !== undefined) result.srId = srId;
   if (modelConfig !== undefined) result.modelConfig = modelConfig;
   return result;
 }

@@ -23,7 +23,7 @@ import {
   type AIReqDocumentVersion,
   type AIReqMaterialReadRequest,
   type AIReqMaterialView,
-  type AIReqWorkflowTarget,
+  type AIReqSelection,
   type AIReqWorkflowView,
 } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
@@ -36,11 +36,11 @@ import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 
 interface MaterialsPaneProps {
   view: AIReqWorkflowView;
-  selection: AIReqWorkflowTarget;
+  selection: AIReqSelection;
   releaseId: string;
   active: boolean;
   validateVersion(): Promise<AIReqDocumentValidation>;
-  confirmVersion(): Promise<AIReqDocumentValidation | undefined>;
+  confirmVersion(snapshot: string): Promise<AIReqDocumentValidation | undefined>;
   retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
 }
 

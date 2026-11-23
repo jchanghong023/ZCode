@@ -21,7 +21,6 @@ function createProposal(
     getEmployeeId(),
   );
   proposal.createdAt = operation.startedAt;
-  proposal.origin = "browser";
   state.requirements.push(proposal);
   return proposal;
 }

@@ -56,7 +56,7 @@ describe("ST service readiness and connection boundary", () => {
         expect(remote.view).not.toHaveProperty("changes");
         expect(Number.isSafeInteger(remote.view.revision)).toBe(true);
         for (const sr of remote.view.srs) expect(sr).not.toHaveProperty("dependencySrIds");
-        for (const receipt of remote.view.operations) expect(receipt).not.toHaveProperty("srId");
+        expect(remote.view).not.toHaveProperty("operations");
         expect(remote.view.projects).toEqual(expect.any(Array));
         expect(remote.view.releases).toEqual(expect.any(Array));
         expect(remote.workspace.identity.trim()).not.toBe("");
@@ -95,13 +95,17 @@ describe("ST service readiness and connection boundary", () => {
             {},
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
-        await expect(
-          c.services.aiReqService.call(
+        const retiredRead = [{ projectId: "p", irId: "ir" }];
+        expect(
+          await c.probeRpc("call", IAIReqService.channelName, "call", [
             c.identity,
-            "readPrHandoff" as never,
-            [{ projectId: "p", irId: "ir" }] as never,
-          ),
-        ).rejects.toThrow();
+            "readPrHandoff",
+            retiredRead,
+          ]),
+        ).toMatchObject({ code: "UNKNOWN_PATH" });
+        await expect(
+          c.services.aiReqService.call(c.identity, "readPrHandoff" as never, retiredRead as never),
+        ).rejects.toHaveProperty("message", "此操作不可用，请刷新页面后重试。");
         const revision = (await c.read()).view.revision;
         const navigationTargetAction = {
           type: "createIdea",
@@ -113,14 +117,38 @@ describe("ST service readiness and connection boundary", () => {
           { proposalStep: "requirements" },
           { discussionPhase: "solution" },
         ];
+        const retiredTarget = { projectId: "p", irId: "ir" };
+        // Each action below satisfied the public wire schema before it was retired.
+        const retiredActions = [
+          { type: "publishProposal", candidate: "old" },
+          { type: "closeProposalPr", candidate: "old" },
+          { type: "acceptProposal", reviewId: "review", snapshotDigest: "digest" },
+          {
+            type: "confirmAlignment",
+            perspective: "business",
+            version: "1",
+            reviewId: "review",
+            snapshotDigest: "digest",
+          },
+          { type: "submitProposalReview", kind: "full", snapshotDigest: "digest" },
+          { type: "returnProposal", reason: "old", target: "requirements" },
+        ];
         const legacyRequests = [
           ["readWorkflow", [{ discussionPhase: "review" }]],
+          ["readWorkflow", [{ ...retiredTarget, srId: "sr" }]],
           ["readWorkflow", [{ proposalStep: "solution" }]],
           ["readWorkflow", [{ reviewAgent: "a" }]],
           ["readWorkflow", [{ materialPath: "requirements.md" }]],
           ["readWorkflow", [{ proposalDraftId: "local-draft" }]],
           ["validateDocumentVersion", [{ projectId: "p", irId: "ir", version: 1 }]],
           ["retrySession", [{ freeSessionId: "retired" }, "absent-session"]],
+          ["retrySession", [{ ...retiredTarget, srId: "sr" }, "session"]],
+          [
+            "retryMaterial",
+            [{ ...retiredTarget, releaseId: "r", path: "a.md", sha256: "a".repeat(64), round: 1 }],
+          ],
+          ["command", [navigationTargetAction, { ...retiredTarget, srId: "sr" }, revision]],
+          ["command", [{ ...navigationTargetAction, srId: "sr" }, {}, revision]],
           [
             "command",
             [
@@ -134,17 +162,9 @@ describe("ST service readiness and connection boundary", () => {
               revision + 1,
             ],
           ],
-          ...[
-            "publishProposal",
-            "closeProposalPr",
-            "archiveProposal",
-            "acceptProposal",
-            "confirmAlignment",
-            "submitProposalReview",
-            "returnProposal",
-          ].map((type) => [
+          ...retiredActions.map((action) => [
             "command",
-            [{ type, operationId: unique(), candidate: "old" }, {}, revision],
+            [{ ...action, ...retiredTarget, operationId: unique() }, retiredTarget, revision],
           ]),
           [
             "command",
@@ -191,11 +211,6 @@ describe("ST service readiness and connection boundary", () => {
         expect(
           view.ideas.some(
             ({ originalText }) => originalText === navigationTargetAction.originalText,
-          ),
-        ).toBe(false);
-        expect(
-          view.operations.some(
-            ({ operationId }) => operationId === navigationTargetAction.operationId,
           ),
         ).toBe(false);
       } finally {
