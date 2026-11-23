@@ -51,7 +51,8 @@ export function ChatModelPicker({
       pending={pending}
       isItemLocked={isItemLocked}
       lockReasonMessage="当前回合结束后可切换模型。"
-      labelVisibilityClassName="inline-flex"
+      triggerClassName="chat-model-trigger"
+      triggerLabelClassName="inline-block min-w-0 truncate text-left"
       contentAlign="end"
       focusSelectorOnClose='[data-testid="web-chat-input"]'
       composerOptions={{

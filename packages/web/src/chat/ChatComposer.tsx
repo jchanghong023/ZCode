@@ -1,5 +1,13 @@
-import { ArrowUp, Folder } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowUp, ChevronDown, Folder } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@zcode/ui/button";
 import { LexicalChatInput, type LexicalChatInputHandle } from "@zcode/ui/web-chat-view";
@@ -37,6 +45,8 @@ export function ChatComposer({
   const editor = useRef<LexicalChatInputHandle>(null);
   const editorText = useRef("");
   const [triggerPanelContainer, setTriggerPanelContainer] = useState<HTMLDivElement | null>(null);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const directoryFieldId = useId();
   const canSend =
     !disabled &&
     !draft.receipt &&
@@ -74,16 +84,31 @@ export function ChatComposer({
       {/* 原生斜杠菜单通过 portal 挂载；独立聊天使用自己的输入区锚点。 */}
       <div ref={setTriggerPanelContainer} className="absolute inset-x-0 bottom-full z-20" />
       {directory !== undefined && (
-        <label className="directory-field">
-          <Folder size={16} aria-hidden="true" />
-          <span>工作目录</span>
-          <input
-            value={directory}
-            onChange={(event) => setDirectory(event.target.value)}
-            placeholder="输入服务端目录"
-            spellCheck={false}
-          />
-        </label>
+        <div className="composer-directory" data-expanded={directoryOpen}>
+          <Button
+            className="directory-toggle"
+            type="button"
+            variant="ghost"
+            aria-label="更改工作目录"
+            aria-expanded={directoryOpen}
+            aria-controls={directoryFieldId}
+            onClick={() => setDirectoryOpen(!directoryOpen)}
+          >
+            <Folder size={16} aria-hidden="true" />
+            <span>{directory.trim() && directory.trim() !== "." ? directory : "默认工作目录"}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </Button>
+          <label id={directoryFieldId} className="directory-field">
+            <Folder size={16} aria-hidden="true" />
+            <span>工作目录</span>
+            <input
+              value={directory}
+              onChange={(event) => setDirectory(event.target.value)}
+              placeholder="输入服务端目录"
+              spellCheck={false}
+            />
+          </label>
+        </div>
       )}
       <div className="composer-box">
         <LexicalChatInput
@@ -104,9 +129,9 @@ export function ChatComposer({
           }}
         />
         <div className="composer-actions">
-          <span>Enter 发送 · Shift + Enter 换行</span>
-          <div className="flex min-w-0 items-center gap-2">
-            {modelPicker && <fieldset>{modelPicker}</fieldset>}
+          <span className="composer-shortcuts">Enter 发送 · Shift + Enter 换行</span>
+          <div className="composer-controls">
+            {modelPicker && <div className="composer-model">{modelPicker}</div>}
             {stopButton}
             <Button size="icon" type="submit" aria-label="发送消息" disabled={!canSend}>
               <ArrowUp size={18} aria-hidden="true" />

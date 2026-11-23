@@ -62,8 +62,15 @@ body {
 .chat-shell {
   display: grid;
   grid-template-columns: clamp(13rem, 21vw, 16rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100dvh;
   min-height: 0;
+}
+
+.mobile-chat-navigation,
+.chat-shell .mobile-nav-button,
+.composer-directory .directory-toggle {
+  display: none;
 }
 
 .chat-sidebar {
@@ -136,7 +143,8 @@ body {
   margin: 0;
   padding: 5px 8px;
   font-size: 0.8125rem;
-  font-weight: 550;
+  font-weight: 600;
+  color: var(--subtle);
 }
 .directory-group h3 svg,
 .directory-group button svg {
@@ -204,6 +212,9 @@ body {
   min-width: 0;
   min-height: 0;
 }
+.chat-draft-empty {
+  width: 100%;
+}
 .conversation-header {
   display: flex;
   align-items: center;
@@ -215,6 +226,9 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .conversation-title {
+  min-width: 0;
+  margin: 0;
+  font-size: inherit;
   font-weight: 600;
 }
 .workspace-chip {
@@ -275,6 +289,19 @@ body {
   color: var(--subtle);
   font-size: 0.8125rem;
 }
+.composer-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.composer-controls > button {
+  /* 模型名可收缩，发送和停止不得被工具栏内容挤出视口。 */
+  flex: none;
+}
+.composer-model {
+  min-width: 0;
+}
 .chat-dock-notice {
   margin-bottom: 10px;
   padding: 8px 12px;
@@ -307,4 +334,191 @@ body {
   gap: 8px;
   margin-bottom: 10px;
   color: var(--error);
+}
+
+@media (max-width: 767px) {
+  .chat-shell {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--chat-viewport-top, 0px);
+    height: var(--chat-viewport-height, 100dvh);
+    grid-template-columns: minmax(0, 1fr);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+    container: chat-shell / size;
+    overflow: hidden;
+  }
+
+  .chat-shell[data-mobile-view="chat"] .chat-sidebar,
+  .chat-shell[data-mobile-view="sessions"] .chat-main,
+  .desktop-app-icon,
+  .mobile-connection-status:empty,
+  .composer-shortcuts,
+  .composer-directory:not([data-expanded="true"]) .directory-field,
+  .composer-directory .directory-field svg {
+    display: none;
+  }
+
+  .chat-sidebar {
+    border-right: 0;
+  }
+
+  .sidebar-top {
+    padding: 8px 16px 12px;
+  }
+
+  .app-name {
+    padding: 0;
+    font-size: 1rem;
+  }
+
+  .new-chat {
+    margin-top: 12px;
+  }
+
+  .recent-sessions h2 {
+    font-size: 1rem;
+    color: var(--foreground);
+  }
+
+  .directory-group button {
+    font-size: 0.9375rem;
+  }
+
+  .mobile-chat-navigation {
+    display: contents;
+  }
+
+  .chat-shell .mobile-nav-button {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+  }
+
+  .conversation-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0 8px;
+    min-height: 0;
+    padding: 4px 12px;
+  }
+
+  .conversation-title {
+    grid-column: 2;
+    font-size: 1rem;
+  }
+
+  .workspace-chip {
+    grid-column: 3;
+    max-width: min(25vw, 10rem);
+  }
+
+  .mobile-connection-status {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    padding-bottom: 4px;
+    color: var(--subtle);
+    font-size: 0.8125rem;
+  }
+
+  .chat-main :has(> .chat-draft-empty) {
+    display: flex;
+    align-items: center;
+  }
+
+  .chat-main [data-v4-composer-dock-content] {
+    background: var(--background);
+  }
+
+  .composer-notices {
+    max-height: calc(var(--chat-viewport-height, 100dvh) * 0.2);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .request-error button {
+    flex: none;
+    min-height: 44px;
+  }
+
+  .composer-directory {
+    margin-bottom: 6px;
+  }
+
+  .composer-directory .directory-toggle {
+    display: inline-flex;
+    max-width: 100%;
+    min-height: 44px;
+    gap: 8px;
+    padding-inline: 10px;
+    color: var(--subtle);
+  }
+
+  .directory-toggle > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .directory-toggle[aria-expanded="true"] > svg:last-child {
+    rotate: 180deg;
+  }
+
+  .composer-directory .directory-field {
+    margin-bottom: 0;
+  }
+
+  .directory-field input,
+  .composer-box [contenteditable] {
+    font-size: 1rem;
+  }
+
+  .composer-box {
+    padding: 8px 8px 5px;
+  }
+
+  .composer-box [contenteditable] {
+    max-height: max(2.5rem, calc(var(--chat-viewport-height, 100dvh) * 0.25));
+  }
+
+  .composer-actions {
+    display: block;
+    padding-top: 4px;
+  }
+
+  .composer-controls {
+    gap: 6px;
+  }
+
+  .composer-controls > button:first-of-type {
+    margin-inline-start: auto;
+  }
+
+  .composer-model .chat-model-trigger {
+    min-width: 44px;
+    max-width: 100%;
+  }
+
+  .composer-controls > button {
+    width: 44px;
+  }
+
+  .composer-controls > button,
+  .composer-model .chat-model-trigger,
+  .receipt-status button,
+  .new-chat,
+  .directory-group button,
+  .sidebar-notice button,
+  .connection-status button {
+    min-height: 44px;
+  }
+
+  .directory-field input {
+    height: 44px;
+  }
+
+  @container chat-shell (max-height: 360px) {
+    .chat-draft-empty [data-v4-draft-logo] {
+      display: none;
+    }
+  }
 }

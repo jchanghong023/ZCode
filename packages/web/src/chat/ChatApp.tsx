@@ -1,5 +1,13 @@
-import { CircleAlert, Folder, MessageSquare, Plus, Square } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, CircleAlert, Folder, List, MessageSquare, Plus, Square } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { RecentChatDirectory } from "@zcode/client/agent";
 import type { ModelSelection } from "@zcode/shared/model-selection";
 import {
@@ -19,6 +27,7 @@ import { ChatModelPicker } from "./ChatModelPicker.js";
 import { useAgentConnection, type AgentConnection } from "./useAgentConnection.js";
 import { conversationCommand, submitConversationCommand, useChatInput } from "./useChatInput.js";
 import { useConversation } from "./useConversation.js";
+import { useChatViewport } from "./useChatViewport.js";
 
 const connectionLabels = {
   connecting: "正在连接",
@@ -97,10 +106,14 @@ function ChatPane({
   input,
   connection,
   onActivity,
+  compact,
+  mobileNavigation,
 }: {
   input: ReturnType<typeof useChatInput>;
   connection: AgentConnection | null;
   onActivity: () => void;
+  compact: boolean;
+  mobileNavigation: ReactNode;
 }) {
   const { target, directory, draft, draftModel, setDraftModel } = input;
   const conversation = useConversation(connection, target);
@@ -212,11 +225,12 @@ function ChatPane({
   }
 
   return (
-    <main className="chat-main">
+    <main className="chat-main" id="chat-main">
       <header className="conversation-header">
-        <div className="conversation-title" title={conversation.title}>
+        {mobileNavigation}
+        <h1 className="conversation-title" title={conversation.title}>
           {target ? conversation.title || "会话" : "新会话"}
-        </div>
+        </h1>
         {target && (
           <div className="workspace-chip" title={target.workspacePath}>
             <Folder size={15} aria-hidden="true" />
@@ -243,65 +257,73 @@ function ChatPane({
           loadingOlder={conversation.loadingOlder}
           onLoadOlder={conversation.loadOlder}
           summaryPanelLayout={conversation.plan ? "auto" : "none"}
-          centerEmptyStateWithDock={!target}
-          emptyState={target ? undefined : <ConversationDraftEmptyState />}
+          centerEmptyStateWithDock={!target && !compact}
+          emptyState={
+            target ? undefined : (
+              <div className="chat-draft-empty">
+                <ConversationDraftEmptyState compactForRemoteControl={compact} />
+              </div>
+            )
+          }
           bottomDock={
             <>
-              {conversation.queue && conversation.queue.items.length > 0 && (
-                <div className="chat-dock-notice">
-                  <strong>待交付消息</strong>
-                  <ul className="queued-inputs" aria-label="待交付消息">
-                    {conversation.queue.items.map((item) => (
-                      <li key={item.queueItemId}>{item.text}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {draft.localResult && (
-                <div className="chat-dock-notice" role="status">
-                  <strong>/{draft.localResult.name}</strong>
-                  <div className="local-command-output">{draft.localResult.output}</div>
-                </div>
-              )}
-              {draft.receipt && (
-                <div className="chat-dock-notice receipt-status" role="status">
-                  <span>
-                    {draft.receipt === "sending"
-                      ? "正在发送…"
-                      : draft.receipt === "checking"
-                        ? "正在核对发送回执…"
-                        : "发送结果待确认，已保留草稿。"}
-                  </span>
-                  {draft.receipt === "unknown" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={!connection}
-                      onClick={input.checkReceipt}
-                    >
-                      核对发送回执
-                    </Button>
-                  )}
-                </div>
-              )}
-              {conversation.control?.lastError && (
-                <div role="alert" className="request-error">
-                  <CircleAlert size={16} aria-hidden="true" />
-                  <span>{conversation.control.lastError.message}</span>
-                </div>
-              )}
-              {(draft.error || error || historyError) && (
-                <div role="alert" className="request-error">
-                  <CircleAlert size={16} aria-hidden="true" />
-                  <span>{draft.error || error || historyError}</span>
-                  {historyError && (
-                    <button type="button" onClick={conversation.reload}>
-                      重新加载历史
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="composer-notices">
+                {conversation.queue && conversation.queue.items.length > 0 && (
+                  <div className="chat-dock-notice">
+                    <strong>待交付消息</strong>
+                    <ul className="queued-inputs" aria-label="待交付消息">
+                      {conversation.queue.items.map((item) => (
+                        <li key={item.queueItemId}>{item.text}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {draft.localResult && (
+                  <div className="chat-dock-notice" role="status">
+                    <strong>/{draft.localResult.name}</strong>
+                    <div className="local-command-output">{draft.localResult.output}</div>
+                  </div>
+                )}
+                {draft.receipt && (
+                  <div className="chat-dock-notice receipt-status" role="status">
+                    <span>
+                      {draft.receipt === "sending"
+                        ? "正在发送…"
+                        : draft.receipt === "checking"
+                          ? "正在核对发送回执…"
+                          : "发送结果待确认，已保留草稿。"}
+                    </span>
+                    {draft.receipt === "unknown" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!connection}
+                        onClick={input.checkReceipt}
+                      >
+                        核对发送回执
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {conversation.control?.lastError && (
+                  <div role="alert" className="request-error">
+                    <CircleAlert size={16} aria-hidden="true" />
+                    <span>{conversation.control.lastError.message}</span>
+                  </div>
+                )}
+                {(draft.error || error || historyError) && (
+                  <div role="alert" className="request-error">
+                    <CircleAlert size={16} aria-hidden="true" />
+                    <span>{draft.error || error || historyError}</span>
+                    {historyError && (
+                      <button type="button" onClick={conversation.reload}>
+                        重新加载历史
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               <ChatComposer
                 directory={target ? undefined : directory}
                 workspacePath={workspacePath}
@@ -360,16 +382,65 @@ export function ChatApp() {
   const input = useChatInput(connection, recent.invalidate);
   const { target: selected } = input;
   const onActivity = recent.invalidate;
+  const { compact, shellRef } = useChatViewport();
+  const [showSessions, setShowSessions] = useState(false);
+  const openSessionsButton = useRef<HTMLButtonElement>(null);
+  const closeSessionsButton = useRef<HTMLButtonElement>(null);
+  const sessionsWereVisible = useRef(false);
+
+  useLayoutEffect(() => {
+    if (compact && showSessions) {
+      closeSessionsButton.current?.focus();
+    } else if (compact && sessionsWereVisible.current) {
+      openSessionsButton.current?.focus();
+    }
+    sessionsWereVisible.current = compact && showSessions;
+  }, [compact, showSessions]);
 
   return (
-    <div className="chat-shell">
-      <aside className="chat-sidebar" aria-label="会话侧栏">
+    <div
+      ref={shellRef}
+      className="chat-shell"
+      data-mobile-view={showSessions ? "sessions" : "chat"}
+    >
+      <aside
+        className="chat-sidebar"
+        id="chat-sessions"
+        aria-label="会话列表"
+        onKeyDown={(event) => {
+          if (!compact || event.key !== "Escape") return;
+          setShowSessions(false);
+        }}
+      >
         <div className="sidebar-top">
           <div className="app-name">
-            <MessageSquare size={18} strokeWidth={1.8} aria-hidden="true" />
+            <MessageSquare
+              className="desktop-app-icon"
+              size={18}
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+            <Button
+              ref={closeSessionsButton}
+              className="mobile-nav-button"
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="返回聊天"
+              onClick={() => setShowSessions(false)}
+            >
+              <ChevronLeft size={20} aria-hidden="true" />
+            </Button>
             Agent 聊天
           </div>
-          <button className="new-chat" type="button" onClick={() => input.select(null)}>
+          <button
+            className="new-chat"
+            type="button"
+            onClick={() => {
+              input.select(null);
+              setShowSessions(false);
+            }}
+          >
             <Plus size={17} aria-hidden="true" />
             新建会话
           </button>
@@ -404,8 +475,13 @@ export function ChatApp() {
                       <button
                         type="button"
                         title={session.title}
-                        aria-current={session.sessionId === selected?.sessionId ? "true" : undefined}
-                        onClick={() => input.select(session)}
+                        aria-current={
+                          session.sessionId === selected?.sessionId ? "true" : undefined
+                        }
+                        onClick={() => {
+                          input.select(session);
+                          setShowSessions(false);
+                        }}
                       >
                         <MessageSquare size={14} aria-hidden="true" />
                         <span>{session.title || "会话"}</span>
@@ -432,6 +508,27 @@ export function ChatApp() {
         input={input}
         connection={connection}
         onActivity={onActivity}
+        compact={compact}
+        mobileNavigation={
+          <div className="mobile-chat-navigation">
+            <Button
+              ref={openSessionsButton}
+              className="mobile-nav-button"
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="打开会话列表"
+              aria-controls="chat-sessions"
+              aria-expanded={showSessions}
+              onClick={() => setShowSessions(true)}
+            >
+              <List size={20} aria-hidden="true" />
+            </Button>
+            <span role="status" className="mobile-connection-status">
+              {status !== "connected" && connectionLabels[status]}
+            </span>
+          </div>
+        }
       />
     </div>
   );

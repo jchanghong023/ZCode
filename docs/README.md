@@ -6,7 +6,7 @@ AIReq 是面向电脑浏览器的纯 Web 应用。需求共创以两个 Agent �
 
 用户填写工号即可进入，工号用来记录消息发送人和实际操作者。需求会话对全员开放，方案会话对所属项目的开发和测试开放。详见[连接身份](specs/aireq/connection-identity.md#1-身份来源)。
 
-`/chat` 是免登录的 [Web Agent 聊天入口](specs/web-agent-chat.md)，使用独立的内存会话空间和原型 Agent。
+`/chat` 是支持电脑和手机浏览器的免登录 [Web Agent 聊天入口](specs/web-agent-chat.md)，使用独立的内存会话空间和原型 Agent。
 
 当前阶段在单进程内存原型上开发和验证业务，重启会重新初始化。正式产品的聊天使用 OMP 原生 Agent，见[会话产品要求与原型范围](specs/aireq/conversation.md#会话产品要求与原型范围)。模型执行、Git 托管、数据库持久化和宿主业务文件写入见[发布边界](specs/aireq/contract-design.md#发布边界)。启动与部署见[快速开始](../README.md)。
 
