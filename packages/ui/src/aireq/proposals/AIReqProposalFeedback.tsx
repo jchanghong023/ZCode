@@ -16,8 +16,8 @@ import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 export function AIReqProposalFeedback({ openMaterials }: { openMaterials?: () => void }) {
   const aireq = useAIReq()!;
   const [expanded, setExpanded] = useState(false);
-  const group = aireq.view?.drafts.find(
-    (item) => item.projectId === aireq.selection.projectId && item.id === aireq.selection.irId,
+  const group = aireq.view?.requirements.find(
+    (item) => !item.merge && item.projectId === aireq.selection.projectId && item.id === aireq.selection.irId,
   );
   const feedback = group?.returnFeedback;
   if (

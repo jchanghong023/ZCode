@@ -94,10 +94,10 @@ export function AIReqProposalTable({
   const { setDraftNavigationGuard } = ai;
   const groups = useMemo(
     () =>
-      (ai.view?.drafts ?? []).filter(
+      (ai.view?.requirements ?? []).filter(
         (item) => item.projectId === ai.selection.projectId && item.releaseId === ai.releaseId,
       ),
-    [ai.view?.drafts, ai.selection.projectId, ai.releaseId],
+    [ai.view?.requirements, ai.selection.projectId, ai.releaseId],
   );
   const releases = ai.selectionReady
     ? ai.view?.releases.filter((item) => item.projectId === ai.selection.projectId)
@@ -125,7 +125,7 @@ export function AIReqProposalTable({
       return {
         preview: parseProposalCsv(
           fileContent,
-          (ai.view?.drafts ?? [])
+          (ai.view?.requirements ?? [])
             .filter(
               (item) =>
                 item.projectId === ai.selection.projectId && item.releaseId === draftReleaseId,
@@ -143,7 +143,7 @@ export function AIReqProposalTable({
             : formatUserFacingError(error, "CSV 解析失败，请检查文件格式。"),
       };
     }
-  }, [fileContent, importFormat, ai.view?.drafts, ai.selection.projectId, draftReleaseId]);
+  }, [fileContent, importFormat, ai.view?.requirements, ai.selection.projectId, draftReleaseId]);
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
   const businessDocument = importFormat === "markdown" ? fileContent : null;
@@ -212,8 +212,9 @@ export function AIReqProposalTable({
         item.originalText.toLocaleLowerCase().includes(search) ||
         item.id.toLocaleLowerCase().includes(search)) &&
       (!submitter || item.submittedBy.includes(submitter)) &&
-      (!phase || proposalState(item) === phase),
+      (!phase || (item.merge ? phase === "archived" : proposalState(item) === phase)),
   );
+  filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
   const ready = releases?.some((release) => release.id === draftReleaseId) ?? false;
@@ -363,10 +364,10 @@ export function AIReqProposalTable({
             />
             <Input
               aria-label={
-                zh ? "搜索提案名称或原始需求" : "Search proposal name or original request"
+                zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
               }
               placeholder={
-                zh ? "搜索提案名称或原始需求" : "Search proposal name or original request"
+                zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
               }
               value={query}
               onChange={(event) => {
@@ -401,6 +402,7 @@ export function AIReqProposalTable({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{zh ? "全部状态" : "All statuses"}</SelectItem>
+              <SelectItem value="archived">{zh ? "已归档" : "Archived"}</SelectItem>
               {/* 修复原因：八态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
               {PROPOSAL_STATE_GROUPS.map((group) => (
                 <SelectGroup key={group.title}>
@@ -439,7 +441,7 @@ export function AIReqProposalTable({
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border">
                 <th scope="col" className="px-4 py-3 font-medium">
-                  {zh ? "需求提案" : "Proposal"}
+                  {zh ? "需求" : "Requirement"}
                 </th>
                 <th
                   scope="col"
@@ -467,8 +469,8 @@ export function AIReqProposalTable({
                 <tr>
                   <td colSpan={4} className="p-6 text-foreground-subtle">
                     {groups.length
-                      ? "没有符合筛选条件的提案。"
-                      : "暂无需求提案。可以新建需求，保存后成为提案。"}
+                      ? "没有符合筛选条件的需求。"
+                      : "当前版本暂无需求。"}
                   </td>
                 </tr>
               )}

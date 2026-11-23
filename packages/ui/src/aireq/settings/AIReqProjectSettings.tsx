@@ -75,7 +75,7 @@ export function AIReqProjectSettings({
     {
       project: AIReqProject;
       releases: AIReqWorkflowView["releases"];
-      groups: AIReqWorkflowView["groups"];
+      groups: AIReqWorkflowView["requirements"];
     }[]
   >([]);
   const projectElements = useRef(new Map<string, HTMLElement>());
@@ -96,11 +96,11 @@ export function AIReqProjectSettings({
     Promise.all(
       view.projects.map(async (project) => {
         // Release 目录是全局的；只读取该项目的正式需求，用于现有 SR 统计。
-        const { releases, groups } = await source.readWorkflow({ projectId: project.id });
+        const { releases, requirements } = await source.readWorkflow({ projectId: project.id });
         return {
           project,
           releases: releases.filter((release) => release.projectId === project.id),
-          groups: groups.filter((group) => group.projectId === project.id),
+          groups: requirements.filter((group) => group.projectId === project.id),
         };
       }),
     )
@@ -519,19 +519,14 @@ export function AIReqProjectSettings({
                       >
                         <div className="min-w-0 flex-1 space-y-1">
                           <p className="break-words text-ui-base font-medium">{release.title}</p>
-                          {/* 计数展开领域术语；仅有提案时补充，避免重复的零值干扰扫描。 */}
                           <p className="text-ui-sm text-foreground-subtle">
                             {zh
-                              ? `正式需求（IR）${release.formalCount} · 开发单元（SR）${srCount}`
-                              : `Formal requirements (IR) ${release.formalCount} · Development units (SR) ${srCount}`}
-                            {release.proposalCount > 0 &&
-                              (zh
-                                ? ` · 需求提案 ${release.proposalCount}`
-                                : ` · Proposals ${release.proposalCount}`)}
+                              ? `需求（IR）${release.requirementCount} · 规格（SR）${srCount}`
+                              : `Requirements (IR) ${release.requirementCount} · Specifications (SR) ${srCount}`}
                           </p>
                         </div>
                         <Badge variant="outline">
-                          {release.formalCount
+                          {release.requirementCount
                             ? zh
                               ? "已有需求"
                               : "Has requirements"

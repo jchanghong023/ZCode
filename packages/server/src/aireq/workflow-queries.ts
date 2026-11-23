@@ -8,7 +8,6 @@ import type {
   AIReqReleaseSummary,
   AIReqRequirementGroup,
   AIReqReview,
-  AIReqRoleRegistration,
   AIReqSystemRequirement,
   AIReqWorkspace,
 } from "@zcode/services/aireq";
@@ -35,11 +34,6 @@ export function projectSummary(project: Project): AIReqProject {
     defaultBranch,
     ...(repositoryUrl === undefined ? {} : { repositoryUrl }),
   };
-}
-
-export function projectRoleRegistration(registration: AIReqRoleRegistration): AIReqRoleRegistration {
-  const { id, projectId, employeeId, role, status, note } = registration;
-  return { id, projectId, employeeId, role, status, note };
 }
 
 export function projectSystemRequirement(
@@ -116,20 +110,6 @@ function projectDelivery(delivery: ProposalDelivery): AIReqProposalDelivery {
 }
 
 export function projectRequirement(group: RequirementGroup): AIReqRequirementGroup {
-  const review = group.review;
-  // 转正后状态会冻结，合入事实才是归档标识。Git 同步后仍沿用归档时的审查与确认。
-  const formalParticipants = group.merge && {
-    business: group.originalReview?.humanDecision?.employeeId,
-    development: review?.requestedBy,
-    testing:
-      review &&
-      group.alignment?.find(
-        (entry) =>
-          entry.perspective === "testing" &&
-          entry.reviewId === review.id &&
-          entry.snapshotDigest === review.snapshotDigest,
-      )?.employeeId,
-  };
   return {
     id: group.id,
     projectId: group.projectId,
@@ -146,8 +126,6 @@ export function projectRequirement(group: RequirementGroup): AIReqRequirementGro
     originalText: group.originalText,
     submittedBy: group.submittedBy,
     sourceIrId: group.sourceIrId,
-    ...(!group.merge && group.contacts && { contacts: group.contacts }),
-    ...(formalParticipants && { formalParticipants }),
     originalReview: group.originalReview && projectReview(group.originalReview),
     originalReviewHistory: group.originalReviewHistory?.map(projectReview),
     review: group.review && projectReview(group.review),
@@ -201,22 +179,18 @@ export function projectReleases(
   for (const { id, projectId, title, createdAt } of releases) {
     const index = byProject.get(projectId);
     if (!index) continue;
-    const summary = { id, projectId, title, createdAt, proposalCount: 0, formalCount: 0 };
+    const summary = { id, projectId, title, createdAt, requirementCount: 0 };
     index.set(id, summary);
     summaries.push(summary);
   }
-  for (const group of state.drafts) {
+  for (const group of [...state.drafts, ...state.groups]) {
     const summary = byProject.get(group.projectId)?.get(group.releaseId);
-    if (summary) summary.proposalCount++;
-  }
-  for (const group of state.groups) {
-    const summary = byProject.get(group.projectId)?.get(group.releaseId);
-    if (summary) summary.formalCount++;
+    if (summary) summary.requirementCount++;
   }
   return summaries;
 }
 
-/** 原生会话热路径只读取其所属对象，不构建全工作流、待办或进度聚合。 */
+/** 原生会话热路径只读取其所属对象，不构建完整工作流投影。 */
 export function projectNativeContext(
   state: WorkflowState,
   sessionId: string,

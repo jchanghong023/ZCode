@@ -71,7 +71,7 @@ export class AIReqNativeBusiness {
     return `${actor.employeeId}:${actor.clientId}`;
   }
   isPublishedNativeSession(sessionId: string): boolean {
-    // 资格只取同 owner 当前 canonical 引用；热路径不应按每个项目重复派生全局待办和进度。
+    // 资格只取同 owner 当前 canonical 引用；热路径不应按每个项目重复构建工作流投影。
     return readPrototypeNativeContext(sessionId)?.published === true;
   }
   getNativeBinding(sessionId: string) {
@@ -157,7 +157,7 @@ export class AIReqNativeBusiness {
     const { ref, draft: proposal } = target;
     if (ref.phase === "solution") requireProjectRole(ref.projectId, "development");
     const reason = conversationReadOnlyReason(
-      { drafts: proposal ? [proposal] : [] },
+      { requirements: proposal ? [proposal] : [] },
       {
         projectId: ref.projectId,
         irId: ref.irId,

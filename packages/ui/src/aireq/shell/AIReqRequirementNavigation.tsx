@@ -9,24 +9,14 @@ export function AIReqRequirementReturnButton() {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
-  const formal =
-    ai.selection.formalView ||
-    ai.view?.groups.some(
-      (group) => group.projectId === ai.selection.projectId && group.id === ai.selection.irId,
-    );
-  const destination = ai.requirementReturnView ?? (formal ? "formal" : "proposals");
-  const returnToOverview = destination !== "formal" && ai.canReturnToProjectOverview;
+  const returnToOverview = ai.canReturnToProjectOverview;
   const label = returnToOverview
     ? zh
       ? "返回项目概览"
       : "Back to project overview"
-    : destination === "formal"
-      ? zh
-        ? "返回正式文档"
-        : "Back to formal documents"
-      : zh
-        ? "返回提案列表"
-        : "Back to proposals";
+    : zh
+      ? "返回需求共创"
+      : "Back to co-creation";
   return (
     <ControlHintTooltip title={label}>
       <Button
@@ -37,7 +27,7 @@ export function AIReqRequirementReturnButton() {
         onClick={() =>
           returnToOverview
             ? ai.returnToProjectOverview()
-            : ai.navigate(() => ai.setMainView(destination))
+            : ai.navigate(() => ai.setMainView("proposals"))
         }
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
@@ -50,7 +40,7 @@ export function AIReqRequirementReturnButton() {
 /** 非材料详情保留对象身份，不提供重复的复制入口。 */
 export function AIReqRequirementContext() {
   const ai = useAIReq()!;
-  const group = [...(ai.view?.groups ?? []), ...(ai.view?.drafts ?? [])].find(
+  const group = ai.view?.requirements.find(
     (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
   );
   const sr = ai.view?.srs.find(
@@ -59,16 +49,11 @@ export function AIReqRequirementContext() {
       item.irId === ai.selection.irId &&
       item.id === ai.selection.srId,
   );
-  const formal = Boolean(
-    ai.view?.groups.some(
-      (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
-    ),
-  );
   const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "需求规格" : "需求");
   const subtitle = ai.selection.srId
     ? "需求规格 · SR"
-    : formal
-      ? "正式文档 · IR"
+    : group?.merge
+      ? "已归档需求 · IR"
       : group
         ? "需求提案 · IR"
         : "只读上下文";

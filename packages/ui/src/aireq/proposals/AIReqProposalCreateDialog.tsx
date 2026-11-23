@@ -95,8 +95,8 @@ export function AIReqProposalCreateDialog({
   const zh = locale === "zh-CN";
   const originalInput = useRef<HTMLTextAreaElement>(null);
   const sourceIrId = ai.proposalDraft?.sourceIrId;
-  const sourceDocument = ai.view?.groups.find(
-    (item) => item.id === sourceIrId && item.projectId === ai.selection.projectId,
+  const sourceDocument = ai.view?.requirements.find(
+    (item) => item.merge && item.id === sourceIrId && item.projectId === ai.selection.projectId,
   );
   const sourceRelease = ai.view?.releases.find(
     (item) => item.id === sourceDocument?.releaseId && item.projectId === sourceDocument?.projectId,

@@ -56,7 +56,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   const [readFeedback, setReadFeedback] = useState<MaterialReadFeedback>();
   const [historyIndex, setHistoryIndex] = useState<number>();
   const viewingHistory = historyIndex !== undefined;
-  const group = [...(view?.groups ?? []), ...(view?.drafts ?? [])].find(
+  const group = view?.requirements.find(
     (item) =>
       item.id === selection.irId &&
       item.projectId === selection.projectId &&
@@ -69,7 +69,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
   const proposalSolutionView =
     !viewingHistory &&
     group &&
-    view?.drafts.includes(group) &&
+    !group.merge &&
     proposalViewedIndex(group, selection) >= 2;
   const {
     historical,
@@ -145,13 +145,8 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
     group?.materialHistory?.flatMap((item, index) => {
       if (!item.materials.some((file) => file.path === displayedPath)) return [];
       const event = item.event;
-      const change =
-        event?.type === "git-sync"
-          ? event.files.find((file) => file.path === displayedPath)?.change
-          : undefined;
-      if (event?.type === "git-sync" && !change && index !== historyIndex) return [];
       const time = new Date(item.changedAt).toLocaleString(locale, { timeZone: "Asia/Shanghai" });
-      return [{ item, index, event, change, time }];
+      return [{ item, index, event, time }];
     }) ?? [];
   const selectHistory = (value: string) => {
     setPath(displayedPath || undefined);
@@ -201,7 +196,7 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
             文件操作记录
           </summary>
           <ol className="mt-1 divide-y divide-border">
-            {[...historyChoices].reverse().map(({ item, index, event, change, time }) => (
+            {[...historyChoices].reverse().map(({ item, index, event, time }) => (
               <li key={index} className="space-y-1 py-2">
                 <button
                   type="button"
@@ -215,20 +210,6 @@ function AIReqMaterialsReader({ aireq }: { aireq: AIReqContextValue }) {
                     {{ business: "业务", development: "开发", testing: "测试" }[event.role]}确认 ·{" "}
                     {event.employeeId}
                   </p>
-                )}
-                {event?.type === "git-sync" && change && (
-                  <div className="space-y-1 wrap-anywhere text-foreground-subtle">
-                    <p>
-                      同步人 {event.employeeId} · 仓库提交 <code>{event.commit}</code>
-                    </p>
-                    <p>
-                      {change.message} · {change.employee} ·{" "}
-                      {new Date(change.committedAt).toLocaleString(locale, {
-                        timeZone: "Asia/Shanghai",
-                      })}
-                    </p>
-                    <p className="font-mono">{change.hash}</p>
-                  </div>
                 )}
               </li>
             ))}

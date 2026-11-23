@@ -193,7 +193,7 @@ describe("ST global ideas and configuration", () => {
         for (const target of targets) {
           const view = (await client.read({ projectId: target.projectId })).view;
           expect(view.ideas.some((idea) => idea.id === original.id)).toBe(false);
-          const proposals = view.drafts.filter((group) => group.originalText === text);
+          const proposals = view.requirements.filter((group) => group.originalText === text);
           expect(proposals).toHaveLength(1);
           expect(proposals[0]).toMatchObject({
             projectId: target.projectId,
@@ -212,7 +212,7 @@ describe("ST global ideas and configuration", () => {
         await expect(client.command({ ...action, targets: [targets[0]!] })).rejects.toThrow();
         for (const target of targets) {
           expect(
-            (await client.read({ projectId: target.projectId })).view.drafts.filter(
+            (await client.read({ projectId: target.projectId })).view.requirements.filter(
               (group) => group.originalText === text,
             ),
           ).toHaveLength(1);
@@ -254,12 +254,12 @@ describe("ST global ideas and configuration", () => {
             original,
           );
           expect(
-            (await client.read(a.selection)).view.drafts.some(
+            (await client.read(a.selection)).view.requirements.some(
               (group) => group.originalText === text,
             ),
           ).toBe(false);
           expect(
-            (await client.read(b.selection)).view.drafts.some(
+            (await client.read(b.selection)).view.requirements.some(
               (group) => group.originalText === text,
             ),
           ).toBe(false);

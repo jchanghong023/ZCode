@@ -94,7 +94,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         {date}
       </td>
       <td className="px-4 py-3">
-        {proposalStateLabel(item, zh ? "zh-CN" : "en-US")}
+        {item.merge ? (zh ? "已归档" : "Archived") : proposalStateLabel(item, zh ? "zh-CN" : "en-US")}
         {actionHint && (
           <span
             className={`mt-1 block w-fit max-w-full rounded-sm px-1.5 py-0.5 text-ui-sm font-medium ${failed ? "text-destructive" : "bg-interaction-confirmation-surface text-interaction-confirmation-foreground"}`}

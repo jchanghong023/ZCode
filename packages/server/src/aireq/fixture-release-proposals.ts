@@ -110,7 +110,6 @@ export function createPrototypeReleaseProposals() {
       : [];
     const proposal = group(projectId, sample.id, sample.title, rows, true, employeeId);
     proposal.originalText = sample.originalText;
-    proposal.contacts = { business: employeeId, development: employeeId, testing: "j00808875" };
     drafts.push(proposal);
     srs.push(...rows);
     if (sample.material === "none") {

@@ -1,5 +1,5 @@
 import type { AIReqReviewAgentId, AIReqWorkflowTarget, AIReqWorkflowView } from "./contract.js";
-import { requirementObjectLink, type AIReqNavigationState } from "./navigationState.js";
+import { requirementObjectLink } from "./navigationState.js";
 import {
   proposalTaskSelection,
   proposalTasks,
@@ -82,36 +82,9 @@ export function selectionFromObjectLink(link: ObjectLink, formal: boolean): AIRe
     irId: link.irId,
     ...(link.srId ? { srId: link.srId } : {}),
   };
-  if (formal) return { ...target, formalView: "detail" };
+  if (formal) return target;
   return link.task ? proposalTaskSelection(target, link.task, link.agent, true) : target;
 }
-export function formalObjectUrl(base: string, target: AIReqWorkflowTarget, releaseId: string) {
-  return (
-    requirementObjectLink(base, target, releaseId) ?? withoutObjectLink(new URL(base)).toString()
-  );
-}
-/** 纯投影；后台转正后的导航接纳与历史替换仍由 Context 完成。 */
-export function formalProposalNavigation(
-  previous: AIReqNavigationState,
-  selection: AIReqWorkflowTarget,
-  view: Pick<AIReqWorkflowView, "groups"> | undefined,
-): AIReqNavigationState | null {
-  if (
-    previous.mainView !== "chat" ||
-    previous.requirementView === "formal" ||
-    !view?.groups.some(
-      (group) => group.projectId === selection.projectId && group.id === selection.irId,
-    )
-  )
-    return null;
-  return {
-    ...previous,
-    requirementView: "formal",
-    proposalTask: "overview",
-    requirementReturnView: null,
-  };
-}
-
 /** 先在同一服务端快照核对项目、版本及对象归属，再接纳地址。 */
 export function resolveObjectLink(
   link: ObjectLink,
@@ -121,7 +94,7 @@ export function resolveObjectLink(
   const release = view.releases.find(
     (item) => item.projectId === link.projectId && item.id === link.releaseId,
   );
-  const group = [...view.drafts, ...view.groups].find(
+  const group = view.requirements.find(
     (item) => item.projectId === link.projectId && item.id === link.irId,
   );
   const sr =
@@ -131,5 +104,5 @@ export function resolveObjectLink(
         item.projectId === link.projectId && item.irId === link.irId && item.id === link.srId,
     );
   if (!project || !release || !group || group.releaseId !== release.id || !sr) return null;
-  return view.groups.includes(group) ? "formal" : "proposal";
+  return group.merge ? "formal" : "proposal";
 }

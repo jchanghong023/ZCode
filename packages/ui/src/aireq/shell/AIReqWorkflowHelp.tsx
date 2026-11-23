@@ -19,28 +19,28 @@ const steps = [
     title: "从所有项目进入版本工作区",
     titleEn: "Start with a project",
     description:
-      "登录后打开「所有项目」。选择版本的「进入工作区」打开项目概览，再使用侧栏进入需求共创、正式文档或版本待办。侧栏可切换项目和版本，项目和版本在设置中配置。",
+      "登录后打开「所有项目」。选择版本的「进入工作区」打开项目概览，再使用侧栏进入需求共创。侧栏可切换项目和版本，项目和版本在设置中配置。",
     descriptionEn:
-      "Sign-in opens All projects. Choose Enter workspace on a release to open its project overview, then use the sidebar to open Co-creation, Formal documents or Release todos. Switch projects and releases in the sidebar. Manage projects and releases in Settings.",
+      "Sign-in opens All projects. Choose Enter workspace on a release to open its project overview, then use the sidebar to open Co-creation. Switch projects and releases in the sidebar. Manage projects and releases in Settings.",
   },
   {
-    section: "待办与提案",
-    sectionEn: "Todos and proposals",
+    section: "想法与提案",
+    sectionEn: "Ideas and proposals",
     title: "保存原始短需求",
     titleEn: "Save the original request",
     // 进入讨论只加载历史，帮助文案须遵守显式发送才执行的接纳边界。
     description:
-      "待办按当前项目与版本展示「我的」「待认领」和「全部待办」。查看归属工号，或在行内认领、调整分工。点击事项进入对应需求或任务。未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
+      "未排期需求可先保存到全局想法池，确定后转入一个或多个项目／版本；全部成功后原想法消失。已确定版本的需求可从「项目概览」或「需求共创」新建，也可从「需求共创」导入。CSV 为 UTF-8 单列“原始需求”；空行跳过，重复提示但保留，导出包含全部筛选原文。IR 业务需求文档可导入 Markdown，预览并单独确认短需求后保存；导出时选择一个 IR 的有效业务文档。保存或导入不发送消息。进入需求澄清后，显式发送才开始本次讨论；业务文档校验通过后由用户提交需求评审，业务确认后开放方案设计。",
     descriptionEn:
-      "Todos show Mine, Unassigned and All in the selected project and Release. Open an item to reach its task. Move unplanned Ideas to project releases once scheduled; moving consumes the idea. Create requirements from Project overview or Co-creation. To import, use Co-creation. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. Submit the validated business document for review; business confirmation unlocks solution design.",
+      "Move unplanned Ideas to project releases once scheduled; moving consumes the idea. Create requirements from Project overview or Co-creation. To import, use Co-creation. CSV lists original requests, skipping blanks and retaining duplicates; export includes every filtered request. Import a business document as Markdown after previewing it and confirming a separate short request. Markdown export downloads one IR's valid business document. Saving or importing sends no messages. Clarification starts when you send a message. Submit the validated business document for review; business confirmation unlocks solution design.",
   },
   {
     title: "从需求工作台进入任务",
     titleEn: "Open tasks from the requirement workspace",
     description:
-      "提案入口先到需求工作台，查看当前进展和下一项待办，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后归入正式文档。",
+      "提案入口先到需求工作台，查看当前进展和下一项操作，再进入需求澄清、需求评审、方案设计、方案审查或交付确认。评审汇总直接显示当前报告。评审完成仍需人工确认，原始短需求始终独立保留。提案状态按当前有效材料、评审和确认分为未启动、IR 待评审、IR 待确认、方案待完善、方案待评审、方案待确认、待提交、待合入；材料变化会重新判断状态，转正后在需求共创显示为已归档。",
     descriptionEn:
-      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Review summaries open directly to the current report. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. Verified merged proposals appear under Formal documents.",
+      "Open a proposal to view its workspace, progress and next action. Enter clarification, requirements review, solution design, solution review or delivery as separate tasks. Review summaries open directly to the current report. Completed reviews still require human confirmation. The original request remains separate. Status follows current valid materials, reviews and confirmations: Not started, IR review pending, IR confirmation pending, Solution incomplete, Solution review pending, Solution confirmation pending, Submission pending and Merge pending. Material changes recalculate status. After verification, the requirement appears as Archived in Co-creation.",
   },
   {
     title: "每 SR 独立完整包",
@@ -62,18 +62,18 @@ const steps = [
     title: "一个 IR 一个文档 PR",
     titleEn: "One document PR per IR",
     description:
-      "三方齐全后，核对完整文件清单并明确授权提交文档 PR。失败后重试同一候选，复用已创建分支和已推送材料。PR 打开期间材料冻结，修改前须关闭未合入 PR；同一候选合入且核验完整后，以原 ID 转正。转正后可在正式文档查阅完整材料。",
+      "三方齐全后，核对完整文件清单并明确授权提交文档 PR。失败后重试同一候选，复用已创建分支和已推送材料。PR 打开期间材料冻结，修改前须关闭未合入 PR；同一候选合入且核验完整后，以原 ID 转正。转正后可在已归档需求查阅完整材料。",
     descriptionEn:
-      "After all roles confirm, check every file and explicitly authorize submission of one document PR. A retry reuses the same candidate and completed branch or push steps. An open PR freezes its materials; close it before editing. The same candidate must merge and pass verification to become formal without changing its ID. Open Formal documents to read the published materials.",
+      "After all roles confirm, check every file and explicitly authorize submission of one document PR. A retry reuses the same candidate and completed branch or push steps. An open PR freezes its materials; close it before editing. The same candidate must merge and pass verification to become formal without changing its ID. Open archived requirements to read the published materials.",
   },
   {
-    title: "查阅正式文档",
+    title: "查阅已归档需求",
     titleEn: "Read formal documents",
     // 弹窗按语言读取 description 和 descriptionEn，字段不匹配会导致正文空白。
     description:
-      "文档 PR 合入并核验后，在当前版本的「正式文档」查看原始需求、规格、方案及讨论评审历史。",
+      "文档 PR 合入并核验后，在当前版本的「已归档需求」查看原始需求、规格、方案及讨论评审历史。",
     descriptionEn:
-      "Once the document PR merges and passes verification, open Formal documents for the original requirement, specifications, design and review history.",
+      "Once the document PR merges and passes verification, open archived requirements for the original requirement, specifications, design and review history.",
   },
 ];
 
@@ -105,7 +105,7 @@ export function AIReqWorkflowHelp({
           <DialogTitle>{zh ? "业务流程帮助" : "Workflow help"}</DialogTitle>
           <DialogDescription>
             {zh
-              ? "从原始需求出发，协作澄清、评审并交付正式文档。IR 是整体需求，SR 是拆分后可独立描述的需求规格。"
+              ? "从原始需求出发，协作澄清、评审并交付已归档需求。IR 是整体需求，SR 是拆分后可独立描述的需求规格。"
               : "Clarify, review and deliver formal documents from an initial requirement. An IR is the overall requirement and an SR is a separately defined system requirement."}
           </DialogDescription>
         </DialogHeader>
@@ -116,13 +116,13 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "「所有项目」和「想法池」跨项目。版本工作区的页面按侧栏所选项目与版本展示。待办完成实际事项后自动消失，无需手工勾选完成。"
-              : "All projects and Ideas span all projects. Workspace pages follow the project and release selected in the sidebar. Todos disappear when their actual work is complete."}
+              ? "「所有项目」和「想法池」跨项目。版本工作区的页面按侧栏所选项目与版本展示。"
+              : "All projects and Ideas span all projects. Workspace pages follow the project and release selected in the sidebar."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
               ? "设置分为外观、项目配置、AI 配置和文档格式；AI 配置包含模型和共享 Agent 指令。离开未保存表单时可保存、丢弃或取消，取消保留当前输入；往返设置保留未发送的讨论与附件。"
-              : "Settings includes Appearance, Project configuration, AI configuration and Document formats. AI configuration includes models and shared Agent instructions. Save, discard or cancel when leaving an unsaved form; cancel keeps your input. Returning from settings preserves unsent discussion text and attachments. Any valid employee may claim or act on behalf of others, with the actual operator recorded."}
+              : "Settings includes Appearance, Project configuration, AI configuration and Document formats. AI configuration includes models and shared Agent instructions. Save, discard or cancel when leaving an unsaved form; cancel keeps your input. Returning from settings preserves unsent discussion text and attachments."}
           </p>
           <ol className="space-y-3">
             {steps.map((step, index) => (

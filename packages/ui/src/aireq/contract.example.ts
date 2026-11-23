@@ -19,9 +19,7 @@ export const exampleAIReqNavigation = [
 /** Project-space surfaces share one project/Release selection and requirement identity. */
 export const exampleAIReqProjectNavigation = [
   "projectOverview",
-  "formal",
   "proposals",
-  "todos",
 ] as const satisfies readonly AIReqMainView[];
 
 export const exampleAIReqInitialView: AIReqMainView = "projectProgress";
@@ -33,7 +31,6 @@ export const exampleAIReqReleases = [
     projectId: "example-project",
     title: "Example release",
     createdAt: "2026-11-16T00:00:00.000Z",
-    proposalCount: 1,
-    formalCount: 0,
+    requirementCount: 1,
   },
 ] satisfies AIReqReleaseSummary[];

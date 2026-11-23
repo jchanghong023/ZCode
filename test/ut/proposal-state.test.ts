@@ -262,7 +262,7 @@ describe("proposal business states from current materials and confirmations", ()
       round: 1,
       reason: "补充特殊字符与空结果的验收边界",
     };
-    const view = { drafts: [group] };
+    const view = { requirements: [group] };
     const selection = { projectId: group.projectId, irId: group.id };
     expect(proposalState(group)).toBe("not-started");
     expect(proposalProgressIndex(group)).toBe(0);
@@ -498,47 +498,5 @@ describe("current file confirmation", () => {
     group.proposalRound = 2;
     expect(isCurrentMaterialConfirmed(group, ir)).toBe(false);
     expect(isCurrentMaterialConfirmed(group, sr)).toBe(false);
-  });
-
-  it("uses the latest accepted Git change for the path and preserves unsynced merge approval", () => {
-    const group = aligned();
-    const irAtMerge = currentMaterial(group);
-    const sr = currentMaterial(group, group.proposalSolution!.path);
-    group.status = "frozen";
-    group.merge = {
-      commit: "merged",
-      branch: "main",
-      checkedAt: at,
-      files: structuredClone(group.files),
-    };
-    const sync = (path: string, sha256: string) => {
-      group.files.find((entry) => entry.path === path)!.sha256 = sha256;
-      (group.materialHistory ??= []).push({
-        version: `version-${sha256}`,
-        reason: "Git 同步并确认",
-        changedAt: at,
-        materials: [currentMaterial(group), currentMaterial(group, sr.path)],
-        event: {
-          type: "git-sync",
-          employeeId,
-          commit: sha256,
-          files: [
-            {
-              path,
-              change: { hash: sha256, message: "sync", employee: employeeId, committedAt: at },
-            },
-          ],
-        },
-      });
-    };
-    sync(irAtMerge.path, "git-v1");
-    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(true);
-    expect(isCurrentMaterialConfirmed(group, sr)).toBe(true);
-    sync(irAtMerge.path, "git-v2");
-    sync(sr.path, "git-plan");
-    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(true);
-    // A matching older snapshot cannot override the last accepted Git change.
-    group.files.find((entry) => entry.path === irAtMerge.path)!.sha256 = "git-v1";
-    expect(isCurrentMaterialConfirmed(group, currentMaterial(group))).toBe(false);
   });
 });

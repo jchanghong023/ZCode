@@ -8,14 +8,13 @@ import type {
   AIReqSystemRequirement,
   AIReqWorkflowView,
   AIReqReview,
-  AIReqTodo,
 } from "./types.js";
 import { readSrDependencies } from "./sr-dependencies.js";
 
 export const AIREQ_ROLE_ADMINISTRATOR = "y00000000";
 
 export function hasProjectRole(
-  view: Pick<AIReqWorkflowView, "roleRegistrations"> | undefined,
+  view: Pick<AIReqWorkflowView, "projectRoleMembers"> | undefined,
   projectId: string | undefined,
   employeeId: string,
   role: "business" | "development" | "testing",
@@ -24,12 +23,11 @@ export function hasProjectRole(
     role === "business" ||
     (Boolean(projectId) && employeeId === AIREQ_ROLE_ADMINISTRATOR) ||
     Boolean(
-      view?.roleRegistrations?.some(
+      view?.projectRoleMembers.some(
         (entry) =>
           entry.projectId === projectId &&
           entry.employeeId === employeeId &&
-          entry.role === role &&
-          entry.status === "approved",
+          entry.role === role,
       ),
     )
   );
@@ -41,9 +39,8 @@ export function isFormalSelection(
   selection: AIReqWorkflowTarget,
 ): boolean {
   return Boolean(
-    selection.formalView ||
-    view?.groups.some(
-      (group) => group.projectId === selection.projectId && group.id === selection.irId,
+    view?.requirements.some(
+      (group) => group.merge && group.projectId === selection.projectId && group.id === selection.irId,
     ),
   );
 }
@@ -437,15 +434,15 @@ export function proposalActorLabel(group: AIReqRequirementGroup): string {
 
 /** Formal views never mount retired development conversations. */
 export function conversationReadOnlyReason(
-  view: Pick<AIReqWorkflowView, "drafts"> | undefined,
+  view: Pick<AIReqWorkflowView, "requirements"> | undefined,
   selection: AIReqWorkflowTarget,
   access?: { proposalDiscussion?: boolean },
 ): string | undefined {
   if (!view) return;
-  const proposal = view.drafts.find(
+  const proposal = view.requirements.find(
     (item) => item.projectId === selection.projectId && item.id === selection.irId,
   );
-  if (!proposal) return "正式需求材料仅供只读查看。";
+  if (!proposal || proposal.merge) return "已归档需求材料仅供只读查看。";
   if (access?.proposalDiscussion === false) return "当前提案讨论只读。";
   // 历史节点可能与当前节点同属 requirements 讨论面，必须比较业务阶段，不能只比较 discussionPhase。
   if (proposalViewedIndex(proposal, selection) !== proposalProgressIndex(proposal))
@@ -456,104 +453,4 @@ export function conversationReadOnlyReason(
   )
     return "正在查看另一讨论阶段的历史，只读。";
   if (proposalPrCurrent(proposal)) return "文档 PR 已创建，等待核验合入；当前版本只读。";
-}
-
-/** 待办只由 owner 第一手业务事实派生，读取时不按当前项目筛选。 */
-export function deriveAIReqTodos(view: Pick<AIReqWorkflowView, "drafts">): AIReqTodo[] {
-  const result: AIReqTodo[] = [];
-  const push = (
-    group: AIReqRequirementGroup,
-    kind: AIReqTodo["kind"],
-    title: string,
-    perspective: AIReqTodo["perspective"],
-    proposalStep?: AIReqWorkflowTarget["proposalStep"],
-  ) => {
-    result.push({
-      id: `${group.projectId}:${group.id}:${kind}:${kind === "alignment" ? perspective : ""}`,
-      // 跨项目待办不能从当前项目投影补名字或 Release；由同一 IR 事实一次派生。
-      projectId: group.projectId,
-      irId: group.id,
-      requirementTitle: group.title,
-      releaseId: group.releaseId,
-      perspective,
-      employeeId: group.contacts?.[perspective],
-      kind,
-      title,
-      selection: {
-        projectId: group.projectId,
-        irId: group.id,
-        ...(proposalStep && { proposalStep }),
-      },
-    });
-  };
-  for (const group of view.drafts) {
-    const state = proposalState(group);
-    if (!state) continue;
-    // 退回保留旧评审用于追溯，但未补充前的当前动作只能是业务讨论，不能再次判断旧报告。
-    if (
-      group.returnFeedback &&
-      group.returnFeedback.target !== "solution" &&
-      !group.returnFeedback.resumedAt
-    ) {
-      push(group, "business-discussion", "讨论和补充业务需求", "business");
-      continue;
-    }
-    if (state === "merge-pending") {
-      if (["failed", "incomplete"].includes(group.proposalDelivery?.mergeCheck?.status ?? ""))
-        push(group, "failure", "处理文档 PR 核验失败或材料不完整", "development");
-      continue;
-    }
-    if (state === "submission-pending" && group.proposalDelivery?.publishError) {
-      push(group, "failure", group.proposalDelivery.publishError.message, "development");
-      continue;
-    }
-    const original = state === "ir-review-pending";
-    if (
-      (original || state === "solution-review-pending") &&
-      proposalReviewCanRetry(group, !original)
-    ) {
-      push(
-        group,
-        "failure",
-        "处理评审失败并重试",
-        original ? "business" : "development",
-        original ? "requirements-review" : "solution",
-      );
-      continue;
-    }
-    if (state === "not-started") {
-      push(
-        group,
-        "business-discussion",
-        requirementsReviewInputs(group) ? "提交需求评审" : "完善业务需求",
-        "business",
-      );
-    } else if (state === "ir-confirmation-pending") {
-      push(group, "original-review", "人工确认当前 IR 评审", "business");
-    } else if (state === "solution-incomplete") {
-      push(
-        group,
-        "solution",
-        hasCurrentProposalSolution(group) ? "提交方案审查" : "拆分 SR 并完善完整材料",
-        "development",
-      );
-    } else if (state === "solution-confirmation-pending") {
-      for (const perspective of ["business", "development", "testing"] as const)
-        if (
-          !group.alignment?.some(
-            (entry) => entry.perspective === perspective && proposalAlignmentCurrent(group, entry),
-          )
-        )
-          push(
-            group,
-            "alignment",
-            `确认${{ business: "业务", development: "开发", testing: "测试" }[perspective]}角色`,
-            perspective,
-            "solution",
-          );
-    } else if (state === "submission-pending") {
-      push(group, "publish", "提交整包文档 PR", "development");
-    }
-  }
-  return result;
 }

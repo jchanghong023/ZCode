@@ -33,7 +33,6 @@ export interface AIReqNativeBridge {
   actorKey(): string;
 }
 export type MockAIReqOwner = IAIReqService & AIReqNativeBridge;
-export type { GitDocumentReader } from "./proposal-storage.js";
 export { presenceIP } from "./presence.js";
 export { MockAIReqService, getConnectionServices, registerAIReqConnection } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";

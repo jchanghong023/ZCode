@@ -40,7 +40,7 @@ function targetAvailable(
   target: AIReqWorkflowTarget,
   releaseId: string,
 ): boolean {
-  const group = [...view.groups, ...view.drafts].find(
+  const group = view.requirements.find(
     (item) =>
       item.projectId === target.projectId &&
       item.id === target.irId &&

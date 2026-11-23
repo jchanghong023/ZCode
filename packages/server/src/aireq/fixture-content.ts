@@ -3,7 +3,7 @@ import type { AIReqRequirementGroup } from "@zcode/services/aireq";
 /** 仅用于初始化 workflow；不保存可变业务事实，也不参与读取时回填。 */
 export const prototypeRequirementDetails: Record<
   string,
-  Pick<AIReqRequirementGroup, "originalText" | "createdAt" | "releaseId" | "contacts">
+  Pick<AIReqRequirementGroup, "originalText" | "createdAt" | "releaseId">
 > = {
   "ir-auth": {
     originalText:
@@ -16,7 +16,6 @@ export const prototypeRequirementDetails: Record<
       "项目负责人需要集中查看团队指标与趋势，按时间和业务范围筛选；没有数据或读取失败时给出可区分的反馈。",
     createdAt: "2026-11-04T02:15:00.000Z",
     releaseId: "release-2026-11",
-    contacts: { business: "j00808875" },
   },
   "ir-export": {
     originalText:
@@ -41,14 +40,12 @@ export const prototypeRequirementDetails: Record<
       "完善移动协作工作台的导航、项目切换、通知阅读与个人资料展示，切换项目时不混入其他项目的通知或身份信息。",
     createdAt: "2026-11-03T06:00:00.000Z",
     releaseId: "mobile-release-2026-11",
-    contacts: { business: "j00808876", development: "j00808877", testing: "j00808876" },
   },
   "ir-mobile-offline": {
     originalText:
       "网络中断时说明当前离线状态，保留用户尚未提交的内容；网络恢复后由用户明确继续，不自动重放可能重复的业务操作。",
     createdAt: "2026-11-08T01:30:00.000Z",
     releaseId: "mobile-release-2026-12",
-    contacts: { development: undefined, testing: undefined },
   },
   "draft-automation": {
     originalText:
@@ -61,7 +58,6 @@ export const prototypeRequirementDetails: Record<
       "按团队和业务事件配置提醒范围，允许用户查看投递及阅读状态；投递失败必须可追溯，重试不能造成重复提醒。",
     createdAt: "2026-11-08T03:15:00.000Z",
     releaseId: "release-2026-12",
-    contacts: { development: "j00808876", testing: "j00808877" },
   },
   "draft-mobile-search": {
     originalText:
@@ -80,7 +76,6 @@ export const prototypeRequirementDetails: Record<
       "成员可以预约共享会议室与设备，提交前检查时段冲突；预约、取消及结果通知保持一致，失败后不能留下重复预约。",
     createdAt: "2026-11-09T06:10:00.000Z",
     releaseId: "release-2026-12",
-    contacts: { development: "j00808877", testing: undefined },
   },
   "draft-audit-subscription": {
     originalText:
@@ -93,51 +88,17 @@ export const prototypeRequirementDetails: Record<
       "客户反馈希望按来源和业务场景归集，先保留客户原话，再由业务人员补充影响范围与期望结果。\n暂不自动拆分需求，也不自动安排版本内的开发任务。",
     createdAt: "2026-11-17T02:00:00.000Z",
     releaseId: "release-2026-12",
-    contacts: { development: undefined, testing: undefined },
   },
   "draft-search-filters": {
     originalText:
       "搜索结果支持按需求状态和提交人组合筛选，返回详情后保留筛选条件；明确筛选无结果时的恢复入口。",
     createdAt: "2026-11-10T01:30:00.000Z",
     releaseId: "mobile-release-2027-01",
-    contacts: { development: undefined, testing: "j00808876" },
   },
   "draft-delivery-digest": {
     originalText:
       "项目成员可以订阅每周交付摘要，包含已完成需求、当前阻塞和待确认事项；摘要中的每项都能回到对应业务对象。",
     createdAt: "2026-11-10T02:45:00.000Z",
     releaseId: "release-2026-12",
-    contacts: { business: "j00808875", development: "j00808877", testing: "j00808876" },
   },
 };
-
-/** 模拟仓库中的后续提交，与平台初始归档材料分开。 */
-export const prototypeGitDocumentRevision = {
-  projectId: "demo-aurora",
-  employee: "m00000001",
-  committedAt: "2026-11-20T07:30:00.000Z",
-  message: "补充通知恢复、审计查询及附件验收说明",
-  appended: [
-    {
-      path: "docs/requirements/ir-notifications/requirements.md",
-      text: "\n\n## 加载失败时的处理\n\n刷新通知失败时，保留上一次成功结果与未读状态。用户可点击重试，重试成功后更新通知列表。\n",
-    },
-    {
-      path: "docs/requirements/ir-workspace-shortcuts/requirements.md",
-      text: "\n\n## 重排失败时的处理\n\n快捷入口重排失败时，保留上一次成功保存的顺序。\n",
-    },
-    {
-      path: "docs/requirements/ir-audit-archive/requirements.md",
-      text: "\n\n## 归档检索\n\n归档后的审计记录可按操作者和时间区间检索。\n",
-    },
-    {
-      path: "docs/requirements/ir-attachment-management/requirements.md",
-      text: "\n\n## 下载失败恢复\n\n下载失败时保留当前附件选择，提供单文件重试。\n",
-    },
-  ],
-  removed: "openspec/changes/sr-audit-retention/test-plan.md",
-  moved: {
-    from: "openspec/changes/sr-attachment-upload/test-plan.md",
-    to: "openspec/changes/sr-attachment-upload/verification/test-plan.md",
-  },
-} as const;

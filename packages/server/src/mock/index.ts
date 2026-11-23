@@ -16,15 +16,10 @@ import { MockRuntime } from "./runtime.js";
 import { MockFileService } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
 import { IAIReqService } from "@zcode/services/aireq";
-import {
-  MockAIReqService,
-  type AIReqNativeBridge,
-  type GitDocumentReader,
-} from "../aireq/contract.js";
+import { MockAIReqService, type AIReqNativeBridge } from "../aireq/contract.js";
 
 export interface MockServicesOptions {
   workspacePath: string;
-  readGitDocuments?: GitDocumentReader;
 }
 
 export function createMockServices(options: MockServicesOptions): {
@@ -43,7 +38,7 @@ export function createMockServices(options: MockServicesOptions): {
   registerModelSelectionMockService(services);
 
   // 协议面与项目目录：AIReq、v4 会话、项目目录。
-  const aiReqService = new MockAIReqService(options.readGitDocuments) satisfies AIReqNativeBridge;
+  const aiReqService = new MockAIReqService() satisfies AIReqNativeBridge;
   services.register(IAIReqService, aiReqService.remote);
   services.register(IZCodeAgentService, new MockZCodeAgentService(runtime, aiReqService));
   services.register(IProjectService, new MockProjectService(runtime));

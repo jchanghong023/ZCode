@@ -63,27 +63,14 @@ it(
       const tester = await connectST(config.otherEmployeeId);
       try {
         expect(tester.identity.employeeId).not.toBe(client.identity.employeeId);
-        const requested = await commandAndRead(
-          tester,
-          { type: "requestProjectRoles", projectId: target.projectId, roles: ["testing"] },
-          target,
-        );
-        const registration = requested.view.roleRegistrations?.find(
-          (entry) => entry.projectId === target.projectId && entry.role === "testing",
-        );
-        expect(registration?.status).toBe("pending");
         const admin = await connectST("y00000000");
+        const assignment = {
+          projectId: target.projectId,
+          employeeId: tester.identity.employeeId,
+          role: "testing",
+        } as const;
         try {
-          await commandAndRead(
-            admin,
-            {
-              type: "decideProjectRole",
-              projectId: target.projectId,
-              registrationId: registration!.id,
-              decision: "approved",
-            },
-            target,
-          );
+          await commandAndRead(admin, { type: "addProjectRoleMember", ...assignment }, target);
         } finally {
           await admin.close();
         }
@@ -108,6 +95,19 @@ it(
           expect(after.queue).toEqual(initial.queue);
         } finally {
           await native.close();
+        }
+        const administrator = await connectST("y00000000");
+        try {
+          await commandAndRead(
+            administrator,
+            { type: "removeProjectRoleMember", ...assignment },
+            target,
+          );
+          expect(
+            (await tester.read({ ...solution.selection, reviewAgent: "a" })).session,
+          ).toBeUndefined();
+        } finally {
+          await administrator.close();
         }
       } finally {
         await tester.close();

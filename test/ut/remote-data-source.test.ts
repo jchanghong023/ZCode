@@ -63,10 +63,10 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
         "spec.md": [],
       },
       ideas: [],
+      projectRoleMembers: [],
       projects: [],
       releases: [],
-      groups: [],
-      drafts: [],
+      requirements: [],
       srs: [],
       materials: [],
       operations: [],
@@ -254,11 +254,11 @@ describe("AIReq frontend data source", () => {
     }
   });
 
-  it("requires a fresh workspace read when switching formal requirements or projects", async () => {
+  it("requires a fresh workspace read when switching requirements or projects", async () => {
     const remote = serviceDouble();
     remote.metadata.current.projects.workspaces["project-b"] = workspace("project-b");
     const source = await createRemoteAIReqDataSource(remote.services, identity);
-    const first = { projectId: "project-a", irId: "ir-1", formalView: "detail" as const };
+    const first = { projectId: "project-a", irId: "ir-1" };
     const second = { ...first, irId: "ir-2" };
     const otherProject = { ...second, projectId: "project-b" };
     const unavailable = { identity: `aireq-remote:${identity.clientId}`, kind: "unavailable" };
@@ -305,7 +305,6 @@ describe("AIReq frontend data source", () => {
       const ids = { projectId: "project-a", irId: "ir-a", srId: "sr-a" };
       const target: AIReqWorkflowTarget = {
         ...ids,
-        formalView: "detail",
         reviewAgent: "a",
         proposalStep: "requirements",
         discussionPhase: "requirements",
@@ -316,7 +315,6 @@ describe("AIReq frontend data source", () => {
           action,
           {
             ...target,
-            formalView: "list",
             reviewAgent: "b",
             proposalStep: "solution",
             discussionPhase: "solution",

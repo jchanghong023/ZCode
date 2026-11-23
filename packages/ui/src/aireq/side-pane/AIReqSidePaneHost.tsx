@@ -15,7 +15,7 @@ import { hasProjectRole, type AIReqWorkflowTarget } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
 import { canOpenProposalTask } from "../proposals/proposalTasks.js";
-import { AIReqFormalHistory } from "../documents/AIReqFormalHistory.js";
+import { AIReqArchivedHistory } from "../proposals/AIReqArchivedHistory.js";
 import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
 import { AIReqDetailScope } from "./AIReqDetailScope.js";
 import { AIReqSidePaneTabs } from "./AIReqSidePaneTabs.js";
@@ -53,7 +53,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
     >
       {tab.kind !== "materials" && <AIReqRequirementContext />}
       <div className="min-h-0 flex-1 overflow-hidden">
-        {tab.kind === "materials" ? <AIReqMaterialsPane /> : <AIReqFormalHistory />}
+        {tab.kind === "materials" ? <AIReqMaterialsPane /> : <AIReqArchivedHistory />}
       </div>
     </AIReqDetailScope>
   );
@@ -64,12 +64,10 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const selection = tab?.selection ?? ai.selection;
-  const group = [...(ai.view?.groups ?? []), ...(ai.view?.drafts ?? [])].find(
+  const group = ai.view?.requirements.find(
     (item) => item.projectId === selection.projectId && item.id === selection.irId,
   );
-  const formal =
-    group &&
-    ai.view?.groups.some((item) => item.projectId === group.projectId && item.id === group.id);
+  const archived = Boolean(group?.merge);
   const releaseId = tab?.releaseId ?? ai.releaseId;
   const rows = [
     {
@@ -84,7 +82,7 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
       title: zh ? "讨论／评审历史" : "Discussion & review history",
       description: zh ? "回看已归档的讨论与评审" : "Read archived discussion and reviews",
       icon: History,
-      enabled: Boolean(formal),
+      enabled: archived,
     },
   ];
   return (
@@ -114,7 +112,7 @@ function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
                 onClick={() =>
                   pane.open({
                     kind,
-                    selection: { ...selection, formalView: formal ? "detail" : undefined },
+                    selection,
                     releaseId,
                     title: group ? group.title + " · " + title : title,
                   })
@@ -145,8 +143,10 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const scopes = useContext(AIReqSidePaneMemoryContext);
   const { activeTab, collapse } = pane;
   const { projectId, irId } = ai.selection;
-  const proposalId =
-    ai.mainView === "chat" && ai.requirementView === "proposals" ? irId : undefined;
+  const archived = ai.view?.requirements.some(
+    (item) => item.merge && item.projectId === projectId && item.id === irId,
+  );
+  const proposalId = ai.mainView === "chat" && !archived ? irId : undefined;
   const previousProposal = useRef({ projectId, releaseId: ai.releaseId, proposalId });
   useLayoutEffect(() => {
     const previous = previousProposal.current;
@@ -171,14 +171,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       development: hasProjectRole(ai.view, projectId, employee, "development"),
       testing: hasProjectRole(ai.view, projectId, employee, "testing"),
     });
-  const available =
-    ai.mainView !== "projectProgress" &&
-    ai.mainView !== "ideas" &&
-    ai.mainView !== "projectOverview" &&
-    ai.mainView !== "proposals" &&
-    ai.mainView !== "roles" &&
-    (ai.mainView !== "formal" || Boolean(irId)) &&
-    (ai.mainView !== "chat" || ai.requirementView !== "proposals" || proposalTaskAvailable);
+  const available = ai.mainView === "chat" && Boolean(irId) && (archived || proposalTaskAvailable);
   const isOpen = available && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   const asideRef = useRef<HTMLElement>(null);
@@ -237,7 +230,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
         >
           {available &&
             !isOpen &&
-            !(ai.mainView === "chat" && ai.requirementView === "proposals") && (
+            archived && (
               <div className="absolute top-2 right-2 z-20">
                 <WorkspaceSidePaneToggleButton
                   isSidePaneOpen={false}

@@ -15,17 +15,12 @@ const commandTargetSchema = z
 const workflowTargetSchema = z
   .object({
     ...commandTargetSchema.shape,
-    formalView: z.enum(["list", "detail"]).optional(),
     reviewAgent: z.enum(["a", "b", "c", "summary"]).optional(),
     proposalStep: z.enum(["requirements", "requirements-review", "solution", "intake"]).optional(),
     discussionPhase: z.enum(["requirements", "solution"]).optional(),
   })
   .strict();
 const target = z.object({ projectId: id, irId: id }).strict();
-const contactEmployee = z.string().regex(/^[a-z][0-9]{8}$/).optional();
-const contacts = z
-  .object({ business: contactEmployee, development: contactEmployee, testing: contactEmployee })
-  .strict();
 const actionBase = {
   operationId: id,
   projectId: id.optional(),
@@ -35,20 +30,13 @@ const actionBase = {
 const action = (type: string, fields: z.ZodRawShape = {}) =>
   z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
 const actionSchema = z.union([
-  action("requestProjectRoles", {
+  z.strictObject({
+    type: z.enum(["addProjectRoleMember", "removeProjectRoleMember"]),
+    operationId: id,
     projectId: id,
-    roles: z
-      .array(z.enum(["development", "testing"]))
-      .min(1)
-      .max(2),
-    note: text.max(300).optional(),
+    employeeId: z.string().regex(/^[a-z][0-9]{8}$/),
+    role: z.enum(["development", "testing"]),
   }),
-  action("decideProjectRole", {
-    projectId: id,
-    registrationId: id,
-    decision: z.enum(["approved", "rejected", "revoked"]),
-  }),
-  action("syncFormalDocuments", { projectId: id, irId: id }),
   action("createIdea", { originalText: text }),
   action("importIdeas", { originalTexts: z.array(text).min(1) }),
   action("updateIdea", { ideaId: id, ideaRevision: revision, originalText: text }),
@@ -93,7 +81,6 @@ const actionSchema = z.union([
       )
       .min(1),
   }),
-  action("assignContacts", { contacts }),
   action("runFullReview"),
   action("confirmAlignment", {
     perspective: z.enum(["business", "development", "testing"]),

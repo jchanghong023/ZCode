@@ -49,7 +49,7 @@ export function useAIReqNavigationActions({
   );
   const openFromProjectOverview = useCallback(
     (
-      mainView: "proposals" | "formal" | "chat" | "todos",
+      mainView: "proposals" | "chat",
       target?: AIReqWorkflowTarget,
       targetReleaseId?: string,
     ) => {
@@ -85,7 +85,7 @@ export function useAIReqNavigationActions({
   const openProject = useCallback(
     (
       projectId: string,
-      mainView: "projectOverview" | "proposals" | "formal" = "projectOverview",
+      mainView: "projectOverview" | "proposals" = "projectOverview",
       releaseId?: string,
     ) => {
       if (
@@ -106,16 +106,11 @@ export function useAIReqNavigationActions({
       // 详情属于原 IR；切项目时返回同类需求列表，不能留下无对象的聊天页。
       const mainView =
         navigationRef.current.mainView === "chat"
-          ? current.formalView ||
-            viewRef.current?.groups.some(
-              (item) => item.projectId === current.projectId && item.id === current.irId,
-            )
-            ? "formal"
-            : "proposals"
+          ? "proposals"
           : navigationRef.current.mainView;
       select({ projectId }, true, mainView);
     },
-    [select, viewRef, selectionRef, navigationRef],
+    [select, selectionRef, navigationRef],
   );
   const openProposalTask = useCallback(
     (task: ProposalTask, agent?: import("../contract.js").AIReqReviewAgentId) => {

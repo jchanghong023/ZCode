@@ -21,7 +21,7 @@ import type {
   AIReqRequirementStatus,
   AIReqReview,
   AIReqReviewAgent,
-  AIReqRoleRegistration,
+  AIReqProjectRoleMember,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
 import type { NativeRuntimeModel } from "./agent-models.js";
@@ -35,12 +35,6 @@ export type InternalWorkflowAction =
         | { type: "supplementRequirements"; note: string }
         | { type: "generateProposalSolution" }
       ));
-
-type InternalRoleRegistration = AIReqRoleRegistration & {
-  requestedAt: string;
-  decidedAt?: string;
-  decidedBy?: string;
-};
 
 export interface Project {
   id: string;
@@ -118,7 +112,6 @@ interface ProposalRevision extends Omit<AIReqProposalRevision, "delivery" | "rev
   review?: Review;
 }
 
-type Contacts = NonNullable<AIReqRequirementGroup["contacts"]>;
 
 export interface RequirementGroup {
   id: string;
@@ -136,8 +129,6 @@ export interface RequirementGroup {
   originalText: string;
   submittedBy: string;
   sourceIrId?: string;
-  contacts?: Contacts;
-  contactHistory?: { employeeId: string; at: string; contacts: Contacts }[];
   clientDraftId?: string;
   originalReview?: Review;
   originalReviewHistory?: Review[];
@@ -177,7 +168,7 @@ export interface WorkflowState {
   revision: number;
   projects: Project[];
   repositoryHeads: Record<string, string>;
-  roleRegistrations?: InternalRoleRegistration[];
+  projectRoleMembers: AIReqProjectRoleMember[];
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   groups: RequirementGroup[];

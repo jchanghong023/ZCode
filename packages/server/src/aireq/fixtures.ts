@@ -34,6 +34,7 @@ export function createPrototypeWorkflow(): WorkflowState {
       ideas: [],
       projects: [],
       repositoryHeads: {},
+      projectRoleMembers: [],
       groups: [],
       drafts: [],
       srs: [],
@@ -258,14 +259,6 @@ export function createPrototypeWorkflow(): WorkflowState {
   const materials: AIReqMaterialView[] = [];
   for (const item of [...groups, ...drafts]) {
     Object.assign(item, structuredClone(prototypeRequirementDetails[item.id]));
-    if (drafts.includes(item)) {
-      item.contacts = {
-        business: item.submittedBy,
-        development: "j00808874",
-        testing: "j00808875",
-        ...item.contacts,
-      };
-    }
     // 未讨论的已入库原文没有 AI 产物；不能借初始化材料冒充已经开始澄清。
     if (item === untouchedProposal) {
       item.files = [];
@@ -467,6 +460,7 @@ export function createPrototypeWorkflow(): WorkflowState {
     drafts,
     srs,
     materials,
+    projectRoleMembers: [],
     repositoryHeads: Object.fromEntries(
       sharedSettings.projects.map((project) => [
         prototypeRepositoryKey(project),

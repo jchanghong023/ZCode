@@ -23,8 +23,8 @@ export function AIReqSessionPane(props: SessionPaneProps) {
   const sessionId = props.sessionId;
   const businessSession =
     aireq?.selectionReady && sessionId !== null && aireq.session?.sessionId === sessionId;
-  const proposal = aireq?.view?.drafts.find(
-    (item) => item.projectId === selection?.projectId && item.id === selection?.irId,
+  const proposal = aireq?.view?.requirements.find(
+    (item) => !item.merge && item.projectId === selection?.projectId && item.id === selection?.irId,
   );
   const review = aireq?.session?.phase === "solution" ? proposal?.review : proposal?.originalReview;
   // 失效评审可能仍属于当前方案阶段；同步服务端的版本与会话归属校验，不能仅按阶段放开输入。

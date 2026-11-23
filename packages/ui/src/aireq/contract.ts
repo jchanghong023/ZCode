@@ -38,7 +38,6 @@ export type {
   AIReqWorkflowResult,
   AIReqWorkflowTarget,
   AIReqWorkflowView,
-  AIReqTodo,
 } from "@zcode/services/aireq";
 export {
   aiReqPrFactSchema,
@@ -66,7 +65,6 @@ export {
   requirementsReviewCurrent,
   requirementsReviewInputs,
   requirementsReviewReadyBlocker,
-  deriveAIReqTodos,
   fullReviewCurrent,
   fullReviewReadyBlocker,
   proposalAlignmentCurrent,
@@ -89,9 +87,7 @@ export type AIReqMainView =
   | "chat"
   | "projectProgress"
   | "projectOverview"
-  | "todos"
   | "proposals"
-  | "formal"
   | "roles"
   | "skillDesign";
 

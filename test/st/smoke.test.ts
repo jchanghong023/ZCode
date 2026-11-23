@@ -102,7 +102,6 @@ describe("ST service readiness and connection boundary", () => {
           originalText: unique("rejected-idea"),
         };
         const navigationTargets = [
-          { formalView: "detail" },
           { reviewAgent: "a" },
           { proposalStep: "requirements" },
           { discussionPhase: "requirements" },

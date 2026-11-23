@@ -21,15 +21,15 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 ## 2. 权威状态
 
-| 状态                                                                          | 唯一所有者                                             | 边界                                          |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------- |
-| 项目、Release、想法、IR/SR、材料、审查、确认、PR 候选、评审报告与正式文档     | `MockAIReqService` 与 `aireq/workflow.ts` 等领域 owner | UI 只保留可失效投影；待办、文档统计从事实派生 |
-| 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts`          | bootstrap 提供配置，不另建读取 RPC            |
-| Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`                   | 文件服务只读同一内存事实                      |
-| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`                 | `MockZCodeAgentService` 接纳命令并发帧        |
-| 原生任务索引                                                                  | `MockRuntime.tasks`                                    | 不是 AIReq 待办 owner                         |
-| 附件暂存、提交字节及采用关系                                                  | `MockZCodeAgentService`                                | composer 只拥有未发送草稿和引用               |
-| 通用应用设置                                                                  | `MockSettingService`                                   | 不与 AIReq 模型／提示词共用版本               |
+| 状态                                                                          | 唯一所有者                                             | 边界                                    |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------- |
+| 项目、Release、想法、IR/SR、材料、审查、确认、PR 候选、评审报告与正式文档     | `MockAIReqService` 与 `aireq/workflow.ts` 等领域 owner | UI 只保留可失效投影；项目统计从事实派生 |
+| 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts`          | bootstrap 提供配置，不另建读取 RPC      |
+| Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`                   | 文件服务只读同一内存事实                |
+| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`                 | `MockZCodeAgentService` 接纳命令并发帧  |
+| 原生任务索引                                                                  | `MockRuntime.tasks`                                    | 原生会话的任务索引                      |
+| 附件暂存、提交字节及采用关系                                                  | `MockZCodeAgentService`                                | composer 只拥有未发送草稿和引用         |
+| 通用应用设置                                                                  | `MockSettingService`                                   | 不与 AIReq 模型／提示词共用版本         |
 
 先校验身份、参数、归属及对应阶段／版本／幂等条件，再提交事实，最后通知。异步完成还绑定对象、阶段、轮次、会话及输入版本；迟到结果不能恢复失效批准。后台每五秒观测文档 PR。浏览器关闭不取消已接纳的评审和交付，检查时间等观测元数据不推进业务修订。
 
@@ -39,23 +39,13 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 默认项目 Aurora 协作控制台的 2026.11 版本有 7 份正式 IR 文档，2026.12 版本有 2 份。每个 IR 保留原始需求、材料、冻结快照与文档合入事实。项目与 Release 统计按正式 IR 和在途提案分别计数。
 
-初始提案、正式文档及原型运行时生成或修订的 IR／SR Markdown 材料均以 Mermaid 流程图开头。需求澄清、方案讨论或材料修订再次生成时保留已有首图，不重复添加；初始和运行时生成的已完成评审报告在标题后以流程图开始正文。图随正文保存，材料摘要和快照按最终正文计算。导入及 Git 同步仍按来源正文保存，依赖 JSON 保持纯 JSON。
+初始提案、正式文档及原型运行时生成或修订的 IR／SR Markdown 材料均以 Mermaid 流程图开头。需求澄清、方案讨论或材料修订再次生成时保留已有首图，不重复添加；初始和运行时生成的已完成评审报告在标题后以流程图开始正文。图随正文保存，材料摘要和快照按最终正文计算。导入仍按来源正文保存，依赖 JSON 保持纯 JSON。
 
 演示工作区预置的 Markdown 文件和原型 Skill Markdown 正文也以 Mermaid 图开始；生成的 `SKILL.md` 先保留 YAML front matter，再显示流程图。原有文件格式和阅读入口不变。
 
-默认 Git 快照从已合入的正式文档初始化，按项目仓库与默认分支保存。仓库样例含一个后续提交，可在 Aurora「正式文档」使用同一「从 Git 同步」入口验证：
-
-| Release            | 文档     | Git 快照及同步结果                                 |
-| ------------------ | -------- | -------------------------------------------------- |
-| 2026.12 · 下一迭代 | 通知中心 | 正文补充加载失败处理，路径集合一致，生成已确认版本 |
-| 2026.12 · 下一迭代 | 操作审计 | 正文有更新且少一份测试方案，整批拒绝               |
-| 2026.11 · 体验优化 | 附件管理 | 正文有更新且测试方案移入子目录，数量相同但整批拒绝 |
-
-内存仓库与平台文档分别保存，样例提交信息只来自仓库快照。重复读、同步失败和平台同步成功均不改动仓库。新文档模拟 PR 合入后，工作流在发布变更事件前写入同一内存仓库分支。切换项目配置的仓库或分支后，只能读取相应的仓库快照。
-
 ## 3. 当前实现能力
 
-- AIReq 在内存中执行材料与报告、阶段门禁、配置保存和派生待办。模型选择服务使用同一 AIReq 模型目录投影；Web 不公开旧 Provider 设置服务或外部供应商连通性探测。
+- AIReq 在内存中执行材料与报告、阶段门禁和配置保存。模型选择服务使用同一 AIReq 模型目录投影；Web 不公开旧 Provider 设置服务或外部供应商连通性探测。
 - AI、文档交付、文件与媒体依赖由服务端内存实现提供。文档 PR 保留可关闭的 opened 窗口，按服务时钟观测模拟合入后仍核验候选和完整材料，再将同一 IR 转正。
 - 原生会话提供握手、快照、增量、分页、命令决定查询、只读队列与附件事务。AIReq 与 `/chat` 使用[同一聊天语义](../specs/aireq/conversation.md#聊天命令和会话配置)：显式引导或跟进、面向目标执行的停止、独立于接纳的运行终态。模拟结果不代表真实模型；AIReq 业务材料和聊天回复分别提交。
 - 业务绑定会话不支持 `switchModelConfig`；`/chat` 空闲时可使用。只接纳[公开契约](../specs/aireq/contract-design.md#2-原生-agent-精确公开成员)允许的命令，并在会话创建／访问前拒绝退役命令，不以 accepted 或空目录填补。

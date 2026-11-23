@@ -34,8 +34,8 @@ export function AIReqDeleteRequirement({
   const inFlight = useRef(false);
   const { selection, view } = aireq;
   // 菜单展示对象与命令目标必须同 scope；不能把旧弹窗套到后来选择的另一条提案。
-  const group = view?.drafts.find(
-    (item) =>
+  const group = view?.requirements.find(
+    (item) => !item.merge &&
       item.id === menuGroup.id &&
       item.projectId === menuGroup.projectId &&
       item.id === selection.irId &&
@@ -45,8 +45,7 @@ export function AIReqDeleteRequirement({
     !source.capabilities.workflowCommands.includes("deleteRequirement") ||
     !group ||
     selection.srId ||
-    group.status === "formal" ||
-    view?.groups.some((item) => item.id === group.id && item.projectId === group.projectId)
+    group.status === "formal"
   )
     return <>{renderTrigger()}</>;
   const history = proposalViewedIndex(group, selection) !== proposalProgressIndex(group);

@@ -1,5 +1,4 @@
 import type { ProposalTask } from "./proposals/proposalTasks.js";
-import type { RequirementReturnView } from "./navigationState.js";
 import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
 import type {
   AIReqAction,
@@ -11,15 +10,12 @@ import type {
 } from "./contract.js";
 
 export type ProposalDraft = { id: string; sourceIrId?: string };
-export type RequirementView = "proposals" | "formal";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
   selection: AIReqWorkflowTarget;
   session?: AIReqNativeSessionRef;
   mainView: WorkspaceMainView;
-  requirementView: RequirementView;
-  requirementReturnView: RequirementReturnView;
   proposalTask: ProposalTask;
   openProposalTask(task: ProposalTask, agent?: import("./contract.js").AIReqReviewAgentId): void;
   settingsOpen: boolean;
@@ -27,7 +23,7 @@ export interface AIReqContextValue {
   closeSettings(): void;
   setMainView(value: WorkspaceMainView, options?: { fromSidebar?: boolean }): void;
   openFromProjectOverview(
-    mainView: "proposals" | "formal" | "chat" | "todos",
+    mainView: "proposals" | "chat",
     target?: AIReqWorkflowTarget,
     releaseId?: string,
   ): void;
@@ -49,7 +45,7 @@ export interface AIReqContextValue {
   switchProject(projectId: string): void;
   openProject(
     projectId: string,
-    mainView?: "projectOverview" | "proposals" | "formal",
+    mainView?: "projectOverview" | "proposals",
     releaseId?: string,
   ): void;
   select(value: AIReqWorkflowTarget, releaseId?: string, task?: ProposalTask): void;

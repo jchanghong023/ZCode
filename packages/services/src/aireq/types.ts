@@ -76,8 +76,7 @@ export interface AIReqRelease {
 }
 
 export interface AIReqReleaseSummary extends AIReqRelease {
-  proposalCount: number;
-  formalCount: number;
+  requirementCount: number;
 }
 
 /** A global unplanned need; it is consumed when admitted to one or more releases. */
@@ -211,28 +210,16 @@ export interface AIReqSystemRequirement {
   documentPath: string;
 }
 export type AIReqProjectRole = "development" | "testing";
-export interface AIReqRoleRegistration {
-  id: string;
+export interface AIReqProjectRoleMember {
   projectId: string;
   employeeId: string;
   role: AIReqProjectRole;
-  status: "pending" | "approved" | "rejected" | "revoked";
-  note?: string;
 }
-export interface AIReqGitFileCommit {
-  hash: string;
-  message: string;
-  employee: string;
-  committedAt: string;
+export interface AIReqMaterialHistoryEvent {
+  type: "confirmation";
+  employeeId: string;
+  role: "business" | AIReqProjectRole;
 }
-export type AIReqMaterialHistoryEvent =
-  | { type: "confirmation"; employeeId: string; role: "business" | AIReqProjectRole }
-  | {
-      type: "git-sync";
-      employeeId: string;
-      commit: string;
-      files: { path: string; change: AIReqGitFileCommit }[];
-    };
 
 export interface AIReqMaterialHistory {
   event?: AIReqMaterialHistoryEvent;
@@ -250,8 +237,6 @@ export interface AIReqRequirementGroup {
   originalText: string;
   submittedBy: string;
   sourceIrId?: string;
-  contacts?: { business?: string; development?: string; testing?: string };
-  formalParticipants?: { business?: string; development?: string; testing?: string };
   originalReview?: AIReqReview;
   originalReviewHistory?: AIReqReview[];
   alignment?: AIReqAlignment[];
@@ -344,17 +329,15 @@ export interface AIReqMaterialReadRequest extends Pick<
   releaseId: string;
 }
 export interface AIReqWorkflowView {
-  roleRegistrations?: AIReqRoleRegistration[];
+  projectRoleMembers: AIReqProjectRoleMember[];
   roleAdministrator?: boolean;
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
-  todos?: AIReqTodo[];
   revision: number;
   projects: AIReqProject[];
   /** 唯一 Release 目录及同一快照的跨项目只读统计。 */
   releases: AIReqReleaseSummary[];
-  groups: AIReqRequirementGroup[];
-  drafts: AIReqRequirementGroup[];
+  requirements: AIReqRequirementGroup[];
   srs: AIReqSystemRequirement[];
   materials: AIReqMaterialView[];
   operations: AIReqOperationReceipt[];
@@ -368,14 +351,7 @@ export interface AIReqCommandBase {
 }
 type AIReqIntent = AIReqCommandBase &
   (
-    | { type: "requestProjectRoles"; projectId: string; roles: AIReqProjectRole[]; note?: string }
-    | {
-        type: "decideProjectRole";
-        projectId: string;
-        registrationId: string;
-        decision: "approved" | "rejected" | "revoked";
-      }
-    | { type: "syncFormalDocuments"; projectId: string; irId: string }
+    | (AIReqProjectRoleMember & { type: "addProjectRoleMember" | "removeProjectRoleMember" })
     | { type: "createIdea"; originalText: string }
     | { type: "importIdeas"; originalTexts: string[] }
     | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
@@ -393,10 +369,6 @@ type AIReqIntent = AIReqCommandBase &
         type: "importProposals";
         releaseId: string;
         proposals: { originalText: string; businessDocument?: string }[];
-      }
-    | {
-        type: "assignContacts";
-        contacts: NonNullable<AIReqRequirementGroup["contacts"]>;
       }
     | { type: "runFullReview" }
     | {
@@ -434,7 +406,6 @@ export interface AIReqWorkflowResult {
   documentFormatSnapshot?: Pick<AIReqWorkflowView, "documentFormats" | "revision">;
 }
 export interface AIReqWorkflowTarget {
-  formalView?: "list" | "detail";
   reviewAgent?: AIReqReviewAgentId;
   proposalStep?: "requirements" | "requirements-review" | "solution" | "intake";
   projectId?: string;
@@ -495,21 +466,4 @@ export interface AIReqAlignment {
   snapshotDigest: string;
   employeeId: string;
   confirmedAt: string;
-}
-export interface AIReqTodo extends AIReqObjectRef {
-  id: string;
-  requirementTitle: string;
-  perspective: AIReqAlignment["perspective"];
-  employeeId?: string;
-  releaseId: string;
-  title: string;
-  kind:
-    | "business-discussion"
-    | "original-review"
-    | "solution"
-    | "full-review"
-    | "alignment"
-    | "publish"
-    | "failure";
-  selection: AIReqWorkflowTarget;
 }

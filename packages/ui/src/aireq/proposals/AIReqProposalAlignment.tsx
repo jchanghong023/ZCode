@@ -76,7 +76,6 @@ export function AIReqProposalAlignment({
       <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
         {roles.map(({ perspective, label, labelEn, confirmation }) => {
           const Icon = confirmation ? CheckCircle2 : Circle;
-          const contact = group.contacts?.[perspective];
           const canConfirm =
             !confirmation &&
             !readOnly &&
@@ -103,10 +102,6 @@ export function AIReqProposalAlignment({
                         : canConfirm
                           ? "This version awaits your confirmation"
                           : `Awaiting a project ${labelEn.toLowerCase()} reviewer`}
-                    {!confirmation &&
-                      !canConfirm &&
-                      contact &&
-                      ` · ${zh ? "交接联系人" : "Contact"} ${contact}`}
                   </p>
                 </div>
               </div>
@@ -163,7 +158,7 @@ export function AIReqProposalAlignment({
             className="h-auto p-0"
             onClick={() => ai.navigate(() => ai.setMainView("roles"))}
           >
-            {zh ? "查看或申请项目角色" : "View or request project roles"}
+            {zh ? "查看项目角色名单" : "View project role lists"}
           </Button>
         )}
       <p id={blockerId} className="text-ui-sm text-foreground-subtle" role="status">

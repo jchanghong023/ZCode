@@ -3,7 +3,12 @@ import { ArrowRight, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { deriveAIReqTodos, proposalUpdatedTime, proposalStateLabel } from "../contract.js";
+import {
+  proposalAlignmentCurrent,
+  proposalState,
+  proposalStateLabel,
+  proposalUpdatedTime,
+} from "../contract.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
@@ -39,23 +44,37 @@ export function AIReqProjectOverviewPage({
     (item) => item.projectId === project?.id && item.id === ai.releaseId,
   );
   const proposals =
-    view?.drafts.filter(
-      (item) => item.projectId === project?.id && item.releaseId === release?.id,
+    view?.requirements.filter(
+      (item) => !item.merge && item.projectId === project?.id && item.releaseId === release?.id,
     ) ?? [];
-  // The view contains every draft for the project, but its todos are filtered by operator role.
-  const confirmationTodos = view
-    ? deriveAIReqTodos({ drafts: proposals }).filter(
-        (todo) => todo.kind === "original-review" || todo.kind === "alignment",
+  const confirmations = proposals.flatMap<{
+    irId: string;
+    kind: Exclude<ConfirmationFilter, "all">;
+    title: string;
+  }>((proposal) => {
+    const { id: irId, returnFeedback } = proposal;
+    if (returnFeedback && returnFeedback.target !== "solution" && !returnFeedback.resumedAt)
+      return [];
+    const state = proposalState(proposal);
+    if (state === "ir-confirmation-pending")
+      return [{ irId, kind: "review", title: "人工确认当前 IR 评审" }];
+    if (state !== "solution-confirmation-pending") return [];
+
+    return (["business", "development", "testing"] as const)
+      .filter(
+        (kind) =>
+          !proposal.alignment?.some(
+            (entry) => entry.perspective === kind && proposalAlignmentCurrent(proposal, entry),
+          ),
       )
-    : [];
+      .map((kind) => ({
+        irId,
+        kind,
+        title: `确认${{ business: "业务", development: "开发", testing: "测试" }[kind]}角色`,
+      }));
+  });
   const matches = (kind: ConfirmationFilter) =>
-    confirmationTodos.filter(
-      (todo) =>
-        kind === "all" ||
-        (kind === "review"
-          ? todo.kind === "original-review"
-          : todo.kind === "alignment" && todo.perspective === kind),
-    );
+    confirmations.filter((entry) => kind === "all" || entry.kind === kind);
   const pendingLabel = zh ? "待人工处理提案" : "Proposals awaiting people";
   const filters: { id: ConfirmationFilter; label: string }[] = [
     { id: "all", label: pendingLabel },
@@ -64,8 +83,8 @@ export function AIReqProjectOverviewPage({
     { id: "development", label: zh ? "开发确认" : "Development confirmation" },
     { id: "testing", label: zh ? "测试确认" : "Testing confirmation" },
   ];
-  const allPendingCount = new Set(confirmationTodos.map((todo) => todo.irId)).size;
-  const pendingIds = new Set(matches(confirmationFilter).map((todo) => todo.irId));
+  const allPendingCount = new Set(confirmations.map((entry) => entry.irId)).size;
+  const pendingIds = new Set(matches(confirmationFilter).map((entry) => entry.irId));
   const pending = proposals.filter((item) => pendingIds.has(item.id));
   const recent = [...proposals]
     .sort(
@@ -182,17 +201,12 @@ export function AIReqProjectOverviewPage({
               {/* 数据区原先透出页面底色、辅助文字混用侧栏灰；按外观页卡片与文字角色呈现。 */}
               <dl
                 data-aireq-motion-card=""
-                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground lg:grid-cols-3"
+                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground"
               >
                 {[
                   {
-                    label: zh ? "正式文档" : "Formal documents",
-                    count: release.formalCount,
-                    target: "formal" as const,
-                  },
-                  {
-                    label: zh ? "需求提案" : "Proposals",
-                    count: release.proposalCount,
+                    label: zh ? "需求总数" : "All requirements",
+                    count: release.requirementCount,
                     target: "proposals" as const,
                   },
                   {
@@ -249,7 +263,7 @@ export function AIReqProjectOverviewPage({
                   >
                     {filter.label}
                     <span className="font-semibold tabular-nums">
-                      {new Set(matches(filter.id).map((todo) => todo.irId)).size}
+                      {new Set(matches(filter.id).map((entry) => entry.irId)).size}
                     </span>
                   </Button>
                 ))}
@@ -273,9 +287,9 @@ export function AIReqProjectOverviewPage({
                           <span className="block truncate font-medium">{proposal.title}</span>
                           <span className="mt-1 block text-ui-sm text-foreground-subtle">
                             {zh
-                              ? confirmationTodos
-                                  .filter((todo) => todo.irId === proposal.id)
-                                  .map((todo) => todo.title)
+                              ? confirmations
+                                  .filter((entry) => entry.irId === proposal.id)
+                                  .map((entry) => entry.title)
                                   .join("、")
                               : "Open co-creation"}
                           </span>

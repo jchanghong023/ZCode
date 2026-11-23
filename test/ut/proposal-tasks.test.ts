@@ -8,15 +8,12 @@ import {
   restoreProposalTask,
   proposalNextTask,
   proposalTaskStatus,
-  proposalTaskForTodo,
   proposalTasks,
 } from "../../packages/ui/src/aireq/proposals/proposalTasks.js";
 import {
   proposalTaskUrl,
   readObjectLink,
   selectionFromObjectLink,
-  formalObjectUrl,
-  formalProposalNavigation,
 } from "../../packages/ui/src/aireq/proposalRoutes.js";
 import type { AIReqRequirementGroup, AIReqReview } from "../../packages/ui/src/aireq/contract.js";
 
@@ -208,23 +205,6 @@ describe("independent proposal task navigation", () => {
     agent.report = "";
     expect(proposalTaskStatus(value, "requirementsReview")).toBe("评审失败");
   });
-
-  it("opens the role confirmation, step retry and delivery pages from their todos", () => {
-    expect(
-      proposalTaskForTodo({ kind: "alignment", selection: { proposalStep: "solution" } }),
-    ).toBe("solutionReview");
-    expect(
-      proposalTaskForTodo({ kind: "failure", selection: { proposalStep: "requirements-review" } }),
-    ).toBe("requirementsReview");
-    expect(proposalTaskForTodo({ kind: "failure", selection: { proposalStep: "solution" } })).toBe(
-      "solutionReview",
-    );
-    expect(proposalTaskForTodo({ kind: "failure", selection: {} })).toBe("delivery");
-    expect(proposalTaskForTodo({ kind: "publish", selection: {} })).toBe("delivery");
-    expect(
-      proposalTaskForTodo({ kind: "failure", srId: "sr", selection: { formalView: "detail" } }),
-    ).toBeUndefined();
-  });
 });
 
 describe("promoted proposal navigation", () => {
@@ -238,42 +218,9 @@ describe("promoted proposal navigation", () => {
   };
   it("keeps object identity but drops ended task and reviewer on formal reload", () => {
     const target = selectionFromObjectLink(link, true);
-    expect(target).toEqual({ projectId: "p", irId: "ir", srId: "sr", formalView: "detail" });
-    const url = formalObjectUrl(
-      proposalTaskUrl("https://example.test/", target, "r", link.task).toString(),
-      target,
-      "r",
-    );
-    expect(readObjectLink(url)).toEqual({ projectId: "p", releaseId: "r", irId: "ir", srId: "sr" });
+    expect(target).toEqual({ projectId: "p", irId: "ir", srId: "sr" });
+    const url = proposalTaskUrl("https://example.test/", target, "r", link.task);
+    expect(readObjectLink(url.toString())).toMatchObject({ srId: "sr", task: link.task });
     expect(selectionFromObjectLink(link, false).reviewAgent).toBe("c");
-  });
-  it("normalizes only a promoted IR while preserving history and source", () => {
-    const previous = {
-      index: 3,
-      extent: 4,
-      mainView: "chat" as const,
-      requirementView: "proposals" as const,
-      requirementReturnView: "proposals" as const,
-      proposalTask: link.task,
-      overlay: null,
-      overviewOrigin: { projectId: "p", releaseId: "r" },
-    };
-    const target = { projectId: "p", irId: "ir" };
-    const next = formalProposalNavigation(previous, target, { groups: [group()] });
-    expect(next).toEqual({
-      ...previous,
-      requirementView: "formal",
-      requirementReturnView: null,
-      proposalTask: "overview",
-    });
-    expect(formalProposalNavigation(previous, target, { groups: [] })).toBeNull();
-    expect(
-      formalProposalNavigation(previous, { projectId: "other", irId: "ir" }, { groups: [group()] }),
-    ).toBeNull();
-    expect(
-      formalProposalNavigation({ ...previous, requirementView: "formal" }, target, {
-        groups: [group()],
-      }),
-    ).toBeNull();
   });
 });

@@ -1,11 +1,10 @@
+import { isFormalSelection } from "./contract.js";
 import {
   readObjectLink,
   resolveObjectLink,
   withoutObjectLink,
   proposalTaskUrl,
   selectionFromObjectLink,
-  formalObjectUrl,
-  formalProposalNavigation,
 } from "./proposalRoutes.js";
 export { clearAIReqObjectLink } from "./proposalRoutes.js";
 import {
@@ -45,13 +44,10 @@ import type {
 
 import {
   requirementObjectLink,
-  captureRequirementReturnView,
-  restoreRequirementReturnView,
   restoreNavigationOverlay,
   restoreMainView,
   type AIReqNavigationState,
   type NavigationOverlay,
-  type RequirementView,
 } from "./navigationState.js";
 
 const AIReqContext = createContext<AIReqContextValue | null>(null);
@@ -93,8 +89,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     index: 0,
     extent: 0,
     mainView: "projectProgress",
-    requirementView: "formal",
-    requirementReturnView: null,
     proposalTask: "overview",
     overlay: null,
   }));
@@ -122,13 +116,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       target: AIReqWorkflowTarget,
       mainView: WorkspaceMainView,
       overlay: NavigationOverlay = null,
-      requirementView: RequirementView = navigationRef.current.requirementView,
       overviewOrigin?: ProjectOverviewOrigin | null,
       proposalTask: ProposalTask = navigationRef.current.proposalTask,
     ) => {
       const previous = navigationRef.current;
-      // 返回来源属于同一导航 owner；详情内切阶段／设置不能覆盖首次进入来源。
-      const requirementReturnView = captureRequirementReturnView(previous, mainView);
       const candidate = overviewOrigin === undefined ? previous.overviewOrigin : overviewOrigin;
       // 来源只描述当前范围的浏览路径；切范围或回到概览后不能沿用旧来源。
       const origin =
@@ -141,8 +132,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         index: previous.index + 1,
         extent: previous.index + 1,
         mainView,
-        requirementView,
-        requirementReturnView,
         proposalTask,
         overlay,
         overviewOrigin: origin,
@@ -157,16 +146,16 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationExtent: next.extent,
           aiReqMainView: mainView,
           aiReqReleaseId: releaseRef.current,
-          aiReqRequirementView: requirementView,
-          aiReqRequirementReturnView: requirementReturnView,
           aiReqProposalTask: proposalTask,
           aiReqOverlay: overlay,
           aiReqOverviewOrigin: origin ?? null,
         },
         "",
-        mainView === "chat" && requirementView === "proposals"
-          ? proposalTaskUrl(window.location.href, target, releaseRef.current, proposalTask)
-          : withoutObjectLink(new URL(window.location.href)),
+        mainView !== "chat"
+          ? withoutObjectLink(new URL(window.location.href))
+          : isFormalSelection(viewRef.current, target)
+            ? requirementObjectLink(window.location.href, target, releaseRef.current)
+            : proposalTaskUrl(window.location.href, target, releaseRef.current, proposalTask),
       );
       navigationRef.current = next;
       setNavigation(next);
@@ -276,7 +265,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const previousReleaseId = releaseRef.current;
       const projectChanged = selectionRef.current.projectId !== value.projectId;
       const snapshot = viewRef.current;
-      const selectedGroup = [...(snapshot?.drafts ?? []), ...(snapshot?.groups ?? [])].find(
+      const selectedGroup = snapshot?.requirements.find(
         (item) => item.projectId === value.projectId && item.id === value.irId,
       );
       // 对象所属版本优先；普通切项目恢复该项目选择，不携带旧项目的范围。
@@ -290,19 +279,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       releaseRef.current = resolved;
       updateReleaseId(resolved);
       if (value.projectId && resolved) projectReleasesRef.current.set(value.projectId, resolved);
-      const requirementView: RequirementView =
-        mainView === "proposals"
-          ? "proposals"
-          : mainView === "formal"
-            ? "formal"
-            : mainView === "chat"
-              ? value.formalView ||
-                viewRef.current?.groups.some(
-                  (item) => item.projectId === value.projectId && item.id === value.irId,
-                )
-                ? "formal"
-                : "proposals"
-              : navigationRef.current.requirementView;
       if (
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
@@ -311,7 +287,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           proposalTask !== navigationRef.current.proposalTask ||
           overviewOrigin !== undefined)
       )
-        recordNavigation(value, mainView, null, requirementView, overviewOrigin, proposalTask);
+        recordNavigation(value, mainView, null, overviewOrigin, proposalTask);
       selectionRef.current = value;
       setSelection(value);
       commandError.current = false;
@@ -363,35 +339,31 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       undefined,
       formal ? "overview" : link.task,
     );
-    window.history.replaceState(
-      window.history.state,
-      "",
-      formal
-        ? formalObjectUrl(
-            initialLinkUrl.current,
-            selectionFromObjectLink(link, true),
-            link.releaseId,
-          )
-        : initialLinkUrl.current,
-    );
+    if (!formal) window.history.replaceState(window.history.state, "", initialLinkUrl.current);
   }, [view, loadedSelection, select]);
   useEffect(() => {
-    const next = formalProposalNavigation(navigationRef.current, selection, view);
-    if (!next) return;
-    // 转正属于同一 IR 生命周期：替换当前导航，避免刷新恢复失效的提案任务。
+    if (
+      navigation.mainView !== "chat" ||
+      !isFormalSelection(view, selection) ||
+      (navigation.proposalTask === "overview" &&
+        !selection.proposalStep &&
+        !selection.discussionPhase &&
+        !selection.reviewAgent &&
+        !new URLSearchParams(window.location.search).has("aireqTask"))
+    )
+      return;
+    // 合入后仍是同一 IR，收口旧任务参数并保留原浏览来源。
+    const target = { projectId: selection.projectId, irId: selection.irId, srId: selection.srId };
+    const next = { ...navigation, proposalTask: "overview" as const };
     navigationRef.current = next;
     setNavigation(next);
     window.history.replaceState(
-      {
-        ...window.history.state,
-        aiReqRequirementView: "formal",
-        aiReqProposalTask: "overview",
-        aiReqRequirementReturnView: null,
-      },
+      { ...window.history.state, aiReqSelection: target, aiReqProposalTask: "overview" },
       "",
-      formalObjectUrl(window.location.href, selection, releaseRef.current),
+      requirementObjectLink(window.location.href, target, releaseRef.current),
     );
-  }, [selection, view, navigation]);
+    select(target, false, "chat", releaseRef.current);
+  }, [selection, view, navigation, select]);
   useEffect(() => {
     if (!historyInitialized.current) {
       // 重连会更换 source；不能再次初始化历史并抹掉当前覆盖层或对象 URL。
@@ -405,8 +377,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationExtent: navigationRef.current.extent,
           aiReqMainView: navigationRef.current.mainView,
           aiReqReleaseId: releaseRef.current,
-          aiReqRequirementView: navigationRef.current.requirementView,
-          aiReqRequirementReturnView: navigationRef.current.requirementReturnView,
           aiReqProposalTask: navigationRef.current.proposalTask,
           aiReqOverlay: navigationRef.current.overlay,
           aiReqOverviewOrigin: navigationRef.current.overviewOrigin ?? null,
@@ -442,8 +412,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqNavigationExtent: 0,
               aiReqMainView: current.mainView,
               aiReqReleaseId: releaseRef.current,
-              aiReqRequirementView: current.requirementView,
-              aiReqRequirementReturnView: current.requirementReturnView,
               aiReqProposalTask: current.proposalTask,
               aiReqOverlay: current.overlay,
               aiReqOverviewOrigin: null,
@@ -484,13 +452,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const nextRelease =
         typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
-      const requirementView: RequirementView =
-        event.state.aiReqRequirementView === "proposals" ? "proposals" : "formal";
       const previous = navigationRef.current;
-      const requirementReturnView = restoreRequirementReturnView(
-        mainView,
-        event.state.aiReqRequirementReturnView,
-      );
       const savedOrigin = event.state.aiReqOverviewOrigin;
       const overviewOrigin: ProjectOverviewOrigin | undefined =
         mainView !== "projectOverview" &&
@@ -505,8 +467,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         index,
         extent: previous.extent,
         mainView,
-        requirementView,
-        requirementReturnView,
         proposalTask: restoreProposalTask(
           event.state.aiReqProposalTask,
           event.state.aiReqSelection,
@@ -522,7 +482,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       );
       releaseRef.current = nextRelease;
       updateReleaseId(nextRelease);
-      select(event.state.aiReqSelection as AIReqWorkflowTarget, false, mainView, nextRelease);
+      const { formalView: _oldFormalView, ...target } = event.state.aiReqSelection as
+        AIReqWorkflowTarget & { formalView?: unknown };
+      select(target, false, mainView, nextRelease);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
@@ -543,7 +505,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           selectionRef.current,
           "proposals",
           { kind: "proposal", draft, fromList: previousView === "proposals" },
-          "proposals",
           overviewOrigin,
         );
       });
@@ -553,7 +514,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const startProposalImport = useCallback(() => {
     navigate(() => {
       // 导入弹窗同样进入历史，后退不能仅移动被弹窗遮住的列表。
-      recordNavigation(selectionRef.current, "proposals", { kind: "proposal-import" }, "proposals");
+      recordNavigation(selectionRef.current, "proposals", { kind: "proposal-import" });
     });
   }, [navigate, recordNavigation]);
   const openSettings = useCallback(() => {
@@ -623,20 +584,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       releaseRef.current = id;
       updateReleaseId(id);
       if (current.projectId) projectReleasesRef.current.set(current.projectId, id);
-      const target = {
-        projectId: current.projectId,
-        ...(current.formalView ? { formalView: "list" as const } : {}),
-      };
-      // Release 切换离开当前 IR，回到对应需求列表；详情不能脱离其所属范围。
-      const mainView =
-        navigationRef.current.mainView === "chat"
-          ? current.formalView ||
-            viewRef.current?.groups.some(
-              (item) => item.projectId === current.projectId && item.id === current.irId,
-            )
-            ? "formal"
-            : "proposals"
-          : navigationRef.current.mainView;
+      const target = { projectId: current.projectId };
+      const mainView = navigationRef.current.mainView === "chat" ? "proposals" : navigationRef.current.mainView;
       recordNavigation(target, mainView);
       select(target, false, mainView);
     },
@@ -645,7 +594,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const objectLink = useCallback(() => {
     const target = selectionRef.current;
     if (!target.projectId || !target.irId) return undefined;
-    const group = [...(viewRef.current?.drafts ?? []), ...(viewRef.current?.groups ?? [])].find(
+    const group = viewRef.current?.requirements.find(
       (item) => item.projectId === target.projectId && item.id === target.irId,
     );
     if (!group) return undefined;
@@ -708,7 +657,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         if (selectionRef.current !== target) return result;
         commandError.current = false;
         if (value.type === "deleteRequirement")
-          select({ projectId: target.projectId }, true, target.formalView ? "formal" : "proposals");
+          select({ projectId: target.projectId }, true, "proposals");
         else if (
           value.type === "submitProposalReview" &&
           result.receipt.status === "completed" &&
@@ -738,8 +687,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         pending,
         selectionReady: Boolean(view && loadedSelection === selection),
         mainView: navigation.mainView,
-        requirementView: navigation.requirementView,
-        requirementReturnView: navigation.requirementReturnView,
         proposalTask: navigation.proposalTask,
         openProposalTask,
         settingsOpen: navigation.overlay?.kind === "settings",

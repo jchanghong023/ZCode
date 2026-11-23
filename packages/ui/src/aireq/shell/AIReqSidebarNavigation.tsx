@@ -1,14 +1,11 @@
-import { useState, type FormEvent } from "react";
 import {
   Folders,
   FolderGit2,
   Tag,
-  Inbox,
   Lightbulb,
-  FileText,
   MessagesSquare,
   LayoutDashboard,
-  UserRoundPlus,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -21,12 +18,7 @@ import {
 import aireqMarkUrl from "@/assets/aireq-mark.png";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
-import { Label } from "@/components/ui/label.js";
-import { Textarea } from "@/components/ui/textarea.js";
-import { getEmployeeId } from "../identity.js";
-import { hasProjectRole, type AIReqMainView, type AIReqProjectRole } from "../contract.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
+import type { AIReqMainView } from "../contract.js";
 
 type SidebarPage = {
   view: AIReqMainView;
@@ -48,17 +40,7 @@ const workspacePages = [
     icon: LayoutDashboard,
   },
   { view: "proposals", label: "需求共创", labelEn: "Co-creation", icon: MessagesSquare },
-  { view: "formal", label: "正式文档", labelEn: "Formal documents", icon: FileText },
-  { view: "todos", label: "版本待办", labelEn: "Release todos", icon: Inbox },
 ] satisfies SidebarPage[];
-
-const roleLabel = { development: "开发", testing: "测试" } as const;
-const statusLabel = {
-  pending: "待审批",
-  approved: "已授权",
-  rejected: "未通过",
-  revoked: "已撤销",
-};
 
 export function AIReqSidebarNavigation() {
   const ai = useAIReq()!;
@@ -66,14 +48,8 @@ export function AIReqSidebarNavigation() {
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
-  const formal = Boolean(
-    ai.selection.formalView ||
-    ai.view?.groups.some(
-      (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
-    ),
-  );
-  const selected = ai.mainView === "chat" ? (formal ? "formal" : "proposals") : ai.mainView;
-  // 角色申请在页面内选择项目，无需沿用侧栏的项目和 Release 范围。
+  const selected = ai.mainView === "chat" ? "proposals" : ai.mainView;
+  // 角色管理在页面内选择项目，无需沿用侧栏的项目和 Release 范围。
   const inWorkspace = selected !== "roles" && globalPages.every((page) => page.view !== selected);
   const renderPage = ({ view, label, labelEn, icon: Icon }: SidebarPage) => (
     <Button
@@ -230,236 +206,11 @@ export function AIReqSidebarNavigation() {
       <div className="shrink-0 px-3 pb-2">
         {renderPage({
           view: "roles",
-          label: "角色申请",
-          labelEn: "Role access",
-          icon: UserRoundPlus,
+          label: "角色管理",
+          labelEn: "Role management",
+          icon: Users,
         })}
       </div>
     </>
-  );
-}
-
-export function AIReqRolesPage() {
-  const ai = useAIReq()!;
-  const [chosenProject, setChosenProject] = useState<string>();
-  const [roles, setRoles] = useState<AIReqProjectRole[]>([]);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState("");
-  const employee = getEmployeeId();
-  const projects = ai.view?.projects ?? [];
-  const projectId = chosenProject ?? ai.selection.projectId ?? projects[0]?.id ?? "";
-  const project = projects.find((item) => item.id === projectId);
-  const records = ai.view?.roleRegistrations ?? [];
-  const mine = records.filter((entry) => entry.employeeId === employee);
-  const projectRecords = records.filter((entry) => entry.projectId === projectId);
-  const roleStatus = (role: AIReqProjectRole) => {
-    if (hasProjectRole(ai.view, project?.id, employee, role)) return "approved";
-    return mine.find(
-      (entry) => entry.projectId === projectId && entry.role === role && entry.status === "pending",
-    )?.status;
-  };
-  const selectedRoles = roles.filter((role) => !roleStatus(role));
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!project || !selectedRoles.length || busy) return;
-    setBusy(true);
-    setFeedback("");
-    try {
-      if (
-        await ai.command({ type: "requestProjectRoles", projectId, roles: selectedRoles, note })
-      ) {
-        setRoles([]);
-        setNote("");
-        setFeedback("角色申请已提交，等待管理员审批。");
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-  const decide = async (registrationId: string, decision: "approved" | "rejected" | "revoked") => {
-    if (busy) return;
-    setBusy(true);
-    setFeedback("");
-    try {
-      if (await ai.command({ type: "decideProjectRole", projectId, registrationId, decision }))
-        setFeedback("角色记录已更新。");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-      <div className={AIREQ_PAGE_CONTENT_CLASSNAME + " space-y-7"}>
-        <header className="space-y-1">
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>角色申请</h1>
-          <p className="text-ui-sm text-foreground-subtle">
-            工号 {employee} ·{" "}
-            {ai.view?.roleAdministrator
-              ? "管理员默认拥有业务、开发和测试权限。"
-              : "默认拥有业务权限。开发与测试权限按项目审批。"}
-          </p>
-        </header>
-        <form onSubmit={(event) => void submit(event)} className="max-w-lg space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="role-project">项目</Label>
-            <Select
-              value={project?.id ?? ""}
-              disabled={busy || !projects.length}
-              onValueChange={(value) => {
-                setChosenProject(value);
-                setRoles([]);
-                setFeedback("");
-              }}
-            >
-              <SelectTrigger id="role-project" className="w-full">
-                <SelectValue placeholder={ai.pending ? "正在读取项目…" : "选择项目"} />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <fieldset>
-            <legend className="mb-2 font-medium">申请角色（可多选）</legend>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {(["development", "testing"] as const).map((role) => {
-                const status = roleStatus(role);
-                return (
-                  <Label key={role} className="min-h-8 gap-2">
-                    <Checkbox
-                      checked={selectedRoles.includes(role)}
-                      disabled={busy || !project || Boolean(status)}
-                      onCheckedChange={(checked) =>
-                        setRoles((current) =>
-                          checked === true
-                            ? [...current, role]
-                            : current.filter((item) => item !== role),
-                        )
-                      }
-                    />
-                    {roleLabel[role]}
-                    {status && (
-                      <span className="text-ui-sm text-foreground-subtle">
-                        {statusLabel[status]}
-                      </span>
-                    )}
-                  </Label>
-                );
-              })}
-            </div>
-          </fieldset>
-          <div className="space-y-1.5">
-            <Label htmlFor="role-note">申请说明（选填）</Label>
-            <Textarea
-              id="role-note"
-              value={note}
-              maxLength={300}
-              disabled={busy}
-              rows={2}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={busy || !ai.selectionReady || !project || !selectedRoles.length}
-          >
-            提交申请
-          </Button>
-          <p role="status" className="text-ui-sm text-foreground-subtle">
-            {feedback}
-          </p>
-        </form>
-        <section className="space-y-2">
-          <h2 className="text-ui-lg font-medium">我的申请</h2>
-          {mine.length ? (
-            <ul className="divide-y divide-border rounded-lg border border-card-border bg-card px-4">
-              {mine.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-3">
-                  <span>
-                    {projects.find((item) => item.id === entry.projectId)?.name ?? entry.projectId}{" "}
-                    · {roleLabel[entry.role]}
-                  </span>
-                  <span className="text-ui-sm text-foreground-subtle">
-                    {statusLabel[entry.status]}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-ui-sm text-foreground-subtle">暂无角色申请。</p>
-          )}
-        </section>
-        {ai.view?.roleAdministrator && (
-          <section className="space-y-2">
-            <h2 className="text-ui-lg font-medium">角色管理</h2>
-            <p className="text-ui-sm text-foreground-subtle">
-              当前项目 · {project?.name ?? "请选择项目"}
-            </p>
-            {projectRecords.length ? (
-              <ul className="divide-y divide-border rounded-lg border border-card-border bg-card px-4">
-                {projectRecords.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <p className="font-medium">
-                        {entry.employeeId} · {roleLabel[entry.role]} · {statusLabel[entry.status]}
-                      </p>
-                      {entry.note && (
-                        <p className="wrap-anywhere text-ui-sm text-foreground-subtle">
-                          {entry.note}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {entry.status === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => void decide(entry.id, "approved")}
-                            aria-label={entry.employeeId + " 批准" + roleLabel[entry.role]}
-                          >
-                            批准
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => void decide(entry.id, "rejected")}
-                            aria-label={entry.employeeId + " 拒绝" + roleLabel[entry.role]}
-                          >
-                            拒绝
-                          </Button>
-                        </>
-                      )}
-                      {entry.status === "approved" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => void decide(entry.id, "revoked")}
-                          aria-label={entry.employeeId + " 撤销" + roleLabel[entry.role]}
-                        >
-                          撤销授权
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-ui-sm text-foreground-subtle">当前项目暂无角色记录。</p>
-            )}
-          </section>
-        )}
-      </div>
-    </main>
   );
 }

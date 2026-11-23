@@ -23,7 +23,7 @@ export function getProposal(
   remote: AIReqRemoteWorkflow,
   target: ProposalTarget,
 ): AIReqRequirementGroup {
-  const group = [...remote.view.drafts, ...remote.view.groups].find(
+  const group = remote.view.requirements.find(
     (item) => item.projectId === target.projectId && item.id === target.irId,
   );
   expect(group, "the created IR should remain readable under its original project").toBeDefined();
@@ -204,38 +204,24 @@ export async function approveOriginalReview(c: STClient, target: ProposalTarget)
     employeeId: c.identity.employeeId,
   });
   expect(group.srIds, "entering the solution stage alone should not split SRs").toEqual([]);
-  const existing =
-    approved.view.roleRegistrations?.filter(
-      (entry) => entry.projectId === target.projectId && entry.status === "approved",
-    ) ?? [];
+  if (approved.view.roleAdministrator) return approved;
+  const employeeId = c.identity.employeeId;
   const roles = (["development", "testing"] as const).filter(
-    (role) => !existing.some((entry) => entry.role === role),
+    (role) =>
+      !approved.view.projectRoleMembers.some(
+        (entry) =>
+          entry.projectId === target.projectId &&
+          entry.employeeId === employeeId &&
+          entry.role === role,
+      ),
   );
   if (!roles.length) return approved;
-  const { view } = await commandAndRead(
-    c,
-    {
-      type: "requestProjectRoles",
-      projectId: target.projectId,
-      roles,
-    },
-    target,
-  );
-  const registrations =
-    view.roleRegistrations?.filter(
-      (entry) => entry.projectId === target.projectId && entry.status === "pending",
-    ) ?? [];
   const admin = await connectST("y00000000");
   try {
-    for (const registration of registrations)
+    for (const role of roles)
       await commandAndRead(
         admin,
-        {
-          type: "decideProjectRole",
-          projectId: target.projectId,
-          registrationId: registration.id,
-          decision: "approved",
-        },
+        { type: "addProjectRoleMember", projectId: target.projectId, employeeId, role },
         target,
       );
   } finally {

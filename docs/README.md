@@ -13,8 +13,8 @@ AIReq 是面向电脑浏览器的纯 Web 应用。用户在项目与 Release 下
 ## 产品与交互
 
 - [从一句业务诉求到正式文档](briefings/requirements-collaboration.md)。梳理提案八阶段的人机分工、FDTH 案例和首次试用。
-- [项目／版本／导航／想法／待办](specs/aireq/section-navigation-and-ideas.md)。
-- [提案流程](specs/aireq/proposals.md)、[正式文档与版本待办](specs/aireq/tracking.md)、[原生会话](specs/aireq/conversation.md)。
+- [项目／版本／导航／想法](specs/aireq/section-navigation-and-ideas.md)。
+- [提案流程](specs/aireq/proposals.md)、[原生会话](specs/aireq/conversation.md)。
 - [AI 配置与 Agent 角色](specs/aireq/tools-settings.md#agent-角色)、[文档格式](specs/aireq/tools-settings.md#文档格式)、[右侧工作区与材料](specs/aireq/unified-side-pane.md)、[动效主题](../DESIGN.md#默认动效主题)。
 
 ## 架构与工程维护

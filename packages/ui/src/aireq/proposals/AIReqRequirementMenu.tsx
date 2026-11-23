@@ -55,7 +55,7 @@ export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }
       (item) => item.irId === group.id || item.irIds?.includes(group.id),
     ) ?? [];
   const sourceGroup = group.sourceIrId
-    ? [...(aireq.view?.groups ?? []), ...(aireq.view?.drafts ?? [])].find(
+    ? aireq.view?.requirements.find(
         (item) => item.id === group.sourceIrId && item.projectId === group.projectId,
       )
     : undefined;

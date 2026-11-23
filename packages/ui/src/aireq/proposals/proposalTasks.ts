@@ -1,7 +1,6 @@
 import type {
   AIReqReviewAgentId,
   AIReqRequirementGroup,
-  AIReqTodo,
   AIReqWorkflowTarget,
 } from "../contract.js";
 import {
@@ -104,31 +103,6 @@ export function proposalTaskParent(task: ProposalTask): ProposalTask {
   return "overview";
 }
 
-/** 提案待办直达处理页；正式 SR 仍使用待办自己的对象地址。 */
-export function proposalTaskForTodo(
-  item: Pick<AIReqTodo, "kind" | "srId" | "selection">,
-): ProposalTask | undefined {
-  if (item.srId) return undefined;
-  switch (item.kind) {
-    case "business-discussion":
-      return "requirements";
-    case "original-review":
-      return "requirementsReview";
-    case "solution":
-      return "solution";
-    case "full-review":
-    case "alignment":
-      return "solutionReview";
-    case "publish":
-      return "delivery";
-    case "failure":
-      if (item.selection.proposalStep === "requirements-review") return "requirementsReview";
-      if (item.selection.proposalStep === "solution") return "solutionReview";
-      return "delivery";
-    default:
-      return undefined;
-  }
-}
 export function proposalNextTask(group: AIReqRequirementGroup): ProposalTask {
   // 八态是业务事实，任务是操作入口；不能用旧阶段字段决定下一步。
   switch (proposalState(group)) {

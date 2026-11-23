@@ -177,7 +177,7 @@ function snapshot(state: WorkflowState, proposal: RequirementGroup): void {
 function recordMaterialConfirmation(
   state: WorkflowState,
   proposal: RequirementGroup,
-  role: Extract<AIReqMaterialHistoryEvent, { type: "confirmation" }>["role"],
+  role: AIReqMaterialHistoryEvent["role"],
   at: string,
   requirementsOnly = false,
 ): void {
@@ -264,7 +264,6 @@ function createProposal(
   );
   proposal.originalText = text;
   proposal.submittedBy = getEmployeeId();
-  proposal.contacts = { business: proposal.submittedBy };
   proposal.sourceIrId = sourceIrId;
   proposal.createdAt = operation.startedAt;
   proposal.origin = suffix ? "import" : "browser";
@@ -298,31 +297,17 @@ export function applyProposalMutation(
     if (run) reviewRuns.push(run);
   };
   switch (action.type) {
-    case "requestProjectRoles":
-      for (const role of action.roles) {
-        (state.roleRegistrations ??= []).push({
-          id: crypto.randomUUID(),
-          projectId,
-          employeeId: getEmployeeId(),
-          role,
-          status: "pending",
-          note: action.note?.trim() || undefined,
-          requestedAt: at,
-        });
-      }
+    case "addProjectRoleMember":
+      state.projectRoleMembers.push({ projectId, employeeId: action.employeeId, role: action.role });
       break;
-    case "decideProjectRole": {
-      const registration = state.roleRegistrations!.find(
-        (entry) => entry.id === action.registrationId && entry.projectId === projectId,
-      )!;
-      registration.status = action.decision;
-      registration.decidedAt = at;
-      registration.decidedBy = getEmployeeId();
+    case "removeProjectRoleMember":
+      state.projectRoleMembers = state.projectRoleMembers.filter(
+        (entry) =>
+          entry.projectId !== projectId ||
+          entry.employeeId !== action.employeeId ||
+          entry.role !== action.role,
+      );
       break;
-    }
-    case "syncFormalDocuments":
-      throw businessRule("Git 同步需要服务端已读取的版本。");
-
     case "importIdeas": {
       if (!action.originalTexts.length || action.originalTexts.some((text) => !text.trim()))
         throw businessRule("导入正文无效，本批未写入任何想法。");
@@ -390,7 +375,6 @@ export function applyProposalMutation(
         );
         item.submittedBy = idea.submittedBy;
         item.createdAt = idea.createdAt;
-        item.contacts = { business: idea.submittedBy };
         item.origin = "browser";
         return item.id;
       });
@@ -471,15 +455,6 @@ export function applyProposalMutation(
         }
       });
       operation.type = "批量导入需求";
-      break;
-    case "assignContacts":
-      proposal!.contacts = { ...action.contacts };
-      proposal!.contactHistory ??= [];
-      proposal!.contactHistory.push({
-        employeeId: getEmployeeId(),
-        at,
-        contacts: { ...action.contacts },
-      });
       break;
     case "deleteRequirement":
       state.groups = state.groups.filter(

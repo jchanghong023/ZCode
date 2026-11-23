@@ -25,25 +25,18 @@ import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./ide
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   DEFAULT_SELECTION,
-  readPrototypeGitDocuments,
   getPrototypeWorkflow,
   getPrototypeProposalPrHandoff,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
   readPrototypeProjectWorkspaces,
   readPrototypeWorkflowRevision,
-  readPrototypeFormalGitTarget,
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
   pollPrototypeProposalMerges,
   notifyPrototypeProjectSettingsChanged,
 } from "./workflow.js";
-import {
-  prototypeChangeRoot,
-  prototypeIrRoot,
-  type GitDocumentReader,
-} from "./proposal-storage.js";
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
@@ -55,9 +48,8 @@ import { modelCatalogOverrides } from "./model-catalog.js";
 const logger = createServiceLogger("aireq");
 const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
 const commands = [
-  "requestProjectRoles",
-  "decideProjectRole",
-  "syncFormalDocuments",
+  "addProjectRoleMember",
+  "removeProjectRoleMember",
   "createIdea",
   "importIdeas",
   "updateIdea",
@@ -66,7 +58,6 @@ const commands = [
   "createRelease",
   "createProposal",
   "importProposals",
-  "assignContacts",
   "runFullReview",
   "confirmAlignment",
   "closeProposalPr",
@@ -97,7 +88,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   private readonly operations = new Map<string, { digest: string; result: AIReqWorkflowResult }>();
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
   private readonly timer: ReturnType<typeof setInterval>;
-  constructor(private readonly readGitDocuments: GitDocumentReader = readPrototypeGitDocuments) {
+  constructor() {
     super();
     remoteOwners.set(this.remote, this);
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
@@ -165,7 +156,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   }
   private workflow(selection: AIReqWorkflowTarget) {
     const view = getPrototypeWorkflow(selection);
-    const proposal = view.drafts.find(
+    const proposal = view.requirements.find(
       (item) => item.projectId === selection.projectId && item.id === selection.irId,
     );
     // 已确认默认视图与显式入库没有 Agent；只在主动查看历史阶段时解析原会话。
@@ -178,8 +169,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return {
       view,
       session:
-        selection.formalView ||
-        view.groups.some((item) => item.id === selection.irId) ||
+        proposal?.merge ||
         selection.srId ||
         intake
           ? undefined
@@ -187,7 +177,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
-  private async command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
+  private command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
     if (!(commands as readonly string[]).includes(action.type))
       throw businessRule("此操作不可用，请刷新页面后重试。");
     if (!action.operationId.trim()) throw businessRule("操作参数无效，请刷新页面后重试。");
@@ -205,24 +195,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     }
     if (revision !== readPrototypeWorkflowRevision())
       throw businessRule("需求版本已变化，请重新读取当前版本。");
-    let gitSnapshot;
-    if (action.type === "syncFormalDocuments") {
-      const { group, project } = readPrototypeFormalGitTarget(action);
-      gitSnapshot = await this.readGitDocuments(project, [
-        prototypeIrRoot(group.id),
-        ...group.srIds.map(prototypeChangeRoot),
-      ]);
-      const concurrent = this.operations.get(key);
-      if (concurrent) {
-        if (concurrent.digest !== digest)
-          throw businessRule("操作编号已被其他请求使用，请重新操作。");
-        return concurrent.result;
-      }
-      if (readPrototypeWorkflowRevision() !== revision)
-        throw businessRule("读取 Git 期间平台文档或权限已变化，请重新同步。");
-    }
     const result = applyPrototypeAction(action, selection, undefined, {
-      gitSnapshot,
       operationId: action.operationId,
     });
     this.operations.set(key, { digest, result: structuredClone(result) });

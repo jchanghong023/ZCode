@@ -161,17 +161,8 @@ export function AIReqProjectDocumentsPage({
                           >
                             <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
                               <span>
-                                {zh ? "正式文档" : "Formal documents"}{" "}
-                                <strong className="font-medium">{release.formalCount}</strong>
-                              </span>
-                              <span>
-                                {release.proposalCount > 0
-                                  ? zh
-                                    ? `提案 ${release.proposalCount}`
-                                    : `Proposals ${release.proposalCount}`
-                                  : zh
-                                    ? "暂无提案"
-                                    : "No proposals"}
+                                {zh ? "需求" : "Requirements"}{" "}
+                                <strong className="font-medium">{release.requirementCount}</strong>
                               </span>
                             </div>
                             <Button

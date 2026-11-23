@@ -72,16 +72,7 @@ export function isCurrentMaterialConfirmed(
     file.path === material.path && file.sha256 === material.sha256 && file.size === material.size;
   if (!group.files.some(matchesFile)) return false;
 
-  if (group.merge) {
-    // Git history records only the paths changed by each accepted sync. A later sync
-    // of another path leaves this file's accepted version in place.
-    const accepted = group.materialHistory?.findLast(
-      ({ event }) =>
-        event?.type === "git-sync" && event.files.some(({ path }) => path === material.path),
-    );
-    // Unchanged paths retain the exact file version verified at intake.
-    return (accepted?.materials ?? group.merge.files).some(matchesFile);
-  }
+  if (group.merge) return group.merge.files.some(matchesFile);
 
   // Approval of requirements covers just the IR; any current alignment covers the
   // full review input. History alone is never evidence of current human approval.

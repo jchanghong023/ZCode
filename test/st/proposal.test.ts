@@ -60,7 +60,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         );
         expect(result.receipt.status, result.receipt.error).toBe("completed");
         const read = await client.read(project.selection);
-        const imported = read.view.drafts.filter((group) =>
+        const imported = read.view.requirements.filter((group) =>
           originalTexts.includes(group.originalText),
         );
         expect(imported).toHaveLength(2);
@@ -83,10 +83,12 @@ describe("proposal business lifecycle through the deployed public API", () => {
           expect(group.requirementsPr).toBeUndefined();
         }
         expect(read.view.srs).toEqual(baseline.view.srs);
-        expect(read.view.groups).toEqual(baseline.view.groups);
+        expect(read.view.requirements.filter((group) => group.merge)).toEqual(
+          baseline.view.requirements.filter((group) => group.merge),
+        );
         const stable = await client.read(project.selection);
         expect(stable.view.revision).toBe(read.view.revision);
-        expect(stable.view.drafts).toEqual(read.view.drafts);
+        expect(stable.view.requirements).toEqual(read.view.requirements);
 
         const mustNotExist = unique("should not survive an invalid batch");
         await expectBusinessRejection(
@@ -100,8 +102,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
           ),
         );
         const refused = await client.read(project.selection);
-        expect(refused.view.drafts).toEqual(read.view.drafts);
-        expect(refused.view.drafts.some((group) => group.originalText === mustNotExist)).toBe(
+        expect(refused.view.requirements).toEqual(read.view.requirements);
+        expect(refused.view.requirements.some((group) => group.originalText === mustNotExist)).toBe(
           false,
         );
         expect(refused.view.revision).toBe(read.view.revision);
@@ -116,7 +118,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         const repeated = await client.command(action, project.selection);
         expect(repeated.receipt.operationId).not.toBe(created.receipt.operationId);
         expect(repeated.irId).toBe(created.irId);
-        const drafts = (await client.read(project.selection)).view.drafts.filter(
+        const drafts = (await client.read(project.selection)).view.requirements.filter(
           (group) => group.originalText === action.originalText,
         );
         expect(drafts.map((group) => group.id)).toEqual([created.irId]);
@@ -184,7 +186,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
             project.selection,
           );
           expect(receipt.receipt.status, receipt.receipt.error).toBe("completed");
-          const imported = (await client.read(project.selection)).view.drafts.find(
+          const imported = (await client.read(project.selection)).view.requirements.find(
             (group) => group.originalText === originalText,
           )!;
           expect(imported).toBeDefined();
@@ -280,7 +282,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
   );
 
   it(
-    "lets a business user return the current requirements review without accepting the old review",
+    "lets a business user return an unconfirmed requirements review without a reason",
     async () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
@@ -302,16 +304,12 @@ describe("proposal business lifecycle through the deployed public API", () => {
         );
         expect(reviewed.view.roleAdministrator).toBe(false);
         expect(
-          reviewed.view.roleRegistrations?.filter((entry) => entry.projectId === target.projectId),
+          reviewed.view.projectRoleMembers.filter((entry) => entry.projectId === target.projectId),
         ).toEqual([]);
         expect(original.humanDecision).toBeUndefined();
-        await expectBusinessRejection(
-          client.command({ type: "returnProposal", reason: "  " }, target.selection),
-        );
-        const reason = "导出验收还须明确引用单元格换行和中文往返无损。";
         const returned = await commandAndRead(
           client,
-          { type: "returnProposal", reason },
+          { type: "returnProposal", reason: "  " },
           {
             ...target,
             selection: { ...target.selection, proposalStep: "solution" },
@@ -319,7 +317,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         );
         const group = getProposal(returned, target);
         expect(group.returnFeedback).toMatchObject({
-          reason,
+          reason: "",
           employeeId: client.identity.employeeId,
         });
         expect(group.returnFeedback?.returnedAt).toBeTruthy();
@@ -529,7 +527,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         });
         expect(frozen.proposalDelivery).not.toHaveProperty("repositoryTarget");
         expect(frozen.proposalDelivery).not.toHaveProperty("simulatedMr");
-        expect(published.view.groups.some((group) => group.id === target.irId)).toBe(false);
+        expect(published.view.requirements.some((group) => group.id === target.irId && group.merge)).toBe(false);
         const repeated = await client.command(publish, target.selection);
         expect(repeated.receipt.operationId).toBe(receipt.receipt.operationId);
         await commandAndRead(
@@ -761,7 +759,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
         );
         expect(changed.alignment ?? []).toEqual([]);
         expect(changed.proposalDelivery).toBeUndefined();
-        expect(rechecked.view.groups.some((group) => group.id === target.irId)).toBe(false);
+        expect(rechecked.view.requirements.some((group) => group.id === target.irId && group.merge)).toBe(false);
         await expectBusinessRejection(
           client.command(
             {
@@ -825,7 +823,7 @@ describe("proposal business lifecycle through the deployed public API", () => {
       await withClient(async (client) => {
         const target = await createProposal(client);
         const before = await client.read(target.selection);
-        const unrelated = before.view.drafts.filter((group) => group.id !== target.irId);
+        const unrelated = before.view.requirements.filter((group) => group.id !== target.irId);
         const result = await client.command(
           { type: "deleteRequirement", projectId: target.projectId, irId: target.irId },
           target.selection,
@@ -833,9 +831,8 @@ describe("proposal business lifecycle through the deployed public API", () => {
         expect(result.receipt.status, result.receipt.error).toBe("completed");
         expect(result.receipt).not.toHaveProperty("deletion");
         const deleted = await client.read({ projectId: target.projectId });
-        expect(deleted.view.drafts.some((group) => group.id === target.irId)).toBe(false);
-        expect(deleted.view.groups.some((group) => group.id === target.irId)).toBe(false);
-        expect(deleted.view.drafts.filter((group) => group.id !== target.irId)).toEqual(unrelated);
+        expect(deleted.view.requirements.some((group) => group.id === target.irId)).toBe(false);
+        expect(deleted.view.requirements.filter((group) => group.id !== target.irId)).toEqual(unrelated);
         expect(deleted.view.srs.filter((sr) => sr.irId === target.irId)).toEqual([]);
       });
     },

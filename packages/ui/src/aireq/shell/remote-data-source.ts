@@ -43,8 +43,8 @@ export async function createRemoteAIReqDataSource(
       snapshot.reviewScopeKey !== JSON.stringify({ ...target, reviewAgent: undefined })
     )
       return undefined;
-    const group = view.drafts.find(
-      (item) => item.id === target.irId && item.projectId === target.projectId,
+    const group = view.requirements.find(
+      (item) => !item.merge && item.id === target.irId && item.projectId === target.projectId,
     );
     const review = [
       group?.originalReview,

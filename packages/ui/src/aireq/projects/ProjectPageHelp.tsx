@@ -17,11 +17,11 @@ export function ProjectPageHelp({ scope }: { scope: "all-projects" | "project-ov
       : "Project overview help";
   const description = allProjects
     ? zh
-      ? "版本卡片显示各 Release 的提案和正式文档数量。进入工作区可查看该版本的需求。"
-      : "Release cards show proposal and formal document counts. Open a workspace to see its requirements."
+      ? "版本卡片显示各 Release 的需求总数。进入工作区可查看该版本的需求。"
+      : "Release cards show the total requirement count. Open a workspace to see its requirements."
     : zh
-      ? "提案完成评审和三方确认后提交文档 PR。合入并核验完整材料后，可从正式文档查阅。"
-      : "Submit a document PR after review and confirmation. Once the merge and materials are verified, they become available in Formal documents.";
+      ? "提案完成评审和三方确认后提交文档 PR。合入并核验完整材料后，可在需求共创查阅已归档需求。"
+      : "Submit a document PR after review and confirmation. Once the merge and materials are verified, the archived requirement is available in Co-creation.";
 
   return (
     // 长说明需稳定阅读；开合与焦点交还原生 Popover，避免离开问号就消失。

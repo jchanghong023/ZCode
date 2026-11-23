@@ -252,5 +252,4 @@ export function completePrototypeProposal(
   if (revision && !revision.completedAt) revision.completedAt = checkedAt;
   state.repositoryHeads[prototypeRepositoryKey(target)] = commit;
   freezePrototypeRequirement(group, "platform", checkedAt);
-  return target;
 }

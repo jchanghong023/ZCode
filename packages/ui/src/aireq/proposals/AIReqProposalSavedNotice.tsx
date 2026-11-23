@@ -19,7 +19,7 @@ export function AIReqProposalSavedNotice({
     !target ||
     target.projectId !== ai.selection.projectId ||
     target.releaseId !== ai.releaseId ||
-    !ai.view?.drafts.some((item) => item.projectId === target.projectId && item.id === target.irId)
+    !ai.view?.requirements.some((item) => !item.merge && item.projectId === target.projectId && item.id === target.irId)
   )
     return null;
   return (

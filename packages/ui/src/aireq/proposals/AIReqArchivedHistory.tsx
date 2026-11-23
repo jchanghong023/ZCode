@@ -165,7 +165,7 @@ function ReviewHistory({
 }
 
 /** 已转正 IR 的历史只观察已有业务会话，不恢复提案写入入口。 */
-export function AIReqFormalHistory() {
+export function AIReqArchivedHistory() {
   const aireq = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -221,8 +221,11 @@ export function AIReqFormalHistory() {
     },
     [workspacePath, workspace.identity],
   );
-  const group = aireq.view?.groups.find(
-    (item) => item.projectId === aireq.selection.projectId && item.id === aireq.selection.irId,
+  const group = aireq.view?.requirements.find(
+    (item) =>
+      item.merge &&
+      item.projectId === aireq.selection.projectId &&
+      item.id === aireq.selection.irId,
   );
   if (!group || !aireq.view)
     return (
