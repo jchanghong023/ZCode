@@ -20,6 +20,7 @@ import {
   unique,
   waitUntil,
 } from "./client.js";
+import { config } from "./config.js";
 import {
   expectNativeLocalCommands,
   expectNativeSkillInput,
@@ -466,68 +467,75 @@ it("shares live chat across anonymous connections and isolates AIReq histories i
   }
 });
 
-it("lists the five most active directories and five most active sessions per directory", async () => {
-  const client = await connectChatST();
-  const service = client.services.zcodeAgentService;
-  try {
-    await initializeNative(service, client.clientId);
-    const [primary, ...otherDirectories] = [
-      "docs",
-      "packages",
-      "test",
-      "scripts",
-      "patches",
-      "config",
-    ];
-    const primarySessions = [];
-    for (let index = 0; index < 6; index++) {
-      // 两种路径指向同一目录，列表按目录事实归组。
-      primarySessions.push(
-        await completeChatSession(
-          client,
-          index === 0 ? `./${primary}` : primary!,
-          `最近会话 ${index}`,
-        ),
-      );
-    }
-    for (const directory of otherDirectories)
-      await completeChatSession(client, directory, `目录 ${directory}`);
-    await createChatSession(client, ".");
-    expect(
-      await client.probeRpc("call", IZCodeAgentService.channelName, "listRecentChatSessions", [
-        { limit: 1 },
-      ]),
-    ).toMatchObject({ code: "INVALID_ARGUMENT" });
-    const before = await service.listRecentChatSessions();
-    expect(before.map(({ sessions }) => sessions[0].workspacePath)).toEqual(
-      [...otherDirectories].reverse(),
-    );
-
-    const oldest = primarySessions[0]!;
-    const native = await openNativeSession(service, client.clientId, oldest.sessionId, oldest);
+// 排名依赖每轮开始与完成的活动时间，13 轮串行执行需要超过全局默认的 120 秒。
+it(
+  "lists the five most active directories and five most active sessions per directory",
+  {
+    timeout: process.env.ST_TIMEOUT_MS ? config.timeoutMs : 180_000,
+  },
+  async () => {
+    const client = await connectChatST();
+    const service = client.services.zcodeAgentService;
     try {
-      requireAccepted(await native.send("sendText", { text: "继续较早的会话" }));
-      await native.waitIdle();
+      await initializeNative(service, client.clientId);
+      const [primary, ...otherDirectories] = [
+        "docs",
+        "packages",
+        "test",
+        "scripts",
+        "patches",
+        "config",
+      ];
+      const primarySessions = [];
+      for (let index = 0; index < 6; index++) {
+        // 两种路径指向同一目录，列表按目录事实归组。
+        primarySessions.push(
+          await completeChatSession(
+            client,
+            index === 0 ? `./${primary}` : primary!,
+            `最近会话 ${index}`,
+          ),
+        );
+      }
+      for (const directory of otherDirectories)
+        await completeChatSession(client, directory, `目录 ${directory}`);
+      await createChatSession(client, ".");
+      expect(
+        await client.probeRpc("call", IZCodeAgentService.channelName, "listRecentChatSessions", [
+          { limit: 1 },
+        ]),
+      ).toMatchObject({ code: "INVALID_ARGUMENT" });
+      const before = await service.listRecentChatSessions();
+      expect(before.map(({ sessions }) => sessions[0].workspacePath)).toEqual(
+        [...otherDirectories].reverse(),
+      );
+
+      const oldest = primarySessions[0]!;
+      const native = await openNativeSession(service, client.clientId, oldest.sessionId, oldest);
+      try {
+        requireAccepted(await native.send("sendText", { text: "继续较早的会话" }));
+        await native.waitIdle();
+      } finally {
+        await native.close();
+      }
+      const after = await service.listRecentChatSessions();
+      expect(after.map(({ sessions }) => sessions[0].workspacePath)).toEqual([
+        oldest.workspacePath,
+        ...[...otherDirectories].reverse().slice(0, 4),
+      ]);
+      for (const group of after) expect(group).not.toHaveProperty("workspacePath");
+      expect(after[0]?.sessions.map((item) => item.sessionId)).toEqual([
+        oldest.sessionId,
+        ...primarySessions
+          .slice(2)
+          .reverse()
+          .map((item) => item.sessionId),
+      ]);
     } finally {
-      await native.close();
+      await client.close();
     }
-    const after = await service.listRecentChatSessions();
-    expect(after.map(({ sessions }) => sessions[0].workspacePath)).toEqual([
-      oldest.workspacePath,
-      ...[...otherDirectories].reverse().slice(0, 4),
-    ]);
-    for (const group of after) expect(group).not.toHaveProperty("workspacePath");
-    expect(after[0]?.sessions.map((item) => item.sessionId)).toEqual([
-      oldest.sessionId,
-      ...primarySessions
-        .slice(2)
-        .reverse()
-        .map((item) => item.sessionId),
-    ]);
-  } finally {
-    await client.close();
-  }
-});
+  },
+);
 
 it("groups an absolute directory with its examples and safely rejects invalid paths", async () => {
   const client = await connectChatST();
