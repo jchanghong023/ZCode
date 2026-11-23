@@ -15,10 +15,9 @@ const steps = [
   {
     title: "添加需求",
     titleEn: "Add a requirement",
-    description:
-      "从项目概览或需求共创新建需求。也可以从想法池转入，或在需求共创导入 CSV 短需求和 Markdown 业务文档。",
+    description: "从「所有项目」打开对应版本的需求共创，即可新建需求。也可从想法池转入。",
     descriptionEn:
-      "Create a request from Project overview or Co-creation. Move ideas from the Ideas pool, or import short requests as CSV and business documents as Markdown.",
+      "From All projects, open a release to create a requirement in Co-creation. You can also move ideas from the Ideas pool.",
   },
   {
     title: "与 Agent 协作",
@@ -77,8 +76,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "「所有项目」和「想法池」跨项目。版本工作区的页面按侧栏所选项目与版本展示。"
-              : "All projects and Ideas span all projects. Workspace pages follow the project and release selected in the sidebar."}
+              ? "「所有项目」和「想法池」跨项目。「需求共创」按侧栏所选项目与版本展示。"
+              : "All projects and Ideas span all projects. Co-creation follows the project and release selected in the sidebar."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh

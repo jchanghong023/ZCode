@@ -1,12 +1,4 @@
-import {
-  Folders,
-  FolderGit2,
-  Tag,
-  Lightbulb,
-  MessagesSquare,
-  LayoutDashboard,
-  Users,
-} from "lucide-react";
+import { Folders, FolderGit2, Tag, Lightbulb, MessagesSquare, Users } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Select,
@@ -32,15 +24,12 @@ const globalPages = [
   { view: "ideas", label: "想法池", labelEn: "Ideas", icon: Lightbulb },
 ] satisfies SidebarPage[];
 
-const workspacePages = [
-  {
-    view: "projectOverview",
-    label: "项目概览",
-    labelEn: "Project overview",
-    icon: LayoutDashboard,
-  },
-  { view: "proposals", label: "需求共创", labelEn: "Co-creation", icon: MessagesSquare },
-] satisfies SidebarPage[];
+const coCreationPage = {
+  view: "proposals",
+  label: "需求共创",
+  labelEn: "Co-creation",
+  icon: MessagesSquare,
+} satisfies SidebarPage;
 
 export function AIReqSidebarNavigation() {
   const ai = useAIReq()!;
@@ -60,7 +49,7 @@ export function AIReqSidebarNavigation() {
       className="h-auto min-h-9 w-full justify-start gap-3 py-2 [@media(max-height:740px)]:min-h-8 [@media(max-height:740px)]:py-1 focus-visible:border-remote-foreground-muted aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:hover:bg-selected"
       aria-current={selected === view ? "page" : undefined}
       data-aireq-motion-nav=""
-      onClick={() => ai.navigate(() => ai.setMainView(view, { fromSidebar: true }))}
+      onClick={() => ai.navigate(() => ai.setMainView(view))}
     >
       <Icon
         className={`size-4 ${selected === view ? "text-foreground" : "text-remote-foreground-muted"}`}
@@ -198,7 +187,7 @@ export function AIReqSidebarNavigation() {
             aria-label={zh ? "版本导航" : "Release navigation"}
             className="min-h-0 space-y-1 overflow-y-auto pb-3 [@media(max-height:740px)]:space-y-0.5"
           >
-            {workspacePages.map(renderPage)}
+            {renderPage(coCreationPage)}
           </nav>
         </section>
       )}

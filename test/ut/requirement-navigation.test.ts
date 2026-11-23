@@ -11,20 +11,22 @@ import {
 
 describe("requirement navigation history", () => {
   it("accepts published main pages and rejects unknown history destinations", () => {
-    expect(restoreMainView("projectOverview")).toBe("projectOverview");
+    expect(restoreMainView("proposals")).toBe("proposals");
     expect(restoreMainView("chat")).toBe("chat");
     expect(restoreMainView("unknown")).toBe("projectProgress");
     expect(restoreMainView({ mainView: "ideas" })).toBe("projectProgress");
   });
 
+  it("restores the former overview as co-creation", () => {
+    expect(restoreMainView("projectOverview")).toBe("proposals");
+  });
+
   it("restores supported overlays without accepting malformed draft records", () => {
     expect(restoreNavigationOverlay({ kind: "settings" })).toEqual({ kind: "settings" });
-    expect(restoreNavigationOverlay({ kind: "proposal-import" })).toEqual({
-      kind: "proposal-import",
+    expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" } })).toEqual({
+      kind: "proposal",
+      draft: { id: "draft" },
     });
-    expect(
-      restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" }, fromList: true }),
-    ).toEqual({ kind: "proposal", draft: { id: "draft" }, fromList: true });
     expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: 7 } })).toBeNull();
     expect(restoreNavigationOverlay({ kind: "unknown" })).toBeNull();
   });

@@ -44,7 +44,6 @@ export {
   AIREQ_SYNC_SCRIPT_ROOT,
   AIREQ_DOCUMENT_PATHS,
   checkMarkdownSections,
-  firstMarkdownTitle,
   fileVersions,
   MATERIAL_KIND_LABELS,
   hasProjectRole,
@@ -66,7 +65,6 @@ export type AIReqMainView =
   | "ideas"
   | "chat"
   | "projectProgress"
-  | "projectOverview"
   | "proposals"
   | "roles"
   | "skillDesign";

@@ -117,6 +117,7 @@ export interface AIReqRequirementGroup {
   originalText: string;
   submittedBy: string;
   documentPath: string;
+  /** 保留已有需求的录入来源。 */
   origin: "local" | "browser" | "import";
   createdAt: string;
   revision: number;
@@ -189,11 +190,6 @@ type AIReqIntent = AIReqCommandBase &
         originalText: string;
         clientDraftId?: string;
         releaseId: string;
-      }
-    | {
-        type: "importProposals";
-        releaseId: string;
-        proposals: { originalText: string; businessDocument?: string }[];
       }
     | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "reviewDocuments"; projectId: string; irId: string; agent: AIReqDiscussionAgent }
