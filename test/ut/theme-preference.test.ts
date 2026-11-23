@@ -1,30 +1,18 @@
 import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import { createZCodeStore } from "../../packages/ui/src/store/index.js";
 
 const html = readFileSync(new URL("../../packages/web/index.html", import.meta.url), "utf8");
-const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-if (!bootstrap) throw new Error("Theme bootstrap script is missing");
-
-function openBrowser(saved: string | null, systemDark = false, storageBlocked = false) {
-  const preferences = new Map(saved === null ? [] : [["zcode-theme", saved]]);
+function openBrowser(saved: string | null = null) {
   const localStorage = {
-    getItem(key: string) {
-      if (storageBlocked) throw new Error("Storage blocked");
-      return preferences.get(key) ?? null;
-    },
-    setItem(key: string, value: string) {
-      if (storageBlocked) throw new Error("Storage blocked");
-      preferences.set(key, value);
-    },
+    getItem: vi.fn((key: string) => (key === "zcode-theme" ? saved : null)),
+    setItem: vi.fn(),
   };
   const classes = new Set<string>();
-  const attributes = new Map<string, string>();
+  const attributes = new Map([["data-zcode-browser-theme-surface", "dark"]]);
   const root = {
     classList: {
-      add: (name: string) => classes.add(name),
       toggle: (name: string, enabled: boolean) => {
         if (enabled) classes.add(name);
         else classes.delete(name);
@@ -34,23 +22,17 @@ function openBrowser(saved: string | null, systemDark = false, storageBlocked = 
     setAttribute: (name: string, value: string) => attributes.set(name, value),
     hasAttribute: (name: string) => attributes.has(name),
   };
-  const meta = {
-    content: "",
-    setAttribute: (_name: string, value: string) => (meta.content = value),
-  };
+  const meta = { content: "" };
   const document = { documentElement: root, querySelector: () => meta };
   const window = {
     localStorage,
-    matchMedia: () => ({ matches: systemDark, addEventListener() {}, removeEventListener() {} }),
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
   };
   vi.stubGlobal("window", window);
   vi.stubGlobal("document", document);
   vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "" }));
   return {
-    paint() {
-      classes.clear();
-      runInNewContext(bootstrap!, { window, document, localStorage });
-    },
+    localStorage,
     appearance: () => ({
       scheme: root.style.colorScheme,
       motion: classes.has("theme-zai-motion"),
@@ -77,32 +59,26 @@ function connection() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("browser theme preference", () => {
-  it.each([
-    [null, false, "zai-motion", "dark"],
-    ["invalid", false, "zai-motion", "dark"],
-    ["zai-motion", false, "zai-motion", "dark"],
-    ["light", true, "zai-light", "light"],
-    ["zai-light", true, "zai-light", "light"],
-    ["dark", false, "zai-dark", "dark"],
-    ["zai-dark", false, "zai-dark", "dark"],
-    ["system", false, "system", "light"],
-    ["system", true, "system", "dark"],
-  ] as const)(
-    "keeps first paint and the workspace in agreement for %s (system dark: %s)",
-    (saved, systemDark, preference, scheme) => {
-      const browser = openBrowser(saved, systemDark);
-      const expected = { scheme, motion: preference === "zai-motion" };
-      browser.paint();
-      expect(browser.appearance()).toEqual(expected);
+  it("starts the browser surface in the motion theme before React loads", () => {
+    const root = html.match(/<html\b[^>]*>/)?.[0];
+    expect(root).toContain('class="dark theme-zai-dark theme-zai-motion"');
+    expect(root).toContain('data-zcode-browser-theme-surface="dark"');
+    expect(root).toContain('style="color-scheme: dark');
+  });
+
+  it.each([null, "light", "zai-dark", "system"])(
+    "ignores the old browser preference %s",
+    (saved) => {
+      const browser = openBrowser(saved);
       const store = createZCodeStore(connection().service);
-      expect(store.getState().theme).toBe(preference);
-      expect(browser.appearance()).toEqual(expected);
+      expect(store.getState().theme).toBe("zai-motion");
+      expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
+      expect(browser.localStorage.getItem).not.toHaveBeenCalledWith("zcode-theme");
     },
   );
 
   it("mirrors a session theme without saving or rebroadcasting it", () => {
-    const browser = openBrowser(null);
-    browser.paint();
+    const browser = openBrowser();
     const client = connection();
     const store = createZCodeStore(client.service);
     const disconnect = store.connectBroadcastService(client.service);
@@ -110,32 +86,33 @@ describe("browser theme preference", () => {
     expect(browser.appearance()).toEqual({ scheme: "light", motion: false });
     expect(client.service.send).not.toHaveBeenCalled();
     disconnect();
-    browser.paint();
+    expect(createZCodeStore(connection().service).getState().theme).toBe("zai-motion");
     expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
   });
 
-  it.each([false, true])(
-    "keeps a local choice on reconnect when storage is blocked: %s",
-    (blocked) => {
-      const browser = openBrowser(null, false, blocked);
-      browser.paint();
-      expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
+  it.each([
+    ["zai-light", "light"],
+    ["zai-dark", "dark"],
+    ["system", "light"],
+  ] as const)(
+    "keeps the current page's %s choice on reconnect and resets on a new load",
+    (theme, scheme) => {
+      const browser = openBrowser("light");
       const initial = connection();
       const store = createZCodeStore(initial.service);
       const disconnect = store.connectBroadcastService(initial.service);
-      store.getState().setTheme("zai-light");
-      expect(browser.appearance()).toEqual({ scheme: "light", motion: false });
+      store.getState().setTheme(theme);
+      expect(browser.appearance()).toEqual({ scheme, motion: false });
+      expect(browser.localStorage.setItem).not.toHaveBeenCalledWith("zcode-theme", theme);
       disconnect();
       const reconnected = connection();
       const disconnectReconnected = store.connectBroadcastService(reconnected.service);
-      reconnected.receiveTheme("zai-dark");
-      expect(browser.appearance()).toEqual({ scheme: "light", motion: false });
+      reconnected.receiveTheme("zai-motion");
+      expect(store.getState().theme).toBe(theme);
+      expect(browser.appearance()).toEqual({ scheme, motion: false });
       disconnectReconnected();
-      browser.paint();
-      expect(browser.appearance()).toEqual({
-        scheme: blocked ? "dark" : "light",
-        motion: blocked,
-      });
+      expect(createZCodeStore(connection().service).getState().theme).toBe("zai-motion");
+      expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
     },
   );
 });

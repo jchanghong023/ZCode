@@ -1,11 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { getSafeLocalStorage, readSafeLocalStorage } from "@/lib/browserEnvironment.js";
 
 export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
 export type ResolvedTheme = "light" | "dark";
 export const DEFAULT_THEME = "zai-motion";
 
-const THEME_STORAGE_KEY = "zcode-theme";
 const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-zcode-browser-theme-surface";
 
 function getSystemTheme(): ResolvedTheme {
@@ -86,29 +84,8 @@ export function isTheme(value: unknown): value is Theme {
   );
 }
 
-export function readStoredThemePreference(): Theme | null {
-  const saved = readSafeLocalStorage(THEME_STORAGE_KEY);
-  return isTheme(saved) ? normalizeThemePreference(saved) : null;
-}
-
-export function readThemePreference(): Theme {
-  return readStoredThemePreference() ?? DEFAULT_THEME;
-}
-
-export function persistThemePreference(theme: Theme): boolean {
-  try {
-    const storage = getSafeLocalStorage();
-    if (!storage) return false;
-    storage.setItem(THEME_STORAGE_KEY, theme);
-    return true;
-  } catch {
-    // 拒绝写入时仍保留本标签页的主动选择。
-    return false;
-  }
-}
-
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(readThemePreference);
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
 
   const setTheme = useCallback((t: Theme) => {
     const normalizedTheme = normalizeThemePreference(t);

@@ -24,14 +24,7 @@ import {
   persistTaskNotificationSoundEnabled,
 } from "@/lib/taskNotificationPreferences.js";
 import type { Theme } from "../useTheme.js";
-import {
-  applyTheme,
-  DEFAULT_THEME,
-  isTheme,
-  normalizeThemePreference,
-  persistThemePreference,
-  readStoredThemePreference,
-} from "../useTheme.js";
+import { applyTheme, DEFAULT_THEME, isTheme, normalizeThemePreference } from "../useTheme.js";
 
 import {
   INTERFACE_MODE_STORAGE_KEY,
@@ -151,9 +144,7 @@ export function createZCodeStore(
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
   let applyingBroadcast = false;
-  const initialThemePreference = readStoredThemePreference();
-  let lastLocalTheme = initialThemePreference;
-  let unsavedLocalTheme: Theme | null = null;
+  let localThemeChoice: Theme | null = null;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
@@ -170,12 +161,11 @@ export function createZCodeStore(
       writeSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY, interfaceMode);
       set({ interfaceMode });
     },
-    theme: initialThemePreference ?? DEFAULT_THEME,
+    theme: DEFAULT_THEME,
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
       if (!applyingBroadcast) {
-        lastLocalTheme = normalizedTheme;
-        unsavedLocalTheme = persistThemePreference(normalizedTheme) ? null : normalizedTheme;
+        localThemeChoice = normalizedTheme;
       }
       syncSystemThemeListener(normalizedTheme);
       applyTheme(normalizedTheme);
@@ -316,10 +306,8 @@ export function createZCodeStore(
       const state = useStore.getState();
       if (field === "theme" && isTheme(msg.payload)) {
         const theme = normalizeThemePreference(msg.payload);
-        // 同一浏览器其他标签页可能刚保存新选择；其他浏览器的会话广播不能覆盖它。
-        const preferred = unsavedLocalTheme ?? readStoredThemePreference() ?? lastLocalTheme;
-        if (preferred && preferred !== theme) return;
-        lastLocalTheme = preferred;
+        // 当前页面的主动选择优先于会话广播，刷新时随 store 一起重置。
+        if (localThemeChoice && localThemeChoice !== theme) return;
         state.setTheme(theme);
       } else if (
         field === "interfaceMode" &&
