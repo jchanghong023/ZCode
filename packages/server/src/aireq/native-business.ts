@@ -205,21 +205,22 @@ export class AIReqNativeBusiness {
         .map(({ text }) => text.trim())
         .filter(Boolean)
         .join("\n\n");
-      if (!note) {
-        return {
-          commandIds,
-          reply: "本次输入已在当前会话接纳；未生成文字分析或修改材料。",
-          output: { kind: "none" },
-        };
-      }
       if (sessionId.startsWith("prototype-skill-design:")) {
+        if (!note) {
+          return {
+            commandIds,
+            reply: "本次输入已在当前会话接纳；未生成文字分析或修改材料。",
+            output: { kind: "none" },
+          };
+        }
         const discussion = stagePrototypeSkillDiscussion(sessionId, note);
         return { commandIds, reply: discussion.reply, output: { kind: "skill", discussion } };
       }
-      const changes = preparePrototypeNativeDocuments(sessionId, note);
+      const { agent, changes } = preparePrototypeNativeDocuments(sessionId, note);
+      const example = agent === "requirements" ? "请生成需求文档" : "请生成方案材料";
       return {
         commandIds,
-        reply: "本次对话未修改文档。可以继续补充信息，或明确提出需要保存的内容。",
+        reply: `本轮未写入文档。要根据当前需求生成文件，请在输入框发送「${example}」。生成后可在右侧「文档」查看。`,
         output: changes ? { kind: "documents", changes } : { kind: "none" },
       };
     });

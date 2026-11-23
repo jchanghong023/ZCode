@@ -1901,10 +1901,10 @@ function ConversationTimelineImpl({
                       data-index={virtualRow.index}
                       data-v4-turn-unit="true"
                       data-turn-id={unit.turnId}
-                      // virtual history 的子项通过 absolute 定位，父级 padding 不会缩小
-                      // 它们的 containing block；正文响应式内边距必须落在 turn wrapper 自身。
+                      // 绝对定位的历史轮次会占满父列的内边距盒。继承横向留白，
+                      // 让轮次移入历史后仍与最新一轮使用相同的正文边界。
                       className={cn(
-                        "absolute left-0 top-0 w-full",
+                        "absolute left-0 top-0 w-full [padding-inline:inherit]",
                         clearsStatusPanel && CONVERSATION_STATUS_PANEL_TOP_CLEARANCE_CLASS_NAME,
                       )}
                       style={{ transform: `translateY(${virtualRow.start - headerSlotHeight}px)` }}

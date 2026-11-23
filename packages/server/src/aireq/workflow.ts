@@ -13,7 +13,7 @@ import {
   type AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import type { WorkflowState } from "./workflow-state.js";
+import type { NativeDocumentOutput, WorkflowState } from "./workflow-state.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
@@ -206,12 +206,16 @@ export function retryPrototypeWorkflowMaterial(request: AIReqMaterialReadRequest
 export function preparePrototypeNativeDocuments(sessionId: string, text: string) {
   const context = projectNativeContext(state, sessionId);
   if (!context) throw businessRule("会话不属于当前需求。");
-  return stageNativeDocuments(state, context.requirement, context.ref.phase, text);
+  const agent = context.ref.phase;
+  return {
+    agent,
+    changes: text ? stageNativeDocuments(state, context.requirement, agent, text) : undefined,
+  };
 }
 
 export function commitPrototypeNativeDocuments(
   sessionId: string,
-  output: NonNullable<ReturnType<typeof preparePrototypeNativeDocuments>>,
+  output: NativeDocumentOutput,
 ): boolean {
   let changed = false;
   mutatePrototypeWorkflow((next) => {

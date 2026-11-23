@@ -104,6 +104,17 @@ type MockParsedInput =
 // 单次请求可超过物理帧上限，但队列全量投影仍须给逻辑帧的其他字段留空间。
 const CHAT_COMMAND_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 4;
 const CHAT_QUEUE_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 2;
+const MOCK_REASONING_MIN_MS = 3_000;
+const MOCK_TOOL_MIN_MS = 2_000;
+const MOCK_REVIEW_MIN_MS = 5_000;
+
+async function waitForMockStage(startedAt: number, minimumMs: number, signal: AbortSignal) {
+  const deadline = startedAt + minimumMs;
+  for (let remaining = deadline - Date.now(); remaining > 0; remaining = deadline - Date.now()) {
+    await wait(remaining, undefined, { signal });
+  }
+  signal.throwIfAborted();
+}
 
 const AIREQ_COMMANDS: ReadonlySet<CommandType> = new Set([
   "createSession",
@@ -511,6 +522,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       });
     };
     return {
+      reasoningStartedAt: reasoning.createdAt,
       explain: () => {
         const append = "\n\n先整理 Todo，再模拟子代理复核。";
         reasoning = { ...reasoning, text: reasoning.text + append };
@@ -528,6 +540,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         finishReasoning("complete");
         todo = newTool("TodoWrite", todoInput(false));
         this.appendRow(session, todo);
+        return todo.createdAt;
       },
       startReview: () => {
         completed = 1;
@@ -557,6 +570,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           startedAt: agent.startedAt,
         };
         this.appendRow(session, review);
+        return agent.createdAt;
       },
       finishReview: (summaryText: string) => {
         settleReview("success", summaryText);
@@ -661,33 +675,30 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
     try {
       enter(input);
-      if (!this.business || documentReview)
-        work = this.startMockTurnWork(session, turnId, responseId, documentReview);
-      // 只恢复原型展示；保留投递检查点与执行窗口，不改变 steer、跟进及停止语义。
-      await wait(160, undefined, { signal });
-      work?.explain();
-      await wait(160, undefined, { signal });
-      work?.startTodo();
-      await wait(220, undefined, { signal });
+      work = this.startMockTurnWork(session, turnId, responseId, documentReview);
+      await wait(1_000, undefined, { signal });
+      work.explain();
       consumeSteers();
-      work?.startReview();
-      await wait(320, undefined, { signal });
+      await waitForMockStage(work.reasoningStartedAt, MOCK_REASONING_MIN_MS, signal);
+      await waitForMockStage(work.startTodo(), MOCK_TOOL_MIN_MS, signal);
+      consumeSteers();
+      await waitForMockStage(work.startReview(), MOCK_REVIEW_MIN_MS, signal);
       if (!documentReview)
-        work?.finishReview(`原型复核已检查本轮 ${inputs.length} 条输入，未启动真实子代理。`);
+        work.finishReview(`原型复核已检查本轮 ${inputs.length} 条输入，未启动真实子代理。`);
       await wait(160, undefined, { signal });
       if (signal.aborted || session.activeTurn !== owner) return;
       consumeSteers();
       let reply: string;
       if (documentReview) {
         reply = documentReview.settle("completed", documentReview.execute());
-        work?.finishReview(reply);
+        work.finishReview(reply);
       } else if (this.business) {
         const result = this.business.prepareNativeResult(session.sessionId, startedCommands);
         reply = this.business.completeNative(session.sessionId, result);
       } else {
         reply = standaloneReply(inputs);
       }
-      work?.settle("success");
+      work.settle("success");
       this.appendRow(session, {
         kind: "assistantText",
         rowId: this.nextRowId(session),
