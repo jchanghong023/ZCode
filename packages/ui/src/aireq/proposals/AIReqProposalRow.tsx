@@ -16,11 +16,13 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
     activeTab?.selection.projectId === item.projectId &&
     activeTab.selection.irId === item.id &&
     activeTab.releaseId === item.releaseId;
+  const rowRef = useRef<HTMLTableRowElement>(null);
   const focusDocuments = useRef(false);
   useLayoutEffect(() => {
     if (!documentsOpen || !activeTab || !focusDocuments.current) return;
     focusDocuments.current = false;
-    document.getElementById(`aireq-tab-${activeTab.id}`)?.focus();
+    document.getElementById(`aireq-tab-${activeTab.id}`)?.focus({ preventScroll: true });
+    if (rowRef.current) return revealAfterPaneLayout(rowRef.current);
   }, [activeTab, documentsOpen]);
   const employee = getEmployeeId();
   const canUseSolution =
@@ -28,6 +30,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
     hasProjectRole(ai.view, item.projectId, employee, "testing");
   const version = item.documentVersion;
   const confirmation = version?.confirmation;
+  const previousConfirmed = version && !confirmation ? item.documentHistory.at(-1) : undefined;
   const versionStatus = confirmation
     ? zh
       ? "已定版"
@@ -78,7 +81,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         )}
       </p>
       {confirmation && confirmedAt && (
-        <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-ui-sm text-foreground-subtle group-hover/row:text-foreground">
+        <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-ui-sm text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground">
           <span className="whitespace-nowrap">
             {zh ? "确认人" : "Confirmed by"} {confirmation.employeeId}
           </span>
@@ -98,13 +101,21 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
           </time>
         </p>
       )}
+      {previousConfirmed && (
+        <p className="text-ui-sm text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground">
+          {zh ? "上次定版" : "Last confirmed"}{" "}
+          <span className="tabular-nums">V{previousConfirmed.number}</span>
+        </p>
+      )}
     </div>
   );
   return (
     <tr
+      ref={rowRef}
       role="row"
+      aria-current={documentsOpen || undefined}
       data-aireq-motion-row=""
-      className="group/row border-b border-border/50 hover:bg-hover @max-[520px]/conversation:grid"
+      className={`group/row border-b border-border/50 @max-[520px]/conversation:grid ${documentsOpen ? "bg-selected inset-shadow-[2px_0_var(--color-foreground-subtle)]" : "hover:bg-hover"}`}
     >
       <td
         role="cell"
@@ -119,7 +130,7 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         </p>
         {item.originalText !== item.title && (
           <p
-            className="mt-1 line-clamp-2 whitespace-pre-wrap wrap-anywhere text-ui-caption text-foreground-subtle group-hover/row:text-foreground"
+            className="mt-1 line-clamp-2 whitespace-pre-wrap wrap-anywhere text-ui-caption text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground"
             title={item.originalText}
           >
             {item.originalText}
@@ -179,4 +190,60 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
       </td>
     </tr>
   );
+}
+
+function revealAfterPaneLayout(row: HTMLTableRowElement) {
+  const table = row.closest("table");
+  const scrollport = table?.parentElement;
+  if (!table || !scrollport || !["auto", "scroll"].includes(getComputedStyle(scrollport).overflowY))
+    return;
+
+  const controller = new AbortController();
+  let frame = 0;
+  const cancel = () => {
+    controller.abort();
+    cancelAnimationFrame(frame);
+  };
+  for (const event of ["wheel", "pointerdown", "keydown"]) {
+    scrollport.addEventListener(event, cancel, { passive: true, signal: controller.signal });
+  }
+
+  const reveal = () => {
+    if (controller.signal.aborted) return;
+    cancel();
+    if (!row.isConnected || row.closest("[hidden], [inert]")) return;
+    const header = table.tHead;
+    const stickyBottom =
+      header && getComputedStyle(header).position === "sticky"
+        ? header.getBoundingClientRect().bottom
+        : 0;
+    const viewportTop = scrollport.getBoundingClientRect().top + scrollport.clientTop;
+    const top = Math.max(viewportTop, stickyBottom);
+    const bottom = viewportTop + scrollport.clientHeight;
+    const rect = row.getBoundingClientRect();
+    if (rect.top < top || rect.height > bottom - top) {
+      scrollport.scrollBy({ top: rect.top - top, behavior: "instant" });
+    } else if (rect.bottom > bottom) {
+      scrollport.scrollBy({ top: rect.bottom - bottom, behavior: "instant" });
+    }
+  };
+
+  // 右栏宿主在下一帧调整面板尺寸。等布局写入及实际宽度过渡完成后，只定位一次表格内部。
+  frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame(() => {
+      const panels = row
+        .closest("[data-panel]")
+        ?.parentElement?.querySelectorAll(":scope > [data-panel]");
+      const transitions = Array.from(panels ?? []).flatMap((panel) =>
+        panel
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation instanceof CSSTransition && animation.transitionProperty === "flex-grow",
+          ),
+      );
+      void Promise.allSettled(transitions.map((transition) => transition.finished)).then(reveal);
+    });
+  });
+  return cancel;
 }

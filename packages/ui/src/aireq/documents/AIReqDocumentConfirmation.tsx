@@ -12,20 +12,48 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { AIReqDocumentValidation } from "../contract.js";
+import {
+  requirementMaterialName,
+  type AIReqDiscussionAgent,
+  type AIReqDocumentValidation,
+} from "../contract.js";
+
+const englishFileNames = new Map([
+  ["requirements.md", "Business requirements"],
+  ["sr-dependencies.json", "SR dependency manifest"],
+  ["proposal.md", "SR proposal"],
+  ["design.md", "Technical design"],
+  ["spec.md", "SR specification"],
+  ["tasks.md", "Development tasks"],
+  ["test-plan.md", "Test plan"],
+]);
+
+function documentName(path: string, zh: boolean) {
+  const fileName = path.split("/").at(-1) || path;
+  if (!zh) return englishFileNames.get(fileName) ?? fileName;
+  return fileName === "sr-dependencies.json"
+    ? "SR 依赖清单"
+    : (requirementMaterialName(path) ?? fileName);
+}
 
 interface Props {
   canConfirm: boolean;
+  canUseSolution: boolean;
+  requirementsPath: string;
   validateVersion(): Promise<AIReqDocumentValidation>;
   confirmVersion(): Promise<AIReqDocumentValidation | undefined>;
   focusVersion(): void;
+  openRepairAgent(agent: AIReqDiscussionAgent): void;
 }
 
 export function AIReqDocumentConfirmation({
   canConfirm,
+  canUseSolution,
+  requirementsPath,
   validateVersion,
   confirmVersion,
   focusVersion,
+  openRepairAgent,
 }: Props) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -34,15 +62,29 @@ export function AIReqDocumentConfirmation({
   const [busy, setBusy] = useState<"check" | "confirm">();
   const flight = useRef(false);
   const saved = useRef(false);
+  const repairDestination = useRef<AIReqDiscussionAgent>(undefined);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const error = result && "error" in result ? result.error : undefined;
   const validation = result && "issues" in result ? result : undefined;
   const passed = Boolean(validation && !validation.issues.length);
+  const repairActions = [
+    {
+      agent: "requirements",
+      visible: validation?.issues.some(({ path }) => path === requirementsPath),
+      label: zh ? "前往需求 Agent" : "Go to Requirements Agent",
+    },
+    {
+      agent: "solution",
+      visible: canUseSolution && validation?.issues.some(({ path }) => path !== requirementsPath),
+      label: zh ? "前往方案 Agent" : "Go to Solution Agent",
+    },
+  ] as const;
 
   useLayoutEffect(() => {
-    if (open && !passed) cancel.current?.focus();
-  }, [open, passed]);
+    // 复核或重试报告新问题时，原操作可能已移除，焦点回到可用的关闭按钮。
+    if (open && result && !passed) cancel.current?.focus();
+  }, [open, passed, result]);
 
   const run = async (phase: "check" | "confirm") => {
     if (flight.current || !canConfirm) return;
@@ -107,6 +149,10 @@ export function AIReqDocumentConfirmation({
             if (saved.current || !trigger.current) focusVersion();
             else trigger.current.focus();
             saved.current = false;
+            const destination = repairDestination.current;
+            repairDestination.current = undefined;
+            // 等当前弹窗释放焦点后再导航，避免和未保存门禁弹窗抢焦点。
+            if (destination) openRepairAgent(destination);
           }}
         >
           <AlertDialogHeader className="shrink-0">
@@ -158,10 +204,13 @@ export function AIReqDocumentConfirmation({
                     <ul className="divide-y divide-border rounded-lg border border-border">
                       {issues.map(({ path, reason }) => (
                         <li key={path} className="space-y-1 px-3 py-2">
-                          <code className="block wrap-anywhere text-ui-caption">{path}</code>
-                          <p className="wrap-anywhere text-ui-caption text-foreground-subtle">
-                            {reason}
+                          <p className="wrap-anywhere text-ui-base font-medium">
+                            {documentName(path, zh)}
                           </p>
+                          <code className="block font-mono wrap-anywhere text-ui-caption text-foreground-subtle">
+                            {path}
+                          </code>
+                          <p className="wrap-anywhere text-ui-caption">{reason}</p>
                         </li>
                       ))}
                     </ul>
@@ -170,10 +219,26 @@ export function AIReqDocumentConfirmation({
               })}
             </div>
           )}
-          <AlertDialogFooter className="shrink-0">
+          <AlertDialogFooter className="shrink-0 sm:flex-wrap">
             <AlertDialogCancel ref={cancel} aria-disabled={busy !== undefined}>
               {passed ? (zh ? "取消" : "Cancel") : zh ? "关闭" : "Close"}
             </AlertDialogCancel>
+            {repairActions.map(({ agent, visible, label }) =>
+              visible ? (
+                <Button
+                  key={agent}
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    if (flight.current) return;
+                    repairDestination.current = agent;
+                    setOpen(false);
+                  }}
+                >
+                  {label}
+                </Button>
+              ) : null,
+            )}
             {(passed || error) && (
               <AlertDialogAction
                 aria-disabled={busy !== undefined || !canConfirm}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
@@ -16,12 +16,15 @@ export function AIReqCopyDocumentSyncButton({
 }) {
   const { documentSync } = useAIReqDataSource();
   const { writeClipboardText } = usePlatform();
+  const descriptionId = useId();
   const [preview, setPreview] = useState(false);
   const [feedback, setFeedback] = useState<"copied" | "failed">();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
-  const hasConfirmed = item.documentVersion?.confirmation || item.documentHistory.length > 0;
-  const command = hasConfirmed
+  const confirmedVersion = item.documentVersion?.confirmation
+    ? item.documentVersion
+    : item.documentHistory.at(-1);
+  const command = confirmedVersion
     ? documentSyncCommand(
         window.location.href,
         { projectId: item.projectId, irId: item.id, releaseId: item.releaseId },
@@ -29,13 +32,18 @@ export function AIReqCopyDocumentSyncButton({
       )
     : undefined;
   const label = zh ? "复制同步命令" : "Copy sync command";
-  const unavailable = hasConfirmed
-    ? zh
-      ? "同步脚本暂不可用"
-      : "The sync script is unavailable"
-    : zh
-      ? "暂无已定版文档"
-      : "No confirmed documents yet";
+  const description =
+    command && confirmedVersion
+      ? zh
+        ? `当前可同步 V${confirmedVersion.number}，执行时取最新已定版。`
+        : `V${confirmedVersion.number} is available now. Running the command fetches the latest confirmed version.`
+      : confirmedVersion
+        ? zh
+          ? "同步脚本暂不可用"
+          : "The sync script is unavailable"
+        : zh
+          ? "暂无已定版文档"
+          : "No confirmed documents yet";
   const feedbackLabel =
     feedback === "copied"
       ? zh
@@ -60,7 +68,8 @@ export function AIReqCopyDocumentSyncButton({
   return (
     <>
       <Tooltip open={preview || Boolean(feedback)} onOpenChange={setPreview}>
-        <TooltipTrigger asChild>
+        {/* 按钮关联常驻说明，避免 Radix 在打开预览时把整条命令读作按钮说明。 */}
+        <TooltipTrigger asChild aria-describedby={descriptionId}>
           <Button
             type="button"
             variant="ghost"
@@ -77,6 +86,8 @@ export function AIReqCopyDocumentSyncButton({
         <TooltipContent
           align="end"
           sideOffset={4}
+          aria-label={description}
+          onEscapeKeyDown={() => setFeedback(undefined)}
           className={
             command && !feedback
               ? "max-w-[min(38rem,calc(100vw-2rem))] flex-col items-start gap-1.5 py-2 text-left"
@@ -87,19 +98,22 @@ export function AIReqCopyDocumentSyncButton({
             feedbackLabel
           ) : command ? (
             <>
-              <span className="font-medium">{label}</span>
+              <span className="font-medium">{description}</span>
               <code
-                className="block w-full min-w-0 wrap-anywhere whitespace-pre-wrap"
+                className="block w-full min-w-0 font-mono wrap-anywhere whitespace-pre-wrap"
                 data-testid="document-sync-command-preview"
               >
                 {command}
               </code>
             </>
           ) : (
-            unavailable
+            description
           )}
         </TooltipContent>
       </Tooltip>
+      <span id={descriptionId} hidden>
+        {description}
+      </span>
       <span className="sr-only" role="status">
         {feedback ? feedbackLabel : ""}
       </span>

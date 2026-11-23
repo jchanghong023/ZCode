@@ -25,6 +25,7 @@ import { AIReqProposalRow } from "./AIReqProposalRow.js";
 import { AIReqProposalSavedNotice, type SavedProposal } from "./AIReqProposalSavedNotice.js";
 
 const EMPTY_FILTERS = { query: "", submitter: "all", version: "all" };
+const PAGE_SIZE = 20;
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
@@ -46,6 +47,7 @@ export function AIReqProposalTable() {
   const returnFocus = useRef<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [savedProposal, setSavedProposal] = useState<SavedProposal>();
+  const [locatingProposal, setLocatingProposal] = useState<string>();
   const clarificationAction = useRef<HTMLButtonElement>(null);
   const focusClarificationAfterSave = useRef(false);
   const [focusSavedWhenReady, setFocusSavedWhenReady] = useState(false);
@@ -55,9 +57,11 @@ export function AIReqProposalTable() {
   const { setDraftNavigationGuard } = ai;
   const groups = useMemo(
     () =>
-      (ai.view?.requirements ?? []).filter(
-        (item) => item.projectId === ai.selection.projectId && item.releaseId === ai.releaseId,
-      ),
+      (ai.view?.requirements ?? [])
+        .filter(
+          (item) => item.projectId === ai.selection.projectId && item.releaseId === ai.releaseId,
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [ai.view?.requirements, ai.selection.projectId, ai.releaseId],
   );
   const submitters = useMemo(
@@ -70,19 +74,6 @@ export function AIReqProposalTable() {
   useEffect(() => {
     if (!createOpen) setTargetReleaseId(undefined);
   }, [createOpen]);
-  useEffect(() => {
-    if (
-      createOpen ||
-      !focusSavedWhenReady ||
-      !ai.selectionReady ||
-      ai.releaseId !== savedProposal?.releaseId
-    )
-      return;
-    const button = clarificationAction.current;
-    if (!button || button.closest("[hidden], [inert]")) return;
-    setFocusSavedWhenReady(false);
-    button.focus();
-  }, [createOpen, focusSavedWhenReady, savedProposal, ai.releaseId, ai.selectionReady]);
   // 返回同一范围的列表保留筛选。切换项目或 Release 时提交人选项属于新范围。
   useLayoutEffect(() => {
     setFilters(EMPTY_FILTERS);
@@ -122,13 +113,42 @@ export function AIReqProposalTable() {
       (version === "all" ||
         Boolean(item.documentVersion?.confirmation) === (version === "confirmed")),
   );
-  filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
+  const savedItemIndex =
+    savedProposal &&
+    savedProposal.projectId === ai.selection.projectId &&
+    savedProposal.releaseId === ai.releaseId
+      ? groups.findIndex((item) => item.id === savedProposal.irId)
+      : -1;
+  const savedItem = groups[savedItemIndex];
+  const savedItemFilteredOut = savedItem && !filtered.includes(savedItem);
+  useEffect(() => {
+    if (createOpen || !focusSavedWhenReady || !ai.selectionReady || !savedItem) return;
+    const button = clarificationAction.current;
+    if (!button || button.closest("[hidden], [inert]")) return;
+    setFocusSavedWhenReady(false);
+    button.focus();
+  }, [createOpen, focusSavedWhenReady, savedItem, ai.selectionReady]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   useLayoutEffect(() => {
     // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
     if (tableScroll.current) tableScroll.current.scrollTop = 0;
   }, [ai.releaseId, currentPage, search, submitter, version]);
+  useLayoutEffect(() => {
+    const scroller = tableScroll.current;
+    if (!scroller || !locatingProposal) return;
+    setLocatingProposal(undefined);
+    const button = scroller.querySelector<HTMLButtonElement>(
+      `[data-aireq-proposal-entry="${CSS.escape(locatingProposal)}"][data-aireq-agent="requirements"]`,
+    );
+    const row = button?.closest("tr");
+    if (!button || !row) return;
+    const headerHeight = scroller.querySelector("thead")?.offsetHeight ?? 0;
+    // 等筛选与分页完成后定位，滚动只发生在表格内部。
+    scroller.scrollTop +=
+      row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - headerHeight;
+    button.focus({ preventScroll: true });
+  }, [locatingProposal]);
   const ready = releases?.some((release) => release.id === draftReleaseId) ?? false;
   const releaseSelector = (
     <AIReqProposalReleaseField
@@ -201,11 +221,10 @@ export function AIReqProposalTable() {
       <div
         className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex h-full min-h-0 flex-col gap-4 pb-2 lg:pb-2`}
       >
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 @min-[521px]/conversation:items-center">
           <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
           <Button
             ref={createButton}
-            className="ml-auto"
             data-testid="new-requirement"
             disabled={busy}
             onClick={() => {
@@ -216,7 +235,23 @@ export function AIReqProposalTable() {
             {zh ? "新建需求" : "New requirement"}
           </Button>
         </header>
-        <AIReqProposalSavedNotice target={savedProposal} buttonRef={clarificationAction} zh={zh} />
+        {savedProposal && savedItem && (
+          <AIReqProposalSavedNotice
+            target={savedProposal}
+            title={savedItem.title}
+            buttonRef={clarificationAction}
+            zh={zh}
+            onLocate={
+              savedItemFilteredOut
+                ? () => {
+                    setFilters(EMPTY_FILTERS);
+                    setPage(Math.floor(savedItemIndex / PAGE_SIZE));
+                    setLocatingProposal(savedItem.id);
+                  }
+                : undefined
+            }
+          />
+        )}
         <AIReqProposalFilters
           filters={filters}
           submitters={submitters}
@@ -262,9 +297,11 @@ export function AIReqProposalTable() {
               </tr>
             </thead>
             <tbody role="rowgroup" className="@max-[520px]/conversation:block">
-              {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
-                <AIReqProposalRow key={item.id} item={item} zh={zh} />
-              ))}
+              {filtered
+                .slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+                .map((item) => (
+                  <AIReqProposalRow key={item.id} item={item} zh={zh} />
+                ))}
               {!filtered.length && (
                 <tr role="row" className="@max-[520px]/conversation:block">
                   <td

@@ -13,11 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useAIReq } from "../AIReqContext.js";
 import {
   hasProjectRole,
   MATERIAL_KIND_LABELS,
   requirementMaterialName,
+  type AIReqDiscussionAgent,
   type AIReqDocumentValidation,
+  type AIReqDocumentVersion,
   type AIReqMaterialReadRequest,
   type AIReqMaterialView,
   type AIReqWorkflowTarget,
@@ -27,6 +30,7 @@ import { getEmployeeId } from "../identity.js";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { readMaterialSelection } from "../proposals/material-reader.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
+import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqDocumentConfirmation } from "./AIReqDocumentConfirmation.js";
 import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 
@@ -51,6 +55,8 @@ export function AIReqMaterialsPane({
 }: MaterialsPaneProps) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const ai = useAIReq()!;
+  const { fullView, toggleFullView } = useAIReqSidePane();
   const [paneBoundary, setPaneBoundary] = useState<HTMLElement | null>(null);
   const [path, setPath] = useState<string>();
   const [historyVersion, setHistoryVersion] = useState<number>();
@@ -86,21 +92,17 @@ export function AIReqMaterialsPane({
   );
   const confirmation = version?.confirmation;
   const employee = getEmployeeId();
-  const canConfirm =
-    !viewingHistory &&
-    version !== undefined &&
-    !confirmation &&
-    (hasProjectRole(view, group.projectId, employee, "development") ||
-      hasProjectRole(view, group.projectId, employee, "testing"));
-  const confirmationStatus = confirmation
-    ? zh
-      ? "已确认"
-      : "Confirmed"
-    : zh
-      ? "未确认"
-      : "Unconfirmed";
+  const roles = ai.view ?? view;
+  const canUseSolution =
+    hasProjectRole(roles, group.projectId, employee, "development") ||
+    hasProjectRole(roles, group.projectId, employee, "testing");
+  const canConfirm = !viewingHistory && version !== undefined && !confirmation && canUseSolution;
+  const confirmedLabel = zh ? "已定版" : "Confirmed";
+  const unconfirmedLabel = zh ? "未定版" : "Unconfirmed";
+  const formatVersion = ({ number, confirmation }: AIReqDocumentVersion) =>
+    `V${number} · ${confirmation ? confirmedLabel : unconfirmedLabel}`;
   const versionLabel = version
-    ? `V${version.number} · ${confirmationStatus}${viewingHistory ? (zh ? " · 历史版本" : " · History") : ""}`
+    ? `${formatVersion(version)}${viewingHistory ? (zh ? " · 历史版本" : " · History") : ""}`
     : viewingHistory
       ? `V${historyVersion}`
       : zh
@@ -136,6 +138,20 @@ export function AIReqMaterialsPane({
           sha256: material.sha256,
         }
       : undefined;
+  const openRepairAgent = (agent: AIReqDiscussionAgent) => {
+    if (
+      !active ||
+      !versionToolbar.current?.isConnected ||
+      ai.settingsOpen ||
+      ai.selection.projectId !== group.projectId ||
+      ai.releaseId !== releaseId ||
+      (agent === "solution" && !canUseSolution)
+    )
+      return;
+    // 完整视图会隐藏会话，即使目标已是当前会话，也要先让主区恢复可交互。
+    if (fullView) toggleFullView();
+    ai.select({ projectId: group.projectId, irId: group.id, discussionPhase: agent }, releaseId);
+  };
 
   return (
     <section
@@ -173,13 +189,13 @@ export function AIReqMaterialsPane({
                   >
                     <SelectItem value="latest">
                       {zh ? "最新版本" : "Latest version"}
-                      {group.documentVersion && ` · V${group.documentVersion.number}`}
+                      {group.documentVersion && ` · ${formatVersion(group.documentVersion)}`}
                     </SelectItem>
                     {previousVersions
                       .sort((a, b) => b.number - a.number)
                       .map((snapshot) => (
                         <SelectItem key={snapshot.number} value={String(snapshot.number)}>
-                          V{snapshot.number} · {zh ? "已确认" : "Confirmed"}
+                          {formatVersion(snapshot)}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -197,8 +213,11 @@ export function AIReqMaterialsPane({
               {active && (
                 <AIReqDocumentConfirmation
                   canConfirm={canConfirm}
+                  canUseSolution={canUseSolution}
+                  requirementsPath={group.documentPath}
                   validateVersion={validateVersion}
                   confirmVersion={confirmVersion}
+                  openRepairAgent={openRepairAgent}
                   focusVersion={() =>
                     versionToolbar.current
                       ?.querySelector<HTMLElement>("[data-aireq-version-status]")
