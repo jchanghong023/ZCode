@@ -1,35 +1,26 @@
-import type { ProposalTask } from "./proposals/proposalTasks.js";
-import type { AIReqMainView as WorkspaceMainView } from "./contract.js";
 import type {
   AIReqAction,
-  AIReqMaterialReadRequest,
+  AIReqMainView,
   AIReqNativeSessionRef,
   AIReqWorkflowResult,
   AIReqWorkflowTarget,
   AIReqWorkflowView,
 } from "./contract.js";
-
-export type ProposalDraft = { id: string; sourceIrId?: string };
+import type { ProposalDraft } from "./navigationState.js";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
   selection: AIReqWorkflowTarget;
   session?: AIReqNativeSessionRef;
-  mainView: WorkspaceMainView;
-  proposalTask: ProposalTask;
-  openProposalTask(task: ProposalTask, agent?: import("./contract.js").AIReqReviewAgentId): void;
+  mainView: AIReqMainView;
   settingsOpen: boolean;
   openSettings(): void;
   closeSettings(): void;
-  setMainView(value: WorkspaceMainView, options?: { fromSidebar?: boolean }): void;
-  openFromProjectOverview(
-    mainView: "proposals" | "chat",
-    target?: AIReqWorkflowTarget,
-    releaseId?: string,
-  ): void;
+  setMainView(value: AIReqMainView, options?: { fromSidebar?: boolean }): void;
+  openRequirementsFromOverview(): void;
   canReturnToProjectOverview: boolean;
   returnToProjectOverview(): void;
-  startProposalDraft(sourceIrId?: string): void;
+  startProposalDraft(): void;
   startProposalImport(): void;
   proposalDraft: ProposalDraft | null;
   proposalImportOpen: boolean;
@@ -48,10 +39,8 @@ export interface AIReqContextValue {
     mainView?: "projectOverview" | "proposals",
     releaseId?: string,
   ): void;
-  select(value: AIReqWorkflowTarget, releaseId?: string, task?: ProposalTask): void;
-  objectLink(): string | undefined;
+  select(value: AIReqWorkflowTarget, releaseId?: string): void;
   refresh(): Promise<void>;
-  retryMaterial(request: AIReqMaterialReadRequest): Promise<boolean>;
   retrySession(
     target: AIReqWorkflowTarget,
     sessionId: string,

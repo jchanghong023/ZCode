@@ -1,32 +1,27 @@
 import type { AIReqWorkflowTarget } from "../contract.js";
 
-export type AIReqSidePaneKind = "launcher" | "materials" | "history";
 export interface AIReqSidePaneRequest {
-  kind: AIReqSidePaneKind;
   selection: AIReqWorkflowTarget;
   releaseId: string;
   title: string;
 }
 export interface AIReqSidePaneTab extends AIReqSidePaneRequest {
   id: string;
+  openSequence: number;
 }
-export type AIReqSidePaneGuard = ((next: () => void) => void) | null;
 export interface AIReqSidePaneController {
   tabs: AIReqSidePaneTab[];
   activeTab?: AIReqSidePaneTab;
   isOpen: boolean;
   fullView: boolean;
   recentClosed: AIReqSidePaneTab[];
-  open(target: AIReqSidePaneRequest, options?: { ifAbsent?: boolean }): void;
-  updateTab(id: string, selection: AIReqWorkflowTarget, releaseId?: string): void;
+  open(target: AIReqSidePaneRequest): void;
   activate(id: string): void;
   close(id: string, options?: { others?: boolean }): void;
   closeAll(): void;
-  newTab(): void;
   restore(id: string): void;
   reorder(from: string, to: string): void;
-  toggle(): void;
+  expand(): void;
   collapse(): void;
   toggleFullView(): void;
-  registerGuard(id: string, guard: AIReqSidePaneGuard): void;
 }

@@ -1,19 +1,14 @@
 import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
-import {
-  conversationReadOnlyReason,
-  requirementsReviewCurrent,
-  fullReviewCurrent,
-  proposalVersion,
-  type AIReqIdentity,
-} from "@zcode/services/aireq";
+import type { AIReqIdentity } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
-import type { NativeProposalOutput } from "./proposal-mutations.js";
+import type { NativeDocumentOutput } from "./workflow-state.js";
 import {
-  stagePrototypeNativeMaterials,
-  applyPrototypeAction,
+  preparePrototypeNativeDocuments,
+  commitPrototypeNativeDocuments,
   readPrototypeNativeContext,
-  requireProjectRole,
+  requireSolutionAccess,
+  canAccessSolution,
 } from "./workflow.js";
 import {
   stagePrototypeSkillDiscussion,
@@ -31,13 +26,12 @@ export interface AIReqNativeTurnResult {
   output:
     | { kind: "none" }
     | { kind: "skill"; discussion: StagedSkillDiscussion }
-    | { kind: "proposal"; note: string; materials: NativeProposalOutput };
+    | { kind: "documents"; changes: NativeDocumentOutput };
 }
 
 interface NativeExecutionSnapshot {
   text: string;
   effectiveText: string;
-  version?: string;
   modelSelection?: ModelSelection;
   promptSnapshot: string;
 }
@@ -72,7 +66,7 @@ export class AIReqNativeBusiness {
   }
   isPublishedNativeSession(sessionId: string): boolean {
     // 资格只取同 owner 当前 canonical 引用；热路径不应按每个项目重复构建工作流投影。
-    return readPrototypeNativeContext(sessionId)?.published === true;
+    return readPrototypeNativeContext(sessionId) !== undefined;
   }
   getNativeBinding(sessionId: string) {
     const draft = this.nativeDrafts.get(sessionId);
@@ -82,12 +76,34 @@ export class AIReqNativeBusiness {
     if (prototypeSessionReadIssue(sessionId)) throw businessRule("会话读取失败，请重试。");
     if (sessionId.startsWith("prototype-skill-design:"))
       return prototypeSkillDesignBinding(sessionId);
-    return readPrototypeNativeContext(sessionId)?.ref.runtimeModel;
+    const ref = readPrototypeNativeContext(sessionId)?.ref;
+    if (ref?.phase === "solution") requireSolutionAccess(ref.projectId);
+    return ref?.runtimeModel;
+  }
+  captureNativeReadPermission(sessionId: string): () => boolean {
+    const actor = currentIdentity();
+    if (!actor) return () => false;
+    return () =>
+      withAIReqIdentity(actor, () => {
+        const draft = this.nativeDrafts.get(sessionId);
+        if (sessionId.startsWith("prototype-skill-design:")) {
+          try {
+            assertSkillSession(sessionId);
+            return true;
+          } catch {
+            return false;
+          }
+        }
+        const ref = readPrototypeNativeContext(sessionId)?.ref;
+        if (prototypeSessionReadIssue(sessionId)) return false;
+        if (!ref) return draft?.actor === this.actorKey() && draft.exists();
+        return ref.phase !== "solution" || canAccessSolution(ref.projectId);
+      });
   }
   assertNativeWritable(sessionId: string): void {
     if (!currentIdentity()) throw businessRule("连接身份无效，请重新进入工作区。");
     if (sessionId.startsWith("prototype-skill-design:")) assertSkillSession(sessionId);
-    else this.currentProposal(sessionId);
+    else this.requireDiscussion(sessionId);
   }
   admitNative(sessionId: string, commandId: string, text: string): void {
     const identity = currentIdentity();
@@ -140,52 +156,22 @@ export class AIReqNativeBusiness {
         });
         return;
       }
-      // 前项可在此项等待期间更新材料；开始时冻结一次，完成或重试不能换版本或重读设置。
-      const { proposal, ref } = this.currentProposal(sessionId);
+      // 前项可在此项等待期间更新材料；执行开始时冻结会话指令和本次模型选择。
+      const { ref } = this.requireDiscussion(sessionId);
       this.executionSnapshots.set(key, {
         text,
         effectiveText,
-        version: proposalVersion(proposal),
         modelSelection,
         promptSnapshot: ref.modelConfig?.promptSnapshot ?? "",
       });
     });
   }
-  private currentProposal(sessionId: string) {
-    const target = readPrototypeNativeContext(sessionId, true);
-    if (!target) throw businessRule("会话不属于当前可达 AIReq 业务。");
-    const { ref, draft: proposal } = target;
-    if (ref.phase === "solution") requireProjectRole(ref.projectId, "development");
-    const reason = conversationReadOnlyReason(
-      { requirements: proposal ? [proposal] : [] },
-      {
-        projectId: ref.projectId,
-        irId: ref.irId,
-        srId: ref.srId,
-        discussionPhase: ref.phase === "solution" ? "solution" : "requirements",
-        proposalStep:
-          ref.phase === "solution"
-            ? "solution"
-            : ref.role === "reviewer"
-              ? "requirements-review"
-              : "requirements",
-      },
-      { proposalDiscussion: true },
-    );
-    if (reason) throw businessRule(reason);
-    if (ref.role === "reviewer") {
-      const review = ref.phase === "solution" ? proposal?.review : proposal?.originalReview;
-      if (
-        !proposal ||
-        !(ref.phase === "solution"
-          ? fullReviewCurrent(proposal)
-          : requirementsReviewCurrent(proposal)) ||
-        !review?.agents?.some((agent) => agent.session.sessionId === sessionId)
-      )
-        throw businessRule("历史评审仅供只读查看。");
-    } else if (!proposal || ref.round !== (proposal.proposalRound ?? 1))
-      throw businessRule("当前或历史会话只读，请回到有效讨论阶段。");
-    return { proposal: proposal!, ref };
+  private requireDiscussion(sessionId: string) {
+    const target = readPrototypeNativeContext(sessionId);
+    if (!target || prototypeSessionReadIssue(sessionId))
+      throw businessRule("会话不属于当前可达 AIReq 业务。");
+    if (target.ref.phase === "solution") requireSolutionAccess(target.ref.projectId);
+    return target;
   }
   discardNative(sessionId: string, commandId: string): void {
     const key = JSON.stringify([sessionId, commandId]);
@@ -204,9 +190,7 @@ export class AIReqNativeBusiness {
       if (sessionId.startsWith("prototype-skill-design:")) {
         assertSkillSession(sessionId);
       } else {
-        const { proposal } = this.currentProposal(sessionId);
-        if (execution.version !== proposalVersion(proposal))
-          throw businessRule("当前材料已变化，拒绝迟到的原生业务完成结果。");
+        this.requireDiscussion(sessionId);
       }
     });
     return { actor: admitted.actor, text: execution.effectiveText };
@@ -232,69 +216,35 @@ export class AIReqNativeBusiness {
         const discussion = stagePrototypeSkillDiscussion(sessionId, note);
         return { commandIds, reply: discussion.reply, output: { kind: "skill", discussion } };
       }
-      const { ref, proposal } = this.currentProposal(sessionId);
-      if (ref.role === "reviewer") {
-        return {
-          commandIds,
-          reply: "追问已记录在当前会话；本次未修改需求材料、评审报告或人工决定。",
-          output: { kind: "none" },
-        };
-      }
-      const kind = ref.phase === "solution" ? "solution" : "requirements";
+      const changes = preparePrototypeNativeDocuments(sessionId, note);
       return {
         commandIds,
-        reply: `本轮${kind === "solution" ? "方案" : "需求"}讨论已完成。材料与格式检查结果请在材料区核对。`,
-        output: {
-          kind: "proposal",
-          note,
-          materials: stagePrototypeNativeMaterials(proposal, kind, note),
-        },
+        reply: "本次对话未修改文档。可以继续补充信息，或明确提出需要保存的内容。",
+        output: changes ? { kind: "documents", changes } : { kind: "none" },
       };
     });
   }
 
-  completeNative(sessionId: string, result: AIReqNativeTurnResult): void {
+  completeNative(sessionId: string, result: AIReqNativeTurnResult): string {
     const [firstId, ...steeredIds] = result.commandIds;
     if (!firstId) throw businessRule("本轮没有已执行输入。");
     const first = this.currentExecution(sessionId, firstId);
     for (const id of steeredIds) this.currentExecution(sessionId, id);
     const output = result.output;
-    withAIReqIdentity(first.actor, () => {
+    const reply = withAIReqIdentity(first.actor, () => {
       switch (output.kind) {
         case "none":
           break;
         case "skill":
           commitPrototypeSkillDiscussion(sessionId, output.discussion);
           break;
-        case "proposal": {
-          const { ref, proposal } = this.currentProposal(sessionId);
-          const target = { projectId: ref.projectId, irId: ref.irId };
-          const initial = !proposal.files.some((file) => file.path === proposal.documentPath);
-          const action =
-            output.materials.kind === "solution"
-              ? ({ type: "generateProposalSolution", ...target } as const)
-              : ({
-                  type: initial ? "generateRequirements" : "supplementRequirements",
-                  note: output.note,
-                  ...target,
-                } as const);
-          applyPrototypeAction(action, target, output.materials);
-          break;
-        }
+        case "documents":
+          return commitPrototypeNativeDocuments(sessionId, output.changes)
+            ? "文档已保存。你可以在右侧文档区查看最新版本。"
+            : "当前文档内容没有变化。";
       }
     });
     for (const id of result.commandIds) this.discardNative(sessionId, id);
-  }
-  seedNative(sessionId: string): string | undefined {
-    const target = readPrototypeNativeContext(sessionId, true);
-    if (!target) return undefined;
-    const proposal = target.formal ?? target.draft;
-    const review = [
-      proposal?.originalReview,
-      ...(proposal?.originalReviewHistory ?? []),
-      proposal?.review,
-      ...(proposal?.reviewHistory ?? []),
-    ].find((item) => item?.agents?.some((agent) => agent.session.sessionId === sessionId));
-    return review?.agents?.find((agent) => agent.session.sessionId === sessionId)?.report;
+    return reply ?? result.reply;
   }
 }

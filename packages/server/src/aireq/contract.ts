@@ -9,7 +9,7 @@ export interface AIReqNativeBridge {
   assertNativeWritable(sessionId: string): void;
   /** Validate immutable input actor and current scope before ACK; queueing does not freeze execution. */
   admitNative(sessionId: string, commandId: string, text: string): void;
-  /** Freeze execution input, model, session instructions and business version once after dispatch. */
+  /** Freeze execution input, model, session instructions once after dispatch. */
   beginNative(
     sessionId: string,
     commandId: string,
@@ -20,18 +20,19 @@ export interface AIReqNativeBridge {
   /** Stage structured output without modifying the workflow. */
   prepareNativeResult(sessionId: string, commandIds: readonly string[]): AIReqNativeTurnResult;
   /** Commit only after the original execution is still current. */
-  completeNative(sessionId: string, result: AIReqNativeTurnResult): void;
+  completeNative(sessionId: string, result: AIReqNativeTurnResult): string;
   /** Release a canceled or failed execution's uncommitted input. */
   discardNative(sessionId: string, commandId: string): void;
-  /** Read existing business report, without creating work. */
-  seedNative(sessionId: string): string | undefined;
   /** Session-creation binding snapshot; not current platform defaults. */
   getNativeBinding(sessionId: string): NativeRuntimeModel | undefined;
-  /** Canonical published proposal/history ref only; never provisional drafts or private Skill. */
+  /** Capture the subscribing actor and recheck live role membership for session delivery. */
+  captureNativeReadPermission(sessionId: string): () => boolean;
+  /** Canonical published discussion ref only; never provisional drafts or private Skill. */
   isPublishedNativeSession(sessionId: string): boolean;
   /** Immutable connection actor/client key, used by native attachment admission. */
   actorKey(): string;
 }
+export type { AIReqNativeReviewWork } from "./document-review.js";
 export type MockAIReqOwner = IAIReqService & AIReqNativeBridge;
 export { presenceIP } from "./presence.js";
 export { MockAIReqService, getConnectionServices, registerAIReqConnection } from "./service.js";

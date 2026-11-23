@@ -26,7 +26,7 @@ AIReq 使用当前 ZCode 界面体系：安静、紧凑、可长时间操作的�
 
 业务表格、项目数据及设置行使用卡片底色与边框，粘性表头保持不透明。标题、主要数值及想法池的原始需求用主文字，提案标题下的原文摘要、工号、编号、日期及说明用次级文字；侧栏辅助文字使用 `remote-foreground-muted`。辅助文字在所属卡片和页面表面保持可读对比，不靠缩小字号制造层级。抬升表面（卡片内层面板、行悬停底色）会吃掉对比余量：其上的次级文字按实际合成底色核验 ≥4.5:1，不足时升为主文字或调整表面，不沿用外层卡片的通过结论。
 
-需求评审与方案审查的报告使用 `card` 表面和 `card-border` 边界，外层边距沿用工作区背景。报告正文、独立审查报告及卡片内留白排除指针柔光。
+按需评审结果随原生对话呈现。文档区正文及材料卡片排除指针柔光。
 
 状态色只表达真实状态，不作装饰；surface 与对应 foreground 配对。等待确认使用 interaction-confirmation，不借 success 表示等待。Git 文件状态使用 `git-*`，不借 Diff 或 warning。文件、Skill、命令 mention 使用各自 node 的背景、hover 和前景；Markdown 行内代码使用 `markdown-inline-code`。
 
@@ -60,7 +60,7 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 
 工作台采用 256px 展开侧栏、主区及唯一右侧可调宽工作区。设置使用同宽侧栏和浏览器全页覆盖层，不叠加第二套导航或原生标题栏。右侧多对象、多种类 Tab 的行为见 [统一右侧工作区](docs/specs/aireq/unified-side-pane.md)。
 
-主页与设置正文复用 `SETTINGS_FRAME_CONTENT_CLASSNAME`，在实际剩余面板内居中，`max-w-4xl px-4 lg:px-8`。正文限宽与外层滚动分离，使用稳定双侧滚动槽。右侧展开后聊天、输入器、身份和阶段区域随主区收窄，不按整个浏览器计算偏移。列表与设置共享顶部基线，无概览来源的提案讨论详情不保留列表顶部占位。
+主页与设置正文复用 `SETTINGS_FRAME_CONTENT_CLASSNAME`，在实际剩余面板内居中，`max-w-4xl px-4 lg:px-8`。正文限宽与外层滚动分离，使用稳定双侧滚动槽。右侧展开后聊天、输入器和工具栏随主区收窄，不按整个浏览器计算偏移。列表与设置共享顶部基线，无概览来源的提案讨论详情不保留列表顶部占位。
 
 从项目概览进入的目标页在内容区顶部显示 `← 返回项目概览`，复用现有 48px 留白、正文宽度与双侧滚动槽，保持列表标题和正文起点不动。使用 ghost 按钮、次级文字及既有可见焦点，返回图标与正文左边缘对齐。侧栏直达不显示；普通讨论不增加空占位，仅有概览来源时显示上下文返回带；右侧详情不重复增加返回。
 
@@ -70,7 +70,7 @@ AIReq 主页与设置 h1 共用 `text-ui-settings-title lg:text-ui-settings-titl
 
 电脑窗口缩放时保持组件语义和主操作可达，以 grid、flex、宽度和可见性调整密度。保留的 compact-web 或 mobile-input-safe 兼容样式不构成手机交付要求。
 
-1100 × 700 是窄桌面浏览器的验收尺寸。应能在该尺寸下完成提案澄清、评审确认及归档需求查阅。折叠次要列或让表格局部横滚时，正文保持原字号，主要操作可通过鼠标和键盘到达。侧栏及页面验收见[分区导航](docs/specs/aireq/section-navigation-and-ideas.md#页面与正文)。
+1100 × 700 是窄桌面浏览器的验收尺寸。应能在该尺寸下切换两个 Agent、打开或收起文档区并完成版本确认。折叠次要列或让表格局部横滚时，正文保持原字号，主要操作可通过鼠标和键盘到达。侧栏及页面验收见[分区导航](docs/specs/aireq/section-navigation-and-ideas.md#页面与正文)。
 
 ## Elevation & Depth
 
@@ -168,7 +168,7 @@ Tab 使用紧凑外观及 active／inactive 对比，不用品牌整块填色；
 
 ### Reading and status
 
-Markdown 表格、代码、Mermaid、图片与依赖图复用共享阅读器，材料导出策略见 [只读材料](docs/specs/aireq/unified-side-pane.md#材料阅读)。状态同时有可读文字，不只靠颜色；loading、失败、真正空数据及过期不能互相替代。
+Markdown 表格、代码、Mermaid、图片与依赖图复用共享阅读器，材料导出策略见 [只读材料](docs/specs/aireq/unified-side-pane.md#文档与版本)。状态同时有可读文字，不只靠颜色；loading、失败、真正空数据及过期不能互相替代。
 
 ## Do's and Don'ts
 

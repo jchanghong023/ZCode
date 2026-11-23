@@ -8,6 +8,7 @@ import {
 import { connectST, expectRpcUnavailable, unique } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { createProposal } from "./business.js";
+import { getProposal } from "./proposal-flow.js";
 import { openNative, requireAccepted } from "./native.js";
 
 type STClient = Awaited<ReturnType<typeof connectST>>;
@@ -278,9 +279,7 @@ describe("ST auxiliary public reads", () => {
         ).rejects.toThrow();
         const after = await c.read(created.selection);
         expect(after.session).toEqual(before.session);
-        expect(after.view.sessions.filter((item) => item.projectId === created!.projectId)).toEqual(
-          before.view.sessions.filter((item) => item.projectId === created!.projectId),
-        );
+        expect(getProposal(after, created).sessions).toEqual(getProposal(before, created).sessions);
       } finally {
         try {
           if (created)
@@ -365,11 +364,8 @@ describe("ST auxiliary public reads", () => {
         expect(workflowRoles).toEqual([
           "requirements",
           "requirements-review",
-          "requirements-review-a",
-          "requirements-review-b",
-          "requirements-review-c",
           "solution",
-          "solution-review-summary",
+          "solution-review",
         ]);
         expect(workflowRoles).toEqual(expect.arrayContaining(Object.keys(bootstrap.prompts.saved)));
         const binding = requireConfig(

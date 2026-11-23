@@ -4,24 +4,24 @@ import {
   restoreMainView,
   restoreNavigationOverlay,
 } from "../../packages/ui/src/aireq/navigationState.js";
+import {
+  readObjectLink,
+  selectionFromObjectLink,
+} from "../../packages/ui/src/aireq/proposalRoutes.js";
 
 describe("requirement navigation history", () => {
   it("accepts published main pages and rejects unknown history destinations", () => {
     expect(restoreMainView("projectOverview")).toBe("projectOverview");
     expect(restoreMainView("chat")).toBe("chat");
-    expect(restoreMainView("unknown")).toBe("chat");
-    expect(restoreMainView({ mainView: "ideas" })).toBe("chat");
-  });
-
-  it.each(["development", "testing", "formal", "requirementAnalysis"])("restores retired %s entries to co-creation", (page) => {
-    expect(restoreMainView(page)).toBe("proposals");
+    expect(restoreMainView("unknown")).toBe("projectProgress");
+    expect(restoreMainView({ mainView: "ideas" })).toBe("projectProgress");
   });
 
   it("restores supported overlays without accepting malformed draft records", () => {
     expect(restoreNavigationOverlay({ kind: "settings" })).toEqual({ kind: "settings" });
-    expect(
-      restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft", sourceIrId: "ir" } }),
-    ).toEqual({ kind: "proposal", draft: { id: "draft", sourceIrId: "ir" } });
+    expect(restoreNavigationOverlay({ kind: "proposal-import" })).toEqual({
+      kind: "proposal-import",
+    });
     expect(
       restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" }, fromList: true }),
     ).toEqual({ kind: "proposal", draft: { id: "draft" }, fromList: true });
@@ -41,6 +41,23 @@ describe("requirement object links", () => {
       "https://example.test/app?aireqProject=project-b&aireqRelease=release-b&aireqIr=ir-b&aireqSr=sr-b",
     );
   });
+  it.each(["requirements", "solution"] as const)("round-trips the selected %s Agent", (agent) => {
+    const target = { projectId: "project-a", irId: "ir-a", discussionPhase: agent };
+    const link = requirementObjectLink("https://example.test", target, "release-a");
+    expect(link).toBe(
+      `https://example.test/?aireqProject=project-a&aireqRelease=release-a&aireqIr=ir-a&aireqAgent=${agent}`,
+    );
+    const selection = readObjectLink(link);
+    expect(selection).toEqual({
+      projectId: "project-a",
+      releaseId: "release-a",
+      irId: "ir-a",
+      agent,
+    });
+    if (!selection || selection === "invalid") throw new Error("无法读取 Agent 链接");
+    expect(selectionFromObjectLink(selection)).toEqual(target);
+  });
+
   it("does not create a link for an incomplete target", () => {
     expect(requirementObjectLink("https://example.test", { projectId: "p" }, "r")).toBeUndefined();
     expect(

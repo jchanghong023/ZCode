@@ -12,14 +12,11 @@ import { config, requireConfig } from "./config.js";
 import { createProject, createProposal } from "./business.js";
 import { openNative } from "./native.js";
 import {
-  approveOriginalReview,
-  commandAndRead,
   completeBusinessMaterial,
-  completeSolutionMaterial,
-  discuss,
+  getMaterials,
   getProposal,
-  submitReview,
-  waitForReview,
+  reviewDocuments,
+  reviewInvocation,
 } from "./proposal-flow.js";
 
 // Assertions come from section-navigation-and-ideas.md, tools-settings.md,
@@ -204,7 +201,8 @@ describe("ST global ideas and configuration", () => {
           });
           expect(proposals[0]!.srIds).toEqual([]);
           expect(view.srs.filter((sr) => sr.irId === proposals[0]!.id)).toEqual([]);
-          expect(view.running.filter((session) => session.irId === proposals[0]!.id)).toEqual([]);
+          expect(proposals[0]!.documentVersion).toBeUndefined();
+          expect(proposals[0]!.documentReviews).toEqual([]);
         }
         const retried = await client.command(action);
         expect(retried.receipt.operationId).toBe(transferred.receipt.operationId);
@@ -341,15 +339,10 @@ describe("ST global ideas and configuration", () => {
           original.choices.find((choice) => choice.id !== original.settings.defaultModel),
           "模型配置测试需要至少两个可选正式模型",
         );
-        const reviewers = [
-          "requirements-review-a",
-          "requirements-review-b",
-          "requirements-review-c",
-        ];
         const shared: AIReqAgentModelSettings = {
           defaultModel: alternative.id,
           agents: original.settings.agents.map((agent) =>
-            ["requirements", ...reviewers].includes(agent.id)
+            ["requirements", "solution", "solution-review"].includes(agent.id)
               ? { ...agent, model: "inherit" }
               : agent,
           ),
@@ -416,10 +409,6 @@ describe("ST global ideas and configuration", () => {
             ).rejects.toThrow("操作参数无效，请检查输入并重试。");
           }
           expect((await client.bootstrap()).models).toEqual(owned);
-          expect(
-            owned.settings.agents.find((agent) => agent.id === "requirements-review-a"),
-          ).toEqual(shared.agents.find((agent) => agent.id === "requirements-review-a"));
-
           const after = await createProposal(client);
           const requirementsAgent = next.agents.find((agent) => agent.id === "requirements")!;
           expect(after.remote.session?.modelConfig).toEqual({
@@ -441,33 +430,17 @@ describe("ST global ideas and configuration", () => {
           } finally {
             await native.close();
           }
-          expect((await client.read(before.selection)).session?.modelConfig).toEqual(
-            originalBinding,
-          );
-          await completeBusinessMaterial(client, after);
-          await submitReview(client, after, "original");
-          const { review: requirements } = await waitForReview(client, after, "original");
-          expect(requirements.agents?.[0]?.session.modelConfig).toMatchObject({
-            role: "requirements-review",
-            modelKey: reviewModel.id,
-            inherited: false,
-          });
-          expect(requirements.agents?.[0]?.session).not.toHaveProperty("runtimeModel");
-          expect(requirements.reviewer).not.toHaveProperty("runtimeModel");
-          await approveOriginalReview(client, after);
-          await completeSolutionMaterial(client, after);
-          await submitReview(client, after, "full");
-          const { review: solution } = await waitForReview(client, after, "full");
-          for (const role of reviewers) {
-            expect(
-              solution.agents?.find((agent) => agent.session.modelConfig?.role === role),
-            ).toMatchObject({
-              session: { modelConfig: { role, modelKey: alternative.id, inherited: true } },
-            });
-          }
           expect(
-            solution.agents?.find((agent) => agent.id === "summary")?.session.modelConfig?.role,
-          ).toBe("solution-review-summary");
+            (await client.read({ ...before.selection, discussionPhase: "requirements" })).session
+              ?.modelConfig,
+          ).toEqual(originalBinding);
+          await completeBusinessMaterial(client, after);
+          const { review } = await reviewDocuments(client, after, "requirements");
+          expect(review.agent).toBe("requirements");
+          expect(await reviewInvocation(client, after, review)).toMatchObject({
+            input: { model: reviewModel.name, reasoning: originalReviewer.reasoning },
+          });
+          expect((await client.bootstrap()).models.settings).toEqual(next);
         } finally {
           subscription.dispose();
           await restoreModels(client, original, owned);
@@ -486,8 +459,7 @@ describe("ST global ideas and configuration", () => {
         const role = "requirements-review";
         const before = await createProposal(client);
         await completeBusinessMaterial(client, before);
-        await submitReview(client, before, "original");
-        const { review: historical } = await waitForReview(client, before, "original");
+        const { review: historical } = await reviewDocuments(client, before, "requirements");
         const next = { ...original.saved, [role]: unique("追加指令：必须核对验收依据") };
         let owned: AIReqRemoteBootstrap["prompts"] | undefined;
         let notified = false;
@@ -523,27 +495,19 @@ describe("ST global ideas and configuration", () => {
             ]),
           ).rejects.toThrow();
           expect((await client.bootstrap()).prompts).toEqual(owned);
-          await commandAndRead(
-            client,
-            {
-              type: "returnProposal",
-              target: "requirements",
-              reason: "补充对无导出权限用户的验收条件。",
-            },
-            before,
-          );
-          await discuss(client, before, "补充对无导出权限用户的验收条件。");
-          await submitReview(client, before, "original");
-          const { remote, review: current } = await waitForReview(client, before, "original");
+          const previousMaterials = getMaterials(await client.read(before.selection), before);
+          const { remote, review: current } = await reviewDocuments(client, before, "requirements");
           expect(current.id).not.toBe(historical.id);
-          expect(current.agents?.[0]).toMatchObject({
-            session: { modelConfig: { role, promptSnapshot: next[role] } },
+          expect(current.version).toBe(historical.version);
+          expect(getProposal(remote, before).documentReviews).toEqual(
+            expect.arrayContaining([historical, current]),
+          );
+          expect(getMaterials(remote, before)).toEqual(previousMaterials);
+          expect(await reviewInvocation(client, before, current)).toMatchObject({
+            input: { prompt: expect.stringContaining(next[role]) },
           });
-          expect(current.agents?.[0]).not.toHaveProperty("promptSnapshot");
-          expect(current).not.toHaveProperty("requestedBy");
-          expect(getProposal(remote, before).originalReviewHistory).toContainEqual({
-            ...historical,
-            invalidatedReason: expect.any(String),
+          expect(await reviewInvocation(client, before, historical)).toMatchObject({
+            input: { prompt: expect.not.stringContaining(next[role]) },
           });
         } finally {
           subscription.dispose();

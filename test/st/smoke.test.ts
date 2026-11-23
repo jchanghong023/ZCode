@@ -6,7 +6,7 @@ import { config } from "./config.js";
 // 对接规格：contract-design / connection-identity；这些断言不依赖后端实现种类。
 describe("ST service readiness and connection boundary", () => {
   it(
-    "reads configs and the compatible workflow through the configured HTTP and binary RPC entry",
+    "reads configs and the current workflow through the configured HTTP and binary RPC entry",
     async () => {
       const response = await stFetch("/api/v1/client/configs");
       expect(response.status).toBe(200);
@@ -111,11 +111,15 @@ describe("ST service readiness and connection boundary", () => {
         const navigationTargets = [
           { reviewAgent: "a" },
           { proposalStep: "requirements" },
-          { discussionPhase: "requirements" },
+          { discussionPhase: "solution" },
         ];
         const legacyRequests = [
+          ["readWorkflow", [{ discussionPhase: "review" }]],
+          ["readWorkflow", [{ proposalStep: "solution" }]],
+          ["readWorkflow", [{ reviewAgent: "a" }]],
           ["readWorkflow", [{ materialPath: "requirements.md" }]],
           ["readWorkflow", [{ proposalDraftId: "local-draft" }]],
+          ["validateDocumentVersion", [{ projectId: "p", irId: "ir", version: 1 }]],
           ["retrySession", [{ freeSessionId: "retired" }, "absent-session"]],
           [
             "command",
@@ -130,10 +134,46 @@ describe("ST service readiness and connection boundary", () => {
               revision + 1,
             ],
           ],
-          ...["publishProposal", "closeProposalPr"].map((type) => [
+          ...[
+            "publishProposal",
+            "closeProposalPr",
+            "archiveProposal",
+            "acceptProposal",
+            "confirmAlignment",
+            "submitProposalReview",
+            "returnProposal",
+          ].map((type) => [
             "command",
             [{ type, operationId: unique(), candidate: "old" }, {}, revision],
           ]),
+          [
+            "command",
+            [
+              {
+                type: "confirmDocumentVersion",
+                projectId: "p",
+                irId: "ir",
+                operationId: unique(),
+                version: 1,
+              },
+              {},
+              revision,
+            ],
+          ],
+          [
+            "command",
+            [
+              {
+                type: "reviewDocuments",
+                projectId: "p",
+                irId: "ir",
+                operationId: unique(),
+                agent: "review",
+              },
+              {},
+              revision,
+            ],
+          ],
           ...navigationTargets.map((target) => [
             "command",
             [navigationTargetAction, target, revision],

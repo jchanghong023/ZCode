@@ -2,275 +2,117 @@ import { useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog.js";
-import type { AIReqRequirementGroup } from "../contract.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
-import { AIReqAgentModelSummary } from "./AIReqAgentModelSummary.js";
-import { AIReqDeleteRequirement } from "./AIReqDeleteRequirement.js";
+import type { AIReqRequirementGroup } from "../contract.js";
 
-const operationLabels: Record<string, string> = {
-  createProposal: "创建提案",
-  generateRequirements: "整理需求",
-  supplementRequirements: "补充需求",
-  runRequirementsReview: "重试需求评审",
-  submitProposalReview: "提交评审",
-  acceptProposal: "确认需求评审结果",
-  generateProposalSolution: "方案 Agent 更新材料",
-  returnProposal: "退回业务补充",
-  archiveProposal: "提交需求归档",
-  importProposals: "原子导入提案",
-  runFullReview: "重试方案审查",
-  confirmAlignment: "方案角色确认",
-};
-
-// 同一历史弹窗的时间统一转为北京时间，避免 UTC 原文与本地格式混排。
-function recordTime(value: string) {
-  return `${new Date(value).toLocaleString("zh-CN", {
-    timeZone: "Asia/Shanghai",
-    hour12: false,
-  })}（北京时间）`;
-}
-/** 查看历史只读取已记录事实，不恢复退役的开发、修订或争议写入口。 */
 export function AIReqRequirementMenu({ group }: { group: AIReqRequirementGroup }) {
-  const aireq = useAIReq()!;
-  const [panel, setPanel] = useState<"info" | "history">();
-  const menuTrigger = useRef<HTMLButtonElement>(null);
-  // 原子导入共用一条批次收据，每个新 IR 都需要看到创建来源，而不是归到导入前的选择。
-  const operations =
-    aireq.view?.operations.filter(
-      (item) => item.irId === group.id || item.irIds?.includes(group.id),
-    ) ?? [];
-  const sourceGroup = group.sourceIrId
-    ? aireq.view?.requirements.find(
-        (item) => item.id === group.sourceIrId && item.projectId === group.projectId,
-      )
-    : undefined;
-  if (
-    aireq.selection.projectId !== group.projectId ||
-    aireq.selection.irId !== group.id ||
-    aireq.selection.srId
-  )
-    return null;
+  const ai = useAIReq()!;
+  const { locale } = useZCodeIntl();
+  const zh = locale === "zh-CN";
+  const trigger = useRef<HTMLButtonElement>(null);
+  const inFlight = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const confirmed = Boolean(group.documentVersion?.confirmation || group.documentHistory.length);
+  if (confirmed && !open) return null;
+  const remove = async () => {
+    if (confirmed || inFlight.current) return;
+    inFlight.current = true;
+    setDeleting(true);
+    try {
+      const result = await ai.command({
+        type: "deleteRequirement",
+        projectId: group.projectId,
+        irId: group.id,
+      });
+      if (result?.receipt.status === "completed") setOpen(false);
+    } finally {
+      inFlight.current = false;
+      setDeleting(false);
+    }
+  };
   return (
     <>
-      <AIReqDeleteRequirement
-        group={group}
-        returnFocusRef={menuTrigger}
-        renderTrigger={(openDelete, prohibition) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                ref={menuTrigger}
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-label="更多提案选项"
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" data-testid="proposal-more-menu">
-              <DropdownMenuItem onSelect={() => setPanel("info")}>提案信息</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setPanel("history")}>操作记录</DropdownMenuItem>
-              {openDelete && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={!!prohibition}
-                    title={prohibition}
-                    onSelect={openDelete}
-                  >
-                    <span className="min-w-0">
-                      移除需求
-                      {prohibition && (
-                        <span className="block max-w-64 whitespace-normal break-words text-ui-sm text-foreground-subtle">
-                          {prohibition}
-                        </span>
-                      )}
-                    </span>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      />
-      <Dialog
-        open={!!panel}
-        onOpenChange={(open) => {
-          if (!open) setPanel(undefined);
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={trigger}
+            variant="ghost"
+            size="icon-lg"
+            aria-label={zh ? "更多需求操作" : "More requirement actions"}
+          >
+            <MoreHorizontal className="size-4" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            className="text-destructive-surface-foreground data-highlighted:bg-destructive-surface data-highlighted:text-destructive-surface-foreground"
+            disabled={confirmed}
+            onSelect={() => setOpen(true)}
+          >
+            {zh ? "移除需求" : "Remove requirement"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!inFlight.current) setOpen(next);
         }}
       >
-        <DialogContent
-          className="max-h-[85dvh] overflow-auto sm:max-w-xl"
+        <AlertDialogContent
           onCloseAutoFocus={(event) => {
-            // 菜单项在弹窗打开后已卸载，返回稳定触发器而不是丢到正文根节点。
             event.preventDefault();
-            menuTrigger.current?.focus();
+            trigger.current?.focus();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>{panel === "info" ? "提案信息" : "操作记录"}</DialogTitle>
-            <DialogDescription>{group.title} · 只读，不改变阶段或发送消息。</DialogDescription>
-          </DialogHeader>
-          {panel === "info" ? (
-            <div className="space-y-4 text-ui-sm">
-              <dl className="space-y-3">
-                <div>
-                  <dt className="text-foreground-subtle">提出人</dt>
-                  <dd>{group.submittedBy}</dd>
-                </div>
-                <div>
-                  <dt className="text-foreground-subtle">方案参与人</dt>
-                  <dd>{group.developerAcceptance?.employeeId ?? "尚未记录"}</dd>
-                </div>
-                <div>
-                  <dt className="text-foreground-subtle">需求文件</dt>
-                  <dd className="break-all font-mono">{group.documentPath}</dd>
-                  <p className="mt-2 whitespace-pre-wrap">{group.originalText}</p>
-                  {sourceGroup && <p>关联来源：{sourceGroup.title}</p>}
-                </div>
-              </dl>
-              <AIReqAgentModelSummary
-                binding={aireq.session?.modelConfig ?? group.review?.modelConfig}
-              />
-            </div>
-          ) : (
-            <div className="space-y-4 text-ui-sm" data-testid="proposal-operation-records">
-              {operations.length ? (
-                operations.map((item) => (
-                  <section key={item.operationId} className="space-y-1 border-b border-border pb-3">
-                    <p>
-                      {operationLabels[item.type] ?? (item.type || "其他操作")} ·{" "}
-                      {item.status === "completed"
-                        ? "已完成"
-                        : item.status === "running"
-                          ? "进行中"
-                          : "失败"}
-                    </p>
-                    <p className="text-foreground-subtle">
-                      操作人：{item.actorEmployeeId ?? "未记录"}
-                    </p>
-                    <time dateTime={item.startedAt}>{recordTime(item.startedAt)}</time>
-                    {item.steps.map((step, index) => (
-                      <p key={index} className="text-foreground-subtle">
-                        {step.detail}
-                      </p>
-                    ))}
-                    {item.error && <p className="text-destructive">{item.error}</p>}
-                  </section>
-                ))
-              ) : (
-                <p>暂无操作记录。</p>
-              )}
-              {[
-                ...(group.returnFeedbackHistory ?? []),
-                ...(group.returnFeedback ? [group.returnFeedback] : []),
-              ].map((feedback, index) => (
-                <details key={`${feedback.returnedAt}:${index}`}>
-                  <summary className="cursor-pointer">
-                    退回意见 · {feedback.employeeId} ·{" "}
-                    <time dateTime={feedback.returnedAt}>{recordTime(feedback.returnedAt)}</time> ·{" "}
-                    {feedback.resumedAt ? "已补充" : "待处理"}
-                  </summary>
-                  <p
-                    className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words"
-                    tabIndex={0}
-                  >
-                    {feedback.reason}
-                  </p>
-                </details>
-              ))}
-              {group.rejectedReviewResults?.map((entry, index) => (
-                <section
-                  key={`${entry.reviewId}:${entry.at}:${index}`}
-                  className="space-y-1 break-all"
-                >
-                  <p>旧版本评审结果未采纳</p>
-                  <p>{entry.reason}</p>
-                  <p className="text-foreground-subtle">评审：{entry.reviewId}</p>
-                  <time dateTime={entry.at}>{recordTime(entry.at)}</time>
-                </section>
-              ))}
-              {[...(group.originalReviewHistory ?? []), ...(group.reviewHistory ?? [])].map(
-                (review, index) => (
-                  <details key={`${review.id}:${index}`}>
-                    <summary className="cursor-pointer">
-                      历史评审 · 第 {review.round ?? 1} 轮 · {review.id}
-                    </summary>
-                    <p className="my-2 break-all text-foreground-subtle">
-                      版本 {review.snapshotDigest} ·{" "}
-                      {review.invalidatedReason && (
-                        <span className="block text-destructive">
-                          失效原因：{review.invalidatedReason}
-                        </span>
-                      )}
-                      {review.humanDecision ? (
-                        <>
-                          人工通过 {review.humanDecision.employeeId} ·{" "}
-                          <time dateTime={review.humanDecision.decidedAt}>
-                            {recordTime(review.humanDecision.decidedAt)}
-                          </time>
-                        </>
-                      ) : (
-                        "无当前批准"
-                      )}
-                    </p>
-                    {review.agents?.length ? (
-                      review.agents.map((agent) => (
-                        <details key={agent.id} className="my-2">
-                          <summary className="cursor-pointer">
-                            {agent.name} · {agent.status} · 会话 {agent.session.sessionId}
-                          </summary>
-                          {agent.report?.trim() ? (
-                            <AIReqMarkdownDocument>{agent.report}</AIReqMarkdownDocument>
-                          ) : (
-                            <p role="status">历史报告正文不可用。</p>
-                          )}
-                        </details>
-                      ))
-                    ) : (
-                      <AIReqMarkdownDocument>
-                        {review.report || "历史报告正文不可用。"}
-                      </AIReqMarkdownDocument>
-                    )}
-                  </details>
-                ),
-              )}
-              {[...(group.alignmentHistory ?? []), ...(group.alignment ?? [])].map(
-                (entry, index) => (
-                  <p
-                    key={`${entry.perspective}:${entry.confirmedAt}:${index}`}
-                    className="break-all"
-                  >
-                    {entry.perspective === "business"
-                      ? "业务"
-                      : entry.perspective === "development"
-                        ? "开发"
-                        : "测试"}
-                    视角 · {entry.employeeId} · {recordTime(entry.confirmedAt)} · 版本{" "}
-                    {entry.version}（历史只读）
-                  </p>
-                ),
-              )}
-            </div>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {zh ? `移除需求「${group.title}」？` : `Remove “${group.title}”?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {zh
+                ? "此需求的文档和对话将无法再访问。"
+                : "This requirement's documents and conversations will no longer be available."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {ai.error && (
+            <p className="text-ui-sm text-destructive" role="alert">
+              {ai.error}
+            </p>
           )}
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{zh ? "取消" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              className="border-destructive/40 bg-destructive-surface text-destructive-surface-foreground hover:border-destructive/70 hover:bg-destructive-surface"
+              disabled={deleting || confirmed}
+              onClick={(event) => {
+                event.preventDefault();
+                void remove();
+              }}
+            >
+              {zh ? "确认移除" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

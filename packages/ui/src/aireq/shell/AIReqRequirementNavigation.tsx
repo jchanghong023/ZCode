@@ -21,8 +21,8 @@ export function AIReqRequirementReturnButton() {
     <ControlHintTooltip title={label}>
       <Button
         variant="ghost"
-        size="sm"
-        className="shrink-0 focus-visible:border-remote-foreground-muted"
+        size="icon-lg"
+        data-aireq-agent-back=""
         aria-label={label}
         onClick={() =>
           returnToOverview
@@ -31,43 +31,7 @@ export function AIReqRequirementReturnButton() {
         }
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
-        {label}
       </Button>
     </ControlHintTooltip>
-  );
-}
-
-/** 非材料详情保留对象身份，不提供重复的复制入口。 */
-export function AIReqRequirementContext() {
-  const ai = useAIReq()!;
-  const group = ai.view?.requirements.find(
-    (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
-  );
-  const sr = ai.view?.srs.find(
-    (item) =>
-      item.projectId === ai.selection.projectId &&
-      item.irId === ai.selection.irId &&
-      item.id === ai.selection.srId,
-  );
-  const title = sr?.title ?? group?.title ?? (ai.selection.srId ? "需求规格" : "需求");
-  const subtitle = ai.selection.srId
-    ? "需求规格 · SR"
-    : group?.archive
-      ? "已归档需求 · IR"
-      : group
-        ? "需求提案 · IR"
-        : "只读上下文";
-  return (
-    <div
-      className="shrink-0 space-y-1 border-b border-border/50 px-3 py-2 text-ui-sm"
-      data-testid="aireq-requirement-context"
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-ui-base font-medium" title={title}>
-          {title}
-        </span>
-      </div>
-      <span className="text-ui-sm text-foreground-subtle">{subtitle}</span>
-    </div>
   );
 }

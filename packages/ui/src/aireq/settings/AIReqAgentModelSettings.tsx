@@ -138,11 +138,6 @@ function ModelSettingsContent({
         </p>
         <p>
           {zh
-            ? "方案评审 A、B、C 分别执行，可以跟随同一个工作流默认模型。"
-            : "Solution reviewers A, B and C run separately and can follow the same workflow default model."}
-        </p>
-        <p>
-          {zh
             ? "较高思考强度用于更深入的推理，可能增加耗时；“模型默认”沿用模型预设。"
             : "Higher reasoning levels allow deeper reasoning and may take longer. “Model default” uses the model preset."}
         </p>

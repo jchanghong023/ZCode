@@ -15,8 +15,6 @@ const commandTargetSchema = z
 const workflowTargetSchema = z
   .object({
     ...commandTargetSchema.shape,
-    reviewAgent: z.enum(["a", "b", "c", "summary"]).optional(),
-    proposalStep: z.enum(["requirements", "requirements-review", "solution", "intake"]).optional(),
     discussionPhase: z.enum(["requirements", "solution"]).optional(),
   })
   .strict();
@@ -64,7 +62,6 @@ const actionSchema = z.union([
   action("createRelease", { title: text }),
   action("createProposal", {
     originalText: text,
-    sourceIrId: id.optional(),
     clientDraftId: id.optional(),
     releaseId: id,
   }),
@@ -81,26 +78,17 @@ const actionSchema = z.union([
       )
       .min(1),
   }),
-  action("runFullReview"),
-  action("confirmAlignment", {
-    perspective: z.enum(["business", "development", "testing"]),
-    version: id,
-    reviewId: id,
-    snapshotDigest: id,
-  }),
-  action("deleteRequirement", { projectId: id, irId: id }),
-  action("acceptProposal", { reviewId: id, snapshotDigest: id }),
-  action("submitProposalReview", {
+  z.strictObject({
     ...target.shape,
-    kind: z.enum(["original", "full"]),
-    snapshotDigest: id,
+    operationId: id,
+    type: z.enum(["deleteRequirement", "confirmDocumentVersion"]),
   }),
-  action("runRequirementsReview"),
-  action("returnProposal", {
-    reason: text,
-    target: z.enum(["requirements", "solution"]).optional(),
+  z.strictObject({
+    ...target.shape,
+    operationId: id,
+    type: z.literal("reviewDocuments"),
+    agent: z.enum(["requirements", "solution"]),
   }),
-  action("archiveProposal", { ...target.shape, candidate: id }),
 ]);
 const modelInput = z
   .object({
@@ -131,11 +119,10 @@ const draftFields = z
 /** 精确白名单拒绝退役路径；配置读取统一经 bootstrap，不为本地读取端口保留 RPC。 */
 export const argumentSchemas = {
   readPresence: z.tuple([]),
+  validateDocumentVersion: z.tuple([target]),
   readWorkflow: z.tuple([workflowTargetSchema]),
   command: z.tuple([actionSchema, commandTargetSchema, revision]),
-  retryMaterial: z.tuple([
-    target.extend({ releaseId: id, path: id, sha256: id, round: revision.optional() }).strict(),
-  ]),
+  retryMaterial: z.tuple([target.extend({ releaseId: id, path: id, sha256: id }).strict()]),
   retrySession: z.tuple([workflowTargetSchema, id]),
   "projects.saveRepository": z.tuple([
     z

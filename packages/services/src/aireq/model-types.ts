@@ -2,10 +2,7 @@ export const AIREQ_AGENT_ROLES = [
   "requirements",
   "requirements-review",
   "solution",
-  "requirements-review-a",
-  "requirements-review-b",
-  "requirements-review-c",
-  "solution-review-summary",
+  "solution-review",
 ] as const;
 
 export type AIReqAgentRole = (typeof AIREQ_AGENT_ROLES)[number];

@@ -52,17 +52,6 @@ function attachMotion(root: HTMLDivElement): () => void {
   let nav: HTMLElement | null = null;
   let navButton: HTMLElement | null = null;
   let navAnimation: Animation | null = null;
-  const filterHighlight = document.createElement("div");
-  filterHighlight.className = "aireq-motion-filter-highlight";
-  filterHighlight.setAttribute("aria-hidden", "true");
-  let filterGroup: HTMLElement | null = null;
-  let filterAnimation: Animation | null = null;
-  const filterMutation = new MutationObserver(() => {
-    if (filterGroup?.isConnected) placeFilter(filterGroup, true);
-  });
-  const filterResize = new ResizeObserver(() => {
-    if (filterGroup?.isConnected) placeFilter(filterGroup, false);
-  });
   let lastMove = -Infinity;
   let press: { button: HTMLElement; node: HTMLElement; animation: Animation } | null = null;
 
@@ -87,58 +76,6 @@ function attachMotion(root: HTMLDivElement): () => void {
     hideAura();
     hideNavigation();
     clearPress();
-  };
-
-  const placeFilter = (group: HTMLElement, animate: boolean) => {
-    const selected = group.querySelector<HTMLElement>("button[aria-pressed=true]");
-    if (!selected) return;
-    const previous = filterGroup === group ? filterHighlight.getBoundingClientRect() : null;
-    const bounds = selected.getBoundingClientRect();
-    const parent = group.getBoundingClientRect();
-    filterAnimation?.cancel();
-    if (filterGroup !== group) {
-      filterMutation.disconnect();
-      filterResize.disconnect();
-      filterGroup?.classList.remove("aireq-motion-filter-group");
-      filterGroup = group;
-      group.classList.add("aireq-motion-filter-group");
-      group.append(filterHighlight);
-      filterMutation.observe(group, {
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["aria-pressed"],
-      });
-      filterResize.observe(group);
-    }
-    const x = bounds.left - parent.left;
-    const y = bounds.top - parent.top;
-    filterHighlight.style.width = `${bounds.width}px`;
-    filterHighlight.style.height = `${bounds.height}px`;
-    filterHighlight.style.transform = `translate(${x}px, ${y}px)`;
-    if (animate && previous) {
-      filterAnimation = filterHighlight.animate(
-        [
-          {
-            transform: `translate(${previous.left - parent.left}px, ${previous.top - parent.top}px) scale(${previous.width / bounds.width}, ${previous.height / bounds.height})`,
-            transformOrigin: "top left",
-          },
-          { transform: `translate(${x}px, ${y}px)`, transformOrigin: "top left" },
-        ],
-        { duration: 230, easing: "cubic-bezier(.16,1,.3,1)" },
-      );
-      filterAnimation.onfinish = () => {
-        filterAnimation = null;
-      };
-    }
-  };
-
-  const click = (event: MouseEvent) => {
-    if (!(event.target instanceof Element)) return;
-    const group = event.target.closest<HTMLElement>("[data-aireq-motion-filters]");
-    if (!group) return;
-    placeFilter(group, false);
-    // 原生委托先于 React 提交，微任务也可能先读到旧选择；观察实际 aria-pressed 提交再移动，
-    // 不用延时猜测时序，也不接管筛选状态。尺寸变化只对齐现有底板，不制造额外切换动画。
   };
 
   const moveAura = (event: PointerEvent) => {
@@ -256,7 +193,6 @@ function attachMotion(root: HTMLDivElement): () => void {
   root.addEventListener("pointermove", moveAura, options);
   root.addEventListener("pointerover", enter, options);
   root.addEventListener("pointerdown", down, options);
-  root.addEventListener("click", click, options);
   root.addEventListener("pointerleave", hide, options);
   root.addEventListener("pointercancel", hide, options);
   root.addEventListener("scroll", hide, { ...options, capture: true });
@@ -266,11 +202,6 @@ function attachMotion(root: HTMLDivElement): () => void {
     hide();
     aura.remove();
     highlight.remove();
-    filterAnimation?.cancel();
-    filterMutation.disconnect();
-    filterResize.disconnect();
-    filterHighlight.remove();
-    filterGroup?.classList.remove("aireq-motion-filter-group");
     surface?.classList.remove("aireq-motion-surface");
     nav?.classList.remove("aireq-motion-navigation");
     root.removeAttribute("data-aireq-motion-active");

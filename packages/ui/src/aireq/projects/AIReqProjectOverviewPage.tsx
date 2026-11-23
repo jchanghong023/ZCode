@@ -1,20 +1,12 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, Clock3 } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import {
-  proposalAlignmentCurrent,
-  proposalState,
-  proposalStateLabel,
-  proposalUpdatedTime,
-} from "../contract.js";
-import type { AIReqRequirementGroup } from "../contract.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
 import { ProjectPageHelp } from "./ProjectPageHelp.js";
 
-type ConfirmationFilter = "all" | "review" | "business" | "development" | "testing";
 export function AIReqProjectOverviewPage({
   active,
   onReturnProjects,
@@ -36,76 +28,11 @@ export function AIReqProjectOverviewPage({
   }, [active, ai.selectionReady]);
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
-  const [confirmationFilter, setConfirmationFilter] = useState<ConfirmationFilter>("all");
-  const [showAllPending, setShowAllPending] = useState(false);
   const view = ai.view;
   const project = view?.projects.find((item) => item.id === ai.selection.projectId);
   const release = view?.releases.find(
     (item) => item.projectId === project?.id && item.id === ai.releaseId,
   );
-  const proposals =
-    view?.requirements.filter(
-      (item) => !item.archive && item.projectId === project?.id && item.releaseId === release?.id,
-    ) ?? [];
-  const confirmations = proposals.flatMap<{
-    irId: string;
-    kind: Exclude<ConfirmationFilter, "all">;
-    title: string;
-  }>((proposal) => {
-    const { id: irId, returnFeedback } = proposal;
-    if (returnFeedback && returnFeedback.target !== "solution" && !returnFeedback.resumedAt)
-      return [];
-    const state = proposalState(proposal);
-    if (state === "ir-confirmation-pending")
-      return [{ irId, kind: "review", title: "人工确认当前 IR 评审" }];
-    if (state !== "solution-confirmation-pending") return [];
-
-    return (["business", "development", "testing"] as const)
-      .filter(
-        (kind) =>
-          !proposal.alignment?.some(
-            (entry) => entry.perspective === kind && proposalAlignmentCurrent(proposal, entry),
-          ),
-      )
-      .map((kind) => ({
-        irId,
-        kind,
-        title: `确认${{ business: "业务", development: "开发", testing: "测试" }[kind]}角色`,
-      }));
-  });
-  const matches = (kind: ConfirmationFilter) =>
-    confirmations.filter((entry) => kind === "all" || entry.kind === kind);
-  const pendingLabel = zh ? "待人工处理提案" : "Proposals awaiting people";
-  const filters: { id: ConfirmationFilter; label: string }[] = [
-    { id: "all", label: pendingLabel },
-    { id: "review", label: zh ? "需求评审确认" : "Requirements review confirmation" },
-    { id: "business", label: zh ? "业务确认" : "Business confirmation" },
-    { id: "development", label: zh ? "开发确认" : "Development confirmation" },
-    { id: "testing", label: zh ? "测试确认" : "Testing confirmation" },
-  ];
-  const allPendingCount = new Set(confirmations.map((entry) => entry.irId)).size;
-  const pendingIds = new Set(matches(confirmationFilter).map((entry) => entry.irId));
-  const pending = proposals.filter((item) => pendingIds.has(item.id));
-  const recent = [...proposals]
-    .sort(
-      (a, b) =>
-        proposalUpdatedTime(b, view?.operations ?? []) -
-          proposalUpdatedTime(a, view?.operations ?? []) || a.id.localeCompare(b.id),
-    )
-    .slice(0, 5);
-  const time = (value: number | string) =>
-    new Intl.DateTimeFormat(locale, {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
-  const openProposal = (proposal: AIReqRequirementGroup) =>
-    ai.openFromProjectOverview(
-      "chat",
-      { projectId: proposal.projectId, irId: proposal.id },
-      proposal.releaseId,
-    );
   const unavailable = ai.pending
     ? zh
       ? "正在读取当前项目…"
@@ -113,10 +40,6 @@ export function AIReqProjectOverviewPage({
     : zh
       ? "当前项目数据不可用，请重试。"
       : "Project data is unavailable. Retry to continue.";
-  const empty = (text: string) => (
-    <p className="px-4 py-8 text-ui-sm text-foreground-subtle">{text}</p>
-  );
-
   return (
     <main
       ref={scrollRoot}
@@ -180,205 +103,30 @@ export function AIReqProjectOverviewPage({
             </h2>
             <p className="text-foreground-subtle">
               {zh
-                ? "添加 Release 后，即可查看需求、确认事项和开发进展。"
-                : "Add a release to see requirements, confirmations and formal documents."}
+                ? "添加 Release 后，即可录入和查看需求。"
+                : "Add a release to create and view requirements."}
             </p>
             <Button variant="outline" onClick={onConfigureProject}>
               {zh ? "配置项目" : "Configure project"}
             </Button>
           </div>
         ) : (
-          <>
-            <section
-              aria-labelledby="overview-delivery"
-              className="space-y-6 border-b border-border pb-8"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="overview-delivery" className="text-ui-xl font-semibold">
-                  {zh ? "需求与交付" : "Requirements & delivery"}
-                </h2>
-              </div>
-              {/* 数据区原先透出页面底色、辅助文字混用侧栏灰；按外观页卡片与文字角色呈现。 */}
-              <dl
-                data-aireq-motion-card=""
-                className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-card-border bg-card p-4 text-foreground"
-              >
-                {[
-                  {
-                    label: zh ? "需求总数" : "All requirements",
-                    count: release.requirementCount,
-                    target: "proposals" as const,
-                  },
-                  {
-                    label: pendingLabel,
-                    count: allPendingCount,
-                  },
-                ].map((item) => (
-                  <div key={item.label} data-aireq-motion-stat="" className="space-y-1 rounded-lg">
-                    <dt className="text-ui-sm text-foreground">{item.label}</dt>
-                    <dd>
-                      {item.target ? (
-                        <Button
-                          variant="link"
-                          className="h-auto gap-2 p-0 text-ui-xl font-semibold tabular-nums text-foreground"
-                          aria-label={item.label + ": " + item.count}
-                          onClick={() => item.target && ai.openFromProjectOverview(item.target)}
-                        >
-                          {item.count}
-                          <ArrowRight
-                            className="size-3.5 text-foreground-subtle"
-                            aria-hidden="true"
-                          />
-                        </Button>
-                      ) : (
-                        <span className="text-ui-xl font-semibold tabular-nums">{item.count}</span>
-                      )}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-            <section aria-labelledby="overview-confirmations" className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 id="overview-confirmations" className="text-ui-xl font-semibold">
-                  {zh ? "待人工处理" : "Awaiting people"}
-                </h2>
-              </div>
-              <div
-                className="flex flex-wrap gap-2"
-                role="group"
-                aria-label={zh ? "确认事项筛选" : "Filter confirmations"}
-                data-aireq-motion-filters=""
-              >
-                {filters.map((filter) => (
-                  <Button
-                    key={filter.id}
-                    variant={confirmationFilter === filter.id ? "secondary" : "outline"}
-                    className="h-auto min-h-9 gap-3 py-2"
-                    aria-pressed={confirmationFilter === filter.id}
-                    onClick={() => {
-                      setConfirmationFilter(filter.id);
-                      setShowAllPending(false);
-                    }}
-                  >
-                    {filter.label}
-                    <span className="font-semibold tabular-nums">
-                      {new Set(matches(filter.id).map((entry) => entry.irId)).size}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-              <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
-                {pending.length === 0
-                  ? empty(
-                      zh
-                        ? "当前范围暂无此类待确认事项。"
-                        : "No pending confirmations in this scope.",
-                    )
-                  : (showAllPending ? pending : pending.slice(0, 5)).map((proposal) => (
-                      <button
-                        key={proposal.id}
-                        type="button"
-                        data-aireq-motion-row=""
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
-                        onClick={() => openProposal(proposal)}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{proposal.title}</span>
-                          <span className="mt-1 block text-ui-sm text-foreground-subtle">
-                            {zh
-                              ? confirmations
-                                  .filter((entry) => entry.irId === proposal.id)
-                                  .map((entry) => entry.title)
-                                  .join("、")
-                              : "Open co-creation"}
-                          </span>
-                        </span>
-                        <ArrowRight
-                          className="size-4 shrink-0 text-foreground-subtle"
-                          aria-hidden="true"
-                        />
-                      </button>
-                    ))}
-              </div>
-              {pending.length > 5 && (
-                <Button variant="ghost" onClick={() => setShowAllPending(!showAllPending)}>
-                  {showAllPending
-                    ? zh
-                      ? "收起"
-                      : "Show less"
-                    : zh
-                      ? `查看全部 ${pending.length} 条`
-                      : `View all ${pending.length}`}
-                </Button>
-              )}
-            </section>
-            <div>
-              <section aria-labelledby="overview-recent-proposals" className="min-w-0 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 id="overview-recent-proposals" className="text-ui-xl font-semibold">
-                    {zh ? "最近更新的提案" : "Recently updated proposals"}
-                  </h2>
-                  {recent.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => ai.openFromProjectOverview("proposals")}
-                    >
-                      {zh ? "查看全部" : "View all"}
-                      <ArrowRight className="size-3.5" aria-hidden="true" />
-                    </Button>
-                  )}
-                </div>
-                <div className="divide-y divide-border overflow-hidden rounded-xl border border-card-border bg-card text-foreground">
-                  {recent.length === 0 ? (
-                    <div className="space-y-3 px-4 py-6">
-                      <p className="text-ui-sm text-foreground-subtle">
-                        {zh ? "当前 Release 暂无需求提案。" : "No proposals in this release."}
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(event) => onCreateProposal(event.currentTarget)}
-                      >
-                        {zh ? "新建需求" : "New requirement"}
-                      </Button>
-                    </div>
-                  ) : (
-                    recent.map((proposal) => (
-                      <button
-                        key={proposal.id}
-                        type="button"
-                        data-aireq-motion-row=""
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-hover focus-visible:bg-surface-hover hover:[&_.text-foreground-subtle]:text-foreground focus-visible:[&_.text-foreground-subtle]:text-foreground"
-                        onClick={() => openProposal(proposal)}
-                      >
-                        <span className="min-w-0 flex-1 space-y-1.5">
-                          <span className="block truncate font-medium">{proposal.title}</span>
-                          <span className="block text-ui-sm text-foreground-subtle">
-                            {proposalStateLabel(proposal, zh ? "zh-CN" : "en-US")}
-                          </span>
-                          <time
-                            className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"
-                            dateTime={new Date(
-                              proposalUpdatedTime(proposal, view?.operations ?? []),
-                            ).toISOString()}
-                          >
-                            <Clock3 className="size-3.5" aria-hidden="true" />
-                            {time(proposalUpdatedTime(proposal, view?.operations ?? []))}
-                          </time>
-                        </span>
-                        <ArrowRight
-                          className="mt-1 size-4 shrink-0 text-foreground-subtle"
-                          aria-hidden="true"
-                        />
-                      </button>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-          </>
+          <section
+            aria-label={zh ? "需求总览" : "Requirements overview"}
+            data-aireq-motion-card=""
+            className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-card-border bg-card px-4 py-5"
+          >
+            <dl>
+              <dt className="text-ui-sm text-foreground-subtle">
+                {zh ? "需求总数" : "Total requirements"}
+              </dt>
+              <dd className="text-ui-xl font-semibold tabular-nums">{release.requirementCount}</dd>
+            </dl>
+            <Button variant="outline" onClick={ai.openRequirementsFromOverview}>
+              {zh ? "打开需求共创" : "Open Co-creation"}
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Button>
+          </section>
         )}
       </div>
     </main>

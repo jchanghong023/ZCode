@@ -7,7 +7,6 @@ import { createServiceLogger } from "@zcode/services/logger";
 import {
   IAIReqService as AIReqDescriptor,
   AIREQ_CONTRACT_VERSION,
-  proposalDeliveryCurrent,
   type AIReqIdentity,
   type IAIReqService,
   type AIReqRemoteBootstrap,
@@ -30,9 +29,11 @@ import {
   readPrototypeProjectWorkspace,
   readPrototypeProjectWorkspaces,
   readPrototypeWorkflowRevision,
+  validatePrototypeDocumentVersion,
   applyPrototypeAction,
   resolvePrototypeSession,
   prototypeWorkflowChanges,
+  settlePrototypeDocumentReview,
   notifyPrototypeProjectSettingsChanged,
 } from "./workflow.js";
 import * as models from "./agent-models.js";
@@ -42,6 +43,11 @@ import { savePrototypeRepository } from "./project-settings.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
+import {
+  simulateDocumentReview,
+  type AIReqNativeReviewWork,
+  type DocumentReviewRun,
+} from "./document-review.js";
 
 const logger = createServiceLogger("aireq");
 const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
@@ -56,14 +62,9 @@ const commands = [
   "createRelease",
   "createProposal",
   "importProposals",
-  "runFullReview",
-  "confirmAlignment",
   "deleteRequirement",
-  "acceptProposal",
-  "submitProposalReview",
-  "runRequirementsReview",
-  "returnProposal",
-  "archiveProposal",
+  "reviewDocuments",
+  "confirmDocumentVersion",
 ] as const;
 
 /** One instance is registered by createMockServices; connection scopes never dispose it. */
@@ -96,6 +97,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
     add("readWorkflow", (target: AIReqWorkflowTarget) => this.workflow(target));
+    add("validateDocumentVersion", validatePrototypeDocumentVersion);
     add("command", (action: AIReqCommand, target: AIReqCommandTarget, revision: number) =>
       this.command(action, target, revision),
     );
@@ -147,25 +149,50 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     return result;
   }
+  private reviewRuntime?: (work: AIReqNativeReviewWork) => void;
+  bindReviewRuntime(enqueue: (work: AIReqNativeReviewWork) => void): void {
+    if (this.reviewRuntime) throw new Error("评审原生运行时已装配。");
+    this.reviewRuntime = enqueue;
+  }
+  private enqueueDocumentReview(run: DocumentReviewRun, identity: AIReqIdentity): void {
+    const { path, identity: workspaceIdentity } = readPrototypeProjectWorkspace(run.projectId);
+    const settle: AIReqNativeReviewWork["settle"] = (status, report) => {
+      const stale = settlePrototypeDocumentReview(run, status, report);
+      return stale ? report + "\n\n对应修改前的文件内容。" : report;
+    };
+    try {
+      if (!this.reviewRuntime || !path) throw new Error("评审运行时不可用。");
+      this.reviewRuntime({
+        sessionId: run.sessionId,
+        workspace: { workspacePath: path, workspaceIdentity },
+        id: run.id,
+        clientId: identity.clientId,
+        title: run.title,
+        version: run.version,
+        prompt: run.prompt,
+        additionalInstructions: run.promptSnapshot,
+        model: run.model,
+        execute: () =>
+          withAIReqIdentity(identity, () => {
+            this.assertNativeWritable(run.sessionId);
+            return simulateDocumentReview(run);
+          }),
+        settle,
+      });
+    } catch (error) {
+      logger.warn(undefined, "Document review admission to native runtime failed", {
+        reviewId: run.id,
+        error,
+      });
+      settle("failed", `${run.title}未能开始，请重新发起。`);
+    }
+  }
   private workflow(selection: AIReqWorkflowTarget) {
     const view = getPrototypeWorkflow(selection);
-    const proposal = view.requirements.find(
-      (item) => item.projectId === selection.projectId && item.id === selection.irId,
-    );
-    // 已确认默认视图与显式入库没有 Agent；只在主动查看历史阶段时解析原会话。
-    const intake =
-      selection.proposalStep === "intake" ||
-      (proposal &&
-        !selection.proposalStep &&
-        !selection.discussionPhase &&
-        proposalDeliveryCurrent(proposal));
     return {
       view,
-      session:
-        proposal?.archive || selection.srId || intake
-          ? undefined
-          : resolvePrototypeSession(view, selection),
-      workspace: readPrototypeProjectWorkspace(selection.projectId),
+      session: resolvePrototypeSession(view, selection),
+      workspace: readPrototypeProjectWorkspace(selection.projectId ?? DEFAULT_SELECTION.projectId),
     };
   }
   private command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
@@ -175,21 +202,21 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const identity = currentIdentity()!;
     const key = `${identity.employeeId}:${identity.clientId}:${action.operationId}`;
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
+    const latest = action.type === "confirmDocumentVersion" || action.type === "reviewDocuments";
     const digest = digestValue([
       action,
-      action.type === "saveDocumentFormats" ? undefined : selection,
+      latest || action.type === "saveDocumentFormats" ? undefined : selection,
     ]);
     const prior = this.operations.get(key);
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");
       return prior.result;
     }
-    if (revision !== readPrototypeWorkflowRevision())
+    if (!latest && revision !== readPrototypeWorkflowRevision())
       throw businessRule("需求版本已变化，请重新读取当前版本。");
-    const result = applyPrototypeAction(action, selection, undefined, {
-      operationId: action.operationId,
-    });
+    const { result, review } = applyPrototypeAction(action, selection);
     this.operations.set(key, { digest, result: structuredClone(result) });
+    if (review) this.enqueueDocumentReview(review, identity);
     return result;
   }
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
@@ -198,9 +225,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       contractVersion: AIREQ_CONTRACT_VERSION,
       backend: { id: PROTOTYPE_BACKEND.id },
       capabilities: {
-        proposalDiscussion: true,
         workflowCommands: [...commands],
-        requirementManagement: true,
       },
       ...(initialProjectId === undefined ? {} : { initialProjectId }),
       models: {

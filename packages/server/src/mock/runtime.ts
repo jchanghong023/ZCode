@@ -17,6 +17,8 @@ import type {
   WireConversationRow,
 } from "@zcode/shared/zcode-protocol-v4";
 
+import type { AIReqNativeReviewWork } from "../aireq/contract.js";
+
 export type WorkspaceRef = { workspacePath: string; workspaceIdentity?: string };
 
 /** 稳定后端身份不含操作者或连接 ID；项目、会话和任务必须共用此规则。 */
@@ -39,11 +41,13 @@ export type MockQueuedInput = {
   item: QueueItem;
   context?: MockInputContext;
   retained?: boolean;
+  documentReview?: AIReqNativeReviewWork;
 };
 
 export type MockActiveTurn = {
   controller: AbortController;
   work: ActiveWorkSummary & { foregroundExecutionId: string };
+  documentReview?: boolean;
 };
 
 /** 一个模拟会话：v4 conversation topic 的权威状态。 */

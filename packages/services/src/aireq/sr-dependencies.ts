@@ -10,20 +10,19 @@ interface AIReqSrDependencyDocument {
 
 /** Read the dependency document as the single source for dependencies and estimates. */
 export function readSrDependencies(
-  group: Pick<AIReqRequirementGroup, "id" | "srIds" | "proposalRound" | "srDependencyFile">,
-  material = group.srDependencyFile,
+  group: Pick<AIReqRequirementGroup, "id" | "srIds">,
+  material: AIReqMaterialView | undefined,
   requireEstimates = true,
 ): { document: AIReqSrDependencyDocument; issue?: never } | { document?: never; issue: string } {
   const root = `docs/requirements/${group.id}/`;
   if (
     !material ||
     material.path !== `${root}sr-dependencies.json` ||
-    material.round !== (group.proposalRound ?? 1) ||
     !material.valid ||
     material.error ||
     !material.content
   )
-    return { issue: "sr-dependencies.json 缺失、失效、过期或不可读取，请重新生成本轮方案。" };
+    return { issue: "sr-dependencies.json 缺失、无效或不可读取。" };
   let value: AIReqSrDependencyDocument;
   try {
     value = JSON.parse(material.content);
@@ -54,7 +53,6 @@ export function readSrDependencies(
     return {
       issue: "sr-dependencies.json 必须覆盖全部 SR，并使用本 IR 的稳定 SR ID 和非空依赖原因。",
     };
-  // 依赖图可只读取有效拓扑；确认与提交仍要求完整预估，不因可阅读而放宽门禁。
   if (
     requireEstimates &&
     value.srs.some(
@@ -80,37 +78,6 @@ export function readSrDependencies(
     return false;
   };
   if (group.srIds.some(inspect))
-    return { issue: "SR 依赖存在循环或自依赖，请修正本轮 sr-dependencies.json。" };
+    return { issue: "SR 依赖存在循环或自依赖，请修正 sr-dependencies.json。" };
   return { document: value };
-}
-
-export function srDependencyMap(group: AIReqRequirementGroup): Record<string, string[]> {
-  return Object.fromEntries(
-    readSrDependencies(group).document?.srs.map((row) => [
-      row.srId,
-      row.prerequisites.map((item) => item.srId),
-    ]) ?? [],
-  );
-}
-
-export function proposalDependencyMaterialIssue(
-  group: AIReqRequirementGroup,
-  materials: AIReqMaterialView[],
-): string | undefined {
-  const material = materials.find(
-    (item) =>
-      item.projectId === group.projectId &&
-      item.irId === group.id &&
-      item.path === group.srDependencyFile?.path,
-  );
-  const issue = readSrDependencies(group, material).issue;
-  if (!material) return "sr-dependencies.json 材料缺失。";
-  if (issue) return issue;
-  if (
-    !group.srDependencyFile ||
-    material.content !== group.srDependencyFile.content ||
-    material.sha256 !== group.srDependencyFile.sha256 ||
-    material.size !== group.srDependencyFile.size
-  )
-    return "sr-dependencies.json 版本已变化，请重新生成并确认本轮方案。";
 }

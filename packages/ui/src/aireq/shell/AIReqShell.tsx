@@ -16,7 +16,6 @@ import {
   AIReqProjectDocumentsPage,
   AIReqProjectOverviewPage,
 } from "../projects/AIReqProjectDocumentsPage.js";
-import { AIReqArchivedRequirement } from "../proposals/AIReqArchivedRequirement.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
 import type { AIReqProjectSettingsRequest } from "../settings/AIReqProjectSettings.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
@@ -77,20 +76,39 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const zh = locale === "zh-CN";
   const { setNavigationGuard } = ai;
   const settingsOpen = ai.settingsOpen;
-  const proposalId =
-    ai.mainView === "chat" ? ai.selection.irId : undefined;
+  const proposalId = ai.mainView === "chat" ? ai.selection.irId : undefined;
   const proposalOverlay = Boolean(ai.proposalDraft || ai.proposalImportOpen);
-  const focusRoute = JSON.stringify([ai.mainView, proposalId, proposalId && ai.proposalTask]);
-  const focusSource = useRef<{ route: string; proposalId?: string; overlay: boolean }>(undefined);
-  const pendingMainFocus = useRef<{ proposalId?: string } | null>(null);
+  const focusAgent = proposalId ? ai.selection.discussionPhase : undefined;
+  const focusRoute = JSON.stringify([
+    ai.mainView,
+    proposalId && ai.selection.projectId,
+    proposalId,
+    proposalId && ai.selection.srId,
+    focusAgent,
+  ]);
+  const focusSource = useRef<{
+    route: string;
+    proposalId?: string;
+    agent?: typeof focusAgent;
+    overlay: boolean;
+  }>(undefined);
+  const pendingMainFocus = useRef<{ proposalId?: string; agent?: typeof focusAgent } | null>(null);
   useLayoutEffect(() => {
     const previous = focusSource.current;
-    focusSource.current = { route: focusRoute, proposalId, overlay: proposalOverlay };
+    focusSource.current = {
+      route: focusRoute,
+      proposalId,
+      agent: focusAgent,
+      overlay: proposalOverlay,
+    };
     if (previous?.route !== focusRoute) {
       pendingMainFocus.current =
         proposalOverlay || previous?.overlay
           ? null
-          : { proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined };
+          : {
+              proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined,
+              agent: previous?.agent,
+            };
     }
     const target = pendingMainFocus.current;
     if (!target || !ai.selectionReady || settingsOpen || proposalOverlay || !mainContent.current)
@@ -105,6 +123,8 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         ].find(
           (element) =>
             element.dataset.aireqProposalEntry === target.proposalId &&
+            element.dataset.aireqAgent === (target.agent ?? "requirements") &&
+            !element.disabled &&
             !element.closest("[hidden], [inert]"),
         )
       : undefined;
@@ -113,7 +133,15 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     pendingMainFocus.current = null;
     if (heading && focusTarget === heading) heading.tabIndex = -1;
     focusTarget.focus({ preventScroll: !row });
-  }, [ai.mainView, ai.selectionReady, focusRoute, proposalId, proposalOverlay, settingsOpen]);
+  }, [
+    ai.mainView,
+    ai.selectionReady,
+    focusRoute,
+    proposalId,
+    focusAgent,
+    proposalOverlay,
+    settingsOpen,
+  ]);
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (settingsOpen || !settingsReturnFocus.current) return;
@@ -199,11 +227,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     !ai.view?.releases.some((item) => item.projectId === project.id) &&
     ai.mainView === "proposals",
   );
-  const archived = ai.selectionReady && ai.mainView === "chat"
-    ? ai.view?.requirements.find(
-        (item) => item.archive && item.projectId === ai.selection.projectId && item.id === ai.selection.irId,
-      )
-    : undefined;
   // 切项目后的旧投影不包含目标列表，不能先展示零条和空态。
   const listLoading = !ai.selectionReady && ai.mainView === "proposals";
   const listFeedback = (
@@ -250,17 +273,13 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     );
   else if (ai.mainView === "proposals") content = null;
   else if (ai.mainView === "chat")
-    content = archived
-      ? <AIReqArchivedRequirement key={JSON.stringify([archived.projectId, archived.id])} group={archived} />
-      : <AIReqProposalWorkspace active={!settingsOpen} />;
+    content = <AIReqProposalWorkspace key={focusRoute} active={!settingsOpen} />;
 
   if (missingRelease)
     content = (
       <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
         <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-4`}>
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
-            {zh ? "需求共创" : "Co-creation"}
-          </h1>
+          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "需求共创" : "Co-creation"}</h1>
           <p role="status" className="text-foreground-subtle">
             {zh
               ? `暂无 Release。请先为 ${project!.name} 添加版本。`
@@ -330,7 +349,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background outline-none"
           >
             {/* 返回占用已有留白，不挪动列表标题；普通讨论仍不保留空白导航栏。 */}
-            {(ai.mainView !== "chat") && (
+            {ai.mainView !== "chat" && (
               <div className="h-12 shrink-0 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
                 {ai.canReturnToProjectOverview && (
                   <div

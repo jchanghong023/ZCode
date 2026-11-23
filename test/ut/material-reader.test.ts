@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AIReqMaterialHistory,
-  AIReqMaterialReadRequest,
-  AIReqMaterialView,
+import {
+  readSrDependencies,
+  type AIReqDocumentSnapshot,
+  type AIReqMaterialView,
 } from "../../packages/services/src/aireq/index.js";
 import {
-  materialReadFeedback,
   readMaterialDependencies,
   readMaterialSelection,
 } from "../../packages/ui/src/aireq/proposals/material-reader.js";
@@ -18,32 +17,31 @@ const sr = {
   id: "sr-a",
   title: "导出记录",
   documentPath: "openspec/changes/sr-a/specs/sr-a/spec.md",
+  projectId,
+  irId,
 };
-const group = { id: irId, projectId, documentPath, proposalRound: 2 };
-function file(path: string, content: string, version: string): AIReqMaterialView {
+const group = { id: irId, projectId, documentPath, documentHistory: [] };
+function file(path: string, content: string, hash: string): AIReqMaterialView {
   return {
     projectId,
     irId,
     path,
     content,
-    sha256: version,
+    sha256: hash,
     size: new TextEncoder().encode(content).length,
     valid: true,
     kind: "ir",
   };
 }
-
 function snapshot(
   materials: AIReqMaterialView[],
-  metadata: Pick<AIReqMaterialHistory, "srs" | "proposalRound">,
-): AIReqMaterialHistory {
+  srs: AIReqDocumentSnapshot["srs"],
+): AIReqDocumentSnapshot {
   return {
-    version: "previous-version",
-    changedAt: "2026-11-17T00:00:00Z",
-    reason: "方案变更",
-    documentPath,
+    number: 1,
+    confirmation: { employeeId: "s00000003", confirmedAt: "2026-11-17T00:00:00Z" },
     materials,
-    ...metadata,
+    srs,
   };
 }
 
@@ -53,62 +51,70 @@ const firstSr = file(sr.documentPath, "# 导出规格\n\n现有规格", "sr-befo
 const currentSr = file(sr.documentPath, "# 修订导出规格\n\n修订正文", "sr-after");
 
 describe("material reader", () => {
-  it("keeps the chosen non-default file and displays its latest version, then defaults when removed", () => {
+  it("defaults to the latest material and keeps the user's file choice across updates", () => {
     const choice = { path: sr.documentPath };
-    expect(readMaterialSelection(group, [firstIr, firstSr], [sr], choice).material).toBe(firstSr);
-    expect(readMaterialSelection(group, [currentIr, currentSr], [sr], choice).material).toBe(
+    const target = { ...group, documentHistory: [snapshot([firstIr, firstSr], [sr])] };
+    expect(readMaterialSelection(target, [currentIr, currentSr], [sr], {}).material).toBe(
+      currentIr,
+    );
+    expect(readMaterialSelection(target, [firstIr, firstSr], [sr], choice).material).toBe(firstSr);
+    expect(readMaterialSelection(target, [currentIr, currentSr], [sr], choice).material).toBe(
       currentSr,
     );
-    expect(readMaterialSelection(group, [currentIr], [], choice).material).toBe(currentIr);
+    expect(readMaterialSelection(target, [currentIr], [], choice).material).toBe(currentIr);
   });
 
-  it("uses the requested path, then the target SR, then the stage default and IR document", () => {
-    const design = file("openspec/changes/sr-a/design.md", "# 技术方案", "design");
-    const list = [firstSr, firstIr, design];
+  it("opens technical design in the solution workspace and preserves explicit file choices", () => {
+    const design = {
+      ...file("openspec/changes/sr-a/design.md", "# 技术方案", "design"),
+      srId: sr.id,
+    };
+    const otherDesign = {
+      ...file("openspec/changes/sr-b/design.md", "# 其他技术方案", "other-design"),
+      srId: "sr-b",
+    };
+    const srFile = { ...firstSr, srId: sr.id };
+    const list = [srFile, firstIr, otherDesign, design];
     const options = { srId: sr.id, preferDesign: true };
     expect(
       readMaterialSelection(group, list, [sr], { ...options, path: documentPath }).material,
     ).toBe(firstIr);
-    expect(readMaterialSelection(group, list, [sr], options).material).toBe(firstSr);
-    expect(readMaterialSelection(group, list, [sr], { preferDesign: true }).material).toBe(design);
+    expect(readMaterialSelection(group, list, [sr], options).material).toBe(design);
+    expect(
+      readMaterialSelection(group, [firstIr, srFile], [sr], { preferDesign: true }).material,
+    ).toBe(srFile);
+    expect(readMaterialSelection(group, [firstIr], [], { preferDesign: true }).material).toBe(
+      firstIr,
+    );
     expect(readMaterialSelection(group, list, [sr], {}).material).toBe(firstIr);
   });
 
-  it("keeps the chosen snapshot's names, SR identities, round and dependency reasons", () => {
-    const prerequisite = {
-      id: "sr-before-export",
-      title: "历史前置校验",
-      documentPath: "openspec/changes/sr-before-export/specs/sr-before-export/spec.md",
-    };
+  it("keeps the historical version's files, confirmation and original SR names and dependencies", () => {
+    const prerequisite = { ...sr, id: "sr-before-export", title: "历史前置校验" };
     const raw = JSON.stringify({
       srs: [
         { srId: prerequisite.id, prerequisites: [] },
         { srId: sr.id, prerequisites: [{ srId: prerequisite.id, reason: "先检查可见范围" }] },
       ],
     });
-    const previousDependency = { ...file(dependencyPath, raw, "dependency-before"), round: 1 };
-    const history = snapshot([firstIr, previousDependency], {
-      srs: [sr, prerequisite],
-      proposalRound: 1,
-    });
-    const activeRows = [{ ...sr, title: "现行导出名称" }];
-    const activeDependency = {
-      ...file(dependencyPath, '{"srs":[]}', "dependency-after"),
-      round: 2,
-    };
-    const display = readMaterialSelection(
-      { ...group, materialHistory: [history] },
-      [currentIr, currentSr, activeDependency],
-      activeRows,
-      { historyIndex: 0, path: dependencyPath },
+    const history = snapshot(
+      [firstIr, file(dependencyPath, raw, "dependency-before")],
+      [sr, prerequisite],
     );
-    expect(display.materials.map((material) => material.path)).toEqual([
-      documentPath,
-      dependencyPath,
-    ]);
-    expect(
-      readMaterialDependencies(display.material!, display.rows, display.proposalRound),
-    ).toEqual({
+    const activeRows = [{ ...sr, title: "现行导出名称" }];
+    const currentFiles = [
+      currentIr,
+      currentSr,
+      file(dependencyPath, '{"srs":[]}', "dependency-after"),
+    ];
+    const target = { ...group, documentHistory: [history] };
+    const display = readMaterialSelection(target, currentFiles, activeRows, {
+      version: 1,
+      path: dependencyPath,
+    });
+    expect(display.historical?.confirmation).toEqual(history.confirmation);
+    expect(display.materials).toEqual(history.materials);
+    expect(readMaterialDependencies(display.material!, display.rows)).toEqual({
       rows: [
         { srId: prerequisite.id, title: prerequisite.title, prerequisites: [] },
         {
@@ -118,53 +124,55 @@ describe("material reader", () => {
         },
       ],
     });
+    expect(
+      readMaterialSelection(target, currentFiles, activeRows, { version: 3 }).material,
+    ).toBeUndefined();
   });
 
-  it.each([
-    { metadata: { srs: undefined, proposalRound: 1 }, missing: "SR 清单" },
-    { metadata: { srs: [sr], proposalRound: undefined }, missing: "方案轮次" },
-    { metadata: { srs: [{ ...sr, title: "" }], proposalRound: 1 }, missing: "节点名称" },
-  ])(
-    "shows the original dependency bytes when the snapshot lacks $missing",
-    ({ metadata, missing }) => {
-      const raw = ` {"srs":[{"srId":"${sr.id}","prerequisites":[]}]}\n`;
-      const material = { ...file(dependencyPath, raw, "old-dependency"), round: 1 };
-      const display = readMaterialSelection(
-        { ...group, materialHistory: [snapshot([material], metadata)] },
-        [currentIr, currentSr],
-        [sr],
-        { historyIndex: 0, path: dependencyPath },
-      );
-      expect(
-        readMaterialDependencies(display.material!, display.rows, display.proposalRound),
-      ).toEqual({
-        raw,
-        issue: expect.stringContaining(missing),
-      });
-    },
-  );
+  it("excludes material from another project or requirement even if paths match", () => {
+    const others = [
+      { ...currentIr, projectId: "project-b", content: "其他项目" },
+      { ...currentSr, irId: "ir-b", content: "其他需求" },
+    ];
+    const display = readMaterialSelection(group, [...others, currentIr], [sr], {
+      path: currentSr.path,
+    });
+    expect(display.materials).toEqual([currentIr]);
+    expect(display.material).toEqual(currentIr);
+  });
 
-  it("does not apply late feedback to a newer file or a different project, Release, IR or path", () => {
-    const request: AIReqMaterialReadRequest = {
-      projectId,
-      releaseId: "r1",
-      irId,
-      path: documentPath,
-      sha256: firstIr.sha256,
-      round: 1,
-    };
-    const feedback = { request, message: "重新读取失败" };
-    expect(materialReadFeedback({ ...request }, feedback)).toBe(feedback.message);
-    for (const changed of [
-      { projectId: "project-b" },
-      { releaseId: "r2" },
-      { irId: "ir-b" },
-      { path: sr.documentPath },
-      { sha256: currentIr.sha256 },
-      { round: 2 },
-    ]) {
-      expect(materialReadFeedback({ ...request, ...changed }, feedback)).toBeUndefined();
-    }
-    expect(materialReadFeedback(undefined, feedback)).toBeUndefined();
+  it("shows the dependency file's raw bytes when the historical SR has no name", () => {
+    const raw = ` {"srs":[{"srId":"${sr.id}","prerequisites":[]}]}\n`;
+    const material = file(dependencyPath, raw, "old-dependency");
+    expect(readMaterialDependencies(material, [{ ...sr, title: "" }])).toEqual({
+      raw,
+      issue: expect.stringContaining("节点名称"),
+    });
+  });
+});
+
+describe("SR dependency files", () => {
+  it("requires an acyclic dependency graph and preserves the original dependency reasons", () => {
+    const prerequisites = [{ srId: "sr-b", reason: "复用导出前的校验结果。" }];
+    const estimate = { workingDays: 2, assumptions: "复用现有接口。" };
+    const rows = [
+      { srId: sr.id, estimate, prerequisites },
+      { srId: "sr-b", estimate, prerequisites: [] },
+    ];
+    const target = { id: irId, srIds: [sr.id, "sr-b"] };
+    const cyclic = [
+      rows[0],
+      { ...rows[1], prerequisites: [{ srId: sr.id, reason: "读取导出结果。" }] },
+    ];
+    expect(
+      readSrDependencies(target, file(dependencyPath, JSON.stringify({ srs: cyclic }), "cycle")),
+    ).toMatchObject({
+      issue: expect.stringMatching(/循环|成环/),
+    });
+    expect(
+      readSrDependencies(target, file(dependencyPath, JSON.stringify({ srs: rows }), "valid")),
+    ).toEqual({
+      document: { srs: rows },
+    });
   });
 });

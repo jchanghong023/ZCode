@@ -9,7 +9,7 @@ import { getSessionMentionWorkspaceScope } from "@/mentions/mentionPanelRouting.
 import { useChatViewActiveTaskProvider } from "@/v4/activeTaskProvider.js";
 import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "lexical";
-import { GoalIcon, Info, PaperclipIcon, PlusIcon } from "lucide-react";
+import { GoalIcon, Info, PaperclipIcon, PencilRuler, PlusIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
@@ -27,9 +27,16 @@ const QUICK_COMMANDS = {
 } as const;
 type QuickCommand = keyof typeof QUICK_COMMANDS;
 
+export interface ComposerDrawingAction {
+  label: string;
+  onSelect: () => void;
+  disabled: boolean;
+}
+
 export function ChatPromptActionMenu({
   actionMenuTitle,
   attachmentAction,
+  drawingAction,
   disabled,
   disabledReason,
   inputApiRef,
@@ -47,6 +54,7 @@ export function ChatPromptActionMenu({
     testId?: string;
     menuItemTestId?: string;
   };
+  drawingAction?: ComposerDrawingAction;
   disabled?: boolean;
   disabledReason?: string;
   inputApiRef: MutableRefObject<LexicalChatInputHandle | null>;
@@ -63,7 +71,9 @@ export function ChatPromptActionMenu({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectionStateRef = useRef<EditorState | undefined>(undefined);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const restoreEditorFocusRef = useRef(false);
+  const skipTriggerFocusRef = useRef(false);
   const anchorRef = useMemo(
     () => ({
       current: {
@@ -77,7 +87,7 @@ export function ChatPromptActionMenu({
     workspacePath,
     workspaceIdentity,
     "",
-    open && !disabled && showContext,
+    open && !disabled && showContext && !drawingAction,
     intl.formatMessage({ id: "chat.mention.files.empty" }),
     intl.formatMessage({ id: "chat.mention.files.title" }),
     MENTION_FILES_ONLY_DEFAULT_PREVIEW_LIMIT,
@@ -87,7 +97,7 @@ export function ChatPromptActionMenu({
     workspacePath,
     workspaceIdentity,
     "",
-    open && !disabled && showContext,
+    open && !disabled && showContext && !drawingAction,
     getSessionMentionWorkspaceScope("@"),
     intl.formatMessage({ id: "chat.mention.sessions.empty" }),
     intl.formatMessage({ id: "chat.mention.sessions.title" }),
@@ -191,7 +201,7 @@ export function ChatPromptActionMenu({
     <Popover
       open={open && !disabled}
       onOpenChange={(nextOpen) => {
-        if (nextOpen) {
+        if (nextOpen && !drawingAction) {
           // 打开瞬间快照，菜单打开期间候选不平移，键盘选择不会错位。
           // /goal 仍是消息开头命令且是会话级目标：仅新会话空草稿提供，避免在消息中间插入后被忽略。
           const emptyDraft = inputApiRef.current?.getText() === "";
@@ -207,6 +217,7 @@ export function ChatPromptActionMenu({
       <ControlHintTooltip title={disabledReason ?? actionMenuTitle}>
         <PopoverTrigger asChild>
           <Button
+            ref={triggerRef}
             type="button"
             variant="ghost"
             size="icon-md"
@@ -222,80 +233,139 @@ export function ChatPromptActionMenu({
           </Button>
         </PopoverTrigger>
       </ControlHintTooltip>
-      {/* 默认按钮锚点在首次挂载时也会注册；自定义锚点必须随后注册，避免被即将卸载的旧按钮覆盖。 */}
-      {container ? <PopoverAnchor virtualRef={anchorRef} /> : null}
-      <PopoverContent
-        ref={contentRef}
-        align="start"
-        side="top"
-        sideOffset={0}
-        // Radix 将虚拟锚点尺寸也写入 trigger-width；使用不存在的 anchor-width 会让虚拟列表塌缩。
-        className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-1rem)] gap-0 overflow-visible border-0 bg-transparent p-0 shadow-none"
-        tabIndex={-1}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          contentRef.current?.focus();
-        }}
-        onCloseAutoFocus={(event) => {
-          if (restoreEditorFocusRef.current) {
-            event.preventDefault();
-            restoreEditorFocusRef.current = false;
-            inputApiRef.current?.focus();
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
+      {drawingAction && attachmentAction ? (
+        <PopoverContent
+          align="start"
+          side="top"
+          // 关闭时立即卸载焦点范围，快速重开也会把焦点送到第一个选项。
+          className="w-max min-w-36 gap-0.5 p-1 data-closed:animate-none!"
+          aria-label={actionMenuTitle}
+          onKeyDownCapture={(event) => {
+            if (event.key !== "Tab") return;
+            const actions = event.currentTarget.querySelectorAll("button:enabled");
+            const boundary = event.shiftKey ? actions[0] : actions[actions.length - 1];
+            if (event.target !== boundary) return;
+            // 浮层挂在 body；从末项退出时先回到触发器，让浏览器按工具栏顺序继续移焦。
             event.stopPropagation();
-            const delta = event.key === "ArrowDown" ? 1 : -1;
-            for (let step = 1; step <= options.length; step++) {
-              const next = (selectedIndex + delta * step + options.length) % options.length;
-              if (!options[next]?.disabled) {
-                setSelectedIndex(next);
-                break;
+            skipTriggerFocusRef.current = true;
+            triggerRef.current?.focus();
+            setOpen(false);
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!skipTriggerFocusRef.current) return;
+            event.preventDefault();
+            skipTriggerFocusRef.current = false;
+          }}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="justify-start"
+            data-testid={attachmentAction.menuItemTestId}
+            onClick={() => {
+              setOpen(false);
+              attachmentAction.onSelect();
+            }}
+          >
+            <PaperclipIcon aria-hidden="true" />
+            {intl.formatMessage({ id: "chat.attachments.add" })}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="justify-start"
+            disabled={drawingAction.disabled}
+            onClick={() => {
+              // 画图弹窗接管焦点；附件浮层关闭时不能再把焦点拉回加号。
+              skipTriggerFocusRef.current = true;
+              setOpen(false);
+              drawingAction.onSelect();
+            }}
+          >
+            <PencilRuler aria-hidden="true" />
+            {drawingAction.label}
+          </Button>
+        </PopoverContent>
+      ) : (
+        <>
+          {/* 默认按钮锚点在首次挂载时也会注册；自定义锚点必须随后注册，避免被即将卸载的旧按钮覆盖。 */}
+          {container ? <PopoverAnchor virtualRef={anchorRef} /> : null}
+          <PopoverContent
+            ref={contentRef}
+            align="start"
+            side="top"
+            sideOffset={0}
+            // Radix 将虚拟锚点尺寸也写入 trigger-width；使用不存在的 anchor-width 会让虚拟列表塌缩。
+            className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-1rem)] gap-0 overflow-visible border-0 bg-transparent p-0 shadow-none"
+            tabIndex={-1}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              contentRef.current?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+              if (restoreEditorFocusRef.current) {
+                event.preventDefault();
+                restoreEditorFocusRef.current = false;
+                inputApiRef.current?.focus();
               }
-            }
-          } else if (event.key === "Enter" || event.key === "Tab" || event.key === " ") {
-            event.preventDefault();
-            event.stopPropagation();
-            selectOption(selectedIndex);
-          }
-        }}
-      >
-        <MentionPanel
-          title={actionMenuTitle}
-          description=""
-          listMaxHeight="min(24rem, max(8rem, calc(var(--radix-popover-content-available-height, 32rem) - 6rem)))"
-          footer={
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-ui-sm text-foreground-subtle">
-              {(
-                [
-                  ["@", "chat.composer.contextShortcut"],
-                  ["/", "chat.composer.capabilityShortcut"],
-                  ["$", "chat.composer.skillShortcut"],
-                ] as const
-              ).map(([trigger, id]) => (
-                <div key={trigger} className="flex shrink-0 items-center gap-1.5">
-                  <code className="flex size-5 shrink-0 items-center justify-center rounded bg-tooltip-tag font-mono text-foreground">
-                    {trigger}
-                  </code>
-                  <span>{intl.formatMessage({ id })}</span>
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                event.stopPropagation();
+                const delta = event.key === "ArrowDown" ? 1 : -1;
+                for (let step = 1; step <= options.length; step++) {
+                  const next = (selectedIndex + delta * step + options.length) % options.length;
+                  if (!options[next]?.disabled) {
+                    setSelectedIndex(next);
+                    break;
+                  }
+                }
+              } else if (event.key === "Enter" || event.key === "Tab" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                selectOption(selectedIndex);
+              }
+            }}
+          >
+            <MentionPanel
+              title={actionMenuTitle}
+              description=""
+              listMaxHeight="min(24rem, max(8rem, calc(var(--radix-popover-content-available-height, 32rem) - 6rem)))"
+              footer={
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-ui-sm text-foreground-subtle">
+                  {(
+                    [
+                      ["@", "chat.composer.contextShortcut"],
+                      ["/", "chat.composer.capabilityShortcut"],
+                      ["$", "chat.composer.skillShortcut"],
+                    ] as const
+                  ).map(([trigger, id]) => (
+                    <div key={trigger} className="flex shrink-0 items-center gap-1.5">
+                      <code className="flex size-5 shrink-0 items-center justify-center rounded bg-tooltip-tag font-mono text-foreground">
+                        {trigger}
+                      </code>
+                      <span>{intl.formatMessage({ id })}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-1.5">
+                    <Info className="size-4 shrink-0" />
+                    <span>{intl.formatMessage({ id: "chat.composer.contextSearchHint" })}</span>
+                  </div>
                 </div>
-              ))}
-              <div className="flex items-center gap-1.5">
-                <Info className="size-4 shrink-0" />
-                <span>{intl.formatMessage({ id: "chat.composer.contextSearchHint" })}</span>
-              </div>
-            </div>
-          }
-          trigger="+"
-          sections={sections}
-          emptyText=""
-          selectedIndex={selectedIndex}
-          hasActiveQuery={false}
-          onSelect={selectOption}
-        />
-      </PopoverContent>
+              }
+              trigger="+"
+              sections={sections}
+              emptyText=""
+              selectedIndex={selectedIndex}
+              hasActiveQuery={false}
+              onSelect={selectOption}
+            />
+          </PopoverContent>
+        </>
+      )}
     </Popover>
   );
 }

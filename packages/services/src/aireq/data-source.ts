@@ -6,7 +6,6 @@ import type {
   AIReqWorkflowResult,
   AIReqNativeSessionRef,
   AIReqAgentModelSettings,
-  AIReqAgentModelBinding,
   AIReqSkillDesignDraft,
   AIReqSkillDesignDraftFields,
   AIReqSkillDesignPreview,
@@ -15,6 +14,7 @@ import type {
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
   AIReqMaterialReadRequest,
+  AIReqDocumentValidation,
 } from "./types.js";
 
 export interface AIReqBackendView {
@@ -32,7 +32,6 @@ export interface AIReqModelServices {
   save(settings: AIReqAgentModelSettings, expectedRevision: number): void | Promise<void>;
   revision(): number;
   subscribe(listener: () => void): () => void;
-  bindingChanged(binding: AIReqAgentModelBinding): boolean;
 }
 export interface AIReqPromptServices {
   read(): { saved: Record<string, string>; draft: Record<string, string>; revision: number };
@@ -65,13 +64,15 @@ export interface AIReqDataSource {
   clientId: string;
   backend?: AIReqBackendView;
   capabilities: {
-    proposalDiscussion?: boolean;
     workflowCommands: readonly AIReqAction["type"][];
-    requirementManagement: boolean;
   };
   initialProjectId?: string;
   refreshIdentity?(): Promise<void>;
   readWorkflow(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
+  validateDocumentVersion(target: {
+    projectId: string;
+    irId: string;
+  }): Promise<AIReqDocumentValidation>;
   subscribeWorkflow(listener: () => void): () => void;
   command(
     action: AIReqAction,

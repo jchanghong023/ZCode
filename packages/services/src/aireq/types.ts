@@ -1,4 +1,4 @@
-import type { AIReqDocumentFormats, AIReqMaterialCheck } from "./document-formats.js";
+import type { AIReqDocumentFormats } from "./document-formats.js";
 import type { AIReqAgentModelBinding } from "./model-types.js";
 export { AIREQ_AGENT_ROLES } from "./model-types.js";
 export type {
@@ -14,24 +14,7 @@ export interface AIReqIdentity {
   clientId: string;
 }
 
-export type AIReqWorkflowStage = "planning" | "executing" | "solution";
-export type AIReqRequirementStatus =
-  | "draft"
-  | "solution-ready"
-  | "formal"
-  | "frozen"
-  | "deleted"
-  | "reviewing"
-  | "confirmed";
-/** 由当前有效材料和确认事实推导，不作为可写生命周期字段。 */
-export type AIReqProposalState =
-  | "not-started"
-  | "ir-review-pending"
-  | "ir-confirmation-pending"
-  | "solution-incomplete"
-  | "solution-review-pending"
-  | "solution-confirmation-pending"
-  | "submission-pending";
+export type AIReqDiscussionAgent = "requirements" | "solution";
 export interface AIReqObjectRef {
   projectId: string;
   irId: string;
@@ -39,9 +22,7 @@ export interface AIReqObjectRef {
 }
 export interface AIReqNativeSessionRef extends AIReqObjectRef {
   sessionId: string;
-  role: "requirements" | "solution" | "reviewer" | "ir-acceptance" | AIReqWorkflowStage;
-  phase: "requirements" | "solution" | "ir-acceptance" | AIReqWorkflowStage;
-  round: number;
+  phase: AIReqDiscussionAgent;
   modelConfig?: AIReqAgentModelBinding;
 }
 export interface AIReqFileVersion {
@@ -91,82 +72,28 @@ export interface AIReqIdeaTarget {
 export interface AIReqIdeaTransfer extends AIReqIdeaTarget {
   irId: string;
 }
-export type AIReqProposalReturnTarget = "requirements" | "solution";
-export interface AIReqProposalFeedbackNote {
+export interface AIReqDocumentConfirmation {
   employeeId: string;
-  returnedAt: string;
-  round: number;
-  reason: string;
-  target?: AIReqProposalReturnTarget;
-  resumedAt?: string;
-}
-export type AIReqReviewAgentId = "a" | "b" | "c" | "summary";
-export interface AIReqReviewAgent {
-  id: AIReqReviewAgentId;
-  name: string;
-  status: "pending" | "running" | "completed" | "failed";
-  session: AIReqNativeSessionRef;
-  report: string;
-}
-export interface AIReqReview {
-  kind?: "original" | "full";
-  invalidatedReason?: string;
-  agents?: AIReqReviewAgent[];
-  humanDecision?: {
-    employeeId: string;
-    decidedAt: string;
-    reviewId: string;
-    snapshotDigest: string;
-  };
-  id: string;
-  snapshotDigest: string;
-  passed: boolean;
-  report: string;
-  modelConfig?: AIReqAgentModelBinding;
-  inputFiles?: AIReqFileVersion[];
-  round?: number;
-  findings?: {
-    id: string;
-    level: "blocking" | "suggestion";
-    message: string;
-    documentPath: string;
-  }[];
-  reviewer:
-    | AIReqNativeSessionRef
-    | { sessionId: string; role: "reviewer"; sourceProjectId: string; imported: true };
-  createdAt: string;
-}
-export interface AIReqRequirementSnapshot {
-  projectId: string;
-  irId: string;
-  title: string;
-  srs: { id: string; title: string; documentPath: string }[];
-  documentPath: string;
-  files: AIReqFileVersion[];
-  digest: string;
-}
-export interface AIReqArchiveFact {
-  archivedAt: string;
-  archivedBy: string;
-  files: AIReqFileVersion[];
-}
-export interface AIReqProposalDelivery {
-  candidate: string;
-  version: string;
-  files: AIReqFileVersion[];
-  confirmedBy: string;
   confirmedAt: string;
 }
-export interface AIReqProposalRevision {
-  reason: string;
-  employeeId: string;
-  startedAt: string;
-  completedAt?: string;
-  snapshot: AIReqRequirementSnapshot;
-  archive: AIReqArchiveFact;
+export interface AIReqDocumentVersion {
+  number: number;
+  confirmation?: AIReqDocumentConfirmation;
+}
+export interface AIReqDocumentSnapshot extends AIReqDocumentVersion {
+  confirmation: AIReqDocumentConfirmation;
   materials: AIReqMaterialView[];
-  delivery?: AIReqProposalDelivery;
-  review?: AIReqReview;
+  srs: AIReqSystemRequirement[];
+}
+export interface AIReqDocumentReview {
+  id: string;
+  agent: AIReqDiscussionAgent;
+  version: number;
+  requestedBy: string;
+  requestedAt: string;
+  status: "running" | "completed" | "failed";
+  report?: string;
+  stale: boolean;
 }
 export interface AIReqSystemRequirement {
   id: string;
@@ -181,87 +108,23 @@ export interface AIReqProjectRoleMember {
   employeeId: string;
   role: AIReqProjectRole;
 }
-export interface AIReqMaterialHistoryEvent {
-  type: "confirmation";
-  employeeId: string;
-  role: "business" | AIReqProjectRole;
-}
-
-export interface AIReqMaterialHistory {
-  event?: AIReqMaterialHistoryEvent;
-  version: string;
-  reason: string;
-  changedAt: string;
-  materials: AIReqMaterialView[];
-  documentPath?: string;
-  proposalRound?: number;
-  srs?: AIReqRequirementSnapshot["srs"];
-  requirementsCheck?: AIReqMaterialCheck;
-  solutionCheck?: AIReqMaterialCheck;
-}
 export interface AIReqRequirementGroup {
-  originalText: string;
-  submittedBy: string;
-  sourceIrId?: string;
-  originalReview?: AIReqReview;
-  originalReviewHistory?: AIReqReview[];
-  alignment?: AIReqAlignment[];
-  alignmentHistory?: AIReqAlignment[];
-  requirementsCheck?: AIReqMaterialCheck;
-  solutionCheck?: AIReqMaterialCheck;
-  materialHistory?: AIReqMaterialHistory[];
-  rejectedReviewResults?: { reviewId: string; reason: string; at: string }[];
   id: string;
   projectId: string;
   releaseId: string;
   title: string;
+  originalText: string;
+  submittedBy: string;
   documentPath: string;
   origin: "local" | "browser" | "import";
-  status: AIReqRequirementStatus;
+  createdAt: string;
   revision: number;
   srIds: string[];
   files: AIReqFileVersion[];
   sessions: AIReqNativeSessionRef[];
-  snapshot?: AIReqRequirementSnapshot;
-  review?: AIReqReview;
-  reviewHistory?: AIReqReview[];
-  archive?: AIReqArchiveFact;
-  createdAt: string;
-  proposalDelivery?: AIReqProposalDelivery;
-  proposalDeliveryHistory?: AIReqProposalDelivery[];
-  proposalRevisions?: AIReqProposalRevision[];
-  freeze?: {
-    frozenAt: string;
-    frozenBy: string;
-    title: string;
-    snapshotDigest: string;
-    files: AIReqFileVersion[];
-    srIds: string[];
-    dependencies: Record<string, string[]>;
-  };
-  srDependencyFile?: AIReqMaterialView;
-  proposalStage?: "requirements" | "solution";
-  proposalRound?: number;
-  developerHandoff?: { employeeId: string; submittedAt: string };
-  developerAcceptance?: { employeeId: string; acceptedAt: string; round: number };
-  requirementSupplements?: {
-    note: string;
-    employeeId: string;
-    createdAt: string;
-    round?: number;
-  }[];
-  proposalSolution?: {
-    path: string;
-    employeeId: string;
-    generatedAt: string;
-    round: number;
-    valid: boolean;
-    requirementsDigest?: string;
-  };
-  returnFeedback?: AIReqProposalFeedbackNote;
-  returnFeedbackHistory?: AIReqProposalFeedbackNote[];
-  /** directory 是 IR 所属 OMP 项目 dir，不是每提案临时目录；会话历史由 OMP 管理。 */
-  proposalLocation?: { employeeId: string; directory: string };
+  documentVersion?: AIReqDocumentVersion;
+  documentHistory: AIReqDocumentSnapshot[];
+  documentReviews: AIReqDocumentReview[];
 }
 export interface AIReqOperationReceipt {
   operationId: string;
@@ -282,14 +145,13 @@ export interface AIReqMaterialView extends AIReqFileVersion {
   irId: string;
   srId?: string;
   kind: "ir" | "sr" | "solution" | "test-plan" | "plan";
-  round?: number;
   valid: boolean;
   content?: string;
   error?: string;
 }
 export interface AIReqMaterialReadRequest extends Pick<
   AIReqMaterialView,
-  "projectId" | "irId" | "path" | "sha256" | "round"
+  "projectId" | "irId" | "path" | "sha256"
 > {
   releaseId: string;
 }
@@ -306,8 +168,6 @@ export interface AIReqWorkflowView {
   srs: AIReqSystemRequirement[];
   materials: AIReqMaterialView[];
   operations: AIReqOperationReceipt[];
-  sessions: AIReqNativeSessionRef[];
-  running: AIReqNativeSessionRef[];
 }
 export interface AIReqCommandBase {
   projectId?: string;
@@ -326,7 +186,6 @@ type AIReqIntent = AIReqCommandBase &
     | {
         type: "createProposal";
         originalText: string;
-        sourceIrId?: string;
         clientDraftId?: string;
         releaseId: string;
       }
@@ -335,26 +194,9 @@ type AIReqIntent = AIReqCommandBase &
         releaseId: string;
         proposals: { originalText: string; businessDocument?: string }[];
       }
-    | { type: "runFullReview" }
-    | {
-        type: "confirmAlignment";
-        perspective: "business" | "development" | "testing";
-        version: string;
-        reviewId: string;
-        snapshotDigest: string;
-      }
     | { type: "deleteRequirement"; projectId: string; irId: string }
-    | { type: "acceptProposal"; reviewId: string; snapshotDigest: string }
-    | {
-        type: "submitProposalReview";
-        projectId: string;
-        irId: string;
-        kind: "original" | "full";
-        snapshotDigest: string;
-      }
-    | { type: "runRequirementsReview" }
-    | { type: "returnProposal"; reason: string; target?: AIReqProposalReturnTarget }
-    | { type: "archiveProposal"; projectId: string; irId: string; candidate: string }
+    | { type: "reviewDocuments"; projectId: string; irId: string; agent: AIReqDiscussionAgent }
+    | { type: "confirmDocumentVersion"; projectId: string; irId: string }
   );
 
 /** 本地表单可携带独立于最新投影的编辑基线。 */
@@ -362,20 +204,25 @@ export type AIReqAction = AIReqIntent & { operationId?: string; expectedRevision
 /** 远程动作仅携带意图和幂等键；CAS 版本单独传递。 */
 export type AIReqCommand = AIReqIntent & { operationId: string };
 
+export interface AIReqDocumentValidation {
+  version?: number;
+  fileCount: number;
+  issues: { kind: "missing" | "invalid"; path: string; reason: string }[];
+}
+
 export interface AIReqWorkflowResult {
   transferredRequirements?: AIReqIdeaTransfer[];
   projectId: string;
   irId?: string;
   receipt: AIReqOperationReceipt;
   documentFormatSnapshot?: Pick<AIReqWorkflowView, "documentFormats" | "revision">;
+  documentValidation?: AIReqDocumentValidation;
 }
 export interface AIReqWorkflowTarget {
-  reviewAgent?: AIReqReviewAgentId;
-  proposalStep?: "requirements" | "requirements-review" | "solution" | "intake";
   projectId?: string;
   irId?: string;
   srId?: string;
-  discussionPhase?: "requirements" | "solution";
+  discussionPhase?: AIReqDiscussionAgent;
 }
 
 export interface AIReqSkillDesignSession {
@@ -414,12 +261,4 @@ export interface AIReqSkillSaveReceipt {
   path: string;
   revision: number;
   target: "project" | "user";
-}
-export interface AIReqAlignment {
-  perspective: "business" | "development" | "testing";
-  version: string;
-  reviewId: string;
-  snapshotDigest: string;
-  employeeId: string;
-  confirmedAt: string;
 }

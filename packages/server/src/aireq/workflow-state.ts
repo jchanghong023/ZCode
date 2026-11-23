@@ -1,39 +1,19 @@
 import type {
-  AIReqAction,
-  AIReqAgentModelBinding,
-  AIReqAlignment,
-  AIReqCommandBase,
+  AIReqDiscussionAgent,
   AIReqDocumentFormats,
-  AIReqFileVersion,
+  AIReqDocumentReview,
+  AIReqDocumentSnapshot,
+  AIReqDocumentVersion,
   AIReqIdea,
   AIReqIdentity,
-  AIReqMaterialCheck,
-  AIReqMaterialHistory,
   AIReqMaterialView,
-  AIReqArchiveFact,
   AIReqNativeSessionRef,
-  AIReqProposalFeedbackNote,
-  AIReqProposalDelivery,
-  AIReqProposalRevision,
-  AIReqRequirementGroup,
-  AIReqRequirementSnapshot,
-  AIReqRequirementStatus,
-  AIReqReview,
-  AIReqReviewAgent,
+  AIReqOperationReceipt,
   AIReqProjectRoleMember,
+  AIReqRequirementGroup,
   AIReqSystemRequirement,
 } from "@zcode/services/aireq";
 import type { NativeRuntimeModel } from "./agent-models.js";
-
-// 生成材料只由原生讨论完成回调驱动，不属于浏览器安全的公共命令。
-export type InternalWorkflowAction =
-  | AIReqAction
-  | (AIReqCommandBase &
-      (
-        | { type: "generateRequirements"; note: string }
-        | { type: "supplementRequirements"; note: string }
-        | { type: "generateProposalSolution" }
-      ));
 
 export interface Project {
   id: string;
@@ -48,110 +28,44 @@ export interface NativeSessionRef extends AIReqNativeSessionRef {
   runtimeModel?: NativeRuntimeModel;
 }
 
-export interface ReviewAgent extends AIReqReviewAgent {
-  session: NativeSessionRef;
-}
-
-export interface Review {
-  id: string;
-  kind?: "original" | "full";
-  snapshotDigest: string;
-  passed: boolean;
-  report: string;
-  reviewer: NativeSessionRef | Exclude<AIReqReview["reviewer"], AIReqNativeSessionRef>;
-  createdAt: string;
-  invalidatedReason?: string;
-  agents?: ReviewAgent[];
-  humanDecision?: AIReqReview["humanDecision"];
-  modelConfig?: AIReqAgentModelBinding;
-  inputFiles?: AIReqFileVersion[];
-  round?: number;
-  findings?: AIReqReview["findings"];
-  requestedBy?: string;
-}
-
-export interface Receipt {
-  operationId: string;
-  type: string;
-  status: "running" | "completed" | "failed";
-  startedAt: string;
-  completedAt?: string;
-  revision: number;
-  irId?: string;
-  irIds?: string[];
-  srId?: string;
-  steps: { name: string; at: string; detail: string }[];
-  error?: string;
-  /** Historical sample receipts predate request identity. */
+export interface Receipt extends Omit<AIReqOperationReceipt, "actorEmployeeId"> {
   identity?: AIReqIdentity;
 }
 
-interface ProposalRevision extends Omit<AIReqProposalRevision, "delivery" | "review"> {
-  delivery?: AIReqProposalDelivery;
-  review?: Review;
+export interface DocumentReview extends AIReqDocumentReview {
+  materialDigest: string;
 }
 
-export interface RequirementGroup {
-  id: string;
-  projectId: string;
-  releaseId: string;
-  title: string;
-  documentPath: string;
-  origin: "local" | "browser" | "import";
-  status: AIReqRequirementStatus;
-  revision: number;
-  srIds: string[];
-  files: AIReqFileVersion[];
+export interface RequirementGroup extends Omit<
+  AIReqRequirementGroup,
+  "documentVersion" | "documentReviews" | "sessions"
+> {
+  documentVersion?: AIReqDocumentVersion | AIReqDocumentSnapshot;
+  documentReviews: DocumentReview[];
   sessions: NativeSessionRef[];
-  createdAt: string;
-  originalText: string;
-  submittedBy: string;
-  sourceIrId?: string;
   clientDraftId?: string;
-  originalReview?: Review;
-  originalReviewHistory?: Review[];
-  review?: Review;
-  reviewHistory?: Review[];
-  alignment?: AIReqAlignment[];
-  alignmentHistory?: AIReqAlignment[];
-  requirementsCheck?: AIReqMaterialCheck;
-  solutionCheck?: AIReqMaterialCheck;
-  materialHistory?: AIReqMaterialHistory[];
-  rejectedReviewResults?: AIReqRequirementGroup["rejectedReviewResults"];
-  snapshot?: AIReqRequirementSnapshot;
-  archive?: AIReqArchiveFact;
-  proposalDelivery?: AIReqProposalDelivery;
-  proposalDeliveryHistory?: AIReqProposalDelivery[];
-  proposalRevisions?: ProposalRevision[];
-  freeze?: AIReqRequirementGroup["freeze"];
-  srDependencyFile?: AIReqMaterialView;
-  proposalStage?: "requirements" | "solution";
-  proposalRound?: number;
-  developerHandoff?: AIReqRequirementGroup["developerHandoff"];
-  developerAcceptance?: AIReqRequirementGroup["developerAcceptance"];
-  requirementSupplements?: AIReqRequirementGroup["requirementSupplements"];
-  proposalSolution?: AIReqRequirementGroup["proposalSolution"];
-  returnFeedback?: AIReqProposalFeedbackNote;
-  returnFeedbackHistory?: AIReqProposalFeedbackNote[];
-  proposalLocation?: { employeeId: string; directory: string };
 }
 
 export interface SystemRequirement extends AIReqSystemRequirement {
   dependencySrIds?: string[];
 }
 
-/** Mutable facts, not a wire view; role visibility and aggregates are computed on read. */
+export interface NativeDocumentOutput {
+  agent: AIReqDiscussionAgent;
+  materials: AIReqMaterialView[];
+  removedPaths?: string[];
+  srs?: SystemRequirement[];
+}
+
+/** 需求、材料、确认与评审事实由工作流统一提交。 */
 export interface WorkflowState {
   revision: number;
   projects: Project[];
   projectRoleMembers: AIReqProjectRoleMember[];
   ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
-  groups: RequirementGroup[];
-  drafts: RequirementGroup[];
+  requirements: RequirementGroup[];
   srs: SystemRequirement[];
   materials: AIReqMaterialView[];
   operations: Receipt[];
-  sessions: NativeSessionRef[];
-  running: NativeSessionRef[];
 }

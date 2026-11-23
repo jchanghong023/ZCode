@@ -2,9 +2,9 @@
 
 ## 系统范围
 
-AIReq 是面向电脑浏览器的纯 Web 应用。用户在项目与 Release 下把想法推进为提案，经澄清、评审和人工确认后交付正式文档。在平台归档后可查阅正式材料及讨论评审历史。Sketch 支持绘图和 PNG 附件。
+AIReq 是面向电脑浏览器的纯 Web 应用。需求共创以两个 Agent 讨论需求和方案，在平台内查阅、评审和确认文档版本。Sketch 仍用于草稿附件。
 
-用户填写工号即可进入，工号用来记录消息发送人和实际操作者。业务会话已发送的正文和附件全员可见。详见[连接身份](specs/aireq/connection-identity.md#1-身份来源)。
+用户填写工号即可进入，工号用来记录消息发送人和实际操作者。需求会话对全员开放，方案会话对所属项目的开发和测试开放。详见[连接身份](specs/aireq/connection-identity.md#1-身份来源)。
 
 `/chat` 是免登录的 [Web Agent 聊天入口](specs/web-agent-chat.md)，使用独立的内存会话空间和原型 Agent。
 
@@ -12,9 +12,9 @@ AIReq 是面向电脑浏览器的纯 Web 应用。用户在项目与 Release 下
 
 ## 产品与交互
 
-- [从一句业务诉求到正式文档](briefings/requirements-collaboration.md)。梳理提案八阶段的人机分工、FDTH 案例和首次试用。
+- [从一句业务诉求到确认版本](briefings/requirements-collaboration.md)介绍两个 Agent、按需评审和版本确认。
 - [项目／版本／导航／想法](specs/aireq/section-navigation-and-ideas.md)。
-- [提案流程](specs/aireq/proposals.md)、[原生会话](specs/aireq/conversation.md)。
+- [需求共创](specs/aireq/proposals.md)、[原生会话](specs/aireq/conversation.md)。
 - [AI 配置与 Agent 角色](specs/aireq/tools-settings.md#agent-角色)、[文档格式](specs/aireq/tools-settings.md#文档格式)、[右侧工作区与材料](specs/aireq/unified-side-pane.md)、[动效主题](../DESIGN.md#默认动效主题)。
 
 ## 架构与工程维护

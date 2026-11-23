@@ -21,11 +21,14 @@ function decodeBase64ToArrayBuffer(dataBase64: string): ArrayBuffer {
 
 export function AIReqSketchButton({
   disabled,
+  dialog,
   onAddFiles,
   onReturnToComposer,
 }: AIReqSketchButtonProps) {
   const source = useOptionalAIReqDataSource();
-  const [open, setOpen] = useState(false);
+  const [standaloneOpen, setStandaloneOpen] = useState(false);
+  const open = dialog?.open ?? standaloneOpen;
+  const setOpen = dialog?.onOpenChange ?? setStandaloneOpen;
   const frameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -76,24 +79,26 @@ export function AIReqSketchButton({
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [open, disabled, onAddFiles]);
+  }, [open, disabled, onAddFiles, setOpen]);
 
   if (!source) return null;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          aria-label="画图"
-          title="画图"
-          data-testid="aireq-sketch-open"
-        >
-          <PencilRuler className="size-4" />
-        </Button>
-      </DialogTrigger>
+      {!dialog && (
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={disabled}
+            aria-label="画图"
+            title="画图"
+            data-testid="aireq-sketch-open"
+          >
+            <PencilRuler className="size-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent
         showCloseButton={false}
         className="flex flex-col overflow-hidden"

@@ -1,7 +1,6 @@
-import type { ProposalTask } from "./proposals/proposalTasks.js";
 import type { AIReqMainView, AIReqWorkflowTarget } from "./contract.js";
 
-export type ProposalDraft = { id: string; sourceIrId?: string };
+export type ProposalDraft = { id: string };
 export type NavigationOverlay =
   | { kind: "settings" }
   | { kind: "proposal"; draft: ProposalDraft; fromList?: boolean }
@@ -11,7 +10,6 @@ export interface AIReqNavigationState {
   index: number;
   extent: number;
   mainView: AIReqMainView;
-  proposalTask: ProposalTask;
   overlay: NavigationOverlay;
   overviewOrigin?: { projectId: string; releaseId: string };
 }
@@ -26,24 +24,17 @@ export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
       return {
         kind: "proposal",
         ...("fromList" in saved && saved.fromList === true ? { fromList: true } : {}),
-        draft: {
-          id: draft.id,
-          ...("sourceIrId" in draft && typeof draft.sourceIrId === "string"
-            ? { sourceIrId: draft.sourceIrId }
-            : {}),
-        },
+        draft: { id: draft.id },
       };
   }
   return null;
 }
 
 export function restoreMainView(saved: unknown): AIReqMainView {
-  if (saved === "todos") return "projectOverview";
-  if (saved === "formal" || saved === "requirementAnalysis" || saved === "development" || saved === "testing")
-    return "proposals";
   return (
     (
       [
+        "chat",
         "ideas",
         "projectProgress",
         "projectOverview",
@@ -51,7 +42,7 @@ export function restoreMainView(saved: unknown): AIReqMainView {
         "roles",
         "skillDesign",
       ] as const
-    ).find((view) => view === saved) ?? "chat"
+    ).find((view) => view === saved) ?? "projectProgress"
   );
 }
 
@@ -71,5 +62,6 @@ export function requirementObjectLink(
   url.searchParams.set("aireqRelease", releaseId);
   url.searchParams.set("aireqIr", target.irId);
   if (target.srId) url.searchParams.set("aireqSr", target.srId);
+  if (target.discussionPhase) url.searchParams.set("aireqAgent", target.discussionPhase);
   return url.toString();
 }

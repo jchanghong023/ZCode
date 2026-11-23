@@ -45,5 +45,10 @@ export async function createProposal(
   if (!result.irId) throw new Error("创建提案未返回 IR 标识");
   recordCreated(project.projectId, result.irId);
   const selection = { projectId: project.projectId, irId: result.irId };
-  return { ...project, irId: result.irId, selection, remote: await client.read(selection) };
+  return {
+    ...project,
+    irId: result.irId,
+    selection,
+    remote: await client.read({ ...selection, discussionPhase: "requirements" }),
+  };
 }

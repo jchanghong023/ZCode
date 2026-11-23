@@ -211,6 +211,7 @@ export interface SessionPaneProps {
   composerTools?: ConversationComposerProps["composerTools"];
   externalTextInsertRequest?: ConversationComposerProps["externalTextInsertRequest"];
   composerTrailingTools?: ConversationComposerProps["composerTrailingTools"];
+  composerSketch?: ConversationComposerProps["composerSketch"];
   onExternalTextInsertApplied?: ConversationComposerProps["onExternalTextInsertApplied"];
   /** Supplying a service catalog opts into session-bound input. */
   loadConversationCommands?: () =>
@@ -477,6 +478,7 @@ export function SessionPane({
   onInputPreview,
   composerTools,
   composerTrailingTools,
+  composerSketch,
   externalTextInsertRequest,
   onExternalTextInsertApplied,
   loadConversationCommands,
@@ -3534,6 +3536,7 @@ export function SessionPane({
       onInputPreview={onInputPreview}
       composerTools={composerTools}
       composerTrailingTools={composerTrailingTools}
+      composerSketch={composerSketch}
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       inputPending={state.optimisticCommands.some((command) =>

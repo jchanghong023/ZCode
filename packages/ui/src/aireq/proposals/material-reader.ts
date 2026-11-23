@@ -1,121 +1,52 @@
 import {
-  fullReviewReadyBlocker,
-  proposalAlignmentCurrent,
   readSrDependencies,
-  requirementsReviewBlocker,
-  type AIReqMaterialHistory,
-  type AIReqMaterialReadRequest,
   type AIReqMaterialView,
   type AIReqRequirementGroup,
 } from "../contract.js";
 
+type MaterialRow = { id: string; title: string; documentPath: string };
+
 export function readMaterialSelection(
-  group:
-    | Pick<
-        AIReqRequirementGroup,
-        "id" | "projectId" | "documentPath" | "materialHistory" | "proposalRound"
-      >
-    | undefined,
+  group: Pick<AIReqRequirementGroup, "id" | "projectId" | "documentPath" | "documentHistory">,
   currentMaterials: readonly AIReqMaterialView[],
-  currentRows: NonNullable<AIReqMaterialHistory["srs"]>,
-  options: {
-    path?: string;
-    srId?: string;
-    historyIndex?: number;
-    preferDesign?: boolean;
-  },
+  currentRows: readonly MaterialRow[],
+  options: { path?: string; srId?: string; version?: number; preferDesign?: boolean },
 ) {
-  const { historyIndex } = options;
-  const viewingHistory = historyIndex !== undefined;
-  const historical = viewingHistory ? group?.materialHistory?.[historyIndex] : undefined;
+  const viewingHistory = options.version !== undefined;
+  const historical = group.documentHistory.find((entry) => entry.number === options.version);
   const materials = (viewingHistory ? (historical?.materials ?? []) : currentMaterials).filter(
-    (item) => item.projectId === group?.projectId && item.irId === group?.id,
+    (item) => item.projectId === group.projectId && item.irId === group.id,
   );
-  const rows = viewingHistory ? historical?.srs : currentRows;
-  const proposalRound = viewingHistory ? historical?.proposalRound : (group?.proposalRound ?? 1);
-  const design = materials.find((item) => item.path.endsWith("/design.md"));
+  const rows = viewingHistory ? (historical?.srs ?? []) : currentRows;
   const selected = materials.find((item) => item.path === options.path);
-  let material = selected;
-  if (!material) {
-    for (const path of [
-      rows?.find((item) => item.id === options.srId)?.documentPath,
-      viewingHistory || options.preferDesign ? design?.path : undefined,
-      viewingHistory ? historical?.documentPath : group?.documentPath,
-    ]) {
-      material = materials.find((item) => item.path === path);
-      if (material) break;
-    }
-  }
-  return {
-    historical,
-    materials,
-    rows,
-    proposalRound,
-    design,
-    selected,
-    material: material ?? materials[0],
-  };
-}
-
-export function isCurrentMaterialConfirmed(
-  group: AIReqRequirementGroup | undefined,
-  material: AIReqMaterialView | undefined,
-): boolean {
-  if (
-    !group ||
-    !material?.valid ||
-    material.projectId !== group.projectId ||
-    material.irId !== group.id
-  )
-    return false;
-  const matchesFile = (file: Pick<AIReqMaterialView, "path" | "sha256" | "size">) =>
-    file.path === material.path && file.sha256 === material.sha256 && file.size === material.size;
-  if (!group.files.some(matchesFile)) return false;
-
-  if (group.archive) return group.archive.files.some(matchesFile);
-
-  // Approval of requirements covers just the IR; any current alignment covers the
-  // full review input. History alone is never evidence of current human approval.
-  if (material.path === group.documentPath && !requirementsReviewBlocker(group)) return true;
-  return (
-    !fullReviewReadyBlocker(group) &&
-    (group.alignment?.some((entry) => proposalAlignmentCurrent(group, entry)) ?? false)
+  const srPath = rows.find((row) => row.id === options.srId)?.documentPath;
+  const srDocument = materials.find((item) => item.path === srPath);
+  const srDesign = materials.find(
+    (item) => item.srId === options.srId && item.path.endsWith("/design.md"),
   );
-}
-
-export type MaterialReadFeedback = { request: AIReqMaterialReadRequest; message?: string };
-
-export function materialReadFeedback(
-  current: AIReqMaterialReadRequest | undefined,
-  feedback: MaterialReadFeedback | undefined,
-): string | undefined {
-  if (!current || !feedback) return undefined;
-  const previous = feedback.request;
-  if (
-    previous.projectId === current.projectId &&
-    previous.releaseId === current.releaseId &&
-    previous.irId === current.irId &&
-    previous.path === current.path &&
-    previous.sha256 === current.sha256 &&
-    previous.round === current.round
-  ) {
-    return feedback.message;
-  }
-  return undefined;
+  const solutionDocument =
+    srDesign ??
+    srDocument ??
+    materials.find((item) => item.path.endsWith("/design.md")) ??
+    materials.find((item) => item.srId);
+  const material =
+    selected ??
+    (options.preferDesign ? solutionDocument : srDocument) ??
+    materials.find((item) => item.path === group.documentPath) ??
+    materials.find((item) => !item.srId && item.kind === "ir") ??
+    materials[0];
+  return { historical, materials, rows, selected, material };
 }
 
 export function readMaterialDependencies(
   material: AIReqMaterialView,
-  rows: readonly { id: string; title: string }[] | undefined,
-  proposalRound: number | undefined,
+  rows: readonly { id: string; title: string }[],
 ) {
   const raw = material.content ?? "";
-  if (!rows) return { issue: "历史快照缺少 SR 清单，无法绘制依赖图。", raw };
-  if (proposalRound === undefined) return { issue: "历史快照缺少方案轮次，无法绘制依赖图。", raw };
-  if (rows.some(({ title }) => !title?.trim()))
+  if (rows.some(({ title }) => !title.trim()))
     return { issue: "SR 清单缺少节点名称，无法绘制依赖图。", raw };
   const result = readSrDependencies(
-    { id: material.irId, srIds: rows.map(({ id }) => id), proposalRound },
+    { id: material.irId, srIds: rows.map(({ id }) => id) },
     material,
     false,
   );

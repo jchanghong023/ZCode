@@ -19,8 +19,8 @@ const hasMaterialFailure = (material: AIReqMaterialView) =>
   (scenario() === "missing-material" || scenario() === "material-read-failure");
 
 // IR IDs are stable within their project; the retry command validates their owning Release.
-const materialKey = ({ projectId, irId, path, sha256, round }: AIReqMaterialView) =>
-  JSON.stringify([projectId, irId, path, sha256, round]);
+const materialKey = ({ projectId, irId, path, sha256 }: AIReqMaterialView) =>
+  JSON.stringify([projectId, irId, path, sha256]);
 
 export function prototypeMaterialIssue(material: AIReqMaterialView): string | undefined {
   if (!hasMaterialFailure(material)) return undefined;
@@ -50,13 +50,6 @@ export function retryPrototypeSessionRead(sessionId: string): void {
 export function consumePrototypeSendFailure(): boolean {
   if (scenario() !== "send-failure") return false;
   const key = `${scope()}:send`;
-  if (consumedOperations.has(key)) return false;
-  consumedOperations.add(key);
-  return true;
-}
-export function consumePrototypeOperationFailure(type: string): boolean {
-  if (scenario() !== "operation-failure" || type !== "returnProposal") return false;
-  const key = `${scope()}:${type}`;
   if (consumedOperations.has(key)) return false;
   consumedOperations.add(key);
   return true;

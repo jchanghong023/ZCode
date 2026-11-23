@@ -51,9 +51,9 @@ const roleDefaults: Record<AIReqAgentRole, Omit<AIReqAgentModel, "id">> = {
   "requirements-review": {
     name: "需求评审 Agent",
     nameEn: "Requirements Review Agent",
-    description: "独立评审 IR 需求文档并给出意见，供业务人员确认。",
+    description: "按需评审当前 IR 需求文档并将意见返回会话。",
     descriptionEn:
-      "Independently review the IR requirements document and give feedback for business confirmation.",
+      "Review the current IR requirements document on request and return feedback to the discussion.",
     model: "anthropic/claude-opus-4.5",
     reasoning: "high",
   },
@@ -66,37 +66,13 @@ const roleDefaults: Record<AIReqAgentRole, Omit<AIReqAgentModel, "id">> = {
     model: "anthropic/claude-opus-4.5",
     reasoning: "high",
   },
-  "requirements-review-a": {
-    name: "方案评审 A",
-    nameEn: "Solution Reviewer A",
-    description: "独立审查需求覆盖和一致性。",
-    descriptionEn: "Independently review requirements coverage and consistency.",
-    model: "anthropic/claude-opus-4.5",
-    reasoning: "high",
-  },
-  "requirements-review-b": {
-    name: "方案评审 B",
-    nameEn: "Solution Reviewer B",
-    description: "独立审查技术方案和 SR 依赖。",
-    descriptionEn: "Independently review the technical design and SR dependencies.",
-    model: "openai/gpt-5.2",
-    reasoning: "high",
-  },
-  "requirements-review-c": {
-    name: "方案评审 C",
-    nameEn: "Solution Reviewer C",
-    description: "独立审查任务可执行性、测试充分性和验收追溯。",
+  "solution-review": {
+    name: "方案评审 Agent",
+    nameEn: "Solution Review Agent",
+    description: "按需审查当前方案覆盖、技术设计与测试材料。",
     descriptionEn:
-      "Independently review task executability, testing sufficiency and acceptance traceability.",
-    model: "deepseek/deepseek-v3.2",
-    reasoning: "high",
-  },
-  "solution-review-summary": {
-    name: "方案综审 Agent",
-    nameEn: "Solution Review Synthesis Agent",
-    description: "汇总三路方案评审的意见及分歧。",
-    descriptionEn: "Summarize feedback and disagreements across the three solution reviews.",
-    model: "anthropic/claude-sonnet-4.5",
+      "Review current solution coverage, technical design, and testing materials on request.",
+    model: "anthropic/claude-opus-4.5",
     reasoning: "high",
   },
 };

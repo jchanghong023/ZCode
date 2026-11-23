@@ -37,7 +37,6 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
     backend: { id: "backend-a" },
     capabilities: {
       workflowCommands: ["createIdea"],
-      requirementManagement: true,
     },
     initialProjectId: "project-a",
     models: { choices: [], settings: { defaultModel: `model-${revision}`, agents: [] }, revision },
@@ -70,8 +69,6 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
       srs: [],
       materials: [],
       operations: [],
-      sessions: [],
-      running: [],
     },
   };
 }
@@ -193,23 +190,25 @@ describe("AIReq frontend data source", () => {
     expect(remote.call).not.toHaveBeenCalled();
   });
 
-  it("forwards the same proposal stage target to workflow reads and session retries", async () => {
+  it("keeps local SR selection while reading and retrying its IR-level Agent session", async () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
-      const target: AIReqWorkflowTarget = {
+      const sessionTarget = {
         projectId: "project-b",
         irId: "ir-b",
-        srId: "sr-b",
-        proposalStep: "solution",
-        reviewAgent: "summary",
         discussionPhase: "solution",
-      };
+      } as const;
+      const target: AIReqWorkflowTarget = { ...sessionTarget, srId: "sr-b" };
       const view = await source.readWorkflow(target);
-      expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [target]);
+      expect(remote.call).toHaveBeenCalledWith(identity, "readWorkflow", [sessionTarget]);
       expect(source.resolveWorkspace(view, target).identity).toBe("workspace:project-b");
       await source.retrySession(target, "session-b");
-      expect(remote.call).toHaveBeenCalledWith(identity, "retrySession", [target, "session-b"]);
+      expect(remote.call).toHaveBeenCalledWith(identity, "retrySession", [
+        sessionTarget,
+        "session-b",
+      ]);
+      expect(target).toEqual({ ...sessionTarget, srId: "sr-b" });
     } finally {
       await source.dispose();
     }
@@ -305,8 +304,6 @@ describe("AIReq frontend data source", () => {
       const ids = { projectId: "project-a", irId: "ir-a", srId: "sr-a" };
       const target: AIReqWorkflowTarget = {
         ...ids,
-        reviewAgent: "a",
-        proposalStep: "requirements",
         discussionPhase: "requirements",
       };
       expect(await source.command(action, target, 7)).toEqual(receipt);
@@ -315,8 +312,6 @@ describe("AIReq frontend data source", () => {
           action,
           {
             ...target,
-            reviewAgent: "b",
-            proposalStep: "solution",
             discussionPhase: "solution",
           },
           20,

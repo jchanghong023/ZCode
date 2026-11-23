@@ -20,8 +20,8 @@ export function ProjectPageHelp({ scope }: { scope: "all-projects" | "project-ov
       ? "版本卡片显示各 Release 的需求总数。进入工作区可查看该版本的需求。"
       : "Release cards show the total requirement count. Open a workspace to see its requirements."
     : zh
-      ? "提案完成评审和三方确认后提交归档，可在需求共创查阅已归档材料。"
-      : "Submit the verified documents for archiving after review and confirmation. Read archived materials in Co-creation.";
+      ? "在需求共创进入 Agent 对话，或直接打开每条需求的文档与历史版本。"
+      : "In Co-creation, open either Agent or view a requirement’s documents and version history.";
 
   return (
     // 长说明需稳定阅读；开合与焦点交还原生 Popover，避免离开问号就消失。
@@ -44,13 +44,6 @@ export function ProjectPageHelp({ scope }: { scope: "all-projects" | "project-ov
         className="max-h-[min(28rem,calc(100vh-2rem))] w-80 max-w-[calc(100vw-1.5rem)] gap-3 overflow-y-auto p-3 text-ui-sm leading-relaxed"
       >
         <p>{description}</p>
-        {scope === "project-overview" && (
-          <p>
-            {zh
-              ? "待人工处理按提案去重；同一提案可同时等待业务、开发和测试确认，分类数量不能直接相加。"
-              : "Pending proposals are counted once. A proposal may await business, development and testing confirmation, so category counts may overlap."}
-          </p>
-        )}
       </PopoverContent>
     </Popover>
   );

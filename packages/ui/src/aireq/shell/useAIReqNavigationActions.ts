@@ -1,4 +1,3 @@
-import { proposalTaskSelection, type ProposalTask } from "../proposals/proposalTasks.js";
 import { useCallback, type RefObject } from "react";
 import type { AIReqMainView, AIReqWorkflowTarget, AIReqWorkflowView } from "../contract.js";
 
@@ -11,7 +10,6 @@ type SelectTarget = (
   mainView?: WorkspaceMainView,
   targetReleaseId?: string,
   overviewOrigin?: ProjectOverviewOrigin | null,
-  task?: ProposalTask,
 ) => void;
 
 /** 只转发导航意图；所有可变选择、来源和历史仍由 AIReqContext 唯一持有。 */
@@ -47,25 +45,14 @@ export function useAIReqNavigationActions({
     },
     [select, selectionRef, navigationRef],
   );
-  const openFromProjectOverview = useCallback(
-    (
-      mainView: "proposals" | "chat",
-      target?: AIReqWorkflowTarget,
-      targetReleaseId?: string,
-    ) => {
-      navigate(() => {
-        const projectId = selectionRef.current.projectId;
-        const releaseId = releaseRef.current;
-        if (navigationRef.current.mainView !== "projectOverview" || !projectId || !releaseId)
-          return;
-        select(target ?? { projectId }, true, mainView, targetReleaseId ?? releaseId, {
-          projectId,
-          releaseId,
-        });
-      });
-    },
-    [navigate, select, selectionRef, releaseRef, navigationRef],
-  );
+  const openRequirementsFromOverview = useCallback(() => {
+    navigate(() => {
+      const projectId = selectionRef.current.projectId;
+      const releaseId = releaseRef.current;
+      if (navigationRef.current.mainView !== "projectOverview" || !projectId || !releaseId) return;
+      select({ projectId }, true, "proposals", releaseId, { projectId, releaseId });
+    });
+  }, [navigate, select, selectionRef, releaseRef, navigationRef]);
   const returnToProjectOverview = useCallback(() => {
     // 明确返回来源概览，而不是后退到可能属于表单、设置或外站的历史项。
     navigate(() => {
@@ -105,32 +92,14 @@ export function useAIReqNavigationActions({
       if (current.projectId === projectId) return;
       // 详情属于原 IR；切项目时返回同类需求列表，不能留下无对象的聊天页。
       const mainView =
-        navigationRef.current.mainView === "chat"
-          ? "proposals"
-          : navigationRef.current.mainView;
+        navigationRef.current.mainView === "chat" ? "proposals" : navigationRef.current.mainView;
       select({ projectId }, true, mainView);
     },
     [select, selectionRef, navigationRef],
   );
-  const openProposalTask = useCallback(
-    (task: ProposalTask, agent?: import("../contract.js").AIReqReviewAgentId) => {
-      navigate(() =>
-        select(
-          proposalTaskSelection(selectionRef.current, task, agent),
-          true,
-          "chat",
-          undefined,
-          undefined,
-          task,
-        ),
-      );
-    },
-    [navigate, select, selectionRef],
-  );
   return {
-    openProposalTask,
     setMainView,
-    openFromProjectOverview,
+    openRequirementsFromOverview,
     returnToProjectOverview,
     openProject,
     switchProject,

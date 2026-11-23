@@ -13,7 +13,6 @@ export function prototypeProposalDependencies(
     projectId: group.projectId,
     irId: group.id,
     kind: "solution",
-    round: group.proposalRound ?? 1,
     path: `${prototypeIrRoot(group.id)}/sr-dependencies.json`,
     // A supplied dependency document must be inspected as-is, including structural errors.
     content:
@@ -23,7 +22,7 @@ export function prototypeProposalDependencies(
           srs: rows.map((row) => ({
             srId: row.id,
             estimate: {
-              workingDays: row.id === "proposal-sr-booking-notification" ? 2 : 3,
+              workingDays: 3,
               assumptions:
                 "按单个开发人员投入估算，假设复用现有接口；不含等待前置 SR、评审和外部联调时间，实际排期需结合接口核对和联调范围确认。",
             },

@@ -48,6 +48,7 @@ export const config = {
   baseUrl: base.origin,
   employeeId: process.env.ST_EMPLOYEE_ID || "s00000001",
   otherEmployeeId: process.env.ST_OTHER_EMPLOYEE_ID || "s00000002",
+  testerEmployeeId: process.env.ST_TESTER_EMPLOYEE_ID || "s00000003",
   token: process.env.ST_TOKEN,
   timeoutMs: positiveInteger(process.env.ST_TIMEOUT_MS, 120_000),
   repositoryUrl: process.env.ST_REPOSITORY_URL || "https://github.com/jchanghong023/test.git",

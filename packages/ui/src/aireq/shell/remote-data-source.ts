@@ -1,7 +1,6 @@
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
 import {
-  isFormalSelection,
   AIREQ_CONTRACT_VERSION,
   type AIReqDataSource,
   type AIReqPresenceSnapshot,
@@ -16,10 +15,17 @@ import {
 } from "../contract.js";
 import type { IServiceAccessor } from "../contract.js";
 // 读取投影随 view 释放；重建 accessor 时仍可解析屏幕上旧 view，避免卸载草稿/报告。
-const snapshots = new WeakMap<
-  AIReqWorkflowView,
-  { key: string; reviewScopeKey: string; value: AIReqRemoteWorkflow }
->();
+const snapshots = new WeakMap<AIReqWorkflowView, { key: string; value: AIReqRemoteWorkflow }>();
+
+/** SR 链接可定位右侧文件，Agent 始终归属整个 IR。 */
+function sessionTarget(target: AIReqWorkflowTarget): AIReqWorkflowTarget {
+  if (!target.discussionPhase || !target.srId) return target;
+  return {
+    projectId: target.projectId,
+    irId: target.irId,
+    discussionPhase: target.discussionPhase,
+  };
+}
 
 export async function createRemoteAIReqDataSource(
   services: IServiceAccessor,
@@ -30,34 +36,12 @@ export async function createRemoteAIReqDataSource(
   const workflowListeners = new Set<() => void>();
   const modelListeners = new Set<() => void>();
   const skillListeners = new Set<(sessionId: string) => void>();
-  // 头像只切换同一已读取评审中的会话；不把异步刷新间隙当成工作区丢失。
   const resolveSnapshot = (
     view: AIReqWorkflowView | undefined,
     target: AIReqWorkflowTarget,
   ): AIReqRemoteWorkflow | undefined => {
     const snapshot = view ? snapshots.get(view) : undefined;
-    if (!snapshot || !view) return undefined;
-    if (snapshot.key === JSON.stringify(target)) return snapshot.value;
-    if (
-      snapshot.value.session?.role !== "reviewer" ||
-      snapshot.reviewScopeKey !== JSON.stringify({ ...target, reviewAgent: undefined })
-    )
-      return undefined;
-    const group = view.requirements.find(
-      (item) => !item.archive && item.id === target.irId && item.projectId === target.projectId,
-    );
-    const review = [
-      group?.originalReview,
-      group?.review,
-      ...(group?.originalReviewHistory ?? []),
-      ...(group?.reviewHistory ?? []),
-    ].find((item) =>
-      item?.agents?.some((agent) => agent.session.sessionId === snapshot.value.session?.sessionId),
-    );
-    const session = review?.agents?.find(
-      (agent) => agent.id === (target.reviewAgent ?? "summary"),
-    )?.session;
-    return session ? { ...snapshot.value, session } : undefined;
+    return snapshot?.key === JSON.stringify(target) ? snapshot.value : undefined;
   };
   let disposed = false;
   let metadataRefreshError: Error | undefined;
@@ -185,10 +169,9 @@ export async function createRemoteAIReqDataSource(
         await refreshMetadata();
         metadataRefreshError = undefined;
       }
-      const result = await call("readWorkflow", [target]);
+      const result = await call("readWorkflow", [sessionTarget(target)]);
       snapshots.set(result.view, {
         key: JSON.stringify(target),
-        reviewScopeKey: JSON.stringify({ ...target, reviewAgent: undefined }),
         value: result,
       });
       return result.view;
@@ -210,8 +193,7 @@ export async function createRemoteAIReqDataSource(
       await refreshMetadata();
       return result;
     },
-    resolveSession: (view, target) =>
-      isFormalSelection(view, target) ? undefined : resolveSnapshot(view, target)?.session,
+    resolveSession: (view, target) => resolveSnapshot(view, target)?.session,
     resolveWorkspace(view, target) {
       const resolved = resolveSnapshot(view, target);
       if (resolved) return resolved.workspace;
@@ -222,8 +204,9 @@ export async function createRemoteAIReqDataSource(
       return { identity: `aireq-remote:${clientId}`, kind: "unavailable" };
     },
     retryMaterial: (request) => call("retryMaterial", [request]),
+    validateDocumentVersion: (target) => call("validateDocumentVersion", [target]),
     retrySession: async (target, sessionId) => {
-      await call("retrySession", [target, sessionId]);
+      await call("retrySession", [sessionTarget(target), sessionId]);
     },
     dispose() {
       presenceListeners.clear();
@@ -259,18 +242,6 @@ export async function createRemoteAIReqDataSource(
       },
       revision: () => metadata.models.revision,
       subscribe: (listener) => subscribe(modelListeners, listener),
-      bindingChanged(binding) {
-        const settings = metadata.models.settings;
-        const agent = settings.agents.find((item) => item.id === binding.role);
-        if (!agent) return false;
-        const inherited = agent.model === "inherit";
-        return (
-          binding.inherited !== inherited ||
-          binding.modelKey !== (inherited ? settings.defaultModel : agent.model) ||
-          binding.reasoning !== agent.reasoning ||
-          binding.promptSnapshot !== (metadata.prompts.saved[binding.role] ?? "")
-        );
-      },
     },
     prompts: {
       read: () => ({

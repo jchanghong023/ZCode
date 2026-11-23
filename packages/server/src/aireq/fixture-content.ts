@@ -23,18 +23,6 @@ export const prototypeRequirementDetails: Record<
     createdAt: "2026-11-05T03:30:00.000Z",
     releaseId: "release-2026-11",
   },
-  "ir-notifications": {
-    originalText:
-      "提供统一通知列表，区分未读和已读，并支持从通知定位业务对象；重复投递不产生重复通知。",
-    createdAt: "2026-11-06T04:00:00.000Z",
-    releaseId: "release-2026-12",
-  },
-  "ir-audit-archive": {
-    originalText:
-      "按操作者、时间和业务对象检索审计记录，明确留存范围，确保归档后仍能追溯关键操作及其结果。",
-    createdAt: "2026-11-07T05:20:00.000Z",
-    releaseId: "release-2026-12",
-  },
   "ir-mobile": {
     originalText:
       "完善移动协作工作台的导航、项目切换、通知阅读与个人资料展示，切换项目时不混入其他项目的通知或身份信息。",
@@ -65,40 +53,10 @@ export const prototypeRequirementDetails: Record<
     createdAt: "2026-11-09T04:30:00.000Z",
     releaseId: "mobile-release-2027-01",
   },
-  "draft-report-export": {
-    originalText:
-      "团队周报需要按项目、成员和时间范围导出，保留当前筛选条件并说明导出字段、空数据和失败恢复规则。",
-    createdAt: "2026-11-09T05:00:00.000Z",
-    releaseId: "release-2026-12",
-  },
-  "draft-resource-booking": {
-    originalText:
-      "成员可以预约共享会议室与设备，提交前检查时段冲突；预约、取消及结果通知保持一致，失败后不能留下重复预约。",
-    createdAt: "2026-11-09T06:10:00.000Z",
-    releaseId: "release-2026-12",
-  },
-  "draft-audit-subscription": {
-    originalText:
-      "按审计事件类型和对象订阅变更通知，保留订阅条件与投递记录；相同事件重复投递时只保留一条业务通知。",
-    createdAt: "2026-11-09T07:00:00.000Z",
-    releaseId: "release-2026-11",
-  },
   "draft-feedback-intake": {
     originalText:
       "客户反馈希望按来源和业务场景归集，先保留客户原话，再由业务人员补充影响范围与期望结果。\n暂不自动拆分需求，也不自动安排版本内的开发任务。",
     createdAt: "2026-11-17T02:00:00.000Z",
-    releaseId: "release-2026-12",
-  },
-  "draft-search-filters": {
-    originalText:
-      "搜索结果支持按需求状态和提交人组合筛选，返回详情后保留筛选条件；明确筛选无结果时的恢复入口。",
-    createdAt: "2026-11-10T01:30:00.000Z",
-    releaseId: "mobile-release-2027-01",
-  },
-  "draft-delivery-digest": {
-    originalText:
-      "项目成员可以订阅每周交付摘要，包含已完成需求、当前阻塞和待确认事项；摘要中的每项都能回到对应业务对象。",
-    createdAt: "2026-11-10T02:45:00.000Z",
     releaseId: "release-2026-12",
   },
 };

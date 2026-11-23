@@ -48,7 +48,7 @@ import type {
   WebAIReqAgent,
 } from "@zcode/services/zcode-agent";
 import { completeMockModelSelection, MOCK_DEFAULT_MODEL_SELECTION } from "./domains/contract.js";
-import type { AIReqNativeBridge } from "../aireq/contract.js";
+import type { AIReqNativeBridge, AIReqNativeReviewWork } from "../aireq/contract.js";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
 import { readBuiltinPrototypeSkills, readPrototypeSkills } from "../aireq/skills.js";
 import {
@@ -74,6 +74,7 @@ type MockInput = {
   attachments?: QueueItem["attachments"];
   conversationQuotes?: QueueItem["conversationQuotes"];
   context?: MockInputContext;
+  documentReview?: AIReqNativeReviewWork;
 };
 type MockChatStarter = {
   workspacePath: string;
@@ -142,6 +143,7 @@ const strictConversationTopicFrameSchema = conversationTopicFrameSchema.strict()
 interface ConversationSubscription {
   sessionId: string;
   ordinal: number;
+  canRead?: () => boolean;
 }
 
 function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown): T {
@@ -189,8 +191,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       prepareNativeResult: AIReqNativeBridge["prepareNativeResult"];
       completeNative: AIReqNativeBridge["completeNative"];
       discardNative(sessionId: string, commandId: string): void;
-      seedNative(sessionId: string): string | undefined;
       getNativeBinding: AIReqNativeBridge["getNativeBinding"];
+      captureNativeReadPermission: AIReqNativeBridge["captureNativeReadPermission"];
       isPublishedNativeSession(sessionId: string): boolean;
       actorKey(): string;
       registerNativeDraft(
@@ -342,7 +344,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         ? this.conversationSubs
         : ([[targetSubscriptionId, this.conversationSubs.get(targetSubscriptionId)]] as const);
     for (const [subscriptionId, sub] of subscriptions) {
-      if (sub?.sessionId !== session.sessionId) continue;
+      if (sub?.sessionId !== session.sessionId || sub.canRead?.() === false) continue;
       const frame: ConversationTopicFrame = {
         topic,
         subscriptionId,
@@ -410,7 +412,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return (last?.rowId ?? -1) + 1;
   }
 
-  private startMockTurnWork(session: MockSession, turnId: string, responseId: string) {
+  private startMockTurnWork(
+    session: MockSession,
+    turnId: string,
+    responseId: string,
+    documentReview?: AIReqNativeReviewWork,
+  ) {
     const rowBase = () => ({
       rowId: this.nextRowId(session),
       turnId,
@@ -525,11 +532,19 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       startReview: () => {
         completed = 1;
         updateTodo();
-        const subagentType = "原型复核";
+        const subagentType = documentReview?.title ?? "原型复核";
         agent = newTool("Agent", {
           subagent_type: subagentType,
-          description: "模拟复核本轮输入",
-          prompt: "核对本轮已交付的输入。",
+          description: documentReview?.title ?? "模拟复核本轮输入",
+          prompt: documentReview
+            ? [documentReview.prompt, documentReview.additionalInstructions]
+                .filter(Boolean)
+                .join("\n\n")
+            : "核对本轮已交付的输入。",
+          ...(documentReview && {
+            model: documentReview.model.modelId,
+            reasoning: documentReview.model.reasoning,
+          }),
         });
         this.appendRow(session, agent);
         review = {
@@ -538,13 +553,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           parentToolCallId: agent.toolCallId,
           subagentType,
           status: "running",
-          summaryText: "正在模拟复核本轮输入。",
+          summaryText: documentReview ? "正在检查已接纳的文档快照。" : "正在模拟复核本轮输入。",
           startedAt: agent.startedAt,
         };
         this.appendRow(session, review);
       },
-      finishReview: (inputCount: number) => {
-        settleReview("success", `原型复核已检查本轮 ${inputCount} 条输入，未启动真实子代理。`);
+      finishReview: (summaryText: string) => {
+        settleReview("success", summaryText);
         completed = 2;
         updateTodo();
       },
@@ -566,7 +581,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const { startedAt, foregroundExecutionId } = owner.work;
     const { signal } = owner.controller;
     const modelSelection = session.config.modelSelection;
-    const model = modelSelection?.modelId ?? session.config.model;
+    const documentReview = input.documentReview;
+    const model = documentReview?.model.modelId ?? modelSelection?.modelId ?? session.config.model;
     const turnId = foregroundExecutionId;
     const responseId = `resp_${createUuid()}`;
     session.lastActivityAt = startedAt;
@@ -597,7 +613,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
     const enter = (submitted: MockInput) => {
       inputs.push(submitted);
-      startedCommands.push(submitted.commandId);
+      if (!submitted.documentReview) startedCommands.push(submitted.commandId);
       this.appendRow(session, {
         kind: "userInput",
         rowId: this.nextRowId(session),
@@ -614,6 +630,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         modelSelection,
       });
       // AIReq 材料只消费用户语义；冻结的技能正文留在会话执行上下文。
+      if (submitted.documentReview) return;
       this.business?.beginNative(
         session.sessionId,
         submitted.commandId,
@@ -623,6 +640,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       );
     };
     const consumeSteers = () => {
+      if (documentReview) return;
       for (let index = 0; index < session.queuedInputs.length; ) {
         const queued = session.queuedInputs[index]!;
         if (queued.retained || queued.item.delivery.admitted !== "guide") {
@@ -637,29 +655,39 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     signal.onabort = () => {
       discard();
       work?.settle("cancelled");
+      if (documentReview) documentReview.settle("failed", `${documentReview.title}已停止。`);
       this.interruptTurn(session, turnHeader, owner);
     };
 
     try {
       enter(input);
-      work = this.startMockTurnWork(session, turnId, responseId);
+      if (!this.business || documentReview)
+        work = this.startMockTurnWork(session, turnId, responseId, documentReview);
       // 只恢复原型展示；保留投递检查点与执行窗口，不改变 steer、跟进及停止语义。
       await wait(160, undefined, { signal });
-      work.explain();
+      work?.explain();
       await wait(160, undefined, { signal });
-      work.startTodo();
+      work?.startTodo();
       await wait(220, undefined, { signal });
       consumeSteers();
-      work.startReview();
+      work?.startReview();
       await wait(320, undefined, { signal });
-      work.finishReview(inputs.length);
+      if (!documentReview)
+        work?.finishReview(`原型复核已检查本轮 ${inputs.length} 条输入，未启动真实子代理。`);
       await wait(160, undefined, { signal });
       if (signal.aborted || session.activeTurn !== owner) return;
       consumeSteers();
-      const result = this.business?.prepareNativeResult(session.sessionId, startedCommands);
-      const reply = result?.reply ?? standaloneReply(inputs);
-      if (result) this.business!.completeNative(session.sessionId, result);
-      work.settle("success");
+      let reply: string;
+      if (documentReview) {
+        reply = documentReview.settle("completed", documentReview.execute());
+        work?.finishReview(reply);
+      } else if (this.business) {
+        const result = this.business.prepareNativeResult(session.sessionId, startedCommands);
+        reply = this.business.completeNative(session.sessionId, result);
+      } else {
+        reply = standaloneReply(inputs);
+      }
+      work?.settle("success");
       this.appendRow(session, {
         kind: "assistantText",
         rowId: this.nextRowId(session),
@@ -677,9 +705,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (signal.aborted || session.activeTurn !== owner) return;
       discard();
       work?.settle("failed");
-      const message = this.standalone
-        ? "Agent 未能完成回复，消息已保留。"
-        : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
+      const message = documentReview
+        ? documentReview.settle("failed", `${documentReview.title}未完成，请重新发起。`)
+        : this.standalone
+          ? "Agent 未能完成回复，消息已保留。"
+          : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
       this.appendRow(session, {
         kind: "assistantText",
         rowId: this.nextRowId(session),
@@ -716,7 +746,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         at: endedAt,
         source: "runtime",
       };
-    // 保留未交付的原提交；新的明确发送不会把这些输入带进无关执行。
+    // 停止后的原生输入保持原有保留机制，评审可在最新材料上重新发起。
+    session.queuedInputs = session.queuedInputs.filter(({ documentReview }) => {
+      if (!documentReview) return true;
+      documentReview.settle("failed", `${documentReview.title}尚未开始，已随会话中断取消。`);
+      return false;
+    });
     if (session.queuedInputs.some((input) => !input.retained)) {
       for (const input of session.queuedInputs) input.retained = true;
       session.pauseReason = error ? "error" : "stopped";
@@ -797,6 +832,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         workspaceKeyOf(params.workspace),
       );
     if (!session) throw this.sessionUnavailable();
+    if (this.business?.captureNativeReadPermission(session.sessionId)() === false)
+      throw this.sessionUnavailable();
     if (params.workspace && !this.matchesWorkspace(session, params.workspace))
       throw this.sessionUnavailable();
     if (
@@ -888,7 +925,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.patchState(session, { queue: projectMockQueue(session) });
   }
 
-  private queuedInput({ item, context }: MockQueuedInput): MockInput {
+  private queuedInput({ item, context, documentReview }: MockQueuedInput): MockInput {
     return {
       commandId: item.sourceCommandId,
       clientId: item.clientId,
@@ -896,12 +933,39 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       attachments: item.attachments,
       conversationQuotes: item.conversationQuotes,
       context,
+      documentReview,
     };
+  }
+
+  enqueueDocumentReview(documentReview: AIReqNativeReviewWork): void {
+    const params = { ...documentReview.workspace, sessionId: documentReview.sessionId };
+    const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
+    this.applyNativeBinding(session);
+    const input: MockInput = {
+      commandId: documentReview.id,
+      clientId: documentReview.clientId,
+      text: `已发起${documentReview.title} · V${documentReview.version}`,
+      documentReview,
+    };
+    if (!session.activeTurn) {
+      this.startTurn(session, input);
+      return;
+    }
+    const item = this.createQueueItem(session, input, "queue");
+    if (
+      jsonByteLength(projectMockQueue(session).items) + jsonByteLength(item) + 1 >
+      CHAT_QUEUE_MAX_BYTES
+    )
+      throw businessRule("待发送的消息过多，请等当前回合处理完成。");
+    session.nextAdmissionSeq += 1;
+    session.queuedInputs.push({ item, documentReview });
+    this.patchQueue(session);
   }
 
   private startTurn(session: MockSession, input: MockInput): void {
     const owner: MockActiveTurn = {
       controller: new AbortController(),
+      documentReview: Boolean(input.documentReview),
       work: {
         kind: "primaryTurn",
         foregroundExecutionId: `turn_${createUuid()}`,
@@ -1231,7 +1295,11 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     context?: MockInputContext,
   ): CommandAck {
     const input = this.makeInput(envelope, payload, context);
-    const delivery = payload.streamingBehavior === "steer" ? "guide" : "queue";
+    // 子代理只读冻结快照；普通消息排在其后，不能改变评审输入。
+    const delivery =
+      payload.streamingBehavior === "steer" && !session.activeTurn?.documentReview
+        ? "guide"
+        : "queue";
     const queued = session.activeTurn ? this.createQueueItem(session, input, delivery) : undefined;
     if (
       queued &&
@@ -1413,22 +1481,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const workspaceKey = workspaceKeyOf(params);
     const session = this.ensureOrSeedDraftSession(params, workspaceKey);
     this.applyNativeBinding(session);
-    const seed =
-      session.rows.length === 0 ? this.business?.seedNative(session.sessionId) : undefined;
-    if (seed)
-      this.appendRow(session, {
-        kind: "assistantText",
-        rowId: this.nextRowId(session),
-        turnId: `seed-${session.sessionId}`,
-        entityId: `entity_${createUuid()}`,
-        createdAt: Date.now(),
-        createdAtSeq: session.seq,
-        text: seed,
-        state: "complete",
-        model: session.config.model,
-      });
     const subscriptionId = `sub-${createUuid()}`;
-    this.conversationSubs.set(subscriptionId, { sessionId: session.sessionId, ordinal: 0 });
+    const canRead = this.business?.captureNativeReadPermission(session.sessionId);
+    if (canRead?.() === false) throw this.sessionUnavailable();
+    this.conversationSubs.set(subscriptionId, {
+      sessionId: session.sessionId,
+      ordinal: 0,
+      canRead,
+    });
     try {
       const snapshot = buildConversationSnapshot(session, !this.business);
       this.emitConversationFrame(
@@ -1510,7 +1570,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async resyncConversationV4(params: P<WebAIReqAgent["resyncConversationV4"]>) {
     const sub = this.conversationSubs.get(params.subscriptionId);
     const session = sub ? this.runtime.sessions.get(sub.sessionId) : undefined;
-    if (!sub || !session) {
+    if (!sub || !session || sub.canRead?.() === false) {
       throw new Error("fault.subscription.unknownSubscription");
     }
     this.ensureSession({ sessionId: session.sessionId, workspace: params, allowSeed: false });

@@ -1,7 +1,15 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 // HTTP IP 页面没有原生 randomUUID；复用 shared UUID，保留操作 ID 的分配与重试时点。
 import { createUuid } from "@zcode/shared";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -17,15 +25,6 @@ import {
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,12 +37,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
-import {
-  checkMarkdownSections,
-  PROPOSAL_STATE_GROUPS,
-  PROPOSAL_STATE_OPTIONS,
-  proposalState,
-} from "../contract.js";
 import { downloadProposalCsv, parseProposalCsv, ProposalCsvError } from "./proposal-csv.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { businessDocumentRequest } from "./proposal-markdown.js";
@@ -65,7 +58,6 @@ export function AIReqProposalTable({
   const zh = locale === "zh-CN";
   const [query, setQuery] = useState("");
   const [submitter, setSubmitter] = useState("");
-  const [phase, setPhase] = useState("");
   const [page, setPage] = useState(0);
   const [text, setText] = useState("");
   const importOpen = ai.proposalImportOpen;
@@ -74,6 +66,10 @@ export function AIReqProposalTable({
   const draftReleaseId = targetReleaseId ?? ai.releaseId;
   const createButton = useRef<HTMLButtonElement>(null);
   const importButton = useRef<HTMLButtonElement>(null);
+  const importFile = useRef<HTMLInputElement>(null);
+  const importFileId = useId();
+  const searchInput = useRef<HTMLInputElement>(null);
+  const tableScroll = useRef<HTMLDivElement>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -147,14 +143,6 @@ export function AIReqProposalTable({
   const preview = parsedCsv.preview;
   const csvError = fileError || parsedCsv.error;
   const businessDocument = importFormat === "markdown" ? fileContent : null;
-  const requiredSections = ai.view?.documentFormats["requirements.md"];
-  const sectionIssues = useMemo(
-    () =>
-      businessDocument === null || !requiredSections
-        ? []
-        : checkMarkdownSections(businessDocument, requiredSections),
-    [businessDocument, requiredSections],
-  );
   const proposals =
     businessDocument !== null
       ? [{ originalText: documentRequest, businessDocument }]
@@ -165,7 +153,6 @@ export function AIReqProposalTable({
   useEffect(() => {
     setQuery("");
     setSubmitter("");
-    setPhase("");
     setPage(0);
   }, [ai.selection.projectId]);
   useEffect(() => {
@@ -189,7 +176,7 @@ export function AIReqProposalTable({
       setDraftNavigationGuard(null);
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [dirty, busy, setDraftNavigationGuard, ai]);
+  }, [dirty, busy, setDraftNavigationGuard]);
   useEffect(
     () => () => {
       fileGeneration.current++;
@@ -205,18 +192,23 @@ export function AIReqProposalTable({
     };
   }, [importOpen]);
   const search = query.trim().toLocaleLowerCase();
+  const employeeSearch = submitter.trim().toLowerCase();
+  const hasFilters = Boolean(search || employeeSearch);
   const filtered = groups.filter(
     (item) =>
       (!search ||
         item.title.toLocaleLowerCase().includes(search) ||
         item.originalText.toLocaleLowerCase().includes(search) ||
         item.id.toLocaleLowerCase().includes(search)) &&
-      (!submitter || item.submittedBy.includes(submitter)) &&
-      (!phase || (item.archive ? phase === "archived" : proposalState(item) === phase)),
+      (!employeeSearch || item.submittedBy.toLowerCase().includes(employeeSearch)),
   );
   filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pageCount - 1);
+  useLayoutEffect(() => {
+    // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
+    if (tableScroll.current) tableScroll.current.scrollTop = 0;
+  }, [ai.releaseId, currentPage, employeeSearch, search]);
   const ready = releases?.some((release) => release.id === draftReleaseId) ?? false;
   const releaseSelector = (
     <AIReqProposalReleaseField
@@ -269,7 +261,6 @@ export function AIReqProposalTable({
               projectId: ai.selection.projectId,
               releaseId: draftReleaseId,
               originalText: text,
-              sourceIrId: ai.proposalDraft?.sourceIrId,
               operationId: `${ai.proposalDraft?.id ?? "proposal"}:${operationId}`,
               expectedRevision,
             }
@@ -310,7 +301,7 @@ export function AIReqProposalTable({
   };
   return (
     <main
-      aria-label={zh ? "需求提案" : "Proposals"}
+      aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
     >
       <div
@@ -346,7 +337,7 @@ export function AIReqProposalTable({
                 ai.startProposalImport();
               }}
             >
-              导入
+              {zh ? "导入" : "Import"}
             </Button>
             <AIReqProposalExport
               groups={filtered}
@@ -356,13 +347,14 @@ export function AIReqProposalTable({
           </div>
         </header>
         <AIReqProposalSavedNotice target={savedProposal} buttonRef={clarificationAction} zh={zh} />
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <div className="relative min-w-60 flex-1">
+        <div className="grid shrink-0 gap-2 @min-[520px]/conversation:grid-cols-[minmax(0,1fr)_10rem]">
+          <div className="relative min-w-0">
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
             />
             <Input
+              ref={searchInput}
               aria-label={
                 zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
               }
@@ -385,117 +377,124 @@ export function AIReqProposalTable({
               setSubmitter(event.target.value);
               setPage(0);
             }}
-            className="h-9 w-40 rounded-lg bg-surface"
+            className="h-9 min-w-0 rounded-lg bg-surface"
           />
-          <Select
-            value={phase || "all"}
-            onValueChange={(value) => {
-              setPhase(value === "all" ? "" : value);
-              setPage(0);
-            }}
-          >
-            <SelectTrigger
-              aria-label={zh ? "筛选当前状态" : "Filter current status"}
-              className="h-9 w-44 rounded-lg bg-surface"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{zh ? "全部状态" : "All statuses"}</SelectItem>
-              <SelectItem value="archived">{zh ? "已归档" : "Archived"}</SelectItem>
-              {/* 修复原因：七态平铺近义标签超出工作记忆；按 proposals spec 分三组展示，筛选值仍是稳定标识。 */}
-              {PROPOSAL_STATE_GROUPS.map((group) => (
-                <SelectGroup key={group.title}>
-                  <SelectLabel className="text-ui-sm font-medium text-foreground">
-                    {zh ? group.title : group.titleEn}
-                  </SelectLabel>
-                  {group.ids.map((id) => {
-                    const option = PROPOSAL_STATE_OPTIONS.find((item) => item.id === id);
-                    return option ? (
-                      <SelectItem key={option.id} value={option.id}>
-                        {zh ? option.title : option.titleEn}
-                      </SelectItem>
-                    ) : null;
-                  })}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-          <span
-            className="ml-auto shrink-0 text-ui-sm tabular-nums text-foreground-subtle"
-            role="status"
-          >
-            {query || submitter || phase ? `${filtered.length} / ${groups.length}` : groups.length}{" "}
-            {zh ? "条" : "items"}
-          </span>
         </div>
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-card-border bg-card text-foreground">
-          <table className="w-full table-fixed text-left text-ui-base">
-            <colgroup>
+        <div
+          ref={tableScroll}
+          className="min-h-0 overflow-auto rounded-xl border border-card-border bg-card text-foreground"
+        >
+          <table
+            role="table"
+            className="w-full table-fixed text-left text-ui-base @max-[520px]/conversation:block"
+          >
+            <colgroup className="@max-[520px]/conversation:hidden">
               <col />
               <col className="hidden w-28 @min-[640px]/conversation:table-column" />
-              <col className="hidden w-32 @min-[640px]/conversation:table-column" />
-              <col className="w-28 @min-[640px]/conversation:w-32" />
+              <col className="w-40 @min-[640px]/conversation:w-56 @min-[740px]/conversation:w-80" />
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-card">
-              <tr className="border-b border-border">
-                <th scope="col" className="px-4 py-3 font-medium">
+            <thead
+              role="rowgroup"
+              className="sticky top-0 z-10 bg-card @max-[520px]/conversation:sr-only"
+            >
+              <tr role="row" className="border-b border-border">
+                <th role="columnheader" scope="col" className="px-4 py-3 font-medium">
                   {zh ? "需求" : "Requirement"}
                 </th>
                 <th
+                  role="columnheader"
                   scope="col"
                   className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell"
                 >
-                  {zh ? "提交人" : "Submitted by"}
+                  {zh ? "文档版本" : "Document version"}
                 </th>
-                <th
-                  scope="col"
-                  title={zh ? "北京时间" : "Beijing time"}
-                  className="hidden px-4 py-3 font-medium @min-[640px]/conversation:table-cell"
-                >
-                  {zh ? "提交日期" : "Submitted"}
-                </th>
-                <th scope="col" className="px-4 py-3 font-medium">
-                  {zh ? "当前状态" : "Status"}
+                <th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">
+                  {zh ? "操作" : "Actions"}
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="@max-[520px]/conversation:block">
               {filtered.slice(currentPage * 20, currentPage * 20 + 20).map((item) => (
                 <AIReqProposalRow key={item.id} item={item} zh={zh} />
               ))}
               {!filtered.length && (
-                <tr>
-                  <td colSpan={4} className="p-6 text-foreground-subtle">
+                <tr role="row" className="@max-[520px]/conversation:block">
+                  <td
+                    role="cell"
+                    colSpan={3}
+                    className="p-6 text-foreground-subtle @max-[520px]/conversation:block"
+                  >
                     {groups.length
-                      ? "没有符合筛选条件的需求。"
-                      : "当前版本暂无需求。"}
+                      ? zh
+                        ? "没有符合筛选条件的需求。"
+                        : "No requirements match these filters."
+                      : zh
+                        ? "当前版本暂无需求。"
+                        : "No requirements in this release yet."}
+                    {!!groups.length && hasFilters && (
+                      <Button
+                        variant="ghost"
+                        className="ml-2"
+                        onClick={() => {
+                          setQuery("");
+                          setSubmitter("");
+                          setPage(0);
+                          searchInput.current?.focus();
+                        }}
+                      >
+                        {zh ? "清除筛选" : "Clear filters"}
+                      </Button>
+                    )}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="flex shrink-0 items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            disabled={!currentPage}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            上一页
-          </Button>
-          <span>
-            {currentPage + 1} / {pageCount}
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <span className="text-ui-sm tabular-nums text-foreground-subtle" role="status">
+            {hasFilters ? `${filtered.length} / ${groups.length}` : groups.length}{" "}
+            {zh ? "条" : "items"}
           </span>
-          <Button
-            variant="outline"
-            disabled={currentPage + 1 >= pageCount}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            下一页
-          </Button>
-        </div>
+          {pageCount > 1 && (
+            <nav
+              aria-label={zh ? "需求分页" : "Requirement pages"}
+              className="ml-auto flex shrink-0 items-center gap-2"
+            >
+              <Button
+                variant="outline"
+                aria-disabled={currentPage === 0}
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                onClick={() => {
+                  if (currentPage > 0) setPage(currentPage - 1);
+                }}
+              >
+                {zh ? "上一页" : "Previous page"}
+              </Button>
+              <span role="status">
+                <span aria-hidden="true">
+                  {currentPage + 1} / {pageCount}
+                </span>
+                <span className="sr-only">
+                  {zh
+                    ? `第 ${currentPage + 1} 页，共 ${pageCount} 页`
+                    : `Page ${currentPage + 1} of ${pageCount}`}
+                </span>
+              </span>
+              <Button
+                variant="outline"
+                aria-disabled={currentPage + 1 >= pageCount}
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                onClick={() => {
+                  if (currentPage + 1 < pageCount) setPage(currentPage + 1);
+                }}
+              >
+                {zh ? "下一页" : "Next page"}
+              </Button>
+            </nav>
+          )}
+        </footer>
         <Dialog
           open={importOpen}
           onOpenChange={(open) => {
@@ -504,6 +503,11 @@ export function AIReqProposalTable({
         >
           <DialogContent
             className="max-h-[85dvh] overflow-auto sm:max-w-2xl"
+            onOpenAutoFocus={(event) => {
+              if (!importFile.current || importFile.current.disabled) return;
+              event.preventDefault();
+              importFile.current.focus();
+            }}
             onCloseAutoFocus={(event) => {
               const button = importButton.current;
               if (!button || button.closest("[hidden], [inert]")) return;
@@ -512,83 +516,103 @@ export function AIReqProposalTable({
             }}
           >
             <DialogHeader>
-              <DialogTitle>{zh ? "导入需求预览" : "Preview requirement import"}</DialogTitle>
+              <DialogTitle>{zh ? "导入需求" : "Import requirements"}</DialogTitle>
               <DialogDescription>
                 {zh
-                  ? "原始短需求使用 UTF-8 单列 CSV；IR 业务需求文档使用 Markdown（不超过 1 MiB）。确认前不写入，不导入其他材料。"
-                  : "Use a UTF-8 single-column CSV for original requests, or Markdown (up to 1 MiB) for an IR business document. Nothing is saved before confirmation. Other materials are not imported."}
+                  ? "用 UTF-8 单列 CSV 批量导入原始需求，或用 Markdown 导入一份业务需求文档（最大 1 MiB）。"
+                  : "Import original requests from a single-column UTF-8 CSV, or import one business requirements document from Markdown (up to 1 MiB)."}
               </DialogDescription>
             </DialogHeader>
             {releaseSelector}
-            <Button variant="outline" onClick={() => downloadProposalCsv([], "需求提案模板.csv")}>
-              {zh ? "下载原始需求 CSV 模板" : "Download original request CSV template"}
-            </Button>
-            <Input
-              type="file"
-              accept=".csv,.md,.markdown,text/csv,text/markdown"
-              aria-label={
-                zh ? "选择 UTF-8 CSV 或 Markdown 文件" : "Choose a UTF-8 CSV or Markdown file"
-              }
-              className="text-transparent file:text-foreground"
-              disabled={busy || !releases?.length}
-              onChange={async (event) => {
-                const generation = ++fileGeneration.current;
-                const file = event.target.files?.[0];
-                // 先保留 File 引用再清空选择器，读取失败后仍能重选同一文件触发 change。
-                event.target.value = "";
-                setFileContent(null);
-                setDocumentRequest("");
-                setFileName(file?.name ?? "");
-                setFileError("");
-                setBaseline(undefined);
-                setOperationId(createUuid());
-                if (!file) return;
-                const markdown = /\.(md|markdown)$/i.test(file.name);
-                setImportFormat(markdown ? "markdown" : "csv");
-                if (!markdown && !/\.csv$/i.test(file.name)) {
-                  setFileError(
-                    zh
-                      ? "只支持 CSV 原始需求或 Markdown 业务需求文档。"
-                      : "Only CSV requests or Markdown business documents are supported.",
-                  );
-                  return;
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id={importFileId}
+                ref={importFile}
+                type="file"
+                accept=".csv,.md,.markdown,text/csv,text/markdown"
+                aria-label={
+                  zh ? "选择 UTF-8 CSV 或 Markdown 文件" : "Choose a UTF-8 CSV or Markdown file"
                 }
-                if (markdown && file.size > 1_048_576) {
-                  setFileError(
-                    zh
-                      ? "业务需求文档不能超过 1 MiB。"
-                      : "The business document must not exceed 1 MiB.",
-                  );
-                  return;
-                }
-                try {
-                  const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-                    await file.arrayBuffer(),
-                  );
-                  if (generation !== fileGeneration.current) return;
-                  if (markdown && !content.trim()) {
+                className="peer sr-only"
+                disabled={busy || !releases?.length}
+                onChange={async (event) => {
+                  const generation = ++fileGeneration.current;
+                  const file = event.target.files?.[0];
+                  // 先保留 File 引用再清空选择器，读取失败后仍能重选同一文件触发 change。
+                  event.target.value = "";
+                  setFileContent(null);
+                  setDocumentRequest("");
+                  setFileName(file?.name ?? "");
+                  setFileError("");
+                  setBaseline(undefined);
+                  setOperationId(createUuid());
+                  if (!file) return;
+                  const markdown = /\.(md|markdown)$/i.test(file.name);
+                  setImportFormat(markdown ? "markdown" : "csv");
+                  if (!markdown && !/\.csv$/i.test(file.name)) {
                     setFileError(
-                      zh ? "业务需求文档不能为空。" : "The business document must not be empty.",
+                      zh
+                        ? "只支持 CSV 原始需求或 Markdown 业务需求文档。"
+                        : "Only CSV requests or Markdown business documents are supported.",
                     );
                     return;
                   }
-                  setFileContent(content);
-                  if (markdown) setDocumentRequest(businessDocumentRequest(file.name, content));
-                } catch (error) {
-                  if (generation === fileGeneration.current)
+                  if (markdown && file.size > 1_048_576) {
                     setFileError(
-                      formatUserFacingError(
-                        error,
-                        zh
-                          ? "文件读取失败，请确认文件为有效的 UTF-8 编码。"
-                          : "Could not read the file. Check that it uses valid UTF-8 encoding.",
-                      ),
+                      zh
+                        ? "业务需求文档不能超过 1 MiB。"
+                        : "The business document must not exceed 1 MiB.",
                     );
+                    return;
+                  }
+                  try {
+                    const content = new TextDecoder("utf-8", {
+                      fatal: true,
+                      ignoreBOM: true,
+                    }).decode(await file.arrayBuffer());
+                    if (generation !== fileGeneration.current) return;
+                    if (markdown && !content.trim()) {
+                      setFileError(
+                        zh ? "业务需求文档不能为空。" : "The business document must not be empty.",
+                      );
+                      return;
+                    }
+                    setFileContent(content);
+                    if (markdown) setDocumentRequest(businessDocumentRequest(file.name, content));
+                  } catch (error) {
+                    if (generation === fileGeneration.current)
+                      setFileError(
+                        formatUserFacingError(
+                          error,
+                          zh
+                            ? "文件读取失败，请确认文件为有效的 UTF-8 编码。"
+                            : "Could not read the file. Check that it uses valid UTF-8 encoding.",
+                        ),
+                      );
+                  }
+                }}
+              />
+              <Button variant="outline" asChild>
+                <Label
+                  htmlFor={importFileId}
+                  className="cursor-pointer peer-focus-visible:border-remote-foreground-muted peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+                >
+                  {fileName ? (zh ? "更换文件" : "Replace file") : zh ? "选择文件" : "Choose file"}
+                </Label>
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  downloadProposalCsv([], zh ? "原始需求模板.csv" : "requirements-template.csv")
                 }
-              }}
-            />
+              >
+                {zh ? "下载 CSV 模板" : "Download CSV template"}
+              </Button>
+            </div>
             {fileName && (
-              <p className="break-all text-ui-sm text-foreground-subtle">已选择：{fileName}</p>
+              <p role="status" className="wrap-anywhere text-ui-sm text-foreground-subtle">
+                {fileName}
+              </p>
             )}
             {csvError && (
               <p role="alert" className="text-ui-sm text-destructive">
@@ -614,35 +638,10 @@ export function AIReqProposalTable({
                   />
                   <p className="text-ui-sm text-foreground-subtle">
                     {zh
-                      ? "短需求独立保存；下方业务文档保留原始正文，仍须评审后才能进入方案拆分。"
-                      : "The short request is stored separately. The document below is preserved and still requires review before solution planning."}
+                      ? "短需求独立保存。下方业务文档将原样保存为未确认的 V1。"
+                      : "The short request is saved separately. The document below is saved as unconfirmed V1."}
                   </p>
                 </div>
-                {sectionIssues.length > 0 && (
-                  <div role="status" className="space-y-1 text-ui-base text-foreground">
-                    <p className="font-medium">
-                      {zh ? "文档有待补充的必需章节" : "Required sections need attention"}
-                    </p>
-                    <ul className="list-disc space-y-0.5 pl-5">
-                      {sectionIssues.map(({ heading, kind }) => (
-                        <li key={heading} className="break-words">
-                          {zh
-                            ? kind === "missing"
-                              ? `缺少章节「${heading}」`
-                              : `章节「${heading}」缺少正文`
-                            : kind === "missing"
-                              ? `Missing section: ${heading}`
-                              : `Empty section: ${heading}`}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="text-foreground-subtle">
-                      {zh
-                        ? "仍可原样导入，之后在需求澄清中补齐。"
-                        : "You can import the original as-is and complete it during clarification."}
-                    </p>
-                  </div>
-                )}
                 <div
                   className="max-h-64 overflow-auto rounded-lg border border-border p-3"
                   aria-label={zh ? "IR 业务需求文档预览" : "IR business document preview"}
@@ -688,7 +687,7 @@ export function AIReqProposalTable({
             )}
             <DialogFooter>
               <Button variant="outline" disabled={busy} onClick={close}>
-                取消
+                {zh ? "取消" : "Cancel"}
               </Button>
               <Button
                 disabled={
@@ -700,7 +699,7 @@ export function AIReqProposalTable({
                 }
                 onClick={() => void submit("import")}
               >
-                确认原子导入
+                {zh ? "确认导入" : "Import"}
               </Button>
             </DialogFooter>
           </DialogContent>

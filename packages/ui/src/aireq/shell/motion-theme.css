@@ -74,33 +74,10 @@
     background-color: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
     transition-duration: 200ms;
   }
-
-  /* 统计仅平移已有数字入口及箭头，不把整块只读区域变成导航。 */
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat] {
-    transition: background-color 120ms var(--aireq-motion-ease);
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat] button > svg {
-    transition: transform 200ms var(--aireq-motion-ease);
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover {
-    background-color: color-mix(in srgb, var(--color-foreground) 4%, transparent);
-    transition-duration: 200ms;
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover button {
-    transform: translateX(4px);
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-stat]:hover button > svg {
-    transform: translateX(2px);
-  }
 }
 
 .theme-zai-motion .aireq-motion-surface,
-.theme-zai-motion .aireq-motion-navigation,
-.theme-zai-motion .aireq-motion-filter-group {
+.theme-zai-motion .aireq-motion-navigation {
   position: relative;
   isolation: isolate;
 }
@@ -129,8 +106,7 @@
     transform 90ms linear;
 }
 
-.theme-zai-motion .aireq-motion-nav-highlight,
-.theme-zai-motion .aireq-motion-filter-highlight {
+.theme-zai-motion .aireq-motion-nav-highlight {
   position: absolute;
   top: 0;
   left: 0;
@@ -141,18 +117,6 @@
   background: var(--color-menu-hover);
   opacity: 0;
   transition: opacity 120ms linear;
-}
-
-.theme-zai-motion .aireq-motion-filter-highlight {
-  background: var(--color-secondary);
-  opacity: 1;
-}
-
-.theme-zai-motion
-  [data-aireq-motion-active]
-  .aireq-motion-filter-group
-  button[aria-pressed="true"] {
-  background: transparent;
 }
 
 .theme-zai-motion [data-aireq-motion-active] [data-aireq-motion-row],
@@ -242,7 +206,6 @@
 @media (prefers-reduced-motion: reduce) {
   .theme-zai-motion .aireq-motion-aura,
   .theme-zai-motion .aireq-motion-nav-highlight,
-  .theme-zai-motion .aireq-motion-filter-highlight,
   .theme-zai-motion .aireq-motion-press {
     display: none;
   }

@@ -297,15 +297,17 @@ export function AIReqIdeaPool() {
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    ai.navigate(() =>
-                      ai.select(
-                        { projectId: target.projectId, irId: target.irId },
-                        target.releaseId,
-                      ),
+                    ai.select(
+                      {
+                        projectId: target.projectId,
+                        irId: target.irId,
+                        discussionPhase: "requirements",
+                      },
+                      target.releaseId,
                     )
                   }
                 >
-                  {zh ? "打开提案 · " : "Open proposal · "}
+                  {zh ? "需求 Agent · " : "Requirements Agent · "}
                   {ai.view?.projects.find((project) => project.id === target.projectId)?.name ??
                     target.projectId}{" "}
                   ·{" "}

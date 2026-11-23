@@ -1,24 +1,26 @@
 import { expect } from "vitest";
 import type {
-  AIReqAction,
+  AIReqDiscussionAgent,
+  AIReqDocumentReview,
+  AIReqMaterialView,
   AIReqRemoteWorkflow,
   AIReqRequirementGroup,
-  AIReqReview,
-  AIReqWorkflowTarget,
   AIReqWorkflowResult,
 } from "@zcode/services/aireq";
-import { config } from "./config.js";
-import { connectST, waitUntil, type STClient } from "./client.js";
-import { openNative } from "./native.js";
+import { unique, waitUntil, type STClient } from "./client.js";
+import { requireAccepted, openNative } from "./native.js";
 
 interface ProposalTarget {
   projectId: string;
   releaseId: string;
   irId: string;
-  selection: AIReqWorkflowTarget;
 }
 
-/** Read only public workflow objects. No generated text, timestamps or IDs are fabricated. */
+export function proposalSelection({ projectId, irId }: ProposalTarget) {
+  return { projectId, irId };
+}
+
+/** Read only public workflow objects. */
 export function getProposal(
   remote: AIReqRemoteWorkflow,
   target: ProposalTarget,
@@ -31,49 +33,38 @@ export function getProposal(
   return group!;
 }
 
-export async function expectBusinessRejection(
-  operation: Promise<AIReqWorkflowResult>,
-): Promise<void> {
-  let failure: unknown;
-  let result: AIReqWorkflowResult | undefined;
-  try {
-    result = await operation;
-  } catch (error) {
-    failure = error;
-  }
-  // A rejected operation may be a rejected RPC or an explicit failed business receipt.
-  // Neither a running nor a completed receipt proves refusal.
-  if (failure !== undefined) {
-    expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).message.trim()).not.toBe("");
-    return;
-  }
-  expect(result?.receipt.status, "an invalid business operation should not be admitted").toBe(
-    "failed",
-  );
-  expect(result).not.toHaveProperty("error");
-  expect(result?.receipt.error?.trim()).toBeTruthy();
+export function getMaterials(
+  remote: AIReqRemoteWorkflow,
+  target: ProposalTarget,
+): AIReqMaterialView[] {
+  return remote.view.materials
+    .filter(({ projectId, irId }) => projectId === target.projectId && irId === target.irId)
+    .sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export async function commandAndRead(c: STClient, action: AIReqAction, target: ProposalTarget) {
-  const result = await c.command(action, target.selection);
-  expect(result.receipt.status, result.receipt.error).not.toBe("failed");
-  return c.read(target.selection);
+export async function expectBusinessRejection(operation: Promise<AIReqWorkflowResult>) {
+  const result = await operation.catch((error: unknown) => {
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/\S/);
+    return undefined;
+  });
+  if (result) {
+    expect(result.receipt.status).toBe("failed");
+    expect(result.receipt.error).toMatch(/\S/);
+  }
 }
 
-export async function discuss(c: STClient, target: ProposalTarget, text: string) {
-  const remote = await c.read(target.selection);
-  expect(
-    remote.session,
-    "the current discussion should expose its existing native session",
-  ).toBeDefined();
+export async function discuss(
+  c: STClient,
+  target: ProposalTarget,
+  text: string,
+  discussionPhase: AIReqDiscussionAgent = "requirements",
+) {
+  const remote = await c.read({ ...proposalSelection(target), discussionPhase });
+  expect(remote.session?.phase).toBe(discussionPhase);
   const session = await openNative(c, remote);
   try {
-    const ack = await session.send("sendText", { text });
-    expect(
-      ["accepted", "duplicate"],
-      "the user's explicit discussion input should be admitted",
-    ).toContain(ack.status);
+    requireAccepted(await session.send("sendText", { text }));
     expect((await session.waitIdle()).control.phase).toBe("completedSuccess");
   } finally {
     await session.close();
@@ -84,222 +75,110 @@ export async function completeBusinessMaterial(c: STClient, target: ProposalTarg
   await discuss(
     c,
     target,
-    "请完善并生成本 IR 的业务需求文档：电脑浏览器中，用户选择一个项目和版本，导出该范围的全部需求原文为 UTF-8 CSV。" +
-      "仅包含原始需求一列；中文、逗号、双引号和换行必须往返无损；空结果禁用导出；读取失败显示错误且允许重试。" +
-      "不修改源数据、不导出生成材料、不执行 Git、不增加移动端范围。验收覆盖范围隔离、特殊字符、空结果及失败重试。",
+    "请生成需求文档：按项目和 Release 导出原始需求为 UTF-8 CSV，覆盖特殊字符、空结果与失败重试的验收。",
   );
   return waitUntil(
-    "business discussion should produce readable IR material without premature SR splitting",
-    () => c.read(target.selection),
-    (remote) => {
-      const group = getProposal(remote, target);
-      return (
-        group.files.some((file) => file.path === group.documentPath) &&
-        group.requirementsCheck?.issues.length === 0 &&
-        remote.view.materials.some(
-          (file) =>
-            file.projectId === target.projectId &&
-            file.irId === target.irId &&
-            file.path === group.documentPath &&
-            file.valid &&
-            !file.error &&
-            Boolean(file.content?.trim()),
-        )
-      );
-    },
-    config.timeoutMs,
-  );
-}
-
-export async function submitReview(c: STClient, target: ProposalTarget, kind: "original" | "full") {
-  const group = getProposal(await c.read(target.selection), target);
-  expect(group.snapshot?.digest).toBeTruthy();
-  return commandAndRead(
-    c,
-    {
-      type: "submitProposalReview",
-      projectId: target.projectId,
-      irId: target.irId,
-      kind,
-      snapshotDigest: group.snapshot!.digest,
-    },
-    target,
-  );
-}
-
-export async function waitForReview(
-  c: STClient,
-  target: ProposalTarget,
-  kind: "original" | "full",
-) {
-  const expectedAgents = kind === "original" ? ["a"] : ["a", "b", "c", "summary"];
-  const current = (remote: AIReqRemoteWorkflow) => {
-    const group = getProposal(remote, target);
-    return kind === "original" ? group.originalReview : group.review;
-  };
-  const remote = await waitUntil(
-    `automatic ${kind} review should produce current reports`,
-    () => c.read(target.selection),
-    (remote) => {
-      const review = current(remote);
-      if (!review || review.invalidatedReason) return false;
-      const failed = review.agents?.find((agent) => agent.status === "failed");
-      expect(failed, failed?.report || review.report).toBeUndefined();
-      const summary = review.agents?.find((agent) => agent.id === "summary");
-      if (summary && summary.status !== "pending") {
-        for (const id of ["a", "b", "c"]) {
-          const agent = review.agents!.find((agent) => agent.id === id);
-          expect(agent?.status, `scheme review ${id} must finish before synthesis`).toBe(
-            "completed",
-          );
-          expect(agent?.report.trim()).toBeTruthy();
-        }
-      }
-      return Boolean(
-        review.report.trim() &&
-        expectedAgents.every((id) =>
-          review.agents?.some(
-            (agent) => agent.id === id && agent.status === "completed" && agent.report.trim(),
-          ),
-        ),
-      );
-    },
-  );
-  const review = current(remote)!;
-  assertReadableReview(review, expectedAgents);
-  return { remote, review };
-}
-
-function assertReadableReview(review: AIReqReview, expectedAgents: readonly string[]) {
-  expect(review.id.trim()).not.toBe("");
-  expect(review.snapshotDigest.trim()).not.toBe("");
-  expect(review.invalidatedReason).toBeFalsy();
-  expect(review.agents!.map((agent) => agent.id).sort()).toEqual([...expectedAgents].sort());
-  for (const agent of review.agents!) {
-    expect(agent.status, `review ${agent.id} should have completed successfully`).toBe("completed");
-    expect(agent.report.trim(), `review ${agent.id} should expose its actual report`).not.toBe("");
-  }
-  expect(review.report.trim()).not.toBe("");
-  expect(new Set(review.agents!.map((agent) => agent.session.sessionId)).size).toBe(
-    expectedAgents.length,
-  );
-}
-
-export async function approveOriginalReview(c: STClient, target: ProposalTarget) {
-  const { review } = await waitForReview(c, target, "original");
-  await commandAndRead(
-    c,
-    { type: "acceptProposal", reviewId: review.id, snapshotDigest: review.snapshotDigest },
-    target,
-  );
-  const approved = await waitUntil(
-    "human original-review approval should enter the solution stage",
-    () => c.read(target.selection),
-    (remote) => getProposal(remote, target).proposalStage === "solution",
-    config.timeoutMs,
-  );
-  const group = getProposal(approved, target);
-  expect(group.originalReview?.humanDecision).toMatchObject({
-    reviewId: review.id,
-    employeeId: c.identity.employeeId,
-  });
-  expect(group.srIds, "entering the solution stage alone should not split SRs").toEqual([]);
-  if (approved.view.roleAdministrator) return approved;
-  const employeeId = c.identity.employeeId;
-  const roles = (["development", "testing"] as const).filter(
-    (role) =>
-      !approved.view.projectRoleMembers.some(
-        (entry) =>
-          entry.projectId === target.projectId &&
-          entry.employeeId === employeeId &&
-          entry.role === role,
+    "the requirements discussion saves a readable requirements document",
+    () => c.read(proposalSelection(target)),
+    (remote) =>
+      getMaterials(remote, target).some(
+        (file) =>
+          file.path === getProposal(remote, target).documentPath && Boolean(file.content?.trim()),
       ),
   );
-  if (!roles.length) return approved;
-  const admin = await connectST("y00000000");
-  try {
-    for (const role of roles)
-      await commandAndRead(
-        admin,
-        { type: "addProjectRoleMember", projectId: target.projectId, employeeId, role },
-        target,
-      );
-  } finally {
-    await admin.close();
-  }
-  return c.read(target.selection);
 }
 
 export async function completeSolutionMaterial(c: STClient, target: ProposalTarget) {
   await discuss(
     c,
     target,
-    "请根据已确认的只读 IR 业务文档，将导出功能与异常恢复拆成至少两个稳定 SR，分别生成提案、规格、设计、开发任务、测试方案；" +
-      "生成覆盖全部 SR 的 sr-dependencies.json，每个 SR 给出正有限工作日预估和假设，依赖须给出理由且无环。" +
-      "测试方案逐项追溯业务验收标准，保留待人工确认的结果。",
+    "请生成当前需求的方案材料：各 SR 的提案、技术方案、开发任务、测试方案、规格和完整的依赖清单。",
+    "solution",
   );
-  const remote = await waitUntil(
-    "solution discussion should produce the complete current document package",
-    () => c.read(target.selection),
-    (value) => {
-      const group = getProposal(value, target);
-      return Boolean(
-        group.srIds.length &&
-        group.solutionCheck?.issues.length === 0 &&
-        proposalMaterialPaths(group).every((path) =>
-          value.view.materials.some(
-            (file) =>
-              file.projectId === target.projectId &&
-              file.irId === target.irId &&
-              file.path === path &&
-              file.valid &&
-              !file.error &&
-              Boolean(file.content?.trim()),
+  return waitUntil(
+    "the solution discussion saves its complete file set",
+    () => c.read(proposalSelection(target)),
+    (remote) => {
+      const group = getProposal(remote, target);
+      const files = getMaterials(remote, target);
+      return (
+        group.srIds.length > 0 &&
+        group.srIds.every((id) =>
+          ["proposal.md", "design.md", "tasks.md", "test-plan.md", `specs/${id}/spec.md`].every(
+            (name) =>
+              files.some(
+                (file) =>
+                  file.path === `openspec/changes/${id}/${name}` && Boolean(file.content?.trim()),
+              ),
           ),
-        ),
+        ) &&
+        files.some(
+          (file) => file.path.endsWith("/sr-dependencies.json") && Boolean(file.content?.trim()),
+        )
       );
     },
-    config.timeoutMs,
   );
-  const group = getProposal(remote, target);
-  expect(group.files.map((file) => file.path).sort()).toEqual(proposalMaterialPaths(group).sort());
-  return remote;
 }
 
-function proposalMaterialPaths(group: AIReqRequirementGroup): string[] {
-  return [
-    group.documentPath,
-    `docs/requirements/${group.id}/sr-dependencies.json`,
-    ...group.srIds.flatMap((id) =>
-      ["proposal.md", "design.md", "tasks.md", "test-plan.md", `specs/${id}/spec.md`].map(
-        (name) => `openspec/changes/${id}/${name}`,
-      ),
-    ),
-  ];
-}
-
-export function alignmentAction(
-  review: AIReqReview,
-  perspective: "business" | "development" | "testing",
-): Extract<AIReqAction, { type: "confirmAlignment" }> {
-  return {
-    type: "confirmAlignment",
-    perspective,
-    version: review.snapshotDigest,
-    reviewId: review.id,
-    snapshotDigest: review.snapshotDigest,
-  };
-}
-
-export async function confirmAllPerspectives(
+export async function reviewDocuments(
   c: STClient,
   target: ProposalTarget,
-  review: AIReqReview,
+  agent: AIReqDiscussionAgent,
+  options: { expectedRevision?: number; operationId?: string } = {},
 ) {
-  for (const perspective of ["business", "development", "testing"] as const)
-    await commandAndRead(c, alignmentAction(review, perspective), target);
-  const remote = await c.read(target.selection);
-  const group = getProposal(remote, target);
-  expect(group.proposalDelivery?.candidate.trim()).toBeTruthy();
-  return { remote, group };
+  const selection = proposalSelection(target);
+  const existing = getProposal(await c.read(selection), target).documentReviews;
+  const operationId = options.operationId ?? unique("review-documents");
+  const action = { type: "reviewDocuments", ...selection, agent, ...options, operationId } as const;
+  const result = await c.command(action, selection);
+  expect(result.receipt.status, result.receipt.error).not.toBe("failed");
+  const getReview = (remote: AIReqRemoteWorkflow) =>
+    getProposal(remote, target).documentReviews.find(
+      (review) => !existing.some(({ id }) => id === review.id) && review.agent === agent,
+    );
+  const remote = await waitUntil(
+    `the independent ${agent} review finishes`,
+    () => c.read(selection),
+    (value) => {
+      const review = getReview(value);
+      return !!review && review.status !== "running";
+    },
+  );
+  const review = getReview(remote)!;
+  expect(review).toMatchObject({
+    agent,
+    requestedBy: c.identity.employeeId,
+    status: "completed",
+    stale: false,
+  });
+  expect(review.report).toMatch(/\S/);
+  expect(Number.isFinite(Date.parse(review.requestedAt))).toBe(true);
+  return { remote, review, result, action };
+}
+
+export async function reviewInvocation(
+  c: STClient,
+  target: ProposalTarget,
+  review: AIReqDocumentReview,
+) {
+  const remote = await c.read({ ...proposalSelection(target), discussionPhase: review.agent });
+  const native = await openNative(c, remote);
+  try {
+    const snapshot = await native.waitIdle();
+    const rows = snapshot.rows.window;
+    const turn = rows.find((row) => row.kind === "turnHeader" && row.sourceCommandId === review.id);
+    expect(turn).toBeDefined();
+    const subagent = rows.find(
+      (row) => row.kind === "subagent" && row.status === "success" && row.turnId === turn?.turnId,
+    );
+    expect(subagent).toMatchObject({ summaryText: expect.stringContaining(review.report!) });
+    if (!subagent || subagent.kind !== "subagent") throw new Error("评审缺少子代理记录");
+    const tool = rows.find(
+      (row) => row.kind === "toolCall" && row.toolCallId === subagent.parentToolCallId,
+    );
+    expect(tool).toBeDefined();
+    return tool;
+  } finally {
+    await native.close();
+  }
 }

@@ -171,7 +171,7 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
     ).toEqual([startId]);
     const afterStop = getProposal(await c.read(proposal.selection), proposal);
     expect(afterStop.files).toEqual(before.files);
-    expect(afterStop.requirementsCheck).toEqual(before.requirementsCheck);
+    expect(afterStop.documentVersion).toEqual(before.documentVersion);
 
     const [later, laterRunning] = await Promise.all([
       native.send("sendText", { text: "用户显式发送一条新需求。" }, { commandId: laterId }),

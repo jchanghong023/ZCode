@@ -1,6 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import { FileText, History } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,175 +6,60 @@ import {
   WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
 } from "@/components/ui/resizable.js";
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
-import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
-import { hasProjectRole, type AIReqWorkflowTarget } from "../contract.js";
-import { getEmployeeId } from "../identity.js";
-import { AIReqMaterialsPane } from "../proposals/AIReqWorkbench.js";
-import { canOpenProposalTask } from "../proposals/proposalTasks.js";
-import { AIReqArchivedHistory } from "../proposals/AIReqArchivedHistory.js";
-import { AIReqRequirementContext } from "../shell/AIReqRequirementNavigation.js";
+import { AIReqMaterialsPane } from "../documents/AIReqMaterialsPane.js";
 import { AIReqDetailScope } from "./AIReqDetailScope.js";
 import { AIReqSidePaneTabs } from "./AIReqSidePaneTabs.js";
-import {
-  AIReqSidePaneMemoryContext,
-  sidePaneTargetKey,
-  useAIReqSidePane,
-} from "./AIReqSidePaneContext.js";
-import type { AIReqSidePaneGuard, AIReqSidePaneTab } from "./contract.js";
+import { AIReqSidePaneMemoryContext, useAIReqSidePane } from "./AIReqSidePaneContext.js";
+import type { AIReqSidePaneTab } from "./contract.js";
 
 function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }) {
-  const { open, updateTab, registerGuard } = useAIReqSidePane();
-  const select = useCallback(
-    (selection: AIReqWorkflowTarget, releaseId?: string) => {
-      const target = { ...tab, selection, releaseId: releaseId ?? tab.releaseId };
-      if (sidePaneTargetKey(target) === sidePaneTargetKey(tab))
-        updateTab(tab.id, selection, target.releaseId);
-      else open(target);
-    },
-    [open, updateTab, tab],
-  );
-  const guard = useCallback(
-    (value: AIReqSidePaneGuard) => registerGuard(tab.id, value),
-    [registerGuard, tab.id],
-  );
-  if (tab.kind === "launcher") return <Launcher tab={tab} />;
   return (
-    <AIReqDetailScope
-      target={tab.selection}
-      releaseId={tab.releaseId}
-      tabId={tab.id}
-      active={active}
-      onSelect={select}
-      onGuardChange={guard}
-    >
-      {tab.kind !== "materials" && <AIReqRequirementContext />}
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {tab.kind === "materials" ? <AIReqMaterialsPane /> : <AIReqArchivedHistory />}
-      </div>
+    <AIReqDetailScope target={tab.selection} releaseId={tab.releaseId} active={active}>
+      {(detail) => (
+        <AIReqMaterialsPane
+          {...detail}
+          key={tab.openSequence}
+          selection={tab.selection}
+          releaseId={tab.releaseId}
+          active={active}
+        />
+      )}
     </AIReqDetailScope>
   );
 }
-function Launcher({ tab }: { tab?: AIReqSidePaneTab }) {
-  const ai = useAIReq()!;
-  const pane = useAIReqSidePane();
-  const { locale } = useZCodeIntl();
-  const zh = locale === "zh-CN";
-  const selection = tab?.selection ?? ai.selection;
-  const group = ai.view?.requirements.find(
-    (item) => item.projectId === selection.projectId && item.id === selection.irId,
-  );
-  const archived = Boolean(group?.archive);
-  const releaseId = tab?.releaseId ?? ai.releaseId;
-  const rows = [
-    {
-      kind: "materials" as const,
-      title: zh ? "需求材料" : "Materials",
-      description: zh ? "阅读需求与方案文档" : "Read requirement and solution documents",
-      icon: FileText,
-      enabled: Boolean(group),
-    },
-    {
-      kind: "history" as const,
-      title: zh ? "讨论／评审历史" : "Discussion & review history",
-      description: zh ? "回看已归档的讨论与评审" : "Read archived discussion and reviews",
-      icon: History,
-      enabled: archived,
-    },
-  ];
-  return (
-    <div
-      className="@container/launcher h-full min-h-0 overflow-y-auto px-7 py-6"
-      data-testid="aireq-side-pane-launcher"
-    >
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-        <h2 className="pl-2 text-ui-xl font-semibold">{zh ? "新标签页" : "New tab"}</h2>
-        {group ? (
-          <p className="px-2 text-ui-sm text-remote-foreground-muted">{group.title}</p>
-        ) : (
-          <p className="px-2 text-ui-sm text-remote-foreground-muted">
-            {zh
-              ? "从主区选择需求，材料与历史会在这里打开。"
-              : "Select a requirement in the main workspace to open materials and history here."}
-          </p>
-        )}
-        <div className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
-          {rows
-            .filter((row) => row.enabled)
-            .map(({ kind, title, description, icon: Icon }) => (
-              <Button
-                key={kind}
-                variant="ghost"
-                className="h-auto min-w-0 justify-start gap-3 whitespace-normal px-2 py-3 text-left focus-visible:border-remote-foreground-muted"
-                onClick={() =>
-                  pane.open({
-                    kind,
-                    selection,
-                    releaseId,
-                    title: group ? group.title + " · " + title : title,
-                  })
-                }
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface">
-                  <Icon className="size-4" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{title}</span>
-                  <span className="block text-ui-sm font-normal text-remote-foreground-muted">
-                    {description}
-                  </span>
-                </span>
-                <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-ui-sm">
-                  {zh ? "打开" : "Open"}
-                </span>
-              </Button>
-            ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+
 export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const pane = useAIReqSidePane();
   const ai = useAIReq()!;
   const scopes = useContext(AIReqSidePaneMemoryContext);
-  const { activeTab, collapse } = pane;
-  const { projectId, irId } = ai.selection;
-  const archived = ai.view?.requirements.some(
-    (item) => item.archive && item.projectId === projectId && item.id === irId,
-  );
-  const proposalId = ai.mainView === "chat" && !archived ? irId : undefined;
-  const previousProposal = useRef({ projectId, releaseId: ai.releaseId, proposalId });
+  const { collapse } = pane;
+  const { mainView } = ai;
+  const previousView = useRef(mainView);
   useLayoutEffect(() => {
-    const previous = previousProposal.current;
-    previousProposal.current = { projectId, releaseId: ai.releaseId, proposalId };
-    if (
-      pane.isOpen &&
-      previous.proposalId &&
-      previous.proposalId !== proposalId &&
-      previous.projectId === projectId &&
-      previous.releaseId === ai.releaseId &&
-      activeTab?.kind === "materials" &&
-      activeTab.selection.irId === previous.proposalId
-    ) {
-      // 同一 Release 共用标签：离开提案收起旧材料，保留标签供用户重开。
-      collapse();
-    }
-  }, [activeTab, ai.releaseId, collapse, pane.isOpen, projectId, proposalId]);
-  const employee = getEmployeeId();
-  const proposalTaskAvailable =
-    ai.proposalTask !== "overview" &&
-    canOpenProposalTask(ai.proposalTask, {
-      development: hasProjectRole(ai.view, projectId, employee, "development"),
-      testing: hasProjectRole(ai.view, projectId, employee, "testing"),
-    });
-  const available = ai.mainView === "chat" && Boolean(irId) && (archived || proposalTaskAvailable);
-  const isOpen = available && pane.isOpen;
+    // 从会话返回列表时收起会话打开的文档，保留标签和阅读位置。
+    if (previousView.current === "chat" && mainView === "proposals") collapse();
+    previousView.current = mainView;
+  }, [collapse, mainView]);
+  const isOpen = (mainView === "chat" || mainView === "proposals") && pane.isOpen;
   const fullView = isOpen && pane.fullView;
   const asideRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const previousOpener = useRef<HTMLElement | null>(null);
+  const returnFocus = useRef(false);
   const wasFullView = useRef(false);
   const { toggleFullView } = pane;
+  useLayoutEffect(() => {
+    if (isOpen || !returnFocus.current) return;
+    returnFocus.current = false;
+    const main = mainRef.current;
+    const previous = previousOpener.current;
+    const opener = main?.querySelector<HTMLElement>("[data-aireq-open-agent-documents]");
+    (
+      opener ?? (previous?.isConnected && !previous.closest("[hidden], [inert]") ? previous : main)
+    )?.focus();
+  }, [isOpen]);
   useLayoutEffect(() => {
     if (ai.settingsOpen) return;
     // 进入完整视图会替换原图标按钮；退出也需要把焦点交还同一操作。
@@ -185,19 +68,30 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
         ?.querySelector<HTMLButtonElement>("[data-testid='aireq-exit-full-view']")
         ?.focus();
     else if (wasFullView.current && isOpen)
-      asideRef.current?.querySelector<HTMLButtonElement>("button[aria-pressed='false']")?.focus();
+      asideRef.current
+        ?.querySelector<HTMLButtonElement>("[data-testid='aireq-enter-full-view']")
+        ?.focus();
     wasFullView.current = fullView;
   }, [fullView, isOpen, ai.settingsOpen]);
   useEffect(() => {
     if (!fullView || ai.settingsOpen) return;
     const exit = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        !asideRef.current?.contains(document.activeElement)
+      )
+        return;
       // Esc 优先交给上层交互浮层；不能关闭菜单的同时退出完整视图。
       const overlay = [
         ...document.querySelectorAll<HTMLElement>(
           "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox'], [data-slot='popover-content']",
         ),
-      ].some((element) => element.getClientRects().length && !element.closest("[hidden], [inert]"));
+      ].some(
+        (element) =>
+          element.getClientRects().length &&
+          !element.closest("[hidden], [inert], [data-state='closed']"),
+      );
       if (overlay) return;
       event.preventDefault();
       toggleFullView();
@@ -206,7 +100,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", exit);
   }, [fullView, ai.settingsOpen, toggleFullView]);
   // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
-  // 复用原生同步 hook，收起必须归还实际宽度，进入概览、全局页面或提案列表仅隐藏而不清空 Tab。
+  // 复用原生同步 hook，收起必须归还实际宽度。页面切换不会清空标签。
   const { panelRef: panel } = useAnimatedResizablePanel({
     open: isOpen,
     expandedSize: "45%",
@@ -224,20 +118,12 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     >
       <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="55%">
         <div
+          ref={mainRef}
+          tabIndex={-1}
           className="relative flex h-full min-h-0 min-w-0 flex-col"
           inert={fullView}
           aria-hidden={fullView || undefined}
         >
-          {available &&
-            !isOpen &&
-            archived && (
-              <div className="absolute top-2 right-2 z-20">
-                <WorkspaceSidePaneToggleButton
-                  isSidePaneOpen={false}
-                  onToggleSidePane={pane.toggle}
-                />
-              </div>
-            )}
           {children}
         </div>
       </ResizablePanel>
@@ -261,7 +147,14 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
         style={fullView ? { overflow: "visible" } : undefined}
       >
         <aside
+          id="aireq-document-workspace"
           ref={asideRef}
+          onFocusCapture={(event) => {
+            const previous = event.relatedTarget;
+            if (previous instanceof HTMLElement && mainRef.current?.contains(previous)) {
+              previousOpener.current = previous;
+            }
+          }}
           aria-label={locale === "zh-CN" ? "右侧工作区" : "Side workspace"}
           aria-hidden={!isOpen || ai.settingsOpen}
           inert={!isOpen || ai.settingsOpen}
@@ -273,7 +166,15 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
           data-testid="aireq-side-pane"
           data-open={isOpen ? "true" : "false"}
         >
-          <AIReqSidePaneTabs pane={pane} />
+          {isOpen && !ai.settingsOpen && (
+            <AIReqSidePaneTabs
+              pane={pane}
+              onCollapse={() => {
+                returnFocus.current = true;
+                collapse();
+              }}
+            />
+          )}
           <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
             {Object.entries(scopes).flatMap(([key, scope]) =>
               scope.tabs.map((tab) => {
@@ -299,7 +200,11 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
                 );
               }),
             )}
-            {!pane.tabs.length && <Launcher />}
+            {!pane.tabs.length && (
+              <p role="status" className="px-6 py-5 text-ui-base text-foreground-subtle">
+                {locale === "zh-CN" ? "没有打开的文档。" : "No open documents."}
+              </p>
+            )}
           </div>
         </aside>
       </ResizablePanel>

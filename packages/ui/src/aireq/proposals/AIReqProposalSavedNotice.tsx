@@ -1,7 +1,6 @@
 import type { Ref } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useAIReq } from "../AIReqContext.js";
-import { proposalTaskSelection } from "./proposalTasks.js";
 
 export type SavedProposal = { projectId: string; releaseId: string; irId: string };
 
@@ -20,7 +19,7 @@ export function AIReqProposalSavedNotice({
     target.projectId !== ai.selection.projectId ||
     target.releaseId !== ai.releaseId ||
     !ai.view?.requirements.some(
-      (item) => !item.archive && item.projectId === target.projectId && item.id === target.irId,
+      (item) => item.projectId === target.projectId && item.id === target.irId,
     )
   )
     return null;
@@ -32,10 +31,13 @@ export function AIReqProposalSavedNotice({
       <Button
         ref={buttonRef}
         onClick={() =>
-          ai.select(proposalTaskSelection(target, "requirements"), target.releaseId, "requirements")
+          ai.select(
+            { projectId: target.projectId, irId: target.irId, discussionPhase: "requirements" },
+            target.releaseId,
+          )
         }
       >
-        {zh ? "开始需求澄清" : "Start clarification"}
+        {zh ? "需求 Agent" : "Requirements Agent"}
       </Button>
     </div>
   );

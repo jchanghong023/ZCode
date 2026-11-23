@@ -1,17 +1,6 @@
 import { contentVersion } from "./content-digest.js";
 import { prototypeChangeRoot, prototypeIrRoot, prototypeSpecPath } from "./proposal-storage.js";
-import type {
-  AIReqDocumentFormats,
-  AIReqDocumentName,
-  AIReqMaterialCheck,
-  AIReqMaterialView,
-  AIReqRequirementGroup,
-} from "@zcode/services/aireq";
-import {
-  checkMarkdownSections,
-  completeProposalPaths,
-  readSrDependencies,
-} from "@zcode/services/aireq";
+import type { AIReqDocumentFormats, AIReqMaterialView } from "@zcode/services/aireq";
 
 export function emptyDocumentFormats(): AIReqDocumentFormats {
   return {
@@ -22,76 +11,6 @@ export function emptyDocumentFormats(): AIReqDocumentFormats {
     "test-plan.md": [],
     "spec.md": [],
   };
-}
-
-const materialKinds: Record<AIReqDocumentName, AIReqMaterialView["kind"]> = {
-  "requirements.md": "ir",
-  "proposal.md": "sr",
-  "design.md": "solution",
-  "tasks.md": "plan",
-  "test-plan.md": "test-plan",
-  "spec.md": "sr",
-};
-
-/** Inspect only the current stage's paths; solution review refers to the checked IR snapshot. */
-export function checkProposalMaterials(
-  group: AIReqRequirementGroup,
-  materials: AIReqMaterialView[],
-  stage: "requirements" | "solution",
-  formats: AIReqDocumentFormats,
-  readIssue?: (material: AIReqMaterialView) => string | undefined,
-): AIReqMaterialCheck {
-  const paths =
-    stage === "requirements"
-      ? [`${prototypeIrRoot(group.id)}/requirements.md`]
-      : completeProposalPaths(group).slice(1);
-  const issues: AIReqMaterialCheck["issues"] = [];
-  for (const path of paths) {
-    const material = materials.find((item) => item.path === path);
-    if (!material) {
-      issues.push({ path, reason: "缺少必需文件。" });
-      continue;
-    }
-    const reason = readIssue?.(material) ?? material.error;
-    if (reason) {
-      material.valid = false;
-      issues.push({ path, reason });
-      continue;
-    }
-    const name = path.slice(path.lastIndexOf("/") + 1);
-    if (name === "sr-dependencies.json") {
-      if (material.kind !== "solution" || !material.content?.trim()) {
-        material.valid = false;
-        issues.push({ path, reason: "依赖文件类型不符、为空或不可读取。" });
-        continue;
-      }
-      // Preserve a readable dependency topology when only estimates are incomplete.
-      material.valid = true;
-      const dependencyIssue = readSrDependencies(group, material).issue;
-      if (dependencyIssue) issues.push({ path, reason: dependencyIssue });
-      continue;
-    }
-    const filename = name as AIReqDocumentName;
-    if (material.kind !== materialKinds[filename]) {
-      material.valid = false;
-      issues.push({ path, reason: "文件类型与材料清单不符。" });
-      continue;
-    }
-    if (!material.content?.trim()) {
-      material.valid = false;
-      issues.push({ path, reason: "正文为空或不可读取。" });
-      continue;
-    }
-    const sections = checkMarkdownSections(material.content, formats[filename]);
-    material.valid = sections.length === 0;
-    for (const { heading, kind } of sections) {
-      issues.push({
-        path,
-        reason: kind === "missing" ? `缺少章节“${heading}”。` : `章节“${heading}”缺少正文。`,
-      });
-    }
-  }
-  return { issues };
 }
 
 /** 普通说明入文档时汇合到业务小节；会话和材料快照保留原始输入。 */
@@ -212,20 +131,20 @@ export function solutionMaterials(
       prototypeMaterial({
         ...context,
         kind: "sr",
-        path: prototypeSpecPath(irId, row.id),
-        content: `# ${row.title}\n\n## ADDED Requirements\n\n### Requirement: ${row.title}\n业务行为与可观察结果必须满足 [已确认的 IR 需求](../../../../../docs/requirements/${irId}/requirements.md)。`,
+        path: prototypeSpecPath(row.id),
+        content: `# ${row.title}\n\n## ADDED Requirements\n\n### Requirement: ${row.title}\n业务行为与可观察结果必须满足 [当前 IR 需求](../../../../../docs/requirements/${irId}/requirements.md)。`,
       }),
       prototypeMaterial({
         ...context,
         kind: "solution",
         path: `${root}/design.md`,
-        content: `# ${row.title} · 技术方案\n\n## 设计背景\n以已确认的业务需求、当前 SR 提案及规格为输入。\n\n## 设计决策\n先核对现有接口、状态和异常边界。依赖仅见 [sr-dependencies.json](../../../docs/requirements/${irId}/sr-dependencies.json)。\n\n## 待核实事项\n尚未完成代码与接口核验，实施前需确认。`,
+        content: `# ${row.title} · 技术方案\n\n## 设计背景\n以当前业务需求、当前 SR 提案及规格为输入。\n\n## 设计决策\n先核对现有接口、状态和异常边界。依赖仅见 [sr-dependencies.json](../../../docs/requirements/${irId}/sr-dependencies.json)。\n\n## 待核实事项\n尚未完成代码与接口核验，实施前需确认。`,
       }),
       prototypeMaterial({
         ...context,
         kind: "plan",
         path: `${root}/tasks.md`,
-        content: `# ${row.title} · 开发任务\n\n- [ ] 核对 [IR ${irId}](../../../docs/requirements/${irId}/requirements.md) 中归属本 SR 的业务条件。\n- [ ] 实现规格中的操作、状态和异常处理。\n- [ ] 执行测试方案并提交代码审查。`,
+        content: `# ${row.title} · 开发任务\n\n- [ ] 核对 [IR ${irId}](../../../docs/requirements/${irId}/requirements.md) 中归属本 SR 的业务条件。\n- [ ] 实现规格中的操作、状态和异常处理。\n- [ ] 执行测试方案并记录结果。`,
       }),
       prototypeMaterial({
         ...context,

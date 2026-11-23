@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AIReqFileVersion, AIReqRequirementSnapshot } from "@zcode/services/aireq";
+import type { AIReqFileVersion } from "@zcode/services/aireq";
 
 /** 只校验已持有的内容字节，不宣称读取或核验了外部文件、代码或仓库。 */
 export function contentVersion(content: string): Pick<AIReqFileVersion, "sha256" | "size"> {
@@ -22,10 +22,4 @@ export function digestValue(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalValue(value)))
     .digest("hex");
-}
-
-export function createRequirementSnapshot(
-  snapshot: Omit<AIReqRequirementSnapshot, "digest">,
-): AIReqRequirementSnapshot {
-  return { ...snapshot, digest: digestValue(snapshot) };
 }

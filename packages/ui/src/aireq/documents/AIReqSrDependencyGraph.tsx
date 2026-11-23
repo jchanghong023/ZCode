@@ -5,32 +5,24 @@ import type { Edge, Node } from "@xyflow/react";
 import { Canvas } from "@/components/ai-elements/canvas.js";
 import { Controls } from "@/components/ai-elements/controls.js";
 import type { AIReqMaterialView } from "../contract.js";
-import { readMaterialDependencies } from "./material-reader.js";
+import { readMaterialDependencies } from "../proposals/material-reader.js";
 
 type DependencyEdge = Edge<{ reason: string }>;
 
 export function AIReqSrDependencyGraph({
   material,
   rows,
-  proposalRound,
 }: {
-  proposalRound?: number;
   material: AIReqMaterialView;
-  rows?: readonly { id: string; title: string }[];
+  rows: readonly { id: string; title: string }[];
 }) {
-  const scope = JSON.stringify([
-    material.projectId,
-    material.irId,
-    material.path,
-    material.sha256,
-    proposalRound,
-  ]);
+  const scope = JSON.stringify([material.projectId, material.irId, material.path, material.sha256]);
   // 边 ID 会跨材料版本复用；切换时重置唯一选择 owner，返回旧版本也不能恢复旧原因。
   const [selection, setSelection] = useState<{ scope: string; id?: string }>({ scope });
   if (selection.scope !== scope) setSelection({ scope });
   const selectedId = selection.scope === scope ? selection.id : undefined;
   const graph = useMemo(() => {
-    const result = readMaterialDependencies(material, rows, proposalRound);
+    const result = readMaterialDependencies(material, rows);
     const nodes: Node<{ label: ReactNode }>[] = [];
     const edges: DependencyEdge[] = [];
     if (!result.rows) return { nodes, edges, issue: result.issue, raw: result.raw };
@@ -105,7 +97,7 @@ export function AIReqSrDependencyGraph({
         });
     }
     return { nodes, edges };
-  }, [material, rows, proposalRound]);
+  }, [material, rows]);
   const selected = graph.edges.find((edge) => edge.id === selectedId);
   const edges = useMemo(
     () => graph.edges.map((edge) => ({ ...edge, selected: edge.id === selectedId })),

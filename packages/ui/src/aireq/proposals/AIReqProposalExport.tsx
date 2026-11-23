@@ -42,47 +42,29 @@ export function AIReqProposalExport({
   const [open, setOpen] = useState(false);
   const [irId, setIrId] = useState("");
   const trigger = useRef<HTMLButtonElement>(null);
-  const group = groups.find((item) => item.id === irId);
-  const material =
-    group &&
-    materials.find(
+  const documents = groups.flatMap((group) => {
+    const material = materials.find(
       (item) =>
         item.projectId === group.projectId &&
         item.irId === group.id &&
         !item.srId &&
         item.kind === "ir" &&
-        item.path === group.documentPath,
+        item.path === group.documentPath &&
+        item.valid &&
+        !item.error,
     );
-  const problem = !group
-    ? zh
-      ? "请选择要导出的 IR。"
-      : "Choose an IR to export."
-    : !material
-      ? zh
-        ? "该 IR 尚未生成业务需求文档。"
-        : "This IR has no business requirements document yet."
-      : material.error
-        ? zh
-          ? "文档读取失败，请在需求中重试读取。"
-          : "Document reading failed. Retry it in the requirement."
-        : !material.valid ||
-            !group.files.some(
-              (file) => file.path === material.path && file.sha256 === material.sha256,
-            )
-          ? zh
-            ? "当前业务需求文档已失效，不能导出。"
-            : "The current business document is invalid and cannot be exported."
-          : !material.content?.trim()
-            ? zh
-              ? "当前业务需求文档没有可读取的正文。"
-              : "The current business document has no readable content."
-            : "";
+    return material?.content?.trim() &&
+      group.files.some((file) => file.path === material.path && file.sha256 === material.sha256)
+      ? [{ id: group.id, title: group.title, content: material.content }]
+      : [];
+  });
+  const selectedDocument = documents.find((item) => item.id === irId);
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" ref={trigger} disabled={disabled}>
+          <Button variant="outline" ref={trigger} disabled={disabled || !groups.length}>
             {zh ? "导出" : "Export"}
             <ChevronDown aria-hidden="true" className="size-4" />
           </Button>
@@ -96,16 +78,24 @@ export function AIReqProposalExport({
               )
             }
           >
-            {zh ? "原始需求（CSV）" : "Original requests (CSV)"}
+            {zh
+              ? `原始需求（CSV，${groups.length} 条）`
+              : `Original requests (CSV, ${groups.length})`}
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!groups.length}
+            disabled={!documents.length}
             onSelect={() => {
               setIrId("");
               setOpen(true);
             }}
           >
-            {zh ? "IR 业务需求文档（Markdown）" : "IR business requirements (Markdown)"}
+            {documents.length
+              ? zh
+                ? "业务需求文档（Markdown）"
+                : "Business requirements (Markdown)"
+              : zh
+                ? "暂无可导出的业务文档（Markdown）"
+                : "No business documents to export (Markdown)"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -118,32 +108,32 @@ export function AIReqProposalExport({
           }}
         >
           <DialogHeader>
-            <DialogTitle>
-              {zh ? "导出 IR 业务需求文档" : "Export IR business requirements"}
-            </DialogTitle>
+            <DialogTitle>{zh ? "导出业务需求文档" : "Export business requirements"}</DialogTitle>
             <DialogDescription>
               {zh
-                ? "选择当前筛选范围内的一项 IR，仅下载其当前业务需求正文，不包含其他材料。"
-                : "Choose an IR in the filtered results. Only its current business document is downloaded."}
+                ? "选择一项需求，下载其当前业务需求文档。"
+                : "Select a requirement to download its current business requirements document."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="export-business-document-ir">{zh ? "需求 IR" : "Requirement IR"}</Label>
+            <Label htmlFor="export-business-document-ir">{zh ? "需求" : "Requirement"}</Label>
             <Select value={irId || undefined} onValueChange={setIrId}>
               <SelectTrigger id="export-business-document-ir">
                 <SelectValue placeholder={zh ? "选择需求" : "Choose a requirement"} />
               </SelectTrigger>
               <SelectContent>
-                {groups.map((item) => (
+                {documents.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.title} · {item.id}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {problem && (
+            {irId && !selectedDocument && (
               <p role="status" className="text-ui-sm text-foreground-subtle">
-                {problem}
+                {zh
+                  ? "此文档已不可下载，请重新选择。"
+                  : "This document is no longer available. Choose another."}
               </p>
             )}
           </div>
@@ -152,10 +142,10 @@ export function AIReqProposalExport({
               {zh ? "取消" : "Cancel"}
             </Button>
             <Button
-              disabled={Boolean(problem)}
+              disabled={!selectedDocument}
               onClick={() => {
-                if (problem || !material?.content || !group) return;
-                downloadBusinessDocument(material.content, group.id);
+                if (!selectedDocument) return;
+                downloadBusinessDocument(selectedDocument.content, selectedDocument.id);
                 setOpen(false);
               }}
             >

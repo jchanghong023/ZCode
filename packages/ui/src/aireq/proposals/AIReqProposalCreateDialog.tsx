@@ -35,7 +35,7 @@ export function AIReqProposalReleaseField({
   const zh = locale === "zh-CN";
   return (
     <div className="space-y-2">
-      <Label>{zh ? "所属版本" : "Release"}</Label>
+      <Label>{zh ? "所属项目版本" : "Release"}</Label>
       <Select
         value={releases?.some((release) => release.id === releaseId) ? releaseId : ""}
         disabled={busy || !releases?.length}
@@ -94,13 +94,6 @@ export function AIReqProposalCreateDialog({
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const originalInput = useRef<HTMLTextAreaElement>(null);
-  const sourceIrId = ai.proposalDraft?.sourceIrId;
-  const sourceDocument = ai.view?.requirements.find(
-    (item) => item.archive && item.id === sourceIrId && item.projectId === ai.selection.projectId,
-  );
-  const sourceRelease = ai.view?.releases.find(
-    (item) => item.id === sourceDocument?.releaseId && item.projectId === sourceDocument?.projectId,
-  );
   return (
     <Dialog
       open={Boolean(ai.proposalDraft)}
@@ -122,13 +115,8 @@ export function AIReqProposalCreateDialog({
           <DialogTitle>{zh ? "新建需求" : "New requirement"}</DialogTitle>
           <DialogDescription>
             {zh
-              ? "原始需求保存后成为提案。你可以稍后开始需求澄清。"
-              : "The original request is saved as a proposal. You can then start clarification."}
-            {sourceDocument &&
-              (zh
-                ? ` 来源文档「${sourceDocument.title}」`
-                : ` Source document: ${sourceDocument.title}`)}
-            {sourceDocument && sourceRelease && ` · ${sourceRelease.title}`}
+              ? "保存原始需求后，可在需求 Agent 中继续讨论。"
+              : "After saving the original request, continue in the Requirements Agent."}
           </DialogDescription>
         </DialogHeader>
         {releaseField}
@@ -164,7 +152,7 @@ export function AIReqProposalCreateDialog({
             {zh ? "取消" : "Cancel"}
           </Button>
           <Button disabled={!ready || !text.trim() || busy} onClick={onSave}>
-            {zh ? "保存为提案" : "Save as proposal"}
+            {zh ? "保存需求" : "Save requirement"}
           </Button>
         </DialogFooter>
       </DialogContent>

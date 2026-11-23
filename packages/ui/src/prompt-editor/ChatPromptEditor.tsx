@@ -22,7 +22,10 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
-import { ChatPromptActionMenu } from "@/prompt-editor/ChatPromptActionMenu.js";
+import {
+  ChatPromptActionMenu,
+  type ComposerDrawingAction,
+} from "@/prompt-editor/ChatPromptActionMenu.js";
 import { useComposerToolbarFit } from "@/prompt-editor/useComposerToolbarFit.js";
 
 function runAfterFrame(callback: () => void) {
@@ -56,6 +59,7 @@ export function ChatPromptEditor({
   inputLeadingContent,
   leadingActions,
   attachmentAction,
+  drawingAction,
   betweenCancelAndSubmitAction,
   submitControl,
   inputTestId,
@@ -112,6 +116,7 @@ export function ChatPromptEditor({
     testId?: string;
     menuItemTestId?: string;
   };
+  drawingAction?: ComposerDrawingAction;
   /** 行内编辑专用：固定插在取消与主提交之间的第二动作。 */
   betweenCancelAndSubmitAction?: ReactNode;
   submitControl?: ReactNode;
@@ -154,9 +159,10 @@ export function ChatPromptEditor({
   const latestTextRef = useRef(initialValue ?? "");
   const hasSyncedInitialValueRef = useRef(false);
   const actionMenuTitle = intl.formatMessage({
-    id: "chat.composer.actionMenu",
+    id: drawingAction ? "chat.composer.addSection" : "chat.composer.actionMenu",
   });
-  const hasActionMenu = Boolean(attachmentAction) || showMentionButton || showSlashButton;
+  const hasActionMenu =
+    Boolean(attachmentAction) || (!drawingAction && (showMentionButton || showSlashButton));
 
   useEffect(() => {
     if (!syncInitialValueOnMount) {
@@ -266,6 +272,7 @@ export function ChatPromptEditor({
         actionMenuTitle={actionMenuTitle}
         excludedSlashCommandNames={excludedSlashCommandNames}
         attachmentAction={attachmentAction}
+        drawingAction={drawingAction}
         disabled={disabled}
         disabledReason={disabledReason}
         inputApiRef={resolvedInputApiRef}
@@ -303,7 +310,10 @@ export function ChatPromptEditor({
           editorNode
         )}
         <div ref={toolbarRef} className="group/toolbar flex items-end gap-3">
-          <div className="flex min-w-0 flex-1 items-center" data-composer-leading-actions>
+          <div
+            className="flex min-w-0 flex-1 items-center group-has-[[data-composer-bound-model]]/toolbar:min-w-max"
+            data-composer-leading-actions
+          >
             <div className="flex shrink-0 items-center gap-1" data-composer-leading-content>
               {actionMenuNode}
               {/* Bugfix：权限/模式选择曾作为 leadingActions 先于动作菜单渲染，导致常驻顺序与产品规范相反。 */}
@@ -314,7 +324,7 @@ export function ChatPromptEditor({
             </div>
           </div>
           <div
-            className="ml-auto flex shrink-0 items-center justify-end gap-1.5"
+            className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5 has-[[data-composer-bound-model]]:shrink"
             data-composer-trailing-actions
           >
             {onCancel && cancelLabel ? (

@@ -366,6 +366,10 @@ export interface ConversationComposerProps {
   composerInputPreview?: ComposerInputPreview;
   onInputPreview?: (preview: { text: string }) => void;
   composerTrailingTools?: (port: ComposerToolsPort) => ReactNode;
+  composerSketch?: (
+    port: ComposerToolsPort,
+    dialog: { open: boolean; onOpenChange: (open: boolean) => void },
+  ) => ReactNode;
   composerTools?: (port: ComposerToolsPort) => ReactNode;
   snapshot: ConversationSnapshot | null;
   /** 真实命令已发出、权威输入投影尚未接管；直接消费 projection store，不另存展示状态。 */
@@ -541,6 +545,7 @@ function ConversationComposerImpl({
   composerInputPreview,
   onInputPreview,
   composerTrailingTools,
+  composerSketch,
   composerTools,
   centered = false,
   blockingRequestId = null,
@@ -1955,6 +1960,7 @@ function ConversationComposerImpl({
     ? [boundSelection.modelId, boundSelection.options?.reasoningLevel].filter(Boolean).join(" · ")
     : undefined;
   const boundModelLabel = zh ? "会话模型" : "Session model";
+  const [sketchOpen, setSketchOpen] = useState(false);
   const followUpLabel = intl.formatMessage({ id: "chat.followup.addToQueue" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
 
@@ -2065,7 +2071,7 @@ function ConversationComposerImpl({
                   className={
                     isMediaAttachment
                       ? "relative size-12 overflow-hidden rounded-lg bg-surface after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:border after:border-border after:content-['']"
-                      : "h-12 w-fit max-w-full min-w-0 gap-2 rounded-lg border border-border bg-surface p-1.5 pr-6 [--attachment-bg:var(--color-surface)] hover:bg-surface-hover"
+                      : "h-12 w-fit max-w-full min-w-0 gap-2 rounded-lg border border-border bg-surface p-1.5 [--attachment-bg:var(--color-surface)] hover:bg-surface-hover"
                   }
                   data={{
                     id: attachment.id,
@@ -2248,24 +2254,30 @@ function ConversationComposerImpl({
                       <RotateCcwIcon className="size-3" />
                     </button>
                   ) : null}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    data-composer-attachment-remove={attachment.id}
-                    aria-label={intl.formatMessage({
-                      id: "chat.attachments.remove",
-                    })}
-                    className="absolute right-0.5 top-0.5 z-20 size-3.5 rounded-full bg-primary p-0 text-primary-foreground opacity-0 transition-opacity hover:bg-primary/80 hover:text-primary-foreground group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      attachmentsApi.removeAttachment(attachment.id);
-                    }}
+                  <span
+                    // 动效主题按下时会让按钮相对定位。由外层定位可避免按钮在按下与松开之间移出点击点。
+                    className={
+                      isMediaAttachment
+                        ? "absolute top-0.5 right-0.5 z-20 inline-flex"
+                        : "inline-flex shrink-0"
+                    }
                   >
-                    <XIcon className="size-2.5" />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant={isMediaAttachment ? "default" : "ghost"}
+                      size="icon-sm"
+                      data-composer-attachment-remove={attachment.id}
+                      aria-label={intl.formatMessage({ id: "chat.attachments.remove" })}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        attachmentsApi.removeAttachment(attachment.id);
+                      }}
+                    >
+                      <XIcon aria-hidden="true" />
+                    </Button>
+                  </span>
                 </Attachment>
               );
             })}
@@ -2388,7 +2400,10 @@ function ConversationComposerImpl({
       return true;
     },
     addFiles: attachmentsApi.addAttachmentFiles,
-    focusInput: requestComposerFocus,
+    focusInput: () => {
+      // 用户主动关闭工具时要归还输入焦点，即使宿主禁用了进入会话时的自动聚焦。
+      if (!disabled && !runtimeBlocked) inputApiRef.current?.focus();
+    },
   };
   const trailingToolsNode = composerTrailingTools?.(toolsPort);
   const submitControlNode = useMemo(
@@ -2405,9 +2420,10 @@ function ConversationComposerImpl({
         {remoteAvailable && sessionBoundInput && boundModel ? (
           <span
             className="min-w-0 truncate text-ui-caption text-foreground-subtle"
+            data-composer-bound-model=""
             title={`${boundModelLabel}: ${boundModel}`}
           >
-            {boundModelLabel}: {boundModel}
+            {boundModel}
           </span>
         ) : null}
         {remoteAvailable && !sessionBoundInput ? (
@@ -2769,6 +2785,15 @@ function ConversationComposerImpl({
             showMentionButton
             topContent={topContentNode}
             attachmentAction={runtimeBlocked ? undefined : attachmentAction}
+            drawingAction={
+              composerSketch
+                ? {
+                    label: zh ? "画图" : "Draw",
+                    disabled: toolsPort.disabled,
+                    onSelect: () => setSketchOpen(true),
+                  }
+                : undefined
+            }
             inputTestId={TID_V4_COMPOSER_INPUT}
             inputApiRef={inputApiRef}
             promptHistory={promptHistory.entries}
@@ -2801,6 +2826,7 @@ function ConversationComposerImpl({
           </p>
         ) : null}
       </div>
+      {composerSketch?.(toolsPort, { open: sketchOpen, onOpenChange: setSketchOpen })}
       <ImagePreviewDialog
         initialIndex={attachmentPreviewIndex}
         items={composerMediaPreviewItems}
