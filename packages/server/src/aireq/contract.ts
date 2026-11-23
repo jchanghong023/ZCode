@@ -39,4 +39,5 @@ export { MockAIReqService, getConnectionServices, registerAIReqConnection } from
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
 export { assertSkillSession, prototypeSkillDesignWorkspaceIdentity } from "./skill-design.js";
-export { readPrototypeProjectDirectory } from "./workflow.js";
+export { readPrototypeProjectDirectory, readPrototypeConfirmedDocuments } from "./workflow.js";
+export { documentSyncScript, documentSyncScriptSha256 } from "./document-sync-asset.js";

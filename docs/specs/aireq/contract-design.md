@@ -106,7 +106,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，值与该项目的 `readWorkflow.workspace` 来自同一个服务端工作区投影，包含 `identity`、`kind` 和可选的 `path`、`error`。初始化与元数据失效只读一次 bootstrap，不按项目读取完整工作流；详情仍按目标读取并优先使用该读回的工作区。前端不拼接身份或以旧值覆盖不可用结果。默认项目省略时不猜测；显式分享链接优先。`capabilities` 只包含 `workflowCommands`、`requirementManagement` 和可选的 `proposalDiscussion`。响应不返回 IR/SR 导航、私人草稿、服务注册清单或后端配置。提示词草稿在前端从 `saved` 初始化，刷新不覆盖未保存编辑。
 
-AIReq bootstrap 业务契约版本为 `23`。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由各需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `25`。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由各需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
@@ -118,7 +118,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 工作流读取失败通过 RPC 拒绝返回，`view` 不含通用 `error` 字段。工作区和单份材料的错误仍随各自的投影返回。
 
-`view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`requirementCount`。计数按同一 owner 的 `(projectId, id)` 派生，含零需求 Release。详情、材料、会话及操作历史仍按查询项目返回。项目无 Release 与视图未加载是不同状态。
+`view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`requirementCount` 和 `confirmedRequirementCount`。后者统计当前文档版本已确认的需求，未定版数为总数减去已定版数。计数按同一 owner 的 `(projectId, id)` 派生，含零需求 Release。详情、材料、会话及操作历史仍按查询项目返回。项目无 Release 与视图未加载是不同状态。
 
 项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区与存储元数据、完整操作身份及评审发起记录由服务端持有。公开操作回执仅投影 `actorEmployeeId` 供操作记录显示；没有记录工号的历史回执省略该字段，不下发 `identity` 或 `clientId`。`readWorkflow.view.requirements` 返回当前项目的全部需求。文档确认人来自实际接纳该操作的连接身份。命令结果不返回创建想法 ID，客户端重读想法池。
 
@@ -211,6 +211,12 @@ sequenceDiagram
 验收覆盖：初次及失效刷新没有逐项目工作流查询；切范围不复用他项目的工作区或统计；空 Release 计数为零；旧编辑基线拒绝且不写入，已有操作重读后返回原回执；旧请求键被拒绝，公开视图及回执不包含服务端私有字段。
 
 Agent 讨论的完成回调核验项目、IR、会话、写权限及原生执行身份后提交材料。未确认版本内容可更新，已经固定的版本保留原件。以文件路径、摘要及字节数判断实际变化；评审绑定发起时的文件快照。
+
+## 定版文档下载
+
+`bootstrap.documentSync.scriptSha256` 描述当前发布的同步脚本。公开 GET `/aireq-sync/<sha256>.py` 返回对应脚本，其 SHA-256 与 URL 一致。旧摘要不可用时返回 404。脚本为静态产品资源，下载无需部署令牌。
+
+GET `/api/aireq/confirmed-documents` 复用 HTTP 部署鉴权。查询严格接收 `aireqProject`、`aireqRelease`、`aireqIr`。返回项目、Release 和需求 ID、项目仓库地址、最新已定版的版本号与确认信息、SR ID 及文件路径、UTF-8 正文、SHA-256 和字节数。归属不匹配、从未定版及项目仓库不可用分别返回明确失败。快照由同一工作流所有者提供，读取不修改工作流。文档下载不缓存。
 
 ## 6. 拒绝、文件与设置
 

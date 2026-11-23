@@ -32,5 +32,6 @@ export const exampleAIReqReleases = [
     title: "Example release",
     createdAt: "2026-11-16T00:00:00.000Z",
     requirementCount: 1,
+    confirmedRequirementCount: 0,
   },
 ] satisfies AIReqReleaseSummary[];

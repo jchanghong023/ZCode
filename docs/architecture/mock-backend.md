@@ -17,6 +17,8 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 `entry-http.ts` 创建一次服务集合。每条 WebSocket 独占 socket、协议、ChannelServer、固定身份 facade 和 agent connection scope；关闭只释放连接资源和订阅，不销毁共享业务 owner。HTTP 层不复制业务或重放账本。`createMockHttpServer` 返回可由调用者 `stop()` 的 Bun server。
 
+定版文档同步通过 HTTP 下载按摘要发布的静态 Python 脚本，以及从 workflow 读取的完整已定版快照。文档数据沿用现有部署令牌规则。Git 和文件写入发生在开发主动执行命令的本地进程。[下载接口](../specs/aireq/contract-design.md#定版文档下载)
+
 运行时为 Bun，pnpm 管理依赖；`node:*` 为 Bun 兼容 API，不是独立 Node.js 后端。根 `dev` 并行启动 server/web，`build` 依次构建 server/web，具体命令以根 `package.json` 和[构建工作流](../../README.md#构建与部署)为准。
 
 ## 2. 权威状态
@@ -37,7 +39,7 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 ### 原型后端业务初始数据
 
-项目和 Release 的需求计数来自同一工作流，与文件及确认状态无关。
+项目和 Release 的需求总数来自同一工作流。Release 同时汇总当前文档版本已确认的需求数。
 
 原型的业务和方案材料可包含 Mermaid 流程图。导入按来源正文保存，依赖 JSON 保持纯 JSON。
 

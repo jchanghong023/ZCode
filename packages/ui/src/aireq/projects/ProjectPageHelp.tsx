@@ -17,8 +17,8 @@ export function ProjectPageHelp({ scope }: { scope: "all-projects" | "project-ov
       : "Project overview help";
   const description = allProjects
     ? zh
-      ? "版本卡片显示各 Release 的需求总数。进入工作区可查看该版本的需求。"
-      : "Release cards show the total requirement count. Open a workspace to see its requirements."
+      ? "版本卡片按需求的最新文档版本是否已确认，显示已定版和未定版数量。进入工作区可查看该版本的需求。"
+      : "Release cards count requirements by whether their latest document version is confirmed. Open a workspace to see its requirements."
     : zh
       ? "在需求共创进入 Agent 对话，或直接打开每条需求的文档与历史版本。"
       : "In Co-creation, open either Agent or view a requirement’s documents and version history.";

@@ -10,7 +10,6 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
@@ -22,7 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.js";
-import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import {
   Dialog,
@@ -45,8 +43,11 @@ import {
   AIReqProposalReleaseField,
 } from "./AIReqProposalCreateDialog.js";
 import { AIReqProposalExport } from "./AIReqProposalExport.js";
+import { AIReqProposalFilters } from "./AIReqProposalFilters.js";
 import { AIReqProposalRow } from "./AIReqProposalRow.js";
 import { AIReqProposalSavedNotice, type SavedProposal } from "./AIReqProposalSavedNotice.js";
+
+const EMPTY_FILTERS = { query: "", submitter: "all", version: "all" };
 
 export function AIReqProposalTable({
   overviewCreateTrigger,
@@ -56,8 +57,8 @@ export function AIReqProposalTable({
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
-  const [query, setQuery] = useState("");
-  const [submitter, setSubmitter] = useState("");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const { query, submitter, version } = filters;
   const [page, setPage] = useState(0);
   const [text, setText] = useState("");
   const importOpen = ai.proposalImportOpen;
@@ -94,6 +95,10 @@ export function AIReqProposalTable({
         (item) => item.projectId === ai.selection.projectId && item.releaseId === ai.releaseId,
       ),
     [ai.view?.requirements, ai.selection.projectId, ai.releaseId],
+  );
+  const submitters = useMemo(
+    () => [...new Set(groups.map((item) => item.submittedBy))].sort(),
+    [groups],
   );
   const releases = ai.selectionReady
     ? ai.view?.releases.filter((item) => item.projectId === ai.selection.projectId)
@@ -149,12 +154,11 @@ export function AIReqProposalTable({
       : (preview?.texts.map((originalText) => ({ originalText })) ?? []);
   // 文件读取及格式错误也属于用户输入；仅以成功预览判断会让这些状态无提示丢失。
   const dirty = Boolean(text || (importOpen && fileName));
-  // 修复：列表保持挂载以恢复筛选，切换项目时不能沿用上一个项目的筛选条件。
-  useEffect(() => {
-    setQuery("");
-    setSubmitter("");
+  // 返回同一范围的列表保留筛选。切换 Release 时提交人选项属于新范围。
+  useLayoutEffect(() => {
+    setFilters(EMPTY_FILTERS);
     setPage(0);
-  }, [ai.selection.projectId]);
+  }, [ai.selection.projectId, ai.releaseId]);
   useEffect(() => {
     if (!dirty && !busy) return;
     // 原生确认框与应用交互不一致；暂存一次导航，待应用内确认后再执行。
@@ -192,15 +196,16 @@ export function AIReqProposalTable({
     };
   }, [importOpen]);
   const search = query.trim().toLocaleLowerCase();
-  const employeeSearch = submitter.trim().toLowerCase();
-  const hasFilters = Boolean(search || employeeSearch);
+  const hasFilters = Boolean(search || submitter !== "all" || version !== "all");
   const filtered = groups.filter(
     (item) =>
       (!search ||
         item.title.toLocaleLowerCase().includes(search) ||
         item.originalText.toLocaleLowerCase().includes(search) ||
         item.id.toLocaleLowerCase().includes(search)) &&
-      (!employeeSearch || item.submittedBy.toLowerCase().includes(employeeSearch)),
+      (submitter === "all" || item.submittedBy === submitter) &&
+      (version === "all" ||
+        Boolean(item.documentVersion?.confirmation) === (version === "confirmed")),
   );
   filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20));
@@ -208,7 +213,7 @@ export function AIReqProposalTable({
   useLayoutEffect(() => {
     // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
     if (tableScroll.current) tableScroll.current.scrollTop = 0;
-  }, [ai.releaseId, currentPage, employeeSearch, search]);
+  }, [ai.releaseId, currentPage, search, submitter, version]);
   const ready = releases?.some((release) => release.id === draftReleaseId) ?? false;
   const releaseSelector = (
     <AIReqProposalReleaseField
@@ -347,39 +352,16 @@ export function AIReqProposalTable({
           </div>
         </header>
         <AIReqProposalSavedNotice target={savedProposal} buttonRef={clarificationAction} zh={zh} />
-        <div className="grid shrink-0 gap-2 @min-[520px]/conversation:grid-cols-[minmax(0,1fr)_10rem]">
-          <div className="relative min-w-0">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
-            />
-            <Input
-              ref={searchInput}
-              aria-label={
-                zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
-              }
-              placeholder={
-                zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
-              }
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(0);
-              }}
-              className="h-9 rounded-lg bg-surface pl-9"
-            />
-          </div>
-          <Input
-            aria-label={zh ? "筛选提交人工号" : "Filter by submitter ID"}
-            placeholder={zh ? "提交人工号" : "Submitter ID"}
-            value={submitter}
-            onChange={(event) => {
-              setSubmitter(event.target.value);
-              setPage(0);
-            }}
-            className="h-9 min-w-0 rounded-lg bg-surface"
-          />
-        </div>
+        <AIReqProposalFilters
+          filters={filters}
+          submitters={submitters}
+          searchInput={searchInput}
+          zh={zh}
+          onChange={(field, value) => {
+            setFilters((current) => ({ ...current, [field]: value }));
+            setPage(0);
+          }}
+        />
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
         <div
           ref={tableScroll}
@@ -391,7 +373,7 @@ export function AIReqProposalTable({
           >
             <colgroup className="@max-[520px]/conversation:hidden">
               <col />
-              <col className="hidden w-28 @min-[640px]/conversation:table-column" />
+              <col className="hidden w-40 @min-[640px]/conversation:table-column @min-[740px]/conversation:w-48" />
               <col className="w-40 @min-[640px]/conversation:w-56 @min-[740px]/conversation:w-80" />
             </colgroup>
             <thead
@@ -437,8 +419,7 @@ export function AIReqProposalTable({
                         variant="ghost"
                         className="ml-2"
                         onClick={() => {
-                          setQuery("");
-                          setSubmitter("");
+                          setFilters(EMPTY_FILTERS);
                           setPage(0);
                           searchInput.current?.focus();
                         }}

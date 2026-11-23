@@ -167,6 +167,7 @@ describe("ST same-owner workflow projections", () => {
         const secondRelease = secondReleases[0]!;
         expect(summary(directory, other.projectId, other.releaseId)).toMatchObject({
           requirementCount: 0,
+          confirmedRequirementCount: 0,
         });
         await client.command(
           {
@@ -198,6 +199,7 @@ describe("ST same-owner workflow projections", () => {
         const view = (await client.read(target.selection)).view;
         expect(summary(view, target.projectId, target.releaseId)).toMatchObject({
           requirementCount: 1,
+          confirmedRequirementCount: 0,
         });
         expect(summary(view, target.projectId, secondRelease.id)).toMatchObject({
           title: secondRelease.title,

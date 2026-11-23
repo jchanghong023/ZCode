@@ -19,7 +19,7 @@ import type {
   AIReqRemoteRepositoryInput,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 23;
+export const AIREQ_CONTRACT_VERSION = 25;
 export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId" | "srId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;
@@ -79,6 +79,7 @@ export interface AIReqRemoteBootstrap {
   contractVersion: typeof AIREQ_CONTRACT_VERSION;
   backend: AIReqBackendView;
   capabilities: AIReqDataSource["capabilities"];
+  documentSync: AIReqDataSource["documentSync"];
   initialProjectId?: string;
   models: {
     choices: readonly { id: string; name: string; provider: string }[];

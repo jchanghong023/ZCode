@@ -1,5 +1,6 @@
 import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
+import { documentSyncScriptSha256 } from "./document-sync-asset.js";
 import { businessRule } from "./errors.js";
 import { Emitter } from "@zcode/rpc";
 import { IZCodeAgentService, type ServiceCollection } from "@zcode/services";
@@ -224,6 +225,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
       backend: { id: PROTOTYPE_BACKEND.id },
+      documentSync: { scriptSha256: documentSyncScriptSha256 },
       capabilities: {
         workflowCommands: [...commands],
       },

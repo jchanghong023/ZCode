@@ -243,7 +243,15 @@ describe("co-creation document versions through the public API", () => {
             expectedRevision: target.remote.view.revision,
             operationId: unique("confirm-v1"),
           } as const;
+          const release = ({ view }: typeof target.remote) =>
+            view.releases.find(
+              ({ projectId, id }) => projectId === target.projectId && id === target.releaseId,
+            );
           expect(getProposal(target.remote, target).documentVersion).toBeUndefined();
+          expect(release(target.remote)).toMatchObject({
+            requirementCount: 1,
+            confirmedRequirementCount: 0,
+          });
           await expect(business.call("validateDocumentVersion", [selection])).rejects.toThrow();
           await expectBusinessRejection(
             tester.command({ ...action, operationId: unique("confirm-empty") }, selection),
@@ -291,6 +299,10 @@ describe("co-creation document versions through the public API", () => {
           expect(confirmed.receipt).toMatchObject({ status: "completed", irId: target.irId });
           expect(await tester.command(action, selection)).toEqual(confirmed);
           const saved = await business.read(selection);
+          expect(release(saved)).toMatchObject({
+            requirementCount: 1,
+            confirmedRequirementCount: 1,
+          });
           const confirmedGroup = getProposal(saved, target);
           expect(confirmedGroup.documentVersion).toMatchObject({
             number: 1,
@@ -309,6 +321,10 @@ describe("co-creation document versions through the public API", () => {
           const v2Addition = "## 新增验收\n高亮区分空数据和请求失败。";
           await discuss(business, target, v2Addition);
           const latestV2 = await business.read(selection);
+          expect(release(latestV2)).toMatchObject({
+            requirementCount: 1,
+            confirmedRequirementCount: 0,
+          });
           const v2 = getProposal(latestV2, target);
           expect(v2.documentVersion).toEqual({ number: 2 });
           const originalSnapshot = {

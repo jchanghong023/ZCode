@@ -152,6 +152,9 @@ export async function createRemoteAIReqDataSource(
     get backend() {
       return metadata.backend;
     },
+    get documentSync() {
+      return metadata.documentSync;
+    },
     get capabilities() {
       return metadata.capabilities;
     },

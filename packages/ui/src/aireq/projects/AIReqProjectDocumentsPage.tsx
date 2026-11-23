@@ -161,8 +161,16 @@ export function AIReqProjectDocumentsPage({
                           >
                             <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-foreground tabular-nums">
                               <span>
-                                {zh ? "需求" : "Requirements"}{" "}
-                                <strong className="font-medium">{release.requirementCount}</strong>
+                                {zh ? "已定版需求" : "Confirmed requirements"}{" "}
+                                <strong className="font-medium">
+                                  {release.confirmedRequirementCount}
+                                </strong>
+                              </span>
+                              <span>
+                                {zh ? "未定版需求" : "Unconfirmed requirements"}{" "}
+                                <strong className="font-medium">
+                                  {release.requirementCount - release.confirmedRequirementCount}
+                                </strong>
                               </span>
                             </div>
                             <Button

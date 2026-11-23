@@ -101,13 +101,22 @@ export function projectReleases(
   for (const { id, projectId, title, createdAt } of releases) {
     const index = byProject.get(projectId);
     if (!index) continue;
-    const summary = { id, projectId, title, createdAt, requirementCount: 0 };
+    const summary = {
+      id,
+      projectId,
+      title,
+      createdAt,
+      requirementCount: 0,
+      confirmedRequirementCount: 0,
+    };
     index.set(id, summary);
     summaries.push(summary);
   }
   for (const group of state.requirements) {
     const summary = byProject.get(group.projectId)?.get(group.releaseId);
-    if (summary) summary.requirementCount++;
+    if (!summary) continue;
+    summary.requirementCount++;
+    if (group.documentVersion?.confirmation) summary.confirmedRequirementCount++;
   }
   return summaries;
 }

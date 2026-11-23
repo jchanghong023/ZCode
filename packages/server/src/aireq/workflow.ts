@@ -1,6 +1,8 @@
 import {
   AIREQ_ROLE_ADMINISTRATOR,
   hasProjectRole,
+  type AIReqConfirmedDocumentBundle,
+  type AIReqDocumentSyncTarget,
   type AIReqCommand,
   type AIReqCommandTarget,
   type AIReqMaterialReadRequest,
@@ -55,6 +57,44 @@ function mutatePrototypeWorkflow(update: (next: WorkflowState) => boolean): void
 
 export function readPrototypeWorkflowRevision(): number {
   return state.revision;
+}
+
+export function readPrototypeConfirmedDocuments(
+  target: AIReqDocumentSyncTarget,
+):
+  | { bundle: AIReqConfirmedDocumentBundle }
+  | {
+      error:
+        | "REQUIREMENT_NOT_FOUND"
+        | "NO_CONFIRMED_VERSION"
+        | "REPOSITORY_UNAVAILABLE"
+        | "DOCUMENT_UNAVAILABLE";
+    } {
+  const { projectId, irId, releaseId } = target;
+  const project = readPrototypeProjectSetting(projectId);
+  const requirement = state.requirements.find(
+    (item) => item.projectId === projectId && item.id === irId && item.releaseId === releaseId,
+  );
+  if (!project || !requirement) return { error: "REQUIREMENT_NOT_FOUND" };
+  const current = requirement.documentVersion;
+  const snapshot = current && "materials" in current ? current : requirement.documentHistory.at(-1);
+  if (!snapshot) return { error: "NO_CONFIRMED_VERSION" };
+  if (!project.repositoryUrl) return { error: "REPOSITORY_UNAVAILABLE" };
+  const files: AIReqConfirmedDocumentBundle["files"] = [];
+  for (const { path, sha256, size, content, valid, error } of snapshot.materials) {
+    if (content === undefined || !valid || error) return { error: "DOCUMENT_UNAVAILABLE" };
+    files.push({ path, sha256, size, content });
+  }
+  return {
+    bundle: {
+      ...target,
+      repositoryUrl: project.repositoryUrl,
+      version: snapshot.number,
+      confirmation: snapshot.confirmation,
+      srIds: snapshot.srs.map(({ id }) => id),
+      files,
+    },
+  };
 }
 
 export function validatePrototypeDocumentVersion({

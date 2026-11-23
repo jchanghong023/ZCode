@@ -34,6 +34,7 @@ function workspace(projectId: string): AIReqRemoteWorkflow["workspace"] {
 function bootstrap(revision = 1): AIReqRemoteBootstrap {
   return {
     contractVersion: AIREQ_CONTRACT_VERSION,
+    documentSync: { scriptSha256: "0".repeat(64) },
     backend: { id: "backend-a" },
     capabilities: {
       workflowCommands: ["createIdea"],

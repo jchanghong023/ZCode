@@ -41,6 +41,7 @@ export type {
 } from "@zcode/services/aireq";
 export {
   AIREQ_CONTRACT_VERSION,
+  AIREQ_SYNC_SCRIPT_ROOT,
   AIREQ_DOCUMENT_PATHS,
   checkMarkdownSections,
   firstMarkdownTitle,

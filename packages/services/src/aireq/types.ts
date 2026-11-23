@@ -55,6 +55,7 @@ export interface AIReqRelease {
 
 export interface AIReqReleaseSummary extends AIReqRelease {
   requirementCount: number;
+  confirmedRequirementCount: number;
 }
 
 /** A global unplanned need; it is consumed when admitted to one or more releases. */

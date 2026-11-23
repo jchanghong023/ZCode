@@ -5,6 +5,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { type AIReqRequirementGroup, hasProjectRole } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
+import { AIReqCopyDocumentSyncButton } from "./AIReqCopyDocumentSyncButton.js";
 
 export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh: boolean }) {
   const ai = useAIReq()!;
@@ -26,12 +27,13 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
     hasProjectRole(ai.view, item.projectId, employee, "development") ||
     hasProjectRole(ai.view, item.projectId, employee, "testing");
   const version = item.documentVersion;
-  const versionStatus = version?.confirmation
+  const confirmation = version?.confirmation;
+  const versionStatus = confirmation
     ? zh
-      ? "已确认"
+      ? "已定版"
       : "Confirmed"
     : zh
-      ? "未确认"
+      ? "未定版"
       : "Unconfirmed";
   const noDocuments = zh ? "暂无文档" : "No documents";
   const requirementsLabel = zh ? "需求 Agent" : "Requirements Agent";
@@ -59,17 +61,44 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
       {solutionLabel}
     </Button>
   );
-  const date = (
-    <time dateTime={item.createdAt} title={zh ? "北京时间" : "Beijing time"}>
-      {new Date(item.createdAt).toLocaleString(zh ? "zh-CN" : "en-US", {
-        timeZone: "Asia/Shanghai",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })}
-    </time>
+  const locale = zh ? "zh-CN" : "en-US";
+  const timeZone = "Asia/Shanghai";
+  const submittedAt = new Date(item.createdAt).toLocaleString(locale, { timeZone, hour12: false });
+  const confirmedAt = confirmation ? new Date(confirmation.confirmedAt) : undefined;
+  const versionSummary = (
+    <div className="space-y-1">
+      <p className="wrap-anywhere">
+        {version ? (
+          <>
+            <span className="font-medium tabular-nums">V{version.number}</span>
+            {` · ${versionStatus}`}
+          </>
+        ) : (
+          noDocuments
+        )}
+      </p>
+      {confirmation && confirmedAt && (
+        <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-ui-sm text-foreground-subtle group-hover/row:text-foreground">
+          <span className="whitespace-nowrap">
+            {zh ? "确认人" : "Confirmed by"} {confirmation.employeeId}
+          </span>
+          <time
+            dateTime={confirmation.confirmedAt}
+            title={`${confirmedAt.toLocaleString(locale, { timeZone, hour12: false })} · ${zh ? "北京时间" : "Beijing time"}`}
+            className="whitespace-nowrap tabular-nums"
+          >
+            {confirmedAt.toLocaleString(locale, {
+              timeZone,
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </time>
+        </p>
+      )}
+    </div>
   );
   return (
     <tr
@@ -82,7 +111,10 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
         data-aireq-motion-cell=""
         className="min-w-0 px-4 py-3 @max-[520px]/conversation:pb-0"
       >
-        <p className="line-clamp-2 wrap-anywhere font-semibold" title={item.title}>
+        <p
+          className="line-clamp-2 wrap-anywhere font-semibold"
+          title={`${item.title}\n${zh ? "提交人" : "Submitted by"} ${item.submittedBy} · ${submittedAt}`}
+        >
           {item.title}
         </p>
         {item.originalText !== item.title && (
@@ -93,27 +125,15 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
             {item.originalText}
           </p>
         )}
-        <p className="mt-1 wrap-anywhere text-ui-sm text-foreground-subtle group-hover/row:text-foreground">
-          {item.submittedBy} · {date}
-        </p>
-        <p className="mt-1 text-ui-sm text-foreground-subtle group-hover/row:text-foreground @min-[640px]/conversation:hidden">
-          {version ? `V${version.number} · ${versionStatus}` : noDocuments}
-        </p>
+        <div className="mt-2 text-ui-caption @min-[640px]/conversation:hidden">
+          {versionSummary}
+        </div>
       </td>
       <td
         role="cell"
         className="hidden px-4 py-3 text-ui-caption @min-[640px]/conversation:table-cell"
       >
-        {version ? (
-          <>
-            <span className="font-medium tabular-nums">V{version.number}</span>
-            <span className="block text-foreground-subtle group-hover/row:text-foreground">
-              {versionStatus}
-            </span>
-          </>
-        ) : (
-          noDocuments
-        )}
+        {versionSummary}
       </td>
       <td
         role="cell"
@@ -137,21 +157,24 @@ export function AIReqProposalRow({ item, zh }: { item: AIReqRequirementGroup; zh
           ) : (
             <ControlHintTooltip title={solutionHint}>{solutionButton}</ControlHintTooltip>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label={`${documentsLabel} · ${item.title}`}
-            aria-controls="aireq-document-workspace"
-            aria-expanded={documentsOpen}
-            onClick={(event) => {
-              // 先保留行入口；右侧文档宿主用焦点的来源处理收起回焦。
-              event.currentTarget.focus({ preventScroll: true });
-              focusDocuments.current = true;
-              open({ selection, releaseId: item.releaseId, title: item.title });
-            }}
-          >
-            {documentsLabel}
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`${documentsLabel} · ${item.title}`}
+              aria-controls="aireq-document-workspace"
+              aria-expanded={documentsOpen}
+              onClick={(event) => {
+                // 先保留行入口；右侧文档宿主用焦点的来源处理收起回焦。
+                event.currentTarget.focus({ preventScroll: true });
+                focusDocuments.current = true;
+                open({ selection, releaseId: item.releaseId, title: item.title });
+              }}
+            >
+              {documentsLabel}
+            </Button>
+            <AIReqCopyDocumentSyncButton item={item} zh={zh} />
+          </div>
         </div>
       </td>
     </tr>

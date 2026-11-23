@@ -4,5 +4,6 @@ export * from "./types.js";
 export * from "./domain.js";
 export * from "./sr-dependencies.js";
 export * from "./document-formats.js";
+export * from "./document-sync.js";
 export * from "./data-source.js";
 export * from "./remote-operations.js";

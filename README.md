@@ -2,6 +2,8 @@
 
 面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档交付和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
 
+开发在「需求共创」复制同步命令后，可用 Python 3.10 或以上和 Git 在开发分支导入最新已定版的整套文档。[同步使用说明](docs/specs/aireq/proposals.md#同步已定版文档到本地分支)
+
 当前没有真实 Agent、AI／Git 执行、数据库持久化或可信工号认证。服务重启会重新初始化内存业务数据。完整能力边界见[系统范围](docs/README.md#系统范围)与[服务端说明](docs/architecture/mock-backend.md)。
 
 ## 环境与安装
