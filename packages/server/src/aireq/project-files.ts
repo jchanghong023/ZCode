@@ -3,6 +3,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readlinkSync,
   renameSync,
   rmSync,
@@ -15,6 +16,9 @@ import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } fr
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import { prototypeChangeRoot, prototypeIrRoot } from "./proposal-storage.js";
+
+const usePhysicalSnapshots = process.platform === "win32";
+const snapshotOwnerFile = ".aireq-ir";
 
 export function isProjectPathSegment(value: string): boolean {
   return Boolean(
@@ -146,7 +150,7 @@ export interface ProjectDocumentSnapshot {
 
 function publishedFiles(irId: string, files: readonly AIReqMaterialView[]) {
   const paths = new Map(files.map((file) => [file.path, publishedPath(irId, file)]));
-  return files.map((file) => {
+  const entries = files.map((file) => {
     const path = paths.get(file.path)!;
     if (file.content === undefined) throw businessRule("部分文档无法读取，请重试后再发布。");
     const content = file.path.endsWith(".md")
@@ -154,6 +158,8 @@ function publishedFiles(irId: string, files: readonly AIReqMaterialView[]) {
       : file.content;
     return { path, content };
   });
+  if (usePhysicalSnapshots) entries.push({ path: snapshotOwnerFile, content: irId });
+  return entries;
 }
 
 /** 新项目目录尚未公开，复制当前文档时不占用 HTTP 和 WebSocket 的事件循环。 */
@@ -161,11 +167,15 @@ export async function publishInitialProjectDocuments(
   documents: string,
   requirements: readonly RequirementDocuments[],
 ): Promise<() => Promise<void>> {
-  const created: { stage: string; link?: string }[] = [];
+  const created: { stage: string; published?: string }[] = [];
   const discard = async () => {
     await Promise.allSettled(
-      created.map(async ({ stage, link }) => {
-        if (link) await fs.unlink(link);
+      created.map(async ({ stage, published }) => {
+        if (published) {
+          // 移除本次发布创建的入口。Windows 上该入口就是已经移入的实体目录。
+          if (usePhysicalSnapshots) await fs.rm(published, { recursive: true, force: true });
+          else await fs.unlink(published);
+        }
         await fs.rm(stage, { recursive: true, force: true });
       }),
     );
@@ -183,9 +193,10 @@ export async function publishInitialProjectDocuments(
         await fs.chmod(target, 0o644);
       }
       await fs.chmod(stage, 0o755);
-      const link = join(documents, irId);
-      await fs.symlink(basename(stage), link, "dir");
-      entry.link = link;
+      const target = join(documents, irId);
+      if (usePhysicalSnapshots) await fs.rename(stage, target);
+      else await fs.symlink(basename(stage), target, "dir");
+      entry.published = target;
     }
     return discard;
   } catch (error) {
@@ -227,11 +238,13 @@ async function matchesSeedDocuments(
   const names = new Set(visible);
   for (const { irId, files } of requirements) {
     if (!names.has(irId)) return false;
-    const link = join(documents, irId);
-    if (!(await fs.lstat(link)).isSymbolicLink()) return false;
-    const target = await fs.readlink(link);
-    if (!/^\.ir-[a-zA-Z0-9]+$/.test(target) || !entries.includes(target)) return false;
-    const path = join(documents, target);
+    let path = join(documents, irId);
+    if (!usePhysicalSnapshots) {
+      if (!(await fs.lstat(path)).isSymbolicLink()) return false;
+      const target = await fs.readlink(path);
+      if (!/^\.ir-[a-zA-Z0-9]+$/.test(target) || !entries.includes(target)) return false;
+      path = join(documents, target);
+    }
     if (!(await fs.lstat(path)).isDirectory()) return false;
     const expected = new Map(
       publishedFiles(irId, files).map(({ path, content }) => [path, content]),
@@ -287,15 +300,27 @@ export async function prepareSeedProjectDocuments(
   }
 }
 
-function currentDocumentSnapshot(documents: string, irId: string): string | undefined {
+function currentDocumentSnapshot(
+  documents: string,
+  irId: string,
+): { path: string; kind: "directory" | "link" } | undefined {
   if (!isProjectPathSegment(irId)) throw businessRule("需求文档路径无效，无法发布。");
   const target = join(documents, irId);
   const stat = lstatSync(target, { throwIfNoEntry: false });
   if (!stat) return undefined;
+  if (usePhysicalSnapshots && stat.isDirectory()) {
+    const marker = join(target, snapshotOwnerFile);
+    if (
+      lstatSync(marker, { throwIfNoEntry: false })?.isFile() &&
+      readFileSync(marker, "utf8") === irId
+    ) {
+      return { path: target, kind: "directory" };
+    }
+  }
   if (!stat.isSymbolicLink()) throw businessRule("需求文档目录已被占用。");
   const stage = readlinkSync(target);
   if (!/^\.ir-[a-zA-Z0-9]+$/.test(stage)) throw businessRule("需求文档目录已被占用。");
-  return join(documents, stage);
+  return { path: join(documents, stage), kind: "link" };
 }
 
 function discardSnapshot(path: string | undefined) {
@@ -309,11 +334,39 @@ function discardSnapshot(path: string | undefined) {
 
 export function removeRequirementDocuments(documents: string, irId: string): void {
   const previous = currentDocumentSnapshot(documents, irId);
-  if (previous) unlinkSync(join(documents, irId));
-  discardSnapshot(previous);
+  if (!previous) return;
+  if (previous.kind === "directory") {
+    const removal = mkdtempSync(join(documents, ".ir-removed-"));
+    try {
+      renameSync(previous.path, join(removal, "snapshot"));
+    } finally {
+      discardSnapshot(removal);
+    }
+    return;
+  }
+  unlinkSync(join(documents, irId));
+  discardSnapshot(previous.path);
 }
 
-/** Publish a full IR in one rename so existing developer links always resolve to one snapshot. */
+function publishPhysicalSnapshot(
+  stage: string,
+  target: string,
+  previous: ReturnType<typeof currentDocumentSnapshot>,
+): void {
+  // Windows 标准用户可以重命名普通目录。目录替换失败时恢复上一版。
+  const backup = stage + ".previous";
+  if (previous) renameSync(target, backup);
+  try {
+    renameSync(stage, target);
+  } catch (error) {
+    if (previous) renameSync(backup, target);
+    throw error;
+  }
+  if (previous) discardSnapshot(backup);
+  if (previous?.kind === "link") discardSnapshot(previous.path);
+}
+
+/** Publish a complete IR snapshot at the stable path used by the developer's link. */
 export function publishRequirementDocuments(
   documents: string,
   irId: string,
@@ -333,6 +386,10 @@ export function publishRequirementDocuments(
       writeFileSync(output, content, { flag: "wx" });
       chmodSync(output, 0o644);
     }
+    if (usePhysicalSnapshots) {
+      publishPhysicalSnapshot(stage, target, previous);
+      return;
+    }
     symlinkSync(basename(stage), link, "dir");
     renameSync(link, target);
   } catch (error) {
@@ -340,5 +397,5 @@ export function publishRequirementDocuments(
     discardSnapshot(stage);
     throw error;
   }
-  discardSnapshot(previous);
+  discardSnapshot(previous?.path);
 }

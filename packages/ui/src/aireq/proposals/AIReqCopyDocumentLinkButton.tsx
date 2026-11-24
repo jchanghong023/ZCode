@@ -21,11 +21,22 @@ export function AIReqCopyDocumentLinkButton({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const command = documentLinkCommand(workDirectory);
-  const label = zh ? "复制软链接命令" : "Copy symlink command";
-  const description = command
+  const junction = command?.startsWith("New-Item ");
+  const label = junction
     ? zh
-      ? "在开发仓库根目录执行一次，即可查看项目的最新需求文档。"
-      : "Run once from your repository root to view the latest project documents."
+      ? "复制目录联接命令"
+      : "Copy junction command"
+    : zh
+      ? "复制软链接命令"
+      : "Copy symlink command";
+  const description = command
+    ? junction
+      ? zh
+        ? "在开发仓库根目录打开 PowerShell，执行一次，即可查看最新需求文档。"
+        : "Run once in PowerShell from your repository root to view the latest requirements documents."
+      : zh
+        ? "在开发仓库根目录执行一次，即可查看项目的最新需求文档。"
+        : "Run once from your repository root to view the latest project documents."
     : zh
       ? "请先在项目配置中设置工作目录。"
       : "Set the working directory in Project settings first.";

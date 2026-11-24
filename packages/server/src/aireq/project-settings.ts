@@ -1,4 +1,4 @@
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { createServiceLogger } from "@zcode/services/logger";
 import type { AIReqRemoteRepositoryInput } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
@@ -74,9 +74,10 @@ export async function initializePrototypeProjectSettings(
             captureDocuments(project.id).requirements,
           );
           return { ...project, workDirectory, storageDirectory };
-        } catch {
+        } catch (error) {
           logger.warn(undefined, "Failed to prepare demo project directory", {
             projectId: project.id,
+            code: error instanceof Error && "code" in error ? error.code : undefined,
           });
           return project;
         }
@@ -87,6 +88,12 @@ export async function initializePrototypeProjectSettings(
 
 // 保存串行校验 revision 与目录归属。异步文件操作期间，读取仍使用上一次已提交配置。
 let projectSaves = Promise.resolve();
+
+function containsDirectory(root: string, candidate: string): boolean {
+  const path = relative(root, candidate);
+  return !isAbsolute(path) && path !== ".." && !path.startsWith(".." + sep);
+}
+
 export function savePrototypeRepository(
   input: AIReqRemoteRepositoryInput,
   captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
@@ -115,7 +122,11 @@ async function prepareAndSaveRepository(
   const givenDirectory = input.workDirectory.trim();
   const workDirectory = resolve(givenDirectory);
   if (!isProjectPathSegment(name)) throw businessRule("请输入可用作目录名的项目名称。");
-  if (!givenDirectory.startsWith("/") || workDirectory === "/" || /\p{Cc}/u.test(givenDirectory))
+  if (
+    !isAbsolute(givenDirectory) ||
+    dirname(workDirectory) === workDirectory ||
+    /\p{Cc}/u.test(givenDirectory)
+  )
     throw businessRule("请输入项目工作目录的绝对路径。");
   let validRepository = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(repositoryUrl);
   if (!validRepository && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(repositoryUrl)) {
@@ -160,15 +171,15 @@ async function prepareAndSaveRepository(
       if (item.id === id || !item.storageDirectory) return false;
       const other = item.storageDirectory;
       return (
-        other === storageDirectory ||
-        storageDirectory.startsWith(other + "/") ||
-        other.startsWith(storageDirectory + "/")
+        containsDirectory(other, storageDirectory) || containsDirectory(storageDirectory, other)
       );
     })
   )
     throw businessRule("该工作目录已由其他项目使用，请选择独立目录。");
   try {
-    const alreadyOwned = existing?.storageDirectory === storageDirectory;
+    const alreadyOwned =
+      existing?.storageDirectory !== undefined &&
+      relative(existing.storageDirectory, storageDirectory) === "";
     const documents = await prepareProjectDocuments(workDirectory, storageDirectory, alreadyOwned);
     if (!alreadyOwned) {
       const snapshot = captureDocuments(id);

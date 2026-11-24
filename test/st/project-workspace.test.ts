@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readlink, readdir, rm, stat, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -25,18 +25,21 @@ it(
       const sharedDirectory = join(workDirectory, "docs", "areq");
       const link = join(developer, "docs", "areq");
       await mkdir(join(developer, "docs"));
-      await symlink(sharedDirectory, link, "dir");
+      const windows = process.platform === "win32";
+      await symlink(sharedDirectory, link, windows ? "junction" : "dir");
       const target = await createProposalIn(client, project);
       const irDirectory = join(link, target.irId);
       expect((await stat(irDirectory)).isDirectory()).toBe(true);
-      expect(await readdir(irDirectory)).toEqual([]);
+      expect((await readdir(irDirectory)).filter((name) => name !== ".aireq-ir")).toEqual([]);
       const initial = await completeBusinessMaterial(client, target);
       const requirements = join(irDirectory, "requirements.md");
       expect(await readFile(requirements, "utf8")).toBe(
         getMaterials(initial, target).find((file) => file.kind === "ir")?.content,
       );
-      expect((await stat(irDirectory)).mode & 0o005).toBe(0o005);
-      expect((await stat(requirements)).mode & 0o004).toBe(0o004);
+      if (!windows) {
+        expect((await stat(irDirectory)).mode & 0o005).toBe(0o005);
+        expect((await stat(requirements)).mode & 0o004).toBe(0o004);
+      }
       const solution = await completeSolutionMaterial(client, target);
       const [srId] = getProposal(solution, target).srIds;
       expect(await readFile(join(irDirectory, srId!, "proposal.md"), "utf8")).toContain(
@@ -47,7 +50,7 @@ it(
       const added = unique("补充一个需即时发布的验收条件");
       await discuss(client, target, added);
       expect(await readFile(requirements, "utf8")).toContain(added);
-      expect(await readlink(link)).toBe(sharedDirectory);
+      expect(await realpath(link)).toBe(await realpath(sharedDirectory));
 
       const second = await createProposalIn(client, project);
       expect((await stat(join(link, second.irId))).isDirectory()).toBe(true);
