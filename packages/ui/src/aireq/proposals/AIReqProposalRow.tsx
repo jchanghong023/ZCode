@@ -6,7 +6,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { type AIReqRequirementGroup, hasProjectRole } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
-import { AIReqCopyDocumentSyncButton } from "./AIReqCopyDocumentSyncButton.js";
+import { AIReqCopyDocumentLinkButton } from "./AIReqCopyDocumentLinkButton.js";
 import { AIReqProposalText } from "./AIReqProposalText.js";
 
 export function AIReqProposalRow({
@@ -184,7 +184,13 @@ export function AIReqProposalRow({
               <FileText aria-hidden="true" />
               {documentsLabel}
             </Button>
-            <AIReqCopyDocumentSyncButton item={item} zh={zh} />
+            <AIReqCopyDocumentLinkButton
+              workDirectory={
+                ai.view?.projects.find((project) => project.id === item.projectId)?.workDirectory
+              }
+              title={item.title}
+              zh={zh}
+            />
           </div>
         </div>
       </td>

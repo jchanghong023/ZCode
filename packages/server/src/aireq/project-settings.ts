@@ -1,4 +1,14 @@
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import type { AIReqRemoteRepositoryInput } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
+import {
+  createSharedDirectories,
+  isProjectPathSegment,
+  prepareProjectClone,
+  prepareProjectDocuments,
+  resolveProjectDirectory,
+} from "./project-files.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { Project } from "./workflow-state.js";
 
@@ -22,7 +32,7 @@ const projects = [
   project("demo-mobile", "Mobile 移动工作台", "/demo/mobile-console"),
   project("demo-atlas", "Atlas 客户需求门户", "/demo/atlas-portal"),
 ];
-// 共享数据库项目表的内存投影；不访问真实 SQLite 或项目目录。
+// 项目配置的内存所有者。已准备的克隆与共享文档保存在配置的工作目录。
 let settings: PrototypeProjectSettings = {
   projects: prototypeRecoveryScenario === "empty-projects" ? [] : projects,
 };
@@ -39,10 +49,24 @@ export function mapPrototypeProjectSettings<T>(map: (project: Readonly<Project>)
   return settings.projects.map(map);
 }
 
-/** 设置页仅保存内存配置，不探测仓库、不拉取或推送，也不改既有样例工作区。 */
+// 不同请求必须在同一配置版本和目录归属下完成克隆，避免并发保存共用一个克隆目标。
+let repositorySaves = Promise.resolve();
 export function savePrototypeRepository(
-  input: import("@zcode/services/aireq").AIReqRemoteRepositoryInput,
-): boolean {
+  input: AIReqRemoteRepositoryInput,
+  publishDocuments: (projectId: string, documents: string) => void,
+): Promise<boolean> {
+  const save = repositorySaves.then(() => provisionProject(input, publishDocuments));
+  repositorySaves = save.then(
+    () => {},
+    () => {},
+  );
+  return save;
+}
+
+async function provisionProject(
+  input: AIReqRemoteRepositoryInput,
+  publishDocuments: (projectId: string, documents: string) => void,
+): Promise<boolean> {
   const existing = input.projectId
     ? settings.projects.find((item) => item.id === input.projectId)
     : undefined;
@@ -52,11 +76,16 @@ export function savePrototypeRepository(
   const name = input.name.trim();
   const repositoryUrl = input.repositoryUrl.trim();
   const defaultBranch = input.defaultBranch.trim();
-  if (!name) throw businessRule("请输入项目名称。");
+  const givenDirectory = input.workDirectory.trim();
+  const workDirectory = resolve(givenDirectory);
+  if (!isProjectPathSegment(name)) throw businessRule("请输入可用作目录名的项目名称。");
+  if (!givenDirectory.startsWith("/") || workDirectory === "/" || /\p{Cc}/u.test(givenDirectory))
+    throw businessRule("请输入项目工作目录的绝对路径。");
   let validRepository = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(repositoryUrl);
   if (!validRepository && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(repositoryUrl)) {
     try {
-      validRepository = Boolean(new URL(repositoryUrl).hostname);
+      const url = new URL(repositoryUrl);
+      validRepository = Boolean(url.hostname) && !url.password;
     } catch {
       /* Malformed remote URL. */
     }
@@ -82,15 +111,48 @@ export function savePrototypeRepository(
     existing &&
     existing.name === name &&
     existing.repositoryUrl === repositoryUrl &&
-    existing.defaultBranch === defaultBranch
+    existing.defaultBranch === defaultBranch &&
+    existing.workDirectory === workDirectory
   )
     return false;
   const id = existing?.id ?? `demo-project-${crypto.randomUUID()}`;
+  const storageDirectory = resolveProjectDirectory(workDirectory);
+  if (storageDirectory === "/") throw businessRule("请输入可用于项目的独立工作目录。");
+  if (
+    settings.projects.some((item) => {
+      if (item.id === id || !item.storageDirectory) return false;
+      const other = item.storageDirectory;
+      return (
+        other === storageDirectory ||
+        storageDirectory.startsWith(other + "/") ||
+        other.startsWith(storageDirectory + "/")
+      );
+    })
+  )
+    throw businessRule("该工作目录已由其他项目使用，请选择独立目录。");
+  try {
+    createSharedDirectories(storageDirectory);
+    if (realpathSync(workDirectory) !== storageDirectory)
+      throw businessRule("工作目录已变化，请核对路径后重试。");
+    const alreadyOwned = existing?.storageDirectory === storageDirectory;
+    const ownedBranch =
+      alreadyOwned && existing?.name === name && existing.repositoryUrl === repositoryUrl
+        ? existing.defaultBranch
+        : undefined;
+    const documents = prepareProjectDocuments(storageDirectory, alreadyOwned);
+    await prepareProjectClone(storageDirectory, name, repositoryUrl, defaultBranch, ownedBranch);
+    if (!alreadyOwned) publishDocuments(id, documents);
+  } catch (error) {
+    if (error instanceof Error && "publicMessage" in error) throw error;
+    throw businessRule("无法准备项目工作目录，请检查服务端路径、Git 和写入权限。");
+  }
   const updated = {
     ...(existing ?? project(id, name, `/demo/platform-managed/${id}`)),
     name,
     repositoryUrl,
     defaultBranch,
+    workDirectory,
+    storageDirectory,
     revision: existing ? existing.revision + 1 : 1,
   };
   settings = {

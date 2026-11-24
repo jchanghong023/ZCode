@@ -49,17 +49,10 @@ import {
   getConnectionServices,
   registerAIReqConnection,
   presenceIP,
-  documentSyncScript,
-  documentSyncScriptSha256,
-  readPrototypeConfirmedDocuments,
   validateAIReqIdentity,
   withAIReqIdentity,
 } from "./aireq/contract.js";
-import {
-  AIREQ_CONFIRMED_DOCUMENTS_PATH,
-  AIREQ_SYNC_SCRIPT_ROOT,
-  type AIReqIdentity,
-} from "@zcode/services/aireq";
+import type { AIReqIdentity } from "@zcode/services/aireq";
 import { bindWebChatConnection } from "./chat/service.js";
 
 type ConnectionData = (
@@ -466,38 +459,6 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
       return c.json({ error: "Unauthorized" }, 401);
     });
   }
-
-  app.get(`${AIREQ_SYNC_SCRIPT_ROOT}/:file`, (c) => {
-    if (c.req.param("file") !== `${documentSyncScriptSha256}.py`) {
-      c.header("Cache-Control", "no-store");
-      return c.text("同步脚本已更新，请从需求共创重新复制命令。", 404);
-    }
-    c.header("Cache-Control", "public, max-age=31536000, immutable");
-    c.header("X-Content-Type-Options", "nosniff");
-    return c.text(documentSyncScript);
-  });
-
-  app.get(AIREQ_CONFIRMED_DOCUMENTS_PATH, (c) => {
-    c.header("Cache-Control", "no-store");
-    const query = new URL(c.req.url).searchParams;
-    const projectId = query.get("aireqProject")?.trim();
-    const releaseId = query.get("aireqRelease")?.trim();
-    const irId = query.get("aireqIr")?.trim();
-    if (query.size !== 3 || !projectId || !releaseId || !irId)
-      return c.json({ error: { code: "INVALID_ARGUMENT", message: "需求链接参数无效。" } }, 400);
-    const result = readPrototypeConfirmedDocuments({ projectId, releaseId, irId });
-    if ("bundle" in result) return c.json(result.bundle);
-    const messages = {
-      REQUIREMENT_NOT_FOUND: "未找到对应项目、Release 和需求。",
-      NO_CONFIRMED_VERSION: "暂无已定版文档。",
-      REPOSITORY_UNAVAILABLE: "项目尚未配置仓库地址。",
-      DOCUMENT_UNAVAILABLE: "定版文档暂不可读取。",
-    };
-    return c.json(
-      { error: { code: result.error, message: messages[result.error] } },
-      result.error === "REQUIREMENT_NOT_FOUND" ? 404 : 409,
-    );
-  });
 
   // 纯 Web 形态下客户端配置由本机 mock 提供，避免浏览器直连外部 ZCode endpoint。
   app.get("/api/v1/client/configs", (c) => {

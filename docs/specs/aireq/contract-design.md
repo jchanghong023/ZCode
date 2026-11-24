@@ -104,9 +104,9 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `call` 只接收 `identity`、`path` 和 `args`，在进入业务处理前拒绝额外实参。操作在各自的 `args` 中声明和校验目标；不接收独立的导航选择。
 
-`bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`documentSync.scriptSha256`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
+`bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
 
-AIReq bootstrap 业务契约版本为 `26`。它与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `27`。它与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
@@ -213,11 +213,9 @@ sequenceDiagram
 
 Agent 讨论的完成回调核验项目、IR、会话、写权限及原生执行身份后提交材料。未确认版本内容可更新，已经固定的版本保留原件。以文件路径、摘要及字节数判断实际变化；评审绑定发起时的文件快照。
 
-## 定版文档下载
+## 项目工作目录
 
-`bootstrap.documentSync.scriptSha256` 描述当前发布的同步脚本。公开 GET `/aireq-sync/<sha256>.py` 返回对应脚本，其 SHA-256 与 URL 一致。旧摘要不可用时返回 404。脚本为静态产品资源，下载无需部署令牌。
-
-GET `/api/aireq/confirmed-documents` 复用 HTTP 部署鉴权。查询严格接收 `aireqProject`、`aireqRelease`、`aireqIr`。返回项目、Release 和需求 ID、项目仓库地址、最新已定版的版本号与确认信息、SR ID 及文件路径、UTF-8 正文、SHA-256 和字节数。归属不匹配、从未定版及项目仓库不可用分别返回明确失败。快照由同一工作流所有者提供，读取不修改工作流。文档下载不缓存。
+`projects.saveRepository` 接收 `workDirectory`，服务端校验绝对路径、项目归属和配置 revision，在克隆及文件发布成功后提交设置。项目摘要返回已准备好的 `workDirectory`。文档由同一工作流按项目和 IR 发布最新版，历史版本继续由工作流读取。客户端由已保存的路径生成项目级软链接命令。
 
 ## 6. 拒绝、文件与设置
 

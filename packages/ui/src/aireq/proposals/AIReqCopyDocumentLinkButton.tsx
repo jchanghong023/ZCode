@@ -3,47 +3,32 @@ import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import type { AIReqRequirementGroup } from "../contract.js";
-import { useAIReqDataSource } from "../data-source.js";
-import { documentSyncCommand } from "./document-sync-command.js";
+import { documentLinkCommand } from "./document-link-command.js";
 
-export function AIReqCopyDocumentSyncButton({
-  item,
+export function AIReqCopyDocumentLinkButton({
+  workDirectory,
+  title,
   zh,
 }: {
-  item: AIReqRequirementGroup;
+  workDirectory: string | undefined;
+  title: string;
   zh: boolean;
 }) {
-  const { documentSync } = useAIReqDataSource();
   const { writeClipboardText } = usePlatform();
   const descriptionId = useId();
   const [preview, setPreview] = useState(false);
   const [feedback, setFeedback] = useState<"copied" | "failed">();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
-  const confirmedVersion = item.documentVersion?.confirmation
-    ? item.documentVersion
-    : item.documentHistory.at(-1);
-  const command = confirmedVersion
-    ? documentSyncCommand(
-        window.location.href,
-        { projectId: item.projectId, irId: item.id, releaseId: item.releaseId },
-        documentSync.scriptSha256,
-      )
-    : undefined;
-  const label = zh ? "复制同步命令" : "Copy sync command";
-  const description =
-    command && confirmedVersion
-      ? zh
-        ? `当前可同步 V${confirmedVersion.number}，执行时取最新已定版。`
-        : `V${confirmedVersion.number} is available now. Running the command fetches the latest confirmed version.`
-      : confirmedVersion
-        ? zh
-          ? "同步脚本暂不可用"
-          : "The sync script is unavailable"
-        : zh
-          ? "暂无已定版文档"
-          : "No confirmed documents yet";
+  const command = documentLinkCommand(workDirectory);
+  const label = zh ? "复制软链接命令" : "Copy symlink command";
+  const description = command
+    ? zh
+      ? "在开发仓库根目录执行一次，即可查看项目的最新需求文档。"
+      : "Run once from your repository root to view the latest project documents."
+    : zh
+      ? "请先在项目配置中设置工作目录。"
+      : "Set the working directory in Project settings first.";
   const feedbackLabel =
     feedback === "copied"
       ? zh
@@ -76,8 +61,8 @@ export function AIReqCopyDocumentSyncButton({
             size="icon-sm"
             className="aria-disabled:opacity-60"
             aria-disabled={!command || undefined}
-            aria-label={`${label} · ${item.title}`}
-            data-testid="copy-document-sync-command"
+            aria-label={`${label} · ${title}`}
+            data-testid="copy-document-link-command"
             onClick={() => void copy()}
           >
             <Icon aria-hidden="true" />
@@ -101,7 +86,7 @@ export function AIReqCopyDocumentSyncButton({
               <span className="font-medium">{description}</span>
               <code
                 className="block w-full min-w-0 font-mono wrap-anywhere whitespace-pre-wrap"
-                data-testid="document-sync-command-preview"
+                data-testid="document-link-command-preview"
               >
                 {command}
               </code>

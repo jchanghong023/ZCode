@@ -21,6 +21,7 @@ import { getEmployeeId } from "../identity.js";
 import { useAIReq } from "../AIReqContext.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqSettingsTarget } from "./AIReqSettingsTarget.js";
+import { AIReqProjectField } from "./AIReqProjectField.js";
 import { AIReqReleaseDialog } from "./AIReqReleaseDialog.js";
 import { validateRepository, type ProjectFieldErrors } from "./projectValidation.js";
 
@@ -49,7 +50,12 @@ export function AIReqProjectSettings({
   const [projectOpen, setProjectOpen] = useState(false);
   const [projectId, setProjectId] = useState<string>();
   const [projectRevision, setProjectRevision] = useState(0);
-  const initialProject = useRef({ name: "", repositoryUrl: "", defaultBranch: "" });
+  const initialProject = useRef({
+    name: "",
+    repositoryUrl: "",
+    defaultBranch: "",
+    workDirectory: "",
+  });
   const initialReleaseProject = useRef("");
   const savingRef = useRef(false);
   const currentActions = useRef<AIReqSettingsDraftActions | null>(null);
@@ -57,6 +63,7 @@ export function AIReqProjectSettings({
   const [name, setName] = useState("");
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("");
+  const [workDirectory, setWorkDirectory] = useState("");
   const [projectError, setProjectError] = useState("");
   const [projectErrors, setProjectErrors] = useState<ProjectFieldErrors>({});
   const [saving, setSaving] = useState(false);
@@ -129,7 +136,7 @@ export function AIReqProjectSettings({
   const normalizedProjectQuery = projectQuery.trim().toLocaleLowerCase();
   const filteredProjectViews = normalizedProjectQuery
     ? projectViews.filter(({ project }) =>
-        `${project.name} ${project.repositoryUrl ?? ""}`
+        `${project.name} ${project.repositoryUrl ?? ""} ${project.workDirectory ?? ""}`
           .toLocaleLowerCase()
           .includes(normalizedProjectQuery),
       )
@@ -154,7 +161,8 @@ export function AIReqProjectSettings({
     (projectOpen &&
       (name !== initialProject.current.name ||
         repositoryUrl !== initialProject.current.repositoryUrl ||
-        defaultBranch !== initialProject.current.defaultBranch)) ||
+        defaultBranch !== initialProject.current.defaultBranch ||
+        workDirectory !== initialProject.current.workDirectory)) ||
     (releaseOpen && (releaseTitle !== "" || releaseProjectId !== initialReleaseProject.current));
   const busy = saving || releaseSaving;
   const clearProjectFieldError = (field: keyof ProjectFieldErrors) => {
@@ -166,7 +174,8 @@ export function AIReqProjectSettings({
   const canSave =
     !busy &&
     (projectOpen
-      ? canSaveRepository && Boolean(name.trim() && repositoryUrl.trim() && defaultBranch.trim())
+      ? canSaveRepository &&
+        Boolean(name.trim() && repositoryUrl.trim() && defaultBranch.trim() && workDirectory.trim())
       : releaseOpen &&
         canCreateRelease &&
         Boolean(releaseProjectId && releaseTitle.trim()) &&
@@ -175,14 +184,16 @@ export function AIReqProjectSettings({
     if (!canSaveRepository || savingRef.current) return false;
     // 输入校验直接产生字段级业务提示，远程异常则交给统一安全错误格式化，避免下发实现细节。
     setProjectError("");
-    const validationErrors = validateRepository(name, repositoryUrl, defaultBranch);
+    const validationErrors = validateRepository(name, repositoryUrl, defaultBranch, workDirectory);
     if (Object.keys(validationErrors).length) {
       setProjectErrors(validationErrors);
       const fieldId = validationErrors.name
         ? "project-name"
         : validationErrors.repository
           ? "project-repository"
-          : "project-default-branch";
+          : validationErrors.branch
+            ? "project-default-branch"
+            : "project-work-directory";
       projectForm.current?.querySelector<HTMLInputElement>(`#${fieldId}`)?.focus();
       return false;
     }
@@ -195,6 +206,7 @@ export function AIReqProjectSettings({
         name: name.trim(),
         repositoryUrl: repositoryUrl.trim(),
         defaultBranch: defaultBranch.trim(),
+        workDirectory: workDirectory.trim(),
         expectedRevision: projectRevision,
       };
       const payload = JSON.stringify(input);
@@ -290,10 +302,12 @@ export function AIReqProjectSettings({
     setName(project?.name ?? "");
     setRepositoryUrl(project?.repositoryUrl ?? "");
     setDefaultBranch(project?.defaultBranch ?? "main");
+    setWorkDirectory(project?.workDirectory ?? "");
     initialProject.current = {
       name: project?.name ?? "",
       repositoryUrl: project?.repositoryUrl ?? "",
       defaultBranch: project?.defaultBranch ?? "main",
+      workDirectory: project?.workDirectory ?? "",
     };
     setProjectError("");
     setProjectErrors({});
@@ -514,6 +528,14 @@ export function AIReqProjectSettings({
                     {project.defaultBranch}
                   </span>
                 </p>
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                  <p className="text-ui-sm text-remote-foreground-muted">
+                    {zh ? "工作目录" : "Working directory"}
+                  </p>
+                  <p className="select-text break-all font-mono text-ui-sm leading-5">
+                    {project.workDirectory ?? (zh ? "尚未配置" : "Not configured")}
+                  </p>
+                </div>
               </div>
             </header>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2">
@@ -614,8 +636,8 @@ export function AIReqProjectSettings({
             </DialogTitle>
             <DialogDescription>
               {zh
-                ? "配置项目名称及用于读取代码的 Git 地址和默认分支。"
-                : "Set the project name and the Git address and default branch used to read code."}
+                ? "设置项目的 Git 仓库和存放代码及最新文档的工作目录。"
+                : "Set the Git repository and the working directory for code and current documents."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -627,111 +649,67 @@ export function AIReqProjectSettings({
             }}
           >
             <div className="min-h-0 space-y-4 overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="project-name">
-                  {zh ? "项目名称" : "Project name"}
-                  <span aria-hidden="true" className="text-destructive">
-                    {" "}
-                    *
-                  </span>
-                </Label>
-                {/* 禁用文本框会丢失 Enter 提交前的焦点；只读即可阻止并发编辑。 */}
-                <Input
-                  id="project-name"
-                  value={name}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    clearProjectFieldError("name");
-                  }}
-                  aria-invalid={Boolean(projectErrors.name) || undefined}
-                  aria-describedby={projectErrors.name ? "project-name-error" : undefined}
-                  required
-                  readOnly={saving}
-                  disabled={!canSaveRepository}
-                />
-                {projectErrors.name && (
-                  <p id="project-name-error" role="alert" className="text-ui-sm text-destructive">
-                    {projectErrors.name}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project-repository">
-                  {zh ? "项目地址" : "Project address"}
-                  <span aria-hidden="true" className="text-destructive">
-                    {" "}
-                    *
-                  </span>
-                </Label>
-                <Input
-                  id="project-repository"
-                  value={repositoryUrl}
-                  onChange={(event) => {
-                    setRepositoryUrl(event.target.value);
-                    clearProjectFieldError("repository");
-                  }}
-                  placeholder="ssh://git@git.example.internal/team/project.git"
-                  required
-                  readOnly={saving}
-                  disabled={!canSaveRepository}
-                  aria-invalid={Boolean(projectErrors.repository) || undefined}
-                  aria-describedby={
-                    projectErrors.repository
-                      ? "project-repository-help project-repository-error"
-                      : "project-repository-help"
-                  }
-                />
-                <p
-                  id="project-repository-help"
-                  className="text-ui-sm leading-5 text-remote-foreground-muted"
-                >
-                  {zh
-                    ? "填写 HTTP(S)、SSH 或 git@host:path 格式的远程地址，不填写本地路径。"
-                    : "Enter an HTTP(S), SSH, or git@host:path remote URL, not a local path."}
-                </p>
-                {projectErrors.repository && (
-                  <p
-                    id="project-repository-error"
-                    role="alert"
-                    className="text-ui-sm text-destructive"
-                  >
-                    {projectErrors.repository}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project-default-branch">
-                  {zh ? "默认分支" : "Default branch"}
-                  <span aria-hidden="true" className="text-destructive">
-                    {" "}
-                    *
-                  </span>
-                </Label>
-                <Input
-                  id="project-default-branch"
-                  value={defaultBranch}
-                  onChange={(event) => {
-                    setDefaultBranch(event.target.value);
-                    clearProjectFieldError("branch");
-                  }}
-                  placeholder={zh ? "例如 main 或 master" : "For example, main or master"}
-                  required
-                  readOnly={saving}
-                  disabled={!canSaveRepository}
-                  aria-invalid={Boolean(projectErrors.branch) || undefined}
-                  aria-describedby={projectErrors.branch ? "project-branch-error" : undefined}
-                />
-                {projectErrors.branch && (
-                  <p id="project-branch-error" role="alert" className="text-ui-sm text-destructive">
-                    {projectErrors.branch}
-                  </p>
-                )}
-              </div>
-              <p className="text-ui-sm leading-5 text-remote-foreground-muted">
-                {zh
-                  ? "保存仅记录项目配置，不检查仓库连接与默认分支。"
-                  : "Saving records project settings without checking repository access or the default branch."}
-              </p>
+              <AIReqProjectField
+                id="project-name"
+                label={zh ? "项目名称" : "Project name"}
+                value={name}
+                error={projectErrors.name}
+                readOnly={saving}
+                disabled={!canSaveRepository}
+                onChange={(value) => {
+                  setName(value);
+                  clearProjectFieldError("name");
+                }}
+              />
+              <AIReqProjectField
+                id="project-repository"
+                label={zh ? "项目地址" : "Project address"}
+                value={repositoryUrl}
+                error={projectErrors.repository}
+                placeholder="ssh://git@git.example.internal/team/project.git"
+                help={
+                  zh
+                    ? "填写 HTTP(S)、SSH 或 git@host:path 格式的远程仓库地址。"
+                    : "Enter an HTTP(S), SSH, or git@host:path remote repository URL."
+                }
+                readOnly={saving}
+                disabled={!canSaveRepository}
+                onChange={(value) => {
+                  setRepositoryUrl(value);
+                  clearProjectFieldError("repository");
+                }}
+              />
+              <AIReqProjectField
+                id="project-default-branch"
+                label={zh ? "默认分支" : "Default branch"}
+                value={defaultBranch}
+                error={projectErrors.branch}
+                placeholder={zh ? "例如 main 或 master" : "For example, main or master"}
+                readOnly={saving}
+                disabled={!canSaveRepository}
+                onChange={(value) => {
+                  setDefaultBranch(value);
+                  clearProjectFieldError("branch");
+                }}
+              />
+              <AIReqProjectField
+                id="project-work-directory"
+                label={zh ? "工作目录" : "Working directory"}
+                value={workDirectory}
+                error={projectErrors.workDirectory}
+                placeholder="/xxx/yyy"
+                help={
+                  zh
+                    ? "填写服务端绝对路径。保存时克隆到 code/<项目名称>，并在 docs/areq 下维护最新文档。"
+                    : "Use an absolute server path. Saving clones into code/<project name> and publishes current documents under docs/areq."
+                }
+                readOnly={saving}
+                disabled={!canSaveRepository}
+                onChange={(value) => {
+                  setWorkDirectory(value);
+                  clearProjectFieldError("workDirectory");
+                }}
+              />
               {projectError && (
                 <p role="alert" className="text-ui-base text-destructive">
                   {projectError}

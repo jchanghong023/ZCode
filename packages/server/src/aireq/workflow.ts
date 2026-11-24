@@ -1,8 +1,6 @@
 import {
   AIREQ_ROLE_ADMINISTRATOR,
   hasProjectRole,
-  type AIReqConfirmedDocumentBundle,
-  type AIReqDocumentSyncTarget,
   type AIReqCommand,
   type AIReqCommandTarget,
   type AIReqMaterialReadRequest,
@@ -36,7 +34,16 @@ import { readPrototypeProjectReleases } from "./project-releases.js";
 import { DEFAULT_SELECTION } from "./fixture-builders.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { stageNativeDocuments } from "./native-documents.js";
-import { confirmDocumentVersion, saveDocumentChanges } from "./document-versions.js";
+import {
+  confirmDocumentVersion,
+  requirementMaterialsFor,
+  saveDocumentChanges,
+} from "./document-versions.js";
+import {
+  projectDocumentDirectory,
+  publishRequirementDocuments,
+  removeRequirementDocuments,
+} from "./project-files.js";
 import { validateDocumentVersion } from "./document-validation.js";
 import { acceptDocumentReview, type DocumentReviewRun } from "./document-review.js";
 import { createPrototypeWorkflow } from "./fixtures.js";
@@ -58,42 +65,28 @@ export function readPrototypeWorkflowRevision(): number {
   return state.revision;
 }
 
-export function readPrototypeConfirmedDocuments(
-  target: AIReqDocumentSyncTarget,
-):
-  | { bundle: AIReqConfirmedDocumentBundle }
-  | {
-      error:
-        | "REQUIREMENT_NOT_FOUND"
-        | "NO_CONFIRMED_VERSION"
-        | "REPOSITORY_UNAVAILABLE"
-        | "DOCUMENT_UNAVAILABLE";
-    } {
-  const { projectId, irId, releaseId } = target;
-  const project = readPrototypeProjectSetting(projectId);
-  const requirement = state.requirements.find(
-    (item) => item.projectId === projectId && item.id === irId && item.releaseId === releaseId,
-  );
-  if (!project || !requirement) return { error: "REQUIREMENT_NOT_FOUND" };
-  const current = requirement.documentVersion;
-  const snapshot = current && "materials" in current ? current : requirement.documentHistory.at(-1);
-  if (!snapshot) return { error: "NO_CONFIRMED_VERSION" };
-  if (!project.repositoryUrl) return { error: "REPOSITORY_UNAVAILABLE" };
-  const files: AIReqConfirmedDocumentBundle["files"] = [];
-  for (const { path, sha256, size, content, valid, error } of snapshot.materials) {
-    if (content === undefined || !valid || error) return { error: "DOCUMENT_UNAVAILABLE" };
-    files.push({ path, sha256, size, content });
+/** 项目目录首次准备时，从工作流 owner 读取所有当前需求及文件。 */
+export function publishPrototypeProjectDocuments(projectId: string, documents: string): void {
+  const published: string[] = [];
+  try {
+    for (const requirement of state.requirements) {
+      if (requirement.projectId !== projectId) continue;
+      publishRequirementDocuments(
+        documents,
+        requirement.id,
+        requirementMaterialsFor(state, requirement),
+      );
+      published.push(requirement.id);
+    }
+  } catch (error) {
+    for (const irId of published) removeRequirementDocuments(documents, irId);
+    throw error;
   }
-  return {
-    bundle: {
-      ...target,
-      repositoryUrl: project.repositoryUrl,
-      version: snapshot.number,
-      confirmation: snapshot.confirmation,
-      srIds: snapshot.srs.map(({ id }) => id),
-      files,
-    },
-  };
+}
+
+function currentProjectDocumentDirectory(projectId: string): string | undefined {
+  const storageDirectory = readPrototypeProjectSetting(projectId)?.storageDirectory;
+  return storageDirectory ? projectDocumentDirectory(storageDirectory) : undefined;
 }
 
 export function validatePrototypeDocumentVersion({
@@ -212,6 +205,15 @@ export function commitPrototypeNativeDocuments(
     const context = projectNativeContext(next, sessionId);
     if (!context || context.ref.phase !== output.agent) throw businessRule("会话不属于当前需求。");
     changed = saveDocumentChanges(next, context.requirement, output);
+    if (changed) {
+      const documents = currentProjectDocumentDirectory(context.requirement.projectId);
+      if (documents)
+        publishRequirementDocuments(
+          documents,
+          context.requirement.id,
+          requirementMaterialsFor(next, context.requirement),
+        );
+    }
     return changed;
   });
   return changed;
@@ -375,6 +377,31 @@ export function applyPrototypeAction(
       }
     } else {
       irId = applyProposalMutation(next, action, targetProjectId, irId, operation);
+      if (action.type === "createProposal" && targetProjectId && irId) {
+        const isNew = !state.requirements.some(
+          (item) => item.id === irId && item.projectId === targetProjectId,
+        );
+        const documents = isNew && currentProjectDocumentDirectory(targetProjectId);
+        if (documents) publishRequirementDocuments(documents, irId, []);
+      } else if (action.type === "transferIdea") {
+        const published: { directory: string; irId: string }[] = [];
+        try {
+          for (const [index, target] of action.targets.entries()) {
+            const directory = currentProjectDocumentDirectory(target.projectId);
+            const transferredId = operation.irIds![index]!;
+            if (directory) {
+              publishRequirementDocuments(directory, transferredId, []);
+              published.push({ directory, irId: transferredId });
+            }
+          }
+        } catch (error) {
+          for (const item of published) removeRequirementDocuments(item.directory, item.irId);
+          throw error;
+        }
+      } else if (action.type === "deleteRequirement" && targetProjectId && irId) {
+        const documents = currentProjectDocumentDirectory(targetProjectId);
+        if (documents) removeRequirementDocuments(documents, irId);
+      }
     }
     return true;
   });

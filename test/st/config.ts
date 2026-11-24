@@ -53,6 +53,7 @@ export const config = {
   timeoutMs: positiveInteger(process.env.ST_TIMEOUT_MS, 120_000),
   repositoryUrl: process.env.ST_REPOSITORY_URL || "https://github.com/jchanghong023/test.git",
   branch: process.env.ST_REPOSITORY_BRANCH || "main",
+  workDirectoryRoot: process.env.ST_WORK_DIRECTORY_ROOT || "/tmp/zcode-st-projects",
   fixtures: fixtureFile(),
   file: undefined as
     | undefined

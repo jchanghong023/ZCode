@@ -35,7 +35,7 @@ JavaScript／TypeScript 只用 `mise.toml` 固定的 Bun。`node:*` 与 `@types/
 - v4 帧复用 `packages/shared/src/zcode-protocol-v4` 的严格 zod schema，发射前校验，`subscriptionId`／`seq`／`logEpoch` 不可伪造。协议变更同批更新契约、生产消费者与模拟实现。
 - 身份 key 为 `workspaceIdentity?.trim() || workspacePath`；身份隔离与展示路径不可混用。
 - 写操作校验并提交后再通知；重连只恢复订阅及重读，不自动重放写操作。明确事件顺序、版本、幂等和迟到结果边界。
-- 模拟后端不执行真实 AI、Git、数据库或宿主业务文件写入；未支持能力明确失败，不能空成功。底层目录读取仅只读名称／类型，不构成业务目录入口；系统信息返回安全投影。
+- 模拟 Agent 的执行保留在内存中。项目工作目录负责真实的仓库克隆及共享文档发布。未支持能力明确失败，不能空成功。底层目录读取仅只读名称／类型，不构成业务目录入口；系统信息返回安全投影。
 
 ## 验证与交付
 

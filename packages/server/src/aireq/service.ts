@@ -1,6 +1,5 @@
 import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
-import { documentSyncScriptSha256 } from "./document-sync-asset.js";
 import { businessRule } from "./errors.js";
 import { Emitter } from "@zcode/rpc";
 import { IZCodeAgentService, type ServiceCollection } from "@zcode/services";
@@ -36,6 +35,7 @@ import {
   prototypeWorkflowChanges,
   settlePrototypeDocumentReview,
   notifyPrototypeProjectSettingsChanged,
+  publishPrototypeProjectDocuments,
 } from "./workflow.js";
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
@@ -107,8 +107,10 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
       retryPrototypeSessionRead(sessionId);
     });
-    add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) => {
-      if (savePrototypeRepository(input)) notifyPrototypeProjectSettingsChanged();
+    add("projects.saveRepository", async (input: Parameters<typeof savePrototypeRepository>[0]) => {
+      if (await savePrototypeRepository(input, publishPrototypeProjectDocuments)) {
+        notifyPrototypeProjectSettingsChanged();
+      }
     });
     // 配置读取统一经 bootstrap；仅保留保存 RPC，内部读取／绑定比较仍服务原生业务。
     add("models.save", models.savePrototypeAgentModels);
@@ -225,7 +227,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
       backend: { id: PROTOTYPE_BACKEND.id },
-      documentSync: { scriptSha256: documentSyncScriptSha256 },
       capabilities: {
         workflowCommands: [...commands],
       },

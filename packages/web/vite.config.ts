@@ -102,7 +102,6 @@ export default defineConfig(({ mode }) => {
         // main 使用独立后端端口，避免同时运行 base 时代理到另一套内存状态。
         "/ws": { target: "ws://localhost:3031", ws: true },
         "/api": { target: "http://localhost:3031" },
-        "/aireq-sync": { target: "http://localhost:3031" },
       },
     },
     optimizeDeps: {

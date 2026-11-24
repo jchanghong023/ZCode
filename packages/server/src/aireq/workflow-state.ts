@@ -20,6 +20,8 @@ export interface Project {
   revision: number;
   defaultBranch: string;
   repositoryUrl?: string;
+  workDirectory?: string;
+  storageDirectory?: string;
   root: string;
 }
 
