@@ -700,8 +700,8 @@ export function AIReqProjectSettings({
                 placeholder="/xxx/yyy"
                 help={
                   zh
-                    ? "填写服务端绝对路径。保存时克隆到 code/<项目名称>，并在 docs/areq 下维护最新文档。"
-                    : "Use an absolute server path. Saving clones into code/<project name> and publishes current documents under docs/areq."
+                    ? "填写服务端绝对路径。最新需求文档位于此目录的 docs/areq 下。"
+                    : "Enter an absolute server path. The latest requirements documents are stored under docs/areq."
                 }
                 readOnly={saving}
                 disabled={!canSaveRepository}

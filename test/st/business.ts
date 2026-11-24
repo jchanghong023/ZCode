@@ -29,7 +29,7 @@ export async function createProject(client: STClient) {
     (release) => release.projectId === project.id && release.title === title,
   );
   if (!release) throw new Error("新建 Release 未通过公开读取返回");
-  return { projectId: project.id, releaseId: release.id, selection, workDirectory, name };
+  return { projectId: project.id, releaseId: release.id, selection, workDirectory };
 }
 export async function createProposal(client: STClient, text?: string) {
   return createProposalIn(client, await createProject(client), text);

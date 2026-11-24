@@ -15,17 +15,13 @@ import {
 } from "./proposal-flow.js";
 
 it(
-  "clones project code and publishes current IR and SR documents through one directory link",
+  "saves project settings and publishes current IR and SR documents through one directory link",
   async () => {
     const client = await connectST(AIREQ_ROLE_ADMINISTRATOR);
     const developer = await mkdtemp(join(tmpdir(), "aireq-developer-"));
     try {
       const project = await createProject(client);
-      const { workDirectory, name } = project;
-      const checkout = join(workDirectory, "code", name);
-      expect(await readFile(join(checkout, ".git", "HEAD"), "utf8")).toBe(
-        `ref: refs/heads/${config.branch}\n`,
-      );
+      const { workDirectory } = project;
       const sharedDirectory = join(workDirectory, "docs", "areq");
       const link = join(developer, "docs", "areq");
       await mkdir(join(developer, "docs"));

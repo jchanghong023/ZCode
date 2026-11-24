@@ -51,32 +51,6 @@ export function createSharedDirectories(path: string): void {
   chmodSync(first, 0o755);
 }
 
-async function runGit(args: string[], cwd: string): Promise<string | undefined> {
-  // Git receives validated arguments directly. Never run repository hooks or local transport helpers.
-  const process = Bun.spawn(
-    [
-      "git",
-      "-c",
-      "protocol.file.allow=never",
-      "-c",
-      "protocol.ext.allow=never",
-      "-c",
-      "core.hooksPath=/dev/null",
-      ...args,
-    ],
-    {
-      cwd,
-      env: { ...Bun.env, GIT_TERMINAL_PROMPT: "0" },
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "ignore",
-      signal: AbortSignal.timeout(45_000),
-    },
-  );
-  const [output, status] = await Promise.all([new Response(process.stdout).text(), process.exited]);
-  return status === 0 ? output.trim() : undefined;
-}
-
 export function resolveProjectDirectory(workDirectory: string): string {
   try {
     return realpathSync(workDirectory);
@@ -87,52 +61,6 @@ export function resolveProjectDirectory(workDirectory: string): string {
     )
       throw businessRule("无法访问项目工作目录，请检查服务端路径及权限。");
     return join(resolveProjectDirectory(dirname(workDirectory)), basename(workDirectory));
-  }
-}
-
-export async function prepareProjectClone(
-  root: string,
-  name: string,
-  remote: string,
-  branch: string,
-  ownedBranch?: string,
-): Promise<void> {
-  const code = directory(join(root, "code"), true);
-  const checkout = join(code, name);
-  const existing = lstatSync(checkout, { throwIfNoEntry: false });
-  if (existing) {
-    if (
-      !existing.isDirectory() ||
-      !lstatSync(join(checkout, ".git"), { throwIfNoEntry: false })?.isDirectory() ||
-      (await runGit(["config", "--local", "--get", "remote.origin.url"], checkout)) !== remote
-    )
-      throw businessRule("代码目录已被占用，请使用新的工作目录或项目名称。");
-    const currentBranch = await runGit(["symbolic-ref", "--short", "HEAD"], checkout);
-    if (currentBranch === branch) return;
-    if (
-      !ownedBranch ||
-      currentBranch !== ownedBranch ||
-      (await runGit(["status", "--porcelain"], checkout)) !== "" ||
-      (await runGit(["switch", "--", branch], checkout)) === undefined
-    )
-      throw businessRule("无法安全切换代码目录的默认分支，请检查工作树或选用新的工作目录。");
-    return;
-  }
-
-  const stage = mkdtempSync(join(code, ".clone-"));
-  try {
-    const result = await runGit(["clone", "--branch", branch, "--", remote, stage], code);
-    if (
-      result === undefined ||
-      (await runGit(["symbolic-ref", "--short", "HEAD"], stage)) !== branch
-    ) {
-      throw businessRule("仓库克隆失败，请确认服务端可访问仓库且默认分支存在。");
-    }
-    if (lstatSync(checkout, { throwIfNoEntry: false }))
-      throw businessRule("代码目录已被占用，请使用新的工作目录或项目名称。");
-    renameSync(stage, checkout);
-  } finally {
-    rmSync(stage, { recursive: true, force: true });
   }
 }
 

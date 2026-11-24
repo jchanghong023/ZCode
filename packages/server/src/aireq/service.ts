@@ -107,8 +107,8 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
       retryPrototypeSessionRead(sessionId);
     });
-    add("projects.saveRepository", async (input: Parameters<typeof savePrototypeRepository>[0]) => {
-      if (await savePrototypeRepository(input, publishPrototypeProjectDocuments)) {
+    add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) => {
+      if (savePrototypeRepository(input, publishPrototypeProjectDocuments)) {
         notifyPrototypeProjectSettingsChanged();
       }
     });

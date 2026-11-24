@@ -5,7 +5,6 @@ import { businessRule } from "./errors.js";
 import {
   createSharedDirectories,
   isProjectPathSegment,
-  prepareProjectClone,
   prepareProjectDocuments,
   resolveProjectDirectory,
 } from "./project-files.js";
@@ -32,7 +31,7 @@ const projects = [
   project("demo-mobile", "Mobile 移动工作台", "/demo/mobile-console"),
   project("demo-atlas", "Atlas 客户需求门户", "/demo/atlas-portal"),
 ];
-// 项目配置的内存所有者。已准备的克隆与共享文档保存在配置的工作目录。
+// 项目配置的内存所有者。共享文档保存在配置的工作目录。
 let settings: PrototypeProjectSettings = {
   projects: prototypeRecoveryScenario === "empty-projects" ? [] : projects,
 };
@@ -49,24 +48,10 @@ export function mapPrototypeProjectSettings<T>(map: (project: Readonly<Project>)
   return settings.projects.map(map);
 }
 
-// 不同请求必须在同一配置版本和目录归属下完成克隆，避免并发保存共用一个克隆目标。
-let repositorySaves = Promise.resolve();
 export function savePrototypeRepository(
   input: AIReqRemoteRepositoryInput,
   publishDocuments: (projectId: string, documents: string) => void,
-): Promise<boolean> {
-  const save = repositorySaves.then(() => provisionProject(input, publishDocuments));
-  repositorySaves = save.then(
-    () => {},
-    () => {},
-  );
-  return save;
-}
-
-async function provisionProject(
-  input: AIReqRemoteRepositoryInput,
-  publishDocuments: (projectId: string, documents: string) => void,
-): Promise<boolean> {
+): boolean {
   const existing = input.projectId
     ? settings.projects.find((item) => item.id === input.projectId)
     : undefined;
@@ -135,16 +120,12 @@ async function provisionProject(
     if (realpathSync(workDirectory) !== storageDirectory)
       throw businessRule("工作目录已变化，请核对路径后重试。");
     const alreadyOwned = existing?.storageDirectory === storageDirectory;
-    const ownedBranch =
-      alreadyOwned && existing?.name === name && existing.repositoryUrl === repositoryUrl
-        ? existing.defaultBranch
-        : undefined;
+    // 原型保存只准备共享文档。仓库访问不应成为提交配置的网络等待。
     const documents = prepareProjectDocuments(storageDirectory, alreadyOwned);
-    await prepareProjectClone(storageDirectory, name, repositoryUrl, defaultBranch, ownedBranch);
     if (!alreadyOwned) publishDocuments(id, documents);
   } catch (error) {
     if (error instanceof Error && "publicMessage" in error) throw error;
-    throw businessRule("无法准备项目工作目录，请检查服务端路径、Git 和写入权限。");
+    throw businessRule("无法准备项目工作目录，请检查服务端路径和写入权限。");
   }
   const updated = {
     ...(existing ?? project(id, name, `/demo/platform-managed/${id}`)),
