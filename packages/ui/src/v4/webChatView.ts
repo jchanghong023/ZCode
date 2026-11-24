@@ -3,6 +3,7 @@ export { ConversationStatusPanel } from "./ConversationStatusPanel.js";
 export { ConversationDraftEmptyState } from "./ConversationDraftEmptyState.js";
 export type { ConversationRowRenderContext } from "./conversationRowContext.js";
 export { createTopicWireDecoder } from "./topicWireDecoder.js";
+export { projectPendingGuideQueue } from "./pendingGuideProjection.js";
 export { LexicalChatInput, type LexicalChatInputHandle } from "../LexicalChatInput.js";
 export { TooltipProvider } from "../components/ui/tooltip.js";
 export { PlatformProvider } from "../hooks/usePlatform.js";

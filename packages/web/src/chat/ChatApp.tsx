@@ -292,6 +292,8 @@ function ChatPane({
         )}
         <ConversationTimeline
           rows={conversation.rows}
+          // 上游时间线直接展示已接纳的引导消息，避免清空输入框后正文消失。
+          pendingGuides={conversation.pendingGuides}
           totalCount={conversation.totalCount}
           sessionKey={sessionId ?? "draft"}
           sessionPhase={phase}

@@ -18,7 +18,7 @@
 
 - Web 提供独立 HTML、页面装配和会话列表。`/ws/chat` 复用 Channel RPC 和 v4 握手、命令、回执查询、订阅、快照和分页。`listRecentChatSessions` 获取共享的服务端分组。AIReq 使用 `/ws`、工号和业务服务，两端的会话存储独立。
 - `listRecentChatSessions()` 不接收参数；额外实参在读取列表前拒绝。每组只包含非空的 `sessions`。会话条目只返回 `sessionId`、`title`、`workspacePath` 和可选的 `workspaceIdentity`，不返回 `remoteSessionId` 或活动时间戳。侧栏用首条会话的 `workspacePath` 显示目录标题，打开会话时仍使用所选条目自己的工作区标识；前端沿用服务端按活动时间排列的顺序。
-- `/chat` 复用[聊天命令](aireq/conversation.md#聊天命令和会话配置)。空闲和执行中使用相同的输入框和发送按钮，Enter 发送，Shift + Enter 换行。服务端的 `inputRouting` 为 `streamingChoice` 时，页面发送 `sendText` 并携带 `streamingBehavior: "steer"`。可停止时显示停止按钮，输入框上方省略通用的执行和排队说明。两个浏览器同时按空闲状态提交普通消息时，先接纳的启动执行，后接纳的作为跟进处理。停止时尚未交付的正文回到原客户端的输入框。不开放附件上传或宿主工具执行入口。
+- 空闲和执行中使用相同的输入框和发送按钮，Enter 发送，Shift + Enter 换行。服务端的 `inputRouting` 为 `streamingChoice` 时，页面发送 `sendText` 并携带 `streamingBehavior: "steer"`。接纳后，消息在对话末尾显示为用户气泡，交付时切换为正式用户行。可停止时显示停止按钮，输入框上方省略通用的执行和排队说明。两个浏览器同时按空闲状态提交普通消息时，先接纳的启动执行，后接纳的作为跟进处理。停止时尚未交付的正文回到原客户端的输入框。不开放附件上传或宿主工具执行入口。详见[聊天命令](aireq/conversation.md#聊天命令和会话配置)。
 - 本入口只展示父会话中的子代理记录，不开放子代理目录、下钻及独立控制；无独立 Agent 生命周期查询、会话删除、回复反馈或工具审批。
 - `/` 补全使用 [共用内置命令和 Skill 契约](aireq/conversation.md#omp-内置命令和技能)，只列匿名入口有权调用的能力。原型不安装技能或执行宿主命令。
 - 原型装配独立的 `MockRuntime` 和 `MockZCodeAgentService`，服务端拥有行、命令决定、待交付输入、活动时间和订阅。已开始的聊天回合按 [原型工作记录](aireq/conversation.md#原型工作记录) 模拟思考、Todo 和子代理，回复和记录不代表真实执行。目录只作归组和选择时的只读校验，不授权执行宿主工具。

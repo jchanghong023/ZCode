@@ -59,6 +59,40 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
           delta.op === "state.updated" && delta.patch.inputRouting?.mode === "streamingChoice",
       ),
     ).toBe(true);
+    expect(deltas).toContainEqual(
+      expect.objectContaining({
+        op: "state.updated",
+        patch: expect.objectContaining({
+          queue: expect.objectContaining({
+            items: expect.arrayContaining([
+              expect.objectContaining({ sourceCommandId: steerId, text }),
+            ]),
+          }),
+        }),
+      }),
+    );
+    const delivery = native.frames.find(
+      ({ payload }) =>
+        payload.kind === "deltas" &&
+        payload.deltas.some(
+          (delta) =>
+            delta.op === "row.appended" &&
+            delta.row.kind === "userInput" &&
+            delta.row.sourceCommandId === steerId,
+        ),
+    )?.payload;
+    expect(delivery?.kind === "deltas" ? delivery.deltas : []).toContainEqual(
+      expect.objectContaining({
+        op: "state.updated",
+        patch: expect.objectContaining({
+          queue: expect.objectContaining({
+            items: expect.not.arrayContaining([
+              expect.objectContaining({ sourceCommandId: steerId }),
+            ]),
+          }),
+        }),
+      }),
+    );
 
     const inputs = final.rows.window.filter((row) => row.kind === "userInput");
     expect(inputs.map((row) => row.sourceCommandId)).toEqual([startId, steerId, followUpId]);
