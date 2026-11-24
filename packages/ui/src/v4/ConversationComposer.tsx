@@ -1928,9 +1928,7 @@ function ConversationComposerImpl({
     choice: zh
       ? "有待发送消息，发送时可选择保留或清空队列。"
       : "Messages are queued. Choose whether to keep or clear them when sending.",
-    streamingChoice: zh
-      ? "正在执行。新消息可加入队列。"
-      : "Working. You can queue your next message.",
+    streamingChoice: "",
     ready: "",
   };
   const interactionHint = showInteractionStatus ? interactionHints[interactionState] : "";
