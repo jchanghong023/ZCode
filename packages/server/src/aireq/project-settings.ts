@@ -1,12 +1,12 @@
-import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { AIReqRemoteRepositoryInput } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import {
-  createSharedDirectories,
   isProjectPathSegment,
   prepareProjectDocuments,
+  publishInitialProjectDocuments,
   resolveProjectDirectory,
+  type ProjectDocumentSnapshot,
 } from "./project-files.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { Project } from "./workflow-state.js";
@@ -48,10 +48,24 @@ export function mapPrototypeProjectSettings<T>(map: (project: Readonly<Project>)
   return settings.projects.map(map);
 }
 
+// 保存串行校验 revision 与目录归属。异步文件操作期间，读取仍使用上一次已提交配置。
+let projectSaves = Promise.resolve();
 export function savePrototypeRepository(
   input: AIReqRemoteRepositoryInput,
-  publishDocuments: (projectId: string, documents: string) => void,
-): boolean {
+  captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
+): Promise<boolean> {
+  const save = projectSaves.then(() => prepareAndSaveRepository(input, captureDocuments));
+  projectSaves = save.then(
+    () => {},
+    () => {},
+  );
+  return save;
+}
+
+async function prepareAndSaveRepository(
+  input: AIReqRemoteRepositoryInput,
+  captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
+): Promise<boolean> {
   const existing = input.projectId
     ? settings.projects.find((item) => item.id === input.projectId)
     : undefined;
@@ -101,8 +115,9 @@ export function savePrototypeRepository(
   )
     return false;
   const id = existing?.id ?? `demo-project-${crypto.randomUUID()}`;
-  const storageDirectory = resolveProjectDirectory(workDirectory);
-  if (storageDirectory === "/") throw businessRule("请输入可用于项目的独立工作目录。");
+  const storageDirectory = await resolveProjectDirectory(workDirectory);
+  if (dirname(storageDirectory) === storageDirectory)
+    throw businessRule("请输入可用于项目的独立工作目录。");
   if (
     settings.projects.some((item) => {
       if (item.id === id || !item.storageDirectory) return false;
@@ -116,13 +131,17 @@ export function savePrototypeRepository(
   )
     throw businessRule("该工作目录已由其他项目使用，请选择独立目录。");
   try {
-    createSharedDirectories(storageDirectory);
-    if (realpathSync(workDirectory) !== storageDirectory)
-      throw businessRule("工作目录已变化，请核对路径后重试。");
     const alreadyOwned = existing?.storageDirectory === storageDirectory;
-    // 原型保存只准备共享文档。仓库访问不应成为提交配置的网络等待。
-    const documents = prepareProjectDocuments(storageDirectory, alreadyOwned);
-    if (!alreadyOwned) publishDocuments(id, documents);
+    const documents = await prepareProjectDocuments(workDirectory, storageDirectory, alreadyOwned);
+    if (!alreadyOwned) {
+      const snapshot = captureDocuments(id);
+      const discard = await publishInitialProjectDocuments(documents, snapshot.requirements);
+      // 发布时原目录仍可能接收文档更新。核对成功后才能把新目录设为当前配置。
+      if (!snapshot.isCurrent()) {
+        await discard();
+        throw businessRule("项目文档已更新，请重新保存项目配置。");
+      }
+    }
   } catch (error) {
     if (error instanceof Error && "publicMessage" in error) throw error;
     throw businessRule("无法准备项目工作目录，请检查服务端路径和写入权限。");

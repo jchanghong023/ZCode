@@ -1,5 +1,6 @@
 import {
   AIREQ_ROLE_ADMINISTRATOR,
+  fileVersions,
   hasProjectRole,
   type AIReqCommand,
   type AIReqCommandTarget,
@@ -43,6 +44,7 @@ import {
   projectDocumentDirectory,
   publishRequirementDocuments,
   removeRequirementDocuments,
+  type ProjectDocumentSnapshot,
 } from "./project-files.js";
 import { validateDocumentVersion } from "./document-validation.js";
 import { acceptDocumentReview, type DocumentReviewRun } from "./document-review.js";
@@ -65,23 +67,24 @@ export function readPrototypeWorkflowRevision(): number {
   return state.revision;
 }
 
-/** 项目目录首次准备时，从工作流 owner 读取所有当前需求及文件。 */
-export function publishPrototypeProjectDocuments(projectId: string, documents: string): void {
-  const published: string[] = [];
-  try {
-    for (const requirement of state.requirements) {
-      if (requirement.projectId !== projectId) continue;
-      publishRequirementDocuments(
-        documents,
-        requirement.id,
-        requirementMaterialsFor(state, requirement),
-      );
-      published.push(requirement.id);
-    }
-  } catch (error) {
-    for (const irId of published) removeRequirementDocuments(documents, irId);
-    throw error;
-  }
+/** 异步准备新项目目录时捕获同一工作流快照，忽略其他项目和评审造成的 revision 变化。 */
+export function capturePrototypeProjectDocuments(projectId: string): ProjectDocumentSnapshot {
+  const read = (source: WorkflowState) =>
+    source.requirements
+      .filter((requirement) => requirement.projectId === projectId)
+      .map((requirement) => ({
+        irId: requirement.id,
+        files: requirementMaterialsFor(source, requirement),
+      }));
+  const signature = (requirements: ReturnType<typeof read>) =>
+    JSON.stringify(requirements.map(({ irId, files }) => [irId, fileVersions(files)]));
+  const source = state;
+  const requirements = read(source);
+  const baseline = signature(requirements);
+  return {
+    requirements,
+    isCurrent: () => source === state || signature(read(state)) === baseline,
+  };
 }
 
 function currentProjectDocumentDirectory(projectId: string): string | undefined {

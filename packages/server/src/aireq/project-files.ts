@@ -3,16 +3,15 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readlinkSync,
-  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, posix } from "node:path";
+import * as fs from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import { prototypeChangeRoot, prototypeIrRoot } from "./proposal-storage.js";
@@ -28,46 +27,78 @@ export function isProjectPathSegment(value: string): boolean {
   );
 }
 
-function directory(path: string, create = false) {
-  if (create) {
-    try {
-      mkdirSync(path);
-      chmodSync(path, 0o755);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-  }
+function directory(path: string) {
   if (!lstatSync(path).isDirectory()) throw businessRule("项目目录已被文件或软链接占用。");
   return path;
 }
 
-export function createSharedDirectories(path: string): void {
-  const first = mkdirSync(path, { recursive: true });
-  if (!first) return;
-  // 仅调整服务本次创建的目录。已有共享目录继续沿用部署者配置的文件权限。
-  for (let current = path; current !== first; current = dirname(current)) {
-    chmodSync(current, 0o755);
+function* newlyCreatedDirectories(path: string, first: string) {
+  // 用有界的相对路径枚举新建目录，避免路径拼写不一致时在根目录循环。
+  let current = resolve(first);
+  const remainder = relative(current, path);
+  if (
+    dirname(current) === current ||
+    isAbsolute(remainder) ||
+    remainder === ".." ||
+    remainder.startsWith(".." + sep)
+  )
+    throw businessRule("无法确定新建的工作目录。");
+  yield current;
+  if (!remainder) return;
+  for (const name of remainder.split(sep)) {
+    current = join(current, name);
+    yield current;
   }
-  chmodSync(first, 0o755);
 }
 
-export function resolveProjectDirectory(workDirectory: string): string {
+function createSharedDirectories(path: string): void {
+  const first = mkdirSync(path, { recursive: true });
+  if (!first) return;
+  for (const created of newlyCreatedDirectories(path, first)) chmodSync(created, 0o755);
+}
+
+async function createSharedDirectoriesAsync(path: string): Promise<void> {
+  const first = await fs.mkdir(path, { recursive: true });
+  if (!first) return;
+  for (const created of newlyCreatedDirectories(path, first)) await fs.chmod(created, 0o755);
+}
+
+export async function resolveProjectDirectory(workDirectory: string): Promise<string> {
   try {
-    return realpathSync(workDirectory);
+    return await fs.realpath(workDirectory);
   } catch (error) {
     if (
       (error as NodeJS.ErrnoException).code !== "ENOENT" ||
       dirname(workDirectory) === workDirectory
     )
       throw businessRule("无法访问项目工作目录，请检查服务端路径及权限。");
-    return join(resolveProjectDirectory(dirname(workDirectory)), basename(workDirectory));
+    return join(await resolveProjectDirectory(dirname(workDirectory)), basename(workDirectory));
   }
 }
 
-export function prepareProjectDocuments(root: string, alreadyOwned: boolean): string {
-  const docs = directory(join(root, "docs"), true);
-  const documents = directory(join(docs, "areq"), true);
-  if (!alreadyOwned && readdirSync(documents).length) {
+async function ensureSharedDirectory(path: string): Promise<void> {
+  try {
+    await fs.mkdir(path);
+    await fs.chmod(path, 0o755);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  if (!(await fs.lstat(path)).isDirectory()) throw businessRule("项目目录已被文件或软链接占用。");
+}
+
+export async function prepareProjectDocuments(
+  workDirectory: string,
+  storageDirectory: string,
+  alreadyOwned: boolean,
+): Promise<string> {
+  await createSharedDirectoriesAsync(storageDirectory);
+  if ((await fs.realpath(workDirectory)) !== storageDirectory)
+    throw businessRule("工作目录已变化，请核对路径后重试。");
+  const docs = join(storageDirectory, "docs");
+  await ensureSharedDirectory(docs);
+  const documents = join(docs, "areq");
+  await ensureSharedDirectory(documents);
+  if (!alreadyOwned && (await fs.readdir(documents)).length) {
     throw businessRule("共享文档目录已有内容，请为项目选择独立工作目录。");
   }
   return documents;
@@ -101,6 +132,66 @@ function rebaseDocumentLinks(
     if (!target) return link;
     return `](${posix.relative(posix.dirname(destination), target)}${hash ?? ""})`;
   });
+}
+
+interface RequirementDocuments {
+  irId: string;
+  files: readonly AIReqMaterialView[];
+}
+
+export interface ProjectDocumentSnapshot {
+  requirements: readonly RequirementDocuments[];
+  isCurrent(): boolean;
+}
+
+function publishedFiles(irId: string, files: readonly AIReqMaterialView[]) {
+  const paths = new Map(files.map((file) => [file.path, publishedPath(irId, file)]));
+  return files.map((file) => {
+    const path = paths.get(file.path)!;
+    if (file.content === undefined) throw businessRule("部分文档无法读取，请重试后再发布。");
+    const content = file.path.endsWith(".md")
+      ? rebaseDocumentLinks(file.content, file.path, path, paths)
+      : file.content;
+    return { path, content };
+  });
+}
+
+/** 新项目目录尚未公开，复制当前文档时不占用 HTTP 和 WebSocket 的事件循环。 */
+export async function publishInitialProjectDocuments(
+  documents: string,
+  requirements: readonly RequirementDocuments[],
+): Promise<() => Promise<void>> {
+  const created: { stage: string; link?: string }[] = [];
+  const discard = async () => {
+    await Promise.allSettled(
+      created.map(async ({ stage, link }) => {
+        if (link) await fs.unlink(link);
+        await fs.rm(stage, { recursive: true, force: true });
+      }),
+    );
+  };
+  try {
+    for (const { irId, files } of requirements) {
+      if (!isProjectPathSegment(irId)) throw businessRule("需求文档路径无效，无法发布。");
+      const stage = await fs.mkdtemp(join(documents, ".ir-"));
+      const entry: (typeof created)[number] = { stage };
+      created.push(entry);
+      for (const { path, content } of publishedFiles(irId, files)) {
+        const target = join(stage, path);
+        await createSharedDirectoriesAsync(dirname(target));
+        await fs.writeFile(target, content, { flag: "wx" });
+        await fs.chmod(target, 0o644);
+      }
+      await fs.chmod(stage, 0o755);
+      const link = join(documents, irId);
+      await fs.symlink(basename(stage), link, "dir");
+      entry.link = link;
+    }
+    return discard;
+  } catch (error) {
+    await discard();
+    throw error;
+  }
 }
 
 function currentDocumentSnapshot(documents: string, irId: string): string | undefined {
@@ -137,20 +228,15 @@ export function publishRequirementDocuments(
 ): void {
   const previous = currentDocumentSnapshot(documents, irId);
   const target = join(documents, irId);
-  const paths = new Map(files.map((file) => [file.path, publishedPath(irId, file)]));
+  const entries = publishedFiles(irId, files);
   const stage = mkdtempSync(join(documents, ".ir-"));
   const link = join(documents, basename(stage) + ".link");
   try {
     // mkdtemp 默认只允许进程用户访问。共享目录中的快照也要能被开发环境读取。
     chmodSync(stage, 0o755);
-    for (const file of files) {
-      const destination = paths.get(file.path)!;
-      const output = join(stage, destination);
+    for (const { path, content } of entries) {
+      const output = join(stage, path);
       createSharedDirectories(dirname(output));
-      if (file.content === undefined) throw businessRule("部分文档无法读取，请重试后再发布。");
-      const content = file.path.endsWith(".md")
-        ? rebaseDocumentLinks(file.content, file.path, destination, paths)
-        : file.content;
       writeFileSync(output, content, { flag: "wx" });
       chmodSync(output, 0o644);
     }
