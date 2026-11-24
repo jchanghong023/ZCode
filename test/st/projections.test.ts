@@ -104,21 +104,23 @@ describe("ST same-owner workflow projections", () => {
   );
 
   it(
-    "keeps the same IR, file contents and Release count when the read-only code source changes",
+    "keeps the same IR, file contents and Release count when the project working directory changes",
     async () => {
       await usingClient(async (client) => {
         const target = await createProposal(client);
         const before = await completeBusinessMaterial(client, target);
         expect(summary(before.view, target.projectId, target.releaseId).requirementCount).toBe(1);
         const project = before.view.projects.find((item) => item.id === target.projectId)!;
-        const repositoryUrl = `https://example.invalid/${unique("st-replacement")}.git`;
-        const defaultBranch = unique("st-code-source");
+        const repositoryUrl = project.repositoryUrl!;
+        const defaultBranch = project.defaultBranch;
+        const workDirectory = `${project.workDirectory}-${unique("st-moved")}`;
         await client.call("projects.saveRepository", [
           {
             projectId: project.id,
             name: project.name,
             repositoryUrl,
             defaultBranch,
+            workDirectory,
             expectedRevision: project.revision,
             operationId: unique("update-code-source"),
           },
@@ -127,6 +129,7 @@ describe("ST same-owner workflow projections", () => {
         expect(after.view.projects.find((item) => item.id === project.id)).toMatchObject({
           repositoryUrl,
           defaultBranch,
+          workDirectory,
         });
         expect(summary(after.view, target.projectId, target.releaseId).requirementCount).toBe(1);
         expect(getProposal(after, target)).toEqual(getProposal(before, target));

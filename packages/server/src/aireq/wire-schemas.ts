@@ -124,6 +124,7 @@ export const argumentSchemas = {
         name: text,
         repositoryUrl: text,
         defaultBranch: text,
+        workDirectory: text,
       })
       .strict(),
   ]),

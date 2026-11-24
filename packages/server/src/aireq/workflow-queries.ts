@@ -20,13 +20,14 @@ import type {
 } from "./workflow-state.js";
 
 export function projectSummary(project: Project): AIReqProject {
-  const { id, name, revision, defaultBranch, repositoryUrl } = project;
+  const { id, name, revision, defaultBranch, repositoryUrl, workDirectory } = project;
   return {
     id,
     name,
     revision,
     defaultBranch,
     ...(repositoryUrl === undefined ? {} : { repositoryUrl }),
+    ...(workDirectory === undefined ? {} : { workDirectory }),
   };
 }
 

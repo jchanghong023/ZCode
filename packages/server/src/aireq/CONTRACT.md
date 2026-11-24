@@ -6,7 +6,7 @@
 
 纯对话无文件变化时保留原版本。新建短需求时没有文档版本，首次写入文件生成 V1。未确认的同版可反复修改。`validateDocumentVersion` 只读检查完整性及格式并返回 `snapshot`。确认先核对提交的快照仍匹配未定版的版本及全部文件，再按当前规则复核，成功则固定文件、SR、确认人工号和时间。文件漂移、版本变更或已定版时 RPC 拒绝；快照匹配但复核未通过时结果含失败的 `receipt` 与同级 `documentValidation`，报告问题路径和原因。版本号在确认时保持不变，确认后的首次文件变化把固定快照移入历史并开启下一版。删除文件保留版本计数，已有确认记录的需求受历史留存规则保护。
 
-定版文档 HTTP 下载由工作流读取整套已确认快照。当前版未确认时使用最近一次历史定版。下载沿用部署令牌，确认信息和文件摘要随同一快照返回。[下载契约](../../../../docs/specs/aireq/contract-design.md#定版文档下载)
+项目保存校验代码源配置并准备本地共享文档目录。工作流在提交材料变更前发布该 IR 的完整最新版，确认快照独立保留。详见[项目工作目录](../../../../docs/specs/aireq/contract-design.md#项目工作目录)。
 
 原生会话、附件、队列、订阅及水位归 `MockRuntime/MockZCodeAgentService`。工作流提交业务事实后发出更新通知。已接纳输入保留原工号、连接 ID 和正文，执行按会话绑定的模型、指令及实际输入路由，提交材料前重验操作权限。两个 Agent 写入各自的材料，继续在同一会话讨论。模型配置和追加指令共享四个角色。模拟后端只处理内存材料，原生会话回复与评审记录只描述实际处理结果。
 
@@ -18,7 +18,7 @@
 
 ## 调用与回执
 
-公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `26`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。重连只恢复订阅和重读。`readWorkflow`、`retrySession` 使用项目、IR 和 Agent 定位会话，命令目标只接受项目和 IR；这些目标均不接受 SR。材料读取恢复绑定项目、Release、IR、路径和正文摘要。
+公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `27`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。重连只恢复订阅和重读。`readWorkflow`、`retrySession` 使用项目、IR 和 Agent 定位会话，命令目标只接受项目和 IR；这些目标均不接受 SR。材料读取恢复绑定项目、Release、IR、路径和正文摘要。
 
 在线人员由连接 owner 持有工号及 IP 引用计数。想法以现有克隆事务统一校验及批量转入具体 Release，保留原文与实际提交信息。Release 统计从同一工作流按项目聚合。
 

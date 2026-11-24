@@ -9,7 +9,7 @@ import {
   type ConversationTopicFrame,
   type TopicWireAssemblyEvent,
 } from "@zcode/shared/zcode-protocol-v4";
-import { createTopicWireDecoder } from "@zcode/ui/web-chat-view";
+import { createTopicWireDecoder, projectPendingGuideQueue } from "@zcode/ui/web-chat-view";
 import type { AgentConnection } from "./useAgentConnection.js";
 
 interface View {
@@ -150,6 +150,11 @@ export function useConversation(
   const window = view?.snapshot.rows.window ?? emptyRows;
   const older = view?.older;
   const rows = useMemo(() => (older?.length ? [...older, ...window] : window), [older, window]);
+  const queue = view?.snapshot.queue;
+  const pendingGuides = useMemo(
+    () => (queue ? projectPendingGuideQueue(queue).pendingGuides : undefined),
+    [queue],
+  );
   const beforeRowId = older?.[0]?.rowId ?? window[0]?.rowId;
   const hasOlder = beforeRowId !== undefined && beforeRowId !== view?.snapshot.rows.firstRowId;
   const ready = connection !== null && view?.connection === connection && !error;
@@ -184,6 +189,7 @@ export function useConversation(
 
   return {
     rows,
+    pendingGuides,
     phase: view?.snapshot.control.phase,
     control: ready ? view?.snapshot.control : undefined,
     inputRouting: ready ? view?.snapshot.inputRouting : undefined,

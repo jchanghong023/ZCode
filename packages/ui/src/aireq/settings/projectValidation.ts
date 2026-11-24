@@ -1,17 +1,37 @@
-export type ProjectFieldErrors = { name?: string; repository?: string; branch?: string };
+export type ProjectFieldErrors = {
+  name?: string;
+  repository?: string;
+  branch?: string;
+  workDirectory?: string;
+};
 
 export function validateRepository(
   name: string,
   remote: string,
   branch: string,
+  workDirectory: string,
 ): ProjectFieldErrors {
   const errors: ProjectFieldErrors = {};
-  if (!name.trim()) errors.name = "请输入项目名称。";
+  const project = name.trim();
+  if (
+    !project ||
+    project === "." ||
+    project === ".." ||
+    project.includes("/") ||
+    project.includes("\\") ||
+    /\p{Cc}/u.test(project)
+  )
+    errors.name = "请输入可用作目录名的项目名称。";
+  const directory = workDirectory.trim();
+  const absolutePath = directory.startsWith("/") || /^[A-Za-z]:[\\/]/.test(directory);
+  if (!absolutePath || /^(?:[A-Za-z]:)?[\\/]+$/u.test(directory) || /\p{Cc}/u.test(directory))
+    errors.workDirectory = "请输入项目工作目录的绝对路径。";
   const url = remote.trim();
   let valid = /^[^\s/@:]+@[^\s/:]+:[^\s]+$/.test(url);
   if (!valid && /^(?:https?|ssh|git):\/\/[^\s]+$/.test(url)) {
     try {
-      valid = Boolean(new URL(url).hostname);
+      const address = new URL(url);
+      valid = Boolean(address.hostname) && !address.password;
     } catch {
       valid = false;
     }

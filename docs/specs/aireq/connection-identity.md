@@ -64,7 +64,7 @@ Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服�
 
 | 版本或标识 | 含义 |
 | --- | --- |
-| `AIREQ_CONTRACT_VERSION=26` | bootstrap 契约兼容性，客户端不匹配则拒绝装配 |
+| `AIREQ_CONTRACT_VERSION=27` | bootstrap 契约兼容性，客户端不匹配则拒绝装配 |
 | Protocol v4 wire `3` | hello/clientHello 与二进制 wire 版本 |
 | snapshot `protocolVersion=1` | 会话投影格式，不是 wire 版本 |
 | workflow revision | 普通业务写入的 CAS 基线 |

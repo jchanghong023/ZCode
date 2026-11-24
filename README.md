@@ -2,9 +2,9 @@
 
 面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档定版和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
 
-开发在「需求共创」复制同步命令后，可用 Python 3.10 或以上和 Git 在开发分支导入最新已定版的整套文档。[同步使用说明](docs/specs/aireq/proposals.md#同步已定版文档到本地分支)
+项目配置指定服务器工作目录和 Git 仓库。开发可在「需求共创」复制项目文档目录的软链接命令，并在自己的仓库中查看最新文档。[查看最新文档](docs/specs/aireq/proposals.md#在开发仓库中查看最新文档)
 
-当前没有真实 Agent、AI／Git 执行、数据库持久化或可信工号认证。服务重启会重新初始化内存业务数据。完整能力边界见[系统范围](docs/README.md#系统范围)与[服务端说明](docs/architecture/mock-backend.md)。
+业务讨论仍使用模拟 Agent。工号沿用原型身份机制。原型保存仓库地址和分支作为配置，准备项目共享目录并发布当前文档。服务重启会重新初始化内存业务数据。完整能力边界见[系统范围](docs/README.md#系统范围)与[服务端说明](docs/architecture/mock-backend.md)。
 
 ## 环境与安装
 
@@ -32,7 +32,7 @@ bun x --bun --package pnpm@10.33.2 pnpm install
 bun run dev
 ```
 
-浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api`、`/ws` 和 `/aireq-sync`；同步命令从 `/aireq-sync/<sha256>.py` 下载脚本。
+浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api` 和 `/ws`。
 
 输入一位小写字母加八位数字的工号后进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
 

@@ -56,6 +56,17 @@ const releasesByProject = new Map<string, AIReqRelease[]>([
       },
     ],
   ],
+  [
+    "demo-atlas",
+    [
+      {
+        id: "atlas-release-2026-11",
+        projectId: "demo-atlas",
+        title: "2026.11 · 客户门户",
+        createdAt: "2026-10-22T09:00:00.000Z",
+      },
+    ],
+  ],
 ]);
 
 if (prototypeRecoveryScenario === "empty-projects") releasesByProject.clear();

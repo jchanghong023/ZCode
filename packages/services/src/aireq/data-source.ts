@@ -63,7 +63,6 @@ export interface AIReqDataSource {
   };
   clientId: string;
   backend?: AIReqBackendView;
-  documentSync: { scriptSha256: string };
   capabilities: {
     workflowCommands: readonly AIReqAction["type"][];
   };

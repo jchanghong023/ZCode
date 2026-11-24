@@ -35,12 +35,14 @@ export interface AIReqProject {
   revision: number;
   defaultBranch: string;
   repositoryUrl?: string;
+  workDirectory?: string;
 }
 export interface AIReqRemoteRepositoryInput {
   projectId?: string;
   name: string;
   repositoryUrl: string;
   defaultBranch: string;
+  workDirectory: string;
   /** Existing project updates require its editing baseline; creation uses zero. */
   expectedRevision?: number;
   operationId?: string;

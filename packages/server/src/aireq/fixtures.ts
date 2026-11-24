@@ -57,6 +57,8 @@ const samples = [
   },
   { projectId: "demo-mobile", id: "ir-mobile-offline", title: "移动端离线体验", documents: true },
   { projectId: "demo-mobile", id: "draft-mobile-search", title: "移动搜索体验" },
+  { projectId: "demo-mobile", id: "ir-mobile-tasks", title: "跨项目待办汇总", documents: true },
+  { projectId: "demo-atlas", id: "ir-atlas-progress", title: "客户需求进度查询", documents: true },
 ] as const;
 
 export function createPrototypeWorkflow(): WorkflowState {

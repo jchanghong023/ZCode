@@ -40,6 +40,7 @@ describe("ST service readiness and connection boundary", () => {
               "revision",
               "defaultBranch",
               ...(project.repositoryUrl === undefined ? [] : ["repositoryUrl"]),
+              ...(project.workDirectory === undefined ? [] : ["workDirectory"]),
             ].sort(),
           );
         }

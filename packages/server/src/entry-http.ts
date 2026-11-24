@@ -3,6 +3,7 @@
 import { createMockServices } from "./mock/index.js";
 import { createMockHttpServer } from "./http.js";
 import { createWebChatServices } from "./chat/service.js";
+import { initializePrototypeProjectWorkspaces } from "./aireq/contract.js";
 
 function resolveWorkspacePath(): string {
   return process.env["ZCODE_SERVER_WORKSPACE"]?.trim() || process.cwd();
@@ -15,6 +16,7 @@ async function main(): Promise<void> {
   const staticRoot = process.env["ZCODE_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["ZCODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;
 
+  await initializePrototypeProjectWorkspaces(workspacePath);
   const { services } = createMockServices({ workspacePath });
   const chatServices = createWebChatServices(workspacePath);
   createMockHttpServer(services, {

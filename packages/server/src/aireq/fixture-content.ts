@@ -53,6 +53,18 @@ export const prototypeRequirementDetails: Record<
     createdAt: "2026-11-09T04:30:00.000Z",
     releaseId: "mobile-release-2027-01",
   },
+  "ir-mobile-tasks": {
+    originalText:
+      "在移动工作台集中查看本人在各项目中的待办，按截止日期排序。点击待办进入所属项目，已失去访问权限的项目不再展示。",
+    createdAt: "2026-11-12T03:30:00.000Z",
+    releaseId: "mobile-release-2027-03",
+  },
+  "ir-atlas-progress": {
+    originalText:
+      "客户可在门户按需求编号查询自己提交的需求，查看当前状态、最近更新时间和需本人补充的信息，避免反复询问处理进度。",
+    createdAt: "2026-11-13T03:30:00.000Z",
+    releaseId: "atlas-release-2026-11",
+  },
   "draft-feedback-intake": {
     originalText:
       "客户反馈希望按来源和业务场景归集，先保留客户原话，再由业务人员补充影响范围与期望结果。\n暂不自动拆分需求，也不自动安排版本内的开发任务。",

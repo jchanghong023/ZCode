@@ -427,13 +427,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     );
   }
 
-  private appendRow(session: MockSession, row: WireConversationRow): void {
+  private appendRow(session: MockSession, row: WireConversationRow, patch?: StatePatch): void {
     session.rows.push(row);
-    this.emitConversationFrame(
-      session,
-      { kind: "deltas", deltas: [{ op: "row.appended", row }] },
-      "online",
-    );
+    const deltas: ConversationDelta[] = [{ op: "row.appended", row }];
+    if (patch) {
+      this.patchState(session, patch, deltas);
+      return;
+    }
+    this.emitConversationFrame(session, { kind: "deltas", deltas }, "online");
   }
 
   private upsertRow(session: MockSession, row: WireConversationRow): void {
@@ -653,24 +654,28 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       for (const commandId of startedCommands)
         this.business?.discardNative(session.sessionId, commandId);
     };
-    const enter = (submitted: MockInput) => {
+    const enter = (submitted: MockInput, fromPendingGuide = false) => {
       inputs.push(submitted);
       if (!submitted.documentReview) startedCommands.push(submitted.commandId);
-      this.appendRow(session, {
-        kind: "userInput",
-        rowId: this.nextRowId(session),
-        turnId,
-        entityId: `entity_${createUuid()}`,
-        createdAt: Date.now(),
-        createdAtSeq: session.seq,
-        text: submitted.text,
-        origin: "realUser",
-        sourceCommandId: submitted.commandId,
-        clientId: submitted.clientId,
-        attachments: submitted.attachments,
-        conversationQuotes: submitted.conversationQuotes,
-        modelSelection,
-      });
+      this.appendRow(
+        session,
+        {
+          kind: "userInput",
+          rowId: this.nextRowId(session),
+          turnId,
+          entityId: `entity_${createUuid()}`,
+          createdAt: Date.now(),
+          createdAtSeq: session.seq,
+          text: submitted.text,
+          origin: "realUser",
+          sourceCommandId: submitted.commandId,
+          clientId: submitted.clientId,
+          attachments: submitted.attachments,
+          conversationQuotes: submitted.conversationQuotes,
+          modelSelection,
+        },
+        fromPendingGuide ? { queue: projectMockQueue(session) } : undefined,
+      );
       // AIReq 材料只消费用户语义；冻结的技能正文留在会话执行上下文。
       if (submitted.documentReview) return;
       this.business?.beginNative(
@@ -690,8 +695,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           continue;
         }
         session.queuedInputs.splice(index, 1);
-        this.patchQueue(session);
-        enter(this.queuedInput(queued));
+        // 气泡转为正式用户行时同帧移除引导投影，避免两帧之间正文消失。
+        enter(this.queuedInput(queued), true);
       }
     };
     signal.onabort = () => {
