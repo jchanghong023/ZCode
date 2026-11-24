@@ -30,7 +30,11 @@ import {
   retryPrototypeMaterialRead,
 } from "./recovery.js";
 import { getEmployeeId, isEmployeeId } from "./identity.js";
-import { readPrototypeProjectSetting, readPrototypeProjectSettings } from "./project-settings.js";
+import {
+  initializePrototypeProjectSettings,
+  readPrototypeProjectSetting,
+  readPrototypeProjectSettings,
+} from "./project-settings.js";
 import { readPrototypeProjectReleases } from "./project-releases.js";
 import { DEFAULT_SELECTION } from "./fixture-builders.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
@@ -65,6 +69,12 @@ function mutatePrototypeWorkflow(update: (next: WorkflowState) => boolean): void
 
 export function readPrototypeWorkflowRevision(): number {
   return state.revision;
+}
+
+/** 在监听连接前发布示例文档，并将配置投影同步到工作流。 */
+export async function initializePrototypeProjectWorkspaces(workspacePath: string): Promise<void> {
+  await initializePrototypeProjectSettings(workspacePath, capturePrototypeProjectDocuments);
+  state.projects = readPrototypeProjectSettings().projects;
 }
 
 /** 异步准备新项目目录时捕获同一工作流快照，忽略其他项目和评审造成的 revision 变化。 */

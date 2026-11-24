@@ -194,6 +194,99 @@ export async function publishInitialProjectDocuments(
   }
 }
 
+async function matchesPublishedFiles(
+  directoryPath: string,
+  expected: Map<string, string>,
+  prefix = "",
+): Promise<boolean> {
+  for (const entry of await fs.readdir(directoryPath, { withFileTypes: true })) {
+    const path = join(directoryPath, entry.name);
+    const key = posix.join(prefix, entry.name);
+    if (entry.isDirectory()) {
+      if (!(await matchesPublishedFiles(path, expected, key))) return false;
+    } else if (
+      !entry.isFile() ||
+      !expected.has(key) ||
+      (await fs.readFile(path, "utf8")) !== expected.get(key)
+    ) {
+      return false;
+    } else {
+      expected.delete(key);
+    }
+  }
+  return true;
+}
+
+async function matchesSeedDocuments(
+  documents: string,
+  requirements: readonly RequirementDocuments[],
+  entries: string[],
+): Promise<boolean> {
+  const visible = entries.filter((name) => !name.startsWith("."));
+  if (visible.length !== requirements.length) return false;
+  const names = new Set(visible);
+  for (const { irId, files } of requirements) {
+    if (!names.has(irId)) return false;
+    const link = join(documents, irId);
+    if (!(await fs.lstat(link)).isSymbolicLink()) return false;
+    const target = await fs.readlink(link);
+    if (!/^\.ir-[a-zA-Z0-9]+$/.test(target) || !entries.includes(target)) return false;
+    const path = join(documents, target);
+    if (!(await fs.lstat(path)).isDirectory()) return false;
+    const expected = new Map(
+      publishedFiles(irId, files).map(({ path, content }) => [path, content]),
+    );
+    if (!(await matchesPublishedFiles(path, expected)) || expected.size) return false;
+  }
+  return true;
+}
+
+/** 固定目录仅认领空目录或同一示例项目留下的输出。 */
+export async function prepareSeedProjectDocuments(
+  projectId: string,
+  workDirectory: string,
+  storageDirectory: string,
+  requirements: readonly RequirementDocuments[],
+): Promise<void> {
+  const marker = join(storageDirectory, ".aireq-demo-project");
+  const ownership = await fs.lstat(marker).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+    return undefined;
+  });
+  if (ownership && (!ownership.isFile() || (await fs.readFile(marker, "utf8")) !== projectId))
+    throw businessRule("示例工作目录已由其他项目使用。");
+  const documents = await prepareProjectDocuments(
+    workDirectory,
+    storageDirectory,
+    Boolean(ownership),
+  );
+  if (!ownership) await fs.writeFile(marker, projectId, { flag: "wx" });
+  const entries = await fs.readdir(documents);
+  if (await matchesSeedDocuments(documents, requirements, entries)) return;
+  if (!entries.length) {
+    await publishInitialProjectDocuments(documents, requirements);
+    return;
+  }
+
+  // 原型重启后按当前样例重新发布。将上一轮不同的输出移入隐藏目录，保留原文件。
+  const stage = await fs.mkdtemp(join(dirname(documents), ".areq-startup-"));
+  try {
+    await publishInitialProjectDocuments(stage, requirements);
+    await fs.chmod(stage, 0o755);
+    const archived = await fs.mkdtemp(join(dirname(documents), ".areq-previous-"));
+    const previous = join(archived, "areq");
+    await fs.rename(documents, previous);
+    try {
+      await fs.rename(stage, documents);
+    } catch (error) {
+      await fs.rename(previous, documents);
+      throw error;
+    }
+  } finally {
+    await fs.rm(stage, { recursive: true, force: true });
+  }
+}
+
 function currentDocumentSnapshot(documents: string, irId: string): string | undefined {
   if (!isProjectPathSegment(irId)) throw businessRule("需求文档路径无效，无法发布。");
   const target = join(documents, irId);

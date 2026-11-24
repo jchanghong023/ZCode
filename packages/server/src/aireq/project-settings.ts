@@ -1,9 +1,11 @@
 import { dirname, resolve } from "node:path";
+import { createServiceLogger } from "@zcode/services/logger";
 import type { AIReqRemoteRepositoryInput } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import {
   isProjectPathSegment,
   prepareProjectDocuments,
+  prepareSeedProjectDocuments,
   publishInitialProjectDocuments,
   resolveProjectDirectory,
   type ProjectDocumentSnapshot,
@@ -14,6 +16,8 @@ import type { Project } from "./workflow-state.js";
 interface PrototypeProjectSettings {
   projects: Project[];
 }
+
+const logger = createServiceLogger("aireq-project-settings");
 
 function project(id: string, name: string, root: string): Project {
   return {
@@ -46,6 +50,39 @@ export function readPrototypeProjectSetting(projectId?: string): Readonly<Projec
 
 export function mapPrototypeProjectSettings<T>(map: (project: Readonly<Project>) => T): T[] {
   return settings.projects.map(map);
+}
+
+export async function initializePrototypeProjectSettings(
+  workspacePath: string,
+  captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
+): Promise<void> {
+  settings = {
+    projects: await Promise.all(
+      settings.projects.map(async (project) => {
+        const workDirectory = resolve(
+          workspacePath,
+          ".zcode-runtime",
+          "aireq-projects",
+          project.id,
+        );
+        try {
+          const storageDirectory = await resolveProjectDirectory(workDirectory);
+          await prepareSeedProjectDocuments(
+            project.id,
+            workDirectory,
+            storageDirectory,
+            captureDocuments(project.id).requirements,
+          );
+          return { ...project, workDirectory, storageDirectory };
+        } catch {
+          logger.warn(undefined, "Failed to prepare demo project directory", {
+            projectId: project.id,
+          });
+          return project;
+        }
+      }),
+    ),
+  };
 }
 
 // 保存串行校验 revision 与目录归属。异步文件操作期间，读取仍使用上一次已提交配置。
