@@ -65,6 +65,7 @@ export async function initializePrototypeProjectSettings(
           "aireq-projects",
           project.id,
         );
+        const configured = { ...project, workDirectory, storageDirectory: undefined };
         try {
           const storageDirectory = await resolveProjectDirectory(workDirectory);
           await prepareSeedProjectDocuments(
@@ -73,13 +74,14 @@ export async function initializePrototypeProjectSettings(
             storageDirectory,
             captureDocuments(project.id).requirements,
           );
-          return { ...project, workDirectory, storageDirectory };
+          return { ...configured, storageDirectory };
         } catch (error) {
           logger.warn(undefined, "Failed to prepare demo project directory", {
             projectId: project.id,
             code: error instanceof Error && "code" in error ? error.code : undefined,
           });
-          return project;
+          // 目录发布失败时仍保留示例配置，复制入口只依赖配置路径。
+          return configured;
         }
       }),
     ),
