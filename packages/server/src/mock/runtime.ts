@@ -11,6 +11,7 @@ import type {
   SessionControl,
   SessionErrorInfo,
   QueueItem,
+  ReturnedConversationInput,
   SessionMetaState,
   SessionPhase,
   SessionUsageState,
@@ -40,7 +41,7 @@ export type MockInputContext = { skill: SkillSummary; args: string };
 export type MockQueuedInput = {
   item: QueueItem;
   context?: MockInputContext;
-  retained?: boolean;
+  actor: string;
   documentReview?: AIReqNativeReviewWork;
 };
 
@@ -72,10 +73,11 @@ export interface MockSession {
   rows: WireConversationRow[];
   usage: SessionUsageState;
   plan: PlanState | null;
-  /** 只读队列投影与真实待交付输入共用同一份事实。 */
+  /** 已接纳但尚未交付给运行中回合的输入。 */
   queuedInputs: MockQueuedInput[];
+  /** 按原发送者隔离，等待各自的输入框确认恢复。 */
+  returnedInputs?: Map<string, ReturnedConversationInput[]>;
   nextAdmissionSeq: number;
-  pauseReason?: "stopped" | "error";
   activeTurn: MockActiveTurn | null;
   lastError?: SessionErrorInfo;
   nativeBindingApplied?: boolean;
@@ -245,18 +247,12 @@ function projectMockControl(session: MockSession): SessionControl {
 }
 
 export function projectMockQueue(session: MockSession): QueueState {
-  const pauseReason = session.pauseReason;
-  const paused =
-    pauseReason !== undefined &&
-    session.queuedInputs.length > 0 &&
-    session.queuedInputs.every((input) => input.retained);
   return {
     items: session.queuedInputs.map(({ item }, queuePosition) => ({
       ...item,
       order: { admissionSeq: item.order.admissionSeq, queuePosition },
     })),
-    autoDrain: !paused,
-    ...(paused ? { pauseReason } : {}),
+    autoDrain: true,
   };
 }
 

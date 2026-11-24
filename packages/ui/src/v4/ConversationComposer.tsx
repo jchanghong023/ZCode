@@ -53,6 +53,7 @@ import type {
   AttachmentRef,
   ConversationCommandCatalogEntry,
   ConversationSnapshot,
+  ReturnedConversationInput,
   SessionConfigState,
 } from "@zcode/shared/zcode-protocol-v4";
 import {
@@ -173,7 +174,12 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
-import { recordSentConversationSelections } from "@/lib/conversationSelectionReference.js";
+import {
+  getConversationSelectionReferenceScope,
+  recordSentConversationSelections,
+  setConversationSelectionReferenceScope,
+  type MarkdownSelectionReference,
+} from "@/lib/conversationSelectionReference.js";
 import { deleteConversationAnnotationWithUndo } from "@/selection-comment/index.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import {
@@ -193,6 +199,7 @@ import type { ConversationPromptTelemetrySeed } from "@zcode/shared/conversation
 import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
+import { useReturnedConversationInputs } from "@/v4/useReturnedConversationInputs.js";
 import {
   subscribeComposerSubmissionSettled,
   trackUnsettledComposerSubmission,
@@ -220,6 +227,7 @@ export interface ConversationComposerSendOptions {
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
   requestedDelivery?: "startNow" | "queue" | "guide";
   streamingBehavior?: "steer" | "followUp";
+  expectedForegroundExecutionId?: string;
   /** 提交命令创建后由 Composer 订阅权威 projection，覆盖 ACK 丢失后的收口。 */
   onCommandCreated?: (commandId: string) => void;
   /** 插件 UI 代发：随 sendText 持久化，用户消息卡片显示"来自插件 X"。 */
@@ -376,6 +384,7 @@ export interface ConversationComposerProps {
   snapshot: ConversationSnapshot | null;
   /** 真实命令已发出、权威输入投影尚未接管；直接消费 projection store，不另存展示状态。 */
   inputPending?: boolean;
+  acknowledgeReturnedInputs?: (commandIds: string[]) => Promise<unknown>;
   /** 草稿 scope（sessionId；draft 态 null → "__draft__" scope）。 */
   sessionId?: string | null;
   /** Skill catalog authority；草稿预热完成后为 prewarmSessionId，不改变 task/draft 身份。 */
@@ -525,6 +534,7 @@ function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: s
 function ConversationComposerImpl({
   snapshot,
   inputPending = false,
+  acknowledgeReturnedInputs,
   sessionId = null,
   skillCatalogSessionId = sessionId,
   draftMode = false,
@@ -695,7 +705,7 @@ function ConversationComposerImpl({
   // 接线没有补回，导致 Enter 误发送。恢复旧语义：手机视口下 Enter 换行并用按钮发送；
   // 桌面端仍由 resolveChatEnterSubmits 的视口门禁保持 Enter 发送。
   const enterSubmits = resolveChatEnterSubmits({
-    preferEnterNewline: snapshot?.inputRouting.mode === "streamingChoice",
+    preferEnterNewline: !sessionBoundInput && snapshot?.inputRouting.mode === "streamingChoice",
   });
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
   const updateText = useCallback(
@@ -1066,6 +1076,8 @@ function ConversationComposerImpl({
 
   // 最近一次已把草稿载入 Lexical 的 edit scope；只用于编辑态顶部内容的显示时机。
   const [appliedDraftScopeId, setAppliedDraftScopeId] = useState<string | null>(null);
+  const [loadedDraftToken, setLoadedDraftToken] = useState<symbol>();
+  const [composing, setComposing] = useState(false);
   // scope 切换：先落旧 scope 草稿，再恢复新 scope（editorStateJson 优先，退纯文本）。
   useEffect(() => {
     const previousTarget = draftTargetRef.current;
@@ -1137,7 +1149,10 @@ function ConversationComposerImpl({
     let unsubscribeSettled: (() => void) | null = null;
     const applyDraft = () => {
       const api = inputApiRef.current;
-      if (api) restoreDraftInto(api);
+      if (api) {
+        restoreDraftInto(api);
+        if (sessionBoundInput) setLoadedDraftToken(composerDraftScopeToken);
+      }
       // 与草稿正文同一帧显示编辑态顶部内容（见 editPresentationReady）；输入框未就绪时
       // 没有正文可等，也必须放行，否则编辑态状态条（含「取消」）不会出现。
       if (isComposerEditScopeId(draftScopeId)) {
@@ -1192,11 +1207,90 @@ function ConversationComposerImpl({
     draftScopeId,
     composerDraftScopeToken,
     requestComposerFocus,
+    sessionBoundInput,
     snapshotDraftOfEditor,
     workspaceIdentity,
     workspaceKey,
     workspacePath,
   ]);
+
+  const restoreReturnedInputs = useCallback(
+    (inputs: readonly ReturnedConversationInput[]) => {
+      const editor = inputApiRef.current;
+      if (
+        !editor ||
+        pending ||
+        pendingRef.current ||
+        inputPending ||
+        composing ||
+        loadedDraftToken !== composerDraftScopeToken
+      )
+        return false;
+      const text = inputs
+        .map((input) => input.text)
+        .filter(Boolean)
+        .join("\n\n");
+      if (!editor.prependDraftText(text)) return false;
+      const content = snapshotDraftOfEditor();
+      updateText(content.text);
+      persistComposerContent(content);
+      attachmentsApi.restoreSessionOwnedAttachments(
+        inputs.flatMap((input) => input.attachments),
+        true,
+      );
+      const quotes = inputs.flatMap(({ sourceCommandId, conversationQuotes }) =>
+        (conversationQuotes ?? []).map(
+          (quote, index): MarkdownSelectionReference => ({
+            ...quote,
+            id: `${sourceCommandId}:${index}`,
+            contentType: "markdown",
+            sourceKey: quote.path ?? quote.messageId ?? sourceCommandId,
+            sourceTitle:
+              quote.path ??
+              quote.senderName ??
+              intl.formatMessage({ id: "chat.selections.type.assistant" }),
+          }),
+        ),
+      );
+      if (quotes.length > 0) {
+        const existing = getConversationSelectionReferenceScope(
+          sessionId,
+          workspaceKey,
+          rootDraftScopeKey,
+        );
+        setConversationSelectionReferenceScope(
+          sessionId,
+          workspaceKey,
+          [...quotes, ...existing],
+          rootDraftScopeKey,
+        );
+      }
+      return true;
+    },
+    [
+      attachmentsApi,
+      composerDraftScopeToken,
+      composing,
+      inputPending,
+      intl,
+      loadedDraftToken,
+      pending,
+      persistComposerContent,
+      rootDraftScopeKey,
+      sessionId,
+      snapshotDraftOfEditor,
+      updateText,
+      workspaceKey,
+    ],
+  );
+  useReturnedConversationInputs(
+    acknowledgeReturnedInputs && sessionId && snapshot?.sessionId === sessionId
+      ? JSON.stringify(["aireq", configPickerScopeKey, snapshot.logEpoch])
+      : undefined,
+    snapshot?.queue.returnedInputs,
+    restoreReturnedInputs,
+    acknowledgeReturnedInputs,
+  );
 
   useEffect(() => {
     ownerDraftRef.current = {
@@ -1329,7 +1423,7 @@ function ConversationComposerImpl({
   );
 
   const mode = snapshot?.inputRouting.mode ?? "startNow";
-  const streamingChoice = mode === "streamingChoice";
+  const offerFollowUp = !sessionBoundInput && mode === "streamingChoice";
   const modifiedEnterSubmits =
     !sessionBoundInput && shouldEnableModifiedEnterSubmit({ inputRoutingMode: mode });
   const canStop =
@@ -1411,13 +1505,15 @@ function ConversationComposerImpl({
       // 连接 pending 同步进入 ref，覆盖菜单点击后 React 尚未提交的一帧及快捷键提交。
       // 只阻止新输入，不取消正在执行或已排队消息，也不清空草稿。
       if (connectionPendingRef.current) return;
-      if (
-        sessionBoundInput &&
-        snapshotRef.current?.inputRouting.mode === "streamingChoice" &&
-        !streamingBehavior
-      ) {
-        return;
-      }
+      const execution = snapshotRef.current;
+      const activeWebInput =
+        sessionBoundInput && execution?.inputRouting.mode === "streamingChoice";
+      const effectiveStreamingBehavior =
+        streamingBehavior ?? (activeWebInput ? "steer" : undefined);
+      const expectedForegroundExecutionId = activeWebInput
+        ? execution.control.activeWorks.find((work) => work.foregroundExecutionId)
+            ?.foregroundExecutionId
+        : undefined;
       // IME 候选期间 textRef 尚未接收最终 onChange；提交必须与 claim/恢复共用 Lexical 快照。
       const submittedDraft = snapshotDraftOfEditor();
       const trimmed = submittedDraft.text.trim();
@@ -1709,7 +1805,8 @@ function ConversationComposerImpl({
           telemetrySeed,
           onCommandCreated: subscribeToCommandResolution,
           ...(requestedDelivery ? { requestedDelivery } : {}),
-          ...(streamingBehavior ? { streamingBehavior } : {}),
+          ...(effectiveStreamingBehavior ? { streamingBehavior: effectiveStreamingBehavior } : {}),
+          ...(expectedForegroundExecutionId ? { expectedForegroundExecutionId } : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
           ...(readyAttachmentRefs.length > 0 ? { attachments: readyAttachmentRefs } : {}),
@@ -2456,7 +2553,7 @@ function ConversationComposerImpl({
         ) : null}
         {/* 业务辅助工具放在原生模型之后、发送之前，避免模型控制簇把右侧工具顺序截断。 */}
         {trailingToolsNode}
-        {streamingChoice ? (
+        {offerFollowUp ? (
           <>
             <Button
               type="button"
@@ -2492,7 +2589,7 @@ function ConversationComposerImpl({
             </Button>
           </ControlHintTooltip>
         ) : null}
-        {!streamingChoice && !showStopControl ? (
+        {!offerFollowUp && (!showStopControl || sessionBoundInput) ? (
           <ControlHintTooltip
             title={resolvedSendTooltipTitle}
             shortcut={resolvedSendTooltipShortcut}
@@ -2523,7 +2620,7 @@ function ConversationComposerImpl({
       handleFollowUp,
       sessionBoundInput,
       followUpLabel,
-      streamingChoice,
+      offerFollowUp,
       activeConfigPicker,
       composerPhase,
       composerUsage,
@@ -2732,6 +2829,8 @@ function ConversationComposerImpl({
           </div>
         ) : null}
         <div
+          onCompositionStart={sessionBoundInput ? () => setComposing(true) : undefined}
+          onCompositionEnd={sessionBoundInput ? () => setComposing(false) : undefined}
           className={
             previewMatches && !previewExpanded ? "[&_[contenteditable]]:hidden" : undefined
           }
@@ -2763,7 +2862,7 @@ function ConversationComposerImpl({
             submitDisabled={
               pending ||
               connectionPending ||
-              streamingChoice ||
+              offerFollowUp ||
               (!canReload &&
                 (runtimeBlocked || !routingAllowsSend || !attachmentsReady || !submissionReady))
             }

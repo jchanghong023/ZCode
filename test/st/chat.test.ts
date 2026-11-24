@@ -367,8 +367,36 @@ it("shares live chat across anonymous connections and isolates AIReq histories i
         (work) => work.sourceCommandId === stopId,
       )?.foregroundExecutionId;
       expect(expectedForegroundExecutionId).toEqual(expect.any(String));
+      const pendingText = unique("stop-returns-steer");
+      const pendingId = unique("pending");
+      requireAccepted(
+        await native.send(
+          "sendText",
+          { text: pendingText, streamingBehavior: "steer", expectedForegroundExecutionId },
+          { commandId: pendingId },
+        ),
+      );
       requireAccepted(await native.send("stop", { expectedForegroundExecutionId }));
-      expect((await native.waitIdle()).control.phase).toBe("completedInterrupted");
+      const interrupted = await native.waitIdle();
+      expect(interrupted.control.phase).toBe("completedInterrupted");
+      expect(interrupted.queue.items).toEqual([]);
+      expect(interrupted.queue.returnedInputs).toEqual([
+        { sourceCommandId: pendingId, text: pendingText, attachments: [] },
+      ]);
+      expect(interrupted.rows.window).not.toContainEqual(
+        expect.objectContaining({ kind: "userInput", sourceCommandId: pendingId }),
+      );
+      requireAccepted(await native.send("acknowledgeReturnedInputs", { commandIds: [pendingId] }));
+      expect((await native.snapshot()).queue.returnedInputs).toBeUndefined();
+      const lateSteer = await native.send("sendText", {
+        text: "停止后才到达的旧回合输入。",
+        streamingBehavior: "steer",
+        expectedForegroundExecutionId,
+      });
+      expect(lateSteer).toMatchObject({
+        status: "rejected",
+        reasonCode: "guard.chat.executionChanged",
+      });
 
       const otherGroups = await otherService.listRecentChatSessions();
       expect(otherGroups).toEqual(await service.listRecentChatSessions());

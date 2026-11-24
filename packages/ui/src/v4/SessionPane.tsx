@@ -2074,6 +2074,9 @@ export function SessionPane({
           text,
           ...(!sessionBoundInput ? submission : {}),
           ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
+          ...(options?.expectedForegroundExecutionId
+            ? { expectedForegroundExecutionId: options.expectedForegroundExecutionId }
+            : {}),
           ...(options?.requestedDelivery ? { requestedDelivery: options.requestedDelivery } : {}),
           conversationQuotes: options?.conversationQuotes,
           ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
@@ -2479,6 +2482,9 @@ export function SessionPane({
               ...(!sessionBoundInput ? options?.submission : {}),
               ...(options?.streamingBehavior
                 ? { streamingBehavior: options.streamingBehavior }
+                : {}),
+              ...(options?.expectedForegroundExecutionId
+                ? { expectedForegroundExecutionId: options.expectedForegroundExecutionId }
                 : {}),
               attachments: options?.attachments ?? [],
               conversationQuotes: options?.conversationQuotes ?? [],
@@ -3524,6 +3530,17 @@ export function SessionPane({
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 普通观察视图隐藏输入；业务讨论显式保留禁用输入，沿原草稿 owner 显示只读原因。
   const showComposer = !readOnly || retainReadOnlyComposer;
+  const acknowledgeReturnedInputs = useCallback(
+    (commandIds: string[]) =>
+      sendCommand(
+        createCommandEnvelope({
+          type: "acknowledgeReturnedInputs",
+          sessionId,
+          payload: { commandIds },
+        }),
+      ),
+    [sendCommand, sessionId],
+  );
   const composerNode = !showComposer ? null : (
     <ConversationComposer
       key="conversation-composer"
@@ -3542,6 +3559,11 @@ export function SessionPane({
       inputPending={state.optimisticCommands.some((command) =>
         requiresAcceptedInputProjection(command.type),
       )}
+      acknowledgeReturnedInputs={
+        sessionBoundInput && !readOnly && runtimeReady && remoteAvailable
+          ? acknowledgeReturnedInputs
+          : undefined
+      }
       sessionId={sessionId}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
@@ -3709,13 +3731,7 @@ export function SessionPane({
           </pre>
         </div>
       ) : null}
-      {sessionBoundInput && snapshot && snapshot.sessionId === sessionId ? (
-        <ConversationQueuePanel
-          key="conversation-queue"
-          queue={snapshot.queue}
-          readOnlyLabel={locale === "zh-CN" ? "待交付输入" : "Pending inputs"}
-        />
-      ) : !sessionBoundInput && !readOnly && runtimeReady && sessionId && snapshot ? (
+      {!sessionBoundInput && !readOnly && runtimeReady && sessionId && snapshot ? (
         <ConversationQueuePanel
           key="conversation-queue"
           queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}

@@ -81,7 +81,11 @@ function hasAcceptedInputProjection(
   commandId: string,
 ): boolean {
   if (!snapshot) return false;
-  if (snapshot.queue.items.some((item) => item.sourceCommandId === commandId)) return true;
+  if (
+    snapshot.queue.items.some((item) => item.sourceCommandId === commandId) ||
+    snapshot.queue.returnedInputs?.some((item) => item.sourceCommandId === commandId)
+  )
+    return true;
   return snapshot.rows.window.some(
     (row) =>
       row.kind === "userInput" && row.origin === "realUser" && row.sourceCommandId === commandId,
@@ -1470,6 +1474,9 @@ export class ConversationProjectionStore {
     );
     const inputProjectionIds = new Set<string>();
     for (const item of snapshot.queue.items) {
+      inputProjectionIds.add(item.sourceCommandId);
+    }
+    for (const item of snapshot.queue.returnedInputs ?? []) {
       inputProjectionIds.add(item.sourceCommandId);
     }
     for (const row of snapshot.rows.window) {

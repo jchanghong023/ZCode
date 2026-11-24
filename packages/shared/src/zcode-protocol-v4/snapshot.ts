@@ -241,8 +241,17 @@ export const queueItemSchema = conversationInputIntentSchema.extend({
 });
 export type QueueItem = z.infer<typeof queueItemSchema>;
 
+const returnedInputSchema = queueItemSchema.pick({
+  sourceCommandId: true,
+  text: true,
+  attachments: true,
+  conversationQuotes: true,
+});
+export type ReturnedConversationInput = z.infer<typeof returnedInputSchema>;
+
 export const queueStateSchema = z.object({
   items: z.array(queueItemSchema),
+  returnedInputs: z.array(returnedInputSchema).optional(),
   // stop 后 = false（暂停队列）；setAutoDrain 恢复。
   autoDrain: z.boolean(),
   // additive：旧快照缺省时 UI 使用通用暂停文案；Stop/TurnError 可显示原因文案。

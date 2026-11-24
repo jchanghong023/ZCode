@@ -11,10 +11,14 @@ import {
   type CommandKey,
   type CommandPayloadMap,
   type CommandEnvelope,
+  type ReturnedConversationInput,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { AgentConnection } from "./useAgentConnection.js";
 
-type StreamingBehavior = NonNullable<CommandPayloadMap["sendText"]["streamingBehavior"]>;
+type StreamingOptions = Pick<
+  CommandPayloadMap["sendText"],
+  "streamingBehavior" | "expectedForegroundExecutionId"
+>;
 
 export interface ChatDraft {
   text: string;
@@ -117,6 +121,29 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
   const [pending] = useState(() => new Map<string, PendingSend>());
   const key = draftKeyOf(state.target);
   const draft = state.drafts[key] ?? emptyDraft;
+  const restoreReturnedInputs = useCallback(
+    (inputs: readonly ReturnedConversationInput[]) => {
+      const send = pending.get(key);
+      if (send && !inputs.some((input) => input.sourceCommandId === send.command.commandId))
+        return false;
+      if (!send && draft.receipt) return false;
+      if (send) pending.delete(key);
+      setState((current) =>
+        updateDraft(current, key, (previous) => {
+          // A return also proves admission if the original send ACK has not arrived.
+          const localText = send?.draftVersion === previous.version ? "" : previous.text;
+          return {
+            ...previous,
+            text: [...inputs.map((input) => input.text), localText].filter(Boolean).join("\n\n"),
+            version: previous.version + 1,
+            receipt: undefined,
+          };
+        }),
+      );
+      return true;
+    },
+    [draft.receipt, key, pending],
+  );
 
   const updateReceipt = useCallback(
     (send: PendingSend, receipt: ChatDraft["receipt"]) => {
@@ -214,7 +241,7 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
   async function send(
     text: string,
     model: ModelSelection | null,
-    streamingBehavior?: StreamingBehavior,
+    streamingOptions?: StreamingOptions,
   ) {
     if (!connection || pending.has(key) || !text.trim()) return;
     const target = state.target;
@@ -225,7 +252,7 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
     const request = target
       ? conversationCommand(connection, workspace, target.sessionId, "sendText", {
           text,
-          ...(streamingBehavior && { streamingBehavior }),
+          ...streamingOptions,
         })
       : conversationCommand(connection, workspace, null, "createSession", {
           config: { modelSelection: model },
@@ -269,6 +296,7 @@ export function useChatInput(connection: AgentConnection | null, onActivity: () 
     target: state.target,
     draftKey: key,
     draft,
+    restoreReturnedInputs,
     directory: state.directory,
     draftModel: state.draftModel,
     select: (target: ZCodeAgentSessionTarget | null) =>

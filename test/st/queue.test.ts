@@ -107,17 +107,25 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
   }
 });
 
-it("stops only the expected execution and keeps undispatched follow-up as preview without replay", async () => {
+it("stops only the expected execution and returns undispatched inputs to their authors", async () => {
   const c = await connectST();
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
+  let peerClient: STClient | undefined;
+  let peer: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
     const proposal = await createProposal(c);
     native = await openNative(c, proposal.remote);
+    peerClient = await connectST(c.identity.employeeId);
+    peer = await openNative(peerClient, proposal.remote);
     const before = getProposal(proposal.remote, proposal);
     const startId = unique("stop-target");
     const followUpId = unique("pending-at-stop");
+    const secondId = unique("second-pending-at-stop");
+    const peerId = unique("peer-pending-at-stop");
     const laterId = unique("later-work");
     const text = "补充需求：记录人工验收人的角色。";
+    const secondText = "补充需求：保留验收记录。";
+    const peerText = "补充需求：附上错误处理流程。";
     const [started, queued, running] = await Promise.all([
       native.send("sendText", { text: "请梳理范围和边界条件。" }, { commandId: startId }),
       native.send("sendText", { text, streamingBehavior: "followUp" }, { commandId: followUpId }),
@@ -157,10 +165,43 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
     expect(afterRejected.control.activeWorks).toEqual(running.control.activeWorks);
     expect(afterRejected.queue).toEqual(running.queue);
 
+    requireAccepted(
+      await peer.send(
+        "sendText",
+        { text: peerText, streamingBehavior: "followUp" },
+        { commandId: peerId },
+      ),
+    );
+    requireAccepted(
+      await native.send(
+        "sendText",
+        { text: secondText, streamingBehavior: "followUp" },
+        { commandId: secondId },
+      ),
+    );
     requireAccepted(await native.send("stop", { expectedForegroundExecutionId }));
     const stopped = await native.waitIdle();
     expect(stopped.control.phase).toBe("completedInterrupted");
-    expect(stopped.queue.items).toEqual(preview);
+    expect(stopped.queue.items).toEqual([]);
+    const returned = (sourceCommandId: string, text: string) => ({
+      sourceCommandId,
+      text,
+      attachments: [],
+    });
+    expect(stopped.queue.returnedInputs).toEqual([
+      returned(followUpId, text),
+      returned(secondId, secondText),
+    ]);
+    expect((await peer.snapshot()).queue.returnedInputs).toEqual([returned(peerId, peerText)]);
+    expect(
+      (await peer.send("acknowledgeReturnedInputs", { commandIds: [followUpId, secondId] })).status,
+    ).toBe("noop");
+    expect((await native.snapshot()).queue.returnedInputs).toEqual(stopped.queue.returnedInputs);
+    requireAccepted(
+      await native.send("acknowledgeReturnedInputs", { commandIds: [followUpId, secondId] }),
+    );
+    expect((await native.snapshot()).queue.returnedInputs).toBeUndefined();
+    expect((await peer.snapshot()).queue.returnedInputs).toEqual([returned(peerId, peerText)]);
     expect(stopped.availability.queueEdit.allowed).toBe(false);
     expect(stopped.availability.sendQueuedNow.allowed).toBe(false);
     expect(stopped.availability.setFollowupMode.allowed).toBe(false);
@@ -191,9 +232,9 @@ it("stops only the expected execution and keeps undispatched follow-up as previe
     ).toMatchObject({ state: "completedInterrupted" });
   } finally {
     try {
-      await native?.close();
+      await Promise.all([peer?.close(), native?.close()]);
     } finally {
-      await c.close();
+      await Promise.all([peerClient?.close(), c.close()]);
     }
   }
 });

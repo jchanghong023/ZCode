@@ -84,6 +84,7 @@ export interface LexicalChatInputHandle {
   getMarkdown: () => string;
   getText: () => string;
   appendText: (text: string) => void;
+  prependDraftText: (text: string) => boolean;
   appendFileMention: (
     label: string,
     value: string,
@@ -213,6 +214,26 @@ function replaceEditorText(editor: LexicalEditor, text: string) {
     },
     { tag: PROGRAMMATIC_UPDATE_TAG },
   );
+}
+
+function prependEditorDraftText(editor: LexicalEditor, text: string): boolean {
+  if (editor.isComposing()) return false;
+  if (!text) return true;
+  editor.update(
+    () => {
+      const root = $getRoot();
+      const paragraphs = text.split("\n\n").map((line) => {
+        const paragraph = $createParagraphNode();
+        if (line) paragraph.append($createTextNode(line));
+        return paragraph;
+      });
+      const empty = !$getPromptMarkdown();
+      root.splice(0, empty ? root.getChildrenSize() : 0, paragraphs);
+      if (empty) root.getLastChild()?.selectEnd();
+    },
+    { discrete: true, tag: PROGRAMMATIC_UPDATE_TAG },
+  );
+  return true;
 }
 
 export function replaceEditorWithMention(
@@ -1260,6 +1281,7 @@ function EditorApiPlugin({
       getMarkdown: () => getEditorMarkdown(editor.getEditorState()),
       getText: () => getEditorMarkdown(editor.getEditorState()),
       appendText: (text: string) => appendEditorPlainText(editor, text),
+      prependDraftText: (text) => prependEditorDraftText(editor, text),
       appendFileMention: (
         label: string,
         value: string,

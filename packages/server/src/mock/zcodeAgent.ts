@@ -121,12 +121,14 @@ const AIREQ_COMMANDS: ReadonlySet<CommandType> = new Set([
   "sendText",
   "stop",
   "renameSession",
+  "acknowledgeReturnedInputs",
 ]);
 const CHAT_COMMANDS: ReadonlySet<CommandType> = new Set([
   "createSession",
   "sendText",
   "stop",
   "switchModelConfig",
+  "acknowledgeReturnedInputs",
 ]);
 
 // Channel 的扁平工作区目标复用 wire 的实际输入规则；仅保留连接 facade 注入的可信载体。
@@ -154,6 +156,7 @@ const strictConversationTopicFrameSchema = conversationTopicFrameSchema.strict()
 interface ConversationSubscription {
   sessionId: string;
   ordinal: number;
+  actor: string;
   canRead?: () => boolean;
 }
 
@@ -191,6 +194,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       mime: string;
       fileName: string;
       workspaceKey: string;
+      returnedToDraft?: true;
     }
   >();
   constructor(
@@ -356,13 +360,37 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         : ([[targetSubscriptionId, this.conversationSubs.get(targetSubscriptionId)]] as const);
     for (const [subscriptionId, sub] of subscriptions) {
       if (sub?.sessionId !== session.sessionId || sub.canRead?.() === false) continue;
+      const returnedInputs = session.returnedInputs?.get(sub.actor);
+      let projected = payload;
+      if (returnedInputs?.length) {
+        projected =
+          payload.kind === "snapshot"
+            ? {
+                ...payload,
+                snapshot: {
+                  ...payload.snapshot,
+                  queue: { ...payload.snapshot.queue, returnedInputs },
+                },
+              }
+            : {
+                ...payload,
+                deltas: payload.deltas.map((delta) =>
+                  delta.op === "state.updated" && delta.patch.queue
+                    ? {
+                        ...delta,
+                        patch: { ...delta.patch, queue: { ...delta.patch.queue, returnedInputs } },
+                      }
+                    : delta,
+                ),
+              };
+      }
       const frame: ConversationTopicFrame = {
         topic,
         subscriptionId,
         fromSeq,
         toSeq,
         sentAt: Date.now(),
-        payload,
+        payload: projected,
       };
       const logical = strictConversationTopicFrameSchema.parse(fitSnapshotTail(frame));
       for (const wire of encodeTopicWireFrames(logical, {
@@ -657,7 +685,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (documentReview) return;
       for (let index = 0; index < session.queuedInputs.length; ) {
         const queued = session.queuedInputs[index]!;
-        if (queued.retained || queued.item.delivery.admitted !== "guide") {
+        if (queued.item.delivery.admitted !== "guide") {
           index += 1;
           continue;
         }
@@ -692,6 +720,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (documentReview) {
         reply = documentReview.settle("completed", documentReview.execute());
         work.finishReview(reply);
+        this.returnPendingInputs(session, false);
       } else if (this.business) {
         const result = this.business.prepareNativeResult(session.sessionId, startedCommands);
         reply = this.business.completeNative(session.sessionId, result);
@@ -757,16 +786,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         at: endedAt,
         source: "runtime",
       };
-    // 停止后的原生输入保持原有保留机制，评审可在最新材料上重新发起。
-    session.queuedInputs = session.queuedInputs.filter(({ documentReview }) => {
-      if (!documentReview) return true;
-      documentReview.settle("failed", `${documentReview.title}尚未开始，已随会话中断取消。`);
-      return false;
-    });
-    if (session.queuedInputs.some((input) => !input.retained)) {
-      for (const input of session.queuedInputs) input.retained = true;
-      session.pauseReason = error ? "error" : "stopped";
-    }
+    this.returnPendingInputs(session, true);
     this.upsertRow(session, {
       ...turnHeader,
       state: error ? "failed" : "completedInterrupted",
@@ -774,6 +794,27 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       activeMs: endedAt - turnHeader.startedAt,
     });
     this.patchExecution(session);
+  }
+
+  private returnPendingInputs(session: MockSession, includeFollowUps: boolean): void {
+    session.queuedInputs = session.queuedInputs.filter(({ item, actor, documentReview }) => {
+      if (!includeFollowUps && item.delivery.admitted !== "guide") return true;
+      if (documentReview) {
+        documentReview.settle("failed", `${documentReview.title}尚未开始，已随会话中断取消。`);
+      } else {
+        const { sourceCommandId, text, attachments, conversationQuotes } = item;
+        this.business?.discardNative(session.sessionId, sourceCommandId);
+        for (const { ref } of attachments) {
+          const attachment = this.attachments.get(ref);
+          if (attachment) attachment.returnedToDraft = true;
+        }
+        const returned = (session.returnedInputs ??= new Map());
+        const inputs = returned.get(actor) ?? [];
+        inputs.push({ sourceCommandId, text, attachments, conversationQuotes });
+        returned.set(actor, inputs);
+      }
+      return false;
+    });
   }
 
   private patchExecution(session: MockSession): void {
@@ -963,14 +1004,21 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       return;
     }
     const item = this.createQueueItem(session, input, "queue");
-    if (
-      jsonByteLength(projectMockQueue(session).items) + jsonByteLength(item) + 1 >
-      CHAT_QUEUE_MAX_BYTES
-    )
+    if (this.exceedsPendingInputBudget(session, item))
       throw businessRule("待发送的消息过多，请等当前回合处理完成。");
     session.nextAdmissionSeq += 1;
-    session.queuedInputs.push({ item, documentReview });
+    session.queuedInputs.push({ item, documentReview, actor: this.actorKey() ?? "mock" });
     this.patchQueue(session);
+  }
+
+  private exceedsPendingInputBudget(session: MockSession, item: QueueItem): boolean {
+    let returnedBytes = 0;
+    for (const inputs of session.returnedInputs?.values() ?? [])
+      returnedBytes = Math.max(returnedBytes, jsonByteLength(inputs));
+    return (
+      returnedBytes + jsonByteLength(projectMockQueue(session).items) + jsonByteLength(item) + 1 >
+      CHAT_QUEUE_MAX_BYTES
+    );
   }
 
   private startTurn(session: MockSession, input: MockInput): void {
@@ -990,9 +1038,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   private maybeStartFollowUp(session: MockSession): void {
     if (this.runtime.sessions.get(session.sessionId) !== session || session.activeTurn) return;
-    const index = session.queuedInputs.findIndex(
-      ({ item, retained }) => !retained && item.delivery.admitted === "queue",
-    );
+    const index = session.queuedInputs.findIndex(({ item }) => item.delivery.admitted === "queue");
     if (index < 0) return;
     const [next] = session.queuedInputs.splice(index, 1);
     this.startTurn(session, this.queuedInput(next!));
@@ -1245,6 +1291,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           key === "text" ||
           key === "attachments" ||
           key === "streamingBehavior" ||
+          key === "expectedForegroundExecutionId" ||
           (key === "conversationQuotes" && this.business !== undefined),
       )
     );
@@ -1273,6 +1320,16 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
     if (!this.business && !this.standalone) return this.rejectUnsupported(envelope, session);
     const payload = envelope.payload as MockTextSubmission;
+    if (
+      payload.expectedForegroundExecutionId &&
+      payload.expectedForegroundExecutionId !== session.activeTurn?.work.foregroundExecutionId
+    )
+      return this.reject(
+        envelope,
+        session,
+        "guard.chat.executionChanged",
+        "当前执行已结束或变化，草稿已保留。",
+      );
     const parsed = this.parseConversationInput(payload.text, session.skills);
     if (parsed.kind === "rejected")
       return this.reject(
@@ -1306,17 +1363,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     context?: MockInputContext,
   ): CommandAck {
     const input = this.makeInput(envelope, payload, context);
-    // 子代理只读冻结快照；普通消息排在其后，不能改变评审输入。
-    const delivery =
-      payload.streamingBehavior === "steer" && !session.activeTurn?.documentReview
-        ? "guide"
-        : "queue";
+    // 评审使用冻结快照，期间未交付的引导输入在评审结束后退回草稿。
+    const delivery = payload.streamingBehavior === "steer" ? "guide" : "queue";
     const queued = session.activeTurn ? this.createQueueItem(session, input, delivery) : undefined;
-    if (
-      queued &&
-      jsonByteLength(projectMockQueue(session).items) + jsonByteLength(queued) + 1 >
-        CHAT_QUEUE_MAX_BYTES
-    )
+    if (queued && this.exceedsPendingInputBudget(session, queued))
       return this.reject(
         envelope,
         session,
@@ -1327,7 +1377,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.business?.admitNative(session.sessionId, envelope.commandId, payload.text);
     if (queued) {
       session.nextAdmissionSeq += 1;
-      session.queuedInputs.push({ item: queued, context });
+      session.queuedInputs.push({ item: queued, context, actor: this.actorKey() ?? "mock" });
       this.patchQueue(session);
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
@@ -1372,7 +1422,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const session = this.ensureSession({
       sessionId: envelope.sessionId!,
       workspace: envelope.workspace,
-      allowSeed: envelope.type !== "switchModelConfig",
+      allowSeed:
+        envelope.type !== "switchModelConfig" && envelope.type !== "acknowledgeReturnedInputs",
     });
     if (envelope.type === "switchModelConfig" && envelope.baseRevision !== session.revision) {
       return {
@@ -1388,6 +1439,20 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     switch (envelope.type) {
       case "sendText":
         return this.sendTextInternal(session, envelope);
+      case "acknowledgeReturnedInputs": {
+        const actor = this.actorKey() ?? "mock";
+        const returned = session.returnedInputs?.get(actor);
+        if (!returned?.length) return this.ackNoop(envelope, session);
+        const ids = new Set(
+          (envelope.payload as CommandPayloadMap["acknowledgeReturnedInputs"]).commandIds,
+        );
+        const remaining = returned.filter(({ sourceCommandId }) => !ids.has(sourceCommandId));
+        if (remaining.length === returned.length) return this.ackNoop(envelope, session);
+        if (remaining.length) session.returnedInputs?.set(actor, remaining);
+        else session.returnedInputs?.delete(actor);
+        this.patchQueue(session);
+        return this.ackAccepted(envelope);
+      }
       case "stop": {
         const active = session.activeTurn;
         if (!active) return this.ackNoop(envelope, session);
@@ -1498,6 +1563,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.conversationSubs.set(subscriptionId, {
       sessionId: session.sessionId,
       ordinal: 0,
+      actor: this.actorKey() ?? "mock",
       canRead,
     });
     try {
@@ -1861,6 +1927,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (value && value.sessionId !== params.sessionId) throw new Error("上传归属不符。");
     if (
       value?.ref &&
+      !this.attachments.get(value.ref)?.returnedToDraft &&
       ![...this.runtime.sessions.values()].some(
         (session) =>
           // ACK 后草稿 abort 只能移除暂存句柄，已接纳输入仍持有真实字节。
@@ -1924,7 +1991,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           upload.ref === params.ref &&
           upload.actor === (this.business?.actorKey() ?? "mock"),
       );
-    if (!adopted && !queued && !draft) throw new Error("附件不属于当前会话投影。");
+    if (!adopted && !queued && !draft && !(value.returnedToDraft && !params.target))
+      throw new Error("附件不属于当前会话投影。");
     return value;
   }
   async attachmentReadV4(params: P<WebAIReqAgent["attachmentReadV4"]>) {

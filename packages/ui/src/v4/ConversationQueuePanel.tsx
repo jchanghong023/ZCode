@@ -35,8 +35,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 export interface ConversationQueuePanelProps {
   queue: QueueState;
-  /** Show pending inputs without exposing queue management or a held-queue policy. */
-  readOnlyLabel?: string;
   /** 删除队列项（deleteQueueItem command）。 */
   onDeleteItem?: (queueItemId: string) => void;
   /** 在底部 composer 编辑该项：先冻结（lockQueueItemEdit），accepted 后进入编辑态。 */
@@ -149,7 +147,6 @@ interface QueueRowProps {
   index: number;
   intl: ReturnType<typeof useZCodeIntl>["intl"];
   sortable: boolean;
-  readOnly?: boolean;
   onDeleteItem?: (queueItemId: string) => void;
   onEditItem?: (queueItemId: string) => Promise<void> | void;
   editPending: boolean;
@@ -164,7 +161,6 @@ const QueueRow = memo(function QueueRow({
   index,
   intl,
   sortable,
-  readOnly = false,
   onDeleteItem,
   onEditItem,
   onSendNow,
@@ -238,25 +234,23 @@ const QueueRow = memo(function QueueRow({
       )}
       style={style}
     >
-      {!readOnly ? (
-        <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.drag" })}>
-          <Button
-            ref={setActivatorNodeRef}
-            type="button"
-            variant="ghost"
-            size="icon-md"
-            data-v4-queue-drag-handle="true"
-            data-queue-item-id={item.queueItemId}
-            aria-label={intl.formatMessage({ id: "chat.queue.drag" })}
-            className="shrink-0 cursor-grab touch-none text-foreground-subtlest active:cursor-grabbing"
-            disabled={rowLocked}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" />
-          </Button>
-        </ControlHintTooltip>
-      ) : null}
+      <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.drag" })}>
+        <Button
+          ref={setActivatorNodeRef}
+          type="button"
+          variant="ghost"
+          size="icon-md"
+          data-v4-queue-drag-handle="true"
+          data-queue-item-id={item.queueItemId}
+          aria-label={intl.formatMessage({ id: "chat.queue.drag" })}
+          className="shrink-0 cursor-grab touch-none text-foreground-subtlest active:cursor-grabbing"
+          disabled={rowLocked}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </Button>
+      </ControlHintTooltip>
       <span
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 truncate text-ui-base text-foreground",
@@ -379,7 +373,6 @@ const QueueRow = memo(function QueueRow({
  */
 function ConversationQueuePanelImpl({
   queue,
-  readOnlyLabel,
   onDeleteItem,
   onEditItem,
   pendingEditQueueItemId = null,
@@ -425,32 +418,6 @@ function ConversationQueuePanelImpl({
   }, [onResume, resumePending]);
 
   if (queue.items.length === 0) return null;
-  if (readOnlyLabel) {
-    return (
-      <section
-        aria-label={readOnlyLabel}
-        data-testid={TID_V4_QUEUE}
-        data-queue-count={queue.items.length}
-        className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2"
-      >
-        <h3 className="mb-1 text-ui-caption font-medium">{readOnlyLabel}</h3>
-        <ul className="max-h-28 space-y-0.5 overflow-auto">
-          {queue.items.map((item, index) => (
-            <QueueRow
-              key={item.queueItemId}
-              item={item}
-              index={index}
-              intl={intl}
-              sortable={false}
-              readOnly
-              editPending={false}
-              editLockOwner={null}
-            />
-          ))}
-        </ul>
-      </section>
-    );
-  }
   // 补回 v4 视觉迁移时漏掉的旧队列面板 blur 层，让列表保持贴合 composer 的磨砂背景。
   return (
     <div

@@ -20,6 +20,7 @@ import {
   ConversationStatusPanel,
   ConversationDraftEmptyState,
   DEFAULT_CODE_PREVIEW_SETTINGS,
+  useReturnedConversationInputs,
   type ConversationRowRenderContext,
 } from "@zcode/ui/web-chat-view";
 import { ChatComposer } from "./ChatComposer.js";
@@ -139,6 +140,7 @@ function ChatPane({
   const [error, setError] = useState("");
   const [switchingModel, setSwitchingModel] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [composing, setComposing] = useState(false);
   const selectedModel = target
     ? (conversation.modelSelection ?? null)
     : (draftModel ?? connection?.modelCatalog.effectiveSelection ?? null);
@@ -151,6 +153,36 @@ function ChatPane({
           ?.foregroundExecutionId
       : undefined;
   const canSwitchModel = conversation.ready && conversation.availability?.switchModelConfig.allowed;
+  const acknowledgeReturnedInputs = useCallback(
+    async (commandIds: string[]) => {
+      if (!connection || !sessionId) return;
+      await submitConversationCommand(
+        connection,
+        conversationCommand(
+          connection,
+          { workspacePath, workspaceIdentity },
+          sessionId,
+          "acknowledgeReturnedInputs",
+          { commandIds },
+        ),
+      );
+    },
+    [connection, sessionId, workspaceIdentity, workspacePath],
+  );
+  useReturnedConversationInputs(
+    conversation.ready && connection && sessionId
+      ? JSON.stringify([
+          "chat",
+          connection.clientId,
+          workspaceIdentity ?? workspacePath,
+          sessionId,
+          logEpoch,
+        ])
+      : undefined,
+    conversation.returnedInputs,
+    composing ? undefined : input.restoreReturnedInputs,
+    acknowledgeReturnedInputs,
+  );
   useEffect(() => {
     if (phase === "completedSuccess" || phase === "completedInterrupted") onActivity();
   }, [phase, onActivity]);
@@ -221,11 +253,22 @@ function ChatPane({
   function send(text: string) {
     if (!canRouteInput || switchingModel || (target && !conversation.ready)) return;
     // 执行中的普通发送直接引导当前回合，发送键与 Enter 共用这条路径。
-    void input.send(text, selectedModel, routing === "streamingChoice" ? "steer" : undefined);
+    void input.send(
+      text,
+      selectedModel,
+      routing === "streamingChoice"
+        ? { streamingBehavior: "steer", expectedForegroundExecutionId: stopTarget }
+        : undefined,
+    );
   }
 
   return (
-    <main className="chat-main" id="chat-main">
+    <main
+      className="chat-main"
+      id="chat-main"
+      onCompositionStart={() => setComposing(true)}
+      onCompositionEnd={() => setComposing(false)}
+    >
       <header className="conversation-header">
         {mobileNavigation}
         <h1 className="conversation-title" title={conversation.title}>
@@ -268,16 +311,6 @@ function ChatPane({
           bottomDock={
             <>
               <div className="composer-notices">
-                {conversation.queue && conversation.queue.items.length > 0 && (
-                  <div className="chat-dock-notice">
-                    <strong>待交付消息</strong>
-                    <ul className="queued-inputs" aria-label="待交付消息">
-                      {conversation.queue.items.map((item) => (
-                        <li key={item.queueItemId}>{item.text}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
                 {draft.localResult && (
                   <div className="chat-dock-notice" role="status">
                     <strong>/{draft.localResult.name}</strong>

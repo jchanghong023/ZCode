@@ -187,7 +187,7 @@ export function useConversation(
     phase: view?.snapshot.control.phase,
     control: ready ? view?.snapshot.control : undefined,
     inputRouting: ready ? view?.snapshot.inputRouting : undefined,
-    queue: view?.snapshot.queue,
+    returnedInputs: ready ? view?.snapshot.queue.returnedInputs : undefined,
     availability: ready ? view?.snapshot.availability : undefined,
     title: view?.snapshot.meta.title,
     totalCount: view?.snapshot.rows.totalCount ?? 0,

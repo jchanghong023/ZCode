@@ -357,6 +357,9 @@ export class PendingCommandRegistry {
         settled.add(item.sourceCommandId);
       }
     }
+    for (const item of snapshot.queue.returnedInputs ?? []) {
+      settled.add(item.sourceCommandId);
+    }
     for (const row of snapshot.rows.window) {
       if (row.kind === "userInput" && row.sourceCommandId) {
         settled.add(row.sourceCommandId);

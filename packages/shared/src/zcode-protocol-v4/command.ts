@@ -143,6 +143,7 @@ export const commandPayloadSchemas = {
       // startNow 由 CLI 原子抢占当前 turn，不经过 queue admission。
       requestedDelivery: z.enum(["startNow", "queue", "guide"]).optional(),
       streamingBehavior: z.enum(["steer", "followUp"]).optional(),
+      expectedForegroundExecutionId: z.string().min(1).optional(),
       genUiContext: genUiModelContextSchema.optional(),
       browserAmbientContext: zcodeBrowserAmbientContextSchema.optional(),
       // Share handover 只允许当前 session 的一个已导入上下文；完整正文由 runtime 从
@@ -305,6 +306,7 @@ export const commandPayloadSchemas = {
     beforeQueueItemId: z.string().nullable(),
   }),
   deleteQueueItem: z.strictObject({ queueItemId: z.string() }),
+  acknowledgeReturnedInputs: z.strictObject({ commandIds: z.array(z.string().min(1)).min(1) }),
   setAutoDrain: z.strictObject({ autoDrain: z.boolean() }),
   // 先到先得，晚到 noop（reasonCode=proto.alreadyResolved）。
   resolveInteraction: z.strictObject({

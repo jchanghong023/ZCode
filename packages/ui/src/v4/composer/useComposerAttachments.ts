@@ -86,7 +86,10 @@ export interface ComposerAttachmentsApi {
   /** 草稿跨工作区时重新准备附件，不能继承旧 session 的上传引用。 */
   restoreDraftAttachments: (attachments: readonly ChatComposerAttachment[]) => void;
   /** 把已由 session 接管的 queue refs 原样恢复为 ready chips；不重复上传。 */
-  restoreSessionOwnedAttachments: (attachments: readonly AttachmentRef[]) => boolean;
+  restoreSessionOwnedAttachments: (
+    attachments: readonly AttachmentRef[],
+    merge?: boolean,
+  ) => boolean;
   /** 只返回已 ready ref；任一附件未就绪时返回 null 作 submit 二次门禁。 */
   prepareForSend: () => Promise<AttachmentRef[] | null>;
   /** 当前附件 scope 的 key；提交时冻结，供结算时传回。 */
@@ -913,13 +916,24 @@ export function useComposerAttachments(
   );
 
   const restoreSessionOwnedAttachments = useCallback(
-    (attachmentRefs: readonly AttachmentRef[]): boolean => {
+    (attachmentRefs: readonly AttachmentRef[], merge = false): boolean => {
       if (attachmentRefs.length === 0) return true;
-      if (readComposerAttachmentScope(scopeKey).length > 0) return false;
+      if (!merge && readComposerAttachmentScope(scopeKey).length > 0) return false;
       const restored = createSessionOwnedAttachmentItems(attachmentRefs);
       // queue 中的 AttachmentRef 已在首次发送时由 session 接管；若按普通
       // composer 文件重建会在撤回后重复上传，并在 runtime restart 时误清引用。
-      commitScope(scopeKey, () => restored);
+      commitScope(scopeKey, (current) => {
+        const refs = new Set(current.map((item) => item.attachmentRef?.ref));
+        return [
+          ...restored.filter((item) => {
+            const ref = item.attachmentRef?.ref;
+            if (refs.has(ref)) return false;
+            refs.add(ref);
+            return true;
+          }),
+          ...current,
+        ];
+      });
       setAttachmentError(null);
       return true;
     },

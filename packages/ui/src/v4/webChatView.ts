@@ -16,3 +16,4 @@ export { decodeCustomModelValue, encodeCustomModelValue } from "../lib/zcodeCust
 export { resolveModelThoughtOption } from "../lib/modelThoughtOption.js";
 export { getThoughtLevelLabel } from "../chat-input-toolbar/thoughtLevelOptions.js";
 export { DEFAULT_CODE_PREVIEW_SETTINGS } from "../lib/codePreviewSettings.js";
+export { useReturnedConversationInputs } from "./useReturnedConversationInputs.js";

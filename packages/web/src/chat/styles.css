@@ -317,13 +317,6 @@ body {
   justify-content: space-between;
   gap: 8px;
 }
-.queued-inputs {
-  max-height: 7rem;
-  margin: 4px 0 0;
-  padding-inline-start: 20px;
-  overflow: auto;
-}
-.queued-inputs li,
 .local-command-output {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

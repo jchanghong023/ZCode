@@ -21,6 +21,7 @@ const PUBLIC_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   "fault.command.invalidArguments": "命令参数无效，请检查后重试。",
   "guard.command.streamingBehaviorRequired": "请先选择引导当前任务或加入队列。",
   "guard.chat.queueFull": "待交付消息过多，请等当前任务处理完成。",
+  "guard.chat.executionChanged": "当前执行已结束或变化，草稿已保留。",
   "fault.sessionLifecycle.unsupported": "当前服务不支持重启会话，请重新连接。",
   "fault.command.invalidEnvelope": "请求无效，请刷新页面后重试。",
   "fault.attachment.invalidServerProgress": "附件上传状态异常，请重新上传。",
