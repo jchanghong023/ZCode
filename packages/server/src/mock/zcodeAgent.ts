@@ -1237,6 +1237,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           onEvent: (event) => {
             if (current()) rows.event(event);
           },
+          onSubagent: (event) => {
+            if (current()) rows.subagent(event);
+          },
           onContextUsage: (window) => {
             if (!current()) return;
             session.usage.contextWindow = window;

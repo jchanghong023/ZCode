@@ -139,8 +139,9 @@ if (args[0] === "clouddragon") {
   const {MCPManager, readMCPConfigFile} = await import("@oh-my-pi/pi-coding-agent/mcp");
   const {getSupportedEfforts} = await import("@oh-my-pi/pi-catalog/model-thinking");
   const {getSessionsDir} = await import("@oh-my-pi/pi-utils/dirs");
+  const {Settings} = await import("@oh-my-pi/pi-coding-agent/config/settings");
   const {startProduction} = await import(${JSON.stringify(productionServer)});
-  await startProduction({sdk:{createAgentSession, SessionManager, MCPManager, readMCPConfigFile, getSupportedEfforts, getSessionsDir}, staticRoot:resolve(installDir, "web"), args});
+  await startProduction({sdk:{createAgentSession, SessionManager, MCPManager, readMCPConfigFile, getSupportedEfforts, getSessionsDir, Settings}, staticRoot:resolve(installDir, "web"), args});
 }
 `,
     );

@@ -73,6 +73,7 @@ interface Session {
   modelRegistry: { getAvailable(): Model[]; find(provider: string, id: string): Model | undefined };
   configuredThinkingLevel(): string | undefined;
   getAvailableEffortSelectors(): readonly string[];
+  subagentEventBus?: { on(channel: string, listener: (data: unknown) => void): () => void };
   subscribe(fn: (event: OmpEvent) => void): () => void;
   prompt(text: string, options: { images?: ImageInput[]; throwOnDrop: boolean }): Promise<boolean>;
   abort(): Promise<void>;
@@ -90,6 +91,9 @@ interface Session {
 export interface SdkModules extends KnowledgeMcpSdk {
   createAgentSession(options: Record<string, unknown>): Promise<{ session: Session }>;
   getSessionsDir(): string;
+  Settings: {
+    loadReadOnly(options: { cwd: string; overrides: { async: { enabled: false } } }): Promise<object>;
+  };
   SessionManager: {
     create(cwd: string, sessionDir?: string): OmpSessionManager;
     listAll(): Promise<OmpTuiSessionInfo[]>;
@@ -130,6 +134,7 @@ export interface OmpTurn {
   onReady?: (config: OmpModelConfig) => void;
   onText: (text: string) => void;
   onEvent?: (event: OmpEvent) => void;
+  onSubagent?: (event: unknown) => void;
   onContextUsage?: (usage: {
     usedTokens: number;
     maxTokens: number;
@@ -408,8 +413,15 @@ export class OmpEngine implements WebModelSelectionService {
     }
     let session: Session;
     try {
+      const settings = turn.options?.subagentHooks
+        ? await this.sdk.Settings.loadReadOnly({
+            cwd: turn.cwd,
+            overrides: { async: { enabled: false } },
+          })
+        : undefined;
       ({ session } = await this.sdk.createAgentSession({
         ...turn.options,
+        ...(settings && { settings, bindProcessState: false }),
         cwd: turn.cwd,
         sessionManager: manager,
       }));
@@ -425,6 +437,9 @@ export class OmpEngine implements WebModelSelectionService {
     };
     let reply = "",
       failure: string | undefined;
+    const unsubscribeSubagents = turn.onSubagent
+      ? session.subagentEventBus?.on("task:subagent:lifecycle", turn.onSubagent)
+      : undefined;
     const unsubscribe = session.subscribe((event) => {
       if (turn.signal.aborted) return;
       if (event.type === "agent_start" && session.model && !this.live.has(turn.key)) {
@@ -525,7 +540,11 @@ export class OmpEngine implements WebModelSelectionService {
       turn.signal.removeEventListener("abort", abort);
       if (this.live.get(turn.key) === active) this.live.delete(turn.key);
       unsubscribe();
-      await session.dispose();
+      try {
+        await session.dispose();
+      } finally {
+        unsubscribeSubagents?.();
+      }
       // SDK 会清除未物化的空草稿；失败后重发不能打开不存在的日志。
       if (!file && allocatedFile && !(await Bun.file(allocatedFile).exists())) {
         if (source) turn.onSharedFile?.({ root: source.root });

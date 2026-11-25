@@ -14,15 +14,17 @@ export async function loadOmpSdk(): Promise<SdkModules> {
     }
     return import(pathToFileURL(entry).href);
   };
-  const [sdk, sessions, mcp, thinking, dirs] = await Promise.all([
+  const [sdk, sessions, mcp, thinking, dirs, settings] = await Promise.all([
     load("@oh-my-pi/pi-coding-agent/sdk"),
     load("@oh-my-pi/pi-coding-agent/session/session-manager"),
     load("@oh-my-pi/pi-coding-agent/mcp"),
     load("@oh-my-pi/pi-catalog/model-thinking"),
     load("@oh-my-pi/pi-utils/dirs"),
+    load("@oh-my-pi/pi-coding-agent/config/settings"),
   ]);
   const modules: SdkModules = {
     createAgentSession: sdk.createAgentSession,
+    Settings: settings.Settings,
     getSessionsDir: dirs.getSessionsDir,
     SessionManager: sessions.SessionManager,
     MCPManager: mcp.MCPManager,
@@ -32,6 +34,7 @@ export async function loadOmpSdk(): Promise<SdkModules> {
   if (
     [
       modules.createAgentSession,
+      modules.Settings?.loadReadOnly,
       modules.SessionManager?.create,
       modules.SessionManager?.listAll,
       modules.SessionManager?.open,

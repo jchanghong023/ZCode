@@ -60,6 +60,7 @@ function childState(
     return undefined;
   }
   switch (child.status) {
+    case "started":
     case "running":
       return "running";
     case "completed":
@@ -211,6 +212,15 @@ export class NativeRows {
     for (const index of this.blocks.keys()) this.closeBlock(index, state);
   }
 
+  subagent(event: unknown): void {
+    if (this.finished) return;
+    const child = record(event);
+    const toolId = child?.parentToolCallId;
+    // SDK 的异步 task 在父工具返回后才结算；总线终态仍用实际父调用关联。
+    if (typeof toolId === "string" && this.tools.get(toolId)?.toolName === "Task")
+      this.child(toolId, child, false);
+  }
+
   private tool(event: SourceEvent) {
     const { toolCallId, toolName } = event;
     if (!toolCallId || !toolName) return;
@@ -222,7 +232,7 @@ export class NativeRows {
         kind: "toolCall",
         assistantResponseId: this.responseId,
         toolCallId,
-        toolName,
+        toolName: toolName === "task" ? "Task" : toolName === "todo" ? "TodoWrite" : toolName,
         inputText: "",
         status: "running",
         startedAt: base.createdAt,
@@ -230,37 +240,42 @@ export class NativeRows {
       this.tools.set(toolCallId, row);
       this.sink.append(row);
     }
+    const details = record(record(event.partialResult ?? event.result)?.details);
     if (event.type === "tool_execution_end" && existing?.status === "running") {
       const status = event.cancelled ? "cancelled" : event.isError ? "error" : "success";
+      const plan = toolName === "todo" && status === "success" ? this.todo(details?.phases) : undefined;
       const row: ToolCallRow = {
         ...existing,
         status,
         endedAt: Date.now(),
+        ...(plan && {
+          output: {
+            text: JSON.stringify({
+              todos: plan.items.map(({ id, content, status }) => ({
+                id,
+                content,
+                status: status === "inProgress" ? "in_progress" : status,
+              })),
+            }),
+          },
+        }),
         ...(status === "error"
           ? { error: { code: "fault.omp.toolFailed", message: "OMP 工具执行失败。" } }
           : {}),
       };
       this.tools.set(toolCallId, row);
       this.sink.upsert(row);
+      if (plan) this.sink.setPlan?.(plan);
     }
-    const details = record(record(event.partialResult ?? event.result)?.details);
-    if (!details) return;
-    if (
-      toolName === "todo" &&
-      event.type === "tool_execution_end" &&
-      !event.isError &&
-      !event.cancelled
-    )
-      this.todo(details.phases);
-    if (toolName === "task") {
+    if (toolName === "task" && details) {
       if (Array.isArray(details.progress))
         for (const child of details.progress) this.child(toolCallId, child, false);
       if (Array.isArray(details.results))
         for (const child of details.results) this.child(toolCallId, child, true);
     }
   }
-  private todo(phases: unknown) {
-    if (!Array.isArray(phases) || !this.sink.setPlan) return;
+  private todo(phases: unknown): PlanState | undefined {
+    if (!Array.isArray(phases)) return;
     const items: PlanState["items"] = [];
     for (const [phaseIndex, value] of phases.entries()) {
       const phase = record(value);
@@ -274,7 +289,7 @@ export class NativeRows {
         items.push({ id: `${phaseIndex}:${taskIndex}`, content: task.content, status });
       }
     }
-    this.sink.setPlan({ items, updatedAt: Date.now() });
+    return { items, updatedAt: Date.now() };
   }
   private child(toolId: string, value: unknown, result: boolean) {
     const child = record(value);
@@ -310,8 +325,8 @@ export class NativeRows {
     }
     this.closeBlocks(state);
     // 缺少结束事件时不推测成功；只把被取消或失败的宿主执行收口。
+    const endedAt = Date.now();
     if (state !== "complete") {
-      const endedAt = Date.now();
       for (const row of this.tools.values())
         if (row.status === "running") {
           this.sink.upsert({
@@ -323,15 +338,16 @@ export class NativeRows {
               : {}),
           });
         }
-      for (const row of this.children.values())
-        if (row.status === "running") {
-          this.sink.upsert({
-            ...row,
-            status: state === "interrupted" ? "cancelled" : "failed",
-            endedAt,
-          });
-        }
     }
+    // 引擎已关闭本轮 SDK 会话；没有成功结算的子代理不能残留为运行中。
+    for (const row of this.children.values())
+      if (row.status === "running") {
+        this.sink.upsert({
+          ...row,
+          status: state === "failed" ? "failed" : "cancelled",
+          endedAt,
+        });
+      }
     this.finished = true;
   }
 }
