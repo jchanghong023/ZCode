@@ -4,10 +4,7 @@ import { Card } from "@/components/ui/card.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqRequirementCounts } from "../contract.js";
-import {
-  AIREQ_PAGE_TITLE_CLASSNAME,
-  AIREQ_WORKSPACE_GUTTER_CLASSNAME,
-} from "../shell/pageLayout.js";
+import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 
 export function AIReqProjectDocumentsPage({
   onConfigureProject,
@@ -20,10 +17,10 @@ export function AIReqProjectDocumentsPage({
   return (
     <main
       data-aireq-themed-page
-      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base"
+      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-progress"
     >
-      <div className={`${AIREQ_WORKSPACE_GUTTER_CLASSNAME} space-y-4 pb-3`}>
+      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-4`}>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "所有项目" : "All projects"}</h1>
           <Button
@@ -36,10 +33,7 @@ export function AIReqProjectDocumentsPage({
             {ai.pending ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
           </Button>
         </header>
-        <section
-          className="max-w-4xl space-y-3"
-          aria-label={zh ? "云龙项目" : "CloudDragon projects"}
-        >
+        <section className="space-y-3" aria-label={zh ? "云龙项目" : "CloudDragon projects"}>
           {ai.view?.projects.map((project) => {
             const releases =
               ai.view?.releases.filter((item) => item.projectId === project.id) ?? [];
