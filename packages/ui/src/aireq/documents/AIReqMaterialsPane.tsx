@@ -86,6 +86,11 @@ export function AIReqMaterialsPane({
   // 路径移除后回到当前默认文档。后续同路径再出现时不跳回旧选择。
   if (path && !selected) setPath(undefined);
   const viewingHistory = historyVersion !== undefined;
+  const discussingThisRequirement =
+    ai.mainView === "chat" &&
+    ai.selection.projectId === group.projectId &&
+    ai.selection.irId === group.id &&
+    ai.selection.discussionPhase === "requirements";
   const version = viewingHistory ? historical : group.documentVersion;
   const previousVersions = group.documentHistory.filter(
     (snapshot) => snapshot.number !== group.documentVersion?.number,
@@ -298,19 +303,45 @@ export function AIReqMaterialsPane({
               retry={failureRequest ? () => retryMaterial(failureRequest) : undefined}
             />
           ) : !material ? (
-            <p role="status" className="text-ui-base text-foreground-subtle">
-              {viewingHistory && !historical
-                ? zh
-                  ? "此历史版本暂不可用。"
-                  : "This historical version is unavailable."
-                : version
+            <div className="space-y-2">
+              <p role="status" className="text-ui-base text-foreground-subtle">
+                {viewingHistory && !historical
                   ? zh
-                    ? "此版本没有文件。"
-                    : "This version has no files."
-                  : zh
-                    ? "暂无文档"
-                    : "No documents yet"}
-            </p>
+                    ? "此历史版本暂不可用。"
+                    : "This historical version is unavailable."
+                  : version
+                    ? zh
+                      ? "此版本没有文件。"
+                      : "This version has no files."
+                    : zh
+                      ? "暂无文档"
+                      : "No documents yet"}
+              </p>
+              {!version && !viewingHistory && (
+                <>
+                  <p className="text-ui-caption text-foreground-subtle">
+                    {zh
+                      ? "在需求讨论中整理需求，保存的需求文档会显示在这里。"
+                      : "Use the requirements discussion to draft a document. Saved documents appear here."}
+                  </p>
+                  {!discussingThisRequirement && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        ai.select({
+                          projectId: group.projectId,
+                          irId: group.id,
+                          discussionPhase: "requirements",
+                        })
+                      }
+                    >
+                      {zh ? "讨论需求" : "Discuss requirements"}
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           ) : !material.content?.trim() ? (
             <p role="status" className="text-ui-sm text-foreground-subtle">
               {zh ? "文档没有正文。" : "This document is empty."}

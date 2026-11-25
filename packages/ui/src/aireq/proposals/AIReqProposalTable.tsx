@@ -1,22 +1,38 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME } from "../shell/pageLayout.js";
+import { AIReqProposalColumnConfig } from "./AIReqProposalColumnConfig.js";
 import { AIReqProposalFilters } from "./AIReqProposalFilters.js";
 import { AIReqProposalRow } from "./AIReqProposalRow.js";
+import { AIReqProposalListActions } from "./AIReqProposalListActions.js";
+import { useProposalTablePreferences } from "./useProposalTablePreferences.js";
 
-const EMPTY_FILTERS = { query: "", submitter: "all", version: "all" };
+import {
+  compareProposalValues,
+  defaultProposalPreferences,
+  defaultProposalSort,
+  proposalColumns,
+  proposalColumnValue,
+  type ProposalColumn,
+  type ProposalTablePreferences,
+} from "./proposalColumns.js";
+
+const EMPTY_FILTERS = { query: "", submitter: "all", version: "all", process: "all" };
 const PAGE_SIZE = 20;
 
 export function AIReqProposalTable() {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const columnConfig = useProposalTablePreferences(zh);
+  const { preferences } = columnConfig;
+  const { columns, sort } = preferences;
+  const collator = useMemo(() => new Intl.Collator(locale, { numeric: true }), [locale]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const { query, submitter, version } = filters;
+  const { query, submitter, version, process } = filters;
   const [page, setPage] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
@@ -28,48 +44,81 @@ export function AIReqProposalTable() {
       ? ai.selection.releaseId
       : undefined;
   const groups = useMemo(
-    () =>
-      (ai.view?.requirements ?? [])
-        .filter((item) => item.projectId === projectId)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    () => (ai.view?.requirements ?? []).filter((item) => item.projectId === projectId),
     [ai.view?.requirements, projectId],
   );
   const submitters = useMemo(
-    () => [...new Set(groups.map((item) => item.submittedBy))].sort(),
+    () => [...new Set(groups.map((item) => item.submittedBy).filter(Boolean))].sort(),
     [groups],
   );
+  const processes = [
+    ...new Set(groups.flatMap((item) => (item.process ? [item.process] : []))),
+  ].sort(collator.compare);
   const search = query.trim().toLocaleLowerCase();
-  const hasFilters = Boolean(releaseId || search || submitter !== "all" || version !== "all");
-  const filtered = groups.filter(
-    (item) =>
-      (!releaseId || item.releaseId === releaseId) &&
-      (!search ||
-        item.title.toLocaleLowerCase().includes(search) ||
-        item.originalText.toLocaleLowerCase().includes(search) ||
-        item.id.toLocaleLowerCase().includes(search)) &&
-      (submitter === "all" || item.submittedBy === submitter) &&
-      (version === "all" ||
-        Boolean(item.documentVersion?.confirmation) === (version === "confirmed")),
+  const hasFilters = Boolean(
+    releaseId || search || submitter !== "all" || version !== "all" || process !== "all",
   );
+  const filtered = groups
+    .filter(
+      (item) =>
+        (!releaseId || item.releaseId === releaseId) &&
+        (!search ||
+          item.title.toLocaleLowerCase().includes(search) ||
+          item.originalText.toLocaleLowerCase().includes(search) ||
+          item.id.toLocaleLowerCase().includes(search)) &&
+        (submitter === "all" || `submitter:${item.submittedBy}` === submitter) &&
+        (process === "all" || `process:${item.process}` === process) &&
+        (version === "all" ||
+          Boolean(item.documentVersion?.confirmation) === (version === "confirmed")),
+    )
+    .sort(
+      (a, b) =>
+        compareProposalValues(
+          proposalColumnValue(a, sort.column, releaseTitles),
+          proposalColumnValue(b, sort.column, releaseTitles),
+          sort.direction,
+          collator,
+        ) || b.createdAt.localeCompare(a.createdAt),
+    );
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
+  function updatePreferences(next: ProposalTablePreferences) {
+    columnConfig.save(next);
+    if (next.sort !== sort) setPage(0);
+  }
+  function sortBy(column: ProposalColumn) {
+    updatePreferences({
+      columns,
+      sort: {
+        column,
+        direction:
+          column === sort.column && sort.direction === "ascending" ? "descending" : "ascending",
+      },
+    });
+  }
+  function clearFilters() {
+    setFilters(EMPTY_FILTERS);
+    setPage(0);
+    if (releaseId && projectId) ai.openProject(projectId);
+  }
+  const actionsWidth = columns.includes("title") ? 152 : 184;
+  const tableWidth = columns.reduce((width, column) => width + proposalColumns[column].width, 0);
   const previousLabel = zh ? "上一页" : "Previous page";
   const nextLabel = zh ? "下一页" : "Next page";
   useLayoutEffect(() => setPage(0), [releaseId]);
   useLayoutEffect(() => {
     // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
     if (tableScroll.current) tableScroll.current.scrollTop = 0;
-  }, [currentPage, releaseId, search, submitter, version]);
+  }, [currentPage, releaseId, search, submitter, version, process, sort]);
   return (
     <main
       aria-label={zh ? "需求共创" : "Co-creation"}
-      className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
+      className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
-      <div
-        className={`${AIREQ_PAGE_CONTENT_CLASSNAME} flex h-full min-h-0 flex-col gap-4 pb-3 lg:pb-3`}
-      >
-        <header className="shrink-0">
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 px-3 pt-12 pb-3 2xl:px-6">
+        <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
+          <AIReqProposalListActions key={ai.selection.releaseId ?? ""} zh={zh} />
         </header>
         <section
           aria-label={zh ? "需求列表" : "Requirements list"}
@@ -79,6 +128,7 @@ export function AIReqProposalTable() {
             <AIReqProposalFilters
               filters={filters}
               submitters={submitters}
+              processes={processes}
               releases={releases}
               releaseId={releaseId}
               searchInput={searchInput}
@@ -90,49 +140,114 @@ export function AIReqProposalTable() {
               onReleaseChange={(id) => {
                 if (projectId) ai.openProject(projectId, id);
               }}
-            />
+              onClear={clearFilters}
+            >
+              <AIReqProposalColumnConfig
+                columns={columns}
+                disabled={!columnConfig.ready}
+                saving={columnConfig.saving}
+                error={columnConfig.error}
+                zh={zh}
+                onChange={(next) =>
+                  updatePreferences({
+                    columns: next,
+                    sort: next.includes(sort.column) ? sort : defaultProposalSort,
+                  })
+                }
+                onReset={() => updatePreferences(defaultProposalPreferences)}
+                onRetry={columnConfig.retry}
+              />
+            </AIReqProposalFilters>
+            {columnConfig.error && (
+              <div className="mt-2 flex items-center gap-2">
+                <p role="alert" className="text-ui-caption text-destructive">
+                  {columnConfig.error}
+                </p>
+                <Button type="button" variant="outline" onClick={columnConfig.retry}>
+                  {zh ? "重试" : "Retry"}
+                </Button>
+              </div>
+            )}
           </div>
-          <div ref={tableScroll} className="min-h-0 overflow-auto">
+          <div
+            ref={tableScroll}
+            role="region"
+            aria-label={zh ? "需求表格" : "Requirements table"}
+            tabIndex={0}
+            className="min-h-0 overflow-auto outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused"
+          >
             <table
               role="table"
-              className="w-full table-fixed text-left text-ui-base @max-[760px]/conversation:block"
+              className="w-full table-fixed text-left text-ui-base [--actions-width:var(--wide-actions-width)] @max-[620px]/conversation:[--actions-width:48px]"
+              style={
+                {
+                  "--wide-actions-width": `${actionsWidth}px`,
+                  minWidth: `calc(${tableWidth}px + var(--actions-width))`,
+                } as CSSProperties
+              }
             >
-              <colgroup className="@max-[760px]/conversation:hidden">
-                <col />
-                <col className="w-42" />
-                <col className="w-26" />
-                <col className="w-36" />
-                <col className="w-38" />
+              <colgroup>
+                {columns.map((column) => (
+                  <col
+                    key={column}
+                    style={
+                      column === "title" ? undefined : { width: proposalColumns[column].width }
+                    }
+                  />
+                ))}
+                <col className="w-(--actions-width)" />
               </colgroup>
               <thead
                 role="rowgroup"
-                className="sticky top-0 z-10 bg-card text-ui-caption text-foreground-subtle @max-[760px]/conversation:sr-only"
+                className="sticky top-0 z-20 bg-card text-ui-caption text-foreground-subtle"
               >
-                <tr role="row" className="border-b border-border/60 text-left">
-                  <th role="columnheader" scope="col" className="py-2 pl-4 text-left font-medium">
-                    {zh ? "标题" : "Title"}
-                  </th>
-                  <th role="columnheader" scope="col" className="py-2 text-left font-medium">
-                    {zh ? "需求编号" : "Requirement ID"}
-                  </th>
-                  <th role="columnheader" scope="col" className="py-2 text-left font-medium">
-                    Release
-                  </th>
-                  <th role="columnheader" scope="col" className="py-2 text-left font-medium">
-                    {zh ? "文档版本" : "Document version"}
-                  </th>
-                  <th role="columnheader" scope="col" className="py-2 pr-4 text-right font-medium">
+                <tr role="row" className="border-b border-border/60">
+                  {columns.map((column) => {
+                    const direction = sort.column === column ? sort.direction : undefined;
+                    const Indicator =
+                      direction === "ascending"
+                        ? ChevronUp
+                        : direction === "descending"
+                          ? ChevronDown
+                          : ChevronsUpDown;
+                    return (
+                      <th
+                        key={column}
+                        scope="col"
+                        aria-sort={direction}
+                        className={`px-3 py-1 text-left first:pl-4 ${column === "title" || column === "id" ? "first:@min-[760px]/conversation:sticky first:@min-[760px]/conversation:left-0 first:@min-[760px]/conversation:bg-card" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          disabled={!columnConfig.ready}
+                          onClick={() => sortBy(column)}
+                          className="inline-flex min-h-8 max-w-full items-center gap-1 rounded-sm text-left font-medium hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
+                        >
+                          {proposalColumns[column][zh ? "zh" : "en"]}
+                          <Indicator
+                            aria-hidden="true"
+                            className={`size-3.5 shrink-0 ${direction ? "text-foreground" : ""}`}
+                          />
+                        </button>
+                      </th>
+                    );
+                  })}
+                  <th
+                    scope="col"
+                    className="sticky right-0 z-10 border-l border-border bg-card py-2 pr-4 text-right font-medium @max-[620px]/conversation:pr-0 @max-[620px]/conversation:text-center"
+                  >
                     {zh ? "操作" : "Actions"}
                   </th>
                 </tr>
               </thead>
-              <tbody role="rowgroup" className="@max-[760px]/conversation:block">
+              <tbody role="rowgroup">
                 {filtered
                   .slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
                   .map((item) => (
                     <AIReqProposalRow
                       key={item.id}
                       item={item}
+                      columns={columns}
                       releaseTitle={
                         releaseTitles.get(item.releaseId) ?? (zh ? "未分配" : "Unassigned")
                       }
@@ -141,11 +256,11 @@ export function AIReqProposalTable() {
                     />
                   ))}
                 {!filtered.length && (
-                  <tr role="row" className="@max-[760px]/conversation:block">
+                  <tr role="row">
                     <td
                       role="cell"
-                      colSpan={5}
-                      className="px-4 py-10 text-center text-foreground-subtle @max-[760px]/conversation:block"
+                      colSpan={columns.length + 1}
+                      className="px-4 py-10 text-center text-foreground-subtle"
                     >
                       <p>
                         {groups.length
@@ -161,9 +276,7 @@ export function AIReqProposalTable() {
                           variant="ghost"
                           className="mt-2"
                           onClick={() => {
-                            setFilters(EMPTY_FILTERS);
-                            setPage(0);
-                            if (releaseId && projectId) ai.openProject(projectId);
+                            clearFilters();
                             searchInput.current?.focus();
                           }}
                         >

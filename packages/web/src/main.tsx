@@ -17,6 +17,7 @@ import {
 } from "@zcode/ui";
 import "./styles.css";
 import { connectViaWebSocket } from "@zcode/client";
+import { createUuid } from "@zcode/shared";
 
 import { EmployeeEntry, createEmployeeEntry, type EmployeeEntryConnection } from "./auth/index.js";
 import { AIReqApplication as AIReqWebApplication } from "@zcode/ui/aireq";
@@ -61,6 +62,8 @@ function renderEntry(): void {
 setStreamClientId(generateMobileDeviceFingerprint());
 // 连接与原生命令共用同一稳定 ID；设备指纹会使合法发送被可信连接校验拒绝。
 const webClientId = getV4ClientId();
+// 页面加载才生成新标识，同一页面的重连保留云龙快照。
+const pageId = createUuid();
 
 interface WebBootstrapResult {
   wsUrl: string;
@@ -208,6 +211,7 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
       const nativeUrl = new URL(bootstrap.wsUrl);
       nativeUrl.searchParams.set("employeeId", employeeNumber);
       nativeUrl.searchParams.set("clientId", webClientId);
+      nativeUrl.searchParams.set("pageId", pageId);
       const services = await connectViaWebSocket(nativeUrl.toString(), {
         signal: connectionLifetime.signal,
         onOpenSocket: (ws) => {

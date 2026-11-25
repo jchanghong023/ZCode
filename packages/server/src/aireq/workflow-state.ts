@@ -38,7 +38,7 @@ export interface RequirementGroup extends Omit<
   documentVersion?: AIReqDocumentVersion | AIReqDocumentSnapshot;
   documentReviews: DocumentReview[];
   sessions: NativeSessionRef[];
-  process?: string;
+  sourceDescription: string;
   releaseName?: string;
   clientDraftId?: string;
 }

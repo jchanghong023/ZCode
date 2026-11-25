@@ -38,6 +38,7 @@ export interface MarkdownDocumentProps {
   onOpenExternalUrl?: (url: string) => void;
   /** 任务页内嵌材料需要把文档自身标题降级，页面 h1 仍唯一。 */
   headingLevelOffset?: 0 | 1 | 2 | 3;
+  allowSanitizedHtml?: boolean;
 }
 
 type MarkdownHeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -86,6 +87,7 @@ export function MarkdownDocument({
   showExportActions = true,
   onOpenExternalUrl,
   headingLevelOffset = 0,
+  allowSanitizedHtml = false,
 }: MarkdownDocumentProps) {
   const resolvedTheme = resolveTheme(theme);
   const codeTheme =
@@ -212,7 +214,13 @@ export function MarkdownDocument({
       className={cn("zcode-markdown-document min-w-0 break-words text-balance", className)}
       wrapperElement={wrapperElement}
       disableCopy
-      skipHtml
+      skipHtml={!allowSanitizedHtml}
+      pluginsFilter={(kind, plugins) =>
+        // UIW 将 HTML 解析放在末尾。先解析再清洗，避免原始 HTML 绕过 sanitize。
+        allowSanitizedHtml && kind === "rehype"
+          ? [...plugins.slice(-1), ...plugins.slice(0, -1)]
+          : plugins
+      }
       remarkPlugins={documentRemarkPlugins}
       rehypePlugins={documentRehypePlugins}
       rehypeRewrite={(node) => {
@@ -235,4 +243,3 @@ export function MarkdownDocument({
     />
   );
 }
-

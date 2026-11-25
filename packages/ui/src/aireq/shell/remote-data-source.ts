@@ -18,7 +18,11 @@ import type { IServiceAccessor } from "../contract.js";
 const snapshots = new WeakMap<AIReqWorkflowView, { key: string; value: AIReqRemoteWorkflow }>();
 
 /** 本地选择可能额外携带 SR；请求只发送会话目标。 */
-function sessionTarget({ projectId, irId, discussionPhase }: AIReqWorkflowTarget): AIReqWorkflowTarget {
+function sessionTarget({
+  projectId,
+  irId,
+  discussionPhase,
+}: AIReqWorkflowTarget): AIReqWorkflowTarget {
   return { projectId, irId, discussionPhase };
 }
 
@@ -43,6 +47,7 @@ export async function createRemoteAIReqDataSource(
   let invalidationGeneration = 0;
   let initializing = true;
   let promptDraftRevision = 0;
+  let preferenceWrite = Promise.resolve();
   const emit = (listeners: Set<() => void>) => {
     for (const listener of listeners) listener();
   };
@@ -170,6 +175,31 @@ export async function createRemoteAIReqDataSource(
         value: result,
       });
       return result.view;
+    },
+    async refreshProjects(target) {
+      const result = await call("projects.refreshSnapshot", [sessionTarget(target)]);
+      invalidationGeneration += 1;
+      await refreshMetadata();
+      metadataRefreshError = undefined;
+      snapshots.set(result.view, { key: JSON.stringify(target), value: result });
+      return result.view;
+    },
+    readRequirementDetails: ({ projectId, irId }) =>
+      call("readRequirementDetails", [{ projectId, irId }]),
+    syncRequirementList: () => call("proposals.syncToRedZone", []),
+    async readProposalTablePreferences() {
+      await preferenceWrite;
+      return call("proposalTable.readPreferences", []);
+    },
+    saveProposalTablePreferences(preferences, initializeOnly = false) {
+      const save = preferenceWrite.then(() =>
+        call("proposalTable.savePreferences", [preferences, initializeOnly]),
+      );
+      preferenceWrite = save.then(
+        () => undefined,
+        () => undefined,
+      );
+      return save;
     },
     subscribeWorkflow: (listener) => subscribe(workflowListeners, listener),
     command: async (action, target, revision) => {

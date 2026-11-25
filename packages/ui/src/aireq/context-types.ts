@@ -24,7 +24,8 @@ export interface AIReqContextValue {
   switchProject(projectId: string): void;
   openProject(projectId: string, releaseId?: string): void;
   select(value: AIReqSelection): void;
-  refresh(): Promise<void>;
+  refresh(throwOnError?: boolean): Promise<void>;
+  refreshProjects(throwOnError?: boolean): Promise<void>;
   retrySession(
     target: AIReqSelection,
     sessionId: string,

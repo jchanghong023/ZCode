@@ -56,7 +56,7 @@ import type { AIReqIdentity } from "@zcode/services/aireq";
 import { bindWebChatConnection } from "./chat/service.js";
 
 type ConnectionData = (
-  | { kind: "aireq"; identity: AIReqIdentity; ip: string | null }
+  | { kind: "aireq"; identity: AIReqIdentity; ip: string | null; pageId?: string }
   | { kind: "chat"; clientId: string }
 ) & {
   leavePresence?: () => void;
@@ -185,8 +185,9 @@ function setupAIReqChannelServer(
   socket: ISocket,
   services: ServiceCollection,
   identity: AIReqIdentity,
+  pageId?: string,
 ) {
-  const overrides = getConnectionServices(services, identity);
+  const overrides = getConnectionServices(services, identity, pageId, socket.onClose);
   // 项目读取复用 AIReq 的可信连接身份，防止 mention 投影越权读取他人的私有会话。
   const project = services.get(IProjectService);
   const connectionIdentity = Object.freeze(validateAIReqIdentity(identity));
@@ -484,10 +485,13 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
 
   app.get("/ws", (c) => {
     const query = new URL(c.req.url).searchParams;
-    const allowedQuery = new Set(["employeeId", "clientId", "token"]);
+    const allowedQuery = new Set(["employeeId", "clientId", "token", "pageId"]);
+    const pageId = query.get("pageId") ?? undefined;
     if ([...query.keys()].some((key) => !allowedQuery.has(key) || query.getAll(key).length !== 1)) {
       return c.json({ error: { code: "INVALID_ARGUMENT", message: "连接参数无效。" } }, 400);
     }
+    if (pageId !== undefined && !/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(pageId))
+      return c.json({ error: { code: "INVALID_ARGUMENT", message: "页面标识无效。" } }, 400);
     let identity: AIReqIdentity;
     try {
       identity = validateAIReqIdentity({
@@ -507,7 +511,7 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
     );
     if (
       c.env.server.upgrade(c.req.raw, {
-        data: { kind: "aireq", identity, ip },
+        data: { kind: "aireq", identity, ip, pageId },
         headers: c.res.headers,
       })
     ) {
@@ -602,7 +606,7 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
             setupChannelServer(transport.socket, options.chatServices, overrides, chatExposure);
           } else {
             ws.data.leavePresence = registerAIReqConnection(services, ws.data.identity, ws.data.ip);
-            setupAIReqChannelServer(transport.socket, services, ws.data.identity);
+            setupAIReqChannelServer(transport.socket, services, ws.data.identity, ws.data.pageId);
           }
         } catch (error) {
           ws.data.leavePresence?.();

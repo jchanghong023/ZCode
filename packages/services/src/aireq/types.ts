@@ -19,6 +19,42 @@ export interface AIReqObjectRef {
   projectId: string;
   irId: string;
 }
+export const AIREQ_PROPOSAL_COLUMNS = [
+  "title",
+  "id",
+  "release",
+  "owner",
+  "version",
+  "requester",
+  "designOwner",
+  "developmentOwner",
+  "testingOwner",
+  "submitter",
+  "date",
+  "process",
+  "srCount",
+] as const;
+export type AIReqProposalColumn = (typeof AIREQ_PROPOSAL_COLUMNS)[number];
+export interface AIReqProposalTablePreferences {
+  columns: AIReqProposalColumn[];
+  sort: { column: AIReqProposalColumn; direction: "ascending" | "descending" };
+}
+export interface AIReqRequirementListSyncReceipt {
+  status: "simulated" | "completed";
+  projectCount: number;
+  count: number;
+  documentCount: number;
+}
+export interface AIReqRequirementDetails {
+  description: string;
+  fields: { name: string; value: string }[];
+  comments: { items: AIReqRequirementComment[] } | { unavailable: true };
+}
+export interface AIReqRequirementComment {
+  body: string;
+  author?: string;
+  createdAt?: string;
+}
 export interface AIReqNativeSessionRef extends AIReqObjectRef {
   sessionId: string;
   phase: AIReqDiscussionAgent;
@@ -98,13 +134,21 @@ export interface AIReqProjectRoleMember {
   employeeId: string;
   role: AIReqProjectRole;
 }
-export interface AIReqRequirementGroup {
+export interface AIReqRequirementPersonnel {
+  delivererOwner?: string;
+  owner?: string;
+  seId?: string;
+  de?: string;
+  te?: string;
+}
+export interface AIReqRequirementGroup extends AIReqRequirementPersonnel {
   id: string;
   projectId: string;
   releaseId: string;
   title: string;
   originalText: string;
   submittedBy: string;
+  process?: string;
   documentPath: string;
   createdAt: string;
   revision: number;

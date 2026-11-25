@@ -17,9 +17,13 @@ import type {
   AIReqWorkspace,
   AIReqSkillSaveReceipt,
   AIReqRemoteRepositoryInput,
+  AIReqObjectRef,
+  AIReqRequirementDetails,
+  AIReqProposalTablePreferences,
+  AIReqRequirementListSyncReceipt,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 29;
+export const AIREQ_CONTRACT_VERSION = 35;
 export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;
@@ -43,6 +47,14 @@ interface Operation<A extends unknown[], R> {
 export interface AIReqRemoteOperations {
   readPresence: Operation<[], AIReqPresenceSnapshot>;
   readWorkflow: Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
+  "projects.refreshSnapshot": Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
+  readRequirementDetails: Operation<[target: AIReqObjectRef], AIReqRequirementDetails>;
+  "proposals.syncToRedZone": Operation<[], AIReqRequirementListSyncReceipt>;
+  "proposalTable.readPreferences": Operation<[], AIReqProposalTablePreferences | null>;
+  "proposalTable.savePreferences": Operation<
+    [preferences: AIReqProposalTablePreferences, initializeOnly: boolean],
+    AIReqProposalTablePreferences
+  >;
   validateDocumentVersion: Operation<
     [target: { projectId: string; irId: string }],
     AIReqDocumentValidation

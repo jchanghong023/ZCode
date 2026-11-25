@@ -6,6 +6,7 @@ import {
   type AIReqCommandTarget,
   type AIReqMaterialReadRequest,
   type AIReqNativeSessionRef,
+  type AIReqObjectRef,
   type AIReqOperationReceipt,
   type AIReqWorkflowResult,
   type AIReqWorkflowTarget,
@@ -13,7 +14,12 @@ import {
   type AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import type { NativeDocumentOutput, WorkflowState } from "./workflow-state.js";
+import type {
+  NativeDocumentOutput,
+  Project,
+  RequirementGroup,
+  WorkflowState,
+} from "./workflow-state.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
@@ -39,7 +45,12 @@ import {
 import { sessionRef } from "./fixture-builders.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
 import { emptyDocumentFormats } from "./materials.js";
-import { readCloudDragonProjects, readCloudDragonRequirements } from "./clouddragon.js";
+import {
+  readCloudDragonProjects,
+  cloudDragonRequirementDetails,
+  type CloudDragonRequirement,
+  readCloudDragonRequirements,
+} from "./clouddragon.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { stageNativeDocuments } from "./native-documents.js";
 import {
@@ -54,6 +65,7 @@ import {
 } from "./project-files.js";
 import { validateDocumentVersion } from "./document-validation.js";
 import { acceptDocumentReview, type DocumentReviewRun } from "./document-review.js";
+import type { RequirementListSnapshot } from "./requirement-list-transfer.js";
 
 let state: WorkflowState = {
   revision: 0,
@@ -79,124 +91,257 @@ export function readPrototypeWorkflowRevision(): number {
   return state.revision;
 }
 
-let projectRead: Promise<void> | undefined;
-const requirementReads = new Map<string, Promise<void>>();
-
-export async function refreshPrototypeProjects(): Promise<void> {
-  projectRead ??= readCloudDragonProjects()
-    .then((cloudProjects) => {
-      syncPrototypeProjectNames(cloudProjects);
-      const { projects } = readPrototypeProjectSettings();
-      if (JSON.stringify(projects) !== JSON.stringify(state.projects))
-        state = { ...state, projects, revision: state.revision + 1 };
-    })
-    .finally(() => {
-      projectRead = undefined;
-    });
-  await projectRead;
+async function refreshPrototypeProjects(): Promise<void> {
+  const cloudProjects = await readCloudDragonProjects();
+  syncPrototypeProjectNames(cloudProjects);
+  const { projects } = readPrototypeProjectSettings();
+  if (JSON.stringify(projects) !== JSON.stringify(state.projects))
+    state = { ...state, projects, revision: state.revision + 1 };
 }
 
-function refreshRequirements(projectId: string): Promise<void> {
-  const pending = requirementReads.get(projectId);
-  if (pending) return pending;
-  const read = readCloudDragonRequirements(projectId)
-    .then((items) => {
-      if (!readPrototypeProjectSetting(projectId))
-        throw businessRule("云龙目录已不包含此项目，请重新选择。");
-      const current = state.requirements.filter((item) => item.projectId === projectId);
-      const byId = new Map(current.map((item) => [item.id, item]));
-      const requirements = items.map((item) => {
-        const existing = byId.get(item.businessNo);
-        const title = item.name.trim() || item.businessNo;
-        const originalText =
-          item.description
-            .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, "\n")
-            .replace(/<\/?[a-z][^>]*>/gi, "")
-            .replace(/&nbsp;/gi, " ")
-            .trim() || title;
-        const submittedBy = item.submitter.trim() || item.creator.trim();
-        const process = item.process || undefined;
-        const releaseId = item.pi?.trim() ?? "";
-        const releaseName = releaseId ? item.piName?.trim() || undefined : undefined;
-        const sourceDate = item.createDate.trim();
-        const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
-          ? sourceDate.replace(" ", "T") + "+08:00"
-          : sourceDate;
-        if (existing) {
-          if (
-            existing.title === title &&
-            existing.originalText === originalText &&
-            existing.submittedBy === submittedBy &&
-            existing.process === process &&
-            existing.releaseId === releaseId &&
-            existing.releaseName === releaseName &&
-            existing.createdAt === createdAt
-          )
-            return existing;
-          return {
-            ...existing,
-            title,
-            originalText,
-            submittedBy,
-            process,
-            releaseId,
-            releaseName,
-            createdAt,
-            revision: existing.revision + 1,
-          };
-        }
-        return {
-          id: item.businessNo,
-          projectId,
-          releaseId,
-          releaseName,
-          title,
-          originalText,
-          submittedBy,
-          process,
-          createdAt,
-          documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
-          revision: 1,
-          srIds: [],
-          sessions: [
-            sessionRef(projectId, item.businessNo, "requirements"),
-            sessionRef(projectId, item.businessNo, "solution"),
-          ],
-          documentHistory: [],
-          documentReviews: [],
-        };
-      });
+async function refreshRequirements(projectId: string): Promise<CloudDragonRequirement[]> {
+  const items = await readCloudDragonRequirements(projectId);
+  if (!readPrototypeProjectSetting(projectId))
+    throw businessRule("云龙目录已不包含此项目，请重新选择。");
+  const current = state.requirements.filter((item) => item.projectId === projectId);
+  const byId = new Map(current.map((item) => [item.id, item]));
+  const requirements = items.map((item) => {
+    const existing = byId.get(item.businessNo);
+    const title = item.name.trim() || item.businessNo;
+    const originalText =
+      item.description
+        .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, "\n")
+        .replace(/<\/?[a-z][^>]*>/gi, "")
+        .replace(/&nbsp;/gi, " ")
+        .trim() || title;
+    const submittedBy = item.submitter.trim() || item.creator.trim();
+    const personnel = {
+      delivererOwner: item.delivererOwner || undefined,
+      owner: item.owner || undefined,
+      seId: item.seId || undefined,
+      de: item.de || undefined,
+      te: item.te || undefined,
+    };
+    const process = item.process || undefined;
+    const releaseId = item.pi?.trim() ?? "";
+    const releaseName = releaseId ? item.piName?.trim() || undefined : undefined;
+    const sourceDate = item.createDate.trim();
+    const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
+      ? sourceDate.replace(" ", "T") + "+08:00"
+      : sourceDate;
+    if (existing) {
       if (
-        current.length === requirements.length &&
-        current.every((item, index) => item === requirements[index])
+        existing.title === title &&
+        existing.originalText === originalText &&
+        existing.sourceDescription === item.description &&
+        existing.submittedBy === submittedBy &&
+        existing.delivererOwner === personnel.delivererOwner &&
+        existing.owner === personnel.owner &&
+        existing.seId === personnel.seId &&
+        existing.de === personnel.de &&
+        existing.te === personnel.te &&
+        existing.process === process &&
+        existing.releaseId === releaseId &&
+        existing.releaseName === releaseName &&
+        existing.createdAt === createdAt
       )
-        return;
-      state = {
-        ...state,
-        revision: state.revision + 1,
-        requirements: state.requirements
-          .filter((item) => item.projectId !== projectId)
-          .concat(requirements),
+        return existing;
+      return {
+        ...existing,
+        title,
+        originalText,
+        sourceDescription: item.description,
+        submittedBy,
+        ...personnel,
+        process,
+        releaseId,
+        releaseName,
+        createdAt,
+        revision: existing.revision + 1,
       };
-    })
-    .finally(() => {
-      requirementReads.delete(projectId);
-    });
-  requirementReads.set(projectId, read);
-  return read;
+    }
+    return {
+      id: item.businessNo,
+      projectId,
+      releaseId,
+      releaseName,
+      title,
+      originalText,
+      sourceDescription: item.description,
+      submittedBy,
+      ...personnel,
+      process,
+      createdAt,
+      documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
+      revision: 1,
+      srIds: [],
+      sessions: [
+        sessionRef(projectId, item.businessNo, "requirements"),
+        sessionRef(projectId, item.businessNo, "solution"),
+      ],
+      documentHistory: [],
+      documentReviews: [],
+    };
+  });
+  const activeIds = new Set(requirements.map(({ id }) => id));
+  // Keep local workflow records when an IR disappears from the cloud catalogue.
+  const retained = current.filter(({ id }) => !activeIds.has(id));
+  const active = current.filter(({ id }) => activeIds.has(id));
+  if (
+    active.length === requirements.length &&
+    requirements.every((item, index) => item === active[index])
+  )
+    return items;
+  state = {
+    ...state,
+    revision: state.revision + 1,
+    requirements: state.requirements
+      .filter((item) => item.projectId !== projectId)
+      .concat(requirements, retained),
+  };
+  return items;
 }
 
-export async function refreshPrototypeWorkflow({
-  projectId,
-}: AIReqWorkflowTarget): Promise<string[] | undefined> {
-  await refreshPrototypeProjects();
-  if (projectId) {
-    if (readPrototypeProjectSetting(projectId)) await refreshRequirements(projectId);
-    return undefined;
+export interface PrototypeCatalogue {
+  projects: Project[];
+  requirements: RequirementGroup[];
+  details: ReadonlyMap<string, ReadonlyMap<string, CloudDragonRequirement>>;
+  failures: string[];
+}
+
+let catalogueRead: Promise<PrototypeCatalogue> | undefined;
+let catalogueCompletedAt: number | undefined;
+let previousCatalogue: PrototypeCatalogue | undefined;
+
+export function readPrototypeCatalogue(): Promise<PrototypeCatalogue> {
+  if (
+    catalogueRead &&
+    (catalogueCompletedAt === undefined || performance.now() - catalogueCompletedAt < 3_000)
+  )
+    return catalogueRead;
+  catalogueCompletedAt = undefined;
+  catalogueRead = (async () => {
+    await refreshPrototypeProjects();
+    const projects = state.projects;
+    const projectIds = projects.map(({ id }) => id);
+    const reads = await Promise.allSettled(projectIds.map(refreshRequirements));
+    const details = new Map<string, ReadonlyMap<string, CloudDragonRequirement>>();
+    const failures: string[] = [];
+    reads.forEach((result, index) => {
+      const id = projectIds[index]!;
+      if (result.status === "fulfilled") {
+        details.set(id, new Map(result.value.map((ir) => [ir.businessNo, ir])));
+      } else {
+        failures.push(id);
+        const prior = previousCatalogue?.details.get(id);
+        if (prior) details.set(id, prior);
+      }
+    });
+    previousCatalogue = {
+      projects,
+      requirements: state.requirements.filter(({ projectId, id }) =>
+        details.get(projectId)?.has(id),
+      ),
+      details,
+      failures,
+    };
+    return previousCatalogue;
+  })().finally(() => {
+    catalogueCompletedAt = performance.now();
+  });
+  return catalogueRead;
+}
+
+const mergedCatalogues = new WeakMap<
+  PrototypeCatalogue,
+  { live: WorkflowState; merged: WorkflowState }
+>();
+const requirementSummaries = new WeakMap<
+  WorkflowState,
+  ReturnType<typeof projectRequirementSummaries>
+>();
+
+function mergeCatalogue(catalogue: PrototypeCatalogue): WorkflowState {
+  const cached = mergedCatalogues.get(catalogue);
+  if (cached?.live === state) return cached.merged;
+  const requirementKey = (item: RequirementGroup) => JSON.stringify([item.projectId, item.id]);
+  const current = new Map(state.requirements.map((item) => [requirementKey(item), item]));
+  const merged = {
+    ...state,
+    projects: catalogue.projects.map((project) => {
+      const live = readPrototypeProjectSetting(project.id);
+      return live ? { ...live, name: project.name } : project;
+    }),
+    requirements: catalogue.requirements.map((item) => {
+      const live = current.get(requirementKey(item));
+      return live && live !== item
+        ? {
+            ...item,
+            revision: live.revision,
+            documentVersion: live.documentVersion,
+            documentHistory: live.documentHistory,
+            documentReviews: live.documentReviews,
+            sessions: live.sessions,
+            srIds: live.srIds,
+          }
+        : item;
+    }),
+  };
+  mergedCatalogues.set(catalogue, { live: state, merged });
+  return merged;
+}
+
+export function readPrototypeRequirementDetails(
+  { projectId, irId }: AIReqObjectRef,
+  catalogue: PrototypeCatalogue,
+) {
+  const item = catalogue.details.get(projectId)?.get(irId);
+  if (!item) throw businessRule("当前项目不存在该需求。");
+  return cloudDragonRequirementDetails(item);
+}
+
+export function capturePrototypeRequirementList(
+  catalogue: PrototypeCatalogue,
+): RequirementListSnapshot {
+  if (catalogue.failures.length)
+    throw businessRule("部分云龙项目读取失败，请刷新项目后重试全量同步。");
+  const keys = (projectId: string, irId: string, path: string) =>
+    JSON.stringify([projectId, irId, path]);
+  const documents = new Map(
+    state.materials
+      .filter((file) => file.kind === "ir" && !file.srId)
+      .map((file) => [keys(file.projectId, file.irId, file.path), file]),
+  );
+  const projects: RequirementListSnapshot["projects"] = catalogue.projects.map(({ id, name }) => ({
+    projectId: id,
+    projectName: name,
+    requirements: [],
+  }));
+  const byProject = new Map(projects.map((project) => [project.projectId, project]));
+  for (const item of catalogue.requirements) {
+    const project = byProject.get(item.projectId);
+    if (!project) continue;
+    const document = documents.get(keys(item.projectId, item.id, item.documentPath));
+    if (document && (!document.valid || document.content === undefined))
+      throw businessRule(`需求 ${item.id} 的需求文档不可读取，请重试全量同步。`);
+    project.requirements.push({
+      irId: item.id,
+      title: item.title,
+      description: item.sourceDescription,
+      releaseId: item.releaseId,
+      releaseName: item.releaseName,
+      submittedBy: item.submittedBy,
+      delivererOwner: item.delivererOwner,
+      owner: item.owner,
+      seId: item.seId,
+      de: item.de,
+      te: item.te,
+      submittedAt: item.createdAt,
+      process: item.process,
+      ...(document?.content === undefined ? {} : { requirementsMarkdown: document.content }),
+    });
   }
-  const projectIds = state.projects.map(({ id }) => id);
-  const reads = await Promise.allSettled(projectIds.map(refreshRequirements));
-  return projectIds.filter((_, index) => reads[index]?.status === "rejected");
+  return { projects };
 }
 
 /** 异步准备新项目目录时捕获同一工作流快照，忽略其他项目和评审造成的 revision 变化。 */
@@ -246,11 +391,13 @@ export function readPrototypeNativeContext(sessionId: string) {
 export function readPrototypeProjectDirectory() {
   return projectDirectory(state, canAccessSolution);
 }
-export function readPrototypeProjectWorkspace(projectId?: string) {
-  return readProjectWorkspace(projectId);
+export function readPrototypeProjectWorkspace(projectId?: string, catalogue?: PrototypeCatalogue) {
+  return readProjectWorkspace(projectId, catalogue?.projects);
 }
-export function readPrototypeProjectWorkspaces(): Record<string, AIReqWorkspace> {
-  return readProjectWorkspaces();
+export function readPrototypeProjectWorkspaces(
+  catalogue?: PrototypeCatalogue,
+): Record<string, AIReqWorkspace> {
+  return readProjectWorkspaces(catalogue?.projects);
 }
 export function notifyPrototypeProjectSettingsChanged(): void {
   mutatePrototypeWorkflow((next) => {
@@ -270,23 +417,36 @@ export function requireSolutionAccess(projectId: string): void {
   if (!canAccessSolution(projectId)) throw businessRule("此操作需要当前项目的开发或测试角色。");
 }
 
-export function getPrototypeWorkflow(selection: AIReqWorkflowTarget = {}): AIReqWorkflowView {
+export function getPrototypeWorkflow(
+  selection: AIReqWorkflowTarget = {},
+  catalogue?: PrototypeCatalogue,
+): AIReqWorkflowView {
+  const source = catalogue ? mergeCatalogue(catalogue) : state;
   const projectId = selection.projectId;
-  const requirements = readPrototypeProjectSetting(projectId)
-    ? state.requirements.filter((item) => item.projectId === projectId)
+  const requirements = source.projects.some(({ id }) => id === projectId)
+    ? source.requirements.filter((item) => item.projectId === projectId)
     : [];
+  const requirementIds = new Set(requirements.map(({ id }) => id));
+  let summaries = requirementSummaries.get(source);
+  if (!summaries) {
+    summaries = projectRequirementSummaries(source);
+    requirementSummaries.set(source, summaries);
+  }
   const solution = projectId !== undefined && canAccessSolution(projectId);
   return {
-    revision: state.revision,
-    documentFormats: state.documentFormats,
+    revision: source.revision,
+    documentFormats: source.documentFormats,
     roleAdministrator: getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR,
-    projectRoleMembers: state.projectRoleMembers,
-    projects: state.projects.map(projectSummary),
-    ...projectRequirementSummaries(state),
+    projectRoleMembers: source.projectRoleMembers,
+    projects: source.projects.map(projectSummary),
+    ...summaries,
+    ...(catalogue?.failures.length ? { releaseReadFailures: catalogue.failures } : {}),
     requirements: requirements.map((item) => projectRequirement(item, solution)),
-    srs: state.srs.filter((item) => item.projectId === projectId).map(projectSystemRequirement),
-    materials: state.materials
-      .filter((item) => item.projectId === projectId)
+    srs: source.srs
+      .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
+      .map(projectSystemRequirement),
+    materials: source.materials
+      .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
       .map(readPrototypeMaterial),
   };
 }

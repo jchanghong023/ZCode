@@ -150,11 +150,13 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [],
   );
   const load = useCallback(
-    async (target: AIReqSelection, throwOnError = false) => {
+    async (target: AIReqSelection, throwOnError = false, refreshProjects = false) => {
       const revision = ++requestRevision.current;
       setPending(true);
       try {
-        const next = await source.readWorkflow(target);
+        const next = await (refreshProjects
+          ? source.refreshProjects(target)
+          : source.readWorkflow(target));
         if (revision !== requestRevision.current) return;
         viewRef.current = next;
         setView(next);
@@ -171,7 +173,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [source, report],
   );
-  const refresh = useCallback(() => load(selectionRef.current), [load]);
+  const refresh = useCallback(
+    (throwOnError = false) => load(selectionRef.current, throwOnError),
+    [load],
+  );
+  const refreshProjects = useCallback(
+    (throwOnError = false) => load(selectionRef.current, throwOnError, true),
+    [load],
+  );
   useEffect(() => {
     void refresh();
     const unsubscribe = source.subscribeWorkflow(() => {
@@ -444,6 +453,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
             select({ ...value, releaseId }, true, "chat");
           }),
         refresh,
+        refreshProjects,
         retrySession,
         command,
         report,

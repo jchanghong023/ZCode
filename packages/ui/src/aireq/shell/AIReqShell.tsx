@@ -100,17 +100,21 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     const heading = [...mainContent.current.querySelectorAll("h1")].find(
       (element) => !element.closest("[hidden], [inert]"),
     );
-    const row = target.proposalId
+    const entrances = target.proposalId
       ? [
           ...mainContent.current.querySelectorAll<HTMLButtonElement>("[data-aireq-proposal-entry]"),
-        ].find(
+        ].filter(
           (element) =>
             element.dataset.aireqProposalEntry === target.proposalId &&
-            element.dataset.aireqAgent === (target.agent ?? "requirements") &&
             !element.disabled &&
-            !element.closest("[hidden], [inert]"),
+            !element.closest("[hidden], [inert]") &&
+            element.getClientRects().length > 0,
         )
-      : undefined;
+      : [];
+    const row =
+      entrances.find(
+        (element) => element.dataset.aireqAgent === (target.agent ?? "requirements"),
+      ) ?? entrances[0];
     const focusTarget = row ?? heading;
     if (!focusTarget) return;
     pendingMainFocus.current = null;

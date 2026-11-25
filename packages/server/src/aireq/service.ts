@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
 import { businessRule } from "./errors.js";
@@ -18,14 +19,16 @@ import {
   type AIReqCommand,
   type AIReqCommandTarget,
   type AIReqWorkflowResult,
+  type AIReqObjectRef,
 } from "@zcode/services/aireq";
 import { AIReqNativeBusiness } from "./native-business.js";
 import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./identity.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   getPrototypeWorkflow,
-  refreshPrototypeProjects,
-  refreshPrototypeWorkflow,
+  readPrototypeRequirementDetails,
+  readPrototypeCatalogue,
+  type PrototypeCatalogue,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
   readPrototypeProjectWorkspaces,
@@ -37,6 +40,7 @@ import {
   settlePrototypeDocumentReview,
   notifyPrototypeProjectSettingsChanged,
   capturePrototypeProjectDocuments,
+  capturePrototypeRequirementList,
 } from "./workflow.js";
 import * as models from "./agent-models.js";
 import * as prompts from "./personalization.js";
@@ -45,6 +49,11 @@ import { savePrototypeRepository } from "./project-settings.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
+import { createProposalTablePreferencesStore } from "./proposal-table-preferences.js";
+import {
+  createMockRequirementListTransfer,
+  type RequirementListTransfer,
+} from "./requirement-list-transfer.js";
 import {
   simulateDocumentReview,
   type AIReqNativeReviewWork,
@@ -60,6 +69,13 @@ const commands = [
   "reviewDocuments",
   "confirmDocumentVersion",
 ] as const;
+
+interface CataloguePage {
+  catalogue?: PrototypeCatalogue;
+  pending?: Promise<PrototypeCatalogue>;
+}
+
+const RECONNECT_GRACE_MS = 30 * 60_000;
 
 /** One instance is registered by createMockServices; connection scopes never dispose it. */
 export class MockAIReqService extends AIReqNativeBusiness implements IAIReqService {
@@ -78,9 +94,24 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     { digest: string; result?: Promise<unknown> }
   >();
   private readonly operations = new Map<string, { digest: string; result: AIReqWorkflowResult }>();
+  private readonly currentPage = new AsyncLocalStorage<CataloguePage>();
+  private readonly defaultPage: CataloguePage = {};
+  private readonly pages = new Map<
+    string,
+    {
+      page: CataloguePage;
+      connections: number;
+      cleanup?: ReturnType<typeof setTimeout>;
+    }
+  >();
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
-  constructor() {
+  constructor(
+    workspacePath: string,
+    requirementTransfer: RequirementListTransfer = createMockRequirementListTransfer(),
+  ) {
     super();
+    const proposalTablePreferences = createProposalTablePreferencesStore(workspacePath);
+    const syncing = new WeakMap<CataloguePage, ReturnType<RequirementListTransfer["publish"]>>();
     remoteOwners.set(this.remote, this);
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
     models.subscribePrototypeAgentModels(() => this.changed.fire({ type: "models" }));
@@ -90,12 +121,31 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
-    add("readWorkflow", async (target: AIReqWorkflowTarget) => {
-      const releaseReadFailures = await refreshPrototypeWorkflow(target);
-      const result = this.workflow(target);
-      if (releaseReadFailures?.length) result.view.releaseReadFailures = releaseReadFailures;
-      return result;
+    add("readRequirementDetails", async (target: AIReqObjectRef) =>
+      readPrototypeRequirementDetails(target, await this.catalogueForPage()),
+    );
+    add("proposals.syncToRedZone", () => {
+      const page = this.currentPage.getStore() ?? this.defaultPage;
+      const pending = syncing.get(page);
+      if (pending) return pending;
+      const sync = this.catalogueForPage()
+        .then((catalogue) =>
+          requirementTransfer.publish(capturePrototypeRequirementList(catalogue)),
+        )
+        .finally(() => {
+          syncing.delete(page);
+        });
+      syncing.set(page, sync);
+      return sync;
     });
+    add("proposalTable.readPreferences", proposalTablePreferences.read);
+    add("proposalTable.savePreferences", proposalTablePreferences.save);
+    add("readWorkflow", async (target: AIReqWorkflowTarget) =>
+      this.workflow(target, await this.catalogueForPage()),
+    );
+    add("projects.refreshSnapshot", async (target: AIReqWorkflowTarget) =>
+      this.workflow(target, await this.catalogueForPage(true)),
+    );
     add("validateDocumentVersion", validatePrototypeDocumentVersion);
     add("command", (action: AIReqCommand, target: AIReqCommandTarget, revision: number) =>
       this.command(action, target, revision),
@@ -188,12 +238,56 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       settle("failed", `${run.title}未能开始，请重新发起。`);
     }
   }
-  private workflow(selection: AIReqWorkflowTarget) {
-    const view = getPrototypeWorkflow(selection);
+  bindCataloguePage(
+    identity: AIReqIdentity,
+    pageId?: string,
+    onClose?: (listener: () => void) => unknown,
+  ): CataloguePage {
+    if (!pageId || !onClose) return {};
+    const key = JSON.stringify([identity.employeeId, identity.clientId, pageId]);
+    const entry = this.pages.get(key) ?? { page: {}, connections: 0 };
+    this.pages.set(key, entry);
+    clearTimeout(entry.cleanup);
+    entry.connections++;
+    onClose(() => {
+      if (--entry.connections === 0) {
+        entry.cleanup = setTimeout(() => this.pages.delete(key), RECONNECT_GRACE_MS);
+        entry.cleanup.unref();
+      }
+    });
+    return entry.page;
+  }
+
+  private catalogueForPage(
+    refresh = false,
+    page = this.currentPage.getStore() ?? this.defaultPage,
+  ): Promise<PrototypeCatalogue> {
+    if (!refresh && page.catalogue) return Promise.resolve(page.catalogue);
+    page.pending ??= readPrototypeCatalogue()
+      .then((catalogue) => {
+        if (refresh && catalogue.failures.length)
+          throw businessRule("部分云龙项目读取失败，请重试刷新项目。");
+        page.catalogue = catalogue;
+        return catalogue;
+      })
+      .finally(() => {
+        page.pending = undefined;
+      });
+    return page.pending;
+  }
+
+  private workflow(selection: AIReqWorkflowTarget, catalogue?: PrototypeCatalogue) {
+    if (
+      selection.projectId &&
+      catalogue?.failures.includes(selection.projectId) &&
+      !catalogue.details.has(selection.projectId)
+    )
+      throw businessRule("当前项目的云龙需求暂未读取，请刷新项目后重试。");
+    const view = getPrototypeWorkflow(selection, catalogue);
     return {
       view,
       session: resolvePrototypeSession(view, selection),
-      workspace: readPrototypeProjectWorkspace(selection.projectId),
+      workspace: readPrototypeProjectWorkspace(selection.projectId, catalogue),
     };
   }
   private command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
@@ -221,10 +315,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     if (review) this.enqueueDocumentReview(review, identity);
     return result;
   }
-  async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
+  async bootstrap(identity: AIReqIdentity, page = this.defaultPage): Promise<AIReqRemoteBootstrap> {
     return withAIReqIdentity(identity, async () => {
-      // 首次连接需先同步项目目录，bootstrap 才能与工作流返回相同的工作区。
-      await refreshPrototypeProjects();
+      const catalogue = await this.catalogueForPage(false, page);
       return {
         contractVersion: AIREQ_CONTRACT_VERSION,
         backend: { id: PROTOTYPE_BACKEND.id },
@@ -241,7 +334,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           revision: models.prototypeAgentModelConfigurationRevision(),
         },
         prompts: prompts.readPrototypeAgentPrompts(),
-        projects: { workspaces: readPrototypeProjectWorkspaces() },
+        projects: { workspaces: readPrototypeProjectWorkspaces(catalogue) },
         skillDesignStorage: {
           workspacePath: PROTOTYPE_BACKEND.configDirectory,
           sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
@@ -253,50 +346,53 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     identity: AIReqIdentity,
     path: P,
     args: AIReqRemoteArgs<P>,
+    page = this.defaultPage,
   ): Promise<AIReqRemoteResult<P>> {
-    return withAIReqIdentity(identity, async () => {
-      validateAIReqRemoteCall(path, args);
-      if (path.startsWith("skillDesign.") && path !== "skillDesign.session")
-        skills.assertSkillSession(String(args[0]));
-      const method = this.methods.get(path);
-      if (!method) throw businessRule("此操作不可用，请刷新页面后重试。");
-      const input = args[0];
-      const operationId =
-        input && typeof input === "object" && "operationId" in input
-          ? input.operationId
-          : undefined;
-      const result =
-        typeof operationId === "string" && path === "projects.saveRepository"
-          ? await this.invokeOnce(
-              path,
-              operationId,
-              // 项目配置 CAS 只用于首次接纳；丢失回执后重读不能使同一次保存变成冲突。
-              [
-                {
-                  ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
-                  expectedRevision: undefined,
-                  name: undefined,
-                },
-              ],
-              () => method(...args),
-            )
-          : await method(...args);
-      if (
-        path === "projects.saveRepository" ||
-        path === "models.save" ||
-        path === "prompts.save" ||
-        path === "skillDesign.savePreview"
-      ) {
-        const actor = currentIdentity()!;
-        logger.info(undefined, "Business operation succeeded", {
-          employeeId: actor.employeeId,
-          clientId: actor.clientId,
-          path,
-          at: new Date().toISOString(),
-        });
-      }
-      return structuredClone(result ?? null) as AIReqRemoteResult<P>;
-    });
+    return withAIReqIdentity(identity, () =>
+      this.currentPage.run(page, async () => {
+        validateAIReqRemoteCall(path, args);
+        if (path.startsWith("skillDesign.") && path !== "skillDesign.session")
+          skills.assertSkillSession(String(args[0]));
+        const method = this.methods.get(path);
+        if (!method) throw businessRule("此操作不可用，请刷新页面后重试。");
+        const input = args[0];
+        const operationId =
+          input && typeof input === "object" && "operationId" in input
+            ? input.operationId
+            : undefined;
+        const result =
+          typeof operationId === "string" && path === "projects.saveRepository"
+            ? await this.invokeOnce(
+                path,
+                operationId,
+                // 项目配置 CAS 只用于首次接纳；丢失回执后重读不能使同一次保存变成冲突。
+                [
+                  {
+                    ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
+                    expectedRevision: undefined,
+                    name: undefined,
+                  },
+                ],
+                () => method(...args),
+              )
+            : await method(...args);
+        if (
+          path === "projects.saveRepository" ||
+          path === "models.save" ||
+          path === "prompts.save" ||
+          path === "skillDesign.savePreview"
+        ) {
+          const actor = currentIdentity()!;
+          logger.info(undefined, "Business operation succeeded", {
+            employeeId: actor.employeeId,
+            clientId: actor.clientId,
+            path,
+            at: new Date().toISOString(),
+          });
+        }
+        return structuredClone(result ?? null) as AIReqRemoteResult<P>;
+      }),
+    );
   }
 }
 
@@ -304,11 +400,14 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
 export function getConnectionServices(
   services: ServiceCollection,
   identity: AIReqIdentity,
+  pageId?: string,
+  onClose?: (listener: () => void) => unknown,
 ): Map<string, unknown> {
   const fixed = Object.freeze(validateAIReqIdentity(identity));
   const native = services.get(IZCodeAgentService);
   const business = remoteOwners.get(services.get(AIReqDescriptor));
   if (!business) throw new Error("AIReq共享业务owner尚未装配。");
+  const page = business.bindCataloguePage(fixed, pageId, onClose);
   const facade = new Proxy(native, {
     get(target, key) {
       const value = Reflect.get(target, key, target);
@@ -352,7 +451,7 @@ export function getConnectionServices(
     return fixed;
   };
   const scopedBusiness: IAIReqService = {
-    bootstrap: (value) => business.bootstrap(connectionIdentity(value)),
+    bootstrap: (value) => business.bootstrap(connectionIdentity(value), page),
     call: (value, path, args, ...extra: unknown[]) => {
       if (extra.length !== 0) {
         throw Object.assign(new Error("业务调用只接收身份、操作路径和参数。"), {
@@ -360,7 +459,7 @@ export function getConnectionServices(
           publicMessage: true,
         });
       }
-      return business.call(connectionIdentity(value), path, args);
+      return business.call(connectionIdentity(value), path, args, page);
     },
     onDidChange: business.onDidChange,
   };

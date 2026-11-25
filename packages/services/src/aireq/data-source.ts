@@ -15,6 +15,10 @@ import type {
   AIReqRemoteRepositoryInput,
   AIReqMaterialReadRequest,
   AIReqDocumentValidation,
+  AIReqObjectRef,
+  AIReqRequirementDetails,
+  AIReqProposalTablePreferences,
+  AIReqRequirementListSyncReceipt,
 } from "./types.js";
 
 export interface AIReqBackendView {
@@ -69,6 +73,14 @@ export interface AIReqDataSource {
   initialProjectId?: string;
   refreshIdentity?(): Promise<void>;
   readWorkflow(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
+  refreshProjects(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
+  readRequirementDetails(target: AIReqObjectRef): Promise<AIReqRequirementDetails>;
+  syncRequirementList(): Promise<AIReqRequirementListSyncReceipt>;
+  readProposalTablePreferences(): Promise<AIReqProposalTablePreferences | null>;
+  saveProposalTablePreferences(
+    preferences: AIReqProposalTablePreferences,
+    initializeOnly?: boolean,
+  ): Promise<AIReqProposalTablePreferences>;
   validateDocumentVersion(target: {
     projectId: string;
     irId: string;

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { AIReqRequirementDetails } from "@zcode/services/aireq";
 import { createServiceLogger } from "@zcode/services/logger";
 import { z } from "zod";
 import { businessRule } from "./errors.js";
@@ -11,18 +12,27 @@ const projectResponse = z.object({
   items: z.array(project.extend({ id: projectId.nullable() })),
 });
 const domainId = z.string().regex(/^[0-9]+$/);
-const requirement = z.object({
-  businessNo: z.string().regex(/^IR[0-9]+$/),
-  name: z.string(),
-  description: z.string(),
-  creator: z.string(),
-  submitter: z.string(),
-  createDate: z.string(),
-  domain: domainId,
-  process: z.string().trim().nullish(),
-  pi: z.string().nullish(),
-  piName: z.string().nullish(),
-});
+const businessNo = z.string().regex(/^IR[0-9]+$/);
+const person = z.string().trim().nullish();
+const requirement = z
+  .object({
+    businessNo,
+    name: z.string(),
+    description: z.string(),
+    creator: z.string(),
+    submitter: z.string(),
+    delivererOwner: person,
+    owner: person,
+    seId: person,
+    de: person,
+    te: person,
+    createDate: z.string(),
+    domain: domainId,
+    process: z.string().trim().nullish(),
+    pi: z.string().nullish(),
+    piName: z.string().nullish(),
+  })
+  .catchall(z.json());
 const requirementResponse = z.object({
   project: projectId,
   domains: z.array(
@@ -33,8 +43,9 @@ const requirementResponse = z.object({
     }),
   ),
 });
+const embeddedComments = z.array(z.record(z.string(), z.json()));
 export type CloudDragonProject = z.infer<typeof project>;
-type CloudDragonRequirement = z.infer<typeof requirement>;
+export type CloudDragonRequirement = z.infer<typeof requirement>;
 
 const useMockCloudDragon = process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock";
 const mockProjects = [
@@ -48,9 +59,17 @@ const mockRequirements = [
     domain: "900001",
     businessNo: "IR20990101000001",
     name: "按需求域筛选需求列表",
-    description:
-      "<p>项目成员需要快速定位自己负责的需求。</p><p>切换需求域后保留已选择的进展筛选。</p>",
+    description: [
+      "## 背景\n\n项目成员需要快速定位自己负责的需求。切换需求域后保留已选择的进展筛选。",
+      ...Array.from(
+        { length: 12 },
+        (_, index) =>
+          `### 验收场景 ${index + 1}\n\n从项目总览进入需求列表，选择需求域并设置进展筛选。返回列表时，仍可查看筛选结果和打开过的需求。无匹配项时可以清空筛选条件，再次查看全部需求。`,
+      ),
+    ].join("\n\n"),
     process: "开发",
+    delivererOwner: "a00000003",
+    owner: null,
     pi: "101",
     piName: "体验优化",
   },
@@ -61,6 +80,11 @@ const mockRequirements = [
     name: "统一需求列表的空状态提示",
     description: "<p>筛选无结果时提示用户调整筛选条件。</p>",
     process: "完成",
+    delivererOwner: "a00000002",
+    owner: "a00000004",
+    seId: "a00000005",
+    de: "a00000006",
+    te: "a00000007",
     pi: "101",
     piName: "体验优化",
   },
@@ -71,6 +95,7 @@ const mockRequirements = [
     name: "明确需求延期的通知范围",
     description: "<p>梳理延期时需要通知的项目角色。</p>",
     process: "分析",
+    owner: "a00000008",
     pi: null,
     piName: null,
   },
@@ -116,7 +141,7 @@ function parseJson(output: string | undefined): unknown {
   }
 }
 
-function runCloudDragon<T extends { project: string }>(
+function runCloudDragon<T extends { project?: string | undefined }>(
   args: string[],
   data: z.ZodType<T>,
   selectedProjectId?: string,
@@ -163,7 +188,11 @@ function runCloudDragon<T extends { project: string }>(
           reject(businessRule("云龙返回了无法读取的数据。"));
           return;
         }
-        if (selectedProjectId && result.data.data.project !== selectedProjectId) {
+        if (
+          selectedProjectId &&
+          result.data.data.project !== undefined &&
+          result.data.data.project !== selectedProjectId
+        ) {
           logger.warn(undefined, "云龙返回的项目与请求项目不匹配。", { command: args[0] });
           reject(businessRule("云龙返回的项目与请求项目不匹配。"));
           return;
@@ -198,12 +227,18 @@ export async function readCloudDragonRequirements(
   if (useMockCloudDragon)
     return mockRequirements
       .filter(({ projectId }) => projectId === project)
-      .map(({ projectId: _projectId, ...item }) => ({
-        ...item,
-        creator: "a00000001",
-        submitter: "a00000001",
-        createDate: "2026-11-01 09:00:00",
-      }));
+      .map(({ projectId: _projectId, ...item }) =>
+        requirement.parse({
+          ...item,
+          creator: "a00000001",
+          submitter: "a00000001",
+          createDate: "2026-11-01 09:00:00",
+          customProps: [{ name: "来源", value: "需求共创" }],
+          labels: [],
+          archived: false,
+          comments: item.businessNo === "IR20990101000001" ? mockComments : [],
+        }),
+      );
   const { domains } = await runCloudDragon(["ir", "list", "--all"], requirementResponse, project);
   const [group] = domains;
   if (!group) return [];
@@ -215,4 +250,59 @@ export async function readCloudDragonRequirements(
     throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
   const requirements = new Map(group.items.map((item) => [item.businessNo, item]));
   return [...requirements.values()];
+}
+
+function displayField(value: z.infer<ReturnType<typeof z.json>>): string {
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+function detailFields(ir: CloudDragonRequirement) {
+  const { description, comments: _comments, ...fields } = ir;
+  return {
+    description: description == null ? "" : displayField(description),
+    fields: Object.entries(fields).flatMap(([name, value]) =>
+      value === undefined ? [] : [{ name, value: displayField(value) }],
+    ),
+  };
+}
+
+const mockComments = [
+  {
+    author: "a00000002",
+    createdAt: "2026-11-02 14:00:00",
+    body: [
+      "## 需求澄清记录\n\n讨论后补充以下验收要点。",
+      ...Array.from(
+        { length: 12 },
+        (_, index) =>
+          `### 验收要点 ${index + 1}\n\n检查有结果、无结果和切换需求域三种场景。记录实际显示的条目数，确认重新进入列表后仍可读取需求。`,
+      ),
+    ].join("\n\n"),
+  },
+  {
+    author: "a00000003",
+    createdAt: "2026-11-03 09:00:00",
+    body: "请补充一个无权限需求域的验收场景。\n确认筛选项只包含当前账号可见的需求域。",
+  },
+];
+
+export function cloudDragonRequirementDetails(ir: CloudDragonRequirement): AIReqRequirementDetails {
+  const details = detailFields(ir);
+  const comments = embeddedComments.safeParse(ir["comments"]);
+  if (!comments.success) return { ...details, comments: { unavailable: true } };
+  return {
+    ...details,
+    comments: {
+      items: comments.data.map((item) => {
+        const body = item.detail ?? item.content ?? item.body;
+        const author = item.display_author || item.author;
+        const createdAt = item.createDate ?? item.createTime ?? item.created_at ?? item.createdAt;
+        return {
+          body: body == null ? "" : displayField(body),
+          ...(typeof author === "string" && { author }),
+          ...(typeof createdAt === "string" && { createdAt }),
+        };
+      }),
+    },
+  };
 }

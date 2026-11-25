@@ -1,74 +1,80 @@
-import { useId } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
+import type { ReactElement } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog.js";
 import type { AIReqRequirementGroup } from "../contract.js";
+import { AIReqRequirementDetailsContent } from "./AIReqRequirementDetailsContent.js";
 
 export function AIReqProposalText({
   item,
   search,
-  submittedAt,
   zh,
 }: {
   item: AIReqRequirementGroup;
   search: string;
-  submittedAt: string;
   zh: boolean;
 }) {
-  const { title, originalText, submittedBy } = item;
-  const readingId = useId();
+  const { title, originalText } = item;
   const separateOriginal = !!originalText && originalText !== title;
   const titleMatch = searchExcerpt(title, search);
   const originalMatch = separateOriginal ? searchExcerpt(originalText, search) : undefined;
 
-  const expandLabel = zh ? "查看原始需求" : "Read original request";
   return (
     <>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="block max-w-full cursor-pointer rounded-sm text-left font-semibold hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
-            aria-label={`${title} · ${expandLabel}`}
-          >
-            {titleMatch ? (
-              <span className="wrap-anywhere">{titleMatch}</span>
-            ) : (
-              <span className="line-clamp-2 wrap-anywhere">{title}</span>
-            )}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          aria-labelledby={readingId}
-          className="w-120 max-w-(--radix-popover-content-available-width) gap-3 p-4"
+      <AIReqProposalDetails item={item} zh={zh}>
+        <button
+          type="button"
+          className="block max-w-full cursor-pointer rounded-sm text-left font-semibold hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
+          aria-label={`${title} · ${zh ? "查看需求详情" : "View requirement details"}`}
         >
-          <div
-            role="region"
-            aria-label={expandLabel}
-            tabIndex={0}
-            className="max-h-[min(50vh,24rem)] space-y-3 overflow-auto overscroll-contain rounded-sm p-0.5 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused"
-          >
-            <header className="space-y-1">
-              <h2 id={readingId} className="wrap-anywhere text-ui-lg font-semibold">
-                {title}
-              </h2>
-              <p className="wrap-anywhere text-ui-caption text-foreground-subtle">
-                {zh ? "提交人" : "Submitted by"} {submittedBy} ·{" "}
-                <time dateTime={item.createdAt}>{submittedAt}</time>
-                {zh ? "（北京时间）" : " (Beijing time)"}
-              </p>
-            </header>
-            {separateOriginal && (
-              <p className="border-t border-border pt-3 whitespace-pre-wrap wrap-anywhere">
-                {originalText}
-              </p>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+          {titleMatch ? (
+            <span className="wrap-anywhere">{titleMatch}</span>
+          ) : (
+            <span className="line-clamp-2 wrap-anywhere">{title}</span>
+          )}
+        </button>
+      </AIReqProposalDetails>
       {originalMatch && (
         <p className="mt-1 wrap-anywhere text-ui-caption text-foreground-subtle">{originalMatch}</p>
       )}
     </>
+  );
+}
+
+export function AIReqProposalDetails({
+  item,
+  zh,
+  children,
+}: {
+  item: AIReqRequirementGroup;
+  zh: boolean;
+  children: ReactElement;
+}) {
+  const { title } = item;
+  return (
+    <Dialog>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent
+        aria-describedby={undefined}
+        overlayClassName="z-[65]"
+        className="z-[65] flex h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] max-w-[92rem] min-w-0 flex-col gap-0 overflow-hidden p-0"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-16">
+          <DialogTitle
+            className="line-clamp-2 wrap-anywhere text-ui-lg font-semibold"
+            title={title}
+          >
+            {title}
+          </DialogTitle>
+          <p className="font-mono text-ui-caption text-foreground-subtle">{item.id}</p>
+        </DialogHeader>
+        <AIReqRequirementDetailsContent projectId={item.projectId} irId={item.id} zh={zh} />
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -51,7 +51,7 @@ export function projectRequirement(
 ): AIReqRequirementGroup {
   const {
     clientDraftId: _clientDraftId,
-    process: _process,
+    sourceDescription: _sourceDescription,
     releaseName: _releaseName,
     documentVersion,
     documentReviews,
@@ -172,12 +172,21 @@ function projectWorkspace(project?: Readonly<Project>): AIReqWorkspace {
 }
 
 /** 项目目录、bootstrap 和详情只从同源设置投影工作区。 */
-export function readProjectWorkspaces(): Record<string, AIReqWorkspace> {
+export function readProjectWorkspaces(
+  projects?: readonly Project[],
+): Record<string, AIReqWorkspace> {
   return Object.fromEntries(
-    mapPrototypeProjectSettings((project) => [project.id, projectWorkspace(project)] as const),
+    projects
+      ? projects.map((project) => [project.id, projectWorkspace(project)] as const)
+      : mapPrototypeProjectSettings((project) => [project.id, projectWorkspace(project)] as const),
   );
 }
 
-export function readProjectWorkspace(projectId?: string): AIReqWorkspace {
-  return projectWorkspace(readPrototypeProjectSetting(projectId));
+export function readProjectWorkspace(
+  projectId?: string,
+  projects?: readonly Project[],
+): AIReqWorkspace {
+  return projectWorkspace(
+    projects ? projects.find(({ id }) => id === projectId) : readPrototypeProjectSetting(projectId),
+  );
 }

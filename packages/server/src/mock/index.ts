@@ -38,7 +38,7 @@ export function createMockServices(options: MockServicesOptions): {
   registerModelSelectionMockService(services);
 
   // 协议面与项目目录：AIReq、v4 会话、项目目录。
-  const aiReqService = new MockAIReqService() satisfies AIReqNativeBridge;
+  const aiReqService = new MockAIReqService(options.workspacePath) satisfies AIReqNativeBridge;
   services.register(IAIReqService, aiReqService.remote);
   const native = new MockZCodeAgentService(runtime, aiReqService);
   aiReqService.bindReviewRuntime((work) => native.enqueueDocumentReview(work));

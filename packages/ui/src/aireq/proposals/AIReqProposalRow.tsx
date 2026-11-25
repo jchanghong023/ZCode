@@ -1,5 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown, CircleCheck, Ellipsis, FileText, MessagesSquare } from "lucide-react";
+import {
+  ChevronDown,
+  CircleCheck,
+  Ellipsis,
+  FileSearch,
+  FileText,
+  MessagesSquare,
+} from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
@@ -8,15 +15,24 @@ import { type AIReqRequirementGroup, hasProjectRole } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqCopyDocumentLinkButton } from "./AIReqCopyDocumentLinkButton.js";
-import { AIReqProposalText } from "./AIReqProposalText.js";
+import { AIReqProposalDetails, AIReqProposalText } from "./AIReqProposalText.js";
+import { proposalPerson, proposalProcessLabel, type ProposalColumn } from "./proposalColumns.js";
+
+// Layer translucent row states over the card surface so pinned cells cover scrolling columns.
+const pinnedSurface =
+  "bg-card [background-image:linear-gradient(var(--pinned-tint,transparent),var(--pinned-tint,transparent))]";
+const pinnedIdentity =
+  "first:@min-[760px]/conversation:sticky first:@min-[760px]/conversation:left-0 first:@min-[760px]/conversation:z-10 first:@min-[760px]/conversation:bg-card first:@min-[760px]/conversation:[background-image:linear-gradient(var(--pinned-tint,transparent),var(--pinned-tint,transparent))]";
 
 export function AIReqProposalRow({
   item,
+  columns,
   releaseTitle,
   search,
   zh,
 }: {
   item: AIReqRequirementGroup;
+  columns: ProposalColumn[];
   releaseTitle: string;
   search: string;
   zh: boolean;
@@ -32,6 +48,8 @@ export function AIReqProposalRow({
   const [actionsOpen, setActionsOpen] = useState(false);
   const rowRef = useRef<HTMLTableRowElement>(null);
   const focusDocuments = useRef(false);
+  const actionTrigger = useRef<HTMLButtonElement>(null);
+  const openingDocumentsFromMenu = useRef(false);
   useLayoutEffect(() => {
     if (!documentsOpen || !activeTab || !focusDocuments.current) return;
     focusDocuments.current = false;
@@ -45,65 +63,79 @@ export function AIReqProposalRow({
   const requirementsLabel = zh ? "讨论需求" : "Discuss requirements";
   const solutionLabel = zh ? "讨论方案" : "Discuss solution";
   const documentsLabel = zh ? "查看文档" : "View documents";
+  const detailsLabel = zh ? "查看需求详情" : "View requirement details";
   const moreLabel = zh ? "更多操作" : "More actions";
   const solutionHint = zh
     ? "仅项目开发和测试可进入"
     : "Available to project developers and testers";
   const locale = zh ? "zh-CN" : "en-US";
-  const submittedAt = new Date(item.createdAt).toLocaleString(locale, {
-    timeZone: "Asia/Shanghai",
-    hour12: false,
-  });
+  function discussRequirements() {
+    ai.select({ ...selection, discussionPhase: "requirements" });
+  }
+  function openDocuments(trigger: HTMLButtonElement) {
+    trigger.focus({ preventScroll: true });
+    focusDocuments.current = true;
+    open({ selection, releaseId: item.releaseId, title: item.title });
+  }
   return (
     <tr
       ref={rowRef}
       role="row"
       aria-current={documentsOpen || undefined}
       data-aireq-motion-row=""
-      className="group/row border-b border-border/60 last:border-b-0 hover:bg-hover aria-[current=true]:bg-selected @max-[760px]/conversation:flex @max-[760px]/conversation:flex-wrap @max-[760px]/conversation:items-center @max-[760px]/conversation:gap-x-4 @max-[760px]/conversation:gap-y-1.5 @max-[760px]/conversation:px-3 @max-[760px]/conversation:py-2.5"
+      className="group/row border-b border-border/60 last:border-b-0 hover:bg-hover hover:[--pinned-tint:var(--color-hover)] aria-[current=true]:bg-selected aria-[current=true]:[--pinned-tint:var(--color-selected)]"
     >
-      <th
-        role="rowheader"
-        scope="row"
-        data-aireq-motion-cell=""
-        className="min-w-0 font-normal @max-[760px]/conversation:basis-full @min-[760px]/conversation:py-2.5 @min-[760px]/conversation:pr-3 @min-[760px]/conversation:pl-4"
-      >
-        <AIReqProposalText item={item} search={search} submittedAt={submittedAt} zh={zh} />
-      </th>
+      {columns.map((column) =>
+        column === "title" ? (
+          <th
+            key={column}
+            scope="row"
+            data-aireq-motion-cell=""
+            className={`min-w-0 px-3 py-2.5 font-normal first:pl-4 ${pinnedIdentity}`}
+          >
+            <AIReqProposalText item={item} search={search} zh={zh} />
+          </th>
+        ) : (
+          <td
+            key={column}
+            className={`min-w-0 px-3 py-2.5 text-ui-caption wrap-anywhere text-foreground-subtle first:pl-4 group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground ${column === "id" ? pinnedIdentity : ""}`}
+          >
+            <RequirementCell
+              column={column}
+              item={item}
+              releaseTitle={releaseTitle}
+              zh={zh}
+              locale={locale}
+            />
+          </td>
+        ),
+      )}
       <td
-        role="cell"
-        className="min-w-0 font-mono text-ui-sm wrap-anywhere text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground @min-[760px]/conversation:py-2.5 @min-[760px]/conversation:pr-3"
+        className={`sticky right-0 z-10 border-l border-border px-3 py-2 @max-[620px]/conversation:px-0 ${pinnedSurface}`}
       >
-        {item.id}
-      </td>
-      <td
-        role="cell"
-        title={releaseTitle}
-        className="min-w-0 max-w-full text-ui-caption wrap-anywhere text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground @min-[760px]/conversation:py-2.5 @min-[760px]/conversation:pr-3"
-      >
-        <span className="line-clamp-2">
-          <span className="font-medium @min-[760px]/conversation:hidden">Release · </span>
-          {releaseTitle}
-        </span>
-      </td>
-      <td
-        role="cell"
-        className="min-w-0 text-ui-caption text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground @min-[760px]/conversation:py-2.5 @min-[760px]/conversation:pr-2"
-      >
-        <DocumentVersion item={item} zh={zh} locale={locale} />
-      </td>
-      <td
-        role="cell"
-        className="@max-[540px]/conversation:basis-full @min-[540px]/conversation:@max-[760px]/conversation:ml-auto @min-[760px]/conversation:py-2 @min-[760px]/conversation:pr-3"
-      >
-        <div className="flex items-center gap-1 @min-[540px]/conversation:justify-end">
+        <div className="flex items-center justify-end gap-1 @max-[620px]/conversation:justify-center">
+          {!columns.includes("title") && (
+            <AIReqProposalDetails item={item} zh={zh}>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="@max-[620px]/conversation:hidden"
+                title={detailsLabel}
+                aria-label={`${detailsLabel} · ${item.title}`}
+              >
+                <FileSearch aria-hidden="true" />
+              </Button>
+            </AIReqProposalDetails>
+          )}
           <Button
             type="button"
             variant="secondary"
             data-aireq-proposal-entry={item.id}
             data-aireq-agent="requirements"
             aria-label={`${requirementsLabel} · ${item.title}`}
-            onClick={() => ai.select({ ...selection, discussionPhase: "requirements" })}
+            className="@max-[620px]/conversation:hidden"
+            onClick={discussRequirements}
           >
             {zh ? requirementsLabel : "Discuss"}
           </Button>
@@ -115,12 +147,8 @@ export function AIReqProposalRow({
               aria-label={`${documentsLabel} · ${item.title}`}
               aria-controls="aireq-document-workspace"
               aria-expanded={documentsOpen}
-              onClick={(event) => {
-                // 右侧文档宿主使用焦点来源在收起时回焦。
-                event.currentTarget.focus({ preventScroll: true });
-                focusDocuments.current = true;
-                open({ selection, releaseId: item.releaseId, title: item.title });
-              }}
+              className="@max-[620px]/conversation:hidden"
+              onClick={(event) => openDocuments(event.currentTarget)}
             >
               <FileText aria-hidden="true" />
             </Button>
@@ -128,6 +156,7 @@ export function AIReqProposalRow({
           <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
             <PopoverTrigger asChild>
               <Button
+                ref={actionTrigger}
                 type="button"
                 size="icon"
                 variant="ghost"
@@ -139,7 +168,54 @@ export function AIReqProposalRow({
                 <Ellipsis aria-hidden="true" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" aria-label={moreLabel} className="w-60 gap-0.5 p-1.5">
+            <PopoverContent
+              align="end"
+              aria-label={moreLabel}
+              className="w-60 gap-0.5 p-1.5"
+              onCloseAutoFocus={(event) => {
+                if (!openingDocumentsFromMenu.current) return;
+                openingDocumentsFromMenu.current = false;
+                event.preventDefault();
+                if (actionTrigger.current) openDocuments(actionTrigger.current);
+              }}
+            >
+              <Button
+                type="button"
+                size="lg"
+                variant="ghost"
+                className="w-full justify-start gap-2"
+                onClick={() => {
+                  setActionsOpen(false);
+                  discussRequirements();
+                }}
+              >
+                <MessagesSquare aria-hidden="true" />
+                {requirementsLabel}
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="ghost"
+                className="w-full justify-start gap-2"
+                onClick={() => {
+                  openingDocumentsFromMenu.current = true;
+                  setActionsOpen(false);
+                }}
+              >
+                <FileText aria-hidden="true" />
+                {documentsLabel}
+              </Button>
+              <AIReqProposalDetails item={item} zh={zh}>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="ghost"
+                  className="w-full justify-start gap-2"
+                >
+                  <FileSearch aria-hidden="true" />
+                  {detailsLabel}
+                </Button>
+              </AIReqProposalDetails>
               <Button
                 type="button"
                 size="lg"
@@ -173,6 +249,68 @@ export function AIReqProposalRow({
       </td>
     </tr>
   );
+}
+
+function RequirementCell({
+  column,
+  item,
+  releaseTitle,
+  zh,
+  locale,
+}: {
+  column: Exclude<ProposalColumn, "title">;
+  item: AIReqRequirementGroup;
+  releaseTitle: string;
+  zh: boolean;
+  locale: string;
+}) {
+  switch (column) {
+    case "id":
+      return (
+        <span title={item.id} className="block truncate font-mono text-ui-sm">
+          {item.id}
+        </span>
+      );
+    case "release":
+      return (
+        <span title={releaseTitle} className="line-clamp-2">
+          {releaseTitle}
+        </span>
+      );
+    case "owner":
+    case "requester":
+    case "designOwner":
+    case "developmentOwner":
+    case "testingOwner": {
+      const person = proposalPerson(item, column);
+      return (
+        <span title={person} className="block truncate">
+          {person || "—"}
+        </span>
+      );
+    }
+    case "version":
+      return <DocumentVersion item={item} zh={zh} locale={locale} />;
+    case "submitter":
+      return <span className="font-mono">{item.submittedBy || "—"}</span>;
+    case "date": {
+      const date = new Date(item.createdAt);
+      if (Number.isNaN(date.getTime())) return "—";
+      return (
+        <time
+          dateTime={item.createdAt}
+          className="tabular-nums"
+          title={zh ? "北京时间" : "Beijing time"}
+        >
+          {date.toLocaleString(locale, { timeZone: "Asia/Shanghai", hour12: false })}
+        </time>
+      );
+    }
+    case "process":
+      return item.process ? proposalProcessLabel(item.process, zh) : "—";
+    case "srCount":
+      return <span className="tabular-nums">{item.srIds.length}</span>;
+  }
 }
 
 function DocumentVersion({

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AIREQ_AGENT_ROLES, AIREQ_DOCUMENT_PATHS } from "@zcode/services/aireq";
+import {
+  AIREQ_AGENT_ROLES,
+  AIREQ_DOCUMENT_PATHS,
+  AIREQ_PROPOSAL_COLUMNS,
+} from "@zcode/services/aireq";
 import type { AIReqRemotePath } from "@zcode/services/aireq";
 
 const id = z.string().min(1);
@@ -18,6 +22,21 @@ const workflowTargetSchema = z
   })
   .strict();
 const target = z.object({ projectId: id, irId: id }).strict();
+const proposalColumn = z.enum(AIREQ_PROPOSAL_COLUMNS);
+export const proposalTablePreferencesSchema = z
+  .strictObject({
+    columns: z.array(proposalColumn).min(1).max(AIREQ_PROPOSAL_COLUMNS.length),
+    sort: z.strictObject({
+      column: proposalColumn,
+      direction: z.enum(["ascending", "descending"]),
+    }),
+  })
+  .refine(
+    ({ columns, sort }) =>
+      new Set(columns).size === columns.length &&
+      (columns.includes(sort.column) ||
+        (sort.column === "date" && sort.direction === "descending")),
+  );
 const actionSchema = z.union([
   z.strictObject({
     type: z.enum(["addProjectRoleMember", "removeProjectRoleMember"]),
@@ -86,6 +105,11 @@ export const argumentSchemas = {
   readPresence: z.tuple([]),
   validateDocumentVersion: z.tuple([target]),
   readWorkflow: z.tuple([workflowTargetSchema]),
+  "projects.refreshSnapshot": z.tuple([workflowTargetSchema]),
+  readRequirementDetails: z.tuple([target]),
+  "proposals.syncToRedZone": z.tuple([]),
+  "proposalTable.readPreferences": z.tuple([]),
+  "proposalTable.savePreferences": z.tuple([proposalTablePreferencesSchema, z.boolean()]),
   command: z.tuple([actionSchema, commandTargetSchema, revision]),
   retryMaterial: z.tuple([target.extend({ releaseId: text, path: id, sha256: id }).strict()]),
   retrySession: z.tuple([workflowTargetSchema, id]),

@@ -22,7 +22,7 @@ export function AIReqProjectDocumentsPage({
       <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} min-w-0 space-y-6`}>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "所有项目" : "All projects"}</h1>
-          <Button variant="outline" disabled={ai.pending} onClick={() => void ai.refresh()}>
+          <Button variant="outline" disabled={ai.pending} onClick={() => void ai.refreshProjects()}>
             <RefreshCw className="size-4" />
             {zh ? "刷新项目" : "Refresh projects"}
           </Button>
