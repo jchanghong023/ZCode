@@ -48,6 +48,7 @@ import { emptyDocumentFormats } from "./materials.js";
 import {
   readCloudDragonProjects,
   cloudDragonRequirementDetails,
+  cloudDragonProposalFields,
   type CloudDragonRequirement,
   readCloudDragonRequirements,
 } from "./clouddragon.js";
@@ -100,7 +101,7 @@ async function refreshPrototypeProjects(): Promise<void> {
 }
 
 async function refreshRequirements(projectId: string): Promise<CloudDragonRequirement[]> {
-  const items = await readCloudDragonRequirements(projectId);
+  const { items, domainName } = await readCloudDragonRequirements(projectId);
   if (!readPrototypeProjectSetting(projectId))
     throw businessRule("云龙目录已不包含此项目，请重新选择。");
   const current = state.requirements.filter((item) => item.projectId === projectId);
@@ -129,6 +130,7 @@ async function refreshRequirements(projectId: string): Promise<CloudDragonRequir
     const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
       ? sourceDate.replace(" ", "T") + "+08:00"
       : sourceDate;
+    const cloudFields = cloudDragonProposalFields(item, domainName);
     if (existing) {
       if (
         existing.title === title &&
@@ -143,7 +145,8 @@ async function refreshRequirements(projectId: string): Promise<CloudDragonRequir
         existing.process === process &&
         existing.releaseId === releaseId &&
         existing.releaseName === releaseName &&
-        existing.createdAt === createdAt
+        existing.createdAt === createdAt &&
+        JSON.stringify(existing.cloudFields) === JSON.stringify(cloudFields)
       )
         return existing;
       return {
@@ -157,6 +160,7 @@ async function refreshRequirements(projectId: string): Promise<CloudDragonRequir
         releaseId,
         releaseName,
         createdAt,
+        cloudFields,
         revision: existing.revision + 1,
       };
     }
@@ -172,6 +176,7 @@ async function refreshRequirements(projectId: string): Promise<CloudDragonRequir
       ...personnel,
       process,
       createdAt,
+      cloudFields,
       documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
       revision: 1,
       srIds: [],

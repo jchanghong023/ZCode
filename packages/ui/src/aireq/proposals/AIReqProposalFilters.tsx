@@ -1,216 +1,389 @@
-import { ListFilter, Search, X } from "lucide-react";
-import { useRef, type ReactNode, type RefObject } from "react";
+import { ArrowLeft, ChevronDown, ChevronRight, Search, X } from "lucide-react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
-import type { AIReqReleaseSummary } from "../contract.js";
-import { proposalProcessLabel } from "./proposalColumns.js";
+  AIReqProposalFilterOptions,
+  type ProposalFilterOptionsProps,
+} from "./AIReqProposalColumnFilter.js";
+import {
+  detailedColumns,
+  isFilterableProposalColumn,
+  proposalColumns,
+  proposalFilterLabel,
+  type ProposalColumn,
+} from "./proposalColumns.js";
 
-export type ProposalFilters = {
-  query: string;
-  submitter: string;
-  version: string;
-  process: string;
+type ColumnFilterBarProps = Pick<
+  ProposalFilterOptionsProps,
+  "items" | "releaseTitles" | "collator" | "zh"
+> & {
+  applied: [ProposalColumn, string[]][];
+  onChangeColumn(column: ProposalColumn, values: string[]): void;
 };
 
+const commonFilterColumns: ProposalColumn[] = [
+  "subType",
+  "domain",
+  "process",
+  "priorityLevel",
+  "labels",
+  "owner",
+  "release",
+  "version",
+];
+const otherFilterColumns = detailedColumns.filter(
+  (field) => isFilterableProposalColumn(field) && !commonFilterColumns.includes(field),
+);
+
 export function AIReqProposalFilters({
-  filters: { query, submitter, version, process },
-  submitters,
-  processes,
-  releases,
-  releaseId,
+  query,
+  applied,
+  hasFilters,
+  releaseTitles,
   searchInput,
+  items,
+  collator,
   zh,
   children,
-  onChange,
-  onReleaseChange,
+  onSearch,
+  onChangeColumn,
   onClear,
-}: {
-  filters: ProposalFilters;
-  submitters: string[];
-  processes: string[];
-  releases: AIReqReleaseSummary[];
-  releaseId?: string;
+}: ColumnFilterBarProps & {
+  query: string;
+  hasFilters: boolean;
   searchInput: RefObject<HTMLInputElement | null>;
-  zh: boolean;
   children: ReactNode;
-  onChange: (field: keyof ProposalFilters, value: string) => void;
-  onReleaseChange: (id?: string) => void;
-  onClear: () => void;
+  onSearch(value: string): void;
+  onClear(): void;
 }) {
-  const moreButton = useRef<HTMLButtonElement>(null);
-  const moreLabel = zh ? "更多筛选" : "More filters";
-  const submitterLabel = zh ? "提交人" : "Submitter";
-  const statusLabel = zh ? "定版状态" : "Confirmation status";
-  const processLabel = zh ? "云龙进展" : "CloudDragon status";
-  const searchLabel = zh ? "搜索标题、编号或原文" : "Search title, ID, or original text";
-  const appliedFilters = [
-    {
-      field: "version" as const,
-      active: version !== "all",
-      label: statusLabel,
-      value:
-        version === "confirmed" ? (zh ? "已定版" : "Confirmed") : zh ? "未定版" : "Unconfirmed",
-    },
-    {
-      field: "process" as const,
-      active: process !== "all",
-      label: processLabel,
-      value: proposalProcessLabel(process.slice("process:".length), zh),
-    },
-  ].filter(({ active }) => active);
-  const additionalCount = appliedFilters.length;
-  const active = Boolean(query.trim() || releaseId || submitter !== "all" || additionalCount);
+  const [editing, setEditing] = useState(false);
+
+  function restoreSearchFocus() {
+    searchInput.current?.focus();
+  }
+
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-32 max-w-44 flex-[1_1_9rem]">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-foreground-subtle"
-          />
+    <div className="flex flex-wrap items-center gap-2">
+      {applied.map(([column, values]) => (
+        <FilterChip
+          key={column}
+          label={proposalColumns[column][zh ? "zh" : "en"]}
+          value={values
+            .map((value) => proposalFilterLabel(column, value, releaseTitles, zh))
+            .join(zh ? " | " : ", ")}
+          zh={zh}
+          onRemove={() => {
+            onChangeColumn(column, []);
+            restoreSearchFocus();
+          }}
+        />
+      ))}
+      {!editing && query.trim() && (
+        <FilterChip
+          label={zh ? "关键词" : "Keyword"}
+          value={query.trim()}
+          zh={zh}
+          onEdit={() => {
+            setEditing(true);
+            restoreSearchFocus();
+          }}
+          onRemove={() => {
+            onSearch("");
+            restoreSearchFocus();
+          }}
+        />
+      )}
+      <AddProposalFilter
+        applied={applied}
+        items={items}
+        releaseTitles={releaseTitles}
+        collator={collator}
+        zh={zh}
+        onChangeColumn={onChangeColumn}
+        query={query}
+        editing={editing}
+        searchInput={searchInput}
+        onEditingChange={setEditing}
+        onSearch={onSearch}
+      />
+      <div className="ml-auto flex items-center gap-2">
+        {hasFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            onClick={() => {
+              onClear();
+              restoreSearchFocus();
+            }}
+          >
+            {zh ? "清除筛选" : "Clear filters"}
+          </Button>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({
+  label,
+  value,
+  zh,
+  onRemove,
+  onEdit,
+}: {
+  label: string;
+  value: string;
+  zh: boolean;
+  onRemove(): void;
+  onEdit?(): void;
+}) {
+  const summary = `${label}${zh ? "：" : ": "}${value}`;
+  return (
+    <div className="inline-flex h-8 max-w-[min(100%,28rem)] min-w-0 items-center gap-1 rounded-lg bg-secondary pl-2.5 text-ui-caption text-secondary-foreground">
+      {onEdit ? (
+        <button
+          type="button"
+          title={summary}
+          aria-label={zh ? "编辑关键词" : "Edit keyword"}
+          className="min-w-0 truncate rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-input-border-focused"
+          onClick={onEdit}
+        >
+          <span className="text-foreground-subtle">
+            {label}
+            {zh ? "：" : ": "}
+          </span>
+          <span className="font-medium">{value}</span>
+        </button>
+      ) : (
+        <span className="min-w-0 truncate" title={summary}>
+          <span className="text-foreground-subtle">
+            {label}
+            {zh ? "：" : ": "}
+          </span>
+          <span className="font-medium">{value}</span>
+        </span>
+      )}
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="mr-0.5 shrink-0"
+        aria-label={zh ? `移除 ${summary}` : `Remove ${summary}`}
+        onClick={onRemove}
+      >
+        <X aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
+
+function AddProposalFilter({
+  items,
+  applied,
+  releaseTitles,
+  collator,
+  zh,
+  onChangeColumn,
+  query,
+  editing,
+  searchInput,
+  onEditingChange,
+  onSearch,
+}: ColumnFilterBarProps & {
+  query: string;
+  editing: boolean;
+  searchInput: RefObject<HTMLInputElement | null>;
+  onEditingChange(editing: boolean): void;
+  onSearch(value: string): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [column, setColumn] = useState<ProposalColumn>();
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [draft, setDraft] = useState<string[]>([]);
+  const fieldInput = useRef<HTMLInputElement>(null);
+  const name = (field: ProposalColumn) => proposalColumns[field][zh ? "zh" : "en"];
+  const label = zh ? "添加筛选条件" : "Add filter";
+  const searchLabel = zh ? "搜索标题、编号或原文" : "Search title, ID, or original text";
+  const term = fieldSearch.trim().toLocaleLowerCase();
+  const sections = [
+    { label: zh ? "常用字段" : "Common fields", fields: commonFilterColumns },
+    { label: zh ? "其他字段" : "Other fields", fields: otherFilterColumns },
+  ]
+    .map((section) => ({
+      ...section,
+      fields: section.fields.filter(
+        (field) =>
+          name(field).toLocaleLowerCase().includes(term) || field.toLowerCase().includes(term),
+      ),
+    }))
+    .filter(({ fields }) => fields.length);
+
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setColumn(undefined);
+      setFieldSearch("");
+      setDraft([]);
+    }
+  }
+
+  function focusFields() {
+    setColumn(undefined);
+    requestAnimationFrame(() => fieldInput.current?.focus());
+  }
+
+  return (
+    <Popover open={open} onOpenChange={changeOpen}>
+      {column && !applied.some(([field]) => field === column) && (
+        <FilterChip label={name(column)} value="" zh={zh} onRemove={() => changeOpen(false)} />
+      )}
+      <div className="relative min-w-40 flex-1">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-2 left-2 size-4 text-foreground-subtle"
+        />
+        <PopoverTrigger asChild>
           <Input
             ref={searchInput}
+            type="text"
+            role="combobox"
             aria-label={searchLabel}
-            placeholder={zh ? "搜索需求" : "Search requirements"}
-            value={query}
-            onChange={(event) => onChange("query", event.target.value)}
-            className="h-8 rounded-lg pl-8"
+            aria-description={
+              zh ? "点击或按向下键添加筛选条件" : "Click or press Down Arrow to add a filter"
+            }
+            placeholder={
+              zh
+                ? "点击添加筛选条件，或输入标题、编号搜索"
+                : "Click to add a filter or search titles and IDs"
+            }
+            value={editing ? query : ""}
+            onChange={(event) => {
+              onEditingChange(true);
+              changeOpen(false);
+              onSearch(event.currentTarget.value);
+            }}
+            onBlur={() => onEditingChange(false)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onEditingChange(false);
+                changeOpen(false);
+              } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setOpen(true);
+                focusFields();
+              }
+            }}
+            className="h-8 bg-transparent pr-8 pl-8"
           />
-        </div>
-        <Select
-          value={releaseId ? `release:${releaseId}` : "all"}
-          onValueChange={(value) =>
-            onReleaseChange(value === "all" ? undefined : value.slice("release:".length))
-          }
-          disabled={!releases.length}
-        >
-          <SelectTrigger
-            aria-label={zh ? "筛选 Release" : "Filter by Release"}
-            size="lg"
-            className="min-w-40 max-w-72 flex-[2_1_12rem]"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" align="start">
-            <SelectItem value="all">{zh ? "全部需求" : "All requirements"}</SelectItem>
-            {releases.map((release) => (
-              <SelectItem key={release.id} value={`release:${release.id}`}>
-                {release.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={submitter} onValueChange={(value) => onChange("submitter", value)}>
-          <SelectTrigger
-            size="lg"
-            aria-label={submitterLabel}
-            className="min-w-28 max-w-48 flex-[1_1_8rem]"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" align="start">
-            <SelectItem value="all">{zh ? "全部提交人" : "All submitters"}</SelectItem>
-            {submitters.map((id) => (
-              <SelectItem key={id} value={`submitter:${id}`}>
-                {id}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="ml-auto flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                ref={moreButton}
-                type="button"
-                variant={additionalCount ? "secondary" : "outline"}
-                size="lg"
-              >
-                <ListFilter aria-hidden="true" />
-                {moreLabel}
-                {additionalCount > 0 && (
-                  <span className="ml-0.5 tabular-nums">{additionalCount}</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" aria-label={moreLabel} className="w-64 gap-3 p-3">
-              <div className="space-y-1.5">
-                <p className="text-ui-caption font-medium">{statusLabel}</p>
-                <Select value={version} onValueChange={(value) => onChange("version", value)}>
-                  <SelectTrigger size="lg" aria-label={statusLabel} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" align="start">
-                    <SelectItem value="all">{zh ? "全部状态" : "All states"}</SelectItem>
-                    <SelectItem value="confirmed">{zh ? "已定版" : "Confirmed"}</SelectItem>
-                    <SelectItem value="unconfirmed">{zh ? "未定版" : "Unconfirmed"}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-ui-caption font-medium">{processLabel}</p>
-                <Select value={process} onValueChange={(value) => onChange("process", value)}>
-                  <SelectTrigger size="lg" aria-label={processLabel} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" align="start">
-                    <SelectItem value="all">{zh ? "全部进展" : "All statuses"}</SelectItem>
-                    {processes.map((value) => (
-                      <SelectItem key={value} value={`process:${value}`}>
-                        {proposalProcessLabel(value, zh)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                variant="ghost"
-                type="button"
-                disabled={!active}
-                className="justify-self-end"
-                onClick={onClear}
-              >
-                {zh ? "清除筛选" : "Clear filters"}
-              </Button>
-            </PopoverContent>
-          </Popover>
-          {children}
-        </div>
+        </PopoverTrigger>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute top-2 right-2 size-4 text-foreground-subtle"
+        />
       </div>
-      {additionalCount > 0 && (
-        <ul
-          aria-label={zh ? "已启用的附加筛选" : "Active advanced filters"}
-          className="mt-2 flex flex-wrap gap-2"
-        >
-          {appliedFilters.map(({ field, label, value }) => (
-            <li key={field}>
+      <PopoverContent
+        align="start"
+        aria-label={label}
+        collisionPadding={8}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="w-64 max-w-[calc(100vw-1rem)] gap-2 p-2"
+      >
+        {column ? (
+          <>
+            <div className="flex items-center gap-1">
               <Button
                 type="button"
-                size="sm"
-                variant="secondary"
-                aria-label={zh ? `取消筛选 ${label}：${value}` : `Remove filter ${label}: ${value}`}
+                variant="ghost"
+                size="icon-sm"
+                aria-label={zh ? "返回筛选字段" : "Back to fields"}
+                onClick={focusFields}
+              >
+                <ArrowLeft aria-hidden="true" />
+              </Button>
+              <span className="font-medium">{name(column)}</span>
+            </div>
+            <AIReqProposalFilterOptions
+              key={column}
+              column={column}
+              items={items}
+              releaseTitles={releaseTitles}
+              collator={collator}
+              selected={draft}
+              zh={zh}
+              onChange={setDraft}
+              focusSearch
+              showClear={false}
+            />
+            <div className="flex justify-end gap-2 border-t border-border pt-2">
+              <Button
+                type="button"
                 onClick={() => {
-                  onChange(field, "all");
-                  moreButton.current?.focus();
+                  onChangeColumn(column, draft);
+                  changeOpen(false);
                 }}
               >
-                {label}
-                {zh ? "：" : ": "}
-                {value}
-                <X aria-hidden="true" />
+                {zh ? "确定" : "Apply"}
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!draft.length}
+                onClick={() => setDraft([])}
+              >
+                {zh ? "清空" : "Clear"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Input
+              ref={fieldInput}
+              type="search"
+              aria-label={zh ? "搜索筛选字段" : "Search filter fields"}
+              placeholder={zh ? "搜索筛选字段" : "Search filter fields"}
+              value={fieldSearch}
+              onChange={(event) => setFieldSearch(event.currentTarget.value)}
+            />
+            <div className="max-h-64 overflow-y-auto overscroll-contain">
+              {sections.map(({ label: heading, fields }) => (
+                <section key={heading} aria-label={heading}>
+                  <h3 className="px-2 pt-2 pb-1 text-ui-caption font-medium text-foreground-subtle">
+                    {heading}
+                  </h3>
+                  {fields.map((field) => (
+                    <Button
+                      key={field}
+                      type="button"
+                      variant="ghost"
+                      className="w-full justify-between"
+                      onClick={() => {
+                        setDraft(
+                          applied.find(([selectedField]) => selectedField === field)?.[1] ?? [],
+                        );
+                        setColumn(field);
+                      }}
+                    >
+                      {name(field)}
+                      <ChevronRight aria-hidden="true" />
+                    </Button>
+                  ))}
+                </section>
+              ))}
+              {!sections.length && (
+                <p role="status" className="px-2 py-2 text-ui-caption text-foreground-subtle">
+                  {zh ? "没有匹配的字段。" : "No matching fields."}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

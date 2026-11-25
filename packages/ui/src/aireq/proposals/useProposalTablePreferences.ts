@@ -4,6 +4,7 @@ import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
 import {
   defaultProposalPreferences,
+  migrateCompactPreferences,
   readLegacyProposalPreferences,
   type ProposalTablePreferences,
 } from "./proposalColumns.js";
@@ -25,11 +26,11 @@ export function useProposalTablePreferences(zh: boolean) {
         if (saved || !active) return saved;
         const legacy = readLegacyProposalPreferences(legacyKey);
         return legacy
-          ? source.saveProposalTablePreferences(legacy, true)
+          ? source.saveProposalTablePreferences(migrateCompactPreferences(legacy), true)
           : defaultProposalPreferences;
       })
       .then((saved) => {
-        if (active && saved) setPreferences(saved);
+        if (active && saved) setPreferences(migrateCompactPreferences(saved));
       })
       .catch((cause: unknown) => {
         if (active) setError({ cause, operation: "read" });

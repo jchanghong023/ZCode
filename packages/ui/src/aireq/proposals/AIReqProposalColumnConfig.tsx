@@ -31,35 +31,31 @@ import {
   compactColumns,
   detailedColumns,
   proposalColumns,
+  proposalFieldGroups,
   type ProposalColumn,
 } from "./proposalColumns.js";
 
-const personnelColumns: ProposalColumn[] = [
-  "owner",
-  "requester",
-  "designOwner",
-  "developmentOwner",
-  "testingOwner",
-  "submitter",
-];
-const fieldGroups: { zh: string; en: string; fields: ProposalColumn[] }[] = [
-  { zh: "基础信息", en: "Basics", fields: ["title", "id", "release", "version"] },
-  { zh: "人员分工", en: "Personnel", fields: personnelColumns },
-  { zh: "计划与进展", en: "Planning and status", fields: ["date", "process"] },
-  { zh: "其他字段", en: "Other fields", fields: ["srCount"] },
-];
+const fieldGroups = Object.entries(proposalFieldGroups).map(([group, labels]) => ({
+  ...labels,
+  fields: detailedColumns.filter((column) => proposalColumns[column].group === group),
+}));
+const personnelColumns = detailedColumns.filter(
+  (column) => proposalColumns[column].group === "people",
+);
 const presets = [
-  { zh: "精简", en: "Compact", columns: compactColumns },
+  { zh: "精简", en: "Compact", columns: compactColumns, autoFit: true },
   {
     zh: "责任分工",
     en: "Personnel",
-    columns: ["title", "id", "release", ...personnelColumns] as ProposalColumn[],
+    columns: ["title", "id", ...personnelColumns] as ProposalColumn[],
+    autoFit: false,
   },
-  { zh: "全部字段", en: "All fields", columns: detailedColumns },
+  { zh: "全部字段", en: "All fields", columns: detailedColumns, autoFit: false },
 ];
 
 export function AIReqProposalColumnConfig({
   columns,
+  autoFit,
   disabled,
   saving,
   error,
@@ -69,11 +65,12 @@ export function AIReqProposalColumnConfig({
   onRetry,
 }: {
   columns: ProposalColumn[];
+  autoFit: boolean;
   disabled: boolean;
   saving: boolean;
   error?: string;
   zh: boolean;
-  onChange: (columns: ProposalColumn[]) => void;
+  onChange: (columns: ProposalColumn[], autoFit?: boolean) => void;
   onReset: () => void;
   onRetry: () => void;
 }) {
@@ -85,7 +82,11 @@ export function AIReqProposalColumnConfig({
       ...group,
       fields: group.fields.filter((column) => {
         const { zh, en } = proposalColumns[column];
-        return zh.includes(search) || en.toLocaleLowerCase().includes(search);
+        return (
+          zh.includes(search) ||
+          en.toLocaleLowerCase().includes(search) ||
+          column.toLowerCase().includes(search)
+        );
       }),
     }))
     .filter(({ fields }) => fields.length > 0);
@@ -119,72 +120,82 @@ export function AIReqProposalColumnConfig({
       </DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
-        className="max-h-[85dvh] max-w-[min(44rem,calc(100%-2rem))] overflow-y-auto p-0"
+        className="flex max-h-[85dvh] max-w-[min(44rem,calc(100%-2rem))] flex-col overflow-hidden p-0"
       >
-        <DialogHeader className="border-b border-border px-5 pt-4 pb-3 pr-16">
+        <DialogHeader className="shrink-0 border-b border-border px-5 pt-4 pb-3 pr-16">
           <DialogTitle className="text-ui-lg font-semibold">{label}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-1 gap-4 px-5 sm:grid-cols-2">
-          <section className="min-w-0 space-y-3">
-            <h3 className="font-semibold">{zh ? "可选字段" : "Available fields"}</h3>
-            <div className="flex flex-wrap items-center gap-1">
+        <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto px-5 sm:grid-cols-2 sm:overflow-hidden">
+          <section className="flex min-h-0 min-w-0 flex-col gap-3">
+            <h3 className="shrink-0 font-semibold">{zh ? "可选字段" : "Available fields"}</h3>
+            <div className="flex shrink-0 flex-wrap items-center gap-1">
               {presets.map((preset) => (
                 <Button
                   key={preset.en}
                   type="button"
                   size="lg"
                   variant="outline"
-                  aria-pressed={isPreset(preset.columns)}
+                  aria-pressed={autoFit === preset.autoFit && isPreset(preset.columns)}
                   className="aria-pressed:bg-selected aria-pressed:font-semibold"
-                  onClick={() => onChange(preset.columns)}
+                  onClick={() => onChange(preset.columns, preset.autoFit)}
                 >
                   {zh ? preset.zh : preset.en}
                 </Button>
               ))}
             </div>
+            {autoFit && (
+              <p className="shrink-0 text-ui-caption text-foreground-subtle">
+                {zh
+                  ? "空间足够时显示进展、停留时间、工作量及开发、测试责任人。"
+                  : "Status, time in status, workload, and owners appear when space allows."}
+              </p>
+            )}
             <Input
               type="search"
               aria-label={zh ? "搜索字段" : "Search fields"}
               placeholder={zh ? "搜索字段" : "Search fields"}
+              className="shrink-0"
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
             />
-            {groups.length ? (
-              groups.map((group) => (
-                <fieldset key={group.en}>
-                  <legend className="text-ui-caption font-medium text-foreground-subtle">
-                    {zh ? group.zh : group.en}
-                  </legend>
-                  <div className="grid grid-cols-2 gap-x-2">
-                    {group.fields.map((column) => {
-                      const visible = columns.includes(column);
-                      return (
-                        <label
-                          key={column}
-                          className="flex min-w-0 items-center gap-2 rounded-sm px-1 py-1.5"
-                        >
-                          <Checkbox
-                            checked={visible}
-                            disabled={visible && columns.length === 1}
-                            onCheckedChange={(checked) => {
-                              if (checked) onChange([...columns, column]);
-                              else remove(column);
-                            }}
-                          />
-                          <span className="wrap-anywhere">{name(column)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))
-            ) : (
-              <p role="status" className="text-ui-caption text-foreground-subtle">
-                {zh ? "没有匹配的字段。" : "No matching fields."}
-              </p>
-            )}
+            <div className="space-y-3 sm:min-h-0 sm:overflow-y-auto sm:pr-2">
+              {groups.length ? (
+                groups.map((group) => (
+                  <fieldset key={group.en}>
+                    <legend className="text-ui-caption font-medium text-foreground-subtle">
+                      {zh ? group.zh : group.en}
+                    </legend>
+                    <div className="grid grid-cols-2 gap-x-2">
+                      {group.fields.map((column) => {
+                        const visible = columns.includes(column);
+                        return (
+                          <label
+                            key={column}
+                            className="flex min-w-0 items-center gap-2 rounded-sm px-1 py-1.5"
+                          >
+                            <Checkbox
+                              checked={visible}
+                              disabled={visible && columns.length === 1}
+                              onCheckedChange={(checked) => {
+                                if (checked) onChange([...columns, column]);
+                                else remove(column);
+                              }}
+                            />
+                            <span className="wrap-anywhere">{name(column)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ))
+              ) : (
+                <p role="status" className="text-ui-caption text-foreground-subtle">
+                  {zh ? "没有匹配的字段。" : "No matching fields."}
+                </p>
+              )}
+            </div>
           </section>
-          <section className="min-w-0 space-y-2 sm:border-l sm:border-border sm:pl-4">
+          <section className="flex min-h-0 min-w-0 flex-col gap-2 sm:border-l sm:border-border sm:pl-4">
             <h3 className="font-semibold">
               {zh ? "已选字段" : "Selected fields"}{" "}
               <span className="text-ui-caption tabular-nums text-foreground-subtle">
@@ -209,7 +220,7 @@ export function AIReqProposalColumnConfig({
               <SortableContext items={columns} strategy={verticalListSortingStrategy}>
                 <ol
                   aria-label={zh ? "已选字段顺序" : "Selected field order"}
-                  className="divide-y divide-border/60"
+                  className="divide-y divide-border/60 sm:min-h-0 sm:overflow-y-auto sm:pr-2"
                 >
                   {columns.map((column, index) => (
                     <SelectedColumn
@@ -228,7 +239,7 @@ export function AIReqProposalColumnConfig({
             </DndContext>
           </section>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-5 py-2">
           {error ? (
             <>
               <p role="alert" className="text-ui-caption text-destructive">

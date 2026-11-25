@@ -19,6 +19,58 @@ export interface AIReqObjectRef {
   projectId: string;
   irId: string;
 }
+export const AIREQ_CLOUD_PROPOSAL_COLUMNS = [
+  "domain",
+  "iterateId",
+  "subType",
+  "baseline",
+  "creator",
+  "relatedOwner",
+  "modifiedBy",
+  "developEndTime",
+  "testingEndTime",
+  "expectedImplementationDate",
+  "turnAnalysisTime",
+  "completedAnalysisTime",
+  "turnTestTime",
+  "completedDate",
+  "estimatedWorkloadManday",
+  "pmsWorkloadKloc",
+  "priorityLevel",
+  "health_degree",
+  "needBreak",
+  "needDevelop",
+  "isDecompose",
+  "correspondingCategory",
+  "industry",
+  "pmsNetworkSecurityIdentity",
+  "implTracingState",
+  "isRelatedMicroService",
+  "isRelatedDoc",
+  "isRelatedArc",
+  "trustCategory",
+  "verificationPolicy",
+  "pmsStatus",
+  "serviceName",
+  "labels",
+  "noBreakReason",
+  "noDevelopReason",
+  "demandSource",
+  "rrBusinessNo",
+  "pmsRRNumber",
+  "businessCode",
+  "targetCustomer",
+  "netype",
+  "board",
+  "verificationPolicyDesc",
+  "pmsPI",
+  "systemid",
+] as const;
+export type AIReqCloudProposalColumn = (typeof AIREQ_CLOUD_PROPOSAL_COLUMNS)[number];
+export type AIReqCloudProposalFields = Partial<
+  Record<AIReqCloudProposalColumn | "sumWorkloadManday", string | number | boolean | string[]>
+>;
+
 export const AIREQ_PROPOSAL_COLUMNS = [
   "title",
   "id",
@@ -32,10 +84,13 @@ export const AIREQ_PROPOSAL_COLUMNS = [
   "submitter",
   "date",
   "process",
+  "dwellTime",
   "srCount",
+  ...AIREQ_CLOUD_PROPOSAL_COLUMNS,
 ] as const;
 export type AIReqProposalColumn = (typeof AIREQ_PROPOSAL_COLUMNS)[number];
 export interface AIReqProposalTablePreferences {
+  autoFit?: boolean;
   columns: AIReqProposalColumn[];
   sort: { column: AIReqProposalColumn; direction: "ascending" | "descending" };
 }
@@ -142,6 +197,7 @@ export interface AIReqRequirementPersonnel {
   te?: string;
 }
 export interface AIReqRequirementGroup extends AIReqRequirementPersonnel {
+  cloudFields?: AIReqCloudProposalFields;
   id: string;
   projectId: string;
   releaseId: string;

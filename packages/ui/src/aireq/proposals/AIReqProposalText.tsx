@@ -29,6 +29,7 @@ export function AIReqProposalText({
         <button
           type="button"
           className="block max-w-full cursor-pointer rounded-sm text-left font-semibold hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
+          title={title}
           aria-label={`${title} · ${zh ? "查看需求详情" : "View requirement details"}`}
         >
           {titleMatch ? (

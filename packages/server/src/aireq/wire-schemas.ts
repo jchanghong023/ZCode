@@ -25,6 +25,7 @@ const target = z.object({ projectId: id, irId: id }).strict();
 const proposalColumn = z.enum(AIREQ_PROPOSAL_COLUMNS);
 export const proposalTablePreferencesSchema = z
   .strictObject({
+    autoFit: z.boolean().optional(),
     columns: z.array(proposalColumn).min(1).max(AIREQ_PROPOSAL_COLUMNS.length),
     sort: z.strictObject({
       column: proposalColumn,

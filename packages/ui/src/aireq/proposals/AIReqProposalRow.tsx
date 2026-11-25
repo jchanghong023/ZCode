@@ -16,7 +16,14 @@ import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqCopyDocumentLinkButton } from "./AIReqCopyDocumentLinkButton.js";
 import { AIReqProposalDetails, AIReqProposalText } from "./AIReqProposalText.js";
-import { proposalPerson, proposalProcessLabel, type ProposalColumn } from "./proposalColumns.js";
+import {
+  proposalColumns,
+  proposalDate,
+  proposalDwellTime,
+  proposalPerson,
+  proposalProcessLabel,
+  type ProposalColumn,
+} from "./proposalColumns.js";
 
 // Layer translucent row states over the card surface so pinned cells cover scrolling columns.
 const pinnedSurface =
@@ -29,12 +36,14 @@ export function AIReqProposalRow({
   columns,
   releaseTitle,
   search,
+  now,
   zh,
 }: {
   item: AIReqRequirementGroup;
   columns: ProposalColumn[];
   releaseTitle: string;
   search: string;
+  now: number;
   zh: boolean;
 }) {
   const ai = useAIReq()!;
@@ -91,6 +100,7 @@ export function AIReqProposalRow({
             key={column}
             scope="row"
             data-aireq-motion-cell=""
+            data-pinned={columns[0] === column ? "start" : undefined}
             className={`min-w-0 px-3 py-2.5 font-normal first:pl-4 ${pinnedIdentity}`}
           >
             <AIReqProposalText item={item} search={search} zh={zh} />
@@ -98,19 +108,23 @@ export function AIReqProposalRow({
         ) : (
           <td
             key={column}
-            className={`min-w-0 px-3 py-2.5 text-ui-caption wrap-anywhere text-foreground-subtle first:pl-4 group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground ${column === "id" ? pinnedIdentity : ""}`}
+            data-pinned={column === "id" && columns[0] === column ? "start" : undefined}
+            className={`min-w-0 px-3 py-2.5 text-ui-caption wrap-anywhere text-foreground-subtle first:pl-4 group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground ${column === "id" ? pinnedIdentity : ""} ${proposalColumns[column].group === "number" ? "text-right tabular-nums" : ""}`}
           >
             <RequirementCell
               column={column}
               item={item}
               releaseTitle={releaseTitle}
+              now={now}
               zh={zh}
               locale={locale}
             />
           </td>
         ),
       )}
+      <td role="presentation" aria-hidden="true" />
       <td
+        data-pinned="end"
         className={`sticky right-0 z-10 border-l border-border px-3 py-2 @max-[620px]/conversation:px-0 ${pinnedSurface}`}
       >
         <div className="flex items-center justify-end gap-1 @max-[620px]/conversation:justify-center">
@@ -255,12 +269,14 @@ function RequirementCell({
   column,
   item,
   releaseTitle,
+  now,
   zh,
   locale,
 }: {
   column: Exclude<ProposalColumn, "title">;
   item: AIReqRequirementGroup;
   releaseTitle: string;
+  now: number;
   zh: boolean;
   locale: string;
 }) {
@@ -293,24 +309,97 @@ function RequirementCell({
       return <DocumentVersion item={item} zh={zh} locale={locale} />;
     case "submitter":
       return <span className="font-mono">{item.submittedBy || "—"}</span>;
-    case "date": {
-      const date = new Date(item.createdAt);
-      if (Number.isNaN(date.getTime())) return "—";
+    case "date":
+      return <ProposalDateCell value={item.createdAt} zh={zh} locale={locale} />;
+    case "estimatedWorkloadManday": {
+      const estimate = item.cloudFields?.estimatedWorkloadManday;
+      const total = item.cloudFields?.sumWorkloadManday;
+      if (estimate === undefined && total === undefined) return "—";
       return (
-        <time
-          dateTime={item.createdAt}
-          className="tabular-nums"
-          title={zh ? "北京时间" : "Beijing time"}
-        >
-          {date.toLocaleString(locale, { timeZone: "Asia/Shanghai", hour12: false })}
-        </time>
+        <span className="tabular-nums">
+          {String(estimate ?? "—")} | {String(total ?? "—")}{" "}
+          <span className="text-ui-sm">{zh ? "人天" : "person-days"}</span>
+        </span>
       );
     }
     case "process":
       return item.process ? proposalProcessLabel(item.process, zh) : "—";
+    case "dwellTime": {
+      const elapsed = proposalDwellTime(item, now);
+      if (elapsed === undefined) return "—";
+      const minutes = Math.floor(elapsed / 60_000);
+      const format = (value: number, unit: string, unitZh: string) =>
+        zh ? `${value} ${unitZh}` : `${value} ${unit}`;
+      const label =
+        minutes >= 1440
+          ? format(Math.floor(minutes / 1440), "d", "天")
+          : minutes >= 60
+            ? format(Math.floor(minutes / 60), "h", "小时")
+            : minutes > 0
+              ? format(minutes, "min", "分钟")
+              : zh
+                ? "少于 1 分钟"
+                : "<1 min";
+      return (
+        <span
+          className="tabular-nums"
+          title={zh ? "从进入当前进展起算" : "Elapsed time in the current status"}
+        >
+          {label}
+        </span>
+      );
+    }
     case "srCount":
       return <span className="tabular-nums">{item.srIds.length}</span>;
+    default: {
+      const value = item.cloudFields?.[column];
+      if (value === undefined) return "—";
+      if (proposalColumns[column].group === "date")
+        return <ProposalDateCell value={value} zh={zh} locale={locale} />;
+      const text = Array.isArray(value)
+        ? value.join("、")
+        : typeof value === "boolean"
+          ? value
+            ? zh
+              ? "是"
+              : "Yes"
+            : zh
+              ? "否"
+              : "No"
+          : String(value);
+      return (
+        <span title={text} className="line-clamp-2">
+          {text}
+        </span>
+      );
+    }
   }
+}
+
+function ProposalDateCell({
+  value,
+  zh,
+  locale,
+}: {
+  value: string | number | boolean | string[];
+  zh: boolean;
+  locale: string;
+}) {
+  const timestamp = proposalDate(value);
+  if (timestamp === undefined) return value === "" ? "—" : String(value);
+  const date = new Date(timestamp);
+  const display = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? date.toLocaleDateString(locale, { timeZone: "Asia/Shanghai" })
+    : date.toLocaleString(locale, { timeZone: "Asia/Shanghai", hour12: false });
+  return (
+    <time
+      dateTime={date.toISOString()}
+      className="tabular-nums"
+      title={zh ? "北京时间" : "Beijing time"}
+    >
+      {display}
+    </time>
+  );
 }
 
 function DocumentVersion({

@@ -43,6 +43,7 @@ export type {
 } from "@zcode/services/aireq";
 export {
   AIREQ_CONTRACT_VERSION,
+  AIREQ_CLOUD_PROPOSAL_COLUMNS,
   AIREQ_DOCUMENT_PATHS,
   AIREQ_PROPOSAL_COLUMNS,
   checkMarkdownSections,

@@ -1,5 +1,9 @@
 import { execFile } from "node:child_process";
-import type { AIReqRequirementDetails } from "@zcode/services/aireq";
+import {
+  AIREQ_CLOUD_PROPOSAL_COLUMNS,
+  type AIReqCloudProposalFields,
+  type AIReqRequirementDetails,
+} from "@zcode/services/aireq";
 import { createServiceLogger } from "@zcode/services/logger";
 import { z } from "zod";
 import { businessRule } from "./errors.js";
@@ -38,6 +42,7 @@ const requirementResponse = z.object({
   domains: z.array(
     z.object({
       id: domainId,
+      name: z.string().nullish(),
       count: z.number().int().nonnegative().optional(),
       items: z.array(requirement),
     }),
@@ -223,25 +228,41 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
 
 export async function readCloudDragonRequirements(
   project: string,
-): Promise<CloudDragonRequirement[]> {
+): Promise<{ items: CloudDragonRequirement[]; domainName?: string }> {
   if (useMockCloudDragon)
-    return mockRequirements
-      .filter(({ projectId }) => projectId === project)
-      .map(({ projectId: _projectId, ...item }) =>
-        requirement.parse({
-          ...item,
-          creator: "a00000001",
-          submitter: "a00000001",
-          createDate: "2026-11-01 09:00:00",
-          customProps: [{ name: "来源", value: "需求共创" }],
-          labels: [],
-          archived: false,
-          comments: item.businessNo === "IR20990101000001" ? mockComments : [],
-        }),
-      );
+    return {
+      domainName: mockProjects.find(({ id }) => id === project)?.name,
+      items: mockRequirements
+        .filter(({ projectId }) => projectId === project)
+        .map(({ projectId: _projectId, ...item }) =>
+          requirement.parse({
+            ...item,
+            creator: "a00000001",
+            submitter: "a00000001",
+            createDate: "2026-11-01 09:00:00",
+            customProps: [{ name: "来源", value: "需求共创" }],
+            labels:
+              item.businessNo === "IR20990101000001"
+                ? [{ name: "体验优化" }, { name: "需求域" }]
+                : item.businessNo === "IR20990101000002"
+                  ? [{ name: "体验优化" }]
+                  : [],
+            estimatedWorkloadManday: item.businessNo === "IR20990101000001" ? 3 : 8,
+            sumWorkloadManday: item.businessNo === "IR20990101000001" ? 5 : 9,
+            priorityLevel: item.businessNo === "IR20990101000001" ? "高" : "中",
+            needBreak: false,
+            ...(item.businessNo === "IR20990101000001" && {
+              rrBusinessNo: "RR20990101000001",
+              completedAnalysisTime: "2026-11-02 08:00:00",
+            }),
+            archived: false,
+            comments: item.businessNo === "IR20990101000001" ? mockComments : [],
+          }),
+        ),
+    };
   const { domains } = await runCloudDragon(["ir", "list", "--all"], requirementResponse, project);
   const [group] = domains;
-  if (!group) return [];
+  if (!group) return { items: [] };
   if (
     domains.length !== 1 ||
     (group.count !== undefined && group.count !== group.items.length) ||
@@ -249,11 +270,34 @@ export async function readCloudDragonRequirements(
   )
     throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
   const requirements = new Map(group.items.map((item) => [item.businessNo, item]));
-  return [...requirements.values()];
+  return { items: [...requirements.values()], domainName: group.name?.trim() || undefined };
 }
 
 function displayField(value: z.infer<ReturnType<typeof z.json>>): string {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+export function cloudDragonProposalFields(
+  item: CloudDragonRequirement,
+  domainName?: string,
+): AIReqCloudProposalFields {
+  const fields: AIReqCloudProposalFields = {};
+  for (const key of [...AIREQ_CLOUD_PROPOSAL_COLUMNS, "sumWorkloadManday"] as const) {
+    const value = key === "domain" ? (domainName ?? item.domain) : item[key];
+    if (value == null || (typeof value === "string" && !value.trim())) continue;
+    if (Array.isArray(value)) {
+      const names = value.flatMap((entry) => {
+        if (entry == null) return [];
+        if (typeof entry === "object" && !Array.isArray(entry) && typeof entry["name"] === "string")
+          return entry["name"].trim() ? [entry["name"]] : [displayField(entry)];
+        return [displayField(entry)];
+      });
+      if (names.length) fields[key] = names;
+    } else {
+      fields[key] = typeof value === "object" ? displayField(value) : value;
+    }
+  }
+  return fields;
 }
 
 function detailFields(ir: CloudDragonRequirement) {

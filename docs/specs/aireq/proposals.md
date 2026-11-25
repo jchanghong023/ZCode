@@ -164,31 +164,109 @@ clouddragon ir list --project gexample0001 --all --compact |
 
 ### 云龙字段与页面列
 
-页面列与字段键的对应关系来自门户的 `field/getAllFields` 元数据，经 `items/query/{itemId}` 返回值核对。`ir list` 的 `data.domains[].items[]` 和 `ir show` 的 `data.ir` 使用这些字段键。角色字段为空时保留空值。
+以下是云龙门户 `field/getAllFields` 响应中的 75 条字段定义，按适用对象分组。名称取自 `fieldName`，键取自 `fieldKey`。本次元数据中的 `fieldType` 均为空。字段定义说明门户的列配置，实际取值时以对应对象 API 的响应为准。
 
-| 页面标签 | 字段键 | 含义 |
+#### 需求、子需求和任务
+
+| 页面名称 | `fieldKey` | `useType` |
+| --- | --- | --- |
+| 标题 | `title` | `IR,SR,US,Task` |
+| 详情 | `deil` | `IR,SR,US,Task` |
+| 需求空间 | `domain` | `IR,SR,US,Task` |
+| PI | `pi` | `IR,SR,US,Task` |
+| 迭代 | `iterateId` | `IR,SR,US,Task` |
+| 预估\|卷积工作量 | `estimatedWorkloadManday` | `IR,SR,US,Task` |
+| 预估代码行(KLOC) | `pmsWorkloadKloc` | `IR,SR,US,Task` |
+| 进展 | `process` | `IR,SR,US,Task` |
+| 优先级 | `priorityLevel` | `IR,SR,US,Task` |
+| 健康状态 | `health_degree` | `IR,SR,US,Task` |
+| 微服务 | `serviceName` | `IR,SR,US,Task` |
+| 业务编码 | `businessCode` | `IR,SR,US,Task` |
+| 无需分解原因 | `noBreakReason` | `IR,SR,US,Task` |
+| 是否涉及网络安全 | `industry` | `IR,SR,US,Task` |
+| 是否需要分解 | `needBreak` | `IR,SR,US,Task` |
+| 目标用户 | `targetCustomer` | `IR,SR,US,Task` |
+| 无需代码开发原因 | `noDevelopReason` | `IR,SR,US,Task` |
+| 是否需要代码开发 | `needDevelop` | `IR,SR,US,Task` |
+| 需求提出人 | `owner` | `IR,SR,US,Task` |
+| 设计责任人 | `seId` | `IR,SR,US,Task` |
+| 开发责任人 | `de` | `IR,SR,US,Task` |
+| 关联责任人 | `relatedOwner` | `IR,SR,US,Task` |
+| 测试责任人 | `te` | `IR,SR,US,Task` |
+| 当前责任人 | `delivererOwner` | `IR,SR,US,Task` |
+| 计划开发结束时间 | `developEndTime` | `IR,SR,US,Task` |
+| 需求更新人 | `modifiedBy` | `IR,SR,US,Task` |
+| 计划测试结束时间 | `testingEndTime` | `IR,SR,US,Task` |
+| 用户期望交付时间 | `expectedImplementationDate` | `IR,SR,US,Task` |
+| 需求来源 | `demandSource` | `IR,SR,US,Task` |
+| 关联RR | `rrBusinessNo` | `IR,SR,US,Task` |
+| 架构元素 | `netype` | `IR,SR,US,Task` |
+| 创建人 | `creator` | `IR,SR,US,Task` |
+| 创建时间 | `createDate` | `IR,SR,US,Task` |
+| 转分析时间 | `turnAnalysisTime` | `IR,SR,US,Task` |
+| 转开发时间 | `completedAnalysisTime` | `IR,SR,US,Task` |
+| 转测试时间 | `turnTestTime` | `IR,SR,US,Task` |
+| 完成时间 | `completedDate` | `IR,SR,US,Task` |
+| 分解状态 | `isDecompose` | `IR,SR,US,Task` |
+| 需求类型 | `subType` | `IR,SR,US,Task` |
+| 标签 | `labels` | `IR,SR,US,Task` |
+| 评论 | `comments` | `IR,SR,US,Task` |
+| 下游RR编号 | `pmsRRNumber` | `IR,SR,US,Task` |
+| 所属领域 | `correspondingCategory` | `IR,SR,US,Task` |
+| 是否需要关联微服务 | `isRelatedMicroService` | `IR,SR,US,Task` |
+| 是否需要关联文档 | `isRelatedDoc` | `IR,SR,US,Task` |
+| 是否需要关联架构元素 | `isRelatedArc` | `IR,SR,US,Task` |
+| 硬件单板信息 | `board` | `IR,SR,US,Task` |
+| 需求分类 | `trustCategory` | `IR,SR,US,Task` |
+| 验证策略 | `verificationPolicy` | `IR,SR,US,Task` |
+| 验证策略描述 | `verificationPolicyDesc` | `IR,SR,US,Task` |
+| PMS(PI) | `pmsPI` | `IR,SR,US,Task` |
+| 实际工作量（KLOC） | `realWorkloadKloc` | `US` |
+| 实际工作量（人天） | `realWorkloadManday` | `US` |
+| 附件 | `attachment` | `IR,SR,US,Task` |
+| 系统ID | `systemid` | `IR,SR,US,Task` |
+| 基线状态 | `baseline` | `IR,SR,US,Task` |
+| PMS状态 | `pmsStatus` | `IR,SR,US,Task` |
+| 网络安全标识 | `pmsNetworkSecurityIdentity` | `IR,SR,US,Task` |
+| 需求开发跟踪状态 | `implTracingState` | `IR,SR,US` |
+
+#### 缺陷（BUG）
+
+| 页面名称 | `fieldKey` |
+| --- | --- |
+| 标题 | `title` |
+| 描述 | `description` |
+| 需求空间 | `defect2domain` |
+| 提出人 | `defectCreatedBy` |
+| 严重程度 | `severity` |
+| 问题领域 | `problemDomain` |
+| 微服务 | `serviceId` |
+| 发现环境 | `foundEnvironment` |
+| 发现PI | `foundPi` |
+| 发现迭代 | `foundDefect2Plan` |
+| 期望修复时间 | `expectedRepairDate` |
+| 修复PI | `pi` |
+| 修复迭代 | `defect2Plan` |
+| 计划修复时间 | `dueDate` |
+| 预估工作量 | `devWorkload` |
+| 健康状态 | `healthDegree` |
+
+#### IR 业务数据的取值
+
+`ir list` 的 `data.domains[].items[]` 和 `ir show` 的 `data.ir` 返回 IR 记录。下面这些记录字段与门户元数据需要一起对照。
+
+| 含义 | IR 记录字段 | 说明 |
 | --- | --- | --- |
 | 需求编号 | `businessNo` | 门户业务号，用于 `ir show`、`ir update` 和评论命令。内部 `id` 用于门户详情查询。 |
-| 当前责任人 | `delivererOwner` | 当前处理或交付责任人。 |
-| 需求提出人 | `owner` | 需求所有者，CLI 的 `--owner` 写入此字段。 |
-| 设计责任人 | `seId` | 系统工程师。 |
-| 开发责任人 | `de` | 开发工程师。 |
-| 测试责任人 | `te` | 测试责任人。 |
+| 标题 | `name` | IR 记录使用 `name`，列配置元数据使用 `title`。 |
+| 描述 | `description` | IR 记录使用 `description`，需求类元数据的「详情」使用 `deil`。 |
+| 预估／卷积工作量 | `estimatedWorkloadManday`、`sumWorkloadManday` | 元数据用同一列名登记 `estimatedWorkloadManday`，IR 记录另有 `sumWorkloadManday` 表示卷积工作量。 |
+| Release 名称 | `piName` | 以 `pi` 分组，使用 `piName` 展示名称。 |
+| 提交人 | `submitter` | AIReq 在缺失时显示 `creator`。 |
 
-AIReq 的「提交人」沿用 `submitter`，缺失时显示 `creator`。这些来源及 `relatedOwner` 都不用于填充责任人或需求提出人。
+当前责任人取 `delivererOwner`，需求提出人取 `owner`，设计、开发、测试责任人分别取 `seId`、`de`、`te`。这些人员字段为空时保留空值。CLI 的 `--owner` 写入 `owner`。
 
-| 页面标签 | 字段键 | 页面标签 | 字段键 |
-| --- | --- | --- | --- |
-| 需求空间 | `domain` | PI | `pi` |
-| 迭代 | `iterateId` | 进展 | `process` |
-| 预估工作量 | `estimatedWorkloadManday` | 卷积工作量 | `sumWorkloadManday` |
-| 计划开发结束时间 | `developEndTime` | 计划测试结束时间 | `testingEndTime` |
-| 用户期望交付时间 | `expectedImplementationDate` | 需求来源 | `demandSource` |
-| 优先级 | `priorityLevel` | 所属领域 | `correspondingCategory` |
-| 健康状态 | `health_degree` | 是否需要分解 | `needBreak` |
-| 需求开发跟踪状态 | `implTracingState` | 是否需要代码开发 | `needDevelop` |
-| 微服务 | `serviceName` | 网络安全标识 | `pmsNetworkSecurityIdentity` |
-| 创建人 | `creator` | | |
+本次元数据未列出门户的「停留时间」和「关联任务」。AIReq 的「停留时间」根据快照计算，自进入当前进展起算。初始、分析、开发、测试、完成分别取 `createDate`、`turnAnalysisTime`、`completedAnalysisTime`、`turnTestTime`、`completedDate`。缺少相应时间或时间无效时显示「—」。列可见时在浏览器内每分钟更新。门户原有停留时长的取值口径和「关联任务」来源仍需核对。列配置包括已确认映射的云龙 IR 列，缺值显示「—」。需求空间优先取列表域名，缺少名称时显示域 ID。预估／卷积工作量按门户组合为一列，单位为人天，排序使用预估值，缺少预估值时使用卷积值。AIReq 的详情复用列表快照，只有快照包含的原始字段才能在详情中读取。
 
 ### 创建和更新 IR
 

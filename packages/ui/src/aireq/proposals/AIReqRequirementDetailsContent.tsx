@@ -9,9 +9,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
-import type { AIReqRequirementDetails } from "../contract.js";
+import { AIREQ_CLOUD_PROPOSAL_COLUMNS, type AIReqRequirementDetails } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
+import { proposalColumns } from "./proposalColumns.js";
 
 type ReadResult = { attempt: number } & (
   | { detail: AIReqRequirementDetails; error?: never }
@@ -30,27 +31,19 @@ const fieldLabels: Record<string, readonly [zh: string, en: string]> = {
   de: ["开发责任人", "Development owner"],
   te: ["测试责任人", "Test owner"],
   submitter: ["提交人", "Submitter"],
-  creator: ["创建人", "Creator"],
   createDate: ["创建时间", "Created at"],
-  domain: ["需求空间", "Requirement domain"],
   pi: ["PI", "PI"],
   piName: ["Release 名称", "Release name"],
-  iterateId: ["迭代", "Iteration"],
   process: ["进展", "Status"],
-  priorityLevel: ["优先级", "Priority"],
-  health_degree: ["健康状态", "Health"],
+  ...Object.fromEntries(
+    AIREQ_CLOUD_PROPOSAL_COLUMNS.map((key) => [
+      key,
+      [proposalColumns[key].zh, proposalColumns[key].en],
+    ]),
+  ),
   estimatedWorkloadManday: ["预估工作量", "Estimated workload"],
   sumWorkloadManday: ["卷积工作量", "Total workload"],
-  developEndTime: ["计划开发结束时间", "Planned development end"],
-  testingEndTime: ["计划测试结束时间", "Planned testing end"],
-  expectedImplementationDate: ["用户期望交付时间", "Expected delivery"],
-  implTracingState: ["需求开发跟踪状态", "Development tracking"],
-  serviceName: ["微服务", "Microservice"],
-  demandSource: ["需求来源", "Source"],
-  correspondingCategory: ["所属领域", "Category"],
-  needBreak: ["是否需要分解", "Requires decomposition"],
-  needDevelop: ["是否需要代码开发", "Requires development"],
-  pmsNetworkSecurityIdentity: ["网络安全标识", "Network security designation"],
+  attachment: ["附件", "Attachments"],
 };
 
 export function AIReqRequirementDetailsContent({
